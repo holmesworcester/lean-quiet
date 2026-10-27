@@ -30,3 +30,4 @@ open Engine Community
 #print axioms Community.removal_cuts_off
 #print axioms Engine.drain_terminates
 #print axioms Engine.drain_settles
+#print axioms Engine.same_ops_same_verdicts

@@ -115,4 +115,19 @@ theorem drain_settles {L : List Op} (hd : Distinct L) {s : DB F} (h : Reach fam 
   obtain ⟨n, hn⟩ := drain_terminates hd s h
   exact ⟨n, hn, status_iff_spec (reach_inv (reach_drain h n)) hn⟩
 
+/-- **Same ops, any order, same verdicts.** Two nodes that received the
+same ops — in any orders, in any batches, with processing interleaved
+anywhere — both finish processing, and then hold exactly the same
+verdict, fact included, for every op. -/
+theorem same_ops_same_verdicts {L M : List Op} {s t : DB F}
+    (hs : Reach fam L s) (ht : Reach fam M t)
+    (hd : Distinct (L ++ M)) (hsame : ∀ o, o ∈ L ↔ o ∈ M) :
+    ∃ n m, (drainS fam n s).queue = [] ∧ (drainS fam m t).queue = [] ∧
+      (drainS fam n s).status = (drainS fam m t).status := by
+  have dL : Distinct L := fun a ha b hb => hd a (List.mem_append_left _ ha) b (List.mem_append_left _ hb)
+  have dM : Distinct M := fun a ha b hb => hd a (List.mem_append_right _ ha) b (List.mem_append_right _ hb)
+  obtain ⟨n, hn⟩ := drain_terminates dL s hs
+  obtain ⟨m, hm⟩ := drain_terminates dM t ht
+  exact ⟨n, m, hn, hm, order_free (reach_drain hs n) (reach_drain ht m) hd hsame hn hm⟩
+
 end Engine

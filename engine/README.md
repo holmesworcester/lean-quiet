@@ -28,8 +28,10 @@ Proven (`Proofs.lean`), about that code run on the model:
 - `status_iff_spec`: at rest (queue empty), the persisted verdicts are
   exactly the declarative spec's (`Spec.lean`: the least fixpoint of
   `judge`), and the index holds exactly the Valid facts' keys.
-- `order_free`: two nodes that received the same ops, in any order and
-  batching, hold the same verdicts at rest.
+- `same_ops_same_verdicts`: two nodes that received the same ops, in any
+  order and batching, both finish processing and then hold the same
+  verdict (fact included) for every op. (`order_free` is the at-rest
+  half.)
 - `drain_terminates`, `drain_settles`: op processing terminates — from
   any reachable state, finitely many steps empty the queue, and then
   every verdict is the spec's.
