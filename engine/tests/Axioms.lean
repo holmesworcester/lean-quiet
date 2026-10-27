@@ -1,0 +1,28 @@
+import Engine
+import Community
+open Engine Community
+#print axioms Engine.inv_ingest
+#print axioms Engine.inv_step
+#print axioms Engine.status_iff_spec
+#print axioms Engine.order_free
+#print axioms Engine.reach_drain
+#print axioms Engine.spec_extends
+#print axioms Engine.Codec.decode_encode
+#print axioms Engine.run_step
+#print axioms Engine.run_drain
+#print axioms Community.message_authorized
+#print axioms Community.no_impersonation
+#print axioms Community.admission_consented
+#print axioms Community.admission_invited
+#print axioms Community.invitation_issued
+#print axioms Community.join_admits
+#print axioms Community.removal_authorized
+#print axioms Community.admin_removal_stands
+#print axioms Community.mutual_removal
+#print axioms Community.admin_granted
+#print axioms Community.removed_stays
+#print axioms Community.valid_stays
+#print axioms Community.connect_iff
+#print axioms Community.refuse_nonmember
+#print axioms Community.connect_joined
+#print axioms Community.recipients_iff

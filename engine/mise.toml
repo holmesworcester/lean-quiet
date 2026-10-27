@@ -1,0 +1,11 @@
+[env]
+ELAN_HOME = "{{ env.ELAN_HOME | default(value='/mnt/storage/elan') }}"
+TMPDIR = "{{ env.TMPDIR | default(value='/mnt/storage/holmes-tmp') }}"
+
+[tasks.check]
+description = "Build the engine and community proofs; audit their axioms"
+run = "tests/check.sh"
+
+[tasks.test]
+description = "Scenario (Ed25519 + SQLite), SQLite-vs-model differential, kill -9 atomicity"
+run = "tests/run.sh"
