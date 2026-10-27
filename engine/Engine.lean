@@ -4,3 +4,4 @@ import Engine.Model
 import Engine.SpecLemmas
 import Engine.Run
 import Engine.Proofs
+import Engine.Codec

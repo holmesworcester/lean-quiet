@@ -179,4 +179,88 @@ theorem spec_of_judge {ops : Id → Option Op} {x : Id} {o : Op} {v : Verdict F}
   | none => exact Or.inl rfl
   | some w => exact Or.inr (hN r hr w h).symm
 
+/-- R relates the two lists pairwise. -/
+inductive All2 {α β : Type} (R : α → β → Prop) : List α → List β → Prop
+  | nil : All2 R [] []
+  | cons {a b as bs} : R a b → All2 R as bs → All2 R (a :: as) (b :: bs)
+
+theorem All2.imp {α β : Type} {R S : α → β → Prop} (h : ∀ {a b}, R a b → S a b) :
+    ∀ {as bs}, All2 R as bs → All2 S as bs
+  | _, _, .nil => .nil
+  | _, _, .cons hr t => .cons (h hr) (All2.imp h t)
+
+theorem allValid_forall2 {l : List Id} {g : Id → Option (Verdict F)} {fs : List F}
+    (h : allValid (l.map g) = some fs) : All2 (fun r f => g r = some (.valid f)) l fs := by
+  induction l generalizing fs with
+  | nil => simp [allValid] at h; subst h; exact All2.nil
+  | cons r t ih =>
+    simp only [List.map_cons] at h
+    cases hr : g r with
+    | none => rw [hr] at h; simp [allValid] at h
+    | some v =>
+      rw [hr] at h
+      cases v with
+      | invalid => simp [allValid] at h
+      | valid w =>
+        simp only [allValid] at h
+        cases ht : allValid (t.map g) with
+        | none => rw [ht] at h; simp at h
+        | some a =>
+          rw [ht] at h; simp at h; subst h
+          exact All2.cons hr (ih ht)
+
+theorem forall2_allValid {l : List Id} {g : Id → Option (Verdict F)} {fs : List F}
+    (h : All2 (fun r f => g r = some (.valid f)) l fs) : allValid (l.map g) = some fs := by
+  induction h with
+  | nil => rfl
+  | cons hr _ ih => simp [allValid, hr, ih]
+
+/-- A Valid op: stored, every requirement Valid, and the validator
+accepting it over their facts. -/
+theorem spec_valid_inv {ops : Id → Option Op} {x : Id} {f : F}
+    (h : Spec fam ops x (.valid f)) :
+    ∃ o fs, ops x = some o ∧ All2 (fun r g => Spec fam ops r (.valid g)) o.reqs fs ∧
+      fam.validate o fs = some f := by
+  obtain ⟨n, hn⟩ := h
+  cases n with
+  | zero => simp [specAt] at hn
+  | succ n =>
+    unfold specAt at hn
+    cases hx : ops x with
+    | none => rw [hx] at hn; simp at hn
+    | some o =>
+      rw [hx] at hn; simp only at hn
+      unfold judge at hn
+      split at hn
+      · simp at hn
+      · cases ha : allValid (o.reqs.map (specAt fam ops n)) with
+        | none => rw [ha] at hn; simp at hn
+        | some fs =>
+          rw [ha] at hn; simp only at hn
+          refine ⟨o, fs, rfl, ?_, ?_⟩
+          · exact (allValid_forall2 ha).imp (fun hr => ⟨n, hr⟩)
+          · cases hv : fam.validate o fs with
+            | none => rw [hv] at hn; simp at hn
+            | some g => rw [hv] at hn; simp at hn; rw [hn]
+
+/-- And conversely. -/
+theorem spec_valid_of {ops : Id → Option Op} {x : Id} {o : Op} {fs : List F} {f : F}
+    (hx : ops x = some o) (hr : All2 (fun r g => Spec fam ops r (.valid g)) o.reqs fs)
+    (hv : fam.validate o fs = some f) : Spec fam ops x (.valid f) := by
+  have key : ∀ {l gs}, All2 (fun r g => Spec fam ops r (.valid g)) l gs →
+      ∃ N, All2 (fun r g => specAt fam ops N r = some (.valid g)) l gs := by
+    intro l gs hr
+    induction hr with
+    | nil => exact ⟨0, All2.nil⟩
+    | @cons r g t gs h1 _ ih =>
+      obtain ⟨N, hN⟩ := ih
+      obtain ⟨M, hM⟩ := h1
+      refine ⟨max N M, All2.cons (specAt_le hM (Nat.le_max_right _ _)) ?_⟩
+      exact hN.imp (fun h => specAt_le h (Nat.le_max_left _ _))
+  obtain ⟨N, hN⟩ := key hr
+  refine ⟨N + 1, ?_⟩
+  unfold specAt; rw [hx]; simp only
+  have ha := forall2_allValid hN
+  unfold judge; rw [allValid_noInvalid ha, ha]; simp [hv]
+
 end Engine
