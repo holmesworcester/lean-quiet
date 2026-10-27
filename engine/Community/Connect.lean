@@ -141,4 +141,32 @@ theorem recipients_iff (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (e : 
       ∃ u d, Admitted C s.ops c u d e ∧ ¬ Removed C s.ops c u := by
   rw [run_recipients]; exact recipientsP_iff h hq c e
 
+/-! ## Partitions -/
+
+/-- **Nodes that hold the same ops agree on whom to connect to.** So the
+side a removal cuts off is exactly the removed user's devices plus the
+nodes that have not yet received the removal: any node that has it
+refuses them, and nodes holding the same ops never disagree. -/
+theorem connect_agree {s t : DB Fact} (hs : Inv (family C) s) (ht : Inv (family C) t)
+    (qs : s.queue = []) (qt : t.queue = []) (hops : s.ops = t.ops) (c : Id) (d : Key) :
+    ((allowPeer c d : Model Fact Bool).run s).1 = ((allowPeer c d : Model Fact Bool).run t).1 := by
+  have hs' := connect_iff hs qs c d
+  have ht' := connect_iff ht qt c d
+  rw [hops] at hs'
+  cases h1 : ((allowPeer c d : Model Fact Bool).run s).1 <;>
+    cases h2 : ((allowPeer c d : Model Fact Bool).run t).1
+  · rfl
+  · rw [h1] at hs'; rw [h2] at ht'
+    exact absurd (hs'.2 (ht'.1 rfl)) (by simp)
+  · rw [h1] at hs'; rw [h2] at ht'
+    exact absurd (ht'.2 (hs'.1 rfl)) (by simp)
+  · rfl
+
+/-- **A removal, once held, cuts off every device of the removed user**
+that is admitted into no other live user. -/
+theorem removal_cuts_off (h : Inv (family C) s) (hq : s.queue = []) {c u : Id} {d : Key}
+    (hr : Removed C s.ops c u) (only : ∀ u' e, Admitted C s.ops c u' d e → u' = u) :
+    ((allowPeer c d : Model Fact Bool).run s).1 = false :=
+  refuse_nonmember h hq c d fun u' e ha => (only u' e ha) ▸ hr
+
 end Community

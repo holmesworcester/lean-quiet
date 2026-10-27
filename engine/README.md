@@ -57,6 +57,7 @@ Laws (`Laws.lean`, `Connect.lean`):
 | Do we connect to non-members or removed members? | `connect_iff`, `refuse_nonmember` |
 | Do we connect to linked devices and invited members? | `connect_joined` |
 | Who is a new content key sealed to? | `recipients_iff` |
+| What does a removal cut off? | `removal_cuts_off`, `connect_agree`: the removed user's devices plus any nodes that have not yet received the removal |
 
 The connection and sealing laws are about the queries themselves
 (`allowPeer`, `recipients`) run on the persisted tables.
