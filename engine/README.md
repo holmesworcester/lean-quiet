@@ -30,6 +30,9 @@ Proven (`Proofs.lean`), about that code run on the model:
   `judge`), and the index holds exactly the Valid facts' keys.
 - `order_free`: two nodes that received the same ops, in any order and
   batching, hold the same verdicts at rest.
+- `drain_terminates`, `drain_settles`: op processing terminates — from
+  any reachable state, finitely many steps empty the queue, and then
+  every verdict is the spec's.
 - `spec_extends`: a verdict, once reached, never changes.
 - `Codec.decode_encode`: what SQLite stores decodes to what was written.
 
@@ -71,7 +74,6 @@ The connection and sealing laws are about the queries themselves
 - Signatures are unforgeable (`Unforgeable`, a hypothesis where used).
   Ed25519 is libsodium's at runtime.
 - Op ids do not collide (`Distinct`).
-- Judging terminates (the runtime loops until the queue is empty).
 - Confidentiality is proven as "who keys are sealed to", not as a
   cryptographic property, and removed users keep keys they already
   hold: no rotation yet, as in libquiet's current increment.

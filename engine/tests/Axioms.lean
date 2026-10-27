@@ -28,3 +28,5 @@ open Engine Community
 #print axioms Community.recipients_iff
 #print axioms Community.connect_agree
 #print axioms Community.removal_cuts_off
+#print axioms Engine.drain_terminates
+#print axioms Engine.drain_settles
