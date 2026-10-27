@@ -12,8 +12,12 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
 - A removal names a user. It is Valid when its author's user is an
   admin, or removes itself. Validity is read off the cited facts only,
   so every admin-issued removal stands: of other admins, mutually and
-  concurrently, and by an admin who has since been removed. Removal
-  never invalidates an op; it changes who counts as a member.
+  concurrently, and by an admin who has since been removed (confirmed
+  by the user, 2026-10-27). In practice such a removal may never spread:
+  peers that know of the remover's removal refuse its devices
+  (`connect_iff`), so it travels only through peers that do not. When it
+  arrives, it is Valid. Removal never invalidates an op; it changes who
+  counts as a member.
 - A post is a message by an admitted device, under a content key.
 - A wrap delivers a content key to one device encryption key; it
   admits nobody, so it needs no author.

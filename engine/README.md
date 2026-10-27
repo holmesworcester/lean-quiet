@@ -39,8 +39,10 @@ Root (founder, admin), invite, join (member or linked device), admin
 grant, removal, post, wrap — after libquiet's DESIGN.md and its removal
 stack (#778, #98, #1088). Validity reads only cited facts, so every
 admin-issued removal stands: of other admins, mutually, and by an admin
-who has since been removed. Removal never invalidates an op; it changes
-who counts.
+who has since been removed. In practice that last kind may not spread,
+since peers who know of the remover's removal refuse its devices; but
+wherever it arrives, it is Valid. Removal never invalidates an op; it
+changes who counts.
 
 Laws (`Laws.lean`, `Connect.lean`):
 
