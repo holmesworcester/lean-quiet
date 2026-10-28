@@ -1002,8 +1002,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L1110-L1114
-[`pageIn_acc`]: App.lean#L1116-L1119
+[`drawPage_key`]: App.lean#L1173-L1177
+[`pageIn_acc`]: App.lean#L1179-L1182
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
@@ -1073,7 +1073,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`passActs_nil`]: engine/renderer/ActsLaws.lean#L141-L143
 [`inv_passActs`]: engine/renderer/ActsLaws.lean#L192-L195
 [`idxok_passActs`]: engine/renderer/ActsLaws.lean#L199-L203
-[`withViewLast_moves`]: ops/app/Reader.lean#L93-L97
+[`withViewLast_moves`]: ops/app/Reader.lean#L99-L103
 [`nodup_full`]: ops/community/Intents.lean#L578-L580
 [`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
 [`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939

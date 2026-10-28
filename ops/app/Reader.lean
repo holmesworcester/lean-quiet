@@ -58,6 +58,12 @@ inductive Want where
   | asking (c : Id)
   /-- How many present members c has. -/
   | people (c : Id)
+  /-- This device's first profile in c, once admitted (Community.introduce,
+  at minute `now`): the write it still needs, if any. -/
+  | introduce (c : Id) (now : Nat)
+  /-- The content keys wrapped to this device in c, opened into local key
+  ops (Community.unwrap): the write it still needs, if any. -/
+  | unwrap (c : Id)
   deriving DecidableEq, Hashable
 
 /-- Two of this device's communities alike: every field but the device,
@@ -104,6 +110,9 @@ theorem Want.withViewLast_moves (idsW countW : Want) (rows pics lists : Array Wa
     rw [hb] at this
     exact hc (this ▸ Array.mem_of_back? hb)
 
+/-- Two writes alike: the same ops (an op is its id's hash). -/
+instance : BEq Community.Write := ⟨fun a b => a.ops.map (·.id) == b.ops.map (·.id)⟩
+
 /-- What a want reads as. -/
 inductive Val where
   /-- The window's positions, newest first, and how many of them are
@@ -119,6 +128,9 @@ inductive Val where
   | members (ms : Array (Id × List Key × String)) (admin : Bool)
   | asking (rs : Array Kinds.Request.Data)
   | people (n : Nat)
+  /-- A write the device still needs (none: nothing to do). The frame
+  queues it as an act: eval only reads. -/
+  | standing (w : Option Community.Write)
   deriving BEq
 
 structure St where
@@ -250,6 +262,15 @@ def eval : Want → RM (Val × Array Q)
   | .asking c => do
     let (rs, deps) ← Kinds.Request.waiting c
     return (.asking rs, deps)
+  | .introduce c now => do
+    -- this device in c, as the communities' read last found it
+    let some me := (← get).known.find? (·.c == c) | return (.standing none, #[])
+    let (w, deps) ← readView (Community.introduce c me.dev now) #[]
+    return (.standing (if w.ops.isEmpty then none else some w), deps)
+  | .unwrap c => do
+    let some me := (← get).known.find? (·.c == c) | return (.standing none, #[])
+    let (w, deps) ← readView (Community.unwrap c me.dev) #[]
+    return (.standing (if w.ops.isEmpty then none else some w), deps)
   | .people c => do
     let (ps, deps) ← readView (Kinds.Profile.present c) #[]
     return (.people ps.length, deps)

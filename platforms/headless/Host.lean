@@ -47,17 +47,16 @@ def blanks (s : St) (sm : Sim) : IO Nat := do
 no notice was missed and no watch is too narrow. Counts the answers
 checked and the stale ones found fresh. -/
 def liveSound : M (Nat × Nat) := do
-  let s ← get
-  -- take what the writer has filed first: a fresh answer is promised only
-  -- up to the notices the frame has seen
-  let (fs, vs) ← takeChanges
-  modify fun s => { s with live := s.live.notice fs (vs.map (·.1)) }
-  let s ← get
+  -- the reader's cache: the frame reads nothing of the store. A pass
+  -- first, so it has taken every commit (a fresh answer is promised only
+  -- up to the commits the reader has seen)
+  readerPass
+  let some r := (← get).rst | return (0, 0)
   let mut n := 0
   let mut bad := 0
-  for (q, e) in s.live.entries.toList do
+  for (q, e) in r.live.entries.toList do
     if e.stale then continue
-    let now ← q.run s.rd s.out
+    let now ← q.run r.rd r.out
     n := n + 1
     if now != e.ans then
       bad := bad + 1
