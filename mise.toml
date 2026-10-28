@@ -13,9 +13,13 @@ run = "cd qr && mise run check"
 run = "cd mdns && mise run check"
 [tasks."net:check"]
 run = "cd net && mise run check"
+[tasks."readme:links"]
+description = "The README's theorem links match the code (ci/proof-links.py; needs the parts built)"
+run = "python3 ci/proof-links.py --check"
 [tasks.check]
-description = "Every gated part"
+description = "Every gated part, then the README's links"
 depends = ["engine:check", "engine:test", "app:check", "qr:check", "mdns:check", "net:check"]
+run = "python3 ci/proof-links.py --check"
 
 [tasks.ci]
 description = "Local CI: every part's gate, logs in out/ci (ci/local.sh)"
