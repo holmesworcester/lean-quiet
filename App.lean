@@ -26,6 +26,7 @@ code without a window (QTests).
 import engine.renderer.Data
 import ops.app.Chaos
 import ops.app.Reader
+import ops.app.NodeOffer
 import engine.renderer.Row
 import engine.renderer.Geometry
 import engine.renderer.Cover
@@ -410,11 +411,11 @@ def noticeLocal (ps : List Pending) : M Unit := do
 /-- Offer writes to the node's inbound channel, in order, without waiting:
 each that fits is in; the rest, from the first that did not fit, stay
 (the channel is bounded and shared with the peers' frames, so it can be
-full while sync is busy). -/
+full while sync is busy). It is `NodeOffer.offerList` over the channel's
+`trySend`: NodeOffer.offer_split and offer_runs say no write is lost,
+sent twice or overtaken, whatever the channel answers. -/
 def offerAll (ch : Std.CloseableChannel.Sync Engine.Sync.Event) (q : Array (List Op)) : IO (Array (List Op)) := do
-  for i in [0:q.size] do
-    if !(← ch.trySend (.write q[i]!)) then return q.extract i q.size
-  return #[]
+  return (← NodeOffer.offerList (fun w => (ch.trySend (.write w) : IO Bool)) q.toList).toArray
 
 /-- The one way into the store: through the node while it runs (it owns
 the store's writes, and offers peers only what it knows), else the local
@@ -927,9 +928,11 @@ def netStep : M Unit := do
     { fam, cfg := { every := 30000, patience := 20000 },
       hooks := Connection.hooks fam Connection.sodium listen }
   let path := s.dbPath
+  let sh := s.sh
   let t ← IO.asTask (prio := .dedicated) do
     let db ← Db.openAt path
-    Engine.Sync.Runner.start x db 0 port.toUInt16
+    -- the node's commits move the reader's counter (Reader.Shared.commits)
+    Engine.Sync.Runner.start x db 0 port.toUInt16 (notify := fun _ => sh.commits.modify (· + 1))
   s.io.log s!"node: starting, dialed as {(String.fromUTF8? listen).getD "?"}"
   modify fun s => { s with netBoot := some t }
 
@@ -1624,8 +1627,9 @@ def sheetBitmap (sh : SheetSt) (mine : List String) : M Bitmap := do
   let rows := (← get).gridRows
   let blank := solid Sheet.panel s.W
   let line (k : Nat) : ByteArray :=
-    match rows[k / g.key]? with
-    | some b => b.rows[k % g.key]?.getD blank
+    let (r, li) := g.lineOf k
+    match rows[r]? with
+    | some b => b.rows[li]?.getD blank
     | none => blank
   let top := Sheet.catTop s.font s.dim s.W c backdrop sh.query sh.searching sh.tone sh.cat
   let bot := Sheet.catBot s.font s.dim s.W c sh.cat sh.searching
@@ -1699,7 +1703,9 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   -- the placeholders are the counts less the window's rows on each side)
   let idsW := Reader.Want.window s.me.c s.anchor half half
   let countW := Reader.Want.count s.me.c s.anchor
-  s.sh.wants.modify fun ws => #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
+  -- (the wants as last set, unless the anchor moved: a steady frame
+  -- moves no generation, Reader.Want.withView_ofFrame)
+  s.sh.setWants (Reader.Want.withView (← s.sh.wants.get) idsW countW)
   readerPass
   let bd ← takeBoard
   let fresh := match bd.get? idsW with
@@ -1753,7 +1759,7 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   let lists := #[Reader.Want.comms] ++ (if s.me.c.isEmpty then #[] else
     #[Reader.Want.people s.me.c, Reader.Want.asking s.me.c] ++
       (if s.page == .home || s.page == .profile || s.page == .removeConfirm then #[Reader.Want.members s.me.c s.me.user] else #[]))
-  s.sh.wants.set (#[idsW] ++ win.map (fun x => Reader.Want.row s.me.c s.me.adm x) ++ pics ++ #[countW] ++ lists)
+  s.sh.setWants (Reader.Want.ofFrame idsW (win.map (fun x => Reader.Want.row s.me.c s.me.adm x)) pics countW lists)
   modify fun s => { s with picWants := #[] }
   readerPass
   let bd ← takeBoard
@@ -1924,7 +1930,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   let wr ← Writer.start dbPath
   -- the communities are this device's accepted facts: read them once
   -- here to choose the first page
-  let sh ← Reader.Shared.new
+  let sh ← Reader.Shared.new wr.count
   let probe : St := { io := io, W := W, Hs := Hs, insetTop := 0, insetBot := 0, font := font, bgRow := .empty, rd := rd, wr := wr, me := default, sh := sh }
   let ((all, _), _) ← (Kinds.Accepted.read : M _).run probe
   let comms := Kinds.Accepted.listed all
