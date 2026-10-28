@@ -45,7 +45,7 @@ def msgOk (m : Msg) : Bool :=
   m.questions.all (nameOk ·.name) && (m.answers ++ m.authority ++ m.additional).all recOk
 
 def fixtures : IO (List (String × ByteArray)) := do
-  let dir : System.FilePath := "tests/fixtures"
+  let dir : System.FilePath := "tests/mdns/fixtures"
   let es ← dir.readDir
   let es := es.qsort (·.fileName < ·.fileName)
   es.toList.mapM fun e => do pure (e.fileName, ← IO.FS.readBinFile e.path)
@@ -66,7 +66,7 @@ def main : IO UInt32 := do
       check s!"{f} round-trips" (decode (encode m) == some m)
       check s!"{f} in bounds" (msgOk m)
   -- What the avahi announcement said.
-  let p ← IO.FS.readBinFile "tests/fixtures/avahi-171.bin"
+  let p ← IO.FS.readBinFile "tests/mdns/fixtures/avahi-171.bin"
   match decode p with
   | none => check "avahi-171 decodes" false
   | some m =>
@@ -155,7 +155,7 @@ def main : IO UInt32 := do
   check "a query for another type is not answered" (react [me] (query "_other._tcp") == none)
   check "an answer is not answered" (react [me] a == none)
   -- Our own query, as captured on the LAN, is byte for byte our encoder's.
-  let lq ← IO.FS.readBinFile "tests/fixtures/lean-query.bin"
+  let lq ← IO.FS.readBinFile "tests/mdns/fixtures/lean-query.bin"
   check "query bytes match the capture" ((encode (query "_services._dns-sd._udp")).data == lq.data)
 
   let n ← fails.get

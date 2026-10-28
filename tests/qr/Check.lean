@@ -379,7 +379,7 @@ def fuzz (t : Tally) : IO (Tally × Nat × Nat) := do
 drawn from them, turned a quarter. -/
 def fixtures (t : Tally) : IO Tally := do
   let mut t := t
-  for line in (← IO.FS.lines "tests/fixtures/qrencode/manifest.tsv") do
+  for line in (← IO.FS.lines "tests/qr/fixtures/qrencode/manifest.tsv") do
     let [path, want] := line.splitOn "\t" | continue
     let rows := ((← IO.FS.readFile path).splitOn "\n").filter (· ≠ "")
     let n := rows.length
@@ -479,8 +479,8 @@ def pictures (t : Tally) : Tally := Id.run do
 def qoiFixtures (t : Tally) : IO Tally := do
   let mut t := t
   for (name, w, h) in [("noise-alpha", 40, 30), ("palette", 48, 32), ("gradient", 64, 16)] do
-    let blob ← IO.FS.readBinFile s!"tests/fixtures/qoi/{name}.qoi"
-    let raw ← IO.FS.readBinFile s!"tests/fixtures/qoi/{name}.rgba"
+    let blob ← IO.FS.readBinFile s!"tests/qr/fixtures/qoi/{name}.qoi"
+    let raw ← IO.FS.readBinFile s!"tests/qr/fixtures/qoi/{name}.rgba"
     t := t.check (samePic (Pic.decode blob) { w, h, px := raw }) s!"Pillow's QOI {name}"
     t := t.check (samePic (Pic.decode (Pic.encode { w, h, px := raw })) { w, h, px := raw }) s!"QOI {name} again"
   return t
@@ -492,7 +492,7 @@ def main (args : List String) : IO UInt32 := do
   IO.println s!"pictures (QOI round trips, Pillow's QOI, hostile QOI, sizes, tray, composer): {t.pass} passed, {t.fail} failed"
   let t0 := t
   t ← fixtures t
-  IO.println s!"qrencode's matrices (tests/fixtures), as matrices and frames: {t.pass - t0.pass} passed, {t.fail - t0.fail} failed"
+  IO.println s!"qrencode's matrices (tests/qr/fixtures), as matrices and frames: {t.pass - t0.pass} passed, {t.fail - t0.fail} failed"
   let t0 := t
   t := streams t
   IO.println s!"data streams: {t.pass - t0.pass} passed, {t.fail - t0.fail} failed"

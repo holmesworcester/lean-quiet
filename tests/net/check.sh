@@ -1,26 +1,17 @@
 #!/usr/bin/env bash
-# The gate: build every proof; require the laws to rest on Lean's
-# standard axioms only; refuse sorry and added axioms in the model; run
-# the scene on the real engine (Ed25519, SHA-256, SQLite); then the
-# negative controls.
+# The bootstrap's gate: build every proof (tests/check.sh audits their
+# axioms); refuse sorry and added axioms in the model; run the scene on
+# the real engine (Ed25519, SHA-256, SQLite); then the negative controls.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
+(cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
 lake build Net
-out=$(lake env lean tests/Axioms.lean)
-echo "$out"
-n=$(grep -c "depends on axioms\|does not depend on any axioms" <<<"$out")
-want=$(grep -c "^#print axioms" tests/Axioms.lean)
-[ "$n" -eq "$want" ] || { echo "expected $want axiom reports, got $n" >&2; exit 1; }
-bad=$(grep "depends on axioms" <<<"$out" | sed 's/.*\[\(.*\)\]/\1/' | tr ',' '\n' | tr -d ' ' |
-  grep -v -x -e propext -e Classical.choice -e Quot.sound || true)
-[ -z "$bad" ] || { echo "non-standard axioms: $bad" >&2; exit 1; }
-echo "all $want laws rest on standard axioms only"
 python3 - <<'PY'
 import re, glob, sys
 bad = []
-for p in sorted(glob.glob("Net/*.lean")) + ["Net.lean"]:
+for p in sorted(glob.glob("ops/connection/bootstrap/*.lean")):
     s = re.sub(r"/-.*?-/", "", open(p).read(), flags=re.S)
     s = re.sub(r"--.*", "", s)
     # (an admit tactic elaborates to sorryAx, which the axiom audit refuses)
@@ -36,4 +27,4 @@ PY
 lake build scene_check
 mkdir -p out
 .lake/build/bin/scene_check out/scene
-tests/negative_controls.sh
+tests/net/negative_controls.sh

@@ -2,14 +2,15 @@
 # Builds a Lean app into an Android APK, with no Gradle:
 #
 # 1. lake emits C for the main module and every module it imports
-#    (followed through `import` lines): this package's and lean-engine's
-#    (.lake/build/ir of each package in lake-manifest.json); Std or Lean modules, which Android has no
-#    prebuilt library for, are compiled to C from the toolchain's own
-#    sources and .oleans (cached in out/stdc); Init is in libInit.
+#    (followed through `import` lines; .lake/build/ir); Std or Lean
+#    modules, which Android has no prebuilt library for, are compiled to
+#    C from the toolchain's own sources and .oleans (cached in
+#    out/stdc); Init is in libInit.
 # 2. NDK clang compiles that C with the twin (activity.c, layer.c,
-#    scroll.c, quiet_android.c, ctl.c), the glue (android/native: SQLite,
-#    Ed25519, SHA-256 over third_party/) against Lean's runtime and Init
-#    for Android (android/leanrt/build.sh) into libleanapp.so per ABI.
+#    scroll.c, quiet_android.c, ctl.c), the glue (platforms/android/native:
+#    SQLite, Ed25519, SHA-256 over third_party/) against Lean's runtime
+#    and Init for Android (platforms/android/leanrt/build.sh) into
+#    libleanapp.so per ABI.
 # 3. javac and d8 build the Java half (java/), and aapt2, zipalign and
 #    apksigner package it with assets/.
 #
@@ -22,7 +23,7 @@ set -euo pipefail
 out=$(realpath -m "$1"); pkg=$2; label=$3; main=$4; shift 4
 abis=("${@:-arm64-v8a}")
 here=$(cd "$(dirname "$0")" && pwd)
-root=$(cd "$here/../.." && pwd)
+root=$(cd "$here/../../.." && pwd)
 sdk=${ANDROID_SDK:-$HOME/android-sdk}
 ndk=$(ls -d "$sdk"/ndk/* | sort -V | tail -1)
 cc=$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/clang
@@ -34,11 +35,9 @@ export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 lake=$ELAN_HOME/bin/lake
 rt=${LEANRT:-/mnt/storage/holmes-wt/lean-chat/out/leanrt}
 [ -f "$rt/include/lean/lean.h" ] || { echo "no Lean runtime at $rt (set LEANRT)" >&2; exit 2; }
-# every required package's directory (lean-engine, lean-qr, ...)
-pkgs=$(cd "$root" && python3 -c 'import json, os; m=json.load(open("lake-manifest.json")); print(" ".join(os.path.realpath(p["dir"]) for p in m["packages"]))')
-# lean-engine's directory: its crypto (native/crypto.c, and the Rust
-# library in native/crypto, built per ABI into this app's cache).
-engine=$(cd "$root" && python3 -c 'import json, os; m=json.load(open("lake-manifest.json")); print([os.path.realpath(p["dir"]) for p in m["packages"] if p["name"]=="engine"][0])')
+# the engine's crypto (engine/native/crypto.c, and the Rust library in
+# engine/native/crypto, built per ABI into this app's cache)
+engine=$root/engine
 toolchain=$("$ELAN_HOME/bin/lean" --print-prefix)
 work=$(mktemp -d "$TMPDIR/lean-apk.XXXXXX")
 trap 'rm -rf "$work"' EXIT
@@ -46,7 +45,7 @@ cache=$root/out/cache
 mkdir -p "$cache"
 
 # 1. The module closure, and its C.
-closure=$(python3 - "$main" "$toolchain/src/lean" "$root" $pkgs <<'PY'
+closure=$(python3 - "$main" "$toolchain/src/lean" "$root" <<'PY'
 import re, sys, os
 main, core, roots = sys.argv[1], sys.argv[2], sys.argv[3:] + [sys.argv[2]]
 seen, order = set(), []
@@ -126,11 +125,11 @@ for abi in "${abis[@]}"; do
     "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$here" -I"$rt/include" -c "$here/$c.c" -o "$o/twin_$c.o"
   done
   "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$rt/include" -I"$tp/sqlite" \
-    -c "$root/android/native/glue_android.c" -o "$o/glue_glue_android.o"
+    -c "$root/platforms/android/native/glue_android.c" -o "$o/glue_glue_android.o"
   "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$rt/include" -c "$engine/native/crypto.c" -o "$o/glue_crypto.o"
   (cd "$engine/native/crypto" && CARGO_TARGET_DIR="$cache/rust" cargo build --release --quiet --target "$rtgt")
   lqcrypto=$cache/rust/$rtgt/release/liblq_crypto.a
-  "$cc" --target=$tgt -O3 -fPIC -c "$root/android/leanrt/notag.c" -o "$o/twin_notag.o"
+  "$cc" --target=$tgt -O3 -fPIC -c "$root/platforms/android/leanrt/notag.c" -o "$o/twin_notag.o"
   "$cc++" --target=$tgt -fPIC -shared -Wl,-z,max-page-size=16384 -Wl,--no-undefined -Wl,--gc-sections \
     "$o"/*.o "$lqcrypto" -L"$rt/$abi" -Wl,--start-group -lInit -lleanrt -luv -Wl,--end-group \
     -static-libstdc++ -landroid -llog -lm -ldl \

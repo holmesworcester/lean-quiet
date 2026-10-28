@@ -111,5 +111,5 @@ def main (args : List String) : IO UInt32 := do
     | none => IO.println "none"
     return 0
   | _ =>
-    IO.eprintln "usage: see Tests/Tool.lean"
+    IO.eprintln "usage: see tests/qr/Tool.lean"
     return 2

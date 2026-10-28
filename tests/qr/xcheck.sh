@@ -5,7 +5,7 @@
 # else from out/xtools, which tools/xcheck/fetch.sh fills without root; a
 # tool still missing is skipped and said so.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 x=out/xtools
 have() { command -v "$1" >/dev/null 2>&1 || [ -x "$x/root/usr/bin/$1" ]; }
 pyhas() { python3 -c "import $1" 2>/dev/null || [ -e "$x/py/$1" ] || [ -e "$x/py/$1.py" ]; }

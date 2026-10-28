@@ -4,14 +4,15 @@
 #   2. Lean announces, avahi (the system's responder) resolves it.
 #   3. avahi publishes, Lean browses and finds it.
 # 2 and 3 need avahi-daemon and avahi-utils; without them they fail, not skip,
-# unless MDNS_E2E_NO_AVAHI=1. Logs stay in out/e2e/ for a failed run.
+# unless MDNS_E2E_NO_AVAHI=1. Logs stay in out/mdns-e2e/ for a failed run.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 export ELAN_HOME="${ELAN_HOME:-/mnt/storage/elan}"
 export PATH="$ELAN_HOME/bin:$PATH"
+(cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
 lake build mdns_demo >/dev/null
 demo=.lake/build/bin/mdns_demo
-out=out/e2e; mkdir -p "$out"
+out=out/mdns-e2e; mkdir -p "$out"
 tag="e2e-$$"
 pids=()
 cleanup() { for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; }

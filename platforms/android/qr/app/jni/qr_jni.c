@@ -20,8 +20,8 @@
 
 #define TAG "LeanQR"
 
-lean_object* initialize_qr_Qr(uint8_t builtin);
-lean_object* initialize_qr_Pic(uint8_t builtin);
+lean_object* initialize_quiet_engine_renderer_qr_Qr(uint8_t builtin);
+lean_object* initialize_quiet_engine_renderer_pic_Pic(uint8_t builtin);
 // declared by Lean's generated C, not by lean.h
 void lean_initialize_runtime_module(void);
 // runtime/thread.h (not in lean.h): a thread Lean did not start registers
@@ -41,8 +41,8 @@ static void thread_done(void* v) {
 
 static void start_lean(void) {
   lean_initialize_runtime_module();
-  lean_object* r = initialize_qr_Qr(1);
-  lean_object* p = initialize_qr_Pic(1);
+  lean_object* r = initialize_quiet_engine_renderer_qr_Qr(1);
+  lean_object* p = initialize_quiet_engine_renderer_pic_Pic(1);
   if (lean_io_result_is_ok(r) && lean_io_result_is_ok(p)) {
     ready = 1;
   } else {

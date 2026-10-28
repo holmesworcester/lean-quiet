@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# The twin demo on the headless twin (host/host.c): the seam's effects
+# The twin demo on the headless twin (platforms/headless/host.c): the seam's effects
 # from a script, checked by the control replies and the dumped screens.
 set -euo pipefail
-root=$(cd "$(dirname "$0")/.." && pwd)
+root=$(cd "$(dirname "$0")/../.." && pwd)
 out=${1:-$root/out/host-twin}
 mkdir -p "$out"
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}

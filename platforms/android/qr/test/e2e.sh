@@ -16,8 +16,8 @@
 set -euo pipefail
 apk=$(realpath "$1")
 here=$(cd "$(dirname "$0")" && pwd)
-root=$(cd "$here/../.." && pwd)
-out=$(realpath -m "${2:-$root/out/e2e}")
+root=$(cd "$here/../../../.." && pwd)
+out=$(realpath -m "${2:-$root/out/qr-e2e}")
 avd=${AVD:-qr-harness-20261027}
 port=${PORT:-5578}
 grpc=${GRPC:-8578}

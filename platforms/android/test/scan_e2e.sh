@@ -13,7 +13,7 @@
 # Only ever talks to emulator-PORT, after checking it runs AVD.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-root=$(cd "$here/../.." && pwd)
+root=$(cd "$here/../../.." && pwd)
 apk=$(realpath "${1:-$root/out/quiet.apk}")
 out=$(realpath -m "${2:-$root/out/scan}")
 avd=${AVD:-lean-quiet-scan}

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Kill the writer (SIGKILL, by its recorded pid) at random moments; each
 # time, what is on disk must be the state after whole batches.
-# Usage: tests/crash.sh [rounds] [out_dir]
+# Usage: tests/engine/crash.sh [rounds] [out_dir]
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 rounds=${1:-10}
 out=${2:-out/crash}
 bin=.lake/build/bin/crash

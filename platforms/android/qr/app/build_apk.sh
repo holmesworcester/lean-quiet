@@ -3,7 +3,7 @@
 # Android SDK and NDK:
 #
 # 1. lake emits C for the Qr and Pic libraries (they import only Init,
-#    which is in Lean's runtime for Android: android/leanrt/build.sh).
+#    which is in Lean's runtime for Android: platforms/android/qr/leanrt/build.sh).
 # 2. NDK clang compiles that C and the JNI seams (jni/qr_jni.c, the
 #    scanner's; jni/pic_jni.c, the image tools') into
 #    libleanqr.so per ABI, against libleanrt, libInit and libuv.
@@ -16,7 +16,7 @@ set -euo pipefail
 out=$(realpath -m "$1"); shift
 abis=("${@:-x86_64}")
 here=$(cd "$(dirname "$0")" && pwd)
-root=$(cd "$here/../.." && pwd)
+root=$(cd "$here/../../../.." && pwd)
 sdk=${ANDROID_SDK:-$HOME/android-sdk}
 ndk=$(ls -d "$sdk"/ndk/* | sort -V | tail -1)
 cc=$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/clang
@@ -30,7 +30,7 @@ work=$(mktemp -d "$TMPDIR/lean-qr-apk.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 
 # 1. Lean to C: every module of the library
-mods=$(cd "$root" && find Qr Pic -name '*.lean' | sed 's/\.lean$//; s|/|.|g' | sort; echo Qr; echo Pic)
+mods=$(cd "$root" && find engine/renderer/qr engine/renderer/pic -name '*.lean' | sed 's/\.lean$//; s|/|.|g' | sort)
 (cd "$root" && "$ELAN_HOME/bin/lake" build $(for m in $mods; do echo "+$m:c"; done) >/dev/null)
 cfiles=()
 for m in $mods; do cfiles+=("$root/.lake/build/ir/${m//./\/}.c"); done
@@ -56,7 +56,7 @@ for abi in "${abis[@]}"; do
     "$cc" --target=$tgt -std=c11 -O2 -fPIC -Wall -Werror -I"$rt/include" -c "$here/jni/$j.c" -o "$o/$j.o" &
     pids+=($!)
   done
-  "$cc" --target=$tgt -O2 -fPIC -c "$root/android/leanrt/notag.c" -o "$o/notag.o" & pids+=($!)
+  "$cc" --target=$tgt -O2 -fPIC -c "$root/platforms/android/qr/leanrt/notag.c" -o "$o/notag.o" & pids+=($!)
   for p in "${pids[@]}"; do wait "$p"; done
   "$cc++" --target=$tgt -fPIC -shared -Wl,-z,max-page-size=16384 -Wl,--no-undefined -Wl,--gc-sections \
     "$o"/*.o -L"$rt/$abi" -Wl,--start-group -lInit -lleanrt -luv -Wl,--end-group \
@@ -75,7 +75,7 @@ sed -e "s/@PACKAGE@/com.holmes.leanqr/" -e "s/@LABEL@/Lean QR/" \
 cp "$work/dex/classes.dex" "$work/apk/"
 (cd "$work/apk" && zip -qr "$work/base.apk" lib classes.dex)
 "$bt/zipalign" -P 16 -f 4 "$work/base.apk" "$work/aligned.apk"
-ks=$root/android/app/debug.keystore
+ks=$here/debug.keystore
 [ -f "$ks" ] || keytool -genkeypair -keystore "$ks" -storepass android \
   -keypass android -alias lean -keyalg RSA -keysize 2048 -validity 10000 \
   -dname "CN=Lean QR debug" >/dev/null 2>&1

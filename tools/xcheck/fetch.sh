@@ -1,5 +1,5 @@
 #!/bin/sh
-# Fetches the independent tools for tests/xcheck.sh without root:
+# Fetches the independent tools for tests/qr/xcheck.sh without root:
 # qrencode and zbarimg from the distribution's packages (apt-get download,
 # unpacked with dpkg -x; their libraries libqrencode4 and libzbar0 must be
 # installed), and segno and qrcodegen (pure Python) from PyPI.

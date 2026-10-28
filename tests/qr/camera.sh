@@ -5,7 +5,7 @@
 # out/camera/manifest.tsv (name, frame, payload hex) for qr_check.
 # Needs python3 with numpy and Pillow.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 out=out/camera
 rm -rf "$out"; mkdir -p "$out/frames"
 python3 -c 'import numpy, PIL' 2>/dev/null || {

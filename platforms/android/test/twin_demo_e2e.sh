@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End to end on a booted emulator (the twin demo, QTests/TwinDemo.lean):
+# End to end on a booted emulator (the twin demo, platforms/headless/TwinDemo.lean):
 # the seam's every effect through the real OS, checked by control
 # commands, the twin's trace, and screenshots.
 #
@@ -18,12 +18,12 @@ set -euo pipefail
 serial=${1:?serial}
 art=${2:-out/e2e-twin}
 here=$(cd "$(dirname "$0")" && pwd)
-root=$(cd "$here/../.." && pwd)
+root=$(cd "$here/../../.." && pwd)
 adb=(${ADB:-$HOME/android-sdk/platform-tools/adb} -s "$serial")
 port=${PORT:-17073}
 mkdir -p "$art"
 pkg=com.holmes.leanquiet
-"$root/android/test/ime/build.sh" "$root/out/testime.apk" >/dev/null
+"$root/platforms/android/test/ime/build.sh" "$root/out/testime.apk" >/dev/null
 "${adb[@]}" install -r "$root/out/testime.apk" >/dev/null
 "${adb[@]}" install -r "$root/out/twin-demo.apk" >/dev/null
 old_ime=$("${adb[@]}" shell settings get secure default_input_method | tr -d '\r')

@@ -20,7 +20,7 @@ uv=$2
 out=$3
 shift 3
 here=$(cd "$(dirname "$0")" && pwd)
-root=$(cd "$here/../.." && pwd)
+root=$(cd "$here/../../../.." && pwd)
 sdk=${ANDROID_HOME:-$HOME/android-sdk}
 ndk=$(ls -d "$sdk"/ndk/* | sort -V | tail -1)
 bin=$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin

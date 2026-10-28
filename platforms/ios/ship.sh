@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # lean-quiet onto the iOS Simulator (or an iPhone) through the Mac, from
 # here: lake emits C for Main's module closure (followed through `import`
-# lines, as android/twin/build_apk.sh does: this package's modules and
-# those of every package it requires (lake-manifest.json: lean-engine,
-# lean-qr) from their .lake/build/ir, Std's compiled from the toolchain's
+# lines, as platforms/android/twin/build_apk.sh does: the repository's
+# modules from .lake/build/ir, Std's compiled from the toolchain's
 # sources into out/stdc), and this stages it with Init's C
 # (tools/gen_init_c.sh), Lean's runtime source and headers, libuv's
-# source, the SQLite/Ed25519 glue (android/native, third_party), the
-# assets and ios/; copies the tree to the Mac and builds it there
-# (build_ios.sh); then installs and launches it.
+# source, the SQLite/Ed25519 glue (platforms/android/native,
+# third_party), the assets and platforms/ios (as ios/); copies the tree to
+# the Mac and builds it there (build_ios.sh); then installs and launches
+# it.
 #
 # usage: ship.sh stage    assemble out/ios-stage here only
 #        ship.sh sim      build for the Simulator; install and launch it in
@@ -41,13 +41,13 @@
 #   (the phone's devicectl id, default the iPhone 16e), LEAN_SRC (Lean's
 #   source at the toolchain's version), UV_SRC (libuv v1.51.0's), PORT (the
 #   control channel's, default 7417), MESSAGES (chaos size, default 500),
-#   MDNS (lean-mdns, built, for the probe), SECS (the probe's mDNS time),
+#   SECS (the probe's mDNS time),
 #   IOS_MULTICAST=1 (the probe's device build asks for the multicast
 #   entitlement), IOS_PROFILE (the provisioning profile's UUID).
 # Take the Mac first: mac-turn wait <name> (see ~/.local/bin/mac-turn).
 set -euo pipefail
 what=${1:-sim}
-root=$(cd "$(dirname "$0")/.." && pwd)
+root=$(cd "$(dirname "$0")/../.." && pwd)
 mac=${MAC:?set MAC to the Mac, as user@host}
 dir=${MAC_DIR:-lean-quiet-ios-work}
 device=${DEVICE:-5BD488FF-AD5C-5B43-BA3A-C61D1B5EE433}
@@ -108,12 +108,13 @@ stdc() {
 # axioms only, or nothing is staged.
 proofs() {
   local out
-  out=$(cd "$root" && "$lake" build Quiet.Geometry >/dev/null && "$lake" env lean ios/Placement.lean 2>&1) ||
-    { echo "$out" >&2; echo "ios/Placement.lean does not check" >&2; exit 1; }
+  out=$(cd "$root" && "$lake" build engine.renderer.Geometry >/dev/null &&
+    "$lake" env lean platforms/ios/Placement.lean 2>&1) ||
+    { echo "$out" >&2; echo "platforms/ios/Placement.lean does not check" >&2; exit 1; }
   if echo "$out" | grep -E "depends on axioms" |
       grep -vqE "\[(propext|Classical.choice|Quot.sound)(, (propext|Classical.choice|Quot.sound))*\]$" ||
       echo "$out" | grep -qE "sorryAx|error"; then
-    echo "$out" >&2; echo "ios/Placement.lean rests on more than the standard axioms" >&2; exit 1
+    echo "$out" >&2; echo "platforms/ios/Placement.lean rests on more than the standard axioms" >&2; exit 1
   fi
 }
 
@@ -122,11 +123,9 @@ stage() {
   [ -f "$root/assets/font.bin" ] || "$root/tools/fetch_assets.sh"
   [ -d "$root/out/initc" ] || "$root/tools/gen_init_c.sh" "$root/out/initc"
   local closure targets roots engine
-  # the engine's directory (its crypto: native/crypto.c and the Rust crate)
-  engine=$(cd "$root" && python3 -c 'import json, os; m=json.load(open("lake-manifest.json")); print([os.path.realpath(p["dir"]) for p in m["packages"] if p["name"]=="engine"][0])')
-  # this package, then every package it requires (lean-engine, lean-qr, ...)
-  # shellcheck disable=SC2207
-  roots=("$root" $(cd "$root" && python3 -c 'import json, os; m=json.load(open("lake-manifest.json")); print(" ".join(os.path.realpath(p["dir"]) for p in m["packages"]))'))
+  # the engine's crypto: engine/native/crypto.c and the Rust crate
+  engine=$root/engine
+  roots=("$root")
   closure=$(closure Main "${roots[@]}" "$T/src/lean")
   targets=$(echo "$closure" | awk '$1 != "core" {print "+" $2 ":c"}')
   # shellcheck disable=SC2086
@@ -153,7 +152,7 @@ stage() {
   touch -r "$T/include/lean/config.h" "$st/lean/include/githash.h"
   cp -rp "$lean_src/src/runtime" "$lean_src/src/util" "$st/lean/src/"
   cp -rp "$uv_src/include" "$uv_src/src" "$st/uv/"
-  cp -p "$root/android/native/glue_android.c" "$engine/native/crypto.c" \
+  cp -p "$root/platforms/android/native/glue_android.c" "$engine/native/crypto.c" \
     "$root"/third_party/sqlite/sqlite3.[ch] "$st/glue/"
   # The engine's Rust crypto, built here for the device and the
   # Simulator (pure Rust: the Mac only links it).
@@ -168,23 +167,26 @@ stage() {
     cp -p "$root/out/cache/rust/$rtgt/release/liblq_crypto.a" "$st/glue/rust/$sdk/"
   done
   cp -rp "$root/assets" "$st/assets"
-  cp -rp "$root/ios" "$st/ios"
+  cp -rp "$root/platforms/ios" "$st/ios"
   rm -rf "$st/ios/LeanQuiet.xcodeproj"
 }
 
-# The network probe (probe/NetProbe.lean over lean-mdns, $MDNS, built by
-# lake there): its closure's C into the stage's probe/ir.
+# The network probe (probe/NetProbe.lean over mDNS, engine/wire/mdns,
+# built here by lake): its closure's C into the stage's probe/ir.
 stage_probe() {
-  local mdns closure where mod c
-  mdns=${MDNS:-$root/../mdns}
+  local closure targets where mod c
   mkdir -p "$root/out/probe" "$st/probe/ir"
-  LEAN_PATH=$mdns/.lake/build/lib/lean "$T/bin/lean" -c "$root/out/probe/NetProbe.c" \
-    "$root/ios/probe/NetProbe.lean"
-  closure=$(closure NetProbe "$root/ios/probe" "$mdns" "$T/src/lean")
+  (cd "$root" && "$lake" build Mdns >/dev/null)
+  LEAN_PATH=$root/.lake/build/lib/lean "$T/bin/lean" -c "$root/out/probe/NetProbe.c" \
+    "$root/platforms/ios/probe/NetProbe.lean"
+  closure=$(closure NetProbe "$root/platforms/ios/probe" "$root" "$T/src/lean")
+  targets=$(echo "$closure" | awk '$1 == 1 {print "+" $2 ":c"}')
+  # shellcheck disable=SC2086
+  (cd "$root" && "$lake" build $targets >/dev/null)
   while read -r where mod; do
     case $where in
       0) c=$root/out/probe/NetProbe.c ;;
-      1) c=$mdns/.lake/build/ir/${mod//./\/}.c ;;
+      1) c=$root/.lake/build/ir/${mod//./\/}.c ;;
       core) c=$(stdc "$mod") ;;
     esac
     cp -p "$c" "$st/probe/ir/$mod.c"
@@ -219,7 +221,7 @@ mac_build() {
 }
 
 ctl() {
-  ssh "$mac" "$dx python3 - -p $port $(printf "'%s' " "$@")" < "$root/ios/ctl.py"
+  ssh "$mac" "$dx python3 - -p $port $(printf "'%s' " "$@")" < "$root/platforms/ios/ctl.py"
 }
 
 sim() {
@@ -257,8 +259,8 @@ e2e() {
   tw=$(ctl twin)
   W=$(echo "$tw" | sed -n 's/.* w \([0-9]*\) dpi \([0-9]*\).*/\1/p')
   dpi=$(echo "$tw" | sed -n 's/.* w \([0-9]*\) dpi \([0-9]*\).*/\2/p')
-  tg=$(cd "$root" && "$lake" build Quiet.Pages Quiet.Composer Community >/dev/null &&
-    "$lake" env lean --run ios/test/Targets.lean "$W" "$dpi")
+  tg=$(cd "$root" && "$lake" build ops.app.Pages ops.app.Composer ops.community.Community >/dev/null &&
+    "$lake" env lean --run platforms/ios/test/Targets.lean "$W" "$dpi")
   local field cont comp link
   field=$(echo "$tg" | sed -n 's/^field //p'); cont=$(echo "$tg" | sed -n 's/^continue //p')
   comp=$(echo "$tg" | sed -n 's/^composer //p'); link=$(echo "$tg" | sed -n 's/^link //p')

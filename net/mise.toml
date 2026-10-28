@@ -1,7 +1,0 @@
-[env]
-ELAN_HOME = "{{ env.ELAN_HOME | default(value='/mnt/storage/elan') }}"
-TMPDIR = "{{ env.TMPDIR | default(value='/mnt/storage/holmes-tmp') }}"
-
-[tasks.check]
-description = "Build the bootstrap model and its laws, audit axioms, run the scene on the real engine, negative controls"
-run = "tests/check.sh"
