@@ -788,11 +788,10 @@ def forgetEntry (s : St) (a c : Id) : St :=
            profileOf := if cur then none else s.profileOf,
            text := if cur then "" else s.text, chips := if cur then #[] else s.chips }
 
-/-- The communities, read by the Community kind: those listed (a removed
-entry hidden), the current one kept or, gone, the first (Get started when
-none is left). -/
-def refreshComms : M Unit := do
-  let (all, _) ← Kinds.Accepted.read (← get).comms
+/-- The communities, as read by the Community kind: those listed (a
+removed entry hidden), the current one kept or, gone, the first (Get
+started when none is left). -/
+def applyComms (all : Array Chaos.Me) : M Unit := do
   let cs := Kinds.Accepted.listed all
   -- removed since last told: a standing notice each, and forgotten
   for g in Kinds.Accepted.newlyGone (← get).goneSeen all do
@@ -807,6 +806,17 @@ def refreshComms : M Unit := do
       { s with comms := cs, me := default, cur := .empty,
                page := if s.comms.isEmpty then s.page else .getStarted,
                backStack := if s.comms.isEmpty then s.backStack else [] }
+
+/-- The communities as the reader's board has them (Reader.Want.comms):
+each frame. -/
+def refreshComms : M Unit := do
+  if let some (.comms all, _) := (← (← get).sh.board.get).get? .comms then applyComms all
+
+/-- The communities read now, on the frame: after an action that founds,
+joins or stops waiting, which the next page shows at once. -/
+def refreshCommsNow : M Unit := do
+  let (all, _) ← Kinds.Accepted.read (← get).comms
+  applyComms all
 
 /-- Make the entry of acceptance `a` the current one (memory only): the
 list starts again from its newest. An entry is its acceptance, never its
@@ -852,7 +862,7 @@ def found (n myName : String) : M Unit := do
     (← Engine.Crypto.randomBytes 32) (← Engine.Crypto.randomBytes 32)
   if ← writeAll w then
     if let some a := acceptOf w then
-      refreshComms
+      refreshCommsNow
       switchToAcc a
 
 /-- The node: started at launch, once (it speaks for every device whose
@@ -934,14 +944,12 @@ its members (the Profile kind's), me first. -/
 def refreshMembers : M Unit := do
   let s ← get
   if s.me.c.isEmpty || (s.page != .home && s.page != .profile && s.page != .removeConfirm) then return
-  let (ms, _) ← Kinds.Profile.members s.me.c
-  let out := ms.map fun (u, ds, p) => ((p.name, u == s.me.user), ds.any (s.peers.contains ·), u)
+  -- read by the reader (Reader.Want.members): nothing until it is
+  let some (.members ms admin, _) := (← s.sh.board.get).get? (.members s.me.c s.me.user) | return
+  let out := ms.map fun (u, ds, name) => ((name, u == s.me.user), ds.any (s.peers.contains ·), u)
   let sorted := out.filter (·.1.2) ++ out.filter (!·.1.2)
-  -- an admin: the founder's user (the community's id), or one granted admin
-  let (ad, _, _) ← readList (Community.admin.byUser.query [s.me.c, s.me.user] (limit := some 0)) #[]
   modify fun s => { s with members := sorted.map (·.1), online := sorted.map (·.2.1),
-                           memberIds := sorted.map (·.2.2),
-                           amAdmin := !s.me.user.isEmpty && (s.me.user == s.me.c || ad.total > 0) }
+                           memberIds := sorted.map (·.2.2), amAdmin := admin }
   -- a removal being sent is done once its target is no longer present
   if let .sending u := (← get).removal then
     if !(← get).memberIds.contains u then
@@ -954,18 +962,17 @@ def refreshMembers : M Unit := do
 peers' device keys, every 30 frames. -/
 def refreshPeers : M Unit := do
   let s ← get
-  if s.net.isNone || s.frames % 30 != 0 then return
-  let all ← ((Connection.allSessions : SqlM SF _)).run s.rd
-  let k := Connection.kept all
-  let ps := all.filterMap fun (cid, p, _) => if k.contains cid then some p else none
+  if s.net.isNone then return
+  -- read by the reader every half second
+  let ps ← s.sh.peers.get
   if ps != s.peers then modify fun s => { s with peers := ps, pageKey := none }
 
 /-- The requests to join the current community, read by the Request kind. -/
 def refreshAsking : M Unit := do
   let s ← get
   if s.me.c.isEmpty then return
-  let (out, _) ← Kinds.Request.waiting s.me.c
-  modify fun s => { s with asking := out }
+  if let some (.asking out, _) := (← s.sh.board.get).get? (.asking s.me.c) then
+    modify fun s => { s with asking := out }
 
 /-- My approval of request r (my device in this community signs it). -/
 def approveReq (r : Id) : M Unit := do
@@ -1134,7 +1141,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
       let (w, _) ← readView (Community.join i seed s.joinName.toUTF8) #[]
       if ← writeAll w then
         modify fun s => { s with invite := none, field := "", backStack := [] }
-        refreshComms
+        refreshCommsNow
         match acceptOf w, (← get).comms.find? (·.c == i.community) with
         | some a, _ => switchToAcc a
         | none, some m => switchToAcc m.acc
@@ -1149,7 +1156,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
     -- members, and an approval would still let this device in
     if !s.me.joiningOp.isEmpty then
       if ← writeAll (Community.stopWaiting s.me.joiningOp) then
-        refreshComms
+        refreshCommsNow
         if (← get).comms.isEmpty then
           modify fun s => { s with page := .getStarted, backStack := [], pageKey := none }
         else switchTo 0
@@ -1669,8 +1676,8 @@ def frame (evs : List Event) : M (Option (List Event)) := do
     | _ => none
   let s ← get
   -- people: the present members (admitted, not removed), each once
-  let (ps, _) ← readView (Kinds.Profile.present s.me.c) #[]
-  modify fun s => { s with people := ps.length }
+  if let some (.people n, _) := (← s.sh.board.get).get? (.people s.me.c) then
+    modify fun s => { s with people := n }
   let tIds ← (← get).io.nowUs
   -- 4. the offset, and the rows the frame and the fetch distance need
   let s ← get
@@ -1701,7 +1708,12 @@ def frame (evs : List Event) : M (Option (List Event)) := do
     let bot := bots0[i]!
     if bot > hi then break
     if bot + heightOf s s.ids[i]!.2 ≥ lo then win := win.push s.ids[i]!.2
-  s.sh.wants.set (#[idsW] ++ win.map (fun x => Reader.Want.row s.me.c s.me.adm x) ++ s.picWants ++ #[countW])
+  -- and the frame's own lists, after the rows: the communities, the
+  -- people count, the requests, and the people list on the pages that show it
+  let lists := #[Reader.Want.comms] ++ (if s.me.c.isEmpty then #[] else
+    #[Reader.Want.people s.me.c, Reader.Want.asking s.me.c] ++
+      (if s.page == .home || s.page == .profile || s.page == .removeConfirm then #[Reader.Want.members s.me.c s.me.user] else #[]))
+  s.sh.wants.set (#[idsW] ++ win.map (fun x => Reader.Want.row s.me.c s.me.adm x) ++ s.picWants ++ #[countW] ++ lists)
   modify fun s => { s with picWants := #[] }
   readerPass
   let bd ← takeBoard

@@ -24,6 +24,9 @@ would take the board.
 import engine.renderer.Board
 import ops.community.message.View
 import ops.community.Intents
+import ops.community.membership.AcceptedView
+import ops.community.membership.RequestView
+import ops.connection.Intents
 
 namespace Reader
 open Engine Community Data
@@ -46,7 +49,22 @@ inductive Want where
   /-- An attachment's chunk ops' bytes, in order (as stored, or in the
   outbox): what its file is opened from, off the frame. -/
   | slices (chunks : List Id)
+  /-- This device's communities (Kinds.Accepted.read). -/
+  | comms
+  /-- c's present members, each with its devices and name, and whether
+  `user` is an admin of c. -/
+  | members (c user : Id)
+  /-- c's join requests no admission answers yet. -/
+  | asking (c : Id)
+  /-- How many present members c has. -/
+  | people (c : Id)
   deriving DecidableEq, Hashable
+
+/-- Two of this device's communities alike: every field but the device,
+which its seed fixes (`dev_ok`). -/
+instance : BEq Kinds.Accepted.Me := ⟨fun a b =>
+  a.acc == b.acc && a.seed == b.seed && a.c == b.c && a.adm == b.adm && a.user == b.user &&
+    a.name == b.name && a.joiningOp == b.joiningOp && a.dialing == b.dialing && a.removed == b.removed⟩
 
 /-- What a want reads as. -/
 inductive Val where
@@ -59,6 +77,10 @@ inductive Val where
   | row (d : Option Row.RowData)
   /-- The chunk ops' bytes, or none while one is not here. -/
   | slices (raw : Option (List ByteArray))
+  | comms (all : Array Kinds.Accepted.Me)
+  | members (ms : Array (Id × List Key × String)) (admin : Bool)
+  | asking (rs : Array Kinds.Request.Data)
+  | people (n : Nat)
   deriving BEq
 
 /-- What the frame and the reader share. -/
@@ -74,9 +96,12 @@ structure Shared where
   /-- The journal's rows the reader has taken (the writer prunes below
   the frame's and this). -/
   seen : IO.Ref Nat
+  /-- The peers of the node's kept sessions, read every half second (a
+  connection family's list: not a want of the board). -/
+  peers : IO.Ref (List ByteArray)
 
 def Shared.new : IO Shared :=
-  return ⟨← IO.mkRef {}, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0⟩
+  return ⟨← IO.mkRef {}, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef []⟩
 
 structure St where
   rd : Db
@@ -90,6 +115,10 @@ structure St where
   both see its change), and kept until read. -/
   dirty : Std.HashSet Want := {}
   passes : Nat := 0
+  /-- The communities last read: Kinds.Accepted.read keeps their devices. -/
+  known : Array Kinds.Accepted.Me := #[]
+  /-- When the session list was last read (ms). -/
+  peersAt : Nat := 0
   /-- The wants of the last pass: when they change, the reads no want
   holds stop being watched. -/
   last : Array Want := #[]
@@ -126,6 +155,21 @@ def eval : Want → RM (Val × Array Q)
     let (o, deps) ← readView (Community.readable c (limit := some 0) (before := some (p.1, p.2.push 0))) #[]
     let (n, deps) ← readView (Community.readable c (limit := some 0) (after := some p)) deps
     return (.count n.inRange o.inRange, deps)
+  | .comms => do
+    let (all, deps) ← Kinds.Accepted.read (← get).known
+    modify fun s => { s with known := all }
+    return (.comms all, deps)
+  | .members c user => do
+    let (ms, deps) ← Kinds.Profile.members c
+    -- an admin: the founder's user (the community's id), or one granted admin
+    let (ad, _, deps) ← readList (Community.admin.byUser.query [c, user] (limit := some 0)) deps
+    return (.members (ms.map fun (u, ds, p) => (u, ds, p.name)) (!user.isEmpty && (user == c || ad.total > 0)), deps)
+  | .asking c => do
+    let (rs, deps) ← Kinds.Request.waiting c
+    return (.asking rs, deps)
+  | .people c => do
+    let (ps, deps) ← readView (Kinds.Profile.present c) #[]
+    return (.people ps.length, deps)
   | .row c me m => do
     match ← Kinds.Message.read c me m with
     | some (d, deps) => return (.row (some d), deps)
@@ -183,6 +227,13 @@ def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
       let (v, deps) ← eval w
       modify fun s => { s with deps := s.deps.insert w deps, dirty := s.dirty.erase w }
       puts := puts.push (w, v)
+    -- the session list, every half second
+    let now ← IO.monoMsNow
+    if now ≥ (← get).peersAt + 500 then
+      let all ← ((Connection.allSessions : SqlM SF _)).run rd
+      let k := Connection.kept all
+      sh.peers.set (all.filterMap fun (cid, p, _) => if k.contains cid then some p else none)
+      modify fun s => { s with peersAt := now }
     rd.exec "COMMIT"
     -- when the wants changed, forget the cached reads no want holds, and
     -- stop watching their windows (Screen.screen_subs: what is watched is
