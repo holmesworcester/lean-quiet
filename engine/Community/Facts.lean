@@ -406,6 +406,8 @@ namespace admission
 def byDevice : Rel Fact := ⟨"admission", "byDevice", fun | .admission c _ d _ => some [c, d] | _ => none⟩
 /-- A community's admissions: whom to dial and seal to. -/
 def all : Rel Fact := ⟨"admission", "all", fun | .admission c .. => some [c] | _ => none⟩
+/-- A user's admissions (its devices): whom a removal cites. -/
+def byUser : Rel Fact := ⟨"admission", "byUser", fun | .admission c u .. => some [c, u] | _ => none⟩
 end admission
 
 namespace removal
@@ -508,7 +510,7 @@ end chunk
 /-- Every relation of the community's facts. Invitations are in none
 (read by their own key). -/
 def rels : List (Rel Fact) :=
-  [admission.byDevice, admission.all, removal.byUser, admin.byUser, message.all, message.byAuthor,
+  [admission.byDevice, admission.all, admission.byUser, removal.byUser, admin.byUser, message.all, message.byAuthor,
    message.byKey,
    wrap.byContentKey, profile.byUser, profile.all, react.byMessage, react.byMessageEmoji,
    request.all, approval.byRequest, secret.byKey, secret.all, accepted.all, joining.all, named.current,

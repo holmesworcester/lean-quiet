@@ -501,6 +501,19 @@ theorem removed_approver_admits {y x c r : Id} {o : Op} {d0 e0 : Key} {u a : Id}
 
 /-! ## Removal -/
 
+/-- **An admission's community has a Valid root.** -/
+theorem root_of_admission (hk : Keyed ops) {y c u : Id} {d e : Key} (h : V C ops y (.admission c u d e)) :
+    ∃ d0 e0, V C ops c (.admission c c d0 e0) := by
+  obtain ⟨o, b, fs, hx, _, hr, hv⟩ := valid_inv h
+  rcases check_admission hv with ⟨s, rfl, rfl, hc, hu, _⟩ | ⟨d0, e0, l, t, aps, rfl, rfl, hh, _⟩
+  · have h1 : c = y := hc.trans (hk y o hx)
+    have h2 : u = y := hu.trans (hk y o hx)
+    subst h1; subst h2
+    exact ⟨d, e, h⟩
+  · obtain ⟨x, _, _, hreq, hxv, _, _⟩ := all2_cons2 hr
+    rw [hreq] at hh; simp at hh; subst hh
+    exact ⟨d0, e0, hxv⟩
+
 /-- **Only admins remove others.** A Valid removal of user t by user u
 is a self-removal, or u is an admin. -/
 theorem removal_authorized {x c t u : Id} (h : V C ops x (.removal c t u)) :

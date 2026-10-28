@@ -320,4 +320,19 @@ def main (args : List String) : IO UInt32 := do
   fromPeer a [byB]
   t.ok "a name by a non-admin is refused"
     ((← (Store.getStatus (F := Fact) (m := SqlM Fact) byB.id).run a) == some .invalid)
+  -- The remover flow: only an admin removes, never itself, and once.
+  let rmBy (db : Db) (target : Id) (seed : ByteArray) : IO Write :=
+    ((removeMember c target seed).run : SqlM Fact Write).run db
+  t.ok "a non-admin's removal writes nothing" ((← rmBy b c seedB).ops.isEmpty)
+  t.ok "an admin removing itself writes nothing" ((← rmBy a c seedA).ops.isEmpty)
+  t.ok "B is let in before" (← ((allowPeer c dB.pk).run : SqlM Fact Bool).run a)
+  let wrm ← rmBy a u seedA
+  t.ok "the founder removing B writes one removal" (wrm.ops.length == 1)
+  mine a wrm
+  t.ok "the removal is Valid"
+    ((← (Store.getStatus (F := Fact) (m := SqlM Fact) (wrm.ops.headD default).id).run a) matches some (.valid _))
+  t.ok "B is listed as removed, by A"
+    ((← rows a (removal.byUser.query [c, u])).any fun (_, f) => f == .removal c u c)
+  t.ok "and no longer let in" !(← ((allowPeer c dB.pk).run : SqlM Fact Bool).run a)
+  t.ok "removing B again writes nothing" ((← rmBy a u seedA).ops.isEmpty)
   t.finish "lifecycle"

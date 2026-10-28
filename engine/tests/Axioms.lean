@@ -148,3 +148,5 @@ open Engine Community
 #print axioms Connection.Noise.Symbolic.kk_authentic_resp
 #print axioms Connection.Noise.Symbolic.exposed_parts
 #print axioms Connection.Noise.Symbolic.kk_secret_init_tight
+#print axioms Community.root_of_admission
+#print axioms Community.removeMember_valid

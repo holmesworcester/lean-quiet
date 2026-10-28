@@ -210,6 +210,26 @@ def unwrap (c : Id) (seed : ByteArray) : View Fact Write := do
     | none => pure ()
   pure ⟨out⟩
 
+/-- Remove user t from c (libquiet's remover flow), as this device's
+user u: the removal cites the root, this device's admission, what makes
+u an admin (its own admission for the founder, else a grant), and an
+admission of t. Nothing when u is not an admin, t is u, or t is already
+removed (`removeMember_valid`). -/
+def removeMember (c t : Id) (seed : ByteArray) : View Fact Write := do
+  let d := Device.ofSeed seed
+  let me ← admission.byDevice.read [c, d.pk] (limit := some 1)
+  let gone ← removal.byUser.read [c, t] (limit := some 0)
+  let tgt ← admission.byUser.read [c, t] (limit := some 1)
+  match me.rows.head? with
+  | some ((_, myAdm), .admission _ u _ _) =>
+    let grant ← admin.byUser.read [c, u] (limit := some 1)
+    let auth := if u = c then some myAdm else grant.rows.head?.map (·.1.2)
+    match auth, tgt.rows.head? with
+    | some a, some ((_, ta), _) =>
+      pure ⟨if u = t ∨ gone.total ≠ 0 then [] else [remove c myAdm a ta d]⟩
+    | _, _ => pure ⟨[]⟩
+  | _ => pure ⟨[]⟩
+
 /-- React to a message. -/
 def reactTo (c myAdm target : Id) (seed emoji : ByteArray) (time : Nat) : Write :=
   ⟨[react c myAdm target (Device.ofSeed seed) emoji time]⟩
@@ -336,6 +356,81 @@ theorem readable_complete (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d
     ⟨hm, by simp [message.byKey]⟩
   rw [mem_eval_all rfl rfl rfl, matching_also_nil _ rfl, mem_matching]
   exact ⟨y, _, rfl, hf.1, hf.2⟩
+
+theorem admission_byUser_args {c u : Id} {f : Fact} :
+    admission.byUser.args f = some [c, u] ↔ ∃ d e, f = .admission c u d e := by
+  cases f <;> simp [admission.byUser, eq_comm]
+
+/-- A row of a list read at rest is a Valid fact filed under it. -/
+theorem row_filed {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : s.queue = [])
+    {as : List ByteArray} {lim : Option Nat} {p : Pos} {f : Fact}
+    (hp : (p, f) ∈ (Engine.eval s (r.query as lim)).rows) : V C s.ops p.2 f ∧ r.args f = some as := by
+  have hm := mem_eval_matching hp
+  rw [matching_also_nil (s := s) (r.query as lim) rfl] at hm
+  obtain ⟨y', f', he, hy, hf⟩ := (mem_matching _ _).1 hm
+  simp only [Prod.mk.injEq] at he
+  obtain ⟨rfl, rfl⟩ := he
+  exact (filed (C := C) hr h hq as _ _).1 ⟨hy, hf⟩
+
+/-- **A removal the remover flow writes stands.** Every op
+`removeMember c t seed` writes is, once stored, a Valid removal of t by
+an admin u other than t (Ed25519 signing as the suite's). -/
+theorem removeMember_valid (h : Inv (family C) s) (hq : s.queue = []) {c t : Id} {seed : ByteArray}
+    (hsig : ∀ m, C.verify (Device.ofSeed seed).pk m (edSign (Device.ofSeed seed).sk m) = true)
+    {o : Op} (ho : o ∈ ((removeMember c t seed).eval s).ops)
+    {ops' : Id → Option Op} (he : Extends s.ops ops') (hs : ops' o.id = some o) :
+    ∃ u, u ≠ t ∧ IsAdmin C s.ops c u ∧ V C ops' o.id (.removal c t u) := by
+  unfold removeMember at ho
+  simp only [Rel.read, View.eval_bind, View.eval_read] at ho
+  split at ho
+  · rename_i p myAdm c' u dv ev hme
+    simp only [View.eval_bind, View.eval_read] at ho
+    split at ho
+    · rename_i a pt ta g hauth htg
+      simp only [View.eval_pure] at ho
+      by_cases hcond : u = t ∨ (Engine.eval s (removal.byUser.query [c, t] (some 0))).total ≠ 0
+      · simp [hcond] at ho
+      · simp only [not_or, ne_eq, Decidable.not_not] at hcond
+        obtain ⟨hut, hgone⟩ := hcond
+        simp only [hut, hgone, ne_eq, not_true_eq_false, or_self, ↓reduceIte,
+          List.mem_singleton] at ho
+        subst ho
+        have hmeV := row_filed (r := admission.byDevice) (by simp [rels]) h hq
+          (List.mem_of_mem_head? (by rw [hme]; rfl))
+        obtain ⟨hmv, hma⟩ := hmeV
+        obtain ⟨u', e', hfe⟩ := byDevice_args.1 hma
+        simp only [Fact.admission.injEq] at hfe
+        obtain ⟨hc', _, hdv, _⟩ := hfe
+        subst c'
+        have htgV := row_filed (r := admission.byUser) (by simp [rels]) h hq
+          (List.mem_of_mem_head? (by rw [htg]; rfl))
+        obtain ⟨htv, hta⟩ := htgV
+        obtain ⟨dt, et, hg⟩ := admission_byUser_args.1 hta
+        rw [hg] at htv
+        obtain ⟨d0, e0, hroot⟩ := root_of_admission h.key hmv
+        -- what makes u an admin
+        have hadm : ∃ g, V C s.ops a g ∧ isAdmin c u g = true := by
+          by_cases hu : u = c
+          · rw [if_pos hu] at hauth
+            cases hauth
+            exact ⟨_, hmv, by simp [isAdmin, hu]⟩
+          · rw [if_neg hu] at hauth
+            obtain ⟨⟨⟨p2, a'⟩, g2⟩, hg2, ha'⟩ := Option.map_eq_some_iff.1 hauth
+            simp only at ha'
+            subst ha'
+            obtain ⟨hgv, hga⟩ := row_filed (r := admin.byUser) (by simp [rels]) h hq
+              (List.mem_of_mem_head? hg2)
+            refine ⟨g2, hgv, ?_⟩
+            cases g2 <;> simp [admin.byUser] at hga
+            simp [isAdmin, hga]
+        obtain ⟨g, hgv, hga⟩ := hadm
+        refine ⟨u, hut, isAdmin_sound hgv hga, ?_⟩
+        rw [hdv] at hmv
+        exact admin_removal_stands hs (Codec.decode_encode _) rfl rfl
+          (valid_stays he hroot) (valid_stays he hmv) (valid_stays he hgv) hga (valid_stays he htv)
+          (hsig _)
+    · simp at ho
+  · simp at ho
 
 /-! ## A file's download progress
 
