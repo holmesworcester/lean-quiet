@@ -31,6 +31,10 @@ import ops.community.WrapLaws
 import engine.renderer.ReaderLaws
 import ops.community.ReqsLaws
 import ops.connection.ReqsLaws
+import engine.core.WindowRead
+import engine.core.WindowCost
+import engine.core.WindowMutants
+import engine.renderer.Screen
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -482,3 +486,37 @@ section cost
 #print axioms Community.approveReq_ops
 #print axioms Community.wrapAll_over
 end cost
+section windows
+open Engine
+#print axioms Engine.run_exact
+#print axioms Engine.fact_stable
+#print axioms Engine.window_ne_iff
+#print axioms Engine.window_ne_iff_flips
+#print axioms Engine.oneOpPerId_of
+#print axioms Engine.notice_iff
+#print axioms Engine.rank_spec
+#print axioms Engine.find_build
+#print axioms Engine.Subs.find_iff
+#print axioms Engine.Subs.mem_notifyM
+#print axioms Engine.Subs.has_ofList
+#print axioms Engine.Subs.has_add
+#print axioms Engine.Subs.has_keep
+#print axioms Engine.Subs.add_wf
+#print axioms Engine.Subs.keep_wf
+#print axioms Engine.Subs.ofList_wf
+#print axioms Engine.mem_net
+#print axioms Engine.read_rows_iff
+#print axioms Engine.read_notice_iff
+#print axioms Engine.watch_stable
+#print axioms Engine.eval_counting
+#print axioms Engine.rank_costs
+#print axioms Engine.find_costs
+#print axioms Engine.notify_cost
+#print axioms Engine.Mutants.key_notice_imprecise
+#print axioms Engine.Mutants.exact_silent
+#print axioms Engine.Mutants.unnetted_imprecise
+#print axioms Screen.screen_subs
+#print axioms Screen.hull_near
+#print axioms Screen.screen_index
+#print axioms Screen.keep_scrolled_off
+end windows

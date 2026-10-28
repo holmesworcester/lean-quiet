@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 425 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 456 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -182,6 +182,7 @@ nothing else is assumed:
 | ⬜ | 🥊🥊 | **A tap acts once.** A second tap on a control while its action is in flight starts nothing new (Send sends once). A press that turns into a scroll past the slop is not a tap. | |
 | ⬜ | 🥊🥊 | **Destructive actions are guarded.** Every action that cannot be undone asks for a second confirmation, as removal does (`writes_only_after_two`). Its control keeps a clear gap from the controls around it. | |
 | ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
+| 🟡 | 🥊🥊🥊 | **Notices are exact, and the screen watches only what it shows.** A screen watches windows: a list's rows between two positions. The store's journal records each row filed or unfiled; a reader nets a batch and matches it against an index of windows. A subscriber is then notified exactly when one of its windows changed. It is never notified for a row outside them, a row filed and purged between two passes, or an old message backfilled below a newest-50 read, and always for a row inside. A read's window, cut at its last row, changes exactly when its rows do; a read whose range count is used watches its range, and a count its key, so a watch misses nothing its reader uses. A union of reads (the conversation) is watched read by read: complete, but not precise for the union's own cut. Matching a filing costs a hash and ⌊log₂ 2S⌋+2 comparisons, S being its key's windows. The frame wants exactly its page's reads, the near rows' hull per list key, and the near rows' own reads. Notices by key, and an unnetted journal, are each shown imprecise. This assumes one op per id (SHA-256 has no collision), over the model; SQLite's triggers are tested against it (`tests/engine/WindowCheck.lean`). **Not yet:** the app still notices by key. Its reads, `Live` and the frame's keep move to windows in holmes-1e's change. | [`notice_iff`], [`read_notice_iff`], [`read_rows_iff`], [`watch_stable`], [`run_exact`], [`fact_stable`], [`find_costs`], [`notify_cost`], [`screen_subs`], [`hull_near`], [`key_notice_imprecise`], [`unnetted_imprecise`], [`keep_scrolled_off`] |
 | ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
 | ✅ | 🥊🥊 | **The people list is the present members,** each once. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_nodup`] |
 | ⬜ | 🥊🥊🥊 | **The screen is one moment.** Every frame is the root component drawn over a single settled store state, the latest the app has seen, so if one row is current, all are. Half of this is proven: a cached component whose keys did not fire answers as a fresh read would. **Today it is false, not just unproven.** The writer and the frame read on separate SQLite connections, so a frame's reads can span two commits, and one frame can show a user under two names. Wanted: one snapshot per frame, and re-reading exactly what fired. | [`eval_stable`], [`view_stable`], [`drain_bounded`] |
@@ -668,6 +669,19 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`filed_rel`]: engine/core/Decl.lean#L189-L196
 [`mem_keysOf`]: engine/core/Decl.lean#L79-L82
 [`matching_nodup`]: engine/core/Decl.lean#L158-L161
+[`notice_iff`]: engine/core/WindowLaws.lean#L698-L706
+[`read_notice_iff`]: engine/core/WindowRead.lean#L357-L369
+[`read_rows_iff`]: engine/core/WindowRead.lean#L284-L290
+[`watch_stable`]: engine/core/WindowRead.lean#L402-L409
+[`run_exact`]: engine/core/WindowLaws.lean#L428-L433
+[`fact_stable`]: engine/core/WindowLaws.lean#L509-L515
+[`find_costs`]: engine/core/WindowCost.lean#L133-L137
+[`notify_cost`]: engine/core/WindowCost.lean#L195-L198
+[`screen_subs`]: engine/renderer/Screen.lean#L113-L122
+[`hull_near`]: engine/renderer/Screen.lean#L199-L203
+[`key_notice_imprecise`]: engine/core/WindowMutants.lean#L110-L113
+[`unnetted_imprecise`]: engine/core/WindowMutants.lean#L160-L164
+[`keep_scrolled_off`]: engine/renderer/Screen.lean#L276-L281
 [`writes_only_after_two`]: ops/app/Remove.lean#L56-L59
 [`cancel_writes_nothing`]: ops/app/Remove.lean#L63-L64
 [`open_fresh`]: ops/app/Remove.lean#L67-L69

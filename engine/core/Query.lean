@@ -52,6 +52,9 @@ structure ListQ where
   desc : Bool := true
   limit : Option Nat := some 0
   cap : Nat := 0
+  /-- Whether whoever reads the answer uses its range count (`inRange`)
+  beside its rows: what a watch on it must cover (`ListQ.watch`). -/
+  counted : Bool := false
   deriving Inhabited, BEq, Hashable
 
 /-- A list's answer: its rows, each a position with its Valid fact; the
