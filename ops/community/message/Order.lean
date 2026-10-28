@@ -307,7 +307,7 @@ theorem receipt_once (h : Inv (family C) s) (hq : s.queue = []) {o : Op} {z : Id
     rw [matching_also_nil _ rfl]
     exact Nat.pos_iff_ne_zero.1 (List.length_pos_iff_exists_mem.2 ⟨_, (mem_matching _ _).2 ⟨z, _, rfl, hf.1, hf.2⟩⟩)
   unfold receiptFor
-  by_cases hk : o.kind ≠ 20
+  by_cases hk : o.kind ≠ 23
   · simp [hk]
   simp only [hk, ite_false]
   split
@@ -320,7 +320,7 @@ theorem receipt_once (h : Inv (family C) s) (hq : s.queue = []) {o : Op} {z : Id
 /-- What `receiptFor` writes for a saturated post it holds no receipt of:
 one receipt, one past the newest in the post's community. -/
 theorem receipt_post (h : Inv (family C) s) (hq : s.queue = []) {o : Op} {kid sealed sig : ByteArray}
-    {n tm : Nat} (hkind : o.kind = 20) (hb : (decode o.body : Option Body) = some (.post kid sealed n tm sig))
+    {n tm : Nat} (hkind : o.kind = 23) (hb : (decode o.body : Option Body) = some (.post kid sealed n tm sig))
     (hn : countCap ≤ n) (hnew : s.ops o.id = none) :
     (receiptFor o).eval s = [receipt o.id ((topReceived (o.reqs.headD .empty)).eval s + 1)] := by
   have hzero : (Engine.eval s (received.byMsg.query [o.id] (some 0))).total = 0 := by
@@ -354,7 +354,7 @@ theorem arrival_order (h : Inv (family C) s) (hq : s.queue = []) (o : Op)
       Pos.cmp (recKey j' m, m) (recKey j o.id, o.id) = .lt := by
   refine ⟨(topReceived (o.reqs.headD .empty)).eval s + 1, ?_, (receipt_past h hq hk).2⟩
   unfold receiptFor at hr
-  by_cases hkind : o.kind ≠ 20
+  by_cases hkind : o.kind ≠ 23
   · simp [hkind] at hr
   simp only [hkind, ite_false] at hr
   split at hr

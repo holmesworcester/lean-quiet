@@ -181,10 +181,10 @@ def topReceived (c : Id) : View Fact Nat := do
 arrived: for a post claiming the counter cap or more, its receipt, one
 past this device's newest receipt in the post's community, unless it
 holds one of o already. Nothing for any other op, whose body it does
-not decode (a post is kind 20). The network node writes it on every
+not decode (a post is kind 23). The network node writes it on every
 arrival (`Connection.onArrival`); `send` with the post. -/
 def receiptFor (o : Op) : View Fact (List Op) := do
-  if o.kind ≠ 20 then return []
+  if o.kind ≠ 23 then return []
   match (Codec.decode o.body : Option Body) with
   | some (.post _ _ n _ _) =>
     if n < countCap then return []

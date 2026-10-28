@@ -125,7 +125,7 @@ def channelOrder (t : Checks) (a b : Db) (c : Id) (kA seedA seedB : ByteArray) :
   let ob ← order b
   t.ok "and every message is listed once, the same set on both"
     (oa.length == ob.length && oa.all ob.contains && oa.eraseDups.length == oa.length)
-  t.ok "receipts never leave a device" ((← sendable a).all fun o => o.kind != 21)
+  t.ok "receipts never leave a device" ((← sendable a).all fun o => o.kind != 24)
   t.ok "a message already received gets no second receipt" ((← receipts a [pB4, huge, pA4]).isEmpty)
   let lowRcpt := receipt pA3.id 9
   mine a ⟨[lowRcpt]⟩

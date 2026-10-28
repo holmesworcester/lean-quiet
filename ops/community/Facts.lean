@@ -59,7 +59,7 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   a local op written when a saturated post arrives or is sent): the one
   place two devices may order alike messages differently (the user's
   decision, 2026-10-27, stated as `order_local`).
-- A post is body tag 20 and its message fact tag 18; tags 5 and 4 (the
+- A post is body tag 23 and its message fact tag 21; tags 5 and 4 (the
   post and message before the counter) no longer decode.
 - A profile is a user's name, a register: the newest by (time, id) is
   current.
@@ -164,7 +164,7 @@ def Body.enc : Body → List UInt8
   | .request d e c b => 12 :: Codec.enc (d, e, c, b)
   | .grant s => 3 :: Codec.enc s
   | .remove s => 4 :: Codec.enc s
-  | .post k t n tm s => 20 :: Codec.enc (k, t, n, tm, s)
+  | .post k t n tm s => 23 :: Codec.enc (k, t, n, tm, s)
   | .wrap k r b => 6 :: Codec.enc (k, r, b)
   | .profile n tm s => 7 :: Codec.enc (n, tm, s)
   | .attach r l k x s => 8 :: Codec.enc (r, l, k, x, s)
@@ -178,7 +178,7 @@ def Body.enc : Body → List UInt8
   | .abandon => [17]
   | .key c k => 18 :: Codec.enc (c, k)
   | .chunk r l i x p => 19 :: Codec.enc (r, l, i, x, p)
-  | .receive k => 21 :: Codec.enc k
+  | .receive k => 24 :: Codec.enc k
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B) => Body.root p.1 p.2.1 p.2.2) r
@@ -202,9 +202,9 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 18 :: r => decAs (fun (p : B × B) => Body.key p.1 p.2) r
   | 19 :: r => decAs (fun (p : B × Nat × Nat × B × List B) =>
       Body.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
-  | 20 :: r => decAs (fun (p : B × B × Nat × Nat × B) =>
+  | 23 :: r => decAs (fun (p : B × B × Nat × Nat × B) =>
       Body.post p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
-  | 21 :: r => decAs (fun (p : Nat) => Body.receive p) r
+  | 24 :: r => decAs (fun (p : Nat) => Body.receive p) r
   | _ => none
 
 /-- `Body.enc`, as it runs: appended to a buffer (`Engine.Codec`). -/
@@ -214,7 +214,7 @@ def Body.encInto (buf : ByteArray) : Body → ByteArray
   | .request d e c b => Codec.encInto (buf.push 12) (d, e, c, b)
   | .grant s => Codec.encInto (buf.push 3) s
   | .remove s => Codec.encInto (buf.push 4) s
-  | .post k t n tm s => Codec.encInto (buf.push 20) (k, t, n, tm, s)
+  | .post k t n tm s => Codec.encInto (buf.push 23) (k, t, n, tm, s)
   | .wrap k r b => Codec.encInto (buf.push 6) (k, r, b)
   | .profile n tm s => Codec.encInto (buf.push 7) (n, tm, s)
   | .attach r l k x s => Codec.encInto (buf.push 8) (r, l, k, x, s)
@@ -228,7 +228,7 @@ def Body.encInto (buf : ByteArray) : Body → ByteArray
   | .abandon => buf.push 17
   | .key c k => Codec.encInto (buf.push 18) (c, k)
   | .chunk r l i x p => Codec.encInto (buf.push 19) (r, l, i, x, p)
-  | .receive k => Codec.encInto (buf.push 21) k
+  | .receive k => Codec.encInto (buf.push 24) k
 
 /-- `Body.dec`, as it runs: read at offset i of a byte array. -/
 def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
@@ -254,9 +254,9 @@ def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
   | some 18 => decFromAs (fun (p : B × B) => Body.key p.1 p.2) b (i + 1)
   | some 19 => decFromAs (fun (p : B × Nat × Nat × B × List B) =>
       Body.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
-  | some 20 => decFromAs (fun (p : B × B × Nat × Nat × B) =>
+  | some 23 => decFromAs (fun (p : B × B × Nat × Nat × B) =>
       Body.post p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
-  | some 21 => decFromAs (fun (p : Nat) => Body.receive p) b (i + 1)
+  | some 24 => decFromAs (fun (p : Nat) => Body.receive p) b (i + 1)
   | _ => none
 
 instance : Codec Body where
@@ -278,7 +278,7 @@ def Fact.enc : Fact → List UInt8
   | .invitation c i k l t => 1 :: Codec.enc (c, i, k, l, t)
   | .admin c u => 2 :: Codec.enc (c, u)
   | .removal c u b => 3 :: Codec.enc (c, u, b)
-  | .message c u d k t n tm => 18 :: Codec.enc (c, u, d, k, t, n, tm)
+  | .message c u d k t n tm => 21 :: Codec.enc (c, u, d, k, t, n, tm)
   | .wrap c k r b => 5 :: Codec.enc (c, k, r, b)
   | .profile c u n tm => 6 :: Codec.enc (c, u, n, tm)
   | .attachment c m u r l k x => 7 :: Codec.enc (c, m, u, r, l, k, x)
@@ -292,7 +292,7 @@ def Fact.enc : Fact → List UInt8
   | .abandoned c r j => 15 :: Codec.enc (c, r, j)
   | .key c i k => 16 :: Codec.enc (c, i, k)
   | .chunk c a r l i => 17 :: Codec.enc (c, a, r, l, i)
-  | .received c k m n => 19 :: Codec.enc (c, k, m, n)
+  | .received c k m n => 22 :: Codec.enc (c, k, m, n)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B × B) => Fact.admission p.1 p.2.1 p.2.2.1 p.2.2.2) r
@@ -316,9 +316,9 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 15 :: r => decAs (fun (p : B × B × B) => Fact.abandoned p.1 p.2.1 p.2.2) r
   | 16 :: r => decAs (fun (p : B × B × B) => Fact.key p.1 p.2.1 p.2.2) r
   | 17 :: r => decAs (fun (p : B × B × B × Nat × Nat) => Fact.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
-  | 18 :: r => decAs (fun (p : B × B × B × B × B × Nat × Nat) =>
+  | 21 :: r => decAs (fun (p : B × B × B × B × B × Nat × Nat) =>
       Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) r
-  | 19 :: r => decAs (fun (p : B × B × B × Nat) => Fact.received p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 22 :: r => decAs (fun (p : B × B × B × Nat) => Fact.received p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | _ => none
 
 /-- `Fact.enc`, as it runs: appended to a buffer (`Engine.Codec`). -/
@@ -327,7 +327,7 @@ def Fact.encInto (buf : ByteArray) : Fact → ByteArray
   | .invitation c i k l t => Codec.encInto (buf.push 1) (c, i, k, l, t)
   | .admin c u => Codec.encInto (buf.push 2) (c, u)
   | .removal c u b => Codec.encInto (buf.push 3) (c, u, b)
-  | .message c u d k t n tm => Codec.encInto (buf.push 18) (c, u, d, k, t, n, tm)
+  | .message c u d k t n tm => Codec.encInto (buf.push 21) (c, u, d, k, t, n, tm)
   | .wrap c k r b => Codec.encInto (buf.push 5) (c, k, r, b)
   | .profile c u n tm => Codec.encInto (buf.push 6) (c, u, n, tm)
   | .attachment c m u r l k x => Codec.encInto (buf.push 7) (c, m, u, r, l, k, x)
@@ -341,7 +341,7 @@ def Fact.encInto (buf : ByteArray) : Fact → ByteArray
   | .abandoned c r j => Codec.encInto (buf.push 15) (c, r, j)
   | .key c i k => Codec.encInto (buf.push 16) (c, i, k)
   | .chunk c a r l i => Codec.encInto (buf.push 17) (c, a, r, l, i)
-  | .received c k m n => Codec.encInto (buf.push 19) (c, k, m, n)
+  | .received c k m n => Codec.encInto (buf.push 22) (c, k, m, n)
 
 /-- `Fact.dec`, as it runs: read at offset i of a byte array. -/
 def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
@@ -367,9 +367,9 @@ def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
   | some 15 => decFromAs (fun (p : B × B × B) => Fact.abandoned p.1 p.2.1 p.2.2) b (i + 1)
   | some 16 => decFromAs (fun (p : B × B × B) => Fact.key p.1 p.2.1 p.2.2) b (i + 1)
   | some 17 => decFromAs (fun (p : B × B × B × Nat × Nat) => Fact.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
-  | some 18 => decFromAs (fun (p : B × B × B × B × B × Nat × Nat) =>
+  | some 21 => decFromAs (fun (p : B × B × B × B × B × Nat × Nat) =>
       Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) b (i + 1)
-  | some 19 => decFromAs (fun (p : B × B × B × Nat) => Fact.received p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
+  | some 22 => decFromAs (fun (p : B × B × B × Nat) => Fact.received p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
   | _ => none
 
 instance : Codec Fact where
@@ -538,7 +538,7 @@ def Body.tag : Body → UInt8
   | .profile .. => 7 | .attach .. => 8 | .react .. => 9
   | .approve .. => 10 | .admit => 11
   | .accept .. => 13 | .joining .. => 14 | .secret .. => 15 | .name .. => 16 | .abandon => 17
-  | .key .. => 18 | .chunk .. => 19 | .post .. => 20 | .receive .. => 21
+  | .key .. => 18 | .chunk .. => 19 | .post .. => 23 | .receive .. => 24
 
 /-- An op's verdict: its body's, if its type is its body's. The type is
 in the bytes its id hashes, so an op re-sent under another type would be
