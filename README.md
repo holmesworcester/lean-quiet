@@ -135,8 +135,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 670 rest on Lean's standard axioms
-only, and about three quarters of its theorems (494 of 652, not counting 18 negative controls) are about the code that runs; another 7 run the
+that rests on; 🥊 is supporting. All 684 rest on Lean's standard axioms
+only, and about two thirds of its theorems (497 of 664, not counting 20 negative controls) are about the code that runs; another 7 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -245,7 +245,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**494 of 652 laws are about running code;** another 7 run its node code in a World, and 151 are not yet. Stated only: none. 18 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**497 of 664 laws are about running code;** another 7 run its node code in a World, and 160 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -258,7 +258,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Community | 165 | 154 |  | 11 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
-| Screen | 114 | 61 |  | 53 |
+| Screen | 126 | 64 |  | 62 |
 | App | 40 | 33 |  | 7 |
 
 | Missing link | Laws | To make them real |
@@ -276,9 +276,18 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Arrival.lit` | [`lit_zero`], [`lit_mono`], [`lit_full`], [`lit_clockwise`], [`ring_counts`] | `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`. |
 | `Frame.wants`, `Subs.ofList`, `Frame.listWins` +2 | [`has_ofList`], [`ofList_wf`], [`screen_subs`]†, [`hull_near`]†, [`past_hull_le`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan). |
 | `Pics.after`, `Pics.costIn` | [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`] | The picture doors as data (`PicM`), measured: the app's own doors (its decode table and frame counter) are not shown to answer as `PicM`'s. Prove they do, or state these over them. |
-| `Board.apply`, `RWorld.commit`, `RWorld.evict` +10 | [`seen_take`], [`World.inv_commit`], [`RWorld.inv_commit`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`], [`World.inv_pass`], [`World.inv_frame`], [`World.settle`], [`marked_pass`], [`settle_passes`] +6 more | The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`. |
+| `Board.apply`, `RWorld.commit`, `RWorld.evict` +10 | [`RWorld.acts_shown`], [`seen_take`], [`World.inv_commit`], [`RWorld.inv_commit`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`], [`World.inv_pass`], [`World.inv_frame`], [`World.settle`], [`marked_pass`] +7 more | The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`. |
 | `T.sum`, `Both.bottom`, `Both.rowAt` +16 | [`start_eq`], [`find_spec`], [`set_toList`], [`push_ok`], [`findM_cost`], [`startM_cost`], [`setM_cost`], [`rows_cost`], [`start_mono`], [`start_size`], [`below_window`], [`above_window`] +8 more | The row-heights tree (engine/renderer/Heights.lean): the app keeps its rows' heights in a map (`App.heightOf`) and adds them up itself. Have its list frame place rows by `Heights`. |
-| `Live.staleW` | [`RWorld.inv_commit`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`] | Nothing that runs calls it; `RWorld.marked`, `RWorld.passEager`, `Reader.stale` do. |
+| `AWorld.pass` | [`AWorld.passActs_comp`], [`AWorld.passActs_indep`], [`AWorld.passActs_acts`] | Nothing that runs calls it. |
+| `AWorld.type` | [`AWorld.type_only`] | Nothing that runs calls it. |
+| `RWorld.actsWorld` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.passActs` do. |
+| `RWorld.commitAll` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.actsWorld`, `RWorld.nTouched`, `RWorld.passLate` do. |
+| `RWorld.markIdx` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.passIdx` do. |
+| `RWorld.nTouched` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.passActs` do. |
+| `RWorld.passActs` | [`passActs_nil`], [`inv_passActs`], [`idxok_passActs`], [`RWorld.acts_shown`] | Nothing that runs calls it; `AWorld.pass` do. |
+| `RWorld.passIdx` | [`passActs_nil`] | Nothing that runs calls it; `RWorld.passActs`, `RWorld.passLate` do. |
+| `RWorld.touched` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.actsWorld`, `RWorld.nTouched` do. |
+| `Live.staleW` | [`inv_passActs`], [`idxok_passActs`], [`RWorld.acts_shown`], [`RWorld.inv_commit`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`] | Nothing that runs calls it; `RWorld.marked`, `RWorld.passEager`, `Reader.stale` do. |
 | `Want.withViewLast` | [`withViewLast_moves`] | Nothing that runs calls it. |
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
@@ -1020,8 +1029,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L1117-L1121
-[`pageIn_acc`]: App.lean#L1123-L1126
+[`drawPage_key`]: App.lean#L1149-L1153
+[`pageIn_acc`]: App.lean#L1155-L1158
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
@@ -1079,18 +1088,18 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`image_steady`]: ops/app/Pics.lean#L333-L336
 [`image_settles`]: ops/app/Pics.lean#L395-L397
 [`image_twice`]: ops/app/Pics.lean#L408-L412
+[`RWorld.acts_shown`]: engine/renderer/ActsLaws.lean#L209-L218
 [`seen_take`]: engine/renderer/BoardLaws.lean#L245-L246
 [`World.inv_commit`]: engine/renderer/BoardLaws.lean#L335-L336
-[`RWorld.inv_commit`]: engine/renderer/ReaderLaws.lean#L227-L228
-[`RWorld.inv_pass`]: engine/renderer/ReaderLaws.lean#L366-L368
-[`RWorld.inv_frame`]: engine/renderer/ReaderLaws.lean#L246-L246
-[`inv_evict`]: engine/renderer/ReaderLaws.lean#L249-L250
-[`RWorld.settle`]: engine/renderer/ReaderLaws.lean#L400-L404
+[`RWorld.inv_commit`]: engine/renderer/ReaderLaws.lean#L237-L238
+[`RWorld.inv_pass`]: engine/renderer/ReaderLaws.lean#L410-L411
+[`RWorld.inv_frame`]: engine/renderer/ReaderLaws.lean#L256-L256
+[`inv_evict`]: engine/renderer/ReaderLaws.lean#L259-L260
+[`RWorld.settle`]: engine/renderer/ReaderLaws.lean#L458-L460
 [`World.inv_pass`]: engine/renderer/BoardLaws.lean#L373-L374
 [`World.inv_frame`]: engine/renderer/BoardLaws.lean#L399-L399
 [`World.settle`]: engine/renderer/BoardLaws.lean#L405-L410
 [`marked_pass`]: engine/renderer/BoardLaws.lean#L448-L451
-[`settle_passes`]: engine/renderer/BoardLaws.lean#L475-L482
 [`start_eq`]: engine/renderer/Heights.lean#L148-L149
 [`find_spec`]: engine/renderer/Heights.lean#L173-L176
 [`set_toList`]: engine/renderer/Heights.lean#L202-L206
@@ -1103,6 +1112,14 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`start_size`]: engine/renderer/Heights.lean#L244-L245
 [`below_window`]: engine/renderer/Heights.lean#L248-L251
 [`above_window`]: engine/renderer/Heights.lean#L254-L258
+[`AWorld.passActs_comp`]: engine/renderer/ActsLaws.lean#L291-L293
+[`AWorld.passActs_indep`]: engine/renderer/ActsLaws.lean#L295-L298
+[`AWorld.passActs_acts`]: engine/renderer/ActsLaws.lean#L301-L302
+[`AWorld.type_only`]: engine/renderer/ActsLaws.lean#L304-L305
+[`passActs_picks`]: engine/renderer/ActsLaws.lean#L98-L103
+[`passActs_nil`]: engine/renderer/ActsLaws.lean#L141-L143
+[`inv_passActs`]: engine/renderer/ActsLaws.lean#L192-L195
+[`idxok_passActs`]: engine/renderer/ActsLaws.lean#L199-L203
 [`withViewLast_moves`]: ops/app/Reader.lean#L93-L97
 [`run_contiguous`]: engine/renderer/bidi/Laws.lean#L84-L87
 [`erase_run`]: engine/core/CostErase.lean#L22-L23

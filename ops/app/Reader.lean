@@ -121,40 +121,6 @@ inductive Val where
   | people (n : Nat)
   deriving BEq
 
-/-- What the frame and the reader share. -/
-structure Shared where
-  board : IO.Ref (_root_.Live.Board Want Val)
-  /-- The frame's wants, most urgent first. -/
-  wants : IO.Ref (Array Want)
-  /-- The frame's outbox, as of its last frame. -/
-  out : IO.Ref (Array Pending)
-  /-- The rows the frame's own writes filed (to its outbox) since the
-  last pass. -/
-  notes : IO.Ref (Array Filing)
-  /-- The journal's rows the reader has taken (the writer prunes below
-  the frame's and this). -/
-  seen : IO.Ref Nat
-  /-- The peers of the node's kept sessions, read every half second (a
-  connection family's list: not a want of the board). -/
-  peers : IO.Ref (List ByteArray)
-  /-- Moves each time the frame sets `wants` to something new. -/
-  gen : IO.Ref Nat
-  /-- The writers' commits (the app's writer counts its own, the node's
-  notify counts the node's): a pass that sees it unmoved, with no note,
-  the same wants and nothing dirty, reads nothing (RestLaws.start_rest). -/
-  commits : IO.Ref Nat
-
-def Shared.new (commits : IO.Ref Nat) : IO Shared :=
-  return ⟨← IO.mkRef {}, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef [], ← IO.mkRef 0,
-    commits⟩
-
-/-- The frame's wants, set; the generation moves only when they change,
-so a reader at rest stays at rest (RestLaws.nextGen_same). -/
-def Shared.setWants (sh : Shared) (ws : Array Want) : IO Unit := do
-  let old ← sh.wants.get
-  sh.gen.modify (_root_.Live.nextGen old ws)
-  if old != ws then sh.wants.set ws
-
 structure St where
   rd : Db
   live : Live := {}
@@ -190,6 +156,56 @@ structure St where
   opens : Nat := 0
 
 abbrev RM := StateT St IO
+
+/-- A user action: its id (the frame's, for its continuation) and its
+intent, run in a pass on the reader's connection, before the marks. -/
+abbrev Act := Id × RM Community.Write
+
+/-- What the frame and the reader share. -/
+structure Shared where
+  board : IO.Ref (_root_.Live.Board Want Val)
+  /-- The frame's wants, most urgent first. -/
+  wants : IO.Ref (Array Want)
+  /-- The outbox: the pass's. The frame's own writes join it; the pass
+  adds its acts' ops and drops those the store has decided. -/
+  out : IO.Ref (Array Pending)
+  /-- The rows the frame's own writes filed (to its outbox) since the
+  last pass. -/
+  notes : IO.Ref (Array Filing)
+  /-- The journal's rows the reader has taken (the writer prunes below
+  the frame's and this). -/
+  seen : IO.Ref Nat
+  /-- The peers of the node's kept sessions, read every half second (a
+  connection family's list: not a want of the board). -/
+  peers : IO.Ref (List ByteArray)
+  /-- Moves each time the frame sets `wants` to something new. -/
+  gen : IO.Ref Nat
+  /-- The writers' commits (the app's writer counts its own, the node's
+  notify counts the node's): a pass that sees it unmoved, with no note,
+  the same wants and nothing dirty, reads nothing (RestLaws.start_rest). -/
+  commits : IO.Ref Nat
+  /-- The frame's acts, for the next pass (`Shared.act`). -/
+  acts : IO.Ref (Array Act)
+  /-- What each act wrote: its write, or none when refused (an op
+  Invalid, or the intent failed). The frame takes them, submits each
+  write and runs its continuation. -/
+  done : IO.Ref (Array (Id × Option Community.Write))
+
+def Shared.new (commits : IO.Ref Nat) : IO Shared :=
+  return ⟨← IO.mkRef {}, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef [], ← IO.mkRef 0,
+    commits, ← IO.mkRef #[], ← IO.mkRef #[]⟩
+
+/-- Queue an act: the next pass opens the store for it (`Live.mustReadActs`). -/
+def Shared.act (sh : Shared) (id : Id) (intent : RM Community.Write) : IO Unit :=
+  sh.acts.modify (·.push (id, intent))
+
+/-- The frame's wants, set; the generation moves only when they change,
+so a reader at rest stays at rest (RestLaws.nextGen_same). -/
+def Shared.setWants (sh : Shared) (ws : Array Want) : IO Unit := do
+  let old ← sh.wants.get
+  sh.gen.modify (_root_.Live.nextGen old ws)
+  if old != ws then sh.wants.set ws
+
 
 /-- A read through the pass's cache (App's `read`, on this connection). -/
 def read (q : Q) : RM Ans := do
@@ -274,22 +290,48 @@ def reindex (rev : Std.HashMap Q (Array Want)) (w : Want) (old new : Array Q) :
   let rev := old.foldl (fun r q => r.modify q (·.filter (· != w))) rev
   new.foldl (fun r q => r.insert q ((r.getD q #[]).push w)) rev
 
+/-- An act's write, judged as App.writeAll judges the frame's: each op
+in order against what is decided, the ops before it in the same write,
+then the outbox's (pending, so valid), then the store's. Its valid ops,
+to show pending; none when one is Invalid (the write is refused). -/
+def judgeWrite (rd : Db) (out : Array Pending) (w : Community.Write) : IO (Option (Array Pending)) := do
+  let mut mine : Std.HashMap Id (Verdict SF) := {}
+  let mut pend := #[]
+  for o in w.ops do
+    let mut sts := []
+    for r in o.reqs do
+      sts := sts ++ [← match mine[r]? with
+        | some v => pure (some v)
+        | none => match out.find? (·.op.id == r) with
+          | some p => pure (some (.valid (.inl p.fact)))
+          | none => Data.status rd r]
+    match judge fam o sts with
+    | some (.valid (.inl f)) =>
+      mine := mine.insert o.id (.valid (.inl f))
+      pend := pend.push (⟨o, f, opKey o.id :: keys f⟩ : Pending)
+    | some (.valid v) => mine := mine.insert o.id (.valid v)
+    | none => pure ()
+    | some .invalid => return none
+  return some pend
+
 /-- One pass, in one read transaction; whether it put anything or took
 any change. -/
 def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
   let wants ← sh.wants.get
   let gen ← sh.gen.get
-  let out ← sh.out.get
   let notes ← sh.notes.modifyGet fun a => (a, #[])
+  let acts ← sh.acts.modifyGet fun a => (a, #[])
   -- at rest (the writers' counter unmoved, no note, the same wants,
   -- nothing dirty) a pass reads nothing, not even the journal
   -- (RestLaws.start_rest); once a second it reads it anyway, for commits
   -- the counter does not see (the node's purges, until its notify counts
-  -- them), and the sessions with it
+  -- them), and the sessions with it; acts queued open it whatever else
+  -- (ActsLaws.acts_force)
   let c ← sh.commits.get
   let now ← IO.monoMsNow
   let s0 ← get
-  unless _root_.Live.mustRead c s0.seenC (!notes.isEmpty) (gen != s0.gen) s0.dirty (now ≥ s0.readAt + 1000) do
+  unless _root_.Live.mustReadActs (!acts.isEmpty) c s0.seenC (!notes.isEmpty) (gen != s0.gen) s0.dirty
+      (now ≥ s0.readAt + 1000) do
     return false
   modify fun s => { s with seenC := c, readAt := now, opens := s.opens + 1 }
   let rd := (← get).rd
@@ -306,6 +348,33 @@ def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
       let k := Connection.kept all
       sh.peers.set (all.filterMap fun (cid, p, _) => if k.contains cid then some p else none)
       modify fun s => { s with peersAt := now }
+    -- the outbox is the pass's: the ops the store has decided leave it
+    -- (their rows move from pending to stored, a notice too)
+    let judged : Std.HashSet Id := vs.foldl (fun a (x, _) => a.insert x) {}
+    let (out, gone) ← sh.out.modifyGet fun o =>
+      let kept := o.filter fun p => !judged.contains p.op.id
+      ((kept, o.filter fun p => judged.contains p.op.id), kept)
+    modify fun s => { s with out }
+    -- the acts, before the marks (ActsLaws.passActs): each intent runs in
+    -- this transaction and its write is judged against the store and the
+    -- outbox; its valid ops join the outbox, pending, and their rows are
+    -- this pass's notices, so the wants they touch are read now
+    let mut actNotes : Array Filing := #[]
+    for (id, intent) in acts do
+      let r ← try
+          let w ← intent
+          pure (some (w, ← judgeWrite rd (← get).out w))
+        catch e => do
+          IO.eprintln s!"reader: an act failed: {e}"
+          pure none
+      match r with
+      | some (w, some pend) =>
+        modify fun s => { s with out := s.out ++ pend }
+        sh.out.modify (· ++ pend)
+        actNotes := actNotes ++ Pending.filings pend.toList
+        sh.done.modify (·.push (id, some w))
+      | _ => sh.done.modify (·.push (id, none))
+    let notes := notes ++ Pending.filings gone.toList ++ actNotes
     -- at rest (no filing, no note, the same wants, nothing dirty) a pass
     -- does nothing (RestLaws.rest_idle)
     if fs.isEmpty && vs.isEmpty && notes.isEmpty && gen == s.gen && s.dirty.isEmpty then
@@ -329,17 +398,20 @@ def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
     -- outbox is two changes (stored, no longer pending), not one undone
     let s ← get
     let hit := (s.live.hit fs (vs.map (·.1))).toList ++ (s.live.hit notes #[]).toList
-    modify fun s => { s with seen := top, out, live := (s.live.notice fs (vs.map (·.1))).notice notes,
+    let hitActs := (s.live.hit actNotes #[]).toList
+    modify fun s => { s with seen := top, live := (s.live.notice fs (vs.map (·.1))).notice notes,
                              passes := s.passes + 1 }
     sh.seen.set top
     -- mark the dirty and the wanted wants those reads name, through the
-    -- index, then read the first `cap` marked in the frame's order: the
-    -- model's decisions (Live.markHit, Live.pick), so RestLaws'
-    -- inv_passIdx and settle_idx are about this pass
+    -- index; read every want the acts' rows touched, then the first `cap`
+    -- other marked in the frame's order: the model's decisions
+    -- (Live.markHit, Live.pickActs), so ActsLaws' acts_shown and
+    -- inv_passActs, and with no act RestLaws', are about this pass
     let s ← get
-    let marked := (_root_.Live.markHit (fun q => (s.rev.getD q #[]).toList) s.dirty hit).filter
-      s.wantSet.contains
-    let todo := _root_.Live.pick wants.toList marked cap
+    let rev := fun q => (s.rev.getD q #[]).toList
+    let marked := (_root_.Live.markHit rev s.dirty hit).filter s.wantSet.contains
+    let touched := (_root_.Live.markHit rev {} hitActs).filter s.wantSet.contains
+    let todo := _root_.Live.pickActs wants.toList touched marked cap
     modify fun s => { s with dirty := marked }
     let mut puts : Array (Want × Val) := #[]
     for w in todo do
@@ -352,7 +424,7 @@ def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
     if !puts.isEmpty || moved then
       let want := (← get).wantSet
       sh.board.modify fun b => puts.foldl (fun b (w, v) => b.put w v) (b.keep want.contains)
-    return !puts.isEmpty || !fs.isEmpty || !vs.isEmpty
+    return !puts.isEmpty || !fs.isEmpty || !vs.isEmpty || !acts.isEmpty
   catch e =>
     rd.exec "ROLLBACK"
     throw e
