@@ -182,7 +182,10 @@ def epoch : Nat := 29330000
 /-- The jobs that make a community of about n messages, their bodies
 sealed under the community's content key k; a few carry photos, each an
 attachment with its chunks (at most `maxFiles` files in all). -/
-def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n : Nat) (start : Nat) : Array Job := Id.run do
+def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n top now : Nat) : Array Job := Id.run do
+  -- times rise with uneven gaps and end by `now` (wall-clock minutes);
+  -- counters follow the channel's newest, `top`, so chaos goes at the end
+  let start := now - min now (12 * n)
   let c := me.c
   let f := me.dev
   let mut g : Rng := ⟨seed.toUInt64 * 7919 + 17⟩
@@ -216,12 +219,12 @@ def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n : Nat) (star
     let (ti2, g5) := g4.below texts.size
     let (att, g6) := g5.below 100
     g := g6
-    t := t + (if gap < 60 then 1 else if gap < 90 then 7 else 90)
+    t := min now (t + (if gap < 60 then 1 else if gap < 90 then 7 else 90))
     let (u, d) := people[ai]!
     let text := if more == 0 then texts[ti]! ++ " " ++ texts[ti2]! else
       if more == 1 then texts[ti]! ++ "\n\n" ++ texts[ti2]! else texts[ti]!
     let tag := s!"chaos {seed} {i}"
-    let o := sealedPost c u d k (bytesOf (tag ++ " nonce") 24) text.toUTF8 (i + 1) t
+    let o := sealedPost c u d k (bytesOf (tag ++ " nonce") 24) text.toUTF8 (top + i + 1) t
     pending := pending.push o
     if att < 12 && !srcs.isEmpty && files < maxFiles then
       let ((w, h, bytes), g7) := photo srcs g

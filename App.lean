@@ -55,6 +55,10 @@ structure Io where
   ctlPoll : IO (Array String)
   ctlReply : String → IO Unit
   nowUs : IO UInt64
+  /-- Wall-clock minutes since the Unix epoch, and the local timezone's
+  offset from UTC in minutes. -/
+  wall : IO (Nat × Int) := do
+    return ((← Std.Time.Timestamp.now).toSecondsSinceUnixEpoch.val.toNat / 60, 0)
   scan : Bool → IO Unit
   luma : IO (Array UInt32 × ByteArray)
 
@@ -254,7 +258,7 @@ removal is not announced again. -/
   scans : Nat := 0
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, fun _ => pure (), pure (#[], .empty)⟩⟩
+  pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty)⟩⟩
 
 abbrev M := StateT St IO
 
@@ -275,10 +279,13 @@ def fresh (q : Q) : M Bool := do return (← get).live.fresh q
 
 instance : Reads M := ⟨read⟩
 
-/-- A row's data and the lists it read: the Message kind's. -/
+/-- Message m's row: its view (Kinds.Message.read: the claimed time, in
+UTC minutes), shown at the local time (the platform's timezone). -/
 def readRow (m : Id) : M (Option (RowData × Array Q)) := do
   let s ← get
-  Kinds.Message.read s.me.c s.me.adm m
+  let tz := (← s.io.wall).2
+  return (← Kinds.Message.read s.me.c s.me.adm m).map fun (d, qs) =>
+    ({ d with time := (d.time + tz).toNat }, qs)
 
 /-! ## Writing -/
 
@@ -337,10 +344,14 @@ def chaosStep : M Unit := do
   (← get).wr.busy.modify (· - 1)
   IO.eprintln s!"chaos: {t.get.size} writes of {t.get.foldl (· + ·.ops.length) 0} ops"
 
-def newestTime (s : St) : Nat :=
+/-- The newest message's counter (its sort key's first 8 bytes; 0 for none). -/
+def newestCounter (s : St) : Nat :=
   match s.ids[0]? with
-  | some (sk, _) => (sk.extract 8 16).foldl (fun n b => n * 256 + b.toNat) 0
-  | none => Chaos.epoch
+  | some (sk, _) => (sk.extract 0 8).foldl (fun n b => n * 256 + b.toNat) 0
+  | none => 0
+
+/-- Wall-clock minutes since the Unix epoch: the time a write claims. -/
+def nowMin : M Nat := do return (← (← get).io.wall).1
 
 def sendText (text : String) : M Bool := do
   let s ← get
@@ -350,12 +361,12 @@ def sendText (text : String) : M Bool := do
   let (k?, _) ← readView (Community.currentKey s.me.c) #[]
   let some k := k? | return false
   let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k (← Engine.Crypto.randomBytes 24) t.toUTF8
-    (newestTime s + 1)) #[]
+    (← nowMin)) #[]
   writeAll w
 
 def reactTo (m : Id) (e : String) : M Bool := do
   let s ← get
-  write (react s.me.c s.me.adm m s.me.dev e.toUTF8 (newestTime s + 1))
+  write (react s.me.c s.me.adm m s.me.dev e.toUTF8 (← nowMin))
 
 /-! ## Geometry -/
 
@@ -743,7 +754,7 @@ def acceptOf (w : Community.Write) : Option Id :=
 current. -/
 def found (n myName : String) : M Unit := do
   let seed ← Chaos.freshSeed n
-  let w := Community.found seed n.toUTF8 myName.toUTF8 (newestTime (← get) + 1)
+  let w := Community.found seed n.toUTF8 myName.toUTF8 (← nowMin)
     (← Engine.Crypto.randomBytes 32) (← Engine.Crypto.randomBytes 32)
   if ← writeAll w then
     if let some a := acceptOf w then
@@ -1095,7 +1106,7 @@ def sendNow : M Unit := do
                           bytes, key := ← Engine.Crypto.randomBytes 32, nonce := ← Engine.Crypto.randomBytes 24,
                           metaNonce := ← Engine.Crypto.randomBytes 24 } : Community.NewFile)]
   let nonce ← Engine.Crypto.randomBytes 24
-  let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (newestTime s + 1) files) #[]
+  let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files) #[]
   if ← writeAll w then
     s.io.textClear
     modify fun s => { s with text := "", sel := #[0, 0, 0, 0], chips := #[], chromeKey := "" }
@@ -1319,10 +1330,11 @@ def command (line : String) : M Bool := do
     let (k?, _) ← readView (Community.currentKey me.c) #[]
     let k := k?.getD .empty
     let seed := s.seed
-    let start := newestTime s + 1
+    let top := newestCounter s
+    let now ← nowMin
     -- made off the app's thread; written by `chaosStep` as user actions
     -- are (writeAll: judged, shown pending, through the node)
-    let t ← IO.asTask (prio := .dedicated) (pure (Chaos.make me k srcs.get seed n start))
+    let t ← IO.asTask (prio := .dedicated) (pure (Chaos.make me k srcs.get seed n top now))
     s.wr.busy.modify (· + 1)  -- so `wait` waits for the making too
     modify fun s => { s with chaos := some (t.map fun r => match r with | .ok j => j | .error _ => #[]) }
     s.io.ctlReply s!"chaos {n} started"
@@ -1629,7 +1641,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   let s ← get
   for m in s.comms do
     if m.waiting then continue
-    let (w, _) ← readView (Community.introduce m.c m.dev (newestTime s + 1)) #[]
+    let (w, _) ← readView (Community.introduce m.c m.dev (← nowMin)) #[]
     if !w.ops.isEmpty then let _ ← writeAll w
     -- and the community's keys wrapped to this device, opened into local
     -- key ops (a live view too: re-run when a wrap arrives)

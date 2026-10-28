@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 298 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 300 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -421,8 +421,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L876-L880
-[`pageIn_acc`]: App.lean#L882-L885
+[`drawPage_key`]: App.lean#L932-L936
+[`pageIn_acc`]: App.lean#L938-L941
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
