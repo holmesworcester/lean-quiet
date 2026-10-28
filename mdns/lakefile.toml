@@ -1,0 +1,19 @@
+name = "mdns"
+defaultTargets = ["Mdns"]
+
+# Wire format, decoder, laws (building this library checks the proofs), and
+# the UDP announce/browse loop.
+[[lean_lib]]
+name = "Mdns"
+
+[[lean_exe]]
+name = "mdns_check"
+root = "Tests.Check"
+
+[[lean_exe]]
+name = "mdns_demo"
+root = "Tests.Demo"
+
+[[lean_exe]]
+name = "probe"
+root = "Tests.Probe"

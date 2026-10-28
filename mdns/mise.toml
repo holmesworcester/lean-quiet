@@ -1,0 +1,12 @@
+# Named tasks; CI (.github/workflows/ci.yml) runs these same tasks.
+[env]
+ELAN_HOME = "{{ env.ELAN_HOME | default(value='/mnt/storage/elan') }}"
+TMPDIR = "{{ env.TMPDIR | default(value='/mnt/storage/holmes-tmp') }}"
+
+[tasks.check]
+description = "The deterministic gate: laws proven on standard axioms, real/hostile/fuzzed packets, negative controls"
+run = "tests/check.sh"
+
+[tasks.e2e]
+description = "Real multicast on this machine's network: Lean to Lean, Lean to avahi, avahi to Lean (needs avahi-daemon + avahi-utils)"
+run = "tests/e2e.sh"
