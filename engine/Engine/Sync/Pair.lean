@@ -95,11 +95,11 @@ def Pair.run (p : Pair) (stop tickMs fuel : Nat) : IO Pair := do
 
 /-- A local write at a, or at b. -/
 def Pair.writeA (p : Pair) (ops : List Op) : IO Pair := do
-  let (a, ea) ← p.a.onWrite xa ops
+  let (a, ea) ← p.a.onWrite xa ops p.now
   { p with a }.route xa xb ea {}
 
 def Pair.writeB (p : Pair) (ops : List Op) : IO Pair := do
-  let (b, eb) ← p.b.onWrite xb ops
+  let (b, eb) ← p.b.onWrite xb ops p.now
   { p with b }.route xa xb {} eb
 
 end
