@@ -16,11 +16,14 @@ theorems (277 of 366) are about the code that runs on the phone; the
 rest are over models, and moving them onto running code is a todo
 ([what is proven](#what-is-proven)). Native code only connects Lean to
 each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)), so in a
-meaningful sense Lean draws all pixels on the screen. There is a
-credible path to proofs about n clients: the sync laws already run
-the real sync code, entry point by entry point, in a world of two nodes
-whose network may delay, reorder and drop frames, and agreement needs
-only the same ops, in any order ([toward n clients](#toward-n-clients)).
+meaningful sense Lean draws all pixels on the screen.
+
+There is also a credible path to proofs about n clients. The sync
+proofs already run the real sync code, in a world of two devices whose
+network can delay, reorder or drop messages. Devices that hold the same
+ops agree, whatever order the ops arrived in, so for n devices it comes
+down to proving that every op reaches every member
+([toward n clients](#toward-n-clients)).
 
 ## What is proven
 
