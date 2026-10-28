@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-cd "$(dirname "$0")/.."
-export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
-export PATH="$ELAN_HOME/bin:$PATH"
-tools/noto_assets.sh
-python3 tests/noto_reference.py prepare out/noto
-lake build font_contract
-.lake/build/bin/font_contract
