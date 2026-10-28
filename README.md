@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 298 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 312 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -182,6 +182,8 @@ nothing else is assumed:
 | ⬜ | 🥊🥊 | **A tap acts once.** A second tap on a control while its action is in flight starts nothing new (Send sends once). A press that turns into a scroll past the slop is not a tap. | |
 | ⬜ | 🥊🥊 | **Destructive actions are guarded.** Every action that cannot be undone asks for a second confirmation, as removal does (`writes_only_after_two`). Its control keeps a clear gap from the controls around it. | |
 | ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
+| 🟡 | 🥊🥊 | **A read costs its page, not its list.** No read sorts: each list comes from SQLite in its index's order, and a union of lists (a channel is one per content key) merges them. The merge is the lists' rows sorted, so a channel is still a strict total order. What a read runs is a typed plan of statements. Assume a B-tree seek costs at most c·(log₂ N + 1) and each next row a step (`SeekCost`); `querydiff` checks every statement's SQLite plan is such a walk. Then a one-key read costs two seeks, plus a step and a seek per row it returns, however long the list. With a range, a capped count adds its cap. **Not yet:** a range's count with no cap, and a conjunction's rows and total, walk the range: O(range), stated as a law. | [`readPlan_cost`], [`readPlan_cost_range`], [`readPlan_cost_le`], [`pickMin_le`], [`inRange_unbounded`], [`mergeRuns_eq_sortPos`], [`union_sorted`], [`eval_oriented`], [`order_total`] |
+| ✅ | 🥊🥊 | **A device's keys are derived once.** Its secret op holds the whole device (its signing pair, its X25519 key and secret, its seed), checked against the seed when written. Every reader takes it from the store. A build-time walk of every intent's and view's code fails if it reaches a derivation (`ops/community/NoDerive.lean`). A connection's handshake still converts the seed once per handshake (`Keys.xSec`). | [`secret_derives`], [`device_derives`], [`device_ofSeed`], [`ofSeed_of_keys`] |
 | ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
 | ✅ | 🥊🥊 | **The people list is the present members,** each once. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_nodup`] |
 | ⬜ | 🥊🥊🥊 | **The screen is one moment.** Every frame is the root component drawn over a single settled store state, the latest the app has seen, so if one row is current, all are. Half of this is proven: a cached component whose keys did not fire answers as a fresh read would. **Today it is false, not just unproven.** The writer and the frame read on separate SQLite connections, so a frame's reads can span two commits, and one frame can show a user under two names. Wanted: one snapshot per frame, and re-reading exactly what fired. | [`eval_stable`], [`view_stable`], [`drain_bounded`] |
@@ -557,7 +559,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`message_authorized`]: ops/community/Laws.lean#L255-L261
 [`approval_signed`]: ops/community/Laws.lean#L371-L381
 [`invitation_issued`]: ops/community/Laws.lean#L337-L343
-[`named_by_admin`]: ops/community/Laws.lean#L608-L610
+[`named_by_admin`]: ops/community/Laws.lean#L611-L613
 [`admission_consented`]: ops/community/Laws.lean#L274-L280
 [`admin_removal_stands`]: ops/community/Laws.lean#L528-L541
 [`mutual_removal`]: ops/community/Laws.lean#L549-L553
@@ -566,18 +568,18 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`offer_shared`]: engine/core/Sync.lean#L83-L86
 [`wire_kinds`]: ops/connection/Laws.lean#L40-L41
 [`local_kinds`]: ops/connection/Laws.lean#L47-L48
-[`joinOps_travels`]: ops/community/Intents.lean#L299-L303
-[`found_travels`]: ops/community/Intents.lean#L310-L314
-[`stopWaiting_local`]: ops/community/Intents.lean#L306-L307
+[`joinOps_travels`]: ops/community/Intents.lean#L317-L321
+[`found_travels`]: ops/community/Intents.lean#L328-L332
+[`stopWaiting_local`]: ops/community/Intents.lean#L324-L325
 [`filed_send`]: ops/sync/ConnLaws.lean#L175-L178
 [`offer_stored`]: engine/core/Sync.lean#L98-L101
 [`tick_send`]: ops/sync/ConnLaws.lean#L184-L187
 [`recipients_iff`]: ops/community/Connect.lean#L214-L218
 [`members_iff`]: ops/community/Connect.lean#L205-L208
-[`member_opens`]: ops/community/Laws.lean#L928-L932
-[`openSealed_seal`]: ops/community/Laws.lean#L918-L920
+[`member_opens`]: ops/community/Laws.lean#L931-L935
+[`openSealed_seal`]: ops/community/Laws.lean#L921-L923
 [`unbox_box`]: ops/community/Keys.lean#L89-L91
-[`check_reads_shared`]: ops/community/Laws.lean#L839-L841
+[`check_reads_shared`]: ops/community/Laws.lean#L842-L844
 [`kk_secret`]: ops/connection/NoiseSymbolic.lean#L595-L609
 [`kk_secret_init`]: ops/connection/NoiseSymbolic.lean#L547-L556
 [`kk_secret_resp`]: ops/connection/NoiseSymbolic.lean#L561-L569
@@ -606,7 +608,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`sessions_trusted`]: ops/connection/bootstrap/Laws.lean#L63-L68
 [`intake_local`]: engine/core/Sync.lean#L41-L43
 [`stored_local`]: engine/core/Sync.lean#L137-L140
-[`local_fact_mine`]: ops/community/Laws.lean#L627-L631
+[`local_fact_mine`]: ops/community/Laws.lean#L630-L634
 [`intakeConn_conn`]: engine/core/Sync.lean#L36-L37
 [`established_agrees`]: ops/connection/Laws.lean#L51-L61
 [`open_seal`]: ops/connection/Frame.lean#L51-L55
@@ -619,11 +621,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Mdns.decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
 [`Community.parse_valid`]: ops/community/Link.lean#L213-L214
 [`Qr.parse_valid`]: engine/renderer/qr/SegLaws.lean#L336-L338
-[`chunk_is_slice`]: ops/community/Laws.lean#L673-L682
+[`chunk_is_slice`]: ops/community/Laws.lean#L676-L685
 [`verify_sound`]: ops/community/Merkle.lean#L431-L437
 [`complete_assembles`]: ops/community/Merkle.lean#L478-L484
-[`chunk_unique`]: ops/community/Laws.lean#L763-L769
-[`progress_exact`]: ops/community/Intents.lean#L618-L627
+[`chunk_unique`]: ops/community/Laws.lean#L766-L772
+[`progress_exact`]: ops/community/Intents.lean#L663-L672
 [`no_injective_hash`]: ops/community/Merkle.lean#L241-L243
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
@@ -649,7 +651,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`approve_valid`]: ops/community/Laws.lean#L425-L433
 [`admit_admits`]: ops/community/Laws.lean#L441-L452
 [`connect_admitted`]: ops/community/Connect.lean#L169-L179
-[`removeMember_valid`]: ops/community/Intents.lean#L484-L491
+[`removeMember_valid`]: ops/community/Intents.lean#L529-L536
 [`exchange_complete`]: ops/sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: ops/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: ops/sync/Fp.lean#L37-L37
@@ -668,6 +670,19 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`filed_rel`]: engine/core/Decl.lean#L189-L196
 [`mem_keysOf`]: engine/core/Decl.lean#L79-L82
 [`matching_nodup`]: engine/core/Decl.lean#L158-L161
+[`readPlan_cost`]: engine/core/Query.lean#L495-L500
+[`readPlan_cost_range`]: engine/core/Query.lean#L509-L512
+[`readPlan_cost_le`]: engine/core/Query.lean#L544-L549
+[`pickMin_le`]: engine/core/Query.lean#L388-L391
+[`inRange_unbounded`]: engine/core/Query.lean#L308-L312
+[`mergeRuns_eq_sortPos`]: engine/core/Union.lean#L114-L117
+[`union_sorted`]: engine/core/Union.lean#L181-L185
+[`eval_oriented`]: engine/core/Union.lean#L215-L218
+[`order_total`]: ops/community/message/Order.lean#L217-L227
+[`secret_derives`]: ops/community/Laws.lean#L588-L593
+[`device_derives`]: ops/community/Intents.lean#L413-L420
+[`device_ofSeed`]: ops/community/Intents.lean#L433-L436
+[`ofSeed_of_keys`]: ops/community/Compose.lean#L61-L64
 [`writes_only_after_two`]: ops/app/Remove.lean#L56-L59
 [`cancel_writes_nothing`]: ops/app/Remove.lean#L63-L64
 [`open_fresh`]: ops/app/Remove.lean#L67-L69
@@ -704,8 +719,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
-[`readable_held`]: ops/community/Intents.lean#L407-L419
-[`readable_complete`]: ops/community/Intents.lean#L447-L457
+[`readable_held`]: ops/community/Intents.lean#L452-L464
+[`readable_complete`]: ops/community/Intents.lean#L492-L502
 [`switcherOrder_sound`]: ops/app/Pages.lean#L656-L658
 [`switcherOrder_complete`]: ops/app/Pages.lean#L663-L665
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
@@ -715,12 +730,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`pageIn_acc`]: App.lean#L882-L885
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
-[`order_total`]: ops/community/message/Order.lean#L168-L175
-[`send_after`]: ops/community/message/Order.lean#L365-L383
-[`arrival_order`]: ops/community/message/Order.lean#L336-L348
-[`receipt_once`]: ops/community/message/Order.lean#L293-L296
-[`order_local`]: ops/community/message/Order.lean#L423-L435
-[`display_agrees`]: ops/community/message/Order.lean#L465-L475
+[`send_after`]: ops/community/message/Order.lean#L424-L442
+[`arrival_order`]: ops/community/message/Order.lean#L395-L407
+[`receipt_once`]: ops/community/message/Order.lean#L352-L355
+[`order_local`]: ops/community/message/Order.lean#L482-L494
+[`display_agrees`]: ops/community/message/Order.lean#L524-L534
 [`parse_segsBits`]: engine/renderer/qr/SegLaws.lean#L157-L161
 [`parse_dataStream`]: engine/renderer/qr/SegLaws.lean#L193-L197
 [`RS.correct_sound`]: engine/renderer/qr/Laws.lean#L55-L57

@@ -76,8 +76,11 @@ are its relations' (`keysOf`). Laws, proven once for every relation:
 ### A device's own state, and intents (`Facts.lean`, `Intents.lean`)
 
 Everything about joining and bootstrapping is op state. A device's own
-state is local ops: its secret seed (`secret.byKey`, refused unless the
-seed derives to the key: `secret_derives`), the communities it is in
+state is local ops: its secret, the whole device as derived once when
+`found` or `join` writes it (`secret.byKey`: its keys, X25519 secret and
+seed, refused unless every part is the seed's: `secret_derives`), read
+back by `device` with no derivation (`device_derives`; no intent or view
+reaches a derivation, checked at build time by `NoDerive`), the communities it is in
 (`accepted.all`) and its pending joins (`joining.all`); a community's
 name is a shared admin register (`named.current`, newest counter first:
 `named_by_admin`). An intent is a user action as the ops of one writer

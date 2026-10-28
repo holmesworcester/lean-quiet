@@ -633,8 +633,8 @@ def byRequest : Rel Fact := ⟨"approval", "byRequest", fun | .approval c r _ =>
 end approval
 
 namespace secret
-/-- This device's own secret seeds, by public key: read by intents to
-sign, never by views. -/
+/-- This device's own devices, whole, by public key: read by `device`
+for whoever signs or opens as one, never shown. -/
 def byKey : Rel Fact := ⟨"secret", "byKey", fun | .secret pk .. => some [pk] | _ => none⟩
 /-- Every device this node holds the secret of: the devices its network
 node speaks for. -/

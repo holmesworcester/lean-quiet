@@ -137,6 +137,7 @@ open Engine Community
 #print axioms Engine.mergeRuns_eq_sortPos
 #print axioms Engine.union_rows
 #print axioms Engine.eval_oriented
+#print axioms Engine.eval_strict
 #print axioms Engine.union_sorted
 #print axioms Engine.matching_nodup
 #print axioms Engine.purge_settles

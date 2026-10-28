@@ -197,14 +197,10 @@ theorem eval_readAll (s : DB F) (qs : List ListQ) :
   | nil => rfl
   | cons q t ih => simp [View.readAll, View.eval_bind, ih]; rfl
 
-/-- **A list's rows are in position order**: ascending, or descending
-when it is read newest first. -/
-theorem eval_oriented (s : DB F) (q : ListQ) :
-    (orient q.desc (Engine.eval s q).rows).Pairwise (fun p r => posLE p r = true) := by
-  have hm : (matching s q).Pairwise (fun p r => posLE p r = true) := by
-    unfold matching
-    rw [sortPos_eq_fast]
-    exact List.pairwise_mergeSort posLE_trans posLE_total _
+/-- What holds pairwise of a list's matches holds of its rows, turned
+to ascending: they are a cut of the matches. -/
+theorem eval_pairwise {R : Pos × F → Pos × F → Prop} (s : DB F) (q : ListQ)
+    (hm : (matching s q).Pairwise R) : (orient q.desc (Engine.eval s q).rows).Pairwise R := by
   have hf := hm.sublist (List.filter_sublist (p := fun p => q.inside p.1))
   unfold Engine.eval orient ListQ.cut
   cases q.desc <;> cases q.limit <;> simp only [Bool.false_eq_true, ite_true, ite_false]
@@ -212,9 +208,34 @@ theorem eval_oriented (s : DB F) (q : ListQ) :
   · exact hf.sublist (List.take_sublist _ _)
   · simpa [List.pairwise_reverse] using hf
   · have hr : (List.filter (fun p => q.inside p.1) (matching s q)).reverse.Pairwise
-        (fun a b => posLE b a = true) := List.pairwise_reverse.2 hf
+        (fun a b => R b a) := List.pairwise_reverse.2 hf
     rw [List.pairwise_reverse]
     exact hr.sublist (List.take_sublist _ _)
+
+/-- **A list's rows are in position order**: ascending, or descending
+when it is read newest first. -/
+theorem eval_oriented (s : DB F) (q : ListQ) :
+    (orient q.desc (Engine.eval s q).rows).Pairwise (fun p r => posLE p r = true) := by
+  apply eval_pairwise
+  unfold matching
+  rw [sortPos_eq_fast]
+  exact List.pairwise_mergeSort posLE_trans posLE_total _
+
+/-- **A list's rows are strictly in order**: in a store that keeps the
+engine's invariant, no two rows of a list are level (a list names each
+op once, `matching_nodup`, and a position holds its op's id). -/
+theorem eval_strict {fam : Family F} {s : DB F} (h : Inv fam s) (q : ListQ) :
+    (orient q.desc (Engine.eval s q).rows).Pairwise (fun p r => p.1.cmp r.1 = .lt) := by
+  have hm : (matching s q).Pairwise (fun p r => posLE p r = true ∧ p.1.2 ≠ r.1.2) := by
+    refine List.Pairwise.and ?_ (List.pairwise_map.1 (matching_nodup h q))
+    unfold matching
+    rw [sortPos_eq_fast]
+    exact List.pairwise_mergeSort posLE_trans posLE_total _
+  refine (eval_pairwise s q hm).imp fun {p r} ⟨hle, hne⟩ => ?_
+  cases e : p.1.cmp r.1
+  · rfl
+  · exact absurd (congrArg Prod.snd (Pos.cmp_eq e)) hne
+  · exact absurd e (posLE_iff.1 hle)
 
 end
 
