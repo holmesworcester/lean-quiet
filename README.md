@@ -60,6 +60,14 @@ nothing else is assumed:
   is tested against the Noise test vectors.
 - **SQLite behaves like the engine's own store.** This is tested row for
   row against the model, and with kill -9 crash tests.
+- **Deleted bytes are gone from the disk.**
+  - A purge deletes with SQLite's `secure_delete` on, then runs
+    `VACUUM` and truncates the WAL.
+  - `engine/Tests/Purge.lean` reads the database's files raw and finds no
+    byte of a purged secret.
+  - Without any one of the three steps, it does find them.
+  - Below SQLite, it is assumed that the filesystem and the flash keep
+    no older copy of a block.
 - **The seam:** the TCP runner's sockets, the C glue, and the Android and
   iOS shells. These are tested end to end, over localhost TCP and on
   devices.
@@ -101,7 +109,7 @@ nothing else is assumed:
 | ✅ | 🥊🥊 | **The stream discloses only what it may.** It offers only ids of stored, shared ops, never one still pending. The clock sends only round messages and offers. | [`filed_send`], [`offer_stored`], [`tick_send`] |
 | 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Proven: a content key goes to exactly the live members' devices. In progress: sealing posts with it. | [`recipients_iff`], [`members_iff`] |
 | ⬜ | 🥊🥊🥊 | **Sessions are secret and authenticated:** only the two devices can derive a session's keys. In progress (`kk_secret`, `kk_authentic`). Proven so far: an honest handshake agrees. | [`handshake_agrees`], [`sent1_write1`], [`sent1_read1`], [`read2_write2'`] |
-| ⬜ | 🥊🥊🥊 | **A closed session's keys cannot be recovered** from the disk, or from the static keys later. In progress (`kk_forward_secret`). Proven so far: the session's rows are gone. | [`purge_gone`] |
+| 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered** from the disk, or from the static keys later. Proven: the session's rows are gone. Tested: no file of the database holds a byte of them (`engine/Tests/Purge.lean`). In progress: from the static keys (`kk_forward_secret`). | [`purge_gone`], [`purge_named`] |
 | ⬜ | 🥊🥊🥊 | **Removed members cannot read new messages.** This needs key rotation, which is not built. | |
 | ⬜ | 🥊🥊 | **Every offered id names a stored op in one of the peer's rooms** (`have_shown`). This is the disclosure law for ids. | |
 | | | **Connections** | |
@@ -226,6 +234,7 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`sent1_read1`]: engine/Connection/Noise.lean#L251-L257
 [`read2_write2'`]: engine/Connection/Noise.lean#L290-L295
 [`purge_gone`]: engine/Engine/Purge.lean#L261-L263
+[`purge_named`]: engine/Engine/Purge.lean#L267-L271
 [`connect_iff`]: engine/Community/Connect.lean#L146-L150
 [`refuse_nonmember`]: engine/Community/Connect.lean#L161-L164
 [`connect_approved`]: engine/Community/Connect.lean#L182-L193
@@ -261,7 +270,6 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`inv_step`]: engine/Engine/Proofs.lean#L238-L238
 [`purge_shared`]: engine/Engine/Purge.lean#L274-L276
 [`purge_settles`]: engine/Engine/Budget.lean#L203-L209
-[`purge_named`]: engine/Engine/Purge.lean#L267-L271
 [`purge_undecides`]: engine/Engine/Proofs.lean#L352-L359
 [`purge_inv`]: engine/Engine/Proofs.lean#L367-L371
 [`mem_purgeSet`]: engine/Engine/Proofs.lean#L340-L344
