@@ -314,7 +314,7 @@ partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now 
           if s.addr == addr then st ← close st s.id
   let frames := laned e.send e.serve
   let sockOf (st : RunState) (a : ByteArray) := (st.sockOf fun s => s.addr == a).map (·.id)
-  let mut over := []
+  let mut over : List Nat := []
   for s in st.socks do
     let ps := framesFor (sockOf st) s.id frames
     unless ps.isEmpty do

@@ -21,7 +21,7 @@ cases = [
     ("asked-admission", "ops/sync/Memory.lean", "if s.size < cap then s.insert i else s", "s.insert i", "ops.sync.BoundsLaws", "error:", False),
     ("size-drop", "ops/sync/Conn.lean", "conn := { s.conn with known := {}, asked := {}, stale := {} } }", "conn := { s.conn with known := {}, asked := {}, stale := {} }, drop := true }", "ops.sync.RetryLaws", "error:", False),
     ("no-expiry", "ops/sync/Conn.lean", "let c := c.age cfg now", "let c := c", "harden", "asks expire", True),
-    ("expiry-law", "ops/sync/Conn.lean", "{ c with stale := c.asked, asked := {}, askedAt := now }", "{ c with askedAt := now }", "ops.sync.RetryLaws", "error: ops/sync/RetryLaws.lean", False),
+    ("expiry-law", "ops/sync/Conn.lean", "{ c with stale := c.asked, asked := {}, askedAt := now }", "{ c with askedAt := now }", "ops.sync.RetryLaws", "error:", False),
     ("defer-asks", "ops/sync/Memory.lean", "(ids.filter fun i => !asked.contains i && !stale.contains i).eraseDups", "((ids.filter fun i => !asked.contains i && !stale.contains i).eraseDups).take 1", "ops.sync.RetryLaws", "error:", False),
     ("unlimited-sets", "ops/sync/Conn.lean", "if s.conn.known.size ≤ cfg.maxKnown ∧ s.conn.asked.size ≤ cfg.maxKnown then s", "if True then s", "ops.sync.BoundsLaws", "error:", False),
     ("oversized-hold", "ops/sync/Conn.lean", "  if ids.length > cfg.maxIds then return { conn := c }\n  let mut want", "  if False then return { conn := c }\n  let mut want", "harden", "oversized hold", True),

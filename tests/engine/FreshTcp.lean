@@ -1,17 +1,30 @@
 /-
 T-fresh over real TCP, through the runner (`Runner`): a peer that never
-reads holds up no one else.
+reads holds up no one else, holds at most its window here, and is
+closed once its writer stalls.
 
-Node R holds 64 ops of 512 KiB in one room. A raw client S opens a
+Node R holds 64 ops of 512 KiB in one room, and closes a socket whose
+writer's write is not done in 1.5 s (`stallMs`). A raw client S opens a
 session with R (plain sealing), asks for all of them in eight wants of
-4 MiB, one frame each, and never reads: its socket's buffers fill, and
-R's writer for it waits forever. Meanwhile node P syncs the room from
-R, and R's app writes a small op.
+4 MiB, one frame each, then 64 more frames each wanting all 64 again,
+and never reads: its socket's buffers fill, and R's writer for it
+waits. Meanwhile node P syncs the room from R, and R's app writes a
+small op.
 - P gets all 64 ops: R's loop never waits on S's socket;
 - P gets R's write within 2 s of it, with the backlog still flowing
-  to P.
+  to P;
+- S's lanes at R (`Runner.lanes`, sampled every 20 ms) never hold more
+  than the window and one op, however many frames S sends
+  (`room_window`): so the cap (`sockCap`) never closes S;
+- R closes S's socket within `stallMs` and 1.5 s of S's wants, and not
+  before `stallMs`;
+- S's writer at R still holds its slot; once S reads, the write ends,
+  the writer shuts the socket down (S reads to its end) and releases
+  the slot.
 Before lanes (`sendOn` in the loop) R's loop stops at S's first full
-buffer, and P gets nothing (tests/engine/fresh_negative.py).
+buffer, and P gets nothing. Serving without the room, or a room blind
+to the lanes, fills S's lanes past the window; with no stall deadline
+S is never closed (tests/engine/fresh_negative.py).
 -/
 import tests.engine.HardenLib
 
@@ -53,7 +66,9 @@ def main : IO UInt32 := do
   let estR ← IO.mkRef ([] : List (Id × ByteArray × Bool))
   let estP ← IO.mkRef ([] : List (Id × ByteArray × Bool))
   let got ← IO.mkRef ([] : List (Id × Nat))
-  let rr ← Runner.start (setup estR) dr 0 0
+  let stallMs := 1500
+  let rcfg : RunConfig := { stallMs }
+  let rr ← Runner.start (setup estR) dr 0 0 (cfg := rcfg)
   let rp ← Runner.start (setup estP) dp 0 0
     (notify := fun ids => do
       let now ← IO.monoMsNow
@@ -65,18 +80,34 @@ def main : IO UInt32 := do
   | .ok _ => pure ()
   let sAddr := addrText (← s.getSockName)
   estR.set [(sS.id, sAddr.toUTF8, false)]
+  -- Sample S's lanes at R: the most they held, and when they went.
+  let peak ← IO.mkRef 0
+  let seen ← IO.mkRef false
+  let gone ← IO.mkRef (none : Option Nat)
+  let sampling ← IO.mkRef true
+  let sampler ← IO.asTask (prio := .dedicated) do
+    while ← sampling.get do
+      match (← rr.lanes).find? (·.1 == sAddr.toUTF8) with
+      | some (_, b) =>
+        seen.set true
+        peak.modify (max · b)
+      | none =>
+        if (← seen.get) && (← gone.get).isNone then gone.set (some (← IO.monoMsNow))
+      IO.sleep 20
   IO.sleep 600
+  let ids := blobs.map (·.id)
   let wants := (List.range 8).map fun k => (Msg.want ((blobs.drop (8 * k)).take 8 |>.map (·.id))).op.bytes
+  let again := (List.range 64).map fun _ => (Msg.want ids).op.bytes
   let hello := (Msg.hello 0).op.bytes
-  let bytes := frameOf sS.id [hello] :: wants.map fun w => frameOf sS.id [w]
+  let bytes := frameOf sS.id [hello] :: (wants ++ again).map fun w => frameOf sS.id [w]
   match ← awaitUv (s.native.send bytes.toArray) with
   | .error e => throw e
   | .ok _ => pure ()
+  let asked ← IO.monoMsNow
   IO.sleep 1000
   -- P syncs from R while R's writer for S waits forever.
   estR.set [(sS.id, sAddr.toUTF8, false), (sP.id, s!"127.0.0.1:{rp.port}".toUTF8, false)]
   estP.set [(sP.id, s!"127.0.0.1:{rr.port}".toUTF8, true)]
-  let ids := blobs.map (·.id)
   let count : IO Nat := do return ((← got.get).filter fun p => ids.contains p.1).length
   for _ in [0:300] do
     if (← count) ≥ 8 then break
@@ -100,6 +131,39 @@ def main : IO UInt32 := do
     if (← count) ≥ 64 then break
     IO.sleep 20
   t.ok "P gets all 64 ops while S never reads" ((← count) == 64)
+  for _ in [0:300] do
+    if (← gone.get).isSome || (← IO.monoMsNow) > asked + stallMs + 3000 then break
+    IO.sleep 20
+  let goneAt ← gone.get
+  let window := rcfg.window
+  IO.println s!"fresh_tcp: S's lanes at R peaked at {← peak.get} B (window {window}); closed {goneAt.map (· - asked)} ms after its wants"
+  t.ok "S's lanes stay within the window and one op, whatever S sends" ((← peak.get) ≤ window + 524288 + 65536)
+  t.ok "S is not closed before stallMs: the window paces it, the cap never closes it"
+    (goneAt.any (· ≥ asked + stallMs))
+  t.ok "S is closed within stallMs and 1.5 s of its wants" (goneAt.any (· ≤ asked + stallMs + 1500))
+  -- S's writer at R still waits on its write, and holds its slot.
+  let held := (← rr.slots.atomically get).length
+  let stopRead ← IO.mkRef false
+  let _ ← IO.asTask (prio := .dedicated) do
+    IO.sleep 10000
+    stopRead.set true
+  let mut drained := 0
+  repeat
+    match ← readSocket s stopRead 65536 with
+    | some chunk => drained := drained + chunk.size
+    | none => break
+  let ended := !(← stopRead.get)
+  IO.println s!"fresh_tcp: S read {drained} B, then {if ended then "the end" else "nothing more in 10 s"}"
+  t.ok "S, once it reads, reads to the socket's end: R's writer shut it down" ended
+  let mut released := false
+  for _ in [0:100] do
+    if (← rr.slots.atomically get).length + 1 == held then
+      released := true
+      break
+    IO.sleep 20
+  t.ok "S's slot is held until its writer ends, then released" released
+  sampling.set false
+  discard <| IO.wait sampler
   -- A loop stuck on S's socket (the old blocking send) would never stop.
   if (← t.failed.get) == 0 then
     closeSocket s

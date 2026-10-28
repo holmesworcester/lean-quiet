@@ -1,5 +1,6 @@
 """Negative controls of the send lanes (docs/SYNC.md, "Lanes"), in an
-isolated snapshot: each mutant must fail its law, or the TCP test."""
+isolated snapshot: each mutant must fail its law, or the TCP test. A
+mutant's `old` and `new` may be tuples: edits to one file together."""
 import pathlib, subprocess, sys
 root, logs = map(pathlib.Path, sys.argv[1:])
 logs.mkdir(parents=True, exist_ok=True)
@@ -44,17 +45,48 @@ cases = [
      "  (n.heat x n.fresh now).finish x out now",
      "  n.finish x out now",
      "engine.wire.WorldLaws", "error:", False),
+    ("no-cap", "engine/wire/Lanes.lean",
+     "  if q'.bytes ≤ cap then some q' else none",
+     "  some q'",
+     "engine.wire.LaneLaws", "error:", False),
+    ("stall-blind", "engine/wire/Lanes.lean",
+     "  heard + idle < now || since.any (· + stallMs ≤ now)",
+     "  heard + idle < now",
+     "engine.wire.LaneLaws", "error:", False),
     ("blocking-send", "engine/wire/Tcp.lean",
-     "    unless ps.isEmpty do s.push ps",
-     "    for (_, b) in ps do discard <| sendOn s.client b",
-     "fresh_tcp", "P gets all 64 ops while S never reads", True),
+     "      unless ← s.push cfg ps do over := s.id :: over",
+     "      for (_, b) in ps do discard <| sendOn s.client b",
+     "fresh_tcp", "FAIL: P gets all 64 ops while S never reads", True),
+    # The frame handler serves with no room (each frame its `burst`).
+    ("no-room", "engine/wire/Tcp.lean",
+     "      let (st, e) ← st.node? fun n => n.onFrame x' s.addr p now",
+     "      let (st, e) ← st.node? fun n => n.onFrame x s.addr p now",
+     "fresh_tcp", "FAIL: S's lanes stay within the window", True),
+    # The room is blind to what the lanes hold (`Sock.queued := 0`).
+    ("room-blind", "engine/wire/Tcp.lean",
+     "  let qs ← socks.mapM fun s => do return (s.addr, ← s.lanes)",
+     "  let qs ← socks.mapM fun s => do return (s.addr, ({} : Lanes))",
+     "fresh_tcp", "FAIL: S's lanes stay within the window", True),
+    ("no-timeout", "engine/wire/Tcp.lean",
+     "        if shut cfg.idle cfg.stallMs now s.heard (← s.since) then",
+     "        if shut cfg.idle cfg.stallMs now s.heard none then",
+     "fresh_tcp", "FAIL: S is closed within stallMs", True),
+    # The slot is released at close, while the writer still waits.
+    ("slot-at-close", "engine/wire/Tcp.lean",
+     ("  finally slots.release addr", "    s.stop\n    return ({ st.drop sid with node }, e)"),
+     ("  finally pure ()", "    s.stop\n    st.slots.release s.addr\n    return ({ st.drop sid with node }, e)"),
+     "fresh_tcp", "FAIL: S's slot is held until its writer ends", True),
 ]
 for name, source, old, new, target, expected, runtime in cases:
     path = root / source
     original = path.read_text()
-    assert original.count(old) == 1, (name, "mutation target missing")
+    olds, news = (old, new) if isinstance(old, tuple) else ((old,), (new,))
+    mutant = original
+    for o, n in zip(olds, news):
+        assert mutant.count(o) == 1, (name, "mutation target missing", o)
+        mutant = mutant.replace(o, n)
     try:
-        path.write_text(original.replace(old, new))
+        path.write_text(mutant)
         code = run(["lake", "build", target], name + "-build")
         if runtime:
             assert code == 0, (name, "mutant must compile before runtime control")

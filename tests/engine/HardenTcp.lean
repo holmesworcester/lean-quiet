@@ -68,6 +68,10 @@ def main : IO UInt32 := do
   -- Two sessions on one socket (a join sent beside an open one): A
   -- retires one, as `kept` does. The socket and the other session stay
   -- up, and its frames still flow; the socket's end then ends both on B.
+  -- B opens both at the address of A's socket as B accepted it, so B
+  -- never dials A: with a second socket, each session's address would
+  -- follow its last frame (`Node.setAddr`), and retiring one could close
+  -- the other's socket (1 run in 100 failed "still flow" so).
   let da2 ← Db.openAt ":memory:"
   let db2 ← Db.openAt ":memory:"
   seed da2; seed2 da2; seed db2; seed2 db2
@@ -96,7 +100,12 @@ def main : IO UInt32 := do
       let kept := [(session2.id, addrB, true)]
       return if ← retire.get then kept else (session.id, addrB, true) :: kept } }
   let ra2 ← Runner.start xa2 da2 0 0
-  remote2.set (some s!"127.0.0.1:{ra2.port}".toUTF8)
+  for _ in [0:300] do
+    if let some (a, _) := (← rb2.lanes).head? then
+      remote2.set (some a)
+      break
+    IO.sleep 10
+  t.ok "A's one socket reaches B" (← remote2.get).isSome
   for _ in [0:300] do
     if (← seen2.get) > 0 then break
     IO.sleep 10
