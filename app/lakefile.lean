@@ -5,9 +5,9 @@ package quiet where
   moreLinkArgs := #["-Wl,--allow-shlib-undefined", "/usr/lib/x86_64-linux-gnu/libsqlite3.so.0",
     "-lpthread", "-ldl", "-lm", "-lrt"]
 
--- The demo's engine: sync, the Rust crypto, the Connection family and
--- purge (a worktree pinned to the demo's commit).
-require engine from ".." / "lean-engine-demo"
+-- The engine: sync, the Rust crypto, the Connection family and
+-- purge (lean-engine connection, a worktree pinned to 13da46d).
+require engine from ".." / "lean-engine-quiet"
 require qr from ".." / "lean-qr"
 
 lean_lib Quiet

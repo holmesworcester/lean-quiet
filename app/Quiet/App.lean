@@ -116,11 +116,9 @@ structure St where
   and whether it is reached on loopback (two apps on one machine, in
   tests) instead of its LAN addresses. -/
   netCfg : Option (Nat × Bool) := none
-  /-- The node's runner (Engine.Sync.Runner), once this device has a
-  community: it owns the writes then. Its seed, and the ids it stored
-  since the frame last took them. -/
+  /-- The node's runner (Engine.Sync.Runner): it owns the writes once it
+  runs. And the ids it stored since the frame last took them. -/
   net : Option Engine.Sync.Runner := none
-  netSeed : ByteArray := .empty
   netIds : Option (IO.Ref (Array Id)) := none
   me : Chaos.Me
   live : Live := {}
@@ -564,27 +562,25 @@ def found (n myName : String) : M Unit := do
       refreshComms
       switchToId r.id
 
-/-- The node: started once this device has a community (its device
-seed is the node's: the hooks dial, answer and seal as that device),
-restarted if the current community's device differs. Until it runs,
-writes go to the local writer; it starts once that writer is idle, so it
-boots from everything written. -/
+/-- The node: started at launch, once (it speaks for every device whose
+secret this store holds: Connection.hooks reads them all, and picks the
+device for each community from its acceptance). Its first frame waits
+for the local writer to be idle, so it boots from everything written. -/
 def netStep : M Unit := do
   let s ← get
   let some (port, _) := s.netCfg | return
-  if s.me.seed.isEmpty || (s.net.isSome && s.netSeed == s.me.seed) then return
+  if s.net.isSome then return
   if (← s.wr.busy.get) > 0 then return
-  if let some r := s.net then r.stop
   let listen := ((← listenHints).head?).getD s!"127.0.0.1:{port}".toUTF8
   let ids ← IO.mkRef #[]
   let x : Engine.Sync.Sync SF (SqlM SF) :=
     { fam, cfg := { every := 30000, patience := 20000 },
-      hooks := Connection.hooks fam Connection.sodium s.me.seed listen }
+      hooks := Connection.hooks fam Connection.sodium listen }
   try
     let db ← Db.openAt s.dbPath
     let r ← Engine.Sync.Runner.start x db 0 port.toUInt16 (fun is => ids.modify (· ++ is.toArray))
     IO.eprintln s!"node: listening on {r.port}, dialed as {(String.fromUTF8? listen).getD "?"}"
-    modify fun s => { s with net := some r, netSeed := s.me.seed, netIds := some ids }
+    modify fun s => { s with net := some r, netIds := some ids }
   catch e =>
     IO.eprintln s!"node: cannot start: {e}"
     modify fun s => { s with netCfg := none }
