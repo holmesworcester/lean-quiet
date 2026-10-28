@@ -4,9 +4,9 @@
 its CRDT engine, its sync and its encrypted networking, draws every
 pixel of its UI, and checks proofs about all four.
 
-<table><tr><td>
+<table><tr></tr><tr><td>
 
-👋 $\color{#8957e5}{\textsf{\textbf{Note from a human:}}}$ In ~1 day I vibe-coded a p2p, e2ee Slack/Discord alternative in Lean (informed by my work on [Quiet](https://tryquiet.org)) for iOS and Android with some fairly powerful correctness proofs. How does this stand up?
+👋 **Note from a human:** In ~1 day I vibe-coded a p2p, e2ee Slack/Discord alternative in Lean (informed by my work on [Quiet](https://tryquiet.org)) for iOS and Android with some fairly powerful correctness proofs. How does this stand up?
 
 </td></tr></table>
 
@@ -220,9 +220,9 @@ only.
 The theorems not listed here are lemmas. The axiom audit,
 `tests/Axioms.lean`, lists them all.
 
-<table><tr><td>
+<table><tr></tr><tr><td>
 
-🙋 $\color{#2f81f7}{\textsf{\textbf{Another note from a human:}}}$ The most obviously valuable thing about building a user-facing communication tool entirely in Lean is that you can prove strict safety properties. In a p2p, e2ee app where code is law, this means potentially being able to prove them over all possible deployments, too! But an even more interesting question: can you also prove absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size, or lack of responsiveness under load. It seems like you can!
+🙋 **Another note from a human:** The most obviously valuable thing about building a user-facing communication tool entirely in Lean is that you can prove strict safety properties. In a p2p, e2ee app where code is law, this means potentially being able to prove them over all possible deployments, too! But an even more interesting question: can you also prove absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size, or lack of responsiveness under load. It seems like you can!
 
 </td></tr></table>
 
