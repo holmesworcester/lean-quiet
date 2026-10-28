@@ -14,22 +14,34 @@ crypto. What a phone does, without the phone.
 - A later post streams to B.
 - Each node handshakes with its own key: the sessions name node keys,
   never device keys (docs/REMOVAL.md, E3).
-- A removes B while their session is live: from then on A sends B none
-  of the community's ops (a post of A's does not reach B) and takes
-  none of B's (B, not knowing, posts; A does not store it). Each
-  connection step reads its rooms afresh (`Node.refresh`), and the
-  trust rule refuses B's node (`rooms_cut`).
+- Notice, then cut (docs/REMOVAL.md, E1 and E2): A removes B while
+  their session is live and carries only Acme. A's next step gives B
+  its removal and the removal's closure, and A closes the session. B is
+  told: it holds its removal, which nothing but the notice carries. Its
+  device is cut, it holds Acme no more, and it closes its side. Both
+  ends purge the session; nothing reopens, and a post of A's after the
+  removal does not reach B.
 - The bare path takes only a join: the removed B dials A with a fresh
   post in its hello. A opens the request, stores neither the post nor
   anything for it, and answers nothing (`bare_takes_only_join`,
   `answer_trusted`). Negative control: the deliver step as it was
   before the fix, run on A's database, takes the post.
-- A rejoin is dialed beside an open session: A and B also share a
-  second community, so their one session stays open after the removal.
-  B, holding its removal, joins again as a new device; its request goes
-  bare beside the session, A approves it, and B is let in again
-  (`rejoin_dials`). Negative control: the dial rule before the fix, run
-  on B's database, would not dial it.
+- B rejoins as a new device: A invites again, B joins with a new seed
+  under its node key, and its request reaches A bare. A refuses B's node
+  until it approves the new device, then lets it in; B is in Acme again
+  by its own ops, and the old user stays removed.
+- One session carries two communities: B joins A's Zed beside the open
+  session. A removes B's new user from Acme: B is told, and the session
+  stays open for Zed (`rooms_complete`): a post in Zed reaches B, one in
+  Acme does not.
+- A rejoin is dialed beside an open session: B joins Acme again as a
+  third device; its request goes bare beside the session, A approves it,
+  and B is let in again (`rejoin_dials`). Negative control: the dial
+  rule before the fix, run on B's database, would not dial it.
+- Negative controls, each a pair of runners whose hooks are mutated: a
+  rooms hook that gives no notices (B never learns its removal, and A
+  keeps the session open), and sessions that do not read the rooms view
+  (B is told, but the session stays open at both ends).
 
 Each step is read from the runners' databases through a second
 connection (SQLite's WAL lets it read beside the runner's writer).
@@ -57,13 +69,41 @@ structure Peer where
   path : String
   run : Runner
 
-def side (dir name : String) (port : Nat) : IO Peer := do
+/-- The rooms hook with its notices dropped: synced rooms only. -/
+def quietRooms (cid : Id) : SqlM F (List Room) := do
+  return (Room.syncs (← (rooms cid : SqlM F _))).map .sync
+
+/-- The sessions as they were before they read the rooms view: kept, one
+per peer, whatever they carry; and the rest retired. -/
+def oldSessions : SqlM F (List (Id × ByteArray × Bool)) := do
+  let all ← (allSessions : SqlM F _)
+  let k := kept all
+  return all.filterMap fun (cid, _, dialer, a, _) => if k.contains cid then some (cid, a, dialer) else none
+
+def oldRetired : SqlM F (List Id) := do
+  let all ← (allSessions : SqlM F _)
+  let k := kept all
+  return all.filterMap fun (cid, _) => if k.contains cid then none else some cid
+
+/-- A node's hooks, as the family gives them or mutated for a negative
+control. -/
+inductive Mutant where
+  | none
+  | quiet
+  | old
+
+def Mutant.apply : Mutant → Hooks F (SqlM F) → Hooks F (SqlM F)
+  | .none, h => h
+  | .quiet, h => { h with rooms := quietRooms }
+  | .old, h => { h with established := oldSessions, retired := oldRetired }
+
+def side (dir name : String) (port : Nat) (m : Mutant := .none) : IO Peer := do
   let seed := sha256 s!"seed {name}".toUTF8
   let nk := sha256 s!"node {name}".toUTF8
   let addr := s!"127.0.0.1:{port}".toUTF8
   let path := s!"{dir}/{name}.db"
   let db ← fresh path
-  let x : Sync F (SqlM F) := { fam, cfg, hooks := hooks fam K addr }
+  let x : Sync F (SqlM F) := { fam, cfg, hooks := m.apply (hooks fam K addr) }
   let run ← Runner.start x db 0 port.toUInt16
   return { name, seed, nk, addr, path, run }
 
@@ -110,6 +150,10 @@ def oldDial : SqlM F (List ByteArray) := do
 def allowedOn (s : Peer) (c d : ByteArray) : IO Bool :=
   look s ((Community.allowPeer c d).liftL.run : SqlM F Bool)
 
+/-- Whether device d is live in c, read on a side's store. -/
+def liveOn (s : Peer) (c d : ByteArray) : IO Bool :=
+  look s ((Community.deviceLive c d).liftL.run : SqlM F Bool)
+
 def stored (s : Peer) (x : Id) : IO Bool := do return (← look s (Store.getOp x : SqlM F _)).isSome
 
 /-- Wait up to ms for p, checking every 50 ms; how long it took. -/
@@ -119,6 +163,44 @@ def waitFor (ms : Nat) (p : IO Bool) : IO (Option Nat) := do
     if ← p then return some ((← IO.monoMsNow) - t0)
     IO.sleep 50
   return none
+
+/-- A founds Acme, B joins and is approved: B's admission, once B is
+admitted by its own ops and the session is up. -/
+def pairUp (a b : Peer) : IO (Option (Id × Id)) := do
+  let dA := Device.ofSeed a.seed
+  a.run.write (← viewOn a (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (sha256 "key".toUTF8)
+    (sha256 "esk".toUTF8) a.nk)).ops
+  let c := (root dA a.key).id
+  let _ ← waitFor 10000 (stored a c)
+  let some (wi, link) ← viewOn a (inviteTo c c dA (sha256 "bearer".toUTF8) [a.addr]) | return none
+  a.run.write wi.ops
+  let req := link.request (Device.ofSeed b.seed) b.key
+  b.run.write (← viewOn b (join link b.seed "Bea".toUTF8 b.nk)).ops
+  let _ ← waitFor 10000 (stored a req.id)
+  a.run.write (← look a ((approveReq c req.id c dA).liftL.run : SqlM F Community.Write)).ops
+  let ok ← waitFor 20000 do
+    return (← allowedOn b c b.key) && (← ests a).length == 1 && (← ests b).length == 1
+  if ok.isNone then return none
+  let adms ← look a ((Community.admission.byDevice.read [c, (Device.ofSeed b.seed).pk]).liftL.run :
+    SqlM F (Answer Community.Fact))
+  return adms.rows.head?.map fun ((_, adm), _) => (c, adm)
+
+/-- A negative control: a pair whose hooks are mutated, A removing B on
+the live session; whether B was told within 4 s, and whether each end
+still has the session. -/
+def mutantRun (dir tag : String) (port : Nat) (m : Mutant) : IO (Bool × Bool × Bool) := do
+  let a ← side dir s!"A-{tag}" port m
+  let b ← side dir s!"B-{tag}" (port + 1) m
+  let r ← pairUp a b
+  let out ← match r with
+    | none => pure (true, true, false)
+    | some (c, admB) =>
+      let rm := remove c c c admB (Device.ofSeed a.seed)
+      a.run.write [rm]
+      IO.sleep 4000
+      pure (← stored b rm.id, !(← ests a).isEmpty, !(← ests b).isEmpty)
+  a.run.stop; b.run.stop
+  return out
 
 def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/jointcp"
@@ -172,95 +254,133 @@ def main (args : List String) : IO UInt32 := do
   a.run.write [p]
   let streamed ← waitFor 10000 (stored b p.id)
   t.ok "tcp: a later post reaches B" streamed.isSome
+  -- A removes B while their session is live and carries only Acme.
+  let adms ← look a ((Community.admission.byDevice.read [c, dB.pk]).liftL.run : SqlM F (Answer Community.Fact))
+  let some ((_, admB), _) := adms.rows.head? | t.ok "tcp: A holds B's admission" false; stopAll
+  let rm := remove c c c admB dA
+  a.run.write [rm]
+  let cut ← waitFor 5000 do return !(← allowedOn a c b.key)
+  t.ok "tcp: A's trust rule refuses B's node once the removal is held" cut.isSome
+  let told ← waitFor 10000 (stored b rm.id)
+  t.ok "tcp: B is told: it holds its removal, which only the notice carries" told.isSome
+  let dropped ← waitFor 5000 do return (← viewOn b (Community.mine c)).isNone && !(← liveOn b c dB.pk)
+  t.ok "tcp: B's device is cut on B, and B holds Acme no more" dropped.isSome
+  let closed ← waitFor 10000 do return (← ests a).isEmpty && (← ests b).isEmpty
+  t.ok "tcp: the session is cut at both ends, its ops purged" closed.isSome
+  let p2 := post c c dA "k".toUTF8 "after the removal".toUTF8 2 6
+  a.run.write [p2]
+  -- Well past the time the earlier post took to stream.
+  IO.sleep 3000
+  t.ok "tcp: A's post after the removal does not reach B" (!(← stored b p2.id))
+  t.ok "tcp: and no session opens again" ((← ests a).isEmpty && (← ests b).isEmpty)
+  IO.println s!"jointcp: removal held in {cut} ms, B told in {told} ms, session cut in {closed} ms"
+  -- The bare path takes only a join: the removed B dials A with a fresh
+  -- post in its hello, on a new request from B's node key.
+  let q2 := post c admB dB "k".toUTF8 "pushed in a hello".toUTF8 4 8
+  let e := sha256 "B's pushing ephemeral".toUTF8
+  let some ro := Request.op K b.nk a.key e (hello c b.addr [q2])
+    | t.ok "tcp: B composes a request" false; stopAll
+  b.run.write [ro, Eph.op e ro.id, Send.op a.addr ro]
+  let openedPush ← waitFor 10000 do
+    return (← look a (count Connection.opened.byRequest [ro.id] : SqlM F _)) ≥ 1
+  t.ok "tcp: A opens the removed B's request" openedPush.isSome
+  IO.sleep 1000
+  t.ok "tcp: A does not store the post its hello carries" (!(← stored a q2.id))
+  t.ok "tcp: and answers nothing: no connection for it"
+    ((← look a (count connection.byRequest [ro.id] : SqlM F _)) == 0)
+  let now ← look a (react fam K : SqlM F (List Op))
+  t.ok "tcp: today's react, run on A's store, writes nothing of the hello's post"
+    (!now.any (·.id == q2.id))
+  let before ← look a oldDeliver
+  t.ok "tcp: negative control: the deliver step before the fix takes it from that same store"
+    (before.any (·.id == q2.id))
+  -- B rejoins as a new device, with no session open.
+  let some (wi3, link3) ← viewOn a (inviteTo c c dA (sha256 "bearer 3".toUTF8) [a.addr])
+    | t.ok "tcp: A invites B again" false; stopAll
+  a.run.write wi3.ops
+  let seedB3 := sha256 "seed B, rejoined".toUTF8
+  let dB3 := Device.ofSeed seedB3
+  b.run.write (← viewOn b (join link3 seedB3 "Bea".toUTF8 (sha256 "unused".toUTF8))).ops
+  let req3 := link3.request dB3 b.key
+  let reached ← waitFor 10000 (stored a req3.id)
+  t.ok "tcp: B's rejoin request, a new device's under the same node key, reaches A bare" reached.isSome
+  IO.sleep 500
+  t.ok "tcp: A refuses B's node until it approves the new device"
+    (!(← allowedOn a c b.key) && (← ests a).isEmpty)
+  a.run.write (← look a ((approveReq c req3.id c dA).liftL.run : SqlM F Community.Write)).ops
+  let back ← waitFor 20000 do
+    return (← viewOn b (Community.mine c)).map (·.1) == some dB3.pk && (← allowedOn b c b.key)
+  t.ok "tcp: approved, B is in Acme again as its new device, by its own ops" back.isSome
+  t.ok "tcp: and A lets B's node in again" (← allowedOn a c b.key)
+  t.ok "tcp: the old user stays removed, its device cut, on both"
+    (!(← liveOn a c dB.pk) && !(← liveOn b c dB.pk) && (← stored a rm.id) && (← stored b rm.id))
+  IO.println s!"jointcp: rejoin request reached A in {reached} ms, B back in {back} ms"
   -- A second community between the same nodes: one session carries both.
   let seedA2 := sha256 "seed A, second".toUTF8
+  let dA2 := Device.ofSeed seedA2
   a.run.write (← viewOn a (found seedA2 "Zed".toUTF8 "Ann".toUTF8 2 (sha256 "key Z".toUTF8)
     (sha256 "esk Z".toUTF8) (sha256 "unused".toUTF8))).ops
-  let c' := (root (Device.ofSeed seedA2) a.key).id
+  let c' := (root dA2 a.key).id
   let _ ← waitFor 10000 (stored a c')
-  let some (wiZ, linkZ) ← viewOn a (inviteTo c' c' (Device.ofSeed seedA2) (sha256 "bearer Z".toUTF8) [a.addr])
+  let some (wiZ, linkZ) ← viewOn a (inviteTo c' c' dA2 (sha256 "bearer Z".toUTF8) [a.addr])
     | t.ok "tcp: A invites to Zed" false; stopAll
   a.run.write wiZ.ops
   let seedB2 := sha256 "seed B, second".toUTF8
   b.run.write (← viewOn b (join linkZ seedB2 "Bea".toUTF8 (sha256 "unused".toUTF8))).ops
   let reqZ := linkZ.request (Device.ofSeed seedB2) b.key
   let _ ← waitFor 10000 (stored a reqZ.id)
-  a.run.write (← look a ((approveReq c' reqZ.id c' (Device.ofSeed seedA2)).liftL.run : SqlM F Community.Write)).ops
-  let inZed ← waitFor 20000 (allowedOn b c' b.key)
-  t.ok "tcp: B joins a second community of A's, over its node key" inZed.isSome
-  IO.println s!"jointcp: opened in {opened}, established in {est}, admitted in {admitted}, post in {streamed} (ms)"
-  -- A removes B, on the live session.
-  let adms ← look a ((Community.admission.byDevice.read [c, dB.pk]).liftL.run : SqlM F (Answer Community.Fact))
-  match adms.rows.head? with
-  | none => t.ok "tcp: A holds B's admission" false
-  | some ((_, admB), _) =>
-    let rm := remove c c c admB dA
-    a.run.write [rm]
-    let cut ← waitFor 5000 do return !(← allowedOn a c b.key)
-    t.ok "tcp: A's trust rule refuses B's node once the removal is held" cut.isSome
-    let p2 := post c c dA "k".toUTF8 "after the removal".toUTF8 2 6
-    a.run.write [p2]
-    let q := post c admB dB "k".toUTF8 "B, not knowing".toUTF8 3 7
-    b.run.write [q]
-    -- Well past the time the earlier post took to stream.
-    IO.sleep 4000
-    t.ok "tcp: B posted on its side" (← stored b q.id)
-    t.ok "tcp: A's post after the removal does not reach B" (!(← stored b p2.id))
-    t.ok "tcp: A does not take B's post" (!(← stored a q.id))
-    IO.println s!"jointcp: removal held in {cut} ms; B holds the removal: {← stored b rm.id}; sessions on A: {(← ests a).length}"
-    -- The bare path takes only a join: the removed B dials A with a
-    -- fresh post in its hello, on a new request from B's node key.
-    let q2 := post c admB dB "k".toUTF8 "pushed in a hello".toUTF8 4 8
-    let e := sha256 "B's pushing ephemeral".toUTF8
-    let some ro := Request.op K b.nk a.key e (hello c b.addr [q2])
-      | t.ok "tcp: B composes a request" false; let _ ← stopAll
-    b.run.write [ro, Eph.op e ro.id, Send.op a.addr ro]
-    let openedPush ← waitFor 10000 do
-      return (← look a (count Connection.opened.byRequest [ro.id] : SqlM F _)) ≥ 1
-    t.ok "tcp: A opens the removed B's request" openedPush.isSome
-    IO.sleep 1000
-    t.ok "tcp: A does not store the post its hello carries" (!(← stored a q2.id))
-    t.ok "tcp: and answers nothing: no connection for it"
-      ((← look a (count connection.byRequest [ro.id] : SqlM F _)) == 0)
-    let now ← look a (react fam K : SqlM F (List Op))
-    t.ok "tcp: today's react, run on A's store, writes nothing of the hello's post"
-      (!now.any (·.id == q2.id))
-    let before ← look a oldDeliver
-    t.ok "tcp: negative control: the deliver step before the fix takes it from that same store"
-      (before.any (·.id == q2.id))
-    -- A rejoin beside an open session. B comes to hold its removal (the
-    -- notice will carry it; written here by hand): its entry for c is
-    -- not held, and its session with A stays open for Zed.
-    b.run.write [rm]
-    let dropped ← waitFor 5000 do return (← viewOn b (Community.mine c)).isNone
-    t.ok "tcp: B, holding its removal, holds c no more" dropped.isSome
-    t.ok "tcp: and its session with A stays open for the community they still share"
-      ((← ests b).length == 1 && (← allowedOn b c a.key))
-    let some (wi3, link3) ← viewOn a (inviteTo c c dA (sha256 "bearer 3".toUTF8) [a.addr])
-      | t.ok "tcp: A invites B again" false; let _ ← stopAll
-    a.run.write wi3.ops
-    let seedB3 := sha256 "seed B, rejoined".toUTF8
-    let dB3 := Device.ofSeed seedB3
-    b.run.write (← viewOn b (join link3 seedB3 "Bea".toUTF8 (sha256 "unused".toUTF8))).ops
-    let req3 := link3.request dB3 b.key
-    let _ ← waitFor 5000 do return (← viewOn b (Community.mine c)).isSome
-    let now ← look b (dial K b.addr 0 : SqlM F (List Op))
-    t.ok "tcp: today's dial, on B's store, sends the rejoin request beside the open session"
-      (now.any fun o => match (Codec.decode o.body : Option Connection.Body) with
-        | some (.send h) => h == a.addr
-        | _ => false)
-    let before ← look b oldDial
-    t.ok "tcp: negative control: the dial rule before the fix would not send it" before.isEmpty
-    let reached ← waitFor 10000 (stored a req3.id)
-    t.ok "tcp: B's rejoin request reaches A bare, beside the open session" reached.isSome
-    a.run.write (← look a ((approveReq c req3.id c dA).liftL.run : SqlM F Community.Write)).ops
-    let back ← waitFor 20000 do
-      return (← viewOn b (Community.mine c)).map (·.1) == some dB3.pk && (← allowedOn b c b.key)
-    t.ok "tcp: approved, B is in c again as its new device, by its own ops" back.isSome
-    t.ok "tcp: and A lets B's node in again" (← allowedOn a c b.key)
-    IO.println s!"jointcp: rejoin request reached A in {reached} ms, B back in {back} ms"
+  a.run.write (← look a ((approveReq c' reqZ.id c' dA2).liftL.run : SqlM F Community.Write)).ops
+  let inZed ← waitFor 20000 do
+    return (← allowedOn b c' b.key) && (← ests a).length == 1 && (← ests b).length == 1
+  t.ok "tcp: B joins a second community of A's, beside the open session, over one session" inZed.isSome
+  -- A removes B's new user from Acme: the session stays open for Zed.
+  let adms3 ← look a ((Community.admission.byDevice.read [c, dB3.pk]).liftL.run : SqlM F (Answer Community.Fact))
+  let some ((_, admB3), _) := adms3.rows.head? | t.ok "tcp: A holds B's new admission" false; stopAll
+  let rm3 := remove c c c admB3 dA
+  a.run.write [rm3]
+  let told3 ← waitFor 10000 (stored b rm3.id)
+  t.ok "tcp: removed again, beside Zed, B is told" told3.isSome
+  let _ ← waitFor 5000 do return (← viewOn b (Community.mine c)).isNone
+  IO.sleep 1000
+  t.ok "tcp: and the session stays open for Zed"
+    ((← ests a).length == 1 && (← ests b).length == 1 && (← allowedOn b c' a.key))
+  let pZ := post c' c' dA2 "k".toUTF8 "still in Zed".toUTF8 1 9
+  let p4 := post c c dA "k".toUTF8 "Acme, after the second removal".toUTF8 5 9
+  a.run.write [p4, pZ]
+  let zed ← waitFor 10000 (stored b pZ.id)
+  t.ok "tcp: a post in Zed still reaches B" zed.isSome
+  t.ok "tcp: one in Acme does not" (!(← stored b p4.id))
+  -- A rejoin beside the open session: B joins Acme again, a third device.
+  let some (wi4, link4) ← viewOn a (inviteTo c c dA (sha256 "bearer 4".toUTF8) [a.addr])
+    | t.ok "tcp: A invites B a third time" false; stopAll
+  a.run.write wi4.ops
+  let seedB4 := sha256 "seed B, rejoined again".toUTF8
+  let dB4 := Device.ofSeed seedB4
+  b.run.write (← viewOn b (join link4 seedB4 "Bea".toUTF8 (sha256 "unused".toUTF8))).ops
+  let req4 := link4.request dB4 b.key
+  let _ ← waitFor 5000 do return (← viewOn b (Community.mine c)).isSome
+  let now ← look b (dial K b.addr 0 : SqlM F (List Op))
+  t.ok "tcp: today's dial, on B's store, sends the rejoin request beside the open session"
+    (now.any fun o => match (Codec.decode o.body : Option Connection.Body) with
+      | some (.send h) => h == a.addr
+      | _ => false)
+  let before ← look b oldDial
+  t.ok "tcp: negative control: the dial rule before the fix would not send it" before.isEmpty
+  let reached4 ← waitFor 10000 (stored a req4.id)
+  t.ok "tcp: B's rejoin request reaches A bare, beside the open session" reached4.isSome
+  a.run.write (← look a ((approveReq c req4.id c dA).liftL.run : SqlM F Community.Write)).ops
+  let back4 ← waitFor 20000 do
+    return (← viewOn b (Community.mine c)).map (·.1) == some dB4.pk && (← allowedOn b c b.key)
+  t.ok "tcp: approved, B is in Acme again, beside Zed" back4.isSome
   a.run.stop
   b.run.stop
+  -- Negative controls: the same removal with mutated hooks.
+  let (toldQ, aOpenQ, _) ← mutantRun dir "quiet" (base + 2) .quiet
+  t.ok "tcp: negative control: with a rooms hook giving no notices, B never learns its removal" (!toldQ)
+  t.ok "tcp: and A keeps the session open, the notice owed" aOpenQ
+  let (toldO, aOpenO, bOpenO) ← mutantRun dir "old" (base + 4) .old
+  t.ok "tcp: negative control: with sessions not reading the rooms view, B is told but the session stays open at both ends"
+    (toldO && aOpenO && bOpenO)
   let code ← t.finish "jointcp"
   (← IO.getStdout).flush
   IO.Process.exit code.toUInt8
