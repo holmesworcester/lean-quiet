@@ -60,17 +60,20 @@ def received (sm : Sim) (t : String) : M (Option (Row.Pic × Option ByteArray ×
   sm.cmds.modify (·.push "channel")
   steps 2
   let some p := picOf (← get) t | return none
-  let opened := Community.openFile (← slicesOf p) p.key p.nonce
   -- the largest chunk op, as stored (its encoded size)
   let mut big := 0
   for x in p.chunks do
     if let some o ← (Store.getOp (F := SF) (m := SqlM SF) x).run (← get).rd then
       big := max big (Codec.encode o).size
+  -- drawn from the file: the file stage, and not the placeholder a failed
+  -- open draws
   let mut full := false
   for _ in [0:400] do
-    let (_, f) ← image p 96 64
-    if f then full := true; break
+    let (b, f) ← image p 96 64
+    if f && (b.map (·.rows[0]? != some (Paint.solid Row.placeholder 96))).getD false then full := true; break
     steps 1; IO.sleep 10
+  -- the file opened from the chunks stored by now
+  let opened := ((← slicesOf p) >>= slicesFromOps) >>= fun sl => Community.openFile sl p.key p.nonce
   return some (p, opened, full, big)
 
 def main (args : List String) : IO UInt32 := do
@@ -121,6 +124,14 @@ def main (args : List String) : IO UInt32 := do
   for (fromA, t) in [(true, "a photo from Ann"), (false, "a photo from Bea")] do
     let (sent, s') ← (post (if fromA then sa else sb) t).run (if fromA then a else b)
     if fromA then a := s' else b := s'
+    -- the sender's own row: its photo drawn from the file too
+    let (mine, s'') ← (received (if fromA then sa else sb) t).run (if fromA then a else b)
+    if fromA then a := s'' else b := s''
+    match mine with
+    | none => check s!"{t}: on the sender's own screen" false
+    | some (p, opened, full, _) =>
+      check s!"{t}: the sender's own copy opens to the bytes sent ({p.got}/{p.total})" (opened == some sent)
+      check s!"{t}: the sender's own row draws the file, not a placeholder" full
     let n := Merkle.nChunks (sent.size + 16)
     check s!"{t}: attached ({sent.size} bytes, {n} chunks of up to {Merkle.sliceSize} bytes)" (sent.size > 0)
     -- the receiver: its conversation open, until the picture is complete
@@ -143,6 +154,32 @@ def main (args : List String) : IO UInt32 := do
       check s!"{t}: the file opened from its chunks is the bytes sent ({(opened.map (·.size)).getD 0} bytes)"
         (opened == some sent)
       check s!"{t}: its row draws the file, not the preview (chunks {p.got}/{p.total})" full
+  -- four photos in one post with no text (Add photos four times and Send,
+  -- as the user did on the Pixel), then a text: the sender's outbox
+  -- drains, the other side gets every chunk
+  let t4 := ""
+  let ((), b5) ← (show M Unit from do
+    sb.cmds.modify (·.push "channel")
+    steps 2
+    for _ in [0:4] do
+      sb.cmds.modify (·.push "photo")
+      steps 2
+    sb.cmds.modify (·.push "post")
+    steps 3
+    sb.cmds.modify (·.push "post and a text after it")
+    steps 3).run b
+  b := b5
+  let (a', b', drained) ← both a b 60000 fun _ y => y.out.isEmpty
+  a := a'; b := b'
+  check s!"four photos: the sender's outbox drains ({b.out.size} left)" drained
+  let pics4 (x : St) := ((x.rows.toList.find? (·.2.data.text == t4)).map (·.2.data.pics)).getD []
+  let ((), a5) ← (show M Unit from do sa.cmds.modify (·.push "channel"); steps 2).run a
+  a := a5
+  let (a', b', got) ← both a b 120000 fun x _ =>
+    (pics4 x).length == 4 && (pics4 x).all (·.complete) &&
+      x.rows.toList.any (·.2.data.text == "and a text after it")
+  a := a'; b := b'
+  check s!"four photos: all four complete on the other side ({(pics4 a).map fun p => s!"{p.got}/{p.total}"}), and the text after" got
   if let some r := a.net then r.stop
   if let some r := b.net then r.stop
   (← IO.getStdout).flush
