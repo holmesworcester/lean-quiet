@@ -366,6 +366,7 @@ open Engine
 #print axioms Engine.read_rows_iff
 #print axioms Engine.read_notice_iff
 #print axioms Engine.watch_stable
+#print axioms Engine.window_rows
 #print axioms Engine.eval_counting
 #print axioms Engine.rank_costs
 #print axioms Engine.find_costs
@@ -375,6 +376,7 @@ open Engine
 #print axioms Engine.Mutants.unnetted_imprecise
 #print axioms Screen.screen_subs
 #print axioms Screen.hull_near
+#print axioms Screen.past_hull_le
 #print axioms Screen.screen_index
 #print axioms Screen.keep_scrolled_off
 end windows
