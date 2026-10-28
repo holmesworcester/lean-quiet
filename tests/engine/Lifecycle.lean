@@ -132,6 +132,112 @@ def channelOrder (t : Checks) (a b : Db) (c : Id) (kA seedA seedB : ByteArray) :
   t.ok "a receipt of a message below the cap is refused"
     ((← (Store.getStatus (F := Fact) (m := SqlM Fact) lowRcpt.id).run a) == some .invalid)
 
+/-- The wrap validator before the fix (a mutant): a wrap needed only its
+community's root, whatever its recipient. -/
+def oldValidate (o : Op) (fs : List Fact) : Option Fact :=
+  match (Codec.decode o.body : Option Body), fs with
+  | some (.wrap k r bx), [.admission c u0 _ _] =>
+    if o.kind = 6 ∧ o.reqs.head? = some c ∧ u0 = c then some (.wrap c k r bx) else none
+  | _, _ => validate C o fs
+
+def oldFam : Family Fact := { fam with validate := oldValidate }
+
+/-- Approving before the fix (a mutant): the approval, the admission at
+the threshold, and at every approval this device's content key wrapped
+to the requester, citing only the community. -/
+def approveReqOld (c req myAdm : Id) (d : Device) (esk : ByteArray) : View Fact Write := do
+  let w ← approveReq c req myAdm d
+  let rq ← View.read { key := opKey req, limit := some 1 }
+  let ks ← key.byCommunity.read [c] (limit := some 1)
+  pure ⟨w.ops ++ match rq.rows.head?, ks.rows.head? with
+    | some (_, .request _ _ _ e _ _), some (_, .key _ _ k) =>
+      let kid := kidOf cryptoSeal k
+      [mkOp [c] (.wrap kid e (box cryptoSeal esk e kid k))]
+    | _, _ => []⟩
+
+/-- A content key goes only with the admission it serves. D joins through
+an invitation needing two approvals. A's approval admits nobody and wraps
+nothing; the mutant's (the code before the fix) wraps at once, which the
+old validator lists for D's key with no admission of it
+(`wrap_only_admitted` broken) and the fixed one refuses. B's approval
+completes the tally: the admission, and B's wrap to D citing it. On D
+the wrap waits for its admission, then D unwraps and reads. -/
+def wrapsGoWithAdmissions (t : Checks) (dir : String) (a b : Db) (c : Id) (kA seedA seedB : ByteArray) :
+    IO Unit := do
+  let dA := Device.ofSeed seedA
+  let dB := Device.ofSeed seedB
+  let kid := kidOf cryptoSeal kA
+  let mine (db : Db) (w : Write) : IO Unit := (receive fam (intake fam true w.ops)).run db
+  let fromPeer (db : Db) (ops : List Op) : IO Unit := (receive fam (intake fam false ops)).run db
+  let sendOn (db : Db) (v : View Fact Write) : IO Write := (v.run : SqlM Fact Write).run db
+  let status (db : Db) (o : Op) : IO (Option (Verdict Fact)) :=
+    (Store.getStatus (F := Fact) (m := SqlM Fact) o.id).run db
+  let wrapsTo (db : Db) (e : ByteArray) : IO Nat := return (← rows db (wrap.byRecipient.query [c, e])).length
+  let keyed (db : Db) (e : ByteArray) : IO Bool := do
+    let adms ← rows db (admission.all.query [c])
+    return adms.any fun (_, f) => match f with | .admission _ _ _ e' => e' == e | _ => false
+  let admB := ((← rows b (admission.byDevice.query [c, dB.pk] (limit := some 1))).headD default).1.2
+  let seedD := sha256 "device D".toUTF8
+  let dD := Device.ofSeed seedD
+  let ddb ← fresh dir "d.db"
+  let (wi, link) := inviteTo c c dA (sha256 "bearer 3".toUTF8) [] (threshold := 2)
+  mine a wi
+  mine ddb (← sendOn ddb (join link seedD "Dee".toUTF8))
+  let reqD := link.request dD
+  fromPeer a (← sendable ddb)
+  fromPeer b (← sendable a)
+  t.ok "A and B hold D's request, under an invitation needing two approvals"
+    ((← rows a (request.all.query [c])).any (·.1.2 == reqD.id) && (← rows b (request.all.query [c])).any (·.1.2 == reqD.id))
+  -- A approves first: no admission yet, so no wrap.
+  let w1 ← sendOn a (approveReq c reqD.id c dA (sha256 "esk D1".toUTF8))
+  t.ok "below the threshold, an approval writes the approval alone: no admission, no wrap"
+    (w1.ops.map (·.id) == [(approve c reqD.id c dA).id])
+  -- The mutant wraps at that same approval.
+  let wOld ← sendOn a (approveReqOld c reqD.id c dA (sha256 "esk D1".toUTF8))
+  let early := wOld.ops.getD 1 default
+  t.ok "the mutant's first approval writes a wrap to D's key, and no admission"
+    (wOld.ops.length == 2 && early.kind == 6 && !wOld.ops.any (·.kind == 11))
+  let mdb ← fresh dir "mutant.db"
+  (receive oldFam (intake oldFam false ((← (dumpOps (F := Fact)).run a) ++ wOld.ops))).run mdb
+  t.ok "under the old validator, that wrap is listed for D's key with no admission of D's key: wrap_only_admitted fails"
+    ((← wrapsTo mdb dD.enc) == 1 && !(← keyed mdb dD.enc))
+  mine a w1
+  fromPeer a [early]
+  t.ok "under the fixed one, the approve-time wrap is refused, and nothing is listed for D's key"
+    ((← status a early) == some .invalid && (← wrapsTo a dD.enc) == 0)
+  let misdirected := wrapKey c admB kA (sha256 "esk X".toUTF8) dD.enc
+  fromPeer a [misdirected]
+  t.ok "a wrap to D's key citing B's admission is refused" ((← status a misdirected) == some .invalid)
+  -- B's approval completes the tally.
+  fromPeer b (← sendable a)
+  let w2 ← sendOn b (approveReq c reqD.id admB dB (sha256 "esk D2".toUTF8))
+  let admitOp := w2.ops.getD 1 default
+  let wrapOp := w2.ops.getD 2 default
+  t.ok "the completing approval writes the approval, the admission, and B's wrap to D's key citing it"
+    (w2.ops.length == 3 && admitOp.kind == 11 && wrapOp.reqs == [c, admitOp.id] &&
+      wrapOp.id == (wrapKey c admitOp.id kA (sha256 "esk D2".toUTF8) dD.enc).id)
+  mine b w2
+  t.ok "on B, D is admitted and B's wrap is listed for D's key"
+    ((← keyed b dD.enc) && (← wrapsTo b dD.enc) == 1)
+  -- On D the wrap arrives before its admission: it waits, listed nowhere.
+  let fromB ← sendable b
+  fromPeer ddb (fromB.filter (·.id != admitOp.id))
+  t.ok "on D, a wrap held before its admission waits, and is not listed"
+    ((← status ddb wrapOp) == none && (← wrapsTo ddb dD.enc) == 0 && !(← keyed ddb dD.enc))
+  fromPeer ddb [admitOp]
+  t.ok "once the admission arrives, D is admitted and the wrap is listed for its key"
+    ((← status ddb wrapOp) matches some (.valid _) && (← wrapsTo ddb dD.enc) == 1 &&
+      (← ((allowPeer c dD.pk).run : SqlM Fact Bool).run ddb))
+  let wu ← sendOn ddb (unwrap c dD)
+  t.ok "D unwraps one key, the community's" (wu.ops.map (·.id) == [(contentKey c kA).id])
+  mine ddb wu
+  let rd ← ((readable c (some 50)).run : SqlM Fact (Answer Fact)).run ddb
+  let texts := rd.rows.filterMap fun (_, f) => match f with
+    | .message _ _ _ k sealed _ _ => if k == kid then openSealed cryptoSeal c kid sealed kA else none
+    | _ => none
+  t.ok "and reads the channel, A's first post among it"
+    (!rd.rows.isEmpty && texts.length == rd.rows.length && texts.contains "hello from Ann".toUTF8)
+
 def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/lifecycle"
   IO.FS.createDirAll dir
@@ -446,6 +552,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "an approval after stopping still admits C" (← ((allowPeer c dC.pk).run : SqlM Fact Bool).run cdb)
 
   channelOrder t a b c kA seedA seedB
+  wrapsGoWithAdmissions t dir a b c kA seedA seedB
 
   -- A secret whose seed is not its key's is refused.
   let bad := mkOp [] (.secret dB.pk seedA)
@@ -472,4 +579,18 @@ def main (args : List String) : IO UInt32 := do
     ((← rows a (removal.byUser.query [c, u])).any fun (_, f) => f == .removal c u c)
   t.ok "and no longer let in" !(← ((allowPeer c dB.pk).run : SqlM Fact Bool).run a)
   t.ok "removing B again writes nothing" ((← rmBy a u dA).ops.isEmpty)
+  -- A removed user's admission gets no wrap: B, holding its removal,
+  -- approves a link request into its own user; the admission is
+  -- written, the wrap is not.
+  fromPeer b (← sendable a)
+  let admB := ((← rows b (admission.byDevice.query [c, dB.pk] (limit := some 1))).headD default).1.2
+  let lseed := sha256 "B's link bearer".toUTF8
+  let linv := invite c admB dB (Device.ofSeed lseed).pk true 1
+  mine b ⟨[linv]⟩
+  let lreq := (⟨c, linv.id, dB.pk, [], lseed⟩ : Invite).request (Device.ofSeed (sha256 "device B2".toUTF8))
+  fromPeer b [lreq]
+  let wl ← sendOn b (approveReq c lreq.id admB dB (sha256 "esk L".toUTF8))
+  t.ok "a removed user's link request: the approval and the admission, but no wrap"
+    (wl.ops.length == 2 && (wl.ops.getD 1 default).kind == 11 && !wl.ops.any (·.kind == 6) &&
+      (← rows b (key.byCommunity.query [c])).length == 1)
   t.finish "lifecycle"
