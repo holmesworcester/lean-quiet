@@ -81,6 +81,15 @@ mutant "a list that reads in the wrong direction" engine.core.Union engine/core/
 mutant "readable reads its receipts in the other direction" ops.community.message.Order ops/community/message/Order.lean:order_total ops/community/Intents.lean \
   "(received.byKey.query [c, kid] limit desc (after.map" "(received.byKey.query [c, kid] limit (!desc) (after.map" \
   "(received.byKey.query [c, kid] lim desc (after.map" "(received.byKey.query [c, kid] lim (!desc) (after.map"
+# anchor_read (and count_partition) is false: a receipt list is bounded
+# as it was, by sort key against the least id (before) and the greatest
+# (after), so a window anchored on a saturated message drops the anchor.
+mutant "readable's receipt bounds as they were" ops.community.message.Order \
+  ops/community/message/Order.lean:anchor_read ops/community/Intents.lean \
+  "  (if bcmp (recMsg a.1) a.2 == .gt then a.1 else a.1.push 0, .empty)" \
+  "  (a.1, ⟨Array.replicate 33 0xFF⟩)" \
+  "  (if bcmp (recMsg b.1) b.2 == .lt then b.1.push 0 else b.1, ByteArray.empty.push 0)" \
+  "  (b.1, .empty)"
 # sortPos_eq_fast is false: the sort that runs reverses ties.
 mutant "sortPos run as an unstable sort" engine.core.Query engine/core/Query.lean:sortPos_eq_fast engine/core/Query.lean \
   "def sortPosFast {α} (l : List (Pos × α)) : List (Pos × α) := l.mergeSort posLE" \

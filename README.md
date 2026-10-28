@@ -132,8 +132,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 595 rest on Lean's standard axioms
-only, and about two thirds of its theorems (399 of 577, not counting 18 negative controls) are about the code that runs; another 7 run the
+that rests on; 🥊 is supporting. All 600 rest on Lean's standard axioms
+only, and about two thirds of its theorems (403 of 582, not counting 18 negative controls) are about the code that runs; another 7 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -221,7 +221,7 @@ World); the rest are over models so far
 | 🟡 | 🥊🥊🥊 | **What you see is what was sent.** Proven over a model where every list read is the engine's: a shown message is a valid fact of the store, its row's name, time and text are its author's name, its claimed time and its body opened with a key the store holds, and the conversation is exactly the messages under keys this device holds. Not yet: from the row's layout to its pixels. | [`message_read`], [`readable_held`], [`readable_complete`], [`eval_stable`] |
 | ✅ | 🥊🥊🥊 | **Every community is reachable, and is one entry.** A switcher row's tap selects exactly the entry it draws, every entry has a row, no two entries share an acceptance or a community, and a page is drawn from its key alone, which names its entry's op, never a name. | [`switcherOrder_sound`], [`switcherOrder_complete`], [`dedupe_nodup`], [`dedupe_one_per_community`], [`select_tapped_dedupe`], [`drawPage_key`], [`pageIn_acc`] |
 | ⬜ | 🥊🥊 | **The screen keeps up.** Wanted: input first, no blank rows past a latency bound, within a frame budget, with bounded reads. | |
-| ✅ | 🥊🥊 | **Display order.** A channel sorts by a counter its devices share, then the time, then the id, with no ties, so devices with the same ops order it alike. Past the counter's cap, each device's own arrival order shows instead, and that exception is itself a law. | [`msg_cmp`], [`time_is_display`], [`order_total`], [`Pos.cmp_eq_iff`], [`Pos.cmp_lt_trans`], [`send_after`], [`arrival_order`], [`receipt_once`], [`order_local`], [`display_agrees`], [`readable_held`], [`readable_complete`] |
+| ✅ | 🥊🥊 | **Display order.** A channel sorts by a counter its devices share, then the time, then the id, with no ties, so devices with the same ops order it alike. Past the counter's cap, each device's own arrival order shows instead, and that exception is itself a law. A window around any row reads each row on exactly one side, and its older side holds the row, past the cap too. | [`msg_cmp`], [`time_is_display`], [`order_total`], [`count_partition`], [`anchor_read`], [`Pos.cmp_eq_iff`], [`Pos.cmp_lt_trans`], [`send_after`], [`arrival_order`], [`receipt_once`], [`order_local`], [`display_agrees`], [`readable_held`], [`readable_complete`] |
 | | | **Codes, pictures and discovery** | |
 | ✅ | 🥊🥊 | **What the encoders write reads back.** This holds for QR segments and codewords, invite links and mDNS packets. QR error correction is sound, and format and version readings tolerate their designed bit errors. | [`parse_segsBits`], [`parse_dataStream`], [`RS.correct_sound`], [`RS.correct_clean`], [`decodeFormat_correct`], [`decodeVersion_correct`], [`parse_text`], [`Base62.decode_encode`], [`Mdns.decode_encode`], [`decode_roundtrip`] |
 | 🟡 | 🥊 | **Pictures render whole:** scaled and composited pictures are well-formed and opaque, and the tray's layout fits. Not yet: proven of `Pic`, which only qr's Android harness runs; the app draws its own. | [`render_wellFormed`], [`render_opaque`], [`scale_wellFormed`], [`fit_round`], [`Pic.layout_inside`], [`Pic.layout_apart`] |
@@ -238,17 +238,17 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**399 of 577 laws are about running code;** another 7 run its node code in a World, and 171 are not yet. Stated only: none. 18 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**403 of 582 laws are about running code;** another 7 run its node code in a World, and 172 are not yet. Stated only: none. 18 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 132 | 71 |  | 61 |
+| Engine | 134 | 72 |  | 62 |
 | Sync | 82 | 81 |  | 1 |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 35 | 19 | 7 | 9 |
 | Bootstrap | 11 | 0 |  | 11 |
 | Connections | 30 | 27 |  | 3 |
-| Community | 156 | 145 |  | 11 |
+| Community | 159 | 148 |  | 11 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
 | Screen | 84 | 29 |  | 55 |
@@ -277,7 +277,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Screen.far` | [`keep_scrolled_off`] | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`] | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`] | Nothing that runs calls it. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +14 more | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +15 more | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
@@ -289,10 +289,10 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 164 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Model.run`] | 167 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
 | [`SeekCost`] | 12 | docs/PERF.md's SQLite assumption (`levels`), for a list read's statements: a seek costs at most c·(log₂ N + 1), each next in-order row a step; a LIMIT walks no row past it, and a range bound is a seek (each statement's plan is checked by tests/engine/QueryDiff.lean). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
-| [`Engine.Inv`] | 57 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
+| [`Engine.Inv`] | 58 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
 
 ## What isn't Lean, and why
@@ -755,9 +755,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`offer_shared`]: engine/core/Sync.lean#L83-L86
 [`wire_kinds`]: ops/connection/Laws.lean#L48-L49
 [`local_kinds`]: ops/connection/Laws.lean#L55-L56
-[`joinOps_travels`]: ops/community/Intents.lean#L319-L323
-[`found_travels`]: ops/community/Intents.lean#L330-L334
-[`stopWaiting_local`]: ops/community/Intents.lean#L326-L327
+[`joinOps_travels`]: ops/community/Intents.lean#L334-L338
+[`found_travels`]: ops/community/Intents.lean#L345-L349
+[`stopWaiting_local`]: ops/community/Intents.lean#L341-L342
 [`filed_send`]: ops/sync/ConnLaws.lean#L185-L188
 [`offer_stored`]: engine/core/Sync.lean#L98-L101
 [`tick_send`]: ops/sync/ConnLaws.lean#L194-L197
@@ -823,7 +823,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`verify_sound`]: ops/community/Merkle.lean#L435-L441
 [`complete_assembles`]: ops/community/Merkle.lean#L482-L488
 [`chunk_unique`]: ops/community/Laws.lean#L766-L772
-[`progress_exact`]: ops/community/Intents.lean#L665-L674
+[`progress_exact`]: ops/community/Intents.lean#L680-L689
 [`no_injective_hash`]: ops/community/Merkle.lean#L245-L247
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
@@ -865,7 +865,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`approve_valid`]: ops/community/Laws.lean#L425-L433
 [`admit_admits`]: ops/community/Laws.lean#L441-L452
 [`connect_admitted`]: ops/community/Connect.lean#L169-L179
-[`removeMember_valid`]: ops/community/Intents.lean#L531-L538
+[`removeMember_valid`]: ops/community/Intents.lean#L546-L553
 [`exchange_complete`]: ops/sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: ops/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: ops/sync/Fp.lean#L37-L37
@@ -906,8 +906,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`eval_oriented`]: engine/core/Union.lean#L216-L219
 [`order_total`]: ops/community/message/Order.lean#L217-L227
 [`secret_derives`]: ops/community/Laws.lean#L588-L593
-[`device_derives`]: ops/community/Intents.lean#L415-L422
-[`device_ofSeed`]: ops/community/Intents.lean#L435-L438
+[`device_derives`]: ops/community/Intents.lean#L430-L437
+[`device_ofSeed`]: ops/community/Intents.lean#L450-L453
 [`ofSeed_of_keys`]: ops/community/Compose.lean#L61-L64
 [`writes_only_after_two`]: ops/app/Remove.lean#L56-L59
 [`cancel_writes_nothing`]: ops/app/Remove.lean#L63-L64
@@ -960,8 +960,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
-[`readable_held`]: ops/community/Intents.lean#L454-L466
-[`readable_complete`]: ops/community/Intents.lean#L494-L504
+[`readable_held`]: ops/community/Intents.lean#L469-L481
+[`readable_complete`]: ops/community/Intents.lean#L509-L519
 [`switcherOrder_sound`]: ops/app/Pages.lean#L674-L676
 [`switcherOrder_complete`]: ops/app/Pages.lean#L681-L683
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
@@ -971,6 +971,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`pageIn_acc`]: App.lean#L967-L970
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
+[`count_partition`]: ops/community/message/Order.lean#L599-L606
+[`anchor_read`]: ops/community/message/Order.lean#L631-L636
 [`Pos.cmp_eq_iff`]: engine/core/Order.lean#L44-L46
 [`Pos.cmp_lt_trans`]: engine/core/Order.lean#L57-L59
 [`send_after`]: ops/community/message/Order.lean#L424-L442

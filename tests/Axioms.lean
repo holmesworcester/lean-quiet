@@ -212,6 +212,11 @@ open Engine Community
 #print axioms Community.msg_cmp
 #print axioms Community.time_is_display
 #print axioms Community.order_total
+#print axioms Community.count_partition
+#print axioms Community.anchor_read
+#print axioms Community.recMsg_recKey
+#print axioms Engine.eval_partition
+#print axioms Engine.Pos.cmp_succ
 #print axioms Community.asMsg_sorted
 #print axioms Community.topCount_ge
 #print axioms Community.receipt_once

@@ -63,6 +63,67 @@ theorem Pos.cmp_lt_trans {p q r : Pos} (h1 : Pos.cmp p q = .lt) (h2 : Pos.cmp q 
   rw [h1, h2] at this
   cases this
 
+/-! ## Nothing lies between a position and its id followed by a zero -/
+
+/-- xs sorts before ys ++ [0] exactly when it is not past ys. -/
+theorem lexCmp_append_zero : ∀ xs ys : List UInt8, lexCmp xs (ys ++ [0]) = .lt ↔ lexCmp xs ys ≠ .gt
+  | [], [] => by simp [lexCmp]
+  | [], _ :: _ => by simp [lexCmp]
+  | x :: xs, [] => by
+    have : ¬ x < 0 := by simp [UInt8.lt_iff_toNat_lt]
+    simp only [List.nil_append, lexCmp, this, ite_false]
+    constructor
+    · intro h
+      split at h
+      · cases h
+      · cases xs <;> simp [lexCmp] at h
+    · intro h; exact absurd rfl h
+  | x :: xs, y :: ys => by
+    simp only [List.cons_append, lexCmp]
+    split
+    · simp
+    · split
+      · simp
+      · exact lexCmp_append_zero xs ys
+
+theorem bcmp_push_zero (a b : ByteArray) : bcmp a (b.push 0) = .lt ↔ bcmp a b ≠ .gt := by
+  rw [bcmp_eq_lexCmp, bcmp_eq_lexCmp, ByteArray.data_push, Array.toList_push]
+  exact lexCmp_append_zero _ _
+
+/-- **A position's successor**: (p.1, p.2 ++ [0]) is the least position
+past p, so "before it" is "at or before p" (a window's older side). -/
+theorem Pos.cmp_succ (r p : Pos) : Pos.cmp r (p.1, p.2.push 0) = .lt ↔ Pos.cmp r p ≠ .gt := by
+  unfold Pos.cmp
+  cases h : bcmp r.1 p.1
+  · simp [Ordering.then]
+  · simp only [Ordering.then]
+    exact bcmp_push_zero _ _
+  · simp [Ordering.then]
+
+/-- **A list's range and its complement partition it**: of one key's
+uncapped list, the rows past a and the rows before a's successor (at or
+before a) are all of its rows, each once. -/
+theorem eval_partition [SortKey F] (s : DB F) {q₁ q₂ : ListQ} (a : Pos) (hk : q₂.key = q₁.key)
+    (ha : q₂.also = q₁.also) (h1 : q₁.after = some a) (h1' : q₁.before = none) (h2 : q₂.after = none)
+    (h2' : q₂.before = some (a.1, a.2.push 0)) (c1 : q₁.cap = 0) (c2 : q₂.cap = 0) :
+    (eval s q₁).inRange + (eval s q₂).inRange = (eval s q₁).total := by
+  have hm : matching s q₂ = matching s q₁ := by unfold matching; rw [hk, ha]
+  simp only [eval, capped, c1, c2, ite_true, hm]
+  have hc : ∀ r : Pos × F, q₂.inside r.1 = !q₁.inside r.1 := fun r => by
+    simp only [ListQ.inside, h1, h1', h2, h2', Bool.and_true, Bool.true_and]
+    cases e : Pos.cmp r.1 a
+    · have := (Pos.cmp_succ r.1 a).2 (by rw [e]; decide); simp [this]
+    · have := (Pos.cmp_succ r.1 a).2 (by rw [e]; decide); simp [this]
+    · have : Pos.cmp r.1 (a.1, a.2.push 0) ≠ .lt := fun h => absurd ((Pos.cmp_succ r.1 a).1 h) (by rw [e]; decide)
+      cases e' : Pos.cmp r.1 (a.1, a.2.push 0) <;> simp_all
+  generalize matching s q₁ = l
+  induction l with
+  | nil => rfl
+  | cons r t ih =>
+    have h2r := hc r
+    cases h : q₁.inside r.1 <;> rw [h] at h2r <;>
+      simp only [List.filter_cons, h, h2r, Bool.not_true, Bool.not_false, ite_true, ite_false, Bool.false_eq_true, List.length_cons] <;> omega
+
 /-! ## Lists are sorted -/
 
 /-- Rows in position order, ascending. -/

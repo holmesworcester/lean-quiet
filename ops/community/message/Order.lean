@@ -230,8 +230,8 @@ theorem order_total (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (lim : O
   have hu := union_sorted (desc := desc) (limit := lim) (F := Fact) (as :=
     ((heldKids c).eval s).map (fun kid => Engine.eval s (message.byKey.query [c, kid] lim desc after before)) ++
       ((heldKids c).eval s).map fun kid =>
-        let a := Engine.eval s (received.byKey.query [c, kid] lim desc (after.map (·.1, idTop))
-          (before.map (·.1, .empty)))
+        let a := Engine.eval s (received.byKey.query [c, kid] lim desc (after.map afterRec)
+          (before.map beforeRec))
         { a with rows := a.rows.map asMsg }) (fun a ha => by
     rcases List.mem_append.1 ha with ha | ha
     · obtain ⟨kid, _, rfl⟩ := List.mem_map.1 ha
@@ -556,6 +556,117 @@ theorem display_agrees {ops ops' : Id → Option Op} {c x y : Id} {sx sy sx' sy'
     | (exfalso; rcases hsat with ⟨n, tm, hp, hn⟩ | ⟨n, tm, hp, hn⟩
        · obtain ⟨rfl, -⟩ := posted_unique px hp; omega
        · obtain ⟨rfl, -⟩ := posted_unique py hp; omega)
+
+/-! ## A window's two sides
+
+A window anchored at row p reads the rows past p (`after`) and the rows
+before p's successor (`before`: at or before p). Each of `readable`'s
+lists is split by them, each row on exactly one side
+(`count_partition`), and the anchor is on its own older side
+(`anchor_read`), past the counter cap too, where its row is a receipt
+named by its message (`afterRec`, `beforeRec`). -/
+
+/-- A receipt's sort key names its message. -/
+theorem recMsg_recKey (k : Nat) (m : Id) : recMsg (recKey k m) = m := by
+  unfold recMsg
+  rw [recKey_toList, ← List.append_assoc,
+    List.drop_left' (by rw [List.length_append, be64_length, be64_length])]
+
+/-- A receipt list's bounds for p's two sides are a position and its
+successor. -/
+theorem rec_succ (p : Pos) : beforeRec (p.1, p.2.push 0) = ((afterRec p).1, (afterRec p).2.push 0) := by
+  unfold afterRec beforeRec
+  simp only
+  congr 1
+  cases e : bcmp (recMsg p.1) p.2
+  · have : bcmp (recMsg p.1) (p.2.push 0) = .lt := (bcmp_push_zero _ _).2 (by rw [e]; decide)
+    simp [this]
+  · have : bcmp (recMsg p.1) (p.2.push 0) = .lt := (bcmp_push_zero _ _).2 (by rw [e]; decide)
+    simp [this]
+  · have : bcmp (recMsg p.1) (p.2.push 0) ≠ .lt := fun h => absurd ((bcmp_push_zero _ _).1 h) (by rw [e]; decide)
+    simp [this]
+
+theorem sum_map_add {α : Type} (l : List α) (f g h : α → Nat) (hfg : ∀ x ∈ l, f x + g x = h x) :
+    (l.map f).sum + (l.map g).sum = (l.map h).sum := by
+  induction l with
+  | nil => rfl
+  | cons x t ih =>
+    simp only [List.map_cons, List.sum_cons]
+    have := hfg x (List.mem_cons_self ..)
+    have := ih fun y hy => hfg y (List.mem_cons_of_mem _ hy)
+    omega
+
+/-- **A window's two sides partition what this device can read.** For
+any anchor p, the rows past it and the rows at or before it (before its
+successor) are together all of `readable`'s rows, each counted once:
+in every list, a message's or a receipt's. -/
+theorem count_partition (s : DB Fact) (c : Id) (lim : Option Nat) (desc : Bool) (p : Pos) :
+    ((readable c lim desc (some p)).eval s).inRange +
+      ((readable c lim desc none (some (p.1, p.2.push 0))).eval s).inRange =
+    ((readable c lim desc).eval s).total := by
+  rw [eval_readable, eval_readable, eval_readable]
+  simp only [unionAnswers, List.map_append, List.sum_append, List.map_map, Function.comp_def]
+  have hm := sum_map_add ((heldKids c).eval s)
+    (fun kid => (Engine.eval s (message.byKey.query [c, kid] lim desc (some p) none)).inRange)
+    (fun kid => (Engine.eval s (message.byKey.query [c, kid] lim desc none (some (p.1, p.2.push 0)))).inRange)
+    (fun kid => (Engine.eval s (message.byKey.query [c, kid] lim desc none none)).total)
+    (fun kid _ => eval_partition s p rfl rfl rfl rfl rfl rfl rfl rfl)
+  have hr := sum_map_add ((heldKids c).eval s)
+    (fun kid => (Engine.eval s (received.byKey.query [c, kid] lim desc (some (afterRec p)) none)).inRange)
+    (fun kid => (Engine.eval s (received.byKey.query [c, kid] lim desc none
+      (some (beforeRec (p.1, p.2.push 0))))).inRange)
+    (fun kid => (Engine.eval s (received.byKey.query [c, kid] lim desc none none)).total)
+    (fun kid _ => by
+      rw [rec_succ]
+      exact eval_partition s (afterRec p) rfl rfl rfl rfl rfl rfl rfl rfl)
+  simp only [Option.map_some, Option.map_none] at hm hr ⊢
+  omega
+
+theorem mem_eval_unlimited {q : ListQ} (hl : q.limit = none) {pf : Pos × Fact} :
+    pf ∈ (Engine.eval s q).rows ↔ pf ∈ matching s q ∧ q.inside pf.1 = true := by
+  unfold Engine.eval ListQ.cut
+  simp only [hl]
+  split <;> simp [List.mem_filter]
+
+/-- **A window holds its own anchor**: a row this device can read is in
+the read of the rows at or before it, below the counter cap (its
+message's row) and past it (its receipt's, named by its message). -/
+theorem anchor_read (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (desc : Bool) {pf : Pos × Fact}
+    (hp : pf ∈ ((readable c none desc).eval s).rows) :
+    pf ∈ ((readable c none desc none (some (pf.1.1, pf.1.2.push 0))).eval s).rows := by
+  rw [eval_readable] at hp ⊢
+  simp only at hp ⊢
+  rw [mem_union_all] at hp ⊢
+  obtain ⟨a, ha, hpa⟩ := hp
+  rcases List.mem_append.1 ha with ha | ha
+  · obtain ⟨kid, hkid, rfl⟩ := List.mem_map.1 ha
+    refine ⟨_, List.mem_append_left _ (List.mem_map.2 ⟨kid, hkid, rfl⟩), ?_⟩
+    rw [mem_eval_unlimited rfl] at hpa ⊢
+    refine ⟨hpa.1, ?_⟩
+    simp only [ListQ.inside, Rel.query, Bool.true_and, beq_iff_eq]
+    exact (Pos.cmp_succ pf.1 pf.1).2 (by rw [(Pos.cmp_eq_iff _ _).2 rfl]; decide)
+  · obtain ⟨kid, hkid, rfl⟩ := List.mem_map.1 ha
+    refine ⟨_, List.mem_append_right _ (List.mem_map.2 ⟨kid, hkid, rfl⟩), ?_⟩
+    simp only [Option.map_none] at hpa
+    obtain ⟨r, hr, rfl⟩ := List.mem_map.1 hpa
+    obtain ⟨he, _, hargs⟩ := row_at (C := C) (r := received.byKey) (by simp [rels]) h hq hr
+    obtain ⟨⟨sk, z⟩, f⟩ := r
+    cases f with
+    | received c' kid' m k =>
+      simp only [received.byKey, Option.some.injEq, List.cons.injEq, and_true] at hargs
+      obtain ⟨rfl, rfl⟩ := hargs
+      have hsk : sk = recKey k m := by simpa [SortKey.sortOf, sortOf] using congrArg (·.1.1) he
+      subst hsk
+      refine List.mem_map.2 ⟨_, ?_, rfl⟩
+      rw [mem_eval_unlimited rfl] at hr ⊢
+      refine ⟨hr.1, ?_⟩
+      simp only [ListQ.inside, Rel.query, Bool.true_and, beq_iff_eq, Option.map_some, asMsg, beforeRec,
+        recMsg_recKey]
+      have hm : bcmp m (m.push 0) = .lt := (bcmp_push_zero _ _).2 (by rw [(bcmp_eq_iff m m).2 rfl]; decide)
+      have hk : bcmp (recKey k m) ((recKey k m).push 0) = .lt :=
+        (bcmp_push_zero _ _).2 (by rw [(bcmp_eq_iff _ _).2 rfl]; decide)
+      simp [hm, Pos.cmp, hk, Ordering.then]
+    | _ => simp [received.byKey] at hargs
 
 end
 

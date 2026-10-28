@@ -236,6 +236,28 @@ def readableChecks (t : Checks) (seed : Nat) (db : Db) (m : DB Fact) (c : Id) : 
       cur := page.getLast?.map (·.1)
     t.ok s!"seed {seed}: pages of 7 {if desc then "newest" else "oldest"} first read the whole list once, in order ({all.length} rows)"
       (got == all && (got.map (·.1.2)).eraseDups.length == got.length)
+  -- A window anchored at each row, saturated ones included (named by a
+  -- receipt): on SQLite, its older side (before the anchor's successor)
+  -- holds the anchor (`anchor_read`), and its two sides' counts are the
+  -- total (`count_partition`), as on the model.
+  let mut anchors := 0
+  let mut saturated := 0
+  let mut missed := 0
+  let mut split := 0
+  for (p, f) in whole do
+    let succ := (p.1, p.2.push 0)
+    let older ← ((readable c none true none (some succ)).run : SqlM Fact (Answer Fact)).run db
+    let newer ← ((readable c (some 0) true (some p)).run : SqlM Fact (Answer Fact)).run db
+    let olderN ← ((readable c (some 0) true none (some succ)).run : SqlM Fact (Answer Fact)).run db
+    anchors := anchors + 1
+    if f matches .received .. then saturated := saturated + 1
+    if !older.rows.contains (p, f) || older != (readable c none true none (some succ)).eval m then
+      missed := missed + 1
+    if newer.inRange + olderN.inRange != whole.length || newer != (readable c (some 0) true (some p)).eval m then
+      split := split + 1
+  t.ok s!"seed {seed}: each of {anchors} anchors ({saturated} saturated) is in its window's older side" (missed == 0)
+  t.ok s!"seed {seed}: each anchor's newer and older counts are all the list" (split == 0)
+  t.ok s!"seed {seed}: some anchor is saturated" (saturated > 0)
 
 /-- The walk's ceiling on SQLite, on lists longer than it: 20,000 rows
 under one key, ranked by a counter in their sort keys (dense), and as
