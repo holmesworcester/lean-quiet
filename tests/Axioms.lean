@@ -27,6 +27,7 @@ import engine.core.IngestCost
 import engine.core.ListCost
 import engine.renderer.BoardLaws
 import engine.renderer.Heights
+import ops.community.WrapLaws
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -412,4 +413,8 @@ section cost
 #print axioms Heights.T.startM_cost
 #print axioms Heights.T.setM_cost
 #print axioms Heights.rows_cost
+#print axioms Engine.View.always_eval
+#print axioms Engine.View.always_run
+#print axioms Community.approveReq_ops
+#print axioms Community.wrapAll_over
 end cost

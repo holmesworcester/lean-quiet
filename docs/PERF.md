@@ -187,7 +187,7 @@ with the meter above.
 | the frame's values | settle in ⌈marked / refill⌉ reader passes and one frame | `settle_passes` | ✅ of the board the reader and frame are to call; 1e is wiring it |
 | a sync round | ≤ 2k + 3 messages, ≤ 1 + fan·(2k + 2)·Δ claims; cold answers O(fan · N log N) until the treap is on the running path | docs/BOUNDS.md | a3's |
 | per-tick node work | the dial hook, then per session: its rooms (`trusts` per established pair), the walk (≤ `walk` steps, 2 reads each), a round; then `react` | the walk's `walk_reads`, `tick_reads` (patch sent for a3/bounds) and a3's round rows | 📏 O(sessions × rooms) given each family hook is bounded; `react` is not, below |
-| key wraps per approval | one wrap, to the new member's device; at most three ops in all | `approveReq` | 📏 by reading: no key rotation, so no wrap per member |
+| key wraps per approval | one wrap, to the new member's device; at most three ops in all, whatever the community holds; wrapping to every member (the mutant) makes four at three members | `approveReq_ops`, `wrapAll_over` | ✅ |
 
 ## Every step that grows with N
 
