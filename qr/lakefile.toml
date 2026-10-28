@@ -1,0 +1,20 @@
+name = "qr"
+defaultTargets = ["Qr"]
+
+# The codec, the frame decoder and their laws (building this library checks
+# the proofs). It imports only Init, so it cross-compiles to Android as is.
+[[lean_lib]]
+name = "Qr"
+
+[[lean_exe]]
+name = "qr_check"
+root = "Tests.Check"
+
+[[lean_exe]]
+name = "qr_tool"
+root = "Tests.Tool"
+
+# Test helpers (PGM files)
+[[lean_lib]]
+name = "TestLib"
+roots = ["Tests.Pgm"]
