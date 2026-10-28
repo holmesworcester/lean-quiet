@@ -29,6 +29,8 @@ import Quiet.Row
 import Quiet.Geometry
 import Quiet.Sheet
 import Quiet.Pages
+import Quiet.Kinds.Message
+import Quiet.Kinds.Request
 import Std.Data.HashMap
 
 namespace App
@@ -147,7 +149,7 @@ structure St where
   pageNow : Option Pages.Page := none
   /-- Requests to join the current community no admission answers yet:
   the request's id, its fact, and its approvals' ids. -/
-  asking : Array (Id × Fact × List Id) := #[]
+  asking : Array Kinds.Request.Data := #[]
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ => pure #[],
   pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0⟩⟩
@@ -170,51 +172,12 @@ def fresh (q : Q) : M Bool := do return (← get).live.fresh q
 
 def listAll (s : St) (limit : Nat) : ListQ := { key := Community.message.all.key [s.me.c], desc := true, limit := some limit }
 
-def getFact (x : Id) : M (Option Fact × Bool) := do
-  match ← read (Q.get x) with
-  | .list a pend => return ((a.rows.head?.map (·.2)), pend.contains x)
-  | _ => return (none, false)
+instance : Reads M := ⟨read⟩
 
-def bytesStr (b : ByteArray) : String := (String.fromUTF8? b).getD "?"
-
-/-- A row's answers: the message, its author's current profile, its
-pictures' blobs and its reactions; with the queries read. -/
+/-- A row's data and the lists it read: the Message kind's. -/
 def readRow (m : Id) : M (Option (RowData × Array Q)) := do
   let s ← get
-  let c := s.me.c
-  let mut deps : Array Q := #[Q.get m]
-  let (f, pending) ← getFact m
-  let some (.message _ u _ _ text tm atts) := f | return none
-  -- author: the newest profile
-  let pq : Q := .list { key := Community.profile.byUser.key [c, u], desc := true, limit := some 1 }
-  deps := deps.push pq
-  let mut name := "…"
-  let mut avatar : Option ByteArray := none
-  if let .list a _ ← read pq then
-    if let some (_, .profile _ _ n _ av) := a.rows.head? then
-      name := bytesStr n
-      if let some bid := av.head? then
-        deps := deps.push (Q.get bid)
-        if let (some (.blob _ hh _ _), _) ← getFact bid then avatar := some hh
-  -- pictures
-  let mut pics := #[]
-  for a in atts do
-    deps := deps.push (Q.get a)
-    if let (some (.blob _ hh w h), _) ← getFact a then pics := pics.push (Pic.mk hh w h)
-  -- reactions, tallied by emoji: distinct people, and whether I am one
-  let rq : Q := .list { key := Community.react.byMessage.key [c, m], desc := false, limit := some 500 }
-  deps := deps.push rq
-  let mut tallies : Array (String × List Id) := #[]
-  if let .list a _ ← read rq then
-    for (_, f) in a.rows do
-      if let .react _ who _ e _ := f then
-        let e := bytesStr e
-        match tallies.findIdx? (·.1 == e) with
-        | some i => tallies := tallies.modify i fun (e, us) => (e, if us.contains who then us else us ++ [who])
-        | none => tallies := tallies.push (e, [who])
-  let me := s.me.adm
-  let ts := tallies.toList.map fun (e, us) => Tally.mk e us.length (us.contains me)
-  return some (RowData.mk name avatar (bytesStr text) tm pics.toList ts pending false, deps)
+  Kinds.Message.read s.me.c s.me.adm m
 
 /-! ## Writing -/
 
@@ -550,37 +513,22 @@ def found (n : String) : M Unit := do
   modify fun s => { s with comms }
   switchTo (comms.size - 1)
 
-/-- The requests to join the current community that no admission answers
-yet, with their approvals. -/
+/-- The requests to join the current community, read by the Request kind. -/
 def refreshAsking : M Unit := do
   let s ← get
-  let c := s.me.c
-  if c.isEmpty then return
-  let some rq := (← read (.list (Community.request.all.query [c]))) |> (fun | .list a _ => some a | _ => none) | return
-  let mut out := #[]
-  for (pos, f) in rq.rows do
-    if let .request _ _ d _ _ _ := f then
-      let admitted : Bool ← match ← read (.list (Community.admission.byDevice.query [c, d] (limit := some 0))) with
-        | .list a _ => pure (decide (a.total > 0))
-        | _ => pure false
-      if admitted then continue
-      -- decided approvals only: an admission may cite only what is decided
-      -- (a pending approval answers here too, marked pending)
-      let aps ← match ← read (.list (Community.approval.byRequest.query [c, pos.2])) with
-        | .list a pend => pure ((a.rows.map (·.1.2)).filter (!pend.contains ·))
-        | _ => pure []
-      out := out.push (pos.2, f, aps)
+  if s.me.c.isEmpty then return
+  let (out, _) ← Kinds.Request.waiting s.me.c
   modify fun s => { s with asking := out }
 
-/-- An admission for every request with enough approvals: anyone holding
-them may compose it (it is unsigned), so whoever sees it first does. -/
+/-- An admission for every request whose decided approvals complete its
+threshold: anyone holding them may compose it (it is unsigned), so
+whoever sees it first does. -/
 def admitReady : M Unit := do
   let s ← get
-  for (r, f, aps) in s.asking do
-    if let .request _ _ _ _ _ t := f then
-      if aps.length ≥ t && t > 0 && !s.admitting.contains r then
-        if ← write (Community.admit s.me.c r (aps.take t)) then
-          modify fun s => { s with admitting := r :: s.admitting }
+  for r in s.asking do
+    if r.ready && !s.admitting.contains r.id then
+      if ← write (Community.admit s.me.c r.id (r.approvals.take r.threshold)) then
+        modify fun s => { s with admitting := r.id :: s.admitting }
 
 /-- My approval of request r (my device in this community signs it). -/
 def approveReq (r : Id) : M Unit := do
@@ -602,10 +550,8 @@ def pageOf (s : St) : Pages.Page :=
   | .scan => Pages.scan f dm W h none "No camera is available."
   | .agree => Pages.agree f dm W h "this community"
   | .waiting => Pages.waiting f dm W h s.me.name
-  | .requests => Pages.requests f dm W h ((s.asking.filter fun (r, _, _) => !s.hidden.contains r).map fun (r, f, aps) =>
-      let dev := match f with | .request _ _ d _ _ _ => hexShort d | _ => "?"
-      { device := s!"Device {dev}", when := s!"{aps.length} of {match f with | .request _ _ _ _ _ t => t | _ => 1} approvals",
-        going := aps.length > 0 || s.admitting.contains r })
+  | .requests => Pages.requests f dm W h ((s.asking.filter fun r => !s.hidden.contains r.id).map fun r =>
+      r.row (s.admitting.contains r.id))
   | .invite => Pages.invite f dm W h none "Invite links arrive with networking: the link codec is landing in the engine."
   | .switcher => Pages.switcher f dm W h (s.comms.map fun m =>
       ({ name := m.name, unread := 0, current := m.c == s.me.c, waiting := false } : Pages.Entry))
@@ -652,11 +598,11 @@ def onPageAct (a : Pages.Act) : M Unit := do
   | .addMembers => openPage .invite
   | .share | .copy => s.io.copy "quiet://join/…"
   | .approve i =>
-    let shown := s.asking.filter fun (r, _, _) => !s.hidden.contains r
-    if let some (r, _, _) := shown[i]? then approveReq r
+    let shown := s.asking.filter fun r => !s.hidden.contains r.id
+    if let some r := shown[i]? then approveReq r.id
   | .hide i =>
-    let shown := s.asking.filter fun (r, _, _) => !s.hidden.contains r
-    if let some (r, _, _) := shown[i]? then modify fun s => { s with hidden := r :: s.hidden, pageCache := "" }
+    let shown := s.asking.filter fun r => !s.hidden.contains r.id
+    if let some r := shown[i]? then modify fun s => { s with hidden := r.id :: s.hidden, pageCache := "" }
   | .switchTo i => switchTo i
   | .addCommunity => openPage .getStarted
   | .requests => openPage .requests

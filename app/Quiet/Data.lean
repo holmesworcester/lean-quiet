@@ -228,6 +228,34 @@ def Q.run (db : Db) (out : Array Pending) : Q → IO Ans
     return .list a pend
   | .bytes _ hash => return .bytes (← Data.Db.blob db hash)
 
+/-! ## Components' reads
+
+A component reads only through `Reads.read`: a list (or blob bytes),
+answered live (cached, watched on the list's key, the outbox included).
+Kinds (Quiet/Kinds) are written against this class, so they do not
+depend on the app, and every read a component makes is one of its
+subscriptions. -/
+
+class Reads (m : Type → Type) where
+  read : Q → m Ans
+
+section
+variable {m : Type → Type} [Monad m] [Reads m]
+
+/-- A list's rows and the outbox ids among them; the queries read are
+appended to deps. -/
+def readList (q : ListQ) (deps : Array Q) : m (Answer Fact × List Id × Array Q) := do
+  match ← Reads.read (Q.list q) with
+  | .list a pend => return (a, pend, deps.push (.list q))
+  | _ => return (⟨[], 0, 0⟩, [], deps.push (.list q))
+
+/-- One fact (the list under its own id), whether it is pending, and deps. -/
+def readFact (x : Id) (deps : Array Q) : m (Option Fact × Bool × Array Q) := do
+  let (a, pend, deps) ← readList { key := opKey x, limit := some 1 } deps
+  return (a.rows.head?.map (·.2), pend.contains x, deps)
+
+end
+
 /-- An op's verdict, from the store (the judge reads requirements this way). -/
 def status (db : Db) (x : Id) : IO (Option (Verdict Fact)) :=
   (Store.getStatus (F := Fact) (m := SqlM Fact) x).run db
