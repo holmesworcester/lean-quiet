@@ -9,20 +9,28 @@ assumed of SQLite, and only these:
 - **snapshot**: inside one read transaction, every read answers as one
   state of the store (SQLite's snapshot isolation, a WAL reader); a
   moment `ans : Q → Ans` is those answers (with the outbox);
-- **journal**: the keys the journal hands a frame (`takeChanges`, the
-  frame's first read) name every watch whose answer changed since the
-  last moment (the triggers on idx and status, Db.journal).
+- **journal**: the rows and verdicts the journal hands a frame
+  (`takeChanges`, the frame's first read), netted and matched against
+  the windows the cache watches (`Live.hit`), reach every instance whose
+  answer changed since the last moment. Over the engine's model this is
+  a theorem for a read of rows: its rows change exactly when its window
+  does (Engine.read_notice_iff, for a batch of commits and purges);
+  SQLite's triggers are tested against it (tests/engine/WindowCheck.lean).
 
 From them: `Agrees l ans`, that every answer the cache holds unstaled is
-the moment's and is armed on its watch, holds from the empty cache
-(`agrees_empty`), through a read that asks the store (`agrees_store`),
-a notice of the journal's keys (`agrees_notice`, moving to the next
-moment) and a pruning (`agrees_keep`); and a read the cache answers
-returns the moment's answer (`answer_agrees`). So every answer a frame
-reads, cached or not, is of the frame's one moment (`read_one_moment`):
-no part of the screen is newer than another.
+the moment's and its window is watched (in an index kept well formed),
+holds from the empty cache (`agrees_empty`), through a read that asks
+the store (`agrees_store`), a notice of the journal's rows
+(`agrees_notice`, moving to the next moment) and a pruning
+(`agrees_keep`); and a read the cache answers returns the moment's
+answer (`answer_agrees`). So every answer a frame reads, cached or not,
+is of the frame's one moment (`read_one_moment`): no part of the screen
+is newer than another. And the cache watches nothing it does not hold:
+every window it watches is a fresh answer's (`watched_held`), so no
+notice reaches a read the frame has dropped.
 -/
 import engine.renderer.Data
+import engine.core.WindowIndex
 
 namespace LiveLaws
 open Engine Data
@@ -60,15 +68,15 @@ theorem q_lawful : LawfulBEq Q where
 
 attribute [local instance] q_lawful
 
-/-- **The cache agrees with moment `ans`:** every answer it holds that
-no notice has made stale is the moment's, and is armed on its watch (so
-a notice of that key reaches it). -/
+/-- **The cache agrees with moment `ans`:** its index is well formed, and
+every answer it holds that no notice has made stale is the moment's, and
+its window is watched (so a notice of a row in it reaches it). -/
 def Agrees (l : Live) (ans : Q → Ans) : Prop :=
-  ∀ q e, l.entries[q]? = some e → e.stale = false →
-    e.ans = ans q ∧ ∃ qs, l.armed[q.watch]? = some qs ∧ q ∈ qs
+  l.subs.WF ∧ ∀ q e, l.entries[q]? = some e → e.stale = false →
+    e.ans = ans q ∧ l.subs.Has q (q.win e.ans)
 
-theorem agrees_empty (ans : Q → Ans) : Agrees {} ans := by
-  intro q e he; simp at he
+theorem agrees_empty (ans : Q → Ans) : Agrees {} ans :=
+  ⟨Subs.wf_empty, fun q e he => by simp at he⟩
 
 /-- **A read the cache answers is the moment's.** -/
 theorem answer_agrees {l : Live} {ans : Q → Ans} {q : Q} {a : Ans} (h : Agrees l ans)
@@ -78,151 +86,116 @@ theorem answer_agrees {l : Live} {ans : Q → Ans} {q : Q} {a : Ans} (h : Agrees
   · next e he =>
     split at ha
     · cases ha
-    · next hs => simp only [Option.some.injEq] at ha; subst ha; exact (h q e he (by simpa using hs)).1
+    · next hs => simp only [Option.some.injEq] at ha; subst ha; exact (h.2 q e he (by simpa using hs)).1
   · cases ha
 
 /-- **A read that asks the store keeps the cache in agreement**, when
 the store answers as the moment (snapshot). -/
 theorem agrees_store {l : Live} {ans : Q → Ans} (h : Agrees l ans) (q : Q) :
     Agrees (l.store q (ans q)) ans := by
-  intro q' e he hs
-  simp only [Live.store, Std.HashMap.getElem?_insert, beq_iff_eq] at he
+  have hk : (if l.fresh q then l.subs.keep (· != q) else l.subs).WF := by
+    split
+    · exact Subs.keep_wf h.1 _
+    · exact h.1
+  refine ⟨Subs.add_wf hk _ _, fun q' e he hs => ?_⟩
+  simp only [Live.store, Std.HashMap.getElem?_insert, beq_iff_eq] at he ⊢
   by_cases hq : q = q'
   · subst hq
     rw [if_pos (beq_self_eq_true q), Option.some.injEq] at he
     subst he
-    refine ⟨rfl, ?_⟩
-    simp only [Live.store]
-    split
-    · next hc =>
-      cases ha : l.armed[q.watch]? with
-      | none => simp [Std.HashMap.getD_eq_getD_getElem?, ha] at hc
-      | some qs =>
-        refine ⟨qs, rfl, ?_⟩
-        simpa [Std.HashMap.getD_eq_getD_getElem?, ha] using hc
-    · exact ⟨_, Std.HashMap.getElem?_insert_self, by simp⟩
+    exact ⟨rfl, (Subs.has_add _ _ _ _).2 (Or.inr ⟨rfl, rfl⟩)⟩
   · rw [if_neg (fun hb => hq (eq_of_beq hb))] at he
-    obtain ⟨hans, qs, ha, hm⟩ := h q' e he hs
-    refine ⟨hans, ?_⟩
-    simp only [Live.store]
+    obtain ⟨hans, hw⟩ := h.2 q' e he hs
+    refine ⟨hans, (Subs.has_add _ _ _ _).2 (Or.inl ?_)⟩
     split
-    · exact ⟨qs, ha, hm⟩
-    · by_cases hk : q.watch = q'.watch
-      · refine ⟨_, by rw [← hk]; exact Std.HashMap.getElem?_insert_self, ?_⟩
-        rw [← hk] at ha
-        simp [Std.HashMap.getD_eq_getD_getElem?, ha, hm]
-      · refine ⟨qs, ?_, hm⟩
-        rw [Std.HashMap.getElem?_insert, if_neg (fun hb => hk (eq_of_beq hb))]
-        exact ha
+    · exact (Subs.has_keep _ _ _).2 ⟨hw, by simpa using Ne.symm hq⟩
+    · exact hw
 
 /-! ## Notices -/
 
-theorem staleOne_entries (l : Live) (q0 q : Q) {e : Entry} (he : (l.staleOne q0).entries[q]? = some e)
-    (hs : e.stale = false) : l.entries[q]? = some e ∧ q ≠ q0 := by
-  unfold Live.staleOne at he
-  split at he
-  · next e0 h0 =>
-    simp only [Std.HashMap.getElem?_insert, beq_iff_eq] at he
-    by_cases hq : q0 = q
-    · subst hq; rw [if_pos (beq_self_eq_true q0), Option.some.injEq] at he; subst he; simp at hs
-    · rw [if_neg (fun hb => hq (eq_of_beq hb))] at he; exact ⟨he, Ne.symm hq⟩
-  · next h0 =>
-    refine ⟨he, ?_⟩
-    rintro rfl; rw [h0] at he; cases he
-
 theorem staleAll_entries (qs : List Q) : ∀ (l : Live) {q : Q} {e : Entry},
     (qs.foldl Live.staleOne l).entries[q]? = some e → e.stale = false →
-      l.entries[q]? = some e ∧ q ∉ qs ∧ (qs.foldl Live.staleOne l).armed = l.armed := by
+      l.entries[q]? = some e ∧ q ∉ qs := by
   induction qs with
-  | nil => intro l q e he _; exact ⟨he, by simp, rfl⟩
+  | nil => intro l q e he _; exact ⟨he, by simp⟩
   | cons q0 t ih =>
     intro l q e he hs
-    obtain ⟨h1, hn, ha⟩ := ih (l.staleOne q0) he hs
-    obtain ⟨h2, hne⟩ := staleOne_entries l q0 q h1 hs
-    refine ⟨h2, by simp [hne, hn], ?_⟩
-    rw [List.foldl_cons, ha]
-    unfold Live.staleOne; split <;> rfl
+    obtain ⟨h1, hn⟩ := ih (l.staleOne q0) he hs
+    unfold Live.staleOne at h1
+    split at h1
+    · next e0 h0 =>
+      simp only [Std.HashMap.getElem?_insert, beq_iff_eq] at h1
+      by_cases hq : q0 = q
+      · subst hq; rw [if_pos (beq_self_eq_true q0), Option.some.injEq] at h1; subst h1; simp at hs
+      · rw [if_neg (fun hb => hq (eq_of_beq hb))] at h1
+        exact ⟨h1, by simp [Ne.symm hq, hn]⟩
+    · next h0 =>
+      refine ⟨h1, ?_⟩
+      intro hm
+      rcases List.mem_cons.1 hm with rfl | hm
+      · rw [h0] at h1; cases h1
+      · exact hn hm
 
-/-- A notice of key k: what stays unstaled was so before, and is not
-watched on k; the other watches are as they were. -/
-theorem notice1_fresh {l : Live} {ans : Q → Ans} (h : Agrees l ans) (k : ByteArray) {q : Q} {e : Entry}
-    (he : (l.notice1 k).entries[q]? = some e) (hs : e.stale = false) :
-    l.entries[q]? = some e ∧ q.watch ≠ k ∧ (l.notice1 k).armed[q.watch]? = l.armed[q.watch]? := by
-  unfold Live.notice1 at he ⊢
-  split at he
-  · next hk =>
-    refine ⟨he, ?_, rfl⟩
-    intro hw
-    obtain ⟨_, qs, ha, _⟩ := h q e he hs
-    rw [hw, hk] at ha; cases ha
-  · next qs hk =>
-    rw [← Array.foldl_toList] at he ⊢
-    obtain ⟨h1, hn, ha⟩ := staleAll_entries qs.toList _ he hs
-    have hw : q.watch ≠ k := by
-      intro hw
-      obtain ⟨_, qs', ha', hm⟩ := h q e h1 hs
-      rw [hw, hk] at ha'
-      simp only [Option.some.injEq] at ha'
-      subst ha'
-      exact hn (by simpa using hm)
-    refine ⟨h1, hw, ?_⟩
-    rw [ha]
-    simp [Std.HashMap.getElem?_erase, Ne.symm hw]
-
-theorem agrees_notice1 {l : Live} {ans : Q → Ans} (h : Agrees l ans) (k : ByteArray) :
-    Agrees (l.notice1 k) ans := by
-  intro q e he hs
-  obtain ⟨h1, -, ha⟩ := notice1_fresh h k he hs
-  rw [ha]; exact h q e h1 hs
-
-theorem notice_fresh (keys : List ByteArray) : ∀ {l : Live} {ans : Q → Ans}, Agrees l ans →
-    Agrees (keys.foldl Live.notice1 l) ans ∧
-      ∀ (q : Q) (e : Entry), (keys.foldl Live.notice1 l).entries[q]? = some e → e.stale = false → q.watch ∉ keys := by
-  induction keys with
-  | nil => intro l ans h; exact ⟨h, by simp⟩
-  | cons k t ih =>
-    intro l ans h
-    have h1 := agrees_notice1 h k
-    obtain ⟨h2, hn⟩ := ih h1
-    refine ⟨h2, fun q e he hs => ?_⟩
-    have hnt := hn q e he hs
-    -- what is unstaled after the rest was unstaled after k's notice
-    have : ∀ (ks : List ByteArray) (l' : Live) {ans' : Q → Ans}, Agrees l' ans' →
-        (ks.foldl Live.notice1 l').entries[q]? = some e → l'.entries[q]? = some e := by
-      intro ks
-      induction ks with
-      | nil => intro l' _ _ h; exact h
-      | cons k' t' ih' =>
-        intro l' ans' hl' h
-        exact (notice1_fresh hl' k' (ih' _ (agrees_notice1 hl' k') h) hs).1
-    have hk := (notice1_fresh h k (this t _ h1 he) hs).2.1
-    simp [hk, hnt]
-
-/-- **A notice of the journal's keys moves the cache to the next
-moment.** If the keys name every watch whose answer changed from `ans`
-to `ans'` (journal), the cache after the notice agrees with `ans'`. -/
-theorem agrees_notice {l : Live} {ans ans' : Q → Ans} (h : Agrees l ans) (keys : Array ByteArray)
-    (hj : ∀ q, q.watch ∉ keys → ans' q = ans q) : Agrees (l.notice keys) ans' := by
+/-- **A notice of the journal's rows moves the cache to the next
+moment.** If every instance whose answer changed from `ans` to `ans'` is
+one the rows reach (journal), the cache after the notice agrees with
+`ans'`. -/
+theorem agrees_notice {l : Live} {ans ans' : Q → Ans} (h : Agrees l ans) (fs : Array Filing) (vs : Array Id)
+    (hj : ∀ q, (l.hit fs vs).contains q = false → ans' q = ans q) : Agrees (l.notice fs vs) ans' := by
   unfold Live.notice
-  rw [← Array.foldl_toList]
-  obtain ⟨h1, hn⟩ := notice_fresh keys.toList h
-  intro q e he hs
-  obtain ⟨hans, rest⟩ := h1 q e he hs
-  exact ⟨hans.trans (hj q (by simpa using hn q e he hs)).symm, rest⟩
+  simp only
+  generalize l.hit fs vs = hit at hj ⊢
+  split
+  · next hem =>
+    refine ⟨h.1, fun q e he hs => ?_⟩
+    obtain ⟨hans, hw⟩ := h.2 q e he hs
+    have : hit.contains q = false := by
+      cases hc : hit.contains q
+      · rfl
+      · exact absurd (Std.HashSet.contains_iff_mem.1 hc) ((Std.HashSet.isEmpty_iff_forall_not_mem.1 hem) q)
+    exact ⟨hans.trans (hj q this).symm, hw⟩
+  · constructor
+    · show (l.subs.keep fun q => !hit.contains q).WF
+      exact Subs.keep_wf h.1 _
+    · intro q e he hs
+      change (Std.HashSet.fold Live.staleOne l hit).entries[q]? = some e at he
+      show e.ans = ans' q ∧ (l.subs.keep fun q => !hit.contains q).Has q (q.win e.ans)
+      rw [Std.HashSet.fold_eq_foldl_toList] at he
+      obtain ⟨h1, hn⟩ := staleAll_entries _ l he hs
+      have hc : hit.contains q = false := by
+        cases hc : hit.contains q
+        · rfl
+        · exact absurd (Std.HashSet.mem_toList.2 (Std.HashSet.contains_iff_mem.1 hc)) hn
+      obtain ⟨hans, hw⟩ := h.2 q e h1 hs
+      exact ⟨hans.trans (hj q hc).symm, (Subs.has_keep _ _ _).2 ⟨hw, by simp [hc]⟩⟩
 
 /-- **Forgetting instances keeps the rest in agreement.** -/
 theorem agrees_keep {l : Live} {ans : Q → Ans} (h : Agrees l ans) (want : Q → Bool) :
     Agrees (l.keep want) ans := by
-  intro q e he hs
-  simp only [Live.keep] at he ⊢
-  simp only [Std.HashMap.getElem?_filter, Std.HashMap.getElem?_filterMap, Std.HashMap.getKey_eq] at he ⊢
+  refine ⟨Subs.keep_wf h.1 want, fun q e he hs => ?_⟩
+  simp only [Live.keep, Std.HashMap.getElem?_filter, Std.HashMap.getKey_eq] at he ⊢
   simp only [Option.pfilter_eq_some_iff] at he
   obtain ⟨he1, hw⟩ := he
-  obtain ⟨hans, qs, ha, hm⟩ := h q e he1 hs
-  have hf : q ∈ qs.filter want := Array.mem_filter.2 ⟨hm, hw⟩
-  refine ⟨hans, qs.filter want, ?_, hf⟩
-  simp [ha]
-  exact ⟨q, hm, hw⟩
+  obtain ⟨hans, hh⟩ := h.2 q e he1 hs
+  exact ⟨hans, (Subs.has_keep _ _ _).2 ⟨hh, hw⟩⟩
+
+/-- **Unmounting keeps the cache in agreement.** A component unmounts:
+the reads it alone made (`qs`) are forgotten, and their windows are no
+longer watched; every other answer the cache holds is still the
+moment's, and watched. -/
+theorem agrees_unmount {l : Live} {ans : Q → Ans} (h : Agrees l ans) (qs : Std.HashSet Q) :
+    Agrees (l.keep fun q => !qs.contains q) ans ∧
+      ∀ q, qs.contains q = true → ∀ w, ¬ (l.keep fun q => !qs.contains q).subs.Has q w := by
+  refine ⟨agrees_keep h _, fun q hq w hw => ?_⟩
+  have h2 : (!qs.contains q) = true := ((Subs.has_keep (I := l.subs) (fun q => !qs.contains q) q w).1 hw).2
+  rw [hq] at h2
+  cases h2
+
+/-- **What the cache watches, it keeps:** after forgetting the instances
+nobody wants, no window of one is watched (so no notice reaches a read
+the frame dropped: Screen.screen_subs on the cache). -/
+theorem watched_held {l : Live} (want : Q → Bool) {q : Q} {w : Win} (hw : (l.keep want).subs.Has q w) :
+    want q = true := ((Subs.has_keep _ _ _).1 hw).2
 
 /-- **One moment.** A read through the cache (`Live.readWith`, which
 App's `read` and the reader's run) whose cache agrees with the moment,

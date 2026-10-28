@@ -89,9 +89,12 @@ nothing else is assumed:
   `agrees_notice` take it), as two hypotheses. *Snapshot:* inside one
   SQLite read transaction, every read answers as one state of the store
   and outbox (SQLite's snapshot isolation, on a WAL reader). *Journal:*
-  the keys a notice names (the journal's, written by triggers on the
-  index and verdict tables, and a write's own ops') include every watch
-  whose answer changed since the last moment. The headless app's
+  the rows and verdicts a notice takes (the journal's, written by
+  triggers on the index and verdict tables, netted, and a write's own
+  ops' positions), matched against the windows the cache watches, reach
+  every read whose answer changed since the last moment. Over the
+  engine's model that is a theorem (`read_notice_iff`, `watch_stable`);
+  `window_check` tests the triggers against it, and the headless app's
   `liveSound` check tests the journal (every fresh answer the cache
   holds equals a read now); the snapshot is not tested on its own.
 - **The session secrecy theorems assume the symbolic (Dolev-Yao)
@@ -134,7 +137,7 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 459 rest on Lean's standard axioms
+that rests on; 🥊 is supporting. All 466 rest on Lean's standard axioms
 only.
 
 ### Security proofs
@@ -208,7 +211,7 @@ only.
 | ⬜ | 🥊🥊 | **A tap acts once.** A second tap on a control while its action is in flight starts nothing new (Send sends once). A press that turns into a scroll past the slop is not a tap. | |
 | ⬜ | 🥊🥊 | **Destructive actions are guarded.** Every action that cannot be undone asks for a second confirmation, as removal does (`writes_only_after_two`). Its control keeps a clear gap from the controls around it. | |
 | ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
-| 🟡 | 🥊🥊🥊 | **Notices are exact.** A screen watches windows: a list's rows between two positions. Proven: after any batch of commits and purges, the journal's rows, netted and matched against an index of windows, notify a subscriber exactly when one of its windows changed, never for a row outside them or one filed and purged within the batch, given one op per id; a read's window, cut at its last row, changes exactly when its rows do, and holds exactly them; a read's watch misses nothing its reader uses; matching a filing costs a hash and ⌊log₂ 2S⌋+2 comparisons; the frame's wants (`Screen.Frame.wants`) are exactly its page's reads, the near rows' hull per list key and the near rows' reads. Notices by key, and an unnetted journal, are shown imprecise. Not yet: the app still notices by key (its change is with holmes-1e), and does not call `Frame.wants`; a union read (the conversation) is precise per key, not for the union's own cut; reads of an op's bytes are outside. SQLite's triggers are tested against the model (`window_check`), not proven. | [`notice_iff`], [`read_notice_iff`], [`read_rows_iff`], [`window_rows`], [`watch_stable`], [`run_exact`], [`fact_stable`], [`find_costs`], [`notify_cost`], [`screen_subs`], [`hull_near`], [`past_hull_le`], [`key_notice_imprecise`], [`unnetted_imprecise`], [`keep_scrolled_off`] |
+| 🟡 | 🥊🥊🥊 | **Notices are exact.** A screen watches windows: a list's rows between two positions. Proven: after any batch of commits and purges, the journal's rows, netted and matched against an index of windows, notify a subscriber exactly when one of its windows changed, never for a row outside them or one filed and purged within the batch, given one op per id; a read's window, cut at its last row, changes exactly when its rows do, and holds exactly them; a read's watch misses nothing its reader uses; matching a filing costs a hash and ⌊log₂ 2S⌋+2 comparisons; the frame's wants (`Screen.Frame.wants`) are exactly its page's reads, the near rows' hull per list key and the near rows' reads. Notices by key, and an unnetted journal, are shown imprecise. The app's cache watches each read's window, takes its notices from the journal netted, and unwatches a component's reads when it unmounts (`agrees_notice`, `agrees_unmount`, `watched_held`); the conversation is a window of rows about an anchor, watched by exactly its rows, and the counts beside it are a read of the page's own. Not yet: the window holds up to 100 rows past each end of the near rows (`past_hull_le`), and the frame does not call `Frame.wants`; a union read (the conversation) is precise per key, not for the union's own cut; reads of an op's bytes are outside. SQLite's triggers are tested against the model (`window_check`), not proven. | [`notice_iff`], [`read_notice_iff`], [`read_rows_iff`], [`window_rows`], [`watch_stable`], [`run_exact`], [`fact_stable`], [`find_costs`], [`notify_cost`], [`screen_subs`], [`hull_near`], [`past_hull_le`], [`key_notice_imprecise`], [`unnetted_imprecise`], [`keep_scrolled_off`], [`agrees_notice`], [`agrees_unmount`], [`watched_held`] |
 | ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
 | ✅ | 🥊🥊 | **The people list is the present members,** each once. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_nodup`] |
 | 🟡 | 🥊🥊🥊 | **The screen is one moment.** Every frame is drawn over a single store state, the latest the app has seen. Proven over the running cache, given SQLite's snapshot isolation and the journal hypothesis (Assumed): every read a frame makes, cached or not, returns that frame's moment's answer. Not yet: the outbox's notice keys derived from its ops, and `step` itself as a statement. | [`read_one_moment`], [`answer_agrees`], [`agrees_store`], [`agrees_notice`], [`agrees_keep`], [`agrees_empty`], [`eval_stable`], [`view_stable`] |
@@ -837,6 +840,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`key_notice_imprecise`]: engine/core/WindowMutants.lean#L110-L113
 [`unnetted_imprecise`]: engine/core/WindowMutants.lean#L160-L164
 [`keep_scrolled_off`]: engine/renderer/Screen.lean#L319-L324
+[`agrees_notice`]: engine/renderer/LiveLaws.lean#L139-L144
+[`agrees_unmount`]: engine/renderer/LiveLaws.lean#L182-L188
+[`watched_held`]: engine/renderer/LiveLaws.lean#L194-L198
 [`writes_only_after_two`]: ops/app/Remove.lean#L56-L59
 [`cancel_writes_nothing`]: ops/app/Remove.lean#L63-L64
 [`open_fresh`]: ops/app/Remove.lean#L67-L69
@@ -844,12 +850,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`offered_only`]: ops/app/Remove.lean#L83-L86
 [`present_iff`]: ops/app/PeopleLaws.lean#L27-L30
 [`present_nodup`]: ops/app/PeopleLaws.lean#L37-L38
-[`read_one_moment`]: engine/renderer/LiveLaws.lean#L227-L232
-[`answer_agrees`]: engine/renderer/LiveLaws.lean#L73-L75
-[`agrees_store`]: engine/renderer/LiveLaws.lean#L84-L87
-[`agrees_notice`]: engine/renderer/LiveLaws.lean#L201-L205
-[`agrees_keep`]: engine/renderer/LiveLaws.lean#L213-L215
-[`agrees_empty`]: engine/renderer/LiveLaws.lean#L70-L70
+[`read_one_moment`]: engine/renderer/LiveLaws.lean#L200-L205
+[`answer_agrees`]: engine/renderer/LiveLaws.lean#L81-L83
+[`agrees_store`]: engine/renderer/LiveLaws.lean#L92-L95
+[`agrees_keep`]: engine/renderer/LiveLaws.lean#L172-L174
+[`agrees_empty`]: engine/renderer/LiveLaws.lean#L78-L78
 [`placed_row`]: engine/renderer/Geometry.lean#L81-L85
 [`newest_drawn`]: engine/renderer/Geometry.lean#L108-L111
 [`pinned_row`]: engine/renderer/Geometry.lean#L141-L144
@@ -877,9 +882,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`marks_invisible`]: engine/renderer/TextLaws.lean#L159-L159
 [`namesake_iff`]: ops/community/profile/NamesakeLaws.lean#L113-L118
 [`row_marked`]: ops/community/profile/NamesakeLaws.lean#L139-L144
-[`twin_shown`]: ops/community/reaction/RowLaws.lean#L94-L98
-[`twin_before_time`]: ops/community/reaction/RowLaws.lean#L101-L105
-[`hit_twin`]: ops/community/reaction/RowLaws.lean#L115-L117
+[`twin_shown`]: ops/community/reaction/RowLaws.lean#L128-L132
+[`twin_before_time`]: ops/community/reaction/RowLaws.lean#L135-L139
+[`hit_twin`]: ops/community/reaction/RowLaws.lean#L149-L151
 [`time_shown`]: ops/community/reaction/RowLaws.lean#L84-L87
 [`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
@@ -891,8 +896,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L931-L935
-[`pageIn_acc`]: App.lean#L937-L940
+[`drawPage_key`]: App.lean#L964-L968
+[`pageIn_acc`]: App.lean#L970-L973
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175

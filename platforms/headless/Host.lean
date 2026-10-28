@@ -50,8 +50,8 @@ def liveSound : M (Nat × Nat) := do
   let s ← get
   -- take what the writer has filed first: a fresh answer is promised only
   -- up to the notices the frame has seen
-  let ns ← takeChanges
-  modify fun s => { s with live := s.live.notice ns }
+  let (fs, vs) ← takeChanges
+  modify fun s => { s with live := s.live.notice fs (vs.map (·.1)) }
   let s ← get
   let mut n := 0
   let mut bad := 0
