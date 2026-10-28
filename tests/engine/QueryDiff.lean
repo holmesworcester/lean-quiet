@@ -45,7 +45,7 @@ def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Arr
     g := g3
     let (u, _, d) := users[ui]!
     if kind < 6 then
-      let o := post c u d "k".toUTF8 s!"post {i}".toUTF8 tm
+      let o := post c u d "k".toUTF8 s!"post {i}".toUTF8 (i % 7) tm
       ops := ops.push o
       posts := posts.push o.id
     else if kind < 8 && !posts.isEmpty then
@@ -59,7 +59,7 @@ def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Arr
       -- a forgery: signed by the wrong device
       let (vi, g4) := g.below users.size
       g := g4
-      ops := ops.push (post c u users[vi]!.2.2 "k".toUTF8 "forged".toUTF8 tm)
+      ops := ops.push (post c u users[vi]!.2.2 "k".toUTF8 "forged".toUTF8 (i % 7) tm)
   return (ops, c, posts, users)
 
 def queries (c : Id) (posts : Array Id) (users : Array (Id × Id × Device)) (cursors : List Pos) :

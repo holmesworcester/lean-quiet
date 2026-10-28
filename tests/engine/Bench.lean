@@ -85,7 +85,7 @@ def main (args : List String) : IO UInt32 := do
   let nf : NewFile := ⟨⟨"photo.qoi".toUTF8, "image/qoi".toUTF8, 640, 480, "tiny preview".toUTF8⟩, plain,
     sha256 "file key".toUTF8, (sha256 "file nonce".toUTF8).extract 0 24,
     (sha256 "info nonce".toUTF8).extract 0 24⟩
-  let wf := send c c seedA kA ((sha256 "nonce 2".toUTF8).extract 0 24) "a photo".toUTF8 7 [nf]
+  let wf := (send c c seedA kA ((sha256 "nonce 2".toUTF8).extract 0 24) "a photo".toUTF8 7 [nf]).eval DB.empty
   let chunks := wf.ops.drop 2
   bench sum s!"build a {chunks.length}-chunk attachment (attach: root, proofs, chunk ops)" (cap := 3)
     fun i => pure (attachFile c dA kA nf i)
@@ -135,7 +135,7 @@ def main (args : List String) : IO UInt32 := do
   let mut t := 100
   while size < 49152 do
     let p := (send c c seedA kA ((sha256 s!"nonce {t}".toUTF8).extract 0 24)
-      s!"message {t}: {String.ofList (List.replicate 160 'x')}".toUTF8 t).ops.headD default
+      s!"message {t}: {String.ofList (List.replicate 160 'x')}".toUTF8 t).eval DB.empty |>.ops.headD default
     if size + p.bytes.size > 49152 then break
     payloads := payloads.push p.bytes
     size := size + p.bytes.size

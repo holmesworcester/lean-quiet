@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 281 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 297 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -193,7 +193,7 @@ nothing else is assumed:
 | 🟡 | 🥊🥊🥊 | **What you see is what was sent.** The rows a device draws are the views of the facts its ops hold, from network to pixel. Proven, over a model where every list read is the engine's: a shown message is a valid fact of the store, and its row's name, time and text are its author's name, its claimed time and its body opened with a key the store holds; the conversation is exactly the messages under keys this device holds. Wanted: the same from the row's layout to its pixels. | [`message_read`], [`readable_held`], [`readable_complete`], [`eval_stable`] |
 | ✅ | 🥊🥊🥊 | **Every community is reachable, and is one entry.** A switcher row's tap selects exactly the entry it draws, every entry has a row, no two entries share an acceptance or a community, and a page is drawn from its key alone, which names its entry's op, never a name. | [`switcherOrder_sound`], [`switcherOrder_complete`], [`dedupe_nodup`], [`dedupe_one_per_community`], [`select_tapped_dedupe`], [`drawPage_key`], [`pageIn_acc`] |
 | ⬜ | 🥊🥊 | **The screen keeps up:** no blank rows past a latency bound, within a frame budget, with bounded reads. | |
-| ⬜ | 🥊🥊 | **Display order** (design in `docs/SYNC.md`). Devices with the same ops order messages alike, except a saturated tail, which follows receipt order. | |
+| ✅ | 🥊🥊 | **Display order.** A channel sorts by a counter its devices share, then the claimed time (wall-clock minutes, for display), then the id: a strict total order. What a device sends sorts after everything it lists there, whatever its clock says. Past the counter cap (one member's claim saturates a channel), each device lists by its own receipts, in its own arrival order; devices with the same posts order any two alike unless both are saturated. | [`msg_cmp`], [`time_is_display`], [`order_total`], [`send_after`], [`arrival_order`], [`receipt_once`], [`order_local`], [`display_agrees`] |
 | | | **Codes, pictures and discovery** | |
 | ✅ | 🥊🥊 | **What the encoders write reads back.** This holds for QR segments and codewords, invite links and mDNS packets. QR error correction is sound, and format and version readings tolerate their designed bit errors. | [`parse_segsBits`], [`parse_dataStream`], [`RS.correct_sound`], [`RS.correct_clean`], [`decodeFormat_correct`], [`decodeVersion_correct`], [`parse_text`], [`Base62.decode_encode`], [`Mdns.decode_encode`], [`decode_roundtrip`] |
 | ✅ | 🥊 | **Pictures render whole:** scaled and composited pictures are well-formed and opaque, and the tray's layout fits. | [`render_wellFormed`], [`render_opaque`], [`scale_wellFormed`], [`fit_round`], [`Pic.layout_inside`], [`Pic.layout_apart`] |
@@ -276,18 +276,18 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`offer_shared`]: engine/core/Sync.lean#L83-L86
 [`wire_kinds`]: ops/connection/Laws.lean#L40-L41
 [`local_kinds`]: ops/connection/Laws.lean#L47-L48
-[`joinOps_travels`]: ops/community/Intents.lean#L246-L250
-[`found_travels`]: ops/community/Intents.lean#L257-L261
-[`stopWaiting_local`]: ops/community/Intents.lean#L253-L254
+[`joinOps_travels`]: ops/community/Intents.lean#L299-L303
+[`found_travels`]: ops/community/Intents.lean#L310-L314
+[`stopWaiting_local`]: ops/community/Intents.lean#L306-L307
 [`filed_send`]: ops/sync/ConnLaws.lean#L175-L178
 [`offer_stored`]: engine/core/Sync.lean#L98-L101
 [`tick_send`]: ops/sync/ConnLaws.lean#L184-L187
 [`recipients_iff`]: ops/community/Connect.lean#L214-L218
 [`members_iff`]: ops/community/Connect.lean#L205-L208
-[`member_opens`]: ops/community/Laws.lean#L900-L904
-[`openSealed_seal`]: ops/community/Laws.lean#L890-L892
+[`member_opens`]: ops/community/Laws.lean#L928-L932
+[`openSealed_seal`]: ops/community/Laws.lean#L918-L920
 [`unbox_box`]: ops/community/Keys.lean#L89-L91
-[`check_reads_shared`]: ops/community/Laws.lean#L811-L813
+[`check_reads_shared`]: ops/community/Laws.lean#L839-L841
 [`kk_secret`]: ops/connection/NoiseSymbolic.lean#L595-L609
 [`kk_secret_init`]: ops/connection/NoiseSymbolic.lean#L547-L556
 [`kk_secret_resp`]: ops/connection/NoiseSymbolic.lean#L561-L569
@@ -332,8 +332,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`chunk_is_slice`]: ops/community/Laws.lean#L673-L682
 [`verify_sound`]: ops/community/Merkle.lean#L431-L437
 [`complete_assembles`]: ops/community/Merkle.lean#L478-L484
-[`chunk_unique`]: ops/community/Laws.lean#L735-L741
-[`progress_exact`]: ops/community/Intents.lean#L509-L518
+[`chunk_unique`]: ops/community/Laws.lean#L763-L769
+[`progress_exact`]: ops/community/Intents.lean#L618-L627
 [`no_injective_hash`]: ops/community/Merkle.lean#L241-L243
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
@@ -359,7 +359,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`approve_valid`]: ops/community/Laws.lean#L425-L433
 [`admit_admits`]: ops/community/Laws.lean#L441-L452
 [`connect_admitted`]: ops/community/Connect.lean#L169-L179
-[`removeMember_valid`]: ops/community/Intents.lean#L375-L382
+[`removeMember_valid`]: ops/community/Intents.lean#L484-L491
 [`exchange_complete`]: ops/sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: ops/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: ops/sync/Fp.lean#L37-L37
@@ -414,15 +414,23 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
-[`readable_held`]: ops/community/Intents.lean#L295-L299
-[`readable_complete`]: ops/community/Intents.lean#L337-L341
+[`readable_held`]: ops/community/Intents.lean#L407-L419
+[`readable_complete`]: ops/community/Intents.lean#L447-L457
 [`switcherOrder_sound`]: ops/app/Pages.lean#L656-L658
 [`switcherOrder_complete`]: ops/app/Pages.lean#L663-L665
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L874-L878
-[`pageIn_acc`]: App.lean#L880-L883
+[`drawPage_key`]: App.lean#L876-L880
+[`pageIn_acc`]: App.lean#L882-L885
+[`msg_cmp`]: ops/community/message/Order.lean#L137-L144
+[`time_is_display`]: ops/community/message/Order.lean#L148-L154
+[`order_total`]: ops/community/message/Order.lean#L174-L181
+[`send_after`]: ops/community/message/Order.lean#L371-L389
+[`arrival_order`]: ops/community/message/Order.lean#L342-L354
+[`receipt_once`]: ops/community/message/Order.lean#L299-L302
+[`order_local`]: ops/community/message/Order.lean#L429-L441
+[`display_agrees`]: ops/community/message/Order.lean#L471-L481
 [`parse_segsBits`]: engine/renderer/qr/SegLaws.lean#L157-L161
 [`parse_dataStream`]: engine/renderer/qr/SegLaws.lean#L193-L197
 [`RS.correct_sound`]: engine/renderer/qr/Laws.lean#L55-L57
