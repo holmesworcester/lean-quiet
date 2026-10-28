@@ -153,7 +153,12 @@ def main (args : List String) : IO UInt32 := do
     if !ok then fails.modify (· + 1)
     (← IO.getStdout).flush
   let ((), s) ← (show M Unit from do
+    steps 3
+    check "a new install opens on Get started" ((← get).page == .getStarted)
+    writePpm (dir ++ "/get-started.ppm") W (← screenOf sm W Hs 63)
+    sm.cmds.modify (·.push "found general")
     steps 5
+    check "founding a community opens its conversation" ((← get).page == .chat && (← get).me.name == "general")
     sm.cmds.modify (·.push s!"chaos {n}")
     let t0 ← IO.monoMsNow
     waitIdle sm
@@ -172,6 +177,66 @@ def main (args : List String) : IO UInt32 := do
       (← IO.getStdout).flush
       IO.Process.exit (if (← fails.get) == 0 then 0 else 1)
     -- a cold open: a new state on the same database
+    pure ()).run s
+  -- pages, a second community, switching, and a joiner approved
+  let ((), s) ← (show M Unit from do
+    sm.cmds.modify (·.push "open switcher")
+    steps 3
+    writePpm (dir ++ "/switcher.ppm") W (← screenOf sm W Hs 63)
+    -- Add a community → Get started → Create a new community, by taps on
+    -- the pages' own boxes
+    let tapAct (a : Pages.Act) : M Bool := do
+      let s ← get
+      let some pg := s.pageNow | return false
+      match pg.taps.find? (·.2 == a) with
+      | some (b, _) =>
+        sm.cmds.modify (·.push s!"page {b.x + b.w / 2} {b.y + b.h / 2}")
+        steps 3
+        return true
+      | none => return false
+    check "the switcher offers Add a community" (← tapAct .addCommunity)
+    check "Get started offers Create a new community" (← tapAct .createCommunity)
+    check "Create shows its name field" ((← get).page == .create)
+    modify fun s => { s with field := "design team" }
+    steps 2
+    writePpm (dir ++ "/create.ppm") W (← screenOf sm W Hs 63)
+    check "Continue founds it" (← tapAct .continue_)
+    waitIdle sm
+    let s ← get
+    check s!"two communities, the new one current: {s.comms.map (·.name)}" (s.comms.size == 2 && s.me.name == "design team" && s.total == 0)
+    sm.cmds.modify (·.push "switch 0")
+    steps 5
+    check s!"switching back shows the first community's {(← get).total} messages" ((← get).me.name == "general" && (← get).total > 0)
+    -- a joiner: invited by me, asking with its own device and the link's bearer
+    let s ← get
+    let joiner := Device.named "joiner-test"
+    let bearer := Device.named "joiner-bearer"
+    let inv := Community.invite s.me.c s.me.adm s.me.dev bearer.pk false 1
+    let rq := Community.request s.me.c inv.id joiner bearer.sk
+    s.wr.submit ⟨[inv, rq], [], false⟩
+    waitIdle sm
+    steps 3
+    check s!"the joiner waits under join requests ({(← get).asking.size})" ((← get).asking.size == 1)
+    sm.cmds.modify (·.push "open requests")
+    steps 3
+    writePpm (dir ++ "/requests.ppm") W (← screenOf sm W Hs 63)
+    check "its approve button approves" (← tapAct (.approve 0))
+    waitIdle sm
+    steps 5
+    waitIdle sm
+    steps 5
+    let s ← get
+    let admitted : Bool ← match ← read (.list (Community.admission.byDevice.query [s.me.c, joiner.pk] (limit := some 0))) with
+      | .list a _ => pure (decide (a.total > 0))
+      | _ => pure false
+    check "the approval completes the tally and the joiner is admitted" (admitted && (← get).asking.isEmpty)
+    for (pg, name) in [("join", "join"), ("openInvite", "open-invite"), ("paste", "paste"), ("scan", "scan"),
+        ("agree", "agree"), ("waiting", "waiting"), ("invite", "invite")] do
+      sm.cmds.modify (·.push s!"open {pg}")
+      steps 3
+      writePpm (dir ++ s!"/{name}.ppm") W (← screenOf sm W Hs 63)
+      sm.cmds.modify (·.push "back")
+      steps 2
     pure ()).run s
   -- cold open timing
   let t0 ← IO.monoMsNow

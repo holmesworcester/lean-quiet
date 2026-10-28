@@ -28,6 +28,7 @@ import Quiet.Chaos
 import Quiet.Row
 import Quiet.Geometry
 import Quiet.Sheet
+import Quiet.Pages
 import Std.Data.HashMap
 
 namespace App
@@ -71,6 +72,12 @@ structure RowSt where
   dimShown : Option Bitmap := none
 
 abbrev ImgKey := ByteArray × Nat × Nat
+
+/-- Which page is up: a conversation, or one of libquiet's other screens. -/
+inductive PageId where
+  | chat | getStarted | create | joinChoice | openInvite | paste | scan | agree | waiting
+  | requests | invite | switcher
+  deriving BEq, Repr, Inhabited
 
 /-- The reaction sheet's state: quick or the catalogue, its category,
 tone, search, and the grid's scroll (with a drag or fling in progress). -/
@@ -127,6 +134,20 @@ structure St where
   catalog : Array Sheet.Item := #[]
   gridKey : String := ""
   gridRows : Std.HashMap Nat Bitmap := {}
+  /-- Every community this device is in; `me` is the current one. -/
+  comms : Array Chaos.Me := #[]
+  page : PageId := .chat
+  backStack : List PageId := []
+  /-- A page's one-line field (the keyboard's text while a page shows one). -/
+  field : String := ""
+  refusal : Option String := none
+  hidden : List Id := []
+  admitting : List Id := []
+  pageCache : String := ""
+  pageNow : Option Pages.Page := none
+  /-- Requests to join the current community no admission answers yet:
+  the request's id, its fact, and its approvals' ids. -/
+  asking : Array (Id × Fact × List Id) := #[]
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ => pure #[],
   pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0⟩⟩
@@ -236,7 +257,8 @@ def reactTo (m : Id) (e : String) : M Bool := do
 
 /-! ## Geometry -/
 
-def topH (s : St) : Nat := s.insetTop + s.dim.px 16 + 2 * s.dim.lineH
+def topH (s : St) : Nat :=
+  if s.page == .chat then s.insetTop + s.dim.px 16 + 2 * s.dim.lineH else s.insetTop + s.dim.px 56
 
 /-- The composer: a margin, the field (text inset in it), the send button. -/
 def margin (s : St) : Nat := s.dim.px 8
@@ -255,6 +277,7 @@ def catOf (s : St) (sh : SheetSt) : Sheet.Cat :=
   Sheet.cat s.dim s.font s.W s.Hs s.insetTop (sheetItems s sh).size
 
 def botH (s : St) : Nat :=
+  if s.page != .chat then 1 else
   match s.sheet with
   | some sh => if sh.catalog then (catOf s sh).h else (Sheet.quick s.dim s.W).h
   | none => 2 * textY0 s + (min 5 (composerLines s).size) * s.dim.lineH
@@ -399,11 +422,29 @@ def header (s : St) : Bitmap := Id.run do
   let x := s.dim.pad
   let mut b := Bitmap.blank s.W h (solid hb s.W)
   let y := s.insetTop + s.dim.px 8
-  b := b.line s.font (Text.oneLine s.font (s.W - 2 * x) "# general") x y nameInk true
+  -- the community's name opens the switcher; on the right, join requests
+  -- (with how many wait) and Add members
+  b := b.line s.font (Text.oneLine s.font (s.W - 2 * x - 3 * s.dim.px 48) s!"{s.me.name} ▾") x y nameInk true
   let sub := s!"{s.total} messages · {s.people} people"
-  b := b.line s.font (Text.oneLine s.font (s.W - 2 * x) sub) x (y + s.dim.lineH) dim
+  b := b.line s.font (Text.oneLine s.font (s.W - 2 * x - 3 * s.dim.px 48) sub) x (y + s.dim.lineH) dim
+  let iy := y + (2 * s.dim.lineH - s.font.cell) / 2
+  b := b.line s.font (Text.oneLine s.font s.font.cell "+") (s.W - x - s.font.cell / 2) iy nameInk true
+  let rx := s.W - x - s.dim.px 48 - s.font.cell / 2
+  b := b.line s.font (Text.oneLine s.font s.font.cell "☺") rx iy nameInk
+  if s.asking.size > 0 then
+    let l := Text.oneLine s.font s.font.cell (toString s.asking.size)
+    let w := Paint.Line.width s.font l + s.dim.px 10
+    b := b.round (rx + s.font.cell / 3) (iy - s.dim.px 8) (rx + s.font.cell / 3 + w) (iy - s.dim.px 8 + s.font.cell) (s.font.cell / 2) accent
+    b := b.line s.font l (rx + s.font.cell / 3 + s.dim.px 5) (iy - s.dim.px 8) nameInk
   b := b.fill 0 (h - max 2 (s.dim.px 1)) s.W h pill
   return b
+
+/-- Where the header's controls are, in its own rows. -/
+def headerHit (s : St) (x _y : Nat) : PageId :=
+  let pad := s.dim.pad
+  if x ≥ s.W - pad - s.dim.px 40 then .invite
+  else if x ≥ s.W - pad - s.dim.px 88 then .requests
+  else .switcher
 
 def cursorAt (s : St) (i : Nat) : Nat × Nat :=
   let pre := String.ofList (s.text.toList.take i)
@@ -463,6 +504,163 @@ def rowAt (s : St) (p : Nat) : Option (Id × Nat) := Id.run do
     let h := heightOf s x
     if bot ≤ p && p < bot + h then return some (x, bot + h - 1 - p)
   return none
+
+/-! ## Pages and communities -/
+
+def hexShort (b : ByteArray) : String :=
+  String.join (b.toList.take 4 |>.map fun x =>
+    let t := (Nat.toDigits 16 x.toNat).asString; if t.length < 2 then "0" ++ t else t)
+
+/-- Open a page (the current one goes on the back stack). -/
+def openPage (p : PageId) : M Unit := do
+  let s ← get
+  if s.page == p then return
+  s.io.scrollTo 0
+  modify fun s => { s with backStack := s.page :: s.backStack, page := p, refusal := none, pageCache := "" }
+
+/-- Back: the page before, or the conversation. -/
+def back : M Unit := do
+  let s ← get
+  s.io.ime false
+  s.io.textClear
+  s.io.scrollTo 0
+  match s.backStack with
+  | p :: rest => modify fun s => { s with page := p, backStack := rest, field := "", refusal := none, pageCache := "" }
+  | [] => modify fun s => { s with page := .chat, field := "", refusal := none, pageCache := "" }
+
+/-- Make community i the current one: the list starts again from its newest. -/
+def switchTo (i : Nat) : M Unit := do
+  let s ← get
+  let some m := s.comms[i]? | return
+  s.io.scrollTo 0
+  modify fun s => { s with me := m, page := PageId.chat, backStack := [] }
+  modify fun s => { s with ids := #[], total := 0, people := 0, limit := 64 }
+  modify fun s => { s with heights := {}, rows := {}, selected := none, sheet := none }
+  modify fun s => { s with asking := #[], hidden := [], chromeKey := "", pageCache := "" }
+
+/-- Found a community named n: its root and my profile, and it becomes
+current. -/
+def found (n : String) : M Unit := do
+  let s ← get
+  let seed ← Chaos.freshSeed n
+  let (m, ops) := Chaos.Me.found n seed
+  s.wr.submit ⟨ops, [], true⟩
+  let comms := s.comms.push m
+  Chaos.Me.saveAll s.rd comms
+  modify fun s => { s with comms }
+  switchTo (comms.size - 1)
+
+/-- The requests to join the current community that no admission answers
+yet, with their approvals. -/
+def refreshAsking : M Unit := do
+  let s ← get
+  let c := s.me.c
+  if c.isEmpty then return
+  let some rq := (← read (.list (Community.request.all.query [c]))) |> (fun | .list a _ => some a | _ => none) | return
+  let mut out := #[]
+  for (pos, f) in rq.rows do
+    if let .request _ _ d _ _ _ := f then
+      let admitted : Bool ← match ← read (.list (Community.admission.byDevice.query [c, d] (limit := some 0))) with
+        | .list a _ => pure (decide (a.total > 0))
+        | _ => pure false
+      if admitted then continue
+      -- decided approvals only: an admission may cite only what is decided
+      -- (a pending approval answers here too, marked pending)
+      let aps ← match ← read (.list (Community.approval.byRequest.query [c, pos.2])) with
+        | .list a pend => pure ((a.rows.map (·.1.2)).filter (!pend.contains ·))
+        | _ => pure []
+      out := out.push (pos.2, f, aps)
+  modify fun s => { s with asking := out }
+
+/-- An admission for every request with enough approvals: anyone holding
+them may compose it (it is unsigned), so whoever sees it first does. -/
+def admitReady : M Unit := do
+  let s ← get
+  for (r, f, aps) in s.asking do
+    if let .request _ _ _ _ _ t := f then
+      if aps.length ≥ t && t > 0 && !s.admitting.contains r then
+        if ← write (Community.admit s.me.c r (aps.take t)) then
+          modify fun s => { s with admitting := r :: s.admitting }
+
+/-- My approval of request r (my device in this community signs it). -/
+def approveReq (r : Id) : M Unit := do
+  let s ← get
+  let _ ← write (Community.approve s.me.c r s.me.adm s.me.dev)
+
+/-- The current page's picture and taps (kept until what it shows changes). -/
+def pageOf (s : St) : Pages.Page :=
+  let f := s.font
+  let dm := s.dim
+  let W := s.W
+  let h := viewH s
+  match s.page with
+  | .getStarted => Pages.getStarted f dm W h
+  | .create => Pages.create f dm W h s.field true
+  | .joinChoice => Pages.joinChoice f dm W h none
+  | .openInvite => Pages.openInvite f dm W h
+  | .paste => Pages.paste f dm W h s.field true s.refusal
+  | .scan => Pages.scan f dm W h none "No camera is available."
+  | .agree => Pages.agree f dm W h "this community"
+  | .waiting => Pages.waiting f dm W h s.me.name
+  | .requests => Pages.requests f dm W h ((s.asking.filter fun (r, _, _) => !s.hidden.contains r).map fun (r, f, aps) =>
+      let dev := match f with | .request _ _ d _ _ _ => hexShort d | _ => "?"
+      { device := s!"Device {dev}", when := s!"{aps.length} of {match f with | .request _ _ _ _ _ t => t | _ => 1} approvals",
+        going := aps.length > 0 || s.admitting.contains r })
+  | .invite => Pages.invite f dm W h none "Invite links arrive with networking: the link codec is landing in the engine."
+  | .switcher => Pages.switcher f dm W h (s.comms.map fun m =>
+      ({ name := m.name, unread := 0, current := m.c == s.me.c, waiting := false } : Pages.Entry))
+  | .chat => ⟨Bitmap.blank W h s.bgRow, #[]⟩
+
+def pageTitle : PageId → String × Bool
+  | .getStarted => ("", false) | .create => ("", false) | .joinChoice => ("", false)
+  | .openInvite => ("", false) | .paste => ("", false) | .scan => ("Join with QR code", true)
+  | .agree => ("Agree & join", false) | .waiting => ("", false) | .requests => ("Join requests", false)
+  | .invite => ("Add members", true) | .switcher => ("Communities", true) | .chat => ("", false)
+
+/-- A page's tap: what it does. -/
+def onPageAct (a : Pages.Act) : M Unit := do
+  let s ← get
+  match a with
+  | .back => back
+  | .joinCommunity => openPage .joinChoice
+  | .createCommunity =>
+    s.io.textClear
+    modify fun s => { s with field := "" }
+    openPage .create
+    s.io.ime true
+  | .inviteLink => openPage .openInvite
+  | .qrCode => openPage .scan
+  | .pasteLink =>
+    s.io.textClear
+    modify fun s => { s with field := "" }
+    openPage .paste
+    s.io.ime true
+  | .field => s.io.ime true
+  | .continue_ =>
+    match s.page with
+    | .create =>
+      let n := s.field.trimAscii.toString
+      if !n.isEmpty then
+        s.io.ime false
+        s.io.textClear
+        modify fun s => { s with field := "" }
+        found n
+    | .paste =>
+      modify fun s => { s with refusal := some "Joining by link needs the invite link codec, which is landing in the engine next.", pageCache := "" }
+    | _ => pure ()
+  | .agree => pure ()
+  | .addMembers => openPage .invite
+  | .share | .copy => s.io.copy "quiet://join/…"
+  | .approve i =>
+    let shown := s.asking.filter fun (r, _, _) => !s.hidden.contains r
+    if let some (r, _, _) := shown[i]? then approveReq r
+  | .hide i =>
+    let shown := s.asking.filter fun (r, _, _) => !s.hidden.contains r
+    if let some (r, _, _) := shown[i]? then modify fun s => { s with hidden := r :: s.hidden, pageCache := "" }
+  | .switchTo i => switchTo i
+  | .addCommunity => openPage .getStarted
+  | .requests => openPage .requests
+  | .none => pure ()
 
 def closeSheet : M Unit := do
   let s ← get
@@ -540,6 +738,17 @@ def onSheetDrag (phase x y : Nat) : M Unit := do
 
 def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   let s ← get
+  -- a page: its bar's back, or its content's taps (rows from its top)
+  if s.page != .chat then
+    match r with
+    | .header => if (Pages.barBack s.dim s.insetTop).has x y then back
+    | .list =>
+      let vh := viewH s
+      if y < vh then
+        let pg := (s.pageNow).getD (pageOf s)
+        onPageAct (pg.hit x (vh - 1 - y))
+    | .composer => pure ()
+    return
   if let some sh := s.sheet then
     if r == .composer then onSheetTap sh x y; return
     if r == .header then closeSheet; return
@@ -550,7 +759,7 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
         modify fun s => { s with text := "", sel := #[0, 0, 0, 0] }
         s.io.textClear
     else s.io.ime true
-  | .header => s.io.scrollTo 0
+  | .header => openPage (headerHit s x y)
   | .list =>
     if s.imeH > 0 && !long then s.io.ime false; return
     -- an open sheet: a tap on the list closes it
@@ -578,6 +787,9 @@ def onEvent : Event → M Bool
   | .long r x y => do onTap r x.toNat y.toNat true; return true
   | .text => do
     let (t, sel) ← (← get).io.text
+    if (← get).page == .create || (← get).page == .paste then
+      modify fun s => { s with field := t, refusal := none, pageCache := "" }
+      return true
     match (← get).sheet with
     | some sh =>
       if sh.searching then modify fun s => { s with sheet := some { sh with query := t, scroll := 0 } }
@@ -585,6 +797,9 @@ def onEvent : Event → M Bool
       modify fun s => { s with text := t, sel := if sel.size == 4 then sel else #[0, 0, 0, 0] }
     return true
   | .send => do
+    if (← get).page == .create || (← get).page == .paste then
+      onPageAct .continue_
+      return true
     let s ← get
     if ← sendText s.text then
       modify fun s => { s with text := "", sel := #[0, 0, 0, 0] }
@@ -670,6 +885,31 @@ def command (line : String) : M Bool := do
     | some "tap", some x, some y, _ => onTap .composer x y false; s.io.ctlReply "tapped"
     | some "drag", some ph, some x, some y => onSheetDrag ph x y; s.io.ctlReply "dragged"
     | _, _, _, _ => s.io.ctlReply "sheet tap X Y | sheet drag PHASE X Y"
+  | "found" => found rest; s.io.ctlReply s!"founded {rest}"
+  | "switch" => switchTo ((ws[1]? >>= String.toNat?).getD 0); s.io.ctlReply s!"current {(← get).me.name}"
+  | "open" =>
+    let p : Option PageId := match ws[1]? with
+      | some "getStarted" => some .getStarted | some "create" => some .create | some "join" => some .joinChoice
+      | some "openInvite" => some .openInvite | some "paste" => some .paste | some "scan" => some .scan
+      | some "agree" => some .agree | some "waiting" => some .waiting | some "requests" => some .requests
+      | some "invite" => some .invite | some "switcher" => some .switcher | some "chat" => some .chat
+      | _ => none
+    match p with
+    | some .chat => back; s.io.ctlReply "chat"
+    | some p => openPage p; s.io.ctlReply s!"page {repr p}"
+    | none => s.io.ctlReply "open getStarted|create|join|openInvite|paste|scan|agree|waiting|requests|invite|switcher|chat"
+  | "back" => back; s.io.ctlReply s!"page {repr (← get).page}"
+  | "page" =>
+    -- page X ROW: a tap at row ROW of the page's content, as a finger would land
+    let x := (ws[1]? >>= String.toNat?).getD 0
+    let row := (ws[2]? >>= String.toNat?).getD 0
+    let vh := viewH (← get)
+    onTap .list x (vh - 1 - row) false
+    s.io.ctlReply s!"page {repr (← get).page}"
+  | "comms" =>
+    let st ← get
+    s.io.ctlReply (String.intercalate " | " (st.comms.toList.map fun m => s!"{m.name}{if m.c == st.me.c then "*" else ""}"))
+  | "asking" => s.io.ctlReply s!"asking {(← get).asking.size}"
   | "pause" => s.wr.paused.set true; s.io.ctlReply "writer paused"
   | "resume" => s.wr.paused.set false; s.io.ctlReply "writer resumed"
   | "bottom" => s.io.scrollTo 0; s.io.ctlReply "ok"
@@ -821,12 +1061,41 @@ def step (evs : List Event) : M (Option (List Event)) := do
       let next := (Int.ofNat sh.scroll + (sh.vel * 16.0).toInt64.toInt).toNat
       let sh' := { sh with scroll := c.grid.clamp next, vel := sh.vel * 0.95 }
       modify fun s => { s with sheet := some sh' }
+  -- join requests for the current community, and admissions they complete
+  refreshAsking
+  admitReady
+  -- a page instead of the conversation: its bar, its content in the list
+  -- layer (which does not scroll on a page), a one-row composer layer
+  let s ← get
+  if s.page != .chat then
+    let key := s!"{repr s.page}|{s.W}|{s.Hs}|{s.insetTop}|{s.insetBot}|{s.field}|{s.refusal}|{s.comms.size}|{s.asking.size}|{s.hidden.length}|{s.admitting.length}|{s.me.c.size}"
+    if key != s.pageCache then
+      let pg := pageOf s
+      let (t, cross) := pageTitle s.page
+      -- a first launch's Get started has nowhere to go back to
+      let top := if s.page == .getStarted && s.backStack.isEmpty && s.comms.isEmpty
+        then Bitmap.blank s.W (s.insetTop + s.dim.px 56) s.bgRow
+        else Pages.bar s.font s.dim s.W s.insetTop t cross
+      let bot := Bitmap.blank s.W 1 s.bgRow
+      modify fun s => { s with pageNow := some pg, pageCache := key }
+      modify fun s => { s with topBmp := top, botBmp := bot, chromeKey := "" }
+    let s ← get
+    let vh := viewH s
+    let pb ← s.io.scroll vh.toUInt32 vh.toUInt32
+    let _ := pb
+    let mut fr := Array.replicate (vh + 2 * over) s.bgRow
+    if let some pg := s.pageNow then
+      for k in [0:min vh pg.bmp.h] do fr := fr.set! (over + k) pg.bmp.rows[k]!
+    let t1 ← s.io.nowUs
+    modify fun s => { s with b := 0, frames := s.frames + 1, times := s.times.push (t1 - t0).toNat }
+    let evs ← s.io.frame fr 0 over.toUInt32 s.topBmp.rows s.botBmp.rows
+    return some (Event.decode evs)
   -- 7. chrome and the frame
   let s ← get
   let sheetKey := match s.sheet, s.selected with
     | some sh, some m => s!"{sh.catalog}|{sh.cat}|{sh.tone}|{sh.query}|{sh.searching}|{sh.scroll}|{mineOn s m}"
     | _, _ => ""
-  let key := s!"{s.W}|{s.insetTop}|{s.total}|{s.people}|{s.text}|{s.sel}|{sheetKey}"
+  let key := s!"{s.W}|{s.insetTop}|{s.total}|{s.people}|{s.text}|{s.sel}|{sheetKey}|{s.me.name}|{s.asking.size}"
   if key != s.chromeKey then
     let bot ← match s.sheet, s.selected with
       | some sh, some m => sheetBitmap sh (mineOn s m)
@@ -853,15 +1122,19 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) : IO St := do
   let font ← Font.load
   let rd ← openDb dbPath
   let wr ← Writer.start dbPath
-  let (me, first) ← Chaos.Me.load rd
-  if (← Data.status rd me.c).isNone then
-    wr.submit ⟨first, [], true⟩
+  let comms ← Chaos.Me.loadAll rd
+  -- a community founded but never written (a crash before its first
+  -- commit) is founded again: the same seed makes the same ops
+  for m in comms do
+    if m.adm == m.c && (← Data.status rd m.c).isNone then
+      wr.submit ⟨(Chaos.Me.found m.name m.seed).2, [], true⟩
+  let me := comms[0]?.getD default
   let catalog ← match ← (Sheet.loadCatalog).toBaseIO with
     | .ok c => pure c
     | .error e => do IO.eprintln s!"no emoji catalogue: {e}"; pure #[]
   return { io := io, W := W, Hs := Hs, insetTop := (screen[2]?.getD 0).toNat, catalog := catalog,
            dim := ⟨(screen[4]?.getD 420).toNat, font.cell⟩,
            insetBot := (screen[3]?.getD 0).toNat, font := font, bgRow := solid Row.bg W, rd := rd,
-           wr := wr, me := me }
+           wr := wr, me := me, comms := comms, page := if comms.isEmpty then .getStarted else .chat }
 
 end App

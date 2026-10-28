@@ -155,26 +155,50 @@ def photo (srcs : Array Image.Src) (g : Rng) : (Nat × Nat × ByteArray) × Rng 
 
 /-! ## The community -/
 
-/-- This node: the founder's device, the community, and its admission
-(the root, whose id is the community's). -/
+/-- This device in one community: its device there (per-community device
+keys, as libquiet's), the community, its admission (the root for a
+community it founded), the community's name, and the seed the device
+derives from. -/
 structure Me where
   dev : Device
   c : Id
+  adm : Id
+  name : String
+  seed : ByteArray
+  deriving Inhabited
 
-def Me.adm (m : Me) : Id := m.c
-
-/-- The device of this install, from a seed kept in the database. -/
-def Me.load (db : Db) : IO (Me × List Op) := do
-  let seed ← match ← Data.Db.meta db "seed" with
-    | some s => pure s
-    | none => do
-      let s := sha256 s!"lean-quiet {← Data.nowUs}".toUTF8
-      Data.Db.setMeta db "seed" s
-      pure s
+/-- A new community: a fresh seed's device founds it (the root) and
+names itself in it. -/
+def Me.found (name : String) (seed : ByteArray) : Me × List Op :=
   let dev := Device.ofSeed seed
   let r := root dev
   let mine := profile r.id r.id dev "Me".toUTF8 0 []
-  return (⟨dev, r.id⟩, [r, mine])
+  (⟨dev, r.id, r.id, name, seed⟩, [r, mine])
+
+/-- The communities this device is in, kept in the meta table until the
+engine's local-only `accept` ops land: (seed, community, admission, name). -/
+def Me.saveAll (db : Db) (ms : Array Me) : IO Unit :=
+  Data.Db.setMeta db "comms" (Codec.encode (ms.toList.map fun m => (m.seed, m.c, m.adm, m.name.toUTF8)))
+
+def Me.loadAll (db : Db) : IO (Array Me) := do
+  match ← Data.Db.meta db "comms" with
+  | some b =>
+    match (Codec.decode b : Option (List (ByteArray × ByteArray × ByteArray × ByteArray))) with
+    | some l => return (l.map fun (seed, c, adm, n) =>
+        ({ dev := Device.ofSeed seed, c, adm, name := (String.fromUTF8? n).getD "?", seed } : Me)).toArray
+    | none => return #[]
+  | none =>
+    -- a database from before communities were a list: its one community
+    match ← Data.Db.meta db "seed" with
+    | some seed =>
+      let ms := #[(Me.found "general" seed).1]
+      Me.saveAll db ms
+      return ms
+    | none => return #[]
+
+/-- A fresh seed. -/
+def freshSeed (salt : String) : IO ByteArray := do
+  return sha256 s!"lean-quiet {salt} {← Data.nowUs}".toUTF8
 
 /-- Minutes since 2026-10-01, for message times. -/
 def epoch : Nat := 29330000
