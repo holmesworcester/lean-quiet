@@ -129,7 +129,8 @@ complete when shown:
   it nor fills it on a resize. It answers a window manager's
   `_NET_WM_SYNC_REQUEST` after the first frame shown since the
   announced configure, so a compositing window manager shows the new
-  size only with Lean's frame for it. This needs `libxcb-sync-dev`.
+  size only with Lean's frame for it. This needs `libxcb-sync-dev`
+  (the packages are listed in docs/BUILD.md).
 
 Tested: `host:desktop` resizes a 41-message conversation seven times;
 one frame after each, no row shows a placeholder and every row is painted.
