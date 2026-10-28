@@ -161,6 +161,15 @@ def main (args : List String) : IO UInt32 := do
     let rows := (← get).rows.toList.map (·.2.data)
     check s!"A's own post is under the founder's name ({(rows.find? (·.text == "hi from A")).map (·.name)})"
       (rows.any fun d => d.text == "hi from A" && d.name == "Ann")
+    -- a message under a key A does not hold is not shown at all
+    let before := (← get).ids.size
+    let stranger ← Engine.Crypto.randomBytes 32
+    let s ← get
+    let _ ← write (sealedPost s.me.c s.me.adm s.me.dev stranger (← Engine.Crypto.randomBytes 24) "sealed away".toUTF8 (newestTime s + 1))
+    waitIdle sa
+    steps 5
+    check s!"a message whose key A lacks is hidden ({before} → {(← get).ids.size} shown)"
+      ((← get).ids.size == before && !((← get).rows.toList.any (·.2.data.text == "sealed away")))
     sa.cmds.modify (·.push "back")
     steps 3
     let ms := (← get).members.toList

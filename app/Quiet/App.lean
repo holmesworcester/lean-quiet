@@ -150,6 +150,9 @@ structure St where
   out : Array Pending := #[]
   limit : Nat := 64
   ids : Array Pos := #[]
+  /-- How many rows the list read returned (hidden ones too): what paging
+  compares with its limit. -/
+  fetched : Nat := 0
   total : Nat := 0
   people : Nat := 0
   heights : Std.HashMap Id Nat := {}
@@ -1321,7 +1324,20 @@ def step (evs : List Event) : M (Option (List Event)) := do
   -- 3. the list's ids and counts
   let s ← get
   if let .list a _ ← read (.list (listAll s s.limit)) then
-    modify fun s => { s with ids := (a.rows.map (·.1)).toArray, total := a.total }
+    -- a message whose content key this device does not hold yet is not
+    -- shown at all (it appears when its key's wrap opens: the key's list
+    -- is read, so its arrival re-reads this)
+    let mut held : List (ByteArray × Bool) := []
+    for (_, f) in a.rows do
+      if let .message _ _ _ kid _ _ := f then
+        if !(held.any (·.1 == kid)) then
+          let (ks, _, _) ← readList (key.byId.query [kid] (limit := some 0)) #[]
+          held := (kid, ks.total > 0) :: held
+    let shown := a.rows.filter fun (_, f) => match f with
+      | .message _ _ _ kid _ _ => (held.find? (·.1 == kid)).any (·.2)
+      | _ => false
+    modify fun s => { s with ids := (shown.map (·.1)).toArray, fetched := a.rows.length,
+                             total := a.total - (a.rows.length - shown.length) }
   let s ← get
   -- people: the community's admissions (a person's every device counts
   -- once per device; profiles are optional)
@@ -1348,7 +1364,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   let loadedTop := match s.ids.back? with
     | some (_, x) => bots.back!.add (heightOf s x)
     | none => bottomPad
-  if loadedTop < hi + 2 * est && s.ids.size < s.total && s.ids.size ≥ s.limit then
+  if loadedTop < hi + 2 * est && s.ids.size < s.total && s.fetched ≥ s.limit then
     -- enough more ids, at the estimate, to reach past the fetch distance
     let more := (hi + 2 * est - loadedTop) / est + 64
     modify fun s => { s with limit := s.limit + more }
