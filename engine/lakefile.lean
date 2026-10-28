@@ -6,7 +6,9 @@ package engine where
     "-lpthread", "-ldl", "-lm", "-lrt"]
 
 lean_lib Engine
-lean_lib Community
+lean_lib Community where
+  -- Merkle stands alone until the attachment ops import it.
+  roots := #[`Community, `Community.Merkle]
 lean_lib Connection
 lean_lib Tests
 
@@ -73,3 +75,6 @@ lean_exe purge where
 
 lean_exe jointcp where
   root := `Tests.JoinTcp
+
+lean_exe merkle_check where
+  root := `Tests.MerkleCheck

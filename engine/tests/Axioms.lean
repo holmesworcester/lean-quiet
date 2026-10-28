@@ -1,6 +1,7 @@
 import Engine
 import Community
 import Connection
+import Community.Merkle
 open Engine Community
 #print axioms Engine.inv_ingest
 #print axioms Engine.inv_step
@@ -101,3 +102,12 @@ open Engine Community
 #print axioms Community.check_reads_shared
 #print axioms Community.openSealed_seal
 #print axioms Community.member_opens
+#print axioms Community.Merkle.encode_verify
+#print axioms Community.Merkle.verify_sound
+#print axioms Community.Merkle.index_bound
+#print axioms Community.Merkle.complete_assembles
+#print axioms Community.Merkle.assemble_slices
+#print axioms Community.Merkle.climb_path
+#print axioms Community.Merkle.climb_sub
+#print axioms Community.Merkle.no_injective_hash
+#print axioms Community.Merkle.assumptions_hold
