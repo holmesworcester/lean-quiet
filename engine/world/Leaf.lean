@@ -515,4 +515,405 @@ theorem leaf_flight (Q : Plain F) (E : Q.Run) (hok : PlainOk Q) (hx : ∀ k i, I
       exact enter_leaf Q _ j t _ ih (connect_framesLeaf Q.fam Q.cfg (Q.rooms j) hwire _ _ _ _ _ _ (okw j))
     | inject j o b t => rw [ha] at hl; exact absurd hl.1 id
 
+
+/-! ## A responder never keeps a snapshot -/
+
+/-- A connection that answers rounds keeps no snapshot. -/
+def RespOk (c : Conn) : Prop := c.dialer = false → c.snaps = []
+
+theorem finish_dialer (st : Step) : (Conn.finish st).conn.dialer = st.conn.dialer := by
+  unfold Conn.finish Conn.report
+  by_cases h : st.conn.asked.isEmpty = true <;> simp [h]
+
+theorem finish_snaps' (st : Step) : (Conn.finish st).conn.snaps = st.conn.snaps := by
+  unfold Conn.finish Conn.report
+  by_cases h : st.conn.asked.isEmpty = true <;> simp [h]
+
+theorem start_dialer (cfg : Config) (ix : Index) (c : Conn) (now : Nat) : (c.start cfg ix now).conn.dialer = c.dialer := by
+  unfold Conn.start; split <;> rfl
+
+/-- **A responder's reply to round messages of ids only keeps it free of
+snapshots**, and every payload keeps who dials. -/
+theorem onRbsr_resp (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (now : Nat)
+    (hcs : IdsOnly cs) (hc : c.snaps = []) :
+    (c.onRbsr cfg ix r k cs now).conn.dialer = c.dialer ∧ (c.onRbsr cfg ix r k cs now).conn.snaps = [] := by
+  unfold Conn.onRbsr
+  split
+  · exact ⟨rfl, hc⟩
+  · dsimp only
+    split
+    · simp [hc]
+    · simp only [Step.limit_dialer, Step.limit_snaps]
+      rw [answer_ids_noclaims cfg.params _ cs hcs]
+      rotate_left
+      · intro _; rfl
+      · intro _; rfl
+      simp [hc]
+
+section
+variable (fam : Family F) (cfg : Config)
+
+theorem onHold_dialer (c : Conn) (r : Id) (ids : List Id) (h : Held F) :
+    ((c.onHold fam cfg r ids : HeldM F Step).run h).1.conn.dialer = c.dialer := by
+  change ((Conn.onHold fam cfg c r ids : HeldM F Step) h).1.conn.dialer = _
+  rw [onHold_apply]
+  split
+  · rfl
+  · split
+    · rfl
+    · simp only [Step.limit_dialer]
+
+theorem onWant_dialer (ix : Index) (c : Conn) (ids : List Id) (h : Held F) :
+    ((c.onWant fam cfg ix ids : HeldM F Step).run h).1.conn.dialer = c.dialer := by
+  unfold Conn.onWant
+  split
+  · rfl
+  · simp only [HeldM.run_bind, Read.run_heldW, HeldM.run_pure, Step.limit_dialer]
+
+theorem recv_dialer (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) (h : Held F) :
+    ((Conn.recv fam cfg ix c b now : HeldM F Step).run h).1.conn.dialer = c.dialer := by
+  unfold Conn.recv
+  cases hd : Op.decode b with
+  | none => rfl
+  | some o0 =>
+    try simp only [hd]
+    cases hm : Msg.ofOp o0 with
+    | none =>
+      try simp only [hm]
+      split
+      · rfl
+      · simp only [HeldM.run_pure, finish_dialer, Step.limit_dialer]
+    | some m =>
+      try simp only [hm]
+      cases m with
+      | hello f =>
+        simp only [HeldM.run_pure, finish_dialer]
+        split
+        · rw [start_dialer]
+        · rfl
+      | rbsr r k cs =>
+        simp only [HeldM.run_pure, finish_dialer]
+        unfold Conn.onRbsr
+        split
+        · rfl
+        · dsimp only; split
+          · rfl
+          · simp only [Step.limit_dialer]; split <;> rfl
+      | hold r ids =>
+        simp only [HeldM.run_bind, HeldM.run_pure, finish_dialer]
+        exact onHold_dialer fam cfg _ r ids h
+      | want ids =>
+        simp only [HeldM.run_bind, HeldM.run_pure, finish_dialer]
+        exact onWant_dialer fam cfg ix _ ids h
+
+/-- **A payload of ids-only round messages keeps a responder free of
+snapshots.** -/
+theorem recv_resp (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) (h : Held F) (hb : LeafOk b)
+    (hc : RespOk c) : RespOk ((Conn.recv fam cfg ix c b now : HeldM F Step).run h).1.conn := by
+  intro hdl
+  rw [recv_dialer] at hdl
+  have hs := hc hdl
+  unfold Conn.recv
+  cases hd : Op.decode b with
+  | none => exact hs
+  | some o0 =>
+    try simp only [hd]
+    cases hm : Msg.ofOp o0 with
+    | none =>
+      try simp only [hm]
+      split
+      · exact hs
+      · simp only [HeldM.run_pure, finish_snaps', Step.limit_snaps]; exact hs
+    | some m =>
+      try simp only [hm]
+      cases m with
+      | hello f =>
+        simp only [HeldM.run_pure, finish_snaps']
+        split
+        · rename_i hd'; simp [hdl] at hd'
+        · exact hs
+      | rbsr r k cs =>
+        simp only [HeldM.run_pure, finish_snaps']
+        exact (onRbsr_resp cfg ix ({ c with heard := now } : Conn) r k cs now (hb o0 hd r k cs hm) hs).2
+      | hold r ids =>
+        simp only [HeldM.run_bind, HeldM.run_pure, finish_snaps']
+        rw [onHold_snaps]; exact hs
+      | want ids =>
+        simp only [HeldM.run_bind, HeldM.run_pure, finish_snaps']
+        rw [onWant_snaps]; exact hs
+
+end
+
+
+section
+variable (fam : Family F) (cfg : Config) (rms : Held F → Id → List Id)
+
+theorem setRooms_resp (c : Conn) (rs : List Id) (hc : RespOk c) : RespOk (c.setRooms rs) := by
+  intro hd
+  simp only [Conn.setRooms] at hd ⊢
+  rw [hc hd]; rfl
+
+theorem tick_dialer (hw : WalkLaws (F := F) fam cfg) (ix : Index) (c : Conn) (now : Nat) (h : Held F) :
+    ((c.tick fam cfg ix now : HeldM F Step).run h).1.conn.dialer = c.dialer := by
+  have e := hw.same c h
+  unfold Conn.tick
+  split
+  · rfl
+  · simp only [HeldM.run_bind, HeldM.run_pure, finish_dialer]
+    split
+    · rw [start_dialer]; simp only [Conn.expireAsks_dialer, e.dialer]
+    · simp only [Conn.expireAsks_dialer, e.dialer]
+
+theorem tick_resp (hw : WalkLaws (F := F) fam cfg) (ix : Index) (c : Conn) (now : Nat) (h : Held F)
+    (hc : RespOk c) : RespOk ((c.tick fam cfg ix now : HeldM F Step).run h).1.conn := by
+  intro hdl
+  rw [tick_dialer fam cfg hw] at hdl
+  have e := hw.same c h
+  unfold Conn.tick
+  split
+  · exact hc hdl
+  · simp only [HeldM.run_bind, HeldM.run_pure, finish_snaps']
+    split
+    · rename_i hh; simp [Conn.expireAsks_dialer, e.dialer, hdl] at hh
+    · simp only [Conn.expireAsks_snaps, e.snaps]; exact hc hdl
+
+theorem fileStep_dialer (db : DB F) : ∀ (l : List Id) st,
+    (l.foldl (fileStep' fam db) st).2.dialer = st.2.dialer ∧ (l.foldl (fileStep' fam db) st).2.snaps = st.2.snaps := by
+  intro l
+  induction l with
+  | nil => intro st; exact ⟨rfl, rfl⟩
+  | cons i t ih =>
+    intro st
+    rw [List.foldl_cons, (ih _).1, (ih _).2]
+    unfold fileStep'
+    split
+    · split
+      · split <;> exact ⟨rfl, rfl⟩
+      · exact ⟨rfl, rfl⟩
+    · exact ⟨rfl, rfl⟩
+
+theorem filed_dialer (c : Conn) (ids : List Id) (h : Held F) :
+    ((c.filed fam cfg ids : HeldM F Step).run h).1.conn.dialer = c.dialer := by
+  rw [filed_run, finish_dialer]; exact (fileStep_dialer fam h.db ids ([], c)).1
+
+theorem filed_resp (c : Conn) (ids : List Id) (h : Held F) (hc : RespOk c) :
+    RespOk ((c.filed fam cfg ids : HeldM F Step).run h).1.conn := by
+  intro hd
+  rw [filed_dialer] at hd
+  rw [filed_snaps]; exact hc hd
+
+end
+
+
+/-- Every connection a node holds that answers rounds keeps no snapshot. -/
+def RespNode (n : Node) : Prop := ∀ p ∈ n.conns, RespOk p.2
+
+section
+variable (fam : Family F) (cfg : Config) (rms : Held F → Id → List Id)
+
+theorem setConn_resp (n : Node) (cid : Id) (c : Conn) (hn : RespNode n) (hc : RespOk c) :
+    RespNode (setConn n cid c) := by
+  intro p hp
+  simp only [setConn, List.mem_map] at hp
+  obtain ⟨q, hq, e⟩ := hp
+  split at e
+  · rw [← e]; exact hc
+  · rw [← e]; exact hn q hq
+
+theorem store_resp (n : Node) (ops : List Op) (mine : Bool) (h : Held F) (hn : RespNode n) :
+    RespNode ((n.store (psync fam cfg rms) ops mine).run h).1.1 := by
+  rw [store_run]
+  simp only [Node.put, psync_fam]
+  have wn := write_node fam cfg rms n (intake fam mine ops) h
+  have hw : RespNode ((n.write (psync fam cfg rms) (intake fam mine ops)).run h).1.1 := by
+    intro p hp; rw [wn.1] at hp; exact hn p hp
+  by_cases hc : ((n.write (psync fam cfg rms) (intake fam mine ops)).run h).1.2.isEmpty = true
+  · simp only [hc, ↓reduceIte]; exact hw
+  · simp only [hc, ↓reduceIte, Bool.false_eq_true]
+    intro p hp
+    rw [(fanout_node fam cfg rms _ _ _).2.2.2.2] at hp
+    obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
+    exact filed_resp fam cfg _ _ _ (setRooms_resp _ _ (hw q hq))
+
+theorem apply_resp (n : Node) (cid : Id) (s : Step) (now : Nat) (h : Held F) (hn : RespNode n) (hs : RespOk s.conn) :
+    RespNode ((n.apply (psync fam cfg rms) cid s now).run h).1.1 := by
+  by_cases hd : s.drop = true
+  · simp only [Node.apply, hd, ↓reduceIte, HeldM.run_pure]
+    intro p hp
+    simp only [Node.drop, Node.close, List.mem_filter] at hp
+    exact hn p hp.1
+  · rw [apply_run fam cfg rms _ _ _ _ _ (by simpa using hd)]
+    exact store_resp fam cfg rms _ _ _ _ (setConn_resp _ _ _ hn hs)
+
+theorem tickStep_resp (hw : WalkLaws (F := F) fam cfg) (now : Nat) (st : (Node × Acts) × Held F) (p : Id × Conn)
+    (hn : RespNode st.1.1) : RespNode (tickStep fam cfg rms now st p).1.1 := by
+  unfold tickStep
+  split
+  · rename_i c hc
+    exact apply_resp fam cfg rms _ _ _ _ _ hn (tick_resp fam cfg hw _ _ now st.2
+      (setRooms_resp _ _ (hn _ (conn_mem hc))))
+  · exact hn
+
+theorem frameStep_resp (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (b : ByteArray) (hb : LeafOk b)
+    (hn : RespNode st.1.1) : RespNode (frameStep fam cfg rms cid now st b).1.1 := by
+  unfold frameStep
+  split
+  · rename_i c hc
+    exact apply_resp fam cfg rms _ _ _ _ _ hn (recv_resp fam cfg _ _ b now st.2 hb
+      (setRooms_resp _ _ (hn _ (conn_mem hc))))
+  · exact hn
+
+theorem finish_resp (n : Node) (out : Acts) (now : Nat) (h : Held F) (hm : n.managed = []) (hn : RespNode n) :
+    RespNode ((n.finish (psync fam cfg rms) out now).run h).1.1 := by
+  rw [finish_run fam cfg rms _ _ _ _ hm]; exact hn
+
+variable (hw : WalkLaws (F := F) fam cfg)
+include hw
+
+theorem onFrame_resp (n : Node) (a b : ByteArray) (now : Nat) (h : Held F) (ok : NodeOk fam n h)
+    (hb : ∀ cid ps, plainPeek b = some (cid, ps) → ∀ b' ∈ ps, LeafOk b') (hn : RespNode n) :
+    RespNode ((n.onFrame (psync fam cfg rms) a b now).run h).1.1 := by
+  cases h0 : b[0]? with
+  | none => simp only [Node.onFrame, h0, HeldM.run_pure]; exact hn
+  | some t =>
+    by_cases t1 : t = 1
+    · subst t1
+      cases hd : (Codec.decode (b.extract 1 b.size) : Option (Id × ByteArray)) with
+      | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, Node.onSealed, HeldM.run_pure]
+                exact hn
+      | some q =>
+        obtain ⟨cid, bundle⟩ := q
+        cases hc : n.conn? cid with
+        | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, Node.onSealed, hc, HeldM.run_pure]
+                  exact hn
+        | some c =>
+          cases hi : (Codec.decode bundle : Option (List ByteArray)) with
+          | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, Node.onSealed, hc, hi,
+                      HeldM.run_pure]
+                    exact hn
+          | some inner =>
+            have hpk := peek_of_parts h0 hd hi
+            rw [onFrame_fold fam cfg rms hw n a b now h cid bundle inner c h0 hd hi hc]
+            have ok0 := setAddr_ok fam n cid a h ok
+            obtain ⟨okE, -, -, -, -⟩ := frame_fold fam cfg rms hw cid now inner ((n.setAddr cid a, {}), h) ok0
+            apply finish_resp fam cfg rms _ _ _ _ okE.managed
+            have : ∀ (l : List ByteArray) (st : (Node × Acts) × Held F), (∀ b' ∈ l, LeafOk b') → RespNode st.1.1 →
+                RespNode (l.foldl (frameStep fam cfg rms cid now) st).1.1 := by
+              intro l
+              induction l with
+              | nil => intro st _ h; exact h
+              | cons b' t ih =>
+                intro st hl h
+                exact ih _ (fun x hx => hl x (List.mem_cons_of_mem _ hx))
+                  (frameStep_resp fam cfg rms cid now st b' (hl b' (List.mem_cons_self ..)) h)
+            exact this inner _ (hb cid inner hpk) hn
+    · by_cases t0 : t = 0
+      · subst t0
+        cases hd : Op.decode (b.extract 1 b.size) with
+        | none => simp only [Node.onFrame, h0, hd, HeldM.run_pure]; exact hn
+        | some o =>
+          by_cases he : (intakeConn fam [o]).isEmpty = true
+          · simp only [Node.onFrame, h0, hd, psync_fam, he, ↓reduceIte, HeldM.run_pure]; exact hn
+          · simp only [Node.onFrame, h0, hd, psync_fam, he, ↓reduceIte, Bool.false_eq_true, HeldM.run_bind,
+              psync_recv, HeldM.pure_bind, store_nil]
+            have wok := write_ok fam cfg rms n (intakeConn fam [o]) h ok
+            apply finish_resp fam cfg rms _ _ _ _ wok.managed
+            intro p hp; rw [(write_node fam cfg rms _ _ _).1] at hp; exact hn p hp
+      · unfold Node.onFrame
+        rw [h0]
+        split
+        · rename_i e; cases e; exact absurd rfl t0
+        · rename_i e; cases e; exact absurd rfl t1
+        · exact hn
+
+theorem onTick_resp (n : Node) (now : Nat) (h : Held F) (ok : NodeOk fam n h) (hn : RespNode n) :
+    RespNode ((n.onTick (psync fam cfg rms) now).run h).1.1 := by
+  rw [onTick_run fam cfg rms hw]
+  have okf := tick_fold_ok fam cfg rms hw now n.conns ((n, {}), h) ok
+  apply finish_resp fam cfg rms _ _ _ _ okf.managed
+  have : ∀ (l : List (Id × Conn)) (st : (Node × Acts) × Held F), RespNode st.1.1 →
+      RespNode (l.foldl (tickStep fam cfg rms now) st).1.1 := by
+    intro l
+    induction l with
+    | nil => intro st h; exact h
+    | cons p t ih => intro st h; exact ih _ (tickStep_resp fam cfg rms hw now st p h)
+  exact this _ _ hn
+
+omit hw in
+theorem onWrite_resp (n : Node) (ops : List Op) (now : Nat) (h : Held F) (ok : NodeOk fam n h) (hn : RespNode n) :
+    RespNode ((n.onWrite (psync fam cfg rms) ops now).run h).1.1 := by
+  unfold Node.onWrite
+  simp only [HeldM.run_bind]
+  exact finish_resp fam cfg rms _ _ _ _ (store_ok fam cfg rms n ops true h ok).managed
+    (store_resp fam cfg rms _ _ _ _ hn)
+
+omit hw in
+theorem connect_resp (n : Node) (cid : Id) (a : ByteArray) (dl : Bool) (now : Nat) (h : Held F)
+    (ok : NodeOk fam n h) (hn : RespNode n) :
+    RespNode ((n.connect (psync fam cfg rms) cid a dl now).run h).1.1 := by
+  unfold Node.connect Node.open
+  simp only [HeldM.run_bind, psync_rooms, readH_run, HeldM.run_pure]
+  apply finish_resp fam cfg rms _ _ _ _ (by simp [Node.setAddr, Node.close, ok.managed])
+  intro p hp
+  simp only [List.mem_cons] at hp
+  rcases hp with rfl | hp
+  · intro _; rfl
+  · simp only [Node.setAddr, Node.close, List.mem_filter] at hp
+    exact hn p hp.1
+
+end
+
+/-- **In the leaf regime a responder never keeps a snapshot**: at every
+step, every connection that answers rounds has none. -/
+theorem leaf_resp (Q : Plain F) (E : Q.Run) (hok : PlainOk Q)
+    (hx : ∀ k i, IxSmall ((E.world k).node i).ix Q.cfg.params.leaf) : ∀ k i, RespNode ((E.world k).node i) := by
+  have wl := walk_proof F Q.fam Q.cfg
+  have hlf := leaf_flight Q E hok hx
+  intro k
+  induction k with
+  | zero => intro i p hp; simp [Exec.world, worlds, Plain.start, World.init, Node.boot] at hp
+  | succ k ih =>
+    have okw := reach_ok Q wl noAdv _ (E.reachable k)
+    have hl : Legal Q.setup noAdv (E.world k) (E.act k) := E.legal k
+    rw [Exec.world_succ]
+    have henter : ∀ (j : Fin Q.n) (t : Nat) (f : Node → HeldM F (Node × Effects)) (w : World (Held F) Q.n),
+        w.node = (E.world k).node → RespNode ((f (w.node j)).run (w.box j)).1.1 →
+        ∀ i, RespNode ((w.enter Q.setup j t f).node i) := by
+      intro j t f w hwn hf i
+      simp only [World.enter, upd]
+      by_cases e : i = j
+      · subst e; simp only [ite_true]; exact hf
+      · simp only [e, ite_false]; rw [hwn]; exact ih i
+    cases ha : E.act k with
+    | deliver idx t =>
+      cases hk : (E.world k).flight[idx]? with
+      | none => simp only [World.step, hk]; exact ih
+      | some p =>
+        cases hj : Q.setup.at? p.dst with
+        | none => simp only [World.step, hk, hj]; exact ih
+        | some j =>
+          simp only [World.step, hk, hj]
+          exact henter j t (fun nd => nd.onFrame (psync Q.fam Q.cfg (Q.rooms j)) p.origin p.bytes t)
+            { E.world k with flight := (E.world k).flight.eraseIdx idx } rfl
+            (onFrame_resp Q.fam Q.cfg (Q.rooms j) wl _ _ _ _ _ (okw j)
+              (hlf k p (List.mem_of_getElem? hk)) (ih j))
+    | dup idx => simp only [World.step]; split <;> exact ih
+    | drop idx => exact ih
+    | tick j t =>
+      exact henter j t (fun nd => nd.onTick (psync Q.fam Q.cfg (Q.rooms j)) t) _ rfl
+        (onTick_resp Q.fam Q.cfg (Q.rooms j) wl _ _ _ (okw j) (ih j))
+    | write j ops t =>
+      exact henter j t (fun nd => nd.onWrite (psync Q.fam Q.cfg (Q.rooms j)) ops t) _ rfl
+        (onWrite_resp Q.fam Q.cfg (Q.rooms j) _ _ _ _ (okw j) (ih j))
+    | restart j t =>
+      intro i
+      simp only [World.step, upd]
+      by_cases e : i = j
+      · subst e; simp only [ite_true]; intro p hp; simp [Node.boot] at hp
+      · simp only [e, ite_false]; exact ih i
+    | connect j j' cid d t =>
+      exact henter j t (fun nd => nd.connect (psync Q.fam Q.cfg (Q.rooms j)) cid (Q.setup.addr j') d t) _ rfl
+        (connect_resp Q.fam Q.cfg (Q.rooms j) _ _ _ _ _ _ (okw j) (ih j))
+    | inject j o b t => rw [ha] at hl; exact absurd hl.1 id
+
 end Engine.World
