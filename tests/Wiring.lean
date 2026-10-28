@@ -43,6 +43,10 @@ output, and local CI fails when it goes stale.
   about, or the World runs, is the running node's (`Engine.Sync.Node`).
   Counted apart: never wired, and not a model. A law about the harness
   alone, with no node code, stays a model.
+- **Control:** a law that names a mutant (`control` in tests/wiring.txt:
+  a definition meant never to run) is a negative control, proving the
+  mutant breaks its law. Counted apart: never wired, never a todo, and
+  out of the lead's count.
 - **Audited statements** (a `…_stmt` the audit lists) are not laws; they
   are counted with the statements.
 - **PREMISES** lists the models only a law's premises name, and those it
@@ -63,7 +67,8 @@ It fails (exit 1) if a note is stale or wrong: a name it gives is
 missing; a `spec`, `todo` or mirror runs; no law waits on a `todo`; a
 `bridge` law is not audited or does not conclude an equation or iff with
 its mirror on one side and running code on the other; an `entry` is not
-an `@[export]` whose symbol a shipping platform's source names; a `copy`
+an `@[export]` whose symbol a shipping platform's source names; a
+`control` (a mutant) runs, or no law names it; a `copy`
 law names the code it copies, a copied definition runs, or the code
 does not run; a `subject` names what its law's conclusion does not; an
 `assume` or `holds` no law takes; a law marked `wired` is not. It fails
@@ -79,7 +84,7 @@ law, wired).
 
 `WIRING_NOTES=path` reads other notes. Output, one line each,
 tab-separated: `law NAME STATUS SUBJECT MISSING ASSUMES MODULE PREMISES`
-(STATUS: wired, world or model)
+(STATUS: wired, world, control or model)
 (PREMISES: as above), `stmt NAME STATUS SUBJECT
 MISSING MODULE`, `missing NAME RANK NOTE CALLERS WORLD` (RANK: the note's
 place in tests/wiring.txt), `assume NAME TEXT LAWS` (the `holds` too),
@@ -281,6 +286,9 @@ structure Notes where
   /-- the World's network, transport and harness: what a World law may
   miss and still run the node's code -/
   world : NameMap String := {}
+  /-- mutants: definitions meant never to run, which negative-control laws
+  break -/
+  control : NameMap String := {}
   /-- the `todo` names and the copied code, in the file's order -/
   order : Array Name := #[]
   subject : NameMap (List Name) := {}
@@ -316,6 +324,7 @@ def readNotes (path : System.FilePath) : IO Notes := do
     | (["assume", n], t) => ns := at_ { ns with assume := ns.assume.insert n.toName t } n.toName
     | (["holds", n], t) => ns := at_ { ns with holds := ns.holds.insert n.toName t } n.toName
     | (["world", n], t) => ns := at_ { ns with world := ns.world.insert n.toName t } n.toName
+    | (["control", n], t) => ns := at_ { ns with control := ns.control.insert n.toName t } n.toName
     | (["todo", n], t) =>
       ns := at_ { ns with todo := ns.todo.insert n.toName t, order := ns.order.push n.toName } n.toName
     | (["wired", n], _) => ns := at_ { ns with wired := n.toName :: ns.wired } n.toName
@@ -347,6 +356,9 @@ structure Law where
   definition it misses is the World's network, transport or harness
   (`world`), and the node code it runs is `Engine.Sync.Node`'s -/
   world : Bool := false
+  /-- a negative control: it names a mutant (`control`), meant never to
+  run, and proves the mutant breaks its law -/
+  control : Bool := false
 
 def sortNames (ns : List Name) : List Name :=
   ns.eraseDups.toArray.qsort (·.toString < ·.toString) |>.toList
@@ -377,11 +389,13 @@ def classify (env : Environment) (run : NameSet) (ns : Notes) (via : NameMap (Li
   let assumes := (subj.toList ++ props.toList ++ whole.toList ++ wprops.toList ++ ty.getUsedConstants.toList).filter
     (fun c => ns.assume.contains c || ns.holds.contains c) ++ subject.flatMap fun c => ((via.find? c).map (·.1)).getD []
   let wired := !subject.isEmpty && missing.isEmpty
+  -- a negative control: it names a mutant
+  let control := missing.any ns.control.contains
   -- a World: it misses only the World's network, transport and harness,
   -- and the code it is about, or the World runs, is the running node's
-  let world := !wired && !missing.isEmpty && copied.isEmpty && missing.all ns.world.contains &&
+  let world := !wired && !control && !missing.isEmpty && copied.isEmpty && missing.all ns.world.contains &&
     (subject ++ (running env missing).toList).any (nodeCode run)
-  return { name := law, subject, missing, assumes := sortNames assumes, premises, wired, world }
+  return { name := law, subject, missing, assumes := sortNames assumes, premises, wired, world, control }
 
 def commas (ns : List Name) : String := ", ".intercalate (ns.map toString)
 
@@ -434,6 +448,8 @@ unsafe def main : IO UInt32 := do
     if run.contains n then problems := problems.push s!"tests/wiring.txt: todo {n} runs; drop the note"
   for (n, _) in ns.world do
     if run.contains n then problems := problems.push s!"tests/wiring.txt: world {n} runs; drop the note"
+  for (n, _) in ns.control do
+    if run.contains n then problems := problems.push s!"tests/wiring.txt: control {n}, a mutant, runs"
   let src ← shipping
   for n in ns.entry do
     match getExportNameFor? env n with
@@ -514,7 +530,7 @@ unsafe def main : IO UInt32 := do
   let modName (n : Name) := ((modOf env n).getD .anonymous).toString
   for l in lawList do
     for c in l.missing ++ l.premises do waited := waited.insert c
-    IO.println s!"law\t{l.name}\t{if l.wired then "wired" else if l.world then "world" else "model"}\t{commas l.subject}\t{commas l.missing}\t{commas l.assumes}\t{modName l.name}\t{commas l.premises}"
+    IO.println s!"law\t{l.name}\t{if l.wired then "wired" else if l.control then "control" else if l.world then "world" else "model"}\t{commas l.subject}\t{commas l.missing}\t{commas l.assumes}\t{modName l.name}\t{commas l.premises}"
   let mut stated := 0
   for (n, v) in stmts do
     let l := classify env run ns via n v
@@ -524,6 +540,8 @@ unsafe def main : IO UInt32 := do
     | none => stated := stated + 1; IO.println s!"stmt\t{n}\tstated\t{commas l.subject}\t{commas l.missing}\t{modName n}"
   for (n, _) in ns.todo.toList ++ ns.world.toList do
     if !waited.contains n then problems := problems.push s!"tests/wiring.txt: no law waits on {n}; drop the note"
+  for (n, _) in ns.control do
+    if !waited.contains n then problems := problems.push s!"tests/wiring.txt: no law names control {n}; drop the note"
   -- a law's copy is filed under the code it copies; a definition's, under itself
   let copyNote : NameMap String := ns.copy.foldl
     (fun m n (d, t) => if laws.contains n then m.insert d t else m.insert n t) {}
@@ -550,6 +568,7 @@ unsafe def main : IO UInt32 := do
       problems := problems.push s!"control: {m}, a World law, is not classified World"
   let nw := (lawList.filter (·.wired)).length
   let nW := (lawList.filter (·.world)).length
-  IO.println s!"count\twired {nw}\tworld {nW}\tmodel {lawList.length - nw - nW}\tstated {stated}\tassumption {assumed}"
+  let nc := (lawList.filter (·.control)).length
+  IO.println s!"count\twired {nw}\tworld {nW}\tcontrol {nc}\tmodel {lawList.length - nw - nW - nc}\tstated {stated}\tassumption {assumed}"
   for p in problems do IO.eprintln s!"wiring: {p}"
   return if problems.isEmpty then 0 else 1

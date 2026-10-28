@@ -21,7 +21,11 @@ law about running code, and a 🟡 row must say in its own cell what is
 missing ("Wanted", "Not yet", "not proven", "Not covered", "todo"). The
 README's lead takes its fraction and number from the same count ("about
 three quarters of its theorems (N of M)"): the largest of `FRACTIONS` the
-share reaches, so the word never claims more than the number. It may
+share reaches, so the word never claims more than the number. M leaves
+out the negative controls (laws that prove a mutant breaks its law), and
+says so when there are any ("N of M, not counting K negative controls");
+the World laws are in M, and the lead counts them apart ("another K run
+the phone's node code"). It may
 say "nearly every" only while the share is 90% or more.
 
   ci/proof-links.py           rewrite the block and the section
@@ -58,7 +62,8 @@ AREAS = [("engine.core", "Engine"), ("ops.sync", "Sync"), ("engine.world", "The 
 # What a 🟡 row says to name what is missing.
 WANTED = re.compile(r"wanted|not yet|not proven|not covered|todo", re.I)
 # The lead's count, and the share "nearly every" needs.
-LEAD = re.compile(r"about\s+([a-z]+(?:\s+[a-z]+)?)\s+of\s+its\s+theorems\s+\((\d+)\s+of\s+(\d+)\)")
+LEAD = re.compile(r"about\s+([a-z]+(?:\s+[a-z]+)?)\s+of\s+its\s+theorems\s+\((\d+)\s+of\s+(\d+)"
+                  r"(,\s+not\s+counting\s+\d+\s+negative\s+controls)?\)")
 # The lead's World clause: the laws that run the node's code in a World,
 # counted apart from those about running code.
 WORLDLEAD = re.compile(r"another\s+(\d+)\s+run\s+the\s+phone's\s+node\s+code")
@@ -210,9 +215,10 @@ def fraction(w, t):
     return next((word for f, word in FRACTIONS if w >= f * t), "less than half")
 
 
-def lead(pre, w, t, k=None):
+def lead(pre, w, t, k=None, c=0):
     """The lead's problems against the count w of t (and k World laws), and
-    the lead written from it."""
+    the lead written from it. Negative controls (c) are out of t, and the
+    lead says so."""
     m = LEAD.search(pre)
     if not m:
         return ['no "about <fraction> of its theorems (N of M)" in the README\'s lead'], pre
@@ -232,7 +238,11 @@ def lead(pre, w, t, k=None):
         problems.append(f'the lead says "{said}"; {w} of {t} ({100 * w // t}%) gives "{word}"')
     if (int(m.group(2)), int(m.group(3))) != (w, t):
         problems.append(f"the lead says {m.group(2)} of {m.group(3)}; the count is {w} of {t}")
-    new = pre[:m.start(1)] + word + pre[m.end(1):m.start(2)] + str(w) + pre[m.end(2):m.start(3)] + str(t) + pre[m.end(3):]
+    note = f", not counting {c} negative controls" if c else ""
+    if (m.group(4) or "") != note and " ".join((m.group(4) or "").split()) != note:
+        problems.append(f"the lead's count should say{note or ' nothing of negative controls'}")
+    new = (pre[:m.start(1)] + word + pre[m.end(1):m.start(2)] + str(w) + pre[m.end(2):m.start(3)] + str(t)
+           + note + pre[m.end(4) if m.group(4) else m.end(3):])
     return problems, new
 
 
@@ -266,14 +276,15 @@ def controls(rows, resolve):
     if len(disagree(rows_, wired, lambda l: l)) != 2:
         problems.append("negative control: a ✅ row citing only a model law, or a 🟡 row "
                         "saying nothing missing, was not caught")
-    w, t = len(wired), sum(1 for f in rows if f[0] == "law")
+    c = sum(1 for f in rows if f[0] == "law" and f[2] == "control")
+    w, t = len(wired), sum(1 for f in rows if f[0] == "law") - c
     k = sum(1 for f in rows if f[0] == "law" and f[2] == "world")
     words = [word for _, word in FRACTIONS]
     right = fraction(w, t)
     above = words[max(words.index(right) - 1, 0)] if right in words else "half"
-    if not lead(f"about {above} of its theorems ({w} of {t}); another {k} run the phone's node code", w, t, k)[0]:
+    if not lead(f"about {above} of its theorems ({w} of {t}); another {k} run the phone's node code", w, t, k, c)[0]:
         problems.append(f'negative control: "{above}" for {w} of {t} was not caught')
-    if not lead(f"about {right} of its theorems ({w} of {t}); another {k + 1} run the phone's node code", w, t, k)[0]:
+    if not lead(f"about {right} of its theorems ({w} of {t}); another {k + 1} run the phone's node code", w, t, k, c)[0]:
         problems.append(f"negative control: another {k + 1} for {k} World laws was not caught")
     if not problems:
         print(f"proof-links: negative controls: {model} and {world} marked wired, a ✅ row citing only "
@@ -325,6 +336,8 @@ def section(rows, decls, cited):
     # per area
     def area(mod):
         return next((a for p, a in AREAS if mod == p or mod.startswith(p + ".")), "Other")
+    controls = [n for n, st, *_ in laws if st == "control"]
+    laws = [l for l in laws if l[1] != "control"]  # out of the count
     per = {}
     for name, status, _, _, mod, _ in laws:
         c = per.setdefault(area(mod), [0, 0, 0])
@@ -336,7 +349,9 @@ def section(rows, decls, cited):
             stated[n.rsplit(".", 1)[0]] = stated.get(n.rsplit(".", 1)[0], 0) + 1
     out = [f"**{count['wired']} of {len(laws)} laws are about running code;** another {count['world']} "
            f"run its node code in a World, and {count['model']} are not yet. Stated only: "
-           + (", ".join(f"{k} in `{m}`" for m, k in stated.items()) if stated else "none") + ".", "",
+           + (", ".join(f"{k} in `{m}`" for m, k in stated.items()) if stated else "none") + ". "
+           f"{len(controls)} laws are negative controls: each proves a mutant breaks its law "
+           "(they are not counted here, nor in the lead).", "",
            "| Area | Laws | About running code | In a World | Not yet |", "|---|---|---|---|---|"]
     for a in order:
         if a in per:
@@ -407,7 +422,9 @@ def main():
     total = sum(1 for f in rows if f[0] == "law")
     problems += disagree(tables, wired, resolve)
     # the lead's fraction and count, and "nearly every" only at the threshold
-    stale, pre_new = lead(pre, len(wired), total, sum(1 for f in rows if f[0] == "law" and f[2] == "world"))
+    ncontrol = sum(1 for f in rows if f[0] == "law" and f[2] == "control")
+    stale, pre_new = lead(pre, len(wired), total - ncontrol,
+                          sum(1 for f in rows if f[0] == "law" and f[2] == "world"), ncontrol)
     if check or not LEAD.search(pre):
         problems += stale
     pre = pre_new

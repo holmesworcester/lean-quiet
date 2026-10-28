@@ -29,6 +29,11 @@
 #                        is the running `Engine.Sync.Node`'s, is a World law
 #                        (not wired, not counted as a model). It must not
 #                        run, and a law must miss it. `= OTHER` as for todo.
+#   control NAME TEXT    NAME is a mutant, a negative control meant never to
+#                        run: a law that names it proves the mutant breaks
+#                        its law, and is counted apart (never wired, never
+#                        a todo, out of the lead's count). It must not run,
+#                        and a law must name it.
 #   copy NAME CODE TEXT  NAME restates running CODE instead of naming it:
 #                        a law (a model until it names CODE) or a
 #                        definition (a todo, until CODE calls it)
