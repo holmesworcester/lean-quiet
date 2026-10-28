@@ -173,18 +173,20 @@ def main (args : List String) : IO UInt32 := do
     steps 2
     let _ ← tapAct sc .joinCommunity
     check "Join with QR code" (← tapAct sc .qrCode)
-    let pv ← sc.preview.get
+    check "the camera turns on" ((← get).page == .scan && (← sc.on.get))
+    -- the camera sees A's Add members screen (upright: orientation 0)
+    sc.camera.set (#[1080, 2400, 1080, 0], aLuma)
+    steps 1
     let bx := Pages.scanBox (← get).dim 1080 (viewH (← get))
-    check s!"the camera shows over the page's square ({pv})"
-      ((← get).page == .scan && pv == #[bx.x.toUInt32, (topH (← get) + bx.y).toUInt32, bx.w.toUInt32, bx.h.toUInt32])
-    -- the camera sees A's Add members screen
-    sc.camera.set (#[1080, 2400, 1080], aLuma)
+    check s!"its frame shows in the page's square ({((← get).camView.map fun b => (b.w, b.h))})"
+      (((← get).camView.map fun b => b.w == bx.w && b.h == bx.w).getD false)
+    writePpm (dir ++ "/c-scan.ppm") 1080 (← screenOf sc 1080 2400 63)
     for _ in [0:200] do
       if (← get).page == .scan then steps 1; IO.sleep 5
     check s!"the scanned code opens Choose a name (page {repr (← get).page})"
       ((← get).page == .name && ((← get).invite.map (·.text)) == some link)
     steps 1
-    check "and the camera is off again" ((← sc.preview.get).isEmpty)
+    check "and the camera is off again" (!(← sc.on.get))
     modify fun s => { s with field := "Cy" }
     steps 1
     let _ ← tapAct sc .continue_

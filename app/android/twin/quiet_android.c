@@ -533,6 +533,31 @@ lean_obj_res lq_text_clear(void) {
   return lean_io_result_mk_ok(lean_box(0));
 }
 
+lean_obj_res lq_scan(uint8_t on) {
+  ba_scan(on != 0);
+  return lean_io_result_mk_ok(lean_box(0));
+}
+
+// The newest frame's Y plane, copied into a Lean ByteArray (Platform.luma).
+lean_obj_res lq_luma(void) {
+  size_t       n;
+  uint32_t     wh[4];
+  uint8_t*     p   = ba_take_luma(&n, wh);
+  lean_object* hdr = lean_mk_empty_array();
+  lean_object* px  = lean_alloc_sarray(1, p != NULL ? n : 0, p != NULL ? n : 0);
+  if (p != NULL) {
+    for (int i = 0; i < 4; i += 1) {
+      hdr = lean_array_push(hdr, lean_box_uint32(wh[i]));
+    }
+    memcpy(lean_sarray_cptr(px), p, n);
+    free(p);
+  }
+  lean_object* r = lean_alloc_ctor(0, 2, 0);
+  lean_ctor_set(r, 0, hdr);
+  lean_ctor_set(r, 1, px);
+  return lean_io_result_mk_ok(r);
+}
+
 lean_obj_res lq_copy(b_lean_obj_arg text) {
   ba_copy(lean_string_cstr(text));
   return lean_io_result_mk_ok(lean_box(0));

@@ -300,8 +300,8 @@ lean_obj_res lq_copy(b_lean_obj_arg text) {
 }
 
 // The camera: none here (QTests/Sim.lean feeds frames to its own Io).
-lean_obj_res lq_scan(uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
-  (void)x; (void)y; (void)w; (void)h;
+lean_obj_res lq_scan(uint8_t on) {
+  (void)on;
   return lean_io_result_mk_ok(lean_box(0));
 }
 

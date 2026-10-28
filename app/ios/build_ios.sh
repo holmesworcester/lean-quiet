@@ -43,10 +43,10 @@ sqlite="-DSQLITE_THREADSAFE=2 -DSQLITE_DQS=0 -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLI
       *)      echo "$c|-O3 -w -I$st/lean/include" ;;
     esac
   done
-  for c in "$st"/glue/glue_android.c "$st"/glue/sha256.c; do
+  for c in "$st"/glue/glue_android.c "$st"/glue/crypto.c; do
     echo "$c|-O3 -w -std=c11 -I$st/lean/include -I$st/glue"
   done
-  for c in "$st"/glue/sqlite3.c "$st"/glue/monocypher.c "$st"/glue/monocypher-ed25519.c; do
+  for c in "$st"/glue/sqlite3.c; do
     echo "$c|-O2 -w $sqlite -I$st/glue"
   done
 } > "$b/sources-$sdk.txt"
@@ -64,6 +64,8 @@ objs=$(sed 's/|.*//; s|.*/||; s|\.c$|.o|' "$b/sources-$sdk.txt" | sed "s|^|$o/|"
 rm -f "$rt/$sdk/libleanapp.a"
 # shellcheck disable=SC2086
 xcrun -sdk $sdk ar rcs "$rt/$sdk/libleanapp.a" $objs
+# The engine's Rust crypto, built for this SDK by ship.sh.
+cp -p "$st/glue/rust/$sdk/liblq_crypto.a" "$rt/$sdk/liblq_crypto.a"
 
 export LEANQUIET_ST="$st" LEANQUIET_LIBS="$rt/$sdk"
 # The project goes beside the spec: xcodegen writes paths relative to the

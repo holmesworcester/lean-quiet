@@ -1,7 +1,8 @@
 # The iOS app and its UI test, for xcodegen (build_ios.sh generates the
 # project here; nothing generated is committed). The app is quiet_ios.m
 # and ctl_ios.c linked with the app's Lean, lean-engine's and Std's C, the
-# SQLite/Ed25519 glue (libleanapp.a) and Lean's runtime, Init and libuv
+# SQLite glue (libleanapp.a), the engine's Rust crypto (liblq_crypto.a),
+# and Lean's runtime, Init and libuv
 # for iOS, from $LEANQUIET_LIBS; the assets ship as assets/ in the bundle.
 # The UI test (UITests/) drives the app in the Simulator: real touches and
 # the software keyboard, checked through the control channel. NetProbe
@@ -43,7 +44,7 @@ targets:
         CLANG_ENABLE_OBJC_ARC: YES
         HEADER_SEARCH_PATHS: ${LEANQUIET_ST}/lean/include
         LIBRARY_SEARCH_PATHS: ${LEANQUIET_LIBS}
-        OTHER_LDFLAGS: -lleanapp -lInit -lleanrt -luv -lc++
+        OTHER_LDFLAGS: -lleanapp -llq_crypto -lInit -lleanrt -luv -lc++
         GCC_OPTIMIZATION_LEVEL: 3
         TARGETED_DEVICE_FAMILY: 1
   NetProbe:

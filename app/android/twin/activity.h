@@ -75,4 +75,10 @@ bool ba_ahead(void);
 // Puts UTF-8 text on the clipboard (the Java half, on the UI thread).
 void ba_copy(const char* utf8);
 
+// The camera (Join with QR code): on or off; and the newest frame's Y plane
+// since the last take ([w, h, stride, sensor orientation]), malloc'd, the
+// caller's to free (NULL when there is none).
+void     ba_scan(bool on);
+uint8_t* ba_take_luma(size_t* n, uint32_t wh[4]);
+
 #endif

@@ -3,9 +3,11 @@ open Lake DSL System
 
 package quiet where
   moreLinkArgs := #["-Wl,--allow-shlib-undefined", "/usr/lib/x86_64-linux-gnu/libsqlite3.so.0",
-    "/usr/lib/x86_64-linux-gnu/libsodium.so.23"]
+    "-lpthread", "-ldl", "-lm", "-lrt"]
 
-require engine from ".." / "lean-engine-lists"
+-- The demo's engine: sync, the Rust crypto, the Connection family and
+-- purge (a worktree pinned to the demo's commit).
+require engine from ".." / "lean-engine-demo"
 require qr from ".." / "lean-qr"
 
 lean_lib Quiet
@@ -40,3 +42,7 @@ lean_exe quiet_host where
 -- Two apps joined by link, ops carried between them as sync would.
 lean_exe two_nodes where
   root := `QTests.TwoNodes
+
+-- A real invite and its QR code (the camera e2e's poster).
+lean_exe invite_link where
+  root := `QTests.InviteLink

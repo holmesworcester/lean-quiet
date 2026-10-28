@@ -31,6 +31,7 @@ import Quiet.Sheet
 import Quiet.Pages
 import Quiet.Composer
 import Quiet.Link
+import Quiet.Camera
 import Quiet.Kinds.Message
 import Quiet.Kinds.Request
 import Std.Data.HashMap
@@ -52,7 +53,7 @@ structure Io where
   ctlPoll : IO (Array String)
   ctlReply : String → IO Unit
   nowUs : IO UInt64
-  scan : UInt32 → UInt32 → UInt32 → UInt32 → IO Unit
+  scan : Bool → IO Unit
   luma : IO (Array UInt32 × ByteArray)
 
 /-- How far beyond each end of the viewport the list frame is drawn. -/
@@ -171,13 +172,17 @@ names, and whether it is me. -/
   /-- Requests to join the current community no admission answers yet:
   the request's id, its fact, and its approvals' ids. -/
   asking : Array Kinds.Request.Data := #[]
-  /-- The camera preview's screen rectangle as last asked of the twin. -/
-  preview : Array UInt32 := #[]
+  /-- Whether the camera is on (as last asked of the twin), and its newest
+  frame as drawn on Join with QR code. -/
+  camOn : Bool := false
+  camView : Option Bitmap := none
   /-- A camera frame being decoded, off the app's thread. -/
   decoding : Option (Task (Option String)) := none
+  /-- Camera frames decoded so far (ctl `scans`). -/
+  scans : Nat := 0
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, fun _ _ _ _ => pure (), pure (#[], .empty)⟩⟩
+  pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, fun _ => pure (), pure (#[], .empty)⟩⟩
 
 abbrev M := StateT St IO
 
@@ -533,20 +538,27 @@ def found (n myName : String) : M Unit := do
       refreshComms
       switchToId r.id
 
-/-- Join with QR code: the camera's preview over the page's square (a
-pinned page's row k is at screen row top + k: Geometry.pinned_row), its
-newest frame decoded off the app's thread, one at a time, and a code that
-is an invite taken as a pasted link is. -/
+/-- Join with QR code: the camera on while the page shows; each new
+frame drawn in the page's square (Camera.preview: it reads only inside the
+frame, src_in) and, one at a time, decoded off the app's thread; a code
+that is an invite is taken as a pasted link is. -/
 def scanStep : M Unit := do
   let s ← get
-  let want : Array UInt32 := if s.page != .scan then #[] else
-    let b := Pages.scanBox s.dim s.W (viewH s)
-    #[b.x.toUInt32, (topH s + b.y).toUInt32, b.w.toUInt32, b.h.toUInt32]
-  if want != s.preview then
-    if want.isEmpty then s.io.scan 0 0 0 0 else s.io.scan want[0]! want[1]! want[2]! want[3]!
-    modify fun s => { s with preview := want, decoding := none }
-  if s.page != .scan then return
-  match s.decoding with
+  let on := s.page == .scan
+  if on != s.camOn then
+    s.io.scan on
+    modify fun s => { s with camOn := on, camView := none, decoding := none }
+  if !on then return
+  let (hdr, px) ← s.io.luma
+  if hdr.size == 4 && px.size > 0 then
+    let fr : Camera.Frame := ⟨hdr[0]!.toNat, hdr[1]!.toNat, hdr[2]!.toNat, hdr[3]!.toNat, px⟩
+    let side := (Pages.scanBox s.dim s.W (viewH s)).w
+    modify fun s => { s with camView := some (Camera.preview fr side), pageCache := "" }
+    if s.decoding.isNone then
+      let t := Task.spawn fun _ =>
+        (Qr.decodeLuma hdr[0]! hdr[1]! hdr[2]! px).bind fun (b, _) => String.fromUTF8? b
+      modify fun s => { s with decoding := some t, scans := s.scans + 1 }
+  match (← get).decoding with
   | some t =>
     if ← IO.hasFinished t then
       modify fun s => { s with decoding := none }
@@ -554,12 +566,7 @@ def scanStep : M Unit := do
         match Community.Invite.parse text with
         | some i => takeInvite i
         | none => say "That code isn't a Quiet invite."
-  | none =>
-    let (hdr, px) ← s.io.luma
-    if hdr.size == 3 && px.size > 0 then
-      let t := Task.spawn fun _ =>
-        (Qr.decodeLuma hdr[0]! hdr[1]! hdr[2]! px).bind fun (b, _) => String.fromUTF8? b
-      modify fun s => { s with decoding := some t }
+  | none => pure ()
 
 /-- The people of the current community, for home's Direct messages:
 its members (the Profile kind's), me first. -/
@@ -599,7 +606,7 @@ def pageOf (s : St) : Pages.Page :=
   | .paste => Pages.paste f dm W h s.field true s.refusal
   | .name => Pages.chooseName f dm W h s.field
   | .createName => Pages.chooseName f dm W h s.field
-  | .scan => Pages.scan f dm W h none "Starting the camera…"
+  | .scan => Pages.scan f dm W h s.camView "Starting the camera…"
   | .agree => Pages.agree f dm W h "this community"
   | .waiting => Pages.waiting f dm W h (Kinds.Request.hexShort s.me.c)
       -- the request is stored and waits for the community's ops; until the
@@ -927,6 +934,8 @@ def command (line : String) : M Bool := do
   | "state" =>
     s.io.ctlReply s!"b {s.b} total {s.total} loaded {s.ids.size} people {s.people} mounted {s.rows.size} ime {s.imeH} text {repr s.text} outbox {s.out.size} busy {← s.wr.busy.get} viewH {viewH s}"
   | "stats" => s.io.ctlReply (stats s)
+  | "invite" => s.io.ctlReply ((s.invite.map (·.text)).getD "")
+  | "scans" => s.io.ctlReply s!"{s.scans} frames decoded, camera {if s.camOn then "on" else "off"}, preview {s.camView.isSome}"
   | "hints" =>
     -- the dial hints an invite issued now would carry (writes nothing)
     let r ← (try (do let as ← Std.Net.interfaceAddresses; pure (Except.ok as)) catch e => pure (Except.error (toString e)))

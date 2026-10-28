@@ -36,6 +36,9 @@ rt=${LEANRT:-/mnt/storage/holmes-wt/lean-chat/out/leanrt}
 [ -f "$rt/include/lean/lean.h" ] || { echo "no Lean runtime at $rt (set LEANRT)" >&2; exit 2; }
 # every required package's directory (lean-engine, lean-qr, ...)
 pkgs=$(cd "$root" && python3 -c 'import json, os; m=json.load(open("lake-manifest.json")); print(" ".join(os.path.realpath(p["dir"]) for p in m["packages"]))')
+# lean-engine's directory: its crypto (native/crypto.c, and the Rust
+# library in native/crypto, built per ABI into this app's cache).
+engine=$(cd "$root" && python3 -c 'import json, os; m=json.load(open("lake-manifest.json")); print([os.path.realpath(p["dir"]) for p in m["packages"] if p["name"]=="engine"][0])')
 toolchain=$("$ELAN_HOME/bin/lean" --print-prefix)
 work=$(mktemp -d "$TMPDIR/lean-apk.XXXXXX")
 trap 'rm -rf "$work"' EXIT
@@ -90,8 +93,8 @@ echo "modules: $(echo "$closure" | wc -l)"
 # 2. Native code, per ABI.
 for abi in "${abis[@]}"; do
   case $abi in
-    arm64-v8a) tgt=aarch64-linux-android30 ;;
-    x86_64)    tgt=x86_64-linux-android30 ;;
+    arm64-v8a) tgt=aarch64-linux-android30; rtgt=aarch64-linux-android ;;
+    x86_64)    tgt=x86_64-linux-android30; rtgt=x86_64-linux-android ;;
     *) echo "unknown abi $abi" >&2; exit 2 ;;
   esac
   [ -f "$rt/$abi/libInit.a" ] || { echo "no runtime for $abi in $rt" >&2; exit 2; }
@@ -109,7 +112,7 @@ for abi in "${abis[@]}"; do
   done
   # Vendored C, compiled once per ABI (SQLite takes a while).
   tp=$root/third_party
-  for src in "$tp/sqlite/sqlite3.c" "$tp/monocypher/monocypher.c" "$tp/monocypher/monocypher-ed25519.c"; do
+  for src in "$tp/sqlite/sqlite3.c"; do
     obj=$cache/$abi/$(basename "${src%.c}").o
     if [ ! -f "$obj" ] || [ "$src" -nt "$obj" ]; then
       "$cc" --target=$tgt -O2 -fPIC -ffunction-sections -fdata-sections -w \
@@ -122,13 +125,14 @@ for abi in "${abis[@]}"; do
   for c in activity scroll layer quiet_android ctl; do
     "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$here" -I"$rt/include" -c "$here/$c.c" -o "$o/twin_$c.o"
   done
-  for c in glue_android sha256; do
-    "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$rt/include" -I"$tp/sqlite" -I"$tp/monocypher" \
-      -c "$root/android/native/$c.c" -o "$o/glue_$c.o"
-  done
+  "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$rt/include" -I"$tp/sqlite" \
+    -c "$root/android/native/glue_android.c" -o "$o/glue_glue_android.o"
+  "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$rt/include" -c "$engine/native/crypto.c" -o "$o/glue_crypto.o"
+  (cd "$engine/native/crypto" && CARGO_TARGET_DIR="$cache/rust" cargo build --release --quiet --target "$rtgt")
+  lqcrypto=$cache/rust/$rtgt/release/liblq_crypto.a
   "$cc" --target=$tgt -O3 -fPIC -c "$root/android/leanrt/notag.c" -o "$o/twin_notag.o"
   "$cc++" --target=$tgt -fPIC -shared -Wl,-z,max-page-size=16384 -Wl,--no-undefined -Wl,--gc-sections \
-    "$o"/*.o -L"$rt/$abi" -Wl,--start-group -lInit -lleanrt -luv -Wl,--end-group \
+    "$o"/*.o "$lqcrypto" -L"$rt/$abi" -Wl,--start-group -lInit -lleanrt -luv -Wl,--end-group \
     -static-libstdc++ -landroid -llog -lm -ldl \
     -o "$work/apk/lib/$abi/libleanapp.so"
 done
