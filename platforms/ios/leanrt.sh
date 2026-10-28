@@ -1,6 +1,6 @@
 #!/bin/sh
 # Lean's runtime and Init for iOS: libleanrt.a, libInit.a and libuv.a, as
-# android/leanrt/build.sh builds them for Android (no mimalloc, no GMP,
+# platforms/android/leanrt/build.sh builds them for Android (no mimalloc, no GMP,
 # OpenSSL in its stub form, libuv from its Darwin source list), with
 # Xcode's clang for an SDK. Runs on the Mac, from the tree ship.sh stages.
 # (lean-chat's ios/leanrt.sh at b38a42d, unchanged.)

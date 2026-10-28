@@ -4,7 +4,7 @@
 # commands, the twin's trace, and screenshots.
 #
 # - the control socket answers (adb forward to @leanquiet);
-# - a composer tap opens the keyboard (the test IME, android/test/ime: a
+# - a composer tap opens the keyboard (the test IME, platforms/android/test/ime: a
 #   docked panel, since emulators keep Gboard in its accessory mode), and
 #   the composer rides its animation frame by frame (debug.lean.trace);
 # - the keyboard's text, composition and selection mirror in code points;

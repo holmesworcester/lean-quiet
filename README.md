@@ -83,9 +83,9 @@ nothing else is assumed:
     filesystems, and flash wear-levelling, keep old blocks.
   - The sound fix is for session secrets never to reach the disk, as
     ephemeral ops (wanted, below).
-- **The seam:** the TCP runner's sockets, the C glue, and the Android and
-  iOS shells. These are tested end to end, over localhost TCP and on
-  devices.
+- [**The seam**](#the-seam): the native code that connects Lean to the
+  OS, and the libraries it calls. It is tested end to end, over
+  localhost TCP and on devices.
 - **That each statement says what we mean.** Read it: every name below
   links to its statement.
 
@@ -138,7 +138,7 @@ nothing else is assumed:
 | 🟡 | 🥊🥊🥊 | **A removal ends a live session's sync.** Proven: a connection carries a room only if the trust rule takes its peer, and for a live member that rule is `allowPeer`. So a peer `allowPeer` refuses gets nothing of the room, and nothing of it is taken from them. Every connection step reads its rooms afresh. That is in the code and tested over TCP, with a negative control, but not a theorem. Wanted: deriving the refusal from the removal itself in the running node (`sum_project`). The session stays open, with no rooms. | [`rooms_trusted`], [`rooms_cut`], [`trusts_live`], [`rooms_model`], [`recv_send`], [`recv_take`], [`removal_cuts_off`] |
 | ⬜ | 🥊🥊🥊 | **No packet goes to a removed member.** From the first run of the engine loop after a node decides a removal, it sends the removed user's devices nothing. No sealed frame (their sessions close), no handshake reply (a replayed request gets nothing), and no dial. A last notice of the removal itself might be allowed. Today their sessions stay open with no rooms, and a replayed request is answered with its old reply bytes. Both change first. | |
 | 🟡 | 🥊🥊🥊 | **No session before approval,** however hellos are lost or replayed, and sessions form only with trusted peers. Proven over a model. Wanted over the running handshake (`answer_trusted`, `untrusted_silent`). | [`no_connection_before_approval`], [`sessions_trusted`] *(model)* |
-| ✅ | 🥊🥊🥊 | **Peers cannot push ops in** outside the rooms they are let into, nor plant a device's local state. | [`recv_take`], [`intake_local`], [`stored_local`], [`local_fact_mine`], [`intakeConn_conn`] |
+| 🟡 | 🥊🥊🥊 | **Peers cannot push ops in** outside the rooms they are let into, nor plant a device's local state. Proven for sessions. **Not yet for the handshake:** a bare request's hello payload has its shared ops stored before the trust check. So a removed member, or an outsider who knows the community, can push ops in with no session. A fix is in progress. | [`recv_take`], [`intake_local`], [`stored_local`], [`local_fact_mine`], [`intakeConn_conn`] |
 | ✅ | 🥊🥊 | **Both ends hold one session.** Two ends that complete a handshake hold the same hash, each names the other, and each one's send key is the other's receive key. A frame opens to what was sealed, for the connection it names. | [`established_agrees`], [`open_seal`], [`cid_seal`] |
 | | | **Hostile input** | |
 | ✅ | 🥊🥊🥊 | **One parse per op.** A decoded op re-encodes to exactly the bytes received, so there is no parser differential and no malleability: the signer, the hasher and every peer read the same op. Its id is the SHA-256 of those bytes, so a peer cannot name an op. A Valid op is exactly its body's encoding under its own type, so no re-typed copy of one is Valid. | [`Codec.encode_decode`], [`Op.id_decode`], [`distinct_of_collisionFree`], [`op_of_valid`] |
@@ -200,6 +200,296 @@ nothing else is assumed:
 
 The theorems not listed here are lemmas. The axiom audit,
 `tests/Axioms.lean`, lists them all.
+
+## The seam
+
+**Lean does the work; native code connects it to the OS.** Lean runs
+the engine, the protocol and the UI, and paints every pixel the app
+shows. Native code gives Lean what only the OS has: the window and the
+compositor, touches, the keyboard, scrolling's physics, the camera and
+the clipboard. It also calls the libraries that store the bytes and do
+the crypto.
+
+**Some native code does more than connect.** It decides what a touch
+is, places the list, bounds the scroll offset, applies its own rules to
+crypto inputs, assumes the iOS camera's orientation, and starts a
+control channel at every launch. Two of its pixel steps are work Lean
+could do. All of this is listed under
+[More than interfacing](#more-than-interfacing), and it moves first in
+the checklist.
+
+| runs on | Lean in the app | our native code | under it |
+|---|---|---|---|
+| **Android** | 18,376 lines: the engine 10,434, the app 5,657, `engine/renderer/qr/`'s Qr 2,285 | 2,920 lines of C, Java and Rust | SQLite 3.50.4, the Rust crypto crates, and Lean's runtime and libuv 1.51.0 built from source |
+| **iOS** | the same | 1,580 lines of C, Objective-C and Rust | the same |
+| **the desktop and tests** | the same, and 4,861 lines of tests | 671 lines of C and Rust | the system's SQLite, the same crates, the toolchain's own runtime |
+
+- Counts are non-blank lines, comments included, and the Lean counts
+  include the proofs. With each native file counted once, there are
+  4,527 lines in all. `engine/wire/mdns/` (949) and `ops/connection/bootstrap/` (1,385)
+  are not in the app.
+- The tables below count each file once, under its main job, and name
+  the functions in it that do other jobs, with their own counts.
+- The builds add 955 lines of shell, and the assets 294 lines of Python
+  and shell. They run at build time, not in the app.
+- SQLite's amalgamation alone is 246,245 lines of C. Cargo.lock lists
+  52 packages besides ours, build-time ones included.
+- Paths are the new layout's ([docs/LAYOUT.md](docs/LAYOUT.md)):
+  `app/android`, `app/ios` and `app/host` are now `platforms/android`,
+  `platforms/ios` and `platforms/headless`.
+
+**What Lean does:** the engine and judging, the store's logic, sync,
+the TCP runner's framing, the handshake and sessions, the trust rule,
+every screen's layout and paint, QR decoding from the camera's raw
+luma, and what each control command means. **None of the native code
+is proven:** the proofs take it, and the libraries under it, as given.
+The rest of this section is the native side.
+
+### Platform-only
+
+What Lean cannot reach without the OS.
+
+| | lines | what it does | what the proofs assume of it |
+|---|---|---|---|
+| **The Android activity** ([`activity.c`](platforms/android/twin/activity.c), [`activity.h`](platforms/android/twin/activity.h)) | 662 | The NativeActivity's callbacks: the surface, touches, insets and the Java half's events, under one lock. It runs Lean's main on a thread of its own (256 MB of stack), sends stdout to logcat, and copies the APK's assets to the data directory. | Touches and insets arrive as the OS gave them, in order. |
+| **The Java half** ([`LeanActivity.java`](platforms/android/twin/java/com/holmes/leanquiet/LeanActivity.java)) | 312 | The insets at every frame of the keyboard's animation. A hidden EditText holds the composer's text, so every input method works. Send, the clipboard, and the back camera's luma (Camera2). | The text, selection and composition Lean reads are the EditText's. |
+| **The compositor** ([`layer.c`](platforms/android/twin/layer.c), [`layer.h`](platforms/android/twin/layer.h)) | 566 | A vsync thread (AChoreographer) shows Lean's three frames as three ASurfaceControl layers, in one transaction per vsync: the list slid for the offset and lifted by the keyboard, the header, and the composer riding the keyboard. Each layer has three buffers, each reused only once the compositor releases it. | The list lands where `Seam.place` says (see More than interfacing). |
+| **Scrolling** ([`scroll.c`](platforms/android/twin/scroll.c), [`scroll.h`](platforms/android/twin/scroll.h)) | 308 | Android's own VelocityTracker and OverScroller through JNI, with the device's ViewConfiguration, so a fling feels like any Android list. | Nothing: the offset is an input to every theorem. |
+| **UIKit** ([`quiet_ios.m`](platforms/ios/quiet_ios.m)) | 978 | All of the above on iOS: an upside-down UIScrollView, whose offset is the bottom-anchored one; IOSurface layer contents changed in one Core Animation transaction; a clear UITextField; UIKit's tap and long-press recognizers; the keyboard layout guide; AVFoundation's camera; the pasteboard; the display link. It also implements the externs, as quiet_android.c does on Android. | A layer in the flipped scroll view lands at `shown`, and a tap reports `tapped`. [`Placement.lean`](platforms/ios/Placement.lean) proves the rest from Geometry. |
+| **The control channel** ([`ctl.c`](platforms/android/twin/ctl.c), [`ctl_ios.c`](platforms/ios/ctl_ios.c)) | 416 | The line protocol tests drive the app through: the abstract unix socket `@leanquiet` on Android, TCP on 127.0.0.1:7417 on iOS. Lean's `App.command` gives each line its meaning. | Nothing. It starts at every launch (see More than interfacing). |
+| **Heap tags off** ([`notag.c`](platforms/android/leanrt/notag.c)) | 10 | Lean's runtime drops a pointer's top byte, which arm64 Android tags, so tagging is turned off before anything allocates. | Nothing. |
+| **The headless twin** ([`host.c`](platforms/headless/host.c)) | 315 | Platform.lean's externs with no OS, driven by a script, with PPM dumps of the screen. | Nothing: it runs in tests only. |
+
+### Pixels
+
+**Painting is Lean's.** Glyphs are blitted from a prebuilt bitmap of GNU
+Unifont ([`Font.lean`](engine/renderer/Font.lean),
+[`Paint.lean`](engine/renderer/Paint.lean)). Pictures are decoded (QOI) and
+box-filtered in Lean, and rows are painted on Lean's task threads. No
+font is rasterized at run time: [`font.py`](tools/font.py) scales
+Unifont up (Scale3x) and [`emoji.py`](tools/emoji.py) resamples
+Noto Color Emoji into QOI pictures, at build time. emoji.py also
+decides which code points draw as emoji (Unicode's presentation rules),
+as a flag Lean reads.
+
+Native code copies the finished rows into the OS's buffers:
+
+| | lines | what it does | what the proofs assume of it |
+|---|---|---|---|
+| **Into the OS's buffers** (`bl_present` in [`layer.c`](platforms/android/twin/layer.c), `lq_fill_surface` in quiet_ios.m) | 77, 34 | memcpy into an AHardwareBuffer or an IOSurface, waiting a bounded time for one the compositor is not reading. | Nothing. |
+| **The window's background** (`lq_paint` in [`quiet_android.c`](platforms/android/twin/quiet_android.c)) | 19 | Fills a new window with the list's background colour, which shows where a slide uncovers rows. | Nothing. |
+
+Two more steps on the way, row reuse and iOS's byte order, are work
+Lean could do. They are under More than interfacing.
+
+### Libraries
+
+| | what it gives | what the proofs assume of it |
+|---|---|---|
+| **The Rust crypto** ([`lib.rs`](engine/native/crypto/src/lib.rs), 145 lines, over ed25519-dalek 3.0.0, curve25519-dalek 5.0.0, chacha20poly1305 0.11.0, sha2 0.10.9 and getrandom 0.3.4) | SHA-256; Ed25519, verified strictly; X25519; the Ed25519 to X25519 conversion; ChaCha20-Poly1305 with Noise's nonce; XChaCha20-Poly1305; the OS's random bytes. One build on every platform. | [`Unforgeable`], [`CollisionFree`], [`NoSecondPreimage`], [`Suite.Good`] and [`Keys.Good`] (see Assumed). Tested byte for byte against libsodium ([`crypto_compat.c`](tests/engine/crypto_compat.c)) and against the Noise test vectors. |
+| **SQLite** | The store. Phones ship the vendored 3.50.4 ([`third_party/sqlite`](third_party/sqlite)). The desktop links the system's `libsqlite3`, 3.46.1 on the machine local CI runs on. | It behaves like the engine's model ([`Model.lean`](engine/core/Model.lean)). This is tested row for row, with kill -9 crashes and the purge's raw read, on the desktop's SQLite only. |
+| **Lean's runtime and libuv** | Reference counting; the ByteArray, String and Array primitives, which are `@[extern]` in Lean's core and implemented in C; tasks and threads; files; clocks; and Std.Async, which gives the TCP runner its sockets ([`Tcp.lean`](engine/wire/Tcp.lean)), mDNS its UDP, and an invite its dial hints (the interface addresses). Phones build it from Lean's source ([`build.sh`](platforms/android/leanrt/build.sh), [`leanrt.sh`](platforms/ios/leanrt.sh)), with no mimalloc and no GMP, OpenSSL stubbed, and libuv compiled from its source lists. | **Lean** in Trusted. The proofs reason about the core's Lean definitions, and the C must match them. The phones' build is not the one the tests run on. |
+
+### FFI glue
+
+| | lines | what it does | what the proofs assume of it |
+|---|---|---|---|
+| **Platform.lean on Android** ([`quiet_android.c`](platforms/android/twin/quiet_android.c)) | 528 | The 14 externs. Each frame's three row arrays go into the layers. Touches and the Java half's events come back as four words each, the layout `App.Event.decode` reads. The text, the camera's luma (into a ByteArray) and the clipboard. A watchdog logs a backtrace of Lean's thread if it stalls 3 s. | The words mean what `Event.decode` reads. |
+| **SQLite** ([`glue.c`](engine/native/glue.c), [`glue_android.c`](platforms/android/native/glue_android.c)) | 72, 76 | Open, exec, and one statement with blob parameters, every column back as bytes. glue_android.c's SQLite code is a copy of glue.c's, over the vendored SQLite; iOS links it too. | Rows come back as stored. |
+| **The crypto** ([`crypto.c`](engine/native/crypto.c)) | 139 | Checks sizes, calls the Rust, and wipes secret bytes from its stack. | Its size rules do more than interface (below). |
+| **Text** (`ba_utf8` in activity.c, `cp` in LeanActivity.java, `lq_cp` in quiet_ios.m) | 37, 4, 11 | UTF-16 to UTF-8, and the selection and composition in code points, three ways. | The positions index the text Lean gets. |
+
+Lean's side of the seam is every `@[extern]`, each an `opaque` Lean
+cannot see into:
+
+| Lean | C | what |
+|---|---|---|
+| `Engine.sha256` ([`Core.lean`](engine/core/Core.lean)) | `le_sha256` in crypto.c | SHA-256 |
+| `Community.edKeypair`, `edSign`, `edVerify` ([`Compose.lean`](ops/community/Compose.lean)) | `le_ed25519_*` in crypto.c | Ed25519 |
+| `Engine.Crypto.x25519`, `x25519Base`, `staticOf`, `staticPubOf`, `chachaSeal`, `chachaOpen`, `xchachaSeal`, `xchachaOpen`, `randomBytes` ([`Crypto.lean`](engine/core/Crypto.lean)) | `le_*` in crypto.c | X25519, the key conversion, the two AEADs, random bytes |
+| `Engine.Db.open`, `exec` and `query`, over the opaque type `DbPointed` ([`Sqlite.lean`](engine/core/Sqlite.lean)) | `le_sql_*` in glue.c and glue_android.c | SQLite |
+| The 14 of [`Platform.lean`](engine/renderer/Platform.lean): `screen`, `scroll`, `scrollBy`, `scrollTo`, `frame`, `text`, `ime`, `textClear`, `copy`, `ctlPoll`, `ctlReply`, `scan`, `luma`, `nowUs` | `lq_*` in each twin | the platform |
+| `register`, `browse`, `poll` ([`NetProbe.lean`](platforms/ios/probe/NetProbe.lean)) | `lq_sd_*` in [`dnssd.c`](platforms/ios/probe/dnssd.c) | DNS-SD, for the iOS network probe only |
+
+- There is no `@[implemented_by]`, no `unsafe` and no `axiom`. The
+  other way, `@[export]` gives qr's own Android harness `Qr.decodeLuma`
+  (`engine/renderer/qr/Export.lean`) and the picture composer
+  (`engine/renderer/pic/Composer.lean`).
+- **A pure extern is one fixed function to the logic.** The C under
+  `sha256`, the Ed25519 and X25519 functions and the AEADs must be
+  deterministic and have no effect. `randomBytes` and the database calls
+  are `IO`.
+- **Nothing checks the signatures.** Each borrowed argument (`@&`) must
+  be a `b_lean_obj_arg` in the C. `le_random` still declares the world
+  argument that Lean 4.34 no longer passes; it is unused.
+
+### More than interfacing
+
+This native code does more than connect Lean to the OS: it makes
+decisions, or does work Lean could do. The proofs do not cover it, and
+it moves first in the checklist below.
+
+**Decisions made in native code:**
+
+| | lines | the decision | the proofs |
+|---|---|---|---|
+| **What a touch is** (`lq_pump` and `lq_release_at` in quiet_android.c, `tap` in host.c) | 68, 19, 10 | A press that stays within 8 dp is a tap, or a long press at 500 ms. A finger that goes down on the composer is also reported as a drag, the app's to scroll. The region is where the finger went down. A list tap's screen row y becomes the content distance `b + composerTop - 1 - y`, at the latest vsync's offset b (on a page, plus the keyboard's shift). | [`hit_iff`] and [`pinned_tap`] take that distance as given; `tapRow` states the formula the C must apply. On iOS UIKit decides, and Placement.lean proves the conversion from UIKit's layout. |
+| **Where the list lands** (`bl_place_list`, and the composer's top in `bl_vsync`, in layer.c; `dump` in host.c) | 14, 34 | Frame row r, drawn at offset bf, goes to screen row `top - over - shift + (bn - bf) + r` for the vsync's offset bn (a page: `top - over + r`), cropped to the viewport. The composer's top is `h - bot - max(ime, inset)`. | [`placed_row`], [`visible_in_viewport`] and [`newest_visible`] are about `Seam.place`. That the C computes the same is trusted, as Geometry.lean says. |
+| **The offset** (`bs_touch`, `bs_at`, `bs_pending` and `bs_vsync` in scroll.c; `bl_ahead` in layer.c) | 116, 27 | A drag follows the finger, resampled 5 ms before the vsync. The offset stays within 0 and the content's height less the viewport's. During a fling, Lean draws at the offset predicted for when its frame shows: at most two vsyncs ahead, and short of where the fling stops. | Nothing. |
+| **Which input counts** (`ba_push` and `ba_motion` in activity.c; the editor action in LeanActivity.java; `textFieldShouldReturn` in quiet_ios.m) | 15, 29 | Only the first finger counts. A full queue drops moves but keeps downs and ups. The keyboard's Send, or Enter, sends. | Nothing. |
+| **Crypto sizes** (crypto.c) | | A ChaCha20-Poly1305 key that is not 32 bytes seals under 32 zero bytes, while opening refuses it. XChaCha20-Poly1305 with a wrong-sized key or nonce seals to empty bytes. A wrong-sized Ed25519 seed gives empty bytes. | [`Suite.Good`] and `Seal.Good` say the AEAD opens what it seals for every key and nonce. The running AEADs do so only for 32-byte keys and 24-byte nonces. |
+| **The camera on iOS** (quiet_ios.m) | | The back camera at 1280 × 720, oriented 90° always. Android reads the sensor's own orientation. | [`Camera.src_in`] takes the frame's header as given. |
+| **The control channel** (ctl.c and ctl_ios.c, started by activity.c and quiet_ios.m) | | It starts at every launch, with no authentication. On Android it is the abstract socket `@leanquiet`. On iOS it is 127.0.0.1:7417 unless `LEANQUIET_CTL_PORT=0`, and every interface with `LEANQUIET_CTL_ADDR=any`. Its commands include `send` (posts as this device), `invite` (the current invite link), `found` and `chaos` (both write ops), and `state` (the composer's text). An abstract socket has no file permissions; what Android's SELinux policy lets other apps reach was not checked. | Nothing. The attacker is the network's; another process on the device is not in the model. |
+
+- **No protocol decision is native.** The handshake, framing, sync
+  rounds, the trust rule and judging are Lean, and the TCP and UDP under
+  them are Lean's own Std.Async.
+- **The placement formula has four copies:** Geometry.lean's (proven),
+  layer.c's (Android), host.c's (the headless twin) and
+  `platforms/headless/Sim.lean`'s (the host tests, without the slide or the
+  keyboard). iOS gets it from UIKit's layout.
+
+**Performance work Lean could do:**
+
+| | lines | what it does | what the proofs assume of it |
+|---|---|---|---|
+| **Row reuse** (`lq_stage` in quiet_android.c and in quiet_ios.m) | 57, 63 | Copies a frame into a staging buffer. It skips each row that is the same Lean object as the last frame's, at the place the offset's change moves it to. The last frame is held, so a row seen again is the same immutable row. Lean knows which rows it painted, so it could say which are new. | A skipped row holds the same pixels. |
+| **Byte order on iOS** (`lq_row` in quiet_ios.m) | 12 | Swizzles every pixel from R G B X to B G R A. Android's buffers take R G B X as it is, so there Lean's rows are copied unchanged. | Nothing. |
+
+No Lean version of these exists, and none was timed for this README. The
+Android twin logs its own costs every 120 frames: Lean's time per
+frame, the copy's time and rows copied, and the time handing frames over
+(`lq_time`); and missed vsyncs and rows left uncovered (`bl_stats` in
+layer.c). The app's host session (`mise run host:app`) reports Lean's
+step time and unpainted rows on a fling. The checklist below measures
+with these.
+
+### How it is tested
+
+- **On devices, by hand:** `android:twin-demo-e2e`, `android:scan-e2e`,
+  `ios:sim-e2e` and `ios:e2e` (mise.toml). `ci/workflow.yml` would
+  run the first and the third on self-hosted runners; it is not in use.
+- **Local CI runs no native twin.** It drives the app through
+  `platforms/headless/Sim.lean`'s `Io`. host.c runs only in `mise run
+  host:twin-demo`.
+- **The engine's tests run the crypto and SQLite glue:** against
+  libsodium, against the model, through kill -9, the purge's raw read,
+  and two nodes over localhost TCP.
+
+### Moving work into Lean
+
+Most valuable first. The first eight are the native code that does
+more than interface; the last is glue.
+
+- [ ] **Decide taps and keys in Lean.**
+  - Moves: `lq_pump` and `lq_release_at` (87 lines of quiet_android.c),
+    host.c's `tap`, the first-finger rule in `ba_motion`, and "Enter
+    sends" in LeanActivity.java and quiet_ios.m.
+  - Instead: the twin hands Lean each touch as it came (finger, down,
+    move or up; x, y; time) and the latest vsync's placement (offset,
+    composer top, shift), and the keyboard's actions as they came. A
+    Lean function turns them into `App.Event`s.
+  - Speed: a few touches a frame, and the long-press timer already
+    runs on Lean's thread once a frame. The twin-demo e2e's taps check
+    it on the emulator.
+  - Then provable: [`hit_iff`] and [`pinned_tap`] from the finger's
+    screen row, not from a distance the C worked out; and the wanted "a
+    press that turns into a scroll past the slop is not a tap". iOS
+    keeps UIKit's recognizers.
+- [ ] **Call the placement; don't copy it.**
+  - Moves: the formulas in layer.c's `bl_place_list` and `bl_vsync`,
+    and host.c's `dump`.
+  - Instead: `Seam.place`, `Seam.pinned` and `Geom.composerTop`,
+    exported (`@[export]`) over fixed-width integers and called by the
+    vsync thread and by host.c. Sim.lean calls them too.
+  - Speed: the vsync thread is not Lean's. It registers with Lean's
+    runtime once (`lean_initialize_thread`, as qr's JNI does). The
+    exports take and return scalars only, so a call allocates nothing
+    and never waits on Lean. `bl_stats`'s missed vsyncs must stay 0 on
+    the same fling, before and after.
+  - Then provable: [`placed_row`], [`visible_in_viewport`] and
+    [`newest_visible`] of the placement that runs. Geometry's trusted
+    step goes.
+- [ ] **Bound the offset in Lean.**
+  - Moves: scroll.c's clamps and its rules for `scrollBy` and
+    `scrollTo` (`bs_pending`), and layer.c's prediction (`bl_ahead`).
+  - Instead: exported pure functions of the offset, the rate, the lead,
+    the fling's end and the heights. The physics stays the OS's:
+    VelocityTracker and OverScroller, and UIScrollView.
+  - Speed: as for the placement, on the vsync thread.
+  - Then provable: the offset Lean draws at is within the content's
+    range, and during a fling between the offset now and where the
+    fling stops.
+- [ ] **The control channel off unless asked, and in Lean.**
+  - Moves: ctl.c and ctl_ios.c (416 lines).
+  - Instead: a listener on 127.0.0.1 in Lean (Std.Async's TCP), started
+    only when the launch asks for it. Android reaches it with `adb
+    forward tcp:N tcp:M`. iOS's `twin` report stays an extern.
+  - Speed: nothing to lose; it serves tests.
+  - Then provable: an app launched without the flag reads no command,
+    as a statement about `App.start`.
+- [ ] **Sizes as types in the crypto.**
+  - Moves: crypto.c's size checks and its fallbacks (the zero key, the
+    empty results).
+  - Instead: fixed-size byte types in `Engine.Crypto` (32-byte keys,
+    24-byte nonces), so crypto.c passes pointers it never checks.
+  - Speed: the same either way.
+  - Then provable: [`Suite.Good`] and `Seal.Good`, as stated, of the
+    AEADs that run.
+- [ ] **Decide row reuse in Lean.**
+  - Moves: the row comparison in both twins' `lq_stage` (57 and 63
+    lines).
+  - Instead: each frame carries its shift and which rows are new, which
+    Lean knows because it painted them. The twin moves its buffer by
+    the shift and copies the listed rows.
+  - Speed: the same copies as today. Compare `lq_time`'s copy time and
+    rows copied, and `bl_stats`, on the same fling before and after; and
+    host.c's dumps byte for byte.
+  - Then provable: the staging buffer equals the frame Lean drew, the
+    first step of the wanted "content is drawn faithfully all the way to
+    pixels".
+- [ ] **Paint in the platform's byte order.**
+  - Moves: iOS's per-pixel swizzle (`lq_row`, 12 lines).
+  - Instead: Paint writes B G R A on iOS, so the twin copies rows with
+    memcpy, as Android's does.
+  - Speed: Lean writes the same bytes in another order, and the twin's
+    loop goes. Compare the app's `stats` (Lean's frame time) and the
+    screenshots, before and after.
+  - Then provable: the bytes the compositor reads are the bytes Lean
+    painted.
+- [ ] **Report the iOS camera's orientation; don't assume it.**
+  - Moves: quiet_ios.m's fixed 90°.
+  - Instead: the orientation AVFoundation gives for the frames, as
+    Android's twin reads the sensor's.
+  - Speed: nothing changes.
+  - Then provable: nothing new, but [`Camera.src_in`]'s input is then
+    the OS's, not a guess.
+- [ ] **Decode the keyboard's text in Lean.**
+  - Moves: `ba_utf8` (activity.c), `cp` (LeanActivity.java) and `lq_cp`
+    (quiet_ios.m).
+  - Instead: the twin hands over the UTF-16 code units and UTF-16
+    offsets, and Lean decodes them and converts the offsets.
+  - Speed: the text is short, and changes once a keystroke.
+  - Then provable: the selection and the composition are positions in
+    the text Lean holds, with one rule for an unpaired surrogate on
+    every platform.
+
+**What stays native:**
+- **The OS's own APIs:** the window and the compositor (ASurfaceControl
+  and AHardwareBuffer; IOSurface and Core Animation), vsync, touches as
+  the OS delivers them, the keyboard (an EditText and a UITextField, so
+  every input method works), the camera, the clipboard, permissions and
+  the app's lifecycle, logging, and the last copy into the OS's buffers.
+  Scrolling's physics stays the OS's too, so a fling feels native, as
+  LAYOUT.md has it.
+- **Vetted crypto:** the Rust crates, their hypotheses kept as
+  hypotheses.
+- **SQLite, tested as it ships.** The desktop's tests link the system's
+  SQLite while phones ship 3.50.4, and glue_android.c repeats glue.c.
+  One vendored SQLite and one glue file on every platform would make the
+  engine's differential, crash and purge tests run what ships.
+- **Lean's runtime and libuv,** with the phones' builds of them run by
+  tests too.
 
 ## Layout
 

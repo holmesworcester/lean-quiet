@@ -3,7 +3,7 @@
 the Mac's 127.0.0.1) and prints each reply. Runs on the Mac; from here,
 pipe it through ssh:
 
-    ssh MAC python3 - [-H HOST] [-p PORT] 'chaos 500' wait state < ios/ctl.py
+    ssh MAC python3 - [-H HOST] [-p PORT] 'chaos 500' wait state < platforms/ios/ctl.py
 
 HOST is 127.0.0.1 for the Simulator; a phone's address on the Mac's Wi-Fi
 for the app on an iPhone launched with LEANQUIET_CTL_REMOTE=1. TOKEN (-T,
