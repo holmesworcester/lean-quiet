@@ -386,10 +386,6 @@ lean_obj_res lq_text_clear(void) {
   return lean_io_result_mk_ok(lean_box(0));
 }
 
-uint64_t lq_now_us_raw(void) {
-  return lq_tick() / 1000;
-}
-
 lean_obj_res lq_now_us(void) {
   return lean_io_result_mk_ok(lean_box_uint64(lq_tick() / 1000));
 }

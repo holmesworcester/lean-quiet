@@ -15,6 +15,8 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsAnimation;
 import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
+import android.view.inputmethod.InputConnectionWrapper;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -47,6 +49,26 @@ public class LeanActivity extends NativeActivity {
       super.onSelectionChanged(start, end);
       report();
     }
+
+    // A composition can end, or its region move, with neither the text nor
+    // the selection changing: report those too.
+    @Override public InputConnection onCreateInputConnection(EditorInfo out) {
+      InputConnection ic = super.onCreateInputConnection(out);
+      if (ic == null) return null;
+      return new InputConnectionWrapper(ic, false) {
+        @Override public boolean finishComposingText() {
+          boolean r = super.finishComposingText();
+          report();
+          return r;
+        }
+
+        @Override public boolean setComposingRegion(int start, int end) {
+          boolean r = super.setComposingRegion(start, end);
+          report();
+          return r;
+        }
+      };
+    }
   }
 
   @Override protected void onCreate(Bundle saved) {
@@ -60,6 +82,9 @@ public class LeanActivity extends NativeActivity {
     edit.setAlpha(0f);
     edit.setBackground(null);
     edit.setCursorVisible(false);
+    if (android.os.Build.VERSION.SDK_INT >= 33) {
+      edit.setAutoHandwritingEnabled(false);  // no stylus prompt over a hidden field
+    }
     edit.setTextColor(Color.TRANSPARENT);
     edit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
         | InputType.TYPE_TEXT_FLAG_AUTO_CORRECT);
@@ -120,10 +145,15 @@ public class LeanActivity extends NativeActivity {
   /** From native (any thread): opens or closes the keyboard. */
   public void showIme(boolean show) {
     runOnUiThread(() -> {
+      android.view.WindowInsetsController c = getWindow().getInsetsController();
       if (show) {
         edit.requestFocus();
-        imm.showSoftInput(edit, InputMethodManager.SHOW_IMPLICIT);
+        // An explicit request: an implicit one is refused while a hardware
+        // keyboard is attached (as on the emulator).
+        if (c != null) c.show(WindowInsets.Type.ime());
+        imm.showSoftInput(edit, 0);
       } else {
+        if (c != null) c.hide(WindowInsets.Type.ime());
         imm.hideSoftInputFromWindow(edit.getWindowToken(), 0);
       }
     });

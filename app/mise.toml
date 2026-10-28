@@ -1,0 +1,17 @@
+# Named tasks; CI (.github/workflows/ci.yml) runs these same tasks.
+[env]
+ELAN_HOME = "{{ env.ELAN_HOME | default(value='/mnt/storage/elan') }}"
+TMPDIR = "{{ env.TMPDIR | default(value='/mnt/storage/holmes-tmp') }}"
+
+[tasks."host:twin-demo"]
+description = "The twin demo on the headless twin: the seam's effects from a script, checked by replies and dumped screens"
+run = "tests/host_twin_demo.sh"
+
+[tasks."android:twin-demo-apk"]
+description = "The twin demo's APK (x86_64 for the emulator, arm64-v8a for phones); needs a Lean runtime for Android (LEANRT)"
+run = "android/twin/build_apk.sh out/twin-demo.apk com.holmes.leanquiet 'Lean Quiet' QTests.TwinDemo x86_64 arm64-v8a"
+
+[tasks."android:twin-demo-e2e"]
+description = "End to end on a booted x86_64 emulator (SERIAL, default emulator-5644): keyboard, insets, scrolling, taps, control socket"
+depends = ["android:twin-demo-apk"]
+run = "android/test/twin_demo_e2e.sh \"${SERIAL:-emulator-5644}\" out/e2e-twin"

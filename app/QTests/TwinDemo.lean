@@ -10,7 +10,7 @@ twin by eye and by control commands:
   it; the keyboard's send (or the `send` command) appends a band.
 
 Control commands: `ping` (pong), `state` (offset, keyboard, bands, text),
-`send <text>` (as the keyboard's send), `ime on|off`, `to <b>`.
+`send <text>` (as the keyboard's send), `ime on|off`, `to <b>`, `by <d>`.
 -/
 import Quiet.Platform
 
@@ -161,6 +161,7 @@ partial def loop (s : St) (lastB : Nat) : IO Unit := do
     | ["ime", "on"] => Platform.ime true; reply "ok"
     | ["ime", "off"] => Platform.ime false; reply "ok"
     | ["to", v] => Platform.scrollTo (v.toNat!.toFloat); reply "ok"
+    | ["by", v] => Platform.scrollBy (v.toInt!.toNat.toFloat - (-v.toInt!).toNat.toFloat); reply "ok"
     | _ => reply s!"unknown: {c}"
   loop s b
 
