@@ -61,7 +61,7 @@ assume Community.Merkle.NoSecondPreimage SHA-256 has no second preimage on a fil
 assume Connection.Noise.Suite.Good X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only).
 assume Community.Seal.Good The seal's AEAD and key wrap open what they seal (correctness only).
 assume Connection.Noise.Symbolic.sym The symbolic model of the cryptography, over which the running handshake runs.
-assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model.
+assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean).
 assume Engine.Model = Engine.Model.run
 assume Engine.DB = Engine.Model.run
 assume Engine.Sync.HeldM = Engine.Model.run
@@ -81,14 +81,21 @@ assume Engine.DB.setStatus = Engine.Model.run
 assume Engine.DB.addWait = Engine.Model.run
 assume Engine.DB.clearWaiters = Engine.Model.run
 assume Engine.DB.index = Engine.Model.run
+assume Engine.DB.dependents = Engine.Model.run
+assume Engine.DB.undecide = Engine.Model.run
+assume Engine.DB.deleteOp = Engine.Model.run
 
-holds Engine.Inv The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean).
+holds Engine.Inv The tables' invariant. Purges keep it by `purge_inv`, over `purgeS`, which the running purge is (`run_purge`).
 
 ## Bridges: a mirror, and the law that proves running code equal to it
 
 bridge Engine.stepS Engine.run_step
 bridge Engine.drainS Engine.run_drain
 bridge Engine.ingestS Engine.run_ingest
+# The purge: the running `purge` on the model's tables is `purgeS`, and
+# what it returns, the ops it deleted, is `purgeSet`.
+bridge Engine.purgeS Engine.run_purge
+bridge Engine.purgeSet Engine.run_purge
 bridge Engine.View.eval Engine.View.run_model
 bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
 # A want reply's read program: the running interpreter's answer is the
@@ -129,8 +136,6 @@ subject Engine.Sync.conn_answers_ids Engine.Sync.Conn.onRbsr Engine.Sync.within 
 
 ## What would make each model real, most valuable first (the README's order)
 
-todo Engine.purgeS The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`).
-todo Engine.purgeSet = Engine.purgeS
 todo Engine.Sync.World.peer A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does.
 todo Engine.Sync.World.write = Engine.Sync.World.peer
 todo Engine.Sync.World.deliver = Engine.Sync.World.peer
