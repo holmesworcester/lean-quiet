@@ -49,13 +49,12 @@ theorem remember_fits (cap : Nat) (known : Std.HashSet Id) (i : Id)
     simpa using this
   simp [remember, show cap ≠ 0 by omega, hc]
 
-theorem admit_one (cap : Nat) (asked : Std.HashSet Id) (i : Id) (hi : i ∉ asked)
-    (hc : (asked.insert i).size ≤ cap) : admitAsks cap asked [i] = [i] := by
-  have hp : 0 < cap - asked.size := by simp [Std.HashSet.size_insert, hi] at hc; omega
-  have he : (([i].filter fun x => !asked.contains x).eraseDups) = [i] := by simp [hi]; rfl
-  unfold admitAsks
-  rw [he]
-  exact List.take_of_length_le (by simp; omega)
+@[simp] theorem eraseDups_single {α} [BEq α] (a : α) : [a].eraseDups = [a] := rfl
+
+theorem note_one (cap : Nat) (asked : Std.HashSet Id) (i : Id) (hi : i ∉ asked)
+    (hc : (asked.insert i).size ≤ cap) : noteAsks cap asked [i] = asked.insert i := by
+  have hp : asked.size < cap := by simp [Std.HashSet.size_insert, hi] at hc; omega
+  simp [noteAsks, hp]
 
 /-! ## Running on held data -/
 
@@ -91,9 +90,15 @@ theorem Acts.append_def (a b : Acts) : a ++ b = ⟨a.send ++ b.send, a.drop ++ b
 @[simp] theorem Conn.finish_drop (s : Step) : (Conn.finish s).drop = s.drop := rfl
 
 @[simp] theorem Conn.finish_known (s : Step) : (Conn.finish s).conn.known = s.conn.known := by
-  by_cases he : s.conn.asked.isEmpty = true <;> simp [Conn.finish, Conn.report, he]
+  by_cases he : (s.conn.asked.isEmpty && s.conn.stale.isEmpty) = true <;> simp [Conn.finish, Conn.report, he]
 @[simp] theorem Conn.finish_asked (s : Step) : (Conn.finish s).conn.asked = s.conn.asked := by
-  by_cases he : s.conn.asked.isEmpty = true <;> simp [Conn.finish, Conn.report, he]
+  by_cases he : (s.conn.asked.isEmpty && s.conn.stale.isEmpty) = true <;> simp [Conn.finish, Conn.report, he]
+@[simp] theorem Conn.finish_owed (s : Step) : (Conn.finish s).conn.owed = s.conn.owed := by
+  by_cases he : (s.conn.asked.isEmpty && s.conn.stale.isEmpty) = true <;> simp [Conn.finish, Conn.report, he]
+@[simp] theorem Conn.finish_owing (s : Step) : (Conn.finish s).conn.owing = s.conn.owing := by
+  by_cases he : (s.conn.asked.isEmpty && s.conn.stale.isEmpty) = true <;> simp [Conn.finish, Conn.report, he]
+@[simp] theorem Conn.finish_rooms (s : Step) : (Conn.finish s).conn.rooms = s.conn.rooms := by
+  by_cases he : (s.conn.asked.isEmpty && s.conn.stale.isEmpty) = true <;> simp [Conn.finish, Conn.report, he]
 
 /-! ## Loops -/
 
@@ -325,6 +330,17 @@ theorem apply_reads (n : Node) (cid : Id) (st : Step) (now : Nat) (ht : st.take 
   · rfl
   · simp [ht]
 
+/-- Serving a session's queue keeps the store: it only reads. -/
+theorem serveOwed_reads (n : Node) (cid : Id) (now : Nat) : Reads (n.serveOwed (S.sync s) cid now) := by
+  intro h
+  unfold Node.serveOwed
+  split
+  · rfl
+  · split
+    · rfl
+    · simp only [HeldM.run_bind, refresh_run, sync_rooms, HeldM.run_pure]
+      exact (serveOwed_run _ _ _ _ _ h).2.2
+
 /-- Storing an op this store lacks: one write turn of it, then a fanout
 that keeps the store. -/
 theorem store_one (n : Node) (o : Op) (mine : Bool) (h : Held F) (hn : h.db.ops o.id = none)
@@ -444,7 +460,7 @@ theorem onHold_take (fam : Family F) (c : Conn) (cfg : Config) (r : Id) (l : Lis
 theorem recv_data (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (o : Op) (now : Nat)
     (h : Held F) (hw : isWire o.kind = false) (hsh : c.shows fam o = true) :
     (Conn.recv fam cfg ix c o.bytes now : HeldM F Step).run h =
-      (Conn.finish (Step.limit cfg (Step.mk { c with heard := now, asked := c.asked.erase o.id, askTime := c.askTime.erase o.id, known := remember cfg.maxKnown c.known o.id }
+      (Conn.finish (Step.limit cfg (Step.mk { c with heard := now, asked := c.asked.erase o.id, stale := c.stale.erase o.id, known := remember cfg.maxKnown c.known o.id }
         [] [o] [] false)), h) := by
   have hsh' : Conn.shows fam { c with heard := now } o = true := hsh
   simp [Conn.recv, Op.decode_bytes, ofOp_data hw, hw, hsh']
@@ -475,6 +491,7 @@ theorem write_offers (n : Node) (cid : Id) (c : Conn) (o : Op) (r : Id) (a : Byt
 session, to the address the offer came from; the store is unchanged. -/
 theorem hold_wants (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (r i : Id) (h : Held F) (t : Nat)
     (hc : n.conns = [(cid, c)]) (hm : n.managed = []) (hn : h.db.ops i = none) (hq : i ∉ c.asked)
+    (hst : i ∉ c.stale) (hq0 : c.owed = [])
     (hs : r ∈ S.rooms s cid) (hmax : 0 < S.cfg.maxIds)
     (hasked : (c.asked.insert i).size ≤ S.cfg.maxKnown) :
     let p := (n.onFrame (S.sync s) src (plainFrame cid [(Msg.hold r [i]).op.bytes]) t).run h
@@ -483,44 +500,124 @@ theorem hold_wants (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (r i : Id)
   have hs' := has_of_mem hs
   simp [Node.onFrame, Node.onSealed, plainOpen, Codec.decode_encode, Node.conn?, Node.setAddr, hc,
     Conn.recv, Op.decode_bytes, Conn.onHold, holdsIn, hs', hq, hn, Node.apply, finish_run, hm,
-    split_one,
-    admit_one _ _ _ hq hasked, remember_bounded,
+    split_one, hst, Node.serveOwed, hq0,
+    note_one _ _ _ hq hasked, remember_bounded,
     chunks_one _ _ _ hmax, Node.addr?, Conn.setRooms, Step.limit, hasked, show ¬S.cfg.maxIds < 1 by omega]
 
-/-- **A want for a stored op the peer may see is answered with the op,**
-first in the first frame, then offers of its closure. -/
+@[simp] theorem budget_world (a : Option ByteArray) (b : Nat) : (a.bind (S.sync s).room).getD b = b := by
+  cases a <;> rfl
+
+theorem serveOwed_eq_run (fam : Family F) (cfg : Config) (c : Conn) (budget : Nat) (first : List Id) (h : Held F) :
+    (c.serveOwed fam cfg budget first : HeldM F _).run h =
+      let urgent := ((fetch (c.shows fam) (c.hotOf first)).trace h.db.ops).1
+      let t := ((serve (c.shows fam) budget (c.owedAfter first)).trace h.db.ops).1
+      ((c.served cfg (c.hotOf first ++ (c.owedAfter first).take ((c.owedAfter first).length - t.2.length)) t.2
+        (urgent ++ t.1), urgent, t.1), h) :=
+  serveOwed_eq fam cfg c budget first h
+
+/-- The fresh ids a step serves first, when the queue holds one id. -/
+theorem hot_single (first : List Id) (a : Id) :
+    (first.filter (({} : Std.HashSet Id).insert a).contains).eraseDups = if a ∈ first then [a] else [] := by
+  have e : first.filter (({} : Std.HashSet Id).insert a).contains = first.filter (· == a) := by
+    congr 1; funext b
+    simp only [Std.HashSet.contains_insert, Std.HashSet.contains_empty, Bool.or_false]
+    exact Bool.eq_iff_iff.2 ⟨fun h => beq_iff_eq.2 (beq_iff_eq.1 h).symm, fun h => beq_iff_eq.2 (beq_iff_eq.1 h).symm⟩
+  rw [e, List.filter_beq]
+  by_cases h : a ∈ first
+  · obtain ⟨k, hk⟩ : ∃ k, List.count a first = k + 1 :=
+      ⟨_, (Nat.succ_pred_eq_of_pos (List.count_pos_iff.2 h)).symm⟩
+    rw [hk, if_pos h, List.replicate_succ, List.eraseDups_cons]
+    simp [List.filter_replicate]
+  · rw [List.count_eq_zero.2 h, if_neg h]; rfl
+
+/-- Serving a queue of one wanted op: its send, urgent if this node
+wrote it within `hotMs`, in the serve lane otherwise. -/
+theorem serveOwed_one (n : Node) (cid : Id) (c : Conn) (o : Op) (h : Held F) (now : Nat)
+    (hc : n.conn? cid = some c) (hq : c.owed = [o.id]) (hw : c.owing = ({} : Std.HashSet Id).insert o.id)
+    (hg : h.db.ops o.id = some o) (hsh : (c.setRooms (S.rooms s cid)).shows S.fam o = true) (hb : 0 < S.cfg.burst) :
+    ∃ n', (n.serveOwed (S.sync s) cid now).run h = ((n', if o.id ∈ n.hotIds (S.sync s) now
+        then sends cid [o] else { serve := [(.conn cid, o.bytes)] }), h) ∧
+      n'.managed = n.managed ∧ n'.addrs = n.addrs := by
+  have hsh' : (c.setRooms (S.rooms s cid)).shows S.fam o = true := hsh
+  unfold Node.serveOwed
+  rw [hc]
+  simp only [hq, List.isEmpty_cons, Bool.false_eq_true, ite_false, HeldM.run_bind, refresh_run,
+    HeldM.run_pure]
+  rw [serveOwed_eq_run]
+  simp only [Conn.hotOf, Conn.owedAfter, Conn.setRooms, hw, hq, hot_single, sync_cfg, sync_fam, budget_world]
+  by_cases hh : o.id ∈ n.hotIds (S.sync s) now
+  · simp only [hh, ite_true, List.isEmpty_cons, Bool.false_eq_true, ite_false]
+    refine ⟨_, Prod.ext (Prod.ext rfl ?_) rfl, rfl, rfl⟩
+    have h1 : (fetch ((c.setRooms (S.rooms s cid)).shows S.fam) [o.id]).trace h.db.ops = ([o], [o.id]) := by
+      rw [fetch_cons]; simp [hg, hsh', fetch, Read.trace]
+    have h2 : List.filter (fun i => !([o.id] : List Id).contains i) [o.id] = [] := by simp
+    simp only [Conn.setRooms, hq, hw] at h1
+    simp only [h1, h2, serve_nil, sends, List.append_nil]
+    rfl
+  · simp only [hh, ite_false, List.isEmpty_nil, ite_true]
+    refine ⟨_, Prod.ext (Prod.ext rfl ?_) rfl, rfl, rfl⟩
+    have h1 : (serve ((c.setRooms (S.rooms s cid)).shows S.fam) S.cfg.burst [o.id]).trace h.db.ops = (([o], []), [o.id]) := by
+      rw [serve_cons _ _ _ _ _ hb]; simp only [hg, hsh', ite_true]; split <;> rfl
+    simp only [Conn.setRooms, hq, hw] at h1
+    simp only [h1, fetch, Read.trace, List.nil_append]
+    try rfl
+
+/-- `serveOwed_one` on a node whose only session is cid, by parts. -/
+theorem serveOwed_world (n : Node) (cid : Id) (c1 : Conn) (A : List (Id × ByteArray)) (o : Op) (h : Held F)
+    (now : Nat) (hq : c1.owed = [o.id]) (hw : c1.owing = ({} : Std.HashSet Id).insert o.id)
+    (hg : h.db.ops o.id = some o) (hsh : (c1.setRooms (S.rooms s cid)).shows S.fam o = true)
+    (hb : 0 < S.cfg.burst) :
+    let N : Node := { n with conns := [(cid, c1)], addrs := A }
+    ((N.serveOwed (S.sync s) cid now).run h).1.2 = (if o.id ∈ n.hotIds (S.sync s) now then sends cid [o]
+        else { serve := [(.conn cid, o.bytes)] }) ∧
+      ((N.serveOwed (S.sync s) cid now).run h).1.1.managed = n.managed ∧
+      ((N.serveOwed (S.sync s) cid now).run h).1.1.addrs = A ∧
+      ((N.serveOwed (S.sync s) cid now).run h).2 = h := by
+  intro N
+  obtain ⟨n', e, hm, ha⟩ := serveOwed_one S s N cid c1 o h now (by simp [N, Node.conn?]) hq hw hg hsh hb
+  rw [e]
+  exact ⟨rfl, hm, ha, rfl⟩
+
+/-- **A want for a stored op the peer may see is answered with the op in
+the same step,** when the session owes nothing else: the op joins the
+queue and is served at once (urgent if this node just wrote it, in the
+serve lane otherwise), and its frame is the step's only send. -/
 theorem want_sends (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (o : Op) (r : Id) (h : Held F)
     (t : Nat) (hc : n.conns = [(cid, c)]) (hm : n.managed = []) (hn : h.db.ops o.id = some o)
     (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid) (hmax : 0 < S.cfg.maxIds)
     (hauth : authorize n.ix (c.setRooms (S.rooms s cid)) [o.id] = [o.id])
-    (hbytes : 0 < S.cfg.wantBytes) :
+    (hq0 : c.owed = []) (hw0 : c.owing = {}) (hk : 0 < S.cfg.maxKnown)
+    (hb : 0 < S.cfg.burst) :
     let p := (n.onFrame (S.sync s) src (plainFrame cid [(Msg.want [o.id]).op.bytes]) t).run h
     ∃ holds : List ByteArray, (∀ b ∈ holds, ∃ r l, b = (Msg.hold r l).op.bytes) ∧
       p.1.2.send = (bundles S.cfg.bundle (o.bytes :: holds)).map fun g => (src, plainFrame cid g) := by
   have hs' := has_of_mem hs
-  have hm0 : S.cfg.maxIds ≠ 0 := by omega
-  have hwant := onWant_one S.fam S.cfg n.ix
-    { c.setRooms (S.rooms s cid) with heard := t } o h hmax hbytes hauth hn
-    (by simpa [Conn.shows, Conn.setRooms, hr] using hs')
+  have hsh : (c.setRooms (S.rooms s cid)).shows S.fam o = true := by
+    simp [Conn.shows, Conn.setRooms, hr, hs']
+  have hauth' : authorize n.ix ({ c.setRooms (S.rooms s cid) with heard := t } : Conn) [o.id] = [o.id] := hauth
   have hrwant : (Conn.recv S.fam S.cfg n.ix (c.setRooms (S.rooms s cid))
       (Msg.want [o.id]).op.bytes t : HeldM F Step).run h =
-      (Conn.finish (Step.limit S.cfg { conn := { c.setRooms (S.rooms s cid) with
-          heard := t, known := remember S.cfg.maxKnown c.known o.id, offered := c.offered.insert o.id,
-          frontier := c.frontier ++ o.reqs }, send := [o] }), h) := by
-    simp only [Conn.recv, Op.decode_bytes, ofOp_want, HeldM.run_bind, HeldM.run_pure]
-    rw [hwant]
-    rfl
+      (Conn.finish { conn := { c.setRooms (S.rooms s cid) with heard := t, owed := [o.id], owing := c.owing.insert o.id } }, h) := by
+    simp only [Conn.recv, Op.decode_bytes, ofOp_want, HeldM.run_bind, HeldM.run_pure, Conn.onWant]
+    rw [if_neg (by simp; omega), hauth']
+    simp [Conn.setRooms, hw0, hq0, List.take_of_length_le (show [o.id].length ≤ S.cfg.maxKnown by simp; omega)]
   simp only [Node.onFrame, Node.onSealed, plainFrame_head, plainFrame_body, sync_openFrame,
     plainOpen, Codec.decode_encode, HeldM.pure_bind, Node.conn?, Node.setAddr, hc,
     List.find?_cons, decide_true, List.forIn_cons, Option.map_some, HeldM.run_bind,
     HeldM.run_pure, refresh_run, sync_fam, sync_cfg, hrwant]
-  simp [Node.apply, finish_run, hm, Conn.setRooms, split_one]
+  obtain ⟨e1, e2, e3, e4⟩ := serveOwed_world S s n cid
+    (Conn.finish { conn := { c.setRooms (S.rooms s cid) with heard := t, owed := [o.id], owing := c.owing.insert o.id } }).conn
+    ((cid, src) :: List.filter (fun p => !Decidable.decide (p.fst = cid)) n.addrs) o h t
+    (by simp) (by simp [hw0]) hn (by simp [Conn.shows, Conn.setRooms, hr, hs']) hb
+  simp only [Conn.setRooms] at e1 e2 e3 e4
+  simp [Node.apply, Conn.setRooms]
+  rw [e1, e4, finish_run _ _ _ _ _ _ (by rw [e2, hm])]
   refine ⟨[], by simp, ?_⟩
-  -- The op goes in either lane; its frame is the same.
+  simp only [split, List.filter_nil, List.map_nil]
   split
-  · simp [Node.addr?]
+  · simp [sends, Node.addr?, e3]
   · rw [seal_empty _ _ _ _ _ rfl]
-    simp [Node.addr?]
+    simp [Node.addr?, e3]
 
 /-- **A frame that brings a new op of the session's rooms stores it,**
 whatever offers follow it in the frame. -/
@@ -534,7 +631,7 @@ theorem op_taken (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (o : Op) (r 
   simp only [Node.onFrame, Node.onSealed, plainFrame_head, plainFrame_body, sync_openFrame, plainOpen,
     Codec.decode_encode, HeldM.pure_bind, Node.conn?, Node.setAddr, hc, List.find?_cons, decide_true,
     List.forIn_cons, Option.map_some, HeldM.run_bind, HeldM.run_pure, refresh_run, sync_fam, sync_cfg]
-  rw [finish_reads, recv_data _ _ _ _ _ _ _ hw (by simp [Conn.shows, Conn.setRooms, hr, hs'])]
+  rw [finish_reads, serveOwed_reads, recv_data _ _ _ _ _ _ _ hw (by simp [Conn.shows, Conn.setRooms, hr, hs'])]
   dsimp only
   rw [forIn_keeps more _ _ ?_, apply_takes S s _ _ _ _ o h (by simp) (by simp) hn (by simp [Family.shared, hr])]
   intro b hb st
@@ -1343,7 +1440,7 @@ ids one side offers, or the other asks for, are exactly the ids
 connection that answers. It answers round k's claim listing ids, the
 claimant's items in range rg (an honest claim). It offers exactly the
 first side of `exchange` from the round's snapshot X, and asks for
-the admitted part of the second. Deferred wants return on a later round. Those are the ids X holds in rg that the claimant
+every id of the second not asked already. Those are the ids X holds in rg that the claimant
 lacks, and the ids the claimant holds there that X lacks
 (`exchange_ids`). It sends no claim back, so the round ends there. -/
 theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (rg : Range)
@@ -1352,7 +1449,7 @@ theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Na
     ∃ A B, (A, B) = exchange Prod.fst Prod.snd sha256 cfg.params 1 X Y
         (.ids rg ((within Prod.fst rg Y).map Prod.snd)) ∧
       (c.onRbsr cfg ix r k [.ids rg ((within Prod.fst rg Y).map Prod.snd)] now).send =
-        (Msg.rbsr r k []).op :: (chunks cfg A (.hold r) ++ chunks cfg (admitAsks cfg.maxKnown c.asked B) .want) ∧
+        (Msg.rbsr r k []).op :: (chunks cfg A (.hold r) ++ chunks cfg (freshAsks c.asked c.stale B) .want) ∧
       ∀ i, (i ∈ A ↔ named Prod.snd (within Prod.fst rg X) i = true ∧
           named Prod.snd (within Prod.fst rg Y) i = false) ∧
         (i ∈ B ↔ named Prod.snd (within Prod.fst rg Y) i = true ∧
