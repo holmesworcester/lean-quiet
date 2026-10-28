@@ -127,8 +127,7 @@ def main (args : List String) : IO UInt32 := do
         steps 3
         return true
       | none => return false
-    check "the switcher offers Add a community" (← tapAct .addCommunity)
-    check "Get started offers Create a new community" (← tapAct .createCommunity)
+    check "the switcher offers Create a community" (← tapAct .createCommunity)
     check "Create shows its name field" ((← get).page == .create)
     modify fun s => { s with field := "design team" }
     steps 2
@@ -140,6 +139,11 @@ def main (args : List String) : IO UInt32 := do
     sm.cmds.modify (·.push "switch general")
     steps 5
     check s!"switching back shows the first community's {(← get).total} messages" ((← get).me.name == "general" && (← get).total > 0)
+    sm.cmds.modify (·.push "open switcher")
+    steps 3
+    writePpm (dir ++ "/switcher-two.ppm") W (← screenOf sm W Hs 63)
+    sm.cmds.modify (·.push "back")
+    steps 2
     -- a joiner: invited by me, asking with its own device and the link's bearer
     let s ← get
     let joiner := Device.named "joiner-test"

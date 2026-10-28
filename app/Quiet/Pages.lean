@@ -463,44 +463,80 @@ def invite (f : Font) (dm : Dim) (W h : Nat) (qr : Option Bitmap) (linkText : St
 /-- One community in the switcher. -/
 structure Entry where
   name : String
+  /-- Its id's first eight hex digits (what a pending join shows). -/
+  id8 : String
   unread : Nat
   current : Bool
   waiting : Bool
   deriving Inhabited
 
-/-- The community switcher: every community, the current one marked, a
-waiting one marked as such, and Add a community. -/
+/-- A square avatar for a community: its initial on a colour from its id. -/
+def avatarColor (id8 : String) : Color :=
+  let palette : Array Color := #[0x0E7C7B, 0xB23A48, 0x5B2A86, 0x2D6A4F, 0xB5651D, 0x1D4E89]
+  palette[(id8.toList.foldl (fun n c => n + c.toNat) 0) % palette.size]!
+
+/-- The community switcher, libquiet's left panel: the current community
+first, outlined, with Add members; the others; pending joins as muted
+rows (their id, "Waiting for a member to let you in.", a "joining"
+chip); then Join a community and Create a community. -/
 def switcher (f : Font) (dm : Dim) (W h : Nat) (es : Array Entry) (asking : Nat) (canInvite : Bool) : Page := Id.run do
+  let pw := min W (dm.px 320)
   let mut b := blank W h
+  -- the conversation behind the panel is dimmed
+  b := b.fill pw 0 W h 0x0E0F11
   let mut taps := #[]
-  let rh := dm.px 64
-  let d := dm.px 40
-  for i in [0:es.size] do
-    let e := es[i]!
-    let y := dm.px 8 + i * rh
-    if e.current then b := b.fill 0 y W (y + rh) selBg
-    let ax := dm.px 16
+  let rh := dm.px 76
+  let d := dm.px 48
+  let ordered := (es.filter (·.current)) ++ (es.filter fun e => !e.current && !e.waiting) ++ (es.filter (·.waiting))
+  let mut y := dm.px 8
+  for e in ordered do
+    let ax := dm.px 24
     let ay := y + (rh - d) / 2
-    b := b.round ax ay (ax + d) (ay + d) (dm.px 10) (if e.waiting then cardLine else primary)
-    let initial := String.ofList [(e.name.toList.headD '?').toUpper]
-    b := b.line f (oneLine f f.cell initial) (ax + (d - f.cell / 2) / 2) (ay + (d - f.cell) / 2) primaryInk true
+    if e.current then
+      b := b.round (ax - 3) (ay - 3) (ax + d + 3) (ay + d + 3) (dm.px 6) logo
+    b := b.round ax ay (ax + d) (ay + d) (dm.px 4) (avatarColor e.id8)
+    let initial := if e.waiting then String.ofList (e.id8.toList.take 2) else String.ofList [(e.name.toList.headD '?').toUpper]
+    let iw := Paint.Line.width f (oneLine f f.cell initial)
+    b := b.line f (oneLine f f.cell initial) (ax + (d - iw) / 2) (ay + (d - f.cell) / 2) primaryInk
     let tx := ax + d + dm.px 16
-    b := b.line f (oneLine f (W - tx - dm.px 80) e.name) tx (y + (rh - f.cell) / 2 - (if e.waiting then dm.px 10 else 0)) nameInk true
+    let right := if e.current && canInvite then dm.px 56 else if e.waiting then dm.px 88 else dm.px 16
     if e.waiting then
-      b := b.line f (oneLine f (W / 2) "Waiting to join") tx (y + (rh - f.cell) / 2 + dm.px 12) dim
+      b := b.line f (oneLine f (pw - tx - right) s!"<{e.id8}>") tx (y + dm.px 14) dim
+      b := b.line f (oneLine f (pw - tx - right) "Waiting for a member to let you in.") tx (y + dm.px 14 + f.cell) dim
+      let cl := oneLine f (dm.px 80) "joining"
+      let cw := Paint.Line.width f cl + dm.px 16
+      let cx := pw - dm.px 12 - cw
+      let cy := y + (rh - dm.px 28) / 2
+      b := b.round cx cy (cx + cw) (cy + dm.px 28) (dm.px 14) cardLine
+      b := b.round (cx + 2) (cy + 2) (cx + cw - 2) (cy + dm.px 28 - 2) (dm.px 14 - 2) Row.bg
+      b := b.line f cl (cx + dm.px 8) (cy + (dm.px 28 - f.cell) / 2) dim
+    else
+      b := b.line f (oneLine f (pw - tx - right) e.name) tx (y + (rh - f.cell) / 2) nameInk
+    if e.current && canInvite then
+      let gx := pw - dm.px 48
+      b := b.line f (oneLine f f.cell "☺+") gx (y + (rh - f.cell) / 2) nameInk
+      taps := taps.push (⟨gx - dm.px 8, y, dm.px 56, rh⟩, .addMembers)
     if e.unread > 0 then
-      let t := if e.unread > 99 then "99+" else toString e.unread
-      let l := oneLine f (W / 4) t
-      let w := Paint.Line.width f l + dm.px 16
-      let bx := W - dm.px 16 - w
-      let by0 := y + (rh - dm.px 28) / 2
-      b := b.round bx by0 (bx + w) (by0 + dm.px 28) (dm.px 14) accent
-      b := b.line f l (bx + dm.px 8) (by0 + (dm.px 28 - f.cell) / 2) primaryInk
-    taps := taps.push (⟨0, y, W, rh⟩, .switchTo i)
-  let y := dm.px 8 + es.size * rh + dm.px 8
-  let mine := (if canInvite then #[("☺+", "Add members", Act.addMembers),
-    ("⏳", if asking == 0 then "Waiting to join" else s!"Waiting to join · {asking}", Act.requests)] else #[])
-  let (b2, t2, _) := rows f dm b y (mine ++ #[("+", "Add a community", .addCommunity)])
-  return ⟨b2, taps ++ t2⟩
+      b := b.round (ax + d - dm.px 10) (ay - dm.px 8) (ax + d + dm.px 14) (ay + dm.px 12) (dm.px 10) errorInk
+    let idx := (es.findIdx? (fun x => x.id8 == e.id8 && x.name == e.name)).getD 0
+    taps := taps.push (⟨0, y, pw - (if e.current && canInvite then dm.px 56 else 0), rh⟩, .switchTo idx)
+    y := y + rh
+  y := y + dm.px 16
+  -- the rows after: icon squares, as libquiet draws them
+  let extra : Array (String × String × Act) :=
+    (if canInvite && asking > 0 then #[("⏳", s!"Waiting to join · {asking}", Act.requests)] else #[]) ++
+    #[("☺+", "Join a community", Act.joinCommunity), ("+", "Create a community", Act.createCommunity)]
+  for (icon, label, act) in extra do
+    let ax := dm.px 24
+    let ay := y + (dm.px 64 - d) / 2
+    b := b.round ax ay (ax + d) (ay + d) (dm.px 6) card
+    let iw := Paint.Line.width f (oneLine f (2 * f.cell) icon)
+    b := b.line f (oneLine f (2 * f.cell) icon) (ax + (d - iw) / 2) (ay + (d - f.cell) / 2) ink
+    b := b.line f (oneLine f (pw - ax - d - dm.px 32) label) (ax + d + dm.px 16) (y + (dm.px 64 - f.cell) / 2) nameInk
+    taps := taps.push (⟨0, y, pw, dm.px 64⟩, act)
+    y := y + dm.px 64
+  -- a tap on the dimmed conversation closes the panel
+  taps := taps.push (⟨pw, 0, W - pw, h⟩, .back)
+  return ⟨b, taps⟩
 
 end Pages

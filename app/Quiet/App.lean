@@ -561,7 +561,7 @@ def pageOf (s : St) : Pages.Page :=
       r.row (s.admitting.contains r.id))
   | .invite => Pages.invite f dm W h none ((s.links.find? (·.1 == s.me.c)).map (·.2) |>.getD "…")
   | .switcher => Pages.switcher f dm W h (s.comms.map fun m =>
-      ({ name := m.name, unread := 0, current := m.c == s.me.c, waiting := m.waiting } : Pages.Entry))
+      ({ name := m.name, id8 := Kinds.Request.hexShort m.c, unread := 0, current := m.c == s.me.c, waiting := m.waiting } : Pages.Entry))
       s.asking.size (!s.me.waiting && !s.me.c.isEmpty)
   | .chat => ⟨Bitmap.blank W h s.bgRow, #[]⟩
 
