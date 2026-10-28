@@ -19,7 +19,7 @@ abbrev B := ByteArray
 /-- Noise, plus the conversion of Ed25519 device keys to the X25519
 keys Noise runs on. -/
 structure Keys where
-  suite : Noise.Suite
+  suite : Noise.Suite B
   /-- A device key's X25519 key; empty if it is not a point. -/
   xPub : B → B
   /-- The X25519 secret of a device seed. -/

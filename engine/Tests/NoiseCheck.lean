@@ -7,7 +7,8 @@ vector's exact handshake bytes, read back its payloads, reach its
 handshake hash, and seal and open the four transport messages after it.
 Then tampered messages, a wrong static key and a wrong ephemeral key
 must all fail, and a device's Ed25519 key must convert to the X25519 key
-of its secret.
+of its secret. The suite must meet what the laws assume of it
+(`Suite.Good`) on the vector's keys.
 -/
 import Tests.Lib
 import Connection.Noise
@@ -47,6 +48,10 @@ def main : IO UInt32 := do
   let c := cts.toArray
   t.ok "the initiator's static key is the one the responder holds" (S.pub sI == rsOfR)
   t.ok "the responder's static key is the one the initiator holds" (S.pub sR == rsOfI)
+  -- What the laws assume of the suite (Suite.Good), on the vector's keys.
+  t.ok "DH commutes" (S.dh sI (S.pub sR) == S.dh sR (S.pub sI) && S.dh e (S.pub f) == S.dh f (S.pub e))
+  t.ok "a message splits into its key and the rest"
+    (S.split (S.pair (S.pub e) p[0]!) == some (S.pub e, p[0]!))
   -- Message 1: the request.
   let some (st, m1) := write1 S prologue sI e rsOfI p[0]! | t.ok "message 1 is written" false; return 1
   t.ok "message 1 is the vector's" (m1 == c[0]!)

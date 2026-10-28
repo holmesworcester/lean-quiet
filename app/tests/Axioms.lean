@@ -3,6 +3,12 @@ import Quiet.SheetGeom
 import Quiet.Link
 import Quiet.Camera
 import Quiet.Switch
+import Quiet.TextLaws
+import Quiet.WrapLaws
+import Quiet.RowLaws
+import Quiet.ViewLaws
+import Quiet.PeopleLaws
+import Quiet.Remove
 import Quiet.App
 import Quiet.ArrivalLaws
 #print axioms Geometry.placed_row
@@ -30,6 +36,27 @@ import Quiet.ArrivalLaws
 #print axioms Pages.switcherOrder_sound
 #print axioms Pages.switcherOrder_complete
 #print axioms Switch.dedupe_one_per_community
+#print axioms Text.visual_perm
+#print axioms Text.place_shows
+#print axioms Text.oneLine_prefix
+#print axioms Text.digits_keep_order
+#print axioms Text.wrap_keeps
+#print axioms Text.wrap_fits
+#print axioms Text.place_starts
+#print axioms RowLaws.picBox_aspect
+#print axioms RowLaws.tally_nodup
+#print axioms RowLaws.tally_mem
+#print axioms RowLaws.time_shown
+#print axioms RowLaws.name_placed
+#print axioms ViewLaws.profile_read
+#print axioms ViewLaws.message_read
+#print axioms PeopleLaws.present_iff
+#print axioms PeopleLaws.present_nodup
+#print axioms Remove.writes_only_after_two
+#print axioms Remove.cancel_writes_nothing
+#print axioms Remove.open_fresh
+#print axioms Remove.no_replace
+#print axioms Remove.offered_only
 #print axioms ArrivalLaws.percent_lt
 #print axioms ArrivalLaws.percent_eq
 #print axioms ArrivalLaws.done_iff
@@ -57,6 +84,9 @@ import Quiet.ArrivalLaws
 #print axioms ArrivalLaws.shown_pre
 #print axioms ArrivalLaws.readView_model
 #print axioms ArrivalLaws.pic_progress
+#print axioms ArrivalLaws.pic_len
+#print axioms ArrivalLaws.arrival_progress
+#print axioms ArrivalLaws.arrival_counts
 #print axioms ArrivalLaws.complete_iff_held
 #print axioms ArrivalLaws.file_whole
 #print axioms ArrivalLaws.pic_complete_iff_held

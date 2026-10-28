@@ -4,7 +4,9 @@
 # for now). Each part runs its own scripts, as its mise tasks do; output
 # goes to out/ci/<part>.log, and each part keeps its own out/ for
 # failure artifacts. Exits non-zero if any part fails; runs them all.
-#   ci/local.sh [part...]   (default: engine mdns qr net app)
+# `readme` checks the README's theorem links against the built parts
+# (ci/proof-links.py), so it runs after them.
+#   ci/local.sh [part...]   (default: engine mdns qr net app readme)
 set -uo pipefail
 top=$(cd "$(dirname "$0")/.." && pwd)
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
@@ -12,7 +14,7 @@ export PATH="$ELAN_HOME/bin:$PATH"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 logs=$top/out/ci
 mkdir -p "$logs"
-parts=("${@:-engine mdns qr net app}")
+parts=("${@:-engine mdns qr net app readme}")
 read -r -a parts <<< "${parts[*]}"
 gate() {
   case $1 in
@@ -26,13 +28,16 @@ gate() {
         .lake/build/bin/net_join out/net &&
         .lake/build/bin/arrival out/arrival &&
         tests/check.sh ;;
+    readme) python3 ci/proof-links.py --check ;;
     *) echo "no part $1" >&2; return 2 ;;
   esac
 }
 failed=()
 for p in "${parts[@]}"; do
   t0=$(date +%s)
-  if (cd "$top/$p" && gate "$p") > "$logs/$p.log" 2>&1; then
+  dir=$top/$p
+  [ "$p" = readme ] && dir=$top
+  if (cd "$dir" && gate "$p") > "$logs/$p.log" 2>&1; then
     echo "ok   $p ($(( $(date +%s) - t0 )) s)"
   else
     echo "FAIL $p ($(( $(date +%s) - t0 )) s): $logs/$p.log"

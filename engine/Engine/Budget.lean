@@ -25,17 +25,6 @@ def budget (L : List Op) (s : DB F) : Nat :=
 distinct, and each is a stored op. -/
 def WaitsOk (s : DB F) : Prop := ∀ r, (s.waits r).Nodup ∧ ∀ y ∈ s.waits r, (s.ops y).isSome
 
-theorem ins_nodup {l : List Id} {x : Id} (h : l.Nodup) : (ins l x).Nodup := by
-  unfold ins
-  split
-  · exact h
-  · rename_i hx
-    rw [List.nodup_append]
-    refine ⟨h, List.nodup_cons.2 ⟨by simp, List.nodup_nil⟩, fun a ha b hb => ?_⟩
-    rw [List.mem_singleton] at hb; subst hb
-    intro e; subst e
-    exact hx ((has_iff _ _).2 ha)
-
 theorem waitsOk_waitOnS {s : DB F} (h : WaitsOk s) {x : Id} (hx : (s.ops x).isSome) (l : List Id) :
     WaitsOk (waitOnS x l s) := by
   induction l generalizing s with

@@ -47,6 +47,11 @@ inductive Act where
   | requests
   | openChannel (i : Nat)
   | stopWaiting
+  /-- A person on home (people list row i): their profile. -/
+  | person (i : Nat)
+  | removeStart
+  | removeYes
+  | removeCancel
   | none
   deriving BEq, Inhabited, Repr
 
@@ -124,6 +129,15 @@ def button (f : Font) (dm : Dim) (b : Bitmap) (label : String) (y : Nat) (filled
     b := b.round (x0 + e) (y + e) (x1 - e) (y + h - e) (dm.px 12 - e) Row.bg
   b := centred f b label (y + (h - f.cell) / 2) primaryInk
   return (b, (⟨x0, y, x1 - x0, h⟩, act), h)
+
+/-- A danger button (libquiet's): red, for what cannot be undone. -/
+def dangerButton (f : Font) (dm : Dim) (b : Bitmap) (label : String) (y : Nat) (act : Act) :
+    Bitmap × (Box × Act) × Nat :=
+  let x0 := dm.px 16
+  let x1 := b.w - dm.px 16
+  let h := dm.px 48
+  let b := (b.round x0 y x1 (y + h) (dm.px 12) errorInk)
+  (centred f b label (y + (h - f.cell) / 2) primaryInk, (⟨x0, y, x1 - x0, h⟩, act), h)
 
 /-- A one-line field (the keyboard's text): its box, the text or a
 placeholder, the caret, and an error edge. -/
@@ -551,7 +565,66 @@ def home (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array Str
     b := b.line f l (dm.px 16 + d + dm.px 12) (y + (rh - f.cell) / 2) nameInk
     if isMe then
       b := b.line f (oneLine f W "(you)") (dm.px 16 + d + dm.px 20 + Paint.Line.width f l) (y + (rh - f.cell) / 2) dim
+    taps := taps.push (⟨0, y, W, rh⟩, Act.person i)
     y := y + rh
+  return ⟨b, taps⟩
+
+/-- A member's profile: their initial and name; "(you)" on yours;
+"Removed from community" on a removed member's; and Remove from
+community (danger) when it is offered (Remove.offered). -/
+def profile (f : Font) (dm : Dim) (W h : Nat) (name : String) (isMe removed canRemove : Bool) : Page := Id.run do
+  let mut b := blank W h
+  let d := dm.px 72
+  let y0 := dm.px 32
+  b := b.round ((W - d) / 2) y0 ((W + d) / 2) (y0 + d) (dm.px 8) (avatarColor name)
+  b := centred f b (String.ofList [(name.toList.headD '?').toUpper]) (y0 + (d - f.cell) / 2) primaryInk true
+  let mut y := y0 + d + dm.px 20
+  b := centred f b name y nameInk true
+  y := y + f.cell + dm.px 8
+  if isMe then b := centred f b "(you)" y dim
+  if removed then b := centred f b "Removed from community" y dim
+  y := y + f.cell + dm.px 32
+  let mut taps := #[]
+  if canRemove then
+    let (b1, t, _) := dangerButton f dm b "Remove from community" y .removeStart
+    b := b1
+    taps := taps.push t
+  return ⟨b, taps⟩
+
+/-- Removing a member, asked twice (libquiet's): first what it does, then
+that it cannot be undone; while it is written, that it is; a refusal
+with its reason and Try again. Nothing is written before the second
+confirmation (Remove.writes_only_after_two). -/
+def removeConfirm (f : Font) (dm : Dim) (W h : Nat) (name : String) (stage : Nat) (why : String) : Page := Id.run do
+  let mut b := blank W h
+  let mut y := dm.px 24
+  let (title, body) := match stage with
+    | 1 => (s!"Remove {name}?",
+            s!"{name} will stop receiving this community's messages once their devices learn of the removal. Copies they already have are not deleted.")
+    | 2 => ("This can't be undone",
+            s!"{name} can only come back with a new invitation, approved again.")
+    | 3 => ("Removing…", s!"Telling the community that {name} is removed.")
+    | _ => ("Couldn't remove", why)
+  let (b1, hh) := heading f dm b title y
+  y := y + hh + dm.px 12
+  let (b2, ph) := para f dm b1 body (dm.px 24) y (W - dm.px 48) (if stage == 4 then errorInk else dim)
+  b := b2
+  y := y + ph + dm.px 32
+  let mut taps := #[]
+  match stage with
+  | 1 =>
+    let (b3, t1, h1) := button f dm b "Continue" y true .removeYes
+    let (b4, t2, _) := button f dm b3 "Cancel" (y + h1 + dm.px 12) false .removeCancel
+    b := b4; taps := #[t1, t2]
+  | 2 =>
+    let (b3, t1, h1) := dangerButton f dm b s!"Remove {name}" y .removeYes
+    let (b4, t2, _) := button f dm b3 "Cancel" (y + h1 + dm.px 12) false .removeCancel
+    b := b4; taps := #[t1, t2]
+  | 3 => pure ()
+  | _ =>
+    let (b3, t1, h1) := dangerButton f dm b "Try again" y .removeYes
+    let (b4, t2, _) := button f dm b3 "Cancel" (y + h1 + dm.px 12) false .removeCancel
+    b := b4; taps := #[t1, t2]
   return ⟨b, taps⟩
 
 /-- One community in the switcher. -/

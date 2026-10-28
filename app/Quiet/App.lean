@@ -32,6 +32,7 @@ import Quiet.Pages
 import Quiet.Composer
 import Quiet.Link
 import Quiet.Camera
+import Quiet.Remove
 import Quiet.Kinds.Message
 import Quiet.Kinds.Request
 import Std.Data.HashMap
@@ -83,7 +84,7 @@ abbrev ImgKey := ByteArray × Nat × Nat
 /-- Which page is up: a conversation, or one of libquiet's other screens. -/
 inductive PageId where
   | home | chat | getStarted | create | createName | joinChoice | openInvite | paste | scan | name | agree | waiting
-  | requests | invite | switcher
+  | requests | invite | switcher | profile | removeConfirm
   deriving BEq, Repr, Inhabited
 
 /-- The reaction sheet's state: quick or the catalogue, its category,
@@ -124,6 +125,12 @@ structure PageIn where
   backEmpty : Bool
   /-- Which camera frame is shown (a new frame, a new key). -/
   camFrame : Nat
+  /-- The open profile: name, whether it is me, whether removed, and
+  whether Remove is offered (Remove.offered); and the removal's stage
+  (1, 2: asked once, twice; 3: sending; 4: refused) and refusal. -/
+  profile : String × Bool × Bool × Bool := ("", false, false, false)
+  removeStage : Nat := 0
+  removeWhy : String := ""
   deriving BEq, Inhabited
 
 structure St where
@@ -196,6 +203,14 @@ structure St where
   /-- The people of the current community (Direct messages on home):
 names, and whether it is me. -/
   members : Array (String × Bool) := #[]
+  /-- Each member's user (as `members`). -/
+  memberIds : Array Id := #[]
+  /-- Whether this device's user is an admin of the current community. -/
+  amAdmin : Bool := false
+  /-- The member whose profile is open: user, name, whether it is me. -/
+  profileOf : Option (Id × String × Bool) := none
+  /-- The removal flow (Remove.step). -/
+  removal : Remove.Step := .idle
   /-- Whether each member (as `members`) has a device this node holds a
   session with now. -/
   online : Array Bool := #[]
@@ -711,11 +726,22 @@ def scanStep : M Unit := do
 its members (the Profile kind's), me first. -/
 def refreshMembers : M Unit := do
   let s ← get
-  if s.me.c.isEmpty || s.page != .home then return
+  if s.me.c.isEmpty || (s.page != .home && s.page != .profile && s.page != .removeConfirm) then return
   let (ms, _) ← Kinds.Profile.members s.me.c
-  let out := ms.map fun (u, ds, p) => ((p.name, u == s.me.user), ds.any (s.peers.contains ·))
+  let out := ms.map fun (u, ds, p) => ((p.name, u == s.me.user), ds.any (s.peers.contains ·), u)
   let sorted := out.filter (·.1.2) ++ out.filter (!·.1.2)
-  modify fun s => { s with members := sorted.map (·.1), online := sorted.map (·.2) }
+  -- an admin: the founder's user (the community's id), or one granted admin
+  let (ad, _, _) ← readList (Community.admin.byUser.query [s.me.c, s.me.user] (limit := some 0)) #[]
+  modify fun s => { s with members := sorted.map (·.1), online := sorted.map (·.2.1),
+                           memberIds := sorted.map (·.2.2),
+                           amAdmin := !s.me.user.isEmpty && (s.me.user == s.me.c || ad.total > 0) }
+  -- a removal being sent is done once its target is no longer present
+  if let .sending u := (← get).removal then
+    if !(← get).memberIds.contains u then
+      let name := ((← get).profileOf.map (·.2.1)).getD "They"
+      modify fun s => { s with removal := (Remove.step s.removal .done).1, profileOf := none,
+                               page := .home, backStack := [] }
+      say s!"Removed {name} from the community."
 
 /-- The node's sessions now (Connection.sessions' kept ones): their
 peers' device keys, every 30 frames. -/
@@ -752,6 +778,7 @@ def pageTitle : PageId → String × Bool
   | .name => ("", false) | .createName => ("", false)
   | .agree => ("Agree & join", false) | .waiting => ("", false) | .requests => ("Waiting to join", true)
   | .invite => ("Add members", true) | .switcher => ("Communities", true) | .chat => ("", false)
+  | .profile => ("", true) | .removeConfirm => ("", true)
   | .home => ("", false)
 
 /-- A page and its bar, from its key alone (and the font, background and
@@ -785,6 +812,8 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
         ({ name := m.name, id8 := Kinds.Request.hexShort m.c, unread := 0, current := m.acc == me.acc, waiting := m.waiting } : Pages.Entry))
         k.askingAll (!me.waiting && !me.c.isEmpty)
     | .home => Pages.home f dm W h (if me.waiting then 0 else k.askingAll) #["general"] k.members k.online
+    | .profile => let (n, isMe, removed, can) := k.profile; Pages.profile f dm W h n isMe removed can
+    | .removeConfirm => Pages.removeConfirm f dm W h k.profile.1 k.removeStage k.removeWhy
     | .chat => ⟨Bitmap.blank W h bg, #[]⟩
   let (t, cross) := pageTitle k.page
   -- a first launch's Get started has nowhere to go back to
@@ -812,7 +841,37 @@ def pageIn (s : St) : PageIn :=
     refusal := s.refusal, me := s.me.key, comms := s.comms.map (·.key),
     asking := (s.asking.filter fun r => !s.hidden.contains r.id).map (·.row), askingAll := s.asking.size,
     link := (s.links.find? (·.1 == s.me.acc)).map (·.2), members := s.members, online := s.online,
-    backEmpty := s.backStack.isEmpty, camFrame := s.camFrame }
+    backEmpty := s.backStack.isEmpty, camFrame := s.camFrame,
+    profile := match s.profileOf with
+      | some (u, n, isMe) =>
+        let present := s.memberIds.contains u
+        (n, isMe, !present, Remove.offered s.amAdmin present s.me.user u)
+      | none => ("", false, false, false),
+    removeStage := match s.removal with
+      | .first _ => 1 | .second _ => 2 | .sending _ => 3 | .failed _ _ => 4 | .idle => 0,
+    removeWhy := match s.removal with | .failed _ why => why | _ => "" }
+
+/-- Write the removal of user u (the engine's intent). -/
+def removeWrite (u : Id) : M Bool := do
+  let s ← get
+  -- nothing when this device is no admin, u is its own user, already
+  -- removed, or not admitted (removeMember_valid: what it writes is a
+  -- Valid removal of u by an admin)
+  let (w, _) ← readView (Community.removeMember s.me.c u s.me.seed) #[]
+  if w.ops.isEmpty then return false
+  writeAll w
+
+/-- One step of the removal flow; a write happens only where Remove.step
+says (the second yes, or a retry). -/
+def removeEv (e : Remove.Ev) : M Unit := do
+  let (s', w) := Remove.step (← get).removal e
+  modify fun s => { s with removal := s' }
+  if let some u := w then
+    if !(← removeWrite u) then
+      modify fun s => { s with removal := (Remove.step s.removal (.refused "The removal couldn't be written. Try again.")).1 }
+  if (← get).removal == .idle then
+    -- cancelled: back where it was opened
+    if (← get).page == .removeConfirm then back
 
 /-- A page's tap: what it does. -/
 def onPageAct (a : Pages.Act) : M Unit := do
@@ -902,6 +961,18 @@ def onPageAct (a : Pages.Act) : M Unit := do
   | .switchTo i => switchTo i
   | .addCommunity => openPage .getStarted
   | .requests => openPage .requests
+  | .person i =>
+    if let some u := s.memberIds[i]? then
+      let (n, isMe) := s.members[i]!
+      modify fun s => { s with profileOf := some (u, n, isMe) }
+      openPage .profile
+  | .removeStart =>
+    if let some (u, _, _) := s.profileOf then
+      if Remove.offered s.amAdmin (s.memberIds.contains u) s.me.user u then
+        removeEv (.start u)
+        openPage .removeConfirm
+  | .removeYes => removeEv .yes
+  | .removeCancel => removeEv .cancel
   | .openChannel _ =>
     s.io.scrollTo 0
     modify fun s => { s with backStack := s.page :: s.backStack, page := .chat, pageKey := none, chromeKey := "" }
@@ -1335,10 +1406,9 @@ def step (evs : List Event) : M (Option (List Event)) := do
   let (a, _) ← readView (Community.readable s.me.c (limit := some s.limit)) #[]
   modify fun s => { s with ids := (a.rows.map (·.1)).toArray, fetched := a.rows.length, total := a.total }
   let s ← get
-  -- people: the community's admissions (a person's every device counts
-  -- once per device; profiles are optional)
-  if let .list a _ ← read (.list { key := Community.admission.all.key [s.me.c], limit := some 0 }) then
-    modify fun s => { s with people := a.total }
+  -- people: the present members (admitted, not removed), each once
+  let (ps, _) ← readView (Kinds.Profile.present s.me.c) #[]
+  modify fun s => { s with people := ps.length }
   -- 4. the offset, and the rows the frame and the fetch distance need
   let s ← get
   let (bots0, ch0) := bottoms s
