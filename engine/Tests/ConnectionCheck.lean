@@ -13,18 +13,21 @@ What it checks, in order:
   with crossed keys; B dialed and A answered.
 - **Sync over the session:** B ends admitted by its own ops, lets A in,
   and receives a later post.
-- **One session per peer:** after B dials A again, both ends hold two
-  sessions and both keep the same one, the smaller id.
-- **Loss:** with a third of all frames lost, both still establish a
-  session. Completing the join under loss waits for purge: a dropped
-  session is redialed once its ops are gone.
+- **One session per peer:** after B dials A again, both ends keep the
+  same one (the newer dial supersedes), and the other is purged at both.
+- **Loss:** with a third of bare (handshake) frames lost, B still
+  joins: the dial is resent every tick, and a lost answer is resent when
+  the request arrives again. Session frames ride TCP, which loses a
+  socket, not a frame inside one; sync under a dying socket is
+  holmes-a3's sync tests'.
+- **Purge:** a session that loses the one-per-peer choice is purged
+  at both ends.
 
 Sessions open by themselves: the node reads the family's `established`
 ops and seals every session frame with the session's keys.
 
-Not yet here, because their pieces are on other branches: close purging
-the session (the purge branch), and the world as a pure step relation
-to prove laws over (holmes-a3's generic Node).
+Not yet here: the world as a pure step relation to prove laws over
+(the node runs on held data already).
 -/
 import Tests.Lib
 import Connection
@@ -69,8 +72,11 @@ def World.route (w : World) (fromA : Bool) (e : Effects) : World := Id.run do
   for (_, bytes) in e.send do
     let (l, w') := w.rand 100
     w := w'
-    if bytes[0]? == some 0 then w := { w with sentBare := w.sentBare + 1 }
-    if l < w.loss then continue
+    let bare := bytes[0]? == some 0
+    if bare then w := { w with sentBare := w.sentBare + 1 }
+    -- Loss on the bare wire (the handshake). Session frames ride TCP,
+    -- which loses a socket, not a frame inside it.
+    if bare && l < w.loss then continue
     let src := if fromA then w.a.addr else w.b.addr
     if fromA then w := { w with b := { w.b with inbox := w.b.inbox ++ [(src, bytes)] } }
     else w := { w with a := { w.a with inbox := w.a.inbox ++ [(src, bytes)] } }
@@ -164,6 +170,9 @@ def main : IO UInt32 := do
   let ea ← ests w.a
   let eb ← ests w.b
   t.ok "each holds one established session" (ea.length == 1 && eb.length == 1)
+  let cidOf (es : List Connection.Fact) : ByteArray := match es with
+    | [.established i ..] => i
+    | _ => .empty
   match ea, eb with
   | [.established ca cca pa ha sa ra da], [.established cb ccb pb hb sb rb db] =>
     t.ok "the same connection id" (ca == cb)
@@ -187,24 +196,22 @@ def main : IO UInt32 := do
   let some ro2 := Request.op K w.b.seed dA.pk e2 (hello c w.b.addr []) | t.ok "a second request" false; return 1
   let w ← writeB w [ro2, Eph.op e2 ro2.id, Send.op w.a.addr ro2]
   let w ← w.run 20
-  let ea2 ← ests w.a
-  t.ok "A now holds two sessions with B" (ea2.length == 2)
   let sa ← (sessions : SqlM F _).run w.a.db
   let sb ← (sessions : SqlM F _).run w.b.db
-  let cids := ea2.filterMap fun f => match f with | .established i .. => some i | _ => none
-  let least := cids.foldl (fun a b => if lt b a then b else a) (cids.headD .empty)
   t.ok "each end keeps one session with the other" (sa.length == 1 && sb.length == 1)
-  t.ok "both keep the same one, the smaller id" (sa.map (·.1) == [least] && sb.map (·.1) == [least])
+  t.ok "both keep the same one" (sa.map (·.1) == sb.map (·.1))
+  t.ok "the other session was purged at both ends" ((← ests w.a).length == 1 && (← ests w.b).length == 1)
+  t.ok "and the kept one is the newer dial" (sa.map (·.1) != [cidOf ea])
   -- Lossy wire.
   let (w2, c2, req2) ← setup 33
   let w2 ← w2.run 30
   let w2 ← approveOnA w2 c2 req2
-  let w2 ← w2.run 150
-  t.ok "with a third of frames lost, both still establish a session"
+  let w2 ← w2.run 400
+  t.ok "with a third of handshake frames lost, both still establish a session"
     ((← ests w2.a).length ≥ 1 && (← ests w2.b).length ≥ 1)
-  -- PENDING (the purge branch): with loss, a sync round can time out and
-  -- the node drops the session. A dropped session is redialed only once
-  -- its ops are purged, so B's admission under loss waits for purge.
-  if !(← allowedOn w2.b c2 (Device.ofSeed w2.b.seed).pk) then
-    IO.println "PENDING: B joins under loss once dropped sessions are purged and redialed"
+  if (← IO.getEnv "DUMP").isSome then
+    dump "A2" w2.a; dump "B2" w2.b
+    IO.eprintln s!"A2 conns {w2.a.n.conns.map (fun p => hex p.1)} dropped {w2.a.n.dropped.map hex}"
+    IO.eprintln s!"B2 conns {w2.b.n.conns.map (fun p => hex p.1)} dropped {w2.b.n.dropped.map hex}"
+  t.ok "with a third of handshake frames lost, B still joins" (← allowedOn w2.b c2 (Device.ofSeed w2.b.seed).pk)
   t.finish "connection_check"

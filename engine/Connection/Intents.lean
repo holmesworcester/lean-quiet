@@ -157,25 +157,56 @@ def rooms (seed : B) (cid : Id) : m (List Id) := do
     if ← ((trusts c me peer).liftL : View F Bool).run then out := c :: out
   return out
 
-/-- Open sessions: id, the bare address the handshake ran on, and
-whether this side dialed. One per peer: if two devices dialed each
-other at once, both ends keep the session with the smaller connection
-id. Both hold the same connection ops, so they make the same choice
-with no message between them. -/
-def sessions : m (List (Id × B × Bool)) := do
-  let mut best : List (B × Id × Bool) := []
+/-- When and from where op x first arrived bare, if it did. -/
+def arrival (x : Id) : m (Option (B × Nat)) := do
+  return (← rows recv.byOp [x]).findSome? fun (_, f) => match f with
+    | .recv _ false _ a t => some (a, t)
+    | _ => none
+
+/-- Every established session: its id, the peer, whether this side
+dialed, and the address and time its handshake arrived here (the
+connection, for the dialer; the request, for the responder). -/
+def allSessions : m (List (Id × B × Bool × B × Nat)) := do
+  let mut out := []
   for (_, f) in ← rows established.all [] do
     let .established cid _ peer _ _ _ dialer := f | continue
-    match best.find? (·.1 = peer) with
-    | some (_, c, _) => if lt cid c then best := best.map fun b => if b.1 = peer then (peer, cid, dialer) else b
-    | none => best := (peer, cid, dialer) :: best
-  let mut out := []
-  for (_, cid, dialer) in best do
-    -- the dialer heard the connection arrive; the responder, its request
     let x ← if dialer then pure cid
       else pure ((← Store.getOp (m := m) cid).map (·.reqs.headD .empty) |>.getD cid)
-    if let some a ← arrivedFrom x then out := (cid, a, dialer) :: out
+    if let some (a, t) ← arrival x then out := (cid, peer, dialer, a, t) :: out
   return out
+
+/-- The sessions kept: one per peer. Per peer and side (this device
+dialed, or the peer did), the latest established is kept, since a
+redial supersedes the dial it replaces. Of the at most two left, the
+smaller id is kept. Both ends hold the same connection ops and see the
+same dials in the same order, so they keep the same one with no message
+between them. -/
+def kept (all : List (Id × B × Bool × B × Nat)) : List Id := Id.run do
+  let later (a b : Id × B × Bool × B × Nat) : Bool := a.2.2.2.2 > b.2.2.2.2 || (a.2.2.2.2 == b.2.2.2.2 && lt a.1 b.1)
+  let mut best : List (Id × B × Bool × B × Nat) := []
+  for s in all do
+    match best.find? fun b => b.2.1 == s.2.1 && b.2.2.1 == s.2.2.1 with
+    | some b => if later s b then best := s :: best.filter (fun c => c.1 != b.1)
+    | none => best := s :: best
+  let mut out : List (B × Id) := []
+  for s in best do
+    match out.find? (·.1 == s.2.1) with
+    | some (_, c) => if lt s.1 c then out := (s.2.1, s.1) :: out.filter (·.1 != s.2.1)
+    | none => out := (s.2.1, s.1) :: out
+  return out.map (·.2)
+
+/-- Open sessions, one per peer (`kept`): id, the bare address the
+handshake ran on, and whether this side dialed. -/
+def sessions : m (List (Id × B × Bool)) := do
+  let all ← allSessions
+  let k := kept all
+  return all.filterMap fun (cid, _, dialer, a, _) => if k.contains cid then some (cid, a, dialer) else none
+
+/-- Sessions no longer kept: to be closed and purged. -/
+def retired : m (List Id) := do
+  let all ← allSessions
+  let k := kept all
+  return all.filterMap fun (cid, _) => if k.contains cid then none else some cid
 
 /-- A session's transport keys: send, receive. -/
 def sessionKeys (cid : Id) : m (Option (B × B)) := do
@@ -232,6 +263,8 @@ def hooks (fam : Family F) (K : Keys) (seed listen : B) : Hooks F m where
   react := react fam K seed
   dial := dial K seed listen
   established := sessions
+  closing := closing
+  retired := retired
   sealFor := sealFor K
   openFrame := openFrame K
 

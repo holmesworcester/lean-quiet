@@ -10,15 +10,24 @@ the proven budget (`budget log db`, so `drain_bounded` applies).
 import Engine.Sqlite
 import Engine.Budget
 import Engine.Query
+import Engine.Purge
 
 namespace Engine.Sync
 
 /-- One write turn: take in ops (already through an intake) and judge
-everything that became decidable. -/
+everything that became decidable. And forgetting: purge ops (with the
+dependents purge takes; `Engine.Purge`), then judge again what that
+un-decided. `scrub` also rewrites the file so the bytes are gone from
+disk (a session's secrets); a courier needs no scrub. -/
 class Turn (F : Type) (m : Type → Type) where
   turn : Family F → List Op → m Unit
+  purge : Family F → List Id → Bool → m Unit
 
-instance {F} [Codec F] [SortKey F] : Turn F (SqlM F) := ⟨receive⟩
+instance {F} [Codec F] [SortKey F] : Turn F (SqlM F) where
+  turn := receive
+  purge fam ids scrub := do
+    purgeSql fam ids scrub
+    receive fam []
 
 /-- A store as data: the ops taken in, and the tables. -/
 structure Held (F : Type) where
@@ -60,6 +69,11 @@ instance {F} : Turn F (HeldM F) where
   turn fam ops := fun h =>
     let log := h.log ++ ops
     let s := ops.foldl (fun s o => ingestS o s) h.db
+    ((), { log, db := drainS fam (budget log s) s })
+  purge fam ids _ := fun h =>
+    -- `Reach.purge`: the log keeps what purge kept; then drain again.
+    let log := h.log.filter fun o => !has (purgeSet fam h.db ids) o.id
+    let s := purgeS fam ids h.db
     ((), { log, db := drainS fam (budget log s) s })
 
 end Engine.Sync

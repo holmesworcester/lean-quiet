@@ -4,11 +4,11 @@ run by the engine's runner (`Runner`), with a toy handshake family in
 place of the Connection family. The toy family exercises every path the
 real one uses:
 
-- a: writes a hello (a conn op naming b's address) locally; the outbox
-  sends it bare to b and marks it shipped;
+- a: writes a hello (a conn op naming b's address) and a courier for it
+  locally; the outbox sends it bare to b, and the node purges the courier;
 - b: takes the hello from the bare wire (`onFrame`, conn ops only),
   records its arrival and the address (`recv`), answers with an ack
-  (`react`), sent bare back on the same socket;
+  (`react`) and its courier, sent bare back on the same socket;
 - both: list the session as established once the ack exists
   (`established`), so the node opens it and seals every frame after
   (a toy cipher naming its session, `sealFor`/`openFrame`).
@@ -25,17 +25,20 @@ def C := ed25519
 def base := family C
 
 /-- The toy handshake's kinds: hello and ack cross the bare wire; the
-arrival record and the shipped marker are local. -/
+arrival record and the courier are local. -/
 def kHello : UInt8 := 250
 def kRecord : UInt8 := 251
-def kShipped : UInt8 := 252
+def kCourier : UInt8 := 252
 def kAck : UInt8 := 253
 
 def fam : Family Fact :=
   { base with scope := fun o =>
       if o.kind == kHello || o.kind == kAck then .conn
-      else if o.kind == kRecord || o.kind == kShipped then .local
+      else if o.kind == kRecord || o.kind == kCourier then .local
       else base.scope o }
+
+/-- A courier: op x, to a bare address; the node purges it once sent. -/
+def courier (x : Op) (addr : ByteArray) : Op := Op.make kCourier [x.id] addr
 
 def opsOf (k : UInt8) : SqlM Fact (List Op) := do
   return (← dumpOps (F := Fact)).filter (·.kind == k)
@@ -57,22 +60,16 @@ def hooks (rooms : List Id) : Hooks Fact (SqlM Fact) where
   recv := fun cid addr o _ => pure <|
     if cid.isNone && o.kind == kHello then [Op.make kRecord [] (Codec.encode (o.id, addr))] else []
   outbox := do
-    let shipped := (← opsOf kShipped).map (·.body)
-    let recs ← records
-    let mine := (← opsOf kHello).filter fun h => !recs.any (·.1 == h.id)
-    let hellos := mine.filterMap fun h =>
-      if shipped.any (· == h.id) then none else some (h.id, h.body, h.bytes)
-    let acks := (← opsOf kAck).filterMap fun a =>
-      if shipped.any (· == a.id) then none else
-      match a.reqs, recs.find? (·.1 == a.reqs.headD .empty) with
-      | [_], some (_, addr) => some (a.id, addr, a.bytes)
-      | _, _ => none
-    return hellos ++ acks
-  shipped := fun i => [Op.make kShipped [] i]
+    let mut out := []
+    for c in ← opsOf kCourier do
+      if let some o ← Store.getOp (F := Fact) (c.reqs.headD .empty) then out := (c.id, c.body, o.bytes) :: out
+    return out
   react := do
     let acks := (← opsOf kAck).map (·.reqs.headD .empty)
-    return (← records).filterMap fun (h, _) =>
-      if acks.any (· == h) then none else some (Op.make kAck [h] "ack".toUTF8)
+    return (← records).flatMap fun (h, addr) =>
+      if acks.any (· == h) then [] else
+      let a := Op.make kAck [h] "ack".toUTF8
+      [a, courier a addr]
   established := do
     let recs ← records
     let acks := (← opsOf kAck).map (·.reqs.headD .empty)
@@ -130,7 +127,8 @@ def main (args : List String) : IO UInt32 := do
   let ra ← Runner.start x da 0 0
   let addrB := s!"127.0.0.1:{rb.port}".toUTF8
   -- a dials b: its hello names b's address.
-  ra.write [Op.make kHello [] addrB]
+  let hello := Op.make kHello [] addrB
+  ra.write [hello, courier hello addrB]
   let mut done := false
   for _ in [0:400] do
     IO.sleep 50

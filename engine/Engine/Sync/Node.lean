@@ -55,8 +55,12 @@ structure Hooks (F : Type) (m : Type → Type) [Monad m] where
   recv : Option Id → ByteArray → Op → Nat → m (List Op) := fun _ _ _ _ => pure []
   /-- The family's bare couriers waiting: id, address, op bytes. -/
   outbox : m (List (Id × ByteArray × ByteArray)) := pure []
-  /-- The local ops that mark a courier handed out. -/
-  shipped : Id → List Op := fun _ => []
+  /-- What closing session cid purges (with its dependents): run when
+  the session drops, or leaves `established`. -/
+  closing : Id → m (List Id) := fun _ => pure []
+  /-- Sessions the family no longer keeps (superseded by a redial, or
+  the losing one of two): each is closed and purged like a drop. -/
+  retired : m (List Id) := pure []
   /-- What the family writes in answer to what is stored: run after
   every write, to a fixpoint. -/
   react : m (List Op) := pure []
@@ -226,7 +230,8 @@ def Node.follow (n : Node) (now : Nat) : m (Node × Acts) := do
 def Node.flush (n : Node) (out : Acts) : m (Node × Acts) := do
   let box ← x.hooks.outbox
   if box.isEmpty then return (n, out)
-  let (n, _) ← n.put x (box.flatMap fun (i, _) => x.hooks.shipped i) true
+  -- Handed out: the couriers are purged (poc-17's shipped courier).
+  Turn.purge x.fam (box.map (·.1)) false
   return (n, out ++ { send := box.map fun (_, a, b) => (.bare a, b) })
 
 /-- Payloads in bundles of at most `max` bytes, in order (a payload
@@ -268,6 +273,11 @@ def Node.finish (n : Node) (out : Acts) (now : Nat) : m (Node × Effects) := do
   let (n, out) ← n.flush x out
   let out := out ++ o
   let sent ← n.seal x out
+  -- A session that dropped, or left `established`, is forgotten: its
+  -- secrets are purged, and a redial makes a new one.
+  for cid in out.drop ++ (← x.hooks.retired) do
+    let ids ← x.hooks.closing cid
+    if !ids.isEmpty then Turn.purge x.fam ids true
   return ({ n with fresh := [] }, { send := sent, drop := out.drop, stored := n.fresh })
 
 /-- Apply a connection's step. -/
