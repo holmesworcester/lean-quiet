@@ -128,3 +128,7 @@ open Engine Community
 #print axioms Community.progress_le
 #print axioms Community.progress_full
 #print axioms Community.progress_done
+#print axioms Connection.trusts_live
+#print axioms Connection.rooms_trusted
+#print axioms Connection.rooms_cut
+#print axioms Connection.rooms_model

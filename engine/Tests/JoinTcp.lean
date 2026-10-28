@@ -12,6 +12,11 @@ crypto. What a phone does, without the phone.
   session (the same id); the first sealed frames carry sync's hello
   and rounds; B ends admitted by its own ops and lets A in.
 - A later post streams to B.
+- A removes B while their session is live: from then on A sends B none
+  of the community's ops (a post of A's does not reach B) and takes
+  none of B's (B, not knowing, posts; A does not store it). Each
+  connection step reads its rooms afresh (`Node.refresh`), and the
+  trust rule refuses B (`rooms_cut`).
 
 Each step is read from the runners' databases through a second
 connection (SQLite's WAL lets it read beside the runner's writer).
@@ -105,6 +110,25 @@ def main (args : List String) : IO UInt32 := do
   let streamed ← waitFor 10000 (stored b p.id)
   t.ok "tcp: a later post reaches B" streamed.isSome
   IO.println s!"jointcp: opened in {opened}, established in {est}, admitted in {admitted}, post in {streamed} (ms)"
+  -- A removes B, on the live session.
+  let adms ← look a ((Community.admission.byDevice.read [c, dB.pk]).liftL.run : SqlM F (Answer Community.Fact))
+  match adms.rows.head? with
+  | none => t.ok "tcp: A holds B's admission" false
+  | some ((_, admB), _) =>
+    let rm := remove c c c admB dA
+    a.run.write [rm]
+    let cut ← waitFor 5000 do return !(← allowedOn a c dB.pk)
+    t.ok "tcp: A's trust rule refuses B once the removal is held" cut.isSome
+    let p2 := post c c dA "k".toUTF8 "after the removal".toUTF8 6
+    a.run.write [p2]
+    let q := post c admB dB "k".toUTF8 "B, not knowing".toUTF8 7
+    b.run.write [q]
+    -- Well past the time the earlier post took to stream.
+    IO.sleep 4000
+    t.ok "tcp: B posted on its side" (← stored b q.id)
+    t.ok "tcp: A's post after the removal does not reach B" (!(← stored b p2.id))
+    t.ok "tcp: A does not take B's post" (!(← stored a q.id))
+    IO.println s!"jointcp: removal held in {cut} ms; B holds the removal: {← stored b rm.id}; sessions on A: {(← ests a).length}"
   a.run.stop
   b.run.stop
   let code ← t.finish "jointcp"
