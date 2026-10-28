@@ -68,6 +68,10 @@ nothing else is assumed:
   - Without any one of the three steps, it does find them.
   - Below SQLite, it is assumed that the filesystem and the flash keep
     no older copy of a block.
+  - In practice that is doubtful: journaling and copy-on-write
+    filesystems, and flash wear-levelling, keep old blocks.
+  - The sound fix is for session secrets never to reach the disk, as
+    ephemeral ops (wanted, below).
 - **The seam:** the TCP runner's sockets, the C glue, and the Android and
   iOS shells. These are tested end to end, over localhost TCP and on
   devices.
@@ -110,6 +114,7 @@ nothing else is assumed:
 | 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Proven: a content key goes to exactly the live members' devices. In progress: sealing posts with it. | [`recipients_iff`], [`members_iff`] |
 | ⬜ | 🥊🥊🥊 | **Sessions are secret and authenticated:** only the two devices can derive a session's keys. In progress (`kk_secret`, `kk_authentic`). Proven so far: an honest handshake agrees. | [`handshake_agrees`], [`sent1_write1`], [`sent1_read1`], [`read2_write2'`] |
 | 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered** from the disk, or from the static keys later. Proven: the session's rows are gone. Tested: no file of the database holds a byte of them (`engine/Tests/Purge.lean`). In progress: from the static keys (`kk_forward_secret`). | [`purge_gone`], [`purge_named`] |
+| ⬜ | 🥊🥊🥊 | **Session secrets never reach the disk.** They would be ephemeral ops, held in memory, so forward secrecy would not rest on deletion. A restart then redials. | |
 | ⬜ | 🥊🥊🥊 | **Removed members cannot read new messages.** This needs key rotation, which is not built. | |
 | ⬜ | 🥊🥊 | **Every offered id names a stored op in one of the peer's rooms** (`have_shown`). This is the disclosure law for ids. | |
 | | | **Connections** | |
