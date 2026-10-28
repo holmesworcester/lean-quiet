@@ -1,6 +1,7 @@
 /-
 Wall times of the byte codec on the paths a photo takes, on SQLite with
-real Ed25519: encode and decode one 64 KiB chunk op, validate one chunk
+real Ed25519: build a 100-chunk attachment (its Merkle root, every
+chunk's proof, the chunk ops), encode and decode one 64 KiB chunk op, validate one chunk
 against its cited facts, ingest 100 chunk ops in one `receive`, and
 decode a 48 KiB frame bundle (the bundle's list, then `Op.decode` of
 each op in it). Then an adversarial input: numbers thousands of bytes
@@ -54,6 +55,11 @@ with the setup's. -/
   | some bs => bs.foldl (fun n b => match Op.decode b with | some _ => n + 1 | none => n) 0
   | none => 0
 
+/-- Attach file f: its root, every chunk's proof, and the chunk ops. -/
+@[noinline] def attachFile (c : Id) (d : Device) (k : ByteArray) (f : NewFile) (_ : Nat) : Nat :=
+  let (a, cs) := attach c c c d k f
+  cs.foldl (fun n o => n + o.id.size) a.id.size
+
 @[noinline] def decodeNat (b : ByteArray) (_ : Nat) : Nat :=
   match (Codec.decode b : Option Nat) with | some n => n % 7 | none => 0
 
@@ -81,6 +87,8 @@ def main (args : List String) : IO UInt32 := do
     (sha256 "info nonce".toUTF8).extract 0 24⟩
   let wf := send c c seedA kA ((sha256 "nonce 2".toUTF8).extract 0 24) "a photo".toUTF8 7 [nf]
   let chunks := wf.ops.drop 2
+  bench sum s!"build a {chunks.length}-chunk attachment (attach: root, proofs, chunk ops)" (cap := 3)
+    fun i => pure (attachFile c dA kA nf i)
   let o := chunks.headD default
   let bytes := o.bytes
   IO.println s!"one chunk op: {bytes.size} bytes"
