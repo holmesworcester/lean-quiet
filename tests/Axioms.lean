@@ -1,7 +1,15 @@
+import ops.sync.TimeLaws
+import ops.sync.RetryLaws
+import ops.sync.BoundsLaws
+import ops.sync.ServeLaws
+import engine.wire.CloseLaws
+import engine.wire.Slots
 import engine.core.Engine
 import ops.community.Community
 import ops.connection.All
 import engine.renderer.Geometry
+import engine.renderer.Cover
+import engine.renderer.LiveLaws
 import engine.renderer.SheetGeom
 import ops.community.link.View
 import engine.renderer.Camera
@@ -10,6 +18,7 @@ import engine.renderer.TextLaws
 import engine.renderer.WrapLaws
 import ops.community.reaction.RowLaws
 import ops.community.message.ViewLaws
+import ops.community.profile.NamesakeLaws
 import ops.community.message.Order
 import ops.app.PeopleLaws
 import ops.app.Remove
@@ -52,6 +61,7 @@ open Engine Community
 #print axioms Engine.Sync.spec_local
 #print axioms Engine.run_step
 #print axioms Engine.run_drain
+#print axioms Engine.run_ingest
 #print axioms Community.message_authorized
 #print axioms Community.no_impersonation
 #print axioms Community.profile_authorized
@@ -209,6 +219,121 @@ open Engine Community
 #print axioms Community.chunk_of_attachment
 #print axioms Community.chunk_hangs_off
 #print axioms Community.chunk_own
+#print axioms Engine.Op.decode_exact
+#print axioms Engine.Op.decode_parts
+#print axioms Engine.Codec.decode_sum
+#print axioms Engine.Sync.frames_kept
+#print axioms Engine.Sync.frames_tooBig
+#print axioms Engine.Sync.frames_size
+#print axioms Engine.Sync.frames_frame
+#print axioms Engine.Sync.buffer_bounded
+#print axioms Engine.Sync.onFrame_sealed
+#print axioms Engine.Sync.onSealed_none
+#print axioms Engine.Sync.sealed_unopened
+#print axioms Connection.openFrame_reads
+#print axioms Connection.openFrame_auth
+#print axioms Connection.sealed_auth
+#print axioms Engine.Sync.boot_cached
+#print axioms Engine.Sync.write_cached
+#print axioms Engine.Sync.purge_cached
+#print axioms Engine.Sync.cached_items
+#print axioms Engine.Sync.cached_shown
+#print axioms Engine.Sync.start_keeps
+#print axioms Engine.Sync.onRbsr_keeps
+#print axioms Engine.Sync.walk_keeps
+#print axioms Engine.Sync.onHold_keeps
+#print axioms Engine.Sync.onWant_keeps
+#print axioms Engine.Sync.filed_keeps
+#print axioms Engine.Sync.recv_keeps
+#print axioms Engine.Sync.tick_keeps
+#print axioms Engine.Sync.open_keeps
+#print axioms Engine.Sync.setRooms_snaps
+#print axioms Engine.Sync.write_snaps
+#print axioms Engine.Sync.have_shown
+#print axioms Engine.Sync.holdsOf_hold
+#print axioms Engine.Sync.holdsIn_apply
+#print axioms Engine.Sync.heldIn_local
+#print axioms Engine.Sync.onHold_local
+#print axioms Engine.Sync.hold_reply_local
+#print axioms Engine.Sync.heldIn_index
+#print axioms Engine.Sync.have_shown_premises
+#print axioms Engine.Sync.hold_reply_local_premises
+#print axioms Engine.Sync.stream_delivers
+#print axioms Engine.Sync.stream_delivers_steps
+#print axioms Engine.Sync.stream_delivers_runs
+#print axioms Engine.Sync.write_offers
+#print axioms Engine.Sync.hold_wants
+#print axioms Engine.Sync.want_sends
+#print axioms Engine.Sync.op_taken
+#print axioms Engine.Sync.stream_offered
+#print axioms Engine.Sync.stream_offered_runs
+#print axioms Engine.Sync.write_offers_all
+#print axioms Engine.Sync.filed_offers
+#print axioms Engine.Sync.fanout_offers
+#print axioms Engine.Sync.seal_mem
+#print axioms Engine.Sync.conn_answers_ids
+#print axioms Engine.Sync.tick_drop_iff
+#print axioms Engine.Sync.patience_drop_iff
+#print axioms Engine.Sync.round_not_dropped
+#print axioms Engine.Sync.responder_expires
+#print axioms Engine.Sync.live_not_expired
+#print axioms Engine.Sync.uncarried_room_answered
+#print axioms Engine.Sync.limit_bounded
+#print axioms Engine.Sync.finish_bounded
+#print axioms Engine.Sync.start_bounded
+#print axioms Engine.Sync.round_bounded
+#print axioms Engine.Sync.hold_bounded
+#print axioms Engine.Sync.onWant_bounded
+#print axioms Engine.Sync.walkN_bounded
+#print axioms Engine.Sync.tick_bounded
+#print axioms Engine.Sync.recv_bounded
+#print axioms Engine.Sync.filed_bounded
+#print axioms Engine.Sync.conn_bounded
+#print axioms Engine.Sync.Read.run_held
+#print axioms Engine.Sync.Read.run_model
+#print axioms Engine.Sync.serve_reads
+#print axioms Engine.Sync.serve_shown
+#print axioms Engine.Sync.serve_blind
+#print axioms Engine.Sync.serve_budget
+#print axioms Engine.Sync.authorize_mem
+#print axioms Engine.Sync.want_reads_authorized
+#print axioms Engine.Sync.want_blind
+#print axioms Engine.Sync.want_blind_step
+#print axioms Engine.Sync.onWant_one
+#print axioms Engine.Sync.want_budget
+#print axioms Engine.Sync.endSession_purges
+#print axioms Engine.Sync.close_gone
+#print axioms Engine.Sync.close_purges
+#print axioms Engine.Sync.admit_bounded
+#print axioms Engine.Sync.Read.trace_map
+#print axioms Engine.Sync.Step.limit_send
+#print axioms Engine.Sync.Step.limit_take
+#print axioms Engine.Sync.Step.limit_rooms
+#print axioms Engine.Sync.Step.limit_snaps
+#print axioms Engine.Sync.Conn.finish_known
+#print axioms Engine.Sync.Conn.finish_asked
+#print axioms Engine.Sync.limit_snaps
+#print axioms Engine.Sync.keeps_limit
+#print axioms Engine.Sync.Step.limit_drop
+#print axioms Engine.Sync.expire_bounded
+#print axioms Engine.Sync.remember_bounded
+#print axioms Engine.Sync.remember_fits
+#print axioms Engine.Sync.admit_one
+#print axioms Engine.Sync.known_forgets
+#print axioms Engine.Sync.asked_full
+#print axioms Engine.Sync.round_no_drop
+#print axioms Engine.Sync.hold_no_drop
+#print axioms Engine.Sync.want_no_drop
+#print axioms Engine.Sync.recv_no_drop
+#print axioms Engine.Sync.honest_no_drop
+#print axioms Engine.Sync.honest_no_drop_runs
+#print axioms Engine.Sync.asks_expire
+#print axioms Engine.Sync.retried_append
+#print axioms Engine.Sync.retried_start
+#print axioms Engine.Sync.retried_holds
+#print axioms Engine.Sync.retried_chunks
+#print axioms Engine.Sync.pieces_short
+#print axioms Engine.Sync.retry_bounded
 end engine
 
 section app
@@ -224,6 +349,14 @@ section app
 #print axioms SheetGeom.compose_row
 #print axioms SheetGeom.compose_top
 #print axioms Geometry.pinned_row
+#print axioms Cover.covered
+#print axioms LiveLaws.agrees_empty
+#print axioms LiveLaws.answer_agrees
+#print axioms LiveLaws.agrees_store
+#print axioms LiveLaws.agrees_notice
+#print axioms LiveLaws.agrees_keep
+#print axioms LiveLaws.read_one_moment
+#print axioms Cover.line_painted
 #print axioms Geometry.pinned_visible
 #print axioms Geometry.pinned_tap
 #print axioms Link.hints_fit
@@ -251,6 +384,12 @@ section app
 #print axioms RowLaws.time_shown
 #print axioms RowLaws.name_placed
 #print axioms ViewLaws.profile_read
+#print axioms ViewLaws.others_iff
+#print axioms ViewLaws.namesake_iff
+#print axioms ViewLaws.row_marked
+#print axioms RowLaws.twin_shown
+#print axioms RowLaws.twin_before_time
+#print axioms RowLaws.hit_twin
 #print axioms ViewLaws.message_read
 #print axioms PeopleLaws.present_iff
 #print axioms PeopleLaws.present_nodup

@@ -5,11 +5,18 @@ length, then that many bytes (moved here from lean-quiet-daemon
 whole frames off the front; a frame longer than `maxFrame` ends the
 connection instead of being buffered.
 
+A read is `frames`: the reader appends what it read to its buffer, takes
+every whole frame off the front, and keeps the rest for the next read,
+or ends the connection.
+
 Laws: `unframe_frame` (a framed payload, followed by anything, unframes
-to exactly that payload and the rest), `unframe_short` (an incomplete
-frame asks for more), and `unframe_size` (what unframe returns is never
-longer than `maxFrame`). Reads go through `b[i]?` and size-checked
-`extract` only.
+to exactly that payload and the rest), `unframe_size` (what unframe
+returns is never longer than `maxFrame`), `buffer_bounded` and
+`frames_kept` (what a reader keeps between reads is less than one
+maximal frame and its length, whatever the peer's length fields say),
+and `frames_tooBig` (a length over `maxFrame` ends the connection in the
+read that completes it, keeping nothing). Reads go through `b[i]?` and
+size-checked `extract` only.
 -/
 namespace Engine.Sync
 
@@ -98,5 +105,128 @@ theorem unframe_size {b p rest : ByteArray} (h : unframe b = .frame p rest) : p.
         rw [ByteArray.size_extract]
         omega
       · cases h
+
+theorem lenAt_isSome {b : ByteArray} (h : 4 ≤ b.size) : (lenAt b).isSome := by
+  unfold lenAt
+  rw [getElem?_pos b 0 (by omega), getElem?_pos b 1 (by omega), getElem?_pos b 2 (by omega),
+    getElem?_pos b 3 (by omega)]
+  rfl
+
+/-- Taking a frame off the front shortens the buffer. -/
+theorem unframe_rest {b p rest : ByteArray} (h : unframe b = .frame p rest) : rest.size < b.size := by
+  unfold unframe at h
+  split at h
+  · cases h
+  · rename_i n _
+    split at h
+    · cases h
+    · split at h
+      · cases h
+        rw [ByteArray.size_extract]
+        omega
+      · cases h
+
+/-- What `unframe` waits on: fewer than 4 bytes, or fewer than the
+length they declare, which is at most `maxFrame`. -/
+theorem unframe_more {b : ByteArray} (h : unframe b = .more) :
+    b.size < 4 ∨ ∃ n, lenAt b = some n ∧ n ≤ maxFrame ∧ b.size < 4 + n := by
+  unfold unframe at h
+  split at h
+  · rename_i hl
+    left
+    refine Nat.lt_of_not_le fun hs => ?_
+    have := lenAt_isSome hs
+    rw [hl] at this; cases this
+  · rename_i n hl
+    split at h
+    · cases h
+    · split at h
+      · cases h
+      · right; exact ⟨n, hl, by omega, by omega⟩
+
+/-- A reader's buffer after a read: every whole frame off its front, in
+order, and what is kept for the next read; none ends the connection
+(a length over `maxFrame`). -/
+def frames (b : ByteArray) : List ByteArray × Option ByteArray :=
+  match _h : unframe b with
+  | .frame p rest => let r := frames rest; (p :: r.1, r.2)
+  | .more => ([], some b)
+  | .tooBig => ([], none)
+termination_by b.size
+decreasing_by exact unframe_rest ‹_›
+
+/-- **What a read keeps is less than one maximal frame and its
+length**, and declares no length over `maxFrame`. -/
+theorem frames_kept {b k : ByteArray} (h : (frames b).2 = some k) :
+    k.size < 4 + maxFrame ∧ ∀ n, lenAt k = some n → n ≤ maxFrame := by
+  induction b using frames.induct with
+  | case1 x p rest hu ih =>
+    rw [frames, hu] at h
+    exact ih h
+  | case2 x hu =>
+    rw [frames, hu] at h
+    cases h
+    rcases unframe_more hu with hs | ⟨n, hl, hn, hs⟩
+    · refine ⟨by unfold maxFrame; omega, fun n hl => ?_⟩
+      unfold lenAt at hl
+      rw [getElem?_neg _ 3 (by omega)] at hl
+      simp at hl
+    · refine ⟨by omega, fun m hm => ?_⟩
+      rw [hl] at hm; cases hm; exact hn
+  | case3 x hu =>
+    rw [frames, hu] at h
+    cases h
+
+/-- **A length over `maxFrame` ends the connection**, in the read that
+completes it, keeping nothing. -/
+theorem frames_tooBig {b : ByteArray} {n : Nat} (hl : lenAt b = some n) (hn : maxFrame < n) :
+    frames b = ([], none) := by
+  have hu : unframe b = .tooBig := by
+    unfold unframe; rw [hl]; simp [hn]
+  rw [frames, hu]
+
+/-- Every frame a read takes is at most `maxFrame`. -/
+theorem frames_size {b p : ByteArray} (h : p ∈ (frames b).1) : p.size ≤ maxFrame := by
+  induction b using frames.induct with
+  | case1 x q rest hu ih =>
+    rw [frames, hu] at h
+    rcases List.mem_cons.1 h with rfl | h
+    · exact unframe_size hu
+    · exact ih h
+  | case2 x hu => rw [frames, hu] at h; cases h
+  | case3 x hu => rw [frames, hu] at h; cases h
+
+/-- A framed payload is taken whole, then the rest. -/
+theorem frames_frame (p rest : ByteArray) (h : p.size ≤ maxFrame) :
+    frames (frame p ++ rest) = (p :: (frames rest).1, (frames rest).2) := by
+  rw [frames, unframe_frame p rest h]
+
+/-- The buffers a reader keeps over a sequence of reads, from b, until
+it ends the connection. -/
+def keeps : ByteArray → List ByteArray → List ByteArray
+  | _, [] => []
+  | b, c :: cs =>
+    match (frames (b ++ c)).2 with
+    | some k => k :: keeps k cs
+    | none => []
+
+/-- **Bounded buffering.** Over any sequence of reads, each buffer the
+reader keeps is less than one maximal frame and its length, whatever
+the peer's length fields say; so while it takes a read it holds less
+than that and the read. -/
+theorem buffer_bounded (reads : List ByteArray) :
+    ∀ k ∈ keeps .empty reads, k.size < 4 + maxFrame := by
+  suffices ∀ b, ∀ k ∈ keeps b reads, k.size < 4 + maxFrame from this _
+  induction reads with
+  | nil => intro b k hk; cases hk
+  | cons c cs ih =>
+    intro b k hk
+    unfold keeps at hk
+    split at hk
+    · rename_i k' hk'
+      rcases List.mem_cons.1 hk with rfl | hk
+      · exact (frames_kept hk').1
+      · exact ih k' k hk
+    · cases hk
 
 end Engine.Sync

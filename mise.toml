@@ -36,7 +36,7 @@ description = "The bootstrap model: its laws built, the scene on the real engine
 run = "tests/net/check.sh"
 
 [tasks."readme:links"]
-description = "The README's theorem links match the code (ci/proof-links.py; needs the tree built)"
+description = "The README's theorem links, and its laws not yet about running code (tests/Wiring.lean), match the code (ci/proof-links.py; needs the tree built)"
 run = "python3 ci/proof-links.py --check"
 
 [tasks."reorg:test"]
@@ -162,3 +162,7 @@ run = "platforms/ios/ship.sh ctl-guard"
 description = "Who can drive the app's control channel, on your own emulator (SERIAL, default emulator-5644): adb is answered, another app's uid is refused, a RELEASE=1 build does not listen"
 depends = ["android:apk"]
 run = "platforms/android/test/ctl_guard.sh ${SERIAL:-emulator-5644}"
+
+[tasks."test:harden"]
+description = "Daybreak sync regressions: read traces, deadlines, purge, hostile holds, backpressure and TCP socket limits"
+run = "tests/engine/harden.sh"

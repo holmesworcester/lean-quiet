@@ -1,20 +1,39 @@
 #!/usr/bin/env python3
-"""The README's theorem links, from Lean's own declaration ranges.
+"""The README's theorem links, from Lean's own declaration ranges, and
+its list of laws not yet about running code, from tests/Wiring.lean.
 
 Every theorem the audit lists (`#print axioms` in tests/Axioms.lean) is
 looked up in the built environment (`findDeclarationRanges?`), and linked
 to its file and lines: from its docstring through its statement, not its
-proof. The assumptions the README names (`ASSUMED`) are linked whole,
+proof. The assumptions (tests/wiring.txt's `assume`s) are linked whole,
 definition included.
 
 The README names a theorem as a shortcut reference, [`no_impersonation`],
 by its full name or any suffix of it that names one of these; the link
 definitions go in the block between the proof-links markers at its end.
 
-  ci/proof-links.py           rewrite the block
-  ci/proof-links.py --check   fail if the block is stale, a reference
-                              names no audited theorem, or the README's
-                              "All N rest on" count is not the audit's
+The section between the wiring markers ("Not yet about running code") is
+written from tests/Wiring.lean's classification, as short tables: the
+count per area; a row for each missing link (a model, or running code a
+law restates) with its laws and tests/wiring.txt's note; the
+assumptions. The proofs tables above it must agree: a ✅ row must cite a
+law about running code, and a 🟡 row must say in its own cell what is
+missing ("Wanted", "Not yet", "not proven", "Not covered", "todo"). The
+README's lead takes its fraction and number from the same count ("about
+three quarters of its theorems (N of M)"): the largest of `FRACTIONS` the
+share reaches, so the word never claims more than the number. It may
+say "nearly every" only while the share is 90% or more.
+
+  ci/proof-links.py           rewrite the block and the section
+  ci/proof-links.py --check   fail if either is stale, a reference
+                              names no audited theorem, the README's
+                              "All N rest on" count is not the audit's,
+                              tests/Wiring.lean fails (a law marked wired
+                              is not, a stale note), or a proofs row
+                              disagrees. Negative controls first: notes
+                              marking a model law wired, a ✅ row citing
+                              only it, and a 🟡 row saying nothing missing
+                              must each fail.
 
 Needs the tree built (tests/check.sh builds it).
 """
@@ -23,14 +42,43 @@ import os, re, subprocess, sys
 TOP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AUDIT = os.path.join(TOP, "tests", "Axioms.lean")
 README = os.path.join(TOP, "README.md")
+NOTES = os.path.join(TOP, "tests", "wiring.txt")
 BEGIN = "<!-- proof-links: written by ci/proof-links.py; do not edit -->"
 END = "<!-- /proof-links -->"
+WBEGIN = "<!-- wiring:begin -->"
+WEND = "<!-- wiring:end -->"
+# The areas of the per-area counts: the first module prefix a law's
+# module has.
+AREAS = [("engine.core", "Engine"), ("ops.sync", "Sync"), ("engine.wire.mdns", "mDNS"),
+         ("engine.wire", "Node and wire"), ("ops.connection.bootstrap", "Bootstrap"),
+         ("ops.connection", "Connections"), ("ops.community", "Community"),
+         ("engine.renderer.qr", "QR codes"), ("engine.renderer.pic", "Pictures"),
+         ("engine.renderer", "Screen"), ("ops.app", "App"), ("App", "App")]
+# What a 🟡 row says to name what is missing.
+WANTED = re.compile(r"wanted|not yet|not proven|not covered|todo", re.I)
+# The lead's count, and the share "nearly every" needs.
+LEAD = re.compile(r"about\s+([a-z]+(?:\s+[a-z]+)?)\s+of\s+its\s+theorems\s+\((\d+)\s+of\s+(\d+)\)")
+# The lead's fraction words, each with the share it needs.
+FRACTIONS = [(0.95, "nearly all"), (0.9, "nine tenths"), (0.8, "four fifths"), (0.75, "three quarters"),
+             (2 / 3, "two thirds"), (0.6, "three fifths"), (0.5, "half")]
+NEARLY = re.compile(r"(nearly|almost) (every|all) (theorem|law)", re.I)
+THRESHOLD = 0.9
 # How many theorems the audit lists, counted as they are probed.
 AUDITED = [0]
-# Definitions the theorems take as hypotheses.
-ASSUMED = ["Community.Unforgeable", "Engine.CollisionFree", "Engine.Distinct",
-           "Connection.Noise.Suite.Good", "Connection.Keys.Good",
-           "Community.Merkle.NoSecondPreimage"]
+
+
+def notes(kind, path=NOTES):
+    """tests/wiring.txt's notes of a kind: name to text, in its order."""
+    out = {}
+    for line in open(path):
+        f = line.split(None, 2)
+        if len(f) >= 2 and f[0] == kind:
+            out[f[1]] = f[2].strip() if len(f) > 2 else ""
+    return out
+
+
+# What the theorems take as hypotheses, and the models they assume.
+ASSUMED = list(notes("assume")) + list(notes("holds"))
 
 PROBE = """open Lean in
 #eval show CoreM Unit from do
@@ -99,15 +147,240 @@ def span(path, start, sel, end, whole):
     return a, max(b, sel)
 
 
+def classify(notes_path=None):
+    """tests/Wiring.lean's output: its lines, split, and its problems."""
+    env = dict(os.environ, WIRING_NOTES=notes_path) if notes_path else None
+    r = subprocess.run(["lake", "env", "lean", "--run", "tests/Wiring.lean"], cwd=TOP,
+                       capture_output=True, text=True, env=env)
+    rows = [l.split("\t") for l in r.stdout.splitlines()
+            if l.split("\t")[0] in ("law", "stmt", "missing", "assume", "copy", "count")]
+    problems = [l for l in r.stderr.splitlines() if l.startswith("wiring:")]
+    if r.returncode != 0 and not problems:
+        problems = [f"tests/Wiring.lean failed (is the tree built, and Main?)\n{r.stdout}{r.stderr}"]
+    return rows, problems
+
+
+def split(cell):
+    return [x for x in cell.split(", ") if x]
+
+
+def short(name, names, least=1):
+    """The shortest suffix of name, of `least` parts or more, that names it
+    alone among names."""
+    parts = name.split(".")
+    for k in range(min(least, len(parts)), len(parts) + 1):
+        s = ".".join(parts[-k:])
+        if sum(1 for n in names if n == s or n.endswith("." + s)) == 1:
+            return s
+    return name
+
+
+def resolver(decls):
+    """A reference's audited theorem or assumption, if it names one alone."""
+    def resolve(label):
+        hits = [n for n in decls if n == label or n.endswith("." + label)]
+        return hits[0] if len(hits) == 1 else None
+    return resolve
+
+
+def disagree(tables, wired, resolve):
+    """The proofs rows that disagree with the classification: a ✅ row that
+    cites no law about running code, a 🟡 row whose own cell does not say
+    what is missing."""
+    bad = []
+    for line in tables.split("\n"):
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 4 or cells[0] not in ("✅", "🟡"):
+            continue
+        title = re.sub(r"\*\*(.+?)\*\*.*", r"\1", cells[2]).strip()
+        laws = [resolve(l) for l in re.findall(r"\[`([^`\]]+)`\]", cells[3])]
+        if cells[0] == "✅" and not any(l in wired for l in laws if l):
+            bad.append(f"✅ \"{title}\" cites no law about running code: make it 🟡, saying what is missing")
+        if cells[0] == "🟡" and not WANTED.search(cells[2]):
+            bad.append(f"🟡 \"{title}\" does not say what is missing (Wanted, Not yet, not proven, Not covered, todo)")
+    return bad
+
+
+def fraction(w, t):
+    """The largest fraction word the share w of t reaches."""
+    return next((word for f, word in FRACTIONS if w >= f * t), "less than half")
+
+
+def lead(pre, w, t):
+    """The lead's problems against the count w of t, and the lead written
+    from it."""
+    m = LEAD.search(pre)
+    if not m:
+        return ['no "about <fraction> of its theorems (N of M)" in the README\'s lead'], pre
+    problems, word = [], fraction(w, t)
+    said = " ".join(m.group(1).split())
+    if said != word:
+        problems.append(f'the lead says "{said}"; {w} of {t} ({100 * w // t}%) gives "{word}"')
+    if (int(m.group(2)), int(m.group(3))) != (w, t):
+        problems.append(f"the lead says {m.group(2)} of {m.group(3)}; the count is {w} of {t}")
+    new = pre[:m.start(1)] + word + pre[m.end(1):m.start(2)] + str(w) + pre[m.end(2):m.start(3)] + str(t) + pre[m.end(3):]
+    return problems, new
+
+
+def controls(rows, resolve):
+    """The negative controls: notes marking a model law wired, a ✅ row
+    citing only it, a 🟡 row saying nothing missing, and a lead whose
+    fraction is one step above the count's must each fail."""
+    model = next((f[1] for f in rows if f[0] == "law" and f[2] == "model"), None)
+    wired = {f[1] for f in rows if f[0] == "law" and f[2] == "wired"}
+    if model is None or not wired:
+        return []
+    problems = []
+    os.makedirs(os.path.join(TOP, "out", "proof-links"), exist_ok=True)
+    path = os.path.join(TOP, "out", "proof-links", "wiring-control.txt")
+    with open(path, "w") as f:
+        f.write(open(NOTES).read() + f"\nwired {model}\n")
+    _, caught = classify(path)
+    if not any(f"marks {model} wired, but it is not" in p for p in caught):
+        problems.append(f"negative control: {model}, marked wired, was not caught")
+    a_wired = sorted(wired)[0]
+    rows_ = (f"| ✅ | 🥊 | **Control.** | [`{model}`] |\n"
+             f"| 🟡 | 🥊 | **Control.** Proven. | [`{a_wired}`] |\n")
+    if len(disagree(rows_, wired, lambda l: l)) != 2:
+        problems.append("negative control: a ✅ row citing only a model law, or a 🟡 row "
+                        "saying nothing missing, was not caught")
+    w, t = len(wired), sum(1 for f in rows if f[0] == "law")
+    words = [word for _, word in FRACTIONS]
+    right = fraction(w, t)
+    above = words[max(words.index(right) - 1, 0)] if right in words else "half"
+    if not lead(f"about {above} of its theorems ({w} of {t})", w, t)[0]:
+        problems.append(f'negative control: "{above}" for {w} of {t} was not caught')
+    if not problems:
+        print(f"proof-links: negative controls: {model} marked wired, a ✅ row citing only it, "
+              f'a 🟡 row saying nothing missing, and "{above}" for {w} of {t}, all caught')
+    return problems
+
+
+def section(rows, decls, cited):
+    """The README's todo section, from tests/Wiring.lean's lines."""
+    laws = [(f[1], f[2], split(f[4]), split(f[5]), f[6], split(f[7])) for f in rows if f[0] == "law"]
+    stmts = [(f[1], f[2], split(f[4])) for f in rows if f[0] == "stmt"]
+    missing = {f[1]: (int(f[2]), f[3], split(f[4])) for f in rows if f[0] == "missing"}
+    given = {f[1]: f[2] for f in rows if f[0] == "assume"}
+    assumed = {a: given[a] for a in ASSUMED if a in given}  # in tests/wiring.txt's order
+    count = dict(c.split(" ") for f in rows if f[0] == "count" for c in f[1:])
+
+    def target(m, table):
+        seen = set()
+        while m in table and table[m].startswith("= ") and m not in seen:
+            seen.add(m)
+            m = table[m][2:].strip()
+        return m
+
+    notes_of = {m: v[1] for m, v in missing.items()}
+
+    def place(m):
+        t = target(m, notes_of)
+        return (missing[t][0] if t in missing and missing[t][1] else 10 ** 6, t)
+
+    def link(n, mark="", cite=True):
+        """A reference; of two parts when its last is short (`Symbolic.good`)."""
+        label = short(n, decls, 1 if len(n.split(".")[-1]) > 4 else 2)
+        return f"[`{label}`]" + mark + ("†" if cite and n in cited else "")
+
+    def codes(t, names):
+        """A row's definitions, its own first, three at most."""
+        ns = [t] + sorted(names - {t}) if t in names else sorted(names)
+        more = f" +{len(ns) - 3}" if len(ns) > 3 else ""
+        return ", ".join(f"`{short(n, missing, 2)}`" for n in ns[:3]) + more
+
+    # per area
+    def area(mod):
+        return next((a for p, a in AREAS if mod == p or mod.startswith(p + ".")), "Other")
+    per = {}
+    for name, status, _, _, mod, _ in laws:
+        c = per.setdefault(area(mod), [0, 0])
+        c[0 if status == "wired" else 1] += 1
+    order = list(dict.fromkeys([a for _, a in AREAS] + ["Other"]))
+    stated = [n for n, st, _ in stmts if st == "stated"]
+    out = [f"**{count['wired']} of {len(laws)} laws are about running code;** {count['model']} are not yet. "
+           f"Stated only: {', '.join(f'`{n}`' for n in stated) if stated else 'none'}.", "",
+           "| Area | Laws | About running code | Not yet |", "|---|---|---|---|"]
+    for a in order:
+        if a in per:
+            w, m = per[a]
+            out.append(f"| {a} | {w + m} | {w} | {m or ''} |")
+    # per missing link: a model, or running code a law restates
+    copies = {f[1]: f[2] for f in rows if f[0] == "copy"}
+    copied = {code: n for n, code in copies.items()}
+    groups, general = {}, []
+    for name, status, miss, _, _, prem in laws:
+        if not miss and status != "wired":
+            general.append(name)
+            continue
+        for m in (prem if status == "wired" else miss):
+            t = place(m)[1]
+            g = groups.setdefault(t, ({}, set()))
+            g[0][name] = "°" if status == "wired" else "*" if set(miss) <= set(prem) else ""
+            g[1].add(m)
+    out += ["", "| Missing link | Laws | To make them real |", "|---|---|---|"]
+    for t in sorted(groups, key=lambda t: place(t)):
+        ls, names = groups[t]
+        note = missing[t][1] if t in missing and missing[t][1] else ""
+        if not note:
+            by = sorted({c for n in names for c in missing.get(n, (0, "", []))[2]} - names)
+            note = "Nothing that runs calls it" + (f"; {codes(by[0], set(by))} do" if by else "") + "."
+        what = codes(t, names)
+        if t in copied:  # running code a law restates
+            what = f"restates `{short(t, [t], 2)}`"
+        elif t in copies:  # a definition that restates running code
+            what += f" (restates `{short(copies[t], [copies[t]], 2)}`)"
+        out.append(f"| {what} | {', '.join(link(n, mk) for n, mk in ls.items())} | {note} |")
+    if general:
+        out.append(f"| (none) | {', '.join(map(link, general))} | Nothing to wire: each is about "
+                   "a specification or an assumption. |")
+    out += ["", "\\* only a premise names it. ° about running code, but names it beside. "
+            "† a guarantee above cites it.", "",
+            "| Assumption | Laws | |", "|---|---|---|"]
+    for a, text in assumed.items():
+        if text.startswith("= "):
+            continue
+        part = [a] + [b for b in assumed if b != a and target(b, assumed) == a]
+        n = sum(1 for law in laws if set(law[3]) & set(part))
+        out.append(f"| {link(a, cite=False)} | {n} | {text} |")
+    return "\n" + "\n".join(out) + "\n"
+
+
 def main():
     check = "--check" in sys.argv[1:]
     decls = ranges()
+    resolve = resolver(decls)
+    rows, problems = classify()
+    if check:
+        problems = controls(rows, resolve) + problems
     text = open(README).read()
+    if WBEGIN not in text or WEND not in text:
+        sys.exit(f"proof-links: no wiring markers ({WBEGIN}, {WEND}) in the README")
+    pre, rest = text.split(WBEGIN)
+    section_old, post = rest.split(WEND)
+    # the proofs tables: "What is proven", above the section
+    tables = pre.split("## What is proven")[-1]
+    wired = {f[1] for f in rows if f[0] == "law" and f[2] == "wired"}
+    total = sum(1 for f in rows if f[0] == "law")
+    problems += disagree(tables, wired, resolve)
+    # the lead's fraction and count, and "nearly every" only at the threshold
+    stale, pre_new = lead(pre, len(wired), total)
+    if check or not LEAD.search(pre):
+        problems += stale
+    pre = pre_new
+    if total and NEARLY.search(pre) and len(wired) < THRESHOLD * total:
+        problems.append(f'the README says "{NEARLY.search(pre).group(0)}", but {len(wired)} of {total} '
+                        f"({100 * len(wired) // total}%) is under {int(THRESHOLD * 100)}%")
+    cited = {resolve(l) for l in re.findall(r"\[`([^`\]]+)`\]", tables)} - {None}
+    section_new = section(rows, decls, cited)
+    if check and section_new != section_old:
+        problems.append("the wiring section is stale: run ci/proof-links.py")
+    text = pre + WBEGIN + section_new + WEND + post
     if BEGIN not in text:
         text = text.rstrip("\n") + f"\n\n{BEGIN}\n{END}\n"
     head, rest = text.split(BEGIN)
     block_old, tail = rest.split(END)
-    problems, labels = [], []
+    labels = []
     for label in re.findall(r"\[`([^`\]]+)`\](?![(\[])", head):
         if label not in labels:
             labels.append(label)
@@ -130,7 +403,7 @@ def main():
         head = head[:count.start(1)] + str(AUDITED[0]) + head[count.end(1):]
     new = head + BEGIN + block + END + tail
     if check:
-        if new != text:
+        if block != block_old:
             problems.append("the links are stale: run ci/proof-links.py")
         for p in problems:
             print("proof-links:", p)
