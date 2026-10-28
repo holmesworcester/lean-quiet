@@ -3,8 +3,10 @@
 The app (Main.lean over Quiet/) on UIKit: `quiet_ios.m` implements
 Platform.lean's seam, and `ctl_ios.c` is the control channel. Lean has no
 iOS libraries, so ship.sh stages the C of Main's whole module closure (the
-app's modules, lean-engine's, and Std's), Init's C, Lean's runtime source,
-libuv's source and the SQLite/Ed25519 glue. The Mac then builds all of it
+app's modules and those of every package it requires (lean-engine,
+lean-qr), and Std's), Init's C, Lean's runtime source, libuv's source, the
+SQLite glue and the engine's crypto (its Rust library, built here for both
+iOS targets). The Mac then builds all of it
 with Xcode's clang (`build_ios.sh`, `leanrt.sh`). The scripts run from the
 Linux box and do the Mac's part over SSH.
 
@@ -101,6 +103,16 @@ Linux box and do the Mac's part over SSH.
   there, and `assets` is a symlink to the bundle's assets, made again at
   each launch.
 
+- **Camera (Join with QR code):** `lq_scan` starts or stops an
+  AVCaptureSession on the back wide-angle camera (1280 x 720, `420f`,
+  frames not rotated). `lq_luma` hands Lean the newest frame's Y plane as
+  `[w, h, stride, 90]`: the sensor is landscape, so a quarter turn
+  clockwise makes a frame upright in portrait, as Camera2's
+  SENSOR_ORIENTATION says of a back camera. Lean draws the preview
+  (`Camera.preview`) and decodes (`Qr.decodeLuma`). Where there is no
+  camera (the Simulator), nothing starts and no permission is asked; Lean
+  keeps "Starting the camera…". `NSCameraUsageDescription` is in
+  `project.yml`. Each step goes to stderr, as on Android.
 - **Lean's threads:** Lean's runtime reserves 1 GB of stack for each
   thread on 64-bit. An iOS app's address space runs out after a few such
   threads, and `pthread_create` then fails with EAGAIN ("failed to create

@@ -41,6 +41,7 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
         INFOPLIST_KEY_UIFileSharingEnabled: YES
+        INFOPLIST_KEY_NSCameraUsageDescription: Lean Quiet reads an invite's QR code with the camera.
         CLANG_ENABLE_OBJC_ARC: YES
         HEADER_SEARCH_PATHS: ${LEANQUIET_ST}/lean/include
         LIBRARY_SEARCH_PATHS: ${LEANQUIET_LIBS}

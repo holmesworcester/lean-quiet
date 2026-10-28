@@ -60,6 +60,7 @@
 // (default 7417, 0: none; ctl_ios.c).
 
 #import <UIKit/UIKit.h>
+#import <AVFoundation/AVFoundation.h>
 #import <QuartzCore/QuartzCore.h>
 #import <IOSurface/IOSurfaceRef.h>
 #include <lean/lean.h>
@@ -478,16 +479,130 @@ lean_obj_res lq_ime(uint8_t show) {
 
 static void lq_report(void);
 
-// The camera: not yet on iOS (it joins by Paste for now).
+// The camera
+// ----------
+
+// Platform.scan and luma, as android/twin's Camera2 does them: the back
+// camera's frames (1280 x 720, 420f: full-range luma), and the newest
+// one's Y plane handed to Lean with the sensor's clockwise orientation (90:
+// frames come in the sensor's landscape, unrotated, and a quarter turn
+// clockwise makes them upright in portrait, as Camera2's
+// SENSOR_ORIENTATION says of a back camera). Lean draws the preview and
+// decodes (Camera.preview, Qr.decodeLuma). With no camera (the Simulator)
+// nothing starts and no frames come: Lean keeps its waiting state.
+
+@interface LeanCamera : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
+@end
+
+static dispatch_queue_t lq_cam_q;    // the camera's own (start, stop, frames)
+static AVCaptureSession* lq_cam;     // running, or nil
+static LeanCamera*       lq_cam_d;
+static bool              lq_cam_want;
+static uint8_t*          lq_y;       // the newest Y plane, or NULL (under lq_mu)
+static size_t            lq_yn;
+static uint32_t          lq_yhdr[4]; // w, h, stride, orientation
+
+@implementation LeanCamera
+
+- (void)captureOutput:(AVCaptureOutput*)o didOutputSampleBuffer:(CMSampleBufferRef)sb
+    fromConnection:(AVCaptureConnection*)c {
+  CVPixelBufferRef pb = CMSampleBufferGetImageBuffer(sb);
+  CVPixelBufferLockBaseAddress(pb, kCVPixelBufferLock_ReadOnly);
+  size_t   h = CVPixelBufferGetHeightOfPlane(pb, 0);
+  size_t   r = CVPixelBufferGetBytesPerRowOfPlane(pb, 0);
+  uint8_t* y = malloc(r * h);
+  memcpy(y, CVPixelBufferGetBaseAddressOfPlane(pb, 0), r * h);
+  uint32_t hdr[4] = { (uint32_t)CVPixelBufferGetWidthOfPlane(pb, 0), (uint32_t)h, (uint32_t)r, 90 };
+  CVPixelBufferUnlockBaseAddress(pb, kCVPixelBufferLock_ReadOnly);
+  pthread_mutex_lock(&lq_mu);
+  free(lq_y);
+  lq_y  = y;
+  lq_yn = r * h;
+  memcpy(lq_yhdr, hdr, sizeof hdr);
+  pthread_mutex_unlock(&lq_mu);
+}
+
+@end
+
+static AVCaptureDevice* lq_cam_device(void) {
+  return [AVCaptureDevice defaultDeviceWithDeviceType:AVCaptureDeviceTypeBuiltInWideAngleCamera
+    mediaType:AVMediaTypeVideo position:AVCaptureDevicePositionBack];
+}
+
+// On lq_cam_q.
+static void lq_cam_start(void) {
+  NSError*              e  = nil;
+  AVCaptureDeviceInput* in = [AVCaptureDeviceInput deviceInputWithDevice:lq_cam_device() error:&e];
+  if (in == nil) {
+    fprintf(stderr, "camera: cannot open: %s\n", e.localizedDescription.UTF8String);
+    return;
+  }
+  AVCaptureSession*         s   = [AVCaptureSession new];
+  AVCaptureVideoDataOutput* out = [AVCaptureVideoDataOutput new];
+  s.sessionPreset   = AVCaptureSessionPreset1280x720;
+  out.videoSettings = @{ (id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) };
+  out.alwaysDiscardsLateVideoFrames = YES;
+  [out setSampleBufferDelegate:lq_cam_d queue:lq_cam_q];
+  if (![s canAddInput:in] || ![s canAddOutput:out]) {
+    fprintf(stderr, "camera: cannot open\n");
+    return;
+  }
+  [s addInput:in];
+  [s addOutput:out];
+  [s startRunning];
+  lq_cam = s;
+  fprintf(stderr, "camera: opened 1280x720, orientation 90\n");
+}
+
 lean_obj_res lq_scan(uint8_t on) {
-  (void)on;
+  dispatch_async(lq_cam_q, ^{
+    fprintf(stderr, "camera %s\n", on ? "on" : "off");
+    lq_cam_want = on != 0;
+    if (on && lq_cam == nil && lq_cam_device() == nil) {
+      fprintf(stderr, "camera: none\n");  // (the Simulator): no frames, and no permission asked
+    } else if (on && lq_cam == nil) {
+      AVAuthorizationStatus st = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
+      if (st == AVAuthorizationStatusAuthorized) {
+        lq_cam_start();
+      } else if (st == AVAuthorizationStatusNotDetermined) {
+        fprintf(stderr, "camera: asking for the permission\n");
+        [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo completionHandler:^(BOOL ok) {
+          dispatch_async(lq_cam_q, ^{
+            if (ok && lq_cam_want && lq_cam == nil) {
+              lq_cam_start();
+            }
+          });
+        }];
+      } else {
+        fprintf(stderr, "camera: not permitted\n");
+      }
+    } else if (!on && lq_cam != nil) {
+      [lq_cam stopRunning];
+      lq_cam = nil;
+    }
+  });
   return lean_io_result_mk_ok(lean_box(0));
 }
 
+// The newest frame's Y plane since the last call (Platform.luma).
 lean_obj_res lq_luma(void) {
+  pthread_mutex_lock(&lq_mu);
+  uint8_t* y = lq_y;
+  size_t   n = lq_yn;
+  lq_y       = NULL;
+  lean_object* hdr = lean_mk_empty_array();
+  for (int i = 0; y != NULL && i < 4; i += 1) {
+    hdr = lean_array_push(hdr, lean_box_uint32(lq_yhdr[i]));
+  }
+  pthread_mutex_unlock(&lq_mu);
+  lean_object* px = lean_alloc_sarray(1, y ? n : 0, y ? n : 0);
+  if (y != NULL) {
+    memcpy(lean_sarray_cptr(px), y, n);
+    free(y);
+  }
   lean_object* p = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(p, 0, lean_mk_empty_array());
-  lean_ctor_set(p, 1, lean_alloc_sarray(1, 0, 0));
+  lean_ctor_set(p, 0, hdr);
+  lean_ctor_set(p, 1, px);
   return lean_io_result_mk_ok(p);
 }
 
@@ -516,8 +631,8 @@ lean_obj_res lq_now_us(void) {
 // density, whether the list frame is a page, the header's height and the
 // frame's overscan, the screen rows of
 // the list frame's first row and of the scroll view's bottom edge, the
-// composer's top now, the last list tap reported (kind, x, y), and the
-// keyboard's text.
+// composer's top now, the last list tap reported (kind, x, y), the last
+// camera frame's [w, h, stride, orientation], and the keyboard's text.
 void lq_twin(char* out, size_t n) {
   dispatch_sync(dispatch_get_main_queue(), ^{
     double k    = lq_k;
@@ -526,9 +641,10 @@ void lq_twin(char* out, size_t n) {
     CALayer* c  = lq_composer.layer.presentationLayer ?: lq_composer.layer;
     pthread_mutex_lock(&lq_mu);
     snprintf(out, n, "w %u dpi %u pin %d top %u over %u listY %ld svBottom %ld composerTop %ld "
-      "tap %u %u %u field %s", lq_w, lq_dpi, lq_shown_pin, lq_shown_top_h, lq_over,
+      "tap %u %u %u luma %u %u %u %u field %s", lq_w, lq_dpi, lq_shown_pin, lq_shown_top_h, lq_over,
       lround(list.origin.y * k), lround(CGRectGetMaxY(sv) * k), lround(c.frame.origin.y * k),
-      lq_tap[0], lq_tap[1], lq_tap[2], lq_text_s ? lq_text_s : "");
+      lq_tap[0], lq_tap[1], lq_tap[2], lq_yhdr[0], lq_yhdr[1], lq_yhdr[2], lq_yhdr[3],
+      lq_text_s ? lq_text_s : "");
     pthread_mutex_unlock(&lq_mu);
   });
 }
@@ -867,6 +983,8 @@ static void* lq_run(void* arg) {
     lq_ctl_start(p);
   }
   lq_vsync = dispatch_semaphore_create(0);
+  lq_cam_q = dispatch_queue_create("lean.camera", DISPATCH_QUEUE_SERIAL);
+  lq_cam_d = [LeanCamera new];
   self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
   self.window.rootViewController = [LeanController new];
   self.window.backgroundColor    = UIColor.blackColor;
