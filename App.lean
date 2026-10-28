@@ -1496,6 +1496,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
       imgRetry := {} }
     if !decided.isEmpty then noticeLocal (decided.toList.flatMap fun p => p.keys)
   chaosStep
+  let tNotices ← (← get).io.nowUs
   -- 2. events and commands
   for e in evs do
     if !(← onEvent e) then return none
@@ -1505,6 +1506,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   while !queue.isEmpty do
     if ← command queue[0]! then queue := queue.extract 1 queue.size else break
   modify fun s => { s with ctl := queue }
+  let tCommands ← (← get).io.nowUs
   -- 3. the list's ids and counts
   let s ← get
   -- the conversation: the messages this device can read (Community.readable,
@@ -1517,6 +1519,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   -- people: the present members (admitted, not removed), each once
   let (ps, _) ← readView (Kinds.Profile.present s.me.c) #[]
   modify fun s => { s with people := ps.length }
+  let tIds ← (← get).io.nowUs
   -- 4. the offset, and the rows the frame and the fetch distance need
   let s ← get
   let (bots0, ch0) := bottoms s
@@ -1542,6 +1545,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
     -- enough more ids, at the estimate, to reach past the fetch distance
     let more := (hi + 2 * est - loadedTop) / est + 64
     modify fun s => { s with limit := s.limit + more }
+  let tMount ← (← get).io.nowUs
   -- 5. keep the anchor still (unless pinned to the newest)
   let mut b := b
   if b > 4 then
@@ -1558,6 +1562,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
     let bot := bots[i]!
     if bot > fhi then break
     if bot + heightOf s s.ids[i]!.2 ≥ flo then paintRow s.ids[i]!.2
+  let tPaint ← (← get).io.nowUs
   -- forget rows far away (their heights stay)
   let s ← get
   if s.frames % 30 == 0 then
@@ -1602,6 +1607,12 @@ def step (evs : List Event) : M (Option (List Event)) := do
     -- key ops (a live view too: re-run when a wrap arrives)
     let (w, _) ← readView (Community.unwrap m.c m.seed) #[]
     if !w.ops.isEmpty then let _ ← writeAll w
+  let tRefresh ← (← get).io.nowUs
+  -- a frame over 20 ms says where its time went (logcat / stderr)
+  let slow (t1 : UInt64) : IO Unit := do
+    if t1 - t0 > 20000 then
+      let ms (a b : UInt64) := s!"{(b - a) / 1000}"
+      IO.eprintln s!"slow frame {ms t0 t1} ms: notices {ms t0 tNotices} commands {ms tNotices tCommands} ids {ms tCommands tIds} mount {ms tIds tMount} paint {ms tMount tPaint} refresh {ms tPaint tRefresh} frame {ms tRefresh t1}"
   -- a community this device waits to join shows Waiting in place of its
   -- conversation (read: no admission for my device there)
   let s ← get
@@ -1629,6 +1640,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
       for k in [0:min vh pg.bmp.h] do fr := fr.set! (over + k) pg.bmp.rows[k]!
     let shown := withToast s fr vh
     let t1 ← s.io.nowUs
+    slow t1
     modify fun s => { s with b := 0, frames := s.frames + 1, times := s.times.push (t1 - t0).toNat }
     let evs ← s.io.frame shown 0 over.toUInt32 s.topBmp.rows s.botBmp.rows true
     return some (Event.decode evs)
@@ -1646,6 +1658,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   let s ← get
   let fr := withToast s (listFrame s b bots) (viewH s)
   let t1 ← s.io.nowUs
+  slow t1
   let times := (if s.times.size ≥ 600 then s.times.extract 300 s.times.size else s.times).push (t1 - t0).toNat
   modify fun s => { s with b := b, frames := s.frames + 1, times := times }
   let evs ← s.io.frame fr b.toUInt32 over.toUInt32 s.topBmp.rows s.botBmp.rows false
