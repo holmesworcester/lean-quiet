@@ -1361,6 +1361,30 @@ def command (line : String) : M Bool := do
   | "top" =>
     let (_, ch) := bottoms s
     s.io.scrollTo ch.toFloat; s.io.ctlReply "ok"
+  -- For driving a demo on phones over ctl, as a person would: the link
+  -- Add members shows, a page's field typed, a page's button, Add photos,
+  -- and the composer sent with its text and photos.
+  | "link" =>
+    s.io.ctlReply (((s.links.find? (·.1 == s.me.acc)).map (·.2)).getD "")
+  | "field" =>
+    modify fun s => { s with field := rest, refusal := none, pageKey := none }
+    s.io.ctlReply s!"field {rest.length}"
+  | "act" =>
+    let a : Option Pages.Act := match ws[1]?, (ws[2]? >>= String.toNat?) with
+      | some "continue", _ => some .continue_
+      | some "agree", _ => some .agree
+      | some "approve", some i => some (.approve i)
+      | _, _ => none
+    match a with
+    | some a => onPageAct a; s.io.ctlReply s!"page {repr (← get).page}"
+    | none => s.io.ctlReply "act continue|agree|approve I"
+  | "photo" =>
+    attachPhoto
+    s.io.ctlReply s!"photos {(← get).chips.size}"
+  | "post" =>
+    modify fun s => { s with text := rest }
+    sendNow
+    s.io.ctlReply s!"posted, composer {(← get).chips.size} photos"
   | "visible" =>
     let (bots, _) := bottoms s
     let vh := viewH s

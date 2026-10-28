@@ -3,9 +3,11 @@ Photos over real TCP: two apps, each its own database and its own node
 (the engine's Runner with the Connection family, as the phones run it),
 joined on loopback as host:net-join joins them, then one photo each way.
 
-Each photo is attached as the composer's Add photos attaches it
-(`attachPhoto`: a bundled test photo, prepared as QOI) and sent with
-`sendNow` (the post, its attachment, and the file's chunks: 64 KiB slices
+Everything is driven over ctl, as the demo drives the phones: the join
+(`link`, `open paste`, `field`, `act continue|agree|approve`) and each
+photo, attached as the composer's Add photos attaches it (`photo`: a
+bundled test photo, prepared as QOI) and sent (`post`: the post, its
+attachment, and the file's chunks: 64 KiB slices
 of the ciphertext, each with its Merkle path, so one chunk op is larger
 than a frame bundle's 48 KiB and goes out as a frame of its own). The
 other app must end with the post's picture complete (every chunk, as
@@ -18,16 +20,6 @@ import Quiet
 import QTests.Sim
 
 open App Engine Community Data
-
-def tapAct (sm : Sim) (a : Pages.Act) : M Bool := do
-  let s ← get
-  let some pg := s.pageNow | return false
-  match pg.taps.find? (·.2 == a) with
-  | some (b, _) =>
-    sm.cmds.modify (·.push s!"page {b.x + b.w / 2} {b.y + b.h / 2}")
-    steps 3
-    return true
-  | none => return false
 
 def fresh (dir : String) : IO Unit := do
   IO.FS.createDirAll dir
@@ -50,14 +42,15 @@ def both (a b : St) (ms : Nat) (p : St → St → Bool) : IO (St × St × Bool) 
 def picOf (s : St) (t : String) : Option Row.Pic :=
   (s.rows.toList.find? (·.2.data.text == t)) >>= fun (_, r) => r.data.pics.head?
 
-/-- Attach the next test photo and post it with text t: the bytes sent. -/
+/-- Attach the next test photo and post it with text t, over ctl as on a
+phone (`photo`, `post`): the bytes sent. -/
 def post (sm : Sim) (t : String) : M ByteArray := do
   sm.cmds.modify (·.push "channel")
   steps 2
-  attachPhoto
+  sm.cmds.modify (·.push "photo")
+  steps 2
   let bytes := ((← get).chips[0]?.map (·.1)).getD .empty
-  modify fun s => { s with text := t }
-  sendNow
+  sm.cmds.modify (·.push s!"post {t}")
   steps 3
   return bytes
 
@@ -95,38 +88,31 @@ def main (args : List String) : IO UInt32 := do
   let pb := 47222
   let a0 ← App.start sa.io screen (dir ++ "/a/quiet.db") (some (pa, true))
   let b0 ← App.start sb.io screen (dir ++ "/b/quiet.db") (some (pb, true))
-  -- the join, as host:net-join does it
+  -- the join, over ctl as it is driven on the phones: A's `link`; B's
+  -- Paste page, `field` (as typed), `act continue` / `act agree`
   let (link, a1) ← (show M String from do
     sa.cmds.modify (·.push "found club|Ann")
     steps 3
     waitIdle sa
     steps 3
     sa.cmds.modify (·.push "open invite")
+    sa.cmds.modify (·.push "link")
     steps 3
-    let s ← get
-    return ((s.links.find? (·.1 == s.me.acc)).map (·.2)).getD "").run a0
+    return (← sa.replies.get).back?.getD "").run a0
+  check s!"A's `link` is its invite ({link.take 24}…)" (link.startsWith "quiet://join/")
   let ((), b1) ← (show M Unit from do
     steps 2
-    let _ ← tapAct sb .joinCommunity
-    let _ ← tapAct sb .inviteLink
-    let _ ← tapAct sb .pasteLink
-    modify fun s => { s with field := link }
-    steps 1
-    let _ ← tapAct sb .continue_
-    modify fun s => { s with field := "Bea" }
-    steps 1
-    let _ ← tapAct sb .continue_
-    let _ ← tapAct sb .agree
+    for c in ["open paste", s!"field {link}", "act continue", "field Bea", "act continue", "act agree"] do
+      sb.cmds.modify (·.push c)
+      steps 3
     waitIdle sb
     steps 3).run b0
   let (a2, b2, asked) ← both a1 b1 20000 fun a _ => a.asking.size == 1
   check "A sees B's request over TCP" asked
   let ((), a3) ← (show M Unit from do
-    sa.cmds.modify (·.push "switch club")
-    steps 3
-    let _ ← tapAct sa .requests
-    let _ ← tapAct sa (.approve 0)
-    steps 3).run a2
+    for c in ["switch club", "open requests", "act approve 0"] do
+      sa.cmds.modify (·.push c)
+      steps 3).run a2
   let (a4, b4, inB) ← both a3 b2 30000 fun _ b => !b.me.waiting && b.me.name == "club"
   check "B is admitted" inB
   -- one photo each way
