@@ -16,6 +16,7 @@
 # usage: twin_demo_e2e.sh SERIAL [artifacts-dir]   (the APKs: out/)
 set -euo pipefail
 serial=${1:?serial}
+case $serial in emulator-*) ;; *) echo "this suite requires an emulator serial" >&2; exit 2 ;; esac
 art=${2:-out/e2e-twin}
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../../.." && pwd)
@@ -23,13 +24,23 @@ adb=(${ADB:-$HOME/android-sdk/platform-tools/adb} -s "$serial")
 port=${PORT:-17073}
 mkdir -p "$art"
 pkg=com.holmes.leanquiet
+old_ime=
+finish() {
+  local status=$?
+  trap - EXIT
+  set +e
+  "${adb[@]}" logcat -d > "$art/logcat.txt" 2>&1
+  "${adb[@]}" exec-out screencap -p > "$art/final.png"
+  [ -z "$old_ime" ] || "${adb[@]}" shell ime set "$old_ime" >/dev/null 2>&1
+  "${adb[@]}" shell setprop debug.lean.trace 0
+  "${adb[@]}" forward --remove tcp:$port
+  exit "$status"
+}
+trap finish EXIT
 "$root/platforms/android/test/ime/build.sh" "$root/out/testime.apk" >/dev/null
 "${adb[@]}" install -r "$root/out/testime.apk" >/dev/null
 "${adb[@]}" install -r "$root/out/twin-demo.apk" >/dev/null
 old_ime=$("${adb[@]}" shell settings get secure default_input_method | tr -d '\r')
-restore() { "${adb[@]}" shell ime set "$old_ime" >/dev/null 2>&1 || true
-  "${adb[@]}" shell setprop debug.lean.trace 0 || true; }
-trap restore EXIT
 "${adb[@]}" shell ime enable com.holmes.testime/.TestIme >/dev/null
 "${adb[@]}" shell ime set com.holmes.testime/.TestIme >/dev/null
 "${adb[@]}" shell setprop debug.lean.trace 1

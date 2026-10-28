@@ -5,7 +5,7 @@
 # modules from .lake/build/ir, Std's compiled from the toolchain's
 # sources into out/stdc), and this stages it with Init's C
 # (tools/gen_init_c.sh), Lean's runtime source and headers, libuv's
-# source, the SQLite/Ed25519 glue (platforms/android/native,
+# source, the SQLite/Ed25519 glue (engine/native,
 # third_party), the assets and platforms/ios (as ios/); copies the tree to
 # the Mac and builds it there (build_ios.sh); then installs and launches
 # it.
@@ -154,10 +154,11 @@ stage() {
   touch -r "$T/include/lean/config.h" "$st/lean/include/lean/config.h"
   echo '#define LEAN_GITHASH ""' > "$st/lean/include/githash.h"
   touch -r "$T/include/lean/config.h" "$st/lean/include/githash.h"
+  cp -p "$root/platforms/leanrt/runtime.txt" "$st/lean/runtime.txt"
   cp -rp "$lean_src/src/runtime" "$lean_src/src/util" "$st/lean/src/"
   cp -rp "$uv_src/include" "$uv_src/src" "$st/uv/"
-  cp -p "$root/platforms/android/native/glue_android.c" "$engine/native/crypto.c" \
-    "$root"/third_party/sqlite/sqlite3.[ch] "$st/glue/"
+  cp -p "$engine/native/glue.c" "$engine/native/crypto.c" \
+    "$root"/third_party/sqlite/sqlite3.[ch] "$root/third_party/sqlite/quiet_config.h" "$st/glue/"
   # The engine's Rust crypto, built here for the device and the
   # Simulator (pure Rust: the Mac only links it).
   local sdk rtgt
@@ -263,7 +264,19 @@ shot() {
 }
 
 # The UI test in the simulator, on the app sim() built and seeded.
+e2e_artifacts() {
+  local status=$?
+  trap - EXIT
+  # Also collect after a failed build, launch or control-channel step.
+  scp -q -r "$mac:$dir/out/shots" "$art/" || true
+  scp -q "$mac:$dir/app.log" "$art/app.log" || true
+  scp -q -r "$mac:$dir/out/e2e.xcresult" "$art/" || true
+  exit "$status"
+}
+
 e2e() {
+  mkdir -p "$art"
+  trap e2e_artifacts EXIT
   sim
   local udid xcr
   udid=$(on_mac "~/$dir/stage/ios/sim.sh ~/$dir udid")
@@ -291,13 +304,10 @@ e2e() {
     -resultBundlePath ~/$xcr ARCHS=arm64 2>&1" > "$art/e2e.log" || ok=$?
   grep "pinned:" "$art/e2e.log" | sed 's/^.*pinned:/pinned:/' || true
   grep -Eq '\*\* TEST (EXECUTE )?SUCCEEDED \*\*' "$art/e2e.log" || ok=1
-  rm -rf "$art/shots"
-  scp -q -r "$mac:$dir/out/shots" "$art/shots" || true
-  scp -q "$mac:$dir/app.log" "$art/app.log" || true
   tail -15 "$art/e2e.log"
   ls "$art/shots" 2>/dev/null || true
   if [ "$ok" != 0 ]; then
-    echo "FAIL: the UI test failed (log $art/e2e.log, app log $art/app.log, result ~/$xcr on the Mac)"
+    echo "FAIL: the UI test failed (logs, screenshots and result bundle collected in $art)"
     exit 1
   fi
   echo PASS

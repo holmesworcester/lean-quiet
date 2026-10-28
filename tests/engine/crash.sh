@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 rounds=${1:-10}
 out=${2:-out/crash}
-bin=.lake/build/bin/crash
+bin=${ENGINE_BIN:-.lake/build/bin}/crash
 mkdir -p "$out"
 mid=0
 for i in $(seq 1 "$rounds"); do

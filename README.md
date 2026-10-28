@@ -395,13 +395,13 @@ let us prove.
 
 | runs on | Lean in the app | our native code | under it |
 |---|---|---|---|
-| **Android** | 18,376 lines: the engine 10,434, the app 5,657, `engine/renderer/qr/`'s Qr 2,285 | 2,956 lines of C, Java and Rust | SQLite 3.50.4, the Rust crypto crates, and Lean's runtime and libuv 1.51.0 built from source |
-| **iOS** | the same | 1,705 lines of C, Objective-C and Rust | the same |
-| **the desktop and tests** | the same, and 4,861 lines of tests | 683 lines of C and Rust | the system's SQLite, the same crates, the toolchain's own runtime |
+| **Android** | 18,376 lines: the engine 10,434, the app 5,657, `engine/renderer/qr/`'s Qr 2,285 | 2,952 lines of C, Java and Rust | SQLite 3.50.4, the Rust crypto crates, and Lean's runtime and libuv 1.51.0 built from source |
+| **iOS** | the same | 1,701 lines of C, Objective-C and Rust | the same |
+| **the desktop and tests** | the same, and 4,861 lines of tests | 683 lines of C and Rust | the same vendored SQLite and options, the same crates, the toolchain's own runtime |
 
 - Counts are non-blank lines, comments included, and the Lean counts
   include the proofs. With each native file counted once, there are
-  4,696 lines in all. `engine/wire/mdns/` (949) and `ops/connection/bootstrap/` (1,385)
+  4,620 lines in all. `engine/wire/mdns/` (949) and `ops/connection/bootstrap/` (1,385)
   are not in the app.
 - The tables below count each file once, under its main job, and name
   the functions in it that do other jobs, with their own counts.
@@ -457,7 +457,7 @@ Lean could do. They are under
 | | what it gives | what the proofs assume of it |
 |---|---|---|
 | **The Rust crypto** ([`lib.rs`](engine/native/crypto/src/lib.rs), 145 lines, over ed25519-dalek 3.0.0, curve25519-dalek 5.0.0, chacha20poly1305 0.11.0, sha2 0.10.9 and getrandom 0.3.4) | SHA-256; Ed25519, verified strictly; X25519; the Ed25519 to X25519 conversion; ChaCha20-Poly1305 with Noise's nonce; XChaCha20-Poly1305; the OS's random bytes. One build on every platform. | [`Unforgeable`], [`CollisionFree`], [`NoSecondPreimage`] and [`Suite.Good`] (see Assumed). Tested byte for byte against libsodium ([`crypto_compat.c`](tests/engine/crypto_compat.c)) and against the Noise test vectors. |
-| **SQLite** | The store. Phones ship the vendored 3.50.4 ([`third_party/sqlite`](third_party/sqlite)). The desktop links the system's `libsqlite3`, 3.46.1 on the machine local CI runs on. | It behaves like the engine's model ([`Model.lean`](engine/core/Model.lean)). This is tested row for row, with kill -9 crashes and the purge's raw read, on the desktop's SQLite only. |
+| **SQLite** | The store: the vendored 3.50.4 ([`third_party/sqlite`](third_party/sqlite)) on every build, the phones', the desktop's and the tests', with the same options ([`quiet_config.h`](third_party/sqlite/quiet_config.h)). | It behaves like the engine's model ([`Model.lean`](engine/core/Model.lean)). This is tested row for row, with kill -9 crashes and the purge's raw read, on the SQLite the phones ship (`sqlite_build` checks the linked version and options through the externs). |
 | **Lean's runtime and libuv** | Reference counting; the ByteArray, String and Array primitives, which are `@[extern]` in Lean's core and implemented in C; tasks and threads; files; clocks; and Std.Async, which gives the TCP runner its sockets ([`Tcp.lean`](engine/wire/Tcp.lean)), mDNS its UDP, and an invite its dial hints (the interface addresses). Phones build it from Lean's source ([`build.sh`](platforms/android/leanrt/build.sh), [`leanrt.sh`](platforms/ios/leanrt.sh)), with no mimalloc and no GMP, OpenSSL stubbed, and libuv compiled from its source lists. | **Lean** in Trusted. The proofs reason about the core's Lean definitions, and the C must match them. The phones' build is not the one the tests run on. |
 
 ### FFI glue
@@ -465,7 +465,7 @@ Lean could do. They are under
 | | lines | what it does | what the proofs assume of it |
 |---|---|---|---|
 | **Platform.lean on Android** ([`quiet_android.c`](platforms/android/twin/quiet_android.c)) | 538 | The 16 externs. Each frame's three row arrays go into the layers. Touches and the Java half's events come back as four words each, the layout `App.Event.decode` reads. The text, the camera's luma (into a ByteArray), the clipboard, and the local timezone's offset (`lq_tz_min`: `localtime_r`'s `tm_gmtoff`, also in quiet_ios.m and host.c), by which rows show a message's UTC time. A log line (`lq_log`: logcat's "lean" tag, NSLog on iOS, stderr on the host). A watchdog logs a backtrace of Lean's thread if it stalls 3 s. | The words mean what `Event.decode` reads, and the offset is the OS's. |
-| **SQLite** ([`glue.c`](engine/native/glue.c), [`glue_android.c`](platforms/android/native/glue_android.c)) | 72, 76 | Open, exec, and one statement with blob parameters, every column back as bytes. glue_android.c's SQLite code is a copy of glue.c's, over the vendored SQLite; iOS links it too. | Rows come back as stored. |
+| **SQLite** ([`glue.c`](engine/native/glue.c)) | 72 | Open, exec, and one statement with blob parameters, every column back as bytes. One file on every platform: the desktop, Android and iOS compile it. | Rows come back as stored. |
 | **The crypto** ([`crypto.c`](engine/native/crypto.c)) | 141 | Checks sizes, calls the Rust, and wipes secret bytes from its stack. | Its size rules are decisions of its own (below). |
 | **Text** (`ba_utf8` in activity.c, `cp` in LeanActivity.java, `lq_cp` in quiet_ios.m) | 37, 4, 11 | UTF-16 to UTF-8, and the selection and composition in code points, three ways. | The positions index the text Lean gets. |
 
@@ -477,7 +477,7 @@ cannot see into:
 | `Engine.sha256` ([`Core.lean`](engine/core/Core.lean)) | `le_sha256` in crypto.c | SHA-256 |
 | `Community.edKeypair`, `edSign`, `edVerify` ([`Compose.lean`](ops/community/Compose.lean)) | `le_ed25519_*` in crypto.c | Ed25519 |
 | `Engine.Crypto.x25519`, `x25519Base`, `staticOf`, `staticPubOf`, `chachaSeal`, `chachaOpen`, `xchachaSeal`, `xchachaOpen`, `randomBytes` ([`Crypto.lean`](engine/core/Crypto.lean)) | `le_*` in crypto.c | X25519, the key conversion, the two AEADs, random bytes |
-| `Engine.Db.open`, `exec` and `query`, over the opaque type `DbPointed` ([`Sqlite.lean`](engine/core/Sqlite.lean)) | `le_sql_*` in glue.c and glue_android.c | SQLite |
+| `Engine.Db.open`, `exec` and `query`, over the opaque type `DbPointed` ([`Sqlite.lean`](engine/core/Sqlite.lean)) | `le_sql_*` in glue.c | SQLite |
 | The 14 of [`Platform.lean`](engine/renderer/Platform.lean): `screen`, `scroll`, `scrollBy`, `scrollTo`, `frame`, `text`, `ime`, `textClear`, `copy`, `ctlPoll`, `ctlReply`, `scan`, `luma`, `nowUs` | `lq_*` in each twin | the platform |
 | `register`, `browse`, `poll` ([`NetProbe.lean`](platforms/ios/probe/NetProbe.lean)) | `lq_sd_*` in [`dnssd.c`](platforms/ios/probe/dnssd.c) | DNS-SD, for the iOS network probe only |
 
@@ -539,12 +539,57 @@ with these.
 - **On devices, by hand:** `android:twin-demo-e2e`, `android:scan-e2e`,
   `ios:sim-e2e` and `ios:e2e` (mise.toml). `ci/workflow.yml` would
   run the first and the third on self-hosted runners; it is not in use.
-- **Local CI runs no native twin.** It drives the app through
-  `platforms/headless/Sim.lean`'s `Io`. host.c runs only in `mise run
-  host:twin-demo`.
+- **The app gate runs the native C twin:** `host:twin-demo` drives the
+  app through host.c's externs (control replies, keyboard and text, taps,
+  send, scrolling, painted pixels; a broken keyboard effect must fail it),
+  beside the sessions through `platforms/headless/Sim.lean`'s `Io`.
 - **The engine's tests run the crypto and SQLite glue:** against
   libsodium, against the model, through kill -9, the purge's raw read,
   and two nodes over localhost TCP.
+
+### Tested isn't shipped
+
+Desktop tests now link the same SQLite 3.50.4 amalgamation as the phones,
+through Lake's `libsqlite` extern library. All three builds include
+`third_party/sqlite/quiet_config.h`: `THREADSAFE=2`, `DQS=0`,
+`DEFAULT_MEMSTATUS=0`, `OMIT_LOAD_EXTENSION`. All compile the same
+`engine/native/glue.c`. The engine gate checks the linked version and
+options through the actual externs, then tests differential behavior,
+crash atomicity, and secret bytes absent from the database files after
+VACUUM and WAL truncate. Controls substitute system SQLite and the wrong
+threading mode and must fail.
+
+The app gate now runs `host:twin-demo` through the native C twin's
+externs, alongside the app's `Sim` sessions. It checks control replies,
+keyboard/text, taps, send, scrolling and painted pixels; disabling the
+C keyboard effect must fail it. This does not test a mobile OS.
+
+The ordinary gate still uses Lean's prebuilt runtime. A separate
+`test:engine-runtime` task rebuilds Lean's runtime, Init, Std and the
+engine suites' generated C for x86_64 Linux with the phone options:
+no mimalloc, no GMP, and OpenSSL stubbed. The engine suites pass on that
+build too (the socket sandbox omits `tcppair` and `jointcp`). It still
+uses Linux libc/libuv and the desktop compiler, not Android's NDK/libc
+or iOS's Darwin runtime, `system()` stub and thread-stack settings.
+The mobile suites are needed to test those remaining differences.
+
+The Android emulator and iOS Simulator suites have build-and-run mise
+tasks and manual/nightly jobs in `ci/workflow.yml`, retaining failure
+logs, screenshots and the iOS result bundle. That workflow is inactive
+today; adding jobs records intent, not a mobile test result.
+[docs/SHIPPED.md](docs/SHIPPED.md) gives the machines, commands and
+artifact paths.
+
+- [x] The desktop suites use the shipped SQLite version and options.
+- [x] Desktop, Android and iOS share one SQLite glue file.
+- [x] The native C twin runs in the app gate, with a negative control.
+- [x] The phone runtime options are tested by the engine suites on Linux.
+- [x] Mobile suites include builds and retain failure artifacts; their
+  provisioned-machine jobs are recorded as manual/nightly runs.
+- [x] Run the blocked TCP suites outside the sandbox (`SKIP_TCP` unset).
+- [ ] Run the new builds on the provisioned emulator and Simulator, and
+  activate the workflow for continuing mobile coverage. No phone,
+  emulator, Simulator or Mac was used to validate this change.
 
 ## What else can we move into Lean?
 
@@ -682,10 +727,9 @@ physics for a provable one.
   as LAYOUT.md has it (the last item above would move it).
 - **Vetted crypto:** the Rust crates, their hypotheses kept as
   hypotheses.
-- **SQLite, tested as it ships.** The desktop's tests link the system's
-  SQLite while phones ship 3.50.4, and glue_android.c repeats glue.c.
-  One vendored SQLite and one glue file on every platform would make the
-  engine's differential, crash and purge tests run what ships.
+- **SQLite, tested as it ships.** One vendored SQLite, with the phones'
+  options, and one glue.c on every platform, so the engine's
+  differential, crash and purge tests run what ships.
 - **Lean's runtime and libuv,** with the phones' builds of them run by
   tests too.
 

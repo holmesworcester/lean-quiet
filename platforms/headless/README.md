@@ -25,4 +25,9 @@ extern_lib libhosttwin pkg := do
 
 `tests/app/host_twin_demo.sh` (`mise run host:twin-demo`) is an example. The
 other programs here (`Host.lean`, `TwoNodes.lean`, `NetJoin.lean`, …) are
-the app's own harnesses; `tests/app/run.sh` (`mise run test:app`) runs them.
+the app's own harnesses; `tests/app/run.sh` (`mise run test:app`) runs them
+and the native twin demo, plus its broken-keyboard negative control.
+
+`build_runtime.py` builds the phone runtime options for Linux and the
+engine suites against them (`mise run test:engine-runtime`). It rebuilds
+Init and the generated C closure too. See [the native build tests](../../docs/SHIPPED.md).

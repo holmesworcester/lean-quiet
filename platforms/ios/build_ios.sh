@@ -36,7 +36,7 @@ rt=$b/leanrt
 o=$b/app-$sdk
 mkdir -p "$o"
 cc="xcrun -sdk $sdk clang --target=$tgt"
-sqlite="-DSQLITE_THREADSAFE=2 -DSQLITE_DQS=0 -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_OMIT_LOAD_EXTENSION"
+sqlite="-include $st/glue/quiet_config.h"
 {
   for c in "$st"/ir/*.c; do
     case $(basename "$c") in
@@ -44,7 +44,7 @@ sqlite="-DSQLITE_THREADSAFE=2 -DSQLITE_DQS=0 -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLI
       *)      echo "$c|-O3 -w -I$st/lean/include" ;;
     esac
   done
-  for c in "$st"/glue/glue_android.c "$st"/glue/crypto.c; do
+  for c in "$st"/glue/glue.c "$st"/glue/crypto.c; do
     echo "$c|-O3 -w -std=c11 -I$st/lean/include -I$st/glue"
   done
   for c in "$st"/glue/sqlite3.c; do
@@ -56,7 +56,7 @@ sqlite="-DSQLITE_THREADSAFE=2 -DSQLITE_DQS=0 -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLI
 tr '\n' '\0' < "$b/sources-$sdk.txt" | xargs -0 -P "$(sysctl -n hw.ncpu)" -n 1 sh -c '
   src=${0%%|*}; flags=${0#*|}
   obj='"$o"'/$(basename "${src%.c}").o
-  h=$( (echo "$flags"; cat "$src") | shasum | cut -c1-40)
+  h=$( (echo "$flags"; cat "$src" '"$st"'/glue/quiet_config.h '"$st"'/glue/sqlite3.h) | shasum | cut -c1-40)
   if [ ! -f "$obj" ] || [ "$(cat "$obj.sha" 2>/dev/null)" != "$h" ]; then
     '"$cc"' $flags -c "$src" -o "$obj.tmp" && mv "$obj.tmp" "$obj" && echo "$h" > "$obj.sha" || exit 255
   fi'

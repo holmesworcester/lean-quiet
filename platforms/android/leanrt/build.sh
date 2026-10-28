@@ -36,19 +36,9 @@ cp -r "$T/include/lean" "$inc/"
 sed 's/^#define LEAN_MIMALLOC$//' "$T/include/lean/config.h" > "$inc/lean/config.h"
 echo '#define LEAN_GITHASH ""' > "$inc/githash.h"
 
-uvsrc="src/fs-poll.c src/idna.c src/inet.c src/random.c src/strscpy.c src/strtok.c src/thread-common.c
-  src/threadpool.c src/timer.c src/uv-common.c src/uv-data-getter-setters.c src/version.c
-  src/unix/async.c src/unix/core.c src/unix/dl.c src/unix/fs.c src/unix/getaddrinfo.c src/unix/getnameinfo.c
-  src/unix/loop-watcher.c src/unix/loop.c src/unix/pipe.c src/unix/poll.c src/unix/process.c
-  src/unix/random-devurandom.c src/unix/signal.c src/unix/stream.c src/unix/tcp.c src/unix/thread.c
-  src/unix/tty.c src/unix/udp.c src/unix/linux.c src/unix/procfs-exepath.c src/unix/random-getentropy.c
-  src/unix/random-getrandom.c src/unix/random-sysctl-linux.c src/unix/proctitle.c"
+uvsrc=$(cat "$root/platforms/leanrt/uv-linux.txt")
 stubbed="openssl.cpp"
-rt="debug.cpp thread.cpp mpz.cpp utf8.cpp object.cpp apply.cpp exception.cpp interrupt.cpp memory.cpp
-  stackinfo.cpp compact.cpp init_module.cpp io.cpp hash.cpp byteslice.cpp platform.cpp alloc.cpp
-  allocprof.cpp sharecommon.cpp stack_overflow.cpp process.cpp object_ref.cpp mpn.cpp mutex.cpp
-  libuv.cpp uv/net_addr.cpp uv/event_loop.cpp uv/timer.cpp uv/tcp.cpp uv/udp.cpp uv/dns.cpp uv/system.cpp
-  uv/signal.cpp"
+rt=$(cat "$root/platforms/leanrt/runtime.txt")
 
 # each $1 file (relative to $2) compiled with $3 into $4/<name>.o
 each() {

@@ -3,23 +3,24 @@
 # from a script, checked by the control replies and the dumped screens.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
-out=${1:-$root/out/host-twin}
+out=$(realpath -m "${1:-$root/out/host-twin}")
 mkdir -p "$out"
+rm -f "$out/start.ppm" "$out/tapped.ppm" "$out/ime.ppm"
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 (cd "$root" && "$ELAN_HOME/bin/lake" build twin_demo >/dev/null)
 cat > "$out/script" <<S
 ping
 state
-!dump $out/start.ppm
+!dump start.ppm
 !tap list 500 2150
 !frames 2
-!dump $out/tapped.ppm
+!dump tapped.ppm
 !tap composer 10 10
 !frames 2
 !text héllo 🌍
 !frames 1
 state
-!dump $out/ime.ppm
+!dump ime.ppm
 !send
 !frames 2
 state
@@ -29,7 +30,11 @@ state
 send x
 !sync
 S
-got=$(QUIET_SCRIPT="$out/script" "$root/.lake/build/bin/twin_demo")
+# host.c's script accepts short dump names; the artifact directory may be
+# much longer (especially a negative-control snapshot or a CI workspace).
+(cd "$out" && QUIET_SCRIPT="$out/script" "$root/.lake/build/bin/twin_demo") \
+  > "$out/replies.txt" 2> "$out/stderr.txt"
+got=$(cat "$out/replies.txt")
 echo "$got"
 fails=0
 ok() { if eval "$2"; then echo "ok   $1"; else echo "FAIL $1"; fails=$((fails + 1)); fi; }

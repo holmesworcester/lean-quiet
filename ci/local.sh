@@ -12,6 +12,8 @@
 # `reorg` checks the reorg's import rewriter for branches begun on the old
 # layout (ci/reorg-imports.py --self-test).
 #   ci/local.sh [part...]   (default: check engine mdns qr net app readme reorg)
+# SKIP_TCP=1 builds the TCP suites but omits their runs in a socket sandbox.
+# `runtime` is an additional gate on machines with Lean/libuv sources.
 set -uo pipefail
 top=$(cd "$(dirname "$0")/.." && pwd)
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
@@ -25,6 +27,7 @@ gate() {
   case $1 in
     check) tests/check.sh ;;
     engine) tests/engine/run.sh ;;
+    runtime) tests/engine/run.sh --phone-runtime ;;
     mdns|qr|net) "tests/$1/check.sh" ;;
     app) tests/app/run.sh ;;
     readme) python3 ci/proof-links.py --check ;;
@@ -43,4 +46,8 @@ for p in "${parts[@]}"; do
   fi
 done
 [ ${#failed[@]} -eq 0 ] || { echo "failed: ${failed[*]}"; exit 1; }
-echo "all parts pass"
+if [ "${SKIP_TCP:-0}" = 1 ]; then
+  echo "all enabled checks pass; TCP suites built but NOT run (SKIP_TCP=1)"
+else
+  echo "all parts pass"
+fi
