@@ -266,6 +266,7 @@ nothing else is assumed:
 | ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
 | ✅ | 🥊🥊 | **The people list is the present members,** each once. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_nodup`] |
 | 🟡 | 🥊🥊🥊 | **The screen is one moment.** Every frame is drawn over a single store state, the latest the app has seen, so if one row is current, all are. [More](#from-the-store-to-the-screen) | [`read_one_moment`], [`answer_agrees`], [`agrees_store`], [`agrees_notice`], [`agrees_keep`], [`agrees_empty`], [`eval_stable`], [`view_stable`] |
+| 🟡 | 🥊🥊🥊 | **Scrolling always shows something.** However slow a read or a picture's decode, every position inside the conversation shows a row or a placeholder, never blank. [More](#from-the-store-to-the-screen) | [`covered`], [`line_painted`] |
 | ⬜ | 🥊🥊 | **An action's toast stays until the screen shows it.** A toast for an action (removing someone, a new name or avatar) stays up until every component on screen has re-read a state that holds the action's op, or until the OS's toast time passes, whichever comes first. So a toast that leaves early proves the screen has caught up. | |
 | ✅ | 🥊🥊 | **The layout is exact.** The slide and keyboard shift are exact, and page rows are where the page put them. Emoji keys never overlap, and every key is reachable. An invite's hints and QR fit, and the camera preview reads inside its frame. | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
 | 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** A row's glyphs, read in order, are exactly the body's visible characters, and every line fits. [More](#text-and-names) | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`digits_keep_order`] |
@@ -544,6 +545,26 @@ first.
 - **Wanted:** the outbox's notice keys derived from its ops rather than
   assumed, and `step` and the reader's SQL around its decisions as
   statements.
+
+🟡 **Scrolling always shows something.** However slow a read or a
+picture's decode, every position inside the conversation shows a row or
+a placeholder, never blank.
+- **Proven** over `Cover.seen`, which the list frame is built from: from
+  the bottom padding up to the last loaded row's top, and above it while
+  older messages are outside the window, no position is blank
+  (`covered`); a bitmap line is shown only where its row's bitmap has it
+  (`line_painted`).
+- **Built:** the frame reads no messages. The conversation is a window
+  about an anchor (`Reader.Want.window`: the reader reads at most a
+  hundred rows on each side, counting the rest), so a refill reads the
+  same few rows however long the conversation; the messages outside it
+  take an estimated height each as placeholders, and the window follows
+  the viewport. The headless app's fling to the top of 500 messages
+  ends with 189 loaded and no frame with an unpainted row.
+- **Wanted:** the frame's own work bounded (the pictures' chunk reads,
+  the session list and the node's keys still run on the frame), the row
+  heights in the tree (Heights) instead of a walk over the window, and
+  that scrolling by δ shows what was δ away.
 
 🟡 **What you see is what was sent.** The rows a device draws are the
 views of the facts its ops hold, from network to pixel.
@@ -1203,6 +1224,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`agrees_notice`]: engine/renderer/LiveLaws.lean#L201-L205
 [`agrees_keep`]: engine/renderer/LiveLaws.lean#L213-L215
 [`agrees_empty`]: engine/renderer/LiveLaws.lean#L70-L70
+[`covered`]: engine/renderer/Cover.lean#L78-L83
+[`line_painted`]: engine/renderer/Cover.lean#L119-L122
 [`placed_row`]: engine/renderer/Geometry.lean#L81-L85
 [`newest_drawn`]: engine/renderer/Geometry.lean#L108-L111
 [`pinned_row`]: engine/renderer/Geometry.lean#L141-L144

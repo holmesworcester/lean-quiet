@@ -26,17 +26,20 @@ open Engine Community Data
 
 /-- What the frame wants read. -/
 inductive Want where
-  /-- The conversation of c: its newest `limit` readable messages. -/
-  | ids (c : Id) (limit : Nat)
+  /-- A window of c's conversation: the `above` readable messages at and
+  older than the anchor and the `below` newer than it; with no anchor,
+  the newest `above`. A refill reads O(above + below) rows, however long
+  the conversation (Heights' `window_rows`). -/
+  | window (c : Id) (anchor : Option Pos) (above below : Nat)
   /-- Message m's row in c, as `me` sees it (Kinds.Message.read). -/
   | row (c me m : Id)
   deriving DecidableEq, Hashable
 
 /-- What a want reads as. -/
 inductive Val where
-  /-- The messages' positions, newest first, how many came, and how many
-  there are. -/
-  | ids (ids : Array Pos) (fetched total : Nat)
+  /-- The window's positions, newest first; how many readable messages
+  are newer than it and older than it (counted, not read), and in all. -/
+  | window (ids : Array Pos) (newer older total : Nat)
   /-- The row, or none while its message cannot be shown. -/
   | row (d : Option Row.RowData)
   deriving BEq
@@ -84,9 +87,16 @@ instance : Reads RM := ⟨read⟩
 
 /-- A want's value, and the reads it made. -/
 def eval : Want → RM (Val × Array Q)
-  | .ids c n => do
-    let (a, deps) ← readView (Community.readable c (limit := some n)) #[]
-    return (.ids (a.rows.map (·.1)).toArray a.rows.length a.total, deps)
+  | .window c none above _ => do
+    let (a, deps) ← readView (Community.readable c (limit := some above)) #[]
+    return (.window (a.rows.map (·.1)).toArray 0 (a.inRange - min a.inRange a.rows.length) a.inRange, deps)
+  | .window c (some p) above below => do
+    -- at and older than p (one byte past its id: p itself is in), and newer
+    let (o, deps) ← readView (Community.readable c (limit := some above) (before := some (p.1, p.2.push 0))) #[]
+    let (n, deps) ← readView (Community.readable c (limit := some below) (desc := false) (after := some p)) deps
+    let ids := (n.rows.reverse ++ o.rows).map (·.1)
+    return (.window ids.toArray (n.inRange - min n.inRange n.rows.length) (o.inRange - min o.inRange o.rows.length)
+      (n.inRange + o.inRange), deps)
   | .row c me m => do
     match ← Kinds.Message.read c me m with
     | some (d, deps) => return (.row (some d), deps)

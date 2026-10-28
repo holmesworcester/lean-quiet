@@ -69,6 +69,8 @@ structure Io where
 def over : Nat := 1024
 /-- A row's height before it is measured. -/
 def est : Nat := 150
+/-- A window's rows on each side of its anchor. -/
+def half : Nat := 100
 def bottomPad : Nat := 16
 
 structure RowSt where
@@ -172,11 +174,14 @@ structure St where
   /-- The reader's state while the frame runs its passes itself (no
   reader thread: the headless twins); none once a thread runs them. -/
   rst : Option Reader.St := none
-  limit : Nat := 64
+  /-- The window of the conversation loaded (Reader.Want.window): its
+  anchor (none: the newest), its rows newest first, and how many
+  readable messages are newer and older than it, counted, not read: they
+  take `est` each, as placeholders, until a window holds them. -/
+  anchor : Option Pos := none
   ids : Array Pos := #[]
-  /-- How many rows the list read returned (hidden ones too): what paging
-  compares with its limit. -/
-  fetched : Nat := 0
+  newer : Nat := 0
+  older : Nat := 0
   total : Nat := 0
   people : Nat := 0
   heights : Std.HashMap Id Nat := {}
@@ -356,12 +361,6 @@ def chaosStep : M Unit := do
   (← get).wr.busy.modify (· - 1)
   (← get).io.log s!"chaos: {t.get.size} writes of {t.get.foldl (· + ·.ops.length) 0} ops"
 
-/-- The newest message's counter (its sort key's first 8 bytes; 0 for none). -/
-def newestCounter (s : St) : Nat :=
-  match s.ids[0]? with
-  | some (sk, _) => (sk.extract 0 8).foldl (fun n b => n * 256 + b.toNat) 0
-  | none => 0
-
 /-- Wall-clock minutes since the Unix epoch: the time a write claims. -/
 def nowMin : M Nat := do return (← (← get).io.wall).1
 
@@ -411,16 +410,16 @@ def viewH (s : St) : Nat := (geom s).view
 
 def heightOf (s : St) (x : Id) : Nat := s.heights.getD x est
 
-/-- The loaded rows' bottoms (bottom-anchored), newest first, and the
-content's height. -/
+/-- The window's rows' bottoms (bottom-anchored), newest first, and the
+content's height: the messages newer and older than the window at `est`
+each, below and above it. -/
 def bottoms (s : St) : Array Nat × Nat := Id.run do
   let mut out := Array.mkEmpty s.ids.size
-  let mut y := bottomPad
+  let mut y := bottomPad + s.newer * est
   for (_, x) in s.ids do
     out := out.push y
     y := y + heightOf s x
-  let unloaded := s.total - min s.total s.ids.size
-  return (out, y + unloaded * est + 16)
+  return (out, y + s.older * est + 16)
 
 /-! ## Mounting, measuring, painting -/
 
@@ -603,17 +602,18 @@ def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run 
   let bottom := if i0 < s.ids.size then bots[i0]! else
     match s.ids.back? with
     | some (_, x) => bots.back! + heightOf s x
-    | none => bottomPad
-  -- older rows to load: nothing past the loaded ones is blank
-  let more := s.ids.size < s.total
+    | none => bottomPad + s.newer * est
+  -- messages outside the window: nothing past the loaded rows is blank
+  let more := s.older > 0
+  let pad := if s.newer > 0 then bottomPad else bottom
   let rows := slice.toList
   let mut fr := Array.mkEmpty hgt
   for r in [0:hgt] do
     let p := top - 1 - r
-    fr := fr.push (match Cover.seen bottom more rows p with
+    fr := fr.push (match Cover.seen pad bottom more rows p with
       | .line j li => ((bmps[j]?).join.map (·.rows[li]!)).getD s.bgRow
       | .hold j => holdLine s (heightOf s (s.ids[i0 + j]?.map (·.2) |>.getD .empty) - 1 - (p - (bots[i0 + j]?.getD 0)))
-      | .older => holdLine s (p % 150)
+      | .unloaded => holdLine s (p % est)
       | .blank => s.bgRow)
   return fr
 
@@ -742,7 +742,7 @@ def switchToAcc (a : Id) : M Unit := do
   let s ← get
   s.io.scrollTo 0
   modify fun s => { s with cur := a, me := (Kinds.Accepted.select s.comms a).getD s.me, page := PageId.home, backStack := [] }
-  modify fun s => { s with ids := #[], total := 0, people := 0, limit := 64 }
+  modify fun s => { s with ids := #[], total := 0, people := 0, anchor := none, newer := 0, older := 0 }
   modify fun s => { s with heights := {}, rows := {}, selected := none, sheet := none }
   modify fun s => { s with asking := #[], hidden := [], chromeKey := "", pageKey := none }
 
@@ -1352,7 +1352,7 @@ def command (line : String) : M Bool := do
     let (k?, _) ← readView (Community.currentKey me.c) #[]
     let k := k?.getD .empty
     let seed := s.seed
-    let top := newestCounter s
+    let (top, _) ← readView (Community.topCount me.c) #[]
     let now ← nowMin
     -- made off the app's thread; written by `chaosStep` as user actions
     -- are (writeAll: judged, shown pending, through the node)
@@ -1575,13 +1575,17 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   -- a union of message.byKey over the keys it holds); one it cannot read
   -- is not in it, and appears when its key's wrap opens (the key's list is
   -- one the view reads)
-  -- (read by the reader: Reader.Want.ids; the last ids stay until the
-  -- board has the wanted ones)
-  let idsW := Reader.Want.ids s.me.c s.limit
+  -- (read by the reader: Reader.Want.window; the last window stays until
+  -- the board has the wanted one, which is applied below, once the row at
+  -- the viewport is known)
+  let idsW := Reader.Want.window s.me.c s.anchor half half
   s.sh.wants.modify fun ws => #[idsW] ++ ws.filter (· != idsW)
   readerPass
-  if let some (.ids ids fetched total, _) := (← takeBoard).get? idsW then
-    modify fun s => { s with ids, fetched, total }
+  let fresh := match (← takeBoard).get? idsW with
+    | some (.window ids newer older total, _) =>
+      if ids != s.ids || newer != s.newer || older != s.older || total != s.total then some (ids, newer, older, total)
+      else none
+    | _ => none
   let s ← get
   -- people: the present members (admitted, not removed), each once
   let (ps, _) ← readView (Kinds.Profile.present s.me.c) #[]
@@ -1594,10 +1598,22 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   let b := b.toNat
   -- the anchor: the row at the viewport's bottom edge, and how far into it
   let anchor := (rowAt s b).map fun (x, _) => (x, b - (bots0[s.ids.findIdx? (·.2 == x) |>.getD 0]?.getD 0))
+  -- a new window: in place now; the viewport, in its offsets, is where
+  -- the anchor row went (`bv`; the native offset `b` follows in 5)
+  let mut b := b
+  let mut bv := b
+  if let some (ids, newer, older, total) := fresh then
+    modify fun s => { s with ids, newer, older, total }
+    let s ← get
+    if let some (x, off) := anchor then
+      if let some i := s.ids.findIdx? (·.2 == x) then
+        bv := (bottoms s).1[i]! + off
+  let s ← get
+  let (bots0, _) := bottoms s
   let vh := viewH s
   let fetch := vh
-  let lo := if b ≥ over + fetch then b - over - fetch else 0
-  let hi := b + vh + over + fetch
+  let lo := if bv ≥ over + fetch then bv - over - fetch else 0
+  let hi := bv + vh + over + fetch
   -- the rows the fetch distance needs: the reader's wants, the ids first
   let mut win := #[]
   for i in [0:s.ids.size] do
@@ -1608,19 +1624,27 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   readerPass
   let bd ← takeBoard
   for x in win do mount bd x
-  -- more ids, if the loaded ones end below what the fetch distance needs
+  -- the window follows the viewport: once its edge with messages beyond
+  -- comes within the fetch distance, it is read again about the row at
+  -- the viewport (or its nearest end); at the newest, it is the newest
   let s ← get
   let (bots, _) := bottoms s
-  let loadedTop := match s.ids.back? with
-    | some (_, x) => bots.back!.add (heightOf s x)
-    | none => bottomPad
-  if loadedTop < hi + 2 * est && s.ids.size < s.total && s.fetched ≥ s.limit then
-    -- enough more ids, at the estimate, to reach past the fetch distance
-    let more := (hi + 2 * est - loadedTop) / est + 64
-    modify fun s => { s with limit := s.limit + more }
+  if fresh.isSome || ((← takeBoard).get? idsW).isSome then
+    let winLo := bots[0]?.getD (bottomPad + s.newer * est)
+    let winHi := match s.ids.back? with
+      | some (_, x) => bots.back!.add (heightOf s x)
+      | none => winLo
+    let near := (s.newer > 0 && lo < winLo) || (s.older > 0 && hi > winHi)
+    let next : Option Pos :=
+      if s.newer == 0 && lo ≤ winLo then none
+      else if near then
+        match rowAt s bv with
+        | some (x, _) => s.ids.find? (·.2 == x)
+        | none => if bv < winLo then s.ids[0]? else s.ids.back?
+      else s.anchor
+    if next != s.anchor then modify fun s => { s with anchor := next }
   let tMount ← (← get).io.nowUs
   -- 5. keep the anchor still (unless pinned to the newest)
-  let mut b := b
   if b > 4 then
     if let some (x, off) := anchor then
       if let some i := s.ids.findIdx? (·.2 == x) then
