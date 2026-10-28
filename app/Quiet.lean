@@ -17,3 +17,4 @@ import Quiet.Kinds.Profile
 import Quiet.Kinds.React
 import Quiet.Kinds.Message
 import Quiet.Kinds.Request
+import Quiet.Kinds.Accepted

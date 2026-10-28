@@ -138,6 +138,8 @@ structure St where
   gridRows : Std.HashMap Nat Bitmap := {}
   /-- Every community this device is in; `me` is the current one. -/
   comms : Array Chaos.Me := #[]
+  /-- The current community: memory, not state. -/
+  cur : Id := .empty
   page : PageId := .chat
   backStack : List PageId := []
   /-- A page's one-line field (the keyboard's text while a page shows one). -/
@@ -185,22 +187,33 @@ def readRow (m : Id) : M (Option (RowData × Array Q)) := do
 def noticeLocal (keys : List ByteArray) : M Unit :=
   modify fun s => { s with live := s.live.notice keys.toArray }
 
-/-- Compose, judge against decided facts, put in the outbox, queue. -/
-def write (o : Op) : M Bool := do
+/-- A user action's write (an intent's ops, with their blobs): each op is
+judged in order against what is decided and the ops before it in the
+same write; if all are Valid they show at once, pending, and go to the
+writer as one job of this node's own. -/
+def writeAll (w : Community.Write) : M Bool := do
   let s ← get
-  let mut sts := []
-  for r in o.reqs do
-    sts := sts ++ [← Data.status s.rd r]
-  match judge fam o sts with
-  | some (.valid f) =>
-    let p : Pending := ⟨o, f, opKey o.id :: keys f⟩
-    modify fun s => { s with out := s.out.push p }
-    noticeLocal p.keys
-    s.wr.submit ⟨[o], [], true⟩
-    return true
-  | _ =>
-    IO.eprintln s!"write refused: its requirements are not all decided and valid"
-    return false
+  let mut mine : Std.HashMap Id (Verdict Fact) := {}
+  let mut pend := #[]
+  for o in w.ops do
+    let mut sts := []
+    for r in o.reqs do
+      sts := sts ++ [← match mine[r]? with
+        | some v => pure (some v)
+        | none => Data.status s.rd r]
+    match judge fam o sts with
+    | some (.valid f) =>
+      mine := mine.insert o.id (.valid f)
+      pend := pend.push (⟨o, f, opKey o.id :: keys f⟩ : Pending)
+    | _ =>
+      IO.eprintln s!"write refused: an op's requirements are not all decided and valid"
+      return false
+  modify fun s => { s with out := s.out ++ pend }
+  noticeLocal (pend.toList.flatMap (·.keys))
+  s.wr.submit ⟨w.ops, w.blobs, true⟩
+  return true
+
+def write (o : Op) : M Bool := writeAll ⟨[o], []⟩
 
 def newestTime (s : St) : Nat :=
   match s.ids[0]? with
@@ -472,7 +485,7 @@ def rowAt (s : St) (p : Nat) : Option (Id × Nat) := Id.run do
 
 def hexShort (b : ByteArray) : String :=
   String.join (b.toList.take 4 |>.map fun x =>
-    let t := (Nat.toDigits 16 x.toNat).asString; if t.length < 2 then "0" ++ t else t)
+    let t := String.ofList (Nat.toDigits 16 x.toNat); if t.length < 2 then "0" ++ t else t)
 
 /-- Open a page (the current one goes on the back stack). -/
 def openPage (p : PageId) : M Unit := do
@@ -491,27 +504,37 @@ def back : M Unit := do
   | p :: rest => modify fun s => { s with page := p, backStack := rest, field := "", refusal := none, pageCache := "" }
   | [] => modify fun s => { s with page := .chat, field := "", refusal := none, pageCache := "" }
 
-/-- Make community i the current one: the list starts again from its newest. -/
-def switchTo (i : Nat) : M Unit := do
+/-- The communities, read by the Community kind; the current one is kept
+(or the first, when it is gone or none is current). -/
+def refreshComms : M Unit := do
+  let (cs, _) ← Kinds.Accepted.read
+  modify fun s =>
+    let me := (cs.find? (·.c == s.cur)) <|> cs[0]?
+    { s with comms := cs, me := me.getD s.me, cur := (me.map (·.c)).getD s.cur }
+
+/-- Make community c the current one (memory only): the list starts again
+from its newest. -/
+def switchToId (c : Id) : M Unit := do
   let s ← get
-  let some m := s.comms[i]? | return
   s.io.scrollTo 0
-  modify fun s => { s with me := m, page := PageId.chat, backStack := [] }
+  modify fun s => { s with cur := c, me := (s.comms.find? (·.c == c)).getD s.me, page := PageId.chat, backStack := [] }
   modify fun s => { s with ids := #[], total := 0, people := 0, limit := 64 }
   modify fun s => { s with heights := {}, rows := {}, selected := none, sheet := none }
   modify fun s => { s with asking := #[], hidden := [], chromeKey := "", pageCache := "" }
 
+def switchTo (i : Nat) : M Unit := do
+  if let some m := (← get).comms[i]? then switchToId m.c
+
 /-- Found a community named n: its root and my profile, and it becomes
 current. -/
 def found (n : String) : M Unit := do
-  let s ← get
   let seed ← Chaos.freshSeed n
-  let (m, ops) := Chaos.Me.found n seed
-  s.wr.submit ⟨ops, [], true⟩
-  let comms := s.comms.push m
-  Chaos.Me.saveAll s.rd comms
-  modify fun s => { s with comms }
-  switchTo (comms.size - 1)
+  let w := Community.found seed n.toUTF8
+  if ← writeAll w then
+    -- the root is the community: the write's second op, after the secret
+    if let some r := w.ops[1]? then
+      refreshComms
+      switchToId r.id
 
 /-- The requests to join the current community, read by the Request kind. -/
 def refreshAsking : M Unit := do
@@ -520,20 +543,13 @@ def refreshAsking : M Unit := do
   let (out, _) ← Kinds.Request.waiting s.me.c
   modify fun s => { s with asking := out }
 
-/-- An admission for every request whose decided approvals complete its
-threshold: anyone holding them may compose it (it is unsigned), so
-whoever sees it first does. -/
-def admitReady : M Unit := do
-  let s ← get
-  for r in s.asking do
-    if r.ready && !s.admitting.contains r.id then
-      if ← write (Community.admit s.me.c r.id (r.approvals.take r.threshold)) then
-        modify fun s => { s with admitting := r.id :: s.admitting }
-
 /-- My approval of request r (my device in this community signs it). -/
 def approveReq (r : Id) : M Unit := do
   let s ← get
-  let _ ← write (Community.approve s.me.c r s.me.adm s.me.dev)
+  -- the intent reads the request and its approvals: with mine, is the
+  -- tally complete? then the admission goes in the same write
+  let w ← ((Community.approveReq s.me.c r s.me.adm s.me.seed).run : SqlM Fact _).run s.rd
+  let _ ← writeAll w
 
 /-- The current page's picture and taps (kept until what it shows changes). -/
 def pageOf (s : St) : Pages.Page :=
@@ -832,7 +848,11 @@ def command (line : String) : M Bool := do
     | some "drag", some ph, some x, some y => onSheetDrag ph x y; s.io.ctlReply "dragged"
     | _, _, _, _ => s.io.ctlReply "sheet tap X Y | sheet drag PHASE X Y"
   | "found" => found rest; s.io.ctlReply s!"founded {rest}"
-  | "switch" => switchTo ((ws[1]? >>= String.toNat?).getD 0); s.io.ctlReply s!"current {(← get).me.name}"
+  | "switch" =>
+    match ws[1]? >>= String.toNat? with
+    | some i => switchTo i
+    | none => if let some m := (← get).comms.find? (·.name == rest) then switchToId m.c
+    s.io.ctlReply s!"current {(← get).me.name}"
   | "open" =>
     let p : Option PageId := match ws[1]? with
       | some "getStarted" => some .getStarted | some "create" => some .create | some "join" => some .joinChoice
@@ -1008,8 +1028,8 @@ def step (evs : List Event) : M (Option (List Event)) := do
       let sh' := { sh with scroll := c.grid.clamp next, vel := sh.vel * 0.95 }
       modify fun s => { s with sheet := some sh' }
   -- join requests for the current community, and admissions they complete
+  refreshComms
   refreshAsking
-  admitReady
   -- a page instead of the conversation: its bar, its content in the list
   -- layer (which does not scroll on a page), a one-row composer layer
   let s ← get
@@ -1068,12 +1088,11 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) : IO St := do
   let font ← Font.load
   let rd ← openDb dbPath
   let wr ← Writer.start dbPath
-  let comms ← Chaos.Me.loadAll rd
-  -- a community founded but never written (a crash before its first
-  -- commit) is founded again: the same seed makes the same ops
-  for m in comms do
-    if m.adm == m.c && (← Data.status rd m.c).isNone then
-      wr.submit ⟨(Chaos.Me.found m.name m.seed).2, [], true⟩
+  -- the communities are this device's accepted facts: read them once
+  -- here to choose the first page
+  let probe : St := { io := io, W := W, Hs := Hs, insetTop := 0, insetBot := 0, font := font, bgRow := .empty, rd := rd, wr := wr, me := default }
+  let ((cs, _), _) ← (Kinds.Accepted.read : M _).run probe
+  let comms := cs
   let me := comms[0]?.getD default
   let catalog ← match ← (Sheet.loadCatalog).toBaseIO with
     | .ok c => pure c
@@ -1081,6 +1100,6 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) : IO St := do
   return { io := io, W := W, Hs := Hs, insetTop := (screen[2]?.getD 0).toNat, catalog := catalog,
            dim := ⟨(screen[4]?.getD 420).toNat, font.cell⟩,
            insetBot := (screen[3]?.getD 0).toNat, font := font, bgRow := solid Row.bg W, rd := rd,
-           wr := wr, me := me, comms := comms, page := if comms.isEmpty then .getStarted else .chat }
+           wr := wr, me := me, comms := comms, cur := me.c, page := if comms.isEmpty then .getStarted else .chat }
 
 end App

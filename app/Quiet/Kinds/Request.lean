@@ -49,7 +49,7 @@ def Data.ready (r : Data) : Bool := r.threshold > 0 && r.approvals.length ≥ r.
 
 def hexShort (b : ByteArray) : String :=
   String.join (b.toList.take 4 |>.map fun x =>
-    let t := (Nat.toDigits 16 x.toNat).asString; if t.length < 2 then "0" ++ t else t)
+    let t := String.ofList (Nat.toDigits 16 x.toNat); if t.length < 2 then "0" ++ t else t)
 
 /-- Its row on the Join requests page. -/
 def Data.row (r : Data) (going : Bool) : Pages.Asking :=

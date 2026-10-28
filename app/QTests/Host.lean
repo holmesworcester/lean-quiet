@@ -204,7 +204,7 @@ def main (args : List String) : IO UInt32 := do
     waitIdle sm
     let s ← get
     check s!"two communities, the new one current: {s.comms.map (·.name)}" (s.comms.size == 2 && s.me.name == "design team" && s.total == 0)
-    sm.cmds.modify (·.push "switch 0")
+    sm.cmds.modify (·.push "switch general")
     steps 5
     check s!"switching back shows the first community's {(← get).total} messages" ((← get).me.name == "general" && (← get).total > 0)
     -- a joiner: invited by me, asking with its own device and the link's bearer
@@ -243,6 +243,8 @@ def main (args : List String) : IO UInt32 := do
   let s2 ← App.start sm.io #[1080, 2400, 128, 63, 420] (dir ++ "/quiet.db")
   sm.b.set 0
   let ((), s2) ← (show M Unit from do
+    -- which community is current is memory, not state: choose it again
+    sm.cmds.modify (·.push "switch general")
     let mut k := 0
     repeat
       let _ ← step []
