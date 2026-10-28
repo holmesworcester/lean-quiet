@@ -35,9 +35,17 @@ frame came from (at first, the one its handshake ran on).
 - After each entry point the family's outbox (its send couriers) is
   handed out once and marked shipped.
 - Every id stored is reported (`stored`), so an app can re-read.
+- What a connection's step sends takes one of two lanes (`lane`,
+  docs/SYNC.md, "Lanes"): urgent (wire control naming few ids, the
+  stream's offers, and the answer to a want for an op this node just
+  wrote) or serve (the rest: want answers, and long offers and wants).
+  Each lane's payloads are sealed in frames of their own, the serve
+  lane's last (`Effects.serve` counts them), so the runner can send
+  urgent frames ahead of a backlog.
 -/
 import ops.sync.Conn
 import engine.core.Held
+import engine.wire.Lanes
 
 namespace Engine.Sync
 
@@ -98,13 +106,18 @@ structure Node where
   dropped : List Id := []
   /-- Ids stored since the last entry point returned. -/
   fresh : List Id := []
+  /-- Ids this node wrote, newest first, each with when (at most
+  `hotCap`): a want for one within `hotMs` is answered urgent. -/
+  hot : List (Id × Nat) := []
 
 /-- What a step asks for, before sealing. -/
 structure Acts where
   send : List (Route × ByteArray) := []
   drop : List Id := []
+  /-- Payloads of the serve lane. -/
+  serve : List (Route × ByteArray) := []
 
-instance : Append Acts := ⟨fun a b => ⟨a.send ++ b.send, a.drop ++ b.drop⟩⟩
+instance : Append Acts := ⟨fun a b => ⟨a.send ++ b.send, a.drop ++ b.drop, a.serve ++ b.serve⟩⟩
 
 /-- What to do: payloads to send to addresses, sessions dropped, ids
 stored. -/
@@ -112,6 +125,9 @@ structure Effects where
   send : List (ByteArray × ByteArray) := []
   drop : List Id := []
   stored : List Id := []
+  /-- How many of `send`'s payloads, at its end, are the serve lane's
+  (the rest are urgent). -/
+  serve : Nat := 0
 
 /-- The discriminators: a bare op, a sealed frame. -/
 def bareTag : UInt8 := 0
@@ -142,6 +158,36 @@ def Node.drop (n : Node) (cid : Id) : Node :=
   { n with dropped := if has n.dropped cid then n.dropped else cid :: n.dropped }
 
 def sends (cid : Id) (ops : List Op) : Acts := { send := ops.map fun o => (.conn cid, o.bytes) }
+
+section
+variable {F : Type} {m : Type → Type} [Monad m] (x : Sync F m)
+
+/-- A wire op naming at most `urgentIds` ids (at least one) is urgent;
+a longer one is served. -/
+def wireLane (o : Op) : Lane :=
+  if o.reqs.length ≤ max x.cfg.urgentIds 1 then .urgent else .serve
+
+/-- The lane of op o, sent at `now`: a wire op's (`wireLane`); urgent
+for an op this node wrote within `hotMs`; served otherwise. -/
+def Node.lane (n : Node) (o : Op) (now : Nat) : Lane :=
+  if isWire o.kind then wireLane x o
+  else if n.hot.any (fun p => p.1 == o.id && now ≤ p.2 + x.cfg.hotMs) then .urgent else .serve
+
+end
+
+/-- Session cid's sends, each in its lane, in order. -/
+def split (lane : Op → Lane) (cid : Id) (ops : List Op) : Acts :=
+  { send := (ops.filter fun o => lane o = .urgent).map fun o => (.conn cid, o.bytes)
+    serve := (ops.filter fun o => lane o = .serve).map fun o => (.conn cid, o.bytes) }
+
+section
+variable {F : Type} {m : Type → Type} [Monad m] (x : Sync F m)
+
+/-- This node's own ops just stored, hot from `now`. -/
+def Node.heat (n : Node) (ids : List Id) (now : Nat) : Node :=
+  { n with hot := ((ids.reverse.map (·, now)) ++ n.hot.filter fun p => now ≤ p.2 + x.cfg.hotMs).take x.cfg.hotCap }
+
+end
 
 section
 variable {F : Type} {m : Type → Type} [Monad m] [Store F m] [Turn F m] (x : Sync F m)
@@ -290,11 +336,13 @@ def Node.finish (n : Node) (out : Acts) (now : Nat) : m (Node × Effects) := do
   let n := retired.foldl Node.drop n
   let out := { out with drop := out.drop ++ retired }
   let sent ← n.seal x out
+  let served ← n.seal x { send := out.serve }
   -- A session that dropped, or left `established`, is forgotten: its
   -- secrets are purged, and a redial makes a new one.
   for cid in out.drop do
     Node.endSession x cid
-  return ({ n with fresh := [] }, { send := sent, drop := out.drop, stored := n.fresh })
+  return ({ n with fresh := [] },
+    { send := sent ++ served, drop := out.drop, stored := n.fresh, serve := served.length })
 
 /-- Loss of the transport ends all sessions routed through that address.
 The same finish path as a protocol drop purges their keys. -/
@@ -314,7 +362,7 @@ def Node.apply (n : Node) (cid : Id) (s : Step) (now : Nat) : m (Node × Acts) :
   for o in s.take do
     arrived := arrived ++ (← x.hooks.recv (some cid) .empty o now)
   let (n, out') ← n.store x arrived true
-  return (n, sends cid s.send ++ out ++ out')
+  return (n, split (n.lane x · now) cid s.send ++ out ++ out')
 
 /-- A connection opened without a handshake: the in-memory harness's. -/
 def Node.connect (n : Node) (cid : Id) (addr : ByteArray) (dialer : Bool) (now : Nat) :
@@ -376,10 +424,10 @@ def Node.onTick (n : Node) (now : Nat) : m (Node × Effects) := do
       out := out ++ o
   n.finish x out now
 
-/-- A local write: this device's own ops. -/
+/-- A local write: this device's own ops, hot from now on. -/
 def Node.onWrite (n : Node) (ops : List Op) (now : Nat) : m (Node × Effects) := do
   let (n, out) ← n.store x ops true
-  n.finish x out now
+  (n.heat x n.fresh now).finish x out now
 
 end
 

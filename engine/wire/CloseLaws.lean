@@ -40,9 +40,11 @@ theorem close_purges {m : Type → Type} [Monad m] [Store F m] [Turn F m]
       let n := retired.foldl Node.drop n
       let out := { out ++ o with drop := (out ++ o).drop ++ retired }
       let sent ← n.seal x out
+      let served ← n.seal x { send := out.serve }
       for cid in out.drop do
         (x.hooks.closing cid >>= fun ids =>
           if !ids.isEmpty then Turn.purge x.fam ids true else pure ())
-      return ({ n with fresh := [] }, { send := sent, drop := out.drop, stored := n.fresh })) := rfl
+      return ({ n with fresh := [] },
+        { send := sent ++ served, drop := out.drop, stored := n.fresh, serve := served.length })) := rfl
 
 end Engine.Sync

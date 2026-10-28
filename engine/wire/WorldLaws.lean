@@ -18,6 +18,7 @@ managed by it and none is purged; `stream_delivers` assumes so of both
 nodes (`managed = []`), as `Node.connect` leaves them.
 -/
 import engine.wire.World
+import engine.wire.LaneLaws
 import ops.sync.ServeLaws
 import Std.Data.HashSet.Lemmas
 
@@ -80,7 +81,7 @@ theorem turnH_one (fam : Family F) (o : Op) (h : Held F) (hn : h.db.ops o.id = n
     (turnH fam [o] h).db.ops o.id = some o := by
   simp [turnH, drainS_ops, ingestS, hn, DB.putOp, DB.push]
 
-theorem Acts.append_def (a b : Acts) : a ++ b = ⟨a.send ++ b.send, a.drop ++ b.drop⟩ := rfl
+theorem Acts.append_def (a b : Acts) : a ++ b = ⟨a.send ++ b.send, a.drop ++ b.drop, a.serve ++ b.serve⟩ := rfl
 @[simp] theorem Acts.empty_append (a : Acts) : ({} : Acts) ++ a = a := rfl
 @[simp] theorem Acts.append_empty (a : Acts) : a ++ ({} : Acts) = a := by
   cases a; simp [Acts.append_def]
@@ -249,6 +250,19 @@ theorem seal_one (n : Node) (cid : Id) (ps : List ByteArray) (h : Held F) :
         (fun g _ b => by simp [plainFrame])]
       simp [List.filterMap_map, Function.comp_def]
 
+/-- One payload of a session, sealed: one frame to its address. -/
+@[simp] theorem seal_single (n : Node) (cid : Id) (b : ByteArray) (h : Held F) :
+    (n.seal (S.sync s) { send := [(.conn cid, b)] }).run h =
+      (((n.addr? cid).map fun a => [(a, plainFrame cid [b])]).getD [], h) := by
+  have e := seal_one S s n cid [b] h
+  simp only [List.map_cons, List.map_nil] at e
+  rw [e]
+  cases n.addr? cid <;> simp [bundles]
+
+/-- Sealing reads a node's addresses only, which heating keeps. -/
+@[simp] theorem seal_heat (n : Node) (ids : List Id) (now : Nat) (out : Acts) :
+    (n.heat (S.sync s) ids now).seal (S.sync s) out = n.seal (S.sync s) out := rfl
+
 @[simp] theorem seal_sends (n : Node) (cid : Id) (ops : List Op) (h : Held F) :
     (n.seal (S.sync s) (sends cid ops)).run h =
       (((n.addr? cid).map fun a =>
@@ -266,17 +280,35 @@ theorem finish_reads (n : Node) (out : Acts) (now : Nat) : Reads (n.finish (S.sy
     Bool.not_true, Bool.false_eq_true, ite_false]
   keeps [seal_reads]
 
-/-- An entry point's end, with no managed sessions: seal, and report. -/
+/-- Sealing nothing sends nothing. -/
+@[simp] theorem seal_nil (n : Node) (h : Held F) :
+    (n.seal (S.sync s) { send := [] }).run h = ([], h) := by
+  simp [Node.seal]
+
+/-- Sealing reads only what is to be sent. -/
+theorem seal_empty (n : Node) (out : Acts) (h : Held F) (h0 : out.send = []) :
+    (n.seal (S.sync s) out).run h = ([], h) := by
+  obtain ⟨sd, dr, sv⟩ := out
+  simp only at h0
+  subst h0
+  simp [Node.seal]
+
+/-- An entry point's end, with no managed sessions: seal each lane, and
+report. -/
 theorem finish_run (n : Node) (out : Acts) (now : Nat) (h : Held F) (hm : n.managed = []) :
     (n.finish (S.sync s) out now).run h =
       (({ n with fresh := [] },
-        { send := ((n.seal (S.sync s) out).run h).1, drop := out.drop, stored := n.fresh }), h) := by
-  have hk := finish_reads S s n out now h
+        { send := ((n.seal (S.sync s) out).run h).1 ++ ((n.seal (S.sync s) { send := out.serve }).run h).1,
+          drop := out.drop, stored := n.fresh,
+          serve := ((n.seal (S.sync s) { send := out.serve }).run h).1.length }), h) := by
+  obtain ⟨sd, dr, sv⟩ := out
+  have hk := finish_reads S s n ⟨sd, dr, sv⟩ now h
+  have hr := seal_reads S s n ⟨sd, dr, sv⟩ h
   simp only [Node.finish, Node.endSession, List.foldl_nil, Node.follow, Node.flush, hm, sync_established, sync_outbox, sync_retired,
     sync_closing, HeldM.pure_bind, List.isEmpty_nil, ite_true, List.forIn_nil, List.append_nil,
     Bool.not_true, Bool.false_eq_true, ite_false, HeldM.run_bind, HeldM.run_pure,
     Acts.append_empty] at hk ⊢
-  rw [hk]
+  rw [hk, hr]
 
 theorem fanout_reads (n : Node) (ids : List Id) : Reads (n.fanout (S.sync s) ids) := by
   have h1 := filed_reads (F := F) S.fam S.cfg
@@ -436,7 +468,7 @@ theorem write_offers (n : Node) (cid : Id) (c : Conn) (o : Op) (r : Id) (a : Byt
   have hs' := has_of_mem hs
   simp only [Node.addr?] at ha
   simp [Node.onWrite, store_run, Node.put, intake, write_one _ _ _ _ hn, Node.fanout, hc, Conn.filed,
-    turnH_one _ _ _ hn, hk, ho, Conn.setRooms, Conn.shows, hr, hs', finish_run, hm,
+    turnH_one _ _ _ hn, hk, ho, Conn.setRooms, Conn.shows, hr, hs', finish_run, hm, Node.heat,
     holdsOf_one _ _ _ hmax, Node.addr?, ha]
 
 /-- **An offer of an op the node lacks is answered with a want,** on the
@@ -451,6 +483,7 @@ theorem hold_wants (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (r i : Id)
   have hs' := has_of_mem hs
   simp [Node.onFrame, Node.onSealed, plainOpen, Codec.decode_encode, Node.conn?, Node.setAddr, hc,
     Conn.recv, Op.decode_bytes, Conn.onHold, holdsIn, hs', hq, hn, Node.apply, finish_run, hm,
+    split_one,
     admit_one _ _ _ hq hasked, remember_bounded,
     chunks_one _ _ _ hmax, Node.addr?, Conn.setRooms, Step.limit, hasked, show ¬S.cfg.maxIds < 1 by omega]
 
@@ -481,8 +514,13 @@ theorem want_sends (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (o : Op) (
     plainOpen, Codec.decode_encode, HeldM.pure_bind, Node.conn?, Node.setAddr, hc,
     List.find?_cons, decide_true, List.forIn_cons, Option.map_some, HeldM.run_bind,
     HeldM.run_pure, refresh_run, sync_fam, sync_cfg, hrwant]
-  simp [Node.apply, finish_run, hm, Node.addr?, Conn.setRooms]
-  exact ⟨[], by simp, rfl⟩
+  simp [Node.apply, finish_run, hm, Conn.setRooms, split_one]
+  refine ⟨[], by simp, ?_⟩
+  -- The op goes in either lane; its frame is the same.
+  split
+  · simp [Node.addr?]
+  · rw [seal_empty _ _ _ _ _ rfl]
+    simp [Node.addr?]
 
 /-- **A frame that brings a new op of the session's rooms stores it,**
 whatever offers follow it in the frame. -/
@@ -1180,12 +1218,12 @@ theorem write_offers_all (n : Node) (ops : List Op) (t : Nat) (h : Held F) (hm :
     | cons _ _ => rfl
   simp only [Node.onWrite, HeldM.run_bind, store_run, Node.put, intake, ite_true, hne, Bool.false_eq_true,
     ite_false]
-  rw [finish_run _ _ _ _ _ _ (by rw [hmn', hmn, hm])]
+  rw [finish_run _ _ _ _ _ _ (by rw [heat_managed, hmn', hmn, hm]), seal_heat]
   have ha' : (((n.write (S.sync s) ops).run h).1.1.fanout (S.sync s)
       ((n.write (S.sync s) ops).run h).1.2).run ((n.write (S.sync s) ops).run h).2 |>.1.1.addr? cid = some a := by
     simp only [Node.addr?] at ha ⊢; rw [han', han]; exact ha
   obtain ⟨g, hpg, hg⟩ := seal_mem S s _ _ _ cid _ a hl ha'
-  exact ⟨g, l, hg, hpg, hol⟩
+  exact ⟨g, l, List.mem_append_left _ hg, hpg, hol⟩
 
 end
 

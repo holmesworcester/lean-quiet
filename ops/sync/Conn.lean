@@ -122,6 +122,12 @@ structure Config where
   walk : Nat := 100000
   /-- bytes of payloads sealed together in one frame. -/
   bundle : Nat := 49152
+  /-- ids a wire op may name and still go urgent (Node.lane; at least 1). -/
+  urgentIds : Nat := 64
+  /-- ms an op this node wrote stays hot: a want for it is answered urgent. -/
+  hotMs : Nat := 20000
+  /-- ids kept hot at most, the newest. -/
+  hotCap : Nat := 256
 
 inductive Status where
   | settled (room : Id)

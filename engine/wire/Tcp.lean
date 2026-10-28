@@ -13,8 +13,16 @@ neither carries socket code.
 - A socket silent for `idle` ms is closed: a join request waiting for
   approval is resent every tick, and sessions exchange rounds, so a
   live one is never idle that long.
-- The app's writes come in through `Runner.write`; every id the node
-  stores goes to the app's `notify`.
+- The app's writes come in through `Runner.write`, on a channel of
+  their own that the loop reads before any frame (`Inbox.next`); every
+  id the node stores goes to the app's `notify`.
+- Each socket has a writer on its own thread, which owns its sends: the
+  loop only pushes frames onto the socket's lanes (docs/SYNC.md,
+  "Lanes"), so no send blocks the loop, and a slow socket holds up only
+  its own writer. Each native write is every urgent frame, then serve
+  frames up to `burst` bytes (`Lanes.take`). A frame from a socket whose
+  serve lane holds `window` bytes or more is answered with at most one
+  op per want (`credit`).
 
 One task owns the node and its SQLite connection; the listener and one
 reader per socket feed it events through a channel.
@@ -55,7 +63,6 @@ inductive Event where
   | closed (sock : Nat)
   | accepted (c : TCP.Socket.Client) (peer : ByteArray)
   | dialed (addr : ByteArray) (c : Option TCP.Socket.Client)
-  | write (ops : List Op)
   | stop
 
 instance : Inhabited Event := ⟨.stop⟩
@@ -73,12 +80,33 @@ def awaitUv {α : Type} (op : IO (IO.Promise (Except IO.Error α))) : IO (Except
     | some r => pure r
     | none => pure (.error (.userError "the socket's promise was dropped"))
 
+/-- What a socket's writer takes from: its lanes, and whether to stop. -/
+structure Outbox where
+  lanes : Lanes := {}
+  stopped : Bool := false
+
 structure Sock where
   id : Nat
   client : TCP.Socket.Client
   addr : ByteArray
   heard : Nat
   stopped : IO.Ref Bool
+  out : Std.Mutex Outbox
+  wake : Std.Condvar
+
+/-- Push frames onto a socket's lanes, and wake its writer. -/
+def Sock.push (s : Sock) (ps : List (Lane × ByteArray)) : IO Unit := do
+  s.out.atomically (modify fun o => { o with lanes := o.lanes.pushAll ps })
+  s.wake.notifyAll
+
+/-- Serve bytes waiting on a socket's lanes. -/
+def Sock.queued (s : Sock) : IO Nat := s.out.atomically do return (← getThe Outbox).lanes.queued
+
+/-- Stop a socket's writer: it shuts the socket down once its write
+under way is done. -/
+def Sock.stop (s : Sock) : IO Unit := do
+  s.out.atomically (modify fun o => { o with stopped := true })
+  s.wake.notifyAll
 
 structure RunState where
   db : Db
@@ -177,6 +205,32 @@ def sendOn (c : TCP.Socket.Client) (payload : ByteArray) : IO Bool := do
   | .ok _ => return true
   | .error _ => return false
 
+/-- One native write, still a sequence of ordinary length-prefixed frames. -/
+def sendMany (c : TCP.Socket.Client) (payloads : List ByteArray) : IO Bool := do
+  match ← awaitUv (c.native.send (payloads.map frame).toArray) with
+  | .ok _ => return true
+  | .error _ => return false
+
+/-- A socket's writer, on its own thread: each native write is the next
+`Lanes.take` of its lanes, until it is stopped (then it shuts the socket
+down) or a write fails (then the loop hears the socket closed). -/
+def writer (ch : Std.CloseableChannel.Sync Event) (sid : Nat) (c : TCP.Socket.Client)
+    (out : Std.Mutex Outbox) (wake : Std.Condvar) (burst : Nat) : IO Unit := do
+  repeat
+    let batch ← out.atomicallyOnce wake (do let o ← getThe Outbox; return o.stopped || !o.lanes.isEmpty) do
+      modifyGetThe Outbox fun o =>
+        if o.stopped then (none, o) else
+        let (b, q) := o.lanes.take burst
+        (some b, { o with lanes := q })
+    match batch with
+    | none =>
+      closeSocket c
+      return
+    | some b =>
+      unless ← sendMany c b do
+        discard <| enqueue ch (.closed sid)
+        return
+
 section
 variable {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (ch : Std.CloseableChannel.Sync Event)
   (notify : List Id → IO Unit)
@@ -186,12 +240,16 @@ def RunState.sockOf (st : RunState) (p : Sock → Bool) : Option Sock := st.sock
 def RunState.drop (st : RunState) (sid : Nat) : RunState :=
   { st with socks := st.socks.filter (·.id != sid) }
 
-def RunState.addSock (st : RunState) (c : TCP.Socket.Client) (addr : ByteArray) (now : Nat) :
+def RunState.addSock (cfg : RunConfig) (st : RunState) (c : TCP.Socket.Client) (addr : ByteArray) (now : Nat) :
     IO (RunState × Nat) := do
   let sid := st.next
   let stopped ← IO.mkRef false
+  let out ← Std.Mutex.new {}
+  let wake ← Std.Condvar.new
   let _ ← IO.asTask (prio := .dedicated) (reader ch sid c stopped)
-  return ({ st with socks := { id := sid, client := c, addr, heard := now, stopped } :: st.socks, next := sid + 1 }, sid)
+  let _ ← IO.asTask (prio := .dedicated) (writer ch sid c out wake cfg.burst)
+  let s : Sock := { id := sid, client := c, addr, heard := now, stopped, out := out, wake := wake }
+  return ({ st with socks := s :: st.socks, next := sid + 1 }, sid)
 
 /-- Every socket end notifies the node before releasing the socket. -/
 def RunState.close (st : RunState) (sid now : Nat) : IO (RunState × Effects) := do
@@ -200,12 +258,12 @@ def RunState.close (st : RunState) (sid now : Nat) : IO (RunState × Effects) :=
   | some s =>
     let (node, e) ← (st.node.onClose x s.addr now).run st.db
     s.stopped.set true
-    closeSocket s.client
+    s.stop
     st.slots.release s.addr
     return ({ st.drop sid with node }, e)
 
-/-- Carry out what the node asked for: send each payload to its
-address, dialing if no socket has it. -/
+/-- Carry out what the node asked for: push each frame onto the lanes of
+the socket at its address (`framesFor`), dialing if no socket has it. -/
 partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now : Nat) : IO RunState := do
   let close (st : RunState) (sid : Nat) : IO RunState := do
     let (st, more) ← st.close x sid now
@@ -219,9 +277,14 @@ partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now 
       unless st.node.conns.any fun (c, _) => st.node.addr? c == some addr do
         for s in st.socks do
           if s.addr == addr then st ← close st s.id
-  for (addr, b) in e.send do
+  let frames := laned e.send e.serve
+  let sockOf (st : RunState) (a : ByteArray) := (st.sockOf fun s => s.addr == a).map (·.id)
+  for s in st.socks do
+    let ps := framesFor (sockOf st) s.id frames
+    unless ps.isEmpty do s.push ps
+  for (addr, _, b) in frames do
     match st.sockOf (fun s => s.addr == addr) with
-    | some s => unless ← sendOn s.client b do st ← close st s.id
+    | some _ => pure ()
     | none =>
       match st.pending.find? (·.1 == addr) with
       | some (_, fs) =>
@@ -259,39 +322,43 @@ def RunState.handle (cfg : RunConfig) (st : RunState) (ev : Event) (now : Nat) :
     | none => return some st
     | some s =>
       let st := { st with socks := st.socks.map fun (s' : Sock) => if s'.id == sid then { s' with heard := now } else s' }
-      let (st, e) ← st.node? fun n => n.onFrame x s.addr p now
+      -- Its wants are answered within what is left of the socket's window.
+      let x' := { x with cfg := { x.cfg with wantBytes := credit cfg.window x.cfg.wantBytes (← s.queued) } }
+      let (st, e) ← st.node? fun n => n.onFrame x' s.addr p now
       some <$> st.apply x ch notify cfg e now
   | .closed sid => return some (← st.closeApply x ch notify cfg sid now)
-  | .accepted c peer => return some (← st.addSock ch c peer now).1
+  | .accepted c peer => return some (← st.addSock ch cfg c peer now).1
   | .dialed addr none =>
     st.slots.release addr
     let (node, e) ← (st.node.onClose x addr now).run st.db
     some <$> ({ st with node, pending := st.pending.filter (·.1 != addr) }).apply x ch notify cfg e now
   | .dialed addr (some c) =>
-    let (st, sid) ← st.addSock ch c addr now
+    let (st, sid) ← st.addSock ch cfg c addr now
     let frames := (st.pending.find? (·.1 == addr)).map (·.2) |>.getD []
-    let mut st := { st with pending := st.pending.filter (·.1 != addr) }
-    for b in frames do
-      if let some s := st.sockOf (·.id == sid) then
-        unless ← sendOn s.client b do st ← st.closeApply x ch notify cfg sid now
+    let st := { st with pending := st.pending.filter (·.1 != addr) }
+    -- A new address's first frames are the session's opening: urgent.
+    if let some s := st.sockOf (·.id == sid) then s.push (frames.map (.urgent, ·))
     return some st
-  | .write ops =>
-    let (st, e) ← st.node? fun n => n.onWrite x ops now
-    some <$> st.apply x ch notify cfg e now
 
-/-- The loop: events as they come, the clock every `tickMs`. -/
-def runLoop (cfg : RunConfig) (st : RunState) : IO Unit := do
+/-- The loop: the app's writes first, then events as they come
+(`Inbox.next`), and the clock every `tickMs`. -/
+def runLoop (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (List Op)) (st : RunState) : IO Unit := do
   let mut st := st
   repeat
     let now ← IO.monoMsNow
     let mut busy := false
-    match ← ch.tryRecv with
-    | some ev =>
+    match ← Inbox.next writes.tryRecv ch.tryRecv with
+    | some (.inl ops) =>
+      busy := true
+      let (st', e) ← st.node? fun n => n.onWrite x ops now
+      st ← st'.apply x ch notify cfg e now
+    | some (.inr ev) =>
       busy := true
       match ← st.handle x ch notify cfg ev now with
       | some st' => st := st'
       | none =>
         discard <| ch.close.toBaseIO
+        discard <| writes.close.toBaseIO
         for s in st.socks do
           st := (← st.close x s.id now).1
         for (_, addr) in st.node.addrs do
@@ -312,6 +379,8 @@ end
 /-- A running node. -/
 structure Runner where
   events : Std.CloseableChannel.Sync Event
+  /-- The app's writes: unbounded, so a write never waits behind frames. -/
+  writes : Std.CloseableChannel.Sync (List Op)
   port : UInt16
   done : Task (Except IO.Error Unit)
   stopped : IO.Ref Bool
@@ -325,6 +394,7 @@ def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (db : Db
     IO Runner := do
   let node := Node.boot x.fam (← (dumpOps (F := F)).run db) floor
   let ch ← eventChannel cfg
+  let writes ← Std.CloseableChannel.Sync.new none
   let slots ← Std.Mutex.new []
   let srv ← TCP.Socket.Server.mk
   srv.bind (.v4 ⟨IPv4Addr.ofParts 0 0 0 0, port⟩)
@@ -334,11 +404,11 @@ def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (db : Db
     | .v6 a => a.port
   let stopped ← IO.mkRef false
   let listening ← IO.asTask (prio := .dedicated) (acceptor ch srv stopped slots cfg)
-  let done ← IO.asTask (prio := .dedicated) (runLoop x ch notify cfg { db, node, slots })
-  return { events := ch, port := bound, done, stopped, listening, slots }
+  let done ← IO.asTask (prio := .dedicated) (runLoop x ch notify cfg writes { db, node, slots })
+  return { events := ch, writes, port := bound, done, stopped, listening, slots }
 
-/-- The app's own writes. -/
-def Runner.write (r : Runner) (ops : List Op) : IO Unit := discard <| enqueue r.events (.write ops)
+/-- The app's own writes: taken before any frame, and never blocking. -/
+def Runner.write (r : Runner) (ops : List Op) : IO Unit := discard <| (r.writes.send ops).toBaseIO
 
 /-- Stop: the loop ends and shuts every socket down, the listener is
 released (its port free for the next start), and both are waited for. -/

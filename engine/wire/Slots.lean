@@ -13,6 +13,12 @@ structure RunConfig where
   queue : Nat := 64
   perAddr : Nat := 4
   maxSocks : Nat := 64
+  /-- Serve bytes in one native write, after the urgent frames (uiprio's
+  `idleBatchBytes` on the send side). -/
+  burst : Nat := 131072
+  /-- Serve bytes a socket may hold queued before each want on it is
+  answered with one op (`credit`). -/
+  window : Nat := 4194304
 
 /-- A peer's quota is its host, the port dropped from the address text
 (Tcp.addrText): `a.b.c.d` of `a.b.c.d:port`, `[v6]` of `[v6]:port`, and
