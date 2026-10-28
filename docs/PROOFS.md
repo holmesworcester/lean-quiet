@@ -206,9 +206,9 @@ today's code (with the finding), **O** open.
 | `frames_keep_sessions_stmt` | no delivery, duplicate, injection or write closes a session | **P** (`frames_keep_sessions_proof`) |
 | `idem_stmt` | L-idem: the same bytes delivered again leave the store as they were (fixed rooms; finding 6) | **P** (`idem_proof`) |
 | `restart_stmt` | L-restart: a restart keeps every op, rebuilds the index equal to the store, opens nothing | **P** (`restart_proof`) |
-| `waiting_closure_stmt` | every store at rest, verdicts = spec | O (engine laws + Held's turn) |
-| `closure_agree_stmt` | holding a closure, judge alike | O (`spec_local`) |
-| `local_stmt` | L-local: the same ops give the same verdicts and every view the same answer | O |
+| `waiting_closure_stmt` | every store at rest, verdicts = spec | **P** (`waiting_closure_proof`) |
+| `closure_agree_stmt` | holding a closure, judge alike | **P** (`closure_agree_proof`, with `spec_local`) |
+| `local_stmt` | L-local: the same ops give the same verdicts and every view the same answer | O; the verdict half is proven (`local_verdicts`); views need the index tables to be a function of ops and verdicts |
 | `round_stmt` | L-round: a round carries both sides' ops within `roundTime`, whatever interleaves | O; the pilot is its first leg |
 | `round_forward_stmt` | L-round's forward leg, leaf regime: every op of the window i's index named at the opening reaches j within 3Δ | **P** (`round_forward`, from the pilot) |
 | `offer_delivers_stmt` | a have of room r naming y, from j to i on a joined session, gets y to i within 3Δ, with finding 7's premises | **P** (`offer_delivers`) |
@@ -314,6 +314,17 @@ The upper and lower bounds match up to a constant per hop:
     fixed rooms. What a connection takes is the payload's op, a shown
     data op (`recv_take_of`); the first delivery stored each
     (`first_named`); a store of held ops changes nothing (`store_held`);
+  - waiting ops close, `waiting_closure_proof`: in every world reached,
+    every store is a state the engine reaches from its log
+    (`reach_settled`), and every write turn drains it to rest, since the
+    turn's budget is the engine's over the log (`budget_congr`,
+    `turnH_settled`, with the engine's `drain_bounded`); so its verdicts
+    are the spec's. With the engine's `spec_local`,
+    `closure_agree_proof`; and two nodes holding the same ops judge alike
+    (`local_verdicts`). Every entry point keeps a store settled
+    (`settles`, as `grows` for growth). Negative control (run and
+    reverted): a turn draining one step short is caught by a3's
+    NodeLaws (`turn_apply`, `write_cached`);
   - the findings' witnesses.
 - **Above the code, from the per-edge bound** (engine/world/Epidemic.lean):
   - `hops`: d · B over a path of d live edges;
