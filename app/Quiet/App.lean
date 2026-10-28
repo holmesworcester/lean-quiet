@@ -1385,6 +1385,12 @@ def command (line : String) : M Bool := do
     modify fun s => { s with text := rest }
     sendNow
     s.io.ctlReply s!"posted, composer {(← get).chips.size} photos"
+  | "pics" =>
+    -- the mounted rows with pictures: text, and each picture's chunks here
+    let out := s.rows.toList.filterMap fun (_, r) =>
+      if r.data.pics.isEmpty then none else
+      some s!"{r.data.name}: {String.ofList (r.data.text.toList.take 30)} [{", ".intercalate (r.data.pics.map fun p => s!"{p.got}/{p.total}{if p.complete then " complete" else ""}")}]"
+    s.io.ctlReply (if out.isEmpty then "no pictures mounted" else " | ".intercalate out)
   | "visible" =>
     let (bots, _) := bottoms s
     let vh := viewH s
