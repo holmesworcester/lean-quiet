@@ -49,6 +49,7 @@ import engine.core.IngestCost
 import engine.core.ListCost
 import engine.renderer.Heights
 import engine.renderer.ReaderLaws
+import engine.renderer.RestLaws
 
 open Engine Engine.Counted Tests
 
@@ -354,6 +355,26 @@ def pickCheck (t : Checks) : IO Unit := do
 
 end PickCheck
 
+section RestCheck
+
+/-- The reader at rest: 200 wants of 5 reads each. -/
+def restCheck (t : Checks) : IO Unit := do
+  let wants := List.range 200
+  let deps : Nat → Option (List Nat) := fun x => some (List.range' (x * 5) 5)
+  let scan := Live.scanM (m := Counted) deps (fun _ => false) {} wants
+  let idle := Live.markHitM (m := Counted) (fun (_ : Nat) => ([] : List Nat)) ({} : Std.HashSet Nat) []
+  let rev : Nat → List Nat := fun k => if k == 7 then [1, 2, 3] else []
+  let one := Live.markHitM (m := Counted) rev {} [7]
+  t.ok s!"rest: no notice, nothing dirty: marks nothing in {(cost idle).work} steps"
+    ((cost idle).work == 0 && (val idle).isEmpty)
+  t.ok s!"rest: one notice naming three wants: those three, in {(cost one).work} steps"
+    ((cost one).work == 4 && (val one).size == 3 && (val one).contains 2)
+  t.ok s!"rest: the scan (the negative control) checks every want's reads, {(cost scan).work} steps a pass"
+    ((cost scan).work == 1200)
+  IO.println s!"rest: idle pass {(cost idle).work} steps, one notice {(cost one).work}; the scan {(cost scan).work} every pass"
+
+end RestCheck
+
 def main : IO UInt32 := do
   let t ← Checks.new
   merkle t
@@ -363,4 +384,5 @@ def main : IO UInt32 := do
   listCheck t
   heightsCheck t
   pickCheck t
+  restCheck t
   t.finish "costcheck"

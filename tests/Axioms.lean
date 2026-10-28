@@ -29,6 +29,7 @@ import engine.renderer.BoardLaws
 import engine.renderer.Heights
 import ops.community.WrapLaws
 import engine.renderer.ReaderLaws
+import engine.renderer.RestLaws
 import ops.community.ReqsLaws
 import ops.connection.ReqsLaws
 import engine.core.WindowRead
@@ -440,6 +441,17 @@ section cost
 #print axioms Live.markM_cost
 #print axioms Live.pickM_cost
 #print axioms Live.RWorld.inv_commit
+#print axioms Live.RWorld.inv_passWith
+#print axioms Live.RWorld.settleWith
+#print axioms Live.mem_markHit
+#print axioms Live.markHitM_cost
+#print axioms Live.scanM_cost
+#print axioms Live.RWorld.marked_sub_idx
+#print axioms Live.RWorld.rest_idle
+#print axioms Live.RWorld.inv_passIdx
+#print axioms Live.RWorld.settle_idx
+#print axioms Live.RWorld.idxok_want
+#print axioms Live.RWorld.idxok_passIdx
 #print axioms Live.RWorld.inv_pass
 #print axioms Live.RWorld.inv_frame
 #print axioms Live.RWorld.inv_evict
