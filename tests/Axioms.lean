@@ -236,6 +236,8 @@ open Engine Community
 #print axioms Engine.Sync.onHold_local
 #print axioms Engine.Sync.hold_reply_local
 #print axioms Engine.Sync.heldIn_index
+#print axioms Engine.Sync.have_shown_premises
+#print axioms Engine.Sync.hold_reply_local_premises
 end engine
 
 section app

@@ -696,5 +696,22 @@ theorem heldIn_index {n : Node} {s : DB F} (hi : Inv fam s) (hc : Cached fam n s
     unfold heldIn
     rw [ho]; simp [hr]
 
+/-! ## Not vacuous -/
+
+/-- `have_shown`'s premises hold: of a node booted from an empty store,
+with a connection just opened. -/
+theorem have_shown_premises (dialer : Bool) (rooms : List Id) (floor now : Nat) :
+    Inv fam (({} : Held F).db) ∧ Cached fam (Node.boot fam [] floor) ({} : Held F).db ∧
+      SnapsIn (Node.boot fam [] floor).ix (Conn.open dialer rooms floor now).conn :=
+  ⟨inv_empty, boot_cached fam DB.empty floor, (open_keeps fam (s := DB.empty) dialer rooms floor now).1⟩
+
+/-- `hold_reply_local`'s premises hold: a have's own bytes decode to it,
+for any room and ids. -/
+theorem hold_reply_local_premises (r : Id) (ids : List Id) :
+    Op.decode (Msg.hold r ids).op.bytes = some (Msg.hold r ids).op ∧
+      Msg.ofOp (Msg.hold r ids).op = some (.hold r ids) := by
+  refine ⟨Op.decode_bytes _, ?_⟩
+  simp [Msg.ofOp, Msg.op, kRbsr, kHave, Codec.decode_encode]
+
 end
 end Engine.Sync

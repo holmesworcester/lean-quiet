@@ -285,6 +285,11 @@ Still to prove:
    at most once; and the counting bound
    `claims ≤ fan · |A Δ B| · ⌈log_fan n⌉` (a mismatched range must
    contain an item of the difference).
+5. **A bound on frames waiting for the node.** The reader's buffer is
+   bounded (`buffer_bounded`), but each frame it takes goes into the
+   TCP runner's event channel, which is unbounded (`Std.Channel.new`
+   with no capacity). A peer that sends frames faster than the node
+   handles them grows that queue.
 
 ## Costs
 
