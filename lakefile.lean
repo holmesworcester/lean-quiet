@@ -164,6 +164,11 @@ lean_exe connection_check where
 lean_exe purge where
   root := `tests.engine.Purge
 
+-- Exact notices on SQLite: the journal netted and matched, against the
+-- windows read again, with the key-level and unnetted controls.
+lean_exe window_check where
+  root := `tests.engine.WindowCheck
+
 lean_exe jointcp where
   root := `tests.engine.JoinTcp
 
@@ -243,3 +248,9 @@ lean_exe scene_check where
 -- A store's ops, one line each (for comparing devices' stores).
 lean_exe dump where
   root := `platforms.headless.Dump
+
+lean_exe harden where
+  root := `tests.engine.Harden
+
+lean_exe harden_tcp where
+  root := `tests.engine.HardenTcp

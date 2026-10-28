@@ -1,3 +1,9 @@
+import ops.sync.TimeLaws
+import ops.sync.RetryLaws
+import ops.sync.BoundsLaws
+import ops.sync.ServeLaws
+import engine.wire.CloseLaws
+import engine.wire.Slots
 import engine.core.Engine
 import ops.community.Community
 import ops.connection.All
@@ -24,6 +30,10 @@ import engine.renderer.qr.Qr
 import engine.renderer.pic.Pic
 import engine.wire.mdns.Mdns
 import ops.connection.bootstrap.Net
+import engine.core.WindowRead
+import engine.core.WindowCost
+import engine.core.WindowMutants
+import engine.renderer.Screen
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -256,6 +266,68 @@ open Engine Community
 #print axioms Engine.Sync.fanout_offers
 #print axioms Engine.Sync.seal_mem
 #print axioms Engine.Sync.conn_answers_ids
+#print axioms Engine.Sync.tick_drop_iff
+#print axioms Engine.Sync.patience_drop_iff
+#print axioms Engine.Sync.round_not_dropped
+#print axioms Engine.Sync.responder_expires
+#print axioms Engine.Sync.live_not_expired
+#print axioms Engine.Sync.uncarried_room_answered
+#print axioms Engine.Sync.limit_bounded
+#print axioms Engine.Sync.finish_bounded
+#print axioms Engine.Sync.start_bounded
+#print axioms Engine.Sync.round_bounded
+#print axioms Engine.Sync.hold_bounded
+#print axioms Engine.Sync.onWant_bounded
+#print axioms Engine.Sync.walkN_bounded
+#print axioms Engine.Sync.tick_bounded
+#print axioms Engine.Sync.recv_bounded
+#print axioms Engine.Sync.filed_bounded
+#print axioms Engine.Sync.conn_bounded
+#print axioms Engine.Sync.Read.run_held
+#print axioms Engine.Sync.Read.run_model
+#print axioms Engine.Sync.serve_reads
+#print axioms Engine.Sync.serve_shown
+#print axioms Engine.Sync.serve_blind
+#print axioms Engine.Sync.serve_budget
+#print axioms Engine.Sync.authorize_mem
+#print axioms Engine.Sync.want_reads_authorized
+#print axioms Engine.Sync.want_blind
+#print axioms Engine.Sync.want_blind_step
+#print axioms Engine.Sync.onWant_one
+#print axioms Engine.Sync.want_budget
+#print axioms Engine.Sync.endSession_purges
+#print axioms Engine.Sync.close_gone
+#print axioms Engine.Sync.close_purges
+#print axioms Engine.Sync.admit_bounded
+#print axioms Engine.Sync.Read.trace_map
+#print axioms Engine.Sync.Step.limit_send
+#print axioms Engine.Sync.Step.limit_take
+#print axioms Engine.Sync.Step.limit_rooms
+#print axioms Engine.Sync.Step.limit_snaps
+#print axioms Engine.Sync.Conn.finish_known
+#print axioms Engine.Sync.Conn.finish_asked
+#print axioms Engine.Sync.limit_snaps
+#print axioms Engine.Sync.keeps_limit
+#print axioms Engine.Sync.Step.limit_drop
+#print axioms Engine.Sync.expire_bounded
+#print axioms Engine.Sync.remember_bounded
+#print axioms Engine.Sync.remember_fits
+#print axioms Engine.Sync.admit_one
+#print axioms Engine.Sync.known_forgets
+#print axioms Engine.Sync.asked_full
+#print axioms Engine.Sync.round_no_drop
+#print axioms Engine.Sync.hold_no_drop
+#print axioms Engine.Sync.want_no_drop
+#print axioms Engine.Sync.recv_no_drop
+#print axioms Engine.Sync.honest_no_drop
+#print axioms Engine.Sync.honest_no_drop_runs
+#print axioms Engine.Sync.asks_expire
+#print axioms Engine.Sync.retried_append
+#print axioms Engine.Sync.retried_start
+#print axioms Engine.Sync.retried_holds
+#print axioms Engine.Sync.retried_chunks
+#print axioms Engine.Sync.pieces_short
+#print axioms Engine.Sync.retry_bounded
 end engine
 
 section app
@@ -414,3 +486,40 @@ open Net
 #print axioms Net.allowPeer_iff
 #print axioms Net.allowPeer_settles
 end net
+
+section windows
+open Engine
+#print axioms Engine.run_exact
+#print axioms Engine.fact_stable
+#print axioms Engine.window_ne_iff
+#print axioms Engine.window_ne_iff_flips
+#print axioms Engine.oneOpPerId_of
+#print axioms Engine.notice_iff
+#print axioms Engine.rank_spec
+#print axioms Engine.find_build
+#print axioms Engine.Subs.find_iff
+#print axioms Engine.Subs.mem_notifyM
+#print axioms Engine.Subs.has_ofList
+#print axioms Engine.Subs.has_add
+#print axioms Engine.Subs.has_keep
+#print axioms Engine.Subs.add_wf
+#print axioms Engine.Subs.keep_wf
+#print axioms Engine.Subs.ofList_wf
+#print axioms Engine.mem_net
+#print axioms Engine.read_rows_iff
+#print axioms Engine.read_notice_iff
+#print axioms Engine.watch_stable
+#print axioms Engine.window_rows
+#print axioms Engine.eval_counting
+#print axioms Engine.rank_costs
+#print axioms Engine.find_costs
+#print axioms Engine.notify_cost
+#print axioms Engine.Mutants.key_notice_imprecise
+#print axioms Engine.Mutants.exact_silent
+#print axioms Engine.Mutants.unnetted_imprecise
+#print axioms Screen.screen_subs
+#print axioms Screen.hull_near
+#print axioms Screen.past_hull_le
+#print axioms Screen.screen_index
+#print axioms Screen.keep_scrolled_off
+end windows

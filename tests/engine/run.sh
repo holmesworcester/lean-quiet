@@ -10,16 +10,18 @@
 # (connection_check), purge (SQLite against the model, and a purged
 # secret searched for in the database's files), attachment chunks against
 # their Merkle root with forgeries and mutant verifiers (merkle_check),
-# and kill -9 atomicity.
+# exact notices from the store's journal against windows read again, with
+# the key-level and unnetted controls (window_check), and kill -9
+# atomicity.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
 (cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
-lake build codecdiff poolstarve scenario differential crash querydiff linkcheck lifecycle wire syncpair syncworld tcppair noise_check connection_check purge jointcp merkle_check
+lake build codecdiff poolstarve scenario differential crash querydiff linkcheck lifecycle wire syncpair syncworld tcppair noise_check connection_check purge jointcp merkle_check window_check
 mkdir -p out
 .lake/build/bin/codecdiff "${CODEC_VALUES:-200}"
-.lake/build/bin/poolstarve
+if [ "${SKIP_TCP:-0}" != 1 ]; then .lake/build/bin/poolstarve; else echo "SKIP poolstarve (TCP sandbox)"; fi
 .lake/build/bin/scenario out/scenario
 .lake/build/bin/differential out/differential "${SEEDS:-12}"
 .lake/build/bin/querydiff
@@ -28,11 +30,18 @@ mkdir -p out
 .lake/build/bin/wire out/wire
 .lake/build/bin/syncpair
 .lake/build/bin/syncworld
-.lake/build/bin/tcppair out/tcppair
-.lake/build/bin/jointcp out/jointcp
+if [ "${SKIP_TCP:-0}" != 1 ]; then
+  .lake/build/bin/tcppair out/tcppair
+  .lake/build/bin/jointcp out/jointcp
+else
+  echo "SKIP tcppair jointcp (TCP sandbox; both built)"
+fi
 tests/engine/crypto_compat.sh
 .lake/build/bin/noise_check
 .lake/build/bin/connection_check
 .lake/build/bin/purge out/purge "${SEEDS:-12}"
 .lake/build/bin/merkle_check
+.lake/build/bin/window_check out/windows "${SEEDS:-12}"
 tests/engine/crash.sh "${CRASH_ROUNDS:-10}" out/crash
+
+tests/engine/harden.sh

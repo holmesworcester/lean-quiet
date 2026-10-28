@@ -20,7 +20,7 @@ What a connection offers, proven of `Conn`'s code run on held data
   stores that hold the same ops of the connection's rooms answer it
   alike. With the cache law, that is the room's index (`heldIn_index`).
 -/
-import engine.wire.NodeLaws
+import ops.sync.ServeLaws
 
 namespace Engine.Sync
 
@@ -57,6 +57,10 @@ def IxShown (ix : Index) (s : DB F) : Prop :=
 
 /-- A connection's round snapshots are of the index's rooms. -/
 def SnapsIn (ix : Index) (c : Conn) : Prop := ∀ p ∈ c.snaps, ∀ a ∈ p.2, a ∈ ix.items p.1.1
+
+@[simp] theorem limit_snaps (cfg : Config) (ix : Index) (s : Step) :
+    SnapsIn ix (s.limit cfg).conn ↔ SnapsIn ix s.conn := by
+  simp only [SnapsIn, Step.limit_snaps]
 
 theorem cached_shown {n : Node} {s : DB F} (hi : Inv fam s) (hc : Cached fam n s) : IxShown fam n.ix s :=
   fun r a ha => let ⟨o, ho, hr, _⟩ := (cached_items fam hi hc r a).1 ha; ⟨o, ho, hr⟩
@@ -219,6 +223,7 @@ theorem onRbsr_keeps (cfg : Config) {ix : Index} {s : DB F} (hx : IxShown fam ix
     obtain ⟨cl, _, ho⟩ := List.mem_flatMap.1 ho
     obtain ⟨a, ha, rfl⟩ := answer_offers ho i hi
     exact shown_item fam hx hr (hsn a ha)
+  simp only [Step.limit_rooms, Step.limit_send, limit_snaps]
   refine ⟨?_, ?_, ?_⟩
   · split <;> rfl
   · split
@@ -321,6 +326,10 @@ theorem keeps_finish {ix : Index} {c : Conn} {h : Held F} {s : Step}
   obtain ⟨e1, e2, e3⟩ := finish_conn s
   refine ⟨rfl, e1.trans h1, fun p hp => h2 p (e2 ▸ hp), fun o ho => h3 o (e3 ▸ ho)⟩
 
+theorem keeps_limit (cfg : Config) {ix : Index} {c : Conn} {h : Held F} {s : Step}
+    (hk : Keeps fam ix c h (s, h)) : Keeps fam ix c h (s.limit cfg, h) := by
+  simpa only [Keeps, Step.limit_rooms, Step.limit_send, limit_snaps] using hk
+
 theorem foldl_inv {α β} (P : β → Prop) (g : β → α → β) (hg : ∀ b a, P b → P (g b a)) :
     ∀ (l : List α) (b : β), P b → P (l.foldl g b)
   | [], _, hb => hb
@@ -357,14 +366,22 @@ def wantStep (s : DB F) (c : Conn) (r : Id) (want : List Id) (i : Id) : List Id 
 theorem onHold_apply (cfg : Config) (c : Conn) (r : Id) (ids : List Id) (h : Held F) :
     (c.onHold fam cfg r ids : HeldM F Step) h =
       (if (!has c.rooms r) = true then { conn := c } else
-        { conn := { c with
-            known := ids.foldl (·.insert ·) c.known
-            asked := (ids.foldl (wantStep fam h.db c r) []).foldl (·.insert ·) c.asked }
-          send := chunks cfg (ids.foldl (wantStep fam h.db c r) []).reverse .want }, h) := by
+        if ids.length > cfg.maxIds then { conn := c } else
+        let missing := ids.foldl (wantStep fam h.db c r) []
+        let want := admitAsks cfg.maxKnown c.asked missing.reverse
+        Step.limit cfg {
+          conn := { c with
+            known := (ids.filter fun i => !missing.contains i || want.contains i).foldl (remember cfg.maxKnown) c.known
+            asked := want.foldl (·.insert ·) c.asked
+            askTime := want.foldl (fun ts i => ts.insert i c.heard) c.askTime },
+          send := chunks cfg want .want }, h) := by
   unfold Conn.onHold
   by_cases h0 : (!has c.rooms r) = true
   · rw [ite_eq_left h0, ite_eq_left h0]; rfl
-  · rw [ite_eq_right h0, ite_eq_right h0, HeldM.bind_apply]
+  · rw [ite_eq_right h0, ite_eq_right h0]
+    by_cases hm : ids.length > cfg.maxIds
+    · simp [hm]
+    rw [ite_eq_right hm, ite_eq_right hm, HeldM.bind_apply]
     rw [HeldM.forIn_reads (g := wantStep fam h.db c r)]
     · rfl
     · intro a b
@@ -381,41 +398,21 @@ theorem onHold_keeps (cfg : Config) {ix : Index} {c : Conn} (hs : SnapsIn ix c) 
   rw [onHold_apply]
   split
   · exact ⟨rfl, rfl, hs, by simp⟩
-  · exact ⟨rfl, rfl, hs, chunks_want fam cfg _⟩
+  · split
+    · exact ⟨rfl, rfl, hs, by simp⟩
+    · exact keeps_limit fam cfg ⟨rfl, rfl, hs, chunks_want fam cfg _⟩
 
 theorem onWant_keeps (cfg : Config) {ix : Index} {c : Conn} (hs : SnapsIn ix c) (ids : List Id) (h : Held F) :
-    Keeps fam ix c h ((c.onWant fam cfg ids : HeldM F Step) h) := by
+    Keeps fam ix c h ((c.onWant fam cfg ix ids : HeldM F Step) h) := by
   unfold Conn.onWant
   split
   · exact ⟨rfl, rfl, hs, by simp⟩
-  · rw [HeldM.bind_apply]
-    have e : (List.filterMapM (fun i => (Store.getOp i : HeldM F (Option Op))) ids) h = (ids.filterMap h.db.ops, h) := by
-      unfold List.filterMapM
-      rw [filterMapM_getOp]; simp
-    rw [e]
-    dsimp only
-    rw [HeldM.bind_apply]
-    have hsent : ∀ o ∈ (ids.filterMap h.db.ops).filter (c.shows fam), Discloses fam h.db c o := by
-      intro o ho
-      obtain ⟨ho, hsh⟩ := List.mem_filter.1 ho
-      obtain ⟨x, _, hx⟩ := List.mem_filterMap.1 ho
-      exact Or.inr ⟨⟨x, hx⟩, hsh⟩
-    generalize (ids.filterMap h.db.ops).filter (c.shows fam) = sent at hsent ⊢
-    obtain ⟨w1, w2, w3, w4⟩ := walk_keeps fam cfg h { c with
-      known := sent.foldl (fun k o => k.insert o.id) c.known
-      offered := sent.foldl (fun k o => k.insert o.id) c.offered
-      frontier := c.frontier ++ sent.flatMap Op.reqs }
-    generalize (Conn.walk fam cfg { c with
-      known := sent.foldl (fun k o => k.insert o.id) c.known
-      offered := sent.foldl (fun k o => k.insert o.id) c.offered
-      frontier := c.frontier ++ sent.flatMap Op.reqs } : HeldM F (Conn × List (Id × Id))) h = r at w1 w2 w3 w4 ⊢
-    obtain ⟨⟨c', offer⟩, h'⟩ := r
-    dsimp only at w1 w2 w3 w4 ⊢
-    subst w1
-    refine ⟨rfl, w2, fun p hp => hs p (w3 ▸ hp), fun o ho => ?_⟩
-    rcases List.mem_append.1 ho with ho | ho
-    · exact hsent o ho
-    · exact holdsOf_hold fam cfg (fun p hp => shown_rooms fam rfl (w4 p hp)) o ho
+  · rw [HeldM.bind_apply, Read.run_held]
+    apply keeps_limit
+    refine ⟨rfl, rfl, hs, ?_⟩
+    intro o ho
+    obtain ⟨hs, i, _, hi⟩ := serve_shown _ _ _ _ o ho
+    exact Or.inr ⟨⟨i, hi⟩, hs⟩
 
 theorem keeps_rooms {ix : Index} {c d : Conn} {h : Held F} {r : Step × Held F} (e : d.rooms = c.rooms)
     (hk : Keeps fam ix d h r) : Keeps fam ix c h r :=
@@ -486,7 +483,7 @@ theorem recv_keeps (cfg : Config) {ix : Index} {h : Held F} (hx : IxShown fam ix
       dsimp only
       split
       · exact ⟨rfl, rfl, hs', by simp⟩
-      · exact keeps_finish fam ⟨rfl, rfl, hs', by simp⟩
+      · exact keeps_finish fam (keeps_limit fam cfg ⟨rfl, rfl, hs', by simp⟩)
     | some m =>
       cases m with
       | hello f =>
@@ -526,16 +523,23 @@ theorem tick_keeps (cfg : Config) {ix : Index} {h : Held F} (hx : IxShown fam ix
     obtain ⟨⟨c', offer⟩, h'⟩ := r
     dsimp only at w1 w2 w3 w4 ⊢
     subst h'
-    have hs' : SnapsIn ix c' := fun p hp => hs p (w3 ▸ hp)
+    let d := c'.expireAsks cfg now
+    have hs' : SnapsIn ix d := fun p hp => hs p (w3 ▸ hp)
     have ho : ∀ o ∈ holdsOf cfg offer, Discloses fam h.db c o := holdsOf_hold fam cfg w4
+    have htail : ∀ o ∈ holdsOf cfg offer ++ chunks cfg (d.retryIds cfg now) .want,
+        Discloses fam h.db c o := by
+      intro o hm
+      rcases List.mem_append.1 hm with hm | hm
+      · exact ho o hm
+      · exact chunks_want fam cfg _ o hm
     apply keeps_finish
     split
     · obtain ⟨a, b, d⟩ := start_keeps fam cfg hx hs' now
       refine ⟨rfl, a.trans w2, b, fun o hm => ?_⟩
       rcases List.mem_append.1 hm with hm | hm
       · exact discloses_rooms fam w2 (d o hm)
-      · exact ho o hm
-    · exact ⟨rfl, w2, hs', fun o hm => ho o (by simpa using hm)⟩
+      · exact htail o hm
+    · exact ⟨rfl, w2, hs', fun o hm => htail o (by simpa using hm)⟩
 
 /-- A connection opens with its hello, which offers nothing, and no
 snapshot. -/
