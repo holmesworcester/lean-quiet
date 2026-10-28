@@ -229,10 +229,10 @@ def main : IO UInt32 := do
   IO.println s!"rooms: {offered} ids offered to b"
   -- b's haves, answered by a: a holds x2 only in the other room, the
   -- secret only locally, and nothing named y.
-  let (a', _) ← pr.a.run fun n => n.onWrite xa [secret "a seed".toUTF8] pr.now
+  let (a', _) ← pr.a.run fun n => n.onWrite xa [secret (Device.ofSeed "a seed".toUTF8)] pr.now
   let pr := { pr with a := a' }
   let x2 := (h2.getLast!).id
-  let sec := (secret "a seed".toUTF8).id
+  let sec := (secret (Device.ofSeed "a seed".toUTF8)).id
   let y := sha256 "held nowhere".toUTF8
   let x1 := (h.getLast!).id
   let reply (r : Id) (i : Id) : IO (List Id × Bool) := do

@@ -17,12 +17,13 @@ def what (o : Op) : String :=
   match (Codec.decode o.body : Option Body) with
   | some (.root ..) => "root" | some (.invite ..) => "invite" | some (.request ..) => "request"
   | some (.grant ..) => "grant" | some (.remove ..) => "remove"
-  | some (.post _ _ t _) => s!"post t={t}" | some (.wrap ..) => "wrap"
+  | some (.post _ _ n t _) => s!"post n={n} t={t}" | some (.wrap ..) => "wrap"
   | some (.profile _ t _) => s!"profile t={t}" | some (.attach _ n ..) => s!"attach len={n}"
   | some (.react _ t _) => s!"react t={t}" | some (.approve ..) => "approve" | some .admit => "admit"
   | some (.accept ..) => "accept(local)" | some (.joining ..) => "joining(local)"
   | some (.secret ..) => "secret(local)" | some (.name ..) => "name" | some .abandon => "abandon(local)"
   | some (.key ..) => "key(local)" | some (.chunk _ _ i _ _) => s!"chunk i={i}"
+  | some (.receive k) => s!"receipt k={k} (local)"
   | none => s!"other type {o.kind}"
 
 def main (args : List String) : IO UInt32 := do
