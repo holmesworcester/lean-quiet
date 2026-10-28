@@ -30,7 +30,7 @@ The user asked:
 | Statements | 41, each a closed `Prop` with no `sorry` (engine/world/Statements.lean), audited |
 | Proven of the running code | **the pilot, `claim_delivers_stmt`**; `grows_stmt`; the node invariant in every reachable world (`reach_ok`); the three hops of a round's leg (`claim_wants`, `want_sends`, `op_taken`). All given the walk's laws (`walk_stmt`) |
 | Proven above the code | the reduction `edge_stmt → grows_stmt → converge_stmt`; from it, T-converge for 2, 3 and n peers, all-know-all and transitive; T-op, T-offline; chains, stars and webs, with their diameters |
-| False on today's code | `session_stable_stmt` (finding 1), `rooms_stmt` and `join_stmt` (finding 2), `fresh_stmt` (T-fresh) |
+| False on today's code | `session_stable_stmt` (finding 1), `rooms_stmt` and `join_stmt` (finding 2): node-level witnesses in Lean. `fresh_stmt`: argued ("T-fresh" below), no Lean witness yet |
 | The open core | `edge_stmt`: per-edge progress. Every T- law above reduces to it and to growth |
 
 ## Decisions
@@ -236,7 +236,7 @@ today's code (with the finding), **O** open.
 | `rooms_concurrent_stmt` | T-rooms-concurrent: rooms that come and go, each from when it is carried | O |
 | `relay_stmt` | T-relay-concurrent: the stream down a path, d · 3Δ, with relays busy both ways | O |
 | `churn_stmt` | T-safe-churn: all safety laws under every interleaving of churn | O (its parts) |
-| `fresh_stmt` | T-fresh: a fresh write reaches a neighbour within a bound independent of backlog | **F** (below) |
+| `fresh_stmt` | T-fresh: a fresh write reaches a neighbour within a bound independent of backlog | **F**, argued (below); no Lean witness yet |
 
 ### Topologies and bounds
 
@@ -309,6 +309,12 @@ one entry point run on any state that keeps the node invariant:
    the session shows, so i sends x's bytes back (`want_sends`).
 3. x arrives within Δ, and j stores it (`op_taken`). It is filed under
    its id (`NodeOk.ids`), so j holds x in room r (`Unclashed`).
+
+Negative controls, each run and reverted (not committed):
+- `Conn.onWant` sending none of the wanted ops: `onWant_sends` fails,
+  so H2 and the pilot do not build;
+- `Conn.onRbsr` dropping the first id it wants: `onRbsr_wants` fails,
+  so H1 and the pilot do not build.
 
 What the pilot assumes, beyond `Fair` and the session:
 - `walk_stmt` (finding 3), until a3/hostile's `walkN` lands;

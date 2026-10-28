@@ -402,8 +402,9 @@ def Between {M : Type → Type} {S : Type} [Monad M] (P : Setup F M S) (w : Worl
 
 /-- **T-join: a joiner gets everything, and is heard** (raced and relayed
 included). Members `mem` carry room r among themselves, with diameter
-dM. Node J, not a member, shows r on every session; every member that
-holds J's admission a shows r to J; J knows some member. Once any member
+dM. Node J, not a member, shows r on every session; every member whose
+store holds J's admission a shows r on its sessions with J (the trust
+rule, read from any store); J knows some member. Once any member
 holds a: every op of r a member or J holds, J and every member hold,
 within (dM + 1) · epoch. Raced joins are two instances (each joiner
 outside the other's `mem`); a relayed join is one where J's neighbour
@@ -414,9 +415,9 @@ def join_stmt : Prop :=
     (k₀ W dM : Nat),
     Fair Q N E W → ¬ mem J → DiamOn mem N.G dM →
     Carries E (fun i j => N.G i j ∧ mem i ∧ mem j) r k₀ →
-    (∀ k cid, k₀ ≤ k → r ∈ Shows Q.setup (E.world k) J cid) →
-    (∀ k i cid, k₀ ≤ k → mem i → Between Q.setup (E.world k) i J cid →
-      (∃ ra, Q.Holds (E.world k) i ra a) → r ∈ Shows Q.setup (E.world k) i cid) →
+    (∀ (h : Held F) cid, r ∈ Q.rooms J h cid) →
+    (∀ i (h : Held F) cid, mem i → (∃ k, Between Q.setup (E.world k) i J cid) →
+      (∃ o, h.db.ops a = some o) → r ∈ Q.rooms i h cid) →
     (∃ i, mem i ∧ N.G i J) →
     ∀ k m, k₀ ≤ k → mem m → (∃ ra, Q.Holds (E.world k) m ra a) → N.gst ≤ (E.world k).now →
       N.Calm (E.world k).now ((E.world k).now + (dM + 1) * Q.epochW N W) →
@@ -424,16 +425,17 @@ def join_stmt : Prop :=
         ∃ k', k ≤ k' ∧ (E.world k').now ≤ (E.world k).now + (dM + 1) * Q.epochW N W ∧
           Q.Holds (E.world k') J r x ∧ ∀ i, mem i → Q.Holds (E.world k') i r x
 
-/-- **T-remove, the transport bound.** Removal x of member u: a node that
-holds x shows u no room containing r. From step k₁, every node with a
+/-- **T-remove, the transport bound.** Removal x of member u: a node whose
+store holds x shows r on none of u's sessions (the trust rule, read from
+any store, mid-step included). From step k₁, every node with a
 session to u holds x. Then no op of room r that u writes from k₁ on, and
 no one else writes, is ever held by another node. (That x reaches u's
 neighbours within their distance times epoch is `op_stmt`. The
 stronger form, about what u wrote before, is open.) -/
 def remove_stmt : Prop :=
   ∀ (F : Type) (Q : Plain F) (E : Q.Run) (u : Fin Q.n) (r x : Id) (k₁ : Nat),
-    (∀ k i cid, i ≠ u → (∃ rx, Q.Holds (E.world k) i rx x) → (E.world k).isOpen u cid →
-      r ∉ Shows Q.setup (E.world k) i cid) →
+    (∀ i (h : Held F) cid, i ≠ u → (∃ o, h.db.ops x = some o) → (∃ k, (E.world k).isOpen u cid) →
+      r ∉ Q.rooms i h cid) →
     (∀ k i cid, k₁ ≤ k → i ≠ u → (E.world k).isOpen u cid → (E.world k).isOpen i cid →
       ∃ rx, Q.Holds (E.world k) i rx x) →
     ∀ k ops t o, k₁ ≤ k → E.act k = .write u ops t → o ∈ ops → Q.fam.room o = some r →
