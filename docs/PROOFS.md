@@ -308,9 +308,16 @@ engine/world/Fair.lean, `Net`:
     equality (finding 2).
   - `Shares E G r k₀`: r at both ends, the rest free. This is what
     `rooms_stmt` says should be enough.
-- **A FIFO link with a bandwidth** (`Fifo`, for `fresh_stmt`) refines
-  `timely`: a packet arrives within Δ plus the time the bytes queued
-  ahead of it on its link (`ahead`) take at `bw`.
+- **A FIFO link with a bandwidth** (`Fifo`) refines `timely`: a packet
+  arrives within Δ plus the time the bytes queued ahead of it on its
+  link (`ahead`) take at `bw`. That is the link before the lanes, under
+  which `fresh_stmt` is false.
+- **A link with lanes** (`LaneLink`, for `fresh_stmt`), fd/fresh-lane's
+  per-socket `Lanes` and writer: an urgent packet arrives within Δ plus,
+  at `bw`, the kernel's buffer `sndbuf`, the native write under way
+  (`batch`) and the urgent packets ahead of it on its link (`aheadU`),
+  plus the receiver's queue `qr`; the serve lane's backlog is not ahead
+  of it. `UrgentLoad E urgent U` bounds the urgent bytes ahead by U.
 - **`Fair Q N E W`** bundles the rest: `PlainOk`, symmetric G,
   `N.Admits E`, 2Δ < patience, every window within W items, and the two
   collision assumptions (`Unclashed` for op ids, `FpSound` for range
@@ -589,8 +596,10 @@ runner, and the backlog can be made arbitrarily large (point 3).
 `fresh_stmt` is false with any fixed B: put m wants of 4096 large ops
 just before the write, and the delay grows with m.
 
-**A fix that makes `fresh_stmt` provable** (for holmes-a3, who owns
-Conn, Node's send path and Tcp):
+**The fix, now on fd/fresh-lane** (docs/SYNC.md there, "Lanes"; laws in
+engine/wire/LaneLaws.lean: `write_first`, `urgent_ahead`,
+`ahead_bytes`, `apart`, `credit_pos`, `lane_hot`, `write_hot`), as first
+proposed here:
 - per session, two classes of payload:
   - urgent: wire control (rbsr, have, want), ops a local write just
     stored, and ops wanted right after a fresh offer;
@@ -601,7 +610,20 @@ Conn, Node's send path and Tcp):
   and gives each socket its own writer task, so a send never blocks the
   loop;
 - then the bytes ahead of a fresh offer are at most `burst` plus one
-  frame, and `fresh_stmt` holds with B = 3 (Δ + (burst + maxFrame) / bw).
+  frame and the urgent traffic ahead.
+
+`fresh_stmt` is restated over it (Statements.lean): links with lanes
+(`LaneLink`), at most U urgent bytes ahead (`UrgentLoad`, which bounds a
+node's own writes and short wire ops; fresh-lane's answer (a)), the
+three hops in the urgent lane (`HopsUrgent`, which becomes the lane
+rule's laws once the World's packets carry their lane), finding 7's
+premises (`Small`, `AsksRoom`), and the receiver's inbound queue a
+constant `qr` (a premise, not a gap: receiver credit is a wire change,
+the user's call). Then B = 3(Δ + (sndbuf + batch + U)/bw + qr), with no
+backlog in it. The premises say what the link and lanes guarantee, not
+how, so they survive fresh-lane's fix of `ahead_bytes` (which today
+bounds the serve part only); the proof waits on that hash and on the
+World's packets carrying their lane (`Effects.serve`).
 
 ## Findings
 
@@ -786,7 +808,8 @@ These are listed, not decided.
 - **The network is a hypothesis, not a model of TCP.** The world's
   packets are what the runner's sockets carry. That the runner does
   this is tested by tcppair and jointcp, not proven. Nothing assumes
-  TCP's ordering, except `Fifo`, which only `fresh_stmt` uses.
+  TCP's ordering, except `Fifo` and `LaneLink`, which only `fresh_stmt`
+  uses.
 - **Partial synchrony after gst** (`Net.Admits`), not yet approved by
   the user.
 - **Clocks.** Each node's `now` never goes back. Nothing relates two
@@ -852,8 +875,7 @@ statements (`index_store`, `stream`, `offered`, `members_only`,
    by `exchange_ends`; with a3's cost bounds, the log depth. This is
    what large communities need: every room past `leaf` items.
 5. (Finding 10 is resolved by deleting `settled`.)
-6. **T-fresh**, after a3's send-path fix, about 400: `ahead` bounded by
-   `burst`, then the 3-hop latency under `Fifo`.
+6. (T-fresh is item 1.)
 7. **Dynamic trust**, size unknown: `rooms_stmt` after finding 2's fix,
    then `join_stmt` and `remove_stmt`; the Connection world's
    `Plain.rooms` from the trust rule.

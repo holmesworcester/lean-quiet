@@ -182,6 +182,31 @@ def Fifo (E : Exec P adv w₀) (N : Net P.n) (bw : Nat) : Prop :=
     N.Live i j p.sent (p.sent + N.Δ + ahead (E.world (k + 1)) p / bw) →
     DeliveredBy E p (k + 1) (p.sent + N.Δ + ahead (E.world (k + 1)) p / bw)
 
+/-- Bytes of urgent packets in flight on p's link, put in flight before p:
+what the urgent lane carries ahead of it. -/
+def aheadU {n : Nat} (w : World S n) (urgent : Packet n → Bool) (p : Packet n) : Nat :=
+  ((w.flight.takeWhile fun q => q.serial ≠ p.serial).filter fun q =>
+    urgent q && Decidable.decide (q.src = p.src) && Decidable.decide (q.dst = p.dst)).foldl (· + ·.bytes.size) 0
+
+/-- **A link with lanes** (fd/fresh-lane's per-socket `Lanes`, written by
+a writer task per socket): an urgent packet across a live edge arrives
+within Δ plus the time, at `bw` bytes per ms, of what goes on the wire
+ahead of it, which is the kernel's buffer `sndbuf`, the one native write
+under way (`batch`: every urgent frame queued when it began, then a burst
+or one frame of the serve lane), and the urgent packets on its link put
+in flight before it; and the receiver takes it within `qr` (its inbound
+queue, a constant). The serve lane's backlog is not ahead of it. -/
+def LaneLink (E : Exec P adv w₀) (N : Net P.n) (urgent : Packet P.n → Bool) (bw sndbuf batch qr : Nat) : Prop :=
+  ∀ k p i j, p ∉ (E.world k).flight → p ∈ (E.world (k + 1)).flight → p.src = some i →
+    P.at? p.dst = some j → N.G i j → N.gst ≤ p.sent → urgent p = true →
+    N.Live i j p.sent (p.sent + N.Δ + (sndbuf + batch + aheadU (E.world (k + 1)) urgent p) / bw + qr) →
+    DeliveredBy E p (k + 1) (p.sent + N.Δ + (sndbuf + batch + aheadU (E.world (k + 1)) urgent p) / bw + qr)
+
+/-- At most U urgent bytes are ever ahead of a packet on its link: a
+node's own writes and its short wire ops in a window, bounded. -/
+def UrgentLoad (E : Exec P adv w₀) (urgent : Packet P.n → Bool) (U : Nat) : Prop :=
+  ∀ k p, p ∈ (E.world k).flight → aheadU (E.world k) urgent p ≤ U
+
 end
 
 /-! ## The bounds -/

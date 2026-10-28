@@ -599,21 +599,58 @@ attacker's injections, every reached world keeps the safety laws. -/
 def churn_stmt : Prop :=
   grows_stmt ∧ offered_stmt ∧ members_only_stmt ∧ frames_keep_sessions_stmt ∧ waiting_closure_stmt ∧ restart_stmt
 
-/-- **T-fresh: a fresh write is not starved by a backlog.** On FIFO links
-of bandwidth bw (`Fifo`), there is a bound B, fixed by the settings, Δ
-and bw alone, such that an op a node writes reaches a neighbour joined
-to it within B, however much else is in flight or being synced. False
-on today's code (docs/PROOFS.md, "T-fresh"): the answer to one want is
-up to `maxIds` ops sent at once, and a fresh offer queues behind all of
-them on the link and at the receiver. -/
+/-- Payload b wants x. -/
+def WantsId (b : ByteArray) (x : Id) : Prop :=
+  ∃ o L, Op.decode b = some o ∧ Msg.ofOp o = some (.want L) ∧ x ∈ L
+
+/-- The packets that carry op x's three hops on session cid between i and
+j (its offer, a want of it, or x itself) travel in the urgent lane. Once
+the World's packets carry their lane (fd/fresh-lane's `Effects.serve`),
+this is the lane rule's laws (`lane_hot`, `write_hot`, the stream's
+offers and short wants urgent), not a premise. -/
+def HopsUrgent (Q : Plain F) (E : Q.Run) (urgent : Packet Q.n → Bool) (i j : Fin Q.n) (cid x : Id) : Prop :=
+  ∀ k p ps, p ∈ (E.world k).flight → (p.src = some i ∨ p.src = some j) → plainPeek p.bytes = some (cid, ps) →
+    (∃ b ∈ ps, Names b x ∨ WantsId b x) → urgent p = true
+
+/-- Session cid's asks at j have room for every frame to j on it (at most
+K ids a frame can make it ask), and j asks x only after a frame on the
+session names it (finding 7's second premise, for every frame). -/
+def AsksRoom (Q : Plain F) (E : Q.Run) (j : Fin Q.n) (cid x : Id) (K : Nat) : Prop :=
+  (∀ k q, q ∈ (E.world k).flight → q.dst = Q.addr j → ∀ ps, plainPeek q.bytes = some (cid, ps) →
+    (frameAsks q.bytes).length ≤ K) ∧
+  (∀ k c, ((E.world k).node j).conn? cid = some c → c.asked.size + K ≤ Q.cfg.maxKnown) ∧
+  (∀ k c, ((E.world k).node j).conn? cid = some c → x ∈ c.asked →
+    ∃ bytes ps b, (j, bytes) ∈ (E.world k).delivered ∧ plainPeek bytes = some (cid, ps) ∧ b ∈ ps ∧ Names b x)
+
+/-- **T-fresh: a fresh write is not starved by a backlog.** On links with
+lanes (`LaneLink`: per socket, the urgent lane goes ahead of the serve
+lane's backlog, behind at most one write under way and the kernel's
+buffer), with at most U urgent bytes ahead on any link (`UrgentLoad`), the
+three hops of a write's op (the stream's offer, the want, the op) in the
+urgent lane (`HopsUrgent`), finding 7's premises (`Small` at the writer,
+`AsksRoom` at the reader) and the receiver's queue a constant `qr`: an op
+node i writes, j holds within B = 3(Δ + (sndbuf + batch + U)/bw + qr),
+however much else is in flight or being synced. B is fixed by the link,
+the lanes' constants and U alone: no backlog appears in it.
+
+False on main before the lanes (docs/PROOFS.md, "T-fresh"): with one
+FIFO per link the answer to one want queues up to `wantBytes` ahead of a
+fresh offer, and a frame can carry many wants. These premises survive
+fd/fresh-lane's fix of `ahead_bytes` (which today bounds the serve part
+only): they speak of what the link and lanes guarantee, not how. -/
 def fresh_stmt : Prop :=
-  ∃ B : Config → Nat → Nat → Nat,
-  ∀ (F : Type) (Q : Plain F) (N : Net Q.n) (E : Q.Run) (W bw : Nat) (i j : Fin Q.n) (cid r : Id) (k : Nat),
-    Fair Q N E W → Fifo E N bw → 0 < bw → N.G i j → (Joined E i j cid k ∨ Joined E j i cid k) →
+  ∀ (F : Type) (Q : Plain F) (N : Net Q.n) (E : Q.Run) (W B K : Nat) (urgent : Packet Q.n → Bool)
+    (bw sndbuf batch qr U : Nat) (i j : Fin Q.n) (cid r : Id) (k : Nat),
+    Fair Q N E W → LaneLink E N urgent bw sndbuf batch qr → UrgentLoad E urgent U → 0 < bw →
+    N.G i j → (Joined E i j cid k ∨ Joined E j i cid k) →
     (∀ k', k ≤ k' → r ∈ Shows Q.setup (E.world k') i cid ∧ r ∈ Shows Q.setup (E.world k') j cid) →
-    N.gst ≤ (E.world k).now → N.Live i j (E.world k).now ((E.world k).now + B Q.cfg N.Δ bw) →
+    N.gst ≤ (E.world k).now →
+    N.Live i j (E.world k).now ((E.world k).now + 3 * (N.Δ + (sndbuf + batch + U) / bw + qr)) →
+    (∀ m, Small Q.cfg B ((E.world m).box i)) →
     ∀ ops t o, E.act k = .write i ops t → o ∈ ops → Q.fam.room o = some r → ((E.world k).box i).db.ops o.id = none →
-      ∃ k', k ≤ k' ∧ (E.world k').now ≤ (E.world k).now + B Q.cfg N.Δ bw ∧ Q.Holds (E.world k') j r o.id
+      HopsUrgent Q E urgent i j cid o.id → AsksRoom Q E j cid o.id K →
+      ∃ k', k ≤ k' ∧ (E.world k').now ≤ (E.world k).now + 3 * (N.Δ + (sndbuf + batch + U) / bw + qr) ∧
+        Q.Holds (E.world k') j r o.id
 
 /-! ## Topologies and bounds -/
 
