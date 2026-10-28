@@ -29,6 +29,7 @@ import Quiet.Row
 import Quiet.Geometry
 import Quiet.Sheet
 import Quiet.Pages
+import Quiet.Composer
 import Quiet.Kinds.Message
 import Quiet.Kinds.Request
 import Std.Data.HashMap
@@ -144,6 +145,9 @@ structure St where
   invite : Option Community.Invite := none
   /-- This session's invite link per community (Add members). -/
   links : List (Id × String) := []
+  /-- Photos attached in the composer: QOI bytes, size, and the chip. -/
+  chips : Array (ByteArray × Nat × Nat × Composer.Chip) := #[]
+  photoNext : Nat := 0
   /-- The name chosen for joining (Choose a name). -/
   joinName : String := ""
   /-- Communities whose first profile this session has composed. -/
@@ -250,16 +254,9 @@ def reactTo (m : Id) (e : String) : M Bool := do
 def topH (s : St) : Nat :=
   if s.page == .chat then s.insetTop + s.dim.px 16 + 2 * s.dim.lineH else s.insetTop + s.dim.px 56
 
-/-- The composer: a margin, the field (text inset in it), the send button. -/
-def margin (s : St) : Nat := s.dim.px 8
-def sendD (s : St) : Nat := s.dim.cell + s.dim.px 12
-def fieldX1 (s : St) : Nat := s.W - margin s - sendD s - margin s
-def textX0 (s : St) : Nat := margin s + s.dim.px 12
-def textY0 (s : St) : Nat := margin s + s.dim.px 8
-def textW (s : St) : Nat := fieldX1 s - textX0 s - s.dim.px 12
-
-def composerLines (s : St) : Array Text.Line :=
-  if s.text.isEmpty then #[#[]] else Text.layout s.font (textW s) s.text
+/-- The composer's layout (Composer: the painter and the taps both read it). -/
+def composerLayout (s : St) : Composer.Layout :=
+  Composer.layout s.font s.dim s.W s.text s.chips.size
 
 def sheetItems (s : St) (sh : SheetSt) : Array Nat := Sheet.shown s.catalog sh.cat sh.query
 
@@ -270,7 +267,7 @@ def botH (s : St) : Nat :=
   if s.page != .chat then 1 else
   match s.sheet with
   | some sh => if sh.catalog then (catOf s sh).h else (Sheet.quick s.dim s.W).h
-  | none => 2 * textY0 s + (min 5 (composerLines s).size) * s.dim.lineH
+  | none => (composerLayout s).h
 
 /-- The screen's geometry as of this frame (Geometry: the theorems that
 list content is never under the header, composer or keyboard are about
@@ -438,50 +435,14 @@ def headerHit (s : St) (x _y : Nat) : PageId :=
 
 def cursorAt (s : St) (i : Nat) : Nat × Nat :=
   let pre := String.ofList (s.text.toList.take i)
-  let ls := if pre.isEmpty then #[#[]] else Text.layout s.font (textW s) pre
+  let ls := if pre.isEmpty then #[#[]] else Text.layout s.font (composerLayout s).textW pre
   let last := ls.back?.getD #[]
   -- a prefix ending in a newline puts the cursor on the next line
   if pre.endsWith "\n" then (ls.size, 0) else (ls.size - 1, Paint.Line.width s.font last)
 
-def composer (s : St) : Bitmap := Id.run do
-  let h := botH s
-  let m := margin s
-  let lh := s.dim.lineH
-  let tx := textX0 s
-  let ty := textY0 s
-  let mut b := Bitmap.blank s.W h s.bgRow
-  b := b.fill 0 0 s.W (max 2 (s.dim.px 1)) pill
-  let fx1 := fieldX1 s
-  let fr := (h - 2 * m) / 2
-  let k := max 2 (s.dim.px 1)
-  b := b.round m m fx1 (h - m) fr 0x3A3D41
-  b := b.round (m + k) (m + k) (fx1 - k) (h - m - k) (fr - k) selBg
-  let ls := composerLines s
-  if s.text.isEmpty then
-    b := b.line s.font (Text.oneLine s.font (textW s) s!"Message {s.me.name}") tx ty dim
-  else
-    for i in [0:min 5 ls.size] do
-      b := b.line s.font ls[i]! tx (ty + lh * i) ink
-    -- the composing span, underlined
-    let cs := s.sel[2]!.toNat
-    let ce := s.sel[3]!.toNat
-    if ce > cs then
-      let (l0, x0) := cursorAt s cs
-      let (l1, x1) := cursorAt s ce
-      if l0 == l1 then
-        let uy := ty + lh * l0 + s.dim.cell
-        b := b.fill (tx + x0) uy (tx + x1) (uy + k) ink
-  let (cl, cx) := cursorAt s s.sel[0]!.toNat
-  let cy := ty + lh * (min 4 cl)
-  b := b.fill (tx + cx) cy (tx + cx + k + 1) (cy + s.dim.cell) accent
-  -- send
-  let d := sendD s
-  let sx := s.W - m - d
-  let sy := (h - d) / 2
-  b := b.round sx sy (sx + d) (sy + d) (d / 2) (if s.text.trimAscii.isEmpty then pill else accent)
-  let g := s.font.adv (s.font.glyph 0x27A4)
-  b := b.glyph s.font 0x27A4 (sx + (d - g) / 2) (sy + (d - s.dim.cell) / 2) nameInk false
-  return b
+def composer (s : St) : Bitmap :=
+  Composer.paint s.font s.dim s.W s.bgRow (composerLayout s) s.text s!"Message {s.me.name}"
+    (s.chips.map (·.2.2.2)) (some (cursorAt s s.sel[0]!.toNat))
 
 /-! ## Events and commands -/
 
@@ -699,6 +660,43 @@ def closeSheet : M Unit := do
     s.io.textClear
   modify fun s => { s with sheet := none, selected := none }
 
+/-- Send what the composer holds: its text and photos, as the engine's
+send intent (the photos' blobs, then the post citing them), one write. -/
+def sendNow : M Unit := do
+  let s ← get
+  let t := s.text.trimAscii.toString
+  if t.isEmpty && s.chips.isEmpty then return
+  let pics := s.chips.toList.map fun (b, w, h, _) => (b, w, h)
+  if ← writeAll (Community.send s.me.c s.me.adm s.me.seed "k".toUTF8 t.toUTF8 (newestTime s + 1) pics) then
+    s.io.textClear
+    modify fun s => { s with text := "", sel := #[0, 0, 0, 0], chips := #[], chromeKey := "" }
+
+/-- A photo prepared for sending: at most 2048 px a side, as QOI, with its
+chip (a 64 dp square crop) and how much smaller than its raw pixels it is. -/
+def preparePhoto (dm : Dim) (src : Image.Src) : ByteArray × Nat × Nat × Composer.Chip :=
+  let (w, h) := if src.w ≤ 2048 && src.h ≤ 2048 then (src.w, src.h) else Image.fit src 2048 2048
+  let px := Chaos.cropPx src 0 0 src.w src.h w h
+  let bytes := Image.encode w h px
+  let raw := w * h * 4
+  let kib := bytes.size * 10 / 1024
+  let pct := 100 - bytes.size * 100 / max raw 1
+  let thumb := Image.square src (dm.px 64) Row.bg
+  let size := if kib ≥ 100 then s!"{kib / 10} KiB" else s!"{kib / 10}.{kib % 10} KiB"
+  (bytes, w, h, ⟨thumb, s!"{size} · {pct}% smaller"⟩)
+
+/-- Add photos: until the system picker lands in the twin, the bundled
+test photos, one per tap. -/
+def attachPhoto : M Unit := do
+  let s ← get
+  if s.chips.size ≥ Composer.maxChips then say "At most 4 photos in one message."; return
+  let i := s.photoNext % 6
+  match ← (IO.FS.readBinFile s!"assets/{i}.qoi").toBaseIO with
+  | .ok b =>
+    match Image.decode b with
+    | some src => modify fun s => { s with chips := s.chips.push (preparePhoto s.dim src), photoNext := s.photoNext + 1, chromeKey := "" }
+    | none => say "That photo could not be read."
+  | .error _ => say "No photos here."
+
 def mineOn (s : St) (m : Id) : List String :=
   ((s.rows[m]?.map (·.data.tallies)).getD []).filter (·.mine) |>.map (·.emoji)
 
@@ -784,11 +782,14 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
     if r == .header then closeSheet; return
   match r with
   | .composer =>
-    if x ≥ fieldX1 s then
-      if ← sendText s.text then
-        modify fun s => { s with text := "", sel := #[0, 0, 0, 0] }
-        s.io.textClear
-    else s.io.ime true
+    match Composer.hit (composerLayout s) x y with
+    | .text => s.io.ime true
+    | .send => sendNow
+    | .addPhotos => attachPhoto
+    | .takePhoto => say "Taking a photo arrives with the native camera."
+    | .emoji | .mention | .voice => say "Not yet."
+    | .removeChip i => modify fun s => { s with chips := s.chips.eraseIdxIfInBounds i, chromeKey := "" }
+    | .none => pure ()
   | .header => openPage (headerHit s x y)
   | .list =>
     if s.imeH > 0 && !long then s.io.ime false; return
@@ -830,10 +831,7 @@ def onEvent : Event → M Bool
     if (← get).page == .create || (← get).page == .paste || (← get).page == .name then
       onPageAct .continue_
       return true
-    let s ← get
-    if ← sendText s.text then
-      modify fun s => { s with text := "", sel := #[0, 0, 0, 0] }
-      s.io.textClear
+    sendNow
     return true
   | .ime h => do modify fun s => { s with imeH := h.toNat }; return true
   | .scrolling _ => return true
@@ -1161,7 +1159,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   let sheetKey := match s.sheet, s.selected with
     | some sh, some m => s!"{sh.catalog}|{sh.cat}|{sh.tone}|{sh.query}|{sh.searching}|{sh.scroll}|{mineOn s m}"
     | _, _ => ""
-  let key := s!"{s.W}|{s.insetTop}|{s.total}|{s.people}|{s.text}|{s.sel}|{sheetKey}|{s.me.name}|{s.asking.size}"
+  let key := s!"{s.W}|{s.insetTop}|{s.total}|{s.people}|{s.text}|{s.sel}|{sheetKey}|{s.me.name}|{s.asking.size}|{s.chips.size}"
   if key != s.chromeKey then
     let bot ← match s.sheet, s.selected with
       | some sh, some m => sheetBitmap sh (mineOn s m)

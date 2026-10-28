@@ -18,3 +18,4 @@ import Quiet.Kinds.React
 import Quiet.Kinds.Message
 import Quiet.Kinds.Request
 import Quiet.Kinds.Accepted
+import Quiet.Composer

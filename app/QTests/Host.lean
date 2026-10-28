@@ -306,6 +306,31 @@ def main (args : List String) : IO UInt32 := do
     check s!"the catalogue cell under the finger reacts with its emoji ({want})"
       (want.isSome && t2.any fun t => some t.emoji == want && t.mine)
     waitIdle sm
+    -- the composer: two photos by its Add photos box, text, its Send box
+    let tapComposer (h : Composer.Hit) : M Unit := do
+      let s ← get
+      let l := composerLayout s
+      let box := match h with
+        | .send => some l.send
+        | h => (l.deck.find? (fun (p : Composer.Box × Composer.Hit) => p.2 == h)).map (fun (p : Composer.Box × Composer.Hit) => p.1)
+      if let some b := box then
+        sm.cmds.modify (·.push s!"!composer {b.x + b.w / 2} {b.y + b.h / 2}")
+        onTap .composer (b.x + b.w / 2) (b.y + b.h / 2) false
+        steps 2
+    tapComposer .addPhotos
+    tapComposer .addPhotos
+    modify fun s => { s with text := "Two photos from the composer" }
+    steps 2
+    check s!"two photos attach as chips ({(← get).chips.size})" ((← get).chips.size == 2)
+    writePpm (dir ++ "/composer-chips.ppm") W (← screenOf sm W Hs 63)
+    tapComposer .send
+    waitIdle sm
+    steps 10
+    let s ← get
+    let top := s.ids[0]?.bind (fun p => s.rows[p.2]?) |>.map (·.data)
+    check s!"Send posts the text with both photos, and empties the composer ({top.map (·.pics.length)})"
+      (s.chips.isEmpty && s.text.isEmpty && (top.map fun d => d.text == "Two photos from the composer" && d.pics.length == 2).getD false)
+    writePpm (dir ++ "/composer-sent.ppm") W (← screenOf sm W Hs 63)
     let (n3, b3) ← liveSound
     check s!"after reactions, every fresh live answer equals the query now ({n3} answers)" (b3 == 0 && n3 > 0)
     -- a second chaos lands while the screen is live: every answer still sound
