@@ -26,7 +26,7 @@ it holds.
 its windows changed: never for a row outside them (precision), and
 always for one inside (completeness).
 -/
-import engine.core.Window
+import engine.core.WindowIndex
 import engine.core.Proofs
 import engine.core.Locality
 import engine.core.Order
@@ -665,6 +665,57 @@ theorem window_ne_iff_flips {fam : Family F} {s : DB F} (hs : Inv fam s) {cs : L
     refine ⟨p, hin, ?_⟩
     rw [run_exact cs hs w.key p, hf]
     cases filed s w.key p <;> simp
+
+/-- **One op per id holds when SHA-256 has no collision** among the ops
+the tables were built from and the ops the batch stores. -/
+theorem oneOpPerId_of {fam : Family F} {L : List Op} {s : DB F} (hr : Reach fam L s) {cs : List Change}
+    (hc : CollisionFree (L ++ Change.ingests cs)) : OneOpPerId s cs := by
+  have hd := distinct_of_collisionFree hc
+  let M := L ++ Change.ingests cs
+  refine ⟨fun i => M.find? (fun o => Decidable.decide (o.id = i)), ?_, ?_⟩
+  · intro i o ho
+    obtain ⟨hL, hid⟩ := reach_stored hr i o ho
+    have hm : o ∈ M := List.mem_append_left _ hL
+    obtain ⟨o', ho'⟩ := Option.isSome_iff_exists.1
+      ((List.find?_isSome (p := fun o' : Op => Decidable.decide (o'.id = i))).2 ⟨o, hm, decide_eq_true hid⟩)
+    have h0 := List.find?_some (p := fun o' : Op => Decidable.decide (o'.id = i)) ho'
+    have h1 : o'.id = i := of_decide_eq_true h0
+    have h2 := List.mem_of_find?_eq_some ho'
+    show M.find? _ = some o
+    rw [ho', hd o' h2 o hm (h1.trans hid.symm)]
+  · intro o ho
+    have hm : o ∈ M := List.mem_append_right _ ho
+    obtain ⟨o', ho'⟩ := Option.isSome_iff_exists.1
+      ((List.find?_isSome (p := fun o' : Op => Decidable.decide (o'.id = o.id))).2 ⟨o, hm, decide_eq_true rfl⟩)
+    have h0 := List.find?_some (p := fun o' : Op => Decidable.decide (o'.id = o.id)) ho'
+    have h1 : o'.id = o.id := of_decide_eq_true h0
+    have h2 := List.mem_of_find?_eq_some ho'
+    show M.find? _ = some o
+    rw [ho', hd o' h2 o hm h1]
+
+/-! ## Notices are exact -/
+
+/-- **Notices are exact.** Over any batch of changes (ops stored, steps
+judged, purges, in any order), with one op per id: the index notifies a
+subscriber of the batch's net filings exactly when one of its windows
+changed. ⇐ is completeness: no window changes unnoticed. ⇒ is
+precision: no notice for a row outside every window of the subscriber's,
+nor for a row filed and unfiled within the batch. -/
+theorem notice_iff {S : Type} {fam : Family F} {s : DB F} (hs : Inv fam s) {cs : List Change}
+    (ho : OneOpPerId s cs) {I : Subs S} (hI : I.WF) (x : S) :
+    x ∈ I.notify (runJ fam cs s).2.toArray ↔ ∃ w, I.Has x w ∧ window s w ≠ window (runJ fam cs s).1 w := by
+  unfold Subs.notify
+  rw [Subs.mem_notifyM hI]
+  constructor
+  · rintro ⟨e, he, w, hw, hh⟩
+    simp only [Win.has, Bool.and_eq_true, decide_eq_true_eq] at hh
+    rw [mem_net, List.toList_toArray] at he
+    refine ⟨w, hw, (window_ne_iff_flips hs ho w).2 ⟨e.2, hh.2, ?_⟩⟩
+    rw [← hh.1]; exact he
+  · rintro ⟨w, hw, hne⟩
+    obtain ⟨p, hin, hf⟩ := (window_ne_iff_flips hs ho w).1 hne
+    refine ⟨(w.key, p), ?_, w, hw, by simp [Win.has, hin]⟩
+    rw [mem_net, List.toList_toArray]; exact hf
 
 end
 
