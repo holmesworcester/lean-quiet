@@ -670,4 +670,6 @@ open Engine
 #print axioms Screen.hull_near
 #print axioms Screen.screen_index
 #print axioms Screen.keep_scrolled_off
+#print axioms Engine.window_rows
+#print axioms Screen.past_hull_le
 end windows

@@ -22,7 +22,24 @@ near when it meets [b − margin, b + vh + margin]. The frame wants
   near rows.
 
 The subscriptions built from the wants (`Subs.ofList`) hold exactly them
-(`Subs.has_ofList`). The mutant `keep_scrolled_off` (the app's keep
+(`Subs.has_ofList`).
+
+**What runs today** (App, Reader): the conversation is a window of rows
+about an anchor, at most `half` at or older than it and `half` newer
+(`Reader.Want.window`), watched by its rows' windows, which hold exactly
+its rows (`WindowRead.window_rows`); the counts beside it, which size
+the scroll extent, are a want of their own (`Reader.Want.count`), read
+after the rows, and are among the page's reads (`chrome`). So (i) and
+coverage hold as stated, and minimality holds weakened to
+`past_hull_le`: with the anchor near, at most `half` loaded rows lie
+past each end of the near rows' hull.
+
+**The plan for the hull** (after the reader's want model settles): the
+window becomes a buffer that is read but not watched, and a hull want
+reads the near rows' range, watching exactly `listWins`; laws
+`buffer_unwatched` (no window of the buffer is registered) and
+`near_fresh` (a row comes near only through the hull want, read before
+it is shown). The mutant `keep_scrolled_off` (the app's keep
 before this: list reads kept for good, rows' reads kept every 30 frames
 within 4 screens) wants a far row's windows and a list window covering
 a far row.
@@ -249,6 +266,32 @@ theorem screen_index {S : Type} (fr : Frame) (own : Win → S) (x : S) (w : Win)
     exact ⟨hv, rfl⟩
   · rintro ⟨hw, rfl⟩
     exact ⟨w, hw, rfl⟩
+
+/-- **Minimality as the frame runs it** (weakened (iii)). The loaded rows
+are at most `half` newer than an anchor and at most `half` at or older,
+and the anchor row is near; then at most `half` loaded rows are newer
+than every near row, and at most `half` older than every near row: the
+list windows, which hold exactly the loaded rows (`window_rows`), reach
+at most `half` rows past each end of the near rows' hull. -/
+theorem past_hull_le {fr : Frame} {a : Row} (ha : a ∈ fr.rows) (hn : fr.near a = true) (half : Nat)
+    (hnew : (fr.rows.filter fun r => a.pos.cmp r.pos == .lt).length ≤ half)
+    (hold : (fr.rows.filter fun r => r.pos.cmp a.pos != .gt).length ≤ half) :
+    (fr.rows.filter fun r => fr.shown.all fun n => n.pos.cmp r.pos == .lt).length ≤ half ∧
+      (fr.rows.filter fun r => fr.shown.all fun o => r.pos.cmp o.pos == .lt).length ≤ half := by
+  have has : a ∈ fr.shown := mem_shown.2 ⟨ha, hn⟩
+  constructor
+  · refine Nat.le_trans ?_ hnew
+    rw [← List.countP_eq_length_filter, ← List.countP_eq_length_filter]
+    apply List.countP_mono_left
+    intro r _ h
+    exact List.all_eq_true.1 h a has
+  · refine Nat.le_trans ?_ hold
+    rw [← List.countP_eq_length_filter, ← List.countP_eq_length_filter]
+    apply List.countP_mono_left
+    intro r _ h
+    have := List.all_eq_true.1 h a has
+    simp only [beq_iff_eq] at this
+    simp [this]
 
 /-! ## The mutant: keeping what scrolled off -/
 

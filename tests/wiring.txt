@@ -186,6 +186,44 @@ todo Mdns.decode Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdn
 todo Mdns.encode = Mdns.decode
 todo Arrival.lit `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`.
 
+assume Engine.runJ The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean).
+spec Engine.window A window's rows, on the model: what a subscriber watches.
+spec Engine.filed Whether a row is filed under a key at a position, on the model.
+spec Engine.flips Whether a journal touches a key and position an odd number of times.
+spec Engine.oddAt Whether a journal touches a pair an odd number of times, as `net` keeps it.
+spec Engine.Change.ingests The ops a batch of changes stores.
+spec Engine.searchSteps The steps of a binary search, for its bound.
+todo Engine.Subs.notify Nothing on main notices through the window index: the app's cache does on app-1e with fd/window-subs-app3 (`Data.Live.notice`, `Live.store`, `Q.win`); land it.
+todo Engine.Subs.find = Engine.Subs.notify
+todo Engine.Subs.notifyM = Engine.Subs.notify
+todo Engine.Subs.keep = Engine.Subs.notify
+todo Engine.Subs.add = Engine.Subs.notify
+todo Engine.Subs.at_ = Engine.Subs.notify
+todo Engine.Slots.build = Engine.Subs.notify
+todo Engine.Slots.find = Engine.Subs.notify
+todo Engine.rankM = Engine.Subs.notify
+todo Engine.posWork = Engine.Subs.notify
+todo Engine.net = Engine.Subs.notify
+todo Engine.Win.has = Engine.Subs.notify
+todo Engine.Win.inside = Engine.Subs.notify
+todo Engine.Win.all = Engine.Subs.notify
+todo Engine.ListQ.win = Engine.Subs.notify
+todo Engine.ListQ.watch = Engine.Subs.notify
+todo Engine.ListQ.kept = Engine.Subs.notify
+todo Engine.View.counting = Engine.Subs.notify
+todo Screen.Frame.wants Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan).
+todo Screen.Frame.listWins = Screen.Frame.wants
+todo Screen.Frame.near = Screen.Frame.wants
+todo Screen.Frame.shown = Screen.Frame.wants
+todo Engine.Subs.ofList = Screen.Frame.wants
+todo Engine.Mutants.σ Negative controls, on a one-op world of their own, meant not to run: they show notices by key and an unnetted journal imprecise.
+todo Engine.Mutants.o = Engine.Mutants.σ
+todo Engine.Mutants.fam = Engine.Mutants.σ
+todo Engine.Mutants.w5 = Engine.Mutants.σ
+todo Engine.Mutants.wk = Engine.Mutants.σ
+todo Engine.Mutants.keyNotified = Engine.Mutants.σ
+todo Engine.Mutants.rawNotified = Engine.Mutants.σ
+
 ## fd/perf: the board, the reader's decisions, the rows' heights
 
 todo Live.Board.put holmes-1e's reader (app-1e's ops/app/Reader.lean) puts and the frame takes through the board; it lands with that reader.
