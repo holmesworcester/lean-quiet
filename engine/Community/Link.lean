@@ -243,8 +243,8 @@ def issue (c issuerAdm : Id) (by_ : Device) (secret : ByteArray) (hints : List B
 inviter and hints, the request the join presents, and the name to
 introduce itself by once admitted. The bearer seed is not kept: the
 request already carries the bearer's signature. -/
-def joining (i : Invite) (req : Id) (name : ByteArray) : Op :=
-  mkOp [] (.joining i.community i.inviter i.hints req name)
+def joining (i : Invite) (req : Id) (name : ByteArray) (device : Key) (epoch : Nat := 0) : Op :=
+  mkOp [] (.joining i.community i.inviter i.hints req name device epoch)
 
 /-- This device stops waiting on a join (local): its joining op is cited,
 the request stays with the members, and an approval still admits it. -/

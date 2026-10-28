@@ -44,7 +44,7 @@ def trusts (c me peer : B) : View Community.Fact Bool := do
   if ← Community.allowPeer c peer then return true
   let joins ← Community.joining.all.read []
   let linked := joins.rows.any fun (_, f) => match f with
-    | .joining c' k _ _ _ => decide (c' = c ∧ k = peer)
+    | .joining c' k _ _ _ _ _ => decide (c' = c ∧ k = peer)
     | _ => false
   if !linked then return false
   let admitted ← Community.allowPeer c me
@@ -80,10 +80,7 @@ def devices : m (List (B × B × Id)) := do
 /-- The device this node is in community c as (its acceptance of c),
 with its seed and secret op. -/
 def meIn (c : B) : m (Option (B × B × Id)) := do
-  let acc : Answer F ← Lists.list (m := m) (Community.accepted.all.query [])
-  let some d := acc.lefts.findSome? (fun (_, f) => match f with
-    | .accepted c' d => if c' = c then some d else none
-    | _ => none) | return none
+  let some (d, _) ← ((Community.mine c).liftL : View F _).run | return none
   return (← devices).find? (·.1 = d)
 
 /-- The bare address op x arrived from, if it arrived bare. -/
@@ -138,11 +135,11 @@ def dial (K : Keys) (listen : B) (_now : Nat) : m (List Op) := do
   let mut out : Array Op := #[]
   let joins : Answer F ← Lists.list (m := m) (Community.joining.all.query [])
   for (_, f) in joins.lefts do
-    let .joining c inviter hints req _ := f | continue
+    let .joining c inviter hints req _ d _ := f | continue
     let some hint := hints.head? | continue
-    let gone : Answer F ← Lists.list (m := m) (Community.abandoned.byRequest.query [req] (limit := some 0))
-    if gone.total ≠ 0 then continue
+    -- only the store's own entry for c (`mine`), and only while waiting on it
     let some (me, seed, _) ← meIn c | continue
+    if me ≠ d then continue
     if ← connectedTo inviter then continue
     let mineTo := (← rows request.byFrm [me]).find? fun (_, g) => match g with
       | .request t _ _ => decide (t = inviter)

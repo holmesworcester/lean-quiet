@@ -40,10 +40,66 @@ def inviteTo (c myAdm : Id) (seed bearerSeed : ByteArray) (hints : List ByteArra
 /-- Join from a link, to be known as `name`: the device's secret, its
 request (the one op that travels), its acceptance of the community, and
 the pending join (which keeps the name until admission). -/
-def join (i : Invite) (seed name : ByteArray) : Write :=
+def joinOps (i : Invite) (seed name : ByteArray) : Write :=
   let d := Device.ofSeed seed
   let req := i.request d
-  ⟨[secret seed, req, accept i.community d.pk, joining i req.id name]⟩
+  ⟨[secret seed, req, accept i.community d.pk, joining i req.id name d.pk]⟩
+
+/-- Byte order on ids. -/
+def idLt (a b : Id) : Bool := decide (a.toList < b.toList)
+
+/-- The device this store is in community c as, with its acceptance:
+among its acceptances of c whose device's secret it holds, and that are
+not a join it stopped waiting on, the admitted one first, else the least
+acceptance id. A node holds a community at most once (libquiet #580,
+#940); this is which one, and every reader of the same ops picks the
+same (the app's switcher, and the network node). -/
+def mine (c : Id) : View Fact (Option (Key × Id)) := do
+  let acc ← accepted.all.read []
+  let joins ← joining.all.read []
+  let mut best : Option (Key × Id × Bool) := none
+  for ((_, aid), f) in acc.rows do
+    let .accepted c' d := f | continue
+    if c' ≠ c then continue
+    let sec ← secret.byKey.read [d] (limit := some 0)
+    if sec.total = 0 then continue
+    let adm ← admission.byDevice.read [c, d] (limit := some 0)
+    let admitted := adm.total ≠ 0
+    if !admitted then
+      -- waiting: held only while one of its joins is not stopped
+      let mut live := false
+      for ((_, jid), g) in joins.rows do
+        let .joining c'' _ _ _ _ d' _ := g | continue
+        if c'' ≠ c || d' ≠ d then continue
+        let ab ← abandoned.byJoining.read [jid] (limit := some 0)
+        if ab.total = 0 then live := true
+      if !live then continue
+    best := match best with
+      | none => some (d, aid, admitted)
+      | some (bd, ba, badm) =>
+        if (admitted && !badm) || (admitted == badm && idLt aid ba) then some (d, aid, admitted)
+        else some (bd, ba, badm)
+  pure (best.map fun (d, a, _) => (d, a))
+
+/-- Join from a link, to be known as `name`, unless this store already
+holds the community (`mine`): then nothing. A join of c stopped waiting
+on is resumed rather than made again: a new joining op (one epoch on)
+for the same request, so the inviter sees the same request (libquiet's
+dormant join). Otherwise a fresh join (`joinOps`). -/
+def join (i : Invite) (seed name : ByteArray) : View Fact Write := do
+  let c := i.community
+  if (← mine c).isSome then return ⟨[]⟩
+  let joins ← joining.all.read []
+  let dormant := joins.rows.foldl (fun acc (_, f) => match f with
+    | .joining c' k hs r nm d n =>
+      if c' = c then match acc with
+        | some (_, _, _, _, _, m) => if n ≥ m then some (k, hs, r, nm, d, n) else acc
+        | none => some (k, hs, r, nm, d, n)
+      else acc
+    | _ => acc) none
+  match dormant with
+  | some (k, hs, r, nm, d, n) => return ⟨[mkOp [] (.joining c k hs r nm d (n + 1))]⟩
+  | none => return joinOps i seed name
 
 /-- Once admitted into c with no profile yet: the first profile, named as
 the join asked. Reads my admission, my profile and my join; writes
@@ -56,7 +112,7 @@ def introduce (c : Id) (seed : ByteArray) (time : Nat) : View Fact Write := do
     let prof ← profile.byUser.read [c, u] (limit := some 0)
     let joins ← joining.all.read []
     let name := joins.rows.findSome? fun (_, f) => match f with
-      | .joining c' _ _ _ nm => if c' = c then some nm else none
+      | .joining c' _ _ _ nm _ _ => if c' = c then some nm else none
       | _ => none
     match name with
     | some nm => pure (if prof.total = 0 then ⟨[profile c adm d nm time]⟩ else ⟨[]⟩)
@@ -153,9 +209,9 @@ theorem shared_mkOp (C : Crypto) (reqs : List Id) (b : Body) :
 /-- **Joining is just ops, and only the request leaves the device.** The
 join intent writes the device's secret, the request, the acceptance and
 the pending join; of these, sync may offer only the request. -/
-theorem join_travels (C : Crypto) (i : Invite) (seed name : ByteArray) :
-    (join i seed name).ops.filter (family C).shared = [i.request (Device.ofSeed seed)] := by
-  simp [join, Invite.request, Community.request, secret, accept, joining, shared_mkOp, Body.isLocal]
+theorem joinOps_travels (C : Crypto) (i : Invite) (seed name : ByteArray) :
+    (joinOps i seed name).ops.filter (family C).shared = [i.request (Device.ofSeed seed)] := by
+  simp [joinOps, Invite.request, Community.request, secret, accept, joining, shared_mkOp, Body.isLocal]
 
 /-- **Stopping waiting is local.** -/
 theorem stopWaiting_local (C : Crypto) (j : Id) : (stopWaiting j).ops.filter (family C).shared = [] := by

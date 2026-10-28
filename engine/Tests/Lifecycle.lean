@@ -87,12 +87,18 @@ def main (args : List String) : IO UInt32 := do
 
   -- B pastes the link and joins: just ops on B.
   let some i := Invite.parse link.text | t.ok "the link parses" false; return 1
-  let wj := join i seedB "Bea".toUTF8
+  let wj ← ((join i seedB "Bea".toUTF8).run : SqlM Fact Write).run b
+  t.ok "a first join writes the secret, the request, the acceptance and the joining" (wj.ops.length == 4)
   mine b wj
+  let again ← ((join i seedB "Bea".toUTF8).run : SqlM Fact Write).run b
+  t.ok "joining a community already held writes nothing" again.ops.isEmpty
+  let other ← ((join i (sha256 "device B2".toUTF8) "Bea2".toUTF8).run : SqlM Fact Write).run b
+  t.ok "not even as another device" other.ops.isEmpty
+  t.ok "B is in c as dB" ((← ((Community.mine c).run : SqlM Fact _).run b).map (·.1) == some dB.pk)
   let req := i.request dB
   t.ok "B lists the community" ((← rows b (accepted.all.query [])).any fun (_, f) => f == .accepted c dB.pk)
   t.ok "B lists its pending join"
-    ((← rows b (joining.all.query [])).any fun (_, f) => f == .joining c dA.pk i.hints req.id "Bea".toUTF8)
+    ((← rows b (joining.all.query [])).any fun (_, f) => f == .joining c dA.pk i.hints req.id "Bea".toUTF8 dB.pk 0)
   let wn ← ((introduce c seedB 5).run : SqlM Fact Write).run b
   t.ok "before admission, introducing writes nothing" wn.ops.isEmpty
   t.ok "B is not admitted yet" (!(← ((allowPeer c dB.pk).run : SqlM Fact Bool).run b))
@@ -139,6 +145,13 @@ def main (args : List String) : IO UInt32 := do
     == some "hello from Ann".toUTF8)
   let wu2 ← ((unwrap c seedB).run : SqlM Fact Write).run b
   t.ok "unwrapping again writes nothing" wu2.ops.isEmpty
+  -- Two acceptances of c on B (a join that raced): B is in c as its
+  -- admitted device, whichever acceptance id is less.
+  let seedB2 := sha256 "device B twin".toUTF8
+  let w2 := joinOps i seedB2 "Bea twin".toUTF8
+  mine b w2
+  t.ok "with a raced second acceptance, B is still in c as its admitted device"
+    ((← ((Community.mine c).run : SqlM Fact _).run b).map (·.1) == some dB.pk)
   t.ok "A's content key travelled only wrapped: B holds it as its own local op"
     ((← rows b (key.byCommunity.query [c])).length == 1)
 
@@ -220,19 +233,33 @@ def main (args : List String) : IO UInt32 := do
   let cdb ← fresh dir "c.db"
   let (wi2, link2) := inviteTo c c seedA (sha256 "bearer 2".toUTF8) []
   mine a wi2
-  let wc := join link2 seedC "Cy".toUTF8
+  let wc ← ((join link2 seedC "Cy".toUTF8).run : SqlM Fact Write).run cdb
   mine cdb wc
   let reqC := link2.request dC
   let jC := (wc.ops.getLast!).id
   mine cdb (stopWaiting jC)
   let waiting ← do
     let js ← rows cdb (joining.all.query [])
-    js.filterMapM fun (_, f) => match f with
-      | .joining _ _ _ r _ => do
-        let ab ← (Lists.list (abandoned.byRequest.query [r] (limit := some 0)) : SqlM Fact (Answer Fact)).run cdb
+    js.filterMapM fun ((_, jid), f) => match f with
+      | .joining _ _ _ r _ _ _ => do
+        let ab ← (Lists.list (abandoned.byJoining.query [jid] (limit := some 0)) : SqlM Fact (Answer Fact)).run cdb
         pure (if ab.total == 0 then some r else none)
       | _ => pure none
   t.ok "after stopping, C waits on nothing" waiting.isEmpty
+  t.ok "and C holds no entry for c" ((← ((Community.mine c).run : SqlM Fact _).run cdb).isNone)
+  -- Joining again resumes the stopped join: the same request, a new joining.
+  let wr ← ((join link2 seedC "Cy".toUTF8).run : SqlM Fact Write).run cdb
+  t.ok "re-joining after stopping writes one joining op" (wr.ops.length == 1)
+  let resumed := match wr.ops.head? with
+    | some o => match (Codec.decode o.body : Option Body) with
+      | some (.joining _ _ _ r _ d n) => r == reqC.id && d == dC.pk && n == 1
+      | _ => false
+    | none => false
+  t.ok "for the same request, the same device, one epoch on" resumed
+  mine cdb wr
+  t.ok "C holds c again" ((← ((Community.mine c).run : SqlM Fact _).run cdb).map (·.1) == some dC.pk)
+  -- and stops again, so the rest of this scenario is unchanged
+  mine cdb (stopWaiting (wr.ops.headD default).id)
   t.ok "C still lists the community" ((← rows cdb (accepted.all.query [])).any fun (_, f) => f == .accepted c dC.pk)
   fromPeer a (← sendable cdb)
   t.ok "C's request reached A; its abandon did not"

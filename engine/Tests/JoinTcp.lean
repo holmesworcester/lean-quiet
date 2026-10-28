@@ -80,7 +80,7 @@ def main (args : List String) : IO UInt32 := do
   let (wi, link) := inviteTo c c a.seed (sha256 "bearer".toUTF8) [a.addr]
   a.run.write wi.ops
   let req := link.request dB
-  b.run.write (join link b.seed "Bea".toUTF8).ops
+  b.run.write (joinOps link b.seed "Bea".toUTF8).ops
   -- Before approval.
   let opened ← waitFor 10000 do return (← look a (count opened.all [] : SqlM F _)) ≥ 1
   t.ok "tcp: A opened B's request" opened.isSome
