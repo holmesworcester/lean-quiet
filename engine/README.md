@@ -53,10 +53,33 @@ are its relations' (`keysOf`). Laws, proven once for every relation:
 - `filed_rel`, `mem_rows_rel`, `total_rel`: at rest, a list of r reads
   exactly the Valid facts in it.
 
+### A device's own state, and intents (`Facts.lean`, `Intents.lean`)
+
+Everything about joining and bootstrapping is op state. A device's own
+state is local ops: its secret seed (`secret.byKey`, refused unless the
+seed derives to the key: `secret_derives`), the communities it is in
+(`accepted.all`) and its pending joins (`joining.all`); a community's
+name is a shared admin register (`named.current`, newest counter first:
+`named_by_admin`). An intent is a user action as the ops of one writer
+job, after reading lists: `found`, `inviteTo`, `join`, `approveReq`
+(the approval, and the admission when it completes the tally),
+`rename`, `send` (blobs and the post), `reactTo`. Laws: `join_travels`
+and `found_travels` (of those ops, only the request, or the root and
+name, may travel), `local_fact_mine` (every Valid secret, acceptance
+or pending join a node holds is its own write, whatever peers send).
+`Tests/Lifecycle.lean` runs it on two SQLite nodes.
+
+### The invite link (`Link.lean`)
+
+`quiet://join/` and the fields in base62: community, invitation, the
+inviter's device key, dial hints, the bearer seed. `parse_text`, and
+`parse_valid` (whatever parses is valid).
+
 ### Sync scope (`Sync.lean`)
 
-Each op kind is shared or local (`Family.scope`). Local ops are a node's
-own bookkeeping: judged and stored like any op, never sent or taken.
+Each op is shared or local (`Family.scope`, read from its body, never
+from the header's kind). Local ops are a node's own bookkeeping: judged
+and stored like any op, never sent or taken.
 
 - `offer_shared`, `offer_stored`: sync offers only stored ops of shared
   kinds, so never a local op and never a write still in the outbox.
@@ -132,6 +155,11 @@ and each named user's `removal.byUser`.
 - Signatures are unforgeable (`Unforgeable`, a hypothesis where used).
   Ed25519 is libsodium's at runtime.
 - Op ids do not collide (`Distinct`).
+- `Crypto.pub` gives a seed's public key (libsodium's Ed25519 at
+  runtime); a secret op is Valid only if its seed derives to its key.
+- The SQLite writer's drain loop (`drainAll`) is `partial`: the proofs
+  cover the fueled `drain`. Being replaced by `drain` with a proven
+  bound.
 - Confidentiality is proven as "who keys are sealed to", not as a
   cryptographic property, and removed users keep keys they already
   hold: no rotation yet, as in libquiet's current increment.

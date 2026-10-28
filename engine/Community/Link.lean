@@ -239,4 +239,9 @@ def issue (c issuerAdm : Id) (by_ : Device) (secret : ByteArray) (hints : List B
   let inv := invite c issuerAdm by_ (Device.ofSeed secret).pk false threshold
   (inv, ⟨c, inv.id, by_.pk, hints, secret⟩)
 
+/-- This device's pending join (local): the link's community, its
+inviter and hints, and the request the join presents. The bearer seed
+is not kept: the request already carries the bearer's signature. -/
+def joining (i : Invite) (req : Id) : Op := mkOp [] (.joining i.community i.inviter i.hints req)
+
 end Community

@@ -47,11 +47,12 @@ inductive Scope where
   deriving DecidableEq, Repr, Inhabited
 
 /-- What an application supplies: each op type's validator, the index
-keys each fact is filed under, and each op kind's scope. -/
+keys each fact is filed under, and each op's scope (read from its body:
+it never depends on the header's kind). -/
 structure Family (F : Type) where
   validate : Op → List F → Option F
   keys : F → List ByteArray
-  scope : UInt8 → Scope := fun _ => .shared
+  scope : Op → Scope := fun _ => .shared
 
 /-- Op x's own key: what its verdict is watched under, and the key its
 Valid fact is filed under by id (`self`), so reading one fact is a list

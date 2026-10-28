@@ -13,7 +13,7 @@ open Engine Codec
 @[extern "le_ed25519_sign"] opaque edSign (sk msg : @& ByteArray) : ByteArray
 @[extern "le_ed25519_verify"] opaque edVerify (pk msg sig : @& ByteArray) : Bool
 
-def ed25519 : Crypto := ⟨fun pk m s => edVerify pk m s⟩
+def ed25519 : Crypto := ⟨fun pk m s => edVerify pk m s, fun seed => (edKeypair seed).extract 0 32⟩
 
 /-- A device: its signing key pair and its encryption key. -/
 structure Device where
@@ -34,6 +34,7 @@ def Body.tag : Body → UInt8
   | .remove .. => 4 | .post .. => 5 | .wrap .. => 6
   | .profile .. => 7 | .blob .. => 8 | .react .. => 9
   | .approve .. => 10 | .admit => 11
+  | .accept .. => 13 | .joining .. => 14 | .secret .. => 15 | .name .. => 16
 
 /-- The op with these requirements and body, named by its bytes' hash. -/
 def mkOp (reqs : List Id) (b : Body) : Op :=
@@ -97,5 +98,17 @@ def react (c adm target : Id) (by_ : Device) (emoji : ByteArray) (time : Nat) : 
   mkOp reqs (.react emoji time (sig by_.sk reqs (.react emoji time .empty)))
 
 def wrap (c : Id) (ckey recipient box : ByteArray) : Op := mkOp [c] (.wrap ckey recipient box)
+
+/-- This device's secret seed (local). -/
+def secret (seed : ByteArray) : Op := mkOp [] (.secret (Device.ofSeed seed).pk seed)
+
+/-- This device is in community c (local). -/
+def accept (c : Id) (device : Key) : Op := mkOp [] (.accept c device)
+
+/-- Name community c: an admin's register entry, superseding `prev` (the
+names it saw), its counter one past theirs. `auth` shows the admin. -/
+def setName (c adm auth : Id) (prev : List Id) (n : Nat) (by_ : Device) (name : ByteArray) : Op :=
+  let reqs := [c, adm, auth] ++ prev
+  mkOp reqs (.name n name (sig by_.sk reqs (.name n name .empty)))
 
 end Community

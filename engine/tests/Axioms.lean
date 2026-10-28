@@ -54,3 +54,8 @@ open Engine Community
 #print axioms Community.parse_text
 #print axioms Community.parse_valid
 #print axioms Community.Base62.decode_encode
+#print axioms Community.secret_derives
+#print axioms Community.named_by_admin
+#print axioms Community.local_fact_mine
+#print axioms Community.join_travels
+#print axioms Community.found_travels

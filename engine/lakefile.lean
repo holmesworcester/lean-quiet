@@ -32,3 +32,6 @@ lean_exe querydiff where
 
 lean_exe linkcheck where
   root := `Tests.LinkCheck
+
+lean_exe lifecycle where
+  root := `Tests.Lifecycle

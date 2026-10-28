@@ -16,16 +16,15 @@ open Engine
 
 theorem rels_distinct : Rel.Distinct rels := by unfold Rel.Distinct; decide
 
+theorem rels_short : ∀ r ∈ rels, r.kind.toUTF8.size < 128 := by decide
+
 variable {s : DB Fact} {C : Crypto}
 
 /-- At rest, the Valid facts filed under a community relation. -/
 theorem filed {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : s.queue = [])
     (as : List ByteArray) (y : Id) (f : Fact) :
     (y ∈ s.idx (r.key as) ∧ s.status y = some (.valid f)) ↔ V C s.ops y f ∧ r.args f = some as := by
-  have hs : r.kind.toUTF8.size < 128 := by
-    simp only [rels, List.mem_cons, List.mem_nil_iff, or_false] at hr
-    rcases hr with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide
-  exact filed_rel (fam := family C) rfl rels_distinct hr hs h hq as y f
+  exact filed_rel (fam := family C) rfl rels_distinct hr (rels_short r hr) h hq as y f
 
 theorem byDevice_args {c d : Id} {f : Fact} :
     admission.byDevice.args f = some [c, d] ↔ ∃ u e, f = .admission c u d e := by

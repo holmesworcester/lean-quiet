@@ -499,4 +499,68 @@ and attributions remain. -/
 theorem valid_stays {ops' : Id → Option Op} (he : Extends ops ops') {x : Id} {f : Fact}
     (h : V C ops x f) : V C ops' x f := spec_extends he h
 
+/-! ## A device's own state, and community names -/
+
+theorem check_secret {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {pk seed : ByteArray}
+    (h : check C o b fs = some (.secret pk seed)) : b = .secret pk seed ∧ fs = [] ∧ C.pub seed = pk := by
+  unfold check at h
+  split at h <;> (try split at h) <;> (try simp at h; done)
+  simp only [Option.some.injEq, Fact.secret.injEq] at h
+  obtain ⟨rfl, rfl⟩ := h
+  rename_i hc
+  exact ⟨rfl, rfl, hc⟩
+
+/-- **A secret's seed is its key's**: `secret.byKey [pk]` rows hold a
+seed whose key pair has public key pk. -/
+theorem secret_derives {x : Id} {pk seed : ByteArray} (h : V C ops x (.secret pk seed)) :
+    C.pub seed = pk := by
+  obtain ⟨o, b, fs, _, _, _, hv⟩ := valid_inv h
+  exact (check_secret hv).2.2
+
+theorem check_named {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id} {nm : ByteArray}
+    {n : Nat} (h : check C o b fs = some (.named c u nm n)) :
+    ∃ s d0 e0 d e auth prev, b = .name n nm s ∧
+      fs = .admission c c d0 e0 :: .admission c u d e :: auth :: prev ∧ o.reqs.head? = some c ∧
+      isAdmin c u auth = true ∧ nm.size ≤ 64 ∧ counterOk c n prev = true ∧
+      C.verify d (signed o b) s = true := by
+  unfold check at h
+  split at h <;> (try split at h) <;> (try simp at h; done)
+  simp only [Option.some.injEq, Fact.named.injEq] at h
+  obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+  rename_i hc
+  obtain ⟨h1, rfl, rfl, h4, h5, h6, h7⟩ := hc
+  exact ⟨_, _, _, _, _, _, _, rfl, rfl, h1, h4, h5, h6, h7⟩
+
+/-- **Only admins name a community.** -/
+theorem named_by_admin {x c u : Id} {nm : ByteArray} {n : Nat} (h : V C ops x (.named c u nm n)) :
+    IsAdmin C ops c u := by
+  obtain ⟨o, b, fs, _, _, hr, hv⟩ := valid_inv h
+  obtain ⟨_, _, _, _, _, auth, _, rfl, rfl, _, ha, _⟩ := check_named hv
+  obtain ⟨_, _, t, _, _, _, hrest⟩ := all2_cons2 hr
+  cases hrest with
+  | cons hz _ => exact isAdmin_sound hz ha
+
+/-- The facts only a device's own local ops produce. -/
+def Fact.isLocal : Fact → Bool
+  | .secret .. | .accepted .. | .joining .. => true
+  | _ => false
+
+theorem check_local {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
+    (h : check C o b fs = some f) (hl : f.isLocal = true) : b.scope = .local := by
+  unfold check at h
+  split at h <;> (try split at h) <;> (try simp at h; done) <;>
+    first
+    | rfl
+    | (simp only [Option.some.injEq] at h; subst h; simp [Fact.isLocal] at hl)
+
+/-- **A device's own state is its own.** In a node fed by its own writes
+and by peers' jobs through `intake`, every op behind a Valid secret,
+acceptance or pending join is one of its own writes. -/
+theorem local_fact_mine {M : List Op} {s : DB Fact} (hf : Fed (family C) M s) {x : Id} {f : Fact}
+    (hv : V C s.ops x f) (hl : f.isLocal = true) : ∃ o ∈ M, s.ops x = some o := by
+  obtain ⟨o, b, fs, hx, hb, _, hc⟩ := valid_inv hv
+  refine ⟨o, stored_local hf hx ?_, hx⟩
+  show scopeOf o = .local
+  unfold scopeOf; rw [hb]; exact check_local hc hl
+
 end Community

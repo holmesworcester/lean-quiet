@@ -21,7 +21,7 @@ section
 variable {F : Type} (fam : Family F)
 
 /-- Whether ops of o's kind travel. -/
-def Family.shared (o : Op) : Bool := Decidable.decide (fam.scope o.kind = .shared)
+def Family.shared (o : Op) : Bool := Decidable.decide (fam.scope o = .shared)
 
 /-- What the writer receives from a job: all of it if the job is this
 node's own; only shared ops if it came from a peer. -/
@@ -30,7 +30,7 @@ def intake (mine : Bool) (ops : List Op) : List Op :=
 
 /-- **Nothing local is taken from a peer.** -/
 theorem intake_local {mine : Bool} {ops : List Op} {o : Op} (h : o ∈ intake fam mine ops)
-    (hl : fam.scope o.kind = .local) : mine = true ∧ o ∈ ops := by
+    (hl : fam.scope o = .local) : mine = true ∧ o ∈ ops := by
   unfold intake at h
   cases mine with
   | true => exact ⟨rfl, h⟩
@@ -73,7 +73,7 @@ theorem run_offer (ids : List Id) (s : DB F) :
 /-- **Sync offers only stored, shared ops.** -/
 theorem offer_shared {s : DB F} {ids : List Id} {o : Op}
     (h : o ∈ ((offer fam ids : Model F (List Op)).run s).1) :
-    fam.scope o.kind = .shared ∧ ∃ x ∈ ids, s.ops x = some o := by
+    fam.scope o = .shared ∧ ∃ x ∈ ids, s.ops x = some o := by
   rw [run_offer] at h
   simp only [offerS, List.mem_filterMap] at h
   obtain ⟨x, hx, hm⟩ := h
@@ -125,7 +125,7 @@ theorem stepS_ops' (s : DB F) : (stepS fam s).ops = s.ops := stepS_ops (fam := f
 /-- **Every local op a node stores is its own write**, whatever its
 peers send it. -/
 theorem stored_local {M : List Op} {s : DB F} (h : Fed fam M s) {x : Id} {o : Op}
-    (hx : s.ops x = some o) (hl : fam.scope o.kind = .local) : o ∈ M := by
+    (hx : s.ops x = some o) (hl : fam.scope o = .local) : o ∈ M := by
   induction h with
   | empty => cases hx
   | job mine ops _ ih =>

@@ -63,6 +63,8 @@ abbrev Key := ByteArray
 
 structure Crypto where
   verify : Key → ByteArray → ByteArray → Bool
+  /-- The public key a 32-byte seed's key pair has. -/
+  pub : ByteArray → Key
 
 inductive Fact where
   | admission (c u : Id) (device enc : Key)
@@ -76,6 +78,10 @@ inductive Fact where
   | react (c u target : Id) (emoji : ByteArray) (time : Nat)
   | request (c u : Id) (device enc : Key) (link : Bool) (threshold : Nat)
   | approval (c req u : Id)
+  | secret (pk seed : ByteArray)
+  | accepted (c : Id) (device : Key)
+  | joining (c : Id) (inviter : Key) (hints : List ByteArray) (req : Id)
+  | named (c u : Id) (name : ByteArray) (n : Nat)
   deriving DecidableEq, Inhabited
 
 inductive Body where
@@ -91,6 +97,10 @@ inductive Body where
   | react (emoji : ByteArray) (time : Nat) (sig : ByteArray)
   | approve (sig : ByteArray)
   | admit
+  | accept (c : Id) (device : Key)
+  | joining (c : Id) (inviter : Key) (hints : List ByteArray) (req : Id)
+  | secret (pk seed : ByteArray)
+  | name (n : Nat) (name sig : ByteArray)
   deriving DecidableEq, Inhabited
 
 /-! ## Bytes -/
@@ -119,6 +129,10 @@ def Body.enc : Body → List UInt8
   | .react e tm s => 9 :: Codec.enc (e, tm, s)
   | .approve s => 10 :: Codec.enc s
   | .admit => [11]
+  | .accept c d => 13 :: Codec.enc (c, d)
+  | .joining c k hs r => 14 :: Codec.enc (c, k, hs, r)
+  | .secret pk seed => 15 :: Codec.enc (pk, seed)
+  | .name n nm s => 16 :: Codec.enc (n, nm, s)
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B) => Body.root p.1 p.2.1 p.2.2) r
@@ -133,6 +147,10 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 10 :: r => decAs (fun (p : B) => Body.approve p) r
   | 11 :: r => some (.admit, r)
   | 12 :: r => decAs (fun (p : B × B × B × B) => Body.request p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 13 :: r => decAs (fun (p : B × B) => Body.accept p.1 p.2) r
+  | 14 :: r => decAs (fun (p : B × B × List B × B) => Body.joining p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 15 :: r => decAs (fun (p : B × B) => Body.secret p.1 p.2) r
+  | 16 :: r => decAs (fun (p : Nat × B × B) => Body.name p.1 p.2.1 p.2.2) r
   | _ => none
 
 instance : Codec Body where
@@ -154,6 +172,10 @@ def Fact.enc : Fact → List UInt8
   | .react c u t e tm => 8 :: Codec.enc (c, u, t, e, tm)
   | .request c u d e l t => 9 :: Codec.enc (c, u, d, e, l, t)
   | .approval c r u => 10 :: Codec.enc (c, r, u)
+  | .secret pk seed => 11 :: Codec.enc (pk, seed)
+  | .accepted c d => 12 :: Codec.enc (c, d)
+  | .joining c k hs r => 13 :: Codec.enc (c, k, hs, r)
+  | .named c u nm n => 14 :: Codec.enc (c, u, nm, n)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B × B) => Fact.admission p.1 p.2.1 p.2.2.1 p.2.2.2) r
@@ -171,6 +193,10 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 9 :: r => decAs (fun (p : B × B × B × B × Bool × Nat) =>
       Fact.request p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2) r
   | 10 :: r => decAs (fun (p : B × B × B) => Fact.approval p.1 p.2.1 p.2.2) r
+  | 11 :: r => decAs (fun (p : B × B) => Fact.secret p.1 p.2) r
+  | 12 :: r => decAs (fun (p : B × B) => Fact.accepted p.1 p.2) r
+  | 13 :: r => decAs (fun (p : B × B × List B × B) => Fact.joining p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 14 :: r => decAs (fun (p : B × B × B × Nat) => Fact.named p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | _ => none
 
 instance : Codec Fact where
@@ -192,6 +218,7 @@ def Body.unsigned : Body → Body
   | .profile n tm _ => .profile n tm .empty
   | .react e tm _ => .react e tm .empty
   | .approve _ => .approve .empty
+  | .name n nm _ => .name n nm .empty
   | b => b
 
 /-- The bytes a signature on an op covers: a domain tag, the op's
@@ -220,6 +247,19 @@ def approvers (c r : Id) : List Fact → Option (List Id)
   | .approval c' r' u :: rest =>
     if c' = c ∧ r' = r then (approvers c r rest).map (u :: ·) else none
   | _ :: _ => none
+
+/-- The highest counter of these names of c (0 for none), if every fact
+is one. -/
+def prevMax (c : Id) : List Fact → Option Nat
+  | [] => some 0
+  | .named c' _ _ k :: rest => if c' = c then (prevMax c rest).map (max k) else none
+  | _ :: _ => none
+
+/-- Whether n is one more than the highest counter of the names cited. -/
+def counterOk (c : Id) (n : Nat) (fs : List Fact) : Bool :=
+  match prevMax c fs with
+  | some m => decide (n = m + 1)
+  | none => false
 
 /-- Whether these facts are exactly t approvals of request r of c, by
 t distinct users. -/
@@ -276,6 +316,13 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
     then some (.react c u (o.reqs.getD 2 .empty) e tm) else none
   | .wrap k r bx, [.admission c u0 _ _] =>
     if o.reqs.head? = some c ∧ u0 = c then some (.wrap c k r bx) else none
+  | .secret pk seed, [] => if C.pub seed = pk then some (.secret pk seed) else none
+  | .accept c d, [] => some (.accepted c d)
+  | .joining c k hs r, [] => some (.joining c k hs r)
+  | .name n nm s, .admission c u0 _ _ :: .admission c1 u d _ :: auth :: prev =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ isAdmin c u auth ∧ nm.size ≤ 64 ∧
+      counterOk c n prev = true ∧ C.verify d (signed o (.name n nm s)) s
+    then some (.named c u nm n) else none
   | _, _ => none
 
 def validate (C : Crypto) (o : Op) (fs : List Fact) : Option Fact :=
@@ -331,12 +378,34 @@ namespace approval
 def byRequest : Rel Fact := ⟨"approval", "byRequest", fun | .approval c r _ => some [c, r] | _ => none⟩
 end approval
 
+namespace secret
+/-- This device's own secret seeds, by public key: read by intents to
+sign, never by views. -/
+def byKey : Rel Fact := ⟨"secret", "byKey", fun | .secret pk _ => some [pk] | _ => none⟩
+end secret
+
+namespace accepted
+/-- The communities this device is in, joined or waiting. -/
+def all : Rel Fact := ⟨"accepted", "all", fun | .accepted .. => some [] | _ => none⟩
+end accepted
+
+namespace joining
+/-- This device's joins: each link and the request it presents. -/
+def all : Rel Fact := ⟨"joining", "all", fun | .joining .. => some [] | _ => none⟩
+end joining
+
+namespace named
+/-- A community's names, by counter: the current one is the list read
+newest first, limit 1. -/
+def current : Rel Fact := ⟨"named", "current", fun | .named c .. => some [c] | _ => none⟩
+end named
+
 /-- Every relation of the community's facts. Invitations and blobs are
 in none (read by their own key). -/
 def rels : List (Rel Fact) :=
   [admission.byDevice, admission.all, removal.byUser, admin.byUser, message.all, message.byAuthor,
    wrap.byContentKey, profile.byUser, profile.all, react.byMessage, react.byMessageEmoji,
-   request.all, approval.byRequest]
+   request.all, approval.byRequest, secret.byKey, accepted.all, joining.all, named.current]
 
 /-- The keys a fact is filed under: its relations'. -/
 def keys : Fact → List ByteArray := keysOf rels
@@ -350,10 +419,23 @@ def sortOf : Fact → ByteArray
   | .message _ _ _ _ _ tm _ => be64 tm
   | .profile _ _ _ tm _ => be64 tm
   | .react _ _ _ _ tm => be64 tm
+  | .named _ _ _ n => be64 n
   | _ => .empty
 
 instance : SortKey Fact := ⟨sortOf⟩
 
-def family (C : Crypto) : Family Fact := { validate := validate C, keys }
+/-- An op's scope, from its body: a device's secrets, its acceptances
+and its joins are local, never sent or taken; everything else is
+shared. -/
+def Body.scope : Body → Scope
+  | .secret .. | .accept .. | .joining .. => .local
+  | _ => .shared
+
+def scopeOf (o : Op) : Scope :=
+  match (decode o.body : Option Body) with
+  | some b => b.scope
+  | none => .shared
+
+def family (C : Crypto) : Family Fact := { validate := validate C, keys, scope := scopeOf }
 
 end Community
