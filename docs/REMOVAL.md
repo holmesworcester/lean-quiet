@@ -168,22 +168,32 @@ name (`roomsV`):
   session (`conn.given`);
 - otherwise nothing.
 
-**Giving a notice** (Engine/Sync/Conn.lean). On a connection's next
-`filed` step, which the node runs on every connection right after it
-stores ops, or on its next `tick`, sync gives each notice it has not
-given. It sends x and every stored op of x's requirement closure in c
-that the peer is not known to hold, requirements first. It reports the
-notice and records it given. Rounds, offers and wants are for
-synced rooms only, so nothing is taken for a notice, and a removed
-peer's ops are not asked for.
+**Giving a notice** (ops/sync/Notice.lean). `Hooks.rooms` gives the
+connection its typed rooms, and `Node.refresh` carries them: the synced
+rooms as before, and the notices. A connection has its own `given`
+field and `Status.given`. `notify` gives each notice not given yet: it
+sends x and every stored op of x's requirement closure in c that the
+peer is not known to hold, requirements first (`closureOps`, at most
+`cfg.walk` ops). It records x in `given` and reports `given x`. The node
+runs it on every connection where it runs `filed`, right after it
+stores ops (`filedGive`), and where it runs `tick` (`tickGive`, unless
+the tick drops the session). `filed` and `tick` themselves stay sync
+only (`filed_send`, `tick_send`, `have_shown`). Rounds, offers and wants
+are for synced rooms only, so nothing is taken for a notice, a have for
+c gets no reply (`notice_no_holds`), and a removed peer's ops are not
+asked for.
 
 **The cut.** The node writes a local `conn.given (cid, x)` for each
-notice given (through the node's settle hook). The view then carries
+notice given: the settle hook takes the step's statuses, and writes
+`given` for a notice and nothing for a room's settle. The view then carries
 nothing of c for that peer. A removal in c drops c's room and adds its notices; the session's
 other communities stay as they were (`rooms_complete`). `sessions`
 lists only sessions that carry something. So once a session carries
 nothing, in the same entry point the node closes it, after sealing the
-notice's frames, and `closing` purges it with its ops.
+notice's frames, and `closing` purges it with its ops. The runner sends
+an entry point's frames before it closes the sockets of the sessions
+that entry point dropped, so the notice reaches the peer before the
+connection's end does; a socket closes once no session is left on it.
 
 **Once.** A notice is given once per session: the connection records
 it, the `given` op takes it out of the view, and the session closes.
@@ -278,55 +288,67 @@ Built and proven, on lq main's layout:
   hold. Tested in `connection_check`: a second community's join beside
   an open session, approved and synced over one session.
 - **The rooms view**, typed: `roomsV` gives `.sync c` or `.notice c x`
-  per (held community, peer key); the `rooms` hook gives Node its synced
-  rooms until the Node step. `sessions` and `retired` read it, so a
+  per (held community, peer key); the `rooms` hook gives it to the node
+  as it is. `sessions` and `retired` read it, so a
   session that carries nothing is retired. Laws: `rooms_trusted`,
   `rooms_cut` (no `.sync c` for a refused peer), `rooms_model`,
-  `rooms_removed`, `rooms_complete`, `notice_then_cut`. Tested in
-  `connection_check`: a removed B holding its removal closes its
-  session, A keeps its side while the notice is owed; negative control:
-  sessions that do not read the view keep B's open.
+  `rooms_removed`, `rooms_complete`, `notice_then_cut`.
+- **Notice, then cut** (E1, E2): typed rooms in `Hooks.rooms`, `Conn`'s
+  own `given` and `Status.given`, `notify` run with `filed` and `tick`
+  (`filedGive`, `tickGive`), the settle hook writing `conn.given`, and
+  the runner sending a step's frames before it closes the dropped
+  sessions' sockets. Laws: `closure`, `notice_sent`, `notice_send`,
+  `notice_once`, `notice_no_holds`, `removed_gets_only_notice`;
+  `rooms_model` restated over typed rooms. `filed_send`, `tick_send`,
+  `have_shown` and `hold_reply_local` stand as they were. Tested in
+  `connection_check` (in memory) and `jointcp` (TCP): A removes B on a
+  live session, B is told, both ends close and purge the session, and B
+  rejoins as a new device; with a second community shared, the session
+  stays open for it. Negative controls in both: a rooms hook with no
+  notices (B never learns its removal), and sessions that do not read
+  the rooms view (the session stays open).
 
-Waiting for the Node and Conn step (after a3's hostile and world
-branches land): typed rooms in `Hooks.rooms`, `Conn.give` called by
-`filed` and `tick`, and the settle hook writing `given`; with them the notice laws
-still `_stmt`s (`notice_sent`, `notice_send`, `notice_once`, `closure`,
-`removed_gets_only_notice`) and their TCP test (the removed node told,
-the session cut, the rejoin over TCP). Then `hold_reply_local` and
-`have_shown` must hold for `.sync` rooms, and a notice room answers no
-holds about c. Until then a removed member's session stays open on the
-remover's side with its notice owed (as before).
-
-Found on the way, in Conn (a3's), for that step:
+Found on the way, in Conn (a3's):
 - A session carries a room on one side only while the other does not
   trust yet (a joiner's link clause on a session open for other
   communities). The dialer's rounds for it go unanswered, and patience
   may drop the session. A responder could end a round for a room it
   does not carry.
-- `Conn.tick` starts a round and then checks patience against the last
-  frame heard; after a quiet spell longer than `patience`, a dialer
-  drops a healthy session at its next round. The lossy join in
-  `connection_check` hit it once the session outlived 30 s.
+- A dialer dropped a healthy session at its first round after a quiet
+  spell longer than `patience`: fixed by a3/sync-harden (patience runs
+  from when the wait began).
+- The runner closed every socket at a dropped session's address, so
+  retiring one of two sessions on a socket (a join sent beside an open
+  session) killed the other, then the redials, without end. It now
+  closes a socket once no session is left on it.
 
 ## Changes to code others own
 
-- **Engine/Sync/Node.lean, one line**: `Hooks.rooms : Id → m (List Room)`,
-  was `List Id`. `Node.refresh` and `Node.open` pass the rooms through
-  as they are. The reason: a notice is per-step data from the family,
-  and `rooms` is the only per-step channel from the family to a
-  connection. The alternative that leaves Node.lean alone encodes a
-  notice as a room id, `encode (c, x)` beside 32-byte community ids,
-  which Conn would decode. That is a typed value hidden in bytes, so it
-  is not proposed.
-- **Engine/Sync/Conn.lean**: `Room`, `Conn.notices`, `setRooms` taking
-  rooms, the notice walk (`closureOps`), `give` and `notify`, called by
-  `filed` and `tick`. In ConnLaws, `filed_send` and `tick_send` become
-  `notice_send`; `recv_send` and `recv_take` stand.
-- **Engine/Sync/Pair.lean, Tests/SyncPair, Tests/TcpPair**: `rooms`
-  hooks give `[.sync c]`.
-- **Connection/RoomLaws.lean**: `rooms_trusted`, `rooms_cut` and
-  `rooms_model` are restated over `sync c`.
-- **Community/Query.lean and Connect.lean**: `live` counts an admission
+- **engine/wire/Node.lean**: `Hooks.rooms : Id → m (List Room)`, was
+  `List Id`, and the settle hook takes the step's `Status`. The reason:
+  a notice is per-step data from the family, and `rooms` is the only
+  per-step channel from the family to a connection (encoding a notice as
+  a room id would hide a typed value in bytes). `Node.refresh` carries
+  the rooms (`Conn.carry`); `Node.open` opens on the synced ones; the
+  node runs `filedGive` where it ran `filed` and `tickGive` where it ran
+  `tick`.
+- **engine/wire/Tcp.lean**: the runner sends a step's frames, then
+  closes the sockets of the sessions the step dropped, and a socket only
+  once no session is left on it.
+- **ops/sync/Conn.lean**: `notices` and `given` fields, `Status.given`.
+  `filed` and `tick` are unchanged; ops/sync/Notice.lean holds `Room`,
+  `carry`, `closureOps`, `give`, `notify`, `filedGive`, `tickGive`. In
+  ConnLaws, `filed_send`, `tick_send`, `recv_send` and `recv_take`
+  stand, and OfferLaws' `have_shown` and `hold_reply_local` stand.
+- **engine/wire/World.lean and WorldLaws.lean**: the world's rooms hook
+  gives `.sync` rooms; the stream laws carry the refreshed connection
+  (no notices) through, with `filedGive_quiet` and Reads lemmas for the
+  notice code.
+- **tests/engine SyncPair, TcpPair, HardenLib**: `rooms` hooks give
+  `.sync` rooms.
+- **ops/connection/RoomLaws.lean**: `rooms_trusted`, `rooms_cut` are
+  restated over `sync c`; `rooms_model` over typed rooms.
+- **ops/community/Query.lean and Connect.lean**: `live` counts an admission
   only if its device is live, so `allowPeer` (now by key), `members` and
   `recipients` follow the rule. `connect_iff`, `refuse_nonmember`,
   `removal_cuts_off`, `connect_admitted`, `members_iff` and
@@ -338,14 +360,14 @@ Found on the way, in Conn (a3's), for that step:
 In ops/sync/NoticeLaws.lean, ops/connection/RemovalLaws.lean,
 ops/community/RemovalLaws.lean and ops/community/Connect.lean, all over
 the code that runs: Conn's steps on the model, the views, the
-validators and the intents. The notice laws are still `_stmt : Prop`s
-(Status); the rest are theorems in the axiom audit.
+validators and the intents. All are theorems in the axiom audit.
 
 | question | law |
 |---|---|
 | Which devices does a removal cut, and for how long? | `removal_cuts_off`, `cut_stays`, `cut_consented` |
 | Is the notice given, once? | `notice_sent`, `notice_once`, `closure` |
 | Does a step send anything but notices? | `notice_send` |
+| Does a removed member learn what this node holds of c? | `notice_no_holds` |
 | What does a removed member's session carry? | `rooms_removed` |
 | What reaches a removed member's node? | `removed_gets_only_notice` |
 | Is the session then closed? | `notice_then_cut` |
@@ -361,8 +383,8 @@ validators and the intents. The notice laws are still `_stmt : Prop`s
 | Can a rejoin undo the removal? | `removed_stays_removed` |
 
 The connection-step laws take the connection as `Node.refresh` leaves
-it, `c.setRooms ((roomsV cid).eval s)` (`rooms_model`), and Conn's
-`recv`, `filed`, `tick` and `open` run on it: the steps `Node.onFrame`,
+it, `c.carry ((roomsV cid).eval s)` (`rooms_model`), and Conn's `recv`,
+`filedGive`, `tickGive` and `open` run on it: the steps `Node.onFrame`,
 `Node.fanout` and `Node.onTick` run. Their premises are read from the
 lists of the node's own store, as `rooms_cut`'s are.
 
@@ -374,17 +396,26 @@ lists of the node's own store, as `rooms_cut`'s are.
   request is for a new device with C's node key. A refuses C's node
   until it approves, then lets it in; C is admitted under a new user;
   the old user stays removed and the old device stays cut, on both.
+- `connection_check` (in memory, done): A removes B on a live session;
+  B is told (it holds its removal, which only the notice carries), and
+  both ends close; negative controls: a rooms hook with no notices (B
+  never learns, A keeps the session open), sessions not reading the
+  view (B is told, neither side closes).
 - `jointcp`, over localhost TCP (done): sessions name node keys, never
-  device keys. A removes B while their session is live; nothing flows
-  either way after. The removed B then dials A with a fresh post in its
-  hello; A opens the request, stores no post, and answers nothing. To
-  come with the Node and Conn step: B receives the removal and its
-  closure and nothing after it, both ends close the session, and B's
-  node rejoins with a new device and is admitted again once A approves.
-- Negative controls, each failing a check: the deliver step before the
-  fix, run on A's store, takes B's post (done); with the Node and Conn
-  step, a `rooms` hook without notices (B never learns its removal) and
-  `sessions` not reading the view (A keeps the session open).
+  device keys. A removes B while their session is live and carries only
+  that community: B is told, its device is cut, both ends close and
+  purge the session, nothing reopens, and a later post of A's does not
+  reach B. The removed B dials A with a fresh post in its hello; A opens
+  the request, stores no post, and answers nothing (negative control:
+  the deliver step before the fix takes it). B rejoins as a new device
+  under its node key, refused until A approves it. With a second
+  community shared, a second removal leaves the session open for it,
+  and B rejoins beside the open session (negative control: the dial
+  rule before the fix). Negative controls on runner pairs with mutated
+  hooks: a rooms hook with no notices (B never learns its removal) and
+  sessions not reading the view (the session stays open at both ends).
+  With the runner closing a dropped session's socket before sending its
+  frames, B is never told.
 
 ## Not covered
 
