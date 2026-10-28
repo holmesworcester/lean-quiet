@@ -204,7 +204,7 @@ today's code (with the finding), **O** open.
 | `offered_stmt` | L-offered: both | **P** (`offered_proof`) |
 | `members_only_stmt` | session frames carry only ops of rooms the session showed in that step | **P** (`members_only_proof`) |
 | `frames_keep_sessions_stmt` | no delivery, duplicate, injection or write closes a session | **P** (`frames_keep_sessions_proof`) |
-| `idem_stmt` | L-idem: the same bytes delivered again leave the store as they were (fixed rooms; finding 6) | O |
+| `idem_stmt` | L-idem: the same bytes delivered again leave the store as they were (fixed rooms; finding 6) | **P** (`idem_proof`) |
 | `restart_stmt` | L-restart: a restart keeps every op, rebuilds the index equal to the store, opens nothing | **P** (`restart_proof`) |
 | `waiting_closure_stmt` | every store at rest, verdicts = spec | O (engine laws + Held's turn) |
 | `closure_agree_stmt` | holding a closure, judge alike | O (`spec_local`) |
@@ -309,6 +309,11 @@ The upper and lower bounds match up to a constant per hop:
     control (run and reverted): `Conn.onWant` serving ops regardless of
     room is caught by a3's ServeLaws, ConnLaws and OfferLaws, and with
     those stubbed, by `recv_shown`;
+  - L-idem, `idem_proof`: the same bytes delivered to a node again,
+    right after, leave its store as the first delivery left it, with
+    fixed rooms. What a connection takes is the payload's op, a shown
+    data op (`recv_take_of`); the first delivery stored each
+    (`first_named`); a store of held ops changes nothing (`store_held`);
   - the findings' witnesses.
 - **Above the code, from the per-edge bound** (engine/world/Epidemic.lean):
   - `hops`: d · B over a path of d live edges;
