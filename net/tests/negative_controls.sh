@@ -6,10 +6,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export ELAN_HOME="${ELAN_HOME:-/mnt/storage/elan}"
 export PATH="$ELAN_HOME/bin:$PATH"
-engine=$(cd ../lean-engine-net && pwd)
+engine=$(cd ../engine && pwd)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/net-nc.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
-ln -s "$engine" "$tmp/lean-engine-net"
+ln -s "$engine" "$tmp/engine"
 
 mutant() {  # what file old new
   local what=$1 file=$2 old=$3 new=$4

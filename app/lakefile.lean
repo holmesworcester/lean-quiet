@@ -7,8 +7,8 @@ package quiet where
 
 -- The engine: sync, the Rust crypto, the Connection family and
 -- purge (lean-engine connection, a worktree pinned to 13da46d).
-require engine from ".." / "lean-engine-quiet"
-require qr from ".." / "lean-qr"
+require engine from ".." / "engine"
+require qr from ".." / "qr"
 
 lean_lib Quiet
 

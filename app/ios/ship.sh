@@ -157,7 +157,7 @@ stage() {
 # lake there): its closure's C into the stage's probe/ir.
 stage_probe() {
   local mdns closure where mod c
-  mdns=${MDNS:-/mnt/storage/holmes-wt/lean-mdns}
+  mdns=${MDNS:-$root/../mdns}
   mkdir -p "$root/out/probe" "$st/probe/ir"
   LEAN_PATH=$mdns/.lake/build/lib/lean "$T/bin/lean" -c "$root/out/probe/NetProbe.c" \
     "$root/ios/probe/NetProbe.lean"
