@@ -62,8 +62,8 @@ Laws (`Laws.lean`, `Connect.lean`):
 |---|---|
 | Are all messages by admitted users? | `message_authorized` |
 | Is impersonation impossible? | `no_impersonation` (given unforgeable signatures), `admission_consented` |
-| Can outsiders join? | `admission_approved`, `request_invited`, `approval_signed`, `invitation_issued` |
-| Are requests with their approvals admitted? | `request_valid`, `approve_valid`, `admit_admits`; `open_invite_admits` (threshold 0 is an open link); `removed_approver_admits` (a removed member's approval still counts) |
+| Can outsiders join? | `admission_needs_approval` (every admission but the founder's cites a member's approval), `admission_approved`, `request_invited`, `approval_signed`, `invitation_issued` |
+| Are requests with their approvals admitted? | `request_valid`, `approve_valid`, `admit_admits`; `removed_approver_admits` (a removed member's approval still counts) |
 | Who may remove whom? | `removal_authorized`, `admin_removal_stands`, `mutual_removal`, `admin_granted` |
 | Can a removal be undone, or rewrite history? | `removed_stays`, `valid_stays` |
 | Do we connect to non-members or removed members? | `connect_iff`, `refuse_nonmember` |

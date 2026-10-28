@@ -20,7 +20,7 @@ open Engine Community
 #print axioms Community.request_valid
 #print axioms Community.approve_valid
 #print axioms Community.admit_admits
-#print axioms Community.open_invite_admits
+#print axioms Community.admission_needs_approval
 #print axioms Community.removed_approver_admits
 #print axioms Community.removal_authorized
 #print axioms Community.admin_removal_stands

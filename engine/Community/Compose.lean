@@ -51,10 +51,10 @@ theorem signed_eq (o : Op) (b : Body) : signed o b = toSign o.reqs b := rfl
 def root (d : Device) : Op :=
   mkOp [] (.root d.pk d.enc (sig d.sk [] (.root d.pk d.enc .empty)))
 
-/-- An invitation; a link invitation needs one approval, a member
-invitation `threshold` (none by default). -/
+/-- An invitation needing `threshold` approvals (one by default; a link
+invitation needs exactly one). -/
 def invite (c issuerAdm : Id) (by_ : Device) (bearer : Key) (link : Bool)
-    (threshold : Nat := if link then 1 else 0) : Op :=
+    (threshold : Nat := 1) : Op :=
   let reqs := [c, issuerAdm]
   mkOp reqs (.invite bearer link threshold (sig by_.sk reqs (.invite bearer link threshold .empty)))
 

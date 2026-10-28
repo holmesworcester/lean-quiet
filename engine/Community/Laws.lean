@@ -30,14 +30,14 @@ theorem check_admission {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u :
 theorem check_invitation {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c issuer : Id}
     {k : Key} {l : Bool} {t : Nat} (h : check C o b fs = some (.invitation c issuer k l t)) :
     ∃ s d0 e0 d e, b = .invite k l t s ∧ fs = [.admission c c d0 e0, .admission c issuer d e] ∧
-      o.reqs.head? = some c ∧ (l = true → t = 1) ∧ C.verify d (signed o b) s = true := by
+      o.reqs.head? = some c ∧ 1 ≤ t ∧ (l = true → t = 1) ∧ C.verify d (signed o b) s = true := by
   unfold check at h
   split at h <;> (try split at h) <;> (try simp at h; done)
   simp only [Option.some.injEq, Fact.invitation.injEq] at h
   obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
   rename_i hc
-  obtain ⟨h1, rfl, rfl, h4, h5⟩ := hc
-  exact ⟨_, _, _, _, _, rfl, rfl, h1, h4, h5⟩
+  obtain ⟨h1, rfl, rfl, h3, h4, h5⟩ := hc
+  exact ⟨_, _, _, _, _, rfl, rfl, h1, h3, h4, h5⟩
 
 theorem check_request {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id} {d e : Key}
     {l : Bool} {t : Nat} (h : check C o b fs = some (.request c u d e l t)) :
@@ -274,16 +274,16 @@ theorem no_impersonation {Signed : Key → ByteArray → Prop} (hU : Unforgeable
   exact ⟨o, s, hx, hb, hU _ _ _ hs, y, e, z, oz, bz, hy, hz, hoz, hbz, hU _ _ _ hs'⟩
 
 /-- Every invitation was signed by a device admitted into its issuer,
-and a link invitation needs exactly one approval. -/
+needs at least one approval, and exactly one for a link. -/
 theorem invitation_issued {i c issuer : Id} {k : Key} {l : Bool} {t : Nat}
     (h : V C ops i (.invitation c issuer k l t)) :
     ∃ o b s z d e, ops i = some o ∧ (decode o.body : Option Body) = some b ∧
       V C ops z (.admission c issuer d e) ∧ C.verify d (signed o b) s = true ∧
-      (l = true → t = 1) := by
+      1 ≤ t ∧ (l = true → t = 1) := by
   obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
-  obtain ⟨s, d0, e0, d, e, rfl, rfl, _, hl, hs⟩ := check_invitation hv
+  obtain ⟨s, d0, e0, d, e, rfl, rfl, _, ht, hl, hs⟩ := check_invitation hv
   obtain ⟨_, z, _, _, hz⟩ := all2_two hr
-  exact ⟨o, _, s, z, d, e, hx, hb, hz, hs, hl⟩
+  exact ⟨o, _, s, z, d, e, hx, hb, hz, hs, ht, hl⟩
 
 /-- Ops are stored under their own ids (Engine.Inv.key). -/
 def Keyed (ops : Id → Option Op) : Prop := ∀ x o, ops x = some o → o.id = x
@@ -405,15 +405,24 @@ theorem admit_admits {y c r : Id} {o : Op} {aps us : List Id} {d0 e0 : Key} {u :
     have := tally_iff.2 ⟨us, hf, hn, ht⟩
     simp [check, hreq, this]
 
-/-- **An open link admits whoever holds it.** A Valid request redeeming
-an invitation of threshold 0 is admitted by an admit citing no
-approvals. -/
-theorem open_invite_admits {y c r : Id} {o : Op} {d0 e0 : Key} {u : Id} {d e : Key} {l : Bool}
-    (hy : ops y = some o) (hb : (decode o.body : Option Body) = some .admit)
-    (hreq : o.reqs = [c, r]) (hc : V C ops c (.admission c c d0 e0))
-    (hr : V C ops r (.request c u d e l 0)) :
-    V C ops y (.admission c u d e) :=
-  admit_admits (us := []) hy hb hreq hc hr .nil .nil rfl
+/-- **Nobody is admitted without a member's approval.** Every admission
+is the founder's (the root itself), or its admit cites a Valid approval,
+signed by a device admitted into the approving user, of a Valid request
+for that very device: the bearer key alone admits nobody. -/
+theorem admission_needs_approval (hk : Keyed ops) {y c u : Id} {d e : Key}
+    (h : V C ops y (.admission c u d e)) :
+    (y = c ∧ u = c) ∨
+    ∃ o r x a l t da ea ra, ops y = some o ∧ x ∈ o.reqs ∧ V C ops r (.request c u d e l t) ∧
+      V C ops x (.approval c r a) ∧ V C ops ra (.admission c a da ea) := by
+  rcases admission_approved hk h with h | ⟨o, r, aps, l, t, us, hy, _, hreq, hr, hap, _, hlen⟩
+  · exact Or.inl h
+  · obtain ⟨_, _, i, issuer, k, _, _, _, _, _, hi, _, _, _⟩ := request_invited hk hr
+    obtain ⟨_, _, _, _, _, _, _, _, _, _, ht, _⟩ := invitation_issued hi
+    cases hap with
+    | nil => simp at hlen; omega
+    | @cons x a _ _ hx _ =>
+      obtain ⟨_, _, ra, _, _, _, _, _, da, ea, _, _, _, _, hra, _⟩ := approval_signed hx
+      exact Or.inr ⟨o, r, x, a, l, t, da, ea, ra, hy, by rw [hreq]; simp, hr, hx, hra⟩
 
 /-- **A removed member's approval still counts.** An approval made by a
 user of c stays Valid after that user's removal, so it can still

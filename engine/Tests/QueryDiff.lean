@@ -32,8 +32,9 @@ def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Arr
     let d := Device.named s!"user-{seed}-{i}"
     let inv := invite c c f b.pk false
     let rq := request c inv.id d b.sk
-    let j := admit c rq.id
-    ops := ops.push inv |>.push rq |>.push j
+    let ok := approve c rq.id c f
+    let j := admit c rq.id [ok.id]
+    ops := ops.push inv |>.push rq |>.push ok |>.push j
     users := users.push (j.id, rq.id, d)
   let mut g : Rng := ⟨seed.toUInt64⟩
   let mut posts : Array Id := #[]

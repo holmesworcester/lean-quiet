@@ -47,8 +47,9 @@ def main (args : List String) : IO UInt32 := do
   let e1 := Device.named "erin"
   let bearer (n : String) := Device.named ("bearer-" ++ n)
 
-  -- Phase 1: found, invite, request and admit (member invitations need
-  -- no approval), link (approved by the founder), grant, post.
+  -- Phase 1: found, invite, request, approve and admit (every request
+  -- needs an approval: the founder approves alice, bob, carol and the
+  -- link), grant, post.
   let r := root f1
   let c := r.id
   let invA := invite c c f1 (bearer "a").pk false
@@ -59,9 +60,16 @@ def main (args : List String) : IO UInt32 := do
   let reqB := request c invB.id b1 (bearer "b").sk
   let reqC := request c invC.id c1 (bearer "c").sk
   let reqL := request c invL.id f2 (bearer "l").sk
-  let joinA := admit c reqA.id
-  let joinB := admit c reqB.id
-  let joinC := admit c reqC.id
+  let okA := approve c reqA.id c f1
+  let okB := approve c reqB.id c f1
+  let okC := approve c reqC.id c f1
+  let joinA := admit c reqA.id [okA.id]
+  let joinB := admit c reqB.id [okB.id]
+  let joinC := admit c reqC.id [okC.id]
+  -- No open link: an invitation needing no approval is refused, and a
+  -- request with no approval is not admitted.
+  let invZ := invite c c f1 (bearer "z").pk false 0
+  let bareA := admit c reqA.id
   let okL := approve c reqL.id c f1
   let joinL := admit c reqL.id [okL.id]
   -- A link admitted with no approval, or approved by another user than
@@ -87,7 +95,8 @@ def main (args : List String) : IO UInt32 := do
   let forged := post c joinA.id m1 "k1".toUTF8 "I am alice".toUTF8
   let sneak := request c invB.id m1 m1.sk
   let selfGrant := grant c joinB.id joinB.id joinB.id b1
-  let phase1 := [r, invA, invB, invC, invL, reqA, reqB, reqC, reqL, joinA, joinB, joinC, okL, joinL,
+  let phase1 := [r, invA, invB, invC, invL, reqA, reqB, reqC, reqL, okA, okB, okC, joinA, joinB, joinC,
+    invZ, bareA, okL, joinL,
     bareL, aliceOkL, invD, invE, reqD, reqE, bareD, oldJoin, grantA, postA, forged, sneak, selfGrant]
   -- Deliver children before parents: the engine waits, then catches up.
   recv phase1.reverse
@@ -99,6 +108,8 @@ def main (args : List String) : IO UInt32 := do
   t.ok "mallory cannot post as alice" (← run (isInvalid forged.id))
   t.ok "mallory cannot request without the bearer key" (← run (isInvalid sneak.id))
   t.ok "a link is not admitted without its approval" (← run (isInvalid bareL.id))
+  t.ok "an invitation needing no approval is refused" (← run (isInvalid invZ.id))
+  t.ok "a member request is not admitted without an approval" (← run (isInvalid bareA.id))
   t.ok "only the issuer's user approves a link" (← run (isInvalid aliceOkL.id))
   t.ok "a request needing an approval is not admitted without one" (← run (isInvalid bareD.id))
   t.ok "an op in the old join encoding is refused" (← run (isInvalid oldJoin.id))

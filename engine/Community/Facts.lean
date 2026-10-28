@@ -5,13 +5,12 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
 - The root founds the community; its fact is the founder's admission,
   and the founder's user is the community id. The founder is admin.
 - An invite is issued by an admitted device, with a threshold: how
-  many members must approve a request it carries. A link invitation
-  (another device for the issuer's user) needs exactly one approval,
-  by the issuer's user, as libquiet's unbound device links do. A member
-  invitation with threshold 0 is an open link, as libquiet's member
-  invitations with no vouch policy are: whoever holds its bearer key
-  admits itself, with a request and an admit citing no approvals
-  (`open_invite_admits`).
+  many members must approve a request it carries, at least one (the
+  user's decision, 2026-10-27: approvals are always needed; they are
+  where key-material wraps to the new device will hang). A link
+  invitation (another device for the issuer's user) needs exactly one
+  approval, by the issuer's user, as libquiet's unbound device links
+  do. There is no open link: the bearer key alone admits nobody.
 - A request redeems an invitation: the requesting device consents
   (signs), and so does the invitation's bearer key from the link. A
   request admits nobody. It is libquiet's Join before its vouches.
@@ -236,7 +235,7 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
   | .root d e s, [] =>
     if C.verify d (signed o (.root d e s)) s then some (.admission o.id o.id d e) else none
   | .invite k l t s, [.admission c u0 _ _, .admission c' u d _] =>
-    if o.reqs.head? = some c ∧ u0 = c ∧ c' = c ∧ (l = true → t = 1) ∧
+    if o.reqs.head? = some c ∧ u0 = c ∧ c' = c ∧ 1 ≤ t ∧ (l = true → t = 1) ∧
       C.verify d (signed o (.invite k l t s)) s
     then some (.invitation c u k l t) else none
   | .request d e cs bs, [.admission c u0 _ _, .invitation c' issuer k l t] =>

@@ -104,9 +104,10 @@ def workload (seed : Nat) (n : Nat) : List Op := Id.run do
     let o : Op := match kind with
       | 0 =>
         let (a, dv) := adm k1
-        -- Link invitations need one approval; member ones 0, 1 or 2
-        -- (sometimes a link asks for another number, and is refused).
-        let t := if flag == 1 && w2 != 1 then 1 else k2 % 3
+        -- Link invitations need one approval; member ones 1 or 2; now
+        -- and then 0 (refused: no open links), or a link asking for
+        -- another number (refused).
+        let t := if flag == 1 && w2 != 1 then 1 else if w2 == 2 then 0 else 1 + k2 % 2
         invite c a (signer dv) (Device.named s!"bearer-{seed}-{i}").pk (flag == 1) t
       | 1 =>
         if invs.isEmpty then post c (adm k1).1 d "k".toUTF8 "early".toUTF8 else
