@@ -133,7 +133,7 @@ def setup (loss : Nat) : IO (World × Id × Op) := do
   let a ← mkPeer "A"
   let b ← mkPeer "B"
   let mut w : World := { a, b, loss }
-  w ← writeA w (found a.seed "Acme".toUTF8 "Ann".toUTF8 1).ops
+  w ← writeA w (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (sha256 "key".toUTF8) (sha256 "esk".toUTF8)).ops
   let c := (root (Device.ofSeed a.seed)).id
   let (wi, link) := inviteTo c c a.seed (sha256 "bearer".toUTF8) [a.addr]
   w ← writeA w wi.ops
@@ -221,7 +221,7 @@ def main : IO UInt32 := do
   let a3 ← mkPeer "A3"
   let b3 ← mkPeer "B3"
   let mut w3 : World := { a := a3, b := b3 }
-  w3 ← writeA w3 (found a3.seed "Acme3".toUTF8 "Ann".toUTF8 1).ops
+  w3 ← writeA w3 (found a3.seed "Acme3".toUTF8 "Ann".toUTF8 1 (sha256 "key3".toUTF8) (sha256 "esk3".toUTF8)).ops
   let c3 := (root (Device.ofSeed a3.seed)).id
   -- A pending join to a community that is not here, as another device.
   let ghost := sha256 "ghost".toUTF8

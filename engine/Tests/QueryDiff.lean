@@ -54,7 +54,7 @@ def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Arr
       g := g5
       ops := ops.push (react c u posts[pi]! d (["👍", "🎉", "❤"][ei]!).toUTF8 tm)
     else if kind == 8 then
-      ops := ops.push (profile c u d s!"name {i}".toUTF8 tm [])
+      ops := ops.push (profile c u d s!"name {i}".toUTF8 tm)
     else
       -- a forgery: signed by the wrong device
       let (vi, g4) := g.below users.size

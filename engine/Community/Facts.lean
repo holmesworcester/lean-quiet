@@ -37,16 +37,32 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   (`connect_iff`), so it travels only through peers that do not. When it
   arrives, it is Valid. Removal never invalidates an op; it changes who
   counts as a member.
-- A post is a message by an admitted device, under a content key.
-- A wrap delivers a content key to one device encryption key; it
-  admits nobody, so it needs no author.
+- A post is a message by an admitted device. Its body is sealed: it
+  names a content key by id and carries the nonce and ciphertext
+  (`Community.Keys`). Its header is clear: the key id, the time, the
+  signature, which covers the sealed bytes. Validators read only the
+  header, so a keyless node judges a post as a member does.
+- A content key is local (`key`): this device's copy of a community's
+  key. A wrap delivers one to a device's X25519 key, sealed so that
+  only that device opens it. A wrap admits nobody, so it needs no
+  author.
 - A post's time is its author's claim (it orders a conversation, as
-  libquiet's created_at does), and it cites the blobs it attaches.
-- A profile is a user's name and avatar, a register: the newest by
-  (time, id) is current.
-- A blob is an image, named by its bytes' SHA-256: the fact carries the
-  hash and size only, and the bytes live outside the engine, stored
-  only where their hash matches (as libquiet's chunks). It admits nobody.
+  libquiet's created_at does).
+- A profile is a user's name, a register: the newest by (time, id) is
+  current.
+- An attachment is a child of a message, by the message's author, as
+  libquiet's op graph has it: a message has any number of children, and
+  components list them (`attachment.byMessage`). Its header is the
+  file's Merkle root and length (`Community.Merkle`); its body, sealed
+  under the content key, is the name, kind, size, a preview, and the
+  file's own key. The file is sealed once under that key, and the tree is
+  over the ciphertext.
+- A chunk is one 64 KiB slice of a file's ciphertext with its Merkle
+  path. It cites only its community, and it is Valid iff its path
+  verifies against the root and length it names. So it authenticates
+  itself: any peer may relay it, and it is Valid before its attachment
+  arrives. A file's chunks are listed by `chunk.byFile [root]`; a count
+  of them over the chunk count is the download's progress.
 - A reaction is an emoji by an admitted device on a message.
 
 Channels and deletion are left out of this first pass.
@@ -55,6 +71,8 @@ Signatures are a parameter (`Crypto`), so the laws hold for any scheme;
 what unforgeability buys is stated as a hypothesis where it is used.
 -/
 import Engine
+import Community.Keys
+import Community.Merkle
 
 namespace Community
 open Engine Codec
@@ -71,10 +89,10 @@ inductive Fact where
   | invitation (c issuer : Id) (bearer : Key) (link : Bool) (threshold : Nat)
   | admin (c u : Id)
   | removal (c u by_ : Id)
-  | message (c u : Id) (device ckey text : ByteArray) (time : Nat) (atts : List Id)
+  | message (c u : Id) (device ckey text : ByteArray) (time : Nat)
   | wrap (c : Id) (ckey recipient box : ByteArray)
-  | profile (c u : Id) (name : ByteArray) (time : Nat) (avatar : List Id)
-  | blob (c : Id) (hash : ByteArray) (w h : Nat)
+  | profile (c u : Id) (name : ByteArray) (time : Nat)
+  | attachment (c msg u root : Id) (len : Nat) (kid sealed : ByteArray)
   | react (c u target : Id) (emoji : ByteArray) (time : Nat)
   | request (c u : Id) (device enc : Key) (link : Bool) (threshold : Nat)
   | approval (c req u : Id)
@@ -83,6 +101,8 @@ inductive Fact where
   | joining (c : Id) (inviter : Key) (hints : List ByteArray) (req : Id) (name : ByteArray)
   | named (c u : Id) (name : ByteArray) (n : Nat)
   | abandoned (c req : Id)
+  | key (c kid k : ByteArray)
+  | chunk (c root : Id) (len index : Nat)
   deriving DecidableEq, Inhabited
 
 inductive Body where
@@ -94,7 +114,7 @@ inductive Body where
   | post (ckey text : ByteArray) (time : Nat) (sig : ByteArray)
   | wrap (ckey recipient box : ByteArray)
   | profile (name : ByteArray) (time : Nat) (sig : ByteArray)
-  | blob (hash : ByteArray) (w h : Nat)
+  | attach (root : ByteArray) (len : Nat) (kid sealed sig : ByteArray)
   | react (emoji : ByteArray) (time : Nat) (sig : ByteArray)
   | approve (sig : ByteArray)
   | admit
@@ -103,6 +123,8 @@ inductive Body where
   | secret (pk seed : ByteArray)
   | name (n : Nat) (name sig : ByteArray)
   | abandon
+  | key (c k : ByteArray)
+  | chunk (root : ByteArray) (len index : Nat) (slice : ByteArray) (sibs : List ByteArray)
   deriving DecidableEq, Inhabited
 
 /-! ## Bytes -/
@@ -116,8 +138,6 @@ theorem decAs_enc {α β} [Codec α] (f : α → β) (a : α) (rest : List UInt8
     decAs f (enc a ++ rest) = some (f a, rest) := by
   unfold decAs; rw [Codec.round]
 
-abbrev B := ByteArray
-
 def Body.enc : Body → List UInt8
   | .root d e s => 0 :: Codec.enc (d, e, s)
   | .invite k l t s => 1 :: Codec.enc (k, l, t, s)
@@ -127,7 +147,7 @@ def Body.enc : Body → List UInt8
   | .post k t tm s => 5 :: Codec.enc (k, t, tm, s)
   | .wrap k r b => 6 :: Codec.enc (k, r, b)
   | .profile n tm s => 7 :: Codec.enc (n, tm, s)
-  | .blob hh w h => 8 :: Codec.enc (hh, w, h)
+  | .attach r l k x s => 8 :: Codec.enc (r, l, k, x, s)
   | .react e tm s => 9 :: Codec.enc (e, tm, s)
   | .approve s => 10 :: Codec.enc s
   | .admit => [11]
@@ -136,6 +156,8 @@ def Body.enc : Body → List UInt8
   | .secret pk seed => 15 :: Codec.enc (pk, seed)
   | .name n nm s => 16 :: Codec.enc (n, nm, s)
   | .abandon => [17]
+  | .key c k => 18 :: Codec.enc (c, k)
+  | .chunk r l i x p => 19 :: Codec.enc (r, l, i, x, p)
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B) => Body.root p.1 p.2.1 p.2.2) r
@@ -145,7 +167,8 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 5 :: r => decAs (fun (p : B × B × Nat × B) => Body.post p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | 6 :: r => decAs (fun (p : B × B × B) => Body.wrap p.1 p.2.1 p.2.2) r
   | 7 :: r => decAs (fun (p : B × Nat × B) => Body.profile p.1 p.2.1 p.2.2) r
-  | 8 :: r => decAs (fun (p : B × Nat × Nat) => Body.blob p.1 p.2.1 p.2.2) r
+  | 8 :: r => decAs (fun (p : B × Nat × B × B × B) =>
+      Body.attach p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 9 :: r => decAs (fun (p : B × Nat × B) => Body.react p.1 p.2.1 p.2.2) r
   | 10 :: r => decAs (fun (p : B) => Body.approve p) r
   | 11 :: r => some (.admit, r)
@@ -156,6 +179,9 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 15 :: r => decAs (fun (p : B × B) => Body.secret p.1 p.2) r
   | 16 :: r => decAs (fun (p : Nat × B × B) => Body.name p.1 p.2.1 p.2.2) r
   | 17 :: r => some (.abandon, r)
+  | 18 :: r => decAs (fun (p : B × B) => Body.key p.1 p.2) r
+  | 19 :: r => decAs (fun (p : B × Nat × Nat × B × List B) =>
+      Body.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | _ => none
 
 instance : Codec Body where
@@ -170,10 +196,10 @@ def Fact.enc : Fact → List UInt8
   | .invitation c i k l t => 1 :: Codec.enc (c, i, k, l, t)
   | .admin c u => 2 :: Codec.enc (c, u)
   | .removal c u b => 3 :: Codec.enc (c, u, b)
-  | .message c u d k t tm a => 4 :: Codec.enc (c, u, d, k, t, tm, a)
+  | .message c u d k t tm => 4 :: Codec.enc (c, u, d, k, t, tm)
   | .wrap c k r b => 5 :: Codec.enc (c, k, r, b)
-  | .profile c u n tm a => 6 :: Codec.enc (c, u, n, tm, a)
-  | .blob c hh w h => 7 :: Codec.enc (c, hh, w, h)
+  | .profile c u n tm => 6 :: Codec.enc (c, u, n, tm)
+  | .attachment c m u r l k x => 7 :: Codec.enc (c, m, u, r, l, k, x)
   | .react c u t e tm => 8 :: Codec.enc (c, u, t, e, tm)
   | .request c u d e l t => 9 :: Codec.enc (c, u, d, e, l, t)
   | .approval c r u => 10 :: Codec.enc (c, r, u)
@@ -182,6 +208,8 @@ def Fact.enc : Fact → List UInt8
   | .joining c k hs r nm => 13 :: Codec.enc (c, k, hs, r, nm)
   | .named c u nm n => 14 :: Codec.enc (c, u, nm, n)
   | .abandoned c r => 15 :: Codec.enc (c, r)
+  | .key c i k => 16 :: Codec.enc (c, i, k)
+  | .chunk c r l i => 17 :: Codec.enc (c, r, l, i)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B × B) => Fact.admission p.1 p.2.1 p.2.2.1 p.2.2.2) r
@@ -189,12 +217,12 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
       Fact.invitation p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 2 :: r => decAs (fun (p : B × B) => Fact.admin p.1 p.2) r
   | 3 :: r => decAs (fun (p : B × B × B) => Fact.removal p.1 p.2.1 p.2.2) r
-  | 4 :: r => decAs (fun (p : B × B × B × B × B × Nat × List B) =>
-      Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) r
+  | 4 :: r => decAs (fun (p : B × B × B × B × B × Nat) =>
+      Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2) r
   | 5 :: r => decAs (fun (p : B × B × B × B) => Fact.wrap p.1 p.2.1 p.2.2.1 p.2.2.2) r
-  | 6 :: r => decAs (fun (p : B × B × B × Nat × List B) =>
-      Fact.profile p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
-  | 7 :: r => decAs (fun (p : B × B × Nat × Nat) => Fact.blob p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 6 :: r => decAs (fun (p : B × B × B × Nat) => Fact.profile p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 7 :: r => decAs (fun (p : B × B × B × B × Nat × B × B) =>
+      Fact.attachment p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) r
   | 8 :: r => decAs (fun (p : B × B × B × B × Nat) => Fact.react p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 9 :: r => decAs (fun (p : B × B × B × B × Bool × Nat) =>
       Fact.request p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2) r
@@ -205,6 +233,8 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
       Fact.joining p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 14 :: r => decAs (fun (p : B × B × B × Nat) => Fact.named p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | 15 :: r => decAs (fun (p : B × B) => Fact.abandoned p.1 p.2) r
+  | 16 :: r => decAs (fun (p : B × B × B) => Fact.key p.1 p.2.1 p.2.2) r
+  | 17 :: r => decAs (fun (p : B × B × Nat × Nat) => Fact.chunk p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | _ => none
 
 instance : Codec Fact where
@@ -224,6 +254,7 @@ def Body.unsigned : Body → Body
   | .remove _ => .remove .empty
   | .post k t tm _ => .post k t tm .empty
   | .profile n tm _ => .profile n tm .empty
+  | .attach r l k x _ => .attach r l k x .empty
   | .react e tm _ => .react e tm .empty
   | .approve _ => .approve .empty
   | .name n nm _ => .name n nm .empty
@@ -236,18 +267,25 @@ def signed (o : Op) (b : Body) : ByteArray :=
 
 /-! ## Validity -/
 
+/-- Whether a fact is this device's own: local ops' facts, never
+shared, never read by a shared op's validator (`check_reads_shared`). -/
+def Fact.isLocal : Fact → Bool
+  | .secret .. | .accepted .. | .joining .. | .abandoned .. | .key .. => true
+  | _ => false
+
+/-- The largest file an attachment may name: 64 MiB of ciphertext. -/
+def maxFile : Nat := 64 * 1024 * 1024
+
+/-- The largest sealed attachment body: an 8 KiB preview, its fields,
+and the seal. -/
+def maxSealedMeta : Nat := 9 * 1024
+
 /-- Whether a fact shows that user u of community c is admin: the
 founder's admission (the founder's user is the community), or a grant. -/
 def isAdmin (c u : Id) : Fact → Bool
   | .admission c' u' _ _ => decide (c' = c ∧ u' = c ∧ u = c)
   | .admin c' u' => decide (c' = c ∧ u' = u)
   | _ => false
-
-/-- Whether every fact is a blob of community c. -/
-def blobsOf (c : Id) : List Fact → Bool
-  | [] => true
-  | .blob c' .. :: rest => decide (c' = c) && blobsOf c rest
-  | _ :: _ => false
 
 /-- The users of these facts, if every one approves request r of c. -/
 def approvers (c r : Id) : List Fact → Option (List Id)
@@ -304,27 +342,34 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
       C.verify d (signed o (.grant s)) s
     then some (.admin c t) else none
   | .remove s, [.admission c u0 _ _, .admission c1 u d _, auth, .admission c2 t _ _] =>
-    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ (t = u ∨ isAdmin c u auth) ∧
+    -- A self-removal needs no admin, but its third slot must still be a
+    -- shared fact: a shared op never reads this device's own state.
+    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ ((t = u ∧ auth.isLocal = false) ∨ isAdmin c u auth) ∧
       C.verify d (signed o (.remove s)) s
     then some (.removal c t u) else none
-  | .post k txt tm s, .admission c u0 _ _ :: .admission c1 u d _ :: rest =>
-    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ blobsOf c rest = true ∧
-      C.verify d (signed o (.post k txt tm s)) s
-    then some (.message c u d k txt tm (o.reqs.drop 2)) else none
-  | .profile n tm s, .admission c u0 _ _ :: .admission c1 u d _ :: rest =>
-    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ rest.length ≤ 1 ∧ blobsOf c rest = true ∧
-      n.size ≤ 64 ∧ C.verify d (signed o (.profile n tm s)) s
-    then some (.profile c u n tm (o.reqs.drop 2)) else none
-  | .blob hh w h, [.admission c u0 _ _] =>
-    if o.reqs.head? = some c ∧ u0 = c ∧ hh.size = 32 ∧ 0 < w ∧ w ≤ 4096 ∧ 0 < h ∧ h ≤ 4096
-    then some (.blob c hh w h) else none
-  | .react e tm s, [.admission c u0 _ _, .admission c1 u d _, .message c2 _ _ _ _ _ _] =>
+  | .post k txt tm s, [.admission c u0 _ _, .admission c1 u d _] =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ C.verify d (signed o (.post k txt tm s)) s
+    then some (.message c u d k txt tm) else none
+  | .profile n tm s, [.admission c u0 _ _, .admission c1 u d _] =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ n.size ≤ 64 ∧ C.verify d (signed o (.profile n tm s)) s
+    then some (.profile c u n tm) else none
+  -- An attachment: a child of a message, by its author's user.
+  | .attach r l k x s, [.admission c u0 _ _, .admission c1 u d _, .message c2 u2 _ _ _ _] =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ u2 = u ∧ r.size = 32 ∧ 0 < l ∧
+      l ≤ maxFile ∧ x.size ≤ maxSealedMeta ∧ C.verify d (signed o (.attach r l k x s)) s
+    then some (.attachment c (o.reqs.getD 2 .empty) u r l k x) else none
+  -- A chunk authenticates itself against the root it names.
+  | .chunk r l i x p, [.admission c u0 _ _] =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ Merkle.verify sha256 r l i x p = true
+    then some (.chunk c r l i) else none
+  | .react e tm s, [.admission c u0 _ _, .admission c1 u d _, .message c2 _ _ _ _ _] =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ 0 < e.size ∧ e.size ≤ 32 ∧
       C.verify d (signed o (.react e tm s)) s
     then some (.react c u (o.reqs.getD 2 .empty) e tm) else none
   | .wrap k r bx, [.admission c u0 _ _] =>
     if o.reqs.head? = some c ∧ u0 = c then some (.wrap c k r bx) else none
   | .secret pk seed, [] => if C.pub seed = pk then some (.secret pk seed) else none
+  | .key c k, [] => if k.size = 32 then some (.key c (kidOf cryptoSeal k) k) else none
   | .accept c d, [] => some (.accepted c d)
   | .joining c k hs r nm, [] => some (.joining c k hs r nm)
   | .abandon, [.joining c _ _ r _] => some (.abandoned c r)
@@ -363,7 +408,16 @@ end message
 
 namespace wrap
 def byContentKey : Rel Fact := ⟨"wrap", "byContentKey", fun | .wrap c k _ _ => some [c, k] | _ => none⟩
+/-- The keys wrapped to a device's X25519 key in c. -/
+def byRecipient : Rel Fact := ⟨"wrap", "byRecipient", fun | .wrap c _ r _ => some [c, r] | _ => none⟩
 end wrap
+
+namespace key
+/-- This device's content keys for c (local). -/
+def byCommunity : Rel Fact := ⟨"key", "byCommunity", fun | .key c .. => some [c] | _ => none⟩
+/-- This device's content key by id (local). -/
+def byId : Rel Fact := ⟨"key", "byId", fun | .key _ i _ => some [i] | _ => none⟩
+end key
 
 namespace profile
 def byUser : Rel Fact := ⟨"profile", "byUser", fun | .profile c u .. => some [c, u] | _ => none⟩
@@ -417,13 +471,25 @@ newest first, limit 1. -/
 def current : Rel Fact := ⟨"named", "current", fun | .named c .. => some [c] | _ => none⟩
 end named
 
-/-- Every relation of the community's facts. Invitations and blobs are
-in none (read by their own key). -/
+namespace attachment
+/-- A message's attachments: what its components list. -/
+def byMessage : Rel Fact := ⟨"attachment", "byMessage", fun | .attachment c m .. => some [c, m] | _ => none⟩
+end attachment
+
+namespace chunk
+/-- A file's chunks, by index: their count is the download's progress;
+read in order, they assemble the file. -/
+def byFile : Rel Fact := ⟨"chunk", "byFile", fun | .chunk _ r .. => some [r] | _ => none⟩
+end chunk
+
+/-- Every relation of the community's facts. Invitations are in none
+(read by their own key). -/
 def rels : List (Rel Fact) :=
   [admission.byDevice, admission.all, removal.byUser, admin.byUser, message.all, message.byAuthor,
    wrap.byContentKey, profile.byUser, profile.all, react.byMessage, react.byMessageEmoji,
    request.all, approval.byRequest, secret.byKey, secret.all, accepted.all, joining.all, named.current,
-   abandoned.byRequest]
+   abandoned.byRequest, wrap.byRecipient, key.byCommunity, key.byId, attachment.byMessage,
+   chunk.byFile]
 
 /-- The keys a fact is filed under: its relations'. -/
 def keys : Fact → List ByteArray := keysOf rels
@@ -434,8 +500,9 @@ def be64 (n : Nat) : ByteArray := ByteArray.mk ((List.range 8).reverse.map fun i
 
 /-- Where a fact sorts under its keys: timed facts by time (ties by id). -/
 def sortOf : Fact → ByteArray
-  | .message _ _ _ _ _ tm _ => be64 tm
-  | .profile _ _ _ tm _ => be64 tm
+  | .message _ _ _ _ _ tm => be64 tm
+  | .profile _ _ _ tm => be64 tm
+  | .chunk _ _ _ i => be64 i
   | .react _ _ _ _ tm => be64 tm
   | .named _ _ _ n => be64 n
   | _ => .empty
@@ -446,7 +513,7 @@ instance : SortKey Fact := ⟨sortOf⟩
 acceptances and its joins are, never sent or taken; everything else is
 shared in its community. -/
 def Body.isLocal : Body → Bool
-  | .secret .. | .accept .. | .joining .. | .abandon => true
+  | .secret .. | .accept .. | .joining .. | .abandon | .key .. => true
   | _ => false
 
 /-- The community an op is about: a root founds its own; every other op
