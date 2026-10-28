@@ -1,30 +1,18 @@
 # Lean Quiet
 
-**A peer-to-peer, local-first Discord, prototyped in Lean 4.** Lean runs
-its CRDT engine, its sync and its encrypted networking, draws every
-pixel of its UI, and checks proofs about all four.
+[Lean](https://lean-lang.org) is usually for proving statements with and about code. But can we 
+build entire apps with it, and prove they work as users might want?
+I think we can now!
 
-<table><tr></tr><tr><td>
+This app is written mostly in Lean. It builds for iOS and Android and implements chat with emojis and reactions. Non-Lean code is limited to things like scrolling or using the camera ([what isn't Lean, and why](#what-isnt-lean-and-why)) so in a
+meaningful sense Lean does everything from processing TCP packets to drawing pixels on the screen.
+This allows for proving a surprising range of user-relevant properties! See: [What is Proven](#what-is-proven).
 
-👋 In ~1 day I vibe-coded a p2p, e2ee Slack/Discord alternative in Lean (informed by my work on [Quiet](https://tryquiet.org)) for iOS and Android with some fairly powerful correctness proofs. How does this stand up?
+Like [Quiet](https://github.com/TryQuiet/quiet), Lean Quiet is also local-first, end-to-end encrypted, and peer-to-peer, so many properties that would normally depend on a server operator (such as privacy, access control, or uptime) are provided by the code itself. This means they are provable over all possible deployments, assuming user device integrity! See: [Towards Proofs for n Clients](#towards-proofs-for-n-clients).
 
-</td></tr></table>
+Can we also prove the absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size or RTL language, or a lack of responsiveness under load, or an accessibility gap? This seems tantalizingly possible too, and we show many such proofs here.
 
-Lean is mostly used for mathematics, or to verify one part of a system.
-Here it is a whole, ordinary app, and about four fifths of its
-theorems (386 of 478) are about the code that runs on the phone; the
-rest are over models, and moving them onto running code is a todo
-([what is proven](#what-is-proven)). Native code only connects Lean to
-each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)), so in a
-meaningful sense Lean draws all pixels on the screen.
-
-There is also a credible path to proofs about n clients. The sync
-proofs already run the real sync code, in a world of two devices whose
-network can delay, reorder or drop messages. Devices that hold the same
-ops agree, whatever order the ops arrived in (proven so far over a model
-of purging). So for n devices, it comes down to proving that every op
-reaches every member ([`stream_delivers`],
-[`same_ops_same_verdicts`]).
+There is something exhilarating about adding a proof where one would usually add an end-to-end test. Sci fi. 🪐 
 
 ## What is proven
 
@@ -55,13 +43,18 @@ no collisions. ³ in the symbolic model of the cryptography.
 - that content is drawn faithfully all the way to pixels (proven up to
   each row's layout; painting is not).
 
-<table><tr></tr><tr><td>
+### Towards Proofs for n Clients
 
-🙋 The most obviously valuable thing about building a user-facing communication tool entirely in Lean is that you can prove strict safety properties. In a p2p, e2ee app where code is law, this means potentially being able to prove them over all possible deployments, too! But an even more interesting question: can you also prove absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size, or lack of responsiveness under load. It seems like you can!
+The sync proofs already run the real sync code, in a world of two
+devices whose network can delay, reorder or drop messages
+([`stream_delivers`]). Devices that hold the same ops agree, whatever
+order the ops arrived in (proven so far over a model of purging:
+[`same_ops_same_verdicts`]). So for n devices, it comes down to proving
+that every op reaches every member: the running round under any
+delivery order (`conn_runs_exchange`) and the closure it delivers
+(`closure_delivered`), then a world of n devices with fair delivery.
 
-</td></tr></table>
-
-### Assumed
+### What is Assumed
 
 **Hypotheses.** These are named in the theorems that take them, and
 nothing else is assumed:
@@ -129,14 +122,14 @@ nothing else is assumed:
 - **That each statement says what we mean.** Read it: every name below
   links to its statement.
 
-### Key
+### Security proofs
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. All 478 rest on Lean's standard axioms
-only.
-
-### Security proofs
+only, and about four fifths of its theorems (386 of 478) are about
+the code that runs; the rest are over models so far
+([not yet about running code](#not-yet-about-running-code-todo)).
 
 | | | Guarantee | Theorems |
 |---|---|---|---|
@@ -345,7 +338,7 @@ visible and immediate, the kind testing on devices finds, and none of
 them forges a message, leaks a key or lets a stranger in. The few places
 where native code does touch them are named:
 - **The crypto and SQLite** are on the safety path. That is why what the
-  theorems need of them is stated as hypotheses ([Assumed](#assumed)),
+  theorems need of them is stated as hypotheses ([What is Assumed](#what-is-assumed)),
   and why they are tested byte for byte against libsodium and the Noise
   test vectors, and row for row against the engine's model, with kill -9
   crashes.
