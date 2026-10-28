@@ -172,12 +172,12 @@ users is accepted, unless that user has been removed. -/
 theorem connect_admitted (h : Inv (family C) s) (hq : s.queue = []) {y c r : Id} {o : Op}
     {aps us : List Id} {d0 e0 : Key} {u : Id} {d e : Key} {l : Bool} {t : Nat}
     (hy : s.ops y = some o) (hb : (Codec.decode o.body : Option Body) = some .admit)
-    (hreq : o.reqs = c :: r :: aps) (hc : V C s.ops c (.admission c c d0 e0))
+    (hkd : o.kind = Body.tag .admit) (hreq : o.reqs = c :: r :: aps) (hc : V C s.ops c (.admission c c d0 e0))
     (hr : V C s.ops r (.request c u d e l t))
     (hap : All2 (fun a v => V C s.ops a (.approval c r v)) aps us) (hn : us.Nodup)
     (ht : us.length = t) (hnr : ¬ Removed C s.ops c u) :
     (allowPeer c d).eval s = true :=
-  (connect_iff h hq c d).2 ⟨_, e, ⟨y, admit_admits hy hb hreq hc hr hap hn ht⟩, hnr⟩
+  (connect_iff h hq c d).2 ⟨_, e, ⟨y, admit_admits hy hb hkd hreq hc hr hap hn ht⟩, hnr⟩
 
 /-- **Only the founder and approved devices are let in.** At rest, a
 device `allowPeer` accepts is admitted into a user not removed, by the

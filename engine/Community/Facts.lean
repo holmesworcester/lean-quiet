@@ -61,7 +61,7 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   path. It cites only its community, and it is Valid iff its path
   verifies against the root and length it names. So it authenticates
   itself: any peer may relay it, and it is Valid before its attachment
-  arrives. A file's chunks are listed by `chunk.byFile [root]`; a count
+  arrives. A file's chunks are listed by `chunk.byFile [c, root, len]`; a count
   of them over the chunk count is the download's progress.
 - A reaction is an emoji by an admitted device on a message.
 
@@ -381,10 +381,23 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
     then some (.named c u nm n) else none
   | _, _ => none
 
+/-- Each body's op type. -/
+def Body.tag : Body → UInt8
+  | .root .. => 0 | .invite .. => 1 | .request .. => 12 | .grant .. => 3
+  | .remove .. => 4 | .post .. => 5 | .wrap .. => 6
+  | .profile .. => 7 | .attach .. => 8 | .react .. => 9
+  | .approve .. => 10 | .admit => 11
+  | .accept .. => 13 | .joining .. => 14 | .secret .. => 15 | .name .. => 16 | .abandon => 17
+  | .key .. => 18 | .chunk .. => 19
+
+/-- An op's verdict: its body's, if its type is its body's. The type is
+in the bytes its id hashes, so an op re-sent under another type would be
+another op with the same fact: a message shown twice, a chunk counted
+twice (`op_of_valid`). -/
 def validate (C : Crypto) (o : Op) (fs : List Fact) : Option Fact :=
   match (decode o.body : Option Body) with
   | none => none
-  | some b => check C o b fs
+  | some b => if o.kind = b.tag then check C o b fs else none
 
 /-! ## Relations: the lists facts are filed in, by name -/
 
@@ -484,9 +497,12 @@ def byMessage : Rel Fact := ⟨"attachment", "byMessage", fun | .attachment c m 
 end attachment
 
 namespace chunk
-/-- A file's chunks, by index: their count is the download's progress;
-read in order, they assemble the file. -/
-def byFile : Rel Fact := ⟨"chunk", "byFile", fun | .chunk _ r .. => some [r] | _ => none⟩
+/-- A file's chunks in a community, at the length its root commits, by
+index: their count is the download's progress (`Community.progress`);
+read in order, they assemble the file. The length is in the key so a
+chunk of another length is never counted toward this one. -/
+def byFile : Rel Fact :=
+  ⟨"chunk", "byFile", fun | .chunk c r l _ => some [c, r, Codec.encode l] | _ => none⟩
 end chunk
 
 /-- Every relation of the community's facts. Invitations are in none

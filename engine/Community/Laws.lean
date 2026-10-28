@@ -218,7 +218,28 @@ theorem valid_inv {x : Id} {f : Fact} (h : V C ops x f) :
   unfold family validate at hv; simp only at hv
   cases hb : (decode o.body : Option Body) with
   | none => rw [hb] at hv; simp at hv
-  | some b => rw [hb] at hv; exact ⟨o, b, fs, hx, hb, hr, hv⟩
+  | some b =>
+    rw [hb] at hv; simp only at hv
+    split at hv
+    · exact ⟨o, b, fs, hx, hb, hr, hv⟩
+    · cases hv
+
+/-- **A Valid op is the op its requirements and body make**: its type is
+its body's type and its body bytes are its body's encoding. So nobody
+makes a second op of a Valid fact by re-sending it under another type. -/
+theorem op_of_valid {x : Id} {f : Fact} (h : V C ops x f) :
+    ∃ o b, ops x = some o ∧ o = Op.make b.tag o.reqs (encode b) ∧
+      (decode o.body : Option Body) = some b := by
+  obtain ⟨o, fs, hx, _, hv⟩ := spec_valid_inv h
+  unfold family validate at hv; simp only at hv
+  cases hb : (decode o.body : Option Body) with
+  | none => rw [hb] at hv; simp at hv
+  | some b =>
+    rw [hb] at hv; simp only at hv
+    split at hv
+    · rename_i hkd
+      exact ⟨o, b, hx, Op.ext' hkd rfl (Codec.encode_decode hb).symm, hb⟩
+    · cases hv
 
 theorem isAdmin_sound {c u y : Id} {g : Fact} (hg : V C ops y g) (h : isAdmin c u g = true) :
     IsAdmin C ops c u := by
@@ -388,7 +409,7 @@ theorem admission_approved (hk : Keyed ops) {y c u : Id} {d e : Key}
 /-- **A request with its invitation and both signatures is Valid.** -/
 theorem request_valid (hk : Keyed ops) {r c i : Id} {o : Op} {d e cs bs : ByteArray}
     {d0 e0 : Key} {issuer : Id} {k : Key} {l : Bool} {t : Nat}
-    (hy : ops r = some o) (hb : (decode o.body : Option Body) = some (.request d e cs bs))
+    (hy : ops r = some o) (hb : (decode o.body : Option Body) = some (.request d e cs bs)) (hkd : o.kind = Body.tag (.request d e cs bs))
     (hreq : o.reqs = [c, i]) (hc : V C ops c (.admission c c d0 e0))
     (hi : V C ops i (.invitation c issuer k l t))
     (hcs : C.verify d (signed o (.request d e cs bs)) cs = true)
@@ -398,14 +419,14 @@ theorem request_valid (hk : Keyed ops) {r c i : Id} {o : Op} {d e cs bs : ByteAr
   refine spec_valid_of hy (fs := [.admission c c d0 e0, .invitation c issuer k l t]) ?_ ?_
   · rw [hreq]; exact .cons hc (.cons hi .nil)
   · show validate C o _ = _
-    unfold validate; rw [hb]
+    unfold validate; rw [hb]; simp only [hkd, ↓reduceIte]
     simp [check, hreq, hcs, hbs, hid]
 
 /-- **An eligible member's signed approval is Valid**, whoever else has
 approved or been removed since. -/
 theorem approve_valid {x c r ra : Id} {o : Op} {s : ByteArray} {d0 e0 : Key} {u a : Id}
     {d e da ea : Key} {l : Bool} {t : Nat}
-    (hx : ops x = some o) (hb : (decode o.body : Option Body) = some (.approve s))
+    (hx : ops x = some o) (hb : (decode o.body : Option Body) = some (.approve s)) (hkd : o.kind = Body.tag (.approve s))
     (hreq : o.reqs = [c, r, ra]) (hc : V C ops c (.admission c c d0 e0))
     (hr : V C ops r (.request c u d e l t)) (ha : V C ops ra (.admission c a da ea))
     (hl : l = true → a = u) (hd : da ≠ d) (hs : C.verify da (signed o (.approve s)) s = true) :
@@ -414,7 +435,7 @@ theorem approve_valid {x c r ra : Id} {o : Op} {s : ByteArray} {d0 e0 : Key} {u 
     ?_ ?_
   · rw [hreq]; exact .cons hc (.cons hr (.cons ha .nil))
   · show validate C o _ = _
-    unfold validate; rw [hb]
+    unfold validate; rw [hb]; simp only [hkd, ↓reduceIte]
     simp [check, hreq, hd, hs]; exact hl
 
 /-- **Enough approvals admit.** An admit op citing a Valid request and
@@ -423,7 +444,7 @@ requesting device: into the issuer's user for a link, into the user the
 request names for a member invitation. -/
 theorem admit_admits {y c r : Id} {o : Op} {aps us : List Id} {d0 e0 : Key} {u : Id}
     {d e : Key} {l : Bool} {t : Nat}
-    (hy : ops y = some o) (hb : (decode o.body : Option Body) = some .admit)
+    (hy : ops y = some o) (hb : (decode o.body : Option Body) = some .admit) (hkd : o.kind = Body.tag (.admit))
     (hreq : o.reqs = c :: r :: aps) (hc : V C ops c (.admission c c d0 e0))
     (hr : V C ops r (.request c u d e l t))
     (hap : All2 (fun a v => V C ops a (.approval c r v)) aps us) (hn : us.Nodup)
@@ -441,7 +462,7 @@ theorem admit_admits {y c r : Id} {o : Op} {aps us : List Id} {d0 e0 : Key} {u :
     us.map (Fact.approval c r)) ?_ ?_
   · rw [hreq]; exact .cons hc (.cons hr hv)
   · show validate C o _ = _
-    unfold validate; rw [hb]
+    unfold validate; rw [hb]; simp only [hkd, ↓reduceIte]
     have := tally_iff.2 ⟨us, hf, hn, ht⟩
     simp [check, hreq, this]
 
@@ -472,11 +493,11 @@ validity reads cited facts only). In practice it reaches only nodes the
 removed user can still sync with, or that learned it from them. -/
 theorem removed_approver_admits {y x c r : Id} {o : Op} {d0 e0 : Key} {u a : Id} {d e : Key}
     {l : Bool} (hy : ops y = some o) (hb : (decode o.body : Option Body) = some .admit)
-    (hreq : o.reqs = [c, r, x]) (hc : V C ops c (.admission c c d0 e0))
+    (hkd : o.kind = Body.tag .admit) (hreq : o.reqs = [c, r, x]) (hc : V C ops c (.admission c c d0 e0))
     (hr : V C ops r (.request c u d e l 1)) (hx : V C ops x (.approval c r a))
     (_removed : Removed C ops c a) :
     V C ops y (.admission c u d e) :=
-  admit_admits (us := [a]) hy hb hreq hc hr (.cons hx .nil) (by simp) rfl
+  admit_admits (us := [a]) hy hb hkd hreq hc hr (.cons hx .nil) (by simp) rfl
 
 /-! ## Removal -/
 
@@ -498,7 +519,7 @@ included), and whether or not u has itself been removed: nothing about
 u's own removal appears in its premises. -/
 theorem admin_removal_stands {x c ra au ta : Id} {o : Op} {s : ByteArray}
     {d0 e0 d e d' e' : Key} {u t : Id} {auth : Fact}
-    (hx : ops x = some o) (hb : (decode o.body : Option Body) = some (.remove s))
+    (hx : ops x = some o) (hb : (decode o.body : Option Body) = some (.remove s)) (hkd : o.kind = Body.tag (.remove s))
     (hreq : o.reqs = [c, ra, au, ta])
     (hc : V C ops c (.admission c c d0 e0)) (hra : V C ops ra (.admission c u d e))
     (hau : V C ops au auth) (hadm : isAdmin c u auth = true)
@@ -509,7 +530,7 @@ theorem admin_removal_stands {x c ra au ta : Id} {o : Op} {s : ByteArray}
     ?_ ?_
   · rw [hreq]; exact .cons hc (.cons hra (.cons hau (.cons hta .nil)))
   · show validate C o _ = _
-    unfold validate; rw [hb]
+    unfold validate; rw [hb]; simp only [hkd, ↓reduceIte]
     simp [check, hreq, hadm, hs]
 
 /-- **Mutual removal.** Two admins who remove each other, concurrently
@@ -626,14 +647,14 @@ file's slice). -/
 theorem check_chunk {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c root : Id} {len i : Nat}
     (h : check C o b fs = some (.chunk c root len i)) :
     ∃ slice sibs, b = .chunk root len i slice sibs ∧ o.reqs.head? = some c ∧
-      Merkle.verify sha256 root len i slice sibs = true := by
+      Merkle.verify sha256 root len i slice sibs = true ∧ ∃ d e, fs = [.admission c c d e] := by
   unfold check at h
   split at h <;> (try split at h) <;> (try simp at h; done)
   simp only [Option.some.injEq, Fact.chunk.injEq] at h
   obtain ⟨rfl, rfl, rfl, rfl⟩ := h
   rename_i hc
   obtain ⟨h1, rfl, h3⟩ := hc
-  exact ⟨_, _, rfl, h1, h3⟩
+  exact ⟨_, _, rfl, h1, h3, _, _, rfl⟩
 
 /-- **A Valid chunk is its file's slice.** If its root is a file's root
 (SHA-256 32 bytes wide, and nothing the root hashes having a second
@@ -645,9 +666,42 @@ theorem chunk_is_slice {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c : Id
     (h : check C o b fs = some (.chunk c (Merkle.fileRoot sha256 ct) len i)) :
     ∃ slice, b = .chunk (Merkle.fileRoot sha256 ct) len i slice (Merkle.proof sha256 ct i) ∧
       len = ct.size ∧ (Merkle.slices ct)[i]? = some slice := by
-  obtain ⟨slice, sibs, rfl, _, hv⟩ := check_chunk h
+  obtain ⟨slice, sibs, rfl, _, hv, _⟩ := check_chunk h
   obtain ⟨hl, hs, rfl⟩ := Merkle.verify_sound hsize hspr hv
   exact ⟨slice, rfl, hl, hs⟩
+
+/-- Chunk i of file ct in community c: the one op it can be. -/
+def fileChunk (c : Id) (ct : ByteArray) (i : Nat) : Op :=
+  let b := Body.chunk (Merkle.fileRoot sha256 ct) ct.size i ((Merkle.slices ct).getD i .empty)
+    (Merkle.proof sha256 ct i)
+  Op.make b.tag [c] (encode b)
+
+/-- **A Valid chunk under a file's root is that file's chunk op**: the
+slice and siblings are the file's (`chunk_is_slice`), the op cites only
+c, and its type is its body's (`op_of_valid`). -/
+theorem chunk_id (hk : Keyed ops) (hsize : ∀ x, (sha256 x).size = 32) {ct : ByteArray}
+    (hspr : Merkle.NoSecondPreimage sha256 (Merkle.treeInputs sha256 ct)) {c z : Id} {l i : Nat}
+    (hz : V C ops z (.chunk c (Merkle.fileRoot sha256 ct) l i)) : z = (fileChunk c ct i).id := by
+  obtain ⟨o, b, hzo, hmk, hb⟩ := op_of_valid hz
+  obtain ⟨o', b', fs, hzo', hb', hr, hc⟩ := valid_inv hz
+  rw [hzo] at hzo'; cases hzo'
+  rw [hb] at hb'; cases hb'
+  obtain ⟨slice, rfl, rfl, hs⟩ := chunk_is_slice hsize hspr hc
+  obtain ⟨_, _, _, hhead, _, d, e, rfl⟩ := check_chunk hc
+  have hreqs : o.reqs = [c] := by
+    generalize o.reqs = rs at hr hhead
+    cases hr with
+    | cons _ hr' => cases hr'; simp at hhead; rw [hhead]
+  have hsl : (Merkle.slices ct).getD i .empty = slice := by simp [List.getD, hs]
+  rw [← hk z o hzo, hmk, hreqs]; unfold fileChunk; rw [hsl]
+
+/-- **A file's chunk at an index is one op**, so no chunk is counted
+twice. -/
+theorem chunk_unique (hk : Keyed ops) (hsize : ∀ x, (sha256 x).size = 32) {ct : ByteArray}
+    (hspr : Merkle.NoSecondPreimage sha256 (Merkle.treeInputs sha256 ct)) {c x y : Id} {l l' i : Nat}
+    (hx : V C ops x (.chunk c (Merkle.fileRoot sha256 ct) l i))
+    (hy : V C ops y (.chunk c (Merkle.fileRoot sha256 ct) l' i)) : x = y := by
+  rw [chunk_id hk hsize hspr hx, chunk_id hk hsize hspr hy]
 
 /-! ## Shared ops never read local state
 
