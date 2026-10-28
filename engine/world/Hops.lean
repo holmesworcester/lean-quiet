@@ -12,6 +12,8 @@ of any payloads (docs/PROOFS.md, "The pilot"):
   and everything logged is stored. Every payload keeps it
   (`frameStep_ok`), grows the store, keeps the sessions and addresses,
   and only adds to what is sent.
+  `reach_ok`: every node of every world the plain world reaches keeps
+  it, against any attacker (every entry point, restart included).
 - **The hops**, at a node with the invariant, over a whole frame:
   - `claim_wants` (H1): a claim of ids is answered with a want for each
     listed id the node lacks, in a frame to the claim's sender;
@@ -975,5 +977,193 @@ theorem op_taken (n : Node) (h : Held F) (ok : NodeOk n h) (a bytes : ByteArray)
   exact (op_step fam cfg rms cid now st1 c1' hc1 r o (hr _) hwire hor).ext e3
 
 end
+
+/-! ## Every entry point keeps the node invariant, in every reachable world -/
+
+@[simp] theorem readH_run {α} (f : Held F → α) (h : Held F) : (readH f).run h = (f h, h) := rfl
+
+section
+variable (fam : Family F) (cfg : Config) (rms : Held F → Id → List Id)
+
+/-- One connection's turn of the clock. -/
+def tickStep (now : Nat) (st : (Node × Acts) × Held F) (p : Id × Conn) : (Node × Acts) × Held F :=
+  match st.1.1.conn? p.1 with
+  | some c =>
+    let s := ((Conn.tick fam cfg st.1.1.ix (c.setRooms (rms st.2 p.1)) now : HeldM F Step).run st.2).1
+    let r := (st.1.1.apply (psync fam cfg rms) p.1 s now).run st.2
+    ((r.1.1, st.1.2 ++ r.1.2), r.2)
+  | none => st
+
+theorem finish_ok (n : Node) (out : Acts) (now : Nat) (h : Held F) (ok : NodeOk n h) :
+    NodeOk ((n.finish (psync fam cfg rms) out now).run h).1.1 ((n.finish (psync fam cfg rms) out now).run h).2 := by
+  rw [finish_run fam cfg rms _ _ _ _ ok.managed]
+  exact ⟨ok.sub, ok.managed, ok.ids, ok.log⟩
+
+theorem onWrite_ok (n : Node) (ops : List Op) (now : Nat) (h : Held F) (ok : NodeOk n h) :
+    NodeOk ((n.onWrite (psync fam cfg rms) ops now).run h).1.1 ((n.onWrite (psync fam cfg rms) ops now).run h).2 := by
+  unfold Node.onWrite
+  simp only [HeldM.run_bind]
+  exact finish_ok fam cfg rms _ _ _ _ (store_ok fam cfg rms n ops true h ok)
+
+theorem connect_ok (n : Node) (cid : Id) (a : ByteArray) (d : Bool) (now : Nat) (h : Held F) (ok : NodeOk n h) :
+    NodeOk ((n.connect (psync fam cfg rms) cid a d now).run h).1.1 ((n.connect (psync fam cfg rms) cid a d now).run h).2 := by
+  unfold Node.connect Node.open
+  simp only [HeldM.run_bind, psync_rooms, readH_run, HeldM.run_pure]
+  apply finish_ok
+  refine ⟨⟨ok.sub.1, ?_⟩, ?_, ok.ids, ok.log⟩
+  · intro p hp
+    simp only [List.mem_cons] at hp
+    rcases hp with rfl | hp
+    · intro e he; cases he
+    · simp only [Node.setAddr, Node.close] at hp
+      exact ok.sub.2 p (List.mem_filter.1 hp).1
+  · simp [Node.setAddr, Node.close, ok.managed]
+
+variable (hw : WalkLaws (F := F) fam cfg)
+include hw
+
+theorem onTick_run (n : Node) (now : Nat) (h : Held F) :
+    (n.onTick (psync fam cfg rms) now).run h =
+      ((n.conns.foldl (tickStep fam cfg rms now) ((n, {}), h)).1.1.finish (psync fam cfg rms)
+        (n.conns.foldl (tickStep fam cfg rms now) ((n, {}), h)).1.2 now).run
+        (n.conns.foldl (tickStep fam cfg rms now) ((n, {}), h)).2 := by
+  unfold Node.onTick
+  simp only [psync_dial, HeldM.pure_bind, HeldM.run_bind, store_nil]
+  rw [forIn_fold _ _ (fun b st h => by obtain ⟨cid, _⟩ := b; dsimp only; split <;> rfl)]
+  rw [foldl_ext _ (tickStep fam cfg rms now) (fun p b => ?_)]
+  obtain ⟨cid, c0⟩ := b
+  unfold tickStep
+  dsimp only
+  cases hcp : p.1.1.conn? cid with
+  | none => rfl
+  | some c' =>
+    simp only [HeldM.run_bind, refresh_run, psync_fam, psync_cfg]
+    rw [Keeps.run_eq (tick_keeps fam cfg hw _ _ _) _]
+    rfl
+
+theorem tickStep_ok (now : Nat) (st : (Node × Acts) × Held F) (p : Id × Conn) (ok : NodeOk st.1.1 st.2) :
+    NodeOk (tickStep fam cfg rms now st p).1.1 (tickStep fam cfg rms now st p).2 := by
+  unfold tickStep
+  cases hc : st.1.1.conn? p.1 with
+  | none => exact ok
+  | some c =>
+    exact apply_ok fam cfg rms _ _ _ _ _ ok (tick_snaps fam cfg hw _ _ _ _ ok.sub.1 ((ok.sub.2 _ (conn_mem hc)).setRooms _))
+
+theorem onTick_ok (n : Node) (now : Nat) (h : Held F) (ok : NodeOk n h) :
+    NodeOk ((n.onTick (psync fam cfg rms) now).run h).1.1 ((n.onTick (psync fam cfg rms) now).run h).2 := by
+  rw [onTick_run fam cfg rms hw]
+  apply finish_ok
+  have : ∀ (l : List (Id × Conn)) st, NodeOk st.1.1 st.2 →
+      NodeOk (l.foldl (tickStep fam cfg rms now) st).1.1 (l.foldl (tickStep fam cfg rms now) st).2 := by
+    intro l
+    induction l with
+    | nil => intro st h; exact h
+    | cons p t ih => intro st h; exact ih _ (tickStep_ok fam cfg rms hw now st p h)
+  exact this _ _ ok
+
+
+theorem onFrame_ok (n : Node) (a b : ByteArray) (now : Nat) (h : Held F) (ok : NodeOk n h) :
+    NodeOk ((n.onFrame (psync fam cfg rms) a b now).run h).1.1 ((n.onFrame (psync fam cfg rms) a b now).run h).2 := by
+  cases h0 : b[0]? with
+  | none => simp only [Node.onFrame, h0, HeldM.run_pure]; exact ok
+  | some t =>
+    by_cases t1 : t = 1
+    · subst t1
+      cases hd : (Codec.decode (b.extract 1 b.size) : Option (Id × ByteArray)) with
+      | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, HeldM.run_pure]; exact ok
+      | some q =>
+        obtain ⟨cid, bundle⟩ := q
+        cases hc : n.conn? cid with
+        | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, hc, HeldM.run_pure]; exact ok
+        | some c =>
+          cases hi : (Codec.decode bundle : Option (List ByteArray)) with
+          | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, hc, hi, HeldM.run_pure]; exact ok
+          | some inner =>
+            rw [onFrame_sealed fam cfg rms hw n a b now h cid bundle inner c h0 hd hi hc]
+            exact finish_ok fam cfg rms _ _ _ _ (frame_fold fam cfg rms hw cid now inner _ (setAddr_ok n cid a h ok)).1
+    · by_cases t0 : t = 0
+      · subst t0
+        cases hd : Op.decode (b.extract 1 b.size) with
+        | none => simp only [Node.onFrame, h0, hd, HeldM.run_pure]; exact ok
+        | some o =>
+          by_cases he : (intakeConn fam [o]).isEmpty = true
+          · simp only [Node.onFrame, h0, hd, psync_fam, he, ↓reduceIte, HeldM.run_pure]; exact ok
+          · simp only [Node.onFrame, h0, hd, psync_fam, he, ↓reduceIte, Bool.false_eq_true, HeldM.run_bind,
+              psync_recv, HeldM.pure_bind, store_nil]
+            exact finish_ok fam cfg rms _ _ _ _ (write_ok fam cfg rms _ _ _ ok)
+      · unfold Node.onFrame
+        rw [h0]
+        split
+        · rename_i e; cases e; exact absurd rfl t0
+        · rename_i e; cases e; exact absurd rfl t1
+        · exact ok
+
+end
+
+/-- A booted node, from a store that files ops under their ids and holds
+what it logged, keeps the invariant. -/
+theorem boot_ok (fam : Family F) (h : Held F) (hi : IdsOk h) (hl : LogIn h) (floor : Nat) :
+    NodeOk (Node.boot fam h.log floor) h := by
+  refine ⟨⟨fun r it hit => ?_, fun p hp => by cases hp⟩, rfl, hi, hl⟩
+  rcases items_foldl fam h.log {} r it hit with hit | ⟨o, ho, e⟩
+  · simp [Index.items] at hit
+  · rw [e]; exact hl o ho
+
+theorem enter_ok (Q : Plain F) (w : World (Held F) Q.n) (i : Fin Q.n) (t : Nat) (f : Node → HeldM F (Node × Effects))
+    (hf : NodeOk (w.node i) (w.box i) → NodeOk ((f (w.node i)).run (w.box i)).1.1 ((f (w.node i)).run (w.box i)).2)
+    (ok : ∀ j, NodeOk (w.node j) (w.box j)) : ∀ j, NodeOk ((w.enter Q.setup i t f).node j) ((w.enter Q.setup i t f).box j) := by
+  intro j
+  simp only [World.enter, upd]
+  by_cases e : j = i
+  · subst e; simp only [ite_true]; exact hf (ok j)
+  · simp only [e, ite_false]; exact ok j
+
+/-- **Every node of every world the plain world reaches keeps the node
+invariant**, against any attacker. -/
+theorem reach_ok' (Q : Plain F) (hw : WalkLaws (F := F) Q.fam Q.cfg)
+    (adv : World (Held F) Q.setup.n → ByteArray → Prop) (w₀ w : World (Held F) Q.setup.n)
+    (h0 : ∀ i, NodeOk (w₀.node i) (w₀.box i)) (hr : Reachable Q.setup adv w₀ w) :
+    ∀ i, NodeOk (w.node i) (w.box i) := by
+  induction hr with
+  | init => exact h0
+  | @step w a _ _ ih =>
+    cases a with
+    | deliver k t =>
+      simp only [World.step]
+      split
+      · exact ih
+      · rename_i p _
+        split
+        · exact ih
+        · rename_i j' _
+          exact enter_ok Q { w with flight := w.flight.eraseIdx k } j' t
+            (fun nd => nd.onFrame (psync Q.fam Q.cfg (Q.rooms j')) p.origin p.bytes t)
+            (fun h => onFrame_ok Q.fam Q.cfg (Q.rooms j') hw _ _ _ _ _ h) ih
+    | dup k => simp only [World.step]; split <;> exact ih
+    | drop k => exact ih
+    | tick i t =>
+      exact enter_ok Q w i t (fun nd => nd.onTick (psync Q.fam Q.cfg (Q.rooms i)) t)
+        (fun h => onTick_ok Q.fam Q.cfg (Q.rooms i) hw _ _ _ h) ih
+    | write i ops t =>
+      exact enter_ok Q w i t (fun nd => nd.onWrite (psync Q.fam Q.cfg (Q.rooms i)) ops t)
+        (fun h => onWrite_ok Q.fam Q.cfg (Q.rooms i) _ _ _ _ h) ih
+    | restart i t =>
+      intro j
+      simp only [World.step, upd]
+      by_cases e : j = i
+      · subst e; simp only [ite_true]
+        exact boot_ok Q.fam _ (ih j).ids (ih j).log _
+      · simp only [e, ite_false]; exact ih j
+    | connect i j cid d t =>
+      exact enter_ok Q w i t (fun nd => nd.connect (psync Q.fam Q.cfg (Q.rooms i)) cid (Q.setup.addr j) d t)
+        (fun h => connect_ok Q.fam Q.cfg (Q.rooms i) _ _ _ _ _ _ h) ih
+    | inject i o b t =>
+      exact enter_ok Q w i t (fun nd => nd.onFrame (psync Q.fam Q.cfg (Q.rooms i)) o b t)
+        (fun h => onFrame_ok Q.fam Q.cfg (Q.rooms i) hw _ _ _ _ _ h) ih
+
+
+theorem reach_ok (Q : Plain F) (hw : WalkLaws (F := F) Q.fam Q.cfg) (adv : World (Held F) Q.n → ByteArray → Prop)
+    (w : World (Held F) Q.n) (hr : Q.Reach adv w) : ∀ i, NodeOk (w.node i) (w.box i) :=
+  reach_ok' Q hw adv Q.start w (fun _ => boot_ok Q.fam {} (fun x o h => by cases h) (fun o ho => by cases ho) _) hr
 
 end Engine.World

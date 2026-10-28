@@ -23,6 +23,7 @@ import engine.world.Epidemic
 import engine.world.Findings
 import engine.world.Plain
 import engine.world.Hops
+import engine.world.Pilot
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -387,6 +388,21 @@ open Engine.World
 #print axioms Engine.World.claim_wants
 #print axioms Engine.World.want_sends
 #print axioms Engine.World.op_taken
+-- the pilot (engine/world/Pilot.lean)
+#print axioms Engine.World.tickStep_ok
+#print axioms Engine.World.onTick_run
+#print axioms Engine.World.onTick_ok
+#print axioms Engine.World.onWrite_ok
+#print axioms Engine.World.connect_ok
+#print axioms Engine.World.onFrame_ok
+#print axioms Engine.World.boot_ok
+#print axioms Engine.World.reach_ok
+#print axioms Engine.World.mem_packets
+#print axioms Engine.World.at_addr
+#print axioms Engine.World.reach_flight
+#print axioms Engine.World.deliver_at
+#print axioms Engine.World.holds_named
+#print axioms Engine.World.claim_delivers
 -- statements: closed Props, no sorry (engine/world/Statements.lean)
 #print axioms Engine.World.walk_stmt
 #print axioms Engine.World.grows_stmt

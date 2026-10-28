@@ -12,10 +12,12 @@ Each is a closed `Prop` named `…_stmt`. Names follow the program:
   (`op_stmt`, `converge_stmt`, `join_stmt`, …).
 - Topologies, bounds and scale come last.
 
-Proven so far: `grows_stmt` (engine/world/Plain.lean, given the walk's
-laws), the epidemic reduction and its corollaries (engine/world/Epidemic.lean),
-and the findings' witnesses (engine/world/Findings.lean). Statements
-false of today's code say so, with the finding.
+Proven so far, given the walk's laws: `grows_stmt` (engine/world/Plain.lean)
+and the pilot, `claim_delivers_stmt` (engine/world/Pilot.lean). Proven
+outright: the epidemic reduction and its corollaries
+(engine/world/Epidemic.lean), and the findings' witnesses
+(engine/world/Findings.lean). Statements false of today's code say so,
+with the finding.
 -/
 import engine.world.Fair
 import engine.core.Locality

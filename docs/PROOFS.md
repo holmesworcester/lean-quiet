@@ -28,7 +28,7 @@ The user asked:
 |---|---|
 | The world and the network | built: engine/world/World.lean, Fair.lean |
 | Statements | 41, each a closed `Prop` with no `sorry` (engine/world/Statements.lean), audited |
-| Proven of the running code | `grows_stmt` (given the walk's laws), `write_run`, `write_sub` |
+| Proven of the running code | **the pilot, `claim_delivers_stmt`**; `grows_stmt`; the node invariant in every reachable world (`reach_ok`); the three hops of a round's leg (`claim_wants`, `want_sends`, `op_taken`). All given the walk's laws (`walk_stmt`) |
 | Proven above the code | the reduction `edge_stmt → grows_stmt → converge_stmt`; from it, T-converge for 2, 3 and n peers, all-know-all and transitive; T-op, T-offline; chains, stars and webs, with their diameters |
 | False on today's code | `session_stable_stmt` (finding 1), `rooms_stmt` and `join_stmt` (finding 2), `fresh_stmt` (T-fresh) |
 | The open core | `edge_stmt`: per-edge progress. Every T- law above reduces to it and to growth |
@@ -213,7 +213,7 @@ today's code (with the finding), **O** open.
 | `no_false_settle_stmt` | L-no-false-settle: "settled" means holding the peer's snapshot of the window | O |
 | `dup_concurrent_stmt` | L-dup-concurrent: frames keep sessions, idem, and `round_stmt` | O |
 | `session_stable_stmt` | a joined session over a live edge is never dropped | **F** (finding 1) |
-| `claim_delivers_stmt` | the pilot: a claim listing x, from i to j → j holds x within 3Δ | O (see "The pilot") |
+| `claim_delivers_stmt` | the pilot: a claim listing x, from i to j → j holds x within 3Δ | **P** (`claim_delivers`, given `walk_stmt`) |
 | `walk_stmt` | the walk keeps the store, touches only frontier/offered/closed, is idle on an empty frontier | O on main; a3/hostile's `walkN` |
 
 ### T: many nodes over time
@@ -261,12 +261,20 @@ The upper and lower bounds match up to a constant per hop:
 
 ## Proven today
 
-- **Over the running code:**
-  - `write_run`: `Node.write` on a held store as a term (two folds and a
-    turn);
-  - `write_sub`: the index grows only by stored ops;
-  - `grows_proof`: shared stores only grow, over every entry point and
-    every act (given `walk_stmt`);
+- **Over the running code** (given `walk_stmt`):
+  - the pilot, `claim_delivers` (below);
+  - `reach_ok`: every node of every world the plain world reaches keeps
+    `NodeOk` (index and snapshots name stored ops, no family sessions,
+    ops filed under their ids, the log stored), against any attacker,
+    over every entry point and restart;
+  - `reach_flight`: every packet in flight was sent no later than now,
+    and an honest one says it came from its sender's address;
+  - `grows_proof`: shared stores only grow;
+  - the hops, at a node, over frames of any payloads: `claim_wants`
+    (H1), `want_sends` (H2), `op_taken` (H3);
+  - closed forms of the node's steps on a held store: `write_run`,
+    `store_run`, `fanout_run`, `apply_run`, `finish_run`,
+    `onFrame_sealed`, `onTick_run`, and `seal_mem`;
   - the findings' witnesses.
 - **Above the code, from the per-edge bound** (engine/world/Epidemic.lean):
   - `hops`: d · B over a path of d live edges;
@@ -277,22 +285,44 @@ The upper and lower bounds match up to a constant per hop:
     `Exec.now_mono`.
 
 So the whole T-converge family, chains, stars, webs and T-offline hang
-on one lemma about one edge. That lemma is the program's core.
+on one lemma about one edge. That lemma is the program's core, and the
+pilot is the first third of its round.
 
 ## The pilot
 
-**The pilot is L-round's first leg, in the leaf regime, for 2 nodes and
-1 room: `claim_delivers_stmt`.** Its argument is an obligation chain:
+**Proven: `claim_delivers : walk_stmt → claim_delivers_stmt`**
+(engine/world/Pilot.lean). In words: in any execution of the plain world
+that the network admits, a round's claim of ids, in flight from i to j
+on a session joined from then on, both of whose ends show room r, that
+lists op x of r which i holds, gets x to j within 3Δ of the claim's
+sending. Any number of nodes, sessions, rooms and other frame payloads
+may surround it, and any other steps may interleave.
 
-1. The claim reaches j within Δ (`timely`).
-   - If j holds x, done.
-   - Otherwise x is not in j's snapshot (snapshots name stored ops,
-     `Sub`), so j's answer wants x.
-2. The want reaches i within Δ. i holds x (growth), and x is in a room
-   the session shows, so i sends x.
-3. x reaches j within Δ. j takes it (`shows`) and stores it.
+The proof is an obligation chain over three hops, each one lemma about
+one entry point run on any state that keeps the node invariant:
 
-The status is in the report at the end of this file.
+1. The claim arrives within Δ (`timely`). If j holds x by the end of
+   that frame, done. Otherwise x is in no snapshot j keeps (snapshots
+   name stored ops), so j's answer wants x, in a frame back to the
+   claim's sender, which is i's address (`claim_wants`, `reach_flight`).
+2. The want arrives within Δ. i still holds x (`grows_proof`), in a room
+   the session shows, so i sends x's bytes back (`want_sends`).
+3. x arrives within Δ, and j stores it (`op_taken`). It is filed under
+   its id (`NodeOk.ids`), so j holds x in room r (`Unclashed`).
+
+What the pilot assumes, beyond `Fair` and the session:
+- `walk_stmt` (finding 3), until a3/hostile's `walkN` lands;
+- the session's rooms are fixed at both ends (`∀ h, r ∈ Q.rooms i h
+  cid`). Dynamic rooms need rooms to be monotone in the store within a
+  step, a premise for the dynamic-trust work.
+
+What is still open for `round_stmt` in the leaf regime:
+- the reverse leg (j's ops to i: an offer in the answer, i's want, the
+  op), with the `asked` invariant for an offer whose want went earlier;
+- the opening itself: that the dialer's opening is `.ids` over i's whole
+  window, so every op i holds is listed (`opening`, the leaf regime);
+- a non-vacuity witness: a concrete fair execution satisfying the
+  premises.
 
 ## T-fresh: where fresh ops queue behind backlog
 
@@ -519,28 +549,28 @@ Rules for node code and its proofs:
 
 Rough sizes are lines of Lean.
 
-1. **The pilot's remaining pieces**, if not finished: see the report.
-2. **The world invariants** the hops need, about 500: `Sub` over every
-   entry point (onFrame's payload loop, apply, store, fanout, settle,
-   finish, onTick's loop, onWrite, connect, restart), log ⊆ store, ids
-   stored under themselves, `managed = []`.
-3. **The reverse leg** (j's ops to i: offer, want, op), with the
-   `asked` invariant, about 300. Then `round_stmt` in the leaf regime.
-4. **The patience fix and `session_stable_stmt`**, with a3's
+1. **The reverse leg and the opening** (j's ops to i: offer, want, op,
+   with the `asked` invariant; the dialer's opening lists its window),
+   about 300, reusing the hops. Then `round_stmt` in the leaf regime.
+2. **The patience fix and `session_stable_stmt`**, with a3's
    `tick_drop_iff`, about 300.
-5. **The cadence lemma (`gap`)**, with a3's cadence law, about 200.
+3. **The cadence lemma (`gap`)**, with a3's cadence law, about 200.
    Then `edge_stmt` in the leaf regime, and with it every R row above.
-6. **Claim trees**, about 800: fingerprint hops as obligations measured
+4. **Claim trees**, about 800: fingerprint hops as obligations measured
    by `exchange_ends`; with a3's cost bounds, the log depth.
-7. **The remaining safety statements**, about 700: `index_store`,
-   `stream`, `members_only`, `frames_keep_sessions`, `idem`, `restart`,
-   `waiting_closure`, `closure_agree`, `local`.
-8. **T-fresh**, after a3's send-path fix, about 400: `ahead` bounded by
+5. **The remaining safety statements**, about 500 now that the closed
+   forms exist: `index_store`, `stream`, `members_only`,
+   `frames_keep_sessions`, `idem`, `restart`, `waiting_closure`,
+   `closure_agree`, `local`.
+6. **T-fresh**, after a3's send-path fix, about 400: `ahead` bounded by
    `burst`, then the 3-hop latency under `Fifo`.
-9. **Dynamic trust**, size unknown: `rooms_stmt` after finding 2's fix,
+7. **Dynamic trust**, size unknown: `rooms_stmt` after finding 2's fix,
    then `join_stmt` and `remove_stmt`; the Connection world's
    `Plain.rooms` from the trust rule.
-10. **The Connection world**, about 400 to port pair-secrecy's laws onto
-    it, then handshake liveness (about 1000).
-11. **A CI check** that only engine/core and engine/wire call `Turn`,
+8. **The Connection world**, about 400 to port pair-secrecy's laws onto
+   it, then handshake liveness (about 1000).
+9. **Non-vacuity witnesses** for the liveness laws: a concrete fair
+   execution (round-robin schedule, every packet delivered at once),
+   about 300.
+10. **A CI check** that only engine/core and engine/wire call `Turn`,
     `receive` or `Store.putOp`, about 30 lines of script.
