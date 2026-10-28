@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 275 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 281 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -542,8 +542,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
 [`Distinct`]: engine/core/Proofs.lean#L538-L540
 [`lbl_inj`]: ops/sync/Fp.lean#L264-L268
-[`NoSecondPreimage`]: ops/community/Merkle.lean#L137-L138
-[`assumptions_hold`]: ops/community/Merkle.lean#L534-L538
+[`NoSecondPreimage`]: ops/community/Merkle.lean#L142-L143
+[`assumptions_hold`]: ops/community/Merkle.lean#L539-L543
 [`Suite.Good`]: ops/connection/Noise.lean#L61-L65
 [`Keys.Good`]: ops/connection/Types.lean#L32-L36
 [`no_impersonation`]: ops/community/Laws.lean#L289-L302
@@ -611,8 +611,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`established_agrees`]: ops/connection/Laws.lean#L51-L61
 [`open_seal`]: ops/connection/Frame.lean#L51-L55
 [`cid_seal`]: ops/connection/Frame.lean#L79-L82
-[`Codec.encode_decode`]: engine/core/Codec.lean#L154-L157
-[`Op.id_decode`]: engine/core/Core.lean#L85-L87
+[`Codec.encode_decode`]: engine/core/Codec.lean#L641-L644
+[`Op.id_decode`]: engine/core/Core.lean#L89-L91
 [`distinct_of_collisionFree`]: engine/core/Proofs.lean#L546-L549
 [`op_of_valid`]: ops/community/Laws.lean#L227-L232
 [`Pic.decode_sized`]: engine/renderer/pic/Laws.lean#L198-L201
@@ -620,11 +620,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Community.parse_valid`]: ops/community/Link.lean#L213-L214
 [`Qr.parse_valid`]: engine/renderer/qr/SegLaws.lean#L336-L338
 [`chunk_is_slice`]: ops/community/Laws.lean#L673-L682
-[`verify_sound`]: ops/community/Merkle.lean#L426-L432
-[`complete_assembles`]: ops/community/Merkle.lean#L473-L479
+[`verify_sound`]: ops/community/Merkle.lean#L431-L437
+[`complete_assembles`]: ops/community/Merkle.lean#L478-L484
 [`chunk_unique`]: ops/community/Laws.lean#L735-L741
-[`progress_exact`]: ops/community/Intents.lean#L493-L502
-[`no_injective_hash`]: ops/community/Merkle.lean#L236-L238
+[`progress_exact`]: ops/community/Intents.lean#L509-L518
+[`no_injective_hash`]: ops/community/Merkle.lean#L241-L243
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
 [`step_budget`]: engine/core/Budget.lean#L124-L126
@@ -641,10 +641,10 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`purge_inv`]: engine/core/Proofs.lean#L391-L395
 [`mem_purgeSet`]: engine/core/Proofs.lean#L364-L368
 [`reach_ops`]: engine/core/Proofs.lean#L624-L626
-[`sum_left`]: engine/core/Families.lean#L69-L72
-[`sum_scope_left`]: engine/core/Families.lean#L75-L76
-[`Codec.decode_encode`]: engine/core/Codec.lean#L148-L148
-[`Op.decode_bytes`]: engine/core/Core.lean#L90-L90
+[`sum_left`]: engine/core/Families.lean#L79-L82
+[`sum_scope_left`]: engine/core/Families.lean#L85-L86
+[`Codec.decode_encode`]: engine/core/Codec.lean#L635-L635
+[`Op.decode_bytes`]: engine/core/Core.lean#L94-L94
 [`request_valid`]: ops/community/Laws.lean#L409-L417
 [`approve_valid`]: ops/community/Laws.lean#L425-L433
 [`admit_admits`]: ops/community/Laws.lean#L441-L452
