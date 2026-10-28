@@ -38,20 +38,12 @@ def nowUs : IO UInt64 := do return (← IO.monoNanosNow).toUInt64 / 1000
 
 def appSchema : String := "
 CREATE TABLE IF NOT EXISTS blobs (hash BLOB PRIMARY KEY, bytes BLOB NOT NULL) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v BLOB NOT NULL) WITHOUT ROWID;
 "
 
 def openDb (path : String) : IO Db := do
   let db ← Db.openAt path
   db.exec appSchema
   return db
-
-def Db.meta (db : Db) (k : String) : IO (Option ByteArray) := do
-  let rows ← db.query "SELECT v FROM meta WHERE k = ?" #[k.toUTF8]
-  return rows[0]? >>= (·[0]?)
-
-def Db.setMeta (db : Db) (k : String) (v : ByteArray) : IO Unit := do
-  let _ ← db.query "INSERT OR REPLACE INTO meta (k, v) VALUES (?, ?)" #[k.toUTF8, v]
 
 def Db.blob (db : Db) (hash : ByteArray) : IO (Option ByteArray) := do
   let rows ← db.query "SELECT bytes FROM blobs WHERE hash = ?" #[hash]
