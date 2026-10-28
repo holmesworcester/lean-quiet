@@ -104,6 +104,7 @@ inductive Fact where
   | abandoned (c req join : Id)
   | key (c kid k : ByteArray)
   | chunk (c root : Id) (len index : Nat)
+  | endpoint (pk sk : ByteArray)
   deriving DecidableEq, Inhabited
 
 inductive Body where
@@ -127,6 +128,7 @@ inductive Body where
   | abandon
   | key (c k : ByteArray)
   | chunk (root : ByteArray) (len index : Nat) (slice : ByteArray) (sibs : List ByteArray)
+  | endpoint (sk : ByteArray)
   deriving DecidableEq, Inhabited
 
 /-! ## Bytes -/
@@ -160,6 +162,7 @@ def Body.enc : Body → List UInt8
   | .abandon => [17]
   | .key c k => 18 :: Codec.enc (c, k)
   | .chunk r l i x p => 19 :: Codec.enc (r, l, i, x, p)
+  | .endpoint sk => 20 :: Codec.enc sk
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B) => Body.root p.1 p.2.1 p.2.2) r
@@ -184,6 +187,7 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 18 :: r => decAs (fun (p : B × B) => Body.key p.1 p.2) r
   | 19 :: r => decAs (fun (p : B × Nat × Nat × B × List B) =>
       Body.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
+  | 20 :: r => decAs (fun (p : B) => Body.endpoint p) r
   | _ => none
 
 instance : Codec Body where
@@ -212,6 +216,7 @@ def Fact.enc : Fact → List UInt8
   | .abandoned c r j => 15 :: Codec.enc (c, r, j)
   | .key c i k => 16 :: Codec.enc (c, i, k)
   | .chunk c r l i => 17 :: Codec.enc (c, r, l, i)
+  | .endpoint pk sk => 18 :: Codec.enc (pk, sk)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B × B) => Fact.admission p.1 p.2.1 p.2.2.1 p.2.2.2) r
@@ -237,6 +242,7 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 15 :: r => decAs (fun (p : B × B × B) => Fact.abandoned p.1 p.2.1 p.2.2) r
   | 16 :: r => decAs (fun (p : B × B × B) => Fact.key p.1 p.2.1 p.2.2) r
   | 17 :: r => decAs (fun (p : B × B × Nat × Nat) => Fact.chunk p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 18 :: r => decAs (fun (p : B × B) => Fact.endpoint p.1 p.2) r
   | _ => none
 
 instance : Codec Fact where
@@ -272,7 +278,7 @@ def signed (o : Op) (b : Body) : ByteArray :=
 /-- Whether a fact is this device's own: local ops' facts, never
 shared, never read by a shared op's validator (`check_reads_shared`). -/
 def Fact.isLocal : Fact → Bool
-  | .secret .. | .accepted .. | .joining .. | .abandoned .. | .key .. => true
+  | .secret .. | .accepted .. | .joining .. | .abandoned .. | .key .. | .endpoint .. => true
   | _ => false
 
 /-- The largest file an attachment may name: 64 MiB of ciphertext. -/
@@ -372,6 +378,7 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
     if o.reqs.head? = some c ∧ u0 = c then some (.wrap c k r bx) else none
   | .secret pk seed, [] => if C.pub seed = pk then some (.secret pk seed) else none
   | .key c k, [] => if k.size = 32 then some (.key c (kidOf cryptoSeal k) k) else none
+  | .endpoint sk, [] => if sk.size = 32 then some (.endpoint (cryptoSeal.pub sk) sk) else none
   | .accept c d, [] => some (.accepted c d)
   | .joining c k hs r nm d n, [] => some (.joining c k hs r nm d n)
   | .abandon, [.joining c _ _ r _ _ _] => some (.abandoned c r (o.reqs.headD .empty))
@@ -388,7 +395,7 @@ def Body.tag : Body → UInt8
   | .profile .. => 7 | .attach .. => 8 | .react .. => 9
   | .approve .. => 10 | .admit => 11
   | .accept .. => 13 | .joining .. => 14 | .secret .. => 15 | .name .. => 16 | .abandon => 17
-  | .key .. => 18 | .chunk .. => 19
+  | .key .. => 18 | .chunk .. => 19 | .endpoint .. => 20
 
 /-- An op's verdict: its body's, if its type is its body's. The type is
 in the bytes its id hashes, so an op re-sent under another type would be
@@ -408,6 +415,9 @@ def byDevice : Rel Fact := ⟨"admission", "byDevice", fun | .admission c _ d _ 
 def all : Rel Fact := ⟨"admission", "all", fun | .admission c .. => some [c] | _ => none⟩
 /-- A user's admissions (its devices): whom a removal cites. -/
 def byUser : Rel Fact := ⟨"admission", "byUser", fun | .admission c u .. => some [c, u] | _ => none⟩
+/-- The admissions naming an X25519 key: the devices a node's key
+speaks for in c, which `allowPeer` asks about. -/
+def byKey : Rel Fact := ⟨"admission", "byKey", fun | .admission c _ _ e => some [c, e] | _ => none⟩
 end admission
 
 namespace removal
@@ -470,6 +480,12 @@ node speaks for. -/
 def all : Rel Fact := ⟨"secret", "all", fun | .secret .. => some [] | _ => none⟩
 end secret
 
+namespace endpoint
+/-- This node's key (local): what it handshakes with, and what content
+keys wrapped to its devices open with. -/
+def all : Rel Fact := ⟨"endpoint", "all", fun | .endpoint .. => some [] | _ => none⟩
+end endpoint
+
 namespace accepted
 /-- The communities this device is in, joined or waiting. -/
 def all : Rel Fact := ⟨"accepted", "all", fun | .accepted .. => some [] | _ => none⟩
@@ -510,12 +526,12 @@ end chunk
 /-- Every relation of the community's facts. Invitations are in none
 (read by their own key). -/
 def rels : List (Rel Fact) :=
-  [admission.byDevice, admission.all, admission.byUser, removal.byUser, admin.byUser, message.all, message.byAuthor,
+  [admission.byDevice, admission.all, admission.byUser, admission.byKey, removal.byUser, admin.byUser, message.all, message.byAuthor,
    message.byKey,
    wrap.byContentKey, profile.byUser, profile.all, react.byMessage, react.byMessageEmoji,
    request.all, approval.byRequest, secret.byKey, secret.all, accepted.all, joining.all, named.current,
    abandoned.byRequest, abandoned.byJoining, wrap.byRecipient, key.byCommunity, key.byId, attachment.byMessage,
-   chunk.byFile]
+   chunk.byFile, endpoint.all]
 
 /-- The keys a fact is filed under: its relations'. -/
 def keys : Fact → List ByteArray := keysOf rels
@@ -539,7 +555,7 @@ instance : SortKey Fact := ⟨sortOf⟩
 acceptances and its joins are, never sent or taken; everything else is
 shared in its community. -/
 def Body.isLocal : Body → Bool
-  | .secret .. | .accept .. | .joining .. | .abandon | .key .. => true
+  | .secret .. | .accept .. | .joining .. | .abandon | .key .. | .endpoint .. => true
   | _ => false
 
 /-- The community an op is about: a root founds its own; every other op

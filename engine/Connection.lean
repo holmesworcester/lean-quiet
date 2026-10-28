@@ -7,8 +7,10 @@ import Connection.Connection
 import Connection.Established
 import Connection.Send
 import Connection.Recv
+import Connection.Settled
 import Connection.Family
 import Connection.Frame
 import Connection.Intents
 import Connection.Laws
 import Connection.RoomLaws
+import Connection.RemovalLaws

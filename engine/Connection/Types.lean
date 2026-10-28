@@ -6,7 +6,7 @@ Opened, Connection, Established, Send and Recv.
 Keys: devices are named by their Ed25519 keys, as in Community. Noise
 runs on the X25519 keys those convert to (`Keys`).
 
-Kinds 32–38 until the registry names them.
+Kinds 32–39 until the registry names them.
 -/
 import Connection.Noise
 import Community
@@ -54,6 +54,7 @@ inductive Body where
   | established
   | send (addr : B)
   | recv (onConn : Bool) (via addr : B) (at_ : Nat)
+  | settled (room : B)
 
 inductive Fact where
   | eph (of pk sk : B)
@@ -63,11 +64,12 @@ inductive Fact where
   | established (cid c peer h sendKey recvKey : B) (dialer : Bool)
   | send (op addr : B)
   | recv (op : B) (onConn : Bool) (via addr : B) (at_ : Nat)
+  | settled (conn room : B)
   deriving Inhabited, BEq
 
 def Body.kind : Body → UInt8
   | .eph .. => 32 | .request .. => 33 | .opened => 34 | .connection .. => 35
-  | .established => 36 | .send .. => 37 | .recv .. => 38
+  | .established => 36 | .send .. => 37 | .recv .. => 38 | .settled .. => 39
 
 open Community (decAs decAs_enc)
 
@@ -79,6 +81,7 @@ def Body.enc : Body → List UInt8
   | .established => [36]
   | .send a => 37 :: Codec.enc a
   | .recv c v a t => 38 :: Codec.enc (c, v, a, t)
+  | .settled r => 39 :: Codec.enc r
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 32 :: r => decAs (fun (p : B) => Body.eph p) r
@@ -88,6 +91,7 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 36 :: r => some (.established, r)
   | 37 :: r => decAs (fun (p : B) => Body.send p) r
   | 38 :: r => decAs (fun (p : Bool × B × B × Nat) => Body.recv p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 39 :: r => decAs (fun (p : B) => Body.settled p) r
   | _ => none
 
 instance : Codec Body where
@@ -105,6 +109,7 @@ def Fact.enc : Fact → List UInt8
   | .established i c p h s k d => 4 :: Codec.enc (i, c, p, h, s, k, d)
   | .send o a => 5 :: Codec.enc (o, a)
   | .recv o c v a t => 6 :: Codec.enc (o, c, v, a, t)
+  | .settled c r => 7 :: Codec.enc (c, r)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B) => Fact.eph p.1 p.2.1 p.2.2) r
@@ -117,6 +122,7 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 5 :: r => decAs (fun (p : B × B) => Fact.send p.1 p.2) r
   | 6 :: r => decAs (fun (p : B × Bool × B × B × Nat) =>
       Fact.recv p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
+  | 7 :: r => decAs (fun (p : B × B) => Fact.settled p.1 p.2) r
   | _ => none
 
 instance : Codec Fact where

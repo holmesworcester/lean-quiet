@@ -45,4 +45,27 @@ def recipients (c : Id) : View Fact (List Key) := do
   let ls ← live c a.rows
   pure (ls.map (·.2.2))
 
+/-- This node's key: its endpoint op's public key and secret (the least
+id, should it ever hold two). -/
+def nodeKey : View Fact (Option (Key × ByteArray)) := do
+  let a ← endpoint.all.read [] (limit := some 1)
+  pure (a.rows.head?.bind fun (_, f) => match f with
+    | .endpoint pk sk => some (pk, sk)
+    | _ => none)
+
+/-- Of these rows, each admission's user's removals in c, as op ids. -/
+def removalsOf (c : Id) : List (Pos × Fact) → View Fact (List Id)
+  | [] => .pure []
+  | (_, .admission _ u _ _) :: t =>
+    .list (removal.byUser.query [c, u]) fun a =>
+      (removalsOf c t).bind fun rest => .pure (a.rows.map (·.1.2) ++ rest)
+  | _ :: t => removalsOf c t
+
+/-- The removals of the users admitted under key e in c: what a node
+holding them owes the node at e, once none of its users there is live
+(docs/REMOVAL.md). -/
+def removalsAt (c e : Key) : View Fact (List Id) := do
+  let a ← admission.byKey.read [c, e]
+  removalsOf c a.rows
+
 end Community

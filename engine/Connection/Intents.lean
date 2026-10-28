@@ -88,6 +88,39 @@ def roomsV (cid : Id) : View F (List Id) := do
   let a ← View.read (F := F) (established.byConn.query [cid])
   return (← roomsOf (pairsOf a)).reverse
 
+/-- The rooms and notices settled on connection cid (`conn.settled`). -/
+def givenOn (cid : Id) : View F (List Id) := do
+  let a ← View.read (F := F) (settled.byConn.query [cid])
+  return a.rights.filterMap fun (_, f) => match f with
+    | .settled _ r => some r
+    | _ => none
+
+/-- What a connection carries for these (community, peer) pairs: the
+community, synced, where this node is a device and the trust rule takes
+the peer; else a notice of each removal the peer's key is owed
+(`Community.removalsAt`) and not yet given on it. -/
+def carriedOf (given : List Id) : List (B × B) → View F (List Room)
+  | [] => pure []
+  | (c, peer) :: rest => do
+    let here ← do
+      match ← meV c with
+      | some me =>
+        if ← ((trusts c me peer).liftL : View F Bool) then pure [Room.sync c]
+        else
+          let xs ← ((Community.removalsAt c peer).liftL : View F (List Id))
+          pure ((xs.filter fun x => !has given x).map (Room.notice c))
+      | none => pure []
+    let tail ← carriedOf given rest
+    return here ++ tail
+
+/-- What connection cid carries now, as a view read afresh on every
+step: for each (community, peer) its established facts name, the room
+synced, or the notices owed to a removed member's node, or nothing. -/
+def carriedV (cid : Id) : View F (List Room) := do
+  let a ← View.read (F := F) (established.byConn.query [cid])
+  let given ← givenOn cid
+  carriedOf given (pairsOf a)
+
 section
 variable {m : Type → Type} [Monad m] [Lists F m] [Store F m] [Fresh m]
 

@@ -163,6 +163,10 @@ def openFile (slices : List ByteArray) (fileKey fileNonce : ByteArray) : Option 
 /-- This device's secret seed (local). -/
 def secret (seed : ByteArray) : Op := mkOp [] (.secret (Device.ofSeed seed).pk seed)
 
+/-- This node's key (local), from 32 random bytes: what it handshakes
+with, and what the devices it holds name as their X25519 key. -/
+def endpoint (sk : ByteArray) : Op := mkOp [] (.endpoint sk)
+
 /-- This device is in community c (local). -/
 def accept (c : Id) (device : Key) : Op := mkOp [] (.accept c device)
 
