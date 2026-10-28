@@ -30,7 +30,7 @@ def Device.ofSeed (seed : ByteArray) : Device :=
 def Device.named (name : String) : Device := Device.ofSeed (sha256 name.toUTF8)
 
 def Body.tag : Body → UInt8
-  | .root .. => 0 | .invite .. => 1 | .request .. => 2 | .grant .. => 3
+  | .root .. => 0 | .invite .. => 1 | .request .. => 12 | .grant .. => 3
   | .remove .. => 4 | .post .. => 5 | .wrap .. => 6
   | .profile .. => 7 | .blob .. => 8 | .react .. => 9
   | .approve .. => 10 | .admit => 11

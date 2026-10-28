@@ -405,6 +405,30 @@ theorem admit_admits {y c r : Id} {o : Op} {aps us : List Id} {d0 e0 : Key} {u :
     have := tally_iff.2 ⟨us, hf, hn, ht⟩
     simp [check, hreq, this]
 
+/-- **An open link admits whoever holds it.** A Valid request redeeming
+an invitation of threshold 0 is admitted by an admit citing no
+approvals. -/
+theorem open_invite_admits {y c r : Id} {o : Op} {d0 e0 : Key} {u : Id} {d e : Key} {l : Bool}
+    (hy : ops y = some o) (hb : (decode o.body : Option Body) = some .admit)
+    (hreq : o.reqs = [c, r]) (hc : V C ops c (.admission c c d0 e0))
+    (hr : V C ops r (.request c u d e l 0)) :
+    V C ops y (.admission c u d e) :=
+  admit_admits (us := []) hy hb hreq hc hr .nil .nil rfl
+
+/-- **A removed member's approval still counts.** An approval made by a
+user of c stays Valid after that user's removal, so it can still
+complete an admission: the admit reads the approval's fact, and nothing
+about its approver's removal appears in the premises (#1088 semantics:
+validity reads cited facts only). In practice it reaches only nodes the
+removed user can still sync with, or that learned it from them. -/
+theorem removed_approver_admits {y x c r : Id} {o : Op} {d0 e0 : Key} {u a : Id} {d e : Key}
+    {l : Bool} (hy : ops y = some o) (hb : (decode o.body : Option Body) = some .admit)
+    (hreq : o.reqs = [c, r, x]) (hc : V C ops c (.admission c c d0 e0))
+    (hr : V C ops r (.request c u d e l 1)) (hx : V C ops x (.approval c r a))
+    (_removed : Removed C ops c a) :
+    V C ops y (.admission c u d e) :=
+  admit_admits (us := [a]) hy hb hreq hc hr (.cons hx .nil) (by simp) rfl
+
 /-! ## Removal -/
 
 /-- **Only admins remove others.** A Valid removal of user t by user u

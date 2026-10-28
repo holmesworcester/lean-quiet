@@ -7,7 +7,11 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
 - An invite is issued by an admitted device, with a threshold: how
   many members must approve a request it carries. A link invitation
   (another device for the issuer's user) needs exactly one approval,
-  by the issuer's user, as libquiet's unbound device links do.
+  by the issuer's user, as libquiet's unbound device links do. A member
+  invitation with threshold 0 is an open link, as libquiet's member
+  invitations with no vouch policy are: whoever holds its bearer key
+  admits itself, with a request and an admit citing no approvals
+  (`open_invite_admits`).
 - A request redeems an invitation: the requesting device consents
   (signs), and so does the invitation's bearer key from the link. A
   request admits nobody. It is libquiet's Join before its vouches.
@@ -19,7 +23,11 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   exactly `threshold` approvals of it, by distinct users. It is
   unsigned (anyone holding the approvals may compose it), and its fact
   is the admission: into a new user named by the request for a member
-  invitation, into the issuer's user for a link invitation.
+  invitation, into the issuer's user for a link invitation. Several
+  admits of one request (other sets of approvals) all give that same
+  admission fact.
+- A request is body tag 12; tag 2 (the old join, of the same shape) no
+  longer decodes, so an old op is refused rather than misread.
 - An admin grants admin to another user. Admin cannot be revoked.
 - A removal names a user. It is Valid when its author's user is an
   admin, or removes itself. Validity is read off the cited facts only,
@@ -102,7 +110,7 @@ abbrev B := ByteArray
 def Body.enc : Body → List UInt8
   | .root d e s => 0 :: Codec.enc (d, e, s)
   | .invite k l t s => 1 :: Codec.enc (k, l, t, s)
-  | .request d e c b => 2 :: Codec.enc (d, e, c, b)
+  | .request d e c b => 12 :: Codec.enc (d, e, c, b)
   | .grant s => 3 :: Codec.enc s
   | .remove s => 4 :: Codec.enc s
   | .post k t tm s => 5 :: Codec.enc (k, t, tm, s)
@@ -116,7 +124,6 @@ def Body.enc : Body → List UInt8
 def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B) => Body.root p.1 p.2.1 p.2.2) r
   | 1 :: r => decAs (fun (p : B × Bool × Nat × B) => Body.invite p.1 p.2.1 p.2.2.1 p.2.2.2) r
-  | 2 :: r => decAs (fun (p : B × B × B × B) => Body.request p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | 3 :: r => decAs (fun (p : B) => Body.grant p) r
   | 4 :: r => decAs (fun (p : B) => Body.remove p) r
   | 5 :: r => decAs (fun (p : B × B × Nat × B) => Body.post p.1 p.2.1 p.2.2.1 p.2.2.2) r
@@ -126,6 +133,7 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 9 :: r => decAs (fun (p : B × Nat × B) => Body.react p.1 p.2.1 p.2.2) r
   | 10 :: r => decAs (fun (p : B) => Body.approve p) r
   | 11 :: r => some (.admit, r)
+  | 12 :: r => decAs (fun (p : B × B × B × B) => Body.request p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | _ => none
 
 instance : Codec Body where
@@ -235,6 +243,8 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
     if o.reqs.head? = some c ∧ u0 = c ∧ c' = c ∧ C.verify d (signed o (.request d e cs bs)) cs ∧
       C.verify k (signed o (.request d e cs bs)) bs
     then some (.request c (if l then issuer else o.id) d e l t) else none
+  -- The pattern forces exactly three requirements, so slot 1 is the
+  -- request the approval names.
   | .approve s, [.admission c u0 _ _, .request c1 u d _ l _, .admission c2 a da _] =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ (l = true → a = u) ∧ da ≠ d ∧
       C.verify da (signed o (.approve s)) s

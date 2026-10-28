@@ -85,7 +85,7 @@ def main (args : List String) : IO UInt32 := do
       if run == 0 then
         let valid (k : UInt8) := (ops.filter fun o => o.kind == k &&
           match m.status o.id with | some (.valid _) => true | _ => false).length
-        admitted := (admitted.1 + valid 2, admitted.2.1 + valid 10, admitted.2.2 + valid 11)
+        admitted := (admitted.1 + valid 12, admitted.2.1 + valid 10, admitted.2.2 + valid 11)
         let vs := ids0.eraseDups.map m.status
         counts := (counts.1 + (vs.filter fun v => match v with | some (.valid _) => true | _ => false).length,
           counts.2.1 + (vs.filter fun v => match v with | some .invalid => true | _ => false).length,

@@ -75,6 +75,11 @@ def main (args : List String) : IO UInt32 := do
   let reqD := request c invD.id d1 (bearer "d").sk
   let reqE := request c invE.id e1 (bearer "e").sk
   let bareD := admit c reqD.id
+  -- An op in the old join's encoding (tag 2, the same shape as a
+  -- request): it no longer decodes, so it is refused, not misread.
+  let oldJoin : Op :=
+    let body : ByteArray := ⟨(2 :: Codec.enc (m1.pk, m1.enc, ByteArray.empty, ByteArray.empty)).toArray⟩
+    { id := sha256 (Codec.encode ((2 : UInt8), [c, invB.id], body)), kind := 2, reqs := [c, invB.id], body }
   let grantA := grant c c c joinA.id f1
   let postA := post c joinA.id a1 "k1".toUTF8 "hello".toUTF8
   -- Forgeries: mallory posting as alice; mallory joining without the
@@ -83,7 +88,7 @@ def main (args : List String) : IO UInt32 := do
   let sneak := request c invB.id m1 m1.sk
   let selfGrant := grant c joinB.id joinB.id joinB.id b1
   let phase1 := [r, invA, invB, invC, invL, reqA, reqB, reqC, reqL, joinA, joinB, joinC, okL, joinL,
-    bareL, aliceOkL, invD, invE, reqD, reqE, bareD, grantA, postA, forged, sneak, selfGrant]
+    bareL, aliceOkL, invD, invE, reqD, reqE, bareD, oldJoin, grantA, postA, forged, sneak, selfGrant]
   -- Deliver children before parents: the engine waits, then catches up.
   recv phase1.reverse
 
@@ -96,6 +101,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "a link is not admitted without its approval" (← run (isInvalid bareL.id))
   t.ok "only the issuer's user approves a link" (← run (isInvalid aliceOkL.id))
   t.ok "a request needing an approval is not admitted without one" (← run (isInvalid bareD.id))
+  t.ok "an op in the old join encoding is refused" (← run (isInvalid oldJoin.id))
   t.ok "a request alone does not connect dave" (!(← run (allow c d1)))
   t.ok "a request alone does not connect erin" (!(← run (allow c e1)))
   t.ok "a non-admin cannot grant admin" (← run (isInvalid selfGrant.id))
