@@ -10,43 +10,16 @@ of its UI, and checks proofs about all four.
 
 Lean is mostly used for mathematics, or to verify one part of a system.
 Here it is a whole, ordinary app, and nearly every theorem is about the
-code that runs on the phone, not a separate model of it. Native code
-only connects Lean to each OS ([what isn't Lean, and
-why](#what-isnt-lean-and-why)). The proofs reach every layer:
+code that runs on the phone, not a separate model of it
+([what is proven](#what-is-proven)). Native code only connects Lean to
+each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)).
 
-- **State.** Nobody posts as someone else, joins without approval, or
-  undoes a removal; no peer can forge, alter or rename an op; and
-  devices that hold the same ops agree on every verdict
-  ([`no_impersonation`], [`removed_stays`], [`same_ops_same_verdicts`]).
-- **Sync.** A round sends each side exactly what it lacks, a device that
-  holds part of the history judges it as its peers do, and a new op
-  reaches a connected member in one exchange ([`exchange_complete`],
-  [`spec_local`], [`stream_delivers`]).
-- **Networking.** Non-members get nothing, even by asking for an op by
-  id; no device's secrets leave it; and sessions are secret and
-  authenticated, in the symbolic model ([`recv_send`],
-  [`offer_shared`], [`kk_secret`]).
-- **Sync beside the UI.** Judging whatever sync brings in finishes
-  within a budget, and every frame is drawn from one moment of the
-  store, so the screen never shows sync half done ([`drain_bounded`],
-  [`read_one_moment`]). That input goes first and nothing starves is
-  being proven next ([sync and the UI](#sync-and-the-ui)).
-- **The UI, to the pixel row.** A message's glyphs are exactly its
-  visible characters, wrapped to any width and reordered for
-  right-to-left text without losing one; at any screen size and keyboard
-  height, nothing on screen is covered or mis-tapped; and a reaction
-  counts each person once ([`wrap_keeps`], [`visual_perm`],
-  [`visible_in_viewport`], [`hit_iff`], [`tally_nodup`]).
-
-**And a credible path to proofs about n clients.** The sync laws already
+**A credible path to proofs about n clients.** The sync laws already
 run the real sync code, entry point by entry point, in a world of two
 nodes whose network may delay, reorder and drop frames. Agreement needs
 only the same ops, in any order. Convergence for any number of clients
 is next, on the same world with n nodes and fair delivery:
 [toward n clients](#toward-n-clients).
-
-[What is proven](#what-is-proven) lists each guarantee, what it
-assumes, and what is still wanted.
 
 ## What is proven
 
@@ -994,22 +967,6 @@ on the old layout comes over with `ci/reorg-map.tsv` (where each file
 went) and `ci/reorg-imports.py` (its new files' imports).
 
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
-[`no_impersonation`]: ops/community/Laws.lean#L289-L302
-[`removed_stays`]: ops/community/Laws.lean#L563-L566
-[`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
-[`exchange_complete`]: ops/sync/RoundLaws.lean#L232-L241
-[`spec_local`]: engine/core/Locality.lean#L54-L58
-[`stream_delivers`]: engine/wire/WorldLaws.lean#L544-L572
-[`recv_send`]: ops/sync/ConnLaws.lean#L154-L156
-[`offer_shared`]: engine/core/Sync.lean#L83-L86
-[`kk_secret`]: ops/connection/NoiseSymbolic.lean#L595-L609
-[`drain_bounded`]: engine/core/Budget.lean#L163-L168
-[`read_one_moment`]: engine/renderer/LiveLaws.lean#L227-L232
-[`wrap_keeps`]: engine/renderer/WrapLaws.lean#L132-L135
-[`visual_perm`]: engine/renderer/TextLaws.lean#L46-L47
-[`visible_in_viewport`]: engine/renderer/Geometry.lean#L90-L95
-[`hit_iff`]: engine/renderer/SheetGeom.lean#L93-L95
-[`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`Unforgeable`]: ops/community/Laws.lean#L270-L272
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
 [`Distinct`]: engine/core/Proofs.lean#L538-L540
@@ -1018,11 +975,13 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`assumptions_hold`]: ops/community/Merkle.lean#L539-L543
 [`Suite.Good`]: ops/connection/Noise.lean#L61-L65
 [`Keys.Good`]: ops/connection/Types.lean#L32-L36
+[`no_impersonation`]: ops/community/Laws.lean#L289-L302
 [`admission_needs_approval`]: ops/community/Laws.lean#L469-L477
 [`admission_approved`]: ops/community/Laws.lean#L388-L398
 [`request_invited`]: ops/community/Laws.lean#L352-L362
 [`removal_authorized`]: ops/community/Laws.lean#L517-L520
 [`admin_granted`]: ops/community/Laws.lean#L556-L557
+[`removed_stays`]: ops/community/Laws.lean#L563-L566
 [`valid_stays`]: ops/community/Laws.lean#L570-L574
 [`message_authorized`]: ops/community/Laws.lean#L255-L261
 [`approval_signed`]: ops/community/Laws.lean#L371-L381
@@ -1032,9 +991,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`admin_removal_stands`]: ops/community/Laws.lean#L528-L541
 [`mutual_removal`]: ops/community/Laws.lean#L549-L553
 [`removed_approver_admits`]: ops/community/Laws.lean#L488-L499
+[`recv_send`]: ops/sync/ConnLaws.lean#L154-L156
 [`hold_reply_local`]: ops/sync/OfferLaws.lean#L659-L669
 [`heldIn_index`]: ops/sync/OfferLaws.lean#L682-L685
 [`hold_reply_local_premises`]: ops/sync/OfferLaws.lean#L708-L712
+[`offer_shared`]: engine/core/Sync.lean#L83-L86
 [`wire_kinds`]: ops/connection/Laws.lean#L48-L49
 [`local_kinds`]: ops/connection/Laws.lean#L55-L56
 [`joinOps_travels`]: ops/community/Intents.lean#L299-L303
@@ -1049,6 +1010,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`openSealed_seal`]: ops/community/Laws.lean#L918-L920
 [`unbox_box`]: ops/community/Keys.lean#L89-L91
 [`check_reads_shared`]: ops/community/Laws.lean#L839-L841
+[`kk_secret`]: ops/connection/NoiseSymbolic.lean#L595-L609
 [`kk_secret_init`]: ops/connection/NoiseSymbolic.lean#L547-L556
 [`kk_secret_resp`]: ops/connection/NoiseSymbolic.lean#L561-L569
 [`kk_authentic`]: ops/connection/NoiseSymbolic.lean#L806-L820
@@ -1102,6 +1064,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`chunk_unique`]: ops/community/Laws.lean#L763-L769
 [`progress_exact`]: ops/community/Intents.lean#L618-L627
 [`no_injective_hash`]: ops/community/Merkle.lean#L241-L243
+[`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
 [`step_budget`]: engine/core/Budget.lean#L124-L126
 [`sealed_auth`]: ops/connection/Laws.lean#L190-L201
@@ -1115,6 +1078,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Op.decode_exact`]: engine/core/Core.lean#L96-L98
 [`Op.decode_parts`]: engine/core/Core.lean#L101-L104
 [`decode_sum`]: engine/core/Codec.lean#L677-L680
+[`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
 [`order_free`]: engine/core/Proofs.lean#L634-L639
 [`drain_settles`]: engine/core/Termination.lean#L110-L114
 [`status_iff_spec`]: engine/core/Proofs.lean#L483-L485
@@ -1136,20 +1100,25 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`admit_admits`]: ops/community/Laws.lean#L441-L452
 [`connect_admitted`]: ops/community/Connect.lean#L169-L179
 [`removeMember_valid`]: ops/community/Intents.lean#L484-L491
+[`exchange_complete`]: ops/sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: ops/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: ops/sync/Fp.lean#L37-L37
+[`spec_local`]: engine/core/Locality.lean#L54-L58
 [`bootstrap`]: ops/connection/bootstrap/Laws.lean#L401-L405
 [`bootstrap_ideal`]: ops/connection/bootstrap/Laws.lean#L423-L424
 [`bootstrap_possible`]: ops/connection/bootstrap/Laws.lean#L208-L218
 [`reachable_inv`]: ops/connection/bootstrap/Steps.lean#L222-L223
 [`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1180-L1202
 [`stream_offered`]: engine/wire/WorldLaws.lean#L1126-L1138
+[`stream_delivers`]: engine/wire/WorldLaws.lean#L544-L572
 [`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L577-L590
 [`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1145-L1151
 [`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L620-L625
+[`visible_in_viewport`]: engine/renderer/Geometry.lean#L90-L95
 [`newest_visible`]: engine/renderer/Geometry.lean#L99-L105
 [`pinned_visible`]: engine/renderer/Geometry.lean#L147-L151
 [`pinned_tap`]: engine/renderer/Geometry.lean#L154-L157
+[`hit_iff`]: engine/renderer/SheetGeom.lean#L93-L95
 [`eval_stable`]: engine/core/View.lean#L137-L142
 [`view_stable`]: engine/core/View.lean#L163-L165
 [`filed_rel`]: engine/core/Decl.lean#L189-L196
@@ -1162,6 +1131,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`offered_only`]: ops/app/Remove.lean#L83-L86
 [`present_iff`]: ops/app/PeopleLaws.lean#L27-L30
 [`present_nodup`]: ops/app/PeopleLaws.lean#L37-L38
+[`read_one_moment`]: engine/renderer/LiveLaws.lean#L227-L232
 [`answer_agrees`]: engine/renderer/LiveLaws.lean#L73-L75
 [`agrees_store`]: engine/renderer/LiveLaws.lean#L84-L87
 [`agrees_notice`]: engine/renderer/LiveLaws.lean#L201-L205
@@ -1178,7 +1148,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Link.hints_fit`]: ops/community/link/View.lean#L49-L51
 [`Link.qr_fits`]: ops/community/link/View.lean#L67-L67
 [`Camera.src_in`]: engine/renderer/Camera.lean#L51-L53
+[`wrap_keeps`]: engine/renderer/WrapLaws.lean#L132-L135
 [`wrap_fits`]: engine/renderer/WrapLaws.lean#L206-L209
+[`visual_perm`]: engine/renderer/TextLaws.lean#L46-L47
 [`place_shows`]: engine/renderer/TextLaws.lean#L63-L65
 [`place_starts`]: engine/renderer/TextLaws.lean#L128-L134
 [`digits_keep_order`]: engine/renderer/TextLaws.lean#L109-L116
@@ -1196,6 +1168,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`twin_before_time`]: ops/community/reaction/RowLaws.lean#L101-L105
 [`hit_twin`]: ops/community/reaction/RowLaws.lean#L115-L117
 [`time_shown`]: ops/community/reaction/RowLaws.lean#L84-L87
+[`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
 [`readable_held`]: ops/community/Intents.lean#L407-L419
