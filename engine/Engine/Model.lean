@@ -53,6 +53,18 @@ theorem mem_ins (l : List Id) (x y : Id) : y ∈ ins l x ↔ y ∈ l ∨ y = x :
 theorem has_false (l : List Id) (x : Id) : has l x = false ↔ x ∉ l := by
   rw [← has_iff]; simp
 
+/-- Inserting keeps a list's ids distinct. -/
+theorem ins_nodup {l : List Id} {x : Id} (h : l.Nodup) : (ins l x).Nodup := by
+  unfold ins
+  split
+  · exact h
+  · rename_i hx
+    rw [List.nodup_append]
+    refine ⟨h, List.nodup_cons.2 ⟨by simp, List.nodup_nil⟩, fun a ha b hb => ?_⟩
+    rw [List.mem_singleton] at hb; subst hb
+    intro e; subst e
+    exact hx ((has_iff _ _).2 ha)
+
 /-- Ids each once, in byte order: one list for a set, whatever order
 its ids were found in. -/
 def sortIds (l : List Id) : List Id :=

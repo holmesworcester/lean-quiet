@@ -24,7 +24,8 @@ Proven (`Proofs.lean`), about that code run on the model:
 
 - `inv_ingest`, `inv_step`, `purge_inv`: the tables keep `Inv` through
   any interleaving of arrivals, steps and purges (so through any crash,
-  which leaves a committed state).
+  which leaves a committed state). Among its fields: each key's index
+  list holds an op at most once (`Inv.nodup`).
 - `status_iff_spec`: at rest (queue empty), the persisted verdicts are
   exactly the declarative spec's (`Spec.lean`: the least fixpoint of
   `judge`), and the index holds exactly the Valid facts' keys.
@@ -156,6 +157,8 @@ watches are the keys of the lists it read: nothing is recorded.
 - `view_stable`: so a view's answer changes only if a row is filed
   under a key it read. Notices for exactly those keys are complete;
   `querydiff` checks it on SQLite after every commit.
+- `matching_nodup`: a list's rows name distinct ops, so its `total`
+  counts ops (`perm_sortPos`: sorting only reorders).
 
 ## The community (`Community/`)
 
