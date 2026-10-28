@@ -68,6 +68,7 @@
 #include <pthread.h>
 #include <stdatomic.h>
 #include <time.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 int  lean_app_main(int argc, char** argv);
@@ -944,6 +945,38 @@ static void lq_listen(UIView* v, bool drag) {
 // The app
 // -------
 
+// Lean's stderr (and the twin's) also goes to Documents/lean.log, new at
+// each launch, so a phone's run can be read back (devicectl device copy
+// from) without holding its console: fd 2 becomes a pipe whose reader
+// writes each chunk to the old stderr and to the file.
+static void* lq_tee(void* arg) {
+  int*    fds = arg;  // the pipe's read end, the old stderr, the file
+  char    buf[4096];
+  ssize_t n;
+  while ((n = read(fds[0], buf, sizeof buf)) > 0) {
+    write(fds[1], buf, (size_t)n);
+    write(fds[2], buf, (size_t)n);
+  }
+  return NULL;
+}
+
+static void lq_log_to(const char* path) {
+  static int fds[3];
+  int        p[2];
+  fds[2] = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (fds[2] < 0 || pipe(p) != 0) {
+    return;
+  }
+  fds[0] = p[0];
+  fds[1] = dup(2);
+  dup2(p[1], 2);
+  close(p[1]);
+  setvbuf(stderr, NULL, _IOLBF, 0);
+  pthread_t t;
+  pthread_create(&t, NULL, lq_tee, fds);
+  pthread_detach(t);
+}
+
 static void* lq_run(void* arg) {
   // Lean's working directory: Documents (writable; quiet.db goes there),
   // with `assets` a link to the bundle's, made anew each launch (the
@@ -956,6 +989,7 @@ static void* lq_run(void* arg) {
   [fm removeItemAtPath:link error:NULL];
   [fm createSymbolicLinkAtPath:link withDestinationPath:res error:NULL];
   chdir(docs.fileSystemRepresentation);
+  lq_log_to("lean.log");
   // Lean's threads (its main and every task worker) reserve 1 GB of stack
   // each on 64-bit; an iOS app's address space runs out after a few, and
   // pthread_create fails with EAGAIN (on the phone, not the Simulator).

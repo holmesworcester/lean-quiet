@@ -101,7 +101,13 @@ Linux box and do the Mac's part over SSH.
   the frame is a page, the header's height, the overscan, the screen rows
   of the list frame's first row and of the scroll view's bottom (as UIKit
   laid them out), the composer's top, the last list tap reported, and the
-  keyboard's text.
+  keyboard's text. `twin local` puts a channel opened on every interface
+  back on 127.0.0.1 without a relaunch.
+- **Log:** stderr, Lean's and the twin's, also goes to `Documents/lean.log`,
+  new at each launch. A phone's run can then be read back with `devicectl
+  device copy from … --source Documents/lean.log`, for example the node's
+  `node: listening on 47100, dialed as …`, without holding its console
+  (ending a held console ends the app).
 - **Working directory:** the app's Documents directory. `quiet.db` lives
   there, and `assets` is a symlink to the bundle's assets, made again at
   each launch.
