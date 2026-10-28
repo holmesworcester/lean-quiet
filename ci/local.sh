@@ -22,11 +22,13 @@ gate() {
     mdns|qr|net) tests/check.sh ;;
     app)
       [ -f assets/font.bin ] || tools/fetch_assets.sh
-      lake build host two_nodes net_join arrival &&
+      lake build host two_nodes net_join cross arrival attach &&
         .lake/build/bin/host "${MESSAGES:-500}" out/host &&
         .lake/build/bin/two_nodes out/two &&
         .lake/build/bin/net_join out/net &&
+        .lake/build/bin/cross out/cross &&
         .lake/build/bin/arrival out/arrival &&
+        .lake/build/bin/attach out/attach &&
         tests/check.sh ;;
     readme) python3 ci/proof-links.py --check ;;
     *) echo "no part $1" >&2; return 2 ;;

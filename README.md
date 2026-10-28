@@ -16,16 +16,20 @@ or anyone on the network does:
 - **non-members get none of a community's ops, and no device's secrets
   leave it;**
 - **a node's trust rule lets in exactly the live members;** ¹
-- **honest nodes that hold the same ops agree.** ²
+- **honest nodes that hold the same ops agree;** ²
+- **only a session's two devices can derive its keys, even if both
+  devices' long-term keys later leak.** ³
 
 ¹ assuming Ed25519 signatures cannot be forged. ² assuming SHA-256 has
-no collisions.
+no collisions. ³ in the symbolic model of the cryptography.
 
-**Not yet proven:** that sessions and messages are secret from someone
-on the wire (in progress), that a removal reaches a live session, the
-bootstrap over the running code rather than a model, and that content
-is drawn faithfully all the way to pixels (proven up to each row's
-layout; painting it is not).
+**Not yet proven:**
+- that messages are secret from non-members (the seal's secrecy);
+- that a removal reaches a live session from the removal itself, which
+  needs `sum_project`;
+- the bootstrap over the running code, rather than a model;
+- that content is drawn faithfully all the way to pixels (proven up to
+  each row's layout; painting is not).
 
 ### Assumed
 
@@ -44,13 +48,19 @@ nothing else is assumed:
   - The engine's agreement and budget theorems take `Distinct`.
   - Sync's Merkle labels take the same of what they hash (in
     [`lbl_inj`]).
+- [`NoSecondPreimage`]: SHA-256 has no second preimage on a file's
+  Merkle tree inputs, for the attachment laws. [`assumptions_hold`]
+  shows that it can hold.
 - [`Suite.Good`]: X25519 agrees (`dh a (pub b) = dh b (pub a)`), the
   AEAD opens what it seals, and public keys are 32 bytes. With
   [`Keys.Good`], a device's Ed25519 key converts to its seed's X25519
   key. These are correctness only, and say nothing about secrecy.
-- **When the secrecy proofs land,** they will assume the symbolic
-  model: perfect primitives, with the attacker reading, replaying and
-  injecting every message.
+- **The session secrecy theorems assume the symbolic (Dolev-Yao)
+  model:** perfect primitives, with the attacker reading, replaying and
+  injecting every message. They have no computational reduction. DH is
+  over named exponents only, with no low-order points, clamping or
+  Ed25519-to-X25519 conversion. Their agreement is non-injective: a
+  replayed handshake is accepted again.
 
 **Trusted, not proven.** Each item is tested instead, as noted:
 - **Lean** (its kernel, compiler and runtime), and the OS's randomness
@@ -92,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 148 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 275 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as each part's `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -114,25 +124,26 @@ nothing else is assumed:
 | ✅ | 🥊🥊 | **Admins' removals stand,** even of each other, and a removed member's earlier approvals still count. | [`admin_removal_stands`], [`mutual_removal`], [`removed_approver_admits`] |
 | | | **Confidentiality** | |
 | ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A session sends only sync messages, and ops of the rooms its peer is let into. | [`recv_send`] |
-| ✅ | 🥊🥊🥊 | **Secrets stay on the device.** No local op (a secret, a session key, a pending join) is ever offered or sent. Of a connection's ops, only the two handshake messages are not local. | [`offer_shared`], [`wire_kinds`], [`local_kinds`], [`join_travels`], [`found_travels`], [`stopWaiting_local`] |
+| ✅ | 🥊🥊🥊 | **Secrets stay on the device.** No local op (a secret, a session key, a pending join) is ever offered or sent. Of a connection's ops, only the two handshake messages are not local. | [`offer_shared`], [`wire_kinds`], [`local_kinds`], [`joinOps_travels`], [`found_travels`], [`stopWaiting_local`] |
 | ✅ | 🥊🥊 | **The stream discloses only what it may.** It offers only ids of stored, shared ops, never one still pending. The clock sends only round messages and offers. | [`filed_send`], [`offer_stored`], [`tick_send`] |
-| 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Proven: a content key goes to exactly the live members' devices. In progress: sealing posts with it. | [`recipients_iff`], [`members_iff`] |
-| ⬜ | 🥊🥊🥊 | **Sessions are secret and authenticated:** only the two devices can derive a session's keys. In progress (`kk_secret`, `kk_authentic`). Proven so far: an honest handshake agrees. | [`handshake_agrees`], [`sent1_write1`], [`sent1_read1`], [`read2_write2'`] |
-| 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered** from the disk, or from the static keys later. Proven: the session's rows are gone. Tested: no file of the database holds a byte of them (`engine/Tests/Purge.lean`). In progress: from the static keys (`kk_forward_secret`). | [`purge_gone`], [`purge_named`] |
+| 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Proven: a content key goes to exactly the live members' devices, and a member opens what was sealed under the key wrapped to it. A shared op's validator reads only shared facts. Wanted: that a non-member cannot open it (the seal's secrecy). | [`recipients_iff`], [`members_iff`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`check_reads_shared`] |
+| ✅ | 🥊🥊🥊 | **Sessions are secret and authenticated.** Suppose an attacker reads, replays and injects every message, and knows every key except the two devices' static keys and the session's ephemerals. Then neither transport key is derivable. The initiator accepts a reply only if it is exactly what the responder wrote answering this request. This is over the handshake functions that run, in the symbolic model (see Assumed). Replays are accepted again, and payloads are not covered. A negative control shows an attacker holding the initiator's keys does derive the session keys, and `kk_runs` shows the honest run exists. | [`kk_secret`], [`kk_secret_init`], [`kk_secret_resp`], [`kk_authentic`], [`kk_authentic_resp`], [`kk_secret_init_tight`], [`kk_runs`], [`handshake_agrees`] |
+| 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered,** from the disk or from the static keys later. Proven: with the ephemerals gone, both static keys and the whole transcript do not give the session keys, and the session's rows are gone. Tested: no file of the database holds a byte of them (`engine/Tests/Purge.lean`). Wanted: that closing purges every ephemeral (`close_forgets`). | [`kk_forward_secret`], [`kk_forward_secret_init`], [`kk_forward_secret_resp`], [`purge_gone`], [`purge_named`] |
 | ⬜ | 🥊🥊🥊 | **Session secrets never reach the disk.** They would be ephemeral ops, held in memory, so forward secrecy would not rest on deletion. A restart then redials. | |
 | ⬜ | 🥊🥊🥊 | **Removed members cannot read new messages.** This needs key rotation, which is not built. | |
 | ⬜ | 🥊🥊 | **Every offered id names a stored op in one of the peer's rooms** (`have_shown`). This is the disclosure law for ids. | |
 | | | **Connections** | |
 | ✅ | 🥊🥊🥊 | **The trust rule lets in exactly the live members.** Read from the node's tables, it accepts exactly the devices of admitted, unremoved users. Nodes that hold the same ops agree on it. | [`connect_iff`], [`refuse_nonmember`], [`connect_approved`], [`connect_agree`] |
-| ✅ | 🥊🥊🥊 | **A removal cuts the removed user out of the rule.** Once a node holds it, the rule refuses every device of that user. Only an admin can remove another user, and nothing undoes it. | [`removal_cuts_off`], [`removals_iff`], [`removal_authorized`], [`removed_stays`] |
-| 🟡 | 🥊🥊🥊 | **A removal ends a live session's sync.** Proven: a connection sends and takes only ops of the rooms it holds. The code refreshes those rooms from the rule whenever it stores an op, but no theorem says so yet (`rooms_trusted`), and no test checks it. The session itself stays open, with no rooms. | [`recv_send`], [`recv_take`], [`removal_cuts_off`] |
+| ✅ | 🥊🥊🥊 | **A removal cuts the removed user out of the rule.** Once a node holds it, the rule refuses every device of that user, except a device also admitted into another live user. A device can be admitted under two users today. Whether that should hold is an open design question. Only an admin can remove another user, and nothing undoes it. | [`removal_cuts_off`], [`removals_iff`], [`removal_authorized`], [`removed_stays`] |
+| 🟡 | 🥊🥊🥊 | **A removal ends a live session's sync.** Proven: a connection carries a room only if the trust rule takes its peer, and for a live member that rule is `allowPeer`. So a peer `allowPeer` refuses gets nothing of the room, and nothing of it is taken from them. Every connection step reads its rooms afresh. That is in the code and tested over TCP, with a negative control, but not a theorem. Wanted: deriving the refusal from the removal itself in the running node (`sum_project`). The session stays open, with no rooms. | [`rooms_trusted`], [`rooms_cut`], [`trusts_live`], [`rooms_model`], [`recv_send`], [`recv_take`], [`removal_cuts_off`] |
 | ⬜ | 🥊🥊🥊 | **No packet goes to a removed member.** From the first run of the engine loop after a node decides a removal, it sends the removed user's devices nothing. No sealed frame (their sessions close), no handshake reply (a replayed request gets nothing), and no dial. A last notice of the removal itself might be allowed. Today their sessions stay open with no rooms, and a replayed request is answered with its old reply bytes. Both change first. | |
 | 🟡 | 🥊🥊🥊 | **No session before approval,** however hellos are lost or replayed, and sessions form only with trusted peers. Proven over a model. Wanted over the running handshake (`answer_trusted`, `untrusted_silent`). | [`no_connection_before_approval`], [`sessions_trusted`] *(model)* |
 | ✅ | 🥊🥊🥊 | **Peers cannot push ops in** outside the rooms they are let into, nor plant a device's local state. | [`recv_take`], [`intake_local`], [`stored_local`], [`local_fact_mine`], [`intakeConn_conn`] |
 | ✅ | 🥊🥊 | **Both ends hold one session.** Two ends that complete a handshake hold the same hash, each names the other, and each one's send key is the other's receive key. A frame opens to what was sealed, for the connection it names. | [`established_agrees`], [`open_seal`], [`cid_seal`] |
 | | | **Hostile input** | |
-| ✅ | 🥊🥊🥊 | **One parse per op.** A decoded op re-encodes to exactly the bytes received, so there is no parser differential and no malleability: the signer, the hasher and every peer read the same op. Its id is the SHA-256 of those bytes, so a peer cannot name an op. | [`Codec.encode_decode`], [`Op.id_decode`], [`distinct_of_collisionFree`] |
+| ✅ | 🥊🥊🥊 | **One parse per op.** A decoded op re-encodes to exactly the bytes received, so there is no parser differential and no malleability: the signer, the hasher and every peer read the same op. Its id is the SHA-256 of those bytes, so a peer cannot name an op. A Valid op is exactly its body's encoding under its own type, so no re-typed copy of one is Valid. | [`Codec.encode_decode`], [`Op.id_decode`], [`distinct_of_collisionFree`], [`op_of_valid`] |
 | ✅ | 🥊🥊🥊 | **Hostile bytes decode to a well-formed value or to nothing.** A QOI picture comes out at 1–2048 px a side, with exactly its pixels' bytes, so at most 16 MiB whatever it claims. An mDNS packet keeps its RFC limits, and its pointer chains end by construction. Invite links and QR segments are valid. | [`Pic.decode_sized`], [`Mdns.decode_valid`], [`Community.parse_valid`], [`Qr.parse_valid`] |
+| ✅ | 🥊🥊🥊 | **Attachments authenticate themselves.** Any peer may relay a file's chunks, but a chunk is Valid only if it is its file's own slice. One op stands for each index, so download progress counts exactly the chunks held, and the chunks for every index put together are the file. This assumes SHA-256 has no second preimage on the tree's inputs, a premise shown satisfiable. No hash with 32-byte outputs is injective, so the laws assume nothing stronger. | [`chunk_is_slice`], [`verify_sound`], [`complete_assembles`], [`chunk_unique`], [`progress_exact`], [`assumptions_hold`], [`no_injective_hash`] |
 | ✅ | 🥊🥊🥊 | **Judging cannot be hung.** From any state, judging empties its queue within a budget read off the tables. | [`drain_bounded`], [`drain_terminates`], [`step_budget`] |
 | ⬜ | 🥊🥊🥊 | **Authenticate before parsing:** a sealed frame's payload is decoded only after its AEAD check passes. | |
 | ⬜ | 🥊🥊 | **Bounded buffering:** a connection holds at most one maximal frame (1 MiB) and a read, whatever the peer's length fields say. | |
@@ -150,7 +161,7 @@ nothing else is assumed:
 | ✅ | 🥊🥊 | **Purge takes exactly what it must.** It takes the named conn and local ops and their stored dependents. Shared dependents are judged again. | [`purge_named`], [`purge_undecides`], [`purge_inv`], [`mem_purgeSet`], [`reach_ops`] |
 | ✅ | 🥊 | **Families compose, op by op:** adding a family changes no verdict or scope of the first's ops. Strict decoding round-trips. | [`sum_left`], [`sum_scope_left`], [`Codec.decode_encode`], [`Op.decode_bytes`] |
 | ⬜ | 🥊🥊🥊 | **The Community laws hold in the running node** (`sum_project`). In the store composed with the Connection family, every Community view answers as it would in a store of the Community ops alone. This carries every law above to the node that runs. | |
-| ✅ | 🥊🥊🥊 | **The honest path works.** A request with its invitation and both signatures is valid, an eligible member's approval is valid, and enough approvals admit and let the device in. | [`request_valid`], [`approve_valid`], [`admit_admits`], [`connect_admitted`] |
+| ✅ | 🥊🥊🥊 | **The honest path works.** A request with its invitation and both signatures is valid, an eligible member's approval is valid, and enough approvals admit and let the device in. The remover's intent writes only removals that stand. | [`request_valid`], [`approve_valid`], [`admit_admits`], [`connect_admitted`], [`removeMember_valid`] |
 | | | **Sync** | |
 | ✅ | 🥊🥊🥊 | **A sync round is complete.** Each side is sent exactly what the other holds in the range and it lacks. On any path, it takes at most one answer more than the two sides hold in the range. | [`exchange_complete`] |
 | ✅ | 🥊🥊 | **Fingerprints are honest.** Equal Merkle labels mean equal sets, and a side opens a round with an honest claim. | [`lbl_inj`], [`opening_honest`], [`num_inj`] |
@@ -165,7 +176,14 @@ nothing else is assumed:
 | ⬜ | 🥊 | **The cached Merkle tree's labels are `lbl`'s,** for O(log n) fingerprints with no change on the wire. | |
 | | | **The screen** | |
 | ✅ | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. | [`visible_in_viewport`], [`newest_visible`], [`pinned_visible`], [`pinned_tap`], [`hit_iff`] |
-| ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`] |
+| ⬜ | 🥊🥊🥊 | **Every control is big enough to tap.** Every tappable control's hit area, not just its drawn size, is at least 48 dp by 48 dp on Android and 44 pt by 44 pt on iOS, at every supported screen size and text scale. | |
+| ⬜ | 🥊🥊 | **A tap means one thing.** On every screen, no two controls' hit areas overlap, so a point selects at most one control. A tap selects the control drawn under it. Today this is proven for the emoji sheet and message rows only (`keys_disjoint`, `hit_iff`, `pinned_tap`). | |
+| ⬜ | 🥊🥊 | **Every control shown can be tapped.** A control that is drawn has its hit area on screen, and not under the header, the composer or the keyboard. | |
+| ⬜ | 🥊🥊 | **A tap acts once.** A second tap on a control while its action is in flight starts nothing new (Send sends once). A press that turns into a scroll past the slop is not a tap. | |
+| ⬜ | 🥊🥊 | **Destructive actions are guarded.** Every action that cannot be undone asks for a second confirmation, as removal does (`writes_only_after_two`). Its control keeps a clear gap from the controls around it. | |
+| ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
+| ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
+| ✅ | 🥊🥊 | **The people list is the present members,** each once. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_nodup`] |
 | ⬜ | 🥊🥊🥊 | **The screen is one moment.** Every frame is the root component drawn over a single settled store state, the latest the app has seen, so if one row is current, all are. Half of this is proven: a cached component whose keys did not fire answers as a fresh read would. Wanted: the renderer re-reads exactly what fired, and reads only between write turns. | [`eval_stable`], [`view_stable`], [`drain_bounded`] |
 | ⬜ | 🥊🥊 | **An action's toast stays until the screen shows it.** A toast for an action (removing someone, a new name or avatar) stays up until every component on screen has re-read a state that holds the action's op, or until the OS's toast time passes, whichever comes first. So a toast that leaves early proves the screen has caught up. | |
 | ✅ | 🥊🥊 | **The layout is exact.** The slide and keyboard shift are exact, and page rows are where the page put them. Emoji keys never overlap, and every key is reachable. An invite's hints and QR fit, and the camera preview reads inside its frame. | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
@@ -217,6 +235,8 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`CollisionFree`]: engine/Engine/Proofs.lean#L542-L544
 [`Distinct`]: engine/Engine/Proofs.lean#L538-L540
 [`lbl_inj`]: engine/Engine/Sync/Fp.lean#L264-L268
+[`NoSecondPreimage`]: engine/Community/Merkle.lean#L137-L138
+[`assumptions_hold`]: engine/Community/Merkle.lean#L534-L538
 [`Suite.Good`]: engine/Connection/Noise.lean#L61-L65
 [`Keys.Good`]: engine/Connection/Types.lean#L32-L36
 [`no_impersonation`]: engine/Community/Laws.lean#L289-L302
@@ -239,6 +259,7 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`offer_shared`]: engine/Engine/Sync.lean#L83-L86
 [`wire_kinds`]: engine/Connection/Laws.lean#L40-L41
 [`local_kinds`]: engine/Connection/Laws.lean#L47-L48
+[`joinOps_travels`]: engine/Community/Intents.lean#L246-L250
 [`found_travels`]: engine/Community/Intents.lean#L257-L261
 [`stopWaiting_local`]: engine/Community/Intents.lean#L253-L254
 [`filed_send`]: engine/Engine/Sync/ConnLaws.lean#L175-L178
@@ -246,10 +267,21 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`tick_send`]: engine/Engine/Sync/ConnLaws.lean#L184-L187
 [`recipients_iff`]: engine/Community/Connect.lean#L214-L218
 [`members_iff`]: engine/Community/Connect.lean#L205-L208
+[`member_opens`]: engine/Community/Laws.lean#L900-L904
+[`openSealed_seal`]: engine/Community/Laws.lean#L890-L892
+[`unbox_box`]: engine/Community/Keys.lean#L89-L91
+[`check_reads_shared`]: engine/Community/Laws.lean#L811-L813
+[`kk_secret`]: engine/Connection/NoiseSymbolic.lean#L595-L609
+[`kk_secret_init`]: engine/Connection/NoiseSymbolic.lean#L547-L556
+[`kk_secret_resp`]: engine/Connection/NoiseSymbolic.lean#L561-L569
+[`kk_authentic`]: engine/Connection/NoiseSymbolic.lean#L806-L820
+[`kk_authentic_resp`]: engine/Connection/NoiseSymbolic.lean#L872-L885
+[`kk_secret_init_tight`]: engine/Connection/NoiseSymbolic.lean#L616-L625
+[`kk_runs`]: engine/Connection/NoiseSymbolic.lean#L304-L312
 [`handshake_agrees`]: engine/Connection/Noise.lean#L308-L320
-[`sent1_write1`]: engine/Connection/Noise.lean#L223-L226
-[`sent1_read1`]: engine/Connection/Noise.lean#L253-L259
-[`read2_write2'`]: engine/Connection/Noise.lean#L285-L290
+[`kk_forward_secret`]: engine/Connection/NoiseSymbolic.lean#L685-L696
+[`kk_forward_secret_init`]: engine/Connection/NoiseSymbolic.lean#L643-L651
+[`kk_forward_secret_resp`]: engine/Connection/NoiseSymbolic.lean#L662-L671
 [`purge_gone`]: engine/Engine/Purge.lean#L261-L263
 [`purge_named`]: engine/Engine/Purge.lean#L267-L271
 [`connect_iff`]: engine/Community/Connect.lean#L146-L150
@@ -258,6 +290,10 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`connect_agree`]: engine/Community/Connect.lean#L226-L229
 [`removal_cuts_off`]: engine/Community/Connect.lean#L241-L245
 [`removals_iff`]: engine/Community/Connect.lean#L43-L44
+[`rooms_trusted`]: engine/Connection/RoomLaws.lean#L74-L79
+[`rooms_cut`]: engine/Connection/RoomLaws.lean#L93-L103
+[`trusts_live`]: engine/Connection/RoomLaws.lean#L40-L46
+[`rooms_model`]: engine/Connection/RoomLaws.lean#L109-L111
 [`recv_take`]: engine/Engine/Sync/ConnLaws.lean#L118-L120
 [`no_connection_before_approval`]: net/Net/Laws.lean#L39-L46
 [`sessions_trusted`]: net/Net/Laws.lean#L63-L68
@@ -271,10 +307,17 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`Codec.encode_decode`]: engine/Engine/Codec.lean#L154-L157
 [`Op.id_decode`]: engine/Engine/Core.lean#L85-L87
 [`distinct_of_collisionFree`]: engine/Engine/Proofs.lean#L546-L549
+[`op_of_valid`]: engine/Community/Laws.lean#L227-L232
 [`Pic.decode_sized`]: qr/Pic/Laws.lean#L198-L201
 [`Mdns.decode_valid`]: mdns/Mdns/Laws.lean#L540-L541
 [`Community.parse_valid`]: engine/Community/Link.lean#L213-L214
 [`Qr.parse_valid`]: qr/Qr/SegLaws.lean#L336-L338
+[`chunk_is_slice`]: engine/Community/Laws.lean#L673-L682
+[`verify_sound`]: engine/Community/Merkle.lean#L426-L432
+[`complete_assembles`]: engine/Community/Merkle.lean#L473-L479
+[`chunk_unique`]: engine/Community/Laws.lean#L735-L741
+[`progress_exact`]: engine/Community/Intents.lean#L493-L502
+[`no_injective_hash`]: engine/Community/Merkle.lean#L236-L238
 [`drain_bounded`]: engine/Engine/Budget.lean#L163-L168
 [`drain_terminates`]: engine/Engine/Termination.lean#L84-L87
 [`step_budget`]: engine/Engine/Budget.lean#L124-L126
@@ -299,6 +342,7 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`approve_valid`]: engine/Community/Laws.lean#L425-L433
 [`admit_admits`]: engine/Community/Laws.lean#L441-L452
 [`connect_admitted`]: engine/Community/Connect.lean#L169-L179
+[`removeMember_valid`]: engine/Community/Intents.lean#L375-L382
 [`exchange_complete`]: engine/Engine/Sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: engine/Engine/Sync/RoundLaws.lean#L323-L325
 [`num_inj`]: engine/Engine/Sync/Fp.lean#L37-L37
@@ -316,6 +360,14 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`view_stable`]: engine/Engine/View.lean#L163-L165
 [`filed_rel`]: engine/Engine/Decl.lean#L189-L196
 [`mem_keysOf`]: engine/Engine/Decl.lean#L79-L82
+[`matching_nodup`]: engine/Engine/Decl.lean#L158-L161
+[`writes_only_after_two`]: app/Quiet/Remove.lean#L56-L59
+[`cancel_writes_nothing`]: app/Quiet/Remove.lean#L63-L64
+[`open_fresh`]: app/Quiet/Remove.lean#L67-L69
+[`no_replace`]: app/Quiet/Remove.lean#L74-L76
+[`offered_only`]: app/Quiet/Remove.lean#L83-L86
+[`present_iff`]: app/Quiet/PeopleLaws.lean#L27-L30
+[`present_nodup`]: app/Quiet/PeopleLaws.lean#L37-L38
 [`placed_row`]: app/Quiet/Geometry.lean#L81-L85
 [`newest_drawn`]: app/Quiet/Geometry.lean#L108-L111
 [`pinned_row`]: app/Quiet/Geometry.lean#L141-L144
@@ -352,8 +404,8 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`dedupe_nodup`]: app/Quiet/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: app/Quiet/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: app/Quiet/Switch.lean#L82-L84
-[`drawPage_key`]: app/Quiet/App.lean#L853-L857
-[`pageIn_acc`]: app/Quiet/App.lean#L859-L862
+[`drawPage_key`]: app/Quiet/App.lean#L874-L878
+[`pageIn_acc`]: app/Quiet/App.lean#L880-L883
 [`parse_segsBits`]: qr/Qr/SegLaws.lean#L157-L161
 [`parse_dataStream`]: qr/Qr/SegLaws.lean#L193-L197
 [`RS.correct_sound`]: qr/Qr/Laws.lean#L55-L57
@@ -368,6 +420,5 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`render_opaque`]: qr/Pic/Laws.lean#L222-L226
 [`scale_wellFormed`]: qr/Pic/Laws.lean#L236-L236
 [`fit_round`]: qr/Pic/Laws.lean#L87-L90
-[`layout_inside`]: qr/Pic/Laws.lean#L170-L172
 [`layout_apart`]: qr/Pic/Laws.lean#L147-L148
 <!-- /proof-links -->

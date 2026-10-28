@@ -12,8 +12,9 @@ by its full name or any suffix of it that names one of these; the link
 definitions go in the block between the proof-links markers at its end.
 
   ci/proof-links.py           rewrite the block
-  ci/proof-links.py --check   fail if the block is stale, or a
-                              reference names no audited theorem
+  ci/proof-links.py --check   fail if the block is stale, a reference
+                              names no audited theorem, or the README's
+                              "All N rest on" count is not the audits' total
 
 Needs each part built (its gate builds it).
 """
@@ -24,9 +25,12 @@ PARTS = ["engine", "app", "qr", "net", "mdns"]
 README = os.path.join(TOP, "README.md")
 BEGIN = "<!-- proof-links: written by ci/proof-links.py; do not edit -->"
 END = "<!-- /proof-links -->"
+# How many theorems the parts audit, counted as they are probed.
+AUDITED = [0]
 # Definitions the theorems take as hypotheses, by part.
 ASSUMED = {"engine": ["Community.Unforgeable", "Engine.CollisionFree", "Engine.Distinct",
-                      "Connection.Noise.Suite.Good", "Connection.Keys.Good"]}
+                      "Connection.Noise.Suite.Good", "Connection.Keys.Good",
+                      "Community.Merkle.NoSecondPreimage"]}
 
 PROBE = """open Lean in
 #eval show CoreM Unit from do
@@ -54,6 +58,7 @@ def audit(part):
 
 def ranges(part):
     imports, names = audit(part)
+    AUDITED[0] += len(names)
     names = names + ASSUMED.get(part, [])
     out = os.path.join(TOP, "out", "proof-links")
     os.makedirs(out, exist_ok=True)
@@ -121,6 +126,13 @@ def main():
         a, b = span(path, start, sel, end, any(hits[0] in v for v in ASSUMED.values()))
         defs.append(f"[`{label}`]: {path}#L{a}-L{b}")
     block = "\n" + "\n".join(defs) + "\n"
+    count = re.search(r"All (\d+) rest on", head)
+    if not count:
+        problems.append('no "All N rest on" count in the README')
+    elif int(count.group(1)) != AUDITED[0]:
+        if check:
+            problems.append(f"the README says All {count.group(1)}; the audits hold {AUDITED[0]}")
+        head = head[:count.start(1)] + str(AUDITED[0]) + head[count.end(1):]
     new = head + BEGIN + block + END + tail
     if check:
         if new != text:
