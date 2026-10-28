@@ -16,25 +16,96 @@ reads or writes goes through `Store`, so the same code runs on SQLite
 (Engine/Sqlite.lean) and on the pure model the proofs use
 (Engine/Model.lean). Nothing is held in memory between steps.
 -/
+import Engine.Codec
+
 namespace Engine
 
 abbrev Id := ByteArray
 
-/-- An op: its id (the hash of its canonical bytes, computed where the
-bytes are decoded), its type, the ops it requires in slot order, and its
-body. -/
+/-- SHA-256 (libsodium, through native/glue.c). The proofs treat it as
+an unknown function: wherever they need two ops' ids to differ, they
+assume it has no collision on those ops' bytes (`Distinct`). -/
+@[extern "le_sha256"] opaque sha256 (b : @& ByteArray) : ByteArray
+
+/-- An op: its type, the ops it requires in slot order, and its body.
+Its id is the SHA-256 of its bytes (`Op.bytes`), set by `Op.make`; any
+other construction must prove the same id (`id_eq`), so no one can name an op: whoever builds one
+or decodes one from bytes gets the id its bytes give. Its bytes are the
+same on the wire and in SQLite. -/
 structure Op where
   id : Id
   kind : UInt8
   reqs : List Id
   body : ByteArray
-  deriving DecidableEq, Inhabited
+  id_eq : id = sha256 (Codec.encode (kind, reqs, body))
+
+/-- The op with this type, requirements and body, named by its bytes. -/
+def Op.make (kind : UInt8) (reqs : List Id) (body : ByteArray) : Op :=
+  ⟨sha256 (Codec.encode (kind, reqs, body)), kind, reqs, body, rfl⟩
+
+@[simp] theorem Op.make_kind (k : UInt8) (r : List Id) (b : ByteArray) : (Op.make k r b).kind = k := rfl
+@[simp] theorem Op.make_reqs (k : UInt8) (r : List Id) (b : ByteArray) : (Op.make k r b).reqs = r := rfl
+@[simp] theorem Op.make_body (k : UInt8) (r : List Id) (b : ByteArray) : (Op.make k r b).body = b := rfl
+
+/-- Ops with the same type, requirements and body are the same op. -/
+theorem Op.ext' {a b : Op} (hk : a.kind = b.kind) (hr : a.reqs = b.reqs) (hb : a.body = b.body) :
+    a = b := by
+  obtain ⟨i, k, r, d, h⟩ := a
+  obtain ⟨i', k', r', d', h'⟩ := b
+  simp only at hk hr hb
+  subst hk hr hb h h'
+  rfl
+
+theorem Op.make_eta (o : Op) : Op.make o.kind o.reqs o.body = o := Op.ext' rfl rfl rfl
+
+instance : DecidableEq Op := fun a b =>
+  if h : a.kind = b.kind ∧ a.reqs = b.reqs ∧ a.body = b.body then
+    isTrue (Op.ext' h.1 h.2.1 h.2.2)
+  else
+    isFalse fun e => h (by subst e; exact ⟨rfl, rfl, rfl⟩)
+
+instance : Inhabited Op := ⟨Op.make 0 [] .empty⟩
+
+open Codec in
+instance : Codec Op where
+  enc o := enc (o.kind, o.reqs, o.body)
+  dec bs := (dec bs : Option ((UInt8 × List Id × ByteArray) × List UInt8)).map
+    fun p => (Op.make p.1.1 p.1.2.1 p.1.2.2, p.2)
+  round o rest := by simp [round, Op.make_eta]
+
+/-- An op's bytes: what travels, what SQLite stores, what its id hashes. -/
+def Op.bytes (o : Op) : ByteArray := Codec.encode o
+
+/-- The op these bytes are, if they are one op's bytes exactly. -/
+def Op.decode (b : ByteArray) : Option Op := Codec.decode b
+
+/-- **An op's id is the hash of its bytes.** -/
+theorem Op.id_bytes (o : Op) : o.id = sha256 o.bytes := o.id_eq
+
+/-- **An op read from bytes is named by those bytes:** its id is their
+hash, whoever sent them. -/
+theorem Op.id_decode {b : ByteArray} {o : Op} (h : Op.decode b = some o) : o.id = sha256 b := by
+  rw [Op.id_bytes, Op.bytes, Codec.encode_decode h]
+
+theorem Op.decode_bytes (o : Op) : Op.decode o.bytes = some o := Codec.decode_encode o
 
 /-- A decided op: Valid with the fact it produced, or Invalid. -/
 inductive Verdict (F : Type) where
   | valid (f : F)
   | invalid
   deriving DecidableEq, Inhabited
+
+open Codec in
+instance {F} [Codec F] : Codec (Verdict F) where
+  enc | .valid f => 1 :: enc f
+      | .invalid => [0]
+  dec | 1 :: rest => (dec rest).map fun p => (.valid p.1, p.2)
+      | 0 :: rest => some (.invalid, rest)
+      | _ => none
+  round v rest := by
+    cases v with
+    | valid f => simp [round]
+    | invalid => rfl
 
 /-- Whether ops of a kind travel. Shared ops are what sync offers and
 takes. Local ops are a node's own bookkeeping (its accepted

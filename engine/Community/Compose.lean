@@ -1,14 +1,15 @@
 /-
 Real crypto and op composition. Ed25519 and SHA-256 come from
 libsodium through native/glue.c; an op's id is the SHA-256 of its
-canonical bytes. The laws hold for any `Crypto`, this one included.
+bytes (`Engine.Op.make`). The laws hold for any `Crypto`, this one
+included.
 -/
 import Community.Facts
 
 namespace Community
 open Engine Codec
 
-@[extern "le_sha256"] opaque sha256 (b : @& ByteArray) : ByteArray
+export Engine (sha256)
 @[extern "le_ed25519_keypair"] opaque edKeypair (seed : @& ByteArray) : ByteArray
 @[extern "le_ed25519_sign"] opaque edSign (sk msg : @& ByteArray) : ByteArray
 @[extern "le_ed25519_verify"] opaque edVerify (pk msg sig : @& ByteArray) : Bool
@@ -37,13 +38,11 @@ def Body.tag : Body → UInt8
   | .accept .. => 13 | .joining .. => 14 | .secret .. => 15 | .name .. => 16 | .abandon => 17
 
 /-- The op with these requirements and body, named by its bytes' hash. -/
-def mkOp (reqs : List Id) (b : Body) : Op :=
-  let body := encode b
-  { id := sha256 (encode (b.tag, reqs, body)), kind := b.tag, reqs, body }
+def mkOp (reqs : List Id) (b : Body) : Op := Op.make b.tag reqs (encode b)
 
 /-- What a signer signs for an op with these requirements and body. -/
 def toSign (reqs : List Id) (b : Body) : ByteArray :=
-  signed { id := .empty, kind := 0, reqs, body := .empty } b
+  encode ("quiet/attest/v1".toUTF8, reqs, b.unsigned)
 
 def sig (sk : ByteArray) (reqs : List Id) (b : Body) : ByteArray := edSign sk (toSign reqs b)
 

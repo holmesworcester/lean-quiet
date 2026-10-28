@@ -371,6 +371,18 @@ theorem reach_drain {L : List Op} {s : DB F} (h : Reach fam L s) (n : Nat) :
 them). -/
 def Distinct (L : List Op) : Prop := ∀ a ∈ L, ∀ b ∈ L, a.id = b.id → a = b
 
+/-- SHA-256 has no collision on these ops' bytes. -/
+def CollisionFree (L : List Op) : Prop :=
+  ∀ a ∈ L, ∀ b ∈ L, sha256 a.bytes = sha256 b.bytes → a.bytes = b.bytes
+
+/-- **`Distinct` asks nothing of peers:** ids are the hashes of the ops'
+bytes (`Op.id_bytes`), so ops can share an id only through a SHA-256
+collision, whatever a peer sends. -/
+theorem distinct_of_collisionFree {L : List Op} (h : CollisionFree L) : Distinct L := by
+  intro a ha b hb hid
+  rw [Op.id_bytes, Op.id_bytes] at hid
+  exact Codec.encode_inj (h a ha b hb hid)
+
 theorem stepS_ops (s : DB F) : (stepS fam s).ops = s.ops := by
   unfold stepS
   cases s.queue with

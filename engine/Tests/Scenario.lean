@@ -94,7 +94,7 @@ def main (args : List String) : IO UInt32 := do
   -- request): it no longer decodes, so it is refused, not misread.
   let oldJoin : Op :=
     let body : ByteArray := ⟨(2 :: Codec.enc (m1.pk, m1.enc, ByteArray.empty, ByteArray.empty)).toArray⟩
-    { id := sha256 (Codec.encode ((2 : UInt8), [c, invB.id], body)), kind := 2, reqs := [c, invB.id], body }
+    Op.make 2 [c, invB.id] body
   let grantA := grant c c c joinA.id f1
   let postA := post c joinA.id a1 "k1".toUTF8 "hello".toUTF8
   -- Forgeries: mallory posting as alice; mallory joining without the
