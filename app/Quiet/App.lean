@@ -165,6 +165,9 @@ structure St where
   heights : Std.HashMap Id Nat := {}
   rows : Std.HashMap Id RowSt := {}
   imgs : Std.HashMap ImgKey (Task Bitmap) := {}
+  /-- When an image whose chunks were not all readable may be tried again
+  (a frame number). -/
+  imgRetry : Std.HashMap ImgKey Nat := {}
   selected : Option Id := none
   b : Nat := 0
   imeH : Nat := 0
@@ -386,17 +389,26 @@ def decodeTask (bytes : ByteArray) (w h : Nat) (sq : Bool) : Task Bitmap :=
 /-- An attachment's slices, read from its chunk ops in order (a chunk this
 device sends may still be in the outbox); none while one is not here. -/
 def slicesOf (p : Row.Pic) : M (Option (List ByteArray)) := do
+  -- the chunk ops' bytes, as stored or in the outbox: nothing is decoded
+  -- here (a 64 KiB chunk is slow to decode; the frame must not wait)
   let s ← get
-  let mut out := #[]
+  let mut raw := #[]
   for x in p.chunks do
-    let body ← match s.out.find? (·.op.id == x) with
-      | some pd => pure (some pd.op.body)
-      | none => do pure ((← (Store.getOp (F := SF) (m := SqlM SF) x).run s.rd).map (·.body))
-    let some body := body | return none
-    match (Codec.decode body : Option Community.Body) with
-    | some (.chunk _ _ _ slice _) => out := out.push slice
-    | _ => return none
-  return some out.toList
+    match s.out.find? (·.op.id == x) with
+    | some pd => raw := raw.push pd.op.bytes
+    | none =>
+      let rows ← s.rd.query "SELECT bytes FROM ops WHERE id = ?" #[x]
+      let some b := rows[0]? >>= (·[0]?) | return none
+      raw := raw.push b
+  return some raw.toList
+
+/-- Chunk ops' bytes to their slices, in order (off the app's thread). -/
+def slicesFromOps (raw : List ByteArray) : Option (List ByteArray) :=
+  raw.mapM fun b => do
+    let o ← Engine.Op.decode b
+    match (Codec.decode o.body : Option Community.Body) with
+    | some (.chunk _ _ _ slice _) => some slice
+    | _ => none
 
 /-- A decode of `k` started (or finished): its bitmap once done. -/
 def decoded (k : ImgKey) (start : M (Option (Task Bitmap))) : M (Option Bitmap) := do
@@ -416,10 +428,16 @@ def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := do
     pure (if p.preview.isEmpty then none
       else some ((decodeTask p.preview w h false).map (Arrival.soften Row.bg)))
   let full ← if !p.complete then pure none else decoded (p.hash.push 1, w, h) do
-    let some slices ← slicesOf p | pure none
+    -- not every chunk op is readable yet: try again in two seconds, not
+    -- every frame
+    let k := (p.hash.push 1, w, h)
+    if let some t := (← get).imgRetry[k]? then
+      if (← get).frames < t then return none
+    let some raw ← slicesOf p
+      | modify fun s => { s with imgRetry := s.imgRetry.insert k (s.frames + 120) }; pure none
     let (key, nonce) := (p.key, p.nonce)
     pure <| some <| Task.spawn fun _ =>
-      match (Community.openFile slices key nonce).bind Image.decode with
+      match ((slicesFromOps raw).bind fun slices => Community.openFile slices key nonce).bind Image.decode with
       | some src => Image.scaled src w h Row.bg
       | none => Bitmap.blank w h (solid Row.placeholder w)
   return p.shown pre full
