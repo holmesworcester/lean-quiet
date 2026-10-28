@@ -132,8 +132,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 521 rest on Lean's standard axioms
-only, and about three fifths of its theorems (340 of 521) are about
+that rests on; 🥊 is supporting. All 530 rest on Lean's standard axioms
+only, and about two thirds of its theorems (357 of 530) are about
 the code that runs; another 7 run the phone's node code over a modelled
 network and plain transport (the World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -235,17 +235,17 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**340 of 521 laws are about running code;** another 7 run its node code in a World, and 174 are not yet. Stated only: none. 0 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**357 of 530 laws are about running code;** another 7 run its node code in a World, and 166 are not yet. Stated only: none. 0 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 81 | 35 |  | 46 |
+| Engine | 90 | 47 |  | 43 |
 | Sync | 82 | 81 |  | 1 |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 35 | 19 | 7 | 9 |
 | Bootstrap | 11 | 0 |  | 11 |
 | Connections | 30 | 27 |  | 3 |
-| Community | 152 | 132 |  | 20 |
+| Community | 152 | 137 |  | 15 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 0 |  | 13 |
 | Screen | 83 | 21 |  | 62 |
@@ -266,21 +266,12 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Pic.decode`, `Geom.box`, `Rgba.wellFormed` +7 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]† +1 more | Runs only in qr's Android harness; the app has its own QOI (`Qoi.decode`) and tray: use `Pic` in the app, or prove these of its code. |
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
 | `Arrival.lit` | [`lit_zero`], [`lit_mono`], [`lit_full`], [`lit_clockwise`], [`ring_counts`] | `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`. |
+| `Pics.after`, `Pics.costIn` | [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`], [`imageV_over_budget`] | The picture doors as data (`PicM`), measured: the app's own doors (its decode table and frame counter) are not shown to answer as `PicM`'s. Prove they do, or state these over them. |
 | `Merkle.rootAndProofsSlowM` | [`val_rootAndProofsSlowM`], [`slow_hashes`], [`slow_over_budget`] | Nothing that runs calls it. |
 | `Community.approveWrapAll` | [`wrapAll_over`] | Nothing that runs calls it. |
 | `Codec.decBytesListM` | [`slow_bytes_over_budget`] | Nothing that runs calls it. |
 | `Codec.digitsSlowM` | [`val_digitsSlowM`], [`work_digitsSlowM`], [`slow_digits_over_budget`] | Nothing that runs calls it. |
 | `Codec.readAllM` | [`readAllM_eq`] | Nothing that runs calls it; `Codec.decBytesListM` do. |
-| `CostT.bind` | [`val_rootAndProofsM`], [`rootAndProofs_hashes`], [`rootAndProofs_hashes_lt`], [`rootAndProofs_hashed`], [`rootAndProofs_hashed_lt`], [`val_rootAndProofsSlowM`], [`slow_hashes`], [`slow_over_budget`], [`val_decNatFromM`], [`work_digitsM`], [`work_decNatFromM`], [`val_decBytesFromM`] +28 more | Nothing that runs calls it. |
-| `CostT.charged` | [`image_steady`], [`image_settles`], [`image_twice`], [`imageV_over_budget`], [`ingest_costs`], [`statuses_costs`], [`waitOn_costs`], [`decide_costs`], [`step_costs`] | Nothing that runs calls it; `CostT.lift` do. |
-| `CostT.chargedBy` | [`costs_bindP`], [`decide_costs`], [`step_costs`], [`list_costs`], [`view_lists`] | Nothing that runs calls it. |
-| `CostT.lift` | [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`], [`imageV_over_budget`] | Nothing that runs calls it. |
-| `CostT.pure` | [`val_rootAndProofsM`], [`rootAndProofs_hashes`], [`rootAndProofs_hashes_lt`], [`rootAndProofs_hashed`], [`rootAndProofs_hashed_lt`], [`val_rootAndProofsSlowM`], [`slow_hashes`], [`slow_over_budget`], [`val_decNatFromM`], [`work_digitsM`], [`work_decNatFromM`], [`val_decBytesFromM`] +25 more | Nothing that runs calls it. |
-| `CostT.run` | [`within_bind`], [`within_bindP`], [`Costs.time`], [`Costs.mono`], [`costs_bind`], [`costs_bindP`], [`ingest_costs`], [`statuses_costs`], [`waitOn_costs`], [`decide_costs`], [`step_costs`], [`list_costs`] +1 more | Nothing that runs calls it; `CostT.bind`, `Counted.cost`, `Counted.val` +1 do. |
-| `Counted.cost` | [`rootAndProofs_hashes`], [`rootAndProofs_hashes_lt`], [`rootAndProofs_hashed`], [`rootAndProofs_hashed_lt`], [`slow_hashes`], [`slow_over_budget`], [`work_digitsM`], [`work_decNatFromM`], [`work_decBytesFromM`], [`cost_decBytesFromM_at`], [`work_digitsSlowM`], [`slow_digits_over_budget`] +8 more | Nothing that runs calls it. |
-| `Counted.val` | [`val_rootAndProofsM`], [`val_rootAndProofsSlowM`], [`val_decNatFromM`], [`val_decBytesFromM`], [`val_digitsSlowM`], [`readAllM_eq`] | Nothing that runs calls it. |
-| `Meter.time` | [`Costs.time`] | Nothing that runs calls it. |
-| `Engine.listCost` | [`list_costs`], [`view_lists`] | Nothing that runs calls it. |
 | `Both.bottom` | [`rowAt_spec`] | Nothing that runs calls it. |
 | `Both.rowAt` | [`rowAt_spec`] | Nothing that runs calls it. |
 | `Both.top` | [`rowAt_spec`] | Nothing that runs calls it. |
@@ -325,10 +316,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `World.passActs` | [`acts_shown`], [`passActs_acts`], [`passActs_comp`], [`passActs_indep`] | Nothing that runs calls it. |
 | `World.type` | [`type_only`] | Nothing that runs calls it. |
 | `Live.staleW` | [`RWorld.inv_commit`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`], [`w1_inv`] | Nothing that runs calls it; `RWorld.marked`, `RWorld.passEager` do. |
-| `Pics.after` | [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`] | Nothing that runs calls it. |
-| `Pics.costIn` | [`decoded_started`], [`image_steady`], [`image_twice`], [`imageV_over_budget`] | Nothing that runs calls it. |
 | `Pics.imageV` | [`imageV_over_budget`] | Nothing that runs calls it. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`pageIn_acc`]†, [`model_fits`], [`window_rows`] | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +14 more | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
@@ -1043,6 +1032,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`lit_full`]: ops/community/attachment/ArrivalLaws.lean#L94-L95
 [`lit_clockwise`]: ops/community/attachment/ArrivalLaws.lean#L101-L106
 [`ring_counts`]: ops/community/attachment/ArrivalLaws.lean#L275-L278
+[`decoded_started`]: ops/app/Pics.lean#L240-L244
+[`image_steady`]: ops/app/Pics.lean#L332-L335
+[`image_settles`]: ops/app/Pics.lean#L394-L396
+[`image_twice`]: ops/app/Pics.lean#L407-L411
+[`imageV_over_budget`]: ops/app/Pics.lean#L447-L450
 [`val_rootAndProofsSlowM`]: ops/community/MerkleCost.lean#L308-L310
 [`slow_hashes`]: ops/community/MerkleCost.lean#L339-L342
 [`slow_over_budget`]: ops/community/MerkleCost.lean#L351-L354
@@ -1052,35 +1046,6 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`work_digitsSlowM`]: engine/core/CodecCost.lean#L173-L174
 [`slow_digits_over_budget`]: engine/core/CodecCost.lean#L192-L195
 [`readAllM_eq`]: engine/core/CodecCost.lean#L371-L373
-[`val_rootAndProofsM`]: ops/community/MerkleCost.lean#L52-L55
-[`rootAndProofs_hashes`]: ops/community/MerkleCost.lean#L94-L98
-[`rootAndProofs_hashes_lt`]: ops/community/MerkleCost.lean#L112-L114
-[`rootAndProofs_hashed`]: ops/community/MerkleCost.lean#L205-L209
-[`rootAndProofs_hashed_lt`]: ops/community/MerkleCost.lean#L223-L225
-[`val_decNatFromM`]: engine/core/CodecCost.lean#L121-L122
-[`work_digitsM`]: engine/core/CodecCost.lean#L75-L78
-[`work_decNatFromM`]: engine/core/CodecCost.lean#L133-L136
-[`val_decBytesFromM`]: engine/core/CodecCost.lean#L292-L293
-[`image_steady`]: ops/app/Pics.lean#L332-L335
-[`image_settles`]: ops/app/Pics.lean#L394-L396
-[`image_twice`]: ops/app/Pics.lean#L407-L411
-[`imageV_over_budget`]: ops/app/Pics.lean#L447-L450
-[`ingest_costs`]: engine/core/IngestCost.lean#L41-L43
-[`statuses_costs`]: engine/core/IngestCost.lean#L53-L55
-[`waitOn_costs`]: engine/core/IngestCost.lean#L62-L64
-[`decide_costs`]: engine/core/IngestCost.lean#L93-L95
-[`step_costs`]: engine/core/IngestCost.lean#L116-L120
-[`costs_bindP`]: engine/core/Cost.lean#L425-L429
-[`list_costs`]: engine/core/ListCost.lean#L32-L35
-[`view_lists`]: engine/core/ListCost.lean#L78-L81
-[`decoded_started`]: ops/app/Pics.lean#L240-L244
-[`within_bind`]: engine/core/Cost.lean#L210-L212
-[`within_bindP`]: engine/core/Cost.lean#L268-L271
-[`Costs.time`]: engine/core/Cost.lean#L393-L395
-[`Costs.mono`]: engine/core/Cost.lean#L397-L397
-[`costs_bind`]: engine/core/Cost.lean#L410-L411
-[`work_decBytesFromM`]: engine/core/CodecCost.lean#L300-L303
-[`cost_decBytesFromM_at`]: engine/core/CodecCost.lean#L328-L332
 [`rowAt_spec`]: engine/renderer/Heights.lean#L548-L551
 [`push_ok`]: engine/renderer/Heights.lean#L328-L330
 [`build_ok`]: engine/renderer/Heights.lean#L421-L422
@@ -1130,11 +1095,15 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`passActs_comp`]: engine/renderer/BoardLaws.lean#L590-L591
 [`passActs_indep`]: engine/renderer/BoardLaws.lean#L601-L604
 [`type_only`]: engine/renderer/BoardLaws.lean#L618-L620
-[`nodup_full`]: ops/community/Intents.lean#L578-L580
-[`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
-[`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939
-[`model_fits`]: engine/core/ListCost.lean#L59-L60
-[`window_rows`]: engine/renderer/Heights.lean#L488-L490
+[`erase_run`]: engine/core/CostErase.lean#L22-L23
+[`erase_pure`]: engine/core/CostErase.lean#L25-L25
+[`erase_bind`]: engine/core/CostErase.lean#L28-L29
+[`erase_charged`]: engine/core/CostErase.lean#L38-L38
+[`erase_chargedBy`]: engine/core/CostErase.lean#L41-L41
+[`erase_lift`]: engine/core/CostErase.lean#L44-L44
+[`erase_tick`]: engine/core/CostErase.lean#L47-L47
+[`val_erase`]: engine/core/CostErase.lean#L55-L56
+[`cost_run`]: engine/core/CostErase.lean#L58-L60
 [`Seal.Good`]: ops/community/Keys.lean#L40-L43
 [`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
 [`Model.run`]: engine/core/Model.lean#L103-L103

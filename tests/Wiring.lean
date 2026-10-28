@@ -47,6 +47,11 @@ output, and local CI fails when it goes stale.
   a definition meant never to run) is a negative control, proving the
   mutant breaks its law. Counted apart: never wired, never a todo, and
   out of the lead's count.
+- **Instruments:** what the code under test runs in to be measured (the
+  cost meter, `CostT`), each erased by an audited equation (`erase_bind`:
+  a counted run, its costs dropped, is the plain run). Like an
+  assumption, left out of a subject: a cost law over running code is
+  about running code; one over a mirror is not.
 - **Audited statements** (a `…_stmt` the audit lists) are not laws; they
   are counted with the statements.
 - **PREMISES** lists the models only a law's premises name, and those it
@@ -68,7 +73,8 @@ missing; a `spec`, `todo` or mirror runs; no law waits on a `todo`; a
 `bridge` law is not audited or does not conclude an equation or iff with
 its mirror on one side and running code on the other; an `entry` is not
 an `@[export]` whose symbol a shipping platform's source names; a
-`control` (a mutant) runs, or no law names it; a `copy`
+`control` (a mutant) runs, or no law names it; an `instrument` runs, or
+its law is not an audited equation naming it; a `copy`
 law names the code it copies, a copied definition runs, or the code
 does not run; a `subject` names what its law's conclusion does not; an
 `assume` or `holds` no law takes; a law marked `wired` is not. It fails
@@ -100,10 +106,12 @@ def roots : List Name := [`engine, `ops, `App, `Quiet, `Main]
 /-- The negative controls: harnesses the entry points must not reach
 (the Worlds' steps among them), laws that must be classified models (one
 over the bootstrap's model, one over code only qr's harness runs, one
-whose model is in a premise), and laws that must be World laws (the
-two-node World's stream). Update them if one becomes real. -/
+whose model is in a premise, and a cost law over a mirrored function,
+in the meter), and laws that must be World laws (the two-node World's
+stream). Update them if one becomes real. -/
 def harnesses : List Name := [`Engine.Sync.World.peer, `Net.step, `Pic.decode]
-def models : List Name := [`Net.Scene.bootstrap, `Pic.decode_sized, `Engine.offer_shared]
+def models : List Name :=
+  [`Net.Scene.bootstrap, `Pic.decode_sized, `Engine.offer_shared, `Community.Merkle.slow_hashes]
 /-- Laws that must be World laws: the node's code over a World. -/
 def worlds : List Name := [`Engine.Sync.stream_delivers]
 
@@ -289,6 +297,9 @@ structure Notes where
   /-- mutants: definitions meant never to run, which negative-control laws
   break -/
   control : NameMap String := {}
+  /-- an instrument the code under test runs in (the cost meter), ↦ the law
+  that erases it -/
+  instrument : NameMap Name := {}
   /-- the `todo` names and the copied code, in the file's order -/
   order : Array Name := #[]
   subject : NameMap (List Name) := {}
@@ -297,7 +308,8 @@ structure Notes where
   /-- every name given, with its line, for the existence check -/
   names : List (Name × Nat) := []
 
-def Notes.stop (ns : Notes) : NameSet := ns.assume.foldl (fun s n _ => s.insert n) {}
+def Notes.stop (ns : Notes) : NameSet :=
+  ns.instrument.foldl (fun s n _ => s.insert n) (ns.assume.foldl (fun s n _ => s.insert n) {})
 def Notes.through (ns : Notes) : NameSet := ns.spec.foldl (fun s n _ => s.insert n) {}
 
 /-- The first `n` words of a line, and the rest. -/
@@ -325,6 +337,9 @@ def readNotes (path : System.FilePath) : IO Notes := do
     | (["holds", n], t) => ns := at_ { ns with holds := ns.holds.insert n.toName t } n.toName
     | (["world", n], t) => ns := at_ { ns with world := ns.world.insert n.toName t } n.toName
     | (["control", n], t) => ns := at_ { ns with control := ns.control.insert n.toName t } n.toName
+    | (["instrument", n], t) =>
+      let law := ((fields t 1).1.headD "").toName
+      ns := at_ (at_ { ns with instrument := ns.instrument.insert n.toName law } n.toName) law
     | (["todo", n], t) =>
       ns := at_ { ns with todo := ns.todo.insert n.toName t, order := ns.order.push n.toName } n.toName
     | (["wired", n], _) => ns := at_ { ns with wired := n.toName :: ns.wired } n.toName
@@ -450,6 +465,14 @@ unsafe def main : IO UInt32 := do
     if run.contains n then problems := problems.push s!"tests/wiring.txt: world {n} runs; drop the note"
   for (n, _) in ns.control do
     if run.contains n then problems := problems.push s!"tests/wiring.txt: control {n}, a mutant, runs"
+  -- an instrument does not run, and its law is an audited equation that
+  -- names it: what it erases to
+  for (n, law) in ns.instrument do
+    if run.contains n then problems := problems.push s!"tests/wiring.txt: instrument {n} runs"
+    if !laws.contains law then problems := problems.push s!"tests/wiring.txt: instrument law {law} is not audited"
+    else if let some ci := env.find? law then
+      if (concl ci.type).eq?.isNone || !(named env ci.type).contains n then
+        problems := problems.push s!"tests/wiring.txt: {law} is not an equation that erases {n}"
   let src ← shipping
   for n in ns.entry do
     match getExportNameFor? env n with

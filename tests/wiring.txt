@@ -34,6 +34,10 @@
 #                        its law, and is counted apart (never wired, never
 #                        a todo, out of the lead's count). It must not run,
 #                        and a law must name it.
+#   instrument NAME LAW  NAME is what code under test runs in to be
+#                        measured (the cost meter); LAW, audited, is an
+#                        equation naming it that erases it to the plain
+#                        run. Left out of subjects, like an assumption.
 #   copy NAME CODE TEXT  NAME restates running CODE instead of naming it:
 #                        a law (a model until it names CODE) or a
 #                        definition (a todo, until CODE calls it)
@@ -96,6 +100,19 @@ assume Engine.Sync.turnH = Engine.Model.run
 
 holds Engine.Inv The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean).
 
+## Instruments: what the code under test runs in to be measured, each
+## with the audited law that erases it (engine/core/CostErase.lean)
+
+instrument Engine.CostT.erase Engine.CostT.erase_run
+instrument Engine.CostT.run Engine.CostT.erase_run
+instrument Engine.CostT.pure Engine.CostT.erase_pure
+instrument Engine.CostT.bind Engine.CostT.erase_bind
+instrument Engine.CostT.charged Engine.CostT.erase_charged
+instrument Engine.CostT.chargedBy Engine.CostT.erase_chargedBy
+instrument Engine.CostT.lift Engine.CostT.erase_lift
+instrument Engine.Counted.val Engine.Counted.val_erase
+instrument Engine.Counted.cost Engine.Counted.cost_run
+
 ## Bridges: a mirror, and the law that proves running code equal to it
 
 bridge Engine.stepS Engine.run_step
@@ -133,6 +150,9 @@ spec ArrivalLaws.readsOf The reads a view makes, on the model.
 spec Mdns.known The record types mDNS validity knows.
 spec Mdns.encRData A record's data as encoded, for its validity.
 spec Mdns.Name.wireLen A name's length on the wire, for its validity.
+
+spec Engine.listCost What a list query costs, for its bound.
+spec Engine.Meter.time A meter's time on a store of N rows, for a bound.
 
 ## Subjects the heuristic takes too much of
 
@@ -200,3 +220,5 @@ todo Pic.Rgba.wellFormed = Pic.decode
 todo Mdns.decode Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it.
 todo Mdns.encode = Mdns.decode
 todo Arrival.lit `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`.
+todo Pics.after The picture doors as data (`PicM`), measured: the app's own doors (its decode table and frame counter) are not shown to answer as `PicM`'s. Prove they do, or state these over them.
+todo Pics.costIn = Pics.after
