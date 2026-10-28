@@ -23,6 +23,60 @@ handshakes with a key of its own, not with a community device key.
 - Everything is ops and views read afresh on every step. The notice is
   a room the family's view gives, not send logic in the node.
 
+## One device, two users
+
+A device key may be admitted into more than one user of a community: it
+signs a request under a member invitation and another under a link
+invitation, or two member invitations. The rule:
+
+**A device is live in c when it is admitted and none of the users it is
+admitted into is removed. Removing any of its users cuts it, wherever
+else it is admitted.** (`Live`, `Cut`.)
+
+Why this rule, and not "the user of the least admission id":
+- **Removal reaches every device of the removed user.** Under the
+  least-id rule, a removed user's device stays in when its admission
+  into a second user happens to have the smaller id. Ids are hashes, so
+  the requester can grind for that. With this rule, `removal_cuts_off`
+  needs no "admitted into no other live user" caveat.
+- **Cut stays cut.** A cut device stays cut whatever arrives later
+  (`cut_stays`), as a removal stays (`removed_stays`). Under the
+  least-id rule, and under today's rule (live while any of its users
+  is), a later admission undoes a cut: a smaller id, or one into a live
+  user. Then a node holding more ops lets in a device that a node
+  holding fewer has cut. Views may read absence, since they are read
+  afresh; but an absence that later ops undo makes removal temporary
+  for the device.
+- **Only the device's consent cuts it.** A device joins a user only by
+  signing that root or request (`admission_consented`). So nobody else
+  can tie it to a removed user, and nobody else can cut it
+  (`cut_consented`).
+- **Validators do not change.** Liveness is a view's, read from lists;
+  validators still read only cited facts, never an absence.
+- **Coming back is a new device** (E4: `join` refuses an admitted
+  device), and the node is not blocked, because another device under
+  its key counts (E3).
+
+The cost: a device linked into another person's user is cut when that
+user is removed, even though its own user is live. A device that joins
+a second user accepts that its access depends on both.
+
+**Endpoint → device → user.** `allowPeer c e` reads the admissions under
+key e (`admission.byKey [c, e]`); each names a device d. Device d is
+live if its admissions under any key (`admission.byDevice [c, d]`)
+name only users with no removal (`removal.byUser`). Key e is let in
+when some device under it is live (`connect_iff`). `recipients`
+(content keys are wrapped to these keys) and `members` (the dial set)
+use the same device liveness. So content keys go exactly to the keys
+`allowPeer` lets in (`recipients_iff`). The notices owed to a node at e
+are the removals that cut its devices: every removal of every user
+each of them is admitted into (`removalsAt`, `removals_at`). Holding
+them, that node judges its own devices cut.
+
+Devices are monotone and node keys are not. A node key whose devices
+are all cut is let in again once a new, live device is admitted under
+it: that is the rejoin.
+
 ## A node's key (E3)
 
 **One key per node.** A node's key is an X25519 key pair kept as a local
@@ -60,14 +114,15 @@ nodes' keys; device keys only sign, and never enter Noise.
   unchanged.
 
 **The trust rule asks about node keys.** `allowPeer c e` holds when a
-device admitted under key e is in a live user of c (`connect_iff`).
+device admitted under key e is live (`connect_iff`; "One device, two
+users").
 `trusts c me peer` keeps its shape, with `me` this node's key while it
 is in c (`meV_node`). So a node whose key names a removed device is let
 in again once a device of a live user is admitted under the same key
 (`new_device_trusted`). That is how a removed member's node rejoins: it
 writes a new device, the members approve it, and nothing else changes.
 `recipients c`, the keys content keys are wrapped to, is the same set
-of keys, and so is the dial set.
+of keys.
 
 **Sessions** stay one per peer, where a peer is now a (node key,
 community) pair: two nodes may share several communities, and each
@@ -98,9 +153,9 @@ synced both ways, as now; or `notice c x`, op x of c with its
 requirement closure, given once and never taken. For each (community,
 peer) pair a session's `established` facts name (`carriedV`):
 - if this node is in c and the trust rule takes the peer: `sync c`;
-- otherwise, a notice for each removal of a user admitted under the
-  peer's key (`removalsAt`) that is not yet settled on this session
-  (`conn.settled`);
+- otherwise, a notice for each removal that cuts a device admitted
+  under the peer's key (`removalsAt`) and is not yet settled on this
+  session (`conn.settled`);
 - otherwise nothing.
 
 **Giving a notice** (Engine/Sync/Conn.lean). On a connection's next
@@ -142,17 +197,18 @@ already answers only the trusted (`answer_trusted`, now stated).
 
 ## A removed entry is not held (E4)
 
-- `Community.mine c` skips an acceptance whose device is admitted in c
-  only into removed users (`mine_not_removed`). A device that is not
-  admitted still counts while one of its joins waits.
+- `Community.mine c` skips an acceptance whose device is cut
+  (`mine_not_removed`). A device that is not admitted still counts
+  while one of its joins waits.
 - A join to resume is one whose device was never admitted. A removed
   device's join is spent, so `join` writes a fresh join: a new device
   from the new seed, whose request carries the node's key
   (`rejoin_fresh`). `join` writes nothing for a seed whose device is
   already admitted in c, so it never asks for a removed device
   (`join_new_device`).
-- The old user stays removed whatever follows, and `allowPeer` lets in
-  any key only for a live user other than it (`removed_stays_removed`).
+- The old user stays removed whatever follows, every device ever
+  admitted into it stays cut, and `allowPeer` lets a key in only for a
+  live device that was never the old user's (`removed_stays_removed`).
 
 ## Changes to code others own
 
@@ -172,6 +228,12 @@ already answers only the trusted (`answer_trusted`, now stated).
   hooks give `[.sync c]`.
 - **Connection/RoomLaws.lean**: `rooms_trusted`, `rooms_cut` and
   `rooms_model` are restated over `sync c`.
+- **Community/Query.lean and Connect.lean**: `live` counts an admission
+  only if its device is live, so `allowPeer` (now by key), `members` and
+  `recipients` follow the rule. `connect_iff`, `refuse_nonmember`,
+  `removal_cuts_off`, `connect_admitted`, `members_iff` and
+  `recipients_iff` are restated, and the README's "admitted into no
+  other live user" caveat goes.
 
 ## Laws
 
@@ -182,6 +244,7 @@ model, the views, the validators and the intents.
 
 | question | law |
 |---|---|
+| Which devices does a removal cut, and for how long? | `removal_cuts_off`, `cut_stays`, `cut_consented` |
 | Is the notice given, once? | `notice_sent`, `notice_once`, `closure` |
 | Does a step send anything but notices? | `notice_send` |
 | What does a removed member's session carry? | `rooms_removed` |
@@ -190,7 +253,7 @@ model, the views, the validators and the intents.
 | Does a removed node get a new session or a re-sent answer? | `answer_trusted`, `resend_trusted` |
 | Whose keys does the handshake run on? | `opened_endpoint`, `established_endpoint`, `endpoint_derives` |
 | How is a node key tied to a device? | `endpoint_signed` |
-| Whom does the trust rule let in? | `connect_iff`, `refuse_nonmember`, `removal_cuts_off`, `connect_admitted`, `new_device_trusted`, `meV_node` |
+| Whom does the trust rule let in, dial, and seal to? | `connect_iff`, `refuse_nonmember`, `connect_admitted`, `new_device_trusted`, `meV_node`, `members_iff`, `recipients_iff` |
 | Which removals is a node owed? | `removals_at` |
 | Does a removed node still hold the community? | `mine_not_removed` |
 | How does it rejoin? | `rejoin_fresh`, `join_new_device` |

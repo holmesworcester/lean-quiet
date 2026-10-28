@@ -61,11 +61,31 @@ def removalsOf (c : Id) : List (Pos × Fact) → View Fact (List Id)
       (removalsOf c t).bind fun rest => .pure (a.rows.map (·.1.2) ++ rest)
   | _ :: t => removalsOf c t
 
-/-- The removals of the users admitted under key e in c: what a node
-holding them owes the node at e, once none of its users there is live
-(docs/REMOVAL.md). -/
+/-- Whether device d is live in c: admitted, and none of the users it is
+admitted into removed. Removing any user of a device cuts it, wherever
+else it is admitted (docs/REMOVAL.md, "One device, two users"). -/
+def deviceLive (c : Id) (d : Key) : View Fact Bool := do
+  let a ← admission.byDevice.read [c, d]
+  let xs ← removalsOf c a.rows
+  pure (!a.rows.isEmpty && xs.isEmpty)
+
+/-- Of these admission rows, the removals of every user each row's
+device is admitted into, under any key. -/
+def deviceRemovals (c : Id) : List (Pos × Fact) → View Fact (List Id)
+  | [] => .pure []
+  | (_, .admission _ _ d _) :: t =>
+    .list (admission.byDevice.query [c, d]) fun a =>
+      (removalsOf c a.rows).bind fun xs =>
+        (deviceRemovals c t).bind fun rest => .pure (xs ++ rest)
+  | _ :: t => deviceRemovals c t
+
+/-- The removals that cut the devices admitted under key e in c: every
+removal of a user any of those devices is admitted into. What a node
+holding them owes the node at e once none of its devices is live, so
+that node can judge itself cut (docs/REMOVAL.md). -/
 def removalsAt (c e : Key) : View Fact (List Id) := do
   let a ← admission.byKey.read [c, e]
-  removalsOf c a.rows
+  let xs ← deviceRemovals c a.rows
+  pure xs.eraseDups
 
 end Community
