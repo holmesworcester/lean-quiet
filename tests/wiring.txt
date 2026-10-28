@@ -24,12 +24,41 @@
 #   holds NAME TEXT      a premise laws take (an invariant) that the
 #                        running node keeps only as TEXT says; listed with
 #                        the assumptions, and seen through like any premise
+#   world NAME TEXT      NAME is a World's network, transport or harness:
+#                        a law that misses only these, and whose node code
+#                        is the running `Engine.Sync.Node`'s, is a World law
+#                        (not wired, not counted as a model). It must not
+#                        run, and a law must miss it. `= OTHER` as for todo.
+#   control NAME TEXT    NAME is a mutant, a negative control meant never to
+#                        run: a law that names it proves the mutant breaks
+#                        its law, and is counted apart (never wired, never
+#                        a todo, out of the lead's count). It must not run,
+#                        and a law must name it.
+#   instrument NAME LAW  NAME is what code under test runs in to be
+#                        measured (the cost meter); LAW, audited, is an
+#                        equation naming it that erases it to the plain
+#                        run. Left out of subjects, like an assumption.
+#   weak NAME TEXT       NAME must not be reached from any entry point
+#                        (main, the runner, a shipping @[export]): a
+#                        secret made from it would be guessable
+#   door NAME DOOR       among what the entry points reach, only DOOR (one
+#                        line per door) may run NAME: every secret the
+#                        app makes from the OS's randomness, one place
 #   copy NAME CODE TEXT  NAME restates running CODE instead of naming it:
 #                        a law (a model until it names CODE) or a
 #                        definition (a todo, until CODE calls it)
 #   subject LAW NAMES    LAW's subject is NAMES (its statement must name
 #                        each), where the heuristic takes too much
 #   wired LAW            LAW must be wired
+
+## Weak: no shipping path may reach these
+
+weak Chaos.freshSeed a seed from the microsecond clock, guessable by anyone who can bound when it was made: test identities only; the app's secrets come from `App.newSeed` (the OS's randomness)
+# The OS's randomness has two doors: the app's (every secret, key and
+# nonce it makes), and the node's connection family on SQLite (the
+# handshake's ephemerals, `Fresh`).
+door Engine.Crypto.randomBytes App.newBytes
+door Engine.Crypto.randomBytes Connection.instFreshSqlMFOfCodecOfSortKey
 
 ## Wired, and must stay so: the laws "What is proven" rests on
 
@@ -92,8 +121,25 @@ assume Engine.Stmt.cost = Engine.SeekCost
 assume Engine.planCost = Engine.SeekCost
 assume Engine.sideCount = Engine.SeekCost
 assume Engine.estCount = Engine.SeekCost
+assume Engine.Sync.turnH = Engine.Model.run
+
+
+assume Engine.runJ The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean).
 
 holds Engine.Inv The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean).
+
+## Instruments: what the code under test runs in to be measured, each
+## with the audited law that erases it (engine/core/CostErase.lean)
+
+instrument Engine.CostT.erase Engine.CostT.erase_run
+instrument Engine.CostT.run Engine.CostT.erase_run
+instrument Engine.CostT.pure Engine.CostT.erase_pure
+instrument Engine.CostT.bind Engine.CostT.erase_bind
+instrument Engine.CostT.charged Engine.CostT.erase_charged
+instrument Engine.CostT.chargedBy Engine.CostT.erase_chargedBy
+instrument Engine.CostT.lift Engine.CostT.erase_lift
+instrument Engine.Counted.val Engine.Counted.val_erase
+instrument Engine.Counted.cost Engine.Counted.cost_run
 
 ## Bridges: a mirror, and the law that proves running code equal to it
 
@@ -138,27 +184,64 @@ spec ArrivalLaws.readsOf The reads a view makes, on the model.
 spec Mdns.known The record types mDNS validity knows.
 spec Mdns.encRData A record's data as encoded, for its validity.
 spec Mdns.Name.wireLen A name's length on the wire, for its validity.
+spec Engine.window A window's rows, on the model: what a subscriber watches.
+spec Engine.filed Whether a row is filed under a key at a position, on the model.
+spec Engine.flips Whether a journal touches a key and position an odd number of times.
+spec Engine.oddAt Whether a journal touches a pair an odd number of times, as `net` keeps it.
+spec Engine.Change.ingests The ops a batch of changes stores.
+spec Engine.searchSteps The steps of a binary search, for its bound.
+
+spec Engine.listCost What a list query costs, for its bound.
+spec Engine.Meter.time A meter's time on a store of N rows, for a bound.
 
 ## Subjects the heuristic takes too much of
 
 # The running round's answer to a claim, stated against the round's model.
 subject Engine.Sync.conn_answers_ids Engine.Sync.Conn.onRbsr Engine.Sync.within Engine.Sync.named Engine.Sync.chunks
 
+## The World: the running node's code, two nodes (engine/wire/World.lean),
+## over a modelled network and plain transport
+
+world Engine.Sync.World.peer Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired.
+world Engine.Sync.World.write = Engine.Sync.World.peer
+world Engine.Sync.World.deliver = Engine.Sync.World.peer
+world Engine.Sync.World.connect = Engine.Sync.World.peer
+world Engine.Sync.World.tick = Engine.Sync.World.peer
+world Engine.Sync.World.empty = Engine.Sync.World.peer
+world Engine.Sync.Who.other = Engine.Sync.World.peer
+world Engine.Sync.Setup.sync = Engine.Sync.World.peer
+world Engine.Sync.plainFrame = Engine.Sync.World.peer
+world Engine.Sync.oneRoom = Engine.Sync.World.peer
+
+## Negative controls: mutants, each kept only to show the old shape breaks
+## its law (a budget, or freshness). Their laws are counted apart.
+
+control Community.Merkle.rootAndProofsSlowM Every proof rebuilding its siblings, as before the levels: over `rootAndProofs_hashes`' budget (`slow_over_budget`).
+control Engine.Codec.digitsSlowM A number's digits a byte at a time, as before the halves: over the digits' budget (`slow_digits_over_budget`).
+control Engine.Codec.decBytesListM A byte string the list codec's way: over the bytes' budget (`slow_bytes_over_budget`).
+control Engine.Codec.readAllM = Engine.Codec.decBytesListM
+control Pics.imageV `image` with the old `decoded`, as it shipped: over the frame's budget (`imageV_over_budget`).
+control Community.approveWrapAll An approval that wraps the key to every member: wraps to a non-member (`wrapAll_over`).
+control Live.Gated.quiet A frame gated on notices: stale for ever (`gated_stale`); its example world (`w5`) shows the ungated frame fresh.
+control Live.Gated.w5 = Live.Gated.quiet
+control Live.RWorld.passEager The pass as first written, checking staleness while reading: stale for ever (`eager_stale`); its example world (`Eager.w1`) shows the marking pass fresh.
+control Live.Eager.eager = Live.RWorld.passEager
+control Live.Eager.w1 = Live.RWorld.passEager
+control Live.Eager.eval = Live.RWorld.passEager
+control Live.Eager.hits = Live.RWorld.passEager
+control Live.Eager.reads = Live.RWorld.passEager
+control Engine.Mutants.σ The window laws' one-op world, with notices by key and an unnetted journal: each notifies an unchanged window (`key_notice_imprecise`, `unnetted_imprecise`), where the exact matcher is silent (`exact_silent`).
+control Engine.Mutants.o = Engine.Mutants.σ
+control Engine.Mutants.fam = Engine.Mutants.σ
+control Engine.Mutants.w5 = Engine.Mutants.σ
+control Engine.Mutants.wk = Engine.Mutants.σ
+control Engine.Mutants.keyNotified = Engine.Mutants.σ
+control Engine.Mutants.rawNotified = Engine.Mutants.σ
+
 ## What would make each model real, most valuable first (the README's order)
 
 todo Engine.purgeS The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`).
 todo Engine.purgeSet = Engine.purgeS
-todo Engine.Sync.World.peer A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does.
-todo Engine.Sync.World.write = Engine.Sync.World.peer
-todo Engine.Sync.World.deliver = Engine.Sync.World.peer
-todo Engine.Sync.World.connect = Engine.Sync.World.peer
-todo Engine.Sync.World.tick = Engine.Sync.World.peer
-todo Engine.Sync.World.empty = Engine.Sync.World.peer
-todo Engine.Sync.Who.other = Engine.Sync.World.peer
-todo Engine.Sync.Setup.sync = Engine.Sync.World.peer
-todo Engine.Sync.plainFrame = Engine.Sync.World.peer
-todo Engine.Sync.turnH = Engine.Sync.World.peer
-todo Engine.Sync.oneRoom = Engine.Sync.World.peer
 todo Engine.Sync.exchange The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`).
 todo Engine.offer Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`.
 todo Community.recipients The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission.
@@ -178,7 +261,6 @@ todo Net.Scene.S = Net.Scene.approval
 todo Net.sent = Net.Scene.approval
 todo Net.step = Net.Scene.approval
 todo Net.table = Net.Scene.approval
-copy LiveLaws.read_one_moment App.read Its two branches, inline. Todo: state it of `App.read`.
 todo Geometry.Seam.place The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are.
 todo Geometry.Seam.frameRow = Geometry.Seam.place
 todo Geometry.Seam.home = Geometry.Seam.place
@@ -189,16 +271,70 @@ todo Geometry.Geom.viewNow = Geometry.Seam.place
 todo Geometry.Geom.composerTop = Geometry.Seam.place
 copy SheetGeom.Grid.ctop Sheet.gridRow Its index arithmetic, and App's sheet rows'. Todo: have the painter place keys by `Grid.ctop`.
 todo Engine.Sync.keeps The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s.
-todo Pic.decode Runs only in qr's Android harness; the app has its own QOI (`Qoi.decode`) and tray: use `Pic` in the app, or prove these of its code.
-todo Pic.add = Pic.decode
-todo Pic.fit = Pic.decode
-todo Pic.layout = Pic.decode
-todo Pic.render = Pic.decode
-todo Pic.scale = Pic.decode
-todo Pic.attachEdge = Pic.decode
-todo Pic.maxSide = Pic.decode
-todo Pic.Geom.box = Pic.decode
-todo Pic.Rgba.wellFormed = Pic.decode
+todo Pic.add The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code.
+todo Pic.fit = Pic.add
+todo Pic.layout = Pic.add
+todo Pic.render = Pic.add
+todo Pic.scale = Pic.add
+todo Pic.attachEdge = Pic.add
+todo Pic.Geom.box = Pic.add
+spec Pic.Rgba.wellFormed A picture's pixels are 4 bytes for each of its w × h.
 todo Mdns.decode Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it.
 todo Mdns.encode = Mdns.decode
 todo Arrival.lit `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`.
+todo Engine.Subs.notify Nothing on main notices through the window index: the app's cache does on app-1e with fd/window-subs-app3 (`Data.Live.notice`, `Live.store`, `Q.win`); land it.
+todo Engine.Subs.find = Engine.Subs.notify
+todo Engine.Subs.notifyM = Engine.Subs.notify
+todo Engine.Subs.keep = Engine.Subs.notify
+todo Engine.Subs.add = Engine.Subs.notify
+todo Engine.Subs.at_ = Engine.Subs.notify
+todo Engine.Slots.build = Engine.Subs.notify
+todo Engine.Slots.find = Engine.Subs.notify
+todo Engine.rankM = Engine.Subs.notify
+todo Engine.posWork = Engine.Subs.notify
+todo Engine.net = Engine.Subs.notify
+todo Engine.Win.has = Engine.Subs.notify
+todo Engine.Win.inside = Engine.Subs.notify
+todo Engine.Win.all = Engine.Subs.notify
+todo Engine.ListQ.win = Engine.Subs.notify
+todo Engine.ListQ.watch = Engine.Subs.notify
+todo Engine.ListQ.kept = Engine.Subs.notify
+todo Screen.Frame.wants Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan).
+todo Screen.Frame.listWins = Screen.Frame.wants
+todo Screen.Frame.near = Screen.Frame.wants
+todo Screen.Frame.shown = Screen.Frame.wants
+todo Engine.Subs.ofList = Screen.Frame.wants
+todo Pics.after The picture doors as data (`PicM`), measured: the app's own doors (its decode table and frame counter) are not shown to answer as `PicM`'s. Prove they do, or state these over them.
+todo Pics.costIn = Pics.after
+todo Live.Board.apply The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`.
+todo Live.World.afterActs = Live.Board.apply
+todo Live.World.commit = Live.Board.apply
+todo Live.World.frame = Live.Board.apply
+todo Live.World.marked = Live.Board.apply
+todo Live.World.pass = Live.Board.apply
+todo Live.World.passActs = Live.Board.apply
+todo Live.World.type = Live.Board.apply
+todo Live.RWorld.commit = Live.Board.apply
+todo Live.RWorld.evict = Live.Board.apply
+todo Live.RWorld.frame = Live.Board.apply
+todo Live.RWorld.marked = Live.Board.apply
+todo Live.RWorld.pass = Live.Board.apply
+todo Heights.T.sum The row-heights tree (engine/renderer/Heights.lean): the app keeps its rows' heights in a map (`App.heightOf`) and adds them up itself. Have its list frame place rows by `Heights`.
+todo Heights.Both.bottom = Heights.T.sum
+todo Heights.Both.rowAt = Heights.T.sum
+todo Heights.Both.top = Heights.T.sum
+todo Heights.Rows.push = Heights.T.sum
+todo Heights.T.build = Heights.T.sum
+todo Heights.T.buildM = Heights.T.sum
+todo Heights.T.depth = Heights.T.sum
+todo Heights.T.find = Heights.T.sum
+todo Heights.T.findM = Heights.T.sum
+todo Heights.T.set = Heights.T.sum
+todo Heights.T.setM = Heights.T.sum
+todo Heights.T.size = Heights.T.sum
+todo Heights.T.start = Heights.T.sum
+todo Heights.T.startM = Heights.T.sum
+todo Heights.T.toList = Heights.T.sum
+todo Heights.clog = Heights.T.sum
+todo Heights.rebuild = Heights.T.sum
+todo Heights.screenY = Heights.T.sum

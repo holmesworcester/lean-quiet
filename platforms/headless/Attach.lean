@@ -72,8 +72,14 @@ def received (sm : Sim) (t : String) : M (Option (Row.Pic × Option ByteArray ×
     let (b, f) ← image p 96 64
     if f && (b.map (·.rows[0]? != some (Paint.solid Row.placeholder 96))).getD false then full := true; break
     steps 1; IO.sleep 10
-  -- the file opened from the chunks stored by now
-  let opened := ((← slicesOf p) >>= Pics.slicesFromOps) >>= fun sl => Community.openFile sl p.key p.nonce
+  -- the file opened from the chunks stored by now (asked of the reader's
+  -- board, as a paint asks: wanted from the next frame)
+  let mut raw := none
+  for _ in [0:50] do
+    raw ← slicesOf p
+    if raw.isSome then break
+    steps 1
+  let opened := (raw >>= Pics.slicesFromOps) >>= fun sl => Community.openFile sl p.key p.nonce
   return some (p, opened, full, big)
 
 def main (args : List String) : IO UInt32 := do

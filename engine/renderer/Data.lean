@@ -234,6 +234,15 @@ def Live.store (l : Live) (q : Q) (a : Ans) : Live :=
     armed := if qs.contains q then l.armed else l.armed.insert k (qs.push q)
     reads := l.reads + 1 }
 
+/-- A read through the cache: its answer if no notice has made it stale,
+else `run`'s (the store's), recorded. App's `read` and the reader's are
+this (LiveLaws.read_one_moment is about it). -/
+def Live.readWith {m : Type → Type} [Monad m] (run : Q → m Ans) (q : Q) : StateT Live m Ans := do
+  if let some a := (← get).answer q then return a
+  let a ← run q
+  modify (·.store q a)
+  return a
+
 /-- Forget instances nobody reads any more, and their watches. -/
 def Live.keep (l : Live) (want : Q → Bool) : Live :=
   let armed := l.armed.filterMap fun _ qs =>

@@ -198,7 +198,7 @@ with the meter above.
 
 | step | grows with | theorem | status |
 |---|---|---|---|
-| the frame reads SQLite (`readView`, `slicesOf`): a slow read is a slow frame | the lists on screen and their rows | `frame_reads` | ❌ fix: the reader and the board (above) |
+| the frame reads SQLite: a slow read is a slow frame | the lists the frame still reads itself (pages, the header, the journal); the conversation's rows and a picture's chunks are the reader's (ops/app/Reader.lean) | `frame_reads` | ❌ fix: the rest of the frame's reads through the reader |
 | `bottoms`, the mount and paint loops, `findIdx?` | loaded rows: every row from the newest to the window, each frame | `frame_work` | ❌ fix: the rows' heights tree (below), which App is yet to call |
 | the rows' heights tree (engine/renderer/Heights.lean): the row at an offset, where a row starts, a height set, a row pushed | log₂ rows: at most the tree's depth d, 2^(d-1) < rows; 13 steps at 5,000 rows, where the walk takes 4,981 | `find_spec`, `start_eq`, `set_toList`, `push_ok`, `rows_cost` | ✅ of the structure |
 | the window by binary search | the rows offsets [lo, hi] overlap are those from `find lo` to `find hi`; rows below end at or under lo, rows above start over hi | `start_mono`, `below_window`, `above_window` | ✅ |
@@ -206,13 +206,14 @@ with the meter above.
 | a window's rows, rebuilt (a late message lands mid-window; a removed one keeps its slot at height 0) | one node per leaf and pair: at most 4 · rows + 1 steps, O(window), the tree what it must be | `rebuild_ok`, `rebuild_cost` | ✅ |
 | the window | at most above + below rows: its two reads, each within its limit (`Fits`) | `window_rows`, `list_costs` | ✅ |
 | the anchor | when the estimate below the window changes by Δ, moving the offset by Δ leaves every window row where it was on screen | `anchor_stable` | ✅ |
-| the conversation's re-read | `limit`, which grows as the list scrolls up | `list_costs` | ❌ fix: a window of rows around the anchor, read by `after`/`before` |
+| the conversation's re-read | the window: at most 200 rows about an anchor, read by `after`/`before` (the reader's `Want.window`), the rest counted | `window_rows`, `list_costs` | ✅ |
 | range counts with `cap = 0` (every list the app reads) | the rows in range | `list_costs` (needs `0 < cap`) | ❌ fix: a3's capped counts ("999+") |
 | `present`, `members`, `recipients` (`admission.all.read [c]`, then `live` reads each admission's removals) | members: O(members) lists per re-read | `view_lists` | ❌ fix: a present-members key the removal files out of, read by window; a capped count for the header |
 | `decide` wakes every waiter at once | an op's fan-in: n ops that arrived before it, in one step | `decide_costs` (W) | ❌ fix: push the decided id once, and let pops wake its waiters at most `drain` at a time |
 | an op's requirements | only the frame bounds them (about 32 000) | `step_costs` (R) | ❌ fix: an intake cap `reqs` in the Budget |
 | `react` | `opened.all`, `request.byTo` and a count per request, every entry point | none | ❌ fix: a key of unanswered requests the opened op files out of; a cap on pending requests |
-| the runner's event channel | unbounded: a peer sending faster than the node handles grows memory | none | ❌ fix: a bounded channel per socket, its reader waiting on its own thread, so TCP pushes back |
+| the runner's event channel | at most `RunConfig.queue` events; a socket's reader blocks on a full channel, so TCP pushes back (sync-harden) | `admit_bounded` (sockets); the channel is tested | ✅ tested |
+| the store's journal (`changes`) | the commits since the slower of the frame and the reader took them: the writer prunes rows at or below the minimum of the two cursors (App.takeChanges); a reader that stops stops the pruning, and the journal grows, though nothing is lost | none | ❌ fix: a bound on the reader's lag, or pruning past a stopped reader with a full re-read |
 | the write turn, boot, purge, cold rounds | the store | docs/BOUNDS.md | a3's |
 
 ## Large communities: open questions
