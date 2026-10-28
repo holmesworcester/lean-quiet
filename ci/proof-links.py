@@ -13,13 +13,12 @@ by its full name or any suffix of it that names one of these; the link
 definitions go in the block between the proof-links markers at its end.
 
 The section between the wiring markers ("Not yet about running code") is
-written from tests/Wiring.lean's classification: how many laws are about
-running code, per area; a row for each missing link with its laws and
-tests/wiring.txt's note; the statements stated only; the assumptions.
-The proofs tables above it must agree: a ✅ row must cite a law about
-running code, and a 🟡 row must say what is missing ("Wanted", "Not
-yet", "not proven", "Not covered", "todo"), itself or in the section its
-More link opens. The
+written from tests/Wiring.lean's classification, as short tables: the
+count per area; a row for each missing link (a model, or running code a
+law restates) with its laws and tests/wiring.txt's note; the
+assumptions. The proofs tables above it must agree: a ✅ row must cite a
+law about running code, and a 🟡 row must say in its own cell what is
+missing ("Wanted", "Not yet", "not proven", "Not covered", "todo"). The
 README's lead takes its number from the same count ("N of M are about
 the code that runs"), and may say "nearly every" only while that is
 90% or more.
@@ -180,19 +179,10 @@ def resolver(decls):
     return resolve
 
 
-def sections(text):
-    """Each heading's anchor, with its section's text."""
-    out, parts = {}, re.split(r"^(#+ .*)$", text, flags=re.M)
-    for h, body in zip(parts[1::2], parts[2::2]):
-        anchor = re.sub(r"[^\w\- ]", "", h.lstrip("#").strip().lower()).replace(" ", "-")
-        out[anchor] = body
-    return out
-
-
-def disagree(tables, wired, resolve, more={}):
+def disagree(tables, wired, resolve):
     """The proofs rows that disagree with the classification: a ✅ row that
-    cites no law about running code, a 🟡 row that does not say what is
-    missing, itself or in the section its More link opens."""
+    cites no law about running code, a 🟡 row whose own cell does not say
+    what is missing."""
     bad = []
     for line in tables.split("\n"):
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
@@ -202,8 +192,7 @@ def disagree(tables, wired, resolve, more={}):
         laws = [resolve(l) for l in re.findall(r"\[`([^`\]]+)`\]", cells[3])]
         if cells[0] == "✅" and not any(l in wired for l in laws if l):
             bad.append(f"✅ \"{title}\" cites no law about running code: make it 🟡, saying what is missing")
-        opens = [more.get(a, "") for a in re.findall(r"\]\(#([\w-]+)\)", cells[2])]
-        if cells[0] == "🟡" and not WANTED.search(cells[2]) and not any(WANTED.search(t) for t in opens):
+        if cells[0] == "🟡" and not WANTED.search(cells[2]):
             bad.append(f"🟡 \"{title}\" does not say what is missing (Wanted, Not yet, not proven, Not covered, todo)")
     return bad
 
@@ -276,29 +265,26 @@ def section(rows, decls, cited):
         c = per.setdefault(area(mod), [0, 0])
         c[0 if status == "wired" else 1] += 1
     order = list(dict.fromkeys([a for _, a in AREAS] + ["Other"]))
-    out = [f"**{count['wired']} of {len(laws)} laws are about running code.** "
-           f"{count['model']} are about a model, a harness, or code nothing calls yet; "
-           f"{count['stated']} statements are stated only; {count['assumption']} assumptions.", "",
+    stated = [n for n, st, _ in stmts if st == "stated"]
+    out = [f"**{count['wired']} of {len(laws)} laws are about running code;** {count['model']} are not yet. "
+           f"Stated only: {', '.join(f'`{n}`' for n in stated) if stated else 'none'}.", "",
            "| Area | Laws | About running code | Not yet |", "|---|---|---|---|"]
     for a in order:
         if a in per:
             w, m = per[a]
             out.append(f"| {a} | {w + m} | {w} | {m or ''} |")
-    # per missing link
-    groups, general, names_model = {}, [], []
+    # per missing link: a model, or running code a law restates
+    copies = {f[1]: f[2] for f in rows if f[0] == "copy"}
+    copied = {code: n for n, code in copies.items()}
+    groups, general = {}, []
     for name, status, miss, _, _, prem in laws:
-        if status == "wired":
-            if prem:
-                names_model.append((name, prem))
-            continue
-        if not miss:
+        if not miss and status != "wired":
             general.append(name)
             continue
-        only_premise = set(miss) <= set(prem)
-        for m in miss:
+        for m in (prem if status == "wired" else miss):
             t = place(m)[1]
             g = groups.setdefault(t, ({}, set()))
-            g[0][name] = only_premise
+            g[0][name] = "°" if status == "wired" else "*" if set(miss) <= set(prem) else ""
             g[1].add(m)
     out += ["", "| Missing link | Laws | To make them real |", "|---|---|---|"]
     for t in sorted(groups, key=lambda t: place(t)):
@@ -307,35 +293,24 @@ def section(rows, decls, cited):
         if not note:
             by = sorted({c for n in names for c in missing.get(n, (0, "", []))[2]} - names)
             note = "Nothing that runs calls it" + (f"; {codes(by[0], set(by))} do" if by else "") + "."
-        cell = ", ".join(link(n, "*" if p else "") for n, p in ls.items())
-        out.append(f"| {codes(t, names)} | {cell} | {note} |")
+        what = codes(t, names)
+        if t in copied:  # running code a law restates
+            what = f"restates `{short(t, [t], 2)}`"
+        elif t in copies:  # a definition that restates running code
+            what += f" (restates `{short(copies[t], [copies[t]], 2)}`)"
+        out.append(f"| {what} | {', '.join(link(n, mk) for n, mk in ls.items())} | {note} |")
     if general:
         out.append(f"| (none) | {', '.join(map(link, general))} | Nothing to wire: each is about "
                    "a specification or an assumption. |")
-    out += ["", "\\* only a premise names the model (a reachable state admits the modelled "
-            "purge). † a guarantee above cites it."]
-    copies = [f for f in rows if f[0] == "copy"]
-    if copies:
-        out += ["", "**Restates running code** (todo: state it of the real function):", ""]
-        out += [f"- {link(f[1]) if f[1] in decls else f'`{short(f[1], missing, 2)}`'} restates "
-                f"`{short(f[2], [f[2]], 2)}`: {f[3]}" for f in copies]
-    if names_model:
-        out += ["", "About running code, but naming a model outside the code they are about: " +
-                "; ".join(f"{link(n)} (`{', '.join(short(m, missing, 2) for m in p)}`)"
-                          for n, p in names_model) + "."]
-    stated = [(n, m) for n, st, m in stmts if st == "stated"]
-    out += ["", "**Stated only** (a `…_stmt` no audited law concludes): " +
-            ("; ".join(f"`{n}`" + (f" (does not run: {', '.join(f'`{short(x, missing, 2)}`' for x in m)})"
-                                   if m else "") for n, m in stated) if stated else "none") + ".", "",
-            "**Assumptions,** with the laws that take them or are stated over them:", ""]
+    out += ["", "\\* only a premise names it. ° about running code, but names it beside. "
+            "† a guarantee above cites it.", "",
+            "| Assumption | Laws | |", "|---|---|---|"]
     for a, text in assumed.items():
         if text.startswith("= "):
             continue
         part = [a] + [b for b in assumed if b != a and target(b, assumed) == a]
         n = sum(1 for law in laws if set(law[3]) & set(part))
-        more = f" +{len(part) - 4}" if len(part) > 4 else ""
-        also = f", with {', '.join(f'`{short(b, assumed, 2)}`' for b in part[1:4])}{more}" if part[1:] else ""
-        out.append(f"- {link(a, cite=False)}{also} ({n} laws): {text}")
+        out.append(f"| {link(a, cite=False)} | {n} | {text} |")
     return "\n" + "\n".join(out) + "\n"
 
 
@@ -355,7 +330,7 @@ def main():
     tables = pre.split("## What is proven")[-1]
     wired = {f[1] for f in rows if f[0] == "law" and f[2] == "wired"}
     total = sum(1 for f in rows if f[0] == "law")
-    problems += disagree(tables, wired, resolve, sections(text))
+    problems += disagree(tables, wired, resolve)
     # the lead's count, and "nearly every" only at the threshold
     lead = LEAD.search(pre)
     if not lead:

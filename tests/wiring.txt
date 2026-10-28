@@ -60,8 +60,8 @@ assume Engine.Distinct = Engine.CollisionFree
 assume Community.Merkle.NoSecondPreimage SHA-256 has no second preimage on a file's Merkle tree inputs.
 assume Connection.Noise.Suite.Good X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only).
 assume Community.Seal.Good The seal's AEAD and key wrap open what they seal (correctness only).
-assume Connection.Noise.Symbolic.sym The symbolic model of the cryptography: the running handshake over a suite of symbols, where only a key's holder can derive what it guards.
-assume Engine.Model.run The store model: the SQLite store's reads, writes and write turns answer as the model's tables (`DB`), and a held store's (`Held`) do too. Tested, not proven: SQLite against the model (tests/engine/Differential.lean), list queries against their meaning (tests/engine/QueryDiff.lean). Not its purge: `purgeS` is a model, a todo.
+assume Connection.Noise.Symbolic.sym The symbolic model of the cryptography, over which the running handshake runs.
+assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model.
 assume Engine.Model = Engine.Model.run
 assume Engine.DB = Engine.Model.run
 assume Engine.Sync.HeldM = Engine.Model.run
@@ -82,7 +82,7 @@ assume Engine.DB.addWait = Engine.Model.run
 assume Engine.DB.clearWaiters = Engine.Model.run
 assume Engine.DB.index = Engine.Model.run
 
-holds Engine.Inv The tables' invariant, which judging keeps (`inv_ingest`, `inv_step`) and purges keep only by `purge_inv`, proven of the model `purgeS`, and the SQLite-vs-model purge test (tests/engine/Purge.lean).
+holds Engine.Inv The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean).
 
 ## Bridges: a mirror, and the law that proves running code equal to it
 

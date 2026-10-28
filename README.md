@@ -228,22 +228,14 @@ The theorems not listed here are lemmas. The axiom audit,
 
 ### Not yet about running code (todo)
 
-The goal is every law about the code that runs. A law is *wired* when
-each definition its statement is about runs: the app's `main` (which
-the Android and iOS shells start) or the node's runner reaches it, or a
-law proves it equal to code that does (`run_step`). The rest are proven
-of a model, a harness, or code nothing calls yet, and are listed here
-with what would make them real. `tests/Wiring.lean` classifies every law
-of the audit from the code; `tests/wiring.txt` holds what the code
-cannot say: the specifications laws state running code against, the
-assumptions, the bridges, the notes below, and the laws that must stay
-wired. `ci/proof-links.py` writes this section between its markers, and
-the lead's count from it. Local CI fails when either goes stale, when a
-law marked wired is not, when a ✅ row above cites no law about running
-code, or when a 🟡 row does not say what is missing.
+A law is about running code when every definition its statement names
+runs from the app's `main` or the node's runner, or is proven equal to
+code that does. `tests/Wiring.lean` classifies every law from the code,
+with `tests/wiring.txt` for what the code cannot say, and
+`ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**336 of 428 laws are about running code.** 92 are about a model, a harness, or code nothing calls yet; 0 statements are stated only; 8 assumptions.
+**336 of 428 laws are about running code;** 92 are not yet. Stated only: none.
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
@@ -263,40 +255,31 @@ code, or when a 🟡 row does not say what is missing.
 |---|---|---|
 | `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]*†, [`order_local`]*†, [`sealed_unopened`]*†, [`sealed_auth`]*†, [`purge_cached`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`write_offers_all`], [`close_gone`]*†, [`allowPeer_iff`], [`allowPeer_settles`] | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
 | `World.peer`, `Setup.sync`, `Who.other` +8 | [`stream_delivers`]†, [`stream_delivers_steps`]†, [`stream_delivers_runs`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`stream_offered`]†, [`stream_offered_runs`]†, [`write_offers_all`], [`fanout_offers`], [`seal_mem`] | A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does. |
-| `Sync.exchange` | [`exchange_complete`]† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
+| `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
 | `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
 | `Scene.approval`, `Scene.K`, `Scene.S` +12 | [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`bootstrap_ideal`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`], [`allowPeer_settles`] | The bootstrap's model (ops/connection/bootstrap/): retired by `conn_runs_exchange`, `closure_delivered`, `answer_trusted` and `untrusted_silent` over the running code. |
-| `App.read` | [`read_one_moment`]† | Its two branches, inline. Todo: state it of `App.read`. |
+| restates `App.read` | [`read_one_moment`]† | Its two branches, inline. Todo: state it of `App.read`. |
 | `Seam.place`, `Geom.composerTop`, `Geom.viewNow` +5 | [`placed_row`]†, [`visible_in_viewport`]†, [`newest_visible`]†, [`newest_drawn`]†, [`pinned_row`]†, [`pinned_visible`]†, [`pinned_tap`]† | The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are. |
-| `Grid.ctop` | [`hit_iff`]†, [`hit_cell`]*†, [`keys_disjoint`]*†, [`reachable`]† | Its index arithmetic, and App's sheet rows'. Todo: have the painter place keys by `Grid.ctop`. |
+| `Grid.ctop` (restates `Sheet.gridRow`) | [`hit_iff`]†, [`hit_cell`]*†, [`keys_disjoint`]*†, [`reachable`]† | Its index arithmetic, and App's sheet rows'. Todo: have the painter place keys by `Grid.ctop`. |
 | `Sync.keeps` | [`buffer_bounded`]*† | The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s. |
 | `Pic.decode`, `Geom.box`, `Rgba.wellFormed` +7 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]†, [`decode_sized`]† | Runs only in qr's Android harness; the app has its own QOI (`Qoi.decode`) and tray: use `Pic` in the app, or prove these of its code. |
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
 | `Arrival.lit` | [`lit_zero`], [`lit_mono`], [`lit_full`], [`lit_clockwise`], [`ring_counts`] | `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`. |
 | (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`pageIn_acc`]† | Nothing to wire: each is about a specification or an assumption. |
 
-\* only a premise names the model (a reachable state admits the modelled purge). † a guarantee above cites it.
+\* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
-**Restates running code** (todo: state it of the real function):
-
-- [`read_one_moment`]† restates `App.read`: Its two branches, inline. Todo: state it of `App.read`.
-- `Grid.ctop` restates `Sheet.gridRow`: Its index arithmetic, and App's sheet rows'. Todo: have the painter place keys by `Grid.ctop`.
-
-About running code, but naming a model outside the code they are about: [`conn_answers_ids`]† (`Sync.exchange`).
-
-**Stated only** (a `…_stmt` no audited law concludes): none.
-
-**Assumptions,** with the laws that take them or are stated over them:
-
-- [`Unforgeable`] (2 laws): An Ed25519 signature that verifies under a device key was made by that key's holder.
-- [`CollisionFree`], with `Engine.Distinct` (20 laws): SHA-256 has no collision among the ops a node received.
-- [`NoSecondPreimage`] (14 laws): SHA-256 has no second preimage on a file's Merkle tree inputs.
-- [`Suite.Good`] (6 laws): X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only).
-- [`Seal.Good`] (4 laws): The seal's AEAD and key wrap open what they seal (correctness only).
-- [`Symbolic.sym`] (13 laws): The symbolic model of the cryptography: the running handshake over a suite of symbols, where only a key's holder can derive what it guards.
-- [`Model.run`], with `Engine.Model`, `Engine.DB`, `Sync.HeldM` +15 (144 laws): The store model: the SQLite store's reads, writes and write turns answer as the model's tables (`DB`), and a held store's (`Held`) do too. Tested, not proven: SQLite against the model (tests/engine/Differential.lean), list queries against their meaning (tests/engine/QueryDiff.lean). Not its purge: `purgeS` is a model, a todo.
-- [`Engine.Inv`] (43 laws): The tables' invariant, which judging keeps (`inv_ingest`, `inv_step`) and purges keep only by `purge_inv`, proven of the model `purgeS`, and the SQLite-vs-model purge test (tests/engine/Purge.lean).
+| Assumption | Laws | |
+|---|---|---|
+| [`Unforgeable`] | 2 | An Ed25519 signature that verifies under a device key was made by that key's holder. |
+| [`CollisionFree`] | 20 | SHA-256 has no collision among the ops a node received. |
+| [`NoSecondPreimage`] | 14 | SHA-256 has no second preimage on a file's Merkle tree inputs. |
+| [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
+| [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
+| [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
+| [`Model.run`] | 144 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Engine.Inv`] | 43 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
 
 ## What isn't Lean, and why
