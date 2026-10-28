@@ -37,7 +37,7 @@ open Std Std.Async Std.Net
 /-- "a.b.c.d:port". -/
 def addrText : SocketAddress → String
   | .v4 a => s!"{".".intercalate (a.addr.octets.toList.map (toString ·.toNat))}:{a.port}"
-  | .v6 a => s!"[v6]:{a.port}"
+  | .v6 a => s!"[{a.addr}]:{a.port}"
 
 def parseAddr (s : String) : Option SocketAddress :=
   match s.splitOn ":" with

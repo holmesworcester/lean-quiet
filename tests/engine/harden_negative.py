@@ -38,6 +38,8 @@ cases = [
     ("close-effects", "engine/wire/Tcp.lean", "r.1.apply x ch notify cfg r.2 now", "r.1.apply x ch notify cfg { r.2 with send := [] } now", "harden", "close effects", True),
     ("no-retry", "ops/sync/Conn.lean", "chunks cfg (c.retryIds cfg now) .want", "chunks cfg [] .want", "harden", "tick reasks", True),
     ("shared-socket", "engine/wire/Tcp.lean", "unless st.node.conns.any fun (c, _) => st.node.addr? c == some addr do", "unless false do", "harden", "shared socket: a dropped session leaves the socket up", True),
+    ("v6-one-quota", "engine/wire/Slots.lean", "  match String.fromUTF8? addr with\n  | none => \"?\"\n  | some s =>\n    if s.startsWith \"[\" then (s.splitOn \"]\").headD s ++ \"]\"\n    else match s.splitOn \":\" with\n      | [host, _] => host\n      | _ => s\n", "  ((String.fromUTF8! addr).splitOn \":\").headD \"?\"\n", "harden", "IPv6 peers have separate quotas", True),
+    ("v6-placeholder", "engine/wire/Tcp.lean", "| .v6 a => s!\"[{a.addr}]:{a.port}\"", "| .v6 a => s!\"[v6]:{a.port}\"", "harden", "an IPv6 address's text names its host", True),
 ]
 for name, source, old, new, target, expected, runtime in cases:
     path = root / source

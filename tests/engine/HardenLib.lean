@@ -241,6 +241,26 @@ def queueChecks (t : Checks) : IO Unit := do
   slots.release "127.0.0.1:1".toUTF8
   t.ok "close releases exactly one slot" (← slots.take cfg "127.0.0.3:1".toUTF8)
 
+/-- IPv6 peers are told apart by their address, as IPv4 peers are, and
+their ports do not evade the per-address cap either. -/
+def peerChecks (t : Checks) : IO Unit := do
+  let a : Std.Net.SocketAddress := .v6 ⟨Std.Net.IPv6Addr.ofParts 0x2001 0xdb8 0 0 0 0 0 1, 5000⟩
+  let b : Std.Net.SocketAddress := .v6 ⟨Std.Net.IPv6Addr.ofParts 0x2001 0xdb8 0 0 0 0 0 2, 5000⟩
+  t.ok "an IPv6 address's text names its host" (addrText a == "[2001:db8::1]:5000")
+  t.ok "an IPv6 peer's quota is its host" (peerHost (addrText a).toUTF8 == "[2001:db8::1]")
+  t.ok "an IPv4 peer's quota is its host" (peerHost "10.0.0.7:4242".toUTF8 == "10.0.0.7")
+  t.ok "bytes that are not UTF-8 are a quota, not a panic" (peerHost (ByteArray.mk #[0xff, 0x3a, 0x31]) == "?")
+  let slots : Slots ← Std.Mutex.new []
+  let cfg : RunConfig := { maxSocks := 8, perAddr := 2 }
+  let at_ (h : Std.Net.SocketAddress) (p : UInt16) : ByteArray := match h with
+    | .v6 x => (addrText (.v6 { x with port := p })).toUTF8
+    | .v4 x => (addrText (.v4 { x with port := p })).toUTF8
+  t.ok "first IPv6 socket admitted" (← slots.take cfg (at_ a 1))
+  t.ok "second IPv6 socket from its host admitted" (← slots.take cfg (at_ a 2))
+  t.ok "IPv6 source ports cannot evade per-address cap" (!(← slots.take cfg (at_ a 3)))
+  t.ok "IPv6 peers have separate quotas" (← slots.take cfg (at_ b 1))
+  t.ok "another IPv6 peer fills its own quota" (← slots.take cfg (at_ b 2))
+
 /-- A socket that carries two sessions (a join sent beside an open one)
 stays up when one is dropped, as `kept` retires one of two; the
 transport's end still ends both. Over RunState.apply itself, with a
