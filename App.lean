@@ -899,9 +899,11 @@ def netStep : M Unit := do
     { fam, cfg := { every := 30000, patience := 20000 },
       hooks := Connection.hooks fam Connection.sodium listen }
   let path := s.dbPath
+  let sh := s.sh
   let t ← IO.asTask (prio := .dedicated) do
     let db ← Db.openAt path
-    Engine.Sync.Runner.start x db 0 port.toUInt16
+    -- the node's commits move the reader's counter (Reader.Shared.commits)
+    Engine.Sync.Runner.start x db 0 port.toUInt16 (notify := fun _ => sh.commits.modify (· + 1))
   s.io.log s!"node: starting, dialed as {(String.fromUTF8? listen).getD "?"}"
   modify fun s => { s with netBoot := some t }
 
@@ -1670,7 +1672,7 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   -- the placeholders are the counts less the window's rows on each side)
   let idsW := Reader.Want.window s.me.c s.anchor half half
   let countW := Reader.Want.count s.me.c s.anchor
-  s.sh.wants.modify fun ws => #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
+  s.sh.setWants (#[idsW] ++ (← s.sh.wants.get).filter (fun w => w != idsW && w != countW) ++ #[countW])
   readerPass
   let bd ← takeBoard
   let fresh := match bd.get? idsW with
@@ -1721,7 +1723,7 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   let lists := #[Reader.Want.comms] ++ (if s.me.c.isEmpty then #[] else
     #[Reader.Want.people s.me.c, Reader.Want.asking s.me.c] ++
       (if s.page == .home || s.page == .profile || s.page == .removeConfirm then #[Reader.Want.members s.me.c s.me.user] else #[]))
-  s.sh.wants.set (#[idsW] ++ win.map (fun x => Reader.Want.row s.me.c s.me.adm x) ++ s.picWants ++ #[countW] ++ lists)
+  s.sh.setWants (#[idsW] ++ win.map (fun x => Reader.Want.row s.me.c s.me.adm x) ++ s.picWants ++ #[countW] ++ lists)
   modify fun s => { s with picWants := #[] }
   readerPass
   let bd ← takeBoard
@@ -1892,7 +1894,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   let wr ← Writer.start dbPath
   -- the communities are this device's accepted facts: read them once
   -- here to choose the first page
-  let sh ← Reader.Shared.new
+  let sh ← Reader.Shared.new wr.count
   let probe : St := { io := io, W := W, Hs := Hs, insetTop := 0, insetBot := 0, font := font, bgRow := .empty, rd := rd, wr := wr, me := default, sh := sh }
   let ((all, _), _) ← (Kinds.Accepted.read : M _).run probe
   let comms := Kinds.Accepted.listed all
