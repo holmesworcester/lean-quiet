@@ -278,7 +278,6 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
 | [`Model.run`] | 145 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
-| [`Engine.Inv`] | 43 | The tables' invariant. Purges keep it by `purge_inv`, over `purgeS`, which the running purge is (`run_purge`). |
 <!-- wiring:end -->
 
 ## What isn't Lean, and why
@@ -989,5 +988,4 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Seal.Good`]: ops/community/Keys.lean#L40-L43
 [`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
 [`Model.run`]: engine/core/Model.lean#L117-L117
-[`Engine.Inv`]: engine/core/Proofs.lean#L202-L219
 <!-- /proof-links -->

@@ -85,8 +85,6 @@ assume Engine.DB.dependents = Engine.Model.run
 assume Engine.DB.undecide = Engine.Model.run
 assume Engine.DB.deleteOp = Engine.Model.run
 
-holds Engine.Inv The tables' invariant. Purges keep it by `purge_inv`, over `purgeS`, which the running purge is (`run_purge`).
-
 ## Bridges: a mirror, and the law that proves running code equal to it
 
 bridge Engine.stepS Engine.run_step
