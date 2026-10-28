@@ -10,12 +10,15 @@ namespace Engine
 
 structure DB (F : Type) where
   ops : Id → Option Op
+  /-- The stored ops' ids, in arrival order: the ops table's rows.
+  `ops` alone cannot be walked, and a purge walks them. -/
+  stored : List Id
   status : Id → Option (Verdict F)
   waits : Id → List Id
   queue : List Id
   idx : ByteArray → List Id
 
-def DB.empty {F} : DB F := ⟨fun _ => none, fun _ => none, fun _ => [], [], fun _ => []⟩
+def DB.empty {F} : DB F := ⟨fun _ => none, [], fun _ => none, fun _ => [], [], fun _ => []⟩
 
 /-- Whether x is in l, by `DecidableEq` (ByteArray's `BEq` has no
 `LawfulBEq`). -/
@@ -47,10 +50,26 @@ theorem mem_ins (l : List Id) (x y : Id) : y ∈ ins l x ↔ y ∈ l ∨ y = x :
     · rintro (h' | rfl) <;> assumption
   · simp [h]
 
+theorem has_false (l : List Id) (x : Id) : has l x = false ↔ x ∉ l := by
+  rw [← has_iff]; simp
+
+/-- Ids each once, in byte order: one list for a set, whatever order
+its ids were found in. -/
+def sortIds (l : List Id) : List Id :=
+  (l.foldl ins []).mergeSort fun a b => Decidable.decide (a.toList ≤ b.toList)
+
+theorem mem_sortIds (l : List Id) (x : Id) : x ∈ sortIds l ↔ x ∈ l := by
+  have h : ∀ acc : List Id, x ∈ l.foldl ins acc ↔ x ∈ acc ∨ x ∈ l := by
+    induction l with
+    | nil => simp
+    | cons y t ih => intro acc; simp only [List.foldl_cons, ih, mem_ins, List.mem_cons, or_assoc]
+  rw [sortIds, List.mem_mergeSort, h]; simp
+
 namespace DB
 variable {F : Type}
 
-def putOp (o : Op) (s : DB F) : DB F := { s with ops := fun i => if i = o.id then some o else s.ops i }
+def putOp (o : Op) (s : DB F) : DB F :=
+  { s with ops := fun i => if i = o.id then some o else s.ops i, stored := ins s.stored o.id }
 def setStatus (x : Id) (v : Verdict F) (s : DB F) : DB F :=
   { s with status := fun i => if i = x then some v else s.status i }
 def addWait (r x : Id) (s : DB F) : DB F :=

@@ -9,10 +9,16 @@ not proven, and tests/differential.sh checks it.
 
 One write turn is one `BEGIN IMMEDIATE` transaction (`transact`), so a
 crash leaves the tables as of the last commit, a state where `Inv`
-holds.
+holds. A purge (`purgeSql`) is one too. It finds dependents through
+`reqs`, each stored op's requirements (the model reads them off its
+ops), and afterwards rebuilds the file (`VACUUM`) and truncates the WAL,
+so no file keeps a deleted byte. `secure_delete`, on for every
+connection, zeroes the cells deletes free.
 -/
 import Engine.Core
 import Engine.Codec
+import Engine.Model
+import Std.Data.HashSet
 
 namespace Engine
 
@@ -26,9 +32,11 @@ instance : Nonempty Db := DbPointed.property
   IO (Array (Array ByteArray))
 
 def schema : String := "
+PRAGMA secure_delete = ON;
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
 CREATE TABLE IF NOT EXISTS ops (id BLOB PRIMARY KEY, bytes BLOB NOT NULL) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS reqs (req BLOB NOT NULL, op BLOB NOT NULL, PRIMARY KEY (req, op)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS status (id BLOB PRIMARY KEY, verdict BLOB NOT NULL) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS waits (blocker BLOB NOT NULL, waiter BLOB NOT NULL, UNIQUE (blocker, waiter));
 CREATE INDEX IF NOT EXISTS waits_blocker ON waits (blocker);
@@ -38,6 +46,10 @@ CREATE INDEX IF NOT EXISTS idx_ks ON idx (k, s, id);
 CREATE TABLE IF NOT EXISTS cnt (k BLOB PRIMARY KEY, n INTEGER NOT NULL) WITHOUT ROWID;
 CREATE TRIGGER IF NOT EXISTS idx_count AFTER INSERT ON idx BEGIN
   INSERT INTO cnt (k, n) VALUES (NEW.k, 1) ON CONFLICT (k) DO UPDATE SET n = n + 1;
+END;
+CREATE TRIGGER IF NOT EXISTS idx_uncount AFTER DELETE ON idx BEGIN
+  UPDATE cnt SET n = n - 1 WHERE k = OLD.k;
+  DELETE FROM cnt WHERE k = OLD.k AND n <= 0;
 END;
 "
 
@@ -93,7 +105,9 @@ def sortOfStatus [Codec F] [SortKey F] (x : Id) : SqlM F ByteArray := do
 open Codec in
 instance sqlStore [Codec F] [SortKey F] : Store F (SqlM F) where
   getOp x := do sqlOne "op" (← sqlQ "SELECT bytes FROM ops WHERE id = ?" #[x])
-  putOp o := sqlDo "INSERT INTO ops (id, bytes) VALUES (?, ?)" #[o.id, encode o]
+  putOp o := do
+    sqlDo "INSERT INTO ops (id, bytes) VALUES (?, ?)" #[o.id, encode o]
+    for r in o.reqs do sqlDo "INSERT OR IGNORE INTO reqs (req, op) VALUES (?, ?)" #[r, o.id]
   getStatus x := do sqlOne "verdict" (← sqlQ "SELECT verdict FROM status WHERE id = ?" #[x])
   setStatus x v := sqlDo "INSERT OR REPLACE INTO status (id, verdict) VALUES (?, ?)" #[x, encode v]
   addWait r x := sqlDo "INSERT OR IGNORE INTO waits (blocker, waiter) VALUES (?, ?)" #[r, x]
@@ -140,6 +154,82 @@ def receive [Codec F] [SortKey F] (fam : Family F) (ops : List Op) : SqlM F Unit
   transact do
     for o in ops do ingest (m := SqlM F) o
     drain (m := SqlM F) fam (← budgetSql (F := F))
+
+/-! ## Purging -/
+
+/-- `ids` and every stored op that requires one of them, transitively
+(the model's `closeUp`), walked through `reqs`. Each id enters the walk
+once, so it ends within the stored ops plus `ids` steps; a walk that
+does not means the tables disagree, and the purge aborts. -/
+def closureSql (ids : List Id) : SqlM F (List Id) := do
+  let n ← countSql (F := F) "SELECT CAST(count(*) AS TEXT) FROM ops"
+  let mut seen : Std.HashSet Id := {}
+  let mut found : Array Id := #[]
+  for x in ids do
+    if !seen.contains x then seen := seen.insert x; found := found.push x
+  let mut i := 0
+  for _ in [0:n + ids.length + 1] do
+    if h : i < found.size then
+      let x := found[i]
+      i := i + 1
+      for y in col0 (← sqlQ (F := F) "SELECT op FROM reqs WHERE req = ?" #[x]) do
+        if !seen.contains y then seen := seen.insert y; found := found.push y
+    else break
+  if i < found.size then throw (IO.userError "purge: the dependents walk did not end")
+  return found.toList
+
+/-- The purge itself, inside a transaction: the model's `purgeS`, then
+judging to rest. Every op of the closure loses its verdict, filings and
+queue entries; its conn and local ops leave every table; its shared ops
+are queued again in byte order and judged over what remains. -/
+def purgeTx [Codec F] [SortKey F] (fam : Family F) (ids : List Id) : SqlM F Unit := do
+  let mut gone : List Op := []
+  let mut again : List Id := []
+  for x in ← closureSql (F := F) ids do
+    match ← Store.getStatus (F := F) x with
+    | some (.valid f) =>
+      for k in fam.fileKeys x f do sqlDo (F := F) "DELETE FROM idx WHERE k = ? AND id = ?" #[k, x]
+    | _ => pure ()
+    sqlDo (F := F) "DELETE FROM status WHERE id = ?" #[x]
+    sqlDo (F := F) "DELETE FROM queue WHERE id = ?" #[x]
+    match ← Store.getOp (F := F) x with
+    | some o => if (fam.room o).isSome then again := x :: again else gone := o :: gone
+    | none => pure ()
+  for o in gone do
+    sqlDo (F := F) "DELETE FROM ops WHERE id = ?" #[o.id]
+    sqlDo (F := F) "DELETE FROM waits WHERE blocker = ?" #[o.id]
+    for r in o.reqs do
+      sqlDo (F := F) "DELETE FROM reqs WHERE req = ? AND op = ?" #[r, o.id]
+      sqlDo (F := F) "DELETE FROM waits WHERE blocker = ? AND waiter = ?" #[r, o.id]
+  for x in sortIds again do Store.push (F := F) x
+  drain (m := SqlM F) fam (← budgetSql (F := F))
+
+/-- Copy the WAL into the database and truncate it, so no old frame
+keeps a deleted byte. Outside any transaction; a no-op unless the
+database is in WAL mode. -/
+def checkpointSql : SqlM F Unit := do
+  let mode := col0 (← sqlQ (F := F) "PRAGMA journal_mode" #[])
+  if (mode.head? >>= String.fromUTF8?) != some "wal" then return
+  let rows ← sqlQ (F := F) "PRAGMA wal_checkpoint(TRUNCATE)" #[]
+  if (rows[0]? >>= (·[0]?) >>= String.fromUTF8?) != some "0" then
+    throw (IO.userError "purge: a reader blocked the WAL checkpoint; the purged bytes stay in the WAL until the next one")
+
+/-- **Purge `ids`** (Engine/Purge.lean): one transaction; then, with
+`scrub` (the default), `VACUUM`; then the checkpoint.
+
+`secure_delete` zeroes the cells a delete frees, but not the copies a
+b-tree leaves behind when it moves cells between pages: a page rebuilt
+by a split keeps its old cells in the gap between its pointers and its
+content, and `Tests/Purge.lean` finds a purged secret there. `VACUUM`
+rebuilds the file from its live rows, so no copy survives; it costs a
+rewrite of the database. A purge of ops that hold nothing secret (a
+shipped courier) can pass `scrub := false`. Purging again is harmless,
+so a blocked checkpoint can be retried by purging again. -/
+def purgeSql [Codec F] [SortKey F] (fam : Family F) (ids : List Id) (scrub : Bool := true) :
+    SqlM F Unit := do
+  transact (purgeTx fam ids)
+  if scrub then (← getDb).exec "VACUUM"
+  checkpointSql
 
 /-! ## Reading the whole database back, for tests -/
 

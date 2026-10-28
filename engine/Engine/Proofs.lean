@@ -1,13 +1,14 @@
 /-
 The engine is correct: whatever ops arrive, in whatever order, and
-however the judging interleaves with arrivals, the persisted tables
-keep `Inv`. When the queue is empty, the persisted verdicts are exactly
-the spec's (`status_iff_spec`), so they depend only on the set of ops
-received (`order_free`), and the index holds exactly the Valid facts'
+however the judging and purges interleave with arrivals, the persisted
+tables keep `Inv`. When the queue is empty, the persisted verdicts are
+exactly the spec's (`status_iff_spec`), so they depend only on the set
+of ops held (`order_free`), and the index holds exactly the Valid facts'
 keys (`Inv.idx`).
 -/
 import Engine.Run
 import Engine.SpecLemmas
+import Engine.Purge
 
 namespace Engine
 variable {F : Type} {fam : Family F}
@@ -27,6 +28,10 @@ theorem waitOnS_queue (x : Id) (l : List Id) (s : DB F) : (waitOnS x l s).queue 
   | nil => rfl
   | cons r t ih => simp only [waitOnS]; rw [ih]; split <;> rfl
 theorem waitOnS_idx (x : Id) (l : List Id) (s : DB F) : (waitOnS x l s).idx = s.idx := by
+  induction l generalizing s with
+  | nil => rfl
+  | cons r t ih => simp only [waitOnS]; rw [ih]; split <;> rfl
+theorem waitOnS_stored (x : Id) (l : List Id) (s : DB F) : (waitOnS x l s).stored = s.stored := by
   induction l generalizing s with
   | nil => rfl
   | cons r t ih => simp only [waitOnS]; rw [ih]; split <;> rfl
@@ -78,6 +83,12 @@ theorem indexAllS_fields (x : Id) (ks : List ByteArray) (s : DB F) :
     (indexAllS x ks s).waits = s.waits ∧ (indexAllS x ks s).queue = s.queue := by
   induction ks generalizing s with
   | nil => exact ⟨rfl, rfl, rfl, rfl⟩
+  | cons k t ih => exact ih (s.index k x)
+
+theorem indexAllS_stored (x : Id) (ks : List ByteArray) (s : DB F) :
+    (indexAllS x ks s).stored = s.stored := by
+  induction ks generalizing s with
+  | nil => rfl
   | cons k t ih => exact ih (s.index k x)
 
 theorem mem_indexAllS (x : Id) (ks : List ByteArray) (s : DB F) (k : ByteArray) (y : Id) :
@@ -144,6 +155,30 @@ theorem decideS_fields (x : Id) (v : Verdict F) (s : DB F) :
       · exact h
       · cases hg
 
+theorem decideS_stored (x : Id) (v : Verdict F) (s : DB F) :
+    (decideS fam x v s).stored = s.stored := by
+  cases v with
+  | valid f => exact indexAllS_stored x (fam.fileKeys x f) (s.setStatus x (.valid f))
+  | invalid => rfl
+
+theorem stepS_stored (s : DB F) : (stepS fam s).stored = s.stored := by
+  unfold stepS
+  cases s.queue with
+  | nil => rfl
+  | cons x q =>
+    simp only
+    cases s.status x with
+    | some _ => rfl
+    | none =>
+      simp only
+      cases s.ops x with
+      | none => rfl
+      | some o =>
+        simp only
+        cases judge fam o (o.reqs.map s.status) with
+        | some v => exact decideS_stored x v _
+        | none => exact waitOnS_stored _ _ _
+
 /-! ## The invariant -/
 
 /-- What the persisted tables always satisfy. -/
@@ -159,12 +194,15 @@ structure Inv (fam : Family F) (s : DB F) : Prop where
       ∀ r ∈ o.reqs, s.status r = none → x ∈ s.waits r)
   /-- The index holds exactly the Valid facts' keys. -/
   idx : ∀ k x, x ∈ s.idx k ↔ ∃ f, s.status x = some (.valid f) ∧ k ∈ fam.fileKeys x f
+  /-- The stored list names exactly the stored ops. -/
+  stored : ∀ x, x ∈ s.stored ↔ (s.ops x).isSome
 
 theorem inv_empty : Inv fam (DB.empty : DB F) where
   key := by intro x o h; cases h
   sound := by intro x v h; cases h
   wait := by intro x o h; cases h
   idx := by intro k x; simp [DB.empty]
+  stored := by intro x; simp [DB.empty]
 
 theorem inv_ingest {s : DB F} (h : Inv fam s) (o : Op) : Inv fam (ingestS o s) := by
   unfold ingestS
@@ -177,7 +215,7 @@ theorem inv_ingest {s : DB F} (h : Inv fam s) (o : Op) : Inv fam (ingestS o s) :
       by_cases hi : i = o.id
       · subst hi; rw [hx] at hp; cases hp
       · simp [hi, hp]
-    refine ⟨?_, ?_, ?_, h.idx⟩
+    refine ⟨?_, ?_, ?_, h.idx, ?_⟩
     · intro x p hp
       change (if x = o.id then some o else s.ops x) = some p at hp
       by_cases hi : x = o.id
@@ -192,6 +230,10 @@ theorem inv_ingest {s : DB F} (h : Inv fam s) (o : Op) : Inv fam (ingestS o s) :
         rcases h.wait x p hp hs with hq | hw
         · left; show x ∈ s.queue ++ [o.id]; simp [hq]
         · right; exact hw
+    · intro x
+      show x ∈ ins s.stored o.id ↔ (if x = o.id then some o else s.ops x).isSome
+      rw [mem_ins, h.stored]
+      by_cases hi : x = o.id <;> simp [hi]
 
 theorem inv_step {s : DB F} (h : Inv fam s) : Inv fam (stepS fam s) := by
   unfold stepS
@@ -212,14 +254,14 @@ theorem inv_step {s : DB F} (h : Inv fam s) : Inv fam (stepS fam s) := by
     simp only
     cases hs : s.status x with
     | some w =>
-      refine ⟨h.key, h.sound, ?_, h.idx⟩
+      refine ⟨h.key, h.sound, ?_, h.idx, h.stored⟩
       intro y o hy hsy
       have : y ≠ x := by rintro rfl; rw [hs] at hsy; cases hsy
       exact other y o hy hsy this
     | none =>
       cases ho : s.ops x with
       | none =>
-        refine ⟨h.key, h.sound, ?_, h.idx⟩
+        refine ⟨h.key, h.sound, ?_, h.idx, h.stored⟩
         intro y o hy hsy
         have : y ≠ x := by rintro rfl; rw [ho] at hy; cases hy
         exact other y o hy hsy this
@@ -228,7 +270,7 @@ theorem inv_step {s : DB F} (h : Inv fam s) : Inv fam (stepS fam s) := by
         cases hj : judge fam o (o.reqs.map s.status) with
         | none =>
           simp only
-          refine ⟨?_, ?_, ?_, ?_⟩
+          refine ⟨?_, ?_, ?_, ?_, ?_⟩
           · rw [waitOnS_ops]; exact h.key
           · rw [waitOnS_ops, waitOnS_status]; exact h.sound
           · rw [waitOnS_ops, waitOnS_status, waitOnS_queue]
@@ -241,10 +283,11 @@ theorem inv_step {s : DB F} (h : Inv fam s) : Inv fam (stepS fam s) := by
               · exact Or.inl hq'
               · exact Or.inr ⟨hj', fun r hr hsr => (mem_waitOnS _ _ _ r y).2 (Or.inl (hw r hr hsr))⟩
           · rw [waitOnS_idx, waitOnS_status]; exact h.idx
+          · rw [waitOnS_ops, waitOnS_stored]; exact h.stored
         | some v =>
           simp only
           obtain ⟨d1, d2, d3, d4, d5⟩ := decideS_fields (fam := fam) x v { s with queue := q }
-          refine ⟨?_, ?_, ?_, ?_⟩
+          refine ⟨?_, ?_, ?_, ?_, ?_⟩
           · rw [d1]; exact h.key
           · rw [d1, d2]
             intro y w hy
@@ -284,6 +327,84 @@ theorem inv_step {s : DB F} (h : Inv fam s) : Inv fam (stepS fam s) := by
                 · exact ⟨f, rfl, hk⟩
               · rintro ⟨f, hf, hk⟩; cases hf; exact Or.inr ⟨trivial, f, rfl, hk⟩
             · simp only [hyx, ite_false, false_and, or_false]; exact h.idx k y
+          · rw [d1, decideS_stored]; exact h.stored
+
+/-! ## Purging keeps it -/
+
+/-- The closure of a purge holds every stored op that requires one of
+its members. -/
+theorem closeUp_dependents {s : DB F} (h : Inv fam s) (ids : List Id) :
+    ∀ y o r, s.ops y = some o → r ∈ o.reqs → r ∈ closeUp s ids → y ∈ closeUp s ids :=
+  fun y o r hy hr hc => closeUp_closed s ids ((h.stored y).2 (by simp [hy])) hy hr hc
+
+/-- **The purged ops are exactly the conn and local ops among `ids` and
+their stored dependents** (x requires one of `ids`, recursively). -/
+theorem mem_purgeSet {s : DB F} (h : Inv fam s) (ids : List Id) (x : Id) :
+    x ∈ purgeSet fam s ids ↔
+      (∃ o, s.ops x = some o ∧ fam.room o = none) ∧ ∃ y ∈ ids, Sync.Reach s.ops x y := by
+  rw [mem_purgeSet_iff]
+  constructor
+  · rintro ⟨hc, ho⟩; exact ⟨ho, closeUp_sound s ids hc⟩
+  · rintro ⟨ho, y, hy, hxy⟩
+    exact ⟨reach_closed (C := (· ∈ closeUp s ids)) (closeUp_dependents h ids) hxy
+      (closeUp_sub s ids hy), ho⟩
+
+/-- **A purge keeps the invariant**, at rest or not. No remaining
+decided op requires a purged one, so its verdict is still the spec's
+over the remaining ops (`Sync.spec_local`); the shared ops that did are
+back on the queue, to be judged again. -/
+theorem purge_inv {s : DB F} (h : Inv fam s) (ids : List Id) : Inv fam (purgeS fam ids s) := by
+  have hcl := closeUp_dependents h ids
+  -- A stored op of the closure is purged or judged again.
+  have again : ∀ x o, s.ops x = some o → x ∈ closeUp s ids → x ∉ purgeSet fam s ids →
+      x ∈ rejudgeSet fam s ids := by
+    intro x o ho hc hp
+    refine mem_rejudgeSet_iff.2 ⟨hc, o, ho, ?_⟩
+    cases hr : fam.room o with
+    | some _ => rfl
+    | none => exact absurd (mem_purgeSet_iff.2 ⟨hc, o, ho, hr⟩) hp
+  have kept : ∀ x o, (purgeS fam ids s).ops x = some o →
+      x ∉ purgeSet fam s ids ∧ s.ops x = some o := by
+    intro x o hx
+    by_cases hp : x ∈ purgeSet fam s ids
+    · rw [purgeS_ops_mem s ids hp] at hx; cases hx
+    · exact ⟨hp, by rw [purgeS_ops_not s ids hp] at hx; exact hx⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · intro x o hx; exact h.key x o (kept x o hx).2
+  · intro x v hx
+    by_cases hc : x ∈ closeUp s ids
+    · rw [purgeS_status_mem s ids hc] at hx; cases hx
+    rw [purgeS_status_not s ids hc] at hx
+    refine Sync.spec_local fam (h.sound x v hx) fun y o hxy hy => ?_
+    have hyp : y ∉ purgeSet fam s ids := fun hp =>
+      hc (reach_closed (C := (· ∈ closeUp s ids)) hcl hxy (purgeSet_closeUp hp))
+    rw [purgeS_ops_not s ids hyp]; exact hy
+  · intro x o hx hsx
+    obtain ⟨hp, ho⟩ := kept x o hx
+    by_cases hc : x ∈ closeUp s ids
+    · exact Or.inl ((mem_purgeS_queue s ids x).2 (Or.inr (again x o ho hc hp)))
+    rw [purgeS_status_not s ids hc] at hsx
+    -- None of its requirements is in the closure, or it would be.
+    have hr : ∀ r ∈ o.reqs, r ∉ closeUp s ids := fun r hr hrc => hc (hcl x o r ho hr hrc)
+    rcases h.wait x o ho hsx with hq | ⟨hj, hw⟩
+    · exact Or.inl ((mem_purgeS_queue s ids x).2 (Or.inl ⟨hq, hc⟩))
+    · right
+      have hmap : o.reqs.map (purgeS fam ids s).status = o.reqs.map s.status :=
+        List.map_congr_left fun r hr' => purgeS_status_not s ids (hr r hr')
+      refine ⟨by rw [hmap]; exact hj, fun r hr' hsr => ?_⟩
+      rw [purgeS_status_not s ids (hr r hr')] at hsr
+      exact (mem_purgeS_waits s ids r x).2
+        ⟨fun hp' => hr r hr' (purgeSet_closeUp hp'), hw r hr' hsr, hp⟩
+  · intro k x
+    rw [mem_purgeS_idx]
+    by_cases hc : x ∈ closeUp s ids
+    · rw [purgeS_status_mem s ids hc]; simp [hc]
+    · rw [purgeS_status_not s ids hc, h.idx]; simp [hc]
+  · intro x
+    rw [mem_purgeS_stored, h.stored]
+    by_cases hp : x ∈ purgeSet fam s ids
+    · rw [purgeS_ops_mem s ids hp]; simp [hp]
+    · rw [purgeS_ops_not s ids hp]; simp [hp]
 
 /-! ## At rest, the persisted verdicts are the spec's -/
 
@@ -346,17 +467,22 @@ theorem status_eq_of_ops {s t : DB F} (hs : Inv fam s) (ht : Inv fam t)
 /-! ## Any interleaving of arrivals and steps -/
 
 /-- The states reachable from empty tables, having received the ops in
-L (in some order), with judging steps anywhere in between. -/
+L (in some order), with judging steps and purges anywhere in between. A
+purge takes what it deleted out of L: L is what was received and is
+still held. -/
 inductive Reach (fam : Family F) : List Op → DB F → Prop
   | empty : Reach fam [] DB.empty
   | ingest {L s} (o : Op) : Reach fam L s → Reach fam (o :: L) (ingestS o s)
   | step {L s} : Reach fam L s → Reach fam L (stepS fam s)
+  | purge {L s} (ids : List Id) : Reach fam L s →
+      Reach fam (L.filter fun o => !has (purgeSet fam s ids) o.id) (purgeS fam ids s)
 
 theorem reach_inv {L : List Op} {s : DB F} (h : Reach fam L s) : Inv fam s := by
   induction h with
   | empty => exact inv_empty
   | ingest o _ ih => exact inv_ingest ih o
   | step _ ih => exact inv_step ih
+  | purge ids _ ih => exact purge_inv ih ids
 
 theorem reach_drain {L : List Op} {s : DB F} (h : Reach fam L s) (n : Nat) :
     Reach fam L (drainS fam n s) := by
@@ -401,45 +527,67 @@ theorem stepS_ops (s : DB F) : (stepS fam s).ops = s.ops := by
         | some v => exact (decideS_fields (fam := fam) x v _).1
         | none => exact waitOnS_ops _ _ _
 
-/-- The stored ops are exactly the ops received. -/
+/-- Every stored op was received, and is stored under its id. -/
+theorem reach_stored {L : List Op} {s : DB F} (h : Reach fam L s) :
+    ∀ i o, s.ops i = some o → o ∈ L ∧ o.id = i := by
+  induction h with
+  | empty => intro i o h; cases h
+  | @ingest L s o _ ih =>
+    intro i p hp
+    unfold ingestS at hp
+    split at hp
+    · have := ih i p hp; exact ⟨List.mem_cons_of_mem _ this.1, this.2⟩
+    · change (if i = o.id then some o else s.ops i) = some p at hp
+      by_cases hi : i = o.id
+      · simp only [hi, ite_true, Option.some.injEq] at hp
+        subst hp; exact ⟨List.mem_cons_self .., hi.symm⟩
+      · simp only [hi, ite_false] at hp
+        have := ih i p hp; exact ⟨List.mem_cons_of_mem _ this.1, this.2⟩
+  | step _ ih => intro i o h; rw [stepS_ops] at h; exact ih i o h
+  | @purge L s ids _ ih =>
+    intro i o h
+    by_cases hp : i ∈ purgeSet fam s ids
+    · rw [purgeS_ops_mem s ids hp] at h; cases h
+    rw [purgeS_ops_not s ids hp] at h
+    obtain ⟨hL, rfl⟩ := ih i o h
+    exact ⟨List.mem_filter.2 ⟨hL, by simpa using (has_false _ _).2 hp⟩, rfl⟩
+
+/-- Every op received (and not purged since) is stored under its id. -/
+theorem reach_held {L : List Op} {s : DB F} (h : Reach fam L s) :
+    ∀ o ∈ L, (s.ops o.id).isSome := by
+  induction h with
+  | empty => intro o h; cases h
+  | @ingest L s o _ ih =>
+    intro p hp
+    unfold ingestS
+    split
+    · rename_i q hq
+      rcases List.mem_cons.1 hp with rfl | hp
+      · rw [hq]; rfl
+      · exact ih p hp
+    · show (if p.id = o.id then some o else s.ops p.id).isSome
+      by_cases hi : p.id = o.id
+      · simp [hi]
+      · simp only [hi, ite_false]
+        rcases List.mem_cons.1 hp with rfl | hp
+        · exact absurd rfl hi
+        · exact ih p hp
+  | step _ ih => intro o ho; rw [stepS_ops]; exact ih o ho
+  | @purge L s ids _ ih =>
+    intro o ho
+    obtain ⟨ho, hn⟩ := List.mem_filter.1 ho
+    have hp : o.id ∉ purgeSet fam s ids := (has_false _ _).1 (by simpa using hn)
+    rw [purgeS_ops_not s ids hp]; exact ih o ho
+
+/-- The stored ops are exactly the ops received and not purged. -/
 theorem reach_ops {L : List Op} {s : DB F} (h : Reach fam L s) (hd : Distinct L) :
     ∀ i o, s.ops i = some o ↔ o ∈ L ∧ o.id = i := by
-  induction h with
-  | empty => intro i o; simp [DB.empty]
-  | @ingest L s o hr ih =>
-    have hd' : Distinct L := fun a ha b hb => hd a (List.mem_cons_of_mem _ ha) b (List.mem_cons_of_mem _ hb)
-    have ih := ih hd'
-    intro i p
-    unfold ingestS
-    cases hx : s.ops o.id with
-    | some p0 =>
-      rw [ih]
-      have hp0 := (ih o.id p0).1 hx
-      have : o = p0 := hd o (List.mem_cons_self ..) p0 (List.mem_cons_of_mem _ hp0.1) hp0.2.symm
-      subst this
-      simp only [List.mem_cons]
-      constructor
-      · rintro ⟨h1, h2⟩; exact ⟨Or.inr h1, h2⟩
-      · rintro ⟨rfl | h1, h2⟩
-        · exact ⟨hp0.1, h2⟩
-        · exact ⟨h1, h2⟩
-    | none =>
-      show (if i = o.id then some o else s.ops i) = some p ↔ _
-      by_cases hi : i = o.id
-      · subst hi
-        simp only [ite_true, Option.some.injEq, List.mem_cons]
-        constructor
-        · rintro rfl; exact ⟨Or.inl rfl, rfl⟩
-        · rintro ⟨rfl | h1, h2⟩
-          · rfl
-          · exact (hd p (List.mem_cons_of_mem _ h1) o (List.mem_cons_self ..) h2).symm
-      · simp only [hi, ite_false, ih, List.mem_cons]
-        constructor
-        · rintro ⟨h1, h2⟩; exact ⟨Or.inr h1, h2⟩
-        · rintro ⟨rfl | h1, h2⟩
-          · exact absurd h2.symm hi
-          · exact ⟨h1, h2⟩
-  | step hr ih => intro i o; rw [stepS_ops]; exact ih hd i o
+  intro i o
+  refine ⟨reach_stored h i o, ?_⟩
+  rintro ⟨ho, rfl⟩
+  obtain ⟨p, hp⟩ := Option.isSome_iff_exists.1 (reach_held h o ho)
+  have := reach_stored h _ p hp
+  rw [hp, hd p this.1 o ho this.2]
 
 /-- **Order does not matter.** Two nodes that received the same ops, in
 any orders and with any interleaving of judging, hold the same verdicts

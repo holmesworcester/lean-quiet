@@ -94,6 +94,15 @@ theorem waitsOk_reach {L : List Op} {s : DB F} (hr : Reach fam L s) : WaitsOk s 
             · exact ⟨List.nodup_nil, by simp⟩
             · exact ih' r
           | none => exact waitsOk_waitOnS ih' (by simp [ho]) _
+  | @purge L s ids _ ih =>
+    intro r
+    refine ⟨?_, fun y hy => ?_⟩
+    · show (if has _ r then [] else (s.waits r).filter _).Nodup
+      split
+      · exact List.nodup_nil
+      · exact List.Nodup.sublist List.filter_sublist (ih r).1
+    · obtain ⟨_, hy, hp⟩ := (mem_purgeS_waits s ids r y).1 hy
+      rw [purgeS_ops_not s ids hp]; exact (ih r).2 y hy
 
 /-- A list of distinct elements of M is no longer than M. -/
 theorem nodup_length_le {l M : List Id} (hn : l.Nodup) (hs : ∀ y ∈ l, y ∈ M) : l.length ≤ M.length := by
@@ -185,5 +194,27 @@ theorem drain_bounded {L : List Op} (hd : Distinct L) :
       simp only [drainS, hq, List.isEmpty_cons, Bool.false_eq_true, ite_false]
       have := step_budget h hd hq
       exact ih _ (Reach.step h) (by omega)
+
+theorem drainS_ops (n : Nat) (s : DB F) : (drainS fam n s).ops = s.ops := by
+  induction n generalizing s with
+  | zero => rfl
+  | succ n ih => unfold drainS; split <;> simp only [ih, stepS_ops]
+
+/-- **After a purge, the engine settles on what remains.** From any
+reachable state, purging and then draining with the budget read off the
+purged tables empties the queue, and every verdict is then the spec's
+over the remaining ops. -/
+theorem purge_settles {L : List Op} {s : DB F} (h : Reach fam L s) (hd : Distinct L)
+    (ids : List Id) :
+    let L' := L.filter fun o => !has (purgeSet fam s ids) o.id
+    let t := purgeS fam ids s
+    (drainS fam (budget L' t) t).queue = [] ∧
+      ∀ x v, (drainS fam (budget L' t) t).status x = some v ↔ Spec fam t.ops x v := by
+  intro L' t
+  have hr : Reach fam L' t := Reach.purge ids h
+  have hd' : Distinct L' := fun a ha b hb => hd a (List.mem_filter.1 ha).1 b (List.mem_filter.1 hb).1
+  have hq := drain_bounded hd' _ t hr (Nat.le_refl _)
+  refine ⟨hq, fun x v => ?_⟩
+  rw [status_iff_spec (reach_inv (reach_drain hr _)) hq, drainS_ops]
 
 end Engine

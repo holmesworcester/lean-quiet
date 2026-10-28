@@ -67,3 +67,6 @@ lean_exe noise_check where
 
 lean_exe connection_check where
   root := `Tests.ConnectionCheck
+
+lean_exe purge where
+  root := `Tests.Purge

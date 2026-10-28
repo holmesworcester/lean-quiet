@@ -14,9 +14,10 @@ exact by a trigger) is walked as one index range, and each row is kept
 if the other keys hold it too. The differential test checks the two
 agree; QTests in the app checks it on real workloads.
 
-Watching: every row the index gains is recorded, per connection, in a
-temp table (`watchFiled`), so after a write the writer reads exactly the
-keys it filed (`takeFiled`) and the op ids it decided.
+Watching: every row the index gains, or a purge takes from it, is
+recorded, per connection, in a temp table (`watchFiled`), so after a
+write the writer reads exactly the keys it filed or unfiled
+(`takeFiled`) and the op ids it decided or purged.
 -/
 import Engine.Sqlite
 import Engine.Model
@@ -178,8 +179,9 @@ theorem run_list {F} [SortKey F] (q : ListQ) (s : DB F) :
 
 /-! ## Watching what a write filed -/
 
-/-- Records, on this connection, every key the index gains and every op
-decided (as the key `0xFF ++ id`). -/
+/-- Records, on this connection, every key the index gains or a purge
+takes a row from, and every op decided or purged (as the key
+`0xFF ++ id`). -/
 def Db.watchFiled (db : Db) : IO Unit := db.exec "
 CREATE TEMP TABLE IF NOT EXISTS filed (k BLOB NOT NULL);
 CREATE TEMP TRIGGER IF NOT EXISTS filed_idx AFTER INSERT ON main.idx BEGIN
@@ -187,6 +189,12 @@ CREATE TEMP TRIGGER IF NOT EXISTS filed_idx AFTER INSERT ON main.idx BEGIN
 END;
 CREATE TEMP TRIGGER IF NOT EXISTS filed_status AFTER INSERT ON main.status BEGIN
   INSERT INTO filed (k) VALUES (X'FF' || NEW.id);
+END;
+CREATE TEMP TRIGGER IF NOT EXISTS unfiled_idx AFTER DELETE ON main.idx BEGIN
+  INSERT INTO filed (k) VALUES (OLD.k);
+END;
+CREATE TEMP TRIGGER IF NOT EXISTS unfiled_status AFTER DELETE ON main.status BEGIN
+  INSERT INTO filed (k) VALUES (X'FF' || OLD.id);
 END;
 "
 

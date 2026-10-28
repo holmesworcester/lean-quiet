@@ -88,3 +88,10 @@ open Engine Community
 #print axioms Connection.established_agrees
 #print axioms Connection.Noise.sent1_read1
 #print axioms Connection.Noise.read2_write2'
+#print axioms Engine.purge_gone
+#print axioms Engine.purge_named
+#print axioms Engine.purge_shared
+#print axioms Engine.mem_purgeSet
+#print axioms Engine.purge_inv
+#print axioms Engine.purge_settles
+#print axioms Engine.reach_ops
