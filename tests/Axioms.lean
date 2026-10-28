@@ -11,6 +11,7 @@ import engine.renderer.TextLaws
 import engine.renderer.WrapLaws
 import ops.community.reaction.RowLaws
 import ops.community.message.ViewLaws
+import ops.community.profile.NamesakeLaws
 import ops.community.message.Order
 import ops.app.PeopleLaws
 import ops.app.Remove
@@ -287,7 +288,6 @@ section app
 #print axioms Text.visual_perm
 #print axioms Text.place_shows
 #print axioms Text.oneLine_prefix
-#print axioms Text.name_shows
 #print axioms Text.digits_keep_order
 #print axioms Text.wrap_keeps
 #print axioms Text.wrap_fits
@@ -298,6 +298,12 @@ section app
 #print axioms RowLaws.time_shown
 #print axioms RowLaws.name_placed
 #print axioms ViewLaws.profile_read
+#print axioms ViewLaws.others_iff
+#print axioms ViewLaws.namesake_iff
+#print axioms ViewLaws.row_marked
+#print axioms RowLaws.twin_shown
+#print axioms RowLaws.twin_before_time
+#print axioms RowLaws.hit_twin
 #print axioms ViewLaws.message_read
 #print axioms PeopleLaws.present_iff
 #print axioms PeopleLaws.present_nodup
