@@ -19,9 +19,9 @@ tests/wiring.txt's note; the statements stated only; the assumptions.
 The proofs tables above it must agree: a ✅ row must cite a law about
 running code, and a 🟡 row must say what is missing ("Wanted", "Not
 yet", "not proven"), itself or in the section its More link opens. The
-README's lead takes its number from the same count ("N of its M
-theorems are about the code that runs"), and may say "nearly every"
-only while that is 90% or more.
+README's lead takes its number from the same count ("N of M are about
+the code that runs"), and may say "nearly every" only while that is
+90% or more.
 
   ci/proof-links.py           rewrite the block and the section
   ci/proof-links.py --check   fail if either is stale, a reference
@@ -56,7 +56,7 @@ AREAS = [("engine.core", "Engine"), ("ops.sync", "Sync"), ("engine.wire.mdns", "
 # What a 🟡 row says to name what is missing.
 WANTED = re.compile(r"wanted|not yet|not proven", re.I)
 # The lead's count, and the share "nearly every" needs.
-LEAD = re.compile(r"(\d+) of its\s+(\d+)\s+theorems\s+are\s+about\s+the\s+code\s+that\s+runs")
+LEAD = re.compile(r"(\d+) of\s+(?:its\s+)?(\d+)\)?\s+(?:theorems\s+)?are\s+about\s+the\s+code\s+that\s+runs")
 NEARLY = re.compile(r"(nearly|almost) (every|all) (theorem|law)", re.I)
 THRESHOLD = 0.9
 # How many theorems the audit lists, counted as they are probed.
@@ -358,7 +358,7 @@ def main():
     # the lead's count, and "nearly every" only at the threshold
     lead = LEAD.search(pre)
     if not lead:
-        problems.append('no "N of its M theorems are about the code that runs" in the README\'s lead')
+        problems.append('no "N of M are about the code that runs" in the README\'s lead')
     elif (int(lead.group(1)), int(lead.group(2))) != (len(wired), total):
         if check:
             problems.append(f"the lead says {lead.group(1)} of {lead.group(2)}; the count is {len(wired)} of {total}")
