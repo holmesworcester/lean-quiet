@@ -120,3 +120,7 @@ open Engine Community
 #print axioms Community.Merkle.climb_sub
 #print axioms Community.Merkle.no_injective_hash
 #print axioms Community.Merkle.assumptions_hold
+#print axioms Connection.trusts_live
+#print axioms Connection.rooms_trusted
+#print axioms Connection.rooms_cut
+#print axioms Connection.rooms_model

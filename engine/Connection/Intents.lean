@@ -53,6 +53,41 @@ def trusts (c me peer : B) : View Community.Fact Bool := do
 
 instance [Codec F] [SortKey F] : Fresh (SqlM F) := ⟨Noise.randomBytes 32⟩
 
+/-- The device this node is in community c as (`Community.mine`), if it
+holds that device's secret. -/
+def meV (c : B) : View F (Option B) := do
+  let some (d, _) ← ((Community.mine c).liftL : View F _) | return none
+  let a ← View.read (F := F) (Community.secret.all.query [])
+  let held := a.lefts.any fun (_, f) => match f with
+    | .secret pk _ => decide (pk = d)
+    | _ => false
+  return if held then some d else none
+
+/-- Of these (community, peer) pairs, the communities where this node
+is a device and the trust rule takes the peer, in order. -/
+def roomsOf : List (B × B) → View F (List Id)
+  | [] => pure []
+  | (c, peer) :: rest => do
+    let ok ← do
+      match ← meV c with
+      | some me => ((trusts c me peer).liftL : View F Bool)
+      | none => pure false
+    let tail ← roomsOf rest
+    return if ok then c :: tail else tail
+
+/-- The (community, peer) pairs of connection cid's established facts. -/
+def pairsOf (a : Answer F) : List (B × B) :=
+  a.rights.filterMap fun (_, f) => match f with
+    | .established _ c peer .. => some (c, peer)
+    | _ => none
+
+/-- The rooms the peer on connection cid may see now, as a view: each
+community one of cid's established facts names, with its peer, where
+this node is a device and the trust rule takes the peer (`trusts`). -/
+def roomsV (cid : Id) : View F (List Id) := do
+  let a ← View.read (F := F) (established.byConn.query [cid])
+  return (← roomsOf (pairsOf a)).reverse
+
 section
 variable {m : Type → Type} [Monad m] [Lists F m] [Store F m] [Fresh m]
 
@@ -162,14 +197,8 @@ def closing (cid : Id) : m (List Id) := do
   let some co ← Store.getOp (m := m) cid | return []
   return cid :: co.reqs
 
-/-- The rooms the peer on connection cid may see now. -/
-def rooms (cid : Id) : m (List Id) := do
-  let mut out := []
-  for (_, f) in ← rows established.byConn [cid] do
-    let .established _ c peer .. := f | continue
-    let some (me, _, _) ← meIn c | continue
-    if ← ((trusts c me peer).liftL : View F Bool).run then out := c :: out
-  return out
+/-- The rooms the peer on connection cid may see now (`roomsV`). -/
+def rooms (cid : Id) : m (List Id) := (roomsV cid).run
 
 /-- When and from where op x first arrived bare, if it did. -/
 def arrival (x : Id) : m (Option (B × Nat)) := do

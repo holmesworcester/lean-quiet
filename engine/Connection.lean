@@ -10,3 +10,4 @@ import Connection.Family
 import Connection.Frame
 import Connection.Intents
 import Connection.Laws
+import Connection.RoomLaws
