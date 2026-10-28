@@ -37,6 +37,7 @@ import engine.world.Asks
 import engine.world.Pilot
 import engine.world.Offer
 import engine.world.Stream
+import engine.world.Members
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -631,6 +632,23 @@ open Engine.World
 #print axioms Engine.World.enter_names
 #print axioms Engine.World.stream_offers_stored_proof
 #print axioms Engine.World.offered_proof
+#print axioms Engine.World.recv_shown
+#print axioms Engine.World.tick_wire
+#print axioms Engine.World.filed_wire
+#print axioms Engine.World.bundles_sub
+#print axioms Engine.World.seal_from
+#print axioms Engine.World.sendsOk_sends
+#print axioms Engine.World.store_sendsOk
+#print axioms Engine.World.tickStep_sendsOk
+#print axioms Engine.World.frameStep_sendsOk
+#print axioms Engine.World.frame_fold_sendsOk
+#print axioms Engine.World.seal_framesOk
+#print axioms Engine.World.onWrite_framesOk
+#print axioms Engine.World.connect_framesOk
+#print axioms Engine.World.onTick_framesOk
+#print axioms Engine.World.onFrame_framesOk
+#print axioms Engine.World.enter_member
+#print axioms Engine.World.members_only_proof
 #print axioms Engine.World.offer_delivers
 #print axioms Engine.World.cached_exact
 #print axioms Engine.World.grows_all

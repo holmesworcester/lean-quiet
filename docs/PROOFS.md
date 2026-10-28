@@ -202,7 +202,7 @@ today's code (with the finding), **O** open.
 | `index_store_stmt` | the room index names exactly the stored ops of each room | **P** (`index_store_proof`) |
 | `stream_offers_stored_stmt` | every op a node stores (written or relayed) is offered at once on every session that shows its room throughout the step, unless the node knew the peer holds it or the frame it took on that session names it (finding 9) | **P** (`stream_offers_stored_proof`) |
 | `offered_stmt` | L-offered: both | **P** (`offered_proof`) |
-| `members_only_stmt` | session frames carry only ops of rooms the session showed in that step | O (ConnLaws per entry point) |
+| `members_only_stmt` | session frames carry only ops of rooms the session showed in that step | **P** (`members_only_proof`) |
 | `frames_keep_sessions_stmt` | no delivery, duplicate, injection or write closes a session | **P** (`frames_keep_sessions_proof`) |
 | `idem_stmt` | L-idem: the same bytes delivered again leave the store as they were (fixed rooms; finding 6) | O |
 | `restart_stmt` | L-restart: a restart keeps every op, rebuilds the index equal to the store, opens nothing | **P** (`restart_proof`) |
@@ -298,6 +298,17 @@ The upper and lower bounds match up to a constant per hop:
     (`reach_serial`). Negative control (run and reverted): `Conn.filed`
     sending all but its first have, with its closed form following,
     breaks `filed_offers'`;
+  - only members receive, `members_only_proof`: every session frame an
+    honest node puts on the wire, against any attacker, carries sync
+    messages and ops of rooms the session showed at a store the step
+    passed through. At a connection everything sent is wire or shown
+    (`recv_shown`, `tick_wire`, `filed_wire`, with a3's `start_send`,
+    `onRbsr_send`); at a node every payload sent on a session is
+    (`SendsOk` through frames, ticks, writes, connects) and a session's
+    frame carries only that session's payloads (`seal_from`). Negative
+    control (run and reverted): `Conn.onWant` serving ops regardless of
+    room is caught by a3's ServeLaws, ConnLaws and OfferLaws, and with
+    those stubbed, by `recv_shown`;
   - the findings' witnesses.
 - **Above the code, from the per-edge bound** (engine/world/Epidemic.lean):
   - `hops`: d · B over a path of d live edges;
