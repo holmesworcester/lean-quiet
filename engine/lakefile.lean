@@ -76,3 +76,6 @@ lean_exe jointcp where
 
 lean_exe merkle_check where
   root := `Tests.MerkleCheck
+
+lean_exe pairworld where
+  root := `Tests.PairWorld

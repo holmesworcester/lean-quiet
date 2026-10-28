@@ -12,3 +12,6 @@ import Connection.Frame
 import Connection.Intents
 import Connection.Laws
 import Connection.RoomLaws
+import Connection.World
+import Connection.Wiretap
+import Connection.PairLaws

@@ -239,6 +239,9 @@ inductive T where
   | hk2 (ck ikm : T)
   | aead (k : T) (n : Nat) (ad p : T)
   | pair (a b : T)
+  /-- A session frame's AEAD (XChaCha20-Poly1305, `Keys.fenc`): key,
+  nonce, associated data, payload. -/
+  | xaead (k n ad p : T)
   deriving DecidableEq
 
 /-- DH over names: a name and a name's public key give their shared
@@ -381,6 +384,7 @@ def Clean (S : Nat → Prop) : T → Prop
   | .hk2 a b => Clean S a ∧ Clean S b
   | .aead _ _ ad p => Clean S ad ∧ Clean S p
   | .pair a b => Clean S a ∧ Clean S b
+  | .xaead _ n ad p => Clean S n ∧ Clean S ad ∧ Clean S p
 
 section
 variable {S : Nat → Prop}

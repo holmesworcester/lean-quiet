@@ -344,3 +344,39 @@ node around the handshake, such as when a close purges the ephemerals.
 `Tests/ConnectionCheck.lean` runs two SQLite nodes through the node
 driver: the join completes after approval, sync admits the joiner, and
 posts flow. The join under heavy loss is pending purge.
+
+**The pair against the wire** (`Connection/World.lean`,
+`Connection/Wiretap.lean`, `Connection/PairLaws.lean`; stated, proofs
+to follow review). The subject is two real nodes: `Engine.Sync.Node`
+running `Connection.node C K` with the family's real hooks, on held
+stores with entropy streams fixed in advance, so `World.step` is a pure
+function and every law is over every execution (`Setup.Run`). The wire
+is the attacker's: it sees every payload sent, and each delivery is any
+bytes it can derive, to either node, from any address.
+- **The attacker's knowledge is symbolic.** Over raw bytes, a closure
+  under the real functions holds every byte string (Noise's framing is
+  `++` and a 32-byte split, frames are bytes end to end), so secrecy
+  would be false for any Keys. The attacker reads the wire field by
+  field as the code does (`reads`) into the free algebra and knows its
+  Dolev-Yao closure (`Dy`, `Knows`).
+- **One assumption about the primitives** (`Ideal`): the Keys are the
+  free algebra, read off bytes injectively (no collisions, no equations
+  but DH's). DH, AEAD and HKDF secrecy then follow as theorems. `Apart`
+  says which bytes are plain and that the secrets are distinct names;
+  SHA-256 and Ed25519 are opaque in Lean, so their outputs being plain
+  is assumed. That the users admit only each other (and no forged
+  admission is accepted) is a condition on each step.
+- **Laws, as statements:** `secrecy_stmt` (no seed, device secret, draw
+  or session key is ever derived), `authentic_stmt` (every frame a node
+  opens is byte for byte one the other node sent, on a session with that
+  node's device; a bare delivery is taken in only as a conn-scope op),
+  `replay_stmt`, `forward_stmt` (after both close a session, neither
+  store holds its ephemerals, and an attacker knowing everything not
+  built from them derives neither key), `live_stmt` (some execution
+  establishes a session and carries an op each way).
+- **Replay is false today.** A request whose session was closed and
+  purged, delivered again, is answered afresh, and the one-per-peer
+  choice then keeps that new session, which only the responder holds,
+  and drops the live one. `Tests/PairWorld.lean` (`pairworld`) runs the
+  pure world with libsodium: an honest join, a session, a post each way;
+  a replay of every payload adds only `recv` records; and the finding.
