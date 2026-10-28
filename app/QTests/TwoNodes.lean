@@ -120,6 +120,8 @@ def main (args : List String) : IO UInt32 := do
     let u := match adm.rows.head? with | some (_, .admission _ u _ _) => u | _ => .empty
     let (p, _, _) ← (show M _ from readList (profile.byUser.query [s.me.c, u] (limit := some 0)) #[])
     check s!"B wrote one first profile, however many frames ran ({p.total})" (p.total == 1)
+    let ms := (← get).members.toList
+    check s!"B's home lists its members, B first as me ({ms})" (ms == [("Bea", true), ("club", false)] || ms == [("Bea", true), ("Ann", false)])
     sb.cmds.modify (·.push "channel")
     steps 2
     sb.cmds.modify (·.push "send hello from B")
@@ -147,7 +149,11 @@ def main (args : List String) : IO UInt32 := do
     steps 5
     let rows := (← get).rows.toList.map (·.2.data)
     check s!"A's own post is under the founder's name ({(rows.find? (·.text == "hi from A")).map (·.name)})"
-      (rows.any fun d => d.text == "hi from A" && d.name == "Ann")).run a2
+      (rows.any fun d => d.text == "hi from A" && d.name == "Ann")
+    sa.cmds.modify (·.push "back")
+    steps 3
+    let ms := (← get).members.toList
+    check s!"A's home lists Ann (me) then Bea ({ms}, page {repr (← get).page})" (ms == [("Ann", true), ("Bea", false)])).run a2
   -- C joins with the same link, then stops waiting: back on Get started
   fresh (dir ++ "/c")
   let sc ← Sim.new

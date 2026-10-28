@@ -21,6 +21,8 @@ structure Me where
   c : Id
   /-- This device's admission (the root for a founder); empty while waiting. -/
   adm : Id
+  /-- My user there (the community id for its founder); empty while waiting. -/
+  user : Id := .empty
   name : String
   /-- While waiting: the joining op (what Stop waiting supersedes). -/
   joiningOp : Id := .empty
@@ -46,6 +48,7 @@ def read : m (Array Me × Array Q) := do
       | some (_, .named _ _ n _) => (String.fromUTF8? n).getD "?"
       | _ => "Waiting to join"
     let admId := (adm.rows.head?.map (·.1.2)).getD .empty
+    let user := match adm.rows.head? with | some (_, .admission _ u _ _) => u | _ => .empty
     -- a join not answered: its joining op, and whether I stopped waiting
     let jop := (jn.rows.find? fun (_, f) => match f with | .joining c' .. => c' == c | _ => false)
     let mut joiningOp := ByteArray.empty
@@ -55,7 +58,7 @@ def read : m (Array Me × Array Q) := do
         deps := d4
         if ab.total > 0 then continue
         joiningOp := jid
-    out := out.push ⟨Device.ofSeed seed, seed, c, admId, name, joiningOp⟩
+    out := out.push ⟨Device.ofSeed seed, seed, c, admId, user, name, joiningOp⟩
   -- a stable order: by name, then id
   let sorted := out.qsort fun a b => a.name < b.name || (a.name == b.name && Engine.bcmp a.c b.c == .lt)
   return (sorted, deps)

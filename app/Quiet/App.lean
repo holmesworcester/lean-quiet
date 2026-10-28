@@ -516,22 +516,14 @@ def found (n myName : String) : M Unit := do
       refreshComms
       switchToId r.id
 
-/-- The people of the current community, for home's Direct messages: the
-newest profile of each user (profile.all, newest first), me first. -/
+/-- The people of the current community, for home's Direct messages:
+its members (the Profile kind's), me first. -/
 def refreshMembers : M Unit := do
   let s ← get
   if s.me.c.isEmpty || s.page != .home then return
-  let (a, _, _) ← readList (Community.profile.all.query [s.me.c] (limit := some 200)) #[]
-  let myUser := s.me.adm
-  let mut seen : List Id := []
-  let mut out : Array (String × Bool) := #[]
-  for (_, f) in a.rows do
-    if let .profile _ u n _ _ := f then
-      if seen.contains u then continue
-      seen := u :: seen
-      out := out.push ((String.fromUTF8? n).getD "?", u == myUser || u == s.me.c && myUser == s.me.c)
-  let mine := out.filter (·.2)
-  modify fun s => { s with members := mine ++ out.filter (!·.2) }
+  let (ms, _) ← Kinds.Profile.members s.me.c
+  let out := ms.map fun (u, p) => (p.name, u == s.me.user)
+  modify fun s => { s with members := out.filter (·.2) ++ out.filter (!·.2) }
 
 /-- The requests to join the current community, read by the Request kind. -/
 def refreshAsking : M Unit := do
