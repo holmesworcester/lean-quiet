@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 231 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 275 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as each part's `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -188,7 +188,7 @@ nothing else is assumed:
 | ⬜ | 🥊🥊 | **An action's toast stays until the screen shows it.** A toast for an action (removing someone, a new name or avatar) stays up until every component on screen has re-read a state that holds the action's op, or until the OS's toast time passes, whichever comes first. So a toast that leaves early proves the screen has caught up. | |
 | ✅ | 🥊🥊 | **The layout is exact.** The slide and keyboard shift are exact, and page rows are where the page put them. Emoji keys never overlap, and every key is reachable. An invite's hints and QR fit, and the camera preview reads inside its frame. | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
 | 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** A row's glyphs, read in order, are exactly the body's visible characters. Nothing is clipped, reordered or taken from another row, and every line fits. Proven: wrapping drops only spaces and keeps every other character in order, and every line fits when every character does; bidi reordering is a permutation (nothing dropped or invented); the glyphs placed are exactly the visible characters, each starting where the one before ends; numbers keep their order inside right-to-left text, for the reported cases. Wanted: that order in general, and `layout` as one statement over the three. | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`digits_keep_order`] |
-| 🟡 | 🥊🥊🥊 | **Names are shown correctly.** A message row draws its author's name, as the views pick it, and no one else's. No bidi override or invisible character can disguise a name or a message. Proven: a row's name is its author's newest valid profile's (or "…"), and only a device admitted into that user can have written it; the row draws it cut to a logical prefix and an ellipsis, so a long name keeps its beginning in either direction. Bidi controls are neutrals in the running bidi, so they reorder nothing; that is not yet a theorem. | [`message_read`], [`profile_read`], [`profile_authorized`], [`no_renaming`], [`name_placed`], [`oneLine_prefix`] |
+| 🟡 | 🥊🥊🥊 | **Names are shown correctly.** A message row draws its author's name, as the views pick it, and no one else's. No bidi override or invisible character can disguise a name or a message. Proven: a row's name is its author's newest valid profile's (or "…"), and only a device admitted into that user can have written it; the row draws it cut to a logical prefix and an ellipsis, so a long name keeps its beginning in either direction. Every explicit bidi control (embeddings, overrides, isolates, LRM and RLM) is a neutral in the running bidi, so none can reorder a name or a message, and the marks draw nothing. | [`message_read`], [`profile_read`], [`profile_authorized`], [`no_renaming`], [`name_placed`], [`oneLine_prefix`], [`controls_neutral`], [`marks_invisible`] |
 | ✅ | 🥊🥊 | **Times, reactions and pictures are shown as held:** the claimed time's clock, each reaction's count of distinct reactors, and each picture at its aspect inside its box. One pill per emoji, whose reactors are exactly who reacted with it, each once; a picture's box has one side at its bound and the other scaled by its aspect. | [`time_shown`], [`message_read`], [`tally_nodup`], [`tally_mem`], [`picBox_aspect`] |
 | 🟡 | 🥊🥊🥊 | **What you see is what was sent.** The rows a device draws are the views of the facts its ops hold, from network to pixel. Proven, over a model where every list read is the engine's: a shown message is a valid fact of the store, and its row's name, time and text are its author's name, its claimed time and its body opened with a key the store holds; the conversation is exactly the messages under keys this device holds. Wanted: the same from the row's layout to its pixels. | [`message_read`], [`readable_held`], [`readable_complete`], [`eval_stable`] |
 | ✅ | 🥊🥊🥊 | **Every community is reachable, and is one entry.** A switcher row's tap selects exactly the entry it draws, every entry has a row, no two entries share an acceptance or a community, and a page is drawn from its key alone, which names its entry's op, never a name. | [`switcherOrder_sound`], [`switcherOrder_complete`], [`dedupe_nodup`], [`dedupe_one_per_community`], [`select_tapped_dedupe`], [`drawPage_key`], [`pageIn_acc`] |
@@ -196,7 +196,7 @@ nothing else is assumed:
 | ⬜ | 🥊🥊 | **Display order** (design in `engine/docs/SYNC.md`). Devices with the same ops order messages alike, except a saturated tail, which follows receipt order. | |
 | | | **Codes, pictures and discovery** | |
 | ✅ | 🥊🥊 | **What the encoders write reads back.** This holds for QR segments and codewords, invite links and mDNS packets. QR error correction is sound, and format and version readings tolerate their designed bit errors. | [`parse_segsBits`], [`parse_dataStream`], [`RS.correct_sound`], [`RS.correct_clean`], [`decodeFormat_correct`], [`decodeVersion_correct`], [`parse_text`], [`Base62.decode_encode`], [`Mdns.decode_encode`], [`decode_roundtrip`] |
-| ✅ | 🥊 | **Pictures render whole:** scaled and composited pictures are well-formed and opaque, and the tray's layout fits. | [`render_wellFormed`], [`render_opaque`], [`scale_wellFormed`], [`fit_round`], [`layout_inside`], [`layout_apart`] |
+| ✅ | 🥊 | **Pictures render whole:** scaled and composited pictures are well-formed and opaque, and the tray's layout fits. | [`render_wellFormed`], [`render_opaque`], [`scale_wellFormed`], [`fit_round`], [`Pic.layout_inside`], [`Pic.layout_apart`] |
 
 The theorems not listed here are lemmas. Each part's axiom audit lists
 them all: `tests/Axioms.lean` or `tests/axioms.lean`.
@@ -267,10 +267,10 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`tick_send`]: engine/Engine/Sync/ConnLaws.lean#L184-L187
 [`recipients_iff`]: engine/Community/Connect.lean#L214-L218
 [`members_iff`]: engine/Community/Connect.lean#L205-L208
-[`member_opens`]: engine/Community/Laws.lean#L868-L872
-[`openSealed_seal`]: engine/Community/Laws.lean#L858-L860
+[`member_opens`]: engine/Community/Laws.lean#L900-L904
+[`openSealed_seal`]: engine/Community/Laws.lean#L890-L892
 [`unbox_box`]: engine/Community/Keys.lean#L89-L91
-[`check_reads_shared`]: engine/Community/Laws.lean#L779-L781
+[`check_reads_shared`]: engine/Community/Laws.lean#L811-L813
 [`kk_secret`]: engine/Connection/NoiseSymbolic.lean#L595-L609
 [`kk_secret_init`]: engine/Connection/NoiseSymbolic.lean#L547-L556
 [`kk_secret_resp`]: engine/Connection/NoiseSymbolic.lean#L561-L569
@@ -312,11 +312,11 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`Mdns.decode_valid`]: mdns/Mdns/Laws.lean#L540-L541
 [`Community.parse_valid`]: engine/Community/Link.lean#L213-L214
 [`Qr.parse_valid`]: qr/Qr/SegLaws.lean#L336-L338
-[`chunk_is_slice`]: engine/Community/Laws.lean#L672-L681
+[`chunk_is_slice`]: engine/Community/Laws.lean#L673-L682
 [`verify_sound`]: engine/Community/Merkle.lean#L426-L432
 [`complete_assembles`]: engine/Community/Merkle.lean#L473-L479
-[`chunk_unique`]: engine/Community/Laws.lean#L711-L716
-[`progress_exact`]: engine/Community/Intents.lean#L497-L504
+[`chunk_unique`]: engine/Community/Laws.lean#L735-L741
+[`progress_exact`]: engine/Community/Intents.lean#L493-L502
 [`no_injective_hash`]: engine/Community/Merkle.lean#L236-L238
 [`drain_bounded`]: engine/Engine/Budget.lean#L163-L168
 [`drain_terminates`]: engine/Engine/Termination.lean#L84-L87
@@ -391,6 +391,8 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`no_renaming`]: engine/Community/Laws.lean#L321-L332
 [`name_placed`]: app/Quiet/RowLaws.lean#L89-L92
 [`oneLine_prefix`]: app/Quiet/TextLaws.lean#L97-L98
+[`controls_neutral`]: app/Quiet/TextLaws.lean#L153-L157
+[`marks_invisible`]: app/Quiet/TextLaws.lean#L159-L159
 [`time_shown`]: app/Quiet/RowLaws.lean#L84-L87
 [`tally_nodup`]: app/Quiet/RowLaws.lean#L56-L60
 [`tally_mem`]: app/Quiet/RowLaws.lean#L68-L71
@@ -402,8 +404,8 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`dedupe_nodup`]: app/Quiet/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: app/Quiet/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: app/Quiet/Switch.lean#L82-L84
-[`drawPage_key`]: app/Quiet/App.lean#L824-L828
-[`pageIn_acc`]: app/Quiet/App.lean#L830-L833
+[`drawPage_key`]: app/Quiet/App.lean#L874-L878
+[`pageIn_acc`]: app/Quiet/App.lean#L880-L883
 [`parse_segsBits`]: qr/Qr/SegLaws.lean#L157-L161
 [`parse_dataStream`]: qr/Qr/SegLaws.lean#L193-L197
 [`RS.correct_sound`]: qr/Qr/Laws.lean#L55-L57
@@ -418,6 +420,6 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`render_opaque`]: qr/Pic/Laws.lean#L222-L226
 [`scale_wellFormed`]: qr/Pic/Laws.lean#L236-L236
 [`fit_round`]: qr/Pic/Laws.lean#L87-L90
-[`layout_inside`]: qr/Pic/Laws.lean#L170-L172
-[`layout_apart`]: qr/Pic/Laws.lean#L147-L148
+[`Pic.layout_inside`]: qr/Pic/Laws.lean#L170-L172
+[`Pic.layout_apart`]: qr/Pic/Laws.lean#L147-L148
 <!-- /proof-links -->

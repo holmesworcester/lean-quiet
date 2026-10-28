@@ -5,14 +5,17 @@ on a worker task, and the frame shows the last finished paint).
 
 Slack-like, on a dark background: the author's avatar, their name in
 bold and the time, the text, the pictures (each at its own aspect in a
-reserved box, so a picture that decodes late moves nothing), and the
-reactions as pills, the user's own outlined. A selected row also shows
-the reaction palette. Every part has its own box, and the boxes do not
-overlap: what one part paints, no other part paints over.
+reserved box, so a picture that decodes late moves nothing; one still
+arriving shows its preview with its caption pill inside its box,
+Arrival), and the reactions as pills, the user's own outlined. A
+selected row also shows the reaction palette. Every part has its own
+box, and the boxes do not overlap: what one part paints, no other part
+paints over.
 -/
 import Quiet.Paint
 import Quiet.Image
 import Quiet.Text
+import Quiet.Arrival
 
 namespace Row
 open Paint Text Font
@@ -46,6 +49,13 @@ def Dim.topPad (d : Dim) : Nat := d.px 8
 def Dim.gap (d : Dim) : Nat := d.px 6
 def Dim.pillH (d : Dim) : Nat := d.cell + d.px 8
 
+/-- A picture's caption pill (Arrival): libquiet's sizes, in dp (0.35rem
+inset, 0.15rem 0.4rem padding, 0.3rem corners, a 15 ring on a 2.5
+stroke), its panel the row's background and its ink the dim ink. -/
+def Dim.arrival (d : Dim) : Arrival.Style :=
+  { inset := d.px 6, padX := d.px 6, padY := d.px 2, radius := d.px 5,
+    ring := d.px 15 / 2, stroke := max 1 (d.px 15 / 6), gap := d.px 4, panel := bg, ink := dim }
+
 /-! ## Data -/
 
 /-- A reaction tally: the emoji, how many people, whether one is me. -/
@@ -56,14 +66,16 @@ structure Tally where
   deriving BEq, Inhabited
 
 /-- A picture: an attachment of the message (Kinds.File). Its file's root
-(`hash`) and size; its preview, shown until every chunk is here; how many
-of its chunks are here (`got`, a count read from the store) of `total`;
-and what opens the file once they all are: the chunks' op ids in order,
-the file's key and nonce. -/
+(`hash`), its size in pixels and its length in bytes (the sealed file's:
+what downloads); its preview, shown until every chunk is here; how many
+of its chunks are here (`got`, the engine's count, `Community.progress`)
+of `total`; and what opens the file once they all are: the chunks' op ids
+in order, the file's key and nonce. -/
 structure Pic where
   hash : ByteArray
   w : Nat
   h : Nat
+  len : Nat := 0
   preview : ByteArray := .empty
   got : Nat := 0
   total : Nat := 0
@@ -73,7 +85,17 @@ structure Pic where
   deriving BEq, Inhabited
 
 /-- Whether every chunk is here. -/
-def Pic.complete (p : Pic) : Bool := p.total > 0 && p.got ≥ p.total
+def Pic.complete (p : Pic) : Bool := Arrival.done p.got p.total
+
+/-- What a picture shows: the file once every chunk is here and it is
+decoded (`full`), else its preview (`pre`; none while either decodes); and
+whether that is the file. -/
+def Pic.shown {α : Type} (p : Pic) (pre full : Option α) : Option α × Bool :=
+  if p.complete then
+    match full with
+    | some b => (some b, true)
+    | none => (pre, false)
+  else (pre, false)
 
 structure RowData where
   name : String
@@ -168,6 +190,10 @@ def layout (f : Font) (dm : Dim) (W : Nat) (d : RowData) : Layout :=
 
 /-! ## Paint -/
 
+/-- A picture's caption pill in its box (none once the file is here). -/
+def arrival (f : Font) (dm : Dim) (bx : Box) (p : Pic) : Option Arrival.Pill :=
+  Arrival.layout f dm.arrival bx.x bx.y bx.w bx.h p.got p.total p.len
+
 /-- An emoji (a whole sequence) with its top left at (x, y). -/
 def emojiAt (f : Font) (b : Bitmap) (e : String) (x y : Nat) (c : Color) : Bitmap :=
   b.line f (oneLine f (4 * f.cell) e) x y c
@@ -198,6 +224,7 @@ def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (d : RowData) (l :
     match imgs[i]? >>= id with
     | some img => b := b.image img bx.x bx.y r
     | none => b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) r placeholder
+    if let some pl := d.pics[i]? >>= arrival f dm bx then b := Arrival.paint f dm.arrival b pl
   let pr := dm.pillH / 2
   let inset := dm.px 4
   for (bx, e, count, mine) in l.pills do

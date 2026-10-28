@@ -7,6 +7,7 @@ import Quiet.Paint
 import Quiet.Image
 import Quiet.Data
 import Quiet.Chaos
+import Quiet.Arrival
 import Quiet.Row
 import Quiet.App
 import Quiet.SheetGeom
@@ -28,3 +29,5 @@ import Quiet.RowLaws
 import Quiet.ViewLaws
 import Quiet.PeopleLaws
 import Quiet.Remove
+import Quiet.RemovedLaws
+import Quiet.ArrivalLaws

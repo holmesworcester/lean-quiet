@@ -165,6 +165,9 @@ structure St where
   heights : Std.HashMap Id Nat := {}
   rows : Std.HashMap Id RowSt := {}
   imgs : Std.HashMap ImgKey (Task Bitmap) := {}
+  /-- When an image whose chunks were not all readable may be tried again
+  (a frame number). -/
+  imgRetry : Std.HashMap ImgKey Nat := {}
   selected : Option Id := none
   b : Nat := 0
   imeH : Nat := 0
@@ -209,6 +212,12 @@ names, and whether it is me. -/
   amAdmin : Bool := false
   /-- The member whose profile is open: user, name, whether it is me. -/
   profileOf : Option (Id × String × Bool) := none
+  /-- Entries already removed when told (or when the app started): their
+removal is not announced again. -/
+  goneSeen : List Id := []
+  /-- Standing notices (libquiet's: no timeout; a tap puts the first
+  away), e.g. "You've been removed from …". -/
+  notices : List String := []
   /-- The removal flow (Remove.step). -/
   removal : Remove.Step := .idle
   /-- Whether each member (as `members`) has a device this node holds a
@@ -377,16 +386,29 @@ def decodeTask (bytes : ByteArray) (w h : Nat) (sq : Bool) : Task Bitmap :=
     | some src => if sq then Image.square src w Row.bg else Image.scaled src w h Row.bg
     | none => Bitmap.blank w h (solid Row.placeholder w)
 
-/-- An attachment's slices, read from its chunk ops in order. -/
-def slicesOf (p : Row.Pic) : M (List ByteArray) := do
+/-- An attachment's slices, read from its chunk ops in order (a chunk this
+device sends may still be in the outbox); none while one is not here. -/
+def slicesOf (p : Row.Pic) : M (Option (List ByteArray)) := do
+  -- the chunk ops' bytes, as stored or in the outbox: nothing is decoded
+  -- here (a 64 KiB chunk is slow to decode; the frame must not wait)
   let s ← get
-  let mut out := #[]
+  let mut raw := #[]
   for x in p.chunks do
-    let some o ← (Store.getOp (F := SF) (m := SqlM SF) x).run s.rd | return []
+    match s.out.find? (·.op.id == x) with
+    | some pd => raw := raw.push pd.op.bytes
+    | none =>
+      let rows ← s.rd.query "SELECT bytes FROM ops WHERE id = ?" #[x]
+      let some b := rows[0]? >>= (·[0]?) | return none
+      raw := raw.push b
+  return some raw.toList
+
+/-- Chunk ops' bytes to their slices, in order (off the app's thread). -/
+def slicesFromOps (raw : List ByteArray) : Option (List ByteArray) :=
+  raw.mapM fun b => do
+    let o ← Engine.Op.decode b
     match (Codec.decode o.body : Option Community.Body) with
-    | some (.chunk _ _ _ slice _) => out := out.push slice
-    | _ => return []
-  return out.toList
+    | some (.chunk _ _ _ slice _) => some slice
+    | _ => none
 
 /-- A decode of `k` started (or finished): its bitmap once done. -/
 def decoded (k : ImgKey) (start : M (Option (Task Bitmap))) : M (Option Bitmap) := do
@@ -397,23 +419,28 @@ def decoded (k : ImgKey) (start : M (Option (Task Bitmap))) : M (Option Bitmap) 
     return none
 
 /-- An attachment drawn at its size, if ready, and whether it is the file
-(not its preview): the preview until every chunk is here and the file
-is decoded, then the file (its slices assembled and opened with the
-file's key, off the app's thread). -/
+(not its preview), as `Row.Pic.shown` chooses: the preview (softened,
+Arrival.soften) until every chunk is here and the file is decoded, then
+the file (its slices assembled and opened with the file's key, off the
+app's thread). -/
 def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := do
   let pre ← decoded (p.hash.push 0, w, h) do
-    pure (if p.preview.isEmpty then none else some (decodeTask p.preview w h false))
-  if !p.complete then return (pre, false)
-  let full ← decoded (p.hash.push 1, w, h) do
-    let slices ← slicesOf p
+    pure (if p.preview.isEmpty then none
+      else some ((decodeTask p.preview w h false).map (Arrival.soften Row.bg)))
+  let full ← if !p.complete then pure none else decoded (p.hash.push 1, w, h) do
+    -- not every chunk op is readable yet: try again in two seconds, not
+    -- every frame
+    let k := (p.hash.push 1, w, h)
+    if let some t := (← get).imgRetry[k]? then
+      if (← get).frames < t then return none
+    let some raw ← slicesOf p
+      | modify fun s => { s with imgRetry := s.imgRetry.insert k (s.frames + 120) }; pure none
     let (key, nonce) := (p.key, p.nonce)
     pure <| some <| Task.spawn fun _ =>
-      match (Community.openFile slices key nonce).bind Image.decode with
+      match ((slicesFromOps raw).bind fun slices => Community.openFile slices key nonce).bind Image.decode with
       | some src => Image.scaled src w h Row.bg
       | none => Bitmap.blank w h (solid Row.placeholder w)
-  match full with
-  | some b => return (some b, true)
-  | none => return (pre, false)
+  return p.shown pre full
 
 /-- Mount (read, lay out) row x if any of its answers are stale. -/
 def mount (x : Id) : M Unit := do
@@ -596,13 +623,36 @@ def back : M Unit := do
   | p :: rest => modify fun s => { s with page := p, backStack := rest, field := "", refusal := none, pageKey := none }
   | [] => modify fun s => { s with page := .chat, field := "", refusal := none, pageKey := none }
 
-/-- The communities, read by the Community kind; the current one is kept
-(or the first, when it is gone or none is current). -/
+/-- What the app holds for an entry no longer listed, forgotten: its
+invite link, a pasted link to its community, an open profile, and, if it
+was current, the composer's text and photos. -/
+def forgetEntry (s : St) (a c : Id) : St :=
+  let cur := s.me.acc == a
+  { s with links := s.links.filter (·.1 != a),
+           invite := if (s.invite.map (·.community == c)).getD false then none else s.invite,
+           profileOf := if cur then none else s.profileOf,
+           text := if cur then "" else s.text, chips := if cur then #[] else s.chips }
+
+/-- The communities, read by the Community kind: those listed (a removed
+entry hidden), the current one kept or, gone, the first (Get started when
+none is left). -/
 def refreshComms : M Unit := do
-  let (cs, _) ← Kinds.Accepted.read
+  let (all, _) ← Kinds.Accepted.read
+  let cs := Kinds.Accepted.listed all
+  -- removed since last told: a standing notice each, and forgotten
+  for g in Kinds.Accepted.newlyGone (← get).goneSeen all do
+    if (← get).me.acc == g.acc then (← get).io.textClear
+    modify fun s => { forgetEntry s g.acc g.c with
+      goneSeen := g.acc :: s.goneSeen,
+      notices := s.notices ++ [s!"You’ve been removed from {if g.name.isEmpty then "a community" else g.name}."] }
   modify fun s =>
-    let me := Kinds.Accepted.select cs s.cur <|> cs[0]?
-    { s with comms := cs, me := me.getD s.me, cur := (me.map (·.acc)).getD s.cur }
+    match Kinds.Accepted.landing cs s.cur with
+    | some me => { s with comms := cs, me, cur := me.acc }
+    | none =>
+      -- nothing listed: Get started (unless a join is being made)
+      { s with comms := cs, me := default, cur := .empty,
+               page := if s.comms.isEmpty then s.page else .getStarted,
+               backStack := if s.comms.isEmpty then s.backStack else [] }
 
 /-- Make the entry of acceptance `a` the current one (memory only): the
 list starts again from its newest. An entry is its acceptance, never its
@@ -1009,11 +1059,9 @@ def preparePhoto (dm : Dim) (src : Image.Src) : ByteArray × Nat × Nat × Compo
   let px := Chaos.cropPx src 0 0 src.w src.h w h
   let bytes := Image.encode w h px
   let raw := w * h * 4
-  let kib := bytes.size * 10 / 1024
   let pct := 100 - bytes.size * 100 / max raw 1
   let thumb := Image.square src (dm.px 64) Row.bg
-  let size := if kib ≥ 100 then s!"{kib / 10} KiB" else s!"{kib / 10}.{kib % 10} KiB"
-  (bytes, w, h, ⟨thumb, s!"{size} · {pct}% smaller"⟩)
+  (bytes, w, h, ⟨thumb, s!"{Arrival.humanBytes bytes.size} · {pct}% smaller"⟩)
 
 /-- Add photos: until the system picker lands in the twin, the bundled
 test photos, one per tap. -/
@@ -1097,6 +1145,10 @@ def onSheetDrag (phase x y : Nat) : M Unit := do
 
 def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   let s ← get
+  -- a tap puts a standing notice away
+  if !s.notices.isEmpty then
+    modify fun s => { s with notices := s.notices.drop 1 }
+    return
   -- a page: its bar's back, or its content's taps (rows from its top)
   if s.page != .chat then
     match r with
@@ -1309,6 +1361,44 @@ def command (line : String) : M Bool := do
   | "top" =>
     let (_, ch) := bottoms s
     s.io.scrollTo ch.toFloat; s.io.ctlReply "ok"
+  -- For driving a demo on phones over ctl, as a person would: the link
+  -- Add members shows, a page's field typed (on a page whose keyboard is
+  -- open, the keyboard's own text replaces it: type there instead), a
+  -- button the page shows, Add photos, and the composer sent with its
+  -- text and photos.
+  | "link" =>
+    s.io.ctlReply (((s.links.find? (·.1 == s.me.acc)).map (·.2)).getD "")
+  | "field" =>
+    modify fun s => { s with field := rest, refusal := none, pageKey := none }
+    s.io.ctlReply s!"field {rest.length}"
+  | "act" =>
+    let a : Option Pages.Act := match ws[1]?, (ws[2]? >>= String.toNat?) with
+      | some "continue", _ => some .continue_
+      | some "agree", _ => some .agree
+      | some "approve", some i => some (.approve i)
+      | _, _ => none
+    -- only a button the page shows, as a tap could press only that
+    let shown := match a, s.pageNow with
+      | some a, some pg => pg.taps.any (·.2 == a)
+      | _, _ => false
+    match a with
+    | some a =>
+      if shown then onPageAct a; s.io.ctlReply s!"page {repr (← get).page}"
+      else s.io.ctlReply s!"no such button on page {repr s.page}"
+    | none => s.io.ctlReply "act continue|agree|approve I"
+  | "photo" =>
+    attachPhoto
+    s.io.ctlReply s!"photos {(← get).chips.size}"
+  | "post" =>
+    modify fun s => { s with text := rest }
+    sendNow
+    s.io.ctlReply s!"posted, composer {(← get).chips.size} photos"
+  | "pics" =>
+    -- the mounted rows with pictures: text, and each picture's chunks here
+    let out := s.rows.toList.filterMap fun (_, r) =>
+      if r.data.pics.isEmpty then none else
+      some s!"{r.data.name}: {String.ofList (r.data.text.toList.take 30)} [{", ".intercalate (r.data.pics.map fun p => s!"{p.got}/{p.total}{if p.complete then " complete" else ""}")}]"
+    s.io.ctlReply (if out.isEmpty then "no pictures mounted" else " | ".intercalate out)
   | "visible" =>
     let (bots, _) := bottoms s
     let vh := viewH s
@@ -1356,8 +1446,9 @@ def sheetBitmap (sh : SheetSt) (mine : List String) : M Bitmap := do
 /-- The toast, if one stands, over the middle of the viewport's rows of a
 list frame (new rows: the ones under it are shared and stay). -/
 def withToast (s : St) (fr : Array ByteArray) (vh : Nat) : Array ByteArray := Id.run do
-  let some (t, upto) := s.toast | return fr
-  if s.frames > upto then return fr
+  -- a standing notice outranks a passing toast
+  let some t := s.notices.head? <|> (s.toast.bind fun (t, upto) => if s.frames > upto then none else some t)
+    | return fr
   let tb := Pages.toast s.font s.dim s.W t
   let x := (s.W - tb.w) / 2
   let r0 := over + (vh - tb.h) / 2
@@ -1559,8 +1650,8 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   -- the communities are this device's accepted facts: read them once
   -- here to choose the first page
   let probe : St := { io := io, W := W, Hs := Hs, insetTop := 0, insetBot := 0, font := font, bgRow := .empty, rd := rd, wr := wr, me := default }
-  let ((cs, _), _) ← (Kinds.Accepted.read : M _).run probe
-  let comms := cs
+  let ((all, _), _) ← (Kinds.Accepted.read : M _).run probe
+  let comms := Kinds.Accepted.listed all
   let me := comms[0]?.getD default
   let catalog ← match ← (Sheet.loadCatalog).toBaseIO with
     | .ok c => pure c
@@ -1568,7 +1659,9 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   return { io := io, W := W, Hs := Hs, insetTop := (screen[2]?.getD 0).toNat, catalog := catalog,
            dim := ⟨(screen[4]?.getD 420).toNat, font.cell⟩,
            insetBot := (screen[3]?.getD 0).toNat, font := font, bgRow := solid Row.bg W, rd := rd,
-           wr := wr, me := me, comms := comms, cur := me.c, page := if comms.isEmpty then .getStarted else .home,
+           wr := wr, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
+           -- a removal already in the store at launch is not announced
+           goneSeen := (all.toList.filter (·.removed)).map (·.acc),
            dbPath := dbPath, netCfg := net }
 
 end App

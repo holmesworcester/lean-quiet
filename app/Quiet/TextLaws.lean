@@ -142,3 +142,20 @@ theorem place_starts (f : Font.Font) : ∀ (cs : List UInt32) (x lastX : Nat),
       · simp [hi, hm, starts, place_starts f t (x + adv f c) x]
 
 end Text
+
+namespace Text
+
+/-- The explicit bidi controls: embeddings and overrides (U+202A–202E),
+isolates (U+2066–2069), and the marks LRM and RLM (U+200E, U+200F). -/
+def bidiControls : List UInt32 :=
+  [0x202A, 0x202B, 0x202C, 0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069, 0x200E, 0x200F]
+
+/-- **No bidi control can reorder text.** Each is a neutral to this bidi
+(it takes the direction of what surrounds it and gives none), so an
+override or isolate pasted into a name or a message changes nothing's
+order; the marks also draw nothing. -/
+theorem controls_neutral : bidiControls.all (fun c => dirOf c == .n) = true := by decide
+
+theorem marks_invisible : isInvisible 0x200E = true ∧ isInvisible 0x200F = true := by decide
+
+end Text

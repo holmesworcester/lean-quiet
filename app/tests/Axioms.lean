@@ -9,7 +9,9 @@ import Quiet.RowLaws
 import Quiet.ViewLaws
 import Quiet.PeopleLaws
 import Quiet.Remove
+import Quiet.RemovedLaws
 import Quiet.App
+import Quiet.ArrivalLaws
 #print axioms Geometry.placed_row
 #print axioms Geometry.visible_in_viewport
 #print axioms Geometry.newest_visible
@@ -56,3 +58,44 @@ import Quiet.App
 #print axioms Remove.open_fresh
 #print axioms Remove.no_replace
 #print axioms Remove.offered_only
+#print axioms RemovedLaws.listed_iff
+#print axioms RemovedLaws.told_once
+#print axioms RemovedLaws.not_replayed
+#print axioms RemovedLaws.landing_listed
+#print axioms RemovedLaws.forget_clears
+#print axioms Data.overlay_total
+#print axioms Text.controls_neutral
+#print axioms Text.marks_invisible
+#print axioms ArrivalLaws.percent_lt
+#print axioms ArrivalLaws.percent_eq
+#print axioms ArrivalLaws.done_iff
+#print axioms ArrivalLaws.caption_none_iff
+#print axioms ArrivalLaws.caption_some
+#print axioms ArrivalLaws.lit_zero
+#print axioms ArrivalLaws.lit_mono
+#print axioms ArrivalLaws.lit_full
+#print axioms ArrivalLaws.lit_clockwise
+#print axioms ArrivalLaws.onRing_square
+#print axioms ArrivalLaws.layout_done
+#print axioms ArrivalLaws.layout_shown
+#print axioms ArrivalLaws.layout_arriving
+#print axioms ArrivalLaws.layout_percent_lt
+#print axioms ArrivalLaws.layout_words
+#print axioms ArrivalLaws.layout_inside
+#print axioms ArrivalLaws.ring_inside
+#print axioms ArrivalLaws.words_inside
+#print axioms ArrivalLaws.ring_counts
+#print axioms ArrivalLaws.arrival_none
+#print axioms ArrivalLaws.arrival_some
+#print axioms ArrivalLaws.picBox_progress
+#print axioms ArrivalLaws.layout_progress
+#print axioms ArrivalLaws.shown_file
+#print axioms ArrivalLaws.shown_pre
+#print axioms ArrivalLaws.readView_model
+#print axioms ArrivalLaws.pic_progress
+#print axioms ArrivalLaws.pic_len
+#print axioms ArrivalLaws.arrival_progress
+#print axioms ArrivalLaws.arrival_counts
+#print axioms ArrivalLaws.complete_iff_held
+#print axioms ArrivalLaws.file_whole
+#print axioms ArrivalLaws.pic_complete_iff_held

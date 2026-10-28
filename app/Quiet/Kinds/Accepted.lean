@@ -37,6 +37,9 @@ structure Me where
   the address its request is sent to (the link's first hint). -/
   joiningOp : Id := .empty
   dialing : String := ""
+  /-- Whether this entry's user has been removed from the community (a
+  Valid removal of it is in the store). -/
+  removed : Bool := false
   deriving Inhabited
 
 def Me.waiting (m : Me) : Bool := m.adm.isEmpty
@@ -68,8 +71,21 @@ of the same ops makes alike (entries of one community share its name). -/
 def dedupe (ms : Array Me) : Array Me :=
   (dedupeBy (·.acc) (dedupeBy (·.c) ms.toList []) []).toArray
 
+/-- The entries listed: those whose user is not removed (a removed one
+is hidden, its data kept). -/
+def listed (ms : Array Me) : Array Me := ms.filter (!·.removed)
+
+/-- The entries removed since `seen` (acceptance ids already told). -/
+def newlyGone (seen : List Id) (ms : Array Me) : List Me :=
+  ms.toList.filter fun m => m.removed && !seen.any (fun x => decide (x = m.acc))
+
 /-- The entry for acceptance `a`. -/
 def select (ms : Array Me) (a : Id) : Option Me := ms.find? fun m => decide (m.acc = a)
+
+/-- Where the app lands: the current entry if still listed, else the
+first listed one, else none (Get started). -/
+def landing (cs : Array Me) (cur : Id) : Option Me := select cs cur <|> cs[0]?
+
 
 variable {m : Type → Type} [Monad m] [Reads m]
 
@@ -110,7 +126,11 @@ def read : m (Array Me × Array Q) := do
         if ab.total == 0 then
           joiningOp := jid
           dialing := (hs.head?.bind String.fromUTF8?).getD ""
-    out := out.push { acc := accId, dev := Device.ofSeed seed, seed, c, adm := admId, user, name, joiningOp, dialing }
+    let (rm, _, d6) ← readList (removal.byUser.query [c, user] (limit := some 0)) deps
+    deps := d6
+    let removed := !user.isEmpty && rm.total > 0
+    out := out.push { acc := accId, dev := Device.ofSeed seed, seed, c, adm := admId, user, name, joiningOp, dialing,
+                      removed }
   let sorted := out.qsort fun a b => a.name < b.name || (a.name == b.name && Engine.bcmp a.acc b.acc == .lt)
   return (dedupe sorted, deps)
 

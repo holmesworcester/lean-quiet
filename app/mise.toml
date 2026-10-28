@@ -24,6 +24,10 @@ run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build host && .lake
 description = "The app's APK (x86_64 for the emulator, arm64-v8a for phones); needs a Lean runtime for Android (LEANRT)"
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; android/twin/build_apk.sh out/quiet.apk com.holmes.leanquiet 'Lean Quiet' Main x86_64 arm64-v8a"
 
+[tasks."host:arrival"]
+description = "A photo arriving chunk by chunk (QTests/Arrival): after each chunk the row's count, its pill's words and its painted ring are exact and the preview shows; a chunk twice changes nothing; the last one swaps in the file; a sender sees its own file from the outbox"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build arrival && .lake/build/bin/arrival out/arrival"
+
 [tasks.check]
 description = "The proof gate: the app's theorems (Geometry: list content never under the header, composer or keyboard) on standard axioms only"
 run = "tests/check.sh"
@@ -68,3 +72,7 @@ run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build net_join && .
 [tasks."host:cross"]
 description = "Two apps over real TCP, two communities both named club, each app in both, everyone named Ann: every entry reachable by a tap, each home right, a second join to one community and Stop waiting on it"
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build cross && .lake/build/bin/cross out/cross"
+
+[tasks."host:attach"]
+description = "Photos over real TCP: two apps joined on loopback (as host:net-join), one photo each way through Add photos and send; the other side ends with every chunk, the file opened from them equal to the bytes sent, and its row drawn from the file"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build attach && .lake/build/bin/attach out/attach"

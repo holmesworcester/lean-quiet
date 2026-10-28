@@ -146,7 +146,7 @@ def attach (c adm msg : Id) (by_ : Device) (k : ByteArray) (f : NewFile) : Op ×
   let reqs := [c, adm, msg]
   let a := mkOp reqs (.attach root ct.size kid sealed (sig by_.sk reqs (.attach root ct.size kid sealed .empty)))
   let chunks := (List.range (Merkle.nChunks ct.size)).map fun i =>
-    mkOp [c] (.chunk root ct.size i ((Merkle.slices ct).getD i .empty) (Merkle.proof sha256 ct i))
+    mkOp [c, a.id] (.chunk root ct.size i ((Merkle.slices ct).getD i .empty) (Merkle.proof sha256 ct i))
   (a, chunks)
 
 /-- An attachment's info and the file's key and nonce, opened with the

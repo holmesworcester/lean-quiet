@@ -187,7 +187,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "on B, the post lists its attachment" (atts.length == 1)
   match atts.head? with
   | some (_, .attachment _ _ _ root len akid sealedInfo) =>
-    let cs ← rows b (chunk.byFile.query [c, root, Codec.encode len] (desc := false))
+    let cs ← rows b (chunk.byAttachment.query [c, (wf.ops.getD 1 default).id] (desc := false))
     t.ok "B holds every chunk: progress is a count" (cs.length == Merkle.nChunks len)
     let mut slicesB : List ByteArray := []
     for ((_, x), _) in cs do
@@ -204,23 +204,51 @@ def main (args : List String) : IO UInt32 := do
     t.ok "the info does not open with another key"
       ((openInfo c akid sealedInfo (sha256 "other".toUTF8)).isNone)
   | _ => t.ok "the attachment's fact" false
-  -- Chunks authenticate themselves: Valid on a node with no attachment,
-  -- and a tampered one is Invalid.
+  -- Chunks are their attachment's: on a node without it they wait, and
+  -- they are Valid once it arrives; a tampered one is Invalid.
   let solo ← fresh dir "solo.db"
+  let postOp := wf.ops.headD default
+  let attOp := wf.ops.getD 1 default
+  let att := attOp.id
   let chunkOps := wf.ops.drop 2
+  t.ok "every chunk cites its community and its attachment, and nothing else"
+    (chunkOps.all fun o => o.reqs == [c, att])
   fromPeer solo ([root dA] ++ chunkOps)
   let soloChunks ← rows solo (message.all.query [c])
   t.ok "a node without the post holds no message" soloChunks.isEmpty
-  let mut validChunks := 0
-  for o in chunkOps do
-    if let some (.valid _) ← ((Store.getStatus o.id : SqlM Fact _).run solo) then validChunks := validChunks + 1
-  t.ok "every chunk is Valid there, before its attachment" (validChunks == nc)
+  let countValid (db : Db) (os : List Op) : IO Nat := do
+    let mut n := 0
+    for o in os do
+      if let some (.valid _) ← ((Store.getStatus o.id : SqlM Fact _).run db) then n := n + 1
+    return n
+  t.ok "without their attachment, no chunk is Valid: they wait" ((← countValid solo chunkOps) == 0)
+  fromPeer solo [postOp, attOp]
+  t.ok "with it, every chunk is Valid" ((← countValid solo chunkOps) == nc)
+  -- The same file attached to a second post: its own attachment, its
+  -- own chunks, none shared with the first.
+  let wf2 := send c c seedA kA ((sha256 "nonce 3".toUTF8).extract 0 24) "the photo again".toUTF8 8 [nf]
+  let chunks2 := wf2.ops.drop 2
+  t.ok "the same file sent twice shares no chunk op"
+    (chunks2.length == nc && chunks2.all fun o => !(chunkOps.any (·.id == o.id)))
   match (chunkOps.headD default |>.body |> fun b => (Codec.decode b : Option Body)) with
   | some (.chunk r l i sl p) =>
-    let bad := mkOp [c] (.chunk r l i (sl.set! 5 (sl.get! 5 ^^^ 1)) p)
-    let short := mkOp [c] (.chunk r l i sl p.tail)
-    let wrongIndex := mkOp [c] (.chunk r l (i + 1) sl p)
-    fromPeer solo [bad, short, wrongIndex]
+    let bad := mkOp [c, att] (.chunk r l i (sl.set! 5 (sl.get! 5 ^^^ 1)) p)
+    let short := mkOp [c, att] (.chunk r l i sl p.tail)
+    let wrongIndex := mkOp [c, att] (.chunk r l (i + 1) sl p)
+    let wrongLen := mkOp [c, att] (.chunk r (l + 1) i sl p)
+    -- another post's attachment, with another file: this chunk is not its
+    let nf3 : NewFile := { nf with bytes := "other bytes".toUTF8, key := sha256 "file key 3".toUTF8 }
+    let wf3 := send c c seedA kA ((sha256 "nonce 4".toUTF8).extract 0 24) "other".toUTF8 9 [nf3]
+    let att3 := (wf3.ops.getD 1 default).id
+    let foreign := mkOp [c, att3] (.chunk r l i sl p)
+    fromPeer solo ([wf3.ops.headD default, wf3.ops.getD 1 default] ++ [bad, short, wrongIndex, wrongLen, foreign])
+    let st (o : Op) : IO Bool := do
+      return match ← ((Store.getStatus o.id : SqlM Fact _).run solo) with | some .invalid => true | _ => false
+    t.ok "a tampered chunk is Invalid" (← st bad)
+    t.ok "a chunk with a short path is Invalid" (← st short)
+    t.ok "a chunk under the wrong index is Invalid" (← st wrongIndex)
+    t.ok "a chunk with a length not its attachment's is Invalid" (← st wrongLen)
+    t.ok "a chunk cited under another file's attachment is Invalid" (← st foreign)
     let st (o : Op) : IO Bool := do
       return match ← ((Store.getStatus o.id : SqlM Fact _).run solo) with | some .invalid => true | _ => false
     t.ok "a tampered chunk is Invalid" (← st bad)
@@ -229,9 +257,9 @@ def main (args : List String) : IO UInt32 := do
     -- Progress is one count of one list, chunk by chunk; a chunk sent
     -- twice, or re-sent under another op type, is not counted again.
     let pr (db : Db) (len : Nat) : IO (Nat × Nat) :=
-      ((progress c r len).run : SqlM Fact (Nat × Nat)).run db
+      ((progress c att len).run : SqlM Fact (Nat × Nat)).run db
     let dl ← fresh dir "download.db"
-    fromPeer dl [root dA]
+    fromPeer dl [root dA, postOp, attOp]
     t.ok "before any chunk, progress is 0 of the chunk count" ((← pr dl l) == (0, nc))
     let mut steps := true
     let mut k := 0
@@ -244,7 +272,10 @@ def main (args : List String) : IO UInt32 := do
       steps := steps && (← pr dl l) == (k, nc) && (← ((Store.getStatus retyped.id : SqlM Fact _).run dl)) == some .invalid
     t.ok "each chunk adds one; again, or under another op type (Invalid), adds none" steps
     t.ok "every chunk here: progress is full" ((← pr dl l) == (nc, nc))
-    t.ok "a length the attachment does not commit counts no chunk" ((← pr dl (l + 1)).1 == 0)
+    fromPeer dl ([wf2.ops.headD default, wf2.ops.getD 1 default] ++ chunks2.take 2)
+    t.ok "the second send's chunks count toward its own attachment only"
+      ((← pr dl l) == (nc, nc) &&
+        (← ((progress c (wf2.ops.getD 1 default).id l).run : SqlM Fact (Nat × Nat)).run dl) == (2, nc))
   | _ => t.ok "a chunk op" false
   -- A post re-sent under another op type is another op with the same
   -- fact: Invalid, so the message is not shown twice.
