@@ -177,6 +177,8 @@ structure St where
   botBmp : Bitmap := default
   chromeKey : String := ""
   srcs : Option (Task (Array Image.Src)) := none
+  /-- Chaos's writes, being made (ctl `chaos`). -/
+  chaos : Option (Task (Array Job)) := none
   ctl : Array String := #[]
   frames : Nat := 0
   times : Array Nat := #[]
@@ -323,6 +325,16 @@ def writeAll (w : Community.Write) : M Bool := do
   return true
 
 def write (o : Op) : M Bool := writeAll ⟨[o]⟩
+
+/-- Chaos's writes, once made: each job one write, as a user's action is. -/
+def chaosStep : M Unit := do
+  let some t := (← get).chaos | return
+  if !(← IO.hasFinished t) then return
+  modify fun s => { s with chaos := none }
+  for j in t.get do
+    let _ ← writeAll ⟨j.ops⟩
+  (← get).wr.busy.modify (· - 1)
+  IO.eprintln s!"chaos: {t.get.size} writes of {t.get.foldl (· + ·.ops.length) 0} ops"
 
 def newestTime (s : St) : Nat :=
   match s.ids[0]? with
@@ -1280,16 +1292,11 @@ def command (line : String) : M Bool := do
     let k := k?.getD .empty
     let seed := s.seed
     let start := newestTime s + 1
-    let wr := s.wr
-    let t0 ← s.io.nowUs
-    -- busy until every job is queued, so `wait` waits for the making too
-    wr.busy.modify (· + 1)
-    let _ ← IO.asTask (prio := .dedicated) do
-      let jobs := Chaos.make me k srcs.get seed n start
-      for j in jobs do submit s j
-      wr.busy.modify (· - 1)
-      let t1 ← s.io.nowUs
-      IO.eprintln s!"chaos: {jobs.size} jobs of {jobs.foldl (· + ·.ops.length) 0} ops made in {(t1 - t0) / 1000} ms"
+    -- made off the app's thread; written by `chaosStep` as user actions
+    -- are (writeAll: judged, shown pending, through the node)
+    let t ← IO.asTask (prio := .dedicated) (pure (Chaos.make me k srcs.get seed n start))
+    s.wr.busy.modify (· + 1)  -- so `wait` waits for the making too
+    modify fun s => { s with chaos := some (t.map fun r => match r with | .ok j => j | .error _ => #[]) }
     s.io.ctlReply s!"chaos {n} started"
   | "wait" =>
     if (← s.wr.busy.get) > 0 && !(← s.wr.paused.get) || !(← s.wr.jobs.get).isEmpty && !(← s.wr.paused.get) then
@@ -1488,6 +1495,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
       out := s.out.filter fun p => !ns.contains (opKey p.op.id)
       imgRetry := {} }
     if !decided.isEmpty then noticeLocal (decided.toList.flatMap fun p => p.keys)
+  chaosStep
   -- 2. events and commands
   for e in evs do
     if !(← onEvent e) then return none
