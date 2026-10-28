@@ -37,7 +37,7 @@ Linux box and do the Mac's part over SSH.
   (`rustup target add`); it builds here, and the Mac only links it.
   `assets/` comes from `tools/fetch_assets.sh`. Init's C goes to `out/initc`
   (`tools/gen_init_c.sh`). Std's C is cached in `out/stdc`.
-- **The Mac** (`MAC`, default `you@your-mac`): SSH without a
+- **The Mac** (`MAC`, required: `user@host`): SSH without a
   password, and Xcode at `/Applications/Xcode-26.3.0.app` (used through
   `DEVELOPER_DIR`; never `xcode-select`) with an iOS simulator runtime.
   xcodegen must be at `~/quiet-e2e/xcodegen/bin/xcodegen` (`XCODEGEN`).

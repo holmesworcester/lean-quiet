@@ -36,7 +36,7 @@
 #        ship.sh run      device, then install on $DEVICE and launch (ask
 #                         before using the phone)
 #        ship.sh clean    delete the simulator and the Mac's work directory
-# env: MAC (default you@your-mac), MAC_DIR (default
+# env: MAC (required: user@host of the Mac), MAC_DIR (default
 #   lean-quiet-ios-work, under the Mac's home; ship.sh owns it), DEVICE
 #   (the phone's devicectl id, default the iPhone 16e), LEAN_SRC (Lean's
 #   source at the toolchain's version), UV_SRC (libuv v1.51.0's), PORT (the
@@ -48,7 +48,7 @@
 set -euo pipefail
 what=${1:-sim}
 root=$(cd "$(dirname "$0")/.." && pwd)
-mac=${MAC:-you@your-mac}
+mac=${MAC:?set MAC to the Mac, as user@host}
 dir=${MAC_DIR:-lean-quiet-ios-work}
 device=${DEVICE:-5BD488FF-AD5C-5B43-BA3A-C61D1B5EE433}
 lean_src=${LEAN_SRC:-/mnt/storage/holmes-wt/lean-src/lean4}
