@@ -38,12 +38,19 @@
 #                        measured (the cost meter); LAW, audited, is an
 #                        equation naming it that erases it to the plain
 #                        run. Left out of subjects, like an assumption.
+#   weak NAME TEXT       NAME must not be reached from any entry point
+#                        (main, the runner, a shipping @[export]): a
+#                        secret made from it would be guessable
 #   copy NAME CODE TEXT  NAME restates running CODE instead of naming it:
 #                        a law (a model until it names CODE) or a
 #                        definition (a todo, until CODE calls it)
 #   subject LAW NAMES    LAW's subject is NAMES (its statement must name
 #                        each), where the heuristic takes too much
 #   wired LAW            LAW must be wired
+
+## Weak: no shipping path may reach these
+
+weak Chaos.freshSeed a seed from the microsecond clock, guessable by anyone who can bound when it was made: test identities only; the app's secrets come from `App.newSeed` (the OS's randomness)
 
 ## Wired, and must stay so: the laws "What is proven" rests on
 

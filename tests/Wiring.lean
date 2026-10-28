@@ -47,6 +47,8 @@ output, and local CI fails when it goes stale.
   a definition meant never to run) is a negative control, proving the
   mutant breaks its law. Counted apart: never wired, never a todo, and
   out of the lead's count.
+- **Weak:** a `weak` definition (a seed from the clock) must not be
+  reached from any entry point; the check names the path that does.
 - **Instruments:** what the code under test runs in to be measured (the
   cost meter, `CostT`), each erased by an audited equation (`erase_bind`:
   a counted run, its costs dropped, is the plain run). Like an
@@ -152,6 +154,30 @@ def runs (env : Environment) (n : Name) : NameSet := Id.run do
       (csimp.map (·.toDeclName)).toList do
     if env.contains x then out := out.insert x
   return out
+
+/-- A path the walk takes from an entry point to `target`, if it reaches
+it: each definition, then one it runs. -/
+def pathTo (env : Environment) (entry : List Name) (target : Name) : Option (List Name) := Id.run do
+  let mut parent : NameMap Name := {}
+  let mut seen : NameSet := entry.foldl (·.insert ·) {}
+  let mut todo : Array Name := entry.toArray
+  let mut i := 0
+  while h : i < todo.size do
+    let n := todo[i]
+    i := i + 1
+    if n == target then
+      let mut path := [n]
+      let mut c := n
+      while let some p := parent.find? c do
+        path := p :: path
+        c := p
+      return some path
+    for c in runs env n do
+      if !seen.contains c then
+        seen := seen.insert c
+        parent := parent.insert c n
+        todo := todo.push c
+  return none
 
 /-- Every definition the entry points reach, less those `implemented_by`
 replaces. -/
@@ -302,6 +328,8 @@ structure Notes where
   /-- an instrument the code under test runs in (the cost meter), ↦ the law
   that erases it -/
   instrument : NameMap Name := {}
+  /-- what no shipping path may reach (a secret from the clock) -/
+  weak : NameMap String := {}
   /-- the `todo` names and the copied code, in the file's order -/
   order : Array Name := #[]
   subject : NameMap (List Name) := {}
@@ -339,6 +367,7 @@ def readNotes (path : System.FilePath) : IO Notes := do
     | (["holds", n], t) => ns := at_ { ns with holds := ns.holds.insert n.toName t } n.toName
     | (["world", n], t) => ns := at_ { ns with world := ns.world.insert n.toName t } n.toName
     | (["control", n], t) => ns := at_ { ns with control := ns.control.insert n.toName t } n.toName
+    | (["weak", n], t) => ns := at_ { ns with weak := ns.weak.insert n.toName t } n.toName
     | (["instrument", n], t) =>
       let law := ((fields t 1).1.headD "").toName
       ns := at_ (at_ { ns with instrument := ns.instrument.insert n.toName law } n.toName) law
@@ -449,6 +478,11 @@ unsafe def main : IO UInt32 := do
     if !run.contains n then problems := problems.push s!"control: the entry points do not reach {n} ({why})"
   for n in harnesses do
     if run.contains n then problems := problems.push s!"control: the entry points reach {n}, a harness"
+  -- what no shipping path may reach, with the path that does
+  for (n, why) in ns.weak do
+    if run.contains n then
+      let path := (pathTo env ([`main, `Engine.Sync.Runner.start] ++ ns.entry) n).getD [n]
+      problems := problems.push s!"weak: the shipping app reaches {n} ({why}): {" → ".intercalate (path.map toString)}"
   -- what calls each definition, among this repository's
   let mut callers : NameMap NameSet := {}
   for i in [0:env.header.moduleNames.size] do
