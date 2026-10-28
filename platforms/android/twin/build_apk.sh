@@ -7,7 +7,7 @@
 #    C from the toolchain's own sources and .oleans (cached in
 #    out/stdc); Init is in libInit.
 # 2. NDK clang compiles that C with the twin (activity.c, layer.c,
-#    scroll.c, quiet_android.c, ctl.c), the glue (platforms/android/native:
+#    scroll.c, quiet_android.c, ctl.c), the glue (engine/native:
 #    SQLite, Ed25519, SHA-256 over third_party/) against Lean's runtime
 #    and Init for Android (platforms/android/leanrt/build.sh) into
 #    libleanapp.so per ABI.
@@ -17,7 +17,7 @@
 # usage: build_apk.sh out.apk package label main-module [abi...]
 #   abi: arm64-v8a (default) and/or x86_64 (the emulator)
 # env: ANDROID_SDK (default ~/android-sdk); LEANRT, the built runtime
-#   (default lean-chat's out/leanrt; android/leanrt/build.sh makes one)
+#   (default out/leanrt; android/leanrt/build.sh makes one)
 set -euo pipefail
 [ $# -ge 4 ] || { sed -n 2,21p "$0"; exit 2; }
 out=$(realpath -m "$1"); pkg=$2; label=$3; main=$4; shift 4
@@ -33,7 +33,7 @@ jar=$plat/android.jar
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 lake=$ELAN_HOME/bin/lake
-rt=${LEANRT:-/mnt/storage/holmes-wt/lean-chat/out/leanrt}
+rt=${LEANRT:-$root/out/leanrt}
 [ -f "$rt/include/lean/lean.h" ] || { echo "no Lean runtime at $rt (set LEANRT)" >&2; exit 2; }
 # the engine's crypto (engine/native/crypto.c, and the Rust library in
 # engine/native/crypto, built per ABI into this app's cache)
@@ -113,10 +113,11 @@ for abi in "${abis[@]}"; do
   tp=$root/third_party
   for src in "$tp/sqlite/sqlite3.c"; do
     obj=$cache/$abi/$(basename "${src%.c}").o
-    if [ ! -f "$obj" ] || [ "$src" -nt "$obj" ]; then
-      "$cc" --target=$tgt -O2 -fPIC -ffunction-sections -fdata-sections -w \
-        -DSQLITE_THREADSAFE=2 -DSQLITE_DQS=0 -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_OMIT_LOAD_EXTENSION \
-        -c "$src" -o "$obj" &
+    hash=$(sha256sum "$src" "$tp/sqlite/quiet_config.h" "$here/build_apk.sh" | sha256sum)
+    if [ ! -f "$obj" ] || [ "$(cat "$obj.sha" 2>/dev/null)" != "$hash" ]; then
+      ("$cc" --target=$tgt -O2 -fPIC -ffunction-sections -fdata-sections -w \
+        -include "$tp/sqlite/quiet_config.h" \
+        -c "$src" -o "$obj" && echo "$hash" > "$obj.sha") &
     fi
   done
   wait
@@ -125,7 +126,7 @@ for abi in "${abis[@]}"; do
     "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$here" -I"$rt/include" -c "$here/$c.c" -o "$o/twin_$c.o"
   done
   "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$rt/include" -I"$tp/sqlite" \
-    -c "$root/platforms/android/native/glue_android.c" -o "$o/glue_glue_android.o"
+    -c "$engine/native/glue.c" -o "$o/glue.o"
   "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$rt/include" -c "$engine/native/crypto.c" -o "$o/glue_crypto.o"
   (cd "$engine/native/crypto" && CARGO_TARGET_DIR="$cache/rust" cargo build --release --quiet --target "$rtgt")
   lqcrypto=$cache/rust/$rtgt/release/liblq_crypto.a

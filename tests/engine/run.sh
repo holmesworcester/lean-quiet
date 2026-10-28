@@ -13,20 +13,35 @@ cd "$(dirname "$0")/../.."
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
 (cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
-lake build scenario differential crash querydiff linkcheck lifecycle wire syncpair tcppair noise_check connection_check purge jointcp merkle_check
-mkdir -p out
-.lake/build/bin/scenario out/scenario
-.lake/build/bin/differential out/differential "${SEEDS:-12}"
-.lake/build/bin/querydiff
-.lake/build/bin/linkcheck
-.lake/build/bin/lifecycle out/lifecycle
-.lake/build/bin/wire out/wire
-.lake/build/bin/syncpair
-.lake/build/bin/tcppair out/tcppair
-.lake/build/bin/jointcp out/jointcp
+if [ "${1:-}" = --phone-runtime ]; then
+  python3 platforms/headless/build_runtime.py
+  python3 tests/shipped/runtime.py | tee out/phone-runtime/runtime-check.log
+  bin=$PWD/out/phone-runtime/bin
+  out=out/phone-runtime/tests
+else
+  lake build sqlite_build scenario differential crash querydiff linkcheck lifecycle wire syncpair tcppair noise_check connection_check purge jointcp merkle_check
+  bin=$PWD/.lake/build/bin
+  out=out
+fi
+mkdir -p "$out"
+"$bin"/sqlite_build
+"$bin"/scenario "$out"/scenario
+"$bin"/differential "$out"/differential "${SEEDS:-12}"
+"$bin"/querydiff
+"$bin"/linkcheck
+"$bin"/lifecycle "$out"/lifecycle
+"$bin"/wire "$out"/wire
+"$bin"/syncpair
+if [ "${SKIP_TCP:-0}" = 1 ]; then
+  echo "SKIP TCP: tcppair jointcp (built; run outside the socket sandbox)"
+else
+  "$bin"/tcppair "$out"/tcppair
+  "$bin"/jointcp "$out"/jointcp
+fi
 tests/engine/crypto_compat.sh
-.lake/build/bin/noise_check
-.lake/build/bin/connection_check
-.lake/build/bin/purge out/purge "${SEEDS:-12}"
-.lake/build/bin/merkle_check
-tests/engine/crash.sh "${CRASH_ROUNDS:-10}" out/crash
+"$bin"/noise_check
+"$bin"/connection_check
+"$bin"/purge "$out"/purge "${SEEDS:-12}"
+"$bin"/merkle_check
+ENGINE_BIN="$bin" tests/engine/crash.sh "${CRASH_ROUNDS:-10}" "$out"/crash
+if [ "${1:-}" != --phone-runtime ]; then tests/shipped/check.sh engine; fi

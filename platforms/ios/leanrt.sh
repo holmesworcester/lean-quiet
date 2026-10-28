@@ -26,11 +26,7 @@ uvsrc="src/fs-poll.c src/idna.c src/inet.c src/random.c src/strscpy.c src/strtok
   src/unix/tty.c src/unix/udp.c src/unix/proctitle.c src/unix/bsd-ifaddrs.c src/unix/kqueue.c
   src/unix/random-getentropy.c src/unix/darwin-proctitle.c src/unix/darwin.c src/unix/fsevents.c"
 stubbed="openssl.cpp"
-rt="debug.cpp thread.cpp mpz.cpp utf8.cpp object.cpp apply.cpp exception.cpp interrupt.cpp memory.cpp
-  stackinfo.cpp compact.cpp init_module.cpp io.cpp hash.cpp byteslice.cpp platform.cpp alloc.cpp
-  allocprof.cpp sharecommon.cpp stack_overflow.cpp process.cpp object_ref.cpp mpn.cpp mutex.cpp
-  libuv.cpp uv/net_addr.cpp uv/event_loop.cpp uv/timer.cpp uv/tcp.cpp uv/udp.cpp uv/dns.cpp uv/system.cpp
-  uv/signal.cpp"
+rt=$(cat "$st/lean/runtime.txt")
 
 # each $1 file (relative to $2) compiled with $3 into $4/<name>.o
 each() {

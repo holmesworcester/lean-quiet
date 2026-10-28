@@ -8,7 +8,9 @@ library is a directory of the tree. A library inside another's directory
 ops/connection) is the outer one's too: `lake build Wire` builds mdns.
 `lake build` builds every library but the tests'. -/
 package quiet where
-  moreLinkArgs := #["-Wl,--allow-shlib-undefined", "/usr/lib/x86_64-linux-gnu/libsqlite3.so.0",
+  -- Native C uses the host's headers. Lean's bundled older glibc linker
+  -- stub lacks fcntl64 (SQLite's file locks); resolve against the host libc.
+  moreLinkArgs := #["-Wl,--allow-shlib-undefined", "/usr/lib/x86_64-linux-gnu/libc.so.6",
     "-lpthread", "-ldl", "-lm", "-lrt"]
 
 /-! ## The engine: what holds for every op type -/
@@ -89,8 +91,10 @@ archive's members that nothing calls are left out. -/
 target glue.o pkg : FilePath := do
   let oFile := pkg.buildDir / "native" / "glue.o"
   let srcJob ← inputTextFile <| pkg.dir / "engine" / "native" / "glue.c"
-  let weakArgs := #["-I", (← getLeanIncludeDir).toString]
-  buildO oFile srcJob weakArgs #["-fPIC", "-O2"] "cc"
+  let header ← inputTextFile <| pkg.dir / "third_party" / "sqlite" / "sqlite3.h"
+  let weakArgs := #["-I", (← getLeanIncludeDir).toString,
+    "-I", (pkg.dir / "third_party" / "sqlite").toString]
+  buildO oFile (srcJob.zipWith (fun s _ => s) header) weakArgs #["-fPIC", "-O2"] "cc"
 
 target crypto.o pkg : FilePath := do
   let oFile := pkg.buildDir / "native" / "crypto.o"
@@ -109,6 +113,21 @@ extern_lib libglue pkg := do
   let c ← fetch <| pkg.target ``crypto.o
   buildStaticLib (pkg.staticLibDir / nameToStaticLib "glue") #[o, c]
 
+-- The same amalgamation and options as both phones, including purge's
+-- VACUUM and WAL truncate. Track the options so changing them rebuilds it.
+target sqlite.o pkg : FilePath := do
+  let dir := pkg.dir / "third_party" / "sqlite"
+  let src ← inputTextFile <| dir / "sqlite3.c"
+  let config ← inputTextFile <| dir / "quiet_config.h"
+  buildO (pkg.buildDir / "native" / "sqlite.o")
+    (src.zipWith (fun s _ => s) config)
+    #["-include", (dir / "quiet_config.h").toString]
+    #["-O2", "-fPIC", "-std=gnu11"] "cc"
+
+extern_lib libsqlite pkg := do
+  let o ← fetch <| pkg.target ``sqlite.o
+  buildStaticLib (pkg.staticLibDir / nameToStaticLib "sqlite") #[o]
+
 -- The headless twin (platforms/headless/host.c): Platform.lean's effects
 -- driven by a script, for tests and CI. Every host executable links it.
 target host.o pkg : FilePath := do
@@ -124,6 +143,9 @@ extern_lib libhosttwin pkg := do
   buildStaticLib (pkg.staticLibDir / nameToStaticLib "hosttwin") #[o]
 
 /-! ## The engine's suites (tests/engine/run.sh) -/
+
+lean_exe sqlite_build where
+  root := `tests.engine.SqliteBuild
 
 lean_exe scenario where
   root := `tests.engine.Scenario

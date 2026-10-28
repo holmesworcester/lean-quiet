@@ -201,6 +201,52 @@ nothing else is assumed:
 The theorems not listed here are lemmas. The axiom audit,
 `tests/Axioms.lean`, lists them all.
 
+## The seam
+
+### Tested isn't shipped
+
+Desktop tests now link the same SQLite 3.50.4 amalgamation as the phones,
+through Lake's `libsqlite` extern library. All three builds include
+`third_party/sqlite/quiet_config.h`: `THREADSAFE=2`, `DQS=0`,
+`DEFAULT_MEMSTATUS=0`, `OMIT_LOAD_EXTENSION`. All compile the same
+`engine/native/glue.c`. The engine gate checks the linked version and
+options through the actual externs, then tests differential behavior,
+crash atomicity, and secret bytes absent from the database files after
+VACUUM and WAL truncate. Controls substitute system SQLite and the wrong
+threading mode and must fail.
+
+The app gate now runs `host:twin-demo` through the native C twin's
+externs, alongside the app's `Sim` sessions. It checks control replies,
+keyboard/text, taps, send, scrolling and painted pixels; disabling the
+C keyboard effect must fail it. This does not test a mobile OS.
+
+The ordinary gate still uses Lean's prebuilt runtime. A separate
+`test:engine-runtime` task rebuilds Lean's runtime, Init, Std and the
+engine suites' generated C for x86_64 Linux with the phone options:
+no mimalloc, no GMP, and OpenSSL stubbed. The engine suites pass on that
+build too (the socket sandbox omits `tcppair` and `jointcp`). It still
+uses Linux libc/libuv and the desktop compiler, not Android's NDK/libc
+or iOS's Darwin runtime, `system()` stub and thread-stack settings.
+The mobile suites are needed to test those remaining differences.
+
+The Android emulator and iOS Simulator suites have build-and-run mise
+tasks and manual/nightly jobs in `ci/workflow.yml`, retaining failure
+logs, screenshots and the iOS result bundle. That workflow is inactive
+today; adding jobs records intent, not a mobile test result.
+[docs/SHIPPED.md](docs/SHIPPED.md) gives the machines, commands and
+artifact paths.
+
+- [x] The desktop suites use the shipped SQLite version and options.
+- [x] Desktop, Android and iOS share one SQLite glue file.
+- [x] The native C twin runs in the app gate, with a negative control.
+- [x] The phone runtime options are tested by the engine suites on Linux.
+- [x] Mobile suites include builds and retain failure artifacts; their
+  provisioned-machine jobs are recorded as manual/nightly runs.
+- [ ] Run the blocked TCP suites outside the sandbox (`SKIP_TCP` unset).
+- [ ] Run the new builds on the provisioned emulator and Simulator, and
+  activate the workflow for continuing mobile coverage. No phone,
+  emulator, Simulator or Mac was used to validate this change.
+
 ## Layout
 
 One Lake package, laid out as [docs/LAYOUT.md](docs/LAYOUT.md) says:
