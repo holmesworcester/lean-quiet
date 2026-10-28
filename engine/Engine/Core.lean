@@ -36,11 +36,22 @@ inductive Verdict (F : Type) where
   | invalid
   deriving DecidableEq, Inhabited
 
-/-- What an application supplies: each op type's validator, and the
-index keys each fact is found under. -/
+/-- Whether ops of a kind travel. Shared ops are what sync offers and
+takes. Local ops are a node's own bookkeeping (its accepted
+communities, pending links, connection state), judged and stored like
+any op, but never offered to a peer and never taken from one
+(Engine.Sync). -/
+inductive Scope where
+  | shared
+  | «local»
+  deriving DecidableEq, Repr, Inhabited
+
+/-- What an application supplies: each op type's validator, the index
+keys each fact is filed under, and each op kind's scope. -/
 structure Family (F : Type) where
   validate : Op → List F → Option F
   keys : F → List ByteArray
+  scope : UInt8 → Scope := fun _ => .shared
 
 /-- Op x's own key: what its verdict is watched under, and the key its
 Valid fact is filed under by id (`self`), so reading one fact is a list

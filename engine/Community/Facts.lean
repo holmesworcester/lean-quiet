@@ -320,6 +320,6 @@ def sortOf : Fact → ByteArray
 
 instance : SortKey Fact := ⟨sortOf⟩
 
-def family (C : Crypto) : Family Fact := ⟨validate C, keys⟩
+def family (C : Crypto) : Family Fact := { validate := validate C, keys }
 
 end Community

@@ -38,6 +38,17 @@ Proven (`Proofs.lean`), about that code run on the model:
 - `spec_extends`: a verdict, once reached, never changes.
 - `Codec.decode_encode`: what SQLite stores decodes to what was written.
 
+### Sync scope (`Sync.lean`)
+
+Each op kind is shared or local (`Family.scope`). Local ops are a node's
+own bookkeeping: judged and stored like any op, never sent or taken.
+
+- `offer_shared`, `offer_stored`: sync offers only stored ops of shared
+  kinds, so never a local op and never a write still in the outbox.
+- `intake_local`, `stored_local`: a peer's job passes `intake`, which
+  drops local ops; so every local op a node stores is one of its own
+  writes, whatever its peers send.
+
 ### Reading: lists and views (`Query.lean`, `View.lean`)
 
 There is one read, a list: the Valid facts filed under a key (and

@@ -44,3 +44,7 @@ open Engine Community
 #print axioms Community.members_iff
 #print axioms Community.removals_iff
 #print axioms Community.key_ne_opKey
+#print axioms Engine.intake_local
+#print axioms Engine.offer_shared
+#print axioms Engine.offer_stored
+#print axioms Engine.stored_local

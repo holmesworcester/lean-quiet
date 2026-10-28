@@ -34,7 +34,7 @@ def getFact (x : Id) : SqlM Fact (Option Fact) := do
 def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/scenario"
   IO.FS.createDirAll dir
-  for f in ["a.db", "a.db-wal", "a.db-shm", "b.db", "b.db-wal", "b.db-shm"] do
+  for f in ["a.db", "a.db-wal", "a.db-shm", "b.db", "b.db-wal", "b.db-shm", "c.db", "c.db-wal", "c.db-shm"] do
     if ← System.FilePath.pathExists (dir ++ "/" ++ f) then IO.FS.removeFile (dir ++ "/" ++ f)
   let t ← Checks.new
   let fam := family C
@@ -207,4 +207,18 @@ def main (args : List String) : IO UInt32 := do
   t.ok "SQLite verdicts equal the model's" (st1.all fun (x, v) => m.status x == some v)
   t.ok "every op has a verdict" (st1.length == all.length)
   t.ok "verdicts equal the spec's" (st1.all fun (x, v) => specOf fam m.ops all.length x == some v)
+  -- Sync scope, on SQLite: with admit ops declared local, sync offers
+  -- every stored op but those; a peer's job loses them; this node's own
+  -- job keeps them.
+  let famL : Family Fact := { fam with scope := fun k => if k = 11 then .local else .shared }
+  let isAdmit (o : Op) := o.kind == 11
+  let offered ← run (offer famL (all.map (·.id)))
+  t.ok "sync offers no local op" (!offered.any isAdmit)
+  t.ok "sync offers every stored shared op" (all.all fun o => isAdmit o || offered.contains o)
+  let db3 ← Db.openAt (dir ++ "/c.db")
+  (receive famL (intake famL false phase1)).run db3
+  let fromPeer ← (dumpOps (F := Fact)).run db3
+  t.ok "a peer's local ops are dropped" (!fromPeer.any isAdmit && fromPeer.any (·.id == reqA.id))
+  (receive famL (intake famL true [joinA])).run db3
+  t.ok "this node's own local op is kept" ((← (dumpOps (F := Fact)).run db3).any (·.id == joinA.id))
   t.finish "scenario"
