@@ -59,7 +59,6 @@ def act (d : Driver) (a : Action) : IO Driver := do
     let (_, s) ← (App.openPage .switcher).run d.app
     return { d with app := s }
   | .community i =>
-    d.app.io.textClear
     let (_, s) ← (do App.switchTo i; App.openPage .chat).run d.app
     return { d with app := { s with text := "", sel := #[0, 0, 0, 0] }, ui := { d.ui with switching := false } }
   | .send =>

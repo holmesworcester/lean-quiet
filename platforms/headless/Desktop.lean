@@ -28,7 +28,7 @@ private def suite (args : List String) : IO UInt32 := do
     if ← System.FilePath.pathExists (db ++ suffix) then IO.FS.removeFile (db ++ suffix)
   let sm ← Sim.new
   let text ← IO.mkRef ("", #[0, 0, 0, 0])
-  let io := { sm.io with text := text.get, textClear := text.set ("", #[0, 0, 0, 0]) }
+  let io := { sm.io with text := text.get, setText := fun t => let n := t.length.toUInt32; text.set (t, #[n, n, n, n]) }
   let mut d ← start io 1100 760 db
   let checks ← IO.mkRef 0
   let check (name : String) (ok : Bool) := do

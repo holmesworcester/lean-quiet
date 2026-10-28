@@ -15,7 +15,7 @@ view = app / 'platforms/desktop/View.lean'
 
 for name, path, old, new, expected in [
     ('switch', driver, 'App.switchTo i;', 'App.switchTo 0;', 'switch to distinct community'),
-    ('draft', driver, '    d.app.io.textClear\n', '    pure ()\n', 'switch clears editor and old draft'),
+    ('draft', driver, '{ s with text := "", sel := #[0, 0, 0, 0] }', '{ s with sel := #[0, 0, 0, 0] }', 'switch clears editor and old draft'),
     ('resize', driver, 'rows := {}, heights := {},', 'rows := s.rows, heights := s.heights,', 'resize repaints cached rows'),
     ('composer', view, '      b := b.fill g.main.x (h - 60) (g.main.x + g.main.w) h Row.bg\n', '', 'composer overlap'),
 ]:

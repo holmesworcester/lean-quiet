@@ -382,7 +382,13 @@ lean_obj_res lq_text(void) {
 }
 lean_obj_res lq_desktop_select(uint32_t a,uint32_t b) { q.anchor=byte_at(a); q.caret=byte_at(b); q.focused=true; event(4,0,0,0); return unit(); }
 lean_obj_res lq_ime(uint8_t on) { q.focused=on; return unit(); }
-lean_obj_res lq_text_clear(void) { q.text[0]=0; q.anchor=q.caret=0; event(4,0,0,0); return unit(); }
+/* The field becomes the string the app edits; one that already holds it
+   is left alone, caret included, so the app's own echo changes nothing. */
+lean_obj_res lq_set_text(b_lean_obj_arg s) {
+    const char *t=lean_string_cstr(s);
+    if (strcmp(t,q.text)) { snprintf(q.text,sizeof q.text,"%s",t); q.anchor=q.caret=strlen(q.text); }
+    return unit();
+}
 lean_obj_res lq_copy(b_lean_obj_arg s) { init(); copy(lean_string_cstr(s),strlen(lean_string_cstr(s))); return unit(); }
 lean_obj_res lq_ctl_poll(void) { return lean_io_result_mk_ok(lean_mk_empty_array()); }
 lean_obj_res lq_ctl_reply(b_lean_obj_arg s) { puts(lean_string_cstr(s)); fflush(stdout); return unit(); }
