@@ -557,6 +557,48 @@ What is still open for `round_stmt` in the leaf regime:
 - a non-vacuity witness: a concrete fair execution satisfying the
   premises.
 
+## Claim trees: rounds past `leaf` items (plan)
+
+The pilot and `round_forward` are the leaf regime: an opening lists ids.
+A room past `leaf` (128) items opens with fingerprints, and the round is
+holmes-a3's `exchange`: a tree of claims, each answered by the other side
+with nothing (the ranges agree), the ids it holds there (at most `leaf`),
+or fingerprints of the range's pieces. `exchange_complete` proves the
+tree complete over fixed snapshots; what is missing is the running round
+doing it over the World (`conn_runs_exchange`, the README's model row).
+
+The plan, as an obligation chain like the pilot's, one hop per message:
+1. **One hop at a connection** (any regime): `onRbsr` answers a claim
+   that is honest for the claimant's snapshot over range q, where the
+   answering snapshot and the claimant's differ in q, with a message of
+   the same round whose claims include, for every item of the
+   difference, a claim over a piece q' ⊆ q containing it, honest for the
+   answering snapshot, with a smaller measure |X ∩ q'| + |Y ∩ q'|
+   (`pieces_shrink`), or an id claim listing it (at most `leaf` items)
+   or a have of it. Sound fingerprints (`FpSound`) rule out an empty
+   answer to differing sets (`same_of_fp`).
+2. **Snapshots that stay put**: the dialer keeps its round's snapshot
+   from `start`, the responder its own from its first answer with
+   claims, until the round ends. Finding 4 (a message of an older round
+   of the room ends the current round's snapshots) breaks this under
+   duplication; stated as a premise (`RoundIntact`: no other message of
+   room r on the session reaches either end during the round), which
+   simplification 4 (snapshots per round) makes a law.
+3. **The World chain**: by induction on the measure, every item of either
+   snapshot in the window that the other lacks reaches an id claim or a
+   have within d Δ of the opening, d the tree's depth on its path; then
+   H1 or H4, H2, H3 (`claim_wants`, `have_wants`, `want_sends`,
+   `op_taken`) bring it within 3Δ more, with finding 7's premises.
+4. **Depth**: d ≤ |X ∩ r| + |Y ∩ r| + 1 from `exchange_complete`'s fuel
+   (linear in W, the window); with `fan`-way pieces each holding at most
+   ⌈n / fan⌉ of the cutting side's items, d ≤ 2⌈log_fan W⌉ + 2, which is
+   what large communities need: a round's time is then logarithmic in a
+   room's size.
+
+The result is `round_stmt`'s forward leg for every window size, and with
+the reverse leg (j's holds, step 1's second case) all of `round_stmt`.
+About 800 lines; step 1 first.
+
 ## T-fresh: where fresh ops queue behind backlog
 
 The user saw new messages starve while old ones synced. In the model,
