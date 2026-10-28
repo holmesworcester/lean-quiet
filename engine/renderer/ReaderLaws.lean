@@ -50,6 +50,13 @@ structure RWorld (σ C W V Q : Type) [BEq W] [Hashable W] where
   dirty : Std.HashSet W := {}
   wants : List W := []
   shown : W → Option V := fun _ => none
+  /-- The reverse index: each read, the wants that recorded it (the
+  reader at rest, engine/renderer/RestLaws.lean). -/
+  rev : Q → List W := fun _ => []
+  /-- The writers' commit counter, and its value at the reader's last
+  pass (RestLaws: at rest the reader reads no journal). -/
+  commits : Nat := 0
+  seen : Nat := 0
 
 /-! ## The pass's decisions: what they compute, and what they cost -/
 
@@ -169,7 +176,7 @@ variable {σ C W V Q : Type} [BEq W] [Hashable W] [LawfulBEq W] [BEq V] [LawfulB
   (apply : C → σ → σ) (hits : C → Q → Bool) (eval : σ → W → V) (reads : σ → W → List Q)
 
 def commit (c : C) (w : RWorld σ C W V Q) : RWorld σ C W V Q :=
-  { w with store := apply c w.store, journal := w.journal ++ [c] }
+  { w with store := apply c w.store, journal := w.journal ++ [c], commits := w.commits + 1 }
 
 /-- The cache after the journal's notices. -/
 def noticed (w : RWorld σ C W V Q) : Q → Bool := fun q => w.staleQ q || w.journal.any (hits · q)
@@ -189,11 +196,14 @@ def read1 (s : σ) (st : Board W V × (Q → Bool) × (W → Option (List Q))) (
 
 /-- **A pass** (Reader.pass): take the journal's notices, forget the
 unwanted, mark, read the first `cap` marked in the frame's order. -/
-def pass (cap : Nat) (w : RWorld σ C W V Q) : RWorld σ C W V Q :=
-  let p := pick w.wants (w.marked hits) cap
+def passWith (M : Std.HashSet W) (cap : Nat) (w : RWorld σ C W V Q) : RWorld σ C W V Q :=
+  let p := pick w.wants M cap
   let r := p.foldl (read1 eval reads w.store) (w.board.keep (w.wants.contains ·), w.noticed hits, w.kept)
-  { w with journal := [], board := r.1, staleQ := r.2.1, deps := r.2.2,
-           dirty := p.foldl (·.erase ·) (w.marked hits) }
+  { w with journal := [], board := r.1, staleQ := r.2.1, deps := r.2.2, seen := w.commits,
+           dirty := p.foldl (·.erase ·) M,
+           rev := fun q => w.rev q ++ p.filter fun x => (reads w.store x).contains q }
+
+def pass (cap : Nat) (w : RWorld σ C W V Q) : RWorld σ C W V Q := w.passWith hits eval reads (w.marked hits) cap
 
 def frame (w : RWorld σ C W V Q) : RWorld σ C W V Q :=
   { w with board := w.board.take.2, shown := Board.apply w.shown w.board }
@@ -316,23 +326,23 @@ theorem kept_of {w : RWorld σ C W V Q} {x : W} (hw : w.wants.contains x = true)
 /-! ### A pass, field by field -/
 
 section
-variable {w : RWorld σ C W V Q} {cap : Nat}
+variable {w : RWorld σ C W V Q} {cap : Nat} {M : Std.HashSet W}
 
-theorem pass_picked {x : W} (hx : x ∈ pick w.wants (w.marked hits) cap) :
-    ∃ u n, (w.pass hits eval reads cap).board.vals[x]? = some (u, n) ∧ u = eval w.store x ∧
-      (w.pass hits eval reads cap).deps x = some (reads w.store x) :=
+theorem pass_picked {x : W} (hx : x ∈ pick w.wants M cap) :
+    ∃ u n, (w.passWith hits eval reads M cap).board.vals[x]? = some (u, n) ∧ u = eval w.store x ∧
+      (w.passWith hits eval reads M cap).deps x = some (reads w.store x) :=
   (foldl_read eval reads w.store _ _ x).1 hx
 
-theorem pass_other {x : W} (hx : x ∉ pick w.wants (w.marked hits) cap) :
-    (w.pass hits eval reads cap).board.vals[x]? = (if w.wants.contains x then w.board.vals[x]? else none) ∧
-      (w.pass hits eval reads cap).deps x = w.kept x := by
+theorem pass_other {x : W} (hx : x ∉ pick w.wants M cap) :
+    (w.passWith hits eval reads M cap).board.vals[x]? = (if w.wants.contains x then w.board.vals[x]? else none) ∧
+      (w.passWith hits eval reads M cap).deps x = w.kept x := by
   obtain ⟨a, b⟩ := (foldl_read eval reads w.store _ (w.board.keep (w.wants.contains ·), w.noticed hits, w.kept) x).2.1 hx
   exact ⟨a.trans (kept_vals x), b⟩
 
-theorem pass_dirty : (w.pass hits eval reads cap).dirty =
-    (pick w.wants (w.marked hits) cap).foldl (·.erase ·) (w.marked hits) := rfl
+theorem pass_dirty : (w.passWith hits eval reads M cap).dirty =
+    (pick w.wants M cap).foldl (·.erase ·) M := rfl
 
-theorem pass_store : (w.pass hits eval reads cap).store = w.store := rfl
+theorem pass_store : (w.passWith hits eval reads M cap).store = w.store := rfl
 
 theorem marked_of {x : W} (hw : w.wants.contains x = true)
     (m : x ∈ w.dirty ∨ staleW (w.noticed hits) w.kept x = true) : x ∈ w.marked hits := by
@@ -364,11 +374,11 @@ theorem stale_of {x : W} (hw : w.wants.contains x = true)
 end
 
 /-- **Every step keeps the invariant: a pass.** -/
-theorem inv_pass {w : RWorld σ C W V Q} (h : Inv hits eval reads w) (cap : Nat) :
-    Inv hits eval reads (w.pass hits eval reads cap) := by
+theorem inv_passWith {w : RWorld σ C W V Q} (h : Inv hits eval reads w) (cap : Nat) {M : Std.HashSet W}
+    (hM : ∀ x, x ∈ w.marked hits → x ∈ M) : Inv hits eval reads (w.passWith hits eval reads M cap) := by
   obtain ⟨hj, hh, hseen⟩ := h
   refine ⟨fun x v n hx => ?_, fun x => ?_, seen_reads eval reads _ _ _ (Board.seen_keep hseen _)⟩
-  · by_cases hp : x ∈ pick w.wants (w.marked hits) cap
+  · by_cases hp : x ∈ pick w.wants M cap
     · obtain ⟨u, k, hu, e, hd⟩ := pass_picked hits eval reads hp
       rw [hu] at hx
       cases hx
@@ -377,9 +387,9 @@ theorem inv_pass {w : RWorld σ C W V Q} (h : Inv hits eval reads w) (cap : Nat)
       rw [a] at hx
       split at hx
       · rename_i hw
-        have toDirty : x ∈ w.marked hits → x ∈ (w.pass hits eval reads cap).dirty := fun m => by
+        have toDirty : x ∈ w.marked hits → x ∈ (w.passWith hits eval reads M cap).dirty := fun m => by
           rw [pass_dirty, mem_eraseAll]
-          exact ⟨m, hp⟩
+          exact ⟨hM x m, hp⟩
         rcases hj x v n hx with d | hit | st | ⟨e, hd⟩
         · exact Or.inl (toDirty (marked_of hits hw (Or.inl d)))
         · exact Or.inl (toDirty (marked_of hits hw (Or.inr (stale_of hits hw (Or.inl hit)))))
@@ -387,7 +397,7 @@ theorem inv_pass {w : RWorld σ C W V Q} (h : Inv hits eval reads w) (cap : Nat)
         · refine Or.inr (Or.inr (Or.inr ⟨e, ?_⟩))
           rw [b, kept_of hw]; exact hd
       · cases hx
-  · by_cases hp : x ∈ pick w.wants (w.marked hits) cap
+  · by_cases hp : x ∈ pick w.wants M cap
     · obtain ⟨u, k, hu, _, hd⟩ := pass_picked hits eval reads hp
       rw [hu, hd]; rfl
     · obtain ⟨a, b⟩ := pass_other hits eval reads hp
@@ -397,23 +407,28 @@ theorem inv_pass {w : RWorld σ C W V Q} (h : Inv hits eval reads w) (cap : Nat)
       · exact hh x
       · rfl
 
+theorem inv_pass {w : RWorld σ C W V Q} (h : Inv hits eval reads w) (cap : Nat) :
+    Inv hits eval reads (w.pass hits eval reads cap) := inv_passWith hits eval reads h cap fun _ m => m
+
 /-- **No missed update, as the reader runs**: a pass that reads every
-want it marks, then one frame, shows every want's value in the store. -/
-theorem settle {w : RWorld σ C W V Q} (h : Inv hits eval reads w) {cap : Nat}
-    (hcap : (w.wants.filter ((w.marked hits).contains ·)).length ≤ cap) {x : W} (hx : x ∈ w.wants) :
-    ((w.pass hits eval reads cap).frame).shown x = some (eval w.store x) := by
+want it marks (or any set holding them), then one frame, shows every
+want's value in the store. -/
+theorem settleWith {w : RWorld σ C W V Q} (h : Inv hits eval reads w) {cap : Nat} {M : Std.HashSet W}
+    (hM : ∀ x, x ∈ w.marked hits → x ∈ M)
+    (hcap : (w.wants.filter (M.contains ·)).length ≤ cap) {x : W} (hx : x ∈ w.wants) :
+    ((w.passWith hits eval reads M cap).frame).shown x = some (eval w.store x) := by
   obtain ⟨hj, hh, hseen⟩ := h
   have hw : w.wants.contains x = true := List.contains_iff_mem.2 hx
-  have hpick : pick w.wants (w.marked hits) cap = w.wants.filter ((w.marked hits).contains ·) := by
+  have hpick : pick w.wants M cap = w.wants.filter (M.contains ·) := by
     rw [pick_eq]; exact List.take_of_length_le hcap
-  have held : ∃ n, (w.pass hits eval reads cap).board.vals[x]? = some (eval w.store x, n) := by
-    by_cases hp : x ∈ pick w.wants (w.marked hits) cap
+  have held : ∃ n, (w.passWith hits eval reads M cap).board.vals[x]? = some (eval w.store x, n) := by
+    by_cases hp : x ∈ pick w.wants M cap
     · obtain ⟨u, k, hu, e, _⟩ := pass_picked hits eval reads hp
       exact ⟨k, by rw [hu, e]⟩
     · obtain ⟨a, _⟩ := pass_other hits eval reads hp
       rw [a, ite_eq_left hw]
       have notMarked : x ∉ w.marked hits := fun m => hp (by
-        rw [hpick]; exact List.mem_filter.2 ⟨hx, Std.HashSet.contains_iff_mem.2 m⟩)
+        rw [hpick]; exact List.mem_filter.2 ⟨hx, Std.HashSet.contains_iff_mem.2 (hM x m)⟩)
       cases hv : w.board.vals[x]? with
       | none =>
         exfalso
@@ -434,11 +449,16 @@ theorem settle {w : RWorld σ C W V Q} (h : Inv hits eval reads w) {cap : Nat}
         · exact absurd (marked_of hits hw (Or.inr (stale_of hits hw (Or.inr st)))) notMarked
         · rw [e]
   obtain ⟨n, hn⟩ := held
-  have hs := (inv_frame hits eval reads (inv_pass hits eval reads ⟨hj, hh, hseen⟩ cap)).2.2 x (eval w.store x) n
+  have hs := (inv_frame hits eval reads (inv_passWith hits eval reads ⟨hj, hh, hseen⟩ cap hM)).2.2 x (eval w.store x) n
   simp only [frame, Board.take] at hs
   rcases hs hn with m | s
   · simp at m
   · exact s
+
+theorem settle {w : RWorld σ C W V Q} (h : Inv hits eval reads w) {cap : Nat}
+    (hcap : (w.wants.filter ((w.marked hits).contains ·)).length ≤ cap) {x : W} (hx : x ∈ w.wants) :
+    ((w.pass hits eval reads cap).frame).shown x = some (eval w.store x) :=
+  settleWith hits eval reads h (fun _ m => m) hcap hx
 
 /-! ## The mutant: checking staleness while reading -/
 
