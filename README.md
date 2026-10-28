@@ -132,8 +132,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 808 rest on Lean's standard axioms
-only, and about half of its theorems (432 of 750, not counting 15 negative controls) are about the code that runs; another 69 run the
+that rests on; 🥊 is supporting. All 822 rest on Lean's standard axioms
+only, and about half of its theorems (439 of 764, not counting 15 negative controls) are about the code that runs; another 71 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -235,13 +235,13 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**432 of 750 laws are about running code;** another 69 run its node code in a World, and 249 are not yet. Stated only: 19 in `Engine.World`. 15 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**439 of 764 laws are about running code;** another 71 run its node code in a World, and 254 are not yet. Stated only: 19 in `Engine.World`. 15 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 85 | 47 |  | 38 |
 | Sync | 82 | 81 |  | 1 |
-| The n-node World | 235 | 75 | 62 | 98 |
+| The n-node World | 249 | 82 | 64 | 103 |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 35 | 19 | 7 | 9 |
 | Bootstrap | 11 | 0 |  | 11 |
@@ -255,8 +255,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Missing link | Laws | To make them real |
 |---|---|---|
 | `World.peer`, `Setup.sync`, `Who.other` +7 | 7 World laws; not yet: [`write_offers`], [`hold_wants`], [`Sync.want_sends`], [`Sync.op_taken`], [`write_offers_all`] | Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired. |
-| `World.step`, `Node.connect`, `Exec.world` +9 | 62 World laws; not yet: [`within_of`], [`step_ext`], [`finish_run`], [`onFrame_fold`], [`peek_plainFrame`], [`plainFrame_of_peek`]*, [`frameStep_ok`]*, [`frame_fold`]*, [`claim_step`]*, [`want_step`]*, [`op_step`]*, [`claim_wants`] +71 more | Real: each node is the running `Engine.Sync.Node`, its entry points run on a held store. Assumed: the network may deliver, duplicate, drop or delay anything, and an attacker inject what it can make (safety); the liveness laws take `Fair`, partial synchrony after `gst` (proposed, not yet approved). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake) for `Plain`'s, which makes these laws wired, and is the n-phone convergence target. |
-| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]† +96 more | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
+| `World.step`, `Node.connect`, `Exec.world` +9 | 64 World laws; not yet: [`within_of`], [`step_ext`], [`finish_run`], [`onFrame_fold`], [`peek_plainFrame`], [`plainFrame_of_peek`]*, [`frameStep_ok`]*, [`frame_fold`]*, [`claim_step`]*, [`want_step`]*, [`op_step`]*, [`claim_wants`] +76 more | Real: each node is the running `Engine.Sync.Node`, its entry points run on a held store. Assumed: the network may deliver, duplicate, drop or delay anything, and an attacker inject what it can make (safety); the liveness laws take `Fair`, partial synchrony after `gst` (proposed, not yet approved). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake) for `Plain`'s, which makes these laws wired, and is the n-phone convergence target. |
+| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]† +101 more | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
 | `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
@@ -283,7 +283,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 341 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Model.run`] | 350 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
 | [`World.Fair`] | 14 | Liveness in a World: after `gst`, partial synchrony (each packet to an online neighbour within Δ, ticks every τ, redials within ρ). Proposed: the user has not yet approved it. |
 | [`Engine.Inv`] | 46 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
