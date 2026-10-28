@@ -12,7 +12,7 @@ pixel of its UI, and checks proofs about all four.
 
 Lean is mostly used for mathematics, or to verify one part of a system.
 Here it is a whole, ordinary app, and about three quarters of its
-theorems (336 of 428) are about the code that runs on the phone; the
+theorems (348 of 439) are about the code that runs on the phone; the
 rest are over models, and moving them onto running code is a todo
 ([what is proven](#what-is-proven)). Native code only connects Lean to
 each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)), so in a
@@ -133,7 +133,7 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 428 rest on Lean's standard axioms
+that rests on; 🥊 is supporting. All 439 rest on Lean's standard axioms
 only.
 
 ### Security proofs
@@ -151,7 +151,7 @@ only.
 | ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A session sends only sync messages and ops of the rooms its peer is let into. A have for a room the peer may not see is ignored, so a peer cannot ask whether this node holds an op of another community, or a local op. Wants authorize ids against the shown rooms' index before any blob read. | [`recv_send`], [`hold_reply_local`], [`heldIn_index`], [`hold_reply_local_premises`], [`want_reads_authorized`], [`want_blind`], [`want_blind_step`] |
 | ✅ | 🥊🥊🥊 | **Secrets stay on the device.** No local op (a secret, a session key, a pending join) is ever offered or sent. Of a connection's ops, only the two handshake messages are not local. | [`offer_shared`], [`wire_kinds`], [`local_kinds`], [`joinOps_travels`], [`found_travels`], [`stopWaiting_local`] |
 | 🟡 | 🥊🥊 | **The stream discloses only what it may.** It offers only ids of stored, shared ops, never one still pending, and the clock sends only round messages, offers and retries of outstanding wants. Proven of the running code: what a filed write and a tick send. Not yet: that an offer names only stored ops is proven of a model of offering (`Engine.offer`). | [`filed_send`], [`offer_stored`], [`tick_send`] |
-| 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** A content key is wrapped only to a live admission's key: a wrap is Valid only to the key of the admission it cites, so none reaches a device before its admission, and no approval writes one. The running wrap writer reads `recipients` (exactly the live admissions, with their keys) and wraps to each that lacks one. A member holding its key's secret opens what was sealed to it. Not yet: the seal's secrecy from non-members, and key rotation (a removal leaves earlier wraps standing). | [`wrap_cites_admission`], [`wrap_only_admitted`], [`approveReq_ops`], [`recipients_iff`], [`shareKey_recipients`], [`shareKey_complete`], [`admitted_reads`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`check_reads_shared`] |
+| 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** A content key is wrapped only to a live admission's key: a wrap is Valid only to the key of the admission it cites, so none reaches a device before its admission, and no approval writes one. The running wrap writer reads `recipients` (exactly the live admissions, with their keys) and wraps to each that lacks one: the admission's completer at once, other holders after a grace, so one wrap per admission when the completer holds the key. A member holding its key's secret opens what was sealed to it. Not yet: the seal's secrecy from non-members, and key rotation (a removal leaves earlier wraps standing). | [`wrap_cites_admission`], [`wrap_only_admitted`], [`approveReq_ops`], [`recipients_iff`], [`shareKey_recipients`], [`shareKey_complete`], [`wraps_bounded`], [`admitted_reads`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`check_reads_shared`] |
 | ✅ | 🥊🥊🥊 | **Sessions are secret and authenticated,** in the symbolic model, over the handshake functions that run. An attacker who reads, replays and injects every message, and knows every key but the two devices' static keys and the session's ephemerals, derives neither transport key, and the initiator accepts only the reply the responder wrote to this request. Replays are accepted again; payloads are not covered. | [`kk_secret`], [`kk_secret_init`], [`kk_secret_resp`], [`kk_authentic`], [`kk_authentic_resp`], [`kk_secret_init_tight`], [`kk_runs`], [`handshake_agrees`] |
 | 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered,** from the disk or from the static keys later. Every way a session ends purges its keys, and a silent responder's session ends once its lease (90 s by default) passes. With the ephemerals gone, the transcript and both static keys do not give the transport keys (tested: no file of the database keeps a byte of them). Not yet: that `closing` names every ephemeral (`close_forgets`). | [`close_purges`], [`close_gone`], [`responder_expires`], [`live_not_expired`], [`tick_drop_iff`], [`round_not_dropped`], [`kk_forward_secret`], [`purge_named`] |
 | ⬜ | 🥊🥊🥊 | **Session secrets never reach the disk.** They would be ephemeral ops, held in memory, so forward secrecy would not rest on deletion. A restart then redials. | |
@@ -235,7 +235,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**336 of 428 laws are about running code;** 92 are not yet. Stated only: none.
+**348 of 439 laws are about running code;** 91 are not yet. Stated only: none.
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
@@ -245,7 +245,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Node and wire | 35 | 19 | 16 |
 | Bootstrap | 11 | 0 | 11 |
 | Connections | 30 | 27 | 3 |
-| Community | 140 | 129 | 11 |
+| Community | 151 | 141 | 10 |
 | QR codes | 10 | 10 |  |
 | Pictures | 13 | 0 | 13 |
 | Screen | 33 | 21 | 12 |
@@ -257,7 +257,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `World.peer`, `Setup.sync`, `Who.other` +8 | [`stream_delivers`]†, [`stream_delivers_steps`]†, [`stream_delivers_runs`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`stream_offered`]†, [`stream_offered_runs`]†, [`write_offers_all`], [`fanout_offers`], [`seal_mem`] | A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does. |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
 | `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
-| `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
+| `Community.members` | [`members_iff`] | Nothing that runs reads `members`: have the dialer read it, or restate `members_iff` over what it reads. |
 | `Scene.approval`, `Scene.K`, `Scene.S` +12 | [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`bootstrap_ideal`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`], [`allowPeer_settles`] | The bootstrap's model (ops/connection/bootstrap/): retired by `conn_runs_exchange`, `closure_delivered`, `answer_trusted` and `untrusted_silent` over the running code. |
 | restates `App.read` | [`read_one_moment`]† | Its two branches, inline. Todo: state it of `App.read`. |
 | `Seam.place`, `Geom.composerTop`, `Geom.viewNow` +5 | [`placed_row`]†, [`visible_in_viewport`]†, [`newest_visible`]†, [`newest_drawn`]†, [`pinned_row`]†, [`pinned_visible`]†, [`pinned_tap`]† | The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are. |
@@ -274,12 +274,12 @@ with `tests/wiring.txt` for what the code cannot say, and
 |---|---|---|
 | [`Unforgeable`] | 2 | An Ed25519 signature that verifies under a device key was made by that key's holder. |
 | [`CollisionFree`] | 20 | SHA-256 has no collision among the ops a node received. |
-| [`NoSecondPreimage`] | 14 | SHA-256 has no second preimage on a file's Merkle tree inputs. |
+| [`NoSecondPreimage`] | 15 | SHA-256 has no second preimage on a file's Merkle tree inputs. |
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
-| [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
+| [`Seal.Good`] | 5 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 144 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
-| [`Engine.Inv`] | 43 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
+| [`Model.run`] | 150 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Engine.Inv`] | 48 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
 
 ## What isn't Lean, and why
@@ -709,29 +709,29 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
 [`stream_delivers`]: engine/wire/WorldLaws.lean#L603-L635
 [`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
-[`Unforgeable`]: ops/community/Laws.lean#L270-L272
+[`Unforgeable`]: ops/community/Laws.lean#L300-L302
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
 [`Distinct`]: engine/core/Proofs.lean#L538-L540
 [`lbl_inj`]: ops/sync/Fp.lean#L264-L268
 [`NoSecondPreimage`]: ops/community/Merkle.lean#L144-L145
 [`assumptions_hold`]: ops/community/Merkle.lean#L681-L688
 [`Suite.Good`]: ops/connection/Noise.lean#L61-L65
-[`no_impersonation`]: ops/community/Laws.lean#L289-L302
-[`admission_needs_approval`]: ops/community/Laws.lean#L469-L477
-[`admission_approved`]: ops/community/Laws.lean#L388-L398
-[`request_invited`]: ops/community/Laws.lean#L352-L362
-[`removal_authorized`]: ops/community/Laws.lean#L517-L520
-[`admin_granted`]: ops/community/Laws.lean#L556-L557
-[`removed_stays`]: ops/community/Laws.lean#L563-L566
-[`valid_stays`]: ops/community/Laws.lean#L570-L574
-[`message_authorized`]: ops/community/Laws.lean#L255-L261
-[`approval_signed`]: ops/community/Laws.lean#L371-L381
-[`invitation_issued`]: ops/community/Laws.lean#L337-L343
-[`named_by_admin`]: ops/community/Laws.lean#L608-L610
-[`admission_consented`]: ops/community/Laws.lean#L274-L280
-[`admin_removal_stands`]: ops/community/Laws.lean#L528-L541
-[`mutual_removal`]: ops/community/Laws.lean#L549-L553
-[`removed_approver_admits`]: ops/community/Laws.lean#L488-L499
+[`no_impersonation`]: ops/community/Laws.lean#L319-L332
+[`admission_needs_approval`]: ops/community/Laws.lean#L499-L507
+[`admission_approved`]: ops/community/Laws.lean#L418-L428
+[`request_invited`]: ops/community/Laws.lean#L382-L392
+[`removal_authorized`]: ops/community/Laws.lean#L547-L550
+[`admin_granted`]: ops/community/Laws.lean#L586-L587
+[`removed_stays`]: ops/community/Laws.lean#L593-L596
+[`valid_stays`]: ops/community/Laws.lean#L600-L604
+[`message_authorized`]: ops/community/Laws.lean#L267-L273
+[`approval_signed`]: ops/community/Laws.lean#L401-L411
+[`invitation_issued`]: ops/community/Laws.lean#L367-L373
+[`named_by_admin`]: ops/community/Laws.lean#L638-L640
+[`admission_consented`]: ops/community/Laws.lean#L304-L310
+[`admin_removal_stands`]: ops/community/Laws.lean#L558-L571
+[`mutual_removal`]: ops/community/Laws.lean#L579-L583
+[`removed_approver_admits`]: ops/community/Laws.lean#L518-L529
 [`recv_send`]: ops/sync/ConnLaws.lean#L156-L158
 [`hold_reply_local`]: ops/sync/OfferLaws.lean#L663-L673
 [`heldIn_index`]: ops/sync/OfferLaws.lean#L686-L689
@@ -742,16 +742,22 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`offer_shared`]: engine/core/Sync.lean#L83-L86
 [`wire_kinds`]: ops/connection/Laws.lean#L48-L49
 [`local_kinds`]: ops/connection/Laws.lean#L55-L56
-[`joinOps_travels`]: ops/community/Intents.lean#L299-L303
-[`found_travels`]: ops/community/Intents.lean#L310-L314
-[`stopWaiting_local`]: ops/community/Intents.lean#L306-L307
+[`joinOps_travels`]: ops/community/Intents.lean#L344-L348
+[`found_travels`]: ops/community/Intents.lean#L355-L359
+[`stopWaiting_local`]: ops/community/Intents.lean#L351-L352
 [`filed_send`]: ops/sync/ConnLaws.lean#L185-L188
 [`offer_stored`]: engine/core/Sync.lean#L98-L101
 [`tick_send`]: ops/sync/ConnLaws.lean#L194-L197
-[`recipients_iff`]: ops/community/Connect.lean#L214-L218
-[`members_iff`]: ops/community/Connect.lean#L205-L208
-[`member_opens`]: ops/community/Laws.lean#L928-L932
-[`openSealed_seal`]: ops/community/Laws.lean#L918-L920
+[`wrap_cites_admission`]: ops/community/Laws.lean#L282-L291
+[`wrap_only_admitted`]: ops/community/Intents.lean#L607-L616
+[`approveReq_ops`]: ops/community/Intents.lean#L624-L629
+[`recipients_iff`]: ops/community/Connect.lean#L217-L224
+[`shareKey_recipients`]: ops/community/Intents.lean#L710-L721
+[`shareKey_complete`]: ops/community/Intents.lean#L733-L745
+[`wraps_bounded`]: ops/community/Intents.lean#L786-L806
+[`admitted_reads`]: ops/community/Intents.lean#L825-L843
+[`member_opens`]: ops/community/Laws.lean#L958-L962
+[`openSealed_seal`]: ops/community/Laws.lean#L948-L950
 [`unbox_box`]: ops/community/Keys.lean#L89-L91
 [`check_reads_shared`]: ops/community/Laws.lean#L869-L871
 [`kk_secret`]: ops/connection/NoiseSymbolic.lean#L595-L609
@@ -777,12 +783,12 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`cached_items`]: engine/wire/NodeLaws.lean#L271-L274
 [`write_snaps`]: ops/sync/OfferLaws.lean#L613-L616
 [`have_shown_premises`]: ops/sync/OfferLaws.lean#L705-L709
-[`connect_iff`]: ops/community/Connect.lean#L146-L150
-[`refuse_nonmember`]: ops/community/Connect.lean#L161-L164
-[`connect_approved`]: ops/community/Connect.lean#L182-L193
-[`connect_agree`]: ops/community/Connect.lean#L226-L229
-[`removal_cuts_off`]: ops/community/Connect.lean#L241-L245
-[`removals_iff`]: ops/community/Connect.lean#L43-L44
+[`connect_iff`]: ops/community/Connect.lean#L147-L151
+[`refuse_nonmember`]: ops/community/Connect.lean#L162-L165
+[`connect_approved`]: ops/community/Connect.lean#L183-L194
+[`connect_agree`]: ops/community/Connect.lean#L235-L238
+[`removal_cuts_off`]: ops/community/Connect.lean#L250-L254
+[`removals_iff`]: ops/community/Connect.lean#L44-L45
 [`rooms_trusted`]: ops/connection/RoomLaws.lean#L74-L79
 [`rooms_cut`]: ops/connection/RoomLaws.lean#L93-L103
 [`trusts_live`]: ops/connection/RoomLaws.lean#L40-L46
@@ -809,7 +815,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`verify_sound`]: ops/community/Merkle.lean#L433-L439
 [`complete_assembles`]: ops/community/Merkle.lean#L480-L486
 [`chunk_unique`]: ops/community/Laws.lean#L793-L799
-[`progress_exact`]: ops/community/Intents.lean#L880-L889
+[`progress_exact`]: ops/community/Intents.lean#L936-L945
 [`no_injective_hash`]: ops/community/Merkle.lean#L243-L245
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
@@ -851,7 +857,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`approve_valid`]: ops/community/Laws.lean#L455-L463
 [`admit_admits`]: ops/community/Laws.lean#L471-L482
 [`connect_admitted`]: ops/community/Connect.lean#L170-L180
-[`removeMember_valid`]: ops/community/Intents.lean#L517-L524
+[`removeMember_valid`]: ops/community/Intents.lean#L529-L536
 [`exchange_complete`]: ops/sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: ops/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: ops/sync/Fp.lean#L37-L37
@@ -881,7 +887,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`no_replace`]: ops/app/Remove.lean#L74-L76
 [`offered_only`]: ops/app/Remove.lean#L83-L86
 [`present_iff`]: ops/app/PeopleLaws.lean#L27-L30
-[`present_nodup`]: ops/app/PeopleLaws.lean#L37-L38
+[`present_nodup`]: ops/app/PeopleLaws.lean#L43-L44
 [`read_one_moment`]: engine/renderer/LiveLaws.lean#L227-L232
 [`answer_agrees`]: engine/renderer/LiveLaws.lean#L73-L75
 [`agrees_store`]: engine/renderer/LiveLaws.lean#L84-L87
@@ -907,8 +913,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`digits_keep_order`]: engine/renderer/TextLaws.lean#L109-L116
 [`message_read`]: ops/community/message/ViewLaws.lean#L62-L67
 [`profile_read`]: ops/community/message/ViewLaws.lean#L40-L42
-[`profile_authorized`]: ops/community/Laws.lean#L307-L314
-[`no_renaming`]: ops/community/Laws.lean#L321-L332
+[`profile_authorized`]: ops/community/Laws.lean#L337-L344
+[`no_renaming`]: ops/community/Laws.lean#L351-L362
 [`name_placed`]: ops/community/reaction/RowLaws.lean#L89-L92
 [`oneLine_prefix`]: engine/renderer/TextLaws.lean#L97-L98
 [`controls_neutral`]: engine/renderer/TextLaws.lean#L153-L157
@@ -922,15 +928,15 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
-[`readable_held`]: ops/community/Intents.lean#L407-L419
-[`readable_complete`]: ops/community/Intents.lean#L447-L457
+[`readable_held`]: ops/community/Intents.lean#L452-L464
+[`readable_complete`]: ops/community/Intents.lean#L492-L502
 [`switcherOrder_sound`]: ops/app/Pages.lean#L674-L676
 [`switcherOrder_complete`]: ops/app/Pages.lean#L681-L683
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L931-L935
-[`pageIn_acc`]: App.lean#L937-L940
+[`drawPage_key`]: App.lean#L940-L944
+[`pageIn_acc`]: App.lean#L946-L949
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
@@ -967,6 +973,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`allowPeer_settles`]: ops/connection/bootstrap/Bridge.lean#L35-L39
 [`fanout_offers`]: engine/wire/WorldLaws.lean#L1017-L1023
 [`seal_mem`]: engine/wire/WorldLaws.lean#L1129-L1133
+[`members_iff`]: ops/community/Connect.lean#L206-L209
 [`admitted_inv`]: ops/connection/bootstrap/Scene.lean#L154-L156
 [`allowedA`]: ops/connection/bootstrap/Scene.lean#L219-L219
 [`allowedB`]: ops/connection/bootstrap/Scene.lean#L231-L233
@@ -984,7 +991,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`lit_full`]: ops/community/attachment/ArrivalLaws.lean#L94-L95
 [`lit_clockwise`]: ops/community/attachment/ArrivalLaws.lean#L101-L106
 [`ring_counts`]: ops/community/attachment/ArrivalLaws.lean#L275-L278
-[`nodup_full`]: ops/community/Intents.lean#L578-L580
+[`nodup_full`]: ops/community/Intents.lean#L896-L898
 [`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
 [`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939
 [`Seal.Good`]: ops/community/Keys.lean#L40-L43
