@@ -648,6 +648,8 @@ void ANativeActivity_onCreate(ANativeActivity* act, void* saved, size_t n) {
     ba_spawn(ba_log, (void*)(intptr_t)fds[0], 64 << 10);
   }
   ba_files(act);
+#ifdef LQ_CTL
   lq_ctl_start();
+#endif
   ba_spawn(ba_run, NULL, 256 << 20);
 }

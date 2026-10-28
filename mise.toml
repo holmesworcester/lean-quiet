@@ -149,3 +149,8 @@ run = "platforms/ios/ship.sh e2e-device"
 [tasks."mdns:e2e"]
 description = "Real multicast on this machine's network: Lean to Lean, Lean to avahi, avahi to Lean (needs avahi-daemon + avahi-utils); logs in out/mdns-e2e"
 run = "tests/mdns/e2e.sh"
+
+[tasks."android:ctl-guard"]
+description = "Who can drive the app's control channel, on your own emulator (SERIAL, default emulator-5644): adb is answered, another app's uid is refused, a RELEASE=1 build does not listen"
+depends = ["android:apk"]
+run = "platforms/android/test/ctl_guard.sh ${SERIAL:-emulator-5644}"
