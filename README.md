@@ -196,7 +196,7 @@ nothing else is assumed:
 | ⬜ | 🥊🥊 | **Display order** (design in `engine/docs/SYNC.md`). Devices with the same ops order messages alike, except a saturated tail, which follows receipt order. | |
 | | | **Codes, pictures and discovery** | |
 | ✅ | 🥊🥊 | **What the encoders write reads back.** This holds for QR segments and codewords, invite links and mDNS packets. QR error correction is sound, and format and version readings tolerate their designed bit errors. | [`parse_segsBits`], [`parse_dataStream`], [`RS.correct_sound`], [`RS.correct_clean`], [`decodeFormat_correct`], [`decodeVersion_correct`], [`parse_text`], [`Base62.decode_encode`], [`Mdns.decode_encode`], [`decode_roundtrip`] |
-| ✅ | 🥊 | **Pictures render whole:** scaled and composited pictures are well-formed and opaque, and the tray's layout fits. | [`render_wellFormed`], [`render_opaque`], [`scale_wellFormed`], [`fit_round`], [`layout_inside`], [`layout_apart`] |
+| ✅ | 🥊 | **Pictures render whole:** scaled and composited pictures are well-formed and opaque, and the tray's layout fits. | [`render_wellFormed`], [`render_opaque`], [`scale_wellFormed`], [`fit_round`], [`Pic.layout_inside`], [`layout_apart`] |
 
 The theorems not listed here are lemmas. Each part's axiom audit lists
 them all: `tests/Axioms.lean` or `tests/axioms.lean`.
@@ -420,5 +420,6 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`render_opaque`]: qr/Pic/Laws.lean#L222-L226
 [`scale_wellFormed`]: qr/Pic/Laws.lean#L236-L236
 [`fit_round`]: qr/Pic/Laws.lean#L87-L90
+[`Pic.layout_inside`]: qr/Pic/Laws.lean#L170-L172
 [`layout_apart`]: qr/Pic/Laws.lean#L147-L148
 <!-- /proof-links -->
