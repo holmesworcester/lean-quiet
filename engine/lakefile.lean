@@ -1,14 +1,9 @@
 import Lake
 open Lake DSL System
 
-/-- The engine's crypto, libquiet's pure-Rust crates behind a C ABI
-(native/crypto), built by `cargo build --release` in that directory
-(tests/check.sh and tests/run.sh do it first). -/
-def lqCrypto : System.FilePath := __dir__ / "native" / "crypto" / "target" / "release" / "liblq_crypto.a"
-
 package engine where
   moreLinkArgs := #["-Wl,--allow-shlib-undefined", "/usr/lib/x86_64-linux-gnu/libsqlite3.so.0",
-    lqCrypto.toString, "-lpthread", "-ldl", "-lm", "-lrt"]
+    "-lpthread", "-ldl", "-lm", "-lrt"]
 
 lean_lib Engine
 lean_lib Community
@@ -25,6 +20,13 @@ target crypto.o pkg : FilePath := do
   let srcJob ← inputTextFile <| pkg.dir / "native" / "crypto.c"
   let weakArgs := #["-I", (← getLeanIncludeDir).toString]
   buildO oFile srcJob weakArgs #["-fPIC", "-O2"] "cc"
+
+/-- The engine's crypto, libquiet's pure-Rust crates behind a C ABI
+(native/crypto), built by `cargo build --release` in that directory
+(tests/check.sh and tests/run.sh do it first). An extern lib, so every
+package that requires the engine links it too. -/
+extern_lib lqcrypto pkg :=
+  inputBinFile <| pkg.dir / "native" / "crypto" / "target" / "release" / "liblq_crypto.a"
 
 extern_lib libglue pkg := do
   let o ← fetch <| pkg.target ``glue.o
