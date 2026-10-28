@@ -33,6 +33,7 @@ engine's model, so the same code runs in proofs by induction over a
 world of nodes.
 -/
 import Connection.Family
+import Connection.Frame
 import Engine.Sync.Node
 
 namespace Connection
@@ -176,6 +177,20 @@ def sessionKeys (cid : Id) : m (Option (B × B)) := do
   return (← rows established.byConn [cid]).findSome? fun (_, f) => match f with
     | .established _ _ _ _ s r _ => some (s, r)
     | _ => none
+
+/-- These bytes sealed for session cid, with a fresh nonce; none
+without the session's keys. -/
+def sealFor (K : Keys) (cid : Id) (p : B) : m (Option B) := do
+  let some (sk, _) ← sessionKeys cid | return none
+  let n := (← Fresh.fresh).extract 0 24
+  return some (Frame.seal K cid sk n p)
+
+/-- A sealed frame's session and bytes, if it opens under that
+session's receive key. -/
+def openFrame (K : Keys) (b : B) : m (Option (Id × B)) := do
+  let some cid := Frame.cid b | return none
+  let some (_, rk) ← sessionKeys cid | return none
+  return Frame.open K rk b
 
 def outbox : m (List (Id × Route × B)) := do
   return (← rows send.all []).filterMap fun (x, f) => match f with

@@ -278,6 +278,9 @@ end
 @[extern "le_ed_sk_to_x"] opaque staticOf (edSk : @& ByteArray) : ByteArray
 /-- A device's X25519 static key, from its Ed25519 key; empty if not a point. -/
 @[extern "le_ed_pk_to_x"] opaque staticPubOf (edPk : @& ByteArray) : ByteArray
+/-- XChaCha20-Poly1305: key, 24-byte nonce, associated data, plaintext. -/
+@[extern "le_xchacha_seal"] opaque xchachaSeal (k n ad p : @& ByteArray) : ByteArray
+@[extern "le_xchacha_open"] opaque xchachaOpen (k n ad c : @& ByteArray) : Option ByteArray
 /-- Random bytes from the OS. -/
 @[extern "le_random"] opaque randomBytes (n : UInt32) : IO ByteArray
 

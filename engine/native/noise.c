@@ -111,3 +111,40 @@ LEAN_EXPORT lean_obj_res le_random(uint32_t n, lean_obj_arg w) {
   randombytes_buf(lean_sarray_cptr(r), n);
   return lean_io_result_mk_ok(r);
 }
+
+// ---- XChaCha20-Poly1305 for session frames (a 24-byte random nonce) ----------
+int crypto_aead_xchacha20poly1305_ietf_encrypt(unsigned char* c, unsigned long long* clen,
+    const unsigned char* m, unsigned long long mlen, const unsigned char* ad,
+    unsigned long long adlen, const unsigned char* nsec, const unsigned char* npub,
+    const unsigned char* k);
+int crypto_aead_xchacha20poly1305_ietf_decrypt(unsigned char* m, unsigned long long* mlen,
+    unsigned char* nsec, const unsigned char* c, unsigned long long clen,
+    const unsigned char* ad, unsigned long long adlen, const unsigned char* npub,
+    const unsigned char* k);
+
+// key (32), nonce (24), ad, plaintext -> ciphertext; empty bytes if a size is wrong.
+LEAN_EXPORT lean_obj_res le_xchacha_seal(b_lean_obj_arg k, b_lean_obj_arg n, b_lean_obj_arg ad,
+    b_lean_obj_arg p) {
+  if (lean_sarray_size(k) != 32 || lean_sarray_size(n) != 24) return bytes(NULL, 0);
+  size_t m = lean_sarray_size(p);
+  lean_object* r = lean_alloc_sarray(1, m + 16, m + 16);
+  unsigned long long clen;
+  crypto_aead_xchacha20poly1305_ietf_encrypt(lean_sarray_cptr(r), &clen, lean_sarray_cptr(p), m,
+      lean_sarray_cptr(ad), lean_sarray_size(ad), NULL, lean_sarray_cptr(n), lean_sarray_cptr(k));
+  return r;
+}
+
+LEAN_EXPORT lean_obj_res le_xchacha_open(b_lean_obj_arg k, b_lean_obj_arg n, b_lean_obj_arg ad,
+    b_lean_obj_arg c) {
+  size_t m = lean_sarray_size(c);
+  if (m < 16 || lean_sarray_size(k) != 32 || lean_sarray_size(n) != 24) return lean_box(0);
+  lean_object* r = lean_alloc_sarray(1, m - 16, m - 16);
+  unsigned long long plen;
+  if (crypto_aead_xchacha20poly1305_ietf_decrypt(lean_sarray_cptr(r), &plen, NULL,
+          lean_sarray_cptr(c), m, lean_sarray_cptr(ad), lean_sarray_size(ad), lean_sarray_cptr(n),
+          lean_sarray_cptr(k)) != 0) {
+    lean_dec_ref(r);
+    return lean_box(0);
+  }
+  return some(r);
+}

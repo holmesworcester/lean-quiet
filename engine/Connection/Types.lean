@@ -24,17 +24,24 @@ structure Keys where
   xPub : B → B
   /-- The X25519 secret of a device seed. -/
   xSec : B → B
+  /-- The frames' AEAD (XChaCha20-Poly1305): key, 24-byte nonce,
+  associated data, plaintext. -/
+  fenc : B → B → B → B → B
+  fdec : B → B → B → B → Option B
 
 /-- What the laws assume of the conversion: a seed's X25519 secret has
 the X25519 key of the seed's device key. -/
 def Keys.Good (K : Keys) (edPub : B → B) : Prop :=
-  K.suite.Good ∧ ∀ seed, K.xPub (edPub seed) = K.suite.pub (K.xSec seed)
+  K.suite.Good ∧ (∀ seed, K.xPub (edPub seed) = K.suite.pub (K.xSec seed)) ∧
+    ∀ k n ad p, K.fdec k n ad (K.fenc k n ad p) = some p
 
 /-- libsodium's. -/
 def sodium : Keys where
   suite := Noise.suite
   xPub := Noise.staticPubOf
   xSec seed := Noise.staticOf (Community.Device.ofSeed seed).sk
+  fenc := Noise.xchachaSeal
+  fdec := Noise.xchachaOpen
 
 /-- The prologue both ends mix in. -/
 def prologue : B := "quiet connection v1".toUTF8

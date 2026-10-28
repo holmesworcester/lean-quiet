@@ -83,3 +83,5 @@ open Engine Community
 #print axioms Connection.local_kinds
 #print axioms Engine.sum_left
 #print axioms Engine.sum_scope_left
+#print axioms Connection.open_seal
+#print axioms Connection.cid_seal

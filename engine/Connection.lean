@@ -9,5 +9,6 @@ import Connection.Recv
 import Connection.Seen
 import Connection.Settled
 import Connection.Family
+import Connection.Frame
 import Connection.Intents
 import Connection.Laws

@@ -11,6 +11,7 @@ of its secret.
 -/
 import Tests.Lib
 import Connection.Noise
+import Connection.Frame
 
 open Engine Community Tests Connection.Noise
 
@@ -97,4 +98,23 @@ def main : IO UInt32 := do
   let r1 ← randomBytes 32
   let r2 ← randomBytes 32
   t.ok "random ephemerals are 32 bytes and differ" (r1.size == 32 && r2.size == 32 && r1 != r2)
+  -- Session frames (XChaCha20-Poly1305, connection id in the header and
+  -- the associated data, random nonce).
+  let K := Connection.sodium
+  let cid := sha256 "connection".toUTF8
+  let cid2 := sha256 "other connection".toUTF8
+  let k := sha256 "send key".toUTF8
+  let n ← randomBytes 24
+  let body := "a sync message, and some ops".toUTF8
+  let fr := Connection.Frame.seal K cid k n body
+  t.ok "a frame names its connection" (Connection.Frame.cid fr == some cid)
+  t.ok "a frame opens under its key" (Connection.Frame.open K k fr == some (cid, body))
+  t.ok "a frame never opens under another key" ((Connection.Frame.open K (sha256 "x".toUTF8) fr).isNone)
+  let moved := Connection.Frame.seal K cid2 k n body
+  let spliced := (moved.extract 0 33) ++ fr.extract 33 fr.size
+  t.ok "a frame moved to another connection's header never opens" ((Connection.Frame.open K k spliced).isNone)
+  let bad := (List.range fr.size).filter (· % 5 == 0) |>.all fun i => (Connection.Frame.open K k (flipBit fr i)).isNone
+  t.ok "every tampered frame is refused" bad
+  let n2 ← randomBytes 24
+  t.ok "two seals of the same bytes differ" (Connection.Frame.seal K cid k n2 body != fr)
   t.finish "noise_check"
