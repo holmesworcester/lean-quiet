@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A Lean app as a NativeActivity (libleanapp.so) with a small Java half
+     (LeanActivity: insets and the keyboard's text). Lean's runtime does not
+     keep arm64's heap pointer tags, so tagging is off. The window draws
+     behind the system bars (setDecorFitsSystemWindows(false)), so the
+     keyboard never resizes it: the app follows the keyboard's insets. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="@PACKAGE@" android:versionCode="1" android:versionName="0.1">
+  <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="35" />
+  <!-- the node: TCP to and from peers, and this device's LAN addresses
+       (the invite's dial hints; without it the address read is empty) -->
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+  <!-- Join with QR code -->
+  <uses-permission android:name="android.permission.CAMERA" />
+  <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+  <application android:label="@LABEL@" android:hasCode="true"
+      android:extractNativeLibs="true"
+      android:allowNativeHeapPointerTagging="false">
+    <activity android:name="com.holmes.leanquiet.LeanActivity" android:exported="true"
+        android:screenOrientation="portrait"
+        android:theme="@android:style/Theme.Material.NoActionBar"
+        android:windowSoftInputMode="adjustResize|stateHidden"
+        android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|uiMode|density|smallestScreenSize">
+      <meta-data android:name="android.app.lib_name" android:value="leanapp" />
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>

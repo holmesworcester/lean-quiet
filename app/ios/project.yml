@@ -1,0 +1,103 @@
+# The iOS app and its UI test, for xcodegen (build_ios.sh generates the
+# project here; nothing generated is committed). The app is quiet_ios.m
+# and ctl_ios.c linked with the app's Lean, lean-engine's and Std's C, the
+# SQLite glue (libleanapp.a), the engine's Rust crypto (liblq_crypto.a),
+# and Lean's runtime, Init and libuv
+# for iOS, from $LEANQUIET_LIBS; the assets ship as assets/ in the bundle.
+# The UI test (UITests/) drives the app in the Simulator: real touches and
+# the software keyboard, checked through the control channel. NetProbe
+# (probe/) is the network probe, NetProbe.lean's C in libleanprobe.a.
+#
+# Both apps declare the local network (iOS asks the user once, at the
+# first packet to the LAN) and the Bonjour type they announce and browse.
+name: LeanQuiet
+options:
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  LeanQuiet:
+    type: application
+    platform: iOS
+    sources:
+      - path: quiet_ios.m
+      - path: ctl_ios.c
+      - path: ${LEANQUIET_ST}/assets
+        type: folder
+        buildPhase: resources
+    info:
+      path: LeanQuiet-Info.plist
+      properties:
+        NSLocalNetworkUsageDescription: Lean Quiet finds and talks to the devices of your community on this network.
+        NSBonjourServices: [_leanquiet._udp, _leanquiet._tcp]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: local.leanquiet.app
+        PRODUCT_NAME: LeanQuiet
+        DEVELOPMENT_TEAM: CTYKSWN9T4
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Lean Quiet
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
+        INFOPLIST_KEY_UIFileSharingEnabled: YES
+        CLANG_ENABLE_OBJC_ARC: YES
+        HEADER_SEARCH_PATHS: ${LEANQUIET_ST}/lean/include
+        LIBRARY_SEARCH_PATHS: ${LEANQUIET_LIBS}
+        OTHER_LDFLAGS: -lleanapp -llq_crypto -lInit -lleanrt -luv -lc++
+        GCC_OPTIMIZATION_LEVEL: 3
+        TARGETED_DEVICE_FAMILY: 1
+  NetProbe:
+    type: application
+    platform: iOS
+    sources:
+      - path: probe/probe_ios.m
+      - path: probe/dnssd.c
+    info:
+      path: NetProbe-Info.plist
+      properties:
+        NSLocalNetworkUsageDescription: The probe tests mDNS and TCP on this network for Lean Quiet.
+        NSBonjourServices: [_leanquiet._udp, _leanquiet._tcp]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: local.leanquiet.netprobe
+        PRODUCT_NAME: NetProbe
+        DEVELOPMENT_TEAM: CTYKSWN9T4
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: NetProbe
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        CLANG_ENABLE_OBJC_ARC: YES
+        HEADER_SEARCH_PATHS: ${LEANQUIET_ST}/lean/include
+        LIBRARY_SEARCH_PATHS: ${LEANQUIET_LIBS}
+        OTHER_LDFLAGS: -lleanprobe -lInit -lleanrt -luv -lc++
+        TARGETED_DEVICE_FAMILY: 1
+  LeanQuietUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: LeanQuiet
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: local.leanquiet.uitests
+        TEST_TARGET_NAME: LeanQuiet
+        DEVELOPMENT_TEAM: CTYKSWN9T4
+        GENERATE_INFOPLIST_FILE: YES
+        CLANG_ENABLE_OBJC_ARC: YES
+        TARGETED_DEVICE_FAMILY: 1
+schemes:
+  LeanQuiet:
+    build:
+      targets:
+        LeanQuiet: all
+        LeanQuietUITests: [test]
+    test:
+      config: Release
+      targets:
+        - LeanQuietUITests
+  NetProbe:
+    build:
+      targets:
+        NetProbe: all

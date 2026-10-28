@@ -1,0 +1,63 @@
+name: ci
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  host:
+    runs-on: ubuntu-24.04
+    env:
+      ELAN_HOME: /home/runner/.elan
+      TMPDIR: /tmp
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: lean-quiet }
+      # the lakefile's sibling packages, at the paths it requires: the
+      # engine at the commit the app pins (lean-engine `connection`), lean-qr
+      - uses: actions/checkout@v4
+        with: { repository: "${{ github.repository_owner }}/lean-engine", ref: 13da46d, path: lean-engine-quiet }
+      - uses: actions/checkout@v4
+        with: { repository: "${{ github.repository_owner }}/lean-qr", path: lean-qr }
+      - run: sudo apt-get install -y libsqlite3-dev python3-pil
+      # the engine's crypto: a Rust library (native/crypto), built for the host
+      - run: cargo build --release
+        working-directory: lean-engine-quiet/native/crypto
+        env: { CARGO_TARGET_DIR: target }
+      - run: curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+      - uses: jdx/mise-action@v2
+        with: { working_directory: lean-quiet }
+      - run: mise run host:twin-demo
+        working-directory: lean-quiet
+      - run: mise run host:app
+        working-directory: lean-quiet
+      - run: mise run host:two-nodes
+        working-directory: lean-quiet
+      # the join over real TCP on loopback: two apps, each its own node
+      - run: mise run host:net-join
+        working-directory: lean-quiet
+      - run: mise run check
+        working-directory: lean-quiet
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: host, path: "lean-quiet/out/host-twin\nlean-quiet/out/host\nlean-quiet/out/two\nlean-quiet/out/net" }
+  # The emulator suite needs a provisioned machine (KVM, the Lean runtime
+  # for Android): run it by hand (workflow_dispatch) on a self-hosted
+  # runner labelled android.
+  android-e2e:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, android]
+    steps:
+      - uses: actions/checkout@v4
+      - run: mise run android:twin-demo-e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: android-e2e-twin, path: out/e2e-twin }
+  # The iOS Simulator suite needs a Mac with Xcode 26.3 over SSH (MAC; see
+  # ios/README.md) and the Mac's turn: run it by hand (workflow_dispatch)
+  # on a self-hosted runner labelled ios.
+  ios-sim-e2e:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, ios]
+    steps:
+      - uses: actions/checkout@v4
+      - run: mise run ios:sim-e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: ios-sim-e2e, path: out/ios-sim }
