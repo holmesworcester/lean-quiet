@@ -1176,11 +1176,11 @@ it, from this device's own receipt.
 [`bootstrap_ideal`]: ops/connection/bootstrap/Laws.lean#L423-L424
 [`bootstrap_possible`]: ops/connection/bootstrap/Laws.lean#L208-L218
 [`reachable_inv`]: ops/connection/bootstrap/Steps.lean#L222-L223
-[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1284-L1306
-[`stream_offered`]: engine/wire/WorldLaws.lean#L1230-L1242
+[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1337-L1359
+[`stream_offered`]: engine/wire/WorldLaws.lean#L1283-L1295
 [`stream_delivers`]: engine/wire/WorldLaws.lean#L641-L673
 [`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L678-L695
-[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1249-L1255
+[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1302-L1308
 [`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L725-L730
 [`write_first`]: engine/wire/LaneLaws.lean#L172-L175
 [`write_within`]: engine/wire/LaneLaws.lean#L194-L197
@@ -1192,7 +1192,7 @@ it, from this device's own receipt.
 [`credit_window`]: engine/wire/LaneLaws.lean#L217-L221
 [`lane_control`]: engine/wire/LaneLaws.lean#L229-L232
 [`lane_hot`]: engine/wire/LaneLaws.lean#L241-L245
-[`heat_hot`]: engine/wire/LaneLaws.lean#L252-L255
+[`write_hot`]: engine/wire/WorldLaws.lean#L1269-L1274
 [`visible_in_viewport`]: engine/renderer/Geometry.lean#L90-L95
 [`newest_visible`]: engine/renderer/Geometry.lean#L99-L105
 [`pinned_visible`]: engine/renderer/Geometry.lean#L147-L151
