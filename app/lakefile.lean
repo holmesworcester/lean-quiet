@@ -35,3 +35,7 @@ lean_exe host where
 -- The app itself on the headless twin: Main over host/host.c's script.
 lean_exe quiet_host where
   root := `Main
+
+-- Two apps joined by link, ops carried between them as sync would.
+lean_exe two_nodes where
+  root := `QTests.TwoNodes

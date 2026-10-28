@@ -140,6 +140,10 @@ structure St where
   comms : Array Chaos.Me := #[]
   /-- The current community: memory, not state. -/
   cur : Id := .empty
+  /-- The link pasted or scanned, while Agree & join is asked. -/
+  invite : Option Community.Invite := none
+  /-- This session's invite link per community (Add members). -/
+  links : List (Id × String) := []
   page : PageId := .chat
   backStack : List PageId := []
   /-- A page's one-line field (the keyboard's text while a page shows one). -/
@@ -189,7 +193,10 @@ def noticeLocal (keys : List ByteArray) : M Unit :=
 
 /-- A user action's write (an intent's ops, with their blobs): each op is
 judged in order against what is decided and the ops before it in the
-same write; if all are Valid they show at once, pending, and go to the
+same write. Valid ops show at once, pending. An op whose requirements are
+not all here yet (a join's request cites the community's ops, which come
+by sync) shows nothing and waits in the store, as the engine waits for
+any op. An Invalid op refuses the whole write. Otherwise the ops go to the
 writer as one job of this node's own. -/
 def writeAll (w : Community.Write) : M Bool := do
   let s ← get
@@ -205,8 +212,9 @@ def writeAll (w : Community.Write) : M Bool := do
     | some (.valid f) =>
       mine := mine.insert o.id (.valid f)
       pend := pend.push (⟨o, f, opKey o.id :: keys f⟩ : Pending)
-    | _ =>
-      IO.eprintln s!"write refused: an op's requirements are not all decided and valid"
+    | none => pure ()
+    | some .invalid =>
+      IO.eprintln s!"write refused: an op is Invalid"
       return false
   modify fun s => { s with out := s.out ++ pend }
   noticeLocal (pend.toList.flatMap (·.keys))
@@ -491,6 +499,13 @@ def hexShort (b : ByteArray) : String :=
 def openPage (p : PageId) : M Unit := do
   let s ← get
   if s.page == p then return
+  -- Add members issues this community's link once per session: an
+  -- invitation op of mine, and the link that carries its bearer secret
+  if p == .invite && !s.me.waiting && !(s.links.any (·.1 == s.me.c)) then
+    let bearer ← Chaos.freshSeed "bearer"
+    let (w, i) := Community.inviteTo s.me.c s.me.adm s.me.seed bearer []
+    if ← writeAll w then
+      modify fun s => { s with links := (s.me.c, i.text) :: s.links }
   s.io.scrollTo 0
   modify fun s => { s with backStack := s.page :: s.backStack, page := p, refusal := none, pageCache := "" }
 
@@ -568,9 +583,9 @@ def pageOf (s : St) : Pages.Page :=
   | .waiting => Pages.waiting f dm W h s.me.name
   | .requests => Pages.requests f dm W h ((s.asking.filter fun r => !s.hidden.contains r.id).map fun r =>
       r.row (s.admitting.contains r.id))
-  | .invite => Pages.invite f dm W h none "Invite links arrive with networking: the link codec is landing in the engine."
+  | .invite => Pages.invite f dm W h none ((s.links.find? (·.1 == s.me.c)).map (·.2) |>.getD "…")
   | .switcher => Pages.switcher f dm W h (s.comms.map fun m =>
-      ({ name := m.name, unread := 0, current := m.c == s.me.c, waiting := false } : Pages.Entry))
+      ({ name := m.name, unread := 0, current := m.c == s.me.c, waiting := m.waiting } : Pages.Entry))
   | .chat => ⟨Bitmap.blank W h s.bgRow, #[]⟩
 
 def pageTitle : PageId → String × Bool
@@ -608,11 +623,27 @@ def onPageAct (a : Pages.Act) : M Unit := do
         modify fun s => { s with field := "" }
         found n
     | .paste =>
-      modify fun s => { s with refusal := some "Joining by link needs the invite link codec, which is landing in the engine next.", pageCache := "" }
+      match Community.Invite.parse s.field with
+      | some i =>
+        s.io.ime false
+        modify fun s => { s with invite := some i }
+        openPage .agree
+      | none =>
+        modify fun s => { s with refusal := some "That isn't a Quiet invite link. Check that you copied all of it.", pageCache := "" }
     | _ => pure ()
-  | .agree => pure ()
+  | .agree =>
+    -- join: a device of its own for this community, the request the link
+    -- asks for, and this device's accept and joining facts, as one write
+    if let some i := s.invite then
+      let seed ← Chaos.freshSeed "join"
+      if ← writeAll (Community.join i seed) then
+        s.io.textClear
+        modify fun s => { s with invite := none, field := "", backStack := [] }
+        refreshComms
+        switchToId i.community
   | .addMembers => openPage .invite
-  | .share | .copy => s.io.copy "quiet://join/…"
+  | .share | .copy =>
+    if let some (_, l) := s.links.find? (·.1 == s.me.c) then s.io.copy l
   | .approve i =>
     let shown := s.asking.filter fun r => !s.hidden.contains r.id
     if let some r := shown[i]? then approveReq r.id
@@ -1030,11 +1061,18 @@ def step (evs : List Event) : M (Option (List Event)) := do
   -- join requests for the current community, and admissions they complete
   refreshComms
   refreshAsking
+  -- a community this device waits to join shows Waiting in place of its
+  -- conversation (read: no admission for my device there)
+  let s ← get
+  if s.page == .chat && s.me.waiting && !s.me.c.isEmpty then
+    modify fun s => { s with page := .waiting, pageCache := "" }
+  if s.page == .waiting && !s.me.waiting then
+    modify fun s => { s with page := .chat, pageCache := "" }
   -- a page instead of the conversation: its bar, its content in the list
   -- layer (which does not scroll on a page), a one-row composer layer
   let s ← get
   if s.page != .chat then
-    let key := s!"{repr s.page}|{s.W}|{s.Hs}|{s.insetTop}|{s.insetBot}|{s.field}|{s.refusal}|{s.comms.size}|{s.asking.size}|{s.hidden.length}|{s.admitting.length}|{s.me.c.size}"
+    let key := s!"{repr s.page}|{s.W}|{s.Hs}|{s.insetTop}|{s.insetBot}|{s.field}|{s.refusal}|{s.comms.size}|{s.asking.size}|{s.hidden.length}|{s.admitting.length}|{s.me.name}|{s.links.length}|{(s.comms.map (·.waiting)).toList}"
     if key != s.pageCache then
       let pg := pageOf s
       let (t, cross) := pageTitle s.page

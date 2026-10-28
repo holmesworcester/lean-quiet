@@ -27,3 +27,7 @@ run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; android/twin/build_apk.s
 [tasks.check]
 description = "The proof gate: the app's theorems (Geometry: list content never under the header, composer or keyboard) on standard axioms only"
 run = "tests/check.sh"
+
+[tasks."host:two-nodes"]
+description = "Two apps, each its own database, joined by link through their own pages: invite, paste, agree, the request carried, approve, admission carried, a message back"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build two_nodes && .lake/build/bin/two_nodes out/two"
