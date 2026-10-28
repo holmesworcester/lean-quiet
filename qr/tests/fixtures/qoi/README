@@ -1,0 +1,2 @@
+QOI blobs made by Pillow (an independent encoder), with the RGBA each
+must decode to: tests/Check.lean decodes them with Lean's decoder.
