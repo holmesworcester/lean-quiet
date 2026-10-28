@@ -194,3 +194,33 @@ yet.
 Two nodes reconcile with Merkle RBSR over claimed-time windows, stream
 new ops between rounds, and send requirement closures: design, laws and
 follow-ups in [docs/SYNC.md](docs/SYNC.md).
+
+## The connection family (skeleton: `connection` branch)
+
+Connecting is ops the engine judges, as in poc-17 and tiny (poc-13).
+The daemon only moves bytes. Everything else is engine code
+(Engine/Sync/Node.lean, Engine/Purge.lean, Engine/Families.lean) or op
+code (Connection/, one file per op type).
+
+- **Handshake.** Noise_KK_25519_ChaChaPoly_SHA256 (`Connection/Noise.lean`,
+  proven to agree and checked against cacophony's vector). Its two
+  messages are two conn-scope ops on the bare wire, `request` and
+  `connection`; the connection op's id is the connection id. A
+  joiner's request rides inside message 1, so it reaches the inviter
+  before any approval and opens nothing.
+- **Local ops carry the secrets.** `eph` holds an ephemeral secret.
+  `opened` is the responder's read of a request, citing this device's
+  `secret`. `established` is each side's session (hash, peer, keys),
+  re-derived by its validator. A close purges all three, which is what
+  makes the session forward secret.
+- **In and out.** Every op taken gets a `recv` (when it arrived, and
+  how). Everything goes out through `send` couriers, which the node
+  drains and purges. `seen` records addresses from mDNS, links and
+  arrivals. `settled` records a room's first sync on a connection.
+- **Reactions.** `react` (open, deliver, answer if trusted, establish)
+  and `dial` are views over lists that return ops; the node runs them
+  after every write and on every tick.
+
+Laws to prove are stated in `Connection/Laws.lean`, `Engine/Purge.lean`
+and `Engine/Families.lean`. The end-to-end tests are named and skipped
+in `Tests/ConnectionCheck.lean`.
