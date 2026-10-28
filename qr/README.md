@@ -263,8 +263,8 @@ Result on qr-harness-20261027 (API 36, x86_64, swiftshader, KVM): the
 camera delivers 1280×720 YUV frames; the virtual camera ends looking at
 the poster obliquely, with the dining table and a chair in front of its
 lower corner; Lean decodes the 200-byte invite (version 10, level M)
-within a few seconds of the camera arriving, correcting 29 to 58
-codewords a frame (of 13 per block, 65 in all). Decoding takes 260–450 ms
+within a few seconds of the camera arriving, correcting 28 to 58
+codewords a frame (of 13 per block, 65 in all) in three runs. Decoding takes 260–450 ms
 a 1280×720 frame on the emulator (no downscaling). The log line:
 
 ```

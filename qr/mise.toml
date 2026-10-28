@@ -13,7 +13,7 @@ run = "android/leanrt/build.sh \"${LEAN_SRC:-/mnt/storage/holmes-wt/lean-src/lea
 
 [tasks."android:apk"]
 description = "The camera harness APK (x86_64 for the emulator, arm64-v8a for phones)"
-run = "[ -f out/leanrt/x86_64/libInit.a ] || mise run android:runtime; lake build qr_tool && android/app/build_apk.sh out/leanqr.apk x86_64 arm64-v8a"
+run = "[ -f out/leanrt/x86_64/libInit.a ] || mise run android:runtime; \"$ELAN_HOME/bin/lake\" build qr_tool && android/app/build_apk.sh out/leanqr.apk x86_64 arm64-v8a"
 
 [tasks."android:e2e"]
 description = "On the harness's own emulator AVD (created if missing): Lean decodes the invite from the virtual-scene camera; logcat and a screenshot in out/e2e"
