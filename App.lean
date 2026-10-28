@@ -375,6 +375,14 @@ def chaosStep : M Unit := do
   (← get).wr.busy.modify (· - 1)
   (← get).io.log s!"chaos: {t.get.size} writes of {t.get.foldl (· + ·.ops.length) 0} ops"
 
+/-- n bytes of the OS's randomness (`randomBytes`: getrandom, through
+engine/native/crypto): the one door every secret, key and nonce the app
+makes goes through. Nothing derives one from the clock. -/
+def newBytes (n : UInt32) : IO ByteArray := Engine.Crypto.randomBytes n
+
+/-- A new secret seed: a device's, or an invitation's bearer secret. -/
+def newSeed : IO ByteArray := newBytes 32
+
 /-- Wall-clock minutes since the Unix epoch: the time a write claims. -/
 def nowMin : M Nat := do return (← (← get).io.wall).1
 
@@ -385,7 +393,7 @@ def sendText (text : String) : M Bool := do
   -- sealed under the community's current key, as the composer's send is
   let (k?, _) ← readView (Community.currentKey s.me.c) #[]
   let some k := k? | return false
-  let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k (← Engine.Crypto.randomBytes 24) t.toUTF8
+  let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k (← newBytes 24) t.toUTF8
     (← nowMin)) #[]
   writeAll w
 
@@ -676,7 +684,7 @@ def openPage (p : PageId) : M Unit := do
   -- Add members issues this community's link once per session: an
   -- invitation op of mine, and the link that carries its bearer secret
   if p == .invite && !s.me.waiting && !(s.links.any (·.1 == s.me.acc)) then
-    let bearer ← Chaos.freshSeed "bearer"
+    let bearer ← newSeed
     -- dial hints: this device's private LAN addresses (Link.hints)
     let (w, i) := Community.inviteTo s.me.c s.me.adm s.me.dev bearer (← listenHints)
     if ← writeAll w then
@@ -766,9 +774,9 @@ def acceptOf (w : Community.Write) : Option Id :=
 /-- Found a community named n: its root and my profile, and it becomes
 current. -/
 def found (n myName : String) : M Unit := do
-  let seed ← Chaos.freshSeed n
+  let seed ← newSeed
   let w := Community.found seed n.toUTF8 myName.toUTF8 (← nowMin)
-    (← Engine.Crypto.randomBytes 32) (← Engine.Crypto.randomBytes 32)
+    (← newBytes 32) (← newBytes 32)
   if ← writeAll w then
     if let some a := acceptOf w then
       refreshComms
@@ -889,7 +897,7 @@ def refreshAsking : M Unit := do
 def approveReq (r : Id) : M Unit := do
   -- a fresh ephemeral secret for the wrap of the community's key to the
   -- requester's device
-  let esk ← Engine.Crypto.randomBytes 32
+  let esk ← newBytes 32
   let s ← get
   -- the intent reads the request and its approvals: with mine, is the
   -- tally complete? then the admission goes in the same write
@@ -1050,7 +1058,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
     -- join: a device of its own for this community, the request the link
     -- asks for, and this device's accept and joining facts, as one write
     if let some i := s.invite then
-      let seed ← Chaos.freshSeed "join"
+      let seed ← newSeed
       -- the engine's join: nothing for a held community, the same request
       -- again for a stopped one, else a fresh join
       let (w, _) ← readView (Community.join i seed s.joinName.toUTF8) #[]
@@ -1124,9 +1132,9 @@ def sendNow : M Unit := do
   for (bytes, w, h, _) in s.chips.toList do
     files := files ++ [({ info := { name := "photo.qoi".toUTF8, kind := "image/qoi".toUTF8, w, h,
                                     preview := Chaos.preview bytes },
-                          bytes, key := ← Engine.Crypto.randomBytes 32, nonce := ← Engine.Crypto.randomBytes 24,
-                          metaNonce := ← Engine.Crypto.randomBytes 24 } : Community.NewFile)]
-  let nonce ← Engine.Crypto.randomBytes 24
+                          bytes, key := ← newBytes 32, nonce := ← newBytes 24,
+                          metaNonce := ← newBytes 24 } : Community.NewFile)]
+  let nonce ← newBytes 24
   let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files) #[]
   if ← writeAll w then
     s.io.textClear

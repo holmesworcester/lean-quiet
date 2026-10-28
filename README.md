@@ -18,7 +18,7 @@ There is something exhilarating about adding a proof where one would usually add
 
 <p align="center"><img src="docs/media/android-demo.webp" width="300" alt="Lean Quiet on Android: a message, Hebrew, Arabic and mixed scripts, a heart reaction, a photo, then flings through 1,000 messages"></p>
 
-<p align="center"><em>The status bar and keyboard are Android's, the rest is Lean Quiet.</em></p>
+<p align="center"><em>The status bar and keyboard are Android's, the rest is Lean. Scrolling is better in person.</em></p>
 
 ## What is proven
 
@@ -937,8 +937,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L942-L946
-[`pageIn_acc`]: App.lean#L948-L951
+[`drawPage_key`]: App.lean#L961-L965
+[`pageIn_acc`]: App.lean#L967-L970
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
