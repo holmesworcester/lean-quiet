@@ -14,7 +14,7 @@ removal is in its store (the engine's last notice delivers it):
   invite link of it, no pasted link to its community, and, if it was
   current, no composer text or photos (A4).
 -/
-import Quiet.App
+import App
 
 namespace RemovedLaws
 open Kinds.Accepted

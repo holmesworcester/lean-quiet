@@ -11,7 +11,7 @@ otherwise), and the socket is fair-lossy: a message sent at infinitely
 many steps is delivered at infinitely many steps. A sent message may be
 lost any finite number of times; resending is what overcomes it.
 -/
-import Net.Node
+import ops.connection.bootstrap.Node
 
 namespace Net
 open Engine Community

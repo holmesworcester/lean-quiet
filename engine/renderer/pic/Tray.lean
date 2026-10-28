@@ -6,8 +6,8 @@ and each thumbnail is its picture fitted into the tray's box); `render`
 paints the tray as opaque RGBA (`render_opaque`) for the native side to
 show as it is.
 -/
-import Pic.Fit
-import Pic.Thumb
+import engine.renderer.pic.Fit
+import engine.renderer.pic.Thumb
 
 namespace Pic
 

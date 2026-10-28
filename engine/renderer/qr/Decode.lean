@@ -12,7 +12,7 @@ capacity, segments that parse) is the answer; otherwise `none`.
 Total: no `partial`, no fuel, no unchecked index; the work is bounded by
 the frame's pixel count times a constant.
 -/
-import Qr.Detect
+import engine.renderer.qr.Detect
 
 namespace Qr
 

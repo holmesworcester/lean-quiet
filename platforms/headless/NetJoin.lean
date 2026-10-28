@@ -11,7 +11,7 @@ B, B's home shows the community, and B's post reaches A's conversation.
     net_join <outdir>
 -/
 import Quiet
-import QTests.Sim
+import platforms.headless.Sim
 
 open App Engine Community Data
 

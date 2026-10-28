@@ -12,8 +12,8 @@ and once every chunk is here the list itself, in index order, is what
 assembles the file. An attachment whose key this device lacks shows
 nothing yet.
 -/
-import Quiet.Row
-import Quiet.Data
+import engine.renderer.Row
+import engine.renderer.Data
 
 namespace Kinds.File
 open Engine Community Data

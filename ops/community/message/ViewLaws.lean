@@ -17,7 +17,7 @@ With Text's and Row's laws (the glyphs drawn are the text's, the name's
 logical prefix, the clock of the time, a pill per emoji with distinct
 reactors), that is message content from the store to the screen.
 -/
-import Quiet.Kinds.Message
+import ops.community.message.View
 
 namespace ViewLaws
 open Engine Community Data Kinds

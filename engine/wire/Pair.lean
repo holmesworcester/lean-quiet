@@ -6,7 +6,7 @@ is gone; a dropped session is reopened on both sides at once, as a
 redial with a new handshake would. Each side's store is SQLite (in
 memory or on disk).
 -/
-import Engine.Sync.Node
+import engine.wire.Node
 
 namespace Engine.Sync
 

@@ -6,8 +6,8 @@ every other op is local. It reads Community's facts as well as its
 own, for the device secret, so the node's one family is the two
 composed (`Engine.Family.sum`).
 -/
-import Connection.Recv
-import Engine.Families
+import ops.connection.Recv
+import engine.core.Families
 
 namespace Connection
 open Engine Codec

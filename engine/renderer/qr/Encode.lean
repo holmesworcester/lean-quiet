@@ -8,9 +8,9 @@ each gets its Reed–Solomon codewords, and the blocks are interleaved;
 the bits go into the matrix in the zigzag order, and the mask with the
 lowest penalty score is applied (or the one asked for).
 -/
-import Qr.Segment
-import Qr.RS
-import Qr.Matrix
+import engine.renderer.qr.Segment
+import engine.renderer.qr.RS
+import engine.renderer.qr.Matrix
 
 namespace Qr
 

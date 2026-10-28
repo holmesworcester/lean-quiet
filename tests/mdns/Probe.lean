@@ -1,4 +1,4 @@
-import Mdns
+import engine.wire.mdns.Mdns
 open Mdns
 def showName (n : Name) : String := ".".intercalate (n.map fun l => String.fromUTF8! ⟨l.toArray⟩)
 def main (args : List String) : IO Unit := do

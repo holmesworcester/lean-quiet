@@ -12,8 +12,8 @@ What sync may send and take, as the laws a networked node relies on.
 
 `offer` runs where `Store` does: on SQLite, and on the model for proofs.
 -/
-import Engine.Run
-import Engine.Proofs
+import engine.core.Run
+import engine.core.Proofs
 
 namespace Engine
 

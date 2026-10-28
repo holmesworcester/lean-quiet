@@ -15,7 +15,7 @@ defined by well-founded recursion on `(lim, size - pos)`, not with fuel or
 `partial`. A decoded name is also never longer than 255 wire bytes, so a
 packet cannot inflate into names larger than any real one.
 -/
-import Mdns.Wire
+import engine.wire.mdns.Wire
 
 namespace Mdns
 

@@ -5,8 +5,8 @@ row that nothing touches stays the one shared background row, so a
 bitmap of mostly background costs one row of memory, and the twin never
 copies a row it already holds.
 -/
-import Quiet.Font
-import Quiet.Text
+import engine.renderer.Font
+import engine.renderer.Text
 
 namespace Paint
 open Font Text

@@ -32,10 +32,10 @@ termination (the well-founded ones are `parse` and the segment readers),
 and every loop is a `for` over a finite range. tests/check.sh scans for
 the escape hatches and checks the laws' axioms.
 -/
-import Qr.SegLaws
-import Qr.Format
-import Qr.RS
-import Qr.Decode
+import engine.renderer.qr.SegLaws
+import engine.renderer.qr.Format
+import engine.renderer.qr.RS
+import engine.renderer.qr.Decode
 
 namespace Qr
 

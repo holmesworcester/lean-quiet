@@ -11,7 +11,7 @@ and the protocol's own handlers (Net.Node):
 - **Inevitable over a failing socket**: every fair run gets there and
   stays there.
 -/
-import Net.Steps
+import ops.connection.bootstrap.Steps
 
 namespace Net
 open Engine Community

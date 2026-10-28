@@ -34,7 +34,7 @@ the hypothesis, see `no_injective_hash`):
 - `complete_assembles`: verifying chunks for every index put together
   are the file.
 -/
-import Engine.Core
+import engine.core.Core
 
 namespace Community.Merkle
 open Engine

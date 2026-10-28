@@ -6,7 +6,7 @@ is judged by the engine with real Ed25519, and is approved and admitted.
 Every truncation, garbage text and 20,000 mutated links either parse to
 a valid invite or are refused.
 -/
-import Tests.Lib
+import tests.engine.Lib
 
 open Engine Community Tests
 

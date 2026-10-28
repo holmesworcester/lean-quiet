@@ -7,7 +7,7 @@ Line wrapping keeps the text and fits it, over the running code
   but spaces is lost, nothing is added or reordered;
 - `wrap_fits`: every line is at most the width, when every character is.
 -/
-import Quiet.Text
+import engine.renderer.Text
 
 namespace Text
 

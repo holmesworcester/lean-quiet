@@ -14,7 +14,7 @@ That the decoder ends on every input, compression pointers included, is
 not a theorem here but a fact Lean checks when it accepts `nameAt` (see
 Mdns.Decode).
 -/
-import Mdns.Decode
+import engine.wire.mdns.Decode
 
 namespace Mdns
 

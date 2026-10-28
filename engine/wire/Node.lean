@@ -36,8 +36,8 @@ frame came from (at first, the one its handshake ran on).
   handed out once and marked shipped.
 - Every id stored is reported (`stored`), so an app can re-read.
 -/
-import Engine.Sync.Conn
-import Engine.Sync.Held
+import ops.sync.Conn
+import engine.core.Held
 
 namespace Engine.Sync
 

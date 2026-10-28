@@ -7,7 +7,7 @@ are the keys of the lists it read: `admission.byDevice` and the
 `removal.byUser` of each user it names; or `admission.all` with the same
 removals. The laws are in Connect.lean.
 -/
-import Community.Facts
+import ops.community.Facts
 
 namespace Community
 open Engine

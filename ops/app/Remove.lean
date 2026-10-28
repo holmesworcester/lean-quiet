@@ -14,7 +14,7 @@ Laws:
 - `offered_only`: Remove is offered only to an admin, on a present member
   who is not you.
 -/
-import Engine
+import engine.core.Engine
 
 namespace Remove
 open Engine

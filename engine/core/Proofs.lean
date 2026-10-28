@@ -6,9 +6,9 @@ exactly the spec's (`status_iff_spec`), so they depend only on the set
 of ops held (`order_free`), and the index holds exactly the Valid facts'
 keys (`Inv.idx`), each op at most once under a key (`Inv.nodup`).
 -/
-import Engine.Run
-import Engine.SpecLemmas
-import Engine.Purge
+import engine.core.Run
+import engine.core.SpecLemmas
+import engine.core.Purge
 
 namespace Engine
 variable {F : Type} {fam : Family F}

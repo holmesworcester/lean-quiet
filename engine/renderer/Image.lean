@@ -3,8 +3,8 @@ Images: QOI bytes to rows at the size they are drawn (box-filtered,
 composited over the background), and an encoder for the chaos
 generator's pictures.
 -/
-import Quiet.Qoi
-import Quiet.Paint
+import engine.renderer.Qoi
+import engine.renderer.Paint
 
 namespace Image
 open Paint

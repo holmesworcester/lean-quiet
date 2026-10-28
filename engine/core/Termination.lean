@@ -8,7 +8,7 @@ the queue's length. A step that decides an op lowers the first (it may
 queue that op's waiters); every other step leaves the first alone and
 takes one id off the queue.
 -/
-import Engine.Proofs
+import engine.core.Proofs
 
 namespace Engine
 variable {F : Type} {fam : Family F}

@@ -14,7 +14,7 @@ network delivers them, through `Op.decode`:
   as a second copy of the message. Strict decoding refuses its body, so
   it is Invalid and the original stays the only one.
 -/
-import Tests.Lib
+import tests.engine.Lib
 
 open Engine Community Tests
 

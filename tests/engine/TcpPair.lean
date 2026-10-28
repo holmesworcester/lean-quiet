@@ -17,7 +17,7 @@ Then the nodes sync a history to rest; a frame that does not open is
 ignored; a dropped session is not reopened; the app hears every stored
 id (`notify`).
 -/
-import Tests.Lib
+import tests.engine.Lib
 
 open Engine Engine.Sync Community Tests
 

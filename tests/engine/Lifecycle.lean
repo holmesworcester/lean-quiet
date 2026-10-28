@@ -8,7 +8,7 @@ waiting, names) is read as lists; nothing is kept beside the ops. A
 peer's local ops never land, and a secret whose seed is not its key's
 is refused.
 -/
-import Tests.Lib
+import tests.engine.Lib
 
 open Engine Community Tests
 

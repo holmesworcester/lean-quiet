@@ -12,7 +12,7 @@ community named, its conversation showing, and its post reaches A.
     two_nodes <outdir>
 -/
 import Quiet
-import QTests.Sim
+import platforms.headless.Sim
 
 open App Engine Community Data
 

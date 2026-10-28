@@ -1,7 +1,7 @@
 /-
 Binary PGM (P5) files: how the tests and tools hand frames around.
 -/
-import Qr
+import engine.renderer.qr.Qr
 
 namespace Qr.Pgm
 

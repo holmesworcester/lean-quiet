@@ -2,7 +2,7 @@
 The spec's shape: a verdict, once reached, stays (deeper derivations
 and more ops only add verdicts), and it is unique.
 -/
-import Engine.Spec
+import engine.core.Spec
 
 namespace Engine
 variable {F : Type} {fam : Family F}

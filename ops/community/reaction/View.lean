@@ -5,8 +5,8 @@ am one.
 Reads: `react.byMessage [c, m]` (oldest first: pills keep the order
 emoji first arrived). Drawn by Message's view as pills.
 -/
-import Quiet.Row
-import Quiet.Data
+import engine.renderer.Row
+import engine.renderer.Data
 
 namespace Kinds.React
 open Engine Community Data

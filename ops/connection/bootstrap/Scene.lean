@@ -12,7 +12,7 @@ Then: among any of these ops a node may hold, what is Valid, who is
 admitted, and that nobody is removed. These are what the protocol's
 decisions come down to in this scene.
 -/
-import Net.System
+import ops.connection.bootstrap.System
 
 namespace Net
 open Engine Community Codec

@@ -33,7 +33,7 @@ responder reads the initiator's payload, the initiator reads the
 responder's, both ends hold the same handshake hash, and each end's
 sending key is the other's receiving key.
 -/
-import Engine.Crypto
+import engine.core.Crypto
 
 namespace Connection.Noise
 

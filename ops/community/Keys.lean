@@ -20,7 +20,7 @@ Laws, for any suite whose DH commutes and whose AEAD opens what it
 seals: `unbox_box` (a device opens a key wrapped to it) and
 `openBody_sealBody` (whoever holds the key opens the body).
 -/
-import Engine.Crypto
+import engine.core.Crypto
 
 namespace Community
 open Engine

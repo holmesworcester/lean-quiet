@@ -8,7 +8,7 @@ what comes back (EXIF orientation applied), downsamples it to the size
 here: the picture is checked, encoded as QOI for storage, and drawn into
 the tray. The state is a Lean value the native side holds and passes back.
 -/
-import Pic.Tray
+import engine.renderer.pic.Tray
 
 namespace Pic
 

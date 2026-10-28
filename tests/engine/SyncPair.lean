@@ -14,7 +14,7 @@ the engine's driver (`Node`) over the pair harness:
 - stream: an op written after the round reaches the peer at once,
   without another round.
 -/
-import Tests.Lib
+import tests.engine.Lib
 
 open Engine Engine.Sync Community Tests
 

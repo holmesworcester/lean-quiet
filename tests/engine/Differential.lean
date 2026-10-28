@@ -6,7 +6,7 @@ the model, and every table must match row for row. At rest the
 verdicts must equal the spec's, and different schedules of the same ops
 must reach the same verdicts.
 -/
-import Tests.Lib
+import tests.engine.Lib
 
 open Engine Community Tests
 

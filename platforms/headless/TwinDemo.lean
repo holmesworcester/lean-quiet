@@ -12,7 +12,7 @@ twin by eye and by control commands:
 Control commands: `ping` (pong), `state` (offset, keyboard, bands, text),
 `send <text>` (as the keyboard's send), `ime on|off`, `to <b>`, `by <d>`.
 -/
-import Quiet.Platform
+import engine.renderer.Platform
 
 open App
 

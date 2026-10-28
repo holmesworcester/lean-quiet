@@ -73,9 +73,9 @@ Channels and deletion are left out of this first pass.
 Signatures are a parameter (`Crypto`), so the laws hold for any scheme;
 what unforgeability buys is stated as a hypothesis where it is used.
 -/
-import Engine
-import Community.Keys
-import Community.Merkle
+import engine.core.Engine
+import ops.community.Keys
+import ops.community.Merkle
 
 namespace Community
 open Engine Codec

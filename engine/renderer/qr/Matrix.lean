@@ -8,8 +8,8 @@ A matrix is `n × n` modules, row-major in a `ByteArray` (1 dark, 0 light);
 `x` is the column and `y` the row. Reads are `a[i]?` with a default, and
 writes outside the matrix are dropped.
 -/
-import Qr.Tables
-import Qr.Format
+import engine.renderer.qr.Tables
+import engine.renderer.qr.Format
 
 namespace Qr
 

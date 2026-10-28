@@ -19,7 +19,7 @@ handshake op). Laws: `open_seal` (a frame sealed for a connection opens
 under the matching key to its connection id and bytes) and `cid_seal`
 (its header names that connection).
 -/
-import Connection.Types
+import ops.connection.Types
 
 namespace Connection
 open Engine

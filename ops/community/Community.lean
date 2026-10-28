@@ -1,7 +1,7 @@
-import Community.Facts
-import Community.Laws
-import Community.Query
-import Community.Connect
-import Community.Compose
-import Community.Link
-import Community.Intents
+import ops.community.Facts
+import ops.community.Laws
+import ops.community.Query
+import ops.community.Connect
+import ops.community.Compose
+import ops.community.Link
+import ops.community.Intents

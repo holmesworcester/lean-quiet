@@ -18,9 +18,9 @@ Times rise through the conversation with uneven gaps; jobs go to the
 writer in batches of 100 ops, a little shuffled, as a sync delivers
 them, so the engine also waits and catches up.
 -/
-import Quiet.Data
-import Quiet.Image
-import Quiet.Kinds.Accepted
+import engine.renderer.Data
+import engine.renderer.Image
+import ops.community.membership.AcceptedView
 
 namespace Chaos
 open Engine Community Data

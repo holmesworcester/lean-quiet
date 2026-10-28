@@ -5,7 +5,7 @@ derivation is at most n deep; an op's verdict is `Spec` if some depth
 reaches it. An op on a requirement cycle, or above a missing op, never
 gets one: it stays Unresolved, as in the engine.
 -/
-import Engine.Core
+import engine.core.Core
 
 namespace Engine
 

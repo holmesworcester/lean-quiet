@@ -57,8 +57,8 @@ Laws (proven):
   purge, draining with the budget empties the queue and every verdict is
   the spec's over the remaining ops.
 -/
-import Engine.Run
-import Engine.Sync.Locality
+import engine.core.Run
+import engine.core.Locality
 
 namespace Engine
 variable {F : Type} {fam : Family F}

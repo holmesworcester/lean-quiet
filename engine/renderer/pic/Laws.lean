@@ -28,7 +28,7 @@ The composer (Pic/Composer.lean):
 - `render_opaque`: every pixel of the tray has alpha 255, whatever the
   pictures' alpha (a fix: transparent pictures left holes in the tray).
 -/
-import Pic.Composer
+import engine.renderer.pic.Composer
 
 namespace Pic
 

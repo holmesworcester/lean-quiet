@@ -16,7 +16,7 @@ their sizes, at most 8 hints of at most 255 bytes). `parse` reads only
 through `decode` and checked list operations, so any text is safe to
 paste.
 -/
-import Community.Compose
+import ops.community.Compose
 
 namespace Community
 open Engine Codec

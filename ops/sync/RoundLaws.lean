@@ -11,7 +11,7 @@ What one round does, proven of `exchange`, which is the two sides'
 - Fuel: a round from r ends within |X ∩ r| + |Y ∩ r| + 1 answers on any
   path (each piece holds fewer of the cutting side's items).
 -/
-import Engine.Sync.Round
+import ops.sync.Round
 
 namespace Engine.Sync
 

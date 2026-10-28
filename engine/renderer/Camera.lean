@@ -9,7 +9,7 @@ preview pixel reads inside the frame: no index past its bytes, whatever
 the frame's size, stride or orientation, as long as the frame holds its
 rows).
 -/
-import Quiet.Paint
+import engine.renderer.Paint
 
 namespace Camera
 open Paint

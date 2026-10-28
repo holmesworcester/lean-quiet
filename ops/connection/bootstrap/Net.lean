@@ -1,7 +1,7 @@
-import Net.Node
-import Net.System
-import Net.Scene
-import Net.Inv
-import Net.Steps
-import Net.Laws
-import Net.Bridge
+import ops.connection.bootstrap.Node
+import ops.connection.bootstrap.System
+import ops.connection.bootstrap.Scene
+import ops.connection.bootstrap.Inv
+import ops.connection.bootstrap.Steps
+import ops.connection.bootstrap.Laws
+import ops.connection.bootstrap.Bridge

@@ -8,7 +8,7 @@ A command-line peer for the end-to-end tests (and for trying it by hand):
 about it; `browse` asks every second and prints each service it finds
 once: `found <instance> <host> <port> <txt,...> <addresses>`.
 -/
-import Mdns
+import engine.wire.mdns.Mdns
 open Mdns Std.Async
 
 def showAddr (a : List UInt8) : String := ".".intercalate (a.map (toString ·.toNat))

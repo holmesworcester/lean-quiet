@@ -17,7 +17,7 @@ id; stopped joins are not held), the same entry the node answers and
 dials as. Joining a held community writes nothing (Community.join). A
 join is this entry's own: its device's joining fact, not stopped.
 -/
-import Quiet.Data
+import engine.renderer.Data
 
 namespace Kinds.Accepted
 open Engine Community Data

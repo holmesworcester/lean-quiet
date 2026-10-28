@@ -8,7 +8,7 @@ emoji, Mention someone, Record a voice message, and Send on the right
 `layout` places every part once; `paint` draws them there and `hit`
 answers taps from the same boxes.
 -/
-import Quiet.Row
+import engine.renderer.Row
 
 namespace Composer
 open Paint Text Font Row

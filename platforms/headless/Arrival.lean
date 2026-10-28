@@ -20,7 +20,7 @@ window (the same `App.step` the phone runs):
     arrival <outdir>
 -/
 import Quiet
-import QTests.Sim
+import platforms.headless.Sim
 
 open App Engine Community Data
 

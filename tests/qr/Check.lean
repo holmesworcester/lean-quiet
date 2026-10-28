@@ -18,9 +18,9 @@ builds; this runs the code).
 - fuzzing: damaged matrices and frames decode to the right payload or to
   nothing, never to a wrong one
 -/
-import Qr
-import Pic
-import Tests.Pgm
+import engine.renderer.qr.Qr
+import engine.renderer.pic.Pic
+import tests.qr.Pgm
 
 open Qr
 

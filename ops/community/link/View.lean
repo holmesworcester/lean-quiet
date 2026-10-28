@@ -12,9 +12,9 @@ pixels aliases into grey and stops scanning. Laws: `hints_fit` (every hint
 fits the link's limits, so the invite stays valid) and `qr_fits` (the
 symbol and its quiet zone fit the side asked for).
 -/
-import Qr
+import engine.renderer.qr.Qr
 import Std.Net.Addr
-import Quiet.Paint
+import engine.renderer.Paint
 
 namespace Link
 open Paint

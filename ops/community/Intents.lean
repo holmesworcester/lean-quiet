@@ -7,8 +7,8 @@ device's secret, the communities it is in, its pending joins) and
 shared ones. What a node shows about them (its communities, who is
 waiting, a community's name) is lists of those ops' facts.
 -/
-import Community.Link
-import Community.Connect
+import ops.community.Link
+import ops.community.Connect
 
 namespace Community
 open Engine

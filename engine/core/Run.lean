@@ -2,7 +2,7 @@
 The engine's code run on the model, as plain functions of the tables:
 each lemma says what one routine does to a `DB`.
 -/
-import Engine.Model
+import engine.core.Model
 
 namespace Engine
 variable {F : Type}

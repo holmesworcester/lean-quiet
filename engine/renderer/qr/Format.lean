@@ -9,7 +9,7 @@ at most 3 wrong bits is nearer to its codeword than to any other: the
 decoders take the codeword within distance 3, and that is the one written
 (`decodeFormat_correct`, `decodeVersion_correct`, proven).
 -/
-import Qr.Tables
+import engine.renderer.qr.Tables
 
 namespace Qr
 

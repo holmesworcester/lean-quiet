@@ -3,7 +3,7 @@ Every step of the scene, worked out under the invariant, and the
 invariant kept by every step: ticks, approval, delivery of any message
 in flight in any order, and loss of any message.
 -/
-import Net.Inv
+import ops.connection.bootstrap.Inv
 
 namespace Net
 open Engine Community

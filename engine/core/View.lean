@@ -10,8 +10,8 @@ The law: a list's answer changes only if a row is filed under its key
 one of the keys it read (`view_stable`). A notice for exactly those keys
 is all a live view needs: notices are complete.
 -/
-import Engine.Query
-import Engine.Proofs
+import engine.core.Query
+import engine.core.Proofs
 
 namespace Engine
 

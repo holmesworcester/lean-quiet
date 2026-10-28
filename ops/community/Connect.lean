@@ -6,8 +6,8 @@ removed, `members` names exactly their devices and `recipients` exactly
 their encryption keys. On SQLite the same views run with `listSql`,
 which the query differential checks against `eval`.
 -/
-import Community.Laws
-import Community.Query
+import ops.community.Laws
+import ops.community.Query
 
 namespace Community
 open Engine

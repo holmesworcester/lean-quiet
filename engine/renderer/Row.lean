@@ -12,10 +12,10 @@ selected row also shows the reaction palette. Every part has its own
 box, and the boxes do not overlap: what one part paints, no other part
 paints over.
 -/
-import Quiet.Paint
-import Quiet.Image
-import Quiet.Text
-import Quiet.Arrival
+import engine.renderer.Paint
+import engine.renderer.Image
+import engine.renderer.Text
+import engine.renderer.Arrival
 
 namespace Row
 open Paint Text Font

@@ -15,9 +15,9 @@ ops), and afterwards rebuilds the file (`VACUUM`) and truncates the WAL,
 so no file keeps a deleted byte. `secure_delete`, on for every
 connection, zeroes the cells deletes free.
 -/
-import Engine.Core
-import Engine.Codec
-import Engine.Model
+import engine.core.Core
+import engine.core.Codec
+import engine.core.Model
 import Std.Data.HashSet
 
 namespace Engine

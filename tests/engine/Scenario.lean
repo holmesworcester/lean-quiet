@@ -6,7 +6,7 @@ removals stand, and that forgeries fail. Then the same ops, shuffled and split i
 reach the same verdicts (order_free), equal to the model's and to the
 spec's.
 -/
-import Tests.Lib
+import tests.engine.Lib
 
 open Engine Community Tests
 

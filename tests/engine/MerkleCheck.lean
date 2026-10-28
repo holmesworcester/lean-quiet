@@ -38,8 +38,8 @@ by rfl), on the same forgeries; the run prints what each lets through.
 - The sibling sizes: nothing passes, and no law needs it (a sibling of
   another size changes the node's input); an early refusal.
 -/
-import Tests.Lib
-import Community.Merkle
+import tests.engine.Lib
+import ops.community.Merkle
 
 open Engine Tests Community.Merkle
 

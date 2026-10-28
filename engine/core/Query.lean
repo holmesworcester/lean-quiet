@@ -19,8 +19,8 @@ recorded, per connection, in a temp table (`watchFiled`), so after a
 write the writer reads exactly the keys it filed or unfiled
 (`takeFiled`) and the op ids it decided or purged.
 -/
-import Engine.Sqlite
-import Engine.Model
+import engine.core.Sqlite
+import engine.core.Model
 
 namespace Engine
 

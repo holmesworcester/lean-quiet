@@ -20,7 +20,7 @@ chooses only the bottom edge and the offset:
 The trusted step is UIKit's: that a layer in a scroll view flipped
 upside down lands at `shown`, and a tap is located at `tapped`.
 -/
-import Quiet.Geometry
+import engine.renderer.Geometry
 
 namespace Geometry.Ios
 

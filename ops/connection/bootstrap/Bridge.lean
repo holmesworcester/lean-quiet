@@ -7,7 +7,7 @@ names.
 So the trust rule in `Net.Node` reads the running query, not a model of
 it.
 -/
-import Net.Scene
+import ops.connection.bootstrap.Scene
 
 namespace Net
 open Engine Community

@@ -22,7 +22,7 @@ courier carrying the request's bytes to the address. Redialing only
 writes the courier again: the request is the same op, with the same
 bytes and the same id.
 -/
-import Connection.Eph
+import ops.connection.Eph
 
 namespace Connection
 open Engine Engine.Sync

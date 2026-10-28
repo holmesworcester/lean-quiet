@@ -17,7 +17,7 @@ guard bypassed) still show one entry for the community, reachable.
     cross <outdir>
 -/
 import Quiet
-import QTests.Sim
+import platforms.headless.Sim
 
 open App Engine Community Data
 

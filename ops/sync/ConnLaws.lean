@@ -11,8 +11,8 @@ the model store:
   of the connection's rooms). In particular a want for an op of another
   room, a local op or a conn op sends nothing of it.
 -/
-import Engine.Sync.Conn
-import Engine.Run
+import ops.sync.Conn
+import engine.core.Run
 
 namespace Engine.Sync
 open Std

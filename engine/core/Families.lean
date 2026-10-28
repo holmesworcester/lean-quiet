@@ -15,8 +15,8 @@ Law: `sum_left`. An A op whose requirements gave A facts has the same
 verdict in the composed store as in A alone, so every law proven of A
 alone (Community's included) speaks of A's ops in the composed store.
 -/
-import Engine.View
-import Engine.Decl
+import engine.core.View
+import engine.core.Decl
 
 namespace Engine
 open Codec

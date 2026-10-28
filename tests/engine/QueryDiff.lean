@@ -8,7 +8,7 @@ sides, capped, counts only, and conjunctions (messages by one author),
 and compares answers exactly. It also checks that the filed keys a
 write reports are exactly the keys its new index rows went under.
 -/
-import Tests.Lib
+import tests.engine.Lib
 
 open Engine Community Tests Codec
 

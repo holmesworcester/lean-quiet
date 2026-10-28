@@ -8,8 +8,8 @@ runs on the X25519 keys those convert to (`Keys`).
 
 Kinds 32–38 until the registry names them.
 -/
-import Connection.Noise
-import Community
+import ops.connection.Noise
+import ops.community.Community
 
 namespace Connection
 open Engine Codec

@@ -1,6 +1,30 @@
-import Engine
-import Community
-import Connection
+import engine.core.Engine
+import ops.community.Community
+import ops.connection.All
+import engine.renderer.Geometry
+import engine.renderer.SheetGeom
+import ops.community.link.View
+import engine.renderer.Camera
+import ops.app.Switch
+import engine.renderer.TextLaws
+import engine.renderer.WrapLaws
+import ops.community.reaction.RowLaws
+import ops.community.message.ViewLaws
+import ops.app.PeopleLaws
+import ops.app.Remove
+import ops.community.membership.RemovedLaws
+import App
+import ops.community.attachment.ArrivalLaws
+import engine.renderer.qr.Qr
+import engine.renderer.pic.Pic
+import engine.wire.mdns.Mdns
+import ops.connection.bootstrap.Net
+
+/-! Every law of the repository, each of which must rest on Lean's
+standard axioms only (tests/check.sh). One section per former package's
+audit, with its `open`s. -/
+
+section engine
 open Engine Community
 #print axioms Engine.inv_ingest
 #print axioms Engine.inv_step
@@ -153,3 +177,141 @@ open Engine Community
 #print axioms Community.chunk_of_attachment
 #print axioms Community.chunk_hangs_off
 #print axioms Community.chunk_own
+end engine
+
+section app
+#print axioms Geometry.placed_row
+#print axioms Geometry.visible_in_viewport
+#print axioms Geometry.newest_visible
+#print axioms Geometry.newest_drawn
+#print axioms SheetGeom.hit_iff
+#print axioms SheetGeom.hit_cell
+#print axioms SheetGeom.keys_disjoint
+#print axioms SheetGeom.reachable
+#print axioms SheetGeom.clamp_le
+#print axioms SheetGeom.compose_row
+#print axioms SheetGeom.compose_top
+#print axioms Geometry.pinned_row
+#print axioms Geometry.pinned_visible
+#print axioms Geometry.pinned_tap
+#print axioms Link.hints_fit
+#print axioms Link.qr_fits
+#print axioms Camera.src_in
+#print axioms Switch.dedupe_nodup
+#print axioms Switch.select_tapped
+#print axioms Switch.select_tapped_dedupe
+#print axioms App.drawPage_key
+#print axioms App.pageIn_acc
+#print axioms Pages.switcherOrder_sound
+#print axioms Pages.switcherOrder_complete
+#print axioms Switch.dedupe_one_per_community
+#print axioms Text.visual_perm
+#print axioms Text.place_shows
+#print axioms Text.oneLine_prefix
+#print axioms Text.digits_keep_order
+#print axioms Text.wrap_keeps
+#print axioms Text.wrap_fits
+#print axioms Text.place_starts
+#print axioms RowLaws.picBox_aspect
+#print axioms RowLaws.tally_nodup
+#print axioms RowLaws.tally_mem
+#print axioms RowLaws.time_shown
+#print axioms RowLaws.name_placed
+#print axioms ViewLaws.profile_read
+#print axioms ViewLaws.message_read
+#print axioms PeopleLaws.present_iff
+#print axioms PeopleLaws.present_nodup
+#print axioms Remove.writes_only_after_two
+#print axioms Remove.cancel_writes_nothing
+#print axioms Remove.open_fresh
+#print axioms Remove.no_replace
+#print axioms Remove.offered_only
+#print axioms RemovedLaws.listed_iff
+#print axioms RemovedLaws.told_once
+#print axioms RemovedLaws.not_replayed
+#print axioms RemovedLaws.landing_listed
+#print axioms RemovedLaws.forget_clears
+#print axioms Data.overlay_total
+#print axioms Text.controls_neutral
+#print axioms Text.marks_invisible
+#print axioms ArrivalLaws.percent_lt
+#print axioms ArrivalLaws.percent_eq
+#print axioms ArrivalLaws.done_iff
+#print axioms ArrivalLaws.caption_none_iff
+#print axioms ArrivalLaws.caption_some
+#print axioms ArrivalLaws.lit_zero
+#print axioms ArrivalLaws.lit_mono
+#print axioms ArrivalLaws.lit_full
+#print axioms ArrivalLaws.lit_clockwise
+#print axioms ArrivalLaws.onRing_square
+#print axioms ArrivalLaws.layout_done
+#print axioms ArrivalLaws.layout_shown
+#print axioms ArrivalLaws.layout_arriving
+#print axioms ArrivalLaws.layout_percent_lt
+#print axioms ArrivalLaws.layout_words
+#print axioms ArrivalLaws.layout_inside
+#print axioms ArrivalLaws.ring_inside
+#print axioms ArrivalLaws.words_inside
+#print axioms ArrivalLaws.ring_counts
+#print axioms ArrivalLaws.arrival_none
+#print axioms ArrivalLaws.arrival_some
+#print axioms ArrivalLaws.picBox_progress
+#print axioms ArrivalLaws.layout_progress
+#print axioms ArrivalLaws.shown_file
+#print axioms ArrivalLaws.shown_pre
+#print axioms ArrivalLaws.readView_model
+#print axioms ArrivalLaws.pic_progress
+#print axioms ArrivalLaws.pic_len
+#print axioms ArrivalLaws.arrival_progress
+#print axioms ArrivalLaws.arrival_counts
+#print axioms ArrivalLaws.complete_iff_held
+#print axioms ArrivalLaws.file_whole
+#print axioms ArrivalLaws.pic_complete_iff_held
+end app
+
+section qr
+#print axioms Qr.parse_dataStream
+#print axioms Qr.parse_segsBits
+#print axioms Qr.parse_valid
+#print axioms Qr.decodeFormat_correct
+#print axioms Qr.decodeVersion_correct
+#print axioms Qr.RS.correct_sound
+#print axioms Qr.RS.correct_clean
+#print axioms Qr.decodeImage_malformed
+#print axioms Qr.readBits_bitsOf
+#print axioms Qr.bytesBits_packBytes
+#print axioms Pic.fit_small
+#print axioms Pic.fit_le
+#print axioms Pic.fit_pos
+#print axioms Pic.fit_long
+#print axioms Pic.fit_round
+#print axioms Pic.layout_sizes
+#print axioms Pic.layout_inside
+#print axioms Pic.layout_apart
+#print axioms Pic.add_stored
+#print axioms Pic.scale_wellFormed
+#print axioms Pic.render_wellFormed
+#print axioms Pic.render_opaque
+#print axioms Pic.decode_sized
+end qr
+
+section mdns
+#print axioms Mdns.decode_encode
+#print axioms Mdns.decode_valid
+#print axioms Mdns.decode_roundtrip
+end mdns
+
+section net
+open Net
+#print axioms Net.Scene.no_connection_before_approval
+#print axioms Net.Scene.sessions_trusted
+#print axioms Net.Scene.bootstrap_possible
+#print axioms Net.Scene.bootstrap
+#print axioms Net.Scene.bootstrap_ideal
+#print axioms Net.Scene.reachable_inv
+#print axioms Net.Scene.admitted_inv
+#print axioms Net.Scene.allowedA
+#print axioms Net.Scene.allowedB
+#print axioms Net.allowPeer_iff
+#print axioms Net.allowPeer_settles
+end net

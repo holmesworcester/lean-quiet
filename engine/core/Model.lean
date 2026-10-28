@@ -4,7 +4,7 @@ run the engine here; Engine/Sqlite.lean runs the same code on SQLite,
 whose tables these mirror row for row (lists keep SQLite's insertion
 order: rowid order, and the queue's seq order).
 -/
-import Engine.Core
+import engine.core.Core
 
 namespace Engine
 

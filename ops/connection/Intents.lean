@@ -30,9 +30,9 @@ secrets: the node's SQLite monad, with the OS's random bytes, or the
 engine's model, so the same code runs in proofs by induction over a
 world of nodes.
 -/
-import Connection.Family
-import Connection.Frame
-import Engine.Sync.Node
+import ops.connection.Family
+import ops.connection.Frame
+import engine.wire.Node
 
 namespace Connection
 open Engine Engine.Sync Codec

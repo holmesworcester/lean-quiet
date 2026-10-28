@@ -14,7 +14,7 @@ rule. It writes an `eph`, the connection, this side's `established`, and
 a courier carrying the connection's bytes back to the address the
 request arrived from.
 -/
-import Connection.Opened
+import ops.connection.Opened
 
 namespace Connection
 open Engine

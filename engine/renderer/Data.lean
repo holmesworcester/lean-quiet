@@ -20,10 +20,10 @@ The app's data: the engine on SQLite, read and written from two threads.
   the outbox. Every answer includes the outbox's facts, marked pending,
   until the commit that decides them: the same op, the same id.
 -/
-import Engine
-import Community
-import Connection
-import Quiet.Platform
+import engine.core.Engine
+import ops.community.Community
+import ops.connection.All
+import engine.renderer.Platform
 import Std.Data.HashMap
 
 namespace Data

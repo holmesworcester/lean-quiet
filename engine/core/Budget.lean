@@ -9,7 +9,7 @@ x is decided for good. So the budget drops by at least one per step
 loop that runs is the proven `drain`, with no `partial` in the write
 path.
 -/
-import Engine.Termination
+import engine.core.Termination
 
 namespace Engine
 variable {F : Type} {fam : Family F}

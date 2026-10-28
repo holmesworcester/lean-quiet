@@ -12,7 +12,7 @@ cite its ops. A courier is content-addressed, so writing the same send
 again is one op until the first is purged. Valid iff the carried op is
 and the address is non-empty.
 -/
-import Connection.Established
+import ops.connection.Established
 
 namespace Connection
 open Engine

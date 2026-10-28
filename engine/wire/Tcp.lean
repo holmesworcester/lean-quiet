@@ -19,8 +19,8 @@ neither carries socket code.
 One task owns the node and its SQLite connection; the listener and one
 reader per socket feed it events through a channel.
 -/
-import Engine.Sync.Node
-import Engine.Sync.Frame
+import engine.wire.Node
+import engine.wire.Frame
 import Std.Async.TCP
 import Std.Sync.Channel
 

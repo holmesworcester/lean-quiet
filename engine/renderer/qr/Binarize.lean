@@ -12,7 +12,7 @@ Frames smaller than 40 pixels a side take the mean of the frame.
 
 The result is a `Bits`: one byte a pixel, 1 dark. Every read is `a[i]?`.
 -/
-import Qr.Encode
+import engine.renderer.qr.Encode
 
 namespace Qr
 

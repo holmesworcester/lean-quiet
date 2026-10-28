@@ -36,9 +36,9 @@ closes the connection when `step.drop`.
 What a connection keeps (known, offered, asked, snapshots) is memory
 only and dies with it: losing it can only cause resends.
 -/
-import Engine.Sync.Wire
-import Engine.Sync.RoundLaws
-import Engine.Sync
+import ops.sync.Wire
+import ops.sync.RoundLaws
+import engine.core.Sync
 import Std.Data.HashSet
 
 namespace Engine.Sync

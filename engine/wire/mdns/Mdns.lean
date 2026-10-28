@@ -1,5 +1,5 @@
-import Mdns.Wire
-import Mdns.Decode
-import Mdns.Laws
-import Mdns.Service
-import Mdns.Net
+import engine.wire.mdns.Wire
+import engine.wire.mdns.Decode
+import engine.wire.mdns.Laws
+import engine.wire.mdns.Service
+import engine.wire.mdns.Net

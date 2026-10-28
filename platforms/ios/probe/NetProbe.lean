@@ -27,7 +27,7 @@ failed results.
 
     NetProbe <host> <port> <seconds> <instance>
 -/
-import Mdns
+import engine.wire.mdns.Mdns
 import Std.Async.TCP
 open Mdns Std.Async Std.Net
 

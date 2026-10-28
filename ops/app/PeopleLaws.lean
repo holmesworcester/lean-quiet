@@ -9,8 +9,8 @@ code (Kinds.Profile.present, which the people list and its count read):
 - `present_nodup`: each user is listed once, so the count is the number
   of people, not of devices.
 -/
-import Quiet.Kinds.Profile
-import Quiet.RowLaws
+import ops.community.profile.View
+import ops.community.reaction.RowLaws
 
 namespace PeopleLaws
 open Engine Community Kinds

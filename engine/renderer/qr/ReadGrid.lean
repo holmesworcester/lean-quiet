@@ -4,8 +4,8 @@ mask, the blocks (deinterleaved), Reed–Solomon correction, and the
 segments. The same placement functions as the encoder's say where each
 bit is.
 -/
-import Qr.Encode
-import Qr.SegLaws
+import engine.renderer.qr.Encode
+import engine.renderer.qr.SegLaws
 
 namespace Qr
 

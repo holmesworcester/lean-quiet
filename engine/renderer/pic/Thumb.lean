@@ -4,7 +4,7 @@ a 4×4 grid of source points spread over its footprint. The output is
 built with `Array.ofFn`, so its size is `4 * tw * th` by construction
 (`scale_wellFormed`); reads are `b[i]?` with a default.
 -/
-import Pic.Qoi
+import engine.renderer.pic.Qoi
 
 namespace Pic
 

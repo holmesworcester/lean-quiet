@@ -16,8 +16,8 @@ made of refs. A scripted session on a fresh database:
     host <messages> <outdir>
 -/
 import Quiet
-import Tests.Lib
-import QTests.Sim
+import tests.engine.Lib
+import platforms.headless.Sim
 
 open App Engine Community Data
 

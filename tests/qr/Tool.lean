@@ -16,9 +16,9 @@ tools/.
       decode a module matrix drawn with '#' (dark) and ' ' or '.' (light),
       two characters a module as qrencode -t ASCII prints it: "ok HEX" or "none"
 -/
-import Qr
-import Pic
-import Tests.Pgm
+import engine.renderer.qr.Qr
+import engine.renderer.pic.Pic
+import tests.qr.Pgm
 
 open Qr
 

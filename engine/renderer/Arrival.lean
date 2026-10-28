@@ -14,7 +14,7 @@ it shows, and a turning ring would repaint every arriving row each frame.
 
 The laws (ArrivalLaws) are about these functions, which Row.paint calls.
 -/
-import Quiet.Paint
+import engine.renderer.Paint
 
 namespace Arrival
 open Paint Font Text

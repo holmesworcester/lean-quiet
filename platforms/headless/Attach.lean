@@ -17,7 +17,7 @@ bytes sent, and its row drawn from the file, not the preview.
     attach <outdir>
 -/
 import Quiet
-import QTests.Sim
+import platforms.headless.Sim
 
 open App Engine Community Data
 

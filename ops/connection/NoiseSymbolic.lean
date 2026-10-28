@@ -99,7 +99,7 @@ What it does not cover:
   purges the ephemerals (`closing`, Engine/Purge.lean), which is what
   makes "once the ephemerals are gone" true.
 -/
-import Connection.Noise
+import ops.connection.Noise
 
 namespace Connection.Noise
 

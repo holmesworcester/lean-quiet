@@ -32,7 +32,7 @@ Node; see the README):
 - `close_forgets`: after the node purges `closing cid`, no eph, opened,
   or established op of cid is stored.
 -/
-import Connection.Intents
+import ops.connection.Intents
 
 namespace Connection
 open Engine Codec

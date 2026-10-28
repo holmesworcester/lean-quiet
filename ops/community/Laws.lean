@@ -4,7 +4,7 @@ a node holds at rest: Engine.status_iff_spec). Signatures are read
 through `Crypto.verify`; where a law needs unforgeability it takes it
 as the hypothesis `Unforgeable`.
 -/
-import Community.Facts
+import ops.community.Facts
 
 namespace Community
 open Engine Codec

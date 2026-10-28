@@ -25,7 +25,7 @@ Purge on SQLite, against the model and on the file itself.
 - **Purge, then again.** A purged local op written again is stored and
   judged as before, and purged again.
 -/
-import Tests.Lib
+import tests.engine.Lib
 
 open Engine Tests
 

@@ -16,7 +16,7 @@ this side dialed. The node seals frames with the keys from here. Filed
 under `conn.established.all` and `conn.established.byConn [cid]`. A close
 purges it.
 -/
-import Connection.Connection
+import ops.connection.Connection
 
 namespace Connection
 open Engine Codec

@@ -9,8 +9,8 @@ they cite is held. This also checks the scene's assumptions (`Good`)
 for real keys: distinct ids, distinct devices, and signatures that
 verify (else the ops would be Invalid).
 -/
-import Net
-import Tests.Lib
+import ops.connection.bootstrap.Net
+import tests.engine.Lib
 
 open Engine Community Net Tests
 

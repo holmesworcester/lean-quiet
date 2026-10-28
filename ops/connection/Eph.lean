@@ -10,7 +10,7 @@ session's traffic unreadable afterwards: the transport keys depend on
 Valid iff the secret is 32 bytes. Its fact is that op, the public key
 and the secret, filed under `conn.eph.byOf [op]`.
 -/
-import Connection.Types
+import ops.connection.Types
 
 namespace Connection
 open Engine

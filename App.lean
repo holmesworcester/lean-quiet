@@ -23,18 +23,18 @@ Each frame:
 Everything the platform does goes through `Io`, so tests drive the same
 code without a window (QTests).
 -/
-import Quiet.Data
-import Quiet.Chaos
-import Quiet.Row
-import Quiet.Geometry
-import Quiet.Sheet
-import Quiet.Pages
-import Quiet.Composer
-import Quiet.Link
-import Quiet.Camera
-import Quiet.Remove
-import Quiet.Kinds.Message
-import Quiet.Kinds.Request
+import engine.renderer.Data
+import ops.app.Chaos
+import engine.renderer.Row
+import engine.renderer.Geometry
+import engine.renderer.Sheet
+import ops.app.Pages
+import ops.app.Composer
+import ops.community.link.View
+import engine.renderer.Camera
+import ops.app.Remove
+import ops.community.message.View
+import ops.community.membership.RequestView
 import Std.Data.HashMap
 
 namespace App

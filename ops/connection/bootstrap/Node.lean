@@ -34,7 +34,7 @@ a hello is read only by its addressee, and an answer is taken only from
 the device the node dialed. A device's dial key is its device key, as
 in libquiet, where the transport authenticates the device key.
 -/
-import Community
+import ops.community.Community
 
 namespace Net
 open Engine Community

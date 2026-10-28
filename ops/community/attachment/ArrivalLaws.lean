@@ -32,7 +32,7 @@ Row, Kinds.File):
   of its file's chunk ops, at the file's length (`file_whole`).
   "100%" is never drawn: complete hides the caption.
 -/
-import Quiet.Kinds.File
+import ops.community.attachment.View
 
 namespace ArrivalLaws
 open Arrival

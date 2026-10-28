@@ -32,8 +32,8 @@ ops and seals every session frame with the session's keys.
 Not yet here: the world as a pure step relation to prove laws over
 (the node runs on held data already).
 -/
-import Tests.Lib
-import Connection
+import tests.engine.Lib
+import ops.connection.All
 
 open Engine Engine.Sync Community Tests Connection
 

@@ -12,7 +12,7 @@ What Text draws is what the text says, over the running code (`visual`,
 - `digits_keep_order`: numbers inside right-to-left text keep their
   order (the cases that showed "25" as "52" and "2024" as "4202").
 -/
-import Quiet.Text
+import engine.renderer.Text
 
 namespace Text
 

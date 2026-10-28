@@ -7,7 +7,7 @@ stored ops are the first k batches, the queue is empty, and every table
 equals the model's after those k batches, whose verdicts equal the
 spec's.
 -/
-import Tests.Lib
+import tests.engine.Lib
 
 open Engine Community Tests
 

@@ -18,8 +18,8 @@ Laws: `eval_union` (its answer is the merge of the lists' answers),
 `mem_union` (each row is a row of one of the lists), and `mem_union_all`
 (with no limit, its rows are exactly the lists' rows).
 -/
-import Engine.View
-import Engine.Decl
+import engine.core.View
+import engine.core.Decl
 
 namespace Engine
 variable {F : Type}

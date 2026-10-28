@@ -19,7 +19,7 @@ label of their canonical treap.
 This file computes a label from the items, which is what a cached tree
 (Engine/Sync/Treap.lean) must agree with.
 -/
-import Engine.Core
+import engine.core.Core
 
 namespace Engine.Sync
 

@@ -10,7 +10,7 @@ This is poc-17's `Keys`: a local op cites the secret, so the shared op
 needs no secret to be judged. Filed under `conn.opened.all` and
 `conn.opened.byRequest [r]`. A close purges it with the request.
 -/
-import Connection.Request
+import ops.connection.Request
 
 namespace Connection
 open Engine Codec

@@ -10,7 +10,7 @@ layer, which does not scroll on a page) plus its bar (drawn into the
 header layer), and the boxes a tap can land on, each with what it does.
 The painter and the taps read the same boxes.
 -/
-import Quiet.Row
+import engine.renderer.Row
 
 namespace Pages
 open Paint Text Font Row

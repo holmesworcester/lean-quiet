@@ -24,9 +24,9 @@ Every loop is a `for` over a bounded range, so a frame of any content
 ends: at most 48 finder candidates are kept, at most 4 triangles and 3
 sizes tried.
 -/
-import Qr.Binarize
-import Qr.Geometry
-import Qr.ReadGrid
+import engine.renderer.qr.Binarize
+import engine.renderer.qr.Geometry
+import engine.renderer.qr.ReadGrid
 
 namespace Qr
 

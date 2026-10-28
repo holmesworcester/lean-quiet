@@ -21,7 +21,7 @@ Not handled: scripts that reorder or stack (Devanagari and other Indic
 scripts), ligatures, and emoji sequences (ZWJ, skin tones), which draw
 their parts.
 -/
-import Quiet.Font
+import engine.renderer.Font
 
 namespace Text
 open Font

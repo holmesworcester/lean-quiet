@@ -10,8 +10,8 @@ What a row shows is what the store holds, over the running code:
 - `time_shown`: the row's clock is `clock` of the message's claimed time
   (or "pending" while its op is in the outbox).
 -/
-import Quiet.Row
-import Quiet.Kinds.React
+import engine.renderer.Row
+import ops.community.reaction.View
 
 namespace RowLaws
 open Row Engine

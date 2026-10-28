@@ -7,8 +7,8 @@ Reads: `approval.byRequest [c, r]` and `admission.byDevice [c, d]` (a
 count). The Join requests page lists `request.all [c]` and makes one of
 these per row.
 -/
-import Quiet.Pages
-import Quiet.Data
+import ops.app.Pages
+import engine.renderer.Data
 
 namespace Kinds.Request
 open Engine Community Data

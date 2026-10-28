@@ -14,7 +14,7 @@ The codec and service logic on real and hostile packets.
   type is answered with the service's records, a query for another type
   is not.
 -/
-import Mdns
+import engine.wire.mdns.Mdns
 open Mdns
 
 initialize fails : IO.Ref Nat ← IO.mkRef 0

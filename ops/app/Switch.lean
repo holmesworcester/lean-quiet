@@ -10,7 +10,7 @@ The community switcher's laws, over the running code (Kinds.Accepted's
 Before, entries were told apart by community id, and a device that had
 joined one community twice could not reach its second entry.
 -/
-import Quiet.Kinds.Accepted
+import ops.community.membership.AcceptedView
 
 namespace Switch
 open Kinds.Accepted

@@ -9,7 +9,7 @@ The laws that use them take them as parameters (DH commutes, an AEAD
 opens what it seals), so the laws hold for any implementation and the
 tests check this one.
 -/
-import Engine.Core
+import engine.core.Core
 
 namespace Engine.Crypto
 

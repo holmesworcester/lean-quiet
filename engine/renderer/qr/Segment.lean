@@ -13,8 +13,8 @@ are refused (`none`).
 get wrong. It is defined by well-founded recursion on the bits left
 (every segment consumes its 4-bit mode), not with fuel or `partial`.
 -/
-import Qr.Bits
-import Qr.Tables
+import engine.renderer.qr.Bits
+import engine.renderer.qr.Tables
 
 namespace Qr
 

@@ -14,8 +14,8 @@ Every key is placed by a `SheetGeom.Grid`, and taps go through the same
 grid's `hit`, so SheetGeom's theorems (hit_iff, keys_disjoint,
 reachable, compose_row) are about this sheet.
 -/
-import Quiet.SheetGeom
-import Quiet.Row
+import engine.renderer.SheetGeom
+import engine.renderer.Row
 
 namespace Sheet
 open Paint Text Font Row SheetGeom

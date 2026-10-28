@@ -3,7 +3,7 @@ The decoder for native callers (the Android harness's JNI glue):
 `lean_qr_decode_luma` takes a luma frame and gives back the payload and a
 one-line description, or `none`.
 -/
-import Qr.Decode
+import engine.renderer.qr.Decode
 
 namespace Qr
 

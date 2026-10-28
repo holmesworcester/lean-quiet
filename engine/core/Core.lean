@@ -16,7 +16,7 @@ reads or writes goes through `Store`, so the same code runs on SQLite
 (Engine/Sqlite.lean) and on the pure model the proofs use
 (Engine/Model.lean). Nothing is held in memory between steps.
 -/
-import Engine.Codec
+import engine.core.Codec
 
 namespace Engine
 

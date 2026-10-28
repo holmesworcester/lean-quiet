@@ -9,7 +9,7 @@ Rules read it like any list. The responder answers to the address its
 request arrived from (`conn.recv.byOp [r]`), and a screen can show when
 a message arrived. Valid iff it cites one op.
 -/
-import Connection.Send
+import ops.connection.Send
 
 namespace Connection
 open Engine

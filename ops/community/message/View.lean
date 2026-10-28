@@ -9,9 +9,9 @@ children's reads. A parent (the list) passes only the message's id. A
 message whose key this device lacks is not shown until the key's wrap
 opens.
 -/
-import Quiet.Kinds.Profile
-import Quiet.Kinds.React
-import Quiet.Kinds.File
+import ops.community.profile.View
+import ops.community.reaction.View
+import ops.community.attachment.View
 
 namespace Kinds.Message
 open Engine Community Data

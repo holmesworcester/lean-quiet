@@ -10,9 +10,9 @@ must all fail, and a device's Ed25519 key must convert to the X25519 key
 of its secret. The suite must meet what the laws assume of it
 (`Suite.Good`) on the vector's keys.
 -/
-import Tests.Lib
-import Connection.Noise
-import Connection.Frame
+import tests.engine.Lib
+import ops.connection.Noise
+import ops.connection.Frame
 
 open Engine Community Tests Connection.Noise
 

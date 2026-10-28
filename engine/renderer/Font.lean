@@ -6,7 +6,7 @@ wide, a wide one (CJK, emoji) cell pixels. The file is read once and
 kept as one ByteArray; a glyph is located through the file's own table,
 so nothing is decoded ahead of use.
 -/
-import Quiet.Emoji
+import engine.renderer.Emoji
 
 namespace Font
 

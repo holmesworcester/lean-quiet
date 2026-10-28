@@ -17,7 +17,7 @@ the connection or is taken from it. `Community.removal_cuts_off` says
 family's own store; carrying it to the composed store the node runs
 (Community and Connection) is `sum_project`, not yet proven.
 -/
-import Connection.Intents
+import ops.connection.Intents
 
 namespace Connection
 open Engine

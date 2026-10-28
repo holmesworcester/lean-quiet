@@ -7,10 +7,10 @@ the proven budget (`budget log db`, so `drain_bounded` applies).
 `Turn` is one write turn, in whatever store a node runs on: SQLite's
 `receive`, or this.
 -/
-import Engine.Sqlite
-import Engine.Budget
-import Engine.Query
-import Engine.Purge
+import engine.core.Sqlite
+import engine.core.Budget
+import engine.core.Query
+import engine.core.Purge
 
 namespace Engine.Sync
 

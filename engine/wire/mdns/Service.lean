@@ -8,7 +8,7 @@ A service is found by its type ("_leanquiet._udp"). Its instance name is
 one label (it may hold dots and spaces: "Holmes's Pixel"); its host is a
 `.local` name with the addresses it answers on.
 -/
-import Mdns.Wire
+import engine.wire.mdns.Wire
 
 namespace Mdns
 

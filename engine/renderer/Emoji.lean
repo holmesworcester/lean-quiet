@@ -13,7 +13,7 @@ text by default (©, ♥, ☀), which then stay Unifont text.
 A picture is decoded when a row is painted (QOI, a few thousand pixels);
 nothing is decoded ahead of use.
 -/
-import Quiet.Qoi
+import engine.renderer.Qoi
 import Std.Data.HashMap
 
 namespace Emoji

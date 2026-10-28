@@ -18,8 +18,8 @@ On Android, take a WifiManager.MulticastLock first, or the Wi-Fi driver
 may drop incoming multicast.
 -/
 import Std.Async.UDP
-import Mdns.Decode
-import Mdns.Service
+import engine.wire.mdns.Decode
+import engine.wire.mdns.Service
 
 namespace Mdns.Net
 

@@ -8,7 +8,7 @@ The data stream's laws, on the functions the decoder runs:
 - `parse_valid`: whatever `parse` returns is valid, so it can be written
   back (`dataStream`) and read again.
 -/
-import Qr.Segment
+import engine.renderer.qr.Segment
 
 namespace Qr
 

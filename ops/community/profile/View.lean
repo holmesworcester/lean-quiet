@@ -8,8 +8,8 @@ Every name read starts from a member (an admission, or a message's
 author), never from `profile.all`: a requester's profile is filed before
 anyone admits it, and is not a member's.
 -/
-import Quiet.Data
-import Quiet.Kinds.React
+import engine.renderer.Data
+import ops.community.reaction.View
 
 namespace Kinds.Profile
 open Engine Community Data

@@ -5,7 +5,7 @@ node makes comes down to which of the five ops it holds (Net.Scene), so
 each handler is worked out here under the invariant, and the invariant
 is shown to survive every step.
 -/
-import Net.Scene
+import ops.connection.bootstrap.Scene
 
 namespace Net
 open Engine Community

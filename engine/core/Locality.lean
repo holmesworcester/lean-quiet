@@ -8,7 +8,7 @@ This is why a windowed node, sent its window's ops with their
 requirement closures, judges each of them as its peer does: its other
 ops, and the ops it lacks, cannot change those verdicts.
 -/
-import Engine.SpecLemmas
+import engine.core.SpecLemmas
 
 namespace Engine.Sync
 open Classical
