@@ -124,7 +124,6 @@ structure PageIn where
   askingAll : Nat
   link : Option String
   members : Array (String × Bool)
-  online : Array Bool
   backEmpty : Bool
   /-- Which camera frame is shown (a new frame, a new key). -/
   camFrame : Nat
@@ -223,12 +222,6 @@ removal is not announced again. -/
   notices : List String := []
   /-- The removal flow (Remove.step). -/
   removal : Remove.Step := .idle
-  /-- Whether each member (as `members`) has a device this node holds a
-  session with now. -/
-  online : Array Bool := #[]
-  /-- The peers this node holds sessions with (their device keys), read
-  every half second. -/
-  peers : List ByteArray := []
   /-- A toast and the frame it goes at (libquiet's: centred, about 3 s). -/
   toast : Option (String × Nat) := none
   page : PageId := .chat
@@ -780,12 +773,11 @@ def refreshMembers : M Unit := do
   let s ← get
   if s.me.c.isEmpty || (s.page != .home && s.page != .profile && s.page != .removeConfirm) then return
   let (ms, _) ← Kinds.Profile.members s.me.c
-  let out := ms.map fun (u, ds, p) => ((p.name, u == s.me.user), ds.any (s.peers.contains ·), u)
+  let out := ms.map fun (u, _, p) => ((p.name, u == s.me.user), u)
   let sorted := out.filter (·.1.2) ++ out.filter (!·.1.2)
   -- an admin: the founder's user (the community's id), or one granted admin
   let (ad, _, _) ← readList (Community.admin.byUser.query [s.me.c, s.me.user] (limit := some 0)) #[]
-  modify fun s => { s with members := sorted.map (·.1), online := sorted.map (·.2.1),
-                           memberIds := sorted.map (·.2.2),
+  modify fun s => { s with members := sorted.map (·.1), memberIds := sorted.map (·.2),
                            amAdmin := !s.me.user.isEmpty && (s.me.user == s.me.c || ad.total > 0) }
   -- a removal being sent is done once its target is no longer present
   if let .sending u := (← get).removal then
@@ -794,16 +786,6 @@ def refreshMembers : M Unit := do
       modify fun s => { s with removal := (Remove.step s.removal .done).1, profileOf := none,
                                page := .home, backStack := [] }
       say s!"Removed {name} from the community."
-
-/-- The node's sessions now (Connection.sessions' kept ones): their
-peers' device keys, every 30 frames. -/
-def refreshPeers : M Unit := do
-  let s ← get
-  if s.net.isNone || s.frames % 30 != 0 then return
-  let all ← ((Connection.allSessions : SqlM SF _)).run s.rd
-  let k := Connection.kept all
-  let ps := all.filterMap fun (cid, p, _) => if k.contains cid then some p else none
-  if ps != s.peers then modify fun s => { s with peers := ps, pageKey := none }
 
 /-- The requests to join the current community, read by the Request kind. -/
 def refreshAsking : M Unit := do
@@ -864,7 +846,7 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
     | .switcher => Pages.switcher f dm W h (k.comms.map fun m =>
         ({ name := m.name, id8 := Kinds.Request.hexShort m.c, unread := 0, current := m.acc == me.acc, waiting := m.waiting } : Pages.Entry))
         k.askingAll (!me.waiting && !me.c.isEmpty)
-    | .home => Pages.home f dm W h (if me.waiting then 0 else k.askingAll) #["general"] k.members k.online
+    | .home => Pages.home f dm W h (if me.waiting then 0 else k.askingAll) #["general"] k.members
     | .label => Pages.label f dm W h k.labelText k.labelPage
     | .profile => let (n, isMe, removed, can) := k.profile; Pages.profile f dm W h n isMe removed can
     | .removeConfirm => Pages.removeConfirm f dm W h k.profile.1 k.removeStage k.removeWhy
@@ -894,7 +876,7 @@ def pageIn (s : St) : PageIn :=
   { page := s.page, W := s.W, h := viewH s, insetTop := s.insetTop, dim := s.dim, field := s.field,
     refusal := s.refusal, me := s.me.key, comms := s.comms.map (·.key),
     asking := (s.asking.filter fun r => !s.hidden.contains r.id).map (·.row), askingAll := s.asking.size,
-    link := (s.links.find? (·.1 == s.me.acc)).map (·.2), members := s.members, online := s.online,
+    link := (s.links.find? (·.1 == s.me.acc)).map (·.2), members := s.members,
     backEmpty := s.backStack.isEmpty, camFrame := s.camFrame, labelText := s.labelText, labelPage := s.labelPage,
     profile := match s.profileOf with
       | some (u, n, isMe) =>
@@ -1606,7 +1588,6 @@ def step (evs : List Event) : M (Option (List Event)) := do
   -- join requests for the current community, and admissions they complete
   refreshComms
   refreshAsking
-  refreshPeers
   refreshMembers
   scanStep
   netStep

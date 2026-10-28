@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 281 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 280 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as each part's `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -178,7 +178,7 @@ nothing else is assumed:
 | ✅ | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. | [`visible_in_viewport`], [`newest_visible`], [`pinned_visible`], [`pinned_tap`], [`hit_iff`] |
 | ✅ | 🥊🥊 | **A captured reading position can be restored.** For a retained message, the restored offset is its new bottom plus the captured distance into it; pinned offsets stay pinned. The app's arrival integration is tested on the headless twin. | [`Anchor.pinned`], [`Anchor.restored`], [`Anchor.possible`] |
 | ✅ | 🥊🥊 | **Full labels are reachable.** Every wrapped line has a page, and copying preserves the source string. Header, switcher and people-row access is tested on the headless twin. | [`Label.line_reachable`], [`Label.copy_exact`] |
-| ✅ | 🥊🥊 | **Stored sessions do not imply presence.** Home's pixels and taps are independent of session flags. | [`UxLaws.sessions_not_presence`] |
+| ✅ | 🥊🥊 | **Stored sessions do not imply presence.** The app state and home page key carry no session flags; avatars have no connection dots. | By construction; headless pixel check. |
 | ⬜ | 🥊🥊🥊 | **Every control is big enough to tap.** Every tappable control's hit area, not just its drawn size, is at least 48 dp by 48 dp on Android and 44 pt by 44 pt on iOS, at every supported screen size and text scale. | |
 | ⬜ | 🥊🥊 | **A tap means one thing.** On every screen, no two controls' hit areas overlap, so a point selects at most one control. A tap selects the control drawn under it. Today this is proven for the emoji sheet and message rows only (`keys_disjoint`, `hit_iff`, `pinned_tap`). | |
 | ⬜ | 🥊🥊 | **Every control shown can be tapped.** A control that is drawn has its hit area on screen, and not under the header, the composer or the keyboard. | |
@@ -364,7 +364,6 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`Anchor.possible`]: app/Quiet/Anchor.lean#L37-L41
 [`Label.line_reachable`]: app/Quiet/Label.lean#L23-L25
 [`Label.copy_exact`]: app/Quiet/Label.lean#L21-L21
-[`UxLaws.sessions_not_presence`]: app/Quiet/UxLaws.lean#L11-L14
 [`eval_stable`]: engine/Engine/View.lean#L137-L142
 [`view_stable`]: engine/Engine/View.lean#L163-L165
 [`filed_rel`]: engine/Engine/Decl.lean#L189-L196
@@ -408,13 +407,13 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`picBox_aspect`]: app/Quiet/RowLaws.lean#L19-L28
 [`readable_held`]: engine/Community/Intents.lean#L295-L299
 [`readable_complete`]: engine/Community/Intents.lean#L337-L341
-[`switcherOrder_sound`]: app/Quiet/Pages.lean#L661-L663
-[`switcherOrder_complete`]: app/Quiet/Pages.lean#L668-L670
+[`switcherOrder_sound`]: app/Quiet/Pages.lean#L660-L662
+[`switcherOrder_complete`]: app/Quiet/Pages.lean#L667-L669
 [`dedupe_nodup`]: app/Quiet/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: app/Quiet/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: app/Quiet/Switch.lean#L82-L84
-[`drawPage_key`]: app/Quiet/App.lean#L881-L885
-[`pageIn_acc`]: app/Quiet/App.lean#L887-L890
+[`drawPage_key`]: app/Quiet/App.lean#L863-L867
+[`pageIn_acc`]: app/Quiet/App.lean#L869-L872
 [`parse_segsBits`]: qr/Qr/SegLaws.lean#L157-L161
 [`parse_dataStream`]: qr/Qr/SegLaws.lean#L193-L197
 [`RS.correct_sound`]: qr/Qr/Laws.lean#L55-L57

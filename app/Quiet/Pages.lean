@@ -536,8 +536,7 @@ def homeBand (f : Font) (dm : Dim) (W insetTop : Nat) (name id8 me : String) : B
 anyone waits (for those who can let them in), Channels, and Direct
 messages (the people). Stored sessions say nothing about a person's
 activity, so they do not decorate avatars. -/
-def home (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array String) (people : Array (String × Bool))
-    (_on : Array Bool := #[]) : Page := Id.run do
+def home (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array String) (people : Array (String × Bool)) : Page := Id.run do
   let mut b := Bitmap.blank W h (solid band W)
   b := b.round 0 0 W (h + dm.px 16) (dm.px 16) Row.bg
   let mut taps := #[]

@@ -42,22 +42,10 @@ control('copy-exact', 'Quiet/Label.lean', ': String := text', ': String := text 
         ['lake', 'env', 'lean', 'Quiet/Label.lean'], 'error:')
 control('line-reachable', 'Quiet/Label.lean', 'ls.extract (page * count)',
         'ls.extract (page * count + 1)', ['lake', 'env', 'lean', 'Quiet/Label.lean'], 'error:')
-# Restore the original misleading green connection dot on the home avatar.
-control('sessions-presence', 'Quiet/Pages.lean',
-        "    let ini := String.ofList [(n.toList.headD '?').toUpper]",
-        """    if _on[i]?.getD false then
-      let r := dm.px 6
-      let cx := dm.px 16 + d
-      let cy := y + (rh + d) / 2
-      b := b.round (cx - r - 2) (cy - r - 2) (cx + r + 2) (cy + r + 2) (r + 2) Row.bg
-      b := b.round (cx - r) (cy - r) (cx + r) (cy + r) r 0x2EB67D
-    let ini := String.ofList [(n.toList.headD '?').toUpper]""",
-        ['lake', 'build', 'Quiet.UxLaws'], 'error: Quiet/UxLaws.lean:')
-
 # These integration controls keep the helper proofs intact and disconnect
 # the hook from the app. Only actual app-step tests can catch them.
-def app_control(name, old, new, expected, mode=None):
-    source = root / 'Quiet/App.lean'
+def app_control(name, old, new, expected, mode=None, path='Quiet/App.lean'):
+    source = root / path
     good = source.read_text()
     assert good.count(old) == 1
     try:
@@ -71,6 +59,15 @@ def app_control(name, old, new, expected, mode=None):
         source.write_text(good)
 
 
+# Reintroduce the dot in the actual painter; the pixel check must fail.
+app_control('sessions-presence',
+            "    let ini := String.ofList [(n.toList.headD '?').toUpper]",
+            """    let r := dm.px 6
+    let cx := dm.px 48
+    let cy := y + (rh + d) / 2
+    b := b.round (cx - r) (cy - r) (cx + r) (cy + r) r 0x2EB67D
+    let ini := String.ofList [(n.toList.headD '?').toUpper]""",
+            'FAIL home avatars have no connection dots', path='Quiet/Pages.lean')
 app_control('arrival-hook',
             'let next := Anchor.restore offset.toNat saved (s.ids.toList.map fun p => (p.2, heightOf s p.2)) bottomPad',
             'let next := offset.toNat',

@@ -43,8 +43,8 @@ unverified without devices; loopback tests do not simulate Wi-Fi changes.
 | 15 | Cannot mark many threads read | No thread list or bulk read action | Future law: bulk mark-read advances every selected thread to its displayed boundary, changes no unselected thread and is idempotent. |
 | 16 | Desktop channel/settings panes collapse into one panel too early | App always uses one panel; no responsive multi-pane breakpoint | Future law: preserve multiple panes while every pane's measured minimum width fits, and collapse only when the sum plus dividers exceeds available width. |
 | 17 | “Message retention limit” truncated to “li…” in sidebar | No retention setting; community/member/action labels are compact in `Pages` | Present analogue: long names were ellipsized on home, switcher and profile, with no full view. Long-press compact navigation labels or the community header to open **Full label**, with wrapping, Next/Previous and Copy full text. Profile body long press also exposes the name. Existing `Text.oneLine_prefix` is unchanged. |
-| 18 | Yellow avatar dot and Bluetooth error under Connection are unclear | No yellow/error dot or Connection page; home painted green dots from stored sessions | Present analogue: remove session-derived avatar dots. `UxLaws.sessions_not_presence` proves home pixels/taps do not depend on those booleans. Future connection UI must describe an actual transport/error in words and offer a relevant action. |
-| 19 | Presence and connectivity traffic lights can contradict one another | `refreshPeers` reads stored sessions, not activity or live socket health | Present analogue fixed with #18. Future law: presence depends only on synced activity; transport health never changes a member's presence indicator. Connectivity has a separately named, truthful status. |
+| 18 | Yellow avatar dot and Bluetooth error under Connection are unclear | No yellow/error dot or Connection page; home painted green dots from stored sessions | Present analogue: remove session-derived avatar dots. The app state, page key and home painter no longer carry session flags; a pixel regression checks the former dot locations. Future connection UI must describe an actual transport/error in words and offer a relevant action. |
+| 19 | Presence and connectivity traffic lights can contradict one another | Session state belongs to the Runner’s Connection hooks; the app no longer polls or caches peer status | Present analogue fixed with #18. Future law: presence depends only on synced activity; transport health never changes a member's presence indicator. Connectivity has a separately named, truthful status. |
 | 20 | Settings groupings with a single item add complexity; community avatar is grounding | No grouped settings UI; community avatar and name already appear in `Pages.homeBand` | Design concern, not an executable regression. Future layout condition: retain current community identity in settings and avoid an extra group level with no navigation benefit. |
 | 21 | Leave screen has not been tested and needs the approved design | No leave-community flow; removal and stop-waiting are different actions | Future law: Leave cannot run before the tested confirmation path completes, Cancel writes nothing, and the resulting screen cannot still act as a member of the departed entry. |
 | 22 | DM settings persist across channel switch; Close returns to old DM | No DMs or settings pane; reaction sheet and back stack are the nearest analogue | Not present on community switching: `switchToAcc` already clears sheet, selection and back stack. UX test opens a sheet, switches by acceptance and checks Back remains in the selected community. Future law: channel switch clears channel-scoped settings; dismissing settings never changes the selected conversation. |
@@ -64,9 +64,9 @@ unverified without devices; loopback tests do not simulate Wi-Fi changes.
 ## Laws over the running code
 
 These exact statements are in the app axiom audit. The functions are
-called by `App.step`, the label painter/clipboard handler, and
-`App.drawPage`. They supplement the twin tests; they do not claim a
-native compositor or clipboard proof.
+called by `App.step` and the label painter/clipboard handler. They
+supplement the twin tests; they do not claim a native compositor or
+clipboard proof.
 
 ```lean
 Anchor.pinned {α : Type} [BEq α] (b : Nat) (saved : Option (α × Nat))
@@ -89,17 +89,12 @@ Label.copy_exact (text : String) : Label.copied text = text
 Label.line_reachable (ls : Array Text.Line) (i count : Nat)
   (hc : 0 < count) (hi : i < ls.size) :
   (Label.window ls count (i / count))[i % count]? = ls[i]?
-
-UxLaws.sessions_not_presence (f : Font.Font) (dm : Row.Dim)
-  (W h waiting : Nat) (channels : Array String)
-  (people : Array (String × Bool)) (sessions : Array Bool) :
-  Pages.home f dm W h waiting channels people sessions =
-    Pages.home f dm W h waiting channels people #[]
 ```
 
 `Anchor.possible` witnesses the unpinned restoration premises with an
 actual insertion. The twin exercises positive label capacity, multiple
-nonempty pages in a short, narrow window using a valid 61-byte name, and a real visible person with a true session flag. The
+nonempty pages in a short, narrow window using a valid 61-byte name, and
+real visible people whose avatar corners have no connection dots. The
 old `Text.oneLine_prefix`, `wrap_keeps`, `wrap_fits`, `ViewLaws.message_read`
 and Switch laws retain their statements and proofs. Ellipsis remains at
 the renderer's shaped-codepoint boundary; this does not claim full
@@ -115,13 +110,21 @@ are `mise run check`, `mise run host:cross` and `mise run host:attach`.
 
 Results on 2026-10-28:
 
+The lead gated commit `2db91a0` green outside this sandbox. This follow-up
+removes the unused session fields and polling, drops the now-obsolete
+`sessions_not_presence` theorem, and checks the absence of dots in the
+painted people rows. NetJoin reads `Connection.sessions` and its peer
+facts directly from the Runner's store instead of an app cache. Anchor
+and Label code and laws are unchanged. Follow-up logs are under
+`app/out/prune/`; TCP tests still require the lead’s unrestricted runner.
+
 | Gate | Result |
 |---|---|
 | `mise run host:ux` | 54 checks pass: 27 with immediate clamping (as the C twin), 27 with shifts queued until the frame (as native vsync). Valid Unicode labels across two pages, exact clipboard effects, a painted scroll anchor through pending/filing/incoming/burst arrivals, bottom pinning, photo reactions and switch/back behaviour. |
-| `mise run check` | All 93 audited app theorems pass on standard axioms; the original 87 statements/proofs are unchanged. |
+| `mise run check` | All 92 audited app theorems pass on standard axioms; the original 87 statements/proofs are unchanged. |
 | Existing `host` / `two_nodes` | 29 / 49 checks pass. The host exercised 500 messages, 200 more arriving later, and a fling with zero unpainted viewport rows. |
 | `mise run host:arrival` | 24 checks pass, including an 11-chunk photo and a 21-size formatting comparison. |
-| `ci/local.sh readme` | Proof links and the repository total of 281 audited theorems pass. |
+| `ci/local.sh readme` | Proof links and the repository total of 280 audited theorems pass. |
 | `ci/local.sh app` | Fails at `net_join`: 2 checks pass, 8 fail after both nodes cannot start. Later suites were run separately. |
 | `mise run host:cross` | Attempted: 6 checks pass, 12 fail after both TCP nodes cannot start. |
 | `mise run host:attach` | Attempted: 6 checks pass, 8 fail after both TCP nodes cannot start. Local sender photo checks pass; network admission/delivery cannot run. |
@@ -147,13 +150,15 @@ without concurrent builds or source edits. Logs are in
 | `capture-witness` | Capture one pixel past the real offset: `Anchor.possible` is false. |
 | `copy-exact` | Append `?` to copied text: `Label.copy_exact` fails. |
 | `line-reachable` | Start each page one line late: `Label.line_reachable` fails. |
-| `sessions-presence` | Restore the original green session dot: `UxLaws.sessions_not_presence` no longer type-checks. |
+| `sessions-presence` | Restore a green dot in the home painter: the avatar-corner pixel assertion fails. |
 | `arrival-hook` | Disconnect restoration from `App.step`: pending, filed and incoming scroll-position tests fail. |
 | `arrival-window` | Keep the old fetch limit after a burst: the visible-message retention test fails. |
 | `arrival-vsync` | Reread the unshifted native offset before vsync: the queued-seam first-frame arrival assertion fails. |
 | `label-hook` | Disconnect the header's full-label action: header access, paging and clipboard checks fail. |
 
-All ten mutations were reverted. Both restored UX runs pass all 27 checks (54 total).
+The original run rejected all ten mutations and reverted them. In this
+pruning follow-up, the changed dot control was rerun against the pixel
+assertion; both restored UX runs pass all 27 checks (54 total).
 The full-label screenshots (`label-0.ppm`, `label-1.ppm`) were visually
 inspected as well as checked through touch events and clipboard output.
 

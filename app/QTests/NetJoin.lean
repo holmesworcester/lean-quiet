@@ -114,16 +114,18 @@ def main (args : List String) : IO UInt32 := do
   let rows := a7.rows.toList.map (·.2.data)
   check s!"B's post reaches A under B's name ({(rows.find? (·.text == "hello over tcp")).map (·.name)})"
     (got || rows.any fun d => d.text == "hello over tcp" && d.name == "Bea")
-  -- The retained session cache knows Bea's device. It is not presence;
-  -- Ux checks that the home page does not paint an activity dot from it.
-  let ((), a8) ← (show M Unit from do
-    sa.cmds.modify (·.push "switch club")
-    for _ in [0:100] do
-      if (← get).online.toList == [false, true] then break
-      steps 1; IO.sleep 10).run a7
-  check s!"A's session cache includes Bea's device ({a8.members.toList.zip a8.online.toList})"
-    (a8.members.toList.map (·.1) == ["Ann", "Bea"] && a8.online.toList == [false, true])
-  if let some r := a8.net then r.stop
+  -- Read the Connection session view that supplies the Runner's hooks,
+  -- through the reader on A's store. No UI field mirrors these sessions.
+  let hasBea : IO Bool := do
+    let sessions ← (Connection.sessions : SqlM SF _).run a7.rd
+    let all ← (Connection.allSessions : SqlM SF _).run a7.rd
+    return all.any fun (cid, peer, _) =>
+      peer == b5.me.dev.pk && sessions.any (·.1 == cid)
+  for _ in [0:100] do
+    if ← hasBea then break
+    IO.sleep 10
+  check "A's Runner sessions include Bea's device" (a7.net.isSome && (← hasBea))
+  if let some r := a7.net then r.stop
   if let some r := b5.net then r.stop
   (← IO.getStdout).flush
   IO.Process.exit (if (← fails.get) == 0 then 0 else 1)

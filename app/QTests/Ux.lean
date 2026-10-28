@@ -103,9 +103,12 @@ def main (args : List String) : IO UInt32 := do
     check "people row long press discloses its full name" (touched && (← get).page == .label && (← get).labelText == "A very long member name that needs its full profile label")
     back; steps 2
     let s ← get
-    let a := drawPage s.font s.bgRow none { pageIn s with online := #[false] }
-    let b := drawPage s.font s.bgRow none { pageIn s with online := #[true] }
-    check "stored sessions cannot paint presence on the home page" (a.1.bmp.rows == b.1.bmp.rows)
+    let pg := (drawPage s.font s.bgRow none (pageIn s)).1
+    let people := pg.taps.filter fun (_, a) => match a with | .person _ => true | _ => false
+    -- The former dot's centre is just outside each avatar's lower-right
+    -- corner. Check the real people's rows, not an empty-page fixture.
+    check "home avatars have no connection dots" (s.page == .home && !people.isEmpty && people.all fun (b, _) =>
+      Paint.getPx pg.bmp.rows[b.y + (b.h + s.dim.px 32) / 2]! (s.dim.px 48) == Row.bg)
     let _ ← tap (.openChannel 0)
     sm.cmds.modify (·.push "chaos 80")
     steps 2; waitIdle sm; steps 15
