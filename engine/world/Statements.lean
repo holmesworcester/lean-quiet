@@ -98,9 +98,9 @@ stores**, not only its own writes: an op relayed from a third peer is
 offered on too. A step that stores op x of room r at node i, on a
 session cid that i held before the step and still holds after it, and
 that shows r at every store the step passes through: either i knew
-before the step that the peer holds x, or a frame on the session to i
-names x (the peer sent x or a have of it), or the step puts in flight to
-the session's address a frame of i's naming x.
+before the step that the peer holds x, or the frame the step hands i on
+the session names x (the peer sent x or a have of it), or the step puts
+in flight to the session's address a frame of i's naming x.
 
 Since sync-harden, what a session knows its peer holds is a bounded hint
 that a later payload may forget (finding 9), so the law names frames,
@@ -116,7 +116,8 @@ def stream_offers_stored_stmt : Prop :=
     (∀ h, Kept (w.box i) h → Kept h ((w.step Q.setup a).box i) → r ∈ Q.rooms i h cid) →
     (w.node i).conn? cid = some c₀ → ((w.step Q.setup a).node i).conn? cid = some c →
       x ∈ c₀.known ∨
-        (∃ p ∈ w.flight, p.dst = Q.addr i ∧ ∃ ps, plainPeek p.bytes = some (cid, ps) ∧ ∃ b ∈ ps, Names b x) ∨
+        (∃ bytes ps, (w.step Q.setup a).delivered = w.delivered ++ [(i, bytes)] ∧
+          plainPeek bytes = some (cid, ps) ∧ ∃ b ∈ ps, Names b x) ∨
         ∃ p ∈ (w.step Q.setup a).flight, p ∉ w.flight ∧ p.src = some i ∧
           some p.dst = ((w.step Q.setup a).node i).addr? cid ∧
           ∃ ps, plainPeek p.bytes = some (cid, ps) ∧ ∃ b ∈ ps, Names b x

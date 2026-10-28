@@ -200,8 +200,8 @@ today's code (with the finding), **O** open.
 |---|---|---|
 | `grows_stmt` | no step, against any attacker, takes a shared op out of a store | **P** (`grows_all`) |
 | `index_store_stmt` | the room index names exactly the stored ops of each room | **P** (`index_store_proof`) |
-| `stream_offers_stored_stmt` | every op a node stores (written or relayed) is offered at once on every session that shows its room throughout the step | O (a3's `stream_offered` for writes) |
-| `offered_stmt` | L-offered: both | O |
+| `stream_offers_stored_stmt` | every op a node stores (written or relayed) is offered at once on every session that shows its room throughout the step, unless the node knew the peer holds it or the frame it took on that session names it (finding 9) | **P** (`stream_offers_stored_proof`) |
+| `offered_stmt` | L-offered: both | **P** (`offered_proof`) |
 | `members_only_stmt` | session frames carry only ops of rooms the session showed in that step | O (ConnLaws per entry point) |
 | `frames_keep_sessions_stmt` | no delivery, duplicate, injection or write closes a session | **P** (`frames_keep_sessions_proof`) |
 | `idem_stmt` | L-idem: the same bytes delivered again leave the store as they were (fixed rooms; finding 6) | O |
@@ -211,12 +211,12 @@ today's code (with the finding), **O** open.
 | `local_stmt` | L-local: the same ops give the same verdicts and every view the same answer | O |
 | `round_stmt` | L-round: a round carries both sides' ops within `roundTime`, whatever interleaves | O; the pilot is its first leg |
 | `round_forward_stmt` | L-round's forward leg, leaf regime: every op of the window i's index named at the opening reaches j within 3Δ | **P** (`round_forward`, from the pilot) |
-| `offer_delivers_stmt` | a have of room r naming y, from j to i on a joined session, gets y to i within 3Δ, if y is not asked at i while it is in flight (finding 8) | **P** (`offer_delivers`) |
+| `offer_delivers_stmt` | a have of room r naming y, from j to i on a joined session, gets y to i within 3Δ, with finding 7's premises | **P** (`offer_delivers`) |
 | `round_ends_stmt` | L-round-terminates: a round ends at both ends within (D+1)Δ | O |
 | `no_false_settle_stmt` | L-no-false-settle: "settled" means holding the peer's snapshot of the window | O |
 | `dup_concurrent_stmt` | L-dup-concurrent: frames keep sessions, idem, and `round_stmt` | O |
-| `session_stable_stmt` | a joined session over a live edge is never dropped | **F** (finding 1) |
-| `claim_delivers_stmt` | the pilot: a claim listing x, from i to j → j holds x within 3Δ | **P** (`pilot`) |
+| `session_stable_stmt` | a joined session over a live edge is never dropped | O (finding 1 fixed by harden; waits on the single timer) |
+| `claim_delivers_stmt` | the pilot: a claim listing x, from i to j → j holds x within 3Δ, with finding 7's premises | **P** (`pilot`) |
 | `walk_stmt` | the walk keeps the store, touches only frontier/offered/closed, is idle on an empty frontier | **P** (`walk_proof`, of main's `walkN`) |
 
 ### T: many nodes over time
@@ -287,6 +287,17 @@ The upper and lower bounds match up to a constant per hop:
   - closed forms of the node's steps on a held store: `write_run`,
     `store_run`, `fanout_run`, `apply_run`, `finish_run`,
     `onFrame_fold`, `onTick_run`, and `seal_mem`;
+  - the stream, `stream_offers_stored_proof`: an op a step stores at a
+    node for the first time, its own or relayed, goes out at once in a
+    have on every session that shows its room, in a new frame to the
+    session's address, unless the node knew the peer holds it or the
+    frame it took on that session names it. With `index_store_proof`,
+    `offered_proof`. On the way: only a session frame or a local write
+    stores an op of a room (`onFrame_new`), every session has an
+    address (`reach_addr`), and a sent packet is new by its serial
+    (`reach_serial`). Negative control (run and reverted): `Conn.filed`
+    sending all but its first have, with its closed form following,
+    breaks `filed_offers'`;
   - the findings' witnesses.
 - **Above the code, from the per-edge bound** (engine/world/Epidemic.lean):
   - `hops`: d · B over a path of d live edges;
@@ -512,7 +523,8 @@ rule the proofs need. Witnesses are in engine/world/Findings.lean.
    step, or offered"; it is restated to name frames instead: i knew x
    before the step, or a frame on the session to i names x, or i sends
    one naming x. Within a frame, `known` grows only by what the frame's
-   payloads name or what the step sends, which is what its proof uses.
+   payloads name or what the step sends (`recv_known_sub`, `KnownBy`),
+   and the restated law is proven (`stream_offers_stored_proof`).
 
 How the earlier bugs map onto the statements:
 
