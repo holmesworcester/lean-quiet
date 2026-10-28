@@ -52,6 +52,34 @@ wired Community.removal_cuts_off
 wired Connection.Noise.Symbolic.kk_secret
 wired Connection.Noise.Symbolic.kk_forward_secret
 
+# Removal (docs/REMOVAL.md): the node's key, the cut, the notice over the
+# running Node and Conn step, and the rejoin
+
+wired Connection.opened_endpoint
+wired Connection.established_endpoint
+wired Community.endpoint_signed
+wired Community.deviceLive_iff
+wired Community.cut_stays
+wired Community.cut_consented
+wired Community.mine_not_removed
+wired Community.rejoin_fresh
+wired Community.removed_stays_removed
+wired Connection.rooms_removed
+wired Connection.rooms_complete
+wired Connection.notice_then_cut
+wired Connection.removed_gets_only_notice
+wired Engine.Sync.closure
+wired Engine.Sync.notice_sent
+wired Engine.Sync.notice_send
+wired Engine.Sync.notice_once
+wired Engine.Sync.notice_no_holds
+wired Engine.Sync.notify_bounded
+wired Connection.answer_trusted
+wired Connection.resend_trusted
+wired Connection.bare_takes_only_join
+wired Connection.rejoin_dials
+wired Connection.reconnect_dials
+
 ## Assumptions
 
 assume Community.Unforgeable An Ed25519 signature that verifies under a device key was made by that key's holder.
