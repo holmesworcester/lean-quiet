@@ -248,6 +248,68 @@ theorem read2_write2 (G : S.Good) (st : Sym) {sI e f p ee se : ByteArray}
   rw [front G, back G]
   simp [hee', hse', r, ks, decHash_encHash G]
 
+/-- The initiator's state recovered from its message 1 is the
+responder's after reading it, and the responder reads the initiator's
+ephemeral and payload. -/
+theorem sent1_read1 (G : S.Good) {pro sI sR e m1 : ByteArray} {st st' : Sym} {re p p' : ByteArray}
+    (hs : sent1 S pro sI e (S.pub sR) m1 = some (st', p'))
+    (hr : read1 S pro sR (S.pub sI) m1 = some (st, re, p)) :
+    st' = st ∧ p' = p ∧ re = S.pub e := by
+  unfold sent1 at hs
+  unfold read1 at hr
+  split at hs
+  · cases hs
+  · rename_i hlt
+    simp only [hlt, ↓reduceIte] at hr
+    split at hs
+    · cases hs
+    · rename_i he
+      have he' : m1.extract 0 32 = S.pub e := by simpa using he
+      rw [he'] at hr
+      simp only [Option.bind_eq_bind, Option.pure_def] at hs hr
+      cases h1 : S.dh e (S.pub sR) with
+      | none => simp [h1] at hs
+      | some es =>
+        cases h2 : S.dh sI (S.pub sR) with
+        | none => simp [h1, h2] at hs
+        | some ss =>
+          have h1' : S.dh sR (S.pub e) = some es := by rw [← G.dh_comm]; exact h1
+          have h2' : S.dh sR (S.pub sI) = some ss := by rw [← G.dh_comm]; exact h2
+          simp only [h1, h2, h1', h2', Option.bind_some] at hs hr
+          cases h3 : (Sym.one S pro (S.pub sI) (S.pub sR) (S.pub e) es ss).decHash S (m1.extract 32 m1.size) with
+          | none => simp [h3] at hs
+          | some q =>
+            simp only [h3, Option.bind_some, Option.some.injEq, Prod.mk.injEq] at hs hr
+            obtain ⟨q1, q2⟩ := q
+            simp only [Prod.mk.injEq] at hs hr
+            obtain ⟨rfl, rfl⟩ := hs
+            obtain ⟨rfl, rfl, rfl⟩ := hr
+            exact ⟨rfl, rfl, rfl⟩
+
+
+/-- The initiator's session from the responder's message 2 matches the
+responder's: the same hash, crossed keys. -/
+theorem read2_write2' (G : S.Good) {st : Sym} {f sI e pl m2 : ByteArray} {sr si : Session} {p : ByteArray}
+    (hw : write2 S st f (S.pub sI) (S.pub e) pl = some (sr, m2))
+    (hr : read2 S st sI e m2 = some (si, p)) :
+    si.h = sr.h ∧ si.send = sr.recv ∧ si.recv = sr.send := by
+  unfold write2 at hw
+  simp only [Option.bind_eq_bind, Option.pure_def] at hw
+  cases h1 : S.dh f (S.pub e) with
+  | none => simp [h1] at hw
+  | some ee =>
+    cases h2 : S.dh f (S.pub sI) with
+    | none => simp [h1, h2] at hw
+    | some se =>
+      have h1' : S.dh e (S.pub f) = some ee := by rw [G.dh_comm]; exact h1
+      have h2' : S.dh sI (S.pub f) = some se := by rw [G.dh_comm]; exact h2
+      simp only [h1, h2, Option.bind_some, Option.some.injEq, Prod.mk.injEq] at hw
+      obtain ⟨rfl, rfl⟩ := hw
+      simp only [read2, size_ge G, ↓reduceIte, front G, back G, h1', h2', Option.bind_eq_bind,
+        Option.bind_some, decHash_encHash G, Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hr
+      obtain ⟨rfl, rfl⟩ := hr
+      exact ⟨rfl, rfl, rfl⟩
+
 /-- **An honest handshake agrees.** If its four DHs succeed: the
 initiator's message 1 succeeds and the responder reads its payload and
 ephemeral; the responder's message 2 succeeds and the initiator reads

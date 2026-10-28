@@ -85,3 +85,6 @@ open Engine Community
 #print axioms Engine.sum_scope_left
 #print axioms Connection.open_seal
 #print axioms Connection.cid_seal
+#print axioms Connection.established_agrees
+#print axioms Connection.Noise.sent1_read1
+#print axioms Connection.Noise.read2_write2'
