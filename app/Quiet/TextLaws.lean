@@ -117,3 +117,28 @@ theorem digits_keep_order :
   decide
 
 end Text
+
+namespace Text
+
+/-- Where glyphs of these advances start, from x. -/
+def starts (x : Nat) : List Nat → List Nat
+  | [] => []
+  | a :: t => x :: starts (x + a) t
+
+/-- **No two glyphs overlap.** The glyphs that advance (all but marks)
+start exactly where the one before ends: glyph i spans [sᵢ, sᵢ + aᵢ) and
+sᵢ₊₁ = sᵢ + aᵢ, from the line's start, in display order. (A mark sits on
+its base, with no advance.) -/
+theorem place_starts (f : Font.Font) : ∀ (cs : List UInt32) (x lastX : Nat),
+    ((placeL f cs x lastX).1.filter (fun g => !isMark g.c)).map (·.x) =
+      starts x ((cs.filter fun c => !isInvisible c && !isMark c).map (adv f))
+  | [], _, _ => by simp [placeL, starts]
+  | c :: t, x, lastX => by
+    unfold placeL
+    by_cases hi : isInvisible c
+    · simp [hi, place_starts f t x lastX]
+    · by_cases hm : isMark c
+      · simp [hi, hm, place_starts f t x lastX]
+      · simp [hi, hm, starts, place_starts f t (x + adv f c) x]
+
+end Text

@@ -128,47 +128,75 @@ def adv (f : Font) (c : UInt32) : Nat :=
 /-- Wide characters (CJK, emoji) are words of their own for wrapping. -/
 def wide (f : Font) (c : UInt32) : Bool := Emoji.isEmoji c || adv f c == f.cell
 
+/-- The longest prefix whose elements satisfy p, and the rest. -/
+def splitW {α : Type} (p : α → Bool) : List α → List α × List α
+  | [] => ([], [])
+  | x :: t => if p x then let r := splitW p t; (x :: r.1, r.2) else ([], x :: t)
+
+theorem splitW_append {α : Type} (p : α → Bool) : ∀ l : List α, (splitW p l).1 ++ (splitW p l).2 = l
+  | [] => rfl
+  | x :: t => by unfold splitW; split <;> simp [splitW_append p t]
+
+theorem splitW_len {α : Type} (p : α → Bool) : ∀ l : List α, (splitW p l).2.length ≤ l.length
+  | [] => by simp [splitW]
+  | x :: t => by unfold splitW; split <;> simp; have := splitW_len p t; omega
+
+/-- A paragraph's tokens: each space alone; a wide character (CJK, emoji)
+with the zero-advance characters after it (its marks); a run of other
+characters (a word). -/
+def tokens (f : Font) : List UInt32 → List (List UInt32)
+  | [] => []
+  | c :: t =>
+    if isSpace c then [c] :: tokens f t
+    else if wide f c then
+      let r := splitW (fun d => adv f d == 0) t
+      (c :: r.1) :: tokens f r.2
+    else
+      let r := splitW (fun d => !isSpace d && !wide f d) t
+      (c :: r.1) :: tokens f r.2
+termination_by l => l.length
+decreasing_by
+  all_goals simp_wf
+  all_goals
+    have h1 := splitW_len (fun d => adv f d == 0) t
+    have h2 := splitW_len (fun d => !isSpace d && !wide f d) t
+    omega
+
+/-- A line's width. -/
+def lineW (f : Font) (l : List UInt32) : Nat := (l.map (adv f)).sum
+
+/-- A line without its trailing spaces. -/
+def trimEnd (l : List UInt32) : List UInt32 := (l.reverse.dropWhile isSpace).reverse
+
+/-- A word longer than a line, broken inside it: each character on the
+current line if it fits (or the line is empty), else on a new one. -/
+def breakIn (f : Font) (width : Nat) : List UInt32 → List (List UInt32) → List UInt32 →
+    List (List UInt32) × List UInt32
+  | [], lines, cur => (lines, cur)
+  | c :: t, lines, cur =>
+    if lineW f cur + adv f c > width && !cur.isEmpty then breakIn f width t (lines ++ [trimEnd cur]) [c]
+    else breakIn f width t lines (cur ++ [c])
+
+/-- Tokens onto lines of at most `width` pixels: a space joins the line; a
+token that fits joins it; one that fits a line starts a new one (the old
+line's trailing spaces dropped); one longer than a line is broken. -/
+def fill (f : Font) (width : Nat) : List (List UInt32) → List (List UInt32) → List UInt32 → List (List UInt32)
+  | [], lines, cur => lines ++ [trimEnd cur]
+  | tok :: t, lines, cur =>
+    if tok.all isSpace then fill f width t lines (cur ++ tok)
+    else if lineW f cur + lineW f tok ≤ width then fill f width t lines (cur ++ tok)
+    else if lineW f tok ≤ width then fill f width t (lines ++ [trimEnd cur]) tok
+    else let r := breakIn f width tok lines cur; fill f width t r.1 r.2
+
 /-- Paragraphs (split at newlines) into lines of at most `width` pixels,
-as code points in logical order. -/
-def wrapPara (f : Font) (width : Nat) (cs : Array UInt32) : Array (Array UInt32) := Id.run do
-  let mut lines : Array (Array UInt32) := #[]
-  let mut cur : Array UInt32 := #[]
-  let mut curW := 0
-  -- the start (in cur) of the word being built, and its width so far
-  let mut i := 0
-  while i < cs.size do
-    let c := cs[i]!
-    let a := adv f c
-    if isSpace c then
-      cur := cur.push c; curW := curW + a; i := i + 1
-      continue
-    -- a word: up to the next space; wide characters are words of their own
-    let mut j := i
-    let mut w := 0
-    if wide f c then
-      j := i + 1; w := a
-      while j < cs.size && adv f cs[j]! == 0 do j := j + 1
-    else
-      while j < cs.size && !isSpace cs[j]! && (!wide f cs[j]! || j == i) do
-        w := w + adv f cs[j]!; j := j + 1
-    if curW + w ≤ width then
-      cur := cur ++ cs.extract i j; curW := curW + w
-    else if w ≤ width then
-      -- the trailing spaces of the line are dropped
-      while cur.size > 0 && isSpace cur.back! do cur := cur.pop
-      lines := lines.push cur
-      cur := cs.extract i j; curW := w
-    else
-      -- longer than a line: break inside it
-      for k in [i:j] do
-        let ck := cs[k]!
-        let ak := adv f ck
-        if curW + ak > width && cur.size > 0 then
-          lines := lines.push cur; cur := #[]; curW := 0
-        cur := cur.push ck; curW := curW + ak
-    i := j
-  while cur.size > 0 && isSpace cur.back! do cur := cur.pop
-  return lines.push cur
+as code points in logical order. Laws (TextLaws): `wrap_keeps` (only
+spaces are dropped, nothing else is lost, added or reordered) and
+`wrap_fits` (every line fits, when every character does). -/
+def wrapL (f : Font) (width : Nat) (cs : List UInt32) : List (List UInt32) :=
+  fill f width (tokens f cs) [] []
+
+def wrapPara (f : Font) (width : Nat) (cs : Array UInt32) : Array (Array UInt32) :=
+  ((wrapL f width cs.toList).map List.toArray).toArray
 
 /-! ## Bidi and placing -/
 

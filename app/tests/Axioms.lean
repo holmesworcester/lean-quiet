@@ -4,6 +4,7 @@ import Quiet.Link
 import Quiet.Camera
 import Quiet.Switch
 import Quiet.TextLaws
+import Quiet.WrapLaws
 import Quiet.App
 #print axioms Geometry.placed_row
 #print axioms Geometry.visible_in_viewport
@@ -34,3 +35,6 @@ import Quiet.App
 #print axioms Text.place_shows
 #print axioms Text.oneLine_prefix
 #print axioms Text.digits_keep_order
+#print axioms Text.wrap_keeps
+#print axioms Text.wrap_fits
+#print axioms Text.place_starts
