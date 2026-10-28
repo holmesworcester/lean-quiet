@@ -11,10 +11,11 @@ waiting on is not listed (unless an approval let it in after all). Nothing else:
 current is the app's memory, not state.
 
 Each entry is one acceptance, keyed by its op id (`acc`), never by the
-community id or a name, and there is one per community: joining a held
-community is refused (App.takeInvite), and two acceptances that raced
-fold to the least (`dedupe`). A join is this entry's own: the joining
-fact whose request is this device's.
+community id or a name, and there is one per community: the engine's
+`Community.mine c` picks it (the admitted acceptance, else the least
+id; stopped joins are not held), the same entry the node answers and
+dials as. Joining a held community writes nothing (Community.join). A
+join is this entry's own: its device's joining fact, not stopped.
 -/
 import Quiet.Data
 
@@ -75,10 +76,18 @@ variable {m : Type → Type} [Monad m] [Reads m]
 def read : m (Array Me × Array Q) := do
   let (acc, _, deps) ← readList (accepted.all.query []) #[]
   let (jn, _, deps) ← readList (joining.all.query []) deps
-  let mut out := #[]
   let mut deps := deps
-  for ((_, accId), f) in acc.rows do
-    let .accepted c pk := f | continue
+  let mut out := #[]
+  let mut seen : List Id := []
+  for (_, f) in acc.rows do
+    let .accepted c _ := f | continue
+    if seen.contains c then continue
+    seen := c :: seen
+    -- this device's entry in c: the engine's choice (Community.mine), the
+    -- one the node answers and dials as, so the two cannot disagree
+    let (pick, d0) ← readView (Community.mine c) deps
+    deps := d0
+    let some (pk, accId) := pick | continue
     let (sec, _, d1) ← readList (secret.byKey.query [pk] (limit := some 1)) deps
     let (adm, _, d2) ← readList (admission.byDevice.query [c, pk] (limit := some 1)) d1
     let (nm, _, d3) ← readList (named.current.query [c] (limit := some 1)) d2
@@ -89,34 +98,20 @@ def read : m (Array Me × Array Q) := do
       | _ => "Waiting to join"
     let admId := (adm.rows.head?.map (·.1.2)).getD .empty
     let user := match adm.rows.head? with | some (_, .admission _ u _ _) => u | _ => .empty
-    -- a join not answered: this device's joining op (its request is this
-    -- device's), and whether I stopped waiting
-    let mut jop := none
-    for ((p, jid), g) in jn.rows do
-      let .joining c' _ _ req _ := g | continue
-      if c' != c then continue
-      -- the request op as stored (it waits, undecided, for the
-      -- community's ops): its body names the device that asked
-      let a ← Reads.read (.op req)
-      deps := deps.push (.op req)
-      if let .bytes (some b) := a then
-        if let some o := Engine.Op.decode b then
-          if let some (.request d _ _ _) := (Codec.decode o.body : Option Community.Body) then
-            if d == pk then jop := some ((p, jid), g)
+    -- waiting: this device's live join of c (the one Stop waiting stops)
     let mut joiningOp := ByteArray.empty
     let mut dialing := ""
     if admId.isEmpty then
-      if let some ((_, jid), .joining _ _ hs req _) := jop then
-        dialing := (hs.head?.bind String.fromUTF8?).getD ""
-        let (ab, _, d4) ← readList (abandoned.byRequest.query [req] (limit := some 0)) deps
+      for ((_, jid), g) in jn.rows do
+        let .joining c' _ hs _ _ d _ := g | continue
+        if c' != c || d != pk then continue
+        let (ab, _, d4) ← readList (abandoned.byJoining.query [jid] (limit := some 0)) deps
         deps := d4
-        if ab.total > 0 then continue
-        joiningOp := jid
+        if ab.total == 0 then
+          joiningOp := jid
+          dialing := (hs.head?.bind String.fromUTF8?).getD ""
     out := out.push { acc := accId, dev := Device.ofSeed seed, seed, c, adm := admId, user, name, joiningOp, dialing }
-  -- a total order: by name, then admitted before waiting, then acceptance
-  -- (op ids are distinct): `dedupe` keeps the first of each community
-  let sorted := out.qsort fun a b => a.name < b.name || (a.name == b.name &&
-    (!a.waiting && b.waiting || (a.waiting == b.waiting && Engine.bcmp a.acc b.acc == .lt)))
+  let sorted := out.qsort fun a b => a.name < b.name || (a.name == b.name && Engine.bcmp a.acc b.acc == .lt)
   return (dedupe sorted, deps)
 
 end Kinds.Accepted

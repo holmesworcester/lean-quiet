@@ -160,7 +160,7 @@ def main (args : List String) : IO UInt32 := do
   let (ok, a8) ← (show M Bool from do
     let some inv := Invite.parse lb | return false
     let seed ← Chaos.freshSeed "race"
-    writeAll (Community.join inv seed "Ann".toUTF8)).run a7
+    writeAll (Community.joinOps inv seed "Ann".toUTF8)).run a7
   let (a9, _, _) ← both a8 b6 3000 fun _ _ => false
   let held ← (show M Nat from do
     let (a, _, _) ← readList (accepted.all.query [] (limit := some 0)) #[]

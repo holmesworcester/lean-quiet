@@ -864,12 +864,17 @@ def onPageAct (a : Pages.Act) : M Unit := do
     -- asks for, and this device's accept and joining facts, as one write
     if let some i := s.invite then
       let seed ← Chaos.freshSeed "join"
-      let w := Community.join i seed s.joinName.toUTF8
+      -- the engine's join: nothing for a held community, the same request
+      -- again for a stopped one, else a fresh join
+      let (w, _) ← readView (Community.join i seed s.joinName.toUTF8) #[]
       if ← writeAll w then
         s.io.textClear
         modify fun s => { s with invite := none, field := "", backStack := [] }
         refreshComms
-        if let some a := acceptOf w then switchToAcc a
+        match acceptOf w, (← get).comms.find? (·.c == i.community) with
+        | some a, _ => switchToAcc a
+        | none, some m => switchToAcc m.acc
+        | none, none => pure ()
   | .addMembers => openPage .invite
   | .share | .copy =>
     if let some (_, l) := s.links.find? (·.1 == s.me.acc) then
