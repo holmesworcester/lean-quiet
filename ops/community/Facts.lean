@@ -43,9 +43,15 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   signature, which covers the sealed bytes. Validators read only the
   header, so a keyless node judges a post as a member does.
 - A content key is local (`key`): this device's copy of a community's
-  key. A wrap delivers one to a device's X25519 key, sealed so that
-  only that device opens it. A wrap admits nobody, so it needs no
-  author.
+  key. A wrap delivers one to an X25519 key, sealed so that only that
+  key's holder opens it. A wrap serves one admission: it cites it, and
+  is Valid only if its recipient is that admission's encryption key
+  (`wrap_cites_admission`). So a wrap is Valid only where its admission
+  is (`wrap_only_admitted`). The honest writers wrap with the admission
+  they complete: the founder's key to itself with the root, a joiner's
+  by whoever composes its admit, in the same write (`approveReq_wraps`),
+  never at an approval below the threshold. A wrap admits nobody, so it
+  needs no author.
 - A post claims two numbers: a counter, which orders its channel, and
   a time, wall-clock minutes since the Unix epoch, which is shown (the
   user's decision, 2026-10-28: "don't hack order onto time"). A
@@ -514,8 +520,9 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ 0 < e.size ∧ e.size ≤ 32 ∧
       C.verify d (signed o (.react e tm s)) s
     then some (.react c u (o.reqs.getD 2 .empty) e tm) else none
-  | .wrap k r bx, [.admission c u0 _ _] =>
-    if o.reqs.head? = some c ∧ u0 = c then some (.wrap c k r bx) else none
+  -- A wrap serves the admission in slot 1: it is to that admission's key.
+  | .wrap k r bx, [.admission c u0 _ _, .admission c1 _ _ e] =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ r = e then some (.wrap c k r bx) else none
   | .secret pk seed, [] => if C.pub seed = pk then some (.secret pk seed) else none
   | .key c k, [] => if k.size = 32 then some (.key c (kidOf cryptoSeal k) k) else none
   | .accept c d, [] => some (.accepted c d)

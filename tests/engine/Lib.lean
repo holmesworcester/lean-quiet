@@ -138,8 +138,11 @@ def workload (seed : Nat) (n : Nat) : List Op := Id.run do
         let (a, dv) := adm k1
         post c a (signer dv) "k".toUTF8 s!"m{i}".toUTF8 (if w2 == 7 then countCap + k2 else k2 % 50) k3
       | 6 =>
-        -- now and then a receipt, of any op (Valid only of a saturated post)
-        if w1 ≥ 6 then receipt (anyId k1) k2 else wrap c "k".toUTF8 d.enc "box".toUTF8
+        -- now and then a receipt, of any op (Valid only of a saturated post);
+        -- else a wrap citing an admission, to its device's key or another's
+        if w1 ≥ 6 then receipt (anyId k1) k2 else
+        let (a, dv) := adm k2
+        wrap c a "k".toUTF8 (if w2 < 5 then dv.enc else d.enc) "box".toUTF8
       | _ =>
         if w2 < 4 then mkOp [c, anyId k1] (.post "k".toUTF8 "unsigned".toUTF8 0 0 .empty)
         else Op.make 9 [anyId k1] s!"junk-{seed}-{i}".toUTF8

@@ -161,6 +161,18 @@ theorem check_profile {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : I
   obtain ⟨h1, rfl, rfl, h4, h5⟩ := hc
   exact ⟨_, _, _, _, _, rfl, rfl, h1, h4, h5⟩
 
+theorem check_wrap {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c : Id} {k r bx : ByteArray}
+    (h : check C o b fs = some (.wrap c k r bx)) :
+    ∃ d0 e0 u d, b = .wrap k r bx ∧ fs = [.admission c c d0 e0, .admission c u d r] ∧
+      o.reqs.head? = some c := by
+  unfold check at h
+  split at h <;> (try split at h) <;> (try simp at h; done)
+  simp only [Option.some.injEq, Fact.wrap.injEq] at h
+  obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+  rename_i hc
+  obtain ⟨h1, rfl, rfl, rfl⟩ := hc
+  exact ⟨_, _, _, _, rfl, rfl, h1⟩
+
 theorem all2_two {α β} {R : α → β → Prop} {l : List α} {a b : β} (h : All2 R l [a, b]) :
     ∃ x y, l = [x, y] ∧ R x a ∧ R y b := by
   cases h with | cons h1 h2 => cases h2 with | cons h3 h4 => cases h4; exact ⟨_, _, rfl, h1, h3⟩
@@ -264,6 +276,24 @@ theorem message_authorized {x c u : Id} {d k t : ByteArray} {n tm : Nat}
   obtain ⟨a, y, hreq, _, hy⟩ := all2_two hr
   rw [hreq] at hh; simp at hh; subst hh
   exact ⟨o, s, e, y, hx, hb, hreq, hy, hs⟩
+
+/-! ## Content-key wraps -/
+
+/-- **A wrap is to the key of the admission it cites.** A Valid wrap of
+c cites its community's root and, in slot 1, an admission into c, Valid
+in the same ops, whose encryption key is the wrap's recipient. Validity
+reads cited facts only, so a removal of that admission's user later
+leaves the wrap Valid, as it leaves the user's messages; that the
+admission was live when the wrap was written is the writer's
+(`approveReq_wraps`). -/
+theorem wrap_cites_admission {x c : Id} {k r bx : ByteArray} (h : V C ops x (.wrap c k r bx)) :
+    ∃ o y u d, ops x = some o ∧ (decode o.body : Option Body) = some (.wrap k r bx) ∧
+      o.reqs = [c, y] ∧ V C ops y (.admission c u d r) := by
+  obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
+  obtain ⟨d0, e0, u, d, rfl, rfl, hh⟩ := check_wrap hv
+  obtain ⟨a, y, hreq, _, hy⟩ := all2_two hr
+  rw [hreq] at hh; simp at hh; subst hh
+  exact ⟨o, y, u, d, hx, hb, hreq, hy⟩
 
 /-! ## No impersonation -/
 

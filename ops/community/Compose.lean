@@ -90,18 +90,20 @@ def react (c adm target : Id) (by_ : Device) (emoji : ByteArray) (time : Nat) : 
   let reqs := [c, adm, target]
   mkOp reqs (.react emoji time (sig by_.sk reqs (.react emoji time .empty)))
 
-def wrap (c : Id) (ckey recipient box : ByteArray) : Op := mkOp [c] (.wrap ckey recipient box)
+/-- A wrap serving admission `adm` of c: it cites the admission, and is
+Valid only if `recipient` is that admission's encryption key. -/
+def wrap (c adm : Id) (ckey recipient box : ByteArray) : Op := mkOp [c, adm] (.wrap ckey recipient box)
 
 /-! ## Content keys and sealed bodies (`Community.Keys`) -/
 
 /-- This device's copy of c's content key k (local). -/
 def contentKey (c k : ByteArray) : Op := mkOp [] (.key c k)
 
-/-- Content key k of c wrapped to the device whose X25519 key is `to`,
-with a fresh ephemeral secret `esk`. -/
-def wrapKey (c : Id) (k esk to : ByteArray) : Op :=
+/-- Content key k of c wrapped to `to`, the encryption key of admission
+`adm` (the root, for the founder), with a fresh ephemeral secret `esk`. -/
+def wrapKey (c adm : Id) (k esk to : ByteArray) : Op :=
   let kid := kidOf cryptoSeal k
-  wrap c kid to (box cryptoSeal esk to kid k)
+  wrap c adm kid to (box cryptoSeal esk to kid k)
 
 /-- A post whose text is sealed under content key k with a fresh
 24-byte nonce: its sealed bytes are the nonce, then the ciphertext. -/
