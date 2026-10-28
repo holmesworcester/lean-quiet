@@ -6,7 +6,7 @@ run = "cd engine && mise run check"
 [tasks."engine:test"]
 run = "cd engine && mise run test"
 [tasks."app:check"]
-run = "cd app && mise run check && mise run host:app && mise run host:two-nodes && mise run host:net-join && mise run host:cross"
+run = "cd app && mise run check && mise run host:app && mise run host:two-nodes && mise run host:net-join && mise run host:cross && mise run host:arrival"
 [tasks."qr:check"]
 run = "cd qr && mise run check"
 [tasks."mdns:check"]

@@ -20,10 +20,11 @@ gate() {
     mdns|qr|net) tests/check.sh ;;
     app)
       [ -f assets/font.bin ] || tools/fetch_assets.sh
-      lake build host two_nodes net_join &&
+      lake build host two_nodes net_join arrival &&
         .lake/build/bin/host "${MESSAGES:-500}" out/host &&
         .lake/build/bin/two_nodes out/two &&
         .lake/build/bin/net_join out/net &&
+        .lake/build/bin/arrival out/arrival &&
         tests/check.sh ;;
     *) echo "no part $1" >&2; return 2 ;;
   esac

@@ -24,6 +24,10 @@ run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build host && .lake
 description = "The app's APK (x86_64 for the emulator, arm64-v8a for phones); needs a Lean runtime for Android (LEANRT)"
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; android/twin/build_apk.sh out/quiet.apk com.holmes.leanquiet 'Lean Quiet' Main x86_64 arm64-v8a"
 
+[tasks."host:arrival"]
+description = "A photo arriving chunk by chunk (QTests/Arrival): after each chunk the row's count, its pill's words and its painted ring are exact and the preview shows; a chunk twice changes nothing; the last one swaps in the file; a sender sees its own file from the outbox"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build arrival && .lake/build/bin/arrival out/arrival"
+
 [tasks.check]
 description = "The proof gate: the app's theorems (Geometry: list content never under the header, composer or keyboard) on standard axioms only"
 run = "tests/check.sh"

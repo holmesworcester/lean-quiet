@@ -362,16 +362,20 @@ def decodeTask (bytes : ByteArray) (w h : Nat) (sq : Bool) : Task Bitmap :=
     | some src => if sq then Image.square src w Row.bg else Image.scaled src w h Row.bg
     | none => Bitmap.blank w h (solid Row.placeholder w)
 
-/-- An attachment's slices, read from its chunk ops in order. -/
-def slicesOf (p : Row.Pic) : M (List ByteArray) := do
+/-- An attachment's slices, read from its chunk ops in order (a chunk this
+device sends may still be in the outbox); none while one is not here. -/
+def slicesOf (p : Row.Pic) : M (Option (List ByteArray)) := do
   let s ← get
   let mut out := #[]
   for x in p.chunks do
-    let some o ← (Store.getOp (F := SF) (m := SqlM SF) x).run s.rd | return []
-    match (Codec.decode o.body : Option Community.Body) with
+    let body ← match s.out.find? (·.op.id == x) with
+      | some pd => pure (some pd.op.body)
+      | none => do pure ((← (Store.getOp (F := SF) (m := SqlM SF) x).run s.rd).map (·.body))
+    let some body := body | return none
+    match (Codec.decode body : Option Community.Body) with
     | some (.chunk _ _ _ slice _) => out := out.push slice
-    | _ => return []
-  return out.toList
+    | _ => return none
+  return some out.toList
 
 /-- A decode of `k` started (or finished): its bitmap once done. -/
 def decoded (k : ImgKey) (start : M (Option (Task Bitmap))) : M (Option Bitmap) := do
@@ -382,23 +386,22 @@ def decoded (k : ImgKey) (start : M (Option (Task Bitmap))) : M (Option Bitmap) 
     return none
 
 /-- An attachment drawn at its size, if ready, and whether it is the file
-(not its preview): the preview until every chunk is here and the file
-is decoded, then the file (its slices assembled and opened with the
-file's key, off the app's thread). -/
+(not its preview), as `Row.Pic.shown` chooses: the preview (softened,
+Arrival.soften) until every chunk is here and the file is decoded, then
+the file (its slices assembled and opened with the file's key, off the
+app's thread). -/
 def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := do
   let pre ← decoded (p.hash.push 0, w, h) do
-    pure (if p.preview.isEmpty then none else some (decodeTask p.preview w h false))
-  if !p.complete then return (pre, false)
-  let full ← decoded (p.hash.push 1, w, h) do
-    let slices ← slicesOf p
+    pure (if p.preview.isEmpty then none
+      else some ((decodeTask p.preview w h false).map (Arrival.soften Row.bg)))
+  let full ← if !p.complete then pure none else decoded (p.hash.push 1, w, h) do
+    let some slices ← slicesOf p | pure none
     let (key, nonce) := (p.key, p.nonce)
     pure <| some <| Task.spawn fun _ =>
       match (Community.openFile slices key nonce).bind Image.decode with
       | some src => Image.scaled src w h Row.bg
       | none => Bitmap.blank w h (solid Row.placeholder w)
-  match full with
-  | some b => return (some b, true)
-  | none => return (pre, false)
+  return p.shown pre full
 
 /-- Mount (read, lay out) row x if any of its answers are stale. -/
 def mount (x : Id) : M Unit := do
@@ -938,11 +941,9 @@ def preparePhoto (dm : Dim) (src : Image.Src) : ByteArray × Nat × Nat × Compo
   let px := Chaos.cropPx src 0 0 src.w src.h w h
   let bytes := Image.encode w h px
   let raw := w * h * 4
-  let kib := bytes.size * 10 / 1024
   let pct := 100 - bytes.size * 100 / max raw 1
   let thumb := Image.square src (dm.px 64) Row.bg
-  let size := if kib ≥ 100 then s!"{kib / 10} KiB" else s!"{kib / 10}.{kib % 10} KiB"
-  (bytes, w, h, ⟨thumb, s!"{size} · {pct}% smaller"⟩)
+  (bytes, w, h, ⟨thumb, s!"{Arrival.humanBytes bytes.size} · {pct}% smaller"⟩)
 
 /-- Add photos: until the system picker lands in the twin, the bundled
 test photos, one per tap. -/

@@ -54,3 +54,7 @@ lean_exe net_join where
 -- Two phones, two communities, each in both, everything named alike.
 lean_exe cross where
   root := `QTests.Cross
+
+-- A photo arriving chunk by chunk: the pill, the ring and the preview.
+lean_exe arrival where
+  root := `QTests.Arrival

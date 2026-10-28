@@ -4,6 +4,7 @@ import Quiet.Link
 import Quiet.Camera
 import Quiet.Switch
 import Quiet.App
+import Quiet.ArrivalLaws
 #print axioms Geometry.placed_row
 #print axioms Geometry.visible_in_viewport
 #print axioms Geometry.newest_visible
@@ -29,3 +30,33 @@ import Quiet.App
 #print axioms Pages.switcherOrder_sound
 #print axioms Pages.switcherOrder_complete
 #print axioms Switch.dedupe_one_per_community
+#print axioms ArrivalLaws.percent_lt
+#print axioms ArrivalLaws.percent_eq
+#print axioms ArrivalLaws.done_iff
+#print axioms ArrivalLaws.caption_none_iff
+#print axioms ArrivalLaws.caption_some
+#print axioms ArrivalLaws.lit_zero
+#print axioms ArrivalLaws.lit_mono
+#print axioms ArrivalLaws.lit_full
+#print axioms ArrivalLaws.lit_clockwise
+#print axioms ArrivalLaws.onRing_square
+#print axioms ArrivalLaws.layout_done
+#print axioms ArrivalLaws.layout_shown
+#print axioms ArrivalLaws.layout_arriving
+#print axioms ArrivalLaws.layout_percent_lt
+#print axioms ArrivalLaws.layout_words
+#print axioms ArrivalLaws.layout_inside
+#print axioms ArrivalLaws.ring_inside
+#print axioms ArrivalLaws.words_inside
+#print axioms ArrivalLaws.ring_counts
+#print axioms ArrivalLaws.arrival_none
+#print axioms ArrivalLaws.arrival_some
+#print axioms ArrivalLaws.picBox_progress
+#print axioms ArrivalLaws.layout_progress
+#print axioms ArrivalLaws.shown_file
+#print axioms ArrivalLaws.shown_pre
+#print axioms ArrivalLaws.readView_model
+#print axioms ArrivalLaws.pic_progress
+#print axioms ArrivalLaws.complete_iff_held
+#print axioms ArrivalLaws.file_whole
+#print axioms ArrivalLaws.pic_complete_iff_held
