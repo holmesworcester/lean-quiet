@@ -627,6 +627,24 @@ def removeConfirm (f : Font) (dm : Dim) (W h : Nat) (name : String) (stage : Nat
     b := b4; taps := #[t1, t2]
   return ⟨b, taps⟩
 
+/-- Quiet's duplicate-name warning, opened from a "Duplicate" label:
+what it means, and the label itself. -/
+def duplicate (f : Font) (dm : Dim) (W h : Nat) : Page := Id.run do
+  let mut b := blank W h
+  let mut y := dm.px 24
+  let (b1, hh) := heading f dm b "Multiple users with same name" y
+  y := y + hh + dm.px 12
+  let (b2, ph) := para f dm b1
+    "Two members are using names that look the same. This should be rare, and could mean someone is impersonating another member. Both are marked:"
+    (dm.px 24) y (W - dm.px 48) dim
+  b := b2
+  y := y + ph + dm.px 16
+  let (bx, l) := Row.twinPill f dm 0
+  let x := (W - min W bx.w) / 2
+  b := b.round x y (x + bx.w) (y + bx.h) (dm.px 8) Row.twinBg
+  b := b.line f l (x + dm.px 6) (y + (dm.topPad - bx.y)) nameInk
+  return ⟨b, #[]⟩
+
 /-- One community in the switcher. -/
 structure Entry where
   name : String

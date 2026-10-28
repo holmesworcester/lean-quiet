@@ -42,14 +42,21 @@ structure Peer where
   path : String
   run : Runner
 
+/-- A side listening from `port` on: a port another process holds (this
+box runs many) is passed over for the next one of its parity, so two
+sides started at p and p + 1 never take each other's. -/
 def side (dir name : String) (port : Nat) : IO Peer := do
   let seed := sha256 s!"seed {name}".toUTF8
-  let addr := s!"127.0.0.1:{port}".toUTF8
   let path := s!"{dir}/{name}.db"
   let db ← fresh path
-  let x : Sync F (SqlM F) := { fam, cfg, hooks := hooks fam K addr }
-  let run ← Runner.start x db 0 port.toUInt16
-  return { name, seed, addr, path, run }
+  for i in [0:50] do
+    let p := port + 2 * i
+    let addr := s!"127.0.0.1:{p}".toUTF8
+    let x : Sync F (SqlM F) := { fam, cfg, hooks := hooks fam K addr }
+    match ← (Runner.start x db 0 p.toUInt16).toBaseIO with
+    | .ok run => return { name, seed, addr, path, run }
+    | .error e => if (toString e).contains "address already in use" then continue else throw e
+  throw (IO.userError s!"no free port from {port}")
 
 /-- Read a side's store through a connection of its own. -/
 def look {α} (s : Peer) (q : SqlM F α) : IO α := do q.run (← Db.openAt s.path)

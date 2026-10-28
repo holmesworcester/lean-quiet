@@ -239,7 +239,7 @@ and each named user's `removal.byUser`.
 ## Running
 
     mise run check         # build proofs, audit axioms (standard only)
-    mise run test:engine   # scenario, differential, querydiff, linkcheck, lifecycle, wire, syncpair, noise_check, purge, crash
+    mise run test:engine   # scenario, differential, querydiff, linkcheck, lifecycle, wire, syncpair, syncworld, noise_check, purge, crash
 
 Needs `ELAN_HOME` with Lean 4.34.0, and SQLite and libsodium (headers
 for SQLite). The CI workflow runs both tasks; this repo has no remote
@@ -299,6 +299,8 @@ Laws (`ops/connection/Laws.lean`, `ops/connection/Noise.lean`,
   for any suite whose DH commutes, whose AEAD opens what it seals and
   whose messages split into their key and the rest;
 - `open_seal`, `cid_seal`;
+- `openFrame_auth`, `sealed_auth` (a sealed frame is decoded only after
+  its AEAD check passes under its session's receive key);
 - `sum_left`.
 
 **The handshake in a symbolic model** (`ops/connection/NoiseSymbolic.lean`,
