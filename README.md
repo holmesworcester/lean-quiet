@@ -86,6 +86,15 @@ nothing else is assumed:
 - **The seam:** the TCP runner's sockets, the C glue, and the Android and
   iOS shells. These are tested end to end, over localhost TCP and on
   devices.
+  Noto's pure paint API also has one memoization seam,
+  `Ttf.Memo.Source.bitmap`, implemented with `unsafeBaseIO`. Its contract
+  is exact equality with `Source.uncached` (every bitmap field and byte,
+  including failure), regardless of hits, eviction or concurrency. That
+  compiled equivalence is tested, not proved. The reader, raster and the
+  cache insertion it calls are ordinary Lean functions with audited bounds.
+  Compact build-time cmap/hmtx records are tested against every source
+  mapping and metric; their correspondence is not a kernel theorem.
+  See [Noto rendering](app/docs/NOTO.md).
 - **That each statement says what we mean.** Read it: every name below
   links to its statement.
 
@@ -102,7 +111,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 286 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 291 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as each part's `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -188,6 +197,7 @@ nothing else is assumed:
 | ⬜ | 🥊🥊 | **An action's toast stays until the screen shows it.** A toast for an action (removing someone, a new name or avatar) stays up until every component on screen has re-read a state that holds the action's op, or until the OS's toast time passes, whichever comes first. So a toast that leaves early proves the screen has caught up. | |
 | ✅ | 🥊🥊 | **The layout is exact.** The slide and keyboard shift are exact, and page rows are where the page put them. Emoji keys never overlap, and every key is reachable. An invite's hints and QR fit, and the camera preview reads inside its frame. | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
 | ✅ | 🥊🥊 | **Noto coverage is bounded.** Lean reads TrueType outlines and rasterizes them. A returned bitmap has exactly its area in bytes, every pixel is in bounds, and its ink box fits its advance cell plus declared overhang. cmap lookup agrees with its decoded entry and coverage saturates rather than wrapping. Binary decoding and pixel fidelity are tested against fontTools; see [Noto rendering](app/docs/NOTO.md). | [`Ttf.byte_in_bounds`], [`Ttf.cmap_entry`], [`Ttf.coverage_value`], [`Ttf.raster_valid`], [`Ttf.raster_pixel`] |
+| ✅ | 🥊🥊 | **The glyph cache is bounded.** Noto, including the pinned common CJK subsets, uses a shared FIFO cache with a 4 MiB charge budget and at most 1,024 entries. The running insertion bounds its charge and retained coverage bytes; native allocator and raster scratch memory are outside this accounting. | [`Ttf.Cache.put_bound`], [`Ttf.Cache.put_payload_bound`] |
 | 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** A row's glyphs, read in order, are exactly the body's visible characters. Nothing is clipped, reordered or taken from another row, and every line fits. Proven: wrapping drops only spaces and keeps every other character in order, and every line fits when every character does; bidi reordering is a permutation (nothing dropped or invented); the glyphs placed are exactly the visible characters, each starting where the one before ends; numbers keep their order inside right-to-left text, for the reported cases. Wanted: that order in general, and `layout` as one statement over the three. | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`digits_keep_order`] |
 | 🟡 | 🥊🥊🥊 | **Names are shown correctly.** A message row draws its author's name, as the views pick it, and no one else's. No bidi override or invisible character can disguise a name or a message. Proven: a row's name is its author's newest valid profile's (or "…"), and only a device admitted into that user can have written it; the row draws it cut to a logical prefix and an ellipsis, so a long name keeps its beginning in either direction. Every explicit bidi control (embeddings, overrides, isolates, LRM and RLM) is a neutral in the running bidi, so none can reorder a name or a message, and the marks draw nothing. | [`message_read`], [`profile_read`], [`profile_authorized`], [`no_renaming`], [`name_placed`], [`oneLine_prefix`], [`controls_neutral`], [`marks_invisible`] |
 | ✅ | 🥊🥊 | **Times, reactions and pictures are shown as held:** the claimed time's clock, each reaction's count of distinct reactors, and each picture at its aspect inside its box. One pill per emoji, whose reactors are exactly who reacted with it, each once; a picture's box has one side at its bound and the other scaled by its aspect. | [`time_shown`], [`message_read`], [`tally_nodup`], [`tally_mem`], [`picBox_aspect`] |
@@ -385,6 +395,8 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`Ttf.coverage_value`]: app/Quiet/Ttf/Laws.lean#L38-L39
 [`Ttf.raster_valid`]: app/Quiet/Ttf/Laws.lean#L55-L56
 [`Ttf.raster_pixel`]: app/Quiet/Ttf/Laws.lean#L64-L68
+[`Ttf.Cache.put_bound`]: app/Quiet/Ttf/Cache.lean#L90-L93
+[`Ttf.Cache.put_payload_bound`]: app/Quiet/Ttf/Cache.lean#L112-L113
 [`wrap_keeps`]: app/Quiet/WrapLaws.lean#L132-L135
 [`wrap_fits`]: app/Quiet/WrapLaws.lean#L206-L209
 [`visual_perm`]: app/Quiet/TextLaws.lean#L46-L47

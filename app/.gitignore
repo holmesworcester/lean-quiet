@@ -2,3 +2,5 @@
 out/
 *.apk
 assets/
+
+__pycache__/

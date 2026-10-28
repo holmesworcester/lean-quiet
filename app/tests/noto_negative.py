@@ -57,7 +57,7 @@ fault('raster-check', 'Quiet/Ttf/Raster.lean', 'checked (← rasterRaw f glyph s
 fault('nonvacuity', 'Quiet/Ttf/Raster.lean', 'if b.Valid then some b else none', 'none', proof=True)
 fault('curve-precision', 'Quiet/Ttf/Raster.lean', '(bend * 64)', '(bend * 4)', reference=True)
 fault('composite-matrix', 'Quiet/Ttf/Read.lean', 'x := xx * p.x + yx * p.y, y := xyM * p.x + yy * p.y', 'x := xx * p.x + xyM * p.y, y := yx * p.x + yy * p.y', reference=True)
-fault('glyph-cache', 'Quiet/Noto.lean', '  g.get', '  Ttf.raster f.font r.glyph f.size f.size')
+fault('glyph-cache', 'Quiet/Ttf/Memo.lean', '@[implemented_by bitmapImpl]', '-- Memoization removed for the negative control.')
 fault('density', 'Quiet/Font.lean', 'max 16 (min 64 ((source * density + 210) / 420))', 'source')
 fault('font-truncation', 'Quiet/Ttf/Read.lean', '  let f ← readHeader b', '  if b.size == 0 then return default\n  let f ← readHeader b')
 fault('composite-cycle', 'Quiet/Ttf/Read.lean', '    if fuel == 0 || ancestors.contains glyph then failure else do', '    if ancestors.contains glyph then return #[]\n    if fuel == 0 then failure else do')

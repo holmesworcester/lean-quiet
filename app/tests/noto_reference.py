@@ -76,6 +76,7 @@ def prepare():
     transforms()
     for name, text in SAMPLES.items():
         f = font(name)
+        assert 'fvar' not in f and f['OS/2'].usWeightClass == 400, (name, 'not static Regular')
         cmap = f.getBestCmap()
         (OUT / (name + '.map')).write_text(''.join(f'{cp} {f.getGlyphID(g)} {f["hmtx"][g][0]}\n' for cp, g in sorted(cmap.items())))
         (OUT / (name + '.samples')).write_text(''.join(f'{cp} {size}\n' for cp in sorted(set(map(ord, text))) if cp in cmap for size in SIZES))
@@ -229,7 +230,7 @@ def compare():
                     a = ref[gy*w+gx]
                     at = py*width+px
                     canvas[at] = (20*a+canvas[at]*(255-a)+127)//255
-    actual = (OUT / 'scripts.ppm').read_bytes().split(b'\n',3)[3][:width*height*3]
+    actual = (OUT / 'scripts-core.ppm').read_bytes().split(b'\n',3)[3][:width*height*3]
     differences = [abs(canvas[i//3]-value) for i,value in enumerate(actual)]
     assert len(actual) == 3*len(canvas)
     assert max(differences)<=32 and sum(differences)/len(differences)<=1, ('line paint',max(differences))

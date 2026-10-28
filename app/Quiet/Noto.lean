@@ -1,10 +1,11 @@
 /-
-The installed Noto faces at one pixel size. The cache key is
-(face index, glyph id, size); one memoizing Lean Thunk per key is shared
-by all code points and paint tasks. Metrics never force a raster.
-Reordering/stacking scripts and CFF CJK remain on Unifont.
+Pinned Noto faces and font metrics beneath Text. CJK selection is in Cjk;
+the process-wide, bounded raster cache is in Ttf.Cache/Memo. A font load
+assigns identities, but layout never rasterizes or mutates the cache.
 -/
-import Quiet.Ttf.Raster
+import Quiet.Ttf.Memo
+import Quiet.Cjk
+import Quiet.Ttf.Index
 
 namespace Noto
 
@@ -18,23 +19,15 @@ structure Ref where
   advance : Nat
   deriving Inhabited
 
-structure Cached where
-  font : Ttf.Face
-  size : Nat
-  glyphs : Array (Thunk (Option Ttf.Bitmap))
-  deriving Inhabited
+abbrev Cached := Ttf.Memo.Source
 
 structure Set where
   faces : Array Cached := #[]
   chars : Std.HashMap UInt32 Ref := {}
   deriving Inhabited
 
-def cache (font : Ttf.Face) (size cell : Nat) : Cached :=
-  ⟨font, size, (List.range font.advances.size).toArray.map fun g =>
-    Thunk.mk fun _ => Ttf.raster font g size cell⟩
-
-/-- Restrict the generic face's incidental coverage as well as the
-specialist faces. Indic, Tibetan, Myanmar, Khmer and CJK keep fallback. -/
+/-- Restrict the core faces' incidental coverage. CJK is selected below;
+Indic, Tibetan, Myanmar and Khmer keep fallback. -/
 def supported (c : Nat) : Bool :=
   c < 0x900 || (0xE00 ≤ c && c ≤ 0xE7F) || (0x10A0 ≤ c && c ≤ 0x10FF) ||
   (0x1200 ≤ c && c ≤ 0x167F) || (0x18B0 ≤ c && c ≤ 0x18FF) ||
@@ -44,22 +37,32 @@ def supported (c : Nat) : Bool :=
 
 def Set.bitmap (s : Set) (r : Ref) : Option Ttf.Bitmap := do
   let f ← s.faces[r.face]?
-  let g ← f.glyphs[r.glyph]?
-  g.get
+  f.bitmap r.glyph
 
+/-- Layout consumes a compact cmap/hmtx index. Face parsing and outline
+validation are deferred to first paint; file reads measured about 1 ms. -/
 def load (cell : Nat) (dir : String := "assets") : IO Set := do
+  let some index := Ttf.Index.read (← IO.FS.readBinFile (dir ++ "/noto-index.bin"))
+    | throw (IO.userError "invalid Noto metric index")
+  let files := (names.map (· ++ "-Regular")) ++ Cjk.names
+  if index.size != files.size then throw (IO.userError "Noto index face count")
   let mut out : Set := {}
-  for name in names do
-    let path := dir ++ "/" ++ name ++ "-Regular.ttf"
+  for i in [0:files.size] do
+    let some name := files[i]? | throw (IO.userError "Noto face")
+    let some metrics := index[i]? | throw (IO.userError "Noto index")
+    let path := dir ++ "/" ++ name ++ ".ttf"
     let bytes ← IO.FS.readBinFile path
-    let some font := Ttf.read bytes | throw (IO.userError s!"{path}: invalid TrueType font")
-    let face := out.faces.size
-    out := { out with faces := out.faces.push (cache font cell cell) }
-    for e in font.cmap do
-      for c in [e.lo:e.hi + 1] do
-        let glyph := e.glyph c
-        if supported c && glyph != 0 && !out.chars.contains c.toUInt32 then
-          out := { out with chars := out.chars.insert c.toUInt32 ⟨face, glyph, Ttf.advance font glyph cell⟩ }
+    if bytes.size != metrics.bytes then throw (IO.userError s!"{path}: index/font size mismatch")
+    out := { out with faces := out.faces.push (← Ttf.Memo.source bytes cell cell) }
+    for (c,g,a) in metrics.chars do
+      if g == 0 then continue
+      let take := if i < names.size then supported c && !out.chars.contains c.toUInt32
+        else Cjk.supported c && (Cjk.order c).contains (i-names.size) &&
+          match out.chars[c.toUInt32]? with
+          | none => true
+          | some old => (Cjk.order c).idxOf (i-names.size) < (Cjk.order c).idxOf (old.face-names.size)
+      if take then
+        out := { out with chars := out.chars.insert c.toUInt32 ⟨i, g, (a*cell+metrics.units/2)/metrics.units⟩ }
   return out
 
 end Noto

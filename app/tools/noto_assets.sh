@@ -11,3 +11,8 @@ while read -r hash name; do
   fi
 done < "$root/tools/noto.sha256"
 cp "$root/tools/NOTO-LICENSE.txt" "$root/assets/NOTO-LICENSE.txt"
+"$root/tools/cjk_assets.sh"
+if ! (cd "$root/assets" && sha256sum -c "$root/tools/noto-index.sha256" --status) 2>/dev/null; then
+  PYTHONPATH="${CJK_PYTHON:-/mnt/storage/holmes-wt/lq-tonight/py}${PYTHONPATH:+:$PYTHONPATH}" python3 "$root/tools/noto_index.py"
+  (cd "$root/assets" && sha256sum -c "$root/tools/noto-index.sha256")
+fi

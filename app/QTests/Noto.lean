@@ -61,7 +61,7 @@ unsafe def main (args : List String) : IO Unit := do
   require (Paint.getPx visible[0]! 0 == 0xFFFFFF && Paint.getPx visible[0]! 1 == 0xFFFFFF && Paint.getPx visible[0]! 2 == 0) "bold coverage extends once"
   let font ← Font.load
   require (Text.adv font 'i'.val < Text.adv font 'W'.val) "proportional advances"
-  require ((font.glyph 'क'.val).noto.isNone && (font.glyph '漢'.val).noto.isNone) "Indic/CJK fallback"
+  require ((font.glyph 'क'.val).noto.isNone && (font.glyph '龘'.val).noto.isNone) "Indic/rare CJK fallback"
   require ((font.glyph 'A'.val).noto.isSome && (font.glyph 'א'.val).noto.isSome) "Noto selection"
   require (Text.adv font 0x301 == 0 && Text.adv font 0x200D == 0) "marks and invisibles"
   let some r := font.noto.chars['A'.val]? | throw (IO.userError "A absent")
@@ -81,12 +81,13 @@ unsafe def main (args : List String) : IO Unit := do
   require (Text.adv small 'W'.val < Text.adv font 'W'.val && Text.adv font 'W'.val < Text.adv big 'W'.val) "density metrics"
   let ink (f : Font.Font) := (f.noto.chars['W'.val]? >>= f.noto.bitmap).map (·.pixels.size) |>.getD 0
   require (ink small < ink font && ink font < ink big) "density raster cache keys"
-  let fallback (f : Font.Font) := (List.range f.cell).any fun row => f.row (f.glyph '漢'.val) row != 0
+  let fallback (f : Font.Font) := (List.range f.cell).any fun row => f.row (f.glyph '龘'.val) row != 0
   require (fallback small && fallback big) "density fallback pixels"
   let samples := (← IO.FS.readFile s!"{dir}/lines.txt").splitOn "\n"
   let mut image := Paint.Bitmap.blank 1100 (samples.length * 90 + 30) (Paint.solid 0xFFFFFF 1100)
   let mut placed := ""
   for (line, i) in samples.zipIdx do
+    if i == 11 then writePpm s!"{dir}/scripts-core.ppm" image.w image.rows
     let layout := Text.oneLine font 1060 line
     image := image.line font layout 20 (20 + i * 90) 0x141414
     if i < 11 then

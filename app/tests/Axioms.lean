@@ -13,6 +13,7 @@ import Quiet.RemovedLaws
 import Quiet.App
 import Quiet.ArrivalLaws
 import Quiet.Ttf.Laws
+import Quiet.Ttf.Cache
 #print axioms Geometry.placed_row
 #print axioms Geometry.visible_in_viewport
 #print axioms Geometry.newest_visible
@@ -112,3 +113,9 @@ import Quiet.Ttf.Laws
 #print axioms Ttf.raster_valid
 #print axioms Ttf.ink_witness
 #print axioms Ttf.raster_pixel
+
+#print axioms Ttf.Cache.empty_valid
+#print axioms Ttf.Cache.checked_valid
+#print axioms Ttf.Cache.put_bound
+#print axioms Ttf.Cache.payload_le_bytes
+#print axioms Ttf.Cache.put_payload_bound

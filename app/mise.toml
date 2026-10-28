@@ -32,6 +32,10 @@ run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; la
 description = "The proof gate: the app's theorems (Geometry: list content never under the header, composer or keyboard) on standard axioms only"
 run = "tests/check.sh"
 
+[tasks."host:font-contract"]
+description = "Compact font metrics, lazy startup and the compiled memoization contract"
+run = "bash tests/font_contract.sh"
+
 [tasks."host:two-nodes"]
 description = "Two apps, each its own database, joined by link through their own pages: invite, paste, agree, the request carried, approve, admission carried, a message back"
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build two_nodes && .lake/build/bin/two_nodes out/two"
@@ -80,3 +84,7 @@ run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; la
 [tasks."host:noto"]
 description = "Lean Noto rasterization against fontTools, hostile fonts, metrics, fallback and cache; builds its executable"
 run = "tests/noto.sh"
+
+[tasks."host:cjk"]
+description = "Pinned CJK subsets, reference pixels, bounded cache eviction, and a 500-post CJK fast scroll; builds its executables"
+run = "tests/cjk.sh"

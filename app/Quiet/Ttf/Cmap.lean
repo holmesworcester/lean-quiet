@@ -38,7 +38,7 @@ def cmap4 (b : ByteArray) : Option Cmap := do
   let len ← u16 b 2
   let b ← slice b 0 len
   let twice ← u16 b 6
-  if twice == 0 || twice % 2 != 0 || twice > 8192 then failure
+  if twice == 0 || twice % 2 != 0 || twice > 16378 then failure
   let n := twice / 2
   let _ ← slice b 14 (8 * n + 2)
   if (← u16 b (14 + 2 * n)) != 0 then failure

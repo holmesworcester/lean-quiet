@@ -66,3 +66,15 @@ lean_exe attach where
 -- Lean TrueType decoding and pixels against a fontTools outline pen.
 lean_exe noto where
   root := `QTests.Noto
+
+lean_exe cjk_scroll where
+  root := `QTests.CjkScroll
+
+lean_exe cjk where
+  root := `QTests.Cjk
+
+lean_exe font_load where
+  root := `QTests.FontLoad
+
+lean_exe font_contract where
+  root := `QTests.FontContract
