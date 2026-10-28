@@ -87,4 +87,77 @@ theorem answer_step (X Y : List α) (q : Range) (c : Claim) (sX : Engine.Sync.So
 
 end
 
+
+/-! ## One hop at a connection -/
+
+/-- **One hop of a claim tree, at a connection**: `onRbsr` answers a
+round message whose claim cl is honest for the claimant's items Y over q,
+from its snapshot X of the round, for an id i of the difference over q:
+it sends a have of i, or a want of i (not yet asked, with room), or the
+round's reply carrying an id claim over q honest for X, or a fingerprint
+over a smaller piece of q honest for X whose difference holds i. -/
+theorem onRbsr_step (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (now : Nat)
+    (hr : r ∈ c.rooms) (cl : Claim) (hcl : cl ∈ cs) (Y : List Item) (q : Range)
+    (sX : Engine.Sync.Sorted Prod.fst (Conn.snap ix c r k))
+    (nm : Engine.Sync.Named Prod.fst Prod.snd (Conn.snap ix c r k ++ Y))
+    (so : Sound Prod.fst Prod.snd sha256 (Conn.snap ix c r k) Y)
+    (hc : Honest Prod.fst Prod.snd sha256 Y q cl) (i : Id) (hd : Diff Prod.fst Prod.snd (Conn.snap ix c r k) Y q i)
+    (hmax : 0 < cfg.maxIds) (ha : i ∉ c.asked) (hroom : c.asked.size + (claimIds cs).length ≤ cfg.maxKnown) :
+    (∃ H, i ∈ H ∧ (Msg.hold r H).op ∈ (c.onRbsr cfg ix r k cs now).send) ∨
+    (∃ W, i ∈ W ∧ (Msg.want W).op ∈ (c.onRbsr cfg ix r k cs now).send) ∨
+    ∃ claims, (Msg.rbsr r k claims).op ∈ (c.onRbsr cfg ix r k cs now).send ∧
+      ((.ids q ((within Prod.fst q (Conn.snap ix c r k)).map Prod.snd)) ∈ claims ∨
+       ∃ q', .fp q' (fp Prod.fst Prod.snd sha256 (within Prod.fst q' (Conn.snap ix c r k))).1
+          (fp Prod.fst Prod.snd sha256 (within Prod.fst q' (Conn.snap ix c r k))).2 ∈ claims ∧
+        (∀ kk, q'.has kk = true → q.has kk = true) ∧ Diff Prod.fst Prod.snd (Conn.snap ix c r k) Y q' i ∧
+        (within Prod.fst q' (Conn.snap ix c r k)).length + (within Prod.fst q' Y).length <
+          (within Prod.fst q (Conn.snap ix c r k)).length + (within Prod.fst q Y).length) := by
+  have hne : cs.isEmpty = false := by
+    cases cs with
+    | nil => cases hcl
+    | cons _ _ => rfl
+  rcases answer_step (P := cfg.params) _ Y q cl sX nm so hc i hd with ⟨xs, hxs, hi⟩ | ⟨xs, hxs, hi⟩ | hids | ⟨q', hq', hsub, hdq, hlt⟩
+  · -- a have
+    left
+    have hh : i ∈ (cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params (c.snap ix r k))).flatMap
+        (fun | .hold xs => xs | _ => [] : Out → List Id) :=
+      List.mem_flatMap.2 ⟨_, List.mem_flatMap.2 ⟨cl, hcl, hxs⟩, hi⟩
+    obtain ⟨H, hxH, -, hm⟩ := chunks_cover cfg _ (Msg.hold r) hmax hh
+    refine ⟨H, hxH, ?_⟩
+    unfold Conn.onRbsr
+    simp only [has_of_mem hr, Bool.not_true, Bool.false_eq_true, ite_false, hne, Step.limit_send]
+    split
+    · exact List.mem_cons_of_mem _ (List.mem_append_left _ hm)
+    · exact List.mem_cons_of_mem _ (List.mem_append_left _ hm)
+  · -- a want
+    right; left
+    have hw : i ∈ (cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params (c.snap ix r k))).flatMap
+        (fun | .want xs => xs | _ => [] : Out → List Id) :=
+      List.mem_flatMap.2 ⟨_, List.mem_flatMap.2 ⟨cl, hcl, hxs⟩, hi⟩
+    have hlen := answer_wants_len cfg.params (Conn.snap ix c r k) cs
+    obtain ⟨W, hxW, -, hm⟩ := chunks_cover cfg _ Msg.want hmax (admit_mem cfg.maxKnown c.asked _ i hw ha
+      (Nat.le_trans (Nat.add_le_add_left hlen _) hroom))
+    refine ⟨W, hxW, ?_⟩
+    unfold Conn.onRbsr
+    simp only [has_of_mem hr, Bool.not_true, Bool.false_eq_true, ite_false, hne, Step.limit_send]
+    split
+    · exact List.mem_cons_of_mem _ (List.mem_append_right _ hm)
+    · exact List.mem_cons_of_mem _ (List.mem_append_right _ hm)
+  · -- an id claim over q
+    right; right
+    refine ⟨((cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params (c.snap ix r k))).filterMap
+      (fun | .claim x => some x | _ => none : Out → Option Claim)), ?_, Or.inl ?_⟩
+    · unfold Conn.onRbsr
+      simp only [has_of_mem hr, Bool.not_true, Bool.false_eq_true, ite_false, hne, Step.limit_send]
+      split <;> exact List.mem_cons_self ..
+    · exact List.mem_filterMap.2 ⟨_, List.mem_flatMap.2 ⟨cl, hcl, hids⟩, rfl⟩
+  · -- a fingerprint over a smaller piece
+    right; right
+    refine ⟨((cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params (c.snap ix r k))).filterMap
+      (fun | .claim x => some x | _ => none : Out → Option Claim)), ?_, Or.inr ⟨q', ?_, hsub, hdq, hlt⟩⟩
+    · unfold Conn.onRbsr
+      simp only [has_of_mem hr, Bool.not_true, Bool.false_eq_true, ite_false, hne, Step.limit_send]
+      split <;> exact List.mem_cons_self ..
+    · exact List.mem_filterMap.2 ⟨_, List.mem_flatMap.2 ⟨cl, hcl, hq'⟩, rfl⟩
+
 end Engine.World

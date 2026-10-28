@@ -132,8 +132,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 807 rest on Lean's standard axioms
-only, and about half of its theorems (431 of 749, not counting 15 negative controls) are about the code that runs; another 69 run the
+that rests on; 🥊 is supporting. All 808 rest on Lean's standard axioms
+only, and about half of its theorems (432 of 750, not counting 15 negative controls) are about the code that runs; another 69 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -235,13 +235,13 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**431 of 749 laws are about running code;** another 69 run its node code in a World, and 249 are not yet. Stated only: 19 in `Engine.World`. 15 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**432 of 750 laws are about running code;** another 69 run its node code in a World, and 249 are not yet. Stated only: 19 in `Engine.World`. 15 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 85 | 47 |  | 38 |
 | Sync | 82 | 81 |  | 1 |
-| The n-node World | 234 | 74 | 62 | 98 |
+| The n-node World | 235 | 75 | 62 | 98 |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 35 | 19 | 7 | 9 |
 | Bootstrap | 11 | 0 |  | 11 |
