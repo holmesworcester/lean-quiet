@@ -94,8 +94,8 @@ mutant "a range with no lower bound that holds nothing" engine.core.Query engine
   "  (match q.after with | some a => p.cmp a == .gt | none => false) &&"
 # readPlan_cost is false: every read counts its whole range, however long.
 mutant "a read that walks its whole list to count it" engine.core.Query engine/core/Query.lean:readPlan_cost engine/core/Query.lean \
-  "  inRange := if q.after.isNone && q.before.isNone && others.isEmpty then none" \
-  "  inRange := if false then none"
+  "  inRange := if (q.after.isNone && q.before.isNone && others.isEmpty) || (splitOf q others).isSome then none" \
+  "  inRange := if (splitOf q others).isSome then none"
 # readPlan_cost is false: the rows statement has no LIMIT.
 mutant "a read that ignores its limit" engine.core.Query engine/core/Query.lean:readPlan_cost engine/core/Query.lean \
   "  rows := if q.limit = some 0 then none else some (.rows k others q.after q.before q.desc q.limit)" \
@@ -108,6 +108,21 @@ mutant "a range's count that ignores its cap" engine.core.Query engine/core/Quer
 mutant "a conjunction that checks each key twice" engine.core.Query engine/core/Query.lean:plan_stmt_cost engine/core/Query.lean \
   "  rows := if q.limit = some 0 then none else some (.rows k others q.after q.before q.desc q.limit)" \
   "  rows := if q.limit = some 0 then none else some (.rows k (others ++ others) q.after q.before q.desc q.limit)"
+# listPlan_split is false: a one-bound count never splits, so it always
+# walks the newer side whole.
+mutant "a count that always walks the newer side" engine.core.Query engine/core/Query.lean:listPlan_split \
+  engine/core/Query.lean \
+  "  split := (splitOf q others).map fun (p, above) => (k, p, above)" "  split := none"
+# splitWalk_steps (so splitWalk_cost) is false: the walk never tries the
+# rest, only the range, doubling.
+mutant "a split count that never walks the rest" engine.core.Query engine/core/Query.lean:splitWalk_steps \
+  engine/core/Query.lean \
+  "    let b ← cnt false (some L)
+    if b < L then return total - b
+" ""
+# splitWalk_exact is false: the rest's count is returned as the range's.
+mutant "a split count that answers with the rest" engine.core.Query engine/core/Query.lean:splitWalk_exact \
+  engine/core/Query.lean "    if b < L then return total - b" "    if b < L then return b"
 # pickMin_le is false: a conjunction walks its largest conjunct.
 mutant "a conjunction that walks its largest key" engine.core.Query engine/core/Query.lean:pickMin_le engine/core/Query.lean \
   "  | best, kn :: rest => pickMin (if kn.2 < best.2 then kn else best) rest" \

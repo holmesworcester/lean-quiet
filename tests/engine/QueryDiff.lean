@@ -124,6 +124,7 @@ def lineOk (l : String) : Bool :=
 def ranged : Stmt → Bool
   | .rows _ _ a b _ _ => a.isSome || b.isSome
   | .count _ _ a b _ => a.isSome || b.isSome
+  | .side .. => true
   | .counter _ => false
 
 /-- A statement's plan is the walk its cost counts (`Stmt.walks`): every
@@ -134,7 +135,7 @@ def planOk (st : Stmt) (lines : List String) : Bool :=
   (match st with
    | .counter _ => lines.any (mentions · "SEARCH cnt USING PRIMARY KEY (k=?)")
    | .rows .. => lines.any (mentions · "SEARCH i USING COVERING INDEX idx_ks (k=?")
-   | .count .. => true) &&
+   | .count .. | .side .. => true) &&
   (!ranged st || lines.any (mentions · "USING COVERING INDEX idx_ks (k=? AND (s,id)"))
 
 /-- Several lists read as one (`unionAnswers` over `View.readAll`), each
@@ -251,7 +252,7 @@ def main : IO UInt32 := do
     let m := modelRun fam shuffled
     -- Cursors: real positions from the middle of the list, and ties.
     let base := eval m { key := message.all.key [c], desc := false, limit := some 1000 }
-    let cursors := [5, 17, 60].filterMap (fun i => base.rows[i]?.map (·.1)) ++ [(be64 25, ByteArray.empty)]
+    let cursors := [5, 17, 60, 100].filterMap (fun i => base.rows[i]?.map (·.1)) ++ [(be64 25, ByteArray.empty)]
     let qs := queries c posts users cursors
     -- Notices are complete: after each commit, every list whose answer
     -- changed had its key filed (eval_stable, on SQLite).
@@ -286,6 +287,17 @@ def main : IO UInt32 := do
       if a != b then
         IO.eprintln s!"key {hex q.key} desc {q.desc} limit {q.limit}: sql {a.rows.length}/{a.inRange}/{a.total} model {b.rows.length}/{b.inRange}/{b.total}"
       t.ok s!"seed {seed}: query {n}" (a == b)
+    -- A window's counts from one read: newer than the anchor (a split
+    -- count, by its smaller side), and older (at or below it) the total
+    -- less it, against the model's count at or below the anchor.
+    let allK := message.all.key [c]
+    let mut windows := 0
+    for p in cursors do
+      let a ← (listSql (F := Fact) { key := allK, after := some p }).run db
+      let older := (eval m { key := allK, before := some (p.1, p.2.push 0), limit := some 0 }).inRange
+      windows := windows + 1
+      t.ok s!"seed {seed}: window {windows}: newer {a.inRange}, older {a.total - a.inRange}"
+        (a.inRange == (eval m { key := allK, after := some p }).inRange && a.total - a.inRange == older)
     -- The network's views on SQLite against their meaning.
     for (_, _, d) in users do
       let a ← ((allowPeer c d.pk).run : SqlM Fact Bool).run db
@@ -300,7 +312,13 @@ def main : IO UInt32 := do
     let mut badPlans : List String := []
     for q in qs do
       let (k, others, _) ← (pickWalk (F := Fact) q).run db
-      for st in readPlan q k others do
+      -- and a split count's statements: each side at its first limit,
+      -- and the range whole (the walk's last resort)
+      let split := match (listPlan q k others).split with
+        | some (k, b, above) => [.side k b above false (some walk0), .side k b (!above) true (some walk0),
+            .side k b above false none]
+        | none => []
+      for st in readPlan q k others ++ split do
         let (sql, ps) := st.sql
         let lines ← explain db sql ps
         stmts := stmts + 1

@@ -136,6 +136,11 @@ open Engine Community
 #print axioms Engine.readPlan_cost_le
 #print axioms Engine.plan_stmt_cost
 #print axioms Engine.pickMin_le
+#print axioms Engine.splitWalk_exact
+#print axioms Engine.splitWalk_steps
+#print axioms Engine.splitWalk_cost
+#print axioms Engine.listPlan_split
+#print axioms Engine.countWith_split
 #print axioms Engine.mergeRuns_eq_sortPos
 #print axioms Engine.union_rows
 #print axioms Engine.eval_pairwise

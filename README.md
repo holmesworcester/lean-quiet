@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 315 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 320 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -182,7 +182,7 @@ nothing else is assumed:
 | ⬜ | 🥊🥊 | **A tap acts once.** A second tap on a control while its action is in flight starts nothing new (Send sends once). A press that turns into a scroll past the slop is not a tap. | |
 | ⬜ | 🥊🥊 | **Destructive actions are guarded.** Every action that cannot be undone asks for a second confirmation, as removal does (`writes_only_after_two`). Its control keeps a clear gap from the controls around it. | |
 | ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
-| 🟡 | 🥊🥊 | **A read costs its page, not its list.** No read sorts: each list comes from SQLite in its index's order, and a union of lists (a channel is one per content key) merges them. The merge is the lists' rows sorted, so a channel is still a strict total order. What a read runs is a typed plan of statements. Assume a B-tree seek costs at most c·(log₂ N + 1) and each next row a step (`SeekCost`); `querydiff` checks every statement's SQLite plan is such a walk. Then a one-key read costs two seeks, plus a step and a seek per row it returns, however long the list. With a range, a capped count adds its cap. **Not yet:** a range's count with no cap, and a conjunction's rows and total, walk the range: O(range), stated as a law. | [`readPlan_cost`], [`readPlan_cost_range`], [`readPlan_cost_le`], [`pickMin_le`], [`inRange_unbounded`], [`mergeRuns_eq_sortPos`], [`union_sorted`], [`eval_oriented`], [`order_total`] |
+| 🟡 | 🥊🥊 | **A read costs its page, not its list.** No read sorts: each list comes from SQLite in its index's order, and a union of lists (a channel is one per content key) merges them. The merge is the lists' rows sorted, so a channel is still a strict total order. What a read runs is a typed plan of statements. Assume a B-tree seek costs at most c·(log₂ N + 1) and each next row a step (`SeekCost`); `querydiff` checks every statement's SQLite plan is such a walk. Then a one-key read costs two seeks, plus a step and a seek per row it returns, however long the list. With a range, a capped count adds its cap. An uncapped count of a range bounded on one side (a window's "newer than the anchor"; "older" is the total less it) is exact, and walks about the smaller of the range and the rest: at most 64 + 7·min rows, in 2k + 2 statements for k doublings. **Not yet:** an uncapped count of a range bounded on both sides, and a conjunction's rows, count and total, walk the range: O(range), stated as a law. | [`readPlan_cost`], [`readPlan_cost_range`], [`splitWalk_exact`], [`splitWalk_cost`], [`listPlan_split`], [`readPlan_cost_le`], [`pickMin_le`], [`inRange_unbounded`], [`mergeRuns_eq_sortPos`], [`union_sorted`], [`eval_oriented`], [`order_total`] |
 | ✅ | 🥊🥊 | **A device's keys are derived once.** Its secret op holds the whole device (its signing pair, its X25519 key and secret, its seed), checked against the seed when written. Every reader takes it from the store. A build-time walk of every intent's and view's code fails if it reaches a derivation (`ops/community/NoDerive.lean`). A connection's handshake still converts the seed once per handshake (`Keys.xSec`). | [`secret_derives`], [`device_derives`], [`device_ofSeed`], [`ofSeed_of_keys`] |
 | ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
 | ✅ | 🥊🥊 | **The people list is the present members,** each once. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_nodup`] |
@@ -670,10 +670,13 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`filed_rel`]: engine/core/Decl.lean#L189-L196
 [`mem_keysOf`]: engine/core/Decl.lean#L79-L82
 [`matching_nodup`]: engine/core/Decl.lean#L158-L161
-[`readPlan_cost`]: engine/core/Query.lean#L495-L500
-[`readPlan_cost_range`]: engine/core/Query.lean#L509-L512
-[`readPlan_cost_le`]: engine/core/Query.lean#L544-L549
-[`pickMin_le`]: engine/core/Query.lean#L388-L391
+[`readPlan_cost`]: engine/core/Query.lean#L559-L564
+[`readPlan_cost_range`]: engine/core/Query.lean#L573-L576
+[`splitWalk_exact`]: engine/core/Query.lean#L674-L677
+[`splitWalk_cost`]: engine/core/Query.lean#L734-L739
+[`listPlan_split`]: engine/core/Query.lean#L747-L752
+[`readPlan_cost_le`]: engine/core/Query.lean#L610-L615
+[`pickMin_le`]: engine/core/Query.lean#L398-L401
 [`inRange_unbounded`]: engine/core/Query.lean#L308-L312
 [`mergeRuns_eq_sortPos`]: engine/core/Union.lean#L114-L117
 [`union_sorted`]: engine/core/Union.lean#L181-L185
