@@ -35,12 +35,11 @@ def main (args : List String) : IO UInt32 := do
         if ← System.FilePath.pathExists (path ++ suffix) then IO.FS.removeFile (path ++ suffix)
       let db ← Db.openAt path
       (receive fam order).run db
-      let allowA ← (allowPeer (m := SqlM Fact) x.c x.A.pk).run db
-      let allowB ← (allowPeer (m := SqlM Fact) x.c x.B.pk).run db
+      let allowA ← ((allowPeer x.c x.A.pk).run : SqlM Fact Bool).run db
+      let allowB ← ((allowPeer x.c x.B.pk).run : SqlM Fact Bool).run db
       let valid (o : Op) : IO Bool := do
-        return match ← (Store.getStatus (F := Fact) (m := SqlM Fact) o.id).run db with
-          | some (.valid _) => true
-          | _ => false
+        let a ← (Lists.list { key := opKey o.id, limit := some 1 } : SqlM Fact (Answer Fact)).run db
+        return !a.rows.isEmpty
       let tag := s!"subset {mask} order {round}"
       t.ok s!"{tag}: founder let in iff the root is held" (allowA == has x.r)
       t.ok s!"{tag}: joiner let in iff all five are held" (allowB == x.S.all has)
@@ -49,7 +48,11 @@ def main (args : List String) : IO UInt32 := do
       t.ok s!"{tag}: approval valid iff it and what it cites are held"
         ((← valid x.appr) == (has x.r && has x.inv && has x.req && has x.appr))
       t.ok s!"{tag}: admission valid iff all five are held" ((← valid x.adm) == x.S.all has)
-      t.ok s!"{tag}: nobody else is let in" (!(← (allowPeer (m := SqlM Fact) x.c x.K.pk).run db))
+      t.ok s!"{tag}: nobody else is let in" (!(← ((allowPeer x.c x.K.pk).run : SqlM Fact Bool).run db))
+      let dial ← ((members x.c).run : SqlM Fact (List Key)).run db
+      t.ok s!"{tag}: dials exactly the admitted devices"
+        (dial.length == [has x.r, x.S.all has].count true &&
+          (dial.contains x.A.pk == has x.r) && (dial.contains x.B.pk == x.S.all has))
       n := n + 1
   IO.println s!"scene: {n} databases"
   t.finish "scene_check"

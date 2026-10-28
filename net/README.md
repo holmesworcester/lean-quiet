@@ -50,7 +50,7 @@ lean-engine's own `Compose` (SHA-256 ids, Ed25519 signatures).
 | `bootstrap_possible` | An explicit lossless run of nine enabled steps, each named, ends bootstrapped. |
 | `bootstrap` | In every fair run over a failing socket, eventually and from then on: both sessions are open, both nodes hold the same ops, each admits the other by its own ops alone, and B has forgotten its link. |
 | `bootstrap_ideal` | The same for fair runs with no loss. |
-| `allowPeer_iff`, `allowPeer_settles` | The model's `Allowed` is what the engine's running `allowPeer` answers once its queue is empty, which it always reaches. |
+| `allowPeer_iff`, `allowPeer_settles` | The model's `Allowed` is what the engine's `allowPeer` view (lists over the persisted tables) answers once its queue is empty, which it always reaches. |
 | `admitted_inv`, `allowedA`, `allowedB` | Among the scene's ops, A is admitted exactly when the root is held, and B exactly when its admission is. Nobody is removed. |
 
 "Fair" means three things. Both nodes tick forever. A's user eventually
@@ -94,7 +94,8 @@ finite number of times. Bootstrapped means `Scene.Goal`.
 - It refuses `sorry`, `axiom`, `native_decide` and externs in the model.
 - It runs `scene_check`: every subset of the five ops, in two orders,
   received into SQLite with real Ed25519. The running `allowPeer` and
-  verdicts must match the scene's table (386 checks).
+  verdicts (read as lists under each op's own key), and the dial set, must
+  match the scene's table.
 - It runs the negative controls. Each one changes a rule so that a law
   becomes false, and the build must refuse it:
   - an inviter that answers without trusting the sender;
