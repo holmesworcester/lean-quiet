@@ -38,6 +38,21 @@ Proven (`Proofs.lean`), about that code run on the model:
 - `spec_extends`: a verdict, once reached, never changes.
 - `Codec.decode_encode`: what SQLite stores decodes to what was written.
 
+### Declarations: relations by name (`Decl.lean`)
+
+A fact kind declares the lists its facts are filed in, as relations
+named `<kind>.<name>` (`admission.byDevice`, `removal.byUser`, ...), each
+with the key arguments of a fact in it. A relation's key is its names
+and those arguments, so keys are named, never numbered; a family's keys
+are its relations' (`keysOf`). Laws, proven once for every relation:
+
+- `mem_keysOf`: with distinct names (checked by `decide` for the
+  community's list, `rels_distinct`), a fact is filed under r's key at
+  `as` exactly when it is in r at `as`.
+- `Rel.key_ne_opKey`: a relation key is never an op's own key.
+- `filed_rel`, `mem_rows_rel`, `total_rel`: at rest, a list of r reads
+  exactly the Valid facts in it.
+
 ### Sync scope (`Sync.lean`)
 
 Each op kind is shared or local (`Family.scope`). Local ops are a node's
@@ -105,8 +120,8 @@ Laws (`Laws.lean`, `Connect.lean`):
 
 The connection, dialing and sealing laws are about the views
 themselves (`allowPeer`, `members`, `recipients`, in `Query.lean`), lists
-read over the persisted tables: a device's admissions (key 0), the
-community's admissions (key 1), and each named user's removals (key 2).
+read over the persisted tables: `admission.byDevice`, `admission.all`,
+and each named user's `removal.byUser`.
 
 ## What is assumed, not proven
 

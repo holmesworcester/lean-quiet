@@ -65,7 +65,7 @@ def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Arr
 def queries (c : Id) (posts : Array Id) (users : Array (Id × Id × Device)) (cursors : List Pos) :
     List ListQ := Id.run do
   let mut qs : List ListQ := []
-  let all := key 4 c c
+  let all := message.all.key [c]
   for desc in [true, false] do
     for limit in [some 0, some 1, some 7, some 64, none] do
       qs := { key := all, desc, limit } :: qs
@@ -73,10 +73,13 @@ def queries (c : Id) (posts : Array Id) (users : Array (Id × Id × Device)) (cu
         qs := { key := all, desc, limit, after := some p } :: { key := all, desc, limit, before := some p }
           :: { key := all, desc, limit, after := some p, cap := 5 } :: qs
   for (_, u, _) in users do
-    qs := { key := all, also := [key 6 c u], limit := some 10 } :: { key := key 6 c u, limit := some 0 }
-      :: { key := key 7 c u, limit := some 1 } :: { key := key 6 c u, limit := none } :: qs
+    qs := { key := all, also := [message.byAuthor.key [c, u]], limit := some 10 }
+      :: { key := message.byAuthor.key [c, u], limit := some 0 }
+      :: { key := profile.byUser.key [c, u], limit := some 1 }
+      :: { key := message.byAuthor.key [c, u], limit := none } :: qs
   for m in posts.toList.take 40 do
-    qs := { key := key 8 c m, limit := some 50, desc := false } :: { key := key 9 c (encode (m, "👍".toUTF8)) }
+    qs := { key := react.byMessage.key [c, m], limit := some 50, desc := false }
+      :: { key := react.byMessageEmoji.key [c, m, "👍".toUTF8] }
       :: { key := opKey m, limit := some 1 } :: qs
   return qs
 
@@ -94,7 +97,7 @@ def main : IO UInt32 := do
     let (shuffled, _) := (Rng.mk seed.toUInt64).shuffle ops.toList
     let m := modelRun fam shuffled
     -- Cursors: real positions from the middle of the list, and ties.
-    let base := eval m { key := key 4 c c, desc := false, limit := some 1000 }
+    let base := eval m { key := message.all.key [c], desc := false, limit := some 1000 }
     let cursors := [5, 17, 60].filterMap (fun i => base.rows[i]?.map (·.1)) ++ [(be64 25, ByteArray.empty)]
     let qs := queries c posts users cursors
     -- Notices are complete: after each commit, every list whose answer

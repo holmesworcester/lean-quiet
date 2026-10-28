@@ -43,7 +43,10 @@ open Engine Community
 #print axioms Engine.View.run_model
 #print axioms Community.members_iff
 #print axioms Community.removals_iff
-#print axioms Community.key_ne_opKey
+#print axioms Engine.Rel.key_ne_opKey
+#print axioms Engine.mem_keysOf
+#print axioms Engine.filed_rel
+#print axioms Community.rels_distinct
 #print axioms Engine.intake_local
 #print axioms Engine.offer_shared
 #print axioms Engine.offer_stored

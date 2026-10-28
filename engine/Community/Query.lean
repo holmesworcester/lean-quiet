@@ -3,9 +3,9 @@ What a node asks its tables when it connects, dials and seals: is this
 device a member's, which devices to dial, and which encryption keys a
 content key goes to. Each is a view (Engine.View): a composition of
 lists, the one read the UI makes too, so the keys a decision watches
-are the keys of the lists it read: a device's admissions (key 0), and
-the removals of each user they name (key 2); or the community's
-admissions (key 1) with the same removals. The laws are in Connect.lean.
+are the keys of the lists it read: `admission.byDevice` and the
+`removal.byUser` of each user it names; or `admission.all` with the same
+removals. The laws are in Connect.lean.
 -/
 import Community.Facts
 
@@ -13,7 +13,7 @@ namespace Community
 open Engine
 
 /-- The list of user u's removals in c, counted only. -/
-def removals (c u : Id) : ListQ := { key := key 2 c u, limit := some 0 }
+def removals (c u : Id) : ListQ := removal.byUser.query [c, u] (limit := some 0)
 
 /-- The admissions among these rows into users of c not removed (whose
 removals count none): each one's user, device and encryption key. -/
@@ -29,19 +29,19 @@ def live (c : Id) : List (Pos × Fact) → View Fact (List (Id × Key × Key))
 /-- Whether to sync community c with device d: d's admissions, and the
 removals of the users they name. -/
 def allowPeer (c : Id) (d : Key) : View Fact Bool := do
-  let a ← View.read { key := key 0 c d, limit := none }
+  let a ← admission.byDevice.read [c, d]
   let ls ← live c a.rows
   pure (ls.any fun l => decide (l.2.1 = d))
 
 /-- The device keys of c's members: whom to dial. -/
 def members (c : Id) : View Fact (List Key) := do
-  let a ← View.read { key := key 1 c c, limit := none }
+  let a ← admission.all.read [c]
   let ls ← live c a.rows
   pure (ls.map (·.2.1))
 
 /-- The encryption keys a new content key of c is wrapped to. -/
 def recipients (c : Id) : View Fact (List Key) := do
-  let a ← View.read { key := key 1 c c, limit := none }
+  let a ← admission.all.read [c]
   let ls ← live c a.rows
   pure (ls.map (·.2.2))
 

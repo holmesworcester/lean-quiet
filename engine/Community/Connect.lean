@@ -12,123 +12,47 @@ import Community.Query
 namespace Community
 open Engine
 
-/-! ## Keys -/
+/-! ## The relations -/
 
-theorem key_eq_iff {t t' : Nat} {c c' x x' : ByteArray} :
-    key t c x = key t' c' x' ↔ t = t' ∧ c = c' ∧ x = x' := by
-  constructor
-  · intro h; have := Codec.encode_inj h; simp only [Prod.mk.injEq] at this; exact this
-  · rintro ⟨rfl, rfl, rfl⟩; rfl
+theorem rels_distinct : Rel.Distinct rels := by unfold Rel.Distinct; decide
 
-theorem encNat_small {n : Nat} (h : n < 128) : Codec.encNat n = [n.toUInt8] := by
-  rw [Codec.encNat]; simp [h]
+variable {s : DB Fact} {C : Crypto}
 
-/-- A community key is never an op's own key: its first byte is its
-type number, an op key's is 0xFF. -/
-theorem key_ne_opKey {t : Nat} (ht : t < 128) (c x y : ByteArray) : key t c x ≠ opKey y := by
-  intro h
-  have := congrArg (fun b : ByteArray => b.data.toList.head?) h
-  simp only [key, Codec.encode, opKey] at this
-  change (Codec.encNat t ++ Codec.enc (c, x)).toArray.toList.head? = _ at this
-  rw [encNat_small ht] at this
-  simp at this
-  have h2 := congrArg UInt8.toNat this
-  simp at h2
-  omega
+/-- At rest, the Valid facts filed under a community relation. -/
+theorem filed {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : s.queue = [])
+    (as : List ByteArray) (y : Id) (f : Fact) :
+    (y ∈ s.idx (r.key as) ∧ s.status y = some (.valid f)) ↔ V C s.ops y f ∧ r.args f = some as := by
+  have hs : r.kind.toUTF8.size < 128 := by
+    simp only [rels, List.mem_cons, List.mem_nil_iff, or_false] at hr
+    rcases hr with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> decide
+  exact filed_rel (fam := family C) rfl rels_distinct hr hs h hq as y f
 
-theorem keys_admission_device {c d : ByteArray} {f : Fact} :
-    key 0 c d ∈ keys f ↔ ∃ u e, f = .admission c u d e := by
-  cases f <;> simp [keys, key_eq_iff, eq_comm]
+theorem byDevice_args {c d : Id} {f : Fact} :
+    admission.byDevice.args f = some [c, d] ↔ ∃ u e, f = .admission c u d e := by
+  cases f <;> simp [admission.byDevice, eq_comm]
 
-theorem keys_admission_all {c : ByteArray} {f : Fact} :
-    key 1 c c ∈ keys f ↔ ∃ u d e, f = .admission c u d e := by
-  cases f <;> simp [keys, key_eq_iff, eq_comm]
+theorem all_args {c : Id} {f : Fact} :
+    admission.all.args f = some [c] ↔ ∃ u d e, f = .admission c u d e := by
+  cases f <;> simp [admission.all, eq_comm]
 
-theorem keys_removal {c u : ByteArray} {f : Fact} :
-    key 2 c u ∈ keys f ↔ ∃ r, f = .removal c u r := by
-  cases f <;> simp [keys, key_eq_iff, eq_comm]
-
-/-! ## A whole list -/
-
-theorem mem_insertBy {α} {p a : Pos × α} {l : List (Pos × α)} : a ∈ insertBy p l ↔ a = p ∨ a ∈ l := by
-  induction l with
-  | nil => simp [insertBy]
-  | cons q t ih =>
-    unfold insertBy; split
-    · simp only [List.mem_cons, ih, or_left_comm]
-    · simp only [List.mem_cons]
-
-theorem mem_sortPos {α} {l : List (Pos × α)} {a : Pos × α} : a ∈ sortPos l ↔ a ∈ l := by
-  induction l with
-  | nil => rfl
-  | cons p t ih => show a ∈ insertBy p (sortPos t) ↔ _; rw [mem_insertBy, ih]; simp
-
-variable {s : DB Fact}
-
-theorem mem_matching (k : ByteArray) (lim : Option Nat) {pf : Pos × Fact} :
-    pf ∈ matching s { key := k, limit := lim } ↔
-      ∃ x f, pf = ((sortOf f, x), f) ∧ x ∈ s.idx k ∧ s.status x = some (.valid f) := by
-  unfold matching
-  rw [mem_sortPos, List.mem_filterMap]
-  constructor
-  · rintro ⟨x, hx, h⟩
-    simp only [List.all_nil, ite_true] at h
-    split at h
-    · rename_i f hf; cases h; exact ⟨x, f, rfl, hx, hf⟩
-    · cases h
-  · rintro ⟨x, f, rfl, hx, hf⟩
-    exact ⟨x, hx, by simp [hf]; rfl⟩
-
-/-- A whole, unranged list's rows are exactly its matches. -/
-theorem mem_rows_all (k : ByteArray) {pf : Pos × Fact} :
-    pf ∈ (eval s { key := k, limit := none }).rows ↔
-      ∃ x f, pf = ((sortOf f, x), f) ∧ x ∈ s.idx k ∧ s.status x = some (.valid f) := by
-  unfold eval
-  simp only [ListQ.cut, ite_true, List.mem_reverse, List.mem_filter, ListQ.inside, Bool.and_self,
-    and_true]
-  exact mem_matching k none
-
-theorem total_pos (k : ByteArray) :
-    0 < (eval s { key := k, limit := some 0 }).total ↔
-      ∃ x f, x ∈ s.idx k ∧ s.status x = some (.valid f) := by
-  show 0 < (matching s _).length ↔ _
-  rw [List.length_pos_iff_exists_mem]
-  constructor
-  · rintro ⟨pf, h⟩; obtain ⟨x, f, _, hx, hf⟩ := (mem_matching k _).1 h; exact ⟨x, f, hx, hf⟩
-  · rintro ⟨x, f, hx, hf⟩; exact ⟨_, (mem_matching k _).2 ⟨x, f, rfl, hx, hf⟩⟩
-
-variable {C : Crypto}
-
-/-- At rest, a community key's rows are exactly the Valid facts with
-that key. -/
-theorem filed_iff (h : Inv (family C) s) (hq : s.queue = []) {t : Nat} (ht : t < 128)
-    (c x' : ByteArray) (y : Id) (f : Fact) :
-    (y ∈ s.idx (key t c x') ∧ s.status y = some (.valid f)) ↔
-      V C s.ops y f ∧ key t c x' ∈ keys f := by
-  constructor
-  · rintro ⟨hy, hf⟩
-    obtain ⟨g, hg, hk⟩ := (h.idx _ y).1 hy
-    rw [hf] at hg; cases hg
-    refine ⟨(status_iff_spec h hq y _).1 hf, ?_⟩
-    rcases List.mem_cons.1 hk with he | hk
-    · exact absurd he (key_ne_opKey ht c x' y)
-    · exact hk
-  · rintro ⟨hv, hk⟩
-    have hf := (status_iff_spec h hq y _).2 hv
-    exact ⟨(h.idx _ y).2 ⟨f, hf, List.mem_cons_of_mem _ hk⟩, hf⟩
+theorem byUser_args {c u : Id} {f : Fact} :
+    removal.byUser.args f = some [c, u] ↔ ∃ r, f = .removal c u r := by
+  cases f <;> simp [removal.byUser, eq_comm]
 
 /-! ## The views, evaluated -/
 
 theorem removals_iff (h : Inv (family C) s) (hq : s.queue = []) (c u : Id) :
     (eval s (removals c u)).total ≠ 0 ↔ Removed C s.ops c u := by
-  rw [← Nat.pos_iff_ne_zero, removals, total_pos]
+  rw [← Nat.pos_iff_ne_zero, removals]
+  show 0 < (eval s { key := removal.byUser.key [c, u], limit := some 0 }).total ↔ _
+  rw [total_pos]
   constructor
   · rintro ⟨y, f, hy, hf⟩
-    obtain ⟨hv, hk⟩ := (filed_iff h hq (by decide) c u y f).1 ⟨hy, hf⟩
-    obtain ⟨r, rfl⟩ := keys_removal.1 hk
+    obtain ⟨hv, hk⟩ := (filed (by simp [rels]) h hq [c, u] y f).1 ⟨hy, hf⟩
+    obtain ⟨r, rfl⟩ := byUser_args.1 hk
     exact ⟨y, r, hv⟩
   · rintro ⟨y, r, hv⟩
-    obtain ⟨hy, hf⟩ := (filed_iff h hq (by decide) c u y _).2 ⟨hv, keys_removal.2 ⟨r, rfl⟩⟩
+    obtain ⟨hy, hf⟩ := (filed (by simp [rels]) h hq [c, u] y _).2 ⟨hv, byUser_args.2 ⟨r, rfl⟩⟩
     exact ⟨y, _, hy, hf⟩
 
 theorem eval_live_adm {c c' : Id} {p : Pos} {u : Id} {d e : Key} {t : List (Pos × Fact)}
@@ -198,22 +122,23 @@ theorem mem_live (c : Id) (rows : List (Pos × Fact)) (u : Id) (d e : Key) :
       rw [ih]
       simp
 
-/-- At rest, the live admissions of a whole list under a community key. -/
-theorem live_iff (h : Inv (family C) s) (hq : s.queue = []) {t : Nat} (ht : t < 128)
-    (c c0 x0 : Id) (u : Id) (d e : Key) :
-    (u, d, e) ∈ (live c (eval s { key := key t c0 x0, limit := none }).rows).eval s ↔
-      (∃ y, V C s.ops y (.admission c u d e) ∧ key t c0 x0 ∈ keys (.admission c u d e)) ∧
+/-- At rest, the live admissions of a whole list of a community relation. -/
+theorem live_iff (h : Inv (family C) s) (hq : s.queue = []) {r : Rel Fact} (hr : r ∈ rels)
+    (as : List ByteArray) (c u : Id) (d e : Key) :
+    (u, d, e) ∈ (live c (eval s (r.query as)).rows).eval s ↔
+      (∃ y, V C s.ops y (.admission c u d e) ∧ r.args (.admission c u d e) = some as) ∧
         ¬ Removed C s.ops c u := by
   rw [mem_live]
   apply and_congr
-  · constructor
+  · show (∃ p, (p, _) ∈ (eval s { key := r.key as, limit := none }).rows) ↔ _
+    constructor
     · rintro ⟨p, hp⟩
       obtain ⟨y, f, he, hy, hf⟩ := (mem_rows_all _).1 hp
       simp only [Prod.mk.injEq] at he
       obtain ⟨_, rfl⟩ := he
-      exact ⟨y, (filed_iff h hq ht c0 x0 y _).1 ⟨hy, hf⟩⟩
+      exact ⟨y, (filed hr h hq as y _).1 ⟨hy, hf⟩⟩
     · rintro ⟨y, hv, hk⟩
-      obtain ⟨hy, hf⟩ := (filed_iff h hq ht c0 x0 y _).2 ⟨hv, hk⟩
+      obtain ⟨hy, hf⟩ := (filed hr h hq as y _).2 ⟨hv, hk⟩
       exact ⟨_, (mem_rows_all _).2 ⟨y, _, rfl, hy, hf⟩⟩
   · rw [← removals_iff h hq]; simp
 
@@ -228,11 +153,11 @@ theorem connect_iff (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d : Key
     decide_eq_true_eq]
   constructor
   · rintro ⟨⟨u, d', e⟩, hm, rfl⟩
-    obtain ⟨⟨y, hv, _⟩, hr⟩ := (live_iff h hq (by decide) c c d' u d' e).1 hm
+    obtain ⟨⟨y, hv, _⟩, hr⟩ := (live_iff h hq (by simp [rels]) [c, d'] c u d' e).1 hm
     exact ⟨u, e, ⟨y, hv⟩, hr⟩
   · rintro ⟨u, e, ⟨y, hv⟩, hr⟩
-    exact ⟨(u, d, e), (live_iff h hq (by decide) c c d u d e).2
-      ⟨⟨y, hv, keys_admission_device.2 ⟨u, e, rfl⟩⟩, hr⟩, rfl⟩
+    exact ⟨(u, d, e), (live_iff h hq (by simp [rels]) [c, d] c u d e).2
+      ⟨⟨y, hv, byDevice_args.2 ⟨u, e, rfl⟩⟩, hr⟩, rfl⟩
 
 /-- **No connection to non-members or removed members.** -/
 theorem refuse_nonmember (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d : Key)
@@ -271,12 +196,12 @@ theorem connect_approved (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d 
   exact ⟨u, e, y, hy, hnr, admission_approved h.key hy⟩
 
 theorem mem_live_all (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (u : Id) (d e : Key) :
-    (u, d, e) ∈ (live c (eval s { key := key 1 c c, limit := none }).rows).eval s ↔
+    (u, d, e) ∈ (live c (eval s (admission.all.query [c])).rows).eval s ↔
       Admitted C s.ops c u d e ∧ ¬ Removed C s.ops c u := by
-  rw [live_iff h hq (by decide)]
+  rw [live_iff h hq (by simp [rels])]
   constructor
   · rintro ⟨⟨y, hv, _⟩, hr⟩; exact ⟨⟨y, hv⟩, hr⟩
-  · rintro ⟨⟨y, hv⟩, hr⟩; exact ⟨⟨y, hv, keys_admission_all.2 ⟨u, d, e, rfl⟩⟩, hr⟩
+  · rintro ⟨⟨y, hv⟩, hr⟩; exact ⟨⟨y, hv, all_args.2 ⟨u, d, e, rfl⟩⟩, hr⟩
 
 /-- **Whom we dial.** At rest, `members` names exactly the devices
 admitted into users of c not removed. -/

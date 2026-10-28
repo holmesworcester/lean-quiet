@@ -283,29 +283,63 @@ def validate (C : Crypto) (o : Op) (fs : List Fact) : Option Fact :=
   | none => none
   | some b => check C o b fs
 
-/-! ## Index keys -/
+/-! ## Relations: the lists facts are filed in, by name -/
 
-def key (t : Nat) (c x : ByteArray) : ByteArray := encode (t, c, x)
+namespace admission
+/-- A device's admissions: whom `allowPeer` asks about. -/
+def byDevice : Rel Fact := ⟨"admission", "byDevice", fun | .admission c _ d _ => some [c, d] | _ => none⟩
+/-- A community's admissions: whom to dial and seal to. -/
+def all : Rel Fact := ⟨"admission", "all", fun | .admission c .. => some [c] | _ => none⟩
+end admission
 
-/-- Admissions by device (0) and all of a community's (1), removals by
-user (2), grants by user (3), messages (4) and by author (6), wraps by
-content key (5), profiles by user (7) and all of a community's (10),
-reactions by message (8) and by message and emoji (9), requests (11),
-approvals by request (12). Requests and approvals are under keys of
-their own, never the admission keys: a pending request grants no
-connection and no content key. -/
-def keys : Fact → List ByteArray
-  | .admission c _ d _ => [key 0 c d, key 1 c c]
-  | .invitation .. => []
-  | .admin c u => [key 3 c u]
-  | .removal c u _ => [key 2 c u]
-  | .message c u .. => [key 4 c c, key 6 c u]
-  | .wrap c k _ _ => [key 5 c k]
-  | .profile c u .. => [key 7 c u, key 10 c c]
-  | .blob .. => []
-  | .react c _ t e _ => [key 8 c t, key 9 c (encode (t, e))]
-  | .request c .. => [key 11 c c]
-  | .approval c r _ => [key 12 c r]
+namespace removal
+def byUser : Rel Fact := ⟨"removal", "byUser", fun | .removal c u _ => some [c, u] | _ => none⟩
+end removal
+
+namespace admin
+def byUser : Rel Fact := ⟨"admin", "byUser", fun | .admin c u => some [c, u] | _ => none⟩
+end admin
+
+namespace message
+def all : Rel Fact := ⟨"message", "all", fun | .message c .. => some [c] | _ => none⟩
+def byAuthor : Rel Fact := ⟨"message", "byAuthor", fun | .message c u .. => some [c, u] | _ => none⟩
+end message
+
+namespace wrap
+def byContentKey : Rel Fact := ⟨"wrap", "byContentKey", fun | .wrap c k _ _ => some [c, k] | _ => none⟩
+end wrap
+
+namespace profile
+def byUser : Rel Fact := ⟨"profile", "byUser", fun | .profile c u .. => some [c, u] | _ => none⟩
+def all : Rel Fact := ⟨"profile", "all", fun | .profile c .. => some [c] | _ => none⟩
+end profile
+
+namespace react
+def byMessage : Rel Fact := ⟨"react", "byMessage", fun | .react c _ t _ _ => some [c, t] | _ => none⟩
+def byMessageEmoji : Rel Fact :=
+  ⟨"react", "byMessageEmoji", fun | .react c _ t e _ => some [c, t, e] | _ => none⟩
+end react
+
+namespace request
+/-- A community's pending requests: what approvers are asked about. Never
+the admission relations: a request grants no connection and no content
+key. -/
+def all : Rel Fact := ⟨"request", "all", fun | .request c .. => some [c] | _ => none⟩
+end request
+
+namespace approval
+def byRequest : Rel Fact := ⟨"approval", "byRequest", fun | .approval c r _ => some [c, r] | _ => none⟩
+end approval
+
+/-- Every relation of the community's facts. Invitations and blobs are
+in none (read by their own key). -/
+def rels : List (Rel Fact) :=
+  [admission.byDevice, admission.all, removal.byUser, admin.byUser, message.all, message.byAuthor,
+   wrap.byContentKey, profile.byUser, profile.all, react.byMessage, react.byMessageEmoji,
+   request.all, approval.byRequest]
+
+/-- The keys a fact is filed under: its relations'. -/
+def keys : Fact → List ByteArray := keysOf rels
 
 /-- A number as 8 bytes, most significant first, so byte order is
 numeric order. -/
