@@ -507,6 +507,7 @@ open Engine.World
 #print axioms Engine.World.boot_ix
 #print axioms Engine.World.index_store_proof
 #print axioms Engine.World.restart_proof
+#print axioms Engine.World.round_forward
 #print axioms Engine.World.grows_all
 #print axioms Engine.World.walkN_laws
 #print axioms Engine.World.walk_proof
@@ -529,6 +530,7 @@ open Engine.World
 #print axioms Engine.World.dup_concurrent_stmt
 #print axioms Engine.World.session_stable_stmt
 #print axioms Engine.World.claim_delivers_stmt
+#print axioms Engine.World.round_forward_stmt
 #print axioms Engine.World.edge_stmt
 #print axioms Engine.World.op_stmt
 #print axioms Engine.World.converge_stmt

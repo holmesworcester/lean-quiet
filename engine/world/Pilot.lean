@@ -164,7 +164,7 @@ obligation chain: the claim arrives (Δ); j wants x unless it has it
 arrives (Δ) and j stores it (`op_taken`). Whatever else the execution
 does meanwhile. -/
 theorem claim_delivers (hw : walk_stmt) : claim_delivers_stmt := by
-  intro F Q N E W i j cid r k kr p ps rg L x hf hG hJ hgst hlive hrooms hp hsrc hdst hpeek hclaim hxL hx
+  intro F Q N E W i j cid r k kr p ps cs rg L x hf hG hJ hgst hlive hrooms hp hsrc hdst hpeek hclaim hcs hxL hx
   have wl := hw F Q.fam Q.cfg
   have hok : ∀ m l, NodeOk Q.fam ((E.world m).node l) ((E.world m).box l) := fun m => reach_ok Q wl noAdv _ (E.reachable m)
   have hfl : ∀ m, FlightOk Q (E.world m) := fun m => reach_flight Q noAdv _ (E.reachable m)
@@ -184,7 +184,7 @@ theorem claim_delivers (hw : walk_stmt) : claim_delivers_stmt := by
   obtain ⟨n1, b1, now1, sent1⟩ := deliver_at Q (E.world k1) idx1 t1 p j hfl1 (by rw [hdst]; exact atj)
   obtain ⟨⟨c1, hc1, -⟩, -⟩ := (hJ k1 hk1).2
   rcases claim_wants Q.fam Q.cfg (Q.rooms j) wl _ _ (hok k1 j) p.origin p.bytes t1 cid ps hpeek c1 hc1 r
-      (fun h' => (hrooms h').2) kr rg L x hclaim hxL hmax with hn | ⟨Wn, g, hxW, hWl, hWg, hsend⟩
+      (fun h' => (hrooms h').2) kr cs rg L x hclaim hcs hxL hmax with hn | ⟨Wn, g, hxW, hWl, hWg, hsend⟩
   · -- j already holds x when the claim's frame is done.
     refine ⟨k1 + 1, by omega, by rw [e1, now1]; omega, ?_⟩
     apply holds_named Q _ (hf.unclashed (k1 + 1)) i j r x (grow i k (k1 + 1) (by omega) hx)
@@ -252,5 +252,28 @@ theorem restart_proof : restart_stmt := by
     rw [hb]
   · show (upd w.node i (Node.boot _ _ _) i).conns = []
     simp only [upd, ite_true]; rfl
+
+/-- **L-round's forward leg, proven in the leaf regime.** Every op of the
+window i's index named when the round opened is listed by the opening's
+claim for its range, and i still holds it, so the pilot carries it. -/
+theorem round_forward : round_forward_stmt := by
+  intro F Q N E W i j cid r kr k p X hf hleaf hG hJ hgst hlive hrooms hop it hit hwin
+  obtain ⟨hp, hsrc, hdst, ⟨k₀, hk₀, hX⟩, ps, hpeek, hmsg⟩ := hop
+  obtain ⟨rg, hrg, hhas⟩ := hwin
+  have hlen : (within Prod.fst rg X).length ≤ Q.cfg.params.leaf := by
+    have h1 : (within Prod.fst rg X).length ≤ X.length := List.length_filter_le _ _
+    have h2 : X.length ≤ W := by rw [hX]; exact hf.bounded r k₀ i
+    omega
+  have hcl : Claim.ids rg ((within Prod.fst rg X).map Prod.snd) ∈
+      (window (max ((E.world k).node i).floor ((E.world k).node j).floor)).map
+        (opening Prod.fst Prod.snd sha256 Q.cfg.params X) := by
+    refine List.mem_map.2 ⟨rg, hrg, ?_⟩
+    simp only [opening, hlen, ↓reduceIte]
+  have hxL : it.2 ∈ (within Prod.fst rg X).map Prod.snd := List.mem_map.2 ⟨it, mem_within.2 ⟨hit, hhas⟩, rfl⟩
+  have hx0 : Q.Holds (E.world k₀) i r it.2 :=
+    ((reach_ok Q (walk_proof F Q.fam Q.cfg) noAdv _ (E.reachable k₀) i).exact r it.2).1 ⟨it, by rw [← hX]; exact hit, rfl⟩
+  have hx : Q.Holds (E.world k) i r it.2 :=
+    held_on E (fun m hm => grows_all F Q noAdv _ _ i r it.2 (E.reachable m) (E.legal m) hm) k₀ k hk₀ hx0
+  exact pilot F Q N E W i j cid r k kr p ps _ rg _ it.2 hf hG hJ hgst hlive hrooms hp hsrc hdst hpeek hmsg hcl hxL hx
 
 end Engine.World

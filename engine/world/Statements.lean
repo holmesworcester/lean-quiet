@@ -176,12 +176,19 @@ def local_stmt : Prop :=
 /-! ## L: one round, under any interleaving -/
 
 /-- Round kr of room r on session cid: its opening, a packet from i to
-j carrying i's openings of the window ranges, is in flight at step k. -/
-def Opening (Q : Plain F) (E : Q.Run) (i j : Fin Q.n) (cid r : Id) (kr k : Nat) (p : Packet Q.n) : Prop :=
+j carrying i's openings of the window's ranges over X, i's index of room
+r at the step the round opened, is in flight at step k. -/
+def Opening (Q : Plain F) (E : Q.Run) (i j : Fin Q.n) (cid r : Id) (kr k : Nat) (p : Packet Q.n)
+    (X : List Item) : Prop :=
   p ∈ (E.world k).flight ∧ p.src = some i ∧ p.dst = Q.addr j ∧
-  ∃ ps X, plainPeek p.bytes = some (cid, ps) ∧
+  (∃ k₀, k₀ ≤ k ∧ X = ((E.world k₀).node i).ix.items r) ∧
+  ∃ ps, plainPeek p.bytes = some (cid, ps) ∧
     (Msg.rbsr r kr ((window (max ((E.world k).node i).floor ((E.world k).node j).floor)).map
         (opening Prod.fst Prod.snd sha256 Q.cfg.params X))).op.bytes ∈ ps
+
+/-- Item it is in the window round kr of room r runs over, at step k. -/
+def InWindow (Q : Plain F) (E : Q.Run) (i j : Fin Q.n) (k : Nat) (it : Item) : Prop :=
+  ∃ rg ∈ window (max ((E.world k).node i).floor ((E.world k).node j).floor), rg.has it.1 = true
 
 /-- From step k on, session cid shows the same rooms at i and j, r among
 them. -/
@@ -192,19 +199,19 @@ def Agree (Q : Plain F) (E : Q.Run) (i j : Fin Q.n) (cid r : Id) (k : Nat) : Pro
 /-- **L-round: a round carries both sides' ops, whatever else happens.**
 A round of room r opened from i (dialing) to j on a session joined from
 step k on, whose ends agree on rooms and show r, with the edge live:
-every op of r i held when the round opened, j holds within `roundTime`,
-and every op of r j held when the opening reached it, i holds within the
-same time. Other rounds on other sessions, other rooms, writes,
+every op in the round's window that i's index named when the round
+opened, j holds within `roundTime`, and every op of r j held when the
+opening reached it, i holds within the same time. Other rounds on other sessions, other rooms, writes,
 duplicates and deliveries in any order may interleave: the hypotheses
 say nothing of them. It rests on stores that only grow (so every
 snapshot is served from the live store) and on `FpSound`. -/
 def round_stmt : Prop :=
   ∀ (F : Type) (Q : Plain F) (N : Net Q.n) (E : Q.Run) (W : Nat) (i j : Fin Q.n) (cid r : Id) (kr k : Nat)
-    (p : Packet Q.n),
+    (p : Packet Q.n) (X : List Item),
     Fair Q N E W → N.G i j → Joined E i j cid k → N.gst ≤ p.sent → Agree Q E i j cid r k →
-    N.Live i j p.sent (p.sent + roundTime N.Δ (depth Q.cfg W)) → Opening Q E i j cid r kr k p →
-    (∀ x, Q.Holds (E.world k) i r x →
-      ∃ k', k ≤ k' ∧ (E.world k').now ≤ p.sent + roundTime N.Δ (depth Q.cfg W) ∧ Q.Holds (E.world k') j r x) ∧
+    N.Live i j p.sent (p.sent + roundTime N.Δ (depth Q.cfg W)) → Opening Q E i j cid r kr k p X →
+    (∀ it ∈ X, InWindow Q E i j k it →
+      ∃ k', k ≤ k' ∧ (E.world k').now ≤ p.sent + roundTime N.Δ (depth Q.cfg W) ∧ Q.Holds (E.world k') j r it.2) ∧
     (∀ k₁ idx t, k ≤ k₁ → E.act k₁ = .deliver idx t → (E.world k₁).flight[idx]? = some p →
       ∀ y, Q.Holds (E.world k₁) j r y →
         ∃ k', k₁ ≤ k' ∧ (E.world k').now ≤ p.sent + roundTime N.Δ (depth Q.cfg W) ∧ Q.Holds (E.world k') i r y)
@@ -213,9 +220,9 @@ def round_stmt : Prop :=
 its snapshot) within (D + 1)Δ of its opening, D the claim depth. -/
 def round_ends_stmt : Prop :=
   ∀ (F : Type) (Q : Plain F) (N : Net Q.n) (E : Q.Run) (W : Nat) (i j : Fin Q.n) (cid r : Id) (kr k : Nat)
-    (p : Packet Q.n),
+    (p : Packet Q.n) (X : List Item),
     Fair Q N E W → N.G i j → Joined E i j cid k → N.gst ≤ p.sent → Agree Q E i j cid r k →
-    N.Live i j p.sent (p.sent + (depth Q.cfg W + 1) * N.Δ) → Opening Q E i j cid r kr k p →
+    N.Live i j p.sent (p.sent + (depth Q.cfg W + 1) * N.Δ) → Opening Q E i j cid r kr k p X →
     ∃ k', k ≤ k' ∧ (E.world k').now ≤ p.sent + (depth Q.cfg W + 1) * N.Δ ∧
       ∀ c c', ((E.world k').node i).conn? cid = some c → ((E.world k').node j).conn? cid = some c' →
         (∀ e ∈ c.snaps, e.1 ≠ (r, kr)) ∧ (∀ e ∈ c'.snaps, e.1 ≠ (r, kr))
@@ -254,18 +261,32 @@ def session_stable_stmt : Prop :=
     (∀ k', k₀ ≤ k' → ∀ a b d t, E.act k' ≠ .connect a b cid d t) →
     JoinedAt Q.setup (E.world k₀) i j cid → k₀ ≤ k → JoinedAt Q.setup (E.world k) i j cid
 
-/-- **The pilot (leaf regime, one leg):** a round's claim of ids in room
-r, in flight from i to j at step k on a session joined from k on, listing
-x, which i holds: j holds x within 3Δ of the claim's sending. Both ends
+/-- **The pilot (leaf regime, one leg):** a round's message in room r, in
+flight from i to j at step k on a session joined from k on, one of whose
+claims lists ids including x, which i holds: j holds x within 3Δ of the
+message's sending. Both ends
 show r on the session whatever they store (the fixed-rooms case). -/
 def claim_delivers_stmt : Prop :=
   ∀ (F : Type) (Q : Plain F) (N : Net Q.n) (E : Q.Run) (W : Nat) (i j : Fin Q.n) (cid r : Id) (k kr : Nat)
-    (p : Packet Q.n) (ps : List ByteArray) (rg : Range) (L : List Id) (x : Id),
+    (p : Packet Q.n) (ps : List ByteArray) (cs : List Claim) (rg : Range) (L : List Id) (x : Id),
     Fair Q N E W → N.G i j → Joined E i j cid k → N.gst ≤ p.sent → N.Live i j p.sent (p.sent + 3 * N.Δ) →
     (∀ h, r ∈ Q.rooms i h cid ∧ r ∈ Q.rooms j h cid) →
     p ∈ (E.world k).flight → p.src = some i → p.dst = Q.addr j → plainPeek p.bytes = some (cid, ps) →
-    (Msg.rbsr r kr [.ids rg L]).op.bytes ∈ ps → x ∈ L → Q.Holds (E.world k) i r x →
+    (Msg.rbsr r kr cs).op.bytes ∈ ps → Claim.ids rg L ∈ cs → x ∈ L → Q.Holds (E.world k) i r x →
       ∃ k', k ≤ k' ∧ (E.world k').now ≤ p.sent + 3 * N.Δ ∧ Q.Holds (E.world k') j r x
+
+/-- **L-round's forward leg, in the leaf regime:** with every window of
+at most `leaf` items, a round's opening from i gets every op of its
+window that i's index named when the round opened to j within 3Δ (the
+opening lists ids, so each is the pilot). Both ends show r on the
+session whatever they store. -/
+def round_forward_stmt : Prop :=
+  ∀ (F : Type) (Q : Plain F) (N : Net Q.n) (E : Q.Run) (W : Nat) (i j : Fin Q.n) (cid r : Id) (kr k : Nat)
+    (p : Packet Q.n) (X : List Item),
+    Fair Q N E W → W ≤ Q.cfg.params.leaf → N.G i j → Joined E i j cid k → N.gst ≤ p.sent →
+    N.Live i j p.sent (p.sent + 3 * N.Δ) → (∀ h, r ∈ Q.rooms i h cid ∧ r ∈ Q.rooms j h cid) →
+    Opening Q E i j cid r kr k p X → ∀ it ∈ X, InWindow Q E i j k it →
+      ∃ k', k ≤ k' ∧ (E.world k').now ≤ p.sent + 3 * N.Δ ∧ Q.Holds (E.world k') j r it.2
 
 /-! ## Liveness: per edge -/
 

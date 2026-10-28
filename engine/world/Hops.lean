@@ -968,16 +968,10 @@ theorem chunks_cover (cfg : Config) (ids : List Id) (mk : List Id → Msg) (hmax
   obtain ⟨p, hp, hxp, hl⟩ := pieceIds_cover cfg.maxIds hmax ids.length ids (Nat.le_refl _) x hx
   exact ⟨p, hxp, hl, List.mem_map.2 ⟨p, hp, rfl⟩⟩
 
-/-- The snapshot round k of room r is answered from. -/
-def snapOf (ix : Index) (c : Conn) (r : Id) (k : Nat) : List Item :=
-  match c.snaps.find? fun p => Decidable.decide (p.1 = (r, k)) with
-  | some (_, s) => s
-  | none => ix.items r
-
 theorem snapOf_named (ix : Index) (c : Conn) (r : Id) (k : Nat) (h : Held F) (hi : IxIn ix h) (hc : SnapsIn c h) :
-    ∀ it ∈ snapOf ix c r k, Named h it.2 := by
+    ∀ it ∈ Conn.snap ix c r k, Named h it.2 := by
   intro it hit
-  unfold snapOf at hit
+  unfold Conn.snap at hit
   split at hit
   · rename_i q s e
     exact hc _ (List.mem_of_find?_eq_some e) it hit
@@ -985,25 +979,28 @@ theorem snapOf_named (ix : Index) (c : Conn) (r : Id) (k : Nat) (h : Held F) (hi
 
 /-- **A claim of ids is answered with a want for each id the snapshot
 lacks.** -/
-theorem onRbsr_wants (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (rg : Range) (L : List Id)
-    (now : Nat) (x : Id) (hr : r ∈ c.rooms) (hx : x ∈ L) (hmax : 0 < cfg.maxIds)
-    (hs : ∀ it ∈ snapOf ix c r k, it.2 ≠ x) :
-    ∃ W, x ∈ W ∧ W.length ≤ cfg.maxIds ∧ (Msg.want W).op ∈ (c.onRbsr cfg ix r k [.ids rg L] now).send := by
-  have hw : x ∈ L.filter fun i => !named Prod.snd (within Prod.fst rg (snapOf ix c r k)) i := by
+theorem onRbsr_wants (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (rg : Range)
+    (L : List Id) (now : Nat) (x : Id) (hr : r ∈ c.rooms) (hc : Claim.ids rg L ∈ cs) (hx : x ∈ L)
+    (hmax : 0 < cfg.maxIds) (hs : ∀ it ∈ Conn.snap ix c r k, it.2 ≠ x) :
+    ∃ W, x ∈ W ∧ W.length ≤ cfg.maxIds ∧ (Msg.want W).op ∈ (c.onRbsr cfg ix r k cs now).send := by
+  have hw : x ∈ L.filter fun i => !named Prod.snd (within Prod.fst rg (Conn.snap ix c r k)) i := by
     refine List.mem_filter.2 ⟨hx, ?_⟩
     rw [Bool.not_eq_true']
     apply named_false.2
     intro a ha e
     exact hs a (mem_within.1 ha).1 e
-  obtain ⟨W, hxW, hl, hm⟩ := chunks_cover cfg _ Msg.want hmax hw
-  refine ⟨W, hxW, hl, ?_⟩
+  have hne : cs.isEmpty = false := by
+    cases cs with
+    | nil => cases hc
+    | cons _ _ => rfl
   unfold Conn.onRbsr
-  simp only [has_of_mem hr, Bool.not_true, Bool.false_eq_true, ite_false, List.isEmpty_cons]
-  simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil, answer, List.filterMap_cons,
-    List.filterMap_nil]
-  apply List.mem_cons_of_mem
-  apply List.mem_append_right
-  exact hm
+  simp only [has_of_mem hr, Bool.not_true, Bool.false_eq_true, ite_false, hne]
+  have hwl : x ∈ (cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params (c.snap ix r k))).flatMap
+      (fun | .want xs => xs | _ => []) := by
+    refine List.mem_flatMap.2 ⟨.want (L.filter fun i => !named Prod.snd (within Prod.fst rg (Conn.snap ix c r k)) i),
+      List.mem_flatMap.2 ⟨.ids rg L, hc, by simp [answer]⟩, hw⟩
+  obtain ⟨W, hxW, hl, hm⟩ := chunks_cover cfg _ Msg.want hmax hwl
+  exact ⟨W, hxW, hl, List.mem_cons_of_mem _ (List.mem_append_right _ hm)⟩
 
 theorem conn_mem {n : Node} {cid : Id} {c : Conn} (h : n.conn? cid = some c) : (cid, c) ∈ n.conns := by
   unfold Node.conn? at h
@@ -1095,18 +1092,18 @@ theorem onWant_sends (c : Conn) (W : List Id) (h : Held F) (x : Id) (o : Op) (r 
 /-- **H1, one payload: a claim of ids is answered with a want for x**,
 an id it lists that the store lacks. -/
 theorem claim_step (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (ok : NodeOk fam st.1.1 st.2) (c : Conn)
-    (hc : st.1.1.conn? cid = some c) (r : Id) (kr : Nat) (rg : Range) (L : List Id) (x : Id)
-    (hr : r ∈ rms st.2 cid) (hx : x ∈ L) (hmax : 0 < cfg.maxIds) (hn : ¬ Named st.2 x) :
+    (hc : st.1.1.conn? cid = some c) (r : Id) (kr : Nat) (cs : List Claim) (rg : Range) (L : List Id) (x : Id)
+    (hr : r ∈ rms st.2 cid) (hcs : Claim.ids rg L ∈ cs) (hx : x ∈ L) (hmax : 0 < cfg.maxIds) (hn : ¬ Named st.2 x) :
     ∃ W, x ∈ W ∧ W.length ≤ cfg.maxIds ∧
-      (Route.conn cid, (Msg.want W).op.bytes) ∈ (frameStep fam cfg rms cid now st (Msg.rbsr r kr [.ids rg L]).op.bytes).1.2.send := by
+      (Route.conn cid, (Msg.want W).op.bytes) ∈ (frameStep fam cfg rms cid now st (Msg.rbsr r kr cs).op.bytes).1.2.send := by
   have hsc : SnapsIn ({ c.setRooms (rms st.2 cid) with heard := now } : Conn) st.2 :=
     (ok.sub.2 _ (conn_mem hc)).setRooms _
   obtain ⟨W, hxW, hl, hm⟩ := onRbsr_wants cfg st.1.1.ix ({ c.setRooms (rms st.2 cid) with heard := now } : Conn)
-    r kr rg L now x hr hx hmax (fun it hit e => hn (e ▸ snapOf_named _ _ _ _ st.2 ok.sub.1 hsc it hit))
+    r kr cs rg L now x hr hcs hx hmax (fun it hit e => hn (e ▸ snapOf_named _ _ _ _ st.2 ok.sub.1 hsc it hit))
   refine ⟨W, hxW, hl, ?_⟩
   unfold frameStep
   rw [hc]; dsimp only
-  have hd := recv_drop fam cfg st.1.1.ix (c.setRooms (rms st.2 cid)) (Msg.rbsr r kr [.ids rg L]).op.bytes now st.2
+  have hd := recv_drop fam cfg st.1.1.ix (c.setRooms (rms st.2 cid)) (Msg.rbsr r kr cs).op.bytes now st.2
   rw [apply_run fam cfg rms _ _ _ _ _ hd, recv_rbsr]
   apply List.mem_append_right
   apply List.mem_append_left
@@ -1241,8 +1238,8 @@ id it lists that the node lacks, in a frame back to the claim's sender;
 or the node holds it by the frame's end. -/
 theorem claim_wants (n : Node) (h : Held F) (ok : NodeOk fam n h) (a bytes : ByteArray) (now : Nat) (cid : Id)
     (inner : List ByteArray) (hp : plainPeek bytes = some (cid, inner)) (c : Conn) (hc : n.conn? cid = some c)
-    (r : Id) (hr : ∀ h', r ∈ rms h' cid) (kr : Nat) (rg : Range) (L : List Id) (x : Id)
-    (hb : (Msg.rbsr r kr [.ids rg L]).op.bytes ∈ inner) (hx : x ∈ L) (hmax : 0 < cfg.maxIds) :
+    (r : Id) (hr : ∀ h', r ∈ rms h' cid) (kr : Nat) (cs : List Claim) (rg : Range) (L : List Id) (x : Id)
+    (hb : (Msg.rbsr r kr cs).op.bytes ∈ inner) (hcs : Claim.ids rg L ∈ cs) (hx : x ∈ L) (hmax : 0 < cfg.maxIds) :
     Named ((n.onFrame (psync fam cfg rms) a bytes now).run h).2 x ∨
       ∃ W g, x ∈ W ∧ W.length ≤ cfg.maxIds ∧ (Msg.want W).op.bytes ∈ g ∧
         (a, plainFrame cid g) ∈ ((n.onFrame (psync fam cfg rms) a bytes now).run h).1.2.send := by
@@ -1254,16 +1251,16 @@ theorem claim_wants (n : Node) (h : Held F) (ok : NodeOk fam n h) (a bytes : Byt
   obtain ⟨ok1, e1, c1, a1, -⟩ := frame_fold fam cfg rms hw cid now pre ((n.setAddr cid a, {}), h) ok0
   generalize pre.foldl (frameStep fam cfg rms cid now) ((n.setAddr cid a, {}), h) = st1 at ok1 e1 c1 a1
   obtain ⟨c1', hc1⟩ := (conn_iff _ _).2 (by rw [c1]; exact (conn_iff _ _).1 ⟨c, hc⟩)
-  obtain ⟨ok2, e2, -, a2, s2⟩ := frameStep_ok fam cfg rms hw cid now st1 (Msg.rbsr r kr [.ids rg L]).op.bytes ok1
+  obtain ⟨ok2, e2, -, a2, s2⟩ := frameStep_ok fam cfg rms hw cid now st1 (Msg.rbsr r kr cs).op.bytes ok1
   obtain ⟨ok3, e3, -, a3, s3⟩ := frame_fold fam cfg rms hw cid now post _ ok2
   by_cases hn : Named st1.2 x
   · left
     rw [frame_end_store fam cfg rms now _ ok3]
     exact (hn.ext e2).ext e3
   · right
-    obtain ⟨W, hxW, hl, hm⟩ := claim_step fam cfg rms cid now st1 ok1 c1' hc1 r kr rg L x (hr _) hx hmax hn
+    obtain ⟨W, hxW, hl, hm⟩ := claim_step fam cfg rms cid now st1 ok1 c1' hc1 r kr cs rg L x (hr _) hcs hx hmax hn
     have ha : (post.foldl (frameStep fam cfg rms cid now) (frameStep fam cfg rms cid now st1
-        (Msg.rbsr r kr [.ids rg L]).op.bytes)).1.1.addr? cid = some a := by
+        (Msg.rbsr r kr cs).op.bytes)).1.1.addr? cid = some a := by
       unfold Node.addr?; rw [a3, a2, a1]; exact setAddr_addr n cid a
     obtain ⟨g, hg, hf⟩ := frame_end fam cfg rms cid now _ ok3 a _ ha (s3 _ hm)
     exact ⟨W, g, hxW, hl, hg, hf⟩
