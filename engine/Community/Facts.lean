@@ -58,11 +58,14 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   file's own key. The file is sealed once under that key, and the tree is
   over the ciphertext.
 - A chunk is one 64 KiB slice of a file's ciphertext with its Merkle
-  path. It cites only its community, and it is Valid iff its path
-  verifies against the root and length it names. So it authenticates
-  itself: any peer may relay it, and it is Valid before its attachment
-  arrives. A file's chunks are listed by `chunk.byFile [c, root, len]`; a count
-  of them over the chunk count is the download's progress.
+  path. It cites its community and its attachment (never another
+  chunk, so chunks fetch in parallel), and it is Valid iff it names its
+  attachment's root and length and its path verifies against them. So
+  it authenticates itself, any peer may relay it, and each is one
+  attachment's: the same file sent twice is two sets of chunks, and a
+  message's dependents reach all of its chunks. An attachment's chunks
+  are listed by `chunk.byAttachment [c, att]`; a count of them over the
+  chunk count is the download's progress.
 - A reaction is an emoji by an admitted device on a message.
 
 Channels and deletion are left out of this first pass.
@@ -103,7 +106,7 @@ inductive Fact where
   | named (c u : Id) (name : ByteArray) (n : Nat)
   | abandoned (c req join : Id)
   | key (c kid k : ByteArray)
-  | chunk (c root : Id) (len index : Nat)
+  | chunk (c att root : Id) (len index : Nat)
   deriving DecidableEq, Inhabited
 
 inductive Body where
@@ -211,7 +214,7 @@ def Fact.enc : Fact → List UInt8
   | .named c u nm n => 14 :: Codec.enc (c, u, nm, n)
   | .abandoned c r j => 15 :: Codec.enc (c, r, j)
   | .key c i k => 16 :: Codec.enc (c, i, k)
-  | .chunk c r l i => 17 :: Codec.enc (c, r, l, i)
+  | .chunk c a r l i => 17 :: Codec.enc (c, a, r, l, i)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B × B) => Fact.admission p.1 p.2.1 p.2.2.1 p.2.2.2) r
@@ -236,7 +239,7 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 14 :: r => decAs (fun (p : B × B × B × Nat) => Fact.named p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | 15 :: r => decAs (fun (p : B × B × B) => Fact.abandoned p.1 p.2.1 p.2.2) r
   | 16 :: r => decAs (fun (p : B × B × B) => Fact.key p.1 p.2.1 p.2.2) r
-  | 17 :: r => decAs (fun (p : B × B × Nat × Nat) => Fact.chunk p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 17 :: r => decAs (fun (p : B × B × B × Nat × Nat) => Fact.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | _ => none
 
 instance : Codec Fact where
@@ -360,10 +363,11 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ u2 = u ∧ r.size = 32 ∧ 0 < l ∧
       l ≤ maxFile ∧ x.size ≤ maxSealedMeta ∧ C.verify d (signed o (.attach r l k x s)) s
     then some (.attachment c (o.reqs.getD 2 .empty) u r l k x) else none
-  -- A chunk authenticates itself against the root it names.
-  | .chunk r l i x p, [.admission c u0 _ _] =>
-    if o.reqs.head? = some c ∧ u0 = c ∧ Merkle.verify sha256 r l i x p = true
-    then some (.chunk c r l i) else none
+  -- A chunk is its attachment's: it names the attachment's root and
+  -- length, and authenticates itself against them.
+  | .chunk r l i x p, [.admission c u0 _ _, .attachment c2 _ _ r2 l2 _ _] =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ c2 = c ∧ r = r2 ∧ l = l2 ∧ Merkle.verify sha256 r l i x p = true
+    then some (.chunk c (o.reqs.getD 1 .empty) r l i) else none
   | .react e tm s, [.admission c u0 _ _, .admission c1 u d _, .message c2 _ _ _ _ _] =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ 0 < e.size ∧ e.size ≤ 32 ∧
       C.verify d (signed o (.react e tm s)) s
@@ -499,12 +503,10 @@ def byMessage : Rel Fact := ⟨"attachment", "byMessage", fun | .attachment c m 
 end attachment
 
 namespace chunk
-/-- A file's chunks in a community, at the length its root commits, by
-index: their count is the download's progress (`Community.progress`);
-read in order, they assemble the file. The length is in the key so a
-chunk of another length is never counted toward this one. -/
-def byFile : Rel Fact :=
-  ⟨"chunk", "byFile", fun | .chunk c r l _ => some [c, r, Codec.encode l] | _ => none⟩
+/-- An attachment's chunks, by index: their count is the download's
+progress (`Community.progress`); read in order, they assemble the file. -/
+def byAttachment : Rel Fact :=
+  ⟨"chunk", "byAttachment", fun | .chunk c a .. => some [c, a] | _ => none⟩
 end chunk
 
 /-- Every relation of the community's facts. Invitations are in none
@@ -515,7 +517,7 @@ def rels : List (Rel Fact) :=
    wrap.byContentKey, profile.byUser, profile.all, react.byMessage, react.byMessageEmoji,
    request.all, approval.byRequest, secret.byKey, secret.all, accepted.all, joining.all, named.current,
    abandoned.byRequest, abandoned.byJoining, wrap.byRecipient, key.byCommunity, key.byId, attachment.byMessage,
-   chunk.byFile]
+   chunk.byAttachment]
 
 /-- The keys a fact is filed under: its relations'. -/
 def keys : Fact → List ByteArray := keysOf rels
@@ -528,7 +530,7 @@ def be64 (n : Nat) : ByteArray := ByteArray.mk ((List.range 8).reverse.map fun i
 def sortOf : Fact → ByteArray
   | .message _ _ _ _ _ tm => be64 tm
   | .profile _ _ _ tm => be64 tm
-  | .chunk _ _ _ i => be64 i
+  | .chunk _ _ _ _ i => be64 i
   | .react _ _ _ _ tm => be64 tm
   | .named _ _ _ n => be64 n
   | _ => .empty
