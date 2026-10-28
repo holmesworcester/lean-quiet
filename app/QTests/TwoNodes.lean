@@ -194,10 +194,22 @@ def main (args : List String) : IO UInt32 := do
     check "Continue asks again, writing nothing yet" ((← tapAct sa .removeYes) &&
       (match (← get).removal with | .second _ => true | _ => false) &&
       (← (← get).rd.query "SELECT count(*) FROM ops" #[]) == ops0)
-    check "the second yes writes (refused for now: no engine intent yet)" ((← tapAct sa .removeYes) &&
-      (match (← get).removal with | .failed _ _ | .sending _ => true | _ => false))
-    let _ ← tapAct sa .removeCancel
-    let _ ← tapAct sa .back).run a2
+    check "the second yes writes the removal" ((← tapAct sa .removeYes) &&
+      (← (← get).rd.query "SELECT count(*) FROM ops" #[]) != ops0 ||
+      (match (← get).removal with | .sending _ => true | .idle => true | _ => false))
+    waitIdle sa
+    steps 5
+    let ms := (← get).members.toList
+    check s!"Bea leaves A's people list and count; A is home ({ms}, {(← get).people} people)"
+      (ms == [("Ann", true)] && (← get).people == 1 && (← get).page == .home && (← get).removal == .idle)
+    -- her message keeps her name
+    sa.cmds.modify (·.push "channel")
+    steps 3
+    let rows := (← get).rows.toList.map (·.2.data)
+    check s!"and her message keeps her name ({(rows.find? (·.text == "hello from B")).map (·.name)})"
+      (rows.any fun d => d.text == "hello from B" && d.name == "Bea")
+    sa.cmds.modify (·.push "back")
+    steps 2).run a2
   -- C joins by scanning A's code with its camera, then stops waiting: back on Get started
   fresh (dir ++ "/c")
   let sc ← Sim.new

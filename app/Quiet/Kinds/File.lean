@@ -6,7 +6,7 @@ pictures.
 Reads: `attachment.byMessage [c, msg]` (the first four: the render
 bound); per attachment, its content key (`key.byId [kid]`, local), which
 opens its sealed info (name, size, preview, the file's key); and
-`chunk.byFile [root]` in index order, whose count is the download's
+`chunk.byFile [c, root, len]` in index order, whose count is the download's
 progress (Merkle.nChunks len chunks make the file). An attachment whose key
 this device lacks shows nothing yet.
 -/
@@ -32,7 +32,7 @@ def read (c msg : Id) (deps : Array Q) : m (Array Row.Pic × Array Q) := do
     let some k := ks.rows.head?.bind fun (_, g) => match g with | .key _ _ k => some k | _ => none
       | continue
     let some (info, fk, fn) := openInfo c kid sealed k | continue
-    let (ch, _, d2) ← readList (chunk.byFile.query [root] (desc := false)) deps
+    let (ch, _, d2) ← readList (chunk.byFile.query [c, root, Codec.encode len] (desc := false)) deps
     deps := d2
     out := out.push { hash := root, w := info.w, h := info.h, preview := info.preview,
                       got := ch.rows.length, total := Merkle.nChunks len,

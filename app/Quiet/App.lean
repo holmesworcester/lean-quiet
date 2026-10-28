@@ -850,10 +850,13 @@ def pageIn (s : St) : PageIn :=
 
 /-- Write the removal of user u (the engine's intent). -/
 def removeWrite (u : Id) : M Bool := do
-  let _ := u
-  -- TODO(removeMember): Community.removeMember c u myAdm seed, a View
-  -- (holmes-fd's, on fd/content-keys); until it lands, refused
-  return false
+  let s ← get
+  -- nothing when this device is no admin, u is its own user, already
+  -- removed, or not admitted (removeMember_valid: what it writes is a
+  -- Valid removal of u by an admin)
+  let (w, _) ← readView (Community.removeMember s.me.c u s.me.seed) #[]
+  if w.ops.isEmpty then return false
+  writeAll w
 
 /-- One step of the removal flow; a write happens only where Remove.step
 says (the second yes, or a retry). -/
