@@ -1,12 +1,14 @@
 # Lean Quiet
 
-**A peer-to-peer, local-first Discord, prototyped in Lean 4.** Lean runs
-its CRDT engine, its sync and its encrypted networking, draws every
-pixel of its UI, and checks proofs about all four.
+[Lean](https://lean-lang.org) is usually for proving statements with and about code. But can we 
+build entire apps with it, and prove they work as users might want?
+I think we can now!
 
-<table><tr></tr><tr><td>
+This app is written mostly in Lean. It builds for iOS and Android and implements chat with emojis and reactions. Non-Lean code is limited to things like scrolling or using the camera ([what isn't Lean, and why](#what-isnt-lean-and-why)) so in a
+meaningful sense Lean does everything from processing TCP packets to drawing pixels on the screen.
+This allows for proving a surprising range of user-relevant properties! See: [What is Proven](#what-is-proven).
 
-👋 In ~1 day I vibe-coded a p2p, e2ee Slack/Discord alternative in Lean (informed by my work on [Quiet](https://tryquiet.org)) for iOS and Android with some fairly powerful correctness proofs. How does this stand up?
+Like [Quiet](https://github.com/TryQuiet/quiet), Lean Quiet is also local-first, end-to-end encrypted, and peer-to-peer, so many properties that would normally depend on a server operator (such as privacy, access control, or uptime) are provided by the code itself. This means they are provable over all possible deployments, assuming user device integrity! See: [Towards Proofs for n Clients](#towards-proofs-for-n-clients).
 
 </td></tr></table>
 
@@ -55,13 +57,18 @@ no collisions. ³ in the symbolic model of the cryptography.
 - that content is drawn faithfully all the way to pixels (proven up to
   each row's layout; painting is not).
 
-<table><tr></tr><tr><td>
+### Towards Proofs for n Clients
 
-🙋 The most obviously valuable thing about building a user-facing communication tool entirely in Lean is that you can prove strict safety properties. In a p2p, e2ee app where code is law, this means potentially being able to prove them over all possible deployments, too! But an even more interesting question: can you also prove absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size, or lack of responsiveness under load. It seems like you can!
+The sync proofs already run the real sync code, in a world of two
+devices whose network can delay, reorder or drop messages
+([`stream_delivers`]). Devices that hold the same ops agree, whatever
+order the ops arrived in (proven so far over a model of purging:
+[`same_ops_same_verdicts`]). So for n devices, it comes down to proving
+that every op reaches every member: the running round under any
+delivery order (`conn_runs_exchange`) and the closure it delivers
+(`closure_delivered`), then a world of n devices with fair delivery.
 
-</td></tr></table>
-
-### Assumed
+### What is Assumed
 
 **Hypotheses.** These are named in the theorems that take them, and
 nothing else is assumed:
@@ -129,7 +136,7 @@ nothing else is assumed:
 - **That each statement says what we mean.** Read it: every name below
   links to its statement.
 
-### Key
+### Security proofs
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
@@ -207,6 +214,7 @@ only.
 | ⬜ | 🥊🥊 | **A tap acts once.** A second tap on a control while its action is in flight starts nothing new (Send sends once). A press that turns into a scroll past the slop is not a tap. | |
 | ⬜ | 🥊🥊 | **Destructive actions are guarded.** Every action that cannot be undone asks for a second confirmation, as removal does (`writes_only_after_two`). Its control keeps a clear gap from the controls around it. | |
 | ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
+| 🟡 | 🥊🥊🥊 | **Notices are exact.** A screen watches windows: a list's rows between two positions. Proven: after any batch of commits and purges, the journal's rows, netted and matched against an index of windows, notify a subscriber exactly when one of its windows changed, never for a row outside them or one filed and purged within the batch, given one op per id; a read's window, cut at its last row, changes exactly when its rows do, and holds exactly them; a read's watch misses nothing its reader uses; matching a filing costs a hash and ⌊log₂ 2S⌋+2 comparisons; the frame's wants (`Screen.Frame.wants`) are exactly its page's reads, the near rows' hull per list key and the near rows' reads. Notices by key, and an unnetted journal, are shown imprecise. Not yet: the app still notices by key (its change is with holmes-1e), and does not call `Frame.wants`; a union read (the conversation) is precise per key, not for the union's own cut; reads of an op's bytes are outside. SQLite's triggers are tested against the model (`window_check`), not proven. | [`notice_iff`], [`read_notice_iff`], [`read_rows_iff`], [`window_rows`], [`watch_stable`], [`run_exact`], [`fact_stable`], [`find_costs`], [`notify_cost`], [`screen_subs`], [`hull_near`], [`past_hull_le`], [`key_notice_imprecise`], [`unnetted_imprecise`], [`keep_scrolled_off`] |
 | ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
 | ✅ | 🥊🥊 | **The people list is the present members,** each once. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_nodup`] |
 | 🟡 | 🥊🥊🥊 | **The screen is one moment.** Every frame is drawn over a single store state, the latest the app has seen. Proven over the running cache (`Live.readWith`, which the frame's and the reader's reads run), given SQLite's snapshot isolation and the journal hypothesis (Assumed): every read through it, cached or not, returns its moment's answer; a reader pass marks every want whose reads went stale before reading any (the board model's decisions). Not yet: one moment across the reader's board and the frame's own reads (each is consistent; they settle, BoardLaws' `settle`), a frame that writes spans more than one outbox moment, the outbox's notice keys derived from its ops, and `step` itself as a statement. | [`read_one_moment`], [`answer_agrees`], [`agrees_store`], [`agrees_notice`], [`agrees_keep`], [`agrees_empty`], [`eval_stable`], [`view_stable`] |
@@ -240,7 +248,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
-| Engine | 56 | 35 | 21 |
+| Engine | 84 | 37 | 47 |
 | Sync | 82 | 81 | 1 |
 | mDNS | 3 | 0 | 3 |
 | Node and wire | 35 | 19 | 16 |
@@ -254,7 +262,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 
 | Missing link | Laws | To make them real |
 |---|---|---|
-| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]*†, [`order_local`]*†, [`sealed_unopened`]*†, [`sealed_auth`]*†, [`purge_cached`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`write_offers_all`], [`close_gone`]*†, [`allowPeer_iff`], [`allowPeer_settles`] | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
+| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]*†, [`order_local`]*†, [`sealed_unopened`]*†, [`sealed_auth`]*†, [`purge_cached`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`write_offers_all`], [`close_gone`]*†, [`allowPeer_iff`], [`allowPeer_settles`], [`oneOpPerId_of`]* | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
 | `World.peer`, `Setup.sync`, `Who.other` +8 | [`stream_delivers`]†, [`stream_delivers_steps`]†, [`stream_delivers_runs`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`stream_offered`]†, [`stream_offered_runs`]†, [`write_offers_all`], [`fanout_offers`], [`seal_mem`] | A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does. |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
 | `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
@@ -266,6 +274,12 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Pic.add`, `Geom.box`, `Pic.attachEdge` +4 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]† | The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code. |
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
 | `Arrival.lit` | [`lit_zero`], [`lit_mono`], [`lit_full`], [`lit_clockwise`], [`ring_counts`] | `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`. |
+| `Subs.notify`, `ListQ.kept`, `ListQ.watch` +15 | [`window_ne_iff`], [`window_ne_iff_flips`], [`notice_iff`]†, [`rank_spec`], [`find_build`], [`find_iff`], [`mem_notifyM`], [`has_ofList`], [`has_add`], [`has_keep`], [`add_wf`], [`keep_wf`], [`ofList_wf`], [`mem_net`], [`read_rows_iff`]†, [`read_notice_iff`]†, [`watch_stable`]†, [`window_rows`]†, [`eval_counting`], [`rank_costs`], [`find_costs`]†, [`notify_cost`]†, [`exact_silent`], [`screen_subs`]†, [`hull_near`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing on main notices through the window index: the app's cache does on app-1e with fd/window-subs-app3 (`Data.Live.notice`, `Live.store`, `Q.win`); land it. |
+| `Frame.wants`, `Subs.ofList`, `Frame.listWins` +2 | [`has_ofList`], [`ofList_wf`], [`exact_silent`], [`screen_subs`]†, [`hull_near`]†, [`past_hull_le`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan). |
+| `Mutants.σ`, `Mutants.fam`, `Mutants.keyNotified` +4 | [`key_notice_imprecise`]†, [`exact_silent`], [`unnetted_imprecise`]† | Negative controls, on a one-op world of their own, meant not to run: they show notices by key and an unnetted journal imprecise. |
+| `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
+| `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
+| `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`pageIn_acc`]† | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
@@ -273,13 +287,14 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Assumption | Laws | |
 |---|---|---|
 | [`Unforgeable`] | 2 | An Ed25519 signature that verifies under a device key was made by that key's holder. |
-| [`CollisionFree`] | 20 | SHA-256 has no collision among the ops a node received. |
+| [`CollisionFree`] | 21 | SHA-256 has no collision among the ops a node received. |
 | [`NoSecondPreimage`] | 14 | SHA-256 has no second preimage on a file's Merkle tree inputs. |
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 144 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
-| [`Engine.Inv`] | 43 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
+| [`Model.run`] | 158 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Engine.runJ`] | 7 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
+| [`Engine.Inv`] | 52 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
 
 ## What isn't Lean, and why
@@ -343,7 +358,7 @@ visible and immediate, the kind testing on devices finds, and none of
 them forges a message, leaks a key or lets a stranger in. The few places
 where native code does touch them are named:
 - **The crypto and SQLite** are on the safety path. That is why what the
-  theorems need of them is stated as hypotheses ([Assumed](#assumed)),
+  theorems need of them is stated as hypotheses ([What is Assumed](#what-is-assumed)),
   and why they are tested byte for byte against libsodium and the Noise
   test vectors, and row for row against the engine's model, with kill -9
   crashes.
@@ -876,6 +891,21 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`filed_rel`]: engine/core/Decl.lean#L189-L196
 [`mem_keysOf`]: engine/core/Decl.lean#L79-L82
 [`matching_nodup`]: engine/core/Decl.lean#L158-L161
+[`notice_iff`]: engine/core/WindowLaws.lean#L698-L706
+[`read_notice_iff`]: engine/core/WindowRead.lean#L408-L420
+[`read_rows_iff`]: engine/core/WindowRead.lean#L284-L290
+[`window_rows`]: engine/core/WindowRead.lean#L357-L362
+[`watch_stable`]: engine/core/WindowRead.lean#L453-L460
+[`run_exact`]: engine/core/WindowLaws.lean#L428-L433
+[`fact_stable`]: engine/core/WindowLaws.lean#L509-L515
+[`find_costs`]: engine/core/WindowCost.lean#L133-L137
+[`notify_cost`]: engine/core/WindowCost.lean#L195-L198
+[`screen_subs`]: engine/renderer/Screen.lean#L130-L139
+[`hull_near`]: engine/renderer/Screen.lean#L216-L220
+[`past_hull_le`]: engine/renderer/Screen.lean#L270-L280
+[`key_notice_imprecise`]: engine/core/WindowMutants.lean#L110-L113
+[`unnetted_imprecise`]: engine/core/WindowMutants.lean#L160-L164
+[`keep_scrolled_off`]: engine/renderer/Screen.lean#L319-L324
 [`writes_only_after_two`]: ops/app/Remove.lean#L56-L59
 [`cancel_writes_nothing`]: ops/app/Remove.lean#L63-L64
 [`open_fresh`]: ops/app/Remove.lean#L67-L69
@@ -970,6 +1000,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`write_offers_all`]: engine/wire/WorldLaws.lean#L1160-L1171
 [`allowPeer_iff`]: ops/connection/bootstrap/Bridge.lean#L29-L32
 [`allowPeer_settles`]: ops/connection/bootstrap/Bridge.lean#L35-L39
+[`oneOpPerId_of`]: engine/core/WindowLaws.lean#L669-L672
 [`fanout_offers`]: engine/wire/WorldLaws.lean#L1017-L1023
 [`seal_mem`]: engine/wire/WorldLaws.lean#L1129-L1133
 [`admitted_inv`]: ops/connection/bootstrap/Scene.lean#L154-L156
@@ -988,11 +1019,29 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`lit_full`]: ops/community/attachment/ArrivalLaws.lean#L94-L95
 [`lit_clockwise`]: ops/community/attachment/ArrivalLaws.lean#L101-L106
 [`ring_counts`]: ops/community/attachment/ArrivalLaws.lean#L275-L278
+[`window_ne_iff`]: engine/core/WindowLaws.lean#L604-L608
+[`window_ne_iff_flips`]: engine/core/WindowLaws.lean#L647-L653
+[`rank_spec`]: engine/core/WindowIndex.lean#L83-L88
+[`find_build`]: engine/core/WindowIndex.lean#L281-L283
+[`find_iff`]: engine/core/WindowIndex.lean#L345-L348
+[`mem_notifyM`]: engine/core/WindowIndex.lean#L535-L539
+[`has_ofList`]: engine/core/WindowIndex.lean#L452-L453
+[`has_add`]: engine/core/WindowIndex.lean#L425-L426
+[`has_keep`]: engine/core/WindowIndex.lean#L509-L511
+[`add_wf`]: engine/core/WindowIndex.lean#L419-L419
+[`keep_wf`]: engine/core/WindowIndex.lean#L493-L493
+[`ofList_wf`]: engine/core/WindowIndex.lean#L445-L445
+[`mem_net`]: engine/core/WindowIndex.lean#L584-L585
+[`eval_counting`]: engine/core/WindowRead.lean#L440-L441
+[`rank_costs`]: engine/core/WindowCost.lean#L55-L57
+[`exact_silent`]: engine/core/WindowMutants.lean#L118-L120
+[`screen_index`]: engine/renderer/Screen.lean#L258-L261
 [`nodup_full`]: ops/community/Intents.lean#L578-L580
 [`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
 [`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939
 [`Seal.Good`]: ops/community/Keys.lean#L40-L43
 [`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
 [`Model.run`]: engine/core/Model.lean#L103-L103
+[`Engine.runJ`]: engine/core/WindowLaws.lean#L148-L151
 [`Engine.Inv`]: engine/core/Proofs.lean#L202-L219
 <!-- /proof-links -->
