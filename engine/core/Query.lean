@@ -380,6 +380,36 @@ END;
 "
 
 
+/-- Records, in the store itself, every key any connection's commit files
+or unfiles (the same keys as `watchFiled`), numbered in commit order: the
+journal a reader takes notices from inside its own read transaction, so
+the notices are exactly the commits its snapshot holds. -/
+def Db.journal (db : Db) : IO Unit := db.exec "
+CREATE TABLE IF NOT EXISTS changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, k BLOB NOT NULL);
+CREATE TRIGGER IF NOT EXISTS journal_idx AFTER INSERT ON idx BEGIN
+  INSERT INTO changes (k) VALUES (NEW.k);
+END;
+CREATE TRIGGER IF NOT EXISTS journal_status AFTER INSERT ON status BEGIN
+  INSERT INTO changes (k) VALUES (X'FF' || NEW.id);
+END;
+CREATE TRIGGER IF NOT EXISTS journal_unidx AFTER DELETE ON idx BEGIN
+  INSERT INTO changes (k) VALUES (OLD.k);
+END;
+CREATE TRIGGER IF NOT EXISTS journal_unstatus AFTER DELETE ON status BEGIN
+  INSERT INTO changes (k) VALUES (X'FF' || OLD.id);
+END;
+"
+
+/-- The journal's keys after `seq`, and its newest seq (`seq` if none). -/
+def Db.changesSince (db : Db) (seq : Nat) : IO (Array ByteArray × Nat) := do
+  let rows ← db.query "SELECT seq, k FROM changes WHERE seq > CAST(? AS INTEGER) ORDER BY seq" #[(toString seq).toUTF8]
+  let mut ks := #[]
+  let mut top := seq
+  for r in rows do
+    if let some k := r[1]? then ks := ks.push k
+    if let some n := r[0]? >>= (String.fromUTF8? ·) >>= String.toNat? then top := max top n
+  return (ks, top)
+
 /-- The keys filed since the last call, each once. -/
 def Db.takeFiled (db : Db) : IO (List ByteArray) := do
   let rows ← db.query "SELECT DISTINCT k FROM filed" #[]

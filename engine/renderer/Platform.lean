@@ -109,6 +109,10 @@ asks for the camera permission. The app draws the preview itself
 /-- Microseconds of a monotonic clock (CLOCK_MONOTONIC), shared with the twin's logs. -/
 @[extern "lq_now_us"] opaque nowUs : IO UInt64
 
+/-- The local timezone's offset from UTC now, in minutes (localtime_r's
+tm_gmtoff), for showing times. -/
+@[extern "lq_tz_min"] opaque tzMin : IO Int32
+
 end Platform
 
 namespace App

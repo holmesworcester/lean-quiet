@@ -27,6 +27,7 @@ import engine.renderer.Data
 import ops.app.Chaos
 import engine.renderer.Row
 import engine.renderer.Geometry
+import engine.renderer.Cover
 import engine.renderer.Sheet
 import ops.app.Pages
 import ops.app.Composer
@@ -54,6 +55,10 @@ structure Io where
   ctlPoll : IO (Array String)
   ctlReply : String → IO Unit
   nowUs : IO UInt64
+  /-- Wall-clock minutes since the Unix epoch, and the local timezone's
+  offset from UTC in minutes. -/
+  wall : IO (Nat × Int) := do
+    return ((← Std.Time.Timestamp.now).toSecondsSinceUnixEpoch.val.toNat / 60, 0)
   scan : Bool → IO Unit
   luma : IO (Array UInt32 × ByteArray)
 
@@ -151,7 +156,8 @@ structure St where
   /-- The node's runner (Engine.Sync.Runner): it owns the writes once it
   runs. And the ids it stored since the frame last took them. -/
   net : Option Engine.Sync.Runner := none
-  netIds : Option (IO.Ref (Array Id)) := none
+  /-- The journal's newest row this app has taken notice of. -/
+  seen : Nat := 0
   me : Chaos.Me
   live : Live := {}
   out : Array Pending := #[]
@@ -177,6 +183,8 @@ structure St where
   botBmp : Bitmap := default
   chromeKey : String := ""
   srcs : Option (Task (Array Image.Src)) := none
+  /-- Chaos's writes, being made (ctl `chaos`). -/
+  chaos : Option (Task (Array Job)) := none
   ctl : Array String := #[]
   frames : Nat := 0
   times : Array Nat := #[]
@@ -251,7 +259,7 @@ removal is not announced again. -/
   scans : Nat := 0
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, fun _ => pure (), pure (#[], .empty)⟩⟩
+  pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty)⟩⟩
 
 abbrev M := StateT St IO
 
@@ -272,10 +280,13 @@ def fresh (q : Q) : M Bool := do return (← get).live.fresh q
 
 instance : Reads M := ⟨read⟩
 
-/-- A row's data and the lists it read: the Message kind's. -/
+/-- Message m's row: its view (Kinds.Message.read: the claimed time, in
+UTC minutes), shown at the local time (the platform's timezone). -/
 def readRow (m : Id) : M (Option (RowData × Array Q)) := do
   let s ← get
-  Kinds.Message.read s.me.c s.me.adm m
+  let tz := (← s.io.wall).2
+  return (← Kinds.Message.read s.me.c s.me.adm m).map fun (d, qs) =>
+    ({ d with time := (d.time + tz).toNat }, qs)
 
 /-! ## Writing -/
 
@@ -283,13 +294,21 @@ def readRow (m : Id) : M (Option (RowData × Array Q)) := do
 def noticeLocal (keys : List ByteArray) : M Unit :=
   modify fun s => { s with live := s.live.notice keys.toArray }
 
+/-- The one way into the store: through the node while it runs (it owns
+the store's writes, and offers peers only what it knows), else the local
+writer. A write behind the node's back is stored but never synced. -/
+def submit (s : St) (j : Job) : IO Unit :=
+  match s.net with
+  | some r => r.write j.ops
+  | none => s.wr.submit j
+
 /-- A user action's write (an intent's ops): each op is
 judged in order against what is decided and the ops before it in the
 same write. Valid ops show at once, pending. An op whose requirements are
 not all here yet (a join's request cites the community's ops, which come
 by sync) shows nothing and waits in the store, as the engine waits for
-any op. An Invalid op refuses the whole write. Otherwise the ops go to the
-writer as one job of this node's own. -/
+any op. An Invalid op refuses the whole write. Otherwise the ops go in as one job
+of this node's own (`submit`). -/
 def writeAll (w : Community.Write) : M Bool := do
   let s ← get
   let mut mine : Std.HashMap Id (Verdict SF) := {}
@@ -311,17 +330,29 @@ def writeAll (w : Community.Write) : M Bool := do
       return false
   modify fun s => { s with out := s.out ++ pend }
   noticeLocal (pend.toList.flatMap (·.keys))
-  match s.net with
-  | some r => r.write w.ops  -- the node owns the store's writes
-  | none => s.wr.submit ⟨w.ops, true⟩
+  submit s ⟨w.ops, true⟩
   return true
 
 def write (o : Op) : M Bool := writeAll ⟨[o]⟩
 
-def newestTime (s : St) : Nat :=
+/-- Chaos's writes, once made: each job one write, as a user's action is. -/
+def chaosStep : M Unit := do
+  let some t := (← get).chaos | return
+  if !(← IO.hasFinished t) then return
+  modify fun s => { s with chaos := none }
+  for j in t.get do
+    let _ ← writeAll ⟨j.ops⟩
+  (← get).wr.busy.modify (· - 1)
+  IO.eprintln s!"chaos: {t.get.size} writes of {t.get.foldl (· + ·.ops.length) 0} ops"
+
+/-- The newest message's counter (its sort key's first 8 bytes; 0 for none). -/
+def newestCounter (s : St) : Nat :=
   match s.ids[0]? with
-  | some (sk, _) => (sk.extract 8 16).foldl (fun n b => n * 256 + b.toNat) 0
-  | none => Chaos.epoch
+  | some (sk, _) => (sk.extract 0 8).foldl (fun n b => n * 256 + b.toNat) 0
+  | none => 0
+
+/-- Wall-clock minutes since the Unix epoch: the time a write claims. -/
+def nowMin : M Nat := do return (← (← get).io.wall).1
 
 def sendText (text : String) : M Bool := do
   let s ← get
@@ -331,12 +362,12 @@ def sendText (text : String) : M Bool := do
   let (k?, _) ← readView (Community.currentKey s.me.c) #[]
   let some k := k? | return false
   let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k (← Engine.Crypto.randomBytes 24) t.toUTF8
-    (newestTime s + 1)) #[]
+    (← nowMin)) #[]
   writeAll w
 
 def reactTo (m : Id) (e : String) : M Bool := do
   let s ← get
-  write (react s.me.c s.me.adm m s.me.dev e.toUTF8 (newestTime s + 1))
+  write (react s.me.c s.me.adm m s.me.dev e.toUTF8 (← nowMin))
 
 /-! ## Geometry -/
 
@@ -412,12 +443,14 @@ def slicesFromOps (raw : List ByteArray) : Option (List ByteArray) :=
     | some (.chunk _ _ _ slice _) => some slice
     | _ => none
 
-/-- A decode of `k` started (or finished): its bitmap once done. -/
-def decoded (k : ImgKey) (start : M (Option (Task Bitmap))) : M (Option Bitmap) := do
+/-- A decode of `k` started (or finished): its bitmap once done. `start`
+is a thunk, run only when `k` has no decode yet: an argument is evaluated
+at the call, so a task built there would be spawned every frame. -/
+def decoded (k : ImgKey) (start : Unit → M (Option (Task Bitmap))) : M (Option Bitmap) := do
   match (← get).imgs[k]? with
   | some t => if ← IO.hasFinished t then return some t.get else return none
   | none =>
-    if let some t ← start then modify fun s => { s with imgs := s.imgs.insert k t }
+    if let some t ← start () then modify fun s => { s with imgs := s.imgs.insert k t }
     return none
 
 /-- An attachment drawn at its size, if ready, and whether it is the file
@@ -426,12 +459,12 @@ Arrival.soften) until every chunk is here and the file is decoded, then
 the file (its slices assembled and opened with the file's key, off the
 app's thread). -/
 def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := do
-  let pre ← decoded (p.hash.push 0, w, h) do
+  let pre ← decoded (p.hash.push 0, w, h) fun _ => do
     pure (if p.preview.isEmpty then none
       else some ((decodeTask p.preview w h false).map (Arrival.soften Row.bg)))
-  let full ← if !p.complete then pure none else decoded (p.hash.push 1, w, h) do
-    -- not every chunk op is readable yet: try again in two seconds, not
-    -- every frame
+  let full ← if !p.complete then pure none else decoded (p.hash.push 1, w, h) fun _ => do
+    -- not every chunk op is readable yet: try again when the store next
+    -- changes (step clears imgRetry on notices), or in two seconds
     let k := (p.hash.push 1, w, h)
     if let some t := (← get).imgRetry[k]? then
       if (← get).frames < t then return none
@@ -512,30 +545,54 @@ def paintRow (x : Id) : M Unit := do
 
 /-! ## The frame -/
 
-/-- The list frame: row r shows content at b + viewH + over - 1 - r. -/
+/-- A placeholder line: the background with a bar where a row's text
+would be, in stripes (a row not painted yet, or older rows not loaded). -/
+def holdLine (s : St) (li : Nat) : ByteArray :=
+  if li % 48 < 12 || li % 48 ≥ 36 then s.bgRow
+  else
+    let x0 := s.dim.pad + s.dim.px 48
+    let w := max 1 (s.W * 2 / 3 - x0)
+    (solid Row.placeholder w).copySlice 0 s.bgRow (4 * x0) (4 * w)
+
+/-- The list frame: row r shows content at b + viewH + over - 1 - r, as
+Cover.seen says: a painted row's line, else a placeholder (Cover.covered:
+nothing inside the content is left blank, however slow a read or a
+decode is). -/
 def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run do
   let vh := viewH s
   let hgt := vh + 2 * over
-  let mut fr := Array.replicate hgt s.bgRow
   let top := b + vh + over     -- content above the frame's first row
   let low := if b ≥ over then b - over else 0
+  -- the rows overlapping the frame, from the first one up
+  let mut i0 := s.ids.size
+  let mut slice : Array (Nat × Option Nat) := #[]
+  let mut bmps : Array (Option Bitmap) := #[]
   for i in [0:s.ids.size] do
     let bot := bots[i]!
     let x := s.ids[i]!.2
     let h := heightOf s x
     if bot ≥ top then break
     if bot + h ≤ low then continue
+    if i0 == s.ids.size then i0 := i
     let pick := s.rows[x]? >>= fun r =>
       if s.selected.isSome && s.selected != some x then r.dimShown <|> r.shown else r.shown
-    match pick with
-    | none => pure ()
-    | some bmp =>
-      -- the row's pixel line li (top down) is content bot + h - 1 - li
-      for li in [0:bmp.h] do
-        let p := bot + h - 1 - li
-        if p < top && p + over ≥ b then
-          let r := top - 1 - p
-          if r < hgt then fr := fr.set! r bmp.rows[li]!
+    slice := slice.push (h, pick.map (·.h))
+    bmps := bmps.push pick
+  let bottom := if i0 < s.ids.size then bots[i0]! else
+    match s.ids.back? with
+    | some (_, x) => bots.back! + heightOf s x
+    | none => bottomPad
+  -- older rows to load: nothing past the loaded ones is blank
+  let more := s.ids.size < s.total
+  let rows := slice.toList
+  let mut fr := Array.mkEmpty hgt
+  for r in [0:hgt] do
+    let p := top - 1 - r
+    fr := fr.push (match Cover.seen bottom more rows p with
+      | .line j li => ((bmps[j]?).join.map (·.rows[li]!)).getD s.bgRow
+      | .hold j => holdLine s (heightOf s (s.ids[i0 + j]?.map (·.2) |>.getD .empty) - 1 - (p - (bots[i0 + j]?.getD 0)))
+      | .older => holdLine s (p % 150)
+      | .blank => s.bgRow)
   return fr
 
 def header (s : St) : Bitmap := Id.run do
@@ -639,7 +696,7 @@ def forgetEntry (s : St) (a c : Id) : St :=
 entry hidden), the current one kept or, gone, the first (Get started when
 none is left). -/
 def refreshComms : M Unit := do
-  let (all, _) ← Kinds.Accepted.read
+  let (all, _) ← Kinds.Accepted.read (← get).comms
   let cs := Kinds.Accepted.listed all
   -- removed since last told: a standing notice each, and forgotten
   for g in Kinds.Accepted.newlyGone (← get).goneSeen all do
@@ -698,7 +755,7 @@ def acceptOf (w : Community.Write) : Option Id :=
 current. -/
 def found (n myName : String) : M Unit := do
   let seed ← Chaos.freshSeed n
-  let w := Community.found seed n.toUTF8 myName.toUTF8 (newestTime (← get) + 1)
+  let w := Community.found seed n.toUTF8 myName.toUTF8 (← nowMin)
     (← Engine.Crypto.randomBytes 32) (← Engine.Crypto.randomBytes 32)
   if ← writeAll w then
     if let some a := acceptOf w then
@@ -715,30 +772,26 @@ def netStep : M Unit := do
   if s.net.isSome then return
   if (← s.wr.busy.get) > 0 then return
   let listen := ((← listenHints).head?).getD s!"127.0.0.1:{port}".toUTF8
-  let ids ← IO.mkRef #[]
   let x : Engine.Sync.Sync SF (SqlM SF) :=
     { fam, cfg := { every := 30000, patience := 20000 },
       hooks := Connection.hooks fam Connection.sodium listen }
   try
     let db ← Db.openAt s.dbPath
-    let r ← Engine.Sync.Runner.start x db 0 port.toUInt16 (fun is => ids.modify (· ++ is.toArray))
+    let r ← Engine.Sync.Runner.start x db 0 port.toUInt16
     IO.eprintln s!"node: listening on {r.port}, dialed as {(String.fromUTF8? listen).getD "?"}"
-    modify fun s => { s with net := some r, netIds := some ids }
+    modify fun s => { s with net := some r }
   catch e =>
     IO.eprintln s!"node: cannot start: {e}"
     modify fun s => { s with netCfg := none }
 
-/-- The keys the node's commits filed, for the live answers: each stored
-id's own key and its fact's (read back on the frame's connection). -/
-def netKeys : M (Array ByteArray) := do
+/-- The keys every commit since the last call filed (the writer's and the
+node's alike), from the store's journal: read inside the frame's read
+transaction, they are exactly the commits this frame's reads see. -/
+def takeChanges : M (Array ByteArray) := do
   let s ← get
-  let some ref := s.netIds | return #[]
-  let ids ← ref.modifyGet fun is => (is, #[])
-  let mut ks := #[]
-  for x in ids do
-    ks := ks.push (opKey x)
-    let a ← (listSql (F := SF) { key := opKey x, limit := some 1 }).run s.rd
-    for (_, f) in a.rows do ks := ks ++ (fam.keys f).toArray
+  let (ks, top) ← s.rd.changesSince s.seen
+  modify fun s => { s with seen := top }
+  s.wr.read.set top  -- taken: the writer may delete them
   return ks
 
 /-- Join with QR code: the camera on while the page shows; each new
@@ -1050,7 +1103,7 @@ def sendNow : M Unit := do
                           bytes, key := ← Engine.Crypto.randomBytes 32, nonce := ← Engine.Crypto.randomBytes 24,
                           metaNonce := ← Engine.Crypto.randomBytes 24 } : Community.NewFile)]
   let nonce ← Engine.Crypto.randomBytes 24
-  let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (newestTime s + 1) files) #[]
+  let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files) #[]
   if ← writeAll w then
     s.io.textClear
     modify fun s => { s with text := "", sel := #[0, 0, 0, 0], chips := #[], chromeKey := "" }
@@ -1274,17 +1327,13 @@ def command (line : String) : M Bool := do
     let (k?, _) ← readView (Community.currentKey me.c) #[]
     let k := k?.getD .empty
     let seed := s.seed
-    let start := newestTime s + 1
-    let wr := s.wr
-    let t0 ← s.io.nowUs
-    -- busy until every job is queued, so `wait` waits for the making too
-    wr.busy.modify (· + 1)
-    let _ ← IO.asTask (prio := .dedicated) do
-      let jobs := Chaos.make me k srcs.get seed n start
-      for j in jobs do wr.submit j
-      wr.busy.modify (· - 1)
-      let t1 ← s.io.nowUs
-      IO.eprintln s!"chaos: {jobs.size} jobs of {jobs.foldl (· + ·.ops.length) 0} ops made in {(t1 - t0) / 1000} ms"
+    let top := newestCounter s
+    let now ← nowMin
+    -- made off the app's thread; written by `chaosStep` as user actions
+    -- are (writeAll: judged, shown pending, through the node)
+    let t ← IO.asTask (prio := .dedicated) (pure (Chaos.make me k srcs.get seed n top now))
+    s.wr.busy.modify (· + 1)  -- so `wait` waits for the making too
+    modify fun s => { s with chaos := some (t.map fun r => match r with | .ok j => j | .error _ => #[]) }
     s.io.ctlReply s!"chaos {n} started"
   | "wait" =>
     if (← s.wr.busy.get) > 0 && !(← s.wr.paused.get) || !(← s.wr.jobs.get).isEmpty && !(← s.wr.paused.get) then
@@ -1463,7 +1512,7 @@ def withToast (s : St) (fr : Array ByteArray) (vh : Nat) : Array ByteArray := Id
 
 /-- One frame; the twin's events for the next one, or none when the
 window closes. -/
-def step (evs : List Event) : M (Option (List Event)) := do
+def frame (evs : List Event) : M (Option (List Event)) := do
   let t0 ← (← get).io.nowUs
   -- 0. the screen and its insets, as of now (they can arrive after the
   -- first frame, and change with rotation or the navigation mode)
@@ -1474,13 +1523,17 @@ def step (evs : List Event) : M (Option (List Event)) := do
   modify fun s => { s with Hs := hs, insetTop := it, insetBot := ib }
   -- 1. notices
   let s ← get
-  let ns := (← s.wr.takeNotices) ++ (← netKeys)
+  let ns ← takeChanges
   if !ns.isEmpty then
     let decided := s.out.filter fun p => ns.contains (opKey p.op.id)
+    -- the store changed: an image waiting for its chunk ops tries again now
     modify fun s => { s with
       live := s.live.notice ns
-      out := s.out.filter fun p => !ns.contains (opKey p.op.id) }
+      out := s.out.filter fun p => !ns.contains (opKey p.op.id)
+      imgRetry := {} }
     if !decided.isEmpty then noticeLocal (decided.toList.flatMap fun p => p.keys)
+  chaosStep
+  let tNotices ← (← get).io.nowUs
   -- 2. events and commands
   for e in evs do
     if !(← onEvent e) then return none
@@ -1490,6 +1543,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   while !queue.isEmpty do
     if ← command queue[0]! then queue := queue.extract 1 queue.size else break
   modify fun s => { s with ctl := queue }
+  let tCommands ← (← get).io.nowUs
   -- 3. the list's ids and counts
   let s ← get
   -- the conversation: the messages this device can read (Community.readable,
@@ -1502,6 +1556,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   -- people: the present members (admitted, not removed), each once
   let (ps, _) ← readView (Kinds.Profile.present s.me.c) #[]
   modify fun s => { s with people := ps.length }
+  let tIds ← (← get).io.nowUs
   -- 4. the offset, and the rows the frame and the fetch distance need
   let s ← get
   let (bots0, ch0) := bottoms s
@@ -1527,6 +1582,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
     -- enough more ids, at the estimate, to reach past the fetch distance
     let more := (hi + 2 * est - loadedTop) / est + 64
     modify fun s => { s with limit := s.limit + more }
+  let tMount ← (← get).io.nowUs
   -- 5. keep the anchor still (unless pinned to the newest)
   let mut b := b
   if b > 4 then
@@ -1543,6 +1599,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
     let bot := bots[i]!
     if bot > fhi then break
     if bot + heightOf s s.ids[i]!.2 ≥ flo then paintRow s.ids[i]!.2
+  let tPaint ← (← get).io.nowUs
   -- forget rows far away (their heights stay)
   let s ← get
   if s.frames % 30 == 0 then
@@ -1581,12 +1638,18 @@ def step (evs : List Event) : M (Option (List Event)) := do
   let s ← get
   for m in s.comms do
     if m.waiting then continue
-    let (w, _) ← readView (Community.introduce m.c m.dev (newestTime s + 1)) #[]
+    let (w, _) ← readView (Community.introduce m.c m.dev (← nowMin)) #[]
     if !w.ops.isEmpty then let _ ← writeAll w
     -- and the community's keys wrapped to this device, opened into local
     -- key ops (a live view too: re-run when a wrap arrives)
     let (w, _) ← readView (Community.unwrap m.c m.dev) #[]
     if !w.ops.isEmpty then let _ ← writeAll w
+  let tRefresh ← (← get).io.nowUs
+  -- a frame over 20 ms says where its time went (logcat / stderr)
+  let slow (t1 : UInt64) : IO Unit := do
+    if t1 - t0 > 20000 then
+      let ms (a b : UInt64) := s!"{(b - a) / 1000}"
+      IO.eprintln s!"slow frame {ms t0 t1} ms: notices {ms t0 tNotices} commands {ms tNotices tCommands} ids {ms tCommands tIds} mount {ms tIds tMount} paint {ms tMount tPaint} refresh {ms tPaint tRefresh} frame {ms tRefresh t1}"
   -- a community this device waits to join shows Waiting in place of its
   -- conversation (read: no admission for my device there)
   let s ← get
@@ -1614,6 +1677,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
       for k in [0:min vh pg.bmp.h] do fr := fr.set! (over + k) pg.bmp.rows[k]!
     let shown := withToast s fr vh
     let t1 ← s.io.nowUs
+    slow t1
     modify fun s => { s with b := 0, frames := s.frames + 1, times := s.times.push (t1 - t0).toNat }
     let evs ← s.io.frame shown 0 over.toUInt32 s.topBmp.rows s.botBmp.rows true
     return some (Event.decode evs)
@@ -1631,10 +1695,25 @@ def step (evs : List Event) : M (Option (List Event)) := do
   let s ← get
   let fr := withToast s (listFrame s b bots) (viewH s)
   let t1 ← s.io.nowUs
+  slow t1
   let times := (if s.times.size ≥ 600 then s.times.extract 300 s.times.size else s.times).push (t1 - t0).toNat
   modify fun s => { s with b := b, frames := s.frames + 1, times := times }
   let evs ← s.io.frame fr b.toUInt32 over.toUInt32 s.topBmp.rows s.botBmp.rows false
   return some (Event.decode evs)
+
+/-- One frame, in one read transaction: every read it makes, and the
+notices it takes (`takeChanges`, its first read), are of one moment of the
+store, so no part of the screen is newer than another. -/
+def step (evs : List Event) : M (Option (List Event)) := do
+  let rd := (← get).rd
+  rd.exec "BEGIN"
+  try
+    let r ← frame evs
+    rd.exec "COMMIT"
+    return r
+  catch e =>
+    rd.exec "ROLLBACK"
+    throw e
 
 partial def loop (evs : List Event) : M Unit := do
   match ← step evs with

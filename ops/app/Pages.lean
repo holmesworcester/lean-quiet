@@ -78,8 +78,9 @@ def Page.hit (p : Page) (x y : Nat) : Act := Id.run do
 /-! ## Pieces -/
 
 /-- A line of text centred across the width. -/
-def centred (f : Font) (b : Bitmap) (s : String) (y : Nat) (c : Color) (bold := false) : Bitmap :=
-  let l := oneLine f b.w s
+def centred (f : Font) (b : Bitmap) (s : String) (y : Nat) (c : Color) (bold := false)
+    (reveal := false) : Bitmap :=
+  let l := oneLine f b.w s reveal
   let w := Paint.Line.width f l
   b.line f l ((b.w - min b.w w) / 2) y c bold
 
@@ -415,7 +416,7 @@ def requests (f : Font) (dm : Dim) (W h : Nat) (asking : Array Asking) : Page :=
     b := b.round (dm.px 16) (y + (rh - d) / 2) (dm.px 16 + d) (y + (rh + d) / 2) (dm.px 6) cardLine
     b := b.line f (oneLine f f.cell "?") (dm.px 16 + (d - f.cell / 2) / 2) (y + (rh - f.cell) / 2) ink
     let tx := dm.px 16 + d + dm.px 12
-    b := b.line f (oneLine f (W / 2) a.device) tx (y + dm.px 4) nameInk true
+    b := b.line f (oneLine f (W / 2) a.device (reveal := true)) tx (y + dm.px 4) nameInk true
     b := b.line f (oneLine f (W / 2) s!"New person · {a.when}") tx (y + dm.px 4 + f.cell) dim
     -- approve (a check) and hide (a cross), right-aligned
     let k := dm.px 40
@@ -510,7 +511,7 @@ def homeBand (f : Font) (dm : Dim) (W insetTop : Nat) (name id8 me : String) : B
   b := b.round x y (x + d) (y + d) (dm.px 4) (avatarColor id8)
   let ini := String.ofList [(name.toList.headD '?').toUpper]
   b := b.line f (oneLine f f.cell ini) (x + (d - f.cell / 2) / 2) (y + (d - f.cell) / 2) primaryInk
-  b := b.line f (oneLine f (W - dm.px 140) s!"{name} ▾") (x + d + dm.px 10) (y + (d - f.cell) / 2) primaryInk true
+  b := b.line f (oneLine f (W - dm.px 140) s!"{name} ▾" (reveal := true)) (x + d + dm.px 10) (y + (d - f.cell) / 2) primaryInk true
   let mx := W - dm.px 16 - d
   b := b.round mx y (mx + d) (y + d) (dm.px 4) 0xA0580A
   let mi := String.ofList [(me.toList.headD '?').toUpper]
@@ -561,7 +562,7 @@ def home (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array Str
       b := b.round (cx - r) (cy - r) (cx + r) (cy + r) r online
     let ini := String.ofList [(n.toList.headD '?').toUpper]
     b := b.line f (oneLine f f.cell ini) (dm.px 16 + (d - f.cell / 2) / 2) (y + (rh - f.cell) / 2) primaryInk
-    let l := oneLine f (W - dm.px 100) n
+    let l := oneLine f (W - dm.px 100) n (reveal := true)
     b := b.line f l (dm.px 16 + d + dm.px 12) (y + (rh - f.cell) / 2) nameInk
     if isMe then
       b := b.line f (oneLine f W "(you)") (dm.px 16 + d + dm.px 20 + Paint.Line.width f l) (y + (rh - f.cell) / 2) dim
@@ -579,7 +580,7 @@ def profile (f : Font) (dm : Dim) (W h : Nat) (name : String) (isMe removed canR
   b := b.round ((W - d) / 2) y0 ((W + d) / 2) (y0 + d) (dm.px 8) (avatarColor name)
   b := centred f b (String.ofList [(name.toList.headD '?').toUpper]) (y0 + (d - f.cell) / 2) primaryInk true
   let mut y := y0 + d + dm.px 20
-  b := centred f b name y nameInk true
+  b := centred f b name y nameInk true (reveal := true)
   y := y + f.cell + dm.px 8
   if isMe then b := centred f b "(you)" y dim
   if removed then b := centred f b "Removed from community" y dim
@@ -710,7 +711,7 @@ def switcher (f : Font) (dm : Dim) (W h : Nat) (es : Array Entry) (asking : Nat)
       b := b.round (cx + 2) (cy + 2) (cx + cw - 2) (cy + dm.px 28 - 2) (dm.px 14 - 2) Row.bg
       b := b.line f cl (cx + dm.px 8) (cy + (dm.px 28 - f.cell) / 2) dim
     else
-      b := b.line f (oneLine f (pw - tx - right) e.name) tx (y + (rh - f.cell) / 2) nameInk
+      b := b.line f (oneLine f (pw - tx - right) e.name (reveal := true)) tx (y + (rh - f.cell) / 2) nameInk
     if e.current && canInvite then
       let gx := pw - dm.px 48
       b := b.line f (oneLine f f.cell "☺+") gx (y + (rh - f.cell) / 2) nameInk
