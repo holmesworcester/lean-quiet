@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 350 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 353 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -716,30 +716,30 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`wrap_keeps`]: engine/renderer/WrapLaws.lean#L132-L135
 [`wrap_fits`]: engine/renderer/WrapLaws.lean#L206-L209
 [`visual_perm`]: engine/renderer/TextLaws.lean#L46-L47
-[`place_shows`]: engine/renderer/TextLaws.lean#L63-L65
-[`place_starts`]: engine/renderer/TextLaws.lean#L128-L134
-[`digits_keep_order`]: engine/renderer/TextLaws.lean#L109-L116
+[`place_shows`]: engine/renderer/TextLaws.lean#L72-L74
+[`place_starts`]: engine/renderer/TextLaws.lean#L138-L144
+[`digits_keep_order`]: engine/renderer/TextLaws.lean#L119-L126
 [`message_read`]: ops/community/message/ViewLaws.lean#L61-L66
 [`profile_read`]: ops/community/message/ViewLaws.lean#L39-L41
 [`profile_authorized`]: ops/community/Laws.lean#L307-L314
 [`no_renaming`]: ops/community/Laws.lean#L321-L332
-[`name_placed`]: ops/community/reaction/RowLaws.lean#L89-L92
-[`oneLine_prefix`]: engine/renderer/TextLaws.lean#L97-L98
-[`controls_neutral`]: engine/renderer/TextLaws.lean#L153-L157
-[`marks_invisible`]: engine/renderer/TextLaws.lean#L159-L159
+[`name_placed`]: ops/community/reaction/RowLaws.lean#L89-L93
+[`oneLine_prefix`]: engine/renderer/TextLaws.lean#L107-L108
+[`controls_neutral`]: engine/renderer/TextLaws.lean#L182-L186
+[`marks_invisible`]: engine/renderer/TextLaws.lean#L188-L188
 [`time_shown`]: ops/community/reaction/RowLaws.lean#L84-L87
 [`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
 [`readable_held`]: ops/community/Intents.lean#L407-L419
 [`readable_complete`]: ops/community/Intents.lean#L447-L457
-[`switcherOrder_sound`]: ops/app/Pages.lean#L656-L658
-[`switcherOrder_complete`]: ops/app/Pages.lean#L663-L665
+[`switcherOrder_sound`]: ops/app/Pages.lean#L657-L659
+[`switcherOrder_complete`]: ops/app/Pages.lean#L664-L666
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L876-L880
-[`pageIn_acc`]: App.lean#L882-L885
+[`drawPage_key`]: App.lean#L929-L933
+[`pageIn_acc`]: App.lean#L935-L938
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
