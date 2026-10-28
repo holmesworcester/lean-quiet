@@ -1,3 +1,6 @@
+# For a hosted runner (GitHub Actions), not in use: CI runs locally for
+# now (ci/local.sh). Moved here from .github/workflows so the repository
+# carries no live workflow.
 # One repository, one CI: each part's gate in its directory. The
 # emulator and Simulator suites need provisioned machines (see app/ and
 # qr/ READMEs) and run by hand or on a schedule, on self-hosted runners.

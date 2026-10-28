@@ -16,3 +16,7 @@ run = "cd net && mise run check"
 [tasks.check]
 description = "Every gated part"
 depends = ["engine:check", "engine:test", "app:check", "qr:check", "mdns:check", "net:check"]
+
+[tasks.ci]
+description = "Local CI: every part's gate, logs in out/ci (ci/local.sh)"
+run = "ci/local.sh"

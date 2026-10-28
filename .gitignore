@@ -2,3 +2,4 @@
 # kept per machine (an installed debug build updates only under the key
 # that signed it).
 debug.keystore
+/out/
