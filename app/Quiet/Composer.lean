@@ -66,7 +66,7 @@ def layout (f : Font) (dm : Dim) (W : Nat) (text : String) (chips : Nat) : Layou
     let xb := dm.px 24
     cs := cs.push (⟨x, y, c, c⟩, ⟨x + c - xb + dm.px 6, y - dm.px 6, xb, xb⟩)
   if chips > 0 then y := y + c + dm.px 4 + 3 * dm.lineH
-  let k := dm.px 44
+  let k := dm.px 48
   let dy := y + dm.px 4
   let mut deck := #[]
   let acts := #[Hit.addPhotos, .takePhoto, .emoji, .mention, .voice]
@@ -75,9 +75,74 @@ def layout (f : Font) (dm : Dim) (W : Nat) (text : String) (chips : Nat) : Layou
   let send : Box := ⟨W - dm.px 8 - k, dy, k, k⟩
   return ⟨dy + k + dm.px 8, tx, ty, tw, lines, cs, chipsY, deck, send⟩
 
-def glyphOf : Hit → String
-  | .addPhotos => "⊞" | .takePhoto => "◉" | .emoji => "☺" | .mention => "@" | .voice => "♪"
-  | _ => ""
+/-- A glyph at 3/2 of the font's cell (nearest; Unifont is already
+smoothed), its top left at (x, y). -/
+def bigGlyph (f : Font) (b : Bitmap) (ch : UInt32) (x y : Nat) (c : Color) : Bitmap := Id.run do
+  let g := f.glyph ch
+  let n := f.adv g
+  let mut b := b
+  for ty in [0:f.cell * 3 / 2] do
+    let bits := f.row g (ty * 2 / 3)
+    if bits == 0 then continue
+    b := b.modify (y + ty) fun row => Id.run do
+      let mut row := row
+      for tx in [0:n * 3 / 2] do
+        if bits &&& (0x8000000000000000 >>> (tx * 2 / 3).toUInt64) != 0 then row := setPx row (x + tx) c
+      return row
+  return b
+
+/-- An outline: a rounded box of colour c, its inside back to the ground. -/
+def ring (b : Bitmap) (x0 y0 x1 y1 r k : Nat) (c ground : Color) : Bitmap :=
+  (b.round x0 y0 x1 y1 r c).round (x0 + k) (y0 + k) (x1 - k) (y1 - k) (r - min r k) ground
+
+/-- The deck's icons, drawn as outlines S pixels square (libquiet's are
+line icons): a photo with a plus, a camera, a face, an at sign, a
+microphone. -/
+def icon (f : Font) (dm : Dim) (b : Bitmap) (h : Hit) (x y S : Nat) (c ground : Color) : Bitmap := Id.run do
+  let k := max 2 (dm.px 2)
+  match h with
+  | .addPhotos =>
+    let mut b := ring b x (y + S / 8) (x + S * 7 / 8) (y + S) (S / 8) k c ground
+    -- a hill and the sun
+    b := b.round (x + S / 6) (y + S * 5 / 8) (x + S * 5 / 8) (y + S * 7 / 8) (S / 6) c
+    b := b.round (x + S / 2) (y + S * 3 / 8) (x + S * 5 / 8) (y + S / 2) (S / 16) c
+    -- the plus, at the corner
+    b := b.fill (x + S * 3 / 4) (y - S / 8 + S / 6) (x + S + k / 2) (y - S / 8 + S / 6 + k) c
+    b := b.fill (x + S * 7 / 8 - k / 2 + 1) (y - S / 8) (x + S * 7 / 8 + k / 2 + 1) (y + S / 4 + S / 6) c
+    return b
+  | .takePhoto =>
+    let mut b := ring b x (y + S / 4) (x + S) (y + S) (S / 8) k c ground
+    b := b.round (x + S / 3) (y + S / 8) (x + S * 2 / 3) (y + S / 4 + k) (S / 16) c
+    b := ring b (x + S * 5 / 16) (y + S * 7 / 16) (x + S * 11 / 16) (y + S * 13 / 16) (S * 3 / 16) k c ground
+    return b
+  | .emoji =>
+    let mut b := ring b x y (x + S) (y + S) (S / 2) k c ground
+    let e := max 3 (S / 10)
+    b := b.round (x + S * 5 / 16) (y + S * 3 / 8) (x + S * 5 / 16 + e) (y + S * 3 / 8 + e) (e / 2) c
+    b := b.round (x + S * 11 / 16 - e) (y + S * 3 / 8) (x + S * 11 / 16) (y + S * 3 / 8 + e) (e / 2) c
+    -- the smile: the lower half of a ring
+    let sb := ring (Bitmap.blank S S (solid ground S)) (S / 4) (S / 4) (S * 3 / 4) (S * 3 / 4 + k) (S / 4) k c ground
+    for r in [S * 5 / 8:S * 3 / 4 + k] do
+      if let some row := sb.rows[r]? then
+        b := b.modify (y + r) fun dst => (row.extract (4 * (S / 4)) (4 * (S * 3 / 4))).copySlice 0 dst (4 * (x + S / 4)) (4 * (S / 2))
+    return b
+  | .mention => return bigGlyph f b 0x40 (x + (S - f.cell * 3 / 4) / 2) (y + (S - f.cell * 3 / 2) / 2) c
+  | .voice =>
+    let mut b := ring b (x + S * 5 / 16) y (x + S * 11 / 16) (y + S * 5 / 8) (S * 3 / 16) k c ground
+    -- the stand: a cup and a stem
+    let cup := ring (Bitmap.blank S S (solid ground S)) (S / 5) (S / 6) (S * 4 / 5) (S * 3 / 4) (S * 3 / 10) k c ground
+    for r in [S * 7 / 16:S * 3 / 4] do
+      if let some row := cup.rows[r]? then
+        b := b.modify (y + r) fun dst => Id.run do
+          let mut dst := dst
+          for i in [S / 5:S * 4 / 5] do
+            let v := getPx row i
+            if v != ground then dst := setPx dst (x + i) v
+          return dst
+    b := b.fill (x + S / 2 - k / 2) (y + S * 3 / 4) (x + S / 2 + k / 2 + 1) (y + S * 15 / 16) c
+    b := b.fill (x + S * 5 / 16) (y + S * 15 / 16 - k) (x + S * 11 / 16) (y + S * 15 / 16) c
+    return b
+  | _ => return b
 
 /-- The composer's pixels; `caret` is the caret's line and x, if focused. -/
 def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (l : Layout) (text : String)
@@ -100,13 +165,15 @@ def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (l : Layout) (text
     let ls := Text.layout f (dm.px 76) chips[i]!.caption
     for k in [0:min 3 ls.size] do
       b := b.line f ls[k]! tb.x (tb.y + tb.h + dm.px 4 + k * dm.lineH) dim
+  -- the icons at 3/2 of the text's size (26 dp), centred in their keys
+  let S := dm.px 26
+  let ground := getPx bgRow 0
   for (bx, h) in l.deck do
-    let g := oneLine f f.cell (glyphOf h)
-    b := b.line f g (bx.x + (bx.w - Paint.Line.width f g) / 2) (bx.y + (bx.h - f.cell) / 2) dim
+    b := icon f dm b h (bx.x + (bx.w - S) / 2) (bx.y + (bx.h - S) / 2) S dim ground
   let full := !text.trimAscii.isEmpty || !chips.isEmpty
-  let sg := oneLine f f.cell "➤"
-  b := b.line f sg (l.send.x + (l.send.w - Paint.Line.width f sg) / 2) (l.send.y + (l.send.h - f.cell) / 2)
-    (if full then sendBlue else sendGrey) true
+  let sw := f.adv (f.glyph 0x27A4) * 3 / 2
+  b := bigGlyph f b 0x27A4 (l.send.x + (l.send.w - sw) / 2) (l.send.y + (l.send.h - f.cell * 3 / 2) / 2)
+    (if full then sendBlue else sendGrey)
   return b
 
 def hit (l : Layout) (x y : Nat) : Hit := Id.run do

@@ -263,7 +263,8 @@ lean_obj_res lq_scroll_to(double b) {
 }
 
 lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj_arg top,
-  b_lean_obj_arg bot) {
+  b_lean_obj_arg bot, uint8_t pin) {
+  (void)pin;
   hold(&hs.list, list);
   hold(&hs.top, top);
   hold(&hs.bot, bot);

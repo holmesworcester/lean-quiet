@@ -32,6 +32,11 @@ void bl_layout(uint32_t w, uint32_t h, uint32_t top_h, uint32_t bot_h, uint32_t 
 // composer's top on screen, the keyboard's shift of the list.
 void bl_placed(float* b, int32_t* composer_top, int32_t* shift);
 
+// Whether the list frame is a page pinned to the top (no slide, no lift
+// by the keyboard: Geometry.Seam.pinned), from the app's frame call.
+void bl_set_pin(bool pin);
+bool bl_pinned(void);
+
 // The window's layers, made if win is new. Call with the window held
 // (activity.c's ba_lock); it never waits.
 void bl_attach(ANativeWindow* win);

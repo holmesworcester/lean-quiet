@@ -83,6 +83,9 @@ static _Atomic int64_t  bl_lead = 16000000;  // answer to placement, ns
 static _Atomic int64_t  bl_asked;            // when Lean last read bl_pred
 static _Atomic int32_t  bl_ctop;
 static _Atomic int32_t  bl_shift;
+// The list frame is a page, pinned to the top (Geometry.Seam.pinned): no
+// slide, no lift by the keyboard; the keyboard covers its lower rows.
+static _Atomic bool     bl_pin;
 static uint64_t         bl_seq;
 static int64_t          bl_period = 16666667;  // the shortest vsync gap seen
 static uint32_t         bl_gap, bl_gaps, bl_gap_max;  // rows uncovered
@@ -128,7 +131,9 @@ static void bl_show(ASurfaceTransaction* t, BlLayer* l, int32_t sy0, int32_t sy1
 // k + r, cropped to the viewport [top, ctop).
 static void bl_place_list(ASurfaceTransaction* t, uint32_t bf, float bn, int32_t s, int32_t ctop) {
   BlLayer* l  = &bl_l[BL_LIST];
-  int32_t  k  = (int32_t)lroundf((float)bl_top - (float)bl_over - (float)s + (bn - (float)bf));
+  // Geometry.Seam.place (slid and lifted), or Seam.pinned (a page)
+  int32_t  k  = atomic_load(&bl_pin) ? (int32_t)bl_top - (int32_t)bl_over
+    : (int32_t)lroundf((float)bl_top - (float)bl_over - (float)s + (bn - (float)bf));
   int32_t  r0 = (int32_t)bl_top - k;
   int32_t  r1 = ctop - k;
   r0 = r0 < 0 ? 0 : r0;
@@ -349,6 +354,14 @@ void bl_layout(uint32_t w, uint32_t h, uint32_t top_h, uint32_t bot_h, uint32_t 
   bl_over  = over;
   bl_inset = inset_bottom;
   pthread_mutex_unlock(&bl_mu);
+}
+
+void bl_set_pin(bool pin) {
+  atomic_store(&bl_pin, pin);
+}
+
+bool bl_pinned(void) {
+  return atomic_load(&bl_pin);
 }
 
 void bl_placed(float* b, int32_t* composer_top, int32_t* shift) {

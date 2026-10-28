@@ -11,3 +11,6 @@ import Quiet.SheetGeom
 #print axioms SheetGeom.clamp_le
 #print axioms SheetGeom.compose_row
 #print axioms SheetGeom.compose_top
+#print axioms Geometry.pinned_row
+#print axioms Geometry.pinned_visible
+#print axioms Geometry.pinned_tap

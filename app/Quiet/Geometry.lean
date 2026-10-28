@@ -112,4 +112,50 @@ theorem newest_drawn (g : Geom) (hf : g.Fits) (over pad h : Nat) (fit : pad + h 
   rw [placed_row g hf, hr]
   exact visible_in_viewport g hf 0 _ (by omega) (by omega)
 
+/-! ## Pages: pinned to the top
+
+A page (Get started, Create, Paste, …) is drawn into the list layer from
+its top, at offset 0, and the twin places such a frame *pinned*: no slide,
+and no lift by the keyboard (`Seam.pinned`). The keyboard then covers the
+page's lower rows and moves nothing. Lifting it, as a conversation is
+lifted, pushed a page's heading and controls off the top of the screen;
+these say that cannot happen. -/
+
+namespace Seam
+
+/-- Where the twin places row r of a pinned frame. -/
+def pinned (g : Geom) (over r : Nat) : Int := (g.top : Int) - over + r
+
+/-- The page row a pinned frame's row r shows (a page is drawn at offset
+0, its row k at frame row over + k). -/
+def pageRow (over r : Nat) : Int := (r : Int) - over
+
+/-- The page row the app takes a list tap to be on: the twin reports a
+tap on a pinned frame as `composerTop + shift - 1 - y` (the keyboard
+closed's composer top), and the app reads row `view - 1 - p`. -/
+def tapRow (g : Geom) (y : Nat) : Int :=
+  (g.view : Int) - 1 - ((g.composerTop : Int) + g.shift - 1 - y)
+
+end Seam
+
+/-- **A page row is where the page put it**, whatever the keyboard does:
+row k of the page at screen row top + k. -/
+theorem pinned_row (g : Geom) (over r : Nat) :
+    pinned g over r = (g.top : Int) + pageRow over r := by
+  unfold pinned pageRow; omega
+
+/-- **The keyboard covers a page; it never pushes it.** Page content
+above the keyboard's top (row k < the viewport's height now) lands below
+the header and above the composer: on screen. -/
+theorem pinned_visible (g : Geom) (over k : Nat) (hk : k < g.viewNow) :
+    (g.top : Int) ≤ pinned g over (over + k) ∧ pinned g over (over + k) < g.composerTop := by
+  unfold pinned Geom.viewNow at *; omega
+
+/-- **A tap on a page lands on the row drawn under it**, keyboard open or
+not. -/
+theorem pinned_tap (g : Geom) (hf : g.Fits) (y : Nat) :
+    tapRow g y = (y : Int) - g.top := by
+  have := view_shift g hf
+  unfold tapRow; omega
+
 end Geometry

@@ -28,7 +28,7 @@ def Sim.io (sm : Sim) : Io where
     return b.toUInt32
   scrollBy d := sm.b.modify (· + d)
   scrollTo b := sm.b.set b
-  frame fr b o top bot := do sm.last.set (fr, b.toNat, o.toNat, top, bot); return #[]
+  frame fr b o top bot _ := do sm.last.set (fr, b.toNat, o.toNat, top, bot); return #[]
   text := pure ("", #[0, 0, 0, 0])
   ime _ := pure ()
   textClear := pure ()

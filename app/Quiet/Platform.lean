@@ -64,10 +64,12 @@ message). -/
 composer (`bot.size`). The header is placed at the screen's top; the
 composer at `h - bot.size - max(insetBottom, keyboard)`. The viewport is
 the rows between them, so `viewH = h - top.size - bot.size - insetBottom`.
-Waits for the display's pace. Answers the events since the last frame,
-four words each (`Event.decode`). -/
+Waits for the display's pace. `pin`: the list frame is a page, drawn from
+its top at offset 0, and is placed pinned: not slid, not lifted by the
+keyboard (Geometry.Seam.pinned; pinned_visible, pinned_tap). Answers the
+events since the last frame, four words each (`Event.decode`). -/
 @[extern "lq_frame"] opaque frame (list : @& Array ByteArray) (b over : UInt32)
-  (top bot : @& Array ByteArray) : IO (Array UInt32)
+  (top bot : @& Array ByteArray) (pin : Bool) : IO (Array UInt32)
 
 /-- The composer's text as the keyboard left it: the text, and
 `[selStart, selEnd, compStart, compEnd]` in characters (code points);

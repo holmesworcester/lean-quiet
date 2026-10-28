@@ -43,7 +43,7 @@ structure Io where
   scroll : UInt32 → UInt32 → IO UInt32
   scrollBy : Float → IO Unit
   scrollTo : Float → IO Unit
-  frame : Array ByteArray → UInt32 → UInt32 → Array ByteArray → Array ByteArray → IO (Array UInt32)
+  frame : Array ByteArray → UInt32 → UInt32 → Array ByteArray → Array ByteArray → Bool → IO (Array UInt32)
   text : IO (String × Array UInt32)
   ime : Bool → IO Unit
   textClear : IO Unit
@@ -169,7 +169,7 @@ structure St where
   the request's id, its fact, and its approvals' ids. -/
   asking : Array Kinds.Request.Data := #[]
 
-instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ => pure #[],
+instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ => pure #[],
   pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0⟩⟩
 
 abbrev M := StateT St IO
@@ -1168,7 +1168,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
     let shown := withToast s fr vh
     let t1 ← s.io.nowUs
     modify fun s => { s with b := 0, frames := s.frames + 1, times := s.times.push (t1 - t0).toNat }
-    let evs ← s.io.frame shown 0 over.toUInt32 s.topBmp.rows s.botBmp.rows
+    let evs ← s.io.frame shown 0 over.toUInt32 s.topBmp.rows s.botBmp.rows true
     return some (Event.decode evs)
   -- 7. chrome and the frame
   let s ← get
@@ -1186,7 +1186,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   let t1 ← s.io.nowUs
   let times := (if s.times.size ≥ 600 then s.times.extract 300 s.times.size else s.times).push (t1 - t0).toNat
   modify fun s => { s with b := b, frames := s.frames + 1, times := times }
-  let evs ← s.io.frame fr b.toUInt32 over.toUInt32 s.topBmp.rows s.botBmp.rows
+  let evs ← s.io.frame fr b.toUInt32 over.toUInt32 s.topBmp.rows s.botBmp.rows false
   return some (Event.decode evs)
 
 partial def loop (evs : List Event) : M Unit := do

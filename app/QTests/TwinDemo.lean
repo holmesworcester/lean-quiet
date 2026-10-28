@@ -138,7 +138,7 @@ def reply (s : String) : IO Unit := Platform.ctlReply s
 
 partial def loop (s : St) (lastB : Nat) : IO Unit := do
   let b := (← Platform.scroll s.contentH.toUInt32 s.viewH.toUInt32).toNat
-  let evs ← Platform.frame (s.list b) b.toUInt32 Over s.header s.composer
+  let evs ← Platform.frame (s.list b) b.toUInt32 Over s.header s.composer false
   let mut s := s
   let mut b := b
   for e in Event.decode evs do

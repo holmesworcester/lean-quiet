@@ -96,14 +96,16 @@ static void lq_release_at(int64_t t, uint32_t top_h, uint32_t bot_h) {
   int32_t  y    = (int32_t)lroundf(lq.y0);
   uint32_t x    = lq.x0 < 0 ? 0 : (uint32_t)lroundf(lq.x0);
   uint32_t kind = t - lq.t0 >= LQ_LONG_NS ? 3 : 2;
-  (void)shift;
+
   if (y < (int32_t)top_h) {
     lq_push(kind, 1, x, (uint32_t)(y < 0 ? 0 : y));
   } else if (y >= ctop) {
     int32_t r = y - ctop;
     lq_push(kind, 2, x, (uint32_t)(r < (int32_t)bot_h ? r : (int32_t)bot_h - 1));
   } else {
-    float d = b + (float)(ctop - 1 - y);
+    // a pinned page is not lifted: its rows are measured from the
+    // composer's top with the keyboard closed (Geometry.pinned_tap)
+    float d = b + (float)((bl_pinned() ? ctop + shift : ctop) - 1 - y);
     lq_push(kind, 0, x, (uint32_t)lroundf(d < 0 ? 0 : d));
   }
 }
@@ -447,8 +449,9 @@ lean_obj_res lq_scroll_to(double b) {
 }
 
 lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj_arg top,
-  b_lean_obj_arg bot) {
+  b_lean_obj_arg bot, uint8_t pin) {
   lq_phase(1);
+  bl_set_pin(pin != 0);
   uint64_t t0    = lq_tick();
   uint32_t top_h = (uint32_t)lean_array_size(top);
   uint32_t bot_h = (uint32_t)lean_array_size(bot);
