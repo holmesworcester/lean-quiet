@@ -9,6 +9,7 @@ import Quiet.RowLaws
 import Quiet.ViewLaws
 import Quiet.PeopleLaws
 import Quiet.Remove
+import Quiet.RemovedLaws
 import Quiet.App
 #print axioms Geometry.placed_row
 #print axioms Geometry.visible_in_viewport
@@ -56,3 +57,8 @@ import Quiet.App
 #print axioms Remove.open_fresh
 #print axioms Remove.no_replace
 #print axioms Remove.offered_only
+#print axioms RemovedLaws.listed_iff
+#print axioms RemovedLaws.told_once
+#print axioms RemovedLaws.not_replayed
+#print axioms RemovedLaws.landing_listed
+#print axioms RemovedLaws.forget_clears

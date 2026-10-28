@@ -146,7 +146,7 @@ def main (args : List String) : IO UInt32 := do
     waitIdle sb).run b1
   -- B's post reaches A
   let _ ← carry b2 a2
-  let ((), _) ← (show M Unit from do
+  let ((), a3) ← (show M Unit from do
     waitIdle sa
     steps 5
     sa.cmds.modify (·.push "switch club")
@@ -210,6 +210,26 @@ def main (args : List String) : IO UInt32 := do
       (rows.any fun d => d.text == "hello from B" && d.name == "Bea")
     sa.cmds.modify (·.push "back")
     steps 2).run a2
+  -- the removal reaches Bea's device (as the engine's last notice will
+  -- carry it; carried by hand here): her community is hidden, she is told
+  -- once, and lands on Get started
+  let _ ← carry a3 b2
+  let ((), b3) ← (show M Unit from do
+    waitIdle sb
+    steps 5
+    let s ← get
+    check s!"B: the community is hidden; B is on Get started ({s.comms.size}, {repr s.page})"
+      (s.comms.isEmpty && s.page == .getStarted)
+    check s!"B: told \"{s.notices.head?.getD ""}\"" (s.notices == ["You’ve been removed from club."])
+    check "B: nothing of it is left (no invite link, no composer text)" (s.links.isEmpty && s.text.isEmpty)
+    sb.cmds.modify (·.push "page 500 500")
+    steps 2
+    check "B: a tap puts the notice away" (← get).notices.isEmpty).run b2
+  let _ := b3
+  -- B opens the app again: the removal is not announced again
+  let b4 ← App.start sb.io screen (dir ++ "/b/quiet.db")
+  check s!"B, reopened: still hidden, and not told again ({b4.comms.size}, {b4.notices.length})"
+    (b4.comms.isEmpty && b4.notices.isEmpty && b4.page == .getStarted)
   -- C joins by scanning A's code with its camera, then stops waiting: back on Get started
   fresh (dir ++ "/c")
   let sc ← Sim.new
