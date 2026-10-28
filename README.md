@@ -10,7 +10,9 @@ This allows for proving a surprising range of user-relevant properties! See: [Wh
 
 Like [Quiet](https://github.com/TryQuiet/quiet), Lean Quiet is also local-first, end-to-end encrypted, and peer-to-peer, so many properties that would normally depend on a server operator (such as privacy, access control, or uptime) are provided by the code itself. This means they are provable over all possible deployments, assuming user device integrity! See: [Towards Proofs for n Clients](#towards-proofs-for-n-clients).
 
-Can we also prove the absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size or RTL language, or a lack of responsiveness under load, or an accessibility gap? This seems tantalizingly possible too, and we show many such proofs here. There is something exhilarating about adding a proof where one would usually add an end-to-end test. Sci fi. 🪐 
+Can we also prove the absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size or RTL language, or a lack of responsiveness under load, or an accessibility gap? This seems tantalizingly possible too, and we show many such proofs here.
+
+There is something exhilarating about adding a proof where one would usually add an end-to-end test. Sci fi. 🪐 
 
 ## What is proven
 
