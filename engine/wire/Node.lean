@@ -27,7 +27,9 @@ frame came from (at first, the one its handshake ran on).
   the clock, an offer) first reads its rooms afresh from the family
   (`Node.refresh`), so a removal or an admission written since counts at
   once. What it sends and takes is then that step's rooms'
-  (`recv_send`, `recv_take`).
+  (`recv_send`, `recv_take`). Where the node stores ops and on the clock
+  it also gives the connection's notices (`filedGive`, `tickGive`), and
+  writes what the settle hook makes of each one given.
 - Sessions come from the family: after each entry point every
   connection its handshake has established is opened here, and every
   one it no longer lists is closed. A session dropped here (patience)
@@ -36,7 +38,7 @@ frame came from (at first, the one its handshake ran on).
   handed out once and marked shipped.
 - Every id stored is reported (`stored`), so an app can re-read.
 -/
-import ops.sync.Conn
+import ops.sync.Notice
 import engine.core.Held
 
 namespace Engine.Sync
@@ -49,10 +51,12 @@ inductive Route where
 
 /-- What the Connection family tells sync. -/
 structure Hooks (F : Type) (m : Type → Type) [Monad m] where
-  /-- The rooms the peer on connection cid may see now. -/
-  rooms : Id → m (List Id)
-  /-- The local ops that record room r's first settle on connection cid. -/
-  settled : Id → Id → List Op := fun _ _ => []
+  /-- What connection cid carries now: the rooms its peer may see,
+  synced, and the notices it is to give (ops/sync/Notice.lean). -/
+  rooms : Id → m (List Room)
+  /-- The local ops that record a status a step on connection cid
+  reports: a room's first settle, a notice given. -/
+  settled : Id → Status → List Op := fun _ _ => []
   /-- What the family writes on op o's arrival (on a session, or bare
   from an address) at a time: called on every arrival, a repeat
   included, after it is stored. -/
@@ -170,12 +174,13 @@ def Node.put (n : Node) (ops : List Op) (mine : Bool) : m (Node × List Id) :=
 
 /-- Write each settle the steps report. -/
 def Node.settle (n : Node) (st : List (Id × Status)) : m Node := do
-  let ops := st.flatMap fun (cid, .settled r) => x.hooks.settled cid r
+  let ops := st.flatMap fun (cid, v) => x.hooks.settled cid v
   return (← n.put x ops true).1
 
-/-- Connection c as its next step must see it: its rooms read afresh. -/
+/-- Connection c as its next step must see it: its rooms and notices
+read afresh. -/
 def Node.refresh (cid : Id) (c : Conn) : m Conn := do
-  return c.setRooms (← x.hooks.rooms cid)
+  return c.carry (← x.hooks.rooms cid)
 
 /-- Offer stored ids on every connection. -/
 def Node.fanout (n : Node) (ids : List Id) : m (Node × Acts) := do
@@ -184,7 +189,7 @@ def Node.fanout (n : Node) (ids : List Id) : m (Node × Acts) := do
   let mut st : List (Id × Status) := []
   for (cid, c) in n.conns do
     let c ← Node.refresh x cid c
-    let s ← Conn.filed x.fam x.cfg c ids
+    let s ← Conn.filedGive x.fam x.cfg c ids
     conns := (cid, s.conn) :: conns
     out := out ++ sends cid s.send
     st := st ++ s.status.map (cid, ·)
@@ -213,7 +218,7 @@ def Node.store (n : Node) (ops : List Op) (mine : Bool) : m (Node × Acts) := do
 /-- Open a session's connection: say hello. -/
 def Node.open (n : Node) (cid : Id) (addr : ByteArray) (dialer : Bool) (now : Nat) :
     m (Node × Acts) := do
-  let s := Conn.open dialer (← x.hooks.rooms cid) n.floor now
+  let s := Conn.open dialer (Room.syncs (← x.hooks.rooms cid)) n.floor now
   let n := (n.close cid).setAddr cid addr
   return ({ n with conns := (cid, s.conn) :: n.conns }, sends cid s.send)
 
@@ -371,7 +376,7 @@ def Node.onTick (n : Node) (now : Nat) : m (Node × Effects) := do
     | none => pure ()
     | some c =>
       let c ← Node.refresh x cid c
-      let (n', o) ← n.apply x cid (← Conn.tick x.fam x.cfg n.ix c now) now
+      let (n', o) ← n.apply x cid (← Conn.tickGive x.fam x.cfg n.ix c now) now
       n := n'
       out := out ++ o
   n.finish x out now

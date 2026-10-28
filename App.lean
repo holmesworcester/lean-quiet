@@ -832,9 +832,11 @@ def openPage (p : PageId) : M Unit := do
   if p == .invite && !s.me.waiting && !(s.links.any (·.1 == s.me.acc)) then
     let bearer ← newSeed
     -- dial hints: this device's private LAN addresses (Link.hints)
-    let (w, i) := Community.inviteTo s.me.c s.me.adm s.me.dev bearer (← listenHints)
-    if ← writeAll w then
-      modify fun s => { s with links := (s.me.acc, i.text) :: s.links }
+    -- the link names this node's key (Community.inviteTo reads it)
+    let (issued, _) ← readView (Community.inviteTo s.me.c s.me.adm s.me.dev bearer (← listenHints)) #[]
+    if let some (w, i) := issued then
+      if ← writeAll w then
+        modify fun s => { s with links := (s.me.acc, i.text) :: s.links }
   s.io.scrollTo 0
   modify (openSt p)
 
@@ -928,8 +930,9 @@ def acceptOf (w : Community.Write) : Option Id :=
 current. -/
 def found (n myName : String) : M Unit := do
   let seed ← newSeed
-  let w := Community.found seed n.toUTF8 myName.toUTF8 (← nowMin)
-    (← newBytes 32) (← newBytes 32)
+  -- the last fresh bytes are this node's key, if it has none yet
+  let (w, _) ← readView (Community.found seed n.toUTF8 myName.toUTF8 (← nowMin)
+    (← newBytes 32) (← newBytes 32) (← newBytes 32)) #[]
   if ← writeAll w then
     if let some a := acceptOf w then
       refreshCommsNow
@@ -1031,7 +1034,7 @@ def refreshMembers : M Unit := do
       say s!"Removed {name} from the community."
 
 /-- The node's sessions now (Connection.sessions' kept ones): their
-peers' device keys, every 30 frames. -/
+peers' node keys, every 30 frames. -/
 def refreshPeers : M Unit := do
   let s ← get
   if s.net.isNone then return
@@ -1210,7 +1213,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
       let seed ← newSeed
       -- the engine's join: nothing for a held community, the same request
       -- again for a stopped one, else a fresh join
-      let (w, _) ← readView (Community.join i seed s.joinName.toUTF8) #[]
+      let (w, _) ← readView (Community.join i seed s.joinName.toUTF8 (← newBytes 32)) #[]
       if ← writeAll w then
         modify fun s => { s.withNav (Nav.reset s.page) with invite := none, field := "" }
         refreshCommsNow
@@ -1874,7 +1877,7 @@ def frame (evs : List Event) : M (Option (List Event)) := do
     if !w.ops.isEmpty then let _ ← writeAll w
     -- and the community's keys wrapped to this device, opened into local
     -- key ops (a live view too: re-run when a wrap arrives)
-    let (w, _) ← readView (Community.unwrap m.c m.dev) #[]
+    let (w, _) ← readView (Community.unwrap m.c) #[]
     if !w.ops.isEmpty then let _ ← writeAll w
   let tRefresh ← (← get).io.nowUs
   -- a frame over 20 ms says where its time went (logcat / stderr)

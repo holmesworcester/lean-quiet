@@ -28,6 +28,13 @@ What it checks, in order:
 - **The cache law** (`write_cached`, `purge_cached`): after every phase,
   purges included, each node's room index holds, room by room, exactly
   the index of the ops in its SQLite store (`Index.ofOps` of `dumpOps`).
+- **Notice, then cut** (docs/REMOVAL.md): A removes B on a live session.
+  A's next step gives B its removal and the removal's closure, and A
+  closes the session, which then carries nothing; B holds its removal
+  (only the notice carries it), holds c no more, and closes its side.
+  Negative controls: with a rooms hook that gives no notices, B never
+  learns its removal and A keeps the session open; with sessions that do
+  not read the rooms view, B is told but neither side closes.
 - **Authenticate before parsing** (`sealed_auth`): a session frame A
   sealed for B, with one byte of its ciphertext or of its header changed,
   leaves B's node and store as they were and sends nothing; the frames
@@ -51,18 +58,43 @@ def cfg : Config := { every := 30000, patience := 20000 }
 structure Peer where
   addr : ByteArray
   seed : ByteArray
+  /-- This node's key's secret: its first found or join writes it. -/
+  nk : ByteArray
   x : Sync F (SqlM F)
   db : Db
   n : Node
   /-- Frames waiting: (the sender's address, bytes). -/
   inbox : List (ByteArray × ByteArray) := []
 
-def mkPeer (name : String) : IO Peer := do
+/-- The sessions as they were before they read the rooms view: kept, one
+per peer, whatever they carry. The negative control's. -/
+def oldSessions : SqlM F (List (Id × ByteArray × Bool)) := do
+  let all ← (allSessions : SqlM F _)
+  let k := kept all
+  return all.filterMap fun (cid, _, dialer, a, _) => if k.contains cid then some (cid, a, dialer) else none
+
+def oldRetired : SqlM F (List Id) := do
+  let all ← (allSessions : SqlM F _)
+  let k := kept all
+  return all.filterMap fun (cid, _) => if k.contains cid then none else some cid
+
+/-- The rooms hook with its notices dropped: synced rooms only. The
+negative control's. -/
+def quietRooms (cid : Id) : SqlM F (List Room) := do
+  return (Room.syncs (← (rooms cid : SqlM F _))).map .sync
+
+/-- A peer; with `old`, its sessions are the old ones (`oldSessions`);
+with `quiet`, its rooms hook gives no notices (`quietRooms`). -/
+def mkPeer (name : String) (old quiet : Bool := false) : IO Peer := do
   let seed := sha256 s!"seed {name}".toUTF8
+  let nk := sha256 s!"node {name}".toUTF8
   let addr := s!"{name}:7001".toUTF8
   let db ← Db.openAt ":memory:"
-  let x : Sync F (SqlM F) := { fam, cfg, hooks := hooks fam K addr }
-  return { addr, seed, x, db, n := Node.boot fam [] 0 }
+  let h := hooks fam K addr
+  let h := if old then { h with established := oldSessions, retired := oldRetired } else h
+  let h := if quiet then { h with rooms := quietRooms } else h
+  let x : Sync F (SqlM F) := { fam, cfg, hooks := h }
+  return { addr, seed, nk, x, db, n := Node.boot fam [] 0 }
 
 structure World where
   a : Peer
@@ -132,6 +164,13 @@ def cnt (p : Peer) (r : Rel Connection.Fact) (args : List ByteArray) : IO Nat :=
 def stored (p : Peer) (x : Id) : IO Bool := do return (← (Store.getOp x : SqlM F _).run p.db).isSome
 def ests (p : Peer) : IO (List Connection.Fact) := do
   return (← (rows established.all [] : SqlM F _).run p.db).map (·.2)
+/-- A peer's node key. -/
+def Peer.key (p : Peer) : ByteArray := cryptoSeal.pub p.nk
+
+/-- A Community view, read on a peer's store. -/
+def viewOn {α} (p : Peer) (v : View Community.Fact α) : IO α := ((v.liftL : View F α).run : SqlM F α).run p.db
+
+/-- Whether peer p lets in the node whose key is k, for c. -/
 def allowedOn (p : Peer) (c d : ByteArray) : IO Bool :=
   ((Community.allowPeer c d).liftL.run : SqlM F Bool).run p.db
 /-- The receipts p holds of message x. -/
@@ -139,17 +178,20 @@ def receiptsOf (p : Peer) (x : Id) : IO (List Community.Fact) := do
   let a ← ((Community.received.byMsg.read [x]).liftL.run : SqlM F (Answer Community.Fact)).run p.db
   return a.rows.map (·.2)
 
-/-- A founds Acme and invites at its address; B joins from the link. -/
-def setup (loss : Nat) : IO (World × Id × Op) := do
-  let a ← mkPeer "A"
-  let b ← mkPeer "B"
+/-- A founds Acme and invites at its address; B joins from the link.
+`old` and `quiet` mutate both nodes' hooks (`mkPeer`). -/
+def setup (loss : Nat) (old quiet : Bool := false) : IO (World × Id × Op) := do
+  let a ← mkPeer "A" old quiet
+  let b ← mkPeer "B" old quiet
   let mut w : World := { a, b, loss }
-  w ← writeA w (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (sha256 "key".toUTF8) (sha256 "esk".toUTF8)).ops
-  let c := (root (Device.ofSeed a.seed)).id
-  let (wi, link) := inviteTo c c (Device.ofSeed a.seed) (sha256 "bearer".toUTF8) [a.addr]
+  w ← writeA w (← viewOn a (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (sha256 "key".toUTF8)
+    (sha256 "esk".toUTF8) a.nk)).ops
+  let c := (root (Device.ofSeed a.seed) a.key).id
+  let some (wi, link) ← viewOn w.a (inviteTo c c (Device.ofSeed a.seed) (sha256 "bearer".toUTF8) [a.addr])
+    | throw (IO.userError "no invite")
   w ← writeA w wi.ops
-  w ← writeB w (joinOps link b.seed "Bea".toUTF8).ops
-  return (w, c, link.request (Device.ofSeed b.seed))
+  w ← writeB w (← viewOn b (join link b.seed "Bea".toUTF8 b.nk)).ops
+  return (w, c, link.request (Device.ofSeed b.seed) b.key)
 
 def approveOnA (w : World) (c : Id) (req : Op) : IO World := do
   let wr ← ((approveReq c req.id c (Device.ofSeed w.a.seed)).liftL.run : SqlM F Community.Write).run w.a.db
@@ -181,6 +223,27 @@ def dump (name : String) (p : Peer) : IO Unit := do
     line := line ++ s!" {o.kind}:" ++ (match st with | some (.valid _) => "v" | some .invalid => "X" | none => "?")
   IO.eprintln line
 
+/-- B, admitted, is removed by A while their session is open: whether B
+is told (it holds its removal, which only the notice carries), whether B
+then closes its session with A, and whether A closes its side once the
+notice is given; each with the session ops purged. -/
+def removalCut (old quiet : Bool := false) : IO (Bool × Bool × Bool) := do
+  let (w, c, req) ← setup 0 old quiet
+  let w ← w.run 20
+  let w ← approveOnA w c req
+  let w ← w.run 60
+  let dA := Device.ofSeed w.a.seed
+  let dB := Device.ofSeed w.b.seed
+  let adms ← viewOn w.a (Community.admission.byDevice.read [c, dB.pk])
+  let some ((_, admB), _) := adms.rows.head? | return (false, false, false)
+  let rm := remove c c c admB dA
+  let w ← writeA w [rm]
+  let w ← w.run 5
+  let closed (p : Peer) : IO Bool := do
+    return (← (p.x.hooks.established : SqlM F _).run p.db).isEmpty && (← ests p).isEmpty &&
+      p.n.conns.isEmpty
+  return (← stored w.b rm.id, ← closed w.b, ← closed w.a)
+
 def main : IO UInt32 := do
   let t ← Checks.new
   let (w, c, req) ← setup 0
@@ -194,10 +257,10 @@ def main : IO UInt32 := do
   t.ok "A answered nothing" ((← cnt w.a established.all []) == 0)
   t.ok "B established nothing" ((← ests w.b).isEmpty)
   t.ok "B's dial was resent every tick" (w.sentBare ≥ 15)
-  t.ok "B is not admitted on A" (!(← allowedOn w.a c dB.pk))
+  t.ok "B is not admitted on A" (!(← allowedOn w.a c w.b.key))
   -- Approval.
   let w ← approveOnA w c req
-  t.ok "A admits B by its own ops" (← allowedOn w.a c dB.pk)
+  t.ok "A admits B by its own ops" (← allowedOn w.a c w.b.key)
   let w ← w.run 20
   let ea ← ests w.a
   let eb ← ests w.b
@@ -209,15 +272,16 @@ def main : IO UInt32 := do
   | [.established ca cca pa ha sa ra da], [.established cb ccb pb hb sb rb db] =>
     t.ok "the same connection id" (ca == cb)
     t.ok "the same community" (cca == c && ccb == c)
-    t.ok "each names the other" (pa == dB.pk && pb == dA.pk)
+    t.ok "each names the other by node key" (pa == w.b.key && pb == w.a.key)
+    t.ok "device keys never enter the handshake" (pa != dB.pk && pb != dA.pk)
     t.ok "the same handshake hash" (ha == hb)
     t.ok "crossed keys" (sa == rb && ra == sb)
     t.ok "B dialed, A answered" (db && !da)
   | _, _ => t.ok "sessions have the expected shape" false
   -- Sync over the session.
   let w ← w.run 40
-  t.ok "B is admitted by its own ops" (← allowedOn w.b c dB.pk)
-  t.ok "B lets A in" (← allowedOn w.b c dA.pk)
+  t.ok "B is admitted by its own ops" (← allowedOn w.b c w.b.key)
+  t.ok "B lets A in" (← allowedOn w.b c w.a.key)
   let p := post c c dA "k".toUTF8 "hello B".toUTF8 1 5
   let w ← writeA w [p]
   let w ← w.run 10
@@ -268,7 +332,7 @@ def main : IO UInt32 := do
   -- Two sessions between one pair (B dials A again with a fresh
   -- ephemeral): both ends keep the same one, the smaller id.
   let e2 := sha256 "second ephemeral".toUTF8
-  let some ro2 := Request.op K w.b.seed dA.pk e2 (hello c w.b.addr []) | t.ok "a second request" false; return 1
+  let some ro2 := Request.op K w.b.nk w.a.key e2 (hello c w.b.addr []) | t.ok "a second request" false; return 1
   let w ← writeB w [ro2, Eph.op e2 ro2.id, Send.op w.a.addr ro2]
   let w ← w.run 20
   let sa ← (sessions : SqlM F _).run w.a.db
@@ -277,6 +341,41 @@ def main : IO UInt32 := do
   t.ok "both keep the same one" (sa.map (·.1) == sb.map (·.1))
   t.ok "the other session was purged at both ends" ((← ests w.a).length == 1 && (← ests w.b).length == 1)
   t.ok "and the kept one is the newer dial" (sa.map (·.1) != [cidOf ea])
+  -- A second community between the same two nodes: A founds it as a new
+  -- device and invites B, who joins as a new device. A session is one
+  -- per node key, and carries both communities.
+  let seedA2 := sha256 "seed A, second community".toUTF8
+  let w ← writeA w (← viewOn w.a (found seedA2 "Zed".toUTF8 "Ann".toUTF8 1 (sha256 "key Z".toUTF8)
+    (sha256 "esk Z".toUTF8) (sha256 "unused".toUTF8))).ops
+  let c' := (root (Device.ofSeed seedA2) w.a.key).id
+  let some (wiZ, linkZ) ← viewOn w.a (inviteTo c' c' (Device.ofSeed seedA2) (sha256 "bearer Z".toUTF8) [w.a.addr])
+    | t.ok "A invites to its second community" false; return 1
+  t.ok "the second link names the same node key" (linkZ.inviter == w.a.key)
+  let w ← writeA w wiZ.ops
+  let seedB2 := sha256 "seed B, second community".toUTF8
+  let w ← writeB w (← viewOn w.b (join linkZ seedB2 "Bea".toUTF8 (sha256 "unused".toUTF8))).ops
+  let w ← w.run 10
+  let reqZ := linkZ.request (Device.ofSeed seedB2) w.b.key
+  t.ok "B's second join request reaches A bare, beside the open session" (← stored w.a reqZ.id)
+  t.ok "and A does not let B's node into the second community before approving"
+    (!(← allowedOn w.a c' w.b.key))
+  -- A approves as its device in the second community
+  let wrZ ← ((approveReq c' reqZ.id c' (Device.ofSeed seedA2)).liftL.run : SqlM F Community.Write).run w.a.db
+  let w ← writeA w wrZ.ops
+  let w ← w.run 30
+  t.ok "approved, B's new device is admitted in the second community, by B's own ops"
+    (← allowedOn w.b c' w.b.key)
+  let pZ := post c' c' (Device.ofSeed seedA2) "k".toUTF8 "hello B, in Zed".toUTF8 1 7
+  let w ← writeA w [pZ]
+  let w ← w.run 10
+  t.ok "a post of the second community reaches B" (← stored w.b pZ.id)
+  let sa2 ← (sessions : SqlM F _).run w.a.db
+  let sb2 ← (sessions : SqlM F _).run w.b.db
+  t.ok "still one session at each end, carrying both" (sa2.length == 1 && sb2.length == 1 && sa2.map (·.1) == sb2.map (·.1))
+  let pA := post c c dA "k".toUTF8 "and in Acme".toUTF8 4 8
+  let w ← writeA w [pA]
+  let w ← w.run 10
+  t.ok "and a post of the first community still reaches B" (← stored w.b pA.id)
   t.ok "after the purge, A's index is the index of its store" (← cacheOk w.a)
   t.ok "after the purge, B's index is the index of its store" (← cacheOk w.b)
   -- Lossy wire.
@@ -290,19 +389,21 @@ def main : IO UInt32 := do
     dump "A2" w2.a; dump "B2" w2.b
     IO.eprintln s!"A2 conns {w2.a.n.conns.map (fun p => hex p.1)} dropped {w2.a.n.dropped.map hex}"
     IO.eprintln s!"B2 conns {w2.b.n.conns.map (fun p => hex p.1)} dropped {w2.b.n.dropped.map hex}"
-  t.ok "with a third of handshake frames lost, B still joins" (← allowedOn w2.b c2 (Device.ofSeed w2.b.seed).pk)
+  t.ok "with a third of handshake frames lost, B still joins" (← allowedOn w2.b c2 w2.b.key)
   t.ok "on the lossy wire, both indexes are their stores'" ((← cacheOk w2.a) && (← cacheOk w2.b))
   -- One node for every device it holds; an abandoned join is not dialed.
   let a3 ← mkPeer "A3"
   let b3 ← mkPeer "B3"
   let mut w3 : World := { a := a3, b := b3 }
-  w3 ← writeA w3 (found a3.seed "Acme3".toUTF8 "Ann".toUTF8 1 (sha256 "key3".toUTF8) (sha256 "esk3".toUTF8)).ops
-  let c3 := (root (Device.ofSeed a3.seed)).id
+  w3 ← writeA w3 (← viewOn a3 (found a3.seed "Acme3".toUTF8 "Ann".toUTF8 1 (sha256 "key3".toUTF8)
+    (sha256 "esk3".toUTF8) a3.nk)).ops
+  let c3 := (root (Device.ofSeed a3.seed) a3.key).id
   -- A pending join to a community that is not here, as another device.
   let ghost := sha256 "ghost".toUTF8
-  let gr := root (Device.ofSeed ghost)
-  let (_, deadLink) := inviteTo gr.id gr.id (Device.ofSeed ghost) (sha256 "ghost bearer".toUTF8) ["Z:7001".toUTF8]
-  let wd := joinOps deadLink (sha256 "old device".toUTF8) "Old".toUTF8
+  let ghostKey := cryptoSeal.pub (sha256 "ghost node".toUTF8)
+  let gr := root (Device.ofSeed ghost) ghostKey
+  let (_, deadLink) := issue gr.id gr.id (Device.ofSeed ghost) ghostKey (sha256 "ghost bearer".toUTF8) ["Z:7001".toUTF8]
+  let wd ← viewOn b3 (join deadLink (sha256 "old device".toUTF8) "Old".toUTF8 b3.nk)
   w3 ← writeB w3 wd.ops
   w3 ← w3.run 5
   t.ok "a pending join is dialed" (w3.sentBare ≥ 3)
@@ -312,12 +413,27 @@ def main : IO UInt32 := do
   w3 ← w3.run 10
   t.ok "a join this device stopped waiting on is not dialed" (w3.sentBare == s0)
   -- The same node joins A3 as a second device, with no restart.
-  let (wi3, link3) := inviteTo c3 c3 (Device.ofSeed a3.seed) (sha256 "bearer3".toUTF8) [a3.addr]
+  let some (wi3, link3) ← viewOn w3.a (inviteTo c3 c3 (Device.ofSeed a3.seed) (sha256 "bearer3".toUTF8) [a3.addr])
+    | t.ok "A3 invites" false; return 1
   w3 ← writeA w3 wi3.ops
-  w3 ← writeB w3 (joinOps link3 b3.seed "Bea".toUTF8).ops
+  w3 ← writeB w3 (← viewOn w3.b (join link3 b3.seed "Bea".toUTF8 b3.nk)).ops
   w3 ← w3.run 10
-  w3 ← approveOnA w3 c3 (link3.request (Device.ofSeed b3.seed))
+  w3 ← approveOnA w3 c3 (link3.request (Device.ofSeed b3.seed) b3.key)
   w3 ← w3.run 30
-  t.ok "the same node then joins as another device" (← allowedOn w3.b c3 (Device.ofSeed b3.seed).pk)
+  t.ok "the same node then joins as another device, under the same node key" (← allowedOn w3.b c3 b3.key)
   t.ok "with two devices, both indexes are their stores'" ((← cacheOk w3.a) && (← cacheOk w3.b))
+  -- Notice, then cut: A removes B on the live session; its next step
+  -- gives B the removal and its closure, records it given, and closes
+  -- the session, which then carries nothing; B, holding its removal,
+  -- holds c no more, and closes its side too.
+  let (told, bClosed, aClosed) ← removalCut
+  t.ok "a removed B is told: it holds its removal, carried by the notice" told
+  t.ok "and closes its session: it carries nothing" bClosed
+  t.ok "A closes its side once the notice is given, its session ops purged" aClosed
+  let (toldQ, _, aClosedQ) ← removalCut (quiet := true)
+  t.ok "negative control: with a rooms hook giving no notices, B never learns its removal" (!toldQ)
+  t.ok "and A keeps the session open, the notice owed" (!aClosedQ)
+  let (toldO, bClosedO, aClosedO) ← removalCut (old := true)
+  t.ok "negative control: with sessions not reading the rooms view, B is told but neither side closes"
+    (toldO && !bClosedO && !aClosedO)
   t.finish "connection_check"

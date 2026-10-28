@@ -16,22 +16,17 @@ export Engine (sha256)
 
 def ed25519 : Crypto := ⟨fun pk m s => edVerify pk m s, fun seed => (edKeypair seed).extract 0 32⟩
 
-/-- A device: its Ed25519 signing key pair, and its X25519 encryption
-key (the conversion of the signing key), which content keys are wrapped
-to. -/
+/-- A device: its Ed25519 signing key pair. Its X25519 key is its
+node's (`endpoint`), named in the root or request that admits it. -/
 structure Device where
   pk : Key
   sk : ByteArray
-  enc : Key
   deriving Inhabited
 
 /-- A device from a 32-byte seed (tests derive seeds from names). -/
 def Device.ofSeed (seed : ByteArray) : Device :=
   let kp := edKeypair seed
-  ⟨kp.extract 0 32, kp.extract 32 96, Crypto.staticPubOf (kp.extract 0 32)⟩
-
-/-- A device's X25519 secret: what opens keys wrapped to it. -/
-def Device.encSecret (d : Device) : ByteArray := Crypto.staticOf d.sk
+  ⟨kp.extract 0 32, kp.extract 32 96⟩
 
 def Device.named (name : String) : Device := Device.ofSeed (sha256 name.toUTF8)
 
@@ -46,8 +41,10 @@ def sig (sk : ByteArray) (reqs : List Id) (b : Body) : ByteArray := edSign sk (t
 
 theorem signed_eq (o : Op) (b : Body) : signed o b = toSign o.reqs b := rfl
 
-def root (d : Device) : Op :=
-  mkOp [] (.root d.pk d.enc (sig d.sk [] (.root d.pk d.enc .empty)))
+/-- The root of a community founded by device d on the node with key
+`key`: the founder's admission names both, signed by d. -/
+def root (d : Device) (key : Key) : Op :=
+  mkOp [] (.root d.pk key (sig d.sk [] (.root d.pk key .empty)))
 
 /-- An invitation needing `threshold` approvals (one by default; a link
 invitation needs exactly one). -/
@@ -56,10 +53,12 @@ def invite (c issuerAdm : Id) (by_ : Device) (bearer : Key) (link : Bool)
   let reqs := [c, issuerAdm]
   mkOp reqs (.invite bearer link threshold (sig by_.sk reqs (.invite bearer link threshold .empty)))
 
-def request (c inv : Id) (d : Device) (bearerSk : ByteArray) : Op :=
+/-- Device d's request to join through invitation inv, from the node with
+key `key`: d signs both keys, and so does the bearer key. -/
+def request (c inv : Id) (d : Device) (key : Key) (bearerSk : ByteArray) : Op :=
   let reqs := [c, inv]
-  let u : Body := .request d.pk d.enc .empty .empty
-  mkOp reqs (.request d.pk d.enc (sig d.sk reqs u) (sig bearerSk reqs u))
+  let u : Body := .request d.pk key .empty .empty
+  mkOp reqs (.request d.pk key (sig d.sk reqs u) (sig bearerSk reqs u))
 
 /-- by_'s approval of request req, signed as its admission adm. -/
 def approve (c req adm : Id) (by_ : Device) : Op :=
@@ -169,6 +168,10 @@ def receipt (m : Id) (k : Nat) : Op := mkOp [m] (.receive k)
 
 /-- This device's secret seed (local). -/
 def secret (seed : ByteArray) : Op := mkOp [] (.secret (Device.ofSeed seed).pk seed)
+
+/-- This node's key (local), from 32 random bytes: what it handshakes
+with, and what the devices it holds name as their X25519 key. -/
+def endpoint (sk : ByteArray) : Op := mkOp [] (.endpoint sk)
 
 /-- This device is in community c (local). -/
 def accept (c : Id) (device : Key) : Op := mkOp [] (.accept c device)

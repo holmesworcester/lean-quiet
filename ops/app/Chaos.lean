@@ -199,7 +199,7 @@ def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n top now : Na
     let d := Device.named s!"chaos-{seed}-{i}"
     let bearer := Device.named s!"chaos-bearer-{seed}-{i}"
     let inv := invite c me.adm f bearer.pk false 1
-    let rq := request c inv.id d bearer.sk
+    let rq := request c inv.id d (cryptoSeal.pub (sha256 s!"chaos-node-{seed}-{i}".toUTF8)) bearer.sk
     let ap := approve c rq.id me.adm f
     let j := admit c rq.id [ap.id]
     let p := profile c j.id d names[i % names.size]!.toUTF8 start

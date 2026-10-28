@@ -7,8 +7,10 @@ import ops.connection.Connection
 import ops.connection.Established
 import ops.connection.Send
 import ops.connection.Recv
+import ops.connection.Given
 import ops.connection.Family
 import ops.connection.Frame
 import ops.connection.Intents
 import ops.connection.Laws
 import ops.connection.RoomLaws
+import ops.connection.RemovalLaws

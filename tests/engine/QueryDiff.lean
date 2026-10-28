@@ -23,7 +23,7 @@ structure World where
 
 def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Array (Id × Id × Device) := Id.run do
   let f := Device.named s!"founder-{seed}"
-  let r := root f
+  let r := root f (keyOf f)
   let c := r.id
   let mut ops := #[r]
   -- Each user: the op admitting it (what its ops cite), its user id
@@ -33,7 +33,7 @@ def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Arr
     let b := Device.named s!"bearer-{seed}-{i}"
     let d := Device.named s!"user-{seed}-{i}"
     let inv := invite c c f b.pk false
-    let rq := request c inv.id d b.sk
+    let rq := request c inv.id d (keyOf d) b.sk
     let ok := approve c rq.id c f
     let j := admit c rq.id [ok.id]
     ops := ops.push inv |>.push rq |>.push ok |>.push j
@@ -243,8 +243,8 @@ def main : IO UInt32 := do
       t.ok s!"seed {seed}: query {n}" (a == b)
     -- The network's views on SQLite against their meaning.
     for (_, _, d) in users do
-      let a ← ((allowPeer c d.pk).run : SqlM Fact Bool).run db
-      t.ok s!"seed {seed}: allowPeer view" (a == (allowPeer c d.pk).eval m)
+      let a ← ((allowPeer c (keyOf d)).run : SqlM Fact Bool).run db
+      t.ok s!"seed {seed}: allowPeer view" (a == (allowPeer c (keyOf d)).eval m)
     let ms ← ((members c).run : SqlM Fact (List Key)).run db
     t.ok s!"seed {seed}: members view" (ms == (members c).eval m && ms.length == users.size)
     let rs ← ((recipients c).run : SqlM Fact (List Key)).run db

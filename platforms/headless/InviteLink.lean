@@ -16,8 +16,10 @@ def main (args : List String) : IO UInt32 := do
   let seed ← IO.getRandomBytes 32
   let bearer ← IO.getRandomBytes 32
   let d := Device.ofSeed seed
-  let r := root d
-  let (_, i) := issue r.id r.id d bearer ["10.0.2.2:47100".toUTF8]
+  -- this node's key: what the link names, and what the root names as enc
+  let key := cryptoSeal.pub (← IO.getRandomBytes 32)
+  let r := root d key
+  let (_, i) := issue r.id r.id d key bearer ["10.0.2.2:47100".toUTF8]
   IO.FS.writeFile (out ++ "/invite") i.text
   let some b := Link.qr i.text 1000 | IO.eprintln "no QR for the link"; return 1
   let mut pgm := s!"P5\n{b.w} {b.h}\n255\n".toUTF8

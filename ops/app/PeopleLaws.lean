@@ -3,8 +3,9 @@ The people list is the community's present members, over the running
 code (Kinds.Profile.present, which the people list and its count read):
 
 - `present_iff`: at rest, a user is listed exactly when one of their
-  devices is admitted into the community and the user is not removed
-  (by the engine's `mem_live_all`): a removed member is in neither the
+  devices is live: admitted, and none of the users it is admitted into
+  removed (by the engine's `mem_live_all`), so the user is not removed
+  either (`present_not_removed`): a removed member is in neither the
   list nor the count;
 - `present_nodup`: each user is listed once, so the count is the number
   of people, not of devices.
@@ -27,12 +28,19 @@ theorem byUser_mem (ls : List (Id × Key × Key)) (u : Id) :
 /-- **The people list is exactly the present members.** -/
 theorem present_iff {C : Community.Crypto} {s : DB Fact} (h : Inv (family C) s) (hq : s.queue = [])
     (c u : Id) :
-    u ∈ ((Profile.present c).eval s).map (·.1) ↔ ∃ d e, Admitted C s.ops c u d e ∧ ¬ Removed C s.ops c u := by
+    u ∈ ((Profile.present c).eval s).map (·.1) ↔ ∃ d e, Admitted C s.ops c u d e ∧ Live C s.ops c d := by
   simp only [Profile.present, View.eval_bind, View.eval_read, View.eval_pure]
   rw [byUser_mem]
   constructor
   · rintro ⟨d, e, hm⟩; exact ⟨d, e, (mem_live_all h hq c u d e).1 hm⟩
   · rintro ⟨d, e, hm⟩; exact ⟨d, e, (mem_live_all h hq c u d e).2 hm⟩
+
+/-- **A removed member is not listed.** -/
+theorem present_not_removed {C : Community.Crypto} {s : DB Fact} (h : Inv (family C) s)
+    (hq : s.queue = []) {c u : Id} (hp : u ∈ ((Profile.present c).eval s).map (·.1)) :
+    ¬ Removed C s.ops c u := by
+  obtain ⟨d, e, ha, hl⟩ := (present_iff h hq c u).1 hp
+  exact hl.2 u e ha
 
 /-- **Each person is listed once.** -/
 theorem present_nodup (s : DB Fact) (c : Id) : (((Profile.present c).eval s).map (·.1)).Nodup := by

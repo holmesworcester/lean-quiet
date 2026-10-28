@@ -20,7 +20,8 @@ def isValid (x : Id) : SqlM Fact Bool := do
 def isInvalid (x : Id) : SqlM Fact Bool := do
   return match ← status x with | some .invalid => true | _ => false
 
-def allow (c : Id) (d : Device) : SqlM Fact Bool := (allowPeer c d.pk).run
+/-- Whether c lets in device d's node (each test device is its own node). -/
+def allow (c : Id) (d : Device) : SqlM Fact Bool := (allowPeer c (keyOf d)).run
 
 def sealedTo (c : Id) : SqlM Fact (List Key) := (recipients c).run
 
@@ -57,16 +58,16 @@ def main (args : List String) : IO UInt32 := do
   -- Phase 1: found, invite, request, approve and admit (every request
   -- needs an approval: the founder approves alice, bob, carol and the
   -- link), grant, post.
-  let r := root f1
+  let r := root f1 (keyOf f1)
   let c := r.id
   let invA := invite c c f1 (bearer "a").pk false
   let invB := invite c c f1 (bearer "b").pk false
   let invC := invite c c f1 (bearer "c").pk false
   let invL := invite c c f1 (bearer "l").pk true
-  let reqA := request c invA.id a1 (bearer "a").sk
-  let reqB := request c invB.id b1 (bearer "b").sk
-  let reqC := request c invC.id c1 (bearer "c").sk
-  let reqL := request c invL.id f2 (bearer "l").sk
+  let reqA := request c invA.id a1 (keyOf a1) (bearer "a").sk
+  let reqB := request c invB.id b1 (keyOf b1) (bearer "b").sk
+  let reqC := request c invC.id c1 (keyOf c1) (bearer "c").sk
+  let reqL := request c invL.id f2 (keyOf f2) (bearer "l").sk
   let okA := approve c reqA.id c f1
   let okB := approve c reqB.id c f1
   let okC := approve c reqC.id c f1
@@ -87,20 +88,20 @@ def main (args : List String) : IO UInt32 := do
   -- through one needing two. Nothing approves them yet.
   let invD := invite c c f1 (bearer "d").pk false 1
   let invE := invite c c f1 (bearer "e").pk false 2
-  let reqD := request c invD.id d1 (bearer "d").sk
-  let reqE := request c invE.id e1 (bearer "e").sk
+  let reqD := request c invD.id d1 (keyOf d1) (bearer "d").sk
+  let reqE := request c invE.id e1 (keyOf e1) (bearer "e").sk
   let bareD := admit c reqD.id
   -- An op in the old join's encoding (tag 2, the same shape as a
   -- request): it no longer decodes, so it is refused, not misread.
   let oldJoin : Op :=
-    let body : ByteArray := ⟨(2 :: Codec.enc (m1.pk, m1.enc, ByteArray.empty, ByteArray.empty)).toArray⟩
+    let body : ByteArray := ⟨(2 :: Codec.enc (m1.pk, (keyOf m1), ByteArray.empty, ByteArray.empty)).toArray⟩
     Op.make 2 [c, invB.id] body
   let grantA := grant c c c joinA.id f1
   let postA := post c joinA.id a1 "k1".toUTF8 "hello".toUTF8 1 0
   -- Forgeries: mallory posting as alice; mallory joining without the
   -- link's bearer key; bob (not admin) granting himself admin.
   let forged := post c joinA.id m1 "k1".toUTF8 "I am alice".toUTF8 1 0
-  let sneak := request c invB.id m1 m1.sk
+  let sneak := request c invB.id m1 (keyOf m1) m1.sk
   let selfGrant := grant c joinB.id joinB.id joinB.id b1
   let phase1 := [r, invA, invB, invC, invL, reqA, reqB, reqC, reqL, okA, okB, okC, joinA, joinB, joinC,
     invZ, bareA, okL, joinL,
@@ -127,12 +128,12 @@ def main (args : List String) : IO UInt32 := do
     t.ok s!"connects to {name}" (← run (allow c d))
   t.ok "refuses mallory" (!(← run (allow c m1)))
   let keys1 ← run (sealedTo c)
-  t.ok "seals to every member device" ([f1, f2, a1, b1, c1].all fun d => keys1.contains d.enc)
-  t.ok "seals to nobody else" (keys1.length == 5 && !keys1.contains m1.enc && !keys1.contains d1.enc)
+  t.ok "seals to every member device" ([f1, f2, a1, b1, c1].all fun d => keys1.contains (keyOf d))
+  t.ok "seals to nobody else" (keys1.length == 5 && !keys1.contains (keyOf m1) && !keys1.contains (keyOf d1))
   let dial1 ← run (dialed c)
   t.ok "dials every member device, and nobody else"
     (dial1.length == 5 && [f1, f2, a1, b1, c1].all fun d => dial1.contains d.pk)
-  t.ok "a fact is read by its own key" ((← run (getFact joinA.id)) == some (.admission c reqA.id a1.pk a1.enc))
+  t.ok "a fact is read by its own key" ((← run (getFact joinA.id)) == some (.admission c reqA.id a1.pk (keyOf a1)))
   t.ok "a pending request has its own key too" ((← run (getFact reqD.id)) != none)
   t.ok "an Invalid op has no row under its key" ((← run (getFact sneak.id)) == none)
 
@@ -178,7 +179,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "alice's post survives her removal" (← run (isValid postA.id))
   let keys2 ← run (sealedTo c)
   t.ok "seals only to bob, carol, dave and erin"
-    (keys2.length == 4 && [b1, c1, d1, e1].all fun d => keys2.contains d.enc)
+    (keys2.length == 4 && [b1, c1, d1, e1].all fun d => keys2.contains (keyOf d))
 
   -- Phase 3: the removed founder removes bob: it still stands. Carol
   -- removes herself (leave).

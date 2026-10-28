@@ -68,7 +68,8 @@ variable {F : Type}
 /-- Node s's sync: its fixed rooms, frames sealed in the clear. -/
 def Setup.sync (S : Setup F) (s : Who) : Sync F (HeldM F) :=
   { fam := S.fam, cfg := S.cfg,
-    hooks := { rooms := fun cid => pure (S.rooms s cid), sealFor := plainSeal, openFrame := plainOpen } }
+    hooks := { rooms := fun cid => pure ((S.rooms s cid).map .sync), sealFor := plainSeal,
+               openFrame := plainOpen } }
 
 def World.peer (w : World F) : Who → Peer F
   | .a => w.a

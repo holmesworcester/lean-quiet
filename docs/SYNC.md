@@ -231,9 +231,13 @@ sessions dropped, and ids stored (for an app's reads).
   first, the one its handshake ran on).
 
 **Hooks**, from the Connection family, all in `m`:
-- `rooms cid`: which rooms the peer may see (from the session and the
-  trust rule).
-- `settled`: what a room's first settle writes.
+- `rooms cid`: what the connection carries (from the session and the
+  trust rule): rooms the peer may see, synced; and notices, an op with
+  its requirement closure given once to a removed member's node
+  (docs/REMOVAL.md, ops/sync/Notice.lean). The node gives a
+  connection's notices where it runs `filed` and `tick`.
+- `settled`: what a step's status writes: a room's first settle, a
+  notice given.
 - `recv`: called on every arrival, a repeat included, after it is
   stored.
 - `outbox`: (courier, address, op bytes).
@@ -283,7 +287,11 @@ Proven:
   connection's rooms, never a sync wire op, a local op, a conn op, or
   an op of a room the peer may not see.
 - `recv_send`, `filed_send`, `tick_send`: a connection sends only sync
-  wire ops and ops in one of its rooms.
+  wire ops and ops in one of its rooms. With the notices the node gives
+  beside `filed` and `tick` (`filedGive`, `tickGive`): only those, and
+  ops of the closure of a notice not given before (`notice_send`), each
+  notice once (`notice_sent`, `notice_once`); a have for a room carried
+  as a notice gets no reply (`notice_no_holds`).
 - `intakeConn_conn`: the bare wire takes conn ops only.
 - `have_shown`: every id a connection offers, in a have or an id claim,
   is a stored op of one of its rooms; each step reads only and keeps its

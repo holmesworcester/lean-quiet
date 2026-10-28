@@ -113,7 +113,7 @@ def main (args : List String) : IO UInt32 := do
   let rows := a7.rows.toList.map (·.2.data)
   check s!"B's post reaches A under B's name ({(rows.find? (·.text == "hello over tcp")).map (·.name)})"
     (got || rows.any fun d => d.text == "hello over tcp" && d.name == "Bea")
-  -- A's home: Bea, with the online dot (a session with her device)
+  -- A's home: Bea, with the online dot (a session with her node's key)
   let ((), a8) ← (show M Unit from do
     sa.cmds.modify (·.push "switch club")
     for _ in [0:100] do

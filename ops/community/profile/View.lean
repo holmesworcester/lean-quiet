@@ -48,12 +48,15 @@ def namesake (c u : Id) (name : String) (deps : Array Q) : m (Bool × Array Q) :
   others c u (nameLook name) a.rows deps
 
 /-- The users of these live admissions, each once (in admission order),
-with their devices. -/
+with the node keys their devices are admitted under: what a session
+names its peer by (the online dot). -/
 def byUser (ls : List (Id × Key × Key)) : List (Id × List Key) :=
-  (React.uniq (ls.map (·.1))).map fun u => (u, (ls.filter fun l => decide (l.1 = u)).map (·.2.1))
+  (React.uniq (ls.map (·.1))).map fun u => (u, (ls.filter fun l => decide (l.1 = u)).map (·.2.2))
 
-/-- The community's present members: users admitted and not removed (the
-engine's `live`), with their devices. Law (PeopleLaws): `present_iff`. -/
+/-- The community's present members: users with a live device (the
+engine's `live`: admitted, and none of the device's users removed), with
+those devices' node keys. Laws (PeopleLaws): `present_iff`,
+`present_not_removed`. -/
 def present (c : Id) : View Fact (List (Id × List Key)) := do
   let a ← admission.all.read [c]
   let ls ← live c a.rows

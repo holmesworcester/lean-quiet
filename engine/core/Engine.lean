@@ -26,6 +26,8 @@ import ops.sync.Conn
 import engine.wire.Node
 import engine.wire.Pair
 import ops.sync.ConnLaws
+import ops.sync.Notice
+import ops.sync.NoticeLaws
 import engine.core.Locality
 import engine.wire.Frame
 import engine.wire.Tcp

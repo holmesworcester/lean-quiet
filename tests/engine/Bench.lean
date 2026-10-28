@@ -76,10 +76,10 @@ all of them (`readable`, no limit), newest first. -/
 wrapped to this device (both write nothing here). -/
 @[noinline] def stepViews (db : Db) (c : ByteArray) (d : Device) (i : Nat) : IO Nat := do
   let w1 ← ((introduce c d (i + 100)).run : SqlM Fact Write).run db
-  let w2 ← ((unwrap c d).run : SqlM Fact Write).run db
+  let w2 ← ((unwrap c).run : SqlM Fact Write).run db
   return w1.ops.length + w2.ops.length
 
-@[noinline] def deviceOf (seed : ByteArray) (_ : Nat) : Nat := (Device.ofSeed seed).enc.size
+@[noinline] def deviceOf (seed : ByteArray) (_ : Nat) : Nat := (Device.ofSeed seed).pk.size
 
 @[noinline] def decodeNat (b : ByteArray) (_ : Nat) : Nat :=
   match (Codec.decode b : Option Nat) with | some n => n % 7 | none => 0
@@ -97,8 +97,9 @@ def main (args : List String) : IO UInt32 := do
   let seedA := sha256 "device A".toUTF8
   let dA := Device.ofSeed seedA
   let kA := sha256 "Acme's content key".toUTF8
-  let w := found seedA "Acme".toUTF8 "Ann".toUTF8 1 kA (sha256 "esk 1".toUTF8)
-  let c := (root dA).id
+  let nkA := sha256 "node A".toUTF8
+  let w := (found seedA "Acme".toUTF8 "Ann".toUTF8 1 kA (sha256 "esk 1".toUTF8) nkA).eval DB.empty
+  let c := (root dA (cryptoSeal.pub nkA)).id
   -- A file whose ciphertext (the plaintext and a 16-byte tag) is exactly
   -- 100 slices.
   let plain := ByteArray.mk ((Array.range (100 * Merkle.sliceSize - 16)).map
@@ -190,7 +191,7 @@ def main (args : List String) : IO UInt32 := do
   bench sum "read 1,000 messages: the union of 4 keys' lists on SQLite (readable, no limit)" (cap := 50)
     fun i => readAllMessages rdb c i
   -- A device from its seed: what the intents derived on every step.
-  bench sum "Device.ofSeed (Ed25519 key pair, X25519 conversion)" fun i => pure (deviceOf seedA i)
+  bench sum "Device.ofSeed (Ed25519 key pair)" fun i => pure (deviceOf seedA i)
   bench sum "one step's introduce and unwrap for one community, on SQLite" fun i => stepViews rdb c dA i
   IO.println s!"checksum {← sum.get}"
   return 0

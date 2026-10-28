@@ -142,6 +142,13 @@ def main (args : List String) : IO UInt32 := do
   let seedB := sha256 "device B".toUTF8
   let dA := Device.ofSeed seedA
   let dB := Device.ofSeed seedB
+  -- each node's own key: the first found or join writes it
+  let nkA := sha256 "node A".toUTF8
+  let nkB := sha256 "node B".toUTF8
+  let nkC := sha256 "node C".toUTF8
+  let keyA := cryptoSeal.pub nkA
+  let keyB := cryptoSeal.pub nkB
+  let keyC := cryptoSeal.pub nkC
   let mine (db : Db) (w : Write) : IO Unit := (receive fam (intake fam true w.ops)).run db
   let fromPeer (db : Db) (ops : List Op) : IO Unit := (receive fam (intake fam false ops)).run db
   let sendOn (db : Db) (v : View Fact Write) : IO Write := (v.run : SqlM Fact Write).run db
@@ -149,14 +156,19 @@ def main (args : List String) : IO UInt32 := do
   -- A founds Acme as Ann: the secret, the root, the acceptance, the
   -- name, A's profile, and the community's content key, wrapped to A.
   let kA := sha256 "Acme's content key".toUTF8
-  let w := found seedA "Acme".toUTF8 "Ann".toUTF8 1 kA (sha256 "esk 1".toUTF8)
+  let w ← ((found seedA "Acme".toUTF8 "Ann".toUTF8 1 kA (sha256 "esk 1".toUTF8) nkA).run :
+    SqlM Fact Write).run a
+  t.ok "founding on a node with no key writes its key first" (w.ops.head? == some (endpoint nkA))
   mine a w
-  let c := (root dA).id
+  let c := (root dA keyA).id
   let kid := kidOf cryptoSeal kA
   t.ok "A holds the content key" ((← rows a (key.byId.query [kid])).any fun (_, f) => f == .key c kid kA)
-  t.ok "and its wrap to A's device is stored"
-    ((← rows a (wrap.byRecipient.query [c, dA.enc])).length == 1)
-  t.ok "A's device key is a real X25519 key" (dA.enc.size == 32 && cryptoSeal.pub dA.encSecret == dA.enc)
+  t.ok "and its wrap to A's node key is stored"
+    ((← rows a (wrap.byRecipient.query [c, keyA])).length == 1)
+  t.ok "A's node key is a real X25519 key, held as a local op with its secret"
+    (keyA.size == 32 && (← rows a (endpoint.all.query [])).any fun (_, f) => f == .endpoint keyA nkA)
+  t.ok "the root names A's device and A's node key"
+    ((← rows a (admission.byKey.query [c, keyA])).any fun (_, f) => f == .admission c c dA.pk keyA)
   -- A posts: the text is sealed; the op and its fact hold only ciphertext.
   let nonce := (sha256 "nonce 1".toUTF8).extract 0 24
   let wpost ← sendOn a (send c c dA kA nonce "hello from Ann".toUTF8 3 [])
@@ -186,26 +198,29 @@ def main (args : List String) : IO UInt32 := do
   t.ok "the community is named Acme" (name.map (·.2) == [.named c c "Acme".toUTF8 1])
 
   -- A invites; the link is text.
-  let (wi, link) := inviteTo c c dA (sha256 "bearer".toUTF8) ["10.0.0.5:7001".toUTF8]
+  let some (wi, link) ← ((inviteTo c c dA (sha256 "bearer".toUTF8) ["10.0.0.5:7001".toUTF8]).run :
+    SqlM Fact _).run a | t.ok "A invites" false; return 1
+  t.ok "the link names A's node key" (link.inviter == keyA)
   mine a wi
 
   -- B pastes the link and joins: just ops on B.
   let some i := Invite.parse link.text | t.ok "the link parses" false; return 1
-  let wj ← ((join i seedB "Bea".toUTF8).run : SqlM Fact Write).run b
-  t.ok "a first join writes the secret, the request, the acceptance and the joining" (wj.ops.length == 4)
+  let wj ← ((join i seedB "Bea".toUTF8 nkB).run : SqlM Fact Write).run b
+  t.ok "a first join on a new node writes the node's key, the secret, the request, the acceptance and the joining"
+    (wj.ops.length == 5 && wj.ops.head? == some (endpoint nkB))
   mine b wj
-  let again ← ((join i seedB "Bea".toUTF8).run : SqlM Fact Write).run b
+  let again ← ((join i seedB "Bea".toUTF8 nkB).run : SqlM Fact Write).run b
   t.ok "joining a community already held writes nothing" again.ops.isEmpty
-  let other ← ((join i (sha256 "device B2".toUTF8) "Bea2".toUTF8).run : SqlM Fact Write).run b
+  let other ← ((join i (sha256 "device B2".toUTF8) "Bea2".toUTF8 nkB).run : SqlM Fact Write).run b
   t.ok "not even as another device" other.ops.isEmpty
   t.ok "B is in c as dB" ((← ((Community.mine c).run : SqlM Fact _).run b).map (·.1) == some dB.pk)
-  let req := i.request dB
+  let req := i.request dB keyB
   t.ok "B lists the community" ((← rows b (accepted.all.query [])).any fun (_, f) => f == .accepted c dB.pk)
   t.ok "B lists its pending join"
-    ((← rows b (joining.all.query [])).any fun (_, f) => f == .joining c dA.pk i.hints req.id "Bea".toUTF8 dB.pk 0)
+    ((← rows b (joining.all.query [])).any fun (_, f) => f == .joining c keyA i.hints req.id "Bea".toUTF8 dB.pk 0)
   let wn ← ((introduce c dB 5).run : SqlM Fact Write).run b
   t.ok "before admission, introducing writes nothing" wn.ops.isEmpty
-  t.ok "B is not admitted yet" (!(← ((allowPeer c dB.pk).run : SqlM Fact Bool).run b))
+  t.ok "B is not admitted yet" (!(← ((allowPeer c keyB).run : SqlM Fact Bool).run b))
 
   -- B's join reaches A through sync: only the request lands.
   fromPeer a (← sendable b)
@@ -219,7 +234,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "approving composes the approval, the admission and the key's wrap to B"
     (wa.ops.length == 3)
   mine a wa
-  t.ok "A now lets B in" (← ((allowPeer c dB.pk).run : SqlM Fact Bool).run a)
+  t.ok "A now lets B's node in" (← ((allowPeer c keyB).run : SqlM Fact Bool).run a)
 
   -- A renames: one past the current name.
   let wr ← ((rename c c c dA "Acme Corp".toUTF8).run : SqlM Fact Write).run a
@@ -229,8 +244,8 @@ def main (args : List String) : IO UInt32 := do
 
   -- A's ops reach B through sync.
   fromPeer b (← sendable a)
-  t.ok "B is admitted, by its own ops" (← ((allowPeer c dB.pk).run : SqlM Fact Bool).run b)
-  t.ok "B lets A in" (← ((allowPeer c dA.pk).run : SqlM Fact Bool).run b)
+  t.ok "B is admitted, by its own ops" (← ((allowPeer c keyB).run : SqlM Fact Bool).run b)
+  t.ok "B lets A in" (← ((allowPeer c keyA).run : SqlM Fact Bool).run b)
   let name3 ← rows b (named.current.query [c] (limit := some 1))
   t.ok "B shows the new name" (name3.map (·.2) == [.named c c "Acme Corp".toUTF8 2])
   t.ok "A's secret never reached B" ((← rows b (secret.byKey.query [dA.pk])).isEmpty)
@@ -241,7 +256,7 @@ def main (args : List String) : IO UInt32 := do
   let before ← rd b
   t.ok "B's readable messages: none yet, so the message sealed under the key on its way is hidden"
     (before.rows.isEmpty && before.total == 0)
-  let wu ← ((unwrap c dB).run : SqlM Fact Write).run b
+  let wu ← ((unwrap c).run : SqlM Fact Write).run b
   t.ok "B unwraps one key, A's" (wu.ops.length == 1)
   mine b wu
   let kB := (← rows b (key.byId.query [kid])).findSome? fun (_, f) => match f with
@@ -261,12 +276,12 @@ def main (args : List String) : IO UInt32 := do
     | .message _ _ _ _ s _ _ => some s | _ => none
   t.ok "B opens A's post" ((ctB.bind fun s => kB.bind fun k => openSealed cryptoSeal c kid s k)
     == some "hello from Ann".toUTF8)
-  let wu2 ← ((unwrap c dB).run : SqlM Fact Write).run b
+  let wu2 ← ((unwrap c).run : SqlM Fact Write).run b
   t.ok "unwrapping again writes nothing" wu2.ops.isEmpty
   -- Two acceptances of c on B (a join that raced): B is in c as its
   -- admitted device, whichever acceptance id is less.
   let seedB2 := sha256 "device B twin".toUTF8
-  let w2 := joinOps i seedB2 "Bea twin".toUTF8
+  let w2 := joinOps i seedB2 "Bea twin".toUTF8 keyB
   mine b w2
   t.ok "with a raced second acceptance, B is still in c as its admitted device"
     ((← ((Community.mine c).run : SqlM Fact _).run b).map (·.1) == some dB.pk)
@@ -317,7 +332,7 @@ def main (args : List String) : IO UInt32 := do
   let chunkOps := wf.ops.drop 2
   t.ok "every chunk cites its community and its attachment, and nothing else"
     (chunkOps.all fun o => o.reqs == [c, att])
-  fromPeer solo ([root dA] ++ chunkOps)
+  fromPeer solo ([root dA keyA] ++ chunkOps)
   let soloChunks ← rows solo (message.all.query [c])
   t.ok "a node without the post holds no message" soloChunks.isEmpty
   let countValid (db : Db) (os : List Op) : IO Nat := do
@@ -363,7 +378,7 @@ def main (args : List String) : IO UInt32 := do
     let pr (db : Db) (len : Nat) : IO (Nat × Nat) :=
       ((progress c att len).run : SqlM Fact (Nat × Nat)).run db
     let dl ← fresh dir "download.db"
-    fromPeer dl [root dA, postOp, attOp]
+    fromPeer dl [root dA keyA, postOp, attOp]
     t.ok "before any chunk, progress is 0 of the chunk count" ((← pr dl l) == (0, nc))
     let mut steps := true
     let mut k := 0
@@ -407,11 +422,12 @@ def main (args : List String) : IO UInt32 := do
   let seedC := sha256 "device C".toUTF8
   let dC := Device.ofSeed seedC
   let cdb ← fresh dir "c.db"
-  let (wi2, link2) := inviteTo c c dA (sha256 "bearer 2".toUTF8) []
+  let some (wi2, link2) ← ((inviteTo c c dA (sha256 "bearer 2".toUTF8) []).run : SqlM Fact _).run a
+    | t.ok "A invites again" false; return 1
   mine a wi2
-  let wc ← ((join link2 seedC "Cy".toUTF8).run : SqlM Fact Write).run cdb
+  let wc ← ((join link2 seedC "Cy".toUTF8 nkC).run : SqlM Fact Write).run cdb
   mine cdb wc
-  let reqC := link2.request dC
+  let reqC := link2.request dC keyC
   let jC := (wc.ops.getLast!).id
   mine cdb (stopWaiting jC)
   let waiting ← do
@@ -424,7 +440,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "after stopping, C waits on nothing" waiting.isEmpty
   t.ok "and C holds no entry for c" ((← ((Community.mine c).run : SqlM Fact _).run cdb).isNone)
   -- Joining again resumes the stopped join: the same request, a new joining.
-  let wr ← ((join link2 seedC "Cy".toUTF8).run : SqlM Fact Write).run cdb
+  let wr ← ((join link2 seedC "Cy".toUTF8 nkC).run : SqlM Fact Write).run cdb
   t.ok "re-joining after stopping writes one joining op" (wr.ops.length == 1)
   let resumed := match wr.ops.head? with
     | some o => match (Codec.decode o.body : Option Body) with
@@ -443,7 +459,7 @@ def main (args : List String) : IO UInt32 := do
       !((← (dumpOps (F := Fact)).run a).any fun o => o.id == (stopWaiting jC).ops.head!.id))
   mine a (← ((approveReq c reqC.id c dA).run : SqlM Fact Write).run a)
   fromPeer cdb (← sendable a)
-  t.ok "an approval after stopping still admits C" (← ((allowPeer c dC.pk).run : SqlM Fact Bool).run cdb)
+  t.ok "an approval after stopping still admits C" (← ((allowPeer c keyC).run : SqlM Fact Bool).run cdb)
 
   channelOrder t a b c kA seedA seedB
 
@@ -462,7 +478,7 @@ def main (args : List String) : IO UInt32 := do
     ((removeMember c target d).run : SqlM Fact Write).run db
   t.ok "a non-admin's removal writes nothing" ((← rmBy b c dB).ops.isEmpty)
   t.ok "an admin removing itself writes nothing" ((← rmBy a c dA).ops.isEmpty)
-  t.ok "B is let in before" (← ((allowPeer c dB.pk).run : SqlM Fact Bool).run a)
+  t.ok "B is let in before" (← ((allowPeer c keyB).run : SqlM Fact Bool).run a)
   let wrm ← rmBy a u dA
   t.ok "the founder removing B writes one removal" (wrm.ops.length == 1)
   mine a wrm
@@ -470,6 +486,52 @@ def main (args : List String) : IO UInt32 := do
     ((← (Store.getStatus (F := Fact) (m := SqlM Fact) (wrm.ops.headD default).id).run a) matches some (.valid _))
   t.ok "B is listed as removed, by A"
     ((← rows a (removal.byUser.query [c, u])).any fun (_, f) => f == .removal c u c)
-  t.ok "and no longer let in" !(← ((allowPeer c dB.pk).run : SqlM Fact Bool).run a)
+  t.ok "and no longer let in" !(← ((allowPeer c keyB).run : SqlM Fact Bool).run a)
   t.ok "removing B again writes nothing" ((← rmBy a u dA).ops.isEmpty)
+
+  -- E4: a removed entry is not held, and the node rejoins as a new
+  -- device. C (admitted after stopping and resuming its join) is removed.
+  let liveOn (db : Db) (d : Key) : IO Bool := ((deviceLive c d).run : SqlM Fact Bool).run db
+  let uC := reqC.id
+  t.ok "C holds c, as its admitted device"
+    ((← ((Community.mine c).run : SqlM Fact _).run cdb).map (·.1) == some dC.pk && (← liveOn cdb dC.pk))
+  let wrmC ← rmBy a uC dA
+  mine a wrmC
+  t.ok "A removes C, and refuses C's node" (wrmC.ops.length == 1 && !(← ((allowPeer c keyC).run : SqlM Fact Bool).run a))
+  fromPeer cdb (← sendable a)
+  t.ok "C holds its removal" ((← rows cdb (removal.byUser.query [c, uC])).any fun (_, f) => f == .removal c uC c)
+  t.ok "C's device is cut on C" (!(← liveOn cdb dC.pk))
+  t.ok "so C holds c no more: its cut entry is not held"
+    ((← ((Community.mine c).run : SqlM Fact _).run cdb).isNone)
+  t.ok "a join with the cut device's seed writes nothing"
+    ((← ((join link2 seedC "Cy".toUTF8 nkC).run : SqlM Fact Write).run cdb).ops.isEmpty)
+  let some (wi3, link3) ← ((inviteTo c c dA (sha256 "bearer 3".toUTF8) []).run : SqlM Fact _).run a
+    | t.ok "A invites C again" false; return 1
+  mine a wi3
+  let seedC3 := sha256 "device C, rejoined".toUTF8
+  let dC3 := Device.ofSeed seedC3
+  let wj3 ← ((join link3 seedC3 "Cy".toUTF8 (sha256 "unused".toUTF8)).run : SqlM Fact Write).run cdb
+  t.ok "rejoining writes a fresh join for the new device, from C's node key"
+    (wj3.ops.map (·.id) == (joinOps link3 seedC3 "Cy".toUTF8 keyC).ops.map (·.id))
+  let req3 := link3.request dC3 keyC
+  t.ok "its request is the new device's, not the cut one's" (dC3.pk != dC.pk && wj3.ops.any (·.id == req3.id))
+  mine cdb wj3
+  t.ok "C holds c again, as its new device, waiting"
+    ((← ((Community.mine c).run : SqlM Fact _).run cdb).map (·.1) == some dC3.pk)
+  fromPeer a (← sendable cdb)
+  t.ok "C's node is still refused before the new device is approved"
+    (!(← ((allowPeer c keyC).run : SqlM Fact Bool).run a))
+  let wa3 ← ((approveReq c req3.id c dA).run : SqlM Fact Write).run a
+  mine a wa3
+  t.ok "once approved, A lets C's node in again: the cut device does not block it"
+    (← ((allowPeer c keyC).run : SqlM Fact Bool).run a)
+  fromPeer cdb (← sendable a)
+  t.ok "C is in c as its new device, admitted"
+    ((← ((Community.mine c).run : SqlM Fact _).run cdb).map (·.1) == some dC3.pk && (← liveOn cdb dC3.pk))
+  let adm3 ← rows cdb (admission.byDevice.query [c, dC3.pk])
+  t.ok "the new device is a new user, never the removed one"
+    (adm3.any fun (_, f) => match f with | .admission _ u3 _ k => u3 != uC && k == keyC | _ => false)
+  t.ok "the old user stays removed and its device stays cut, on both nodes"
+    (!(← liveOn a dC.pk) && !(← liveOn cdb dC.pk) &&
+      (← rows a (removal.byUser.query [c, uC])).length == 1)
   t.finish "lifecycle"

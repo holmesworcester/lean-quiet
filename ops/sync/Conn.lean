@@ -34,7 +34,8 @@ closes the connection when `step.drop`.
   silent for `cfg.patience` ms drops the connection; the next
   connection's round finds what is still missing.
 - **Status.** `settled room` once per room per connection: its first
-  round has ended and nothing this side wanted is outstanding.
+  round has ended and nothing this side wanted is outstanding. `given x`
+  once per notice a connection gives (ops/sync/Notice.lean).
 
 What a connection keeps (known, offered, asked, snapshots) is memory
 only and dies with it: losing it can only cause resends.
@@ -125,11 +126,17 @@ structure Config where
 
 inductive Status where
   | settled (room : Id)
+  /-- Notice x was given (ops/sync/Notice.lean). -/
+  | given (x : Id)
   deriving Inhabited, BEq
 
 structure Conn where
   dialer : Bool
   rooms : List Id
+  /-- The notices carried (ops/sync/Notice.lean): (room, op); and the
+  ops of those given here. -/
+  notices : List (Id × Id) := []
+  given : List Id := []
   floor : Nat
   peerFloor : Option Nat := none
   round : Nat := 0

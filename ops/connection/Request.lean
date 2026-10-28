@@ -1,18 +1,22 @@
 /-
 `request` (conn scope: the bare wire, one peer, never synced): Noise
 message 1 (`e, es, ss`), as poc-17's conn.request and tiny's
-connection.request. It goes to the responder's device key from the
-initiator's. Both are in the clear, as poc-17's are, so the responder
-can decide to answer before it opens anything. It carries the message:
+connection.request. It goes to the responder's node key from the
+initiator's: the two statics, in the clear, as poc-17's are, so the
+responder can decide to answer before it opens anything, and KK has
+both in advance (the initiator has the responder's from the invite link,
+or from the admissions that name it). It carries the message:
 the initiator's ephemeral key, then the sealed hello.
 
 The hello is the community the initiator dials for, the address it
 listens on, and the ops it delivers. A joiner's request rides here, so
 it reaches the inviter before anyone approves it, and it opens nothing:
-"a request alone opens nothing and earns no reply".
+"a request alone opens nothing and earns no reply". A hello delivers
+nothing else: the responder takes from it only a join request of its
+community (`react`, `bare_takes_only_join`).
 
-Valid iff both device keys convert to X25519 keys, they differ, and the
-message holds an ephemeral key and a tag. This is structural, so every
+Valid iff both keys are 32 bytes, they differ, and the message holds an
+ephemeral key and a tag. This is structural, so every
 holder judges it the same. Filed under `conn.request.byTo [to]` (how a
 responder finds what is addressed to it) and `conn.request.byFrm [frm]`
 (a dialer's own requests).
@@ -27,10 +31,9 @@ import ops.connection.Eph
 namespace Connection
 open Engine Engine.Sync
 
-def Request.check (K : Keys) (to frm m1 : B) : List F → Option Fact
+def Request.check (to frm m1 : B) : List F → Option Fact
   | [] =>
-    if to.size = 32 ∧ frm.size = 32 ∧ to ≠ frm ∧ (K.xPub to).size = 32 ∧ (K.xPub frm).size = 32 ∧
-      48 ≤ m1.size
+    if to.size = 32 ∧ frm.size = 32 ∧ to ≠ frm ∧ 48 ≤ m1.size
     then some (.request to frm m1) else none
   | _ => none
 
@@ -39,11 +42,10 @@ def byTo : Rel Fact := ⟨"conn.request", "byTo", fun | .request t _ _ => some [
 def byFrm : Rel Fact := ⟨"conn.request", "byFrm", fun | .request _ f _ => some [f] | _ => none⟩
 end request
 
-/-- The request from device `seed` to device key `to`, with ephemeral
-secret `e`, sealing `hello`. -/
-def Request.op (K : Keys) (seed to e helloBytes : B) : Option Op :=
-  let frm := Community.ed25519.pub seed
-  (Noise.write1 K.suite prologue (K.xSec seed) e (K.xPub to) helloBytes).map fun (_, m1) =>
-    mkOp [] (.request to frm m1)
+/-- The request from this node (key secret `sk`) to the node whose key is
+`to`, with ephemeral secret `e`, sealing `hello`. -/
+def Request.op (K : Keys) (sk to e helloBytes : B) : Option Op :=
+  (Noise.write1 K.suite prologue sk e to helloBytes).map fun (_, m1) =>
+    mkOp [] (.request to (K.suite.pub sk) m1)
 
 end Connection

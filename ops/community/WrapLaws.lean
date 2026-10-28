@@ -9,7 +9,7 @@ can use).
 
 - `approveReq_ops`: an approval writes at most three ops, the approval,
   the admission, and one wrap of the community's key to the new member's
-  device: O(1), not O(members).
+  node key (the request's `enc`): O(1), not O(members).
 - The mutant control, `approveWrapAll`, wraps the key to every member
   (`recipients`) as a rotation would: three members make four ops
   (`wrapAll_over`).
@@ -67,7 +67,7 @@ open Engine Engine.View
 
 /-- **An approval writes at most three ops**: the approval, the
 admission when it completes the tally, and one wrap of the key to the
-new member's device, whatever the community holds. -/
+new member's node key, whatever the community holds. -/
 theorem approveReq_ops (c req myAdm : Id) (d : Device) (esk : ByteArray) :
     Always (fun w : Write => w.ops.length ≤ 3) (approveReq c req myAdm d esk) := by
   unfold approveReq
@@ -94,11 +94,15 @@ theorem wrapAll_over (c req myAdm : Id) (d : Device) (esk : ByteArray) (p : Pos)
     ¬ Always (fun w : Write => w.ops.length ≤ 3) (approveWrapAll c req myAdm d esk) := by
   intro h
   let none0 : Answer Fact := ⟨[], 0, 0⟩
+  -- the key; c's admissions; then, per member, its device's admissions
+  -- (it is live: one, into a user) and that user's removals (none)
+  let dev (u : Id) (d e : Key) : Answer Fact := ⟨[(p, .admission c u d e)], 1, 1⟩
   have := always_runWith [⟨[(p, .key c kid k)], 1, 1⟩,
     ⟨[(p, .admission c u₁ d₁ e₁), (p, .admission c u₂ d₂ e₂), (p, .admission c u₃ d₃ e₃)], 3, 3⟩,
-    none0, none0, none0] h (by
-      simp only [approveWrapAll, recipients, live, removals, Rel.read, View.read, bind_eq, pure_eq,
-        View.bind, ite_true, runWith, none0]
+    dev u₁ d₁ e₁, none0, dev u₂ d₂ e₂, none0, dev u₃ d₃ e₃, none0] h (by
+      simp only [approveWrapAll, recipients, live, deviceLive, unremoved, removals, Rel.read, View.read,
+        bind_eq, pure_eq, View.bind, ite_true, runWith, none0, dev, List.isEmpty_cons,
+        Bool.false_eq_true, ite_false]
       rfl)
   simp at this
 

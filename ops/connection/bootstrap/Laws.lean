@@ -25,9 +25,9 @@ variable (x C) in
 admit each other by those ops alone (`allowPeer`, with no exception: B
 has forgotten its link). -/
 def Goal (s : Sys) : Prop :=
-  (x.c, x.B.pk) ∈ s.a.sessions ∧ (x.c, x.A.pk) ∈ s.b.sessions ∧
+  (x.c, x.kB) ∈ s.a.sessions ∧ (x.c, x.kA) ∈ s.b.sessions ∧
   (∀ o, o ∈ s.a.ops ↔ o ∈ s.b.ops) ∧
-  Allowed C s.a.ops x.c x.B.pk ∧ Allowed C s.b.ops x.c x.A.pk ∧ Allowed C s.b.ops x.c x.B.pk ∧
+  Allowed C s.a.ops x.c x.kB ∧ Allowed C s.b.ops x.c x.kA ∧ Allowed C s.b.ops x.c x.kB ∧
   s.b.links = []
 
 section
@@ -42,10 +42,10 @@ has no session with B and B none with A, no answer and no ops of A's are
 in flight to B, and B holds nothing but its own request. -/
 theorem no_connection_before_approval (h : Reachable C x.approval x.init s)
     (hna : x.adm ∉ s.a.ops) :
-    (x.c, x.B.pk) ∉ s.a.sessions ∧ (x.c, x.A.pk) ∉ s.b.sessions ∧
-    x.answer ∉ s.net ∧ (∀ os, Msg.push x.c x.A.pk x.B.pk os ∉ s.net) ∧ (∀ o ∈ s.b.ops, o = x.req) := by
+    (x.c, x.kB) ∉ s.a.sessions ∧ (x.c, x.kA) ∉ s.b.sessions ∧
+    x.answer ∉ s.net ∧ (∀ os, Msg.push x.c x.kA x.kB os ∉ s.net) ∧ (∀ o ∈ s.b.ops, o = x.req) := by
   have hI := reachable_inv g h
-  have ha : (x.c, x.B.pk) ∉ s.a.sessions := fun h => hna (hI.asess _ h).2
+  have ha : (x.c, x.kB) ∉ s.a.sessions := fun h => hna (hI.asess _ h).2
   refine ⟨ha, fun h => ha (hI.bsess _ h).2, fun h => ?_, fun os h => ?_, fun o ho => ?_⟩
   · rcases hI.net _ h with h | ⟨_, h⟩ | ⟨_, h, _⟩ | ⟨_, h, _⟩
     · cases h
@@ -56,7 +56,7 @@ theorem no_connection_before_approval (h : Reachable C x.approval x.init s)
     · cases h
     · cases h
     · exact ha hs
-    · injection h with _ h2; exact g.AB h2
+    · injection h with _ h2; exact g.kAB h2
   · apply Classical.byContradiction; intro hne
     exact ha (hI.bsess _ (hI.bmore ⟨o, ho, hne⟩).2).2
 
@@ -96,7 +96,7 @@ forgotten link; and A's ops stop changing once A holds B's admission. -/
 theorem step_mono (hI : x.Inv s) {act : Act} (he : Enabled s act) :
     (∀ o ∈ s.a.ops, o ∈ (step C x.approval s act).a.ops) ∧
     (∀ o ∈ s.b.ops, o ∈ (step C x.approval s act).b.ops) ∧
-    ((x.c, x.A.pk) ∈ s.b.sessions → (x.c, x.A.pk) ∈ (step C x.approval s act).b.sessions) ∧
+    ((x.c, x.kA) ∈ s.b.sessions → (x.c, x.kA) ∈ (step C x.approval s act).b.sessions) ∧
     (s.b.links = [] → (step C x.approval s act).b.links = []) ∧
     (x.adm ∈ s.a.ops → (step C x.approval s act).a.ops = s.a.ops) := by
   unfold step
@@ -138,7 +138,7 @@ theorem step_mono (hI : x.Inv s) {act : Act} (he : Enabled s act) :
 
 /-- B's tick re-sends its hello while its link is pending and no session
 is open. -/
-theorem hello_sent (hI : x.Inv s) (hns : (x.c, x.A.pk) ∉ s.b.sessions) :
+theorem hello_sent (hI : x.Inv s) (hns : (x.c, x.kA) ∉ s.b.sessions) :
     x.hello ∈ sent C x.approval s .tickB := by
   have hna : x.adm ∉ s.b.ops := fun h => hns (hI.bmore ⟨_, h, x.adm_ne.2.2⟩).2
   have hl : s.b.links = [x.link] := hI.blinks.resolve_left fun h => hna (hI.bdone h)
@@ -169,20 +169,20 @@ theorem approve_gives_adm (hI : x.Inv s) (hreq : x.req ∈ s.a.ops) :
 
 /-- An answer delivered while B's link is pending opens B's session. -/
 theorem answer_opens (hI : x.Inv s) (hl : s.b.links = [x.link]) :
-    (x.c, x.A.pk) ∈ (step C x.approval s (.deliver x.answer)).b.sessions := by
+    (x.c, x.kA) ∈ (step C x.approval s (.deliver x.answer)).b.sessions := by
   unfold step; rw [out_answer g hI, if_pos hl]
   exact mem_ins.2 (Or.inr rfl)
 
 /-- A's tick pushes its ops over its session with B. -/
-theorem push_sent (hI : x.Inv s) (hs : (x.c, x.B.pk) ∈ s.a.sessions) :
-    Msg.push x.c x.A.pk x.B.pk s.a.ops ∈ sent C x.approval s .tickA := by
+theorem push_sent (hI : x.Inv s) (hs : (x.c, x.kB) ∈ s.a.sessions) :
+    Msg.push x.c x.kA x.kB s.a.ops ∈ sent C x.approval s .tickA := by
   unfold sent; rw [out_tickA g hI]
   exact List.mem_map.2 ⟨_, hs, rfl⟩
 
 /-- A's ops delivered over B's session give B its admission. -/
 theorem push_gives_adm (hI : x.Inv s) {os : List Op} (hin : x.InS os) (hcov : x.Covers os)
-    (hs : (x.c, x.A.pk) ∈ s.b.sessions) :
-    x.adm ∈ (step C x.approval s (.deliver (.push x.c x.A.pk x.B.pk os))).b.ops := by
+    (hs : (x.c, x.kA) ∈ s.b.sessions) :
+    x.adm ∈ (step C x.approval s (.deliver (.push x.c x.kA x.kB os))).b.ops := by
   unfold step; rw [out_pushAB g hI hin, if_pos hs]
   exact self_add g.distinct hI.bS hin (hcov _ x.mem_S.2.2.2.2)
 
@@ -193,7 +193,7 @@ theorem tick_forgets (hI : x.Inv s) (hadm : x.adm ∈ s.b.ops) :
   show (if x.adm ∈ s.b.ops then [] else s.b.links) = []
   rw [if_pos hadm]
 
-theorem goal_of (hI : x.Inv s) (hs : (x.c, x.A.pk) ∈ s.b.sessions) (hadm : x.adm ∈ s.b.ops)
+theorem goal_of (hI : x.Inv s) (hs : (x.c, x.kA) ∈ s.b.sessions) (hadm : x.adm ∈ s.b.ops)
     (hl : s.b.links = []) : x.Goal C s := by
   have hab := (hI.bsess _ hs).2
   have hadmA := (hI.asess _ hab).2
@@ -266,18 +266,18 @@ theorem bootstrap_possible :
   let s6 := st s5 (.deliver x.answer)
   have R6 : Reachable C x.approval x.init s6 := .step _ R5 h5
   have I6 := reachable_inv g R6
-  have h6 : (x.c, x.A.pk) ∈ s6.b.sessions := answer_opens g I5 (b5 ▸ b4)
+  have h6 : (x.c, x.kA) ∈ s6.b.sessions := answer_opens g I5 (b5 ▸ b4)
   -- 7. A ticks: its ops, over its session.
   let s7 := st s6 .tickA
   have R7 : Reachable C x.approval x.init s7 := .step _ R6 trivial
   have I7 := reachable_inv g R7
-  have hab : (x.c, x.B.pk) ∈ s6.a.sessions := (I6.bsess _ h6).2
-  have h7 : Msg.push x.c x.A.pk x.B.pk s6.a.ops ∈ s7.net := sent_mem (push_sent g I6 hab)
+  have hab : (x.c, x.kB) ∈ s6.a.sessions := (I6.bsess _ h6).2
+  have h7 : Msg.push x.c x.kA x.kB s6.a.ops ∈ s7.net := sent_mem (push_sent g I6 hab)
   have b7 : s7.b = s6.b := by
     show (stepOut C x.approval s6 .tickA).1.b = _
     rw [out_tickA g I6]
   -- 8. They arrive: B holds its admission.
-  let s8 := st s7 (.deliver (.push x.c x.A.pk x.B.pk s6.a.ops))
+  let s8 := st s7 (.deliver (.push x.c x.kA x.kB s6.a.ops))
   have R8 : Reachable C x.approval x.init s8 := .step _ R7 h7
   have I8 := reachable_inv g R8
   have h8 : x.adm ∈ s8.b.ops :=
@@ -286,11 +286,11 @@ theorem bootstrap_possible :
   let s9 := st s8 .tickB
   have R9 : Reachable C x.approval x.init s9 := .step _ R8 trivial
   have I9 := reachable_inv g R9
-  have m8 := step_mono g I7 (act := .deliver (.push x.c x.A.pk x.B.pk s6.a.ops)) h7
+  have m8 := step_mono g I7 (act := .deliver (.push x.c x.kA x.kB s6.a.ops)) h7
   have m9 := step_mono g I8 (act := .tickB) trivial
-  have h6' : (x.c, x.A.pk) ∈ s8.b.sessions := m8.2.2.1 (by rw [b7]; exact h6)
+  have h6' : (x.c, x.kA) ∈ s8.b.sessions := m8.2.2.1 (by rw [b7]; exact h6)
   refine ⟨[.tickB, .deliver x.hello, .approve, .tickB, .deliver x.hello, .deliver x.answer, .tickA,
-    .deliver (.push x.c x.A.pk x.B.pk s6.a.ops), .tickB], s9, by simp, ?_, ?_⟩
+    .deliver (.push x.c x.kA x.kB s6.a.ops), .tickB], s9, by simp, ?_, ?_⟩
   · exact .cons trivial (.cons h1 (.cons trivial (.cons trivial (.cons h4 (.cons h5 (.cons trivial
       (.cons h7 (.cons trivial (.nil s9)))))))))
   · exact goal_of g I9 (m9.2.2.1 h6') (m9.2.1 _ h8) (tick_forgets g I8 h8)
@@ -315,7 +315,7 @@ theorem run_step (r : Run C x.approval x.init) (i : Nat) :
 variable {r : Run C x.approval x.init}
 
 /-- B's hello is sent at infinitely many steps while B has no session. -/
-theorem hellos_forever (hf : r.Fair) (hno : ∀ i, (x.c, x.A.pk) ∉ (r.st i).b.sessions) :
+theorem hellos_forever (hf : r.Fair) (hno : ∀ i, (x.c, x.kA) ∉ (r.st i).b.sessions) :
     ∀ N, ∃ i ≥ N, x.hello ∈ sent C x.approval (r.st i) (r.act i) := by
   intro N
   obtain ⟨i, hi, ha⟩ := hf.2.1 N
@@ -326,7 +326,7 @@ gets through. -/
 theorem ev_req (hf : r.Fair) : ∃ N, x.req ∈ (r.st N).a.ops := by
   apply Classical.byContradiction; intro hno
   have hno' : ∀ i, x.req ∉ (r.st i).a.ops := fun i h => hno ⟨i, h⟩
-  have hns : ∀ i, (x.c, x.A.pk) ∉ (r.st i).b.sessions := fun i h => by
+  have hns : ∀ i, (x.c, x.kA) ∉ (r.st i).b.sessions := fun i h => by
     have hI := run_inv g r i
     exact hno' i (hI.acov (hI.asess _ (hI.bsess _ h).2).2 _ x.mem_S.2.2.1)
   obtain ⟨i, _, ha⟩ := hf.2.2.2 _ (hellos_forever g hf hns) 0
@@ -351,10 +351,10 @@ theorem adm_stays (hf : r.Fair) : ∃ N, ∀ i ≥ N, x.adm ∈ (r.st i).a.ops :
 
 /-- Eventually B's session opens: B keeps sending its hello, A answers
 each one that arrives, and one answer gets through. -/
-theorem ev_session (hf : r.Fair) : ∃ N, (x.c, x.A.pk) ∈ (r.st N).b.sessions := by
+theorem ev_session (hf : r.Fair) : ∃ N, (x.c, x.kA) ∈ (r.st N).b.sessions := by
   obtain ⟨N2, h2⟩ := adm_stays g hf
   apply Classical.byContradiction; intro hno
-  have hno' : ∀ i, (x.c, x.A.pk) ∉ (r.st i).b.sessions := fun i h => hno ⟨i, h⟩
+  have hno' : ∀ i, (x.c, x.kA) ∉ (r.st i).b.sessions := fun i h => hno ⟨i, h⟩
   have hs : ∀ N, ∃ i ≥ N, x.answer ∈ sent C x.approval (r.st i) (r.act i) := by
     intro N
     obtain ⟨i, hi, ha⟩ := hf.2.2.2 _ (hellos_forever g hf hno') (max N N2)
@@ -374,21 +374,21 @@ theorem ev_admitted (hf : r.Fair) : ∃ N, x.adm ∈ (r.st N).b.ops := by
   obtain ⟨N2, h2⟩ := adm_stays g hf
   obtain ⟨N3, h3⟩ := ev_session g hf
   let M := max N2 N3
-  have hs : ∀ i ≥ M, (x.c, x.A.pk) ∈ (r.st i).b.sessions := fun i hi =>
-    run_stable g r (P := fun s => (x.c, x.A.pk) ∈ s.b.sessions)
+  have hs : ∀ i ≥ M, (x.c, x.kA) ∈ (r.st i).b.sessions := fun i hi =>
+    run_stable g r (P := fun s => (x.c, x.kA) ∈ s.b.sessions)
       (fun _ _ hI he h => (step_mono g hI he).2.2.1 h) (Nat.le_trans (Nat.le_max_right _ _) hi) h3
   have hfix : ∀ i ≥ M, (r.st i).a.ops = (r.st M).a.ops := fun i hi =>
     run_stable g r (P := fun s => s.a.ops = (r.st M).a.ops)
       (fun _ _ hI he h => by
         rw [(step_mono g hI he).2.2.2.2 (h ▸ h2 M (Nat.le_max_left _ _))]; exact h) hi rfl
-  let m := Msg.push x.c x.A.pk x.B.pk (r.st M).a.ops
+  let m := Msg.push x.c x.kA x.kB (r.st M).a.ops
   have hsent : ∀ N, ∃ i ≥ N, m ∈ sent C x.approval (r.st i) (r.act i) := by
     intro N
     obtain ⟨i, hi, ha⟩ := hf.1 (max N M)
     have hiM : i ≥ M := Nat.le_trans (Nat.le_max_right _ _) hi
     have hI := run_inv g r i
     refine ⟨i, Nat.le_trans (Nat.le_max_left _ _) hi, ?_⟩
-    rw [ha, show m = Msg.push x.c x.A.pk x.B.pk (r.st i).a.ops by rw [hfix i hiM]]
+    rw [ha, show m = Msg.push x.c x.kA x.kB (r.st i).a.ops by rw [hfix i hiM]]
     exact push_sent g hI (hI.bsess _ (hs i hiM)).2
   obtain ⟨i, hi, ha⟩ := hf.2.2.2 _ hsent M
   have hI := run_inv g r i
@@ -408,8 +408,8 @@ theorem bootstrap (hf : r.Fair) : ∃ N, ∀ i ≥ N, x.Goal C (r.st i) := by
   obtain ⟨i, hi, ha⟩ := hf.2.1 (max N3 N4)
   have hadm : ∀ j ≥ N4, x.adm ∈ (r.st j).b.ops := fun j hj =>
     run_stable g r (P := fun s => x.adm ∈ s.b.ops) (fun _ _ hI he h => (step_mono g hI he).2.1 _ h) hj h4
-  have hses : ∀ j ≥ N3, (x.c, x.A.pk) ∈ (r.st j).b.sessions := fun j hj =>
-    run_stable g r (P := fun s => (x.c, x.A.pk) ∈ s.b.sessions)
+  have hses : ∀ j ≥ N3, (x.c, x.kA) ∈ (r.st j).b.sessions := fun j hj =>
+    run_stable g r (P := fun s => (x.c, x.kA) ∈ s.b.sessions)
       (fun _ _ hI he h => (step_mono g hI he).2.2.1 h) hj h3
   have hl : (r.st (i + 1)).b.links = [] := by
     rw [run_step, ha]

@@ -36,16 +36,22 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   peers that know of the remover's removal refuse its devices
   (`connect_iff`), so it travels only through peers that do not. When it
   arrives, it is Valid. Removal never invalidates an op; it changes who
-  counts as a member.
+  counts as a member. A device may be admitted into several users; it
+  counts while none of them is removed, and removing any of them cuts it
+  (docs/REMOVAL.md).
+- A node's key is local (`endpoint`): 32 random bytes, one per node, its
+  X25519 key pair. A root or request names it as the device's `enc`,
+  under the device's signature, so an admission ties a device to the
+  node it lives on. The node handshakes with it (the Connection family),
+  and content keys wrapped to its devices open with it.
 - A post is a message by an admitted device. Its body is sealed: it
   names a content key by id and carries the nonce and ciphertext
   (`Community.Keys`). Its header is clear: the key id, the time, the
   signature, which covers the sealed bytes. Validators read only the
   header, so a keyless node judges a post as a member does.
-- A content key is local (`key`): this device's copy of a community's
-  key. A wrap delivers one to a device's X25519 key, sealed so that
-  only that device opens it. A wrap admits nobody, so it needs no
-  author.
+- A content key is local (`key`): this node's copy of a community's
+  key. A wrap delivers one to a node's X25519 key, sealed so that only
+  that node opens it. A wrap admits nobody, so it needs no author.
 - A post claims two numbers: a counter, which orders its channel, and
   a time, wall-clock minutes since the Unix epoch, which is shown (the
   user's decision, 2026-10-28: "don't hack order onto time"). A
@@ -121,6 +127,7 @@ inductive Fact where
   | abandoned (c req join : Id)
   | key (c kid k : ByteArray)
   | chunk (c att root : Id) (len index : Nat)
+  | endpoint (pk sk : ByteArray)
   | received (c kid msg : Id) (k : Nat)
   deriving DecidableEq, Inhabited
 
@@ -145,6 +152,7 @@ inductive Body where
   | abandon
   | key (c k : ByteArray)
   | chunk (root : ByteArray) (len index : Nat) (slice : ByteArray) (sibs : List ByteArray)
+  | endpoint (sk : ByteArray)
   | receive (k : Nat)
   deriving DecidableEq, Inhabited
 
@@ -179,6 +187,7 @@ def Body.enc : Body → List UInt8
   | .abandon => [17]
   | .key c k => 18 :: Codec.enc (c, k)
   | .chunk r l i x p => 19 :: Codec.enc (r, l, i, x, p)
+  | .endpoint sk => 22 :: Codec.enc sk
   | .receive k => 24 :: Codec.enc k
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
@@ -203,6 +212,7 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 18 :: r => decAs (fun (p : B × B) => Body.key p.1 p.2) r
   | 19 :: r => decAs (fun (p : B × Nat × Nat × B × List B) =>
       Body.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
+  | 22 :: r => decAs (fun (p : B) => Body.endpoint p) r
   | 23 :: r => decAs (fun (p : B × B × Nat × Nat × B) =>
       Body.post p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 24 :: r => decAs (fun (p : Nat) => Body.receive p) r
@@ -229,6 +239,7 @@ def Body.encInto (buf : ByteArray) : Body → ByteArray
   | .abandon => buf.push 17
   | .key c k => Codec.encInto (buf.push 18) (c, k)
   | .chunk r l i x p => Codec.encInto (buf.push 19) (r, l, i, x, p)
+  | .endpoint sk => Codec.encInto (buf.push 22) sk
   | .receive k => Codec.encInto (buf.push 24) k
 
 /-- `Body.dec`, as it runs: read at offset i of a byte array. -/
@@ -255,6 +266,7 @@ def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
   | some 18 => decFromAs (fun (p : B × B) => Body.key p.1 p.2) b (i + 1)
   | some 19 => decFromAs (fun (p : B × Nat × Nat × B × List B) =>
       Body.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
+  | some 22 => decFromAs (fun (p : B) => Body.endpoint p) b (i + 1)
   | some 23 => decFromAs (fun (p : B × B × Nat × Nat × B) =>
       Body.post p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
   | some 24 => decFromAs (fun (p : Nat) => Body.receive p) b (i + 1)
@@ -293,6 +305,7 @@ def Fact.enc : Fact → List UInt8
   | .abandoned c r j => 15 :: Codec.enc (c, r, j)
   | .key c i k => 16 :: Codec.enc (c, i, k)
   | .chunk c a r l i => 17 :: Codec.enc (c, a, r, l, i)
+  | .endpoint pk sk => 20 :: Codec.enc (pk, sk)
   | .received c k m n => 22 :: Codec.enc (c, k, m, n)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
@@ -317,6 +330,7 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 15 :: r => decAs (fun (p : B × B × B) => Fact.abandoned p.1 p.2.1 p.2.2) r
   | 16 :: r => decAs (fun (p : B × B × B) => Fact.key p.1 p.2.1 p.2.2) r
   | 17 :: r => decAs (fun (p : B × B × B × Nat × Nat) => Fact.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
+  | 20 :: r => decAs (fun (p : B × B) => Fact.endpoint p.1 p.2) r
   | 21 :: r => decAs (fun (p : B × B × B × B × B × Nat × Nat) =>
       Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) r
   | 22 :: r => decAs (fun (p : B × B × B × Nat) => Fact.received p.1 p.2.1 p.2.2.1 p.2.2.2) r
@@ -342,6 +356,7 @@ def Fact.encInto (buf : ByteArray) : Fact → ByteArray
   | .abandoned c r j => Codec.encInto (buf.push 15) (c, r, j)
   | .key c i k => Codec.encInto (buf.push 16) (c, i, k)
   | .chunk c a r l i => Codec.encInto (buf.push 17) (c, a, r, l, i)
+  | .endpoint pk sk => Codec.encInto (buf.push 20) (pk, sk)
   | .received c k m n => Codec.encInto (buf.push 22) (c, k, m, n)
 
 /-- `Fact.dec`, as it runs: read at offset i of a byte array. -/
@@ -368,6 +383,7 @@ def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
   | some 15 => decFromAs (fun (p : B × B × B) => Fact.abandoned p.1 p.2.1 p.2.2) b (i + 1)
   | some 16 => decFromAs (fun (p : B × B × B) => Fact.key p.1 p.2.1 p.2.2) b (i + 1)
   | some 17 => decFromAs (fun (p : B × B × B × Nat × Nat) => Fact.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
+  | some 20 => decFromAs (fun (p : B × B) => Fact.endpoint p.1 p.2) b (i + 1)
   | some 21 => decFromAs (fun (p : B × B × B × B × B × Nat × Nat) =>
       Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) b (i + 1)
   | some 22 => decFromAs (fun (p : B × B × B × Nat) => Fact.received p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
@@ -413,7 +429,7 @@ def signed (o : Op) (b : Body) : ByteArray :=
 /-- Whether a fact is this device's own: local ops' facts, never
 shared, never read by a shared op's validator (`check_reads_shared`). -/
 def Fact.isLocal : Fact → Bool
-  | .secret .. | .accepted .. | .joining .. | .abandoned .. | .key .. | .received .. => true
+  | .secret .. | .accepted .. | .joining .. | .abandoned .. | .key .. | .endpoint .. | .received .. => true
   | _ => false
 
 /-- The largest file an attachment may name: 64 MiB of ciphertext. -/
@@ -519,6 +535,7 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
     if o.reqs.head? = some c ∧ u0 = c then some (.wrap c k r bx) else none
   | .secret pk seed, [] => if C.pub seed = pk then some (.secret pk seed) else none
   | .key c k, [] => if k.size = 32 then some (.key c (kidOf cryptoSeal k) k) else none
+  | .endpoint sk, [] => if sk.size = 32 then some (.endpoint (cryptoSeal.pub sk) sk) else none
   | .accept c d, [] => some (.accepted c d)
   | .joining c k hs r nm d n, [] => some (.joining c k hs r nm d n)
   | .abandon, [.joining c _ _ r _ _ _] => some (.abandoned c r (o.reqs.headD .empty))
@@ -539,7 +556,7 @@ def Body.tag : Body → UInt8
   | .profile .. => 7 | .attach .. => 8 | .react .. => 9
   | .approve .. => 10 | .admit => 11
   | .accept .. => 13 | .joining .. => 14 | .secret .. => 15 | .name .. => 16 | .abandon => 17
-  | .key .. => 18 | .chunk .. => 19 | .post .. => 23 | .receive .. => 24
+  | .key .. => 18 | .chunk .. => 19 | .endpoint .. => 22 | .post .. => 23 | .receive .. => 24
 
 /-- An op's verdict: its body's, if its type is its body's. The type is
 in the bytes its id hashes, so an op re-sent under another type would be
@@ -559,6 +576,9 @@ def byDevice : Rel Fact := ⟨"admission", "byDevice", fun | .admission c _ d _ 
 def all : Rel Fact := ⟨"admission", "all", fun | .admission c .. => some [c] | _ => none⟩
 /-- A user's admissions (its devices): whom a removal cites. -/
 def byUser : Rel Fact := ⟨"admission", "byUser", fun | .admission c u .. => some [c, u] | _ => none⟩
+/-- The admissions naming an X25519 key: the devices a node's key
+speaks for in c, which `allowPeer` asks about. -/
+def byKey : Rel Fact := ⟨"admission", "byKey", fun | .admission c _ _ e => some [c, e] | _ => none⟩
 end admission
 
 namespace removal
@@ -657,6 +677,12 @@ node speaks for. -/
 def all : Rel Fact := ⟨"secret", "all", fun | .secret .. => some [] | _ => none⟩
 end secret
 
+namespace endpoint
+/-- This node's key (local): what it handshakes with, and what content
+keys wrapped to its devices open with. -/
+def all : Rel Fact := ⟨"endpoint", "all", fun | .endpoint .. => some [] | _ => none⟩
+end endpoint
+
 namespace accepted
 /-- The communities this device is in, joined or waiting. -/
 def all : Rel Fact := ⟨"accepted", "all", fun | .accepted .. => some [] | _ => none⟩
@@ -695,12 +721,12 @@ end chunk
 /-- Every relation of the community's facts. Invitations are in none
 (read by their own key). -/
 def rels : List (Rel Fact) :=
-  [admission.byDevice, admission.all, admission.byUser, removal.byUser, admin.byUser, message.all, message.byAuthor,
+  [admission.byDevice, admission.all, admission.byUser, admission.byKey, removal.byUser, admin.byUser, message.all, message.byAuthor,
    message.byKey, received.byKey, received.all, received.byMsg,
    wrap.byContentKey, profile.byUser, profile.all, profile.byLook, react.byMessage, react.byMessageEmoji,
    request.all, approval.byRequest, secret.byKey, secret.all, accepted.all, joining.all, named.current,
    abandoned.byRequest, abandoned.byJoining, wrap.byRecipient, key.byCommunity, key.byId, attachment.byMessage,
-   chunk.byAttachment]
+   chunk.byAttachment, endpoint.all]
 
 /-- The keys a fact is filed under: its relations'. -/
 def keys : Fact → List ByteArray := keysOf rels
@@ -737,7 +763,7 @@ instance : SortKey Fact := ⟨sortOf⟩
 acceptances and its joins are, never sent or taken; everything else is
 shared in its community. -/
 def Body.isLocal : Body → Bool
-  | .secret .. | .accept .. | .joining .. | .abandon | .key .. | .receive .. => true
+  | .secret .. | .accept .. | .joining .. | .abandon | .key .. | .endpoint .. | .receive .. => true
   | _ => false
 
 /-- The community an op is about: a root founds its own; every other op

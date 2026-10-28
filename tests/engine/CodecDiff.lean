@@ -119,7 +119,7 @@ def list {α} (g : Gen α) : Gen (List α) := do
 def op : Gen Op := return Op.make (← byte) (← list id32) (← bytes)
 
 def cBody : Gen Community.Body := do
-  match ← below 20 with
+  match ← below 21 with
   | 0 => return .root (← bytes) (← bytes) (← bytes)
   | 1 => return .invite (← bytes) (← coin) (← nat) (← bytes)
   | 2 => return .request (← bytes) (← bytes) (← bytes) (← bytes)
@@ -138,11 +138,12 @@ def cBody : Gen Community.Body := do
   | 15 => return .name (← nat) (← bytes) (← bytes)
   | 16 => return .abandon
   | 17 => return .key (← bytes) (← bytes)
-  | 18 => return .chunk (← bytes) (← nat) (← nat) (← bytes) (← list id32)
+  | 18 => return .endpoint (← bytes)
+  | 19 => return .chunk (← bytes) (← nat) (← nat) (← bytes) (← list id32)
   | _ => return .receive (← nat)
 
 def cFact : Gen Community.Fact := do
-  match ← below 19 with
+  match ← below 20 with
   | 0 => return .admission (← id32) (← id32) (← bytes) (← bytes)
   | 1 => return .invitation (← id32) (← id32) (← bytes) (← coin) (← nat)
   | 2 => return .admin (← id32) (← id32)
@@ -160,27 +161,30 @@ def cFact : Gen Community.Fact := do
   | 14 => return .named (← id32) (← id32) (← bytes) (← nat)
   | 15 => return .abandoned (← id32) (← id32) (← id32)
   | 16 => return .key (← bytes) (← bytes) (← bytes)
-  | 17 => return .chunk (← id32) (← id32) (← id32) (← nat) (← nat)
+  | 17 => return .endpoint (← bytes) (← bytes)
+  | 18 => return .chunk (← id32) (← id32) (← id32) (← nat) (← nat)
   | _ => return .received (← id32) (← id32) (← id32) (← nat)
 
 def kBody : Gen Connection.Body := do
-  match ← below 7 with
+  match ← below 8 with
   | 0 => return .eph (← bytes)
   | 1 => return .request (← bytes) (← bytes) (← bytes)
   | 2 => return .opened
   | 3 => return .connection (← bytes)
   | 4 => return .established
   | 5 => return .send (← bytes)
+  | 6 => return .given (← bytes)
   | _ => return .recv (← coin) (← bytes) (← bytes) (← nat)
 
 def kFact : Gen Connection.Fact := do
-  match ← below 7 with
+  match ← below 8 with
   | 0 => return .eph (← bytes) (← bytes) (← bytes)
   | 1 => return .request (← bytes) (← bytes) (← bytes)
   | 2 => return .opened (← id32) (← id32) (← bytes) (← bytes) (← list id32)
   | 3 => return .connection (← id32) (← bytes)
   | 4 => return .established (← id32) (← id32) (← bytes) (← bytes) (← bytes) (← bytes) (← coin)
   | 5 => return .send (← id32) (← bytes)
+  | 6 => return .given (← id32) (← bytes)
   | _ => return .recv (← id32) (← coin) (← bytes) (← bytes) (← nat)
 
 def option {α} (g : Gen α) : Gen (Option α) := do

@@ -1,9 +1,12 @@
 /-
 The live connection invariant: neither peer-controlled id set exceeds
 maxKnown. Hints forget and asks defer at capacity; neither ends the session.
-Ticks expire asks without renewing their original timestamps.
+Ticks expire asks without renewing their original timestamps. Every
+step the node runs on a connection keeps it (`conn_bounded`), the rooms
+it carries afresh and the notices it gives included (`notify_bounded`).
 -/
 import ops.sync.OfferLaws
+import ops.sync.Notice
 
 namespace Engine.Sync
 
@@ -156,6 +159,24 @@ theorem filed_bounded (c : Conn) (ids : List Id) (h : Held F) (hb : c.Bounded cf
         · rw [ite_eq_right h2, ite_eq_right h2]; rfl
     · rw [ite_eq_right h1, ite_eq_right h1]; rfl
 
+/-- Giving notices keeps both peer-controlled id sets as they were. -/
+theorem give_ids (h : Held F) : ∀ (l : List (Id × Id)) (c : Conn),
+    ((c.give fam cfg l : HeldM F Step) h).1.conn.known = c.known ∧
+      ((c.give fam cfg l : HeldM F Step) h).1.conn.asked = c.asked
+  | [], _ => ⟨rfl, rfl⟩
+  | (r, x) :: rest, c => by
+    unfold Conn.give
+    split
+    · exact give_ids h rest c
+    · simp only [HeldM.bind_apply, HeldM.pure_apply]
+      exact give_ids _ rest _
+
+theorem notify_bounded (c : Conn) (h : Held F) (hb : c.Bounded cfg) :
+    ((c.notify fam cfg : HeldM F Step) h).1.conn.Bounded cfg := by
+  obtain ⟨e1, e2⟩ := give_ids fam cfg h c.notices c
+  unfold Conn.notify Conn.Bounded
+  rw [e1, e2]; exact hb
+
 /-- Reachability through every public connection transition on held stores. -/
 inductive Conn.Reachable (fam : Family F) (cfg : Config) : Conn → Prop where
   | open (dialer : Bool) (rooms : List Id) (floor now : Nat) :
@@ -173,6 +194,9 @@ inductive Conn.Reachable (fam : Family F) (cfg : Config) : Conn → Prop where
   | filed {c} (hc : Reachable fam cfg c) (ids) (h : Held F) :
       Reachable fam cfg ((c.filed fam cfg ids : HeldM F Step) h).1.conn
   | rooms {c} (hc : Reachable fam cfg c) (rs) : Reachable fam cfg (c.setRooms rs)
+  | carry {c} (hc : Reachable fam cfg c) (rs : List Room) : Reachable fam cfg (c.carry rs)
+  | notify {c} (hc : Reachable fam cfg c) (h : Held F) :
+      Reachable fam cfg ((c.notify fam cfg : HeldM F Step) h).1.conn
 
 theorem conn_bounded {c : Conn} (hc : c.Reachable fam cfg) :
     c.known.size ≤ cfg.maxKnown ∧ c.asked.size ≤ cfg.maxKnown := by
@@ -186,5 +210,7 @@ theorem conn_bounded {c : Conn} (hc : c.Reachable fam cfg) :
   | tick _ _ _ _ ih => exact tick_bounded fam cfg _ _ _ _ ih
   | filed _ _ _ ih => exact filed_bounded fam cfg _ _ _ ih
   | rooms _ _ ih => exact ih
+  | carry _ _ ih => exact ih
+  | notify _ _ ih => exact notify_bounded fam cfg _ _ ih
 
 end Engine.Sync

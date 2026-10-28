@@ -550,6 +550,58 @@ open Net
 #print axioms Net.allowPeer_iff
 #print axioms Net.allowPeer_settles
 end net
+#print axioms Community.deviceLive_iff
+#print axioms Community.unremoved_iff
+#print axioms Community.cut_not_live
+#print axioms Community.nodeKeyOr_local
+#print axioms Community.endpoint_signed
+#print axioms Community.cut_stays
+#print axioms Community.cut_consented
+#print axioms Community.endpoint_derives
+#print axioms Community.new_device_trusted
+#print axioms Community.removals_at
+#print axioms Community.mine_not_removed
+#print axioms Community.rejoin_fresh
+#print axioms Community.join_new_device
+#print axioms Community.removed_stays_removed
+#print axioms Connection.opened_endpoint
+#print axioms Connection.established_endpoint
+#print axioms Connection.meV_node
+#print axioms Connection.room_connOp
+#print axioms Connection.bare_takes_only_join
+#print axioms Connection.answer_trusted
+#print axioms Connection.resend_trusted
+#print axioms PeopleLaws.present_not_removed
+
+#print axioms Connection.eval_roomFor
+#print axioms Connection.mem_roomsV
+#print axioms Connection.rooms_removed
+#print axioms Connection.rooms_complete
+#print axioms Connection.roomsV_nil
+#print axioms Connection.notice_then_cut
+#print axioms Connection.requestOf_state
+#print axioms Connection.dialOne_sends
+#print axioms Connection.dialOne_state
+#print axioms Connection.rejoin_dials
+#print axioms Connection.reconnect_dials
+
+#print axioms Engine.Sync.closureOps_sound
+#print axioms Engine.Sync.closureOps_complete
+#print axioms Engine.Sync.closure
+#print axioms Engine.Sync.give_send
+#print axioms Engine.Sync.give_gives
+#print axioms Engine.Sync.give_quiet
+#print axioms Engine.Sync.filed_given
+#print axioms Engine.Sync.tick_given
+#print axioms Engine.Sync.tick_drop
+#print axioms Engine.Sync.notice_no_holds
+#print axioms Engine.Sync.notice_sent
+#print axioms Engine.Sync.notice_send
+#print axioms Engine.Sync.notice_once
+#print axioms Engine.Sync.filedGive_reads
+#print axioms Engine.Sync.filedGive_quiet
+#print axioms Connection.removed_gets_only_notice
+#print axioms Engine.Sync.notify_bounded
 
 section windows
 open Engine

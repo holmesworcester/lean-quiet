@@ -5,4 +5,5 @@ import ops.community.Connect
 import ops.community.Compose
 import ops.community.Link
 import ops.community.Intents
+import ops.community.RemovalLaws
 import ops.community.MerkleCost
