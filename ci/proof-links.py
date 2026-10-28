@@ -18,7 +18,10 @@ running code, per area; a row for each missing link with its laws and
 tests/wiring.txt's note; the statements stated only; the assumptions.
 The proofs tables above it must agree: a ✅ row must cite a law about
 running code, and a 🟡 row must say what is missing ("Wanted", "Not
-yet", "not proven").
+yet", "not proven"), itself or in the section its More link opens. The
+README's lead takes its number from the same count ("N of its M
+theorems are about the code that runs"), and may say "nearly every"
+only while that is 90% or more.
 
   ci/proof-links.py           rewrite the block and the section
   ci/proof-links.py --check   fail if either is stale, a reference
@@ -52,6 +55,10 @@ AREAS = [("engine.core", "Engine"), ("ops.sync", "Sync"), ("engine.wire.mdns", "
          ("engine.renderer", "Screen"), ("ops.app", "App"), ("App", "App")]
 # What a 🟡 row says to name what is missing.
 WANTED = re.compile(r"wanted|not yet|not proven", re.I)
+# The lead's count, and the share "nearly every" needs.
+LEAD = re.compile(r"(\d+) of its\s+(\d+)\s+theorems\s+are\s+about\s+the\s+code\s+that\s+runs")
+NEARLY = re.compile(r"(nearly|almost) (every|all) (theorem|law)", re.I)
+THRESHOLD = 0.9
 # How many theorems the audit lists, counted as they are probed.
 AUDITED = [0]
 
@@ -67,7 +74,7 @@ def notes(kind, path=NOTES):
 
 
 # What the theorems take as hypotheses, and the models they assume.
-ASSUMED = list(notes("assume"))
+ASSUMED = list(notes("assume")) + list(notes("holds"))
 
 PROBE = """open Lean in
 #eval show CoreM Unit from do
@@ -142,7 +149,7 @@ def classify(notes_path=None):
     r = subprocess.run(["lake", "env", "lean", "--run", "tests/Wiring.lean"], cwd=TOP,
                        capture_output=True, text=True, env=env)
     rows = [l.split("\t") for l in r.stdout.splitlines()
-            if l.split("\t")[0] in ("law", "stmt", "missing", "assume", "count")]
+            if l.split("\t")[0] in ("law", "stmt", "missing", "assume", "copy", "count")]
     problems = [l for l in r.stderr.splitlines() if l.startswith("wiring:")]
     if r.returncode != 0 and not problems:
         problems = [f"tests/Wiring.lean failed (is the tree built, and Main?)\n{r.stdout}{r.stderr}"]
@@ -172,10 +179,19 @@ def resolver(decls):
     return resolve
 
 
-def disagree(tables, wired, resolve):
+def sections(text):
+    """Each heading's anchor, with its section's text."""
+    out, parts = {}, re.split(r"^(#+ .*)$", text, flags=re.M)
+    for h, body in zip(parts[1::2], parts[2::2]):
+        anchor = re.sub(r"[^\w\- ]", "", h.lstrip("#").strip().lower()).replace(" ", "-")
+        out[anchor] = body
+    return out
+
+
+def disagree(tables, wired, resolve, more={}):
     """The proofs rows that disagree with the classification: a ✅ row that
     cites no law about running code, a 🟡 row that does not say what is
-    missing."""
+    missing, itself or in the section its More link opens."""
     bad = []
     for line in tables.split("\n"):
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
@@ -185,7 +201,8 @@ def disagree(tables, wired, resolve):
         laws = [resolve(l) for l in re.findall(r"\[`([^`\]]+)`\]", cells[3])]
         if cells[0] == "✅" and not any(l in wired for l in laws if l):
             bad.append(f"✅ \"{title}\" cites no law about running code: make it 🟡, saying what is missing")
-        if cells[0] == "🟡" and not WANTED.search(cells[2]):
+        opens = [more.get(a, "") for a in re.findall(r"\]\(#([\w-]+)\)", cells[2])]
+        if cells[0] == "🟡" and not WANTED.search(cells[2]) and not any(WANTED.search(t) for t in opens):
             bad.append(f"🟡 \"{title}\" does not say what is missing (Wanted, Not yet, not proven)")
     return bad
 
@@ -296,6 +313,11 @@ def section(rows, decls, cited):
                    "a specification or an assumption. |")
     out += ["", "\\* only a premise names the model (a reachable state admits the modelled "
             "purge). † a guarantee above cites it."]
+    copies = [f for f in rows if f[0] == "copy"]
+    if copies:
+        out += ["", "**Restates running code** (todo: state it of the real function):", ""]
+        out += [f"- {link(f[1]) if f[1] in decls else f'`{short(f[1], missing, 2)}`'} restates "
+                f"`{short(f[2], [f[2]], 2)}`: {f[3]}" for f in copies]
     if names_model:
         out += ["", "About running code, but naming a model outside the code they are about: " +
                 "; ".join(f"{link(n)} (`{', '.join(short(m, missing, 2) for m in p)}`)"
@@ -331,7 +353,19 @@ def main():
     # the proofs tables: "What is proven", above the section
     tables = pre.split("## What is proven")[-1]
     wired = {f[1] for f in rows if f[0] == "law" and f[2] == "wired"}
-    problems += disagree(tables, wired, resolve)
+    total = sum(1 for f in rows if f[0] == "law")
+    problems += disagree(tables, wired, resolve, sections(text))
+    # the lead's count, and "nearly every" only at the threshold
+    lead = LEAD.search(pre)
+    if not lead:
+        problems.append('no "N of its M theorems are about the code that runs" in the README\'s lead')
+    elif (int(lead.group(1)), int(lead.group(2))) != (len(wired), total):
+        if check:
+            problems.append(f"the lead says {lead.group(1)} of {lead.group(2)}; the count is {len(wired)} of {total}")
+        pre = pre[:lead.start(1)] + str(len(wired)) + pre[lead.end(1):lead.start(2)] + str(total) + pre[lead.end(2):]
+    if total and NEARLY.search(pre) and len(wired) < THRESHOLD * total:
+        problems.append(f'the README says "{NEARLY.search(pre).group(0)}", but {len(wired)} of {total} '
+                        f"({100 * len(wired) // total}%) is under {int(THRESHOLD * 100)}%")
     cited = {resolve(l) for l in re.findall(r"\[`([^`\]]+)`\]", tables)} - {None}
     section_new = section(rows, decls, cited)
     if check and section_new != section_old:

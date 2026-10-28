@@ -21,8 +21,12 @@
 #                        README's rows follow this file's order; `= OTHER`
 #                        puts NAME in OTHER's row. It must not run, and a
 #                        law must wait on it.
-#   copy LAW CODE TEXT   LAW restates running CODE inline instead of
-#                        naming it, so it is a model until it names CODE
+#   holds NAME TEXT      a premise laws take (an invariant) that the
+#                        running node keeps only as TEXT says; listed with
+#                        the assumptions, and seen through like any premise
+#   copy NAME CODE TEXT  NAME restates running CODE instead of naming it:
+#                        a law (a model until it names CODE) or a
+#                        definition (a todo, until CODE calls it)
 #   subject LAW NAMES    LAW's subject is NAMES (its statement must name
 #                        each), where the heuristic takes too much
 #   wired LAW            LAW must be wired
@@ -47,7 +51,6 @@ wired Community.connect_iff
 wired Community.removal_cuts_off
 wired Connection.Noise.Symbolic.kk_secret
 wired Connection.Noise.Symbolic.kk_forward_secret
-wired Connection.sealed_auth
 
 ## Assumptions
 
@@ -56,7 +59,6 @@ assume Engine.CollisionFree SHA-256 has no collision among the ops a node receiv
 assume Engine.Distinct = Engine.CollisionFree
 assume Community.Merkle.NoSecondPreimage SHA-256 has no second preimage on a file's Merkle tree inputs.
 assume Connection.Noise.Suite.Good X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only).
-assume Connection.Keys.Good A device's Ed25519 key converts to its seed's X25519 key.
 assume Community.Seal.Good The seal's AEAD and key wrap open what they seal (correctness only).
 assume Connection.Noise.Symbolic.sym The symbolic model of the cryptography: the running handshake over a suite of symbols, where only a key's holder can derive what it guards.
 assume Engine.Model.run The store model: the SQLite store's reads, writes and write turns answer as the model's tables (`DB`), and a held store's (`Held`) do too. Tested, not proven: SQLite against the model (tests/engine/Differential.lean), list queries against their meaning (tests/engine/QueryDiff.lean). Not its purge: `purgeS` is a model, a todo.
@@ -70,6 +72,17 @@ assume Engine.DB.empty = Engine.Model.run
 assume Engine.budget = Engine.Model.run
 assume Engine.Sync.HeldM.run = Engine.Model.run
 assume ArrivalLaws.modelReads = Engine.Model.run
+# the model store's reads and writes, which the held store's instances lift
+assume Engine.Sync.lift = Engine.Model.run
+assume Engine.Model.pop = Engine.Model.run
+assume Engine.DB.putOp = Engine.Model.run
+assume Engine.DB.push = Engine.Model.run
+assume Engine.DB.setStatus = Engine.Model.run
+assume Engine.DB.addWait = Engine.Model.run
+assume Engine.DB.clearWaiters = Engine.Model.run
+assume Engine.DB.index = Engine.Model.run
+
+holds Engine.Inv The tables' invariant, which judging keeps (`inv_ingest`, `inv_step`) and purges keep only by `purge_inv`, proven of the model `purgeS`, and the SQLite-vs-model purge test (tests/engine/Purge.lean).
 
 ## Bridges: a mirror, and the law that proves running code equal to it
 
@@ -106,7 +119,7 @@ spec Mdns.Name.wireLen A name's length on the wire, for its validity.
 ## Subjects the heuristic takes too much of
 
 # The running round's answer to a claim, stated against the round's model.
-subject Engine.Sync.conn_answers_ids Engine.Sync.Conn.onRbsr Engine.Sync.Index.items Engine.Sync.within Engine.Sync.named Engine.Sync.chunks
+subject Engine.Sync.conn_answers_ids Engine.Sync.Conn.onRbsr Engine.Sync.within Engine.Sync.named Engine.Sync.chunks
 
 ## What would make each model real, most valuable first (the README's order)
 
@@ -142,7 +155,7 @@ todo Net.Scene.S = Net.Scene.approval
 todo Net.sent = Net.Scene.approval
 todo Net.step = Net.Scene.approval
 todo Net.table = Net.Scene.approval
-copy LiveLaws.read_one_moment App.read States `App.read`'s two branches inline: state it of `App.read`.
+copy LiveLaws.read_one_moment App.read Its two branches, inline. Todo: state it of `App.read`.
 todo Geometry.Seam.place The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are.
 todo Geometry.Seam.frameRow = Geometry.Seam.place
 todo Geometry.Seam.home = Geometry.Seam.place
@@ -151,7 +164,7 @@ todo Geometry.Seam.pageRow = Geometry.Seam.place
 todo Geometry.Seam.tapRow = Geometry.Seam.place
 todo Geometry.Geom.viewNow = Geometry.Seam.place
 todo Geometry.Geom.composerTop = Geometry.Seam.place
-todo SheetGeom.Grid.ctop A copy of the painter's placement (`Sheet.gridRow`, App's sheet rows): have the painter place keys by `Grid.ctop`.
+copy SheetGeom.Grid.ctop Sheet.gridRow Its index arithmetic, and App's sheet rows'. Todo: have the painter place keys by `Grid.ctop`.
 todo Engine.Sync.keeps The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s.
 todo Pic.decode Runs only in qr's Android harness; the app has its own QOI (`Qoi.decode`) and tray: use `Pic` in the app, or prove these of its code.
 todo Pic.add = Pic.decode
