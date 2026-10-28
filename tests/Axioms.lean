@@ -347,6 +347,8 @@ section app
 #print axioms SheetGeom.compose_top
 #print axioms Geometry.pinned_row
 #print axioms Cover.covered
+#print axioms NodeOffer.offer_split
+#print axioms NodeOffer.offer_runs
 #print axioms Engine.ingestS_known
 #print axioms Engine.ingestS_twice
 #print axioms Engine.ingest_twice

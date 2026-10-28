@@ -26,6 +26,7 @@ code without a window (QTests).
 import engine.renderer.Data
 import ops.app.Chaos
 import ops.app.Reader
+import ops.app.NodeOffer
 import engine.renderer.Row
 import engine.renderer.Geometry
 import engine.renderer.Cover
@@ -398,11 +399,11 @@ def noticeLocal (ps : List Pending) : M Unit := do
 /-- Offer writes to the node's inbound channel, in order, without waiting:
 each that fits is in; the rest, from the first that did not fit, stay
 (the channel is bounded and shared with the peers' frames, so it can be
-full while sync is busy). -/
+full while sync is busy). It is `NodeOffer.offerList` over the channel's
+`trySend`: NodeOffer.offer_split and offer_runs say no write is lost,
+sent twice or overtaken, whatever the channel answers. -/
 def offerAll (ch : Std.CloseableChannel.Sync Engine.Sync.Event) (q : Array (List Op)) : IO (Array (List Op)) := do
-  for i in [0:q.size] do
-    if !(← ch.trySend (.write q[i]!)) then return q.extract i q.size
-  return #[]
+  return (← NodeOffer.offerList (fun w => (ch.trySend (.write w) : IO Bool)) q.toList).toArray
 
 /-- The one way into the store: through the node while it runs (it owns
 the store's writes, and offers peers only what it knows), else the local

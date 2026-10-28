@@ -14,7 +14,7 @@ Like [Quiet](https://github.com/TryQuiet/quiet), Lean Quiet is also local-first,
 
 Lean is mostly used for mathematics, or to verify one part of a system.
 Here it is a whole, ordinary app, and about three quarters of its
-theorems (374 of 477) are about the code that runs on the phone; the
+theorems (375 of 479) are about the code that runs on the phone; the
 rest are over models, and moving them onto running code is a todo
 ([what is proven](#what-is-proven)). Native code only connects Lean to
 each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)), so in a
@@ -143,7 +143,7 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 477 rest on Lean's standard axioms
+that rests on; 🥊 is supporting. All 479 rest on Lean's standard axioms
 only.
 
 ### Security proofs
@@ -215,7 +215,7 @@ only.
 | ⬜ | 🥊🥊🥊 | **Every control is big enough to tap.** Every tappable control's hit area, not just its drawn size, is at least 48 dp by 48 dp on Android and 44 pt by 44 pt on iOS, at every supported screen size and text scale. | |
 | ⬜ | 🥊🥊 | **A tap means one thing.** On every screen, no two controls' hit areas overlap, so a point selects at most one control. A tap selects the control drawn under it. Today this is proven for the emoji sheet and message rows only (`keys_disjoint`, `hit_iff`, `pinned_tap`). | |
 | ⬜ | 🥊🥊 | **Every control shown can be tapped.** A control that is drawn has its hit area on screen, and not under the header, the composer or the keyboard. | |
-| ⬜ | 🥊🥊🥊 | **Typing and sending never wait on sync.** A frame never waits on the node, however full its inbound channel. Tested today: `nodequeue`, over a real full channel (the app's offer returns at once and keeps every write in order; the control, the blocking send, waits). Wanted, as a proof in three parts: `offerAll` written once over any monad with an offer that answers yes or no, with laws that every write reaches the node exactly once and in submission order over any run of sends and frames, whatever the channel's capacity (no write is lost or duplicated, and taking one twice would be harmless anyway: `ingestAll_again`); a build check over the code `App.step` reaches that no frame path reaches a waiting primitive (`Runner.write`, `Engine.Sync.enqueue`, a channel's `send`, waiting on another thread's task); and, assumed as the platform's other primitives are, that a channel's `trySend` returns without waiting. | |
+| 🟡 | 🥊🥊🥊 | **Typing and sending never wait on sync.** A frame never waits on the node, however full its inbound channel. Proven of the running offer (`offerList`, which `submit` and each frame's re-offer run with the channel's `trySend`), whatever the channel answers: what it took, then what waits, is every write submitted, in order, over any run of sends and frames (none lost, none twice, none overtaken; and one taken twice would be harmless anyway, `ingestAll_again`). Tested: `nodequeue`, over a real full channel (the offer returns at once; the control, the blocking send, waits). Not yet: a build check that no frame path reaches a waiting primitive (`Runner.write`, `Engine.Sync.enqueue`, a channel's `send`, waiting on another thread's task); and `trySend` returning without waiting is assumed, as the platform's other primitives are. | [`offer_split`], [`offer_runs`] |
 | ⬜ | 🥊🥊 | **A tap acts once.** A second tap on a control while its action is in flight starts nothing new (Send sends once). A press that turns into a scroll past the slop is not a tap. | |
 | ⬜ | 🥊🥊 | **Destructive actions are guarded.** Every action that cannot be undone asks for a second confirmation, as removal does (`writes_only_after_two`). Its control keeps a clear gap from the controls around it. | |
 | ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
@@ -249,7 +249,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**374 of 477 laws are about running code;** 103 are not yet. Stated only: none.
+**375 of 479 laws are about running code;** 104 are not yet. Stated only: none.
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
@@ -263,7 +263,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | QR codes | 10 | 10 |  |
 | Pictures | 13 | 1 | 12 |
 | Screen | 41 | 25 | 16 |
-| App | 20 | 18 | 2 |
+| App | 22 | 19 | 3 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
@@ -286,7 +286,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`pageIn_acc`]† | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`offer_runs`]†, [`pageIn_acc`]† | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
@@ -294,6 +294,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 |---|---|---|
 | [`Unforgeable`] | 2 | An Ed25519 signature that verifies under a device key was made by that key's holder. |
 | [`CollisionFree`] | 21 | SHA-256 has no collision among the ops a node received. |
+| [`offerM`] | 2 | The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`. |
 | [`NoSecondPreimage`] | 14 | SHA-256 has no second preimage on a file's Merkle tree inputs. |
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
@@ -897,6 +898,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`pinned_visible`]: engine/renderer/Geometry.lean#L147-L151
 [`pinned_tap`]: engine/renderer/Geometry.lean#L154-L157
 [`hit_iff`]: engine/renderer/SheetGeom.lean#L93-L95
+[`offer_split`]: ops/app/NodeOffer.lean#L37-L40
+[`offer_runs`]: ops/app/NodeOffer.lean#L73-L77
 [`eval_stable`]: engine/core/View.lean#L137-L142
 [`view_stable`]: engine/core/View.lean#L163-L165
 [`filed_rel`]: engine/core/Decl.lean#L189-L196
@@ -977,8 +980,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L1077-L1081
-[`pageIn_acc`]: App.lean#L1083-L1086
+[`drawPage_key`]: App.lean#L1078-L1082
+[`pageIn_acc`]: App.lean#L1084-L1087
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
@@ -1041,6 +1044,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`nodup_full`]: ops/community/Intents.lean#L578-L580
 [`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
 [`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939
+[`offerM`]: ops/app/NodeOffer.lean#L29-L35
 [`Seal.Good`]: ops/community/Keys.lean#L40-L43
 [`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
 [`Model.run`]: engine/core/Model.lean#L103-L103
