@@ -304,6 +304,10 @@ section app
 #print axioms RowLaws.tally_mem
 #print axioms RowLaws.time_shown
 #print axioms RowLaws.name_placed
+#print axioms RowLaws.flush_shows
+#print axioms RowLaws.flush_start
+#print axioms RowLaws.name_starts
+#print axioms Composer.caret_clear
 #print axioms ViewLaws.profile_read
 #print axioms ViewLaws.others_iff
 #print axioms ViewLaws.namesake_iff

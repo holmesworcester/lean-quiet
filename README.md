@@ -181,7 +181,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 364 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 368 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **The tables are short; the long stories are below them,** under
   [Proofs in depth](#proofs-in-depth), where each row's More link goes.
@@ -594,7 +594,10 @@ as duplicates, as Quiet marks them.
 - **Proven:** a row's name is its author's newest valid profile's (or
   "…"), and only a device admitted into that user can have written it;
   the row draws it cut to a logical prefix and an ellipsis, so a long
-  name keeps its beginning in either direction. Every explicit bidi
+  name keeps its beginning in either direction, and starts next to the
+  avatar whatever its direction (`name_starts`: its leftmost glyph is
+  at the name box's start; a message's lines are flushed the same way,
+  start-aligned as libquiet's rows are). Every explicit bidi
   control (embeddings, overrides, isolates, LRM and RLM) is a neutral in
   the running bidi, so none can reorder a name or a message, and the
   marks draw nothing. Two names look alike when they are equal once the
@@ -1249,9 +1252,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`marks_invisible`]: engine/renderer/TextLaws.lean#L159-L159
 [`namesake_iff`]: ops/community/profile/NamesakeLaws.lean#L113-L118
 [`row_marked`]: ops/community/profile/NamesakeLaws.lean#L139-L144
-[`twin_shown`]: ops/community/reaction/RowLaws.lean#L94-L98
-[`twin_before_time`]: ops/community/reaction/RowLaws.lean#L101-L105
-[`hit_twin`]: ops/community/reaction/RowLaws.lean#L115-L117
+[`twin_shown`]: ops/community/reaction/RowLaws.lean#L128-L132
+[`twin_before_time`]: ops/community/reaction/RowLaws.lean#L135-L139
+[`hit_twin`]: ops/community/reaction/RowLaws.lean#L149-L151
 [`time_shown`]: ops/community/reaction/RowLaws.lean#L84-L87
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28

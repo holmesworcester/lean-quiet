@@ -181,6 +181,15 @@ def layoutBody (f : Font) (dm : Dim) (W : Nat) (d : RowData) (y0 : Nat) :
   if !d.tallies.isEmpty then y := y + ph
   return (pics, pills, max (y + dm.px 8) (dm.topPad + dm.avatar + dm.px 8))
 
+/-- A line moved to start at its box's start edge (its leftmost glyph at
+0), in either direction: a right-to-left name or line sits next to the
+avatar, not at the far side of its box, as libquiet's rows (no `dir`,
+start-aligned) draw it. Its glyphs and their spacing are kept. -/
+def flush (l : Line) : Line :=
+  match (l.toList.map (·.x)).min? with
+  | some m => l.map fun g => { g with x := g.x - m }
+  | none => l
+
 /-- Quiet's label for a name another user's looks the same as. -/
 def twinText : String := "⚠ Duplicate"
 
@@ -195,12 +204,12 @@ def layout (f : Font) (dm : Dim) (W : Nat) (d : RowData) : Layout :=
   let tx := dm.textX
   let tw := W - tx - dm.pad
   let lh := dm.lineH
-  let name := oneLine f (tw / 2) d.name
+  let name := flush (oneLine f (tw / 2) d.name)
   let nx := tx + Paint.Line.width f name + dm.px 8
   let twin := if d.namesake then some (twinPill f dm nx) else none
   let timeX := match twin with | some (bx, _) => bx.x + bx.w + dm.px 8 | none => nx
   let time := oneLine f (dm.cell * 4) (if d.pending then "pending" else clock d.time)
-  let text := if d.text.isEmpty then #[] else Text.layout f tw d.text
+  let text := if d.text.isEmpty then #[] else (Text.layout f tw d.text).map flush
   let textY := dm.topPad + lh
   let (pics, pills, h) := layoutBody f dm W d (textY + text.size * lh)
   ⟨h, name, time, timeX, text, textY, pics, pills, #[], twin⟩
