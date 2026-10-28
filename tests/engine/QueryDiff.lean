@@ -38,18 +38,31 @@ def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Arr
     let j := admit c rq.id [ok.id]
     ops := ops.push inv |>.push rq |>.push ok |>.push j
     users := users.push (j.id, rq.id, d)
+  -- Two content keys held here (local key ops), a third not: `readable`
+  -- lists the posts under the first two.
+  let keys := [sha256 s!"key-{seed}-0".toUTF8, sha256 s!"key-{seed}-1".toUTF8]
+  let kids := keys.map (kidOf cryptoSeal) ++ ["unheld".toUTF8]
+  ops := ops ++ (keys.map (contentKey c)).toArray
   let mut g : Rng := ⟨seed.toUInt64⟩
   let mut posts : Array Id := #[]
+  let mut rcpts := 0
   for i in [0:nPosts] do
     let (ui, g1) := g.below users.size
     let (tm, g2) := g1.below 50
     let (kind, g3) := g2.below 10
-    g := g3
+    let (ki, g4) := g3.below kids.length
+    let (sat, g5) := g4.below 8
+    g := g5
     let (u, _, d) := users[ui]!
     if kind < 6 then
-      let o := post c u d "k".toUTF8 s!"post {i}".toUTF8 tm
+      -- now and then past the counter cap, with this device's receipt
+      -- (two receipts share each counter: ties fall to the message id)
+      let o := post c u d kids[ki]! s!"post {i}".toUTF8 (if sat == 0 then countCap + i else i % 7) tm
       ops := ops.push o
       posts := posts.push o.id
+      if sat == 0 then
+        ops := ops.push (receipt o.id (rcpts / 2 + 1))
+        rcpts := rcpts + 1
     else if kind < 8 && !posts.isEmpty then
       let (pi, g4) := g.below posts.size
       let (ei, g5) := g4.below 3
@@ -61,7 +74,7 @@ def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Arr
       -- a forgery: signed by the wrong device
       let (vi, g4) := g.below users.size
       g := g4
-      ops := ops.push (post c u users[vi]!.2.2 "k".toUTF8 "forged".toUTF8 tm)
+      ops := ops.push (post c u users[vi]!.2.2 "k".toUTF8 "forged".toUTF8 (i % 7) tm)
   return (ops, c, posts, users)
 
 def queries (c : Id) (posts : Array Id) (users : Array (Id × Id × Device)) (cursors : List Pos) :
@@ -92,7 +105,7 @@ def explain (db : Db) (sql : String) (ps : Array ByteArray) : IO (List String) :
 
 def mentions (l sub : String) : Bool := (l.splitOn sub).length > 1
 
-/-- What the cost of a read assumes of a plan line (`Seeks`): a search
+/-- What the cost of a read assumes of a plan line (`SeekCost`): a search
 through an index or a primary key, or the subqueries that hold them;
 never a scan of a table, never a sort. A key's range is searched in
 `idx_ks` (in (s, id) order), or, for a count, where order does not
@@ -107,6 +120,28 @@ def lineOk (l : String) : Bool :=
    mentions l "CORRELATED SCALAR SUBQUERY" ||
    mentions l "CO-ROUTINE" ||
    mentions l "SCAN (subquery")
+
+def ranged : Stmt → Bool
+  | .rows _ _ a b _ _ => a.isSome || b.isSome
+  | .count _ _ a b _ => a.isSome || b.isSome
+  | .counter _ => false
+
+/-- A statement's plan is the walk its cost counts (`Stmt.walks`): every
+line a search, a counter its primary key, rows in `idx_ks`'s order, and
+a range bound a seek in `idx_ks`, not a filter. -/
+def planOk (st : Stmt) (lines : List String) : Bool :=
+  !lines.isEmpty && lines.all lineOk &&
+  (match st with
+   | .counter _ => lines.any (mentions · "SEARCH cnt USING PRIMARY KEY (k=?)")
+   | .rows .. => lines.any (mentions · "SEARCH i USING COVERING INDEX idx_ks (k=?")
+   | .count .. => true) &&
+  (!ranged st || lines.any (mentions · "USING COVERING INDEX idx_ks (k=? AND (s,id)"))
+
+/-- Several lists read as one (`unionAnswers` over `View.readAll`), each
+with the given limit and order: a union, as `readable` reads one. -/
+def unionOf (qs : List ListQ) (limit : Option Nat) (desc : Bool) : View Fact (Answer Fact) := do
+  let as ← View.readAll (qs.map fun q => { q with limit, desc })
+  pure (unionAnswers desc limit as)
 
 /-- `sortPos` as written, under another name: the compiler runs a merge
 sort for `sortPos` (`sortPos_eq_fast`), and this insertion sort as is. -/
@@ -165,6 +200,41 @@ def sortChecks (t : Checks) : IO Unit := do
   t.ok s!"sortPos (a merge sort) is the insertion sort on {trials} random lists with ties" (differ == 0)
   IO.println s!"sorts: {trials} lists; an unstable sort differs from the insertion sort on {unstable}"
   t.ok "an unstable sort is caught (negative control)" (unstable > 0)
+
+/-- `readable` (messages below the counter cap, then this device's
+receipts of saturated ones, each row named by its message) on SQLite
+against its meaning, in both directions, with limits and cursors taken
+from its own rows; and paging by the last row's position reads the
+whole list, in order, once. -/
+def readableChecks (t : Checks) (seed : Nat) (db : Db) (m : DB Fact) (c : Id) : IO Unit := do
+  let whole := ((readable c none true).eval m).rows
+  t.ok s!"seed {seed}: readable lists messages below the cap and saturated ones"
+    (whole.any (·.2 matches .message ..) && whole.any (·.2 matches .received ..))
+  t.ok s!"seed {seed}: every readable row is named by a Valid message"
+    (whole.all fun (p, _) => (m.status p.2).any fun v => v matches .valid (.message ..))
+  let cursors := [0, 3, 11, 40, whole.length - 1].filterMap fun i => whole[i]?.map (·.1)
+  let mut reads := 0
+  let mut bad := 0
+  for desc in [true, false] do
+    for lim in [some 0, some 1, some 7, none] do
+      for (after, before) in [(none, none)] ++ cursors.map (fun p => (some p, none)) ++
+          cursors.map (fun p => (none, some p)) do
+        let a ← ((readable c lim desc after before).run : SqlM Fact (Answer Fact)).run db
+        reads := reads + 1
+        if a != (readable c lim desc after before).eval m then bad := bad + 1
+  t.ok s!"seed {seed}: readable on SQLite is its meaning ({reads} reads)" (bad == 0)
+  for desc in [true, false] do
+    let all := ((readable c none desc).eval m).rows
+    let mut got : List (Pos × Fact) := []
+    let mut cur : Option Pos := none
+    for _ in [0:all.length + 2] do
+      let (after, before) := if desc then (none, cur) else (cur, none)
+      let page := ((← ((readable c (some 7) desc after before).run : SqlM Fact (Answer Fact)).run db)).rows
+      if page.isEmpty then break
+      got := got ++ page
+      cur := page.getLast?.map (·.1)
+    t.ok s!"seed {seed}: pages of 7 {if desc then "newest" else "oldest"} first read the whole list once, in order ({all.length} rows)"
+      (got == all && (got.map (·.1.2)).eraseDups.length == got.length)
 
 def main : IO UInt32 := do
   let t ← Checks.new
@@ -234,7 +304,7 @@ def main : IO UInt32 := do
         let (sql, ps) := st.sql
         let lines ← explain db sql ps
         stmts := stmts + 1
-        if lines.isEmpty || !lines.all lineOk then badPlans := (sql ++ " :: " ++ toString lines) :: badPlans
+        if !planOk st lines then badPlans := (sql ++ " :: " ++ toString lines) :: badPlans
     for b in badPlans.take 3 do IO.eprintln s!"plan: {b}"
     t.ok s!"seed {seed}: every one of {stmts} statements is served by an index, unsorted" badPlans.isEmpty
     -- Negative controls: a sort the index cannot give, and a scan.
@@ -242,17 +312,21 @@ def main : IO UInt32 := do
     let scan ← explain db "SELECT count(*) FROM idx i WHERE i.s = ?" #[c]
     t.ok s!"seed {seed}: a plan that sorts is caught" (!sorted.all lineOk)
     t.ok s!"seed {seed}: a plan that scans is caught" (!scan.all lineOk)
+    let p := cursors.headD (be64 0, ByteArray.empty)
+    let filtered ← explain db "SELECT count(*) FROM idx i INDEXED BY sqlite_autoindex_idx_1 WHERE i.k = ? AND (i.s, i.id) > (?, ?)" #[c, p.1, p.2]
+    t.ok s!"seed {seed}: a range walked as a filter is caught" (!planOk (.count c [] (some p) none 0) filtered)
     -- Unions merge their lists (no sort): on SQLite as on the model.
     let lists := users.toList.map fun (_, u, _) => message.byAuthor.query [c, u]
     let mut unions := 0
     for desc in [true, false] do
       for limit in [some 0, some 5, some 30, none] do
-        for v in [View.union (F := Fact) lists limit desc,
-                  View.union (F := Fact) (lists.take 2 ++ lists.take 2) limit desc,
-                  View.union (F := Fact) ((lists.map fun q => { q with after := cursors.head? }).take 3) limit desc] do
+        for v in [unionOf lists limit desc,
+                  unionOf (lists.take 2 ++ lists.take 2) limit desc,
+                  unionOf ((lists.map fun q => { q with after := cursors.head? }).take 3) limit desc] do
           let a ← ((v.run : SqlM Fact (Answer Fact))).run db
           unions := unions + 1
           t.ok s!"seed {seed}: union {unions} on SQLite is the model's" (a == v.eval m)
+    readableChecks t seed db m c
     IO.println s!"seed {seed}: {n} queries, {base.total} valid messages, {stmts} statements' plans, {unions} unions"
   sortChecks t
   t.finish "querydiff"

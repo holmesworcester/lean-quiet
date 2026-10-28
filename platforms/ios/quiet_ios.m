@@ -55,9 +55,12 @@
 // Pixels map to points by the screen's scale (a frame pixel is a device
 // pixel), and the density Lean sizes its dp by is 160 per point.
 //
-// Debugging, from the environment (SIMCTL_CHILD_x for simctl launch):
-// LEANQUIET_CTL_PORT=<port> the control channel's TCP port on 127.0.0.1
-// (default 7417, 0: none; ctl_ios.c).
+// The control channel (ctl_ios.c) exists only in development builds
+// (LQ_CTL, set by build_ios.sh unless RELEASE=1), and every connection
+// must first send its token. From the launch's environment (SIMCTL_CHILD_x
+// for simctl launch): LEANQUIET_CTL_PORT=<port> (default 7417, 0: none),
+// LEANQUIET_CTL_TOKEN=<hex> (else a new one in Documents/ctl.token),
+// LEANQUIET_CTL_REMOTE=1 (listen on every interface, for a device test).
 
 #import <UIKit/UIKit.h>
 #import <AVFoundation/AVFoundation.h>
@@ -72,7 +75,9 @@
 #include <unistd.h>
 
 int  lean_app_main(int argc, char** argv);
-void lq_ctl_start(int port);
+#ifdef LQ_CTL
+void lq_ctl_start(int port, const char* token_file);
+#endif
 
 #define LQ_RING 3
 #define LQ_LONG_NS 500000000LL
@@ -485,12 +490,16 @@ static void lq_report(void);
 
 // Platform.scan and luma, as android/twin's Camera2 does them: the back
 // camera's frames (1280 x 720, 420f: full-range luma), and the newest
-// one's Y plane handed to Lean with the sensor's clockwise orientation (90:
-// frames come in the sensor's landscape, unrotated, and a quarter turn
-// clockwise makes them upright in portrait, as Camera2's
-// SENSOR_ORIENTATION says of a back camera). Lean draws the preview and
-// decodes (Camera.preview, Qr.decodeLuma). With no camera (the Simulator)
-// nothing starts and no frames come: Lean keeps its waiting state.
+// one's Y plane handed to Lean with the clockwise turn it still needs to be
+// upright on the portrait screen. The connection is asked to rotate the
+// buffers to portrait itself (videoRotationAngle 90, AVFoundation's
+// portrait), so AVFoundation, which knows how the camera is mounted, does
+// the turning; the turn handed to Lean is read off each frame as it comes:
+// 0 for a portrait buffer, 90 (the quarter that makes a back camera's
+// landscape buffer portrait) where the connection could not rotate. Lean
+// draws the preview and decodes (Camera.preview, Qr.decodeLuma). With no
+// camera (the Simulator) nothing starts and no frames come: Lean keeps its
+// waiting state.
 
 @interface LeanCamera : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
 @end
@@ -513,7 +522,8 @@ static uint32_t          lq_yhdr[4]; // w, h, stride, orientation
   size_t   r = CVPixelBufferGetBytesPerRowOfPlane(pb, 0);
   uint8_t* y = malloc(r * h);
   memcpy(y, CVPixelBufferGetBaseAddressOfPlane(pb, 0), r * h);
-  uint32_t hdr[4] = { (uint32_t)CVPixelBufferGetWidthOfPlane(pb, 0), (uint32_t)h, (uint32_t)r, 90 };
+  uint32_t w = (uint32_t)CVPixelBufferGetWidthOfPlane(pb, 0);
+  uint32_t hdr[4] = { w, (uint32_t)h, (uint32_t)r, w > h ? 90 : 0 };
   CVPixelBufferUnlockBaseAddress(pb, kCVPixelBufferLock_ReadOnly);
   pthread_mutex_lock(&lq_mu);
   free(lq_y);
@@ -550,9 +560,14 @@ static void lq_cam_start(void) {
   }
   [s addInput:in];
   [s addOutput:out];
+  AVCaptureConnection* cn = [out connectionWithMediaType:AVMediaTypeVideo];
+  if ([cn isVideoRotationAngleSupported:90]) {
+    cn.videoRotationAngle = 90;  // portrait buffers (see the top)
+  }
   [s startRunning];
   lq_cam = s;
-  fprintf(stderr, "camera: opened 1280x720, orientation 90\n");
+  fprintf(stderr, "camera: opened 1280x720, %s\n",
+    cn.videoRotationAngle == 90 ? "rotated to portrait by the connection" : "unrotated (Lean turns it)");
 }
 
 lean_obj_res lq_scan(uint8_t on) {
@@ -627,6 +642,7 @@ lean_obj_res lq_now_us(void) {
   return lean_io_result_mk_ok(lean_box_uint64(lq_tick() / 1000));
 }
 
+#ifdef LQ_CTL
 // What the twin did, as UIKit has it, for tests (the control channel's
 // `twin` line, answered here, not by Lean): the screen's width and
 // density, whether the list frame is a page, the header's height and the
@@ -669,6 +685,7 @@ void lq_twin_shot(char* out, size_t n) {
       im.size.width * im.scale, im.size.height * im.scale);
   });
 }
+#endif
 
 // The keyboard's text
 // -------------------
@@ -1031,11 +1048,16 @@ static void* lq_run(void* arg) {
 @implementation LeanDelegate
 
 - (BOOL)application:(UIApplication*)app didFinishLaunchingWithOptions:(NSDictionary*)opts {
+#ifdef LQ_CTL
   const char* port = getenv("LEANQUIET_CTL_PORT");
   int p = port != NULL ? atoi(port) : 7417;
   if (p > 0) {
-    lq_ctl_start(p);
+    NSString* docs = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES)[0];
+    [NSFileManager.defaultManager createDirectoryAtPath:docs withIntermediateDirectories:YES
+      attributes:nil error:NULL];
+    lq_ctl_start(p, [docs stringByAppendingPathComponent:@"ctl.token"].fileSystemRepresentation);
   }
+#endif
   lq_vsync = dispatch_semaphore_create(0);
   lq_cam_q = dispatch_queue_create("lean.camera", DISPATCH_QUEUE_SERIAL);
   lq_cam_d = [LeanCamera new];

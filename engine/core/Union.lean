@@ -4,23 +4,26 @@ to a limit, their counts summed. A list over a set of keys, "the set-y,
 listy way": for example, the messages a device can read are the union of
 one list per content key it holds (`Community.readable`).
 
-Each list is read with the same range, order and limit. Its first
-`limit` rows hold every row the union's first `limit` can need, so
-merging them and cutting again gives the union's answer. The counts are
-sums, which are right when the lists are disjoint (a fact filed under
-one of the keys only).
+Each list is read with the same range, order and limit (`View.readAll`),
+and the answers merged (`unionAnswers`). A list's first `limit` rows
+hold every row the union's first `limit` can need, so merging them and
+cutting again gives the union's answer; a reader may rename a list's
+rows first if that keeps their order (`Community.readable` names a
+receipt's row by its message). The counts are sums, which are right
+when the lists are disjoint (a fact filed under one of the keys only).
 
 It is a View like any other: it reads lists, so it runs on SQLite and on
 the model, and a notice for any of its keys re-reads it
 (`View.view_stable`).
 
-Laws: `eval_union` (its answer is the merge of the lists' answers),
-`mem_union` (each row is a row of one of the lists), `mem_union_all`
-(with no limit, its rows are exactly the lists' rows), and the merge:
-no read sorts. Each list comes back in position order (`eval_oriented`;
-on SQLite, its index's order), so the union merges them in one pass, and
+Laws: `eval_readAll` (reading the lists is evaluating each), `mem_union`
+(each row is a row of one of the lists), `mem_union_all` (with no limit,
+its rows are exactly the lists' rows), and the merge: no read sorts.
+Each list comes back in position order (`eval_oriented`; on SQLite, its
+index's order), so the union merges them in one pass (`mergeRuns`), and
 that merge is exactly the lists' rows sorted (`mergeRuns_eq_sortPos`,
-`union_rows`, `eval_union_sorted`).
+`union_rows`), so a union of lists in order is in order
+(`union_sorted`).
 -/
 import engine.core.View
 import engine.core.Decl
@@ -44,7 +47,7 @@ def mergeRuns {α} (rs : List (List (Pos × α))) : List (Pos × α) :=
 
 /-- A list's rows turned to position order (ascending): reversed if it
 was read newest first. -/
-def orient {α} (desc : Bool) (l : List (Pos × α)) : List (Pos × α) := if desc then l.reverse else l
+def orient {α} (desc : Bool) (l : List α) : List α := if desc then l.reverse else l
 
 /-- The lists' answers as one: their rows merged by position (newest
 first if `desc`), cut to `limit`; the counts summed. -/
@@ -59,7 +62,7 @@ theorem perm_mergeRuns {α} : ∀ rs : List (List (Pos × α)), (mergeRuns rs).P
     simp only [mergeRuns, List.foldr_cons, List.flatten_cons]
     exact List.Perm.trans (List.merge_perm_append (le := posLE)) (List.Perm.append_left r (perm_mergeRuns rs))
 
-theorem mem_orient {α} {desc : Bool} {l : List (Pos × α)} {a : Pos × α} : a ∈ orient desc l ↔ a ∈ l := by
+theorem mem_orient {α} {desc : Bool} {l : List α} {a : α} : a ∈ orient desc l ↔ a ∈ l := by
   unfold orient; split <;> simp
 
 /-- x before every row of r: inserting x into r's merge with t is
@@ -127,27 +130,6 @@ def View.readAll : List ListQ → View F (List (Answer F))
     let as ← View.readAll qs
     pure (a :: as)
 
-/-- Several lists read as one, each with the given limit and order. -/
-def View.union (qs : List ListQ) (limit : Option Nat) (desc : Bool := true) : View F (Answer F) := do
-  let as ← View.readAll (qs.map fun q => { q with limit, desc })
-  pure (unionAnswers desc limit as)
-
-section
-variable [SortKey F]
-
-theorem eval_readAll (s : DB F) (qs : List ListQ) :
-    (View.readAll qs : View F _).eval s = qs.map (Engine.eval s) := by
-  induction qs with
-  | nil => rfl
-  | cons q t ih => simp [View.readAll, View.eval_bind, ih]; rfl
-
-/-- **A union's answer is the merge of its lists' answers.** -/
-theorem eval_union (s : DB F) (qs : List ListQ) (limit : Option Nat) (desc : Bool) :
-    (View.union qs limit desc : View F _).eval s =
-      unionAnswers desc limit (qs.map fun q => Engine.eval s { q with limit, desc }) := by
-  simp [View.union, View.eval_bind, eval_readAll, List.map_map]
-  rfl
-
 theorem mem_mergeRuns_orient {desc : Bool} {as : List (Answer F)} {pf : Pos × F} :
     pf ∈ orient desc (mergeRuns (as.map fun a => orient desc a.rows)) ↔ ∃ a ∈ as, pf ∈ a.rows := by
   rw [mem_orient, (perm_mergeRuns _).mem_iff, List.mem_flatten]
@@ -186,6 +168,35 @@ theorem union_rows {desc : Bool} {limit : Option Nat} {as : List (Answer F)}
     obtain ⟨a, ha, rfl⟩ := List.mem_map.1 hr
     exact h a ha)]
 
+theorem pairwise_orient_cut {α} {R : α → α → Prop} {desc : Bool} {limit : Option Nat} {l : List α}
+    (h : l.Pairwise R) :
+    (orient desc (match limit with | none => orient desc l | some n => (orient desc l).take n)).Pairwise R := by
+  have hr : l.reverse.Pairwise (fun a b => R b a) := List.pairwise_reverse.2 h
+  cases desc <;> cases limit <;> simp only [orient, Bool.false_eq_true, ite_true, ite_false, List.reverse_reverse]
+  · exact h
+  · exact h.sublist (List.take_sublist _ _)
+  · exact h
+  · exact List.pairwise_reverse.2 (hr.sublist (List.take_sublist _ _))
+
+/-- **A union of lists in order is in order**: its rows, turned to
+ascending, are in position order, cut or not. -/
+theorem union_sorted {desc : Bool} {limit : Option Nat} {as : List (Answer F)}
+    (h : ∀ a ∈ as, (orient desc a.rows).Pairwise (fun p q => posLE p q = true)) :
+    (orient desc (unionAnswers desc limit as).rows).Pairwise (fun p q => posLE p q = true) := by
+  rw [union_rows h]
+  apply pairwise_orient_cut
+  rw [sortPos_eq_fast]
+  exact List.pairwise_mergeSort posLE_trans posLE_total _
+
+section
+variable [SortKey F]
+
+theorem eval_readAll (s : DB F) (qs : List ListQ) :
+    (View.readAll qs : View F _).eval s = qs.map (Engine.eval s) := by
+  induction qs with
+  | nil => rfl
+  | cons q t ih => simp [View.readAll, View.eval_bind, ih]; rfl
+
 /-- **A list's rows are in position order**: ascending, or descending
 when it is read newest first. -/
 theorem eval_oriented (s : DB F) (q : ListQ) :
@@ -204,19 +215,6 @@ theorem eval_oriented (s : DB F) (q : ListQ) :
         (fun a b => posLE b a = true) := List.pairwise_reverse.2 hf
     rw [List.pairwise_reverse]
     exact hr.sublist (List.take_sublist _ _)
-
-/-- **A union, as it is read, is its lists' rows sorted.** On the model
-every list is in order (`eval_oriented`), so the union's merge is
-`sortPos` (`union_rows`). -/
-theorem eval_union_sorted (s : DB F) (qs : List ListQ) (limit : Option Nat) (desc : Bool) :
-    ((View.union qs limit desc : View F _).eval s).rows =
-      let ordered := orient desc (sortPos
-        (qs.map fun q => orient desc (Engine.eval s { q with limit, desc }).rows).flatten)
-      match limit with | none => ordered | some n => ordered.take n := by
-  rw [eval_union, union_rows (fun a ha => by
-    obtain ⟨q, _, rfl⟩ := List.mem_map.1 ha
-    exact eval_oriented s { q with limit, desc })]
-  simp [List.map_map, Function.comp_def]
 
 end
 

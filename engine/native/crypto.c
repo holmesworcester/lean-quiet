@@ -100,13 +100,15 @@ LEAN_EXPORT lean_obj_res le_ed_pk_to_x(b_lean_obj_arg pk) {
   return bytes(x, 32);
 }
 
+// key (32), counter nonce, ad, plaintext -> ciphertext; empty bytes if the
+// key is not 32 bytes, as le_xchacha_seal does. Never a fallback key: open
+// refuses a wrong-sized key, so sealing under one must too.
 LEAN_EXPORT lean_obj_res le_chachapoly_seal(b_lean_obj_arg k, uint64_t n, b_lean_obj_arg ad,
     b_lean_obj_arg p) {
+  if (lean_sarray_size(k) != 32) return bytes(NULL, 0);
   size_t m = lean_sarray_size(p);
   lean_object* r = lean_alloc_sarray(1, m + 16, m + 16);
-  uint8_t zero[32] = {0};
-  const uint8_t* key = lean_sarray_size(k) == 32 ? ptr(k) : zero;
-  lq_chachapoly_seal(lean_sarray_cptr(r), key, n, ptr(ad), lean_sarray_size(ad), ptr(p), m);
+  lq_chachapoly_seal(lean_sarray_cptr(r), ptr(k), n, ptr(ad), lean_sarray_size(ad), ptr(p), m);
   return r;
 }
 

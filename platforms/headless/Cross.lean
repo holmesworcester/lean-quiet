@@ -96,8 +96,9 @@ def main (args : List String) : IO UInt32 := do
   let screen : Array UInt32 := #[1080, 2400, 128, 63, 420]
   let sa ← Sim.new
   let sb ← Sim.new
-  let a0 ← App.start sa.io screen (dir ++ "/a/quiet.db") (some (47221, true))
-  let b0 ← App.start sb.io screen (dir ++ "/b/quiet.db") (some (47222, true))
+  let (pa, pb) ← testPorts
+  let a0 ← App.start sa.io screen (dir ++ "/a/quiet.db") (some (pa, true))
+  let b0 ← App.start sb.io screen (dir ++ "/b/quiet.db") (some (pb, true))
   -- each founds "club" as "Ann", and gives its link
   let (la, a1) ← (show M String from do
     sa.cmds.modify (·.push "found club|Ann"); steps 3; waitIdle sa; steps 3

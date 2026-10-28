@@ -1,26 +1,30 @@
 #!/bin/sh
 # The app end to end on an iPhone, on the Mac: installs the .app
 # (devicectl), launches it with its console and the control channel on
-# every interface (LEANQUIET_CTL_ADDR=any), reads the phone's Wi-Fi address
-# from the console, and drives it from the Mac over the Wi-Fi (ctl.py):
+# every interface (LEANQUIET_CTL_REMOTE=1) behind a token made for this run
+# (LEANQUIET_CTL_TOKEN: nobody else on the Wi-Fi can drive it), reads the
+# phone's Wi-Fi address from the console, and drives it from the Mac over
+# the Wi-Fi (ctl.py, sending the token first):
 # the chaos data if the database has none, then the app must answer, hold
 # the data, have rows mounted, and keep drawing frames (stats twice, 5 s
 # apart). The console goes to work_dir/out/device-console.txt. At the end
 # the app is launched again without the console (ending the console's
-# launch ends the app), on the phone for the person holding it.
+# launch ends the app), on the phone for the person holding it: on
+# 127.0.0.1 alone, with a token of its own.
 #
 #   device_mac.sh work_dir app device_id port messages
 set -eu
 w=$1; app=$2; dev=$3; port=$4; n=$5
 export DEVELOPER_DIR=${DEVELOPER_DIR:-/Applications/Xcode-26.3.0.app/Contents/Developer}
 here=$(cd "$(dirname "$0")" && pwd)
+tok=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
 out=$w/out
 mkdir -p "$out"
 con=$out/device-console.txt
 rm -f "$con"
 xcrun devicectl device install app --device "$dev" "$app" >/dev/null
 xcrun devicectl device process launch --console --terminate-existing --device "$dev" \
-  --environment-variables "{\"LEANQUIET_CTL_ADDR\":\"any\",\"LEANQUIET_CTL_PORT\":\"$port\"}" \
+  --environment-variables "{\"LEANQUIET_CTL_REMOTE\":\"1\",\"LEANQUIET_CTL_TOKEN\":\"$tok\",\"LEANQUIET_CTL_PORT\":\"$port\"}" \
   local.leanquiet.app > "$con" 2>&1 &
 cp=$!
 fail() {
@@ -37,7 +41,7 @@ for _ in $(seq 60); do
 done
 [ -n "$ip" ] || fail "no en0 address on the console ($con)"
 echo "phone at $ip"
-ctl() { python3 "$here/ctl.py" -H "$ip" -p "$port" -w 60 "$@"; }
+ctl() { python3 "$here/ctl.py" -H "$ip" -p "$port" -T "$tok" -w 60 "$@"; }
 st=$(ctl state) || fail "the app does not answer at $ip:$port (local network permission?)"
 echo "$st"
 total=$(echo "$st" | sed -n 's/.* total \([0-9]*\) .*/\1/p')

@@ -29,6 +29,109 @@ def sendable (db : Db) : IO (List Op) := do
   let all ← (dumpOps (F := Fact)).run db
   (offer fam (all.map (·.id)) : SqlM Fact (List Op)).run db
 
+/-- The channel's order, on A and B once both are admitted to c and
+hold its content key kA: a counter every device shares, the time
+breaking ties, then the id; past the counter cap, each device's own
+receipts. A node writes a receipt for every op it takes
+(`Connection.onArrival`, each job's receipts reading the store as it was
+before them); `arrive` does the same here. -/
+def channelOrder (t : Checks) (a b : Db) (c : Id) (kA seedA seedB : ByteArray) : IO Unit := do
+  let dA := Device.ofSeed seedA
+  let dB := Device.ofSeed seedB
+  let kid := kidOf cryptoSeal kA
+  let mine (db : Db) (w : Write) : IO Unit := (receive fam (intake fam true w.ops)).run db
+  let fromPeer (db : Db) (ops : List Op) : IO Unit := (receive fam (intake fam false ops)).run db
+  let sendOn (db : Db) (v : View Fact Write) : IO Write := (v.run : SqlM Fact Write).run db
+  let rd (db : Db) : IO (Answer Fact) := ((readable c (some 50)).run : SqlM Fact (Answer Fact)).run db
+  let receipts (db : Db) (ops : List Op) : IO (List Op) := do
+    let mut out := []
+    for o in ops do out := out ++ (← ((receiptFor o).run : SqlM Fact (List Op)).run db)
+    return out
+  let arrive (db : Db) (ops : List Op) : IO Unit := do
+    fromPeer db ops
+    mine db ⟨← receipts db ops⟩
+  let sync : IO Unit := do
+    arrive a (← sendable b)
+    arrive b (← sendable a)
+  let order (db : Db) : IO (List Id) := return (← rd db).rows.map (·.1.2)
+  let counterOf (o : Op) : Nat := match (Codec.decode o.body : Option Body) with
+    | some (.post _ _ n _ _) => n | _ => 0
+  let nonceOf (tag : String) : ByteArray := (sha256 tag.toUTF8).extract 0 24
+  let admOf (db : Db) (d : Device) : IO Id := do
+    return ((← rows db (admission.byDevice.query [c, d.pk] (limit := some 1))).headD default).1.2
+  let admA ← admOf a dA
+  let admB ← admOf b dB
+  let mins := 29350000  -- minutes since the Unix epoch, late October 2026
+  sync
+  t.ok "before writing, A and B list the same messages" ((← order a) == (← order b))
+  -- Concurrent sends hold the same messages, so they claim the same
+  -- counter; the earlier time sorts first.
+  let wA1 ← sendOn a (send c admA dA kA (nonceOf "A1") "A1".toUTF8 (mins + 500))
+  let wB1 ← sendOn b (send c admB dB kA (nonceOf "B1") "B1".toUTF8 (mins + 400))
+  let pA1 := wA1.ops.headD default
+  let pB1 := wB1.ops.headD default
+  t.ok "concurrent sends claim the same counter, one past the highest held"
+    (counterOf pA1 == counterOf pB1 && counterOf pA1 ≥ 2 && wA1.ops.length == 1)
+  mine a wA1
+  mine b wB1
+  sync
+  t.ok "equal counters: the earlier time first, on both devices"
+    ((← order a).take 2 == [pA1.id, pB1.id] && (← order b).take 2 == [pA1.id, pB1.id])
+  -- Equal counter and time: the id decides.
+  let wA2 ← sendOn a (send c admA dA kA (nonceOf "A2") "A2".toUTF8 (mins + 600))
+  let wB2 ← sendOn b (send c admB dB kA (nonceOf "B2") "B2".toUTF8 (mins + 600))
+  let pA2 := wA2.ops.headD default
+  let pB2 := wB2.ops.headD default
+  mine a wA2
+  mine b wB2
+  sync
+  let (lo, hi) := if bcmp pA2.id pB2.id == .lt then (pA2, pB2) else (pB2, pA2)
+  t.ok "equal counter and time: the larger id is newer, on both devices"
+    (counterOf pA2 == counterOf pB2 && (← order a).take 2 == [hi.id, lo.id] && (← order b).take 2 == [hi.id, lo.id])
+  -- Time is for display: a clock far behind still sorts last-written last.
+  let wA3 ← sendOn a (send c admA dA kA (nonceOf "A3") "A3".toUTF8 5)
+  let pA3 := wA3.ops.headD default
+  mine a wA3
+  sync
+  t.ok "a send with a clock far behind still sorts after everything its device held, on both"
+    (counterOf pA3 == counterOf hi + 1 && (← order a).head? == some pA3.id && (← order b).head? == some pA3.id)
+  -- A member claims a huge counter (written raw, not by `send`).
+  let huge := sealedPost c admB dB kA (nonceOf "huge") "MAX".toUTF8 (2 ^ 200) (mins + 700)
+  mine b ⟨[huge]⟩
+  mine b ⟨← receipts b [huge]⟩
+  sync
+  t.ok "a message claiming a huge counter is Valid on A"
+    ((← (Store.getStatus (F := Fact) (m := SqlM Fact) huge.id).run a) matches some (.valid _))
+  t.ok "A holds one receipt of it, its first in c"
+    ((← rows a (received.byMsg.query [huge.id])).map (·.2) == [.received c kid huge.id 1])
+  t.ok "it is listed after every message below the cap, on both"
+    ((← order a).take 2 == [huge.id, pA3.id] && (← order b).take 2 == [huge.id, pA3.id])
+  -- Past the cap: every send claims the cap and carries its receipt,
+  -- and each device lists in its own arrival order.
+  let wA4 ← sendOn a (send c admA dA kA (nonceOf "A4") "A4".toUTF8 (mins + 800))
+  let wB4 ← sendOn b (send c admB dB kA (nonceOf "B4") "B4".toUTF8 (mins + 800))
+  let pA4 := wA4.ops.headD default
+  let pB4 := wB4.ops.headD default
+  t.ok "past the cap, a send claims the cap and writes its receipt, one past the newest"
+    (counterOf pA4 == countCap && wA4.ops.map (·.id) == [pA4.id, (receipt pA4.id 2).id])
+  mine a wA4
+  mine b wB4
+  t.ok "each device lists its own saturated message newest at once"
+    ((← order a).head? == some pA4.id && (← order b).head? == some pB4.id)
+  sync
+  t.ok "past the cap, each device lists in its own arrival order (the two disagree)"
+    ((← order a).take 3 == [pB4.id, pA4.id, huge.id] && (← order b).take 3 == [pA4.id, pB4.id, huge.id])
+  let oa ← order a
+  let ob ← order b
+  t.ok "and every message is listed once, the same set on both"
+    (oa.length == ob.length && oa.all ob.contains && oa.eraseDups.length == oa.length)
+  t.ok "receipts never leave a device" ((← sendable a).all fun o => o.kind != 24)
+  t.ok "a message already received gets no second receipt" ((← receipts a [pB4, huge, pA4]).isEmpty)
+  let lowRcpt := receipt pA3.id 9
+  mine a ⟨[lowRcpt]⟩
+  t.ok "a receipt of a message below the cap is refused"
+    ((← (Store.getStatus (F := Fact) (m := SqlM Fact) lowRcpt.id).run a) == some .invalid)
+
 def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/lifecycle"
   IO.FS.createDirAll dir
@@ -41,6 +144,7 @@ def main (args : List String) : IO UInt32 := do
   let dB := Device.ofSeed seedB
   let mine (db : Db) (w : Write) : IO Unit := (receive fam (intake fam true w.ops)).run db
   let fromPeer (db : Db) (ops : List Op) : IO Unit := (receive fam (intake fam false ops)).run db
+  let sendOn (db : Db) (v : View Fact Write) : IO Write := (v.run : SqlM Fact Write).run db
 
   -- A founds Acme as Ann: the secret, the root, the acceptance, the
   -- name, A's profile, and the community's content key, wrapped to A.
@@ -55,11 +159,11 @@ def main (args : List String) : IO UInt32 := do
   t.ok "A's device key is a real X25519 key" (dA.enc.size == 32 && cryptoSeal.pub dA.encSecret == dA.enc)
   -- A posts: the text is sealed; the op and its fact hold only ciphertext.
   let nonce := (sha256 "nonce 1".toUTF8).extract 0 24
-  let wpost := send c c dA kA nonce "hello from Ann".toUTF8 3 []
+  let wpost ← sendOn a (send c c dA kA nonce "hello from Ann".toUTF8 3 [])
   mine a wpost
   let msgs ← rows a (message.all.query [c])
   let sealed := msgs.findSome? fun (_, f) => match f with
-    | .message _ _ _ k s _ => if k == kid then some s else none
+    | .message _ _ _ k s _ _ => if k == kid then some s else none
     | _ => none
   t.ok "A's post is Valid, under the key's id" sealed.isSome
   let ct := sealed.getD .empty
@@ -146,15 +250,15 @@ def main (args : List String) : IO UInt32 := do
   let after ← rd b
   t.ok "now B's readable messages list A's post, and only it"
     (after.rows.length == 1 && after.total == 1 &&
-      after.rows.all fun (_, f) => match f with | .message _ _ _ k _ _ => k == kid | _ => false)
+      after.rows.all fun (_, f) => match f with | .message _ _ _ k _ _ _ => k == kid | _ => false)
   t.ok "A reads the same one message" ((← rd a).rows.length == 1)
   -- A message under a key nobody here holds stays hidden.
   let kX := sha256 "a key never wrapped".toUTF8
-  mine a (send c c dA kX ((sha256 "nonce X".toUTF8).extract 0 24) "unreadable".toUTF8 4)
+  mine a (← sendOn a (send c c dA kX ((sha256 "nonce X".toUTF8).extract 0 24) "unreadable".toUTF8 4))
   t.ok "A stores the message under the unheld key" ((← rows a (message.all.query [c])).length == 2)
   t.ok "but A's readable messages still hold only the one under its key" ((← rd a).rows.length == 1)
   let ctB := (← rows b (message.all.query [c])).findSome? fun (_, f) => match f with
-    | .message _ _ _ _ s _ => some s | _ => none
+    | .message _ _ _ _ s _ _ => some s | _ => none
   t.ok "B opens A's post" ((ctB.bind fun s => kB.bind fun k => openSealed cryptoSeal c kid s k)
     == some "hello from Ann".toUTF8)
   let wu2 ← ((unwrap c dB).run : SqlM Fact Write).run b
@@ -175,7 +279,7 @@ def main (args : List String) : IO UInt32 := do
   let info : FileMeta := ⟨"photo.qoi".toUTF8, "image/qoi".toUTF8, 640, 480, "tiny preview".toUTF8⟩
   let nf : NewFile := ⟨info, plainFile, sha256 "file key".toUTF8, (sha256 "file nonce".toUTF8).extract 0 24,
     (sha256 "info nonce".toUTF8).extract 0 24⟩
-  let wf := send c c dA kA ((sha256 "nonce 2".toUTF8).extract 0 24) "a photo".toUTF8 7 [nf]
+  let wf ← sendOn a (send c c dA kA ((sha256 "nonce 2".toUTF8).extract 0 24) "a photo".toUTF8 7 [nf])
   let nc := Merkle.nChunks (fileCipher nf).size
   t.ok "the send writes the post, the attachment and the chunks" (wf.ops.length == 2 + nc && nc == 4)
   mine a wf
@@ -226,7 +330,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "with it, every chunk is Valid" ((← countValid solo chunkOps) == nc)
   -- The same file attached to a second post: its own attachment, its
   -- own chunks, none shared with the first.
-  let wf2 := send c c dA kA ((sha256 "nonce 3".toUTF8).extract 0 24) "the photo again".toUTF8 8 [nf]
+  let wf2 ← sendOn a (send c c dA kA ((sha256 "nonce 3".toUTF8).extract 0 24) "the photo again".toUTF8 8 [nf])
   let chunks2 := wf2.ops.drop 2
   t.ok "the same file sent twice shares no chunk op"
     (chunks2.length == nc && chunks2.all fun o => !(chunkOps.any (·.id == o.id)))
@@ -238,7 +342,7 @@ def main (args : List String) : IO UInt32 := do
     let wrongLen := mkOp [c, att] (.chunk r (l + 1) i sl p)
     -- another post's attachment, with another file: this chunk is not its
     let nf3 : NewFile := { nf with bytes := "other bytes".toUTF8, key := sha256 "file key 3".toUTF8 }
-    let wf3 := send c c dA kA ((sha256 "nonce 4".toUTF8).extract 0 24) "other".toUTF8 9 [nf3]
+    let wf3 ← sendOn a (send c c dA kA ((sha256 "nonce 4".toUTF8).extract 0 24) "other".toUTF8 9 [nf3])
     let att3 := (wf3.ops.getD 1 default).id
     let foreign := mkOp [c, att3] (.chunk r l i sl p)
     fromPeer solo ([wf3.ops.headD default, wf3.ops.getD 1 default] ++ [bad, short, wrongIndex, wrongLen, foreign])
@@ -340,6 +444,8 @@ def main (args : List String) : IO UInt32 := do
   mine a (← ((approveReq c reqC.id c dA).run : SqlM Fact Write).run a)
   fromPeer cdb (← sendable a)
   t.ok "an approval after stopping still admits C" (← ((allowPeer c dC.pk).run : SqlM Fact Bool).run cdb)
+
+  channelOrder t a b c kA seedA seedB
 
   -- A secret whose seed is not its key's is refused.
   let bad := mkOp [] (.secret dB.pk seedA)

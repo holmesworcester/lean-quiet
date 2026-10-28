@@ -17,6 +17,13 @@ structure Sim where
   camera : IO.Ref (Array UInt32 × ByteArray)
   on : IO.Ref Bool
 
+/-- Two loopback ports for a test's two nodes, from its process id: tests
+running at once (in other worktrees too) get different ports, below
+Linux's ephemeral range so no outbound socket holds them. -/
+def testPorts : IO (Nat × Nat) := do
+  let p := 20000 + (← IO.Process.getPID).toNat % 5000 * 2
+  return (p, p + 1)
+
 def Sim.new : IO Sim := do
   return ⟨← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef (#[], 0, 0, #[], #[]), ← IO.mkRef 0,
     ← IO.mkRef (#[], .empty), ← IO.mkRef false⟩

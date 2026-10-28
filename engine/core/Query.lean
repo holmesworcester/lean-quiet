@@ -15,7 +15,7 @@ if the other keys hold it too. The differential test checks the two
 agree; QTests in the app checks it on real workloads. A read never
 sorts: SQLite walks the index in the list's order, and what a read runs
 is a few statements computed as data (`readPlan`), so its cost is a law
-under a stated assumption about SQLite's B-trees (`Seeks`): a one-key
+under a stated assumption about SQLite's B-trees (`SeekCost`): a one-key
 read costs two seeks and a step and a seek per row it returns, however
 long the list (`readPlan_cost`, `readPlan_cost_range`).
 
@@ -227,7 +227,7 @@ theorem Pos.cmp_eq {p q : Pos} (h : p.cmp q = .eq) : p = q := by
   simp only [Pos.cmp, Ordering.then_eq_eq] at h
   exact Prod.ext (bcmp_eq h.1) (bcmp_eq h.2)
 
-theorem Pos.cmp_lt_trans {p q r : Pos} (h1 : p.cmp q = .lt) (h2 : q.cmp r ≠ .gt) : p.cmp r = .lt := by
+theorem Pos.cmp_lt_le_trans {p q r : Pos} (h1 : p.cmp q = .lt) (h2 : q.cmp r ≠ .gt) : p.cmp r = .lt := by
   have hpr := Pos.cmp_trans (by rw [h1]; decide) h2
   cases e : p.cmp r
   · rfl
@@ -240,7 +240,7 @@ theorem Pos.cmp_lt_trans {p q r : Pos} (h1 : p.cmp q = .lt) (h2 : q.cmp r ≠ .g
 /-- p past y, and q not before p: q is past y. -/
 theorem Pos.cmp_gt_of_le {p q y : Pos} (hpq : p.cmp q ≠ .gt) (hpy : p.cmp y = .gt) : q.cmp y = .gt := by
   have hyp : y.cmp p = .lt := by rw [Pos.cmp_swap p y, hpy]; rfl
-  have := Pos.cmp_lt_trans hyp hpq
+  have := Pos.cmp_lt_le_trans hyp hpq
   rw [Pos.cmp_swap y q, this]; rfl
 
 /-- `sortPos`'s comparison: p goes before q unless p's position is past q's. -/
@@ -380,15 +380,33 @@ def natOf (rows : Array (Array ByteArray)) : Nat :=
 def countOf {F} (k : ByteArray) : SqlM F Nat := do
   return natOf (← (Stmt.counter k).run (F := F))
 
-/-- The conjunct with the fewest rows, and the others. -/
+/-- The first key with the fewest rows: what a conjunction walks. -/
+def pickMin : ByteArray × Nat → List (ByteArray × Nat) → ByteArray × Nat
+  | best, [] => best
+  | best, kn :: rest => pickMin (if kn.2 < best.2 then kn else best) rest
+
+/-- **A conjunction walks its smallest conjunct**: the key `pickMin`
+picks has no more rows than any key of the conjunction. -/
+theorem pickMin_le : ∀ (best : ByteArray × Nat) (rest : List (ByteArray × Nat)),
+    ∀ kn ∈ best :: rest, (pickMin best rest).2 ≤ kn.2
+  | best, [], kn, h => by simp at h; subst h; exact Nat.le_refl _
+  | best, x :: rest, kn, h => by
+    have ih := pickMin_le (if x.2 < best.2 then x else best) rest
+    have hb : (if x.2 < best.2 then x else best).2 ≤ best.2 := by split <;> omega
+    have hx : (if x.2 < best.2 then x else best).2 ≤ x.2 := by split <;> omega
+    simp only [pickMin]
+    rcases List.mem_cons.1 h with rfl | h
+    · exact Nat.le_trans (ih _ (List.mem_cons_self ..)) hb
+    rcases List.mem_cons.1 h with rfl | h
+    · exact Nat.le_trans (ih _ (List.mem_cons_self ..)) hx
+    · exact ih kn (List.mem_cons_of_mem _ h)
+
+/-- The conjunct with the fewest rows (by its counter), and the others. -/
 def pickWalk {F} (q : ListQ) : SqlM F (ByteArray × List ByteArray × Nat) := do
-  let mut best := q.key
-  let mut bestN ← countOf (F := F) q.key
-  for k in q.also do
-    let n ← countOf (F := F) k
-    if n < bestN then best := k; bestN := n
-  let all := q.key :: q.also
-  return (best, all.filter (· != best), bestN)
+  let n ← countOf (F := F) q.key
+  let ns ← q.also.mapM fun k => do pure (k, ← countOf (F := F) k)
+  let (best, bestN) := pickMin (q.key, n) ns
+  return (best, (q.key :: q.also).filter (· != best), bestN)
 
 /-- What a list runs once it has chosen the key it walks (k, with n
 rows): its rows (none when it asks counts only), the range's count (none
@@ -427,16 +445,34 @@ def listSql {F} [Codec F] (q : ListQ) : SqlM F (Answer F) := do
 
 /-! ## What a read costs
 
-**The assumption** (`Seeks`, about SQLite, not proven here): a seek in a
-B-tree costs at most `seek` (O(log N) for N rows), and each next row of
-an index in its order at most `step` (O(1)); and a statement that reads
-in its index's order with a LIMIT and nothing else filtering walks no
-row past its limit (`Stmt.walks`). A statement's cost is then counted
-on the rows it walks (`Stmt.cost`). -/
+**The assumption** (`SeekCost`, about SQLite's B-trees, not proven
+here): a seek costs at most c·(log₂ N + 1) for N rows, and each next row
+of an index, in its order, at most `step`; a statement that reads in its
+index's order with a LIMIT and nothing else filtering walks no row past
+its limit, and a range bound is a seek, not a filter (`Stmt.walks`; the
+join on `status` filters nothing, as every row of `idx` is a decided
+op's). tests/engine/QueryDiff checks each statement's plan is such a
+walk: an index search on the range, never a scan, never a sort. A
+statement's cost is then counted on the rows it walks (`Stmt.cost`), m
+being the rows under the key it walks (which the counters make the
+smallest conjunct: `pickMin_le`).
 
-structure Seeks where
-  seek : Nat
+The laws: a one-key read costs two seeks and, per row it returns, a step
+and a seek, whatever m is (`readPlan_cost`): the range's count and the
+total come from the counter. With a range, a capped count adds its cap
+(`readPlan_cost_range`). What is left walks the range, O(m) and no more
+(`readPlan_cost_le`): a range's count with no cap (cap 0), and a
+conjunction (its rows, as kept rows are not the walked ones, and its
+total). -/
+
+structure SeekCost where
+  c : Nat
   step : Nat
+  /-- The rows of the largest B-tree. -/
+  N : Nat
+
+/-- A seek's cost: c·(log₂ N + 1). -/
+def SeekCost.seek (c : SeekCost) : Nat := c.c * (Nat.log2 c.N + 1)
 
 /-- The most rows a statement walks when its key's range holds m rows:
 up to its limit (or cap) when nothing else filters, else all of them. -/
@@ -448,18 +484,18 @@ def Stmt.walks (m : Nat) : Stmt → Nat
 
 /-- A statement's cost: its seek, then per row walked a step and a seek
 for each key it checks (and, for rows, the verdict's seek). -/
-def Stmt.cost (c : Seeks) (m : Nat) (st : Stmt) : Nat :=
+def Stmt.cost (c : SeekCost) (m : Nat) (st : Stmt) : Nat :=
   match st with
   | .counter _ => c.seek
   | .rows _ others _ _ _ _ => c.seek + st.walks m * (c.step + (others.length + 1) * c.seek)
   | .count _ others _ _ _ => c.seek + st.walks m * (c.step + others.length * c.seek)
 
-def planCost (c : Seeks) (m : Nat) (ss : List Stmt) : Nat := (ss.map (·.cost c m)).sum
+def planCost (c : SeekCost) (m : Nat) (ss : List Stmt) : Nat := (ss.map (·.cost c m)).sum
 
 /-- **A one-key read costs its limit, not its list**: with no other key
 and no range, reading q costs two seeks and, per row it returns, a step
 and a seek, however many rows the list holds (m). -/
-theorem readPlan_cost (c : Seeks) (m n : Nat) {q : ListQ} (ha : q.also = []) (hr : q.after = none)
+theorem readPlan_cost (c : SeekCost) (m n : Nat) {q : ListQ} (ha : q.also = []) (hr : q.after = none)
     (hb : q.before = none) (hl : q.limit = some n) :
     planCost c m (readPlan q q.key []) ≤ 2 * c.seek + n * (c.step + c.seek) := by
   have hw := Nat.mul_le_mul_right (c.step + c.seek) (Nat.min_le_left n m)
@@ -471,7 +507,7 @@ theorem readPlan_cost (c : Seeks) (m n : Nat) {q : ListQ} (ha : q.also = []) (hr
     omega
 
 /-- **With a range, a capped count adds at most its cap.** -/
-theorem readPlan_cost_range (c : Seeks) (m n : Nat) {q : ListQ} (ha : q.also = [])
+theorem readPlan_cost_range (c : SeekCost) (m n : Nat) {q : ListQ} (ha : q.also = [])
     (hl : q.limit = some n) (hc : q.cap ≠ 0) :
     planCost c m (readPlan q q.key []) ≤ 3 * c.seek + n * (c.step + c.seek) + q.cap * c.step := by
   rcases q with ⟨key, also, after, before, desc, limit, cap⟩
@@ -481,6 +517,67 @@ theorem readPlan_cost_range (c : Seeks) (m n : Nat) {q : ListQ} (ha : q.also = [
   have hm := Nat.mul_le_mul_right c.step (Nat.min_le_left cap m)
   cases after <;> cases before <;> by_cases h0 : n = 0 <;>
     simp [readPlan, listPlan, Plan.stmts, planCost, Stmt.cost, Stmt.walks, h0, hc] <;> omega
+
+theorem Stmt.walks_le (m : Nat) (st : Stmt) : st.walks m ≤ m := by
+  unfold Stmt.walks
+  split
+  · exact Nat.zero_le _
+  · split
+    · exact Nat.min_le_right _ _
+    · exact Nat.le_refl _
+  · exact Nat.le_refl _
+  · split
+    · exact Nat.min_le_right _ _
+    · exact Nat.le_refl _
+
+/-- One statement of a plan walking k, checking `others`. -/
+theorem plan_stmt_cost (c : SeekCost) (m : Nat) {q : ListQ} {k : ByteArray} {others : List ByteArray}
+    {st : Stmt} (h : st ∈ (listPlan q k others).stmts) :
+    st.cost c m ≤ c.seek + m * (c.step + (others.length + 1) * c.seek) := by
+  have hw := Stmt.walks_le m st
+  simp only [Plan.stmts, listPlan, List.mem_append, Option.mem_toList] at h
+  rcases h with (h | h) | h <;> (split at h <;> simp only [Option.some.injEq, reduceCtorEq] at h) <;>
+    subst h <;> simp only [Stmt.cost] at hw ⊢ <;>
+    (apply Nat.add_le_add_left; apply Nat.mul_le_mul hw; apply Nat.add_le_add_left;
+     apply Nat.mul_le_mul_right; omega)
+
+/-- **No read walks more than its range**: every read costs a seek per
+key, and at most three walks of the m rows under the key it walks, each
+row a step and a seek per key it checks. -/
+theorem readPlan_cost_le (c : SeekCost) (m : Nat) (q : ListQ) (k : ByteArray) (others : List ByteArray) :
+    planCost c m (readPlan q k others) ≤
+      (q.also.length + 1) * c.seek + 3 * (c.seek + m * (c.step + (others.length + 1) * c.seek)) := by
+  have hst := fun st (h : st ∈ (listPlan q k others).stmts) => plan_stmt_cost c m h
+  generalize c.seek + m * (c.step + (others.length + 1) * c.seek) = B at hst ⊢
+  have hl : (listPlan q k others).stmts.length ≤ 3 := by
+    have one : ∀ o : Option Stmt, o.toList.length ≤ 1 := fun o => by cases o <;> simp
+    have h1 := one (listPlan q k others).rows
+    have h2 := one (listPlan q k others).inRange
+    have h3 := one (listPlan q k others).total
+    simp only [Plan.stmts, List.length_append]
+    omega
+  have hs : ∀ l : List Stmt, (∀ st ∈ l, st.cost c m ≤ B) → (l.map (·.cost c m)).sum ≤ l.length * B := by
+    intro l h
+    induction l with
+    | nil => simp
+    | cons x t ih =>
+      simp only [List.map_cons, List.sum_cons, List.length_cons, Nat.succ_mul]
+      have := h x (List.mem_cons_self ..)
+      have := ih fun st hst => h st (List.mem_cons_of_mem _ hst)
+      omega
+  have hc : ∀ l : List ByteArray, ((l.map Stmt.counter).map (·.cost c m)).sum = l.length * c.seek := by
+    intro l; induction l with
+    | nil => simp
+    | cons x t ih =>
+      rw [List.map_cons, List.map_cons, List.sum_cons, ih, List.length_cons, Nat.succ_mul]
+      simp only [Stmt.cost]
+      omega
+  have h1 := hs _ hst
+  have h2 := Nat.mul_le_mul_right B hl
+  have h3 := hc (q.key :: q.also)
+  simp only [List.length_cons] at h3
+  simp only [planCost, readPlan, List.map_append, List.sum_append]
+  omega
 
 /-! ## The one read -/
 
