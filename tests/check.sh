@@ -10,6 +10,7 @@ export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
 (cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
 lake build
+lake build +Main  # the app's main, which tests/Wiring.lean walks from
 out=$(lake env lean tests/Axioms.lean 2>&1)
 echo "$out"
 if grep -qE "sorryAx|error" <<<"$out"; then echo "sorry or error" >&2; exit 1; fi
