@@ -119,29 +119,12 @@ nothing else is assumed:
 - **That each statement says what we mean.** Read it: every name below
   links to its statement.
 
-### How to read it
+### Key
 
-- **The attacker** is any peer, a removed member included, or anyone on
-  the network. It sends any bytes, and replays, delays, reorders or
-  drops any message. It cannot break the cryptography, or control a
-  member's device.
-- **Each theorem is about the functions that run** in the app and the
-  daemon, over the engine's own store. *(model)* marks a theorem about
-  a separate model instead.
-- **The Community laws are proven over a store of that family alone.**
-  The running node composes it with the Connection family. That
-  composition is proven op by op (`sum_left`), but not yet for the
-  whole store (`sum_project`, wanted below).
-- **All 364 rest on Lean's standard axioms only:** no `sorry` and no
-  added axiom, as `tests/check.sh` checks.
-- **The tables are short; the long stories are below them,** under
-  [Proofs in depth](#proofs-in-depth), where each row's More link goes.
-- **Each name links to its docstring and statement.**
-  `ci/proof-links.py` writes the links from Lean's declaration ranges,
-  and local CI fails when they go stale.
-
-✅ proven · 🟡 partly · ⬜ wanted. 🥊🥊🥊 is what a user is promised;
-🥊🥊 is what that rests on; 🥊 is supporting.
+✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
+over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
+that rests on; 🥊 is supporting. All 364 rest on Lean's standard axioms
+only.
 
 ### Against an attacker
 
@@ -236,7 +219,8 @@ The theorems not listed here are lemmas. The axiom audit,
 ## Proofs in depth
 
 The rows above that need more than a line, in full: what is proven,
-what is not yet, and what is wanted. ✅ proven · 🟡 partly · ⬜ wanted.
+what is not yet, and what is wanted. ✅ proven over running code ·
+🟡 partly · ⬜ wanted.
 
 ### Disclosure and intake
 
