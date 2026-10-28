@@ -1,30 +1,16 @@
 # Lean Quiet
 
-**A peer-to-peer, local-first Discord, prototyped in Lean 4.** Lean runs
-its CRDT engine, its sync and its encrypted networking, draws every
-pixel of its UI, and checks proofs about all four.
+[Lean](https://lean-lang.org) is usually for proving statements with and about code. But can we 
+build entire apps with it, and prove they work as users might want?
+I think we can now!
 
-<table><tr></tr><tr><td>
+This app is written mostly in Lean. It builds for iOS and Android and implements chat with emojis and reactions. Non-Lean code is limited to things like scrolling or using the camera ([what isn't Lean, and why](#what-isnt-lean-and-why)) so in a
+meaningful sense Lean does everything from processing TCP packets to drawing pixels on the screen.
+This allows for proving a surprising range of user-relevant properties! See: [What is Proven](#what-is-proven).
 
-👋 In ~1 day I vibe-coded a p2p, e2ee Slack/Discord alternative in Lean (informed by my work on [Quiet](https://tryquiet.org)) for iOS and Android with some fairly powerful correctness proofs. How does this stand up?
+Like [Quiet](https://github.com/TryQuiet/quiet), Lean Quiet is also local-first, end-to-end encrypted, and peer-to-peer, so many properties that would normally depend on a server operator (such as privacy, access control, or uptime) are provided by the code itself. This means they are provable over all possible deployments, assuming user device integrity! See: [Towards Proofs for n Clients](#towards-proofs-for-n-clients).
 
-</td></tr></table>
-
-Lean is mostly used for mathematics, or to verify one part of a system.
-Here it is a whole, ordinary app, and about three quarters of its
-theorems (277 of 366) are about the code that runs on the phone; the
-rest are over models, and moving them onto running code is a todo
-([what is proven](#what-is-proven)). Native code only connects Lean to
-each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)), so in a
-meaningful sense Lean draws all pixels on the screen.
-
-There is also a credible path to proofs about n clients. The sync
-proofs already run the real sync code, in a world of two devices whose
-network can delay, reorder or drop messages. Devices that hold the same
-ops agree, whatever order the ops arrived in (proven so far over a model
-of purging). So for n devices, it comes down to proving that every op
-reaches every member ([`stream_delivers`],
-[`same_ops_same_verdicts`]).
+Can we also prove the absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size or RTL language, or a lack of responsiveness under load, or an accessibility gap? This seems tantalizingly possible too, and we show many such proofs here. There is something exhilarating about adding a proof where one would usually add an end-to-end test. Sci fi. 🪐 
 
 ## What is proven
 
@@ -55,13 +41,18 @@ no collisions. ³ in the symbolic model of the cryptography.
 - that content is drawn faithfully all the way to pixels (proven up to
   each row's layout; painting is not).
 
-<table><tr></tr><tr><td>
+### Towards Proofs for n Clients
 
-🙋 The most obviously valuable thing about building a user-facing communication tool entirely in Lean is that you can prove strict safety properties. In a p2p, e2ee app where code is law, this means potentially being able to prove them over all possible deployments, too! But an even more interesting question: can you also prove absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size, or lack of responsiveness under load. It seems like you can!
+The sync proofs already run the real sync code, in a world of two
+devices whose network can delay, reorder or drop messages
+([`stream_delivers`]). Devices that hold the same ops agree, whatever
+order the ops arrived in (proven so far over a model of purging:
+[`same_ops_same_verdicts`]). So for n devices, it comes down to proving
+that every op reaches every member: the running round under any
+delivery order (`conn_runs_exchange`) and the closure it delivers
+(`closure_delivered`), then a world of n devices with fair delivery.
 
-</td></tr></table>
-
-### Assumed
+### What is Assumed
 
 **Hypotheses.** These are named in the theorems that take them, and
 nothing else is assumed:
@@ -82,9 +73,8 @@ nothing else is assumed:
   Merkle tree inputs, for the attachment laws. [`assumptions_hold`]
   shows that it can hold.
 - [`Suite.Good`]: X25519 agrees (`dh a (pub b) = dh b (pub a)`), the
-  AEAD opens what it seals, and public keys are 32 bytes. With
-  [`Keys.Good`], a device's Ed25519 key converts to its seed's X25519
-  key. These are correctness only, and say nothing about secrecy.
+  AEAD opens what it seals, and public keys are 32 bytes. These are
+  correctness only, and say nothing about secrecy.
 - **A read transaction is one moment** (`read_one_moment` and
   `agrees_notice` take it), as two hypotheses. *Snapshot:* inside one
   SQLite read transaction, every read answers as one state of the store
@@ -130,14 +120,14 @@ nothing else is assumed:
 - **That each statement says what we mean.** Read it: every name below
   links to its statement.
 
-### Key
+### Security proofs
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 459 rest on Lean's standard axioms
-only.
-
-### Security proofs
+that rests on; 🥊 is supporting. All 461 rest on Lean's standard axioms
+only, and about two thirds of its theorems (338 of 461) are about
+the code that runs; the rest are over models so far
+([not yet about running code](#not-yet-about-running-code-todo)).
 
 | | | Guarantee | Theorems |
 |---|---|---|---|
@@ -192,7 +182,7 @@ only.
 | 🟡 | 🥊🥊🥊 | **A sync round is complete.** Each side is sent exactly what the other holds in the range and it lacks. On any path, it takes at most one answer more than the two sides hold in the range. Not yet: proven of the round's model (`exchange`); wanted of the running round (`conn_runs_exchange`). | [`exchange_complete`] |
 | ✅ | 🥊🥊 | **Fingerprints are honest.** Equal Merkle labels mean equal sets, and a side opens a round with an honest claim. | [`lbl_inj`], [`opening_honest`], [`num_inj`] |
 | 🟡 | 🥊🥊🥊 | **Partial sync is safe.** A node that holds an op's requirement closure judges it as its peer does. Not yet: proven of the spec, which running judging reaches only on states whose purges are modelled. | [`spec_local`] |
-| 🟡 | 🥊🥊🥊 | **A joiner connects, and both sides converge,** over a socket that loses, duplicates and reorders. Proven over a model only. | [`bootstrap`], [`bootstrap_ideal`], [`bootstrap_possible`], [`reachable_inv`] *(model)* |
+| 🟡 | 🥊🥊🥊 | **A joiner connects, and both sides converge,** over a socket that loses, duplicates and reorders. Proven over a model only. Wanted: the same of the running code (`conn_runs_exchange`, `closure_delivered`). | [`bootstrap`], [`bootstrap_ideal`], [`bootstrap_possible`], [`reachable_inv`] *(model)* |
 | 🟡 | 🥊🥊🥊 | **The running connection does all this.** Proven: a connection answers a claim that lists ids exactly as `exchange` does, from the round's snapshot. Not yet: the whole round under any delivery order (`conn_runs_exchange`), and each op's requirement closure (`closure_delivered`). | [`conn_answers_ids`] |
 | 🟡 | 🥊🥊🥊 | **New ops reach connected members.** In a world of two nodes running the sync code on held stores, with fixed rooms, frames in the clear and no handshake: an op written while a member's session is up is offered at once, and the member holds it after one exchange (the offer, a want, the op), when both sides' rooms include its room, neither held it, and the receiver has a free ask slot and a response budget. Not yet of the runner, with TCP, sealed frames, the trust rule's rooms and the handshake. | [`stream_offered`], [`stream_delivers`], [`stream_delivers_steps`], [`stream_offered_runs`], [`stream_delivers_runs`] |
 | ⬜ | 🥊🥊🥊 | **Everyone converges.** Wanted: under fair delivery, members linked by any chain of connections eventually hold every op of their community, and so the same verdicts. Proven so far for two nodes, over a model. | |
@@ -227,6 +217,69 @@ only.
 
 The theorems not listed here are lemmas. The axiom audit,
 `tests/Axioms.lean`, lists them all.
+
+### Not yet about running code (todo)
+
+A law is about running code when every definition its statement names
+runs from the app's `main` or the node's runner, or is proven equal to
+code that does. `tests/Wiring.lean` classifies every law from the code,
+with `tests/wiring.txt` for what the code cannot say, and
+`ci/proof-links.py` writes these tables and the lead's count.
+
+<!-- wiring:begin -->
+**338 of 461 laws are about running code;** 123 are not yet. Stated only: none.
+
+| Area | Laws | About running code | Not yet |
+|---|---|---|---|
+| Engine | 84 | 37 | 47 |
+| Sync | 82 | 81 | 1 |
+| mDNS | 3 | 0 | 3 |
+| Node and wire | 35 | 19 | 16 |
+| Bootstrap | 11 | 0 | 11 |
+| Connections | 30 | 27 | 3 |
+| Community | 140 | 129 | 11 |
+| QR codes | 10 | 10 |  |
+| Pictures | 13 | 0 | 13 |
+| Screen | 38 | 21 | 17 |
+| App | 15 | 14 | 1 |
+
+| Missing link | Laws | To make them real |
+|---|---|---|
+| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]*†, [`order_local`]*†, [`sealed_unopened`]*†, [`sealed_auth`]*†, [`purge_cached`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`write_offers_all`], [`close_gone`]*†, [`allowPeer_iff`], [`allowPeer_settles`], [`oneOpPerId_of`]* | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
+| `World.peer`, `Setup.sync`, `Who.other` +8 | [`stream_delivers`]†, [`stream_delivers_steps`]†, [`stream_delivers_runs`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`stream_offered`]†, [`stream_offered_runs`]†, [`write_offers_all`], [`fanout_offers`], [`seal_mem`] | A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does. |
+| `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
+| `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
+| `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
+| `Scene.approval`, `Scene.K`, `Scene.S` +12 | [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`bootstrap_ideal`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`], [`allowPeer_settles`] | The bootstrap's model (ops/connection/bootstrap/): retired by `conn_runs_exchange`, `closure_delivered`, `answer_trusted` and `untrusted_silent` over the running code. |
+| restates `App.read` | [`read_one_moment`]† | Its two branches, inline. Todo: state it of `App.read`. |
+| `Seam.place`, `Geom.composerTop`, `Geom.viewNow` +5 | [`placed_row`]†, [`visible_in_viewport`]†, [`newest_visible`]†, [`newest_drawn`]†, [`pinned_row`]†, [`pinned_visible`]†, [`pinned_tap`]† | The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are. |
+| `Grid.ctop` (restates `Sheet.gridRow`) | [`hit_iff`]†, [`hit_cell`]*†, [`keys_disjoint`]*†, [`reachable`]† | Its index arithmetic, and App's sheet rows'. Todo: have the painter place keys by `Grid.ctop`. |
+| `Sync.keeps` | [`buffer_bounded`]*† | The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s. |
+| `Pic.decode`, `Geom.box`, `Rgba.wellFormed` +7 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]†, [`decode_sized`]† | Runs only in qr's Android harness; the app has its own QOI (`Qoi.decode`) and tray: use `Pic` in the app, or prove these of its code. |
+| `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
+| `Arrival.lit` | [`lit_zero`], [`lit_mono`], [`lit_full`], [`lit_clockwise`], [`ring_counts`] | `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`. |
+| `Subs.notify`, `ListQ.kept`, `ListQ.watch` +15 | [`window_ne_iff`], [`window_ne_iff_flips`], [`notice_iff`]†, [`rank_spec`], [`find_build`], [`find_iff`], [`mem_notifyM`], [`has_ofList`], [`has_add`], [`has_keep`], [`add_wf`], [`keep_wf`], [`ofList_wf`], [`mem_net`], [`read_rows_iff`]†, [`read_notice_iff`]†, [`watch_stable`]†, [`window_rows`]†, [`eval_counting`], [`rank_costs`], [`find_costs`]†, [`notify_cost`]†, [`exact_silent`], [`screen_subs`]†, [`hull_near`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing on main notices through the window index: the app's cache does on app-1e with fd/window-subs-app3 (`Data.Live.notice`, `Live.store`, `Q.win`); land it. |
+| `Frame.wants`, `Subs.ofList`, `Frame.listWins` +2 | [`has_ofList`], [`ofList_wf`], [`exact_silent`], [`screen_subs`]†, [`hull_near`]†, [`past_hull_le`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan). |
+| `Mutants.σ`, `Mutants.fam`, `Mutants.keyNotified` +4 | [`key_notice_imprecise`]†, [`exact_silent`], [`unnetted_imprecise`]† | Negative controls, on a one-op world of their own, meant not to run: they show notices by key and an unnetted journal imprecise. |
+| `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
+| `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
+| `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`pageIn_acc`]† | Nothing to wire: each is about a specification or an assumption. |
+
+\* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
+
+| Assumption | Laws | |
+|---|---|---|
+| [`Unforgeable`] | 2 | An Ed25519 signature that verifies under a device key was made by that key's holder. |
+| [`CollisionFree`] | 21 | SHA-256 has no collision among the ops a node received. |
+| [`NoSecondPreimage`] | 14 | SHA-256 has no second preimage on a file's Merkle tree inputs. |
+| [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
+| [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
+| [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
+| [`Model.run`] | 158 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Engine.runJ`] | 7 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
+| [`Engine.Inv`] | 52 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
+<!-- wiring:end -->
 
 ## What isn't Lean, and why
 
@@ -289,7 +342,7 @@ visible and immediate, the kind testing on devices finds, and none of
 them forges a message, leaks a key or lets a stranger in. The few places
 where native code does touch them are named:
 - **The crypto and SQLite** are on the safety path. That is why what the
-  theorems need of them is stated as hypotheses ([Assumed](#assumed)),
+  theorems need of them is stated as hypotheses ([What is Assumed](#what-is-assumed)),
   and why they are tested byte for byte against libsodium and the Noise
   test vectors, and row for row against the engine's model, with kill -9
   crashes.
@@ -373,7 +426,7 @@ Lean could do. They are under
 
 | | what it gives | what the proofs assume of it |
 |---|---|---|
-| **The Rust crypto** ([`lib.rs`](engine/native/crypto/src/lib.rs), 145 lines, over ed25519-dalek 3.0.0, curve25519-dalek 5.0.0, chacha20poly1305 0.11.0, sha2 0.10.9 and getrandom 0.3.4) | SHA-256; Ed25519, verified strictly; X25519; the Ed25519 to X25519 conversion; ChaCha20-Poly1305 with Noise's nonce; XChaCha20-Poly1305; the OS's random bytes. One build on every platform. | [`Unforgeable`], [`CollisionFree`], [`NoSecondPreimage`], [`Suite.Good`] and [`Keys.Good`] (see Assumed). Tested byte for byte against libsodium ([`crypto_compat.c`](tests/engine/crypto_compat.c)) and against the Noise test vectors. |
+| **The Rust crypto** ([`lib.rs`](engine/native/crypto/src/lib.rs), 145 lines, over ed25519-dalek 3.0.0, curve25519-dalek 5.0.0, chacha20poly1305 0.11.0, sha2 0.10.9 and getrandom 0.3.4) | SHA-256; Ed25519, verified strictly; X25519; the Ed25519 to X25519 conversion; ChaCha20-Poly1305 with Noise's nonce; XChaCha20-Poly1305; the OS's random bytes. One build on every platform. | [`Unforgeable`], [`CollisionFree`], [`NoSecondPreimage`] and [`Suite.Good`] (see Assumed). Tested byte for byte against libsodium ([`crypto_compat.c`](tests/engine/crypto_compat.c)) and against the Noise test vectors. |
 | **SQLite** | The store. Phones ship the vendored 3.50.4 ([`third_party/sqlite`](third_party/sqlite)). The desktop links the system's `libsqlite3`, 3.46.1 on the machine local CI runs on. | It behaves like the engine's model ([`Model.lean`](engine/core/Model.lean)). This is tested row for row, with kill -9 crashes and the purge's raw read, on the desktop's SQLite only. |
 | **Lean's runtime and libuv** | Reference counting; the ByteArray, String and Array primitives, which are `@[extern]` in Lean's core and implemented in C; tasks and threads; files; clocks; and Std.Async, which gives the TCP runner its sockets ([`Tcp.lean`](engine/wire/Tcp.lean)), mDNS its UDP, and an invite its dial hints (the interface addresses). Phones build it from Lean's source ([`build.sh`](platforms/android/leanrt/build.sh), [`leanrt.sh`](platforms/ios/leanrt.sh)), with no mimalloc and no GMP, OpenSSL stubbed, and libuv compiled from its source lists. | **Lean** in Trusted. The proofs reason about the core's Lean definitions, and the C must match them. The phones' build is not the one the tests run on. |
 
@@ -662,7 +715,6 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`NoSecondPreimage`]: ops/community/Merkle.lean#L142-L143
 [`assumptions_hold`]: ops/community/Merkle.lean#L539-L543
 [`Suite.Good`]: ops/connection/Noise.lean#L61-L65
-[`Keys.Good`]: ops/connection/Types.lean#L32-L36
 [`no_impersonation`]: ops/community/Laws.lean#L289-L302
 [`admission_needs_approval`]: ops/community/Laws.lean#L469-L477
 [`admission_approved`]: ops/community/Laws.lean#L388-L398
@@ -919,4 +971,57 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`fit_round`]: engine/renderer/pic/Laws.lean#L87-L90
 [`Pic.layout_inside`]: engine/renderer/pic/Laws.lean#L170-L172
 [`Pic.layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
+[`reach_drain`]: engine/core/Proofs.lean#L529-L530
+[`write_offers`]: engine/wire/WorldLaws.lean#L425-L433
+[`hold_wants`]: engine/wire/WorldLaws.lean#L442-L448
+[`want_sends`]: engine/wire/WorldLaws.lean#L457-L464
+[`op_taken`]: engine/wire/WorldLaws.lean#L487-L494
+[`write_offers_all`]: engine/wire/WorldLaws.lean#L1160-L1171
+[`allowPeer_iff`]: ops/connection/bootstrap/Bridge.lean#L29-L32
+[`allowPeer_settles`]: ops/connection/bootstrap/Bridge.lean#L35-L39
+[`oneOpPerId_of`]: engine/core/WindowLaws.lean#L669-L672
+[`fanout_offers`]: engine/wire/WorldLaws.lean#L1017-L1023
+[`seal_mem`]: engine/wire/WorldLaws.lean#L1129-L1133
+[`admitted_inv`]: ops/connection/bootstrap/Scene.lean#L154-L156
+[`allowedA`]: ops/connection/bootstrap/Scene.lean#L219-L219
+[`allowedB`]: ops/connection/bootstrap/Scene.lean#L231-L233
+[`fit_small`]: engine/renderer/pic/Laws.lean#L37-L37
+[`fit_le`]: engine/renderer/pic/Laws.lean#L50-L50
+[`fit_pos`]: engine/renderer/pic/Laws.lean#L59-L59
+[`fit_long`]: engine/renderer/pic/Laws.lean#L71-L71
+[`layout_sizes`]: engine/renderer/pic/Laws.lean#L143-L144
+[`layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
+[`add_stored`]: engine/renderer/pic/Laws.lean#L239-L242
+[`decode_sized`]: engine/renderer/pic/Laws.lean#L198-L201
+[`decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
+[`lit_zero`]: ops/community/attachment/ArrivalLaws.lean#L84-L85
+[`lit_mono`]: ops/community/attachment/ArrivalLaws.lean#L88-L90
+[`lit_full`]: ops/community/attachment/ArrivalLaws.lean#L94-L95
+[`lit_clockwise`]: ops/community/attachment/ArrivalLaws.lean#L101-L106
+[`ring_counts`]: ops/community/attachment/ArrivalLaws.lean#L275-L278
+[`window_ne_iff`]: engine/core/WindowLaws.lean#L604-L608
+[`window_ne_iff_flips`]: engine/core/WindowLaws.lean#L647-L653
+[`rank_spec`]: engine/core/WindowIndex.lean#L83-L88
+[`find_build`]: engine/core/WindowIndex.lean#L281-L283
+[`find_iff`]: engine/core/WindowIndex.lean#L345-L348
+[`mem_notifyM`]: engine/core/WindowIndex.lean#L535-L539
+[`has_ofList`]: engine/core/WindowIndex.lean#L452-L453
+[`has_add`]: engine/core/WindowIndex.lean#L425-L426
+[`has_keep`]: engine/core/WindowIndex.lean#L509-L511
+[`add_wf`]: engine/core/WindowIndex.lean#L419-L419
+[`keep_wf`]: engine/core/WindowIndex.lean#L493-L493
+[`ofList_wf`]: engine/core/WindowIndex.lean#L445-L445
+[`mem_net`]: engine/core/WindowIndex.lean#L584-L585
+[`eval_counting`]: engine/core/WindowRead.lean#L440-L441
+[`rank_costs`]: engine/core/WindowCost.lean#L55-L57
+[`exact_silent`]: engine/core/WindowMutants.lean#L118-L120
+[`screen_index`]: engine/renderer/Screen.lean#L258-L261
+[`nodup_full`]: ops/community/Intents.lean#L578-L580
+[`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
+[`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939
+[`Seal.Good`]: ops/community/Keys.lean#L40-L43
+[`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
+[`Model.run`]: engine/core/Model.lean#L103-L103
+[`Engine.runJ`]: engine/core/WindowLaws.lean#L148-L151
+[`Engine.Inv`]: engine/core/Proofs.lean#L202-L219
 <!-- /proof-links -->

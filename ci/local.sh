@@ -6,7 +6,9 @@
 # out/. Exits non-zero if any part fails; runs them all. `check` is the
 # proof gate (every library builds; every law of tests/Axioms.lean rests
 # on standard axioms only). `readme` checks the README's theorem links
-# against the built tree (ci/proof-links.py), so it runs after them.
+# against the built tree, and its list of laws not yet about running
+# code against tests/Wiring.lean (ci/proof-links.py), so it runs after
+# them.
 # `reorg` checks the reorg's import rewriter for branches begun on the old
 # layout (ci/reorg-imports.py --self-test).
 #   ci/local.sh [part...]   (default: check engine mdns qr net app readme reorg)
