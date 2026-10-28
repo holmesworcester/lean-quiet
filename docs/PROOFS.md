@@ -202,7 +202,7 @@ today's code (with the finding), **O** open.
 | `stream_stmt` | a stored op is offered at once on every session that shows its room | O (a3's `stream_offered` for writes) |
 | `offered_stmt` | L-offered: both | O |
 | `members_only_stmt` | session frames carry only ops of rooms the session showed in that step | O (ConnLaws per entry point) |
-| `frames_keep_sessions_stmt` | no delivery, duplicate, injection or write closes a session | O |
+| `frames_keep_sessions_stmt` | no delivery, duplicate, injection or write closes a session | **P** (`frames_keep_sessions_proof`) |
 | `idem_stmt` | L-idem: the same bytes delivered again leave the store as they were | O |
 | `restart_stmt` | L-restart: a restart keeps every op, rebuilds the index equal to the store, opens nothing | **P** (`restart_proof`) |
 | `waiting_closure_stmt` | every store at rest, verdicts = spec | O (engine laws + Held's turn) |

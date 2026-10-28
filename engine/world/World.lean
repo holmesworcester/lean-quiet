@@ -288,7 +288,7 @@ namespace Plain
 variable {F : Type} (Q : Plain F)
 
 /-- What the world runs for a plain setup. -/
-def setup : Setup F (HeldM F) (Held F) where
+@[reducible] def setup : Setup F (HeldM F) (Held F) where
   n := Q.n
   sync i := psync Q.fam Q.cfg (Q.rooms i)
   addr := Q.addr

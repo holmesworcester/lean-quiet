@@ -508,6 +508,10 @@ open Engine.World
 #print axioms Engine.World.index_store_proof
 #print axioms Engine.World.restart_proof
 #print axioms Engine.World.round_forward
+#print axioms Engine.World.onFrame_cids
+#print axioms Engine.World.onWrite_cids
+#print axioms Engine.World.connect_cids
+#print axioms Engine.World.frames_keep_sessions_proof
 #print axioms Engine.World.grows_all
 #print axioms Engine.World.walkN_laws
 #print axioms Engine.World.walk_proof

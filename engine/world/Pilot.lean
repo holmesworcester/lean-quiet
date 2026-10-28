@@ -142,7 +142,7 @@ theorem deliver_at (Q : Plain F) (w : World (Held F) Q.n) (idx t : Nat) (p : Pac
       ∃ s, (⟨s, some j, Q.addr j, d, b, t⟩ : Packet Q.n) ∈ (w.step Q.setup (.deliver idx t)).flight := by
   have hp' : (@World.flight (Held F) Q.setup.n w)[idx]? = some p := hp
   simp only [World.step, hp', hj, World.enter]
-  refine ⟨by simp only [upd]; exact if_pos rfl, by simp only [upd]; exact if_pos rfl, trivial,
+  refine ⟨by simp only [upd, ite_true], by simp only [upd, ite_true], trivial,
     fun d b hdb => ?_⟩
   obtain ⟨s, hs⟩ := mem_packets j (Q.addr j) t w.serial _ d b hdb
   exact ⟨s, List.mem_append_right _ hs⟩
@@ -275,5 +275,57 @@ theorem round_forward : round_forward_stmt := by
   have hx : Q.Holds (E.world k) i r it.2 :=
     held_on E (fun m hm => grows_all F Q noAdv _ _ i r it.2 (E.reachable m) (E.legal m) hm) k₀ k hk₀ hx0
   exact pilot F Q N E W i j cid r k kr p ps _ rg _ it.2 hf hG hJ hgst hlive hrooms hp hsrc hdst hpeek hmsg hcl hxL hx
+
+theorem isOpen_iff {S : Type} {n : Nat} (w : World S n) (i : Fin n) (cid : Id) :
+    w.isOpen i cid ↔ cid ∈ cids (w.node i) := by
+  unfold World.isOpen
+  rw [Option.isSome_iff_exists]; exact conn_iff _ _
+
+theorem enter_open (Q : Plain F) (w : World (Held F) Q.n) (j i : Fin Q.n) (t : Nat) (cid : Id)
+    (f : Node → HeldM F (Node × Effects))
+    (hf : NodeOk Q.fam (w.node j) (w.box j) → cid ∈ cids (w.node j) → cid ∈ cids ((f (w.node j)).run (w.box j)).1.1)
+    (ok : NodeOk Q.fam (w.node j) (w.box j)) (ho : cid ∈ cids (w.node i)) :
+    cid ∈ cids ((w.enter Q.setup j t f).node i) := by
+  simp only [World.enter, upd]
+  by_cases e : i = j
+  · subst e; simp only [ite_true]; exact hf ok ho
+  · simp only [e, ite_false]; exact ho
+
+/-- **L-dup's first half, proven: frames never close a session.** In the
+plain world only a tick (patience) or a restart closes a session, and the
+harness's `connect` only replaces its own: no delivery, duplicate,
+injection or write does, whatever its bytes, against any attacker. -/
+theorem frames_keep_sessions_proof : frames_keep_sessions_stmt := by
+  intro F Q adv w a i cid hr _ htick hrest hconn ho
+  have wl := walk_proof F Q.fam Q.cfg
+  have ok := reach_ok Q wl adv w hr
+  rw [isOpen_iff] at ho
+  apply (isOpen_iff _ _ _).2
+  cases a with
+  | deliver k t =>
+    simp only [World.step]
+    split
+    · exact ho
+    · rename_i p _
+      split
+      · exact ho
+      · rename_i j _
+        exact enter_open Q { w with flight := w.flight.eraseIdx k } j i t cid
+          (fun nd => nd.onFrame (psync Q.fam Q.cfg (Q.rooms j)) p.origin p.bytes t)
+          (fun hk hc => by rw [onFrame_cids Q.fam Q.cfg (Q.rooms j) wl _ _ _ _ _ hk]; exact hc) (ok j) ho
+  | dup k => simp only [World.step]; split <;> exact ho
+  | drop k => exact ho
+  | tick j t => exact absurd rfl (htick j t)
+  | write j ops t =>
+    exact enter_open Q w j i t cid (fun nd => nd.onWrite (psync Q.fam Q.cfg (Q.rooms j)) ops t)
+      (fun hk hc => by rw [onWrite_cids Q.fam Q.cfg (Q.rooms j) _ _ _ _ hk]; exact hc) (ok j) ho
+  | restart j t => exact absurd rfl (hrest j t)
+  | connect j j' cid' d t =>
+    have hne : cid ≠ cid' := fun e => hconn j j' d t (by rw [e])
+    exact enter_open Q w j i t cid (fun nd => nd.connect (psync Q.fam Q.cfg (Q.rooms j)) cid' (Q.setup.addr j') d t)
+      (fun hk hc => connect_cids Q.fam Q.cfg (Q.rooms j) _ cid cid' _ _ _ _ hk hne hc) (ok j) ho
+  | inject j o b t =>
+    exact enter_open Q w j i t cid (fun nd => nd.onFrame (psync Q.fam Q.cfg (Q.rooms j)) o b t)
+      (fun hk hc => by rw [onFrame_cids Q.fam Q.cfg (Q.rooms j) wl _ _ _ _ _ hk]; exact hc) (ok j) ho
 
 end Engine.World

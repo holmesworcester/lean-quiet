@@ -1434,6 +1434,80 @@ theorem onFrame_ok (n : Node) (a b : ByteArray) (now : Nat) (h : Held F) (ok : N
 
 end
 
+/-! ## Only the clock and the harness close a session -/
+
+section
+variable (fam : Family F) (cfg : Config) (rms : Held F → Id → List Id) (hw : WalkLaws (F := F) fam cfg)
+
+omit hw in
+theorem finish_cids (n : Node) (out : Acts) (now : Nat) (h : Held F) (hm : n.managed = []) :
+    cids ((n.finish (psync fam cfg rms) out now).run h).1.1 = cids n := by
+  rw [finish_run fam cfg rms _ _ _ _ hm]; rfl
+
+omit hw in
+theorem onWrite_cids (n : Node) (ops : List Op) (now : Nat) (h : Held F) (ok : NodeOk fam n h) :
+    cids ((n.onWrite (psync fam cfg rms) ops now).run h).1.1 = cids n := by
+  unfold Node.onWrite
+  simp only [HeldM.run_bind]
+  rw [finish_cids fam cfg rms _ _ _ _ (store_ok fam cfg rms n ops true h ok).managed]
+  exact (store_node fam cfg rms n ops true h).2
+
+omit hw in
+theorem connect_cids (n : Node) (cid cid' : Id) (a : ByteArray) (d : Bool) (now : Nat) (h : Held F)
+    (ok : NodeOk fam n h) (hne : cid ≠ cid') (hc : cid ∈ cids n) :
+    cid ∈ cids ((n.connect (psync fam cfg rms) cid' a d now).run h).1.1 := by
+  have hk := connect_ok fam cfg rms n cid' a d now h ok
+  unfold Node.connect Node.open at hk ⊢
+  simp only [HeldM.run_bind, psync_rooms, readH_run, HeldM.run_pure] at hk ⊢
+  rw [finish_cids fam cfg rms _ _ _ _ (by simp [Node.setAddr, Node.close, ok.managed])]
+  simp only [cids, Node.setAddr, Node.close, List.map_cons, List.mem_cons]
+  right
+  obtain ⟨p, hp, rfl⟩ := List.mem_map.1 hc
+  exact List.mem_map.2 ⟨p, List.mem_filter.2 ⟨hp, by simp [hne]⟩, rfl⟩
+
+include hw
+
+theorem onFrame_cids (n : Node) (a b : ByteArray) (now : Nat) (h : Held F) (ok : NodeOk fam n h) :
+    cids ((n.onFrame (psync fam cfg rms) a b now).run h).1.1 = cids n := by
+  cases h0 : b[0]? with
+  | none => simp only [Node.onFrame, h0, HeldM.run_pure]
+  | some t =>
+    by_cases t1 : t = 1
+    · subst t1
+      cases hd : (Codec.decode (b.extract 1 b.size) : Option (Id × ByteArray)) with
+      | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, Node.onSealed, HeldM.run_pure]
+      | some q =>
+        obtain ⟨cid, bundle⟩ := q
+        cases hc : n.conn? cid with
+        | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, Node.onSealed, hc, HeldM.run_pure]
+        | some c =>
+          cases hi : (Codec.decode bundle : Option (List ByteArray)) with
+          | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, Node.onSealed, hc, hi, HeldM.run_pure]
+          | some inner =>
+            rw [onFrame_sealed fam cfg rms hw n a b now h cid bundle inner c h0 hd hi hc]
+            obtain ⟨ok1, -, c1, -, -⟩ := frame_fold fam cfg rms hw cid now inner ((n.setAddr cid a, {}), h)
+              (setAddr_ok fam n cid a h ok)
+            rw [finish_cids fam cfg rms _ _ _ _ ok1.managed, c1]; rfl
+    · by_cases t0 : t = 0
+      · subst t0
+        cases hd : Op.decode (b.extract 1 b.size) with
+        | none => simp only [Node.onFrame, h0, hd, HeldM.run_pure]
+        | some o =>
+          by_cases he : (intakeConn fam [o]).isEmpty = true
+          · simp only [Node.onFrame, h0, hd, psync_fam, he, ↓reduceIte, HeldM.run_pure]
+          · simp only [Node.onFrame, h0, hd, psync_fam, he, ↓reduceIte, Bool.false_eq_true, HeldM.run_bind,
+              psync_recv, HeldM.pure_bind, store_nil]
+            rw [finish_cids fam cfg rms _ _ _ _ (write_ok fam cfg rms _ _ _ ok).managed]
+            rw [cids, (write_node fam cfg rms _ _ _).1]; rfl
+      · unfold Node.onFrame
+        rw [h0]
+        split
+        · rename_i e; cases e; exact absurd rfl t0
+        · rename_i e; cases e; exact absurd rfl t1
+        · rfl
+
+end
+
 /-- A booted node, from a store that files ops under their ids and holds
 what it logged, keeps the invariant. -/
 theorem boot_ok (fam : Family F) (h : Held F) (hi : IdsOk h) (hl : LogIn h) (hx : LogExact h)
