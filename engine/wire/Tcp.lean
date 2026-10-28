@@ -18,6 +18,12 @@ neither carries socket code.
 
 One task owns the node and its SQLite connection; the listener and one
 reader per socket feed it events through a channel.
+
+Every socket wait (`awaitUv`) blocks its own dedicated thread on the
+socket's promise. It never goes through `Async.block`, which runs each
+operation, and maps each result, as a task on the shared pool: when the
+pool is busy (a phone decoding photos on every worker), every read,
+send and dial would wait behind that work, and sync would crawl.
 -/
 import engine.wire.Node
 import engine.wire.Frame
@@ -53,6 +59,16 @@ inductive Event where
 
 instance : Inhabited Event := ⟨.stop⟩
 
+/-- Wait for a socket operation's promise on this thread, with no task
+on the shared pool. -/
+def awaitUv {α : Type} (op : IO (IO.Promise (Except IO.Error α))) : IO (Except IO.Error α) := do
+  match ← op.toBaseIO with
+  | .error e => pure (.error e)
+  | .ok p =>
+    match ← IO.wait p.result? with
+    | some r => pure r
+    | none => pure (.error (.userError "the socket's promise was dropped"))
+
 structure Sock where
   id : Nat
   client : TCP.Socket.Client
@@ -76,7 +92,7 @@ structure RunConfig where
 def reader (ch : Std.Channel Event) (sid : Nat) (c : TCP.Socket.Client) : IO Unit := do
   let mut buf := ByteArray.empty
   repeat
-    match ← (c.recv? 65536).block.toBaseIO with
+    match ← awaitUv (c.native.recv? 65536) with
     | .ok (some chunk) =>
       buf := buf ++ chunk
       let mut more := true
@@ -112,16 +128,15 @@ def dialOut (ch : Std.Channel Event) (addr : ByteArray) : IO Unit := do
   match String.fromUTF8? addr >>= parseAddr with
   | none => discard <| ch.trySend (.dialed addr none)
   | some sa =>
-    let r ← (do
-      let c ← TCP.Socket.Client.mk
-      c.connect sa
-      pure c : Async TCP.Socket.Client).block.toBaseIO
-    match r with
-    | .ok c => discard <| ch.trySend (.dialed addr (some c))
+    match ← TCP.Socket.Client.mk.toBaseIO with
     | .error _ => discard <| ch.trySend (.dialed addr none)
+    | .ok c =>
+      match ← awaitUv (c.native.connect sa) with
+      | .ok _ => discard <| ch.trySend (.dialed addr (some c))
+      | .error _ => discard <| ch.trySend (.dialed addr none)
 
 def sendOn (c : TCP.Socket.Client) (payload : ByteArray) : IO Bool := do
-  match ← (c.send (frame payload)).block.toBaseIO with
+  match ← awaitUv (c.native.send #[frame payload]) with
   | .ok _ => return true
   | .error _ => return false
 
@@ -201,7 +216,7 @@ def runLoop (cfg : RunConfig) (st : RunState) : IO Unit := do
       | some st' => st := st'
       | none =>
         for s in st.socks do
-          discard <| s.client.shutdown.block.toBaseIO
+          discard <| awaitUv s.client.native.shutdown
         return
     | none => pure ()
     if now ≥ st.lastTick + cfg.tickMs then
@@ -209,7 +224,7 @@ def runLoop (cfg : RunConfig) (st : RunState) : IO Unit := do
       st ← st'.apply ch notify e
       for s in st.socks do
         if s.heard + cfg.idle < now then
-          discard <| s.client.shutdown.block.toBaseIO
+          discard <| awaitUv s.client.native.shutdown
           st := st.drop s.id
     unless busy do IO.sleep 5
 
