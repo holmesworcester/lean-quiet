@@ -18,7 +18,8 @@ running code, per area; a row for each missing link with its laws and
 tests/wiring.txt's note; the statements stated only; the assumptions.
 The proofs tables above it must agree: a ✅ row must cite a law about
 running code, and a 🟡 row must say what is missing ("Wanted", "Not
-yet", "not proven"), itself or in the section its More link opens. The
+yet", "not proven", "Not covered", "todo"), itself or in the section its
+More link opens. The
 README's lead takes its number from the same count ("N of M are about
 the code that runs"), and may say "nearly every" only while that is
 90% or more.
@@ -54,7 +55,7 @@ AREAS = [("engine.core", "Engine"), ("ops.sync", "Sync"), ("engine.wire.mdns", "
          ("engine.renderer.qr", "QR codes"), ("engine.renderer.pic", "Pictures"),
          ("engine.renderer", "Screen"), ("ops.app", "App"), ("App", "App")]
 # What a 🟡 row says to name what is missing.
-WANTED = re.compile(r"wanted|not yet|not proven", re.I)
+WANTED = re.compile(r"wanted|not yet|not proven|not covered|todo", re.I)
 # The lead's count, and the share "nearly every" needs.
 LEAD = re.compile(r"(\d+) of\s+(?:its\s+)?(\d+)\)?\s+(?:theorems\s+)?are\s+about\s+the\s+code\s+that\s+runs")
 NEARLY = re.compile(r"(nearly|almost) (every|all) (theorem|law)", re.I)
@@ -203,7 +204,7 @@ def disagree(tables, wired, resolve, more={}):
             bad.append(f"✅ \"{title}\" cites no law about running code: make it 🟡, saying what is missing")
         opens = [more.get(a, "") for a in re.findall(r"\]\(#([\w-]+)\)", cells[2])]
         if cells[0] == "🟡" and not WANTED.search(cells[2]) and not any(WANTED.search(t) for t in opens):
-            bad.append(f"🟡 \"{title}\" does not say what is missing (Wanted, Not yet, not proven)")
+            bad.append(f"🟡 \"{title}\" does not say what is missing (Wanted, Not yet, not proven, Not covered, todo)")
     return bad
 
 
