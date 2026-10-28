@@ -275,7 +275,13 @@ or op code (ops/connection/, one file per op type).
   they carry and are read by reference when handed out.
 - **One session per peer.** If two devices dial each other at once,
   both ends keep the session with the smaller connection id. They hold
-  the same connection ops, so they agree without a message.
+  the same connection ops, so they agree without a message. A session
+  that has heard its peer (a round the peer answered under the session's
+  keys, recorded as the connection's arrival over itself when a room
+  first settles) is retired only for another that has (`kept_heard`);
+  one that has not is kept until it hears or patience drops it
+  (`kept_unheard`). So a replayed request whose session was purged,
+  which the responder answers afresh, never displaces the live session.
 - **Closing purges two ops**, the connection and its request.
   Everything else of the session cites one of them (ephemerals, opened,
   established, couriers, arrivals), so purge takes it along.
@@ -293,6 +299,7 @@ Laws (`ops/connection/Laws.lean`, `ops/connection/Noise.lean`,
 - `handshake_agrees`, `sent1_write1`, `sent1_read1`, `read2_write2'`,
   for any suite whose DH commutes, whose AEAD opens what it seals and
   whose messages split into their key and the rest;
+- `kept_heard`, `kept_unheard`;
 - `open_seal`, `cid_seal`; `openAt_seal` (a frame opens to the counter
   it was sealed with), `openAt_sealed` (one that opens was sealed under
   that key with the counter it shows), `Frame.ctrOf_nonce`;
@@ -385,16 +392,20 @@ bytes it can derive, to either node, from any address.
   node opens is byte for byte one the other node sent, on a session with
   that node's endpoint; a bare delivery is taken in only as a conn-scope
   op), `frameReplay_stmt` (a frame delivered again changes nothing),
-  `bareReplay_stmt` (a handshake op delivered again adds only `recv`
-  records and opens no session), `forward_stmt` (after both close a
+  `bareReplay_stmt` (a handshake op delivered again closes no session
+  and opens none another node holds), `deadDropped_stmt` (a session
+  that never hears its peer is dropped by patience), `forward_stmt` (after both close a
   session, neither store holds its ephemerals, and an attacker knowing
   everything not built from them derives neither key), `live_stmt` (some
   execution establishes a session and carries an op each way).
-- **Both replay laws are false today.** A replayed frame rebinds its
-  session's return address until the peer's next frame (fixed by the
-  node checking `Frame.fresh` first). A request whose session was closed
-  and purged, delivered again, is answered afresh, and the one-per-peer
-  choice then keeps that new session, which only the responder holds,
-  and drops the live one. `tests/engine/PairWorld.lean` (`pairworld`) runs the
-  pure world with libsodium: an honest join, a session, a post each way;
-  a replay of every payload adds only `recv` records; and both findings.
+- **Replay.** A request whose session was closed and purged, delivered
+  again, is answered afresh, but the live session stays (`kept_heard`)
+  and patience drops the answer, which no one else holds
+  (`bareReplay_stmt`, `deadDropped_stmt`). A replayed frame still
+  rebinds its session's return address until the peer's next frame
+  (`frameReplay_stmt` is false until the node checks `Frame.fresh`
+  first). `tests/engine/PairWorld.lean` (`pairworld`) runs the pure world with
+  libsodium: an honest join, a session, a post each way; a replay of
+  every payload adds only `recv` records; the replayed purged request,
+  with the rule before `heard` as a negative control; and the frame
+  finding.

@@ -180,6 +180,8 @@ open Engine Community
 #print axioms Connection.openAt_seal
 #print axioms Connection.openAt_sealed
 #print axioms Connection.Frame.ctrOf_nonce
+#print axioms Connection.kept_heard
+#print axioms Connection.kept_unheard
 end engine
 
 section app

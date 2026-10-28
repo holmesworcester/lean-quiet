@@ -77,6 +77,9 @@ structure Setup where
   entB : Nat → B
   seedA : B
   seedB : B
+  /-- The one-per-peer rule the nodes keep sessions by: the family's
+  `kept`, unless a test swaps in a mutant (the laws assume `kept`). -/
+  keepRule : List Cand → List Id := kept
 
 namespace Setup
 variable (P : Setup)
@@ -103,7 +106,9 @@ def staticOf (pk : B) : B := P.K.xPub pk
 
 /-- Node A's (true) or B's sync: the family and its real hooks. -/
 def sync (isA : Bool) : Sync F NodeM :=
-  { fam := P.fam, cfg := P.cfg, hooks := hooks P.fam P.K (P.addr isA) }
+  { fam := P.fam, cfg := P.cfg
+    hooks := { hooks P.fam P.K (P.addr isA) with
+      established := sessionsBy P.keepRule, retired := retiredBy P.keepRule } }
 
 end Setup
 

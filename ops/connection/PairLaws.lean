@@ -37,8 +37,9 @@ end World
 namespace Setup
 variable (P : Setup) (I : Ideal P.K)
 
-/-- What every law assumes, besides `Ideal` itself. -/
-def Assumed : Prop := Apart P I
+/-- What every law assumes, besides `Ideal` itself: `Apart`, and that the
+nodes keep sessions by the family's rule. -/
+def Assumed : Prop := Apart P I ∧ P.keepRule = kept
 
 /-- These bytes as a session frame, opened at node A (true) or B with
 its own keys (`openFrame`, what `Node.onFrame` calls). -/
@@ -82,7 +83,7 @@ it sends nothing.
 session's address (`setAddr`) and runs the sync step for every frame
 that opens, so a replayed frame from the attacker's address diverts the
 session's frames to it until the peer's next frame
-(tests/engine/PairWorld.lean's second "FINDING"). It holds once the node drops
+(tests/engine/PairWorld.lean's "FINDING" check). It holds once the node drops
 a frame whose counter (`Frame.openAt`) is not above the session's mark
 (`Frame.fresh`) before anything else. -/
 def frameReplay_stmt : Prop :=
@@ -92,22 +93,32 @@ def frameReplay_stmt : Prop :=
       (w.step P (.deliver isA src b now)).side isA = w.side isA ∧
         (w.step P (.deliver isA src b now)).wire = w.wire
 
-/-- **3b. A replayed handshake op opens no session.** A bare op a node
-was already delivered, delivered again, adds at that node only arrival
-records (`recv`, kind 38, for an op it holds with no arrival recorded),
-and opens or closes no session. It may send: a request already answered
-gets its connection resent, to the address it now came from.
-
-**False today.** A request whose session was closed and purged is
-opened and answered afresh (a new `eph`, connection and `established`),
-and the one-per-peer choice (`kept`) then keeps that newest session,
-which no other node holds, and retires the live one: tests/engine/PairWorld.lean's
-first "FINDING" check. -/
+/-- **3b. A replayed handshake op closes no session, and opens none
+another node holds.** Delivering again a bare op a node was already
+delivered closes none of its sessions (in particular it retires none
+that has heard its peer: `kept_heard`), adds no Community op, and any
+session it opens there is one the other node never holds, now or at any
+later world. That session is a responder's answer to a request whose
+own session was closed and purged; it never hears its peer, so patience
+drops it (`deadDropped_stmt`). The replay may also add arrival records
+and resend a connection to the address it came from. -/
 def bareReplay_stmt : Prop :=
   P.Assumed I → ∀ w, P.Reach I w → ∀ isA src b now, (isA, b) ∈ w.delivered →
     (b[0]? : Option UInt8) = some bareTag →
-    (∀ o ∈ (w.step P (.deliver isA src b now)).ops isA, o ∉ w.ops isA → o.kind = 38) ∧
-    ∀ cid, cid ∈ (w.step P (.deliver isA src b now)).sessionIds isA ↔ cid ∈ w.sessionIds isA
+    (∀ cid ∈ w.sessionIds isA, cid ∈ (w.step P (.deliver isA src b now)).sessionIds isA) ∧
+    (∀ o ∈ (w.step P (.deliver isA src b now)).ops isA, o ∉ w.ops isA → owns o.kind = true) ∧
+    ∀ cid ∈ (w.step P (.deliver isA src b now)).sessionIds isA, cid ∉ w.sessionIds isA →
+      ∀ w', P.Run I (w.step P (.deliver isA src b now)) w' → cid ∉ w'.sessionIds (!isA)
+
+/-- **3c. A session that never hears its peer is dropped by patience.**
+If a node's connection for session `cid` has not heard the peer's hello
+(`peerFloor` unknown) and was last heard from more than `patience` ago,
+the node's next tick closes the session and purges it. With 3b, a
+replayed request leaves nothing behind for long. -/
+def deadDropped_stmt : Prop :=
+  P.Assumed I → ∀ w, P.Reach I w → ∀ isA cid c now, (w.side isA).node.conn? cid = some c →
+    c.peerFloor = none → c.heard + P.cfg.patience < now →
+      cid ∉ (w.step P (.tick isA now)).sessionIds isA
 
 /-- **4. Forward secrecy.** A session both nodes held, made with
 ephemeral `e` at A and `f` at B, once both have closed it: neither store

@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 278 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 280 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -564,8 +564,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`removed_approver_admits`]: ops/community/Laws.lean#L488-L499
 [`recv_send`]: ops/sync/ConnLaws.lean#L146-L148
 [`offer_shared`]: engine/core/Sync.lean#L83-L86
-[`wire_kinds`]: ops/connection/Laws.lean#L40-L41
-[`local_kinds`]: ops/connection/Laws.lean#L47-L48
+[`wire_kinds`]: ops/connection/Laws.lean#L42-L43
+[`local_kinds`]: ops/connection/Laws.lean#L49-L50
 [`joinOps_travels`]: ops/community/Intents.lean#L246-L250
 [`found_travels`]: ops/community/Intents.lean#L257-L261
 [`stopWaiting_local`]: ops/community/Intents.lean#L253-L254
@@ -608,7 +608,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`stored_local`]: engine/core/Sync.lean#L137-L140
 [`local_fact_mine`]: ops/community/Laws.lean#L627-L631
 [`intakeConn_conn`]: engine/core/Sync.lean#L36-L37
-[`established_agrees`]: ops/connection/Laws.lean#L51-L61
+[`established_agrees`]: ops/connection/Laws.lean#L53-L63
 [`open_seal`]: ops/connection/Frame.lean#L62-L66
 [`cid_seal`]: ops/connection/Frame.lean#L90-L93
 [`Codec.encode_decode`]: engine/core/Codec.lean#L154-L157

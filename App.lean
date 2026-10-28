@@ -797,7 +797,7 @@ def refreshPeers : M Unit := do
   if s.net.isNone || s.frames % 30 != 0 then return
   let all ← ((Connection.allSessions : SqlM SF _)).run s.rd
   let k := Connection.kept all
-  let ps := all.filterMap fun (cid, p, _) => if k.contains cid then some p else none
+  let ps := all.filterMap fun s => if k.contains s.cid then some s.peer else none
   if ps != s.peers then modify fun s => { s with peers := ps, pageKey := none }
 
 /-- The requests to join the current community, read by the Request kind. -/
