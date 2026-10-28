@@ -93,7 +93,9 @@ def Writer.run1 (w : Writer) (db : Db) (j : Job) : IO Unit := do
       let _ ← db.query "INSERT OR IGNORE INTO blobs (hash, bytes) VALUES (?, ?)" #[sha256 b, b]
     db.exec "COMMIT"
   catch e => db.exec "ROLLBACK"; throw e
-  (receive fam j.ops).run db
+  -- a peer's job keeps only shared ops: a local-only op is this node's
+  -- own write, whatever peers send (Engine.Sync: intake_local, stored_local)
+  (receive fam (intake fam j.mine j.ops)).run db
   let filed ← db.takeFiled
   let t1 ← nowUs
   w.notices.modify (· ++ filed.toArray)
@@ -118,38 +120,37 @@ def Writer.start (path : String) : IO Writer := do
   let _ ← IO.asTask (prio := .dedicated) (w.loop db)
   return w
 
-/-! ## Queries and answers -/
+/-! ## Queries and answers
 
-/-- A read: one op's verdict, a list, or blob bytes (immutable once
-there; watched on the blob op's decision). -/
+Every read is a list (Engine.Query): one fact is the list under its own
+id's key (`Q.get`), so a component's subscriptions are exactly the keys of
+the lists it reads (Engine.eval_stable: a list's answer changes only if a
+row is filed under its key). Blob bytes, outside the engine and
+immutable, are the one other read, watched on their blob op's decision. -/
+
 inductive Q where
-  | get (x : Id)
   | list (q : ListQ)
-  | facts (q : ListQ)
   | bytes (op hash : ByteArray)
   deriving BEq, Hashable, Inhabited
 
-/-- What a read answers. `pending`: the outbox's, not yet committed. -/
+/-- One fact: the list under its op's own key, at most one row. -/
+def Q.get (x : Id) : Q := .list { key := opKey x, limit := some 1 }
+
+/-- What a read answers; `pending` names rows from the outbox. -/
 inductive Ans where
-  | fact (v : Option Fact) (pending : Bool)
-  | list (a : Answer) (pending : List Id)
-  | facts (a : Answer) (fs : List Fact)
+  | list (a : Answer Fact) (pending : List Id)
   | bytes (b : Option ByteArray)
   deriving Inhabited, BEq
 
-instance : BEq Fact := ⟨fun a b => decide (a = b)⟩
-
-/-- The key whose filing can change q's answer (one key: a coarser key is
-allowed, a narrower one never). -/
+/-- The key whose filing can change q's answer. -/
 def Q.watch : Q → ByteArray
-  | .get x => opKey x
   | .list q => q.key
-  | .facts q => q.key
   | .bytes op _ => opKey op
 
 /-! ## The outbox -/
 
-/-- A write composed here, judged, and not yet committed. -/
+/-- A write composed here, judged, and not yet committed. Its keys are the
+fact's and its own id's, as the engine will file them. -/
 structure Pending where
   op : Op
   fact : Fact
@@ -159,14 +160,14 @@ def Pending.pos (p : Pending) : Pos := (sortOf p.fact, p.op.id)
 
 /-- The outbox's facts merged into a store answer: rows under the
 query's keys, inside its range, not in the store yet. -/
-def overlayList (out : Array Pending) (q : ListQ) (a : Answer) : Answer × List Id := Id.run do
+def overlayList (out : Array Pending) (q : ListQ) (a : Answer Fact) : Answer Fact × List Id := Id.run do
   let mine := out.toList.filter fun p =>
-    p.keys.contains q.key && q.also.all (p.keys.contains ·) && !(a.rows.any (·.2 == p.op.id))
+    p.keys.contains q.key && q.also.all (p.keys.contains ·) && !(a.rows.any (·.1.2 == p.op.id))
   if mine.isEmpty then return (a, [])
   let inR := mine.filter fun p => q.inside p.pos
-  let sorted := sortPos (a.rows ++ inR.map Pending.pos)
-  let rows := if q.desc then sorted.reverse else sorted
-  let rows := if q.limit = 0 then [] else rows.take q.limit
+  let all := a.rows ++ inR.map fun p => (p.pos, p.fact)
+  let sorted := all.mergeSort fun x y => x.1.cmp y.1 != .gt
+  let rows := q.cut (if q.desc then sorted.reverse else sorted)
   -- a pending row pushed past the limit is left out like any other
   return (⟨rows, a.inRange + inR.length, a.total + mine.length⟩, mine.map (·.op.id))
 
@@ -178,7 +179,7 @@ structure Entry where
   deriving Inhabited
 
 /-- Every instance read, its answer and whether a notice made it stale;
-the armed watches by key. -/
+the armed watches by key (each instance armed at most once). -/
 structure Live where
   entries : Std.HashMap Q Entry := {}
   armed : Std.HashMap ByteArray (Array Q) := {}
@@ -203,38 +204,32 @@ def Live.fresh (l : Live) (q : Q) : Bool := match l.entries[q]? with
   | some e => !e.stale
   | none => false
 
-/-- Record q's answer just read, and arm its watch. -/
+/-- Record q's answer just read, and arm its watch (once). -/
 def Live.store (l : Live) (q : Q) (a : Ans) : Live :=
   let k := q.watch
+  let qs := l.armed.getD k #[]
   { l with
     entries := l.entries.insert q ⟨a, false⟩
-    armed := l.armed.insert k ((l.armed.getD k #[]).push q)
+    armed := if qs.contains q then l.armed else l.armed.insert k (qs.push q)
     reads := l.reads + 1 }
 
-/-- Forget instances nobody reads any more (their watches stay armed
-until noticed, harmlessly). -/
+/-- Forget instances nobody reads any more, and their watches. -/
 def Live.keep (l : Live) (want : Q → Bool) : Live :=
-  { l with entries := l.entries.filter fun q _ => want q }
+  let armed := l.armed.fold (fun acc k qs =>
+    let qs := qs.filter want
+    if qs.isEmpty then acc else acc.insert k qs) {}
+  { l with entries := l.entries.filter fun q _ => want q, armed }
 
 /-- The store's answer to q on the read connection, with the outbox. -/
 def Q.run (db : Db) (out : Array Pending) : Q → IO Ans
-  | .get x => do
-    let v ← (getSql (F := Fact) x).run db
-    match v with
-    | some (.valid f) => return .fact (some f) false
-    | some .invalid => return .fact none false
-    | none => match out.find? (·.op.id == x) with
-      | some p => return .fact (some p.fact) true
-      | none => return .fact none false
   | .list q => do
     let a ← (listSql (F := Fact) q).run db
     let (a, pend) := overlayList out q a
     return .list a pend
-  | .facts q => do
-    let (a, fs) ← (listFactsSql (F := Fact) q).run db
-    let (a, pend) := overlayList out q a
-    let extra := out.toList.filter (fun p => pend.contains p.op.id) |>.map (·.fact)
-    return .facts a (fs ++ extra)
   | .bytes _ hash => return .bytes (← Data.Db.blob db hash)
+
+/-- An op's verdict, from the store (the judge reads requirements this way). -/
+def status (db : Db) (x : Id) : IO (Option (Verdict Fact)) :=
+  (Store.getStatus (F := Fact) (m := SqlM Fact) x).run db
 
 end Data

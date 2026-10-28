@@ -147,11 +147,11 @@ def read (q : Q) : M Ans := do
 
 def fresh (q : Q) : M Bool := do return (← get).live.fresh q
 
-def listAll (s : St) (limit : Nat) : ListQ := { key := key 4 s.me.c s.me.c, desc := true, limit }
+def listAll (s : St) (limit : Nat) : ListQ := { key := key 4 s.me.c s.me.c, desc := true, limit := some limit }
 
 def getFact (x : Id) : M (Option Fact × Bool) := do
-  match ← read (.get x) with
-  | .fact f p => return (f, p)
+  match ← read (Q.get x) with
+  | .list a pend => return ((a.rows.head?.map (·.2)), pend.contains x)
   | _ => return (none, false)
 
 def bytesStr (b : ByteArray) : String := (String.fromUTF8? b).getD "?"
@@ -161,33 +161,31 @@ pictures' blobs and its reactions; with the queries read. -/
 def readRow (m : Id) : M (Option (RowData × Array Q)) := do
   let s ← get
   let c := s.me.c
-  let mut deps : Array Q := #[.get m]
+  let mut deps : Array Q := #[Q.get m]
   let (f, pending) ← getFact m
   let some (.message _ u _ _ text tm atts) := f | return none
   -- author: the newest profile
-  let pq : Q := .list { key := key 7 c u, desc := true, limit := 1 }
+  let pq : Q := .list { key := key 7 c u, desc := true, limit := some 1 }
   deps := deps.push pq
   let mut name := "…"
   let mut avatar : Option ByteArray := none
   if let .list a _ ← read pq then
-    if let some (_, pid) := a.rows.head? then
-      deps := deps.push (.get pid)
-      if let (some (.profile _ _ n _ av), _) ← getFact pid then
-        name := bytesStr n
-        if let some bid := av.head? then
-          deps := deps.push (.get bid)
-          if let (some (.blob _ hh _ _), _) ← getFact bid then avatar := some hh
+    if let some (_, .profile _ _ n _ av) := a.rows.head? then
+      name := bytesStr n
+      if let some bid := av.head? then
+        deps := deps.push (Q.get bid)
+        if let (some (.blob _ hh _ _), _) ← getFact bid then avatar := some hh
   -- pictures
   let mut pics := #[]
   for a in atts do
-    deps := deps.push (.get a)
+    deps := deps.push (Q.get a)
     if let (some (.blob _ hh w h), _) ← getFact a then pics := pics.push (Pic.mk hh w h)
   -- reactions, tallied by emoji: distinct people, and whether I am one
-  let rq : Q := .facts { key := key 8 c m, desc := false, limit := 500 }
+  let rq : Q := .list { key := key 8 c m, desc := false, limit := some 500 }
   deps := deps.push rq
   let mut tallies : Array (String × List Id) := #[]
-  if let .facts _ fs ← read rq then
-    for f in fs do
+  if let .list a _ ← read rq then
+    for (_, f) in a.rows do
       if let .react _ who _ e _ := f then
         let e := bytesStr e
         match tallies.findIdx? (·.1 == e) with
@@ -208,12 +206,12 @@ def write (o : Op) : M Bool := do
   let s ← get
   let mut sts := []
   for r in o.reqs do
-    sts := sts ++ [← (getSql (F := Fact) r).run s.rd]
+    sts := sts ++ [← Data.status s.rd r]
   match judge fam o sts with
   | some (.valid f) =>
-    let p : Pending := ⟨o, f, keys f⟩
+    let p : Pending := ⟨o, f, opKey o.id :: keys f⟩
     modify fun s => { s with out := s.out.push p }
-    noticeLocal (opKey o.id :: p.keys)
+    noticeLocal p.keys
     s.wr.submit ⟨[o], [], true⟩
     return true
   | _ =>
@@ -743,7 +741,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
     modify fun s => { s with
       live := s.live.notice ns
       out := s.out.filter fun p => !ns.contains (opKey p.op.id) }
-    if !decided.isEmpty then noticeLocal (decided.toList.flatMap fun p => opKey p.op.id :: p.keys)
+    if !decided.isEmpty then noticeLocal (decided.toList.flatMap fun p => p.keys)
   -- 2. events and commands
   for e in evs do
     if !(← onEvent e) then return none
@@ -756,9 +754,9 @@ def step (evs : List Event) : M (Option (List Event)) := do
   -- 3. the list's ids and counts
   let s ← get
   if let .list a _ ← read (.list (listAll s s.limit)) then
-    modify fun s => { s with ids := a.rows.toArray, total := a.total }
+    modify fun s => { s with ids := (a.rows.map (·.1)).toArray, total := a.total }
   let s ← get
-  if let .list a _ ← read (.list { key := key 10 s.me.c s.me.c, limit := 0 }) then
+  if let .list a _ ← read (.list { key := key 10 s.me.c s.me.c, limit := some 0 }) then
     modify fun s => { s with people := a.total }
   -- 4. the offset, and the rows the frame and the fetch distance need
   let s ← get
@@ -856,7 +854,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) : IO St := do
   let rd ← openDb dbPath
   let wr ← Writer.start dbPath
   let (me, first) ← Chaos.Me.load rd
-  if (← (getSql (F := Fact) me.c).run rd).isNone then
+  if (← Data.status rd me.c).isNone then
     wr.submit ⟨first, [], true⟩
   let catalog ← match ← (Sheet.loadCatalog).toBaseIO with
     | .ok c => pure c

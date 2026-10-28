@@ -6,7 +6,7 @@
    "name": "engine",
    "manifestFile": "lake-manifest.json",
    "inherited": false,
-   "dir": "../lean-engine",
+   "dir": "../lean-engine-lists",
    "configFile": "lakefile.lean"}],
  "name": "quiet",
  "lakeDir": ".lake",

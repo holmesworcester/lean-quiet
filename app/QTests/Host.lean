@@ -16,6 +16,7 @@ made of refs. A scripted session on a fresh database:
     host <messages> <outdir>
 -/
 import Quiet
+import Tests.Lib
 
 open App Engine Community Data
 
@@ -91,14 +92,43 @@ def blanks (s : St) (sm : Sim) : IO Nat := do
       | none => pure ()
   return n
 
+/-- Every answer the live cache holds as fresh equals the query run now:
+no notice was missed and no watch is too narrow. Counts the answers
+checked and the stale ones found fresh. -/
+def liveSound : M (Nat × Nat) := do
+  let s ← get
+  -- take what the writer has filed first: a fresh answer is promised only
+  -- up to the notices the frame has seen
+  let ns ← s.wr.takeNotices
+  modify fun s => { s with live := s.live.notice ns }
+  let s ← get
+  let mut n := 0
+  let mut bad := 0
+  for (q, e) in s.live.entries.toList do
+    if e.stale then continue
+    let now ← q.run s.rd s.out
+    n := n + 1
+    if now != e.ans then
+      bad := bad + 1
+      if bad ≤ 5 then
+        let desc := match q, e.ans, now with
+          | .list lq, .list a pa, .list b pb =>
+            s!"list key {Tests.hex lq.key}… limit {lq.limit} desc {lq.desc}: held {a.rows.length}/{a.inRange}/{a.total} pend {pa.length}, now {b.rows.length}/{b.inRange}/{b.total} pend {pb.length}"
+          | .bytes .., _, _ => "bytes"
+          | _, _, _ => "other"
+        IO.eprintln s!"stale fresh answer: {desc}"
+  return (n, bad)
+
 def steps (n : Nat) : M Unit := do
   for _ in [0:n] do
     let _ ← step []
 
 def waitIdle (sm : Sim) : M Unit := do
+  -- wait for a new idle reply: earlier ones are still in the replies
+  let before := ((← sm.replies.get).filter (·.startsWith "idle")).size
   sm.cmds.modify (·.push "wait")
   let mut k := 0
-  while (← sm.replies.get).all (fun r => !r.startsWith "idle") && k < 20000 do
+  while ((← sm.replies.get).filter (·.startsWith "idle")).size == before && k < 20000 do
     let _ ← step []
     IO.sleep 1
     k := k + 1
@@ -136,6 +166,8 @@ def main (args : List String) : IO UInt32 := do
     IO.println s!"people {ppl}, loaded ids {s.ids.size}, mounted rows {s.rows.size}"
     writePpm (dir ++ "/bottom.ppm") W (← screenOf sm W Hs 63)
     check "bottom screen painted" ((← blanks s sm) == 0)
+    let (n1, b1) ← liveSound
+    check s!"after chaos, every fresh live answer equals the query now ({n1} answers)" (b1 == 0 && n1 > 0)
     if args[2]? == some "seed" then
       (← IO.getStdout).flush
       IO.Process.exit (if (← fails.get) == 0 then 0 else 1)
@@ -208,6 +240,8 @@ def main (args : List String) : IO UInt32 := do
     let s ← get
     let p1 := (s.rows[s.ids[0]!.2]?.map (·.data)).map (fun d => (d.text, d.pending))
     check s!"then stored, same id: {p1}" (p1.map (·.2) == some false && s.ids[0]!.2 == top.getD .empty)
+    let (n2, b2) ← liveSound
+    check s!"after a send, every fresh live answer equals the query now ({n2} answers)" (b2 == 0 && n2 > 0)
     sm.cmds.modify (·.push "react 0 🎉")
     let _ ← step []
     steps 3
@@ -272,6 +306,13 @@ def main (args : List String) : IO UInt32 := do
     check s!"the catalogue cell under the finger reacts with its emoji ({want})"
       (want.isSome && t2.any fun t => some t.emoji == want && t.mine)
     waitIdle sm
+    let (n3, b3) ← liveSound
+    check s!"after reactions, every fresh live answer equals the query now ({n3} answers)" (b3 == 0 && n3 > 0)
+    -- a second chaos lands while the screen is live: every answer still sound
+    sm.cmds.modify (·.push "chaos 200")
+    waitIdle sm
+    let (n4, b4) ← liveSound
+    check s!"after more chaos, every fresh live answer equals the query now ({n4} answers)" (b4 == 0 && n4 > 0)
     IO.println (App.stats (← get))
     pure ()).run s2
   let _ := s2
