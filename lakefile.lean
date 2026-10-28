@@ -167,6 +167,12 @@ lean_exe jointcp where
 lean_exe merkle_check where
   root := `tests.engine.MerkleCheck
 
+lean_exe codecdiff where
+  root := `tests.engine.CodecDiff
+
+lean_exe bench where
+  root := `tests.engine.Bench
+
 /-! ## The app on the headless twin (tests/app/run.sh) -/
 
 lean_exe twin_demo where
