@@ -168,6 +168,11 @@ abstract, and the one thing assumed of it is the engine's `view_stable`
 | no missed update | a pass refilling every marked want, then a frame: every want shows the store's value | `settle` | ✅ |
 | settling time | passes of `refill` each: ⌈marked / refill⌉ of them, then a frame | `marked_pass`, `settle_passes` | ✅ |
 | the mutant | a frame gated on notices shows 0 for ever where the store holds 1; this frame shows 1 | `gated_stale`, `ungated_fresh` | ✅ |
+| a user's action (holmes-1e's (a) and (c)) | run before any refill; its value (pending op or refusal, `Val.done`) and every want it touched shown one frame after the one pass that judged it, however long the backlog; none left queued. The latency given up: one bounded pass and one frame, where it showed in the composing frame | `acts_shown`, `passActs_acts` | ✅ |
+| the composer (holmes-1e's (b)) | the frame's alone: no reader step changes it or depends on it; typing changes nothing else | `passActs_comp`, `passActs_indep`, `type_only` | ✅ |
+| a commit's stability | asked of each commit as made (`StableAt`), as window-subs' `notice_iff` gives it | `inv_commit` | ✅ |
+| the reader's pass as it runs (`RWorld`: Live's stale reads, each want's reads, mark then pick, as Reader.pass does with `Live.mark` and `Live.pick`) | every step keeps the invariant; a pass reading every marked want, then a frame, shows the store's values | `RWorld.inv_pass`, `RWorld.inv_commit`, `RWorld.inv_evict`, `RWorld.settle` | ✅ of the decisions Reader.pass calls (the diff that makes it call them is with the lead); its reads are the moment's by holmes-1e's LiveLaws |
+| the mutant: staleness checked while reading (holmes-1e's first pass) | two wants sharing a read: the first read refreshes it, the second shows 0 for ever where the store holds 1; marking first shows 1 | `eager_stale`, `marked_fresh` | ✅ |
 | the frame's reads | none: no store read, no list, no SQL, decrypt or decode but through `Pics.spawn` | `frame_reads` (Doors over App.step) | ❌ the frame reads SQLite today (readView, slicesOf); fix: the reader above |
 | the frame's work | a + b · rows on screen + the moved values' sizes | `frame_work` | ❌ `bottoms` and the mount and paint loops walk every loaded row; fix: a prefix-sum tree over heights and a binary search for the window |
 | an unchanged frame | nothing moved, no event, no scroll, no paint finished: no work, the same rows | `frame_idle` | ❌ every frame re-runs the views through the cache; fix: the moved set |
@@ -196,6 +201,11 @@ with the meter above.
 | the frame reads SQLite (`readView`, `slicesOf`): a slow read is a slow frame | the lists on screen and their rows | `frame_reads` | ❌ fix: the reader and the board (above) |
 | `bottoms`, the mount and paint loops, `findIdx?` | loaded rows: every row from the newest to the window, each frame | `frame_work` | ❌ fix: the rows' heights tree (below), which App is yet to call |
 | the rows' heights tree (engine/renderer/Heights.lean): the row at an offset, where a row starts, a height set, a row pushed | log₂ rows: at most the tree's depth d, 2^(d-1) < rows; 13 steps at 5,000 rows, where the walk takes 4,981 | `find_spec`, `start_eq`, `set_toList`, `push_ok`, `rows_cost` | ✅ of the structure |
+| the window by binary search | the rows offsets [lo, hi] overlap are those from `find lo` to `find hi`; rows below end at or under lo, rows above start over hi | `start_mono`, `below_window`, `above_window` | ✅ |
+| both ends (new messages below, older pages above an origin) | the row at an offset, on either side, in one find | `Both.rowAt_spec` | ✅ |
+| a window's rows, rebuilt (a late message lands mid-window; a removed one keeps its slot at height 0) | one node per leaf and pair: at most 4 · rows + 1 steps, O(window), the tree what it must be | `rebuild_ok`, `rebuild_cost` | ✅ |
+| the window | at most above + below rows: its two reads, each within its limit (`Fits`) | `window_rows`, `list_costs` | ✅ |
+| the anchor | when the estimate below the window changes by Δ, moving the offset by Δ leaves every window row where it was on screen | `anchor_stable` | ✅ |
 | the conversation's re-read | `limit`, which grows as the list scrolls up | `list_costs` | ❌ fix: a window of rows around the anchor, read by `after`/`before` |
 | range counts with `cap = 0` (every list the app reads) | the rows in range | `list_costs` (needs `0 < cap`) | ❌ fix: a3's capped counts ("999+") |
 | `present`, `members`, `recipients` (`admission.all.read [c]`, then `live` reads each admission's removals) | members: O(members) lists per re-read | `view_lists` | ❌ fix: a present-members key the removal files out of, read by window; a capped count for the header |

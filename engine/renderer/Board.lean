@@ -61,4 +61,22 @@ def get? (b : Board W V) (w : W) : Option (V × Ver) := b.vals[w]?
 
 end Board
 
+/-! ## A pass's decisions (engine/renderer/ReaderLaws.lean) -/
+
+/-- A want's reads changed: none held, none recorded (read every pass),
+or one of them stale. -/
+def staleW {W Q : Type} (staleQ : Q → Bool) (deps : W → Option (List Q)) (x : W) : Bool :=
+  match deps x with
+  | none => true
+  | some qs => qs.isEmpty || qs.any staleQ
+
+/-- **Mark, then read**: every want whose reads changed is marked, before
+any is read again. -/
+def mark {W : Type} (wants : List W) (stale : W → Bool) (dirty : List W) : List W :=
+  dirty ++ wants.filter stale
+
+/-- What a pass reads: the first `cap` marked wants, in the frame's order. -/
+def pick {W : Type} [BEq W] (wants dirty : List W) (cap : Nat) : List W :=
+  (wants.filter (dirty.contains ·)).take cap
+
 end Live

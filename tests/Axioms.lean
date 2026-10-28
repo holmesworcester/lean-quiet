@@ -28,6 +28,7 @@ import engine.core.ListCost
 import engine.renderer.BoardLaws
 import engine.renderer.Heights
 import ops.community.WrapLaws
+import engine.renderer.ReaderLaws
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -398,6 +399,14 @@ section cost
 #print axioms Live.Board.seen_take
 #print axioms Live.Board.seen_keep
 #print axioms Live.World.inv_commit
+#print axioms Live.RWorld.inv_commit
+#print axioms Live.RWorld.inv_pass
+#print axioms Live.RWorld.inv_frame
+#print axioms Live.RWorld.inv_evict
+#print axioms Live.RWorld.settle
+#print axioms Live.Eager.w1_inv
+#print axioms Live.Eager.eager_stale
+#print axioms Live.Eager.marked_fresh
 #print axioms Live.World.inv_pass
 #print axioms Live.World.inv_frame
 #print axioms Live.World.settle
@@ -405,6 +414,12 @@ section cost
 #print axioms Live.World.settle_passes
 #print axioms Live.Gated.gated_stale
 #print axioms Live.Gated.ungated_fresh
+#print axioms Live.World.fold_commits
+#print axioms Live.World.acts_shown
+#print axioms Live.World.passActs_acts
+#print axioms Live.World.passActs_comp
+#print axioms Live.World.passActs_indep
+#print axioms Live.World.type_only
 #print axioms Heights.T.start_eq
 #print axioms Heights.T.find_spec
 #print axioms Heights.T.set_toList
@@ -413,6 +428,19 @@ section cost
 #print axioms Heights.T.startM_cost
 #print axioms Heights.T.setM_cost
 #print axioms Heights.rows_cost
+#print axioms Heights.T.start_mono
+#print axioms Heights.T.start_size
+#print axioms Heights.T.below_window
+#print axioms Heights.T.above_window
+#print axioms Heights.Both.rowAt_spec
+#print axioms Heights.le_pow_clog
+#print axioms Heights.clog_least
+#print axioms Heights.T.build_ok
+#print axioms Heights.T.buildM_cost
+#print axioms Heights.rebuild_ok
+#print axioms Heights.rebuild_cost
+#print axioms Heights.window_rows
+#print axioms Heights.anchor_stable
 #print axioms Engine.View.always_eval
 #print axioms Engine.View.always_run
 #print axioms Community.approveReq_ops
