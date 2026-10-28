@@ -132,6 +132,9 @@ def main (args : List String) : IO UInt32 := do
     modify fun s => { s with field := "design team" }
     steps 2
     writePpm (dir ++ "/create.ppm") W (← screenOf sm W Hs 63)
+    check "Continue asks the founder's name" ((← tapAct .continue_) && (← get).page == .createName)
+    modify fun s => { s with field := "Dee" }
+    steps 1
     check "Continue founds it" (← tapAct .continue_)
     waitIdle sm
     let s ← get

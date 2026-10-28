@@ -78,7 +78,7 @@ abbrev ImgKey := ByteArray × Nat × Nat
 
 /-- Which page is up: a conversation, or one of libquiet's other screens. -/
 inductive PageId where
-  | chat | getStarted | create | joinChoice | openInvite | paste | scan | name | agree | waiting
+  | chat | getStarted | create | createName | joinChoice | openInvite | paste | scan | name | agree | waiting
   | requests | invite | switcher
   deriving BEq, Repr, Inhabited
 
@@ -150,6 +150,8 @@ structure St where
   photoNext : Nat := 0
   /-- The name chosen for joining (Choose a name). -/
   joinName : String := ""
+  /-- The community being created, while its founder names themself. -/
+  newCommunity : String := ""
   /-- Communities whose first profile this session has composed. -/
   introduced : List Id := []
   /-- A toast and the frame it goes at (libquiet's: centred, about 3 s). -/
@@ -512,9 +514,9 @@ def switchTo (i : Nat) : M Unit := do
 
 /-- Found a community named n: its root and my profile, and it becomes
 current. -/
-def found (n : String) : M Unit := do
+def found (n myName : String) : M Unit := do
   let seed ← Chaos.freshSeed n
-  let w := Community.found seed n.toUTF8
+  let w := Community.found seed n.toUTF8 myName.toUTF8 (newestTime (← get) + 1)
   if ← writeAll w then
     -- the root is the community: the write's second op, after the secret
     if let some r := w.ops[1]? then
@@ -549,6 +551,7 @@ def pageOf (s : St) : Pages.Page :=
   | .openInvite => Pages.openInvite f dm W h
   | .paste => Pages.paste f dm W h s.field true s.refusal
   | .name => Pages.chooseName f dm W h s.field
+  | .createName => Pages.chooseName f dm W h s.field
   | .scan => Pages.scan f dm W h none "No camera is available."
   | .agree => Pages.agree f dm W h "this community"
   | .waiting => Pages.waiting f dm W h (Kinds.Request.hexShort s.me.c)
@@ -568,7 +571,7 @@ def pageOf (s : St) : Pages.Page :=
 def pageTitle : PageId → String × Bool
   | .getStarted => ("", false) | .create => ("", false) | .joinChoice => ("", false)
   | .openInvite => ("", false) | .paste => ("", false) | .scan => ("Join with QR code", true)
-  | .name => ("", false)
+  | .name => ("", false) | .createName => ("", false)
   | .agree => ("Agree & join", false) | .waiting => ("", false) | .requests => ("Waiting to join", true)
   | .invite => ("Add members", true) | .switcher => ("Communities", true) | .chat => ("", false)
 
@@ -596,10 +599,17 @@ def onPageAct (a : Pages.Act) : M Unit := do
     | .create =>
       let n := s.field.trimAscii.toString
       if !n.isEmpty then
+        s.io.textClear
+        modify fun s => { s with field := "", newCommunity := n }
+        openPage .createName
+        s.io.ime true
+    | .createName =>
+      let me := s.field.trimAscii.toString
+      if !me.isEmpty then
         s.io.ime false
         s.io.textClear
         modify fun s => { s with field := "" }
-        found n
+        found s.newCommunity me
     | .paste =>
       match Community.Invite.parse s.field with
       | some i =>
@@ -818,7 +828,7 @@ def onEvent : Event → M Bool
   | .long r x y => do onTap r x.toNat y.toNat true; return true
   | .text => do
     let (t, sel) ← (← get).io.text
-    if (← get).page == .create || (← get).page == .paste || (← get).page == .name then
+    if (← get).page == .create || (← get).page == .createName || (← get).page == .paste || (← get).page == .name then
       modify fun s => { s with field := t, refusal := none, pageCache := "" }
       return true
     match (← get).sheet with
@@ -828,7 +838,7 @@ def onEvent : Event → M Bool
       modify fun s => { s with text := t, sel := if sel.size == 4 then sel else #[0, 0, 0, 0] }
     return true
   | .send => do
-    if (← get).page == .create || (← get).page == .paste || (← get).page == .name then
+    if (← get).page == .create || (← get).page == .createName || (← get).page == .paste || (← get).page == .name then
       onPageAct .continue_
       return true
     sendNow
@@ -913,7 +923,13 @@ def command (line : String) : M Bool := do
     | some "tap", some x, some y, _ => onTap .composer x y false; s.io.ctlReply "tapped"
     | some "drag", some ph, some x, some y => onSheetDrag ph x y; s.io.ctlReply "dragged"
     | _, _, _, _ => s.io.ctlReply "sheet tap X Y | sheet drag PHASE X Y"
-  | "found" => found rest; s.io.ctlReply s!"founded {rest}"
+  | "found" =>
+    -- found COMMUNITY[|MYNAME]
+    let (n, me) := match rest.splitOn "|" with
+      | [n, me] => (n, me)
+      | _ => (rest, "Me")
+    found n me
+    s.io.ctlReply s!"founded {n}"
   | "switch" =>
     match ws[1]? >>= String.toNat? with
     | some i => switchTo i

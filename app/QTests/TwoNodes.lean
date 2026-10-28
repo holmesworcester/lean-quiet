@@ -55,7 +55,7 @@ def main (args : List String) : IO UInt32 := do
   let b0 ← App.start sb.io screen (dir ++ "/b/quiet.db")
   -- A founds "club" and opens Add members
   let (link, a1) ← (show M String from do
-    sa.cmds.modify (·.push "found club")
+    sa.cmds.modify (·.push "found club|Ann")
     steps 3
     waitIdle sa
     sa.cmds.modify (·.push "open invite")
@@ -124,7 +124,15 @@ def main (args : List String) : IO UInt32 := do
     let rows := s.rows.toList.map (·.2.data)
     check s!"A shows B's message ({s.total} messages)" (rows.any (·.text == "hello from B"))
     check s!"under the name B chose ({(rows.find? (·.text == "hello from B")).map (·.name)})"
-      (rows.any fun d => d.text == "hello from B" && d.name == "Bea")).run a2
+      (rows.any fun d => d.text == "hello from B" && d.name == "Bea")
+    -- and A's own post goes under the founder's name
+    sa.cmds.modify (·.push "send hi from A")
+    steps 2
+    waitIdle sa
+    steps 5
+    let rows := (← get).rows.toList.map (·.2.data)
+    check s!"A's own post is under the founder's name ({(rows.find? (·.text == "hi from A")).map (·.name)})"
+      (rows.any fun d => d.text == "hi from A" && d.name == "Ann")).run a2
   -- C joins with the same link, then stops waiting: back on Get started
   fresh (dir ++ "/c")
   let sc ← Sim.new
