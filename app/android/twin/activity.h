@@ -66,4 +66,7 @@ void ba_text_clear(void);
 // of a fling), debug.lean.trace=1 (per-vsync log).
 bool ba_ahead(void);
 
+// Puts UTF-8 text on the clipboard (the Java half, on the UI thread).
+void ba_copy(const char* utf8);
+
 #endif

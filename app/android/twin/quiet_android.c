@@ -45,6 +45,9 @@ typedef struct {
   // the press being followed
   bool           down;
   bool           moved;
+  bool           held;   // the long press was reported while down
+  bool           drag;   // went down on the composer: its drag is the app's
+  int32_t        ctop;   // the composer's top when it went down
   float          x0, y0;
   int64_t        t0;
   bool           active;
@@ -91,6 +94,7 @@ static void lq_release_at(int64_t t, uint32_t top_h, uint32_t bot_h) {
   int32_t  y    = (int32_t)lroundf(lq.y0);
   uint32_t x    = lq.x0 < 0 ? 0 : (uint32_t)lroundf(lq.x0);
   uint32_t kind = t - lq.t0 >= LQ_LONG_NS ? 3 : 2;
+  (void)shift;
   if (y < (int32_t)top_h) {
     lq_push(kind, 1, x, (uint32_t)(y < 0 ? 0 : y));
   } else if (y >= ctop) {
@@ -114,15 +118,31 @@ static void lq_pump(uint32_t top_h, uint32_t bot_h) {
       if (t.kind == BA_DOWN) {
         lq.down  = true;
         lq.moved = false;
+        lq.held  = false;
         lq.x0    = t.x;
         lq.y0    = t.y;
         lq.t0    = t.t;
+        // A finger down on the composer (or the sheet in its place) is
+        // the app's to scroll: its drag goes to the app (event 8).
+        float   b;
+        int32_t ctop, shift;
+        bl_placed(&b, &ctop, &shift);
+        lq.ctop = ctop;
+        lq.drag = (int32_t)lroundf(t.y) >= ctop;
+        if (lq.drag) {
+          lq_push(8, 0, (uint32_t)lroundf(t.x), (uint32_t)(lroundf(t.y) - ctop));
+        }
       } else if (lq.down) {
         if (fabsf(t.x - lq.x0) > slop || fabsf(t.y - lq.y0) > slop) {
           lq.moved = true;
         }
+        if (lq.drag) {
+          int32_t ly = (int32_t)lroundf(t.y) - lq.ctop;
+          lq_push(8, t.kind == BA_UP ? 2 : 1, (uint32_t)lroundf(t.x < 0 ? 0 : t.x),
+            (uint32_t)(ly < 0 ? 0 : ly));
+        }
         if (t.kind == BA_UP) {
-          if (!lq.moved) {
+          if (!lq.moved && !lq.held) {
             lq_release_at(t.t, top_h, bot_h);
           }
           lq.down = false;
@@ -130,6 +150,13 @@ static void lq_pump(uint32_t top_h, uint32_t bot_h) {
       }
     }
   } while (n == 256);
+  // A long press is reported once it has been held long enough, while the
+  // finger is still down (as Android's own long press is); its release is
+  // then no tap.
+  if (lq.down && !lq.moved && !lq.held && (int64_t)lq_tick() - lq.t0 >= LQ_LONG_NS) {
+    lq.held = true;
+    lq_release_at(lq.t0 + LQ_LONG_NS, top_h, bot_h);
+  }
   uint32_t ws[256];
   do {
     n = ba_drain_events(ws, 256);
@@ -387,6 +414,11 @@ lean_obj_res lq_ime(uint8_t show) {
 
 lean_obj_res lq_text_clear(void) {
   ba_text_clear();
+  return lean_io_result_mk_ok(lean_box(0));
+}
+
+lean_obj_res lq_copy(b_lean_obj_arg text) {
+  ba_copy(lean_string_cstr(text));
   return lean_io_result_mk_ok(lean_box(0));
 }
 

@@ -44,6 +44,7 @@ def Sim.io (sm : Sim) : Io where
   text := pure ("", #[0, 0, 0, 0])
   ime _ := pure ()
   textClear := pure ()
+  copy t := sm.replies.modify (·.push s!"copied {t}")
   ctlPoll := sm.cmds.modifyGet fun c => (c, #[])
   ctlReply s := sm.replies.modify (·.push s)
   nowUs := do return (← IO.monoNanosNow).toUInt64 / 1000
@@ -215,17 +216,62 @@ def main (args : List String) : IO UInt32 := do
     check "a reaction shows at once, mine" (t.any fun t => t.emoji == "🎉" && t.mine)
     waitIdle sm
     writePpm (dir ++ "/sent.ppm") W (← screenOf sm W Hs 63)
-    -- the reaction tray on the newest message, the rest dimmed
+    -- the reaction sheet on a message, the rest dimmed
     sm.cmds.modify (·.push "tray 1")
     for _ in [0:20] do
       let _ ← step []
       IO.sleep 3
-    writePpm (dir ++ "/tray.ppm") W (← screenOf sm W Hs 63)
+    writePpm (dir ++ "/sheet.ppm") W (← screenOf sm W Hs 63)
     let s ← get
-    check "the tray is open, the other rows dimmed" (s.tray.isSome &&
+    let m1 := s.ids[1]!.2
+    check "the sheet is open, the other rows dimmed" (s.sheet.isSome &&
       (s.rows.fold (fun n x r => if some x != s.selected && r.dimShown.isSome then n + 1 else n) 0) > 0)
-    sm.cmds.modify (·.push "untray")
+    -- tap the quick key for 🎉 at its drawn box's centre
+    let q := Sheet.quick s.dim s.W
+    let gi := 3
+    let kx := q.keys.left gi + q.keys.key / 2
+    let ky := q.keys.y0 + q.keys.key / 2
+    sm.cmds.modify (·.push s!"sheet tap {kx} {ky}")
     steps 3
+    let s ← get
+    let t1 := (s.rows[m1]?.map (·.data.tallies)).getD []
+    check s!"the quick key under the finger reacts ({Row.quick[gi]!}) and the sheet closes"
+      (s.sheet.isNone && t1.any fun t => t.emoji == Row.quick[gi]! && t.mine)
+    -- open again, browse, drag the grid, pick the emoji drawn under a cell
+    sm.cmds.modify (·.push "tray 1")
+    steps 3
+    let s ← get
+    let bx := q.keys.left 6 + q.keys.key / 2
+    sm.cmds.modify (·.push s!"sheet tap {bx} {ky}")
+    steps 5
+    let s ← get
+    check "Browse opens the catalogue" ((s.sheet.map (·.catalog)).getD false)
+    writePpm (dir ++ "/catalog.ppm") W (← screenOf sm W Hs 63)
+    let sh := s.sheet.get!
+    let c := catOf s sh
+    let gx := c.grid.x0 + c.grid.key / 2
+    let gy := c.grid.y0 + c.grid.vh - c.grid.key / 2
+    sm.cmds.modify (·.push s!"sheet drag 0 {gx} {gy}")
+    for d in [1:11] do sm.cmds.modify (·.push s!"sheet drag 1 {gx} {gy - d * 60}")
+    sm.cmds.modify (·.push s!"sheet drag 2 {gx} {gy - 600}")
+    steps 40
+    let s ← get
+    let sh := s.sheet.get!
+    check s!"a drag scrolls the grid (scroll {sh.scroll}, within {c.grid.maxScroll})"
+      (sh.scroll > 0 && sh.scroll ≤ c.grid.maxScroll)
+    writePpm (dir ++ "/catalog-scrolled.ppm") W (← screenOf sm W Hs 63)
+    let c := catOf s sh
+    let tx := c.grid.x0 + 2 * c.grid.pitch + c.grid.key / 2
+    let ty := c.grid.y0 + c.grid.key
+    let picked := c.grid.hit sh.scroll tx ty
+    let want := picked.bind fun i => (sheetItems s sh)[i]? >>= (s.catalog[·]?) |>.map (·.e)
+    sm.cmds.modify (·.push s!"sheet tap {tx} {ty}")
+    steps 3
+    let s ← get
+    let t2 := (s.rows[m1]?.map (·.data.tallies)).getD []
+    check s!"the catalogue cell under the finger reacts with its emoji ({want})"
+      (want.isSome && t2.any fun t => some t.emoji == want && t.mine)
+    waitIdle sm
     IO.println (App.stats (← get))
     pure ()).run s2
   let _ := s2

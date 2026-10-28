@@ -163,4 +163,13 @@ public class LeanActivity extends NativeActivity {
   public void clearText() {
     runOnUiThread(() -> edit.setText(""));
   }
+
+  /** From native (any thread): puts text on the clipboard. */
+  public void copyText(String text) {
+    runOnUiThread(() -> {
+      android.content.ClipboardManager cm =
+        (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+      if (cm != null) cm.setPrimaryClip(android.content.ClipData.newPlainText("message", text));
+    });
+  }
 }

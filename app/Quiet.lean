@@ -9,3 +9,5 @@ import Quiet.Data
 import Quiet.Chaos
 import Quiet.Row
 import Quiet.App
+import Quiet.SheetGeom
+import Quiet.Sheet

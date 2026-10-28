@@ -27,6 +27,7 @@ import Quiet.Data
 import Quiet.Chaos
 import Quiet.Row
 import Quiet.Geometry
+import Quiet.Sheet
 import Std.Data.HashMap
 
 namespace App
@@ -42,6 +43,7 @@ structure Io where
   text : IO (String × Array UInt32)
   ime : Bool → IO Unit
   textClear : IO Unit
+  copy : String → IO Unit
   ctlPoll : IO (Array String)
   ctlReply : String → IO Unit
   nowUs : IO UInt64
@@ -69,6 +71,21 @@ structure RowSt where
   dimShown : Option Bitmap := none
 
 abbrev ImgKey := ByteArray × Nat × Nat
+
+/-- The reaction sheet's state: quick or the catalogue, its category,
+tone, search, and the grid's scroll (with a drag or fling in progress). -/
+structure SheetSt where
+  catalog : Bool := false
+  cat : Nat := 0
+  tone : Nat := 0
+  query : String := ""
+  searching : Bool := false
+  scroll : Nat := 0
+  drag : Option (Nat × Nat) := none
+  lastY : Nat := 0
+  lastT : Nat := 0
+  vel : Float := 0
+  deriving Inhabited
 
 structure St where
   io : Io
@@ -105,12 +122,14 @@ structure St where
   paints : Nat := 0
   seed : Nat := 1
   dim : Dim := default
-  /-- The open reaction tray's picture (for the message in `selected`). -/
-  tray : Option Row.Tray := none
-  trayKey : String := ""
+  /-- The reaction sheet, open on the message in `selected`. -/
+  sheet : Option SheetSt := none
+  catalog : Array Sheet.Item := #[]
+  gridKey : String := ""
+  gridRows : Std.HashMap Nat Bitmap := {}
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), pure (), pure #[], fun _ => pure (), pure 0⟩⟩
+  pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0⟩⟩
 
 abbrev M := StateT St IO
 
@@ -232,7 +251,15 @@ def textW (s : St) : Nat := fieldX1 s - textX0 s - s.dim.px 12
 def composerLines (s : St) : Array Text.Line :=
   if s.text.isEmpty then #[#[]] else Text.layout s.font (textW s) s.text
 
-def botH (s : St) : Nat := 2 * textY0 s + (min 5 (composerLines s).size) * s.dim.lineH
+def sheetItems (s : St) (sh : SheetSt) : Array Nat := Sheet.shown s.catalog sh.cat sh.query
+
+def catOf (s : St) (sh : SheetSt) : Sheet.Cat :=
+  Sheet.cat s.dim s.font s.W s.Hs s.insetTop (sheetItems s sh).size
+
+def botH (s : St) : Nat :=
+  match s.sheet with
+  | some sh => if sh.catalog then (catOf s sh).h else (Sheet.quick s.dim s.W).h
+  | none => 2 * textY0 s + (min 5 (composerLines s).size) * s.dim.lineH
 
 /-- The screen's geometry as of this frame (Geometry: the theorems that
 list content is never under the header, composer or keyboard are about
@@ -342,21 +369,6 @@ def paintRow (x : Id) : M Unit := do
 
 /-! ## The frame -/
 
-/-- Where the open tray sits: the content distance of its bottom edge,
-and its left x. Above the message if the viewport has room there, else
-below it. -/
-def trayAt (s : St) (b : Nat) (bots : Array Nat) : Option (Row.Tray × Nat × Nat) := do
-  let m ← s.selected
-  let t ← s.tray
-  let i ← s.ids.findIdx? (·.2 == m)
-  let bot := bots[i]!
-  let top := bot + heightOf s m
-  let gap := s.dim.px 8
-  let th := t.bmp.h
-  let x := min s.dim.textX (s.W - t.bmp.w - s.dim.pad)
-  if top + gap + th ≤ b + viewH s then return (t, top + gap, x)
-  return (t, (max bot (gap + th)) - gap - th, x)
-
 /-- The list frame: row r shows content at b + viewH + over - 1 - r. -/
 def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run do
   let vh := viewH s
@@ -381,15 +393,6 @@ def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run 
         if p < top && p + over ≥ b then
           let r := top - 1 - p
           if r < hgt then fr := fr.set! r bmp.rows[li]!
-  -- the tray, over what is there (its rows are new rows: the ones under
-  -- it are shared and stay as they were)
-  if let some (t, p0, x) := trayAt s b bots then
-    for k in [0:t.bmp.h] do
-      let p := p0 + t.bmp.h - 1 - k
-      if p < top && p + over ≥ b then
-        let r := top - 1 - p
-        if r < hgt then
-          fr := fr.set! r (t.bmp.rows[k]!.copySlice 0 fr[r]! (4 * x) (4 * t.bmp.w))
   return fr
 
 def header (s : St) : Bitmap := Id.run do
@@ -463,8 +466,85 @@ def rowAt (s : St) (p : Nat) : Option (Id × Nat) := Id.run do
     if bot ≤ p && p < bot + h then return some (x, bot + h - 1 - p)
   return none
 
+def closeSheet : M Unit := do
+  let s ← get
+  if (s.sheet.map (·.searching)).getD false then
+    s.io.ime false
+    s.io.textClear
+  modify fun s => { s with sheet := none, selected := none }
+
+def mineOn (s : St) (m : Id) : List String :=
+  ((s.rows[m]?.map (·.data.tallies)).getD []).filter (·.mine) |>.map (·.emoji)
+
+/-- A tap on the sheet: the key under the finger (SheetGeom.hit_iff: the
+one drawn there). -/
+def onSheetTap (sh : SheetSt) (x y : Nat) : M Unit := do
+  let s ← get
+  let some m := s.selected | closeSheet
+  if !sh.catalog then
+    match Sheet.hitQuick s.dim s.W x y with
+    | .react e =>
+      if !(mineOn s m).contains e then let _ ← reactTo m e
+      closeSheet
+    | .browse =>
+      let sh' := { sh with catalog := true, scroll := 0 }
+      modify fun s => { s with sheet := some sh' }
+    | .copy =>
+      if let some r := s.rows[m]? then s.io.copy r.data.text
+      closeSheet
+    | .none => pure ()
+  else
+    let items := sheetItems s sh
+    let c := catOf s sh
+    match Sheet.hitCat c sh.scroll x y with
+    | .back =>
+      if sh.searching then s.io.ime false; s.io.textClear
+      let sh' := { sh with catalog := false, searching := false, query := "" }
+      modify fun s => { s with sheet := some sh' }
+    | .search =>
+      s.io.ime true
+      modify fun s => { s with sheet := some { sh with searching := true } }
+    | .tone t => modify fun s => { s with sheet := some { sh with tone := t } }
+    | .category k =>
+      if sh.searching then s.io.ime false; s.io.textClear
+      let sh' := { sh with cat := k, scroll := 0, query := "", searching := false }
+      modify fun s => { s with sheet := some sh' }
+    | .pick i =>
+      if let some it := items[i]? >>= (s.catalog[·]?) then
+        let e := it.toned sh.tone
+        if !(mineOn s m).contains e then let _ ← reactTo m e
+      closeSheet
+    | .none => pure ()
+
+/-- A drag on the catalogue's grid scrolls it, and a release flings it. -/
+def onSheetDrag (phase x y : Nat) : M Unit := do
+  let s ← get
+  let some sh := s.sheet | return
+  if !sh.catalog then return
+  let now := (← s.io.nowUs).toNat / 1000
+  let c := catOf s sh
+  match phase with
+  | 0 =>
+    let sh' := { sh with drag := some (y, sh.scroll), lastY := y, lastT := now, vel := 0 }
+    modify fun s => { s with sheet := some sh' }
+  | _ =>
+    match sh.drag with
+    | none => pure ()
+    | some (y0, s0) =>
+      let target := (Int.ofNat s0 + Int.ofNat y0 - Int.ofNat y).toNat
+      let dt := max 1 (now - sh.lastT)
+      let v := (Float.ofNat sh.lastY - Float.ofNat y) / Float.ofNat dt
+      let vel := if phase == 2 then sh.vel else sh.vel * 0.5 + v * 0.5
+      let sh' := { sh with scroll := c.grid.clamp target, lastY := y, lastT := now, vel := vel,
+                           drag := if phase == 2 then none else sh.drag }
+      modify fun s => { s with sheet := some sh' }
+  let _ := x
+
 def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   let s ← get
+  if let some sh := s.sheet then
+    if r == .composer then onSheetTap sh x y; return
+    if r == .header then closeSheet; return
   match r with
   | .composer =>
     if x ≥ fieldX1 s then
@@ -475,19 +555,9 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   | .header => s.io.scrollTo 0
   | .list =>
     if s.imeH > 0 && !long then s.io.ime false; return
-    -- an open tray: a key reacts; anything else closes it
-    if let some m := s.selected then
-      if !long then
-        let (bots, _) := bottoms s
-        if let some (t, p0, tx) := trayAt s s.b bots then
-          if p0 ≤ y && y < p0 + t.bmp.h && tx ≤ x && x < tx + t.bmp.w then
-            let ty := p0 + t.bmp.h - 1 - y
-            for (bx, e) in t.keys do
-              if bx.has (x - tx) ty then
-                let mine := (s.rows[m]?.map fun r => r.data.tallies.any fun t => t.emoji == e && t.mine).getD false
-                if !mine then let _ ← reactTo m e
-        modify fun s => { s with selected := none, tray := none }
-        return
+    -- an open sheet: a tap on the list closes it
+    if s.sheet.isSome && !long then
+      closeSheet; return
     match rowAt s y with
     | none => pure ()
     | some (m, ry) =>
@@ -495,8 +565,9 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
       | none => pure ()
       | some row =>
         if long then
-          -- the long press: the tray for this message
-          modify fun s => { s with selected := some m, tray := none }
+          -- the long press: the sheet for this message
+          if s.imeH > 0 then s.io.ime false
+          modify fun s => { s with selected := some m, sheet := some {} }
         else match Row.hit row.lay x ry with
           | .pill e =>
             if !(row.data.tallies.any fun t => t.emoji == e && t.mine) then
@@ -509,7 +580,11 @@ def onEvent : Event → M Bool
   | .long r x y => do onTap r x.toNat y.toNat true; return true
   | .text => do
     let (t, sel) ← (← get).io.text
-    modify fun s => { s with text := t, sel := if sel.size == 4 then sel else #[0, 0, 0, 0] }
+    match (← get).sheet with
+    | some sh =>
+      if sh.searching then modify fun s => { s with sheet := some { sh with query := t, scroll := 0 } }
+    | none =>
+      modify fun s => { s with text := t, sel := if sel.size == 4 then sel else #[0, 0, 0, 0] }
     return true
   | .send => do
     let s ← get
@@ -519,6 +594,7 @@ def onEvent : Event → M Bool
     return true
   | .ime h => do modify fun s => { s with imeH := h.toNat }; return true
   | .scrolling _ => return true
+  | .drag ph x y => do onSheetDrag ph.toNat x.toNat y.toNat; return true
 
 def loadSrcs : IO (Array Image.Src) := do
   let mut out := #[]
@@ -583,9 +659,19 @@ def command (line : String) : M Bool := do
   | "tray" =>
     let i := (ws[1]? >>= String.toNat?).getD 0
     match s.ids[i]? with
-    | some (_, m) => modify fun s => { s with selected := some m, tray := none }; s.io.ctlReply "tray open"
+    | some (_, m) => modify fun s => { s with selected := some m, sheet := some {} }; s.io.ctlReply "sheet open"
     | none => s.io.ctlReply "no such message"
-  | "untray" => modify fun s => { s with selected := none, tray := none }; s.io.ctlReply "tray closed"
+  | "untray" => closeSheet; s.io.ctlReply "sheet closed"
+  | "browse" =>
+    match s.sheet with
+    | some sh => modify fun s => { s with sheet := some { sh with catalog := true } }; s.io.ctlReply "catalogue"
+    | none => s.io.ctlReply "no sheet"
+  | "sheet" =>
+    -- sheet tap X Y | sheet drag PHASE X Y: as the twin would send them
+    match ws[1]?, (ws[2]? >>= String.toNat?), (ws[3]? >>= String.toNat?), (ws[4]? >>= String.toNat?) with
+    | some "tap", some x, some y, _ => onTap .composer x y false; s.io.ctlReply "tapped"
+    | some "drag", some ph, some x, some y => onSheetDrag ph x y; s.io.ctlReply "dragged"
+    | _, _, _, _ => s.io.ctlReply "sheet tap X Y | sheet drag PHASE X Y"
   | "pause" => s.wr.paused.set true; s.io.ctlReply "writer paused"
   | "resume" => s.wr.paused.set false; s.io.ctlReply "writer resumed"
   | "bottom" => s.io.scrollTo 0; s.io.ctlReply "ok"
@@ -609,6 +695,34 @@ def command (line : String) : M Bool := do
   return true
 
 /-! ## The loop -/
+
+/-- The sheet's pixels: quick, or the catalogue composed from its header,
+its grid's rows scrolled (painted once per row and kept) and its bar
+(SheetGeom.compose: compose_row is about this). -/
+def sheetBitmap (sh : SheetSt) (mine : List String) : M Bitmap := do
+  let s ← get
+  let backdrop := Paint.mixC Row.bg 0 154
+  if !sh.catalog then return Sheet.paintQuick s.font s.dim s.W backdrop mine
+  let items := sheetItems s sh
+  let c := catOf s sh
+  let gk := s!"{sh.cat}|{sh.tone}|{sh.query}|{mine}|{s.W}"
+  if gk != s.gridKey then modify fun s => { s with gridKey := gk, gridRows := {} }
+  let g := c.grid
+  let r0 := sh.scroll / g.key
+  let r1 := (sh.scroll + g.vh) / g.key
+  for r in [r0:r1 + 1] do
+    if !(← get).gridRows.contains r then
+      let row := Sheet.gridRow s.font s.dim s.W c s.catalog items sh.tone mine r
+      modify fun s => { s with gridRows := s.gridRows.insert r row }
+  let rows := (← get).gridRows
+  let blank := solid Sheet.panel s.W
+  let line (k : Nat) : ByteArray :=
+    match rows[k / g.key]? with
+    | some b => b.rows[k % g.key]?.getD blank
+    | none => blank
+  let top := Sheet.catTop s.font s.dim s.W c backdrop sh.query sh.searching sh.tone sh.cat
+  let bot := Sheet.catBot s.font s.dim s.W c sh.cat sh.searching
+  return ⟨s.W, SheetGeom.compose top.rows line g.vh sh.scroll bot.rows⟩
 
 /-- One frame; the twin's events for the next one, or none when the
 window closes. -/
@@ -701,19 +815,25 @@ def step (evs : List Event) : M (Option (List Event)) := do
     modify fun s => { s with rows, live := s.live.keep fun q => match q with
       | .list _ => true
       | q => deps.contains q }
-  -- the tray's picture, for the message it is open on and what I hold
+  -- the sheet's fling: its velocity carries the grid, decaying
   let s ← get
-  if let some m := s.selected then
-    let mine := ((s.rows[m]?.map (·.data.tallies)).getD []).filter (·.mine) |>.map (·.emoji)
-    let key := s!"{mine}"
-    if s.tray.isNone || key != s.trayKey then
-      modify fun s => { s with tray := some (Row.tray s.font s.dim mine (Paint.mixC Row.bg 0 154)),
-                               trayKey := key }
+  if let some sh := s.sheet then
+    if sh.catalog && sh.drag.isNone && (sh.vel > 0.05 || sh.vel < -0.05) then
+      let c := catOf s sh
+      let next := (Int.ofNat sh.scroll + (sh.vel * 16.0).toInt64.toInt).toNat
+      let sh' := { sh with scroll := c.grid.clamp next, vel := sh.vel * 0.95 }
+      modify fun s => { s with sheet := some sh' }
   -- 7. chrome and the frame
   let s ← get
-  let key := s!"{s.W}|{s.insetTop}|{s.total}|{s.people}|{s.text}|{s.sel}"
+  let sheetKey := match s.sheet, s.selected with
+    | some sh, some m => s!"{sh.catalog}|{sh.cat}|{sh.tone}|{sh.query}|{sh.searching}|{sh.scroll}|{mineOn s m}"
+    | _, _ => ""
+  let key := s!"{s.W}|{s.insetTop}|{s.total}|{s.people}|{s.text}|{s.sel}|{sheetKey}"
   if key != s.chromeKey then
-    modify fun s => { s with topBmp := header s, botBmp := composer s, chromeKey := key }
+    let bot ← match s.sheet, s.selected with
+      | some sh, some m => sheetBitmap sh (mineOn s m)
+      | _, _ => pure (composer s)
+    modify fun s => { s with topBmp := header s, botBmp := bot, chromeKey := key }
   let s ← get
   let fr := listFrame s b bots
   let t1 ← s.io.nowUs
@@ -738,7 +858,10 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) : IO St := do
   let (me, first) ← Chaos.Me.load rd
   if (← (getSql (F := Fact) me.c).run rd).isNone then
     wr.submit ⟨first, [], true⟩
-  return { io := io, W := W, Hs := Hs, insetTop := (screen[2]?.getD 0).toNat,
+  let catalog ← match ← (Sheet.loadCatalog).toBaseIO with
+    | .ok c => pure c
+    | .error e => do IO.eprintln s!"no emoji catalogue: {e}"; pure #[]
+  return { io := io, W := W, Hs := Hs, insetTop := (screen[2]?.getD 0).toNat, catalog := catalog,
            dim := ⟨(screen[4]?.getD 420).toNat, font.cell⟩,
            insetBot := (screen[3]?.getD 0).toNat, font := font, bgRow := solid Row.bg W, rd := rd,
            wr := wr, me := me }

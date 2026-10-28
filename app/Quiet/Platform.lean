@@ -81,6 +81,9 @@ candidate). -/
 /-- Empties the composer's text (after a send). -/
 @[extern "lq_text_clear"] opaque textClear : IO Unit
 
+/-- Puts text on the system clipboard. -/
+@[extern "lq_copy"] opaque copy (text : @& String) : IO Unit
+
 /-- Control commands received since the last call, one line each (the
 Android twin listens on the abstract socket `@leanquiet`; the host twin
 reads them from its script). -/
@@ -109,7 +112,8 @@ inductive Event where
   distance above the content's end (the same coordinate as the list
   frame's rows); in the header or composer, the row within it. -/
   | tap (r : Region) (x y : UInt32)
-  /-- A press held 500 ms or more without a drag, at release. -/
+  /-- A press held 500 ms without a drag, reported while still held (its
+  release is then no tap). -/
   | long (r : Region) (x y : UInt32)
   /-- The composer's text or selection changed (read it with
   `Platform.text`). -/
@@ -120,6 +124,10 @@ inductive Event where
   | ime (h : UInt32)
   /-- The OS scroll started (a finger down on the list) or settled. -/
   | scrolling (on : Bool)
+  /-- A finger that went down on the composer (or the sheet in its place):
+  phase 0 down, 1 move, 2 up; (x, y) within the composer. The app scrolls
+  what is there itself. -/
+  | drag (phase x y : UInt32)
   deriving BEq, Repr
 
 def Region.ofWord : UInt32 → Region
@@ -129,7 +137,8 @@ def Region.ofWord : UInt32 → Region
 
 /-- The twin's events as words, four each (kind, a, b, c): 1 close;
 2 tap (region, x, y); 3 long press (region, x, y); 4 text; 5 send;
-6 ime (height); 7 scrolling (on). An unknown kind is skipped. -/
+6 ime (height); 7 scrolling (on); 8 drag (phase, x, y). An unknown kind
+is skipped. -/
 def Event.decode (ws : Array UInt32) : List Event := Id.run do
   let mut out := #[]
   for i in [0:ws.size / 4] do
@@ -144,6 +153,7 @@ def Event.decode (ws : Array UInt32) : List Event := Id.run do
     else if k == 5 then out := out.push .send
     else if k == 6 then out := out.push (.ime a)
     else if k == 7 then out := out.push (.scrolling (a != 0))
+    else if k == 8 then out := out.push (.drag a b c)
   return out.toList
 
 end App

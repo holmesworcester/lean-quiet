@@ -58,7 +58,7 @@ static uint32_t        ba_pos[4];
 
 static JavaVM*   ba_vm;
 static jobject   ba_act;
-static jmethodID ba_show_ime, ba_clear_text;
+static jmethodID ba_show_ime, ba_clear_text, ba_copy_text;
 
 bool ba_ahead(void) {
   return ba_lead;
@@ -270,6 +270,24 @@ void ba_text_clear(void) {
   ba_call(ba_clear_text, false);
 }
 
+void ba_copy(const char* utf8) {
+  if (ba_vm == NULL || ba_act == NULL || ba_copy_text == NULL) {
+    return;
+  }
+  JNIEnv* env;
+  if ((*ba_vm)->GetEnv(ba_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK
+    && (*ba_vm)->AttachCurrentThread(ba_vm, &env, NULL) != JNI_OK) {
+    return;
+  }
+  jstring s = (*env)->NewStringUTF(env, utf8);
+  (*env)->CallVoidMethod(env, ba_act, ba_copy_text, s);
+  (*env)->DeleteLocalRef(env, s);
+  if ((*env)->ExceptionCheck(env)) {
+    (*env)->ExceptionDescribe(env);
+    (*env)->ExceptionClear(env);
+  }
+}
+
 static void ba_java(ANativeActivity* act) {
   JNIEnv* env = act->env;
   jclass  cls = (*env)->GetObjectClass(env, act->clazz);
@@ -290,9 +308,10 @@ static void ba_java(ANativeActivity* act) {
   ba_act        = (*env)->NewGlobalRef(env, act->clazz);
   ba_show_ime   = (*env)->GetMethodID(env, cls, "showIme", "(Z)V");
   ba_clear_text = (*env)->GetMethodID(env, cls, "clearText", "()V");
+  ba_copy_text  = (*env)->GetMethodID(env, cls, "copyText", "(Ljava/lang/String;)V");
   if ((*env)->ExceptionCheck(env)) {
     (*env)->ExceptionClear(env);
-    ba_show_ime = ba_clear_text = NULL;
+    ba_show_ime = ba_clear_text = ba_copy_text = NULL;
   }
 }
 

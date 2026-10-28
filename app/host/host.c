@@ -291,6 +291,13 @@ lean_obj_res lq_ime(uint8_t show) {
   return lean_io_result_mk_ok(lean_box(0));
 }
 
+// The clipboard: what the app copied, printed as a reply line.
+lean_obj_res lq_copy(b_lean_obj_arg text) {
+  printf("copied %s\n", lean_string_cstr(text));
+  fflush(stdout);
+  return lean_io_result_mk_ok(lean_box(0));
+}
+
 lean_obj_res lq_text_clear(void) {
   set_text("");
   return lean_io_result_mk_ok(lean_box(0));

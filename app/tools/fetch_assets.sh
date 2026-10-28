@@ -25,3 +25,7 @@ curl --proto '=https' -fsSL -o "$tmp/emoji-data.txt" https://www.unicode.org/Pub
 echo "f1365a5173eee18e1f98b240cdc492e84a25f1ce7e0c9d1094eb29c41a22696a  $tmp/emoji-data.txt" | sha256sum -c - >/dev/null
 python3 -m pip install -q --target "$tmp/py" fonttools
 PYTHONPATH="$tmp/py" python3 "$root/tools/emoji.py" "$tmp/noto.ttf" "$tmp/emoji-data.txt" "$root/assets/emoji.bin" 48
+# The reaction catalogue: libquiet's emoji list (app/src/emoji-data.json at
+# main 38a909706), converted by tools/picker.py.
+git -C "${LIBQUIET:-$HOME/libquiet}" show 38a909706:app/src/emoji-data.json > "$tmp/lq-emoji.json"
+python3 "$root/tools/picker.py" "$tmp/lq-emoji.json" "$root/assets/picker.txt"
