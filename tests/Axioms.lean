@@ -19,6 +19,8 @@ import engine.renderer.qr.Qr
 import engine.renderer.pic.Pic
 import engine.wire.mdns.Mdns
 import ops.connection.bootstrap.Net
+import engine.core.CodecCost
+import ops.community.MerkleCost
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -321,3 +323,27 @@ open Net
 #print axioms Net.allowPeer_iff
 #print axioms Net.allowPeer_settles
 end net
+
+section cost
+-- Budgets over the code that runs (docs/PERF.md), and the negative
+-- controls they catch.
+#print axioms Community.Merkle.val_rootAndProofsM
+#print axioms Community.Merkle.rootAndProofs_hashes
+#print axioms Community.Merkle.rootAndProofs_hashes_lt
+#print axioms Community.Merkle.rootAndProofs_hashed
+#print axioms Community.Merkle.rootAndProofs_hashed_lt
+#print axioms Community.Merkle.val_rootAndProofsSlowM
+#print axioms Community.Merkle.slow_hashes
+#print axioms Community.Merkle.slow_over_budget
+#print axioms Engine.Codec.val_decNatFromM
+#print axioms Engine.Codec.work_digitsM
+#print axioms Engine.Codec.work_decNatFromM
+#print axioms Engine.Codec.val_decBytesFromM
+#print axioms Engine.Codec.work_decBytesFromM
+#print axioms Engine.Codec.cost_decBytesFromM_at
+#print axioms Engine.Codec.val_digitsSlowM
+#print axioms Engine.Codec.work_digitsSlowM
+#print axioms Engine.Codec.slow_digits_over_budget
+#print axioms Engine.Codec.readAllM_eq
+#print axioms Engine.Codec.slow_bytes_over_budget
+end cost
