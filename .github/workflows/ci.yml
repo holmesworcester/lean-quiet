@@ -85,11 +85,8 @@ jobs:
       - run: mise run check
         working-directory: mdns
 
-  # net's laws are being ported to this engine (Scope, View): not yet
-  # gated; its job runs and reports without failing the build.
   net:
     runs-on: ubuntu-24.04
-    continue-on-error: true
     env: { TMPDIR: "${{ runner.temp }}" }
     steps:
       - uses: actions/checkout@v4

@@ -9,7 +9,7 @@ repository. Every part builds against the others at the same commit.
 | `app/` | the Quiet app (`Quiet/`), its headless twin and tests, and its Android and iOS shells |
 | `qr/` | QR encoding and decoding, and pictures (QOI) |
 | `mdns/` | mDNS/DNS-SD discovery |
-| `net/` | the connection bootstrap model (being ported to this engine; not yet gated) |
+| `net/` | the connection bootstrap model and its laws |
 
 Each directory is its own Lake package with its own `mise.toml` tasks;
 `mise run check` here runs every gated part. The layout this repository
