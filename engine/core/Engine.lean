@@ -25,5 +25,7 @@ import engine.core.Locality
 import engine.wire.Frame
 import engine.wire.Tcp
 import engine.core.Held
+import engine.wire.NodeLaws
+import ops.sync.OfferLaws
 import engine.core.Crypto
 import engine.core.Union

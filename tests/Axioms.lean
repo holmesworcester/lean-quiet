@@ -200,6 +200,42 @@ open Engine Community
 #print axioms Community.chunk_of_attachment
 #print axioms Community.chunk_hangs_off
 #print axioms Community.chunk_own
+#print axioms Engine.Op.decode_exact
+#print axioms Engine.Op.decode_parts
+#print axioms Engine.Codec.decode_sum
+#print axioms Engine.Sync.frames_kept
+#print axioms Engine.Sync.frames_tooBig
+#print axioms Engine.Sync.frames_size
+#print axioms Engine.Sync.frames_frame
+#print axioms Engine.Sync.buffer_bounded
+#print axioms Engine.Sync.onFrame_sealed
+#print axioms Engine.Sync.onSealed_none
+#print axioms Engine.Sync.sealed_unopened
+#print axioms Connection.openFrame_reads
+#print axioms Connection.openFrame_auth
+#print axioms Connection.sealed_auth
+#print axioms Engine.Sync.boot_cached
+#print axioms Engine.Sync.write_cached
+#print axioms Engine.Sync.purge_cached
+#print axioms Engine.Sync.cached_items
+#print axioms Engine.Sync.cached_shown
+#print axioms Engine.Sync.start_keeps
+#print axioms Engine.Sync.onRbsr_keeps
+#print axioms Engine.Sync.walk_keeps
+#print axioms Engine.Sync.onHold_keeps
+#print axioms Engine.Sync.onWant_keeps
+#print axioms Engine.Sync.filed_keeps
+#print axioms Engine.Sync.recv_keeps
+#print axioms Engine.Sync.tick_keeps
+#print axioms Engine.Sync.open_keeps
+#print axioms Engine.Sync.setRooms_snaps
+#print axioms Engine.Sync.write_snaps
+#print axioms Engine.Sync.have_shown
+#print axioms Engine.Sync.holdsOf_hold
+#print axioms Engine.Sync.heldIn_local
+#print axioms Engine.Sync.onHold_local
+#print axioms Engine.Sync.hold_reply_local
+#print axioms Engine.Sync.heldIn_index
 end engine
 
 section app

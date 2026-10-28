@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 298 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 334 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -123,7 +123,7 @@ nothing else is assumed:
 | ✅ | 🥊🥊 | **Every op is signed by whom it must be.** A message is signed by an admitted device of its author, and an approval by a member other than the requester. An invitation is signed by its issuer, and a community's name by an admin. Each admission was consented to by its device. | [`message_authorized`], [`approval_signed`], [`invitation_issued`], [`named_by_admin`], [`admission_consented`] |
 | ✅ | 🥊🥊 | **Admins' removals stand,** even of each other, and a removed member's earlier approvals still count. | [`admin_removal_stands`], [`mutual_removal`], [`removed_approver_admits`] |
 | | | **Confidentiality** | |
-| ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A session sends only sync messages, and ops of the rooms its peer is let into. | [`recv_send`] |
+| ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A session sends only sync messages, and ops of the rooms its peer is let into. A peer's haves reveal nothing outside its rooms: a have names its room, one for a room the peer may not see is ignored, and the reply reads only this node's ops of that room. So a peer cannot ask whether this node holds an op of another community, or a local op. A test checks this with a negative control. | [`recv_send`], [`hold_reply_local`], [`heldIn_index`] |
 | ✅ | 🥊🥊🥊 | **Secrets stay on the device.** No local op (a secret, a session key, a pending join) is ever offered or sent. Of a connection's ops, only the two handshake messages are not local. | [`offer_shared`], [`wire_kinds`], [`local_kinds`], [`joinOps_travels`], [`found_travels`], [`stopWaiting_local`] |
 | ✅ | 🥊🥊 | **The stream discloses only what it may.** It offers only ids of stored, shared ops, never one still pending. The clock sends only round messages and offers. | [`filed_send`], [`offer_stored`], [`tick_send`] |
 | 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Proven: a content key goes to exactly the live members' devices, and a member opens what was sealed under the key wrapped to it. A shared op's validator reads only shared facts. Wanted: that a non-member cannot open it (the seal's secrecy). | [`recipients_iff`], [`members_iff`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`check_reads_shared`] |
@@ -131,7 +131,7 @@ nothing else is assumed:
 | 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered,** from the disk or from the static keys later. Proven: with the ephemerals gone, both static keys and the whole transcript do not give the session keys, and the session's rows are gone. Tested: no file of the database holds a byte of them (`tests/engine/Purge.lean`). Wanted: that closing purges every ephemeral (`close_forgets`). | [`kk_forward_secret`], [`kk_forward_secret_init`], [`kk_forward_secret_resp`], [`purge_gone`], [`purge_named`] |
 | ⬜ | 🥊🥊🥊 | **Session secrets never reach the disk.** They would be ephemeral ops, held in memory, so forward secrecy would not rest on deletion. A restart then redials. | |
 | ⬜ | 🥊🥊🥊 | **Removed members cannot read new messages.** This needs key rotation, which is not built. | |
-| ⬜ | 🥊🥊 | **Every offered id names a stored op in one of the peer's rooms** (`have_shown`). This is the disclosure law for ids. | |
+| ✅ | 🥊🥊 | **Every offered id names a stored op in one of the peer's rooms.** This is the disclosure law for ids. Each step a connection takes sends only sync messages and stored ops of its rooms, and every id it offers, in a have or an id claim, is a stored op of one of its rooms. Rounds answer from the node's room index, which holds exactly the stored ops of each room. Every write turn and purge keeps it so. Tests check both on SQLite: the index after purges, and every id offered. Each step is proven; that the node's entry points chain them is read from the code. | [`have_shown`], [`write_cached`], [`purge_cached`], [`cached_items`], [`write_snaps`] |
 | | | **Connections** | |
 | ✅ | 🥊🥊🥊 | **The trust rule lets in exactly the live members.** Read from the node's tables, it accepts exactly the devices of admitted, unremoved users. Nodes that hold the same ops agree on it. | [`connect_iff`], [`refuse_nonmember`], [`connect_approved`], [`connect_agree`] |
 | ✅ | 🥊🥊🥊 | **A removal cuts the removed user out of the rule.** Once a node holds it, the rule refuses every device of that user, except a device also admitted into another live user. A device can be admitted under two users today. Whether that should hold is an open design question. Only an admin can remove another user, and nothing undoes it. | [`removal_cuts_off`], [`removals_iff`], [`removal_authorized`], [`removed_stays`] |
@@ -145,9 +145,9 @@ nothing else is assumed:
 | ✅ | 🥊🥊🥊 | **Hostile bytes decode to a well-formed value or to nothing.** A QOI picture comes out at 1–2048 px a side, with exactly its pixels' bytes, so at most 16 MiB whatever it claims. An mDNS packet keeps its RFC limits, and its pointer chains end by construction. Invite links and QR segments are valid. | [`Pic.decode_sized`], [`Mdns.decode_valid`], [`Community.parse_valid`], [`Qr.parse_valid`] |
 | ✅ | 🥊🥊🥊 | **Attachments authenticate themselves.** Any peer may relay a file's chunks, but a chunk is Valid only if it is its file's own slice. One op stands for each index, so download progress counts exactly the chunks held, and the chunks for every index put together are the file. This assumes SHA-256 has no second preimage on the tree's inputs, a premise shown satisfiable. No hash with 32-byte outputs is injective, so the laws assume nothing stronger. | [`chunk_is_slice`], [`verify_sound`], [`complete_assembles`], [`chunk_unique`], [`progress_exact`], [`assumptions_hold`], [`no_injective_hash`] |
 | ✅ | 🥊🥊🥊 | **Judging cannot be hung.** From any state, judging empties its queue within a budget read off the tables. | [`drain_bounded`], [`drain_terminates`], [`step_budget`] |
-| ⬜ | 🥊🥊🥊 | **Authenticate before parsing:** a sealed frame's payload is decoded only after its AEAD check passes. | |
-| ⬜ | 🥊🥊 | **Bounded buffering:** a connection holds at most one maximal frame (1 MiB) and a read, whatever the peer's length fields say. | |
-| ⬜ | 🥊🥊 | **No amplification:** a decoded op is no larger than its bytes, and decoding is linear in them. | |
+| ✅ | 🥊🥊🥊 | **Authenticate before parsing:** a sealed frame's payload is decoded only after its AEAD check passes. The node sees a frame only as `openFrame` gives it, and that opens only under the receive key of the session the frame names. A frame that fails leaves the node and its store as they were, and sends nothing. A test forges frames over real XChaCha20-Poly1305. | [`sealed_auth`], [`openFrame_auth`], [`onFrame_sealed`], [`sealed_unopened`] |
+| ✅ | 🥊🥊 | **Bounded buffering:** a connection holds at most one maximal frame (1 MiB) and a read, whatever the peer's length fields say. Between reads it keeps less than one maximal frame and its length. A length over 1 MiB ends the connection in the read that completes it. | [`buffer_bounded`], [`frames_kept`], [`frames_tooBig`], [`frames_size`] |
+| ✅ | 🥊🥊 | **No amplification:** a decoded op is exactly its bytes, so no larger. A bundle's payloads are together smaller than it. Linear decoding time is not proven. | [`Op.decode_exact`], [`Op.decode_parts`], [`decode_sum`] |
 | ⬜ | 🥊🥊 | **Resources are capped:** memory, rounds and frames per peer. | |
 
 ### Correctness
@@ -562,16 +562,18 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`admin_removal_stands`]: ops/community/Laws.lean#L528-L541
 [`mutual_removal`]: ops/community/Laws.lean#L549-L553
 [`removed_approver_admits`]: ops/community/Laws.lean#L488-L499
-[`recv_send`]: ops/sync/ConnLaws.lean#L146-L148
+[`recv_send`]: ops/sync/ConnLaws.lean#L154-L156
+[`hold_reply_local`]: ops/sync/OfferLaws.lean#L659-L669
+[`heldIn_index`]: ops/sync/OfferLaws.lean#L682-L685
 [`offer_shared`]: engine/core/Sync.lean#L83-L86
-[`wire_kinds`]: ops/connection/Laws.lean#L40-L41
-[`local_kinds`]: ops/connection/Laws.lean#L47-L48
+[`wire_kinds`]: ops/connection/Laws.lean#L48-L49
+[`local_kinds`]: ops/connection/Laws.lean#L55-L56
 [`joinOps_travels`]: ops/community/Intents.lean#L299-L303
 [`found_travels`]: ops/community/Intents.lean#L310-L314
 [`stopWaiting_local`]: ops/community/Intents.lean#L306-L307
-[`filed_send`]: ops/sync/ConnLaws.lean#L175-L178
+[`filed_send`]: ops/sync/ConnLaws.lean#L183-L186
 [`offer_stored`]: engine/core/Sync.lean#L98-L101
-[`tick_send`]: ops/sync/ConnLaws.lean#L184-L187
+[`tick_send`]: ops/sync/ConnLaws.lean#L192-L195
 [`recipients_iff`]: ops/community/Connect.lean#L214-L218
 [`members_iff`]: ops/community/Connect.lean#L205-L208
 [`member_opens`]: ops/community/Laws.lean#L928-L932
@@ -591,6 +593,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`kk_forward_secret_resp`]: ops/connection/NoiseSymbolic.lean#L662-L671
 [`purge_gone`]: engine/core/Purge.lean#L261-L263
 [`purge_named`]: engine/core/Purge.lean#L267-L271
+[`have_shown`]: ops/sync/OfferLaws.lean#L553-L565
+[`write_cached`]: engine/wire/NodeLaws.lean#L436-L440
+[`purge_cached`]: engine/wire/NodeLaws.lean#L508-L513
+[`cached_items`]: engine/wire/NodeLaws.lean#L271-L274
+[`write_snaps`]: ops/sync/OfferLaws.lean#L609-L612
 [`connect_iff`]: ops/community/Connect.lean#L146-L150
 [`refuse_nonmember`]: ops/community/Connect.lean#L161-L164
 [`connect_approved`]: ops/community/Connect.lean#L182-L193
@@ -601,14 +608,14 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`rooms_cut`]: ops/connection/RoomLaws.lean#L93-L103
 [`trusts_live`]: ops/connection/RoomLaws.lean#L40-L46
 [`rooms_model`]: ops/connection/RoomLaws.lean#L109-L111
-[`recv_take`]: ops/sync/ConnLaws.lean#L118-L120
+[`recv_take`]: ops/sync/ConnLaws.lean#L126-L128
 [`no_connection_before_approval`]: ops/connection/bootstrap/Laws.lean#L39-L46
 [`sessions_trusted`]: ops/connection/bootstrap/Laws.lean#L63-L68
 [`intake_local`]: engine/core/Sync.lean#L41-L43
 [`stored_local`]: engine/core/Sync.lean#L137-L140
 [`local_fact_mine`]: ops/community/Laws.lean#L627-L631
 [`intakeConn_conn`]: engine/core/Sync.lean#L36-L37
-[`established_agrees`]: ops/connection/Laws.lean#L51-L61
+[`established_agrees`]: ops/connection/Laws.lean#L59-L69
 [`open_seal`]: ops/connection/Frame.lean#L51-L55
 [`cid_seal`]: ops/connection/Frame.lean#L79-L82
 [`Codec.encode_decode`]: engine/core/Codec.lean#L641-L644
@@ -628,6 +635,17 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
 [`step_budget`]: engine/core/Budget.lean#L124-L126
+[`sealed_auth`]: ops/connection/Laws.lean#L190-L201
+[`openFrame_auth`]: ops/connection/Laws.lean#L142-L149
+[`onFrame_sealed`]: engine/wire/NodeLaws.lean#L52-L58
+[`sealed_unopened`]: engine/wire/NodeLaws.lean#L67-L73
+[`buffer_bounded`]: engine/wire/Frame.lean#L213-L218
+[`frames_kept`]: engine/wire/Frame.lean#L158-L161
+[`frames_tooBig`]: engine/wire/Frame.lean#L180-L183
+[`frames_size`]: engine/wire/Frame.lean#L188-L189
+[`Op.decode_exact`]: engine/core/Core.lean#L96-L98
+[`Op.decode_parts`]: engine/core/Core.lean#L101-L104
+[`decode_sum`]: engine/core/Codec.lean#L677-L680
 [`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
 [`order_free`]: engine/core/Proofs.lean#L634-L639
 [`drain_settles`]: engine/core/Termination.lean#L110-L114
