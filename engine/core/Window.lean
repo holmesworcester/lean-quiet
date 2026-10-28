@@ -161,13 +161,17 @@ structure Slots (S : Type) where
   cover : Array (Array S) := #[]
   deriving Inhabited
 
+/-- The slot of p among bounds b, i of them before it: at b[i] if p is
+b[i], else the gap below b[i]. -/
+def slotOf (b : Array Pos) (p : Pos) (i : Nat) : Nat :=
+  if i < b.size && (b.getD i default).cmp p == .eq then 2 * i + 1 else 2 * i
+
 /-- The windows of these that hold p. -/
 def Slots.find {S : Type} {m : Type → Type} [Monad m] [Tick m] (sl : Slots S) (p : Pos) :
     m (Array S) := do
   let i ← rankM sl.bounds p 0 sl.bounds.size
   tick { work := posWork p }
-  let j := if i < sl.bounds.size && (sl.bounds.getD i default).cmp p == .eq then 2 * i + 1 else 2 * i
-  pure (sl.cover.getD j #[])
+  pure (sl.cover.getD (slotOf sl.bounds p i) #[])
 
 /-- Positions in order, a non-strict comparison for sorting. -/
 def posLe (p q : Pos) : Bool := p.cmp q != .gt
