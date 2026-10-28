@@ -36,16 +36,22 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   peers that know of the remover's removal refuse its devices
   (`connect_iff`), so it travels only through peers that do not. When it
   arrives, it is Valid. Removal never invalidates an op; it changes who
-  counts as a member.
+  counts as a member. A device may be admitted into several users; it
+  counts while none of them is removed, and removing any of them cuts it
+  (docs/REMOVAL.md).
+- A node's key is local (`endpoint`): 32 random bytes, one per node, its
+  X25519 key pair. A root or request names it as the device's `enc`,
+  under the device's signature, so an admission ties a device to the
+  node it lives on. The node handshakes with it (the Connection family),
+  and content keys wrapped to its devices open with it.
 - A post is a message by an admitted device. Its body is sealed: it
   names a content key by id and carries the nonce and ciphertext
   (`Community.Keys`). Its header is clear: the key id, the time, the
   signature, which covers the sealed bytes. Validators read only the
   header, so a keyless node judges a post as a member does.
-- A content key is local (`key`): this device's copy of a community's
-  key. A wrap delivers one to a device's X25519 key, sealed so that
-  only that device opens it. A wrap admits nobody, so it needs no
-  author.
+- A content key is local (`key`): this node's copy of a community's
+  key. A wrap delivers one to a node's X25519 key, sealed so that only
+  that node opens it. A wrap admits nobody, so it needs no author.
 - A post's time is its author's claim (it orders a conversation, as
   libquiet's created_at does).
 - A profile is a user's name, a register: the newest by (time, id) is

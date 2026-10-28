@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 275 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 297 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -127,18 +127,20 @@ nothing else is assumed:
 | ✅ | 🥊🥊🥊 | **Secrets stay on the device.** No local op (a secret, a session key, a pending join) is ever offered or sent. Of a connection's ops, only the two handshake messages are not local. | [`offer_shared`], [`wire_kinds`], [`local_kinds`], [`joinOps_travels`], [`found_travels`], [`stopWaiting_local`] |
 | ✅ | 🥊🥊 | **The stream discloses only what it may.** It offers only ids of stored, shared ops, never one still pending. The clock sends only round messages and offers. | [`filed_send`], [`offer_stored`], [`tick_send`] |
 | 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Proven: a content key goes to exactly the live members' devices, and a member opens what was sealed under the key wrapped to it. A shared op's validator reads only shared facts. Wanted: that a non-member cannot open it (the seal's secrecy). | [`recipients_iff`], [`members_iff`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`check_reads_shared`] |
-| ✅ | 🥊🥊🥊 | **Sessions are secret and authenticated.** Suppose an attacker reads, replays and injects every message, and knows every key except the two devices' static keys and the session's ephemerals. Then neither transport key is derivable. The initiator accepts a reply only if it is exactly what the responder wrote answering this request. This is over the handshake functions that run, in the symbolic model (see Assumed). Replays are accepted again, and payloads are not covered. A negative control shows an attacker holding the initiator's keys does derive the session keys, and `kk_runs` shows the honest run exists. | [`kk_secret`], [`kk_secret_init`], [`kk_secret_resp`], [`kk_authentic`], [`kk_authentic_resp`], [`kk_secret_init_tight`], [`kk_runs`], [`handshake_agrees`] |
+| ✅ | 🥊🥊🥊 | **Sessions are secret and authenticated.** Suppose an attacker reads, replays and injects every message, and knows every key except the two nodes' static keys and the session's ephemerals. Then neither transport key is derivable. The initiator accepts a reply only if it is exactly what the responder wrote answering this request. This is over the handshake functions that run, in the symbolic model (see Assumed). Replays are accepted again, and payloads are not covered. A negative control shows an attacker holding the initiator's keys does derive the session keys, and `kk_runs` shows the honest run exists. | [`kk_secret`], [`kk_secret_init`], [`kk_secret_resp`], [`kk_authentic`], [`kk_authentic_resp`], [`kk_secret_init_tight`], [`kk_runs`], [`handshake_agrees`] |
 | 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered,** from the disk or from the static keys later. Proven: with the ephemerals gone, both static keys and the whole transcript do not give the session keys, and the session's rows are gone. Tested: no file of the database holds a byte of them (`tests/engine/Purge.lean`). Wanted: that closing purges every ephemeral (`close_forgets`). | [`kk_forward_secret`], [`kk_forward_secret_init`], [`kk_forward_secret_resp`], [`purge_gone`], [`purge_named`] |
 | ⬜ | 🥊🥊🥊 | **Session secrets never reach the disk.** They would be ephemeral ops, held in memory, so forward secrecy would not rest on deletion. A restart then redials. | |
 | ⬜ | 🥊🥊🥊 | **Removed members cannot read new messages.** This needs key rotation, which is not built. | |
 | ⬜ | 🥊🥊 | **Every offered id names a stored op in one of the peer's rooms** (`have_shown`). This is the disclosure law for ids. | |
 | | | **Connections** | |
-| ✅ | 🥊🥊🥊 | **The trust rule lets in exactly the live members.** Read from the node's tables, it accepts exactly the devices of admitted, unremoved users. Nodes that hold the same ops agree on it. | [`connect_iff`], [`refuse_nonmember`], [`connect_approved`], [`connect_agree`] |
-| ✅ | 🥊🥊🥊 | **A removal cuts the removed user out of the rule.** Once a node holds it, the rule refuses every device of that user, except a device also admitted into another live user. A device can be admitted under two users today. Whether that should hold is an open design question. Only an admin can remove another user, and nothing undoes it. | [`removal_cuts_off`], [`removals_iff`], [`removal_authorized`], [`removed_stays`] |
+| ✅ | 🥊🥊🥊 | **A node handshakes with its own key, not a device's.** A session's statics are the two nodes' keys, each held as a local op; device keys only sign. The binding is the device's own consent: the root or request that admitted it carries its node's key under its signature. So a removed device does not block a new device on the same node. | [`opened_endpoint`], [`established_endpoint`], [`endpoint_signed`], [`endpoint_derives`], [`meV_node`], [`new_device_trusted`] |
+| ✅ | 🥊🥊🥊 | **The trust rule lets in exactly the live members' nodes.** Read from the node's tables, it accepts a node key exactly when a live device is admitted under it: admitted, and none of its users removed. Content keys are wrapped to exactly those keys. Nodes that hold the same ops agree on it. | [`connect_iff`], [`deviceLive_iff`], [`refuse_nonmember`], [`connect_approved`], [`recipients_iff`], [`connect_agree`] |
+| ✅ | 🥊🥊🥊 | **A removal cuts every device of the removed user,** wherever else the device is admitted, and for good: no later admission undoes it, and only the device's own consent ties it to a user, so nobody else can cut it. Once a node holds the removal, the rule refuses a node all of whose devices are cut. Only an admin can remove another user, and nothing undoes it. | [`removal_cuts_off`], [`cut_stays`], [`cut_consented`], [`removals_iff`], [`removal_authorized`], [`removed_stays`] |
+| ✅ | 🥊🥊🥊 | **A removed member's node stops holding the community, and can rejoin only as a new device.** A cut device's entry is not held, so a join writes a fresh one from the node's key; a join never asks for an admitted device; and whatever follows, the removed user stays removed and its devices stay cut. Tested end to end on two SQLite nodes (`tests/engine/Lifecycle.lean`). | [`mine_not_removed`], [`rejoin_fresh`], [`join_new_device`], [`removed_stays_removed`] |
 | 🟡 | 🥊🥊🥊 | **A removal ends a live session's sync.** Proven: a connection carries a room only if the trust rule takes its peer, and for a live member that rule is `allowPeer`. So a peer `allowPeer` refuses gets nothing of the room, and nothing of it is taken from them. Every connection step reads its rooms afresh. That is in the code and tested over TCP, with a negative control, but not a theorem. Wanted: deriving the refusal from the removal itself in the running node (`sum_project`). The session stays open, with no rooms. | [`rooms_trusted`], [`rooms_cut`], [`trusts_live`], [`rooms_model`], [`recv_send`], [`recv_take`], [`removal_cuts_off`] |
-| ⬜ | 🥊🥊🥊 | **No packet goes to a removed member.** From the first run of the engine loop after a node decides a removal, it sends the removed user's devices nothing. No sealed frame (their sessions close), no handshake reply (a replayed request gets nothing), and no dial. A last notice of the removal itself might be allowed. Today their sessions stay open with no rooms, and a replayed request is answered with its old reply bytes. Both change first. | |
-| 🟡 | 🥊🥊🥊 | **No session before approval,** however hellos are lost or replayed, and sessions form only with trusted peers. Proven over a model. Wanted over the running handshake (`answer_trusted`, `untrusted_silent`). | [`no_connection_before_approval`], [`sessions_trusted`] *(model)* |
-| 🟡 | 🥊🥊🥊 | **Peers cannot push ops in** outside the rooms they are let into, nor plant a device's local state. Proven for sessions. **Not yet for the handshake:** a bare request's hello payload has its shared ops stored before the trust check. So a removed member, or an outsider who knows the community, can push ops in with no session. A fix is in progress. | [`recv_take`], [`intake_local`], [`stored_local`], [`local_fact_mine`], [`intakeConn_conn`] |
+| 🟡 | 🥊🥊🥊 | **No packet goes to a removed member but the notice of its removal.** From the first run of the engine loop after a node decides a removal, it sends the removed user's node only that removal and its requirement closure, once, and then closes the session (docs/REMOVAL.md). Proven: no handshake reply, and a replayed request gets nothing. Stated, landing with the node's typed rooms: the notice, nothing beside it, and the cut (`notice_sent`, `removed_gets_only_notice`, `notice_then_cut`). Today a removed member's session stays open with no rooms. | [`answer_trusted`], [`resend_trusted`] |
+| ✅ | 🥊🥊🥊 | **No session before approval,** however hellos are lost or replayed, and sessions form only with trusted peers. Proven over a model, and over the running code: a responder writes a connection, or re-sends one, only for a request whose initiator the trust rule takes. | [`no_connection_before_approval`], [`sessions_trusted`] *(model)*, [`answer_trusted`], [`resend_trusted`] |
+| ✅ | 🥊🥊🥊 | **Peers cannot push ops in** outside the rooms they are let into, nor plant a device's local state. On a session, only ops of its rooms are taken. On the bare wire, a hello yields only a join request of its community, trusted or not, so a removed member, or an outsider who knows the community, pushes nothing else in. Tested over TCP, with a negative control: the deliver step before the fix takes the post. | [`recv_take`], [`bare_takes_only_join`], [`intake_local`], [`stored_local`], [`local_fact_mine`], [`intakeConn_conn`] |
 | ✅ | 🥊🥊 | **Both ends hold one session.** Two ends that complete a handshake hold the same hash, each names the other, and each one's send key is the other's receive key. A frame opens to what was sealed, for the connection it names. | [`established_agrees`], [`open_seal`], [`cid_seal`] |
 | | | **Hostile input** | |
 | ✅ | 🥊🥊🥊 | **One parse per op.** A decoded op re-encodes to exactly the bytes received, so there is no parser differential and no malleability: the signer, the hasher and every peer read the same op. Its id is the SHA-256 of those bytes, so a peer cannot name an op. A Valid op is exactly its body's encoding under its own type, so no re-typed copy of one is Valid. | [`Codec.encode_decode`], [`Op.id_decode`], [`distinct_of_collisionFree`], [`op_of_valid`] |
@@ -183,7 +185,7 @@ nothing else is assumed:
 | ⬜ | 🥊🥊 | **Destructive actions are guarded.** Every action that cannot be undone asks for a second confirmation, as removal does (`writes_only_after_two`). Its control keeps a clear gap from the controls around it. | |
 | ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
 | ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
-| ✅ | 🥊🥊 | **The people list is the present members,** each once. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_nodup`] |
+| ✅ | 🥊🥊 | **The people list is the present members,** each once: users with a live device. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_not_removed`], [`present_nodup`] |
 | ⬜ | 🥊🥊🥊 | **The screen is one moment.** Every frame is the root component drawn over a single settled store state, the latest the app has seen, so if one row is current, all are. Half of this is proven: a cached component whose keys did not fire answers as a fresh read would. Wanted: the renderer re-reads exactly what fired, and reads only between write turns. | [`eval_stable`], [`view_stable`], [`drain_bounded`] |
 | ⬜ | 🥊🥊 | **An action's toast stays until the screen shows it.** A toast for an action (removing someone, a new name or avatar) stays up until every component on screen has re-read a state that holds the action's op, or until the OS's toast time passes, whichever comes first. So a toast that leaves early proves the screen has caught up. | |
 | ✅ | 🥊🥊 | **The layout is exact.** The slide and keyboard shift are exact, and page rows are where the page put them. Emoji keys never overlap, and every key is reachable. An invite's hints and QR fit, and the camera preview reads inside its frame. | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
@@ -538,46 +540,46 @@ on the old layout comes over with `ci/reorg-map.tsv` (where each file
 went) and `ci/reorg-imports.py` (its new files' imports).
 
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
-[`Unforgeable`]: ops/community/Laws.lean#L270-L272
+[`Unforgeable`]: ops/community/Laws.lean#L279-L281
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
 [`Distinct`]: engine/core/Proofs.lean#L538-L540
 [`lbl_inj`]: ops/sync/Fp.lean#L264-L268
 [`NoSecondPreimage`]: ops/community/Merkle.lean#L137-L138
 [`assumptions_hold`]: ops/community/Merkle.lean#L534-L538
 [`Suite.Good`]: ops/connection/Noise.lean#L61-L65
-[`Keys.Good`]: ops/connection/Types.lean#L32-L36
-[`no_impersonation`]: ops/community/Laws.lean#L289-L302
-[`admission_needs_approval`]: ops/community/Laws.lean#L469-L477
-[`admission_approved`]: ops/community/Laws.lean#L388-L398
-[`request_invited`]: ops/community/Laws.lean#L352-L362
-[`removal_authorized`]: ops/community/Laws.lean#L517-L520
-[`admin_granted`]: ops/community/Laws.lean#L556-L557
-[`removed_stays`]: ops/community/Laws.lean#L563-L566
-[`valid_stays`]: ops/community/Laws.lean#L570-L574
-[`message_authorized`]: ops/community/Laws.lean#L255-L261
-[`approval_signed`]: ops/community/Laws.lean#L371-L381
-[`invitation_issued`]: ops/community/Laws.lean#L337-L343
-[`named_by_admin`]: ops/community/Laws.lean#L608-L610
-[`admission_consented`]: ops/community/Laws.lean#L274-L280
-[`admin_removal_stands`]: ops/community/Laws.lean#L528-L541
-[`mutual_removal`]: ops/community/Laws.lean#L549-L553
-[`removed_approver_admits`]: ops/community/Laws.lean#L488-L499
+[`Keys.Good`]: ops/connection/Types.lean#L30-L33
+[`no_impersonation`]: ops/community/Laws.lean#L298-L311
+[`admission_needs_approval`]: ops/community/Laws.lean#L478-L486
+[`admission_approved`]: ops/community/Laws.lean#L397-L407
+[`request_invited`]: ops/community/Laws.lean#L361-L371
+[`removal_authorized`]: ops/community/Laws.lean#L526-L529
+[`admin_granted`]: ops/community/Laws.lean#L565-L566
+[`removed_stays`]: ops/community/Laws.lean#L572-L575
+[`valid_stays`]: ops/community/Laws.lean#L579-L583
+[`message_authorized`]: ops/community/Laws.lean#L264-L270
+[`approval_signed`]: ops/community/Laws.lean#L380-L390
+[`invitation_issued`]: ops/community/Laws.lean#L346-L352
+[`named_by_admin`]: ops/community/Laws.lean#L617-L619
+[`admission_consented`]: ops/community/Laws.lean#L283-L289
+[`admin_removal_stands`]: ops/community/Laws.lean#L537-L550
+[`mutual_removal`]: ops/community/Laws.lean#L558-L562
+[`removed_approver_admits`]: ops/community/Laws.lean#L497-L508
 [`recv_send`]: ops/sync/ConnLaws.lean#L146-L148
 [`offer_shared`]: engine/core/Sync.lean#L83-L86
 [`wire_kinds`]: ops/connection/Laws.lean#L40-L41
 [`local_kinds`]: ops/connection/Laws.lean#L47-L48
-[`joinOps_travels`]: ops/community/Intents.lean#L246-L250
-[`found_travels`]: ops/community/Intents.lean#L257-L261
-[`stopWaiting_local`]: ops/community/Intents.lean#L253-L254
+[`joinOps_travels`]: ops/community/Intents.lean#L297-L301
+[`found_travels`]: ops/community/Intents.lean#L315-L321
+[`stopWaiting_local`]: ops/community/Intents.lean#L304-L305
 [`filed_send`]: ops/sync/ConnLaws.lean#L175-L178
 [`offer_stored`]: engine/core/Sync.lean#L98-L101
 [`tick_send`]: ops/sync/ConnLaws.lean#L184-L187
-[`recipients_iff`]: ops/community/Connect.lean#L214-L218
-[`members_iff`]: ops/community/Connect.lean#L205-L208
-[`member_opens`]: ops/community/Laws.lean#L900-L904
-[`openSealed_seal`]: ops/community/Laws.lean#L890-L892
+[`recipients_iff`]: ops/community/Connect.lean#L324-L329
+[`members_iff`]: ops/community/Connect.lean#L314-L316
+[`member_opens`]: ops/community/Laws.lean#L909-L913
+[`openSealed_seal`]: ops/community/Laws.lean#L899-L901
 [`unbox_box`]: ops/community/Keys.lean#L89-L91
-[`check_reads_shared`]: ops/community/Laws.lean#L811-L813
+[`check_reads_shared`]: ops/community/Laws.lean#L820-L822
 [`kk_secret`]: ops/connection/NoiseSymbolic.lean#L595-L609
 [`kk_secret_init`]: ops/connection/NoiseSymbolic.lean#L547-L556
 [`kk_secret_resp`]: ops/connection/NoiseSymbolic.lean#L561-L569
@@ -591,39 +593,55 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`kk_forward_secret_resp`]: ops/connection/NoiseSymbolic.lean#L662-L671
 [`purge_gone`]: engine/core/Purge.lean#L261-L263
 [`purge_named`]: engine/core/Purge.lean#L267-L271
-[`connect_iff`]: ops/community/Connect.lean#L146-L150
-[`refuse_nonmember`]: ops/community/Connect.lean#L161-L164
-[`connect_approved`]: ops/community/Connect.lean#L182-L193
-[`connect_agree`]: ops/community/Connect.lean#L226-L229
-[`removal_cuts_off`]: ops/community/Connect.lean#L241-L245
-[`removals_iff`]: ops/community/Connect.lean#L43-L44
-[`rooms_trusted`]: ops/connection/RoomLaws.lean#L74-L79
-[`rooms_cut`]: ops/connection/RoomLaws.lean#L93-L103
-[`trusts_live`]: ops/connection/RoomLaws.lean#L40-L46
-[`rooms_model`]: ops/connection/RoomLaws.lean#L109-L111
+[`opened_endpoint`]: ops/connection/RemovalLaws.lean#L136-L144
+[`established_endpoint`]: ops/connection/RemovalLaws.lean#L161-L174
+[`endpoint_signed`]: ops/community/RemovalLaws.lean#L44-L51
+[`endpoint_derives`]: ops/community/RemovalLaws.lean#L91-L93
+[`meV_node`]: ops/connection/RemovalLaws.lean#L224-L229
+[`new_device_trusted`]: ops/community/RemovalLaws.lean#L100-L106
+[`connect_iff`]: ops/community/Connect.lean#L252-L256
+[`deviceLive_iff`]: ops/community/Connect.lean#L135-L139
+[`refuse_nonmember`]: ops/community/Connect.lean#L267-L270
+[`connect_approved`]: ops/community/Connect.lean#L290-L302
+[`connect_agree`]: ops/community/Connect.lean#L337-L340
+[`removal_cuts_off`]: ops/community/Connect.lean#L352-L359
+[`cut_stays`]: ops/community/RemovalLaws.lean#L60-L63
+[`cut_consented`]: ops/community/RemovalLaws.lean#L68-L75
+[`removals_iff`]: ops/community/Connect.lean#L49-L50
+[`mine_not_removed`]: ops/community/RemovalLaws.lean#L385-L389
+[`rejoin_fresh`]: ops/community/RemovalLaws.lean#L432-L445
+[`join_new_device`]: ops/community/RemovalLaws.lean#L475-L482
+[`removed_stays_removed`]: ops/community/RemovalLaws.lean#L519-L529
+[`rooms_trusted`]: ops/connection/RoomLaws.lean#L75-L81
+[`rooms_cut`]: ops/connection/RoomLaws.lean#L100-L110
+[`trusts_live`]: ops/connection/RoomLaws.lean#L41-L47
+[`rooms_model`]: ops/connection/RoomLaws.lean#L116-L118
 [`recv_take`]: ops/sync/ConnLaws.lean#L118-L120
+[`answer_trusted`]: ops/connection/RemovalLaws.lean#L693-L706
+[`resend_trusted`]: ops/connection/RemovalLaws.lean#L741-L752
 [`no_connection_before_approval`]: ops/connection/bootstrap/Laws.lean#L39-L46
 [`sessions_trusted`]: ops/connection/bootstrap/Laws.lean#L63-L68
+[`bare_takes_only_join`]: ops/connection/RemovalLaws.lean#L463-L475
 [`intake_local`]: engine/core/Sync.lean#L41-L43
 [`stored_local`]: engine/core/Sync.lean#L137-L140
-[`local_fact_mine`]: ops/community/Laws.lean#L627-L631
+[`local_fact_mine`]: ops/community/Laws.lean#L636-L640
 [`intakeConn_conn`]: engine/core/Sync.lean#L36-L37
-[`established_agrees`]: ops/connection/Laws.lean#L51-L61
+[`established_agrees`]: ops/connection/Laws.lean#L51-L65
 [`open_seal`]: ops/connection/Frame.lean#L51-L55
 [`cid_seal`]: ops/connection/Frame.lean#L79-L82
 [`Codec.encode_decode`]: engine/core/Codec.lean#L154-L157
 [`Op.id_decode`]: engine/core/Core.lean#L85-L87
 [`distinct_of_collisionFree`]: engine/core/Proofs.lean#L546-L549
-[`op_of_valid`]: ops/community/Laws.lean#L227-L232
+[`op_of_valid`]: ops/community/Laws.lean#L236-L241
 [`Pic.decode_sized`]: engine/renderer/pic/Laws.lean#L198-L201
 [`Mdns.decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
-[`Community.parse_valid`]: ops/community/Link.lean#L213-L214
+[`Community.parse_valid`]: ops/community/Link.lean#L214-L215
 [`Qr.parse_valid`]: engine/renderer/qr/SegLaws.lean#L336-L338
-[`chunk_is_slice`]: ops/community/Laws.lean#L673-L682
+[`chunk_is_slice`]: ops/community/Laws.lean#L682-L691
 [`verify_sound`]: ops/community/Merkle.lean#L426-L432
 [`complete_assembles`]: ops/community/Merkle.lean#L473-L479
-[`chunk_unique`]: ops/community/Laws.lean#L735-L741
-[`progress_exact`]: ops/community/Intents.lean#L493-L502
+[`chunk_unique`]: ops/community/Laws.lean#L744-L750
+[`progress_exact`]: ops/community/Intents.lean#L556-L565
 [`no_injective_hash`]: ops/community/Merkle.lean#L236-L238
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
@@ -645,11 +663,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`sum_scope_left`]: engine/core/Families.lean#L75-L76
 [`Codec.decode_encode`]: engine/core/Codec.lean#L148-L148
 [`Op.decode_bytes`]: engine/core/Core.lean#L90-L90
-[`request_valid`]: ops/community/Laws.lean#L409-L417
-[`approve_valid`]: ops/community/Laws.lean#L425-L433
-[`admit_admits`]: ops/community/Laws.lean#L441-L452
-[`connect_admitted`]: ops/community/Connect.lean#L169-L179
-[`removeMember_valid`]: ops/community/Intents.lean#L375-L382
+[`request_valid`]: ops/community/Laws.lean#L418-L426
+[`approve_valid`]: ops/community/Laws.lean#L434-L442
+[`admit_admits`]: ops/community/Laws.lean#L450-L461
+[`connect_admitted`]: ops/community/Connect.lean#L276-L286
+[`removeMember_valid`]: ops/community/Intents.lean#L438-L445
 [`exchange_complete`]: ops/sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: ops/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: ops/sync/Fp.lean#L37-L37
@@ -673,8 +691,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`open_fresh`]: ops/app/Remove.lean#L67-L69
 [`no_replace`]: ops/app/Remove.lean#L74-L76
 [`offered_only`]: ops/app/Remove.lean#L83-L86
-[`present_iff`]: ops/app/PeopleLaws.lean#L27-L30
-[`present_nodup`]: ops/app/PeopleLaws.lean#L37-L38
+[`present_iff`]: ops/app/PeopleLaws.lean#L28-L31
+[`present_not_removed`]: ops/app/PeopleLaws.lean#L38-L41
+[`present_nodup`]: ops/app/PeopleLaws.lean#L45-L46
 [`placed_row`]: engine/renderer/Geometry.lean#L81-L85
 [`newest_drawn`]: engine/renderer/Geometry.lean#L108-L111
 [`pinned_row`]: engine/renderer/Geometry.lean#L141-L144
@@ -694,8 +713,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`digits_keep_order`]: engine/renderer/TextLaws.lean#L109-L116
 [`message_read`]: ops/community/message/ViewLaws.lean#L61-L66
 [`profile_read`]: ops/community/message/ViewLaws.lean#L39-L41
-[`profile_authorized`]: ops/community/Laws.lean#L307-L314
-[`no_renaming`]: ops/community/Laws.lean#L321-L332
+[`profile_authorized`]: ops/community/Laws.lean#L316-L323
+[`no_renaming`]: ops/community/Laws.lean#L330-L341
 [`name_placed`]: ops/community/reaction/RowLaws.lean#L89-L92
 [`oneLine_prefix`]: engine/renderer/TextLaws.lean#L97-L98
 [`controls_neutral`]: engine/renderer/TextLaws.lean#L153-L157
@@ -704,23 +723,23 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
-[`readable_held`]: ops/community/Intents.lean#L295-L299
-[`readable_complete`]: ops/community/Intents.lean#L337-L341
+[`readable_held`]: ops/community/Intents.lean#L358-L362
+[`readable_complete`]: ops/community/Intents.lean#L400-L404
 [`switcherOrder_sound`]: ops/app/Pages.lean#L656-L658
 [`switcherOrder_complete`]: ops/app/Pages.lean#L663-L665
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L874-L878
-[`pageIn_acc`]: App.lean#L880-L883
+[`drawPage_key`]: App.lean#L877-L881
+[`pageIn_acc`]: App.lean#L883-L886
 [`parse_segsBits`]: engine/renderer/qr/SegLaws.lean#L157-L161
 [`parse_dataStream`]: engine/renderer/qr/SegLaws.lean#L193-L197
 [`RS.correct_sound`]: engine/renderer/qr/Laws.lean#L55-L57
 [`RS.correct_clean`]: engine/renderer/qr/Laws.lean#L74-L76
 [`decodeFormat_correct`]: engine/renderer/qr/Format.lean#L104-L105
 [`decodeVersion_correct`]: engine/renderer/qr/Format.lean#L113-L116
-[`parse_text`]: ops/community/Link.lean#L197-L198
-[`Base62.decode_encode`]: ops/community/Link.lean#L133-L133
+[`parse_text`]: ops/community/Link.lean#L198-L199
+[`Base62.decode_encode`]: ops/community/Link.lean#L134-L134
 [`Mdns.decode_encode`]: engine/wire/mdns/Laws.lean#L289-L290
 [`decode_roundtrip`]: engine/wire/mdns/Laws.lean#L584-L587
 [`render_wellFormed`]: engine/renderer/pic/Laws.lean#L219-L219

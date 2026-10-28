@@ -117,19 +117,19 @@ theorem mem_S : x.r ∈ x.S ∧ x.inv ∈ x.S ∧ x.req ∈ x.S ∧ x.appr ∈ x
 def InS (L : List Op) : Prop := ∀ o ∈ L, o ∈ x.S
 def Covers (L : List Op) : Prop := ∀ o ∈ x.S, o ∈ L
 
-def hello : Msg := .hello x.c x.B.pk x.A.pk (some x.req)
-def answer : Msg := .answer x.c x.A.pk x.B.pk
+def hello : Msg := .hello x.c x.kB x.kA (some x.req)
+def answer : Msg := .answer x.c x.kA x.kB
 
 /-- The messages that can be in flight: B's hello; A's answer and A's
 ops (all five), both sent only over A's open session with B; B's ops. -/
 def NetOk (s : Sys) (m : Msg) : Prop :=
-  m = x.hello ∨ (m = x.answer ∧ (x.c, x.B.pk) ∈ s.a.sessions) ∨
-  (∃ os, m = .push x.c x.A.pk x.B.pk os ∧ x.InS os ∧ x.Covers os ∧ (x.c, x.B.pk) ∈ s.a.sessions) ∨
-  (∃ os, m = .push x.c x.B.pk x.A.pk os ∧ x.InS os)
+  m = x.hello ∨ (m = x.answer ∧ (x.c, x.kB) ∈ s.a.sessions) ∨
+  (∃ os, m = .push x.c x.kA x.kB os ∧ x.InS os ∧ x.Covers os ∧ (x.c, x.kB) ∈ s.a.sessions) ∨
+  (∃ os, m = .push x.c x.kB x.kA os ∧ x.InS os)
 
 structure Inv (s : Sys) : Prop where
-  ame : s.a.me = x.A.pk
-  bme : s.b.me = x.B.pk
+  ame : s.a.me = x.kA
+  bme : s.b.me = x.kB
   aacc : s.a.accepted = [x.c]
   bacc : s.b.accepted = [x.c]
   alinks : s.a.links = []
@@ -140,9 +140,9 @@ structure Inv (s : Sys) : Prop where
   ai : x.inv ∈ s.a.ops
   breq : x.req ∈ s.b.ops
   acov : x.adm ∈ s.a.ops → x.Covers s.a.ops
-  bmore : (∃ o ∈ s.b.ops, o ≠ x.req) → x.Covers s.b.ops ∧ (x.c, x.A.pk) ∈ s.b.sessions
-  asess : ∀ p ∈ s.a.sessions, p = (x.c, x.B.pk) ∧ x.adm ∈ s.a.ops
-  bsess : ∀ p ∈ s.b.sessions, p = (x.c, x.A.pk) ∧ (x.c, x.B.pk) ∈ s.a.sessions
+  bmore : (∃ o ∈ s.b.ops, o ≠ x.req) → x.Covers s.b.ops ∧ (x.c, x.kA) ∈ s.b.sessions
+  asess : ∀ p ∈ s.a.sessions, p = (x.c, x.kB) ∧ x.adm ∈ s.a.ops
+  bsess : ∀ p ∈ s.b.sessions, p = (x.c, x.kA) ∧ (x.c, x.kB) ∈ s.a.sessions
   bdone : s.b.links = [] → x.adm ∈ s.b.ops
   net : ∀ m ∈ s.net, x.NetOk s m
 
@@ -172,7 +172,7 @@ include g
 
 /-- A trusts B for c exactly when A holds B's admission. -/
 theorem trustsA {n : Node} (hacc : n.accepted = [x.c]) (hl : n.links = []) (hS : x.InS n.ops)
-    (hcov : x.adm ∈ n.ops → x.Covers n.ops) : Trusts C n x.c x.B.pk ↔ x.adm ∈ n.ops := by
+    (hcov : x.adm ∈ n.ops → x.Covers n.ops) : Trusts C n x.c x.kB ↔ x.adm ∈ n.ops := by
   constructor
   · rintro ⟨_, h | ⟨⟨l, hl', _⟩, _⟩⟩
     · exact (allowedB g hS hcov).1 h
@@ -181,10 +181,10 @@ theorem trustsA {n : Node} (hacc : n.accepted = [x.c]) (hl : n.links = []) (hS :
 
 /-- B always trusts A: by its link until its ops speak about A, by its
 ops after. -/
-theorem trustsB {n : Node} (hme : n.me = x.B.pk) (hacc : n.accepted = [x.c])
+theorem trustsB {n : Node} (hme : n.me = x.kB) (hacc : n.accepted = [x.c])
     (hl : n.links = [] ∨ n.links = [x.link]) (hS : x.InS n.ops)
     (hcov : x.adm ∈ n.ops → x.Covers n.ops) (hdone : n.links = [] → x.adm ∈ n.ops) :
-    Trusts C n x.c x.A.pk := by
+    Trusts C n x.c x.kA := by
   refine ⟨by rw [hacc]; simp, ?_⟩
   by_cases hr : x.r ∈ n.ops
   · exact Or.inl ((allowedA g hS).2 hr)
@@ -196,15 +196,15 @@ theorem trustsB {n : Node} (hme : n.me = x.B.pk) (hacc : n.accepted = [x.c])
     rw [hme]; intro h
     exact hr (hcov ((allowedB g hS hcov).1 h) _ x.mem_S.1)
 
-theorem Inv.trustsB (hI : x.Inv s) : Trusts C s.b x.c x.A.pk :=
+theorem Inv.trustsB (hI : x.Inv s) : Trusts C s.b x.c x.kA :=
   Net.Scene.trustsB g hI.bme hI.bacc hI.blinks hI.bS hI.bcov hI.bdone
 
 /-! ## The handlers, worked out -/
 
 theorem hello_A (hI : x.Inv s) :
-    onHello C s.a x.c x.B.pk (some x.req) =
+    onHello C s.a x.c x.kB (some x.req) =
       if x.adm ∈ s.a.ops then
-        ({ s.a with ops := add1 s.a.ops x.req, sessions := ins s.a.sessions (x.c, x.B.pk) },
+        ({ s.a with ops := add1 s.a.ops x.req, sessions := ins s.a.sessions (x.c, x.kB) },
           [x.answer])
       else ({ s.a with ops := add1 s.a.ops x.req }, []) := by
   have hS' : x.InS (add1 s.a.ops x.req) := fun o h => by
@@ -233,8 +233,8 @@ theorem hello_A (hI : x.Inv s) :
   · simp only [if_pos hi]
 
 theorem answer_B (hI : x.Inv s) :
-    onAnswer C s.b x.c x.A.pk =
-      if s.b.links = [x.link] then { s.b with sessions := ins s.b.sessions (x.c, x.A.pk) }
+    onAnswer C s.b x.c x.kA =
+      if s.b.links = [x.link] then { s.b with sessions := ins s.b.sessions (x.c, x.kA) }
       else s.b := by
   unfold onAnswer
   rcases hI.blinks with h | h
@@ -244,16 +244,16 @@ theorem answer_B (hI : x.Inv s) :
   · rw [if_pos ⟨⟨x.link, by rw [h]; simp, rfl, rfl⟩, hI.trustsB g⟩, if_pos h]
 
 theorem push_B (hI : x.Inv s) {os : List Op} (hos : x.InS os) :
-    onPush C s.b x.c x.A.pk os =
-      if (x.c, x.A.pk) ∈ s.b.sessions then { s.b with ops := add s.b.ops os } else s.b := by
+    onPush C s.b x.c x.kA os =
+      if (x.c, x.kA) ∈ s.b.sessions then { s.b with ops := add s.b.ops os } else s.b := by
   unfold onPush
   rw [x.filter_ofC hos]
-  by_cases h : (x.c, x.A.pk) ∈ s.b.sessions
+  by_cases h : (x.c, x.kA) ∈ s.b.sessions
   · rw [if_pos ⟨h, hI.trustsB g⟩, if_pos h]
   · rw [if_neg (fun t => h t.1), if_neg h]
 
 theorem push_A (hI : x.Inv s) {os : List Op} (hos : x.InS os) :
-    onPush C s.a x.c x.B.pk os = s.a := by
+    onPush C s.a x.c x.kB os = s.a := by
   unfold onPush
   split
   · rename_i h
@@ -270,7 +270,7 @@ theorem ticked_A (hI : x.Inv s) : ticked C s.a = s.a := by
     ((trustsA (n := { s.a with links := keptLinks C s.a }) g hI.aacc hl hI.aS hI.acov).2 hadm)
 
 theorem tick_A (hI : x.Inv s) :
-    tick C s.a = (s.a, s.a.sessions.map fun _ => Msg.push x.c x.A.pk x.B.pk s.a.ops) := by
+    tick C s.a = (s.a, s.a.sessions.map fun _ => Msg.push x.c x.kA x.kB s.a.ops) := by
   unfold tick; rw [ticked_A g hI]
   refine Prod.ext rfl ?_
   show sends s.a = _
@@ -294,7 +294,7 @@ theorem keptLinks_B (hI : x.Inv s) :
 theorem ticked_B (hI : x.Inv s) :
     ticked C s.b = { s.b with links := if x.adm ∈ s.b.ops then [] else s.b.links } := by
   have hl := keptLinks_B g hI
-  have ht : Trusts C { s.b with links := keptLinks C s.b } x.c x.A.pk := by
+  have ht : Trusts C { s.b with links := keptLinks C s.b } x.c x.kA := by
     refine Net.Scene.trustsB g hI.bme hI.bacc ?_ hI.bS hI.bcov ?_
     · show keptLinks C s.b = [] ∨ keptLinks C s.b = [x.link]
       rw [hl]; split
@@ -313,8 +313,8 @@ theorem ticked_B (hI : x.Inv s) :
 theorem tick_B (hI : x.Inv s) :
     tick C s.b =
       ({ s.b with links := if x.adm ∈ s.b.ops then [] else s.b.links },
-        (if s.b.links = [x.link] ∧ x.adm ∉ s.b.ops ∧ (x.c, x.A.pk) ∉ s.b.sessions then [x.hello]
-          else []) ++ s.b.sessions.map fun _ => Msg.push x.c x.B.pk x.A.pk s.b.ops) := by
+        (if s.b.links = [x.link] ∧ x.adm ∉ s.b.ops ∧ (x.c, x.kA) ∉ s.b.sessions then [x.hello]
+          else []) ++ s.b.sessions.map fun _ => Msg.push x.c x.kB x.kA s.b.ops) := by
   unfold tick; rw [ticked_B g hI]
   refine Prod.ext rfl ?_
   show sends { s.b with links := if x.adm ∈ s.b.ops then [] else s.b.links } = _
@@ -327,12 +327,12 @@ theorem tick_B (hI : x.Inv s) :
       rcases hI.blinks with h | h
       · rw [if_neg (fun t => by rw [h] at t; cases t.1), h]; rfl
       · rw [h]
-        by_cases hs' : (x.c, x.A.pk) ∈ s.b.sessions
-        · have hany : (s.b.sessions.any fun t => decide (t = (x.c, x.A.pk))) = true :=
+        by_cases hs' : (x.c, x.kA) ∈ s.b.sessions
+        · have hany : (s.b.sessions.any fun t => decide (t = (x.c, x.kA))) = true :=
             List.any_eq_true.2 ⟨_, hs', by simp⟩
           rw [if_neg (fun t => t.2.2 hs')]
           simp [link, List.filter_cons, hany]
-        · have hany : (s.b.sessions.any fun t => decide (t = (x.c, x.A.pk))) = false := by
+        · have hany : (s.b.sessions.any fun t => decide (t = (x.c, x.kA))) = false := by
             rw [Bool.eq_false_iff]; intro h
             obtain ⟨t, ht, he⟩ := List.any_eq_true.1 h
             exact hs' ((of_decide_eq_true he) ▸ ht)

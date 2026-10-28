@@ -9,7 +9,7 @@ namespace Net
 open Engine Community
 
 theorem NetOk.mono {x : Scene} {s s' : Sys} {m : Msg} (h : x.NetOk s m)
-    (ha : (x.c, x.B.pk) ∈ s.a.sessions → (x.c, x.B.pk) ∈ s'.a.sessions) : x.NetOk s' m := by
+    (ha : (x.c, x.kB) ∈ s.a.sessions → (x.c, x.kB) ∈ s'.a.sessions) : x.NetOk s' m := by
   rcases h with h | ⟨h1, h2⟩ | ⟨os, h1, h2, h3, h4⟩ | h
   · exact Or.inl h
   · exact Or.inr (Or.inl ⟨h1, ha h2⟩)
@@ -21,14 +21,14 @@ open Classical
 variable {x : Scene} {C : Crypto} {s : Sys}
 
 variable (x) in
-def pushA (s : Sys) : Msg := .push x.c x.A.pk x.B.pk s.a.ops
+def pushA (s : Sys) : Msg := .push x.c x.kA x.kB s.a.ops
 variable (x) in
-def pushB (s : Sys) : Msg := .push x.c x.B.pk x.A.pk s.b.ops
+def pushB (s : Sys) : Msg := .push x.c x.kB x.kA s.b.ops
 variable (x) in
 /-- What B's tick sends: its hello while its link is pending and no session is open; its ops
 over its session. -/
 noncomputable def msgsB (s : Sys) : List Msg :=
-  (if s.b.links = [x.link] ∧ x.adm ∉ s.b.ops ∧ (x.c, x.A.pk) ∉ s.b.sessions then [x.hello] else []) ++
+  (if s.b.links = [x.link] ∧ x.adm ∉ s.b.ops ∧ (x.c, x.kA) ∉ s.b.sessions then [x.hello] else []) ++
     s.b.sessions.map fun _ => x.pushB s
 variable (x) in
 /-- B after its tick: the link forgotten once B holds its admission. -/
@@ -59,41 +59,41 @@ theorem out_drop {m : Msg} : stepOut C x.approval s (.drop m) = ({ s with net :=
 theorem out_hello (hI : x.Inv s) :
     stepOut C x.approval s (.deliver x.hello) =
       if x.adm ∈ s.a.ops then
-        ({ s with a := { s.a with ops := add1 s.a.ops x.req, sessions := ins s.a.sessions (x.c, x.B.pk) },
+        ({ s with a := { s.a with ops := add1 s.a.ops x.req, sessions := ins s.a.sessions (x.c, x.kB) },
                   net := s.net.erase x.hello ++ [x.answer] }, [x.answer])
       else ({ s with a := { s.a with ops := add1 s.a.ops x.req }, net := s.net.erase x.hello }, []) := by
   have hd : x.hello.dst = s.a.me := by rw [hI.ame]; rfl
   simp only [stepOut, if_pos hd]
-  rw [show recv C s.a x.hello = onHello C s.a x.c x.B.pk (some x.req) from rfl, hello_A g hI]
+  rw [show recv C s.a x.hello = onHello C s.a x.c x.kB (some x.req) from rfl, hello_A g hI]
   split <;> simp
 
 theorem out_answer (hI : x.Inv s) :
     stepOut C x.approval s (.deliver x.answer) =
-      ({ s with b := if s.b.links = [x.link] then { s.b with sessions := ins s.b.sessions (x.c, x.A.pk) }
+      ({ s with b := if s.b.links = [x.link] then { s.b with sessions := ins s.b.sessions (x.c, x.kA) }
                      else s.b,
                 net := s.net.erase x.answer }, []) := by
-  have h1 : x.answer.dst ≠ s.a.me := by rw [hI.ame]; exact fun h => g.AB h.symm
+  have h1 : x.answer.dst ≠ s.a.me := by rw [hI.ame]; exact fun h => g.kAB h.symm
   have h2 : x.answer.dst = s.b.me := by rw [hI.bme]; rfl
   simp only [stepOut, if_neg h1, if_pos h2]
-  rw [show recv C s.b x.answer = (onAnswer C s.b x.c x.A.pk, []) from rfl, answer_B g hI]; simp
+  rw [show recv C s.b x.answer = (onAnswer C s.b x.c x.kA, []) from rfl, answer_B g hI]; simp
 
 theorem out_pushAB (hI : x.Inv s) {os : List Op} (hos : x.InS os) :
-    stepOut C x.approval s (.deliver (.push x.c x.A.pk x.B.pk os)) =
-      ({ s with b := if (x.c, x.A.pk) ∈ s.b.sessions then { s.b with ops := add s.b.ops os } else s.b,
-                net := s.net.erase (.push x.c x.A.pk x.B.pk os) }, []) := by
-  have h1 : (Msg.push x.c x.A.pk x.B.pk os).dst ≠ s.a.me := by
-    rw [hI.ame]; exact fun h => g.AB h.symm
-  have h2 : (Msg.push x.c x.A.pk x.B.pk os).dst = s.b.me := by rw [hI.bme]; rfl
+    stepOut C x.approval s (.deliver (.push x.c x.kA x.kB os)) =
+      ({ s with b := if (x.c, x.kA) ∈ s.b.sessions then { s.b with ops := add s.b.ops os } else s.b,
+                net := s.net.erase (.push x.c x.kA x.kB os) }, []) := by
+  have h1 : (Msg.push x.c x.kA x.kB os).dst ≠ s.a.me := by
+    rw [hI.ame]; exact fun h => g.kAB h.symm
+  have h2 : (Msg.push x.c x.kA x.kB os).dst = s.b.me := by rw [hI.bme]; rfl
   simp only [stepOut, if_neg h1, if_pos h2]
-  rw [show recv C s.b (.push x.c x.A.pk x.B.pk os) = (onPush C s.b x.c x.A.pk os, []) from rfl,
+  rw [show recv C s.b (.push x.c x.kA x.kB os) = (onPush C s.b x.c x.kA os, []) from rfl,
     push_B g hI hos]; simp
 
 theorem out_pushBA (hI : x.Inv s) {os : List Op} (hos : x.InS os) :
-    stepOut C x.approval s (.deliver (.push x.c x.B.pk x.A.pk os)) =
-      ({ s with net := s.net.erase (.push x.c x.B.pk x.A.pk os) }, []) := by
-  have h1 : (Msg.push x.c x.B.pk x.A.pk os).dst = s.a.me := by rw [hI.ame]; rfl
+    stepOut C x.approval s (.deliver (.push x.c x.kB x.kA os)) =
+      ({ s with net := s.net.erase (.push x.c x.kB x.kA os) }, []) := by
+  have h1 : (Msg.push x.c x.kB x.kA os).dst = s.a.me := by rw [hI.ame]; rfl
   simp only [stepOut, if_pos h1]
-  rw [show recv C s.a (.push x.c x.B.pk x.A.pk os) = (onPush C s.a x.c x.B.pk os, []) from rfl,
+  rw [show recv C s.a (.push x.c x.kB x.kA os) = (onPush C s.a x.c x.kB os, []) from rfl,
     push_A g hI hos]; simp
 
 /-! ## The invariant is kept -/

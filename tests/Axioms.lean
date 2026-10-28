@@ -315,3 +315,25 @@ open Net
 #print axioms Net.allowPeer_iff
 #print axioms Net.allowPeer_settles
 end net
+#print axioms Community.deviceLive_iff
+#print axioms Community.unremoved_iff
+#print axioms Community.cut_not_live
+#print axioms Community.nodeKeyOr_local
+#print axioms Community.endpoint_signed
+#print axioms Community.cut_stays
+#print axioms Community.cut_consented
+#print axioms Community.endpoint_derives
+#print axioms Community.new_device_trusted
+#print axioms Community.removals_at
+#print axioms Community.mine_not_removed
+#print axioms Community.rejoin_fresh
+#print axioms Community.join_new_device
+#print axioms Community.removed_stays_removed
+#print axioms Connection.opened_endpoint
+#print axioms Connection.established_endpoint
+#print axioms Connection.meV_node
+#print axioms Connection.room_connOp
+#print axioms Connection.bare_takes_only_join
+#print axioms Connection.answer_trusted
+#print axioms Connection.resend_trusted
+#print axioms PeopleLaws.present_not_removed

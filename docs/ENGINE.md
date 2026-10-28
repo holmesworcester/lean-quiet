@@ -86,7 +86,7 @@ or pending join a node holds is its own write, whatever peers send).
 ### The invite link (`Link.lean`)
 
 `quiet://join/` and the fields in base62: community, invitation, the
-inviter's device key, dial hints, the bearer seed. `parse_text`, and
+inviter's node key, dial hints, the bearer seed. `parse_text`, and
 `parse_valid` (whatever parses is valid).
 
 ### Sync scope (`Sync.lean`)
@@ -176,7 +176,11 @@ who has since been removed, and an approval by a user removed since
 still counts. In practice that last kind may not spread,
 since peers who know of the remover's removal refuse its devices; but
 wherever it arrives, it is Valid. Removal never invalidates an op; it
-changes who counts.
+changes who counts. A device may be admitted into several users: it is
+live while none of them is removed, and removing any of them cuts it
+(`Live`, `Cut`; docs/REMOVAL.md). A node's key (local `endpoint`) is
+what its devices' roots and requests name as their X25519 key, under
+their signatures, so admissions tie devices to the node they live on.
 
 Laws (`Laws.lean`, `Connect.lean`):
 
@@ -188,16 +192,19 @@ Laws (`Laws.lean`, `Connect.lean`):
 | Are requests with their approvals admitted? | `request_valid`, `approve_valid`, `admit_admits`; `removed_approver_admits` (a removed member's approval still counts) |
 | Who may remove whom? | `removal_authorized`, `admin_removal_stands`, `mutual_removal`, `admin_granted` |
 | Can a removal be undone, or rewrite history? | `removed_stays`, `valid_stays` |
-| Do we connect to non-members or removed members? | `connect_iff`, `refuse_nonmember` |
-| Whom do we dial? | `members_iff` |
-| Do we connect to approved devices, and only those? | `connect_admitted`, `connect_approved` (a pending request never connects) |
-| Who is a new content key sealed to? | `recipients_iff` |
-| What does a removal cut off? | `removal_cuts_off`, `connect_agree`: the removed user's devices plus any nodes that have not yet received the removal |
+| Which nodes do we connect to? | `connect_iff` (a node key, while a live device is admitted under it), `deviceLive_iff`, `refuse_nonmember` |
+| Whom do we dial? | `members_iff` (the live devices) |
+| Do we connect to approved devices' nodes, and only those? | `connect_admitted`, `connect_approved` (a pending request never connects) |
+| Who is a new content key sealed to? | `recipients_iff`: exactly the keys `allowPeer` lets in |
+| What does a removal cut off? | `removal_cuts_off`, `cut_stays`, `cut_consented`, `connect_agree`: every device of the removed user, for good, at every node that has received the removal |
+| How is a node's key tied to its devices? | `endpoint_signed`, `endpoint_derives`, `new_device_trusted` |
+| Does a removed node keep the community? Can it rejoin? | `mine_not_removed`, `rejoin_fresh`, `join_new_device`, `removed_stays_removed` |
 
 The connection, dialing and sealing laws are about the views
-themselves (`allowPeer`, `members`, `recipients`, in `Query.lean`), lists
-read over the persisted tables: `admission.byDevice`, `admission.all`,
-and each named user's `removal.byUser`.
+themselves (`allowPeer`, `members`, `recipients`, `deviceLive`, in
+`Query.lean`), lists read over the persisted tables: `admission.byKey`,
+`admission.all`, each device's `admission.byDevice`, and each named
+user's `removal.byUser`.
 
 ## What is assumed, not proven
 
@@ -255,11 +262,16 @@ or op code (ops/connection/, one file per op type).
   opens nothing. The handshake's functions are generic in their
   carrier (`Suite α`): the validators run them on bytes, and the
   secrecy proofs run the same functions on symbolic terms.
+- **A node handshakes with its own key.** The statics are the two
+  nodes' keys (Community's local `endpoint`), not device keys; a
+  `request` names both in the clear, so KK has them in advance (the
+  joiner has the inviter's from the link). The trust rule maps a node
+  key to membership through the admissions that name it.
 - **Local ops carry the secrets.** `eph` holds an ephemeral secret.
-  `opened` is the responder's read of a request, citing this device's
-  `secret`. `established` is each side's session: its validator re-runs
-  that side's half of the handshake. A close purges them, which makes
-  sessions forward secret (the purge branch).
+  `opened` is the responder's read of a request, citing this node's
+  `endpoint`. `established` is each side's session: its validator re-runs
+  that side's half of the handshake with the endpoint's secret. A close
+  purges them, which makes sessions forward secret (the purge branch).
 - **Frames** (`ops/connection/Frame.lean`, not an op) are as poc-17's: the
   connection id, a random nonce, and XChaCha20-Poly1305 with the id as
   associated data. They carry no counters and need no replay tracking,
@@ -267,15 +279,21 @@ or op code (ops/connection/, one file per op type).
 - **In and out.** Every op taken gets a `recv` (when it arrived and
   how). Everything leaves through `send` couriers, which cite the op
   they carry and are read by reference when handed out.
-- **One session per peer.** If two devices dial each other at once,
-  both ends keep the session with the smaller connection id. They hold
-  the same connection ops, so they agree without a message.
+- **One session per peer.** A peer is a node key, and a session carries
+  a room for every community both nodes hold, whatever its hello named.
+  If two nodes dial each other at once, both ends keep the session with
+  the smaller connection id. They hold the same connection ops, so they
+  agree without a message.
 - **Closing purges two ops**, the connection and its request.
   Everything else of the session cites one of them (ephemerals, opened,
   established, couriers, arrivals), so purge takes it along.
-- **Reactions** (`ops/connection/Intents.lean`). `react` opens, delivers,
-  answers only peers the trust rule admits, and establishes. `dial`
-  resends a pending join's request every tick. Both are views over lists
+- **Reactions** (`ops/connection/Intents.lean`). `react` opens, delivers
+  only a hello's join request of its community (`bare_takes_only_join`),
+  answers only peers the trust rule admits (`answer_trusted`), and
+  establishes. `onArrival` re-sends an answer only to a trusted peer
+  (`resend_trusted`). `dial` resends a pending join's request every tick,
+  while no session to the inviter is open or the inviter has not let
+  this node into the community. Both are views over lists
   returning ops, generic in the monad (`Lists`, `Store`, `Fresh`), so
   they run on SQLite and on the model.
 
@@ -284,6 +302,9 @@ Laws (`ops/connection/Laws.lean`, `ops/connection/Noise.lean`,
 `engine/core/Families.lean`):
 - `wire_kinds`;
 - `established_agrees` (both ends hold one session);
+- `opened_endpoint`, `established_endpoint` (the statics are node keys),
+  `meV_node`, `bare_takes_only_join`, `answer_trusted`, `resend_trusted`
+  (`ops/connection/RemovalLaws.lean`);
 - `handshake_agrees`, `sent1_write1`, `sent1_read1`, `read2_write2'`,
   for any suite whose DH commutes, whose AEAD opens what it seals and
   whose messages split into their key and the rest;

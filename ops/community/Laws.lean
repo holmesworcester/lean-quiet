@@ -207,6 +207,15 @@ def IsAdmin (c u : Id) : Prop :=
 /-- A member: an admitted user not removed. -/
 def Member (c u : Id) : Prop := (∃ d e, Admitted C ops c u d e) ∧ ¬ Removed C ops c u
 
+/-- Device d is live in c: admitted, and none of the users it is
+admitted into (under any key) removed. A device may be admitted into
+several users; removing any of them cuts it (docs/REMOVAL.md). -/
+def Live (c : Id) (d : Key) : Prop :=
+  (∃ u e, Admitted C ops c u d e) ∧ ∀ u e, Admitted C ops c u d e → ¬ Removed C ops c u
+
+/-- Device d is cut in c: admitted into a user that is removed. -/
+def Cut (c : Id) (d : Key) : Prop := ∃ u e, Admitted C ops c u d e ∧ Removed C ops c u
+
 end
 
 variable {C : Crypto} {ops : Id → Option Op}

@@ -18,91 +18,142 @@ open Engine
 structure Write where
   ops : List Op
 
+/-- This node's key, and the op that makes it if the node has none yet,
+from 32 fresh bytes: the first `found` or `join` on a node writes it. -/
+def nodeKeyOr (fresh : ByteArray) : View Fact (Key × List Op) :=
+  nodeKey.bind fun
+    | some (pk, _) => .pure (pk, [])
+    | none => .pure (cryptoSeal.pub fresh, [endpoint fresh])
+
 /-- Found a community named `name` from this device's seed, the founder
-known as `myName`: the device's secret (local), the root, the device's
-acceptance (local), the first name, the founder's first profile (the
-root is the founder's admission), and the community's first content
-key `k` (local), wrapped to the founder's device with ephemeral secret
-`esk` (both fresh random bytes from the caller). -/
-def found (seed name myName : ByteArray) (time : Nat) (k esk : ByteArray) : Write :=
+known as `myName`: this node's key if it has none (from `fresh`), the
+device's secret (local), the root (naming the device and the node's
+key), the device's acceptance (local), the first name, the founder's
+first profile (the root is the founder's admission), and the
+community's first content key `k` (local), wrapped to the node's key
+with ephemeral secret `esk` (fresh random bytes from the caller, as
+`fresh` and `k` are). -/
+def found (seed name myName : ByteArray) (time : Nat) (k esk fresh : ByteArray) :
+    View Fact Write := do
+  let (key, pre) ← nodeKeyOr fresh
   let d := Device.ofSeed seed
-  let r := root d
-  ⟨[secret seed, r, accept r.id d.pk, setName r.id r.id r.id [] 1 d name,
-    profile r.id r.id d myName time, contentKey r.id k, wrapKey r.id k esk d.enc]⟩
+  let r := root d key
+  pure ⟨pre ++ [secret seed, r, accept r.id d.pk, setName r.id r.id r.id [] 1 d name,
+    profile r.id r.id d myName time, contentKey r.id k, wrapKey r.id k esk key]⟩
 
 /-- Invite to c from this device (admitted as `myAdm`): the invitation,
-and its link, with the bearer seed and dial hints given. -/
+and its link, naming this node's key, with the bearer seed and dial
+hints given. None on a node with no key (a node that founded or joined
+nothing). -/
 def inviteTo (c myAdm : Id) (seed bearerSeed : ByteArray) (hints : List ByteArray)
-    (threshold : Nat := 1) : Write × Invite :=
-  let p := issue c myAdm (Device.ofSeed seed) bearerSeed hints threshold
-  (⟨[p.1]⟩, p.2)
+    (threshold : Nat := 1) : View Fact (Option (Write × Invite)) := do
+  let some (key, _) ← nodeKey | pure none
+  let p := issue c myAdm (Device.ofSeed seed) key bearerSeed hints threshold
+  pure (some (⟨[p.1]⟩, p.2))
 
-/-- Join from a link, to be known as `name`: the device's secret, its
-request (the one op that travels), its acceptance of the community, and
-the pending join (which keeps the name until admission). -/
-def joinOps (i : Invite) (seed name : ByteArray) : Write :=
+/-- Join from a link, from the node with key `key`, to be known as
+`name`: the device's secret, its request (the one op that travels), its
+acceptance of the community, and the pending join (which keeps the name
+until admission). -/
+def joinOps (i : Invite) (seed name : ByteArray) (key : Key) : Write :=
   let d := Device.ofSeed seed
-  let req := i.request d
+  let req := i.request d key
   ⟨[secret seed, req, accept i.community d.pk, joining i req.id name d.pk]⟩
 
 /-- Byte order on ids. -/
 def idLt (a b : Id) : Bool := decide (a.toList < b.toList)
 
+/-- Whether one of these joins of c by device d is still waited on (not
+stopped). -/
+def waiting (c : Id) (d : Key) : List (Pos × Fact) → View Fact Bool
+  | [] => .pure false
+  | ((_, jid), .joining c' _ _ _ _ d' _) :: t =>
+    if c' = c ∧ d' = d then
+      .list (abandoned.byJoining.query [jid] (limit := some 0)) fun ab =>
+        if ab.total = 0 then .pure true else waiting c d t
+    else waiting c d t
+  | _ :: t => waiting c d t
+
+/-- How this store holds device d's acceptance of c: not at all (none)
+if it does not hold d's secret, if d is cut, or if d is not admitted and
+no join of it is waited on; else whether d is admitted (and so live). -/
+def standing (c : Id) (d : Key) (joins : List (Pos × Fact)) : View Fact (Option Bool) :=
+  .list (secret.byKey.query [d] (limit := some 0)) fun sec =>
+    if sec.total = 0 then .pure none else
+    .list (admission.byDevice.query [c, d]) fun adm =>
+      if adm.rows.isEmpty then (waiting c d joins).bind fun w => .pure (if w then some false else none)
+      else (unremoved c adm.rows).bind fun ok => .pure (if ok then some true else none)
+
+/-- The better of two held acceptances: the admitted one, else the least
+acceptance id. -/
+def better (a b : Key × Id × Bool) : Key × Id × Bool :=
+  if (a.2.2 && !b.2.2) || (a.2.2 == b.2.2 && idLt a.2.1 b.2.1) then a else b
+
+/-- The best held acceptance of c among these rows. -/
+def pick (c : Id) (joins : List (Pos × Fact)) : List (Pos × Fact) → View Fact (Option (Key × Id × Bool))
+  | [] => .pure none
+  | ((_, aid), .accepted c' d) :: t =>
+    if c' = c then
+      (standing c d joins).bind fun st => (pick c joins t).bind fun rest =>
+        .pure (match st, rest with
+          | some adm, some b => some (better (d, aid, adm) b)
+          | some adm, none => some (d, aid, adm)
+          | none, r => r)
+    else pick c joins t
+  | _ :: t => pick c joins t
+
 /-- The device this store is in community c as, with its acceptance:
-among its acceptances of c whose device's secret it holds, and that are
-not a join it stopped waiting on, the admitted one first, else the least
-acceptance id. A node holds a community at most once (libquiet #580,
-#940); this is which one, and every reader of the same ops picks the
-same (the app's switcher, and the network node). -/
-def mine (c : Id) : View Fact (Option (Key × Id)) := do
-  let acc ← accepted.all.read []
-  let joins ← joining.all.read []
-  let mut best : Option (Key × Id × Bool) := none
-  for ((_, aid), f) in acc.rows do
-    let .accepted c' d := f | continue
-    if c' ≠ c then continue
-    let sec ← secret.byKey.read [d] (limit := some 0)
-    if sec.total = 0 then continue
-    let adm ← admission.byDevice.read [c, d] (limit := some 0)
-    let admitted := adm.total ≠ 0
-    if !admitted then
-      -- waiting: held only while one of its joins is not stopped
-      let mut live := false
-      for ((_, jid), g) in joins.rows do
-        let .joining c'' _ _ _ _ d' _ := g | continue
-        if c'' ≠ c || d' ≠ d then continue
-        let ab ← abandoned.byJoining.read [jid] (limit := some 0)
-        if ab.total = 0 then live := true
-      if !live then continue
-    best := match best with
-      | none => some (d, aid, admitted)
-      | some (bd, ba, badm) =>
-        if (admitted && !badm) || (admitted == badm && idLt aid ba) then some (d, aid, admitted)
-        else some (bd, ba, badm)
-  pure (best.map fun (d, a, _) => (d, a))
+among its acceptances of c whose device's secret it holds, the device
+being live, or not admitted with a join still waited on, the admitted
+one first, else the least acceptance id. A cut device's entry is not
+held (docs/REMOVAL.md, E4), so after a removal the store holds the
+community no more and can join it again as a new device. A node holds a
+community at most once (libquiet #580, #940); this is which one, and
+every reader of the same ops picks the same (the app's switcher, and the
+network node). -/
+def mine (c : Id) : View Fact (Option (Key × Id)) :=
+  .list (accepted.all.query []) fun acc =>
+    .list (joining.all.query []) fun joins =>
+      (pick c joins.rows acc.rows).bind fun best => .pure (best.map fun (d, a, _) => (d, a))
+
+/-- The latest join of c among these whose device was never admitted in
+c: one stopped waiting on, to resume. -/
+def dormant (c : Id) : List (Pos × Fact) →
+    View Fact (Option (Key × List ByteArray × Id × ByteArray × Key × Nat))
+  | [] => .pure none
+  | (_, .joining c' k hs r nm d n) :: t =>
+    if c' = c then
+      .list (admission.byDevice.query [c, d] (limit := some 0)) fun a =>
+        (dormant c t).bind fun rest => .pure (
+          if a.total ≠ 0 then rest else
+          match rest with
+          | some (_, _, _, _, _, m) => if n ≥ m then some (k, hs, r, nm, d, n) else rest
+          | none => some (k, hs, r, nm, d, n))
+    else dormant c t
+  | _ :: t => dormant c t
 
 /-- Join from a link, to be known as `name`, unless this store already
 holds the community (`mine`): then nothing. A join of c stopped waiting
 on is resumed rather than made again: a new joining op (one epoch on)
 for the same request, so the inviter sees the same request (libquiet's
-dormant join). Otherwise a fresh join (`joinOps`). -/
-def join (i : Invite) (seed name : ByteArray) : View Fact Write := do
-  let c := i.community
-  if (← mine c).isSome then return ⟨[]⟩
-  let joins ← joining.all.read []
-  let dormant := joins.rows.foldl (fun acc (_, f) => match f with
-    | .joining c' k hs r nm d n =>
-      if c' = c then match acc with
-        | some (_, _, _, _, _, m) => if n ≥ m then some (k, hs, r, nm, d, n) else acc
-        | none => some (k, hs, r, nm, d, n)
-      else acc
-    | _ => acc) none
-  match dormant with
-  | some (k, hs, r, nm, d, n) => return ⟨[mkOp [] (.joining c k hs r nm d (n + 1))]⟩
-  | none => return joinOps i seed name
+dormant join); a join whose device was admitted is spent, not dormant.
+Otherwise a fresh join (`joinOps`) from this node's key (made from
+`fresh` if it has none), unless the seed's device is already admitted
+in c: a join never asks for an admitted device, so never for a cut one
+(`join_new_device`). -/
+def join (i : Invite) (seed name fresh : ByteArray) : View Fact Write :=
+  (mine i.community).bind fun held => if held.isSome then .pure ⟨[]⟩ else
+  .list (joining.all.query []) fun joins =>
+  (dormant i.community joins.rows).bind fun
+    | some (k, hs, r, nm, d, n) => .pure ⟨[mkOp [] (.joining i.community k hs r nm d (n + 1))]⟩
+    | none =>
+      .list (admission.byDevice.query [i.community, (Device.ofSeed seed).pk] (limit := some 0)) fun adm =>
+        if adm.total ≠ 0 then .pure ⟨[]⟩ else
+        (nodeKeyOr fresh).bind fun (key, pre) => .pure ⟨pre ++ (joinOps i seed name key).ops⟩
 
 /-- Once admitted into c with no profile yet: the first profile, named as
-the join asked. Reads my admission, my profile and my join; writes
+this device's join asked (a node may hold several joins of c: a raced
+one, or a rejoin's). Reads my admission, my profile and my join; writes
 nothing otherwise. -/
 def introduce (c : Id) (seed : ByteArray) (time : Nat) : View Fact Write := do
   let d := Device.ofSeed seed
@@ -112,7 +163,7 @@ def introduce (c : Id) (seed : ByteArray) (time : Nat) : View Fact Write := do
     let prof ← profile.byUser.read [c, u] (limit := some 0)
     let joins ← joining.all.read []
     let name := joins.rows.findSome? fun (_, f) => match f with
-      | .joining c' _ _ _ nm _ _ => if c' = c then some nm else none
+      | .joining c' _ _ _ nm d' _ => if c' = c ∧ d' = d.pk then some nm else none
       | _ => none
     match name with
     | some nm => pure (if prof.total = 0 then ⟨[profile c adm d nm time]⟩ else ⟨[]⟩)
@@ -194,17 +245,17 @@ def currentKey (c : Id) : View Fact (Option ByteArray) := do
   let ks ← key.byCommunity.read [c] (limit := some 1)
   pure (ks.rows.head?.bind fun (_, f) => match f with | .key _ _ k => some k | _ => none)
 
-/-- The content keys of c wrapped to this device that it does not hold
-yet, opened with its encryption secret: each becomes a local `key`. -/
-def unwrap (c : Id) (seed : ByteArray) : View Fact Write := do
-  let d := Device.ofSeed seed
-  let ws ← wrap.byRecipient.read [c, d.enc]
+/-- The content keys of c wrapped to this node's key that it does not
+hold yet, opened with the key's secret: each becomes a local `key`. -/
+def unwrap (c : Id) : View Fact Write := do
+  let some (pk, sk) ← nodeKey | pure ⟨[]⟩
+  let ws ← wrap.byRecipient.read [c, pk]
   let mut out : List Op := []
   for (_, f) in ws.rows do
     let .wrap _ kid _ bx := f | continue
     let held ← key.byId.read [kid] (limit := some 0)
     if held.total ≠ 0 then continue
-    match unbox cryptoSeal d.encSecret kid bx with
+    match unbox cryptoSeal sk kid bx with
     | some k => if k.size = 32 && !out.any (fun o => o.body == (contentKey c k).body) then
         out := out ++ [contentKey c k]
     | none => pure ()
@@ -246,22 +297,34 @@ theorem shared_mkOp (C : Crypto) (reqs : List Id) (b : Body) :
 /-- **Joining is just ops, and only the request leaves the device.** The
 join intent writes the device's secret, the request, the acceptance and
 the pending join; of these, sync may offer only the request. -/
-theorem joinOps_travels (C : Crypto) (i : Invite) (seed name : ByteArray) :
-    (joinOps i seed name).ops.filter (family C).shared = [i.request (Device.ofSeed seed)] := by
+theorem joinOps_travels (C : Crypto) (i : Invite) (seed name : ByteArray) (key : Key) :
+    (joinOps i seed name key).ops.filter (family C).shared = [i.request (Device.ofSeed seed) key] := by
   simp [joinOps, Invite.request, Community.request, secret, accept, joining, shared_mkOp, Body.isLocal]
 
 /-- **Stopping waiting is local.** -/
 theorem stopWaiting_local (C : Crypto) (j : Id) : (stopWaiting j).ops.filter (family C).shared = [] := by
   simp [stopWaiting, abandon, shared_mkOp, Body.isLocal]
 
-/-- **Founding is just ops**; the secret, the acceptance and the
-content key stay. Only the key's wrap travels. -/
-theorem found_travels (C : Crypto) (seed name myName : ByteArray) (time : Nat) (k esk : ByteArray) :
-    (found seed name myName time k esk).ops.filter (family C).shared =
-      let d := Device.ofSeed seed; let r := root d
+/-- What `nodeKeyOr` writes is local: at most the node's key. -/
+theorem nodeKeyOr_local (C : Crypto) (s : DB Fact) (fresh : ByteArray) :
+    ((nodeKeyOr fresh).eval s).2.filter (family C).shared = [] := by
+  unfold nodeKeyOr
+  rw [View.eval_bind']
+  split <;> simp [View.eval, endpoint, shared_mkOp, Body.isLocal]
+
+/-- **Founding is just ops**; the node's key, the secret, the acceptance
+and the content key stay. Only the root, the name, the profile and the
+key's wrap travel. -/
+theorem found_travels (C : Crypto) (s : DB Fact) (seed name myName : ByteArray) (time : Nat)
+    (k esk fresh : ByteArray) :
+    ((found seed name myName time k esk fresh).eval s).ops.filter (family C).shared =
+      let key := ((nodeKeyOr fresh).eval s).1; let d := Device.ofSeed seed; let r := root d key
       [r, setName r.id r.id r.id [] 1 d name, profile r.id r.id d myName time,
-        wrapKey r.id k esk d.enc] := by
-  simp [found, root, secret, accept, setName, profile, contentKey, wrapKey, wrap, shared_mkOp,
+        wrapKey r.id k esk key] := by
+  unfold found
+  rw [View.eval_bind]
+  simp only [View.eval_pure, List.filter_append, nodeKeyOr_local, List.nil_append]
+  simp [root, secret, accept, setName, profile, contentKey, wrapKey, wrap, shared_mkOp,
     Body.isLocal]
 
 /-! ## What a device can read

@@ -7,6 +7,10 @@ import ops.community.Community
 namespace Tests
 open Engine Community
 
+/-- A test device's node key, where each device is its own node: an
+X25519 key derived from the device key. -/
+def keyOf (d : Device) : Key := cryptoSeal.pub (sha256 ("test node ".toUTF8 ++ d.pk))
+
 def hex (b : ByteArray) : String :=
   String.join (b.toList.take 4 |>.map fun x =>
     let s := (Nat.toDigits 16 x.toNat).asString; if s.length < 2 then "0" ++ s else s)
@@ -75,7 +79,7 @@ the rest cite random or never-arriving ids, or carry the wrong
 signature or none. -/
 def workload (seed : Nat) (n : Nat) : List Op := Id.run do
   let devs := (List.range 8).map fun i => Device.named s!"dev-{seed}-{i}"
-  let r := root devs[0]!
+  let r := root devs[0]! (keyOf devs[0]!)
   let c := r.id
   let mut ops : Array Op := #[r]
   let mut ids : Array Id := #[c]
@@ -112,7 +116,7 @@ def workload (seed : Nat) (n : Nat) : List Op := Id.run do
       | 1 =>
         if invs.isEmpty then post c (adm k1).1 d "k".toUTF8 "early".toUTF8 else
         let (inv, bearer) := invs[k1 % invs.size]!
-        request c inv d (if w2 == 0 then d.sk else bearer.sk)
+        request c inv d (keyOf d) (if w2 == 0 then d.sk else bearer.sk)
       | 8 =>
         let rq := if reqs.isEmpty || w1 == 1 then anyId k1 else reqs[k1 % reqs.size]!.1
         let (a, dv) := adm k2
@@ -134,7 +138,7 @@ def workload (seed : Nat) (n : Nat) : List Op := Id.run do
         let auth := if w1 == 1 then a else admins[k2 % admins.size]!
         remove c a auth (adm k3).1 (signer dv)
       | 5 => let (a, dv) := adm k1; post c a (signer dv) "k".toUTF8 s!"m{i}".toUTF8
-      | 6 => wrap c "k".toUTF8 d.enc "box".toUTF8
+      | 6 => wrap c "k".toUTF8 (keyOf d) "box".toUTF8
       | _ =>
         if w2 < 4 then mkOp [c, anyId k1] (.post "k".toUTF8 "unsigned".toUTF8 0 .empty)
         else Op.make 9 [anyId k1] s!"junk-{seed}-{i}".toUTF8

@@ -1,8 +1,9 @@
 /-
 `opened` (local, the responder's): a request it has read. It cites the
-request and this device's `secret` op (Community's). Its validator runs
-Noise's `read1` with the X25519 secret of that seed. It is Valid iff
-the request is to this device and opens, and its hello decodes. Its
+request and this node's `endpoint` op (Community's). Its validator runs
+Noise's `read1` with the endpoint's secret as this side's static and the
+request's sender key as the initiator's. It is Valid iff the request is
+to this node's key and opens, and its hello decodes. Its
 fact is the request, the community, the initiator, the address the
 initiator listens on, and the ops the hello delivers.
 
@@ -16,9 +17,9 @@ namespace Connection
 open Engine Codec
 
 def Opened.check (K : Keys) (o : Op) : List F → Option Fact
-  | [.inr (.request to frm m1), .inl (.secret pk seed)] =>
+  | [.inr (.request to frm m1), .inl (.endpoint pk sk)] =>
     if pk ≠ to then none else
-    match Noise.read1 K.suite prologue (K.xSec seed) (K.xPub frm) m1 with
+    match Noise.read1 K.suite prologue sk frm m1 with
     | some (_, _, p) =>
       match (decode p : Option (B × B × List B)) with
       | some (c, addr, ops) => some (.opened (o.reqs.headD .empty) c frm addr ops)
@@ -26,8 +27,8 @@ def Opened.check (K : Keys) (o : Op) : List F → Option Fact
     | none => none
   | _ => none
 
-/-- Open request `req` with this device's secret op `secretOp`. -/
-def Opened.op (req secretOp : Id) : Op := mkOp [req, secretOp] .opened
+/-- Open request `req` with this node's endpoint op `epOp`. -/
+def Opened.op (req epOp : Id) : Op := mkOp [req, epOp] .opened
 
 namespace opened
 def all : Rel Fact := ⟨"conn.opened", "all", fun | .opened .. => some [] | _ => none⟩

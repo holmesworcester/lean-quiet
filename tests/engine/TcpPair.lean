@@ -82,7 +82,7 @@ def hooks (rooms : List Id) : Hooks Fact (SqlM Fact) where
 
 def history (members posts : Nat) : List Op × Id := Id.run do
   let f := Device.named "tcp-founder"
-  let r := root f
+  let r := root f (keyOf f)
   let c := r.id
   let mut ops : Array Op := #[r]
   let mut adms : Array (Id × Device) := #[(c, f)]
@@ -90,7 +90,7 @@ def history (members posts : Nat) : List Op × Id := Id.run do
     let b := Device.named s!"tcp-bearer-{j}"
     let d := Device.named s!"tcp-member-{j}"
     let inv := invite c c f b.pk false
-    let req := request c inv.id d b.sk
+    let req := request c inv.id d (keyOf d) b.sk
     let ok := approve c req.id c f
     let adm := admit c req.id [ok.id]
     ops := ops ++ #[inv, req, ok, adm]

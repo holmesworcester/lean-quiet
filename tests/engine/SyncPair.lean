@@ -26,7 +26,7 @@ requests, approvals and admissions; timed posts by them; reactions,
 some to old posts; one removal. Times start at 1000, 100 apart. -/
 def history (tag : String) (members posts : Nat) : List Op × Id := Id.run do
   let f := Device.named s!"{tag}-founder"
-  let r := root f
+  let r := root f (keyOf f)
   let c := r.id
   let mut ops : Array Op := #[r]
   let mut adms : Array (Id × Device) := #[(c, f)]
@@ -34,7 +34,7 @@ def history (tag : String) (members posts : Nat) : List Op × Id := Id.run do
     let b := Device.named s!"{tag}-bearer-{j}"
     let d := Device.named s!"{tag}-member-{j}"
     let inv := invite c c f b.pk false
-    let req := request c inv.id d b.sk
+    let req := request c inv.id d (keyOf d) b.sk
     let ok := approve c req.id c f
     let adm := admit c req.id [ok.id]
     ops := ops ++ #[inv, req, ok, adm]

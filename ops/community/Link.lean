@@ -4,8 +4,9 @@ joiner pastes or scans. After libquiet's invite link: a scheme, then the
 fields in base62.
 
 It carries the community (its root's id), the invitation op's id, the
-inviter's device key (whom to dial, and the one device the joiner trusts
-before any ops arrive: Net.Node's link clause), dial hints ("ip:port",
+inviter's node key (whom to dial, the static key its handshake runs on,
+and the one node the joiner trusts before any ops arrive: the trust
+rule's link clause), dial hints ("ip:port",
 possibly none: mDNS finds the inviter), and the 32-byte bearer seed the
 invitation's bearer key pair derives from. No community name: the
 joiner learns it from the ops it syncs.
@@ -229,15 +230,16 @@ def Invite.bearer (i : Invite) : Device := Device.ofSeed i.secret
 
 /-- The joiner's request, composed from the link: device d asks to join
 through the link's invitation, signed by d and by the bearer key. -/
-def Invite.request (i : Invite) (d : Device) : Op :=
-  Community.request i.community i.invitation d i.bearer.sk
+def Invite.request (i : Invite) (d : Device) (key : Key) : Op :=
+  Community.request i.community i.invitation d key i.bearer.sk
 
-/-- An invitation of c by `by_` (whose admission is `issuerAdm`), and its
-link: the bearer key pair from `secret`, dial hints for the joiner. -/
-def issue (c issuerAdm : Id) (by_ : Device) (secret : ByteArray) (hints : List ByteArray)
-    (threshold : Nat := 1) : Op × Invite :=
+/-- An invitation of c by `by_` (whose admission is `issuerAdm`), on the
+node with key `key`, and its link: the bearer key pair from `secret`,
+dial hints for the joiner. -/
+def issue (c issuerAdm : Id) (by_ : Device) (key : Key) (secret : ByteArray)
+    (hints : List ByteArray) (threshold : Nat := 1) : Op × Invite :=
   let inv := invite c issuerAdm by_ (Device.ofSeed secret).pk false threshold
-  (inv, ⟨c, inv.id, by_.pk, hints, secret⟩)
+  (inv, ⟨c, inv.id, key, hints, secret⟩)
 
 /-- This device's pending join (local): the link's community, its
 inviter and hints, the request the join presents, and the name to

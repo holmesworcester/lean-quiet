@@ -3,8 +3,11 @@ The connection family's ops and facts, and how they are written as
 bytes. Each op type's meaning lives in its own file: Eph, Request,
 Opened, Connection, Established, Send and Recv.
 
-Keys: devices are named by their Ed25519 keys, as in Community. Noise
-runs on the X25519 keys those convert to (`Keys`).
+Keys: a node handshakes with its own key (Community's local
+`endpoint`, an X25519 key pair), not with a device key. A session's two
+statics are the two nodes' keys, and an `established` names its peer by
+node key; the trust rule maps a node key to membership through the
+admissions that name it (`Community.allowPeer`). Device keys only sign.
 
 Kinds 32–39 until the registry names them.
 -/
@@ -16,30 +19,22 @@ open Engine Codec
 
 abbrev B := ByteArray
 
-/-- Noise, plus the conversion of Ed25519 device keys to the X25519
-keys Noise runs on. -/
+/-- Noise, run on node keys, and the frames' AEAD. -/
 structure Keys where
   suite : Noise.Suite B
-  /-- A device key's X25519 key; empty if it is not a point. -/
-  xPub : B → B
-  /-- The X25519 secret of a device seed. -/
-  xSec : B → B
   /-- The frames' AEAD (XChaCha20-Poly1305): key, 24-byte nonce,
   associated data, plaintext. -/
   fenc : B → B → B → B → B
   fdec : B → B → B → B → Option B
 
-/-- What the laws assume of the conversion: a seed's X25519 secret has
-the X25519 key of the seed's device key. -/
-def Keys.Good (K : Keys) (edPub : B → B) : Prop :=
-  K.suite.Good ∧ (∀ seed, K.xPub (edPub seed) = K.suite.pub (K.xSec seed)) ∧
-    ∀ k n ad p, K.fdec k n ad (K.fenc k n ad p) = some p
+/-- What the laws assume: a good suite, and an AEAD that opens what it
+seals. -/
+def Keys.Good (K : Keys) : Prop :=
+  K.suite.Good ∧ ∀ k n ad p, K.fdec k n ad (K.fenc k n ad p) = some p
 
-/-- libsodium's. -/
+/-- libsodium's (the Rust crates'). -/
 def sodium : Keys where
   suite := Noise.suite
-  xPub := Noise.staticPubOf
-  xSec seed := Noise.staticOf (Community.Device.ofSeed seed).sk
   fenc := Noise.xchachaSeal
   fdec := Noise.xchachaOpen
 

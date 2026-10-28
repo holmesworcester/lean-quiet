@@ -607,9 +607,11 @@ def openPage (p : PageId) : M Unit := do
   if p == .invite && !s.me.waiting && !(s.links.any (·.1 == s.me.acc)) then
     let bearer ← Chaos.freshSeed "bearer"
     -- dial hints: this device's private LAN addresses (Link.hints)
-    let (w, i) := Community.inviteTo s.me.c s.me.adm s.me.seed bearer (← listenHints)
-    if ← writeAll w then
-      modify fun s => { s with links := (s.me.acc, i.text) :: s.links }
+    -- the link names this node's key (Community.inviteTo reads it)
+    let (issued, _) ← readView (Community.inviteTo s.me.c s.me.adm s.me.seed bearer (← listenHints)) #[]
+    if let some (w, i) := issued then
+      if ← writeAll w then
+        modify fun s => { s with links := (s.me.acc, i.text) :: s.links }
   s.io.scrollTo 0
   modify fun s => { s with backStack := s.page :: s.backStack, page := p, refusal := none, pageKey := none }
 
@@ -696,8 +698,9 @@ def acceptOf (w : Community.Write) : Option Id :=
 current. -/
 def found (n myName : String) : M Unit := do
   let seed ← Chaos.freshSeed n
-  let w := Community.found seed n.toUTF8 myName.toUTF8 (newestTime (← get) + 1)
-    (← Engine.Crypto.randomBytes 32) (← Engine.Crypto.randomBytes 32)
+  -- the last fresh bytes are this node's key, if it has none yet
+  let (w, _) ← readView (Community.found seed n.toUTF8 myName.toUTF8 (newestTime (← get) + 1)
+    (← Engine.Crypto.randomBytes 32) (← Engine.Crypto.randomBytes 32) (← Engine.Crypto.randomBytes 32)) #[]
   if ← writeAll w then
     if let some a := acceptOf w then
       refreshComms
@@ -974,7 +977,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
       let seed ← Chaos.freshSeed "join"
       -- the engine's join: nothing for a held community, the same request
       -- again for a stopped one, else a fresh join
-      let (w, _) ← readView (Community.join i seed s.joinName.toUTF8) #[]
+      let (w, _) ← readView (Community.join i seed s.joinName.toUTF8 (← Engine.Crypto.randomBytes 32)) #[]
       if ← writeAll w then
         s.io.textClear
         modify fun s => { s with invite := none, field := "", backStack := [] }
@@ -1582,7 +1585,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
     if !w.ops.isEmpty then let _ ← writeAll w
     -- and the community's keys wrapped to this device, opened into local
     -- key ops (a live view too: re-run when a wrap arrives)
-    let (w, _) ← readView (Community.unwrap m.c m.seed) #[]
+    let (w, _) ← readView (Community.unwrap m.c) #[]
     if !w.ops.isEmpty then let _ ← writeAll w
   -- a community this device waits to join shows Waiting in place of its
   -- conversation (read: no admission for my device there)

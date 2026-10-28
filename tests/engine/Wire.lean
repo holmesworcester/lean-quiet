@@ -52,7 +52,7 @@ def main (args : List String) : IO UInt32 := do
     return match ← run (status x) with | some .invalid => true | _ => false
 
   let f1 := Device.named "founder-1"
-  let r := root f1
+  let r := root f1 (keyOf f1)
   let c := r.id
   let hello := post c c f1 "k1".toUTF8 "hello".toUTF8
   let other := post c c f1 "k1".toUTF8 "something else".toUTF8

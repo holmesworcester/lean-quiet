@@ -6,10 +6,11 @@ holds it, then sync over the session) and libquiet's join gate, with
 these rules:
 
 - **One trust rule, both ends.** A node opens a session for community c
-  with device p only if it trusts p: p is a live member by the node's
-  own ops (`Allowed`, what `allowPeer` answers at rest; see
-  `Net.Bridge`), or, while the node is not yet admitted itself, p is
-  the device its invite link names and its ops say nothing about p yet.
+  with the node whose key is p only if it trusts p: a live device of c is
+  admitted under p by the node's own ops (`Allowed`, what `allowPeer`
+  answers at rest; see `Net.Bridge`), or, while the node is not yet let
+  in itself, p is the key its invite link names and its ops say nothing
+  about p yet.
   The responder applies the rule to the initiator, and the initiator to
   the responder. `allowPeer` itself has no exception: the link clause
   is the joiner's only, it ends at the joiner's admission, and it never
@@ -29,10 +30,12 @@ Sync is abstracted as "send the session's community's ops"; reconciling
 by fingerprints instead of whole sets is its own protocol.
 
 The cryptography of the handshake (the hello is sealed to the dialed
-device's key; the answer proves possession of that key) is abstracted:
-a hello is read only by its addressee, and an answer is taken only from
-the device the node dialed. A device's dial key is its device key, as
-in libquiet, where the transport authenticates the device key.
+node's key; the answer proves possession of that key) is abstracted: a
+hello is read only by its addressee, and an answer is taken only from
+the node the node dialed. A node is named by its own key (its
+`endpoint`), which the roots and requests of the devices it holds name
+as their `enc`: the transport authenticates the node key, and the
+admissions tie it to devices (docs/REMOVAL.md).
 -/
 import ops.community.Community
 
@@ -45,19 +48,19 @@ def table (L : List Op) : Id → Option Op := fun x => L.find? fun o => decide (
 section
 variable (C : Crypto)
 
-/-- p is a device of a user of c that has not been removed, by these
-ops: what `allowPeer` answers once they are processed (`Net.Bridge`). -/
+/-- A live device of c is admitted under node key p, by these ops: what
+`allowPeer` answers once they are processed (`Net.Bridge`). -/
 def Allowed (L : List Op) (c : Id) (p : Key) : Prop :=
-  ∃ u e, Admitted C (table L) c u p e ∧ ¬ Removed C (table L) c u
+  ∃ u d, Admitted C (table L) c u d p ∧ Live C (table L) c d
 
-/-- These ops say something about device p: it was admitted (into a user
-removed or not). -/
-def Known (L : List Op) (c : Id) (p : Key) : Prop := ∃ u e, Admitted C (table L) c u p e
+/-- These ops say something about node key p: a device was admitted
+under it (into a user removed or not). -/
+def Known (L : List Op) (c : Id) (p : Key) : Prop := ∃ u d, Admitted C (table L) c u d p
 
 end
 
 /-- A pasted invite link, kept until this node is admitted: the
-community, the inviter's device (whom to dial, and the one device
+community, the inviter's node key (whom to dial, and the one node
 trusted before any ops arrive), and the request composed once at paste
 (libquiet's pending join). -/
 structure Link where
@@ -66,8 +69,8 @@ structure Link where
   req : Op
   deriving DecidableEq
 
-/-- A node: its device key, the ops it holds, the communities it
-accepted, its pending link, and its open sessions (community, peer). -/
+/-- A node: its key, the ops it holds, the communities it accepted, its
+pending link, and its open sessions (community, peer key). -/
 structure Node where
   me : Key
   ops : List Op
@@ -106,7 +109,7 @@ section
 open Classical
 variable (C : Crypto)
 
-/-- The device p this node is told to dial for c by its link. -/
+/-- The node key p this node is told to dial for c by its link. -/
 def Node.Anchored (n : Node) (c : Id) (p : Key) : Prop := ∃ l ∈ n.links, l.c = c ∧ l.dial = p
 
 /-- **The trust rule.** -/

@@ -14,7 +14,7 @@ open Engine Codec
 
 def check (K : Keys) (o : Op) : Body → List F → Option Fact
   | .eph sk, fs => Eph.check K o sk fs
-  | .request t f m, fs => Request.check K t f m fs
+  | .request t f m, fs => Request.check t f m fs
   | .opened, fs => Opened.check K o fs
   | .connection m, fs => Reply.check o m fs
   | .established, fs => Established.check K o fs

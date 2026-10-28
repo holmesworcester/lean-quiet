@@ -14,10 +14,10 @@ def main : IO UInt32 := do
   let t ← Checks.new
   let f := Device.named "founder"
   let j := Device.named "joiner"
-  let r := root f
+  let r := root f (keyOf f)
   let c := r.id
   let secret := sha256 "bearer seed".toUTF8
-  let (inv, link) := issue c c f secret ["192.168.4.77:7001".toUTF8]
+  let (inv, link) := issue c c f (keyOf f) secret ["192.168.4.77:7001".toUTF8]
   let text := link.text
   IO.println s!"link: {text.length} characters"
   t.ok "the link is valid" (decide link.Valid)
@@ -55,17 +55,17 @@ def main : IO UInt32 := do
   -- The engine: the request composed from the parsed link is Valid, and
   -- with an approval it admits the joiner.
   let some parsed := Invite.parse text | t.ok "parse" false; return 1
-  let req := parsed.request j
+  let req := parsed.request j (keyOf j)
   let ok := approve c req.id c f
   let adm := admit c req.id [ok.id]
   let fam := family ed25519
   let m := modelRun fam [r, inv, req, ok, adm]
   let valid (o : Op) := match m.status o.id with | some (.valid _) => true | _ => false
   t.ok "the request from the link is valid" (valid req)
-  t.ok "approved, it admits the joiner" (valid adm && (allowPeer c j.pk).eval m)
+  t.ok "approved, it admits the joiner" (valid adm && (allowPeer c (keyOf j)).eval m)
   -- A link with another seed: its request fails the bearer check.
   let forged := { parsed with secret := sha256 "another seed".toUTF8 }
-  let m2 := modelRun fam [r, inv, forged.request j]
+  let m2 := modelRun fam [r, inv, forged.request j (keyOf j)]
   t.ok "a request from a link with the wrong seed is invalid"
-    (m2.status (forged.request j).id == some .invalid)
+    (m2.status (forged.request j (keyOf j)).id == some .invalid)
   t.finish "linkcheck"

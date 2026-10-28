@@ -230,6 +230,54 @@ already answers only the trusted (`answer_trusted`, now stated).
   admitted into it stays cut, and `allowPeer` lets a key in only for a
   live device that was never the old user's (`removed_stays_removed`).
 
+## Status
+
+Built and proven, on lq main's layout:
+- **E3**, the node's key: `endpoint` ops, roots and requests naming it,
+  `admission.byKey`, the handshake ops on node keys, `allowPeer` by
+  key with device liveness, and the trust rule, rooms and dial on node
+  keys. Laws: `opened_endpoint`, `established_endpoint`,
+  `established_agrees` (restated), `endpoint_signed`, `endpoint_derives`,
+  `meV_node`, `connect_iff` and its kin (restated), `new_device_trusted`,
+  `rooms_trusted`, `rooms_cut` (restated over peer keys).
+- **One device, two users**: `Live`, `Cut`, `deviceLive_iff`,
+  `cut_stays`, `cut_consented`, `removals_at`; the people list follows it
+  (`present_iff` restated, `present_not_removed`).
+- **E4**: `mine` skips a cut device, `join` resumes only a never-admitted
+  join and refuses an admitted seed, and `introduce` names this device's
+  join. Laws: `mine_not_removed`, `rejoin_fresh`, `join_new_device`,
+  `removed_stays_removed`. Tested in `lifecycle`.
+- **The bare path** (E2's other side): `react` takes only join requests
+  from a hello, answers only the trusted, and `onArrival` re-sends only
+  to the trusted. Laws: `bare_takes_only_join`, `answer_trusted`,
+  `resend_trusted`. Tested in `jointcp`, with the negative control.
+- **One session per node key**, carrying every community both nodes
+  hold. Tested in `connection_check`: a second community's join beside
+  an open session, approved and synced over one session.
+
+Waiting for the Node and Conn step (after a3's hostile branch lands):
+typed rooms in `Hooks.rooms`, `Conn.give` called by `filed` and `tick`,
+the `settled` hook, `sessions` and `retired` reading the view, and with
+them the notice laws (`notice_sent`, `notice_send`, `notice_once`,
+`closure`, `rooms_removed`, `removed_gets_only_notice`,
+`notice_then_cut`, `rooms_complete`), still `_stmt`s; and their TCP test
+(the removed node told, the session cut, the rejoin over TCP).
+
+Found on the way, in Conn (a3's), for that step:
+- A session carries a room on one side only while the other does not
+  trust yet (a joiner's link clause on a session open for other
+  communities). The dialer's rounds for it go unanswered, and patience
+  may drop the session. A responder could end a round for a room it
+  does not carry.
+- `Conn.tick` starts a round and then checks patience against the last
+  frame heard; after a quiet spell longer than `patience`, a dialer
+  drops a healthy session at its next round. The lossy join in
+  `connection_check` hit it once the session outlived 30 s.
+- A node removed from c but still sharing another community with the
+  inviter, session open, does not dial a rejoin of c: it already holds
+  the inviter's ops of c, so `dial` takes the session for c's. It dials
+  once that session closes.
+
 ## Changes to code others own
 
 - **Engine/Sync/Node.lean, one line**: `Hooks.rooms : Id → m (List Room)`,
@@ -257,10 +305,11 @@ already answers only the trusted (`answer_trusted`, now stated).
 
 ## Laws
 
-Statements are in Engine/Sync/NoticeLaws.lean,
-Connection/RemovalLaws.lean and Community/RemovalLaws.lean, each a
-`_stmt : Prop`, all over the code that runs: Conn's steps on the
-model, the views, the validators and the intents.
+In ops/sync/NoticeLaws.lean, ops/connection/RemovalLaws.lean,
+ops/community/RemovalLaws.lean and ops/community/Connect.lean, all over
+the code that runs: Conn's steps on the model, the views, the
+validators and the intents. The notice laws are still `_stmt : Prop`s
+(Status); the rest are theorems in the axiom audit.
 
 | question | law |
 |---|---|
@@ -289,21 +338,23 @@ lists of the node's own store, as `rooms_cut`'s are.
 
 ## Tests
 
-- `lifecycle`: A founds and admits B; A removes B; B takes the removal
-  from A's offer; B's `mine` drops the community. B joins again from a
-  new link, and the request is for a new device with B's node key. A
-  approves, and B is admitted under a new user; the old user stays
-  removed, and `allowPeer` lets B's node in.
-- `jointcp`, over localhost TCP: A removes B while their session is
-  live. B receives the removal and its closure and nothing after it,
-  and both ends close the session. The removed B then dials A with a
-  fresh post in its hello; A stores neither the post nor anything but a
-  join request. B's node rejoins with a new device and is admitted
-  again once A approves; a post then reaches B.
-- Negative controls, each failing a check: a `rooms` hook without
-  notices (B never learns its removal); `sessions` not reading the view
-  (A keeps the session open); a `react` that also stores the rest of a
-  hello, as it used to (A stores B's post).
+- `lifecycle` (done): A removes C; C takes the removal from A's offer;
+  C's device is cut and its `mine` drops the community; a join with the
+  cut seed writes nothing. C joins again from a new link, and the
+  request is for a new device with C's node key. A refuses C's node
+  until it approves, then lets it in; C is admitted under a new user;
+  the old user stays removed and the old device stays cut, on both.
+- `jointcp`, over localhost TCP (done): sessions name node keys, never
+  device keys. A removes B while their session is live; nothing flows
+  either way after. The removed B then dials A with a fresh post in its
+  hello; A opens the request, stores no post, and answers nothing. To
+  come with the Node and Conn step: B receives the removal and its
+  closure and nothing after it, both ends close the session, and B's
+  node rejoins with a new device and is admitted again once A approves.
+- Negative controls, each failing a check: the deliver step before the
+  fix, run on A's store, takes B's post (done); with the Node and Conn
+  step, a `rooms` hook without notices (B never learns its removal) and
+  `sessions` not reading the view (A keeps the session open).
 
 ## Not covered
 

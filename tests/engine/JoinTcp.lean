@@ -12,11 +12,18 @@ crypto. What a phone does, without the phone.
   session (the same id); the first sealed frames carry sync's hello
   and rounds; B ends admitted by its own ops and lets A in.
 - A later post streams to B.
+- Each node handshakes with its own key: the sessions name node keys,
+  never device keys (docs/REMOVAL.md, E3).
 - A removes B while their session is live: from then on A sends B none
   of the community's ops (a post of A's does not reach B) and takes
   none of B's (B, not knowing, posts; A does not store it). Each
   connection step reads its rooms afresh (`Node.refresh`), and the
-  trust rule refuses B (`rooms_cut`).
+  trust rule refuses B's node (`rooms_cut`).
+- The bare path takes only a join: the removed B dials A with a fresh
+  post in its hello. A opens the request, stores neither the post nor
+  anything for it, and answers nothing (`bare_takes_only_join`,
+  `answer_trusted`). Negative control: the deliver step as it was
+  before the fix, run on A's database, takes the post.
 
 Each step is read from the runners' databases through a second
 connection (SQLite's WAL lets it read beside the runner's writer).
@@ -38,24 +45,45 @@ def fresh (path : String) : IO Db := do
 structure Peer where
   name : String
   seed : ByteArray
+  /-- This node's key's secret: its first found or join writes it. -/
+  nk : ByteArray
   addr : ByteArray
   path : String
   run : Runner
 
 def side (dir name : String) (port : Nat) : IO Peer := do
   let seed := sha256 s!"seed {name}".toUTF8
+  let nk := sha256 s!"node {name}".toUTF8
   let addr := s!"127.0.0.1:{port}".toUTF8
   let path := s!"{dir}/{name}.db"
   let db ← fresh path
   let x : Sync F (SqlM F) := { fam, cfg, hooks := hooks fam K addr }
   let run ← Runner.start x db 0 port.toUInt16
-  return { name, seed, addr, path, run }
+  return { name, seed, nk, addr, path, run }
+
+def Peer.key (p : Peer) : ByteArray := cryptoSeal.pub p.nk
 
 /-- Read a side's store through a connection of its own. -/
 def look {α} (s : Peer) (q : SqlM F α) : IO α := do q.run (← Db.openAt s.path)
 
 def ests (s : Peer) : IO (List Connection.Fact) := do
   return (← look s (rows established.all [] : SqlM F _)).map (·.2)
+
+/-- A Community view, read on a side's store. -/
+def viewOn {α} (s : Peer) (v : View Community.Fact α) : IO α := look s ((v.liftL : View F α).run : SqlM F α)
+
+/-- The deliver step as it was before the bare-path fix: every shared op
+of an opened hello's community, not only join requests. The negative
+control: run on A's store, it takes what today's `react` leaves. -/
+def oldDeliver : SqlM F (List Op) := do
+  let mut out := []
+  for (_, f) in ← (rows opened.all [] : SqlM F _) do
+    let .opened _ c _ _ hs := f | continue
+    for b in hs do
+      let some o := Op.decode b | continue
+      if decide (fam.scope o = .shared c) && (← (Store.getOp o.id : SqlM F _)).isNone then
+        out := o :: out
+  return out
 
 def allowedOn (s : Peer) (c d : ByteArray) : IO Bool :=
   look s ((Community.allowPeer c d).liftL.run : SqlM F Bool)
@@ -80,12 +108,22 @@ def main (args : List String) : IO UInt32 := do
   let dA := Device.ofSeed a.seed
   let dB := Device.ofSeed b.seed
   -- A founds and invites at its address; B joins from the link.
-  a.run.write (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (sha256 "key".toUTF8) (sha256 "esk".toUTF8)).ops
-  let c := (root dA).id
-  let (wi, link) := inviteTo c c a.seed (sha256 "bearer".toUTF8) [a.addr]
+  a.run.write (← viewOn a (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (sha256 "key".toUTF8)
+    (sha256 "esk".toUTF8) a.nk)).ops
+  let c := (root dA a.key).id
+  -- the runner owns the writes: read once the founding has landed
+  let _ ← waitFor 10000 (stored a c)
+  let stopAll : IO UInt32 := do
+    a.run.stop; b.run.stop
+    let code ← t.finish "jointcp"
+    (← IO.getStdout).flush
+    IO.Process.exit code.toUInt8
+  let some (wi, link) ← viewOn a (inviteTo c c a.seed (sha256 "bearer".toUTF8) [a.addr])
+    | t.ok "tcp: A invites" false; stopAll
+  t.ok "tcp: the link names A's node key" (link.inviter == a.key)
   a.run.write wi.ops
-  let req := link.request dB
-  b.run.write (joinOps link b.seed "Bea".toUTF8).ops
+  let req := link.request dB b.key
+  b.run.write (← viewOn b (join link b.seed "Bea".toUTF8 b.nk)).ops
   -- Before approval.
   let opened ← waitFor 10000 do return (← look a (count opened.all [] : SqlM F _)) ≥ 1
   t.ok "tcp: A opened B's request" opened.isSome
@@ -93,17 +131,20 @@ def main (args : List String) : IO UInt32 := do
   IO.sleep 1000
   t.ok "tcp: A answered nothing before approval" ((← ests a).isEmpty)
   t.ok "tcp: B established nothing before approval" ((← ests b).isEmpty)
-  t.ok "tcp: B is not admitted on A before approval" (!(← allowedOn a c dB.pk))
+  t.ok "tcp: B is not admitted on A before approval" (!(← allowedOn a c b.key))
   -- A approves.
   let wr ← look a ((approveReq c req.id c a.seed).liftL.run : SqlM F Community.Write)
   a.run.write wr.ops
   let est ← waitFor 15000 do return (← ests a).length == 1 && (← ests b).length == 1
   t.ok "tcp: each holds one established session" est.isSome
   match ← ests a, ← ests b with
-  | [.established ca ..], [.established cb ..] => t.ok "tcp: the same connection id" (ca == cb)
+  | [.established ca _ pa ..], [.established cb _ pb ..] =>
+    t.ok "tcp: the same connection id" (ca == cb)
+    t.ok "tcp: each names the other by node key, never by device key"
+      (pa == b.key && pb == a.key && pa != dB.pk && pb != dA.pk)
   | _, _ => t.ok "tcp: sessions have the expected shape" false
   -- Sync over the sealed session.
-  let admitted ← waitFor 20000 do return (← allowedOn b c dB.pk) && (← allowedOn b c dA.pk)
+  let admitted ← waitFor 20000 do return (← allowedOn b c b.key) && (← allowedOn b c a.key)
   t.ok "tcp: B is admitted by its own ops, and lets A in" admitted.isSome
   let p := post c c dA "k".toUTF8 "hello B over TCP".toUTF8 5
   a.run.write [p]
@@ -117,8 +158,8 @@ def main (args : List String) : IO UInt32 := do
   | some ((_, admB), _) =>
     let rm := remove c c c admB dA
     a.run.write [rm]
-    let cut ← waitFor 5000 do return !(← allowedOn a c dB.pk)
-    t.ok "tcp: A's trust rule refuses B once the removal is held" cut.isSome
+    let cut ← waitFor 5000 do return !(← allowedOn a c b.key)
+    t.ok "tcp: A's trust rule refuses B's node once the removal is held" cut.isSome
     let p2 := post c c dA "k".toUTF8 "after the removal".toUTF8 6
     a.run.write [p2]
     let q := post c admB dB "k".toUTF8 "B, not knowing".toUTF8 7
@@ -129,6 +170,26 @@ def main (args : List String) : IO UInt32 := do
     t.ok "tcp: A's post after the removal does not reach B" (!(← stored b p2.id))
     t.ok "tcp: A does not take B's post" (!(← stored a q.id))
     IO.println s!"jointcp: removal held in {cut} ms; B holds the removal: {← stored b rm.id}; sessions on A: {(← ests a).length}"
+    -- The bare path takes only a join: the removed B dials A with a
+    -- fresh post in its hello, on a new request from B's node key.
+    let q2 := post c admB dB "k".toUTF8 "pushed in a hello".toUTF8 8
+    let e := sha256 "B's pushing ephemeral".toUTF8
+    let some ro := Request.op K b.nk a.key e (hello c b.addr [q2])
+      | t.ok "tcp: B composes a request" false; let _ ← stopAll
+    b.run.write [ro, Eph.op e ro.id, Send.op a.addr ro]
+    let openedPush ← waitFor 10000 do
+      return (← look a (count Connection.opened.byRequest [ro.id] : SqlM F _)) ≥ 1
+    t.ok "tcp: A opens the removed B's request" openedPush.isSome
+    IO.sleep 1000
+    t.ok "tcp: A does not store the post its hello carries" (!(← stored a q2.id))
+    t.ok "tcp: and answers nothing: no connection for it"
+      ((← look a (count connection.byRequest [ro.id] : SqlM F _)) == 0)
+    let now ← look a (react fam K : SqlM F (List Op))
+    t.ok "tcp: today's react, run on A's store, writes nothing of the hello's post"
+      (!now.any (·.id == q2.id))
+    let before ← look a oldDeliver
+    t.ok "tcp: negative control: the deliver step before the fix takes it from that same store"
+      (before.any (·.id == q2.id))
   a.run.stop
   b.run.stop
   let code ← t.finish "jointcp"
