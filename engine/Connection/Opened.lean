@@ -1,36 +1,37 @@
 /-
 `opened` (local, the responder's): a request it has read. It cites the
-request and this device's `secret` op (Community's), and its validator
-runs Noise's `read1` with the static secret of that seed. Valid iff the
-request opens. Its fact is the request, the initiator's static key,
-the hello, and the handshake state after message 1, which `established`
-continues from.
+request and this device's `secret` op (Community's). Its validator runs
+Noise's `read1` with the X25519 secret of that seed. It is Valid iff
+the request is to this device and opens, and its hello decodes. Its
+fact is the request, the community, the initiator, the address the
+initiator listens on, and the ops the hello delivers.
 
 This is poc-17's `Keys`: a local op cites the secret, so the shared op
-needs no secret to be judged. It is filed under `opened.all`. A close
-purges it, and so does a dismissal of a request that was never answered.
-
-SKELETON: signatures are the contract; bodies are unwritten.
+needs no secret to be judged. Filed under `conn.opened.all` and
+`conn.opened.byRequest [r]`. A close purges it with the request.
 -/
 import Connection.Request
 
 namespace Connection
-open Engine
+open Engine Codec
 
-structure Opened where
+def Opened.check (K : Keys) (o : Op) : List F → Option Fact
+  | [.inr (.request to frm m1), .inl (.secret pk seed)] =>
+    if pk ≠ to then none else
+    match Noise.read1 K.suite prologue (K.xSec seed) (K.xPub frm) m1 with
+    | some (_, _, p) =>
+      match (decode p : Option (B × B × List B)) with
+      | some (c, addr, ops) => some (.opened (o.reqs.headD .empty) c frm addr ops)
+      | none => none
+    | none => none
+  | _ => none
 
-def Opened.kind : UInt8 := 34
+/-- Open request `req` with this device's secret op `secretOp`. -/
+def Opened.op (req secretOp : Id) : Op := mkOp [req, secretOp] .opened
 
-structure OpenedFact where
-  request : Id
-  frm : ByteArray
-  hello : Hello
-  st : Noise.Sym
-
-def Opened.check (S : Noise.Suite) (o : Op) (req : Request) (seed : ByteArray) : Option OpenedFact :=
-  sorry
-
-/-- Open request `req`, with this device's secret op `secretOp`. -/
-def Opened.op (req secretOp : Id) : Op := sorry
+namespace opened
+def all : Rel Fact := ⟨"conn.opened", "all", fun | .opened .. => some [] | _ => none⟩
+def byRequest : Rel Fact := ⟨"conn.opened", "byRequest", fun | .opened r .. => some [r] | _ => none⟩
+end opened
 
 end Connection

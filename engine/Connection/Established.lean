@@ -1,47 +1,51 @@
 /-
-`established` (local): this side's session. It cites the connection
-and this side's ephemeral, plus, for the initiator, its request and
-its `secret`, or, for the responder, its `opened`. Its validator
-re-runs this side's half of the handshake from the cited facts:
-- the initiator rebuilds message 1 from its seed and ephemeral, and
-  requires that it is the request's (so the request is its own), then
-  runs `read2` on the connection's message;
-- the responder runs `write2` from its opened state and ephemeral, and
-  requires that it is the connection's message.
+`established` (local): this side's session. It cites the connection,
+the request it answers, this side's ephemeral and this device's
+`secret`. Its validator re-runs this side's half of the handshake from
+the cited facts:
+- **Responder** (the request is to this device): `read1`, then
+  `write2` with its ephemeral, which must give the connection's message.
+- **Initiator** (the request is from this device): `sent1` recovers its
+  state from its own message 1, so the request is its own, then `read2`
+  on the connection's message.
 It is Valid iff that succeeds.
 
 Its fact is the session: the connection id, the community, the peer's
-static key, the handshake hash, and the two transport keys. The node's
-sealing reads the keys from here. It is filed under `established.all`
-and `established.byPeer [peer]`. A close purges it.
-
-SKELETON: signatures are the contract; bodies are unwritten.
+device key, the handshake hash, the two transport keys, and whether
+this side dialed. The node seals frames with the keys from here. Filed
+under `conn.established.all` and `conn.established.byConn [cid]`. A close
+purges it.
 -/
 import Connection.Connection
 
 namespace Connection
-open Engine
+open Engine Codec
 
-structure Established where
+def Established.check (K : Keys) (o : Op) : List F → Option Fact
+  | [.inr (.connection r m2), .inr (.request to frm m1), .inr (.eph _ esk), .inl (.secret pk seed)] =>
+    let cid := o.reqs.headD .empty
+    if o.reqs.getD 1 .empty ≠ r then none
+    else if pk = to then do
+      -- the responder
+      let (st, re, p1) ← Noise.read1 K.suite prologue (K.xSec seed) (K.xPub frm) m1
+      let (c, _, _) ← (decode p1 : Option (B × B × List B))
+      let (sr, m2') ← Noise.write2 K.suite st esk (K.xPub frm) re .empty
+      if m2' ≠ m2 then none
+      else some (.established cid c frm sr.h sr.send.k sr.recv.k false)
+    else if pk = frm then do
+      -- the initiator
+      let (st, p1) ← Noise.sent1 K.suite prologue (K.xSec seed) esk (K.xPub to) m1
+      let (c, _, _) ← (decode p1 : Option (B × B × List B))
+      let (si, _) ← Noise.read2 K.suite st (K.xSec seed) esk m2
+      some (.established cid c to si.h si.send.k si.recv.k true)
+    else none
+  | _ => none
 
-def Established.kind : UInt8 := 36
+def Established.op (cid req eph secretOp : Id) : Op := mkOp [cid, req, eph, secretOp] .established
 
-structure Session where
-  cid : Id
-  community : Id
-  peer : ByteArray
-  h : ByteArray
-  send : Noise.Cipher
-  recv : Noise.Cipher
-
-/-- The initiator's side. -/
-def Established.checkI (S : Noise.Suite) (cid : Id) (req : Request) (m2 seed e : ByteArray) :
-    Option Session := sorry
-
-/-- The responder's side. -/
-def Established.checkR (S : Noise.Suite) (cid : Id) (op : OpenedFact) (m2 f : ByteArray) :
-    Option Session := sorry
-
-def Established.op (reqs : List Id) : Op := sorry
+namespace established
+def all : Rel Fact := ⟨"conn.established", "all", fun | .established .. => some [] | _ => none⟩
+def byConn : Rel Fact := ⟨"conn.established", "byConn", fun | .established i .. => some [i] | _ => none⟩
+end established
 
 end Connection

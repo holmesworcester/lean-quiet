@@ -1,35 +1,41 @@
 /-
-The connection family's laws. Statements only; each is proven before
-the family is called done.
+The connection family's laws.
 
-- `wire_kinds`: the request and the connection are the only ops that
-  cross the bare wire; every other connection op is local, so
-  `intake_local` keeps them off every wire.
+Proven:
+- `wire_kinds`: only the request and the connection cross the bare
+  wire; every other connection op is local, so `intake_local` keeps it
+  off every wire.
+- `Noise.handshake_agrees`, `Noise.sent1_write1` (Connection/Noise.lean).
+
+To prove, over the world as a pure step relation (holmes-a3's generic
+Node; see the README):
 - `established_agrees`: an initiator's and a responder's Valid
-  `established` facts for one connection id hold the same handshake hash
-  and community, each other's static keys, and crossed transport keys
-  (from `Noise.handshake_agrees`).
-- `established_own`: a Valid initiator `established` cites a request
-  this device wrote: its message 1 is rebuilt from this device's seed.
-- `answer_trusted`: `react` writes a connection only for an opened
-  request whose initiator `trusts` admits for the hello's community.
-- `untrusted_silent`: for any other opened request, `react` writes no
-  connection and no courier. The request is delivered and nothing more,
-  lean-net's `no_connection_before_approval` at the level of ops.
+  `established` facts for one connection hold the same handshake hash and
+  community, each other's device keys, and crossed transport keys.
+- `established_own`: an initiator's `established` cites a request this
+  device wrote, because `sent1` re-derives its message 1 from this
+  device's seed and the ephemeral.
+- `answer_trusted` / `untrusted_silent`: `react` writes a connection
+  only for an opened request whose initiator `trusts` admits; for any
+  other it writes no connection and no courier. This is lean-net's
+  `no_connection_before_approval`, at the level of the ops that run.
 - `close_forgets`: after the node purges `closing cid`, no eph, opened,
-  established or settled op of cid is stored (`Engine.purge_gone`).
-- `outbox_couriers`: the node's outbox is exactly the Valid `send` facts.
+  established or settled op of cid is stored.
 -/
 import Connection.Intents
 
 namespace Connection
-open Engine Engine.Sync
+open Engine
 
-theorem wire_kinds (S : Noise.Suite) (o : Op) (h : scopeOf o = .conn) :
-    o.kind = Request.kind ∨ o.kind = Reply.kind := sorry
+/-- **Only the two handshake messages cross the bare wire.** -/
+theorem wire_kinds (o : Op) (h : scopeOf o = .conn) : o.kind = 33 ∨ o.kind = 35 := by
+  unfold scopeOf at h
+  split at h
+  · assumption
+  · cases h
 
-theorem established_agrees (S : Noise.Suite) (G : S.Good) (si sr : Session)
-    (hi : True) (hr : True) (hc : si.cid = sr.cid) :
-    si.h = sr.h ∧ si.community = sr.community ∧ si.send = sr.recv ∧ si.recv = sr.send := sorry
+/-- Every other connection op is local. -/
+theorem local_kinds (o : Op) (h : ¬ (o.kind = 33 ∨ o.kind = 35)) : scopeOf o = .local := by
+  simp [scopeOf, h]
 
 end Connection
