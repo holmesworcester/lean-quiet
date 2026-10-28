@@ -130,12 +130,6 @@ over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. All 364 rest on Lean's standard axioms
 only.
 
-<table><tr><td>
-
-🙋 $\color{#2f81f7}{\textsf{\textbf{Another note from a human:}}}$ The most obviously valuable thing about building a user-facing communication tool entirely in Lean is that you can prove strict safety properties. In a p2p, e2ee app where code is law, this means potentially being able to prove them over all possible deployments, too! But an even more interesting question: can you also prove absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size, or lack of responsiveness under load. It seems like you can!
-
-</td></tr></table>
-
 ### Security proofs
 
 | | | Guarantee | Theorems |
@@ -225,6 +219,12 @@ only.
 
 The theorems not listed here are lemmas. The axiom audit,
 `tests/Axioms.lean`, lists them all.
+
+<table><tr><td>
+
+🙋 $\color{#2f81f7}{\textsf{\textbf{Another note from a human:}}}$ The most obviously valuable thing about building a user-facing communication tool entirely in Lean is that you can prove strict safety properties. In a p2p, e2ee app where code is law, this means potentially being able to prove them over all possible deployments, too! But an even more interesting question: can you also prove absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size, or lack of responsiveness under load. It seems like you can!
+
+</td></tr></table>
 
 ## What isn't Lean, and why
 
