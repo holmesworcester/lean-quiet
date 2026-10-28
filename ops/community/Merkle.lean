@@ -32,7 +32,9 @@ the hypothesis, see `no_injective_hash`):
 - `index_bound`: a verifying chunk's index is below the chunk count, and
   its slice has its index's size;
 - `complete_assembles`: verifying chunks for every index put together
-  are the file.
+  are the file;
+- `assumptions_hold`: for every file under 2^64 bytes, some hash with
+  32-byte outputs meets the laws' assumption.
 
 What runs builds the tree once, level by level, and reads the root and
 every proof off the levels; `fileRoot_eq_fast`, `proof_eq_fast` and
@@ -132,8 +134,8 @@ Collision resistance cannot be stated as injectivity: no hash with
 32-byte outputs is injective (`no_injective_hash`), so a law assuming
 both would hold of any verifier. The laws assume instead that none of
 the inputs a file's root hashes has a second preimage. Some 32-byte
-hash meets that for any file (it has fewer than 2^256 inputs), and a
-chunk that verifies but is not the file's yields a SHA-256 second
+hash meets that for every file under 2^64 bytes (`assumptions_hold`),
+and a chunk that verifies but is not the file's yields a SHA-256 second
 preimage. -/
 
 section
@@ -492,56 +494,193 @@ theorem complete_assembles (hsize : ∀ x, (H x).size = 32) {ct : B}
     · simp [getElem?_slices, hi]
   rw [this, assemble_slices]
 
-/-- 32 bytes of k. -/
-def bytes32 (k : UInt8) : B := ⟨Array.replicate 32 k⟩
+/-! ### The assumptions hold for every file
 
-/-- A hash that meets the laws' assumptions for the empty file: one
-output for its leaf, one for its root, one for everything else. -/
-def witness (y : B) : B :=
-  if y = leafIn .empty 0 then bytes32 1 else if y = tagRoot ++ be64 0 ++ bytes32 1 then bytes32 2 else bytes32 0
+For every file under 2^64 bytes, some hash with 32-byte outputs has no
+second preimage of anything its root hashes (`assumptions_hold`). The
+hash is a table of the file's tree inputs (`tableOf`): each input is
+hashed to its first place in the table, and everything else to 0. An
+input holds the hashes of the inputs below it, so the table is gathered
+children first, in the order `sub` hashes (`gather`), each input hashed
+by the table so far; growing the table at its end never changes what it
+hashes an input it holds to (`tableHash_prefix`). A file under 2^64
+bytes has fewer than 2^49 inputs, so 8 bytes of place tell them apart
+(`tableHash_spr`). -/
 
-theorem size_witness (x : B) : (witness x).size = 32 := by
-  unfold witness
-  split
-  · rfl
-  · split <;> rfl
+/-- x's first place in L, from 0. -/
+def place (x : B) : List B → Option Nat
+  | [] => none
+  | a :: t => if x = a then some 0 else (place x t).map (· + 1)
 
-theorem witness_spr : NoSecondPreimage witness (treeInputs witness .empty) := by
-  have hra : tagRoot ++ be64 0 ++ bytes32 1 ≠ leafIn .empty 0 := by decide
-  have h01 : bytes32 0 ≠ bytes32 1 := by decide
-  have h02 : bytes32 0 ≠ bytes32 2 := by decide
-  have h12 : bytes32 1 ≠ bytes32 2 := by decide
-  have hHa : witness (leafIn .empty 0) = bytes32 1 := by simp [witness]
-  have hHr : witness (tagRoot ++ be64 0 ++ bytes32 1) = bytes32 2 := by simp [witness, hra]
-  have ht : treeInputs witness .empty = [tagRoot ++ be64 0 ++ bytes32 1, leafIn .empty 0] := by
-    have hd : depthOf (nChunks (ByteArray.empty.size)) = 0 := by decide
-    simp only [treeInputs, hd, subInputs, sub, leaves_hash]
-    rw [hHa, ByteArray.size_empty]
-  rw [ht]
-  intro x hx y hy
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
-  rcases hx with rfl | rfl
-  · rw [hHr] at hy
-    unfold witness at hy
-    split at hy
-    · exact absurd hy h12
-    · split at hy
-      · assumption
-      · exact absurd hy h02
-  · rw [hHa] at hy
-    unfold witness at hy
-    split at hy
-    · assumption
-    · split at hy
-      · exact absurd hy.symm h12
-      · exact absurd hy h01
+/-- A table as a hash: an input's first place in it, counted from 1, as
+32 bytes; 0 for an input it does not hold. -/
+def tableHash (L : List B) (x : B) : B :=
+  ⟨Array.replicate 24 0⟩ ++ be64 ((place x L).elim 0 (· + 1))
 
-/-- **The laws' assumptions can hold together**: a hash with 32-byte
-outputs and no second preimage of anything a file's root hashes (where
-injectivity cannot, `no_injective_hash`), so `verify_sound` and
-`complete_assembles` are not vacuous. -/
-theorem assumptions_hold : ∃ H : B → B, (∀ x, (H x).size = 32) ∧ NoSecondPreimage H (treeInputs H .empty) :=
-  ⟨witness, size_witness, witness_spr⟩
+/-- L with x at its end. -/
+def put (x : B) (L : List B) : List B := L ++ [x]
+
+/-- L with the inputs of the depth-d subtree over leaves g from leaf s,
+in the order `sub` hashes them, each hashed by the table so far. -/
+def gather (g : Nat → B) : Nat → Nat → List B → List B
+  | 0, s, L => put (g s) L
+  | d + 1, s, L =>
+    let L2 := gather g d (s + 2 ^ d) (gather g d s L)
+    let H := tableHash L2
+    put (tagNode ++ sub H (fun j => H (g j)) d s ++ sub H (fun j => H (g j)) d (s + 2 ^ d)) L2
+
+/-- The table of a file's tree inputs: the tree's, then the root's. -/
+def tableOf (ct : B) : List B :=
+  let L := gather (leafIn ct) (depthOf (nChunks ct.size)) 0 []
+  put (tagRoot ++ be64 ct.size ++
+    sub (tableHash L) (fun j => tableHash L (leafIn ct j)) (depthOf (nChunks ct.size)) 0) L
+
+theorem place_of_mem {x : B} : ∀ {L : List B}, x ∈ L → ∃ i, place x L = some i ∧ i < L.length
+  | [], h => absurd h List.not_mem_nil
+  | a :: t, h => by
+    by_cases hx : x = a
+    · exact ⟨0, by simp [place, hx], by simp⟩
+    · obtain ⟨i, hi, hl⟩ := place_of_mem ((List.mem_cons.1 h).resolve_left hx)
+      exact ⟨i + 1, by simp [place, hx, hi], by simp; omega⟩
+
+theorem place_get {x : B} : ∀ {L : List B} {i : Nat}, place x L = some i → L[i]? = some x
+  | [], _, h => by simp [place] at h
+  | a :: t, i, h => by
+    by_cases hx : x = a
+    · simp [place, hx] at h; subst h; simp [hx]
+    · simp only [place, hx, ↓reduceIte, Option.map_eq_some_iff] at h
+      obtain ⟨j, hj, rfl⟩ := h
+      simpa using place_get hj
+
+theorem place_append {x : B} {M : List B} : ∀ {L : List B}, x ∈ L → place x (L ++ M) = place x L
+  | [], h => absurd h List.not_mem_nil
+  | a :: t, h => by
+    by_cases hx : x = a
+    · simp [place, hx]
+    · simp only [List.cons_append, place, hx, ↓reduceIte, place_append ((List.mem_cons.1 h).resolve_left hx)]
+
+theorem size_tableHash (L : List B) (x : B) : (tableHash L x).size = 32 := by
+  rw [tableHash, ByteArray.size_append, size_be64]; rfl
+
+/-- Growing a table at its end never changes what it hashes an input it
+held to. -/
+theorem tableHash_prefix {L L' : List B} (hp : L <+: L') {x : B} (hx : x ∈ L) :
+    tableHash L' x = tableHash L x := by
+  obtain ⟨M, rfl⟩ := hp
+  rw [tableHash, tableHash, place_append hx]
+
+/-- **A table shorter than 2^64, read as a hash, has no second preimage
+of anything it holds.** -/
+theorem tableHash_spr {L : List B} (hl : L.length < 2 ^ 64) {x y : B} (hx : x ∈ L)
+    (hy : tableHash L y = tableHash L x) : y = x := by
+  have hb := be64_mod ((ByteArray.append_right_inj _).1 hy)
+  obtain ⟨i, hi, hil⟩ := place_of_mem hx
+  rw [hi] at hb
+  simp only [Option.elim] at hb
+  cases hp : place y L with
+  | none =>
+    rw [hp] at hb
+    simp only [Nat.zero_mod] at hb
+    rw [Nat.mod_eq_of_lt (by omega)] at hb; omega
+  | some j =>
+    rw [hp] at hb
+    simp only at hb
+    have hjl : j < L.length := by
+      have := place_get hp
+      exact (List.getElem?_eq_some_iff.1 this).1
+    rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)] at hb
+    have e : j = i := by omega
+    subst e
+    have := (place_get hp).symm.trans (place_get hi)
+    simpa using this
+
+theorem prefix_put (x : B) (L : List B) : L <+: put x L := List.prefix_append L [x]
+
+theorem mem_put (x : B) (L : List B) : x ∈ put x L := by simp [put]
+
+theorem length_put (x : B) (L : List B) : (put x L).length = L.length + 1 := by simp [put]
+
+/-- **Gathering a subtree's inputs**: it grows the table at its end, by
+fewer inputs than the subtree has leaves twice over; and for any table
+that grows it further, the subtree's root is the one it hashed, and
+every input of the subtree is in it. -/
+theorem gather_spec (g : Nat → B) : ∀ d s L,
+    L <+: gather g d s L ∧ (gather g d s L).length + 1 ≤ L.length + 2 ^ (d + 1) ∧
+    ∀ L', gather g d s L <+: L' →
+      sub (tableHash L') (fun j => tableHash L' (g j)) d s =
+        sub (tableHash (gather g d s L)) (fun j => tableHash (gather g d s L) (g j)) d s ∧
+      ∀ x ∈ subInputs (tableHash L') g d s, x ∈ gather g d s L
+  | 0, s, L => by
+    refine ⟨prefix_put _ _, by simp only [gather, length_put]; omega, fun L' hp => ?_⟩
+    have hm := mem_put (g s) L
+    refine ⟨by simp only [sub, gather]; exact tableHash_prefix hp hm, fun x hx => ?_⟩
+    simp only [subInputs, List.mem_singleton] at hx
+    subst hx; exact hm
+  | d + 1, s, L => by
+    obtain ⟨p1, n1, h1⟩ := gather_spec g d s L
+    obtain ⟨p2, n2, h2⟩ := gather_spec g d (s + 2 ^ d) (gather g d s L)
+    let L1 := gather g d s L
+    let L2 := gather g d (s + 2 ^ d) L1
+    let H2 := tableHash L2
+    let x := tagNode ++ sub H2 (fun j => H2 (g j)) d s ++ sub H2 (fun j => H2 (g j)) d (s + 2 ^ d)
+    have e3 : gather g (d + 1) s L = put x L2 := rfl
+    rw [e3]
+    have p3 := prefix_put x L2
+    have n3 : (put x L2).length = L2.length + 1 := length_put x L2
+    have e2 : L2.length = (gather g d (s + 2 ^ d) (gather g d s L)).length := rfl
+    have e1 : L1.length = (gather g d s L).length := rfl
+    refine ⟨p1.trans (p2.trans p3), by rw [Nat.pow_succ]; omega, fun L' hp => ?_⟩
+    -- under any table past L3, the children's roots are the ones hashed
+    have kids : ∀ L'', L2 <+: L'' →
+        sub (tableHash L'') (fun j => tableHash L'' (g j)) d s = sub H2 (fun j => H2 (g j)) d s ∧
+        sub (tableHash L'') (fun j => tableHash L'' (g j)) d (s + 2 ^ d) =
+          sub H2 (fun j => H2 (g j)) d (s + 2 ^ d) := fun L'' h =>
+      ⟨((h1 L'' (p2.trans h)).1).trans ((h1 L2 p2).1).symm, (h2 L'' h).1.trans ((h2 L2 (List.prefix_refl _)).1).symm⟩
+    have root : ∀ L'', put x L2 <+: L'' →
+        sub (tableHash L'') (fun j => tableHash L'' (g j)) (d + 1) s = tableHash (put x L2) x := by
+      intro L'' h
+      obtain ⟨kl, kr⟩ := kids L'' (p3.trans h)
+      simp only [sub, node]
+      rw [kl, kr]
+      exact tableHash_prefix h (mem_put x L2)
+    refine ⟨(root L' hp).trans (root _ (List.prefix_refl _)).symm, fun y hy => ?_⟩
+    obtain ⟨kl, kr⟩ := kids L' (p3.trans hp)
+    simp only [subInputs, List.mem_cons, List.mem_append] at hy
+    rcases hy with rfl | hy | hy
+    · rw [kl, kr]; exact mem_put x L2
+    · exact (p2.trans p3).subset ((h1 L' (p2.trans (p3.trans hp))).2 y hy)
+    · exact p3.subset ((h2 L' (p3.trans hp)).2 y hy)
+
+/-- **The laws' assumptions hold for every file**: for every file under
+2^64 bytes, a hash with 32-byte outputs has no second preimage of
+anything the file's root hashes (where injectivity cannot,
+`no_injective_hash`), so `verify_sound`, `complete_assembles` and the
+attachment laws are not vacuous for any attachment. The hash is the
+file's table (`table`). -/
+theorem assumptions_hold (ct : B) (hct : ct.size < 2 ^ 64) :
+    ∃ H : B → B, (∀ x, (H x).size = 32) ∧ NoSecondPreimage H (treeInputs H ct) := by
+  let D := depthOf (nChunks ct.size)
+  let L := gather (leafIn ct) D 0 []
+  let r := tagRoot ++ be64 ct.size ++ sub (tableHash L) (fun j => tableHash L (leafIn ct j)) D 0
+  have et : tableOf ct = put r L := rfl
+  obtain ⟨-, hn, hs⟩ := gather_spec (leafIn ct) D 0 []
+  obtain ⟨hsub, hin⟩ := hs (put r L) (prefix_put r L)
+  have hD : D ≤ 48 := depthOf_le_iff.2 (by simp only [nChunks, sliceSize]; omega)
+  have hlen : (tableOf ct).length < 2 ^ 64 := by
+    rw [et]
+    have := length_put r L
+    have eL : L.length = (gather (leafIn ct) D 0 []).length := rfl
+    have := Nat.pow_le_pow_right (n := 2) (by decide) (Nat.succ_le_succ hD)
+    simp only [List.length_nil] at hn
+    omega
+  refine ⟨tableHash (tableOf ct), size_tableHash _, fun x hx y hy => tableHash_spr hlen ?_ hy⟩
+  rw [et] at hx ⊢
+  unfold treeInputs at hx
+  rw [leaves_hash] at hx
+  simp only [List.mem_cons] at hx
+  rcases hx with rfl | hx
+  · rw [hsub]; exact mem_put r L
+  · exact (prefix_put r L).subset (hin x hx)
 
 end
 
