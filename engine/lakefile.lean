@@ -73,3 +73,6 @@ lean_exe purge where
 
 lean_exe jointcp where
   root := `Tests.JoinTcp
+
+lean_exe merkle_check where
+  root := `Tests.MerkleCheck

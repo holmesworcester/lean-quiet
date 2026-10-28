@@ -635,6 +635,20 @@ theorem check_chunk {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c root : 
   obtain ⟨h1, rfl, h3⟩ := hc
   exact ⟨_, _, rfl, h1, h3⟩
 
+/-- **A Valid chunk is its file's slice.** If its root is a file's root
+(SHA-256 32 bytes wide, and nothing the root hashes having a second
+preimage), its length is the file's, its slice is the file's slice at
+its index, and its siblings are that slice's proof. -/
+theorem chunk_is_slice {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c : Id} {len i : Nat}
+    {ct : ByteArray} (hsize : ∀ x, (sha256 x).size = 32)
+    (hspr : Merkle.NoSecondPreimage sha256 (Merkle.treeInputs sha256 ct))
+    (h : check C o b fs = some (.chunk c (Merkle.fileRoot sha256 ct) len i)) :
+    ∃ slice, b = .chunk (Merkle.fileRoot sha256 ct) len i slice (Merkle.proof sha256 ct i) ∧
+      len = ct.size ∧ (Merkle.slices ct)[i]? = some slice := by
+  obtain ⟨slice, sibs, rfl, _, hv⟩ := check_chunk h
+  obtain ⟨hl, hs, rfl⟩ := Merkle.verify_sound hsize hspr hv
+  exact ⟨slice, rfl, hl, hs⟩
+
 /-! ## Shared ops never read local state
 
 A shared op's validator reads only shared facts: never a secret, an
