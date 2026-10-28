@@ -524,4 +524,6 @@ instance : Valued Counted where
   val_bind _ _ := rfl
   val_tick _ := rfl
 
+attribute [simp] Valued.val_pure Valued.val_bind Valued.val_tick
+
 end Engine

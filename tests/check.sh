@@ -25,3 +25,6 @@ echo "all $want laws rest on standard axioms only"
 # through them (tests/Doors.lean; its negative control must be caught).
 doors=$(lake env lean tests/Doors.lean 2>&1) || { echo "$doors"; echo "a back door" >&2; exit 1; }
 echo "$doors"
+# The cost inventories name only audited laws (ci/inventory.py; its
+# negative control must be caught).
+python3 ci/inventory.py
