@@ -133,6 +133,10 @@ open Engine Community
 #print axioms Community.check_reads_shared
 #print axioms Community.openSealed_seal
 #print axioms Community.member_opens
+#print axioms Community.wrap_cites_admission
+#print axioms Community.wrap_only_admitted
+#print axioms Community.approveReq_wraps
+#print axioms Community.admitted_reads
 #print axioms Community.check_attach
 #print axioms Community.check_chunk
 #print axioms Community.chunk_is_slice
@@ -165,6 +169,9 @@ open Engine Community
 #print axioms Community.Merkle.climb_sub
 #print axioms Community.Merkle.no_injective_hash
 #print axioms Community.Merkle.assumptions_hold
+#print axioms Community.Merkle.tableOf_spr
+#print axioms Community.Merkle.tableHash_spr
+#print axioms Community.Merkle.gather_spec
 #print axioms Community.Merkle.fileRoot_eq_fast
 #print axioms Community.Merkle.proof_eq_fast
 #print axioms Community.Merkle.rootAndProofs_eq_fast

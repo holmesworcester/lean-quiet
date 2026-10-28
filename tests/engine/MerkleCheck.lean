@@ -23,15 +23,17 @@ chunks of another file, of the same size and of other sizes.
 
 The root and proofs that run (read off the tree's levels) are checked
 against `sub` and `path` run as written, on those files under SHA-256
-and on files of 1 to 33 chunks under a cheap sampled hash.
+and on files of 1 to 33 chunks under a cheap sampled hash. Under each
+file's own table hash (`tableOf_spr`, which meets the laws' assumption),
+its chunks verify and its tree inputs hash apart.
 
 Negative controls: `verify` with one check dropped at a time
 (`verifyWithout`, which drops nothing for k = 99 and is then `verify`,
 by rfl), on the same forgeries; the run prints what each lets through.
 - The index check: the empty file's chunk at index 2^64 (its be64 is
   0's) passes, and the examples below show `verify_sound` and
-  `index_bound` false without it, under `witness`, a hash that meets
-  their assumptions.
+  `index_bound` false without it, under `witness`, the empty file's
+  table hash, which meets their assumptions (`tableOf_spr`).
 - The sibling count: a sibling past the depth is never climbed, so an
   extra one passes; `verify_sound` (the siblings are the proof) is false
   without it.
@@ -83,6 +85,12 @@ def verifyWithout (H : B → B) (k : Nat) : Verifier := fun root len i s sibs =>
     rootOf H len (climb H d i (leaf H i s) sibs) == root
 
 theorem verifyWithout_none (H : B → B) : verifyWithout H 99 = verify H := rfl
+
+/-- The empty file's table, as a hash: it meets the laws' assumptions
+for the empty file (`tableOf_spr`). -/
+def witness : B → B := tableHash (tableOf .empty)
+
+def bytes32 (k : UInt8) : B := ⟨Array.replicate 32 k⟩
 
 /-! The laws catch the mutants: each example is a chunk `verify` refuses
 and a mutant passes, against which a law is false. -/
@@ -263,6 +271,17 @@ def main : IO UInt32 := do
     let ct := big.extract 0 ((n - 1) * sliceSize + 1 + n % 7)
     t.ok s!"a {n}-chunk file under a sampled hash: root and proofs from its levels are sub's and path's"
       (rootAndProofs sampleH ct == specTree sampleH ct && fileRoot sampleH ct == (specTree sampleH ct).1)
+  -- The laws' assumption, met by each file's own table hash
+  -- (`tableOf_spr`): under it, every chunk verifies against the file's
+  -- root, and the file's tree inputs hash apart.
+  for ct in files.filter (·.size ≤ 4 * sliceSize) do
+    let W := tableHash (tableOf ct)
+    let ins := treeInputs W ct
+    t.ok s!"under the {ct.size}-byte file's table hash, every chunk verifies"
+      ((List.range (nChunks ct.size)).all fun i =>
+        verify W (fileRoot W ct) ct.size i (slice ct i) (proof W ct i))
+    t.ok s!"under the {ct.size}-byte file's table hash, its tree inputs hash apart"
+      (ins.all fun x => ins.all fun y => x == y || W x != W y)
   IO.println s!"merkle_check: {files.length} files, {chunks} chunks verified, {forged} forgeries refused"
   for (k, what) in dropped do
     let a := accepted[k]!

@@ -651,14 +651,10 @@ theorem gather_spec (g : Nat → B) : ∀ d s L,
     · exact (p2.trans p3).subset ((h1 L' (p2.trans (p3.trans hp))).2 y hy)
     · exact p3.subset ((h2 L' (p3.trans hp)).2 y hy)
 
-/-- **The laws' assumptions hold for every file**: for every file under
-2^64 bytes, a hash with 32-byte outputs has no second preimage of
-anything the file's root hashes (where injectivity cannot,
-`no_injective_hash`), so `verify_sound`, `complete_assembles` and the
-attachment laws are not vacuous for any attachment. The hash is the
-file's table (`table`). -/
-theorem assumptions_hold (ct : B) (hct : ct.size < 2 ^ 64) :
-    ∃ H : B → B, (∀ x, (H x).size = 32) ∧ NoSecondPreimage H (treeInputs H ct) := by
+/-- **A file's table, read as a hash, has no second preimage of
+anything the file's root hashes**, for every file under 2^64 bytes. -/
+theorem tableOf_spr (ct : B) (hct : ct.size < 2 ^ 64) :
+    NoSecondPreimage (tableHash (tableOf ct)) (treeInputs (tableHash (tableOf ct)) ct) := by
   let D := depthOf (nChunks ct.size)
   let L := gather (leafIn ct) D 0 []
   let r := tagRoot ++ be64 ct.size ++ sub (tableHash L) (fun j => tableHash L (leafIn ct j)) D 0
@@ -673,7 +669,7 @@ theorem assumptions_hold (ct : B) (hct : ct.size < 2 ^ 64) :
     have := Nat.pow_le_pow_right (n := 2) (by decide) (Nat.succ_le_succ hD)
     simp only [List.length_nil] at hn
     omega
-  refine ⟨tableHash (tableOf ct), size_tableHash _, fun x hx y hy => tableHash_spr hlen ?_ hy⟩
+  refine fun x hx y hy => tableHash_spr hlen ?_ hy
   rw [et] at hx ⊢
   unfold treeInputs at hx
   rw [leaves_hash] at hx
@@ -681,6 +677,16 @@ theorem assumptions_hold (ct : B) (hct : ct.size < 2 ^ 64) :
   rcases hx with rfl | hx
   · rw [hsub]; exact mem_put r L
   · exact (prefix_put r L).subset (hin x hx)
+
+/-- **The laws' assumptions hold for every file**: for every file under
+2^64 bytes, a hash with 32-byte outputs has no second preimage of
+anything the file's root hashes (where injectivity cannot,
+`no_injective_hash`), so `verify_sound`, `complete_assembles` and the
+attachment laws are not vacuous for any attachment. The hash is the
+file's table (`tableOf_spr`). -/
+theorem assumptions_hold (ct : B) (hct : ct.size < 2 ^ 64) :
+    ∃ H : B → B, (∀ x, (H x).size = 32) ∧ NoSecondPreimage H (treeInputs H ct) :=
+  ⟨tableHash (tableOf ct), size_tableHash _, tableOf_spr ct hct⟩
 
 end
 

@@ -178,7 +178,10 @@ bearer key's and the device's signatures and admits nobody. Approvals
 are signed ops that cite it (so the engine needs no forward needs), and
 an unsigned admit op tallies exactly the invitation's threshold of them,
 by distinct users, into the admission. A link invitation needs one
-approval, by the issuer's user; nobody approves their own request. Validity reads only cited facts, so every
+approval, by the issuer's user; nobody approves their own request. A
+wrap of a content key cites the admission it serves and is to that
+admission's key; the approval that completes a tally writes the admit
+and the wrap together. Validity reads only cited facts, so every
 admin-issued removal stands: of other admins, mutually, and by an admin
 who has since been removed, and an approval by a user removed since
 still counts. In practice that last kind may not spread,
@@ -200,6 +203,8 @@ Laws (`Laws.lean`, `Connect.lean`):
 | Whom do we dial? | `members_iff` |
 | Do we connect to approved devices, and only those? | `connect_admitted`, `connect_approved` (a pending request never connects) |
 | Who is a new content key sealed to? | `recipients_iff` |
+| Is a content key wrapped only to an admitted key? | `wrap_cites_admission` (a wrap is Valid only to the key of the admission it cites), `wrap_only_admitted` (no wrap is listed before its admission), `approveReq_wraps` (an approval wraps only with the admission it completes, to a user not removed) |
+| Does an admitted device read? | `admitted_reads`: holding its admission key's secret, it opens a wrap to that key and every message sealed under the wrapped key |
 | What does a removal cut off? | `removal_cuts_off`, `connect_agree`: the removed user's devices plus any nodes that have not yet received the removal |
 
 The connection, dialing and sealing laws are about the views
