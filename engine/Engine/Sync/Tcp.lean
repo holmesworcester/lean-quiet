@@ -93,15 +93,18 @@ def reader (ch : Std.Channel Event) (sid : Nat) (c : TCP.Socket.Client) : IO Uni
       discard <| ch.trySend (.closed sid)
       return
 
-/-- Accept connections into the channel. -/
-def acceptor (ch : Std.Channel Event) (srv : TCP.Socket.Server) : IO Unit := do
+/-- Accept connections into the channel until stopped; then return, so
+the listener is released and its port is free again. -/
+def acceptor (ch : Std.Channel Event) (srv : TCP.Socket.Server) (stopped : IO.Ref Bool) : IO Unit := do
   repeat
-    match ← srv.accept.block.toBaseIO with
-    | .ok c =>
+    if ← stopped.get then return
+    match ← srv.tryAccept.toBaseIO with
+    | .ok (some c) =>
       let peer := match ← c.getPeerName.toBaseIO with
         | .ok a => addrText a
         | .error _ => "?"
       discard <| ch.trySend (.accepted c peer.toUTF8)
+    | .ok none => IO.sleep 20
     | .error _ => IO.sleep 100
 
 /-- Dial an address; the outcome goes into the channel. -/
@@ -196,7 +199,10 @@ def runLoop (cfg : RunConfig) (st : RunState) : IO Unit := do
       busy := true
       match ← st.handle x ch notify ev now with
       | some st' => st := st'
-      | none => return
+      | none =>
+        for s in st.socks do
+          discard <| s.client.shutdown.block.toBaseIO
+        return
     | none => pure ()
     if now ≥ st.lastTick + cfg.tickMs then
       let (st', e) ← ({ st with lastTick := now }).node? fun n => n.onTick x now
@@ -214,6 +220,8 @@ structure Runner where
   events : Std.Channel Event
   port : UInt16
   done : Task (Except IO.Error Unit)
+  stopped : IO.Ref Bool
+  listening : Task (Except IO.Error Unit)
 
 /-- Listen on `port` (0: any) and run a node on this store, keeping
 what is from `floor` on (0: everything). -/
@@ -228,13 +236,20 @@ def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (db : Db
   let bound := match ← srv.getSockName with
     | .v4 a => a.port
     | .v6 a => a.port
-  let _ ← IO.asTask (prio := .dedicated) (acceptor ch srv)
+  let stopped ← IO.mkRef false
+  let listening ← IO.asTask (prio := .dedicated) (acceptor ch srv stopped)
   let done ← IO.asTask (prio := .dedicated) (runLoop x ch notify cfg { db, node })
-  return { events := ch, port := bound, done }
+  return { events := ch, port := bound, done, stopped, listening }
 
 /-- The app's own writes. -/
 def Runner.write (r : Runner) (ops : List Op) : IO Unit := discard <| r.events.trySend (.write ops)
 
-def Runner.stop (r : Runner) : IO Unit := discard <| r.events.trySend .stop
+/-- Stop: the loop ends and shuts every socket down, the listener is
+released (its port free for the next start), and both are waited for. -/
+def Runner.stop (r : Runner) : IO Unit := do
+  r.stopped.set true
+  discard <| r.events.trySend .stop
+  discard <| IO.wait r.done
+  discard <| IO.wait r.listening
 
 end Engine.Sync

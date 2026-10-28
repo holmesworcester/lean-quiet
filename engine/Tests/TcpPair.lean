@@ -181,6 +181,18 @@ def main (args : List String) : IO UInt32 := do
   let (nc, _) ← (Node.boot fam [] 0 |>.onFrame xc "10.0.0.9:5".toUTF8 (tagged bareTag hello.bytes) 3).run dc
   let (_, _) ← (nc.onFrame xc "10.0.0.9:5".toUTF8 (tagged bareTag hello.bytes) 4).run dc
   t.ok "bare: the family hears a repeat arrival" ((← heardRecv.get) == 2)
+  -- A stopped runner frees its port: start, stop and start again on it.
+  let d1 ← fresh (dir ++ "/r1.db")
+  let r1 ← Runner.start x d1 0 0
+  let port := r1.port
+  r1.stop
+  let d2 ← fresh (dir ++ "/r2.db")
+  let again ← (Runner.start x d2 0 port).toBaseIO
+  match again with
+  | .ok r2 =>
+    t.ok "runner: a stopped runner's port takes a new runner" (r2.port == port)
+    r2.stop
+  | .error e => t.ok s!"runner: a stopped runner's port takes a new runner ({e})" false
   let code ← t.finish "tcppair"
   -- The listener and the readers never end by themselves: exit.
   (← IO.getStdout).flush
