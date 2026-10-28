@@ -40,6 +40,7 @@ static ANativeWindow*  ba_win;
 static int32_t         ba_w;
 static int32_t         ba_h;
 static int32_t         ba_top, ba_bottom, ba_kb;
+static int32_t         ba_sides[7];
 static int32_t         ba_density = 420;
 static int32_t         ba_vtop, ba_vbot = 1 << 30;
 static bool            ba_closing;
@@ -58,7 +59,7 @@ static uint32_t        ba_pos[4];
 
 static JavaVM*   ba_vm;
 static jobject   ba_act;
-static jmethodID ba_show_ime, ba_clear_text, ba_copy_text, ba_scan_m;
+static jmethodID ba_show_ime, ba_clear_text, ba_copy_text, ba_scan_m, ba_bars_m;
 
 // The newest camera frame's Y plane, until Lean takes it (ba_take_luma).
 static uint8_t* ba_luma;
@@ -126,6 +127,12 @@ void ba_insets(int32_t* top, int32_t* bottom, int32_t* ime) {
   pthread_mutex_unlock(&ba_mu);
 }
 
+void ba_safe(int32_t out[7]) {
+  pthread_mutex_lock(&ba_mu);
+  memcpy(out, ba_sides, sizeof ba_sides);
+  pthread_mutex_unlock(&ba_mu);
+}
+
 int32_t ba_dpi(void) {
   return ba_density;
 }
@@ -190,12 +197,15 @@ char* ba_text(uint32_t pos[4]) {
   return s;
 }
 
-static void JNICALL ba_n_insets(JNIEnv* env, jclass cls, jint top, jint bottom, jint ime) {
+static void JNICALL ba_n_insets(JNIEnv* env, jclass cls, jint top, jint bottom, jint ime,
+    jint left, jint right, jint cl, jint ct, jint cr, jint cb) {
   pthread_mutex_lock(&ba_mu);
   bool kb = ime != ba_kb;
   ba_top    = top;
   ba_bottom = bottom;
   ba_kb     = ime;
+  int32_t sides[7] = { left, right, ime, cl, ct, cr, cb };
+  memcpy(ba_sides, sides, sizeof sides);
   if (kb) {
     ba_event(6, (uint32_t)ime, 0, 0);
   }
@@ -359,11 +369,24 @@ void ba_copy(const char* utf8) {
   }
 }
 
+void ba_bars(uint32_t top, uint32_t bottom, bool light_top, bool light_bottom) {
+  if (ba_vm == NULL || ba_act == NULL || ba_bars_m == NULL) return;
+  JNIEnv* env;
+  if ((*ba_vm)->GetEnv(ba_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK
+      && (*ba_vm)->AttachCurrentThread(ba_vm, &env, NULL) != JNI_OK) return;
+  (*env)->CallVoidMethod(env, ba_act, ba_bars_m, (jint)top, (jint)bottom,
+      (jboolean)light_top, (jboolean)light_bottom);
+  if ((*env)->ExceptionCheck(env)) {
+    (*env)->ExceptionDescribe(env);
+    (*env)->ExceptionClear(env);
+  }
+}
+
 static void ba_java(ANativeActivity* act) {
   JNIEnv* env = act->env;
   jclass  cls = (*env)->GetObjectClass(env, act->clazz);
   JNINativeMethod ms[] = {
-    { "nInsets", "(III)V", (void*)ba_n_insets },
+    { "nInsets", "(IIIIIIIII)V", (void*)ba_n_insets },
     { "nText", "(Ljava/lang/String;IIII)V", (void*)ba_n_text },
     { "nSend", "()V", (void*)ba_n_send },
     { "nLuma", "(Ljava/nio/ByteBuffer;IIII)V", (void*)ba_n_luma },
@@ -382,9 +405,10 @@ static void ba_java(ANativeActivity* act) {
   ba_clear_text = (*env)->GetMethodID(env, cls, "clearText", "()V");
   ba_copy_text  = (*env)->GetMethodID(env, cls, "copyText", "(Ljava/lang/String;)V");
   ba_scan_m     = (*env)->GetMethodID(env, cls, "scan", "(Z)V");
+  ba_bars_m     = (*env)->GetMethodID(env, cls, "applyBars", "(IIZZ)V");
   if ((*env)->ExceptionCheck(env)) {
     (*env)->ExceptionClear(env);
-    ba_show_ime = ba_clear_text = ba_copy_text = ba_scan_m = NULL;
+    ba_show_ime = ba_clear_text = ba_copy_text = ba_scan_m = ba_bars_m = NULL;
   }
 }
 

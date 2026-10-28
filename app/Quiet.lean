@@ -31,3 +31,4 @@ import Quiet.PeopleLaws
 import Quiet.Remove
 import Quiet.RemovedLaws
 import Quiet.ArrivalLaws
+import Quiet.SafeLaws

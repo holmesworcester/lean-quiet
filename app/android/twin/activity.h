@@ -41,6 +41,8 @@ bool           ba_size_now(int32_t* w, int32_t* h);
 // reported: status bar, navigation bar, keyboard (0 when closed), px.
 void ba_size(int32_t* w, int32_t* h);
 void ba_insets(int32_t* top, int32_t* bottom, int32_t* ime);
+void ba_safe(int32_t out[7]);
+void ba_bars(uint32_t top, uint32_t bottom, bool light_top, bool light_bottom);
 int32_t ba_dpi(void);
 
 // Moves up to max touches since the last call into out; returns the

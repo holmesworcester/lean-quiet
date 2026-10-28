@@ -419,12 +419,18 @@ lean_obj_res lq_screen(void) {
   lq.h            = (uint32_t)h;
   lq.inset_top    = (uint32_t)top;
   lq.inset_bottom = (uint32_t)bottom;
-  uint32_t     v[5] = { (uint32_t)w, (uint32_t)h, (uint32_t)top, (uint32_t)bottom, (uint32_t)ba_dpi() };
-  lean_object* a    = lean_mk_empty_array_with_capacity(lean_box(5));
-  for (int i = 0; i < 5; i += 1) {
-    a = lean_array_push(a, lean_box_uint32(v[i]));
-  }
+  int32_t sides[7];
+  ba_safe(sides);
+  uint32_t v[12] = { (uint32_t)w, (uint32_t)h, (uint32_t)top, (uint32_t)bottom, (uint32_t)ba_dpi() };
+  for (int i = 0; i < 7; i++) v[i + 5] = (uint32_t)sides[i];
+  lean_object* a = lean_mk_empty_array_with_capacity(lean_box(12));
+  for (int i = 0; i < 12; i++) a = lean_array_push(a, lean_box_uint32(v[i]));
   return lean_io_result_mk_ok(a);
+}
+
+lean_obj_res lq_bars(uint32_t top, uint32_t bottom, uint8_t light_top, uint8_t light_bottom) {
+  ba_bars(top, bottom, light_top, light_bottom);
+  return lean_io_result_mk_ok(lean_box(0));
 }
 
 lean_obj_res lq_scroll(uint32_t content_h, uint32_t view_h) {

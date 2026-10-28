@@ -11,6 +11,7 @@ import Quiet.PeopleLaws
 import Quiet.Remove
 import Quiet.RemovedLaws
 import Quiet.App
+import Quiet.SafeLaws
 import Quiet.ArrivalLaws
 #print axioms Geometry.placed_row
 #print axioms Geometry.visible_in_viewport
@@ -99,3 +100,21 @@ import Quiet.ArrivalLaws
 #print axioms ArrivalLaws.complete_iff_held
 #print axioms ArrivalLaws.file_whole
 #print axioms ArrivalLaws.pic_complete_iff_held
+#print axioms Safe.content_inside
+#print axioms Safe.inside_disjoint
+#print axioms Safe.target_safe
+#print axioms Safe.target_witness
+#print axioms SafeFrame.band_colour
+#print axioms Occlusion.placed_table
+#print axioms Occlusion.placed_safe
+#print axioms Occlusion.modal_inert
+#print axioms Toast.placed_safe
+#print axioms Toast.placed_view
+#print axioms Toast.placed_size
+#print axioms Toast.expired
+#print axioms Toast.dismissed
+#print axioms Toast.raised_visible
+#print axioms Toast.placed_witness
+#print axioms App.screenChanged_size
+#print axioms App.screenChanged_insets
+#print axioms SafeFrame.target_minimum

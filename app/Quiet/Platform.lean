@@ -37,10 +37,15 @@ keyboard.
 -/
 namespace Platform
 
-/-- Waits for the window; answers `[w, h, insetTop, insetBottom, dpi]` in
-pixels: the surface's size, the status bar's and navigation bar's
-heights, and the display's density in dots per inch. -/
+/-- Waits for the window; answers `[w, h, top, bottom, dpi, left, right,
+imeBottom, cutoutLeft, cutoutTop, cutoutRight, cutoutBottom]` in pixels.
+The first insets are system bars (iOS: safe area); the cutout is separate
+so Lean computes their union. Older twins may omit the suffix. -/
 @[extern "lq_screen"] opaque screen : IO (Array UInt32)
+
+/-- Apply Lean's per-screen colours and icon styles. True means light
+icons, independently for the top and bottom bar. No platform theme policy. -/
+@[extern "lq_bars"] opaque bars (top bottom : UInt32) (lightTop lightBottom : Bool) : IO Unit
 
 /-- The list's offset for the frame about to be drawn (bottom-anchored,
 see above): the latest vsync's, predicted on to when the frame will be

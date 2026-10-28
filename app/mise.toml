@@ -76,3 +76,15 @@ run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build cross && .lak
 [tasks."host:attach"]
 description = "Photos over real TCP: two apps joined on loopback (as host:net-join), one photo each way through Add photos and send; the other side ends with every chunk, the file opened from them equal to the bytes sent, and its row drawn from the file"
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build attach && .lake/build/bin/attach out/attach"
+
+[tasks."host:safe"]
+description = "Live App.step inset/resize/IME render matrix and Android bar recreation controller"
+run = "tests/host_safe.sh"
+
+[tasks."android:bars"]
+description = "Production bar lifecycle controller on the JVM, without a device"
+run = "tests/bar_state.sh"
+
+[tasks."host:safe-negative"]
+description = "Mutate safe-area and Toast definitions and bar lifecycle code; require proof/test failures and restore"
+run = "tests/safe_negative.py"

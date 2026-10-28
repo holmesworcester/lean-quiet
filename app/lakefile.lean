@@ -62,3 +62,7 @@ lean_exe arrival where
 -- Photos over real TCP: two apps joined on loopback, one photo each way.
 lean_exe attach where
   root := `QTests.Attach
+
+-- Insets, resize, keyboard and the transient Toast layer, on App.step.
+lean_exe safe where
+  root := `QTests.Safe

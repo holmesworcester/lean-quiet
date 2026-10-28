@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 275 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 293 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as each part's `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -175,6 +175,8 @@ nothing else is assumed:
 | ⬜ | 🥊🥊 | **Sync is efficient.** Each op is sent at most once per connection, and a round needs at most fan·Δ·⌈log n⌉ claims. | |
 | ⬜ | 🥊 | **The cached Merkle tree's labels are `lbl`'s,** for O(log n) fingerprints with no change on the wire. | |
 | | | **The screen** | |
+| 🟡 | 🥊🥊 | **Safe insets and transient alerts.** A rectangle accepted by `Safe.target` is disjoint from every reserved band; the app currently passes touch points, so whole-control migration remains. A placed Toast is inside the current viewport, outside reserved areas and the caller-supplied input, at least the caller-supplied minimum size, and expires on an advancing monotonic clock. Native composition is tested, not proved. The five-layer table applies to the new overlay path; existing bitmap interiors still need migration. See [scope and fixtures](app/docs/SAFE.md). | [`Safe.content_inside`], [`Safe.inside_disjoint`], [`Safe.target_safe`], [`Safe.target_witness`], [`Occlusion.placed_table`], [`Occlusion.placed_safe`], [`Occlusion.modal_inert`], [`Toast.placed_safe`], [`Toast.placed_view`], [`Toast.placed_size`], [`Toast.expired`], [`Toast.dismissed`], [`Toast.raised_visible`], [`Toast.placed_witness`] |
+| ✅ | 🥊 | **Fresh report dimensions and edge-colour requests.** The report handler reads the new dimensions and insets; a legacy five-word report assumes the last IME event. Requested bar colours equal the edge policy for any supplied palette. Actual native application remains trusted; whole-frame cache equivalence and composited contrast are not claimed. | [`App.screenChanged_size`], [`App.screenChanged_insets`], [`SafeFrame.band_colour`], [`SafeFrame.target_minimum`] |
 | ✅ | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. | [`visible_in_viewport`], [`newest_visible`], [`pinned_visible`], [`pinned_tap`], [`hit_iff`] |
 | ⬜ | 🥊🥊🥊 | **Every control is big enough to tap.** Every tappable control's hit area, not just its drawn size, is at least 48 dp by 48 dp on Android and 44 pt by 44 pt on iOS, at every supported screen size and text scale. | |
 | ⬜ | 🥊🥊 | **A tap means one thing.** On every screen, no two controls' hit areas overlap, so a point selects at most one control. A tap selects the control drawn under it. Today this is proven for the emoji sheet and message rows only (`keys_disjoint`, `hit_iff`, `pinned_tap`). | |
@@ -351,6 +353,24 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`bootstrap_ideal`]: net/Net/Laws.lean#L423-L424
 [`bootstrap_possible`]: net/Net/Laws.lean#L208-L218
 [`reachable_inv`]: net/Net/Steps.lean#L222-L223
+[`Safe.content_inside`]: app/Quiet/Safe.lean#L77-L77
+[`Safe.inside_disjoint`]: app/Quiet/Safe.lean#L83-L85
+[`Safe.target_safe`]: app/Quiet/Safe.lean#L88-L90
+[`Safe.target_witness`]: app/Quiet/Safe.lean#L96-L99
+[`Occlusion.placed_table`]: app/Quiet/Occlusion.lean#L45-L46
+[`Occlusion.placed_safe`]: app/Quiet/Occlusion.lean#L52-L54
+[`Occlusion.modal_inert`]: app/Quiet/Occlusion.lean#L64-L64
+[`Toast.placed_safe`]: app/Quiet/Toast.lean#L30-L32
+[`Toast.placed_view`]: app/Quiet/Toast.lean#L38-L39
+[`Toast.placed_size`]: app/Quiet/Toast.lean#L49-L52
+[`Toast.expired`]: app/Quiet/Toast.lean#L62-L63
+[`Toast.dismissed`]: app/Quiet/Toast.lean#L65-L65
+[`Toast.raised_visible`]: app/Quiet/Toast.lean#L67-L67
+[`Toast.placed_witness`]: app/Quiet/Toast.lean#L70-L73
+[`App.screenChanged_size`]: app/Quiet/SafeLaws.lean#L10-L12
+[`App.screenChanged_insets`]: app/Quiet/SafeLaws.lean#L16-L20
+[`SafeFrame.band_colour`]: app/Quiet/SafeFrame.lean#L66-L67
+[`SafeFrame.target_minimum`]: app/Quiet/SafeFrame.lean#L37-L37
 [`visible_in_viewport`]: app/Quiet/Geometry.lean#L90-L95
 [`newest_visible`]: app/Quiet/Geometry.lean#L99-L105
 [`pinned_visible`]: app/Quiet/Geometry.lean#L147-L151
@@ -404,8 +424,8 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`dedupe_nodup`]: app/Quiet/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: app/Quiet/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: app/Quiet/Switch.lean#L82-L84
-[`drawPage_key`]: app/Quiet/App.lean#L874-L878
-[`pageIn_acc`]: app/Quiet/App.lean#L880-L883
+[`drawPage_key`]: app/Quiet/App.lean#L882-L886
+[`pageIn_acc`]: app/Quiet/App.lean#L888-L891
 [`parse_segsBits`]: qr/Qr/SegLaws.lean#L157-L161
 [`parse_dataStream`]: qr/Qr/SegLaws.lean#L193-L197
 [`RS.correct_sound`]: qr/Qr/Laws.lean#L55-L57

@@ -29,6 +29,8 @@ gate() {
         .lake/build/bin/cross out/cross &&
         .lake/build/bin/arrival out/arrival &&
         .lake/build/bin/attach out/attach &&
+        tests/host_safe.sh &&
+        tests/safe_negative.py &&
         tests/check.sh ;;
     readme) python3 ci/proof-links.py --check ;;
     *) echo "no part $1" >&2; return 2 ;;
