@@ -9,7 +9,7 @@
 # usage: ctl_guard.sh [serial]   (default emulator-5644; never the user's)
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-root=$(cd "$here/../.." && pwd)
+root=$(cd "$here/../../.." && pwd)
 serial=${1:-emulator-5644}
 sdk=${ANDROID_SDK:-$HOME/android-sdk}
 adb=("$sdk/platform-tools/adb" -s "$serial")
@@ -33,7 +33,7 @@ shell=$("${adb[@]}" shell /data/local/tmp/lqprobe | tr -d '\r')
 check "the shell (adb) is answered" '[[ "$shell" == *pong* ]]'
 other=$("${adb[@]}" shell 'run-as com.holmes.leanquiet sh -c "cp /data/local/tmp/lqprobe ./lqprobe && chmod 755 ./lqprobe && ./lqprobe; rm -f ./lqprobe"' | tr -d '\r')
 check "another uid is refused, unread" '[[ "$other" != *pong* ]]'
-RELEASE=1 "$root/android/twin/build_apk.sh" "$out/release.apk" com.holmes.leanquiet 'Lean Quiet' Main "$abi" >/dev/null
+RELEASE=1 "$root/platforms/android/twin/build_apk.sh" "$out/release.apk" com.holmes.leanquiet 'Lean Quiet' Main "$abi" >/dev/null
 run "$out/release.apk"
 rel=$("${adb[@]}" shell /data/local/tmp/lqprobe | tr -d '\r' || true)
 check "a release build does not listen" '[[ "$rel" == *"connect failed"* ]]'
