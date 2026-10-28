@@ -12,3 +12,4 @@ import Connection.Frame
 import Connection.Intents
 import Connection.Laws
 import Connection.RoomLaws
+import Connection.NodeLaws

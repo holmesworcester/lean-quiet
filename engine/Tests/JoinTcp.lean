@@ -17,6 +17,10 @@ crypto. What a phone does, without the phone.
   none of B's (B, not knowing, posts; A does not store it). Each
   connection step reads its rooms afresh (`Node.refresh`), and the
   trust rule refuses B (`rooms_cut`).
+- Before and after the removal, A's Community views, read from its
+  store of both families, answer as a Community-only store of the
+  Community ops A holds does (`sum_project_node`). Without the removal,
+  that store would let B in (a negative control).
 
 Each step is read from the runners' databases through a second
 connection (SQLite's WAL lets it read beside the runner's writer).
@@ -61,6 +65,29 @@ def allowedOn (s : Peer) (c d : ByteArray) : IO Bool :=
   look s ((Community.allowPeer c d).liftL.run : SqlM F Bool)
 
 def stored (s : Peer) (x : Id) : IO Bool := do return (← look s (Store.getOp x : SqlM F _)).isSome
+
+/-- `sum_project_node`, run: A's trust rule for each of ds, its members
+and its recipients in c, read from its store of both families, against
+the model of a Community-only node holding the Community ops A holds.
+Returns those ops. -/
+def projected (t : Checks) (tag : String) (s : Peer) (c : Id) (ds : List ByteArray) :
+    IO (List Op) := do
+  let (held, allowed, mem, rcp, queue) ← look s do
+    let held ← dumpOps (F := F)
+    let allowed ← ds.mapM fun d => ((Community.allowPeer c d).liftL.run : SqlM F Bool)
+    let mem ← ((Community.members c).liftL.run : SqlM F (List ByteArray))
+    let rcp ← ((Community.recipients c).liftL.run : SqlM F (List ByteArray))
+    let queue ← dumpQueue (F := F)
+    return (held, allowed, mem, rcp, queue)
+  let cops := held.filter fun o => !owns o.kind
+  let m := modelRun (Community.family ed25519) cops
+  t.ok s!"{tag}: the node is at rest, and so is its Community part" (queue.isEmpty && m.queue.isEmpty)
+  t.ok s!"{tag}: the node holds Connection ops too" (cops.length < held.length)
+  t.ok s!"{tag}: the trust rule answers as the Community part's"
+    (allowed == ds.map fun d => (Community.allowPeer c d).eval m)
+  t.ok s!"{tag}: members as the Community part's" (mem == (Community.members c).eval m)
+  t.ok s!"{tag}: recipients as the Community part's" (rcp == (Community.recipients c).eval m)
+  return cops
 
 /-- Wait up to ms for p, checking every 50 ms; how long it took. -/
 def waitFor (ms : Nat) (p : IO Bool) : IO (Option Nat) := do
@@ -110,6 +137,7 @@ def main (args : List String) : IO UInt32 := do
   let streamed ← waitFor 10000 (stored b p.id)
   t.ok "tcp: a later post reaches B" streamed.isSome
   IO.println s!"jointcp: opened in {opened}, established in {est}, admitted in {admitted}, post in {streamed} (ms)"
+  let _ ← projected t "tcp: before the removal" a c [dA.pk, dB.pk]
   -- A removes B, on the live session.
   let adms ← look a ((Community.admission.byDevice.read [c, dB.pk]).liftL.run : SqlM F (Answer Community.Fact))
   match adms.rows.head? with
@@ -128,6 +156,10 @@ def main (args : List String) : IO UInt32 := do
     t.ok "tcp: B posted on its side" (← stored b q.id)
     t.ok "tcp: A's post after the removal does not reach B" (!(← stored b p2.id))
     t.ok "tcp: A does not take B's post" (!(← stored a q.id))
+    let cops ← projected t "tcp: after the removal" a c [dA.pk, dB.pk]
+    let without := modelRun (Community.family ed25519) (cops.filter (·.id != rm.id))
+    t.ok "tcp: control: without the removal, the Community part lets B in"
+      ((Community.allowPeer c dB.pk).eval without)
     IO.println s!"jointcp: removal held in {cut} ms; B holds the removal: {← stored b rm.id}; sessions on A: {(← ests a).length}"
   a.run.stop
   b.run.stop
