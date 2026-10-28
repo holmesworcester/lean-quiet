@@ -59,3 +59,6 @@ lean_exe tcppair where
 
 lean_exe noise_check where
   root := `Tests.NoiseCheck
+
+lean_exe connection_check where
+  root := `Tests.ConnectionCheck
