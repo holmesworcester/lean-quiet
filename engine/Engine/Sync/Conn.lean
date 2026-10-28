@@ -107,6 +107,8 @@ structure Config where
   maxIds : Nat := 4096
   /-- ops the closure walk visits per call. -/
   walk : Nat := 100000
+  /-- bytes of payloads sealed together in one frame. -/
+  bundle : Nat := 49152
 
 inductive Status where
   | settled (room : Id)

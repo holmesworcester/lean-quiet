@@ -1,71 +1,75 @@
 /-
-Two nodes syncing over an in-memory queue that may lose frames: a
-transport without sockets, for tests here and the daemon's. One
-connection joins them (`cid`); a lost frame is gone; a dropped
-connection is reopened at once, as a daemon redials. Bare-wire frames
-travel the same queue and arrive through `onBare`.
+Two nodes syncing over an in-memory queue that may lose payloads: a
+transport without sockets or a handshake, for tests. One session joins
+them (`cid`, opened on both sides with `Node.connect`); a lost payload
+is gone; a dropped session is reopened on both sides at once, as a
+redial with a new handshake would. Each side's store is SQLite (in
+memory or on disk).
 -/
 import Engine.Sync.Node
 
 namespace Engine.Sync
 
-/-- A frame in flight: bare or on the session, and its bytes. -/
-abbrev Frame := Bool × ByteArray
+structure Side where
+  db : Db
+  node : Node
+  /-- This side's address, as its peer sees it. -/
+  addr : ByteArray
 
 structure Pair where
-  a : Node
-  b : Node
+  a : Side
+  b : Side
   cid : Id
-  toA : List Frame := []
-  toB : List Frame := []
+  toA : List ByteArray := []
+  toB : List ByteArray := []
   now : Nat := 0
   rng : UInt64 := 0x2545F4914F6CDD1D
-  /-- Percent of frames lost. -/
+  /-- Percent of payloads lost. -/
   loss : Nat := 0
   lost : Nat := 0
   reconnects : Nat := 0
   frames : Nat := 0
 
 section
-variable {F : Type} [Codec F] [SortKey F] (xa xb : Sync F)
+variable {F : Type} [Codec F] [SortKey F] (xa xb : Sync F (SqlM F))
 
 def Pair.rand (p : Pair) (n : Nat) : Nat × Pair :=
   let s := p.rng * 6364136223846793005 + 1442695040888963407
   ((s >>> 33).toNat % n, { p with rng := s })
 
-def framesOf (e : Effects) : List Frame :=
-  e.send.map fun (r, b) => match r with | .conn _ => (false, b) | .bare _ => (true, b)
+def payloads (e : Effects) : List ByteArray := e.send.map (·.2)
 
-/-- Open the connection: a dials b. -/
+def Side.run (s : Side) (f : Node → SqlM F (Node × Effects)) : IO (Side × Effects) := do
+  let (n, e) ← (f s.node).run s.db
+  return ({ s with node := n }, e)
+
+/-- Open the session: a dials b. -/
 def Pair.connect (p : Pair) : IO Pair := do
-  let (a, ea) ← p.a.connect xa p.cid true p.now
-  let (b, eb) ← p.b.connect xb p.cid false p.now
-  return { p with a, b, toB := framesOf ea, toA := framesOf eb }
+  let (a, ea) ← p.a.run fun n => n.connect xa p.cid p.b.addr true p.now
+  let (b, eb) ← p.b.run fun n => n.connect xb p.cid p.a.addr false p.now
+  return { p with a, b, toB := payloads ea, toA := payloads eb }
 
 /-- Route what a did and what b did; a drop on either side closes both
-and redials. -/
+and reopens. -/
 def Pair.route (p : Pair) (ea eb : Effects) : IO Pair := do
   if !ea.drop.isEmpty || !eb.drop.isEmpty then
     let p := { p with
-      a := p.a.close p.cid
-      b := p.b.close p.cid
+      a := { p.a with node := p.a.node.close p.cid }
+      b := { p.b with node := p.b.node.close p.cid }
       toA := []
       toB := []
       reconnects := p.reconnects + 1 }
     p.connect xa xb
-  else return { p with toB := p.toB ++ framesOf ea, toA := p.toA ++ framesOf eb }
+  else return { p with toB := p.toB ++ payloads ea, toA := p.toA ++ payloads eb }
 
-def Pair.deliver (x : Sync F) (n : Node) (cid : Id) (f : Frame) (now : Nat) : IO (Node × Effects) :=
-  if f.1 then n.onBare x .empty f.2 now else n.onBytes x cid f.2 now
-
-/-- Deliver one frame (or lose it), or, with nothing in flight, let
+/-- Deliver one payload (or lose it), or, with nothing in flight, let
 `tickMs` pass and tick both sides. -/
 def Pair.step (p : Pair) (tickMs : Nat) : IO Pair := do
   match p.toA, p.toB with
   | [], [] =>
     let now := p.now + tickMs
-    let (a, ea) ← p.a.onTick xa now
-    let (b, eb) ← p.b.onTick xb now
+    let (a, ea) ← p.a.run fun n => n.onTick xa now
+    let (b, eb) ← p.b.run fun n => n.onTick xb now
     { p with a, b, now }.route xa xb ea eb
   | ta, tb =>
     let (dir, p) := p.rand 2
@@ -76,13 +80,13 @@ def Pair.step (p : Pair) (tickMs : Nat) : IO Pair := do
       let f := tb.head!
       let p := { p with toB := tb.tail }
       if l < p.loss then return { p with lost := p.lost + 1 }
-      let (b, eb) ← Pair.deliver xb p.b p.cid f p.now
+      let (b, eb) ← p.b.run fun n => n.onFrame xb p.a.addr f p.now
       { p with b }.route xa xb {} eb
     else
       let f := ta.head!
       let p := { p with toA := ta.tail }
       if l < p.loss then return { p with lost := p.lost + 1 }
-      let (a, ea) ← Pair.deliver xa p.a p.cid f p.now
+      let (a, ea) ← p.a.run fun n => n.onFrame xa p.b.addr f p.now
       { p with a }.route xa xb ea {}
 
 /-- Run until the clock reaches `stop` (at most `fuel` steps). -/
@@ -95,11 +99,11 @@ def Pair.run (p : Pair) (stop tickMs fuel : Nat) : IO Pair := do
 
 /-- A local write at a, or at b. -/
 def Pair.writeA (p : Pair) (ops : List Op) : IO Pair := do
-  let (a, ea) ← p.a.onWrite xa ops p.now
+  let (a, ea) ← p.a.run fun n => n.onWrite xa ops p.now
   { p with a }.route xa xb ea {}
 
 def Pair.writeB (p : Pair) (ops : List Op) : IO Pair := do
-  let (b, eb) ← p.b.onWrite xb ops p.now
+  let (b, eb) ← p.b.run fun n => n.onWrite xb ops p.now
   { p with b }.route xa xb {} eb
 
 end

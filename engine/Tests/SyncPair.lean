@@ -63,13 +63,18 @@ def sameSet (a b : List Id) : Bool := a.all (has b) && b.all (has a)
 
 def cfg : Config := { every := 30000, patience := 20000 }
 
-/-- A node whose store holds these ops, with this floor. -/
-def node (x : Sync Fact) (ops : List Op) (floor : Nat) : IO Node := do
+/-- A side whose store holds these ops, with this floor. -/
+def node (x : Sync Fact (SqlM Fact)) (ops : List Op) (floor : Nat) (addr : String) : IO Side := do
   let db ← memDb
   (receive fam (intake fam true ops)).run db
-  Node.boot x db floor
+  return { db, node := Node.boot x.fam (← (dumpOps (F := Fact)).run db) floor, addr := addr.toUTF8 }
 
-def sync (rooms : List Id) : Sync Fact := { fam, cfg, hooks := { rooms := fun _ => pure rooms } }
+def sync (rooms : List Id) : Sync Fact (SqlM Fact) :=
+  { fam, cfg, hooks := { rooms := fun _ => pure rooms, sealFor := plainSeal, openFrame := plainOpen } }
+
+/-- A payload as the session's sealed frame (the harness's plain one). -/
+def frameOf (cid : Id) (b : ByteArray) : ByteArray :=
+  tagged sealedTag (Codec.encode (cid, Codec.encode [b]))
 
 /-- Ops behind these ids among `all`: the ids, and every requirement of
 theirs, recursively. -/
@@ -103,7 +108,7 @@ def main : IO UInt32 := do
     g := g'
     if k != 1 then sa := sa ++ [o]
     if k != 0 then sb := sb ++ [o]
-  let p : Pair := { a := ← node x sa 0, b := ← node x sb 0, cid }
+  let p : Pair := { a := ← node x sa 0 "a", b := ← node x sb 0 "b", cid }
   let p ← (← p.connect x x).run x x 200000 1000 100000
   let ia ← idsOf p.a.db
   let ib ← idsOf p.b.db
@@ -114,22 +119,22 @@ def main : IO UInt32 := do
     if (← statusOf p.a.db o.id) != (← statusOf p.b.db o.id) then agree := false
   t.ok "full: same verdict for every op" agree
   t.ok "full: both report the room settled" (
-    (p.a.conn? cid).any (has ·.settled c) && (p.b.conn? cid).any (has ·.settled c))
+    (p.a.node.conn? cid).any (has ·.settled c) && (p.b.node.conn? cid).any (has ·.settled c))
   IO.println s!"full: {p.frames} frames"
 
   -- Stream: a new op reaches the peer without another round.
   let a1 := (h.find? fun o => o.kind == 11).map (·.id) |>.getD c
   let late := post c c (Device.named "acme-founder") "k".toUTF8 "late news".toUTF8 99999
-  let rounds := (p.a.conn? cid).map (·.round) |>.getD 0
+  let rounds := (p.a.node.conn? cid).map (·.round) |>.getD 0
   let p ← p.writeA x x [late]
   let p ← p.run x x (p.now + 50) 1000 1000
   t.ok "stream: the new op arrives" (has (← idsOf p.b.db) late.id)
-  t.ok "stream: without another round" ((p.a.conn? cid).map (·.round) == some rounds)
+  t.ok "stream: without another round" ((p.a.node.conn? cid).map (·.round) == some rounds)
   let _ := a1
 
   -- Windowed: b holds nothing and keeps posts from time 4000 on.
   let floor := 4000
-  let pw : Pair := { a := ← node x h 0, b := ← node x [] floor, cid }
+  let pw : Pair := { a := ← node x h 0 "a", b := ← node x [] floor "b", cid }
   let pw ← (← pw.connect x x).run x x 200000 1000 100000
   let inWindow := h.filter fun o => orderOf o == 0 || orderOf o ≥ floor
   let want := closure h (inWindow.map (·.id))
@@ -145,7 +150,7 @@ def main : IO UInt32 := do
   IO.println s!"windowed: {iw.length} of {h.length} ops, {pw.frames} frames"
 
   -- Lossy: a quarter of frames lost.
-  let pl : Pair := { a := ← node x sa 0, b := ← node x sb 0, cid, loss := 25 }
+  let pl : Pair := { a := ← node x sa 0 "a", b := ← node x sb 0 "b", cid, loss := 25 }
   let pl ← (← pl.connect x x).run x x 3000000 1000 400000
   t.ok "lossy: a converges" (sameSet (← idsOf pl.a.db) (h.map (·.id)))
   t.ok "lossy: b converges" (sameSet (← idsOf pl.b.db) (h.map (·.id)))
@@ -156,21 +161,21 @@ def main : IO UInt32 := do
   let (h2, c2) := history "other" 2 10
   let xa := sync [c]
   let xb := sync [c, c2]
-  let pr : Pair := { a := ← node xa (h ++ h2) 0, b := ← node xb [] 0, cid }
+  let pr : Pair := { a := ← node xa (h ++ h2) 0 "a", b := ← node xb [] 0 "b", cid }
   let pr ← (← pr.connect xa xb).run xa xb 200000 1000 100000
   let ir ← idsOf pr.b.db
   t.ok "rooms: b holds the community it may see" (sameSet ir (h.map (·.id)))
   t.ok "rooms: b holds nothing of the other" (!h2.any fun o => has ir o.id)
   -- b asks for the other's ops by id: a ignores it.
-  let (_, e) ← pr.a.onBytes xa cid (Msg.want (h2.map (·.id))).op.bytes pr.now
+  let (_, e) ← pr.a.run fun n => n.onFrame xa "b".toUTF8 (frameOf cid (Msg.want (h2.map (·.id))).op.bytes) pr.now
   t.ok "rooms: a want for another room's ops is ignored" (e.send.isEmpty)
   -- b pushes another room's op: a does not take it.
   let foreign := (history "third" 0 1).1.head!
-  let (_, _) ← pr.a.onBytes xa cid foreign.bytes pr.now
+  let (_, _) ← pr.a.run fun n => n.onFrame xa "b".toUTF8 (frameOf cid foreign.bytes) pr.now
   t.ok "rooms: an op of another room is not taken" (!has (← idsOf pr.a.db) foreign.id)
   -- Garbage, and a local op, are ignored.
-  let (_, e2) ← pr.a.onBytes xa cid "not an op".toUTF8 pr.now
-  let (_, e3) ← pr.a.onBytes xa cid (secret "seed".toUTF8).bytes pr.now
+  let (_, e2) ← pr.a.run fun n => n.onFrame xa "b".toUTF8 "not an op".toUTF8 pr.now
+  let (_, e3) ← pr.a.run fun n => n.onFrame xa "b".toUTF8 (frameOf cid (secret "seed".toUTF8).bytes) pr.now
   t.ok "garbage: ignored" (e2.send.isEmpty && e2.drop.isEmpty)
   t.ok "a peer's local op: not taken" (e3.send.isEmpty && !has (← idsOf pr.a.db) (secret "seed".toUTF8).id)
 

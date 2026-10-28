@@ -6,15 +6,16 @@ real one uses:
 
 - a: writes a hello (a conn op naming b's address) locally; the outbox
   sends it bare to b and marks it shipped;
-- b: takes the hello from the bare wire (`onBare`, conn ops only),
+- b: takes the hello from the bare wire (`onFrame`, conn ops only),
   records its arrival and the address (`recv`), answers with an ack
   (`react`), sent bare back on the same socket;
 - both: list the session as established once the ack exists
-  (`established`), so the node opens it, binds the socket (`bind`) and
-  seals every frame after (a counter-checked toy cipher, `session`).
+  (`established`), so the node opens it and seals every frame after
+  (a toy cipher naming its session, `sealFor`/`openFrame`).
 
-Then the nodes sync a 101-op history to rest; a frame that does not
-unseal drops the session; the app hears every stored id (`notify`).
+Then the nodes sync a history to rest; a frame that does not open is
+ignored; a dropped session is not reopened; the app hears every stored
+id (`notify`).
 -/
 import Tests.Lib
 
@@ -43,21 +44,15 @@ def opsOf (k : UInt8) : SqlM Fact (List Op) := do
 def records : SqlM Fact (List (Id × ByteArray)) := do
   return (← opsOf kRecord).filterMap fun o => (Codec.decode o.body : Option (Id × ByteArray))
 
-/-- A toy cipher whose state is the two counters: a frame is its
-counter, then the payload with every byte flipped; a frame whose counter
-is not the next one does not open. -/
-def toySealer : Sealer where
-  state := Codec.encode ((0 : Nat), (0 : Nat))
-  sealFrame st p :=
-    let (s, r) := (Codec.decode st : Option (Nat × Nat)).getD (0, 0)
-    (Codec.encode (s + 1, r), Codec.encode (s, ByteArray.mk (p.data.map (· ^^^ 0xA5))))
-  openFrame st f := do
-    let (s, r) ← (Codec.decode st : Option (Nat × Nat))
-    let (n, body) ← (Codec.decode f : Option (Nat × ByteArray))
-    if n != r then none
-    else some (Codec.encode (s, r + 1), ByteArray.mk (body.data.map (· ^^^ 0xA5)))
+/-- A toy cipher: a frame names its session and carries the bytes
+flipped; one that does not decode does not open. -/
+def toySeal (cid : Id) (b : ByteArray) : SqlM Fact (Option ByteArray) :=
+  pure (some (Codec.encode (cid, ByteArray.mk (b.data.map (· ^^^ 0xA5)))))
 
-def hooks (rooms : List Id) : Hooks Fact where
+def toyOpen (f : ByteArray) : SqlM Fact (Option (Id × ByteArray)) :=
+  pure ((Codec.decode f : Option (Id × ByteArray)).map fun (c, b) => (c, ByteArray.mk (b.data.map (· ^^^ 0xA5))))
+
+def hooks (rooms : List Id) : Hooks Fact (SqlM Fact) where
   rooms := fun _ => pure rooms
   recv := fun cid addr o _ => pure <|
     if cid.isNone && o.kind == kHello then [Op.make kRecord [] (Codec.encode (o.id, addr))] else []
@@ -66,11 +61,11 @@ def hooks (rooms : List Id) : Hooks Fact where
     let recs ← records
     let mine := (← opsOf kHello).filter fun h => !recs.any (·.1 == h.id)
     let hellos := mine.filterMap fun h =>
-      if shipped.any (· == h.id) then none else some (h.id, Route.bare h.body, h.bytes)
+      if shipped.any (· == h.id) then none else some (h.id, h.body, h.bytes)
     let acks := (← opsOf kAck).filterMap fun a =>
       if shipped.any (· == a.id) then none else
       match a.reqs, recs.find? (·.1 == a.reqs.headD .empty) with
-      | [_], some (_, addr) => some (a.id, Route.bare addr, a.bytes)
+      | [_], some (_, addr) => some (a.id, addr, a.bytes)
       | _, _ => none
     return hellos ++ acks
   shipped := fun i => [Op.make kShipped [] i]
@@ -85,7 +80,8 @@ def hooks (rooms : List Id) : Hooks Fact where
     let dialed := (← opsOf kHello).filterMap fun h =>
       if !recs.any (·.1 == h.id) && acks.any (· == h.id) then some (h.id, h.body, true) else none
     return answered ++ dialed
-  session := fun _ => pure (some toySealer)
+  sealFor := toySeal
+  openFrame := toyOpen
 
 def history (members posts : Nat) : List Op × Id := Id.run do
   let f := Device.named "tcp-founder"
@@ -122,7 +118,7 @@ def main (args : List String) : IO UInt32 := do
   IO.FS.createDirAll dir
   let t ← Checks.new
   let (h, c) := history 4 40
-  let x : Sync Fact := { fam, cfg := { every := 5000, patience := 8000 }, hooks := hooks [c] }
+  let x : Sync Fact (SqlM Fact) := { fam, cfg := { every := 5000, patience := 8000 }, hooks := hooks [c] }
   let pa := dir ++ "/a.db"
   let pb := dir ++ "/b.db"
   let da ← fresh pa
@@ -130,8 +126,8 @@ def main (args : List String) : IO UInt32 := do
   (receive fam (intake fam true h)).run da
   (receive fam (intake fam true (h.take 30))).run db
   let heard ← IO.mkRef (0 : Nat)
-  let rb ← Runner.start x (← Node.boot x db 0) 0 (fun ids => heard.modify (· + ids.length))
-  let ra ← Runner.start x (← Node.boot x da 0) 0
+  let rb ← Runner.start x db 0 0 (fun ids => heard.modify (· + ids.length))
+  let ra ← Runner.start x da 0 0
   let addrB := s!"127.0.0.1:{rb.port}".toUTF8
   -- a dials b: its hello names b's address.
   ra.write [Op.make kHello [] addrB]
@@ -156,34 +152,36 @@ def main (args : List String) : IO UInt32 := do
   t.ok "tcp: a new post streams to b" streamed
   ra.stop
   rb.stop
-  -- A session frame that does not unseal drops the session (on a node
-  -- with a session open, in memory).
+  -- A frame that does not open is ignored; the session stays.
   let dm ← Db.openAt ":memory:"
-  let n ← Node.boot x dm 0
   let cid := sha256 "s".toUTF8
-  let (n, _) ← n.open x cid true toySealer 0
-  let (n, e) ← n.onBytes x cid "tampered".toUTF8 1
-  t.ok "seal: a frame that does not unseal drops the session" (e.drop.any (· == cid) && (n.conn? cid).isNone)
-  let (n, _) ← n.onTick x 2
-  t.ok "seal: a dropped session is not reopened" ((n.conn? cid).isNone && has n.dropped cid)
+  let xs : Sync Fact (SqlM Fact) := { x with hooks := { x.hooks with
+    established := pure [(cid, "10.0.0.7:1".toUTF8, true)] } }
+  let run (n : Node) (f : Node → SqlM Fact (Node × Effects)) : IO (Node × Effects) := (f n).run dm
+  let (n, _) ← run (Node.boot fam [] 0) fun n => n.onTick xs 1
+  t.ok "session: an established session is opened" ((n.conn? cid).isSome)
+  let (n, e) ← run n fun n => n.onFrame xs "10.0.0.7:1".toUTF8 (tagged sealedTag "tampered".toUTF8) 2
+  t.ok "seal: a frame that does not open is ignored" (e.send.isEmpty && e.stored.isEmpty && (n.conn? cid).isSome)
+  -- A session dropped here (patience) is not reopened, though the family
+  -- still lists it.
+  let (n, _) ← run (n.drop cid) fun n => n.onTick xs 3
+  t.ok "session: a dropped session is not reopened" ((n.conn? cid).isNone && has n.dropped cid)
   -- A resent bare op is taken once: the family hears it again (`recv`)
   -- but its arrival record is the same op, and nothing new is stored.
   let hello := Op.make kHello [] "127.0.0.1:1".toUTF8
-  let (n, e1) ← n.onBare x "10.0.0.9:5".toUTF8 hello.bytes 3
-  let (_, e2) ← n.onBare x "10.0.0.9:5".toUTF8 hello.bytes 4
+  let (n, e1) ← run n fun n => n.onFrame x "10.0.0.9:5".toUTF8 (tagged bareTag hello.bytes) 4
+  let (_, e2) ← run n fun n => n.onFrame x "10.0.0.9:5".toUTF8 (tagged bareTag hello.bytes) 5
   let recs := (← (dumpOps (F := Fact)).run dm).filter (·.kind == kRecord)
   t.ok "bare: a resent op is taken once" (e1.stored.any (· == hello.id) && e2.stored.isEmpty && recs.length == 1)
-  -- The family hears every arrival, a repeat included (so it can answer
-  -- a replayed request again).
+  -- The family hears every arrival, a repeat included.
   let heardRecv ← IO.mkRef (0 : Nat)
-  let xc : Sync Fact := { x with hooks := { x.hooks with
+  let xc : Sync Fact (SqlM Fact) := { x with hooks := { x.hooks with
     recv := fun c a o now => do
       heardRecv.modify (· + 1)
       x.hooks.recv c a o now } }
   let dc ← Db.openAt ":memory:"
-  let nc ← Node.boot xc dc 0
-  let (nc, _) ← nc.onBare xc "10.0.0.9:5".toUTF8 hello.bytes 3
-  let (_, _) ← nc.onBare xc "10.0.0.9:5".toUTF8 hello.bytes 4
+  let (nc, _) ← (Node.boot fam [] 0 |>.onFrame xc "10.0.0.9:5".toUTF8 (tagged bareTag hello.bytes) 3).run dc
+  let (_, _) ← (nc.onFrame xc "10.0.0.9:5".toUTF8 (tagged bareTag hello.bytes) 4).run dc
   t.ok "bare: the family hears a repeat arrival" ((← heardRecv.get) == 2)
   let code ← t.finish "tcppair"
   -- The listener and the readers never end by themselves: exit.

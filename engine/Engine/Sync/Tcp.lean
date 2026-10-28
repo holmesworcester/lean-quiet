@@ -6,13 +6,13 @@ neither carries socket code.
   the node sends to; frames queue until the dial completes.
 - Every payload is framed (`frame`, `unframe`: a 4-byte length, at most
   1 MiB; a longer one closes the socket).
-- A socket is bare until the node binds it to a session (`bind`); its
-  frames go to `onBare` until then and to `onBytes` after. An accepted
-  socket's address is its peer's "ip:port", so the family's reply to
-  that address goes back on the same socket.
-- An unbound socket silent for `bareIdle` ms is closed: a join request
-  waiting for approval is resent every tick, so a live one is never
-  idle that long.
+- Every payload goes to the node's `onFrame` with its socket's address:
+  sockets are not bound to sessions (a sealed frame names its own). An
+  accepted socket's address is its peer's "ip:port", so a reply to that
+  address goes back on the same socket.
+- A socket silent for `idle` ms is closed: a join request waiting for
+  approval is resent every tick, and sessions exchange rounds, so a
+  live one is never idle that long.
 - The app's writes come in through `Runner.write`; every id the node
   stores goes to the app's `notify`.
 
@@ -57,10 +57,10 @@ structure Sock where
   id : Nat
   client : TCP.Socket.Client
   addr : ByteArray
-  cid : Option Id := none
   heard : Nat
 
 structure RunState where
+  db : Db
   node : Node
   socks : List Sock := []
   next : Nat := 0
@@ -70,7 +70,7 @@ structure RunState where
 
 structure RunConfig where
   tickMs : Nat := 200
-  bareIdle : Nat := 600000
+  idle : Nat := 600000
 
 /-- Read frames from a socket into the channel until it closes. -/
 def reader (ch : Std.Channel Event) (sid : Nat) (c : TCP.Socket.Client) : IO Unit := do
@@ -123,7 +123,7 @@ def sendOn (c : TCP.Socket.Client) (payload : ByteArray) : IO Bool := do
   | .error _ => return false
 
 section
-variable {F : Type} [Codec F] [SortKey F] (x : Sync F) (ch : Std.Channel Event)
+variable {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (ch : Std.Channel Event)
   (notify : List Id → IO Unit)
 
 def RunState.sockOf (st : RunState) (p : Sock → Bool) : Option Sock := st.socks.find? p
@@ -137,35 +137,29 @@ def RunState.addSock (st : RunState) (c : TCP.Socket.Client) (addr : ByteArray) 
   let _ ← IO.asTask (prio := .dedicated) (reader ch sid c)
   return ({ st with socks := { id := sid, client := c, addr, heard := now } :: st.socks, next := sid + 1 }, sid)
 
-/-- Carry out what the node asked for. -/
+/-- Carry out what the node asked for: send each payload to its
+address, dialing if no socket has it. -/
 def RunState.apply (st : RunState) (e : Effects) : IO RunState := do
   let mut st := st
-  for (cid, addr) in e.bind do
-    st := { st with socks := st.socks.map fun s =>
-      if s.addr == addr && s.cid.isNone then { s with cid := some cid } else s }
-  for (r, b) in e.send do
-    match r with
-    | .conn cid =>
-      if let some s := st.sockOf (fun s => s.cid == some cid) then
-        unless ← sendOn s.client b do st := st.drop s.id
-    | .bare addr =>
-      match st.sockOf (fun s => s.addr == addr) with
-      | some s => unless ← sendOn s.client b do st := st.drop s.id
+  for (addr, b) in e.send do
+    match st.sockOf (fun s => s.addr == addr) with
+    | some s => unless ← sendOn s.client b do st := st.drop s.id
+    | none =>
+      match st.pending.find? (·.1 == addr) with
+      | some _ =>
+        st := { st with pending := st.pending.map fun (a, fs) => if a == addr then (a, fs ++ [b]) else (a, fs) }
       | none =>
-        match st.pending.find? (·.1 == addr) with
-        | some _ =>
-          st := { st with pending := st.pending.map fun (a, fs) => if a == addr then (a, fs ++ [b]) else (a, fs) }
-        | none =>
-          st := { st with pending := (addr, [b]) :: st.pending }
-          let _ ← IO.asTask (prio := .dedicated) (dialOut ch addr)
-  for cid in e.drop do
-    if let some s := st.sockOf (fun s => s.cid == some cid) then
-      discard <| s.client.shutdown.block.toBaseIO
-      st := st.drop s.id
+        st := { st with pending := (addr, [b]) :: st.pending }
+        let _ ← IO.asTask (prio := .dedicated) (dialOut ch addr)
   unless e.stored.isEmpty do notify e.stored
   return st
 
-/-- Handle one event; false to stop. -/
+/-- Run a node step on the store. -/
+def RunState.node? (st : RunState) (f : Node → SqlM F (Node × Effects)) : IO (RunState × Effects) := do
+  let (n, e) ← (f st.node).run st.db
+  return ({ st with node := n }, e)
+
+/-- Handle one event; none to stop. -/
 def RunState.handle (st : RunState) (ev : Event) (now : Nat) : IO (Option RunState) := do
   match ev with
   | .stop => return none
@@ -174,18 +168,9 @@ def RunState.handle (st : RunState) (ev : Event) (now : Nat) : IO (Option RunSta
     | none => return some st
     | some s =>
       let st := { st with socks := st.socks.map fun (s' : Sock) => if s'.id == sid then { s' with heard := now } else s' }
-      let (n, e) ← match s.cid with
-        | some cid => st.node.onBytes x cid p now
-        | none => st.node.onBare x s.addr p now
-      some <$> ({ st with node := n }).apply ch notify e
-  | .closed sid =>
-    match st.sockOf (·.id == sid) with
-    | none => return some st
-    | some s =>
-      let st := st.drop sid
-      return some (match s.cid with
-        | some cid => { st with node := st.node.drop cid }
-        | none => st)
+      let (st, e) ← st.node? fun n => n.onFrame x s.addr p now
+      some <$> st.apply ch notify e
+  | .closed sid => return some (st.drop sid)
   | .accepted c peer => return some (← st.addSock ch c peer now).1
   | .dialed addr none => return some { st with pending := st.pending.filter (·.1 != addr) }
   | .dialed addr (some c) =>
@@ -197,8 +182,8 @@ def RunState.handle (st : RunState) (ev : Event) (now : Nat) : IO (Option RunSta
         unless ← sendOn s.client b do st := st.drop sid
     return some st
   | .write ops =>
-    let (n, e) ← st.node.onWrite x ops now
-    some <$> ({ st with node := n }).apply ch notify e
+    let (st, e) ← st.node? fun n => n.onWrite x ops now
+    some <$> st.apply ch notify e
 
 /-- The loop: events as they come, the clock every `tickMs`. -/
 def runLoop (cfg : RunConfig) (st : RunState) : IO Unit := do
@@ -214,10 +199,10 @@ def runLoop (cfg : RunConfig) (st : RunState) : IO Unit := do
       | none => return
     | none => pure ()
     if now ≥ st.lastTick + cfg.tickMs then
-      let (n, e) ← st.node.onTick x now
-      st ← ({ st with node := n, lastTick := now }).apply ch notify e
+      let (st', e) ← ({ st with lastTick := now }).node? fun n => n.onTick x now
+      st ← st'.apply ch notify e
       for s in st.socks do
-        if s.cid.isNone && s.heard + cfg.bareIdle < now then
+        if s.heard + cfg.idle < now then
           discard <| s.client.shutdown.block.toBaseIO
           st := st.drop s.id
     unless busy do IO.sleep 5
@@ -230,9 +215,12 @@ structure Runner where
   port : UInt16
   done : Task (Except IO.Error Unit)
 
-/-- Listen on `port` (0: any) and run the node. -/
-def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F) (node : Node) (port : UInt16)
-    (notify : List Id → IO Unit := fun _ => pure ()) (cfg : RunConfig := {}) : IO Runner := do
+/-- Listen on `port` (0: any) and run a node on this store, keeping
+what is from `floor` on (0: everything). -/
+def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (db : Db) (floor : Nat)
+    (port : UInt16) (notify : List Id → IO Unit := fun _ => pure ()) (cfg : RunConfig := {}) :
+    IO Runner := do
+  let node := Node.boot x.fam (← (dumpOps (F := F)).run db) floor
   let ch ← Std.Channel.new
   let srv ← TCP.Socket.Server.mk
   srv.bind (.v4 ⟨IPv4Addr.ofParts 0 0 0 0, port⟩)
@@ -241,7 +229,7 @@ def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F) (node : Node) (po
     | .v4 a => a.port
     | .v6 a => a.port
   let _ ← IO.asTask (prio := .dedicated) (acceptor ch srv)
-  let done ← IO.asTask (prio := .dedicated) (runLoop x ch notify cfg { node })
+  let done ← IO.asTask (prio := .dedicated) (runLoop x ch notify cfg { db, node })
   return { events := ch, port := bound, done }
 
 /-- The app's own writes. -/
