@@ -21,6 +21,7 @@
 #define TAG "LeanQR"
 
 lean_object* initialize_qr_Qr(uint8_t builtin);
+lean_object* initialize_qr_Pic(uint8_t builtin);
 // declared by Lean's generated C, not by lean.h
 void lean_initialize_runtime_module(void);
 // runtime/thread.h (not in lean.h): a thread Lean did not start registers
@@ -41,28 +42,37 @@ static void thread_done(void* v) {
 static void start_lean(void) {
   lean_initialize_runtime_module();
   lean_object* r = initialize_qr_Qr(1);
-  if (lean_io_result_is_ok(r)) {
+  lean_object* p = initialize_qr_Pic(1);
+  if (lean_io_result_is_ok(r) && lean_io_result_is_ok(p)) {
     ready = 1;
   } else {
     __android_log_print(ANDROID_LOG_ERROR, TAG, "Lean's module initialization failed");
   }
   lean_dec_ref(r);
+  lean_dec_ref(p);
   lean_io_mark_end_initialization();
   pthread_key_create(&key, thread_done);
   // the starting thread is Lean's already
   pthread_setspecific(key, (void*)2);
 }
 
-JNIEXPORT jobjectArray JNICALL
-Java_com_holmes_leanqr_ScanActivity_decode(JNIEnv* env, jclass cls, jobject buf, jint w, jint h,
-                                            jint stride) {
-  (void)cls;
+// Lean started, and this thread registered with it: what every JNI entry
+// point (here and in pic_jni.c) calls first.
+int lean_harness_ready(void) {
   pthread_once(&once, start_lean);
-  if (!ready) return NULL;
+  if (!ready) return 0;
   if (pthread_getspecific(key) == NULL) {
     lean_initialize_thread();
     pthread_setspecific(key, (void*)1);
   }
+  return 1;
+}
+
+JNIEXPORT jobjectArray JNICALL
+Java_com_holmes_leanqr_ScanActivity_decode(JNIEnv* env, jclass cls, jobject buf, jint w, jint h,
+                                            jint stride) {
+  (void)cls;
+  if (!lean_harness_ready()) return NULL;
   const uint8_t* y = (*env)->GetDirectBufferAddress(env, buf);
   jlong cap = (*env)->GetDirectBufferCapacity(env, buf);
   if (y == NULL || cap <= 0 || w <= 0 || h <= 0 || stride <= 0) return NULL;

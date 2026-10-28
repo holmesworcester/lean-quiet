@@ -10,11 +10,14 @@ tools/.
   qr_tool matrix ECC VERSION MASK PAYLOAD_FILE
       the module matrix at exactly that version and mask, one character a
       module ('#' dark, '.' light)
+  qr_tool qoi-encode RAW W H OUT.qoi / qoi-decode IN.qoi OUT.raw
+      Lean's QOI codec on raw RGBA files (for the Pillow cross-check)
   qr_tool ascii FILE
       decode a module matrix drawn with '#' (dark) and ' ' or '.' (light),
       two characters a module as qrencode -t ASCII prints it: "ok HEX" or "none"
 -/
 import Qr
+import Pic
 import Tests.Pgm
 
 open Qr
@@ -89,6 +92,16 @@ def main (args : List String) : IO UInt32 := do
         IO.println (String.ofList ((List.range s.size).map fun x => if s.grid.get x y then '#' else '.'))
       return 0
     | none => IO.println "too long"; return 1
+  | ["qoi-encode", raw, w, h, out] =>
+    -- raw RGBA (4 bytes a pixel) to QOI with Lean's encoder
+    let px ← IO.FS.readBinFile raw
+    IO.FS.writeBinFile out (Pic.encode { w := w.toNat!, h := h.toNat!, px })
+    return 0
+  | ["qoi-decode", qoi, out] =>
+    -- QOI to raw RGBA with Lean's decoder; prints "w h" or "none"
+    match Pic.decode (← IO.FS.readBinFile qoi) with
+    | some p => IO.FS.writeBinFile out p.px; IO.println s!"{p.w} {p.h}"; return 0
+    | none => IO.println "none"; return 1
   | ["ascii", file] =>
     let s ← IO.FS.readFile file
     let rows := (s.splitOn "\n").filter (· ≠ "")

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Cross-checks with independent implementations (tools/xcheck/xcheck.py):
 # qrencode -> Lean, Lean -> zbarimg, segno -> Lean, Lean == qrencode and
-# qrcodegen module for module. Tools come from PATH (and Python's path),
+# qrcodegen module for module; and QOI against Pillow (tools/xcheck/qoi.py). Tools come from PATH (and Python's path),
 # else from out/xtools, which tools/xcheck/fetch.sh fills without root; a
 # tool still missing is skipped and said so.
 set -euo pipefail
@@ -25,3 +25,5 @@ for m in segno qrcodegen; do
   d=$(pydir $m); [ -n "$d" ] && args+=(--$m "$d") || echo "SKIP $m: not installed"
 done
 python3 tools/xcheck/xcheck.py .lake/build/bin/qr_tool out/xcheck "${args[@]}"
+# QOI, the composer's storage format, against Pillow's codec
+python3 tools/xcheck/qoi.py .lake/build/bin/qr_tool out/xcheck/qoi

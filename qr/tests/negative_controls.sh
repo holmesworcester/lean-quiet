@@ -15,16 +15,21 @@ manifest=$root/out/camera/manifest.tsv
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/qr-nc.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 
+# One snapshot of the tree, taken now: every mutant starts from it, so an
+# edit made to the tree while this runs cannot leak into the mutants.
+mkdir -p "$tmp/base"
+cp -r Qr Qr.lean Pic Pic.lean Tests tests lakefile.toml lake-manifest.json lean-toolchain "$tmp/base/"
+# the built tree, so that only what a mutant touches is rebuilt
+[ -d .lake ] && cp -a .lake "$tmp/base/"
+
 copy() {
-  rm -rf -- "$tmp/w"; mkdir -p "$tmp/w"
-  cp -r Qr Qr.lean Tests tests lakefile.toml lake-manifest.json lean-toolchain "$tmp/w/"
-  # the built tree, so that only what the mutant touches is rebuilt
-  [ -d .lake ] && cp -a .lake "$tmp/w/"
+  rm -rf -- "$tmp/w"
+  cp -a "$tmp/base" "$tmp/w"
 }
 
 # the copy itself must build and pass, or every mutant would look killed
 copy
-(cd "$tmp/w" && lake build Qr qr_check >/dev/null 2>&1 && .lake/build/bin/qr_check "$manifest" >/dev/null 2>&1) ||
+(cd "$tmp/w" && lake build Qr Pic qr_check >/dev/null 2>&1 && .lake/build/bin/qr_check "$manifest" >/dev/null 2>&1) ||
   { echo "FAIL: the unmutated copy does not build and pass"; exit 1; }
 
 mutant() {  # what file old new
@@ -37,7 +42,7 @@ s = open(p).read()
 assert s.count(old) == 1, f"mutant target not found once: {old!r}"
 open(p, 'w').write(s.replace(old, new))
 PY
-  if ! (cd "$tmp/w" && lake build Qr >"$tmp/build.log" 2>&1); then
+  if ! (cd "$tmp/w" && lake build Qr Pic >"$tmp/build.log" 2>&1); then
     # a proof (or termination) must be what failed, not the code itself
     if python3 - "$tmp/w" "$tmp/build.log" <<'PY2'
 import re, sys
@@ -104,4 +109,18 @@ mutant "no alignment patterns" Qr/Decode.lean "  if ps.length == 0 then return t
   let mut src" "  if true then return t0
   let e := n.toFloat - 3.5
   let mut src"
+# the composer's pictures
+mutant "fit rounds down instead of to the nearest pixel" Pic/Fit.lean "max 1 ((2 * (w * edge) + l) / (2 * l))" "max 1 ((2 * (w * edge)) / (2 * l))"
+mutant "fit never shrinks the shorter side" Pic/Fit.lean "max 1 ((2 * (h * edge) + l) / (2 * l)))" "h)"
+mutant "thumbnails placed without the gap" Pic/Tray.lean "place g (x + f.1 + g.gap) rest" "place g (x + f.1) rest"
+mutant "thumbnails not centred, hanging below the box" Pic/Tray.lean "y := g.pad + (g.box - f.2) / 2" "y := g.pad + g.box - f.2 / 2"
+mutant "the tray copies the pictures' alpha (holes in the tray)" Pic/Tray.lean "  if c = 3 then 255
+  else" "  if false then 255
+  else"
+mutant "the composer stores without checking the size" Pic/Composer.lean "else if fit ow oh attachEdge != (w, h) then" "else if false then"
+mutant "QOI differences biased by 1, not 2" Pic/Qoi.lean "pure (⟨p.r + ((b1 >>> 4) &&& 3) - 2, p.g + ((b1 >>> 2) &&& 3) - 2, p.b + (b1 &&& 3) - 2, p.a⟩," "pure (⟨p.r + ((b1 >>> 4) &&& 3) - 1, p.g + ((b1 >>> 2) &&& 3) - 2, p.b + (b1 &&& 3) - 2, p.a⟩,"
+mutant "QOI decodes 3 bytes a pixel" Pic/Qoi.lean "pixels b n s' (acc.push p.r |>.push p.g |>.push p.b |>.push p.a)" "pixels b n s' (acc.push p.r |>.push p.g |>.push p.b)"
+mutant "QOI sides over 2048 accepted" Pic/Qoi.lean "w > maxSide || h > maxSide ||" "h > maxSide ||"
+mutant "QOI runs of 63" Pic/Qoi.lean "if s.run == 62 then s.flush else s" "if s.run == 63 then s.flush else s"
+mutant "QOI index without alpha in its hash" Pic/Qoi.lean "p.b.toNat * 7 + p.a.toNat * 11) % 64" "p.b.toNat * 7) % 64"
 echo "negative controls: all killed"

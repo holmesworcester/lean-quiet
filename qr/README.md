@@ -3,7 +3,10 @@
 QR codes in Lean 4 with no dependencies: an encoder (bytes to a symbol and
 a bitmap), a decoder for camera frames (grayscale pixels to bytes), laws
 proven on the decoder's own functions, and a minimal Android camera
-harness whose frames are decoded by Lean.
+harness whose frames are decoded by Lean. The harness also has the
+composer's image tools (Pic, below): the system Photo Picker and the
+system camera hand pictures to Lean, which stores them as QOI and draws
+their thumbnails.
 
 For a Lean Quiet: the inviter shows the invite link as a QR code (the
 encoder); the joiner points the phone at it, a small native tool hands
@@ -163,7 +166,11 @@ Lean's runtime and nothing else.
 - builds the library (which checks the proofs), prints the laws' axioms
   and fails on anything beyond the standard three, and scans for escape
   hatches;
-- runs `qr_check` (Tests/Check.lean), 40,220 checks:
+- runs `qr_check` (Tests/Check.lean), 45,092 checks:
+  - pictures (Pic): QOI round trips, Pillow-made QOI blobs
+    (tests/fixtures/qoi), every truncation and 2,000 mutations of a blob,
+    hostile headers, sizes, the tray's layout and the composer's
+    refusals: 4,872
   - qrencode's matrices for every version 1–40 (tests/fixtures, frozen),
     decoded as matrices and as frames: 80
   - data streams: 3,000 random segment lists of every mode round trip,
@@ -197,6 +204,8 @@ Lean's runtime and nothing else.
   8–28, lighting gradients down to 15% brightness, contrast 25–40%, a
   dark square over 4% (M), 9% (Q) and 16% (H) of the symbol, mirror
   images; then 16 random combinations per level.
+- QOI against Pillow (tools/xcheck/qoi.py): 7 pictures each way, 14 of 14
+  agree;
 - the cross-checks (tests/xcheck.sh, tools/xcheck), versions 1–40 in 20
   steps × L M Q H × invite/mixed text/binary:
   - qrencode → Lean: 240 of 240 decode from pixels and 240 of 240 from
@@ -215,9 +224,10 @@ Lean's runtime and nothing else.
   -x; their libraries were installed), segno and qrcodegen from PyPI into
   out/xtools (tools/xcheck/fetch.sh). A tool that cannot be found is
   skipped and said so.
-- the negative controls (tests/negative_controls.sh): 23 mutants, each
-  built in a scratch copy, all killed. Eleven are refused by the proofs or
-  by Lean's termination check (bits written least significant first, digit
+- the negative controls (tests/negative_controls.sh): 34 mutants, each
+  built from one snapshot of the tree, all killed: 19 by the proofs, 15 by
+  the checks. For the QR codec, eleven are refused by the proofs or by
+  Lean's termination check (bits written least significant first, digit
   groups up to 1023, alphanumeric pairs up to 2047, a byte read off by
   one, unchecked 21-bit ECI numbers, a parser that recurses without
   consuming, no terminator, format or version readings 4 bits off,
@@ -227,8 +237,13 @@ Lean's runtime and nothing else.
   pattern, the zigzag direction, a 9-bit byte count, version 32's
   alignment step, deinterleaving order, the finder triangle's orientation,
   sampling at module corners, a global threshold only, no alignment
-  patterns). A mutant that does not compile at all, rather than failing a
-  proof, fails the run, and the unmutated copy must pass first.
+  patterns). For the pictures: fit rounding down, fit not shrinking the
+  shorter side, thumbnails without the gap, thumbnails hanging below the
+  box, the tray copying alpha, the composer skipping the size check, QOI
+  decoding 3 bytes a pixel or accepting sides over 2048 (the proofs);
+  QOI's difference bias, runs of 63 and a hash without alpha (the checks).
+  A mutant that does not compile at all, rather than failing a proof,
+  fails the run, and the unmutated copy must pass first.
 
 `mise run android:e2e` is the camera harness on its own emulator (below).
 
@@ -275,6 +290,86 @@ PASS: Lean decoded the invite from the emulator's camera
 The screenshot (out/e2e/screen.png) shows the poster behind the table and
 Lean's text over the preview.
 
+## The composer's image tools (Pic/, android/app/.../Pics.java)
+
+The platform's own pickers, with as little native code as they allow, as
+libquiet does it (app/src-tauri/src/source/pick.rs, Picker.kt):
+
+- **Photos**: the system Photo Picker (`MediaStore.ACTION_PICK_IMAGES`,
+  images, multi-select up to `getPickImagesMaxLimit()`), no in-app gallery.
+- **Camera**: the system camera (`ACTION_IMAGE_CAPTURE`, `EXTRA_OUTPUT`
+  into a file in the app's cache, lent through a 20-line `ContentProvider`
+  of the app's own, since FileProvider is androidx); the file is deleted
+  and its grant revoked once read, and leftovers are cleared at start. The
+  QR scanner keeps its own Camera2 preview, which needs live frames.
+- **Native side** (Pics.java, jni/pic_jni.c): decode with the platform's
+  `ImageDecoder` (it applies EXIF orientation and samples while decoding;
+  libquiet's Picker.kt uses it too), at the size Lean's `fit` gives
+  (`lean_pic_fit`: the longer side at most 2048), unpremultiplied, and hand
+  the RGBA to Lean. It shows the tray Lean draws, as it is.
+- **Lean** (Pic/): checks the picture (exactly `w × h` RGBA, and exactly
+  `fit` of the original's size), encodes it as QOI for storage (lean-quiet
+  stores pictures as QOI), decodes the stored QOI back and refuses it
+  unless it is the same pixels, draws its thumbnail from that copy, lays
+  out and paints the tray, and describes the picture ("2 · 400×600 (from
+  400×600) · QOI 6 KB").
+
+```lean
+import Pic
+open Pic
+encode : Rgba → ByteArray                      -- QOI, 4 channels
+decode : ByteArray → Option Rgba               -- untrusted bytes; sides 1..2048
+fit    : Nat → Nat → Nat → Nat × Nat           -- w h edge
+add    : Composer → (ow oh w h : Nat) → ByteArray → Composer × String
+layout : Geom → List (Nat × Nat) → List Slot × Nat
+render : Geom → List Rgba → Rgba               -- the tray, opaque RGBA
+-- exports for JNI: lean_pic_fit, lean_pic_empty, lean_pic_add, lean_pic_tray, lean_pic_blob, lean_pic_count
+```
+
+Laws (Pic/Laws.lean, on the running code, standard axioms only):
+`fit_small`, `fit_le`, `fit_pos`, `fit_long`, `fit_round` (the size rule:
+kept if it fits, else the longer side exactly the edge and the other the
+nearest pixel, never 0); `layout_sizes`, `layout_inside`, `layout_apart`
+(every thumbnail is its picture fitted into the box, inside the tray, and
+any two at least the gap apart, so none overlap); `render_wellFormed`,
+`render_opaque` (every tray pixel has alpha 255); `scale_wellFormed`;
+`decode_sized` (whatever bytes QOI's decoder is given, a picture it
+returns has sides of 1 to 2048 and exactly their pixels' bytes);
+`add_stored` (an accepted picture is exactly `fit` of its original, well
+formed, and its stored QOI decodes to exactly its pixels).
+
+`render_opaque` is a UI fix made by proof: the first tray copied each
+picture's alpha, so a transparent PNG left a hole showing what was under
+the tray. The property was stated as a theorem about `render`; it is false
+for that code (a negative control keeps the old line and the proof refuses
+it), and `render` now blends a picture over the tray's ground, for which
+the proof goes through.
+
+QOI itself is tested, not proven: `decode (encode p) = p` on 129 pictures
+covering every op (runs at 62, 63 and 200, differences, luma, index hits,
+alpha changes, 2048-pixel rows and columns), Pillow's QOI decoding in Lean
+and Lean's in Pillow (Lean's blobs came out the same size as Pillow's for
+every picture tried), every truncation and 2,000 mutations of a
+blob (none, or a well-formed picture of the header's size). `add_stored`
+does not depend on that: the composer checks the round trip before it
+keeps a picture.
+
+`mise run android:e2e` covers the tools after the scanner (android/test/
+pics.py): three pictures are pushed into the emulator's MediaStore (a
+4000×3000 JPEG in quadrants, a 600×400 JPEG whose EXIF says "rotate 90°",
+a 300×300 PNG with alpha), picked together in the system Photo Picker, and
+a photo is taken with the system camera. Every stored QOI is pulled from
+the app and checked with Pillow. On qr-harness-20261027 Lean stored
+2048×1536 (quadrants intact), 400×600 (the red block at the top-right:
+turned upright), 300×300 (alpha 200 kept exactly, unpremultiplied) and the
+camera's 960×1280 photo (EXIF-rotated by the camera app); when the virtual
+camera was still at the poster, Lean also decoded the invite from that
+stored photo (reported, not required: the emulator can reset the virtual
+camera's pose when the system camera opens). Screenshot: out/e2e/pics.png.
+The Photo Picker syncs its own copy of the MediaStore, so pictures pushed
+a moment ago may not be in it yet: the test closes and reopens it until
+they are.
+
 ## Limits
 
 - Segment modes: numeric, alphanumeric, byte and ECI (passed through).
@@ -307,6 +402,11 @@ Lean's text over the preview.
   geometry included) are tested, not proven. That decoding small changes
   to the format XOR constant would go unnoticed shows the other side of
   BCH correction: the negative control uses a constant 6 bits off.
+- Image tools: QOI's round trip is tested, not proven (the composer
+  checks it at run time instead); the Photo Picker path is Android 13+
+  (or a Photo Picker backport), with no ACTION_OPEN_DOCUMENT fallback; an
+  animated image is decoded to its first frame (libquiet refuses those);
+  only the emulator was tested.
 - The e2e needs python3.13 with grpcio and grpcio-tools for the scene
   camera; the emulator smooths the camera's velocity, so its final pose
   (and how much the table hides) varies a little between runs.

@@ -23,7 +23,9 @@ import android.util.Size;
 import android.view.Gravity;
 import android.view.Surface;
 import android.view.TextureView;
+import android.content.Intent;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -54,6 +56,7 @@ public class ScanActivity extends Activity {
   private long frames;
   private long busyMs;
   private String last;
+  private Pics pics;
 
   @Override protected void onCreate(Bundle saved) {
     super.onCreate(saved);
@@ -62,14 +65,23 @@ public class ScanActivity extends Activity {
     root.addView(preview);
     text = new TextView(this);
     text.setTextColor(Color.WHITE);
-    text.setBackgroundColor(0xAA000000);
     text.setTextSize(16);
     text.setPadding(32, 32, 32, 32);
     text.setText("Point the camera at a QR code");
+    // the bottom: the composer's image tools (Pics), then the scanner's text
+    LinearLayout bottom = new LinearLayout(this);
+    bottom.setOrientation(LinearLayout.VERTICAL);
+    bottom.setBackgroundColor(0xAA000000);
+    pics = new Pics(this, bottom);
+    bottom.addView(text);
     FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
         FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
-    root.addView(text, lp);
+    root.addView(bottom, lp);
     setContentView(root);
+  }
+
+  @Override protected void onActivityResult(int req, int res, Intent data) {
+    if (!pics.onResult(req, res, data)) super.onActivityResult(req, res, data);
   }
 
   @Override protected void onResume() {
@@ -90,10 +102,15 @@ public class ScanActivity extends Activity {
   }
 
   @Override protected void onPause() {
-    if (camera != null) camera.close();
-    camera = null;
-    if (reader != null) reader.close();
-    reader = null;
+    // Closed on the frames' own thread, between frames: closing the reader
+    // from here while a frame is being handed to Lean closed that frame
+    // under it ("Image is already closed").
+    handler.post(() -> {
+      if (camera != null) camera.close();
+      camera = null;
+      if (reader != null) reader.close();
+      reader = null;
+    });
     thread.quitSafely();
     super.onPause();
   }

@@ -16,6 +16,6 @@ description = "The camera harness APK (x86_64 for the emulator, arm64-v8a for ph
 run = "[ -f out/leanrt/x86_64/libInit.a ] || mise run android:runtime; \"$ELAN_HOME/bin/lake\" build qr_tool && android/app/build_apk.sh out/leanqr.apk x86_64 arm64-v8a"
 
 [tasks."android:e2e"]
-description = "On the harness's own emulator AVD (created if missing): Lean decodes the invite from the virtual-scene camera; logcat and a screenshot in out/e2e"
+description = "On the harness's own emulator AVD (created if missing): Lean decodes the invite from the virtual-scene camera, then pictures from the system Photo Picker and the system camera reach Lean and are stored as QOI; logcat, screenshots and the stored pictures in out/e2e"
 depends = ["android:apk"]
 run = "android/test/e2e.sh out/leanqr.apk out/e2e"

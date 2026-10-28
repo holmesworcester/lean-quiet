@@ -9,18 +9,18 @@ cd "$(dirname "$0")/.."
 export ELAN_HOME="${ELAN_HOME:-/mnt/storage/elan}"
 export PATH="$ELAN_HOME/bin:$PATH"
 
-lake build Qr qr_check qr_tool 2>&1 | grep -E "error|✖" && exit 1
+lake build Qr Pic qr_check qr_tool 2>&1 | grep -E "error|✖" && exit 1
 
 ax=$(lake env lean tests/axioms.lean)
 echo "$ax"
 std='(propext|Classical.choice|Quot.sound)'
-n=$(echo "$ax" | grep -cE "depends on axioms: \[$std(, $std)*\]$" || true)
+n=$(echo "$ax" | grep -cE "depends on axioms: \[$std(, $std)*\]$|does not depend on any axioms$" || true)
 [ "$n" = "$(grep -c '^#print axioms' tests/axioms.lean)" ] ||
   { echo "FAIL: a law depends on more than the standard axioms"; exit 1; }
 
 # No sorry, partial, unsafe, panic, unchecked indexing, unbounded loops or
 # trusted-compiler proofs anywhere in the library.
-python3 - Qr/*.lean <<'PY'
+python3 - Qr/*.lean Pic/*.lean <<'PY'
 import re, sys
 bad = re.compile(r'\bsorry\b|\bpartial\b|\bunsafe\b|panic|unreachable|\]!|\w!(?![="])|'
                  r'\bwhile\b|\brepeat\b|native_decide|\+native|bv_decide|implemented_by|@\[extern')
@@ -33,7 +33,7 @@ for p in sys.argv[1:]:
         print(f"{p}: forbidden {m.group(0)!r}"); hit = True
 sys.exit(1 if hit else 0)
 PY
-echo "scan: no sorry, partial, unsafe, panic, !-indexing, while/repeat, native_decide in Qr/"
+echo "scan: no sorry, partial, unsafe, panic, !-indexing, while/repeat, native_decide in Qr/ and Pic/"
 
 tests/camera.sh
 .lake/build/bin/qr_check out/camera/manifest.tsv

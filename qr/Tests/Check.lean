@@ -19,6 +19,7 @@ builds; this runs the code).
   nothing, never to a wrong one
 -/
 import Qr
+import Pic
 import Tests.Pgm
 
 open Qr
@@ -392,10 +393,106 @@ def fixtures (t : Tally) : IO Tally := do
     t := t.check ((decodeImage img.rot90).map (hex ·.payload) == some want) s!"qrencode frame {path}"
   return t
 
+/-! ## Pictures (Pic) -/
+
+def picOf (w h : Nat) (f : Nat → Nat → Nat × Nat × Nat × Nat) : Pic.Rgba := Id.run do
+  let mut px := ByteArray.emptyWithCapacity (4 * w * h)
+  for y in [0:h] do
+    for x in [0:w] do
+      let (r, g, b, a) := f x y
+      px := px.push r.toUInt8 |>.push g.toUInt8 |>.push b.toUInt8 |>.push a.toUInt8
+  return { w, h, px }
+
+def samePic (a : Option Pic.Rgba) (b : Pic.Rgba) : Bool :=
+  match a with
+  | some a => a.w == b.w && a.h == b.h && a.px.data == b.px.data
+  | none => false
+
+/-- QOI round trips over every op kind and size edge, a hostile decoder
+suite, sizes, the tray and the composer's refusals. -/
+def pictures (t : Tally) : Tally := Id.run do
+  let mut t := t
+  let mut r : Rng := ⟨0xbeef⟩
+  let mut pics : Array (String × Pic.Rgba) := #[
+    ("1x1", picOf 1 1 fun _ _ => (1, 2, 3, 4)),
+    ("run 62", picOf 62 1 fun _ _ => (0, 0, 0, 255)),
+    ("run 63", picOf 63 1 fun _ _ => (9, 9, 9, 255)),
+    ("run 200", picOf 200 1 fun _ _ => (0, 0, 0, 255)),
+    ("diffs", picOf 64 64 fun x y => ((x + y) % 256, (x * 2 + 255) % 256, (y + 1) % 256, 255)),
+    ("lumas", picOf 64 64 fun x y => ((x * 9) % 256, (x * 7 + y * 3) % 256, (x * 5) % 256, 255)),
+    ("alpha", picOf 33 17 fun x y => (x * 7 % 256, y * 13 % 256, (x + y) % 256, (x * y) % 256)),
+    ("wide 2048", picOf 2048 2 fun x _ => (x % 256, x / 8 % 256, 0, 255)),
+    ("tall 2048", picOf 1 2048 fun _ y => (y % 256, 0, y / 8 % 256, 255))]
+  for i in [0:120] do
+    let (w, r1) := r.below 90; let (h, r2) := r1.below 90; let (kind, r3) := r2.below 3
+    let (seed, r4) := r3.next; r := r4
+    let pal : Array (Nat × Nat × Nat × Nat) := #[(1, 2, 3, 255), (200, 10, 30, 255), (1, 2, 3, 128), (0, 0, 0, 0)]
+    let p := picOf (w + 1) (h + 1) fun x y =>
+      let z := (x * 7919 + y * 104729 + seed.toNat) % 1000003
+      match kind with
+      | 0 => (z % 256, z / 256 % 256, z / 65536 % 256, z / 7 % 256)
+      | 1 => pal.getD (z % 4) (0, 0, 0, 0)
+      | _ => ((x + z % 3) % 256, (y + z % 2) % 256, (x + y) % 256, 255)
+    pics := pics.push (s!"random {i}", p)
+  for (name, p) in pics do
+    t := t.check (samePic (Pic.decode (Pic.encode p)) p) s!"qoi round trip {name}"
+  -- hostile blobs: every truncation of one, bad headers, and mutations
+  let good := Pic.encode (pics.getD 6 ("", picOf 1 1 fun _ _ => (0, 0, 0, 0))).2
+  for k in [0:good.size - 8] do
+    t := t.check (Pic.decode (good.extract 0 k)).isNone s!"qoi truncated at {k}"
+  let hdr (w h ch : Nat) : ByteArray :=
+    Pic.be32 (Pic.be32 "qoif".toUTF8 w) h |>.push ch.toUInt8 |>.push 0
+  for (w, h, ch) in [(0, 5, 4), (5, 0, 4), (2049, 1, 4), (1, 2049, 4), (3, 3, 5), (3, 3, 2)] do
+    t := t.check (Pic.decode (hdr w h ch ++ ⟨Array.replicate 100 0⟩)).isNone s!"qoi header {w} {h} {ch}"
+  t := t.check (Pic.decode ("qoig".toUTF8 ++ good.extract 4 good.size)).isNone "qoi magic"
+  for _ in [0:2000] do
+    let (k, r1) := r.below good.size; let (v, r2) := r1.below 256; r := r2
+    let m := Pic.put8 good k v.toUInt8
+    match Pic.decode m with
+    | some p => t := t.check (p.wellFormed && p.w == 33 && p.h == 17) "mutated qoi decoded ill-formed"
+    | none => t := t.check true ""
+  -- sizes
+  for ((w, h), want) in [((4000, 3000), (2048, 1536)), ((3000, 4000), (1536, 2048)), ((4032, 3024), (2048, 1536)),
+      ((100, 5000), (41, 2048)), ((1, 5000), (1, 2048)), ((2048, 2048), (2048, 2048)), ((640, 480), (640, 480))] do
+    t := t.check (Pic.fit w h 2048 == want) s!"fit {w}x{h}"
+  -- the tray
+  let g := Pic.trayGeom 240
+  let (slots, width) := Pic.layout g [(2048, 1536), (400, 600), (300, 300), (960, 1280)]
+  t := t.check (slots.map (fun s => (s.x, s.y, s.w, s.h)) ==
+    [(20, 20, 200, 150), (240, 20, 133, 200), (393, 20, 200, 200), (613, 20, 150, 200)].map
+      fun (x, _, w, h) => (x, 20 + (200 - h) / 2, w, h)) "tray layout"
+  let tray := Pic.render g [picOf 30 20 fun _ _ => (255, 0, 0, 255), picOf 10 40 fun _ _ => (0, 0, 255, 255)]
+  t := t.check (tray.wellFormed && tray.h == 240) "tray size"
+  -- the composer
+  let ok := picOf 300 200 fun x y => (x % 256, y % 256, 7, 255)
+  let (c, msg) := Pic.add #[] 300 200 300 200 ok.px
+  t := t.check (c.size == 1 && msg.startsWith "1 · 300×200 (from 300×200) · QOI ") s!"composer add: {msg}"
+  let (c2, _) := Pic.add c 600 400 300 200 ok.px
+  t := t.check (c2.size == 1) "composer takes a size fit did not give"
+  let (c3, _) := Pic.add c 300 200 300 201 ok.px
+  t := t.check (c3.size == 1) "composer takes too few bytes"
+  let (c4, m4) := Pic.add c 4000 3000 2048 1536 (picOf 2048 1536 fun x y => (x % 256, y % 256, (x ^^^ y) % 256, 255)).px
+  t := t.check (c4.size == 2 && ((c4[1]?.map (·.qoi)).bind Pic.decode).isSome) s!"composer 2048: {m4}"
+  return t
+
+/-- QOI blobs Pillow made (tests/fixtures/qoi) decode to their RGBA. -/
+def qoiFixtures (t : Tally) : IO Tally := do
+  let mut t := t
+  for (name, w, h) in [("noise-alpha", 40, 30), ("palette", 48, 32), ("gradient", 64, 16)] do
+    let blob ← IO.FS.readBinFile s!"tests/fixtures/qoi/{name}.qoi"
+    let raw ← IO.FS.readBinFile s!"tests/fixtures/qoi/{name}.rgba"
+    t := t.check (samePic (Pic.decode blob) { w, h, px := raw }) s!"Pillow's QOI {name}"
+    t := t.check (samePic (Pic.decode (Pic.encode { w, h, px := raw })) { w, h, px := raw }) s!"QOI {name} again"
+  return t
+
 def main (args : List String) : IO UInt32 := do
   let mut t : Tally := {}
+  t := pictures t
+  t ← qoiFixtures t
+  IO.println s!"pictures (QOI round trips, Pillow's QOI, hostile QOI, sizes, tray, composer): {t.pass} passed, {t.fail} failed"
+  let t0 := t
   t ← fixtures t
-  IO.println s!"qrencode's matrices (tests/fixtures), as matrices and frames: {t.pass} passed, {t.fail} failed"
+  IO.println s!"qrencode's matrices (tests/fixtures), as matrices and frames: {t.pass - t0.pass} passed, {t.fail - t0.fail} failed"
   let t0 := t
   t := streams t
   IO.println s!"data streams: {t.pass - t0.pass} passed, {t.fail - t0.fail} failed"

@@ -18,5 +18,8 @@
         <category android:name="android.intent.category.LAUNCHER" />
       </intent-filter>
     </activity>
+    <!-- the system camera's output file (Pics.Out): not exported, lent by grant -->
+    <provider android:name="com.holmes.leanqr.Pics$Out" android:authorities="com.holmes.leanqr.out"
+        android:exported="false" android:grantUriPermissions="true" />
   </application>
 </manifest>

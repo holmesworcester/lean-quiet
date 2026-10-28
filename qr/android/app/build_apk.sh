@@ -2,9 +2,10 @@
 # Builds the camera harness APK with no Gradle and no libraries beyond the
 # Android SDK and NDK:
 #
-# 1. lake emits C for the Qr library (it imports only Init, which is in
-#    Lean's runtime for Android: android/leanrt/build.sh).
-# 2. NDK clang compiles that C and the JNI seam (jni/qr_jni.c) into
+# 1. lake emits C for the Qr and Pic libraries (they import only Init,
+#    which is in Lean's runtime for Android: android/leanrt/build.sh).
+# 2. NDK clang compiles that C and the JNI seams (jni/qr_jni.c, the
+#    scanner's; jni/pic_jni.c, the image tools') into
 #    libleanqr.so per ABI, against libleanrt, libInit and libuv.
 # 3. javac and d8 build ScanActivity; aapt2, zipalign and apksigner
 #    package and sign it (a debug key).
@@ -29,7 +30,7 @@ work=$(mktemp -d "$TMPDIR/lean-qr-apk.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 
 # 1. Lean to C: every module of the library
-mods=$(cd "$root" && find Qr -name '*.lean' | sed 's/\.lean$//; s|/|.|g' | sort; echo Qr)
+mods=$(cd "$root" && find Qr Pic -name '*.lean' | sed 's/\.lean$//; s|/|.|g' | sort; echo Qr; echo Pic)
 (cd "$root" && "$ELAN_HOME/bin/lake" build $(for m in $mods; do echo "+$m:c"; done) >/dev/null)
 cfiles=()
 for m in $mods; do cfiles+=("$root/.lake/build/ir/${m//./\/}.c"); done
@@ -51,8 +52,10 @@ for abi in "${abis[@]}"; do
     i=$((i + 1))
     "$cc" "${flags[@]}" -c "$c" -o "$o/m$i.o" & pids+=($!)
   done
-  "$cc" --target=$tgt -std=c11 -O2 -fPIC -Wall -Werror -I"$rt/include" -c "$here/jni/qr_jni.c" -o "$o/jni.o" &
-  pids+=($!)
+  for j in qr_jni pic_jni; do
+    "$cc" --target=$tgt -std=c11 -O2 -fPIC -Wall -Werror -I"$rt/include" -c "$here/jni/$j.c" -o "$o/$j.o" &
+    pids+=($!)
+  done
   "$cc" --target=$tgt -O2 -fPIC -c "$root/android/leanrt/notag.c" -o "$o/notag.o" & pids+=($!)
   for p in "${pids[@]}"; do wait "$p"; done
   "$cc++" --target=$tgt -fPIC -shared -Wl,-z,max-page-size=16384 -Wl,--no-undefined -Wl,--gc-sections \

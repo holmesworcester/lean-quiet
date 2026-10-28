@@ -1,10 +1,14 @@
 name = "qr"
-defaultTargets = ["Qr"]
+defaultTargets = ["Qr", "Pic"]
 
 # The codec, the frame decoder and their laws (building this library checks
 # the proofs). It imports only Init, so it cross-compiles to Android as is.
 [[lean_lib]]
 name = "Qr"
+
+# The composer's pictures: QOI, sizes, the thumbnail tray (also Init only).
+[[lean_lib]]
+name = "Pic"
 
 [[lean_exe]]
 name = "qr_check"

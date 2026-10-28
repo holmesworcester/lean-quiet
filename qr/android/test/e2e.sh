@@ -2,8 +2,11 @@
 # End to end on the harness's own emulator: the invite link, encoded by
 # Lean, is the poster on the wall of the emulator's virtual scene; the
 # virtual camera walks up to it; the harness hands each preview frame's Y
-# plane to Lean's decoder; the test passes when logcat shows Lean decoded
-# the invite. Leaves logcat, a screenshot and the poster in OUT.
+# plane to Lean's decoder; the scanner passes when logcat shows Lean
+# decoded the invite. Then the image tools (pics.py): three pictures picked
+# with the system Photo Picker and a photo taken with the system camera
+# must reach Lean and be stored as they should. Leaves logcat, screenshots
+# (screen.png, pics.png), the poster and the stored pictures in OUT.
 #
 # usage: e2e.sh APK [OUT]
 # env: AVD (default qr-harness-20261027, created by avd.sh if missing),
@@ -109,3 +112,6 @@ if [ -n "$ok" ]; then
 else
   echo "FAIL: no decode of the invite in logcat ($out/logcat.txt, $out/screen.png)"; exit 1
 fi
+
+# The image tools: the Photo Picker and the system camera, into Lean.
+python3 "$here/pics.py" "$serial" "$out" "$root/.lake/build/bin/qr_tool" "$out/invite"
