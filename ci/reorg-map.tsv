@@ -1,0 +1,414 @@
+# The reorg (docs/LAYOUT.md step 2): every moved Lean file, other file and
+# directory of f1bfd62's five packages, old path to new. Modules: the old
+# name in its package (engine, app, qr, mdns, net), the new one from the
+# repository's root. ci/reorg-imports.py rewrites imports with it.
+old_path	new_path	old_module	new_module	note
+app/.gitignore	.gitignore			merged
+app/Main.lean	Main.lean	Main	Main	
+app/QTests/Arrival.lean	platforms/headless/Arrival.lean	QTests.Arrival	platforms.headless.Arrival	
+app/QTests/Attach.lean	platforms/headless/Attach.lean	QTests.Attach	platforms.headless.Attach	
+app/QTests/Cross.lean	platforms/headless/Cross.lean	QTests.Cross	platforms.headless.Cross	
+app/QTests/Host.lean	platforms/headless/Host.lean	QTests.Host	platforms.headless.Host	
+app/QTests/InviteLink.lean	platforms/headless/InviteLink.lean	QTests.InviteLink	platforms.headless.InviteLink	
+app/QTests/NetJoin.lean	platforms/headless/NetJoin.lean	QTests.NetJoin	platforms.headless.NetJoin	
+app/QTests/Sim.lean	platforms/headless/Sim.lean	QTests.Sim	platforms.headless.Sim	
+app/QTests/TwinDemo.lean	platforms/headless/TwinDemo.lean	QTests.TwinDemo	platforms.headless.TwinDemo	
+app/QTests/TwoNodes.lean	platforms/headless/TwoNodes.lean	QTests.TwoNodes	platforms.headless.TwoNodes	
+app/Quiet.lean	Quiet.lean	Quiet	Quiet	
+app/Quiet/App.lean	App.lean	Quiet.App	App	
+app/Quiet/Arrival.lean	engine/renderer/Arrival.lean	Quiet.Arrival	engine.renderer.Arrival	
+app/Quiet/ArrivalLaws.lean	ops/community/attachment/ArrivalLaws.lean	Quiet.ArrivalLaws	ops.community.attachment.ArrivalLaws	
+app/Quiet/Camera.lean	engine/renderer/Camera.lean	Quiet.Camera	engine.renderer.Camera	
+app/Quiet/Chaos.lean	ops/app/Chaos.lean	Quiet.Chaos	ops.app.Chaos	
+app/Quiet/Composer.lean	ops/app/Composer.lean	Quiet.Composer	ops.app.Composer	
+app/Quiet/Data.lean	engine/renderer/Data.lean	Quiet.Data	engine.renderer.Data	
+app/Quiet/Emoji.lean	engine/renderer/Emoji.lean	Quiet.Emoji	engine.renderer.Emoji	
+app/Quiet/Font.lean	engine/renderer/Font.lean	Quiet.Font	engine.renderer.Font	
+app/Quiet/Geometry.lean	engine/renderer/Geometry.lean	Quiet.Geometry	engine.renderer.Geometry	
+app/Quiet/Image.lean	engine/renderer/Image.lean	Quiet.Image	engine.renderer.Image	
+app/Quiet/Kinds/Accepted.lean	ops/community/membership/AcceptedView.lean	Quiet.Kinds.Accepted	ops.community.membership.AcceptedView	
+app/Quiet/Kinds/File.lean	ops/community/attachment/View.lean	Quiet.Kinds.File	ops.community.attachment.View	
+app/Quiet/Kinds/Message.lean	ops/community/message/View.lean	Quiet.Kinds.Message	ops.community.message.View	
+app/Quiet/Kinds/Profile.lean	ops/community/profile/View.lean	Quiet.Kinds.Profile	ops.community.profile.View	
+app/Quiet/Kinds/React.lean	ops/community/reaction/View.lean	Quiet.Kinds.React	ops.community.reaction.View	
+app/Quiet/Kinds/Request.lean	ops/community/membership/RequestView.lean	Quiet.Kinds.Request	ops.community.membership.RequestView	
+app/Quiet/Link.lean	ops/community/link/View.lean	Quiet.Link	ops.community.link.View	
+app/Quiet/Pages.lean	ops/app/Pages.lean	Quiet.Pages	ops.app.Pages	
+app/Quiet/Paint.lean	engine/renderer/Paint.lean	Quiet.Paint	engine.renderer.Paint	
+app/Quiet/PeopleLaws.lean	ops/app/PeopleLaws.lean	Quiet.PeopleLaws	ops.app.PeopleLaws	
+app/Quiet/Platform.lean	engine/renderer/Platform.lean	Quiet.Platform	engine.renderer.Platform	
+app/Quiet/Qoi.lean	engine/renderer/Qoi.lean	Quiet.Qoi	engine.renderer.Qoi	
+app/Quiet/Remove.lean	ops/app/Remove.lean	Quiet.Remove	ops.app.Remove	
+app/Quiet/RemovedLaws.lean	ops/community/membership/RemovedLaws.lean	Quiet.RemovedLaws	ops.community.membership.RemovedLaws	
+app/Quiet/Row.lean	engine/renderer/Row.lean	Quiet.Row	engine.renderer.Row	
+app/Quiet/RowLaws.lean	ops/community/reaction/RowLaws.lean	Quiet.RowLaws	ops.community.reaction.RowLaws	
+app/Quiet/Sheet.lean	engine/renderer/Sheet.lean	Quiet.Sheet	engine.renderer.Sheet	
+app/Quiet/SheetGeom.lean	engine/renderer/SheetGeom.lean	Quiet.SheetGeom	engine.renderer.SheetGeom	
+app/Quiet/Switch.lean	ops/app/Switch.lean	Quiet.Switch	ops.app.Switch	
+app/Quiet/Text.lean	engine/renderer/Text.lean	Quiet.Text	engine.renderer.Text	
+app/Quiet/TextLaws.lean	engine/renderer/TextLaws.lean	Quiet.TextLaws	engine.renderer.TextLaws	
+app/Quiet/ViewLaws.lean	ops/community/message/ViewLaws.lean	Quiet.ViewLaws	ops.community.message.ViewLaws	
+app/Quiet/WrapLaws.lean	engine/renderer/WrapLaws.lean	Quiet.WrapLaws	engine.renderer.WrapLaws	
+app/android/leanrt/build.sh	platforms/android/leanrt/build.sh			
+app/android/leanrt/notag.c	platforms/android/leanrt/notag.c			
+app/android/native/glue_android.c	platforms/android/native/glue_android.c			
+app/android/test/avd.sh	platforms/android/test/avd.sh			
+app/android/test/ime/AndroidManifest.xml	platforms/android/test/ime/AndroidManifest.xml			
+app/android/test/ime/build.sh	platforms/android/test/ime/build.sh			
+app/android/test/ime/java/com/holmes/testime/TestIme.java	platforms/android/test/ime/java/com/holmes/testime/TestIme.java			
+app/android/test/ime/res/xml/method.xml	platforms/android/test/ime/res/xml/method.xml			
+app/android/test/scan_e2e.sh	platforms/android/test/scan_e2e.sh			
+app/android/test/scene.py	platforms/android/test/scene.py			
+app/android/test/twin_demo_e2e.sh	platforms/android/test/twin_demo_e2e.sh			
+app/android/twin/AndroidManifest.xml.in	platforms/android/twin/AndroidManifest.xml.in			
+app/android/twin/activity.c	platforms/android/twin/activity.c			
+app/android/twin/activity.h	platforms/android/twin/activity.h			
+app/android/twin/build_apk.sh	platforms/android/twin/build_apk.sh			
+app/android/twin/ctl.c	platforms/android/twin/ctl.c			
+app/android/twin/java/com/holmes/leanquiet/LeanActivity.java	platforms/android/twin/java/com/holmes/leanquiet/LeanActivity.java			
+app/android/twin/layer.c	platforms/android/twin/layer.c			
+app/android/twin/layer.h	platforms/android/twin/layer.h			
+app/android/twin/quiet_android.c	platforms/android/twin/quiet_android.c			
+app/android/twin/scroll.c	platforms/android/twin/scroll.c			
+app/android/twin/scroll.h	platforms/android/twin/scroll.h			
+app/docs/BUILD.md	docs/BUILD.md			
+app/host/README.md	platforms/headless/README.md			
+app/host/host.c	platforms/headless/host.c			
+app/ios/Placement.lean	platforms/ios/Placement.lean			
+app/ios/README.md	platforms/ios/README.md			
+app/ios/UITests/LeanQuietUITests.m	platforms/ios/UITests/LeanQuietUITests.m			
+app/ios/build_ios.sh	platforms/ios/build_ios.sh			
+app/ios/ctl.py	platforms/ios/ctl.py			
+app/ios/ctl_ios.c	platforms/ios/ctl_ios.c			
+app/ios/device_mac.sh	platforms/ios/device_mac.sh			
+app/ios/leanrt.sh	platforms/ios/leanrt.sh			
+app/ios/probe/NetProbe.lean	platforms/ios/probe/NetProbe.lean			
+app/ios/probe/build_probe.sh	platforms/ios/probe/build_probe.sh			
+app/ios/probe/dnssd.c	platforms/ios/probe/dnssd.c			
+app/ios/probe/harness.py	platforms/ios/probe/harness.py			
+app/ios/probe/multicast.entitlements	platforms/ios/probe/multicast.entitlements			
+app/ios/probe/probe_ios.m	platforms/ios/probe/probe_ios.m			
+app/ios/probe/probe_mac.sh	platforms/ios/probe/probe_mac.sh			
+app/ios/project.yml	platforms/ios/project.yml			
+app/ios/quiet_ios.m	platforms/ios/quiet_ios.m			
+app/ios/ship.sh	platforms/ios/ship.sh			
+app/ios/sim.sh	platforms/ios/sim.sh			
+app/ios/test/Targets.lean	platforms/ios/test/Targets.lean			
+app/lake-manifest.json	lake-manifest.json			merged
+app/lakefile.lean	lakefile.lean			merged
+app/lean-toolchain	lean-toolchain			merged
+app/mise.toml	mise.toml			merged
+app/tests/Axioms.lean	tests/Axioms.lean			merged
+app/tests/check.sh	tests/check.sh			merged
+app/tests/host_twin_demo.sh	tests/app/host_twin_demo.sh			
+app/third_party/sqlite/README	third_party/sqlite/README			
+app/third_party/sqlite/sqlite3.c	third_party/sqlite/sqlite3.c			
+app/third_party/sqlite/sqlite3.h	third_party/sqlite/sqlite3.h			
+app/tools/ctl.py	tools/ctl.py			
+app/tools/emoji.py	tools/emoji.py			
+app/tools/fetch_assets.sh	tools/fetch_assets.sh			
+app/tools/font.py	tools/font.py			
+app/tools/gen_init_c.sh	tools/gen_init_c.sh			
+app/tools/picker.py	tools/picker.py			
+engine/.gitignore	.gitignore			merged
+engine/Community.lean	ops/community/Community.lean	Community	ops.community.Community	
+engine/Community/Compose.lean	ops/community/Compose.lean	Community.Compose	ops.community.Compose	
+engine/Community/Connect.lean	ops/community/Connect.lean	Community.Connect	ops.community.Connect	
+engine/Community/Facts.lean	ops/community/Facts.lean	Community.Facts	ops.community.Facts	
+engine/Community/Intents.lean	ops/community/Intents.lean	Community.Intents	ops.community.Intents	
+engine/Community/Keys.lean	ops/community/Keys.lean	Community.Keys	ops.community.Keys	
+engine/Community/Laws.lean	ops/community/Laws.lean	Community.Laws	ops.community.Laws	
+engine/Community/Link.lean	ops/community/Link.lean	Community.Link	ops.community.Link	
+engine/Community/Merkle.lean	ops/community/Merkle.lean	Community.Merkle	ops.community.Merkle	
+engine/Community/Query.lean	ops/community/Query.lean	Community.Query	ops.community.Query	
+engine/Connection.lean	ops/connection/All.lean	Connection	ops.connection.All	
+engine/Connection/Connection.lean	ops/connection/Connection.lean	Connection.Connection	ops.connection.Connection	
+engine/Connection/Eph.lean	ops/connection/Eph.lean	Connection.Eph	ops.connection.Eph	
+engine/Connection/Established.lean	ops/connection/Established.lean	Connection.Established	ops.connection.Established	
+engine/Connection/Family.lean	ops/connection/Family.lean	Connection.Family	ops.connection.Family	
+engine/Connection/Frame.lean	ops/connection/Frame.lean	Connection.Frame	ops.connection.Frame	
+engine/Connection/Intents.lean	ops/connection/Intents.lean	Connection.Intents	ops.connection.Intents	
+engine/Connection/Laws.lean	ops/connection/Laws.lean	Connection.Laws	ops.connection.Laws	
+engine/Connection/Noise.lean	ops/connection/Noise.lean	Connection.Noise	ops.connection.Noise	
+engine/Connection/NoiseSymbolic.lean	ops/connection/NoiseSymbolic.lean	Connection.NoiseSymbolic	ops.connection.NoiseSymbolic	
+engine/Connection/Opened.lean	ops/connection/Opened.lean	Connection.Opened	ops.connection.Opened	
+engine/Connection/Recv.lean	ops/connection/Recv.lean	Connection.Recv	ops.connection.Recv	
+engine/Connection/Request.lean	ops/connection/Request.lean	Connection.Request	ops.connection.Request	
+engine/Connection/RoomLaws.lean	ops/connection/RoomLaws.lean	Connection.RoomLaws	ops.connection.RoomLaws	
+engine/Connection/Send.lean	ops/connection/Send.lean	Connection.Send	ops.connection.Send	
+engine/Connection/Types.lean	ops/connection/Types.lean	Connection.Types	ops.connection.Types	
+engine/Engine.lean	engine/core/Engine.lean	Engine	engine.core.Engine	
+engine/Engine/Budget.lean	engine/core/Budget.lean	Engine.Budget	engine.core.Budget	
+engine/Engine/Codec.lean	engine/core/Codec.lean	Engine.Codec	engine.core.Codec	
+engine/Engine/Core.lean	engine/core/Core.lean	Engine.Core	engine.core.Core	
+engine/Engine/Crypto.lean	engine/core/Crypto.lean	Engine.Crypto	engine.core.Crypto	
+engine/Engine/Decl.lean	engine/core/Decl.lean	Engine.Decl	engine.core.Decl	
+engine/Engine/Families.lean	engine/core/Families.lean	Engine.Families	engine.core.Families	
+engine/Engine/Model.lean	engine/core/Model.lean	Engine.Model	engine.core.Model	
+engine/Engine/Proofs.lean	engine/core/Proofs.lean	Engine.Proofs	engine.core.Proofs	
+engine/Engine/Purge.lean	engine/core/Purge.lean	Engine.Purge	engine.core.Purge	
+engine/Engine/Query.lean	engine/core/Query.lean	Engine.Query	engine.core.Query	
+engine/Engine/Run.lean	engine/core/Run.lean	Engine.Run	engine.core.Run	
+engine/Engine/Spec.lean	engine/core/Spec.lean	Engine.Spec	engine.core.Spec	
+engine/Engine/SpecLemmas.lean	engine/core/SpecLemmas.lean	Engine.SpecLemmas	engine.core.SpecLemmas	
+engine/Engine/Sqlite.lean	engine/core/Sqlite.lean	Engine.Sqlite	engine.core.Sqlite	
+engine/Engine/Sync.lean	engine/core/Sync.lean	Engine.Sync	engine.core.Sync	
+engine/Engine/Sync/Conn.lean	ops/sync/Conn.lean	Engine.Sync.Conn	ops.sync.Conn	
+engine/Engine/Sync/ConnLaws.lean	ops/sync/ConnLaws.lean	Engine.Sync.ConnLaws	ops.sync.ConnLaws	
+engine/Engine/Sync/Fp.lean	ops/sync/Fp.lean	Engine.Sync.Fp	ops.sync.Fp	
+engine/Engine/Sync/Frame.lean	engine/wire/Frame.lean	Engine.Sync.Frame	engine.wire.Frame	
+engine/Engine/Sync/Held.lean	engine/core/Held.lean	Engine.Sync.Held	engine.core.Held	
+engine/Engine/Sync/Locality.lean	engine/core/Locality.lean	Engine.Sync.Locality	engine.core.Locality	
+engine/Engine/Sync/Node.lean	engine/wire/Node.lean	Engine.Sync.Node	engine.wire.Node	
+engine/Engine/Sync/Pair.lean	engine/wire/Pair.lean	Engine.Sync.Pair	engine.wire.Pair	
+engine/Engine/Sync/Round.lean	ops/sync/Round.lean	Engine.Sync.Round	ops.sync.Round	
+engine/Engine/Sync/RoundLaws.lean	ops/sync/RoundLaws.lean	Engine.Sync.RoundLaws	ops.sync.RoundLaws	
+engine/Engine/Sync/Tcp.lean	engine/wire/Tcp.lean	Engine.Sync.Tcp	engine.wire.Tcp	
+engine/Engine/Sync/Wire.lean	ops/sync/Wire.lean	Engine.Sync.Wire	ops.sync.Wire	
+engine/Engine/Termination.lean	engine/core/Termination.lean	Engine.Termination	engine.core.Termination	
+engine/Engine/Union.lean	engine/core/Union.lean	Engine.Union	engine.core.Union	
+engine/Engine/View.lean	engine/core/View.lean	Engine.View	engine.core.View	
+engine/README.md	docs/ENGINE.md			
+engine/Tests.lean	tests/engine/Tests.lean	Tests	tests.engine.Tests	
+engine/Tests/ConnectionCheck.lean	tests/engine/ConnectionCheck.lean	Tests.ConnectionCheck	tests.engine.ConnectionCheck	
+engine/Tests/Crash.lean	tests/engine/Crash.lean	Tests.Crash	tests.engine.Crash	
+engine/Tests/Differential.lean	tests/engine/Differential.lean	Tests.Differential	tests.engine.Differential	
+engine/Tests/JoinTcp.lean	tests/engine/JoinTcp.lean	Tests.JoinTcp	tests.engine.JoinTcp	
+engine/Tests/Lib.lean	tests/engine/Lib.lean	Tests.Lib	tests.engine.Lib	
+engine/Tests/Lifecycle.lean	tests/engine/Lifecycle.lean	Tests.Lifecycle	tests.engine.Lifecycle	
+engine/Tests/LinkCheck.lean	tests/engine/LinkCheck.lean	Tests.LinkCheck	tests.engine.LinkCheck	
+engine/Tests/MerkleCheck.lean	tests/engine/MerkleCheck.lean	Tests.MerkleCheck	tests.engine.MerkleCheck	
+engine/Tests/NoiseCheck.lean	tests/engine/NoiseCheck.lean	Tests.NoiseCheck	tests.engine.NoiseCheck	
+engine/Tests/Purge.lean	tests/engine/Purge.lean	Tests.Purge	tests.engine.Purge	
+engine/Tests/QueryDiff.lean	tests/engine/QueryDiff.lean	Tests.QueryDiff	tests.engine.QueryDiff	
+engine/Tests/Scenario.lean	tests/engine/Scenario.lean	Tests.Scenario	tests.engine.Scenario	
+engine/Tests/SyncPair.lean	tests/engine/SyncPair.lean	Tests.SyncPair	tests.engine.SyncPair	
+engine/Tests/TcpPair.lean	tests/engine/TcpPair.lean	Tests.TcpPair	tests.engine.TcpPair	
+engine/Tests/Wire.lean	tests/engine/Wire.lean	Tests.Wire	tests.engine.Wire	
+engine/docs/LAYOUT.md	docs/LAYOUT.md			
+engine/docs/SYNC.md	docs/SYNC.md			
+engine/lake-manifest.json	lake-manifest.json			
+engine/lakefile.lean	lakefile.lean	lakefile	lakefile	
+engine/lean-toolchain	lean-toolchain			
+engine/mise.toml	mise.toml			merged
+engine/tests/Axioms.lean	tests/Axioms.lean			moved; the other parts' merged into it
+engine/tests/check.sh	tests/check.sh			moved; the other parts' merged into it
+engine/tests/crash.sh	tests/engine/crash.sh			
+engine/tests/crypto_compat.c	tests/engine/crypto_compat.c			
+engine/tests/crypto_compat.sh	tests/engine/crypto_compat.sh			
+engine/tests/run.sh	tests/engine/run.sh			
+mdns/.gitignore	.gitignore			merged
+mdns/Mdns.lean	engine/wire/mdns/Mdns.lean	Mdns	engine.wire.mdns.Mdns	
+mdns/Mdns/Decode.lean	engine/wire/mdns/Decode.lean	Mdns.Decode	engine.wire.mdns.Decode	
+mdns/Mdns/Laws.lean	engine/wire/mdns/Laws.lean	Mdns.Laws	engine.wire.mdns.Laws	
+mdns/Mdns/Net.lean	engine/wire/mdns/Net.lean	Mdns.Net	engine.wire.mdns.Net	
+mdns/Mdns/Service.lean	engine/wire/mdns/Service.lean	Mdns.Service	engine.wire.mdns.Service	
+mdns/Mdns/Wire.lean	engine/wire/mdns/Wire.lean	Mdns.Wire	engine.wire.mdns.Wire	
+mdns/README.md	docs/MDNS.md			
+mdns/Tests/Check.lean	tests/mdns/Check.lean	Tests.Check	tests.mdns.Check	
+mdns/Tests/Demo.lean	tests/mdns/Demo.lean	Tests.Demo	tests.mdns.Demo	
+mdns/Tests/Probe.lean	tests/mdns/Probe.lean	Tests.Probe	tests.mdns.Probe	
+mdns/lake-manifest.json	lake-manifest.json			merged
+mdns/lakefile.toml	lakefile.lean			merged
+mdns/lean-toolchain	lean-toolchain			merged
+mdns/mise.toml	mise.toml			merged
+mdns/tests/axioms.lean	tests/Axioms.lean			merged
+mdns/tests/check.sh	tests/mdns/check.sh			
+mdns/tests/e2e.sh	tests/mdns/e2e.sh			
+mdns/tests/fixtures/avahi-0.bin	tests/mdns/fixtures/avahi-0.bin			
+mdns/tests/fixtures/avahi-106.bin	tests/mdns/fixtures/avahi-106.bin			
+mdns/tests/fixtures/avahi-109.bin	tests/mdns/fixtures/avahi-109.bin			
+mdns/tests/fixtures/avahi-110.bin	tests/mdns/fixtures/avahi-110.bin			
+mdns/tests/fixtures/avahi-111.bin	tests/mdns/fixtures/avahi-111.bin			
+mdns/tests/fixtures/avahi-114.bin	tests/mdns/fixtures/avahi-114.bin			
+mdns/tests/fixtures/avahi-119.bin	tests/mdns/fixtures/avahi-119.bin			
+mdns/tests/fixtures/avahi-129.bin	tests/mdns/fixtures/avahi-129.bin			
+mdns/tests/fixtures/avahi-150.bin	tests/mdns/fixtures/avahi-150.bin			
+mdns/tests/fixtures/avahi-155.bin	tests/mdns/fixtures/avahi-155.bin			
+mdns/tests/fixtures/avahi-156.bin	tests/mdns/fixtures/avahi-156.bin			
+mdns/tests/fixtures/avahi-157.bin	tests/mdns/fixtures/avahi-157.bin			
+mdns/tests/fixtures/avahi-158.bin	tests/mdns/fixtures/avahi-158.bin			
+mdns/tests/fixtures/avahi-162.bin	tests/mdns/fixtures/avahi-162.bin			
+mdns/tests/fixtures/avahi-164.bin	tests/mdns/fixtures/avahi-164.bin			
+mdns/tests/fixtures/avahi-171.bin	tests/mdns/fixtures/avahi-171.bin			
+mdns/tests/fixtures/avahi-176.bin	tests/mdns/fixtures/avahi-176.bin			
+mdns/tests/fixtures/avahi-179.bin	tests/mdns/fixtures/avahi-179.bin			
+mdns/tests/fixtures/avahi-181.bin	tests/mdns/fixtures/avahi-181.bin			
+mdns/tests/fixtures/avahi-82.bin	tests/mdns/fixtures/avahi-82.bin			
+mdns/tests/fixtures/lean-query.bin	tests/mdns/fixtures/lean-query.bin			
+mdns/tests/fixtures/sonos-a.bin	tests/mdns/fixtures/sonos-a.bin			
+mdns/tests/negative_controls.sh	tests/mdns/negative_controls.sh			
+net/.gitignore	.gitignore			merged
+net/Net.lean	ops/connection/bootstrap/Net.lean	Net	ops.connection.bootstrap.Net	
+net/Net/Bridge.lean	ops/connection/bootstrap/Bridge.lean	Net.Bridge	ops.connection.bootstrap.Bridge	
+net/Net/Inv.lean	ops/connection/bootstrap/Inv.lean	Net.Inv	ops.connection.bootstrap.Inv	
+net/Net/Laws.lean	ops/connection/bootstrap/Laws.lean	Net.Laws	ops.connection.bootstrap.Laws	
+net/Net/Node.lean	ops/connection/bootstrap/Node.lean	Net.Node	ops.connection.bootstrap.Node	
+net/Net/Scene.lean	ops/connection/bootstrap/Scene.lean	Net.Scene	ops.connection.bootstrap.Scene	
+net/Net/Steps.lean	ops/connection/bootstrap/Steps.lean	Net.Steps	ops.connection.bootstrap.Steps	
+net/Net/System.lean	ops/connection/bootstrap/System.lean	Net.System	ops.connection.bootstrap.System	
+net/README.md	docs/NET.md			
+net/Tests/SceneCheck.lean	tests/net/SceneCheck.lean	Tests.SceneCheck	tests.net.SceneCheck	
+net/lake-manifest.json	lake-manifest.json			merged
+net/lakefile.lean	lakefile.lean			merged
+net/lean-toolchain	lean-toolchain			merged
+net/mise.toml	mise.toml			merged
+net/tests/Axioms.lean	tests/Axioms.lean			merged
+net/tests/check.sh	tests/net/check.sh			
+net/tests/negative_controls.sh	tests/net/negative_controls.sh			
+qr/.gitignore	.gitignore			merged
+qr/Pic.lean	engine/renderer/pic/Pic.lean	Pic	engine.renderer.pic.Pic	
+qr/Pic/Composer.lean	engine/renderer/pic/Composer.lean	Pic.Composer	engine.renderer.pic.Composer	
+qr/Pic/Fit.lean	engine/renderer/pic/Fit.lean	Pic.Fit	engine.renderer.pic.Fit	
+qr/Pic/Laws.lean	engine/renderer/pic/Laws.lean	Pic.Laws	engine.renderer.pic.Laws	
+qr/Pic/Qoi.lean	engine/renderer/pic/Qoi.lean	Pic.Qoi	engine.renderer.pic.Qoi	
+qr/Pic/Thumb.lean	engine/renderer/pic/Thumb.lean	Pic.Thumb	engine.renderer.pic.Thumb	
+qr/Pic/Tray.lean	engine/renderer/pic/Tray.lean	Pic.Tray	engine.renderer.pic.Tray	
+qr/Qr.lean	engine/renderer/qr/Qr.lean	Qr	engine.renderer.qr.Qr	
+qr/Qr/Binarize.lean	engine/renderer/qr/Binarize.lean	Qr.Binarize	engine.renderer.qr.Binarize	
+qr/Qr/Bits.lean	engine/renderer/qr/Bits.lean	Qr.Bits	engine.renderer.qr.Bits	
+qr/Qr/Decode.lean	engine/renderer/qr/Decode.lean	Qr.Decode	engine.renderer.qr.Decode	
+qr/Qr/Detect.lean	engine/renderer/qr/Detect.lean	Qr.Detect	engine.renderer.qr.Detect	
+qr/Qr/Encode.lean	engine/renderer/qr/Encode.lean	Qr.Encode	engine.renderer.qr.Encode	
+qr/Qr/Export.lean	engine/renderer/qr/Export.lean	Qr.Export	engine.renderer.qr.Export	
+qr/Qr/Format.lean	engine/renderer/qr/Format.lean	Qr.Format	engine.renderer.qr.Format	
+qr/Qr/Geometry.lean	engine/renderer/qr/Geometry.lean	Qr.Geometry	engine.renderer.qr.Geometry	
+qr/Qr/Laws.lean	engine/renderer/qr/Laws.lean	Qr.Laws	engine.renderer.qr.Laws	
+qr/Qr/Matrix.lean	engine/renderer/qr/Matrix.lean	Qr.Matrix	engine.renderer.qr.Matrix	
+qr/Qr/RS.lean	engine/renderer/qr/RS.lean	Qr.RS	engine.renderer.qr.RS	
+qr/Qr/ReadGrid.lean	engine/renderer/qr/ReadGrid.lean	Qr.ReadGrid	engine.renderer.qr.ReadGrid	
+qr/Qr/SegLaws.lean	engine/renderer/qr/SegLaws.lean	Qr.SegLaws	engine.renderer.qr.SegLaws	
+qr/Qr/Segment.lean	engine/renderer/qr/Segment.lean	Qr.Segment	engine.renderer.qr.Segment	
+qr/Qr/Tables.lean	engine/renderer/qr/Tables.lean	Qr.Tables	engine.renderer.qr.Tables	
+qr/README.md	docs/QR.md			
+qr/Tests/Check.lean	tests/qr/Check.lean	Tests.Check	tests.qr.Check	
+qr/Tests/Pgm.lean	tests/qr/Pgm.lean	Tests.Pgm	tests.qr.Pgm	
+qr/Tests/Tool.lean	tests/qr/Tool.lean	Tests.Tool	tests.qr.Tool	
+qr/android/app/AndroidManifest.xml.in	platforms/android/qr/app/AndroidManifest.xml.in			
+qr/android/app/build_apk.sh	platforms/android/qr/app/build_apk.sh			
+qr/android/app/java/com/holmes/leanqr/Pics.java	platforms/android/qr/app/java/com/holmes/leanqr/Pics.java			
+qr/android/app/java/com/holmes/leanqr/ScanActivity.java	platforms/android/qr/app/java/com/holmes/leanqr/ScanActivity.java			
+qr/android/app/jni/pic_jni.c	platforms/android/qr/app/jni/pic_jni.c			
+qr/android/app/jni/qr_jni.c	platforms/android/qr/app/jni/qr_jni.c			
+qr/android/leanrt/build.sh	platforms/android/qr/leanrt/build.sh			
+qr/android/leanrt/notag.c	platforms/android/qr/leanrt/notag.c			
+qr/android/test/avd.sh	platforms/android/qr/test/avd.sh			
+qr/android/test/e2e.sh	platforms/android/qr/test/e2e.sh			
+qr/android/test/pics.py	platforms/android/qr/test/pics.py			
+qr/android/test/scene.py	platforms/android/qr/test/scene.py			
+qr/lake-manifest.json	lake-manifest.json			merged
+qr/lakefile.toml	lakefile.lean			merged
+qr/lean-toolchain	lean-toolchain			merged
+qr/mise.toml	mise.toml			merged
+qr/tests/axioms.lean	tests/Axioms.lean			merged
+qr/tests/camera.sh	tests/qr/camera.sh			
+qr/tests/check.sh	tests/qr/check.sh			
+qr/tests/fixtures/qoi/README	tests/qr/fixtures/qoi/README			
+qr/tests/fixtures/qoi/gradient.qoi	tests/qr/fixtures/qoi/gradient.qoi			
+qr/tests/fixtures/qoi/gradient.rgba	tests/qr/fixtures/qoi/gradient.rgba			
+qr/tests/fixtures/qoi/noise-alpha.qoi	tests/qr/fixtures/qoi/noise-alpha.qoi			
+qr/tests/fixtures/qoi/noise-alpha.rgba	tests/qr/fixtures/qoi/noise-alpha.rgba			
+qr/tests/fixtures/qoi/palette.qoi	tests/qr/fixtures/qoi/palette.qoi			
+qr/tests/fixtures/qoi/palette.rgba	tests/qr/fixtures/qoi/palette.rgba			
+qr/tests/fixtures/qrencode/manifest.tsv	tests/qr/fixtures/qrencode/manifest.tsv			
+qr/tests/fixtures/qrencode/v01M-mixed.txt	tests/qr/fixtures/qrencode/v01M-mixed.txt			
+qr/tests/fixtures/qrencode/v02Q-binary.txt	tests/qr/fixtures/qrencode/v02Q-binary.txt			
+qr/tests/fixtures/qrencode/v03H-invite.txt	tests/qr/fixtures/qrencode/v03H-invite.txt			
+qr/tests/fixtures/qrencode/v04L-mixed.txt	tests/qr/fixtures/qrencode/v04L-mixed.txt			
+qr/tests/fixtures/qrencode/v05M-binary.txt	tests/qr/fixtures/qrencode/v05M-binary.txt			
+qr/tests/fixtures/qrencode/v06Q-invite.txt	tests/qr/fixtures/qrencode/v06Q-invite.txt			
+qr/tests/fixtures/qrencode/v07H-mixed.txt	tests/qr/fixtures/qrencode/v07H-mixed.txt			
+qr/tests/fixtures/qrencode/v08L-binary.txt	tests/qr/fixtures/qrencode/v08L-binary.txt			
+qr/tests/fixtures/qrencode/v09M-invite.txt	tests/qr/fixtures/qrencode/v09M-invite.txt			
+qr/tests/fixtures/qrencode/v10Q-mixed.txt	tests/qr/fixtures/qrencode/v10Q-mixed.txt			
+qr/tests/fixtures/qrencode/v11H-binary.txt	tests/qr/fixtures/qrencode/v11H-binary.txt			
+qr/tests/fixtures/qrencode/v12L-invite.txt	tests/qr/fixtures/qrencode/v12L-invite.txt			
+qr/tests/fixtures/qrencode/v13M-mixed.txt	tests/qr/fixtures/qrencode/v13M-mixed.txt			
+qr/tests/fixtures/qrencode/v14Q-binary.txt	tests/qr/fixtures/qrencode/v14Q-binary.txt			
+qr/tests/fixtures/qrencode/v15H-invite.txt	tests/qr/fixtures/qrencode/v15H-invite.txt			
+qr/tests/fixtures/qrencode/v16L-mixed.txt	tests/qr/fixtures/qrencode/v16L-mixed.txt			
+qr/tests/fixtures/qrencode/v17M-binary.txt	tests/qr/fixtures/qrencode/v17M-binary.txt			
+qr/tests/fixtures/qrencode/v18Q-invite.txt	tests/qr/fixtures/qrencode/v18Q-invite.txt			
+qr/tests/fixtures/qrencode/v19H-mixed.txt	tests/qr/fixtures/qrencode/v19H-mixed.txt			
+qr/tests/fixtures/qrencode/v20L-binary.txt	tests/qr/fixtures/qrencode/v20L-binary.txt			
+qr/tests/fixtures/qrencode/v21M-invite.txt	tests/qr/fixtures/qrencode/v21M-invite.txt			
+qr/tests/fixtures/qrencode/v22Q-mixed.txt	tests/qr/fixtures/qrencode/v22Q-mixed.txt			
+qr/tests/fixtures/qrencode/v23H-binary.txt	tests/qr/fixtures/qrencode/v23H-binary.txt			
+qr/tests/fixtures/qrencode/v24L-invite.txt	tests/qr/fixtures/qrencode/v24L-invite.txt			
+qr/tests/fixtures/qrencode/v25M-mixed.txt	tests/qr/fixtures/qrencode/v25M-mixed.txt			
+qr/tests/fixtures/qrencode/v26Q-binary.txt	tests/qr/fixtures/qrencode/v26Q-binary.txt			
+qr/tests/fixtures/qrencode/v27H-invite.txt	tests/qr/fixtures/qrencode/v27H-invite.txt			
+qr/tests/fixtures/qrencode/v28L-mixed.txt	tests/qr/fixtures/qrencode/v28L-mixed.txt			
+qr/tests/fixtures/qrencode/v29M-binary.txt	tests/qr/fixtures/qrencode/v29M-binary.txt			
+qr/tests/fixtures/qrencode/v30Q-invite.txt	tests/qr/fixtures/qrencode/v30Q-invite.txt			
+qr/tests/fixtures/qrencode/v31H-mixed.txt	tests/qr/fixtures/qrencode/v31H-mixed.txt			
+qr/tests/fixtures/qrencode/v32L-binary.txt	tests/qr/fixtures/qrencode/v32L-binary.txt			
+qr/tests/fixtures/qrencode/v33M-invite.txt	tests/qr/fixtures/qrencode/v33M-invite.txt			
+qr/tests/fixtures/qrencode/v34Q-mixed.txt	tests/qr/fixtures/qrencode/v34Q-mixed.txt			
+qr/tests/fixtures/qrencode/v35H-binary.txt	tests/qr/fixtures/qrencode/v35H-binary.txt			
+qr/tests/fixtures/qrencode/v36L-invite.txt	tests/qr/fixtures/qrencode/v36L-invite.txt			
+qr/tests/fixtures/qrencode/v37M-mixed.txt	tests/qr/fixtures/qrencode/v37M-mixed.txt			
+qr/tests/fixtures/qrencode/v38Q-binary.txt	tests/qr/fixtures/qrencode/v38Q-binary.txt			
+qr/tests/fixtures/qrencode/v39H-invite.txt	tests/qr/fixtures/qrencode/v39H-invite.txt			
+qr/tests/fixtures/qrencode/v40L-mixed.txt	tests/qr/fixtures/qrencode/v40L-mixed.txt			
+qr/tests/negative_controls.sh	tests/qr/negative_controls.sh			
+qr/tests/xcheck.sh	tests/qr/xcheck.sh			
+qr/tools/distort/cases.py	tools/distort/cases.py			
+qr/tools/distort/distort.py	tools/distort/distort.py			
+qr/tools/distort/stress.py	tools/distort/stress.py			
+qr/tools/gen_init_c.sh	tools/gen_init_c.sh			removed: identical to app/tools/gen_init_c.sh
+qr/tools/xcheck/fetch.sh	tools/xcheck/fetch.sh			
+qr/tools/xcheck/qoi.py	tools/xcheck/qoi.py			
+qr/tools/xcheck/xcheck.py	tools/xcheck/xcheck.py			
+app/	./			directory: the files directly in it
+app/QTests/	platforms/headless/			directory: the files directly in it
+app/Quiet/	./ engine/renderer/ ops/app/ ops/community/attachment/ ops/community/link/ ops/community/membership/ ops/community/message/ ops/community/reaction/			directory: the files directly in it, split
+app/Quiet/Kinds/	ops/community/attachment/ ops/community/membership/ ops/community/message/ ops/community/profile/ ops/community/reaction/			directory: the files directly in it, split
+app/android/leanrt/	platforms/android/leanrt/			directory: the files directly in it
+app/android/native/	platforms/android/native/			directory: the files directly in it
+app/android/test/	platforms/android/test/			directory: the files directly in it
+app/android/test/ime/	platforms/android/test/ime/			directory: the files directly in it
+app/android/test/ime/java/com/holmes/testime/	platforms/android/test/ime/java/com/holmes/testime/			directory: the files directly in it
+app/android/test/ime/res/xml/	platforms/android/test/ime/res/xml/			directory: the files directly in it
+app/android/twin/	platforms/android/twin/			directory: the files directly in it
+app/android/twin/java/com/holmes/leanquiet/	platforms/android/twin/java/com/holmes/leanquiet/			directory: the files directly in it
+app/docs/	docs/			directory: the files directly in it
+app/host/	platforms/headless/			directory: the files directly in it
+app/ios/	platforms/ios/			directory: the files directly in it
+app/ios/UITests/	platforms/ios/UITests/			directory: the files directly in it
+app/ios/probe/	platforms/ios/probe/			directory: the files directly in it
+app/ios/test/	platforms/ios/test/			directory: the files directly in it
+app/tests/	tests/app/			directory: the files directly in it
+app/third_party/sqlite/	third_party/sqlite/			directory: the files directly in it
+app/tools/	tools/			directory: the files directly in it
+engine/	./ docs/ engine/core/ ops/community/ ops/connection/ tests/engine/			directory: the files directly in it, split
+engine/Community/	ops/community/			directory: the files directly in it
+engine/Connection/	ops/connection/			directory: the files directly in it
+engine/Engine/	engine/core/			directory: the files directly in it
+engine/Engine/Sync/	engine/core/ engine/wire/ ops/sync/			directory: the files directly in it, split
+engine/Tests/	tests/engine/			directory: the files directly in it
+engine/docs/	docs/			directory: the files directly in it
+engine/tests/	tests/ tests/engine/			directory: the files directly in it, split
+mdns/	docs/ engine/wire/mdns/			directory: the files directly in it, split
+mdns/Mdns/	engine/wire/mdns/			directory: the files directly in it
+mdns/Tests/	tests/mdns/			directory: the files directly in it
+mdns/tests/	tests/mdns/			directory: the files directly in it
+mdns/tests/fixtures/	tests/mdns/fixtures/			directory: the files directly in it
+net/	docs/ ops/connection/bootstrap/			directory: the files directly in it, split
+net/Net/	ops/connection/bootstrap/			directory: the files directly in it
+net/Tests/	tests/net/			directory: the files directly in it
+net/tests/	tests/net/			directory: the files directly in it
+qr/	docs/ engine/renderer/pic/ engine/renderer/qr/			directory: the files directly in it, split
+qr/Pic/	engine/renderer/pic/			directory: the files directly in it
+qr/Qr/	engine/renderer/qr/			directory: the files directly in it
+qr/Tests/	tests/qr/			directory: the files directly in it
+qr/android/app/	platforms/android/qr/app/			directory: the files directly in it
+qr/android/app/java/com/holmes/leanqr/	platforms/android/qr/app/java/com/holmes/leanqr/			directory: the files directly in it
+qr/android/app/jni/	platforms/android/qr/app/jni/			directory: the files directly in it
+qr/android/leanrt/	platforms/android/qr/leanrt/			directory: the files directly in it
+qr/android/test/	platforms/android/qr/test/			directory: the files directly in it
+qr/tests/	tests/qr/			directory: the files directly in it
+qr/tests/fixtures/qoi/	tests/qr/fixtures/qoi/			directory: the files directly in it
+qr/tests/fixtures/qrencode/	tests/qr/fixtures/qrencode/			directory: the files directly in it
+qr/tools/distort/	tools/distort/			directory: the files directly in it
+qr/tools/xcheck/	tools/xcheck/			directory: the files directly in it
