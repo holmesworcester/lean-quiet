@@ -25,7 +25,10 @@ a law about the code that runs. `decodeFast` keeps what `decFrom` read
 only if encoding it again gives back the input, so it equals `decode`
 on every input, whatever `decFrom` makes of bytes that encode nothing.
 A byte string's length is read only while it still fits in the input
-(`decLenFrom`), so a long length prefix builds no large number.
+(`decLenFrom`), so a long length prefix builds no large number. A long
+number is read and written by halves (`digitsFast`, `contDigitsInto`),
+so one n bytes long costs O(n log n), not O(n²): a peer's 1 MiB number
+is milliseconds, not minutes.
 -/
 namespace Engine
 
@@ -128,32 +131,242 @@ theorem decNat_encNat (n : Nat) (rest : List UInt8) : decNat (encNat n ++ rest) 
       simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq, and_true]
       omega
 
+theorem toNat_small {n : Nat} (h : n < 128) : n.toUInt8.toNat = n := by
+  simp only [Nat.toUInt8, UInt8.toNat_ofNat']; omega
+
+theorem toNat_big (n : Nat) : (n % 128 + 128).toUInt8.toNat = n % 128 + 128 := by
+  simp only [Nat.toUInt8, UInt8.toNat_ofNat']; omega
+
+theorem length_encNat_pos (n : Nat) : 0 < (encNat n).length := by
+  rw [encNat]; split <;> simp
+
+theorem encNat_small {n : Nat} (h : n < 128) : encNat n = [n.toUInt8] := by
+  rw [encNat, ite_eq_left h]
+
+theorem encNat_big {n : Nat} (h : ¬ n < 128) :
+    encNat n = (n % 128 + 128).toUInt8 :: encNat (n / 128) := by
+  rw [encNat, ite_eq_right h]
+
+theorem two_pow_seven (k : Nat) : 2 ^ (7 * k) = 128 ^ k := by
+  rw [Nat.pow_mul]
+
+/-- What is left of x under its top bits from s up: x mod 2^s. -/
+theorem sub_shift (x s : Nat) : x - ((x >>> s) <<< s) = x % 2 ^ s := by
+  rw [Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]
+  have := Nat.div_add_mod x (2 ^ s)
+  rw [Nat.mul_comm] at this
+  omega
+
+/-! ### Long numbers, by halves
+
+A number's bytes are read and written in halves: its base-128 digits
+are cut in two, each half is done the same way, and the halves are
+joined with one shift and one add (or split with one shift and one
+subtraction). A number n bytes long then costs O(n log n) word
+operations, where a byte at a time costs O(n²): a 64 KiB number took a
+second that way. Up to 8 digits (under 2^56) a number is a machine
+word, and is done a byte at a time. -/
+
+/-- The low h base-128 digits of x, low first, each with the
+continuation bit: what an encoding holds before its high part. -/
+def contDigits (x : Nat) : Nat → List UInt8
+  | 0 => []
+  | h + 1 => (x % 128 + 128).toUInt8 :: contDigits (x / 128) h
+
+/-- **A number's encoding is its low digits, then its high part.** -/
+theorem encNat_split : ∀ (h x y : Nat), x < 128 ^ h → 0 < y →
+    encNat (x + 128 ^ h * y) = contDigits x h ++ encNat y
+  | 0, x, y, hx, _ => by
+    have : x = 0 := by simp at hx; omega
+    subst this; simp [contDigits]
+  | h + 1, x, y, hx, hy => by
+    have e : x + 128 ^ (h + 1) * y = x + 128 * (128 ^ h * y) := by
+      rw [Nat.pow_succ, Nat.mul_comm (128 ^ h) 128, Nat.mul_assoc]
+    have hp : 0 < 128 ^ h := Nat.pow_pos (by decide : 0 < 128)
+    have hge : 128 ≤ x + 128 * (128 ^ h * y) := by
+      have : 1 ≤ 128 ^ h * y := Nat.mul_pos hp hy
+      omega
+    rw [e, encNat_big (by omega), Nat.add_mul_mod_self_left,
+      Nat.add_mul_div_left _ _ (by decide : 0 < 128)]
+    have hx' : x / 128 < 128 ^ h := by
+      rw [Nat.pow_succ] at hx
+      exact Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm]; exact hx)
+    rw [encNat_split h (x / 128) y hx' hy]
+    rfl
+
+theorem contDigits_add : ∀ (k h x : Nat),
+    contDigits x (k + h) = contDigits (x % 128 ^ k) k ++ contDigits (x / 128 ^ k) h
+  | 0, h, x => by simp [contDigits]
+  | k + 1, h, x => by
+    rw [show k + 1 + h = (k + h) + 1 by omega, contDigits, contDigits_add k h (x / 128), contDigits]
+    have hd : (128 : Nat) ∣ 128 ^ (k + 1) := Nat.dvd_of_mod_eq_zero (by simp [Nat.pow_succ])
+    rw [Nat.mod_mod_of_dvd x hd, Nat.pow_succ, Nat.mul_comm (128 ^ k) 128,
+      Nat.mod_mul_right_div_self, Nat.div_div_eq_div_mul]
+    rfl
+
+/-- `contDigits`, a byte at a time, into a buffer. -/
+def contDigitsLoop (buf : ByteArray) (x : Nat) : Nat → ByteArray
+  | 0 => buf
+  | h + 1 => contDigitsLoop (buf.push (x % 128 + 128).toUInt8) (x / 128) h
+
+theorem contDigitsLoop_eq : ∀ (buf : ByteArray) (x h : Nat),
+    (contDigitsLoop buf x h).data.toList = buf.data.toList ++ contDigits x h
+  | buf, x, 0 => by simp [contDigitsLoop, contDigits]
+  | buf, x, h + 1 => by simp [contDigitsLoop, contDigits, contDigitsLoop_eq _ (x / 128) h]
+
+/-- `contDigits`, by halves, into a buffer. -/
+def contDigitsInto (buf : ByteArray) (x h : Nat) : ByteArray :=
+  if h ≤ 8 then contDigitsLoop buf x h
+  else
+    let k := h / 2
+    let y := x >>> (7 * k)
+    contDigitsInto (contDigitsInto buf (x - (y <<< (7 * k))) k) y (h - k)
+termination_by h
+decreasing_by all_goals omega
+
+theorem contDigitsInto_eq (buf : ByteArray) (x h : Nat) :
+    (contDigitsInto buf x h).data.toList = buf.data.toList ++ contDigits x h := by
+  induction h using Nat.strongRecOn generalizing buf x with
+  | _ h ih =>
+    rw [contDigitsInto]
+    split
+    · exact contDigitsLoop_eq buf x h
+    · simp only
+      rw [ih _ (by omega), ih _ (by omega), sub_shift, Nat.shiftRight_eq_div_pow, two_pow_seven,
+        List.append_assoc, ← contDigits_add, show h / 2 + (h - h / 2) = h by omega]
+
 def encNatInto (buf : ByteArray) (n : Nat) : ByteArray :=
-  if n < 128 then buf.push n.toUInt8 else encNatInto (buf.push (n % 128 + 128).toUInt8) (n / 128)
+  if n < 128 then buf.push n.toUInt8
+  else if n < 2 ^ 56 then encNatInto (buf.push (n % 128 + 128).toUInt8) (n / 128)
+  else
+    let k := n.log2 / 14
+    let y := n >>> (7 * k)
+    encNatInto (contDigitsInto buf (n - (y <<< (7 * k))) k) y
 termination_by n
-decreasing_by omega
+decreasing_by
+  · omega
+  · rename_i h1 h2
+    have hk : 4 ≤ n.log2 / 14 := by
+      have := (Nat.le_log2 (by omega)).2 (Nat.le_of_not_lt h2)
+      omega
+    rw [Nat.shiftRight_eq_div_pow]
+    exact Nat.div_lt_self (by omega) (Nat.one_lt_two_pow (by omega))
 
 theorem encNatInto_eq (buf : ByteArray) (n : Nat) :
     (encNatInto buf n).data.toList = buf.data.toList ++ encNat n := by
   induction n using Nat.strongRecOn generalizing buf with
   | _ n ih =>
-    rw [encNatInto, encNat]
+    rw [encNatInto]
     split
-    · simp
-    · rw [ih _ (by omega)]; simp
+    · rename_i h1; rw [encNat_small h1]; simp
+    · split
+      · rename_i h1 _; rw [ih _ (by omega), encNat_big h1]; simp
+      · rename_i h1 h2
+        simp only
+        have hn : n ≠ 0 := by omega
+        have hk : 4 ≤ n.log2 / 14 := by
+          have := (Nat.le_log2 hn).2 (Nat.le_of_not_lt h2)
+          omega
+        have hle : 128 ^ (n.log2 / 14) ≤ n := by
+          rw [← two_pow_seven]
+          exact Nat.le_trans (Nat.pow_le_pow_right (by decide) (by omega)) (Nat.log2_self_le hn)
+        have hy : n >>> (7 * (n.log2 / 14)) < n := by
+          rw [Nat.shiftRight_eq_div_pow]
+          exact Nat.div_lt_self (by omega) (Nat.one_lt_two_pow (by omega))
+        rw [ih _ hy, contDigitsInto_eq, sub_shift, Nat.shiftRight_eq_div_pow, two_pow_seven,
+          List.append_assoc, ← encNat_split _ _ _ (Nat.mod_lt _ (Nat.pow_pos (by decide : 0 < 128)))
+            (Nat.div_pos hle (Nat.pow_pos (by decide : 0 < 128))), Nat.mod_add_div]
 
-/-- A number at offset i, `acc` plus `m` times the number its bytes
-spell. -/
-def decNatFrom (b : ByteArray) (i acc m : Nat) : Option (Nat × Nat) :=
-  if h : i < b.size then
-    let x := b[i].toNat
-    if x < 128 then some (acc + x * m, i + 1)
-    else decNatFrom b (i + 1) (acc + (x - 128) * m) (m * 128)
-  else none
+/-- Byte j of b as a number, or 0 past b's end. -/
+def byteAt (b : ByteArray) (j : Nat) : Nat := if h : j < b.size then b[j].toNat else 0
+
+/-- The number L base-128 digits from offset i spell, low first: each
+byte's low seven bits. -/
+def digits (b : ByteArray) (i : Nat) : Nat → Nat
+  | 0 => 0
+  | L + 1 => byteAt b i % 128 + 128 * digits b (i + 1) L
+
+theorem digits_add (b : ByteArray) : ∀ (k i L : Nat),
+    digits b i (k + L) = digits b i k + digits b (i + k) L * 128 ^ k
+  | 0, i, L => by simp [digits]
+  | k + 1, i, L => by
+    rw [show k + 1 + L = (k + L) + 1 by omega, digits, digits, digits_add b k (i + 1) L,
+      show i + 1 + k = i + (k + 1) by omega, Nat.pow_succ, Nat.mul_add]
+    generalize digits b (i + (k + 1)) L = y
+    generalize 128 ^ k = p
+    rw [Nat.mul_comm p 128, ← Nat.mul_assoc y 128 p, Nat.mul_comm y 128, Nat.mul_assoc 128 y p]
+    omega
+
+/-- `digits`, by halves. -/
+def digitsFast (b : ByteArray) (i L : Nat) : Nat :=
+  if L ≤ 8 then digits b i L
+  else digitsFast b i (L / 2) + (digitsFast b (i + L / 2) (L - L / 2) <<< (7 * (L / 2)))
+termination_by L
+decreasing_by all_goals omega
+
+theorem digitsFast_eq (b : ByteArray) (L : Nat) : ∀ i, digitsFast b i L = digits b i L := by
+  induction L using Nat.strongRecOn with
+  | _ L ih =>
+    intro i
+    rw [digitsFast]
+    split
+    · rfl
+    · rw [ih _ (by omega), ih _ (by omega), Nat.shiftLeft_eq, two_pow_seven, ← digits_add,
+        show L / 2 + (L - L / 2) = L by omega]
+
+/-- Where the number at offset i ends: its first byte under 128. -/
+def numEnd (b : ByteArray) (i : Nat) : Option Nat :=
+  if h : i < b.size then (if b[i].toNat < 128 then some i else numEnd b (i + 1)) else none
 termination_by b.size - i
 
-/-- A byte array's length at offset i, read like `decNatFrom` but given
-up as soon as it could not fit in b: no length that fits is refused
+/-- A number at offset i: where it ends, then its digits, by halves. -/
+def decNatFrom (b : ByteArray) (i : Nat) : Option (Nat × Nat) :=
+  match numEnd b i with
+  | some j => some (digitsFast b i (j + 1 - i), j + 1)
+  | none => none
+
+theorem numEnd_digits_at {b : ByteArray} (n : Nat) : ∀ {i : Nat}, At b i (encNat n) →
+    numEnd b i = some (i + (encNat n).length - 1) ∧ digits b i (encNat n).length = n := by
+  induction n using Nat.strongRecOn with
+  | _ n ih =>
+    intro i h
+    by_cases hn : n < 128
+    · rw [encNat_small hn] at h ⊢
+      obtain ⟨hi, hx⟩ := h.get
+      have hb : byteAt b i = b[i].toNat := by simp [byteAt, hi]
+      rw [numEnd, dite_eq_left hi, hx, toNat_small hn, ite_eq_left hn]
+      simp [digits, hb, hx, toNat_small hn, Nat.mod_eq_of_lt hn]
+    · rw [encNat_big hn] at h ⊢
+      obtain ⟨hi, hx⟩ := h.get
+      have hb : byteAt b i = b[i].toNat := by simp [byteAt, hi]
+      obtain ⟨ih1, ih2⟩ := ih (n / 128) (by omega) h.cons
+      have := length_encNat_pos (n / 128)
+      rw [numEnd, dite_eq_left hi, hx, toNat_big, ite_eq_right (by omega), ih1]
+      simp only [List.length_cons, digits, hb, hx, toNat_big, ih2]
+      constructor
+      · congr 1; omega
+      · omega
+
+theorem decNatFrom_at {b : ByteArray} {i : Nat} (n : Nat) (h : At b i (encNat n)) :
+    decNatFrom b i = some (n, i + (encNat n).length) := by
+  obtain ⟨h1, h2⟩ := numEnd_digits_at n h
+  have := length_encNat_pos n
+  rw [decNatFrom, h1]
+  simp only
+  rw [show i + (encNat n).length - 1 + 1 - i = (encNat n).length by omega, digitsFast_eq, h2]
+  congr 2; omega
+
+instance : Codec Nat where
+  enc := encNat
+  dec := decNat
+  round := decNat_encNat
+  encInto := encNatInto
+  encInto_eq := encNatInto_eq
+  decFrom := decNatFrom
+  decFrom_at := decNatFrom_at
+
+/-- A byte array's length at offset i, a byte at a time, given up as
+soon as it could not fit in b: no length that fits is refused
 (`decLenFrom_at`), and no large number is ever built. -/
 def decLenFrom (b : ByteArray) (i acc m : Nat) : Option (Nat × Nat) :=
   if h : i < b.size then
@@ -164,12 +377,6 @@ def decLenFrom (b : ByteArray) (i acc m : Nat) : Option (Nat × Nat) :=
   else none
 termination_by b.size - i
 
-theorem toNat_small {n : Nat} (h : n < 128) : n.toUInt8.toNat = n := by
-  simp only [Nat.toUInt8, UInt8.toNat_ofNat']; omega
-
-theorem toNat_big (n : Nat) : (n % 128 + 128).toUInt8.toNat = n % 128 + 128 := by
-  simp only [Nat.toUInt8, UInt8.toNat_ofNat']; omega
-
 theorem split128 (n acc m : Nat) : acc + (n % 128 + 128 - 128) * m + n / 128 * (m * 128) = acc + n * m := by
   rw [Nat.add_sub_cancel]
   have e := Nat.mod_add_div n 128
@@ -177,25 +384,6 @@ theorem split128 (n acc m : Nat) : acc + (n % 128 + 128 - 128) * m + n / 128 * (
     conv => lhs; rw [← e]
     rw [Nat.add_mul, Nat.mul_comm 128 (n / 128), Nat.mul_assoc, Nat.mul_comm 128 m]
   omega
-
-theorem decNatFrom_at {b : ByteArray} (n : Nat) : ∀ {i : Nat} (acc m : Nat), At b i (encNat n) →
-    decNatFrom b i acc m = some (acc + n * m, i + (encNat n).length) := by
-  induction n using Nat.strongRecOn with
-  | _ n ih =>
-    intro i acc m h
-    rw [encNat] at h ⊢
-    by_cases hn : n < 128
-    · simp only [hn, ite_true] at h ⊢
-      obtain ⟨hi, hx⟩ := h.get
-      rw [decNatFrom, dite_eq_left hi]
-      simp [hx, toNat_small hn, hn]
-    · simp only [hn, ite_false] at h ⊢
-      obtain ⟨hi, hx⟩ := h.get
-      rw [decNatFrom, dite_eq_left hi]
-      simp only [hx, toNat_big, show ¬ (n % 128 + 128 < 128) by omega, ite_false]
-      rw [ih (n / 128) (by omega) _ _ h.cons, split128]
-      simp only [List.length_cons]
-      congr 2; omega
 
 theorem decLenFrom_at {b : ByteArray} (n : Nat) : ∀ {i : Nat} (acc m : Nat), At b i (encNat n) →
     acc + n * m ≤ b.size → decLenFrom b i acc m = some (acc + n * m, i + (encNat n).length) := by
@@ -217,18 +405,6 @@ theorem decLenFrom_at {b : ByteArray} (n : Nat) : ∀ {i : Nat} (acc m : Nat), A
       rw [ih (n / 128) (by omega) _ _ h.cons (by rw [split128]; exact hb), split128]
       simp only [List.length_cons]
       congr 2; omega
-
-theorem length_encNat_pos (n : Nat) : 0 < (encNat n).length := by
-  rw [encNat]; split <;> simp
-
-instance : Codec Nat where
-  enc := encNat
-  dec := decNat
-  round := decNat_encNat
-  encInto := encNatInto
-  encInto_eq := encNatInto_eq
-  decFrom b i := decNatFrom b i 0 1
-  decFrom_at n h := by rw [decNatFrom_at n 0 1 h]; simp
 
 /-! ## Byte strings -/
 

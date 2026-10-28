@@ -23,14 +23,16 @@ def fresh (dir name : String) : IO Db := do
 /-- Nanoseconds as microseconds, to a tenth. -/
 def usStr (ns : Nat) : String := s!"{ns / 1000}.{ns / 100 % 10} µs"
 
-/-- Run f at least 3 times and until 300 ms have passed (at most `cap`
-times); print the mean per run, and fold each result into `sum`. -/
-def bench (sum : IO.Ref Nat) (label : String) (f : Nat → IO Nat) (cap : Nat := 1000) : IO Unit := do
-  let _ ← f 0
+/-- Run f at least `minRuns` times and until 300 ms have passed (at
+most `cap` times), after one run to warm up unless `minRuns` is 1;
+print the mean per run, and fold each result into `sum`. -/
+def bench (sum : IO.Ref Nat) (label : String) (f : Nat → IO Nat) (cap : Nat := 1000)
+    (minRuns : Nat := 3) : IO Unit := do
+  if minRuns > 1 then let _ ← f 0
   let t0 ← IO.monoNanosNow
   let mut n := 0
   let mut el := 0
-  while n < 3 || (el < 300000000 && n < cap) do
+  while n < minRuns || (el < 300000000 && n < cap) do
     let r ← f n
     sum.modify (· + r)
     n := n + 1
@@ -134,10 +136,14 @@ def main (args : List String) : IO UInt32 := do
   IO.println s!"one frame bundle: {payloads.size} ops, {bundle.size} bytes"
   bench sum "decode a 48 KiB frame bundle (the list, then Op.decode of each op)" fun i =>
     pure (decodeBundle bundle i)
-  -- Adversarial: a body's number field can be as long as the op. A long
-  -- number costs time quadratic in its length, to read and to write.
+  -- Adversarial: a body's number field can be as long as the op, and a
+  -- bare frame's op is decoded (`scope`) before anything refuses it; a
+  -- frame is at most 1 MiB (`Sync.maxFrame`).
   for n in [4096, 16384, 65536] do
     let b := longNumber n
     bench sum s!"decode a {n}-byte number (adversarial)" (cap := 3) fun i => pure (decodeNat b i)
+  let b := longNumber Sync.maxFrame
+  bench sum s!"decode a {Sync.maxFrame}-byte number (adversarial, one frame)" (cap := 1) (minRuns := 1)
+    fun i => pure (decodeNat b i)
   IO.println s!"checksum {← sum.get}"
   return 0
