@@ -145,6 +145,21 @@ def listSql {F} (q : ListQ) : SqlM F Answer := do
   let pos := rows.toList.filterMap fun r => do pure ((← r[0]?), (← r[1]?))
   return ⟨pos, inR, total⟩
 
+/-- The same list with each row's fact, read in the same statement (a
+join on the verdicts' primary key): for lists whose rows are drawn
+together, such as a message's reactions. -/
+def listFactsSql {F} [Codec F] (q : ListQ) : SqlM F (Answer × List F) := do
+  let a ← listSql (F := F) q
+  if q.limit = 0 then return (a, [])
+  let (k, others, _) ← pickWalk (F := F) q
+  let (w, ps) := q.whereSql k others true
+  let dir := if q.desc then "DESC" else "ASC"
+  let rows ← sqlQ (F := F) s!"SELECT st.verdict FROM idx i JOIN status st ON st.id = i.id WHERE {w} ORDER BY i.s {dir}, i.id {dir} LIMIT {q.limit}" ps
+  let fs := rows.toList.filterMap fun r => match r[0]? >>= Codec.decode with
+    | some (Verdict.valid f) => some f
+    | _ => none
+  return (a, fs)
+
 /-- The verdict of op x. -/
 def getSql {F} [Codec F] (x : Id) : SqlM F (Option (Verdict F)) := do
   sqlOne "verdict" (← sqlQ (F := F) "SELECT verdict FROM status WHERE id = ?" #[x])
