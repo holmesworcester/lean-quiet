@@ -118,16 +118,28 @@ def transact {α} (act : SqlM F α) : SqlM F α := do
     db.exec "ROLLBACK"
     throw e
 
-/-- Judge until the queue is empty. -/
-partial def drainAll [Codec F] [SortKey F] (fam : Family F) : SqlM F Unit := do
-  if ← step (m := SqlM F) fam then drainAll fam
+/-- A count, read with one statement. -/
+def countSql (sql : String) : SqlM F Nat := do
+  let rows ← sqlQ (F := F) sql #[]
+  return match rows[0]? >>= (·[0]?) with
+    | some b => (String.fromUTF8? b >>= String.toNat?).getD 0
+    | none => 0
+
+/-- The judging steps the tables need at most (Engine.budget): the
+queue's length, plus the undecided stored ops times the stored ops. -/
+def budgetSql : SqlM F Nat := do
+  let q ← countSql (F := F) "SELECT CAST(count(*) AS TEXT) FROM queue"
+  let u ← countSql (F := F) "SELECT CAST(count(*) AS TEXT) FROM ops WHERE id NOT IN (SELECT id FROM status)"
+  let n ← countSql (F := F) "SELECT CAST(count(*) AS TEXT) FROM ops"
+  return q + u * n
 
 /-- One write turn: take in ops and judge everything that became
-decidable, atomically. -/
+decidable, atomically, with the proven `drain` and a budget read in the
+same transaction (`drain_bounded`: it empties the queue). -/
 def receive [Codec F] [SortKey F] (fam : Family F) (ops : List Op) : SqlM F Unit :=
   transact do
     for o in ops do ingest (m := SqlM F) o
-    drainAll fam
+    drain (m := SqlM F) fam (← budgetSql (F := F))
 
 /-! ## Reading the whole database back, for tests -/
 

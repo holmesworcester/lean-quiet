@@ -75,6 +75,15 @@ def main (args : List String) : IO UInt32 := do
       let half := acts.take (acts.length / 3)
       runSql fam db half
       sameTables t s!"seed {seed} run {run} midway" db (runModel fam half) ids0
+      -- The writer's budget, read from SQLite, is the proven one; and on
+      -- the model it empties the queue.
+      let got := half.filterMap fun | .ingest o => some o | _ => none
+      let mid := runModel fam half
+      db.exec "BEGIN"
+      let b ← (budgetSql (F := Fact)).run db
+      db.exec "COMMIT"
+      t.ok s!"seed {seed} run {run}: SQLite's budget is the proven one" (b == budget got.reverse mid)
+      t.ok s!"seed {seed} run {run}: draining with it empties the queue" (drainS fam b mid).queue.isEmpty
       runSql fam db (acts.drop (acts.length / 3))
       let m := runModel fam acts
       sameTables t s!"seed {seed} run {run} at rest" db m ids0

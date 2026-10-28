@@ -59,3 +59,5 @@ open Engine Community
 #print axioms Community.local_fact_mine
 #print axioms Community.join_travels
 #print axioms Community.found_travels
+#print axioms Engine.drain_bounded
+#print axioms Engine.step_budget

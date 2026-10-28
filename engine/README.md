@@ -32,6 +32,9 @@ Proven (`Proofs.lean`), about that code run on the model:
   order and batching, both finish processing and then hold the same
   verdict (fact included) for every op. (`order_free` is the at-rest
   half.)
+- `drain_bounded`, `step_budget`: draining with the budget the writer
+  reads off its tables (queue length + undecided ops × stored ops)
+  empties the queue; the write path has no `partial` loop.
 - `drain_terminates`, `drain_settles`: op processing terminates — from
   any reachable state, finitely many steps empty the queue, and then
   every verdict is the spec's.
@@ -157,9 +160,10 @@ and each named user's `removal.byUser`.
 - Op ids do not collide (`Distinct`).
 - `Crypto.pub` gives a seed's public key (libsodium's Ed25519 at
   runtime); a secret op is Valid only if its seed derives to its key.
-- The SQLite writer's drain loop (`drainAll`) is `partial`: the proofs
-  cover the fueled `drain`. Being replaced by `drain` with a proven
-  bound.
+- The SQLite writer drains with the proven `drain` and a budget it
+  counts in SQL (`budgetSql`); that the count equals `Engine.budget` is
+  tested (`differential`), and `drain_bounded` proves that budget
+  empties the queue.
 - Confidentiality is proven as "who keys are sealed to", not as a
   cryptographic property, and removed users keep keys they already
   hold: no rotation yet, as in libquiet's current increment.
