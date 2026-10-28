@@ -38,12 +38,27 @@
 #                        measured (the cost meter); LAW, audited, is an
 #                        equation naming it that erases it to the plain
 #                        run. Left out of subjects, like an assumption.
+#   weak NAME TEXT       NAME must not be reached from any entry point
+#                        (main, the runner, a shipping @[export]): a
+#                        secret made from it would be guessable
+#   door NAME DOOR       among what the entry points reach, only DOOR (one
+#                        line per door) may run NAME: every secret the
+#                        app makes from the OS's randomness, one place
 #   copy NAME CODE TEXT  NAME restates running CODE instead of naming it:
 #                        a law (a model until it names CODE) or a
 #                        definition (a todo, until CODE calls it)
 #   subject LAW NAMES    LAW's subject is NAMES (its statement must name
 #                        each), where the heuristic takes too much
 #   wired LAW            LAW must be wired
+
+## Weak: no shipping path may reach these
+
+weak Chaos.freshSeed a seed from the microsecond clock, guessable by anyone who can bound when it was made: test identities only; the app's secrets come from `App.newSeed` (the OS's randomness)
+# The OS's randomness has two doors: the app's (every secret, key and
+# nonce it makes), and the node's connection family on SQLite (the
+# handshake's ephemerals, `Fresh`).
+door Engine.Crypto.randomBytes App.newBytes
+door Engine.Crypto.randomBytes Connection.instFreshSqlMFOfCodecOfSortKey
 
 ## Wired, and must stay so: the laws "What is proven" rests on
 
@@ -173,6 +188,24 @@ world Engine.Sync.Setup.sync = Engine.Sync.World.peer
 world Engine.Sync.plainFrame = Engine.Sync.World.peer
 world Engine.Sync.oneRoom = Engine.Sync.World.peer
 
+## Negative controls: mutants, each kept only to show the old shape breaks
+## its law (a budget, or freshness). Their laws are counted apart.
+
+control Community.Merkle.rootAndProofsSlowM Every proof rebuilding its siblings, as before the levels: over `rootAndProofs_hashes`' budget (`slow_over_budget`).
+control Engine.Codec.digitsSlowM A number's digits a byte at a time, as before the halves: over the digits' budget (`slow_digits_over_budget`).
+control Engine.Codec.decBytesListM A byte string the list codec's way: over the bytes' budget (`slow_bytes_over_budget`).
+control Engine.Codec.readAllM = Engine.Codec.decBytesListM
+control Pics.imageV `image` with the old `decoded`, as it shipped: over the frame's budget (`imageV_over_budget`).
+control Community.approveWrapAll An approval that wraps the key to every member: wraps to a non-member (`wrapAll_over`).
+control Live.Gated.quiet A frame gated on notices: stale for ever (`gated_stale`); its example world (`w5`) shows the ungated frame fresh.
+control Live.Gated.w5 = Live.Gated.quiet
+control Live.RWorld.passEager The pass as first written, checking staleness while reading: stale for ever (`eager_stale`); its example world (`Eager.w1`) shows the marking pass fresh.
+control Live.Eager.eager = Live.RWorld.passEager
+control Live.Eager.w1 = Live.RWorld.passEager
+control Live.Eager.eval = Live.RWorld.passEager
+control Live.Eager.hits = Live.RWorld.passEager
+control Live.Eager.reads = Live.RWorld.passEager
+
 ## What would make each model real, most valuable first (the README's order)
 
 todo Engine.purgeS The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`).
@@ -242,3 +275,39 @@ wired Ttf.Cache.checked_valid
 wired Ttf.Cache.put_bound
 wired Ttf.Cache.payload_le_bytes
 wired Ttf.Cache.put_payload_bound
+todo Live.Board.put The change signal's board and reader, as a model (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's cache (`Data.Live`) does not run `Board`. Have the reader use it.
+todo Live.Board.apply = Live.Board.put
+todo Live.Board.keep = Live.Board.put
+todo Live.Board.take = Live.Board.put
+todo Live.World.afterActs = Live.Board.put
+todo Live.World.commit = Live.Board.put
+todo Live.World.frame = Live.Board.put
+todo Live.World.marked = Live.Board.put
+todo Live.World.pass = Live.Board.put
+todo Live.World.passActs = Live.Board.put
+todo Live.World.type = Live.Board.put
+todo Live.RWorld.commit = Live.Board.put
+todo Live.RWorld.evict = Live.Board.put
+todo Live.RWorld.frame = Live.Board.put
+todo Live.RWorld.marked = Live.Board.put
+todo Live.RWorld.pass = Live.Board.put
+todo Live.staleW = Live.Board.put
+todo Heights.T.sum The row-heights tree (engine/renderer/Heights.lean): the app keeps its rows' heights in a map (`App.heightOf`) and adds them up itself. Have its list frame place rows by `Heights`.
+todo Heights.Both.bottom = Heights.T.sum
+todo Heights.Both.rowAt = Heights.T.sum
+todo Heights.Both.top = Heights.T.sum
+todo Heights.Rows.push = Heights.T.sum
+todo Heights.T.build = Heights.T.sum
+todo Heights.T.buildM = Heights.T.sum
+todo Heights.T.depth = Heights.T.sum
+todo Heights.T.find = Heights.T.sum
+todo Heights.T.findM = Heights.T.sum
+todo Heights.T.set = Heights.T.sum
+todo Heights.T.setM = Heights.T.sum
+todo Heights.T.size = Heights.T.sum
+todo Heights.T.start = Heights.T.sum
+todo Heights.T.startM = Heights.T.sum
+todo Heights.T.toList = Heights.T.sum
+todo Heights.clog = Heights.T.sum
+todo Heights.rebuild = Heights.T.sum
+todo Heights.screenY = Heights.T.sum
