@@ -15,10 +15,6 @@ with its peers. It runs on Android and iOS, and headless on Linux for
 its tests; native code only connects Lean to each OS ([what isn't Lean,
 and why](#what-isnt-lean-and-why)).
 
-| 👋 **A note from a human** |
-|:---|
-| The most obviously valuable thing about building a user-facing communication tool entirely in Lean is that you can prove strict safety properties. In a p2p, e2ee app where code is law, this means potentially being able to prove them over all possible deployments, too! But an even more interesting question: can you also prove absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size, or lack of responsiveness under load. It seems like you can! |
-
 What sets it apart is how far the proofs reach. Nearly every theorem is
 about the code the app runs, not a separate model of it, and they reach
 every layer:
@@ -60,6 +56,10 @@ commit. [What is proven](#what-is-proven) lists each guarantee, what it
 assumes, and what is still wanted.
 
 ## What is proven
+
+| 👋 **A note from a human** |
+|:---|
+| The most obviously valuable thing about building a user-facing communication tool entirely in Lean is that you can prove strict safety properties. In a p2p, e2ee app where code is law, this means potentially being able to prove them over all possible deployments, too! But an even more interesting question: can you also prove absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size, or lack of responsiveness under load. It seems like you can! |
 
 Lean checks these theorems about the code that runs. Whatever any peer
 or anyone on the network does:
