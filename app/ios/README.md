@@ -114,6 +114,21 @@ These findings come from `ios:mdns` (Simulator) and `ios:mdns-device`
   connect and listen both work. The probe announces every non-loopback
   address, and avahi picked the Mac's Tailscale address, so the app should
   announce only the Wi-Fi address.
+- **iPhone, lean-mdns:** raw multicast is blocked. With local network
+  access granted, `Net.open` still binds 5353 and joins the group, but
+  every send and receive fails with EHOSTUNREACH (65). That is Apple's
+  documented behaviour without the multicast entitlement (below). The
+  Mac's dns-sd never sees `lean-ios-phone`, and the app never hears the
+  Mac.
+- **iPhone, TCP:** Lean's connect to the Mac and its listener (the Mac
+  connecting to the phone's 192.168.4.36) both work over Wi-Fi.
+- **iPhone, DNS-SD (the fallback below):** it works across machines. The
+  phone's registration `lean-ios-phone-sd` is listed by the Mac's
+  `dns-sd -B`, and is listed and resolved to 192.168.4.36:7401 by avahi on
+  a third host on the Wi-Fi. A capture there shows the phone's full
+  announcement: PTR, SRV, TXT, A. The phone resolves the Mac's `probe` to
+  192.168.4.32:7001, and an avahi registration on the third host to its
+  address and port.
 - **Local network privacy (iPhone):** an app that has not been granted
   local network access gets EHOSTUNREACH (65) for every outgoing packet to
   the LAN. That includes multicast and also plain TCP to a LAN address.

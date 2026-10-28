@@ -66,8 +66,9 @@ wait 2>/dev/null || true
   echo "== the harness (TCP peer, $bind:$port)"
   cat "$out/harness.txt"
   echo "== the Mac's mDNS responder"
-  if grep -q "Add.*$inst" "$out/browse.txt"; then
-    echo "ok mac-browse: $(grep "Add.*$inst" "$out/browse.txt" | head -1 | tr -s ' ')"
+  # (the instance ends the line: lean-ios-phone is not lean-ios-phone-sd)
+  if tr -d '\r' < "$out/browse.txt" | grep -Eq "Add .* $inst *\$"; then
+    echo "ok mac-browse: $(tr -d '\r' < "$out/browse.txt" | grep -E "Add .* $inst *\$" | head -1 | tr -s ' ')"
   else
     echo "fail mac-browse: dns-sd -B never listed $inst"
   fi
@@ -76,7 +77,7 @@ wait 2>/dev/null || true
   else
     echo "fail mac-lookup: dns-sd -L did not resolve $inst"
   fi
-  if grep -q "Add.*$inst-sd" "$out/browse.txt"; then
+  if tr -d '\r' < "$out/browse.txt" | grep -Eq "Add .* $inst-sd *\$"; then
     echo "ok mac-browse-dnssd: $(grep "Add.*$inst-sd" "$out/browse.txt" | head -1 | tr -s ' ')"
   else
     echo "fail mac-browse-dnssd: dns-sd -B never listed $inst-sd (the app's DNS-SD registration)"
