@@ -8,6 +8,7 @@ import engine.core.Purge
 import engine.core.Codec
 import engine.core.Cost
 import engine.core.CodecCost
+import engine.core.CostStore
 import engine.core.Sqlite
 import engine.core.Termination
 import engine.core.Query
@@ -20,6 +21,7 @@ import ops.sync.Round
 import ops.sync.RoundLaws
 import ops.sync.Wire
 import ops.sync.Conn
+import ops.sync.TickCost
 import engine.wire.Node
 import engine.wire.Pair
 import ops.sync.ConnLaws

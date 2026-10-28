@@ -137,6 +137,83 @@ instance [LawfulMonad m] : LawfulMonad (CostT m) := LawfulMonad.mk'
 
 end CostT
 
+/-! ## Budgets over any monad
+
+`Within g B x`: every run of x charges at most B in the meter's field g,
+whatever m is (SQLite, a model, a world of nodes) and whatever its
+doors return. It is `SatisfiesM` (Batteries) for the charge: x's runs
+are runs of an action whose charges carry the bound. A store law
+stated with it holds for every store. -/
+
+section
+variable {m : Type → Type} [Monad m] {α β : Type}
+
+def Within (g : Meter → Nat) (B : Nat) (x : CostT m α) : Prop :=
+  ∃ y : m { p : α × Meter // g p.2 ≤ B }, Subtype.val <$> y = x.run
+
+/-- A meter field: it adds, and is 0 at 0. -/
+class Field (g : Meter → Nat) : Prop where
+  zero : g 0 = 0
+  add : ∀ a b, g (a + b) = g a + g b
+
+instance : Field Meter.reads := ⟨rfl, fun _ _ => rfl⟩
+instance : Field Meter.lists := ⟨rfl, fun _ _ => rfl⟩
+instance : Field Meter.writes := ⟨rfl, fun _ _ => rfl⟩
+instance : Field Meter.hashes := ⟨rfl, fun _ _ => rfl⟩
+instance : Field Meter.hashed := ⟨rfl, fun _ _ => rfl⟩
+instance : Field Meter.spawns := ⟨rfl, fun _ _ => rfl⟩
+instance : Field Meter.work := ⟨rfl, fun _ _ => rfl⟩
+instance : Field Meter.copied := ⟨rfl, fun _ _ => rfl⟩
+
+variable [LawfulMonad m] {g : Meter → Nat}
+
+theorem Within.mono {A B : Nat} {x : CostT m α} (h : A ≤ B) (hx : Within g A x) : Within g B x := by
+  obtain ⟨y, hy⟩ := hx
+  exact ⟨(fun p => ⟨p.1, Nat.le_trans p.2 h⟩) <$> y, by rw [← hy, Functor.map_map]⟩
+
+theorem within_pure [Field g] (a : α) : Within g 0 (pure a : CostT m α) :=
+  ⟨pure ⟨(a, 0), by rw [Field.zero (g := g)]; exact Nat.le_refl 0⟩, by rw [map_pure]; rfl⟩
+
+theorem within_charged (c : Meter) (x : m α) : Within g (g c) (CostT.charged c x) :=
+  ⟨(fun a => ⟨(a, c), Nat.le_refl _⟩) <$> x, by
+    show _ = (do let a ← x; pure (a, c))
+    rw [Functor.map_map, map_eq_pure_bind]⟩
+
+theorem within_lift [Field g] (x : m α) : Within g 0 (CostT.lift x) := by
+  have := within_charged (g := g) 0 x
+  rwa [Field.zero (g := g)] at this
+
+theorem within_tick (c : Meter) : Within g (g c) (tick c : CostT m Unit) :=
+  ⟨pure ⟨((), c), Nat.le_refl _⟩, by rw [map_pure]; rfl⟩
+
+/-- **Budgets add along a bind.** -/
+theorem within_bind [Field g] {A B : Nat} {x : CostT m α} {f : α → CostT m β}
+    (hx : Within g A x) (hf : ∀ a, Within g B (f a)) : Within g (A + B) (x >>= f) := by
+  obtain ⟨y, hy⟩ := hx
+  have hf' : ∀ a, ∃ z : m { q : β × Meter // g q.2 ≤ B }, Subtype.val <$> z = (f a).run := hf
+  let z := fun a => Classical.choose (hf' a)
+  have hz : ∀ a, (f a).run = Subtype.val <$> z a := fun a => (Classical.choose_spec (hf' a)).symm
+  refine ⟨do
+      let p ← y
+      let q ← z p.1.1
+      pure ⟨(q.1.1, p.1.2 + q.1.2), by rw [Field.add (g := g)]; exact Nat.add_le_add p.2 q.2⟩, ?_⟩
+  show _ = (do let p ← x.run; let q ← (f p.1).run; pure (q.1, p.2 + q.2))
+  rw [← hy]
+  simp only [hz, map_bind, bind_map_left, map_pure]
+
+theorem within_bind_le [Field g] {A B C : Nat} {x : CostT m α} {f : α → CostT m β}
+    (hx : Within g A x) (hf : ∀ a, Within g B (f a)) (h : A + B ≤ C) : Within g C (x >>= f) :=
+  (within_bind hx hf).mono h
+
+omit [LawfulMonad m] in
+theorem within_ite {c : Prop} [Decidable c] {B : Nat} {x y : CostT m α}
+    (hx : c → Within g B x) (hy : ¬ c → Within g B y) : Within g B (if c then x else y) := by
+  by_cases h : c
+  · rw [ite_eq_left h]; exact hx h
+  · rw [ite_eq_right h]; exact hy h
+
+end
+
 /-! ## Pure code, counted -/
 
 /-- Pure code, counted: a value and what computing it charged. -/

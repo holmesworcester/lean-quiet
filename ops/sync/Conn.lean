@@ -224,29 +224,41 @@ def Conn.onHold (c : Conn) (ids : List Id) : m Step := do
     asked := want.foldl (·.insert ·) c.asked }
   return { conn := c, send := chunks cfg want.reverse .want }
 
-/-- Walk requirement closures from the frontier: offer every stored op
-the peer may see and is not known to hold or already offered. -/
-def Conn.walk (c : Conn) : m (Conn × List Id) := do
-  let mut c := c
-  let mut offer : List Id := []
-  let mut budget := cfg.walk
-  while budget > 0 do
+/-- At most n steps of the closure walk, the ids offered so far in
+`offer` (newest first). A step pops the frontier; an id not closed has
+its op read, and an op the peer may see is offered (unless known or
+offered), has its status read (a Valid op's closure is closed), and
+pushes its requirements. A recursion on n, not a `while`: a `while` does
+not unfold in a proof (Lean's `repeatM` needs an order no store monad
+has), so nothing, its cost included, could be proven of it
+(`walk_reads`, ops/sync/TickCost.lean). -/
+def Conn.walkN : Nat → Conn → List Id → m (Conn × List Id)
+  | 0, c, offer => pure (c, offer)
+  | n + 1, c, offer =>
     match c.frontier with
-    | [] => budget := 0
-    | x :: rest =>
-      budget := budget - 1
-      c := { c with frontier := rest }
-      if !c.closed.contains x then
+    | [] => pure (c, offer)
+    | x :: rest => do
+      let c := { c with frontier := rest }
+      if c.closed.contains x then Conn.walkN n c offer
+      else
         match ← Store.getOp (F := F) x with
-        | none => pure ()
+        | none => Conn.walkN n c offer
         | some o =>
           if c.shows fam o then
-            if !c.known.contains x && !c.offered.contains x then
-              offer := x :: offer
-              c := { c with offered := c.offered.insert x }
-            if let some (.valid _) ← Store.getStatus (F := F) x then
-              c := { c with closed := c.closed.insert x }
-            c := { c with frontier := o.reqs ++ c.frontier }
+            let (c, offer) := if !c.known.contains x && !c.offered.contains x
+              then ({ c with offered := c.offered.insert x }, x :: offer) else (c, offer)
+            let st ← Store.getStatus (F := F) x
+            let c := match st with
+              | some (.valid _) => { c with closed := c.closed.insert x }
+              | _ => c
+            Conn.walkN n { c with frontier := o.reqs ++ c.frontier } offer
+          else Conn.walkN n c offer
+
+/-- Walk requirement closures from the frontier, at most `cfg.walk`
+steps: offer every stored op the peer may see and is not known to hold
+or already offered. -/
+def Conn.walk (c : Conn) : m (Conn × List Id) := do
+  let (c, offer) ← Conn.walkN fam cfg.walk c []
   return (c, offer.reverse)
 
 /-- The peer wants these: send each stored op it may see, and offer
