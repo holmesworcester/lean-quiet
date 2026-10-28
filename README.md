@@ -1150,7 +1150,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`buffer_bounded`]: engine/wire/Frame.lean#L213-L218
 [`frames_kept`]: engine/wire/Frame.lean#L158-L161
 [`frames_tooBig`]: engine/wire/Frame.lean#L180-L183
-[`admit_bounded`]: engine/wire/Slots.lean#L42-L47
+[`admit_bounded`]: engine/wire/Slots.lean#L49-L54
 [`Op.decode_exact`]: engine/core/Core.lean#L96-L98
 [`Op.decode_parts`]: engine/core/Core.lean#L101-L104
 [`decode_sum`]: engine/core/Codec.lean#L677-L680
