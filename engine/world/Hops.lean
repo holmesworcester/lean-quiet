@@ -351,11 +351,6 @@ end
 
 /-! ## The node invariant -/
 
-/-- `ByteArray`'s `==` is equality: the write compares ids with it. -/
-theorem byteArray_lawfulBEq : LawfulBEq ByteArray where
-  eq_of_beq {a b} h := ByteArray.ext (eq_of_beq (show a.data == b.data from h))
-  rfl {a} := show a.data == a.data from beq_self_eq_true a.data
-
 attribute [local instance] byteArray_lawfulBEq
 
 /-- Every op is stored under its own id. -/
@@ -701,6 +696,8 @@ structure NodeOk (fam : Family F) (n : Node) (h : Held F) : Prop where
   /-- Its log is exactly what it stores. -/
   logx : LogExact h
   stored : StoredLogged h
+  /-- Every id a connection has offered names a stored op. -/
+  offered : ∀ p ∈ n.conns, ∀ x ∈ p.2.offered, Named h x
 
 theorem LogIn.ext {h h' : Held F} (e : Ext h h') (hl : LogIn h) : LogIn h' := fun o ho => by
   rcases e.2 o ho with ho | ho
@@ -746,12 +743,119 @@ theorem write_store (n : Node) (ops : List Op) (h : Held F) :
   · exact Or.inl rfl
   · exact Or.inr ⟨_, rfl⟩
 
+theorem mem_foldl_insert {y : Id} : ∀ (l : List Id) (s : Std.HashSet Id),
+    y ∈ l.foldl (·.insert ·) s → y ∈ s ∨ y ∈ l := by
+  intro l
+  induction l with
+  | nil => intro s h; exact Or.inl h
+  | cons a t ih =>
+    intro s h
+    rcases ih _ h with h | h
+    · rw [Std.HashSet.mem_insert] at h
+      rcases h with e | h
+      · exact Or.inr (by rw [show a = y from eq_of_beq e]; exact List.mem_cons_self ..)
+      · exact Or.inl h
+    · exact Or.inr (List.mem_cons_of_mem _ h)
+
+/-- A loop on a fixed store, every turn keeping it and a property of the
+loop's state. -/
+theorem forIn_inv_at {α β} (l : List α) (f : α → β → HeldM F (ForInStep β)) (h : Held F) (Q : β → Prop)
+    (hk : ∀ a b, ((f a b).run h).2 = h) (hf : ∀ a b, Q b → Q ((f a b).run h).1.value) :
+    ∀ b, Q b → Q ((forIn l b f).run h).1 := by
+  induction l with
+  | nil => intro b hb; exact hb
+  | cons a t ih =>
+    intro b hb
+    rw [List.forIn_cons, HeldM.run_bind, hk a b]
+    have := hf a b hb
+    cases e : ((f a b).run h).1 with
+    | done b' => rw [e] at this; exact this
+    | yield b' => rw [e] at this; exact ih b' this
+
+theorem finish_offered (st : Step) : (Conn.finish st).conn.offered = st.conn.offered := by
+  unfold Conn.finish Conn.report
+  by_cases h : st.conn.asked.isEmpty = true <;> simp [h]
+
+/-- **The stream marks offered only ops it holds.** -/
+theorem filed_offered (c : Conn) (ids : List Id) (h : Held F) (x : Id)
+    (hx : x ∈ ((c.filed fam cfg ids : HeldM F Step).run h).1.conn.offered) : x ∈ c.offered ∨ Named h x := by
+  unfold Conn.filed at hx
+  simp only [HeldM.run_bind, HeldM.run_pure, finish_offered] at hx
+  revert x
+  refine forIn_inv_at _ _ h (fun st : List (Id × Id) × Conn => ∀ x ∈ st.2.offered, x ∈ c.offered ∨ Named h x)
+    ?_ ?_ _ (fun x hx => Or.inl hx)
+  · intro i st
+    obtain ⟨off, c'⟩ := st
+    dsimp only
+    split
+    · simp only [HeldM.run_bind, HeldM.run_getOp]
+      split <;> (try split) <;> rfl
+    · rfl
+  · intro i st hst
+    obtain ⟨off, c'⟩ := st
+    dsimp only at hst ⊢
+    split
+    · simp only [HeldM.run_bind, HeldM.run_getOp]
+      cases hg : h.db.ops i with
+      | none => exact hst
+      | some o =>
+        dsimp only
+        split
+        · intro y hy
+          change y ∈ c'.offered.insert i at hy
+          rw [Std.HashSet.mem_insert] at hy
+          rcases hy with e | hy
+          · right; rw [← (eq_of_beq e : i = y)]; unfold Named; rw [hg]; rfl
+          · exact hst y hy
+        · exact hst
+    · exact hst
+
+/-- What an answer offers, it holds. -/
+theorem answer_holds (P : Params) (mine : List Item) (cl : Claim) (x : Id)
+    (hx : x ∈ (answer Prod.fst Prod.snd sha256 P mine cl).flatMap (fun | .hold xs => xs | _ => [])) :
+    ∃ it ∈ mine, it.2 = x := by
+  obtain ⟨o, ho, hxo⟩ := List.mem_flatMap.1 hx
+  cases cl with
+  | fp rg n l =>
+    simp only [answer] at ho
+    split at ho
+    · cases ho
+    · split at ho
+      · rw [List.mem_singleton] at ho; subst ho; simp at hxo
+      · obtain ⟨q, _, rfl⟩ := List.mem_map.1 ho; simp at hxo
+  | ids rg xs =>
+    simp only [answer, List.mem_cons, List.not_mem_nil, or_false] at ho
+    rcases ho with rfl | rfl
+    · simp only [List.mem_map] at hxo
+      obtain ⟨it, hit, rfl⟩ := hxo
+      exact ⟨it, (mem_within.1 (List.mem_filter.1 hit).1).1, rfl⟩
+    · simp at hxo
+
+theorem onRbsr_offered (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (now : Nat) (x : Id)
+    (hx : x ∈ (c.onRbsr cfg ix r k cs now).conn.offered) : x ∈ c.offered ∨ ∃ it ∈ Conn.snap ix c r k, it.2 = x := by
+  unfold Conn.onRbsr at hx
+  split at hx
+  · exact Or.inl hx
+  · dsimp only at hx
+    split at hx
+    · exact Or.inl hx
+    · rcases mem_foldl_insert _ _ hx with hx | hx
+      · left; split at hx <;> exact hx
+      · right
+        obtain ⟨o, ho, hxo⟩ := List.mem_flatMap.1 hx
+        obtain ⟨cl, _, hcl⟩ := List.mem_flatMap.1 ho
+        exact answer_holds cfg.params _ cl x (List.mem_flatMap.2 ⟨o, hcl, hxo⟩)
+
+theorem start_offered (ix : Index) (c : Conn) (now : Nat) : (c.start cfg ix now).conn.offered = c.offered := by
+  unfold Conn.start; split <;> rfl
+
 theorem write_ok (n : Node) (ops : List Op) (h : Held F) (ok : NodeOk fam n h) :
     NodeOk fam ((n.write (psync fam cfg rms) ops).run h).1.1 ((n.write (psync fam cfg rms) ops).run h).2 := by
   have e := write_grows fam cfg rms n ops h
   obtain ⟨w1, x1, l1, s1⟩ := write_ix fam cfg rms n ops h ok.wf ok.exact ok.logx ok.stored
   refine ⟨write_sub fam cfg rms n ops h ok.sub, by rw [(write_node fam cfg rms n ops h).2.2]; exact ok.managed,
-    ?_, ok.log.ext e, w1, x1, l1, s1⟩
+    ?_, ok.log.ext e, w1, x1, l1, s1,
+    fun p hp x hx => by rw [(write_node fam cfg rms n ops h).1] at hp; exact (ok.offered p hp x hx).ext e⟩
   rcases write_store fam cfg rms n ops h with hs | ⟨l, hs⟩
   · rw [hs]; exact ok.ids
   · rw [hs]; exact turnH_ids fam l h ok.ids
@@ -862,7 +966,14 @@ theorem fanout_ok (n : Node) (ids : List Id) (h : Held F) (ok : NodeOk fam n h) 
   obtain ⟨e1, e2, -, e4, e5⟩ := fanout_node fam cfg rms n ids h
   rw [e1]
   refine ⟨⟨by rw [e2]; exact ok.sub.1, ?_⟩, by rw [e4]; exact ok.managed, ok.ids, ok.log,
-    by rw [e2]; exact ok.wf, by rw [e2]; exact ok.exact, ok.logx, ok.stored⟩
+    by rw [e2]; exact ok.wf, by rw [e2]; exact ok.exact, ok.logx, ok.stored, ?_⟩
+  rotate_left
+  · intro p hp x hx
+    rw [e5] at hp
+    obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
+    rcases filed_offered fam cfg _ ids h x hx with hx | hx
+    · exact ok.offered q hq x hx
+    · exact hx
   intro p hp
   rw [e5] at hp
   obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
@@ -904,22 +1015,30 @@ theorem setConn_cids (n : Node) (cid : Id) (c : Conn) : cids (setConn n cid c) =
   congr 1; funext p; simp only [Function.comp_apply]; split <;> simp_all
 
 theorem apply_ok (n : Node) (cid : Id) (s : Step) (now : Nat) (h : Held F) (ok : NodeOk fam n h)
-    (hs : SnapsIn s.conn h) :
+    (hs : SnapsIn s.conn h) (ho : ∀ x ∈ s.conn.offered, Named h x) :
     NodeOk fam ((n.apply (psync fam cfg rms) cid s now).run h).1.1 ((n.apply (psync fam cfg rms) cid s now).run h).2 := by
   cases hd : s.drop
   · rw [apply_run fam cfg rms n cid s now h hd]
     apply store_ok
-    refine ⟨⟨ok.sub.1, ?_⟩, ok.managed, ok.ids, ok.log, ok.wf, ok.exact, ok.logx, ok.stored⟩
-    intro p hp
-    simp only [setConn, List.mem_map] at hp
-    obtain ⟨q, hq, e⟩ := hp
-    split at e
-    · rw [← e]; exact hs
-    · rw [← e]; exact ok.sub.2 q hq
+    refine ⟨⟨ok.sub.1, ?_⟩, ok.managed, ok.ids, ok.log, ok.wf, ok.exact, ok.logx, ok.stored, ?_⟩
+    · intro p hp
+      simp only [setConn, List.mem_map] at hp
+      obtain ⟨q, hq, e⟩ := hp
+      split at e
+      · rw [← e]; exact hs
+      · rw [← e]; exact ok.sub.2 q hq
+    · intro p hp
+      simp only [setConn, List.mem_map] at hp
+      obtain ⟨q, hq, e⟩ := hp
+      split at e
+      · rw [← e]; exact ho
+      · rw [← e]; exact ok.offered q hq
   · simp only [Node.apply, hd, ite_true, HeldM.run_pure]
-    refine ⟨⟨ok.sub.1, fun p hp => ok.sub.2 p ?_⟩, ?_, ok.ids, ok.log, ok.wf, ok.exact, ok.logx, ok.stored⟩
+    refine ⟨⟨ok.sub.1, fun p hp => ok.sub.2 p ?_⟩, ?_, ok.ids, ok.log, ok.wf, ok.exact, ok.logx, ok.stored,
+      fun p hp => ok.offered p ?_⟩
     · simp only [Node.drop, Node.close] at hp; exact (List.mem_filter.1 hp).1
     · simp [Node.drop, Node.close, ok.managed]
+    · simp only [Node.drop, Node.close] at hp; exact (List.mem_filter.1 hp).1
 
 end
 
@@ -1136,8 +1255,93 @@ theorem store_named (n : Node) (o : Op) (h : Held F) (hsh : fam.shared o = true)
   · simp only [he, ↓reduceIte, Bool.false_eq_true]
     rw [(fanout_node fam cfg rms _ _ _).1]; exact hn
 
+theorem onHold_offered (c : Conn) (r : Id) (ids : List Id) (h : Held F) :
+    ((c.onHold fam cfg r ids : HeldM F Step).run h).1.conn.offered = c.offered := by
+  unfold Conn.onHold
+  split
+  · rfl
+  · simp only [HeldM.run_bind, HeldM.run_pure]
+
+theorem foldl_insert_ids {x : Id} : ∀ (l : List Op) (s : Std.HashSet Id),
+    x ∈ l.foldl (fun (k : Std.HashSet Id) (o : Op) => k.insert o.id) s → x ∈ s ∨ ∃ o ∈ l, o.id = x := by
+  intro l
+  induction l with
+  | nil => intro s h; exact Or.inl h
+  | cons a t ih =>
+    intro s h
+    rcases ih _ h with h | ⟨o, ho, e⟩
+    · rw [Std.HashSet.mem_insert] at h
+      rcases h with e | h
+      · exact Or.inr ⟨a, List.mem_cons_self .., eq_of_beq e⟩
+      · exact Or.inl h
+    · exact Or.inr ⟨o, List.mem_cons_of_mem _ ho, e⟩
+
 variable (hw : WalkLaws (F := F) fam cfg)
 include hw
+
+/-- **A want marks offered only ops it holds.** -/
+theorem onWant_offered (c : Conn) (ids : List Id) (h : Held F) (hi : IdsOk h) (x : Id)
+    (hx : x ∈ ((c.onWant fam cfg ids : HeldM F Step).run h).1.conn.offered) : x ∈ c.offered ∨ Named h x := by
+  unfold Conn.onWant at hx
+  split at hx
+  · exact Or.inl hx
+  · simp only [HeldM.run_bind, HeldM.run_pure, filterMapM_getOp] at hx
+    rcases hw.offered _ h x hx with hx | hx
+    · rcases foldl_insert_ids _ _ hx with hx | ⟨o, ho, e⟩
+      · exact Or.inl hx
+      · right
+        obtain ⟨i, _, hio⟩ := List.mem_filterMap.1 (List.mem_filter.1 ho).1
+        rw [← e, hi i o hio]; unfold Named; rw [hio]; rfl
+    · exact Or.inr hx
+
+/-- **What a connection receives marks offered only ops it holds.** -/
+theorem recv_offered (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) (h : Held F) (hi : IxIn ix h)
+    (hc : SnapsIn c h) (hid : IdsOk h) (x : Id)
+    (hx : x ∈ ((Conn.recv fam cfg ix c b now : HeldM F Step).run h).1.conn.offered) : x ∈ c.offered ∨ Named h x := by
+  unfold Conn.recv at hx
+  cases hd : Op.decode b with
+  | none => simp only [hd, HeldM.run_pure] at hx; exact Or.inl hx
+  | some o =>
+    simp only [hd] at hx
+    cases hm : Msg.ofOp o with
+    | none =>
+      simp only [hm] at hx
+      split at hx
+      · exact Or.inl hx
+      · simp only [HeldM.run_pure, finish_offered] at hx; exact Or.inl hx
+    | some m =>
+      simp only [hm] at hx
+      cases m with
+      | hello f =>
+        simp only [HeldM.run_pure, finish_offered] at hx
+        left
+        split at hx
+        · rw [start_offered] at hx; exact hx
+        · exact hx
+      | rbsr r k cs =>
+        simp only [HeldM.run_pure, finish_offered] at hx
+        rcases onRbsr_offered cfg ix _ r k cs now x hx with hx | ⟨it, hit, e⟩
+        · exact Or.inl hx
+        · exact Or.inr (e ▸ snapOf_named ix _ r k h hi hc it hit)
+      | hold r ids =>
+        simp only [HeldM.run_bind, HeldM.run_pure, finish_offered, onHold_offered] at hx
+        exact Or.inl hx
+      | want ids =>
+        simp only [HeldM.run_bind, HeldM.run_pure, finish_offered] at hx
+        exact onWant_offered fam cfg hw ({ c with heard := now } : Conn) ids h hid x hx
+
+/-- **The clock marks offered only ops it holds.** -/
+theorem tick_offered (ix : Index) (c : Conn) (now : Nat) (h : Held F) (x : Id)
+    (hx : x ∈ ((c.tick fam cfg ix now : HeldM F Step).run h).1.conn.offered) : x ∈ c.offered ∨ Named h x := by
+  unfold Conn.tick at hx
+  split at hx
+  · exact Or.inl hx
+  · simp only [HeldM.run_bind, HeldM.run_pure, finish_offered] at hx
+    have hw' : ∀ y, y ∈ ((c.walk fam cfg : HeldM F _).run h).1.1.offered → y ∈ c.offered ∨ Named h y :=
+      fun y hy => hw.offered c h y hy
+    split at hx
+    · rw [start_offered] at hx; exact hw' x hx
+    · exact hw' x hx
 
 /-- **One payload keeps the node invariant**, grows the store, keeps the
 sessions and addresses, and only adds to what is sent. -/
@@ -1156,7 +1360,13 @@ theorem frameStep_ok (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (b :
     have hsn := recv_snaps fam cfg hw st.1.1.ix (c.setRooms (rms st.2 cid)) b now st.2 ok.sub.1
       ((ok.sub.2 _ (conn_mem hc)).setRooms _)
     have hd := recv_drop fam cfg st.1.1.ix (c.setRooms (rms st.2 cid)) b now st.2
-    refine ⟨apply_ok fam cfg rms _ _ _ _ _ ok hsn, apply_grows fam cfg rms _ _ _ _ _, ?_, ?_, ?_⟩
+    have hof : ∀ x ∈ ((Conn.recv fam cfg st.1.1.ix (c.setRooms (rms st.2 cid)) b now : HeldM F Step).run st.2).1.conn.offered,
+        Named st.2 x := fun x hx => by
+      rcases recv_offered fam cfg hw _ _ b now st.2 ok.sub.1 ((ok.sub.2 _ (conn_mem hc)).setRooms _) ok.ids x hx with
+        hx | hx
+      · exact ok.offered _ (conn_mem hc) x hx
+      · exact hx
+    refine ⟨apply_ok fam cfg rms _ _ _ _ _ ok hsn hof, apply_grows fam cfg rms _ _ _ _ _, ?_, ?_, ?_⟩
     · rw [apply_run fam cfg rms _ _ _ _ _ hd]
       rw [(store_node fam cfg rms _ _ _ _).2, setConn_cids]
     · rw [apply_run fam cfg rms _ _ _ _ _ hd]
@@ -1207,7 +1417,7 @@ theorem setAddr_addr (n : Node) (cid : Id) (a : ByteArray) : (n.setAddr cid a).a
   simp [Node.setAddr, Node.addr?]
 
 theorem setAddr_ok (n : Node) (cid : Id) (a : ByteArray) (h : Held F) (ok : NodeOk fam n h) : NodeOk fam (n.setAddr cid a) h :=
-  ⟨ok.sub, ok.managed, ok.ids, ok.log, ok.wf, ok.exact, ok.logx, ok.stored⟩
+  ⟨ok.sub, ok.managed, ok.ids, ok.log, ok.wf, ok.exact, ok.logx, ok.stored, ok.offered⟩
 
 /-- A frame's payloads up to and after one of them. -/
 theorem fold_at {α β : Type} (f : α → β → α) (l : List β) (b : β) (hb : b ∈ l) (st : α) :
@@ -1331,7 +1541,7 @@ def tickStep (now : Nat) (st : (Node × Acts) × Held F) (p : Id × Conn) : (Nod
 theorem finish_ok (n : Node) (out : Acts) (now : Nat) (h : Held F) (ok : NodeOk fam n h) :
     NodeOk fam ((n.finish (psync fam cfg rms) out now).run h).1.1 ((n.finish (psync fam cfg rms) out now).run h).2 := by
   rw [finish_run fam cfg rms _ _ _ _ ok.managed]
-  exact ⟨ok.sub, ok.managed, ok.ids, ok.log, ok.wf, ok.exact, ok.logx, ok.stored⟩
+  exact ⟨ok.sub, ok.managed, ok.ids, ok.log, ok.wf, ok.exact, ok.logx, ok.stored, ok.offered⟩
 
 theorem onWrite_ok (n : Node) (ops : List Op) (now : Nat) (h : Held F) (ok : NodeOk fam n h) :
     NodeOk fam ((n.onWrite (psync fam cfg rms) ops now).run h).1.1 ((n.onWrite (psync fam cfg rms) ops now).run h).2 := by
@@ -1344,7 +1554,7 @@ theorem connect_ok (n : Node) (cid : Id) (a : ByteArray) (d : Bool) (now : Nat) 
   unfold Node.connect Node.open
   simp only [HeldM.run_bind, psync_rooms, readH_run, HeldM.run_pure]
   apply finish_ok
-  refine ⟨⟨ok.sub.1, ?_⟩, ?_, ok.ids, ok.log, ok.wf, ok.exact, ok.logx, ok.stored⟩
+  refine ⟨⟨ok.sub.1, ?_⟩, ?_, ok.ids, ok.log, ok.wf, ok.exact, ok.logx, ok.stored, ?_⟩
   · intro p hp
     simp only [List.mem_cons] at hp
     rcases hp with rfl | hp
@@ -1352,6 +1562,12 @@ theorem connect_ok (n : Node) (cid : Id) (a : ByteArray) (d : Bool) (now : Nat) 
     · simp only [Node.setAddr, Node.close] at hp
       exact ok.sub.2 p (List.mem_filter.1 hp).1
   · simp [Node.setAddr, Node.close, ok.managed]
+  · intro p hp
+    simp only [List.mem_cons] at hp
+    rcases hp with rfl | hp
+    · intro x hx; simp [Conn.open] at hx
+    · simp only [Node.setAddr, Node.close] at hp
+      exact ok.offered p (List.mem_filter.1 hp).1
 
 variable (hw : WalkLaws (F := F) fam cfg)
 include hw
@@ -1382,6 +1598,10 @@ theorem tickStep_ok (now : Nat) (st : (Node × Acts) × Held F) (p : Id × Conn)
   | none => exact ok
   | some c =>
     exact apply_ok fam cfg rms _ _ _ _ _ ok (tick_snaps fam cfg hw _ _ _ _ ok.sub.1 ((ok.sub.2 _ (conn_mem hc)).setRooms _))
+      (fun x hx => by
+        rcases tick_offered fam cfg hw _ _ now st.2 x hx with hx | hx
+        · exact ok.offered _ (conn_mem hc) x hx
+        · exact hx)
 
 theorem onTick_ok (n : Node) (now : Nat) (h : Held F) (ok : NodeOk fam n h) :
     NodeOk fam ((n.onTick (psync fam cfg rms) now).run h).1.1 ((n.onTick (psync fam cfg rms) now).run h).2 := by
@@ -1513,7 +1733,7 @@ what it logged, keeps the invariant. -/
 theorem boot_ok (fam : Family F) (h : Held F) (hi : IdsOk h) (hl : LogIn h) (hx : LogExact h)
     (hs : StoredLogged h) (floor : Nat) : NodeOk fam (Node.boot fam h.log floor) h := by
   obtain ⟨w, e⟩ := boot_ix fam h hi hx hs floor
-  refine ⟨⟨fun r it hit => ?_, fun p hp => by cases hp⟩, rfl, hi, hl, w, e, hx, hs⟩
+  refine ⟨⟨fun r it hit => ?_, fun p hp => by cases hp⟩, rfl, hi, hl, w, e, hx, hs, fun p hp => by cases hp⟩
   rcases items_foldl fam h.log {} r it hit with hit | ⟨o, ho, e⟩
   · simp [Index.items] at hit
   · rw [e]; exact hl o ho

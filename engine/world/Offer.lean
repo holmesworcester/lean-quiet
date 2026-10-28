@@ -26,20 +26,6 @@ attribute [local instance] byteArray_lawfulBEq
 
 /-! ## Asks: what a connection has wanted -/
 
-theorem mem_foldl_insert {y : Id} : ∀ (l : List Id) (s : Std.HashSet Id),
-    y ∈ l.foldl (·.insert ·) s → y ∈ s ∨ y ∈ l := by
-  intro l
-  induction l with
-  | nil => intro s h; exact Or.inl h
-  | cons a t ih =>
-    intro s h
-    rcases ih _ h with h | h
-    · rw [Std.HashSet.mem_insert] at h
-      rcases h with e | h
-      · exact Or.inr (by rw [show a = y from eq_of_beq e]; exact List.mem_cons_self ..)
-      · exact Or.inl h
-    · exact Or.inr (List.mem_cons_of_mem _ h)
-
 theorem wantStep_mem (fam : Family F) (s : DB F) (c : Conn) (r y : Id) (hy : c.asked.contains y = false)
     (hh : heldIn fam s r y = false) : ∀ (ids acc : List Id), (y ∈ ids ∨ y ∈ acc) →
       y ∈ ids.foldl (wantStep fam s c r) acc := by

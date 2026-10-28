@@ -109,6 +109,13 @@ structure Conn.Same (c c' : Conn) : Prop where
 
 theorem Conn.Same.refl (c : Conn) : Conn.Same c c := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
+/-- `ByteArray`'s `==` is equality: ids are compared and hashed with it. -/
+theorem byteArray_lawfulBEq : LawfulBEq ByteArray where
+  eq_of_beq {a b} h := ByteArray.ext (eq_of_beq (show a.data == b.data from h))
+  rfl {a} := show a.data == a.data from beq_self_eq_true a.data
+
+attribute [local instance] byteArray_lawfulBEq
+
 /-- **What the laws need of the closure walk:** it only reads, touches
 only its frontier, offers and closures, and does nothing on an empty
 frontier. `walk_proof` proves it of main's structural `Conn.walkN`
@@ -122,6 +129,9 @@ structure WalkLaws (fam : Family F) (cfg : Config) : Prop where
   /-- With nothing on its frontier it offers nothing and changes nothing. -/
   idle : ∀ (c : Conn) (h : Held F), c.frontier = [] →
     (c.walk fam cfg : HeldM F (Conn × List (Id × Id))).run h = ((c, []), h)
+  /-- It marks offered only ops it holds. -/
+  offered : ∀ (c : Conn) (h : Held F) x, x ∈ ((c.walk fam cfg : HeldM F (Conn × List (Id × Id))).run h).1.1.offered →
+    x ∈ c.offered ∨ (h.db.ops x).isSome = true
 
 /-- **The walk's laws, for every family and settings.** -/
 def walk_stmt : Prop := ∀ (F : Type) (fam : Family F) (cfg : Config), WalkLaws fam cfg
@@ -133,45 +143,62 @@ theorem Conn.Same.trans {a b c : Conn} (h1 : Conn.Same a b) (h2 : Conn.Same b c)
 /-- The walk, step by step: it only reads, and keeps all but its
 frontier, offers and closures. -/
 theorem walkN_laws (fam : Family F) (h : Held F) : ∀ (k : Nat) (c : Conn) (offer : List (Id × Id)),
-    ((c.walkN fam offer k : HeldM F _).run h).2 = h ∧ Conn.Same c ((c.walkN fam offer k : HeldM F _).run h).1.1 := by
+    ((c.walkN fam offer k : HeldM F _).run h).2 = h ∧ Conn.Same c ((c.walkN fam offer k : HeldM F _).run h).1.1 ∧
+      ∀ x, x ∈ ((c.walkN fam offer k : HeldM F _).run h).1.1.offered → x ∈ c.offered ∨ (h.db.ops x).isSome = true := by
   intro k
   induction k with
-  | zero => intro c offer; exact ⟨rfl, Conn.Same.refl c⟩
+  | zero => intro c offer; exact ⟨rfl, Conn.Same.refl c, fun x hx => Or.inl hx⟩
   | succ k ih =>
     intro c offer
     have leaf : ∀ (c' : Conn) (offer' : List (Id × Id)), Conn.Same c c' →
+        (∀ x, x ∈ c'.offered → x ∈ c.offered ∨ (h.db.ops x).isSome = true) →
         ((c'.walkN fam offer' k : HeldM F _).run h).2 = h ∧
-          Conn.Same c ((c'.walkN fam offer' k : HeldM F _).run h).1.1 := fun c' offer' e =>
-      ⟨(ih c' offer').1, e.trans (ih c' offer').2⟩
+          Conn.Same c ((c'.walkN fam offer' k : HeldM F _).run h).1.1 ∧
+          ∀ x, x ∈ ((c'.walkN fam offer' k : HeldM F _).run h).1.1.offered → x ∈ c.offered ∨ (h.db.ops x).isSome = true :=
+      fun c' offer' e eo => ⟨(ih c' offer').1, e.trans (ih c' offer').2.1, fun x hx => by
+        rcases (ih c' offer').2.2 x hx with hx | hx
+        · exact eo x hx
+        · exact Or.inr hx⟩
     rw [Conn.walkN]
     cases hf : c.frontier with
-    | nil => exact ⟨rfl, Conn.Same.refl c⟩
+    | nil => exact ⟨rfl, Conn.Same.refl c, fun x hx => Or.inl hx⟩
     | cons x rest =>
       dsimp only
       have s0 : Conn.Same c { c with frontier := rest } := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+      have o0 : ∀ y, y ∈ ({ c with frontier := rest } : Conn).offered → y ∈ c.offered ∨ (h.db.ops y).isSome = true :=
+        fun y hy => Or.inl hy
       by_cases h1 : (!c.closed.contains x) = true
       · simp only [h1, ↓reduceIte, HeldM.run_bind, HeldM.run_getOp]
         cases hx : h.db.ops x with
-        | none => exact leaf _ _ s0
+        | none => exact leaf _ _ s0 o0
         | some o =>
           dsimp only
+          have ox : ∀ y, y ∈ c.offered.insert x → y ∈ c.offered ∨ (h.db.ops y).isSome = true := by
+            intro y hy
+            rw [Std.HashSet.mem_insert] at hy
+            rcases hy with e | hy
+            · right
+              have : x = y := eq_of_beq e
+              rw [← this, hx]; rfl
+            · exact Or.inl hy
           by_cases hsh : Conn.shows fam { c with frontier := rest } o = true
           · simp only [hsh, ↓reduceIte]
             by_cases h2 : (!c.known.contains x && !c.offered.contains x) = true
             · simp only [h2, ↓reduceIte, HeldM.run_bind, HeldM.run_getStatus]
               rcases h.db.status x with _ | ⟨_⟩ | _ <;>
-                exact leaf _ _ ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+                exact leaf _ _ ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ ox
             · simp only [h2, Bool.false_eq_true, ↓reduceIte, HeldM.run_bind, HeldM.run_getStatus]
               rcases h.db.status x with _ | ⟨_⟩ | _ <;>
-                exact leaf _ _ ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
-          · simp only [hsh, Bool.false_eq_true, ↓reduceIte]; exact leaf _ _ s0
-      · simp only [h1, Bool.false_eq_true, ↓reduceIte]; exact leaf _ _ s0
+                exact leaf _ _ ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ o0
+          · simp only [hsh, Bool.false_eq_true, ↓reduceIte]; exact leaf _ _ s0 o0
+      · simp only [h1, Bool.false_eq_true, ↓reduceIte]; exact leaf _ _ s0 o0
 
 /-- **The walk's laws hold of main's `Conn.walk`** (`walkN` over the
 budget `cfg.walk`). -/
 theorem walk_proof : walk_stmt := by
   intro F fam cfg
-  refine ⟨fun c h => (walkN_laws fam h _ c []).1, fun c h => (walkN_laws fam h _ c []).2, fun c h hf => ?_⟩
+  refine ⟨fun c h => (walkN_laws fam h _ c []).1, fun c h => (walkN_laws fam h _ c []).2.1, fun c h hf => ?_,
+    fun c h x hx => (walkN_laws fam h _ c []).2.2 x hx⟩
   unfold Conn.walk
   cases cfg.walk with
   | zero => rfl

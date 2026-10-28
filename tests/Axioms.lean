@@ -528,6 +528,12 @@ open Engine.World
 #print axioms Engine.World.grows_all
 #print axioms Engine.World.walkN_laws
 #print axioms Engine.World.walk_proof
+#print axioms Engine.World.filed_offered
+#print axioms Engine.World.answer_holds
+#print axioms Engine.World.onRbsr_offered
+#print axioms Engine.World.onWant_offered
+#print axioms Engine.World.recv_offered
+#print axioms Engine.World.tick_offered
 -- statements: closed Props, no sorry (engine/world/Statements.lean)
 #print axioms Engine.World.walk_stmt
 #print axioms Engine.World.grows_stmt
