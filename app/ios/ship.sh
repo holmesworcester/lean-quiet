@@ -258,7 +258,7 @@ probe() {
   on_mac "~/$dir/stage/ios/probe/probe_mac.sh ~/$dir $app $kind $((port + 10)) ${SECS:-15} $device" \
     > "$art/probe-$kind.txt"
   cat "$art/probe-$kind.txt"
-  if grep -q '^fail' "$art/probe-$kind.txt"; then
+  if grep -q '^RESULT .*: FAIL' "$art/probe-$kind.txt" || ! grep -q '^RESULT' "$art/probe-$kind.txt"; then
     echo "FAIL: see $art/probe-$kind.txt"
     exit 1
   fi

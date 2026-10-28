@@ -3,9 +3,9 @@
 
     harness.py PORT BIND TARGET
 
-an echo listener on BIND:PORT for one connection (the probe's TCP out)
-and, at the same time, connection attempts to TARGET:PORT+1 (its TCP in)
-for up to two minutes. TARGET is an address, or @FILE: the probe's
+an echo listener on BIND:PORT for two connections (the probe's tcp-dnssd,
+to the address dns_sd resolved, then its tcp-out) and, at the same time,
+connection attempts to TARGET:PORT+1 (its TCP in) for up to two minutes. TARGET is an address, or @FILE: the probe's
 console log, whose `ok addrs` line gives the probe's addresses; the one on
 BIND's /24 is used (an iPhone on the Mac's Wi-Fi)."""
 import socket, sys, threading, time
@@ -17,15 +17,18 @@ def echo():
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.bind((bind, port))
     srv.listen(1)
-    srv.settimeout(120)
-    try:
-        c, peer = srv.accept()
-        d = c.recv(64)
-        c.sendall(d)
-        c.close()
-        print("harness: echoed", d, "from", peer[0], flush=True)
-    except socket.timeout:
-        print("harness: the probe never connected", flush=True)
+    end = time.time() + 120
+    for _ in range(2):
+        srv.settimeout(max(1, end - time.time()))
+        try:
+            c, peer = srv.accept()
+            d = c.recv(64)
+            c.sendall(d)
+            c.close()
+            print("harness: echoed", d, "from", peer[0], flush=True)
+        except socket.timeout:
+            print("harness: no more connections from the probe", flush=True)
+            break
     srv.close()
 
 def addr():

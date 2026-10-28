@@ -8,10 +8,13 @@
 #   into the app);
 # - `dns-sd -B _leanquiet._udp` and, midway, `dns-sd -L <instance>` must
 #   list and resolve the probe's own announcement (multicast out of it);
-# - the same for the app's DNS-SD fallback (probe_ios.m): the Mac must list
+# - the same for the system's DNS-SD (dnssd.c, driven by Lean): the Mac must list
 #   <instance>-sd, and the app must resolve the Mac's `probe`.
-# The report: work_dir/out/probe.txt (the probe's log, the harness's and
-# the Mac's checks); a line starting `fail` is a failure.
+# The report: work_dir/out/probe.txt: the probe's log, the harness's, the
+# Mac's checks, and three results (RESULT <name>: PASS|FAIL), each from the
+# app's own verdict and the Mac's view: lean-mdns raw multicast; dns_sd
+# register/browse/resolve with Lean's TCP to the address it resolved; TCP
+# to the Mac and from it.
 #
 #   probe_mac.sh work_dir app sim|device port seconds [device_id]
 set -eu
@@ -25,10 +28,11 @@ case $kind in
   sim)
     u=$("$here/../sim.sh" "$w" udid)
     xcrun simctl install "$u" "$app"
-    inst=lean-ios-sim; bind=127.0.0.1; target=127.0.0.1 ;;
+    # (the harness on every interface: dns_sd resolves the Mac's en0)
+    inst=lean-ios-sim; bind=0.0.0.0; host=127.0.0.1; target=127.0.0.1 ;;
   device)
     xcrun devicectl device install app --device "$dev" "$app" >/dev/null
-    inst=lean-ios-phone; bind=$(ipconfig getifaddr en0); target=@$out/console.txt ;;
+    inst=lean-ios-phone; bind=$(ipconfig getifaddr en0); host=$bind; target=@$out/console.txt ;;
   *) sed -n 2,15p "$0"; exit 2 ;;
 esac
 python3 "$here/harness.py" "$port" "$bind" "$target" > "$out/harness.txt" 2>&1 &
@@ -40,10 +44,10 @@ bp=$!
 sleep 1
 if [ "$kind" = sim ]; then
   xcrun simctl launch --console --terminate-running-process "$u" local.leanquiet.netprobe \
-    "$bind" "$port" "$secs" "$inst" > "$out/console.txt" 2>&1 &
+    "$host" "$port" "$secs" "$inst" > "$out/console.txt" 2>&1 &
 else
   xcrun devicectl device process launch --console --terminate-existing --device "$dev" \
-    local.leanquiet.netprobe "$bind" "$port" "$secs" "$inst" > "$out/console.txt" 2>&1 &
+    local.leanquiet.netprobe "$host" "$port" "$secs" "$inst" > "$out/console.txt" 2>&1 &
 fi
 pp=$!
 sleep $((secs / 2 + 1))
@@ -60,9 +64,9 @@ done
 kill "$pp" 2>/dev/null || true
 kill "$rp" "$bp" "$hp" 2>/dev/null || true
 wait 2>/dev/null || true
+# (devicectl's console ends lines with CR LF)
+tr -d '\r' < "$out/console.txt" > "$out/console.lf" && mv "$out/console.lf" "$out/console.txt"
 {
-  echo "== the probe ($kind, $inst)"
-  cat "$out/console.txt"
   echo "== the harness (TCP peer, $bind:$port)"
   cat "$out/harness.txt"
   echo "== the Mac's mDNS responder"
@@ -95,5 +99,22 @@ wait 2>/dev/null || true
   else
     echo "fail app-found-dnssd: the app's DNS-SD never resolved the Mac's 'probe' to $mine:7001"
   fi
+} > "$out/checks.txt"
+# The three results, each from the app's own verdict and the Mac's view.
+res() {
+  if grep -qF "result $1: ok" "$out/console.txt" && ! grep -Eq "^fail ($2)" "$out/checks.txt"; then
+    echo "RESULT $1: PASS"
+  else
+    echo "RESULT $1: FAIL"
+  fi
+}
+{
+  echo "== the probe ($kind, $inst)"
+  cat "$out/console.txt"
+  sed -n '/^== the harness/,$p' "$out/checks.txt"
+  echo "== results"
+  res "lean-mdns raw multicast" "mac-browse:|mac-lookup|app-found:"
+  res "dns_sd register/browse/resolve (+ Lean TCP to what it resolved)" "mac-browse-dnssd|app-found-dnssd"
+  res "TCP to the Mac (out) and from it (in)" "NONE"
 } > "$out/probe.txt"
 cat "$out/probe.txt"

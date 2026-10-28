@@ -14,7 +14,7 @@ Linux box and do the Mac's part over SSH.
 | --- | --- |
 | `mise run ios:sim` | Builds for the Simulator, installs and launches the app in a simulator of its own (an iPhone 16e on the newest iOS runtime, named `lean-quiet-ios`, booted headless), seeds 500 chaos messages if the database has none, and saves a screenshot to `out/ios-sim/launch.png`. |
 | `mise run ios:sim-e2e` | `ios:sim`, then the UI test (`UITests/`) in that simulator. It uses real touches and the software keyboard: it opens on the seeded data pinned to the newest message, flings twice towards older messages, taps the header to jump back, long-presses a message to open the reaction sheet (the viewport shrinks) and taps the header to close it, taps the composer to open the keyboard (Lean gets its height), types a message, and sends it with the keyboard's Send key, after which the message is stored and on screen. Every step is checked in Lean's own state through the control channel. Screenshots go to `out/ios-sim/shots/`, logs to `out/ios-sim/`, and the result bundle to `~/lean-quiet-ios-work/out/e2e.xcresult` on the Mac. |
-| `mise run ios:mdns` | The network probe (`probe/`) in that simulator. It uses Lean's own sockets (Std.Async over libuv) and lean-mdns. **mDNS:** the app announces `lean-ios-sim` of type `_leanquiet._udp`, and the Mac must list it (`dns-sd -B`) and resolve it (`dns-sd -L`). The Mac registers `dns-sd -R probe _leanquiet._udp local 7001`, and the app must log it as found. **TCP:** out to the Mac, and in from it. The report goes to `out/ios-sim/probe-sim.txt`; any `fail` line fails the task. |
+| `mise run ios:mdns` | The network probe (`probe/`) in that simulator. It reports three results separately, each from the app's own verdict and the Mac's view. **(1) lean-mdns raw multicast:** Lean's own UDP socket. The app announces `lean-ios-sim` of type `_leanquiet._udp`, and the Mac must list it (`dns-sd -B`) and resolve it (`dns-sd -L`). The Mac registers `dns-sd -R probe _leanquiet._udp local 7001`, and the app must log it as found. **(2) dns_sd:** the system's DNS-SD through `probe/dnssd.c`, driven by Lean. It registers `lean-ios-sim-sd` (the Mac must list it), browses, and resolves the Mac's `probe` to an address that Lean then connects to over TCP. **(3) TCP:** Lean connects out to the Mac and listens for the Mac's connection. The report goes to `out/ios-sim/probe-sim.txt` (`RESULT <name>: PASS/FAIL`); the task fails unless all three pass. |
 | `mise run ios:device` | Builds a signed app for an iPhone. It installs nothing. |
 | `mise run ios:e2e` | End to end on the iPhone (`DEVICE`; ask before using it). It builds, installs and launches the app (`device_mac.sh`) with the control channel on every interface (`LEANQUIET_CTL_ADDR=any`), then drives it from the Mac over the Wi-Fi: chaos data if the database has none, Lean's state (data present, rows mounted), and frames still being drawn 5 s later. The console goes to `out/ios-device/`. The app is left running. |
 | `mise run ios:mdns-device` | `ios:mdns` on the iPhone (instance `lean-ios-phone`), over the Mac's Wi-Fi. The first run needs a person to tap Allow on the phone's local network prompt. `IOS_MULTICAST=1` also asks for the multicast entitlement (see below). The report goes to `out/ios-sim/probe-device.txt`. |
@@ -151,10 +151,21 @@ These findings come from `ios:mdns` (Simulator) and `ios:mdns-device`
 - **The fallback:** discovery through the system's DNS-SD. This is
   `dns_sd.h`, the API under NWBrowser and NWListener. It needs only
   `NSBonjourServices` and the local network permission, not the
-  entitlement. The probe app (`probe/probe_ios.m`) registers
-  `<instance>-sd` and browses `_leanquiet._udp`, resolving each service to
-  an IPv4 address and port, which is what Lean then connects to over TCP.
-  In the Simulator it interoperates both ways with lean-mdns: each finds
-  the other's services, and the Mac's dns-sd sees both. A lean-quiet seam
-  for it would be one twin extern each for announce, browse and found,
-  with Lean doing TCP and everything after.
+  entitlement. `probe/dnssd.c` is the whole native side: register,
+  browse, resolve and get-address, each result queued as an event. Lean
+  takes the events (`Sd.register`, `Sd.browse`, `Sd.poll` in
+  NetProbe.lean), picks the address on its own Wi-Fi /24, and does the TCP
+  itself. In the Simulator it interoperates both ways with lean-mdns: each
+  finds the other's services, and the Mac's dns-sd sees both. lean-quiet
+  can take the same three externs into its seam.
+- **Announcing the Wi-Fi address only:** the probe announces the IPv4
+  addresses of en0 (Wi-Fi on iOS and macOS; wl* on Linux). Announcing
+  every non-loopback address made avahi resolve the Mac's Tailscale
+  address, which the LAN cannot reach.
+- **iPhone results (ios:mdns-device, after Allow):**
+
+      RESULT lean-mdns raw multicast: FAIL   (EHOSTUNREACH on every send and receive)
+      RESULT dns_sd register/browse/resolve (+ Lean TCP to what it resolved): PASS
+      RESULT TCP to the Mac (out) and from it (in): PASS
+
+  In the Simulator all three pass.

@@ -51,6 +51,7 @@ targets:
     platform: iOS
     sources:
       - path: probe/probe_ios.m
+      - path: probe/dnssd.c
     info:
       path: NetProbe-Info.plist
       properties:
