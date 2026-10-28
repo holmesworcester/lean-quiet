@@ -1,26 +1,156 @@
-# Each part keeps its own tasks (engine/, app/, qr/, mdns/, net/mise.toml);
-# these run them from the top. mise asks once to trust each config file
-# (`mise trust` in the directory).
-[tasks."engine:check"]
-run = "cd engine && mise run check"
-[tasks."engine:test"]
-run = "cd engine && mise run test"
-[tasks."app:check"]
-run = "cd app && mise run check && mise run host:app && mise run host:two-nodes && mise run host:net-join && mise run host:cross && mise run host:arrival"
-[tasks."qr:check"]
-run = "cd qr && mise run check"
-[tasks."mdns:check"]
-run = "cd mdns && mise run check"
-[tasks."net:check"]
-run = "cd net && mise run check"
-[tasks."readme:links"]
-description = "The README's theorem links match the code (ci/proof-links.py; needs the parts built)"
-run = "python3 ci/proof-links.py --check"
+# Named tasks, from the repository's top; ci/local.sh runs the gates
+# (check, test:*, readme:links) the same way. mise asks once to trust this
+# file (`mise trust`).
+[env]
+ELAN_HOME = "{{ env.ELAN_HOME | default(value='/mnt/storage/elan') }}"
+TMPDIR = "{{ env.TMPDIR | default(value='/mnt/storage/holmes-tmp') }}"
+
+# The gates
+
 [tasks.check]
-description = "Every gated part, then the README's links"
-depends = ["engine:check", "engine:test", "app:check", "qr:check", "mdns:check", "net:check"]
+description = "The proof gate: every library builds, and every law of tests/Axioms.lean rests on standard axioms only"
+run = "tests/check.sh"
+
+[tasks."test:engine"]
+description = "Scenario (Ed25519 + SQLite), SQLite-vs-model differential, purge and its on-disk erasure, kill -9 atomicity"
+run = "tests/engine/run.sh"
+
+[tasks."test:app"]
+description = "The app on the headless twin, as host:app, host:two-nodes, host:net-join, host:cross, host:arrival and host:attach, one after another"
+run = "tests/app/run.sh"
+
+[tasks."test:qr"]
+description = "QR's deterministic gate: escape-hatch scan, codec and frame suite, camera frames, cross-checks with qrencode/zbarimg/segno/qrcodegen, negative controls"
+run = "tests/qr/check.sh"
+
+[tasks."test:mdns"]
+description = "mDNS's deterministic gate: escape-hatch scan, real/hostile/fuzzed packets, negative controls"
+run = "tests/mdns/check.sh"
+
+[tasks."test:net"]
+description = "The bootstrap model: its laws built, the scene on the real engine, negative controls"
+run = "tests/net/check.sh"
+
+[tasks."readme:links"]
+description = "The README's theorem links match the code (ci/proof-links.py; needs the tree built)"
 run = "python3 ci/proof-links.py --check"
 
+[tasks."reorg:test"]
+description = "The reorg's import rewriter (ci/reorg-imports.py) on a copy of every Lean file of f1bfd62: each gets its new path's imports"
+run = "python3 ci/reorg-imports.py --self-test"
+
 [tasks.ci]
-description = "Local CI: every part's gate, logs in out/ci (ci/local.sh)"
+description = "Local CI: every gate, logs in out/ci (ci/local.sh)"
 run = "ci/local.sh"
+
+[tasks.crypto]
+description = "The engine's Rust crypto (engine/native/crypto), which every executable links"
+run = "cd engine/native/crypto && CARGO_TARGET_DIR=\"$PWD/target\" cargo build --release --quiet"
+
+# The app on the headless twin
+
+[tasks."host:twin-demo"]
+description = "The twin demo on the headless twin: the seam's effects from a script, checked by replies and dumped screens"
+depends = ["crypto"]
+run = "tests/app/host_twin_demo.sh"
+
+[tasks."host:app"]
+description = "The app's own session without a window (platforms/headless/Host): chaos, cold open, a fling to the top with unpainted-row counts, send and react with the writer paused (pending, then stored); screenshots in out/host"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build host && .lake/build/bin/host ${MESSAGES:-500} out/host"
+
+[tasks."host:two-nodes"]
+description = "Two apps, each its own database, joined by link through their own pages: invite, paste, agree, the request carried, approve, admission carried, a message back"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build two_nodes && .lake/build/bin/two_nodes out/two"
+
+[tasks."host:net-join"]
+description = "Two apps, each its own database and node (the engine's Runner with the Connection family), joined over real TCP on loopback by their own pages: invite, paste, agree, the request over TCP, approve, admission by sync, a post back"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build net_join && .lake/build/bin/net_join out/net"
+
+[tasks."host:cross"]
+description = "Two apps over real TCP, two communities both named club, each app in both, everyone named Ann: every entry reachable by a tap, each home right, a second join to one community and Stop waiting on it"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build cross && .lake/build/bin/cross out/cross"
+
+[tasks."host:arrival"]
+description = "A photo arriving chunk by chunk (platforms/headless/Arrival): after each chunk the row's count, its pill's words and its painted ring are exact and the preview shows; a chunk twice changes nothing; the last one swaps in the file; a sender sees its own file from the outbox"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build arrival && .lake/build/bin/arrival out/arrival"
+
+[tasks."host:attach"]
+description = "Photos over real TCP: two apps joined on loopback (as host:net-join), one photo each way through Add photos and send; the other side ends with every chunk, the file opened from them equal to the bytes sent, and its row drawn from the file"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build attach && .lake/build/bin/attach out/attach"
+
+# Android (platforms/android)
+
+[tasks."android:apk"]
+description = "The app's APK (x86_64 for the emulator, arm64-v8a for phones); needs a Lean runtime for Android (LEANRT)"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; platforms/android/twin/build_apk.sh out/quiet.apk com.holmes.leanquiet 'Lean Quiet' Main x86_64 arm64-v8a"
+
+[tasks."android:scan-e2e"]
+description = "Join with QR code on this suite's own emulator (lean-quiet-scan, emulator-5590): a real invite's code on the virtual scene's wall, scanned by the app's camera; it must land on Choose a name with exactly that link"
+depends = ["android:apk"]
+run = "platforms/android/test/scan_e2e.sh out/quiet.apk out/scan"
+
+[tasks."android:twin-demo-apk"]
+description = "The twin demo's APK (x86_64 for the emulator, arm64-v8a for phones); needs a Lean runtime for Android (LEANRT)"
+run = "platforms/android/twin/build_apk.sh out/twin-demo.apk com.holmes.leanquiet 'Lean Quiet' platforms.headless.TwinDemo x86_64 arm64-v8a"
+
+[tasks."android:twin-demo-e2e"]
+description = "End to end on a booted x86_64 emulator (SERIAL, default emulator-5644): keyboard, insets, scrolling, taps, control socket"
+depends = ["android:twin-demo-apk"]
+run = "platforms/android/test/twin_demo_e2e.sh \"${SERIAL:-emulator-5644}\" out/e2e-twin"
+
+[tasks."android:runtime"]
+description = "Lean's runtime, Init and libuv cross-built for Android into out/leanrt (needs LEAN_SRC at v4.34.0 and UV_SRC at v1.51.0)"
+run = "platforms/android/qr/leanrt/build.sh \"${LEAN_SRC:-/mnt/storage/holmes-wt/lean-src/lean4}\" \"${UV_SRC:-/mnt/storage/holmes-wt/lean-src/libuv}\" out/leanrt x86_64 arm64-v8a"
+
+[tasks."android:qr-apk"]
+description = "The QR camera harness's APK (x86_64 for the emulator, arm64-v8a for phones)"
+depends = ["crypto"]
+run = "[ -f out/leanrt/x86_64/libInit.a ] || mise run android:runtime; \"$ELAN_HOME/bin/lake\" build qr_tool && platforms/android/qr/app/build_apk.sh out/leanqr.apk x86_64 arm64-v8a"
+
+[tasks."android:qr-e2e"]
+description = "On the QR harness's own emulator AVD (created if missing): Lean decodes the invite from the virtual-scene camera, then pictures from the system Photo Picker and the system camera reach Lean and are stored as QOI; logcat, screenshots and the stored pictures in out/qr-e2e"
+depends = ["android:qr-apk"]
+run = "platforms/android/qr/test/e2e.sh out/leanqr.apk out/qr-e2e"
+
+# iOS (platforms/ios), on the Mac
+
+[tasks."ios:sim"]
+description = "The app in the iOS Simulator on the Mac (take it with mac-turn first; platforms/ios/README.md): build, install, launch with the chaos data, a screenshot in out/ios-sim"
+run = "platforms/ios/ship.sh sim"
+
+[tasks."ios:sim-e2e"]
+description = "End to end in the iOS Simulator: the UI test scrolls, taps, long-presses, types on the software keyboard and sends, each step checked in Lean's state over the control channel; screenshots in out/ios-sim/shots"
+run = "platforms/ios/ship.sh e2e"
+
+[tasks."ios:device"]
+description = "The app built and signed for an iPhone on the Mac (installs nothing; platforms/ios/ship.sh run installs and launches)"
+run = "platforms/ios/ship.sh device"
+
+[tasks."ios:mdns"]
+description = "The network probe in the iOS Simulator (platforms/ios/probe): Lean's TCP out and in, and lean-mdns both ways (the app logs the Mac's dns-sd -R probe; dns-sd -B and -L see the app's _leanquiet._udp announcement); report in out/ios-sim/probe-sim.txt"
+run = "platforms/ios/ship.sh mdns"
+
+[tasks."ios:mdns-device"]
+description = "The network probe on the iPhone (DEVICE; ask before using it): as ios:mdns, over the Mac's Wi-Fi; report in out/ios-sim/probe-device.txt"
+run = "platforms/ios/ship.sh mdns-device"
+
+[tasks."ios:e2e"]
+description = "End to end on the iPhone (DEVICE; ask before using it): build, install, launch, then over the Mac's Wi-Fi the chaos data, Lean's state and frames drawn; console in out/ios-device"
+run = "platforms/ios/ship.sh e2e-device"
+
+# mDNS on this machine's network
+
+[tasks."mdns:e2e"]
+description = "Real multicast on this machine's network: Lean to Lean, Lean to avahi, avahi to Lean (needs avahi-daemon + avahi-utils); logs in out/mdns-e2e"
+run = "tests/mdns/e2e.sh"
+
+[tasks."android:ctl-guard"]
+description = "Who can drive the app's control channel, on your own emulator (SERIAL, default emulator-5644): adb is answered, another app's uid is refused, a RELEASE=1 build does not listen"
+depends = ["android:apk"]
+run = "platforms/android/test/ctl_guard.sh ${SERIAL:-emulator-5644}"
