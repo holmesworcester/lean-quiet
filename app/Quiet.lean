@@ -29,4 +29,5 @@ import Quiet.RowLaws
 import Quiet.ViewLaws
 import Quiet.PeopleLaws
 import Quiet.Remove
+import Quiet.RemovedLaws
 import Quiet.ArrivalLaws

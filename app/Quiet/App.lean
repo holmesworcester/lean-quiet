@@ -209,6 +209,12 @@ names, and whether it is me. -/
   amAdmin : Bool := false
   /-- The member whose profile is open: user, name, whether it is me. -/
   profileOf : Option (Id × String × Bool) := none
+  /-- Entries already removed when told (or when the app started): their
+removal is not announced again. -/
+  goneSeen : List Id := []
+  /-- Standing notices (libquiet's: no timeout; a tap puts the first
+  away), e.g. "You've been removed from …". -/
+  notices : List String := []
   /-- The removal flow (Remove.step). -/
   removal : Remove.Step := .idle
   /-- Whether each member (as `members`) has a device this node holds a
@@ -599,13 +605,36 @@ def back : M Unit := do
   | p :: rest => modify fun s => { s with page := p, backStack := rest, field := "", refusal := none, pageKey := none }
   | [] => modify fun s => { s with page := .chat, field := "", refusal := none, pageKey := none }
 
-/-- The communities, read by the Community kind; the current one is kept
-(or the first, when it is gone or none is current). -/
+/-- What the app holds for an entry no longer listed, forgotten: its
+invite link, a pasted link to its community, an open profile, and, if it
+was current, the composer's text and photos. -/
+def forgetEntry (s : St) (a c : Id) : St :=
+  let cur := s.me.acc == a
+  { s with links := s.links.filter (·.1 != a),
+           invite := if (s.invite.map (·.community == c)).getD false then none else s.invite,
+           profileOf := if cur then none else s.profileOf,
+           text := if cur then "" else s.text, chips := if cur then #[] else s.chips }
+
+/-- The communities, read by the Community kind: those listed (a removed
+entry hidden), the current one kept or, gone, the first (Get started when
+none is left). -/
 def refreshComms : M Unit := do
-  let (cs, _) ← Kinds.Accepted.read
+  let (all, _) ← Kinds.Accepted.read
+  let cs := Kinds.Accepted.listed all
+  -- removed since last told: a standing notice each, and forgotten
+  for g in Kinds.Accepted.newlyGone (← get).goneSeen all do
+    if (← get).me.acc == g.acc then (← get).io.textClear
+    modify fun s => { forgetEntry s g.acc g.c with
+      goneSeen := g.acc :: s.goneSeen,
+      notices := s.notices ++ [s!"You’ve been removed from {if g.name.isEmpty then "a community" else g.name}."] }
   modify fun s =>
-    let me := Kinds.Accepted.select cs s.cur <|> cs[0]?
-    { s with comms := cs, me := me.getD s.me, cur := (me.map (·.acc)).getD s.cur }
+    match Kinds.Accepted.landing cs s.cur with
+    | some me => { s with comms := cs, me, cur := me.acc }
+    | none =>
+      -- nothing listed: Get started (unless a join is being made)
+      { s with comms := cs, me := default, cur := .empty,
+               page := if s.comms.isEmpty then s.page else .getStarted,
+               backStack := if s.comms.isEmpty then s.backStack else [] }
 
 /-- Make the entry of acceptance `a` the current one (memory only): the
 list starts again from its newest. An entry is its acceptance, never its
@@ -1098,6 +1127,10 @@ def onSheetDrag (phase x y : Nat) : M Unit := do
 
 def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   let s ← get
+  -- a tap puts a standing notice away
+  if !s.notices.isEmpty then
+    modify fun s => { s with notices := s.notices.drop 1 }
+    return
   -- a page: its bar's back, or its content's taps (rows from its top)
   if s.page != .chat then
     match r with
@@ -1357,8 +1390,9 @@ def sheetBitmap (sh : SheetSt) (mine : List String) : M Bitmap := do
 /-- The toast, if one stands, over the middle of the viewport's rows of a
 list frame (new rows: the ones under it are shared and stay). -/
 def withToast (s : St) (fr : Array ByteArray) (vh : Nat) : Array ByteArray := Id.run do
-  let some (t, upto) := s.toast | return fr
-  if s.frames > upto then return fr
+  -- a standing notice outranks a passing toast
+  let some t := s.notices.head? <|> (s.toast.bind fun (t, upto) => if s.frames > upto then none else some t)
+    | return fr
   let tb := Pages.toast s.font s.dim s.W t
   let x := (s.W - tb.w) / 2
   let r0 := over + (vh - tb.h) / 2
@@ -1560,8 +1594,8 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   -- the communities are this device's accepted facts: read them once
   -- here to choose the first page
   let probe : St := { io := io, W := W, Hs := Hs, insetTop := 0, insetBot := 0, font := font, bgRow := .empty, rd := rd, wr := wr, me := default }
-  let ((cs, _), _) ← (Kinds.Accepted.read : M _).run probe
-  let comms := cs
+  let ((all, _), _) ← (Kinds.Accepted.read : M _).run probe
+  let comms := Kinds.Accepted.listed all
   let me := comms[0]?.getD default
   let catalog ← match ← (Sheet.loadCatalog).toBaseIO with
     | .ok c => pure c
@@ -1569,7 +1603,9 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   return { io := io, W := W, Hs := Hs, insetTop := (screen[2]?.getD 0).toNat, catalog := catalog,
            dim := ⟨(screen[4]?.getD 420).toNat, font.cell⟩,
            insetBot := (screen[3]?.getD 0).toNat, font := font, bgRow := solid Row.bg W, rd := rd,
-           wr := wr, me := me, comms := comms, cur := me.c, page := if comms.isEmpty then .getStarted else .home,
+           wr := wr, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
+           -- a removal already in the store at launch is not announced
+           goneSeen := (all.toList.filter (·.removed)).map (·.acc),
            dbPath := dbPath, netCfg := net }
 
 end App

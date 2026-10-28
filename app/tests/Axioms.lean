@@ -9,6 +9,7 @@ import Quiet.RowLaws
 import Quiet.ViewLaws
 import Quiet.PeopleLaws
 import Quiet.Remove
+import Quiet.RemovedLaws
 import Quiet.App
 import Quiet.ArrivalLaws
 #print axioms Geometry.placed_row
@@ -57,6 +58,12 @@ import Quiet.ArrivalLaws
 #print axioms Remove.open_fresh
 #print axioms Remove.no_replace
 #print axioms Remove.offered_only
+#print axioms RemovedLaws.listed_iff
+#print axioms RemovedLaws.told_once
+#print axioms RemovedLaws.not_replayed
+#print axioms RemovedLaws.landing_listed
+#print axioms RemovedLaws.forget_clears
+#print axioms Data.overlay_total
 #print axioms ArrivalLaws.percent_lt
 #print axioms ArrivalLaws.percent_eq
 #print axioms ArrivalLaws.done_iff
