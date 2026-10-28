@@ -66,6 +66,44 @@ instance : BEq Kinds.Accepted.Me := ⟨fun a b =>
   a.acc == b.acc && a.seed == b.seed && a.c == b.c && a.adm == b.adm && a.user == b.user &&
     a.name == b.name && a.joiningOp == b.joiningOp && a.dialing == b.dialing && a.removed == b.removed⟩
 
+/-- The frame's wants: the window, its rows, the pictures, the counts,
+then the frame's lists. -/
+def Want.ofFrame (idsW : Want) (rows pics : Array Want) (countW : Want) (lists : Array Want) : Array Want :=
+  #[idsW] ++ rows ++ pics ++ #[countW] ++ lists
+
+/-- The frame's first wants, before it knows its rows: the window and
+the counts about the anchor, and the rest as last set. When both are
+wanted already, the wants are left as they are, so a steady frame does
+not move the generation (`withView_ofFrame`). -/
+def Want.withView (ws : Array Want) (idsW countW : Want) : Array Want :=
+  if ws.contains idsW && ws.contains countW then ws
+  else #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
+
+/-- **A steady frame keeps its wants**: the first set leaves the wants
+the last frame set as they were, so with the same anchor, rows and
+lists neither set moves the generation and the reader rests. -/
+theorem Want.withView_ofFrame (idsW countW : Want) (rows pics lists : Array Want) :
+    withView (ofFrame idsW rows pics countW lists) idsW countW = ofFrame idsW rows pics countW lists := by
+  simp [withView, ofFrame]
+
+/-- The mutant: the window first and the counts last, every frame. -/
+def Want.withViewLast (ws : Array Want) (idsW countW : Want) : Array Want :=
+  #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
+
+/-- The mutant moves the wants of every frame with a list: the counts
+go last, then back before the lists, so the reader never rests. -/
+theorem Want.withViewLast_moves (idsW countW : Want) (rows pics lists : Array Want) (hl : lists ≠ #[])
+    (hc : countW ∉ lists) :
+    withViewLast (ofFrame idsW rows pics countW lists) idsW countW ≠ ofFrame idsW rows pics countW lists := by
+  intro h
+  have := congrArg (fun a : Array Want => a.back?) h
+  simp [withViewLast, ofFrame, Array.back?_append] at this
+  cases hb : lists.back? with
+  | none => exact hl (by simpa using hb)
+  | some x =>
+    rw [hb] at this
+    exact hc (this ▸ Array.mem_of_back? hb)
+
 /-- What a want reads as. -/
 inductive Val where
   /-- The window's positions, newest first, and how many of them are
@@ -148,6 +186,8 @@ structure St where
   that was (ms). -/
   seenC : Nat := 0
   readAt : Nat := 0
+  /-- The passes that opened the store. -/
+  opens : Nat := 0
 
 abbrev RM := StateT St IO
 
@@ -251,7 +291,7 @@ def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
   let s0 ← get
   unless _root_.Live.mustRead c s0.seenC (!notes.isEmpty) (gen != s0.gen) s0.dirty (now ≥ s0.readAt + 1000) do
     return false
-  modify fun s => { s with seenC := c, readAt := now }
+  modify fun s => { s with seenC := c, readAt := now, opens := s.opens + 1 }
   let rd := (← get).rd
   rd.exec "BEGIN"
   try

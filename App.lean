@@ -1672,7 +1672,9 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   -- the placeholders are the counts less the window's rows on each side)
   let idsW := Reader.Want.window s.me.c s.anchor half half
   let countW := Reader.Want.count s.me.c s.anchor
-  s.sh.setWants (#[idsW] ++ (← s.sh.wants.get).filter (fun w => w != idsW && w != countW) ++ #[countW])
+  -- (the wants as last set, unless the anchor moved: a steady frame
+  -- moves no generation, Reader.Want.withView_ofFrame)
+  s.sh.setWants (Reader.Want.withView (← s.sh.wants.get) idsW countW)
   readerPass
   let bd ← takeBoard
   let fresh := match bd.get? idsW with
@@ -1723,7 +1725,7 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   let lists := #[Reader.Want.comms] ++ (if s.me.c.isEmpty then #[] else
     #[Reader.Want.people s.me.c, Reader.Want.asking s.me.c] ++
       (if s.page == .home || s.page == .profile || s.page == .removeConfirm then #[Reader.Want.members s.me.c s.me.user] else #[]))
-  s.sh.setWants (#[idsW] ++ win.map (fun x => Reader.Want.row s.me.c s.me.adm x) ++ s.picWants ++ #[countW] ++ lists)
+  s.sh.setWants (Reader.Want.ofFrame idsW (win.map (fun x => Reader.Want.row s.me.c s.me.adm x)) s.picWants countW lists)
   modify fun s => { s with picWants := #[] }
   readerPass
   let bd ← takeBoard
