@@ -14,7 +14,7 @@ Like [Quiet](https://github.com/TryQuiet/quiet), Lean Quiet is also local-first,
 
 Lean is mostly used for mathematics, or to verify one part of a system.
 Here it is a whole, ordinary app, and about three quarters of its
-theorems (366 of 468) are about the code that runs on the phone; the
+theorems (383 of 486) are about the code that runs on the phone; the
 rest are over models, and moving them onto running code is a todo
 ([what is proven](#what-is-proven)). Native code only connects Lean to
 each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)), so in a
@@ -143,7 +143,7 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 468 rest on Lean's standard axioms
+that rests on; 🥊 is supporting. All 486 rest on Lean's standard axioms
 only.
 
 ### Security proofs
@@ -219,6 +219,7 @@ only.
 | ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
 | 🟡 | 🥊🥊🥊 | **Notices are exact.** A screen watches windows: a list's rows between two positions. Proven: after any batch of commits and purges, the journal's rows, netted and matched against an index of windows, notify a subscriber exactly when one of its windows changed, never for a row outside them or one filed and purged within the batch, given one op per id; a read's window, cut at its last row, changes exactly when its rows do, and holds exactly them; a read's watch misses nothing its reader uses; matching a filing costs a hash and ⌊log₂ 2S⌋+2 comparisons; the frame's wants (`Screen.Frame.wants`) are exactly its page's reads, the near rows' hull per list key and the near rows' reads. Notices by key, and an unnetted journal, are shown imprecise. The app's cache watches each read's window, takes its notices from the journal netted, and unwatches a component's reads when it unmounts (`agrees_notice`, `agrees_unmount`, `watched_held`); the conversation is a window of rows about an anchor, watched by exactly its rows, and the counts beside it are a read of the page's own. Not yet: the window holds up to 100 rows past each end of the near rows (`past_hull_le`), and the frame does not want by `Frame.wants`; a union read (the conversation) is precise per key, not for the union's own cut; reads of an op's bytes are outside. SQLite's triggers are tested against the model (`window_check`), not proven. | [`notice_iff`], [`read_notice_iff`], [`read_rows_iff`], [`window_rows`], [`watch_stable`], [`run_exact`], [`fact_stable`], [`find_costs`], [`notify_cost`], [`screen_subs`], [`hull_near`], [`past_hull_le`], [`key_notice_imprecise`], [`unnetted_imprecise`], [`keep_scrolled_off`], [`agrees_notice`], [`agrees_unmount`], [`watched_held`] |
 | ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
+| 🟡 | 🥊🥊 | **Back goes back.** Back after opening a page restores the state before it (only the page's one-line field is cleared). Back at a root does nothing, and after a switch no number of backs leaves the new home. No page is twice in the back stack, so fewer than 18 backs reach a root. No step changes the composer's draft in the app's state. Not yet: the twins' native text field, which back clears (on Android that clear can reach the draft). | [`back_go`], [`NavLaws.back_open`], [`NavLaws.back_root`], [`back_switch`], [`go_inv`], [`NavLaws.depth`], [`draft_back`] |
 | ✅ | 🥊🥊 | **The people list is the present members,** each once. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_nodup`] |
 | 🟡 | 🥊🥊🥊 | **The screen is one moment.** Every frame is drawn over a single store state, the latest the app has seen. Proven over the running cache (`Live.readWith`, which the frame's and the reader's reads run), given SQLite's snapshot isolation and the journal hypothesis (Assumed): every read through it, cached or not, returns its moment's answer; a reader pass marks every want whose reads went stale before reading any (the board model's decisions). Not yet: one moment across the reader's board and the frame's own reads (each is consistent; they settle, BoardLaws' `settle`), a frame that writes spans more than one outbox moment, the outbox's notice keys derived from its ops, and `step` itself as a statement. | [`read_one_moment`], [`answer_agrees`], [`agrees_store`], [`agrees_notice`], [`agrees_keep`], [`agrees_empty`], [`eval_stable`], [`view_stable`] |
 | 🟡 | 🥊🥊🥊 | **Scrolling always shows something.** Proven of the running frame's `Cover.seen`: from the bottom padding up to the last loaded row's top, and above it while older messages are outside the window, no position is blank, and a bitmap line is shown only where its row has it. The frame reads no messages: the reader reads a window of at most 200 about an anchor and counts the rest. Not yet: the frame's own work bounded (its remaining reads through `App.read`), and that scrolling by δ shows what was δ away. | [`covered`], [`line_painted`] |
@@ -247,7 +248,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**366 of 468 laws are about running code;** 102 are not yet. Stated only: none.
+**383 of 486 laws are about running code;** 103 are not yet. Stated only: none.
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
@@ -260,8 +261,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Community | 143 | 132 | 11 |
 | QR codes | 10 | 10 |  |
 | Pictures | 13 | 1 | 12 |
-| Screen | 41 | 25 | 16 |
-| App | 16 | 15 | 1 |
+| Screen | 50 | 33 | 17 |
+| App | 25 | 24 | 1 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
@@ -283,7 +284,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`pageIn_acc`]† | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`Nav.depth`], [`pageIn_acc`]† | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
@@ -917,6 +918,13 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`open_fresh`]: ops/app/Remove.lean#L67-L69
 [`no_replace`]: ops/app/Remove.lean#L74-L76
 [`offered_only`]: ops/app/Remove.lean#L83-L86
+[`back_go`]: engine/renderer/Nav.lean#L94-L96
+[`NavLaws.back_open`]: ops/app/NavLaws.lean#L29-L31
+[`NavLaws.back_root`]: ops/app/NavLaws.lean#L37-L39
+[`back_switch`]: ops/app/NavLaws.lean#L54-L57
+[`go_inv`]: engine/renderer/Nav.lean#L107-L107
+[`NavLaws.depth`]: ops/app/NavLaws.lean#L82-L84
+[`draft_back`]: ops/app/NavLaws.lean#L65-L67
 [`present_iff`]: ops/app/PeopleLaws.lean#L27-L30
 [`present_nodup`]: ops/app/PeopleLaws.lean#L37-L38
 [`read_one_moment`]: engine/renderer/LiveLaws.lean#L200-L205
@@ -969,8 +977,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L964-L968
-[`pageIn_acc`]: App.lean#L970-L973
+[`drawPage_key`]: App.lean#L989-L993
+[`pageIn_acc`]: App.lean#L995-L998
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
@@ -1032,6 +1040,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`nodup_full`]: ops/community/Intents.lean#L578-L580
 [`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
 [`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939
+[`Nav.depth`]: engine/renderer/Nav.lean#L142-L145
 [`Seal.Good`]: ops/community/Keys.lean#L40-L43
 [`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
 [`Model.run`]: engine/core/Model.lean#L103-L103

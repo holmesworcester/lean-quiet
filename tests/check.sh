@@ -20,3 +20,10 @@ bad=$(grep "depends on axioms" <<<"$out" | sed 's/.*\[\(.*\)\]/\1/' | tr ',' '\n
   grep -v -x -e propext -e Classical.choice -e Quot.sound || true)
 [ -z "$bad" ] || { echo "non-standard axioms: $bad" >&2; exit 1; }
 echo "all $want laws rest on standard axioms only"
+# Navigation (ops/app/NavLaws): the page and the back stack change only by
+# a Nav step (App.St.withNav), so Nav's laws hold of every page change. The
+# start state is a root, and a page's cache key (PageIn) only copies it.
+nav=$(grep -rn -E '(backStack|\bpage) :=' --include=*.lean App.lean ops platforms |
+  grep -v -e 'def St.withNav' -e '{ page := s.page,' -e 'cur := me.acc, page :=' || true)
+[ -z "$nav" ] || { echo "a page change outside Nav: $nav" >&2; exit 1; }
+echo "every page change is a Nav step"

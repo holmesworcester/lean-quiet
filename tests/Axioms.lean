@@ -15,6 +15,8 @@ import engine.renderer.SheetGeom
 import ops.community.link.View
 import engine.renderer.Camera
 import ops.app.Switch
+import engine.renderer.Nav
+import ops.app.NavLaws
 import engine.renderer.TextLaws
 import engine.renderer.WrapLaws
 import ops.community.reaction.RowLaws
@@ -364,6 +366,24 @@ section app
 #print axioms Switch.dedupe_nodup
 #print axioms Switch.select_tapped
 #print axioms Switch.select_tapped_dedupe
+#print axioms Nav.back_go
+#print axioms Nav.back_root
+#print axioms Nav.back_reset
+#print axioms Nav.go_page
+#print axioms Nav.go_inv
+#print axioms Nav.back_inv
+#print axioms Nav.reset_inv
+#print axioms Nav.swap_inv
+#print axioms Nav.depth
+#print axioms NavLaws.back_open
+#print axioms NavLaws.back_root
+#print axioms NavLaws.back_switch
+#print axioms NavLaws.draft_open
+#print axioms NavLaws.draft_back
+#print axioms NavLaws.inv_open
+#print axioms NavLaws.inv_back
+#print axioms NavLaws.inv_switch
+#print axioms NavLaws.depth
 #print axioms App.drawPage_key
 #print axioms App.pageIn_acc
 #print axioms Pages.switcherOrder_sound

@@ -22,3 +22,5 @@ else
 fi
 .lake/build/bin/arrival out/arrival
 if [ "${SKIP_TCP:-0}" != 1 ]; then .lake/build/bin/attach out/attach; else echo "SKIP attach (TCP sandbox; built)"; fi
+# navigation: each mutant of a rule must fail its law (ops/app/NavLaws)
+tests/app/nav_negative.sh
