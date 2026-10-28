@@ -14,6 +14,8 @@ Can we also prove the absence of the *qualitative* bugs that only show up in cer
 
 There is something exhilarating about adding a proof where one would usually add an end-to-end test. Sci fi. 🪐 
 
+# What it looks like
+
 <p align="center"><img src="docs/media/android-demo.webp" width="300" alt="Lean Quiet on Android: a message, Hebrew, Arabic and mixed scripts, a heart reaction, a photo, then flings through 1,000 messages"></p>
 
 <p align="center"><em>The status bar and keyboard are Android's, the rest is Lean Quiet.</em></p>
