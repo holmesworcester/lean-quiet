@@ -7,6 +7,7 @@ import Quiet.TextLaws
 import Quiet.WrapLaws
 import Quiet.RowLaws
 import Quiet.ViewLaws
+import Quiet.PeopleLaws
 import Quiet.App
 #print axioms Geometry.placed_row
 #print axioms Geometry.visible_in_viewport
@@ -47,3 +48,5 @@ import Quiet.App
 #print axioms RowLaws.name_placed
 #print axioms ViewLaws.profile_read
 #print axioms ViewLaws.message_read
+#print axioms PeopleLaws.present_iff
+#print axioms PeopleLaws.present_nodup

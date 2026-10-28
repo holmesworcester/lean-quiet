@@ -1334,10 +1334,9 @@ def step (evs : List Event) : M (Option (List Event)) := do
   let (a, _) ← readView (Community.readable s.me.c (limit := some s.limit)) #[]
   modify fun s => { s with ids := (a.rows.map (·.1)).toArray, fetched := a.rows.length, total := a.total }
   let s ← get
-  -- people: the community's admissions (a person's every device counts
-  -- once per device; profiles are optional)
-  if let .list a _ ← read (.list { key := Community.admission.all.key [s.me.c], limit := some 0 }) then
-    modify fun s => { s with people := a.total }
+  -- people: the present members (admitted, not removed), each once
+  let (ps, _) ← readView (Kinds.Profile.present s.me.c) #[]
+  modify fun s => { s with people := ps.length }
   -- 4. the offset, and the rows the frame and the fetch distance need
   let s ← get
   let (bots0, ch0) := bottoms s
