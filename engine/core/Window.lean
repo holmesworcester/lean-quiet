@@ -69,6 +69,24 @@ def Win.has (w : Win) (k : ByteArray) (p : Pos) : Bool := Decidable.decide (k = 
 /-- The whole of a key's list. -/
 def Win.all (k : ByteArray) : Win := { key := k }
 
+/-- **A read's window**: the part of its key's list its rows depend on,
+given its answer a. It is the read's range, cut where its limit cut the
+answer: newest first, from the answer's last row up; oldest first, up to
+it. A row filed outside it (below a newest-50 answer, say) changes none
+of the rows (`WindowLaws.read_rows_iff`). Counts (`inRange`, `total`)
+depend on more: a read that uses them watches its whole key
+(`Win.all`). -/
+def ListQ.win {F : Type} (q : ListQ) (a : Answer F) : Win :=
+  let lo := q.after.map (·, false)
+  let hi := q.before.map (·, false)
+  match q.limit, a.rows.getLast? with
+  | some n, some (p, _) =>
+    if a.rows.length = n then
+      if q.desc then { key := q.key, lo := some (p, true), hi }
+      else { key := q.key, lo, hi := some (p, true) }
+    else { key := q.key, lo, hi }
+  | _, _ => { key := q.key, lo, hi }
+
 /-! ## The journal -/
 
 /-- One row of the journal: a row filed (`on`) or unfiled under a key,
