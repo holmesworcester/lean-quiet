@@ -116,7 +116,7 @@ def workload (seed : Nat) (n : Nat) : List Op := Id.run do
       | 5 => let (a, dv) := adm k1; post c a (signer dv) "k".toUTF8 s!"m{i}".toUTF8
       | 6 => wrap c "k".toUTF8 d.enc "box".toUTF8
       | _ =>
-        if w2 < 4 then mkOp [c, anyId k1] (.post "k".toUTF8 "unsigned".toUTF8 .empty)
+        if w2 < 4 then mkOp [c, anyId k1] (.post "k".toUTF8 "unsigned".toUTF8 0 .empty)
         else { id := sha256 s!"junk-{seed}-{i}".toUTF8, kind := 9, reqs := [anyId k1], body := "junk".toUTF8 }
     if !(ids.contains o.id) then
       ops := ops.push o

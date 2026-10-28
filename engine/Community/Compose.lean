@@ -32,6 +32,7 @@ def Device.named (name : String) : Device := Device.ofSeed (sha256 name.toUTF8)
 def Body.tag : Body → UInt8
   | .root .. => 0 | .invite .. => 1 | .join .. => 2 | .grant .. => 3
   | .remove .. => 4 | .post .. => 5 | .wrap .. => 6
+  | .profile .. => 7 | .blob .. => 8 | .react .. => 9
 
 /-- The op with these requirements and body, named by its bytes' hash. -/
 def mkOp (reqs : List Id) (b : Body) : Op :=
@@ -66,9 +67,22 @@ def remove (c removerAdm auth targetAdm : Id) (by_ : Device) : Op :=
   let reqs := [c, removerAdm, auth, targetAdm]
   mkOp reqs (.remove (sig by_.sk reqs (.remove .empty)))
 
-def post (c adm : Id) (by_ : Device) (ckey text : ByteArray) : Op :=
-  let reqs := [c, adm]
-  mkOp reqs (.post ckey text (sig by_.sk reqs (.post ckey text .empty)))
+def post (c adm : Id) (by_ : Device) (ckey text : ByteArray) (time : Nat := 0)
+    (atts : List Id := []) : Op :=
+  let reqs := [c, adm] ++ atts
+  mkOp reqs (.post ckey text time (sig by_.sk reqs (.post ckey text time .empty)))
+
+def profile (c adm : Id) (by_ : Device) (name : ByteArray) (time : Nat) (avatar : List Id) : Op :=
+  let reqs := [c, adm] ++ avatar
+  mkOp reqs (.profile name time (sig by_.sk reqs (.profile name time .empty)))
+
+/-- An image's blob op, named by the bytes' hash; the bytes go in the
+blob store beside it. -/
+def blob (c : Id) (bytes : ByteArray) (w h : Nat) : Op := mkOp [c] (.blob (sha256 bytes) w h)
+
+def react (c adm target : Id) (by_ : Device) (emoji : ByteArray) (time : Nat) : Op :=
+  let reqs := [c, adm, target]
+  mkOp reqs (.react emoji time (sig by_.sk reqs (.react emoji time .empty)))
 
 def wrap (c : Id) (ckey recipient box : ByteArray) : Op := mkOp [c] (.wrap ckey recipient box)
 

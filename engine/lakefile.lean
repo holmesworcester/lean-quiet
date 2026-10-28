@@ -26,3 +26,6 @@ lean_exe differential where
 
 lean_exe crash where
   root := `Tests.Crash
+
+lean_exe querydiff where
+  root := `Tests.QueryDiff

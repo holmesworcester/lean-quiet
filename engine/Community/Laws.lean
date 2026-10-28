@@ -68,21 +68,28 @@ theorem check_removal {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c t u :
   obtain ⟨h1, rfl, rfl, rfl, h5, h6⟩ := hc
   exact ⟨_, _, _, _, _, _, _, _, rfl, rfl, h1, h5, h6⟩
 
-theorem check_message {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id} {d k t : ByteArray}
-    (h : check C o b fs = some (.message c u d k t)) :
-    ∃ s d0 e0 e, b = .post k t s ∧ fs = [.admission c c d0 e0, .admission c u d e] ∧
-      o.reqs.head? = some c ∧ C.verify d (signed o b) s = true := by
+theorem check_message {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id}
+    {d k t : ByteArray} {tm : Nat} {atts : List Id}
+    (h : check C o b fs = some (.message c u d k t tm atts)) :
+    ∃ s d0 e0 e rest, b = .post k t tm s ∧ fs = .admission c c d0 e0 :: .admission c u d e :: rest ∧
+      o.reqs.head? = some c ∧ atts = o.reqs.drop 2 ∧ blobsOf c rest = true ∧
+      C.verify d (signed o b) s = true := by
   unfold check at h
   split at h <;> (try split at h) <;> (try simp at h; done)
   simp only [Option.some.injEq, Fact.message.injEq] at h
-  obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
+  obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
   rename_i hc
-  obtain ⟨h1, rfl, rfl, h4⟩ := hc
-  exact ⟨_, _, _, _, rfl, rfl, h1, h4⟩
+  obtain ⟨h1, rfl, rfl, h4, h5⟩ := hc
+  exact ⟨_, _, _, _, _, rfl, rfl, h1, rfl, h4, h5⟩
 
 theorem all2_two {α β} {R : α → β → Prop} {l : List α} {a b : β} (h : All2 R l [a, b]) :
     ∃ x y, l = [x, y] ∧ R x a ∧ R y b := by
   cases h with | cons h1 h2 => cases h2 with | cons h3 h4 => cases h4; exact ⟨_, _, rfl, h1, h3⟩
+
+theorem all2_cons2 {α β} {R : α → β → Prop} {l : List α} {a b : β} {rest : List β}
+    (h : All2 R l (a :: b :: rest)) :
+    ∃ x y t, l = x :: y :: t ∧ R x a ∧ R y b ∧ All2 R t rest := by
+  cases h with | cons h1 h2 => cases h2 with | cons h3 h4 => exact ⟨_, _, _, rfl, h1, h3, h4⟩
 
 theorem all2_four {α β} {R : α → β → Prop} {l : List α} {a b c d : β} (h : All2 R l [a, b, c, d]) :
     ∃ x y z w, l = [x, y, z, w] ∧ R x a ∧ R y b ∧ R z c ∧ R w d := by
@@ -135,15 +142,18 @@ theorem isAdmin_sound {c u y : Id} {g : Fact} (hg : V C ops y g) (h : isAdmin c 
 /-! ## Authorization: every message is by an admitted device -/
 
 /-- A Valid message cites an admission of its author's device into its
-author's user, and that device signed it. -/
-theorem message_authorized {x c u : Id} {d k t : ByteArray} (h : V C ops x (.message c u d k t)) :
-    ∃ o s e y, ops x = some o ∧ (decode o.body : Option Body) = some (.post k t s) ∧
-      o.reqs = [c, y] ∧ V C ops y (.admission c u d e) ∧
-      C.verify d (signed o (.post k t s)) s = true := by
+author's user, and that device signed it; what it attaches are the
+requirements after those two. -/
+theorem message_authorized {x c u : Id} {d k t : ByteArray} {tm : Nat} {atts : List Id}
+    (h : V C ops x (.message c u d k t tm atts)) :
+    ∃ o s e y, ops x = some o ∧ (decode o.body : Option Body) = some (.post k t tm s) ∧
+      o.reqs = c :: y :: atts ∧ V C ops y (.admission c u d e) ∧
+      C.verify d (signed o (.post k t tm s)) s = true := by
   obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
-  obtain ⟨s, d0, e0, e, rfl, rfl, hh, hs⟩ := check_message hv
-  obtain ⟨a, y, hreq, _, hy⟩ := all2_two hr
-  rw [hreq] at hh; simp at hh; subst hh
+  obtain ⟨s, d0, e0, e, rest, rfl, rfl, hh, ha, _, hs⟩ := check_message hv
+  obtain ⟨a, y, t', hreq, _, hy, _⟩ := all2_cons2 hr
+  rw [hreq] at hh ha; simp at hh; subst hh
+  simp at ha; subst ha
   exact ⟨o, s, e, y, hx, hb, hreq, hy, hs⟩
 
 /-! ## No impersonation -/
@@ -168,9 +178,10 @@ by the holder of d's key, and that holder also signed an op admitting d
 into u. Nobody can post as a user without a device the user's admission
 binds and that device's key. -/
 theorem no_impersonation {Signed : Key → ByteArray → Prop} (hU : Unforgeable C Signed)
-    {x c u : Id} {d k t : ByteArray} (h : V C ops x (.message c u d k t)) :
-    ∃ o s, ops x = some o ∧ (decode o.body : Option Body) = some (.post k t s) ∧
-      Signed d (signed o (.post k t s)) ∧
+    {x c u : Id} {d k t : ByteArray} {tm : Nat} {atts : List Id}
+    (h : V C ops x (.message c u d k t tm atts)) :
+    ∃ o s, ops x = some o ∧ (decode o.body : Option Body) = some (.post k t tm s) ∧
+      Signed d (signed o (.post k t tm s)) ∧
       ∃ y e oy by_, V C ops y (.admission c u d e) ∧ ops y = some oy ∧
         (decode oy.body : Option Body) = some by_ ∧ Signed d (signed oy by_) := by
   obtain ⟨o, s, e, y, hx, hb, _, hy, hs⟩ := message_authorized h
