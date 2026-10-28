@@ -528,11 +528,6 @@ lean_obj_res lq_ime(uint8_t show) {
   return lean_io_result_mk_ok(lean_box(0));
 }
 
-lean_obj_res lq_text_clear(void) {
-  ba_text_clear();
-  return lean_io_result_mk_ok(lean_box(0));
-}
-
 lean_obj_res lq_scan(uint8_t on) {
   ba_scan(on != 0);
   return lean_io_result_mk_ok(lean_box(0));
@@ -560,6 +555,11 @@ lean_obj_res lq_luma(void) {
 
 lean_obj_res lq_copy(b_lean_obj_arg text) {
   ba_copy(lean_string_cstr(text));
+  return lean_io_result_mk_ok(lean_box(0));
+}
+
+lean_obj_res lq_set_text(b_lean_obj_arg text) {
+  ba_set_text(lean_string_cstr(text));
   return lean_io_result_mk_ok(lean_box(0));
 }
 
