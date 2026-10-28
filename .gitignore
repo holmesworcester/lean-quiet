@@ -2,4 +2,11 @@
 # kept per machine (an installed debug build updates only under the key
 # that signed it).
 debug.keystore
-/out/
+.lake/
+out/
+*.apk
+__pycache__/
+# the Rust crypto's build
+/engine/native/crypto/target/
+# the app's data, fetched by tools/fetch_assets.sh
+/assets/
