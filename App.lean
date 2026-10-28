@@ -25,6 +25,7 @@ code without a window (QTests).
 -/
 import engine.renderer.Data
 import ops.app.Chaos
+import ops.app.Reader
 import engine.renderer.Row
 import engine.renderer.Geometry
 import engine.renderer.Cover
@@ -80,6 +81,8 @@ structure RowSt where
   task : Option (Task Bitmap)
   shown : Option Bitmap
   ver : Nat
+  /-- The board version its data came from (Reader). -/
+  bver : Nat := 0
   /-- The shown paint darkened, for behind the reaction tray, and the
   version it was made from. -/
   dimmed : Option (Task Bitmap) := none
@@ -163,6 +166,12 @@ structure St where
   me : Chaos.Me
   live : Live := {}
   out : Array Pending := #[]
+  /-- The reader's board, and the frame's wants of it (Reader): the
+  conversation's ids and rows are read there, not on the frame. -/
+  sh : Reader.Shared
+  /-- The reader's state while the frame runs its passes itself (no
+  reader thread: the headless twins); none once a thread runs them. -/
+  rst : Option Reader.St := none
   limit : Nat := 64
   ids : Array Pos := #[]
   /-- How many rows the list read returned (hidden ones too): what paging
@@ -292,8 +301,9 @@ def readRow (m : Id) : M (Option (RowData × Array Q)) := do
 /-! ## Writing -/
 
 /-- Notices made by this node itself: a change to the outbox. -/
-def noticeLocal (keys : List ByteArray) : M Unit :=
+def noticeLocal (keys : List ByteArray) : M Unit := do
   modify fun s => { s with live := s.live.notice keys.toArray }
+  (← get).sh.notes.modify (· ++ keys.toArray)
 
 /-- The one way into the store: through the node while it runs (it owns
 the store's writes, and offers peers only what it knows), else the local
@@ -478,33 +488,44 @@ def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := do
       | none => Bitmap.blank w h (solid Row.placeholder w)
   return p.shown pre full
 
-/-- Mount (read, lay out) row x if any of its answers are stale. -/
-def mount (x : Id) : M Unit := do
+/-- In the headless twins, the frame runs the reader's pass itself; on a
+device the reader's thread runs them. Either way the reader sees the
+frame's outbox as of now. -/
+def readerPass : M Unit := do
   let s ← get
-  let need ← match s.rows[x]? with
-    | none => pure true
-    | some r => do
-      let mut stale := false
-      for q in r.deps do
-        if !(← fresh q) then stale := true
-      pure stale
-  if !need then return
-  match ← readRow x with
-  | none => pure ()
-  | some (d, deps) =>
-    let s ← get
-    match s.rows[x]? with
-    | some r =>
-      if r.data == d then
-        modify fun s => { s with rows := s.rows.insert x { r with deps } }
-      else
-        let lay := Row.layout s.font s.dim s.W d
-        modify fun s => { s with rows := s.rows.insert x { r with data := d, lay, deps, ver := r.ver + 1 },
-                                  heights := s.heights.insert x lay.h }
-    | none =>
+  s.sh.out.set s.out
+  if let some r := s.rst then
+    let (_, r) ← (Reader.pass s.sh).run r
+    modify fun s => { s with rst := some r }
+
+/-- The board, taken: its values, its moved set cleared (one swap; the
+frame never waits on the reader). -/
+def takeBoard : M (_root_.Live.Board Reader.Want Reader.Val) := do
+  (← get).sh.board.modifyGet fun b => let (_, b') := b.take; (b', b')
+
+/-- Row x from the board (Reader's row want), laid out again when its
+version moved; nothing while the board has none (the frame shows the
+row's placeholder, Cover). Its time is shown in the local timezone. -/
+def mount (bd : _root_.Live.Board Reader.Want Reader.Val) (x : Id) : M Unit := do
+  let s ← get
+  let some (.row (some d), ver) := bd.get? (.row s.me.c s.me.adm x) | return
+  if (s.rows[x]?.map (·.bver)) == some ver then return
+  let tz := (← s.io.wall).2
+  let d := { d with time := (d.time + tz).toNat }
+  match s.rows[x]? with
+  | some r =>
+    if r.data == d then
+      modify fun s => { s with rows := s.rows.insert x { r with bver := ver } }
+    else
       let lay := Row.layout s.font s.dim s.W d
-      modify fun s => { s with rows := s.rows.insert x ⟨d, lay, deps, (0, []), none, none, 1, none, 0, none⟩,
+      modify fun s => { s with rows := s.rows.insert x { r with data := d, lay, bver := ver, ver := r.ver + 1 },
                                 heights := s.heights.insert x lay.h }
+  | none =>
+    let lay := Row.layout s.font s.dim s.W d
+    modify fun s => { s with
+      rows := s.rows.insert x { data := d, lay, deps := #[], painted := (0, []), task := none, shown := none,
+                                ver := 1, bver := ver },
+      heights := s.heights.insert x lay.h }
 
 /-- Start a paint of row x if what it shows changed; collect a finished one. -/
 def paintRow (x : Id) : M Unit := do
@@ -792,7 +813,8 @@ def takeChanges : M (Array ByteArray) := do
   let s ← get
   let (ks, top) ← s.rd.changesSince s.seen
   modify fun s => { s with seen := top }
-  s.wr.read.set top  -- taken: the writer may delete them
+  -- taken by the frame and the reader: the writer may delete them
+  s.wr.read.set (min top (← s.sh.seen.get))
   return ks
 
 /-- Join with QR code: the camera on while the page shows; each new
@@ -1553,8 +1575,13 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   -- a union of message.byKey over the keys it holds); one it cannot read
   -- is not in it, and appears when its key's wrap opens (the key's list is
   -- one the view reads)
-  let (a, _) ← readView (Community.readable s.me.c (limit := some s.limit)) #[]
-  modify fun s => { s with ids := (a.rows.map (·.1)).toArray, fetched := a.rows.length, total := a.total }
+  -- (read by the reader: Reader.Want.ids; the last ids stay until the
+  -- board has the wanted ones)
+  let idsW := Reader.Want.ids s.me.c s.limit
+  s.sh.wants.modify fun ws => #[idsW] ++ ws.filter (· != idsW)
+  readerPass
+  if let some (.ids ids fetched total, _) := (← takeBoard).get? idsW then
+    modify fun s => { s with ids, fetched, total }
   let s ← get
   -- people: the present members (admitted, not removed), each once
   let (ps, _) ← readView (Kinds.Profile.present s.me.c) #[]
@@ -1571,10 +1598,16 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   let fetch := vh
   let lo := if b ≥ over + fetch then b - over - fetch else 0
   let hi := b + vh + over + fetch
+  -- the rows the fetch distance needs: the reader's wants, the ids first
+  let mut win := #[]
   for i in [0:s.ids.size] do
     let bot := bots0[i]!
     if bot > hi then break
-    if bot + heightOf s s.ids[i]!.2 ≥ lo then mount s.ids[i]!.2
+    if bot + heightOf s s.ids[i]!.2 ≥ lo then win := win.push s.ids[i]!.2
+  s.sh.wants.set (#[idsW] ++ win.map fun x => Reader.Want.row s.me.c s.me.adm x)
+  readerPass
+  let bd ← takeBoard
+  for x in win do mount bd x
   -- more ids, if the loaded ones end below what the fetch distance needs
   let s ← get
   let (bots, _) := bottoms s
@@ -1734,7 +1767,8 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   let wr ← Writer.start dbPath
   -- the communities are this device's accepted facts: read them once
   -- here to choose the first page
-  let probe : St := { io := io, W := W, Hs := Hs, insetTop := 0, insetBot := 0, font := font, bgRow := .empty, rd := rd, wr := wr, me := default }
+  let sh ← Reader.Shared.new
+  let probe : St := { io := io, W := W, Hs := Hs, insetTop := 0, insetBot := 0, font := font, bgRow := .empty, rd := rd, wr := wr, me := default, sh := sh }
   let ((all, _), _) ← (Kinds.Accepted.read : M _).run probe
   let comms := Kinds.Accepted.listed all
   let me := comms[0]?.getD default
@@ -1747,6 +1781,15 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
            wr := wr, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
            -- a removal already in the store at launch is not announced
            goneSeen := (all.toList.filter (·.removed)).map (·.acc),
-           dbPath := dbPath, netCfg := net }
+           dbPath := dbPath, netCfg := net, sh := sh, rst := some { rd := ← openDb dbPath } }
+
+/-- On a device: the reader's passes on a thread of their own (never the
+shared task pool), so the frame only takes the board. -/
+def spawnReader (s : St) : IO St := do
+  match s.rst with
+  | some r =>
+    let _ ← IO.asTask (prio := .dedicated) (Reader.run s.sh r)
+    return { s with rst := none }
+  | none => return s
 
 end App
