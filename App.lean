@@ -167,6 +167,8 @@ structure St where
   /-- The node starting, off the frame (its connection opened and its
   first reads made on a thread of its own). -/
   netBoot : Option (Task (Except IO.Error Engine.Sync.Runner)) := none
+  /-- Writes the node's inbound channel could not take yet, in order. -/
+  toNode : Array (List Op) := #[]
   /-- The journal's newest row this app has taken notice of. -/
   seen : Nat := 0
   me : Chaos.Me
@@ -393,13 +395,36 @@ def noticeLocal (ps : List Pending) : M Unit := do
   modify fun s => { s with live := s.live.notice fs }
   (← get).sh.notes.modify (· ++ fs)
 
+/-- Offer writes to the node's inbound channel, in order, without waiting:
+each that fits is in; the rest, from the first that did not fit, stay
+(the channel is bounded and shared with the peers' frames, so it can be
+full while sync is busy). -/
+def offerAll (ch : Std.CloseableChannel.Sync Engine.Sync.Event) (q : Array (List Op)) : IO (Array (List Op)) := do
+  for i in [0:q.size] do
+    if !(← ch.trySend (.write q[i]!)) then return q.extract i q.size
+  return #[]
+
 /-- The one way into the store: through the node while it runs (it owns
 the store's writes, and offers peers only what it knows), else the local
-writer. A write behind the node's back is stored but never synced. -/
-def submit (s : St) (j : Job) : IO Unit :=
+writer. A write behind the node's back is stored but never synced. To the
+node it never waits: what its channel cannot take now waits in `toNode`,
+offered again first each frame (`flushNode`), so a send never blocks the
+frame on sync. -/
+def submit (j : Job) : M Unit := do
+  let s ← get
   match s.net with
-  | some r => r.write j.ops
+  | some r =>
+    let rest ← offerAll r.events (s.toNode.push j.ops)
+    modify fun s => { s with toNode := rest }
   | none => s.wr.submit j
+
+/-- The writes the node's channel could not take yet, offered again. -/
+def flushNode : M Unit := do
+  let s ← get
+  let some r := s.net | return
+  if s.toNode.isEmpty then return
+  let rest ← offerAll r.events s.toNode
+  modify fun s => { s with toNode := rest }
 
 /-- A user action's write (an intent's ops): each op is
 judged in order against what is decided and the ops before it in the
@@ -429,7 +454,7 @@ def writeAll (w : Community.Write) : M Bool := do
       return false
   modify fun s => { s with out := s.out ++ pend }
   noticeLocal pend.toList
-  submit s ⟨w.ops, true⟩
+  submit ⟨w.ops, true⟩
   return true
 
 def write (o : Op) : M Bool := writeAll ⟨[o]⟩
@@ -1642,6 +1667,7 @@ def frame (evs : List Event) : M (Option (List Event)) := do
       live := s.live.notice fs (vs.map (·.1))
       out := s.out.filter fun p => !judged.contains p.op.id }
     if !decided.isEmpty then noticeLocal decided.toList
+  flushNode
   chaosStep
   let tNotices ← (← get).io.nowUs
   -- 2. events and commands
