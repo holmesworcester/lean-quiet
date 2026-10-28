@@ -354,6 +354,57 @@ theorem read_rows_iff {fam : Family F} {s t : DB F} (hs : Inv fam s) (ht : Inv f
         rwa [List.take_of_length_le (Nat.le_of_lt this)] at e
       · intro e; rw [e, List.take_of_length_le (Nat.le_of_lt hlt)]
 
+/-- **A read's window holds exactly its rows.** At the state it was read
+in, the window of a read of one key with rows holds the answer's rows
+and no other: a list window adds no row the screen did not load. -/
+theorem window_rows {fam : Family F} {s : DB F} (hs : Inv fam s) {q : ListQ} (hq : q.also = [])
+    (hl : q.limit ≠ some 0) (r : Pos × F) :
+    r ∈ window s (q.win (eval s q)) ↔ r ∈ (eval s q).rows := by
+  have Ss := inRange_strict hs hq
+  have Ds : (inRange s q).reverse.Pairwise fun a b => aheadD a.1 b.1 :=
+    List.pairwise_reverse.2 (Ss.imp fun h => h)
+  have As : (inRange s q).Pairwise fun a b => aheadA a.1 b.1 := Ss
+  have hord : ∀ l : List (Pos × F), r ∈ (if q.desc then l.reverse else l) ↔ r ∈ l := by
+    intro l; cases q.desc <;> simp
+  cases hlim : q.limit with
+  | none =>
+    rw [win_none hlim, window_range hq, eval_rows]
+    simp only [ListQ.cut, hlim]
+    exact (hord _).symm
+  | some n =>
+    have hn : n ≠ 0 := fun e => hl (by rw [hlim, e])
+    by_cases hlen : (eval s q).rows.length = n
+    · obtain ⟨⟨Pp, Pf⟩, hlast⟩ : ∃ P, (eval s q).rows.getLast? = some P := by
+        apply Option.isSome_iff_exists.1
+        apply List.getLast?_isSome.2
+        intro e; rw [e] at hlen; exact hn hlen.symm
+      rw [win_cut hlim hlen hlast]
+      have hPin : q.inside Pp = true := by
+        have hm := List.mem_of_getLast? hlast
+        rw [eval_rows] at hm
+        simp only [ListQ.cut, hlim] at hm
+        have hm' := List.mem_of_mem_take hm
+        have : (Pp, Pf) ∈ inRange s q := by
+          cases hd : q.desc
+          · simpa [hd] using hm'
+          · simpa [hd] using hm'
+        exact (List.mem_filter.1 this).2
+      rw [eval_rows] at hlast ⊢
+      simp only [ListQ.cut, hlim] at hlast ⊢
+      cases hd : q.desc
+      · simp only [hd, Bool.false_eq_true, ite_false] at hlast ⊢
+        rw [window_cutA hq hPin, cut_top aheadA aheadA_irr aheadA_trans As hlast (leP_iff Pp)]
+      · simp only [hd, ite_true] at hlast ⊢
+        rw [window_cutD hq hPin, cut_top aheadD aheadD_irr aheadD_trans Ds hlast (geP_iff Pp),
+          List.filter_reverse, List.mem_reverse]
+    · rw [win_uncut hlim hlen, window_range hq]
+      rw [eval_rows] at hlen ⊢
+      simp only [ListQ.cut, hlim] at hlen ⊢
+      have hlt : (if q.desc then (inRange s q).reverse else inRange s q).length < n := by
+        rw [List.length_take] at hlen; omega
+      rw [List.take_of_length_le (Nat.le_of_lt hlt)]
+      exact (hord _).symm
+
 /-- **A read's notices are exact.** A subscriber whose one window is the
 read's (from its answer in s) is notified of a batch exactly when the
 read's rows changed: a row filed outside the window (below a newest-n
