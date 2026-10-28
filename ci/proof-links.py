@@ -29,7 +29,8 @@ END = "<!-- /proof-links -->"
 AUDITED = [0]
 # Definitions the theorems take as hypotheses, by part.
 ASSUMED = {"engine": ["Community.Unforgeable", "Engine.CollisionFree", "Engine.Distinct",
-                      "Connection.Noise.Suite.Good", "Connection.Keys.Good"]}
+                      "Connection.Noise.Suite.Good", "Connection.Keys.Good",
+                      "Community.Merkle.NoSecondPreimage"]}
 
 PROBE = """open Lean in
 #eval show CoreM Unit from do

@@ -16,16 +16,20 @@ or anyone on the network does:
 - **non-members get none of a community's ops, and no device's secrets
   leave it;**
 - **a node's trust rule lets in exactly the live members;** ¹
-- **honest nodes that hold the same ops agree.** ²
+- **honest nodes that hold the same ops agree;** ²
+- **only a session's two devices can derive its keys, even if both
+  devices' long-term keys later leak.** ³
 
 ¹ assuming Ed25519 signatures cannot be forged. ² assuming SHA-256 has
-no collisions.
+no collisions. ³ in the symbolic model of the cryptography.
 
-**Not yet proven:** that sessions and messages are secret from someone
-on the wire (in progress), that a removal reaches a live session, the
-bootstrap over the running code rather than a model, and that content
-is drawn faithfully all the way to pixels (proven up to each row's
-layout; painting it is not).
+**Not yet proven:**
+- that messages are secret from non-members (the seal's secrecy);
+- that a removal reaches a live session from the removal itself, which
+  needs `sum_project`;
+- the bootstrap over the running code, rather than a model;
+- that content is drawn faithfully all the way to pixels (proven up to
+  each row's layout; painting is not).
 
 ### Assumed
 
@@ -44,13 +48,19 @@ nothing else is assumed:
   - The engine's agreement and budget theorems take `Distinct`.
   - Sync's Merkle labels take the same of what they hash (in
     [`lbl_inj`]).
+- [`NoSecondPreimage`]: SHA-256 has no second preimage on a file's
+  Merkle tree inputs, for the attachment laws. [`assumptions_hold`]
+  shows that it can hold.
 - [`Suite.Good`]: X25519 agrees (`dh a (pub b) = dh b (pub a)`), the
   AEAD opens what it seals, and public keys are 32 bytes. With
   [`Keys.Good`], a device's Ed25519 key converts to its seed's X25519
   key. These are correctness only, and say nothing about secrecy.
-- **When the secrecy proofs land,** they will assume the symbolic
-  model: perfect primitives, with the attacker reading, replaying and
-  injecting every message.
+- **The session secrecy theorems assume the symbolic (Dolev-Yao)
+  model:** perfect primitives, with the attacker reading, replaying and
+  injecting every message. They have no computational reduction. DH is
+  over named exponents only, with no low-order points, clamping or
+  Ed25519-to-X25519 conversion. Their agreement is non-injective: a
+  replayed handshake is accepted again.
 
 **Trusted, not proven.** Each item is tested instead, as noted:
 - **Lean** (its kernel, compiler and runtime), and the OS's randomness
@@ -116,23 +126,24 @@ nothing else is assumed:
 | ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A session sends only sync messages, and ops of the rooms its peer is let into. | [`recv_send`] |
 | ✅ | 🥊🥊🥊 | **Secrets stay on the device.** No local op (a secret, a session key, a pending join) is ever offered or sent. Of a connection's ops, only the two handshake messages are not local. | [`offer_shared`], [`wire_kinds`], [`local_kinds`], [`joinOps_travels`], [`found_travels`], [`stopWaiting_local`] |
 | ✅ | 🥊🥊 | **The stream discloses only what it may.** It offers only ids of stored, shared ops, never one still pending. The clock sends only round messages and offers. | [`filed_send`], [`offer_stored`], [`tick_send`] |
-| 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Proven: a content key goes to exactly the live members' devices. In progress: sealing posts with it. | [`recipients_iff`], [`members_iff`] |
-| ⬜ | 🥊🥊🥊 | **Sessions are secret and authenticated:** only the two devices can derive a session's keys. In progress (`kk_secret`, `kk_authentic`). Proven so far: an honest handshake agrees. | [`handshake_agrees`], [`sent1_write1`], [`sent1_read1`], [`read2_write2'`] |
-| 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered** from the disk, or from the static keys later. Proven: the session's rows are gone. Tested: no file of the database holds a byte of them (`engine/Tests/Purge.lean`). In progress: from the static keys (`kk_forward_secret`). | [`purge_gone`], [`purge_named`] |
+| 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Proven: a content key goes to exactly the live members' devices, and a member opens what was sealed under the key wrapped to it. A shared op's validator reads only shared facts. Wanted: that a non-member cannot open it (the seal's secrecy). | [`recipients_iff`], [`members_iff`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`check_reads_shared`] |
+| ✅ | 🥊🥊🥊 | **Sessions are secret and authenticated.** Suppose an attacker reads, replays and injects every message, and knows every key except the two devices' static keys and the session's ephemerals. Then neither transport key is derivable. The initiator accepts a reply only if it is exactly what the responder wrote answering this request. This is over the handshake functions that run, in the symbolic model (see Assumed). Replays are accepted again, and payloads are not covered. A negative control shows an attacker holding the initiator's keys does derive the session keys, and `kk_runs` shows the honest run exists. | [`kk_secret`], [`kk_secret_init`], [`kk_secret_resp`], [`kk_authentic`], [`kk_authentic_resp`], [`kk_secret_init_tight`], [`kk_runs`], [`handshake_agrees`] |
+| 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered,** from the disk or from the static keys later. Proven: with the ephemerals gone, both static keys and the whole transcript do not give the session keys, and the session's rows are gone. Tested: no file of the database holds a byte of them (`engine/Tests/Purge.lean`). Wanted: that closing purges every ephemeral (`close_forgets`). | [`kk_forward_secret`], [`kk_forward_secret_init`], [`kk_forward_secret_resp`], [`purge_gone`], [`purge_named`] |
 | ⬜ | 🥊🥊🥊 | **Session secrets never reach the disk.** They would be ephemeral ops, held in memory, so forward secrecy would not rest on deletion. A restart then redials. | |
 | ⬜ | 🥊🥊🥊 | **Removed members cannot read new messages.** This needs key rotation, which is not built. | |
 | ⬜ | 🥊🥊 | **Every offered id names a stored op in one of the peer's rooms** (`have_shown`). This is the disclosure law for ids. | |
 | | | **Connections** | |
 | ✅ | 🥊🥊🥊 | **The trust rule lets in exactly the live members.** Read from the node's tables, it accepts exactly the devices of admitted, unremoved users. Nodes that hold the same ops agree on it. | [`connect_iff`], [`refuse_nonmember`], [`connect_approved`], [`connect_agree`] |
 | ✅ | 🥊🥊🥊 | **A removal cuts the removed user out of the rule.** Once a node holds it, the rule refuses every device of that user. Only an admin can remove another user, and nothing undoes it. | [`removal_cuts_off`], [`removals_iff`], [`removal_authorized`], [`removed_stays`] |
-| 🟡 | 🥊🥊🥊 | **A removal ends a live session's sync.** Proven: a connection sends and takes only ops of the rooms it holds. The code refreshes those rooms from the rule whenever it stores an op, but no theorem says so yet (`rooms_trusted`), and no test checks it. The session itself stays open, with no rooms. | [`recv_send`], [`recv_take`], [`removal_cuts_off`] |
+| 🟡 | 🥊🥊🥊 | **A removal ends a live session's sync.** Proven: a connection carries a room only if the trust rule takes its peer, and for a live member that rule is `allowPeer`. So a peer `allowPeer` refuses gets nothing of the room, and nothing of it is taken from them. Every connection step reads its rooms afresh. That is in the code and tested over TCP, with a negative control, but not a theorem. Wanted: deriving the refusal from the removal itself in the running node (`sum_project`). The session stays open, with no rooms. | [`rooms_trusted`], [`rooms_cut`], [`trusts_live`], [`rooms_model`], [`recv_send`], [`recv_take`], [`removal_cuts_off`] |
 | ⬜ | 🥊🥊🥊 | **No packet goes to a removed member.** From the first run of the engine loop after a node decides a removal, it sends the removed user's devices nothing. No sealed frame (their sessions close), no handshake reply (a replayed request gets nothing), and no dial. A last notice of the removal itself might be allowed. Today their sessions stay open with no rooms, and a replayed request is answered with its old reply bytes. Both change first. | |
 | 🟡 | 🥊🥊🥊 | **No session before approval,** however hellos are lost or replayed, and sessions form only with trusted peers. Proven over a model. Wanted over the running handshake (`answer_trusted`, `untrusted_silent`). | [`no_connection_before_approval`], [`sessions_trusted`] *(model)* |
 | ✅ | 🥊🥊🥊 | **Peers cannot push ops in** outside the rooms they are let into, nor plant a device's local state. | [`recv_take`], [`intake_local`], [`stored_local`], [`local_fact_mine`], [`intakeConn_conn`] |
 | ✅ | 🥊🥊 | **Both ends hold one session.** Two ends that complete a handshake hold the same hash, each names the other, and each one's send key is the other's receive key. A frame opens to what was sealed, for the connection it names. | [`established_agrees`], [`open_seal`], [`cid_seal`] |
 | | | **Hostile input** | |
-| ✅ | 🥊🥊🥊 | **One parse per op.** A decoded op re-encodes to exactly the bytes received, so there is no parser differential and no malleability: the signer, the hasher and every peer read the same op. Its id is the SHA-256 of those bytes, so a peer cannot name an op. | [`Codec.encode_decode`], [`Op.id_decode`], [`distinct_of_collisionFree`] |
+| ✅ | 🥊🥊🥊 | **One parse per op.** A decoded op re-encodes to exactly the bytes received, so there is no parser differential and no malleability: the signer, the hasher and every peer read the same op. Its id is the SHA-256 of those bytes, so a peer cannot name an op. A Valid op is exactly its body's encoding under its own type, so no re-typed copy of one is Valid. | [`Codec.encode_decode`], [`Op.id_decode`], [`distinct_of_collisionFree`], [`op_of_valid`] |
 | ✅ | 🥊🥊🥊 | **Hostile bytes decode to a well-formed value or to nothing.** A QOI picture comes out at 1–2048 px a side, with exactly its pixels' bytes, so at most 16 MiB whatever it claims. An mDNS packet keeps its RFC limits, and its pointer chains end by construction. Invite links and QR segments are valid. | [`Pic.decode_sized`], [`Mdns.decode_valid`], [`Community.parse_valid`], [`Qr.parse_valid`] |
+| ✅ | 🥊🥊🥊 | **Attachments authenticate themselves.** Any peer may relay a file's chunks, but a chunk is Valid only if it is its file's own slice. One op stands for each index, so download progress counts exactly the chunks held, and the chunks for every index put together are the file. This assumes SHA-256 has no second preimage on the tree's inputs, a premise shown satisfiable. No hash with 32-byte outputs is injective, so the laws assume nothing stronger. | [`chunk_is_slice`], [`verify_sound`], [`complete_assembles`], [`chunk_unique`], [`progress_exact`], [`assumptions_hold`], [`no_injective_hash`] |
 | ✅ | 🥊🥊🥊 | **Judging cannot be hung.** From any state, judging empties its queue within a budget read off the tables. | [`drain_bounded`], [`drain_terminates`], [`step_budget`] |
 | ⬜ | 🥊🥊🥊 | **Authenticate before parsing:** a sealed frame's payload is decoded only after its AEAD check passes. | |
 | ⬜ | 🥊🥊 | **Bounded buffering:** a connection holds at most one maximal frame (1 MiB) and a read, whatever the peer's length fields say. | |
@@ -150,7 +161,7 @@ nothing else is assumed:
 | ✅ | 🥊🥊 | **Purge takes exactly what it must.** It takes the named conn and local ops and their stored dependents. Shared dependents are judged again. | [`purge_named`], [`purge_undecides`], [`purge_inv`], [`mem_purgeSet`], [`reach_ops`] |
 | ✅ | 🥊 | **Families compose, op by op:** adding a family changes no verdict or scope of the first's ops. Strict decoding round-trips. | [`sum_left`], [`sum_scope_left`], [`Codec.decode_encode`], [`Op.decode_bytes`] |
 | ⬜ | 🥊🥊🥊 | **The Community laws hold in the running node** (`sum_project`). In the store composed with the Connection family, every Community view answers as it would in a store of the Community ops alone. This carries every law above to the node that runs. | |
-| ✅ | 🥊🥊🥊 | **The honest path works.** A request with its invitation and both signatures is valid, an eligible member's approval is valid, and enough approvals admit and let the device in. | [`request_valid`], [`approve_valid`], [`admit_admits`], [`connect_admitted`] |
+| ✅ | 🥊🥊🥊 | **The honest path works.** A request with its invitation and both signatures is valid, an eligible member's approval is valid, and enough approvals admit and let the device in. The remover's intent writes only removals that stand. | [`request_valid`], [`approve_valid`], [`admit_admits`], [`connect_admitted`], [`removeMember_valid`] |
 | | | **Sync** | |
 | ✅ | 🥊🥊🥊 | **A sync round is complete.** Each side is sent exactly what the other holds in the range and it lacks. On any path, it takes at most one answer more than the two sides hold in the range. | [`exchange_complete`] |
 | ✅ | 🥊🥊 | **Fingerprints are honest.** Equal Merkle labels mean equal sets, and a side opens a round with an honest claim. | [`lbl_inj`], [`opening_honest`], [`num_inj`] |
@@ -165,7 +176,9 @@ nothing else is assumed:
 | ⬜ | 🥊 | **The cached Merkle tree's labels are `lbl`'s,** for O(log n) fingerprints with no change on the wire. | |
 | | | **The screen** | |
 | ✅ | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. | [`visible_in_viewport`], [`newest_visible`], [`pinned_visible`], [`pinned_tap`], [`hit_iff`] |
-| ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`] |
+| ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
+| ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
+| ✅ | 🥊🥊 | **The people list is the present members,** each once. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_nodup`] |
 | ⬜ | 🥊🥊🥊 | **The screen is one moment.** Every frame is the root component drawn over a single settled store state, the latest the app has seen, so if one row is current, all are. Half of this is proven: a cached component whose keys did not fire answers as a fresh read would. Wanted: the renderer re-reads exactly what fired, and reads only between write turns. | [`eval_stable`], [`view_stable`], [`drain_bounded`] |
 | ⬜ | 🥊🥊 | **An action's toast stays until the screen shows it.** A toast for an action (removing someone, a new name or avatar) stays up until every component on screen has re-read a state that holds the action's op, or until the OS's toast time passes, whichever comes first. So a toast that leaves early proves the screen has caught up. | |
 | ✅ | 🥊🥊 | **The layout is exact.** The slide and keyboard shift are exact, and page rows are where the page put them. Emoji keys never overlap, and every key is reachable. An invite's hints and QR fit, and the camera preview reads inside its frame. | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
