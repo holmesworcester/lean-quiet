@@ -104,7 +104,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 464 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 465 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -686,8 +686,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Op.decode_exact`]: engine/core/Core.lean#L96-L98
 [`Op.decode_parts`]: engine/core/Core.lean#L101-L104
 [`decode_sum`]: engine/core/Codec.lean#L677-L680
-[`hold_bounded`]: ops/sync/BoundsLaws.lean#L38-L39
-[`conn_bounded`]: ops/sync/BoundsLaws.lean#L177-L178
+[`hold_bounded`]: ops/sync/BoundsLaws.lean#L41-L42
+[`conn_bounded`]: ops/sync/BoundsLaws.lean#L201-L202
 [`honest_no_drop`]: ops/sync/RetryLaws.lean#L78-L83
 [`retry_bounded`]: ops/sync/RetryLaws.lean#L141-L142
 [`want_budget`]: ops/sync/ServeLaws.lean#L174-L177

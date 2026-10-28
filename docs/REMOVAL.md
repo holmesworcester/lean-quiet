@@ -299,7 +299,10 @@ Built and proven, on lq main's layout:
   the runner sending a step's frames before it closes the dropped
   sessions' sockets. Laws: `closure`, `notice_sent`, `notice_send`,
   `notice_once`, `notice_no_holds`, `removed_gets_only_notice`;
-  `rooms_model` restated over typed rooms. `filed_send`, `tick_send`,
+  `rooms_model` restated over typed rooms. With a3/sync-harden: the cut
+  ends the session through `Node.endSession`, as every end does, and
+  `notify` keeps `known` and `asked`, so a connection stays bounded
+  (`notify_bounded`; `Conn.Reachable` takes `carry` and `notify`). `filed_send`, `tick_send`,
   `have_shown` and `hold_reply_local` stand as they were. Tested in
   `connection_check` (in memory) and `jointcp` (TCP): A removes B on a
   live session, B is told, both ends close and purge the session, and B
