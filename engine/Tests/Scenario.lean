@@ -20,9 +20,16 @@ def isValid (x : Id) : SqlM Fact Bool := do
 def isInvalid (x : Id) : SqlM Fact Bool := do
   return match ← status x with | some .invalid => true | _ => false
 
-def allow (c : Id) (d : Device) : SqlM Fact Bool := allowPeer (m := SqlM Fact) c d.pk
+def allow (c : Id) (d : Device) : SqlM Fact Bool := (allowPeer c d.pk).run
 
-def sealedTo (c : Id) : SqlM Fact (List Key) := recipients (m := SqlM Fact) c
+def sealedTo (c : Id) : SqlM Fact (List Key) := (recipients c).run
+
+def dialed (c : Id) : SqlM Fact (List Key) := (members c).run
+
+/-- One fact, read as a list of one under its op's own key. -/
+def getFact (x : Id) : SqlM Fact (Option Fact) := do
+  let a ← (Lists.list { key := opKey x, limit := some 1 } : SqlM Fact (Answer Fact))
+  return a.rows.head?.map (·.2)
 
 def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/scenario"
@@ -122,6 +129,12 @@ def main (args : List String) : IO UInt32 := do
   let keys1 ← run (sealedTo c)
   t.ok "seals to every member device" ([f1, f2, a1, b1, c1].all fun d => keys1.contains d.enc)
   t.ok "seals to nobody else" (keys1.length == 5 && !keys1.contains m1.enc && !keys1.contains d1.enc)
+  let dial1 ← run (dialed c)
+  t.ok "dials every member device, and nobody else"
+    (dial1.length == 5 && [f1, f2, a1, b1, c1].all fun d => dial1.contains d.pk)
+  t.ok "a fact is read by its own key" ((← run (getFact joinA.id)) == some (.admission c reqA.id a1.pk a1.enc))
+  t.ok "a pending request has its own key too" ((← run (getFact reqD.id)) != none)
+  t.ok "an Invalid op has no row under its key" ((← run (getFact sneak.id)) == none)
 
   -- Phase 1b: approvals. Alice approves dave: admitted. Erin needs two
   -- distinct users: the founder's two devices are one user, so founder

@@ -114,18 +114,18 @@ theorem decideS_fields (x : Id) (v : Verdict F) (s : DB F) :
     (decideS fam x v s).queue = s.queue ++ s.waits x ∧
     (∀ r, (decideS fam x v s).waits r = if r = x then [] else s.waits r) ∧
     (∀ k y, y ∈ (decideS fam x v s).idx k ↔
-      y ∈ s.idx k ∨ (y = x ∧ ∃ f, v = .valid f ∧ k ∈ fam.keys f)) := by
+      y ∈ s.idx k ∨ (y = x ∧ ∃ f, v = .valid f ∧ k ∈ fam.fileKeys x f)) := by
   cases v with
   | valid f =>
-    obtain ⟨h1, h2, h3, h4⟩ := indexAllS_fields x (fam.keys f) (s.setStatus x (.valid f))
+    obtain ⟨h1, h2, h3, h4⟩ := indexAllS_fields x (fam.fileKeys x f) (s.setStatus x (.valid f))
     refine ⟨h1, h2, ?_, ?_, ?_⟩
-    · show (indexAllS x (fam.keys f) (s.setStatus x (.valid f))).queue ++
-        (indexAllS x (fam.keys f) (s.setStatus x (.valid f))).waits x = _
+    · show (indexAllS x (fam.fileKeys x f) (s.setStatus x (.valid f))).queue ++
+        (indexAllS x (fam.fileKeys x f) (s.setStatus x (.valid f))).waits x = _
       rw [h3, h4]; rfl
-    · intro r; show (if r = x then [] else (indexAllS x (fam.keys f) (s.setStatus x (.valid f))).waits r) = _
+    · intro r; show (if r = x then [] else (indexAllS x (fam.fileKeys x f) (s.setStatus x (.valid f))).waits r) = _
       rw [h3]; rfl
     · intro k y
-      show y ∈ (indexAllS x (fam.keys f) (s.setStatus x (.valid f))).idx k ↔ _
+      show y ∈ (indexAllS x (fam.fileKeys x f) (s.setStatus x (.valid f))).idx k ↔ _
       rw [mem_indexAllS]
       constructor
       · rintro (h | ⟨h1, h2⟩)
@@ -158,7 +158,7 @@ structure Inv (fam : Family F) (s : DB F) : Prop where
     x ∈ s.queue ∨ (judge fam o (o.reqs.map s.status) = none ∧
       ∀ r ∈ o.reqs, s.status r = none → x ∈ s.waits r)
   /-- The index holds exactly the Valid facts' keys. -/
-  idx : ∀ k x, x ∈ s.idx k ↔ ∃ f, s.status x = some (.valid f) ∧ k ∈ fam.keys f
+  idx : ∀ k x, x ∈ s.idx k ↔ ∃ f, s.status x = some (.valid f) ∧ k ∈ fam.fileKeys x f
 
 theorem inv_empty : Inv fam (DB.empty : DB F) where
   key := by intro x o h; cases h

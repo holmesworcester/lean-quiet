@@ -38,6 +38,26 @@ Proven (`Proofs.lean`), about that code run on the model:
 - `spec_extends`: a verdict, once reached, never changes.
 - `Codec.decode_encode`: what SQLite stores decodes to what was written.
 
+### Reading: lists and views (`Query.lean`, `View.lean`)
+
+There is one read, a list: the Valid facts filed under a key (and
+optionally under other keys too), in sort order, within a range, at most
+`limit` of them (`none`: all), each row with its fact, plus counts.
+Every Valid fact is also filed under its op's own key (`opKey`), so
+reading one fact is a list of one. `Lists` has two instances: `listSql`
+on SQLite and `eval` on the model; `querydiff` checks them equal.
+
+A view is a value composed of lists, where later lists may depend on
+earlier answers (`View`). It runs on either instance, and the keys it
+watches are the keys of the lists it read: nothing is recorded.
+
+- `eval_stable`: a list's answer changes only if a row is filed under
+  its key (its other conjuncts need no watching: a fact's keys are filed
+  together when it is decided).
+- `view_stable`: so a view's answer changes only if a row is filed
+  under a key it read. Notices for exactly those keys are complete;
+  `querydiff` checks it on SQLite after every commit.
+
 ## The community (`Community/`)
 
 Root (founder, admin), invite (with an approval threshold), request,
@@ -67,12 +87,15 @@ Laws (`Laws.lean`, `Connect.lean`):
 | Who may remove whom? | `removal_authorized`, `admin_removal_stands`, `mutual_removal`, `admin_granted` |
 | Can a removal be undone, or rewrite history? | `removed_stays`, `valid_stays` |
 | Do we connect to non-members or removed members? | `connect_iff`, `refuse_nonmember` |
+| Whom do we dial? | `members_iff` |
 | Do we connect to approved devices, and only those? | `connect_admitted`, `connect_approved` (a pending request never connects) |
 | Who is a new content key sealed to? | `recipients_iff` |
 | What does a removal cut off? | `removal_cuts_off`, `connect_agree`: the removed user's devices plus any nodes that have not yet received the removal |
 
-The connection and sealing laws are about the queries themselves
-(`allowPeer`, `recipients`) run on the persisted tables.
+The connection, dialing and sealing laws are about the views
+themselves (`allowPeer`, `members`, `recipients`, in `Query.lean`), lists
+read over the persisted tables: a device's admissions (key 0), the
+community's admissions (key 1), and each named user's removals (key 2).
 
 ## What is assumed, not proven
 

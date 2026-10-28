@@ -38,3 +38,9 @@ open Engine Community
 #print axioms Engine.drain_terminates
 #print axioms Engine.drain_settles
 #print axioms Engine.same_ops_same_verdicts
+#print axioms Engine.eval_stable
+#print axioms Engine.view_stable
+#print axioms Engine.View.run_model
+#print axioms Community.members_iff
+#print axioms Community.removals_iff
+#print axioms Community.key_ne_opKey

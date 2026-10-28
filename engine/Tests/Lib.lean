@@ -172,7 +172,7 @@ def sameTables (t : Checks) (tag : String) (db : Db) (m : DB Fact) (ids0 : List 
   t.ok s!"{tag}: waits" (ids0.all fun r => group waits r == m.waits r)
   t.ok s!"{tag}: queue" (queue == m.queue)
   let keysUsed := ids0.foldl (fun acc x => match m.status x with
-    | some (.valid f) => acc ++ keys f
+    | some (.valid f) => acc ++ opKey x :: keys f
     | _ => acc) ([] : List ByteArray)
   t.ok s!"{tag}: index" (keysUsed.all (fun k => group idx k == m.idx k) &&
     idx.all fun (k, _) => keysUsed.contains k)

@@ -82,7 +82,7 @@ theorem run_indexAll (x : Id) (ks : List ByteArray) (s : DB F) :
 def decideS (fam : Family F) (x : Id) (v : Verdict F) (s : DB F) : DB F :=
   let s1 := s.setStatus x v
   let s2 := match v with
-    | .valid f => indexAllS x (fam.keys f) s1
+    | .valid f => indexAllS x (fam.fileKeys x f) s1
     | .invalid => s1
   pushAllS (s2.waits x) (s2.clearWaiters x)
 

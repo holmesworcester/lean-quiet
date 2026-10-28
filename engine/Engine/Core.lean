@@ -42,6 +42,15 @@ structure Family (F : Type) where
   validate : Op → List F → Option F
   keys : F → List ByteArray
 
+/-- Op x's own key: what its verdict is watched under, and the key its
+Valid fact is filed under by id (`self`), so reading one fact is a list
+of one. The 0xFF lead byte keeps it apart from a family's keys. -/
+def opKey (x : Id) : ByteArray := ⟨#[0xFF] ++ x.data⟩
+
+/-- Every key op x's Valid fact f is filed under: its own, then the
+family's. -/
+def Family.fileKeys {F} (fam : Family F) (x : Id) (f : F) : List ByteArray := opKey x :: fam.keys f
+
 /-- The facts of requirements that are all Valid, in order; none if any
 is undecided or Invalid. -/
 def allValid {F} : List (Option (Verdict F)) → Option (List F)
@@ -113,11 +122,12 @@ def ingest (o : Op) : m Unit := do
   | some _ => pure ()
   | none => do putOp (F := F) o; push (F := F) o.id
 
-/-- Record x's verdict, index its fact, and wake the ops waiting on it. -/
+/-- Record x's verdict, file its fact (under its own key and the
+family's, in this one step), and wake the ops waiting on it. -/
 def decide (fam : Family F) (x : Id) (v : Verdict F) : m Unit := do
   setStatus x v
   match v with
-  | .valid f => indexAll x (fam.keys f)
+  | .valid f => indexAll x (fam.fileKeys x f)
   | .invalid => pure ()
   let ws ← waiters (F := F) x
   clearWaiters (F := F) x

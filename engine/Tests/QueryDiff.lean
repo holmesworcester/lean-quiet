@@ -67,17 +67,17 @@ def queries (c : Id) (posts : Array Id) (users : Array (Id × Id × Device)) (cu
   let mut qs : List ListQ := []
   let all := key 4 c c
   for desc in [true, false] do
-    for limit in [0, 1, 7, 64] do
+    for limit in [some 0, some 1, some 7, some 64, none] do
       qs := { key := all, desc, limit } :: qs
       for p in cursors do
         qs := { key := all, desc, limit, after := some p } :: { key := all, desc, limit, before := some p }
           :: { key := all, desc, limit, after := some p, cap := 5 } :: qs
   for (_, u, _) in users do
-    qs := { key := all, also := [key 6 c u], limit := 10 } :: { key := key 6 c u, limit := 0 }
-      :: { key := key 7 c u, limit := 1 } :: qs
+    qs := { key := all, also := [key 6 c u], limit := some 10 } :: { key := key 6 c u, limit := some 0 }
+      :: { key := key 7 c u, limit := some 1 } :: { key := key 6 c u, limit := none } :: qs
   for m in posts.toList.take 40 do
-    qs := { key := key 8 c m, limit := 50, desc := false } :: { key := key 9 c (encode (m, "👍".toUTF8)) }
-      :: qs
+    qs := { key := key 8 c m, limit := some 50, desc := false } :: { key := key 9 c (encode (m, "👍".toUTF8)) }
+      :: { key := opKey m, limit := some 1 } :: qs
   return qs
 
 def main : IO UInt32 := do
@@ -92,11 +92,29 @@ def main : IO UInt32 := do
     let db ← Db.openAt (dir ++ "/q.db")
     db.watchFiled
     let (shuffled, _) := (Rng.mk seed.toUInt64).shuffle ops.toList
+    let m := modelRun fam shuffled
+    -- Cursors: real positions from the middle of the list, and ties.
+    let base := eval m { key := key 4 c c, desc := false, limit := some 1000 }
+    let cursors := [5, 17, 60].filterMap (fun i => base.rows[i]?.map (·.1)) ++ [(be64 25, ByteArray.empty)]
+    let qs := queries c posts users cursors
+    -- Notices are complete: after each commit, every list whose answer
+    -- changed had its key filed (eval_stable, on SQLite).
     let mut filedAll : List ByteArray := []
+    let mut before ← qs.mapM fun q => (listSql (F := Fact) q).run db
+    let mut changed := 0
+    let mut missed := 0
     for chunk in [shuffled.take 100, (shuffled.drop 100).take 150, shuffled.drop 250] do
       (receive fam chunk).run db
-      filedAll := filedAll ++ (← db.takeFiled)
-    let m := modelRun fam shuffled
+      let filed ← db.takeFiled
+      filedAll := filedAll ++ filed
+      let after ← qs.mapM fun q => (listSql (F := Fact) q).run db
+      for ((q, a), b) in (qs.zip before).zip after do
+        if a != b then
+          changed := changed + 1
+          if !filed.contains q.key then missed := missed + 1
+      before := after
+    t.ok s!"seed {seed}: every list that changed had its key filed ({changed} changed)"
+      (missed == 0 && changed > 0)
     -- What was filed is exactly the index's keys, and every decided op.
     let idx ← (dumpIdx (F := Fact)).run db
     let st ← (dumpStatus (F := Fact)).run db
@@ -104,16 +122,21 @@ def main : IO UInt32 := do
     t.ok s!"seed {seed}: filed keys cover the verdicts" (st.all fun (x, _) => filedAll.contains (opKey x))
     t.ok s!"seed {seed}: nothing else filed" (filedAll.all fun k =>
       idx.any (·.1 == k) || st.any (fun (x, _) => opKey x == k))
-    -- Cursors: real positions from the middle of the list, and ties.
-    let base := eval m { key := key 4 c c, desc := false, limit := 1000 }
-    let cursors := [5, 17, 60].filterMap (base.rows[·]?) ++ [(be64 25, ByteArray.empty)]
     let mut n := 0
-    for q in queries c posts users cursors do
+    for q in qs do
       let a ← (listSql (F := Fact) q).run db
       let b := eval m q
       n := n + 1
       if a != b then
         IO.eprintln s!"key {hex q.key} desc {q.desc} limit {q.limit}: sql {a.rows.length}/{a.inRange}/{a.total} model {b.rows.length}/{b.inRange}/{b.total}"
       t.ok s!"seed {seed}: query {n}" (a == b)
+    -- The network's views on SQLite against their meaning.
+    for (_, _, d) in users do
+      let a ← ((allowPeer c d.pk).run : SqlM Fact Bool).run db
+      t.ok s!"seed {seed}: allowPeer view" (a == (allowPeer c d.pk).eval m)
+    let ms ← ((members c).run : SqlM Fact (List Key)).run db
+    t.ok s!"seed {seed}: members view" (ms == (members c).eval m && ms.length == users.size)
+    let rs ← ((recipients c).run : SqlM Fact (List Key)).run db
+    t.ok s!"seed {seed}: recipients view" (rs == (recipients c).eval m)
     IO.println s!"seed {seed}: {n} queries, {base.total} valid messages"
   t.finish "querydiff"
