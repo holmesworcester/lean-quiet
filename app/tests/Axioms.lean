@@ -64,6 +64,8 @@ import Quiet.ArrivalLaws
 #print axioms RemovedLaws.landing_listed
 #print axioms RemovedLaws.forget_clears
 #print axioms Data.overlay_total
+#print axioms Text.controls_neutral
+#print axioms Text.marks_invisible
 #print axioms ArrivalLaws.percent_lt
 #print axioms ArrivalLaws.percent_eq
 #print axioms ArrivalLaws.done_iff
