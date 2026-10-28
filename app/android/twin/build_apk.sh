@@ -15,7 +15,7 @@
 #
 # usage: build_apk.sh out.apk package label main-module [abi...]
 #   abi: arm64-v8a (default) and/or x86_64 (the emulator)
-# env: ANDROID_SDK (default ~/android-sdk); LEANRT, the built runtime
+# env: RELEASE=1 (no control channel); ANDROID_SDK (default ~/android-sdk); LEANRT, the built runtime
 #   (default lean-chat's out/leanrt; android/leanrt/build.sh makes one)
 set -euo pipefail
 [ $# -ge 4 ] || { sed -n 2,21p "$0"; exit 2; }
@@ -122,8 +122,12 @@ for abi in "${abis[@]}"; do
   done
   wait
   cp "$cache/$abi"/*.o "$o/"
+  # the control channel (ctl.c) only in development builds: RELEASE=1
+  # builds one that does not listen
+  ctl=-DLQ_CTL
+  [ "${RELEASE:-}" = 1 ] && ctl=
   for c in activity scroll layer quiet_android ctl; do
-    "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$here" -I"$rt/include" -c "$here/$c.c" -o "$o/twin_$c.o"
+    "$cc" --target=$tgt -std=c11 -O3 -fPIC $ctl -I"$here" -I"$rt/include" -c "$here/$c.c" -o "$o/twin_$c.o"
   done
   "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$rt/include" -I"$tp/sqlite" \
     -c "$root/android/native/glue_android.c" -o "$o/glue_glue_android.o"
