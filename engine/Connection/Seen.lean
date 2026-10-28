@@ -1,23 +1,23 @@
 /-
-`seen` (local): where a device was last heard from: its static key, an
-address, a time. It is written from mDNS answers, an invite link's
-hints and `recv` records. `dial` reads `seen.byPeer [peer]` for
-addresses. Valid iff the key is 32 bytes.
-
-SKELETON: signatures are the contract; bodies are unwritten.
+`seen` (local): where a device was heard from: its device key, an
+address, a time. It is written from an invite link's hints, from opened
+hellos, and later from mDNS answers. `dial` reads `conn.seen.byPeer
+[peer]` for addresses, newest first. Valid iff the key is 32 bytes and
+the address is non-empty.
 -/
 import Connection.Recv
 
 namespace Connection
-open Engine Engine.Sync
+open Engine
 
-structure Seen where
-  peer : ByteArray
-  addr : ByteArray
-  at_ : Nat
+def Seen.check (peer addr : B) (at_ : Nat) : List F → Option Fact
+  | [] => if peer.size = 32 ∧ 0 < addr.size then some (.seen peer addr at_) else none
+  | _ => none
 
-def Seen.kind : UInt8 := 39
+def Seen.op (peer addr : B) (at_ : Nat) : Op := mkOp [] (.seen peer addr at_)
 
-def Seen.op (peer addr : ByteArray) (at_ : Nat) : Op := sorry
+namespace seen
+def byPeer : Rel Fact := ⟨"conn.seen", "byPeer", fun | .seen p .. => some [p] | _ => none⟩
+end seen
 
 end Connection

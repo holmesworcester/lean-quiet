@@ -153,6 +153,17 @@ def read1 (S : Suite) (prologue s rs msg : ByteArray) : Option (Sym × ByteArray
   let r ← (Sym.one S prologue rs (S.pub s) re es ss).decHash S (msg.extract 32 msg.size)
   return (r.1, re, r.2)
 
+/-- Initiator, after message 1, from the message alone: its state and
+the payload it sealed, recovered with its static secret `s` and
+ephemeral secret `e`. The message must begin with `e`'s key, so it is
+this initiator's. The state need never be stored. -/
+def sent1 (S : Suite) (prologue s e rs msg : ByteArray) : Option (Sym × ByteArray) :=
+  if msg.size < 32 then none else
+  if msg.extract 0 32 ≠ S.pub e then none else do
+  let es ← S.dh e rs
+  let ss ← S.dh s rs
+  (Sym.one S prologue (S.pub s) rs (S.pub e) es ss).decHash S (msg.extract 32 msg.size)
+
 /-- Responder, message 2, with ephemeral secret `f`, to the initiator's
 static `rs` and ephemeral `re`: its session, and the message. -/
 def write2 (S : Suite) (st : Sym) (f rs re payload : ByteArray) : Option (Session × ByteArray) := do
@@ -204,6 +215,22 @@ theorem read1_write1 (G : S.Good) {prologue sI sR e p es ss : ByteArray}
   simp only [read1, size_ge G, ↓reduceIte]
   rw [front G, back G]
   simp [hes', hss', r, decHash_encHash G]
+
+/-- The initiator recovers, from its own message 1, the state and
+payload it wrote. -/
+theorem sent1_write1 (G : S.Good) {prologue sI e rs p : ByteArray} {st : Sym} {m : ByteArray}
+    (h : write1 S prologue sI e rs p = some (st, m)) : sent1 S prologue sI e rs m = some (st, p) := by
+  simp only [write1] at h
+  cases hes : S.dh e rs with
+  | none => simp [hes] at h
+  | some es =>
+    cases hss : S.dh sI rs with
+    | none => simp [hes, hss] at h
+    | some ss =>
+      simp only [hes, hss] at h
+      injection h with h; injection h with h1 h2; subst h1 h2
+      simp only [sent1, size_ge G, ↓reduceIte, front G, back G, ne_eq, not_true_eq_false, hes, hss]
+      simp [decHash_encHash G]
 
 /-- The initiator reads what the responder wrote, and the sessions match. -/
 theorem read2_write2 (G : S.Good) (st : Sym) {sI e f p ee se : ByteArray}

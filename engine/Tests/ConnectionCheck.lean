@@ -1,35 +1,199 @@
 /-
-The connection family end to end, on two (or three) SQLite nodes driven
-through holmes-a3's Node over a lossy in-memory wire. Real Ed25519,
-X25519 and ChaCha20-Poly1305.
+The connection family end to end: two SQLite nodes (founder A, joiner
+B) driven through the engine's node driver, with real Ed25519, X25519
+and ChaCha20-Poly1305. A small in-memory wire carries bare frames to an
+address and session frames to the other node, and may lose them.
 
-SKELETON: each test is named and skipped. Each one becomes a real check
-as its part lands, and none may stay skipped when the family is called
-done.
+What it checks, in order:
+- **Join, before approval:** A opens B's request and stores B's join
+  request, and writes no connection back. B establishes nothing. B's
+  dial is resent every tick, and A stores the request once.
+- **Approval:** after A approves, A answers B's next dial. Both hold one
+  established session with the same id and hash, each naming the other,
+  with crossed keys; B dialed and A answered.
+- **Sync over the session:** B ends admitted by its own ops, lets A in,
+  and receives a later post.
+- **Loss:** with a third of all frames lost, the join still completes.
+
+Not yet here, because their pieces are on other branches: sealed frames
+(holmes-a3's sessions in Node), close purging the session (the purge
+branch), and the world as a pure step relation to prove laws over
+(holmes-a3's generic Node).
 -/
 import Tests.Lib
+import Connection
 
+open Engine Engine.Sync Community Tests Connection
 
-open Tests
+def K := sodium
+def fam : Family F := node ed25519 K
+def cfg : Config := { every := 30000, patience := 20000 }
 
-def skipped : List String := [
-  "members: A dials B; both hold one established session with the same id and hash, crossed keys",
-  "members: sealed frames carry sync both ways; tampered frames are dropped",
-  "join: B pastes A's link and dials; A opens the request and delivers B's join request, and writes no connection and no courier back",
-  "join: A's user approves; A answers B's next dial, both establish, and sync admits B",
-  "join: the request survives every loss pattern of the lossy wire, and bootstrap still completes",
-  "wire: a tampered request is never opened, and a tampered connection is never established",
-  "wire: a request to another device's key is stored, but never opened",
-  "wire: local ops (eph, opened, established, send, recv) sent bare or on a session are never taken",
-  "close: after a close, no eph, opened, established or settled op of the session is stored",
-  "close: the closed session's ephemeral secrets and keys appear nowhere in the database file's bytes",
-  "close: a replayed request after a close gets a fresh connection id, and the initiator cannot establish it",
-  "outbox: every courier is handed out once and then purged; the outbox drains to empty",
-  "recv: every op taken has its arrival recorded (via, address, time)",
-  "dial: an unanswered dial is resent every tick; once established it stops"
-]
+structure Peer where
+  addr : ByteArray
+  seed : ByteArray
+  x : Sync F
+  n : Node
+  /-- Frames waiting: (session id, if on one; the sender's address; bytes). -/
+  inbox : List (Option Id × ByteArray × ByteArray) := []
+  /-- Sessions the node has opened. -/
+  open_ : List Id := []
+
+def mkPeer (name : String) : IO Peer := do
+  let seed := sha256 s!"seed {name}".toUTF8
+  let addr := s!"{name}:7001".toUTF8
+  let db ← Db.openAt ":memory:"
+  let x : Sync F := { fam, cfg, hooks := hooks fam K seed addr }
+  return { addr, seed, x, n := ← Node.boot x db 0 }
+
+structure World where
+  a : Peer
+  b : Peer
+  now : Nat := 0
+  rng : UInt64 := 0x9E3779B97F4A7C15
+  loss : Nat := 0
+  sentBare : Nat := 0
+
+def World.rand (w : World) (n : Nat) : Nat × World :=
+  let s := w.rng * 6364136223846793005 + 1442695040888963407
+  ((s >>> 33).toNat % n, { w with rng := s })
+
+/-- Put one side's effects on the wire to the other. -/
+def World.route (w : World) (fromA : Bool) (e : Effects) : World := Id.run do
+  let mut w := w
+  for (r, bytes) in e.send do
+    let (l, w') := w.rand 100
+    w := w'
+    let src := if fromA then w.a.addr else w.b.addr
+    let (via, bare) := match r with | .bare _ => (none, true) | .conn cid => (some cid, false)
+    if bare then w := { w with sentBare := w.sentBare + 1 }
+    if l < w.loss then continue
+    if fromA then w := { w with b := { w.b with inbox := w.b.inbox ++ [(via, src, bytes)] } }
+    else w := { w with a := { w.a with inbox := w.a.inbox ++ [(via, src, bytes)] } }
+  return w
+
+/-- Open the sessions a node's ops now establish. -/
+def openNew (p : Peer) (now : Nat) : IO (Peer × Effects) := do
+  let ss ← (sessions : SqlM F _).run p.n.db
+  let mut p := p
+  let mut out : Effects := {}
+  for (cid, _, dialer) in ss do
+    if p.open_.any (· == cid) then continue
+    let (n, e) ← p.n.connect p.x cid dialer now
+    p := { p with n, open_ := cid :: p.open_ }
+    out := out ++ e
+  return (p, out)
+
+def deliverAll (p : Peer) (now : Nat) : IO (Peer × Effects) := do
+  let mut p := p
+  let mut out : Effects := {}
+  for (via, src, bytes) in p.inbox do
+    let (n, e) ← match via with
+      | none => p.n.onBare p.x src bytes now
+      | some cid => p.n.onBytes p.x cid bytes now
+    p := { p with n }
+    out := out ++ e
+  p := { p with inbox := [] }
+  let (p', e) ← openNew p now
+  return (p', out ++ e)
+
+/-- One step: deliver everything waiting, then tick both. -/
+def World.step (w : World) : IO World := do
+  let now := w.now + 200
+  let (a, ea) ← deliverAll w.a now
+  let (b, eb) ← deliverAll w.b now
+  let w := ({ w with a, b, now }.route true ea).route false eb
+  let (an, ta) ← w.a.n.onTick w.a.x now
+  let (bn, tb) ← w.b.n.onTick w.b.x now
+  return ({ w with a := { w.a with n := an }, b := { w.b with n := bn } }.route true ta).route false tb
+
+def World.run (w : World) (steps : Nat) : IO World := do
+  let mut w := w
+  for _ in [0:steps] do w ← w.step
+  return w
+
+def writeA (w : World) (ops : List Op) : IO World := do
+  let (n, e) ← w.a.n.onWrite w.a.x ops
+  return { w with a := { w.a with n } }.route true e
+
+def writeB (w : World) (ops : List Op) : IO World := do
+  let (n, e) ← w.b.n.onWrite w.b.x ops
+  return { w with b := { w.b with n } }.route false e
+
+def cnt (p : Peer) (r : Rel Connection.Fact) (args : List ByteArray) : IO Nat := (count r args : SqlM F _).run p.n.db
+def stored (p : Peer) (x : Id) : IO Bool := do return (← (Store.getOp x : SqlM F _).run p.n.db).isSome
+def ests (p : Peer) : IO (List Connection.Fact) := do
+  return (← (rows established.all [] : SqlM F _).run p.n.db).map (·.2)
+def allowedOn (p : Peer) (c d : ByteArray) : IO Bool :=
+  ((Community.allowPeer c d).liftL.run : SqlM F Bool).run p.n.db
+
+/-- A founds Acme and invites at its address; B joins from the link. -/
+def setup (loss : Nat) : IO (World × Id × Op) := do
+  let a ← mkPeer "A"
+  let b ← mkPeer "B"
+  let mut w : World := { a, b, loss }
+  w ← writeA w (found a.seed "Acme".toUTF8 "Ann".toUTF8 1).ops
+  let c := (root (Device.ofSeed a.seed)).id
+  let (wi, link) := inviteTo c c a.seed (sha256 "bearer".toUTF8) [a.addr]
+  w ← writeA w wi.ops
+  w ← writeB w (join link b.seed "Bea".toUTF8).ops
+  return (w, c, link.request (Device.ofSeed b.seed))
+
+def approveOnA (w : World) (c : Id) (req : Op) : IO World := do
+  let wr ← ((approveReq c req.id c w.a.seed).liftL.run : SqlM F Community.Write).run w.a.n.db
+  writeA w wr.ops
+
+def dump (name : String) (p : Peer) : IO Unit := do
+  let ops ← (dumpOps (F := F)).run p.n.db
+  let mut line := s!"{name}:"
+  for o in ops do
+    let st ← (Store.getStatus o.id : SqlM F _).run p.n.db
+    line := line ++ s!" {o.kind}:" ++ (match st with | some (.valid _) => "v" | some .invalid => "X" | none => "?")
+  IO.eprintln line
 
 def main : IO UInt32 := do
-  for s in skipped do IO.println s!"SKIP {s}"
-  IO.println s!"connection_check: {skipped.length} skipped (skeleton)"
-  return 0
+  let t ← Checks.new
+  let (w, c, req) ← setup 0
+  let dA := Device.ofSeed w.a.seed
+  let dB := Device.ofSeed w.b.seed
+  let w ← w.run 20
+  -- Before approval.
+  if (← IO.getEnv "DUMP").isSome then dump "A" w.a; dump "B" w.b
+  t.ok "A opened B's request" ((← cnt w.a opened.all []) == 1)
+  t.ok "A stored B's join request" (← stored w.a req.id)
+  t.ok "A answered nothing" ((← cnt w.a established.all []) == 0)
+  t.ok "B established nothing" ((← ests w.b).isEmpty)
+  t.ok "B's dial was resent every tick" (w.sentBare ≥ 15)
+  t.ok "B is not admitted on A" (!(← allowedOn w.a c dB.pk))
+  -- Approval.
+  let w ← approveOnA w c req
+  t.ok "A admits B by its own ops" (← allowedOn w.a c dB.pk)
+  let w ← w.run 20
+  let ea ← ests w.a
+  let eb ← ests w.b
+  t.ok "each holds one established session" (ea.length == 1 && eb.length == 1)
+  match ea, eb with
+  | [.established ca cca pa ha sa ra da], [.established cb ccb pb hb sb rb db] =>
+    t.ok "the same connection id" (ca == cb)
+    t.ok "the same community" (cca == c && ccb == c)
+    t.ok "each names the other" (pa == dB.pk && pb == dA.pk)
+    t.ok "the same handshake hash" (ha == hb)
+    t.ok "crossed keys" (sa == rb && ra == sb)
+    t.ok "B dialed, A answered" (db && !da)
+  | _, _ => t.ok "sessions have the expected shape" false
+  -- Sync over the session.
+  let w ← w.run 40
+  t.ok "B is admitted by its own ops" (← allowedOn w.b c dB.pk)
+  t.ok "B lets A in" (← allowedOn w.b c dA.pk)
+  let p := post c c dA "k".toUTF8 "hello B".toUTF8 5
+  let w ← writeA w [p]
+  let w ← w.run 10
+  t.ok "a later post reaches B" (← stored w.b p.id)
+  -- Lossy wire.
+  let (w2, c2, req2) ← setup 33
+  let w2 ← w2.run 30
+  let w2 ← approveOnA w2 c2 req2
+  let w2 ← w2.run 150
+  t.ok "with a third of frames lost, B still joins" (← allowedOn w2.b c2 (Device.ofSeed w2.b.seed).pk)
+  t.ok "and both hold a session" ((← ests w2.a).length ≥ 1 && (← ests w2.b).length ≥ 1)
+  t.finish "connection_check"

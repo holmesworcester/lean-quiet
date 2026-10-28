@@ -1,74 +1,49 @@
 /-
-The connection family: its ops' bodies and facts, its validator, its
-relations, and where each op travels. The request and the connection
-travel on the bare wire (conn scope); every other op is local. It reads
-Community's facts as well as its own, for the device secret, so the
-node's one family is the two composed (`Engine.Family.sum`).
-
-Also here: the hooks the node driver calls (`Engine.Sync.Node`):
-- the rooms a connection's peer may see: the trust rule over
-  Community's lists;
-- the `recv` and `settled` ops;
-- the couriers waiting;
-- what a close purges;
-- the reactions the node runs after every write (Intents).
-
-Kinds 32–40 until the registry names them.
-
-SKELETON: signatures are the contract; bodies are unwritten.
+The connection family: each op type's validator by its body (the op
+files hold their meaning), the relations, and where each op travels.
+The request and the connection travel on the bare wire (conn scope);
+every other op is local. It reads Community's facts as well as its
+own, for the device secret, so the node's one family is the two
+composed (`Engine.Family.sum`).
 -/
 import Connection.Settled
 import Engine.Families
-import Engine.Purge
-import Community
 
 namespace Connection
-open Engine Engine.Sync
+open Engine Codec
 
-inductive Body where
-  | eph (b : Eph)
-  | request (b : Request)
-  | opened
-  | connection (b : Reply)
-  | established
-  | send (b : Send)
-  | recv (b : Recv)
-  | seen (b : Seen)
-  | settled (b : Settled)
+def check (K : Keys) (o : Op) : Body → List F → Option Fact
+  | .eph sk, fs => Eph.check K sk fs
+  | .request t f m, fs => Request.check K t f m fs
+  | .opened, fs => Opened.check K o fs
+  | .connection m, fs => Reply.check o m fs
+  | .established, fs => Established.check K o fs
+  | .send b d x, fs => Send.check b d x fs
+  | .recv c v a t, fs => Recv.check o c v a t fs
+  | .seen p a t, fs => Seen.check p a t fs
+  | .settled r, fs => Settled.check o r fs
 
-inductive Fact where
-  | eph (pk sk : ByteArray)
-  | request (to frm : ByteArray)
-  | opened (f : OpenedFact)
-  | connection (request : Id)
-  | established (s : Session)
-  | send (route : Route) (bytes : ByteArray)
-  | recv (op : Id) (via : Option Id) (addr : ByteArray) (at_ : Nat)
-  | seen (peer addr : ByteArray) (at_ : Nat)
-  | settled (cid room : Id)
+def validate (K : Keys) (o : Op) (fs : List F) : Option Fact :=
+  match (decode o.body : Option Body) with
+  | some b => if b.kind = o.kind then check K o b fs else none
+  | none => none
 
-instance : Inhabited Fact := ⟨.connection .empty⟩
-
-/-- Each op type's validator, over the facts its requirements gave
-(Community's and this family's). -/
-def validate (S : Noise.Suite) : Op → List (Community.Fact ⊕ Fact) → Option Fact := sorry
-
-/-- request.byTo, opened.all, connection.byRequest, established.all,
-established.byPeer, send.all, recv.byOp, seen.byPeer, settled.byConn. -/
-def rels : List (Rel Fact) := sorry
+def rels : List (Rel Fact) :=
+  [eph.byPub, request.byTo, request.byFrm, opened.all, opened.byRequest, connection.byRequest,
+   established.all, established.byConn, send.all, recv.byOp, seen.byPeer, settled.byConn,
+   settled.byRoom]
 
 def keys : Fact → List ByteArray := keysOf rels
 
 /-- The request and the connection go on the bare wire; the rest is local. -/
-def scopeOf (o : Op) : Scope := sorry
+def scopeOf (o : Op) : Scope := if o.kind = 33 ∨ o.kind = 35 then .conn else .local
 
-def family (S : Noise.Suite) : Family₂ Community.Fact Fact :=
-  { validate := validate S, keys, scope := scopeOf, owns := fun k => 32 ≤ k ∧ k ≤ 40 }
+def owns (k : UInt8) : Bool := 32 ≤ k && k ≤ 40
 
-/-- The node's facts: Community's and the connection family's. -/
-abbrev F := Community.Fact ⊕ Fact
+def family (K : Keys) : Family₂ Community.Fact Fact :=
+  { validate := validate K, keys, scope := scopeOf, owns }
 
 /-- The node's one family. -/
-def node (C : Community.Crypto) (S : Noise.Suite) : Family F := Family.sum (Community.family C) (family S)
+def node (C : Community.Crypto) (K : Keys) : Family F := Family.sum (Community.family C) (family K)
 
 end Connection
