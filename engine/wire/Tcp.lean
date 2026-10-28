@@ -20,9 +20,10 @@ neither carries socket code.
   loop only pushes frames onto the socket's lanes (docs/SYNC.md,
   "Lanes"), so no send blocks the loop, and a slow socket holds up only
   its own writer. Each native write is every urgent frame, then serve
-  frames up to `burst` bytes (`Lanes.take`). A frame from a socket whose
-  serve lane holds `window` bytes or more is answered with at most one
-  op per want (`credit`).
+  frames up to `burst` bytes (`Lanes.take`). Flow control: a session's
+  queue of wanted ops is served only while its socket's serve lane holds
+  less than `window` bytes (`Sync.room`), so the lane never passes the
+  window by more than one op.
 
 One task owns the node and its SQLite connection; the listener and one
 reader per socket feed it events through a channel.
@@ -101,6 +102,13 @@ def Sock.push (s : Sock) (ps : List (Lane × ByteArray)) : IO Unit := do
 
 /-- Serve bytes waiting on a socket's lanes. -/
 def Sock.queued (s : Sock) : IO Nat := s.out.atomically do return (← getThe Outbox).lanes.queued
+
+/-- What each socket's serve lane has room for, as the node reads it
+(`Sync.room`): `window` less what it holds; nothing at an address with
+no socket yet (its frames wait for the dial). -/
+def rooms (cfg : RunConfig) (socks : List Sock) : IO (ByteArray → Option Nat) := do
+  let qs ← socks.mapM fun s => do return (s.addr, cfg.window - (← s.queued))
+  return fun a => some (((qs.find? (·.1 == a)).map (·.2)).getD 0)
 
 /-- Stop a socket's writer: it shuts the socket down once its write
 under way is done. -/
@@ -322,8 +330,7 @@ def RunState.handle (cfg : RunConfig) (st : RunState) (ev : Event) (now : Nat) :
     | none => return some st
     | some s =>
       let st := { st with socks := st.socks.map fun (s' : Sock) => if s'.id == sid then { s' with heard := now } else s' }
-      -- Its wants are answered within what is left of the socket's window.
-      let x' := { x with cfg := { x.cfg with wantBytes := credit cfg.window x.cfg.wantBytes (← s.queued) } }
+      let x' := { x with room := ← rooms cfg st.socks }
       let (st, e) ← st.node? fun n => n.onFrame x' s.addr p now
       some <$> st.apply x ch notify cfg e now
   | .closed sid => return some (← st.closeApply x ch notify cfg sid now)
@@ -367,7 +374,8 @@ def runLoop (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (List Op)) (st
         return
     | none => pure ()
     if now ≥ st.lastTick + cfg.tickMs then
-      let (st', e) ← ({ st with lastTick := now }).node? fun n => n.onTick x now
+      let x' := { x with room := ← rooms cfg st.socks }
+      let (st', e) ← ({ st with lastTick := now }).node? fun n => n.onTick x' now
       st ← st'.apply x ch notify cfg e now
       for s in st.socks do
         if s.heard + cfg.idle < now then

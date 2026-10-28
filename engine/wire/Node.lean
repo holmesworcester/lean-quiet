@@ -93,6 +93,10 @@ structure Sync (F : Type) (m : Type → Type) [Monad m] where
   fam : Family F
   cfg : Config := {}
   hooks : Hooks F m
+  /-- Serve-lane bytes the transport has room for at an address: the
+  runner's flow control (none, as in a proof's world: `cfg.burst` a
+  step). -/
+  room : ByteArray → Option Nat := fun _ => none
 
 structure Node where
   ix : Index
@@ -167,11 +171,10 @@ a longer one is served. -/
 def wireLane (o : Op) : Lane :=
   if o.reqs.length ≤ max x.cfg.urgentIds 1 then .urgent else .serve
 
-/-- The lane of op o, sent at `now`: a wire op's (`wireLane`); urgent
-for an op this node wrote within `hotMs`; served otherwise. -/
-def Node.lane (n : Node) (o : Op) (now : Nat) : Lane :=
-  if isWire o.kind then wireLane x o
-  else if n.hot.any (fun p => p.1 == o.id && now ≤ p.2 + x.cfg.hotMs) then .urgent else .serve
+/-- The ids this node wrote within `hotMs`: a want for one is served
+urgent (`Node.serveOwed`). -/
+def Node.hotIds (n : Node) (now : Nat) : List Id :=
+  n.hot.filterMap fun p => if now ≤ p.2 + x.cfg.hotMs then some p.1 else none
 
 end
 
@@ -362,7 +365,22 @@ def Node.apply (n : Node) (cid : Id) (s : Step) (now : Nat) : m (Node × Acts) :
   for o in s.take do
     arrived := arrived ++ (← x.hooks.recv (some cid) .empty o now)
   let (n, out') ← n.store x arrived true
-  return (n, split (n.lane x · now) cid s.send ++ out ++ out')
+  return (n, split (wireLane x) cid s.send ++ out ++ out')
+
+/-- Serve session cid's queue (`Conn.serveOwed`): the ops it wants that
+this node wrote within `hotMs` go urgent; then, in the serve lane, as
+many bytes as the transport has room for at its address (`x.room`), or
+`cfg.burst` without a transport. -/
+def Node.serveOwed (n : Node) (cid : Id) (now : Nat) : m (Node × Acts) := do
+  match n.conn? cid with
+  | none => return (n, {})
+  | some c =>
+    if c.owed.isEmpty then return (n, {})
+    let c ← Node.refresh x cid c
+    let budget := ((n.addr? cid).bind x.room).getD x.cfg.burst
+    let (c, urgent, bulk) ← c.serveOwed x.fam x.cfg budget (n.hotIds x now)
+    return ({ n with conns := n.conns.map fun p => if p.1 = cid then (cid, c) else p },
+      { send := urgent.map fun o => (.conn cid, o.bytes), serve := bulk.map fun o => (.conn cid, o.bytes) })
 
 /-- A connection opened without a handshake: the in-memory harness's. -/
 def Node.connect (n : Node) (cid : Id) (addr : ByteArray) (dialer : Bool) (now : Nat) :
@@ -389,7 +407,8 @@ def Node.onSealed (n : Node) (addr : ByteArray) (opened : Option (Id × ByteArra
           let (n', o) ← n.apply x cid (← Conn.recv x.fam x.cfg n.ix c b now) now
           n := n'
           out := out ++ o
-      n.finish x out now
+      let (n', o) ← n.serveOwed x cid now
+      n'.finish x (out ++ o) now
     | _, _ => return (n, {})
 
 /-- A payload from an address: a bare op (the handshake's), or a sealed
@@ -420,8 +439,9 @@ def Node.onTick (n : Node) (now : Nat) : m (Node × Effects) := do
     | some c =>
       let c ← Node.refresh x cid c
       let (n', o) ← n.apply x cid (← Conn.tick x.fam x.cfg n.ix c now) now
+      let (n', o') ← n'.serveOwed x cid now
       n := n'
-      out := out ++ o
+      out := out ++ o ++ o'
   n.finish x out now
 
 /-- A local write: this device's own ops, hot from now on. -/

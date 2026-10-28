@@ -5,8 +5,8 @@ from waiting behind a backlog on its way out. Pure, so the laws
 
 - `Lane`: urgent (interaction: wire control naming few ids, and the ops
   this node just wrote) or serve (answers to a peer's wants and long
-  offers: uiprio's `serve` class on the sending side). `Node.lane`
-  decides which.
+  offers: uiprio's `serve` class on the sending side). `wireLane` and
+  `Node.serveOwed` decide which.
 - `Lanes`: a socket's frames waiting for its writer, a queue per lane.
   Each native write (`take`) is every urgent frame, then serve frames up
   to `burst` bytes, at least one, so a frame longer than `burst` still
@@ -15,8 +15,6 @@ from waiting behind a backlog on its way out. Pure, so the laws
   order: each socket's lanes get only their own.
 - `Inbox.next`: the run loop's next event, a local write before any
   frame.
-- `credit`: what a want from a socket may be answered with, given what
-  its serve lane holds.
 -/
 namespace Engine.Sync
 
@@ -93,10 +91,5 @@ def Inbox.next {m : Type → Type} [Monad m] {W E : Type} (writes : m (Option W)
   match ← writes with
   | some w => return some (.inl w)
   | none => return (← events).map .inr
-
-/-- Bytes a want from a socket may be answered with, when its serve lane
-holds `queued` bytes: what is left of `window`, and at least one, so a
-want is always answered with its first op. -/
-def credit (window wantBytes queued : Nat) : Nat := max 1 (min wantBytes (window - queued))
 
 end Engine.Sync
