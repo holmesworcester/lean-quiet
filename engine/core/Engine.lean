@@ -21,7 +21,6 @@ import ops.sync.Round
 import ops.sync.RoundLaws
 import ops.sync.Wire
 import ops.sync.Conn
-import ops.sync.TickCost
 import engine.wire.Node
 import engine.wire.Pair
 import ops.sync.ConnLaws

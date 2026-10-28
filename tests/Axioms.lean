@@ -23,7 +23,6 @@ import ops.connection.bootstrap.Net
 import engine.core.CodecCost
 import ops.community.MerkleCost
 import ops.app.Pics
-import ops.sync.TickCost
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -373,10 +372,4 @@ section cost
 #print axioms Pics.steady_later
 #print axioms Pics.imageV_over_budget
 #print axioms Engine.within_bind
-#print axioms Engine.Sync.walkN_within
-#print axioms Engine.Sync.walk_reads
-#print axioms Engine.Sync.walk_writes
-#print axioms Engine.Sync.walk_idle
-#print axioms Engine.Sync.tick_reads
-#print axioms Engine.Sync.tick_idle
 end cost

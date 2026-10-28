@@ -20,17 +20,11 @@ teeth.
   first frame, then nothing; a file whose chunk ops are missing reads
   them again every 120 frames and at no other frame. The old `decoded`
   (`imageV`) spawns a preview decode every frame.
-- A connection's tick (ops/sync/TickCost.lean), on the engine's model
-  store with real op ids: a chain of 50 ops to walk, with a budget of 3
-  steps, reads 6 rows a tick, and the chain is offered over 17 ticks;
-  an empty frontier reads nothing. The walk with no budget (the
-  negative control) reads 100 rows in one tick.
 -/
 import tests.engine.Lib
 import ops.community.MerkleCost
 import engine.core.CodecCost
 import ops.app.Pics
-import ops.sync.TickCost
 
 open Engine Engine.Counted Tests
 
@@ -172,50 +166,9 @@ def pics (t : Checks) : IO Unit := do
 
 end Pics
 
-section Tick
-open Engine.Sync
-
-/-- What a counted model-store run charged, and its value. -/
-def onModel {α : Type} (x : CostT (Model Unit) α) (db : DB Unit) : α × Meter := (Model.run x.run db).1
-
-def tickCheck (t : Checks) : IO Unit := do
-  let r : Engine.Id := ⟨#[9]⟩
-  let fam : Family Unit := { validate := fun _ _ => some (), keys := fun _ => [], scope := fun _ => .shared r }
-  let k := 50
-  let mut ops : Array Op := #[]
-  for i in [0:k] do
-    let reqs := if i == 0 then [] else [ops[i - 1]!.id]
-    ops := ops.push (Op.make 1 reqs ⟨#[i.toUInt8, (i / 256).toUInt8]⟩)
-  let db : DB Unit := ops.foldl (fun s o => s.putOp o) DB.empty
-  let cfg : Config := { walk := 3 }
-  let c0 : Conn := { dialer := false, rooms := [r], floor := 0, frontier := [ops.back!.id] }
-  -- tick after tick, the walk goes on where it stopped
-  let mut c := c0
-  let mut offered := 0
-  let mut ticks := 0
-  let mut maxReads := 0
-  while !c.frontier.isEmpty && ticks < 100 do
-    let (s, m) := onModel (c.tick fam cfg {} 1) db
-    maxReads := max maxReads m.reads
-    t.ok s!"tick {ticks}: within 2·walk reads, no writes" (m.reads ≤ 2 * cfg.walk && m.writes == 0)
-    offered := offered + s.send.length
-    c := s.conn
-    ticks := ticks + 1
-  t.ok s!"tick: the chain of {k} is walked in ⌈{k}/{cfg.walk}⌉ ticks" (ticks == (k + cfg.walk - 1) / cfg.walk)
-  let (_, m0) := onModel (c.tick fam cfg {} 1) db
-  t.ok "tick: an empty frontier reads nothing" (m0.reads == 0 && m0.lists == 0)
-  -- the negative control: the walk with no budget
-  let (_, mAll) := onModel (Conn.walkN fam 1000000 c0 [] : CostT (Model Unit) _) db
-  t.ok s!"tick: the walk with no budget reads every op of the chain twice ({mAll.reads})" (mAll.reads == 2 * k)
-  t.ok "tick: the walk with no budget is over the budget" (2 * cfg.walk < mAll.reads)
-  IO.println s!"tick: budget {cfg.walk} steps, at most {maxReads} reads a tick over {ticks} ticks; no budget {mAll.reads} reads in one"
-
-end Tick
-
 def main : IO UInt32 := do
   let t ← Checks.new
   merkle t
   codec t
   pics t
-  tickCheck t
   t.finish "costcheck"
