@@ -171,3 +171,133 @@ abstract, and the one thing assumed of it is the engine's `view_stable`
 | the frame's reads | none: no store read, no list, no SQL, decrypt or decode but through `Pics.spawn` | `frame_reads` (Doors over App.step) | ❌ the frame reads SQLite today (readView, slicesOf); fix: the reader above |
 | the frame's work | a + b · rows on screen + the moved values' sizes | `frame_work` | ❌ `bottoms` and the mount and paint loops walk every loaded row; fix: a prefix-sum tree over heights and a binary search for the window |
 | an unchanged frame | nothing moved, no event, no scroll, no paint finished: no work, the same rows | `frame_idle` | ❌ every frame re-runs the views through the cache; fix: the moved set |
+
+## The hot paths, in N
+
+N is the community's size: its ops, members, or rows under one key,
+whichever the row names. Each bound is over the code that runs, counted
+with the meter above.
+
+| step | bound | theorem | status |
+|---|---|---|---|
+| ingest one op | 1 read, ≤ 2 writes, 3 seeks | `ingest_costs` | ✅ |
+| judge one op (validate, file, wake) | ≤ 4 + 2R reads, 3 + R + K + W writes, 7 + 3R + 2K + W seeks: R requirements, K keys, W woken | `step_costs`, `decide_costs`, `waitOn_costs` | ✅ for R, K and W given; R is capped only by the frame (about 32 000 ids) and W by the fan-in, below |
+| a list read | ≤ limit + cap rows and 3 + limit seeks, on any store whose answers fit; the model's do, and SQLite's are the model's (querydiff) | `list_costs`, `model_fits` | ✅ for lists with a limit and a count cap |
+| a view | one list door per list it reads | `view_lists` | ✅ |
+| the frame's values | settle in ⌈marked / refill⌉ reader passes and one frame | `settle_passes` | ✅ of the board the reader and frame are to call; 1e is wiring it |
+| a sync round | ≤ 2k + 3 messages, ≤ 1 + fan·(2k + 2)·Δ claims; cold answers O(fan · N log N) until the treap is on the running path | docs/BOUNDS.md | a3's |
+| per-tick node work | the dial hook, then per session: its rooms (`trusts` per established pair), the walk (≤ `walk` steps, 2 reads each), a round; then `react` | the walk's `walk_reads`, `tick_reads` (patch sent for a3/bounds) and a3's round rows | 📏 O(sessions × rooms) given each family hook is bounded; `react` is not, below |
+| key wraps per approval | one wrap, to the new member's device; at most three ops in all | `approveReq` | 📏 by reading: no key rotation, so no wrap per member |
+
+## Every step that grows with N
+
+| step | grows with | theorem | status |
+|---|---|---|---|
+| the frame reads SQLite (`readView`, `slicesOf`): a slow read is a slow frame | the lists on screen and their rows | `frame_reads` | ❌ fix: the reader and the board (above) |
+| `bottoms`, the mount and paint loops, `findIdx?` | loaded rows: every row from the newest to the window, each frame | `frame_work` | ❌ fix: a tree of row heights with sums at its nodes (O(log n) to move a height, to find the row at an offset) |
+| the conversation's re-read | `limit`, which grows as the list scrolls up | `list_costs` | ❌ fix: a window of rows around the anchor, read by `after`/`before` |
+| range counts with `cap = 0` (every list the app reads) | the rows in range | `list_costs` (needs `0 < cap`) | ❌ fix: a3's capped counts ("999+") |
+| `present`, `members`, `recipients` (`admission.all.read [c]`, then `live` reads each admission's removals) | members: O(members) lists per re-read | `view_lists` | ❌ fix: a present-members key the removal files out of, read by window; a capped count for the header |
+| `decide` wakes every waiter at once | an op's fan-in: n ops that arrived before it, in one step | `decide_costs` (W) | ❌ fix: push the decided id once, and let pops wake its waiters at most `drain` at a time |
+| an op's requirements | only the frame bounds them (about 32 000) | `step_costs` (R) | ❌ fix: an intake cap `reqs` in the Budget |
+| `react` | `opened.all`, `request.byTo` and a count per request, every entry point | none | ❌ fix: a key of unanswered requests the opened op files out of; a cap on pending requests |
+| the runner's event channel | unbounded: a peer sending faster than the node handles grows memory | none | ❌ fix: a bounded channel per socket, its reader waiting on its own thread, so TCP pushes back |
+| the write turn, boot, purge, cold rounds | the store | docs/BOUNDS.md | a3's |
+
+## Large communities: open questions
+
+These are for a decision, not decided here.
+
+- **Sessions.** Every member dials every member it trusts, so a node
+  holds O(members) sessions and each tick costs O(sessions × rooms). A
+  bounded-degree overlay (each node keeps at most D sessions, chosen so
+  the graph stays connected with small diameter) makes a tick O(D ×
+  rooms), and delivery takes at most diameter × round time. Which graph,
+  who picks the neighbours, and how a removal reshapes it?
+- **Membership reads.** `present` is O(members) per change. A present
+  set kept as ops (an admission filed under a present key, a removal
+  filing it out) makes it a windowed list. Is a people list ever read
+  whole?
+- **Keys.** With no rotation, an approval wraps one key: O(1). Rotating
+  on removal would wrap to every remaining member, O(members) ops per
+  removal; a tree of keys (TreeKEM-like) makes it O(log members).
+  Is rotation wanted, and when?
+- **Fan-in.** A popular op (the community's root, a pinned message) can
+  have every op wait on it while it is missing. Wake in chunks, or
+  require the root before anything else syncs?
+- **Pending requests.** Join requests to an admin grow with the
+  community's openness: cap, expire, or page them?
+
+## Progress: the UI never starves, the node always moves
+
+### Threads
+
+| thread | runs | waits on |
+|---|---|---|
+| UI main (Java, UIKit) | input, insets, the activity's life | nothing of Lean's: events go into a buffer Lean drains each frame |
+| compositor (AChoreographer, CADisplayLink) | at every vsync: the scroller, then the newest frames shown, the list placed for the offset it was drawn at | nothing of Lean's: it shows the newest frame handed over |
+| Lean main | `App.step`, frame after frame | a free buffer from the compositor (at most two vsyncs); today also SQLite (the frame's reads) |
+| reader (proposed) | the board's passes, on its own connection | SQLite |
+| writer | the app's writes, one transaction a job | SQLite's write lock |
+| node `runLoop` | the node: events, then the clock every `tickMs` | SQLite's write lock; `IO.sleep 5` when idle |
+| socket readers, dials, acceptor | one dedicated thread each | `awaitUv`: its socket's promise |
+| libuv loop | the sockets' I/O; resolves the promises | the OS |
+| the task pool | picture decodes (`Pics.spawn`), row paints, dims, the camera's decode | nothing but CPU |
+
+The wait-for graph has no edge from Lean main, the reader, the writer,
+the node or a socket thread into the pool:
+
+- Lean main reads a task only after `IO.hasFinished` says it is done
+  (`Pics.finished`; `paintRow`'s paint and dim), and spawns without
+  waiting. tests/Doors.lean checks that the counted picture code reaches
+  no task but through its doors.
+- The node's socket waits block their own dedicated threads on the libuv
+  promise (`awaitUv`), never `Async.block`, which maps each result on the
+  pool. tests/engine/PoolStarve fills the pool with busy tasks and times
+  a 64 KiB frame over loopback: well under a second, where
+  `Async.block` stalls until the pool drains.
+- The one exception is development-only: Chaos's loader waits on a pool
+  task from a dedicated thread.
+
+### What follows
+
+- **Frame time is bounded under any pool load.** Lean main's frame is its
+  own work plus a buffer wait of at most two vsyncs. Once the frame reads
+  only the board (`frame_reads`), that work is `frame_work`: O(rows on
+  screen), independent of N, of SQLite's latency and of the decoders'.
+  With the pool's P workers busy on P cores, a fair scheduler gives Lean
+  main at least half a core, so a frame takes at most twice its work.
+- **The user always sees something move.** The compositor places the
+  list for the vsync's offset at every vsync, whatever Lean is doing, so
+  the last frame slides with the finger. Rows a slide uncovers beyond
+  the overscan show the background until the next frame, at most one
+  bounded frame later; that frame covers the viewport with painted rows
+  or placeholders (holmes-1e's coverage law). A slow read or a slow
+  decode only makes a row's value or picture late
+  (`settle_passes`, picture freshness below), never a frame.
+- **Sync's round bounds become wall time.** The node's thread does a
+  round's messages in sequence, each bounded in the meter (a3's
+  `round_depth`, `cold_answer`, the frame cap); with `Costs.time` and the
+  phone's `Units`, a round takes at most (2k + 3) × (RTT + one message's
+  bounded work), and the clock's work per tick is bounded the same way.
+  The runner handles one event per turn and checks the clock every
+  turn, so the clock is never starved by events, and events are handled
+  in order.
+- **Picture freshness.** A picture's decode is spawned once
+  (`Pics.image_twice`); with at most `inflight` decodes on the pool,
+  nearest the viewport first, a picture waits at most
+  ⌈inflight / P⌉ + 1 decodes of at most one `slice` each. Today the
+  number in flight is not capped (❌, a3's row).
+
+### Assumed
+
+- **The OS** schedules runnable threads fairly (each of R runnable
+  threads on a core gets at least 1/R of it), and the compositor's
+  thread is scheduled at every vsync.
+- **No collector pauses**: Lean frees by reference counting, so no
+  thread stops for another's garbage; an allocation is bounded work.
+- **The runtime's C**: libuv's loop runs on a thread of its own, not the
+  pool; `IO.Ref`'s swap is a short spin, never a wait on another
+  thread's work; SQLite's WAL lets a reader run beside a writer.
+- **SQLite**: the B-tree assumption above, and that the plan of each
+  statement is the one engine/core/CostStore.lean charges.
