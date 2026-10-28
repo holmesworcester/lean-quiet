@@ -13,9 +13,13 @@ open Engine Community
 #print axioms Community.message_authorized
 #print axioms Community.no_impersonation
 #print axioms Community.admission_consented
-#print axioms Community.admission_invited
+#print axioms Community.admission_approved
+#print axioms Community.request_invited
+#print axioms Community.approval_signed
 #print axioms Community.invitation_issued
-#print axioms Community.join_admits
+#print axioms Community.request_valid
+#print axioms Community.approve_valid
+#print axioms Community.admit_admits
 #print axioms Community.removal_authorized
 #print axioms Community.admin_removal_stands
 #print axioms Community.mutual_removal
@@ -24,7 +28,8 @@ open Engine Community
 #print axioms Community.valid_stays
 #print axioms Community.connect_iff
 #print axioms Community.refuse_nonmember
-#print axioms Community.connect_joined
+#print axioms Community.connect_admitted
+#print axioms Community.connect_approved
 #print axioms Community.recipients_iff
 #print axioms Community.connect_agree
 #print axioms Community.removal_cuts_off

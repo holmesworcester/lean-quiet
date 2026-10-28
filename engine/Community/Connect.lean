@@ -118,20 +118,35 @@ theorem refuse_nonmember (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d 
   · rfl
   · obtain ⟨u, e, ha, hr⟩ := (connect_iff h hq c d).1 hb; exact absurd (hd u e ha) hr
 
-/-- **Linked devices and invited members are let in.** A device joined
-through a Valid invitation — a link (into the issuer's user) or a member
-invitation (into the user its join starts) — is accepted, unless that
-user has been removed. -/
-theorem connect_joined (h : Inv (family C) s) (hq : s.queue = []) {y c i : Id} {o : Op}
-    {d e cs bs : ByteArray} {d0 e0 : Key} {issuer : Id} {k : Key} {l : Bool}
-    (hy : s.ops y = some o) (hb : (Codec.decode o.body : Option Body) = some (.join d e cs bs))
-    (hreq : o.reqs = [c, i]) (hc : V C s.ops c (.admission c c d0 e0))
-    (hi : V C s.ops i (.invitation c issuer k l))
-    (hcs : C.verify d (signed o (.join d e cs bs)) cs = true)
-    (hbs : C.verify k (signed o (.join d e cs bs)) bs = true)
-    (hnr : ¬ Removed C s.ops c (if l then issuer else y)) :
+/-- **Approved devices are let in.** A device whose request is tallied
+by an admit op with its invitation's threshold of approvals by distinct
+users is accepted (into the issuer's user for a link, into the user its
+request names for a member invitation), unless that user has been
+removed. -/
+theorem connect_admitted (h : Inv (family C) s) (hq : s.queue = []) {y c r : Id} {o : Op}
+    {aps us : List Id} {d0 e0 : Key} {u : Id} {d e : Key} {l : Bool} {t : Nat}
+    (hy : s.ops y = some o) (hb : (Codec.decode o.body : Option Body) = some .admit)
+    (hreq : o.reqs = c :: r :: aps) (hc : V C s.ops c (.admission c c d0 e0))
+    (hr : V C s.ops r (.request c u d e l t))
+    (hap : All2 (fun a v => V C s.ops a (.approval c r v)) aps us) (hn : us.Nodup)
+    (ht : us.length = t) (hnr : ¬ Removed C s.ops c u) :
     ((allowPeer c d : Model Fact Bool).run s).1 = true :=
-  (connect_iff h hq c d).2 ⟨_, e, ⟨y, join_admits h.key hy hb hreq hc hi hcs hbs⟩, hnr⟩
+  (connect_iff h hq c d).2 ⟨_, e, ⟨y, admit_admits hy hb hreq hc hr hap hn ht⟩, hnr⟩
+
+/-- **Only the founder and approved devices are let in.** At rest, a
+device `allowPeer` accepts is admitted into a user not removed, by the
+root (the founder) or by an admit op tallying exactly the threshold of
+approvals, by distinct users, of a Valid request for that device. A
+request alone never connects: requests sit under keys of their own. -/
+theorem connect_approved (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d : Key)
+    (ha : ((allowPeer c d : Model Fact Bool).run s).1 = true) :
+    ∃ u e y, V C s.ops y (.admission c u d e) ∧ ¬ Removed C s.ops c u ∧
+      ((y = c ∧ u = c) ∨
+        ∃ o r aps l t us, s.ops y = some o ∧ (Codec.decode o.body : Option Body) = some .admit ∧
+          o.reqs = c :: r :: aps ∧ V C s.ops r (.request c u d e l t) ∧
+          All2 (fun a v => V C s.ops a (.approval c r v)) aps us ∧ us.Nodup ∧ us.length = t) := by
+  obtain ⟨u, e, ⟨y, hy⟩, hnr⟩ := (connect_iff h hq c d).1 ha
+  exact ⟨u, e, y, hy, hnr, admission_approved h.key hy⟩
 
 /-- **Who a content key is sealed to.** At rest, `recipients` names
 exactly the encryption keys of devices admitted into users of c not

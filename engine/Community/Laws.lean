@@ -14,10 +14,8 @@ open Engine Codec
 theorem check_admission {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id} {d e : Key}
     (h : check C o b fs = some (.admission c u d e)) :
     (∃ s, b = .root d e s ∧ fs = [] ∧ c = o.id ∧ u = o.id ∧ C.verify d (signed o b) s = true) ∨
-    (∃ cs bs d0 e0 issuer k l, b = .join d e cs bs ∧
-      fs = [.admission c c d0 e0, .invitation c issuer k l] ∧ o.reqs.head? = some c ∧
-      u = (if l then issuer else o.id) ∧
-      C.verify d (signed o b) cs = true ∧ C.verify k (signed o b) bs = true) := by
+    (∃ d0 e0 l t aps, b = .admit ∧ fs = .admission c c d0 e0 :: .request c u d e l t :: aps ∧
+      o.reqs.head? = some c ∧ tally c (o.reqs.getD 1 .empty) t aps = true) := by
   unfold check at h
   split at h <;> (try split at h) <;> (try simp at h; done)
   · simp only [Option.some.injEq, Fact.admission.injEq] at h
@@ -26,20 +24,89 @@ theorem check_admission {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u :
   · simp only [Option.some.injEq, Fact.admission.injEq] at h
     obtain ⟨rfl, rfl, rfl, rfl⟩ := h
     rename_i hc
-    obtain ⟨h1, rfl, rfl, h4, h5⟩ := hc
-    exact Or.inr ⟨_, _, _, _, _, _, _, rfl, rfl, h1, rfl, h4, h5⟩
+    obtain ⟨h1, rfl, rfl, h4⟩ := hc
+    exact Or.inr ⟨_, _, _, _, _, rfl, rfl, h1, h4⟩
 
 theorem check_invitation {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c issuer : Id}
-    {k : Key} {l : Bool} (h : check C o b fs = some (.invitation c issuer k l)) :
-    ∃ s d0 e0 d e, b = .invite k l s ∧ fs = [.admission c c d0 e0, .admission c issuer d e] ∧
-      o.reqs.head? = some c ∧ C.verify d (signed o b) s = true := by
+    {k : Key} {l : Bool} {t : Nat} (h : check C o b fs = some (.invitation c issuer k l t)) :
+    ∃ s d0 e0 d e, b = .invite k l t s ∧ fs = [.admission c c d0 e0, .admission c issuer d e] ∧
+      o.reqs.head? = some c ∧ (l = true → t = 1) ∧ C.verify d (signed o b) s = true := by
   unfold check at h
   split at h <;> (try split at h) <;> (try simp at h; done)
   simp only [Option.some.injEq, Fact.invitation.injEq] at h
-  obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+  obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
   rename_i hc
-  obtain ⟨h1, rfl, rfl, h4⟩ := hc
-  exact ⟨_, _, _, _, _, rfl, rfl, h1, h4⟩
+  obtain ⟨h1, rfl, rfl, h4, h5⟩ := hc
+  exact ⟨_, _, _, _, _, rfl, rfl, h1, h4, h5⟩
+
+theorem check_request {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id} {d e : Key}
+    {l : Bool} {t : Nat} (h : check C o b fs = some (.request c u d e l t)) :
+    ∃ cs bs d0 e0 issuer k, b = .request d e cs bs ∧
+      fs = [.admission c c d0 e0, .invitation c issuer k l t] ∧ o.reqs.head? = some c ∧
+      u = (if l then issuer else o.id) ∧
+      C.verify d (signed o b) cs = true ∧ C.verify k (signed o b) bs = true := by
+  unfold check at h
+  split at h <;> (try split at h) <;> (try simp at h; done)
+  simp only [Option.some.injEq, Fact.request.injEq] at h
+  obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
+  rename_i hc
+  obtain ⟨h1, rfl, rfl, h4, h5⟩ := hc
+  exact ⟨_, _, _, _, _, _, rfl, rfl, h1, rfl, h4, h5⟩
+
+theorem check_approval {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c r a : Id}
+    (h : check C o b fs = some (.approval c r a)) :
+    ∃ s d0 e0 u d e l t da ea, b = .approve s ∧
+      fs = [.admission c c d0 e0, .request c u d e l t, .admission c a da ea] ∧
+      o.reqs.head? = some c ∧ r = o.reqs.getD 1 .empty ∧ (l = true → a = u) ∧ da ≠ d ∧
+      C.verify da (signed o b) s = true := by
+  unfold check at h
+  split at h <;> (try split at h) <;> (try simp at h; done)
+  simp only [Option.some.injEq, Fact.approval.injEq] at h
+  obtain ⟨rfl, rfl, rfl⟩ := h
+  rename_i hc
+  obtain ⟨h1, rfl, rfl, rfl, h5, h6, h7⟩ := hc
+  exact ⟨_, _, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, h5, h6, h7⟩
+
+/-- `approvers` reads off exactly the approvals of r it is given. -/
+theorem approvers_iff {c r : Id} {fs : List Fact} {us : List Id} :
+    approvers c r fs = some us ↔ All2 (fun f v => f = .approval c r v) fs us := by
+  induction fs generalizing us with
+  | nil =>
+    constructor
+    · intro h; simp [approvers] at h; subst h; exact .nil
+    · intro h; cases h; rfl
+  | cons f rest ih =>
+    constructor
+    · intro h
+      cases f with
+      | approval c' r' v =>
+        simp only [approvers] at h
+        split at h
+        · rename_i hc; obtain ⟨h1, h2⟩ := hc; subst c'; subst r'
+          cases hrest : approvers c r rest with
+          | none => rw [hrest] at h; simp at h
+          | some vs =>
+            rw [hrest] at h; simp at h; subst h
+            exact .cons rfl (ih.1 hrest)
+        · simp at h
+      | _ => simp [approvers] at h
+    · intro h
+      cases h with
+      | cons h1 h2 => subst h1; simp [approvers, ih.2 h2]
+
+/-- A tally holds exactly when the facts are t approvals of r by t
+distinct users. -/
+theorem tally_iff {c r : Id} {t : Nat} {fs : List Fact} :
+    tally c r t fs = true ↔
+      ∃ us, All2 (fun f v => f = .approval c r v) fs us ∧ us.Nodup ∧ us.length = t := by
+  unfold tally
+  constructor
+  · intro h
+    cases ha : approvers c r fs with
+    | none => rw [ha] at h; simp at h
+    | some us => rw [ha] at h; simp at h; exact ⟨us, approvers_iff.1 ha, h⟩
+  · rintro ⟨us, hus, hn, hl⟩
+    rw [approvers_iff.2 hus]; simp [hn, hl]
 
 theorem check_admin {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c t : Id}
     (h : check C o b fs = some (.admin c t)) :
@@ -95,6 +162,17 @@ theorem all2_four {α β} {R : α → β → Prop} {l : List α} {a b c d : β} 
     ∃ x y z w, l = [x, y, z, w] ∧ R x a ∧ R y b ∧ R z c ∧ R w d := by
   cases h with | cons h1 h2 => cases h2 with | cons h3 h4 => cases h4 with
   | cons h5 h6 => cases h6 with | cons h7 h8 => cases h8; exact ⟨_, _, _, _, rfl, h1, h3, h5, h7⟩
+
+theorem all2_three {α β} {R : α → β → Prop} {l : List α} {a b c : β} (h : All2 R l [a, b, c]) :
+    ∃ x y z, l = [x, y, z] ∧ R x a ∧ R y b ∧ R z c := by
+  cases h with | cons h1 h2 => cases h2 with | cons h3 h4 => cases h4 with
+  | cons h5 h6 => cases h6; exact ⟨_, _, _, rfl, h1, h3, h5⟩
+
+theorem All2.comp {α β γ} {R : α → β → Prop} {S : β → γ → Prop} {l : List α} {m : List β}
+    {n : List γ} (h1 : All2 R l m) (h2 : All2 S m n) : All2 (fun a c => ∃ b, R a b ∧ S b c) l n := by
+  induction h1 generalizing n with
+  | nil => cases h2; exact .nil
+  | cons ha _ ih => cases h2 with | cons hb hr => exact .cons ⟨_, ha, hb⟩ (ih hr)
 
 /-! ## Community state -/
 
@@ -163,82 +241,169 @@ def Unforgeable (C : Crypto) (Signed : Key → ByteArray → Prop) : Prop :=
   ∀ pk m s, C.verify pk m s = true → Signed pk m
 
 /-- Every admission was consented to by its device: the device signed
-the op that admits it (the root, or its join). -/
+the root that admits it (x = y), or the request its admit tallies (x is
+y's slot 1). -/
 theorem admission_consented {y c u : Id} {d e : Key} (h : V C ops y (.admission c u d e)) :
-    ∃ o b s, ops y = some o ∧ (decode o.body : Option Body) = some b ∧
+    ∃ x o b s, (x = y ∨ ∃ oy, ops y = some oy ∧ oy.reqs.getD 1 .empty = x) ∧
+      ops x = some o ∧ (decode o.body : Option Body) = some b ∧
       C.verify d (signed o b) s = true := by
-  obtain ⟨o, b, fs, hx, hb, _, hv⟩ := valid_inv h
-  rcases check_admission hv with ⟨s, rfl, _, _, _, hs⟩ | ⟨cs, bs, _, _, _, _, _, rfl, _, _, _, hs, _⟩
-  · exact ⟨o, _, s, hx, hb, hs⟩
-  · exact ⟨o, _, cs, hx, hb, hs⟩
+  obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
+  rcases check_admission hv with ⟨s, rfl, _, _, _, hs⟩ | ⟨d0, e0, l, t, aps, rfl, rfl, _, _⟩
+  · exact ⟨y, o, _, s, Or.inl rfl, hx, hb, hs⟩
+  · obtain ⟨_, r, _, hreq, _, hrv, _⟩ := all2_cons2 hr
+    obtain ⟨or, br, fsr, hor, hbr, _, hvr⟩ := valid_inv hrv
+    obtain ⟨cs, _, _, _, _, _, rfl, _, _, _, hcs, _⟩ := check_request hvr
+    exact ⟨r, or, _, cs, Or.inr ⟨o, hx, by rw [hreq]; rfl⟩, hor, hbr, hcs⟩
 
 /-- **Impersonation is impossible.** If signatures are unforgeable, a
 message attributed to user u and device d was signed, as this exact op,
-by the holder of d's key, and that holder also signed an op admitting d
-into u. Nobody can post as a user without a device the user's admission
-binds and that device's key. -/
+by the holder of d's key, and that holder also signed the op that
+admitted d into u: the root, or the request its admission tallies.
+Nobody can post as a user without a device the user's admission binds
+and that device's key. -/
 theorem no_impersonation {Signed : Key → ByteArray → Prop} (hU : Unforgeable C Signed)
     {x c u : Id} {d k t : ByteArray} {tm : Nat} {atts : List Id}
     (h : V C ops x (.message c u d k t tm atts)) :
     ∃ o s, ops x = some o ∧ (decode o.body : Option Body) = some (.post k t tm s) ∧
       Signed d (signed o (.post k t tm s)) ∧
-      ∃ y e oy by_, V C ops y (.admission c u d e) ∧ ops y = some oy ∧
-        (decode oy.body : Option Body) = some by_ ∧ Signed d (signed oy by_) := by
+      ∃ y e z oz bz, V C ops y (.admission c u d e) ∧
+        (z = y ∨ ∃ oy, ops y = some oy ∧ oy.reqs.getD 1 .empty = z) ∧ ops z = some oz ∧
+        (decode oz.body : Option Body) = some bz ∧ Signed d (signed oz bz) := by
   obtain ⟨o, s, e, y, hx, hb, _, hy, hs⟩ := message_authorized h
-  obtain ⟨oy, by_, s', hoy, hby, hs'⟩ := admission_consented hy
-  exact ⟨o, s, hx, hb, hU _ _ _ hs, y, e, oy, by_, hy, hoy, hby, hU _ _ _ hs'⟩
+  obtain ⟨z, oz, bz, s', hz, hoz, hbz, hs'⟩ := admission_consented hy
+  exact ⟨o, s, hx, hb, hU _ _ _ hs, y, e, z, oz, bz, hy, hz, hoz, hbz, hU _ _ _ hs'⟩
 
-/-- Every invitation was signed by a device admitted into its issuer. -/
-theorem invitation_issued {i c issuer : Id} {k : Key} {l : Bool}
-    (h : V C ops i (.invitation c issuer k l)) :
+/-- Every invitation was signed by a device admitted into its issuer,
+and a link invitation needs exactly one approval. -/
+theorem invitation_issued {i c issuer : Id} {k : Key} {l : Bool} {t : Nat}
+    (h : V C ops i (.invitation c issuer k l t)) :
     ∃ o b s z d e, ops i = some o ∧ (decode o.body : Option Body) = some b ∧
-      V C ops z (.admission c issuer d e) ∧ C.verify d (signed o b) s = true := by
+      V C ops z (.admission c issuer d e) ∧ C.verify d (signed o b) s = true ∧
+      (l = true → t = 1) := by
   obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
-  obtain ⟨s, d0, e0, d, e, rfl, rfl, _, hs⟩ := check_invitation hv
+  obtain ⟨s, d0, e0, d, e, rfl, rfl, _, hl, hs⟩ := check_invitation hv
   obtain ⟨_, z, _, _, hz⟩ := all2_two hr
-  exact ⟨o, _, s, z, d, e, hx, hb, hz, hs⟩
+  exact ⟨o, _, s, z, d, e, hx, hb, hz, hs, hl⟩
 
 /-- Ops are stored under their own ids (Engine.Inv.key). -/
 def Keyed (ops : Id → Option Op) : Prop := ∀ x o, ops x = some o → o.id = x
 
-/-- **Nobody joins uninvited.** Every admission is the founder's (by the
-root itself), or redeems an invitation of c, issued by an admitted
-device, and signed by the invitation's bearer key; a link invitation
-adds the device to its issuer, a member invitation starts the user the
-join names. -/
-theorem admission_invited (hk : Keyed ops) {y c u : Id} {d e : Key}
+/-- **Nobody requests uninvited.** A Valid request redeems a Valid
+invitation of c, and the invitation's bearer key (from the link) and the
+requesting device both signed it. Its user is the issuer's for a link
+invitation, the new user the request names for a member invitation, and
+it carries the invitation's link flag and threshold. -/
+theorem request_invited (hk : Keyed ops) {r c u : Id} {d e : Key} {l : Bool} {t : Nat}
+    (h : V C ops r (.request c u d e l t)) :
+    ∃ o b i issuer k cs bs, ops r = some o ∧ (decode o.body : Option Body) = some b ∧
+      o.reqs = [c, i] ∧ V C ops i (.invitation c issuer k l t) ∧
+      u = (if l then issuer else r) ∧
+      C.verify d (signed o b) cs = true ∧ C.verify k (signed o b) bs = true := by
+  obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
+  have hid := hk r o hx
+  obtain ⟨cs, bs, d0, e0, issuer, k, rfl, rfl, hh, hu, hcs, hbs⟩ := check_request hv
+  obtain ⟨a, i, hreq, _, hi⟩ := all2_two hr
+  rw [hreq] at hh; simp at hh; subst hh
+  rw [hid] at hu
+  exact ⟨o, _, i, issuer, k, cs, bs, hx, hb, hreq, hi, hu, hcs, hbs⟩
+
+/-- **Every approval is a member's signed yes.** A Valid approval of
+request r by user a was signed by a device admitted into a, not the
+requesting device, and a is the request's own user (the issuer's) when
+the request is for a link. As with removals, its validity reads the
+cited facts only: an approval by a user removed since still counts
+(#1088 semantics). -/
+theorem approval_signed {x c r a : Id} (h : V C ops x (.approval c r a)) :
+    ∃ o s ra u d e l t da ea, ops x = some o ∧
+      (decode o.body : Option Body) = some (.approve s) ∧ o.reqs = [c, r, ra] ∧
+      V C ops r (.request c u d e l t) ∧ V C ops ra (.admission c a da ea) ∧
+      (l = true → a = u) ∧ da ≠ d ∧ C.verify da (signed o (.approve s)) s = true := by
+  obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
+  obtain ⟨s, d0, e0, u, d, e, l, t, da, ea, rfl, rfl, hh, hrr, hl, hd, hs⟩ := check_approval hv
+  obtain ⟨c', r', ra, hreq, _, hrv, hav⟩ := all2_three hr
+  rw [hreq] at hh hrr; simp at hh hrr; subst hh; subst hrr
+  exact ⟨o, s, ra, u, d, e, l, t, da, ea, hx, hb, hreq, hrv, hav, hl, hd, hs⟩
+
+/-- **Nobody is admitted unapproved.** Every admission is the founder's
+(by the root itself), or is produced by an admit op y that cites a
+Valid request r of c for that device, and exactly t Valid approvals of
+r by t distinct users, where t is the threshold of the invitation r
+redeems (request_invited). -/
+theorem admission_approved (hk : Keyed ops) {y c u : Id} {d e : Key}
     (h : V C ops y (.admission c u d e)) :
     (y = c ∧ u = c) ∨
-    ∃ o b i issuer k l s, ops y = some o ∧ (decode o.body : Option Body) = some b ∧
-      o.reqs = [c, i] ∧ V C ops i (.invitation c issuer k l) ∧
-      u = (if l then issuer else y) ∧ C.verify k (signed o b) s = true := by
+    ∃ o r aps l t us, ops y = some o ∧ (decode o.body : Option Body) = some .admit ∧
+      o.reqs = c :: r :: aps ∧ V C ops r (.request c u d e l t) ∧
+      All2 (fun a v => V C ops a (.approval c r v)) aps us ∧ us.Nodup ∧ us.length = t := by
   obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
   have hid := hk y o hx
-  rcases check_admission hv with ⟨s, rfl, rfl, hc, hu, _⟩ | ⟨cs, bs, d0, e0, issuer, k, l, rfl, rfl, hh, hu, _, hbs⟩
+  rcases check_admission hv with ⟨s, rfl, rfl, hc, hu, _⟩ | ⟨d0, e0, l, t, apfs, rfl, rfl, hh, hta⟩
   · left; rw [hid] at hc hu; exact ⟨hc.symm, hu.trans hc.symm⟩
-  · obtain ⟨a, i, hreq, _, hi⟩ := all2_two hr
-    rw [hreq] at hh; simp at hh; subst hh
-    rw [hid] at hu
-    exact Or.inr ⟨o, _, i, issuer, k, l, bs, hx, hb, hreq, hi, hu, hbs⟩
+  · obtain ⟨c', r, aps, hreq, _, hrv, haps⟩ := all2_cons2 hr
+    rw [hreq] at hh hta; simp at hh hta; subst hh
+    obtain ⟨us, hus, hn, hl⟩ := tally_iff.1 hta
+    refine Or.inr ⟨o, r, aps, l, t, us, hx, hb, hreq, hrv, ?_, hn, hl⟩
+    exact (All2.comp haps hus).imp fun ⟨_, hv, he⟩ => he ▸ hv
 
-/-- **Invited and linked devices are admitted.** A join redeeming a Valid
-invitation of c, signed by the joining device and by the invitation's
-bearer key, admits the device: into the issuer's user for a link
-invitation, into the new user the join names for a member invitation. -/
-theorem join_admits (hk : Keyed ops) {y c i : Id} {o : Op} {d e cs bs : ByteArray}
-    {d0 e0 : Key} {issuer : Id} {k : Key} {l : Bool}
-    (hy : ops y = some o) (hb : (decode o.body : Option Body) = some (.join d e cs bs))
+/-- **A request with its invitation and both signatures is Valid.** -/
+theorem request_valid (hk : Keyed ops) {r c i : Id} {o : Op} {d e cs bs : ByteArray}
+    {d0 e0 : Key} {issuer : Id} {k : Key} {l : Bool} {t : Nat}
+    (hy : ops r = some o) (hb : (decode o.body : Option Body) = some (.request d e cs bs))
     (hreq : o.reqs = [c, i]) (hc : V C ops c (.admission c c d0 e0))
-    (hi : V C ops i (.invitation c issuer k l))
-    (hcs : C.verify d (signed o (.join d e cs bs)) cs = true)
-    (hbs : C.verify k (signed o (.join d e cs bs)) bs = true) :
-    V C ops y (.admission c (if l then issuer else y) d e) := by
-  have hid := hk y o hy
-  refine spec_valid_of hy (fs := [.admission c c d0 e0, .invitation c issuer k l]) ?_ ?_
+    (hi : V C ops i (.invitation c issuer k l t))
+    (hcs : C.verify d (signed o (.request d e cs bs)) cs = true)
+    (hbs : C.verify k (signed o (.request d e cs bs)) bs = true) :
+    V C ops r (.request c (if l then issuer else r) d e l t) := by
+  have hid := hk r o hy
+  refine spec_valid_of hy (fs := [.admission c c d0 e0, .invitation c issuer k l t]) ?_ ?_
   · rw [hreq]; exact .cons hc (.cons hi .nil)
   · show validate C o _ = _
     unfold validate; rw [hb]
     simp [check, hreq, hcs, hbs, hid]
+
+/-- **An eligible member's signed approval is Valid**, whoever else has
+approved or been removed since. -/
+theorem approve_valid {x c r ra : Id} {o : Op} {s : ByteArray} {d0 e0 : Key} {u a : Id}
+    {d e da ea : Key} {l : Bool} {t : Nat}
+    (hx : ops x = some o) (hb : (decode o.body : Option Body) = some (.approve s))
+    (hreq : o.reqs = [c, r, ra]) (hc : V C ops c (.admission c c d0 e0))
+    (hr : V C ops r (.request c u d e l t)) (ha : V C ops ra (.admission c a da ea))
+    (hl : l = true → a = u) (hd : da ≠ d) (hs : C.verify da (signed o (.approve s)) s = true) :
+    V C ops x (.approval c r a) := by
+  refine spec_valid_of hx (fs := [.admission c c d0 e0, .request c u d e l t, .admission c a da ea])
+    ?_ ?_
+  · rw [hreq]; exact .cons hc (.cons hr (.cons ha .nil))
+  · show validate C o _ = _
+    unfold validate; rw [hb]
+    simp [check, hreq, hd, hs]; exact hl
+
+/-- **Enough approvals admit.** An admit op citing a Valid request and
+exactly its threshold of Valid approvals by distinct users admits the
+requesting device: into the issuer's user for a link, into the user the
+request names for a member invitation. -/
+theorem admit_admits {y c r : Id} {o : Op} {aps us : List Id} {d0 e0 : Key} {u : Id}
+    {d e : Key} {l : Bool} {t : Nat}
+    (hy : ops y = some o) (hb : (decode o.body : Option Body) = some .admit)
+    (hreq : o.reqs = c :: r :: aps) (hc : V C ops c (.admission c c d0 e0))
+    (hr : V C ops r (.request c u d e l t))
+    (hap : All2 (fun a v => V C ops a (.approval c r v)) aps us) (hn : us.Nodup)
+    (ht : us.length = t) :
+    V C ops y (.admission c u d e) := by
+  have hf : All2 (fun f v => f = Fact.approval c r v) (us.map (Fact.approval c r)) us := by
+    clear hap hn ht; induction us with
+    | nil => exact .nil
+    | cons v vs ih => exact .cons rfl ih
+  have hv : All2 (fun a g => V C ops a g) aps (us.map (Fact.approval c r)) := by
+    clear hn ht hf hreq hy hb; induction hap with
+    | nil => exact .nil
+    | cons h1 _ ih => exact .cons h1 ih
+  refine spec_valid_of hy (fs := .admission c c d0 e0 :: .request c u d e l t ::
+    us.map (Fact.approval c r)) ?_ ?_
+  · rw [hreq]; exact .cons hc (.cons hr hv)
+  · show validate C o _ = _
+    unfold validate; rw [hb]
+    have := tally_iff.2 ⟨us, hf, hn, ht⟩
+    simp [check, hreq, this]
 
 /-! ## Removal -/
 

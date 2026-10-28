@@ -81,10 +81,12 @@ def workload (seed : Nat) (n : Nat) : List Op := Id.run do
   let mut ids : Array Id := #[c]
   let mut adms : Array (Id × Device) := #[(c, devs[0]!)]
   let mut invs : Array (Id × Device) := #[]
+  let mut reqs : Array (Id × Device) := #[]
+  let mut apps : Array (Id × Id) := #[]
   let mut admins : Array Id := #[c]
   let mut g := Rng.mk seed.toUInt64
   for i in [0:n] do
-    let (kind, g1) := g.below 8
+    let (kind, g1) := g.below 10
     let (w1, g2) := g1.below 8
     let (w2, g3) := g2.below 8
     let (k1, g4) := g3.below 1000
@@ -100,11 +102,28 @@ def workload (seed : Nat) (n : Nat) : List Op := Id.run do
     let d := devs[di]!
     let signer (dv : Device) := if w2 == 0 then d else dv
     let o : Op := match kind with
-      | 0 => let (a, dv) := adm k1; invite c a (signer dv) (Device.named s!"bearer-{seed}-{i}").pk (flag == 1)
+      | 0 =>
+        let (a, dv) := adm k1
+        -- Link invitations need one approval; member ones 0, 1 or 2
+        -- (sometimes a link asks for another number, and is refused).
+        let t := if flag == 1 && w2 != 1 then 1 else k2 % 3
+        invite c a (signer dv) (Device.named s!"bearer-{seed}-{i}").pk (flag == 1) t
       | 1 =>
         if invs.isEmpty then post c (adm k1).1 d "k".toUTF8 "early".toUTF8 else
         let (inv, bearer) := invs[k1 % invs.size]!
-        join c inv d (if w2 == 0 then d.sk else bearer.sk)
+        request c inv d (if w2 == 0 then d.sk else bearer.sk)
+      | 8 =>
+        let rq := if reqs.isEmpty || w1 == 1 then anyId k1 else reqs[k1 % reqs.size]!.1
+        let (a, dv) := adm k2
+        approve c rq a (signer dv)
+      | 9 =>
+        if reqs.isEmpty then post c (adm k1).1 d "k".toUTF8 "early".toUTF8 else
+        let rq := reqs[k1 % reqs.size]!.1
+        let mine := (apps.filter (·.1 == rq)).toList.map (·.2)
+        -- Mostly the approvals held, cut to 0..2 of them; sometimes a
+        -- random id among them.
+        let aps := if w1 == 1 then [anyId k3] ++ mine.take 1 else mine.take (k2 % 3)
+        admit c rq aps
       | 2 =>
         let (a, dv) := adm k1
         let auth := if w1 == 1 then anyId k2 else admins[k2 % admins.size]!
@@ -123,7 +142,14 @@ def workload (seed : Nat) (n : Nat) : List Op := Id.run do
       ids := ids.push o.id
       match kind with
       | 0 => invs := invs.push (o.id, Device.named s!"bearer-{seed}-{i}")
-      | 1 => if !invs.isEmpty then adms := adms.push (o.id, d)
+      | 1 => if !invs.isEmpty then reqs := reqs.push (o.id, d)
+      | 8 => if !reqs.isEmpty then apps := apps.push (o.reqs.getD 1 .empty, o.id)
+      | 9 =>
+        if !reqs.isEmpty then
+          let rq := o.reqs.getD 1 .empty
+          match reqs.find? (·.1 == rq) with
+          | some (_, rd) => adms := adms.push (o.id, rd)
+          | none => pure ()
       | 2 => admins := admins.push o.id
       | _ => pure ()
   return ops.toList

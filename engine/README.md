@@ -3,7 +3,7 @@
 A persisted op engine in Lean 4, with libquiet's validity model, a
 community family on top, and proofs that reach from SQLite rows to
 high-level guarantees about membership, removal, impersonation,
-connection and sealing. A first pass: deletion, vouching, channels,
+connection and sealing. A first pass: deletion, channels,
 key rotation and a transport are not here yet.
 
 ## The engine (`Engine/`)
@@ -40,11 +40,18 @@ Proven (`Proofs.lean`), about that code run on the model:
 
 ## The community (`Community/`)
 
-Root (founder, admin), invite, join (member or linked device), admin
-grant, removal, post, wrap — after libquiet's DESIGN.md and its removal
-stack (#778, #98, #1088). Validity reads only cited facts, so every
+Root (founder, admin), invite (with an approval threshold), request,
+approve, admit (member or linked device), admin grant, removal, post,
+wrap — after libquiet's DESIGN.md and its removal stack (#778, #98,
+#1088). A request is libquiet's Join before its vouches: it carries the
+bearer key's and the device's signatures and admits nobody. Approvals
+are signed ops that cite it (so the engine needs no forward needs), and
+an unsigned admit op tallies exactly the invitation's threshold of them,
+by distinct users, into the admission. A link invitation needs one
+approval, by the issuer's user; nobody approves their own request. Validity reads only cited facts, so every
 admin-issued removal stands: of other admins, mutually, and by an admin
-who has since been removed. In practice that last kind may not spread,
+who has since been removed, and an approval by a user removed since
+still counts. In practice that last kind may not spread,
 since peers who know of the remover's removal refuse its devices; but
 wherever it arrives, it is Valid. Removal never invalidates an op; it
 changes who counts.
@@ -55,12 +62,12 @@ Laws (`Laws.lean`, `Connect.lean`):
 |---|---|
 | Are all messages by admitted users? | `message_authorized` |
 | Is impersonation impossible? | `no_impersonation` (given unforgeable signatures), `admission_consented` |
-| Can outsiders join? | `admission_invited`, `invitation_issued` |
-| Are linked devices and invited members admitted? | `join_admits` |
+| Can outsiders join? | `admission_approved`, `request_invited`, `approval_signed`, `invitation_issued` |
+| Are requests with their approvals admitted? | `request_valid`, `approve_valid`, `admit_admits` |
 | Who may remove whom? | `removal_authorized`, `admin_removal_stands`, `mutual_removal`, `admin_granted` |
 | Can a removal be undone, or rewrite history? | `removed_stays`, `valid_stays` |
 | Do we connect to non-members or removed members? | `connect_iff`, `refuse_nonmember` |
-| Do we connect to linked devices and invited members? | `connect_joined` |
+| Do we connect to approved devices, and only those? | `connect_admitted`, `connect_approved` (a pending request never connects) |
 | Who is a new content key sealed to? | `recipients_iff` |
 | What does a removal cut off? | `removal_cuts_off`, `connect_agree`: the removed user's devices plus any nodes that have not yet received the removal |
 

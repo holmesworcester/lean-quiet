@@ -30,9 +30,10 @@ def Device.ofSeed (seed : ByteArray) : Device :=
 def Device.named (name : String) : Device := Device.ofSeed (sha256 name.toUTF8)
 
 def Body.tag : Body → UInt8
-  | .root .. => 0 | .invite .. => 1 | .join .. => 2 | .grant .. => 3
+  | .root .. => 0 | .invite .. => 1 | .request .. => 2 | .grant .. => 3
   | .remove .. => 4 | .post .. => 5 | .wrap .. => 6
   | .profile .. => 7 | .blob .. => 8 | .react .. => 9
+  | .approve .. => 10 | .admit => 11
 
 /-- The op with these requirements and body, named by its bytes' hash. -/
 def mkOp (reqs : List Id) (b : Body) : Op :=
@@ -50,14 +51,25 @@ theorem signed_eq (o : Op) (b : Body) : signed o b = toSign o.reqs b := rfl
 def root (d : Device) : Op :=
   mkOp [] (.root d.pk d.enc (sig d.sk [] (.root d.pk d.enc .empty)))
 
-def invite (c issuerAdm : Id) (by_ : Device) (bearer : Key) (link : Bool) : Op :=
+/-- An invitation; a link invitation needs one approval, a member
+invitation `threshold` (none by default). -/
+def invite (c issuerAdm : Id) (by_ : Device) (bearer : Key) (link : Bool)
+    (threshold : Nat := if link then 1 else 0) : Op :=
   let reqs := [c, issuerAdm]
-  mkOp reqs (.invite bearer link (sig by_.sk reqs (.invite bearer link .empty)))
+  mkOp reqs (.invite bearer link threshold (sig by_.sk reqs (.invite bearer link threshold .empty)))
 
-def join (c inv : Id) (d : Device) (bearerSk : ByteArray) : Op :=
+def request (c inv : Id) (d : Device) (bearerSk : ByteArray) : Op :=
   let reqs := [c, inv]
-  let u : Body := .join d.pk d.enc .empty .empty
-  mkOp reqs (.join d.pk d.enc (sig d.sk reqs u) (sig bearerSk reqs u))
+  let u : Body := .request d.pk d.enc .empty .empty
+  mkOp reqs (.request d.pk d.enc (sig d.sk reqs u) (sig bearerSk reqs u))
+
+/-- by_'s approval of request req, signed as its admission adm. -/
+def approve (c req adm : Id) (by_ : Device) : Op :=
+  let reqs := [c, req, adm]
+  mkOp reqs (.approve (sig by_.sk reqs (.approve .empty)))
+
+/-- The admission of request req by these approvals. -/
+def admit (c req : Id) (approvals : List Id := []) : Op := mkOp (c :: req :: approvals) .admit
 
 def grant (c granterAdm auth targetAdm : Id) (by_ : Device) : Op :=
   let reqs := [c, granterAdm, auth, targetAdm]

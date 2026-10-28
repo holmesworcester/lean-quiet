@@ -1,8 +1,8 @@
 /-
 A community's life on SQLite with real Ed25519, checked phase by phase
-against what the laws promise: who is admitted, who may connect, who a
-content key is sealed to, which removals stand, and that forgeries
-fail. Then the same ops, shuffled and split into other transactions,
+against what the laws promise: who is admitted (requests, approvals,
+admissions), who may connect, who a content key is sealed to, which
+removals stand, and that forgeries fail. Then the same ops, shuffled and split into other transactions,
 reach the same verdicts (order_free), equal to the model's and to the
 spec's.
 -/
@@ -43,42 +43,92 @@ def main (args : List String) : IO UInt32 := do
   let b1 := Device.named "bob"
   let c1 := Device.named "carol"
   let m1 := Device.named "mallory"
+  let d1 := Device.named "dave"
+  let e1 := Device.named "erin"
   let bearer (n : String) := Device.named ("bearer-" ++ n)
 
-  -- Phase 1: found, invite, join, link, grant, post.
+  -- Phase 1: found, invite, request and admit (member invitations need
+  -- no approval), link (approved by the founder), grant, post.
   let r := root f1
   let c := r.id
   let invA := invite c c f1 (bearer "a").pk false
   let invB := invite c c f1 (bearer "b").pk false
   let invC := invite c c f1 (bearer "c").pk false
   let invL := invite c c f1 (bearer "l").pk true
-  let joinA := join c invA.id a1 (bearer "a").sk
-  let joinB := join c invB.id b1 (bearer "b").sk
-  let joinC := join c invC.id c1 (bearer "c").sk
-  let joinL := join c invL.id f2 (bearer "l").sk
+  let reqA := request c invA.id a1 (bearer "a").sk
+  let reqB := request c invB.id b1 (bearer "b").sk
+  let reqC := request c invC.id c1 (bearer "c").sk
+  let reqL := request c invL.id f2 (bearer "l").sk
+  let joinA := admit c reqA.id
+  let joinB := admit c reqB.id
+  let joinC := admit c reqC.id
+  let okL := approve c reqL.id c f1
+  let joinL := admit c reqL.id [okL.id]
+  -- A link admitted with no approval, or approved by another user than
+  -- the issuer's: refused.
+  let bareL := admit c reqL.id
+  let aliceOkL := approve c reqL.id joinA.id a1
+  -- Dave asks to join through an invitation needing one approval; erin
+  -- through one needing two. Nothing approves them yet.
+  let invD := invite c c f1 (bearer "d").pk false 1
+  let invE := invite c c f1 (bearer "e").pk false 2
+  let reqD := request c invD.id d1 (bearer "d").sk
+  let reqE := request c invE.id e1 (bearer "e").sk
+  let bareD := admit c reqD.id
   let grantA := grant c c c joinA.id f1
   let postA := post c joinA.id a1 "k1".toUTF8 "hello".toUTF8
   -- Forgeries: mallory posting as alice; mallory joining without the
   -- link's bearer key; bob (not admin) granting himself admin.
   let forged := post c joinA.id m1 "k1".toUTF8 "I am alice".toUTF8
-  let sneak := join c invB.id m1 m1.sk
+  let sneak := request c invB.id m1 m1.sk
   let selfGrant := grant c joinB.id joinB.id joinB.id b1
-  let phase1 := [r, invA, invB, invC, invL, joinA, joinB, joinC, joinL, grantA, postA, forged, sneak, selfGrant]
+  let phase1 := [r, invA, invB, invC, invL, reqA, reqB, reqC, reqL, joinA, joinB, joinC, okL, joinL,
+    bareL, aliceOkL, invD, invE, reqD, reqE, bareD, grantA, postA, forged, sneak, selfGrant]
   -- Deliver children before parents: the engine waits, then catches up.
   recv phase1.reverse
 
-  for (name, o) in [("root", r), ("invite", invA), ("join alice", joinA), ("join bob", joinB),
-      ("link founder-2", joinL), ("grant alice", grantA), ("alice's post", postA)] do
+  for (name, o) in [("root", r), ("invite", invA), ("request alice", reqA), ("admit alice", joinA),
+      ("admit bob", joinB), ("approve founder-2's link", okL), ("link founder-2", joinL),
+      ("dave's request", reqD), ("grant alice", grantA), ("alice's post", postA)] do
     t.ok s!"{name} is valid" (← run (isValid o.id))
   t.ok "mallory cannot post as alice" (← run (isInvalid forged.id))
-  t.ok "mallory cannot join without the bearer key" (← run (isInvalid sneak.id))
+  t.ok "mallory cannot request without the bearer key" (← run (isInvalid sneak.id))
+  t.ok "a link is not admitted without its approval" (← run (isInvalid bareL.id))
+  t.ok "only the issuer's user approves a link" (← run (isInvalid aliceOkL.id))
+  t.ok "a request needing an approval is not admitted without one" (← run (isInvalid bareD.id))
+  t.ok "a request alone does not connect dave" (!(← run (allow c d1)))
+  t.ok "a request alone does not connect erin" (!(← run (allow c e1)))
   t.ok "a non-admin cannot grant admin" (← run (isInvalid selfGrant.id))
   for (name, d) in [("founder-1", f1), ("founder-2 (linked)", f2), ("alice", a1), ("bob", b1), ("carol", c1)] do
     t.ok s!"connects to {name}" (← run (allow c d))
   t.ok "refuses mallory" (!(← run (allow c m1)))
   let keys1 ← run (sealedTo c)
   t.ok "seals to every member device" ([f1, f2, a1, b1, c1].all fun d => keys1.contains d.enc)
-  t.ok "seals to nobody else" (keys1.length == 5 && !keys1.contains m1.enc)
+  t.ok "seals to nobody else" (keys1.length == 5 && !keys1.contains m1.enc && !keys1.contains d1.enc)
+
+  -- Phase 1b: approvals. Alice approves dave: admitted. Erin needs two
+  -- distinct users: the founder's two devices are one user, so founder
+  -- plus founder-2 is refused; founder plus alice admits her. Dave
+  -- cannot approve his own request.
+  let okD := approve c reqD.id joinA.id a1
+  let joinD := admit c reqD.id [okD.id]
+  let okE1 := approve c reqE.id c f1
+  let okE2 := approve c reqE.id joinL.id f2
+  let okE3 := approve c reqE.id joinA.id a1
+  let sameUser := admit c reqE.id [okE1.id, okE2.id]
+  let joinE := admit c reqE.id [okE1.id, okE3.id]
+  let selfOk := approve c reqD.id joinD.id d1
+  let short := admit c reqE.id [okE1.id]
+  recv [joinE, short, sameUser, selfOk, okE3, okE2, okE1, joinD, okD]
+  for (name, o) in [("alice's approval of dave", okD), ("dave's admission", joinD),
+      ("founder-2's approval of erin", okE2), ("erin's admission", joinE)] do
+    t.ok s!"{name} is valid" (← run (isValid o.id))
+  t.ok "two approvals by one user are one" (← run (isInvalid sameUser.id))
+  t.ok "one approval of two needed admits nobody" (← run (isInvalid short.id))
+  t.ok "nobody approves their own request" (← run (isInvalid selfOk.id))
+  t.ok "connects to dave once approved" (← run (allow c d1))
+  t.ok "connects to erin once approved twice" (← run (allow c e1))
+  let phase1b := [okD, joinD, okE1, okE2, okE3, sameUser, joinE, selfOk, short]
 
   -- Phase 2: alice (admin) and the founder remove each other; bob, not
   -- an admin, tries to remove carol; carol is untouched.
@@ -93,10 +143,12 @@ def main (args : List String) : IO UInt32 := do
   t.ok "refuses the removed founder's linked device" (!(← run (allow c f2)))
   t.ok "refuses removed alice" (!(← run (allow c a1)))
   t.ok "still connects to bob" (← run (allow c b1))
+  t.ok "still connects to dave, approved by alice before her removal" (← run (allow c d1))
   t.ok "still connects to carol" (← run (allow c c1))
   t.ok "alice's post survives her removal" (← run (isValid postA.id))
   let keys2 ← run (sealedTo c)
-  t.ok "seals only to bob and carol" (keys2.length == 2 && keys2.contains b1.enc && keys2.contains c1.enc)
+  t.ok "seals only to bob, carol, dave and erin"
+    (keys2.length == 4 && [b1, c1, d1, e1].all fun d => keys2.contains d.enc)
 
   -- Phase 3: the removed founder removes bob: it still stands. Carol
   -- removes herself (leave).
@@ -107,16 +159,16 @@ def main (args : List String) : IO UInt32 := do
   t.ok "a member can remove itself" (← run (isValid cLeaves.id))
   t.ok "refuses bob" (!(← run (allow c b1)))
   t.ok "refuses carol" (!(← run (allow c c1)))
-  t.ok "seals to nobody" ((← run (sealedTo c)).isEmpty)
+  t.ok "seals only to dave and erin" ((← run (sealedTo c)).length == 2)
   t.ok "queue is empty at rest" ((← run (dumpQueue (F := Fact))).isEmpty)
 
   -- Order: the same ops, shuffled, in other transactions, on another
   -- database, reach the same verdicts; and both equal the model's and
   -- the spec's.
-  let all := phase1 ++ [aRemovesF, fRemovesA, bRemovesC, fRemovesB, cLeaves]
+  let all := phase1 ++ phase1b ++ [aRemovesF, fRemovesA, bRemovesC, fRemovesB, cLeaves]
   let (shuffled, _) := (Rng.mk 7).shuffle all
   let db2 ← Db.openAt (dir ++ "/b.db")
-  for chunk in [shuffled.take 5, (shuffled.drop 5).take 7, shuffled.drop 12] do
+  for chunk in [shuffled.take 5, (shuffled.drop 5).take 17, shuffled.drop 22] do
     (receive fam chunk).run db2
   let st1 ← run (dumpStatus (F := Fact))
   let st2 ← (dumpStatus (F := Fact)).run db2

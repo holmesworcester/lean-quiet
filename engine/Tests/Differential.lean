@@ -56,6 +56,9 @@ def main (args : List String) : IO UInt32 := do
   let t ← Checks.new
   let fam := family C
   let mut counts := (0, 0, 0)
+  -- Valid requests, approvals and admissions, so the workload is known
+  -- to reach the admission path and not only its refusals.
+  let mut admitted := (0, 0, 0)
   for seed in [0:seeds] do
     let ops := workload seed 120
     let ids0 := (ops.map (·.id) ++ ops.flatMap (·.reqs)).eraseDups
@@ -80,10 +83,15 @@ def main (args : List String) : IO UInt32 := do
         (ids0.all fun x => m.status x == specOf fam m.ops ops.length x)
       verdicts := verdicts ++ [ids0.map m.status]
       if run == 0 then
+        let valid (k : UInt8) := (ops.filter fun o => o.kind == k &&
+          match m.status o.id with | some (.valid _) => true | _ => false).length
+        admitted := (admitted.1 + valid 2, admitted.2.1 + valid 10, admitted.2.2 + valid 11)
         let vs := ids0.eraseDups.map m.status
         counts := (counts.1 + (vs.filter fun v => match v with | some (.valid _) => true | _ => false).length,
           counts.2.1 + (vs.filter fun v => match v with | some .invalid => true | _ => false).length,
           counts.2.2 + (vs.filter Option.isNone).length)
     t.ok s!"seed {seed}: three schedules, same verdicts" (verdicts.all (· == verdicts.head!))
   IO.println s!"verdicts across seeds: {counts.1} valid, {counts.2.1} invalid, {counts.2.2} unresolved"
+  IO.println s!"valid: {admitted.1} requests, {admitted.2.1} approvals, {admitted.2.2} admissions"
+  t.ok "the workload admits through approvals" (admitted.1 > 0 && admitted.2.1 > 0 && admitted.2.2 > 0)
   t.finish "differential"

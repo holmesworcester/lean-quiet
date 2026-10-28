@@ -17,21 +17,24 @@ def C := ed25519
 structure World where
   ops : Array Op := #[]
   posts : Array Id := #[]
-  users : Array (Id × Device) := #[]
+  users : Array (Id × Id × Device) := #[]
 
-def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Array (Id × Device) := Id.run do
+def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Array (Id × Id × Device) := Id.run do
   let f := Device.named s!"founder-{seed}"
   let r := root f
   let c := r.id
   let mut ops := #[r]
-  let mut users : Array (Id × Device) := #[(c, f)]
+  -- Each user: the op admitting it (what its ops cite), its user id
+  -- (the request's), and its device.
+  let mut users : Array (Id × Id × Device) := #[(c, c, f)]
   for i in [0:nUsers] do
     let b := Device.named s!"bearer-{seed}-{i}"
     let d := Device.named s!"user-{seed}-{i}"
     let inv := invite c c f b.pk false
-    let j := join c inv.id d b.sk
-    ops := ops.push inv |>.push j
-    users := users.push (j.id, d)
+    let rq := request c inv.id d b.sk
+    let j := admit c rq.id
+    ops := ops.push inv |>.push rq |>.push j
+    users := users.push (j.id, rq.id, d)
   let mut g : Rng := ⟨seed.toUInt64⟩
   let mut posts : Array Id := #[]
   for i in [0:nPosts] do
@@ -39,7 +42,7 @@ def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Arr
     let (tm, g2) := g1.below 50
     let (kind, g3) := g2.below 10
     g := g3
-    let (u, d) := users[ui]!
+    let (u, _, d) := users[ui]!
     if kind < 6 then
       let o := post c u d "k".toUTF8 s!"post {i}".toUTF8 tm
       ops := ops.push o
@@ -55,10 +58,10 @@ def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Arr
       -- a forgery: signed by the wrong device
       let (vi, g4) := g.below users.size
       g := g4
-      ops := ops.push (post c u users[vi]!.2 "k".toUTF8 "forged".toUTF8 tm)
+      ops := ops.push (post c u users[vi]!.2.2 "k".toUTF8 "forged".toUTF8 tm)
   return (ops, c, posts, users)
 
-def queries (c : Id) (posts : Array Id) (users : Array (Id × Device)) (cursors : List Pos) :
+def queries (c : Id) (posts : Array Id) (users : Array (Id × Id × Device)) (cursors : List Pos) :
     List ListQ := Id.run do
   let mut qs : List ListQ := []
   let all := key 4 c c
@@ -68,7 +71,7 @@ def queries (c : Id) (posts : Array Id) (users : Array (Id × Device)) (cursors 
       for p in cursors do
         qs := { key := all, desc, limit, after := some p } :: { key := all, desc, limit, before := some p }
           :: { key := all, desc, limit, after := some p, cap := 5 } :: qs
-  for (u, _) in users do
+  for (_, u, _) in users do
     qs := { key := all, also := [key 6 c u], limit := 10 } :: { key := key 6 c u, limit := 0 }
       :: { key := key 7 c u, limit := 1 } :: qs
   for m in posts.toList.take 40 do
