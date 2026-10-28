@@ -100,12 +100,8 @@ spec Mdns.Name.wireLen A name's length on the wire, for its validity.
 # The connection's answer, stated against the round's model.
 subject Engine.Sync.conn_answers_ids Engine.Sync.Conn.onRbsr Engine.Sync.Index.items Engine.Sync.within Engine.Sync.named Engine.Sync.chunks
 
-## What would make each model real (README order)
+## What would make each model real, most valuable first (the README's order)
 
-todo Engine.offer Nothing that runs calls `offer`: a connection offers through `Conn.filed` and `Conn.tick` (whose sends `filed_send`, `tick_send` and `have_shown` cover). Restate `offer_shared` and `offer_stored` over `Conn`, or have the connection read its ops through `offer`.
-todo Community.recipients The key-wrap writers (`found`, `approve`'s `wrapKey`) do not read `recipients`, and a wrap's validator does not tie its recipient to an admission. Wire them through the query.
-todo Community.members = Community.recipients
-todo Engine.Sync.exchange The running round (`Conn.onRbsr`) is shown to answer one claim as `exchange` does (`conn_answers_ids`). Wanted: the whole round under any delivery order (`conn_runs_exchange`).
 todo Engine.purgeS The running purge is SQL (`purgeSql`), tested against `purgeS` (tests/engine/Purge.lean), not proven. Write purge once over the store, as `drain` is, and bridge it (`run_purge`). Every law over reachable states (`Reach` admits purges) waits on this.
 todo Engine.purgeSet = Engine.purgeS
 todo Engine.Sync.World.peer A harness: two nodes running the sync code on held stores, with frames in the clear, fixed rooms and sessions opened directly. The runner (`Runner.start`: TCP, sealed frames, rooms from the trust rule, the handshake) would have to be shown to step as `World` does.
@@ -119,6 +115,10 @@ todo Engine.Sync.Setup.sync = Engine.Sync.World.peer
 todo Engine.Sync.plainFrame = Engine.Sync.World.peer
 todo Engine.Sync.turnH = Engine.Sync.World.peer
 todo Engine.Sync.oneRoom = Engine.Sync.World.peer
+todo Engine.Sync.exchange The running round (`Conn.onRbsr`) is shown to answer one claim as `exchange` does (`conn_answers_ids`). Wanted: the whole round under any delivery order (`conn_runs_exchange`).
+todo Engine.offer Nothing that runs calls `offer`: a connection offers through `Conn.filed` and `Conn.tick` (whose sends `filed_send`, `tick_send` and `have_shown` cover). Restate `offer_shared` and `offer_stored` over `Conn`, or have the connection read its ops through `offer`.
+todo Community.recipients The key-wrap writers (`found`, `approve`'s `wrapKey`) do not read `recipients`, and a wrap's validator does not tie its recipient to an admission. Wire them through the query.
+todo Community.members = Community.recipients
 todo Net.Scene.approval The bootstrap is a model (ops/connection/bootstrap/), not the running handshake and sync. Retired by the running round (`conn_runs_exchange`) and closure delivery (`closure_delivered`), and the handshake's trust (`answer_trusted`, `untrusted_silent`).
 todo Net.Scene.init = Net.Scene.approval
 todo Net.Scene.adm = Net.Scene.approval
@@ -134,7 +134,6 @@ todo Net.Scene.S = Net.Scene.approval
 todo Net.sent = Net.Scene.approval
 todo Net.step = Net.Scene.approval
 todo Net.table = Net.Scene.approval
-todo Engine.Sync.keeps The TCP reader's loop (engine/wire/Tcp.lean) takes frames with `frames`, read by read; `keeps` is that loop's model. Have the loop step through `keeps`'s step, or prove its buffers are `keeps`'s.
 todo Geometry.Seam.place The twins' C applies `place`'s formula (platforms/headless/host.c, platforms/android/twin); that it does is trusted. Export `Seam` for the twins to call, as `Pic` and `Qr` are.
 todo Geometry.Seam.frameRow = Geometry.Seam.place
 todo Geometry.Seam.home = Geometry.Seam.place
@@ -143,9 +142,7 @@ todo Geometry.Seam.pageRow = Geometry.Seam.place
 todo Geometry.Seam.tapRow = Geometry.Seam.place
 todo Geometry.Geom.viewNow = Geometry.Seam.place
 todo Geometry.Geom.composerTop = Geometry.Seam.place
-todo Arrival.lit `paintRing` tests `onRing` and `arc` inline. Have it paint by `lit`, so the ring's laws are about its pixels.
-todo Mdns.decode Nothing that runs discovers peers by mDNS (`Mdns.Net` is the loop, run by tests/mdns). Have the runner announce and browse with it.
-todo Mdns.encode = Mdns.decode
+todo Engine.Sync.keeps The TCP reader's loop (engine/wire/Tcp.lean) takes frames with `frames`, read by read; `keeps` is that loop's model. Have the loop step through `keeps`'s step, or prove its buffers are `keeps`'s.
 todo Pic.decode The app decodes pictures with its own QOI (`Qoi.decode`, engine/renderer/Qoi.lean) and draws its own tray; `Pic` (engine/renderer/pic/) runs only in qr's own Android harness, through its `@[export]`s. Have the app's picture paths call `Pic`, or prove these of the app's decoder.
 todo Pic.add = Pic.decode
 todo Pic.fit = Pic.decode
@@ -156,3 +153,6 @@ todo Pic.attachEdge = Pic.decode
 todo Pic.maxSide = Pic.decode
 todo Pic.Geom.box = Pic.decode
 todo Pic.Rgba.wellFormed = Pic.decode
+todo Mdns.decode Nothing that runs discovers peers by mDNS (`Mdns.Net` is the loop, run by tests/mdns). Have the runner announce and browse with it.
+todo Mdns.encode = Mdns.decode
+todo Arrival.lit `paintRing` tests `onRing` and `arc` inline. Have it paint by `lit`, so the ring's laws are about its pixels.

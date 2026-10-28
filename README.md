@@ -108,12 +108,13 @@ nothing else is assumed:
   member's device.
 - **Each theorem is about the functions that run** in the app and the
   daemon, over the engine's own store. *(model)* marks a theorem about
-  a separate model instead.
+  a separate model instead. The laws not yet about running code are
+  listed, from the code, under Not yet about running code (below).
 - **The Community laws are proven over a store of that family alone.**
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 364 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 365 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -211,6 +212,52 @@ nothing else is assumed:
 
 The theorems not listed here are lemmas. The axiom audit,
 `tests/Axioms.lean`, lists them all.
+
+### Not yet about running code (todo)
+
+The goal is every law about the code that runs. A law is *wired* when
+each definition its statement is about runs: the app's `main` (which
+the Android and iOS shells start) or the node's runner reaches it, or a
+law proves it equal to code that does (`run_step`). The rest are proven
+of a model, a harness, or code nothing calls yet, and are listed here
+with what would make them real. `tests/Wiring.lean` classifies every law
+of the audit from the code; `tests/wiring.txt` holds what the code
+cannot say: the specifications laws state running code against, the
+assumptions, the bridges, the notes below, and the laws that must stay
+wired. `ci/proof-links.py` writes this section, and local CI fails when
+it goes stale or a law marked wired is not.
+
+<!-- wiring: written by ci/proof-links.py from tests/Wiring.lean; do not edit -->
+**365 audited laws: 282 wired, 83 not yet** (about a model, a harness, or code nothing calls yet). **0 statements stated only. 8 assumptions.** † marks a law a guarantee above cites.
+
+| Does not run | Laws | What would make them real |
+|---|---|---|
+| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]†, [`reach_drain`], [`drain_terminates`]†, [`drain_settles`]†, [`same_ops_same_verdicts`]†, [`stored_local`]†, [`local_fact_mine`]†, [`drain_bounded`]†, [`step_budget`]†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]†, [`order_local`]†, [`allowPeer_iff`], [`allowPeer_settles`] | The running purge is SQL (`purgeSql`), tested against `purgeS` (tests/engine/Purge.lean), not proven. Write purge once over the store, as `drain` is, and bridge it (`run_purge`). Every law over reachable states (`Reach` admits purges) waits on this. |
+| `World.peer`, `Setup.sync`, `Who.other`, `World.connect` and 7 more | [`stream_delivers`]†, [`stream_delivers_steps`]†, [`stream_delivers_runs`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`stream_offered`]†, [`stream_offered_runs`]†, [`write_offers_all`], [`fanout_offers`], [`seal_mem`] | A harness: two nodes running the sync code on held stores, with frames in the clear, fixed rooms and sessions opened directly. The runner (`Runner.start`: TCP, sealed frames, rooms from the trust rule, the handshake) would have to be shown to step as `World` does. |
+| `Sync.exchange` | [`exchange_complete`]† | The running round (`Conn.onRbsr`) is shown to answer one claim as `exchange` does (`conn_answers_ids`). Wanted: the whole round under any delivery order (`conn_runs_exchange`). |
+| `Engine.offer` | [`offer_shared`]†, [`offer_stored`]† | Nothing that runs calls `offer`: a connection offers through `Conn.filed` and `Conn.tick` (whose sends `filed_send`, `tick_send` and `have_shown` cover). Restate `offer_shared` and `offer_stored` over `Conn`, or have the connection read its ops through `offer`. |
+| `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]† | The key-wrap writers (`found`, `approve`'s `wrapKey`) do not read `recipients`, and a wrap's validator does not tie its recipient to an admission. Wire them through the query. |
+| `Scene.approval`, `Scene.K`, `Scene.S`, `Scene.adm` and 11 more | [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`bootstrap_ideal`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`] | The bootstrap is a model (ops/connection/bootstrap/), not the running handshake and sync. Retired by the running round (`conn_runs_exchange`) and closure delivery (`closure_delivered`), and the handshake's trust (`answer_trusted`, `untrusted_silent`). |
+| `Seam.place`, `Geom.composerTop`, `Geom.viewNow`, `Seam.frameRow` and 4 more | [`placed_row`]†, [`visible_in_viewport`]†, [`newest_visible`]†, [`newest_drawn`]†, [`pinned_row`]†, [`pinned_visible`]†, [`pinned_tap`]† | The twins' C applies `place`'s formula (platforms/headless/host.c, platforms/android/twin); that it does is trusted. Export `Seam` for the twins to call, as `Pic` and `Qr` are. |
+| `Sync.keeps` | [`buffer_bounded`]† | The TCP reader's loop (engine/wire/Tcp.lean) takes frames with `frames`, read by read; `keeps` is that loop's model. Have the loop step through `keeps`'s step, or prove its buffers are `keeps`'s. |
+| `Pic.decode`, `Geom.box`, `Rgba.wellFormed`, `Pic.add` and 6 more | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]†, [`decode_sized`]† | The app decodes pictures with its own QOI (`Qoi.decode`, engine/renderer/Qoi.lean) and draws its own tray; `Pic` (engine/renderer/pic/) runs only in qr's own Android harness, through its `@[export]`s. Have the app's picture paths call `Pic`, or prove these of the app's decoder. |
+| `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (`Mdns.Net` is the loop, run by tests/mdns). Have the runner announce and browse with it. |
+| `Arrival.lit` | [`lit_zero`], [`lit_mono`], [`lit_full`], [`lit_clockwise`], [`ring_counts`] | `paintRing` tests `onRing` and `arc` inline. Have it paint by `lit`, so the ring's laws are about its pixels. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`pageIn_acc`]† | Nothing to wire: each is about a specification or an assumption, and names no running definition. |
+
+**Stated only** (a `…_stmt` no audited law concludes): none.
+
+**Assumptions,** with the laws that take them or are stated over them:
+
+- [`CollisionFree`], with `Engine.Distinct` (20 laws): SHA-256 has no collision among the ops a node received.
+- [`Suite.Good`] (6 laws): X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only).
+- [`Seal.Good`] (4 laws): The seal's AEAD and key wrap open what they seal (correctness only).
+- [`Keys.Good`] (0 laws): A device's Ed25519 key converts to its seed's X25519 key.
+- [`Unforgeable`] (2 laws): An Ed25519 signature that verifies under a device key was made by that key's holder.
+- [`NoSecondPreimage`] (14 laws): SHA-256 has no second preimage on a file's Merkle tree inputs.
+- [`Model.run`], with `Engine.matching`, `HeldM.run`, `ArrivalLaws.modelReads`, `DB.empty`, `ArrivalLaws.readsOf`, `Engine.eval`, `Engine.budget` (79 laws): The store model: the SQLite store's reads and writes answer as the model's tables (`DB`), and a held store's (`Held`) do too. Tested, not proven: SQLite against the model (tests/engine/Differential.lean) and list queries against their meaning (tests/engine/QueryDiff.lean).
+- [`sym`] (13 laws): The symbolic model of the cryptography: the running handshake over a suite of symbols, where only a key's holder can derive what it guards.
+<!-- /wiring -->
 
 ## The seam
 
@@ -788,4 +835,37 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`fit_round`]: engine/renderer/pic/Laws.lean#L87-L90
 [`Pic.layout_inside`]: engine/renderer/pic/Laws.lean#L170-L172
 [`Pic.layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
+[`reach_drain`]: engine/core/Proofs.lean#L529-L530
+[`allowPeer_iff`]: ops/connection/bootstrap/Bridge.lean#L29-L32
+[`allowPeer_settles`]: ops/connection/bootstrap/Bridge.lean#L35-L39
+[`write_offers`]: engine/wire/WorldLaws.lean#L384-L392
+[`hold_wants`]: engine/wire/WorldLaws.lean#L401-L406
+[`want_sends`]: engine/wire/WorldLaws.lean#L414-L419
+[`op_taken`]: engine/wire/WorldLaws.lean#L433-L440
+[`write_offers_all`]: engine/wire/WorldLaws.lean#L1094-L1105
+[`fanout_offers`]: engine/wire/WorldLaws.lean#L951-L957
+[`seal_mem`]: engine/wire/WorldLaws.lean#L1063-L1067
+[`admitted_inv`]: ops/connection/bootstrap/Scene.lean#L154-L156
+[`allowedA`]: ops/connection/bootstrap/Scene.lean#L219-L219
+[`allowedB`]: ops/connection/bootstrap/Scene.lean#L231-L233
+[`fit_small`]: engine/renderer/pic/Laws.lean#L37-L37
+[`fit_le`]: engine/renderer/pic/Laws.lean#L50-L50
+[`fit_pos`]: engine/renderer/pic/Laws.lean#L59-L59
+[`fit_long`]: engine/renderer/pic/Laws.lean#L71-L71
+[`layout_sizes`]: engine/renderer/pic/Laws.lean#L143-L144
+[`layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
+[`add_stored`]: engine/renderer/pic/Laws.lean#L239-L242
+[`decode_sized`]: engine/renderer/pic/Laws.lean#L198-L201
+[`decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
+[`lit_zero`]: ops/community/attachment/ArrivalLaws.lean#L84-L85
+[`lit_mono`]: ops/community/attachment/ArrivalLaws.lean#L88-L90
+[`lit_full`]: ops/community/attachment/ArrivalLaws.lean#L94-L95
+[`lit_clockwise`]: ops/community/attachment/ArrivalLaws.lean#L101-L106
+[`ring_counts`]: ops/community/attachment/ArrivalLaws.lean#L275-L278
+[`nodup_full`]: ops/community/Intents.lean#L578-L580
+[`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
+[`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939
+[`Seal.Good`]: ops/community/Keys.lean#L40-L43
+[`Model.run`]: engine/core/Model.lean#L103-L103
+[`sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
 <!-- /proof-links -->

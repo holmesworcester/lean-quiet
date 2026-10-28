@@ -42,6 +42,9 @@ node's `onFrame`.
 
   lake env lean --run tests/Wiring.lean   (needs `lake build` and `lake build +Main`)
 
+`WIRING_NOTES=path` reads other notes (ci/proof-links.py's negative
+control adds a false `wired`).
+
 Output, one line each, tab-separated: `law NAME STATUS SUBJECT MISSING
 ASSUMES`, `stmt NAME STATUS SUBJECT MISSING`, `missing NAME RANK NOTE
 CALLERS` (RANK: the `todo`'s place in tests/wiring.txt), `assume NAME
@@ -240,7 +243,7 @@ unsafe def main : IO UInt32 := do
   let audit := (← IO.FS.readFile "tests/Axioms.lean").splitOn "\n"
   let laws := audit.filterMap fun l =>
     if l.startsWith "#print axioms " then some (l.drop 14).trimAscii.toString.toName else none
-  let ns ← readNotes "tests/wiring.txt"
+  let ns ← readNotes ((← IO.getEnv "WIRING_NOTES").getD "tests/wiring.txt")
   -- every module of the libraries, the app and its main
   let mut mods : Array Name := #[`App, `Quiet, `Main]
   for dir in ["engine", "ops"] do
