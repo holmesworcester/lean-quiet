@@ -42,6 +42,13 @@ structure Hooks (F : Type) where
   /-- The local ops that mark a courier handed out. -/
   shipped : Id → List Op := fun _ => []
 
+/-- A node's sync setup: its family, the connection settings, and the
+Connection family's hooks. -/
+structure Sync (F : Type) where
+  fam : Family F
+  cfg : Config := {}
+  hooks : Hooks F
+
 structure Node where
   db : Db
   ix : Index
@@ -56,11 +63,11 @@ structure Effects where
 instance : Append Effects := ⟨fun a b => ⟨a.send ++ b.send, a.drop ++ b.drop⟩⟩
 
 section
-variable {F : Type} [Codec F] [SortKey F] (fam : Family F) (cfg : Config) (hooks : Hooks F)
+variable {F : Type} [Codec F] [SortKey F] (x : Sync F)
 
 def Node.boot (db : Db) (floor : Nat) : IO Node := do
   let ops ← (dumpOps (F := F)).run db
-  return { db, ix := Index.ofOps fam ops, floor }
+  return { db, ix := Index.ofOps x.fam ops, floor }
 
 def Node.conn? (n : Node) (cid : Id) : Option Conn :=
   (n.conns.find? fun p => Decidable.decide (p.1 = cid)).map (·.2)
@@ -74,23 +81,23 @@ def sends (cid : Id) (ops : List Op) : Effects := { send := ops.map fun o => (.c
 what is stored; the ids now stored. -/
 def Node.write (n : Node) (ops : List Op) : IO (Node × List Id) := do
   if ops.isEmpty then return (n, [])
-  (receive fam ops).run n.db
+  (receive x.fam ops).run n.db
   let mut ix := n.ix
   let mut ids : List Id := []
   for o in ops do
     if (← (Store.getOp (F := F) o.id : SqlM F _).run n.db).isSome then
-      ix := ix.add fam o
+      ix := ix.add x.fam o
       ids := o.id :: ids
   return ({ n with ix }, ids.reverse)
 
 /-- One write turn through `intake`. -/
 def Node.put (n : Node) (ops : List Op) (mine : Bool) : IO (Node × List Id) :=
-  n.write fam (intake fam mine ops)
+  n.write x (intake x.fam mine ops)
 
 /-- Write each settle the steps report. -/
 def Node.settle (n : Node) (st : List (Id × Status)) : IO Node := do
-  let ops := st.flatMap fun (cid, .settled r) => hooks.settled cid r
-  return (← n.put fam ops true).1
+  let ops := st.flatMap fun (cid, .settled r) => x.hooks.settled cid r
+  return (← n.put x ops true).1
 
 /-- Offer stored ids on every connection, with its rooms refreshed. -/
 def Node.fanout (n : Node) (ids : List Id) : IO (Node × Effects) := do
@@ -98,59 +105,59 @@ def Node.fanout (n : Node) (ids : List Id) : IO (Node × Effects) := do
   let mut out : Effects := {}
   let mut st : List (Id × Status) := []
   for (cid, c) in n.conns do
-    let c := c.setRooms (← (hooks.rooms cid).run n.db)
-    let s ← (Conn.filed fam cfg c ids : SqlM F Step).run n.db
+    let c := c.setRooms (← (x.hooks.rooms cid).run n.db)
+    let s ← (Conn.filed x.fam x.cfg c ids : SqlM F Step).run n.db
     conns := (cid, s.conn) :: conns
     out := out ++ sends cid s.send
     st := st ++ s.status.map (cid, ·)
-  let n ← Node.settle fam hooks { n with conns := conns.reverse } st
+  let n ← Node.settle x { n with conns := conns.reverse } st
   return (n, out)
 
 /-- Store ops (a local write, or a peer's) and offer them on. -/
 def Node.store (n : Node) (ops : List Op) (mine : Bool) : IO (Node × Effects) := do
-  let (n, ids) ← n.put fam ops mine
+  let (n, ids) ← n.put x ops mine
   if ids.isEmpty then return (n, {})
-  n.fanout fam cfg hooks ids
+  n.fanout x ids
 
 /-- Hand out the family's outbox once, and mark it shipped. -/
 def Node.flush (n : Node) (out : Effects) : IO (Node × Effects) := do
-  let box ← hooks.outbox.run n.db
+  let box ← x.hooks.outbox.run n.db
   if box.isEmpty then return (n, out)
-  let (n, _) ← n.put fam (box.flatMap fun (x, _) => hooks.shipped x) true
+  let (n, _) ← n.put x (box.flatMap fun (i, _) => x.hooks.shipped i) true
   return (n, out ++ { send := box.map fun (_, r, b) => (r, b) })
 
 /-- Apply a connection's step. -/
 def Node.apply (n : Node) (cid : Id) (s : Step) (now : Nat) : IO (Node × Effects) := do
   if s.drop then return (n.close cid, { drop := [cid] })
   let n := { n with conns := n.conns.map fun p => if p.1 = cid then (cid, s.conn) else p }
-  let n ← Node.settle fam hooks n (s.status.map (cid, ·))
-  let (n, out) ← n.store fam cfg hooks s.take false
-  let (n, _) ← n.put fam (s.take.flatMap fun o => hooks.recv (some cid) .empty o now) true
+  let n ← Node.settle x n (s.status.map (cid, ·))
+  let (n, out) ← n.store x s.take false
+  let (n, _) ← n.put x (s.take.flatMap fun o => x.hooks.recv (some cid) .empty o now) true
   return (n, sends cid s.send ++ out)
 
 /-- A connection is open: say hello. -/
 def Node.connect (n : Node) (cid : Id) (dialer : Bool) (now : Nat) : IO (Node × Effects) := do
-  let s := Conn.open dialer (← (hooks.rooms cid).run n.db) n.floor now
+  let s := Conn.open dialer (← (x.hooks.rooms cid).run n.db) n.floor now
   let n' : Node := { (n.close cid) with conns := (cid, s.conn) :: (n.close cid).conns }
-  Node.flush fam hooks n' (sends cid s.send)
+  Node.flush x n' (sends cid s.send)
 
 /-- Bytes from connection cid. -/
 def Node.onBytes (n : Node) (cid : Id) (bytes : ByteArray) (now : Nat) : IO (Node × Effects) := do
   match n.conn? cid with
   | none => return (n, {})
   | some c =>
-    let (n, out) ← n.apply fam cfg hooks cid (← (Conn.recv fam cfg n.ix c bytes now : SqlM F Step).run n.db) now
-    n.flush fam hooks out
+    let (n, out) ← n.apply x cid (← (Conn.recv x.fam x.cfg n.ix c bytes now : SqlM F Step).run n.db) now
+    n.flush x out
 
 /-- Bytes from the bare wire: a conn op (the handshake), or nothing. -/
 def Node.onBare (n : Node) (addr bytes : ByteArray) (now : Nat) : IO (Node × Effects) := do
   match Op.decode bytes with
   | none => return (n, {})
   | some o =>
-    let (n, ids) ← n.write fam (intakeConn fam [o])
+    let (n, ids) ← n.write x (intakeConn x.fam [o])
     if ids.isEmpty then return (n, {})
-    let (n, _) ← n.put fam (hooks.recv none addr o now) true
-    n.flush fam hooks {}
+    let (n, _) ← n.put x (x.hooks.recv none addr o now) true
+    n.flush x {}
 
 /-- The clock. -/
 def Node.onTick (n : Node) (now : Nat) : IO (Node × Effects) := do
@@ -160,15 +167,15 @@ def Node.onTick (n : Node) (now : Nat) : IO (Node × Effects) := do
     match n.conn? cid with
     | none => pure ()
     | some c =>
-      let (n', o) ← n.apply fam cfg hooks cid (← (Conn.tick fam cfg n.ix c now : SqlM F Step).run n.db) now
+      let (n', o) ← n.apply x cid (← (Conn.tick x.fam x.cfg n.ix c now : SqlM F Step).run n.db) now
       n := n'
       out := out ++ o
-  n.flush fam hooks out
+  n.flush x out
 
 /-- A local write: this device's own ops. -/
 def Node.onWrite (n : Node) (ops : List Op) : IO (Node × Effects) := do
-  let (n, out) ← n.store fam cfg hooks ops true
-  n.flush fam hooks out
+  let (n, out) ← n.store x ops true
+  n.flush x out
 
 end
 

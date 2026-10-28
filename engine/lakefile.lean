@@ -38,3 +38,6 @@ lean_exe lifecycle where
 
 lean_exe wire where
   root := `Tests.Wire
+
+lean_exe syncpair where
+  root := `Tests.SyncPair
