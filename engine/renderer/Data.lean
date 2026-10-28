@@ -3,12 +3,13 @@ The app's data: the engine on SQLite, read and written from two threads.
 
 - **One writer.** A task of its own owns the write connection. It takes
   jobs (ops) from a queue, this node's own
-  writes first, and commits each job as one transaction (`receive`). After
-  each commit it reads the keys that commit filed (`takeFiled`) and posts
-  them as notices.
+  writes first, and commits each job as one transaction (`receive`).
+  Every commit, the writer's or the node's, files its keys in the store's
+  journal (Db.journal), in the same transaction.
 - **Reads never wait for it.** The frame reads on its own connection
-  (SQLite's WAL: a reader sees the last commit, and a long write never
-  blocks it).
+  (SQLite's WAL: a long write never blocks it), all in one read
+  transaction, so a frame is one moment of the store; its notices are the
+  journal's rows that moment holds.
 - **Live answers.** Every read is a query instance (`Q`). Reading one
   arms a one-shot watch on its key; a notice for that key disarms it and
   marks it stale; the next read runs the query again. Between two reads
@@ -55,8 +56,6 @@ structure Job where
 
 structure Writer where
   jobs : IO.Ref (Array Job)
-  /-- Keys filed by commits since the frame last took them. -/
-  notices : IO.Ref (Array ByteArray)
   /-- How many jobs are queued or running. -/
   busy : IO.Ref Nat
   /-- Commit times, µs, for the stats. -/
@@ -64,21 +63,20 @@ structure Writer where
   /-- While set, the writer takes no jobs (a test's or a demo's busy
   writer: what is written meanwhile stays pending). -/
   paused : IO.Ref Bool
+  /-- The journal's rows the frames have taken notice of, up to here:
+  `prune` deletes them. -/
+  read : IO.Ref Nat
 
 def Writer.submit (w : Writer) (j : Job) : IO Unit := do
   w.busy.modify (· + 1)
   w.jobs.modify fun js => if j.mine then #[j] ++ js else js.push j
-
-def Writer.takeNotices (w : Writer) : IO (Array ByteArray) := w.notices.modifyGet fun ns => (ns, #[])
 
 def Writer.run1 (w : Writer) (db : Db) (j : Job) : IO Unit := do
   let t0 ← nowUs
   -- a peer's job keeps only shared ops: a local-only op is this node's
   -- own write, whatever peers send (Engine.Sync: intake_local, stored_local)
   (receive fam (intake fam j.mine j.ops)).run db
-  let filed ← db.takeFiled
   let t1 ← nowUs
-  w.notices.modify (· ++ filed.toArray)
   w.commits.modify fun cs => (if cs.size > 200 then cs.extract 100 cs.size else cs).push
     (j.ops.length, (t1 - t0).toNat)
 
@@ -93,11 +91,24 @@ partial def Writer.loop (w : Writer) (db : Db) : IO Unit := do
     w.busy.modify (· - 1)
     w.loop db
 
+/-- Every few seconds, on a connection of its own, delete the journal's
+rows the frames have taken (whoever's commits filed them: this writer's
+or the node's). -/
+partial def Writer.prune (w : Writer) (db : Db) : IO Unit := do
+  IO.sleep 5000
+  try
+    let _ ← db.query "DELETE FROM changes WHERE seq <= CAST(? AS INTEGER)" #[(toString (← w.read.get)).toUTF8]
+  catch e => IO.eprintln s!"journal prune: {e}"
+  w.prune db
+
 def Writer.start (path : String) : IO Writer := do
   let db ← openDb path
-  db.watchFiled
-  let w : Writer := ⟨← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef false⟩
+  -- every commit, this writer's or the node's, files its keys in the
+  -- store's journal (Db.journal), where frames take their notices
+  db.journal
+  let w : Writer := ⟨← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef false, ← IO.mkRef 0⟩
   let _ ← IO.asTask (prio := .dedicated) (w.loop db)
+  let _ ← IO.asTask (prio := .dedicated) (w.prune (← openDb path))
   return w
 
 /-! ## Queries and answers
@@ -188,18 +199,26 @@ structure Live where
   reads : Nat := 0
   deriving Inhabited
 
+/-- Instance q goes stale. -/
+def Live.staleOne (l : Live) (q : Q) : Live :=
+  match l.entries[q]? with
+  | some e => { l with entries := l.entries.insert q { e with stale := true } }
+  | none => l
+
+/-- A notice of key k: the instances armed on it go stale and disarm. -/
+def Live.notice1 (l : Live) (k : ByteArray) : Live :=
+  match l.armed[k]? with
+  | none => l
+  | some qs => qs.foldl Live.staleOne { l with armed := l.armed.erase k }
+
 /-- A notice: the instances armed on these keys go stale and disarm. -/
-def Live.notice (l : Live) (keys : Array ByteArray) : Live := Id.run do
-  let mut l := l
-  for k in keys do
-    match l.armed[k]? with
-    | none => pure ()
-    | some qs =>
-      l := { l with armed := l.armed.erase k }
-      for q in qs do
-        if let some e := l.entries[q]? then
-          l := { l with entries := l.entries.insert q { e with stale := true } }
-  return l
+def Live.notice (l : Live) (keys : Array ByteArray) : Live := keys.foldl Live.notice1 l
+
+/-- q's answer, if no notice has made it stale: what a read returns
+without asking the store. -/
+def Live.answer (l : Live) (q : Q) : Option Ans := match l.entries[q]? with
+  | some e => if e.stale then none else some e.ans
+  | none => none
 
 /-- Whether q has an answer that no notice has made stale. -/
 def Live.fresh (l : Live) (q : Q) : Bool := match l.entries[q]? with
@@ -217,9 +236,9 @@ def Live.store (l : Live) (q : Q) (a : Ans) : Live :=
 
 /-- Forget instances nobody reads any more, and their watches. -/
 def Live.keep (l : Live) (want : Q → Bool) : Live :=
-  let armed := l.armed.fold (fun acc k qs =>
+  let armed := l.armed.filterMap fun _ qs =>
     let qs := qs.filter want
-    if qs.isEmpty then acc else acc.insert k qs) {}
+    if qs.isEmpty then none else some qs
   { l with entries := l.entries.filter fun q _ => want q, armed }
 
 /-- An op's verdict, from the store (the judge reads requirements this way). -/

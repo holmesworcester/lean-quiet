@@ -78,8 +78,8 @@ theorem intakeConn_wire (C : Community.Crypto) (K : Keys) {ops : List Op} {o : O
 
 end Connection
 
-namespace Engine.Sync
-open Engine
+namespace Connection.WireIntake
+open Engine Engine.Sync
 
 section
 variable {m : Type → Type} [Monad m] [LawfulMonad m] {α β : Type}
@@ -115,19 +115,23 @@ theorem onRbsr_take (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim)
   unfold Conn.onRbsr
   dsimp only
   repeat' split
-  all_goals rfl
+  all_goals first | rfl | simp
 
-theorem onHold_take (c : Conn) (ids : List Id) :
-    Sat (fun s : Step => s.take = []) (Conn.onHold (F := F) (m := m) cfg c ids) := by
+theorem onHold_take_sat (c : Conn) (r : Id) (ids : List Id) :
+    Sat (fun s : Step => s.take = []) (Conn.onHold (F := F) (m := m) fam cfg c r ids) := by
   unfold Conn.onHold
-  exact sat_bind_all _ fun _ => sat_pure' rfl
+  split
+  · exact sat_pure' rfl
+  · split
+    · exact sat_pure' rfl
+    · exact sat_bind_all _ fun _ => sat_pure' (by simp)
 
-theorem onWant_take (c : Conn) (ids : List Id) :
-    Sat (fun s : Step => s.take = []) (Conn.onWant (F := F) (m := m) fam cfg c ids) := by
+theorem onWant_take_sat (ix : Index) (c : Conn) (ids : List Id) :
+    Sat (fun s : Step => s.take = []) (Conn.onWant (F := F) (m := m) fam cfg ix c ids) := by
   unfold Conn.onWant
   split
   · exact sat_pure' rfl
-  · exact sat_bind_all _ fun _ => sat_bind_all _ fun _ => sat_pure' rfl
+  · exact sat_bind_all _ fun _ => sat_pure' (by simp)
 
 /-- **A session's bytes are stored only as ops of no wire kind**: of what
 the peer sends, `Conn.recv` takes for storing at most the one op it
@@ -143,17 +147,17 @@ theorem recv_takes_no_wire (ix : Index) (c : Conn) (bytes : ByteArray) (now : Na
     split
     · exact sat_pure' (by rw [finish_take]; split <;> simp [start_take])
     · exact sat_pure' (by rw [finish_take, onRbsr_take]; simp)
-    · exact sat_bind_pure (onHold_take (F := F) (m := m) cfg _ _) fun s hs => by
+    · exact sat_bind_pure (onHold_take_sat (F := F) (m := m) fam cfg _ _ _) fun s hs => by
         show ∀ o ∈ (Conn.finish s).take, _
         rw [finish_take, hs]; simp
-    · exact sat_bind_pure (onWant_take (F := F) (m := m) fam cfg _ _) fun s hs => by
+    · exact sat_bind_pure (onWant_take_sat (F := F) (m := m) fam cfg _ _ _) fun s hs => by
         show ∀ o ∈ (Conn.finish s).take, _
         rw [finish_take, hs]; simp
     · split
       · exact sat_pure' (by simp)
       · rename_i hw
         exact sat_pure' (by
-          rw [finish_take]
+          rw [finish_take, Step.limit_take]
           intro p hp
           simp only [List.mem_singleton] at hp
           subst hp
@@ -162,4 +166,4 @@ theorem recv_takes_no_wire (ix : Index) (c : Conn) (bytes : ByteArray) (now : Na
 
 end
 
-end Engine.Sync
+end Connection.WireIntake

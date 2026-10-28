@@ -1,0 +1,204 @@
+# What tests/Wiring.lean cannot tell from the code: which definitions a
+# law states running code against, what is assumed, which mirrors are
+# proven equal to running code, and what would make each model real.
+# One note a line: a kind, a name, and text. tests/Wiring.lean fails on
+# a note that is stale or wrong.
+#
+#   entry NAME           an entry point besides `main` and the runner: an
+#                        `@[export]` whose symbol a shipping platform's
+#                        source names
+#   spec NAME TEXT       a specification laws state running code against.
+#                        Not a subject (it must not run); of what it names,
+#                        what runs is.
+#   assume NAME TEXT     an assumption: a hypothesis the laws take, or a
+#                        model of something the running code is generic
+#                        over (the store, the cryptography). Not a subject.
+#                        TEXT `= OTHER` makes NAME part of OTHER's.
+#   bridge MIRROR LAW    LAW, audited, concludes that running code equals
+#                        MIRROR, so laws about MIRROR are about it
+#   todo NAME TEXT       what would make the laws about NAME, which does
+#                        not run, about running code (one sentence). The
+#                        README's rows follow this file's order; `= OTHER`
+#                        puts NAME in OTHER's row. It must not run, and a
+#                        law must wait on it.
+#   holds NAME TEXT      a premise laws take (an invariant) that the
+#                        running node keeps only as TEXT says; listed with
+#                        the assumptions, and seen through like any premise
+#   copy NAME CODE TEXT  NAME restates running CODE instead of naming it:
+#                        a law (a model until it names CODE) or a
+#                        definition (a todo, until CODE calls it)
+#   subject LAW NAMES    LAW's subject is NAMES (its statement must name
+#                        each), where the heuristic takes too much
+#   wired LAW            LAW must be wired
+
+## Wired, and must stay so: the laws "What is proven" rests on
+
+wired Community.no_impersonation
+wired Community.admission_needs_approval
+wired Community.admission_approved
+wired Community.request_invited
+wired Community.removal_authorized
+wired Community.admin_granted
+wired Community.removed_stays
+wired Community.valid_stays
+wired Engine.Codec.encode_decode
+wired Engine.Op.id_decode
+wired Engine.Sync.recv_send
+wired Engine.Sync.hold_reply_local
+wired Connection.wire_kinds
+wired Connection.local_kinds
+wired Community.connect_iff
+wired Community.removal_cuts_off
+wired Connection.Noise.Symbolic.kk_secret
+wired Connection.Noise.Symbolic.kk_forward_secret
+
+## Assumptions
+
+assume Community.Unforgeable An Ed25519 signature that verifies under a device key was made by that key's holder.
+assume Engine.CollisionFree SHA-256 has no collision among the ops a node received.
+assume Engine.Distinct = Engine.CollisionFree
+assume Community.Merkle.NoSecondPreimage SHA-256 has no second preimage on a file's Merkle tree inputs.
+assume Connection.Noise.Suite.Good X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only).
+assume Community.Seal.Good The seal's AEAD and key wrap open what they seal (correctness only).
+assume Connection.Noise.Symbolic.sym The symbolic model of the cryptography, over which the running handshake runs.
+assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model.
+assume Engine.Model = Engine.Model.run
+assume Engine.DB = Engine.Model.run
+assume Engine.Sync.HeldM = Engine.Model.run
+assume Engine.Sync.Held = Engine.Model.run
+assume Engine.eval = Engine.Model.run
+assume Engine.matching = Engine.Model.run
+assume Engine.DB.empty = Engine.Model.run
+assume Engine.budget = Engine.Model.run
+assume Engine.Sync.HeldM.run = Engine.Model.run
+assume ArrivalLaws.modelReads = Engine.Model.run
+# the model store's reads and writes, which the held store's instances lift
+assume Engine.Sync.lift = Engine.Model.run
+assume Engine.Model.pop = Engine.Model.run
+assume Engine.DB.putOp = Engine.Model.run
+assume Engine.DB.push = Engine.Model.run
+assume Engine.DB.setStatus = Engine.Model.run
+assume Engine.DB.addWait = Engine.Model.run
+assume Engine.DB.clearWaiters = Engine.Model.run
+assume Engine.DB.index = Engine.Model.run
+
+holds Engine.Inv The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean).
+
+## Bridges: a mirror, and the law that proves running code equal to it
+
+bridge Engine.stepS Engine.run_step
+bridge Engine.drainS Engine.run_drain
+bridge Engine.ingestS Engine.run_ingest
+bridge Engine.View.eval Engine.View.run_model
+bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
+# A want reply's read program: the running interpreter's answer is the
+# trace's (the trace's read list follows the same program, read by read).
+bridge Engine.Sync.Read.trace Engine.Sync.Read.run_model
+
+## Specifications
+
+spec Engine.specAt The spec's verdict on an op, which judging is proven to reach.
+spec Engine.View.keys The keys a view reads, on the model: what a screen watches.
+spec Engine.lexCmp Byte order, which `be64` keeps.
+spec Engine.Sync.pres The byte strings a label hashes, for the no-collision hypothesis.
+spec Engine.Sync.Msg.offers The ids a sync message offers.
+spec Engine.Sync.retried The ids an output's wants ask for.
+spec Engine.Sync.replyBytes A reply's payload bytes, for its bound.
+spec Engine.Sync.largestOp A reply's largest op, for its bound.
+spec Community.Merkle.treeInputs A file's Merkle tree inputs, for the no-second-preimage hypothesis.
+spec Community.Merkle.subInputs A subtree's Merkle inputs, for the no-second-preimage hypothesis.
+spec Community.Merkle.slices A file's chunks, as the tree cuts it.
+spec Community.fileChunk A file's chunk at an index.
+spec Text.ns A line's characters other than spaces.
+spec Text.shown The characters a line draws.
+spec Text.starts Where each glyph starts.
+spec Text.digitsShown The digits a line draws, in order.
+spec Text.bidiControls The explicit bidi controls.
+spec ViewLaws.nameIn A user's name, as the store holds it.
+spec ViewLaws.factIn A message's fact, as the store holds it.
+spec ViewLaws.keyIn A content key, as the store holds it.
+spec ArrivalLaws.readsOf The reads a view makes, on the model.
+spec Mdns.known The record types mDNS validity knows.
+spec Mdns.encRData A record's data as encoded, for its validity.
+spec Mdns.Name.wireLen A name's length on the wire, for its validity.
+
+## Subjects the heuristic takes too much of
+
+# The running round's answer to a claim, stated against the round's model.
+subject Engine.Sync.conn_answers_ids Engine.Sync.Conn.onRbsr Engine.Sync.within Engine.Sync.named Engine.Sync.chunks
+
+## What would make each model real, most valuable first (the README's order)
+
+todo Engine.purgeS The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`).
+todo Engine.purgeSet = Engine.purgeS
+todo Engine.Sync.World.peer A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does.
+todo Engine.Sync.World.write = Engine.Sync.World.peer
+todo Engine.Sync.World.deliver = Engine.Sync.World.peer
+todo Engine.Sync.World.connect = Engine.Sync.World.peer
+todo Engine.Sync.World.tick = Engine.Sync.World.peer
+todo Engine.Sync.World.empty = Engine.Sync.World.peer
+todo Engine.Sync.Who.other = Engine.Sync.World.peer
+todo Engine.Sync.Setup.sync = Engine.Sync.World.peer
+todo Engine.Sync.plainFrame = Engine.Sync.World.peer
+todo Engine.Sync.turnH = Engine.Sync.World.peer
+todo Engine.Sync.oneRoom = Engine.Sync.World.peer
+todo Engine.Sync.exchange The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`).
+todo Engine.offer Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`.
+todo Community.recipients The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission.
+todo Community.members = Community.recipients
+todo Net.Scene.approval The bootstrap's model (ops/connection/bootstrap/): retired by `conn_runs_exchange`, `closure_delivered`, `answer_trusted` and `untrusted_silent` over the running code.
+todo Net.Scene.init = Net.Scene.approval
+todo Net.Scene.adm = Net.Scene.approval
+todo Net.Scene.answer = Net.Scene.approval
+todo Net.Scene.c = Net.Scene.approval
+todo Net.Scene.hello = Net.Scene.approval
+todo Net.Scene.inv = Net.Scene.approval
+todo Net.Scene.K = Net.Scene.approval
+todo Net.Scene.link = Net.Scene.approval
+todo Net.Scene.req = Net.Scene.approval
+todo Net.Scene.r = Net.Scene.approval
+todo Net.Scene.S = Net.Scene.approval
+todo Net.sent = Net.Scene.approval
+todo Net.step = Net.Scene.approval
+todo Net.table = Net.Scene.approval
+copy LiveLaws.read_one_moment App.read Its two branches, inline. Todo: state it of `App.read`.
+todo Geometry.Seam.place The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are.
+todo Geometry.Seam.frameRow = Geometry.Seam.place
+todo Geometry.Seam.home = Geometry.Seam.place
+todo Geometry.Seam.pinned = Geometry.Seam.place
+todo Geometry.Seam.pageRow = Geometry.Seam.place
+todo Geometry.Seam.tapRow = Geometry.Seam.place
+todo Geometry.Geom.viewNow = Geometry.Seam.place
+todo Geometry.Geom.composerTop = Geometry.Seam.place
+copy SheetGeom.Grid.ctop Sheet.gridRow Its index arithmetic, and App's sheet rows'. Todo: have the painter place keys by `Grid.ctop`.
+todo Engine.Sync.keeps The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s.
+todo Pic.decode Runs only in qr's Android harness; the app has its own QOI (`Qoi.decode`) and tray: use `Pic` in the app, or prove these of its code.
+todo Pic.add = Pic.decode
+todo Pic.fit = Pic.decode
+todo Pic.layout = Pic.decode
+todo Pic.render = Pic.decode
+todo Pic.scale = Pic.decode
+todo Pic.attachEdge = Pic.decode
+todo Pic.maxSide = Pic.decode
+todo Pic.Geom.box = Pic.decode
+todo Pic.Rgba.wellFormed = Pic.decode
+todo Mdns.decode Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it.
+todo Mdns.encode = Mdns.decode
+todo Arrival.lit `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`.
+
+## fd/perf: the board, the reader's decisions, the rows' heights
+
+todo Live.Board.put holmes-1e's reader (app-1e's ops/app/Reader.lean) puts and the frame takes through the board; it lands with that reader.
+todo Live.Board.take = Live.Board.put
+todo Live.Board.keep = Live.Board.put
+todo Live.Board.apply The frame shows the board's values through it once holmes-1e's reader lands (app-1e's App.step).
+todo Live.pickM Reader.pass's pick (app-1e), which lands with the reader.
+todo Live.pick = Live.pickM
+todo Live.markM Reader.pass's mark (app-1e), which lands with the reader.
+todo Live.mark = Live.markM
+todo Live.markHitM Reader.pass's mark at rest (the diff sent to holmes-1e), which lands with the reader.
+todo Live.markHit = Live.markHitM
+todo Heights.T.findM The frame's rows by window (holmes-1e's Cover over a windowed read) call the tree; until then App's `bottoms` walks every row.
+todo Heights.T.startM = Heights.T.findM
+todo Heights.T.setM = Heights.T.findM
+todo Heights.rebuild = Heights.T.findM
