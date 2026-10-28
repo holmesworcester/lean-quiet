@@ -177,7 +177,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 364 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 380 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **The tables are short; the long stories are below them,** under
   [Proofs in depth](#proofs-in-depth), where each row's More link goes.
@@ -264,7 +264,7 @@ nothing else is assumed:
 | 🟡 | 🥊🥊🥊 | **The screen is one moment.** Every frame is drawn over a single store state, the latest the app has seen, so if one row is current, all are. [More](#from-the-store-to-the-screen) | [`read_one_moment`], [`answer_agrees`], [`agrees_store`], [`agrees_notice`], [`agrees_keep`], [`agrees_empty`], [`eval_stable`], [`view_stable`] |
 | ⬜ | 🥊🥊 | **An action's toast stays until the screen shows it.** A toast for an action (removing someone, a new name or avatar) stays up until every component on screen has re-read a state that holds the action's op, or until the OS's toast time passes, whichever comes first. So a toast that leaves early proves the screen has caught up. | |
 | ✅ | 🥊🥊 | **The layout is exact.** The slide and keyboard shift are exact, and page rows are where the page put them. Emoji keys never overlap, and every key is reachable. An invite's hints and QR fit, and the camera preview reads inside its frame. | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
-| 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** A row's glyphs, read in order, are exactly the body's visible characters, and every line fits. [More](#text-and-names) | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`digits_keep_order`] |
+| 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** Bidi preserves characters and keeps resolved number runs contiguous and in logical order, including decimals, times and percentages. Lines fit when each glyph fits. [More](#text-and-names) | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`numbers_keep_order`], [`arabic_numbers_keep_order`] |
 | 🟡 | 🥊🥊🥊 | **Names are shown correctly.** A row draws its author's name and no one else's, no bidi control can disguise it, and look-alike names are both marked. [More](#text-and-names) | [`message_read`], [`profile_read`], [`profile_authorized`], [`no_renaming`], [`name_placed`], [`oneLine_prefix`], [`controls_neutral`], [`marks_invisible`], [`namesake_iff`], [`row_marked`], [`twin_shown`], [`twin_before_time`], [`hit_twin`] |
 | ✅ | 🥊🥊 | **Times, reactions and pictures are shown as held:** the claimed time's clock, each reaction's count of distinct reactors, and each picture at its aspect inside its box. One pill per emoji, whose reactors are exactly who reacted with it, each once; a picture's box has one side at its bound and the other scaled by its aspect. | [`time_shown`], [`message_read`], [`tally_nodup`], [`tally_mem`], [`picBox_aspect`] |
 | 🟡 | 🥊🥊🥊 | **What you see is what was sent.** The rows a device draws are the views of the facts its ops hold, from network to pixel. [More](#from-the-store-to-the-screen) | [`message_read`], [`readable_held`], [`readable_complete`], [`eval_stable`] |
@@ -536,30 +536,45 @@ views of the facts its ops hold, from network to pixel.
 
 ### Text and names
 
-🟡 **Message text is shown faithfully.** A row's glyphs, read in order,
-are exactly the body's visible characters. Nothing is clipped, reordered
-or taken from another row, and every line fits.
-- **Proven:** wrapping drops only spaces and keeps every other character
-  in order, and every line fits when every character does; bidi
-  reordering is a permutation (nothing dropped or invented); the glyphs
-  placed are exactly the visible characters, each starting where the one
-  before ends; numbers keep their order inside right-to-left text, for
-  the reported cases.
-- **Wanted:** that order in general, and `layout` as one statement over
-  the three.
+🟡 **Message text is shown faithfully.** Bidi preserves every character,
+and each resolved European or Arabic number run stays contiguous and in
+logical order in either paragraph direction, including its W4 separators
+and W5 terminators.
+- **Proven:** [`numbers_keep_order`] and [`arabic_numbers_keep_order`]
+  quantify over all lines and both directions, using the same maximal
+  run definition as the renderer; [`numbers_witness`] and
+  [`arabic_numbers_witness`] show nonempty runs with separators and
+  terminators. Bidi is a permutation; placement retains exactly the
+  visible characters with consecutive advances; wrapping drops only
+  spaces and fits every line when every character fits individually.
+- **Implemented and tested:** Unicode 16.0.0 P2–P3, W1–W7, N1–N2,
+  I1–I2, L1–L2 for single lines without explicit embeddings, isolates or
+  paired brackets. Unicode's corpus passes **73,599 cases, zero failures**
+  in that scope (73,593 BidiTest modes and 6 BidiCharacterTest cases).
+  The other **788,349 cases** are explicitly excluded by input feature;
+  most character cases exercise N0. The [rule audit and counts](docs/BIDI.md)
+  name every exclusion. Forty focused regressions and nine headless
+  checks include independent pixel comparisons of `12:30` inside Hebrew
+  and Arabic messages. W2 turns European digits after Arabic letters
+  into AN: `3-4` and `50%` then follow AN/neutral rules, not EN rules.
+- **Wanted:** a full proof of UBA equivalence; paragraph resolution across
+  soft wraps; embeddings/isolates, paired brackets (N0), mirrored glyphs
+  (L4), complete mark positioning (L3); and `layout` as one statement
+  combining wrapping, shaping, bidi and placement. The number invariants
+  are proven; the individual UBA rules are checked by conformance tests.
 
 🟡 **Names are shown correctly.** A message row draws its author's name,
-as the views pick it, and no one else's. No bidi override can disguise a
-name or a message, and two users whose names look alike are both marked
+as the views pick it, and no one else's. Bidi controls have no directional
+authority, and two users whose names look alike are both marked
 as duplicates, as Quiet marks them.
 - **Proven:** a row's name is its author's newest valid profile's (or
   "…"), and only a device admitted into that user can have written it;
   the row draws it cut to a logical prefix and an ellipsis, so a long
   name keeps its beginning in either direction. Every explicit bidi
-  control (embeddings, overrides, isolates, LRM and RLM) is a neutral in
-  the running bidi, so none can reorder a name or a message, and the
-  marks draw nothing. Two names look alike when they are equal once the
-  characters drawn as nothing are dropped and every run of spaces of any
+  control (embeddings, overrides, isolates, LRM, RLM and ALM) is ON in
+  the running bidi. This is a classification law: inserting an ON can
+  still split a number run. LRM and RLM draw nothing. Two names look alike
+  when they are equal once the characters drawn as nothing are dropped and every run of spaces of any
   kind is one space, so `Alice` and `Alice` followed by U+200B look
   alike. At rest, a row is labelled "⚠ Duplicate", between the name and
   the time, exactly when another user of the community has a valid
@@ -1021,7 +1036,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`read_one_moment`]: engine/renderer/LiveLaws.lean#L227-L232
 [`wrap_keeps`]: engine/renderer/WrapLaws.lean#L132-L135
-[`visual_perm`]: engine/renderer/TextLaws.lean#L46-L47
+[`visual_perm`]: engine/renderer/TextLaws.lean#L20-L21
 [`visible_in_viewport`]: engine/renderer/Geometry.lean#L90-L95
 [`hit_iff`]: engine/renderer/SheetGeom.lean#L93-L95
 [`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
@@ -1194,17 +1209,18 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Link.qr_fits`]: ops/community/link/View.lean#L67-L67
 [`Camera.src_in`]: engine/renderer/Camera.lean#L51-L53
 [`wrap_fits`]: engine/renderer/WrapLaws.lean#L206-L209
-[`place_shows`]: engine/renderer/TextLaws.lean#L63-L65
-[`place_starts`]: engine/renderer/TextLaws.lean#L128-L134
-[`digits_keep_order`]: engine/renderer/TextLaws.lean#L109-L116
+[`place_shows`]: engine/renderer/TextLaws.lean#L36-L38
+[`place_starts`]: engine/renderer/TextLaws.lean#L115-L121
+[`numbers_keep_order`]: engine/renderer/TextLaws.lean#L84-L88
+[`arabic_numbers_keep_order`]: engine/renderer/TextLaws.lean#L91-L94
 [`message_read`]: ops/community/message/ViewLaws.lean#L62-L67
 [`profile_read`]: ops/community/message/ViewLaws.lean#L40-L42
 [`profile_authorized`]: ops/community/Laws.lean#L307-L314
 [`no_renaming`]: ops/community/Laws.lean#L321-L332
 [`name_placed`]: ops/community/reaction/RowLaws.lean#L89-L92
-[`oneLine_prefix`]: engine/renderer/TextLaws.lean#L97-L98
-[`controls_neutral`]: engine/renderer/TextLaws.lean#L153-L157
-[`marks_invisible`]: engine/renderer/TextLaws.lean#L159-L159
+[`oneLine_prefix`]: engine/renderer/TextLaws.lean#L70-L71
+[`controls_neutral`]: engine/renderer/TextLaws.lean#L140-L143
+[`marks_invisible`]: engine/renderer/TextLaws.lean#L145-L145
 [`namesake_iff`]: ops/community/profile/NamesakeLaws.lean#L113-L118
 [`row_marked`]: ops/community/profile/NamesakeLaws.lean#L139-L144
 [`twin_shown`]: ops/community/reaction/RowLaws.lean#L94-L98
@@ -1248,4 +1264,6 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`fit_round`]: engine/renderer/pic/Laws.lean#L87-L90
 [`Pic.layout_inside`]: engine/renderer/pic/Laws.lean#L170-L172
 [`Pic.layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
+[`numbers_witness`]: engine/renderer/TextLaws.lean#L97-L100
+[`arabic_numbers_witness`]: engine/renderer/TextLaws.lean#L102-L104
 <!-- /proof-links -->

@@ -19,7 +19,11 @@ export PATH="$ELAN_HOME/bin:$PATH"
 lake build codecdiff poolstarve scenario differential crash querydiff linkcheck lifecycle wire syncpair syncworld tcppair noise_check connection_check purge jointcp merkle_check
 mkdir -p out
 .lake/build/bin/codecdiff "${CODEC_VALUES:-200}"
-.lake/build/bin/poolstarve
+if [ "${SKIP_TCP:-0}" = 1 ]; then
+  echo "UNVERIFIED (SKIP_TCP=1): poolstarve built, not run (requires loopback TCP)"
+else
+  .lake/build/bin/poolstarve
+fi
 .lake/build/bin/scenario out/scenario
 .lake/build/bin/differential out/differential "${SEEDS:-12}"
 .lake/build/bin/querydiff
@@ -28,8 +32,12 @@ mkdir -p out
 .lake/build/bin/wire out/wire
 .lake/build/bin/syncpair
 .lake/build/bin/syncworld
-.lake/build/bin/tcppair out/tcppair
-.lake/build/bin/jointcp out/jointcp
+if [ "${SKIP_TCP:-0}" = 1 ]; then
+  echo "UNVERIFIED (SKIP_TCP=1): tcppair jointcp built, not run"
+else
+  .lake/build/bin/tcppair out/tcppair
+  .lake/build/bin/jointcp out/jointcp
+fi
 tests/engine/crypto_compat.sh
 .lake/build/bin/noise_check
 .lake/build/bin/connection_check

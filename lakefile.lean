@@ -78,7 +78,7 @@ lean_lib Headless where
 -- the test suites' modules (their executables are below)
 lean_lib Tests where
   globs := #[.submodules `tests.engine, .submodules `tests.net, .submodules `tests.mdns,
-    .submodules `tests.qr]
+    .submodules `tests.qr, .submodules `tests.app]
 
 /-! ## Native code
 
@@ -239,3 +239,9 @@ lean_exe scene_check where
 -- A store's ops, one line each (for comparing devices' stores).
 lean_exe dump where
   root := `platforms.headless.Dump
+
+lean_exe bidi_check where
+  root := `tests.app.Bidi
+
+lean_exe bidi_host where
+  root := `platforms.headless.Bidi

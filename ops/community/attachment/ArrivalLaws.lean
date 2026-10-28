@@ -35,6 +35,10 @@ Row, Kinds.File):
 import ops.community.attachment.View
 
 namespace ArrivalLaws
+
+-- These laws treat a placed caption as a value. Avoid normalizing the
+-- Unicode bidi table while splitting the pill's fit/visibility branches.
+attribute [local irreducible] Text.oneLine
 open Arrival
 
 /-! ## Words -/

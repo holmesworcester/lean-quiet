@@ -295,7 +295,10 @@ section app
 #print axioms Text.visual_perm
 #print axioms Text.place_shows
 #print axioms Text.oneLine_prefix
-#print axioms Text.digits_keep_order
+#print axioms Text.numbers_keep_order
+#print axioms Text.arabic_numbers_keep_order
+#print axioms Text.numbers_witness
+#print axioms Text.arabic_numbers_witness
 #print axioms Text.wrap_keeps
 #print axioms Text.wrap_fits
 #print axioms Text.place_starts
@@ -408,3 +411,18 @@ open Net
 #print axioms Net.allowPeer_iff
 #print axioms Net.allowPeer_settles
 end net
+
+-- Paragraph bidi: the running passes and block reordering.
+#print axioms Text.Bidi.w1_keeps
+#print axioms Text.Bidi.w23_keeps
+#print axioms Text.Bidi.w4_keeps
+#print axioms Text.Bidi.et_keeps
+#print axioms Text.Bidi.weak_keeps
+#print axioms Text.Bidi.runs_keeps
+#print axioms Text.Bidi.attach_keeps
+#print axioms Text.Bidi.reset_keeps
+#print axioms Text.Bidi.leveled_keeps
+#print axioms Text.Bidi.reverseRuns_perm
+#print axioms Text.Bidi.reorder_perm
+#print axioms Text.Bidi.display_perm
+#print axioms Text.Bidi.run_contiguous
