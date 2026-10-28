@@ -1,3 +1,4 @@
+import Quiet.ThemeLaws
 import Quiet.Geometry
 import Quiet.SheetGeom
 import Quiet.Link
@@ -99,3 +100,21 @@ import Quiet.ArrivalLaws
 #print axioms ArrivalLaws.complete_iff_held
 #print axioms ArrivalLaws.file_whole
 #print axioms ArrivalLaws.pic_complete_iff_held
+
+#print axioms Theme.follows
+#print axioms Theme.forced
+#print axioms Theme.roundtrip
+#print axioms Appearance.selected_label
+#print axioms Contrast.channel_bounds
+#print axioms Contrast.ink_meets
+#print axioms Contrast.ink_control
+#print axioms Contrast.ink_kept
+#print axioms Contrast.possible
+#print axioms Scrim.legible
+#print axioms Overlay.edge_contrast
+#print axioms Cue.nonempty
+#print axioms Cue.same
+#print axioms ThemeLaws.cleared
+#print axioms ThemeLaws.palette
+#print axioms ThemeLaws.content
+#print axioms ThemeLaws.text

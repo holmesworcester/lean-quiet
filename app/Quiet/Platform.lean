@@ -38,9 +38,12 @@ keyboard.
 namespace Platform
 
 /-- Waits for the window; answers `[w, h, insetTop, insetBottom, dpi]` in
-pixels: the surface's size, the status bar's and navigation bar's
+pixels, followed by system appearance (0 light, 1 dark): the surface's size, the status bar's and navigation bar's
 heights, and the display's density in dots per inch. -/
 @[extern "lq_screen"] opaque screen : IO (Array UInt32)
+
+/-- Apply Lean's effective appearance to OS bar icons and the window fill. -/
+@[extern "lq_appearance"] opaque appearance (dark : Bool) (background : UInt32) : IO Unit
 
 /-- The list's offset for the frame about to be drawn (bottom-anchored,
 see above): the latest vsync's, predicted on to when the frame will be

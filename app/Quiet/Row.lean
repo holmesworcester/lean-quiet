@@ -13,6 +13,9 @@ box, and the boxes do not overlap: what one part paints, no other part
 paints over.
 -/
 import Quiet.Paint
+import Quiet.Scrim
+import Quiet.Palette
+import Quiet.Cue
 import Quiet.Image
 import Quiet.Text
 import Quiet.Arrival
@@ -22,15 +25,15 @@ open Paint Text Font
 
 /-! ## Theme -/
 
-def bg : Color := 0x1A1D21
-def ink : Color := 0xD1D2D3
-def nameInk : Color := 0xF8F8F8
-def dim : Color := 0x9A9B9E
-def pill : Color := 0x2C2F33
-def pillMine : Color := 0x1D3A4A
-def accent : Color := 0x1D9BD1
-def selBg : Color := 0x222529
-def placeholder : Color := 0x2C2F33
+def bg : Color := Palette.color .dark .bg
+def ink : Color := Palette.color .dark .fg
+def nameInk : Color := Palette.color .dark .fg
+def dim : Color := Palette.color .dark .muted
+def pill : Color := Palette.color .dark .selected
+def pillMine : Color := Palette.color .dark .tint
+def accent : Color := Palette.color .dark .accentInk
+def selBg : Color := Palette.color .dark .selected
+def placeholder : Color := Palette.color .dark .selected
 
 /-- Sizes for a screen: its density (dpi) and the font's cell. Lengths
 are given in dp (Android's density-independent pixels, 160 a inch) and
@@ -38,6 +41,7 @@ drawn in pixels; text is the font's cell, about 24 dp. -/
 structure Dim where
   dpi : Nat
   cell : Nat
+  theme : Theme.Value := .dark
   deriving Inhabited, BEq
 
 def Dim.px (d : Dim) (dp : Nat) : Nat := (dp * d.dpi + 80) / 160
@@ -54,7 +58,7 @@ inset, 0.15rem 0.4rem padding, 0.3rem corners, a 15 ring on a 2.5
 stroke), its panel the row's background and its ink the dim ink. -/
 def Dim.arrival (d : Dim) : Arrival.Style :=
   { inset := d.px 6, padX := d.px 6, padY := d.px 2, radius := d.px 5,
-    ring := d.px 15 / 2, stroke := max 1 (d.px 15 / 6), gap := d.px 4, panel := bg, ink := dim }
+    ring := d.px 15 / 2, stroke := max 1 (d.px 15 / 6), gap := d.px 4, panel := (Palette.color d.theme .bg), ink := (Palette.color d.theme .muted) }
 
 /-! ## Data -/
 
@@ -204,7 +208,7 @@ decodes (a placeholder box is drawn instead). -/
 def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (d : RowData) (l : Layout)
     (av : Option Bitmap) (imgs : Array (Option Bitmap)) : Bitmap := Id.run do
   let mut b := Bitmap.blank W l.h bgRow
-  if d.selected then b := b.fill 0 0 W l.h selBg
+  if d.selected then b := b.fill 0 0 W l.h (Palette.color dm.theme .selected)
   let tx := dm.textX
   let lh := dm.lineH
   -- glyphs sit in their line: the cell, then an eighth of it below
@@ -212,10 +216,12 @@ def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (d : RowData) (l :
   let a := dm.avatar
   match av with
   | some img => b := b.image img dm.pad ay (a / 2)
-  | none => b := b.round dm.pad ay (dm.pad + a) (ay + a) (a / 2) placeholder
-  b := b.line f l.name tx dm.topPad nameInk true
-  b := b.line f l.time l.timeX dm.topPad dim
-  let tc := if d.pending then dim else ink
+  | none => b := b.round dm.pad ay (dm.pad + a) (ay + a) (a / 2) (Palette.color dm.theme .selected)
+  if d.selected then
+    b := b.line f (oneLine f a (Cue.caption dm.theme .selected)) dm.pad ay (Palette.color dm.theme .fg) true
+  b := b.line f l.name tx dm.topPad (Palette.color dm.theme .fg) true
+  b := b.line f l.time l.timeX dm.topPad (Palette.color dm.theme .muted)
+  let tc := if d.pending then (Palette.color dm.theme .muted) else (Palette.color dm.theme .fg)
   for i in [0:l.text.size] do
     b := b.line f l.text[i]! tx (l.textY + i * lh) tc
   let r := dm.px 8
@@ -223,28 +229,23 @@ def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (d : RowData) (l :
     let bx := l.pics[i]!
     match imgs[i]? >>= id with
     | some img => b := b.image img bx.x bx.y r
-    | none => b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) r placeholder
+    | none => b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) r (Palette.color dm.theme .selected)
     if let some pl := d.pics[i]? >>= arrival f dm bx then b := Arrival.paint f dm.arrival b pl
   let pr := dm.pillH / 2
   let inset := dm.px 4
   for (bx, e, count, mine) in l.pills do
     if mine then
-      b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) pr accent
+      b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) pr (Palette.color dm.theme .accentInk)
       let k := max 2 (dm.px 1)
-      b := b.round (bx.x + k) (bx.y + k) (bx.x + bx.w - k) (bx.y + bx.h - k) (pr - k) pillMine
+      b := b.round (bx.x + k) (bx.y + k) (bx.x + bx.w - k) (bx.y + bx.h - k) (pr - k) (Palette.color dm.theme .tint)
     else
-      b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) pr pill
-    b := emojiAt f b e (bx.x + dm.px 10) (bx.y + inset) 0xF5C542
-    b := b.line f count (bx.x + dm.px 10 + dm.cell + dm.px 4) (bx.y + inset) (if mine then nameInk else ink)
+      b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) pr (Palette.color dm.theme .selected)
+    b := emojiAt f b e (bx.x + dm.px 10) (bx.y + inset) (Palette.color dm.theme .warning)
+    b := b.line f count (bx.x + dm.px 10 + dm.cell + dm.px 4) (bx.y + inset) (if mine then (Palette.color dm.theme .fg) else (Palette.color dm.theme .fg))
   return b
 
 /-- A bitmap darkened to 40%: the rows behind the reaction tray. -/
-def Bitmap.dim (b : Bitmap) : Bitmap :=
-  { b with rows := b.rows.map fun row => Id.run do
-      let mut out := row
-      for i in [0:row.size] do
-        if i % 4 != 3 then out := out.set! i (row[i]!.toNat * 2 / 5).toUInt8
-      return out }
+def Bitmap.dim (b : Bitmap) : Bitmap := Scrim.shade b
 
 /-! ## The reaction tray
 
@@ -252,7 +253,7 @@ A long press on a message opens it: the quick reactions in a bar beside
 the message, the rest of the list dimmed. A key the user already holds
 is ringed. -/
 
-def trayBg : Color := 0x2E3136
+def trayBg : Color := Palette.color .dark .panel
 
 structure Tray where
   bmp : Bitmap
@@ -266,18 +267,18 @@ def tray (f : Font) (dm : Dim) (mine : List String) (backdrop : Color) : Tray :=
   let w := quick.size * k + (quick.size + 1) * p
   let h := k + 2 * p
   let mut b := Bitmap.blank w h (solid backdrop w)
-  b := b.round 0 0 w h (h / 2) 0x45484D
+  b := b.round 0 0 w h (h / 2) (Palette.color dm.theme .edge)
   let e := max 2 (dm.px 1)
-  b := b.round e e (w - e) (h - e) (h / 2 - e) trayBg
+  b := b.round e e (w - e) (h - e) (h / 2 - e) (Palette.color dm.theme .panel)
   let mut keys := #[]
   for i in [0:quick.size] do
     let q := quick[i]!
     let x := p + i * (k + p)
     if mine.contains q then
-      b := b.round x p (x + k) (p + k) (k / 2) accent
-      b := b.round (x + e) (p + e) (x + k - e) (p + k - e) (k / 2 - e) pillMine
+      b := b.round x p (x + k) (p + k) (k / 2) (Palette.color dm.theme .accentInk)
+      b := b.round (x + e) (p + e) (x + k - e) (p + k - e) (k / 2 - e) (Palette.color dm.theme .tint)
     let ew := Paint.Line.width f (oneLine f (4 * f.cell) q)
-    b := emojiAt f b q (x + (k - ew) / 2) (p + (k - f.cell) / 2) ink
+    b := emojiAt f b q (x + (k - ew) / 2) (p + (k - f.cell) / 2) (Palette.color dm.theme .fg)
     keys := keys.push (⟨x, p, k, k⟩, q)
   return ⟨b, keys⟩
 

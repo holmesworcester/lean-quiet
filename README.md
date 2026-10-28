@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 275 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 292 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as each part's `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -175,6 +175,10 @@ nothing else is assumed:
 | ⬜ | 🥊🥊 | **Sync is efficient.** Each op is sent at most once per connection, and a round needs at most fan·Δ·⌈log n⌉ claims. | |
 | ⬜ | 🥊 | **The cached Merkle tree's labels are `lbl`'s,** for O(log n) fingerprints with no change on the wire. | |
 | | | **The screen** | |
+| ✅ | 🥊🥊 | **Appearance follows the device choice.** System uses the OS value; Light and Dark override it; the stored spelling round trips. SQLite durability and shell reporting are tested, not assumed by the pure law. | [Theme laws](app/Quiet/Theme.lean), [tests](app/docs/THEME.md) |
+| 🟡 | 🥊🥊 | **Composited ink is legible.** The running glyph resolver and scrim ink meet 4.5:1; an overlay edge meets 3:1 against its actual destination. Assumes palette-only UI colours, no subsequent undeclared occlusion, and faithful native copies. Composition with the five-layer visibility theorem remains with issue #1. | [Contrast](app/Quiet/Contrast.lean), [scrim](app/Quiet/Scrim.lean), [overlap edges](app/Quiet/Overlay.lean) |
+| ✅ | 🥊🥊 | **Theme changes discard old paints.** Rows and workers, decoded images, sheet cells, pages and chrome are cleared; the new palette and background agree, while content and layout inputs remain. Assumes frames go through the app's theme transition; raw image and glyph-mask caches contain no theme. | [Theme transition laws](app/Quiet/ThemeLaws.lean) |
+| 🟡 | 🥊🥊 | **State has a non-colour cue.** Unread, selected, error and connected have nonempty words or a check, identical in both themes. Assumes layout leaves the cue visible; that final visibility obligation is not proved here. | [Cue laws](app/Quiet/Cue.lean), [Appearance](app/Quiet/Appearance.lean) |
 | ✅ | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. | [`visible_in_viewport`], [`newest_visible`], [`pinned_visible`], [`pinned_tap`], [`hit_iff`] |
 | ⬜ | 🥊🥊🥊 | **Every control is big enough to tap.** Every tappable control's hit area, not just its drawn size, is at least 48 dp by 48 dp on Android and 44 pt by 44 pt on iOS, at every supported screen size and text scale. | |
 | ⬜ | 🥊🥊 | **A tap means one thing.** On every screen, no two controls' hit areas overlap, so a point selects at most one control. A tap selects the control drawn under it. Today this is proven for the emoji sheet and message rows only (`keys_disjoint`, `hit_iff`, `pinned_tap`). | |
@@ -399,13 +403,13 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`picBox_aspect`]: app/Quiet/RowLaws.lean#L19-L28
 [`readable_held`]: engine/Community/Intents.lean#L295-L299
 [`readable_complete`]: engine/Community/Intents.lean#L337-L341
-[`switcherOrder_sound`]: app/Quiet/Pages.lean#L656-L658
-[`switcherOrder_complete`]: app/Quiet/Pages.lean#L663-L665
+[`switcherOrder_sound`]: app/Quiet/Pages.lean#L663-L665
+[`switcherOrder_complete`]: app/Quiet/Pages.lean#L670-L672
 [`dedupe_nodup`]: app/Quiet/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: app/Quiet/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: app/Quiet/Switch.lean#L82-L84
-[`drawPage_key`]: app/Quiet/App.lean#L874-L878
-[`pageIn_acc`]: app/Quiet/App.lean#L880-L883
+[`drawPage_key`]: app/Quiet/App.lean#L920-L924
+[`pageIn_acc`]: app/Quiet/App.lean#L926-L929
 [`parse_segsBits`]: qr/Qr/SegLaws.lean#L157-L161
 [`parse_dataStream`]: qr/Qr/SegLaws.lean#L193-L197
 [`RS.correct_sound`]: qr/Qr/Laws.lean#L55-L57

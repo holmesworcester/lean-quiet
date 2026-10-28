@@ -29,6 +29,8 @@ import Quiet.Row
 import Quiet.Geometry
 import Quiet.Sheet
 import Quiet.Pages
+import Quiet.Appearance
+import Quiet.ThemeStore
 import Quiet.Composer
 import Quiet.Link
 import Quiet.Camera
@@ -56,6 +58,7 @@ structure Io where
   nowUs : IO UInt64
   scan : Bool → IO Unit
   luma : IO (Array UInt32 × ByteArray)
+  appearance : Bool → UInt32 → IO Unit := fun _ _ => pure ()
 
 /-- How far beyond each end of the viewport the list frame is drawn. -/
 def over : Nat := 1024
@@ -84,7 +87,7 @@ abbrev ImgKey := ByteArray × Nat × Nat
 /-- Which page is up: a conversation, or one of libquiet's other screens. -/
 inductive PageId where
   | home | chat | getStarted | create | createName | joinChoice | openInvite | paste | scan | name | agree | waiting
-  | requests | invite | switcher | profile | removeConfirm
+  | requests | invite | switcher | profile | removeConfirm | you | appearance
   deriving BEq, Repr, Inhabited
 
 /-- The reaction sheet's state: quick or the catalogue, its category,
@@ -108,6 +111,7 @@ appear by their keys (acceptance op id, community id, name, …), so two
 entries that share a name are still two keys. -/
 structure PageIn where
   page : PageId
+  setting : Theme.Setting := .system
   W : Nat
   h : Nat
   insetTop : Nat
@@ -135,6 +139,7 @@ structure PageIn where
 
 structure St where
   io : Io
+  theme : Theme.State := {}
   W : Nat
   Hs : Nat
   insetTop : Nat
@@ -251,11 +256,44 @@ removal is not announced again. -/
   scans : Nat := 0
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, fun _ => pure (), pure (#[], .empty)⟩⟩
+  pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, fun _ => pure (), pure (#[], .empty), fun _ _ => pure ()⟩⟩
 
 abbrev M := StateT St IO
 
 def c (s : St) : Id := s.me.c
+
+/-- Rebuild every colour-bearing cache from the new effective theme.
+Old asynchronous tasks lose their references and cannot publish later. -/
+def themed (s : St) (theme : Theme.State) : St :=
+  let dm := s.dim
+  let dm := { dm with theme := Theme.effective theme }
+  { s with
+    theme := theme
+    dim := dm
+    bgRow := solid (Palette.color (Theme.effective theme) .bg) s.W,
+    rows := {}, imgs := {}, imgRetry := {}, gridRows := {}, gridKey := "",
+    chips := s.chips.map fun (bytes, w, h, chip) =>
+      let thumb := match Image.decode bytes with
+        | some src => Image.square src (s.dim.px 64) (Palette.color (Theme.effective theme) .bg)
+        | none => Bitmap.blank (s.dim.px 64) (s.dim.px 64) (solid (Palette.color (Theme.effective theme) .bg) (s.dim.px 64))
+      (bytes, w, h, { chip with thumb }),
+    topBmp := default, botBmp := default, chromeKey := "", pageNow := none, pageKey := none }
+
+def setTheme (setting : Theme.Setting) : M Unit := do
+  let s ← get
+  Theme.save s.rd setting
+  set (themed s { s.theme with setting })
+  let s ← get
+  s.io.appearance (Theme.effective s.theme == .dark) (Palette.color s.dim.theme .bg)
+
+def systemTheme (system : Theme.Value) : M Unit := do
+  let s ← get
+  let theme := { s.theme with system }
+  if Theme.effective theme != Theme.effective s.theme then
+    set (themed s theme)
+  else modify fun s => { s with theme }
+  let s ← get
+  s.io.appearance (Theme.effective s.theme == .dark) (Palette.color s.dim.theme .bg)
 
 /-! ## Reading through live answers -/
 
@@ -380,11 +418,11 @@ def bottoms (s : St) : Array Nat × Nat := Id.run do
 
 /-! ## Mounting, measuring, painting -/
 
-def decodeTask (bytes : ByteArray) (w h : Nat) (sq : Bool) : Task Bitmap :=
+def decodeTask (bytes : ByteArray) (w h : Nat) (sq : Bool) (theme : Theme.Value := .dark) : Task Bitmap :=
   Task.spawn fun _ =>
     match Image.decode bytes with
-    | some src => if sq then Image.square src w Row.bg else Image.scaled src w h Row.bg
-    | none => Bitmap.blank w h (solid Row.placeholder w)
+    | some src => if sq then Image.square src w (Palette.color theme .bg) else Image.scaled src w h (Palette.color theme .bg)
+    | none => Bitmap.blank w h (solid (Palette.color theme .selected) w)
 
 /-- An attachment's slices, read from its chunk ops in order (a chunk this
 device sends may still be in the outbox); none while one is not here. -/
@@ -424,9 +462,10 @@ Arrival.soften) until every chunk is here and the file is decoded, then
 the file (its slices assembled and opened with the file's key, off the
 app's thread). -/
 def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := do
+  let theme := (← get).dim.theme
   let pre ← decoded (p.hash.push 0, w, h) do
     pure (if p.preview.isEmpty then none
-      else some ((decodeTask p.preview w h false).map (Arrival.soften Row.bg)))
+      else some ((decodeTask p.preview w h false theme).map (Arrival.soften (Palette.color theme .bg))))
   let full ← if !p.complete then pure none else decoded (p.hash.push 1, w, h) do
     -- not every chunk op is readable yet: try again in two seconds, not
     -- every frame
@@ -438,8 +477,8 @@ def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := do
     let (key, nonce) := (p.key, p.nonce)
     pure <| some <| Task.spawn fun _ =>
       match ((slicesFromOps raw).bind fun slices => Community.openFile slices key nonce).bind Image.decode with
-      | some src => Image.scaled src w h Row.bg
-      | none => Bitmap.blank w h (solid Row.placeholder w)
+      | some src => Image.scaled src w h (Palette.color theme .bg)
+      | none => Bitmap.blank w h (solid (Palette.color theme .selected) w)
   return p.shown pre full
 
 /-- Mount (read, lay out) row x if any of its answers are stale. -/
@@ -490,6 +529,9 @@ def paintRow (x : Id) : M Unit := do
   let some r := s.rows[x]? | return
   -- a finished paint is shown
   let mut r := r
+  let selected := s.selected == some x
+  if r.data.selected != selected then
+    r := { r with data := { r.data with selected }, ver := r.ver + 1 }
   if let some t := r.task then
     if ← IO.hasFinished t then r := { r with shown := some t.get, task := none }
   -- behind an open tray, every other row is shown darkened
@@ -538,19 +580,19 @@ def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run 
 
 def header (s : St) : Bitmap := Id.run do
   let h := topH s
-  let hb := 0x16181B
+  let hb := Palette.color s.dim.theme .panel
   let x := s.dim.pad
   let mut b := Bitmap.blank s.W h (solid hb s.W)
   let y := s.insetTop + s.dim.px 8
   -- back to the community's home on the left; the channel and the
   -- community's name, which opens the switcher
   let iy := y + (2 * s.dim.lineH - s.font.cell) / 2
-  b := b.line s.font (Text.oneLine s.font s.font.cell "←") x iy nameInk
+  b := b.line s.font (Text.oneLine s.font s.font.cell "←") x iy (Palette.color s.dim.theme .fg)
   let tx := x + s.dim.px 40
-  b := b.line s.font (Text.oneLine s.font (s.W - tx - x) s!"# general · {s.me.name} ▾") tx y nameInk true
+  b := b.line s.font (Text.oneLine s.font (s.W - tx - x) s!"# general · {s.me.name} ▾") tx y (Palette.color s.dim.theme .fg) true
   let sub := s!"{s.total} messages · {s.people} people"
-  b := b.line s.font (Text.oneLine s.font (s.W - tx - x) sub) tx (y + s.dim.lineH) dim
-  b := b.fill 0 (h - max 2 (s.dim.px 1)) s.W h pill
+  b := b.line s.font (Text.oneLine s.font (s.W - tx - x) sub) tx (y + s.dim.lineH) (Palette.color s.dim.theme .muted)
+  b := b.fill 0 (h - max 2 (s.dim.px 1)) s.W h (Palette.color s.dim.theme .line)
   return b
 
 /-- Where the header's controls are, in its own rows. -/
@@ -820,6 +862,8 @@ def approveReq (r : Id) : M Unit := do
 
 /-- The current page's picture and taps (kept until what it shows changes). -/
 def pageTitle : PageId → String × Bool
+  | .you => ("You", false)
+  | .appearance => ("Appearance", false)
   | .getStarted => ("", false) | .create => ("", false) | .joinChoice => ("", false)
   | .openInvite => ("", false) | .paste => ("", false) | .scan => ("Join with QR code", true)
   | .name => ("", false) | .createName => ("", false)
@@ -861,6 +905,8 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
     | .home => Pages.home f dm W h (if me.waiting then 0 else k.askingAll) #["general"] k.members k.online
     | .profile => let (n, isMe, removed, can) := k.profile; Pages.profile f dm W h n isMe removed can
     | .removeConfirm => Pages.removeConfirm f dm W h k.profile.1 k.removeStage k.removeWhy
+    | .you => Appearance.you f dm W h
+    | .appearance => Appearance.page f dm W h k.setting
     | .chat => ⟨Bitmap.blank W h bg, #[]⟩
   let (t, cross) := pageTitle k.page
   -- a first launch's Get started has nowhere to go back to
@@ -884,7 +930,7 @@ theorem pageIn_acc {k k' : PageIn} (h : k = k') : k.me.acc = k'.me.acc := by rw 
 
 /-- The current state's page key. -/
 def pageIn (s : St) : PageIn :=
-  { page := s.page, W := s.W, h := viewH s, insetTop := s.insetTop, dim := s.dim, field := s.field,
+  { page := s.page, setting := s.theme.setting, W := s.W, h := viewH s, insetTop := s.insetTop, dim := s.dim, field := s.field,
     refusal := s.refusal, me := s.me.key, comms := s.comms.map (·.key),
     asking := (s.asking.filter fun r => !s.hidden.contains r.id).map (·.row), askingAll := s.asking.size,
     link := (s.links.find? (·.1 == s.me.acc)).map (·.2), members := s.members, online := s.online,
@@ -925,6 +971,9 @@ def onPageAct (a : Pages.Act) : M Unit := do
   let s ← get
   match a with
   | .back => back
+  | .you => openPage .you
+  | .appearance => openPage .appearance
+  | .theme setting => setTheme setting
   | .joinCommunity => openPage .joinChoice
   | .createCommunity =>
     s.io.textClear
@@ -1060,7 +1109,7 @@ def preparePhoto (dm : Dim) (src : Image.Src) : ByteArray × Nat × Nat × Compo
   let bytes := Image.encode w h px
   let raw := w * h * 4
   let pct := 100 - bytes.size * 100 / max raw 1
-  let thumb := Image.square src (dm.px 64) Row.bg
+  let thumb := Image.square src (dm.px 64) (Palette.color dm.theme .bg)
   (bytes, w, h, ⟨thumb, s!"{Arrival.humanBytes bytes.size} · {pct}% smaller"⟩)
 
 /-- Add photos: until the system picker lands in the twin, the bundled
@@ -1329,8 +1378,15 @@ def command (line : String) : M Bool := do
       | #[m] => switchToAcc m.acc
       | ms => s.io.ctlReply s!"switch: {ms.size} communities named {rest}; use an index"
     s.io.ctlReply s!"current {(← get).me.name}"
+  | "theme" =>
+    match rest with
+    | "system" | "light" | "dark" => setTheme (Theme.decode rest)
+    | _ => pure ()
+    let t := (← get).theme
+    s.io.ctlReply s!"theme {Theme.encode t.setting} effective {repr (Theme.effective t)}"
   | "open" =>
     let p : Option PageId := match ws[1]? with
+      | some "you" => some .you | some "appearance" => some .appearance
       | some "getStarted" => some .getStarted | some "create" => some .create | some "join" => some .joinChoice
       | some "openInvite" => some .openInvite | some "paste" => some .paste | some "scan" => some .scan
       | some "agree" => some .agree | some "waiting" => some .waiting | some "requests" => some .requests
@@ -1420,7 +1476,7 @@ its grid's rows scrolled (painted once per row and kept) and its bar
 (SheetGeom.compose: compose_row is about this). -/
 def sheetBitmap (sh : SheetSt) (mine : List String) : M Bitmap := do
   let s ← get
-  let backdrop := Paint.mixC Row.bg 0 154
+  let backdrop := Paint.mixC (Palette.color s.dim.theme .bg) (Palette.color s.dim.theme .scrim) 154
   if !sh.catalog then return Sheet.paintQuick s.font s.dim s.W backdrop mine
   let items := sheetItems s sh
   let c := catOf s sh
@@ -1434,14 +1490,14 @@ def sheetBitmap (sh : SheetSt) (mine : List String) : M Bitmap := do
       let row := Sheet.gridRow s.font s.dim s.W c s.catalog items sh.tone mine r
       modify fun s => { s with gridRows := s.gridRows.insert r row }
   let rows := (← get).gridRows
-  let blank := solid Sheet.panel s.W
+  let blank := solid (Palette.color s.dim.theme .panel) s.W
   let line (k : Nat) : ByteArray :=
     match rows[k / g.key]? with
     | some b => b.rows[k % g.key]?.getD blank
     | none => blank
   let top := Sheet.catTop s.font s.dim s.W c backdrop sh.query sh.searching sh.tone sh.cat
   let bot := Sheet.catBot s.font s.dim s.W c sh.cat sh.searching
-  return ⟨s.W, SheetGeom.compose top.rows line g.vh sh.scroll bot.rows⟩
+  return { w := s.W, rows := SheetGeom.compose top.rows line g.vh sh.scroll bot.rows }
 
 /-- The toast, if one stands, over the middle of the viewport's rows of a
 list frame (new rows: the ones under it are shared and stay). -/
@@ -1455,7 +1511,7 @@ def withToast (s : St) (fr : Array ByteArray) (vh : Nat) : Array ByteArray := Id
   let mut fr := fr
   for k in [0:tb.h] do
     if r0 + k < fr.size then
-      fr := fr.set! (r0 + k) (tb.rows[k]!.copySlice 0 fr[r0 + k]! (4 * x) (4 * tb.w))
+      fr := fr.set! (r0 + k) (Overlay.toastRow s.dim.theme fr[r0 + k]! tb.rows[k]! x k tb.w tb.h (s.dim.px 16) (max 2 (s.dim.px 2)))
   return fr
 
 /-- One frame; the twin's events for the next one, or none when the
@@ -1465,6 +1521,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   -- 0. the screen and its insets, as of now (they can arrive after the
   -- first frame, and change with rotation or the navigation mode)
   let sc ← (← get).io.screen
+  systemTheme (Theme.ofWord (sc[5]?.getD 0))
   let hs := (sc[1]?.map (·.toNat)).getD (← get).Hs
   let it := (sc[2]?.map (·.toNat)).getD (← get).insetTop
   let ib := (sc[3]?.map (·.toNat)).getD (← get).insetBot
@@ -1647,6 +1704,9 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   let font ← Font.load
   let rd ← openDb dbPath
   let wr ← Writer.start dbPath
+  let setting ← Theme.load rd
+  let theme : Theme.State := ⟨setting, Theme.ofWord (screen[5]?.getD 0)⟩
+  io.appearance (Theme.effective theme == .dark) (Palette.color (Theme.effective theme) .bg)
   -- the communities are this device's accepted facts: read them once
   -- here to choose the first page
   let probe : St := { io := io, W := W, Hs := Hs, insetTop := 0, insetBot := 0, font := font, bgRow := .empty, rd := rd, wr := wr, me := default }
@@ -1656,9 +1716,9 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   let catalog ← match ← (Sheet.loadCatalog).toBaseIO with
     | .ok c => pure c
     | .error e => do IO.eprintln s!"no emoji catalogue: {e}"; pure #[]
-  return { io := io, W := W, Hs := Hs, insetTop := (screen[2]?.getD 0).toNat, catalog := catalog,
-           dim := ⟨(screen[4]?.getD 420).toNat, font.cell⟩,
-           insetBot := (screen[3]?.getD 0).toNat, font := font, bgRow := solid Row.bg W, rd := rd,
+  return { io := io, theme := theme, W := W, Hs := Hs, insetTop := (screen[2]?.getD 0).toNat, catalog := catalog,
+           dim := ⟨(screen[4]?.getD 420).toNat, font.cell, Theme.effective theme⟩,
+           insetBot := (screen[3]?.getD 0).toNat, font := font, bgRow := solid (Palette.color (Theme.effective theme) .bg) W, rd := rd,
            wr := wr, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
            -- a removal already in the store at launch is not announced
            goneSeen := (all.toList.filter (·.removed)).map (·.acc),

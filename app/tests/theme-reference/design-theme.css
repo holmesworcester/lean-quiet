@@ -1,0 +1,143 @@
+/* Semantic roles for the primitives in tokens.css. Imported after styles.css,
+ * these values replace its fallback palette. */
+
+:root {
+  /* The surfaces, all four of them inverting on their own. */
+  --bg: var(--gray-03);
+  --panel: var(--white);
+  --line: var(--gray-10);
+  --fg: var(--black);
+  --muted: var(--gray-62);
+
+  /* Accent fill has a separate dark value; it is not an inverting token. */
+  --accent: var(--color-purple);
+  /* Filled actions stay distinct from the sidebar; hover shifts the fill. */
+  --button-bg: var(--color-purple);
+  --button-hover: var(--color-purple-dark);
+  --button-destructive-hover: var(--color-red-hover);
+  /* macOS titlebar band and divider; lighter than the accent in dark mode. */
+  --accent-line: var(--color-purple-dark);
+  /* The band is the divider's colour in light and the sidebar's in dark,
+     where the divider's is the bright brand purple. */
+  --titlebar-bg: var(--accent-line);
+
+  /* Accent fill lacks contrast as text on a dark panel. Dark mode uses the
+     library's readable channel-avatar letter color for accent ink. */
+  --accent-ink: var(--color-purple);
+
+  /* Fixed white: --white inverts to the dark panel color. */
+  --on-accent: #ffffff;
+  --on-accent-muted: rgba(255, 255, 255, 0.76);
+  /* Washes and lines on the accent: --white-* inverts to black in dark. */
+  --on-accent-5: rgba(255, 255, 255, 0.05);
+  --on-accent-10: rgba(255, 255, 255, 0.1);
+  --on-accent-20: rgba(255, 255, 255, 0.2);
+
+  /* This device's marker stays blue in both themes. */
+  --self: var(--color-blue);
+  /* Link and sentence-button ink; the library's blue is 3.4:1 on the dark
+     panel, so dark lightens it. */
+  --link: var(--color-blue);
+
+  /* Channel avatar background supplies a theme-aware accent tint. */
+  --tint: var(--channel-avatar-background);
+
+  /* Scrims stay black; the library's black ink token inverts in dark mode. */
+  --mask: rgba(0, 0, 0, 0.42);
+
+  /* The library’s green lacks text contrast on a light panel. */
+  --ok: var(--color-grass-green);
+  /* Error ink is the brand red in light. The dark red is 3.8:1 on the dark
+     panel, a fill rather than an ink, so dark text takes a lighter one. */
+  --error: var(--color-red);
+  --error-border: var(--color-red-border);
+  --error-bg: var(--error-10);
+  /* App warning ink: the library's yellows lack text contrast on white. */
+  --warning: #8f6900;
+
+  /* Presence dots sit on the accent band rather than the panel. */
+  --live: var(--color-grass-green);
+  --alert: var(--misc-yellow);
+
+  /* Transport fills and darker ink variants for labels on a panel. */
+  --arc-bluetooth: var(--color-lush-sky);
+  --arc-lan: var(--color-grass-green);
+  --arc-internet: #d9c6ff;
+  --arc-dim: var(--on-accent-20);
+  --ink-bluetooth: #0b5e91;
+  --ink-lan: #0f6b3f;
+  --ink-internet: var(--color-purple);
+
+  /* The platform's own face: SF Pro on macOS and iOS, Roboto on Android.
+     Supersedes the bundled Rubik (#948). Linux and Windows builds replace
+     this with the Noto Sans that `src/design/fonts/bundled.css` declares;
+     the platforms here bundle no typeface. `system-ui` resolves in every
+     webview Tauri targets, and the two names after it are for an engine
+     that lacks it. */
+  --font-sans: system-ui, -apple-system, Roboto, sans-serif;
+
+  /* Syntax highlighting in a code block (`highlight.ts`). The literals are
+     each at least 4.5:1 on the block's --bg ground, in both themes. */
+  --code-foreground: var(--fg);
+  --code-token-keyword: #7647c7;
+  --code-token-string: #0f6b3f;
+  --code-token-string-expression: var(--code-token-string);
+  --code-token-comment: #6b6b6b;
+  --code-token-function: #0b5e91;
+  --code-token-constant: #9a4b00;
+  --code-token-parameter: var(--fg);
+  --code-token-punctuation: var(--fg);
+  --code-token-link: var(--link);
+  --code-token-inserted: var(--code-token-string);
+  --code-token-deleted: #c7353b;
+  --code-token-changed: #8f6900;
+}
+
+/* Override roles whose primitive does not invert to the needed dark value. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --accent: var(--color-purple-dark-mode);
+    --button-bg: var(--color-purple-button-dark-mode);
+    --button-hover: var(--color-purple-button-hover-dark-mode);
+    --accent-ink: var(--channel-avatar-letter);
+    --accent-line: var(--color-purple);
+    --titlebar-bg: var(--accent);
+    --link: #5b9bff;
+    --error: #f07275;
+    --arc-internet: #b79ae0;
+    --ink-bluetooth: #8fd0ff;
+    --ink-lan: #7ee2b8;
+    --ink-internet: #d9c6ff;
+    --warning: #ebb449;
+    --code-token-keyword: #c3a6ff;
+    --code-token-string: #7ee2b8;
+    --code-token-comment: #a0a0a0;
+    --code-token-function: #8fd0ff;
+    --code-token-constant: #f5a76c;
+    --code-token-deleted: #f07275;
+    --code-token-changed: #ebb449;
+  }
+}
+
+:root[data-theme="dark"] {
+  --accent: var(--color-purple-dark-mode);
+  --button-bg: var(--color-purple-button-dark-mode);
+  --button-hover: var(--color-purple-button-hover-dark-mode);
+  --accent-ink: var(--channel-avatar-letter);
+  --accent-line: var(--color-purple);
+  --titlebar-bg: var(--accent);
+  --link: #5b9bff;
+  --error: #f07275;
+  --arc-internet: #b79ae0;
+  --ink-bluetooth: #8fd0ff;
+  --ink-lan: #7ee2b8;
+  --ink-internet: #d9c6ff;
+  --warning: #ebb449;
+  --code-token-keyword: #c3a6ff;
+  --code-token-string: #7ee2b8;
+  --code-token-comment: #a0a0a0;
+  --code-token-function: #8fd0ff;
+  --code-token-constant: #f5a76c;
+  --code-token-deleted: #f07275;
+  --code-token-changed: #ebb449;
+}

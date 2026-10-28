@@ -82,3 +82,6 @@ void     ba_scan(bool on);
 uint8_t* ba_take_luma(size_t* n, uint32_t wh[4]);
 
 #endif
+
+bool ba_dark(void);
+void ba_appearance(bool dark, uint32_t background);

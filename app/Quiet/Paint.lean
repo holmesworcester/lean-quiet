@@ -7,6 +7,7 @@ copies a row it already holds.
 -/
 import Quiet.Font
 import Quiet.Text
+import Quiet.Contrast
 
 namespace Paint
 open Font Text
@@ -24,15 +25,27 @@ def solid (c : Color) (w : Nat) : ByteArray := Id.run do
     b := b.push (r8 c) |>.push (g8 c) |>.push (b8 c) |>.push 255
   return b
 
+/-- A painted glyph row and its actual ground, retained for a later scrim.
+Only monochrome glyphs have strokes; photographs and emoji keep their pixels. -/
+structure Stroke where
+  x : Nat
+  y : Nat
+  bits : UInt64
+  n : Nat
+  ink : Color
+  /-- Only this stroke's horizontal span, starting at local x = 0. -/
+  ground : ByteArray
+
 structure Bitmap where
   w : Nat
   rows : Array ByteArray
+  strokes : Array Stroke := #[]
   deriving Inhabited
 
 def Bitmap.h (b : Bitmap) : Nat := b.rows.size
 
 /-- h rows of the given background row (one shared object). -/
-def Bitmap.blank (w h : Nat) (bg : ByteArray) : Bitmap := ⟨w, Array.replicate h bg⟩
+def Bitmap.blank (w h : Nat) (bg : ByteArray) : Bitmap := { w := w, rows := Array.replicate h bg }
 
 @[inline] def setPx (row : ByteArray) (x : Nat) (c : Color) : ByteArray :=
   let i := 4 * x
@@ -50,6 +63,10 @@ def Bitmap.blank (w h : Nat) (bg : ByteArray) : Bitmap := ⟨w, Array.replicate 
   if i + 3 < row.size then
     (row[i]!.toUInt32 <<< 16) ||| (row[i+1]!.toUInt32 <<< 8) ||| row[i+2]!.toUInt32
   else 0
+
+/-- Text resolves its colour against the pixel already composited below. -/
+def textColor (wanted : Color) (row : ByteArray) (x : Nat) : Color :=
+  Contrast.ink wanted (getPx row x)
 
 /-- Row y, changed by f (in place when the row is not shared). -/
 @[inline] def Bitmap.modify (b : Bitmap) (y : Nat) (f : ByteArray → ByteArray) : Bitmap :=
@@ -129,10 +146,14 @@ def Bitmap.glyph (f : Font) (b : Bitmap) (ch : UInt32) (x y : Nat) (c : Color) (
     let mut bits := bits0
     for k in [1:smear + 1] do bits := bits ||| (bits0 >>> k.toUInt64)
     if bits == 0 then continue
+    if let some row := b.rows[y + r]? then
+      b := { b with strokes := b.strokes.push ⟨x, y + r, bits, min 64 (n + smear), c,
+        row.extract (4*x) (4*min b.w (x + min 64 (n + smear)))⟩ }
     b := b.modify (y + r) fun row => Id.run do
       let mut row := row
       for i in [0:min 64 (n + smear)] do
-        if bits &&& (0x8000000000000000 >>> i.toUInt64) != 0 then row := setPx row (x + i) c
+        if bits &&& (0x8000000000000000 >>> i.toUInt64) != 0 then
+          row := setPx row (x + i) (textColor c row (x + i))
       return row
   return b
 

@@ -36,9 +36,9 @@ def Box.has (b : Box) (x y : Nat) : Bool := b.x ≤ x && x < b.x + b.w && b.y �
 /-- The most photos a message attaches (libquiet's). -/
 def maxChips : Nat := 4
 
-def sendBlue : Color := 0x1B6FEC
-def sendGrey : Color := 0x7F7F7F
-def line : Color := 0x3A3D41
+def sendBlue : Color := Palette.color .dark .link
+def sendGrey : Color := Palette.color .dark .muted
+def line : Color := Palette.color .dark .edge
 
 structure Layout where
   h : Nat
@@ -87,7 +87,7 @@ def bigGlyph (f : Font) (b : Bitmap) (ch : UInt32) (x y : Nat) (c : Color) : Bit
     b := b.modify (y + ty) fun row => Id.run do
       let mut row := row
       for tx in [0:n * 3 / 2] do
-        if bits &&& (0x8000000000000000 >>> (tx * 2 / 3).toUInt64) != 0 then row := setPx row (x + tx) c
+        if bits &&& (0x8000000000000000 >>> (tx * 2 / 3).toUInt64) != 0 then row := setPx row (x + tx) (textColor c row (x + tx))
       return row
   return b
 
@@ -148,32 +148,32 @@ def icon (f : Font) (dm : Dim) (b : Bitmap) (h : Hit) (x y S : Nat) (c ground : 
 def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (l : Layout) (text : String)
     (placeholder : String) (chips : Array Chip) (caret : Option (Nat × Nat)) : Bitmap := Id.run do
   let mut b := Bitmap.blank W l.h bgRow
-  b := b.fill 0 0 W (max 2 (dm.px 1)) line
+  b := b.fill 0 0 W (max 2 (dm.px 1)) (Palette.color dm.theme .edge)
   if text.isEmpty then
-    b := b.line f (oneLine f l.textW placeholder) l.textX l.textY dim
+    b := b.line f (oneLine f l.textW placeholder) l.textX l.textY (Palette.color dm.theme .muted)
   else
     for i in [0:min 5 l.lines.size] do
-      b := b.line f l.lines[i]! l.textX (l.textY + i * dm.lineH) ink
+      b := b.line f l.lines[i]! l.textX (l.textY + i * dm.lineH) (Palette.color dm.theme .fg)
   if let some (cl, cx) := caret then
     let cy := l.textY + (min 4 cl) * dm.lineH
-    b := b.fill (l.textX + cx) cy (l.textX + cx + max 2 (dm.px 1) + 1) (cy + f.cell) accent
+    b := b.fill (l.textX + cx) cy (l.textX + cx + max 2 (dm.px 1) + 1) (cy + f.cell) (Palette.color dm.theme .accentInk)
   for i in [0:min chips.size l.chips.size] do
     let (tb, xb) := l.chips[i]!
     b := b.image chips[i]!.thumb tb.x tb.y (dm.px 8)
-    b := b.round xb.x xb.y (xb.x + xb.w) (xb.y + xb.h) (xb.w / 2) 0xF5F5F5
-    b := b.line f (oneLine f f.cell "✕") (xb.x + (xb.w - f.cell / 2) / 2) (xb.y + (xb.h - f.cell) / 2) 0x333333
+    b := b.round xb.x xb.y (xb.x + xb.w) (xb.y + xb.h) (xb.w / 2) (Palette.color dm.theme .panel)
+    b := b.line f (oneLine f f.cell "✕") (xb.x + (xb.w - f.cell / 2) / 2) (xb.y + (xb.h - f.cell) / 2) (Palette.color dm.theme .fg)
     let ls := Text.layout f (dm.px 76) chips[i]!.caption
     for k in [0:min 3 ls.size] do
-      b := b.line f ls[k]! tb.x (tb.y + tb.h + dm.px 4 + k * dm.lineH) dim
+      b := b.line f ls[k]! tb.x (tb.y + tb.h + dm.px 4 + k * dm.lineH) (Palette.color dm.theme .muted)
   -- the icons at 3/2 of the text's size (26 dp), centred in their keys
   let S := dm.px 26
   let ground := getPx bgRow 0
   for (bx, h) in l.deck do
-    b := icon f dm b h (bx.x + (bx.w - S) / 2) (bx.y + (bx.h - S) / 2) S dim ground
+    b := icon f dm b h (bx.x + (bx.w - S) / 2) (bx.y + (bx.h - S) / 2) S (Palette.color dm.theme .muted) ground
   let full := !text.trimAscii.isEmpty || !chips.isEmpty
   let sw := f.adv (f.glyph 0x27A4) * 3 / 2
   b := bigGlyph f b 0x27A4 (l.send.x + (l.send.w - sw) / 2) (l.send.y + (l.send.h - f.cell * 3 / 2) / 2)
-    (if full then sendBlue else sendGrey)
+    (if full then (Palette.color dm.theme .link) else (Palette.color dm.theme .muted))
   return b
 
 def hit (l : Layout) (x y : Nat) : Hit := Id.run do

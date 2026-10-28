@@ -49,7 +49,7 @@ def Sim.io (sm : Sim) : Io where
 the composer above the bottom inset. -/
 def screenOf (sm : Sim) (W Hs insetBot : Nat) : IO (Array ByteArray) := do
   let (fr, _, o, top, bot) ← sm.last.get
-  let bg := Paint.solid Row.bg W
+  let bg := bot.back?.getD (Paint.solid (Palette.color .light .bg) W)
   let mut out := Array.replicate Hs bg
   for i in [0:top.size] do out := out.set! i top[i]!
   let vh := Hs - top.size - bot.size - insetBot

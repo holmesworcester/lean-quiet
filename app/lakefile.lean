@@ -62,3 +62,9 @@ lean_exe arrival where
 -- Photos over real TCP: two apps joined on loopback, one photo each way.
 lean_exe attach where
   root := `QTests.Attach
+
+lean_exe appearance where
+  root := `QTests.Appearance
+
+lean_exe appearance_seam where
+  root := `QTests.AppearanceSeam

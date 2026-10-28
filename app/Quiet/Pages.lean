@@ -11,24 +11,26 @@ header layer), and the boxes a tap can land on, each with what it does.
 The painter and the taps read the same boxes.
 -/
 import Quiet.Row
+import Quiet.Overlay
 
 namespace Pages
 open Paint Text Font Row
 
 /-! ## Theme (libquiet's dark Stage) -/
 
-def card : Color := 0x26292E
-def cardLine : Color := 0x3A3D41
-def primary : Color := 0x5B2A86
-def primaryInk : Color := 0xFFFFFF
-def link : Color := 0x4C9BF5
-def logo : Color := 0xE0BFF2
-def warnInk : Color := 0xF5C542
-def errorInk : Color := 0xF06C6C
+def card : Color := Palette.color .dark .panel
+def cardLine : Color := Palette.color .dark .edge
+def primary : Color := Palette.color .dark .button
+def primaryInk : Color := Palette.color .dark .onAccent
+def link : Color := Palette.color .dark .link
+def logo : Color := Palette.color .dark .accentInk
+def warnInk : Color := Palette.color .dark .warning
+def errorInk : Color := Palette.color .dark .error
 
 /-- What a tap on a page does. -/
 inductive Act where
   | back
+  | you | appearance | theme (setting : Theme.Setting)
   | joinCommunity
   | createCommunity
   | inviteLink
@@ -99,18 +101,18 @@ def rows (f : Font) (dm : Dim) (b : Bitmap) (y : Nat) (items : Array (String × 
   let x1 := b.w - dm.px 24
   let rh := dm.px 56
   let h := items.size * rh
-  let mut b := b.round x0 y x1 (y + h) (dm.px 16) cardLine
+  let mut b := b.round x0 y x1 (y + h) (dm.px 16) (Palette.color dm.theme .edge)
   let e := max 2 (dm.px 1)
-  b := b.round (x0 + e) (y + e) (x1 - e) (y + h - e) (dm.px 16 - e) card
+  b := b.round (x0 + e) (y + e) (x1 - e) (y + h - e) (dm.px 16 - e) (Palette.color dm.theme .panel)
   let mut taps := #[]
   for i in [0:items.size] do
     let (icon, label, act) := items[i]!
     let ry := y + i * rh
-    if i > 0 then b := b.fill (x0 + e) ry (x1 - e) (ry + max 1 (dm.px 1) / 2 + 1) cardLine
+    if i > 0 then b := b.fill (x0 + e) ry (x1 - e) (ry + max 1 (dm.px 1) / 2 + 1) (Palette.color dm.theme .edge)
     let ty := ry + (rh - f.cell) / 2
-    b := b.line f (oneLine f (f.cell * 2) icon) (x0 + dm.px 16) ty ink
-    b := b.line f (oneLine f (x1 - x0 - dm.px 120) label) (x0 + dm.px 16 + f.cell + dm.px 16) ty nameInk
-    b := b.line f (oneLine f f.cell "›") (x1 - dm.px 16 - f.cell / 2) ty dim
+    b := b.line f (oneLine f (f.cell * 2) icon) (x0 + dm.px 16) ty (Palette.color dm.theme .fg)
+    b := b.line f (oneLine f (x1 - x0 - dm.px 120) label) (x0 + dm.px 16 + f.cell + dm.px 16) ty (Palette.color dm.theme .fg)
+    b := b.line f (oneLine f f.cell "›") (x1 - dm.px 16 - f.cell / 2) ty (Palette.color dm.theme .muted)
     taps := taps.push (⟨x0, ry, x1 - x0, rh⟩, act)
   return (b, taps, h)
 
@@ -122,12 +124,12 @@ def button (f : Font) (dm : Dim) (b : Bitmap) (label : String) (y : Nat) (filled
   let h := dm.px 48
   let mut b := b
   if filled then
-    b := b.round x0 y x1 (y + h) (dm.px 12) primary
+    b := b.round x0 y x1 (y + h) (dm.px 12) (Palette.color dm.theme .button)
   else
     let e := max 2 (dm.px 1)
-    b := b.round x0 y x1 (y + h) (dm.px 12) cardLine
-    b := b.round (x0 + e) (y + e) (x1 - e) (y + h - e) (dm.px 12 - e) Row.bg
-  b := centred f b label (y + (h - f.cell) / 2) primaryInk
+    b := b.round x0 y x1 (y + h) (dm.px 12) (Palette.color dm.theme .edge)
+    b := b.round (x0 + e) (y + e) (x1 - e) (y + h - e) (dm.px 12 - e) (Palette.color dm.theme .bg)
+  b := centred f b label (y + (h - f.cell) / 2) (Palette.color dm.theme (if filled then .onAccent else .fg))
   return (b, (⟨x0, y, x1 - x0, h⟩, act), h)
 
 /-- A danger button (libquiet's): red, for what cannot be undone. -/
@@ -136,8 +138,8 @@ def dangerButton (f : Font) (dm : Dim) (b : Bitmap) (label : String) (y : Nat) (
   let x0 := dm.px 16
   let x1 := b.w - dm.px 16
   let h := dm.px 48
-  let b := (b.round x0 y x1 (y + h) (dm.px 12) errorInk)
-  (centred f b label (y + (h - f.cell) / 2) primaryInk, (⟨x0, y, x1 - x0, h⟩, act), h)
+  let b := (b.round x0 y x1 (y + h) (dm.px 12) (Palette.color dm.theme .danger))
+  (centred f b label (y + (h - f.cell) / 2) (Palette.color dm.theme .onAccent), (⟨x0, y, x1 - x0, h⟩, act), h)
 
 /-- A one-line field (the keyboard's text): its box, the text or a
 placeholder, the caret, and an error edge. -/
@@ -147,28 +149,28 @@ def field (f : Font) (dm : Dim) (b : Bitmap) (y : Nat) (text placeholder : Strin
   let x1 := b.w - dm.px 16
   let h := dm.px 52
   let e := max 2 (dm.px 1)
-  let mut b := b.round x0 y x1 (y + h) (dm.px 10) (if bad then errorInk else if focused then accent else cardLine)
-  b := b.round (x0 + e) (y + e) (x1 - e) (y + h - e) (dm.px 10 - e) selBg
+  let mut b := b.round x0 y x1 (y + h) (dm.px 10) (if bad then (Palette.color dm.theme .error) else if focused then (Palette.color dm.theme .accentInk) else (Palette.color dm.theme .edge))
+  b := b.round (x0 + e) (y + e) (x1 - e) (y + h - e) (dm.px 10 - e) (Palette.color dm.theme .selected)
   let ty := y + (h - f.cell) / 2
   let w := x1 - x0 - dm.px 32
-  -- a long link shows its end, where the caret is
+  -- a long (Palette.color dm.theme .link) shows its end, where the caret is
   let l := if text.isEmpty then oneLine f w placeholder else
     let full := oneLine f (10 * b.w) text
     let fw := Paint.Line.width f full
     if fw ≤ w then full else (full.filter (·.x + fw ≥ w + f.cell)).map fun g => { g with x := g.x + w - fw }
-  b := b.line f l (x0 + dm.px 16) ty (if text.isEmpty then dim else nameInk)
+  b := b.line f l (x0 + dm.px 16) ty (if text.isEmpty then (Palette.color dm.theme .muted) else (Palette.color dm.theme .fg))
   if focused then
     let cx := x0 + dm.px 16 + (if text.isEmpty then 0 else min w (Paint.Line.width f l))
-    b := b.fill cx ty (cx + e + 1) (ty + f.cell) accent
+    b := b.fill cx ty (cx + e + 1) (ty + f.cell) (Palette.color dm.theme .accentInk)
   return (b, (⟨x0, y, x1 - x0, h⟩, .field), h)
 
 /-- A page's bar: a back arrow or a cross on the left, the title centred. -/
 def bar (f : Font) (dm : Dim) (W insetTop : Nat) (title : String) (cross : Bool) : Bitmap := Id.run do
   let h := insetTop + dm.px 56
-  let mut b := Bitmap.blank W h (solid Row.bg W)
+  let mut b := Bitmap.blank W h (solid (Palette.color dm.theme .bg) W)
   let ty := insetTop + (dm.px 56 - f.cell) / 2
-  b := b.line f (oneLine f f.cell (if cross then "✕" else "←")) (dm.px 16) ty nameInk
-  b := centred f b title ty nameInk true
+  b := b.line f (oneLine f f.cell (if cross then "✕" else "←")) (dm.px 16) ty (Palette.color dm.theme .fg)
+  b := centred f b title ty (Palette.color dm.theme .fg) true
   return b
 
 /-- The bar's back target, in the bar's own rows. -/
@@ -176,33 +178,34 @@ def barBack (dm : Dim) (insetTop : Nat) : Box := ⟨0, insetTop, dm.px 64, dm.px
 
 /-- The heading a Stage opens with, 24 dp under the bar. -/
 def heading (f : Font) (dm : Dim) (b : Bitmap) (s : String) (y : Nat) : Bitmap × Nat :=
-  (centred f b s y nameInk true, f.cell + dm.px 8)
+  (centred f b s y (Palette.color dm.theme .fg) true, f.cell + dm.px 8)
 
-def blank (W h : Nat) : Bitmap := Bitmap.blank W h (solid Row.bg W)
+def blank (W h : Nat) (theme : Theme.Value := .dark) : Bitmap :=
+  Bitmap.blank W h (solid (Palette.color theme .bg) W)
 
 /-! ## The pages -/
 
 /-- Get started: the wordmark, then join or create. (Device linking is
 left out for now.) -/
 def getStarted (f : Font) (dm : Dim) (W h : Nat) : Page := Id.run do
-  let mut b := blank W h
+  let mut b := blank W h dm.theme
   let ly := dm.px 72
   let d := dm.px 64
   let lx := (W - d - dm.px 16 - 5 * f.cell / 2) / 2
-  b := b.round lx ly (lx + d) (ly + d) (d / 2) logo
-  b := b.line f (oneLine f f.cell "Q") (lx + (d - f.cell / 2) / 2) (ly + (d - f.cell) / 2) Row.bg true
-  b := b.line f (oneLine f (W / 2) "Quiet") (lx + d + dm.px 16) (ly + (d - f.cell) / 2) logo true
+  b := b.round lx ly (lx + d) (ly + d) (d / 2) (Palette.color dm.theme .accentInk)
+  b := b.line f (oneLine f f.cell "Q") (lx + (d - f.cell / 2) / 2) (ly + (d - f.cell) / 2) (Palette.color dm.theme .bg) true
+  b := b.line f (oneLine f (W / 2) "Quiet") (lx + d + dm.px 16) (ly + (d - f.cell) / 2) (Palette.color dm.theme .accentInk) true
   let (b1, hh) := heading f dm b "Let’s get started…" (ly + d + dm.px 32)
   b := b1
   let y := ly + d + dm.px 32 + hh + dm.px 16
   let (b2, taps, rh) := rows f dm b y #[("+", "Join a community", .joinCommunity), ("✚", "Create a new community", .createCommunity)]
   b := b2
-  let (b3, _) := para f dm b "⚠ Quiet is in beta and shouldn't be used for activities requiring security." (dm.px 24) (y + rh + dm.px 12) (W - dm.px 48) dim
+  let (b3, _) := para f dm b "⚠ Quiet is in beta and shouldn't be used for activities requiring security." (dm.px 24) (y + rh + dm.px 12) (W - dm.px 48) (Palette.color dm.theme .muted)
   return ⟨b3, taps⟩
 
 /-- Create a community: a heading, the name field, Continue. -/
 def create (f : Font) (dm : Dim) (W h : Nat) (name : String) (focused : Bool) : Page := Id.run do
-  let mut b := blank W h
+  let mut b := blank W h dm.theme
   let (b1, hh) := heading f dm b "Create a community" (dm.px 24)
   let fy := dm.px 24 + hh + dm.px 40
   let (b2, ft, fh) := field f dm b1 fy name "Community name" focused false
@@ -212,12 +215,12 @@ def create (f : Font) (dm : Dim) (W h : Nat) (name : String) (focused : Bool) : 
 
 /-- Join community: invite link or QR code. -/
 def joinChoice (f : Font) (dm : Dim) (W h : Nat) (status : Option String) : Page := Id.run do
-  let mut b := blank W h
+  let mut b := blank W h dm.theme
   let (b1, hh) := heading f dm b "Join community" (dm.px 24)
   let mut y := dm.px 24 + hh + dm.px 24
   b := b1
   if let some st := status then
-    let (b2, ph) := para f dm b st (dm.px 24) y (W - dm.px 48) errorInk
+    let (b2, ph) := para f dm b st (dm.px 24) y (W - dm.px 48) (Palette.color dm.theme .error)
     b := b2; y := y + ph + dm.px 12
   let (b3, taps, _) := rows f dm b y #[("⛓", "Join with invite link", .inviteLink), ("▦", "Join with QR code", .qrCode)]
   return ⟨b3, taps⟩
@@ -225,26 +228,26 @@ def joinChoice (f : Font) (dm : Dim) (W h : Nat) (status : Option String) : Page
 /-- Join with invite link: the explainer, and the sentence-button that
 opens the paste field. -/
 def openInvite (f : Font) (dm : Dim) (W h : Nat) : Page := Id.run do
-  let mut b := blank W h
+  let mut b := blank W h dm.theme
   let (b1, hh) := heading f dm b "Join with invite link" (dm.px 24)
   let (b2, ph) := para f dm b1 "Open an invite link from a community admin. (If you just installed Quiet, open the invite again!)"
-    (dm.px 24) (dm.px 24 + hh + dm.px 16) (W - dm.px 48) ink
+    (dm.px 24) (dm.px 24 + hh + dm.px 16) (W - dm.px 48) (Palette.color dm.theme .fg)
   let y := dm.px 24 + hh + dm.px 16 + ph + dm.px 24
   let l := oneLine f W "Paste a link"
   let w := Paint.Line.width f l
-  b := b2.line f l ((W - w) / 2) y link
+  b := b2.line f l ((W - w) / 2) y (Palette.color dm.theme .link)
   return ⟨b, #[(⟨(W - w) / 2, y, w, f.cell⟩, .pasteLink)]⟩
 
 /-- Paste a link to join: one field, one button; a refusal under it. -/
 def paste (f : Font) (dm : Dim) (W h : Nat) (text : String) (focused : Bool) (refusal : Option String) : Page := Id.run do
-  let mut b := blank W h
+  let mut b := blank W h dm.theme
   let (b1, hh) := heading f dm b "Paste a link to join" (dm.px 24)
   let fy := dm.px 24 + hh + dm.px 40
   let (b2, ft, fh) := field f dm b1 fy text "quiet://join/…" focused refusal.isSome
   b := b2
   let mut y := fy + fh + dm.px 8
   if let some r := refusal then
-    let (b3, ph) := para f dm b r (dm.px 16) y (W - dm.px 32) errorInk
+    let (b3, ph) := para f dm b (Cue.caption dm.theme .error ++ ": " ++ r) (dm.px 16) y (W - dm.px 32) (Palette.color dm.theme .error)
     b := b3; y := y + ph
   let (b4, bt, _) := button f dm b "Continue" (y + dm.px 16) (!text.trimAscii.isEmpty) .continue_
   return ⟨b4, #[ft, bt]⟩
@@ -257,25 +260,25 @@ def scanBox (dm : Dim) (W h : Nat) : Box :=
 /-- Join with QR code: the camera's square (its frames, or why there are
 none), the instruction, and the way to paste instead. -/
 def scan (f : Font) (dm : Dim) (W h : Nat) (camera : Option Bitmap) (note : String) : Page := Id.run do
-  let mut b := blank W h
+  let mut b := blank W h dm.theme
   let ⟨x, y, s, _⟩ := scanBox dm W h
   match camera with
   | some img => b := b.image img x y (dm.px 12)
   | none =>
-    b := b.round x y (x + s) (y + s) (dm.px 12) 0x000000
-    b := centred f b note (y + (s - f.cell) / 2) nameInk
-  let (b2, ph) := para f dm b "Point the camera at the QR code on the other device." (dm.px 24) (y + s + dm.px 24) (W - dm.px 48) ink
+    b := b.round x y (x + s) (y + s) (dm.px 12) (Palette.color dm.theme .scrim)
+    b := centred f b note (y + (s - f.cell) / 2) (Palette.color dm.theme .fg)
+  let (b2, ph) := para f dm b "Point the camera at the QR code on the other device." (dm.px 24) (y + s + dm.px 24) (W - dm.px 48) (Palette.color dm.theme .fg)
   let ly := y + s + dm.px 24 + ph + dm.px 24
   let l := oneLine f W "Paste a link to join"
   let w := Paint.Line.width f l
-  b := b2.line f l ((W - w) / 2) ly link
+  b := b2.line f l ((W - w) / 2) ly (Palette.color dm.theme .link)
   return ⟨b, #[(⟨(W - w) / 2, ly, w, f.cell⟩, .pasteLink)]⟩
 
 /-- Choose a name: what others will see, before Agree & join. -/
 def chooseName (f : Font) (dm : Dim) (W h : Nat) (name : String) : Page := Id.run do
-  let mut b := blank W h
+  let mut b := blank W h dm.theme
   let (b1, hh) := heading f dm b "Choose a name" (dm.px 24)
-  let (b2, ph) := para f dm b1 "This is how you'll appear to others in this community." (dm.px 24) (dm.px 24 + hh + dm.px 8) (W - dm.px 48) dim
+  let (b2, ph) := para f dm b1 "This is how you'll appear to others in this community." (dm.px 24) (dm.px 24 + hh + dm.px 8) (W - dm.px 48) (Palette.color dm.theme .muted)
   let fy := dm.px 24 + hh + dm.px 8 + ph + dm.px 24
   let (b3, ft, fh) := field f dm b2 fy name "Your name" true false
   let (b4, bt, _) := button f dm b3 "Continue" (fy + fh + dm.px 24) (!name.trimAscii.isEmpty) .continue_
@@ -284,9 +287,9 @@ def chooseName (f : Font) (dm : Dim) (W h : Nat) (name : String) : Page := Id.ru
 
 /-- Agree & join: what joining means, and the one button. -/
 def agree (f : Font) (dm : Dim) (W h : Nat) (community : String) : Page := Id.run do
-  let mut b := blank W h
+  let mut b := blank W h dm.theme
   let text := s!"Joining {community} shares your device's public key and what you post with its members, and gives them your history from here on. This community may include an always-on cloud server, which cannot read what is said here but sees who is in the community and when they post."
-  let (b1, ph) := para f dm b text (dm.px 16) (dm.px 24) (W - dm.px 32) ink
+  let (b1, ph) := para f dm b text (dm.px 16) (dm.px 24) (W - dm.px 32) (Palette.color dm.theme .fg)
   let (b2, bt, _) := button f dm b1 "Agree & Join" (dm.px 24 + ph + dm.px 24) true .agree
   b := b2
   return ⟨b, #[bt]⟩
@@ -300,17 +303,17 @@ wait: the community's short id (a link carries no name), the rail, and
 Stop waiting; then the footer. -/
 def waiting (f : Font) (dm : Dim) (W h : Nat) (id8 : String) (beats : Array (String × String × Beat))
     (doing : Array String) : Page := Id.run do
-  let mut b := blank W h
+  let mut b := blank W h dm.theme
   let d := dm.px 28
   let y0 := dm.px 48
-  b := b.round ((W - d) / 2) y0 ((W + d) / 2) (y0 + d) (d / 2) logo
-  b := b.line f (oneLine f f.cell "Q") ((W - f.cell / 2) / 2) (y0 + (d - f.cell) / 2) Row.bg true
+  b := b.round ((W - d) / 2) y0 ((W + d) / 2) (y0 + d) (d / 2) (Palette.color dm.theme .accentInk)
+  b := b.line f (oneLine f f.cell "Q") ((W - f.cell / 2) / 2) (y0 + (d - f.cell) / 2) (Palette.color dm.theme .bg) true
   let mut y := y0 + d + dm.px 24
-  b := centred f b "Waiting to be let in" y nameInk true
+  b := centred f b "Waiting to be let in" y (Palette.color dm.theme .fg) true
   y := y + f.cell + dm.px 12
-  b := centred f b "Someone already inside has to let you in." y dim
+  b := centred f b "Someone already inside has to let you in." y (Palette.color dm.theme .muted)
   y := y + f.cell + dm.px 24
-  -- the card
+  -- the (Palette.color dm.theme .panel)
   let x0 := dm.px 24
   let x1 := W - dm.px 24
   let cy := y
@@ -327,16 +330,16 @@ def waiting (f : Font) (dm : Dim) (W h : Nat) (id8 : String) (beats : Array (Str
   ry := ry + doing.size * dm.lineH + (if doing.isEmpty then 0 else dm.px 12)
   let stopY := ry
   let cardEnd := stopY + dm.px 52
-  b := b.round x0 cy x1 cardEnd (dm.px 12) cardLine
-  b := b.round (x0 + 2) (cy + 2) (x1 - 2) (cardEnd - 2) (dm.px 12 - 2) card
+  b := b.round x0 cy x1 cardEnd (dm.px 12) (Palette.color dm.theme .edge)
+  b := b.round (x0 + 2) (cy + 2) (x1 - 2) (cardEnd - 2) (dm.px 12 - 2) (Palette.color dm.theme .panel)
   -- head: the avatar of the id, the id, the caption
   let av := dm.px 36
-  b := b.round (x0 + dm.px 16) (cy + (headH - av) / 2) (x0 + dm.px 16 + av) (cy + (headH + av) / 2) (dm.px 6) 0x0E7C7B
-  b := b.line f (oneLine f f.cell (String.ofList (id8.toList.take 2))) (x0 + dm.px 16 + (av - f.cell) / 2) (cy + (headH - f.cell) / 2) nameInk
+  b := b.round (x0 + dm.px 16) (cy + (headH - av) / 2) (x0 + dm.px 16 + av) (cy + (headH + av) / 2) (dm.px 6) (Palette.color dm.theme .avatar)
+  b := b.line f (oneLine f f.cell (String.ofList (id8.toList.take 2))) (x0 + dm.px 16 + (av - f.cell) / 2) (cy + (headH - f.cell) / 2) (Palette.color dm.theme .fg)
   let tx := x0 + dm.px 16 + av + dm.px 12
-  b := b.line f (oneLine f (x1 - tx) s!"<{id8}>") tx (cy + dm.px 8) nameInk
-  b := b.line f (oneLine f (x1 - tx - dm.px 8) "Its name arrives with the first sync") tx (cy + dm.px 8 + f.cell) dim
-  b := b.fill (x0 + 2) (cy + headH) (x1 - 2) (cy + headH + 2) cardLine
+  b := b.line f (oneLine f (x1 - tx) s!"<{id8}>") tx (cy + dm.px 8) (Palette.color dm.theme .fg)
+  b := b.line f (oneLine f (x1 - tx - dm.px 8) "Its name arrives with the first sync") tx (cy + dm.px 8 + f.cell) (Palette.color dm.theme .muted)
+  b := b.fill (x0 + 2) (cy + headH) (x1 - 2) (cy + headH + 2) (Palette.color dm.theme .edge)
   -- the rail
   let mx := x0 + dm.px 24
   let mr := dm.px 9
@@ -344,30 +347,30 @@ def waiting (f : Font) (dm : Dim) (W h : Nat) (id8 : String) (beats : Array (Str
     let (by0, t, sub, beat, tl) := rows[i]!
     let mcy := by0 + f.cell / 2
     if i + 1 < rows.size then
-      b := b.fill (mx + mr - 1) (mcy + mr) (mx + mr + 1) (rows[i+1]!.1 + f.cell / 2 - mr) cardLine
+      b := b.fill (mx + mr - 1) (mcy + mr) (mx + mr + 1) (rows[i+1]!.1 + f.cell / 2 - mr) (Palette.color dm.theme .edge)
     match beat with
     | .done =>
-      b := b.round mx (mcy - mr) (mx + 2 * mr) (mcy + mr) mr accent
-      b := b.line f (oneLine f f.cell "✓") (mx + mr - f.cell / 4) (mcy - f.cell / 2) primaryInk
+      b := b.round mx (mcy - mr) (mx + 2 * mr) (mcy + mr) mr (Palette.color dm.theme .accentInk)
+      b := b.line f (oneLine f f.cell "✓") (mx + mr - f.cell / 4) (mcy - f.cell / 2) (Palette.color dm.theme .onAccent)
     | .now =>
-      b := b.round mx (mcy - mr) (mx + 2 * mr) (mcy + mr) mr logo
-      b := b.round (mx + 3) (mcy - mr + 3) (mx + 2 * mr - 3) (mcy + mr - 3) (mr - 3) card
-      b := b.round (mx + mr - 4) (mcy - 4) (mx + mr + 4) (mcy + 4) 4 logo
+      b := b.round mx (mcy - mr) (mx + 2 * mr) (mcy + mr) mr (Palette.color dm.theme .accentInk)
+      b := b.round (mx + 3) (mcy - mr + 3) (mx + 2 * mr - 3) (mcy + mr - 3) (mr - 3) (Palette.color dm.theme .panel)
+      b := b.round (mx + mr - 4) (mcy - 4) (mx + mr + 4) (mcy + 4) 4 (Palette.color dm.theme .accentInk)
     | .next =>
-      b := b.round mx (mcy - mr) (mx + 2 * mr) (mcy + mr) mr cardLine
-      b := b.round (mx + 3) (mcy - mr + 3) (mx + 2 * mr - 3) (mcy + mr - 3) (mr - 3) card
+      b := b.round mx (mcy - mr) (mx + 2 * mr) (mcy + mr) mr (Palette.color dm.theme .edge)
+      b := b.round (mx + 3) (mcy - mr + 3) (mx + 2 * mr - 3) (mcy + mr - 3) (mr - 3) (Palette.color dm.theme .panel)
     let rx := mx + 2 * mr + dm.px 16
     let ts := Text.layout f (x1 - rx - dm.px 16) t
     for k in [0:ts.size] do
-      b := b.line f ts[k]! rx (by0 + k * dm.lineH) (if beat == .now then logo else if beat == .done then nameInk else dim) (beat != .next)
-    let (b2, _) := para f dm b sub rx (by0 + tl * dm.lineH + dm.px 4) (x1 - rx - dm.px 16) dim
+      b := b.line f ts[k]! rx (by0 + k * dm.lineH) (if beat == .now then (Palette.color dm.theme .accentInk) else if beat == .done then (Palette.color dm.theme .fg) else (Palette.color dm.theme .muted)) (beat != .next)
+    let (b2, _) := para f dm b sub rx (by0 + tl * dm.lineH + dm.px 4) (x1 - rx - dm.px 16) (Palette.color dm.theme .muted)
     b := b2
   for i in [0:doing.size] do
-    b := b.line f (oneLine f (x1 - x0 - dm.px 32) doing[i]!) (x0 + dm.px 16) (doingY + i * dm.lineH) dim
-  b := b.fill (x0 + 2) stopY (x1 - 2) (stopY + 2) cardLine
-  b := centred f b "Stop waiting" (stopY + (dm.px 52 - f.cell) / 2) dim
+    b := b.line f (oneLine f (x1 - x0 - dm.px 32) doing[i]!) (x0 + dm.px 16) (doingY + i * dm.lineH) (Palette.color dm.theme .muted)
+  b := b.fill (x0 + 2) stopY (x1 - 2) (stopY + 2) (Palette.color dm.theme .edge)
+  b := centred f b "Stop waiting" (stopY + (dm.px 52 - f.cell) / 2) (Palette.color dm.theme .muted)
   let fy := cardEnd + dm.px 24
-  let (b3, _) := para f dm b "You can close Quiet. This picks up where it left off." (dm.px 24) fy (W - dm.px 48) dim
+  let (b3, _) := para f dm b "You can close Quiet. This picks up where it left off." (dm.px 24) fy (W - dm.px 48) (Palette.color dm.theme .muted)
   return ⟨b3, #[(⟨x0, stopY, x1 - x0, dm.px 52⟩, .stopWaiting)]⟩
 
 /-- libquiet's toast: centred, a rounded panel, a mark over one or two
@@ -376,12 +379,14 @@ def toast (f : Font) (dm : Dim) (W : Nat) (text : String) : Bitmap := Id.run do
   let w := min (W - dm.px 32) (dm.px 280)
   let ls := Text.layout f (w - dm.px 32) text
   let h := dm.px 16 + f.cell + dm.px 8 + (min 2 ls.size) * dm.lineH + dm.px 16
-  let mut b := Bitmap.blank w h (solid Row.bg w)
-  b := b.round 0 0 w h (dm.px 16) 0x34373C
-  b := centred f b "✓" (dm.px 16) 0x6FCF97 true
+  let mut b := Bitmap.blank w h (solid (Palette.color dm.theme .bg) w)
+  b := b.round 0 0 w h (dm.px 16) (Palette.color dm.theme .edge)
+  let e := max 2 (dm.px 2)
+  b := b.round e e (w-e) (h-e) (dm.px 16-e) (Palette.color dm.theme .toast)
+  b := centred f b "✓" (dm.px 16) (Palette.color dm.theme .online) true
   for i in [0:min 2 ls.size] do
     let lw := Paint.Line.width f ls[i]!
-    b := b.line f ls[i]! ((w - min w lw) / 2) (dm.px 16 + f.cell + dm.px 8 + i * dm.lineH) nameInk
+    b := b.line f ls[i]! ((w - min w lw) / 2) (dm.px 16 + f.cell + dm.px 8 + i * dm.lineH) (Palette.color dm.theme .fg)
   return b
 
 /-- One device asking to join. -/
@@ -394,38 +399,38 @@ structure Asking where
 /-- Join requests: who is waiting, each with approve and hide; or none,
 and the way to add members. -/
 def requests (f : Font) (dm : Dim) (W h : Nat) (asking : Array Asking) : Page := Id.run do
-  let mut b := blank W h
+  let mut b := blank W h dm.theme
   let mut taps := #[]
   if asking.isEmpty then
-    b := centred f b "No one is waiting to join" (dm.px 72) nameInk true
+    b := centred f b "No one is waiting to join" (dm.px 72) (Palette.color dm.theme .fg) true
     let l := oneLine f W "Add members"
     let w := Paint.Line.width f l + dm.px 32
     let x := (W - w) / 2
     let y := dm.px 72 + f.cell + dm.px 24
-    b := b.round x y (x + w) (y + dm.px 44) (dm.px 22) cardLine
-    b := b.round (x + 2) (y + 2) (x + w - 2) (y + dm.px 44 - 2) (dm.px 22 - 2) card
-    b := b.line f l (x + dm.px 16) (y + (dm.px 44 - f.cell) / 2) nameInk
+    b := b.round x y (x + w) (y + dm.px 44) (dm.px 22) (Palette.color dm.theme .edge)
+    b := b.round (x + 2) (y + 2) (x + w - 2) (y + dm.px 44 - 2) (dm.px 22 - 2) (Palette.color dm.theme .panel)
+    b := b.line f l (x + dm.px 16) (y + (dm.px 44 - f.cell) / 2) (Palette.color dm.theme .fg)
     return ⟨b, #[(⟨x, y, w, dm.px 44⟩, .addMembers)]⟩
-  b := b.line f (oneLine f W s!"{asking.size} waiting") (dm.px 16) (dm.px 16) dim
+  b := b.line f (oneLine f W s!"{asking.size} waiting") (dm.px 16) (dm.px 16) (Palette.color dm.theme .muted)
   let rh := dm.px 64
   for i in [0:asking.size] do
     let a := asking[i]!
     let y := dm.px 16 + f.cell + dm.px 8 + i * rh
     let d := dm.px 32
-    b := b.round (dm.px 16) (y + (rh - d) / 2) (dm.px 16 + d) (y + (rh + d) / 2) (dm.px 6) cardLine
-    b := b.line f (oneLine f f.cell "?") (dm.px 16 + (d - f.cell / 2) / 2) (y + (rh - f.cell) / 2) ink
+    b := b.round (dm.px 16) (y + (rh - d) / 2) (dm.px 16 + d) (y + (rh + d) / 2) (dm.px 6) (Palette.color dm.theme .edge)
+    b := b.line f (oneLine f f.cell "?") (dm.px 16 + (d - f.cell / 2) / 2) (y + (rh - f.cell) / 2) (Palette.color dm.theme .fg)
     let tx := dm.px 16 + d + dm.px 12
-    b := b.line f (oneLine f (W / 2) a.device) tx (y + dm.px 4) nameInk true
-    b := b.line f (oneLine f (W / 2) s!"New person · {a.when}") tx (y + dm.px 4 + f.cell) dim
+    b := b.line f (oneLine f (W / 2) a.device) tx (y + dm.px 4) (Palette.color dm.theme .fg) true
+    b := b.line f (oneLine f (W / 2) s!"New person · {a.when}") tx (y + dm.px 4 + f.cell) (Palette.color dm.theme .muted)
     -- approve (a check) and hide (a cross), right-aligned
     let k := dm.px 40
     let ax := W - dm.px 16 - k
     let hx := ax - dm.px 8 - k
     let ky := y + (rh - k) / 2
-    b := b.round hx ky (hx + k) (ky + k) (k / 2) cardLine
-    b := b.line f (oneLine f f.cell "✕") (hx + (k - f.cell / 2) / 2) (ky + (k - f.cell) / 2) ink
-    b := b.round ax ky (ax + k) (ky + k) (k / 2) (if a.going then cardLine else primary)
-    b := b.line f (oneLine f f.cell (if a.going then "…" else "✓")) (ax + (k - f.cell / 2) / 2) (ky + (k - f.cell) / 2) primaryInk
+    b := b.round hx ky (hx + k) (ky + k) (k / 2) (Palette.color dm.theme .edge)
+    b := b.line f (oneLine f f.cell "✕") (hx + (k - f.cell / 2) / 2) (ky + (k - f.cell) / 2) (Palette.color dm.theme .fg)
+    b := b.round ax ky (ax + k) (ky + k) (k / 2) (if a.going then (Palette.color dm.theme .edge) else (Palette.color dm.theme .button))
+    b := b.line f (oneLine f f.cell (if a.going then "…" else "✓")) (ax + (k - f.cell / 2) / 2) (ky + (k - f.cell) / 2) (Palette.color dm.theme .onAccent)
     taps := taps.push (⟨hx, ky, k, k⟩, .hide i) |>.push (⟨ax, ky, k, k⟩, .approve i)
   return ⟨b, taps⟩
 
@@ -435,90 +440,88 @@ def qrSide (dm : Dim) (W h : Nat) : Nat := min (W - dm.px 128) (h / 3)
 /-- Add members: the QR code (or its square while there is none), the
 share button, the link with Copy, the caution, what happens next. -/
 def invite (f : Font) (dm : Dim) (W h : Nat) (qr : Option Bitmap) (linkText : String) : Page := Id.run do
-  let mut b := blank W h
+  let mut b := blank W h dm.theme
   let s := qrSide dm W h
   let x := (W - s) / 2
   let y := dm.px 24
-  b := b.round (x - dm.px 16) (y - dm.px 16) (x + s + dm.px 16) (y + s + dm.px 16) (dm.px 12) cardLine
-  b := b.round (x - dm.px 15) (y - dm.px 15) (x + s + dm.px 15) (y + s + dm.px 15) (dm.px 12) Row.bg
+  b := b.round (x - dm.px 16) (y - dm.px 16) (x + s + dm.px 16) (y + s + dm.px 16) (dm.px 12) (Palette.color dm.theme .edge)
+  b := b.round (x - dm.px 15) (y - dm.px 15) (x + s + dm.px 15) (y + s + dm.px 15) (dm.px 12) (Palette.color dm.theme .bg)
   -- white under the code (its quiet zone is white too), whole pixels
-  b := b.round x y (x + s) (y + s) (dm.px 8) 0xFFFFFF
+  b := b.round x y (x + s) (y + s) (dm.px 8) (Palette.color dm.theme .white)
   if let some q := qr then b := b.image q (x + (s - q.w) / 2) (y + (s - q.h) / 2) 0
   let mut yy := y + s + dm.px 32
-  b := centred f b "Scan with the Quiet app to ask to join." yy dim
+  b := centred f b "Scan with the Quiet app to ask to join." yy (Palette.color dm.theme .muted)
   yy := yy + f.cell + dm.px 24
   let (b1, st, sh) := button f dm b "Share invite link" yy true .share
   b := b1
   yy := yy + sh + dm.px 16
-  -- the link and Copy
+  -- the (Palette.color dm.theme .link) and Copy
   let lx0 := dm.px 16
   let lx1 := W - dm.px 16
   let cw := dm.px 72
   let ls := Text.layout f (lx1 - lx0 - cw - dm.px 32) linkText
   let lh := max (dm.px 56) (ls.size * dm.lineH + dm.px 16)
-  b := b.round lx0 yy lx1 (yy + lh) (dm.px 10) cardLine
-  b := b.round (lx0 + 2) (yy + 2) (lx1 - 2) (yy + lh - 2) (dm.px 10 - 2) Row.bg
+  b := b.round lx0 yy lx1 (yy + lh) (dm.px 10) (Palette.color dm.theme .edge)
+  b := b.round (lx0 + 2) (yy + 2) (lx1 - 2) (yy + lh - 2) (dm.px 10 - 2) (Palette.color dm.theme .bg)
   for i in [0:ls.size] do
-    b := b.line f ls[i]! (lx0 + dm.px 16) (yy + dm.px 8 + i * dm.lineH) dim
+    b := b.line f ls[i]! (lx0 + dm.px 16) (yy + dm.px 8 + i * dm.lineH) (Palette.color dm.theme .muted)
   let cx := lx1 - dm.px 8 - cw
   let cy := yy + (lh - dm.px 40) / 2
-  b := b.round cx cy (cx + cw) (cy + dm.px 40) (dm.px 20) cardLine
-  b := b.round (cx + 2) (cy + 2) (cx + cw - 2) (cy + dm.px 40 - 2) (dm.px 20 - 2) Row.bg
-  b := centred f (Bitmap.blank cw f.cell (solid Row.bg cw)) "Copy" 0 nameInk |>.rows.foldl (fun (acc : Bitmap × Nat) row =>
+  b := b.round cx cy (cx + cw) (cy + dm.px 40) (dm.px 20) (Palette.color dm.theme .edge)
+  b := b.round (cx + 2) (cy + 2) (cx + cw - 2) (cy + dm.px 40 - 2) (dm.px 20 - 2) (Palette.color dm.theme .bg)
+  b := centred f (Bitmap.blank cw f.cell (solid (Palette.color dm.theme .bg) cw)) "Copy" 0 (Palette.color dm.theme .fg) |>.rows.foldl (fun (acc : Bitmap × Nat) row =>
     (acc.1.modify (cy + (dm.px 40 - f.cell) / 2 + acc.2) (fun r => row.copySlice 0 r (4 * cx) (4 * cw)), acc.2 + 1)) (b, 0) |>.1
   let ct : Box × Act := (⟨cx, cy, cw, dm.px 40⟩, .copy)
   yy := yy + lh + dm.px 16
-  let (b2, ph) := para f dm b "Anyone holding this link or code can ask to join, and a link can't be cancelled once it's sent. Share it only with people you trust." (dm.px 16) yy (W - dm.px 32) dim
+  let (b2, ph) := para f dm b "Anyone holding this link or code can ask to join, and a link can't be cancelled once it's sent. Share it only with people you trust." (dm.px 16) yy (W - dm.px 32) (Palette.color dm.theme .muted)
   b := b2
   yy := yy + ph + dm.px 24
-  b := b.line f (oneLine f W "What happens next") (dm.px 16) yy dim true
+  b := b.line f (oneLine f W "What happens next") (dm.px 16) yy (Palette.color dm.theme .muted) true
   yy := yy + dm.lineH + dm.px 8
   let steps := #["1. They open the link, or scan the code, in Quiet.", "2. Their device appears under Waiting to join.",
     "3. Once a member vouches for them, they can read and post here."]
   for st in steps do
-    let (b3, sh2) := para f dm b st (dm.px 16) yy (W - dm.px 32) nameInk
+    let (b3, sh2) := para f dm b st (dm.px 16) yy (W - dm.px 32) (Palette.color dm.theme .fg)
     b := b3
     yy := yy + sh2 + dm.px 8
   return ⟨b, #[st, ct]⟩
 
 /-- A square avatar for a community: its initial on a colour from its id. -/
-def avatarColor (id8 : String) : Color :=
-  let palette : Array Color := #[0x0E7C7B, 0xB23A48, 0x5B2A86, 0x2D6A4F, 0xB5651D, 0x1D4E89]
-  palette[(id8.toList.foldl (fun n c => n + c.toNat) 0) % palette.size]!
+def avatarColor (id8 : String) : Color := Palette.avatar id8
 
 /-! ## Home -/
 
-def band : Color := 0x2F193D
-def badgeRed : Color := 0xE42656
+def band : Color := Palette.color .dark .accent
+def badgeRed : Color := Palette.color .dark .badge
 
 /-- A red count badge (libquiet's), its right edge at x. -/
 def badge (f : Font) (dm : Dim) (b : Bitmap) (n : Nat) (xr y : Nat) : Bitmap :=
   let l := oneLine f (4 * f.cell) (if n > 99 then "99+" else toString n)
   let w := max (dm.px 24) (Paint.Line.width f l + dm.px 12)
   let h := dm.px 24
-  let b := b.round (xr - w) y xr (y + h) (h / 2) badgeRed
-  b.line f l (xr - w + (w - Paint.Line.width f l) / 2) (y + (h - f.cell) / 2) primaryInk
+  let b := Overlay.badge dm.theme b (xr-w) y w h (h/2) (max 2 (dm.px 2))
+  b.line f l (xr - w + (w - Paint.Line.width f l) / 2) (y + (h - f.cell) / 2) (Palette.color dm.theme .onAccent)
 
 /-- The home band (the header layer): the community's avatar and name,
 with the caret that opens the switcher, and my avatar on the right. -/
 def homeBand (f : Font) (dm : Dim) (W insetTop : Nat) (name id8 me : String) : Bitmap := Id.run do
   let h := insetTop + dm.px 64
-  let mut b := Bitmap.blank W h (solid band W)
+  let mut b := Bitmap.blank W h (solid (Palette.color dm.theme .panel) W)
   let d := dm.px 32
   let y := insetTop + (dm.px 64 - d) / 2
   let x := dm.px 16
   b := b.round x y (x + d) (y + d) (dm.px 4) (avatarColor id8)
   let ini := String.ofList [(name.toList.headD '?').toUpper]
-  b := b.line f (oneLine f f.cell ini) (x + (d - f.cell / 2) / 2) (y + (d - f.cell) / 2) primaryInk
-  b := b.line f (oneLine f (W - dm.px 140) s!"{name} ▾") (x + d + dm.px 10) (y + (d - f.cell) / 2) primaryInk true
+  b := b.line f (oneLine f f.cell ini) (x + (d - f.cell / 2) / 2) (y + (d - f.cell) / 2) (Palette.color dm.theme .onAccent)
+  b := b.line f (oneLine f (W - dm.px 140) s!"{name} ▾") (x + d + dm.px 10) (y + (d - f.cell) / 2) (Palette.color dm.theme .fg) true
   let mx := W - dm.px 16 - d
-  b := b.round mx y (mx + d) (y + d) (dm.px 4) 0xA0580A
+  b := b.round mx y (mx + d) (y + d) (dm.px 4) (Palette.color dm.theme .avatar)
   let mi := String.ofList [(me.toList.headD '?').toUpper]
-  b := b.line f (oneLine f f.cell mi) (mx + (d - f.cell / 2) / 2) (y + (d - f.cell) / 2) primaryInk
+  b := b.line f (oneLine f f.cell mi) (mx + (d - f.cell / 2) / 2) (y + (d - f.cell) / 2) (Palette.color dm.theme .onAccent)
   return b
 
 /-- The online dot: a member's device holds a session with this node. -/
-def online : Color := 0x2EB67D
+def online : Color := Palette.color .dark .online
 
 /-- The community's home: "Waiting to join" with its red count while
 anyone waits (for those who can let them in), Channels, and Direct
@@ -526,26 +529,26 @@ messages (the people, a green dot on each whose device this node is
 connected to). -/
 def home (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array String) (people : Array (String × Bool))
     (on : Array Bool := #[]) : Page := Id.run do
-  let mut b := Bitmap.blank W h (solid band W)
-  b := b.round 0 0 W (h + dm.px 16) (dm.px 16) Row.bg
+  let mut b := Bitmap.blank W h (solid (Palette.color dm.theme .panel) W)
+  b := b.round 0 0 W (h + dm.px 16) (dm.px 16) (Palette.color dm.theme .bg)
   let mut taps := #[]
   let mut y := dm.px 16
   let rh := dm.px 44
   if waiting > 0 then
-    b := b.line f (oneLine f f.cell "☺") (dm.px 16) (y + (rh - f.cell) / 2) dim
-    b := b.line f (oneLine f (W - dm.px 120) "Waiting to join") (dm.px 16 + f.cell) (y + (rh - f.cell) / 2) nameInk
+    b := b.line f (oneLine f f.cell "☺") (dm.px 16) (y + (rh - f.cell) / 2) (Palette.color dm.theme .muted)
+    b := b.line f (oneLine f (W - dm.px 120) "Waiting to join") (dm.px 16 + f.cell) (y + (rh - f.cell) / 2) (Palette.color dm.theme .fg)
     b := badge f dm b waiting (W - dm.px 16) (y + (rh - dm.px 24) / 2)
     taps := taps.push (⟨0, y, W, rh⟩, Act.requests)
     y := y + rh + dm.px 24
-  b := b.line f (oneLine f W "Channels") (dm.px 16) y nameInk true
+  b := b.line f (oneLine f W "Channels") (dm.px 16) y (Palette.color dm.theme .fg) true
   y := y + dm.lineH + dm.px 8
   for i in [0:channels.size] do
-    b := b.line f (oneLine f f.cell "#") (dm.px 16) (y + (rh - f.cell) / 2) dim
-    b := b.line f (oneLine f (W - dm.px 64) channels[i]!) (dm.px 16 + f.cell) (y + (rh - f.cell) / 2) nameInk
+    b := b.line f (oneLine f f.cell "#") (dm.px 16) (y + (rh - f.cell) / 2) (Palette.color dm.theme .muted)
+    b := b.line f (oneLine f (W - dm.px 64) channels[i]!) (dm.px 16 + f.cell) (y + (rh - f.cell) / 2) (Palette.color dm.theme .fg)
     taps := taps.push (⟨0, y, W, rh⟩, Act.openChannel i)
     y := y + rh
   y := y + dm.px 24
-  b := b.line f (oneLine f W "Direct messages") (dm.px 16) y nameInk true
+  b := b.line f (oneLine f W "Direct messages") (dm.px 16) y (Palette.color dm.theme .fg) true
   y := y + dm.lineH + dm.px 8
   let d := dm.px 32
   for i in [0:people.size] do
@@ -557,14 +560,14 @@ def home (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array Str
       let r := dm.px 6
       let cx := dm.px 16 + d
       let cy := y + (rh + d) / 2
-      b := b.round (cx - r - 2) (cy - r - 2) (cx + r + 2) (cy + r + 2) (r + 2) Row.bg
-      b := b.round (cx - r) (cy - r) (cx + r) (cy + r) r online
+      b := b.round (cx - r - 2) (cy - r - 2) (cx + r + 2) (cy + r + 2) (r + 2) (Palette.color dm.theme .bg)
+      b := b.round (cx - r) (cy - r) (cx + r) (cy + r) r (Palette.color dm.theme .online)
     let ini := String.ofList [(n.toList.headD '?').toUpper]
-    b := b.line f (oneLine f f.cell ini) (dm.px 16 + (d - f.cell / 2) / 2) (y + (rh - f.cell) / 2) primaryInk
-    let l := oneLine f (W - dm.px 100) n
-    b := b.line f l (dm.px 16 + d + dm.px 12) (y + (rh - f.cell) / 2) nameInk
+    b := b.line f (oneLine f f.cell ini) (dm.px 16 + (d - f.cell / 2) / 2) (y + (rh - f.cell) / 2) (Palette.color dm.theme .onAccent)
+    let l := oneLine f (W - dm.px 100) ((if on[i]?.getD false then Cue.caption dm.theme .connected ++ " · " else "") ++ n)
+    b := b.line f l (dm.px 16 + d + dm.px 12) (y + (rh - f.cell) / 2) (Palette.color dm.theme .fg)
     if isMe then
-      b := b.line f (oneLine f W "(you)") (dm.px 16 + d + dm.px 20 + Paint.Line.width f l) (y + (rh - f.cell) / 2) dim
+      b := b.line f (oneLine f W "(you)") (dm.px 16 + d + dm.px 20 + Paint.Line.width f l) (y + (rh - f.cell) / 2) (Palette.color dm.theme .muted)
     taps := taps.push (⟨0, y, W, rh⟩, Act.person i)
     y := y + rh
   return ⟨b, taps⟩
@@ -573,18 +576,22 @@ def home (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array Str
 "Removed from community" on a removed member's; and Remove from
 community (danger) when it is offered (Remove.offered). -/
 def profile (f : Font) (dm : Dim) (W h : Nat) (name : String) (isMe removed canRemove : Bool) : Page := Id.run do
-  let mut b := blank W h
+  let mut b := blank W h dm.theme
   let d := dm.px 72
   let y0 := dm.px 32
   b := b.round ((W - d) / 2) y0 ((W + d) / 2) (y0 + d) (dm.px 8) (avatarColor name)
-  b := centred f b (String.ofList [(name.toList.headD '?').toUpper]) (y0 + (d - f.cell) / 2) primaryInk true
+  b := centred f b (String.ofList [(name.toList.headD '?').toUpper]) (y0 + (d - f.cell) / 2) (Palette.color dm.theme .onAccent) true
   let mut y := y0 + d + dm.px 20
-  b := centred f b name y nameInk true
+  b := centred f b name y (Palette.color dm.theme .fg) true
   y := y + f.cell + dm.px 8
-  if isMe then b := centred f b "(you)" y dim
-  if removed then b := centred f b "Removed from community" y dim
+  if isMe then b := centred f b "(you)" y (Palette.color dm.theme .muted)
+  if removed then b := centred f b "Removed from community" y (Palette.color dm.theme .muted)
   y := y + f.cell + dm.px 32
   let mut taps := #[]
+  if isMe then
+    let (b1, ts, _) := rows f dm b y #[("◐", "You", .you)]
+    b := b1
+    taps := ts
   if canRemove then
     let (b1, t, _) := dangerButton f dm b "Remove from community" y .removeStart
     b := b1
@@ -596,7 +603,7 @@ that it cannot be undone; while it is written, that it is; a refusal
 with its reason and Try again. Nothing is written before the second
 confirmation (Remove.writes_only_after_two). -/
 def removeConfirm (f : Font) (dm : Dim) (W h : Nat) (name : String) (stage : Nat) (why : String) : Page := Id.run do
-  let mut b := blank W h
+  let mut b := blank W h dm.theme
   let mut y := dm.px 24
   let (title, body) := match stage with
     | 1 => (s!"Remove {name}?",
@@ -607,7 +614,7 @@ def removeConfirm (f : Font) (dm : Dim) (W h : Nat) (name : String) (stage : Nat
     | _ => ("Couldn't remove", why)
   let (b1, hh) := heading f dm b title y
   y := y + hh + dm.px 12
-  let (b2, ph) := para f dm b1 body (dm.px 24) y (W - dm.px 48) (if stage == 4 then errorInk else dim)
+  let (b2, ph) := para f dm b1 body (dm.px 24) y (W - dm.px 48) (if stage == 4 then (Palette.color dm.theme .error) else (Palette.color dm.theme .muted))
   b := b2
   y := y + ph + dm.px 32
   let mut taps := #[]
@@ -681,9 +688,9 @@ rows (their id, "Waiting for a member to let you in.", a "joining"
 chip); then Join a community and Create a community. -/
 def switcher (f : Font) (dm : Dim) (W h : Nat) (es : Array Entry) (asking : Nat) (canInvite : Bool) : Page := Id.run do
   let pw := min W (dm.px 320)
-  let mut b := blank W h
+  let mut b := blank W h dm.theme
   -- the conversation behind the panel is dimmed
-  b := b.fill pw 0 W h 0x0E0F11
+  b := b.fill pw 0 W h (Palette.color dm.theme .scrim)
   let mut taps := #[]
   let rh := dm.px 76
   let d := dm.px 48
@@ -692,31 +699,32 @@ def switcher (f : Font) (dm : Dim) (W h : Nat) (es : Array Entry) (asking : Nat)
     let ax := dm.px 24
     let ay := y + (rh - d) / 2
     if e.current then
-      b := b.round (ax - 3) (ay - 3) (ax + d + 3) (ay + d + 3) (dm.px 6) logo
+      b := b.round (ax - 3) (ay - 3) (ax + d + 3) (ay + d + 3) (dm.px 6) (Palette.color dm.theme .accentInk)
     b := b.round ax ay (ax + d) (ay + d) (dm.px 4) (avatarColor e.id8)
     let initial := if e.waiting then String.ofList (e.id8.toList.take 2) else String.ofList [(e.name.toList.headD '?').toUpper]
     let iw := Paint.Line.width f (oneLine f f.cell initial)
-    b := b.line f (oneLine f f.cell initial) (ax + (d - iw) / 2) (ay + (d - f.cell) / 2) primaryInk
+    b := b.line f (oneLine f f.cell initial) (ax + (d - iw) / 2) (ay + (d - f.cell) / 2) (Palette.color dm.theme .onAccent)
     let tx := ax + d + dm.px 16
     let right := if e.current && canInvite then dm.px 56 else if e.waiting then dm.px 88 else dm.px 16
     if e.waiting then
-      b := b.line f (oneLine f (pw - tx - right) s!"<{e.id8}>") tx (y + dm.px 14) dim
-      b := b.line f (oneLine f (pw - tx - right) "Waiting for a member to let you in.") tx (y + dm.px 14 + f.cell) dim
+      b := b.line f (oneLine f (pw - tx - right) s!"<{e.id8}>") tx (y + dm.px 14) (Palette.color dm.theme .muted)
+      b := b.line f (oneLine f (pw - tx - right) "Waiting for a member to let you in.") tx (y + dm.px 14 + f.cell) (Palette.color dm.theme .muted)
       let cl := oneLine f (dm.px 80) "joining"
       let cw := Paint.Line.width f cl + dm.px 16
       let cx := pw - dm.px 12 - cw
       let cy := y + (rh - dm.px 28) / 2
-      b := b.round cx cy (cx + cw) (cy + dm.px 28) (dm.px 14) cardLine
-      b := b.round (cx + 2) (cy + 2) (cx + cw - 2) (cy + dm.px 28 - 2) (dm.px 14 - 2) Row.bg
-      b := b.line f cl (cx + dm.px 8) (cy + (dm.px 28 - f.cell) / 2) dim
+      b := b.round cx cy (cx + cw) (cy + dm.px 28) (dm.px 14) (Palette.color dm.theme .edge)
+      b := b.round (cx + 2) (cy + 2) (cx + cw - 2) (cy + dm.px 28 - 2) (dm.px 14 - 2) (Palette.color dm.theme .bg)
+      b := b.line f cl (cx + dm.px 8) (cy + (dm.px 28 - f.cell) / 2) (Palette.color dm.theme .muted)
     else
-      b := b.line f (oneLine f (pw - tx - right) e.name) tx (y + (rh - f.cell) / 2) nameInk
+      b := b.line f (oneLine f (pw - tx - right) ((if e.current then Cue.caption dm.theme .selected ++ " " else "") ++
+        (if e.unread > 0 then s!"{Cue.caption dm.theme .unread} {e.unread} · " else "") ++ e.name)) tx (y + (rh - f.cell) / 2) (Palette.color dm.theme .fg)
     if e.current && canInvite then
       let gx := pw - dm.px 48
-      b := b.line f (oneLine f f.cell "☺+") gx (y + (rh - f.cell) / 2) nameInk
+      b := b.line f (oneLine f f.cell "☺+") gx (y + (rh - f.cell) / 2) (Palette.color dm.theme .fg)
       taps := taps.push (⟨gx - dm.px 8, y, dm.px 56, rh⟩, .addMembers)
     if e.unread > 0 then
-      b := b.round (ax + d - dm.px 10) (ay - dm.px 8) (ax + d + dm.px 14) (ay + dm.px 12) (dm.px 10) errorInk
+      b := Overlay.badge dm.theme b (ax + d - dm.px 10) (ay - dm.px 8) (dm.px 24) (dm.px 20) (dm.px 10) (max 2 (dm.px 2))
     taps := taps.push (⟨0, y, pw - (if e.current && canInvite then dm.px 56 else 0), rh⟩, .switchTo idx)
     y := y + rh
   y := y + dm.px 16
@@ -727,10 +735,10 @@ def switcher (f : Font) (dm : Dim) (W h : Nat) (es : Array Entry) (asking : Nat)
   for (icon, label, act) in extra do
     let ax := dm.px 24
     let ay := y + (dm.px 64 - d) / 2
-    b := b.round ax ay (ax + d) (ay + d) (dm.px 6) card
+    b := b.round ax ay (ax + d) (ay + d) (dm.px 6) (Palette.color dm.theme .panel)
     let iw := Paint.Line.width f (oneLine f (2 * f.cell) icon)
-    b := b.line f (oneLine f (2 * f.cell) icon) (ax + (d - iw) / 2) (ay + (d - f.cell) / 2) ink
-    b := b.line f (oneLine f (pw - ax - d - dm.px 32) label) (ax + d + dm.px 16) (y + (dm.px 64 - f.cell) / 2) nameInk
+    b := b.line f (oneLine f (2 * f.cell) icon) (ax + (d - iw) / 2) (ay + (d - f.cell) / 2) (Palette.color dm.theme .fg)
+    b := b.line f (oneLine f (pw - ax - d - dm.px 32) label) (ax + d + dm.px 16) (y + (dm.px 64 - f.cell) / 2) (Palette.color dm.theme .fg)
     taps := taps.push (⟨0, y, pw, dm.px 64⟩, act)
     y := y + dm.px 64
   -- a tap on the dimmed conversation closes the panel

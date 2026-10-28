@@ -53,6 +53,9 @@ typedef struct {
   float        off;
   uint32_t     content_h, view_h;
   uint32_t     ime;
+  uint32_t     system_dark;
+  bool         effective_dark;
+  uint32_t     background;
   char*        text;
   uint32_t     pos[4];
   // events for the next frame
@@ -205,6 +208,8 @@ static void script(void) {
     } else if (sscanf(line, "!scroll %d", &x) == 1) {
       hs.off = (float)x;
       clamp_off();
+    } else if (sscanf(line, "!theme %63s", a) == 1) {
+      hs.system_dark = strcmp(a, "dark") == 0;
     } else if (sscanf(line, "!ime %d", &x) == 1) {
       hs.ime = (uint32_t)(x < 0 ? 0 : x);
       ev_push(6, hs.ime, 0, 0);
@@ -237,9 +242,9 @@ static void hold(lean_object** slot, b_lean_obj_arg f) {
 // -------------
 
 lean_obj_res lq_screen(void) {
-  uint32_t     v[5] = { HW, HH, HTOP, HBOT, HDPI };
-  lean_object* a    = lean_mk_empty_array_with_capacity(lean_box(5));
-  for (int i = 0; i < 5; i++) a = lean_array_push(a, lean_box_uint32(v[i]));
+  uint32_t     v[6] = { HW, HH, HTOP, HBOT, HDPI, hs.system_dark };
+  lean_object* a    = lean_mk_empty_array_with_capacity(lean_box(6));
+  for (int i = 0; i < 6; i++) a = lean_array_push(a, lean_box_uint32(v[i]));
   return lean_io_result_mk_ok(a);
 }
 
@@ -343,4 +348,10 @@ lean_obj_res lq_now_us(void) {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
   return lean_io_result_mk_ok(lean_box_uint64((uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u));
+}
+
+lean_obj_res lq_appearance(uint8_t dark, uint32_t background) {
+  hs.effective_dark = dark;
+  hs.background = background;
+  return lean_io_result_mk_ok(lean_box(0));
 }

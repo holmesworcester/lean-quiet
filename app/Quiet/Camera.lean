@@ -87,6 +87,6 @@ def preview (f : Frame) (S : Nat) : Bitmap := Id.run do
         row := setPx (setPx row (2 * i2) c) (2 * i2 + 1) c
     rows := rows.push row
     if rows.size < S then rows := rows.push row
-  return ⟨S, rows⟩
+  return { w := S, rows := rows }
 
 end Camera

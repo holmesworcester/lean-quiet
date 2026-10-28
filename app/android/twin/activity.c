@@ -58,6 +58,8 @@ static uint32_t        ba_pos[4];
 
 static JavaVM*   ba_vm;
 static jobject   ba_act;
+static jmethodID ba_appearance_m;
+static bool ba_system_dark;
 static jmethodID ba_show_ime, ba_clear_text, ba_copy_text, ba_scan_m;
 
 // The newest camera frame's Y plane, until Lean takes it (ba_take_luma).
@@ -188,6 +190,32 @@ char* ba_text(uint32_t pos[4]) {
   memcpy(pos, ba_pos, sizeof ba_pos);
   pthread_mutex_unlock(&ba_mu);
   return s;
+}
+
+static void JNICALL ba_n_appearance(JNIEnv* env, jclass cls, jboolean dark) {
+  (void)env; (void)cls;
+  pthread_mutex_lock(&ba_mu);
+  ba_system_dark = dark;
+  pthread_mutex_unlock(&ba_mu);
+}
+
+bool ba_dark(void) {
+  pthread_mutex_lock(&ba_mu);
+  bool dark = ba_system_dark;
+  pthread_mutex_unlock(&ba_mu);
+  return dark;
+}
+
+void ba_appearance(bool dark, uint32_t background) {
+  if (!ba_vm || !ba_act || !ba_appearance_m) return;
+  JNIEnv* env;
+  if ((*ba_vm)->GetEnv(ba_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK
+      && (*ba_vm)->AttachCurrentThread(ba_vm, &env, NULL) != JNI_OK) return;
+  (*env)->CallVoidMethod(env, ba_act, ba_appearance_m, (jboolean)dark, (jint)background);
+  if ((*env)->ExceptionCheck(env)) {
+    (*env)->ExceptionDescribe(env);
+    (*env)->ExceptionClear(env);
+  }
 }
 
 static void JNICALL ba_n_insets(JNIEnv* env, jclass cls, jint top, jint bottom, jint ime) {
@@ -363,12 +391,13 @@ static void ba_java(ANativeActivity* act) {
   JNIEnv* env = act->env;
   jclass  cls = (*env)->GetObjectClass(env, act->clazz);
   JNINativeMethod ms[] = {
+    { "nAppearance", "(Z)V", (void*)ba_n_appearance },
     { "nInsets", "(III)V", (void*)ba_n_insets },
     { "nText", "(Ljava/lang/String;IIII)V", (void*)ba_n_text },
     { "nSend", "()V", (void*)ba_n_send },
     { "nLuma", "(Ljava/nio/ByteBuffer;IIII)V", (void*)ba_n_luma },
   };
-  if ((*env)->RegisterNatives(env, cls, ms, 4) != 0) {
+  if ((*env)->RegisterNatives(env, cls, ms, 5) != 0) {
     (*env)->ExceptionClear(env);
     __android_log_write(ANDROID_LOG_ERROR, "lean", "cannot register the Java half's natives");
     return;
@@ -378,6 +407,7 @@ static void ba_java(ANativeActivity* act) {
   }
   ba_vm         = act->vm;
   ba_act        = (*env)->NewGlobalRef(env, act->clazz);
+  ba_appearance_m = (*env)->GetMethodID(env, cls, "appearance", "(ZI)V");
   ba_show_ime   = (*env)->GetMethodID(env, cls, "showIme", "(Z)V");
   ba_clear_text = (*env)->GetMethodID(env, cls, "clearText", "()V");
   ba_copy_text  = (*env)->GetMethodID(env, cls, "copyText", "(Ljava/lang/String;)V");

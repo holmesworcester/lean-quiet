@@ -419,9 +419,9 @@ lean_obj_res lq_screen(void) {
   lq.h            = (uint32_t)h;
   lq.inset_top    = (uint32_t)top;
   lq.inset_bottom = (uint32_t)bottom;
-  uint32_t     v[5] = { (uint32_t)w, (uint32_t)h, (uint32_t)top, (uint32_t)bottom, (uint32_t)ba_dpi() };
-  lean_object* a    = lean_mk_empty_array_with_capacity(lean_box(5));
-  for (int i = 0; i < 5; i += 1) {
+  uint32_t     v[6] = { (uint32_t)w, (uint32_t)h, (uint32_t)top, (uint32_t)bottom, (uint32_t)ba_dpi(), ba_dark() };
+  lean_object* a    = lean_mk_empty_array_with_capacity(lean_box(6));
+  for (int i = 0; i < 6; i += 1) {
     a = lean_array_push(a, lean_box_uint32(v[i]));
   }
   return lean_io_result_mk_ok(a);
@@ -565,4 +565,9 @@ lean_obj_res lq_copy(b_lean_obj_arg text) {
 
 lean_obj_res lq_now_us(void) {
   return lean_io_result_mk_ok(lean_box_uint64(lq_tick() / 1000));
+}
+
+lean_obj_res lq_appearance(uint8_t dark, uint32_t background) {
+  ba_appearance(dark, background);
+  return lean_io_result_mk_ok(lean_box(0));
 }
