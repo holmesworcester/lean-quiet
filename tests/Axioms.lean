@@ -524,6 +524,7 @@ open Engine.World
 #print axioms Engine.World.frame_fold_asked
 #print axioms Engine.World.have_wants
 #print axioms Engine.World.offer_delivers
+#print axioms Engine.World.cached_exact
 #print axioms Engine.World.grows_all
 #print axioms Engine.World.walkN_laws
 #print axioms Engine.World.walk_proof

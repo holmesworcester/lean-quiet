@@ -270,7 +270,10 @@ The upper and lower bounds match up to a constant per hop:
     `NodeOk` (its index names exactly the stored ops of each room, its
     snapshots name stored ops, no family sessions, ops filed under their
     ids, the log exactly the store), against any attacker, over every
-    entry point and restart; so `index_store_proof` and `restart_proof`;
+    entry point and restart; so `index_store_proof` and `restart_proof`.
+    holmes-a3's cache law (`Cached` with the engine's `Inv`) gives the
+    same index law (`cached_exact`); this world keeps the set form
+    because a restart boots from the log, in another order than `stored`;
   - `reach_flight`: every packet in flight was sent no later than now,
     and an honest one says it came from its sender's address;
   - `grows_proof`: shared stores only grow;

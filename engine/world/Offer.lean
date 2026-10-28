@@ -453,4 +453,23 @@ theorem offer_delivers : offer_delivers_stmt := by
     apply holds_named Q _ (hf.unclashed (k3 + 1)) j i r y (grow j k (k3 + 1) (by omega) hy)
     rw [e3, b3, ← hid]; exact hstored
 
+/-! ## The index law, two ways -/
+
+/-- **holmes-a3's cache law gives this world's.** NodeLaws' `Cached` says
+a node's index is, structurally, the index booting from the store's
+stored ops computes; with the engine's `Inv` it names exactly the stored
+ops of each room (`cached_items`), which is `IxExact`. The n-node world
+keeps `IxExact` itself (in `NodeOk`), because a restart here boots from
+the store's log, whose order differs from `stored`'s, so the index is
+equal as a set of items per room but not as a structure. -/
+theorem cached_exact (fam : Family F) (n : Node) (h : Held F) (hi : Inv fam h.db) (hc : Cached fam n h.db) :
+    IxExact fam n.ix h := by
+  intro r x
+  constructor
+  · rintro ⟨it, hit, e⟩
+    obtain ⟨o, ho, hr, _⟩ := (cached_items fam hi hc r it).1 hit
+    exact ⟨o, e ▸ ho, hr⟩
+  · rintro ⟨o, ho, hr⟩
+    exact ⟨(keyOf fam o, x), (cached_items fam hi hc r _).2 ⟨o, ho, hr, rfl⟩, rfl⟩
+
 end Engine.World
