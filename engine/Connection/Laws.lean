@@ -14,6 +14,11 @@ Proven:
 - In Connection/Noise.lean: `handshake_agrees`, `sent1_write1`,
   `sent1_read1`, `read2_write2'`; in Connection/Frame.lean: `open_seal`,
   `cid_seal`.
+- In Connection/NoiseSymbolic.lean, the same handshake functions over
+  symbolic terms against an active Dolev-Yao attacker: `kk_secret`
+  (session keys), `kk_forward_secret` (session keys once the statics
+  leak), `kk_authentic` and `kk_authentic_resp` (each side accepts only
+  the other's messages).
 
 To prove, over the world as a pure step relation (holmes-a3's generic
 Node; see the README):

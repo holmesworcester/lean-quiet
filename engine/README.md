@@ -24,7 +24,8 @@ Proven (`Proofs.lean`), about that code run on the model:
 
 - `inv_ingest`, `inv_step`, `purge_inv`: the tables keep `Inv` through
   any interleaving of arrivals, steps and purges (so through any crash,
-  which leaves a committed state).
+  which leaves a committed state). Among its fields: each key's index
+  list holds an op at most once (`Inv.nodup`).
 - `status_iff_spec`: at rest (queue empty), the persisted verdicts are
   exactly the declarative spec's (`Spec.lean`: the least fixpoint of
   `judge`), and the index holds exactly the Valid facts' keys.
@@ -156,6 +157,8 @@ watches are the keys of the lists it read: nothing is recorded.
 - `view_stable`: so a view's answer changes only if a row is filed
   under a key it read. Notices for exactly those keys are complete;
   `querydiff` checks it on SQLite after every commit.
+- `matching_nodup`: a list's rows name distinct ops, so its `total`
+  counts ops (`perm_sortPos`: sorting only reorders).
 
 ## The community (`Community/`)
 
@@ -249,7 +252,9 @@ code (Connection/, one file per op type).
   conn-scope ops on the bare wire, `request` and `connection`, and the
   connection op's id is the connection id. A joiner's request rides in
   message 1's hello, so it reaches the inviter before any approval and
-  opens nothing.
+  opens nothing. The handshake's functions are generic in their
+  carrier (`Suite α`): the validators run them on bytes, and the
+  secrecy proofs run the same functions on symbolic terms.
 - **Local ops carry the secrets.** `eph` holds an ephemeral secret.
   `opened` is the responder's read of a request, citing this device's
   `secret`. `established` is each side's session: its validator re-runs
@@ -275,12 +280,66 @@ code (Connection/, one file per op type).
   they run on SQLite and on the model.
 
 Laws (`Connection/Laws.lean`, `Connection/Noise.lean`,
-`Connection/Frame.lean`, `Engine/Families.lean`):
+`Connection/NoiseSymbolic.lean`, `Connection/Frame.lean`,
+`Engine/Families.lean`):
 - `wire_kinds`;
 - `established_agrees` (both ends hold one session);
-- `handshake_agrees`, `sent1_write1`, `sent1_read1`, `read2_write2'`;
+- `handshake_agrees`, `sent1_write1`, `sent1_read1`, `read2_write2'`,
+  for any suite whose DH commutes, whose AEAD opens what it seals and
+  whose messages split into their key and the rest;
 - `open_seal`, `cid_seal`;
 - `sum_left`.
+
+**The handshake in a symbolic model** (`Connection/NoiseSymbolic.lean`,
+namespace `Connection.Noise.Symbolic`). `write1`, `read1`, `sent1`,
+`write2` and `read2` are the functions the validators run, at a term
+algebra `T` instead of bytes. Cryptography is perfect (free hashes,
+HKDF, AEAD and pairs), private exponents are names, and the only DH
+equation is DH(i, j) = DH(j, i) for names i and j. The attacker
+(`Derivable`) is Dolev-Yao and active: it hands honest parties anything
+it derives and learns what they send and what they read. Honest parties
+may be any names, in any number of runs, and take their payloads from
+the attacker, as Quiet's are public. Proof: what the attacker derives
+stays `Clean` (no secret name, no DH value of two secret names), and the
+session keys are not clean.
+- `good`, `kk_runs`: the symbolic suite satisfies the correctness laws'
+  assumptions, and the honest symbolic run completes, so the laws below
+  are not vacuous.
+- `kk_secret_init`: an initiator's keys after `sent1` and `read2` on any
+  message 2 are not derivable, if the responder's static is secret and
+  so is the initiator's static or ephemeral. `kk_secret_resp`: a
+  responder's keys after `read1` on any message 1 and `write2` are not
+  derivable, if both statics are secret. `kk_secret`: both, against an
+  attacker that knows every other name and every public key.
+  `kk_secret_init_tight`: an attacker that knows the initiator's static
+  and ephemeral does derive its keys, so the model's attacker can break
+  the handshake when it should.
+- `kk_forward_secret_init`, `kk_forward_secret_resp`,
+  `kk_forward_secret`: with only the two ephemerals secret, after an
+  honest run, an attacker that knows both statics and both messages
+  derives neither side's keys. With `closing` purging the `eph` ops,
+  this is the session's forward secrecy.
+- `kk_authentic`: an initiator accepts a derivable message 2 only if it
+  is exactly what the honest responder wrote answering this initiator's
+  message 1, and then both hold one session. `kk_authentic_resp`: a
+  responder accepts a derivable message 1 as from a device only if that
+  device wrote it to this responder (both statics secret; message 1
+  alone is open to key-compromise impersonation, as Noise says of KK).
+  Agreement is on content, not freshness: a replayed message is
+  accepted again.
+- `derivable_clean`, `derivable_sealed` (every ciphertext under a secret
+  key that the attacker can take apart was sealed by an honest party),
+  `exposed_parts`.
+
+What the symbolic model does not cover: computational security (no
+reduction to X25519's gap-DH, ChaCha20-Poly1305's IND-CPA and INT-CTXT,
+or SHA-256 and HMAC as PRFs); side channels and bugs below these
+functions (libsodium, the FFI, constant time); the DH equations it leaves
+out (exponents other than names, so an honest party rejects a public key
+that is not a name's, where X25519 would accept any 32 bytes; low-order
+and non-canonical points; clamping; the Ed25519-to-X25519 conversion);
+nonce reuse; payload secrecy; replay and session-key reveal; and the
+node around the handshake, such as when a close purges the ephemerals.
 
 `Tests/ConnectionCheck.lean` runs two SQLite nodes through the node
 driver: the join completes after approval, sync admits the joiner, and

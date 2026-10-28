@@ -22,8 +22,12 @@ frame came from (at first, the one its handshake ran on).
 
 - Every write goes through `write`: one write turn (`Turn`) of the ops
   not already stored, through an intake; the index grows by them; they
-  are offered on every connection whose peer may see them (its rooms
-  refreshed first).
+  are offered on every connection whose peer may see them.
+- A connection never steps on rooms read before: every step (a frame,
+  the clock, an offer) first reads its rooms afresh from the family
+  (`Node.refresh`), so a removal or an admission written since counts at
+  once. What it sends and takes is then that step's rooms'
+  (`recv_send`, `recv_take`).
 - Sessions come from the family: after each entry point every
   connection its handshake has established is opened here, and every
   one it no longer lists is closed. A session dropped here (patience)
@@ -169,13 +173,17 @@ def Node.settle (n : Node) (st : List (Id × Status)) : m Node := do
   let ops := st.flatMap fun (cid, .settled r) => x.hooks.settled cid r
   return (← n.put x ops true).1
 
-/-- Offer stored ids on every connection, with its rooms refreshed. -/
+/-- Connection c as its next step must see it: its rooms read afresh. -/
+def Node.refresh (cid : Id) (c : Conn) : m Conn := do
+  return c.setRooms (← x.hooks.rooms cid)
+
+/-- Offer stored ids on every connection. -/
 def Node.fanout (n : Node) (ids : List Id) : m (Node × Acts) := do
   let mut conns : List (Id × Conn) := []
   let mut out : Acts := {}
   let mut st : List (Id × Status) := []
   for (cid, c) in n.conns do
-    let c := c.setRooms (← x.hooks.rooms cid)
+    let c ← Node.refresh x cid c
     let s ← Conn.filed x.fam x.cfg c ids
     conns := (cid, s.conn) :: conns
     out := out ++ sends cid s.send
@@ -323,6 +331,7 @@ def Node.onFrame (n : Node) (addr bytes : ByteArray) (now : Nat) : m (Node × Ef
         let mut out : Acts := {}
         for b in inner do
           if let some c := n.conn? cid then
+            let c ← Node.refresh x cid c
             let (n', o) ← n.apply x cid (← Conn.recv x.fam x.cfg n.ix c b now) now
             n := n'
             out := out ++ o
@@ -339,6 +348,7 @@ def Node.onTick (n : Node) (now : Nat) : m (Node × Effects) := do
     match n.conn? cid with
     | none => pure ()
     | some c =>
+      let c ← Node.refresh x cid c
       let (n', o) ← n.apply x cid (← Conn.tick x.fam x.cfg n.ix c now) now
       n := n'
       out := out ++ o

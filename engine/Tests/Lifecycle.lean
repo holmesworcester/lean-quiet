@@ -187,7 +187,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "on B, the post lists its attachment" (atts.length == 1)
   match atts.head? with
   | some (_, .attachment _ _ _ root len akid sealedInfo) =>
-    let cs ← rows b (chunk.byFile.query [root] (desc := false))
+    let cs ← rows b (chunk.byFile.query [c, root, Codec.encode len] (desc := false))
     t.ok "B holds every chunk: progress is a count" (cs.length == Merkle.nChunks len)
     let mut slicesB : List ByteArray := []
     for ((_, x), _) in cs do
@@ -226,7 +226,34 @@ def main (args : List String) : IO UInt32 := do
     t.ok "a tampered chunk is Invalid" (← st bad)
     t.ok "a chunk with a short path is Invalid" (← st short)
     t.ok "a chunk under the wrong index is Invalid" (← st wrongIndex)
+    -- Progress is one count of one list, chunk by chunk; a chunk sent
+    -- twice, or re-sent under another op type, is not counted again.
+    let pr (db : Db) (len : Nat) : IO (Nat × Nat) :=
+      ((progress c r len).run : SqlM Fact (Nat × Nat)).run db
+    let dl ← fresh dir "download.db"
+    fromPeer dl [root dA]
+    t.ok "before any chunk, progress is 0 of the chunk count" ((← pr dl l) == (0, nc))
+    let mut steps := true
+    let mut k := 0
+    for o in chunkOps do
+      fromPeer dl [o]
+      k := k + 1
+      fromPeer dl [o]
+      let retyped := Op.make 99 o.reqs o.body
+      fromPeer dl [retyped]
+      steps := steps && (← pr dl l) == (k, nc) && (← ((Store.getStatus retyped.id : SqlM Fact _).run dl)) == some .invalid
+    t.ok "each chunk adds one; again, or under another op type (Invalid), adds none" steps
+    t.ok "every chunk here: progress is full" ((← pr dl l) == (nc, nc))
+    t.ok "a length the attachment does not commit counts no chunk" ((← pr dl (l + 1)).1 == 0)
   | _ => t.ok "a chunk op" false
+  -- A post re-sent under another op type is another op with the same
+  -- fact: Invalid, so the message is not shown twice.
+  let msgsBefore := (← rows b (message.all.query [c])).length
+  let retypedPost := Op.make 42 (wf.ops.headD default).reqs (wf.ops.headD default).body
+  fromPeer b [retypedPost]
+  t.ok "a post re-sent under another op type is Invalid"
+    ((← ((Store.getStatus retypedPost.id : SqlM Fact _).run b)) == some .invalid)
+  t.ok "and the message is not listed twice" ((← rows b (message.all.query [c])).length == msgsBefore)
 
   -- Admitted, B introduces itself by the name it joined with, once.
   let wp ← ((introduce c seedB 5).run : SqlM Fact Write).run b
@@ -293,4 +320,19 @@ def main (args : List String) : IO UInt32 := do
   fromPeer a [byB]
   t.ok "a name by a non-admin is refused"
     ((← (Store.getStatus (F := Fact) (m := SqlM Fact) byB.id).run a) == some .invalid)
+  -- The remover flow: only an admin removes, never itself, and once.
+  let rmBy (db : Db) (target : Id) (seed : ByteArray) : IO Write :=
+    ((removeMember c target seed).run : SqlM Fact Write).run db
+  t.ok "a non-admin's removal writes nothing" ((← rmBy b c seedB).ops.isEmpty)
+  t.ok "an admin removing itself writes nothing" ((← rmBy a c seedA).ops.isEmpty)
+  t.ok "B is let in before" (← ((allowPeer c dB.pk).run : SqlM Fact Bool).run a)
+  let wrm ← rmBy a u seedA
+  t.ok "the founder removing B writes one removal" (wrm.ops.length == 1)
+  mine a wrm
+  t.ok "the removal is Valid"
+    ((← (Store.getStatus (F := Fact) (m := SqlM Fact) (wrm.ops.headD default).id).run a) matches some (.valid _))
+  t.ok "B is listed as removed, by A"
+    ((← rows a (removal.byUser.query [c, u])).any fun (_, f) => f == .removal c u c)
+  t.ok "and no longer let in" !(← ((allowPeer c dB.pk).run : SqlM Fact Bool).run a)
+  t.ok "removing B again writes nothing" ((← rmBy a u seedA).ops.isEmpty)
   t.finish "lifecycle"

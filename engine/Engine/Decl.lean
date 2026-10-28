@@ -113,18 +113,22 @@ theorem Rel.key_ne_opKey (r : Rel F) (hk : r.kind.toUTF8.size < 128) (as : List 
 
 /-! ## Lists of a relation -/
 
-theorem mem_insertBy {α} {p a : Pos × α} {l : List (Pos × α)} : a ∈ insertBy p l ↔ a = p ∨ a ∈ l := by
+theorem perm_insertBy {α} (p : Pos × α) (l : List (Pos × α)) : (insertBy p l).Perm (p :: l) := by
   induction l with
-  | nil => simp [insertBy]
+  | nil => exact List.Perm.refl _
   | cons q t ih =>
     unfold insertBy; split
-    · simp only [List.mem_cons, ih, or_left_comm]
-    · simp only [List.mem_cons]
+    · exact (ih.cons q).trans (List.Perm.swap p q t)
+    · exact List.Perm.refl _
 
-theorem mem_sortPos {α} {l : List (Pos × α)} {a : Pos × α} : a ∈ sortPos l ↔ a ∈ l := by
+/-- Sorting only reorders. -/
+theorem perm_sortPos {α} (l : List (Pos × α)) : (sortPos l).Perm l := by
   induction l with
-  | nil => rfl
-  | cons p t ih => show a ∈ insertBy p (sortPos t) ↔ _; rw [mem_insertBy, ih]; simp
+  | nil => exact List.Perm.refl _
+  | cons p t ih => exact (perm_insertBy p (sortPos t)).trans (ih.cons p)
+
+theorem mem_sortPos {α} {l : List (Pos × α)} {a : Pos × α} : a ∈ sortPos l ↔ a ∈ l :=
+  (perm_sortPos l).mem_iff
 
 variable {s : DB F}
 
@@ -141,6 +145,28 @@ theorem mem_matching [SortKey F] (k : ByteArray) (lim : Option Nat) {pf : Pos ×
     · cases h
   · rintro ⟨x, f, rfl, hx, hf⟩
     exact ⟨x, hx, by simp [hf]⟩
+
+/-- Keeping and relabelling the elements of a list of distinct ids,
+each by a value that names its id, gives distinct ids. -/
+theorem nodup_filterMap_ids {β : Type} {g : Id → Option β} {idOf : β → Id}
+    (hg : ∀ x b, g x = some b → idOf b = x) {l : List Id} (h : l.Nodup) :
+    ((l.filterMap g).map idOf).Nodup := by
+  unfold List.Nodup at *
+  rw [List.pairwise_map, List.pairwise_filterMap]
+  exact h.imp fun hne b hb c hc e => hne ((hg _ _ hb).symm.trans (e.trans (hg _ _ hc)))
+
+/-- **A list names each op once.** Its rows' ids are distinct, so its
+`total` (the matches' count) counts ops. -/
+theorem matching_nodup [SortKey F] {fam : Family F} (h : Inv fam s) (q : ListQ) :
+    ((matching s q).map (·.1.2)).Nodup := by
+  unfold matching
+  rw [((perm_sortPos _).map _).nodup_iff]
+  refine nodup_filterMap_ids (fun x b hb => ?_) (h.nodup q.key)
+  split at hb
+  · split at hb
+    · cases hb; rfl
+    · cases hb
+  · cases hb
 
 /-- A whole, unranged list's rows are exactly its matches. -/
 theorem mem_rows_all [SortKey F] (k : ByteArray) {pf : Pos × F} :
