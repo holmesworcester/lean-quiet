@@ -246,6 +246,16 @@ def readFact (x : Id) (deps : Array Q) : m (Option Fact × Bool × Array Q) := d
   let (a, pend, deps) ← readList { key := opKey x, limit := some 1 } deps
   return (a.rows.head?.map (·.2), pend.contains x, deps)
 
+/-- A view run through the reads (the live cache, outbox overlaid): its
+answer and the lists it read. By `view_stable` the answer changes only
+when one of those lists does, so it is re-evaluated from cached answers
+until a notice lands on one. -/
+def readView {α : Type} : View Fact α → Array Q → m (α × Array Q)
+  | .pure a, deps => return (a, deps)
+  | .list q k, deps => do
+    let (a, _, deps) ← readList q deps
+    readView (k a) deps
+
 end
 
 /-- An op's verdict, from the store (the judge reads requirements this way). -/

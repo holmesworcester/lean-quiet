@@ -114,6 +114,12 @@ def main (args : List String) : IO UInt32 := do
     writePpm (dir ++ "/b-in.ppm") 1080 (← screenOf sb 1080 2400 63)
     check s!"B is admitted, named \"{s.me.name}\", on its home ({na} ops carried from A)"
       (!s.me.waiting && s.me.name == "club" && s.page == .home)
+    steps 10
+    let s ← get
+    let (adm, _, _) ← (show M _ from readList (admission.byDevice.query [s.me.c, (Device.ofSeed s.me.seed).pk]) #[])
+    let u := match adm.rows.head? with | some (_, .admission _ u _ _) => u | _ => .empty
+    let (p, _, _) ← (show M _ from readList (profile.byUser.query [s.me.c, u] (limit := some 0)) #[])
+    check s!"B wrote one first profile, however many frames ran ({p.total})" (p.total == 1)
     sb.cmds.modify (·.push "channel")
     steps 2
     sb.cmds.modify (·.push "send hello from B")

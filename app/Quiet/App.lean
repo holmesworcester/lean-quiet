@@ -155,8 +155,6 @@ structure St where
   /-- The people of the current community (Direct messages on home):
 names, and whether it is me. -/
   members : Array (String × Bool) := #[]
-  /-- Communities whose first profile this session has composed. -/
-  introduced : List Id := []
   /-- A toast and the frame it goes at (libquiet's: centred, about 3 s). -/
   toast : Option (String × Nat) := none
   page : PageId := .chat
@@ -1151,12 +1149,13 @@ def step (evs : List Event) : M (Option (List Event)) := do
   refreshComms
   refreshAsking
   refreshMembers
-  -- admitted in a community I joined: my first profile (the name I chose),
-  -- once; the intent writes nothing if a profile is there already
+  -- admitted in a community I joined: my first profile (the name I chose).
+  -- introduce is a view run through the live cache, so it is re-evaluated
+  -- only when a list it read changes, and writes nothing once a profile
+  -- is filed or in the outbox
   let s ← get
-  if !s.me.waiting && !s.me.c.isEmpty && !s.introduced.contains s.me.c then
-    let w ← ((Community.introduce s.me.c s.me.seed (newestTime s + 1)).run : SqlM Fact _).run s.rd
-    modify fun s => { s with introduced := s.me.c :: s.introduced }
+  if !s.me.c.isEmpty then
+    let (w, _) ← readView (Community.introduce s.me.c s.me.seed (newestTime s + 1)) #[]
     if !w.ops.isEmpty then let _ ← writeAll w
   -- a community this device waits to join shows Waiting in place of its
   -- conversation (read: no admission for my device there)
