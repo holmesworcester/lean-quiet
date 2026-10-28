@@ -33,6 +33,11 @@ the hypothesis, see `no_injective_hash`):
   its slice has its index's size;
 - `complete_assembles`: verifying chunks for every index put together
   are the file.
+
+What runs builds the tree once, level by level, and reads the root and
+every proof off the levels; `fileRoot_eq_fast`, `proof_eq_fast` and
+`rootAndProofs_eq_fast` (`@[csimp]`) prove it equal to `fileRoot` and
+`proof`, so the laws are about it.
 -/
 import engine.core.Core
 
@@ -537,6 +542,165 @@ injectivity cannot, `no_injective_hash`), so `verify_sound` and
 `complete_assembles` are not vacuous. -/
 theorem assumptions_hold : ∃ H : B → B, (∀ x, (H x).size = 32) ∧ NoSecondPreimage H (treeInputs H .empty) :=
   ⟨witness, size_witness, witness_spr⟩
+
+end
+
+/-! ## What runs: the levels, built once
+
+`sub` and `path` say what a root and a proof are, and the laws are about
+them. They are not what runs: `path` rebuilds every sibling's subtree,
+so one proof hashes the whole file again, and a file's n proofs hash
+n² slices. What runs hashes each leaf once into a table, builds each
+level above it once, and reads the root and the proofs off the levels.
+`fileRoot`, `proof` and `rootAndProofs` (what an attachment writes) are
+compiled as their `Fast` twins through `@[csimp]` equalities, proven,
+so `encode_verify`, `verify_sound` and `complete_assembles` are about
+the code that runs. -/
+
+section
+variable (H : B → B)
+
+/-- A file's root and every chunk's proof: what an attachment writes. -/
+def rootAndProofs (ct : B) : B × List (List B) :=
+  (fileRoot H ct, (List.range (nChunks ct.size)).map (proof H ct))
+
+/-- The level above a: each pair hashed into its node. -/
+def up (a : Array B) : Array B :=
+  Array.ofFn (n := a.size / 2) fun j => node H (a.getD (2 * j) .empty) (a.getD (2 * j + 1) .empty)
+
+/-- Level k above a, a's own being 0. -/
+def level (a : Array B) : Nat → Array B
+  | 0 => a
+  | k + 1 => up H (level a k)
+
+/-- Levels 0 to d above a, each built once from the one below. -/
+def levels (a : Array B) : Nat → List (Array B)
+  | 0 => [a]
+  | d + 1 => a :: levels (up H a) d
+
+/-- A file's leaves, each slice hashed once. -/
+def leafArray (ct : B) : Array B :=
+  Array.ofFn (n := 2 ^ depthOf (nChunks ct.size)) fun j => leaves H ct j
+
+/-- A file's levels, its leaves first. -/
+def fileLevels (ct : B) : List (Array B) :=
+  levels H (leafArray H ct) (depthOf (nChunks ct.size))
+
+/-- `sub` of depth k at leaf s, read off the levels. -/
+def look (ls : List (Array B)) (k s : Nat) : B := (ls.getD k #[]).getD (s / 2 ^ k) .empty
+
+/-- `path`, with each subtree's root read from g. -/
+def pathOf (g : Nat → Nat → B) : Nat → Nat → Nat → List B
+  | 0, _, _ => []
+  | d + 1, s, i =>
+    if i < 2 ^ d then g d (s + 2 ^ d) :: pathOf g d s i
+    else g d s :: pathOf g d (s + 2 ^ d) (i - 2 ^ d)
+
+def fileRootFast (ct : B) : B :=
+  rootOf H ct.size (look (fileLevels H ct) (depthOf (nChunks ct.size)) 0)
+
+def proofFast (ct : B) (i : Nat) : List B :=
+  pathOf (look (fileLevels H ct)) (depthOf (nChunks ct.size)) 0 i
+
+def rootAndProofsFast (ct : B) : B × List (List B) :=
+  let ls := fileLevels H ct
+  let d := depthOf (nChunks ct.size)
+  (rootOf H ct.size (look ls d 0), (List.range (nChunks ct.size)).map (pathOf (look ls) d 0))
+
+theorem getD_ofFn {n : Nat} (f : Fin n → B) {j : Nat} (h : j < n) :
+    (Array.ofFn f).getD j .empty = f ⟨j, h⟩ := by
+  simp [Array.getD, h]
+
+theorem size_up (a : Array B) : (up H a).size = a.size / 2 := by simp [up]
+
+theorem level_up (a : Array B) : ∀ k, level H (up H a) k = level H a (k + 1)
+  | 0 => rfl
+  | k + 1 => by rw [level, level_up a k]; rfl
+
+theorem getD_levels (a : Array B) : ∀ d k, k ≤ d → (levels H a d).getD k #[] = level H a k
+  | 0, k, hk => by rw [show k = 0 by omega]; rfl
+  | d + 1, 0, _ => rfl
+  | d + 1, k + 1, hk => by
+    simp only [levels, List.getD_cons_succ]
+    rw [getD_levels (up H a) d k (by omega), level_up]
+
+/-- **Level k holds the roots of the depth-k subtrees**, left to right. -/
+theorem level_sub {f : Nat → B} {D : Nat} {a : Array B} (hs : a.size = 2 ^ D)
+    (ha : ∀ j < 2 ^ D, a.getD j .empty = f j) :
+    ∀ k, k ≤ D → (level H a k).size = 2 ^ (D - k) ∧
+      ∀ j < 2 ^ (D - k), (level H a k).getD j .empty = sub H f k (j * 2 ^ k)
+  | 0, _ => ⟨by simp only [level, Nat.sub_zero]; exact hs,
+      fun j hj => by simp only [level, sub, Nat.pow_zero, Nat.mul_one]; exact ha j (by simpa using hj)⟩
+  | k + 1, hk => by
+    obtain ⟨ihs, ihg⟩ := level_sub hs ha k (by omega)
+    have e : 2 ^ (D - k) = 2 ^ (D - (k + 1)) * 2 := by
+      rw [← Nat.pow_succ]; congr 1; omega
+    refine ⟨by rw [level, size_up, ihs, e, Nat.mul_div_cancel _ (by decide)], fun j hj => ?_⟩
+    have hj' : j < (level H a k).size / 2 := by rw [ihs, e, Nat.mul_div_cancel _ (by decide)]; exact hj
+    rw [level, up, getD_ofFn _ hj', sub, ihg (2 * j) (by rw [e]; omega), ihg (2 * j + 1) (by rw [e]; omega)]
+    have p : j * 2 ^ (k + 1) = 2 * j * 2 ^ k := by
+      rw [Nat.pow_succ, Nat.mul_comm (2 ^ k) 2, ← Nat.mul_assoc, Nat.mul_comm j 2]
+    rw [p, Nat.add_mul, Nat.one_mul]
+
+/-- **`pathOf` is `path`** wherever g gives `sub`'s roots of whole
+subtrees inside a tree of depth D. -/
+theorem pathOf_eq (f : Nat → B) (g : Nat → Nat → B) (D : Nat)
+    (hg : ∀ k m, k ≤ D → (m + 1) * 2 ^ k ≤ 2 ^ D → g k (m * 2 ^ k) = sub H f k (m * 2 ^ k)) :
+    ∀ d m i, d ≤ D → (m + 1) * 2 ^ d ≤ 2 ^ D → pathOf g d (m * 2 ^ d) i = path H f d (m * 2 ^ d) i
+  | 0, _, _, _, _ => rfl
+  | d + 1, m, i, hd, hm => by
+    have p : m * 2 ^ (d + 1) = 2 * m * 2 ^ d := by
+      rw [Nat.pow_succ, Nat.mul_comm (2 ^ d) 2, ← Nat.mul_assoc, Nat.mul_comm m 2]
+    have p1 : 2 * m * 2 ^ d + 2 ^ d = (2 * m + 1) * 2 ^ d := by rw [Nat.add_mul, Nat.one_mul]
+    have hm' : (2 * m + 1 + 1) * 2 ^ d ≤ 2 ^ D := by
+      rw [Nat.pow_succ] at hm
+      rw [show 2 * m + 1 + 1 = (m + 1) * 2 by omega, Nat.mul_assoc, Nat.mul_comm 2 (2 ^ d)]
+      exact hm
+    have hm2 : (2 * m + 1) * 2 ^ d ≤ 2 ^ D := Nat.le_trans (Nat.mul_le_mul_right _ (by omega)) hm'
+    rw [p]
+    unfold pathOf path
+    rw [p1, hg d (2 * m + 1) (by omega) hm', hg d (2 * m) (by omega) hm2,
+      pathOf_eq f g D hg d (2 * m) _ (by omega) hm2, pathOf_eq f g D hg d (2 * m + 1) _ (by omega) hm']
+
+theorem look_sub (ct : B) : ∀ k m, k ≤ depthOf (nChunks ct.size) →
+    (m + 1) * 2 ^ k ≤ 2 ^ depthOf (nChunks ct.size) →
+      look (fileLevels H ct) k (m * 2 ^ k) = sub H (leaves H ct) k (m * 2 ^ k) := by
+  intro k m hk hm
+  have hs : (leafArray H ct).size = 2 ^ depthOf (nChunks ct.size) := by simp [leafArray]
+  have ha : ∀ j < 2 ^ depthOf (nChunks ct.size), (leafArray H ct).getD j .empty = leaves H ct j :=
+    fun j hj => getD_ofFn _ hj
+  obtain ⟨-, hg⟩ := level_sub H hs ha k hk
+  have hm' : m < 2 ^ (depthOf (nChunks ct.size) - k) := by
+    have e : 2 ^ depthOf (nChunks ct.size) = 2 ^ (depthOf (nChunks ct.size) - k) * 2 ^ k := by
+      rw [← Nat.pow_add]; congr 1; omega
+    rw [e] at hm
+    exact Nat.lt_of_succ_le (Nat.le_of_mul_le_mul_right hm (Nat.two_pow_pos k))
+  rw [look, fileLevels, getD_levels _ _ _ _ hk, Nat.mul_div_cancel _ (Nat.two_pow_pos k), hg m hm']
+
+/-- **The root, as it runs, is `fileRoot`.** -/
+@[csimp] theorem fileRoot_eq_fast : @fileRoot = @fileRootFast := by
+  funext H ct
+  rw [fileRoot, fileRootFast]
+  congr 1
+  have := look_sub H ct (depthOf (nChunks ct.size)) 0 (Nat.le_refl _) (by simp)
+  simpa using this.symm
+
+/-- **A proof, as it runs, is `proof`.** -/
+@[csimp] theorem proof_eq_fast : @proof = @proofFast := by
+  funext H ct i
+  have := pathOf_eq H (leaves H ct) (look (fileLevels H ct)) _ (look_sub H ct)
+    (depthOf (nChunks ct.size)) 0 i (Nat.le_refl _) (by simp)
+  simp only [Nat.zero_mul] at this
+  rw [proof, proofFast, this]
+
+/-- **The root and all the proofs, from one set of levels, are
+`rootAndProofs`.** -/
+@[csimp] theorem rootAndProofs_eq_fast : @rootAndProofs = @rootAndProofsFast := by
+  funext H ct
+  have hr : fileRootFast H ct = fileRoot H ct := by rw [fileRoot_eq_fast]
+  have hp : proofFast H ct = proof H ct := by rw [proof_eq_fast]
+  rw [rootAndProofs, ← hr, ← hp]
+  rfl
 
 end
 
