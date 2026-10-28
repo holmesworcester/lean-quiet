@@ -8,16 +8,11 @@ of its UI, and checks proofs about all four.
 |:---|
 | In ~1 day I vibe-coded a p2p, e2ee Slack/Discord alternative in Lean (informed by my work on [Quiet](https://tryquiet.org)) for iOS and Android with some fairly powerful correctness proofs. How does this stand up? |
 
-It is a working prototype of [Quiet](https://github.com/TryQuiet/quiet):
-communities with members, invitations, messages, reactions and pictures,
-and no server. Each device holds its communities and syncs them directly
-with its peers. It runs on Android and iOS, and headless on Linux for
-its tests; native code only connects Lean to each OS ([what isn't Lean,
-and why](#what-isnt-lean-and-why)).
-
-What sets it apart is how far the proofs reach. Nearly every theorem is
-about the code the app runs, not a separate model of it, and they reach
-every layer:
+Lean is mostly used for mathematics, or to verify one part of a system.
+Here it is a whole, ordinary app, and nearly every theorem is about the
+code that runs on the phone, not a separate model of it. Native code
+only connects Lean to each OS ([what isn't Lean, and
+why](#what-isnt-lean-and-why)). The proofs reach every layer:
 
 - **State.** Nobody posts as someone else, joins without approval, or
   undoes a removal; no peer can forge, alter or rename an op; and
@@ -50,9 +45,7 @@ only the same ops, in any order. Convergence for any number of clients
 is next, on the same world with n nodes and fair delivery:
 [toward n clients](#toward-n-clients).
 
-Everything is in this repository, the engine, the op families, the apps
-and the proofs, and every part builds against the others at the same
-commit. [What is proven](#what-is-proven) lists each guarantee, what it
+[What is proven](#what-is-proven) lists each guarantee, what it
 assumes, and what is still wanted.
 
 ## What is proven
