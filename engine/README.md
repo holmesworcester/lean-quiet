@@ -188,3 +188,9 @@ and each named user's `removal.byUser`.
 Needs `ELAN_HOME` with Lean 4.34.0, and SQLite and libsodium (headers
 for SQLite). The CI workflow runs both tasks; this repo has no remote
 yet.
+
+## Sync
+
+Two nodes reconcile with Merkle RBSR over claimed-time windows, stream
+new ops between rounds, and send requirement closures: design, laws and
+follow-ups in [docs/SYNC.md](docs/SYNC.md).
