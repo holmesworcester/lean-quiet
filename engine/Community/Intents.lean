@@ -402,8 +402,7 @@ include hsize hspr
 /-- **Download progress is exact.** The count `progress` reads is the
 number of distinct indices i at which this device holds a Valid chunk
 of the file, each below the chunk count; the total is the chunk count. -/
-theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (len : Nat)
-    (hn : ((matching s { key := chunkKey c (Merkle.fileRoot sha256 ct) len }).map (·.1.2)).Nodup) :
+theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (len : Nat) :
     ∃ is : List Nat, is.Nodup ∧
       (∀ i, i ∈ is ↔ ∃ y, V C s.ops y (.chunk c (Merkle.fileRoot sha256 ct) len i)) ∧
       (∀ i ∈ is, i < Merkle.nChunks len) ∧
@@ -433,7 +432,8 @@ theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (len 
   · show List.Pairwise _ _
     rw [List.pairwise_map]
     have hn' : List.Pairwise (fun a b : Pos × Fact => a.1.2 ≠ b.1.2) M := by
-      have := hn; unfold List.Nodup at this; rwa [List.pairwise_map] at this
+      have := matching_nodup h { key := chunkKey c root len }
+      unfold List.Nodup at this; rwa [List.pairwise_map] at this
     refine hn'.imp_of_mem fun ha hb hne heq => hne ?_
     obtain ⟨y1, i1, rfl, hv1⟩ := hrow _ ha
     obtain ⟨y2, i2, rfl, hv2⟩ := hrow _ hb
@@ -453,20 +453,18 @@ theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (len 
     rfl
 
 /-- **Progress never passes the total.** -/
-theorem progress_le (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (len : Nat)
-    (hn : ((matching s { key := chunkKey c (Merkle.fileRoot sha256 ct) len }).map (·.1.2)).Nodup) :
+theorem progress_le (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (len : Nat) :
     ((progress c (Merkle.fileRoot sha256 ct) len).eval s).1 ≤ ((progress c (Merkle.fileRoot sha256 ct) len).eval s).2 := by
-  obtain ⟨is, hnd, _, hb, he⟩ := progress_exact hsize hspr h hq c len hn
+  obtain ⟨is, hnd, _, hb, he⟩ := progress_exact hsize hspr h hq c len
   rw [he]
   have := nodup_sub_length_le hnd fun y hy => List.mem_range.2 (hb y hy)
   simpa using this
 
 /-- **Progress is full exactly when every chunk is here.** -/
-theorem progress_full (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (len : Nat)
-    (hn : ((matching s { key := chunkKey c (Merkle.fileRoot sha256 ct) len }).map (·.1.2)).Nodup) :
+theorem progress_full (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (len : Nat) :
     ((progress c (Merkle.fileRoot sha256 ct) len).eval s).1 = ((progress c (Merkle.fileRoot sha256 ct) len).eval s).2 ↔
       ∀ i < Merkle.nChunks len, ∃ y, V C s.ops y (.chunk c (Merkle.fileRoot sha256 ct) len i) := by
-  obtain ⟨is, hnd, hmem, hb, he⟩ := progress_exact hsize hspr h hq c len hn
+  obtain ⟨is, hnd, hmem, hb, he⟩ := progress_exact hsize hspr h hq c len
   rw [he]
   simp only
   rw [nodup_full hnd hb]
@@ -477,11 +475,10 @@ total, the attachment's length is the file's and the store holds each
 of the file's chunk ops (`fileChunk`), whose slices are the file
 (`Merkle.assemble_slices`). -/
 theorem progress_done (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (len : Nat)
-    (hn : ((matching s { key := chunkKey c (Merkle.fileRoot sha256 ct) len }).map (·.1.2)).Nodup)
     (hd : ((progress c (Merkle.fileRoot sha256 ct) len).eval s).1 = ((progress c (Merkle.fileRoot sha256 ct) len).eval s).2) :
     len = ct.size ∧ ∀ i < Merkle.nChunks ct.size,
       V C s.ops (fileChunk c ct i).id (.chunk c (Merkle.fileRoot sha256 ct) ct.size i) := by
-  have hall := (progress_full hsize hspr h hq c len hn).1 hd
+  have hall := (progress_full hsize hspr h hq c len).1 hd
   obtain ⟨y0, h0⟩ := hall 0 (Merkle.one_le_nChunks len)
   obtain ⟨o, b, fs, _, _, _, hc⟩ := valid_inv h0
   obtain ⟨_, _, rfl, _⟩ := chunk_is_slice hsize hspr hc

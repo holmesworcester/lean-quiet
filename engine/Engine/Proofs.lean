@@ -4,7 +4,7 @@ however the judging and purges interleave with arrivals, the persisted
 tables keep `Inv`. When the queue is empty, the persisted verdicts are
 exactly the spec's (`status_iff_spec`), so they depend only on the set
 of ops held (`order_free`), and the index holds exactly the Valid facts'
-keys (`Inv.idx`).
+keys (`Inv.idx`), each op at most once under a key (`Inv.nodup`).
 -/
 import Engine.Run
 import Engine.SpecLemmas
@@ -117,6 +117,17 @@ theorem mem_indexAllS (x : Id) (ks : List ByteArray) (s : DB F) (k : ByteArray) 
         · exact h2.elim
         · exact Or.inr ⟨h1, h2⟩
 
+theorem indexAllS_nodup (x : Id) (ks : List ByteArray) {s : DB F} (h : ∀ k, (s.idx k).Nodup) :
+    ∀ k, ((indexAllS x ks s).idx k).Nodup := by
+  induction ks generalizing s with
+  | nil => exact h
+  | cons a t ih =>
+    refine ih fun k => ?_
+    show (if k = a then ins (s.idx a) x else s.idx k).Nodup
+    split
+    · exact ins_nodup (h a)
+    · exact h k
+
 /-- What deciding x does: its verdict set, its fact indexed, its
 waiters moved to the queue. -/
 theorem decideS_fields (x : Id) (v : Verdict F) (s : DB F) :
@@ -161,6 +172,13 @@ theorem decideS_stored (x : Id) (v : Verdict F) (s : DB F) :
   | valid f => exact indexAllS_stored x (fam.fileKeys x f) (s.setStatus x (.valid f))
   | invalid => rfl
 
+/-- Deciding files an op under a key at most once. -/
+theorem decideS_nodup (x : Id) (v : Verdict F) {s : DB F} (h : ∀ k, (s.idx k).Nodup) :
+    ∀ k, ((decideS fam x v s).idx k).Nodup := by
+  cases v with
+  | valid f => exact indexAllS_nodup x (fam.fileKeys x f) (s := s.setStatus x (.valid f)) h
+  | invalid => exact h
+
 theorem stepS_stored (s : DB F) : (stepS fam s).stored = s.stored := by
   unfold stepS
   cases s.queue with
@@ -194,6 +212,9 @@ structure Inv (fam : Family F) (s : DB F) : Prop where
       ∀ r ∈ o.reqs, s.status r = none → x ∈ s.waits r)
   /-- The index holds exactly the Valid facts' keys. -/
   idx : ∀ k x, x ∈ s.idx k ↔ ∃ f, s.status x = some (.valid f) ∧ k ∈ fam.fileKeys x f
+  /-- A key's list holds each op at most once, so a list's length
+  counts ops. -/
+  nodup : ∀ k, (s.idx k).Nodup
   /-- The stored list names exactly the stored ops. -/
   stored : ∀ x, x ∈ s.stored ↔ (s.ops x).isSome
 
@@ -202,6 +223,7 @@ theorem inv_empty : Inv fam (DB.empty : DB F) where
   sound := by intro x v h; cases h
   wait := by intro x o h; cases h
   idx := by intro k x; simp [DB.empty]
+  nodup := fun _ => List.nodup_nil
   stored := by intro x; simp [DB.empty]
 
 theorem inv_ingest {s : DB F} (h : Inv fam s) (o : Op) : Inv fam (ingestS o s) := by
@@ -215,7 +237,7 @@ theorem inv_ingest {s : DB F} (h : Inv fam s) (o : Op) : Inv fam (ingestS o s) :
       by_cases hi : i = o.id
       · subst hi; rw [hx] at hp; cases hp
       · simp [hi, hp]
-    refine ⟨?_, ?_, ?_, h.idx, ?_⟩
+    refine ⟨?_, ?_, ?_, h.idx, h.nodup, ?_⟩
     · intro x p hp
       change (if x = o.id then some o else s.ops x) = some p at hp
       by_cases hi : x = o.id
@@ -254,14 +276,14 @@ theorem inv_step {s : DB F} (h : Inv fam s) : Inv fam (stepS fam s) := by
     simp only
     cases hs : s.status x with
     | some w =>
-      refine ⟨h.key, h.sound, ?_, h.idx, h.stored⟩
+      refine ⟨h.key, h.sound, ?_, h.idx, h.nodup, h.stored⟩
       intro y o hy hsy
       have : y ≠ x := by rintro rfl; rw [hs] at hsy; cases hsy
       exact other y o hy hsy this
     | none =>
       cases ho : s.ops x with
       | none =>
-        refine ⟨h.key, h.sound, ?_, h.idx, h.stored⟩
+        refine ⟨h.key, h.sound, ?_, h.idx, h.nodup, h.stored⟩
         intro y o hy hsy
         have : y ≠ x := by rintro rfl; rw [ho] at hy; cases hy
         exact other y o hy hsy this
@@ -270,7 +292,7 @@ theorem inv_step {s : DB F} (h : Inv fam s) : Inv fam (stepS fam s) := by
         cases hj : judge fam o (o.reqs.map s.status) with
         | none =>
           simp only
-          refine ⟨?_, ?_, ?_, ?_, ?_⟩
+          refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
           · rw [waitOnS_ops]; exact h.key
           · rw [waitOnS_ops, waitOnS_status]; exact h.sound
           · rw [waitOnS_ops, waitOnS_status, waitOnS_queue]
@@ -283,11 +305,12 @@ theorem inv_step {s : DB F} (h : Inv fam s) : Inv fam (stepS fam s) := by
               · exact Or.inl hq'
               · exact Or.inr ⟨hj', fun r hr hsr => (mem_waitOnS _ _ _ r y).2 (Or.inl (hw r hr hsr))⟩
           · rw [waitOnS_idx, waitOnS_status]; exact h.idx
+          · rw [waitOnS_idx]; exact h.nodup
           · rw [waitOnS_ops, waitOnS_stored]; exact h.stored
         | some v =>
           simp only
           obtain ⟨d1, d2, d3, d4, d5⟩ := decideS_fields (fam := fam) x v { s with queue := q }
-          refine ⟨?_, ?_, ?_, ?_, ?_⟩
+          refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
           · rw [d1]; exact h.key
           · rw [d1, d2]
             intro y w hy
@@ -327,6 +350,7 @@ theorem inv_step {s : DB F} (h : Inv fam s) : Inv fam (stepS fam s) := by
                 · exact ⟨f, rfl, hk⟩
               · rintro ⟨f, hf, hk⟩; cases hf; exact Or.inr ⟨trivial, f, rfl, hk⟩
             · simp only [hyx, ite_false, false_and, or_false]; exact h.idx k y
+          · exact decideS_nodup x v h.nodup
           · rw [d1, decideS_stored]; exact h.stored
 
 /-! ## Purging keeps it -/
@@ -384,7 +408,7 @@ theorem purge_inv {s : DB F} (h : Inv fam s) (ids : List Id) : Inv fam (purgeS f
     by_cases hp : x ∈ purgeSet fam s ids
     · rw [purgeS_ops_mem s ids hp] at hx; cases hx
     · exact ⟨hp, by rw [purgeS_ops_not s ids hp] at hx; exact hx⟩
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro x o hx; exact h.key x o (kept x o hx).2
   · intro x v hx
     by_cases hc : x ∈ closeUp s ids
@@ -415,6 +439,9 @@ theorem purge_inv {s : DB F} (h : Inv fam s) (ids : List Id) : Inv fam (purgeS f
     by_cases hc : x ∈ closeUp s ids
     · rw [purgeS_status_mem s ids hc]; simp [hc]
     · rw [purgeS_status_not s ids hc, h.idx]; simp [hc]
+  · intro k
+    show ((s.idx k).filter _).Nodup
+    exact (h.nodup k).sublist List.filter_sublist
   · intro x
     rw [mem_purgeS_stored, h.stored]
     by_cases hp : x ∈ purgeSet fam s ids
