@@ -3,9 +3,11 @@ The communities this device is in, each as this device sees it: its
 device there (from its secret, read by intents to sign), its admission
 (none while waiting to be approved), and its name.
 
-Reads: `accepted.all []` (this device's own local facts), then for each
-community `secret.byKey [pk]`, `admission.byDevice [c, pk]` and
-`named.current [c]` (newest, one row). Nothing else: which community is
+Reads: `accepted.all []` and `joining.all []` (this device's own local
+facts), then for each community `secret.byKey [pk]`, `admission.byDevice
+[c, pk]` and `named.current [c]` (newest, one row), and for a join not
+yet answered `abandoned.byRequest [req]`: a join this device stopped
+waiting on is not listed (unless an approval let it in after all). Nothing else: which community is
 current is the app's memory, not state.
 -/
 import Quiet.Data
@@ -20,6 +22,8 @@ structure Me where
   /-- This device's admission (the root for a founder); empty while waiting. -/
   adm : Id
   name : String
+  /-- While waiting: the joining op (what Stop waiting supersedes). -/
+  joiningOp : Id := .empty
   deriving Inhabited
 
 def Me.waiting (m : Me) : Bool := m.adm.isEmpty
@@ -28,6 +32,7 @@ variable {m : Type → Type} [Monad m] [Reads m]
 
 def read : m (Array Me × Array Q) := do
   let (acc, _, deps) ← readList (accepted.all.query []) #[]
+  let (jn, _, deps) ← readList (joining.all.query []) deps
   let mut out := #[]
   let mut deps := deps
   for (_, f) in acc.rows do
@@ -40,7 +45,17 @@ def read : m (Array Me × Array Q) := do
     let name := match nm.rows.head? with
       | some (_, .named _ _ n _) => (String.fromUTF8? n).getD "?"
       | _ => "Waiting to join"
-    out := out.push ⟨Device.ofSeed seed, seed, c, (adm.rows.head?.map (·.1.2)).getD .empty, name⟩
+    let admId := (adm.rows.head?.map (·.1.2)).getD .empty
+    -- a join not answered: its joining op, and whether I stopped waiting
+    let jop := (jn.rows.find? fun (_, f) => match f with | .joining c' .. => c' == c | _ => false)
+    let mut joiningOp := ByteArray.empty
+    if admId.isEmpty then
+      if let some ((_, jid), .joining _ _ _ req _) := jop then
+        let (ab, _, d4) ← readList (abandoned.byRequest.query [req] (limit := some 0)) deps
+        deps := d4
+        if ab.total > 0 then continue
+        joiningOp := jid
+    out := out.push ⟨Device.ofSeed seed, seed, c, admId, name, joiningOp⟩
   -- a stable order: by name, then id
   let sorted := out.qsort fun a b => a.name < b.name || (a.name == b.name && Engine.bcmp a.c b.c == .lt)
   return (sorted, deps)

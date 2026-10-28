@@ -45,6 +45,7 @@ inductive Act where
   | switchTo (i : Nat)
   | addCommunity
   | requests
+  | stopWaiting
   | none
   deriving BEq, Inhabited, Repr
 
@@ -252,6 +253,17 @@ def scan (f : Font) (dm : Dim) (W h : Nat) (camera : Option Bitmap) (note : Stri
   b := b2.line f l ((W - w) / 2) ly link
   return ⟨b, #[(⟨(W - w) / 2, ly, w, f.cell⟩, .pasteLink)]⟩
 
+/-- Choose a name: what others will see, before Agree & join. -/
+def chooseName (f : Font) (dm : Dim) (W h : Nat) (name : String) : Page := Id.run do
+  let mut b := blank W h
+  let (b1, hh) := heading f dm b "Choose a name" (dm.px 24)
+  let (b2, ph) := para f dm b1 "This is how you'll appear to others in this community." (dm.px 24) (dm.px 24 + hh + dm.px 8) (W - dm.px 48) dim
+  let fy := dm.px 24 + hh + dm.px 8 + ph + dm.px 24
+  let (b3, ft, fh) := field f dm b2 fy name "Your name" true false
+  let (b4, bt, _) := button f dm b3 "Continue" (fy + fh + dm.px 24) (!name.trimAscii.isEmpty) .continue_
+  b := b4
+  return ⟨b, #[ft, bt]⟩
+
 /-- Agree & join: what joining means, and the one button. -/
 def agree (f : Font) (dm : Dim) (W h : Nat) (community : String) : Page := Id.run do
   let mut b := blank W h
@@ -261,16 +273,94 @@ def agree (f : Font) (dm : Dim) (W h : Nat) (community : String) : Page := Id.ru
   b := b2
   return ⟨b, #[bt]⟩
 
-/-- Waiting to join: asked, and not yet approved. -/
-def waiting (f : Font) (dm : Dim) (W h : Nat) (community : String) : Page := Id.run do
+/-- One step of the waiting card's rail: done, now, or next. -/
+inductive Beat where | done | now | next
+  deriving BEq, Inhabited
+
+/-- Waiting to be let in: the mark, the title and lead, and one card per
+wait: the community's short id (a link carries no name), the rail, and
+Stop waiting; then the footer. -/
+def waiting (f : Font) (dm : Dim) (W h : Nat) (id8 : String) (beats : Array (String × String × Beat))
+    (doing : Array String) : Page := Id.run do
   let mut b := blank W h
-  let d := dm.px 72
-  let y := dm.px 48
-  b := b.round ((W - d) / 2) y ((W + d) / 2) (y + d) (d / 2) cardLine
-  b := b.line f (oneLine f f.cell "⏳") ((W - f.cell) / 2) (y + (d - f.cell) / 2) ink
-  let (b1, hh) := heading f dm b "Waiting to join" (y + d + dm.px 24)
-  let (b2, _) := para f dm b1 s!"You asked to join {community}. Once a member approves, you can read and post here." (dm.px 24) (y + d + dm.px 24 + hh + dm.px 8) (W - dm.px 48) dim
-  return ⟨b2, #[]⟩
+  let d := dm.px 28
+  let y0 := dm.px 48
+  b := b.round ((W - d) / 2) y0 ((W + d) / 2) (y0 + d) (d / 2) logo
+  b := b.line f (oneLine f f.cell "Q") ((W - f.cell / 2) / 2) (y0 + (d - f.cell) / 2) Row.bg true
+  let mut y := y0 + d + dm.px 24
+  b := centred f b "Waiting to be let in" y nameInk true
+  y := y + f.cell + dm.px 12
+  b := centred f b "Someone already inside has to let you in." y dim
+  y := y + f.cell + dm.px 24
+  -- the card
+  let x0 := dm.px 24
+  let x1 := W - dm.px 24
+  let cy := y
+  let headH := dm.px 64
+  let mut ry := cy + headH + dm.px 16
+  let mut rows : Array (Nat × String × String × Beat × Nat) := #[]
+  for (t, sub, beat) in beats do
+    let ls := Text.layout f (x1 - x0 - dm.px 72) sub
+    rows := rows.push (ry, t, sub, beat, ls.size)
+    ry := ry + f.cell + dm.px 4 + ls.size * dm.lineH + dm.px 16
+  let doingY := ry
+  ry := ry + doing.size * dm.lineH + (if doing.isEmpty then 0 else dm.px 12)
+  let stopY := ry
+  let cardEnd := stopY + dm.px 52
+  b := b.round x0 cy x1 cardEnd (dm.px 12) cardLine
+  b := b.round (x0 + 2) (cy + 2) (x1 - 2) (cardEnd - 2) (dm.px 12 - 2) card
+  -- head: the avatar of the id, the id, the caption
+  let av := dm.px 36
+  b := b.round (x0 + dm.px 16) (cy + (headH - av) / 2) (x0 + dm.px 16 + av) (cy + (headH + av) / 2) (dm.px 6) 0x0E7C7B
+  b := b.line f (oneLine f f.cell (String.ofList (id8.toList.take 2))) (x0 + dm.px 16 + (av - f.cell) / 2) (cy + (headH - f.cell) / 2) nameInk
+  let tx := x0 + dm.px 16 + av + dm.px 12
+  b := b.line f (oneLine f (x1 - tx) s!"<{id8}>") tx (cy + dm.px 8) nameInk
+  b := b.line f (oneLine f (x1 - tx - dm.px 8) "Its name arrives with the first sync") tx (cy + dm.px 8 + f.cell) dim
+  b := b.fill (x0 + 2) (cy + headH) (x1 - 2) (cy + headH + 2) cardLine
+  -- the rail
+  let mx := x0 + dm.px 24
+  let mr := dm.px 9
+  for i in [0:rows.size] do
+    let (by0, t, sub, beat, _) := rows[i]!
+    let mcy := by0 + f.cell / 2
+    if i + 1 < rows.size then
+      b := b.fill (mx + mr - 1) (mcy + mr) (mx + mr + 1) (rows[i+1]!.1 + f.cell / 2 - mr) cardLine
+    match beat with
+    | .done =>
+      b := b.round mx (mcy - mr) (mx + 2 * mr) (mcy + mr) mr accent
+      b := b.line f (oneLine f f.cell "✓") (mx + mr - f.cell / 4) (mcy - f.cell / 2) primaryInk
+    | .now =>
+      b := b.round mx (mcy - mr) (mx + 2 * mr) (mcy + mr) mr logo
+      b := b.round (mx + 3) (mcy - mr + 3) (mx + 2 * mr - 3) (mcy + mr - 3) (mr - 3) card
+      b := b.round (mx + mr - 4) (mcy - 4) (mx + mr + 4) (mcy + 4) 4 logo
+    | .next =>
+      b := b.round mx (mcy - mr) (mx + 2 * mr) (mcy + mr) mr cardLine
+      b := b.round (mx + 3) (mcy - mr + 3) (mx + 2 * mr - 3) (mcy + mr - 3) (mr - 3) card
+    let rx := mx + 2 * mr + dm.px 16
+    b := b.line f (oneLine f (x1 - rx) t) rx by0 (if beat == .now then logo else if beat == .done then nameInk else dim) (beat != .next)
+    let (b2, _) := para f dm b sub rx (by0 + f.cell + dm.px 4) (x1 - rx - dm.px 16) dim
+    b := b2
+  for i in [0:doing.size] do
+    b := b.line f (oneLine f (x1 - x0 - dm.px 32) doing[i]!) (x0 + dm.px 16) (doingY + i * dm.lineH) dim
+  b := b.fill (x0 + 2) stopY (x1 - 2) (stopY + 2) cardLine
+  b := centred f b "Stop waiting" (stopY + (dm.px 52 - f.cell) / 2) dim
+  let fy := cardEnd + dm.px 24
+  let (b3, _) := para f dm b "You can close Quiet. This picks up where it left off." (dm.px 24) fy (W - dm.px 48) dim
+  return ⟨b3, #[(⟨x0, stopY, x1 - x0, dm.px 52⟩, .stopWaiting)]⟩
+
+/-- libquiet's toast: centred, a rounded panel, a mark over one or two
+lines; drawn over the list for about 3 s. -/
+def toast (f : Font) (dm : Dim) (W : Nat) (text : String) : Bitmap := Id.run do
+  let w := min (W - dm.px 32) (dm.px 280)
+  let ls := Text.layout f (w - dm.px 32) text
+  let h := dm.px 16 + f.cell + dm.px 8 + (min 2 ls.size) * dm.lineH + dm.px 16
+  let mut b := Bitmap.blank w h (solid Row.bg w)
+  b := b.round 0 0 w h (dm.px 16) 0x34373C
+  b := centred f b "✓" (dm.px 16) 0x6FCF97 true
+  for i in [0:min 2 ls.size] do
+    let lw := Paint.Line.width f ls[i]!
+    b := b.line f ls[i]! ((w - min w lw) / 2) (dm.px 16 + f.cell + dm.px 8 + i * dm.lineH) nameInk
+  return b
 
 /-- One device asking to join. -/
 structure Asking where
@@ -376,7 +466,7 @@ structure Entry where
 
 /-- The community switcher: every community, the current one marked, a
 waiting one marked as such, and Add a community. -/
-def switcher (f : Font) (dm : Dim) (W h : Nat) (es : Array Entry) : Page := Id.run do
+def switcher (f : Font) (dm : Dim) (W h : Nat) (es : Array Entry) (asking : Nat) (canInvite : Bool) : Page := Id.run do
   let mut b := blank W h
   let mut taps := #[]
   let rh := dm.px 64
@@ -404,7 +494,9 @@ def switcher (f : Font) (dm : Dim) (W h : Nat) (es : Array Entry) : Page := Id.r
       b := b.line f l (bx + dm.px 8) (by0 + (dm.px 28 - f.cell) / 2) primaryInk
     taps := taps.push (⟨0, y, W, rh⟩, .switchTo i)
   let y := dm.px 8 + es.size * rh + dm.px 8
-  let (b2, t2, _) := rows f dm b y #[("+", "Add a community", .addCommunity)]
+  let mine := (if canInvite then #[("☺+", "Add members", Act.addMembers),
+    ("⏳", if asking == 0 then "Waiting to join" else s!"Waiting to join · {asking}", Act.requests)] else #[])
+  let (b2, t2, _) := rows f dm b y (mine ++ #[("+", "Add a community", .addCommunity)])
   return ⟨b2, taps ++ t2⟩
 
 end Pages

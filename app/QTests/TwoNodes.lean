@@ -75,6 +75,10 @@ def main (args : List String) : IO UInt32 := do
     modify fun s => { s with field := "  " ++ link ++ "\n" }
     steps 1
     check "Continue with the link" (← tapAct sb .continue_)
+    check "Choose a name asks" ((← get).page == .name)
+    modify fun s => { s with field := "Bea" }
+    steps 1
+    check "Continue with a name" (← tapAct sb .continue_)
     check "Agree & join asks" ((← get).page == .agree)
     check "Agree & Join" (← tapAct sb .agree)
     waitIdle sb
@@ -117,7 +121,34 @@ def main (args : List String) : IO UInt32 := do
     steps 3
     let s ← get
     writePpm (dir ++ "/a-chat.ppm") 1080 (← screenOf sa 1080 2400 63)
-    let texts := s.rows.toList.map (·.2.data.text)
-    check s!"A shows B's message ({s.total} messages)" (texts.contains "hello from B")).run a2
+    let rows := s.rows.toList.map (·.2.data)
+    check s!"A shows B's message ({s.total} messages)" (rows.any (·.text == "hello from B"))
+    check s!"under the name B chose ({(rows.find? (·.text == "hello from B")).map (·.name)})"
+      (rows.any fun d => d.text == "hello from B" && d.name == "Bea")).run a2
+  -- C joins with the same link, then stops waiting: back on Get started
+  fresh (dir ++ "/c")
+  let sc ← Sim.new
+  let c0 ← App.start sc.io screen (dir ++ "/c/quiet.db")
+  let ((), _) ← (show M Unit from do
+    steps 2
+    let _ ← tapAct sc .joinCommunity
+    let _ ← tapAct sc .inviteLink
+    let _ ← tapAct sc .pasteLink
+    modify fun s => { s with field := link }
+    steps 1
+    let _ ← tapAct sc .continue_
+    modify fun s => { s with field := "Cy" }
+    steps 1
+    let _ ← tapAct sc .continue_
+    let _ ← tapAct sc .agree
+    waitIdle sc
+    steps 3
+    check "C waits to join" ((← get).page == .waiting && (← get).comms.size == 1)
+    writePpm (dir ++ "/c-waiting.ppm") 1080 (← screenOf sc 1080 2400 63)
+    check "Stop waiting" (← tapAct sc .stopWaiting)
+    waitIdle sc
+    steps 3
+    check s!"C is back on Get started, waiting on nothing ({(← get).comms.size} communities)"
+      ((← get).page == .getStarted && (← get).comms.isEmpty)).run c0
   (← IO.getStdout).flush
   IO.Process.exit (if (← fails.get) == 0 then 0 else 1)

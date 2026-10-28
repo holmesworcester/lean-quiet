@@ -77,7 +77,7 @@ abbrev ImgKey := ByteArray × Nat × Nat
 
 /-- Which page is up: a conversation, or one of libquiet's other screens. -/
 inductive PageId where
-  | chat | getStarted | create | joinChoice | openInvite | paste | scan | agree | waiting
+  | chat | getStarted | create | joinChoice | openInvite | paste | scan | name | agree | waiting
   | requests | invite | switcher
   deriving BEq, Repr, Inhabited
 
@@ -144,6 +144,12 @@ structure St where
   invite : Option Community.Invite := none
   /-- This session's invite link per community (Add members). -/
   links : List (Id × String) := []
+  /-- The name chosen for joining (Choose a name). -/
+  joinName : String := ""
+  /-- Communities whose first profile this session has composed. -/
+  introduced : List Id := []
+  /-- A toast and the frame it goes at (libquiet's: centred, about 3 s). -/
+  toast : Option (String × Nat) := none
   page : PageId := .chat
   backStack : List PageId := []
   /-- A page's one-line field (the keyboard's text while a page shows one). -/
@@ -495,6 +501,9 @@ def hexShort (b : ByteArray) : String :=
   String.join (b.toList.take 4 |>.map fun x =>
     let t := String.ofList (Nat.toDigits 16 x.toNat); if t.length < 2 then "0" ++ t else t)
 
+/-- A toast, for about 3 s (libquiet's: an outcome stated, then gone). -/
+def say (t : String) : M Unit := modify fun s => { s with toast := some (t, s.frames + 180) }
+
 /-- Open a page (the current one goes on the back stack). -/
 def openPage (p : PageId) : M Unit := do
   let s ← get
@@ -578,20 +587,28 @@ def pageOf (s : St) : Pages.Page :=
   | .joinChoice => Pages.joinChoice f dm W h none
   | .openInvite => Pages.openInvite f dm W h
   | .paste => Pages.paste f dm W h s.field true s.refusal
+  | .name => Pages.chooseName f dm W h s.field
   | .scan => Pages.scan f dm W h none "No camera is available."
   | .agree => Pages.agree f dm W h "this community"
-  | .waiting => Pages.waiting f dm W h (if s.me.waiting then "this community" else s.me.name)
+  | .waiting => Pages.waiting f dm W h (Kinds.Request.hexShort s.me.c)
+      -- the request is stored and waits for the community's ops; until the
+      -- network says more, the first beat is where it is
+      #[("Looking for someone to hand your join to", "Nobody has taken it yet.", .now),
+        ("Waiting for a member to let you in", "Quiet asks again whenever it finds one. They see you waiting the next time they open the app.", .next),
+        ("Keys and history arrive", "Then the community opens, with what was shared before you got here.", .next)] #[]
   | .requests => Pages.requests f dm W h ((s.asking.filter fun r => !s.hidden.contains r.id).map fun r =>
       r.row (s.admitting.contains r.id))
   | .invite => Pages.invite f dm W h none ((s.links.find? (·.1 == s.me.c)).map (·.2) |>.getD "…")
   | .switcher => Pages.switcher f dm W h (s.comms.map fun m =>
       ({ name := m.name, unread := 0, current := m.c == s.me.c, waiting := m.waiting } : Pages.Entry))
+      s.asking.size (!s.me.waiting && !s.me.c.isEmpty)
   | .chat => ⟨Bitmap.blank W h s.bgRow, #[]⟩
 
 def pageTitle : PageId → String × Bool
   | .getStarted => ("", false) | .create => ("", false) | .joinChoice => ("", false)
   | .openInvite => ("", false) | .paste => ("", false) | .scan => ("Join with QR code", true)
-  | .agree => ("Agree & join", false) | .waiting => ("", false) | .requests => ("Join requests", false)
+  | .name => ("", false)
+  | .agree => ("Agree & join", false) | .waiting => ("", false) | .requests => ("Waiting to join", true)
   | .invite => ("Add members", true) | .switcher => ("Communities", true) | .chat => ("", false)
 
 /-- A page's tap: what it does. -/
@@ -625,28 +642,48 @@ def onPageAct (a : Pages.Act) : M Unit := do
     | .paste =>
       match Community.Invite.parse s.field with
       | some i =>
-        s.io.ime false
-        modify fun s => { s with invite := some i }
-        openPage .agree
+        s.io.textClear
+        modify fun s => { s with invite := some i, field := "" }
+        openPage .name
+        s.io.ime true
       | none =>
         modify fun s => { s with refusal := some "That isn't a Quiet invite link. Check that you copied all of it.", pageCache := "" }
+    | .name =>
+      let n := s.field.trimAscii.toString
+      if !n.isEmpty then
+        s.io.ime false
+        modify fun s => { s with joinName := n }
+        openPage .agree
     | _ => pure ()
   | .agree =>
     -- join: a device of its own for this community, the request the link
     -- asks for, and this device's accept and joining facts, as one write
     if let some i := s.invite then
       let seed ← Chaos.freshSeed "join"
-      if ← writeAll (Community.join i seed) then
+      if ← writeAll (Community.join i seed s.joinName.toUTF8) then
         s.io.textClear
         modify fun s => { s with invite := none, field := "", backStack := [] }
         refreshComms
         switchToId i.community
   | .addMembers => openPage .invite
   | .share | .copy =>
-    if let some (_, l) := s.links.find? (·.1 == s.me.c) then s.io.copy l
+    if let some (_, l) := s.links.find? (·.1 == s.me.c) then
+      s.io.copy l
+      say "Invitation copied."
+  | .stopWaiting =>
+    -- a local op superseding my joining fact: the request stays with the
+    -- members, and an approval would still let this device in
+    if !s.me.joiningOp.isEmpty then
+      if ← writeAll (Community.stopWaiting s.me.joiningOp) then
+        refreshComms
+        if (← get).comms.isEmpty then
+          modify fun s => { s with page := .getStarted, backStack := [], pageCache := "" }
+        else switchTo 0
   | .approve i =>
     let shown := s.asking.filter fun r => !s.hidden.contains r.id
-    if let some r := shown[i]? then approveReq r.id
+    if let some r := shown[i]? then
+      approveReq r.id
+      say s!"Approved <{Kinds.Request.hexShort r.device}>"
   | .hide i =>
     let shown := s.asking.filter fun r => !s.hidden.contains r.id
     if let some r := shown[i]? then modify fun s => { s with hidden := r.id :: s.hidden, pageCache := "" }
@@ -780,7 +817,7 @@ def onEvent : Event → M Bool
   | .long r x y => do onTap r x.toNat y.toNat true; return true
   | .text => do
     let (t, sel) ← (← get).io.text
-    if (← get).page == .create || (← get).page == .paste then
+    if (← get).page == .create || (← get).page == .paste || (← get).page == .name then
       modify fun s => { s with field := t, refusal := none, pageCache := "" }
       return true
     match (← get).sheet with
@@ -790,7 +827,7 @@ def onEvent : Event → M Bool
       modify fun s => { s with text := t, sel := if sel.size == 4 then sel else #[0, 0, 0, 0] }
     return true
   | .send => do
-    if (← get).page == .create || (← get).page == .paste then
+    if (← get).page == .create || (← get).page == .paste || (← get).page == .name then
       onPageAct .continue_
       return true
     let s ← get
@@ -959,6 +996,20 @@ def sheetBitmap (sh : SheetSt) (mine : List String) : M Bitmap := do
   let bot := Sheet.catBot s.font s.dim s.W c sh.cat sh.searching
   return ⟨s.W, SheetGeom.compose top.rows line g.vh sh.scroll bot.rows⟩
 
+/-- The toast, if one stands, over the middle of the viewport's rows of a
+list frame (new rows: the ones under it are shared and stay). -/
+def withToast (s : St) (fr : Array ByteArray) (vh : Nat) : Array ByteArray := Id.run do
+  let some (t, upto) := s.toast | return fr
+  if s.frames > upto then return fr
+  let tb := Pages.toast s.font s.dim s.W t
+  let x := (s.W - tb.w) / 2
+  let r0 := over + (vh - tb.h) / 2
+  let mut fr := fr
+  for k in [0:tb.h] do
+    if r0 + k < fr.size then
+      fr := fr.set! (r0 + k) (tb.rows[k]!.copySlice 0 fr[r0 + k]! (4 * x) (4 * tb.w))
+  return fr
+
 /-- One frame; the twin's events for the next one, or none when the
 window closes. -/
 def step (evs : List Event) : M (Option (List Event)) := do
@@ -1063,6 +1114,13 @@ def step (evs : List Event) : M (Option (List Event)) := do
   -- join requests for the current community, and admissions they complete
   refreshComms
   refreshAsking
+  -- admitted in a community I joined: my first profile (the name I chose),
+  -- once; the intent writes nothing if a profile is there already
+  let s ← get
+  if !s.me.waiting && !s.me.c.isEmpty && !s.introduced.contains s.me.c then
+    let w ← ((Community.introduce s.me.c s.me.seed (newestTime s + 1)).run : SqlM Fact _).run s.rd
+    modify fun s => { s with introduced := s.me.c :: s.introduced }
+    if !w.ops.isEmpty then let _ ← writeAll w
   -- a community this device waits to join shows Waiting in place of its
   -- conversation (read: no admission for my device there)
   let s ← get
@@ -1070,6 +1128,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
     modify fun s => { s with page := .waiting, pageCache := "" }
   if s.page == .waiting && !s.me.waiting then
     modify fun s => { s with page := .chat, pageCache := "" }
+    say "You're in."
   -- a page instead of the conversation: its bar, its content in the list
   -- layer (which does not scroll on a page), a one-row composer layer
   let s ← get
@@ -1092,9 +1151,10 @@ def step (evs : List Event) : M (Option (List Event)) := do
     let mut fr := Array.replicate (vh + 2 * over) s.bgRow
     if let some pg := s.pageNow then
       for k in [0:min vh pg.bmp.h] do fr := fr.set! (over + k) pg.bmp.rows[k]!
+    let shown := withToast s fr vh
     let t1 ← s.io.nowUs
     modify fun s => { s with b := 0, frames := s.frames + 1, times := s.times.push (t1 - t0).toNat }
-    let evs ← s.io.frame fr 0 over.toUInt32 s.topBmp.rows s.botBmp.rows
+    let evs ← s.io.frame shown 0 over.toUInt32 s.topBmp.rows s.botBmp.rows
     return some (Event.decode evs)
   -- 7. chrome and the frame
   let s ← get
@@ -1108,7 +1168,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
       | _, _ => pure (composer s)
     modify fun s => { s with topBmp := header s, botBmp := bot, chromeKey := key }
   let s ← get
-  let fr := listFrame s b bots
+  let fr := withToast s (listFrame s b bots) (viewH s)
   let t1 ← s.io.nowUs
   let times := (if s.times.size ≥ 600 then s.times.extract 300 s.times.size else s.times).push (t1 - t0).toNat
   modify fun s => { s with b := b, frames := s.frames + 1, times := times }
