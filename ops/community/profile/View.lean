@@ -38,7 +38,7 @@ engine's `live`), with their devices. Law (PeopleLaws): `present_iff`. -/
 def present (c : Id) : View Fact (List (Id × List Key)) := do
   let a ← admission.all.read [c]
   let ls ← live c a.rows
-  pure (byUser ls)
+  pure (byUser (ls.map (·.2)))
 
 /-- The present members of c with their profiles, for the people list
 and its count. A removed member is not among them (their messages keep

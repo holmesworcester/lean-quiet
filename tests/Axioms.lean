@@ -135,7 +135,9 @@ open Engine Community
 #print axioms Community.member_opens
 #print axioms Community.wrap_cites_admission
 #print axioms Community.wrap_only_admitted
-#print axioms Community.approveReq_wraps
+#print axioms Community.approveReq_ops
+#print axioms Community.shareKey_recipients
+#print axioms Community.shareKey_complete
 #print axioms Community.admitted_reads
 #print axioms Community.check_attach
 #print axioms Community.check_chunk

@@ -164,6 +164,9 @@ structure St where
   people : Nat := 0
   heights : Std.HashMap Id Nat := {}
   rows : Std.HashMap Id RowSt := {}
+  /-- The communities whose `shareKey` has run since its triggers (my
+  content key, the admissions) last changed. -/
+  shared : Std.HashSet Id := {}
   imgs : Std.HashMap ImgKey (Task Bitmap) := {}
   /-- When an image whose chunks were not all readable may be tried again
   (a frame number). -/
@@ -811,13 +814,11 @@ def refreshAsking : M Unit := do
 
 /-- My approval of request r (my device in this community signs it). -/
 def approveReq (r : Id) : M Unit := do
-  -- a fresh ephemeral secret for the wrap of the community's key to the
-  -- requester's device
-  let esk ← Engine.Crypto.randomBytes 32
   let s ← get
   -- the intent reads the request and its approvals: with mine, is the
-  -- tally complete? then the admission goes in the same write
-  let w ← ((Community.approveReq s.me.c r s.me.adm s.me.dev esk).liftL.run : SqlM SF _).run s.rd
+  -- tally complete? then the admission goes in the same write (the
+  -- community's key follows it, by shareKey, once it is in the store)
+  let w ← ((Community.approveReq s.me.c r s.me.adm s.me.dev).liftL.run : SqlM SF _).run s.rd
   let _ ← writeAll w
 
 /-- The current page's picture and taps (kept until what it shows changes). -/
@@ -1587,6 +1588,18 @@ def step (evs : List Event) : M (Option (List Event)) := do
     -- key ops (a live view too: re-run when a wrap arrives)
     let (w, _) ← readView (Community.unwrap m.c m.dev) #[]
     if !w.ops.isEmpty then let _ ← writeAll w
+    -- and this device's key wrapped to every live member's key that has
+    -- none yet, a new admission's included. It reads every admission, so
+    -- it runs only when my content key or the admissions changed: only
+    -- those add a key to wrap to (a removal or a wrap takes one away). A
+    -- device's wrap of a key to a key is one op, so writing it again adds
+    -- nothing.
+    let trig : Array Q := #[.list (Community.key.byCommunity.query [m.c] (limit := some 1)),
+      .list (Community.admission.all.query [m.c])]
+    if !((← get).shared.contains m.c && (← trig.allM fresh)) then
+      let (w, _) ← readView (Community.shareKey m.c m.dev) #[]
+      modify fun s => { s with shared := s.shared.insert m.c }
+      if !w.ops.isEmpty then let _ ← writeAll w
   -- a community this device waits to join shows Waiting in place of its
   -- conversation (read: no admission for my device there)
   let s ← get

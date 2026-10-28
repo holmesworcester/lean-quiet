@@ -155,13 +155,14 @@ def approveReqOld (c req myAdm : Id) (d : Device) (esk : ByteArray) : View Fact 
       [mkOp [c] (.wrap kid e (box cryptoSeal esk e kid k))]
     | _, _ => []⟩
 
-/-- A content key goes only with the admission it serves. D joins through
-an invitation needing two approvals. A's approval admits nobody and wraps
-nothing; the mutant's (the code before the fix) wraps at once, which the
-old validator lists for D's key with no admission of it
-(`wrap_only_admitted` broken) and the fixed one refuses. B's approval
-completes the tally: the admission, and B's wrap to D citing it. On D
-the wrap waits for its admission, then D unwraps and reads. -/
+/-- A content key goes only to a live admission. D joins through an
+invitation needing two approvals. A's approval admits nobody and wraps
+nothing, and A's `shareKey` has nothing for D's key; the mutant's (the
+code before the fix) wraps at once, which the old validator lists for
+D's key with no admission of it (`wrap_only_admitted` broken) and the
+fixed one refuses. B's approval completes the tally; then B's
+`shareKey` wraps to D's key, citing the admission. On D the wrap waits
+for its admission, then D unwraps and reads. -/
 def wrapsGoWithAdmissions (t : Checks) (dir : String) (a b : Db) (c : Id) (kA seedA seedB : ByteArray) :
     IO Unit := do
   let dA := Device.ofSeed seedA
@@ -189,7 +190,7 @@ def wrapsGoWithAdmissions (t : Checks) (dir : String) (a b : Db) (c : Id) (kA se
   t.ok "A and B hold D's request, under an invitation needing two approvals"
     ((← rows a (request.all.query [c])).any (·.1.2 == reqD.id) && (← rows b (request.all.query [c])).any (·.1.2 == reqD.id))
   -- A approves first: no admission yet, so no wrap.
-  let w1 ← sendOn a (approveReq c reqD.id c dA (sha256 "esk D1".toUTF8))
+  let w1 ← sendOn a (approveReq c reqD.id c dA)
   t.ok "below the threshold, an approval writes the approval alone: no admission, no wrap"
     (w1.ops.map (·.id) == [(approve c reqD.id c dA).id])
   -- The mutant wraps at that same approval.
@@ -202,6 +203,8 @@ def wrapsGoWithAdmissions (t : Checks) (dir : String) (a b : Db) (c : Id) (kA se
   t.ok "under the old validator, that wrap is listed for D's key with no admission of D's key: wrap_only_admitted fails"
     ((← wrapsTo mdb dD.enc) == 1 && !(← keyed mdb dD.enc))
   mine a w1
+  t.ok "with A's approval in, A's shareKey still has nothing for D: D is no recipient"
+    ((← sendOn a (shareKey c dA)).ops.all fun o => !(o.body == (wrapKey c c kA (wrapEsk dA kid dD.enc) dD.enc).body))
   fromPeer a [early]
   t.ok "under the fixed one, the approve-time wrap is refused, and nothing is listed for D's key"
     ((← status a early) == some .invalid && (← wrapsTo a dD.enc) == 0)
@@ -210,15 +213,22 @@ def wrapsGoWithAdmissions (t : Checks) (dir : String) (a b : Db) (c : Id) (kA se
   t.ok "a wrap to D's key citing B's admission is refused" ((← status a misdirected) == some .invalid)
   -- B's approval completes the tally.
   fromPeer b (← sendable a)
-  let w2 ← sendOn b (approveReq c reqD.id admB dB (sha256 "esk D2".toUTF8))
+  let w2 ← sendOn b (approveReq c reqD.id admB dB)
   let admitOp := w2.ops.getD 1 default
-  let wrapOp := w2.ops.getD 2 default
-  t.ok "the completing approval writes the approval, the admission, and B's wrap to D's key citing it"
-    (w2.ops.length == 3 && admitOp.kind == 11 && wrapOp.reqs == [c, admitOp.id] &&
-      wrapOp.id == (wrapKey c admitOp.id kA (sha256 "esk D2".toUTF8) dD.enc).id)
+  t.ok "the completing approval writes the approval and the admission, no wrap"
+    (w2.ops.length == 2 && admitOp.kind == 11 && !w2.ops.any (·.kind == 6))
   mine b w2
+  -- (B's shareKey also covers C, admitted earlier with no wrap.)
+  let ws ← sendOn b (shareKey c dB)
+  let toD := ws.ops.filter (·.reqs == [c, admitOp.id])
+  let wrapOp := toD.headD default
+  t.ok "then B's shareKey wraps the key to D's key once, citing D's admission"
+    (toD.length == 1 && wrapOp.id == (wrapKey c admitOp.id kA (wrapEsk dB kid dD.enc) dD.enc).id &&
+      ws.ops.all (·.kind == 6))
+  mine b ws
   t.ok "on B, D is admitted and B's wrap is listed for D's key"
     ((← keyed b dD.enc) && (← wrapsTo b dD.enc) == 1)
+  t.ok "and B's shareKey has nothing more" (← sendOn b (shareKey c dB)).ops.isEmpty
   -- On D the wrap arrives before its admission: it waits, listed nowhere.
   let fromB ← sendable b
   fromPeer ddb (fromB.filter (·.id != admitOp.id))
@@ -321,11 +331,18 @@ def main (args : List String) : IO UInt32 := do
   t.ok "A sees the request pending" ((← rows a (request.all.query [c])).length == 1)
 
   -- A approves: its approval completes the tally, so it admits B.
-  let wa ← ((approveReq c req.id c dA (sha256 "esk 2".toUTF8)).run : SqlM Fact Write).run a
-  t.ok "approving composes the approval, the admission and the key's wrap to B"
-    (wa.ops.length == 3)
+  let wa ← ((approveReq c req.id c dA).run : SqlM Fact Write).run a
+  t.ok "approving composes the approval and the admission, and no wrap"
+    (wa.ops.length == 2 && (wa.ops.getD 1 default).kind == 11)
   mine a wa
   t.ok "A now lets B in" (← ((allowPeer c dB.pk).run : SqlM Fact Bool).run a)
+  -- With B's admission in A's store, B's key is a recipient: A's
+  -- content key goes to it, citing the admission.
+  let ws ← ((shareKey c dA).run : SqlM Fact Write).run a
+  t.ok "A shares its key: one wrap, to B's key, citing B's admission"
+    (ws.ops.map (·.id) == [(wrapKey c (wa.ops.getD 1 default).id kA (wrapEsk dA kid dB.enc) dB.enc).id])
+  mine a ws
+  t.ok "sharing again writes nothing" (← ((shareKey c dA).run : SqlM Fact Write).run a).ops.isEmpty
 
   -- A renames: one past the current name.
   let wr ← ((rename c c c dA "Acme Corp".toUTF8).run : SqlM Fact Write).run a
@@ -589,8 +606,16 @@ def main (args : List String) : IO UInt32 := do
   mine b ⟨[linv]⟩
   let lreq := (⟨c, linv.id, dB.pk, [], lseed⟩ : Invite).request (Device.ofSeed (sha256 "device B2".toUTF8))
   fromPeer b [lreq]
-  let wl ← sendOn b (approveReq c lreq.id admB dB (sha256 "esk L".toUTF8))
-  t.ok "a removed user's link request: the approval and the admission, but no wrap"
-    (wl.ops.length == 2 && (wl.ops.getD 1 default).kind == 11 && !wl.ops.any (·.kind == 6) &&
-      (← rows b (key.byCommunity.query [c])).length == 1)
+  let wl ← sendOn b (approveReq c lreq.id admB dB)
+  mine b wl
+  let dB2 := Device.ofSeed (sha256 "device B2".toUTF8)
+  let admB2 := (wl.ops.getD 1 default).id
+  t.ok "a removed user's link request: the approval and the admission, Valid"
+    (wl.ops.length == 2 && (wl.ops.getD 1 default).kind == 11 &&
+      (← rows b (admission.byDevice.query [c, dB2.pk])).any (·.1.2 == admB2))
+  fromPeer a (← sendable b)
+  t.ok "but no key is shared with the removed user's new device, by B or by A"
+    ((← sendOn b (shareKey c dB)).ops.all (·.reqs.getD 1 default != admB2) &&
+      (← sendOn a (shareKey c dA)).ops.all (·.reqs.getD 1 default != admB2) &&
+      (← rows a (admission.byDevice.query [c, dB2.pk])).any (·.1.2 == admB2))
   t.finish "lifecycle"

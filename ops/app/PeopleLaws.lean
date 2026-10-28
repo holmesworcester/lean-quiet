@@ -31,8 +31,14 @@ theorem present_iff {C : Community.Crypto} {s : DB Fact} (h : Inv (family C) s) 
   simp only [Profile.present, View.eval_bind, View.eval_read, View.eval_pure]
   rw [byUser_mem]
   constructor
-  · rintro ⟨d, e, hm⟩; exact ⟨d, e, (mem_live_all h hq c u d e).1 hm⟩
-  · rintro ⟨d, e, hm⟩; exact ⟨d, e, (mem_live_all h hq c u d e).2 hm⟩
+  · rintro ⟨d, e, hm⟩
+    obtain ⟨⟨y, u', d', e'⟩, hl, he⟩ := List.mem_map.1 hm
+    simp only [Prod.mk.injEq] at he
+    obtain ⟨rfl, rfl, rfl⟩ := he
+    obtain ⟨hv, hr⟩ := (mem_live_all h hq c y u' d' e').1 hl
+    exact ⟨d', e', ⟨y, hv⟩, hr⟩
+  · rintro ⟨d, e, ⟨y, hv⟩, hr⟩
+    exact ⟨d, e, List.mem_map.2 ⟨(y, u, d, e), (mem_live_all h hq c y u d e).2 ⟨hv, hr⟩, rfl⟩⟩
 
 /-- **Each person is listed once.** -/
 theorem present_nodup (s : DB Fact) (c : Id) : (((Profile.present c).eval s).map (·.1)).Nodup := by

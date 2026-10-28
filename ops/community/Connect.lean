@@ -3,8 +3,9 @@ Laws of connection, dialing and sealing, about the views a node runs
 (Community.Query) as lists over its persisted tables: at rest (queue
 empty), `allowPeer` lets in exactly the devices admitted into users not
 removed, `members` names exactly their devices and `recipients` exactly
-their encryption keys. On SQLite the same views run with `listSql`,
-which the query differential checks against `eval`.
+their admissions, each with its encryption key. On SQLite the same
+views run with `listSql`, which the query differential checks against
+`eval`.
 -/
 import ops.community.Laws
 import ops.community.Query
@@ -54,10 +55,10 @@ theorem removals_iff (h : Inv (family C) s) (hq : s.queue = []) (c u : Id) :
     obtain ⟨hy, hf⟩ := (filed (by simp [rels]) h hq [c, u] y _).2 ⟨hv, byUser_args.2 ⟨r, rfl⟩⟩
     exact ⟨y, _, hy, hf⟩
 
-theorem eval_live_adm {c c' : Id} {p : Pos} {u : Id} {d e : Key} {t : List (Pos × Fact)}
+theorem eval_live_adm {c c' : Id} {k : ByteArray} {y u : Id} {d e : Key} {t : List (Pos × Fact)}
     (hc : c' = c) :
-    (live c ((p, .admission c' u d e) :: t)).eval s =
-      if (eval s (removals c u)).total = 0 then (u, d, e) :: (live c t).eval s
+    (live c (((k, y), .admission c' u d e) :: t)).eval s =
+      if (eval s (removals c u)).total = 0 then (y, u, d, e) :: (live c t).eval s
       else (live c t).eval s := by
   subst hc
   show View.eval s (if c' = c' then _ else _) = _
@@ -66,22 +67,22 @@ theorem eval_live_adm {c c' : Id} {p : Pos} {u : Id} {d e : Key} {t : List (Pos 
   rw [View.eval_bind']
   split <;> rfl
 
-theorem mem_live (c : Id) (rows : List (Pos × Fact)) (u : Id) (d e : Key) :
-    (u, d, e) ∈ (live c rows).eval s ↔
-      (∃ p, (p, .admission c u d e) ∈ rows) ∧ (eval s (removals c u)).total = 0 := by
+theorem mem_live (c : Id) (rows : List (Pos × Fact)) (y u : Id) (d e : Key) :
+    (y, u, d, e) ∈ (live c rows).eval s ↔
+      (∃ k, ((k, y), .admission c u d e) ∈ rows) ∧ (eval s (removals c u)).total = 0 := by
   induction rows with
   | nil => simp [live, View.eval]
   | cons pf t ih =>
-    obtain ⟨p, f⟩ := pf
-    have tail : (∃ q, (q, Fact.admission c u d e) ∈ (p, f) :: t) ↔
-        ((p, f) = (p, .admission c u d e)) ∨ ∃ q, (q, Fact.admission c u d e) ∈ t := by
+    obtain ⟨⟨k, y'⟩, f⟩ := pf
+    have tail : (∃ q, ((q, y), Fact.admission c u d e) ∈ ((k, y'), f) :: t) ↔
+        (((k, y'), f) = ((k, y), .admission c u d e)) ∨ ∃ q, ((q, y), Fact.admission c u d e) ∈ t := by
       constructor
       · rintro ⟨q, hq⟩
         rcases List.mem_cons.1 hq with hq | hq
-        · simp only [Prod.mk.injEq] at hq; obtain ⟨rfl, rfl⟩ := hq; exact Or.inl rfl
+        · simp only [Prod.mk.injEq] at hq; obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hq; exact Or.inl rfl
         · exact Or.inr ⟨q, hq⟩
       · rintro (hq | ⟨q, hq⟩)
-        · simp only [Prod.mk.injEq] at hq; rw [hq.2]; exact ⟨p, List.mem_cons_self ..⟩
+        · rw [hq]; exact ⟨k, List.mem_cons_self ..⟩
         · exact ⟨q, List.mem_cons_of_mem _ hq⟩
     rw [tail]
     cases f with
@@ -93,12 +94,12 @@ theorem mem_live (c : Id) (rows : List (Pos × Fact)) (u : Id) (d e : Key) :
         · rw [if_pos hz, List.mem_cons, ih]
           constructor
           · rintro (he | ⟨hq, hr⟩)
-            · simp only [Prod.mk.injEq] at he; obtain ⟨rfl, rfl, rfl⟩ := he
+            · simp only [Prod.mk.injEq] at he; obtain ⟨rfl, rfl, rfl, rfl⟩ := he
               exact ⟨Or.inl rfl, hz⟩
             · exact ⟨Or.inr hq, hr⟩
           · rintro ⟨he | hq, hr⟩
             · simp only [Prod.mk.injEq, Fact.admission.injEq] at he
-              obtain ⟨_, _, rfl, rfl, rfl⟩ := he; exact Or.inl rfl
+              obtain ⟨⟨_, rfl⟩, _, rfl, rfl, rfl⟩ := he; exact Or.inl rfl
             · exact Or.inr ⟨hq, hr⟩
         · rw [if_neg hz, ih]
           constructor
@@ -107,7 +108,7 @@ theorem mem_live (c : Id) (rows : List (Pos × Fact)) (u : Id) (d e : Key) :
             · simp only [Prod.mk.injEq, Fact.admission.injEq] at he
               obtain ⟨_, _, rfl, _, _⟩ := he; exact absurd hr hz
             · exact ⟨hq, hr⟩
-      · have : (live c ((p, .admission c' u' d' e') :: t)).eval s = (live c t).eval s := by
+      · have : (live c (((k, y'), .admission c' u' d' e') :: t)).eval s = (live c t).eval s := by
           show View.eval s (if c' = c then _ else _) = _
           rw [if_neg hc]
         rw [this, ih]
@@ -117,26 +118,26 @@ theorem mem_live (c : Id) (rows : List (Pos × Fact)) (u : Id) (d e : Key) :
           · simp only [Prod.mk.injEq, Fact.admission.injEq] at he; exact absurd he.2.1 hc
           · exact ⟨hq, hr⟩
     | _ =>
-      show (u, d, e) ∈ (live c t).eval s ↔ _
+      show (y, u, d, e) ∈ (live c t).eval s ↔ _
       rw [ih]
       simp
 
 /-- At rest, the live admissions of a whole list of a community relation. -/
 theorem live_iff (h : Inv (family C) s) (hq : s.queue = []) {r : Rel Fact} (hr : r ∈ rels)
-    (as : List ByteArray) (c u : Id) (d e : Key) :
-    (u, d, e) ∈ (live c (eval s (r.query as)).rows).eval s ↔
-      (∃ y, V C s.ops y (.admission c u d e) ∧ r.args (.admission c u d e) = some as) ∧
+    (as : List ByteArray) (c y u : Id) (d e : Key) :
+    (y, u, d, e) ∈ (live c (eval s (r.query as)).rows).eval s ↔
+      (V C s.ops y (.admission c u d e) ∧ r.args (.admission c u d e) = some as) ∧
         ¬ Removed C s.ops c u := by
   rw [mem_live]
   apply and_congr
-  · show (∃ p, (p, _) ∈ (eval s { key := r.key as, limit := none }).rows) ↔ _
+  · show (∃ k, ((k, y), _) ∈ (eval s { key := r.key as, limit := none }).rows) ↔ _
     constructor
-    · rintro ⟨p, hp⟩
-      obtain ⟨y, f, he, hy, hf⟩ := (mem_rows_all _).1 hp
+    · rintro ⟨k, hp⟩
+      obtain ⟨y', f, he, hy, hf⟩ := (mem_rows_all _).1 hp
       simp only [Prod.mk.injEq] at he
-      obtain ⟨_, rfl⟩ := he
-      exact ⟨y, (filed hr h hq as y _).1 ⟨hy, hf⟩⟩
-    · rintro ⟨y, hv, hk⟩
+      obtain ⟨⟨_, rfl⟩, rfl⟩ := he
+      exact (filed hr h hq as _ _).1 ⟨hy, hf⟩
+    · rintro ⟨hv, hk⟩
       obtain ⟨hy, hf⟩ := (filed hr h hq as y _).2 ⟨hv, hk⟩
       exact ⟨_, (mem_rows_all _).2 ⟨y, _, rfl, hy, hf⟩⟩
   · rw [← removals_iff h hq]; simp
@@ -151,12 +152,12 @@ theorem connect_iff (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d : Key
   simp only [allowPeer, View.eval_bind, View.eval_read, View.eval_pure, List.any_eq_true,
     decide_eq_true_eq]
   constructor
-  · rintro ⟨⟨u, d', e⟩, hm, rfl⟩
-    obtain ⟨⟨y, hv, _⟩, hr⟩ := (live_iff h hq (by simp [rels]) [c, d'] c u d' e).1 hm
+  · rintro ⟨⟨y, u, d', e⟩, hm, rfl⟩
+    obtain ⟨⟨hv, _⟩, hr⟩ := (live_iff h hq (by simp [rels]) [c, d'] c y u d' e).1 hm
     exact ⟨u, e, ⟨y, hv⟩, hr⟩
   · rintro ⟨u, e, ⟨y, hv⟩, hr⟩
-    exact ⟨(u, d, e), (live_iff h hq (by simp [rels]) [c, d] c u d e).2
-      ⟨⟨y, hv, byDevice_args.2 ⟨u, e, rfl⟩⟩, hr⟩, rfl⟩
+    exact ⟨(y, u, d, e), (live_iff h hq (by simp [rels]) [c, d] c y u d e).2
+      ⟨⟨hv, byDevice_args.2 ⟨u, e, rfl⟩⟩, hr⟩, rfl⟩
 
 /-- **No connection to non-members or removed members.** -/
 theorem refuse_nonmember (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d : Key)
@@ -194,13 +195,13 @@ theorem connect_approved (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d 
   obtain ⟨u, e, ⟨y, hy⟩, hnr⟩ := (connect_iff h hq c d).1 ha
   exact ⟨u, e, y, hy, hnr, admission_approved h.key hy⟩
 
-theorem mem_live_all (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (u : Id) (d e : Key) :
-    (u, d, e) ∈ (live c (eval s (admission.all.query [c])).rows).eval s ↔
-      Admitted C s.ops c u d e ∧ ¬ Removed C s.ops c u := by
+theorem mem_live_all (h : Inv (family C) s) (hq : s.queue = []) (c y u : Id) (d e : Key) :
+    (y, u, d, e) ∈ (live c (eval s (admission.all.query [c])).rows).eval s ↔
+      V C s.ops y (.admission c u d e) ∧ ¬ Removed C s.ops c u := by
   rw [live_iff h hq (by simp [rels])]
   constructor
-  · rintro ⟨⟨y, hv, _⟩, hr⟩; exact ⟨⟨y, hv⟩, hr⟩
-  · rintro ⟨⟨y, hv⟩, hr⟩; exact ⟨⟨y, hv, all_args.2 ⟨u, d, e, rfl⟩⟩, hr⟩
+  · rintro ⟨⟨hv, _⟩, hr⟩; exact ⟨hv, hr⟩
+  · rintro ⟨hv, hr⟩; exact ⟨⟨hv, all_args.2 ⟨u, d, e, rfl⟩⟩, hr⟩
 
 /-- **Whom we dial.** At rest, `members` names exactly the devices
 admitted into users of c not removed. -/
@@ -208,18 +209,26 @@ theorem members_iff (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d : Key
     d ∈ (members c).eval s ↔ ∃ u e, Admitted C s.ops c u d e ∧ ¬ Removed C s.ops c u := by
   simp only [members, View.eval_bind, View.eval_read, View.eval_pure, List.mem_map]
   constructor
-  · rintro ⟨⟨u, d', e⟩, hm, rfl⟩; exact ⟨u, e, (mem_live_all h hq c u d' e).1 hm⟩
-  · rintro ⟨u, e, hm⟩; exact ⟨(u, d, e), (mem_live_all h hq c u d e).2 hm, rfl⟩
+  · rintro ⟨⟨y, u, d', e⟩, hm, rfl⟩
+    obtain ⟨hv, hr⟩ := (mem_live_all h hq c y u d' e).1 hm
+    exact ⟨u, e, ⟨y, hv⟩, hr⟩
+  · rintro ⟨u, e, ⟨y, hv⟩, hr⟩; exact ⟨(y, u, d, e), (mem_live_all h hq c y u d e).2 ⟨hv, hr⟩, rfl⟩
 
-/-- **Who a content key is sealed to.** At rest, `recipients` names
-exactly the encryption keys of devices admitted into users of c not
-removed: no outsider, no removed user's device, and no member left out. -/
-theorem recipients_iff (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (e : Key) :
-    e ∈ (recipients c).eval s ↔ ∃ u d, Admitted C s.ops c u d e ∧ ¬ Removed C s.ops c u := by
+/-- **Who a content key is wrapped to.** At rest, `recipients` names
+exactly the live admissions of c, each with its encryption key: an
+admission into a user of c not removed. No outsider, no removed user's
+admission, and no member left out. `shareKey`, the running wrap writer,
+wraps to these. -/
+theorem recipients_iff (h : Inv (family C) s) (hq : s.queue = []) (c y : Id) (e : Key) :
+    (y, e) ∈ (recipients c).eval s ↔
+      ∃ u d, V C s.ops y (.admission c u d e) ∧ ¬ Removed C s.ops c u := by
   simp only [recipients, View.eval_bind, View.eval_read, View.eval_pure, List.mem_map]
   constructor
-  · rintro ⟨⟨u, d, e'⟩, hm, rfl⟩; exact ⟨u, d, (mem_live_all h hq c u d e').1 hm⟩
-  · rintro ⟨u, d, hm⟩; exact ⟨(u, d, e), (mem_live_all h hq c u d e).2 hm, rfl⟩
+  · rintro ⟨⟨y', u, d, e'⟩, hm, he⟩
+    simp only [Prod.mk.injEq] at he
+    obtain ⟨rfl, rfl⟩ := he
+    exact ⟨u, d, (mem_live_all h hq c y' u d e').1 hm⟩
+  · rintro ⟨u, d, hm⟩; exact ⟨(y, u, d, e), (mem_live_all h hq c y u d e).2 hm, rfl⟩
 
 /-! ## Partitions -/
 

@@ -139,32 +139,19 @@ def othersOf (aps : Answer Fact) (u : Id) : List Id :=
     | _ => none)).map (·.1)
 
 /-- Approve request req of c as device d (admitted as `myAdm`): my
-approval; and when mine completes the tally, the admission, with this
-device's newest content key for c wrapped to the request's encryption
-key `e`, citing that admission (ephemeral secret `esk`), unless the user
-it admits into is removed. The approval is where key material hangs
-(the user's decision, 2026-10-27), but a wrap goes only with the
-admission it serves: below the threshold there is none yet, so there is
-no wrap (`approveReq_wraps`). Reads the request, my admission and the
-approvals so far; at the threshold, my content key and the admitted
-user's removals. -/
-def approveReq (c req myAdm : Id) (d : Device) (esk : ByteArray := .empty) :
-    View Fact Write := do
+approval, and the admission too when mine completes the tally. Never a
+wrap: the content key reaches the new admission from the store, once
+the admission is in it, by `shareKey` (`approveReq_ops`). Reads the
+request, my admission and the approvals so far. -/
+def approveReq (c req myAdm : Id) (d : Device) : View Fact Write := do
   let ok := approve c req myAdm d
   let rq ← View.read { key := opKey req, limit := some 1 }
   let me ← View.read { key := opKey myAdm, limit := some 1 }
   let aps ← approval.byRequest.read [c, req]
   match rq.rows.head?, me.rows.head? with
-  | some (_, .request c' ru _ e _ t), some (_, .admission _ u _ _) =>
+  | some (_, .request _ _ _ _ _ t), some (_, .admission _ u _ _) =>
     let chosen := ok.id :: othersOf aps u
-    if c' = c ∧ t ≤ chosen.length then
-      let a := admit c req (chosen.take t)
-      let ks ← key.byCommunity.read [c] (limit := some 1)
-      let gone ← removal.byUser.read [c, ru] (limit := some 0)
-      pure ⟨[ok, a] ++ match ks.rows.head? with
-        | some (_, .key _ _ k) => if esk.size = 32 ∧ gone.total = 0 then [wrapKey c a.id k esk e] else []
-        | _ => []⟩
-    else pure ⟨[ok]⟩
+    pure (if t ≤ chosen.length then ⟨[ok, admit c req (chosen.take t)]⟩ else ⟨[ok]⟩)
   | _, _ => pure ⟨[ok]⟩
 
 /-- Rename c as device d of an admin (admitted as `myAdm`, shown admin by
@@ -259,6 +246,41 @@ def readable (c : Id) (limit : Option Nat := some 50) (desc : Bool := true)
 def currentKey (c : Id) : View Fact (Option ByteArray) := do
   let ks ← key.byCommunity.read [c] (limit := some 1)
   pure (ks.rows.head?.bind fun (_, f) => match f with | .key _ _ k => some k | _ => none)
+
+/-- The ephemeral secret of this device's wrap of content key kid to
+key e: derived from the device's secret, so its wrap of a key to a key
+is one op, however often it is written. -/
+def wrapEsk (d : Device) (kid e : ByteArray) : ByteArray :=
+  sha256 ("quiet/wrap-esk/v1".toUTF8 ++ d.sk ++ kid ++ e)
+
+/-- Whether these wraps hold one of content key kid. -/
+def heldIn (kid : ByteArray) (a : Answer Fact) : Bool :=
+  a.rows.any fun (_, f) => match f with | .wrap _ k _ _ => decide (k = kid) | _ => false
+
+/-- After `out`, the recipients whose key holds no wrap of content key
+kid, each key once (with its first admission): one read of each key's
+wraps (`wrap.byRecipient`). -/
+def unwrapped (c kid : ByteArray) : List (Id × Key) → List (Id × Key) → View Fact (List (Id × Key))
+  | [], out => .pure out
+  | (y, e) :: t, out =>
+    if out.any (fun p => decide (p.2 = e)) then unwrapped c kid t out
+    else .list (wrap.byRecipient.query [c, e]) fun a =>
+      if heldIn kid a then unwrapped c kid t out else unwrapped c kid t (out ++ [(y, e)])
+
+/-- This device's newest content key for c, wrapped to every live
+admission's key that holds no wrap of it yet, each key once, citing that
+admission (`recipients`). A step runs it beside `unwrap`, again when an
+admission or a key of c is filed: once an approval's admission is in the
+store, its key is a recipient, and the key reaches it. Reads my content
+key, `recipients c`, and the wraps to each recipient key. -/
+def shareKey (c : Id) (d : Device) : View Fact Write := do
+  let ks ← key.byCommunity.read [c] (limit := some 1)
+  match ks.rows.head? with
+  | some (_, .key _ kid k) =>
+    let rs ← recipients c
+    let ts ← unwrapped c kid rs []
+    pure ⟨ts.map fun (y, e) => wrapKey c y k (wrapEsk d kid e) e⟩
+  | _ => pure ⟨[]⟩
 
 /-- The content keys of c wrapped to device d that it does not hold
 yet, opened with its encryption secret: each becomes a local `key`. -/
@@ -552,41 +574,23 @@ theorem removeMember_valid (h : Inv (family C) s) (hq : s.queue = []) {c t : Id}
     · simp at ho
   · simp at ho
 
-/-! ## A wrap goes with its admission
+/-! ## A wrap goes to a live admission
 
 A content key reaches a device as a wrap to its admission's key, and
 only so:
 - `wrap_only_admitted`: every wrap `unwrap` reads for key e cites an
   admission into c whose key is e, Valid in the same store;
-- `approveReq_wraps`: an approval wraps only with the admission it
-  completes, to the request's key, and only while the user it admits
-  into is not removed; below the threshold it wraps nothing;
+- `approveReq_ops`: an approval writes no wrap, so nothing is wrapped
+  to a request below its threshold, or before its admission;
+- `shareKey_recipients`: the wrap writer's targets are `recipients`
+  (`recipients_iff`): live admissions, each cited by its wrap;
+- `shareKey_complete`: every live admission's key holds a wrap of this
+  device's newest key, or `shareKey` writes one;
 - `admitted_reads`: whoever holds that key's secret opens the wrap, and
   with it every message sealed under the content key.
 
 They name a wrap's recipient as its admission's key (the `enc` of the
 root or request that admitted it), whatever key that is. -/
-
-theorem opKey_inj {x y : Id} (h : opKey x = opKey y) : x = y := by
-  have := congrArg ByteArray.data h
-  simp only [opKey] at this
-  exact ByteArray.ext (Array.append_right_inj _ |>.1 this)
-
-/-- A row of an op's own list, read at rest, is that op's Valid fact. -/
-theorem own_row (h : Inv (family C) s) (hq : s.queue = []) {x : Id} {lim : Option Nat}
-    {pf : Pos × Fact} (hp : pf ∈ (Engine.eval s { key := opKey x, limit := lim }).rows) :
-    V C s.ops x pf.2 := by
-  have hm := mem_eval_matching hp
-  obtain ⟨y, f, rfl, hy, hf⟩ := (mem_matching _ _).1 hm
-  obtain ⟨g, hg, hk⟩ := (h.idx _ y).1 hy
-  rw [hf] at hg; cases hg
-  rcases List.mem_cons.1 hk with he | hk
-  · rw [opKey_inj he]; exact (status_iff_spec h hq _ _).1 hf
-  · exfalso
-    have hk' : opKey x ∈ keysOf rels f := hk
-    obtain ⟨r, hr, hra⟩ := List.mem_filterMap.1 hk'
-    obtain ⟨as, _, hkey⟩ := Option.map_eq_some_iff.1 hra
-    exact r.key_ne_opKey (rels_short r hr) as x hkey
 
 /-- **No wrap reaches a device before its admission.** At rest, every
 row of the list `unwrap` reads for key e (`wrap.byRecipient [c, e]`) is
@@ -605,42 +609,162 @@ theorem wrap_only_admitted (h : Inv (family C) s) (hq : s.queue = []) {c e : Byt
   obtain ⟨o, y, u, d, hx, _, hreq, hy⟩ := wrap_cites_admission hv
   exact ⟨kid, bx, o, y, u, d, rfl, hv, hx, hreq, hy⟩
 
-/-- **A wrap goes only with the admission it serves.** What an approval
-writes is the approval alone, or the approval and an admit op of the
-request with wraps beside it. Each wrap is a content key wrapped to the
-encryption key e of the request, a Valid request of c at rest, and cites
-that admit op, whose admission is the request's device into its user
-with key e; and that user is not removed. So an approval below the
-threshold wraps nothing, and an approval never wraps to a removed
-user's admission. -/
-theorem approveReq_wraps (h : Inv (family C) s) (hq : s.queue = []) (c req myAdm : Id) (d : Device)
-    (esk : ByteArray) :
-    (approveReq c req myAdm d esk).eval s = ⟨[approve c req myAdm d]⟩ ∨
-    ∃ aps ws, (approveReq c req myAdm d esk).eval s = ⟨[approve c req myAdm d, admit c req aps] ++ ws⟩ ∧
-      ∀ w ∈ ws, ∃ k ru dv e l t, w = wrapKey c (admit c req aps).id k esk e ∧
-        V C s.ops req (.request c ru dv e l t) ∧ ¬ Removed C s.ops c ru := by
+/-- **An approval writes no wrap.** It writes the approval alone, or
+with the admit op of the request when it completes the tally; so no
+approval, below the threshold or at it, wraps a key to a requester. -/
+theorem approveReq_ops (c req myAdm : Id) (d : Device) :
+    (approveReq c req myAdm d).eval s = ⟨[approve c req myAdm d]⟩ ∨
+    ∃ aps, (approveReq c req myAdm d).eval s = ⟨[approve c req myAdm d, admit c req aps]⟩ := by
   unfold approveReq
   simp only [Rel.read, View.eval_bind, View.eval_read]
   split
-  · rename_i p1 c' ru dv e l t p2 c2 u dm em hrq _
-    by_cases hct : c' = c ∧
-        t ≤ ((approve c req myAdm d).id :: othersOf (Engine.eval s (approval.byRequest.query [c, req])) u).length
-    · simp only [hct, and_self, ↓reduceIte]
-      obtain ⟨rfl, _⟩ := hct
-      simp only [View.eval_bind, View.eval_read, View.eval_pure]
-      refine Or.inr ⟨_, _, rfl, fun w hw => ?_⟩
-      split at hw
-      · rename_i pk ck kid k _
-        by_cases hc : esk.size = 32 ∧ (Engine.eval s (removal.byUser.query [c', ru] (some 0))).total = 0
-        · simp only [hc, and_self, ↓reduceIte, List.mem_singleton] at hw
-          subst hw
-          have hr := own_row h hq (List.mem_of_mem_head? hrq)
-          refine ⟨k, ru, dv, e, l, t, rfl, hr, fun hrm => ?_⟩
-          exact (removals_iff h hq c' ru).2 hrm hc.2
-        · simp [hc] at hw
-      · cases hw
-    · simp only [hct, ↓reduceIte]; exact Or.inl rfl
+  · rename_i p1 c1 ru dv e l t p2 c2 u dm em _ _
+    simp only [View.eval_pure]
+    by_cases ht : t ≤ ((approve c req myAdm d).id :: othersOf (Engine.eval s (approval.byRequest.query [c, req])) u).length
+    · simp only [ht, ↓reduceIte]; exact Or.inr ⟨_, rfl⟩
+    · simp only [ht, ↓reduceIte, true_or]
   · exact Or.inl rfl
+
+/-- Whether a key holds a wrap of content key kid, read off its wraps. -/
+theorem heldIn_iff (h : Inv (family C) s) (hq : s.queue = []) {c kid e : ByteArray} :
+    heldIn kid (Engine.eval s (wrap.byRecipient.query [c, e])) = true ↔
+      ∃ z bx, V C s.ops z (.wrap c kid e bx) := by
+  unfold heldIn
+  rw [List.any_eq_true]
+  constructor
+  · rintro ⟨⟨p, f⟩, hp, hf⟩
+    obtain ⟨hv, ha⟩ := row_filed (r := wrap.byRecipient) (by simp [rels]) h hq hp
+    cases f <;> simp [wrap.byRecipient] at ha hf
+    obtain ⟨rfl, rfl⟩ := ha
+    subst hf
+    exact ⟨p.2, _, hv⟩
+  · rintro ⟨z, bx, hv⟩
+    exact ⟨_, at_row (C := C) (r := wrap.byRecipient) (by simp [rels]) h hq hv
+      (by simp [wrap.byRecipient]), by simp⟩
+
+theorem any_snd_iff {out : List (Id × Key)} {e : Key} :
+    out.any (fun p => decide (p.2 = e)) = true ↔ ∃ y, (y, e) ∈ out := by
+  rw [List.any_eq_true]
+  constructor
+  · rintro ⟨⟨y, e'⟩, hm, he⟩; simp at he; subst he; exact ⟨y, hm⟩
+  · rintro ⟨y, hm⟩; exact ⟨(y, e), hm, by simp⟩
+
+/-- `unwrapped` keeps what it started with. -/
+theorem unwrapped_keeps {c kid : ByteArray} {y : Id} {e : Key} :
+    ∀ {rs out : List (Id × Key)}, (y, e) ∈ out → (y, e) ∈ (unwrapped c kid rs out).eval s
+  | [], _, hm => hm
+  | (y0, e0) :: t, out, hm => by
+    unfold unwrapped
+    split
+    · exact unwrapped_keeps hm
+    · show (y, e) ∈ View.eval s (if heldIn kid _ then _ else _)
+      split
+      · exact unwrapped_keeps hm
+      · exact unwrapped_keeps (List.mem_append_left _ hm)
+
+/-- What `unwrapped` adds is a recipient whose key holds no wrap of kid. -/
+theorem mem_unwrapped (h : Inv (family C) s) (hq : s.queue = []) {c kid : ByteArray} {y : Id}
+    {e : Key} : ∀ {rs out : List (Id × Key)}, (y, e) ∈ (unwrapped c kid rs out).eval s →
+      (y, e) ∈ out ∨ ((y, e) ∈ rs ∧ ¬ ∃ z bx, V C s.ops z (.wrap c kid e bx))
+  | [], _, hm => Or.inl hm
+  | (y0, e0) :: t, out, hm => by
+    unfold unwrapped at hm
+    split at hm
+    · rcases mem_unwrapped h hq hm with hm | ⟨hm, hn⟩
+      · exact Or.inl hm
+      · exact Or.inr ⟨List.mem_cons_of_mem _ hm, hn⟩
+    · change (y, e) ∈ View.eval s (if heldIn kid _ then _ else _) at hm
+      split at hm
+      · rcases mem_unwrapped h hq hm with hm | ⟨hm, hn⟩
+        · exact Or.inl hm
+        · exact Or.inr ⟨List.mem_cons_of_mem _ hm, hn⟩
+      · rename_i hh
+        rcases mem_unwrapped h hq hm with hm | ⟨hm, hn⟩
+        · rcases List.mem_append.1 hm with hm | hm
+          · exact Or.inl hm
+          · simp only [List.mem_singleton, Prod.mk.injEq] at hm
+            obtain ⟨rfl, rfl⟩ := hm
+            exact Or.inr ⟨List.mem_cons_self .., fun hw => hh ((heldIn_iff h hq).2 hw)⟩
+        · exact Or.inr ⟨List.mem_cons_of_mem _ hm, hn⟩
+
+/-- Every recipient whose key holds no wrap of kid has its key in what
+`unwrapped` gives. -/
+theorem unwrapped_complete (h : Inv (family C) s) (hq : s.queue = []) {c kid : ByteArray} {y : Id}
+    {e : Key} (hn : ¬ ∃ z bx, V C s.ops z (.wrap c kid e bx)) :
+    ∀ {rs out : List (Id × Key)}, (y, e) ∈ rs → ∃ y', (y', e) ∈ (unwrapped c kid rs out).eval s
+  | [], _, hm => by simp at hm
+  | (y0, e0) :: t, out, hm => by
+    unfold unwrapped
+    split
+    · rename_i ho
+      by_cases he : e = e0
+      · subst he
+        obtain ⟨y', hy'⟩ := any_snd_iff.1 ho
+        exact ⟨y', unwrapped_keeps hy'⟩
+      · rcases List.mem_cons.1 hm with hm | hm
+        · simp only [Prod.mk.injEq] at hm; exact absurd hm.2 he
+        · exact unwrapped_complete h hq hn hm
+    · show ∃ y', (y', e) ∈ View.eval s (if heldIn kid _ then _ else _)
+      rcases List.mem_cons.1 hm with he | hm
+      · simp only [Prod.mk.injEq] at he
+        obtain ⟨rfl, rfl⟩ := he
+        have : heldIn kid (Engine.eval s (wrap.byRecipient.query [c, e])) = false := by
+          cases hb : heldIn kid (Engine.eval s (wrap.byRecipient.query [c, e]))
+          · rfl
+          · exact absurd ((heldIn_iff h hq).1 hb) hn
+        rw [this]
+        exact ⟨y, unwrapped_keeps (List.mem_append_right _ (List.mem_singleton_self _))⟩
+      · split
+        · exact unwrapped_complete h hq hn hm
+        · exact unwrapped_complete h hq hn hm
+
+/-- **A content key is wrapped only to live admissions, each cited by
+its wrap.** Every op `shareKey` writes is this device's content key k
+(id kid, a Valid key of c it holds) wrapped to key e, citing admission
+y, where (y, e) is in `recipients c`: a Valid admission into c with key
+e, of a user not removed (`recipients_iff`). And no Valid wrap of k to e
+is held yet. -/
+theorem shareKey_recipients (h : Inv (family C) s) (hq : s.queue = []) {c : Id} {d : Device} {w : Op}
+    (hw : w ∈ ((shareKey c d).eval s).ops) :
+    ∃ y e x kid k u dv, w = wrapKey c y k (wrapEsk d kid e) e ∧ V C s.ops x (.key c kid k) ∧
+      (y, e) ∈ (recipients c).eval s ∧ V C s.ops y (.admission c u dv e) ∧ ¬ Removed C s.ops c u ∧
+      ¬ ∃ z bx, V C s.ops z (.wrap c kid e bx) := by
+  unfold shareKey at hw
+  simp only [Rel.read, View.eval_bind, View.eval_read] at hw
+  split at hw
+  · rename_i p c' kid k hk
+    simp only [View.eval_bind, View.eval_pure, List.mem_map] at hw
+    obtain ⟨⟨y, e⟩, ht, rfl⟩ := hw
+    rcases mem_unwrapped h hq ht with hm | ⟨hr, hn⟩
+    · simp at hm
+    obtain ⟨hkv, hka⟩ := row_filed (r := key.byCommunity) (by simp [rels]) h hq (List.mem_of_mem_head? hk)
+    simp [key.byCommunity] at hka
+    subst hka
+    obtain ⟨u, dv, hy, hnr⟩ := (recipients_iff h hq _ y e).1 hr
+    exact ⟨y, e, p.2, kid, k, u, dv, rfl, hkv, hr, hy, hnr, hn⟩
+  · simp at hw
+
+/-- **Every live admission gets the content key.** For this device's
+newest content key k of c (the first of `key.byCommunity [c]`) and
+every Valid admission y into c with key e, of a user not removed: a
+Valid wrap of k to e is held, or `shareKey` writes one. -/
+theorem shareKey_complete (h : Inv (family C) s) (hq : s.queue = []) {c : Id} {d : Device}
+    {p : Pos} {c' kid k : ByteArray}
+    (hk : (Engine.eval s (key.byCommunity.query [c] (some 1))).rows.head? = some (p, .key c' kid k))
+    {y u : Id} {dv e : Key} (hy : V C s.ops y (.admission c u dv e)) (hr : ¬ Removed C s.ops c u) :
+    (∃ z bx, V C s.ops z (.wrap c kid e bx)) ∨
+      ∃ y', wrapKey c y' k (wrapEsk d kid e) e ∈ ((shareKey c d).eval s).ops := by
+  have hm := (recipients_iff h hq c y e).2 ⟨u, dv, hy, hr⟩
+  by_cases hh : ∃ z bx, V C s.ops z (.wrap c kid e bx)
+  · exact Or.inl hh
+  · refine Or.inr ?_
+    obtain ⟨y', ht⟩ := unwrapped_complete (out := []) h hq hh hm
+    refine ⟨y', ?_⟩
+    unfold shareKey
+    simp only [Rel.read, View.eval_bind, View.eval_read]
+    rw [hk]
+    simp only [View.eval_bind, View.eval_pure, List.mem_map]
+    exact ⟨(y', e), ht, rfl⟩
 
 /-- **A member reads what is sealed under a key wrapped to it**
 (`member_opens`, lifted to the store). At rest, a Valid wrap that

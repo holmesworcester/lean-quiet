@@ -6,8 +6,7 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   and the founder's user is the community id. The founder is admin.
 - An invite is issued by an admitted device, with a threshold: how
   many members must approve a request it carries, at least one (the
-  user's decision, 2026-10-27: approvals are always needed; they are
-  where key-material wraps to the new device will hang). A link
+  user's decision, 2026-10-27: approvals are always needed). A link
   invitation (another device for the issuer's user) needs exactly one
   approval, by the issuer's user, as libquiet's unbound device links
   do. There is no open link: the bearer key alone admits nobody.
@@ -47,11 +46,12 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   key's holder opens it. A wrap serves one admission: it cites it, and
   is Valid only if its recipient is that admission's encryption key
   (`wrap_cites_admission`). So a wrap is Valid only where its admission
-  is (`wrap_only_admitted`). The honest writers wrap with the admission
-  they complete: the founder's key to itself with the root, a joiner's
-  by whoever composes its admit, in the same write (`approveReq_wraps`),
-  never at an approval below the threshold. A wrap admits nobody, so it
-  needs no author.
+  is (`wrap_only_admitted`). The founder wraps the first key to itself,
+  citing the root; after that `shareKey` wraps a device's key to every
+  live admission (`recipients`) whose key holds none, citing it
+  (`shareKey_recipients`, `shareKey_complete`). An approval writes no
+  wrap (`approveReq_ops`), so nothing reaches a requester before its
+  admission. A wrap admits nobody, so it needs no author.
 - A post claims two numbers: a counter, which orders its channel, and
   a time, wall-clock minutes since the Unix epoch, which is shown (the
   user's decision, 2026-10-28: "don't hack order onto time"). A

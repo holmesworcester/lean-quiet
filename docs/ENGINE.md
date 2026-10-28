@@ -82,8 +82,9 @@ seed derives to the key: `secret_derives`), the communities it is in
 name is a shared admin register (`named.current`, newest counter first:
 `named_by_admin`). An intent is a user action as the ops of one writer
 job, after reading lists: `found`, `inviteTo`, `join` (with the name to introduce itself by), `approveReq`
-(the approval; when it completes the tally, the admission and the
-content key's wrap citing it),
+(the approval, and the admission when it completes the tally; never a
+wrap), `shareKey` (this device's content key wrapped to every live
+admission whose key holds none: `recipients`, read afresh),
 `introduce` (the first profile, once admitted), `stopWaiting` (a local
 `abandon` of a pending join; an approval still admits), `rename`, `send`
 (blobs and the post), `reactTo`. Laws: `join_travels`
@@ -181,8 +182,8 @@ an unsigned admit op tallies exactly the invitation's threshold of them,
 by distinct users, into the admission. A link invitation needs one
 approval, by the issuer's user; nobody approves their own request. A
 wrap of a content key cites the admission it serves and is to that
-admission's key; the approval that completes a tally writes the admit
-and the wrap together. Validity reads only cited facts, so every
+admission's key; once an admission is in a member's store, that
+member's `shareKey` wraps its key to it. Validity reads only cited facts, so every
 admin-issued removal stands: of other admins, mutually, and by an admin
 who has since been removed, and an approval by a user removed since
 still counts. In practice that last kind may not spread,
@@ -203,13 +204,15 @@ Laws (`Laws.lean`, `Connect.lean`):
 | Do we connect to non-members or removed members? | `connect_iff`, `refuse_nonmember` |
 | Whom do we dial? | `members_iff` |
 | Do we connect to approved devices, and only those? | `connect_admitted`, `connect_approved` (a pending request never connects) |
-| Who is a new content key sealed to? | `recipients_iff` |
-| Is a content key wrapped only to an admitted key? | `wrap_cites_admission` (a wrap is Valid only to the key of the admission it cites), `wrap_only_admitted` (no wrap is listed before its admission), `approveReq_wraps` (an approval wraps only with the admission it completes, to a user not removed) |
+| Who is a content key wrapped to? | `recipients_iff` (the live admissions, each with its key), `shareKey_recipients` (the writer wraps only to those, citing each), `shareKey_complete` (and to each one whose key holds none) |
+| Is a content key wrapped only to an admitted key? | `wrap_cites_admission` (a wrap is Valid only to the key of the admission it cites), `wrap_only_admitted` (no wrap is listed before its admission), `approveReq_ops` (an approval writes no wrap) |
 | Does an admitted device read? | `admitted_reads`: holding its admission key's secret, it opens a wrap to that key and every message sealed under the wrapped key |
 | What does a removal cut off? | `removal_cuts_off`, `connect_agree`: the removed user's devices plus any nodes that have not yet received the removal |
 
 The connection, dialing and sealing laws are about the views
-themselves (`allowPeer`, `members`, `recipients`, in `Query.lean`), lists
+themselves (`allowPeer`, `members`, `recipients`, in `Query.lean`; the
+app runs `allowPeer` to connect and `shareKey`, which reads `recipients`,
+to wrap), lists
 read over the persisted tables: `admission.byDevice`, `admission.all`,
 and each named user's `removal.byUser`.
 
