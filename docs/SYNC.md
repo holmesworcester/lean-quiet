@@ -562,9 +562,13 @@ writes in the window).
   R's app write reaches it in milliseconds with the backlog still
   flowing. With the old blocking send, R's loop stops at the client's
   first full buffer.
-- tests/engine/fresh_negative.py: mutants of the shared FIFO, one lane,
-  the blocking send, no hot set and no credit, each refused by a law or
-  a test.
+- tests/engine/fresh_negative.py: seven mutants, each refused by a law
+  or a test: the shared FIFO (`write_first`), one lane (`urgent_ahead`),
+  no burst cap (`cut_bytes`), no credit (`credit_window`), no hot set
+  (`lane_hot`), a write left cold (`write_hot`), and the blocking send
+  (FreshTcp: the other node gets nothing).
+- `mise run test:fresh` runs all three; tests/engine/run.sh (the engine
+  gate) runs it.
 
 ## Planned (approved; after the join demo)
 
