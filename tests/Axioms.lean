@@ -35,6 +35,7 @@ import engine.core.WindowRead
 import engine.core.WindowCost
 import engine.core.WindowMutants
 import engine.renderer.Screen
+import engine.renderer.ActsLaws
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -408,6 +409,20 @@ section app
 #print axioms PeopleLaws.present_nodup
 #print axioms Reader.Want.withView_ofFrame
 #print axioms Reader.Want.withViewLast_moves
+#print axioms Live.acts_force
+#print axioms Live.rest_ignores_acts
+#print axioms Live.mem_pickActs
+#print axioms Live.RWorld.passActs_picks
+#print axioms Live.RWorld.passActs_nil
+#print axioms Live.RWorld.inv_passActs
+#print axioms Live.RWorld.idxok_passActs
+#print axioms Live.RWorld.acts_shown
+#print axioms Live.AWorld.passActs_comp
+#print axioms Live.AWorld.passActs_indep
+#print axioms Live.AWorld.passActs_acts
+#print axioms Live.AWorld.type_only
+#print axioms Live.Eager.acts_fresh
+#print axioms Live.Eager.late_stale
 #print axioms Remove.writes_only_after_two
 #print axioms Remove.cancel_writes_nothing
 #print axioms Remove.open_fresh
