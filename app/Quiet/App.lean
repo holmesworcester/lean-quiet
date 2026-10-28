@@ -245,7 +245,6 @@ def read (q : Q) : M Ans := do
 
 def fresh (q : Q) : M Bool := do return (← get).live.fresh q
 
-def listAll (s : St) (limit : Nat) : ListQ := { key := Community.message.all.key [s.me.c], desc := true, limit := some limit }
 
 instance : Reads M := ⟨read⟩
 
@@ -1328,21 +1327,12 @@ def step (evs : List Event) : M (Option (List Event)) := do
   modify fun s => { s with ctl := queue }
   -- 3. the list's ids and counts
   let s ← get
-  if let .list a _ ← read (.list (listAll s s.limit)) then
-    -- a message whose content key this device does not hold yet is not
-    -- shown at all (it appears when its key's wrap opens: the key's list
-    -- is read, so its arrival re-reads this)
-    let mut held : List (ByteArray × Bool) := []
-    for (_, f) in a.rows do
-      if let .message _ _ _ kid _ _ := f then
-        if !(held.any (·.1 == kid)) then
-          let (ks, _, _) ← readList (key.byId.query [kid] (limit := some 0)) #[]
-          held := (kid, ks.total > 0) :: held
-    let shown := a.rows.filter fun (_, f) => match f with
-      | .message _ _ _ kid _ _ => (held.find? (·.1 == kid)).any (·.2)
-      | _ => false
-    modify fun s => { s with ids := (shown.map (·.1)).toArray, fetched := a.rows.length,
-                             total := a.total - (a.rows.length - shown.length) }
+  -- the conversation: the messages this device can read (Community.readable,
+  -- a union of message.byKey over the keys it holds); one it cannot read
+  -- is not in it, and appears when its key's wrap opens (the key's list is
+  -- one the view reads)
+  let (a, _) ← readView (Community.readable s.me.c (limit := some s.limit)) #[]
+  modify fun s => { s with ids := (a.rows.map (·.1)).toArray, fetched := a.rows.length, total := a.total }
   let s ← get
   -- people: the community's admissions (a person's every device counts
   -- once per device; profiles are optional)
