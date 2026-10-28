@@ -254,3 +254,28 @@ lean_exe harden where
 
 lean_exe harden_tcp where
   root := `tests.engine.HardenTcp
+
+/-! ## The desktop (platforms/desktop) and its Linux shell (platforms/linux) -/
+
+-- The desktop root: the app's own pixels in a fluid middle track, with
+-- navigation on the left and a context pane on the right.
+@[default_target] lean_lib DesktopRoot where
+  globs := #[.submodules `platforms.desktop]
+
+-- The Linux shell: xcb, MIT-SHM (PutImage without it), input, clipboard
+-- and integer scale; it implements Platform.lean's externs.
+target linux.o pkg : FilePath := do
+  let oFile := pkg.buildDir / "linux" / "shell.o"
+  let srcJob ← inputTextFile <| pkg.dir / "platforms" / "linux" / "shell.c"
+  let weakArgs := #["-I", (← getLeanIncludeDir).toString]
+  buildO oFile srcJob weakArgs #["-fPIC", "-O2", "-std=gnu11", "-Wall", "-Wextra", "-Werror"] "cc"
+
+lean_exe linux where
+  root := `platforms.linux.Main
+  moreLinkObjs := #[linux.o]
+  moreLinkArgs := #["/usr/lib/x86_64-linux-gnu/libxcb.so.1", "/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0"]
+
+-- The desktop root without a window: renders at boundary widths,
+-- switching, settings and resize (tests/app/desktop.sh).
+lean_exe desktop where
+  root := `platforms.headless.Desktop
