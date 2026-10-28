@@ -440,6 +440,232 @@ theorem run_inv {fam : Family F} : ∀ (cs : List Change) {s : DB F}, Inv fam s 
   | [], _, h => h
   | c :: cs, _, h => run_inv cs (change_inv h c)
 
+/-! ## A filed op keeps its fact -/
+
+/-- One op per id across a batch: some naming of ids names every op the
+tables hold and every op the batch stores. It holds when SHA-256 has no
+collision among them (`oneOpPerId_of`). -/
+def OneOpPerId (s : DB F) (cs : List Change) : Prop :=
+  ∃ g : Id → Option Op, Extends s.ops g ∧ ∀ o ∈ Change.ingests cs, g o.id = some o
+
+theorem ingest_extends {s : DB F} {g : Id → Option Op} (h : Extends s.ops g) {o : Op}
+    (ho : g o.id = some o) : Extends (ingestS o s).ops g := by
+  intro i p hp
+  unfold ingestS at hp
+  split at hp
+  · exact h i p hp
+  · change (if i = o.id then some o else s.ops i) = some p at hp
+    by_cases hi : i = o.id
+    · rw [if_pos hi] at hp; cases hp; rw [hi]; exact ho
+    · rw [if_neg hi] at hp; exact h i p hp
+
+theorem change_extends {fam : Family F} {s : DB F} {g : Id → Option Op} (h : Extends s.ops g) :
+    ∀ (c : Change), (∀ o, c = .ingest o → g o.id = some o) → Extends (c.apply fam s).ops g
+  | .ingest o, hc => ingest_extends h (hc o rfl)
+  | .step, _ => by show Extends (stepS fam s).ops g; rw [stepS_ops]; exact h
+  | .purge ids, _ => by
+    intro i p hp
+    show g i = some p
+    by_cases hi : i ∈ purgeSet fam s ids
+    · change (purgeS fam ids s).ops i = some p at hp
+      rw [purgeS_ops_mem s ids hi] at hp; cases hp
+    · change (purgeS fam ids s).ops i = some p at hp
+      rw [purgeS_ops_not s ids hi] at hp; exact h i p hp
+
+theorem run_extends {fam : Family F} {g : Id → Option Op} :
+    ∀ (cs : List Change) {s : DB F}, Extends s.ops g → (∀ o ∈ Change.ingests cs, g o.id = some o) →
+      Extends (runJ fam cs s).1.ops g
+  | [], _, h, _ => h
+  | c :: cs, s, h, hc => by
+    have hc' : ∀ o ∈ Change.ingests cs, g o.id = some o := by
+      intro o ho
+      cases c with
+      | ingest o' => exact hc o (List.mem_cons_of_mem _ ho)
+      | step => exact hc o ho
+      | purge _ => exact hc o ho
+    have h1 : ∀ o, c = .ingest o → g o.id = some o := by
+      rintro o rfl; exact hc o (List.mem_cons_self ..)
+    exact run_extends cs (change_extends h c h1) hc'
+
+theorem All2.mem_left {α β : Type} {R : α → β → Prop} :
+    ∀ {l : List α} {gs : List β}, All2 R l gs → ∀ {a}, a ∈ l → ∃ b, R a b
+  | _, _, .nil, _, h => by cases h
+  | _, _, .cons hr t, _, h => by
+    rcases List.mem_cons.1 h with rfl | h
+    · exact ⟨_, hr⟩
+    · exact All2.mem_left t h
+
+/-- Everything a Valid op requires, transitively, is Valid. -/
+theorem spec_closure {fam : Family F} {ops : Id → Option Op} {x : Id} {f : F}
+    (h : Spec fam ops x (.valid f)) {y : Id} (hr : Sync.Reach ops x y) : ∃ g, Spec fam ops y (.valid g) := by
+  induction hr with
+  | refl => exact ⟨f, h⟩
+  | step _ hy hr' ih =>
+    obtain ⟨g, hg⟩ := ih
+    obtain ⟨o', fs, ho', hall, _⟩ := spec_valid_inv hg
+    rw [hy] at ho'; cases ho'
+    exact hall.mem_left hr'
+
+/-- **A filed op keeps its fact.** Two states that hold one op per id
+(both within one naming g) give an op Valid in both the same fact: its
+requirement closure is the same ops in both, and the verdict reads only
+that (`Sync.spec_local`). -/
+theorem fact_stable {fam : Family F} {s t : DB F} (hs : Inv fam s) (ht : Inv fam t)
+    {g : Id → Option Op} (es : Extends s.ops g) (et : Extends t.ops g) {x : Id} {f f' : F}
+    (h1 : s.status x = some (.valid f)) (h2 : t.status x = some (.valid f')) : f = f' := by
+  have sp := hs.sound x _ h1
+  have tp := ht.sound x _ h2
+  -- what x reaches in t, it reaches in s, through the same ops
+  have reach : ∀ {y}, Sync.Reach t.ops x y → Sync.Reach s.ops x y := by
+    intro y hr
+    induction hr with
+    | refl => exact .refl
+    | @step y o r _ hy hr' ih =>
+      obtain ⟨_, hyv⟩ := spec_closure sp ih
+      obtain ⟨o', _, ho', _⟩ := spec_valid_inv hyv
+      have := (es y o' ho').symm.trans (et y o hy)
+      cases this
+      exact .step ih ho' hr'
+  have hold : ∀ y o, Sync.Reach t.ops x y → t.ops y = some o → s.ops y = some o := by
+    intro y o hr hy
+    obtain ⟨_, hyv⟩ := spec_closure sp (reach hr)
+    obtain ⟨o', _, ho', _⟩ := spec_valid_inv hyv
+    have := (es y o' ho').symm.trans (et y o hy)
+    cases this
+    exact ho'
+  have := spec_det sp (Sync.spec_local fam tp hold)
+  cases this; rfl
+
+/-! ## Windows -/
+
+/-- A window's rows: those filed under its key in its range, ascending. -/
+def window (s : DB F) (w : Win) : List (Pos × F) :=
+  (matching s { key := w.key }).filter fun r => w.inside r.1
+
+theorem mem_window {s : DB F} {w : Win} {r : Pos × F} :
+    r ∈ window s w ↔ w.inside r.1 = true ∧ filed s w.key r.1 = true ∧ s.status r.1.2 = some (.valid r.2) := by
+  unfold window
+  rw [List.mem_filter, mem_matching w.key (some 0), filed_iff]
+  constructor
+  · rintro ⟨⟨x, f, rfl, hx, hf⟩, hin⟩
+    exact ⟨hin, ⟨f, hx, hf, rfl⟩, hf⟩
+  · rintro ⟨hin, ⟨f, hx, hf, hsk⟩, hr⟩
+    rw [hf] at hr; cases hr
+    exact ⟨⟨r.1.2, r.2, by rw [hsk], hx, hf⟩, hin⟩
+
+/-- A window's rows strictly ascend: sorted, and no two share a position. -/
+theorem window_strict {fam : Family F} {s : DB F} (h : Inv fam s) (w : Win) :
+    (window s w).Pairwise fun a b => a.1.cmp b.1 = .lt := by
+  have hs := sortPos_sorted ((s.idx w.key).filterMap fun x =>
+    if ([] : List ByteArray).all (fun k => has (s.idx k) x) then
+      match s.status x with
+      | some (.valid f) => some ((SortKey.sortOf f, x), f)
+      | _ => none
+    else none)
+  have hn := matching_nodup h { key := w.key }
+  rw [List.nodup_iff_pairwise_ne, List.pairwise_map] at hn
+  have both := (List.Pairwise.and hs hn)
+  unfold window
+  refine (both.filter _).imp fun ⟨h1, h2⟩ => strict_of h1 fun e => h2 (by rw [e])
+
+/-- Two strictly ascending lists with the same rows are one list. -/
+theorem eq_of_strict {α : Type} : ∀ {l₁ l₂ : List (Pos × α)},
+    l₁.Pairwise (fun a b => a.1.cmp b.1 = .lt) → l₂.Pairwise (fun a b => a.1.cmp b.1 = .lt) →
+      (∀ a, a ∈ l₁ ↔ a ∈ l₂) → l₁ = l₂
+  | [], [], _, _, _ => rfl
+  | [], b :: _, _, _, h => absurd ((h b).2 (List.mem_cons_self ..)) (by simp)
+  | a :: _, [], _, _, h => absurd ((h a).1 (List.mem_cons_self ..)) (by simp)
+  | a :: t₁, b :: t₂, h1, h2, h => by
+    rw [List.pairwise_cons] at h1 h2
+    have self : ∀ c : Pos × α, c.1.cmp c.1 ≠ .lt := fun c => by rw [(Pos.cmp_eq_iff _ _).2 rfl]; simp
+    have hab : a = b := by
+      rcases List.mem_cons.1 ((h a).1 (List.mem_cons_self ..)) with e | ha
+      · exact e
+      rcases List.mem_cons.1 ((h b).2 (List.mem_cons_self ..)) with e | hb
+      · exact e.symm
+      have x1 := h1.1 b hb
+      have x2 := h2.1 a ha
+      rw [Pos.cmp_swap, x2] at x1
+      cases x1
+    subst hab
+    have ht : ∀ c, c ∈ t₁ ↔ c ∈ t₂ := by
+      intro c
+      constructor
+      · intro hc
+        rcases List.mem_cons.1 ((h c).1 (List.mem_cons_of_mem _ hc)) with rfl | hc'
+        · exact absurd (h1.1 c hc) (self c)
+        · exact hc'
+      · intro hc
+        rcases List.mem_cons.1 ((h c).2 (List.mem_cons_of_mem _ hc)) with rfl | hc'
+        · exact absurd (h2.1 c hc) (self c)
+        · exact hc'
+    rw [eq_of_strict h1.2 h2.2 ht]
+
+/-- **A window changes exactly when a row in its range came or went**,
+between two states whose filed ops keep their facts. -/
+theorem window_ne_iff {fam : Family F} {s t : DB F} (hs : Inv fam s) (ht : Inv fam t)
+    (hst : ∀ x f f', s.status x = some (.valid f) → t.status x = some (.valid f') → f = f') (w : Win) :
+    window s w ≠ window t w ↔ ∃ p, w.inside p = true ∧ filed s w.key p ≠ filed t w.key p := by
+  constructor
+  · intro hne
+    apply Classical.byContradiction
+    intro hno
+    apply hne
+    have same : ∀ p, w.inside p = true → filed s w.key p = filed t w.key p := by
+      intro p hp
+      apply Classical.byContradiction
+      intro hd
+      exact hno ⟨p, hp, hd⟩
+    refine eq_of_strict (window_strict hs w) (window_strict ht w) fun r => ?_
+    rw [mem_window, mem_window]
+    constructor
+    · rintro ⟨hin, hf, hv⟩
+      have hf' := same r.1 hin ▸ hf
+      obtain ⟨g, _, hg, _⟩ := filed_iff.1 hf'
+      have := hst _ _ _ hv hg
+      subst this
+      exact ⟨hin, hf', hg⟩
+    · rintro ⟨hin, hf, hv⟩
+      have hf' := (same r.1 hin).symm ▸ hf
+      obtain ⟨g, _, hg, _⟩ := filed_iff.1 hf'
+      have := hst _ _ _ hg hv
+      subst this
+      exact ⟨hin, hf', hg⟩
+  · rintro ⟨p, hin, hd⟩ heq
+    cases e1 : filed s w.key p <;> cases e2 : filed t w.key p
+    · exact hd (by rw [e1, e2])
+    · obtain ⟨f, _, hf, _⟩ := filed_iff.1 e2
+      have hr : (p, f) ∈ window t w := mem_window.2 ⟨hin, e2, hf⟩
+      rw [← heq] at hr
+      rw [(mem_window.1 hr).2.1] at e1; cases e1
+    · obtain ⟨f, _, hf, _⟩ := filed_iff.1 e1
+      have hr : (p, f) ∈ window s w := mem_window.2 ⟨hin, e1, hf⟩
+      rw [heq] at hr
+      rw [(mem_window.1 hr).2.1] at e2; cases e2
+    · exact hd (by rw [e1, e2])
+
+/-- **The net filings name exactly the windows a batch changed.** A
+window changes over a batch exactly when the journal touched a row in
+its range an odd number of times. -/
+theorem window_ne_iff_flips {fam : Family F} {s : DB F} (hs : Inv fam s) {cs : List Change}
+    (ho : OneOpPerId s cs) (w : Win) :
+    window s w ≠ window (runJ fam cs s).1 w ↔
+      ∃ p, w.inside p = true ∧ flips (runJ fam cs s).2 w.key p = true := by
+  obtain ⟨g, es, eg⟩ := ho
+  have ht := run_inv cs hs (fam := fam)
+  have et := run_extends cs es eg (fam := fam)
+  rw [window_ne_iff hs ht (fun x f f' h1 h2 => fact_stable hs ht es et h1 h2) w]
+  constructor
+  · rintro ⟨p, hin, hd⟩
+    refine ⟨p, hin, ?_⟩
+    rw [run_exact cs hs w.key p] at hd
+    revert hd
+    cases filed s w.key p <;> cases flips (runJ fam cs s).2 w.key p <;> simp
+  · rintro ⟨p, hin, hf⟩
+    refine ⟨p, hin, ?_⟩
+    rw [run_exact cs hs w.key p, hf]
+    cases filed s w.key p <;> simp
+
 end
 
 end Engine
