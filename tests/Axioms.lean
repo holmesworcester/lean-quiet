@@ -674,6 +674,11 @@ open Engine.World
 #print axioms Engine.World.waiting_closure_proof
 #print axioms Engine.World.closure_agree_proof
 #print axioms Engine.World.local_verdicts
+#print axioms Engine.World.View.run_held
+#print axioms Engine.World.sortPos_filterMap_congr
+#print axioms Engine.World.list_eval_congr
+#print axioms Engine.World.view_eval_congr
+#print axioms Engine.World.local_proof
 #print axioms Engine.World.offer_delivers
 #print axioms Engine.World.cached_exact
 #print axioms Engine.World.grows_all

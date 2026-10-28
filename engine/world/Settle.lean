@@ -3,9 +3,9 @@ Waiting ops close, proven of the running code (`waiting_closure_proof`):
 at every world reached, every node's store is at rest and its verdicts
 are the spec's over the ops it holds, so an op that waited on a missing
 requirement is judged in the very step that brings the last of them.
-Then two nodes holding the same ops judge alike (`local_verdicts`), and
-a node holding another's closure of x judges x alike
-(`closure_agree_proof`).
+Then two nodes holding the same ops judge alike and read every view
+alike (`local_proof`), and a node holding another's closure of x judges
+x alike (`closure_agree_proof`).
 
 - A held store is a state the engine reaches from its log
   (`Settled`), and every write turn drains it to rest: the turn's budget
@@ -17,6 +17,8 @@ a node holding another's closure of x judges x alike
 import engine.world.Idem
 import engine.core.Termination
 import engine.core.Locality
+import engine.core.Decl
+import engine.core.Order
 namespace Engine.World
 open Engine Engine.Sync
 variable {F : Type}
@@ -277,5 +279,88 @@ theorem local_verdicts (Q : Plain F) (adv : World (Held F) Q.n → ByteArray →
     have := (status_iff_spec (reach_inv si.1) (si.2 hci) x v).1 ei
     rw [hops] at this
     exact ((status_iff_spec (reach_inv sj.1) (sj.2 hcj) x v).2 this).symm
+
+
+/-! ## The same verdicts, the same views -/
+
+/-- A view run on a held store is its answer over the store's tables. -/
+theorem View.run_held [SortKey F] {α : Type} (v : View F α) (h : Held F) :
+    (v.run : HeldM F α).run h = (v.eval h.db, h) := by
+  induction v with
+  | pure a => rfl
+  | list q k ih =>
+    simp only [View.run, HeldM.run_bind]
+    have e : (Lists.list q : HeldM F (Answer F)).run h = (Engine.eval h.db q, h) := rfl
+    rw [e]; exact ih _
+
+/-- Sorting by position, in which ids differ, makes permutations equal. -/
+theorem sortPos_filterMap_congr {α : Type} (f g : Id → Option (Pos × α)) (l l' : List Id) (hp : l.Perm l')
+    (hfg : ∀ x, f x = g x) (hf : ∀ x a, f x = some a → a.1.2 = x) :
+    sortPos (l.filterMap f) = sortPos (l'.filterMap g) := by
+  have e : l'.filterMap g = l'.filterMap f := by rw [show g = f from funext fun x => (hfg x).symm]
+  rw [e]
+  apply List.Perm.eq_of_pairwise (le := fun a b => Pos.cmp a.1 b.1 ≠ .gt)
+  · intro a b ha hb h1 h2
+    rw [mem_sortPos, List.mem_filterMap] at ha hb
+    obtain ⟨x, -, hx⟩ := ha
+    obtain ⟨y, -, hy⟩ := hb
+    have hpos : a.1 = b.1 := by
+      cases e : Pos.cmp a.1 b.1 with
+      | lt => rw [Pos.cmp_swap, e] at h2; exact absurd rfl h2
+      | eq => exact (Pos.cmp_eq_iff _ _).1 e
+      | gt => exact absurd e h1
+    have exy : x = y := by rw [← hf x a hx, ← hf y b hy, hpos]
+    subst exy
+    rw [hx] at hy; cases hy; rfl
+  · exact sortPos_sorted _
+  · exact sortPos_sorted _
+  · exact (perm_sortPos _).trans ((hp.filterMap _).trans (perm_sortPos _).symm)
+
+/-- **Two stores the engine reached, with the same verdicts, answer every
+list alike**: the index holds exactly the Valid facts' keys, each op once,
+so the lists are permutations, and sorting by position, in which ids
+differ, makes them equal. -/
+theorem list_eval_congr [SortKey F] (fam : Family F) {s t : DB F} (hs : Inv fam s) (ht : Inv fam t)
+    (he : s.status = t.status) (q : ListQ) : Engine.eval s q = Engine.eval t q := by
+  have hmem : ∀ k x, x ∈ s.idx k ↔ x ∈ t.idx k := fun k x => by rw [hs.idx, ht.idx, he]
+  have hhas : ∀ k x, has (s.idx k) x = has (t.idx k) x := fun k x => by
+    cases e1 : has (s.idx k) x <;> cases e2 : has (t.idx k) x
+    · rfl
+    · exact absurd ((hmem k x).2 ((has_iff _ _).1 e2)) ((has_false _ _).1 e1)
+    · exact absurd ((hmem k x).1 ((has_iff _ _).1 e1)) ((has_false _ _).1 e2)
+    · rfl
+  have hp : (s.idx q.key).Perm (t.idx q.key) :=
+    (List.perm_ext_iff_of_nodup (hs.nodup _) (ht.nodup _)).2 (hmem q.key)
+  have hm : matching s q = matching t q := by
+    unfold matching
+    apply sortPos_filterMap_congr _ _ _ _ hp
+    · intro x; simp only [hhas, he]
+    · intro x a hx
+      split at hx
+      · split at hx
+        · cases hx; rfl
+        · cases hx
+      · cases hx
+  unfold Engine.eval
+  rw [hm]
+
+theorem view_eval_congr [SortKey F] (fam : Family F) {s t : DB F} (hs : Inv fam s) (ht : Inv fam t)
+    (he : s.status = t.status) {α : Type} (v : View F α) : v.eval s = v.eval t := by
+  induction v with
+  | pure a => rfl
+  | list q k ih =>
+    show (k (Engine.eval s q)).eval s = (k (Engine.eval t q)).eval t
+    rw [list_eval_congr fam hs ht he q]; exact ih _
+
+/-- **L-local, proven of the running code:** two nodes whose stores hold
+the same ops judge every op alike, and every view reads the same answer
+at both. -/
+theorem local_proof : local_stmt := by
+  intro F _ Q adv w hr i j hci hcj he
+  have hv := local_verdicts Q adv w hr i j hci hcj he
+  refine ⟨hv, fun α v => ?_⟩
+  rw [View.run_held, View.run_held]
+  exact view_eval_congr Q.fam (reach_inv (reach_settled Q adv w hr i).1) (reach_inv (reach_settled Q adv w hr j).1)
+    (funext hv) v
 
 end Engine.World

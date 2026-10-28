@@ -208,7 +208,7 @@ today's code (with the finding), **O** open.
 | `restart_stmt` | L-restart: a restart keeps every op, rebuilds the index equal to the store, opens nothing | **P** (`restart_proof`) |
 | `waiting_closure_stmt` | every store at rest, verdicts = spec | **P** (`waiting_closure_proof`) |
 | `closure_agree_stmt` | holding a closure, judge alike | **P** (`closure_agree_proof`, with `spec_local`) |
-| `local_stmt` | L-local: the same ops give the same verdicts and every view the same answer | O; the verdict half is proven (`local_verdicts`); views need the index tables to be a function of ops and verdicts |
+| `local_stmt` | L-local: the same ops give the same verdicts and every view the same answer | **P** (`local_proof`) |
 | `round_stmt` | L-round: a round carries both sides' ops within `roundTime`, whatever interleaves | O; the pilot is its first leg |
 | `round_forward_stmt` | L-round's forward leg, leaf regime: every op of the window i's index named at the opening reaches j within 3Δ | **P** (`round_forward`, from the pilot) |
 | `offer_delivers_stmt` | a have of room r naming y, from j to i on a joined session, gets y to i within 3Δ, with finding 7's premises | **P** (`offer_delivers`) |
@@ -321,7 +321,10 @@ The upper and lower bounds match up to a constant per hop:
     `turnH_settled`, with the engine's `drain_bounded`); so its verdicts
     are the spec's. With the engine's `spec_local`,
     `closure_agree_proof`; and two nodes holding the same ops judge alike
-    (`local_verdicts`). Every entry point keeps a store settled
+    (`local_verdicts`), and every view reads the same answer at both,
+    since the index holds exactly the Valid facts' keys, each once, and
+    sorting by position makes the lists equal (`list_eval_congr`,
+    `local_proof`). Every entry point keeps a store settled
     (`settles`, as `grows` for growth). Negative control (run and
     reverted): a turn draining one step short is caught by a3's
     NodeLaws (`turn_apply`, `write_cached`);
