@@ -86,25 +86,33 @@ def index_store_stmt : Prop :=
   ∀ (F : Type) (Q : Plain F) adv (w : World (Held F) Q.n), Q.Reach adv w → ∀ i r x,
     (∃ it ∈ (w.node i).ix.items r, it.2 = x) ↔ Q.Holds w i r x
 
-/-- **L-offered, its second half: the stream.** A step that stores op x
-of room r at node i leaves x offered on, or known to, every session of i
-that shows r; and on a session that had neither offered nor known x, an
-offer naming x is in flight to the session's address. -/
-def stream_stmt : Prop :=
-  ∀ (F : Type) (Q : Plain F) adv (w : World (Held F) Q.n) (a : Act Q.n) i r x cid c,
-    Q.Reach adv w → Legal Q.setup adv w a → PlainOk Q →
-    ¬ Q.Holds w i r x → Q.Holds (w.step Q.setup a) i r x →
-    ((w.step Q.setup a).node i).conn? cid = some c → r ∈ Shows Q.setup (w.step Q.setup a) i cid →
-      x ∈ c.known ∨ (x ∈ c.offered ∧
-        ∀ c₀, (w.node i).conn? cid = some c₀ → x ∉ c₀.offered → x ∉ c₀.known →
-          ∃ p ∈ (w.step Q.setup a).flight, p.src = some i ∧ some p.dst = ((w.step Q.setup a).node i).addr? cid ∧
-            ∃ L ps, x ∈ L ∧ plainPeek p.bytes = some (cid, ps) ∧ (Msg.hold r L).op.bytes ∈ ps)
-
-/-- **L-offered: store = offered**, both halves. -/
-def offered_stmt : Prop := index_store_stmt ∧ stream_stmt
-
 /-- h' holds every op h holds. -/
 def Kept (h h' : Held F) : Prop := ∀ x o, h.db.ops x = some o → h'.db.ops x = some o
+
+/-- **L-offered, its second half: the stream offers every op a node
+stores**, not only its own writes: an op relayed from a third peer is
+offered on too. A step that stores op x of room r at node i, on a
+session cid that i held before the step and still holds after it, and
+that shows r at every store the step passes through, either learns or
+knew that the peer holds x, or puts in flight to the session's address
+a frame whose haves of room r name x.
+
+What it does not cover: a session that comes to show r after x was
+stored never gets x on the stream; only a round in r carries it (today's
+cadence round, or a round when a room opens, docs/PROOFS.md). -/
+def stream_offers_stored_stmt : Prop :=
+  ∀ (F : Type) (Q : Plain F) adv (w : World (Held F) Q.n) (a : Act Q.n) i r x cid c₀ c,
+    Q.Reach adv w → Legal Q.setup adv w a → PlainOk Q →
+    ¬ Q.Holds w i r x → Q.Holds (w.step Q.setup a) i r x →
+    (∀ h, Kept (w.box i) h → Kept h ((w.step Q.setup a).box i) → r ∈ Q.rooms i h cid) →
+    (w.node i).conn? cid = some c₀ → ((w.step Q.setup a).node i).conn? cid = some c →
+      x ∈ c₀.known ∨ x ∈ c.known ∨
+        ∃ p ∈ (w.step Q.setup a).flight, p ∉ w.flight ∧ p.src = some i ∧
+          some p.dst = ((w.step Q.setup a).node i).addr? cid ∧
+          ∃ L ps, x ∈ L ∧ plainPeek p.bytes = some (cid, ps) ∧ (Msg.hold r L).op.bytes ∈ ps
+
+/-- **L-offered: store = offered**, both halves. -/
+def offered_stmt : Prop := index_store_stmt ∧ stream_offers_stored_stmt
 
 /-- **Only members receive.** Every session frame an honest node sends
 carries sync messages, and ops of rooms the session showed during the

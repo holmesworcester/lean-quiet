@@ -519,7 +519,7 @@ open Engine.World
 #print axioms Engine.World.walk_stmt
 #print axioms Engine.World.grows_stmt
 #print axioms Engine.World.index_store_stmt
-#print axioms Engine.World.stream_stmt
+#print axioms Engine.World.stream_offers_stored_stmt
 #print axioms Engine.World.offered_stmt
 #print axioms Engine.World.members_only_stmt
 #print axioms Engine.World.frames_keep_sessions_stmt

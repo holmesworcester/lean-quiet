@@ -125,7 +125,8 @@ a box with entropy (`NodeM`).
     `want_sends`, `op_taken`, `seal_mem`) are about `Node` on `HeldM`
     and port unchanged; Run.lean already carries the loop and `Keeps`
     machinery, now with `concrete_goal`.
-  - `stream_stmt` is `stream_offered` for every step, not only writes.
+  - `stream_offers_stored_stmt` is `stream_offered` for every step, not
+    only writes: ops relayed from a third peer are offered on too.
 - **fd/pair-secrecy** (`Pair.World`, `Act`, `Setup.Step`/`Run`) is the
   Connection world with n = 2.
   - Its `deliver` (any `Deliverable` bytes from any source) is the
@@ -199,7 +200,7 @@ today's code (with the finding), **O** open.
 |---|---|---|
 | `grows_stmt` | no step, against any attacker, takes a shared op out of a store | **P** (`grows_all`) |
 | `index_store_stmt` | the room index names exactly the stored ops of each room | **P** (`index_store_proof`) |
-| `stream_stmt` | a stored op is offered at once on every session that shows its room | O (a3's `stream_offered` for writes) |
+| `stream_offers_stored_stmt` | every op a node stores (written or relayed) is offered at once on every session that shows its room throughout the step | O (a3's `stream_offered` for writes) |
 | `offered_stmt` | L-offered: both | O |
 | `members_only_stmt` | session frames carry only ops of rooms the session showed in that step | O (ConnLaws per entry point) |
 | `frames_keep_sessions_stmt` | no delivery, duplicate, injection or write closes a session | **P** (`frames_keep_sessions_proof`) |
@@ -458,6 +459,29 @@ rule the proofs need. Witnesses are in engine/world/Findings.lean.
    but `idem_stmt` holds only when rooms do not depend on the store, and
    says so.
 
+7. **After a3/sync-harden (cad36f2), the pilot's 3Δ needs two premises.**
+   The pilot is proven on main. Under harden, as stated, it is false:
+   - a want is served up to `wantBytes` plus one op, so if the ops wanted
+     before x in the same want exceed it, x waits for a retry (`retry`
+     ms, at most `maxIds` ids per tick);
+   - j admits a want for x only while its `asked` holds fewer than
+     `maxKnown` ids; when full, x waits for the next offer or round.
+
+   So today the pilot needs: the want's ops before x fit in `wantBytes`,
+   and j's `asked` is not full when the claim arrives. The paced
+   responder queue (simplification 3, fresh-lane) removes both.
+8. **On main, a lost want pins its id in `asked` for the session's
+   life.** `onHold` skips ids already asked, and nothing expires an ask.
+   If a want for y is lost (before gst, or to a peer whose rooms changed),
+   every later have of y on that session is ignored. In the leaf regime
+   the round offers y only by haves, so neither the stream nor any round
+   on that session brings y; only a new session does. So `round_stmt`'s
+   reverse leg holds on main only for an op that is not already asked on
+   the session when the offer arrives, and that is how it is proven.
+   Harden expires asks after patience, and holmes-a3's single-timer plan
+   keeps expiry ("an ask the peer never serves still expires"), which
+   removes the premise.
+
 How the earlier bugs map onto the statements:
 
 | bug | what catches it |
@@ -480,7 +504,7 @@ cost bounds over a shared `Budget` record. Where they plug in:
 | cadence | `gap`: the dialer opens a round within `every + (D+1)Δ + τ` |
 | `uncarried_room_answered` | finding 2, so `rooms_stmt`, then `join_stmt` |
 | RBSR cost bounds over `Budget` | `depth cfg W` from 2W + 1 to 2⌈log_fan W⌉ + 2; `W` becomes a `Budget` field |
-| `have_shown`, `hold_reply_local` | `Msg.hold` gains its room: the pilot's hop lemmas and `stream_stmt` read `Msg.hold r L` |
+| `have_shown`, `hold_reply_local` | `Msg.hold` gains its room: the pilot's hop lemmas and `stream_offers_stored_stmt` read `Msg.hold r L` |
 | `sealed_auth`, `onFrame_sealed` | the Connection world's frame hops |
 
 `edge_stmt` decomposes as: a session within ρ (redial, or stability),
