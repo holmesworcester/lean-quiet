@@ -47,9 +47,122 @@ structure RWorld (σ C W V Q : Type) [BEq W] [Hashable W] where
   board : Board W V := {}
   staleQ : Q → Bool := fun _ => false
   deps : W → Option (List Q) := fun _ => none
-  dirty : List W := []
+  dirty : Std.HashSet W := {}
   wants : List W := []
   shown : W → Option V := fun _ => none
+
+/-! ## The pass's decisions: what they compute, and what they cost -/
+
+section
+variable {W : Type} [BEq W] [Hashable W] [LawfulBEq W]
+
+theorem mem_filter' (d : Std.HashSet W) (f : W → Bool) (x : W) : x ∈ d.filter f ↔ x ∈ d ∧ f x = true := by
+  rw [Std.HashSet.mem_filter]
+  constructor
+  · rintro ⟨h, hf⟩; rw [Std.HashSet.get_eq] at hf; exact ⟨h, hf⟩
+  · rintro ⟨h, hf⟩; exact ⟨h, by rw [Std.HashSet.get_eq]; exact hf⟩
+
+theorem mem_markM (stale : W → Bool) : ∀ (ws : List W) (d : Std.HashSet W) (x : W),
+    x ∈ Id.run (markM stale d ws) ↔ x ∈ d ∨ (x ∈ ws ∧ stale x = true)
+  | [], d, x => by simp [markM]
+  | w :: ws, d, x => by
+    show x ∈ Id.run (markM stale (if stale w then d.insert w else d) ws) ↔ _
+    rw [mem_markM stale ws]
+    by_cases hs : stale w = true
+    · simp only [hs, ite_true, Std.HashSet.mem_insert, beq_iff_eq, List.mem_cons]
+      constructor
+      · rintro ((rfl | h) | ⟨h1, h2⟩)
+        · exact Or.inr ⟨Or.inl rfl, hs⟩
+        · exact Or.inl h
+        · exact Or.inr ⟨Or.inr h1, h2⟩
+      · rintro (h | ⟨rfl | h1, h2⟩)
+        · exact Or.inl (Or.inr h)
+        · exact Or.inl (Or.inl rfl)
+        · exact Or.inr ⟨h1, h2⟩
+    · simp only [hs, Bool.false_eq_true, ite_false, List.mem_cons]
+      constructor
+      · rintro (h | ⟨h1, h2⟩)
+        · exact Or.inl h
+        · exact Or.inr ⟨Or.inr h1, h2⟩
+      · rintro (h | ⟨rfl | h1, h2⟩)
+        · exact Or.inl h
+        · exact absurd h2 hs
+        · exact Or.inr ⟨h1, h2⟩
+
+/-- **What a pass marks**: the dirty, and every want whose reads changed. -/
+theorem mem_mark (ws : List W) (stale : W → Bool) (d : Std.HashSet W) (x : W) :
+    x ∈ mark ws stale d ↔ x ∈ d ∨ (x ∈ ws ∧ stale x = true) := mem_markM stale ws d x
+
+theorem pickM_eq (d : Std.HashSet W) : ∀ (cap : Nat) (ws : List W),
+    Id.run (pickM d cap ws) = (ws.filter (d.contains ·)).take cap
+  | 0, ws => by simp [pickM]
+  | k + 1, [] => by simp [pickM]
+  | k + 1, w :: ws => by
+    show Id.run (if d.contains w then (do return w :: (← pickM d k ws)) else pickM d (k + 1) ws) = _
+    by_cases h : d.contains w = true
+    · simp only [h, ite_true, List.filter_cons_of_pos h, List.take_succ_cons]
+      rw [← pickM_eq d k ws]; rfl
+    · simp only [h, Bool.false_eq_true, ite_false, List.filter_cons_of_neg h]
+      exact pickM_eq d (k + 1) ws
+
+/-- **What a pass reads**: the first `cap` marked, in the frame's order. -/
+theorem pick_eq (ws : List W) (d : Std.HashSet W) (cap : Nat) :
+    pick ws d cap = (ws.filter (d.contains ·)).take cap := pickM_eq d cap ws
+
+/-- What a pass leaves dirty: the marked it did not read. -/
+theorem mem_eraseAll : ∀ (p : List W) (d : Std.HashSet W) (x : W),
+    x ∈ p.foldl (·.erase ·) d ↔ x ∈ d ∧ x ∉ p
+  | [], d, x => by simp
+  | y :: p, d, x => by
+    simp only [List.foldl_cons, List.mem_cons, not_or]
+    rw [mem_eraseAll p, Std.HashSet.mem_erase, beq_eq_false_iff_ne]
+    constructor
+    · rintro ⟨⟨h1, h2⟩, h3⟩; exact ⟨h2, fun e => h1 e.symm, h3⟩
+    · rintro ⟨h2, h1, h3⟩; exact ⟨⟨fun e => h1 e.symm, h2⟩, h3⟩
+
+open Engine Engine.Counted in
+/-- **Marking costs a step per want.** -/
+theorem markM_cost (stale : W → Bool) : ∀ (ws : List W) (d : Std.HashSet W),
+    cost (markM (m := Counted) stale d ws) = { work := ws.length }
+  | [], d => by simp [markM]; rfl
+  | w :: ws, d => by
+    simp only [markM, cost_bind, cost_tick, markM_cost stale ws, List.length_cons]
+    ext <;> simp; omega
+
+open Engine Engine.Counted in
+/-- **Picking costs at most a step per want**: one hash lookup each, so a
+pass's decisions are O(wants), however many are dirty. -/
+theorem pickM_cost (d : Std.HashSet W) : ∀ (cap : Nat) (ws : List W),
+    cost (pickM (m := Counted) d cap ws) ≤ { work := ws.length }
+  | 0, ws => by simp [pickM]; meter_le
+  | k + 1, [] => by simp [pickM]; meter_le
+  | k + 1, w :: ws => by
+    simp only [pickM]
+    have h1 := pickM_cost d k ws
+    have h2 := pickM_cost d (k + 1) ws
+    split
+    · simp only [cost_bind, cost_tick, cost_map, bind_pure_comp]
+      rw [Meter.le_iff] at h1 ⊢
+      simp only [Meter.work_add, Meter.reads_add, Meter.lists_add, Meter.writes_add, Meter.hashes_add,
+        Meter.hashed_add, Meter.spawns_add, Meter.copied_add, Meter.seeks_add, Meter.rows_add,
+        List.length_cons] at *
+      omega
+    · simp only [cost_bind, cost_tick]
+      rw [Meter.le_iff] at h2 ⊢
+      simp only [Meter.work_add, Meter.reads_add, Meter.lists_add, Meter.writes_add, Meter.hashes_add,
+        Meter.hashed_add, Meter.spawns_add, Meter.copied_add, Meter.seeks_add, Meter.rows_add,
+        List.length_cons] at *
+      omega
+
+/-- The mutant: the marked set as a list, each lookup a pass over it. -/
+def pickListM {m : Type → Type} [Monad m] [Engine.Tick m] (dirty : List W) : Nat → List W → m (List W)
+  | 0, _ => pure []
+  | _, [] => pure []
+  | k + 1, w :: ws => do
+    Engine.tick { work := dirty.length }
+    if dirty.contains w then return w :: (← pickListM dirty k ws) else pickListM dirty (k + 1) ws
+
+end
 
 namespace RWorld
 variable {σ C W V Q : Type} [BEq W] [Hashable W] [LawfulBEq W] [BEq V] [LawfulBEq V] [BEq Q] [LawfulBEq Q]
@@ -65,7 +178,7 @@ def noticed (w : RWorld σ C W V Q) : Q → Bool := fun q => w.staleQ q || w.jou
 def kept (w : RWorld σ C W V Q) : W → Option (List Q) := fun x => if w.wants.contains x then w.deps x else none
 
 /-- What a pass marks. -/
-def marked (w : RWorld σ C W V Q) : List W :=
+def marked (w : RWorld σ C W V Q) : Std.HashSet W :=
   mark w.wants (staleW (w.noticed hits) w.kept) (w.dirty.filter (w.wants.contains ·))
 
 /-- One read: x's value in s on the board, its reads recorded, fresh. -/
@@ -80,7 +193,7 @@ def pass (cap : Nat) (w : RWorld σ C W V Q) : RWorld σ C W V Q :=
   let p := pick w.wants (w.marked hits) cap
   let r := p.foldl (read1 eval reads w.store) (w.board.keep (w.wants.contains ·), w.noticed hits, w.kept)
   { w with journal := [], board := r.1, staleQ := r.2.1, deps := r.2.2,
-           dirty := (w.marked hits).filter (!p.contains ·) }
+           dirty := p.foldl (·.erase ·) (w.marked hits) }
 
 def frame (w : RWorld σ C W V Q) : RWorld σ C W V Q :=
   { w with board := w.board.take.2, shown := Board.apply w.shown w.board }
@@ -217,13 +330,13 @@ theorem pass_other {x : W} (hx : x ∉ pick w.wants (w.marked hits) cap) :
   exact ⟨a.trans (kept_vals x), b⟩
 
 theorem pass_dirty : (w.pass hits eval reads cap).dirty =
-    (w.marked hits).filter (!(pick w.wants (w.marked hits) cap).contains ·) := rfl
+    (pick w.wants (w.marked hits) cap).foldl (·.erase ·) (w.marked hits) := rfl
 
 theorem pass_store : (w.pass hits eval reads cap).store = w.store := rfl
 
 theorem marked_of {x : W} (hw : w.wants.contains x = true)
     (m : x ∈ w.dirty ∨ staleW (w.noticed hits) w.kept x = true) : x ∈ w.marked hits := by
-  simp only [marked, mark, List.mem_append, List.mem_filter]
+  rw [marked, mem_mark, mem_filter']
   rcases m with m | m
   · exact Or.inl ⟨m, hw⟩
   · exact Or.inr ⟨List.contains_iff_mem.1 hw, m⟩
@@ -265,8 +378,7 @@ theorem inv_pass {w : RWorld σ C W V Q} (h : Inv hits eval reads w) (cap : Nat)
       split at hx
       · rename_i hw
         have toDirty : x ∈ w.marked hits → x ∈ (w.pass hits eval reads cap).dirty := fun m => by
-          rw [pass_dirty]
-          simp only [List.mem_filter, Bool.not_eq_true', List.contains_eq_mem, decide_eq_false_iff_not]
+          rw [pass_dirty, mem_eraseAll]
           exact ⟨m, hp⟩
         rcases hj x v n hx with d | hit | st | ⟨e, hd⟩
         · exact Or.inl (toDirty (marked_of hits hw (Or.inl d)))
@@ -293,7 +405,7 @@ theorem settle {w : RWorld σ C W V Q} (h : Inv hits eval reads w) {cap : Nat}
   obtain ⟨hj, hh, hseen⟩ := h
   have hw : w.wants.contains x = true := List.contains_iff_mem.2 hx
   have hpick : pick w.wants (w.marked hits) cap = w.wants.filter ((w.marked hits).contains ·) := by
-    unfold pick; exact List.take_of_length_le hcap
+    rw [pick_eq]; exact List.take_of_length_le hcap
   have held : ∃ n, (w.pass hits eval reads cap).board.vals[x]? = some (eval w.store x, n) := by
     by_cases hp : x ∈ pick w.wants (w.marked hits) cap
     · obtain ⟨u, k, hu, e, _⟩ := pass_picked hits eval reads hp
@@ -301,7 +413,7 @@ theorem settle {w : RWorld σ C W V Q} (h : Inv hits eval reads w) {cap : Nat}
     · obtain ⟨a, _⟩ := pass_other hits eval reads hp
       rw [a, ite_eq_left hw]
       have notMarked : x ∉ w.marked hits := fun m => hp (by
-        rw [hpick]; exact List.mem_filter.2 ⟨hx, List.contains_iff_mem.2 m⟩)
+        rw [hpick]; exact List.mem_filter.2 ⟨hx, Std.HashSet.contains_iff_mem.2 m⟩)
       cases hv : w.board.vals[x]? with
       | none =>
         exfalso
@@ -335,7 +447,7 @@ look stale now, after the reads before it in the same pass. -/
 def passEager (w : RWorld σ C W V Q) : RWorld σ C W V Q :=
   let r := w.wants.foldl (fun st x => if staleW st.2.1 st.2.2 x then read1 eval reads w.store st x else st)
     (w.board.keep (w.wants.contains ·), w.noticed hits, w.kept)
-  { w with journal := [], board := r.1, staleQ := r.2.1, deps := r.2.2, dirty := [] }
+  { w with journal := [], board := r.1, staleQ := r.2.1, deps := r.2.2, dirty := {} }
 
 end RWorld
 

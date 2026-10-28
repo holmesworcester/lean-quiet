@@ -404,6 +404,11 @@ section cost
 #print axioms Live.Board.seen_take
 #print axioms Live.Board.seen_keep
 #print axioms Live.World.inv_commit
+#print axioms Live.mem_mark
+#print axioms Live.pick_eq
+#print axioms Live.mem_eraseAll
+#print axioms Live.markM_cost
+#print axioms Live.pickM_cost
 #print axioms Live.RWorld.inv_commit
 #print axioms Live.RWorld.inv_pass
 #print axioms Live.RWorld.inv_frame

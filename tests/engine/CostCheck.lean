@@ -48,6 +48,7 @@ import ops.app.Pics
 import engine.core.IngestCost
 import engine.core.ListCost
 import engine.renderer.Heights
+import engine.renderer.ReaderLaws
 
 open Engine Engine.Counted Tests
 
@@ -336,6 +337,23 @@ def heightsCheck (t : Checks) : IO Unit := do
 
 end HeightsCheck
 
+section PickCheck
+
+/-- A reader pass's decisions in a backfill: 200 wants, every one dirty. -/
+def pickCheck (t : Checks) : IO Unit := do
+  let wants : List Nat := List.range 200
+  let dirty : Std.HashSet Nat := wants.foldl (·.insert ·) {}
+  let p := Live.pickM (m := Counted) dirty 200 wants
+  let pl := Live.pickListM (m := Counted) wants 200 wants
+  let mk := Live.markM (m := Counted) (fun _ => true) {} wants
+  t.ok s!"pick: 200 dirty wants, all read, in {(cost p).work} steps" (val p == wants && (cost p).work == 200)
+  t.ok s!"pick: marking them costs {(cost mk).work} steps" ((cost mk).work == 200)
+  t.ok s!"pick: the list form (the negative control) picks the same in {(cost pl).work} steps"
+    (val pl == wants && (cost pl).work == 40000)
+  IO.println s!"pick: 200 dirty wants in {(cost p).work} steps; as a list {(cost pl).work}"
+
+end PickCheck
+
 def main : IO UInt32 := do
   let t ← Checks.new
   merkle t
@@ -344,4 +362,5 @@ def main : IO UInt32 := do
   judgeCheck t
   listCheck t
   heightsCheck t
+  pickCheck t
   t.finish "costcheck"
