@@ -31,6 +31,14 @@ variable {F : Type}
     (Store.index k x : Model F _).run s = ((), s.index k x) := rfl
 @[simp] theorem run_lookup (k : ByteArray) (s : DB F) :
     (Store.lookup k : Model F _).run s = (s.idx k, s) := rfl
+@[simp] theorem run_dependents (x : Id) (s : DB F) :
+    (Store.dependents x : Model F _).run s = (s.dependents x, s) := rfl
+@[simp] theorem run_undecide (x : Id) (s : DB F) :
+    (Store.undecide x : Model F _).run s = ((), s.undecide x) := rfl
+@[simp] theorem run_deleteOp (x : Id) (s : DB F) :
+    (Store.deleteOp x : Model F _).run s = ((), s.deleteOp x) := rfl
+@[simp] theorem run_countOps (s : DB F) :
+    (Store.countOps : Model F _).run s = (s.stored.length, s) := rfl
 theorem run_pop_nil (s : DB F) (h : s.queue = []) :
     (Store.pop : Model F _).run s = (none, s) := by
   show Model.pop s = _; unfold Model.pop; rw [h]
