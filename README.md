@@ -1,86 +1,46 @@
 # Lean Quiet
 
 **A peer-to-peer, local-first Discord, prototyped in Lean 4.** Lean runs
-its database, its sync and its encrypted networking, draws every pixel
-of its UI, and checks proofs about all four.
+its CRDT engine, its sync and its encrypted networking, draws every
+pixel of its UI, and checks proofs about all four.
 
-> [!NOTE]
-> **From a human:** In ~1 day I vibe-coded a p2p, e2ee Discord
-> alternative in Lean (informed by my work on
-> [Quiet](https://tryquiet.org)) for iOS and Android with some fairly
-> powerful correctness proofs. How does this stand up?
+<table><tr></tr><tr><td>
 
-It is a working prototype of [Quiet](https://github.com/TryQuiet/quiet):
-communities with members, invitations, messages, reactions and pictures,
-and no server. Each device holds its communities and syncs them directly
-with its peers. It runs on Android and iOS, and headless on Linux for
-its tests; native code only connects Lean to each OS ([what isn't Lean,
-and why](#what-isnt-lean-and-why)).
+👋 In ~1 day I vibe-coded a p2p, e2ee Slack/Discord alternative in Lean (informed by my work on [Quiet](https://tryquiet.org)) for iOS and Android with some fairly powerful correctness proofs. How does this stand up?
 
-> [!NOTE]
-> **From a human:** The most obviously valuable thing about building a
-> user-facing communication tool entirely in Lean is that you can prove
-> strict safety properties. In a p2p, e2ee app where code is law, this
-> means potentially being able to prove them over all possible
-> deployments, too! But an even more interesting question: can you also
-> prove absence of the *qualitative* bugs that only show up in certain
-> cases, like UI layout glitches at a certain screen size, or lack of
-> responsiveness under load. It seems like you can!
+</td></tr></table>
 
-What sets it apart is how far the proofs reach. Nearly every theorem is
-about the code the app runs, not a separate model of it, and they reach
-every layer:
+Lean is mostly used for mathematics, or to verify one part of a system.
+Here it is a whole, ordinary app, and about three quarters of its
+theorems (343 of 433) are about the code that runs on the phone; the
+rest are over models, and moving them onto running code is a todo
+([what is proven](#what-is-proven)). Native code only connects Lean to
+each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)), so in a
+meaningful sense Lean draws all pixels on the screen.
 
-- **State.** Nobody posts as someone else, joins without approval, or
-  undoes a removal; no peer can forge, alter or rename an op; and
-  devices that hold the same ops agree on every verdict
-  ([`no_impersonation`], [`removed_stays`], [`same_ops_same_verdicts`]).
-- **Sync.** A round sends each side exactly what it lacks, a device that
-  holds part of the history judges it as its peers do, and a new op
-  reaches a connected member in one exchange ([`exchange_complete`],
-  [`spec_local`], [`stream_delivers`]).
-- **Networking.** Non-members get nothing, even by asking for an op by
-  id; no device's secrets leave it; and sessions are secret and
-  authenticated, in the symbolic model ([`recv_send`],
-  [`offer_shared`], [`kk_secret`]).
-- **Sync beside the UI.** Judging whatever sync brings in finishes
-  within a budget, and every frame is drawn from one moment of the
-  store, so the screen never shows sync half done ([`drain_bounded`],
-  [`read_one_moment`]). That input goes first and nothing starves is
-  being proven next ([sync and the UI](#sync-and-the-ui)).
-- **The UI, to the pixel row.** A message's glyphs are exactly its
-  visible characters, wrapped to any width and reordered for
-  right-to-left text without losing one; at any screen size and keyboard
-  height, nothing on screen is covered or mis-tapped; and a reaction
-  counts each person once ([`wrap_keeps`], [`visual_perm`],
-  [`visible_in_viewport`], [`hit_iff`], [`tally_nodup`]).
-
-**And a credible path to proofs about n clients.** The sync laws already
-run the real sync code, entry point by entry point, in a world of two
-nodes whose network may delay, reorder and drop frames. Agreement needs
-only the same ops, in any order. Convergence for any number of clients
-is next, on the same world with n nodes and fair delivery:
-[toward n clients](#toward-n-clients).
-
-Everything is in this repository, the engine, the op families, the apps
-and the proofs, and every part builds against the others at the same
-commit. [What is proven](#what-is-proven) lists each guarantee, what it
-assumes, and what is still wanted.
+There is also a credible path to proofs about n clients. The sync
+proofs already run the real sync code, in a world of two devices whose
+network can delay, reorder or drop messages. Devices that hold the same
+ops agree, whatever order the ops arrived in (proven so far over a model
+of purging). So for n devices, it comes down to proving that every op
+reaches every member ([`stream_delivers`],
+[`same_ops_same_verdicts`]).
 
 ## What is proven
 
-Lean checks these theorems about the code that runs. Whatever any peer
-or anyone on the network does:
+Lean checks these theorems about the code that runs, except the two
+marked *(model)*, which are over a model so far. Whatever any peer or
+anyone on the network does:
 
 - **nobody can post as another member;** ¹
 - **nobody joins without an invitation and members' approval;** ¹
 - **only admins remove others, and no removal can be undone;** ¹
 - **no peer can alter or rename an op:** its id is the hash of its
   bytes, and it has one parse; ²
-- **non-members get none of a community's ops, and no device's secrets
-  leave it;**
+- **non-members get none of a community's ops;**
+- **no device's secrets leave it;** *(model)*
 - **a node's trust rule lets in exactly the live members;** ¹
-- **honest nodes that hold the same ops agree;** ²
+- **honest nodes that hold the same ops agree;** ² *(model)*
 - **only a session's two devices can derive its keys, even if both
   devices' long-term keys later leak.** ³
 
@@ -94,6 +54,12 @@ no collisions. ³ in the symbolic model of the cryptography.
 - the bootstrap over the running code, rather than a model;
 - that content is drawn faithfully all the way to pixels (proven up to
   each row's layout; painting is not).
+
+<table><tr></tr><tr><td>
+
+🙋 The most obviously valuable thing about building a user-facing communication tool entirely in Lean is that you can prove strict safety properties. In a p2p, e2ee app where code is law, this means potentially being able to prove them over all possible deployments, too! But an even more interesting question: can you also prove absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size, or lack of responsiveness under load. It seems like you can!
+
+</td></tr></table>
 
 ### Assumed
 
@@ -116,17 +82,12 @@ nothing else is assumed:
   Merkle tree inputs, for the attachment laws. [`assumptions_hold`]
   shows that it can hold.
 - [`Suite.Good`]: X25519 agrees (`dh a (pub b) = dh b (pub a)`), the
-  AEAD opens what it seals, and public keys are 32 bytes. With
-  [`Keys.Good`], a device's Ed25519 key converts to its seed's X25519
-  key. These are correctness only, and say nothing about secrecy.
+  AEAD opens what it seals, and public keys are 32 bytes. These are
+  correctness only, and say nothing about secrecy.
 - **A read transaction is one moment** (`read_one_moment` and
   `agrees_notice` take it), as two hypotheses. *Snapshot:* inside one
   SQLite read transaction, every read answers as one state of the store
-  (SQLite's snapshot isolation, on a WAL reader). The outbox is in
-  memory and is not part of it: a frame's own writes change it
-  mid-frame, each change a notice that moves the cache to a next moment
-  (`agrees_notice`), so a frame that writes spans more than one outbox
-  moment. *Journal:*
+  and outbox (SQLite's snapshot isolation, on a WAL reader). *Journal:*
   the keys a notice names (the journal's, written by triggers on the
   index and verdict tables, and a write's own ops') include every watch
   whose answer changed since the last moment. The headless app's
@@ -168,31 +129,14 @@ nothing else is assumed:
 - **That each statement says what we mean.** Read it: every name below
   links to its statement.
 
-### How to read it
+### Key
 
-- **The attacker** is any peer, a removed member included, or anyone on
-  the network. It sends any bytes, and replays, delays, reorders or
-  drops any message. It cannot break the cryptography, or control a
-  member's device.
-- **Each theorem is about the functions that run** in the app and the
-  daemon, over the engine's own store. *(model)* marks a theorem about
-  a separate model instead.
-- **The Community laws are proven over a store of that family alone.**
-  The running node composes it with the Connection family. That
-  composition is proven op by op (`sum_left`), but not yet for the
-  whole store (`sum_project`, wanted below).
-- **All 369 rest on Lean's standard axioms only:** no `sorry` and no
-  added axiom, as `tests/check.sh` checks.
-- **The tables are short; the long stories are below them,** under
-  [Proofs in depth](#proofs-in-depth), where each row's More link goes.
-- **Each name links to its docstring and statement.**
-  `ci/proof-links.py` writes the links from Lean's declaration ranges,
-  and local CI fails when they go stale.
+✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
+over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
+that rests on; 🥊 is supporting. All 433 rest on Lean's standard axioms
+only.
 
-✅ proven · 🟡 partly · ⬜ wanted. 🥊🥊🥊 is what a user is promised;
-🥊🥊 is what that rests on; 🥊 is supporting.
-
-### Against an attacker
+### Security proofs
 
 | | | Guarantee | Theorems |
 |---|---|---|---|
@@ -204,59 +148,59 @@ nothing else is assumed:
 | ✅ | 🥊🥊 | **Every op is signed by whom it must be.** A message is signed by an admitted device of its author, and an approval by a member other than the requester. An invitation is signed by its issuer, and a community's name by an admin. Each admission was consented to by its device. | [`message_authorized`], [`approval_signed`], [`invitation_issued`], [`named_by_admin`], [`admission_consented`] |
 | ✅ | 🥊🥊 | **Admins' removals stand,** even of each other, and a removed member's earlier approvals still count. | [`admin_removal_stands`], [`mutual_removal`], [`removed_approver_admits`] |
 | | | **Confidentiality** | |
-| ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A peer learns nothing of the rooms it isn't let into, not even whether this node holds an op of one. [More](#disclosure-and-intake) | [`recv_send`], [`hold_reply_local`], [`heldIn_index`], [`hold_reply_local_premises`] |
+| ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A session sends only sync messages and ops of the rooms its peer is let into. A have for a room the peer may not see is ignored, so a peer cannot ask whether this node holds an op of another community, or a local op. Wants authorize ids against the shown rooms' index before any blob read. | [`recv_send`], [`hold_reply_local`], [`heldIn_index`], [`hold_reply_local_premises`], [`want_reads_authorized`], [`want_blind`], [`want_blind_step`] |
 | ✅ | 🥊🥊🥊 | **Secrets stay on the device.** No local op (a secret, a session key, a pending join) is ever offered or sent. Of a connection's ops, only the two handshake messages are not local. | [`offer_shared`], [`wire_kinds`], [`local_kinds`], [`joinOps_travels`], [`found_travels`], [`stopWaiting_local`] |
-| ✅ | 🥊🥊 | **The stream discloses only what it may.** It offers only ids of stored, shared ops, never one still pending. The clock sends only round messages and offers. | [`filed_send`], [`offer_stored`], [`tick_send`] |
-| 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Only live members can open a community's messages. [More](#sealing-messages-to-members) | [`recipients_iff`], [`members_iff`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`check_reads_shared`] |
-| ✅ | 🥊🥊🥊 | **Sessions are secret and authenticated.** An attacker who reads, replays and injects every message cannot derive a session's keys or pass as either end. [More](#sessions) | [`kk_secret`], [`kk_secret_init`], [`kk_secret_resp`], [`kk_authentic`], [`kk_authentic_resp`], [`kk_secret_init_tight`], [`kk_runs`], [`handshake_agrees`] |
-| 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered,** from the disk or from the static keys later. [More](#sessions) | [`kk_forward_secret`], [`kk_forward_secret_init`], [`kk_forward_secret_resp`], [`purge_gone`], [`purge_named`] |
+| 🟡 | 🥊🥊 | **The stream discloses only what it may.** It offers only ids of stored, shared ops, never one still pending, and the clock sends only round messages, offers and retries of outstanding wants. Proven of the running code: what a filed write and a tick send. Not yet: that an offer names only stored ops is proven of a model of offering (`Engine.offer`). | [`filed_send`], [`offer_stored`], [`tick_send`] |
+| 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Proven: the `recipients` query names exactly the live members' encryption keys, and a member opens what was sealed under the key wrapped to it. Not yet: the running wrap writers use that query (today an approval below its threshold already wraps the key to the requester), and the seal's secrecy from non-members. | [`recipients_iff`], [`members_iff`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`check_reads_shared`] |
+| ✅ | 🥊🥊🥊 | **Sessions are secret and authenticated,** in the symbolic model, over the handshake functions that run. An attacker who reads, replays and injects every message, and knows every key but the two devices' static keys and the session's ephemerals, derives neither transport key, and the initiator accepts only the reply the responder wrote to this request. Replays are accepted again; payloads are not covered. | [`kk_secret`], [`kk_secret_init`], [`kk_secret_resp`], [`kk_authentic`], [`kk_authentic_resp`], [`kk_secret_init_tight`], [`kk_runs`], [`handshake_agrees`] |
+| 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered,** from the disk or from the static keys later. Every way a session ends purges its keys, and a silent responder's session ends once its lease (90 s by default) passes. With the ephemerals gone, the transcript and both static keys do not give the transport keys (tested: no file of the database keeps a byte of them). Not yet: that `closing` names every ephemeral (`close_forgets`). | [`close_purges`], [`close_gone`], [`responder_expires`], [`live_not_expired`], [`tick_drop_iff`], [`round_not_dropped`], [`kk_forward_secret`], [`purge_named`] |
 | ⬜ | 🥊🥊🥊 | **Session secrets never reach the disk.** They would be ephemeral ops, held in memory, so forward secrecy would not rest on deletion. A restart then redials. | |
 | ⬜ | 🥊🥊🥊 | **Removed members cannot read new messages.** This needs key rotation, which is not built. | |
-| 🟡 | 🥊🥊 | **Every offered id names a stored op in one of the peer's rooms:** the disclosure law for ids. [More](#disclosure-and-intake) | [`have_shown`], [`boot_cached`], [`write_cached`], [`purge_cached`], [`cached_items`], [`write_snaps`], [`have_shown_premises`] |
+| 🟡 | 🥊🥊 | **Every offered id names a stored op in one of the peer's rooms.** Proven of each step a connection takes, while the room index holds exactly each room's stored ops; booting, write turns and purges keep it so. Not yet: that the node's entry points (`onFrame`, `onTick`, `onWrite`) chain these steps. | [`have_shown`], [`boot_cached`], [`write_cached`], [`purge_cached`], [`cached_items`], [`write_snaps`], [`have_shown_premises`] |
 | | | **Connections** | |
 | ✅ | 🥊🥊🥊 | **The trust rule lets in exactly the live members.** Read from the node's tables, it accepts exactly the devices of admitted, unremoved users. Nodes that hold the same ops agree on it. | [`connect_iff`], [`refuse_nonmember`], [`connect_approved`], [`connect_agree`] |
-| ✅ | 🥊🥊🥊 | **A removal cuts the removed user out of the rule.** Once a node holds it, the rule refuses every device of that user. [More](#removal) | [`removal_cuts_off`], [`removals_iff`], [`removal_authorized`], [`removed_stays`] |
-| 🟡 | 🥊🥊🥊 | **A removal ends a live session's sync.** A removed member's open session carries none of the community. [More](#removal) | [`rooms_trusted`], [`rooms_cut`], [`trusts_live`], [`rooms_model`], [`recv_send`], [`recv_take`], [`removal_cuts_off`] |
-| ⬜ | 🥊🥊🥊 | **No packet goes to a removed member.** From the first engine turn after a node decides a removal, it sends the removed user's devices nothing. [More](#removal) | |
+| ✅ | 🥊🥊🥊 | **A removal cuts the removed user out of the rule.** Once a node holds it, the rule refuses every device of that user, except a device also admitted into another live user. Only an admin can remove another user, and nothing undoes it. | [`removal_cuts_off`], [`removals_iff`], [`removal_authorized`], [`removed_stays`] |
+| 🟡 | 🥊🥊🥊 | **A removal ends a live session's sync.** Proven: a connection carries a room only if the trust rule takes its peer, so a refused peer gets nothing of the room and nothing of it is taken from them. Not yet: deriving the refusal from the removal itself in the running node (`sum_project`). The session stays open, with no rooms. | [`rooms_trusted`], [`rooms_cut`], [`trusts_live`], [`rooms_model`], [`recv_send`], [`recv_take`], [`removal_cuts_off`] |
+| ⬜ | 🥊🥊🥊 | **No packet goes to a removed member.** Wanted: from the first engine turn after a node decides a removal, it sends the removed user's devices nothing. Today their sessions stay open with no rooms, and a replayed request is answered with its old reply. | |
 | 🟡 | 🥊🥊🥊 | **No session before approval,** however hellos are lost or replayed, and sessions form only with trusted peers. Proven over a model. Wanted over the running handshake (`answer_trusted`, `untrusted_silent`). | [`no_connection_before_approval`], [`sessions_trusted`] *(model)* |
-| 🟡 | 🥊🥊🥊 | **Peers cannot push ops in** outside the rooms they are let into, nor plant a device's local state. [More](#disclosure-and-intake) | [`recv_take`], [`intake_local`], [`stored_local`], [`local_fact_mine`], [`intakeConn_conn`] |
+| 🟡 | 🥊🥊🥊 | **Peers cannot push ops in** outside the rooms they are let into, nor plant a device's local state. Proven for sessions. Not yet for the handshake: a bare request's hello payload has its shared ops stored before the trust check (a fix is in progress). | [`recv_take`], [`intake_local`], [`stored_local`], [`local_fact_mine`], [`intakeConn_conn`] |
 | ✅ | 🥊🥊 | **Both ends hold one session.** Two ends that complete a handshake hold the same hash, each names the other, and each one's send key is the other's receive key. A frame opens to what was sealed, for the connection it names. | [`established_agrees`], [`open_seal`], [`cid_seal`] |
 | | | **Hostile input** | |
-| ✅ | 🥊🥊🥊 | **One parse per op.** A decoded op re-encodes to exactly the bytes received, and its id is their hash: no parser differential, no malleability, no renaming. [More](#hostile-input) | [`Codec.encode_decode`], [`Op.id_decode`], [`distinct_of_collisionFree`], [`op_of_valid`] |
-| ✅ | 🥊🥊🥊 | **Hostile bytes decode to a well-formed value or to nothing.** A QOI picture comes out at 1–2048 px a side, with exactly its pixels' bytes, so at most 16 MiB whatever it claims; the app's own decode is this decoder. An mDNS packet keeps its RFC limits, and its pointer chains end by construction. Invite links and QR segments are valid. | [`Pic.decode_sized`], [`Image.decode_sized`], [`Mdns.decode_valid`], [`Community.parse_valid`], [`Qr.parse_valid`] |
-| ✅ | 🥊🥊🥊 | **Attachments authenticate themselves.** Any peer may relay a file's chunks, but only the file's own slices are Valid, and progress counts exactly the chunks held. [More](#hostile-input) | [`chunk_is_slice`], [`verify_sound`], [`complete_assembles`], [`chunk_unique`], [`progress_exact`], [`assumptions_hold`], [`no_injective_hash`] |
-| ✅ | 🥊🥊🥊 | **Judging cannot be hung.** From any state, judging empties its queue within a budget read off the tables. | [`drain_bounded`], [`drain_terminates`], [`step_budget`] |
-| ✅ | 🥊🥊🥊 | **Authenticate before parsing:** a sealed frame is decoded only after its AEAD check passes, and one that fails changes nothing and sends nothing. [More](#hostile-input) | [`sealed_auth`], [`openFrame_auth`], [`onFrame_sealed`], [`sealed_unopened`] |
-| 🟡 | 🥊🥊 | **Bounded buffering:** a connection holds at most one maximal frame (1 MiB) and a read, whatever the peer's length fields say. [More](#hostile-input) | [`buffer_bounded`], [`frames_kept`], [`frames_tooBig`], [`frames_size`] |
+| ✅ | 🥊🥊🥊 | **One parse per op.** A decoded op re-encodes to exactly the bytes received, its id is their SHA-256, and a Valid op is exactly its body's encoding under its own type: no parser differential, no malleability, no renamed or re-typed op. | [`Codec.encode_decode`], [`Op.id_decode`], [`distinct_of_collisionFree`], [`op_of_valid`] |
+| ✅ | 🥊🥊🥊 | **Hostile bytes decode to a well-formed value or to nothing.** A QOI picture comes out at 1–2048 px a side, with exactly its pixels' bytes, so at most 16 MiB whatever it claims; the app decodes with this decoder. An mDNS packet keeps its RFC limits, and its pointer chains end by construction. Invite links and QR segments are valid. | [`Pic.decode_sized`], [`Image.decode_sized`], [`Mdns.decode_valid`], [`Community.parse_valid`], [`Qr.parse_valid`] |
+| ✅ | 🥊🥊🥊 | **Attachments authenticate themselves.** Any peer may relay a file's chunks, but a chunk is Valid only if it is its file's own slice. One op stands for each index, progress counts exactly the chunks held, and the chunks put together are the file. Assumes SHA-256 has no second preimage on the tree's inputs. | [`chunk_is_slice`], [`verify_sound`], [`complete_assembles`], [`chunk_unique`], [`progress_exact`], [`assumptions_hold`], [`no_injective_hash`] |
+| 🟡 | 🥊🥊🥊 | **Judging cannot be hung.** From any state, judging empties its queue within a budget read off the tables. Not yet of the running node: proven of states whose purges are `purgeS`, a model of the SQL purge. | [`drain_bounded`], [`drain_terminates`], [`step_budget`] |
+| ✅ | 🥊🥊🥊 | **Authenticate before parsing:** a sealed frame's payload is decoded only after its AEAD check passes, under the receive key of the session the frame names. A frame that fails leaves the node and its store as they were, and sends nothing. | [`sealed_auth`], [`openFrame_auth`], [`onFrame_sealed`], [`sealed_unopened`] |
+| 🟡 | 🥊🥊 | **Bounded buffering:** inbound frames wait in a bounded queue, each at most 1 MiB, with one partial frame per socket, whatever the peer's length fields say; a full queue blocks its producer, and sockets are capped globally and per address. Proven of a model of the reader's loop (`keeps`); wiring it to the running reader is a todo. Tested: the queue's backpressure and socket admission. | [`buffer_bounded`], [`frames_kept`], [`frames_tooBig`], [`admit_bounded`] |
 | ✅ | 🥊🥊 | **No amplification:** a decoded op is exactly its bytes, so no larger. A bundle's payloads are together smaller than it. Linear decoding time is not proven. | [`Op.decode_exact`], [`Op.decode_parts`], [`decode_sum`] |
-| ⬜ | 🥊🥊 | **Resources are capped:** memory, rounds and frames per peer. **Today they are not.** [More](#hostile-input) | |
+| 🟡 | 🥊🥊 | **Resources are capped:** sockets, each connection's `known` and `asked` sets, retries and want replies, without dropping honest sessions. Not covered: the local room index, snapshots and closure caches, and round and CPU work. | [`hold_bounded`], [`conn_bounded`], [`honest_no_drop`], [`retry_bounded`], [`want_reads_authorized`], [`want_blind`], [`want_budget`] |
 
-### Correctness
+### Quality proofs
 
 | | | Guarantee | Theorems |
 |---|---|---|---|
 | | | **The engine** | |
-| ✅ | 🥊🥊🥊 | **Honest nodes agree.** The same ops, in any order, batching or interleaving, give the same verdicts. | [`same_ops_same_verdicts`], [`order_free`] |
+| 🟡 | 🥊🥊🥊 | **Honest nodes agree.** The same ops, in any order, batching or interleaving, give the same verdicts. Not yet of the running node: proven of states whose purges are `purgeS`, a model of the SQL purge. | [`same_ops_same_verdicts`], [`order_free`] |
 | ✅ | 🥊🥊 | **Verdicts are the spec's, and final.** Once judging settles, every stored verdict is the spec's over the ops received, and no later op changes it. | [`drain_settles`], [`status_iff_spec`], [`spec_extends`], [`inv_ingest`], [`inv_step`] |
-| ✅ | 🥊🥊🥊 | **Purge is safe.** A purged session or courier is gone, no shared op is ever deleted, and the engine settles on what remains. | [`purge_gone`], [`purge_shared`], [`purge_settles`] |
-| ✅ | 🥊🥊 | **Purge takes exactly what it must.** It takes the named conn and local ops and their stored dependents. Shared dependents are judged again. | [`purge_named`], [`purge_undecides`], [`purge_inv`], [`mem_purgeSet`], [`reach_ops`] |
+| 🟡 | 🥊🥊🥊 | **Purge is safe.** A purged session or courier is gone, no shared op is ever deleted, and the engine settles on what remains. Not yet: proven of the purge's model (`purgeS`); the running purge is SQL, tested against it. | [`purge_gone`], [`purge_shared`], [`purge_settles`] |
+| 🟡 | 🥊🥊 | **Purge takes exactly what it must.** It takes the named conn and local ops and their stored dependents. Shared dependents are judged again. Not yet: proven of the purge's model (`purgeS`); the running purge is SQL, tested against it. | [`purge_named`], [`purge_undecides`], [`purge_inv`], [`mem_purgeSet`], [`reach_ops`] |
 | ✅ | 🥊 | **Families compose, op by op:** adding a family changes no verdict or scope of the first's ops. Strict decoding round-trips. | [`sum_left`], [`sum_scope_left`], [`Codec.decode_encode`], [`Op.decode_bytes`] |
 | ⬜ | 🥊🥊🥊 | **The Community laws hold in the running node** (`sum_project`). In the store composed with the Connection family, every Community view answers as it would in a store of the Community ops alone. This carries every law above to the node that runs. | |
 | ✅ | 🥊🥊🥊 | **The honest path works.** A request with its invitation and both signatures is valid, an eligible member's approval is valid, and enough approvals admit and let the device in. The remover's intent writes only removals that stand. | [`request_valid`], [`approve_valid`], [`admit_admits`], [`connect_admitted`], [`removeMember_valid`] |
 | | | **Sync** | |
-| ✅ | 🥊🥊🥊 | **A sync round is complete.** Each side is sent exactly what the other holds in the range and it lacks. On any path, it takes at most one answer more than the two sides hold in the range. | [`exchange_complete`] |
+| 🟡 | 🥊🥊🥊 | **A sync round is complete.** Each side is sent exactly what the other holds in the range and it lacks. On any path, it takes at most one answer more than the two sides hold in the range. Not yet: proven of the round's model (`exchange`); wanted of the running round (`conn_runs_exchange`). | [`exchange_complete`] |
 | ✅ | 🥊🥊 | **Fingerprints are honest.** Equal Merkle labels mean equal sets, and a side opens a round with an honest claim. | [`lbl_inj`], [`opening_honest`], [`num_inj`] |
-| ✅ | 🥊🥊🥊 | **Partial sync is safe.** A node that holds an op's requirement closure judges it as its peer does. | [`spec_local`] |
-| 🟡 | 🥊🥊🥊 | **A joiner connects, and both sides converge,** over a socket that loses, duplicates and reorders. Proven over a model only. | [`bootstrap`], [`bootstrap_ideal`], [`bootstrap_possible`], [`reachable_inv`] *(model)* |
-| 🟡 | 🥊🥊🥊 | **The running connection does all this.** It performs the round, and delivers each op's requirement closure. [More](#sync-in-the-running-node) | [`conn_answers_ids`] |
-| ✅ | 🥊🥊🥊 | **New ops reach connected members.** An op written while a member's session is up is offered at once, and the member holds it after one exchange. [More](#sync-in-the-running-node) | [`stream_offered`], [`stream_delivers`], [`stream_delivers_steps`], [`stream_offered_runs`], [`stream_delivers_runs`] |
-| ⬜ | 🥊🥊🥊 | **Everyone converges.** Under fair delivery, members linked by any chain of connections end up holding every op of their community, and so the same verdicts. [More](#toward-n-clients) | |
-| ⬜ | 🥊🥊 | **Staleness is never hidden.** What the screen says about sync is true of the ops held, and a sync that stalls is shown within a stated bound. [More](#sync-in-the-running-node) | |
+| 🟡 | 🥊🥊🥊 | **Partial sync is safe.** A node that holds an op's requirement closure judges it as its peer does. Not yet: proven of the spec, which running judging reaches only on states whose purges are modelled. | [`spec_local`] |
+| 🟡 | 🥊🥊🥊 | **A joiner connects, and both sides converge,** over a socket that loses, duplicates and reorders. Proven over a model only. Wanted: the same of the running code (`conn_runs_exchange`, `closure_delivered`). | [`bootstrap`], [`bootstrap_ideal`], [`bootstrap_possible`], [`reachable_inv`] *(model)* |
+| 🟡 | 🥊🥊🥊 | **The running connection does all this.** Proven: a connection answers a claim that lists ids exactly as `exchange` does, from the round's snapshot. Not yet: the whole round under any delivery order (`conn_runs_exchange`), and each op's requirement closure (`closure_delivered`). | [`conn_answers_ids`] |
+| 🟡 | 🥊🥊🥊 | **New ops reach connected members.** In a world of two nodes running the sync code on held stores, with fixed rooms, frames in the clear and no handshake: an op written while a member's session is up is offered at once, and the member holds it after one exchange (the offer, a want, the op), when both sides' rooms include its room, neither held it, and the receiver has a free ask slot and a response budget. Not yet of the runner, with TCP, sealed frames, the trust rule's rooms and the handshake. | [`stream_offered`], [`stream_delivers`], [`stream_delivers_steps`], [`stream_offered_runs`], [`stream_delivers_runs`] |
+| ⬜ | 🥊🥊🥊 | **Everyone converges.** Wanted: under fair delivery, members linked by any chain of connections eventually hold every op of their community, and so the same verdicts. Proven so far for two nodes, over a model. | |
+| ⬜ | 🥊🥊 | **Staleness is never hidden.** Wanted: "up to date as of T" means a round this device opened at T ended with it holding everything the peer held in that room, and a sync that stalls is shown within a stated bound. | |
 | ⬜ | 🥊🥊🥊 | **A synced page is complete:** after syncing a page, a device shows every row its peer shows for it (`page_sync`). | |
 | ⬜ | 🥊🥊 | **Sync is efficient.** Each op is sent at most once per connection, and a round needs at most fan·Δ·⌈log n⌉ claims. | |
 | ⬜ | 🥊 | **The cached Merkle tree's labels are `lbl`'s,** for O(log n) fingerprints with no change on the wire. | |
 | | | **The screen** | |
-| ✅ | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. | [`visible_in_viewport`], [`newest_visible`], [`pinned_visible`], [`pinned_tap`], [`hit_iff`] |
+| 🟡 | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. Not yet: proven of the formulas the twins' C applies (`Seam`), and of a copy of the sheet painter's placement. | [`visible_in_viewport`], [`newest_visible`], [`pinned_visible`], [`pinned_tap`], [`hit_iff`] |
 | ⬜ | 🥊🥊🥊 | **Every control is big enough to tap.** Every tappable control's hit area, not just its drawn size, is at least 48 dp by 48 dp on Android and 44 pt by 44 pt on iOS, at every supported screen size and text scale. | |
 | ⬜ | 🥊🥊 | **A tap means one thing.** On every screen, no two controls' hit areas overlap, so a point selects at most one control. A tap selects the control drawn under it. Today this is proven for the emoji sheet and message rows only (`keys_disjoint`, `hit_iff`, `pinned_tap`). | |
 | ⬜ | 🥊🥊 | **Every control shown can be tapped.** A control that is drawn has its hit area on screen, and not under the header, the composer or the keyboard. | |
@@ -265,367 +209,78 @@ nothing else is assumed:
 | ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
 | ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
 | ✅ | 🥊🥊 | **The people list is the present members,** each once. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_nodup`] |
-| 🟡 | 🥊🥊🥊 | **The screen is one moment.** Every frame is drawn over a single store state, the latest the app has seen, so if one row is current, all are. [More](#from-the-store-to-the-screen) | [`read_one_moment`], [`answer_agrees`], [`agrees_store`], [`agrees_notice`], [`agrees_keep`], [`agrees_empty`], [`eval_stable`], [`view_stable`] |
-| 🟡 | 🥊🥊🥊 | **Scrolling always shows something.** However slow a read or a picture's decode, every position inside the conversation shows a row or a placeholder, never blank. [More](#from-the-store-to-the-screen) | [`covered`], [`line_painted`] |
+| 🟡 | 🥊🥊🥊 | **The screen is one moment.** Every frame is drawn over a single store state, the latest the app has seen. Proven over the running cache (`Live.readWith`, which the frame's and the reader's reads run), given SQLite's snapshot isolation and the journal hypothesis (Assumed): every read through it, cached or not, returns its moment's answer; a reader pass marks every want whose reads went stale before reading any (the board model's decisions). Not yet: one moment across the reader's board and the frame's own reads (each is consistent; they settle, BoardLaws' `settle`), a frame that writes spans more than one outbox moment, the outbox's notice keys derived from its ops, and `step` itself as a statement. | [`read_one_moment`], [`answer_agrees`], [`agrees_store`], [`agrees_notice`], [`agrees_keep`], [`agrees_empty`], [`eval_stable`], [`view_stable`] |
+| 🟡 | 🥊🥊🥊 | **Scrolling always shows something.** Proven of the running frame's `Cover.seen`: from the bottom padding up to the last loaded row's top, and above it while older messages are outside the window, no position is blank, and a bitmap line is shown only where its row has it. The frame reads no messages: the reader reads a window of at most 200 about an anchor and counts the rest. Not yet: the frame's own work bounded (its remaining reads through `App.read`), and that scrolling by δ shows what was δ away. | [`covered`], [`line_painted`] |
 | ⬜ | 🥊🥊 | **An action's toast stays until the screen shows it.** A toast for an action (removing someone, a new name or avatar) stays up until every component on screen has re-read a state that holds the action's op, or until the OS's toast time passes, whichever comes first. So a toast that leaves early proves the screen has caught up. | |
-| ✅ | 🥊🥊 | **The layout is exact.** The slide and keyboard shift are exact, and page rows are where the page put them. Emoji keys never overlap, and every key is reachable. An invite's hints and QR fit, and the camera preview reads inside its frame. | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
-| 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** A row's glyphs, read in order, are exactly the body's visible characters, and every line fits. [More](#text-and-names) | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`digits_keep_order`] |
-| 🟡 | 🥊🥊🥊 | **Names are shown correctly.** A row draws its author's name and no one else's, no bidi control can disguise it, and look-alike names are both marked. [More](#text-and-names) | [`message_read`], [`profile_read`], [`profile_authorized`], [`no_renaming`], [`name_placed`], [`oneLine_prefix`], [`controls_neutral`], [`marks_invisible`], [`namesake_iff`], [`row_marked`], [`twin_shown`], [`twin_before_time`], [`hit_twin`] |
+| 🟡 | 🥊🥊 | **The layout is exact.** Proven of the running code: the sheet's composition, the invite's hints and QR, and the camera preview. Not yet: the slide, the keyboard shift and page rows (Geometry's formulas, which the shells copy), and the emoji keys (a copy of the sheet painter's placement). | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
+| 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** Proven: wrapping drops only spaces, keeps every other character in order, and every line fits when every character does; bidi reordering drops and invents nothing; the glyphs placed are exactly the visible characters. Not yet: numbers keep their order in right-to-left text in general (#3), and `layout` as one statement. | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`digits_keep_order`] |
+| 🟡 | 🥊🥊🥊 | **Names are shown correctly.** Proven: a row's name is its author's newest valid profile's, which only a device admitted into that user can write, cut to a logical prefix; no explicit bidi control can reorder a name or a message; a name starts next to the avatar whatever its direction (as do a message's lines, start-aligned as libquiet's); and a row is marked "⚠ Duplicate" exactly when another member's name looks alike (equal once invisible characters are dropped and spaces, and the glyphs the font draws empty, collapsed). Not covered: look-alike letters across scripts, and invisible characters in a message's body. | [`message_read`], [`profile_read`], [`profile_authorized`], [`no_renaming`], [`name_placed`], [`oneLine_prefix`], [`controls_neutral`], [`marks_invisible`], [`namesake_iff`], [`row_marked`], [`twin_shown`], [`twin_before_time`], [`hit_twin`], [`name_starts`], [`flush_shows`] |
 | ✅ | 🥊🥊 | **Times, reactions and pictures are shown as held:** the claimed time's clock, each reaction's count of distinct reactors, and each picture at its aspect inside its box. One pill per emoji, whose reactors are exactly who reacted with it, each once; a picture's box has one side at its bound and the other scaled by its aspect. | [`time_shown`], [`message_read`], [`tally_nodup`], [`tally_mem`], [`picBox_aspect`] |
-| 🟡 | 🥊🥊🥊 | **What you see is what was sent.** The rows a device draws are the views of the facts its ops hold, from network to pixel. [More](#from-the-store-to-the-screen) | [`message_read`], [`readable_held`], [`readable_complete`], [`eval_stable`] |
+| 🟡 | 🥊🥊🥊 | **What you see is what was sent.** Proven over a model where every list read is the engine's: a shown message is a valid fact of the store, its row's name, time and text are its author's name, its claimed time and its body opened with a key the store holds, and the conversation is exactly the messages under keys this device holds. Not yet: from the row's layout to its pixels. | [`message_read`], [`readable_held`], [`readable_complete`], [`eval_stable`] |
 | ✅ | 🥊🥊🥊 | **Every community is reachable, and is one entry.** A switcher row's tap selects exactly the entry it draws, every entry has a row, no two entries share an acceptance or a community, and a page is drawn from its key alone, which names its entry's op, never a name. | [`switcherOrder_sound`], [`switcherOrder_complete`], [`dedupe_nodup`], [`dedupe_one_per_community`], [`select_tapped_dedupe`], [`drawPage_key`], [`pageIn_acc`] |
-| ⬜ | 🥊🥊 | **The screen keeps up,** whatever sync is doing: input first, no blank rows past a latency bound, within a frame budget, with bounded reads. [More](#sync-and-the-ui) | |
-| ✅ | 🥊🥊 | **Display order.** Devices with the same ops order a channel alike, except past a counter's cap, where each shows its own arrival order; the exception is itself a law. [More](#display-order) | [`msg_cmp`], [`time_is_display`], [`order_total`], [`Pos.cmp_eq_iff`], [`Pos.cmp_lt_trans`], [`send_after`], [`arrival_order`], [`receipt_once`], [`order_local`], [`display_agrees`], [`readable_held`], [`readable_complete`] |
+| ⬜ | 🥊🥊 | **The screen keeps up.** Wanted: input first, no blank rows past a latency bound, within a frame budget, with bounded reads. | |
+| ✅ | 🥊🥊 | **Display order.** A channel sorts by a counter its devices share, then the time, then the id, with no ties, so devices with the same ops order it alike. Past the counter's cap, each device's own arrival order shows instead, and that exception is itself a law. | [`msg_cmp`], [`time_is_display`], [`order_total`], [`Pos.cmp_eq_iff`], [`Pos.cmp_lt_trans`], [`send_after`], [`arrival_order`], [`receipt_once`], [`order_local`], [`display_agrees`], [`readable_held`], [`readable_complete`] |
 | | | **Codes, pictures and discovery** | |
 | ✅ | 🥊🥊 | **What the encoders write reads back.** This holds for QR segments and codewords, invite links and mDNS packets. QR error correction is sound, and format and version readings tolerate their designed bit errors. | [`parse_segsBits`], [`parse_dataStream`], [`RS.correct_sound`], [`RS.correct_clean`], [`decodeFormat_correct`], [`decodeVersion_correct`], [`parse_text`], [`Base62.decode_encode`], [`Mdns.decode_encode`], [`decode_roundtrip`] |
-| ✅ | 🥊 | **Pictures render whole:** scaled and composited pictures are well-formed and opaque, and the tray's layout fits. | [`render_wellFormed`], [`render_opaque`], [`scale_wellFormed`], [`fit_round`], [`Pic.layout_inside`], [`Pic.layout_apart`] |
+| 🟡 | 🥊 | **Pictures render whole:** scaled and composited pictures are well-formed and opaque, and the tray's layout fits. Not yet: proven of `Pic`, which only qr's Android harness runs; the app draws its own. | [`render_wellFormed`], [`render_opaque`], [`scale_wellFormed`], [`fit_round`], [`Pic.layout_inside`], [`Pic.layout_apart`] |
 
 The theorems not listed here are lemmas. The axiom audit,
 `tests/Axioms.lean`, lists them all.
 
-## Proofs in depth
+### Not yet about running code (todo)
 
-The rows above that need more than a line, in full: what is proven,
-what is not yet, and what is wanted. ✅ proven · 🟡 partly · ⬜ wanted.
+A law is about running code when every definition its statement names
+runs from the app's `main` or the node's runner, or is proven equal to
+code that does. `tests/Wiring.lean` classifies every law from the code,
+with `tests/wiring.txt` for what the code cannot say, and
+`ci/proof-links.py` writes these tables and the lead's count.
 
-### Disclosure and intake
+<!-- wiring:begin -->
+**343 of 433 laws are about running code;** 90 are not yet. Stated only: none.
 
-✅ **Non-members get no ops, even by asking by id.** A session sends only
-sync messages, and ops of the rooms its peer is let into. A peer's haves
-reveal nothing outside its rooms: a have names its room, one for a room
-the peer may not see is ignored, and the reply reads only this node's
-ops of that room. So a peer cannot ask whether this node holds an op of
-another community, or a local op. A test checks this with a negative
-control.
+| Area | Laws | About running code | Not yet |
+|---|---|---|---|
+| Engine | 56 | 35 | 21 |
+| Sync | 82 | 81 | 1 |
+| mDNS | 3 | 0 | 3 |
+| Node and wire | 35 | 19 | 16 |
+| Bootstrap | 11 | 0 | 11 |
+| Connections | 30 | 27 | 3 |
+| Community | 143 | 132 | 11 |
+| QR codes | 10 | 10 |  |
+| Pictures | 13 | 1 | 12 |
+| Screen | 34 | 23 | 11 |
+| App | 16 | 15 | 1 |
 
-🟡 **Every offered id names a stored op in one of the peer's rooms.**
-This is the disclosure law for ids.
-- **Proven:** each step a connection takes sends only sync messages and
-  stored ops of its rooms, and every id it offers, in a have or an id
-  claim, is a stored op of one of its rooms. That holds while the node's
-  room index holds exactly the stored ops of each room, and its rounds'
-  snapshots are of that index. Booting from the store starts the index
-  so, and every write turn and purge keeps it so. Tests check both on
-  SQLite: the index after purges, and every id offered.
-- **Wanted:** that the node's entry points (`onFrame`, `onTick`,
-  `onWrite`) chain these steps and keep both premises; today that is
-  read from the code.
+| Missing link | Laws | To make them real |
+|---|---|---|
+| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]*†, [`order_local`]*†, [`sealed_unopened`]*†, [`sealed_auth`]*†, [`purge_cached`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`write_offers_all`], [`close_gone`]*†, [`allowPeer_iff`], [`allowPeer_settles`] | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
+| `World.peer`, `Setup.sync`, `Who.other` +8 | [`stream_delivers`]†, [`stream_delivers_steps`]†, [`stream_delivers_runs`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`stream_offered`]†, [`stream_offered_runs`]†, [`write_offers_all`], [`fanout_offers`], [`seal_mem`] | A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does. |
+| `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
+| `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
+| `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
+| `Scene.approval`, `Scene.K`, `Scene.S` +12 | [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`bootstrap_ideal`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`], [`allowPeer_settles`] | The bootstrap's model (ops/connection/bootstrap/): retired by `conn_runs_exchange`, `closure_delivered`, `answer_trusted` and `untrusted_silent` over the running code. |
+| `Seam.place`, `Geom.composerTop`, `Geom.viewNow` +5 | [`placed_row`]†, [`visible_in_viewport`]†, [`newest_visible`]†, [`newest_drawn`]†, [`pinned_row`]†, [`pinned_visible`]†, [`pinned_tap`]† | The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are. |
+| `Grid.ctop` (restates `Sheet.gridRow`) | [`hit_iff`]†, [`hit_cell`]*†, [`keys_disjoint`]*†, [`reachable`]† | Its index arithmetic, and App's sheet rows'. Todo: have the painter place keys by `Grid.ctop`. |
+| `Sync.keeps` | [`buffer_bounded`]*† | The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s. |
+| `Pic.add`, `Geom.box`, `Pic.attachEdge` +4 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]† | The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code. |
+| `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
+| `Arrival.lit` | [`lit_zero`], [`lit_mono`], [`lit_full`], [`lit_clockwise`], [`ring_counts`] | `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`pageIn_acc`]† | Nothing to wire: each is about a specification or an assumption. |
 
-🟡 **Peers cannot push ops in** outside the rooms they are let into, nor
-plant a device's local state. Proven for sessions. **Not yet for the
-handshake:** a bare request's hello payload has its shared ops stored
-before the trust check. So a removed member, or an outsider who knows
-the community, can push ops in with no session. A fix is in progress.
+\* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
-### Sealing messages to members
-
-🟡 **Messages are sealed to members only.**
-- **Proven:** the `recipients` query names exactly the live members'
-  encryption keys, and a member opens what was sealed under the key
-  wrapped to it.
-- **Not yet:** the running wrap writers don't use that query, and a
-  wrap's validator doesn't tie its recipient to an admission. So an
-  approval below its invitation's threshold already wraps the key to a
-  requester who isn't admitted yet. A shared op's validator reads only
-  shared facts.
-- **Wanted:** that a non-member cannot open it (the seal's secrecy).
-
-### Sessions
-
-✅ **Sessions are secret and authenticated.** Suppose an attacker reads,
-replays and injects every message, and knows every key except the two
-devices' static keys and the session's ephemerals. Then neither
-transport key is derivable. The initiator accepts a reply only if it is
-exactly what the responder wrote answering this request. This is over
-the handshake functions that run, in the symbolic model (see Assumed).
-Replays are accepted again, and payloads are not covered. A negative
-control shows an attacker holding the initiator's keys does derive the
-session keys, and `kk_runs` shows the honest run exists.
-
-🟡 **A closed session's keys cannot be recovered,** from the disk or from
-the static keys later.
-- **Proven:** with the ephemerals gone, both static keys and the whole
-  transcript do not give the session keys, and the session's rows are
-  gone.
-- **Tested:** no file of the database holds a byte of them
-  (`tests/engine/Purge.lean`).
-- **Wanted:** that closing purges every ephemeral (`close_forgets`).
-- **Not yet:** a session only closes when a connection is dropped or
-  retired. When the peer of a settled responder just disappears, the
-  session stays open, so its keys stay on disk. Closing on transport
-  loss and silence is wanted.
-
-### Removal
-
-✅ **A removal cuts the removed user out of the rule.** Once a node holds
-it, the rule refuses every device of that user, except a device also
-admitted into another live user. A device can be admitted under two
-users today. Whether that should hold is an open design question. Only
-an admin can remove another user, and nothing undoes it.
-
-🟡 **A removal ends a live session's sync.**
-- **Proven:** a connection carries a room only if the trust rule takes
-  its peer, and for a live member that rule is `allowPeer`. So a peer
-  `allowPeer` refuses gets nothing of the room, and nothing of it is
-  taken from them. Every connection step reads its rooms afresh. That is
-  in the code and tested over TCP, with a negative control, but not a
-  theorem.
-- **Wanted:** deriving the refusal from the removal itself in the
-  running node (`sum_project`). The session stays open, with no rooms.
-
-⬜ **No packet goes to a removed member.** From the first run of the
-engine loop after a node decides a removal, it sends the removed user's
-devices nothing. No sealed frame (their sessions close), no handshake
-reply (a replayed request gets nothing), and no dial. A last notice of
-the removal itself might be allowed. Today their sessions stay open with
-no rooms, and a replayed request is answered with its old reply bytes.
-Both change first.
-
-### Hostile input
-
-✅ **One parse per op.** A decoded op re-encodes to exactly the bytes
-received, so there is no parser differential and no malleability: the
-signer, the hasher and every peer read the same op. Its id is the
-SHA-256 of those bytes, so a peer cannot name an op. A Valid op is
-exactly its body's encoding under its own type, so no re-typed copy of
-one is Valid.
-
-✅ **Attachments authenticate themselves.** Any peer may relay a file's
-chunks, but a chunk is Valid only if it is its file's own slice. One op
-stands for each index, so download progress counts exactly the chunks
-held, and the chunks for every index put together are the file. This
-assumes SHA-256 has no second preimage on the tree's inputs. The premise
-is shown satisfiable for an empty file only; for every file, it's
-wanted. No hash with 32-byte outputs is injective, so the laws assume
-nothing stronger.
-
-✅ **Authenticate before parsing:** a sealed frame's payload is decoded
-only after its AEAD check passes. The node sees a frame only as
-`openFrame` gives it, and that opens only under the receive key of the
-session the frame names. A frame that fails leaves the node and its
-store as they were, and sends nothing. A test forges frames over real
-XChaCha20-Poly1305.
-
-🟡 **Bounded buffering:** a connection holds at most one maximal frame (1
-MiB) and a read, whatever the peer's length fields say. Proven of the
-TCP reader's buffer: between reads it keeps less than one maximal frame
-and its length, and a length over 1 MiB ends the connection in the read
-that completes it.
-- **Not yet:** the frames the reader has taken wait for the node in the
-  runner's event channel, which is unbounded, so a peer that sends
-  frames faster than the node handles them grows that queue.
-
-⬜ **Resources are capped:** memory, rounds and frames per peer. **Today
-they are not.** The runner's event channel has no capacity, accepted
-sockets are unlimited, and a peer's holds grow the connection's `known`
-and `asked` sets without bound.
-
-### Sync in the running node
-
-🟡 **The running connection does all this.** It performs the round, and
-delivers each op's requirement closure.
-- **Proven:** a connection answers a claim that lists ids exactly as
-  `exchange` does, from the round's snapshot.
-- **Wanted:** the whole round under any delivery order
-  (`conn_runs_exchange`), and the closure (`closure_delivered`). This
-  retires the bootstrap's model (`ops/connection/bootstrap/`).
-
-✅ **New ops reach connected members.** An op a node writes while a
-member's session is up is offered on it at once, in a have of its room,
-if the session carries that room and its connection has neither offered
-the op nor heard the member holds it. The member holds it after one
-exchange, each frame delivered in turn: the offer, a want, and the op.
-That needs both sides' rooms on the session to include the op's room,
-neither node to hold the op before, and the member's side not to have
-asked for it already. This is over a world of two nodes running the sync
-code on held stores, with fixed rooms, frames in the clear, and sessions
-opened directly (no handshake). The exchange is proven for nodes with
-one session each; the offer, for any sessions.
-
-⬜ **Staleness is never hidden.** What the screen says about sync is true
-of the ops held. "Up to date as of T" means a round the device opened at
-its own time T ended with it holding everything the peer held in that
-room. If no round ends within a stated bound, the screen says so within
-that bound.
-
-### Toward n clients
-
-⬜ **Everyone converges.** Under fair delivery, members linked by any
-chain of connections eventually hold every op of their community. By
-[`same_ops_same_verdicts`], they then hold the same verdicts. Proven so
-far for two nodes, over a model.
-
-This is the guarantee the rest builds toward, and the pieces it rests
-on are in place:
-
-- **The world runs the real code.** `engine/wire/World.lean` is two
-  nodes and the network between them, as data. A step runs one of a
-  node's entry points (`onFrame`, `onTick`, `onWrite`, `connect`) on its
-  held store, the same code the runner calls on SQLite, and puts what it
-  sends in flight. The network is a multiset: any frame in flight may be
-  delivered next, at most once, or never. [`stream_delivers`] is proven
-  by running those entry points lemma by lemma, not by abstracting them.
-- **Agreement is order-free.** The same ops, in any order, batching or
-  interleaving, give the same verdicts ([`same_ops_same_verdicts`],
-  [`order_free`]). So convergence comes down to delivery: every member
-  ending up with the same ops.
-- **Each pair's round is complete** ([`exchange_complete`]), and a node
-  that holds an op's requirement closure judges it as its peer does
-  ([`spec_local`]), so a node that holds part of the history is right
-  about what it holds.
-
-What is left, in order: the whole round on the running connection under
-any delivery order (`conn_runs_exchange`), and the closure it delivers
-(`closure_delivered`); the world with n nodes, any pair of which may hold
-a session; fair delivery as the hypothesis; then convergence by
-induction along a chain of connections, each link an exchange. The
-handshake, rooms that change, and an attacker (one more kind of step:
-drop, replay, inject) then come in on the same world, and `sum_project`
-carries the Community laws into the composed node it runs.
-
-### Sync and the UI
-
-⬜ **The screen keeps up:** no blank rows past a latency bound, within a
-frame budget, with bounded reads.
-
-The app runs sync and the UI in one process, so this is a law about
-priority: input and the frame come first, sync's work fills the time
-that is left, and neither starves.
-
-Proven today:
-- **Sync's work is bounded.** From any state, judging empties its queue
-  within a budget read off the tables ([`drain_bounded`],
-  [`step_budget`]).
-- **Sync never shows half done.** Every frame reads one moment of the
-  store, so a write lands between frames, never inside one
-  ([`read_one_moment`], given SQLite's snapshot isolation).
-- **A write wakes only what it changed.** A list re-reads only when a
-  row is filed under a key it read ([`eval_stable`], [`view_stable`]).
-
-In progress: a scheduler that admits work by class (input first, then
-filling the screen, then judging, then serving peers), with laws that
-input is admitted first and that no class starves, and cost laws in the
-number of ops for each unit of work, so that admission becomes a frame
-budget. The scheduler's laws are about admission decisions, not
-wall-clock deadlines; the cost laws close that gap.
-
-### From the store to the screen
-
-🟡 **The screen is one moment.** Every frame is drawn over a single store
-state, the latest the app has seen, so if one row is current, all are.
-The conversation's ids and rows are read by the reader (`Reader`), on a
-connection of its own, one SQLite read transaction a pass with the
-journal its first read; the frame takes them from the board. The rest of
-a frame's reads run in the frame's own read transaction, its notices
-first.
-- **Proven** over the running cache, given the snapshot and journal
-  hypotheses (above): every answer it holds unstaled is the moment's and
-  armed on its watch, from the empty cache, through a read that asks the
-  store, a notice that moves to the next moment, and a pruning; so every
-  read through it, cached or not, returns its moment's answer. A cached
-  component whose keys did not fire answers as a fresh read would. A
-  reader pass decides with the board model's own functions (`Live.mark`,
-  `Live.pick`, `Live.staleW`): every want whose reads went stale is
-  marked before any is read again, so two rows reading one list both see
-  its change (the eager pass is the model's mutant).
-- **Limits:** a frame that writes spans more than one outbox moment. The board's values can come
-  from different passes (a row wanted later is read in a later pass),
-  and the frame's own reads are its own connection's moment, so the
-  screen is a few moments, each consistent, until the passes catch up
-  (the board's `settle`). The home list's online dots come from the
-  session list read every 30 frames, so they can be 29 frames old. The
-  reads that skip the cache (verdicts while judging a write and a
-  request's approval, which see the store and not the outbox; a
-  picture's chunk bytes; the journal; the session list; the outbox ops'
-  verdicts inside the store read) are on the frame's connection inside
-  its transaction, of its moment by the snapshot hypothesis alone, with
-  no law of their own.
-- **Wanted:** the outbox's notice keys derived from its ops rather than
-  assumed, and `step` and the reader's SQL around its decisions as
-  statements.
-
-🟡 **Scrolling always shows something.** However slow a read or a
-picture's decode, every position inside the conversation shows a row or
-a placeholder, never blank.
-- **Proven** over `Cover.seen`, which the list frame is built from: from
-  the bottom padding up to the last loaded row's top, and above it while
-  older messages are outside the window, no position is blank
-  (`covered`); a bitmap line is shown only where its row's bitmap has it
-  (`line_painted`).
-- **Built:** the frame reads no messages. The conversation is a window
-  about an anchor (`Reader.Want.window`: the reader reads at most a
-  hundred rows on each side, counting the rest), so a refill reads the
-  same few rows however long the conversation; the messages outside it
-  take an estimated height each as placeholders, and the window follows
-  the viewport. The headless app's fling to the top of 500 messages
-  ends with 189 loaded and no frame with an unpainted row.
-- **Wanted:** the frame's own work bounded (the pictures' chunk reads,
-  the session list and the node's keys still run on the frame), the row
-  heights in the tree (Heights) instead of a walk over the window, and
-  that scrolling by δ shows what was δ away.
-
-🟡 **What you see is what was sent.** The rows a device draws are the
-views of the facts its ops hold, from network to pixel.
-- **Proven**, over a model where every list read is the engine's: a
-  shown message is a valid fact of the store, and its row's name, time
-  and text are its author's name, its claimed time and its body opened
-  with a key the store holds; the conversation is exactly the messages
-  under keys this device holds.
-- **Wanted:** the same from the row's layout to its pixels.
-
-### Text and names
-
-🟡 **Message text is shown faithfully.** A row's glyphs, read in order,
-are exactly the body's visible characters. Nothing is clipped, reordered
-or taken from another row, and every line fits.
-- **Proven:** wrapping drops only spaces and keeps every other character
-  in order, and every line fits when every character does; bidi
-  reordering is a permutation (nothing dropped or invented); the glyphs
-  placed are exactly the visible characters, each starting where the one
-  before ends; numbers keep their order inside right-to-left text, for
-  the reported cases.
-- **Wanted:** that order in general, and `layout` as one statement over
-  the three.
-
-🟡 **Names are shown correctly.** A message row draws its author's name,
-as the views pick it, and no one else's. No bidi override can disguise a
-name or a message, and two users whose names look alike are both marked
-as duplicates, as Quiet marks them.
-- **Proven:** a row's name is its author's newest valid profile's (or
-  "…"), and only a device admitted into that user can have written it;
-  the row draws it cut to a logical prefix and an ellipsis, so a long
-  name keeps its beginning in either direction, and starts next to the
-  avatar whatever its direction (`name_starts`: its leftmost glyph is
-  at the name box's start; a message's lines are flushed the same way,
-  start-aligned as libquiet's rows are). Every explicit bidi
-  control (embeddings, overrides, isolates, LRM and RLM) is a neutral in
-  the running bidi, so none can reorder a name or a message, and the
-  marks draw nothing. Two names look alike when they are equal once the
-  characters drawn as nothing are dropped and every run of spaces of any
-  kind (and of the characters the font draws as an empty cell, which the
-  app's `inkless` check finds in the font) is one space, so `Alice` and
-  `Alice` followed by U+200B or U+FFA0 look alike. At rest, a row is labelled "⚠ Duplicate", between the name and
-  the time, exactly when another user of the community has a valid
-  profile whose newest name looks like its author's, and a tap on the
-  label lands on it.
-- **Built and tested, not proven:** that tap opens Quiet's "Multiple
-  users with same name" warning (TwoNodes: both rows marked, the tap
-  lands on the warning, the old name clears both).
-- **Not covered:** look-alike letters from other scripts (Latin a,
-  Cyrillic а); two long names that differ only
-  after the row cuts them; and invisible characters in a message's body,
-  which are dropped when drawn and marked nowhere.
-
-### Display order
-
-✅ **Display order.** Devices with the same ops order messages alike,
-except past the counter's cap, where each device's arrival order shows.
-A channel sorts by a counter its devices share, then the time (for
-display), then the id, and no two messages are level. What a device
-sends sorts after everything it lists there, while its receipt counter
-stays below 2^64. The exception is itself a law: below the cap a
-message's place comes from its own bytes, the same on every device; past
-it, from this device's own receipt.
+| Assumption | Laws | |
+|---|---|---|
+| [`Unforgeable`] | 2 | An Ed25519 signature that verifies under a device key was made by that key's holder. |
+| [`CollisionFree`] | 20 | SHA-256 has no collision among the ops a node received. |
+| [`NoSecondPreimage`] | 14 | SHA-256 has no second preimage on a file's Merkle tree inputs. |
+| [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
+| [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
+| [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
+| [`Model.run`] | 144 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Engine.Inv`] | 43 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
+<!-- wiring:end -->
 
 ## What isn't Lean, and why
 
@@ -772,7 +427,7 @@ Lean could do. They are under
 
 | | what it gives | what the proofs assume of it |
 |---|---|---|
-| **The Rust crypto** ([`lib.rs`](engine/native/crypto/src/lib.rs), 145 lines, over ed25519-dalek 3.0.0, curve25519-dalek 5.0.0, chacha20poly1305 0.11.0, sha2 0.10.9 and getrandom 0.3.4) | SHA-256; Ed25519, verified strictly; X25519; the Ed25519 to X25519 conversion; ChaCha20-Poly1305 with Noise's nonce; XChaCha20-Poly1305; the OS's random bytes. One build on every platform. | [`Unforgeable`], [`CollisionFree`], [`NoSecondPreimage`], [`Suite.Good`] and [`Keys.Good`] (see Assumed). Tested byte for byte against libsodium ([`crypto_compat.c`](tests/engine/crypto_compat.c)) and against the Noise test vectors. |
+| **The Rust crypto** ([`lib.rs`](engine/native/crypto/src/lib.rs), 145 lines, over ed25519-dalek 3.0.0, curve25519-dalek 5.0.0, chacha20poly1305 0.11.0, sha2 0.10.9 and getrandom 0.3.4) | SHA-256; Ed25519, verified strictly; X25519; the Ed25519 to X25519 conversion; ChaCha20-Poly1305 with Noise's nonce; XChaCha20-Poly1305; the OS's random bytes. One build on every platform. | [`Unforgeable`], [`CollisionFree`], [`NoSecondPreimage`] and [`Suite.Good`] (see Assumed). Tested byte for byte against libsodium ([`crypto_compat.c`](tests/engine/crypto_compat.c)) and against the Noise test vectors. |
 | **SQLite** | The store. Phones ship the vendored 3.50.4 ([`third_party/sqlite`](third_party/sqlite)). The desktop links the system's `libsqlite3`, 3.46.1 on the machine local CI runs on. | It behaves like the engine's model ([`Model.lean`](engine/core/Model.lean)). This is tested row for row, with kill -9 crashes and the purge's raw read, on the desktop's SQLite only. |
 | **Lean's runtime and libuv** | Reference counting; the ByteArray, String and Array primitives, which are `@[extern]` in Lean's core and implemented in C; tasks and threads; files; clocks; and Std.Async, which gives the TCP runner its sockets ([`Tcp.lean`](engine/wire/Tcp.lean)), mDNS its UDP, and an invite its dial hints (the interface addresses). Phones build it from Lean's source ([`build.sh`](platforms/android/leanrt/build.sh), [`leanrt.sh`](platforms/ios/leanrt.sh)), with no mimalloc and no GMP, OpenSSL stubbed, and libuv compiled from its source lists. | **Lean** in Trusted. The proofs reason about the core's Lean definitions, and the C must match them. The phones' build is not the one the tests run on. |
 
@@ -1052,22 +707,8 @@ on the old layout comes over with `ci/reorg-map.tsv` (where each file
 went) and `ci/reorg-imports.py` (its new files' imports).
 
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
-[`no_impersonation`]: ops/community/Laws.lean#L289-L302
-[`removed_stays`]: ops/community/Laws.lean#L563-L566
+[`stream_delivers`]: engine/wire/WorldLaws.lean#L603-L635
 [`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
-[`exchange_complete`]: ops/sync/RoundLaws.lean#L232-L241
-[`spec_local`]: engine/core/Locality.lean#L54-L58
-[`stream_delivers`]: engine/wire/WorldLaws.lean#L544-L572
-[`recv_send`]: ops/sync/ConnLaws.lean#L154-L156
-[`offer_shared`]: engine/core/Sync.lean#L83-L86
-[`kk_secret`]: ops/connection/NoiseSymbolic.lean#L595-L609
-[`drain_bounded`]: engine/core/Budget.lean#L163-L168
-[`read_one_moment`]: engine/renderer/LiveLaws.lean#L227-L232
-[`wrap_keeps`]: engine/renderer/WrapLaws.lean#L132-L135
-[`visual_perm`]: engine/renderer/TextLaws.lean#L46-L47
-[`visible_in_viewport`]: engine/renderer/Geometry.lean#L90-L95
-[`hit_iff`]: engine/renderer/SheetGeom.lean#L93-L95
-[`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`Unforgeable`]: ops/community/Laws.lean#L270-L272
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
 [`Distinct`]: engine/core/Proofs.lean#L538-L540
@@ -1075,12 +716,13 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`NoSecondPreimage`]: ops/community/Merkle.lean#L142-L143
 [`assumptions_hold`]: ops/community/Merkle.lean#L539-L543
 [`Suite.Good`]: ops/connection/Noise.lean#L61-L65
-[`Keys.Good`]: ops/connection/Types.lean#L32-L36
+[`no_impersonation`]: ops/community/Laws.lean#L289-L302
 [`admission_needs_approval`]: ops/community/Laws.lean#L469-L477
 [`admission_approved`]: ops/community/Laws.lean#L388-L398
 [`request_invited`]: ops/community/Laws.lean#L352-L362
 [`removal_authorized`]: ops/community/Laws.lean#L517-L520
 [`admin_granted`]: ops/community/Laws.lean#L556-L557
+[`removed_stays`]: ops/community/Laws.lean#L563-L566
 [`valid_stays`]: ops/community/Laws.lean#L570-L574
 [`message_authorized`]: ops/community/Laws.lean#L255-L261
 [`approval_signed`]: ops/community/Laws.lean#L371-L381
@@ -1090,23 +732,29 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`admin_removal_stands`]: ops/community/Laws.lean#L528-L541
 [`mutual_removal`]: ops/community/Laws.lean#L549-L553
 [`removed_approver_admits`]: ops/community/Laws.lean#L488-L499
-[`hold_reply_local`]: ops/sync/OfferLaws.lean#L659-L669
-[`heldIn_index`]: ops/sync/OfferLaws.lean#L682-L685
-[`hold_reply_local_premises`]: ops/sync/OfferLaws.lean#L708-L712
+[`recv_send`]: ops/sync/ConnLaws.lean#L156-L158
+[`hold_reply_local`]: ops/sync/OfferLaws.lean#L663-L673
+[`heldIn_index`]: ops/sync/OfferLaws.lean#L686-L689
+[`hold_reply_local_premises`]: ops/sync/OfferLaws.lean#L712-L716
+[`want_reads_authorized`]: ops/sync/ServeLaws.lean#L124-L128
+[`want_blind`]: ops/sync/ServeLaws.lean#L132-L138
+[`want_blind_step`]: ops/sync/ServeLaws.lean#L144-L149
+[`offer_shared`]: engine/core/Sync.lean#L83-L86
 [`wire_kinds`]: ops/connection/Laws.lean#L48-L49
 [`local_kinds`]: ops/connection/Laws.lean#L55-L56
 [`joinOps_travels`]: ops/community/Intents.lean#L299-L303
 [`found_travels`]: ops/community/Intents.lean#L310-L314
 [`stopWaiting_local`]: ops/community/Intents.lean#L306-L307
-[`filed_send`]: ops/sync/ConnLaws.lean#L183-L186
+[`filed_send`]: ops/sync/ConnLaws.lean#L185-L188
 [`offer_stored`]: engine/core/Sync.lean#L98-L101
-[`tick_send`]: ops/sync/ConnLaws.lean#L192-L195
+[`tick_send`]: ops/sync/ConnLaws.lean#L194-L197
 [`recipients_iff`]: ops/community/Connect.lean#L214-L218
 [`members_iff`]: ops/community/Connect.lean#L205-L208
 [`member_opens`]: ops/community/Laws.lean#L928-L932
 [`openSealed_seal`]: ops/community/Laws.lean#L918-L920
 [`unbox_box`]: ops/community/Keys.lean#L89-L91
 [`check_reads_shared`]: ops/community/Laws.lean#L839-L841
+[`kk_secret`]: ops/connection/NoiseSymbolic.lean#L595-L609
 [`kk_secret_init`]: ops/connection/NoiseSymbolic.lean#L547-L556
 [`kk_secret_resp`]: ops/connection/NoiseSymbolic.lean#L561-L569
 [`kk_authentic`]: ops/connection/NoiseSymbolic.lean#L806-L820
@@ -1114,18 +762,21 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`kk_secret_init_tight`]: ops/connection/NoiseSymbolic.lean#L616-L625
 [`kk_runs`]: ops/connection/NoiseSymbolic.lean#L304-L312
 [`handshake_agrees`]: ops/connection/Noise.lean#L308-L320
+[`close_purges`]: engine/wire/CloseLaws.lean#L32-L40
+[`close_gone`]: engine/wire/CloseLaws.lean#L20-L24
+[`responder_expires`]: ops/sync/TimeLaws.lean#L45-L47
+[`live_not_expired`]: ops/sync/TimeLaws.lean#L50-L54
+[`tick_drop_iff`]: ops/sync/TimeLaws.lean#L12-L15
+[`round_not_dropped`]: ops/sync/TimeLaws.lean#L34-L37
 [`kk_forward_secret`]: ops/connection/NoiseSymbolic.lean#L685-L696
-[`kk_forward_secret_init`]: ops/connection/NoiseSymbolic.lean#L643-L651
-[`kk_forward_secret_resp`]: ops/connection/NoiseSymbolic.lean#L662-L671
-[`purge_gone`]: engine/core/Purge.lean#L261-L263
 [`purge_named`]: engine/core/Purge.lean#L267-L271
-[`have_shown`]: ops/sync/OfferLaws.lean#L553-L565
+[`have_shown`]: ops/sync/OfferLaws.lean#L557-L569
 [`boot_cached`]: engine/wire/NodeLaws.lean#L259-L260
 [`write_cached`]: engine/wire/NodeLaws.lean#L436-L440
 [`purge_cached`]: engine/wire/NodeLaws.lean#L508-L513
 [`cached_items`]: engine/wire/NodeLaws.lean#L271-L274
-[`write_snaps`]: ops/sync/OfferLaws.lean#L609-L612
-[`have_shown_premises`]: ops/sync/OfferLaws.lean#L701-L705
+[`write_snaps`]: ops/sync/OfferLaws.lean#L613-L616
+[`have_shown_premises`]: ops/sync/OfferLaws.lean#L705-L709
 [`connect_iff`]: ops/community/Connect.lean#L146-L150
 [`refuse_nonmember`]: ops/community/Connect.lean#L161-L164
 [`connect_approved`]: ops/community/Connect.lean#L182-L193
@@ -1136,7 +787,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`rooms_cut`]: ops/connection/RoomLaws.lean#L93-L103
 [`trusts_live`]: ops/connection/RoomLaws.lean#L40-L46
 [`rooms_model`]: ops/connection/RoomLaws.lean#L109-L111
-[`recv_take`]: ops/sync/ConnLaws.lean#L126-L128
+[`recv_take`]: ops/sync/ConnLaws.lean#L127-L129
 [`no_connection_before_approval`]: ops/connection/bootstrap/Laws.lean#L39-L46
 [`sessions_trusted`]: ops/connection/bootstrap/Laws.lean#L63-L68
 [`intake_local`]: engine/core/Sync.lean#L41-L43
@@ -1161,6 +812,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`chunk_unique`]: ops/community/Laws.lean#L763-L769
 [`progress_exact`]: ops/community/Intents.lean#L618-L627
 [`no_injective_hash`]: ops/community/Merkle.lean#L241-L243
+[`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
 [`step_budget`]: engine/core/Budget.lean#L124-L126
 [`sealed_auth`]: ops/connection/Laws.lean#L190-L201
@@ -1170,16 +822,22 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`buffer_bounded`]: engine/wire/Frame.lean#L213-L218
 [`frames_kept`]: engine/wire/Frame.lean#L158-L161
 [`frames_tooBig`]: engine/wire/Frame.lean#L180-L183
-[`frames_size`]: engine/wire/Frame.lean#L188-L189
+[`admit_bounded`]: engine/wire/Slots.lean#L49-L54
 [`Op.decode_exact`]: engine/core/Core.lean#L96-L98
 [`Op.decode_parts`]: engine/core/Core.lean#L101-L104
 [`decode_sum`]: engine/core/Codec.lean#L677-L680
+[`hold_bounded`]: ops/sync/BoundsLaws.lean#L38-L39
+[`conn_bounded`]: ops/sync/BoundsLaws.lean#L177-L178
+[`honest_no_drop`]: ops/sync/RetryLaws.lean#L78-L83
+[`retry_bounded`]: ops/sync/RetryLaws.lean#L141-L142
+[`want_budget`]: ops/sync/ServeLaws.lean#L174-L177
 [`order_free`]: engine/core/Proofs.lean#L634-L639
 [`drain_settles`]: engine/core/Termination.lean#L110-L114
 [`status_iff_spec`]: engine/core/Proofs.lean#L483-L485
 [`spec_extends`]: engine/core/SpecLemmas.lean#L137-L139
 [`inv_ingest`]: engine/core/Proofs.lean#L229-L229
 [`inv_step`]: engine/core/Proofs.lean#L260-L260
+[`purge_gone`]: engine/core/Purge.lean#L261-L263
 [`purge_shared`]: engine/core/Purge.lean#L274-L276
 [`purge_settles`]: engine/core/Budget.lean#L192-L198
 [`purge_undecides`]: engine/core/Proofs.lean#L376-L383
@@ -1195,20 +853,24 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`admit_admits`]: ops/community/Laws.lean#L441-L452
 [`connect_admitted`]: ops/community/Connect.lean#L169-L179
 [`removeMember_valid`]: ops/community/Intents.lean#L484-L491
+[`exchange_complete`]: ops/sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: ops/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: ops/sync/Fp.lean#L37-L37
+[`spec_local`]: engine/core/Locality.lean#L54-L58
 [`bootstrap`]: ops/connection/bootstrap/Laws.lean#L401-L405
 [`bootstrap_ideal`]: ops/connection/bootstrap/Laws.lean#L423-L424
 [`bootstrap_possible`]: ops/connection/bootstrap/Laws.lean#L208-L218
 [`reachable_inv`]: ops/connection/bootstrap/Steps.lean#L222-L223
-[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1180-L1202
-[`stream_offered`]: engine/wire/WorldLaws.lean#L1126-L1138
-[`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L577-L590
-[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1145-L1151
-[`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L620-L625
+[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1246-L1268
+[`stream_offered`]: engine/wire/WorldLaws.lean#L1192-L1204
+[`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L640-L657
+[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1211-L1217
+[`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L687-L692
+[`visible_in_viewport`]: engine/renderer/Geometry.lean#L90-L95
 [`newest_visible`]: engine/renderer/Geometry.lean#L99-L105
 [`pinned_visible`]: engine/renderer/Geometry.lean#L147-L151
 [`pinned_tap`]: engine/renderer/Geometry.lean#L154-L157
+[`hit_iff`]: engine/renderer/SheetGeom.lean#L93-L95
 [`eval_stable`]: engine/core/View.lean#L137-L142
 [`view_stable`]: engine/core/View.lean#L163-L165
 [`filed_rel`]: engine/core/Decl.lean#L189-L196
@@ -1221,6 +883,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`offered_only`]: ops/app/Remove.lean#L83-L86
 [`present_iff`]: ops/app/PeopleLaws.lean#L27-L30
 [`present_nodup`]: ops/app/PeopleLaws.lean#L37-L38
+[`read_one_moment`]: engine/renderer/LiveLaws.lean#L227-L232
 [`answer_agrees`]: engine/renderer/LiveLaws.lean#L73-L75
 [`agrees_store`]: engine/renderer/LiveLaws.lean#L84-L87
 [`agrees_notice`]: engine/renderer/LiveLaws.lean#L201-L205
@@ -1239,7 +902,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Link.hints_fit`]: ops/community/link/View.lean#L49-L51
 [`Link.qr_fits`]: ops/community/link/View.lean#L67-L67
 [`Camera.src_in`]: engine/renderer/Camera.lean#L51-L53
+[`wrap_keeps`]: engine/renderer/WrapLaws.lean#L132-L135
 [`wrap_fits`]: engine/renderer/WrapLaws.lean#L206-L209
+[`visual_perm`]: engine/renderer/TextLaws.lean#L46-L47
 [`place_shows`]: engine/renderer/TextLaws.lean#L63-L65
 [`place_starts`]: engine/renderer/TextLaws.lean#L128-L134
 [`digits_keep_order`]: engine/renderer/TextLaws.lean#L109-L116
@@ -1256,7 +921,10 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`twin_shown`]: ops/community/reaction/RowLaws.lean#L128-L132
 [`twin_before_time`]: ops/community/reaction/RowLaws.lean#L135-L139
 [`hit_twin`]: ops/community/reaction/RowLaws.lean#L149-L151
+[`name_starts`]: ops/community/reaction/RowLaws.lean#L119-L122
+[`flush_shows`]: ops/community/reaction/RowLaws.lean#L94-L95
 [`time_shown`]: ops/community/reaction/RowLaws.lean#L84-L87
+[`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
 [`readable_held`]: ops/community/Intents.lean#L407-L419
@@ -1294,4 +962,37 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`fit_round`]: engine/renderer/pic/Laws.lean#L87-L90
 [`Pic.layout_inside`]: engine/renderer/pic/Laws.lean#L170-L172
 [`Pic.layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
+[`reach_drain`]: engine/core/Proofs.lean#L529-L530
+[`write_offers`]: engine/wire/WorldLaws.lean#L425-L433
+[`hold_wants`]: engine/wire/WorldLaws.lean#L442-L448
+[`want_sends`]: engine/wire/WorldLaws.lean#L457-L464
+[`op_taken`]: engine/wire/WorldLaws.lean#L487-L494
+[`write_offers_all`]: engine/wire/WorldLaws.lean#L1160-L1171
+[`allowPeer_iff`]: ops/connection/bootstrap/Bridge.lean#L29-L32
+[`allowPeer_settles`]: ops/connection/bootstrap/Bridge.lean#L35-L39
+[`fanout_offers`]: engine/wire/WorldLaws.lean#L1017-L1023
+[`seal_mem`]: engine/wire/WorldLaws.lean#L1129-L1133
+[`admitted_inv`]: ops/connection/bootstrap/Scene.lean#L154-L156
+[`allowedA`]: ops/connection/bootstrap/Scene.lean#L219-L219
+[`allowedB`]: ops/connection/bootstrap/Scene.lean#L231-L233
+[`fit_small`]: engine/renderer/pic/Laws.lean#L37-L37
+[`fit_le`]: engine/renderer/pic/Laws.lean#L50-L50
+[`fit_pos`]: engine/renderer/pic/Laws.lean#L59-L59
+[`fit_long`]: engine/renderer/pic/Laws.lean#L71-L71
+[`layout_sizes`]: engine/renderer/pic/Laws.lean#L143-L144
+[`layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
+[`add_stored`]: engine/renderer/pic/Laws.lean#L239-L242
+[`decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
+[`lit_zero`]: ops/community/attachment/ArrivalLaws.lean#L84-L85
+[`lit_mono`]: ops/community/attachment/ArrivalLaws.lean#L88-L90
+[`lit_full`]: ops/community/attachment/ArrivalLaws.lean#L94-L95
+[`lit_clockwise`]: ops/community/attachment/ArrivalLaws.lean#L101-L106
+[`ring_counts`]: ops/community/attachment/ArrivalLaws.lean#L275-L278
+[`nodup_full`]: ops/community/Intents.lean#L578-L580
+[`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
+[`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939
+[`Seal.Good`]: ops/community/Keys.lean#L40-L43
+[`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
+[`Model.run`]: engine/core/Model.lean#L103-L103
+[`Engine.Inv`]: engine/core/Proofs.lean#L202-L219
 <!-- /proof-links -->
