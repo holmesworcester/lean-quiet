@@ -19,9 +19,10 @@ law restates) with its laws and tests/wiring.txt's note; the
 assumptions. The proofs tables above it must agree: a ✅ row must cite a
 law about running code, and a 🟡 row must say in its own cell what is
 missing ("Wanted", "Not yet", "not proven", "Not covered", "todo"). The
-README's lead takes its number from the same count ("N of M are about
-the code that runs"), and may say "nearly every" only while that is
-90% or more.
+README's lead takes its fraction and number from the same count ("about
+three quarters of its theorems (N of M)"): the largest of `FRACTIONS` the
+share reaches, so the word never claims more than the number. It may
+say "nearly every" only while the share is 90% or more.
 
   ci/proof-links.py           rewrite the block and the section
   ci/proof-links.py --check   fail if either is stale, a reference
@@ -56,7 +57,10 @@ AREAS = [("engine.core", "Engine"), ("ops.sync", "Sync"), ("engine.wire.mdns", "
 # What a 🟡 row says to name what is missing.
 WANTED = re.compile(r"wanted|not yet|not proven|not covered|todo", re.I)
 # The lead's count, and the share "nearly every" needs.
-LEAD = re.compile(r"(\d+) of\s+(?:its\s+)?(\d+)\)?\s+(?:theorems\s+)?are\s+about\s+the\s+code\s+that\s+runs")
+LEAD = re.compile(r"about\s+([a-z]+(?:\s+[a-z]+)?)\s+of\s+its\s+theorems\s+\((\d+)\s+of\s+(\d+)\)")
+# The lead's fraction words, each with the share it needs.
+FRACTIONS = [(0.95, "nearly all"), (0.9, "nine tenths"), (0.8, "four fifths"), (0.75, "three quarters"),
+             (2 / 3, "two thirds"), (0.6, "three fifths"), (0.5, "half")]
 NEARLY = re.compile(r"(nearly|almost) (every|all) (theorem|law)", re.I)
 THRESHOLD = 0.9
 # How many theorems the audit lists, counted as they are probed.
@@ -197,9 +201,31 @@ def disagree(tables, wired, resolve):
     return bad
 
 
+def fraction(w, t):
+    """The largest fraction word the share w of t reaches."""
+    return next((word for f, word in FRACTIONS if w >= f * t), "less than half")
+
+
+def lead(pre, w, t):
+    """The lead's problems against the count w of t, and the lead written
+    from it."""
+    m = LEAD.search(pre)
+    if not m:
+        return ['no "about <fraction> of its theorems (N of M)" in the README\'s lead'], pre
+    problems, word = [], fraction(w, t)
+    said = " ".join(m.group(1).split())
+    if said != word:
+        problems.append(f'the lead says "{said}"; {w} of {t} ({100 * w // t}%) gives "{word}"')
+    if (int(m.group(2)), int(m.group(3))) != (w, t):
+        problems.append(f"the lead says {m.group(2)} of {m.group(3)}; the count is {w} of {t}")
+    new = pre[:m.start(1)] + word + pre[m.end(1):m.start(2)] + str(w) + pre[m.end(2):m.start(3)] + str(t) + pre[m.end(3):]
+    return problems, new
+
+
 def controls(rows, resolve):
     """The negative controls: notes marking a model law wired, a ✅ row
-    citing only it, and a 🟡 row saying nothing missing must each fail."""
+    citing only it, a 🟡 row saying nothing missing, and a lead whose
+    fraction is one step above the count's must each fail."""
     model = next((f[1] for f in rows if f[0] == "law" and f[2] == "model"), None)
     wired = {f[1] for f in rows if f[0] == "law" and f[2] == "wired"}
     if model is None or not wired:
@@ -218,9 +244,15 @@ def controls(rows, resolve):
     if len(disagree(rows_, wired, lambda l: l)) != 2:
         problems.append("negative control: a ✅ row citing only a model law, or a 🟡 row "
                         "saying nothing missing, was not caught")
+    w, t = len(wired), sum(1 for f in rows if f[0] == "law")
+    words = [word for _, word in FRACTIONS]
+    right = fraction(w, t)
+    above = words[max(words.index(right) - 1, 0)] if right in words else "half"
+    if not lead(f"about {above} of its theorems ({w} of {t})", w, t)[0]:
+        problems.append(f'negative control: "{above}" for {w} of {t} was not caught')
     if not problems:
         print(f"proof-links: negative controls: {model} marked wired, a ✅ row citing only it, "
-              "and a 🟡 row saying nothing missing, all caught")
+              f'a 🟡 row saying nothing missing, and "{above}" for {w} of {t}, all caught')
     return problems
 
 
@@ -331,14 +363,11 @@ def main():
     wired = {f[1] for f in rows if f[0] == "law" and f[2] == "wired"}
     total = sum(1 for f in rows if f[0] == "law")
     problems += disagree(tables, wired, resolve)
-    # the lead's count, and "nearly every" only at the threshold
-    lead = LEAD.search(pre)
-    if not lead:
-        problems.append('no "N of M are about the code that runs" in the README\'s lead')
-    elif (int(lead.group(1)), int(lead.group(2))) != (len(wired), total):
-        if check:
-            problems.append(f"the lead says {lead.group(1)} of {lead.group(2)}; the count is {len(wired)} of {total}")
-        pre = pre[:lead.start(1)] + str(len(wired)) + pre[lead.end(1):lead.start(2)] + str(total) + pre[lead.end(2):]
+    # the lead's fraction and count, and "nearly every" only at the threshold
+    stale, pre_new = lead(pre, len(wired), total)
+    if check or not LEAD.search(pre):
+        problems += stale
+    pre = pre_new
     if total and NEARLY.search(pre) and len(wired) < THRESHOLD * total:
         problems.append(f'the README says "{NEARLY.search(pre).group(0)}", but {len(wired)} of {total} '
                         f"({100 * len(wired) // total}%) is under {int(THRESHOLD * 100)}%")
