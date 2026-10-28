@@ -134,14 +134,20 @@ def Node.setSealer (n : Node) (cid : Id) (s : Sealer) : Node :=
 
 def sends (cid : Id) (ops : List Op) : Effects := { send := ops.map fun o => (.conn cid, o.bytes) }
 
-/-- One write turn of ops already through an intake; the index grows by
-what is stored; the ids now stored. -/
+/-- One write turn of ops already through an intake, of those not
+already stored; the index grows by them; the ids newly stored. An op
+sent again is neither written nor reported again. -/
 def Node.write (n : Node) (ops : List Op) : IO (Node × List Id) := do
-  if ops.isEmpty then return (n, [])
-  (receive x.fam ops).run n.db
+  let mut absent : List Op := []
+  for o in ops do
+    if !absent.any (·.id == o.id) then
+      if (← (Store.getOp (F := F) o.id : SqlM F _).run n.db).isNone then absent := o :: absent
+  if absent.isEmpty then return (n, [])
+  let news := absent.reverse
+  (receive x.fam news).run n.db
   let mut ix := n.ix
   let mut ids : List Id := []
-  for o in ops do
+  for o in news do
     if (← (Store.getOp (F := F) o.id : SqlM F _).run n.db).isSome then
       ix := ix.add x.fam o
       ids := o.id :: ids

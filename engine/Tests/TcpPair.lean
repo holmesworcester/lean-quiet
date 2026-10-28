@@ -166,6 +166,13 @@ def main (args : List String) : IO UInt32 := do
   t.ok "seal: a frame that does not unseal drops the session" (e.drop.any (· == cid) && (n.conn? cid).isNone)
   let (n, _) ← n.onTick x 2
   t.ok "seal: a dropped session is not reopened" ((n.conn? cid).isNone && has n.dropped cid)
+  -- A resent bare op is taken once: no second arrival record, nothing
+  -- reported stored again.
+  let hello := Op.make kHello [] "127.0.0.1:1".toUTF8
+  let (n, e1) ← n.onBare x "10.0.0.9:5".toUTF8 hello.bytes 3
+  let (_, e2) ← n.onBare x "10.0.0.9:5".toUTF8 hello.bytes 4
+  let recs := (← (dumpOps (F := Fact)).run dm).filter (·.kind == kRecord)
+  t.ok "bare: a resent op is taken once" (e1.stored.any (· == hello.id) && e2.stored.isEmpty && recs.length == 1)
   let code ← t.finish "tcppair"
   -- The listener and the readers never end by themselves: exit.
   (← IO.getStdout).flush
