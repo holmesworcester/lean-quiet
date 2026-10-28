@@ -84,9 +84,9 @@ def roots : List Name := [`engine, `ops, `App, `Quiet, `Main]
 and laws that must be classified models (one over a harness, one over
 the bootstrap's model, one over code only qr's harness runs, one whose
 model is in a premise). Update them if one becomes real. -/
-def harnesses : List Name := [`Engine.Sync.World.peer, `Net.step, `Pic.decode]
+def harnesses : List Name := [`Engine.Sync.World.peer, `Net.step, `Pic.render]
 def models : List Name :=
-  [`Engine.Sync.stream_delivers, `Net.Scene.bootstrap, `Pic.decode_sized, `Engine.offer_shared]
+  [`Engine.Sync.stream_delivers, `Net.Scene.bootstrap, `Pic.render_wellFormed, `Engine.offer_shared]
 
 def modOf (env : Environment) (n : Name) : Option Name :=
   (env.getModuleIdxFor? n).map fun i => env.header.moduleNames[i.toNat]!

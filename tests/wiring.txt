@@ -161,7 +161,6 @@ todo Net.Scene.S = Net.Scene.approval
 todo Net.sent = Net.Scene.approval
 todo Net.step = Net.Scene.approval
 todo Net.table = Net.Scene.approval
-copy LiveLaws.read_one_moment App.read Its two branches, inline. Todo: state it of `App.read`.
 todo Geometry.Seam.place The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are.
 todo Geometry.Seam.frameRow = Geometry.Seam.place
 todo Geometry.Seam.home = Geometry.Seam.place
@@ -172,16 +171,14 @@ todo Geometry.Geom.viewNow = Geometry.Seam.place
 todo Geometry.Geom.composerTop = Geometry.Seam.place
 copy SheetGeom.Grid.ctop Sheet.gridRow Its index arithmetic, and App's sheet rows'. Todo: have the painter place keys by `Grid.ctop`.
 todo Engine.Sync.keeps The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s.
-todo Pic.decode Runs only in qr's Android harness; the app has its own QOI (`Qoi.decode`) and tray: use `Pic` in the app, or prove these of its code.
-todo Pic.add = Pic.decode
-todo Pic.fit = Pic.decode
-todo Pic.layout = Pic.decode
-todo Pic.render = Pic.decode
-todo Pic.scale = Pic.decode
-todo Pic.attachEdge = Pic.decode
-todo Pic.maxSide = Pic.decode
-todo Pic.Geom.box = Pic.decode
-todo Pic.Rgba.wellFormed = Pic.decode
+todo Pic.add The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code.
+todo Pic.fit = Pic.add
+todo Pic.layout = Pic.add
+todo Pic.render = Pic.add
+todo Pic.scale = Pic.add
+todo Pic.attachEdge = Pic.add
+todo Pic.Geom.box = Pic.add
+spec Pic.Rgba.wellFormed A picture's pixels are 4 bytes for each of its w × h.
 todo Mdns.decode Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it.
 todo Mdns.encode = Mdns.decode
 todo Arrival.lit `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`.

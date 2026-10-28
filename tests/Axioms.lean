@@ -9,6 +9,7 @@ import ops.community.Community
 import ops.connection.All
 import engine.renderer.Geometry
 import engine.renderer.Cover
+import engine.renderer.ImageLaws
 import engine.renderer.LiveLaws
 import engine.renderer.SheetGeom
 import ops.community.link.View
@@ -350,6 +351,7 @@ section app
 #print axioms SheetGeom.compose_top
 #print axioms Geometry.pinned_row
 #print axioms Cover.covered
+#print axioms Image.decode_sized
 #print axioms LiveLaws.agrees_empty
 #print axioms LiveLaws.answer_agrees
 #print axioms LiveLaws.agrees_store
@@ -383,6 +385,10 @@ section app
 #print axioms RowLaws.tally_mem
 #print axioms RowLaws.time_shown
 #print axioms RowLaws.name_placed
+#print axioms RowLaws.flush_shows
+#print axioms RowLaws.flush_start
+#print axioms RowLaws.name_starts
+#print axioms Composer.caret_clear
 #print axioms ViewLaws.profile_read
 #print axioms ViewLaws.others_iff
 #print axioms ViewLaws.namesake_iff
