@@ -50,6 +50,16 @@ def main : IO UInt32 := do
   t.ok "the responder's static key is the one the initiator holds" (S.pub sR == rsOfI)
   -- What the laws assume of the suite (Suite.Good), on the vector's keys.
   t.ok "DH commutes" (S.dh sI (S.pub sR) == S.dh sR (S.pub sI) && S.dh e (S.pub f) == S.dh f (S.pub e))
+  -- A wrong-sized key is refused both ways: no fallback key on seal.
+  let short := ByteArray.mk #[1, 2, 3]
+  let msg := "secret".toUTF8
+  t.ok "ChaCha20-Poly1305 seal refuses a key that is not 32 bytes"
+    ((Engine.Crypto.chachaSeal short 0 .empty msg).size == 0)
+  t.ok "and nothing sealed under a 32-byte zero key opens with a short key"
+    ((Engine.Crypto.chachaOpen short 0 .empty (Engine.Crypto.chachaSeal (ByteArray.mk (Array.replicate 32 0)) 0 .empty msg)).isNone)
+  t.ok "XChaCha20-Poly1305 seal refuses a short key or nonce"
+    ((Engine.Crypto.xchachaSeal short (ByteArray.mk (Array.replicate 24 0)) .empty msg).size == 0 &&
+     (Engine.Crypto.xchachaSeal (ByteArray.mk (Array.replicate 32 0)) short .empty msg).size == 0)
   t.ok "a message splits into its key and the rest"
     (S.split (S.pair (S.pub e) p[0]!) == some (S.pub e, p[0]!))
   -- Message 1: the request.
