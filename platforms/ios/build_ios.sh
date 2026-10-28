@@ -13,6 +13,7 @@
 #       UUID), default the team's wildcard development one (over SSH Xcode
 #       cannot make profiles)
 #
+# RELEASE=1 builds without the control channel (no LQ_CTL).
 # Needs Xcode at $DEVELOPER_DIR (default Xcode 26.3; never xcode-select)
 # and xcodegen ($XCODEGEN, default ~/quiet-e2e/xcodegen). Prints the built
 # .app's path last.
@@ -72,11 +73,15 @@ export LEANQUIET_ST="$st" LEANQUIET_LIBS="$rt/$sdk"
 # spec but marks them relative to the project, so the two must agree.
 (cd "$st/ios" && "$xcodegen" generate --spec project.yml --project . --quiet)
 dd=$b/dd
+# The control channel (ctl_ios.c) only in development builds: RELEASE=1
+# leaves LQ_CTL out, and the app has no listener at all.
+ctl='GCC_PREPROCESSOR_DEFINITIONS=$(inherited) LQ_CTL=1'
+[ "${RELEASE:-}" = 1 ] && ctl='GCC_PREPROCESSOR_DEFINITIONS=$(inherited)'
 case $kind in
   sim)
     xcodebuild -project "$st/ios/LeanQuiet.xcodeproj" -scheme LeanQuiet -configuration Release \
       -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$dd" \
-      ARCHS=arm64 CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= -quiet build-for-testing
+      ARCHS=arm64 CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= "$ctl" -quiet build-for-testing
     echo "$dd/Build/Products/Release-iphonesimulator/LeanQuiet.app" ;;
   device)
     kc=$HOME/Library/Keychains/quiet-build.keychain-db
@@ -85,6 +90,6 @@ case $kind in
       -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$dd" \
       CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Apple Development" \
       PROVISIONING_PROFILE_SPECIFIER="${IOS_PROFILE:-ce2632b9-021a-472c-96ab-67dba7d10036}" \
-      -quiet build
+      "$ctl" -quiet build
     echo "$dd/Build/Products/Release-iphoneos/LeanQuiet.app" ;;
 esac

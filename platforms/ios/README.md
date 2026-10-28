@@ -17,7 +17,8 @@ Linux box and do the Mac's part over SSH.
 | `mise run ios:sim-e2e` | `ios:sim`, then the UI tests (`UITests/`) in that simulator, with real touches and the software keyboard. Each step is checked in Lean's state, and the twin's placement in the twin's own report (the control line `twin`), both read through the control channel. Screenshots are kept as artifacts and are never the check. The tap targets come from Lean (`test/Targets.lean`), so the test computes no layout of its own. **The conversation:** it flings towards older messages, comes back to the newest, long-presses a message to open the reaction sheet (the viewport shrinks) and taps the header to close it, then taps the composer's text rows to open the keyboard, types a message and sends it with the keyboard's Send key; the message is then stored and on screen. **A pinned page:** on Paste with the keyboard closed, page row 0 is at the viewport's top (`Seam.pinned`) and the page's bottom edge is the closed composer's top. A tap on the field opens the keyboard, after which the composer has risen and the page has not moved. A link is typed into the field, and a tap on Continue above the keyboard is reported as `pinned_tap` reads it; Lean takes it as Continue and moves on to Choose a name. Screenshots go to `out/ios-sim/shots/`, logs to `out/ios-sim/` (`e2e.log` with the `pinned:` measurements), and the result bundle to `~/lean-quiet-ios-work/out/e2e.xcresult` on the Mac. |
 | `mise run ios:mdns` | The network probe (`probe/`) in that simulator. It reports three results separately, each from the app's own verdict and the Mac's view. **(1) lean-mdns raw multicast:** Lean's own UDP socket. The app announces `lean-ios-sim` of type `_leanquiet._udp`, and the Mac must list it (`dns-sd -B`) and resolve it (`dns-sd -L`). The Mac registers `dns-sd -R probe _leanquiet._udp local 7001`, and the app must log it as found. **(2) dns_sd:** the system's DNS-SD through `probe/dnssd.c`, driven by Lean. It registers `lean-ios-sim-sd` (the Mac must list it), browses, and resolves the Mac's `probe` to an address that Lean then connects to over TCP. **(3) TCP:** Lean connects out to the Mac and listens for the Mac's connection. The report goes to `out/ios-sim/probe-sim.txt` (`RESULT <name>: PASS/FAIL`); the task fails unless all three pass. |
 | `mise run ios:device` | Builds a signed app for an iPhone. It installs nothing. |
-| `mise run ios:e2e` | End to end on the iPhone (`DEVICE`; ask before using it). It builds, installs and launches the app (`device_mac.sh`) with the control channel on every interface (`LEANQUIET_CTL_ADDR=any`), then drives it from the Mac over the Wi-Fi: chaos data if the database has none, Lean's state (data present, rows mounted), and frames still being drawn 5 s later. The console goes to `out/ios-device/`. The app is left running. |
+| `mise run ios:ctl-guard` | Who can drive the control channel, in the simulator: no token or a wrong one gets nothing, the launch's token is answered, the Mac's Wi-Fi address is refused, and a `RELEASE=1` build neither listens nor holds a listener (`test/ctl_guard_mac.sh`). The development build stays installed. |
+| `mise run ios:e2e` | End to end on the iPhone (`DEVICE`; ask before using it). It builds, installs and launches the app (`device_mac.sh`) with the control channel on every interface (`LEANQUIET_CTL_REMOTE=1`) behind a token made for the run, then drives it from the Mac over the Wi-Fi: chaos data if the database has none, Lean's state (data present, rows mounted), and frames still being drawn 5 s later. The console goes to `out/ios-device/`. The app is left running. |
 | `mise run ios:mdns-device` | `ios:mdns` on the iPhone (instance `lean-ios-phone`), over the Mac's Wi-Fi. The first run needs a person to tap Allow on the phone's local network prompt. `IOS_MULTICAST=1` also asks for the multicast entitlement (see below). The report goes to `out/ios-sim/probe-device.txt`. |
 | `platforms/ios/ship.sh run` | Device build, then install and launch on `$DEVICE`. Ask before using the phone. |
 | `platforms/ios/ship.sh ctl CMD...` | Sends control commands (`state`, `chaos 500`, `wait`, `visible`, `send TEXT`, …; see `App.command`) to the app in the Simulator. |
@@ -91,19 +92,32 @@ Linux box and do the Mac's part over SSH.
   is swizzled as it is copied. Rows that are the same object as last
   frame's are not copied: the staging buffer shifts and only new rows are
   copied in. Each layer has a ring of three IOSurfaces.
-- **Control channel:** TCP on 127.0.0.1 (`LEANQUIET_CTL_PORT`, default
-  7417; 0 turns it off). In the Simulator that is the Mac's loopback. On a
-  phone it is unreachable from outside unless the launch sets
-  `LEANQUIET_CTL_ADDR=any`. The line `twin` is answered by the twin
-  itself, for tests. It reports the screen's width and density, whether
-  the frame is a page, the header's height, the overscan, the screen rows
-  of the list frame's first row and of the scroll view's bottom (as UIKit
-  laid them out), the composer's top, the last list tap reported, and the
-  keyboard's text. `twin local` puts a channel opened on every interface
-  back on 127.0.0.1 without a relaunch. `twin shot` writes the app's window, as UIKit
-  renders it, to `Documents/screen.png` (the iPhone has no remote
-  screenshot here; copy it off with `devicectl device copy from`). The
-  status bar and the keyboard are other windows and are not in it.
+- **Control channel:** development builds only. `build_ios.sh` compiles
+  `ctl_ios.c` with `LQ_CTL` unless `RELEASE=1`; a release build has no
+  listener at all, and `ctlPoll` answers nothing. It listens on TCP
+  127.0.0.1 (`LEANQUIET_CTL_PORT`, default 7417; 0 turns it off). In the
+  Simulator that is the Mac's loopback. TCP carries no peer uid
+  (Android's `SO_PEERCRED`), and other apps on a phone can reach
+  127.0.0.1 too. So every connection must first send the token, `token
+  <hex>`, 128 random bits compared in constant time. A connection that
+  doesn't is closed, unread and unanswered.
+  - **The token:** the launch's `LEANQUIET_CTL_TOKEN`; otherwise the app
+    makes one and keeps it in `Documents/ctl.token` (0600). `ship.sh`
+    keeps one per checkout in `out/ios-sim/ctl.token`. `device_mac.sh`
+    makes one per run.
+  - **Every interface:** only for a launch with `LEANQUIET_CTL_REMOTE=1`
+    (a device test over the Mac's Wi-Fi), still behind the token. The
+    listener then logs the phone's addresses.
+  - **The line `twin`:** answered by the twin itself, for tests. It
+    reports the screen's width and density, whether the frame is a page,
+    the header's height, the overscan, the screen rows of the list
+    frame's first row and of the scroll view's bottom (as UIKit laid them
+    out), the composer's top, the last list tap reported, the last camera
+    frame's header, and the keyboard's text.
+  - **`twin local`:** puts a channel that listens on every interface back
+    on 127.0.0.1 without a relaunch.
+  - **`twin shot`:** writes the app's window to `Documents/screen.png`.
+  - **The check:** `mise run ios:ctl-guard`.
 - **Log:** stderr, Lean's and the twin's, also goes to `Documents/lean.log`,
   new at each launch. A phone's run can then be read back with `devicectl
   device copy from … --source Documents/lean.log`, for example the node's
