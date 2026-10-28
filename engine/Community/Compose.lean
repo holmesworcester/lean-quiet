@@ -35,14 +35,6 @@ def Device.encSecret (d : Device) : ByteArray := Crypto.staticOf d.sk
 
 def Device.named (name : String) : Device := Device.ofSeed (sha256 name.toUTF8)
 
-def Body.tag : Body → UInt8
-  | .root .. => 0 | .invite .. => 1 | .request .. => 12 | .grant .. => 3
-  | .remove .. => 4 | .post .. => 5 | .wrap .. => 6
-  | .profile .. => 7 | .attach .. => 8 | .react .. => 9
-  | .approve .. => 10 | .admit => 11
-  | .accept .. => 13 | .joining .. => 14 | .secret .. => 15 | .name .. => 16 | .abandon => 17
-  | .key .. => 18 | .chunk .. => 19
-
 /-- The op with these requirements and body, named by its bytes' hash. -/
 def mkOp (reqs : List Id) (b : Body) : Op := Op.make b.tag reqs (encode b)
 

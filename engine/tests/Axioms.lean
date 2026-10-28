@@ -120,3 +120,11 @@ open Engine Community
 #print axioms Community.Merkle.climb_sub
 #print axioms Community.Merkle.no_injective_hash
 #print axioms Community.Merkle.assumptions_hold
+#print axioms Community.op_of_valid
+#print axioms Community.chunk_id
+#print axioms Community.chunk_unique
+#print axioms Community.nodup_full
+#print axioms Community.progress_exact
+#print axioms Community.progress_le
+#print axioms Community.progress_full
+#print axioms Community.progress_done
