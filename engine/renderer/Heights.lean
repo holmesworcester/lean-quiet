@@ -226,6 +226,38 @@ theorem set_toList : ∀ {t : T}, WF t → ∀ {i}, i < t.size → ∀ k,
       · simp only [mk, size_node, z, hn]
       · simp only [mk, depth, d]
 
+/-! ## The window: the rows an offset range overlaps -/
+
+theorem sum_take_le : ∀ (M : List Nat) (i : Nat), (M.take i).sum ≤ M.sum
+  | [], _ => by simp
+  | _ :: _, 0 => by simp
+  | x :: M, i + 1 => by simp only [List.take_succ_cons, List.sum_cons]; have := sum_take_le M i; omega
+
+/-- **Rows start in order**: a row higher up starts no lower. -/
+theorem start_mono {t : T} (w : WF t) {i j : Nat} (h : i ≤ j) : start t i ≤ start t j := by
+  rw [start_eq w, start_eq w]
+  have : List.take i t.toList = List.take i (List.take j t.toList) := by
+    rw [List.take_take, Nat.min_eq_left h]
+  rw [this]
+  exact sum_take_le _ _
+
+/-- All the rows end where the content does. -/
+theorem start_size {t : T} (w : WF t) : start t t.size = t.sum := by
+  rw [start_eq w, size_eq w, List.take_length, sum_eq w]
+
+/-- **Below the window**: every row under the one at offset lo ends at
+or under lo. -/
+theorem below_window {t : T} (w : WF t) {lo : Nat} (hlo : lo < t.sum) {i : Nat}
+    (hi : i < find t lo) : start t (i + 1) ≤ lo :=
+  Nat.le_trans (start_mono w hi) (find_spec w hlo).1
+
+/-- **Above the window**: every row over the one at offset hi starts
+above hi. So the rows offsets [lo, hi] overlap are those from `find lo`
+to `find hi`: the frame walks only them, after two finds. -/
+theorem above_window {t : T} (w : WF t) {hi : Nat} (hhi : hi < t.sum) {i : Nat}
+    (h : find t hi < i) : hi < start t i :=
+  Nat.lt_of_lt_of_le (find_spec w hhi).2 (start_mono w h)
+
 /-! ## Perfect trees: depth log₂ of the rows -/
 
 theorem perfect_depth : ∀ {d : Nat} {t : T}, Perfect d t → t.depth = d
@@ -340,6 +372,196 @@ theorem push_ok {r : Rows} {hs : List Nat} (ok : r.Ok hs) (h : Nat) : (r.push h)
       rw [Nat.add_sub_cancel]; omega
 
 end Rows
+
+/-! ## A window's rows, rebuilt
+
+The conversation is read as a window of rows around an anchor (two
+lists: `above` rows before the anchor, `below` from it), and a late
+message can land anywhere inside it. So the tree holds the window's
+rows only, and is rebuilt from their heights whenever the window's value
+moves: one node per leaf and per pair, O(window) (`rebuild_ok`,
+`rebuild_cost`), and `set` when one row's height changes. -/
+
+/-- The least d with n ≤ 2^d. -/
+def clog (n : Nat) : Nat := if n ≤ 1 then 0 else Nat.log2 (n - 1) + 1
+
+theorem le_pow_clog (n : Nat) : n ≤ 2 ^ clog n := by
+  unfold clog
+  split
+  · rename_i h; simp only [Nat.pow_zero]; exact h
+  · have := Nat.lt_log2_self (n := n - 1); omega
+
+theorem clog_least (n : Nat) : clog n = 0 ∨ 2 ^ (clog n - 1) < n := by
+  unfold clog
+  split
+  · exact Or.inl rfl
+  · rename_i h
+    right
+    simp only [Nat.add_sub_cancel]
+    have := Nat.log2_self_le (n := n - 1) (by omega)
+    omega
+
+namespace T
+
+/-- The perfect tree of depth d over rows lo .. lo + 2^d - 1 of f. -/
+def buildM {m : Type → Type} [Monad m] [Tick m] (f : Nat → Nat) : Nat → Nat → m T
+  | lo, 0 => do tick { work := 1 }; pure (leaf (f lo))
+  | lo, d + 1 => do
+    tick { work := 1 }
+    let l ← buildM f lo d
+    let r ← buildM f (lo + 2 ^ d) d
+    pure (mk l r)
+
+def build (f : Nat → Nat) (lo d : Nat) : T := Id.run (buildM f lo d)
+
+theorem build_zero (f : Nat → Nat) (lo : Nat) : build f lo 0 = leaf (f lo) := rfl
+theorem build_succ (f : Nat → Nat) (lo d : Nat) :
+    build f lo (d + 1) = mk (build f lo d) (build f (lo + 2 ^ d) d) := rfl
+
+theorem build_ok (f : Nat → Nat) : ∀ (d lo : Nat), WF (build f lo d) ∧ Perfect d (build f lo d) ∧
+    (build f lo d).toList = (List.range (2 ^ d)).map (fun i => f (lo + i))
+  | 0, lo => ⟨trivial, trivial, by simp [build_zero, toList]⟩
+  | d + 1, lo => by
+    obtain ⟨wl, pl, ll⟩ := build_ok f d lo
+    obtain ⟨wr, pr, lr⟩ := build_ok f d (lo + 2 ^ d)
+    refine ⟨by rw [build_succ]; exact wf_mk wl wr, by rw [build_succ]; exact ⟨pl, pr⟩, ?_⟩
+    rw [build_succ, show (mk (build f lo d) (build f (lo + 2 ^ d) d)).toList =
+      (build f lo d).toList ++ (build f (lo + 2 ^ d) d).toList from rfl, ll, lr,
+      Nat.pow_succ, Nat.mul_two, List.range_add, List.map_append, List.map_map]
+    congr 1
+    apply List.map_congr_left
+    intro i _
+    simp only [Function.comp, Nat.add_assoc]
+
+open Engine.Counted in
+/-- **A build makes one node per leaf and per pair**: 2^(d+1) − 1. -/
+theorem buildM_cost (f : Nat → Nat) : ∀ (d lo : Nat),
+    cost (buildM (m := Counted) f lo d) = { work := 2 ^ (d + 1) - 1 }
+  | 0, lo => by simp [buildM]
+  | d + 1, lo => by
+    simp only [buildM, cost_bind, cost_tick, cost_pure, buildM_cost f d lo, buildM_cost f d (lo + 2 ^ d)]
+    ext <;> simp [Nat.pow_succ] <;> (have := Nat.one_le_two_pow (n := d); omega)
+
+end T
+
+/-- **A window's rows, rebuilt**: the perfect tree of the least depth
+that holds them. -/
+def rebuild (hs : List Nat) : Rows :=
+  let a := hs.toArray
+  { t := T.build (fun i => a.getD i 0) 0 (clog hs.length), n := hs.length, d := clog hs.length }
+
+theorem pad_eq (hs : List Nat) (k : Nat) (hk : hs.length ≤ k) :
+    (List.range k).map (fun i => hs.toArray.getD (0 + i) 0) = hs ++ List.replicate (k - hs.length) 0 := by
+  apply List.ext_getElem
+  · simp; omega
+  · intro i h₁ h₂
+    simp only [List.getElem_map, List.getElem_range, Nat.zero_add, Array.getD, List.size_toArray,
+      List.getElem_append]
+    split <;> simp
+
+/-- **The rebuilt tree is what the rows' tree must be.** -/
+theorem rebuild_ok (hs : List Nat) : (rebuild hs).Ok hs := by
+  obtain ⟨w, p, l⟩ := T.build_ok (fun i => hs.toArray.getD i 0) (clog hs.length) 0
+  refine ⟨w, p, rfl, ?_, clog_least _⟩
+  show (T.build (fun i => hs.toArray.getD i 0) 0 (clog hs.length)).toList = _
+  rw [l]
+  exact pad_eq hs _ (le_pow_clog _)
+
+/-- **A rebuild costs at most 4 · rows + 1 steps**: O(window). -/
+theorem rebuild_cost (hs : List Nat) :
+    (Counted.cost (T.buildM (m := Counted) (fun i => hs.toArray.getD i 0) 0 (clog hs.length))).work ≤
+      4 * hs.length + 1 := by
+  rw [T.buildM_cost]
+  simp only
+  rcases clog_least hs.length with h | h
+  · rw [h]; simp
+  · have : 2 ^ (clog hs.length + 1) = 4 * 2 ^ (clog hs.length - 1) := by
+      have : clog hs.length = (clog hs.length - 1) + 1 := by
+        rcases Nat.eq_zero_or_pos (clog hs.length) with z | z
+        · have := le_pow_clog hs.length; rw [z] at this h; simp at h this; omega
+        · omega
+      rw [this, Nat.add_sub_cancel, Nat.pow_succ, Nat.pow_succ]; omega
+    omega
+
+/-! ## The window and its anchor -/
+
+/-- **The window holds at most above + below rows**: its two reads, each
+within its limit (`Fits`, which the store's answers keep). -/
+theorem window_rows (a b above below : Nat) (ha : a ≤ above) (hb : b ≤ below) : a + b ≤ above + below :=
+  Nat.add_le_add ha hb
+
+/-- Where a window row sits above the screen's bottom: the content below
+the window (estimated: its rows times `est`, or whatever it is taken to
+be), plus the row's start in the window, less the scroll offset. -/
+def screenY (below : Nat) (t : T) (b : Int) (i : Nat) : Int := ((below + t.start i : Nat) : Int) - b
+
+/-- **The anchor keeps the visible rows still**: when the estimate of the
+content below the window changes from E to E', moving the offset by
+E' − E leaves every window row where it was on screen. (The content
+above the window moves no row: offsets are from the bottom.) -/
+theorem anchor_stable (t : T) (i E E' : Nat) (b : Int) :
+    screenY E' t (b + ((E' : Int) - E)) i = screenY E t b i := by
+  unfold screenY
+  push_cast
+  omega
+
+/-! ## Both ends: newer rows below the origin, older above
+
+The conversation grows at both ends: new messages at the bottom, older
+pages at the top. A tree only pushes at its end, so the rows are two
+trees about an origin (the newest row when the list opened): `older`
+from it upward (index 0 the origin), `newer` from just below it down to
+the newest. Offsets are from the bottom of the newest row, as the app's
+scroll offset is. -/
+
+structure Both where
+  older : Rows := {}
+  newer : Rows := {}
+
+inductive Side where
+  | older
+  | newer
+  deriving DecidableEq, Repr
+
+namespace Both
+
+/-- How far above the bottom row k of a side starts, and ends. -/
+def bottom (x : Both) : Side → Nat → Nat
+  | .older, k => x.newer.t.sum + x.older.t.start k
+  | .newer, k => x.newer.t.sum - x.newer.t.start (k + 1)
+
+def top (x : Both) : Side → Nat → Nat
+  | .older, k => x.newer.t.sum + x.older.t.start (k + 1)
+  | .newer, k => x.newer.t.sum - x.newer.t.start k
+
+/-- The row at offset b: two subtractions and one find. -/
+def rowAt (x : Both) (b : Nat) : Side × Nat :=
+  if b < x.newer.t.sum then (.newer, x.newer.t.find (x.newer.t.sum - 1 - b))
+  else (.older, x.older.t.find (b - x.newer.t.sum))
+
+/-- A new message, at the bottom. -/
+def pushNewer (x : Both) (h : Nat) : Both := { x with newer := x.newer.push h }
+
+/-- An older row, at the top. -/
+def pushOlder (x : Both) (h : Nat) : Both := { x with older := x.older.push h }
+
+/-- **The row at offset b holds it**, on either side of the origin. -/
+theorem rowAt_spec {x : Both} (wo : x.older.t.WF) (wn : x.newer.t.WF) {b : Nat}
+    (hb : b < x.newer.t.sum + x.older.t.sum) :
+    x.bottom (x.rowAt b).1 (x.rowAt b).2 ≤ b ∧ b < x.top (x.rowAt b).1 (x.rowAt b).2 := by
+  unfold rowAt
+  split
+  · rename_i h
+    have := T.find_spec wn (b := x.newer.t.sum - 1 - b) (by omega)
+    have le := T.start_mono wn (Nat.le_succ (x.newer.t.find (x.newer.t.sum - 1 - b)))
+    simp only [bottom, top]
+    omega
+  · rename_i h
+    have := T.find_spec wo (b := b - x.newer.t.sum) (by omega)
+    simp only [bottom, top]
+    omega
+
+end Both
 
 /-! ## What they cost: a step per level -/
 

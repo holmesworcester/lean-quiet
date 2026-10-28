@@ -37,7 +37,8 @@ teeth.
   over the rows below it, and the row found at each offset holds it.
   Finding the row 4,981 rows back costs 13 steps (the tree's depth);
   the walk (`bottomM`, the negative control, as `bottoms` does) costs
-  4,981.
+  4,981. A 201-row window with a row landing mid-window is rebuilt in
+  at most 4·201 + 1 steps, its starts the walk's.
 -/
 import tests.engine.Lib
 import ops.community.MerkleCost
@@ -309,6 +310,15 @@ def heightsCheck (t : Checks) : IO Unit := do
   t.ok s!"heights: the walk to it (the negative control) takes {cw.work} steps"
     (Counted.val (bottomM (m := Counted) hs.toList back) == r.t.start back && cw.work == back)
   IO.println s!"heights: {n} rows, depth {r.d}: the row {back} back in {cf.work} steps; walking to it {cw.work}"
+  -- a window of 200 rows with a late message landing mid-window: rebuilt
+  let win := (hs.extract 1000 1200).toList
+  let win' := win.take 87 ++ [123] ++ win.drop 87
+  let rb := rebuild win'
+  let cb := Counted.cost (T.buildM (m := Counted) (fun i => win'.toArray.getD i 0) 0 (clog win'.length))
+  t.ok s!"heights: a 201-row window rebuilt with a row mid-window, {cb.work} steps (≤ 4·201 + 1)"
+    (rb.t.toList.take win'.length == win' && rb.n == 201 && cb.work ≤ 4 * 201 + 1)
+  t.ok "heights: the rebuilt window's starts are the walk's"
+    ((List.range 201).all fun i => rb.t.start i == (win'.take i).foldl (· + ·) 0)
 
 end HeightsCheck
 
