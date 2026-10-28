@@ -133,12 +133,26 @@ def main (args : List String) : IO UInt32 := do
   t.ok "B shows A as Ann" (← annOn b)
   -- B opens the key wrapped to it, and with it A's post.
   t.ok "before unwrapping, B holds no key" ((← rows b (key.byId.query [kid])).isEmpty)
+  let rd (db : Db) : IO (Answer Fact) := ((readable c (some 50)).run : SqlM Fact (Answer Fact)).run db
+  let before ← rd b
+  t.ok "B's readable messages: none yet, so the message sealed under the key on its way is hidden"
+    (before.rows.isEmpty && before.total == 0)
   let wu ← ((unwrap c seedB).run : SqlM Fact Write).run b
   t.ok "B unwraps one key, A's" (wu.ops.length == 1)
   mine b wu
   let kB := (← rows b (key.byId.query [kid])).findSome? fun (_, f) => match f with
     | .key _ _ k => some k | _ => none
   t.ok "B now holds Acme's content key" (kB == some kA)
+  let after ← rd b
+  t.ok "now B's readable messages list A's post, and only it"
+    (after.rows.length == 1 && after.total == 1 &&
+      after.rows.all fun (_, f) => match f with | .message _ _ _ k _ _ => k == kid | _ => false)
+  t.ok "A reads the same one message" ((← rd a).rows.length == 1)
+  -- A message under a key nobody here holds stays hidden.
+  let kX := sha256 "a key never wrapped".toUTF8
+  mine a (send c c seedA kX ((sha256 "nonce X".toUTF8).extract 0 24) "unreadable".toUTF8 4)
+  t.ok "A stores the message under the unheld key" ((← rows a (message.all.query [c])).length == 2)
+  t.ok "but A's readable messages still hold only the one under its key" ((← rd a).rows.length == 1)
   let ctB := (← rows b (message.all.query [c])).findSome? fun (_, f) => match f with
     | .message _ _ _ _ s _ => some s | _ => none
   t.ok "B opens A's post" ((ctB.bind fun s => kB.bind fun k => openSealed cryptoSeal c kid s k)

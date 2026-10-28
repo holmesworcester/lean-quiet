@@ -105,3 +105,8 @@ open Engine Community
 #print axioms Community.member_opens
 #print axioms Community.check_attach
 #print axioms Community.check_chunk
+#print axioms Engine.eval_union
+#print axioms Engine.mem_union
+#print axioms Engine.mem_union_all
+#print axioms Community.readable_held
+#print axioms Community.readable_complete
