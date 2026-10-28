@@ -40,6 +40,8 @@ What a connection keeps (known, offered, asked, snapshots) is memory
 only and dies with it: losing it can only cause resends.
 -/
 import ops.sync.Wire
+import ops.sync.Serve
+import ops.sync.Memory
 import ops.sync.RoundLaws
 import engine.core.Sync
 import Std.Data.HashSet
@@ -106,6 +108,14 @@ structure Config where
   every : Nat := 30000
   /-- ms of silence while waiting before the connection drops. -/
   patience : Nat := 20000
+  /-- ms between retries of wanted ids (less than patience by default). -/
+  retry : Nat := 1000
+  /-- ms before a silent responder expires, even with nothing outstanding. -/
+  lease : Nat := 90000
+  /-- ids retained in each of known and asked. Full hints reset; full asks defer. -/
+  maxKnown : Nat := 65536
+  /-- encoded op bytes served by one want, plus at most its last op. -/
+  wantBytes : Nat := 4 * 1024 * 1024
   /-- ids per have or want op; a want for more is ignored. -/
   maxIds : Nat := 4096
   /-- ops the closure walk visits per call. -/
@@ -124,6 +134,7 @@ structure Conn where
   peerFloor : Option Nat := none
   round : Nat := 0
   lastRound : Nat := 0
+  lastAsk : Nat := 0
   /-- The rounds in flight here, each with the snapshot it is answered from. -/
   snaps : List ((Id × Nat) × List Item) := []
   /-- Rooms whose first round has ended, and rooms reported settled. -/
@@ -135,6 +146,8 @@ structure Conn where
   closed : HashSet Id := {}
   /-- Ids wanted from the peer after it said it holds them. -/
   asked : HashSet Id := {}
+  /-- Original ask times; retries and repeat offers do not renew them. -/
+  askTime : HashMap Id Nat := {}
   /-- When the peer was last heard. -/
   heard : Nat := 0
   /-- Requirement closure still to walk. -/
@@ -147,6 +160,28 @@ structure Step where
   take : List Op := []
   status : List Status := []
   drop : Bool := false
+
+/-- A live connection's two peer-controlled id sets. -/
+def Conn.Bounded (cfg : Config) (c : Conn) : Prop :=
+  c.known.size ≤ cfg.maxKnown ∧ c.asked.size ≤ cfg.maxKnown
+
+/-- Defensive normalization for callers starting from an oversized state.
+The handlers admit asks and forget hints before reaching this guard. -/
+def Step.limit (cfg : Config) (s : Step) : Step :=
+  if s.conn.known.size ≤ cfg.maxKnown ∧ s.conn.asked.size ≤ cfg.maxKnown then s
+  else { s with conn := { s.conn with known := {}, asked := {}, askTime := {} } }
+
+@[simp] theorem Step.limit_drop (cfg : Config) (s : Step) : (s.limit cfg).drop = s.drop := by
+  unfold limit; split <;> rfl
+
+@[simp] theorem Step.limit_send (cfg : Config) (s : Step) : (s.limit cfg).send = s.send := by
+  unfold limit; split <;> rfl
+@[simp] theorem Step.limit_take (cfg : Config) (s : Step) : (s.limit cfg).take = s.take := by
+  unfold limit; split <;> rfl
+@[simp] theorem Step.limit_rooms (cfg : Config) (s : Step) : (s.limit cfg).conn.rooms = s.conn.rooms := by
+  unfold limit; split <;> rfl
+@[simp] theorem Step.limit_snaps (cfg : Config) (s : Step) : (s.limit cfg).conn.snaps = s.conn.snaps := by
+  unfold limit; split <;> rfl
 
 section
 variable {F : Type} {m : Type → Type} [Monad m] [Store F m] (fam : Family F) (cfg : Config)
@@ -216,10 +251,12 @@ def Conn.onRbsr (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (no
   let holds := outs.flatMap fun | .hold xs => xs | _ => []
   let wants := outs.flatMap fun | .want xs => xs | _ => []
   let c := if claims.isEmpty then ended c else { c with snaps := ((r, k), snap) :: others }
+  let wants := admitAsks cfg.maxKnown c.asked wants
   let c := { c with
+    askTime := wants.foldl (fun ts i => ts.insert i now) c.askTime
     offered := holds.foldl (·.insert ·) c.offered
     asked := wants.foldl (·.insert ·) c.asked }
-  { conn := c, send := (Msg.rbsr r k claims).op :: (chunks cfg holds (.hold r) ++ chunks cfg wants .want) }
+  Step.limit cfg { conn := c, send := (Msg.rbsr r k claims).op :: (chunks cfg holds (.hold r) ++ chunks cfg wants .want) }
 
 /-- Offers, each with its op's room, as haves: per room, in the order
 the rooms first appear, ids in ops of at most `cfg.maxIds`. -/
@@ -239,14 +276,19 @@ reply reads only this side's ops of room r, so it says nothing of what
 this side holds elsewhere (`hold_reply_local`). -/
 def Conn.onHold (c : Conn) (r : Id) (ids : List Id) : m Step := do
   if !has c.rooms r then return { conn := c }
+  if ids.length > cfg.maxIds then return { conn := c }
   let mut want : List Id := []
   for i in ids do
     if !c.asked.contains i then
       if !(← holdsIn fam r i) then want := i :: want
+  let missing := want
+  let accepted := admitAsks cfg.maxKnown c.asked want.reverse
+  let kept := ids.filter fun i => !missing.contains i || accepted.contains i
   let c := { c with
-    known := ids.foldl (·.insert ·) c.known
-    asked := want.foldl (·.insert ·) c.asked }
-  return { conn := c, send := chunks cfg want.reverse .want }
+    known := kept.foldl (remember cfg.maxKnown) c.known
+    asked := accepted.foldl (·.insert ·) c.asked
+    askTime := accepted.foldl (fun ts i => ts.insert i c.heard) c.askTime }
+  return Step.limit cfg { conn := c, send := chunks cfg accepted .want }
 
 /-- At most `budget` steps of the walk, with what it has offered so far
 (newest first), each with its room. -/
@@ -277,18 +319,20 @@ offer every stored op the peer may see and is not known to hold or
 already offered. -/
 def Conn.walk (c : Conn) : m (Conn × List (Id × Id)) := c.walkN fam [] cfg.walk
 
-/-- The peer wants these: send each stored op it may see, and offer
-their closures. Anything else is ignored. -/
-def Conn.onWant (c : Conn) (ids : List Id) : m Step := do
+/-- Authorize ids using only the shown rooms' index, before any blob read. -/
+def authorize (ix : Index) (c : Conn) (ids : List Id) : List Id :=
+  ids.filter fun i => c.rooms.any fun r => (ix.items r).any fun a => Decidable.decide (a.2 = i)
+
+/-- The peer wants these: authorize first, then read within the byte
+budget. Closure reads continue on ticks, outside this response. -/
+def Conn.onWant (ix : Index) (c : Conn) (ids : List Id) : m Step := do
   if ids.length > cfg.maxIds then return { conn := c }
-  let found ← ids.filterMapM fun i => Store.getOp (F := F) i
-  let sent := found.filter (c.shows fam)
+  let sent ← (serve (c.shows fam) cfg.wantBytes (authorize ix c ids)).run (Store.getOp (F := F))
   let c := { c with
-    known := sent.foldl (fun (k : HashSet Id) (o : Op) => k.insert o.id) c.known
+    known := sent.foldl (fun (k : HashSet Id) (o : Op) => remember cfg.maxKnown k o.id) c.known
     offered := sent.foldl (fun (k : HashSet Id) (o : Op) => k.insert o.id) c.offered
     frontier := c.frontier ++ sent.flatMap Op.reqs }
-  let (c, offer) ← c.walk fam cfg
-  return { conn := c, send := sent ++ holdsOf cfg offer }
+  return Step.limit cfg { conn := c, send := sent }
 
 /-- Bytes from the peer. -/
 def Conn.recv (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) : m Step := do
@@ -302,12 +346,15 @@ def Conn.recv (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) : m Step :
       return Conn.finish (if c.dialer then c.start cfg ix now else { conn := c })
     | some (.rbsr r k cs) => return Conn.finish (c.onRbsr cfg ix r k cs now)
     | some (.hold r ids) => return Conn.finish (← c.onHold fam cfg r ids)
-    | some (.want ids) => return Conn.finish (← c.onWant fam cfg ids)
+    | some (.want ids) => return Conn.finish (← c.onWant fam cfg ix ids)
     | none =>
       if isWire o.kind || !c.shows fam o then return { conn := c }
       else
-        let c := { c with asked := c.asked.erase o.id, known := c.known.insert o.id }
-        return Conn.finish { conn := c, take := [o] }
+        let c := { c with
+          asked := c.asked.erase o.id
+          askTime := c.askTime.erase o.id
+          known := remember cfg.maxKnown c.known o.id }
+        return Conn.finish (Step.limit cfg { conn := c, take := [o] })
 
 /-- Ops just stored here: offer the ones the peer may see and is not
 known to hold. -/
@@ -328,15 +375,38 @@ def Conn.filed (c : Conn) (ids : List Id) : m Step := do
 def Conn.waiting (c : Conn) : Bool :=
   c.peerFloor.isNone || !c.asked.isEmpty || (c.dialer && !c.snaps.isEmpty)
 
+/-- Patience starts at the later of the last arrival and our last round.
+Wants are created by arrivals (which set heard), so they start there. -/
+def Conn.waitStart (c : Conn) : Nat := max c.heard c.lastRound
+
+/-- A responder must hear the dialer's rounds within its lease. -/
+def Conn.expired (cfg : Config) (c : Conn) (now : Nat) : Bool :=
+  !c.dialer && c.heard + cfg.lease < now
+
+/-- Expire individual asks even while other peer traffic keeps the session live. -/
+def Conn.expireAsks (cfg : Config) (c : Conn) (now : Nat) : Conn :=
+  let live := fun (i : Id) => Decidable.decide (now ≤ (c.askTime[i]?.getD c.heard) + cfg.patience)
+  { c with
+    asked := c.asked.filter live
+    askTime := c.askTime.filter fun i t => c.asked.contains i && now ≤ t + cfg.patience }
+
+/-- One tick retries at most one want's worth, without renewing ask times. -/
+def Conn.retryIds (cfg : Config) (c : Conn) (now : Nat) : List Id :=
+  if c.lastAsk + cfg.retry ≤ now then c.asked.toList.take cfg.maxIds else []
+
 /-- The clock: drop if the peer is silent while this side waits; the
 dialer opens rounds on its cadence; the closure walk continues. -/
 def Conn.tick (ix : Index) (c : Conn) (now : Nat) : m Step := do
-  if c.waiting && c.heard + cfg.patience < now then
+  if (c.waiting && c.waitStart + cfg.patience < now) || c.expired cfg now then
     return { conn := c, drop := true }
   let (c, offer) ← c.walk fam cfg
+  let c := c.expireAsks cfg now
   let s := if c.dialer && c.snaps.isEmpty && c.lastRound + cfg.every ≤ now then c.start cfg ix now
     else { conn := c }
-  return Conn.finish { s with send := s.send ++ holdsOf cfg offer }
+  let due := c.lastAsk + cfg.retry ≤ now
+  return Conn.finish { s with
+    conn := { s.conn with lastAsk := if due then now else c.lastAsk }
+    send := s.send ++ (holdsOf cfg offer ++ chunks cfg (c.retryIds cfg now) .want) }
 
 /-- The rooms the peer may see changed: forget the others' rounds. -/
 def Conn.setRooms (c : Conn) (rooms : List Id) : Conn :=

@@ -239,3 +239,9 @@ lean_exe scene_check where
 -- A store's ops, one line each (for comparing devices' stores).
 lean_exe dump where
   root := `platforms.headless.Dump
+
+lean_exe harden where
+  root := `tests.engine.Harden
+
+lean_exe harden_tcp where
+  root := `tests.engine.HardenTcp
