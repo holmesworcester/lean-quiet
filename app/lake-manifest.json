@@ -13,7 +13,7 @@
    "name": "engine",
    "manifestFile": "lake-manifest.json",
    "inherited": false,
-   "dir": "../lean-engine-lists",
+   "dir": "../lean-engine-demo",
    "configFile": "lakefile.lean"}],
  "name": "quiet",
  "lakeDir": ".lake",

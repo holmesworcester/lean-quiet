@@ -134,8 +134,20 @@ stage() {
   touch -r "$T/include/lean/config.h" "$st/lean/include/githash.h"
   cp -rp "$lean_src/src/runtime" "$lean_src/src/util" "$st/lean/src/"
   cp -rp "$uv_src/include" "$uv_src/src" "$st/uv/"
-  cp -p "$root/android/native/glue_android.c" "$root/android/native/sha256.c" \
-    "$root"/third_party/sqlite/sqlite3.[ch] "$root"/third_party/monocypher/*.[ch] "$st/glue/"
+  cp -p "$root/android/native/glue_android.c" "$engine/native/crypto.c" \
+    "$root"/third_party/sqlite/sqlite3.[ch] "$st/glue/"
+  # The engine's Rust crypto, built here for the device and the
+  # Simulator (pure Rust: the Mac only links it).
+  local sdk rtgt
+  for sdk in iphoneos iphonesimulator; do
+    case $sdk in
+      iphoneos) rtgt=aarch64-apple-ios ;;
+      iphonesimulator) rtgt=aarch64-apple-ios-sim ;;
+    esac
+    (cd "$engine/native/crypto" && CARGO_TARGET_DIR="$root/out/cache/rust" cargo build --release --quiet --target "$rtgt")
+    mkdir -p "$st/glue/rust/$sdk"
+    cp -p "$root/out/cache/rust/$rtgt/release/liblq_crypto.a" "$st/glue/rust/$sdk/"
+  done
   cp -rp "$root/assets" "$st/assets"
   cp -rp "$root/ios" "$st/ios"
   rm -rf "$st/ios/LeanQuiet.xcodeproj"
