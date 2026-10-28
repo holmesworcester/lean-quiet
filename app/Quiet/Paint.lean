@@ -97,9 +97,28 @@ def Bitmap.round (b : Bitmap) (x0 y0 x1 y1 r : Nat) (c : Color) : Bitmap := Id.r
       return row
   return b
 
+/-- Emoji code point ch's picture with its top left at (x, y), laid over
+what is there by its alpha. -/
+def Bitmap.emoji (f : Font) (b : Bitmap) (ch : UInt32) (x y : Nat) : Bitmap := Id.run do
+  let some q := f.emoji.picture ch | return b
+  let w := q.w.toNat
+  let mut b := b
+  for r in [0:q.h.toNat] do
+    b := b.modify (y + r) fun row => Id.run do
+      let mut row := row
+      for i in [0:w] do
+        let p := q.px[r * w + i]!
+        let a := (p &&& 255).toNat
+        if a == 0 then continue
+        let src : Color := ((p >>> 24) <<< 16) ||| (((p >>> 16) &&& 255) <<< 8) ||| ((p >>> 8) &&& 255)
+        row := setPx row (x + i) (if a == 255 then src else mixC (getPx row (x + i)) src (a * 256 / 255))
+      return row
+  return b
+
 /-- The glyph of code point ch with its top left at (x, y), in colour
 c; bold smears each row right. -/
 def Bitmap.glyph (f : Font) (b : Bitmap) (ch : UInt32) (x y : Nat) (c : Color) (bold : Bool) : Bitmap := Id.run do
+  if Emoji.isEmoji ch then return b.emoji f ch x y
   let g := f.glyph ch
   let n := f.adv g
   -- bold smears each row right by a sixteenth of the cell

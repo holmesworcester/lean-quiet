@@ -17,4 +17,11 @@ for name in kodim23 dice qoi_logo testcard_rgba wikipedia_008 kodim10; do
 done
 curl --proto '=https' -fsSL -o "$tmp/unifont.hex.gz" https://ftp.gnu.org/gnu/unifont/unifont-18.0.01/unifont_all-18.0.01.hex.gz
 echo "14c96e497466a82e46cf20032ce510e186bdc8658c9158e2290f452cda9bc498  $tmp/unifont.hex.gz" | sha256sum -c - >/dev/null
-python3 "$root/tools/font.py" "$tmp/unifont.hex.gz" "$root/assets/font.bin"
+python3 "$root/tools/font.py" "$tmp/unifont.hex.gz" "$root/assets/font.bin" 3
+# Colour emoji: Noto Color Emoji 2.051 (OFL) and Unicode 16's emoji data,
+# read with fontTools (pip install --target "$tmp/py" fonttools).
+curl --proto '=https' -fsSL -o "$tmp/noto.ttf" https://github.com/googlefonts/noto-emoji/raw/v2.051/fonts/NotoColorEmoji.ttf
+curl --proto '=https' -fsSL -o "$tmp/emoji-data.txt" https://www.unicode.org/Public/16.0.0/ucd/emoji/emoji-data.txt
+echo "f1365a5173eee18e1f98b240cdc492e84a25f1ce7e0c9d1094eb29c41a22696a  $tmp/emoji-data.txt" | sha256sum -c - >/dev/null
+python3 -m pip install -q --target "$tmp/py" fonttools
+PYTHONPATH="$tmp/py" python3 "$root/tools/emoji.py" "$tmp/noto.ttf" "$tmp/emoji-data.txt" "$root/assets/emoji.bin" 48

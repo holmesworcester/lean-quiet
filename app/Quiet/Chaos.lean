@@ -96,9 +96,13 @@ def texts : Array String := #[
   "今日のデモ、とても良かったです！👏",
   "这个问题我们下周再讨论吧。",
   "고마워요! 내일 봐요 😊",
-  "Happy birthday!! 🎂🎈🎁"]
+  "Happy birthday!! 🎂🎈🎁",
+  "Family photo day 👨‍👩‍👧‍👦 and the dog 🐕‍🦺 came too",
+  "Waving from Tokyo 🇯🇵 👋🏽 then Lagos 🇳🇬 👋🏿",
+  "Press 1️⃣ for yes, 2️⃣ for no ✌🏼",
+  "Weather: ☀️ then 🌧️ then ❄️ — text-style ☀ ☁ stays text"]
 
-def emoji : Array String := #["👍", "❤", "😂", "🎉", "🙏", "👀", "🔥", "✅"]
+def emoji : Array String := #["👍", "❤️", "😂", "🎉", "🙏", "👀", "🔥", "✅", "👍🏽", "🇯🇵"]
 
 /-! ## Pictures -/
 

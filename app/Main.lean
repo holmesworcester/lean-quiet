@@ -6,7 +6,7 @@ import Quiet
 open App
 
 def Io.platform : Io :=
-  ⟨Platform.scroll, Platform.scrollBy, Platform.scrollTo, Platform.frame, Platform.text,
+  ⟨Platform.screen, Platform.scroll, Platform.scrollBy, Platform.scrollTo, Platform.frame, Platform.text,
    Platform.ime, Platform.textClear, Platform.ctlPoll, fun s => Platform.ctlReply s, Platform.nowUs⟩
 
 def main : IO Unit := do

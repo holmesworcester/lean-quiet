@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Builds assets/font.bin from GNU Unifont's .hex: the Basic Multilingual
 Plane (every living script) and the emoji and symbols of plane 1, each
-8 x 16 or 16 x 16 glyph smoothed by Scale2x, once (2x: a 32-pixel cell)
-or twice (4x: a 64-pixel cell, the default: about 24 dp on a 420-dpi
-phone, body-text size).
+8 x 16 or 16 x 16 glyph smoothed to 2x (Scale2x: a 32-pixel cell), 3x
+(Scale3x: 48 pixels, the default: about 18 dp on a 420-dpi phone) or 4x
+(Scale2x twice: 64 pixels).
 
 Layout (little-endian):
   "QFNT", the cell's height in pixels (a word), then 0x20000 words, one
@@ -13,7 +13,9 @@ Layout (little-endian):
   the leftmost pixel in the row's top bit, a row's bytes most significant
   first.
 
-    python3 tools/font.py unifont_all-18.0.01.hex.gz assets/font.bin [2|4]
+    python3 tools/font.py unifont_all-18.0.01.hex.gz assets/font.bin [2|3|4]
+
+Emoji are not drawn from this font: tools/emoji.py builds colour ones.
 """
 
 import gzip
@@ -28,6 +30,33 @@ def keep(cp):
     supplementary plane only its symbols and emoji (U+1F000..U+1FAFF):
     the historic scripts there would triple the file."""
     return cp < 0x10000 or 0x1F000 <= cp < 0x1FB00
+
+
+def scale3x(g):
+    """Scale3x (AdvMAME3x) on a 1-bit grid: each pixel becomes a 3 x 3
+    block whose edges and corners take a neighbour's value where the
+    neighbours agree, so diagonals stay smooth at three times the size."""
+    h, w = len(g), len(g[0])
+    at = lambda y, x: g[y][x] if 0 <= y < h and 0 <= x < w else 0
+    o = [[0] * (3 * w) for _ in range(3 * h)]
+    for y in range(h):
+        for x in range(w):
+            A, B, C = at(y - 1, x - 1), at(y - 1, x), at(y - 1, x + 1)
+            D, E, F = at(y, x - 1), at(y, x), at(y, x + 1)
+            G, H, I = at(y + 1, x - 1), at(y + 1, x), at(y + 1, x + 1)
+            e = [E] * 9
+            if B != H and D != F:
+                e[0] = D if D == B else E
+                e[1] = B if (D == B and E != C) or (B == F and E != A) else E
+                e[2] = F if B == F else E
+                e[3] = D if (D == B and E != G) or (D == H and E != A) else E
+                e[5] = F if (B == F and E != I) or (H == F and E != C) else E
+                e[6] = D if D == H else E
+                e[7] = H if (D == H and E != I) or (H == F and E != G) else E
+                e[8] = F if H == F else E
+            for k in range(9):
+                o[3 * y + k // 3][3 * x + k % 3] = e[k]
+    return o
 
 
 def scale2x(g):
@@ -53,7 +82,7 @@ def scale2x(g):
     return o
 
 
-def main(src, dst, scale=4):
+def main(src, dst, scale=3):
     table = [0] * LIMIT
     data = bytearray()
     opener = gzip.open if src.endswith(".gz") else open
@@ -69,7 +98,7 @@ def main(src, dst, scale=4):
             for r in range(16):
                 row = int(hexs[r * digits:(r + 1) * digits], 16)
                 grid.append([(row >> (w - 1 - i)) & 1 for i in range(w)])
-            big = scale2x(grid)
+            big = scale3x(grid) if scale == 3 else scale2x(grid)
             if scale == 4:
                 big = scale2x(big)
             wide = w == 16
@@ -88,4 +117,4 @@ def main(src, dst, scale=4):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2], int(sys.argv[3]) if len(sys.argv) > 3 else 4)
+    main(sys.argv[1], sys.argv[2], int(sys.argv[3]) if len(sys.argv) > 3 else 3)

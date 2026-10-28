@@ -6,12 +6,16 @@ wide, a wide one (CJK, emoji) cell pixels. The file is read once and
 kept as one ByteArray; a glyph is located through the file's own table,
 so nothing is decoded ahead of use.
 -/
+import Quiet.Emoji
+
 namespace Font
 
 structure Font where
   bytes : ByteArray
-  /-- The cell's height in pixels (32 or 64). -/
+  /-- The cell's height in pixels (32, 48 or 64). -/
   cell : Nat
+  /-- Colour emoji, drawn instead of Unifont's (Quiet/Emoji.lean). -/
+  emoji : Emoji.Set
 
 def tableEnd : Nat := 8 + 4 * 0x20000
 
@@ -25,8 +29,11 @@ def load (path : String := "assets/font.bin") : IO Font := do
   if b.size < tableEnd || b.extract 0 4 != "QFNT".toUTF8 then
     throw (IO.userError s!"{path}: not a font")
   let cell := (b[4]!.toNat ||| (b[5]!.toNat <<< 8))
-  if cell != 32 && cell != 64 then throw (IO.userError s!"{path}: cell {cell}")
-  return ⟨b, cell⟩
+  if cell != 32 && cell != 48 && cell != 64 then throw (IO.userError s!"{path}: cell {cell}")
+  let emoji ← match ← (Emoji.load).toBaseIO with
+    | .ok e => pure e
+    | .error err => do IO.eprintln s!"no colour emoji: {err}"; pure default
+  return ⟨b, cell, emoji⟩
 
 /-- A glyph: where its 32 rows start in the file, and whether it is wide. -/
 structure Glyph where

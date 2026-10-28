@@ -30,6 +30,7 @@ def Sim.new : IO Sim := do
   return ⟨← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef (#[], 0, 0, #[], #[]), ← IO.mkRef 0⟩
 
 def Sim.io (sm : Sim) : Io where
+  screen := pure #[1080, 2400, 128, 63, 420]
   scroll ch vh := do
     let mx := if ch > vh then (ch - vh).toNat.toFloat else 0
     sm.maxB.set mx
@@ -214,6 +215,17 @@ def main (args : List String) : IO UInt32 := do
     check "a reaction shows at once, mine" (t.any fun t => t.emoji == "🎉" && t.mine)
     waitIdle sm
     writePpm (dir ++ "/sent.ppm") W (← screenOf sm W Hs 63)
+    -- the reaction tray on the newest message, the rest dimmed
+    sm.cmds.modify (·.push "tray 1")
+    for _ in [0:20] do
+      let _ ← step []
+      IO.sleep 3
+    writePpm (dir ++ "/tray.ppm") W (← screenOf sm W Hs 63)
+    let s ← get
+    check "the tray is open, the other rows dimmed" (s.tray.isSome &&
+      (s.rows.fold (fun n x r => if some x != s.selected && r.dimShown.isSome then n + 1 else n) 0) > 0)
+    sm.cmds.modify (·.push "untray")
+    steps 3
     IO.println (App.stats (← get))
     pure ()).run s2
   let _ := s2

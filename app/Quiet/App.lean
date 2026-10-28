@@ -26,6 +26,7 @@ code without a window (QTests).
 import Quiet.Data
 import Quiet.Chaos
 import Quiet.Row
+import Quiet.Geometry
 import Std.Data.HashMap
 
 namespace App
@@ -33,6 +34,7 @@ open Engine Community Data Paint Font Row
 
 /-- The platform, as the app uses it. -/
 structure Io where
+  screen : IO (Array UInt32)
   scroll : UInt32 → UInt32 → IO UInt32
   scrollBy : Float → IO Unit
   scrollTo : Float → IO Unit
@@ -60,6 +62,11 @@ structure RowSt where
   task : Option (Task Bitmap)
   shown : Option Bitmap
   ver : Nat
+  /-- The shown paint darkened, for behind the reaction tray, and the
+  version it was made from. -/
+  dimmed : Option (Task Bitmap) := none
+  dimVer : Nat := 0
+  dimShown : Option Bitmap := none
 
 abbrev ImgKey := ByteArray × Nat × Nat
 
@@ -98,8 +105,11 @@ structure St where
   paints : Nat := 0
   seed : Nat := 1
   dim : Dim := default
+  /-- The open reaction tray's picture (for the message in `selected`). -/
+  tray : Option Row.Tray := none
+  trayKey : String := ""
 
-instance : Inhabited Io := ⟨⟨fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ => pure #[],
+instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ => pure #[],
   pure ("", #[]), fun _ => pure (), pure (), pure #[], fun _ => pure (), pure 0⟩⟩
 
 abbrev M := StateT St IO
@@ -166,7 +176,7 @@ def readRow (m : Id) : M (Option (RowData × Array Q)) := do
         | none => tallies := tallies.push (e, [who])
   let me := s.me.adm
   let ts := tallies.toList.map fun (e, us) => Tally.mk e us.length (us.contains me)
-  return some (RowData.mk name avatar (bytesStr text) tm pics.toList ts pending (s.selected == some m), deps)
+  return some (RowData.mk name avatar (bytesStr text) tm pics.toList ts pending false, deps)
 
 /-! ## Writing -/
 
@@ -224,7 +234,12 @@ def composerLines (s : St) : Array Text.Line :=
 
 def botH (s : St) : Nat := 2 * textY0 s + (min 5 (composerLines s).size) * s.dim.lineH
 
-def viewH (s : St) : Nat := s.Hs - topH s - botH s - s.insetBot
+/-- The screen's geometry as of this frame (Geometry: the theorems that
+list content is never under the header, composer or keyboard are about
+these numbers). -/
+def geom (s : St) : Geometry.Geom := ⟨s.Hs, s.insetBot, s.imeH, topH s, botH s⟩
+
+def viewH (s : St) : Nat := (geom s).view
 
 def heightOf (s : St) (x : Id) : Nat := s.heights.getD x est
 
@@ -267,7 +282,7 @@ def mount (x : Id) : M Unit := do
   let need ← match s.rows[x]? with
     | none => pure true
     | some r => do
-      let mut stale := r.data.selected != (s.selected == some x)
+      let mut stale := false
       for q in r.deps do
         if !(← fresh q) then stale := true
       pure stale
@@ -286,7 +301,7 @@ def mount (x : Id) : M Unit := do
                                   heights := s.heights.insert x lay.h }
     | none =>
       let lay := Row.layout s.font s.dim s.W d
-      modify fun s => { s with rows := s.rows.insert x ⟨d, lay, deps, (0, []), none, none, 1⟩,
+      modify fun s => { s with rows := s.rows.insert x ⟨d, lay, deps, (0, []), none, none, 1, none, 0, none⟩,
                                 heights := s.heights.insert x lay.h }
 
 /-- Start a paint of row x if what it shows changed; collect a finished one. -/
@@ -309,6 +324,15 @@ def paintRow (x : Id) : M Unit := do
   let mut r := r
   if let some t := r.task then
     if ← IO.hasFinished t then r := { r with shown := some t.get, task := none }
+  -- behind an open tray, every other row is shown darkened
+  if s.selected.isSome && s.selected != some x then
+    if let some bmp := r.shown then
+      if r.dimmed.isNone || r.dimVer != r.painted.1 then
+        r := { r with dimmed := some (Task.spawn fun _ => Row.Bitmap.dim bmp), dimVer := r.painted.1 }
+    if let some t := r.dimmed then
+      if ← IO.hasFinished t then r := { r with dimShown := some t.get }
+  else if r.dimmed.isSome then
+    r := { r with dimmed := none, dimShown := none }
   if r.painted != (r.ver, ready) && r.task.isNone then
     let (f, dm, W, bgRow, d, l) := (s.font, s.dim, s.W, s.bgRow, r.data, r.lay)
     let t := Task.spawn fun _ => Row.paint f dm W bgRow d l av imgs
@@ -317,6 +341,21 @@ def paintRow (x : Id) : M Unit := do
   modify fun s => { s with rows := s.rows.insert x r }
 
 /-! ## The frame -/
+
+/-- Where the open tray sits: the content distance of its bottom edge,
+and its left x. Above the message if the viewport has room there, else
+below it. -/
+def trayAt (s : St) (b : Nat) (bots : Array Nat) : Option (Row.Tray × Nat × Nat) := do
+  let m ← s.selected
+  let t ← s.tray
+  let i ← s.ids.findIdx? (·.2 == m)
+  let bot := bots[i]!
+  let top := bot + heightOf s m
+  let gap := s.dim.px 8
+  let th := t.bmp.h
+  let x := min s.dim.textX (s.W - t.bmp.w - s.dim.pad)
+  if top + gap + th ≤ b + viewH s then return (t, top + gap, x)
+  return (t, (max bot (gap + th)) - gap - th, x)
 
 /-- The list frame: row r shows content at b + viewH + over - 1 - r. -/
 def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run do
@@ -331,7 +370,9 @@ def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run 
     let h := heightOf s x
     if bot ≥ top then break
     if bot + h ≤ low then continue
-    match s.rows[x]? >>= (·.shown) with
+    let pick := s.rows[x]? >>= fun r =>
+      if s.selected.isSome && s.selected != some x then r.dimShown <|> r.shown else r.shown
+    match pick with
     | none => pure ()
     | some bmp =>
       -- the row's pixel line li (top down) is content bot + h - 1 - li
@@ -340,6 +381,15 @@ def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run 
         if p < top && p + over ≥ b then
           let r := top - 1 - p
           if r < hgt then fr := fr.set! r bmp.rows[li]!
+  -- the tray, over what is there (its rows are new rows: the ones under
+  -- it are shared and stay as they were)
+  if let some (t, p0, x) := trayAt s b bots then
+    for k in [0:t.bmp.h] do
+      let p := p0 + t.bmp.h - 1 - k
+      if p < top && p + over ≥ b then
+        let r := top - 1 - p
+        if r < hgt then
+          fr := fr.set! r (t.bmp.rows[k]!.copySlice 0 fr[r]! (4 * x) (4 * t.bmp.w))
   return fr
 
 def header (s : St) : Bitmap := Id.run do
@@ -425,20 +475,33 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   | .header => s.io.scrollTo 0
   | .list =>
     if s.imeH > 0 && !long then s.io.ime false; return
+    -- an open tray: a key reacts; anything else closes it
+    if let some m := s.selected then
+      if !long then
+        let (bots, _) := bottoms s
+        if let some (t, p0, tx) := trayAt s s.b bots then
+          if p0 ≤ y && y < p0 + t.bmp.h && tx ≤ x && x < tx + t.bmp.w then
+            let ty := p0 + t.bmp.h - 1 - y
+            for (bx, e) in t.keys do
+              if bx.has (x - tx) ty then
+                let mine := (s.rows[m]?.map fun r => r.data.tallies.any fun t => t.emoji == e && t.mine).getD false
+                if !mine then let _ ← reactTo m e
+        modify fun s => { s with selected := none, tray := none }
+        return
     match rowAt s y with
-    | none => modify fun s => { s with selected := none }
+    | none => pure ()
     | some (m, ry) =>
       match s.rows[m]? with
       | none => pure ()
       | some row =>
-        match Row.hit row.lay x ry with
-        | .pill e =>
-          if !(row.data.tallies.any fun t => t.emoji == e && t.mine) then
-            let _ ← reactTo m e
-        | .palette e =>
-          let _ ← reactTo m e
-          modify fun s => { s with selected := none }
-        | .row => modify fun s => { s with selected := if s.selected == some m then none else some m }
+        if long then
+          -- the long press: the tray for this message
+          modify fun s => { s with selected := some m, tray := none }
+        else match Row.hit row.lay x ry with
+          | .pill e =>
+            if !(row.data.tallies.any fun t => t.emoji == e && t.mine) then
+              let _ ← reactTo m e
+          | _ => pure ()
 
 def onEvent : Event → M Bool
   | .close => return false
@@ -517,6 +580,12 @@ def command (line : String) : M Bool := do
       let ok ← reactTo m (ws[2]?.getD "👍")
       s.io.ctlReply (if ok then "reacted" else "refused")
     | none => s.io.ctlReply "no such message"
+  | "tray" =>
+    let i := (ws[1]? >>= String.toNat?).getD 0
+    match s.ids[i]? with
+    | some (_, m) => modify fun s => { s with selected := some m, tray := none }; s.io.ctlReply "tray open"
+    | none => s.io.ctlReply "no such message"
+  | "untray" => modify fun s => { s with selected := none, tray := none }; s.io.ctlReply "tray closed"
   | "pause" => s.wr.paused.set true; s.io.ctlReply "writer paused"
   | "resume" => s.wr.paused.set false; s.io.ctlReply "writer resumed"
   | "bottom" => s.io.scrollTo 0; s.io.ctlReply "ok"
@@ -545,6 +614,13 @@ def command (line : String) : M Bool := do
 window closes. -/
 def step (evs : List Event) : M (Option (List Event)) := do
   let t0 ← (← get).io.nowUs
+  -- 0. the screen and its insets, as of now (they can arrive after the
+  -- first frame, and change with rotation or the navigation mode)
+  let sc ← (← get).io.screen
+  let hs := (sc[1]?.map (·.toNat)).getD (← get).Hs
+  let it := (sc[2]?.map (·.toNat)).getD (← get).insetTop
+  let ib := (sc[3]?.map (·.toNat)).getD (← get).insetBot
+  modify fun s => { s with Hs := hs, insetTop := it, insetBot := ib }
   -- 1. notices
   let s ← get
   let ns ← s.wr.takeNotices
@@ -625,9 +701,17 @@ def step (evs : List Event) : M (Option (List Event)) := do
     modify fun s => { s with rows, live := s.live.keep fun q => match q with
       | .list _ => true
       | q => deps.contains q }
+  -- the tray's picture, for the message it is open on and what I hold
+  let s ← get
+  if let some m := s.selected then
+    let mine := ((s.rows[m]?.map (·.data.tallies)).getD []).filter (·.mine) |>.map (·.emoji)
+    let key := s!"{mine}"
+    if s.tray.isNone || key != s.trayKey then
+      modify fun s => { s with tray := some (Row.tray s.font s.dim mine (Paint.mixC Row.bg 0 154)),
+                               trayKey := key }
   -- 7. chrome and the frame
   let s ← get
-  let key := s!"{s.W}|{s.total}|{s.people}|{s.text}|{s.sel}"
+  let key := s!"{s.W}|{s.insetTop}|{s.total}|{s.people}|{s.text}|{s.sel}"
   if key != s.chromeKey then
     modify fun s => { s with topBmp := header s, botBmp := composer s, chromeKey := key }
   let s ← get

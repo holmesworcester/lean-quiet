@@ -269,8 +269,11 @@ static void lq_time(uint64_t t0, uint64_t t1, uint64_t t2) {
 lean_obj_res lq_screen(void) {
   int32_t w, h, top, bottom, ime;
   ba_size(&w, &h);
-  // The Java half reports the insets at the first layout; wait for it.
-  for (int i = 0; i < 100; i += 1) {
+  // The Java half reports the insets at the first layout: the first call
+  // waits for it (up to a second); later calls (the app reads the screen
+  // every frame) answer what is known now.
+  static bool waited;
+  for (int i = 0; i < (waited ? 1 : 100); i += 1) {
     ba_insets(&top, &bottom, &ime);
     if (top > 0) {
       break;
@@ -278,6 +281,7 @@ lean_obj_res lq_screen(void) {
     struct timespec ts = { 0, 10000000 };
     nanosleep(&ts, NULL);
   }
+  waited = true;
   lq.w            = (uint32_t)w;
   lq.h            = (uint32_t)h;
   lq.inset_top    = (uint32_t)top;

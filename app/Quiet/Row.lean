@@ -96,7 +96,8 @@ structure Layout where
   palette : Array (Box × String)
   deriving Inhabited
 
-def emojiPalette : Array String := #["👍", "❤", "😂", "🎉", "🙏", "👀", "🔥", "✅"]
+/-- The quick reactions, as libquiet's tray offers them. -/
+def quick : Array String := #["👍", "❤️", "😂", "🎉", "👀", "🙏"]
 
 def clock (t : Nat) : String :=
   let m := t % 1440
@@ -141,24 +142,15 @@ def layout (f : Font) (dm : Dim) (W : Nat) (d : RowData) : Layout := Id.run do
     pills := pills.push (⟨x, y, w, ph⟩, t.emoji, count, t.mine)
     x := x + w + dm.gap
   if !d.tallies.isEmpty then y := y + ph
-  let mut palette := #[]
-  if d.selected then
-    y := y + dm.px 8
-    let mut px := tx
-    let bw := dm.cell + dm.px 12
-    for e in emojiPalette do
-      if px + bw > W - dm.pad then break
-      palette := palette.push (⟨px, y, bw, ph⟩, e)
-      px := px + bw + dm.gap
-    y := y + ph
+  let palette := #[]
   let h := max (y + dm.px 8) (dm.topPad + dm.avatar + dm.px 8)
   return ⟨h, name, time, timeX, text, textY, pics, pills, palette⟩
 
 /-! ## Paint -/
 
-/-- An emoji's glyph centred in a box (its first code point). -/
+/-- An emoji (a whole sequence) with its top left at (x, y). -/
 def emojiAt (f : Font) (b : Bitmap) (e : String) (x y : Nat) (c : Color) : Bitmap :=
-  b.glyph f (e.toList.headD ' ').val x y c false
+  b.line f (oneLine f (4 * f.cell) e) x y c
 
 /-- The row's pixels: the layout's parts, each in its box. av is the
 avatar and imgs the pictures, each at its box's size, or none while it
@@ -197,10 +189,50 @@ def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (d : RowData) (l :
       b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) pr pill
     b := emojiAt f b e (bx.x + dm.px 10) (bx.y + inset) 0xF5C542
     b := b.line f count (bx.x + dm.px 10 + dm.cell + dm.px 4) (bx.y + inset) (if mine then nameInk else ink)
-  for (bx, e) in l.palette do
-    b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) pr pill
-    b := emojiAt f b e (bx.x + dm.px 6) (bx.y + inset) 0xF5C542
   return b
+
+/-- A bitmap darkened to 40%: the rows behind the reaction tray. -/
+def Bitmap.dim (b : Bitmap) : Bitmap :=
+  { b with rows := b.rows.map fun row => Id.run do
+      let mut out := row
+      for i in [0:row.size] do
+        if i % 4 != 3 then out := out.set! i (row[i]!.toNat * 2 / 5).toUInt8
+      return out }
+
+/-! ## The reaction tray
+
+A long press on a message opens it: the quick reactions in a bar beside
+the message, the rest of the list dimmed. A key the user already holds
+is ringed. -/
+
+def trayBg : Color := 0x2E3136
+
+structure Tray where
+  bmp : Bitmap
+  keys : Array (Box × String)
+
+def Dim.key (d : Dim) : Nat := d.cell + d.px 16
+
+def tray (f : Font) (dm : Dim) (mine : List String) (backdrop : Color) : Tray := Id.run do
+  let k := dm.key
+  let p := dm.px 6
+  let w := quick.size * k + (quick.size + 1) * p
+  let h := k + 2 * p
+  let mut b := Bitmap.blank w h (solid backdrop w)
+  b := b.round 0 0 w h (h / 2) 0x45484D
+  let e := max 2 (dm.px 1)
+  b := b.round e e (w - e) (h - e) (h / 2 - e) trayBg
+  let mut keys := #[]
+  for i in [0:quick.size] do
+    let q := quick[i]!
+    let x := p + i * (k + p)
+    if mine.contains q then
+      b := b.round x p (x + k) (p + k) (k / 2) accent
+      b := b.round (x + e) (p + e) (x + k - e) (p + k - e) (k / 2 - e) pillMine
+    let ew := Paint.Line.width f (oneLine f (4 * f.cell) q)
+    b := emojiAt f b q (x + (k - ew) / 2) (p + (k - f.cell) / 2) ink
+    keys := keys.push (⟨x, p, k, k⟩, q)
+  return ⟨b, keys⟩
 
 /-! ## Hits -/
 

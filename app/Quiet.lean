@@ -1,4 +1,5 @@
 import Quiet.Platform
+import Quiet.Geometry
 import Quiet.Qoi
 import Quiet.Font
 import Quiet.Text
