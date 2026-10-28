@@ -64,6 +64,10 @@ structure St where
   seen : Nat := 0
   /-- Each held want's reads: it is read again when one goes stale. -/
   deps : Std.HashMap Want (Array Q) := {}
+  /-- Wants to read again: marked when a pass's notices stale one of
+  their reads, before any is read again (two wants reading one list
+  both see its change), and kept until read. -/
+  dirty : Std.HashSet Want := {}
   passes : Nat := 0
 
 abbrev RM := StateT St IO
@@ -89,8 +93,8 @@ def eval : Want → RM (Val × Array Q)
     -- not shown yet: no reads held, so it is read again each pass
     | none => return (.row none, #[])
 
-/-- Whether w is to be read again: not held, or one of its reads stale. -/
-def dirty (s : St) (w : Want) : Bool :=
+/-- Whether w's reads changed: not held, or one of its reads stale. -/
+def stale (s : St) (w : Want) : Bool :=
   match s.deps[w]? with
   | none => true
   | some qs => qs.isEmpty || qs.any fun q => !s.live.fresh q
@@ -109,14 +113,18 @@ def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
     let (ks, top) ← rd.changesSince s.seen
     let want : Std.HashSet Want := wants.foldl (·.insert ·) {}
     modify fun s => { s with seen := top, out, live := s.live.notice (ks ++ notes),
-                             deps := s.deps.filter fun w _ => want.contains w, passes := s.passes + 1 }
+                             deps := s.deps.filter fun w _ => want.contains w,
+                             dirty := s.dirty.filter want.contains, passes := s.passes + 1 }
     sh.seen.set top
+    -- mark every want whose reads changed, before reading any again
+    let s ← get
+    modify fun s => { s with dirty := wants.foldl (fun d w => if stale s w then d.insert w else d) s.dirty }
     let mut puts : Array (Want × Val) := #[]
     for w in wants do
       if puts.size ≥ cap then break
-      if dirty (← get) w then
+      if (← get).dirty.contains w then
         let (v, deps) ← eval w
-        modify fun s => { s with deps := s.deps.insert w deps }
+        modify fun s => { s with deps := s.deps.insert w deps, dirty := s.dirty.erase w }
         puts := puts.push (w, v)
     rd.exec "COMMIT"
     -- now and then, forget the cached reads no want holds

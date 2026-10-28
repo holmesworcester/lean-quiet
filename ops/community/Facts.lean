@@ -605,10 +605,14 @@ def byCommunity : Rel Fact := ⟨"key", "byCommunity", fun | .key c .. => some [
 def byId : Rel Fact := ⟨"key", "byId", fun | .key _ i _ => some [i] | _ => none⟩
 end key
 
-/-- A space of any kind (Unicode's White_Space): each draws as blank. -/
+/-- A space of any kind (Unicode's White_Space), and the characters the
+font draws as an empty cell (the halfwidth Hangul filler, five private-use
+points): each draws as blank. The inkless check (platforms/headless/
+Inkless) finds every inkless glyph of the font here or invisible. -/
 def isBlank (c : UInt32) : Bool :=
   c == 32 || Text.inRange c 9 13 || c == 0x85 || c == 0xA0 || c == 0x1680 ||
-  Text.inRange c 0x2000 0x200A || c == 0x2028 || c == 0x2029 || c == 0x202F || c == 0x205F || c == 0x3000
+  Text.inRange c 0x2000 0x200A || c == 0x2028 || c == 0x2029 || c == 0x202F || c == 0x205F || c == 0x3000 ||
+  c == 0xFFA0 || c == 0xE16E || c == 0xE1A0 || c == 0xE900 || c == 0xEC71 || c == 0xED30
 
 /-- What a name looks like: its words, without the characters drawn as
 nothing (`Text.isInvisible`), split at spaces of any kind and joined by

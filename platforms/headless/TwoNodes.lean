@@ -167,6 +167,40 @@ def main (args : List String) : IO UInt32 := do
     let rows := (← get).rows.toList.map (·.2.data)
     check s!"A's own post is under the founder's name ({(rows.find? (·.text == "hi from A")).map (·.name)})"
       (rows.any fun d => d.text == "hi from A" && d.name == "Ann")
+    -- A takes a name that looks like Bea's (with a zero-width space): both
+    -- rows are marked Duplicate, and the label opens Quiet's warning
+    let s ← get
+    let _ ← write (profile s.me.c s.me.adm s.me.dev ("Bea" ++ "\u200B").toUTF8 ((← nowMin) + 1))
+    waitIdle sa
+    steps 5
+    let rows := (← get).rows.toList.map (·.2)
+    let marked (t : String) := rows.any fun r => r.data.text == t && r.data.namesake && r.lay.twin.isSome
+    check "Ann renamed Bea + U+200B: her row is marked Duplicate" (marked "hi from A")
+    check "and so is Bea's" (marked "hello from B")
+    let s ← get
+    let tapped ← match s.ids.findIdx? fun p => (s.rows[p.2]?.map (·.data.text)) == some "hi from A" with
+      | some i =>
+        match s.rows[s.ids[i]!.2]? >>= (·.lay.twin) with
+        | some (bx, _) =>
+          let (bots, _) := bottoms s
+          let x := s.ids[i]!.2
+          onTap .list (bx.x + bx.w / 2) (bots[i]! + heightOf s x - 1 - (bx.y + bx.h / 2)) false
+          steps 2
+          pure true
+        | none => pure false
+      | none => pure false
+    check s!"a tap on the label opens the warning (page {repr (← get).page})" (tapped && (← get).page == .duplicate)
+    writePpm (dir ++ "/a-duplicate.ppm") 1080 (← screenOf sa 1080 2400 63)
+    sa.cmds.modify (·.push "back")
+    steps 2
+    -- Ann's name again: no namesake, no label
+    let s ← get
+    let _ ← write (profile s.me.c s.me.adm s.me.dev "Ann".toUTF8 ((← nowMin) + 2))
+    waitIdle sa
+    steps 5
+    let rows := (← get).rows.toList.map (·.2)
+    check "Ann again: neither row is marked"
+      (!rows.any fun r => (r.data.text == "hi from A" || r.data.text == "hello from B") && (r.data.namesake || r.lay.twin.isSome))
     -- a message under a key A does not hold is not shown at all
     let before := (← get).ids.size
     let stranger ← Engine.Crypto.randomBytes 32

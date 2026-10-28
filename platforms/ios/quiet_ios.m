@@ -643,7 +643,7 @@ lean_obj_res lq_now_us(void) {
 }
 
 lean_obj_res lq_log(b_lean_obj_arg s) {
-  NSLog(@"lean: %s", lean_string_cstr(s));
+  NSLog(@"lean: %@", [NSString stringWithUTF8String:lean_string_cstr(s)]);
   return lean_io_result_mk_ok(lean_box(0));
 }
 

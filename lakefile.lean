@@ -192,6 +192,10 @@ lean_exe host where
 lean_exe quiet_host where
   root := `Main
 
+-- The font's inkless glyphs are all invisible or spaces (names).
+lean_exe inkless where
+  root := `platforms.headless.Inkless
+
 -- Two apps joined by link, ops carried between them as sync would.
 lean_exe two_nodes where
   root := `platforms.headless.TwoNodes
