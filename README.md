@@ -4,9 +4,11 @@
 its database, its sync and its encrypted networking, draws every pixel
 of its UI, and checks proofs about all four.
 
-| 👋 **A note from a human** |
-|:---|
-| In ~1 day I vibe-coded a p2p, e2ee Slack/Discord alternative in Lean (informed by my work on [Quiet](https://tryquiet.org)) for iOS and Android with some fairly powerful correctness proofs. How does this stand up? |
+<table><tr><td>
+
+👋 $\color{#8957e5}{\textsf{\textbf{Note from a human:}}}$ In ~1 day I vibe-coded a p2p, e2ee Slack/Discord alternative in Lean (informed by my work on [Quiet](https://tryquiet.org)) for iOS and Android with some fairly powerful correctness proofs. How does this stand up?
+
+</td></tr></table>
 
 Lean is mostly used for mathematics, or to verify one part of a system.
 Here it is a whole, ordinary app, and nearly every theorem is about the
@@ -19,10 +21,6 @@ whose network may delay, reorder and drop frames, and agreement needs
 only the same ops, in any order ([toward n clients](#toward-n-clients)).
 
 ## What is proven
-
-| 👋 **A note from a human** |
-|:---|
-| The most obviously valuable thing about building a user-facing communication tool entirely in Lean is that you can prove strict safety properties. In a p2p, e2ee app where code is law, this means potentially being able to prove them over all possible deployments, too! But an even more interesting question: can you also prove absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size, or lack of responsiveness under load. It seems like you can! |
 
 Lean checks these theorems about the code that runs. Whatever any peer
 or anyone on the network does:
@@ -126,7 +124,13 @@ over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. All 364 rest on Lean's standard axioms
 only.
 
-### Against an attacker
+<table><tr><td>
+
+🙋 $\color{#2f81f7}{\textsf{\textbf{Another note from a human:}}}$ The most obviously valuable thing about building a user-facing communication tool entirely in Lean is that you can prove strict safety properties. In a p2p, e2ee app where code is law, this means potentially being able to prove them over all possible deployments, too! But an even more interesting question: can you also prove absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size, or lack of responsiveness under load. It seems like you can!
+
+</td></tr></table>
+
+### Security proofs
 
 | | | Guarantee | Theorems |
 |---|---|---|---|
@@ -165,7 +169,7 @@ only.
 | ✅ | 🥊🥊 | **No amplification:** a decoded op is exactly its bytes, so no larger. A bundle's payloads are together smaller than it. Linear decoding time is not proven. | [`Op.decode_exact`], [`Op.decode_parts`], [`decode_sum`] |
 | ⬜ | 🥊🥊 | **Resources are capped:** memory, rounds and frames per peer. **Today they are not.** [More](#hostile-input) | |
 
-### Correctness
+### Quality proofs
 
 | | | Guarantee | Theorems |
 |---|---|---|---|
@@ -178,7 +182,7 @@ only.
 | ⬜ | 🥊🥊🥊 | **The Community laws hold in the running node** (`sum_project`). In the store composed with the Connection family, every Community view answers as it would in a store of the Community ops alone. This carries every law above to the node that runs. | |
 | ✅ | 🥊🥊🥊 | **The honest path works.** A request with its invitation and both signatures is valid, an eligible member's approval is valid, and enough approvals admit and let the device in. The remover's intent writes only removals that stand. | [`request_valid`], [`approve_valid`], [`admit_admits`], [`connect_admitted`], [`removeMember_valid`] |
 | | | **Sync** | |
-| ✅ | 🥊🥊🥊 | **A sync round is complete.** Each side is sent exactly what the other holds in the range and it lacks. On any path, it takes at most one answer more than the two sides hold in the range. | [`exchange_complete`] |
+| 🟡 | 🥊🥊🥊 | **A sync round is complete.** Each side is sent exactly what the other holds in the range and it lacks. [More](#sync-in-the-running-node) | [`exchange_complete`] *(model)* |
 | ✅ | 🥊🥊 | **Fingerprints are honest.** Equal Merkle labels mean equal sets, and a side opens a round with an honest claim. | [`lbl_inj`], [`opening_honest`], [`num_inj`] |
 | ✅ | 🥊🥊🥊 | **Partial sync is safe.** A node that holds an op's requirement closure judges it as its peer does. | [`spec_local`] |
 | 🟡 | 🥊🥊🥊 | **A joiner connects, and both sides converge,** over a socket that loses, duplicates and reorders. Proven over a model only. | [`bootstrap`], [`bootstrap_ideal`], [`bootstrap_possible`], [`reachable_inv`] *(model)* |
@@ -190,7 +194,7 @@ only.
 | ⬜ | 🥊🥊 | **Sync is efficient.** Each op is sent at most once per connection, and a round needs at most fan·Δ·⌈log n⌉ claims. | |
 | ⬜ | 🥊 | **The cached Merkle tree's labels are `lbl`'s,** for O(log n) fingerprints with no change on the wire. | |
 | | | **The screen** | |
-| ✅ | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. | [`visible_in_viewport`], [`newest_visible`], [`pinned_visible`], [`pinned_tap`], [`hit_iff`] |
+| 🟡 | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header and above the composer and keyboard, the newest message is wholly visible, and a tap lands on what is drawn under it. [More](#the-screens-geometry) | [`visible_in_viewport`], [`newest_visible`], [`pinned_visible`], [`pinned_tap`], [`hit_iff`] |
 | ⬜ | 🥊🥊🥊 | **Every control is big enough to tap.** Every tappable control's hit area, not just its drawn size, is at least 48 dp by 48 dp on Android and 44 pt by 44 pt on iOS, at every supported screen size and text scale. | |
 | ⬜ | 🥊🥊 | **A tap means one thing.** On every screen, no two controls' hit areas overlap, so a point selects at most one control. A tap selects the control drawn under it. Today this is proven for the emoji sheet and message rows only (`keys_disjoint`, `hit_iff`, `pinned_tap`). | |
 | ⬜ | 🥊🥊 | **Every control shown can be tapped.** A control that is drawn has its hit area on screen, and not under the header, the composer or the keyboard. | |
@@ -201,7 +205,7 @@ only.
 | ✅ | 🥊🥊 | **The people list is the present members,** each once. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_nodup`] |
 | 🟡 | 🥊🥊🥊 | **The screen is one moment.** Every frame is drawn over a single store state, the latest the app has seen, so if one row is current, all are. [More](#from-the-store-to-the-screen) | [`read_one_moment`], [`answer_agrees`], [`agrees_store`], [`agrees_notice`], [`agrees_keep`], [`agrees_empty`], [`eval_stable`], [`view_stable`] |
 | ⬜ | 🥊🥊 | **An action's toast stays until the screen shows it.** A toast for an action (removing someone, a new name or avatar) stays up until every component on screen has re-read a state that holds the action's op, or until the OS's toast time passes, whichever comes first. So a toast that leaves early proves the screen has caught up. | |
-| ✅ | 🥊🥊 | **The layout is exact.** The slide and keyboard shift are exact, and page rows are where the page put them. Emoji keys never overlap, and every key is reachable. An invite's hints and QR fit, and the camera preview reads inside its frame. | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
+| 🟡 | 🥊🥊 | **The layout is exact.** The list's slide and keyboard shift, the emoji sheet, the invite and the camera preview are laid out exactly. [More](#the-screens-geometry) | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
 | 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** A row's glyphs, read in order, are exactly the body's visible characters, and every line fits. [More](#text-and-names) | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`digits_keep_order`] |
 | 🟡 | 🥊🥊🥊 | **Names are shown correctly.** A row draws its author's name and no one else's, no bidi control can disguise it, and look-alike names are both marked. [More](#text-and-names) | [`message_read`], [`profile_read`], [`profile_authorized`], [`no_renaming`], [`name_placed`], [`oneLine_prefix`], [`controls_neutral`], [`marks_invisible`], [`namesake_iff`], [`row_marked`], [`twin_shown`], [`twin_before_time`], [`hit_twin`] |
 | ✅ | 🥊🥊 | **Times, reactions and pictures are shown as held:** the claimed time's clock, each reaction's count of distinct reactors, and each picture at its aspect inside its box. One pill per emoji, whose reactors are exactly who reacted with it, each once; a picture's box has one side at its bound and the other scaled by its aspect. | [`time_shown`], [`message_read`], [`tally_nodup`], [`tally_mem`], [`picBox_aspect`] |
@@ -356,6 +360,17 @@ and `asked` sets without bound.
 
 ### Sync in the running node
 
+🟡 **A sync round is complete.** Each side is sent exactly what the
+other holds in the range and it lacks, and on any path a round takes at
+most one answer more than the two sides hold in the range.
+- **Proven** of `exchange`, which runs a round to its end by composing
+  the two sides' answers: a model of the round, not the code that runs.
+- **The running link:** the connection answers one message at a time
+  (`Conn.onRbsr`), and answers a claim that lists ids exactly as
+  `exchange` does ([`conn_answers_ids`]).
+- **Wanted:** that the running connection performs `exchange`'s whole
+  round, under any delivery order (`conn_runs_exchange`).
+
 🟡 **The running connection does all this.** It performs the round, and
 delivers each op's requirement closure.
 - **Proven:** a connection answers a claim that lists ids exactly as
@@ -442,6 +457,36 @@ input is admitted first and that no class starves, and cost laws in the
 number of ops for each unit of work, so that admission becomes a frame
 budget. The scheduler's laws are about admission decisions, not
 wall-clock deadlines; the cost laws close that gap.
+
+### The screen's geometry
+
+🟡 **Nothing on screen is covered or mis-tapped.** Content in the
+viewport is drawn below the header, and above the composer and
+keyboard. Pinned to the bottom, the newest message is wholly visible. A
+tap lands on the row, or emoji key, drawn under it.
+- **Proven of running code:** the emoji sheet's hit test
+  ([`hit_iff`]), which the app's taps on the sheet go through.
+- **Proven of Geometry's formula, not of the code that runs:** where
+  the list lands and where a tap on it lands ([`visible_in_viewport`],
+  [`newest_visible`], [`pinned_visible`], [`pinned_tap`]). On Android
+  the shell runs a C copy of that formula (`bl_place_list`), and that it
+  computes the same is trusted. On iOS, UIKit places the layers, and
+  [`Placement.lean`](platforms/ios/Placement.lean) proves the rest from
+  Geometry.
+- **Wanted:** the shells call the Lean formula instead of copying it
+  ([what else can we move into Lean?](#what-else-can-we-move-into-lean)).
+
+🟡 **The layout is exact.** The slide and keyboard shift are exact, and
+page rows are where the page put them. Emoji keys never overlap, and
+every key is reachable. An invite's hints and QR fit, and the camera
+preview reads inside its frame.
+- **Proven of running code:** the emoji sheet ([`keys_disjoint`],
+  [`hit_cell`], [`reachable`], [`compose_row`], [`compose_top`]), the
+  invite ([`Link.hints_fit`], [`Link.qr_fits`]) and the camera preview
+  ([`Camera.src_in`]).
+- **Proven of Geometry's formula,** which the shells copy, as above:
+  the slide, the keyboard shift and page rows ([`placed_row`],
+  [`newest_drawn`], [`pinned_row`]).
 
 ### From the store to the screen
 
