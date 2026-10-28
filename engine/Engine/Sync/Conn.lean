@@ -192,13 +192,18 @@ def Conn.start (ix : Index) (c : Conn) (now : Nat) : Step :=
       (Msg.rbsr r k (w.map (opening Prod.fst Prod.snd sha256 cfg.params s))).op
     { conn := { c with round := k, lastRound := now, snaps }, send }
 
+/-- The snapshot round k in room r is answered from: the one taken when
+this side first saw the round, or the room as it is now. -/
+def Conn.snap (ix : Index) (c : Conn) (r : Id) (k : Nat) : List Item :=
+  match c.snaps.find? fun p => Decidable.decide (p.1 = (r, k)) with
+  | some (_, s) => s
+  | none => ix.items r
+
 /-- A round's message about room r: answer its claims from the round's
 snapshot; no claims ends the round. -/
 def Conn.onRbsr (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (now : Nat) : Step :=
   if !has c.rooms r then { conn := c } else
-  let snap := match c.snaps.find? fun p => Decidable.decide (p.1 = (r, k)) with
-    | some (_, s) => s
-    | none => ix.items r
+  let snap := c.snap ix r k
   let others := c.snaps.filter fun p => !Decidable.decide (p.1.1 = r)
   let ended (c : Conn) : Conn :=
     { c with snaps := others, rounded := if has c.rounded r then c.rounded else r :: c.rounded }
@@ -224,18 +229,16 @@ def Conn.onHold (c : Conn) (ids : List Id) : m Step := do
     asked := want.foldl (·.insert ·) c.asked }
   return { conn := c, send := chunks cfg want.reverse .want }
 
-/-- Walk requirement closures from the frontier: offer every stored op
-the peer may see and is not known to hold or already offered. -/
-def Conn.walk (c : Conn) : m (Conn × List Id) := do
-  let mut c := c
-  let mut offer : List Id := []
-  let mut budget := cfg.walk
-  while budget > 0 do
+/-- At most `budget` steps of the walk, with what it has offered so far
+(newest first). -/
+def Conn.walkN (c : Conn) (offer : List Id) : Nat → m (Conn × List Id)
+  | 0 => return (c, offer.reverse)
+  | budget + 1 => do
     match c.frontier with
-    | [] => budget := 0
+    | [] => return (c, offer.reverse)
     | x :: rest =>
-      budget := budget - 1
-      c := { c with frontier := rest }
+      let mut c := { c with frontier := rest }
+      let mut offer := offer
       if !c.closed.contains x then
         match ← Store.getOp (F := F) x with
         | none => pure ()
@@ -247,7 +250,12 @@ def Conn.walk (c : Conn) : m (Conn × List Id) := do
             if let some (.valid _) ← Store.getStatus (F := F) x then
               c := { c with closed := c.closed.insert x }
             c := { c with frontier := o.reqs ++ c.frontier }
-  return (c, offer.reverse)
+      c.walkN offer budget
+
+/-- Walk requirement closures from the frontier, at most `cfg.walk` ops:
+offer every stored op the peer may see and is not known to hold or
+already offered. -/
+def Conn.walk (c : Conn) : m (Conn × List Id) := c.walkN fam [] cfg.walk
 
 /-- The peer wants these: send each stored op it may see, and offer
 their closures. Anything else is ignored. -/

@@ -89,6 +89,23 @@ theorem Op.id_decode {b : ByteArray} {o : Op} (h : Op.decode b = some o) : o.id 
 
 theorem Op.decode_bytes (o : Op) : Op.decode o.bytes = some o := Codec.decode_encode o
 
+/-- **A decoded op is exactly the bytes received**, so no larger. -/
+theorem Op.decode_exact {b : ByteArray} {o : Op} (h : Op.decode b = some o) :
+    o.bytes = b ∧ o.bytes.size = b.size :=
+  ⟨Codec.encode_decode h, by rw [Op.bytes, Codec.encode_decode h]⟩
+
+/-- **A decoded op's parts are smaller than its bytes:** its
+requirements' ids and its body together. -/
+theorem Op.decode_parts {b : ByteArray} {o : Op} (h : Op.decode b = some o) :
+    (o.reqs.map ByteArray.size).sum + o.body.size < b.size := by
+  rw [← (Op.decode_exact h).1]
+  show _ < (Codec.enc (o.kind, o.reqs, o.body)).toArray.size
+  rw [List.size_toArray]
+  show _ < (Codec.enc o.kind ++ (Codec.encList o.reqs ++ Codec.enc o.body)).length
+  rw [List.length_append, List.length_append, Codec.length_enc_bytes]
+  have := Codec.length_encList_bytes o.reqs
+  omega
+
 /-- A decided op: Valid with the fact it produced, or Invalid. -/
 inductive Verdict (F : Type) where
   | valid (f : F)

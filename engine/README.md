@@ -288,6 +288,8 @@ Laws (`Connection/Laws.lean`, `Connection/Noise.lean`,
   for any suite whose DH commutes, whose AEAD opens what it seals and
   whose messages split into their key and the rest;
 - `open_seal`, `cid_seal`;
+- `openFrame_auth`, `sealed_auth` (a sealed frame is decoded only after
+  its AEAD check passes under its session's receive key);
 - `sum_left`.
 
 **The handshake in a symbolic model** (`Connection/NoiseSymbolic.lean`,

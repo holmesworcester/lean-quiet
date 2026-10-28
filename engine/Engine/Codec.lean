@@ -171,6 +171,35 @@ theorem encode_inj {α} [Codec α] {a b : α} (h : encode a = encode b) : a = b 
   rw [decode_encode, decode_encode] at this
   exact Option.some.inj this
 
+theorem length_encNat_pos (n : Nat) : 0 < (encNat n).length := by
+  rw [encNat]; split <;> simp
+
+/-- A byte string's encoding is its length, then it. -/
+theorem length_enc_bytes (b : ByteArray) : (enc b).length = (encNat b.size).length + b.size := by
+  show (encBytesL b.data.toList).length = _
+  rw [encBytesL, List.length_append, Array.length_toList]
+  rfl
+
+theorem length_encList_bytes (l : List ByteArray) :
+    (l.map ByteArray.size).sum + l.length + 1 ≤ (encList l).length := by
+  induction l with
+  | nil => simp [encList]
+  | cons a t ih =>
+    rw [encList, List.length_cons, List.length_cons, List.length_append, List.map_cons,
+      List.sum_cons, length_enc_bytes]
+    have := length_encNat_pos a.size
+    omega
+
+/-- **Decoded byte strings are no larger than their bytes:** together,
+with a byte each, they are shorter than the list's encoding. -/
+theorem decode_sum {b : ByteArray} {l : List ByteArray} (h : decode b = some l) :
+    (l.map ByteArray.size).sum + l.length < b.size := by
+  rw [← encode_decode h]
+  show _ < (encList l).toArray.size
+  rw [List.size_toArray]
+  have := length_encList_bytes l
+  omega
+
 end Codec
 
 end Engine

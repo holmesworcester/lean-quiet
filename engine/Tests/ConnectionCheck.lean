@@ -25,6 +25,13 @@ What it checks, in order:
   then joins another community as another device.
 - **Purge:** a session that loses the one-per-peer choice is purged
   at both ends.
+- **The cache law** (`write_cached`, `purge_cached`): after every phase,
+  purges included, each node's room index holds, room by room, exactly
+  the index of the ops in its SQLite store (`Index.ofOps` of `dumpOps`).
+- **Authenticate before parsing** (`sealed_auth`): a session frame A
+  sealed for B, with one byte of its ciphertext or of its header changed,
+  leaves B's node and store as they were and sends nothing; the frames
+  as sealed are then answered, and B holds the post they offer.
 
 Sessions open by themselves: the node reads the family's `established`
 ops and seals every session frame with the session's keys.
@@ -144,6 +151,24 @@ def approveOnA (w : World) (c : Id) (req : Op) : IO World := do
   let wr ← ((approveReq c req.id c w.a.seed).liftL.run : SqlM F Community.Write).run w.a.db
   writeA w wr.ops
 
+/-- The rooms of a node's index and of its stored ops. -/
+def roomsOf (p : Peer) (ops : List Op) : List Id :=
+  (p.n.ix.rooms.map (·.1) ++ ops.filterMap fam.room).foldl Engine.ins []
+
+/-- The cache law on SQLite: room by room, the node's index is the index
+of the ops its store holds. -/
+def cacheOk (p : Peer) : IO Bool := do
+  let ops ← (dumpOps (F := F)).run p.db
+  let ix := Index.ofOps fam ops
+  return (roomsOf p ops).all fun r => decide (p.n.ix.items r = ix.items r)
+
+/-- What a node and its store hold, to compare before and after. -/
+def snapshot (p : Peer) : IO (List ByteArray × List (Id × List Item) × List Id × List Id × List Id × Nat) := do
+  let ops ← (dumpOps (F := F)).run p.db
+  let st ← (dumpStatus (F := F)).run p.db
+  return (ops.map (·.bytes), p.n.ix.rooms, p.n.conns.map (·.1), p.n.addrs.map (·.1) ++ p.n.addrs.map (·.2),
+    p.n.managed ++ p.n.dropped ++ p.n.fresh, st.length)
+
 def dump (name : String) (p : Peer) : IO Unit := do
   let ops ← (dumpOps (F := F)).run p.db
   let mut line := s!"{name}:"
@@ -193,6 +218,36 @@ def main : IO UInt32 := do
   let w ← writeA w [p]
   let w ← w.run 10
   t.ok "a later post reaches B" (← stored w.b p.id)
+  t.ok "A's index is the index of its store" (← cacheOk w.a)
+  t.ok "B's index is the index of its store" (← cacheOk w.b)
+  -- A forged session frame: A seals a post for B; B gets it with one
+  -- byte changed, in the ciphertext, and then in the header.
+  let p2 := post c c dA "k".toUTF8 "sealed for B".toUTF8 6
+  let (a, wa) ← run w.a fun n => n.onWrite w.a.x [p2] w.now
+  let w := { w with a }
+  let sealed := wa.send.filter fun (_, b) => b[0]? == some 1
+  t.ok "A seals the post for B" (!sealed.isEmpty)
+  let flip (b : ByteArray) (i : Nat) : ByteArray :=
+    ⟨b.data.modify i fun x => x ^^^ 1⟩
+  for (_, f) in sealed do
+    for i in [f.size - 1, 40, 5] do
+      let before ← snapshot w.b
+      let (b', e) ← run w.b fun n => n.onFrame w.b.x w.a.addr (flip f i) (w.now + 1)
+      t.ok s!"a forged frame (byte {i}) sends nothing" (e.send.isEmpty && e.drop.isEmpty && e.stored.isEmpty)
+      t.ok s!"a forged frame (byte {i}) changes neither B's node nor its store"
+        ((← snapshot { w.b with n := b'.n }) == before)
+  t.ok "the forged frames stored nothing" (!(← stored w.b p2.id))
+  -- The frames as sealed offer the post: B asks for it, and holds it
+  -- after the exchange.
+  let mut wf := w
+  let mut answered := false
+  for (_, f) in sealed do
+    let (b', e) ← run wf.b fun n => n.onFrame wf.b.x wf.a.addr f (wf.now + 1)
+    answered := answered || !e.send.isEmpty
+    wf := { wf with b := b' }.route false e
+  t.ok "the frames as sealed are taken: B answers them" answered
+  let w ← wf.run 5
+  t.ok "and B then holds the post" (← stored w.b p2.id)
   -- Two sessions between one pair (B dials A again with a fresh
   -- ephemeral): both ends keep the same one, the smaller id.
   let e2 := sha256 "second ephemeral".toUTF8
@@ -205,6 +260,8 @@ def main : IO UInt32 := do
   t.ok "both keep the same one" (sa.map (·.1) == sb.map (·.1))
   t.ok "the other session was purged at both ends" ((← ests w.a).length == 1 && (← ests w.b).length == 1)
   t.ok "and the kept one is the newer dial" (sa.map (·.1) != [cidOf ea])
+  t.ok "after the purge, A's index is the index of its store" (← cacheOk w.a)
+  t.ok "after the purge, B's index is the index of its store" (← cacheOk w.b)
   -- Lossy wire.
   let (w2, c2, req2) ← setup 33
   let w2 ← w2.run 30
@@ -217,6 +274,7 @@ def main : IO UInt32 := do
     IO.eprintln s!"A2 conns {w2.a.n.conns.map (fun p => hex p.1)} dropped {w2.a.n.dropped.map hex}"
     IO.eprintln s!"B2 conns {w2.b.n.conns.map (fun p => hex p.1)} dropped {w2.b.n.dropped.map hex}"
   t.ok "with a third of handshake frames lost, B still joins" (← allowedOn w2.b c2 (Device.ofSeed w2.b.seed).pk)
+  t.ok "on the lossy wire, both indexes are their stores'" ((← cacheOk w2.a) && (← cacheOk w2.b))
   -- One node for every device it holds; an abandoned join is not dialed.
   let a3 ← mkPeer "A3"
   let b3 ← mkPeer "B3"
@@ -244,4 +302,5 @@ def main : IO UInt32 := do
   w3 ← approveOnA w3 c3 (link3.request (Device.ofSeed b3.seed))
   w3 ← w3.run 30
   t.ok "the same node then joins as another device" (← allowedOn w3.b c3 (Device.ofSeed b3.seed).pk)
+  t.ok "with two devices, both indexes are their stores'" ((← cacheOk w3.a) && (← cacheOk w3.b))
   t.finish "connection_check"

@@ -120,7 +120,9 @@ family writes it as a local op, so it can't grow the log per message.
 | Engine/Sync/ConnLaws.lean | what a connection may take and send |
 | Engine/Sync/Held.lean | `Turn` (one write turn) and `Held` (a store as data) |
 | Engine/Sync/Node.lean | the driver; `Hooks` from families; frames and bundles |
-| Engine/Sync/Frame.lean | 4-byte length framing on TCP, with proven unframing |
+| Engine/Sync/NodeLaws.lean | sealed frames reach the node only opened; the cache law |
+| Engine/Sync/OfferLaws.lean | `have_shown`: what a connection offers |
+| Engine/Sync/Frame.lean | 4-byte length framing on TCP, with proven unframing and bounded buffering |
 | Engine/Sync/Tcp.lean | the TCP runner |
 | Engine/Sync/Locality.lean | `spec_local` |
 | Engine/Sync/Pair.lean | two Nodes over a lossy in-memory queue, for tests |
@@ -221,6 +223,21 @@ Proven:
 - `recv_send`, `filed_send`, `tick_send`: a connection sends only sync
   wire ops and ops in one of its rooms.
 - `intakeConn_conn`: the bare wire takes conn ops only.
+- `have_shown`: every id a connection offers, in a have or an id claim,
+  is a stored op of one of its rooms; each step reads only and keeps its
+  round snapshots of the index. It rests on the cache law: the room
+  index is the index of the ops stored (`Cached`, `cached_items`), and
+  every write turn and purge keeps it so (`write_cached`,
+  `purge_cached`). Proven of `Conn`'s code on held data; the walk is a
+  budgeted recursion (`walkN`), so it can be reasoned about.
+- `sealed_auth`, `onFrame_sealed`: a sealed frame reaches the node only
+  as `openFrame` gives it, and one that fails its AEAD check changes
+  nothing and sends nothing.
+- `buffer_bounded`, `frames_kept`, `frames_tooBig`: the TCP reader keeps
+  less than one maximal frame and its length between reads, and ends
+  the connection at a length over `maxFrame`.
+- `Op.decode_exact`, `decode_sum`: a decoded op is exactly its bytes; a
+  bundle's payloads are together smaller than it.
 - `spec_local` (locality): a decided verdict depends only on the op's
   requirement closure. If a node holds every op the peer's verdict on x
   was reached from, it reaches the same verdict.
@@ -246,9 +263,10 @@ Still to prove:
 1. **`conn_runs_exchange`.** Conn's message handling, over any delivery
    order, performs `exchange`. Each round is answered from its
    snapshot, so the claim tree is the same in any order.
-2. **`have_shown`.** Every id offered names a stored op in one of the
-   rooms. That needs the walk/filed loops plus the index invariant:
-   `items r` = the stored shared ops of room r, kept by `put`.
+2. **The node chains the steps.** `have_shown` and the cache law are
+   proven for each connection step, write turn and purge; that every
+   entry point (`onFrame`, `onTick`, `onWrite`) keeps the cache law and
+   the snapshots between them is read from the code.
 3. **`closure_delivered`.** After a send and its offers are answered,
    the peer holds the op's closure, given the invariant that `known` is
    a subset of the peer's store. With `spec_local` this gives "every op a

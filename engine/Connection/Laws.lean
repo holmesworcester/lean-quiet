@@ -11,6 +11,13 @@ Proven:
   names the other, and each one's send key is the other's receive key.
   It needs only that the suite is good and that device keys convert to
   the X25519 keys of their seeds.
+- `openFrame_auth`: `openFrame` gives a session and bytes only if the
+  frame names that session, this node holds its keys, and the frame's
+  AEAD check passes under its receive key, giving those bytes; it reads
+  nothing else and writes nothing (`openFrame_reads`).
+- `sealed_auth`, authenticate before parsing: a sealed frame that fails
+  that check leaves the node and its store as they were and sends
+  nothing, and nothing of it is decoded (`onFrame_sealed`).
 - In Connection/Noise.lean: `handshake_agrees`, `sent1_write1`,
   `sent1_read1`, `read2_write2'`; in Connection/Frame.lean: `open_seal`,
   `cid_seal`.
@@ -33,6 +40,7 @@ Node; see the README):
   or established op of cid is stored.
 -/
 import Connection.Intents
+import Engine.Sync.NodeLaws
 
 namespace Connection
 open Engine Codec
@@ -101,5 +109,107 @@ theorem established_agrees (K : Keys) (G : K.suite.Good) (edPub : B → B)
               obtain ⟨_, rfl, rfl, rfl, rfl, rfl, -⟩ := hIc
               exact ⟨hh.symm, rfl, by rw [hr], by rw [hs], rfl, rfl⟩
           · simp [hm] at hRc
+
+/-! ## Authenticate before parsing -/
+
+section
+open Engine.Sync
+
+theorem sessionKeys_reads (cid : Id) (h : Held F) : ((sessionKeys cid : HeldM F _) h).2 = h := rfl
+
+/-- What `openFrame` does, on held data: the session the frame names,
+that session's receive key, and the AEAD check under it. -/
+theorem openFrame_run (K : Keys) (b : B) (h : Held F) :
+    (openFrame K b : HeldM F _) h =
+      ((match Frame.cid b with
+        | none => none
+        | some cid => match ((sessionKeys cid : HeldM F _) h).1 with
+          | some (_, rk) => Frame.open K rk b
+          | none => none), h) := by
+  unfold openFrame
+  cases Frame.cid b with
+  | none => rfl
+  | some cid =>
+    simp only [HeldM.bind_apply]
+    rw [sessionKeys_reads]
+    cases ((sessionKeys cid : HeldM F _) h).1 with
+    | none => rfl
+    | some p => rfl
+
+theorem openFrame_reads (K : Keys) (b : B) (h : Held F) : ((openFrame K b : HeldM F _) h).2 = h := by
+  rw [openFrame_run]
+
+/-- **A frame opens only under its session's receive key.** `openFrame`
+gives a session and bytes only if the frame names that session, this
+node holds its keys, and the frame's AEAD check passes under the receive
+key, giving those bytes. -/
+theorem openFrame_auth {K : Keys} {b : B} {h : Held F} {cid p : B}
+    (ho : ((openFrame K b : HeldM F _) h).1 = some (cid, p)) :
+    Frame.cid b = some cid ∧ ∃ sk rk, ((sessionKeys cid : HeldM F _) h).1 = some (sk, rk) ∧
+      K.fdec rk (b.extract 33 57) (Frame.ad cid) (b.extract 57 b.size) = some p := by
+  rw [openFrame_run] at ho
+  simp only at ho
+  cases hc : Frame.cid b with
+  | none => rw [hc] at ho; cases ho
+  | some c =>
+    rw [hc] at ho
+    simp only at ho
+    cases hk : ((sessionKeys c : HeldM F _) h).1 with
+    | none => rw [hk] at ho; cases ho
+    | some k =>
+      obtain ⟨sk, rk⟩ := k
+      rw [hk] at ho
+      simp only at ho
+      have hc' := hc
+      unfold Frame.cid at hc'
+      unfold Frame.open at ho
+      split at ho
+      · cases ho
+      · rename_i hn
+        simp only [hn, ite_false, Option.some.injEq] at hc'
+        subst hc'
+        dsimp only at ho
+        cases hf : K.fdec rk (b.extract 33 57) (Frame.ad (b.extract 1 33)) (b.extract 57 b.size) with
+        | none => rw [hf] at ho; cases ho
+        | some q =>
+          rw [hf] at ho
+          simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at ho
+          obtain ⟨rfl, rfl⟩ := ho
+          exact ⟨rfl, sk, rk, hk, hf⟩
+
+theorem tagged_parts (t : UInt8) (f : B) :
+    (tagged t f)[0]? = some t ∧ (tagged t f).extract 1 (tagged t f).size = f := by
+  have h1 : (ByteArray.mk #[t]).size = 1 := rfl
+  refine ⟨?_, ?_⟩
+  · have e : (tagged t f)[0]? = (ByteArray.mk #[t])[0]? := by
+      show (ByteArray.mk #[t] ++ f).data[0]? = (ByteArray.mk #[t]).data[0]?
+      rw [ByteArray.data_append, Array.getElem?_append_left (by show 0 < 1; decide)]
+    rw [e]; rfl
+  · exact ByteArray.extract_append_eq_right h1.symm (ByteArray.size_append ..)
+
+/-- **Authenticate before parsing.** A sealed frame f, as it arrives
+(`tagged sealedTag f`), at a node running this family's `openFrame`:
+unless f names a session this node holds keys for and passes its AEAD
+check under that session's receive key, the node and its store are as
+they were, and nothing is sent, stored or dropped. Nothing of f is
+decoded on the way (`onFrame_sealed`: only what `openFrame` returns goes
+on). -/
+theorem sealed_auth (x : Sync F (HeldM F)) {K : Keys} (hx : x.hooks.openFrame = openFrame K)
+    (n : Node) (addr f : B) (now : Nat) (h : Held F)
+    (hbad : ∀ cid sk rk, Frame.cid f = some cid → ((sessionKeys cid : HeldM F _) h).1 = some (sk, rk) →
+      K.fdec rk (f.extract 33 57) (Frame.ad cid) (f.extract 57 f.size) = none) :
+    n.onFrame x addr (tagged sealedTag f) now h = ((n, {}), h) := by
+  obtain ⟨h0, h1⟩ := tagged_parts sealedTag f
+  apply sealed_unopened x n addr _ now h h0
+  rw [h1, hx]
+  cases ho : ((openFrame K f : HeldM F _) h).1 with
+  | none => exact Prod.ext ho (openFrame_reads K f h)
+  | some r =>
+    obtain ⟨cid, p⟩ := r
+    obtain ⟨hc, sk, rk, hk, hf⟩ := openFrame_auth ho
+    rw [hbad cid sk rk hc hk] at hf
+    cases hf
+
+end
 
 end Connection

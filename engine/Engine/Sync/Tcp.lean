@@ -72,23 +72,22 @@ structure RunConfig where
   tickMs : Nat := 200
   idle : Nat := 600000
 
-/-- Read frames from a socket into the channel until it closes. -/
+/-- Read frames from a socket into the channel until it closes. Each
+read goes through `frames`, so what is kept between reads is less than
+one maximal frame and its length (`buffer_bounded`). -/
 def reader (ch : Std.Channel Event) (sid : Nat) (c : TCP.Socket.Client) : IO Unit := do
   let mut buf := ByteArray.empty
   repeat
     match ← (c.recv? 65536).block.toBaseIO with
     | .ok (some chunk) =>
-      buf := buf ++ chunk
-      let mut more := true
-      while more do
-        match unframe buf with
-        | .frame p rest =>
-          discard <| ch.trySend (.frame sid p)
-          buf := rest
-        | .more => more := false
-        | .tooBig =>
-          discard <| ch.trySend (.closed sid)
-          return
+      let (ps, kept) := frames (buf ++ chunk)
+      for p in ps do
+        discard <| ch.trySend (.frame sid p)
+      match kept with
+      | some k => buf := k
+      | none =>
+        discard <| ch.trySend (.closed sid)
+        return
     | _ =>
       discard <| ch.trySend (.closed sid)
       return

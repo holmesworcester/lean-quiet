@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 194 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 262 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as each part's `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -131,7 +131,7 @@ nothing else is assumed:
 | 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered,** from the disk or from the static keys later. Proven: with the ephemerals gone, both static keys and the whole transcript do not give the session keys, and the session's rows are gone. Tested: no file of the database holds a byte of them (`engine/Tests/Purge.lean`). Wanted: that closing purges every ephemeral (`close_forgets`). | [`kk_forward_secret`], [`kk_forward_secret_init`], [`kk_forward_secret_resp`], [`purge_gone`], [`purge_named`] |
 | ⬜ | 🥊🥊🥊 | **Session secrets never reach the disk.** They would be ephemeral ops, held in memory, so forward secrecy would not rest on deletion. A restart then redials. | |
 | ⬜ | 🥊🥊🥊 | **Removed members cannot read new messages.** This needs key rotation, which is not built. | |
-| ⬜ | 🥊🥊 | **Every offered id names a stored op in one of the peer's rooms** (`have_shown`). This is the disclosure law for ids. | |
+| ✅ | 🥊🥊 | **Every offered id names a stored op in one of the peer's rooms.** This is the disclosure law for ids. Each step a connection takes sends only sync messages and stored ops of its rooms, and every id it offers, in a have or an id claim, is a stored op of one of its rooms. Rounds answer from the node's room index, which holds exactly the stored ops of each room. Every write turn and purge keeps it so. Tests check both on SQLite: the index after purges, and every id offered. Each step is proven; that the node's entry points chain them is read from the code. | [`have_shown`], [`write_cached`], [`purge_cached`], [`cached_items`], [`write_snaps`] |
 | | | **Connections** | |
 | ✅ | 🥊🥊🥊 | **The trust rule lets in exactly the live members.** Read from the node's tables, it accepts exactly the devices of admitted, unremoved users. Nodes that hold the same ops agree on it. | [`connect_iff`], [`refuse_nonmember`], [`connect_approved`], [`connect_agree`] |
 | ✅ | 🥊🥊🥊 | **A removal cuts the removed user out of the rule.** Once a node holds it, the rule refuses every device of that user. Only an admin can remove another user, and nothing undoes it. | [`removal_cuts_off`], [`removals_iff`], [`removal_authorized`], [`removed_stays`] |
@@ -145,9 +145,9 @@ nothing else is assumed:
 | ✅ | 🥊🥊🥊 | **Hostile bytes decode to a well-formed value or to nothing.** A QOI picture comes out at 1–2048 px a side, with exactly its pixels' bytes, so at most 16 MiB whatever it claims. An mDNS packet keeps its RFC limits, and its pointer chains end by construction. Invite links and QR segments are valid. | [`Pic.decode_sized`], [`Mdns.decode_valid`], [`Community.parse_valid`], [`Qr.parse_valid`] |
 | ✅ | 🥊🥊🥊 | **Attachments authenticate themselves.** Any peer may relay a file's chunks, but a chunk is Valid only if it is its file's own slice. One op stands for each index, so download progress counts exactly the chunks held, and the chunks for every index put together are the file. This assumes SHA-256 has no second preimage on the tree's inputs, a premise shown satisfiable. No hash with 32-byte outputs is injective, so the laws assume nothing stronger. | [`chunk_is_slice`], [`verify_sound`], [`complete_assembles`], [`chunk_unique`], [`progress_exact`], [`assumptions_hold`], [`no_injective_hash`] |
 | ✅ | 🥊🥊🥊 | **Judging cannot be hung.** From any state, judging empties its queue within a budget read off the tables. | [`drain_bounded`], [`drain_terminates`], [`step_budget`] |
-| ⬜ | 🥊🥊🥊 | **Authenticate before parsing:** a sealed frame's payload is decoded only after its AEAD check passes. | |
-| ⬜ | 🥊🥊 | **Bounded buffering:** a connection holds at most one maximal frame (1 MiB) and a read, whatever the peer's length fields say. | |
-| ⬜ | 🥊🥊 | **No amplification:** a decoded op is no larger than its bytes, and decoding is linear in them. | |
+| ✅ | 🥊🥊🥊 | **Authenticate before parsing:** a sealed frame's payload is decoded only after its AEAD check passes. The node sees a frame only as `openFrame` gives it, and that opens only under the receive key of the session the frame names. A frame that fails leaves the node and its store as they were, and sends nothing. A test forges frames over real XChaCha20-Poly1305. | [`sealed_auth`], [`openFrame_auth`], [`onFrame_sealed`], [`sealed_unopened`] |
+| ✅ | 🥊🥊 | **Bounded buffering:** a connection holds at most one maximal frame (1 MiB) and a read, whatever the peer's length fields say. Between reads it keeps less than one maximal frame and its length. A length over 1 MiB ends the connection in the read that completes it. | [`buffer_bounded`], [`frames_kept`], [`frames_tooBig`], [`frames_size`] |
+| ✅ | 🥊🥊 | **No amplification:** a decoded op is exactly its bytes, so no larger. A bundle's payloads are together smaller than it. Linear decoding time is not proven. | [`Op.decode_exact`], [`Op.decode_parts`], [`decode_sum`] |
 | ⬜ | 🥊🥊 | **Resources are capped:** memory, rounds and frames per peer. | |
 
 ### Correctness
@@ -226,93 +226,134 @@ lean-quiet, lean-qr, lean-mdns, lean-net), rewritten into its directory.
 Their other branches are kept as `import/<dir>/<branch>`.
 
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
-[`Unforgeable`]: engine/Community/Laws.lean#L249-L251
-[`CollisionFree`]: engine/Engine/Proofs.lean#L515-L517
-[`Distinct`]: engine/Engine/Proofs.lean#L511-L513
+[`Unforgeable`]: engine/Community/Laws.lean#L270-L272
+[`CollisionFree`]: engine/Engine/Proofs.lean#L542-L544
+[`Distinct`]: engine/Engine/Proofs.lean#L538-L540
 [`lbl_inj`]: engine/Engine/Sync/Fp.lean#L264-L268
-[`Suite.Good`]: engine/Connection/Noise.lean#L49-L53
+[`NoSecondPreimage`]: engine/Community/Merkle.lean#L137-L138
+[`assumptions_hold`]: engine/Community/Merkle.lean#L534-L538
+[`Suite.Good`]: engine/Connection/Noise.lean#L61-L65
 [`Keys.Good`]: engine/Connection/Types.lean#L32-L36
-[`no_impersonation`]: engine/Community/Laws.lean#L268-L281
-[`admission_needs_approval`]: engine/Community/Laws.lean#L448-L456
-[`admission_approved`]: engine/Community/Laws.lean#L367-L377
-[`request_invited`]: engine/Community/Laws.lean#L331-L341
-[`removal_authorized`]: engine/Community/Laws.lean#L483-L486
-[`admin_granted`]: engine/Community/Laws.lean#L522-L523
-[`removed_stays`]: engine/Community/Laws.lean#L529-L532
-[`valid_stays`]: engine/Community/Laws.lean#L536-L540
-[`message_authorized`]: engine/Community/Laws.lean#L234-L240
-[`approval_signed`]: engine/Community/Laws.lean#L350-L360
-[`invitation_issued`]: engine/Community/Laws.lean#L316-L322
-[`named_by_admin`]: engine/Community/Laws.lean#L574-L576
-[`admission_consented`]: engine/Community/Laws.lean#L253-L259
-[`admin_removal_stands`]: engine/Community/Laws.lean#L494-L507
-[`mutual_removal`]: engine/Community/Laws.lean#L515-L519
-[`removed_approver_admits`]: engine/Community/Laws.lean#L467-L478
+[`no_impersonation`]: engine/Community/Laws.lean#L289-L302
+[`admission_needs_approval`]: engine/Community/Laws.lean#L469-L477
+[`admission_approved`]: engine/Community/Laws.lean#L388-L398
+[`request_invited`]: engine/Community/Laws.lean#L352-L362
+[`removal_authorized`]: engine/Community/Laws.lean#L517-L520
+[`admin_granted`]: engine/Community/Laws.lean#L556-L557
+[`removed_stays`]: engine/Community/Laws.lean#L563-L566
+[`valid_stays`]: engine/Community/Laws.lean#L570-L574
+[`message_authorized`]: engine/Community/Laws.lean#L255-L261
+[`approval_signed`]: engine/Community/Laws.lean#L371-L381
+[`invitation_issued`]: engine/Community/Laws.lean#L337-L343
+[`named_by_admin`]: engine/Community/Laws.lean#L608-L610
+[`admission_consented`]: engine/Community/Laws.lean#L274-L280
+[`admin_removal_stands`]: engine/Community/Laws.lean#L528-L541
+[`mutual_removal`]: engine/Community/Laws.lean#L549-L553
+[`removed_approver_admits`]: engine/Community/Laws.lean#L488-L499
 [`recv_send`]: engine/Engine/Sync/ConnLaws.lean#L146-L148
 [`offer_shared`]: engine/Engine/Sync.lean#L83-L86
-[`wire_kinds`]: engine/Connection/Laws.lean#L35-L36
-[`local_kinds`]: engine/Connection/Laws.lean#L42-L43
-[`joinOps_travels`]: engine/Community/Intents.lean#L226-L230
-[`found_travels`]: engine/Community/Intents.lean#L237-L241
-[`stopWaiting_local`]: engine/Community/Intents.lean#L233-L234
+[`wire_kinds`]: engine/Connection/Laws.lean#L48-L49
+[`local_kinds`]: engine/Connection/Laws.lean#L55-L56
+[`joinOps_travels`]: engine/Community/Intents.lean#L246-L250
+[`found_travels`]: engine/Community/Intents.lean#L257-L261
+[`stopWaiting_local`]: engine/Community/Intents.lean#L253-L254
 [`filed_send`]: engine/Engine/Sync/ConnLaws.lean#L175-L178
 [`offer_stored`]: engine/Engine/Sync.lean#L98-L101
 [`tick_send`]: engine/Engine/Sync/ConnLaws.lean#L184-L187
 [`recipients_iff`]: engine/Community/Connect.lean#L214-L218
 [`members_iff`]: engine/Community/Connect.lean#L205-L208
-[`handshake_agrees`]: engine/Connection/Noise.lean#L313-L325
-[`sent1_write1`]: engine/Connection/Noise.lean#L219-L222
-[`sent1_read1`]: engine/Connection/Noise.lean#L251-L257
-[`read2_write2'`]: engine/Connection/Noise.lean#L290-L295
+[`member_opens`]: engine/Community/Laws.lean#L868-L872
+[`openSealed_seal`]: engine/Community/Laws.lean#L858-L860
+[`unbox_box`]: engine/Community/Keys.lean#L89-L91
+[`check_reads_shared`]: engine/Community/Laws.lean#L779-L781
+[`kk_secret`]: engine/Connection/NoiseSymbolic.lean#L595-L609
+[`kk_secret_init`]: engine/Connection/NoiseSymbolic.lean#L547-L556
+[`kk_secret_resp`]: engine/Connection/NoiseSymbolic.lean#L561-L569
+[`kk_authentic`]: engine/Connection/NoiseSymbolic.lean#L806-L820
+[`kk_authentic_resp`]: engine/Connection/NoiseSymbolic.lean#L872-L885
+[`kk_secret_init_tight`]: engine/Connection/NoiseSymbolic.lean#L616-L625
+[`kk_runs`]: engine/Connection/NoiseSymbolic.lean#L304-L312
+[`handshake_agrees`]: engine/Connection/Noise.lean#L308-L320
+[`kk_forward_secret`]: engine/Connection/NoiseSymbolic.lean#L685-L696
+[`kk_forward_secret_init`]: engine/Connection/NoiseSymbolic.lean#L643-L651
+[`kk_forward_secret_resp`]: engine/Connection/NoiseSymbolic.lean#L662-L671
 [`purge_gone`]: engine/Engine/Purge.lean#L261-L263
 [`purge_named`]: engine/Engine/Purge.lean#L267-L271
+[`have_shown`]: engine/Engine/Sync/OfferLaws.lean#L505-L517
+[`write_cached`]: engine/Engine/Sync/NodeLaws.lean#L436-L440
+[`purge_cached`]: engine/Engine/Sync/NodeLaws.lean#L508-L513
+[`cached_items`]: engine/Engine/Sync/NodeLaws.lean#L271-L274
+[`write_snaps`]: engine/Engine/Sync/OfferLaws.lean#L561-L564
 [`connect_iff`]: engine/Community/Connect.lean#L146-L150
 [`refuse_nonmember`]: engine/Community/Connect.lean#L161-L164
 [`connect_approved`]: engine/Community/Connect.lean#L182-L193
 [`connect_agree`]: engine/Community/Connect.lean#L226-L229
 [`removal_cuts_off`]: engine/Community/Connect.lean#L241-L245
 [`removals_iff`]: engine/Community/Connect.lean#L43-L44
+[`rooms_trusted`]: engine/Connection/RoomLaws.lean#L74-L79
+[`rooms_cut`]: engine/Connection/RoomLaws.lean#L93-L103
+[`trusts_live`]: engine/Connection/RoomLaws.lean#L40-L46
+[`rooms_model`]: engine/Connection/RoomLaws.lean#L109-L111
 [`recv_take`]: engine/Engine/Sync/ConnLaws.lean#L118-L120
 [`no_connection_before_approval`]: net/Net/Laws.lean#L39-L46
 [`sessions_trusted`]: net/Net/Laws.lean#L63-L68
 [`intake_local`]: engine/Engine/Sync.lean#L41-L43
 [`stored_local`]: engine/Engine/Sync.lean#L137-L140
-[`local_fact_mine`]: engine/Community/Laws.lean#L593-L597
+[`local_fact_mine`]: engine/Community/Laws.lean#L627-L631
 [`intakeConn_conn`]: engine/Engine/Sync.lean#L36-L37
-[`established_agrees`]: engine/Connection/Laws.lean#L46-L56
+[`established_agrees`]: engine/Connection/Laws.lean#L59-L69
 [`open_seal`]: engine/Connection/Frame.lean#L51-L55
 [`cid_seal`]: engine/Connection/Frame.lean#L79-L82
 [`Codec.encode_decode`]: engine/Engine/Codec.lean#L154-L157
 [`Op.id_decode`]: engine/Engine/Core.lean#L85-L87
-[`distinct_of_collisionFree`]: engine/Engine/Proofs.lean#L519-L522
+[`distinct_of_collisionFree`]: engine/Engine/Proofs.lean#L546-L549
+[`op_of_valid`]: engine/Community/Laws.lean#L227-L232
 [`Pic.decode_sized`]: qr/Pic/Laws.lean#L198-L201
 [`Mdns.decode_valid`]: mdns/Mdns/Laws.lean#L540-L541
 [`Community.parse_valid`]: engine/Community/Link.lean#L213-L214
 [`Qr.parse_valid`]: qr/Qr/SegLaws.lean#L336-L338
-[`drain_bounded`]: engine/Engine/Budget.lean#L174-L179
+[`chunk_is_slice`]: engine/Community/Laws.lean#L672-L681
+[`verify_sound`]: engine/Community/Merkle.lean#L426-L432
+[`complete_assembles`]: engine/Community/Merkle.lean#L473-L479
+[`chunk_unique`]: engine/Community/Laws.lean#L711-L716
+[`progress_exact`]: engine/Community/Intents.lean#L497-L504
+[`no_injective_hash`]: engine/Community/Merkle.lean#L236-L238
+[`drain_bounded`]: engine/Engine/Budget.lean#L163-L168
 [`drain_terminates`]: engine/Engine/Termination.lean#L84-L87
-[`step_budget`]: engine/Engine/Budget.lean#L135-L137
+[`step_budget`]: engine/Engine/Budget.lean#L124-L126
+[`sealed_auth`]: engine/Connection/Laws.lean#L190-L201
+[`openFrame_auth`]: engine/Connection/Laws.lean#L142-L149
+[`onFrame_sealed`]: engine/Engine/Sync/NodeLaws.lean#L52-L58
+[`sealed_unopened`]: engine/Engine/Sync/NodeLaws.lean#L67-L73
+[`buffer_bounded`]: engine/Engine/Sync/Frame.lean#L213-L218
+[`frames_kept`]: engine/Engine/Sync/Frame.lean#L158-L161
+[`frames_tooBig`]: engine/Engine/Sync/Frame.lean#L180-L183
+[`frames_size`]: engine/Engine/Sync/Frame.lean#L188-L189
+[`Op.decode_exact`]: engine/Engine/Core.lean#L92-L94
+[`Op.decode_parts`]: engine/Engine/Core.lean#L97-L100
+[`decode_sum`]: engine/Engine/Codec.lean#L193-L196
 [`same_ops_same_verdicts`]: engine/Engine/Termination.lean#L118-L126
-[`order_free`]: engine/Engine/Proofs.lean#L607-L612
+[`order_free`]: engine/Engine/Proofs.lean#L634-L639
 [`drain_settles`]: engine/Engine/Termination.lean#L110-L114
-[`status_iff_spec`]: engine/Engine/Proofs.lean#L456-L458
+[`status_iff_spec`]: engine/Engine/Proofs.lean#L483-L485
 [`spec_extends`]: engine/Engine/SpecLemmas.lean#L137-L139
-[`inv_ingest`]: engine/Engine/Proofs.lean#L207-L207
-[`inv_step`]: engine/Engine/Proofs.lean#L238-L238
+[`inv_ingest`]: engine/Engine/Proofs.lean#L229-L229
+[`inv_step`]: engine/Engine/Proofs.lean#L260-L260
 [`purge_shared`]: engine/Engine/Purge.lean#L274-L276
-[`purge_settles`]: engine/Engine/Budget.lean#L203-L209
-[`purge_undecides`]: engine/Engine/Proofs.lean#L352-L359
-[`purge_inv`]: engine/Engine/Proofs.lean#L367-L371
-[`mem_purgeSet`]: engine/Engine/Proofs.lean#L340-L344
-[`reach_ops`]: engine/Engine/Proofs.lean#L597-L599
+[`purge_settles`]: engine/Engine/Budget.lean#L192-L198
+[`purge_undecides`]: engine/Engine/Proofs.lean#L376-L383
+[`purge_inv`]: engine/Engine/Proofs.lean#L391-L395
+[`mem_purgeSet`]: engine/Engine/Proofs.lean#L364-L368
+[`reach_ops`]: engine/Engine/Proofs.lean#L624-L626
 [`sum_left`]: engine/Engine/Families.lean#L69-L72
 [`sum_scope_left`]: engine/Engine/Families.lean#L75-L76
 [`Codec.decode_encode`]: engine/Engine/Codec.lean#L148-L148
 [`Op.decode_bytes`]: engine/Engine/Core.lean#L90-L90
-[`request_valid`]: engine/Community/Laws.lean#L388-L396
-[`approve_valid`]: engine/Community/Laws.lean#L404-L412
-[`admit_admits`]: engine/Community/Laws.lean#L420-L431
+[`request_valid`]: engine/Community/Laws.lean#L409-L417
+[`approve_valid`]: engine/Community/Laws.lean#L425-L433
+[`admit_admits`]: engine/Community/Laws.lean#L441-L452
 [`connect_admitted`]: engine/Community/Connect.lean#L169-L179
+[`removeMember_valid`]: engine/Community/Intents.lean#L375-L382
 [`exchange_complete`]: engine/Engine/Sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: engine/Engine/Sync/RoundLaws.lean#L323-L325
 [`num_inj`]: engine/Engine/Sync/Fp.lean#L37-L37
@@ -328,8 +369,16 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`hit_iff`]: app/Quiet/SheetGeom.lean#L93-L95
 [`eval_stable`]: engine/Engine/View.lean#L137-L142
 [`view_stable`]: engine/Engine/View.lean#L163-L165
-[`filed_rel`]: engine/Engine/Decl.lean#L163-L170
+[`filed_rel`]: engine/Engine/Decl.lean#L189-L196
 [`mem_keysOf`]: engine/Engine/Decl.lean#L79-L82
+[`matching_nodup`]: engine/Engine/Decl.lean#L158-L161
+[`writes_only_after_two`]: app/Quiet/Remove.lean#L56-L59
+[`cancel_writes_nothing`]: app/Quiet/Remove.lean#L63-L64
+[`open_fresh`]: app/Quiet/Remove.lean#L67-L69
+[`no_replace`]: app/Quiet/Remove.lean#L74-L76
+[`offered_only`]: app/Quiet/Remove.lean#L83-L86
+[`present_iff`]: app/Quiet/PeopleLaws.lean#L27-L30
+[`present_nodup`]: app/Quiet/PeopleLaws.lean#L37-L38
 [`placed_row`]: app/Quiet/Geometry.lean#L81-L85
 [`newest_drawn`]: app/Quiet/Geometry.lean#L108-L111
 [`pinned_row`]: app/Quiet/Geometry.lean#L141-L144
@@ -349,23 +398,23 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`digits_keep_order`]: app/Quiet/TextLaws.lean#L109-L116
 [`message_read`]: app/Quiet/ViewLaws.lean#L61-L66
 [`profile_read`]: app/Quiet/ViewLaws.lean#L39-L41
-[`profile_authorized`]: engine/Community/Laws.lean#L286-L293
-[`no_renaming`]: engine/Community/Laws.lean#L300-L311
+[`profile_authorized`]: engine/Community/Laws.lean#L307-L314
+[`no_renaming`]: engine/Community/Laws.lean#L321-L332
 [`name_placed`]: app/Quiet/RowLaws.lean#L89-L92
 [`oneLine_prefix`]: app/Quiet/TextLaws.lean#L97-L98
 [`time_shown`]: app/Quiet/RowLaws.lean#L84-L87
 [`tally_nodup`]: app/Quiet/RowLaws.lean#L56-L60
 [`tally_mem`]: app/Quiet/RowLaws.lean#L68-L71
 [`picBox_aspect`]: app/Quiet/RowLaws.lean#L19-L28
-[`readable_held`]: engine/Community/Intents.lean#L275-L279
-[`readable_complete`]: engine/Community/Intents.lean#L317-L321
-[`switcherOrder_sound`]: app/Quiet/Pages.lean#L583-L585
-[`switcherOrder_complete`]: app/Quiet/Pages.lean#L590-L592
+[`readable_held`]: engine/Community/Intents.lean#L295-L299
+[`readable_complete`]: engine/Community/Intents.lean#L337-L341
+[`switcherOrder_sound`]: app/Quiet/Pages.lean#L656-L658
+[`switcherOrder_complete`]: app/Quiet/Pages.lean#L663-L665
 [`dedupe_nodup`]: app/Quiet/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: app/Quiet/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: app/Quiet/Switch.lean#L82-L84
-[`drawPage_key`]: app/Quiet/App.lean#L795-L799
-[`pageIn_acc`]: app/Quiet/App.lean#L801-L804
+[`drawPage_key`]: app/Quiet/App.lean#L824-L828
+[`pageIn_acc`]: app/Quiet/App.lean#L830-L833
 [`parse_segsBits`]: qr/Qr/SegLaws.lean#L157-L161
 [`parse_dataStream`]: qr/Qr/SegLaws.lean#L193-L197
 [`RS.correct_sound`]: qr/Qr/Laws.lean#L55-L57
