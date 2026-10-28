@@ -89,7 +89,7 @@ abbrev ImgKey := ByteArray × Nat × Nat
 /-- Which page is up: a conversation, or one of libquiet's other screens. -/
 inductive PageId where
   | home | chat | getStarted | create | createName | joinChoice | openInvite | paste | scan | name | agree | waiting
-  | requests | invite | switcher | profile | removeConfirm
+  | requests | invite | switcher | profile | removeConfirm | duplicate
   deriving BEq, Repr, Inhabited
 
 /-- The reaction sheet's state: quick or the catalogue, its category,
@@ -880,7 +880,7 @@ def pageTitle : PageId → String × Bool
   | .name => ("", false) | .createName => ("", false)
   | .agree => ("Agree & join", false) | .waiting => ("", false) | .requests => ("Waiting to join", true)
   | .invite => ("Add members", true) | .switcher => ("Communities", true) | .chat => ("", false)
-  | .profile => ("", true) | .removeConfirm => ("", true)
+  | .profile => ("", true) | .removeConfirm => ("", true) | .duplicate => ("Warning!", true)
   | .home => ("", false)
 
 /-- A page and its bar, from its key alone (and the font, background and
@@ -916,6 +916,7 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
     | .home => Pages.home f dm W h (if me.waiting then 0 else k.askingAll) #["general"] k.members k.online
     | .profile => let (n, isMe, removed, can) := k.profile; Pages.profile f dm W h n isMe removed can
     | .removeConfirm => Pages.removeConfirm f dm W h k.profile.1 k.removeStage k.removeWhy
+    | .duplicate => Pages.duplicate f dm W h
     | .chat => ⟨Bitmap.blank W h bg, #[]⟩
   let (t, cross) := pageTitle k.page
   -- a first launch's Get started has nowhere to go back to
@@ -1254,6 +1255,7 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
           | .pill e =>
             if !(row.data.tallies.any fun t => t.emoji == e && t.mine) then
               let _ ← reactTo m e
+          | .twin => openPage .duplicate
           | _ => pure ()
 
 def onEvent : Event → M Bool

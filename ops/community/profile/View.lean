@@ -1,8 +1,9 @@
 /-
 A person, by their newest profile: its name.
 
-Reads: `profile.byUser [c, u]` (newest first, one row). Drawn by
-Message's view (the name, and the avatar's initial).
+Reads: `profile.byUser [c, u]` (newest first, one row); for whether
+the name has a namesake, `profile.byLook [c, look]`. Drawn by Message's
+view (the name, its duplicate mark, and the avatar's initial).
 
 Every name read starts from a member (an admission, or a message's
 author), never from `profile.all`: a requester's profile is filed before
@@ -27,6 +28,24 @@ def read (c u : Id) (deps : Array Q) : m (Data × Array Q) := do
   match a.rows.head? with
   | some (_, .profile _ _ n _) => return (⟨bytesStr n⟩, deps)
   | _ => return (⟨"…"⟩, deps)
+
+/-- Whether a user other than u, among these rows, has a newest name
+that looks as k. -/
+def others (c u : Id) (k : ByteArray) : List (Pos × Fact) → Array Q → m (Bool × Array Q)
+  | [], deps => pure (false, deps)
+  | (_, .profile _ u' _ _) :: t, deps => do
+    if u' = u then others c u k t deps else
+    let (p, deps) ← read c u' deps
+    if nameLook p.name = k then pure (true, deps) else others c u k t deps
+  | _ :: t, deps => others c u k t deps
+
+/-- Whether u, named `name`, has a namesake: another user whose newest
+name looks the same (`nameLook`: invisible characters and kinds of space
+do not tell names apart). Both are marked, as Quiet marks a duplicate
+name. Reads the profiles filed under the look, and each author's newest. -/
+def namesake (c u : Id) (name : String) (deps : Array Q) : m (Bool × Array Q) := do
+  let (a, _, deps) ← readList (profile.byLook.query [c, nameLook name]) deps
+  others c u (nameLook name) a.rows deps
 
 /-- The users of these live admissions, each once (in admission order),
 with their devices. -/

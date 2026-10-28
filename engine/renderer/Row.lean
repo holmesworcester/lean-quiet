@@ -31,6 +31,8 @@ def pillMine : Color := 0x1D3A4A
 def accent : Color := 0x1D9BD1
 def selBg : Color := 0x222529
 def placeholder : Color := 0x2C2F33
+/-- Quiet's duplicate-name label: white on red. -/
+def twinBg : Color := 0xF06C6C
 
 /-- Sizes for a screen: its density (dpi) and the font's cell. Lengths
 are given in dp (Android's density-independent pixels, 160 a inch) and
@@ -106,6 +108,8 @@ structure RowData where
   tallies : List Tally
   pending : Bool
   selected : Bool
+  /-- Another user's name looks the same: marked "Duplicate". -/
+  namesake : Bool := false
   deriving BEq, Inhabited
 
 /-! ## Layout -/
@@ -129,6 +133,9 @@ structure Layout where
   pills : Array (Box × String × Line × Bool)
   /-- The palette (selected rows): box and emoji. -/
   palette : Array (Box × String)
+  /-- The duplicate-name label after the name, when the name has a
+  namesake: its box and its line. -/
+  twin : Option (Box × Line) := none
   deriving Inhabited
 
 /-- The quick reactions, as libquiet's tray offers them. -/
@@ -174,6 +181,14 @@ def layoutBody (f : Font) (dm : Dim) (W : Nat) (d : RowData) (y0 : Nat) :
   if !d.tallies.isEmpty then y := y + ph
   return (pics, pills, max (y + dm.px 8) (dm.topPad + dm.avatar + dm.px 8))
 
+/-- Quiet's label for a name another user's looks the same as. -/
+def twinText : String := "⚠ Duplicate"
+
+/-- The duplicate label's box, from x on the name's line, and its line. -/
+def twinPill (f : Font) (dm : Dim) (x : Nat) : Box × Line :=
+  let l := oneLine f (dm.cell * 8) twinText
+  (⟨x, dm.topPad - min dm.topPad (dm.px 1), dm.px 6 + Paint.Line.width f l + dm.px 6, f.cell + dm.px 2⟩, l)
+
 /-- The row: its name and time on the first line (each cut as `oneLine`
 cuts), its text wrapped below, then its pictures and pills. -/
 def layout (f : Font) (dm : Dim) (W : Nat) (d : RowData) : Layout :=
@@ -181,12 +196,14 @@ def layout (f : Font) (dm : Dim) (W : Nat) (d : RowData) : Layout :=
   let tw := W - tx - dm.pad
   let lh := dm.lineH
   let name := oneLine f (tw / 2) d.name
-  let timeX := tx + Paint.Line.width f name + dm.px 8
+  let nx := tx + Paint.Line.width f name + dm.px 8
+  let twin := if d.namesake then some (twinPill f dm nx) else none
+  let timeX := match twin with | some (bx, _) => bx.x + bx.w + dm.px 8 | none => nx
   let time := oneLine f (dm.cell * 4) (if d.pending then "pending" else clock d.time)
   let text := if d.text.isEmpty then #[] else Text.layout f tw d.text
   let textY := dm.topPad + lh
   let (pics, pills, h) := layoutBody f dm W d (textY + text.size * lh)
-  ⟨h, name, time, timeX, text, textY, pics, pills, #[]⟩
+  ⟨h, name, time, timeX, text, textY, pics, pills, #[], twin⟩
 
 /-! ## Paint -/
 
@@ -214,6 +231,9 @@ def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (d : RowData) (l :
   | some img => b := b.image img dm.pad ay (a / 2)
   | none => b := b.round dm.pad ay (dm.pad + a) (ay + a) (a / 2) placeholder
   b := b.line f l.name tx dm.topPad nameInk true
+  if let some (bx, lbl) := l.twin then
+    b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) (dm.px 8) twinBg
+    b := b.line f lbl (bx.x + dm.px 6) dm.topPad nameInk
   b := b.line f l.time l.timeX dm.topPad dim
   let tc := if d.pending then dim else ink
   for i in [0:l.text.size] do
@@ -286,6 +306,8 @@ def tray (f : Font) (dm : Dim) (mine : List String) (backdrop : Color) : Tray :=
 inductive Hit where
   | pill (emoji : String)
   | palette (emoji : String)
+  /-- The duplicate-name label. -/
+  | twin
   | row
   deriving BEq
 
@@ -293,6 +315,8 @@ def Box.has (b : Box) (x y : Nat) : Bool := b.x ≤ x && x < b.x + b.w && b.y �
 
 /-- What a tap at (x, y) in the row's own pixels lands on. -/
 def hit (l : Layout) (x y : Nat) : Hit := Id.run do
+  if let some (bx, _) := l.twin then
+    if bx.has x y then return .twin
   for (bx, e, _, _) in l.pills do
     if bx.has x y then return .pill e
   for (bx, e) in l.palette do

@@ -91,4 +91,24 @@ cuts (a logical prefix: Text.oneLine_prefix). -/
 theorem name_placed (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
     (layout f dm W d).name = Text.oneLine f ((W - dm.textX - dm.pad) / 2) d.name := rfl
 
+/-- **The row is labelled "⚠ Duplicate" exactly when its name has a
+namesake** (the row's `namesake`, read as NamesakeLaws.row_marked says),
+after the name and before the time. -/
+theorem twin_shown (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
+    (layout f dm W d).twin.map (·.2) = if d.namesake then some (Text.oneLine f (dm.cell * 8) twinText) else none := by
+  simp only [layout]; split <;> rfl
+
+/-- The label sits between the name and the time. -/
+theorem twin_before_time (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) {bx : Box} {l : Text.Line}
+    (h : (layout f dm W d).twin = some (bx, l)) : bx.x + bx.w ≤ (layout f dm W d).timeX := by
+  simp only [layout] at h ⊢
+  split at h
+  · next hn => simp only [Option.some.injEq] at h; simp only [hn, ite_true, h]; omega
+  · cases h
+
+/-- **A tap on the label lands on it** (it opens Quiet's warning). -/
+theorem hit_twin {l : Layout} {bx : Box} {ln : Text.Line} {x y : Nat}
+    (h : l.twin = some (bx, ln)) (hb : bx.has x y = true) : hit l x y = .twin := by
+  simp [hit, h, hb]
+
 end RowLaws
