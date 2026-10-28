@@ -185,6 +185,27 @@ def outbox : m (List (Id × Route × B)) := do
 
 end
 
+/-- A session's sealer. Each frame is its counter (8 bytes, big-endian)
+then the sealed bytes, with the counter as Noise's nonce: the send key's
+for frames out, the receive key's for frames in. A frame opens only if
+its counter is at least the next one expected, so a replayed or
+reordered-back frame is refused and a lost one costs nothing. The state
+is the two keys and the two counters. -/
+def sealer (S : Noise.Suite) (sk rk : B) : Sealer where
+  state := encode (sk, (0 : Nat), rk, (0 : Nat))
+  sealFrame st p :=
+    match (decode st : Option (B × Nat × B × Nat)) with
+    | some (k, n, r, m) => (encode (k, n + 1, r, m), Community.be64 n ++ S.enc k n.toUInt64 .empty p)
+    | none => (st, .empty)
+  openFrame st c :=
+    match (decode st : Option (B × Nat × B × Nat)) with
+    | some (k, n, r, m) =>
+      if c.size < 24 then none else
+      let i := (c.extract 0 8).foldl (fun a b => a * 256 + b.toNat) 0
+      if i < m ∨ i ≥ 2 ^ 64 - 1 then none else
+      (S.dec r i.toUInt64 .empty (c.extract 8 c.size)).map fun p => (encode (k, n, r, i + 1), p)
+    | none => none
+
 /-- What the node driver calls. -/
 def hooks (fam : Family F) (K : Keys) (seed listen : B) : Hooks F where
   rooms := rooms seed
@@ -193,5 +214,7 @@ def hooks (fam : Family F) (K : Keys) (seed listen : B) : Hooks F where
   outbox := outbox
   react := react fam K seed
   dial := dial K seed listen
+  established := sessions
+  session cid := do return (← sessionKeys cid).map fun (sk, rk) => sealer K.suite sk rk
 
 end Connection

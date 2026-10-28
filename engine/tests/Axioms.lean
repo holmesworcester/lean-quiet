@@ -1,6 +1,6 @@
 import Engine
 import Community
-import Connection.Noise
+import Connection
 open Engine Community
 #print axioms Engine.inv_ingest
 #print axioms Engine.inv_step
@@ -78,3 +78,8 @@ open Engine Community
 #print axioms Engine.step_budget
 #print axioms Community.stopWaiting_local
 #print axioms Connection.Noise.handshake_agrees
+#print axioms Connection.Noise.sent1_write1
+#print axioms Connection.wire_kinds
+#print axioms Connection.local_kinds
+#print axioms Engine.sum_left
+#print axioms Engine.sum_scope_left

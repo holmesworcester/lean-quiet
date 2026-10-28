@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
-lake build scenario differential crash querydiff linkcheck lifecycle wire syncpair tcppair noise_check
+lake build scenario differential crash querydiff linkcheck lifecycle wire syncpair tcppair noise_check connection_check
 mkdir -p out
 .lake/build/bin/scenario out/scenario
 .lake/build/bin/differential out/differential "${SEEDS:-12}"
@@ -20,4 +20,5 @@ mkdir -p out
 .lake/build/bin/syncpair
 .lake/build/bin/tcppair out/tcppair
 .lake/build/bin/noise_check
+.lake/build/bin/connection_check
 tests/crash.sh "${CRASH_ROUNDS:-10}" out/crash
