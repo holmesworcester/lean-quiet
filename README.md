@@ -21,9 +21,9 @@ meaningful sense Lean draws all pixels on the screen.
 There is also a credible path to proofs about n clients. The sync
 proofs already run the real sync code, in a world of two devices whose
 network can delay, reorder or drop messages. Devices that hold the same
-ops agree, whatever order the ops arrived in, so for n devices it comes
-down to proving that every op reaches every member
-([toward n clients](#toward-n-clients)).
+ops agree, whatever order the ops arrived in (proven so far over a model
+of purging). So for n devices, it comes down to proving that every op
+reaches every member ([toward n clients](#toward-n-clients)).
 
 ## What is proven
 
