@@ -141,11 +141,20 @@ structure Pending where
 
 def Pending.pos (p : Pending) : Pos := (sortOf p.fact, p.op.id)
 
+/-- The outbox's ops a store answer to q has not counted yet: those
+filed under q's keys that the store does not hold decided (`stored`, a
+point read of each id: so a count-only read, with no rows to look in, is
+exact too) and that are not among its rows. -/
+def pendingFor (out : Array Pending) (q : ListQ) (a : Answer Fact) (stored : Id → Bool) : List Pending :=
+  out.toList.filter fun p =>
+    p.keys.contains q.key && q.also.all (p.keys.contains ·) && !stored p.op.id &&
+      !(a.rows.any (·.1.2 == p.op.id))
+
 /-- The outbox's facts merged into a store answer: rows under the
 query's keys, inside its range, not in the store yet. -/
-def overlayList (out : Array Pending) (q : ListQ) (a : Answer Fact) : Answer Fact × List Id := Id.run do
-  let mine := out.toList.filter fun p =>
-    p.keys.contains q.key && q.also.all (p.keys.contains ·) && !(a.rows.any (·.1.2 == p.op.id))
+def overlayList (out : Array Pending) (q : ListQ) (a : Answer Fact) (stored : Id → Bool := fun _ => false) :
+    Answer Fact × List Id := Id.run do
+  let mine := pendingFor out q a stored
   if mine.isEmpty then return (a, [])
   let inR := mine.filter fun p => q.inside p.pos
   let all := a.rows ++ inR.map fun p => (p.pos, p.fact)
@@ -153,6 +162,16 @@ def overlayList (out : Array Pending) (q : ListQ) (a : Answer Fact) : Answer Fac
   let rows := q.cut (if q.desc then sorted.reverse else sorted)
   -- a pending row pushed past the limit is left out like any other
   return (⟨rows, a.inRange + inR.length, a.total + mine.length⟩, mine.map (·.op.id))
+
+/-- **The overlay counts every op once.** Its total is the store's plus
+the pending ops the store has not counted (`pendingFor`): one held both
+stored and pending is counted once, by the store. -/
+theorem overlay_total (out : Array Pending) (q : ListQ) (a : Answer Fact) (stored : Id → Bool) :
+    (overlayList out q a stored).1.total = a.total + (pendingFor out q a stored).length := by
+  unfold overlayList
+  by_cases h : (pendingFor out q a stored).isEmpty
+  · simp [h, List.isEmpty_iff.1 h]
+  · simp [h]
 
 /-! ## Live answers -/
 
@@ -203,13 +222,23 @@ def Live.keep (l : Live) (want : Q → Bool) : Live :=
     if qs.isEmpty then acc else acc.insert k qs) {}
   { l with entries := l.entries.filter fun q _ => want q, armed }
 
+/-- An op's verdict, from the store (the judge reads requirements this way). -/
+def status (db : Db) (x : Id) : IO (Option (Verdict SF)) :=
+  (Store.getStatus (F := SF) (m := SqlM SF) x).run db
+
 /-- The store's answer to q on the read connection, with the outbox. -/
 def Q.run (db : Db) (out : Array Pending) : Q → IO Ans
   | .list q => do
     let a ← (listSql (F := SF) q).run db
     -- a community list's rows are all community facts (its key is theirs)
     let a : Answer Fact := ⟨a.lefts, a.inRange, a.total⟩
-    let (a, pend) := overlayList out q a
+    -- each pending op the store already holds decided is counted by the
+    -- store, not again by the outbox (between a commit and the frame
+    -- taking its notice, an op is in both)
+    let mut held : List Id := []
+    for p in out do
+      if (← Data.status db p.op.id).isSome then held := p.op.id :: held
+    let (a, pend) := overlayList out q a fun x => held.any (· == x)
     return .list a pend
   | .op x => return .bytes ((← (Store.getOp (F := SF) (m := SqlM SF) x).run db).map (·.bytes))
 
@@ -251,8 +280,5 @@ def readView {α : Type} : View Fact α → Array Q → m (α × Array Q)
 
 end
 
-/-- An op's verdict, from the store (the judge reads requirements this way). -/
-def status (db : Db) (x : Id) : IO (Option (Verdict SF)) :=
-  (Store.getStatus (F := SF) (m := SqlM SF) x).run db
 
 end Data
