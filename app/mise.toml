@@ -31,3 +31,27 @@ run = "tests/check.sh"
 [tasks."host:two-nodes"]
 description = "Two apps, each its own database, joined by link through their own pages: invite, paste, agree, the request carried, approve, admission carried, a message back"
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build two_nodes && .lake/build/bin/two_nodes out/two"
+
+[tasks."ios:sim"]
+description = "The app in the iOS Simulator on the Mac (take it with mac-turn first; ios/README.md): build, install, launch with the chaos data, a screenshot in out/ios-sim"
+run = "ios/ship.sh sim"
+
+[tasks."ios:sim-e2e"]
+description = "End to end in the iOS Simulator: the UI test scrolls, taps, long-presses, types on the software keyboard and sends, each step checked in Lean's state over the control channel; screenshots in out/ios-sim/shots"
+run = "ios/ship.sh e2e"
+
+[tasks."ios:device"]
+description = "The app built and signed for an iPhone on the Mac (installs nothing; ios/ship.sh run installs and launches)"
+run = "ios/ship.sh device"
+
+[tasks."ios:mdns"]
+description = "The network probe in the iOS Simulator (ios/probe): Lean's TCP out and in, and lean-mdns both ways (the app logs the Mac's dns-sd -R probe; dns-sd -B and -L see the app's _leanquiet._udp announcement); report in out/ios-sim/probe-sim.txt"
+run = "ios/ship.sh mdns"
+
+[tasks."ios:mdns-device"]
+description = "The network probe on the iPhone (DEVICE; ask before using it): as ios:mdns, over the Mac's Wi-Fi; report in out/ios-sim/probe-device.txt"
+run = "ios/ship.sh mdns-device"
+
+[tasks."ios:e2e"]
+description = "End to end on the iPhone (DEVICE; ask before using it): build, install, launch, then over the Mac's Wi-Fi the chaos data, Lean's state and frames drawn; console in out/ios-device"
+run = "ios/ship.sh e2e-device"

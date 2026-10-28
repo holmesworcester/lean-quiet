@@ -10,7 +10,7 @@ jobs:
       - uses: actions/checkout@v4
         with: { path: lean-quiet }
       - uses: actions/checkout@v4
-        with: { repository: ${{ github.repository_owner }}/lean-engine, path: lean-engine }
+        with: { repository: "${{ github.repository_owner }}/lean-engine", path: lean-engine }
       - run: sudo apt-get install -y libsqlite3-dev libsodium23 python3-pil
       - run: curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
       - uses: jdx/mise-action@v2
@@ -34,3 +34,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: android-e2e-twin, path: out/e2e-twin }
+  # The iOS Simulator suite needs a Mac with Xcode 26.3 over SSH (MAC; see
+  # ios/README.md) and the Mac's turn: run it by hand (workflow_dispatch)
+  # on a self-hosted runner labelled ios.
+  ios-sim-e2e:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, ios]
+    steps:
+      - uses: actions/checkout@v4
+      - run: mise run ios:sim-e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: ios-sim-e2e, path: out/ios-sim }
