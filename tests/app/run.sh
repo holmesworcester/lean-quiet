@@ -13,7 +13,11 @@ export PATH="$ELAN_HOME/bin:$PATH"
 lake build host two_nodes net_join cross arrival attach
 .lake/build/bin/host "${MESSAGES:-500}" out/host
 .lake/build/bin/two_nodes out/two
-.lake/build/bin/net_join out/net
-.lake/build/bin/cross out/cross
+if [ "${SKIP_TCP:-0}" != 1 ]; then
+  .lake/build/bin/net_join out/net
+  .lake/build/bin/cross out/cross
+else
+  echo "SKIP net_join cross (TCP sandbox; both built)"
+fi
 .lake/build/bin/arrival out/arrival
-.lake/build/bin/attach out/attach
+if [ "${SKIP_TCP:-0}" != 1 ]; then .lake/build/bin/attach out/attach; else echo "SKIP attach (TCP sandbox; built)"; fi

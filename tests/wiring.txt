@@ -91,6 +91,9 @@ bridge Engine.drainS Engine.run_drain
 bridge Engine.ingestS Engine.run_ingest
 bridge Engine.View.eval Engine.View.run_model
 bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
+# A want reply's read program: the running interpreter's answer is the
+# trace's (the trace's read list follows the same program, read by read).
+bridge Engine.Sync.Read.trace Engine.Sync.Read.run_model
 
 ## Specifications
 
@@ -99,6 +102,9 @@ spec Engine.View.keys The keys a view reads, on the model: what a screen watches
 spec Engine.lexCmp Byte order, which `be64` keeps.
 spec Engine.Sync.pres The byte strings a label hashes, for the no-collision hypothesis.
 spec Engine.Sync.Msg.offers The ids a sync message offers.
+spec Engine.Sync.retried The ids an output's wants ask for.
+spec Engine.Sync.replyBytes A reply's payload bytes, for its bound.
+spec Engine.Sync.largestOp A reply's largest op, for its bound.
 spec Community.Merkle.treeInputs A file's Merkle tree inputs, for the no-second-preimage hypothesis.
 spec Community.Merkle.subInputs A subtree's Merkle inputs, for the no-second-preimage hypothesis.
 spec Community.Merkle.slices A file's chunks, as the tree cuts it.

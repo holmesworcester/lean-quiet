@@ -12,7 +12,7 @@ pixel of its UI, and checks proofs about all four.
 
 Lean is mostly used for mathematics, or to verify one part of a system.
 Here it is a whole, ordinary app, and about three quarters of its
-theorems (275 of 366) are about the code that runs on the phone; the
+theorems (336 of 428) are about the code that runs on the phone; the
 rest are over models, and moving them onto running code is a todo
 ([what is proven](#what-is-proven)). Native code only connects Lean to
 each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)), so in a
@@ -132,7 +132,7 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 366 rest on Lean's standard axioms
+that rests on; 🥊 is supporting. All 428 rest on Lean's standard axioms
 only.
 
 ### Security proofs
@@ -147,12 +147,12 @@ only.
 | ✅ | 🥊🥊 | **Every op is signed by whom it must be.** A message is signed by an admitted device of its author, and an approval by a member other than the requester. An invitation is signed by its issuer, and a community's name by an admin. Each admission was consented to by its device. | [`message_authorized`], [`approval_signed`], [`invitation_issued`], [`named_by_admin`], [`admission_consented`] |
 | ✅ | 🥊🥊 | **Admins' removals stand,** even of each other, and a removed member's earlier approvals still count. | [`admin_removal_stands`], [`mutual_removal`], [`removed_approver_admits`] |
 | | | **Confidentiality** | |
-| ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A peer learns nothing of the rooms it isn't let into, not even whether this node holds an op of one. [More](#disclosure-and-intake) | [`recv_send`], [`hold_reply_local`], [`heldIn_index`], [`hold_reply_local_premises`] |
+| ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A peer learns nothing of the rooms it isn't let into, not even whether this node holds an op of one. [More](#disclosure-and-intake) | [`recv_send`], [`hold_reply_local`], [`heldIn_index`], [`hold_reply_local_premises`], [`want_reads_authorized`], [`want_blind`], [`want_blind_step`] |
 | ✅ | 🥊🥊🥊 | **Secrets stay on the device.** No local op (a secret, a session key, a pending join) is ever offered or sent. Of a connection's ops, only the two handshake messages are not local. | [`offer_shared`], [`wire_kinds`], [`local_kinds`], [`joinOps_travels`], [`found_travels`], [`stopWaiting_local`] |
-| ✅ | 🥊🥊 | **The stream discloses only what it may.** It offers only ids of stored, shared ops, never one still pending. The clock sends only round messages and offers. | [`filed_send`], [`offer_stored`], [`tick_send`] |
+| ✅ | 🥊🥊 | **The stream discloses only what it may.** It offers only ids of stored, shared ops, never one still pending. The clock sends only round messages, offers and retries of outstanding wants. | [`filed_send`], [`offer_stored`], [`tick_send`] |
 | 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Only live members can open a community's messages. [More](#sealing-messages-to-members) | [`recipients_iff`], [`members_iff`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`check_reads_shared`] |
 | ✅ | 🥊🥊🥊 | **Sessions are secret and authenticated.** An attacker who reads, replays and injects every message cannot derive a session's keys or pass as either end. [More](#sessions) | [`kk_secret`], [`kk_secret_init`], [`kk_secret_resp`], [`kk_authentic`], [`kk_authentic_resp`], [`kk_secret_init_tight`], [`kk_runs`], [`handshake_agrees`] |
-| 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered,** from the disk or from the static keys later. [More](#sessions) | [`kk_forward_secret`], [`kk_forward_secret_init`], [`kk_forward_secret_resp`], [`purge_gone`], [`purge_named`] |
+| 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered,** from the disk or from the static keys later. Every way a session ends purges its keys, and a silent peer's session ends. [More](#sessions) | [`close_purges`], [`close_gone`], [`responder_expires`], [`live_not_expired`], [`tick_drop_iff`], [`round_not_dropped`], [`kk_forward_secret`], [`purge_named`] |
 | ⬜ | 🥊🥊🥊 | **Session secrets never reach the disk.** They would be ephemeral ops, held in memory, so forward secrecy would not rest on deletion. A restart then redials. | |
 | ⬜ | 🥊🥊🥊 | **Removed members cannot read new messages.** This needs key rotation, which is not built. | |
 | 🟡 | 🥊🥊 | **Every offered id names a stored op in one of the peer's rooms:** the disclosure law for ids. [More](#disclosure-and-intake) | [`have_shown`], [`boot_cached`], [`write_cached`], [`purge_cached`], [`cached_items`], [`write_snaps`], [`have_shown_premises`] |
@@ -170,9 +170,9 @@ only.
 | ✅ | 🥊🥊🥊 | **Attachments authenticate themselves.** Any peer may relay a file's chunks, but only the file's own slices are Valid, and progress counts exactly the chunks held. [More](#hostile-input) | [`chunk_is_slice`], [`verify_sound`], [`complete_assembles`], [`chunk_unique`], [`progress_exact`], [`assumptions_hold`], [`no_injective_hash`] |
 | 🟡 | 🥊🥊🥊 | **Judging cannot be hung.** From any state, judging empties its queue within a budget read off the tables. Not yet of the running node: proven of states whose purges are `purgeS`, a model of the SQL purge. | [`drain_bounded`], [`drain_terminates`], [`step_budget`] |
 | ✅ | 🥊🥊🥊 | **Authenticate before parsing:** a sealed frame is decoded only after its AEAD check passes, and one that fails changes nothing and sends nothing. [More](#hostile-input) | [`sealed_auth`], [`openFrame_auth`], [`onFrame_sealed`], [`sealed_unopened`] |
-| 🟡 | 🥊🥊 | **Bounded buffering:** a connection holds at most one maximal frame (1 MiB) and a read, whatever the peer's length fields say. [More](#hostile-input) | [`buffer_bounded`], [`frames_kept`], [`frames_tooBig`], [`frames_size`] |
+| 🟡 | 🥊🥊 | **Bounded buffering:** inbound frames wait in a bounded queue, each at most 1 MiB, with one partial frame per socket, whatever the peer's length fields say. [More](#hostile-input) | [`buffer_bounded`], [`frames_kept`], [`frames_tooBig`], [`admit_bounded`] |
 | ✅ | 🥊🥊 | **No amplification:** a decoded op is exactly its bytes, so no larger. A bundle's payloads are together smaller than it. Linear decoding time is not proven. | [`Op.decode_exact`], [`Op.decode_parts`], [`decode_sum`] |
-| ⬜ | 🥊🥊 | **Resources are capped:** memory, rounds and frames per peer. **Today they are not.** [More](#hostile-input) | |
+| 🟡 | 🥊🥊 | **Resources are capped:** sockets, each connection's `known` and `asked` sets, retries and want replies, without dropping honest sessions. [More](#hostile-input) | [`hold_bounded`], [`conn_bounded`], [`honest_no_drop`], [`retry_bounded`], [`want_reads_authorized`], [`want_blind`], [`want_budget`] |
 
 ### Quality proofs
 
@@ -242,14 +242,14 @@ law marked wired is not, when a ✅ row above cites no law about running
 code, or when a 🟡 row does not say what is missing.
 
 <!-- wiring:begin -->
-**275 of 366 laws are about running code.** 91 are about a model, a harness, or code nothing calls yet; 0 statements are stated only; 8 assumptions.
+**336 of 428 laws are about running code.** 92 are about a model, a harness, or code nothing calls yet; 0 statements are stated only; 8 assumptions.
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
 | Engine | 56 | 35 | 21 |
-| Sync | 29 | 28 | 1 |
+| Sync | 82 | 81 | 1 |
 | mDNS | 3 | 0 | 3 |
-| Node and wire | 26 | 11 | 15 |
+| Node and wire | 35 | 19 | 16 |
 | Bootstrap | 11 | 0 | 11 |
 | Connections | 30 | 27 | 3 |
 | Community | 140 | 129 | 11 |
@@ -260,7 +260,7 @@ code, or when a 🟡 row does not say what is missing.
 
 | Missing link | Laws | To make them real |
 |---|---|---|
-| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]*†, [`order_local`]*†, [`sealed_unopened`]*†, [`sealed_auth`]*†, [`purge_cached`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`write_offers_all`], [`allowPeer_iff`], [`allowPeer_settles`] | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
+| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]*†, [`order_local`]*†, [`sealed_unopened`]*†, [`sealed_auth`]*†, [`purge_cached`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`write_offers_all`], [`close_gone`]*†, [`allowPeer_iff`], [`allowPeer_settles`] | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
 | `World.peer`, `Setup.sync`, `Who.other` +8 | [`stream_delivers`]†, [`stream_delivers_steps`]†, [`stream_delivers_runs`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`stream_offered`]†, [`stream_offered_runs`]†, [`write_offers_all`], [`fanout_offers`], [`seal_mem`] | A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does. |
 | `Sync.exchange` | [`exchange_complete`]† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
 | `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
@@ -294,7 +294,7 @@ About running code, but naming a model outside the code they are about: [`conn_a
 - [`Suite.Good`] (6 laws): X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only).
 - [`Seal.Good`] (4 laws): The seal's AEAD and key wrap open what they seal (correctness only).
 - [`Symbolic.sym`] (13 laws): The symbolic model of the cryptography: the running handshake over a suite of symbols, where only a key's holder can derive what it guards.
-- [`Model.run`], with `Engine.Model`, `Engine.DB`, `Sync.HeldM` +15 (113 laws): The store model: the SQLite store's reads, writes and write turns answer as the model's tables (`DB`), and a held store's (`Held`) do too. Tested, not proven: SQLite against the model (tests/engine/Differential.lean), list queries against their meaning (tests/engine/QueryDiff.lean). Not its purge: `purgeS` is a model, a todo.
+- [`Model.run`], with `Engine.Model`, `Engine.DB`, `Sync.HeldM` +15 (144 laws): The store model: the SQLite store's reads, writes and write turns answer as the model's tables (`DB`), and a held store's (`Held`) do too. Tested, not proven: SQLite against the model (tests/engine/Differential.lean), list queries against their meaning (tests/engine/QueryDiff.lean). Not its purge: `purgeS` is a model, a todo.
 - [`Engine.Inv`] (43 laws): The tables' invariant, which judging keeps (`inv_ingest`, `inv_step`) and purges keep only by `purge_inv`, proven of the model `purgeS`, and the SQLite-vs-model purge test (tests/engine/Purge.lean).
 <!-- wiring:end -->
 
@@ -735,8 +735,10 @@ sync messages, and ops of the rooms its peer is let into. A peer's haves
 reveal nothing outside its rooms: a have names its room, one for a room
 the peer may not see is ignored, and the reply reads only this node's
 ops of that room. So a peer cannot ask whether this node holds an op of
-another community, or a local op. A test checks this with a negative
-control.
+another community, or a local op. Wants authorize ids against the shown
+rooms' index before any blob read. Stores agreeing on that index's ops
+produce the same want read sequence and response; out-of-room possession
+is not probed. Tests count reads, with negative controls.
 
 🟡 **Every offered id names a stored op in one of the peer's rooms.**
 This is the disclosure law for ids.
@@ -782,18 +784,22 @@ Replays are accepted again, and payloads are not covered. A negative
 control shows an attacker holding the initiator's keys does derive the
 session keys, and `kk_runs` shows the honest run exists.
 
-🟡 **A closed session's keys cannot be recovered,** from the disk or from
-the static keys later.
-- **Proven:** with the ephemerals gone, both static keys and the whole
-  transcript do not give the session keys, and the session's rows are
-  gone.
-- **Tested:** no file of the database holds a byte of them
+🟡 **A closed session's keys cannot be recovered,** from disk or from
+static keys later.
+- **Closed** now includes transport EOF, read/send failure, oversized
+  framing, idle socket closure, runner stop, protocol/patience drop and
+  retirement. Every end calls `closing` and purges its returned ids with
+  disk scrubbing. A silent responder expires on the first tick strictly
+  past `heard + lease` (90 s by default), even when settled; dialer
+  rounds refresh `heard`. Patience runs from the later of the last
+  arrival and the start of this side's round.
+- **Proven:** returned local/conn ids are gone, and with ephemerals gone
+  the symbolic transcript and both static keys do not derive the
+  transport keys.
+- **Tested:** disk erasure: no file of the database holds a byte of them
   (`tests/engine/Purge.lean`).
-- **Wanted:** that closing purges every ephemeral (`close_forgets`).
-- **Not yet:** a session only closes when a connection is dropped or
-  retired. When the peer of a settled responder just disappears, the
-  session stays open, so its keys stay on disk. Closing on transport
-  loss and silence is wanted.
+- **Wanted:** that the family's `closing` names every ephemeral
+  (`close_forgets`).
 
 ### Removal
 
@@ -846,19 +852,29 @@ session the frame names. A frame that fails leaves the node and its
 store as they were, and sends nothing. A test forges frames over real
 XChaCha20-Poly1305.
 
-🟡 **Bounded buffering:** a connection holds at most one maximal frame (1
-MiB) and a read, whatever the peer's length fields say. Proven of the
-TCP reader's buffer: between reads it keeps less than one maximal frame
-and its length, and a length over 1 MiB ends the connection in the read
-that completes it.
-- **Not yet:** the frames the reader has taken wait for the node in the
-  runner's event channel, which is unbounded, so a peer that sends
-  frames faster than the node handles them grows that queue.
+🟡 **Bounded buffering:** at most `queue` inbound events, each carrying at
+most one 1 MiB frame, plus one partial or blocked frame per socket (and
+a read of at most 64 KiB). A full channel blocks its producer; frames
+are not discarded. The runner reserves at most `maxSocks` sockets
+globally and `perAddr` per IP, including queued accepts and pending
+dials; excess accepts close immediately.
+- **Proven:** framing, of the TCP reader's buffer: between reads it keeps
+  less than one maximal frame and its length, and a length over 1 MiB
+  ends the connection in the read that completes it.
+- **Tested:** channel backpressure and socket admission.
 
-⬜ **Resources are capped:** memory, rounds and frames per peer. **Today
-they are not.** The runner's event channel has no capacity, accepted
-sockets are unlimited, and a peer's holds grow the connection's `known`
-and `asked` sets without bound.
+🟡 **Resources are capped:** the inbound event/socket bounds above, and
+at most `2 * maxKnown` ids in each connection's `known` and `asked`
+sets, with one timestamp per outstanding ask. Full `known` forgets old
+hints before inserting; full `asked` defers further missing ids until
+another offer or round. Neither ends the session. Oversized holds are
+ignored before reads. Each ask keeps its original timestamp, expires
+after `patience`, and is no longer retried; each retry tick wants at
+most `maxIds` ids. A want authorizes ids from the shown rooms' index
+before reading blobs; it serves at most `wantBytes` encoded op bytes
+plus one whole op. Unexpired pending wants are retried on ticks. These
+bounds do not count the local room index, snapshots and closure caches,
+or bound round/CPU work.
 
 ### Sync in the running node
 
@@ -888,8 +904,10 @@ That needs both sides' rooms on the session to include the op's room,
 neither node to hold the op before, and the member's side not to have
 asked for it already. This is over a world of two nodes running the sync
 code on held stores, with fixed rooms, frames in the clear, and sessions
-opened directly (no handshake). The exchange is proven for nodes with
-one session each; the offer, for any sessions.
+opened directly (no handshake). The exchange also needs one free
+outstanding-ask slot at the receiver, a positive response budget, and
+the written op in the sender's shown-room index. It is proven for nodes
+with one session each; the offer, for any sessions.
 - **Not yet** of the runner, with TCP, sealed frames, the trust rule's
   rooms and the handshake.
 
@@ -1099,19 +1117,22 @@ it, from this device's own receipt.
 [`admin_removal_stands`]: ops/community/Laws.lean#L528-L541
 [`mutual_removal`]: ops/community/Laws.lean#L549-L553
 [`removed_approver_admits`]: ops/community/Laws.lean#L488-L499
-[`recv_send`]: ops/sync/ConnLaws.lean#L154-L156
-[`hold_reply_local`]: ops/sync/OfferLaws.lean#L659-L669
-[`heldIn_index`]: ops/sync/OfferLaws.lean#L682-L685
-[`hold_reply_local_premises`]: ops/sync/OfferLaws.lean#L708-L712
+[`recv_send`]: ops/sync/ConnLaws.lean#L156-L158
+[`hold_reply_local`]: ops/sync/OfferLaws.lean#L663-L673
+[`heldIn_index`]: ops/sync/OfferLaws.lean#L686-L689
+[`hold_reply_local_premises`]: ops/sync/OfferLaws.lean#L712-L716
+[`want_reads_authorized`]: ops/sync/ServeLaws.lean#L124-L128
+[`want_blind`]: ops/sync/ServeLaws.lean#L132-L138
+[`want_blind_step`]: ops/sync/ServeLaws.lean#L144-L149
 [`offer_shared`]: engine/core/Sync.lean#L83-L86
 [`wire_kinds`]: ops/connection/Laws.lean#L48-L49
 [`local_kinds`]: ops/connection/Laws.lean#L55-L56
 [`joinOps_travels`]: ops/community/Intents.lean#L299-L303
 [`found_travels`]: ops/community/Intents.lean#L310-L314
 [`stopWaiting_local`]: ops/community/Intents.lean#L306-L307
-[`filed_send`]: ops/sync/ConnLaws.lean#L183-L186
+[`filed_send`]: ops/sync/ConnLaws.lean#L185-L188
 [`offer_stored`]: engine/core/Sync.lean#L98-L101
-[`tick_send`]: ops/sync/ConnLaws.lean#L192-L195
+[`tick_send`]: ops/sync/ConnLaws.lean#L194-L197
 [`recipients_iff`]: ops/community/Connect.lean#L214-L218
 [`members_iff`]: ops/community/Connect.lean#L205-L208
 [`member_opens`]: ops/community/Laws.lean#L928-L932
@@ -1126,18 +1147,21 @@ it, from this device's own receipt.
 [`kk_secret_init_tight`]: ops/connection/NoiseSymbolic.lean#L616-L625
 [`kk_runs`]: ops/connection/NoiseSymbolic.lean#L304-L312
 [`handshake_agrees`]: ops/connection/Noise.lean#L308-L320
+[`close_purges`]: engine/wire/CloseLaws.lean#L32-L40
+[`close_gone`]: engine/wire/CloseLaws.lean#L20-L24
+[`responder_expires`]: ops/sync/TimeLaws.lean#L45-L47
+[`live_not_expired`]: ops/sync/TimeLaws.lean#L50-L54
+[`tick_drop_iff`]: ops/sync/TimeLaws.lean#L12-L15
+[`round_not_dropped`]: ops/sync/TimeLaws.lean#L34-L37
 [`kk_forward_secret`]: ops/connection/NoiseSymbolic.lean#L685-L696
-[`kk_forward_secret_init`]: ops/connection/NoiseSymbolic.lean#L643-L651
-[`kk_forward_secret_resp`]: ops/connection/NoiseSymbolic.lean#L662-L671
-[`purge_gone`]: engine/core/Purge.lean#L261-L263
 [`purge_named`]: engine/core/Purge.lean#L267-L271
-[`have_shown`]: ops/sync/OfferLaws.lean#L553-L565
+[`have_shown`]: ops/sync/OfferLaws.lean#L557-L569
 [`boot_cached`]: engine/wire/NodeLaws.lean#L259-L260
 [`write_cached`]: engine/wire/NodeLaws.lean#L436-L440
 [`purge_cached`]: engine/wire/NodeLaws.lean#L508-L513
 [`cached_items`]: engine/wire/NodeLaws.lean#L271-L274
-[`write_snaps`]: ops/sync/OfferLaws.lean#L609-L612
-[`have_shown_premises`]: ops/sync/OfferLaws.lean#L701-L705
+[`write_snaps`]: ops/sync/OfferLaws.lean#L613-L616
+[`have_shown_premises`]: ops/sync/OfferLaws.lean#L705-L709
 [`connect_iff`]: ops/community/Connect.lean#L146-L150
 [`refuse_nonmember`]: ops/community/Connect.lean#L161-L164
 [`connect_approved`]: ops/community/Connect.lean#L182-L193
@@ -1148,7 +1172,7 @@ it, from this device's own receipt.
 [`rooms_cut`]: ops/connection/RoomLaws.lean#L93-L103
 [`trusts_live`]: ops/connection/RoomLaws.lean#L40-L46
 [`rooms_model`]: ops/connection/RoomLaws.lean#L109-L111
-[`recv_take`]: ops/sync/ConnLaws.lean#L126-L128
+[`recv_take`]: ops/sync/ConnLaws.lean#L127-L129
 [`no_connection_before_approval`]: ops/connection/bootstrap/Laws.lean#L39-L46
 [`sessions_trusted`]: ops/connection/bootstrap/Laws.lean#L63-L68
 [`intake_local`]: engine/core/Sync.lean#L41-L43
@@ -1182,10 +1206,15 @@ it, from this device's own receipt.
 [`buffer_bounded`]: engine/wire/Frame.lean#L213-L218
 [`frames_kept`]: engine/wire/Frame.lean#L158-L161
 [`frames_tooBig`]: engine/wire/Frame.lean#L180-L183
-[`frames_size`]: engine/wire/Frame.lean#L188-L189
+[`admit_bounded`]: engine/wire/Slots.lean#L49-L54
 [`Op.decode_exact`]: engine/core/Core.lean#L96-L98
 [`Op.decode_parts`]: engine/core/Core.lean#L101-L104
 [`decode_sum`]: engine/core/Codec.lean#L677-L680
+[`hold_bounded`]: ops/sync/BoundsLaws.lean#L38-L39
+[`conn_bounded`]: ops/sync/BoundsLaws.lean#L177-L178
+[`honest_no_drop`]: ops/sync/RetryLaws.lean#L78-L83
+[`retry_bounded`]: ops/sync/RetryLaws.lean#L141-L142
+[`want_budget`]: ops/sync/ServeLaws.lean#L174-L177
 [`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
 [`order_free`]: engine/core/Proofs.lean#L634-L639
 [`drain_settles`]: engine/core/Termination.lean#L110-L114
@@ -1193,6 +1222,7 @@ it, from this device's own receipt.
 [`spec_extends`]: engine/core/SpecLemmas.lean#L137-L139
 [`inv_ingest`]: engine/core/Proofs.lean#L229-L229
 [`inv_step`]: engine/core/Proofs.lean#L260-L260
+[`purge_gone`]: engine/core/Purge.lean#L261-L263
 [`purge_shared`]: engine/core/Purge.lean#L274-L276
 [`purge_settles`]: engine/core/Budget.lean#L192-L198
 [`purge_undecides`]: engine/core/Proofs.lean#L376-L383
@@ -1216,12 +1246,12 @@ it, from this device's own receipt.
 [`bootstrap_ideal`]: ops/connection/bootstrap/Laws.lean#L423-L424
 [`bootstrap_possible`]: ops/connection/bootstrap/Laws.lean#L208-L218
 [`reachable_inv`]: ops/connection/bootstrap/Steps.lean#L222-L223
-[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1180-L1202
-[`stream_offered`]: engine/wire/WorldLaws.lean#L1126-L1138
-[`stream_delivers`]: engine/wire/WorldLaws.lean#L544-L572
-[`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L577-L590
-[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1145-L1151
-[`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L620-L625
+[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1246-L1268
+[`stream_offered`]: engine/wire/WorldLaws.lean#L1192-L1204
+[`stream_delivers`]: engine/wire/WorldLaws.lean#L603-L635
+[`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L640-L657
+[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1211-L1217
+[`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L687-L692
 [`visible_in_viewport`]: engine/renderer/Geometry.lean#L90-L95
 [`newest_visible`]: engine/renderer/Geometry.lean#L99-L105
 [`pinned_visible`]: engine/renderer/Geometry.lean#L147-L151
@@ -1315,15 +1345,15 @@ it, from this device's own receipt.
 [`Pic.layout_inside`]: engine/renderer/pic/Laws.lean#L170-L172
 [`Pic.layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
 [`reach_drain`]: engine/core/Proofs.lean#L529-L530
-[`write_offers`]: engine/wire/WorldLaws.lean#L384-L392
-[`hold_wants`]: engine/wire/WorldLaws.lean#L401-L406
-[`want_sends`]: engine/wire/WorldLaws.lean#L414-L419
-[`op_taken`]: engine/wire/WorldLaws.lean#L433-L440
-[`write_offers_all`]: engine/wire/WorldLaws.lean#L1094-L1105
+[`write_offers`]: engine/wire/WorldLaws.lean#L425-L433
+[`hold_wants`]: engine/wire/WorldLaws.lean#L442-L448
+[`want_sends`]: engine/wire/WorldLaws.lean#L457-L464
+[`op_taken`]: engine/wire/WorldLaws.lean#L487-L494
+[`write_offers_all`]: engine/wire/WorldLaws.lean#L1160-L1171
 [`allowPeer_iff`]: ops/connection/bootstrap/Bridge.lean#L29-L32
 [`allowPeer_settles`]: ops/connection/bootstrap/Bridge.lean#L35-L39
-[`fanout_offers`]: engine/wire/WorldLaws.lean#L951-L957
-[`seal_mem`]: engine/wire/WorldLaws.lean#L1063-L1067
+[`fanout_offers`]: engine/wire/WorldLaws.lean#L1017-L1023
+[`seal_mem`]: engine/wire/WorldLaws.lean#L1129-L1133
 [`admitted_inv`]: ops/connection/bootstrap/Scene.lean#L154-L156
 [`allowedA`]: ops/connection/bootstrap/Scene.lean#L219-L219
 [`allowedB`]: ops/connection/bootstrap/Scene.lean#L231-L233

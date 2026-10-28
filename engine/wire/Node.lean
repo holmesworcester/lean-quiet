@@ -225,7 +225,7 @@ def Node.follow (n : Node) (now : Nat) : m (Node × Acts) := do
   let mut out : Acts := {}
   for cid in n.managed do
     if !est.any (fun e => Decidable.decide (e.1 = cid)) then
-      n := n.close cid
+      n := n.drop cid
       out := out ++ { drop := [cid] }
   for (cid, addr, dialer) in est do
     if !has n.managed cid && !has n.dropped cid then
@@ -273,6 +273,12 @@ def Node.seal (n : Node) (out : Acts) : m (List (ByteArray × ByteArray)) := do
           sent := (a, tagged sealedTag f) :: sent
   return sent.reverse
 
+/-- The common end of every session: ask the family for its secrets,
+then purge them and their dependents, with disk scrubbing. -/
+def Node.endSession (cid : Id) : m Unit := do
+  let ids ← x.hooks.closing cid
+  if !ids.isEmpty then Turn.purge x.fam ids true
+
 /-- Every entry point ends here: follow the sessions, hand out the
 outbox (the handshake's bare replies go before a new session's first
 frame), seal, and report what was stored. -/
@@ -280,13 +286,23 @@ def Node.finish (n : Node) (out : Acts) (now : Nat) : m (Node × Effects) := do
   let (n, o) ← n.follow x now
   let (n, out) ← n.flush x out
   let out := out ++ o
+  let retired ← x.hooks.retired
+  let n := retired.foldl Node.drop n
+  let out := { out with drop := out.drop ++ retired }
   let sent ← n.seal x out
   -- A session that dropped, or left `established`, is forgotten: its
   -- secrets are purged, and a redial makes a new one.
-  for cid in out.drop ++ (← x.hooks.retired) do
-    let ids ← x.hooks.closing cid
-    if !ids.isEmpty then Turn.purge x.fam ids true
+  for cid in out.drop do
+    Node.endSession x cid
   return ({ n with fresh := [] }, { send := sent, drop := out.drop, stored := n.fresh })
+
+/-- Loss of the transport ends all sessions routed through that address.
+The same finish path as a protocol drop purges their keys. -/
+def Node.onClose (n : Node) (addr : ByteArray) (now : Nat) : m (Node × Effects) := do
+  let ids := n.conns.filterMap fun (cid, _) =>
+    if n.addr? cid == some addr then some cid else none
+  let n := ids.foldl Node.drop n
+  n.finish x { drop := ids } now
 
 /-- Apply a connection's step. -/
 def Node.apply (n : Node) (cid : Id) (s : Step) (now : Nat) : m (Node × Acts) := do
