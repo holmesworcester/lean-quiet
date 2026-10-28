@@ -33,6 +33,9 @@ inductive Want where
   | window (c : Id) (anchor : Option Pos) (above below : Nat)
   /-- Message m's row in c, as `me` sees it (Kinds.Message.read). -/
   | row (c me m : Id)
+  /-- An attachment's chunk ops' bytes, in order (as stored, or in the
+  outbox): what its file is opened from, off the frame. -/
+  | slices (chunks : List Id)
   deriving DecidableEq, Hashable
 
 /-- What a want reads as. -/
@@ -42,6 +45,8 @@ inductive Val where
   | window (ids : Array Pos) (newer older total : Nat)
   /-- The row, or none while its message cannot be shown. -/
   | row (d : Option Row.RowData)
+  /-- The chunk ops' bytes, or none while one is not here. -/
+  | slices (raw : Option (List ByteArray))
   deriving BEq
 
 /-- What the frame and the reader share. -/
@@ -102,6 +107,19 @@ def eval : Want → RM (Val × Array Q)
     | some (d, deps) => return (.row (some d), deps)
     -- not shown yet: no reads held, so it is read again each pass
     | none => return (.row none, #[])
+  | .slices xs => do
+    -- each chunk op's read is held: one arriving reads the want again
+    let mut raw := #[]
+    let mut deps := #[]
+    for x in xs do
+      match (← get).out.find? (·.op.id == x) with
+      | some pd => raw := raw.push pd.op.bytes
+      | none =>
+        deps := deps.push (Q.op x)
+        match ← read (Q.op x) with
+        | .bytes (some b) => raw := raw.push b
+        | _ => return (.slices none, deps)
+    return (.slices (some raw.toList), deps)
 
 /-- Whether w's reads changed: not held, or one of its reads stale
 (`Live.staleW`, the model's: engine/renderer/ReaderLaws.lean). -/

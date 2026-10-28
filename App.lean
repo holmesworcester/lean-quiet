@@ -163,6 +163,9 @@ structure St where
   /-- The node's runner (Engine.Sync.Runner): it owns the writes once it
   runs. And the ids it stored since the frame last took them. -/
   net : Option Engine.Sync.Runner := none
+  /-- The node starting, off the frame (its connection opened and its
+  first reads made on a thread of its own). -/
+  netBoot : Option (Task (Except IO.Error Engine.Sync.Runner)) := none
   /-- The journal's newest row this app has taken notice of. -/
   seen : Nat := 0
   me : Chaos.Me
@@ -187,9 +190,9 @@ structure St where
   heights : Std.HashMap Id Nat := {}
   rows : Std.HashMap Id RowSt := {}
   imgs : Std.HashMap ImgKey (Task Bitmap) := {}
-  /-- When an image whose chunks were not all readable may be tried again
-  (a frame number). -/
-  imgRetry : Std.HashMap ImgKey Nat := {}
+  /-- The chunk reads this frame's paints asked for (Reader.Want.slices):
+  the reader's wants from the next frame. -/
+  picWants : Array Reader.Want := #[]
   selected : Option Id := none
   b : Nat := 0
   imeH : Nat := 0
@@ -432,18 +435,14 @@ def decodeTask (bytes : ByteArray) (w h : Nat) (sq : Bool) : Task Bitmap :=
 /-- An attachment's slices, read from its chunk ops in order (a chunk this
 device sends may still be in the outbox); none while one is not here. -/
 def slicesOf (p : Row.Pic) : M (Option (List ByteArray)) := do
-  -- the chunk ops' bytes, as stored or in the outbox: nothing is decoded
-  -- here (a 64 KiB chunk is slow to decode; the frame must not wait)
-  let s ← get
-  let mut raw := #[]
-  for x in p.chunks do
-    match s.out.find? (·.op.id == x) with
-    | some pd => raw := raw.push pd.op.bytes
-    | none =>
-      let rows ← s.rd.query "SELECT bytes FROM ops WHERE id = ?" #[x]
-      let some b := rows[0]? >>= (·[0]?) | return none
-      raw := raw.push b
-  return some raw.toList
+  -- the chunk ops' bytes, read by the reader (Reader.Want.slices): wanted
+  -- from the next frame, none until the board has them all; nothing is
+  -- decoded here (a 64 KiB chunk is slow to decode; the frame must not wait)
+  let w := Reader.Want.slices p.chunks
+  modify fun s => { s with picWants := if s.picWants.contains w then s.picWants else s.picWants.push w }
+  match (← (← get).sh.board.get).get? w with
+  | some (.slices raw, _) => return raw
+  | _ => return none
 
 /-- Chunk ops' bytes to their slices, in order (off the app's thread). -/
 def slicesFromOps (raw : List ByteArray) : Option (List ByteArray) :=
@@ -473,13 +472,9 @@ def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := do
     pure (if p.preview.isEmpty then none
       else some ((decodeTask p.preview w h false).map (Arrival.soften Row.bg)))
   let full ← if !p.complete then pure none else decoded (p.hash.push 1, w, h) fun _ => do
-    -- not every chunk op is readable yet: try again when the store next
-    -- changes (step clears imgRetry on notices), or in two seconds
-    let k := (p.hash.push 1, w, h)
-    if let some t := (← get).imgRetry[k]? then
-      if (← get).frames < t then return none
-    let some raw ← slicesOf p
-      | modify fun s => { s with imgRetry := s.imgRetry.insert k (s.frames + 120) }; pure none
+    -- not every chunk op is here yet: the reader reads them again when one
+    -- arrives, and the frame asks the board again
+    let some raw ← slicesOf p | pure none
     let (key, nonce) := (p.key, p.nonce)
     pure <| some <| Task.spawn fun _ =>
       match ((slicesFromOps raw).bind fun slices => Community.openFile slices key nonce).bind Image.decode with
@@ -792,19 +787,29 @@ def netStep : M Unit := do
   let s ← get
   let some (port, _) := s.netCfg | return
   if s.net.isSome then return
+  -- started: taken once it is up (the frame never waits on it)
+  if let some t := s.netBoot then
+    if !(← IO.hasFinished t) then return
+    modify fun s => { s with netBoot := none }
+    match t.get with
+    | .ok r =>
+      s.io.log s!"node: listening on {r.port}"
+      modify fun s => { s with net := some r }
+    | .error e =>
+      s.io.log s!"node: cannot start: {e}"
+      modify fun s => { s with netCfg := none }
+    return
   if (← s.wr.busy.get) > 0 then return
   let listen := ((← listenHints).head?).getD s!"127.0.0.1:{port}".toUTF8
   let x : Engine.Sync.Sync SF (SqlM SF) :=
     { fam, cfg := { every := 30000, patience := 20000 },
       hooks := Connection.hooks fam Connection.sodium listen }
-  try
-    let db ← Db.openAt s.dbPath
-    let r ← Engine.Sync.Runner.start x db 0 port.toUInt16
-    (← get).io.log s!"node: listening on {r.port}, dialed as {(String.fromUTF8? listen).getD "?"}"
-    modify fun s => { s with net := some r }
-  catch e =>
-    (← get).io.log s!"node: cannot start: {e}"
-    modify fun s => { s with netCfg := none }
+  let path := s.dbPath
+  let t ← IO.asTask (prio := .dedicated) do
+    let db ← Db.openAt path
+    Engine.Sync.Runner.start x db 0 port.toUInt16
+  s.io.log s!"node: starting, dialed as {(String.fromUTF8? listen).getD "?"}"
+  modify fun s => { s with netBoot := some t }
 
 /-- The keys every commit since the last call filed (the writer's and the
 node's alike), from the store's journal: read inside the frame's read
@@ -1554,8 +1559,7 @@ def frame (evs : List Event) : M (Option (List Event)) := do
     -- the store changed: an image waiting for its chunk ops tries again now
     modify fun s => { s with
       live := s.live.notice ns
-      out := s.out.filter fun p => !ns.contains (opKey p.op.id)
-      imgRetry := {} }
+      out := s.out.filter fun p => !ns.contains (opKey p.op.id) }
     if !decided.isEmpty then noticeLocal (decided.toList.flatMap fun p => p.keys)
   chaosStep
   let tNotices ← (← get).io.nowUs
@@ -1620,7 +1624,8 @@ def frame (evs : List Event) : M (Option (List Event)) := do
     let bot := bots0[i]!
     if bot > hi then break
     if bot + heightOf s s.ids[i]!.2 ≥ lo then win := win.push s.ids[i]!.2
-  s.sh.wants.set (#[idsW] ++ win.map fun x => Reader.Want.row s.me.c s.me.adm x)
+  s.sh.wants.set (#[idsW] ++ win.map (fun x => Reader.Want.row s.me.c s.me.adm x) ++ s.picWants)
+  modify fun s => { s with picWants := #[] }
   readerPass
   let bd ← takeBoard
   for x in win do mount bd x
