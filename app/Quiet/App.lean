@@ -567,9 +567,14 @@ def step (evs : List Event) : M (Option (List Event)) := do
     if bot + heightOf s s.ids[i]!.2 ≥ lo then mount s.ids[i]!.2
   -- more ids, if the loaded ones end below what the fetch distance needs
   let s ← get
-  let (bots, ch) := bottoms s
-  if ch < hi + 2 * est && s.ids.size < s.total && s.ids.size ≥ s.limit then
-    modify fun s => { s with limit := s.limit + 64 }
+  let (bots, _) := bottoms s
+  let loadedTop := match s.ids.back? with
+    | some (_, x) => bots.back!.add (heightOf s x)
+    | none => bottomPad
+  if loadedTop < hi + 2 * est && s.ids.size < s.total && s.ids.size ≥ s.limit then
+    -- enough more ids, at the estimate, to reach past the fetch distance
+    let more := (hi + 2 * est - loadedTop) / est + 64
+    modify fun s => { s with limit := s.limit + more }
   -- 5. keep the anchor still (unless pinned to the newest)
   let mut b := b
   if b > 4 then

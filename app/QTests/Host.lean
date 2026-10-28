@@ -115,9 +115,10 @@ def main (args : List String) : IO UInt32 := do
   let W := 1080
   let Hs := 2400
   let s ← App.start sm.io #[1080, 2400, 128, 63, 420] (dir ++ "/quiet.db")
-  let mut fails := 0
+  let fails ← IO.mkRef 0
   let check (name : String) (ok : Bool) : IO Unit := do
     IO.println s!"{if ok then "ok  " else "FAIL"} {name}"
+    if !ok then fails.modify (· + 1)
     (← IO.getStdout).flush
   let ((), s) ← (show M Unit from do
     steps 5
@@ -133,6 +134,9 @@ def main (args : List String) : IO UInt32 := do
     IO.println s!"people {ppl}, loaded ids {s.ids.size}, mounted rows {s.rows.size}"
     writePpm (dir ++ "/bottom.ppm") W (← screenOf sm W Hs 63)
     check "bottom screen painted" ((← blanks s sm) == 0)
+    if args[2]? == some "seed" then
+      (← IO.getStdout).flush
+      IO.Process.exit (if (← fails.get) == 0 then 0 else 1)
     -- a cold open: a new state on the same database
     pure ()).run s
   -- cold open timing
@@ -212,8 +216,7 @@ def main (args : List String) : IO UInt32 := do
     writePpm (dir ++ "/sent.ppm") W (← screenOf sm W Hs 63)
     IO.println (App.stats (← get))
     pure ()).run s2
-  let _ := fails
   let _ := s2
   (← IO.getStdout).flush
   -- the writer's task would keep the process alive
-  IO.Process.exit 0
+  IO.Process.exit (if (← fails.get) == 0 then 0 else 1)

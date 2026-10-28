@@ -17,9 +17,11 @@ jobs:
         with: { working_directory: lean-quiet }
       - run: mise run host:twin-demo
         working-directory: lean-quiet
+      - run: mise run host:app
+        working-directory: lean-quiet
       - uses: actions/upload-artifact@v4
         if: failure()
-        with: { name: host-twin, path: lean-quiet/out/host-twin }
+        with: { name: host, path: "lean-quiet/out/host-twin\nlean-quiet/out/host" }
   # The emulator suite needs a provisioned machine (KVM, the Lean runtime
   # for Android): run it by hand (workflow_dispatch) on a self-hosted
   # runner labelled android.
