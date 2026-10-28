@@ -34,12 +34,6 @@ def Closed (w : World) (isA : Bool) (cid : B) : Prop :=
 
 end World
 
-/-- The ops a session frame's bundle carries. -/
-def carried (bundle : B) : List Op :=
-  match (Codec.decode bundle : Option (List B)) with
-  | some ps => ps.filterMap Op.decode
-  | none => []
-
 namespace Setup
 variable (P : Setup) (I : Ideal P.K)
 
@@ -72,26 +66,47 @@ def authentic_stmt : Prop :=
   P.Assumed I → ∀ w, P.Reach I w →
     (∀ isA b cid p, P.opens w isA b = some (cid, p) →
       (∃ to, (!isA, to, b) ∈ w.wire) ∧
-      ∃ x c h sk rk d, (x, Fact.established cid c (P.dev !isA) h sk rk d) ∈ w.ests isA) ∧
+      ∃ x c h sk rk d, (x, Fact.established cid c (P.endpointKey !isA) h sk rk d) ∈ w.ests isA) ∧
     ∀ isA src b now o, (b[0]? : Option UInt8) = some bareTag →
       Op.decode (b.extract 1 b.size) = some o → P.fam.scope o ≠ .conn →
         (w.step P (.deliver isA src b now)).side isA = w.side isA ∧
           (w.step P (.deliver isA src b now)).wire = w.wire
 
-/-- **3. Replay.** Delivering again bytes a node was already delivered
-adds, at that node, only arrival records (`recv`, kind 38, for an op it
-holds with no arrival recorded) and ops the bytes' frame carries (which
-the other node sent, by authenticity), and opens or closes no session.
+/-- **3a. A replayed frame is dropped.** A frame a node has opened once
+(and so taken, or dropped as stale), delivered to it again, from any
+address, at any later world, changes nothing at that node: neither its
+store nor its node state (the session's return address included), and
+it sends nothing.
 
-**False today.** A request whose session was closed and purged, if
-delivered again to its responder, is opened and answered afresh (a new
-`eph`, connection and `established`), and the one-per-peer choice
-(`kept`) then keeps that newest session, which no other node holds, and
-retires the live one: Tests/PairWorld.lean's "FINDING" check. -/
-def replay_stmt : Prop :=
+**Needs the node's freshness check.** Today `Node.onFrame` rebinds the
+session's address (`setAddr`) and runs the sync step for every frame
+that opens, so a replayed frame from the attacker's address diverts the
+session's frames to it until the peer's next frame
+(Tests/PairWorld.lean's second "FINDING"). It holds once the node drops
+a frame whose counter (`Frame.openAt`) is not above the session's mark
+(`Frame.fresh`) before anything else. -/
+def frameReplay_stmt : Prop :=
+  P.Assumed I → ∀ w₀ w isA src₀ src b now₀ now cid p,
+    P.Reach I w₀ → P.Step I w₀ (w₀.step P (.deliver isA src₀ b now₀)) →
+    P.opens w₀ isA b = some (cid, p) → P.Run I (w₀.step P (.deliver isA src₀ b now₀)) w →
+      (w.step P (.deliver isA src b now)).side isA = w.side isA ∧
+        (w.step P (.deliver isA src b now)).wire = w.wire
+
+/-- **3b. A replayed handshake op opens no session.** A bare op a node
+was already delivered, delivered again, adds at that node only arrival
+records (`recv`, kind 38, for an op it holds with no arrival recorded),
+and opens or closes no session. It may send: a request already answered
+gets its connection resent, to the address it now came from.
+
+**False today.** A request whose session was closed and purged is
+opened and answered afresh (a new `eph`, connection and `established`),
+and the one-per-peer choice (`kept`) then keeps that newest session,
+which no other node holds, and retires the live one: Tests/PairWorld.lean's
+first "FINDING" check. -/
+def bareReplay_stmt : Prop :=
   P.Assumed I → ∀ w, P.Reach I w → ∀ isA src b now, (isA, b) ∈ w.delivered →
-    (∀ o ∈ (w.step P (.deliver isA src b now)).ops isA, o ∉ w.ops isA →
-      o.kind = 38 ∨ ∃ cid p, P.opens w isA b = some (cid, p) ∧ o ∈ carried p) ∧
+    (b[0]? : Option UInt8) = some bareTag →
+    (∀ o ∈ (w.step P (.deliver isA src b now)).ops isA, o ∉ w.ops isA → o.kind = 38) ∧
     ∀ cid, cid ∈ (w.step P (.deliver isA src b now)).sessionIds isA ↔ cid ∈ w.sessionIds isA
 
 /-- **4. Forward secrecy.** A session both nodes held, made with

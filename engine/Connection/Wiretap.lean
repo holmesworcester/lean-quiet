@@ -25,8 +25,10 @@ free constructors are "no other equations". The per-primitive
 properties then follow as theorems, not hypotheses: a DH value of two
 secret names is not derivable, a ciphertext opens only under its key
 (INT-CTXT) and hides its payload, HKDF and the hash are one-way.
-`Apart` says which bytes are plain (read as constants) and which are
-the pair's secrets (names, all distinct). The engine's SHA-256 (op ids)
+`Apart` says which bytes are plain (read as constants), which are the
+pair's secrets (names, all distinct), and how a node's wire key leads to
+its endpoint secret's public key (today through the device key; E3
+makes the endpoint its own key). The engine's SHA-256 (op ids)
 and Ed25519 (device keys) are opaque in Lean, so that they never build a
 value the Keys build is assumed here, as the engine assumes ids
 distinct; it cannot be proven of any witness.
@@ -69,21 +71,15 @@ structure Ideal (K : Keys) where
   /-- The frames' AEAD, the same way. -/
   fenc : ∀ k n ad p, rd (K.fenc k n ad p) = .xaead (rd k) (rd n) (rd ad) (rd p)
   fdec : ∀ k n ad c p, K.fdec k n ad c = some p → rd c = .xaead (rd k) (rd n) (rd ad) (rd p)
-  /-- A device's X25519 secret is a name, and its device key's X25519
-  key is that name's public key (`Keys.Good`). -/
-  xsec : ∀ seed, ∃ n, rd (K.xSec seed) = .atom n
-  xpub : ∀ seed, K.xPub (Community.ed25519.pub seed) = K.suite.pub (K.xSec seed)
-  /-- Any key's X25519 key is a public key. -/
-  xpub' : ∀ pk, ∃ x, rd (K.xPub pk) = .pub x
 
 namespace Setup
 variable (P : Setup)
 
-/-- The pair's secrets: both devices' seeds and X25519 secrets, and
-every draw of either node's entropy (ephemerals, and the draws frame
-nonces are cut from). -/
+/-- The pair's secrets: both devices' seeds, both nodes' endpoint
+secrets, and every draw of either node's entropy (ephemerals, and the
+draws frame nonces take their random tails from). -/
 def Secret (v : B) : Prop :=
-  v = P.seedA ∨ v = P.seedB ∨ v = P.K.xSec P.seedA ∨ v = P.K.xSec P.seedB ∨
+  v = P.seedA ∨ v = P.seedB ∨ v = P.endpoint true ∨ v = P.endpoint false ∨
     ∃ i, v = P.entA i ∨ v = P.entB i
 
 /-- The names of the pair's secrets. -/
@@ -108,14 +104,19 @@ structure Apart (P : Setup) (I : Ideal P.K) : Prop where
   bundle : ∀ g : List B, I.rd (Codec.encode g) = .lit (Codec.encode g)
   ad : ∀ cid, I.rd (Frame.ad cid) = .lit (Frame.ad cid)
   nonce : ∀ s i, I.rd ((P.ent s i).extract 0 24) = .lit ((P.ent s i).extract 0 24)
-  /-- Every draw and both seeds are names. -/
+  /-- Every draw, both seeds and both endpoint secrets are names; the
+static key the code takes a node's wire key to is its endpoint
+secret's public key, and any wire key's is some public key. -/
   draw : ∀ s i, ∃ n, I.rd (P.ent s i) = .atom n
   seed : ∀ s, ∃ n, I.rd (P.seed s) = .atom n
-  /-- All distinct: no draw repeats, or is a seed or a device's X25519
-  secret, and the two devices differ. -/
+  endpoint : ∀ s, ∃ n, I.rd (P.endpoint s) = .atom n
+  endpointPub : ∀ s, P.staticOf (P.endpointKey s) = P.K.suite.pub (P.endpoint s)
+  anyStatic : ∀ pk, ∃ x, I.rd (P.staticOf pk) = .pub x
+  /-- All distinct: no draw repeats, or is a seed or an endpoint secret,
+  and the two nodes differ. -/
   draws : ∀ s i s' i', P.ent s i = P.ent s' i' → s = s' ∧ i = i'
-  apart : ∀ s i t, P.ent s i ≠ P.seed t ∧ P.ent s i ≠ P.K.xSec (P.seed t)
-  devices : P.seedA ≠ P.seedB
+  apart : ∀ s i t, P.ent s i ≠ P.seed t ∧ P.ent s i ≠ P.endpoint t
+  nodes : P.seedA ≠ P.seedB ∧ P.endpoint true ≠ P.endpoint false
 
 /-- The attacker's Dolev-Yao closure of `K0`: constants, pairs, public
 keys, DH of a name it knows with a public key, hashes and HKDFs, and
@@ -139,26 +140,26 @@ inductive Dy (K0 : T → Prop) : T → Prop
 namespace Setup
 variable (P : Setup) (I : Ideal P.K)
 
-/-- What the receiving code reads of these bytes, as terms: a bare
-op's requirements and its request's or connection's fields; a frame's
-connection id, nonce and ciphertext. Anything else is read as one
-constant. -/
+/-- What the receiving code reads of these bytes, each field through
+`rd`: a bare op's requirements and its request's or connection's
+fields; a frame's connection id, nonce and ciphertext. Anything else is
+read whole. -/
 def reads (b : B) : List T :=
   let body := b.extract 1 b.size
   match (b[0]? : Option UInt8) with
   | some 0 =>
     match Op.decode body with
-    | some o => o.reqs.map .lit ++
+    | some o => o.reqs.map I.rd ++
       match (Codec.decode o.body : Option Body) with
-      | some (.request to frm m1) => [.lit to, .lit frm, I.rd m1]
+      | some (.request to frm m1) => [I.rd to, I.rd frm, I.rd m1]
       | some (.connection m2) => [I.rd m2]
-      | _ => [.lit o.body]
-    | none => [.lit b]
+      | _ => [I.rd o.body]
+    | none => [I.rd b]
   | some 1 =>
     match Frame.cid body with
-    | some cid => [.lit cid, .lit (body.extract 33 57), I.rd (body.extract 57 body.size)]
-    | none => [.lit b]
-  | _ => [.lit b]
+    | some cid => [I.rd cid, I.rd (body.extract 33 57), I.rd (body.extract 57 body.size)]
+    | none => [I.rd b]
+  | _ => [I.rd b]
 
 /-- What the attacker starts with: every name that is not the pair's
 secret (its own among them), and every public key. -/
@@ -184,15 +185,16 @@ def HonestWrite (ops : List Op) : Prop :=
   ∀ o ∈ ops, owns o.kind = false ∧ ∀ s i, ¬ Occurs (P.ent s i) o.bytes
 
 /-- The two users admit, and follow links to, only each other: each
-node's trust rule takes only the pair's devices, and every join it
-waits on names one of them as the inviter. -/
+node's `allowPeer` takes only the pair's endpoints, and every join it
+waits on names one of them as the inviter. (The trust rule, `trusts`,
+is `allowPeer` or a pending join's inviter.) -/
 def PairOnly (w : World) : Prop :=
   ∀ isA,
-    (∀ c me peer, w.at isA ((trusts c me peer).liftL.run : NodeM Bool) = true →
-      peer = P.dev true ∨ peer = P.dev false) ∧
+    (∀ c peer, w.at isA ((Community.allowPeer c peer).liftL.run : NodeM Bool) = true →
+      peer = P.endpointKey true ∨ peer = P.endpointKey false) ∧
     ∀ o ∈ w.ops isA, ∀ c inv hints req name d t,
       (Codec.decode o.body : Option Community.Body) = some (.joining c inv hints req name d t) →
-        inv = P.dev true ∨ inv = P.dev false
+        inv = P.endpointKey true ∨ inv = P.endpointKey false
 
 /-- One step of an execution: what the act may be, and both nodes
 still trusting only each other after it. -/

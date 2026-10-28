@@ -150,3 +150,6 @@ open Engine Community
 #print axioms Connection.Noise.Symbolic.kk_secret_init_tight
 #print axioms Community.root_of_admission
 #print axioms Community.removeMember_valid
+#print axioms Connection.openAt_seal
+#print axioms Connection.openAt_sealed
+#print axioms Connection.Frame.ctrOf_nonce

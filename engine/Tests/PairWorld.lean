@@ -96,6 +96,14 @@ def main : IO UInt32 := do
     ((w.side isA).box.held.log.filter fun o => match P.fam.scope o with | .shared _ => true | _ => false).length
   t.ok "and adds no shared op at either end" (shared wr true == shared w true && shared wr false == shared w false)
   IO.println s!"replay: ops A {before.1} -> {opCount wr true}, B {before.2.1} -> {opCount wr false}"
+  -- FINDING: a replayed frame that opens rebinds its session's return
+  -- address (`Node.onFrame`'s `setAddr`), so the session's frames now go
+  -- to the replayer's address. Frame counters (`Frame.fresh`) are the fix.
+  let liveCid := (ests w true).head?.bind fun | .established i .. => some i | _ => none
+  t.ok "FINDING: a replayed frame diverts the session's frames to the replayer's address"
+    (match liveCid with
+      | some cid => (wr.side true).node.addr? cid == some "X:1".toUTF8 && (w.side true).node.addr? cid == some P.addrB
+      | none => false)
   for isA in [true, false] do
     let old := (w.side isA).box.held.log.map (·.id)
     let added := (wr.side isA).box.held.log.filter fun o => !old.contains o.id

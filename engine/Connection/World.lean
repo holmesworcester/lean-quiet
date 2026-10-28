@@ -85,8 +85,21 @@ def fam : Family F := node P.C P.K
 def addr : Bool → B | true => P.addrA | false => P.addrB
 def ent : Bool → Nat → B | true => P.entA | false => P.entB
 def seed : Bool → B | true => P.seedA | false => P.seedB
-/-- Node A's (true) or B's device key. -/
-def dev (isA : Bool) : B := Community.ed25519.pub (P.seed isA)
+
+/-! The pair laws name a node's endpoint only through these three
+definitions, so they survive the endpoint key becoming its own op
+(E3): only the definitions change. -/
+
+/-- Node A's (true) or B's endpoint secret: the static secret it
+handshakes with. Today its device's X25519 secret. -/
+def endpoint (isA : Bool) : B := P.K.xSec (P.seed isA)
+
+/-- The key the other node knows node A (true) or B by on the wire (a
+request's `to` and `frm`) and in `allowPeer`. Today its device key. -/
+def endpointKey (isA : Bool) : B := Community.ed25519.pub (P.seed isA)
+
+/-- The static public key the code takes a wire key to. -/
+def staticOf (pk : B) : B := P.K.xPub pk
 
 /-- Node A's (true) or B's sync: the family and its real hooks. -/
 def sync (isA : Bool) : Sync F NodeM :=

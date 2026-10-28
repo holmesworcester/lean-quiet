@@ -261,9 +261,15 @@ code (Connection/, one file per op type).
   that side's half of the handshake. A close purges them, which makes
   sessions forward secret (the purge branch).
 - **Frames** (`Connection/Frame.lean`, not an op) are as poc-17's: the
-  connection id, a random nonce, and XChaCha20-Poly1305 with the id as
-  associated data. They carry no counters and need no replay tracking,
-  because ops are idempotent.
+  connection id, a nonce, and XChaCha20-Poly1305 with the id as
+  associated data. The nonce is the frame's counter (8 bytes) then 16
+  random bytes (`Frame.nonce`): the counter orders one direction of a
+  session, and the random tail keeps nonces from repeating if a counter
+  does (a restart reopens sessions with the same keys). Opened, a frame
+  gives its counter (`Frame.openAt`), and the node is to take it only if
+  the counter is above the session's mark (`Frame.fresh`), so a replayed
+  frame changes nothing, the session's return address included. That
+  check is the node's (pending): today the frames' counters are random.
 - **In and out.** Every op taken gets a `recv` (when it arrived and
   how). Everything leaves through `send` couriers, which cite the op
   they carry and are read by reference when handed out.
@@ -287,7 +293,9 @@ Laws (`Connection/Laws.lean`, `Connection/Noise.lean`,
 - `handshake_agrees`, `sent1_write1`, `sent1_read1`, `read2_write2'`,
   for any suite whose DH commutes, whose AEAD opens what it seals and
   whose messages split into their key and the rest;
-- `open_seal`, `cid_seal`;
+- `open_seal`, `cid_seal`; `openAt_seal` (a frame opens to the counter
+  it was sealed with), `openAt_sealed` (one that opens was sealed under
+  that key with the counter it shows), `Frame.ctrOf_nonce`;
 - `sum_left`.
 
 **The handshake in a symbolic model** (`Connection/NoiseSymbolic.lean`,
@@ -364,19 +372,29 @@ bytes it can derive, to either node, from any address.
   but DH's). DH, AEAD and HKDF secrecy then follow as theorems. `Apart`
   says which bytes are plain and that the secrets are distinct names;
   SHA-256 and Ed25519 are opaque in Lean, so their outputs being plain
-  is assumed. That the users admit only each other (and no forged
-  admission is accepted) is a condition on each step.
-- **Laws, as statements:** `secrecy_stmt` (no seed, device secret, draw
-  or session key is ever derived), `authentic_stmt` (every frame a node
-  opens is byte for byte one the other node sent, on a session with that
-  node's device; a bare delivery is taken in only as a conn-scope op),
-  `replay_stmt`, `forward_stmt` (after both close a session, neither
-  store holds its ephemerals, and an attacker knowing everything not
-  built from them derives neither key), `live_stmt` (some execution
-  establishes a session and carries an op each way).
-- **Replay is false today.** A request whose session was closed and
-  purged, delivered again, is answered afresh, and the one-per-peer
+  is assumed. That the users admit only each other (each node's
+  `allowPeer` takes only the pair's endpoints, and no forged admission
+  is accepted) is a condition on each step.
+- **Endpoints.** The laws name a node only by its endpoint secret (the
+  static secret it handshakes with) and the key the other node knows it
+  by (`Setup.endpoint`, `endpointKey`, `staticOf`). Today these are its
+  device's X25519 secret and device key; when the endpoint becomes its
+  own key, only those three definitions change.
+- **Laws, as statements:** `secrecy_stmt` (no seed, endpoint secret,
+  draw or session key is ever derived), `authentic_stmt` (every frame a
+  node opens is byte for byte one the other node sent, on a session with
+  that node's endpoint; a bare delivery is taken in only as a conn-scope
+  op), `frameReplay_stmt` (a frame delivered again changes nothing),
+  `bareReplay_stmt` (a handshake op delivered again adds only `recv`
+  records and opens no session), `forward_stmt` (after both close a
+  session, neither store holds its ephemerals, and an attacker knowing
+  everything not built from them derives neither key), `live_stmt` (some
+  execution establishes a session and carries an op each way).
+- **Both replay laws are false today.** A replayed frame rebinds its
+  session's return address until the peer's next frame (fixed by the
+  node checking `Frame.fresh` first). A request whose session was closed
+  and purged, delivered again, is answered afresh, and the one-per-peer
   choice then keeps that new session, which only the responder holds,
   and drops the live one. `Tests/PairWorld.lean` (`pairworld`) runs the
   pure world with libsodium: an honest join, a session, a post each way;
-  a replay of every payload adds only `recv` records; and the finding.
+  a replay of every payload adds only `recv` records; and both findings.

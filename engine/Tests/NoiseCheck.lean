@@ -122,4 +122,18 @@ def main : IO UInt32 := do
   t.ok "every tampered frame is refused" bad
   let n2 ← randomBytes 24
   t.ok "two seals of the same bytes differ" (Connection.Frame.seal K cid k n2 body != fr)
+  -- Counters: the nonce is the frame's counter, then random bytes.
+  let rnd ← randomBytes 32
+  let ctr := 0x0102030405060708
+  let fc := Connection.Frame.seal K cid k (Connection.Frame.nonce ctr rnd) body
+  t.ok "a frame opens to the counter it was sealed with" (Connection.Frame.openAt K k fc == some (cid, ctr, body))
+  let bumped := fc.set! 40 (fc.get! 40 + 1)
+  t.ok "a frame whose counter was changed never opens" ((Connection.Frame.openAt K k bumped).isNone)
+  let fc2 := Connection.Frame.seal K cid k (Connection.Frame.nonce (ctr + 1) rnd) body
+  t.ok "the next counter is fresh after this one, and this one is not again"
+    (match Connection.Frame.openAt K k fc, Connection.Frame.openAt K k fc2 with
+      | some (_, c1, _), some (_, c2, _) => Connection.Frame.fresh c1 c2 && !Connection.Frame.fresh c1 c1
+      | _, _ => false)
+  t.ok "the same counter with another random tail is another nonce"
+    (Connection.Frame.nonce ctr rnd != Connection.Frame.nonce ctr (sha256 rnd))
   t.finish "noise_check"

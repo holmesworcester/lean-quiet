@@ -271,6 +271,21 @@ def openFrame (K : Keys) (b : B) : m (Option (Id × B)) := do
   let some (_, rk) ← sessionKeys cid | return none
   return Frame.open K rk b
 
+/-- These bytes sealed for session cid as its frame with counter `ctr`:
+the nonce is the counter, then 16 fresh random bytes (`Frame.nonce`).
+None without the session's keys. The counter is the node's to keep. -/
+def sealForAt (K : Keys) (cid : Id) (ctr : Nat) (p : B) : m (Option B) := do
+  let some (sk, _) ← sessionKeys cid | return none
+  return some (Frame.seal K cid sk (Frame.nonce ctr (← Fresh.fresh)) p)
+
+/-- A sealed frame's session, counter and bytes, if it opens under that
+session's receive key; the node takes it only if the counter is fresh
+(`Frame.fresh`). -/
+def openFrameAt (K : Keys) (b : B) : m (Option (Id × Nat × B)) := do
+  let some cid := Frame.cid b | return none
+  let some (_, rk) ← sessionKeys cid | return none
+  return Frame.openAt K rk b
+
 def outbox : m (List (Id × B × B)) := do
   let mut out := []
   for (x, f) in ← rows send.all [] do
