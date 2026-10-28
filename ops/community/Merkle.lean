@@ -37,9 +37,13 @@ the hypothesis, see `no_injective_hash`):
 What runs builds the tree once, level by level, and reads the root and
 every proof off the levels; `fileRoot_eq_fast`, `proof_eq_fast` and
 `rootAndProofs_eq_fast` (`@[csimp]`) prove it equal to `fileRoot` and
-`proof`, so the laws are about it.
+`proof`, so the laws are about it. What an attachment writes
+(`rootAndProofs`) runs as `rootAndProofsM`, which hashes only through a
+door (`hashM`); its budget, each leaf slot, node and root hashed once
+and every byte of the file once, is in MerkleCost.lean.
 -/
 import engine.core.Core
+import engine.core.Cost
 
 namespace Community.Merkle
 open Engine
@@ -602,10 +606,77 @@ def fileRootFast (ct : B) : B :=
 def proofFast (ct : B) (i : Nat) : List B :=
   pathOf (look (fileLevels H ct)) (depthOf (nChunks ct.size)) 0 i
 
-def rootAndProofsFast (ct : B) : B × List (List B) :=
-  let ls := fileLevels H ct
+/-! ### Through the hash door
+
+What an attachment writes runs as `rootAndProofsM`: the same levels,
+over a monad, with every hash through `hashM`. Where it runs (`Id`) the
+door is H itself; counted (`Counted`), it also charges each hash and its
+bytes (MerkleCost.lean). -/
+
+section
+variable {m : Type → Type} [Monad m] [Tick m]
+
+/-- H, as a door: one call, charged with its input's size. -/
+@[inline] def hashM (x : B) : m B := do
+  tick { hashes := 1, hashed := x.size }
+  pure (H x)
+
+/-- `up`, each node hashed through the door. -/
+def upM (a : Array B) : m (Array B) :=
+  Array.ofFnM (n := a.size / 2) fun j =>
+    hashM H (tagNode ++ a.getD (2 * j) .empty ++ a.getD (2 * j + 1) .empty)
+
+/-- `levels`, each built once from the one below. -/
+def levelsM (a : Array B) : Nat → m (List (Array B))
+  | 0 => pure [a]
+  | d + 1 => do
+    let u ← upM H a
+    let ls ← levelsM u d
+    pure (a :: ls)
+
+/-- `leaves`, through the door. -/
+def leafM (ct : B) (j : Nat) : m B :=
+  if j < nChunks ct.size then hashM H (tagLeaf ++ be64 j ++ slice ct j) else hashM H tagEmpty
+
+/-- `leafArray`: each leaf slot hashed once. -/
+def leafArrayM (ct : B) : m (Array B) :=
+  Array.ofFnM (n := 2 ^ depthOf (nChunks ct.size)) fun j => leafM H ct j
+
+/-- **What runs** for `rootAndProofs`: the leaves, each level once, then
+the root; every proof read off the levels. -/
+def rootAndProofsM (ct : B) : m (B × List (List B)) := do
   let d := depthOf (nChunks ct.size)
-  (rootOf H ct.size (look ls d 0), (List.range (nChunks ct.size)).map (pathOf (look ls) d 0))
+  let ls ← levelsM H (← leafArrayM H ct) d
+  let r ← hashM H (tagRoot ++ be64 ct.size ++ look ls d 0)
+  pure (r, (List.range (nChunks ct.size)).map (pathOf (look ls) d 0))
+
+end
+
+def rootAndProofsFast (ct : B) : B × List (List B) := Id.run (rootAndProofsM H ct)
+
+theorem upM_id (a : Array B) : Id.run (upM H a) = up H a := by
+  simp only [upM, Array.idRun_ofFnM, up]; rfl
+
+theorem levelsM_id (a : Array B) : ∀ d, Id.run (levelsM H a d) = levels H a d
+  | 0 => rfl
+  | d + 1 => by
+    show a :: Id.run (levelsM H (Id.run (upM H a)) d) = _
+    rw [upM_id, levelsM_id _ d]; rfl
+
+theorem leafArrayM_id (ct : B) : Id.run (leafArrayM H ct) = leafArray H ct := by
+  simp only [leafArrayM, Array.idRun_ofFnM, leafArray, leafM, leaves, leaf, empty]
+  congr
+
+/-- `rootAndProofsM` where it runs is the levels' root and proofs. -/
+theorem rootAndProofsFast_eq (ct : B) :
+    rootAndProofsFast H ct =
+      let ls := fileLevels H ct
+      let d := depthOf (nChunks ct.size)
+      (rootOf H ct.size (look ls d 0), (List.range (nChunks ct.size)).map (pathOf (look ls) d 0)) := by
+  have e : Id.run (levelsM H (Id.run (leafArrayM H ct)) (depthOf (nChunks ct.size))) = fileLevels H ct := by
+    rw [leafArrayM_id, levelsM_id]; rfl
+  unfold rootAndProofsFast rootAndProofsM
+  rw [← e]; rfl
 
 theorem getD_ofFn {n : Nat} (f : Fin n → B) {j : Nat} (h : j < n) :
     (Array.ofFn f).getD j .empty = f ⟨j, h⟩ := by
@@ -699,7 +770,7 @@ theorem look_sub (ct : B) : ∀ k m, k ≤ depthOf (nChunks ct.size) →
   funext H ct
   have hr : fileRootFast H ct = fileRoot H ct := by rw [fileRoot_eq_fast]
   have hp : proofFast H ct = proof H ct := by rw [proof_eq_fast]
-  rw [rootAndProofs, ← hr, ← hp]
+  rw [rootAndProofs, ← hr, ← hp, rootAndProofsFast_eq]
   rfl
 
 end
