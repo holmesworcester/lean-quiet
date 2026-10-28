@@ -42,7 +42,7 @@ def side (dir name : String) (port : Nat) : IO Peer := do
   let addr := s!"127.0.0.1:{port}".toUTF8
   let path := s!"{dir}/{name}.db"
   let db ← fresh path
-  let x : Sync F (SqlM F) := { fam, cfg, hooks := hooks fam K seed addr }
+  let x : Sync F (SqlM F) := { fam, cfg, hooks := hooks fam K addr }
   let run ← Runner.start x db 0 port.toUInt16
   return { name, seed, addr, path, run }
 

@@ -391,6 +391,9 @@ namespace secret
 /-- This device's own secret seeds, by public key: read by intents to
 sign, never by views. -/
 def byKey : Rel Fact := ⟨"secret", "byKey", fun | .secret pk _ => some [pk] | _ => none⟩
+/-- Every device this node holds the secret of: the devices its network
+node speaks for. -/
+def all : Rel Fact := ⟨"secret", "all", fun | .secret .. => some [] | _ => none⟩
 end secret
 
 namespace accepted
@@ -419,7 +422,7 @@ in none (read by their own key). -/
 def rels : List (Rel Fact) :=
   [admission.byDevice, admission.all, removal.byUser, admin.byUser, message.all, message.byAuthor,
    wrap.byContentKey, profile.byUser, profile.all, react.byMessage, react.byMessageEmoji,
-   request.all, approval.byRequest, secret.byKey, accepted.all, joining.all, named.current,
+   request.all, approval.byRequest, secret.byKey, secret.all, accepted.all, joining.all, named.current,
    abandoned.byRequest]
 
 /-- The keys a fact is filed under: its relations'. -/

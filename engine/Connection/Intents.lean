@@ -68,11 +68,23 @@ def count (r : Rel Fact) (args : List B) : m Nat := do
 /-- Byte order on ids. -/
 def lt (a b : B) : Bool := a.toList < b.toList
 
-/-- This device, if its secret is stored: its key and its secret op. -/
-def mine (seed : B) : m (Option (B × Id)) := do
-  let ed := Community.ed25519.pub seed
-  let a : Answer F ← Lists.list (m := m) (Community.secret.byKey.query [ed])
-  return a.lefts.head?.map fun ((_, x), _) => (ed, x)
+/-- The devices this node speaks for: every device whose secret it
+holds (local `secret` ops), as key, seed and secret op. One node serves
+all of them, so joining another community needs no restart. -/
+def devices : m (List (B × B × Id)) := do
+  let a : Answer F ← Lists.list (m := m) (Community.secret.all.query [])
+  return a.lefts.filterMap fun ((_, x), f) => match f with
+    | .secret pk seed => some (pk, seed, x)
+    | _ => none
+
+/-- The device this node is in community c as (its acceptance of c),
+with its seed and secret op. -/
+def meIn (c : B) : m (Option (B × B × Id)) := do
+  let acc : Answer F ← Lists.list (m := m) (Community.accepted.all.query [])
+  let some d := acc.lefts.findSome? (fun (_, f) => match f with
+    | .accepted c' d => if c' = c then some d else none
+    | _ => none) | return none
+  return (← devices).find? (·.1 = d)
 
 /-- The bare address op x arrived from, if it arrived bare. -/
 def arrivedFrom (x : Id) : m (Option B) := do
@@ -80,12 +92,13 @@ def arrivedFrom (x : Id) : m (Option B) := do
     | .recv _ false _ a _ => some a
     | _ => none
 
-def react (fam : Family F) (K : Keys) (seed : B) : m (List Op) := do
-  let some (me, secretOp) ← mine seed | return []
+def react (fam : Family F) (K : Keys) : m (List Op) := do
+  let mine ← devices
   let mut out : Array Op := #[]
   -- open
-  for (r, _) in ← rows request.byTo [me] do
-    if (← count opened.byRequest [r]) = 0 then out := out.push (Opened.op r secretOp)
+  for (me, _, secretOp) in mine do
+    for (r, _) in ← rows request.byTo [me] do
+      if (← count opened.byRequest [r]) = 0 then out := out.push (Opened.op r secretOp)
   -- deliver, and answer the trusted
   for (_, f) in ← rows opened.all [] do
     let .opened r c frm _ ops := f | continue
@@ -94,22 +107,23 @@ def react (fam : Family F) (K : Keys) (seed : B) : m (List Op) := do
       if decide (fam.scope o = .shared c) && (← Store.getOp (m := m) o.id).isNone then
         out := out.push o
     if (← count connection.byRequest [r]) ≠ 0 then continue
-    if !(← ((trusts c me frm).liftL : View F Bool).run) then continue
     let some ro ← Store.getOp (m := m) r | continue
-    let some (.request _ _ m1) := (decode ro.body : Option Body) | continue
+    let some (.request me _ m1) := (decode ro.body : Option Body) | continue
+    let some (_, seed, secretOp) := mine.find? (·.1 = me) | continue
+    if !(← ((trusts c me frm).liftL : View F Bool).run) then continue
     let some addr ← arrivedFrom r | continue
     let f ← Fresh.fresh
     let some co := Reply.op K r seed frm m1 f | continue
     let eo := Eph.op f co.id
     out := out ++ #[co, eo, Established.op co.id r eo.id secretOp, Send.op addr co]
   -- establish
-  for (r, f) in ← rows request.byFrm [me] do
-    let .request _ _ m1 := f | continue
-    for (cid, _) in ← rows connection.byRequest [r] do
-      if (← count established.byConn [cid]) ≠ 0 then continue
-      match ← rows eph.byOf [r] with
-      | (e, _) :: _ => out := out.push (Established.op cid r e secretOp)
-      | [] => pure ()
+  for (me, _, secretOp) in mine do
+    for (r, _) in ← rows request.byFrm [me] do
+      for (cid, _) in ← rows connection.byRequest [r] do
+        if (← count established.byConn [cid]) ≠ 0 then continue
+        match ← rows eph.byOf [r] with
+        | (e, _) :: _ => out := out.push (Established.op cid r e secretOp)
+        | [] => pure ()
   return out.toList
 
 /-- Whether this device holds a session with `peer`. -/
@@ -118,14 +132,17 @@ def connectedTo (peer : B) : m Bool := do
     | .established _ _ p .. => decide (p = peer)
     | _ => false
 
-/-- `listen` is this device's own address, put in its hellos. -/
-def dial (K : Keys) (seed listen : B) (_now : Nat) : m (List Op) := do
-  let some (me, _) ← mine seed | return []
+/-- `listen` is this node's own address, put in its hellos. A join this
+device stopped waiting on (`abandon`) is not dialed. -/
+def dial (K : Keys) (listen : B) (_now : Nat) : m (List Op) := do
   let mut out : Array Op := #[]
   let joins : Answer F ← Lists.list (m := m) (Community.joining.all.query [])
   for (_, f) in joins.lefts do
     let .joining c inviter hints req _ := f | continue
     let some hint := hints.head? | continue
+    let gone : Answer F ← Lists.list (m := m) (Community.abandoned.byRequest.query [req] (limit := some 0))
+    if gone.total ≠ 0 then continue
+    let some (me, seed, _) ← meIn c | continue
     if ← connectedTo inviter then continue
     let mineTo := (← rows request.byFrm [me]).find? fun (_, g) => match g with
       | .request t _ _ => decide (t = inviter)
@@ -149,11 +166,11 @@ def closing (cid : Id) : m (List Id) := do
   return cid :: co.reqs
 
 /-- The rooms the peer on connection cid may see now. -/
-def rooms (seed : B) (cid : Id) : m (List Id) := do
-  let some (me, _) ← mine seed | return []
+def rooms (cid : Id) : m (List Id) := do
   let mut out := []
   for (_, f) in ← rows established.byConn [cid] do
     let .established _ c peer .. := f | continue
+    let some (me, _, _) ← meIn c | continue
     if ← ((trusts c me peer).liftL : View F Bool).run then out := c :: out
   return out
 
@@ -256,12 +273,12 @@ def onArrival (via : Option Id) (addr : B) (o : Op) (at_ : Nat) : m (List Op) :=
   return first ++ resend
 
 /-- What the node driver calls. -/
-def hooks (fam : Family F) (K : Keys) (seed listen : B) : Hooks F m where
-  rooms := rooms seed
+def hooks (fam : Family F) (K : Keys) (listen : B) : Hooks F m where
+  rooms := rooms
   recv := onArrival
   outbox := outbox
-  react := react fam K seed
-  dial := dial K seed listen
+  react := react fam K
+  dial := dial K listen
   established := sessions
   closing := closing
   retired := retired

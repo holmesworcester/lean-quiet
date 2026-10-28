@@ -20,6 +20,9 @@ What it checks, in order:
   the request arrives again. Session frames ride TCP, which loses a
   socket, not a frame inside one; sync under a dying socket is
   holmes-a3's sync tests'.
+- **Devices:** one node speaks for every device whose secret it holds.
+  A join the device stopped waiting on is not dialed, and the same node
+  then joins another community as another device.
 - **Purge:** a session that loses the one-per-peer choice is purged
   at both ends.
 
@@ -51,7 +54,7 @@ def mkPeer (name : String) : IO Peer := do
   let seed := sha256 s!"seed {name}".toUTF8
   let addr := s!"{name}:7001".toUTF8
   let db ← Db.openAt ":memory:"
-  let x : Sync F (SqlM F) := { fam, cfg, hooks := hooks fam K seed addr }
+  let x : Sync F (SqlM F) := { fam, cfg, hooks := hooks fam K addr }
   return { addr, seed, x, db, n := Node.boot fam [] 0 }
 
 structure World where
@@ -214,4 +217,31 @@ def main : IO UInt32 := do
     IO.eprintln s!"A2 conns {w2.a.n.conns.map (fun p => hex p.1)} dropped {w2.a.n.dropped.map hex}"
     IO.eprintln s!"B2 conns {w2.b.n.conns.map (fun p => hex p.1)} dropped {w2.b.n.dropped.map hex}"
   t.ok "with a third of handshake frames lost, B still joins" (← allowedOn w2.b c2 (Device.ofSeed w2.b.seed).pk)
+  -- One node for every device it holds; an abandoned join is not dialed.
+  let a3 ← mkPeer "A3"
+  let b3 ← mkPeer "B3"
+  let mut w3 : World := { a := a3, b := b3 }
+  w3 ← writeA w3 (found a3.seed "Acme3".toUTF8 "Ann".toUTF8 1).ops
+  let c3 := (root (Device.ofSeed a3.seed)).id
+  -- A pending join to a community that is not here, as another device.
+  let ghost := sha256 "ghost".toUTF8
+  let gr := root (Device.ofSeed ghost)
+  let (_, deadLink) := inviteTo gr.id gr.id ghost (sha256 "ghost bearer".toUTF8) ["Z:7001".toUTF8]
+  let wd := join deadLink (sha256 "old device".toUTF8) "Old".toUTF8
+  w3 ← writeB w3 wd.ops
+  w3 ← w3.run 5
+  t.ok "a pending join is dialed" (w3.sentBare ≥ 3)
+  let some jo := wd.ops.getLast? | t.ok "the join's ops" false; return 1
+  w3 ← writeB w3 [abandon jo.id]
+  let s0 := w3.sentBare
+  w3 ← w3.run 10
+  t.ok "a join this device stopped waiting on is not dialed" (w3.sentBare == s0)
+  -- The same node joins A3 as a second device, with no restart.
+  let (wi3, link3) := inviteTo c3 c3 a3.seed (sha256 "bearer3".toUTF8) [a3.addr]
+  w3 ← writeA w3 wi3.ops
+  w3 ← writeB w3 (join link3 b3.seed "Bea".toUTF8).ops
+  w3 ← w3.run 10
+  w3 ← approveOnA w3 c3 (link3.request (Device.ofSeed b3.seed))
+  w3 ← w3.run 30
+  t.ok "the same node then joins as another device" (← allowedOn w3.b c3 (Device.ofSeed b3.seed).pk)
   t.finish "connection_check"
