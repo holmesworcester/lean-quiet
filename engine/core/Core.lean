@@ -72,6 +72,10 @@ instance : Codec Op where
   dec bs := (dec bs : Option ((UInt8 × List Id × ByteArray) × List UInt8)).map
     fun p => (Op.make p.1.1 p.1.2.1 p.1.2.2, p.2)
   round o rest := by simp [round, Op.make_eta]
+  encInto buf o := encInto buf (o.kind, o.reqs, o.body)
+  encInto_eq buf o := encInto_eq buf (o.kind, o.reqs, o.body)
+  decFrom := decFromAs fun (p : UInt8 × List Id × ByteArray) => Op.make p.1 p.2.1 p.2.2
+  decFrom_at o h := by rw [decFromAs_at _ h, Op.make_eta]
 
 /-- An op's bytes: what travels, what SQLite stores, what its id hashes. -/
 def Op.bytes (o : Op) : ByteArray := Codec.encode o
@@ -88,6 +92,23 @@ theorem Op.id_decode {b : ByteArray} {o : Op} (h : Op.decode b = some o) : o.id 
   rw [Op.id_bytes, Op.bytes, Codec.encode_decode h]
 
 theorem Op.decode_bytes (o : Op) : Op.decode o.bytes = some o := Codec.decode_encode o
+
+/-- **A decoded op is exactly the bytes received**, so no larger. -/
+theorem Op.decode_exact {b : ByteArray} {o : Op} (h : Op.decode b = some o) :
+    o.bytes = b ∧ o.bytes.size = b.size :=
+  ⟨Codec.encode_decode h, by rw [Op.bytes, Codec.encode_decode h]⟩
+
+/-- **A decoded op's parts are smaller than its bytes:** its
+requirements' ids and its body together. -/
+theorem Op.decode_parts {b : ByteArray} {o : Op} (h : Op.decode b = some o) :
+    (o.reqs.map ByteArray.size).sum + o.body.size < b.size := by
+  rw [← (Op.decode_exact h).1]
+  show _ < (Codec.enc (o.kind, o.reqs, o.body)).toArray.size
+  rw [List.size_toArray]
+  show _ < (Codec.enc o.kind ++ (Codec.encList o.reqs ++ Codec.enc o.body)).length
+  rw [List.length_append, List.length_append, Codec.length_enc_bytes]
+  have := Codec.length_encList_bytes o.reqs
+  omega
 
 /-- A decided op: Valid with the fact it produced, or Invalid. -/
 inductive Verdict (F : Type) where
@@ -106,6 +127,18 @@ instance {F} [Codec F] : Codec (Verdict F) where
     cases v with
     | valid f => simp [round]
     | invalid => rfl
+  encInto buf
+    | .valid f => encInto (buf.push 1) f
+    | .invalid => buf.push 0
+  encInto_eq buf v := by cases v <;> simp [encInto_tag]
+  decFrom b i := match b[i]? with
+    | some 1 => decFromAs .valid b (i + 1)
+    | some 0 => some (.invalid, i + 1)
+    | _ => none
+  decFrom_at v h := by
+    cases v with
+    | valid f => simp only [h.tag]; exact decFromAs_tag _ h
+    | invalid => simp [h.tag]
 
 /-- Where ops of a kind travel. Shared ops are what sync offers and
 takes, in their room (a community). Conn ops cross the bare wire to one

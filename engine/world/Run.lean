@@ -109,26 +109,73 @@ structure Conn.Same (c c' : Conn) : Prop where
 
 theorem Conn.Same.refl (c : Conn) : Conn.Same c c := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
-/-- **What the laws need of the closure walk.** On main, `Conn.walk`
-loops with `while`, which Lean compiles through a `partial` definition,
-so no proof can see what it returns (finding 3), and every law that
-runs a tick or answers a want takes this as a hypothesis. holmes-a3's
-a3/hostile replaces the loop by the structural `Conn.walkN`, of which
-each field is a short induction on the budget (its `walkN_keeps`
-already proves the store is kept); the hypothesis is discharged once
-that lands. -/
+/-- **What the laws need of the closure walk:** it only reads, touches
+only its frontier, offers and closures, and does nothing on an empty
+frontier. `walk_proof` proves it of main's structural `Conn.walkN`
+(finding 3's fix); the laws that run a tick or answer a want take it as
+a premise, so they read the same over any walk with these laws. -/
 structure WalkLaws (fam : Family F) (cfg : Config) : Prop where
   /-- The walk only reads. -/
-  keeps : ∀ c : Conn, Keeps (c.walk fam cfg : HeldM F (Conn × List Id))
+  keeps : ∀ c : Conn, Keeps (c.walk fam cfg : HeldM F (Conn × List (Id × Id)))
   /-- It touches only its frontier, offers and closures. -/
-  same : ∀ (c : Conn) (h : Held F), Conn.Same c ((c.walk fam cfg : HeldM F (Conn × List Id)).run h).1.1
+  same : ∀ (c : Conn) (h : Held F), Conn.Same c ((c.walk fam cfg : HeldM F (Conn × List (Id × Id))).run h).1.1
   /-- With nothing on its frontier it offers nothing and changes nothing. -/
   idle : ∀ (c : Conn) (h : Held F), c.frontier = [] →
-    (c.walk fam cfg : HeldM F (Conn × List Id)).run h = ((c, []), h)
+    (c.walk fam cfg : HeldM F (Conn × List (Id × Id))).run h = ((c, []), h)
 
-/-- **The walk's laws, for every family and settings**: the one premise
-the world laws carry about today's code (true of a3/hostile's `walkN`). -/
+/-- **The walk's laws, for every family and settings.** -/
 def walk_stmt : Prop := ∀ (F : Type) (fam : Family F) (cfg : Config), WalkLaws fam cfg
+
+theorem Conn.Same.trans {a b c : Conn} (h1 : Conn.Same a b) (h2 : Conn.Same b c) : Conn.Same a c :=
+  ⟨h2.1.trans h1.1, h2.2.trans h1.2, h2.3.trans h1.3, h2.4.trans h1.4, h2.5.trans h1.5, h2.6.trans h1.6,
+    h2.7.trans h1.7, h2.8.trans h1.8, h2.9.trans h1.9⟩
+
+/-- The walk, step by step: it only reads, and keeps all but its
+frontier, offers and closures. -/
+theorem walkN_laws (fam : Family F) (h : Held F) : ∀ (k : Nat) (c : Conn) (offer : List (Id × Id)),
+    ((c.walkN fam offer k : HeldM F _).run h).2 = h ∧ Conn.Same c ((c.walkN fam offer k : HeldM F _).run h).1.1 := by
+  intro k
+  induction k with
+  | zero => intro c offer; exact ⟨rfl, Conn.Same.refl c⟩
+  | succ k ih =>
+    intro c offer
+    have leaf : ∀ (c' : Conn) (offer' : List (Id × Id)), Conn.Same c c' →
+        ((c'.walkN fam offer' k : HeldM F _).run h).2 = h ∧
+          Conn.Same c ((c'.walkN fam offer' k : HeldM F _).run h).1.1 := fun c' offer' e =>
+      ⟨(ih c' offer').1, e.trans (ih c' offer').2⟩
+    rw [Conn.walkN]
+    cases hf : c.frontier with
+    | nil => exact ⟨rfl, Conn.Same.refl c⟩
+    | cons x rest =>
+      dsimp only
+      have s0 : Conn.Same c { c with frontier := rest } := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+      by_cases h1 : (!c.closed.contains x) = true
+      · simp only [h1, ↓reduceIte, HeldM.run_bind, HeldM.run_getOp]
+        cases hx : h.db.ops x with
+        | none => exact leaf _ _ s0
+        | some o =>
+          dsimp only
+          by_cases hsh : Conn.shows fam { c with frontier := rest } o = true
+          · simp only [hsh, ↓reduceIte]
+            by_cases h2 : (!c.known.contains x && !c.offered.contains x) = true
+            · simp only [h2, ↓reduceIte, HeldM.run_bind, HeldM.run_getStatus]
+              rcases h.db.status x with _ | ⟨_⟩ | _ <;>
+                exact leaf _ _ ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+            · simp only [h2, Bool.false_eq_true, ↓reduceIte, HeldM.run_bind, HeldM.run_getStatus]
+              rcases h.db.status x with _ | ⟨_⟩ | _ <;>
+                exact leaf _ _ ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+          · simp only [hsh, Bool.false_eq_true, ↓reduceIte]; exact leaf _ _ s0
+      · simp only [h1, Bool.false_eq_true, ↓reduceIte]; exact leaf _ _ s0
+
+/-- **The walk's laws hold of main's `Conn.walk`** (`walkN` over the
+budget `cfg.walk`). -/
+theorem walk_proof : walk_stmt := by
+  intro F fam cfg
+  refine ⟨fun c h => (walkN_laws fam h _ c []).1, fun c h => (walkN_laws fam h _ c []).2, fun c h hf => ?_⟩
+  unfold Conn.walk
+  cases cfg.walk with
+  | zero => rfl
+  | succ k => rw [Conn.walkN]; simp [hf]
 
 section
 variable (fam : Family F) (cfg : Config)
@@ -136,8 +183,11 @@ variable (fam : Family F) (cfg : Config)
 theorem filed_keeps (c : Conn) (ids : List Id) : Keeps (c.filed fam cfg ids : HeldM F Step) := by
   unfold Conn.filed; keeps []
 
-theorem onHold_keeps (c : Conn) (ids : List Id) : Keeps (c.onHold cfg ids : HeldM F Step) := by
-  unfold Conn.onHold; keeps []
+theorem holdsIn_keeps (r i : Id) : Keeps (holdsIn (F := F) fam r i : HeldM F Bool) := by
+  unfold holdsIn; keeps []
+
+theorem onHold_keeps (c : Conn) (r : Id) (ids : List Id) : Keeps (c.onHold fam cfg r ids : HeldM F Step) := by
+  unfold Conn.onHold; keeps [holdsIn_keeps]
 
 /-- Reading ops by id, in order, keeping those found. -/
 theorem filterMapM_getOp (ids : List Id) (h : Held F) :

@@ -334,7 +334,9 @@ theorem onFrame_sealed (hw : WalkLaws (F := F) fam cfg) (n : Node) (a b : ByteAr
         (inner.foldl (frameStep fam cfg rms cid now) ((n.setAddr cid a, {}), h)).1.2 now).run
         (inner.foldl (frameStep fam cfg rms cid now) ((n.setAddr cid a, {}), h)).2 := by
   unfold Node.onFrame
-  simp only [h0, psync_openFrame, HeldM.pure_bind, hb, hc, hi, HeldM.run_bind]
+  simp only [h0, psync_openFrame, HeldM.pure_bind, hb]
+  unfold Node.onSealed
+  simp only [hc, hi, HeldM.run_bind]
   rw [forIn_fold _ _ (fun b st h => by split <;> rfl)]
   rw [foldl_ext _ (frameStep fam cfg rms cid now) (fun p b => ?_)]
   unfold frameStep
@@ -712,7 +714,11 @@ theorem recv_drop (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) (h : Held 
                    · exact start_drop cfg ix _ now
                    · rfl
       | rbsr r k cs => show (Conn.finish _).drop = false; rw [Conn.finish_drop]; exact onRbsr_drop cfg ix _ r k cs now
-      | hold ids => simp only [HeldM.run_bind, HeldM.run_pure, Conn.finish_drop, Conn.onHold]
+      | hold r ids =>
+        simp only [HeldM.run_bind, HeldM.run_pure, Conn.finish_drop, Conn.onHold]
+        split
+        · rfl
+        · simp only [HeldM.run_bind, HeldM.run_pure]
       | want ids =>
         simp only [HeldM.run_bind, HeldM.run_pure, Conn.finish_drop, Conn.onWant]
         split
@@ -1070,14 +1076,14 @@ theorem onFrame_ok (n : Node) (a b : ByteArray) (now : Nat) (h : Held F) (ok : N
     by_cases t1 : t = 1
     · subst t1
       cases hd : (Codec.decode (b.extract 1 b.size) : Option (Id × ByteArray)) with
-      | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, HeldM.run_pure]; exact ok
+      | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, Node.onSealed, HeldM.run_pure]; exact ok
       | some q =>
         obtain ⟨cid, bundle⟩ := q
         cases hc : n.conn? cid with
-        | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, hc, HeldM.run_pure]; exact ok
+        | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, Node.onSealed, hc, HeldM.run_pure]; exact ok
         | some c =>
           cases hi : (Codec.decode bundle : Option (List ByteArray)) with
-          | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, hc, hi, HeldM.run_pure]; exact ok
+          | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, Node.onSealed, hc, hi, HeldM.run_pure]; exact ok
           | some inner =>
             rw [onFrame_sealed fam cfg rms hw n a b now h cid bundle inner c h0 hd hi hc]
             exact finish_ok fam cfg rms _ _ _ _ (frame_fold fam cfg rms hw cid now inner _ (setAddr_ok n cid a h ok)).1

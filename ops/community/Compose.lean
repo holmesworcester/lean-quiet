@@ -77,9 +77,10 @@ def remove (c removerAdm auth targetAdm : Id) (by_ : Device) : Op :=
   let reqs := [c, removerAdm, auth, targetAdm]
   mkOp reqs (.remove (sig by_.sk reqs (.remove .empty)))
 
-def post (c adm : Id) (by_ : Device) (ckey text : ByteArray) (time : Nat := 0) : Op :=
+/-- A post claiming counter n, at `time` (minutes since the Unix epoch). -/
+def post (c adm : Id) (by_ : Device) (ckey text : ByteArray) (n time : Nat) : Op :=
   let reqs := [c, adm]
-  mkOp reqs (.post ckey text time (sig by_.sk reqs (.post ckey text time .empty)))
+  mkOp reqs (.post ckey text n time (sig by_.sk reqs (.post ckey text n time .empty)))
 
 def profile (c adm : Id) (by_ : Device) (name : ByteArray) (time : Nat) : Op :=
   let reqs := [c, adm]
@@ -103,10 +104,10 @@ def wrapKey (c : Id) (k esk to : ByteArray) : Op :=
   wrap c kid to (box cryptoSeal esk to kid k)
 
 /-- A post whose text is sealed under content key k with a fresh
-24-byte nonce n: its sealed bytes are the nonce, then the ciphertext. -/
-def sealedPost (c adm : Id) (by_ : Device) (k n text : ByteArray) (time : Nat := 0) : Op :=
+24-byte nonce: its sealed bytes are the nonce, then the ciphertext. -/
+def sealedPost (c adm : Id) (by_ : Device) (k nonce text : ByteArray) (n time : Nat) : Op :=
   let kid := kidOf cryptoSeal k
-  post c adm by_ kid (n ++ sealBody cryptoSeal k n c kid text) time
+  post c adm by_ kid (nonce ++ sealBody cryptoSeal k nonce c kid text) n time
 
 /-! ## Attachments -/
 
@@ -136,17 +137,20 @@ def fileAd : ByteArray := "quiet/file/v1".toUTF8
 def fileCipher (f : NewFile) : ByteArray := cryptoSeal.enc f.key f.nonce fileAd f.bytes
 
 /-- An attachment of file f to message `msg` of c, by `by_` (admitted
-as `adm`), its meta sealed under content key k; and the file's chunks. -/
+as `adm`), its meta sealed under content key k; and the file's chunks
+(`attach_chunks`: chunk i is `fileChunk`). The root and every proof
+come from one pass over the file (`Merkle.rootAndProofs`). -/
 def attach (c adm msg : Id) (by_ : Device) (k : ByteArray) (f : NewFile) : Op × List Op :=
   let ct := fileCipher f
-  let root := Merkle.fileRoot sha256 ct
+  let tree := Merkle.rootAndProofs sha256 ct
+  let root := tree.1
   let kid := kidOf cryptoSeal k
   let m := encode (f.info.name, f.info.kind, f.info.w, f.info.h, f.info.preview, f.key, f.nonce)
   let sealed := f.metaNonce ++ sealBody cryptoSeal k f.metaNonce c kid m
   let reqs := [c, adm, msg]
   let a := mkOp reqs (.attach root ct.size kid sealed (sig by_.sk reqs (.attach root ct.size kid sealed .empty)))
   let chunks := (List.range (Merkle.nChunks ct.size)).map fun i =>
-    mkOp [c, a.id] (.chunk root ct.size i ((Merkle.slices ct).getD i .empty) (Merkle.proof sha256 ct i))
+    mkOp [c, a.id] (.chunk root ct.size i (Merkle.slice ct i) (tree.2.getD i []))
   (a, chunks)
 
 /-- An attachment's info and the file's key and nonce, opened with the
@@ -159,6 +163,9 @@ def openInfo (c kid sealed k : ByteArray) : Option (FileMeta × ByteArray × Byt
 /-- A file from its chunks' slices, in order, opened with its key. -/
 def openFile (slices : List ByteArray) (fileKey fileNonce : ByteArray) : Option ByteArray :=
   cryptoSeal.dec fileKey fileNonce fileAd (Merkle.assemble slices)
+
+/-- This device's k-th receipt of saturated message m (local). -/
+def receipt (m : Id) (k : Nat) : Op := mkOp [m] (.receive k)
 
 /-- This device's secret seed (local). -/
 def secret (seed : ByteArray) : Op := mkOp [] (.secret (Device.ofSeed seed).pk seed)

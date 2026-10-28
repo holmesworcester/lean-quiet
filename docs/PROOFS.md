@@ -28,7 +28,7 @@ The user asked:
 |---|---|
 | The world and the network | built: engine/world/World.lean, Fair.lean |
 | Statements | 41, each a closed `Prop` with no `sorry` (engine/world/Statements.lean), audited |
-| Proven of the running code | **the pilot, `claim_delivers_stmt`**; `grows_stmt`; the node invariant in every reachable world (`reach_ok`); the three hops of a round's leg (`claim_wants`, `want_sends`, `op_taken`). All given the walk's laws (`walk_stmt`) |
+| Proven of the running code | **the pilot, `claim_delivers_stmt`** (`pilot`); `grows_stmt` (`grows_all`); the node invariant in every reachable world (`reach_ok`); the three hops of a round's leg (`claim_wants`, `want_sends`, `op_taken`); the walk's laws of main's `walkN` (`walk_proof`) |
 | Proven above the code | the reduction `edge_stmt → grows_stmt → converge_stmt`; from it, T-converge for 2, 3 and n peers, all-know-all and transitive; T-op, T-offline; chains, stars and webs, with their diameters |
 | False on today's code | `session_stable_stmt` (finding 1), `rooms_stmt` and `join_stmt` (finding 2): node-level witnesses in Lean. `fresh_stmt`: argued ("T-fresh" below), no Lean witness yet |
 | The open core | `edge_stmt`: per-edge progress. Every T- law above reduces to it and to growth |
@@ -197,7 +197,7 @@ today's code (with the finding), **O** open.
 
 | statement | says | |
 |---|---|---|
-| `grows_stmt` | no step, against any attacker, takes a shared op out of a store | P (`grows_proof`, given `walk_stmt`) |
+| `grows_stmt` | no step, against any attacker, takes a shared op out of a store | **P** (`grows_all`) |
 | `index_store_stmt` | the room index names exactly the stored ops of each room | O |
 | `stream_stmt` | a stored op is offered at once on every session that shows its room | O (a3's `stream_offered` for writes) |
 | `offered_stmt` | L-offered: both | O |
@@ -213,8 +213,8 @@ today's code (with the finding), **O** open.
 | `no_false_settle_stmt` | L-no-false-settle: "settled" means holding the peer's snapshot of the window | O |
 | `dup_concurrent_stmt` | L-dup-concurrent: frames keep sessions, idem, and `round_stmt` | O |
 | `session_stable_stmt` | a joined session over a live edge is never dropped | **F** (finding 1) |
-| `claim_delivers_stmt` | the pilot: a claim listing x, from i to j → j holds x within 3Δ | **P** (`claim_delivers`, given `walk_stmt`) |
-| `walk_stmt` | the walk keeps the store, touches only frontier/offered/closed, is idle on an empty frontier | O on main; a3/hostile's `walkN` |
+| `claim_delivers_stmt` | the pilot: a claim listing x, from i to j → j holds x within 3Δ | **P** (`pilot`) |
+| `walk_stmt` | the walk keeps the store, touches only frontier/offered/closed, is idle on an empty frontier | **P** (`walk_proof`, of main's `walkN`) |
 
 ### T: many nodes over time
 
@@ -290,8 +290,8 @@ pilot is the first third of its round.
 
 ## The pilot
 
-**Proven: `claim_delivers : walk_stmt → claim_delivers_stmt`**
-(engine/world/Pilot.lean). In words: in any execution of the plain world
+**Proven: `pilot : claim_delivers_stmt`** (engine/world/Pilot.lean),
+from `claim_delivers : walk_stmt → claim_delivers_stmt` and `walk_proof`. In words: in any execution of the plain world
 that the network admits, a round's claim of ids, in flight from i to j
 on a session joined from then on, both of whose ends show room r, that
 lists op x of r which i holds, gets x to j within 3Δ of the claim's
@@ -317,7 +317,7 @@ Negative controls, each run and reverted (not committed):
   so H1 and the pilot do not build.
 
 What the pilot assumes, beyond `Fair` and the session:
-- `walk_stmt` (finding 3), until a3/hostile's `walkN` lands;
+- nothing about the walk any more: main's `walkN` has its laws (`walk_proof`);
 - the session's rooms are fixed at both ends (`∀ h, r ∈ Q.rooms i h
   cid`). Dynamic rooms need rooms to be monotone in the store within a
   step, a premise for the dynamic-trust work.
@@ -414,13 +414,11 @@ rule the proofs need. Witnesses are in engine/world/Findings.lean.
    - holmes-a3's `uncarried_room_answered` addresses this. Two possible
      fixes: answer with an empty claim list, which ends the round; or
      name the shown rooms in the hello.
-3. **`while` is opaque to proofs.** `Conn.walk` loops with `while`,
-   which compiles through a `partial` definition, so no theorem can say
-   anything about a tick or an answered want. Until a3/hostile's
-   structural `walkN` lands, what the laws need of the walk is the named
-   premise `walk_stmt` (`WalkLaws`: keeps the store, touches only
-   frontier/offered/closed, idle on an empty frontier). Each field is a
-   short induction on `walkN`'s budget.
+3. **`while` is opaque to proofs** (fixed on main by a3/hostile's
+   structural `walkN`). What the laws need of the walk is `WalkLaws`
+   (keeps the store, touches only frontier/offered/closed, idle on an
+   empty frontier), proven of `walkN` by induction on its budget
+   (`walkN_laws`, `walk_proof`).
 4. **Snapshots are per room, not per round** (observed, not proven).
    - `onRbsr` drops every snapshot of room r on any message of r. So a
      duplicated empty message of an old round ends the current round at
@@ -461,7 +459,7 @@ cost bounds over a shared `Budget` record. Where they plug in:
 
 | a3's law | discharges |
 |---|---|
-| `walkN` and its laws | `walk_stmt`, so every law here drops that premise |
+| `walkN` and its laws | `walk_stmt`: done on main (`walk_proof`) |
 | `tick_drop_iff`, `round_not_dropped` (with the patience fix) | `session_stable_stmt`, and so `redial`'s role in the per-edge bound |
 | cadence | `gap`: the dialer opens a round within `every + (D+1)Δ + τ` |
 | `uncarried_room_answered` | finding 2, so `rooms_stmt`, then `join_stmt` |

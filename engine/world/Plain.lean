@@ -239,9 +239,14 @@ theorem tick_grows' (ix : Index) (c : Conn) (now : Nat) :
     Grows (c.tick (psync fam cfg rms).fam (psync fam cfg rms).cfg ix now : HeldM F Step) :=
   tick_grows fam cfg hw ix c now
 
+theorem onSealed_grows (n : Node) (a : ByteArray) (o : Option (Id × ByteArray)) (now : Nat) :
+    Grows (n.onSealed (psync fam cfg rms) a o now) := by
+  unfold Node.onSealed; simp only [Node.refresh, psync_rooms]
+  grows [finish_grows, apply_grows, recv_grows' fam cfg rms hw]
+
 theorem onFrame_grows (n : Node) (a b : ByteArray) (now : Nat) : Grows (n.onFrame (psync fam cfg rms) a b now) := by
-  unfold Node.onFrame; simp only [psync_openFrame, psync_recv, Node.refresh, psync_rooms]
-  grows [write_grows, store_grows, finish_grows, apply_grows, recv_grows' fam cfg rms hw]
+  unfold Node.onFrame; simp only [psync_openFrame, psync_recv]
+  grows [write_grows, store_grows, finish_grows, onSealed_grows fam cfg rms hw]
 
 theorem onTick_grows (n : Node) (now : Nat) : Grows (n.onTick (psync fam cfg rms) now) := by
   unfold Node.onTick; simp only [psync_dial, Node.refresh, psync_rooms]
@@ -472,9 +477,12 @@ theorem finish_snaps (st : Step) : (Conn.finish st).conn.snaps = st.conn.snaps :
   unfold Conn.finish Conn.report
   by_cases h : st.conn.asked.isEmpty = true <;> simp [h]
 
-theorem onHold_snaps (c : Conn) (ids : List Id) (h : Held F) :
-    ((c.onHold cfg ids : HeldM F Step).run h).1.conn.snaps = c.snaps := by
-  simp only [Conn.onHold, HeldM.run_bind, HeldM.run_pure]
+theorem onHold_snaps (c : Conn) (r : Id) (ids : List Id) (h : Held F) :
+    ((c.onHold fam cfg r ids : HeldM F Step).run h).1.conn.snaps = c.snaps := by
+  unfold Conn.onHold
+  split
+  · rfl
+  · simp only [HeldM.run_bind, HeldM.run_pure]
 
 theorem onWant_snaps (hw : WalkLaws (F := F) fam cfg) (c : Conn) (ids : List Id) (h : Held F) :
     ((c.onWant fam cfg ids : HeldM F Step).run h).1.conn.snaps = c.snaps := by
@@ -488,7 +496,7 @@ theorem filed_snaps (c : Conn) (ids : List Id) (h : Held F) :
     ((c.filed fam cfg ids : HeldM F Step).run h).1.conn.snaps = c.snaps := by
   unfold Conn.filed
   simp only [HeldM.run_bind, HeldM.run_pure, finish_snaps]
-  apply forIn_inv _ _ (fun st : List Id × Conn => st.2.snaps = c.snaps)
+  apply forIn_inv _ _ (fun st : List (Id × Id) × Conn => st.2.snaps = c.snaps)
   · intro i st h' hs
     obtain ⟨off, c'⟩ := st
     dsimp only at hs ⊢
@@ -534,7 +542,7 @@ theorem tick_snaps (hw : WalkLaws (F := F) fam cfg) (ix : Index) (c : Conn) (now
   · exact hc
   · simp only [HeldM.run_bind, HeldM.run_pure]
     have e := hw.same c h
-    have hw' : SnapsIn ((c.walk fam cfg : HeldM F (Conn × List Id)).run h).1.1 h := by
+    have hw' : SnapsIn ((c.walk fam cfg : HeldM F (Conn × List (Id × Id))).run h).1.1 h := by
       intro x hx; rw [e.snaps] at hx; exact hc x hx
     intro x hx
     rw [finish_snaps] at hx

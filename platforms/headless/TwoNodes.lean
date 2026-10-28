@@ -171,7 +171,7 @@ def main (args : List String) : IO UInt32 := do
     let before := (← get).ids.size
     let stranger ← Engine.Crypto.randomBytes 32
     let s ← get
-    let _ ← write (sealedPost s.me.c s.me.adm s.me.dev stranger (← Engine.Crypto.randomBytes 24) "sealed away".toUTF8 (newestTime s + 1))
+    let _ ← write (sealedPost s.me.c s.me.adm s.me.dev stranger (← Engine.Crypto.randomBytes 24) "sealed away".toUTF8 1 (← nowMin))
     waitIdle sa
     steps 5
     check s!"a message whose key A lacks is hidden ({before} → {(← get).ids.size} shown)"

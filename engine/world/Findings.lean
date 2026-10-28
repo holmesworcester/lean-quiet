@@ -75,7 +75,7 @@ theorem no_round_while_open (hw : WalkLaws (F := F) fam cfg) (ix : Index) (c : C
   split
   · rfl
   · simp only [HeldM.run_bind, HeldM.run_pure, Conn.finish, Conn.report]
-    have hs' : (((c.walk fam cfg : HeldM F (Conn × List Id)).run h).1.1.snaps.isEmpty) = false := by
+    have hs' : (((c.walk fam cfg : HeldM F (Conn × List (Id × Id))).run h).1.1.snaps.isEmpty) = false := by
       rw [e.snaps]; cases e2 : c.snaps with
       | nil => exact absurd e2 hs
       | cons _ _ => rfl

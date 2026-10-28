@@ -9,7 +9,8 @@ are what make the app's live cache answer the same).
   "…" (and by Community.profile_authorized, only a device admitted into
   that user could have written it);
 - `message_read`: a shown message is a Valid message fact of the store;
-  its row's name is its author's (`profile_read`), its time is the time
+  its row's name is its author's (`profile_read`), its duplicate mark
+  is the namesake read of its author (NamesakeLaws), its time is the time
   it claims, its text is its body opened with a content key this store
   holds, and its pills are `tally` of its reactions.
 
@@ -64,8 +65,9 @@ the time it claims, and its text its body opened with a key the store
 holds under the message's key id. -/
 theorem message_read (db : DB Fact) (c me msg : Id) (d : Row.RowData) (deps : Array Q)
     (h : (Message.read (m := Model) c me msg).run db = some (d, deps)) :
-    ∃ c' u dev kid sealed tm, factIn db msg = some (.message c' u dev kid sealed tm) ∧
+    ∃ c' u dev kid sealed n tm, factIn db msg = some (.message c' u dev kid sealed n tm) ∧
       d.name = nameIn db c u ∧ d.time = tm ∧
+      (∃ deps', d.namesake = ((Profile.namesake (m := Model) c u d.name deps').run db).1) ∧
       ∃ x y k, keyIn db kid = some (.key x y k) ∧
         (openSealed cryptoSeal c kid sealed k).map Profile.bytesStr = some d.text := by
   simp only [Message.read, readFact, readList, ReaderT.run, bind, ReaderT.bind, pure, ReaderT.pure,
@@ -75,7 +77,7 @@ theorem message_read (db : DB Fact) (c me msg : Id) (d : Row.RowData) (deps : Ar
   · exact absurd h (pure_none_ne _ _)
   cases f
   all_goals try (exact absurd h (pure_none_ne _ _))
-  rename_i c' u dev kid sealed tm
+  rename_i c' u dev kid sealed n tm
   simp only [ReaderT.bind, ReaderT.pure, id_bind] at h
   generalize hk : (eval db (key.byId.query [kid] (some 1))).rows.head? = kr at h
   rcases kr with _ | ⟨p, kf⟩
@@ -89,7 +91,7 @@ theorem message_read (db : DB Fact) (c me msg : Id) (d : Row.RowData) (deps : Ar
   · dsimp only at h; exact absurd h (pure_none_ne _ _)
   simp only [ReaderT.bind, ReaderT.pure, id_bind, Option.some.injEq, Prod.mk.injEq] at h
   obtain ⟨rfl, -⟩ := h
-  refine ⟨c', u, dev, kid, sealed, tm, by simpa [factIn] using hf, ?_, rfl, x, y, k, by simp [keyIn, hk], ht⟩
-  exact profile_read db c u _
+  refine ⟨c', u, dev, kid, sealed, n, tm, by simpa [factIn] using hf, profile_read db c u _, rfl,
+    ⟨_, rfl⟩, x, y, k, by simp [keyIn, hk], ht⟩
 
 end ViewLaws

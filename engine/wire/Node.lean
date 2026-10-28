@@ -306,9 +306,30 @@ def Node.connect (n : Node) (cid : Id) (addr : ByteArray) (dialer : Bool) (now :
   let (n, out) ← n.open x cid addr dialer now
   n.finish x out now
 
+/-- A sealed frame from an address, as `openFrame` gave it: its session
+and bytes, or none if it did not open. It sees only what opened, so
+nothing of a frame is decoded before its AEAD check passes. A frame that
+did not open, or one for a session not open here, is ignored. -/
+def Node.onSealed (n : Node) (addr : ByteArray) (opened : Option (Id × ByteArray)) (now : Nat) :
+    m (Node × Effects) := do
+  match opened with
+  | none => return (n, {})
+  | some (cid, bundle) =>
+    match n.conn? cid, (Codec.decode bundle : Option (List ByteArray)) with
+    | some _, some inner =>
+      let mut n := n.setAddr cid addr
+      let mut out : Acts := {}
+      for b in inner do
+        if let some c := n.conn? cid then
+          let c ← Node.refresh x cid c
+          let (n', o) ← n.apply x cid (← Conn.recv x.fam x.cfg n.ix c b now) now
+          n := n'
+          out := out ++ o
+      n.finish x out now
+    | _, _ => return (n, {})
+
 /-- A payload from an address: a bare op (the handshake's), or a sealed
-frame on a session. Anything else, a frame that does not open, or one
-for a session not open here, is ignored. -/
+frame on a session (`onSealed`). Anything else is ignored. -/
 def Node.onFrame (n : Node) (addr bytes : ByteArray) (now : Nat) : m (Node × Effects) := do
   let body := bytes.extract 1 bytes.size
   match (bytes[0]? : Option UInt8) with
@@ -321,22 +342,7 @@ def Node.onFrame (n : Node) (addr bytes : ByteArray) (now : Nat) : m (Node × Ef
       let (n, _) ← n.write x ops
       let (n, out) ← n.store x (← x.hooks.recv none addr o now) true
       n.finish x out now
-  | some 1 =>
-    match ← x.hooks.openFrame body with
-    | none => return (n, {})
-    | some (cid, bundle) =>
-      match n.conn? cid, (Codec.decode bundle : Option (List ByteArray)) with
-      | some _, some inner =>
-        let mut n := n.setAddr cid addr
-        let mut out : Acts := {}
-        for b in inner do
-          if let some c := n.conn? cid then
-            let c ← Node.refresh x cid c
-            let (n', o) ← n.apply x cid (← Conn.recv x.fam x.cfg n.ix c b now) now
-            n := n'
-            out := out ++ o
-        n.finish x out now
-      | _, _ => return (n, {})
+  | some 1 => n.onSealed x addr (← x.hooks.openFrame body) now
   | _ => return (n, {})
 
 /-- The clock. -/

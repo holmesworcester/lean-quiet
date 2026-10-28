@@ -98,7 +98,7 @@ def stream_stmt : Prop :=
       x ∈ c.known ∨ (x ∈ c.offered ∧
         ∀ c₀, (w.node i).conn? cid = some c₀ → x ∉ c₀.offered → x ∉ c₀.known →
           ∃ p ∈ (w.step Q.setup a).flight, p.src = some i ∧ some p.dst = ((w.step Q.setup a).node i).addr? cid ∧
-            ∃ L ps, x ∈ L ∧ plainPeek p.bytes = some (cid, ps) ∧ (Msg.hold L).op.bytes ∈ ps)
+            ∃ L ps, x ∈ L ∧ plainPeek p.bytes = some (cid, ps) ∧ (Msg.hold r L).op.bytes ∈ ps)
 
 /-- **L-offered: store = offered**, both halves. -/
 def offered_stmt : Prop := index_store_stmt ∧ stream_stmt

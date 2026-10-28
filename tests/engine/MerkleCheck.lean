@@ -21,6 +21,10 @@ siblings too few, too many, flipped, or not 32 bytes; the wrong length
 (±1, +64 KiB, +2^64, 0); a neighbour's slice under this proof; and
 chunks of another file, of the same size and of other sizes.
 
+The root and proofs that run (read off the tree's levels) are checked
+against `sub` and `path` run as written, on those files under SHA-256
+and on files of 1 to 33 chunks under a cheap sampled hash.
+
 Negative controls: `verify` with one check dropped at a time
 (`verifyWithout`, which drops nothing for k = 99 and is then `verify`,
 by rfl), on the same forgeries; the run prints what each lets through.
@@ -194,6 +198,18 @@ def depthByCount (n : Nat) : Nat := Id.run do
   while 2 ^ d < n do d := d + 1
   return d
 
+/-- A cheap hash for tree shapes: SHA-256 of a sample (the first and
+last 64 bytes and the length), so a file of n chunks costs no more than
+n leaf hashes of 136 bytes. The levels must equal `sub` and `path` for
+any hash. -/
+def sampleH (x : B) : B := sha256 (x.extract 0 64 ++ x.extract (x.size - 64) x.size ++ be64 x.size)
+
+/-- The root and every proof as the definitions say (`sub`, `path`),
+run as written: no `@[csimp]` replaces these. -/
+def specTree (H : B → B) (ct : B) : B × List (List B) :=
+  let d := depthOf (nChunks ct.size)
+  (rootOf H ct.size (sub H (leaves H ct) d 0), (List.range (nChunks ct.size)).map (path H (leaves H ct) d 0))
+
 def main : IO UInt32 := do
   let t ← Checks.new
   -- Known answers.
@@ -213,6 +229,9 @@ def main : IO UInt32 := do
     let n := nChunks len
     let r := fileRoot H ct
     let ss := slices ct
+    let spec := specTree H ct
+    t.ok s!"the {len}-byte file's root and proofs, read off its levels, are sub's and path's"
+      (rootAndProofs H ct == spec && r == spec.1 && (List.range n).all fun i => proof H ct i == spec.2[i]!)
     t.ok s!"the {len}-byte file has {n} slices" (ss.length == n)
     t.ok s!"the {len}-byte file's slices have their sizes"
       ((List.range n).all fun i => (ss[i]!).size == sliceLen len i)
@@ -237,6 +256,13 @@ def main : IO UInt32 := do
       for k in [0:5] do
         if verifyWithout H k f.root f.len f.i f.s f.sibs then accepted := accepted.modify k (·.push f.name)
       forged := forged + 1
+  -- Tree shapes: 1 to 33 chunks (depths 0 to 6, full and padded), the
+  -- levels against the definitions, under a cheap hash.
+  let big := pattern (33 * sliceSize)
+  for n in List.range' 1 33 do
+    let ct := big.extract 0 ((n - 1) * sliceSize + 1 + n % 7)
+    t.ok s!"a {n}-chunk file under a sampled hash: root and proofs from its levels are sub's and path's"
+      (rootAndProofs sampleH ct == specTree sampleH ct && fileRoot sampleH ct == (specTree sampleH ct).1)
   IO.println s!"merkle_check: {files.length} files, {chunks} chunks verified, {forged} forgeries refused"
   for (k, what) in dropped do
     let a := accepted[k]!

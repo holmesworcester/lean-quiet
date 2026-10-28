@@ -2,7 +2,8 @@
 The pilot, proven of the running code: a round's claim of ids, from i to
 j on a session joined from then on, that lists an op x which i holds,
 gets x to j within 3Δ of the claim's sending, whatever else the
-execution does (`claim_delivers`, given the walk's laws). It is
+execution does (`pilot`; `claim_delivers` over any walk with the walk's
+laws, which main's `walkN` has, `walk_proof`). It is
 `round_stmt`'s first leg in the leaf regime, for any number of nodes,
 sessions and rooms around it.
 
@@ -224,5 +225,12 @@ theorem claim_delivers (hw : walk_stmt) : claim_delivers_stmt := by
     refine ⟨k3 + 1, by omega, by rw [e3, now3]; omega, ?_⟩
     apply holds_named Q _ (hf.unclashed (k3 + 1)) i j r x (grow i k (k3 + 1) (by omega) hx)
     rw [e3, b3, ← hid]; exact hstored
+
+/-- **The pilot, with no premise left:** main's walk has the laws it
+needs (`walk_proof`). -/
+theorem pilot : claim_delivers_stmt := claim_delivers walk_proof
+
+/-- **Shared stores only grow**, with no premise left. -/
+theorem grows_all : grows_stmt := grows_proof walk_proof
 
 end Engine.World

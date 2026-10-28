@@ -154,6 +154,9 @@ lean_exe wire where
 lean_exe syncpair where
   root := `tests.engine.SyncPair
 
+lean_exe syncworld where
+  root := `tests.engine.SyncWorld
+
 lean_exe tcppair where
   root := `tests.engine.TcpPair
 
@@ -171,6 +174,15 @@ lean_exe jointcp where
 
 lean_exe merkle_check where
   root := `tests.engine.MerkleCheck
+
+lean_exe codecdiff where
+  root := `tests.engine.CodecDiff
+
+lean_exe bench where
+  root := `tests.engine.Bench
+
+lean_exe poolstarve where
+  root := `tests.engine.PoolStarve
 
 /-! ## The app on the headless twin (tests/app/run.sh) -/
 
@@ -228,3 +240,7 @@ lean_exe probe where
 
 lean_exe scene_check where
   root := `tests.net.SceneCheck
+
+-- A store's ops, one line each (for comparing devices' stores).
+lean_exe dump where
+  root := `platforms.headless.Dump
