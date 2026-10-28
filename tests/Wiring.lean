@@ -38,8 +38,8 @@ output, and local CI fails when it goes stale.
   and tests/wiring.txt's `todo` note: which running code would have to
   call what.
 - **World:** not wired, but every definition it misses is a World's
-  network, transport or harness (`world` in tests/wiring.txt: the step,
-  `psync`, `plainPeek`, the harness's `connect`), and the code it is
+  network, transport or harness (`world` in tests/wiring.txt: its steps,
+  its plain frames, its directly opened sessions), and the code it is
   about, or the World runs, is the running node's (`Engine.Sync.Node`).
   Counted apart: never wired, and not a model. A law about the harness
   alone, with no node code, stays a model.
@@ -47,6 +47,18 @@ output, and local CI fails when it goes stale.
   a definition meant never to run) is a negative control, proving the
   mutant breaks its law. Counted apart: never wired, never a todo, and
   out of the lead's count.
+- **Weak:** a `weak` definition (a seed from the clock) must not be
+  reached from any entry point; the check names the path that does. A
+  `door` definition (the OS's randomness) may be run, among what the
+  entry points reach, only by its doors (`App.newBytes`, and the
+  handshake's entropy). These are reachability, not dataflow: a secret
+  derived inline from the clock, without freshSeed, would not be seen;
+  the single door is what makes every secret's source one place to read.
+- **Instruments:** what the code under test runs in to be measured (the
+  cost meter, `CostT`), each erased by an audited equation (`erase_bind`:
+  a counted run, its costs dropped, is the plain run). Like an
+  assumption, left out of a subject: a cost law over running code is
+  about running code; one over a mirror is not.
 - **Audited statements** (a `…_stmt` the audit lists) are not laws; they
   are counted with the statements.
 - **PREMISES** lists the models only a law's premises name, and those it
@@ -68,7 +80,8 @@ missing; a `spec`, `todo` or mirror runs; no law waits on a `todo`; a
 `bridge` law is not audited or does not conclude an equation or iff with
 its mirror on one side and running code on the other; an `entry` is not
 an `@[export]` whose symbol a shipping platform's source names; a
-`control` (a mutant) runs, or no law names it; a `copy`
+`control` (a mutant) runs, or no law names it; an `instrument` runs, or
+its law is not an audited equation naming it; a `copy`
 law names the code it copies, a copied definition runs, or the code
 does not run; a `subject` names what its law's conclusion does not; an
 `assume` or `holds` no law takes; a law marked `wired` is not. It fails
@@ -100,10 +113,14 @@ def roots : List Name := [`engine, `ops, `App, `Quiet, `Main]
 /-- The negative controls: harnesses the entry points must not reach
 (the Worlds' steps among them), laws that must be classified models (one
 over the bootstrap's model, one over code only qr's harness runs, one
-whose model is in a premise), and laws that must be World laws (the
-two-node World's stream). Update them if one becomes real. -/
+whose model is in a premise, and a cost law, in the meter, over code
+nothing calls), laws that must be negative controls (a mutant over its
+budget), and laws that must be World laws (the two-node World's stream). Update them if one becomes real. -/
 def harnesses : List Name := [`Engine.Sync.World.peer, `Net.step, `Pic.decode, `Engine.World.World.step]
-def models : List Name := [`Net.Scene.bootstrap, `Pic.decode_sized, `Engine.offer_shared]
+def models : List Name :=
+  [`Net.Scene.bootstrap, `Pic.decode_sized, `Engine.offer_shared, `Heights.T.findM_cost]
+/-- Laws that must be negative controls: a mutant over its budget. -/
+def controlLaws : List Name := [`Community.Merkle.slow_over_budget, `Engine.Codec.slow_digits_over_budget]
 /-- Laws that must be World laws: the node's code over a World. -/
 def worlds : List Name := [`Engine.Sync.stream_delivers]
 
@@ -142,6 +159,30 @@ def runs (env : Environment) (n : Name) : NameSet := Id.run do
       (csimp.map (·.toDeclName)).toList do
     if env.contains x then out := out.insert x
   return out
+
+/-- A path the walk takes from an entry point to `target`, if it reaches
+it: each definition, then one it runs. -/
+def pathTo (env : Environment) (entry : List Name) (target : Name) : Option (List Name) := Id.run do
+  let mut parent : NameMap Name := {}
+  let mut seen : NameSet := entry.foldl (·.insert ·) {}
+  let mut todo : Array Name := entry.toArray
+  let mut i := 0
+  while h : i < todo.size do
+    let n := todo[i]
+    i := i + 1
+    if n == target then
+      let mut path := [n]
+      let mut c := n
+      while let some p := parent.find? c do
+        path := p :: path
+        c := p
+      return some path
+    for c in runs env n do
+      if !seen.contains c then
+        seen := seen.insert c
+        parent := parent.insert c n
+        todo := todo.push c
+  return none
 
 /-- Every definition the entry points reach, less those `implemented_by`
 replaces. -/
@@ -289,6 +330,14 @@ structure Notes where
   /-- mutants: definitions meant never to run, which negative-control laws
   break -/
   control : NameMap String := {}
+  /-- an instrument the code under test runs in (the cost meter), ↦ the law
+  that erases it -/
+  instrument : NameMap Name := {}
+  /-- what no shipping path may reach (a secret from the clock) -/
+  weak : NameMap String := {}
+  /-- a definition ↦ the only definitions, among what the entry points
+  reach, that may run it (the OS's randomness, through its doors) -/
+  door : NameMap (List Name) := {}
   /-- the `todo` names and the copied code, in the file's order -/
   order : Array Name := #[]
   subject : NameMap (List Name) := {}
@@ -297,7 +346,8 @@ structure Notes where
   /-- every name given, with its line, for the existence check -/
   names : List (Name × Nat) := []
 
-def Notes.stop (ns : Notes) : NameSet := ns.assume.foldl (fun s n _ => s.insert n) {}
+def Notes.stop (ns : Notes) : NameSet :=
+  ns.instrument.foldl (fun s n _ => s.insert n) (ns.assume.foldl (fun s n _ => s.insert n) {})
 def Notes.through (ns : Notes) : NameSet := ns.spec.foldl (fun s n _ => s.insert n) {}
 
 /-- The first `n` words of a line, and the rest. -/
@@ -325,6 +375,13 @@ def readNotes (path : System.FilePath) : IO Notes := do
     | (["holds", n], t) => ns := at_ { ns with holds := ns.holds.insert n.toName t } n.toName
     | (["world", n], t) => ns := at_ { ns with world := ns.world.insert n.toName t } n.toName
     | (["control", n], t) => ns := at_ { ns with control := ns.control.insert n.toName t } n.toName
+    | (["weak", n], t) => ns := at_ { ns with weak := ns.weak.insert n.toName t } n.toName
+    | (["door", n], t) =>
+      let d := ((fields t 1).1.headD "").toName
+      ns := at_ (at_ { ns with door := ns.door.insert n.toName (d :: ns.door.getD n.toName []) } n.toName) d
+    | (["instrument", n], t) =>
+      let law := ((fields t 1).1.headD "").toName
+      ns := at_ (at_ { ns with instrument := ns.instrument.insert n.toName law } n.toName) law
     | (["todo", n], t) =>
       ns := at_ { ns with todo := ns.todo.insert n.toName t, order := ns.order.push n.toName } n.toName
     | (["wired", n], _) => ns := at_ { ns with wired := n.toName :: ns.wired } n.toName
@@ -432,6 +489,21 @@ unsafe def main : IO UInt32 := do
     if !run.contains n then problems := problems.push s!"control: the entry points do not reach {n} ({why})"
   for n in harnesses do
     if run.contains n then problems := problems.push s!"control: the entry points reach {n}, a harness"
+  -- what no shipping path may reach, with the path that does
+  let entries := [`main, `Engine.Sync.Runner.start] ++ ns.entry
+  for (n, why) in ns.weak do
+    if run.contains n then
+      let path := (pathTo env entries n).getD [n]
+      problems := problems.push s!"weak: the shipping app reaches {n} ({why}): {" → ".intercalate (path.map toString)}"
+  -- what only its doors may run, among what the entry points reach
+  for (n, doors) in ns.door do
+    if !run.contains n then problems := problems.push s!"door: nothing shipping runs {n}; drop the note"
+    for d in doors do
+      if !run.contains d then problems := problems.push s!"door: {d}, a door of {n}, does not run; drop it"
+    for c in run do
+      if (runs env c).contains n && !doors.contains c && !c.isPrefixOf n then
+        let path := (pathTo env entries c).getD [c]
+        problems := problems.push s!"door: {c} runs {n} outside its doors ({commas doors}): {" → ".intercalate (path.map toString)}"
   -- what calls each definition, among this repository's
   let mut callers : NameMap NameSet := {}
   for i in [0:env.header.moduleNames.size] do
@@ -450,6 +522,14 @@ unsafe def main : IO UInt32 := do
     if run.contains n then problems := problems.push s!"tests/wiring.txt: world {n} runs; drop the note"
   for (n, _) in ns.control do
     if run.contains n then problems := problems.push s!"tests/wiring.txt: control {n}, a mutant, runs"
+  -- an instrument does not run, and its law is an audited equation that
+  -- names it: what it erases to
+  for (n, law) in ns.instrument do
+    if run.contains n then problems := problems.push s!"tests/wiring.txt: instrument {n} runs"
+    if !laws.contains law then problems := problems.push s!"tests/wiring.txt: instrument law {law} is not audited"
+    else if let some ci := env.find? law then
+      if (concl ci.type).eq?.isNone || !(named env ci.type).contains n then
+        problems := problems.push s!"tests/wiring.txt: {law} is not an equation that erases {n}"
   let src ← shipping
   for n in ns.entry do
     match getExportNameFor? env n with
@@ -566,6 +646,9 @@ unsafe def main : IO UInt32 := do
   for m in worlds do
     if !(lawList.find? (·.name == m)).any (·.world) then
       problems := problems.push s!"control: {m}, a World law, is not classified World"
+  for m in controlLaws do
+    if !(lawList.find? (·.name == m)).any (·.control) then
+      problems := problems.push s!"control: {m}, a mutant's law, is not classified a negative control"
   let nw := (lawList.filter (·.wired)).length
   let nW := (lawList.filter (·.world)).length
   let nc := (lawList.filter (·.control)).length

@@ -175,6 +175,10 @@ lean_exe jointcp where
 lean_exe merkle_check where
   root := `tests.engine.MerkleCheck
 
+-- The cost laws on the code that runs, with their negative controls.
+lean_exe costcheck where
+  root := `tests.engine.CostCheck
+
 lean_exe codecdiff where
   root := `tests.engine.CodecDiff
 

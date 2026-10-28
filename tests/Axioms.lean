@@ -42,6 +42,16 @@ import engine.world.Idem
 import engine.world.Settle
 import engine.world.Round
 import engine.world.Leaf
+import engine.core.CodecCost
+import ops.community.MerkleCost
+import ops.app.Pics
+import engine.core.IngestCost
+import engine.core.ListCost
+import engine.renderer.BoardLaws
+import engine.renderer.Heights
+import ops.community.WrapLaws
+import engine.renderer.ReaderLaws
+import engine.core.CostErase
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -75,6 +85,15 @@ open Engine Community
 #print axioms Engine.run_step
 #print axioms Engine.run_drain
 #print axioms Engine.run_ingest
+#print axioms Engine.CostT.erase_run
+#print axioms Engine.CostT.erase_pure
+#print axioms Engine.CostT.erase_bind
+#print axioms Engine.CostT.erase_charged
+#print axioms Engine.CostT.erase_chargedBy
+#print axioms Engine.CostT.erase_lift
+#print axioms Engine.CostT.erase_tick
+#print axioms Engine.Counted.val_erase
+#print axioms Engine.Counted.cost_run
 #print axioms Community.message_authorized
 #print axioms Community.no_impersonation
 #print axioms Community.profile_authorized
@@ -775,3 +794,101 @@ open Engine.World
 #print axioms Engine.World.lower_stmt
 #print axioms Engine.World.work_stmt
 end world
+
+section cost
+-- Budgets over the code that runs (docs/PERF.md), and the negative
+-- controls they catch.
+#print axioms Community.Merkle.val_rootAndProofsM
+#print axioms Community.Merkle.rootAndProofs_hashes
+#print axioms Community.Merkle.rootAndProofs_hashes_lt
+#print axioms Community.Merkle.rootAndProofs_hashed
+#print axioms Community.Merkle.rootAndProofs_hashed_lt
+#print axioms Community.Merkle.val_rootAndProofsSlowM
+#print axioms Community.Merkle.slow_hashes
+#print axioms Community.Merkle.slow_over_budget
+#print axioms Engine.Codec.val_decNatFromM
+#print axioms Engine.Codec.work_digitsM
+#print axioms Engine.Codec.work_decNatFromM
+#print axioms Engine.Codec.val_decBytesFromM
+#print axioms Engine.Codec.work_decBytesFromM
+#print axioms Engine.Codec.cost_decBytesFromM_at
+#print axioms Engine.Codec.val_digitsSlowM
+#print axioms Engine.Codec.work_digitsSlowM
+#print axioms Engine.Codec.slow_digits_over_budget
+#print axioms Engine.Codec.readAllM_eq
+#print axioms Engine.Codec.slow_bytes_over_budget
+#print axioms Pics.decoded_started
+#print axioms Pics.image_steady
+#print axioms Pics.image_settles
+#print axioms Pics.image_twice
+#print axioms Pics.steady_later
+#print axioms Pics.imageV_over_budget
+#print axioms Engine.within_bind
+#print axioms Engine.within_bindP
+#print axioms Engine.Costs.time
+#print axioms Engine.Costs.mono
+#print axioms Engine.costs_bind
+#print axioms Engine.costs_bindP
+#print axioms Engine.ingest_costs
+#print axioms Engine.statuses_costs
+#print axioms Engine.waitOn_costs
+#print axioms Engine.decide_costs
+#print axioms Engine.step_costs
+#print axioms Engine.list_costs
+#print axioms Engine.model_fits
+#print axioms Engine.View.view_lists
+#print axioms Live.Board.put_same
+#print axioms Live.Board.put_moves
+#print axioms Live.Board.ver_ident
+#print axioms Live.Board.Step.fresh
+#print axioms Live.Board.seen_put
+#print axioms Live.Board.seen_take
+#print axioms Live.Board.seen_keep
+#print axioms Live.World.inv_commit
+#print axioms Live.RWorld.inv_commit
+#print axioms Live.RWorld.inv_pass
+#print axioms Live.RWorld.inv_frame
+#print axioms Live.RWorld.inv_evict
+#print axioms Live.RWorld.settle
+#print axioms Live.Eager.w1_inv
+#print axioms Live.Eager.eager_stale
+#print axioms Live.Eager.marked_fresh
+#print axioms Live.World.inv_pass
+#print axioms Live.World.inv_frame
+#print axioms Live.World.settle
+#print axioms Live.World.marked_pass
+#print axioms Live.World.settle_passes
+#print axioms Live.Gated.gated_stale
+#print axioms Live.Gated.ungated_fresh
+#print axioms Live.World.fold_commits
+#print axioms Live.World.acts_shown
+#print axioms Live.World.passActs_acts
+#print axioms Live.World.passActs_comp
+#print axioms Live.World.passActs_indep
+#print axioms Live.World.type_only
+#print axioms Heights.T.start_eq
+#print axioms Heights.T.find_spec
+#print axioms Heights.T.set_toList
+#print axioms Heights.Rows.push_ok
+#print axioms Heights.T.findM_cost
+#print axioms Heights.T.startM_cost
+#print axioms Heights.T.setM_cost
+#print axioms Heights.rows_cost
+#print axioms Heights.T.start_mono
+#print axioms Heights.T.start_size
+#print axioms Heights.T.below_window
+#print axioms Heights.T.above_window
+#print axioms Heights.Both.rowAt_spec
+#print axioms Heights.le_pow_clog
+#print axioms Heights.clog_least
+#print axioms Heights.T.build_ok
+#print axioms Heights.T.buildM_cost
+#print axioms Heights.rebuild_ok
+#print axioms Heights.rebuild_cost
+#print axioms Heights.window_rows
+#print axioms Heights.anchor_stable
+#print axioms Engine.View.always_eval
+#print axioms Engine.View.always_run
+#print axioms Community.approveReq_ops
+#print axioms Community.wrapAll_over
+end cost

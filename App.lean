@@ -36,6 +36,7 @@ import engine.renderer.Camera
 import ops.app.Remove
 import ops.community.message.View
 import ops.community.membership.RequestView
+import ops.app.Pics
 import Std.Data.HashMap
 
 namespace App
@@ -86,7 +87,7 @@ structure RowSt where
   dimVer : Nat := 0
   dimShown : Option Bitmap := none
 
-abbrev ImgKey := ByteArray × Nat × Nat
+abbrev ImgKey := Pics.Key
 
 /-- Which page is up: a conversation, or one of libquiet's other screens. -/
 inductive PageId where
@@ -352,6 +353,14 @@ def newestCounter (s : St) : Nat :=
   | some (sk, _) => (sk.extract 0 8).foldl (fun n b => n * 256 + b.toNat) 0
   | none => 0
 
+/-- n bytes of the OS's randomness (`randomBytes`: getrandom, through
+engine/native/crypto): the one door every secret, key and nonce the app
+makes goes through. Nothing derives one from the clock. -/
+def newBytes (n : UInt32) : IO ByteArray := Engine.Crypto.randomBytes n
+
+/-- A new secret seed: a device's, or an invitation's bearer secret. -/
+def newSeed : IO ByteArray := newBytes 32
+
 /-- Wall-clock minutes since the Unix epoch: the time a write claims. -/
 def nowMin : M Nat := do return (← (← get).io.wall).1
 
@@ -362,7 +371,7 @@ def sendText (text : String) : M Bool := do
   -- sealed under the community's current key, as the composer's send is
   let (k?, _) ← readView (Community.currentKey s.me.c) #[]
   let some k := k? | return false
-  let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k (← Engine.Crypto.randomBytes 24) t.toUTF8
+  let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k (← newBytes 24) t.toUTF8
     (← nowMin)) #[]
   writeAll w
 
@@ -414,12 +423,6 @@ def bottoms (s : St) : Array Nat × Nat := Id.run do
 
 /-! ## Mounting, measuring, painting -/
 
-def decodeTask (bytes : ByteArray) (w h : Nat) (sq : Bool) : Task Bitmap :=
-  Task.spawn fun _ =>
-    match Image.decode bytes with
-    | some src => if sq then Image.square src w Row.bg else Image.scaled src w h Row.bg
-    | none => Bitmap.blank w h (solid Row.placeholder w)
-
 /-- An attachment's slices, read from its chunk ops in order (a chunk this
 device sends may still be in the outbox); none while one is not here. -/
 def slicesOf (p : Row.Pic) : M (Option (List ByteArray)) := do
@@ -436,47 +439,24 @@ def slicesOf (p : Row.Pic) : M (Option (List ByteArray)) := do
       raw := raw.push b
   return some raw.toList
 
-/-- Chunk ops' bytes to their slices, in order (off the app's thread). -/
-def slicesFromOps (raw : List ByteArray) : Option (List ByteArray) :=
-  raw.mapM fun b => do
-    let o ← Engine.Op.decode b
-    match (Codec.decode o.body : Option Community.Body) with
-    | some (.chunk _ _ _ slice _) => some slice
-    | _ => none
+/-- The picture doors (ops/app/Pics.lean) in the app: the decode and
+retry tables are the app's state, `chunks` reads SQLite (and the
+outbox), and `spawn` makes its task inside the state function, so when
+the action runs, never when it is built. -/
+instance : Pics.Pics M where
+  started k := return (← get).imgs[k]?
+  remember k t := modify fun s => { s with imgs := s.imgs.insert k t }
+  finished t := return (← IO.hasFinished t)
+  retryAt k := return (← get).imgRetry[k]?
+  retryLater k := modify fun s => { s with imgRetry := s.imgRetry.insert k (s.frames + 120) }
+  frame := return (← get).frames
+  chunks := slicesOf
+  spawn f := fun s => pure (Task.spawn f, s)
 
-/-- A decode of `k` started (or finished): its bitmap once done. `start`
-is a thunk, run only when `k` has no decode yet: an argument is evaluated
-at the call, so a task built there would be spawned every frame. -/
-def decoded (k : ImgKey) (start : Unit → M (Option (Task Bitmap))) : M (Option Bitmap) := do
-  match (← get).imgs[k]? with
-  | some t => if ← IO.hasFinished t then return some t.get else return none
-  | none =>
-    if let some t ← start () then modify fun s => { s with imgs := s.imgs.insert k t }
-    return none
-
-/-- An attachment drawn at its size, if ready, and whether it is the file
-(not its preview), as `Row.Pic.shown` chooses: the preview (softened,
-Arrival.soften) until every chunk is here and the file is decoded, then
-the file (its slices assembled and opened with the file's key, off the
-app's thread). -/
-def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := do
-  let pre ← decoded (p.hash.push 0, w, h) fun _ => do
-    pure (if p.preview.isEmpty then none
-      else some ((decodeTask p.preview w h false).map (Arrival.soften Row.bg)))
-  let full ← if !p.complete then pure none else decoded (p.hash.push 1, w, h) fun _ => do
-    -- not every chunk op is readable yet: try again when the store next
-    -- changes (step clears imgRetry on notices), or in two seconds
-    let k := (p.hash.push 1, w, h)
-    if let some t := (← get).imgRetry[k]? then
-      if (← get).frames < t then return none
-    let some raw ← slicesOf p
-      | modify fun s => { s with imgRetry := s.imgRetry.insert k (s.frames + 120) }; pure none
-    let (key, nonce) := (p.key, p.nonce)
-    pure <| some <| Task.spawn fun _ =>
-      match ((slicesFromOps raw).bind fun slices => Community.openFile slices key nonce).bind Image.decode with
-      | some src => Image.scaled src w h Row.bg
-      | none => Bitmap.blank w h (solid Row.placeholder w)
-  return p.shown pre full
+/-- An attachment drawn at its size, if ready, and whether it is the
+file: `Pics.image`, each decode started once (`Pics.image_twice`: a frame
+whose data has not changed spawns no decode and reads nothing). -/
+def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := Pics.image p w h
 
 /-- Mount (read, lay out) row x if any of its answers are stale. -/
 def mount (x : Id) : M Unit := do
@@ -665,7 +645,7 @@ def openPage (p : PageId) : M Unit := do
   -- Add members issues this community's link once per session: an
   -- invitation op of mine, and the link that carries its bearer secret
   if p == .invite && !s.me.waiting && !(s.links.any (·.1 == s.me.acc)) then
-    let bearer ← Chaos.freshSeed "bearer"
+    let bearer ← newSeed
     -- dial hints: this device's private LAN addresses (Link.hints)
     let (w, i) := Community.inviteTo s.me.c s.me.adm s.me.dev bearer (← listenHints)
     if ← writeAll w then
@@ -755,9 +735,9 @@ def acceptOf (w : Community.Write) : Option Id :=
 /-- Found a community named n: its root and my profile, and it becomes
 current. -/
 def found (n myName : String) : M Unit := do
-  let seed ← Chaos.freshSeed n
+  let seed ← newSeed
   let w := Community.found seed n.toUTF8 myName.toUTF8 (← nowMin)
-    (← Engine.Crypto.randomBytes 32) (← Engine.Crypto.randomBytes 32)
+    (← newBytes 32) (← newBytes 32)
   if ← writeAll w then
     if let some a := acceptOf w then
       refreshComms
@@ -867,7 +847,7 @@ def refreshAsking : M Unit := do
 def approveReq (r : Id) : M Unit := do
   -- a fresh ephemeral secret for the wrap of the community's key to the
   -- requester's device
-  let esk ← Engine.Crypto.randomBytes 32
+  let esk ← newBytes 32
   let s ← get
   -- the intent reads the request and its approvals: with mine, is the
   -- tally complete? then the admission goes in the same write
@@ -1028,7 +1008,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
     -- join: a device of its own for this community, the request the link
     -- asks for, and this device's accept and joining facts, as one write
     if let some i := s.invite then
-      let seed ← Chaos.freshSeed "join"
+      let seed ← newSeed
       -- the engine's join: nothing for a held community, the same request
       -- again for a stopped one, else a fresh join
       let (w, _) ← readView (Community.join i seed s.joinName.toUTF8) #[]
@@ -1102,9 +1082,9 @@ def sendNow : M Unit := do
   for (bytes, w, h, _) in s.chips.toList do
     files := files ++ [({ info := { name := "photo.qoi".toUTF8, kind := "image/qoi".toUTF8, w, h,
                                     preview := Chaos.preview bytes },
-                          bytes, key := ← Engine.Crypto.randomBytes 32, nonce := ← Engine.Crypto.randomBytes 24,
-                          metaNonce := ← Engine.Crypto.randomBytes 24 } : Community.NewFile)]
-  let nonce ← Engine.Crypto.randomBytes 24
+                          bytes, key := ← newBytes 32, nonce := ← newBytes 24,
+                          metaNonce := ← newBytes 24 } : Community.NewFile)]
+  let nonce ← newBytes 24
   let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files) #[]
   if ← writeAll w then
     s.io.textClear
