@@ -1362,8 +1362,10 @@ def command (line : String) : M Bool := do
     let (_, ch) := bottoms s
     s.io.scrollTo ch.toFloat; s.io.ctlReply "ok"
   -- For driving a demo on phones over ctl, as a person would: the link
-  -- Add members shows, a page's field typed, a page's button, Add photos,
-  -- and the composer sent with its text and photos.
+  -- Add members shows, a page's field typed (on a page whose keyboard is
+  -- open, the keyboard's own text replaces it: type there instead), a
+  -- button the page shows, Add photos, and the composer sent with its
+  -- text and photos.
   | "link" =>
     s.io.ctlReply (((s.links.find? (·.1 == s.me.acc)).map (·.2)).getD "")
   | "field" =>
@@ -1375,8 +1377,14 @@ def command (line : String) : M Bool := do
       | some "agree", _ => some .agree
       | some "approve", some i => some (.approve i)
       | _, _ => none
+    -- only a button the page shows, as a tap could press only that
+    let shown := match a, s.pageNow with
+      | some a, some pg => pg.taps.any (·.2 == a)
+      | _, _ => false
     match a with
-    | some a => onPageAct a; s.io.ctlReply s!"page {repr (← get).page}"
+    | some a =>
+      if shown then onPageAct a; s.io.ctlReply s!"page {repr (← get).page}"
+      else s.io.ctlReply s!"no such button on page {repr s.page}"
     | none => s.io.ctlReply "act continue|agree|approve I"
   | "photo" =>
     attachPhoto
