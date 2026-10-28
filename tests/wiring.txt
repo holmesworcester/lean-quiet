@@ -207,4 +207,3 @@ todo Engine.Mutants.w5 = Engine.Mutants.σ
 todo Engine.Mutants.wk = Engine.Mutants.σ
 todo Engine.Mutants.keyNotified = Engine.Mutants.σ
 todo Engine.Mutants.rawNotified = Engine.Mutants.σ
-todo Engine.View.counting Nothing marks a view's reads counted now: the conversation's counts are a want of their own (`Reader.Want.count`); count through it, or drop it.

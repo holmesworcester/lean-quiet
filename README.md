@@ -14,7 +14,7 @@ Like [Quiet](https://github.com/TryQuiet/quiet), Lean Quiet is also local-first,
 
 Lean is mostly used for mathematics, or to verify one part of a system.
 Here it is a whole, ordinary app, and about three quarters of its
-theorems (366 of 468) are about the code that runs on the phone; the
+theorems (366 of 467) are about the code that runs on the phone; the
 rest are over models, and moving them onto running code is a todo
 ([what is proven](#what-is-proven)). Native code only connects Lean to
 each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)), so in a
@@ -143,7 +143,7 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 468 rest on Lean's standard axioms
+that rests on; 🥊 is supporting. All 467 rest on Lean's standard axioms
 only.
 
 ### Security proofs
@@ -247,11 +247,11 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**366 of 468 laws are about running code;** 102 are not yet. Stated only: none.
+**366 of 467 laws are about running code;** 101 are not yet. Stated only: none.
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
-| Engine | 84 | 56 | 28 |
+| Engine | 83 | 56 | 27 |
 | Sync | 82 | 81 | 1 |
 | mDNS | 3 | 0 | 3 |
 | Node and wire | 35 | 19 | 16 |
@@ -279,7 +279,6 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Arrival.lit` | [`lit_zero`], [`lit_mono`], [`lit_full`], [`lit_clockwise`], [`ring_counts`] | `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`. |
 | `Frame.wants`, `Subs.ofList`, `Frame.listWins` +2 | [`has_ofList`], [`ofList_wf`], [`exact_silent`], [`screen_subs`]†, [`hull_near`]†, [`past_hull_le`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan). |
 | `Mutants.σ`, `Mutants.fam`, `Mutants.keyNotified` +4 | [`key_notice_imprecise`]†, [`exact_silent`], [`unnetted_imprecise`]† | Negative controls, on a one-op world of their own, meant not to run: they show notices by key and an unnetted journal imprecise. |
-| `View.counting` | [`eval_counting`] | Nothing marks a view's reads counted now: the conversation's counts are a want of their own (`Reader.Want.count`); count through it, or drop it. |
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
@@ -295,7 +294,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 158 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Model.run`] | 157 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
 | [`Engine.runJ`] | 7 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`Engine.Inv`] | 52 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
@@ -898,7 +897,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`read_notice_iff`]: engine/core/WindowRead.lean#L408-L420
 [`read_rows_iff`]: engine/core/WindowRead.lean#L284-L290
 [`window_rows`]: engine/core/WindowRead.lean#L357-L362
-[`watch_stable`]: engine/core/WindowRead.lean#L453-L460
+[`watch_stable`]: engine/core/WindowRead.lean#L446-L453
 [`run_exact`]: engine/core/WindowLaws.lean#L428-L433
 [`fact_stable`]: engine/core/WindowLaws.lean#L509-L515
 [`find_costs`]: engine/core/WindowCost.lean#L133-L137
@@ -1028,7 +1027,6 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`ofList_wf`]: engine/core/WindowIndex.lean#L445-L445
 [`exact_silent`]: engine/core/WindowMutants.lean#L118-L120
 [`screen_index`]: engine/renderer/Screen.lean#L258-L261
-[`eval_counting`]: engine/core/WindowRead.lean#L440-L441
 [`nodup_full`]: ops/community/Intents.lean#L578-L580
 [`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
 [`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939

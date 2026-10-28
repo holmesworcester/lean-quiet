@@ -514,7 +514,6 @@ open Engine
 #print axioms Engine.read_notice_iff
 #print axioms Engine.watch_stable
 #print axioms Engine.window_rows
-#print axioms Engine.eval_counting
 #print axioms Engine.rank_costs
 #print axioms Engine.find_costs
 #print axioms Engine.notify_cost
