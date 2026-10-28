@@ -53,6 +53,10 @@ structure RWorld (σ C W V Q : Type) [BEq W] [Hashable W] where
   /-- The reverse index: each read, the wants that recorded it (the
   reader at rest, engine/renderer/RestLaws.lean). -/
   rev : Q → List W := fun _ => []
+  /-- The writers' commit counter, and its value at the reader's last
+  pass (RestLaws: at rest the reader reads no journal). -/
+  commits : Nat := 0
+  seen : Nat := 0
 
 /-! ## The pass's decisions: what they compute, and what they cost -/
 
@@ -172,7 +176,7 @@ variable {σ C W V Q : Type} [BEq W] [Hashable W] [LawfulBEq W] [BEq V] [LawfulB
   (apply : C → σ → σ) (hits : C → Q → Bool) (eval : σ → W → V) (reads : σ → W → List Q)
 
 def commit (c : C) (w : RWorld σ C W V Q) : RWorld σ C W V Q :=
-  { w with store := apply c w.store, journal := w.journal ++ [c] }
+  { w with store := apply c w.store, journal := w.journal ++ [c], commits := w.commits + 1 }
 
 /-- The cache after the journal's notices. -/
 def noticed (w : RWorld σ C W V Q) : Q → Bool := fun q => w.staleQ q || w.journal.any (hits · q)
@@ -195,7 +199,7 @@ unwanted, mark, read the first `cap` marked in the frame's order. -/
 def passWith (M : Std.HashSet W) (cap : Nat) (w : RWorld σ C W V Q) : RWorld σ C W V Q :=
   let p := pick w.wants M cap
   let r := p.foldl (read1 eval reads w.store) (w.board.keep (w.wants.contains ·), w.noticed hits, w.kept)
-  { w with journal := [], board := r.1, staleQ := r.2.1, deps := r.2.2,
+  { w with journal := [], board := r.1, staleQ := r.2.1, deps := r.2.2, seen := w.commits,
            dirty := p.foldl (·.erase ·) M,
            rev := fun q => w.rev q ++ p.filter fun x => (reads w.store x).contains q }
 

@@ -236,6 +236,10 @@ todo Live.markM Reader.pass's mark (app-1e), which lands with the reader.
 todo Live.mark = Live.markM
 todo Live.markHitM Reader.pass's mark at rest (the diff sent to holmes-1e), which lands with the reader.
 todo Live.markHit = Live.markHitM
+todo Live.nextGen Reader.Shared.setWants (fd/reader-rest-app), which lands with the reader.
+todo Live.mustRead Reader.pass's start at rest (fd/reader-rest-app), which lands with the reader.
+todo Live.startM Reader.pass's start, counted: a bridge to it lands with the reader.
+todo Live.passCostM = Live.startM
 todo Heights.T.findM The frame's rows by window (holmes-1e's Cover over a windowed read) call the tree; until then App's `bottoms` walks every row.
 todo Heights.T.startM = Heights.T.findM
 todo Heights.T.setM = Heights.T.findM

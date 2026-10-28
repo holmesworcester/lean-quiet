@@ -591,6 +591,17 @@ section cost
 #print axioms Live.RWorld.settle_idx
 #print axioms Live.RWorld.idxok_want
 #print axioms Live.RWorld.idxok_passIdx
+#print axioms Live.RWorld.countok_start
+#print axioms Live.RWorld.countok_commit
+#print axioms Live.RWorld.countok_passIdx
+#print axioms Live.RWorld.countok_frame
+#print axioms Live.RWorld.counter_idle
+#print axioms Live.nextGen_same
+#print axioms Live.nextGen_moves
+#print axioms Live.always_moves
+#print axioms Live.start_rest
+#print axioms Live.poll_queries
+#print axioms Live.passCostM_cost
 #print axioms Live.RWorld.inv_pass
 #print axioms Live.RWorld.inv_frame
 #print axioms Live.RWorld.inv_evict

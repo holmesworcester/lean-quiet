@@ -372,6 +372,10 @@ def restCheck (t : Checks) : IO Unit := do
   t.ok s!"rest: the scan (the negative control) checks every want's reads, {(cost scan).work} steps a pass"
     ((cost scan).work == 1200)
   IO.println s!"rest: idle pass {(cost idle).work} steps, one notice {(cost one).work}; the scan {(cost scan).work} every pass"
+  let start := Live.startM (m := Counted) 5 5 false false ({} : Std.HashSet Nat) false (pure ([] : List Nat))
+  let poll := Live.startPollM (m := Counted) (pure ([] : List Nat))
+  t.ok s!"rest: a pass with the counter unmoved opens nothing ({(cost start).lists} lists); the poll (the negative control) {(cost poll).lists}"
+    ((cost start).lists == 0 && (val start).isNone && (cost poll).lists == 1)
 
 end RestCheck
 

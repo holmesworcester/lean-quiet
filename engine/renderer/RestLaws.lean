@@ -27,6 +27,22 @@ notice and nothing dirty does nothing at all (`passIdx`, `rest_idle`).
   ones its keys name (`hitQs`, exact).
 - The mutant: the scan (`scanM`) costs a step per want and per read it
   recorded, every pass, at rest too (`scanM_cost`).
+- `passCostM_cost`: a pass costs a step per key noticed and per want it
+  names, a step per want picked from, and, when the wants moved, the
+  cache's keep over its entries (bounded by the window and its margin).
+- **No journal poll**: the writers keep a commit counter, and a pass
+  reads the journal only when it moved, a note came, the wants moved or
+  a want is dirty, or once a second for commits no counter sees, the
+  node's purges (`mustRead`, `startM`); the sessions list is read only
+  in a pass that opened the store, at most every half second. `CountOk` (every commit not
+  taken is journaled) is kept by every step, so an unmoved counter means
+  an empty journal (`counter_idle`), and at rest a pass's start costs
+  nothing (`start_rest`); the poll queries every pass (`poll_queries`).
+- `nextGen_same`: the frame re-setting the same wants leaves the
+  generation, so the reader rests; the mutant moves it on every set
+  (`always_moves`).
+- `Want.count` reads one or two count lists, so it too reads a list: the
+  premise of `idxok_passIdx`.
 
 With window-subs' exact notices (engine/core/Window*.lean, `notify`),
 the index is by window rather than by key, and the hit wants are those
@@ -109,6 +125,84 @@ theorem scanM_cost {Q : Type} (deps : W → Option (List Q)) (stale : W → Bool
 
 end
 
+section
+variable {W K : Type} [BEq W] [Hashable W] [LawfulBEq W] {m : Type → Type} [Monad m] [Engine.Tick m]
+
+/-- **A pass's start**: the writers' counter (a load, no query) says
+whether anything was committed since the last pass; only if it was, or
+a note came, or the wants moved, or a want is dirty, does the pass read
+the journal (one query). -/
+def startM (c seen : Nat) (notes moved : Bool) (dirty : Std.HashSet W) (late : Bool) (journal : m (List K)) :
+    m (Option (List K)) :=
+  if !mustRead c seen notes moved dirty late then pure none
+  else do Engine.tick { lists := 1 }; some <$> journal
+
+/-- The mutant: the journal polled every pass. -/
+def startPollM (journal : m (List K)) : m (Option (List K)) := do
+  Engine.tick { lists := 1 }; some <$> journal
+
+/-- **A pass's decisions, counted**: when the wants moved, the cache's
+keep over its entries (`cached`, at most the window and its margin);
+then the mark (a step per key noticed and per want it names) and the
+pick (a step per want looked at). -/
+def passCostM {Q : Type} (rev : Q → List W) (dirty : Std.HashSet W) (keys : List Q) (wants : List W)
+    (cap : Nat) (moved : Bool) (cached : Nat) : m (List W) := do
+  if moved then Engine.tick { work := cached }
+  let marked ← markHitM rev dirty keys
+  pickM marked cap wants
+
+end
+
+/-- The frame re-setting the same wants does not move the generation. -/
+theorem nextGen_same {W : Type} [BEq W] [LawfulBEq W] (ws : Array W) (g : Nat) : nextGen ws ws g = g := by
+  simp [nextGen]
+
+theorem nextGen_moves {W : Type} [BEq W] [LawfulBEq W] {old new : Array W} (h : old ≠ new) (g : Nat) :
+    nextGen old new g = g + 1 := by
+  simp [nextGen, h]
+
+/-- The mutant: a generation moved on every set; re-setting the same
+wants moves it, and the reader never rests. -/
+def nextGenAlways {W : Type} (_ _ : Array W) (g : Nat) : Nat := g + 1
+
+theorem always_moves {W : Type} (ws : Array W) (g : Nat) : nextGenAlways ws ws g ≠ g := by
+  simp [nextGenAlways]
+
+section
+variable {W K : Type} [BEq W] [Hashable W] [LawfulBEq W]
+open Engine Engine.Counted
+
+/-- **At rest, a pass reads nothing**: no commit since the last pass, no
+note, the same wants and nothing dirty, and within a second of the last
+time the store was opened, its start costs nothing, not a query. So at
+rest the store (the journal, and the sessions read with it) is opened
+at most once a second, however often the reader passes. -/
+theorem start_rest (c readAt now : Nat) (hn : now < readAt + 1000) (dirty : Std.HashSet W)
+    (hd : dirty.isEmpty = true) (journal : Counted (List K)) :
+    cost (startM (m := Counted) c c false false dirty (Decidable.decide (now ≥ readAt + 1000)) journal) = 0 := by
+  have : ¬ now ≥ readAt + 1000 := by omega
+  simp [startM, mustRead, hd, this]
+
+/-- **The poll reads the journal every pass**, at rest too. -/
+theorem poll_queries (journal : Counted (List K)) :
+    1 ≤ (cost (startPollM (m := Counted) journal)).lists := by
+  simp [startPollM]
+
+/-- **A pass costs O(keys noticed + wants named + wants + [wants moved] ·
+cached entries).** -/
+theorem passCostM_cost {Q : Type} (rev : Q → List W) (dirty : Std.HashSet W) (keys : List Q) (wants : List W)
+    (cap : Nat) (moved : Bool) (cached : Nat) :
+    (cost (passCostM (m := Counted) rev dirty keys wants cap moved cached)).work ≤
+      (keys.map fun k => 1 + (rev k).length).sum + wants.length + (if moved then cached else 0) := by
+  have hm := markHitM_cost rev keys dirty
+  have hp := pickM_cost (val (markHitM (m := Counted) rev dirty keys)) cap wants
+  rw [Meter.le_iff] at hp
+  unfold passCostM
+  cases moved <;> simp only [cost_bind, cost_tick, Meter.work_add, hm, Bool.false_eq_true, ite_true, ite_false,
+    cost_pure, Meter.work_zero] <;> simp at hp ⊢ <;> omega
+
+end
+
 namespace RWorld
 variable {σ C W V Q : Type} [BEq W] [Hashable W] [LawfulBEq W] [BEq V] [LawfulBEq V] [BEq Q] [LawfulBEq Q]
   (apply : C → σ → σ) (hits : C → Q → Bool) (eval : σ → W → V) (reads : σ → W → List Q)
@@ -122,7 +216,7 @@ def markIdx (w : RWorld σ C W V Q) : Std.HashSet W :=
 /-- **The reader at rest**: with no notice and nothing dirty it does
 nothing; else a pass over what it marks. -/
 def passIdx (cap : Nat) (w : RWorld σ C W V Q) : RWorld σ C W V Q :=
-  if idle (w.journal.flatMap hitQs) w.dirty then { w with journal := [] }
+  if idle (w.journal.flatMap hitQs) w.dirty then { w with journal := [], seen := w.commits }
   else w.passWith hits eval reads (w.markIdx hitQs) cap
 
 /-- The frame changes what it wants: a want it starts wanting is marked
@@ -169,11 +263,35 @@ theorem marked_sub_idx (hex : Exact hits hitQs) {w : RWorld σ C W V Q} (ok : Id
 
 /-- **At rest the reader does nothing**: no notice and nothing dirty, the
 pass leaves the world as it was. -/
-theorem rest_idle {w : RWorld σ C W V Q} (hj : w.journal = []) (hd : w.dirty.isEmpty = true) (cap : Nat) :
+theorem rest_idle {w : RWorld σ C W V Q} (hj : w.journal = []) (hd : w.dirty.isEmpty = true)
+    (hs : w.seen = w.commits) (cap : Nat) :
     w.passIdx hits eval reads hitQs cap = w := by
   unfold passIdx
   rw [if_pos (by simp [idle, hj, hd])]
   cases w; simp_all
+
+/-- Every commit the reader has not taken is in the journal: the
+counter is the commits taken plus those still journaled. -/
+def CountOk (w : RWorld σ C W V Q) : Prop := w.seen + w.journal.length = w.commits
+
+theorem countok_start (s : σ) : CountOk ({ store := s } : RWorld σ C W V Q) := rfl
+
+theorem countok_commit {w : RWorld σ C W V Q} (h : CountOk w) (c : C) : CountOk (w.commit apply c) := by
+  unfold CountOk at *; simp only [commit, List.length_append, List.length_singleton]; omega
+
+theorem countok_passIdx {w : RWorld σ C W V Q} (h : CountOk w) (cap : Nat) :
+    CountOk (w.passIdx hits eval reads hitQs cap) := by
+  unfold CountOk passIdx
+  split <;> simp [passWith]
+
+theorem countok_frame {w : RWorld σ C W V Q} (h : CountOk w) : CountOk w.frame := h
+
+/-- **The counter tells the journal is empty**: with no commit since the
+last pass, there is nothing to take, so a pass need not read the journal
+(`mustRead`); with nothing dirty and the same wants, it does nothing. -/
+theorem counter_idle {w : RWorld σ C W V Q} (h : CountOk w) (hc : w.commits = w.seen) : w.journal = [] := by
+  unfold CountOk at h
+  exact List.eq_nil_of_length_eq_zero (by omega)
 
 theorem inv_idle_drop (hex : Exact hits hitQs) {w : RWorld σ C W V Q} (h : Inv hits eval reads w)
     (hk : w.journal.flatMap hitQs = []) : Inv hits eval reads { w with journal := [] } := by
