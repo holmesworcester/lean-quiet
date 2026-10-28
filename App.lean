@@ -27,6 +27,7 @@ import engine.renderer.Data
 import ops.app.Chaos
 import engine.renderer.Row
 import engine.renderer.Geometry
+import engine.renderer.Cover
 import engine.renderer.Sheet
 import ops.app.Pages
 import ops.app.Composer
@@ -530,30 +531,54 @@ def paintRow (x : Id) : M Unit := do
 
 /-! ## The frame -/
 
-/-- The list frame: row r shows content at b + viewH + over - 1 - r. -/
+/-- A placeholder line: the background with a bar where a row's text
+would be, in stripes (a row not painted yet, or older rows not loaded). -/
+def holdLine (s : St) (li : Nat) : ByteArray :=
+  if li % 48 < 12 || li % 48 ≥ 36 then s.bgRow
+  else
+    let x0 := s.dim.pad + s.dim.px 48
+    let w := max 1 (s.W * 2 / 3 - x0)
+    (solid Row.placeholder w).copySlice 0 s.bgRow (4 * x0) (4 * w)
+
+/-- The list frame: row r shows content at b + viewH + over - 1 - r, as
+Cover.seen says: a painted row's line, else a placeholder (Cover.covered:
+nothing inside the content is left blank, however slow a read or a
+decode is). -/
 def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run do
   let vh := viewH s
   let hgt := vh + 2 * over
-  let mut fr := Array.replicate hgt s.bgRow
   let top := b + vh + over     -- content above the frame's first row
   let low := if b ≥ over then b - over else 0
+  -- the rows overlapping the frame, from the first one up
+  let mut i0 := s.ids.size
+  let mut slice : Array (Nat × Option Nat) := #[]
+  let mut bmps : Array (Option Bitmap) := #[]
   for i in [0:s.ids.size] do
     let bot := bots[i]!
     let x := s.ids[i]!.2
     let h := heightOf s x
     if bot ≥ top then break
     if bot + h ≤ low then continue
+    if i0 == s.ids.size then i0 := i
     let pick := s.rows[x]? >>= fun r =>
       if s.selected.isSome && s.selected != some x then r.dimShown <|> r.shown else r.shown
-    match pick with
-    | none => pure ()
-    | some bmp =>
-      -- the row's pixel line li (top down) is content bot + h - 1 - li
-      for li in [0:bmp.h] do
-        let p := bot + h - 1 - li
-        if p < top && p + over ≥ b then
-          let r := top - 1 - p
-          if r < hgt then fr := fr.set! r bmp.rows[li]!
+    slice := slice.push (h, pick.map (·.h))
+    bmps := bmps.push pick
+  let bottom := if i0 < s.ids.size then bots[i0]! else
+    match s.ids.back? with
+    | some (_, x) => bots.back! + heightOf s x
+    | none => bottomPad
+  -- older rows to load: nothing past the loaded ones is blank
+  let more := s.ids.size < s.total
+  let rows := slice.toList
+  let mut fr := Array.mkEmpty hgt
+  for r in [0:hgt] do
+    let p := top - 1 - r
+    fr := fr.push (match Cover.seen bottom more rows p with
+      | .line j li => ((bmps[j]?).join.map (·.rows[li]!)).getD s.bgRow
+      | .hold j => holdLine s (heightOf s (s.ids[i0 + j]?.map (·.2) |>.getD .empty) - 1 - (p - (bots[i0 + j]?.getD 0)))
+      | .older => holdLine s (p % 150)
+      | .blank => s.bgRow)
   return fr
 
 def header (s : St) : Bitmap := Id.run do

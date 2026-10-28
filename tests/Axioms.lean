@@ -2,6 +2,7 @@ import engine.core.Engine
 import ops.community.Community
 import ops.connection.All
 import engine.renderer.Geometry
+import engine.renderer.Cover
 import engine.renderer.SheetGeom
 import ops.community.link.View
 import engine.renderer.Camera
@@ -199,6 +200,8 @@ section app
 #print axioms SheetGeom.compose_row
 #print axioms SheetGeom.compose_top
 #print axioms Geometry.pinned_row
+#print axioms Cover.covered
+#print axioms Cover.line_painted
 #print axioms Geometry.pinned_visible
 #print axioms Geometry.pinned_tap
 #print axioms Link.hints_fit
