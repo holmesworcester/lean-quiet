@@ -268,67 +268,78 @@ end Board
 
 /-- The store (σ, changed by commits C), the journal of commits the
 reader has not taken, the reader's board and dirty wants, the frame's
-wants and what it shows. -/
-structure World (σ C W V : Type) [BEq W] [Hashable W] where
+wants and what it shows, the user's actions queued for the reader, and
+the composer. -/
+structure World (σ C W V K : Type) [BEq W] [Hashable W] where
   store : σ
   journal : List C := []
   board : Board W V := {}
   dirty : List W := []
   wants : List W := []
   shown : W → Option V := fun _ => none
+  /-- The user's actions the frame queued for the reader. -/
+  acts : List C := []
+  /-- The composer (text, IME, selection): the frame's alone. -/
+  comp : Option K := none
 
 namespace World
-variable {σ C W V : Type} [BEq W] [Hashable W] [LawfulBEq W] [BEq V]
+variable {σ C W V K : Type} [BEq W] [Hashable W] [LawfulBEq W] [BEq V]
   (apply : C → σ → σ) (touch : C → W → Bool) (eval : σ → W → V)
 
 /-- The writer commits c. -/
-def commit (c : C) (w : World σ C W V) : World σ C W V :=
+def commit (c : C) (w : World σ C W V K) : World σ C W V K :=
   { w with store := apply c w.store, journal := w.journal ++ [c] }
 
 /-- What a pass finds to refill: the dirty, what the journal's commits
 touched, and every want not held; only wants. -/
-def marked (w : World σ C W V) : List W :=
+def marked (w : World σ C W V K) : List W :=
   (w.dirty ++ w.wants.filter (fun x => w.journal.any (touch · x)) ++
     w.wants.filter (fun x => !w.board.vals.contains x)).filter (w.wants.contains ·)
 
 /-- A reader pass, in one snapshot (the store as it is): take the
 journal, forget what is not wanted, refill `pick` (at most `refill` of
 the marked, the reader's choice), and keep the rest dirty. -/
-def pass (pick : List W) (w : World σ C W V) : World σ C W V :=
+def pass (pick : List W) (w : World σ C W V K) : World σ C W V K :=
   { w with
     journal := []
     board := pick.foldl (fun b x => b.put x (eval w.store x)) (w.board.keep (w.wants.contains ·))
     dirty := (w.marked touch).filter (!pick.contains ·) }
 
 /-- The frame takes the moved set and shows those values. -/
-def frame (w : World σ C W V) : World σ C W V :=
+def frame (w : World σ C W V K) : World σ C W V K :=
   { w with board := w.board.take.2, shown := Board.apply w.shown w.board }
 
 /-- The frame changes what it wants. -/
-def want (ws : List W) (w : World σ C W V) : World σ C W V := { w with wants := ws }
+def want (ws : List W) (w : World σ C W V K) : World σ C W V K := { w with wants := ws }
 
-/-- A commit that does not touch w leaves w's value (the engine's
-`view_stable`). -/
-def Stable : Prop := ∀ c s x, touch c x = false → eval (apply c s) x = eval s x
+/-- Commit c, as made on store s, leaves every want it does not touch
+(the engine's `view_stable`; window-subs' `notice_iff`, ⇐). A commit's
+journal, so what it touches, is of the store it was made on, so this is
+asked of each commit as made, not of every store. -/
+def StableAt (c : C) (s : σ) : Prop := ∀ x, touch c x = false → eval (apply c s) x = eval s x
+
+/-- Every commit on every store (a sufficient condition, for models
+whose touch does not depend on the store). -/
+def Stable : Prop := ∀ c s, StableAt apply touch eval c s
 
 /-- Every value held is dirty, touched by a commit not yet taken, or the
 store's; and the frame has seen it or it is moved. -/
-def Inv (w : World σ C W V) : Prop :=
+def Inv (w : World σ C W V K) : Prop :=
   (∀ (x : W) (v : V) (n : Ver), w.board.vals[x]? = some (v, n) →
     x ∈ w.dirty ∨ (∃ c ∈ w.journal, touch c x = true) ∨ v = eval w.store x) ∧
   Board.Seen w.shown w.board
 
-theorem inv_start (s : σ) (ws : List W) : Inv touch eval ({ store := s, wants := ws } : World σ C W V) := by
+theorem inv_start (s : σ) (ws : List W) : Inv touch eval ({ store := s, wants := ws } : World σ C W V K) := by
   constructor <;> intro x v n h <;> simp at h
 
-theorem inv_commit (hs : Stable apply touch eval) {w : World σ C W V} (h : Inv touch eval w) (c : C) :
-    Inv touch eval (w.commit apply c) := by
+theorem inv_commit {w : World σ C W V K} (h : Inv touch eval w) (c : C)
+    (hs : StableAt apply touch eval c w.store) : Inv touch eval (w.commit apply c) := by
   refine ⟨fun x v n hx => ?_, h.2⟩
   rcases h.1 x v n hx with d | ⟨c', hc', t⟩ | e
   · exact Or.inl d
   · exact Or.inr (Or.inl ⟨c', by simp [commit, hc'], t⟩)
   · cases ht : touch c x
-    · exact Or.inr (Or.inr (by simp only [commit]; rw [hs c _ x ht]; exact e))
+    · exact Or.inr (Or.inr (by simp only [commit]; rw [hs x ht]; exact e))
     · exact Or.inr (Or.inl ⟨c, by simp [commit], ht⟩)
 
 /-- What the refills of pick leave: each picked want holds its value in
@@ -359,7 +370,7 @@ theorem seen_foldl {shown : W → Option V} (s : W → V) :
 
 variable [LawfulBEq V]
 
-theorem inv_pass {w : World σ C W V} (h : Inv touch eval w) (pick : List W) :
+theorem inv_pass {w : World σ C W V K} (h : Inv touch eval w) (pick : List W) :
     Inv touch eval (w.pass touch eval pick) := by
   refine ⟨fun x v n hx => ?_, seen_foldl _ _ _ (Board.seen_keep h.2 _)⟩
   simp only [pass] at hx ⊢
@@ -385,16 +396,16 @@ theorem inv_pass {w : World σ C W V} (h : Inv touch eval w) (pick : List W) :
       · exact Or.inr (Or.inr e)
     · cases hx
 
-theorem inv_frame {w : World σ C W V} (h : Inv touch eval w) : Inv touch eval w.frame :=
+theorem inv_frame {w : World σ C W V K} (h : Inv touch eval w) : Inv touch eval w.frame :=
   ⟨h.1, Board.seen_take h.2⟩
 
-theorem inv_want {w : World σ C W V} (h : Inv touch eval w) (ws : List W) :
+theorem inv_want {w : World σ C W V K} (h : Inv touch eval w) (ws : List W) :
     Inv touch eval (w.want ws) := h
 
 /-- **No missed update**: from any world the steps above reach, a pass
 that refills every want it marks, then one frame, shows every want's
 value in the store. -/
-theorem settle {w : World σ C W V} (h : Inv touch eval w) {pick : List W}
+theorem settle {w : World σ C W V K} (h : Inv touch eval w) {pick : List W}
     (hp : ∀ x ∈ w.marked touch, x ∈ pick) {x : W} (hx : x ∈ w.wants) :
     ((w.pass touch eval pick).frame).shown x = some (eval w.store x) := by
   have hw : w.wants.contains x = true := List.contains_iff_mem.2 hx
@@ -436,7 +447,7 @@ theorem settle {w : World σ C W V} (h : Inv touch eval w) {pick : List W}
 
 /-- A pass leaves dirty only what it marked and did not refill, and
 nothing else is marked after it until a commit or a new want. -/
-theorem marked_pass {w : World σ C W V} {pick : List W} {x : W}
+theorem marked_pass {w : World σ C W V K} {pick : List W} {x : W}
     (hx : x ∈ (w.pass touch eval pick).marked touch) : x ∈ w.marked touch ∧ x ∉ pick := by
   unfold marked at hx
   rw [List.mem_filter, List.mem_append, List.mem_append] at hx
@@ -465,7 +476,7 @@ theorem marked_pass {w : World σ C W V} {pick : List W} {x : W}
 passes whose refills together cover what the first marks, then one
 frame, show every want's value in the store. A pass refills at most
 `refill` wants, so ⌈marked / refill⌉ passes suffice. -/
-theorem settle_passes : ∀ (ps : List (List W)) (p : List W) {w : World σ C W V}, Inv touch eval w →
+theorem settle_passes : ∀ (ps : List (List W)) (p : List W) {w : World σ C W V K}, Inv touch eval w →
     (∀ x ∈ w.marked touch, x ∈ p ∨ ∃ q ∈ ps, x ∈ q) → ∀ x ∈ w.wants,
     (((ps.foldl (fun w q => w.pass touch eval q) w).pass touch eval p).frame).shown x =
       some (eval w.store x)
@@ -481,6 +492,133 @@ theorem settle_passes : ∀ (ps : List (List W)) (p : List W) {w : World σ C W 
         · subst e; exact absurd b nq
         · exact Or.inr ⟨q', e, b⟩) x hx
 
+/-! ## The user's actions: first in a pass, shown one frame after it
+
+holmes-1e's three conditions on moving actions to the reader:
+
+- (a) a pass runs the queued actions before any refill, and a queued
+  action reaches the store's outbox and the board within that one pass,
+  however long the backlog of dirty wants (`acts_shown`, for every
+  `pick`; `passActs_acts`: none is left queued);
+- (b) the composer is the frame's alone: no reader step changes it or
+  depends on it (`pass_comp`, `passActs_comp`, `passActs_indep`), and
+  typing changes nothing else (`type_only`);
+- (c) the user's own write shows, pending, at the frame after the pass
+  that judged it (`acts_shown`): one pass and one frame later, where it
+  showed in the very frame before the reader (the latency given up: at
+  most one pass, which is bounded by its refills, and one frame).
+
+An action is the reader's own commit: judged against the store as the
+actions before it left it, outbox included, it records its pending op,
+or its refusal, which is a value the frame wants (`Val.done`). -/
+
+/-- The frame queues a user's action for the reader. -/
+def queue (c : C) (w : World σ C W V K) : World σ C W V K := { w with acts := w.acts ++ [c] }
+
+/-- The frame edits its composer, and nothing else. -/
+def type (f : Option K → Option K) (w : World σ C W V K) : World σ C W V K := { w with comp := f w.comp }
+
+/-- The store the queued actions leave. -/
+def afterActs (w : World σ C W V K) : σ := w.acts.foldl (fun s c => apply c s) w.store
+
+/-- The queued actions run, in order, each the reader's own commit. -/
+def runActs (w : World σ C W V K) : World σ C W V K :=
+  w.acts.foldl (fun w c => w.commit apply c) { w with acts := [] }
+
+/-- **A pass with actions**: the queued actions first, then the wants
+they touched refilled ahead of `pick`, then `pick`. -/
+def passActs (pick : List W) (w : World σ C W V K) : World σ C W V K :=
+  (w.runActs apply).pass touch eval (w.wants.filter (fun x => w.acts.any (touch · x)) ++ pick)
+
+/-- Each action, as made, leaves what it does not touch. -/
+def ActsStable : σ → List C → Prop
+  | _, [] => True
+  | s, c :: cs => StableAt apply touch eval c s ∧ ActsStable (apply c s) cs
+
+theorem fold_commits : ∀ (cs : List C) (w : World σ C W V K), Inv touch eval w →
+    ActsStable apply touch eval w.store cs →
+    Inv touch eval (cs.foldl (fun w c => w.commit apply c) w) ∧
+      (cs.foldl (fun w c => w.commit apply c) w).store = cs.foldl (fun s c => apply c s) w.store ∧
+      (cs.foldl (fun w c => w.commit apply c) w).wants = w.wants ∧
+      (cs.foldl (fun w c => w.commit apply c) w).comp = w.comp ∧
+      (cs.foldl (fun w c => w.commit apply c) w).acts = w.acts
+  | [], _, h, _ => ⟨h, rfl, rfl, rfl, rfl⟩
+  | c :: cs, w, h, ⟨hc, hs⟩ => by
+    simp only [List.foldl_cons]
+    exact fold_commits cs (w.commit apply c) (inv_commit apply touch eval h c hc) hs
+
+/-- **A queued action reaches the board within one pass, and its write
+shows one frame later**: after a pass with actions, whatever it picks
+and however long the backlog, and one frame, every want an action
+touched shows its value in the store the actions left: its pending op,
+or its refusal. -/
+theorem acts_shown {w : World σ C W V K} (h : Inv touch eval w) (hs : ActsStable apply touch eval w.store w.acts)
+    (pick : List W) {x : W} (hx : x ∈ w.wants) (ht : w.acts.any (touch · x) = true) :
+    ((w.passActs apply touch eval pick).frame).shown x = some (eval (w.afterActs apply) x) := by
+  obtain ⟨h1, hst, _, _, _⟩ := fold_commits apply touch eval w.acts { w with acts := [] } h hs
+  have hp : x ∈ w.wants.filter (fun x => w.acts.any (touch · x)) ++ pick :=
+    List.mem_append_left _ (List.mem_filter.2 ⟨hx, ht⟩)
+  obtain ⟨u, n, hu, e⟩ := (foldl_put (eval (w.runActs apply).store) _
+    ((w.runActs apply).board.keep ((w.runActs apply).wants.contains ·)) x).1 hp
+  have hs' := (inv_frame touch eval (inv_pass touch eval h1 (w.wants.filter (fun x => w.acts.any (touch · x)) ++ pick))).2 x u n
+  simp only [frame, Board.take] at hs'
+  have hu' : ((w.runActs apply).pass touch eval
+      (w.wants.filter (fun x => w.acts.any (touch · x)) ++ pick)).board.vals[x]? = some (u, n) := hu
+  have eu : u = eval (w.afterActs apply) x := by
+    have : (w.runActs apply).store = w.afterActs apply := hst
+    rcases e with e | e
+    · rw [e, this]
+    · rw [beq_iff_eq.1 e, this]
+  rcases hs' hu' with m | s
+  · simp at m
+  · rw [← eu]; exact s
+
+/-- (a) No queued action is left after a pass. -/
+theorem passActs_acts (pick : List W) (w : World σ C W V K) : (w.passActs apply touch eval pick).acts = [] := by
+  show (w.acts.foldl (fun (w : World σ C W V K) c => w.commit apply c) { w with acts := [] }).acts = []
+  suffices ∀ (cs : List C) (v : World σ C W V K),
+      (cs.foldl (fun (w : World σ C W V K) c => w.commit apply c) v).acts = v.acts from
+    this _ _
+  intro cs
+  induction cs with
+  | nil => intro _; rfl
+  | cons c cs ih => intro v; exact ih _
+
+/-- (b) The reader's steps leave the composer. -/
+theorem pass_comp (pick : List W) (w : World σ C W V K) : (w.pass touch eval pick).comp = w.comp := rfl
+
+theorem passActs_comp (pick : List W) (w : World σ C W V K) :
+    (w.passActs apply touch eval pick).comp = w.comp := by
+  show (w.acts.foldl (fun (w : World σ C W V K) c => w.commit apply c) { w with acts := [] }).comp = w.comp
+  suffices ∀ (cs : List C) (v : World σ C W V K),
+      (cs.foldl (fun (w : World σ C W V K) c => w.commit apply c) v).comp = v.comp from
+    this _ _
+  intro cs
+  induction cs with
+  | nil => intro _; rfl
+  | cons c cs ih => intro v; exact ih _
+
+/-- (b) And do not depend on it: a pass from any composer is the same
+pass, the composer aside. -/
+theorem passActs_indep (pick : List W) (w : World σ C W V K) (k : Option K) :
+    ({ w with comp := k } : World σ C W V K).passActs apply touch eval pick =
+      { w.passActs apply touch eval pick with comp := k } := by
+  have fold : ∀ (cs : List C) (v : World σ C W V K),
+      cs.foldl (fun (w : World σ C W V K) c => w.commit apply c) { v with comp := k } =
+        { cs.foldl (fun (w : World σ C W V K) c => w.commit apply c) v with comp := k } := by
+    intro cs
+    induction cs with
+    | nil => intro _; rfl
+    | cons c cs ih => intro v; exact ih (v.commit apply c)
+  simp only [passActs, runActs]
+  rw [show ({ ({ w with comp := k } : World σ C W V K) with acts := [] } : World σ C W V K) =
+    { ({ w with acts := [] } : World σ C W V K) with comp := k } from rfl, fold]
+  rfl
+
+/-- (b) Typing changes the composer and nothing else. -/
+theorem type_only (f : Option K → Option K) (w : World σ C W V K) :
+    { w.type f with comp := w.comp } = w := rfl
+
 end World
 
 /-! ## The mutant: a frame gated on notices -/
@@ -488,7 +626,7 @@ end World
 namespace Gated
 
 /-- One want, its value the store's number. -/
-abbrev Wd := World Nat Nat Unit Nat
+abbrev Wd := World Nat Nat Unit Nat Unit
 
 def apply (c : Nat) (_ : Nat) : Nat := c
 def touch (_ : Nat) (_ : Unit) : Bool := true
@@ -531,8 +669,9 @@ theorem gated_stale (k : Nat) : (quiet k w5).shown () = some 0 ∧ w5.store = 1 
 same refill lands (`settle`). -/
 theorem ungated_fresh : (w5.frame).shown () = some 1 := by
   have inv : World.Inv touch eval w4 :=
-    World.inv_frame touch eval (World.inv_commit apply touch eval stable
-      (World.inv_frame touch eval (World.inv_pass touch eval (World.inv_start touch eval 0 [()]) _)) 1)
+    World.inv_frame touch eval (World.inv_commit apply touch eval
+      (World.inv_frame touch eval (World.inv_pass touch eval (World.inv_start touch eval 0 [()]) _)) 1
+      (stable 1 _))
   have := World.settle touch eval inv (pick := [()]) (fun x _ => by cases x; simp) (x := ())
     (by simp [w4, World.frame, World.commit, World.pass])
   simpa [w5, w4, World.frame, World.commit, World.pass, eval, Gated.apply] using this

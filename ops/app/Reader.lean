@@ -93,11 +93,10 @@ def eval : Want → RM (Val × Array Q)
     -- not shown yet: no reads held, so it is read again each pass
     | none => return (.row none, #[])
 
-/-- Whether w's reads changed: not held, or one of its reads stale. -/
+/-- Whether w's reads changed: not held, or one of its reads stale
+(`Live.staleW`, the model's: engine/renderer/ReaderLaws.lean). -/
 def stale (s : St) (w : Want) : Bool :=
-  match s.deps[w]? with
-  | none => true
-  | some qs => qs.isEmpty || qs.any fun q => !s.live.fresh q
+  _root_.Live.staleW (fun q => !s.live.fresh q) (fun w => (s.deps[w]?).map (·.toList)) w
 
 /-- One pass, in one read transaction; whether it put anything or took
 any change. -/
@@ -116,16 +115,19 @@ def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
                              deps := s.deps.filter fun w _ => want.contains w,
                              dirty := s.dirty.filter want.contains, passes := s.passes + 1 }
     sh.seen.set top
-    -- mark every want whose reads changed, before reading any again
+    -- mark every want whose reads changed, before reading any again,
+    -- then read the first `cap` marked in the frame's order: the model's
+    -- decisions (Live.mark, Live.pick), so RWorld.inv_pass and settle
+    -- are about this pass
     let s ← get
-    modify fun s => { s with dirty := wants.foldl (fun d w => if stale s w then d.insert w else d) s.dirty }
+    let marked := _root_.Live.mark wants.toList (stale s) s.dirty.toList
+    let todo := _root_.Live.pick wants.toList marked cap
+    modify fun s => { s with dirty := marked.foldl (·.insert ·) {} }
     let mut puts : Array (Want × Val) := #[]
-    for w in wants do
-      if puts.size ≥ cap then break
-      if (← get).dirty.contains w then
-        let (v, deps) ← eval w
-        modify fun s => { s with deps := s.deps.insert w deps, dirty := s.dirty.erase w }
-        puts := puts.push (w, v)
+    for w in todo do
+      let (v, deps) ← eval w
+      modify fun s => { s with deps := s.deps.insert w deps, dirty := s.dirty.erase w }
+      puts := puts.push (w, v)
     rd.exec "COMMIT"
     -- now and then, forget the cached reads no want holds
     if (← get).passes % 256 == 0 then
