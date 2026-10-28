@@ -10,7 +10,7 @@ export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
 (cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
 [ -f assets/font.bin ] || tools/fetch_assets.sh
-lake build host two_nodes net_join cross arrival attach inkless nodequeue
+lake build host two_nodes net_join cross arrival attach inkless nodequeue sat_anchor
 .lake/build/bin/inkless
 .lake/build/bin/nodequeue
 .lake/build/bin/host "${MESSAGES:-500}" out/host
@@ -23,3 +23,5 @@ else
 fi
 .lake/build/bin/arrival out/arrival
 if [ "${SKIP_TCP:-0}" != 1 ]; then .lake/build/bin/attach out/attach; else echo "SKIP attach (TCP sandbox; built)"; fi
+# last: its window check waits on readable's receipt bound (codec-perf)
+.lake/build/bin/sat_anchor out/sat_anchor

@@ -14,7 +14,7 @@ Like [Quiet](https://github.com/TryQuiet/quiet), Lean Quiet is also local-first,
 
 Lean is mostly used for mathematics, or to verify one part of a system.
 Here it is a whole, ordinary app, and about three quarters of its
-theorems (381 of 481) are about the code that runs on the phone; the
+theorems (382 of 482) are about the code that runs on the phone; the
 rest are over models, and moving them onto running code is a todo
 ([what is proven](#what-is-proven)). Native code only connects Lean to
 each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)), so in a
@@ -143,7 +143,7 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 481 rest on Lean's standard axioms
+that rests on; 🥊 is supporting. All 482 rest on Lean's standard axioms
 only.
 
 ### Security proofs
@@ -249,7 +249,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**381 of 481 laws are about running code;** 100 are not yet. Stated only: none.
+**382 of 482 laws are about running code;** 100 are not yet. Stated only: none.
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
@@ -263,7 +263,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | QR codes | 10 | 10 |  |
 | Pictures | 13 | 1 | 12 |
 | Screen | 43 | 31 | 12 |
-| App | 22 | 19 | 3 |
+| App | 23 | 20 | 3 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|

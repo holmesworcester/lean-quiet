@@ -169,6 +169,11 @@ lean_exe purge where
 lean_exe window_check where
   root := `tests.engine.WindowCheck
 
+-- The conversation's counts and window about a saturated anchor, as the
+-- reader reads them, on SQLite.
+lean_exe sat_anchor where
+  root := `tests.engine.SatAnchor
+
 lean_exe jointcp where
   root := `tests.engine.JoinTcp
 

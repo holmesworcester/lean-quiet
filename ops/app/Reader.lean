@@ -201,6 +201,18 @@ def read (q : Q) : RM Ans := do
 
 instance : Reads RM := ⟨read⟩
 
+/-- The counts beside an anchor, from one count read of those newer than
+it: those, and the rest of all (the anchor among them). -/
+def countsOf (a : Answer Fact) : Val :=
+  let newer := min a.inRange a.total
+  .count newer (a.total - newer)
+
+/-- **The counts add up to all the messages**, by construction: whatever
+the read answers, newer + older = its total. -/
+theorem counts_sum (a : Answer Fact) :
+    ∃ newer older, countsOf a = .count newer older ∧ newer + older = a.total :=
+  ⟨_, _, rfl, by omega⟩
+
 /-- A want's value, and the reads it made. -/
 def eval : Want → RM (Val × Array Q)
   -- the window's reads are rows alone: each watches its rows' window,
@@ -217,11 +229,12 @@ def eval : Want → RM (Val × Array Q)
   -- counts (limit 0): each watches its key
   | .count c none => do
     let (a, deps) ← readView (Community.readable c (limit := some 0)) #[]
-    return (.count 0 a.inRange, deps)
+    return (countsOf { a with inRange := 0 }, deps)
   | .count c (some p) => do
-    let (o, deps) ← readView (Community.readable c (limit := some 0) (before := some (p.1, p.2.push 0))) #[]
-    let (n, deps) ← readView (Community.readable c (limit := some 0) (after := some p)) deps
-    return (.count n.inRange o.inRange, deps)
+    -- one read: those newer than the anchor, and the rest, the anchor
+    -- among them (`counts_sum`), whatever bound a list puts on it
+    let (n, deps) ← readView (Community.readable c (limit := some 0) (after := some p)) #[]
+    return (countsOf n, deps)
   | .comms => do
     let (all, deps) ← Kinds.Accepted.read (← get).known
     modify fun s => { s with known := all }
