@@ -58,15 +58,26 @@ structure ListQ where
   desc : Bool := true
   limit : Option Nat := some 0
   cap : Nat := 0
+  /-- Where a row's sort key holds its rank, a counter dense in the list
+  (byte offset and length, big-endian): a count past the walk's ceiling
+  estimates from it (`Plan.countWith`). None: from the total. -/
+  rank : Option (Nat × Nat) := none
   deriving Inhabited, BEq, Hashable
 
 /-- A list's answer: its rows, each a position with its Valid fact; the
-matches inside the range (capped); the matches under the keys at all. -/
+matches inside the range (capped); the matches under the keys at all;
+and whether `inRange` is exact (false: a count past the walk's ceiling,
+which lies within [walkMax, total − walkMax], as the count does:
+`count_interval`). -/
 structure Answer (F : Type) where
   rows : List (Pos × F)
   inRange : Nat
   total : Nat
+  exact : Bool := true
   deriving Inhabited, BEq
+
+/-- q, its rows ranked at r of their sort keys (`ListQ.rank`). -/
+def ListQ.ranked (q : ListQ) (r : Nat × Nat) : ListQ := { q with rank := some r }
 
 def ListQ.inside (q : ListQ) (p : Pos) : Bool :=
   (match q.after with | some a => p.cmp a == .gt | none => true) &&
@@ -304,7 +315,11 @@ def eval (s : DB F) (q : ListQ) : Answer F :=
   let all := matching s q
   let inR := all.filter (q.inside ·.1)
   let ordered := if q.desc then inR.reverse else inR
-  ⟨q.cut ordered, capped q.cap inR.length, all.length⟩
+  ⟨q.cut ordered, capped q.cap inR.length, all.length, true⟩
+
+/-- A rank changes no answer of the model: it only lets a count past the
+walk's ceiling estimate. -/
+theorem eval_ranked (s : DB F) (q : ListQ) (r : Nat × Nat) : eval s (q.ranked r) = eval s q := rfl
 
 /-- **A list's range, when it is all of the list, counts its total**
 (capped): what lets a read take it from the counter (`listPlan`)
@@ -335,7 +350,9 @@ for each shows these indexes and no sort):
 - `side k p above incl limit`: k's rows past p (`above`) or before it,
   p itself in or not (`incl`), counted, at most `limit`: one side of a
   range bounded on one side, for a count by its smaller side
-  (`splitWalk`). -/
+  (`splitWalk`).
+- `edge k desc`: k's newest row's sort key (oldest: `desc` false), one
+  seek: what a count past the walk's ceiling estimates from. -/
 
 inductive Stmt where
   | counter (k : ByteArray)
@@ -343,6 +360,7 @@ inductive Stmt where
       (limit : Option Nat)
   | count (k : ByteArray) (others : List ByteArray) (after before : Option Pos) (cap : Nat)
   | side (k : ByteArray) (p : Pos) (above incl : Bool) (limit : Option Nat)
+  | edge (k : ByteArray) (desc : Bool)
   deriving Inhabited
 
 /-- A WHERE clause and its parameters: key k, the range (after, before),
@@ -377,6 +395,9 @@ def Stmt.sql : Stmt → String × Array ByteArray
     let lim := match limit with | none => "" | some n => s!" LIMIT {n}"
     (s!"SELECT CAST(count(*) AS TEXT) FROM (SELECT 1 FROM idx i WHERE i.k = ? AND (i.s, i.id) {op} (?, ?){lim})",
       #[k, p.1, p.2])
+  | .edge k desc =>
+    let dir := if desc then "DESC" else "ASC"
+    (s!"SELECT i.s FROM idx i WHERE i.k = ? ORDER BY i.s {dir}, i.id {dir} LIMIT 1", #[k])
 
 def Stmt.run {F} (st : Stmt) : SqlM F (Array (Array ByteArray)) :=
   let (sql, ps) := st.sql
@@ -460,48 +481,78 @@ def readPlan (q : ListQ) (k : ByteArray) (others : List ByteArray) : List Stmt :
 far. -/
 def walk0 : Nat := 64
 
-/-- The doublings before a split count walks its range whole (64: past
-any store). -/
-def walkFuel : Nat := 64
+/-- The doublings a split count tries: L = 64, 128, …, 4096. -/
+def walkFuel : Nat := 7
 
-/-- **A count by its smaller side.** A range bounded on one side splits
-k's rows in two: the range and the rest. Count each, at most L, in turn,
-L doubling, until one comes back under L: that one is exact, and the
-range's count is it or the total less it (`splitWalk_exact`), for a
-walk of about the smaller side (`splitWalk_cost`). `cnt true l` counts
-the range, `cnt false l` the rest, at most l (none: all). -/
-def splitWalk {m : Type → Type} [Monad m] (cnt : Bool → Option Nat → m Nat) (total : Nat) :
-    Nat → Nat → m Nat
-  | 0, _ => cnt true none
-  | fuel + 1, L => do
+/-- **The walk's ceiling**: past it on both sides, a count is not walked
+but estimated (`walkMax` = 4096 rows). -/
+def walkMax : Nat := walk0 * 2 ^ (walkFuel - 1)
+
+/-- **A count by its smaller side, to a ceiling.** A range bounded on one
+side splits k's rows in two: the range and the rest. Count each, at most
+L, in turn, L doubling, until one comes back under L: that one is exact,
+and the range's count is it or the total less it (`splitWalk_exact`),
+for a walk of about the smaller side (`splitWalk_steps`). Past the last
+L (lo: both sides hold at least lo rows), the count is the estimate,
+clamped into [lo, total − lo], where the true count lies too, and is
+marked not exact (`splitWalk_interval`): no walk passes a bound set by
+the fuel, whatever the store holds (`splitWalk_cost_max`). `cnt true l`
+counts the range, `cnt false l` the rest, at most l. -/
+def splitWalk {m : Type → Type} [Monad m] (cnt : Bool → Option Nat → m Nat) (est : m Nat) (total : Nat) :
+    Nat → Nat → Nat → m (Nat × Bool)
+  | 0, _, lo => do
+    let e ← est
+    pure (max lo (min e (total - lo)), false)
+  | fuel + 1, L, _ => do
     let a ← cnt true (some L)
-    if a < L then return a
+    if a < L then return (a, true)
     let b ← cnt false (some L)
-    if b < L then return total - b
-    splitWalk cnt total fuel (2 * L)
+    if b < L then return (total - b, true)
+    splitWalk cnt est total fuel (2 * L) L
 
-/-- The range's count of a plan, given how to run a count statement: by
-its smaller side when split (the range above or below p, the rest
-across it, p included), else its statement, else the counter (n). -/
-def Plan.countWith {m : Type → Type} [Monad m] (p : Plan) (cnt : Stmt → m Nat) (cap n : Nat) : m Nat :=
+/-- A big-endian number from `len` bytes of s at `off`: a row's rank. -/
+def rankOf (r : Nat × Nat) (s : ByteArray) : Nat :=
+  (List.range r.2).foldl (fun n i => n * 256 + (s[r.1 + i]?.getD 0).toNat) 0
+
+/-- A split count's estimate past the ceiling: the ranks between the
+bound and the list's far end (newest when the range is above it), one
+seek (`edge`); with no rank, half the total. The clamp, not this, is
+the law: a rank is a claim (a message's counter), and may skip. -/
+def estimate {m : Type → Type} [Monad m] (edge : Stmt → m (Option ByteArray)) (rank : Option (Nat × Nat))
+    (k : ByteArray) (b : Pos) (above : Bool) (n : Nat) : m Nat :=
+  match rank with
+  | none => pure (n / 2)
+  | some r => do
+    match ← edge (.edge k above) with
+    | none => pure 0
+    | some s => pure (if above then rankOf r s - rankOf r b.1 else rankOf r b.1 - rankOf r s)
+
+/-- The range's count of a plan, and whether it is exact, given how to
+run a count statement and an edge statement: by its smaller side when
+split (the range above or below p, the rest across it, p included), to
+the ceiling; else its statement; else the counter (n). -/
+def Plan.countWith {m : Type → Type} [Monad m] (p : Plan) (cnt : Stmt → m Nat)
+    (edge : Stmt → m (Option ByteArray)) (rank : Option (Nat × Nat)) (cap n : Nat) : m (Nat × Bool) :=
   match p.split, p.inRange with
   | some (k, b, above), _ =>
-    splitWalk (fun s l => cnt (.side k b (if s then above else !above) (!s) l)) n walkFuel walk0
-  | none, some st => cnt st
-  | none, none => pure (capped cap n)
+    splitWalk (fun s l => cnt (.side k b (if s then above else !above) (!s) l))
+      (estimate edge rank k b above n) n walkFuel walk0 0
+  | none, some st => do pure (← cnt st, true)
+  | none, none => pure (capped cap n, true)
 
 /-- A list on SQLite: its plan, run (`readPlan`). -/
 def listSql {F} [Codec F] (q : ListQ) : SqlM F (Answer F) := do
   let (k, others, n) ← pickWalk (F := F) q
   let p := listPlan q k others
   let rows ← match p.rows with | some st => st.run (F := F) | none => pure #[]
-  let inR ← p.countWith (fun st => do pure (natOf (← st.run (F := F)))) q.cap n
+  let (inR, exact) ← p.countWith (fun st => do pure (natOf (← st.run (F := F))))
+    (fun st => do pure ((← st.run (F := F))[0]? >>= (·[0]?))) q.rank q.cap n
   let total ← match p.total with | some st => do pure (natOf (← st.run (F := F))) | none => pure n
   let pos := rows.toList.filterMap fun r => do
     match (← r[2]? >>= Codec.decode) with
     | Verdict.valid f => pure (((← r[0]?), (← r[1]?)), f)
     | .invalid => none
-  return ⟨pos, inR, total⟩
+  return ⟨pos, inR, total, exact⟩
 
 /-! ## What a read costs
 
@@ -545,6 +596,7 @@ def Stmt.walks (m : Nat) : Stmt → Nat
   | .count _ others _ _ cap => if others.isEmpty && cap != 0 then min cap m else m
   | .side _ _ _ _ (some n) => min n m
   | .side _ _ _ _ none => m
+  | .edge _ _ => min 1 m
 
 /-- A statement's cost: its seek, then per row walked a step and a seek
 for each key it checks (and, for rows, the verdict's seek). -/
@@ -553,7 +605,7 @@ def Stmt.cost (c : SeekCost) (m : Nat) (st : Stmt) : Nat :=
   | .counter _ => c.seek
   | .rows _ others _ _ _ _ => c.seek + st.walks m * (c.step + (others.length + 1) * c.seek)
   | .count _ others _ _ _ => c.seek + st.walks m * (c.step + others.length * c.seek)
-  | .side .. => c.seek + st.walks m * c.step
+  | .side .. | .edge .. => c.seek + st.walks m * c.step
 
 def planCost (c : SeekCost) (m : Nat) (ss : List Stmt) : Nat := (ss.map (·.cost c m)).sum
 
@@ -596,6 +648,7 @@ theorem Stmt.walks_le (m : Nat) (st : Stmt) : st.walks m ≤ m := by
     · exact Nat.le_refl _
   · exact Nat.min_le_right _ _
   · exact Nat.le_refl _
+  · exact Nat.min_le_right _ _
 
 /-- One statement of a plan walking k, checking `others`. -/
 theorem plan_stmt_cost (c : SeekCost) (m : Nat) {q : ListQ} {k : ByteArray} {others : List ByteArray}
@@ -663,39 +716,148 @@ def sideCount (r c : Nat) (s : Bool) (l : Option Nat) : StateM (Nat × Nat) Nat 
   modify fun (calls, walked) => (calls + 1, walked + w)
   pure w
 
+/-- An estimate as `SeekCost` counts it: a statement (an edge row's
+seek), a row, and whatever value it gives. -/
+def estCount (e : Nat) : StateM (Nat × Nat) Nat := do
+  modify fun (calls, walked) => (calls + 1, walked + 1)
+  pure e
+
 /-- A count, run: its rows, one statement more, its rows walked. -/
 theorem sideCount_run (r c : Nat) (s : Bool) (l : Option Nat) (st : Nat × Nat) :
     (sideCount r c s l).run st =
       let w := match l with | some L => min L (if s then r else c) | none => if s then r else c
       (w, (st.1 + 1, st.2 + w)) := rfl
 
+/-- An estimate, run. -/
+theorem estCount_run (e : Nat) (st : Nat × Nat) : (estCount e).run st = (e, (st.1 + 1, st.2 + 1)) := rfl
+
 /-- Id's bind is application. -/
 theorem id_bind {α β : Type} (x : α) (f : α → _root_.Id β) : (x >>= f : _root_.Id β) = f x := rfl
 
-/-- **A split count is exact**: the range's r, whatever the walk's
-start and its fuel. -/
-theorem splitWalk_exact (r c : Nat) : ∀ (fuel L : Nat) (st : Nat × Nat),
-    ((splitWalk (sideCount r c) (r + c) fuel L).run st).1 = r
-  | 0, _, _ => rfl
-  | fuel + 1, L, st => by
+/-- **Within the ceiling, a split count is exact**: when k doublings
+reach past the smaller side (min r c < L·2^k, k < fuel), it is the
+range's r, marked exact. -/
+theorem splitWalk_exact (r c e : Nat) : ∀ (fuel L lo k : Nat) (st : Nat × Nat),
+    min r c < L * 2 ^ k → k < fuel →
+    ((splitWalk (sideCount r c) (estCount e) (r + c) fuel L lo).run st).1 = (r, true)
+  | 0, _, _, _, _, _, hk => absurd hk (Nat.not_lt_zero _)
+  | fuel + 1, L, lo, k, st, hμ, hk => by
     simp only [splitWalk, StateT.run_bind, sideCount_run, id_bind]
     by_cases ha : min L r < L
-    · simp only [ha, ite_true]; show min L r = r; omega
+    · simp only [ite_true, ha]; show (min L r, true) = (r, true); congr 1; omega
     · simp only [ite_true, ha, ite_false, StateT.run_bind, sideCount_run, id_bind, Bool.false_eq_true]
       by_cases hb : min L c < L
-      · simp only [hb, ite_true]; show r + c - min L c = r; omega
+      · simp only [hb, ite_true]; show (r + c - min L c, true) = (r, true); congr 1; omega
       · simp only [hb, ite_false]
-        exact splitWalk_exact r c fuel (2 * L) _
+        obtain ⟨k', rfl⟩ : ∃ k', k = k' + 1 := by
+          cases k with
+          | zero => simp at hμ; omega
+          | succ k' => exact ⟨k', rfl⟩
+        refine splitWalk_exact r c e fuel (2 * L) L k' _ ?_ (by omega)
+        rw [Nat.pow_succ] at hμ
+        rw [Nat.mul_comm 2 L, Nat.mul_assoc, Nat.mul_comm 2 (2 ^ k')]
+        exact hμ
 
-/-- What a split count adds to its statements and rows walked: two
-statements a doubling, and about the smaller side's rows. -/
-theorem splitWalk_steps (r c : Nat) : ∀ (fuel L k : Nat) (st : Nat × Nat), 0 < L →
+/-- **A split count's answer holds the truth**: marked exact, it is the
+range's r; marked not, both sides hold at least b rows (b: the last L
+walked, L·2^(fuel−1)), and it lies in [b, total − b], as r does. -/
+theorem splitWalk_interval (r c e : Nat) : ∀ (fuel L lo : Nat) (st : Nat × Nat), lo ≤ r → lo ≤ c →
+    let res := ((splitWalk (sideCount r c) (estCount e) (r + c) fuel L lo).run st).1
+    (res.2 = true → res.1 = r) ∧
+    (res.2 = false → let b := if fuel = 0 then lo else L * 2 ^ (fuel - 1)
+      b ≤ r ∧ b ≤ c ∧ b ≤ res.1 ∧ res.1 + b ≤ r + c)
+  | 0, L, lo, st, hr, hc => by
+    simp only [splitWalk, StateT.run_bind, estCount_run, id_bind]
+    show (false = true → _) ∧ (false = false → _)
+    refine ⟨fun h => absurd h (by decide), fun _ => ?_⟩
+    simp only [ite_true]
+    refine ⟨hr, hc, Nat.le_max_left _ _, ?_⟩
+    show max lo (min e (r + c - lo)) + lo ≤ r + c
+    omega
+  | fuel + 1, L, lo, st, hr, hc => by
+    simp only [splitWalk, StateT.run_bind, sideCount_run, id_bind]
+    by_cases ha : min L r < L
+    · simp only [ite_true, ha]
+      exact ⟨fun _ => by show min L r = r; omega, fun h => by change true = false at h; cases h⟩
+    · simp only [ite_true, ha, ite_false, StateT.run_bind, sideCount_run, id_bind, Bool.false_eq_true]
+      by_cases hb : min L c < L
+      · simp only [hb, ite_true]
+        exact ⟨fun _ => by show r + c - min L c = r; omega, fun h => by change true = false at h; cases h⟩
+      · simp only [hb, ite_false]
+        have ih := splitWalk_interval r c e fuel (2 * L) L (st.1 + 1 + 1, st.2 + min L r + min L c)
+          (by omega) (by omega)
+        refine ⟨ih.1, fun h => ?_⟩
+        have := ih.2 h
+        simp only [Nat.add_sub_cancel, Nat.succ_ne_zero, ite_false]
+        cases fuel with
+        | zero => simpa using this
+        | succ f =>
+          simp only [Nat.succ_ne_zero, ite_false, Nat.add_sub_cancel] at this
+          rw [Nat.pow_succ, Nat.mul_comm (2 ^ f) 2, ← Nat.mul_assoc, Nat.mul_comm L 2]
+          exact this
+
+/-- **No split count passes its fuel's bound**: at most 2·fuel + 1
+statements and 2L(2^fuel − 1) + 1 rows, whatever the store holds. -/
+theorem splitWalk_cost_max (r c e : Nat) : ∀ (fuel L lo : Nat) (st : Nat × Nat),
+    let st' := ((splitWalk (sideCount r c) (estCount e) (r + c) fuel L lo).run st).2
+    st'.1 ≤ st.1 + 2 * fuel + 1 ∧ st'.2 ≤ st.2 + 2 * L * (2 ^ fuel - 1) + 1
+  | 0, L, lo, st => by
+    simp only [splitWalk, StateT.run_bind, estCount_run, id_bind]
+    show st.1 + 1 ≤ _ ∧ st.2 + 1 ≤ _
+    simp
+  | fuel + 1, L, lo, st => by
+    simp only [splitWalk, StateT.run_bind, sideCount_run, id_bind]
+    have hp : 1 ≤ 2 ^ fuel := Nat.one_le_two_pow
+    have h2 : 2 ^ (fuel + 1) = 2 * 2 ^ fuel := by rw [Nat.pow_succ, Nat.mul_comm]
+    by_cases ha : min L r < L
+    · simp only [ite_true, ha]
+      show st.1 + 1 ≤ _ ∧ st.2 + min L r ≤ _
+      constructor
+      · omega
+      · rw [h2]
+        have : min L r ≤ 2 * L * (2 * 2 ^ fuel - 1) := by
+          have : 2 * 2 ^ fuel - 1 ≥ 1 := by omega
+          calc min L r ≤ L := Nat.min_le_left _ _
+            _ ≤ 2 * L * 1 := by omega
+            _ ≤ 2 * L * (2 * 2 ^ fuel - 1) := Nat.mul_le_mul_left _ this
+        omega
+    · simp only [ite_true, ha, ite_false, StateT.run_bind, sideCount_run, id_bind, Bool.false_eq_true]
+      by_cases hb : min L c < L
+      · simp only [hb, ite_true]
+        show st.1 + 1 + 1 ≤ _ ∧ st.2 + min L r + min L c ≤ _
+        constructor
+        · omega
+        · rw [h2]
+          have : 2 * L ≤ 2 * L * (2 * 2 ^ fuel - 1) := by
+            have : 2 * 2 ^ fuel - 1 ≥ 1 := by omega
+            calc 2 * L = 2 * L * 1 := by omega
+              _ ≤ 2 * L * (2 * 2 ^ fuel - 1) := Nat.mul_le_mul_left _ this
+          have := Nat.min_le_left L r
+          have := Nat.min_le_left L c
+          omega
+      · simp only [hb, ite_false]
+        have ih := splitWalk_cost_max r c e fuel (2 * L) L (st.1 + 1 + 1, st.2 + min L r + min L c)
+        simp only at ih
+        constructor
+        · omega
+        · rw [h2]
+          have e1 : 2 * L * (2 * 2 ^ fuel - 1) = 2 * L + 2 * (2 * L) * (2 ^ fuel - 1) := by
+            have : 2 * 2 ^ fuel - 1 = 1 + 2 * (2 ^ fuel - 1) := by omega
+            rw [this, Nat.mul_add, Nat.mul_one, ← Nat.mul_assoc (2 * L) 2, Nat.mul_comm (2 * L) 2]
+          have := Nat.min_le_left L r
+          have := Nat.min_le_left L c
+          omega
+
+/-- What a split count within the ceiling adds to its statements and
+rows walked: two statements a doubling, and about the smaller side's
+rows. -/
+theorem splitWalk_steps (r c e : Nat) : ∀ (fuel L lo k : Nat) (st : Nat × Nat), 0 < L →
     min r c < L * 2 ^ k → k < fuel →
-    ((splitWalk (sideCount r c) (r + c) fuel L).run st).2.1 ≤ st.1 + 2 * k + 2 ∧
-      ((splitWalk (sideCount r c) (r + c) fuel L).run st).2.2 ≤
+    ((splitWalk (sideCount r c) (estCount e) (r + c) fuel L lo).run st).2.1 ≤ st.1 + 2 * k + 2 ∧
+      ((splitWalk (sideCount r c) (estCount e) (r + c) fuel L lo).run st).2.2 ≤
         st.2 + (if min r c < L then L + min r c else 7 * min r c - 2 * L)
-  | 0, _, _, _, _, _, hk => absurd hk (Nat.not_lt_zero _)
-  | fuel + 1, L, k, st, hL, hμ, hk => by
+  | 0, _, _, _, _, _, _, hk => absurd hk (Nat.not_lt_zero _)
+  | fuel + 1, L, lo, k, st, hL, hμ, hk => by
     simp only [splitWalk, StateT.run_bind, sideCount_run, id_bind]
     by_cases ha : min L r < L
     · simp only [ite_true, ha]
@@ -721,8 +883,8 @@ theorem splitWalk_steps (r c : Nat) : ∀ (fuel L k : Nat) (st : Nat × Nat), 0 
           rw [Nat.pow_succ] at hμ
           rw [Nat.mul_comm 2 L, Nat.mul_assoc, Nat.mul_comm 2 (2 ^ k')]
           exact hμ
-        have ih := splitWalk_steps r c fuel (2 * L) k' (st.1 + 1 + 1, st.2 + min L r + min L c) (by omega)
-          hμ' (by omega)
+        have ih := splitWalk_steps r c e fuel (2 * L) L k' (st.1 + 1 + 1, st.2 + min L r + min L c)
+          (by omega) hμ' (by omega)
         have e1 : min L r = L := Nat.min_eq_left hrL
         have e2 : min L c = L := Nat.min_eq_left hcL
         rw [e1, e2] at ih ⊢
@@ -732,18 +894,44 @@ theorem splitWalk_steps (r c : Nat) : ∀ (fuel L k : Nat) (st : Nat × Nat), 0 
         · simp only at ih; omega
         · simp only at ih; split at ih <;> omega
 
-/-- **A split count walks about its smaller side**: for any k with
-min r c < L·2^k (k doublings reach past the smaller side; k < fuel),
-it runs at most 2k + 2 statements and walks at most L + 7·min r c rows,
-however many the range or the rest holds. -/
-theorem splitWalk_cost (r c fuel L k : Nat) (hL : 0 < L) (hμ : min r c < L * 2 ^ k) (hk : k < fuel) :
-    let st := ((splitWalk (sideCount r c) (r + c) fuel L).run (0, 0)).2
+/-- **A split count walks about its smaller side**: within the ceiling
+(k doublings reach past the smaller side, k < fuel), at most 2k + 2
+statements and L + 7·min r c rows, however many the range or the rest
+holds. -/
+theorem splitWalk_cost (r c e fuel L lo k : Nat) (hL : 0 < L) (hμ : min r c < L * 2 ^ k) (hk : k < fuel) :
+    let st := ((splitWalk (sideCount r c) (estCount e) (r + c) fuel L lo).run (0, 0)).2
     st.1 ≤ 2 * k + 2 ∧ st.2 ≤ L + 7 * min r c := by
-  have h := splitWalk_steps r c fuel L k (0, 0) hL hμ hk
+  have h := splitWalk_steps r c e fuel L lo k (0, 0) hL hμ hk
   simp only [Nat.zero_add] at h
   refine ⟨h.1, ?_⟩
   have h2 := h.2
   split at h2 <;> omega
+
+/-! The walk as the reads run it (`walk0`, `walkFuel`): exact within the
+ceiling of either end, inside [walkMax, total − walkMax] past it, and
+never more than 15 statements and 16,257 rows. -/
+
+/-- **A count within 4096 rows of either end is exact.** -/
+theorem count_exact (r c e : Nat) (h : min r c < walkMax) :
+    ((splitWalk (sideCount r c) (estCount e) (r + c) walkFuel walk0 0).run (0, 0)).1 = (r, true) :=
+  splitWalk_exact r c e walkFuel walk0 0 6 (0, 0) h (by decide)
+
+/-- **Past the ceiling, the count and the truth share an interval**:
+not exact only when both sides hold 4096 rows or more, and then it lies
+in [4096, total − 4096]. -/
+theorem count_interval (r c e : Nat) :
+    let res := ((splitWalk (sideCount r c) (estCount e) (r + c) walkFuel walk0 0).run (0, 0)).1
+    (res.2 = true → res.1 = r) ∧
+      (res.2 = false → walkMax ≤ r ∧ walkMax ≤ c ∧ walkMax ≤ res.1 ∧ res.1 + walkMax ≤ r + c) :=
+  splitWalk_interval r c e walkFuel walk0 0 (0, 0) (Nat.zero_le _) (Nat.zero_le _)
+
+/-- **A count costs at most 15 statements and 16,257 rows**, whatever
+the list holds. -/
+theorem count_cost_max (r c e : Nat) :
+    let st := ((splitWalk (sideCount r c) (estCount e) (r + c) walkFuel walk0 0).run (0, 0)).2
+    st.1 ≤ 15 ∧ st.2 ≤ 16257 := by
+  have := splitWalk_cost_max r c e walkFuel walk0 0 (0, 0)
+  simpa [walkFuel, walk0] using this
 
 /-- **A one-bound uncapped count of one key is split**: its plan counts
 it by its smaller side, and runs it as `splitWalk` does. -/
@@ -754,9 +942,11 @@ theorem listPlan_split {q : ListQ} (k : ByteArray) (hc : q.cap = 0) {b : Pos} {a
   rcases hb with ⟨ha, hb, rfl⟩ | ⟨ha, hb, rfl⟩ <;> simp [listPlan, splitOf, ha, hb, hc]
 
 theorem countWith_split {m : Type → Type} [Monad m] {p : Plan} {k : ByteArray} {b : Pos} {above : Bool}
-    (h : p.split = some (k, b, above)) (cnt : Stmt → m Nat) (cap n : Nat) :
-    p.countWith cnt cap n =
-      splitWalk (fun s l => cnt (.side k b (if s then above else !above) (!s) l)) n walkFuel walk0 := by
+    (h : p.split = some (k, b, above)) (cnt : Stmt → m Nat) (edge : Stmt → m (Option ByteArray))
+    (rank : Option (Nat × Nat)) (cap n : Nat) :
+    p.countWith cnt edge rank cap n =
+      splitWalk (fun s l => cnt (.side k b (if s then above else !above) (!s) l))
+        (estimate edge rank k b above n) n walkFuel walk0 0 := by
   unfold Plan.countWith
   simp only [h]
 

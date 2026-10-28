@@ -92,7 +92,7 @@ def View.liftL {A B α : Type} : View A α → View (A ⊕ B) α
   | .pure a => .pure a
   | .list q k => .list q fun ans =>
     (k ⟨ans.rows.filterMap fun (p, f) => match f with | .inl x => some (p, x) | .inr _ => none,
-      ans.inRange, ans.total⟩).liftL
+      ans.inRange, ans.total, ans.exact⟩).liftL
 
 /-- The B rows of an answer. -/
 def Answer.rights {A B : Type} (ans : Answer (A ⊕ B)) : List (Pos × B) :=

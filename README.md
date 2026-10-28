@@ -130,8 +130,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 543 rest on Lean's standard axioms
-only, and about three fifths of its theorems (361 of 543) are about
+that rests on; 🥊 is supporting. All 549 rest on Lean's standard axioms
+only, and about two thirds of its theorems (367 of 549) are about
 the code that runs; the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
 
@@ -204,7 +204,7 @@ the code that runs; the rest are over models so far
 | ⬜ | 🥊🥊 | **A tap acts once.** A second tap on a control while its action is in flight starts nothing new (Send sends once). A press that turns into a scroll past the slop is not a tap. | |
 | ⬜ | 🥊🥊 | **Destructive actions are guarded.** Every action that cannot be undone asks for a second confirmation, as removal does (`writes_only_after_two`). Its control keeps a clear gap from the controls around it. | |
 | ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
-| 🟡 | 🥊🥊 | **A read costs its page, not its list.** No read sorts: a union merges its lists, which SQLite returns in index order, and the merge is their rows sorted. Given [`SeekCost`] (each statement's plan is checked): a one-key read costs two seeks plus a seek and a step per row returned, whatever the list's length; a capped count adds its cap; a count of a range bounded on one side (a window's "newer"; "older" is the total less it) is exact in 2k + 2 statements and 64 + 7·min(range, rest) rows. Not yet: an uncapped count of a range bounded on both sides, and a conjunction's rows, count and total, walk the range (O(range), stated). | [`readPlan_cost`], [`readPlan_cost_range`], [`splitWalk_exact`], [`splitWalk_cost`], [`listPlan_split`], [`readPlan_cost_le`], [`pickMin_le`], [`inRange_unbounded`], [`mergeRuns_eq_sortPos`], [`union_sorted`], [`eval_oriented`], [`order_total`] |
+| 🟡 | 🥊🥊 | **A read costs its page, not its list.** No read sorts: a union merges its lists, which SQLite returns in index order, and the merge is their rows sorted. Given [`SeekCost`] (each statement's plan is checked): a one-key read costs two seeks plus a seek and a step per row returned, whatever the list's length; a capped count adds its cap; a count of a range bounded on one side (a window's "newer"; "older" is the total less it) is exact within 4,096 rows of either end, in 2k + 2 statements and 64 + 7·min(range, rest) rows; past that it is an estimate, marked as one, that lies in [4,096, total − 4,096] as the true count does; and no such count passes 15 statements and 16,257 rows, whatever the list holds. Not yet: an uncapped count of a range bounded on both sides, and a conjunction's rows, count and total, walk the range (O(range), stated). | [`readPlan_cost`], [`readPlan_cost_range`], [`splitWalk_exact`], [`splitWalk_cost`], [`count_exact`], [`count_interval`], [`count_cost_max`], [`listPlan_split`], [`readPlan_cost_le`], [`pickMin_le`], [`inRange_unbounded`], [`mergeRuns_eq_sortPos`], [`union_sorted`], [`eval_oriented`], [`order_total`] |
 | ✅ | 🥊🥊 | **A device's keys are derived once.** Its secret op holds the whole device, checked against its seed when written, and every reader takes it from the store. No intent or view reaches a derivation: checked at build time (`ops/community/NoDerive.lean`). A connection's handshake still converts the seed once per handshake (`Keys.xSec`). | [`secret_derives`], [`device_derives`], [`device_ofSeed`], [`ofSeed_of_keys`] |
 | ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
 | ✅ | 🥊🥊 | **The people list is the present members,** each once. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_nodup`] |
@@ -234,11 +234,11 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**361 of 543 laws are about running code;** 182 are not yet. Stated only: none.
+**367 of 549 laws are about running code;** 182 are not yet. Stated only: none.
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
-| Engine | 98 | 51 | 47 |
+| Engine | 104 | 57 | 47 |
 | Sync | 82 | 81 | 1 |
 | mDNS | 3 | 0 | 3 |
 | Node and wire | 35 | 19 | 16 |
@@ -340,8 +340,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 153 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
-| [`SeekCost`] | 7 | docs/PERF.md's SQLite assumption (`levels`), for a list read's statements: a seek costs at most c·(log₂ N + 1), each next in-order row a step; a LIMIT walks no row past it, and a range bound is a seek (each statement's plan is checked by tests/engine/QueryDiff.lean). |
+| [`Model.run`] | 154 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`SeekCost`] | 12 | docs/PERF.md's SQLite assumption (`levels`), for a list read's statements: a seek costs at most c·(log₂ N + 1), each next in-order row a step; a LIMIT walks no row past it, and a range bound is a seek (each statement's plan is checked by tests/engine/QueryDiff.lean). |
 | [`Engine.Inv`] | 48 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
 
@@ -805,9 +805,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`offer_shared`]: engine/core/Sync.lean#L83-L86
 [`wire_kinds`]: ops/connection/Laws.lean#L48-L49
 [`local_kinds`]: ops/connection/Laws.lean#L55-L56
-[`joinOps_travels`]: ops/community/Intents.lean#L317-L321
-[`found_travels`]: ops/community/Intents.lean#L328-L332
-[`stopWaiting_local`]: ops/community/Intents.lean#L324-L325
+[`joinOps_travels`]: ops/community/Intents.lean#L319-L323
+[`found_travels`]: ops/community/Intents.lean#L330-L334
+[`stopWaiting_local`]: ops/community/Intents.lean#L326-L327
 [`filed_send`]: ops/sync/ConnLaws.lean#L185-L188
 [`offer_stored`]: engine/core/Sync.lean#L98-L101
 [`tick_send`]: ops/sync/ConnLaws.lean#L194-L197
@@ -872,7 +872,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`verify_sound`]: ops/community/Merkle.lean#L435-L441
 [`complete_assembles`]: ops/community/Merkle.lean#L482-L488
 [`chunk_unique`]: ops/community/Laws.lean#L766-L772
-[`progress_exact`]: ops/community/Intents.lean#L663-L672
+[`progress_exact`]: ops/community/Intents.lean#L665-L674
 [`no_injective_hash`]: ops/community/Merkle.lean#L245-L247
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
@@ -914,7 +914,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`approve_valid`]: ops/community/Laws.lean#L425-L433
 [`admit_admits`]: ops/community/Laws.lean#L441-L452
 [`connect_admitted`]: ops/community/Connect.lean#L169-L179
-[`removeMember_valid`]: ops/community/Intents.lean#L529-L536
+[`removeMember_valid`]: ops/community/Intents.lean#L531-L538
 [`exchange_complete`]: ops/sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: ops/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: ops/sync/Fp.lean#L37-L37
@@ -938,22 +938,25 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`filed_rel`]: engine/core/Decl.lean#L189-L196
 [`mem_keysOf`]: engine/core/Decl.lean#L79-L82
 [`matching_nodup`]: engine/core/Decl.lean#L158-L161
-[`SeekCost`]: engine/core/Query.lean#L530-L534
-[`readPlan_cost`]: engine/core/Query.lean#L560-L565
-[`readPlan_cost_range`]: engine/core/Query.lean#L574-L577
-[`splitWalk_exact`]: engine/core/Query.lean#L675-L678
-[`splitWalk_cost`]: engine/core/Query.lean#L735-L740
-[`listPlan_split`]: engine/core/Query.lean#L748-L753
-[`readPlan_cost_le`]: engine/core/Query.lean#L611-L616
-[`pickMin_le`]: engine/core/Query.lean#L399-L402
-[`inRange_unbounded`]: engine/core/Query.lean#L309-L313
-[`mergeRuns_eq_sortPos`]: engine/core/Union.lean#L114-L117
-[`union_sorted`]: engine/core/Union.lean#L181-L185
-[`eval_oriented`]: engine/core/Union.lean#L215-L218
+[`SeekCost`]: engine/core/Query.lean#L581-L585
+[`readPlan_cost`]: engine/core/Query.lean#L612-L617
+[`readPlan_cost_range`]: engine/core/Query.lean#L626-L629
+[`splitWalk_exact`]: engine/core/Query.lean#L737-L742
+[`splitWalk_cost`]: engine/core/Query.lean#L897-L902
+[`count_exact`]: engine/core/Query.lean#L914-L916
+[`count_interval`]: engine/core/Query.lean#L919-L923
+[`count_cost_max`]: engine/core/Query.lean#L928-L931
+[`listPlan_split`]: engine/core/Query.lean#L936-L941
+[`readPlan_cost_le`]: engine/core/Query.lean#L664-L669
+[`pickMin_le`]: engine/core/Query.lean#L420-L423
+[`inRange_unbounded`]: engine/core/Query.lean#L324-L328
+[`mergeRuns_eq_sortPos`]: engine/core/Union.lean#L115-L118
+[`union_sorted`]: engine/core/Union.lean#L182-L186
+[`eval_oriented`]: engine/core/Union.lean#L216-L219
 [`order_total`]: ops/community/message/Order.lean#L217-L227
 [`secret_derives`]: ops/community/Laws.lean#L588-L593
-[`device_derives`]: ops/community/Intents.lean#L413-L420
-[`device_ofSeed`]: ops/community/Intents.lean#L433-L436
+[`device_derives`]: ops/community/Intents.lean#L415-L422
+[`device_ofSeed`]: ops/community/Intents.lean#L435-L438
 [`ofSeed_of_keys`]: ops/community/Compose.lean#L61-L64
 [`writes_only_after_two`]: ops/app/Remove.lean#L56-L59
 [`cancel_writes_nothing`]: ops/app/Remove.lean#L63-L64
@@ -1002,8 +1005,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
-[`readable_held`]: ops/community/Intents.lean#L452-L464
-[`readable_complete`]: ops/community/Intents.lean#L492-L502
+[`readable_held`]: ops/community/Intents.lean#L454-L466
+[`readable_complete`]: ops/community/Intents.lean#L494-L504
 [`switcherOrder_sound`]: ops/app/Pages.lean#L674-L676
 [`switcherOrder_complete`]: ops/app/Pages.lean#L681-L683
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
@@ -1097,7 +1100,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`waitOn_costs`]: engine/core/IngestCost.lean#L62-L64
 [`decide_costs`]: engine/core/IngestCost.lean#L93-L95
 [`step_costs`]: engine/core/IngestCost.lean#L116-L120
-[`view_lists`]: engine/core/ListCost.lean#L78-L81
+[`view_lists`]: engine/core/ListCost.lean#L81-L84
 [`findM_cost`]: engine/renderer/Heights.lean#L571-L571
 [`startM_cost`]: engine/renderer/Heights.lean#L589-L589
 [`setM_cost`]: engine/renderer/Heights.lean#L607-L607
@@ -1107,7 +1110,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`list_costs`]: engine/core/ListCost.lean#L32-L35
 [`Costs.time`]: engine/core/Cost.lean#L393-L395
 [`Costs.mono`]: engine/core/Cost.lean#L397-L397
-[`sortPos_eq_fast`]: engine/core/Query.lean#L278-L279
+[`sortPos_eq_fast`]: engine/core/Query.lean#L289-L290
 [`rowAt_spec`]: engine/renderer/Heights.lean#L548-L551
 [`push_ok`]: engine/renderer/Heights.lean#L328-L330
 [`build_ok`]: engine/renderer/Heights.lean#L421-L422
@@ -1151,10 +1154,10 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`passActs_comp`]: engine/renderer/BoardLaws.lean#L590-L591
 [`passActs_indep`]: engine/renderer/BoardLaws.lean#L601-L604
 [`type_only`]: engine/renderer/BoardLaws.lean#L618-L620
-[`nodup_full`]: ops/community/Intents.lean#L623-L625
+[`nodup_full`]: ops/community/Intents.lean#L625-L627
 [`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
 [`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939
-[`model_fits`]: engine/core/ListCost.lean#L59-L60
+[`model_fits`]: engine/core/ListCost.lean#L62-L63
 [`window_rows`]: engine/renderer/Heights.lean#L488-L490
 [`Seal.Good`]: ops/community/Keys.lean#L40-L43
 [`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L269

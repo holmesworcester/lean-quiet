@@ -79,7 +79,7 @@ mutant "a list that reads in the wrong direction" engine.core.Union engine/core/
 # order_total is false: readable merges its receipt lists read the other way.
 # (its unfolding, eval_readable, restated to match, as a change would)
 mutant "readable reads its receipts in the other direction" ops.community.message.Order ops/community/message/Order.lean:order_total ops/community/Intents.lean \
-  "    received.byKey.query [c, kid] limit desc (after.map" "    received.byKey.query [c, kid] limit (!desc) (after.map" \
+  "(received.byKey.query [c, kid] limit desc (after.map" "(received.byKey.query [c, kid] limit (!desc) (after.map" \
   "(received.byKey.query [c, kid] lim desc (after.map" "(received.byKey.query [c, kid] lim (!desc) (after.map"
 # sortPos_eq_fast is false: the sort that runs reverses ties.
 mutant "sortPos run as an unstable sort" engine.core.Query engine/core/Query.lean:sortPos_eq_fast engine/core/Query.lean \
@@ -118,11 +118,22 @@ mutant "a count that always walks the newer side" engine.core.Query engine/core/
 mutant "a split count that never walks the rest" engine.core.Query engine/core/Query.lean:splitWalk_steps \
   engine/core/Query.lean \
   "    let b ← cnt false (some L)
-    if b < L then return total - b
+    if b < L then return (total - b, true)
 " ""
 # splitWalk_exact is false: the rest's count is returned as the range's.
 mutant "a split count that answers with the rest" engine.core.Query engine/core/Query.lean:splitWalk_exact \
-  engine/core/Query.lean "    if b < L then return total - b" "    if b < L then return b"
+  engine/core/Query.lean "    if b < L then return (total - b, true)" "    if b < L then return (b, true)"
+# splitWalk_cost_max is false: past the last doubling the range is walked
+# whole, however long.
+mutant "a walk with no ceiling" engine.core.Query engine/core/Query.lean:splitWalk_cost_max \
+  engine/core/Query.lean "  | 0, _, lo => do
+    let e ← est
+    pure (max lo (min e (total - lo)), false)" "  | 0, _, _ => do
+    let a ← cnt true none
+    pure (a, true)"
+# splitWalk_interval is false: the estimate is answered as it comes.
+mutant "an unclamped estimate" engine.core.Query engine/core/Query.lean:splitWalk_interval \
+  engine/core/Query.lean "    pure (max lo (min e (total - lo)), false)" "    pure (e, false)"
 # pickMin_le is false: a conjunction walks its largest conjunct.
 mutant "a conjunction that walks its largest key" engine.core.Query engine/core/Query.lean:pickMin_le engine/core/Query.lean \
   "  | best, kn :: rest => pickMin (if kn.2 < best.2 then kn else best) rest" \

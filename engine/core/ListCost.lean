@@ -39,8 +39,11 @@ theorem list_costs (q : ListQ) (hq : q.also = []) {L C : Nat} (hL : q.limit = so
     costs_bindP hS (fun a ha => by
       have h1 := ha.1 L hL
       have h2 := ha.2 hC
-      simp only [listCost, hq, List.length_nil, List.isEmpty_nil, ite_true, Nat.add_zero]
-      meter_le) (fun a _ => costs_pure a)
+      have hs : (splitOf q []).isSome = false := by
+        simp [splitOf, Nat.pos_iff_ne_zero.1 hC]
+      simp only [listCost, countCost, hs, hq, List.length_nil, List.isEmpty_nil, ite_true, Nat.add_zero,
+        Bool.false_eq_true, ite_false]
+      split <;> meter_le) (fun a _ => costs_pure a)
   rw [bind_pure, Meter.add_zero] at this
   exact this
 

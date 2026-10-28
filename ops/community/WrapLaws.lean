@@ -93,9 +93,9 @@ theorem wrapAll_over (c req myAdm : Id) (d : Device) (esk : ByteArray) (p : Pos)
     (u₁ u₂ u₃ : Id) (d₁ d₂ d₃ e₁ e₂ e₃ : Key) :
     ¬ Always (fun w : Write => w.ops.length ≤ 3) (approveWrapAll c req myAdm d esk) := by
   intro h
-  let none0 : Answer Fact := ⟨[], 0, 0⟩
-  have := always_runWith [⟨[(p, .key c kid k)], 1, 1⟩,
-    ⟨[(p, .admission c u₁ d₁ e₁), (p, .admission c u₂ d₂ e₂), (p, .admission c u₃ d₃ e₃)], 3, 3⟩,
+  let none0 : Answer Fact := ⟨[], 0, 0, true⟩
+  have := always_runWith [⟨[(p, .key c kid k)], 1, 1, true⟩,
+    ⟨[(p, .admission c u₁ d₁ e₁), (p, .admission c u₂ d₂ e₂), (p, .admission c u₃ d₃ e₃)], 3, 3, true⟩,
     none0, none0, none0] h (by
       simp only [approveWrapAll, recipients, live, removals, Rel.read, View.read, bind_eq, pure_eq,
         View.bind, ite_true, runWith, none0]

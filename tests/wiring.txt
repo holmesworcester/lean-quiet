@@ -91,6 +91,7 @@ assume Engine.SeekCost.seek = Engine.SeekCost
 assume Engine.Stmt.cost = Engine.SeekCost
 assume Engine.planCost = Engine.SeekCost
 assume Engine.sideCount = Engine.SeekCost
+assume Engine.estCount = Engine.SeekCost
 
 holds Engine.Inv The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean).
 
@@ -113,6 +114,7 @@ bridge Engine.sortPos Engine.mergeRuns_eq_sortPos
 spec Engine.specAt The spec's verdict on an op, which judging is proven to reach.
 spec Engine.readPlan The statements a list read runs (its counters, then its plan's), for its cost.
 spec Engine.Plan.stmts A plan's statements, for its cost.
+spec Engine.walkMax The walk's ceiling, 64 · 2^6: the number the count laws state the walk against.
 spec Engine.View.keys The keys a view reads, on the model: what a screen watches.
 spec Engine.lexCmp Byte order, which `be64` keeps.
 spec Engine.Sync.pres The byte strings a label hashes, for the no-collision hypothesis.

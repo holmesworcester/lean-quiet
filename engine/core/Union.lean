@@ -50,11 +50,12 @@ was read newest first. -/
 def orient {α} (desc : Bool) (l : List α) : List α := if desc then l.reverse else l
 
 /-- The lists' answers as one: their rows merged by position (newest
-first if `desc`), cut to `limit`; the counts summed. -/
+first if `desc`), cut to `limit`; the counts summed, exact when every
+list's is. -/
 def unionAnswers (desc : Bool) (limit : Option Nat) (as : List (Answer F)) : Answer F :=
   let ordered := orient desc (mergeRuns (as.map fun a => orient desc a.rows))
   ⟨match limit with | none => ordered | some n => ordered.take n,
-    (as.map (·.inRange)).sum, (as.map (·.total)).sum⟩
+    (as.map (·.inRange)).sum, (as.map (·.total)).sum, as.all (·.exact)⟩
 
 theorem perm_mergeRuns {α} : ∀ rs : List (List (Pos × α)), (mergeRuns rs).Perm rs.flatten
   | [] => List.Perm.refl _

@@ -490,6 +490,39 @@ unaffected (Meyer and Scherer §I–II).
   counter and the time each take 8 bytes of the sort key; the counter
   does not feed sync's `ord`, which stays the claimed time, common to
   every timed kind.
+
+  **Saturation by one member (written down 2026-10-28, not changed).**
+  One post claiming the cap (or the cap less one: the next honest post
+  then claims the cap) saturates its channel for good: every later post
+  claims the cap (`send` takes one more than the highest it holds,
+  capped), so the counter no longer orders anything after it, and the
+  whole rest of the channel is listed by each device's receipts.
+  - It is the designed fallback (the user's decisions of 2026-10-27 and
+    -28, above): a channel never stops listing, and the exception is a
+    law (`order_local`, `arrival_order`, `display_agrees`).
+  - What the user sees: from that post on, each device shows the
+    channel's new messages in the order it received them, newest last;
+    its own sends sort after everything it holds (`send_after`); two
+    devices may order two saturated messages differently, though never
+    two below the cap. Every message below the cap sorts before every
+    saturated one (`bcmp_msg_rec`), so an old message that arrives late
+    still lands in the history, not at the bottom. Claimed times are
+    shown, and order nothing.
+  - Should intake refuse a claim more than some bound above the
+    sender's own last post? Not as a validator: an honest post claims
+    one more than the highest counter its author holds, which is
+    unbounded above the author's own last post in a busy channel, and a
+    validator that judged by what the receiving device holds would give
+    the same op different verdicts on different devices
+    (`same_ops_same_verdicts` would no longer hold of posts). Not as an
+    intake filter either: a device that drops an op its peers hold is
+    offered it again on every sync and never converges. The bound that
+    is sound is one a post proves from what it cites: a post could cite
+    the message whose counter it extends and be valid only at that
+    counter plus one, but its requirement closure is then the channel's
+    whole history, which the design avoids. So nothing here is
+    enforceable without one of those trade-offs; which (if any) is the
+    user's decision.
 - **Wire kinds** as UInt8 (240–242) until the registry names kinds by
   hash.
 - **`sync.have` / `sync.want` as a family?** They are transient and never

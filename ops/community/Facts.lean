@@ -718,6 +718,14 @@ def timeCap : Nat := 2 ^ 64 - 1
 the order is (counter, time, id) (`msg_cmp`). -/
 def msgKey (n tm : Nat) : ByteArray := be64 (min n countCap) ++ be64 (min tm timeCap)
 
+/-- Where a message's sort key holds its counter (eight bytes, big-endian
+from byte 0): a channel list's rank (`ListQ.rank`), from which a count
+past the walk's ceiling estimates. -/
+def msgRank : Nat × Nat := (0, 8)
+
+/-- Where a receipt's sort key holds this device's receipt counter. -/
+def recRank : Nat × Nat := (8, 8)
+
 /-- A receipt's sort key: after every counter below the cap, then by
 this device's receipt counter, then by the message. -/
 def recKey (k : Nat) (m : Id) : ByteArray := be64 countCap ++ be64 k ++ m

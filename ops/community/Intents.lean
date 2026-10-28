@@ -240,13 +240,15 @@ key not yet held is not listed. When the key arrives,
 again and the message appears. Ranges and limits are a list's (`after`,
 `before`, `limit`, `desc`), so pages and counts are the union's; a bound
 is a row's position (a receipt's sort key names its message, so a
-receipt list is bounded by sort key alone). -/
+receipt list is bounded by sort key alone). Each list is ranked by its
+counter (`msgRank`, `recRank`), so a count past the walk's ceiling
+estimates from it. -/
 def readable (c : Id) (limit : Option Nat := some 50) (desc : Bool := true)
     (after before : Option Pos := none) : View Fact (Answer Fact) := do
   let kids ← heldKids c
-  let ms ← View.readAll (kids.map fun kid => message.byKey.query [c, kid] limit desc after before)
+  let ms ← View.readAll (kids.map fun kid => (message.byKey.query [c, kid] limit desc after before).ranked msgRank)
   let rs ← View.readAll (kids.map fun kid =>
-    received.byKey.query [c, kid] limit desc (after.map (·.1, idTop)) (before.map (·.1, .empty)))
+    (received.byKey.query [c, kid] limit desc (after.map (·.1, idTop)) (before.map (·.1, .empty))).ranked recRank)
   pure (unionAnswers desc limit (ms ++ rs.map fun a => { a with rows := a.rows.map asMsg }))
 
 /-- This device's newest content key for c, if it holds one. -/

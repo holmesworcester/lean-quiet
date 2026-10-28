@@ -172,7 +172,7 @@ def overlayList (out : Array Pending) (q : ListQ) (a : Answer Fact) (stored : Id
   let sorted := all.mergeSort fun x y => x.1.cmp y.1 != .gt
   let rows := q.cut (if q.desc then sorted.reverse else sorted)
   -- a pending row pushed past the limit is left out like any other
-  return (⟨rows, a.inRange + inR.length, a.total + mine.length⟩, mine.map (·.op.id))
+  return (⟨rows, a.inRange + inR.length, a.total + mine.length, a.exact⟩, mine.map (·.op.id))
 
 /-- **The overlay counts every op once.** Its total is the store's plus
 the pending ops the store has not counted (`pendingFor`): one held both
@@ -250,7 +250,7 @@ def Q.run (db : Db) (out : Array Pending) : Q → IO Ans
   | .list q => do
     let a ← (listSql (F := SF) q).run db
     -- a community list's rows are all community facts (its key is theirs)
-    let a : Answer Fact := ⟨a.lefts, a.inRange, a.total⟩
+    let a : Answer Fact := ⟨a.lefts, a.inRange, a.total, a.exact⟩
     -- each pending op the store already holds decided is counted by the
     -- store, not again by the outbox (between a commit and the frame
     -- taking its notice, an op is in both)
@@ -280,7 +280,7 @@ appended to deps. -/
 def readList (q : ListQ) (deps : Array Q) : m (Answer Fact × List Id × Array Q) := do
   match ← Reads.read (Q.list q) with
   | .list a pend => return (a, pend, deps.push (.list q))
-  | _ => return (⟨[], 0, 0⟩, [], deps.push (.list q))
+  | _ => return (⟨[], 0, 0, true⟩, [], deps.push (.list q))
 
 /-- One fact (the list under its own id), whether it is pending, and deps. -/
 def readFact (x : Id) (deps : Array Q) : m (Option Fact × Bool × Array Q) := do

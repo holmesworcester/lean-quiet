@@ -125,7 +125,7 @@ def ranged : Stmt → Bool
   | .rows _ _ a b _ _ => a.isSome || b.isSome
   | .count _ _ a b _ => a.isSome || b.isSome
   | .side .. => true
-  | .counter _ => false
+  | .counter _ | .edge .. => false
 
 /-- A statement's plan is the walk its cost counts (`Stmt.walks`): every
 line a search, a counter its primary key, rows in `idx_ks`'s order, and
@@ -134,7 +134,7 @@ def planOk (st : Stmt) (lines : List String) : Bool :=
   !lines.isEmpty && lines.all lineOk &&
   (match st with
    | .counter _ => lines.any (mentions · "SEARCH cnt USING PRIMARY KEY (k=?)")
-   | .rows .. => lines.any (mentions · "SEARCH i USING COVERING INDEX idx_ks (k=?")
+   | .rows .. | .edge .. => lines.any (mentions · "SEARCH i USING COVERING INDEX idx_ks (k=?")
    | .count .. | .side .. => true) &&
   (!ranged st || lines.any (mentions · "USING COVERING INDEX idx_ks (k=? AND (s,id)"))
 
@@ -237,6 +237,54 @@ def readableChecks (t : Checks) (seed : Nat) (db : Db) (m : DB Fact) (c : Id) : 
     t.ok s!"seed {seed}: pages of 7 {if desc then "newest" else "oldest"} first read the whole list once, in order ({all.length} rows)"
       (got == all && (got.map (·.1.2)).eraseDups.length == got.length)
 
+/-- The walk's ceiling on SQLite, on lists longer than it: 20,000 rows
+under one key, ranked by a counter in their sort keys (dense), and as
+many under another whose counters skip (by threes). A count within
+`walkMax` rows of either end is exact; past it, the count and the true
+count (SQLite's `count(*)`, unlimited) both lie in [walkMax, total −
+walkMax], and on dense ranks the estimate is the true count. -/
+def ceilingChecks (t : Checks) : IO Unit := do
+  let path := "out/querydiff/ceil.db"
+  for f in [path, path ++ "-wal", path ++ "-shm"] do
+    if ← System.FilePath.pathExists f then IO.FS.removeFile f
+  let db ← Db.openAt path
+  let n := 20000
+  let dense : ByteArray := "ceiling dense".toUTF8
+  let gapped : ByteArray := "ceiling gapped".toUTF8
+  let pos (step i : Nat) : Pos := (be64 (step * i), sha256 s!"row {i}".toUTF8)
+  db.exec "BEGIN"
+  for i in [0:n] do
+    for (k, step) in [(dense, 1), (gapped, 3)] do
+      let p := pos step i
+      discard <| db.query "INSERT INTO idx (k, s, id) VALUES (?, ?, ?)" #[k, p.1, p.2]
+  db.exec "COMMIT"
+  let truth (k : ByteArray) (p : Pos) (above : Bool) : IO Nat := do
+    let op := if above then ">" else "<"
+    return natOf (← db.query s!"SELECT CAST(count(*) AS TEXT) FROM idx WHERE k = ? AND (s, id) {op} (?, ?)"
+      #[k, p.1, p.2])
+  let mut checked := 0
+  for (k, step) in [(dense, 1), (gapped, 3)] do
+    for i in [0, 100, walkMax - 1, walkMax + 1, 10000, n - walkMax - 2, n - walkMax, n - 50, n - 1] do
+      for above in [true, false] do
+        let p := pos step i
+        let q : ListQ := if above then { key := k, after := some p, rank := some (0, 8) }
+          else { key := k, before := some p, rank := some (0, 8) }
+        let a ← (listSql (F := Fact) q).run db
+        let r ← truth k p above
+        let c := n - r
+        checked := checked + 1
+        let ok :=
+          if min r c < walkMax then a.exact && a.inRange == r
+          else !a.exact && walkMax ≤ a.inRange && a.inRange + walkMax ≤ n && walkMax ≤ r && r + walkMax ≤ n &&
+            (step != 1 || a.inRange == r)
+        t.ok s!"ceiling: {if step == 1 then "dense" else "gapped"} {if above then "above" else "below"} row {i}: {a.inRange} ({if a.exact then "exact" else "estimated"}), truly {r}" ok
+  let gp := pos 3 10000
+  let ga ← (listSql (F := Fact) { key := gapped, after := some gp, rank := some (0, 8) }).run db
+  let gr ← truth gapped gp true
+  t.ok s!"ceiling: the gapped list's estimate ({ga.inRange}) is clamped, not the truth ({gr})"
+    (!ga.exact && ga.inRange != gr)
+  IO.println s!"ceiling: {checked} counts over lists of {n}"
+
 def main : IO UInt32 := do
   let t ← Checks.new
   let fam := family C
@@ -316,7 +364,7 @@ def main : IO UInt32 := do
       -- and the range whole (the walk's last resort)
       let split := match (listPlan q k others).split with
         | some (k, b, above) => [.side k b above false (some walk0), .side k b (!above) true (some walk0),
-            .side k b above false none]
+            .edge k above]
         | none => []
       for st in readPlan q k others ++ split do
         let (sql, ps) := st.sql
@@ -347,4 +395,5 @@ def main : IO UInt32 := do
     readableChecks t seed db m c
     IO.println s!"seed {seed}: {n} queries, {base.total} valid messages, {stmts} statements' plans, {unions} unions"
   sortChecks t
+  ceilingChecks t
   t.finish "querydiff"

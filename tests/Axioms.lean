@@ -158,6 +158,12 @@ open Engine Community
 #print axioms Engine.splitWalk_exact
 #print axioms Engine.splitWalk_steps
 #print axioms Engine.splitWalk_cost
+#print axioms Engine.splitWalk_interval
+#print axioms Engine.splitWalk_cost_max
+#print axioms Engine.count_exact
+#print axioms Engine.count_interval
+#print axioms Engine.count_cost_max
+#print axioms Engine.eval_ranked
 #print axioms Engine.listPlan_split
 #print axioms Engine.countWith_split
 #print axioms Engine.mergeRuns_eq_sortPos
