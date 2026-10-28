@@ -285,7 +285,9 @@ def round_ends_stmt : Prop :=
 /-- **L-no-false-settle.** When node i reports room r settled on session
 cid (the first round has ended and nothing it wanted is outstanding), it
 holds every op of r in the round's window that the other end j held
-when it took its snapshot of that round. -/
+when it took its snapshot of that round. False since sync-harden
+(finding 10, `expiry_settles`): an ask that expires empties `asked`, and
+the room is reported settled without the op. -/
 def no_false_settle_stmt : Prop :=
   ∀ (F : Type) (Q : Plain F) (E : Q.Run) (i j : Fin Q.n) (cid r : Id) (k : Nat),
     PlainOk Q → (∀ k, Unclashed (E.world k)) → FpSound Q E →

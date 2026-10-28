@@ -527,6 +527,7 @@ open Engine.World
 #print axioms Engine.World.items_addStep
 #print axioms Engine.World.unshown_unanswered
 #print axioms Engine.World.no_round_while_open
+#print axioms Engine.World.expiry_settles
 -- hops (engine/world/Hops.lean)
 #print axioms Engine.World.forIn_fold
 #print axioms Engine.World.write_nil

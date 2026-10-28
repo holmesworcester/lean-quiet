@@ -30,7 +30,7 @@ The user asked:
 | Statements | 43, each a closed `Prop` with no `sorry` (engine/world/Statements.lean), audited |
 | Proven of the running code | **the pilot, `claim_delivers_stmt`** (`pilot`), re-proven on sync-harden (cad36f2) with finding 7's premises `Small` and `Roomy`; `round_forward_stmt`, `offer_delivers_stmt` likewise; `grows_stmt` (`grows_all`); the node invariant in every reachable world (`reach_ok`); the hops of a round's leg (`claim_wants`, `want_sends`, `op_taken`, `have_wants`); the walk's laws of main's `walkN` (`walk_proof`) |
 | Proven above the code | the reduction `edge_stmt → grows_stmt → converge_stmt`; from it, T-converge for 2, 3 and n peers, all-know-all and transitive; T-op, T-offline; chains, stars and webs, with their diameters |
-| False on today's code | `rooms_stmt` and `join_stmt` (finding 2): node-level witnesses in Lean. `fresh_stmt`: argued ("T-fresh" below), no Lean witness yet. Finding 1 (`session_stable_stmt`) is fixed on main by sync-harden |
+| False on today's code | `rooms_stmt` and `join_stmt` (finding 2), `no_false_settle_stmt` (finding 10): node-level witnesses in Lean. `fresh_stmt`: argued ("T-fresh" below), no Lean witness yet. Finding 1 (`session_stable_stmt`) is fixed on main by sync-harden |
 | The open core | `edge_stmt`: per-edge progress. Every T- law above reduces to it and to growth |
 
 ## Decisions
@@ -213,7 +213,7 @@ today's code (with the finding), **O** open.
 | `round_forward_stmt` | L-round's forward leg, leaf regime: every op of the window i's index named at the opening reaches j within 3Δ | **P** (`round_forward`, from the pilot) |
 | `offer_delivers_stmt` | a have of room r naming y, from j to i on a joined session, gets y to i within 3Δ, with finding 7's premises | **P** (`offer_delivers`) |
 | `round_ends_stmt` | L-round-terminates: a round ends at both ends within (D+1)Δ | O |
-| `no_false_settle_stmt` | L-no-false-settle: "settled" means holding the peer's snapshot of the window | O |
+| `no_false_settle_stmt` | L-no-false-settle: "settled" means holding the peer's snapshot of the window | **F** (finding 10) |
 | `dup_concurrent_stmt` | L-dup-concurrent: frames keep sessions, idem, and `round_stmt` | O |
 | `session_stable_stmt` | a joined session over a live edge is never dropped | O (finding 1 fixed by harden; waits on the single timer) |
 | `claim_delivers_stmt` | the pilot: a claim listing x, from i to j → j holds x within 3Δ, with finding 7's premises | **P** (`pilot`) |
@@ -555,6 +555,19 @@ rule the proofs need. Witnesses are in engine/world/Findings.lean.
    one naming x. Within a frame, `known` grows only by what the frame's
    payloads name or what the step sends (`recv_known_sub`, `KnownBy`),
    and the restated law is proven (`stream_offers_stored_proof`).
+
+10. **An expired ask lets a room report settled without its op**
+    (`expiry_settles`, since sync-harden). An ask expires `patience`
+    after it was first made, even while other traffic keeps the session
+    up. A room whose first round has ended is reported settled as soon
+    as `asked` is empty, so when its last ask expires (the wants lost,
+    or the peer never serving it), the next tick reports the room
+    settled though the op never came; the Connection family writes that
+    report as a local op. (`Step.limit` emptying `asked` on overflow does
+    the same.) This falsifies `no_false_settle_stmt`. Fix: settle only
+    when every id asked in the room's first round has arrived (a set
+    only arrivals clear), or open a fresh round after an expiry before
+    settling. It bears on SYNC.md's open question of keeping `settled`.
 
 How the earlier bugs map onto the statements:
 
