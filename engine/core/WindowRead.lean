@@ -437,13 +437,6 @@ theorem eval_eq (s : DB F) (q : ListQ) :
     eval s q = ⟨q.cut (if q.desc then (inRange s q).reverse else inRange s q),
       capped q.cap (inRange s q).length, (matching s q).length⟩ := rfl
 
-/-- **Marking reads counted changes no answer.** -/
-theorem eval_counting {α : Type} (s : DB F) : ∀ v : View F α, v.counting.eval s = v.eval s
-  | .pure _ => rfl
-  | .list q k => by
-    show (k (Engine.eval s { q with counted := true })).counting.eval s = (k (Engine.eval s q)).eval s
-    exact eval_counting s (k (Engine.eval s q))
-
 theorem window_all {s : DB F} (k : ByteArray) : window s (Win.all k) = matching s { key := k } := by
   unfold window
   apply List.filter_eq_self.2
@@ -472,17 +465,10 @@ theorem watch_stable {fam : Family F} {s t : DB F} (hs : Inv fam s) (ht : Inv fa
   · have hc : ¬ ((q.limit == some 0 || !q.also.isEmpty) = true) := by simp [h0, hal]
     rw [if_neg hc] at h
     rw [if_neg hc, if_neg hc]
-    by_cases hct : q.counted = true
-    · rw [if_pos hct] at h
-      rw [if_pos hct, if_pos hct]
-      rw [window_range hq, window_range hq] at h
-      rw [eval_eq, eval_eq, h]
-    · rw [if_neg hct] at h
-      rw [if_neg hct, if_neg hct]
-      have hr := (read_rows_iff hs ht hq h0).2 h
-      rw [eval_eq, eval_eq] at hr ⊢
-      simp only at hr ⊢
-      rw [hr]
+    have hr := (read_rows_iff hs ht hq h0).2 h
+    rw [eval_eq, eval_eq] at hr ⊢
+    simp only at hr ⊢
+    rw [hr]
 
 end
 

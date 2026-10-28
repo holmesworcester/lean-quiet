@@ -130,8 +130,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 554 rest on Lean's standard axioms
-only, and about three fifths of its theorems (342 of 554) are about
+that rests on; 🥊 is supporting. All 553 rest on Lean's standard axioms
+only, and about three fifths of its theorems (342 of 553) are about
 the code that runs; the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
 
@@ -233,11 +233,11 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**342 of 554 laws are about running code;** 212 are not yet. Stated only: none.
+**342 of 553 laws are about running code;** 211 are not yet. Stated only: none.
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
-| Engine | 109 | 37 | 72 |
+| Engine | 108 | 37 | 71 |
 | Sync | 82 | 81 | 1 |
 | mDNS | 3 | 0 | 3 |
 | Node and wire | 35 | 19 | 16 |
@@ -264,7 +264,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Pic.decode`, `Geom.box`, `Rgba.wellFormed` +7 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]†, [`decode_sized`]† | Runs only in qr's Android harness; the app has its own QOI (`Qoi.decode`) and tray: use `Pic` in the app, or prove these of its code. |
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
 | `Arrival.lit` | [`lit_zero`], [`lit_mono`], [`lit_full`], [`lit_clockwise`], [`ring_counts`] | `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`. |
-| `Subs.notify`, `ListQ.kept`, `ListQ.watch` +15 | [`window_ne_iff`], [`window_ne_iff_flips`], [`notice_iff`]†, [`rank_spec`], [`find_build`], [`find_iff`], [`mem_notifyM`], [`has_ofList`], [`has_add`], [`has_keep`], [`add_wf`], [`keep_wf`], [`ofList_wf`], [`mem_net`], [`read_rows_iff`]†, [`read_notice_iff`]†, [`watch_stable`]†, [`Engine.window_rows`]†, [`eval_counting`], [`rank_costs`], [`find_costs`]†, [`notify_cost`]†, [`exact_silent`], [`screen_subs`]†, [`hull_near`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing on main notices through the window index: the app's cache does on app-1e with fd/window-subs-app3 (`Data.Live.notice`, `Live.store`, `Q.win`); land it. |
+| `Subs.notify`, `ListQ.kept`, `ListQ.watch` +14 | [`window_ne_iff`], [`window_ne_iff_flips`], [`notice_iff`]†, [`rank_spec`], [`find_build`], [`find_iff`], [`mem_notifyM`], [`has_ofList`], [`has_add`], [`has_keep`], [`add_wf`], [`keep_wf`], [`ofList_wf`], [`mem_net`], [`read_rows_iff`]†, [`read_notice_iff`]†, [`watch_stable`]†, [`Engine.window_rows`]†, [`rank_costs`], [`find_costs`]†, [`notify_cost`]†, [`exact_silent`], [`screen_subs`]†, [`hull_near`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing on main notices through the window index: the app's cache does on app-1e with fd/window-subs-app3 (`Data.Live.notice`, `Live.store`, `Q.win`); land it. |
 | `Frame.wants`, `Subs.ofList`, `Frame.listWins` +2 | [`has_ofList`], [`ofList_wf`], [`exact_silent`], [`screen_subs`]†, [`hull_near`]†, [`past_hull_le`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan). |
 | `Mutants.σ`, `Mutants.fam`, `Mutants.keyNotified` +4 | [`key_notice_imprecise`]†, [`exact_silent`], [`unnetted_imprecise`]† | Negative controls, on a one-op world of their own, meant not to run: they show notices by key and an unnetted journal imprecise. |
 | `Merkle.rootAndProofsSlowM` | [`val_rootAndProofsSlowM`], [`slow_hashes`], [`slow_over_budget`] | Nothing that runs calls it. |
@@ -344,7 +344,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 160 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Model.run`] | 159 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
 | [`Engine.runJ`] | 7 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`Engine.Inv`] | 52 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
@@ -946,7 +946,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`read_notice_iff`]: engine/core/WindowRead.lean#L408-L420
 [`read_rows_iff`]: engine/core/WindowRead.lean#L284-L290
 [`Engine.window_rows`]: engine/core/WindowRead.lean#L357-L362
-[`watch_stable`]: engine/core/WindowRead.lean#L453-L460
+[`watch_stable`]: engine/core/WindowRead.lean#L446-L453
 [`run_exact`]: engine/core/WindowLaws.lean#L428-L433
 [`fact_stable`]: engine/core/WindowLaws.lean#L509-L515
 [`find_costs`]: engine/core/WindowCost.lean#L133-L137
@@ -1080,7 +1080,6 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`keep_wf`]: engine/core/WindowIndex.lean#L493-L493
 [`ofList_wf`]: engine/core/WindowIndex.lean#L445-L445
 [`mem_net`]: engine/core/WindowIndex.lean#L584-L585
-[`eval_counting`]: engine/core/WindowRead.lean#L440-L441
 [`rank_costs`]: engine/core/WindowCost.lean#L55-L57
 [`exact_silent`]: engine/core/WindowMutants.lean#L118-L120
 [`screen_index`]: engine/renderer/Screen.lean#L258-L261

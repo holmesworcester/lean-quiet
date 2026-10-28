@@ -210,7 +210,6 @@ todo Engine.Win.all = Engine.Subs.notify
 todo Engine.ListQ.win = Engine.Subs.notify
 todo Engine.ListQ.watch = Engine.Subs.notify
 todo Engine.ListQ.kept = Engine.Subs.notify
-todo Engine.View.counting = Engine.Subs.notify
 todo Screen.Frame.wants Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan).
 todo Screen.Frame.listWins = Screen.Frame.wants
 todo Screen.Frame.near = Screen.Frame.wants
