@@ -51,6 +51,51 @@ structure Layout where
   deck : Array (Box × Hit)
   send : Box
 
+/-- Chip i's thumbnail and its X, on the chips' row at y: 64 dp squares
+12 dp apart from the text's left edge, the X overhanging the top right. -/
+def chipBoxes (dm : Dim) (y i : Nat) : Box × Box :=
+  let c := dm.px 64
+  let x := dm.px 16 + i * (c + dm.px 12)
+  let xb := dm.px 24
+  (⟨x, y, c, c⟩, ⟨x + c - xb + dm.px 6, y - dm.px 6, xb, xb⟩)
+
+theorem px_mono (dm : Dim) {a b : Nat} (h : a ≤ b) : dm.px a ≤ dm.px b := by
+  unfold Dim.px
+  exact Nat.div_le_div_right (Nat.add_le_add_right (Nat.mul_le_mul_right _ h) _)
+
+/-- **Chips are in order and never overlap**: chip i's thumbnail ends
+before chip j's begins. -/
+theorem chips_apart (dm : Dim) (y : Nat) {i j : Nat} (h : i < j) :
+    (chipBoxes dm y i).1.x + (chipBoxes dm y i).1.w ≤ (chipBoxes dm y j).1.x := by
+  simp only [chipBoxes]
+  have : (i + 1) * (dm.px 64 + dm.px 12) ≤ j * (dm.px 64 + dm.px 12) := Nat.mul_le_mul_right _ h
+  rw [Nat.succ_mul] at this
+  omega
+
+/-- **A chip's X never reaches the next chip**: it ends before chip j's
+thumbnail (and so before its X), so a tap on it removes that chip alone. -/
+theorem x_clear (dm : Dim) (y : Nat) {i j : Nat} (h : i < j) :
+    (chipBoxes dm y i).2.x + (chipBoxes dm y i).2.w ≤ (chipBoxes dm y j).1.x := by
+  have h24 := px_mono dm (show 24 ≤ 64 by omega)
+  have h6 := px_mono dm (show 6 ≤ 12 by omega)
+  simp only [chipBoxes]
+  have : (i + 1) * (dm.px 64 + dm.px 12) ≤ j * (dm.px 64 + dm.px 12) := Nat.mul_le_mul_right _ h
+  rw [Nat.succ_mul] at this
+  omega
+
+/-- **With at most `maxChips` chips, every thumbnail and X is on
+screen**, on a screen as wide as the four with their gaps. -/
+theorem chips_fit (dm : Dim) (y W : Nat) {i : Nat} (hi : i < maxChips)
+    (hW : dm.px 16 + maxChips * (dm.px 64 + dm.px 12) ≤ W) :
+    (chipBoxes dm y i).1.x + (chipBoxes dm y i).1.w ≤ W ∧
+      (chipBoxes dm y i).2.x + (chipBoxes dm y i).2.w ≤ W := by
+  have h24 := px_mono dm (show 24 ≤ 64 by omega)
+  have h6 := px_mono dm (show 6 ≤ 12 by omega)
+  simp only [chipBoxes]
+  have : (i + 1) * (dm.px 64 + dm.px 12) ≤ maxChips * (dm.px 64 + dm.px 12) := Nat.mul_le_mul_right _ hi
+  rw [Nat.succ_mul] at this
+  constructor <;> omega
+
 def layout (f : Font) (dm : Dim) (W : Nat) (text : String) (chips : Nat) : Layout := Id.run do
   let pad := dm.px 16
   let tx := pad
@@ -60,11 +105,7 @@ def layout (f : Font) (dm : Dim) (W : Nat) (text : String) (chips : Nat) : Layou
   let mut y := ty + (min 5 lines.size) * dm.lineH + dm.px 8
   let chipsY := y
   let c := dm.px 64
-  let mut cs := #[]
-  for i in [0:chips] do
-    let x := pad + i * (c + dm.px 12)
-    let xb := dm.px 24
-    cs := cs.push (⟨x, y, c, c⟩, ⟨x + c - xb + dm.px 6, y - dm.px 6, xb, xb⟩)
+  let cs := (List.range chips).toArray.map (chipBoxes dm y)
   if chips > 0 then y := y + c + dm.px 4 + 3 * dm.lineH
   let k := dm.px 48
   let dy := y + dm.px 4
