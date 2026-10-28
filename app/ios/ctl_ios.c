@@ -8,7 +8,8 @@
 // interface instead (LEANQUIET_CTL_ADDR=any, at launch only): the listener
 // then logs the phone's addresses. The line `twin` is the twin's own
 // report (lq_twin, for tests), answered at once; `twin local` puts the
-// channel back on 127.0.0.1 alone. A thread listens, one reader thread per
+// channel back on 127.0.0.1 alone; `twin shot` writes the app's window to
+// Documents/screen.png. A thread listens, one reader thread per
 // connection splits what arrives into lines, and each line waits in a
 // queue for Lean. A reply answers the oldest unanswered command and goes
 // back on that command's connection. A connection is closed once its peer
@@ -51,7 +52,8 @@ static void lq_release(Conn* c) {
   }
 }
 
-void lq_twin(char* out, size_t n);  // quiet_ios.m
+void lq_twin(char* out, size_t n);       // quiet_ios.m
+void lq_twin_shot(char* out, size_t n);
 
 // `twin`: answered at once by the twin itself (lq_twin), not queued for Lean.
 static void lq_twin_line(Conn* c) {
@@ -119,6 +121,12 @@ static void* lq_reader(void* arg) {
           lq_twin_line(c);
         } else if (len == 10 && memcmp(buf + start, "twin local", 10) == 0) {
           lq_local(c);
+        } else if (len == 9 && memcmp(buf + start, "twin shot", 9) == 0) {
+          char r[256];
+          lq_twin_shot(r, sizeof r - 1);
+          size_t k = strlen(r);
+          r[k] = '\n';
+          send(c->fd, r, k + 1, 0);
         } else if (len > 0) {
           lq_queue(c, buf + start, len);
         }

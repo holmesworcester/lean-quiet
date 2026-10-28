@@ -1361,6 +1361,44 @@ def command (line : String) : M Bool := do
   | "top" =>
     let (_, ch) := bottoms s
     s.io.scrollTo ch.toFloat; s.io.ctlReply "ok"
+  -- For driving a demo on phones over ctl, as a person would: the link
+  -- Add members shows, a page's field typed (on a page whose keyboard is
+  -- open, the keyboard's own text replaces it: type there instead), a
+  -- button the page shows, Add photos, and the composer sent with its
+  -- text and photos.
+  | "link" =>
+    s.io.ctlReply (((s.links.find? (·.1 == s.me.acc)).map (·.2)).getD "")
+  | "field" =>
+    modify fun s => { s with field := rest, refusal := none, pageKey := none }
+    s.io.ctlReply s!"field {rest.length}"
+  | "act" =>
+    let a : Option Pages.Act := match ws[1]?, (ws[2]? >>= String.toNat?) with
+      | some "continue", _ => some .continue_
+      | some "agree", _ => some .agree
+      | some "approve", some i => some (.approve i)
+      | _, _ => none
+    -- only a button the page shows, as a tap could press only that
+    let shown := match a, s.pageNow with
+      | some a, some pg => pg.taps.any (·.2 == a)
+      | _, _ => false
+    match a with
+    | some a =>
+      if shown then onPageAct a; s.io.ctlReply s!"page {repr (← get).page}"
+      else s.io.ctlReply s!"no such button on page {repr s.page}"
+    | none => s.io.ctlReply "act continue|agree|approve I"
+  | "photo" =>
+    attachPhoto
+    s.io.ctlReply s!"photos {(← get).chips.size}"
+  | "post" =>
+    modify fun s => { s with text := rest }
+    sendNow
+    s.io.ctlReply s!"posted, composer {(← get).chips.size} photos"
+  | "pics" =>
+    -- the mounted rows with pictures: text, and each picture's chunks here
+    let out := s.rows.toList.filterMap fun (_, r) =>
+      if r.data.pics.isEmpty then none else
+      some s!"{r.data.name}: {String.ofList (r.data.text.toList.take 30)} [{", ".intercalate (r.data.pics.map fun p => s!"{p.got}/{p.total}{if p.complete then " complete" else ""}")}]"
+    s.io.ctlReply (if out.isEmpty then "no pictures mounted" else " | ".intercalate out)
   | "visible" =>
     let (bots, _) := bottoms s
     let vh := viewH s

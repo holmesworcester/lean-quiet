@@ -58,3 +58,7 @@ lean_exe cross where
 -- A photo arriving chunk by chunk: the pill, the ring and the preview.
 lean_exe arrival where
   root := `QTests.Arrival
+
+-- Photos over real TCP: two apps joined on loopback, one photo each way.
+lean_exe attach where
+  root := `QTests.Attach
