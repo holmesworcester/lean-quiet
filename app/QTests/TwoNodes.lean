@@ -133,6 +133,12 @@ def main (args : List String) : IO UInt32 := do
     check s!"B wrote one first profile, however many frames ran ({p.total})" (p.total == 1)
     let ms := (← get).members.toList
     check s!"B's home lists its members, B first as me ({ms})" (ms == [("Bea", true), ("club", false)] || ms == [("Bea", true), ("Ann", false)])
+    -- B, not an admin, is not offered Remove on Ann's profile
+    let ai := ((← get).members.findIdx? (!·.2)).getD 1
+    check "B opens Ann's profile" ((← tapAct sb (.person ai)) && (← get).page == .profile)
+    check "and, not an admin, is not offered Remove"
+      (!(((← get).pageNow.map fun pg => pg.taps.any (·.2 == .removeStart)).getD true))
+    let _ ← tapAct sb .back
     sb.cmds.modify (·.push "channel")
     steps 2
     sb.cmds.modify (·.push "send hello from B")
@@ -173,7 +179,25 @@ def main (args : List String) : IO UInt32 := do
     sa.cmds.modify (·.push "back")
     steps 3
     let ms := (← get).members.toList
-    check s!"A's home lists Ann (me) then Bea ({ms}, page {repr (← get).page})" (ms == [("Ann", true), ("Bea", false)])).run a2
+    check s!"A's home lists Ann (me) then Bea ({ms}, page {repr (← get).page})" (ms == [("Ann", true), ("Bea", false)])
+    -- removing Bea: the founder is offered it, asked twice, and cancel
+    -- writes nothing
+    let ops0 := (← (← get).rd.query "SELECT count(*) FROM ops" #[])
+    check "A opens Bea's profile from the people list" ((← tapAct sa (.person 1)) && (← get).page == .profile)
+    let offered := ((← get).pageNow.map fun pg => pg.taps.any (·.2 == .removeStart)).getD false
+    check "and, an admin, is offered Remove from community" offered
+    check "Remove asks first" ((← tapAct sa .removeStart) && (← get).page == .removeConfirm &&
+      (match (← get).removal with | .first _ => true | _ => false))
+    check "Cancel writes nothing and goes back" ((← tapAct sa .removeCancel) && (← get).page == .profile &&
+      (← get).removal == .idle && (← (← get).rd.query "SELECT count(*) FROM ops" #[]) == ops0)
+    let _ ← tapAct sa .removeStart
+    check "Continue asks again, writing nothing yet" ((← tapAct sa .removeYes) &&
+      (match (← get).removal with | .second _ => true | _ => false) &&
+      (← (← get).rd.query "SELECT count(*) FROM ops" #[]) == ops0)
+    check "the second yes writes (refused for now: no engine intent yet)" ((← tapAct sa .removeYes) &&
+      (match (← get).removal with | .failed _ _ | .sending _ => true | _ => false))
+    let _ ← tapAct sa .removeCancel
+    let _ ← tapAct sa .back).run a2
   -- C joins by scanning A's code with its camera, then stops waiting: back on Get started
   fresh (dir ++ "/c")
   let sc ← Sim.new

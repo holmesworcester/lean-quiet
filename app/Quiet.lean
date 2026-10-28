@@ -27,3 +27,4 @@ import Quiet.WrapLaws
 import Quiet.RowLaws
 import Quiet.ViewLaws
 import Quiet.PeopleLaws
+import Quiet.Remove

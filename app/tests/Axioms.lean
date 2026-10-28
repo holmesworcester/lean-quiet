@@ -8,6 +8,7 @@ import Quiet.WrapLaws
 import Quiet.RowLaws
 import Quiet.ViewLaws
 import Quiet.PeopleLaws
+import Quiet.Remove
 import Quiet.App
 #print axioms Geometry.placed_row
 #print axioms Geometry.visible_in_viewport
@@ -50,3 +51,8 @@ import Quiet.App
 #print axioms ViewLaws.message_read
 #print axioms PeopleLaws.present_iff
 #print axioms PeopleLaws.present_nodup
+#print axioms Remove.writes_only_after_two
+#print axioms Remove.cancel_writes_nothing
+#print axioms Remove.open_fresh
+#print axioms Remove.no_replace
+#print axioms Remove.offered_only
