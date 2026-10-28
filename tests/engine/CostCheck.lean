@@ -20,11 +20,20 @@ teeth.
   first frame, then nothing; a file whose chunk ops are missing reads
   them again every 120 frames and at no other frame. The old `decoded`
   (`imageV`) spawns a preview decode every frame.
+- Judging (engine/core/IngestCost.lean), on the engine's model store
+  with real op ids: ops of 0 to 6 requirements, ingested and judged one
+  step at a time, each step within `step_costs`'s budget at its R, K
+  and W. Forty ops that arrive before the one they all require are
+  woken by its one step (W = 40: the fan-in burst). The negative
+  control, a `waitOn` that reads every requirement's status again for
+  each (`waitOnSlow`), is over `waitOn_costs` for every op of one or
+  more requirements.
 -/
 import tests.engine.Lib
 import ops.community.MerkleCost
 import engine.core.CodecCost
 import ops.app.Pics
+import engine.core.IngestCost
 
 open Engine Engine.Counted Tests
 
@@ -166,9 +175,74 @@ def pics (t : Checks) : IO Unit := do
 
 end Pics
 
+section Judge
+
+/-- What a counted run on the model store charged, its value, and the
+store after. -/
+def onModel {α : Type} (x : CostT (Model Unit) α) (db : DB Unit) : (α × Meter) × DB Unit :=
+  Model.run x.run db
+
+/-- The negative control: waiting on each requirement reads every
+requirement's status again first. -/
+def waitOnSlow (x : Engine.Id) (all : List Engine.Id) : List Engine.Id → CostT (Model Unit) Unit
+  | [] => pure ()
+  | r :: rest => do
+    let _ ← statuses (F := Unit) all
+    if (← Store.getStatus (F := Unit) r).isNone then Store.addWait (F := Unit) r x
+    waitOnSlow x all rest
+
+/-- `step_costs`'s budget at R, K and W. -/
+def stepBudget (R K W : Nat) : Meter :=
+  { reads := 4 + 2 * R, writes := 3 + K + W + R, seeks := 7 + 3 * R + 2 * K + W, rows := W }
+
+def judgeCheck (t : Checks) : IO Unit := do
+  let fam : Family Unit := { validate := fun _ _ => some (), keys := fun _ => [] }
+  -- a store of ops of 0 to 6 requirements, ingested in order, judged a
+  -- step at a time
+  let mut ops : Array Op := #[]
+  for i in [0:60] do
+    let reqs := (List.range (i % 7)).filterMap fun j => ops[i - 1 - j]?.map (·.id)
+    ops := ops.push (Op.make 1 reqs ⟨#[i.toUInt8, 7]⟩)
+  let mut db : DB Unit := DB.empty
+  let mut over := 0
+  for o in ops do
+    let ((_, c), db') := onModel (ingest (F := Unit) o) db
+    if !(c ≤ { reads := 1, writes := 2, seeks := 3 } : Bool) then over := over + 1
+    db := db'
+    let ((_, c), db') := onModel (step (F := Unit) fam) db
+    let W := c.rows
+    if !(c ≤ stepBudget (o.reqs.length) 1 W : Bool) then over := over + 1
+    db := db'
+  t.ok s!"judge: 60 ingests and steps of 0 to 6 requirements, each within its budget" (over == 0)
+  -- forty ops before the one they all require: its step wakes all forty
+  let root := Op.make 2 [] ⟨#[1]⟩
+  let late := (List.range 40).map fun i => Op.make 3 [root.id] ⟨#[i.toUInt8]⟩
+  let mut db2 : DB Unit := DB.empty
+  for o in late do
+    let ((_, _), db') := onModel (ingest (F := Unit) o *> drain (F := Unit) fam 10) db2
+    db2 := db'
+  let ((_, _), db') := onModel (ingest (F := Unit) root) db2
+  let ((_, c), _) := onModel (step (F := Unit) fam) db'
+  t.ok s!"judge: the root's step wakes the forty that waited (rows {c.rows}, writes {c.writes})"
+    (c.rows == 40 && c ≤ stepBudget 0 1 40)
+  t.ok "judge: and is over the budget of a step that wakes fewer" (!(c ≤ stepBudget 0 1 39 : Bool))
+  -- the negative control
+  let mut slowOver := 0
+  for n in [1:7] do
+    let reqs := (List.range n).map fun i => (Op.make 4 [] ⟨#[i.toUInt8]⟩).id
+    let ((_, c), _) := onModel (waitOnSlow ⟨#[9]⟩ reqs reqs) DB.empty
+    let ((_, cf), _) := onModel (waitOn (F := Unit) ⟨#[9]⟩ reqs) DB.empty
+    t.ok s!"judge: waitOn of {n} reads {cf.reads}, within its budget" (cf.reads ≤ n)
+    if c.reads > n then slowOver := slowOver + 1
+  t.ok "judge: the negative control is over waitOn's budget at every size" (slowOver == 6)
+  IO.println s!"judge: a step within O(R + K + W); the root of 40 early ops wakes {c.rows} in one step"
+
+end Judge
+
 def main : IO UInt32 := do
   let t ← Checks.new
   merkle t
   codec t
   pics t
+  judgeCheck t
   t.finish "costcheck"

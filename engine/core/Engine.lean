@@ -9,6 +9,7 @@ import engine.core.Codec
 import engine.core.Cost
 import engine.core.CodecCost
 import engine.core.CostStore
+import engine.core.IngestCost
 import engine.core.Sqlite
 import engine.core.Termination
 import engine.core.Query

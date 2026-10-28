@@ -23,6 +23,7 @@ import ops.connection.bootstrap.Net
 import engine.core.CodecCost
 import ops.community.MerkleCost
 import ops.app.Pics
+import engine.core.IngestCost
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -372,4 +373,14 @@ section cost
 #print axioms Pics.steady_later
 #print axioms Pics.imageV_over_budget
 #print axioms Engine.within_bind
+#print axioms Engine.within_bindP
+#print axioms Engine.Costs.time
+#print axioms Engine.Costs.mono
+#print axioms Engine.costs_bind
+#print axioms Engine.costs_bindP
+#print axioms Engine.ingest_costs
+#print axioms Engine.statuses_costs
+#print axioms Engine.waitOn_costs
+#print axioms Engine.decide_costs
+#print axioms Engine.step_costs
 end cost
