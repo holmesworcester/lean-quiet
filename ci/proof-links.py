@@ -49,7 +49,8 @@ WBEGIN = "<!-- wiring:begin -->"
 WEND = "<!-- wiring:end -->"
 # The areas of the per-area counts: the first module prefix a law's
 # module has.
-AREAS = [("engine.core", "Engine"), ("ops.sync", "Sync"), ("engine.wire.mdns", "mDNS"),
+AREAS = [("engine.core", "Engine"), ("ops.sync", "Sync"), ("engine.world", "The n-node World"),
+         ("engine.wire.mdns", "mDNS"),
          ("engine.wire", "Node and wire"), ("ops.connection.bootstrap", "Bootstrap"),
          ("ops.connection", "Connections"), ("ops.community", "Community"),
          ("engine.renderer.qr", "QR codes"), ("engine.renderer.pic", "Pictures"),
@@ -58,6 +59,9 @@ AREAS = [("engine.core", "Engine"), ("ops.sync", "Sync"), ("engine.wire.mdns", "
 WANTED = re.compile(r"wanted|not yet|not proven|not covered|todo", re.I)
 # The lead's count, and the share "nearly every" needs.
 LEAD = re.compile(r"about\s+([a-z]+(?:\s+[a-z]+)?)\s+of\s+its\s+theorems\s+\((\d+)\s+of\s+(\d+)\)")
+# The lead's World clause: the laws that run the node's code in a World,
+# counted apart from those about running code.
+WORLDLEAD = re.compile(r"another\s+(\d+)\s+run\s+the\s+phone's\s+node\s+code")
 # The lead's fraction words, each with the share it needs.
 FRACTIONS = [(0.95, "nearly all"), (0.9, "nine tenths"), (0.8, "four fifths"), (0.75, "three quarters"),
              (2 / 3, "two thirds"), (0.6, "three fifths"), (0.5, "half")]
@@ -206,13 +210,23 @@ def fraction(w, t):
     return next((word for f, word in FRACTIONS if w >= f * t), "less than half")
 
 
-def lead(pre, w, t):
-    """The lead's problems against the count w of t, and the lead written
-    from it."""
+def lead(pre, w, t, k=None):
+    """The lead's problems against the count w of t (and k World laws), and
+    the lead written from it."""
     m = LEAD.search(pre)
     if not m:
         return ['no "about <fraction> of its theorems (N of M)" in the README\'s lead'], pre
-    problems, word = [], fraction(w, t)
+    problems = []
+    if k is not None:
+        x = WORLDLEAD.search(pre)
+        if not x:
+            problems.append('no "another K run the phone\'s node code" in the README\'s lead')
+        else:
+            if int(x.group(1)) != k:
+                problems.append(f"the lead says another {x.group(1)} run the node's code; the count is {k}")
+            pre = pre[:x.start(1)] + str(k) + pre[x.end(1):]
+            m = LEAD.search(pre)
+    word = fraction(w, t)
     said = " ".join(m.group(1).split())
     if said != word:
         problems.append(f'the lead says "{said}"; {w} of {t} ({100 * w // t}%) gives "{word}"')
@@ -223,9 +237,10 @@ def lead(pre, w, t):
 
 
 def controls(rows, resolve):
-    """The negative controls: notes marking a model law wired, a ✅ row
-    citing only it, a 🟡 row saying nothing missing, and a lead whose
-    fraction is one step above the count's must each fail."""
+    """The negative controls: notes marking a model law wired, or a World
+    law, a ✅ row citing only a model law, a 🟡 row saying nothing missing,
+    and a lead whose fraction is one step above the count's, or whose World
+    count is off by one, must each fail."""
     model = next((f[1] for f in rows if f[0] == "law" and f[2] == "model"), None)
     wired = {f[1] for f in rows if f[0] == "law" and f[2] == "wired"}
     if model is None or not wired:
@@ -238,6 +253,13 @@ def controls(rows, resolve):
     _, caught = classify(path)
     if not any(f"marks {model} wired, but it is not" in p for p in caught):
         problems.append(f"negative control: {model}, marked wired, was not caught")
+    world = next((f[1] for f in rows if f[0] == "law" and f[2] == "world"), None)
+    if world:
+        with open(path, "w") as f:
+            f.write(open(NOTES).read() + f"\nwired {world}\n")
+        _, caught = classify(path)
+        if not any(f"marks {world} wired, but it is not" in p for p in caught):
+            problems.append(f"negative control: {world}, a World law marked wired, was not caught")
     a_wired = sorted(wired)[0]
     rows_ = (f"| ✅ | 🥊 | **Control.** | [`{model}`] |\n"
              f"| 🟡 | 🥊 | **Control.** Proven. | [`{a_wired}`] |\n")
@@ -245,14 +267,18 @@ def controls(rows, resolve):
         problems.append("negative control: a ✅ row citing only a model law, or a 🟡 row "
                         "saying nothing missing, was not caught")
     w, t = len(wired), sum(1 for f in rows if f[0] == "law")
+    k = sum(1 for f in rows if f[0] == "law" and f[2] == "world")
     words = [word for _, word in FRACTIONS]
     right = fraction(w, t)
     above = words[max(words.index(right) - 1, 0)] if right in words else "half"
-    if not lead(f"about {above} of its theorems ({w} of {t})", w, t)[0]:
+    if not lead(f"about {above} of its theorems ({w} of {t}); another {k} run the phone's node code", w, t, k)[0]:
         problems.append(f'negative control: "{above}" for {w} of {t} was not caught')
+    if not lead(f"about {right} of its theorems ({w} of {t}); another {k + 1} run the phone's node code", w, t, k)[0]:
+        problems.append(f"negative control: another {k + 1} for {k} World laws was not caught")
     if not problems:
-        print(f"proof-links: negative controls: {model} marked wired, a ✅ row citing only it, "
-              f'a 🟡 row saying nothing missing, and "{above}" for {w} of {t}, all caught')
+        print(f"proof-links: negative controls: {model} and {world} marked wired, a ✅ row citing only "
+              f'a model law, a 🟡 row saying nothing missing, "{above}" for {w} of {t}, and another '
+              f"{k + 1} for {k} World laws, all caught")
     return problems
 
 
@@ -261,6 +287,7 @@ def section(rows, decls, cited):
     laws = [(f[1], f[2], split(f[4]), split(f[5]), f[6], split(f[7])) for f in rows if f[0] == "law"]
     stmts = [(f[1], f[2], split(f[4])) for f in rows if f[0] == "stmt"]
     missing = {f[1]: (int(f[2]), f[3], split(f[4])) for f in rows if f[0] == "missing"}
+    worldly = {f[1] for f in rows if f[0] == "missing" and len(f) > 5 and f[5] == "true"}
     given = {f[1]: f[2] for f in rows if f[0] == "assume"}
     assumed = {a: given[a] for a in ASSUMED if a in given}  # in tests/wiring.txt's order
     count = dict(c.split(" ") for f in rows if f[0] == "count" for c in f[1:])
@@ -275,13 +302,19 @@ def section(rows, decls, cited):
     notes_of = {m: v[1] for m, v in missing.items()}
 
     def place(m):
+        """A row's place: the World's first, then tests/wiring.txt's order."""
         t = target(m, notes_of)
-        return (missing[t][0] if t in missing and missing[t][1] else 10 ** 6, t)
+        return (-1 if t in worldly else missing[t][0] if t in missing and missing[t][1] else 10 ** 6, t)
 
     def link(n, mark="", cite=True):
         """A reference; of two parts when its last is short (`Symbolic.good`)."""
         label = short(n, decls, 1 if len(n.split(".")[-1]) > 4 else 2)
         return f"[`{label}`]" + mark + ("†" if cite and n in cited else "")
+
+    def links(ls, cap=12):
+        """A row's laws, `cap` at most."""
+        more = f" +{len(ls) - cap} more" if len(ls) > cap else ""
+        return ", ".join(link(n, mk) for n, mk in list(ls.items())[:cap]) + more
 
     def codes(t, names):
         """A row's definitions, its own first, three at most."""
@@ -294,30 +327,37 @@ def section(rows, decls, cited):
         return next((a for p, a in AREAS if mod == p or mod.startswith(p + ".")), "Other")
     per = {}
     for name, status, _, _, mod, _ in laws:
-        c = per.setdefault(area(mod), [0, 0])
-        c[0 if status == "wired" else 1] += 1
+        c = per.setdefault(area(mod), [0, 0, 0])
+        c[["wired", "world", "model"].index(status)] += 1
     order = list(dict.fromkeys([a for _, a in AREAS] + ["Other"]))
-    stated = [n for n, st, _ in stmts if st == "stated"]
-    out = [f"**{count['wired']} of {len(laws)} laws are about running code;** {count['model']} are not yet. "
-           f"Stated only: {', '.join(f'`{n}`' for n in stated) if stated else 'none'}.", "",
-           "| Area | Laws | About running code | Not yet |", "|---|---|---|---|"]
+    stated = {}
+    for n, st, _ in stmts:
+        if st == "stated":
+            stated[n.rsplit(".", 1)[0]] = stated.get(n.rsplit(".", 1)[0], 0) + 1
+    out = [f"**{count['wired']} of {len(laws)} laws are about running code;** another {count['world']} "
+           f"run its node code in a World, and {count['model']} are not yet. Stated only: "
+           + (", ".join(f"{k} in `{m}`" for m, k in stated.items()) if stated else "none") + ".", "",
+           "| Area | Laws | About running code | In a World | Not yet |", "|---|---|---|---|---|"]
     for a in order:
         if a in per:
-            w, m = per[a]
-            out.append(f"| {a} | {w + m} | {w} | {m or ''} |")
+            w, W, m = per[a]
+            out.append(f"| {a} | {w + W + m} | {w} | {W or ''} | {m or ''} |")
     # per missing link: a model, or running code a law restates
     copies = {f[1]: f[2] for f in rows if f[0] == "copy"}
     copied = {code: n for n, code in copies.items()}
-    groups, general = {}, []
+    groups, general, inworld = {}, [], {}
     for name, status, miss, _, _, prem in laws:
-        if not miss and status != "wired":
+        if not miss and status == "model":
             general.append(name)
             continue
         for m in (prem if status == "wired" else miss):
             t = place(m)[1]
             g = groups.setdefault(t, ({}, set()))
-            g[0][name] = "°" if status == "wired" else "*" if set(miss) <= set(prem) else ""
             g[1].add(m)
+            if status == "world":  # counted, not listed
+                inworld.setdefault(t, set()).add(name)
+                continue
+            g[0][name] = "°" if status == "wired" else "*" if set(miss) <= set(prem) else ""
     out += ["", "| Missing link | Laws | To make them real |", "|---|---|---|"]
     for t in sorted(groups, key=lambda t: place(t)):
         ls, names = groups[t]
@@ -330,9 +370,12 @@ def section(rows, decls, cited):
             what = f"restates `{short(t, [t], 2)}`"
         elif t in copies:  # a definition that restates running code
             what += f" (restates `{short(copies[t], [copies[t]], 2)}`)"
-        out.append(f"| {what} | {', '.join(link(n, mk) for n, mk in ls.items())} | {note} |")
+        cell = links(ls)
+        if t in inworld:
+            cell = f"{len(inworld[t])} World laws" + (f"; not yet: {cell}" if ls else "")
+        out.append(f"| {what} | {cell} | {note} |")
     if general:
-        out.append(f"| (none) | {', '.join(map(link, general))} | Nothing to wire: each is about "
+        out.append(f"| (none) | {links({n: '' for n in general})} | Nothing to wire: each is about "
                    "a specification or an assumption. |")
     out += ["", "\\* only a premise names it. ° about running code, but names it beside. "
             "† a guarantee above cites it.", "",
@@ -364,7 +407,7 @@ def main():
     total = sum(1 for f in rows if f[0] == "law")
     problems += disagree(tables, wired, resolve)
     # the lead's fraction and count, and "nearly every" only at the threshold
-    stale, pre_new = lead(pre, len(wired), total)
+    stale, pre_new = lead(pre, len(wired), total, sum(1 for f in rows if f[0] == "law" and f[2] == "world"))
     if check or not LEAD.search(pre):
         problems += stale
     pre = pre_new

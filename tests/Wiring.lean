@@ -37,6 +37,14 @@ output, and local CI fails when it goes stale.
   each subject definition that does not run, with what calls it instead
   and tests/wiring.txt's `todo` note: which running code would have to
   call what.
+- **World:** not wired, but every definition it misses is a World's
+  network, transport or harness (`world` in tests/wiring.txt: the step,
+  `psync`, `plainPeek`, the harness's `connect`), and the code it is
+  about, or the World runs, is the running node's (`Engine.Sync.Node`).
+  Counted apart: never wired, and not a model. A law about the harness
+  alone, with no node code, stays a model.
+- **Audited statements** (a `…_stmt` the audit lists) are not laws; they
+  are counted with the statements.
 - **PREMISES** lists the models only a law's premises name, and those it
   names outside a narrowed subject (`conn_answers_ids` names the round's
   model).
@@ -61,15 +69,19 @@ does not run; a `subject` names what its law's conclusion does not; an
 `assume` or `holds` no law takes; a law marked `wired` is not. It fails
 too if an audited law is missing. Controls: the entry points must reach
 `App.step` and the node's `onFrame`, and not the harnesses (`harnesses`);
-the laws `models` names must be classified models (ci/proof-links.py's
-negative control marks a model law wired).
+the laws `models` names must be models, and `worlds` World laws; no law
+is both wired and World; and with `Engine.Sync.Node` taken out of what
+runs (node code that is a mirror), no World law stays one
+(ci/proof-links.py's negative controls mark a model law, and a World
+law, wired).
 
   lake env lean --run tests/Wiring.lean   (needs `lake build` and `lake build +Main`)
 
 `WIRING_NOTES=path` reads other notes. Output, one line each,
 tab-separated: `law NAME STATUS SUBJECT MISSING ASSUMES MODULE PREMISES`
+(STATUS: wired, world or model)
 (PREMISES: as above), `stmt NAME STATUS SUBJECT
-MISSING MODULE`, `missing NAME RANK NOTE CALLERS` (RANK: the note's
+MISSING MODULE`, `missing NAME RANK NOTE CALLERS WORLD` (RANK: the note's
 place in tests/wiring.txt), `assume NAME TEXT LAWS` (the `holds` too),
 `copy NAME CODE TEXT`, and a closing `count` line.
 -/
@@ -80,13 +92,15 @@ open Lean
 /-- The module roots of this repository. -/
 def roots : List Name := [`engine, `ops, `App, `Quiet, `Main]
 
-/-- The negative controls: harnesses the entry points must not reach,
-and laws that must be classified models (one over a harness, one over
-the bootstrap's model, one over code only qr's harness runs, one whose
-model is in a premise). Update them if one becomes real. -/
-def harnesses : List Name := [`Engine.Sync.World.peer, `Net.step, `Pic.decode]
-def models : List Name :=
-  [`Engine.Sync.stream_delivers, `Net.Scene.bootstrap, `Pic.decode_sized, `Engine.offer_shared]
+/-- The negative controls: harnesses the entry points must not reach
+(the Worlds' steps among them), laws that must be classified models (one
+over the bootstrap's model, one over code only qr's harness runs, one
+whose model is in a premise), and laws that must be World laws (the
+two-node World's stream). Update them if one becomes real. -/
+def harnesses : List Name := [`Engine.Sync.World.peer, `Net.step, `Pic.decode, `Engine.World.World.step]
+def models : List Name := [`Net.Scene.bootstrap, `Pic.decode_sized, `Engine.offer_shared]
+/-- Laws that must be World laws: the node's code over a World. -/
+def worlds : List Name := [`Engine.Sync.stream_delivers]
 
 def modOf (env : Environment) (n : Name) : Option Name :=
   (env.getModuleIdxFor? n).map fun i => env.header.moduleNames[i.toNat]!
@@ -264,6 +278,9 @@ structure Notes where
   /-- premises laws take, which the running node keeps only as the text
   says -/
   holds : NameMap String := {}
+  /-- the World's network, transport and harness: what a World law may
+  miss and still run the node's code -/
+  world : NameMap String := {}
   /-- the `todo` names and the copied code, in the file's order -/
   order : Array Name := #[]
   subject : NameMap (List Name) := {}
@@ -298,6 +315,7 @@ def readNotes (path : System.FilePath) : IO Notes := do
     | (["spec", n], t) => ns := at_ { ns with spec := ns.spec.insert n.toName t } n.toName
     | (["assume", n], t) => ns := at_ { ns with assume := ns.assume.insert n.toName t } n.toName
     | (["holds", n], t) => ns := at_ { ns with holds := ns.holds.insert n.toName t } n.toName
+    | (["world", n], t) => ns := at_ { ns with world := ns.world.insert n.toName t } n.toName
     | (["todo", n], t) =>
       ns := at_ { ns with todo := ns.todo.insert n.toName t, order := ns.order.push n.toName } n.toName
     | (["wired", n], _) => ns := at_ { ns with wired := n.toName :: ns.wired } n.toName
@@ -325,14 +343,21 @@ structure Law where
   /-- the models only its premises name -/
   premises : List Name
   wired : Bool
+  /-- not wired, but about the running node code in a World: every
+  definition it misses is the World's network, transport or harness
+  (`world`), and the node code it runs is `Engine.Sync.Node`'s -/
+  world : Bool := false
 
 def sortNames (ns : List Name) : List Name :=
   ns.eraseDups.toArray.qsort (·.toString < ·.toString) |>.toList
 
+/-- Node code that runs: `Engine.Sync.Node`'s. -/
+def nodeCode (run : NameSet) (c : Name) : Bool := (`Engine.Sync.Node).isPrefixOf c && run.contains c
+
 /-- A law's subject and status, from its conclusion; and the models
 anywhere in its statement. A mirror in its subject brings its bridge's
-assumptions (`via`). -/
-def classify (env : Environment) (run : NameSet) (ns : Notes) (via : NameMap (List Name))
+assumptions and what its bridge misses (`via`). -/
+def classify (env : Environment) (run : NameSet) (ns : Notes) (via : NameMap (List Name × List Name))
     (law : Name) (ty : Expr) : Law := Id.run do
   let (subj, props) := about env ns.stop ns.through run (concl ty) 3 false ({}, {})
   let (whole, wprops) := (fieldsUsed env ty).foldl
@@ -343,15 +368,20 @@ def classify (env : Environment) (run : NameSet) (ns : Notes) (via : NameMap (Li
     | some s => s
     | none => whole.toList.filter fun c => !ns.assume.contains c
   let copied := (ns.copy.find? law).map (·.1) |>.toList
-  let missing := subject.filter notRunning ++ copied
+  let bridged := subject.flatMap fun c => ((via.find? c).map (·.2)).getD []
+  let missing := sortNames (subject.filter notRunning ++ bridged) ++ copied
   -- the models only its premises name, and those it names outside a
   -- narrowed subject
   let premises := sortNames <| (missing.filter fun c => !subj.contains c && !copied.contains c) ++
     whole.toList.filter fun c => notRunning c && !missing.contains c
   let assumes := (subj.toList ++ props.toList ++ whole.toList ++ wprops.toList ++ ty.getUsedConstants.toList).filter
-    (fun c => ns.assume.contains c || ns.holds.contains c) ++ subject.flatMap (via.getD · [])
-  return { name := law, subject, missing, assumes := sortNames assumes, premises,
-           wired := !subject.isEmpty && missing.isEmpty }
+    (fun c => ns.assume.contains c || ns.holds.contains c) ++ subject.flatMap fun c => ((via.find? c).map (·.1)).getD []
+  let wired := !subject.isEmpty && missing.isEmpty
+  -- a World: it misses only the World's network, transport and harness,
+  -- and the code it is about, or the World runs, is the running node's
+  let world := !wired && !missing.isEmpty && copied.isEmpty && missing.all ns.world.contains &&
+    (subject ++ (running env missing).toList).any (nodeCode run)
+  return { name := law, subject, missing, assumes := sortNames assumes, premises, wired, world }
 
 def commas (ns : List Name) : String := ", ".intercalate (ns.map toString)
 
@@ -402,6 +432,8 @@ unsafe def main : IO UInt32 := do
     if run.contains n then problems := problems.push s!"tests/wiring.txt: spec {n} runs; drop the note"
   for (n, _) in ns.todo do
     if run.contains n then problems := problems.push s!"tests/wiring.txt: todo {n} runs; drop the note"
+  for (n, _) in ns.world do
+    if run.contains n then problems := problems.push s!"tests/wiring.txt: world {n} runs; drop the note"
   let src ← shipping
   for n in ns.entry do
     match getExportNameFor? env n with
@@ -433,12 +465,15 @@ unsafe def main : IO UInt32 := do
     else if run.contains n then
       problems := problems.push s!"tests/wiring.txt: copy {n} runs; drop the note"
   -- the laws, the bridges' first
-  let mut via : NameMap (List Name) := {}
+  let mut via : NameMap (List Name × List Name) := {}
   for (m, law) in ns.bridge do
-    if let some ci := env.find? law then via := via.insert m (classify env run ns {} law ci.type).assumes
+    if let some ci := env.find? law then
+      let b := classify env run ns {} law ci.type
+      via := via.insert m (b.assumes, b.missing.filter (!ns.bridge.contains ·))
   let mut out : Array Law := #[]
   for law in laws do
     match env.find? law with
+    | some (.defnInfo _) => pure ()  -- an audited statement (`…_stmt`), not a law
     | some ci =>
       if let some s := ns.subject.find? law then
         let (subj, _) := about env {} ns.through run (concl ci.type) 3 false ({}, {})
@@ -450,6 +485,16 @@ unsafe def main : IO UInt32 := do
   for m in ns.wired do
     if !(lawList.find? (·.name == m)).any (·.wired) then
       problems := problems.push s!"tests/wiring.txt marks {m} wired, but it is not"
+  -- a World law is never wired; and its node code must be the running
+  -- node's: with `Engine.Sync.Node` taken out of what runs (node code
+  -- that is a mirror), no World law stays a World law
+  let noNode := run.toList.foldl (fun s c => if (`Engine.Sync.Node).isPrefixOf c then s.erase c else s) run
+  for l in lawList do
+    if l.wired && l.world then problems := problems.push s!"{l.name} is counted wired and World"
+    if l.world then
+      if let some ci := env.find? l.name then
+        if (classify env noNode ns via l.name ci.type).world then
+          problems := problems.push s!"control: {l.name} stays a World law with mirrored node code"
   -- the statements: every `…_stmt`, and the audited law that concludes it
   let mut stmts : Array (Name × Expr) := #[]
   let mut proof : NameMap Name := {}
@@ -469,7 +514,7 @@ unsafe def main : IO UInt32 := do
   let modName (n : Name) := ((modOf env n).getD .anonymous).toString
   for l in lawList do
     for c in l.missing ++ l.premises do waited := waited.insert c
-    IO.println s!"law\t{l.name}\t{if l.wired then "wired" else "model"}\t{commas l.subject}\t{commas l.missing}\t{commas l.assumes}\t{modName l.name}\t{commas l.premises}"
+    IO.println s!"law\t{l.name}\t{if l.wired then "wired" else if l.world then "world" else "model"}\t{commas l.subject}\t{commas l.missing}\t{commas l.assumes}\t{modName l.name}\t{commas l.premises}"
   let mut stated := 0
   for (n, v) in stmts do
     let l := classify env run ns via n v
@@ -477,16 +522,16 @@ unsafe def main : IO UInt32 := do
     match proof.find? n with
     | some p => IO.println s!"stmt\t{n}\tproven by {p}\t{commas l.subject}\t{commas l.missing}\t{modName n}"
     | none => stated := stated + 1; IO.println s!"stmt\t{n}\tstated\t{commas l.subject}\t{commas l.missing}\t{modName n}"
-  for (n, _) in ns.todo do
-    if !waited.contains n then problems := problems.push s!"tests/wiring.txt: no law waits on todo {n}; drop the note"
+  for (n, _) in ns.todo.toList ++ ns.world.toList do
+    if !waited.contains n then problems := problems.push s!"tests/wiring.txt: no law waits on {n}; drop the note"
   -- a law's copy is filed under the code it copies; a definition's, under itself
   let copyNote : NameMap String := ns.copy.foldl
     (fun m n (d, t) => if laws.contains n then m.insert d t else m.insert n t) {}
   for c in waited do
     let by_ := (callers.getD c {}).toList.filter (isData env) |>.toArray.qsort (·.toString < ·.toString)
     let rank := (ns.order.idxOf? c).getD ns.order.size
-    let note := (ns.todo.find? c).getD (copyNote.getD c "")
-    IO.println s!"missing\t{c}\t{rank}\t{note}\t{commas (by_.toList.take 4)}"
+    let note := (ns.todo.find? c).getD ((ns.world.find? c).getD (copyNote.getD c ""))
+    IO.println s!"missing\t{c}\t{rank}\t{note}\t{commas (by_.toList.take 4)}\t{ns.world.contains c}"
   let mut assumed := 0
   for (n, t) in ns.assume.toList ++ ns.holds.toList do
     if !t.startsWith "=" then assumed := assumed + 1
@@ -495,11 +540,16 @@ unsafe def main : IO UInt32 := do
     IO.println s!"assume\t{n}\t{t}\t{k}"
   for (n, (d, t)) in ns.copy do
     IO.println s!"copy\t{n}\t{d}\t{t}"
-  -- negative control: laws known to be about models must be found so
+  -- negative controls: laws known to be about models, and to be World
+  -- laws, must be found so
   for m in models do
-    if (lawList.find? (·.name == m)).any (·.wired) then
-      problems := problems.push s!"control: {m}, a model law, is classified wired"
+    if (lawList.find? (·.name == m)).any (fun l => l.wired || l.world) then
+      problems := problems.push s!"control: {m}, a model law, is classified wired or World"
+  for m in worlds do
+    if !(lawList.find? (·.name == m)).any (·.world) then
+      problems := problems.push s!"control: {m}, a World law, is not classified World"
   let nw := (lawList.filter (·.wired)).length
-  IO.println s!"count\twired {nw}\tmodel {lawList.length - nw}\tstated {stated}\tassumption {assumed}"
+  let nW := (lawList.filter (·.world)).length
+  IO.println s!"count\twired {nw}\tworld {nW}\tmodel {lawList.length - nw - nW}\tstated {stated}\tassumption {assumed}"
   for p in problems do IO.eprintln s!"wiring: {p}"
   return if problems.isEmpty then 0 else 1

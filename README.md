@@ -11,9 +11,11 @@ pixel of its UI, and checks proofs about all four.
 </td></tr></table>
 
 Lean is mostly used for mathematics, or to verify one part of a system.
-Here it is a whole, ordinary app, and about three quarters of its
-theorems (336 of 428) are about the code that runs on the phone; the
-rest are over models, and moving them onto running code is a todo
+Here it is a whole, ordinary app, and about two thirds of its
+theorems (378 of 557) are about the code that runs on the phone;
+another 49 run the phone's node code over a modelled network and plain
+transport (the World); the rest are over models, and moving them onto
+running code is a todo
 ([what is proven](#what-is-proven)). Native code only connects Lean to
 each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)), so in a
 meaningful sense Lean draws all pixels on the screen.
@@ -133,7 +135,7 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 428 rest on Lean's standard axioms
+that rests on; 🥊 is supporting. All 601 rest on Lean's standard axioms
 only.
 
 ### Security proofs
@@ -235,26 +237,27 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**336 of 428 laws are about running code;** 92 are not yet. Stated only: none.
+**378 of 557 laws are about running code;** another 49 run its node code in a World, and 130 are not yet. Stated only: 27 in `Engine.World`.
 
-| Area | Laws | About running code | Not yet |
-|---|---|---|---|
-| Engine | 56 | 35 | 21 |
-| Sync | 82 | 81 | 1 |
-| mDNS | 3 | 0 | 3 |
-| Node and wire | 35 | 19 | 16 |
-| Bootstrap | 11 | 0 | 11 |
-| Connections | 30 | 27 | 3 |
-| Community | 140 | 129 | 11 |
-| QR codes | 10 | 10 |  |
-| Pictures | 13 | 0 | 13 |
-| Screen | 33 | 21 | 12 |
-| App | 15 | 14 | 1 |
+| Area | Laws | About running code | In a World | Not yet |
+|---|---|---|---|---|
+| Engine | 56 | 35 |  | 21 |
+| Sync | 82 | 81 |  | 1 |
+| The n-node World | 129 | 42 | 42 | 45 |
+| mDNS | 3 | 0 |  | 3 |
+| Node and wire | 35 | 19 | 7 | 9 |
+| Bootstrap | 11 | 0 |  | 11 |
+| Connections | 30 | 27 |  | 3 |
+| Community | 140 | 129 |  | 11 |
+| QR codes | 10 | 10 |  |  |
+| Pictures | 13 | 0 |  | 13 |
+| Screen | 33 | 21 |  | 12 |
+| App | 15 | 14 |  | 1 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
-| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]*†, [`order_local`]*†, [`sealed_unopened`]*†, [`sealed_auth`]*†, [`purge_cached`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`write_offers_all`], [`close_gone`]*†, [`allowPeer_iff`], [`allowPeer_settles`] | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
-| `World.peer`, `Setup.sync`, `Who.other` +8 | [`stream_delivers`]†, [`stream_delivers_steps`]†, [`stream_delivers_runs`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`stream_offered`]†, [`stream_offered_runs`]†, [`write_offers_all`], [`fanout_offers`], [`seal_mem`] | A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does. |
+| `World.step`, `Node.connect`, `Setup.sync` +18 | 49 World laws; not yet: [`write_offers`], [`hold_wants`], [`Sync.want_sends`], [`Sync.op_taken`], [`write_offers_all`], [`within_of`], [`step_ext`], [`finish_run`], [`onFrame_fold`], [`peek_plainFrame`], [`plainFrame_of_peek`]*, [`frameStep_ok`]* +26 more | Real: each node is the running `Engine.Sync.Node`, its entry points run on a held store. Assumed: the network may deliver, duplicate, drop or delay anything, and an attacker inject what it can make (safety); the liveness laws take `Fair`, partial synchrony after `gst` (proposed, not yet approved). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake) for `Plain`'s, which makes these laws wired, and is the n-phone convergence target. |
+| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]† +45 more | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
 | `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
@@ -263,10 +266,10 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Seam.place`, `Geom.composerTop`, `Geom.viewNow` +5 | [`placed_row`]†, [`visible_in_viewport`]†, [`newest_visible`]†, [`newest_drawn`]†, [`pinned_row`]†, [`pinned_visible`]†, [`pinned_tap`]† | The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are. |
 | `Grid.ctop` (restates `Sheet.gridRow`) | [`hit_iff`]†, [`hit_cell`]*†, [`keys_disjoint`]*†, [`reachable`]† | Its index arithmetic, and App's sheet rows'. Todo: have the painter place keys by `Grid.ctop`. |
 | `Sync.keeps` | [`buffer_bounded`]*† | The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s. |
-| `Pic.decode`, `Geom.box`, `Rgba.wellFormed` +7 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]†, [`decode_sized`]† | Runs only in qr's Android harness; the app has its own QOI (`Qoi.decode`) and tray: use `Pic` in the app, or prove these of its code. |
+| `Pic.decode`, `Geom.box`, `Rgba.wellFormed` +7 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]† +1 more | Runs only in qr's Android harness; the app has its own QOI (`Qoi.decode`) and tray: use `Pic` in the app, or prove these of its code. |
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
 | `Arrival.lit` | [`lit_zero`], [`lit_mono`], [`lit_full`], [`lit_clockwise`], [`ring_counts`] | `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`pageIn_acc`]† | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`pageIn_acc`]†, [`Live.mono`], [`Calm.mono`], [`Path.mono`], [`Diam.mono`] +8 more | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
@@ -278,8 +281,9 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 144 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
-| [`Engine.Inv`] | 43 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
+| [`Model.run`] | 245 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`World.Fair`] | 14 | Liveness in a World: after `gst`, partial synchrony (each packet to an online neighbour within Δ, ticks every τ, redials within ρ). Proposed: the user has not yet approved it. |
+| [`Engine.Inv`] | 44 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
 
 ## What isn't Lean, and why
@@ -957,19 +961,24 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`fit_round`]: engine/renderer/pic/Laws.lean#L87-L90
 [`Pic.layout_inside`]: engine/renderer/pic/Laws.lean#L170-L172
 [`Pic.layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
-[`reach_drain`]: engine/core/Proofs.lean#L529-L530
 [`write_offers`]: engine/wire/WorldLaws.lean#L425-L433
 [`hold_wants`]: engine/wire/WorldLaws.lean#L442-L448
-[`want_sends`]: engine/wire/WorldLaws.lean#L457-L464
-[`op_taken`]: engine/wire/WorldLaws.lean#L487-L494
+[`Sync.want_sends`]: engine/wire/WorldLaws.lean#L457-L464
+[`Sync.op_taken`]: engine/wire/WorldLaws.lean#L487-L494
 [`write_offers_all`]: engine/wire/WorldLaws.lean#L1160-L1171
-[`allowPeer_iff`]: ops/connection/bootstrap/Bridge.lean#L29-L32
-[`allowPeer_settles`]: ops/connection/bootstrap/Bridge.lean#L35-L39
-[`fanout_offers`]: engine/wire/WorldLaws.lean#L1017-L1023
-[`seal_mem`]: engine/wire/WorldLaws.lean#L1129-L1133
+[`within_of`]: engine/world/Epidemic.lean#L229-L234
+[`step_ext`]: engine/world/Plain.lean#L270-L271
+[`finish_run`]: engine/world/Hops.lean#L108-L111
+[`onFrame_fold`]: engine/world/Hops.lean#L326-L328
+[`peek_plainFrame`]: engine/world/Hops.lean#L164-L165
+[`plainFrame_of_peek`]: engine/world/Hops.lean#L168-L171
+[`frameStep_ok`]: engine/world/Hops.lean#L1533-L1541
+[`reach_drain`]: engine/core/Proofs.lean#L529-L530
 [`admitted_inv`]: ops/connection/bootstrap/Scene.lean#L154-L156
 [`allowedA`]: ops/connection/bootstrap/Scene.lean#L219-L219
 [`allowedB`]: ops/connection/bootstrap/Scene.lean#L231-L233
+[`allowPeer_iff`]: ops/connection/bootstrap/Bridge.lean#L29-L32
+[`allowPeer_settles`]: ops/connection/bootstrap/Bridge.lean#L35-L39
 [`fit_small`]: engine/renderer/pic/Laws.lean#L37-L37
 [`fit_le`]: engine/renderer/pic/Laws.lean#L50-L50
 [`fit_pos`]: engine/renderer/pic/Laws.lean#L59-L59
@@ -977,7 +986,6 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`layout_sizes`]: engine/renderer/pic/Laws.lean#L143-L144
 [`layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
 [`add_stored`]: engine/renderer/pic/Laws.lean#L239-L242
-[`decode_sized`]: engine/renderer/pic/Laws.lean#L198-L201
 [`decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
 [`lit_zero`]: ops/community/attachment/ArrivalLaws.lean#L84-L85
 [`lit_mono`]: ops/community/attachment/ArrivalLaws.lean#L88-L90
@@ -987,8 +995,13 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`nodup_full`]: ops/community/Intents.lean#L578-L580
 [`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
 [`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939
+[`Live.mono`]: engine/world/Epidemic.lean#L61-L62
+[`Calm.mono`]: engine/world/Epidemic.lean#L64-L65
+[`Path.mono`]: engine/world/Epidemic.lean#L105-L106
+[`Diam.mono`]: engine/world/Epidemic.lean#L110-L111
 [`Seal.Good`]: ops/community/Keys.lean#L40-L43
 [`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
 [`Model.run`]: engine/core/Model.lean#L103-L103
+[`World.Fair`]: engine/world/Statements.lean#L51-L65
 [`Engine.Inv`]: engine/core/Proofs.lean#L202-L219
 <!-- /proof-links -->
