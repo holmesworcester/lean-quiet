@@ -27,5 +27,7 @@ import engine.wire.Tcp
 import engine.core.Held
 import engine.wire.NodeLaws
 import ops.sync.OfferLaws
+import engine.wire.World
+import engine.wire.WorldLaws
 import engine.core.Crypto
 import engine.core.Union

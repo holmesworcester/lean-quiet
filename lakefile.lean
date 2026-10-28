@@ -149,6 +149,9 @@ lean_exe wire where
 lean_exe syncpair where
   root := `tests.engine.SyncPair
 
+lean_exe syncworld where
+  root := `tests.engine.SyncWorld
+
 lean_exe tcppair where
   root := `tests.engine.TcpPair
 

@@ -238,6 +238,20 @@ open Engine Community
 #print axioms Engine.Sync.heldIn_index
 #print axioms Engine.Sync.have_shown_premises
 #print axioms Engine.Sync.hold_reply_local_premises
+#print axioms Engine.Sync.stream_delivers
+#print axioms Engine.Sync.stream_delivers_steps
+#print axioms Engine.Sync.stream_delivers_runs
+#print axioms Engine.Sync.write_offers
+#print axioms Engine.Sync.hold_wants
+#print axioms Engine.Sync.want_sends
+#print axioms Engine.Sync.op_taken
+#print axioms Engine.Sync.stream_offered
+#print axioms Engine.Sync.stream_offered_runs
+#print axioms Engine.Sync.write_offers_all
+#print axioms Engine.Sync.filed_offers
+#print axioms Engine.Sync.fanout_offers
+#print axioms Engine.Sync.seal_mem
+#print axioms Engine.Sync.conn_answers_ids
 end engine
 
 section app

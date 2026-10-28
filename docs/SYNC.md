@@ -129,7 +129,10 @@ family writes it as a local op, so it can't grow the log per message.
 | engine/wire/Tcp.lean | the TCP runner |
 | engine/core/Locality.lean | `spec_local` |
 | engine/wire/Pair.lean | two Nodes over a lossy in-memory queue, for tests |
+| engine/wire/World.lean | two Nodes on held stores and the frames in flight, as data, with `World.Step` |
+| engine/wire/WorldLaws.lean | the entry points run on held stores; `stream_delivers` |
 | tests/engine/SyncPair.lean | two-node suites on a real community |
+| tests/engine/SyncWorld.lean | the world on a real community, and the stream run as `stream_delivers` says |
 | tests/engine/TcpPair.lean | two runners over localhost TCP, with a toy handshake family |
 
 **The driver** (`Node`, generic in its store: `[Monad m] [Store F m]
@@ -249,6 +252,36 @@ Proven:
 - `spec_local` (locality): a decided verdict depends only on the op's
   requirement closure. If a node holds every op the peer's verdict on x
   was reached from, it reaches the same verdict.
+- `stream_delivers`, over the two-node world (`World`: two Nodes, each
+  on a held store, and the frames in flight as a multiset; `World.Step`
+  delivers any frame in flight, ticks, writes or connects, running
+  `Node.onFrame`, `onTick`, `onWrite` and `Node.connect` with fixed
+  rooms and frames in the clear). Two nodes each hold one session, to
+  each other, whose rooms on both sides include room r. A node writes a
+  new data op of r, which neither holds and its connection has neither
+  offered nor heard the peer holds, and the peer's has not asked for.
+  The write sends exactly one frame, the offer; delivered, it is
+  answered with exactly one frame, the want; delivered, that is
+  answered with frames whose first begins with the op; delivered, the
+  peer holds it. Each entry point's frames are computed from the code
+  (`write_offers`, `hold_wants`, `want_sends`, `op_taken`).
+  `stream_delivers_steps`: the exchange is a run of `World.Step`.
+  `stream_delivers_runs`: from two empty nodes and two `connect` steps,
+  the premises hold, so the law is not vacuous.
+- `stream_offered`, over the same world, any number of sessions and
+  ops: each op of a write that the store lacked (no other op of the
+  write sharing its id) is offered at once on every session whose rooms
+  include its room and whose connection has neither offered it nor
+  heard that the peer holds it. A frame to the session's address,
+  carrying an offer that names it, is in flight. It follows the code's
+  loops (`write_offers_all`, `fanout_offers`, `filed_offers`,
+  `seal_mem`); `stream_offered_runs` shows it is not vacuous.
+- `conn_answers_ids`, the base case of `conn_runs_exchange` below: a
+  connection answering a round's claim that lists ids (honestly, the
+  claimant's items in the range) sends exactly `exchange`'s offers and
+  wants from the round's snapshot, and no claim back. By
+  `exchange_ids`, those are the ids the snapshot holds there that the
+  claimant lacks, and the reverse.
 - From earlier: `intake_local`, `offer_shared`, `stored_local`.
 
 Tested, not yet proven (tests/engine/SyncPair.lean, on a 101-op community with
@@ -262,7 +295,9 @@ Ed25519 and SQLite):
 - A peer allowed one community never sees another's ops, cannot get
   them by asking, and cannot push them in. Garbage and peers' local ops
   are ignored.
-- A new op streams to the peer without another round.
+- A new op streams to the peer without another round (proven over the
+  world, `stream_delivers`; tests/engine/SyncWorld.lean runs it on a real
+  community and checks the premises hold of the live world).
 
 Negative controls, each failing the suite: windows that ignore the
 floor; no closure offers; rooms not checked.
@@ -270,7 +305,18 @@ floor; no closure offers; rooms not checked.
 Still to prove:
 1. **`conn_runs_exchange`.** Conn's message handling, over any delivery
    order, performs `exchange`. Each round is answered from its
-   snapshot, so the claim tree is the same in any order.
+   snapshot, so the claim tree is the same in any order. Stated over
+   the world: in any run (`World.Steps`) in which round k of room r,
+   opened by the dialer from snapshot Y and first seen by the peer with
+   snapshot X, has ended on both sides with none of its frames in
+   flight: for each window range w, the ids the peer offered or the
+   dialer asked for in it are exactly `(exchange … X Y (opening Y w)).1`,
+   and the ids the dialer offered or the peer asked for are exactly its
+   `.2`. The base
+   case is proven (`conn_answers_ids`, a claim of ids). Still to come:
+   fingerprint claims, whose answers are claims of their own, and
+   delivery in any order. Each side keeps the round's snapshot until
+   the round ends, so the claim tree does not depend on the order.
 2. **The node chains the steps.** `have_shown` and the cache law are
    proven for each connection step, write turn and purge; that every
    entry point (`onFrame`, `onTick`, `onWrite`) keeps the cache law and
@@ -331,11 +377,13 @@ unaffected (Meyer and Scherer §I–II).
   - peer floor, round counters and patience: become ops and list reads.
   A "due" standing question opens rounds, as poc-17's `compare.due`
   does.
-- **The two-node world.** `World := { nodes over Held, wire, now }` and
-  `step`, with `Reachable`/`Run`/`Fair` defined over it, so lean-net's
-  laws are re-proven over the code that runs (holmes-fd). The user
-  asked to "induct over more". The IO pair interprets the same step,
-  with a model-versus-SQLite differential test.
+- **The two-node world.** Built: `World` (two Nodes over `Held`, the
+  frames in flight, `now`) and `World.Step`, with `World.Steps` its
+  runs (engine/wire/World.lean). Still to come: `Fair` over it, an
+  attacker step (holmes-fd, `fd/pair-secrecy`), so lean-net's laws are
+  re-proven over the code that runs. The user asked to "induct over
+  more". The IO pair should interpret the same step, with a
+  model-versus-SQLite differential test.
 - **Open, with the user:**
   - rounds from both sides on a cadence, without a dialer bit. Round
     ids must name their initiator, and the cadence should not be every

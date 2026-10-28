@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 336 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 350 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -167,8 +167,8 @@ nothing else is assumed:
 | ✅ | 🥊🥊 | **Fingerprints are honest.** Equal Merkle labels mean equal sets, and a side opens a round with an honest claim. | [`lbl_inj`], [`opening_honest`], [`num_inj`] |
 | ✅ | 🥊🥊🥊 | **Partial sync is safe.** A node that holds an op's requirement closure judges it as its peer does. | [`spec_local`] |
 | 🟡 | 🥊🥊🥊 | **A joiner connects, and both sides converge,** over a socket that loses, duplicates and reorders. Proven over a model only. | [`bootstrap`], [`bootstrap_ideal`], [`bootstrap_possible`], [`reachable_inv`] *(model)* |
-| ⬜ | 🥊🥊🥊 | **The running connection does all this.** It performs the round, and delivers each op's requirement closure (`conn_runs_exchange`, `closure_delivered`). This retires the bootstrap's model (`ops/connection/bootstrap/`). | |
-| ⬜ | 🥊🥊🥊 | **New ops reach connected members.** An op stored while a member's connection is up is offered on it at once, if the member may see its room. The member holds it after one exchange (`stream_delivers`). Tested, not proven. | |
+| 🟡 | 🥊🥊🥊 | **The running connection does all this.** It performs the round, and delivers each op's requirement closure. Proven: a connection answers a claim that lists ids exactly as `exchange` does, from the round's snapshot. Wanted: the whole round under any delivery order (`conn_runs_exchange`), and the closure (`closure_delivered`). This retires the bootstrap's model (`ops/connection/bootstrap/`). | [`conn_answers_ids`] |
+| ✅ | 🥊🥊🥊 | **New ops reach connected members.** An op a node writes while a member's session is up is offered on it at once, if the member may see its room. The member holds it after one exchange: the offer, a want, and the op. This is over a world of two nodes running the sync code on held stores, with fixed rooms and frames in the clear. The exchange is proven for nodes with one session each. | [`stream_offered`], [`stream_delivers`], [`stream_delivers_steps`], [`stream_offered_runs`], [`stream_delivers_runs`] |
 | ⬜ | 🥊🥊🥊 | **Everyone converges.** Under fair delivery, members linked by any chain of connections eventually hold every op of their community. By [`same_ops_same_verdicts`], they then hold the same verdicts. Proven so far for two nodes, over a model. | |
 | ⬜ | 🥊🥊 | **Staleness is never hidden.** What the screen says about sync is true of the ops held. "Up to date as of T" means a round the device opened at its own time T ended with it holding everything the peer held in that room. If no round ends within a stated bound, the screen says so within that bound. | |
 | ⬜ | 🥊🥊🥊 | **A synced page is complete:** after syncing a page, a device shows every row its peer shows for it (`page_sync`). | |
@@ -679,6 +679,12 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`bootstrap_ideal`]: ops/connection/bootstrap/Laws.lean#L423-L424
 [`bootstrap_possible`]: ops/connection/bootstrap/Laws.lean#L208-L218
 [`reachable_inv`]: ops/connection/bootstrap/Steps.lean#L222-L223
+[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1180-L1202
+[`stream_offered`]: engine/wire/WorldLaws.lean#L1126-L1138
+[`stream_delivers`]: engine/wire/WorldLaws.lean#L544-L572
+[`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L577-L590
+[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1145-L1151
+[`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L620-L625
 [`visible_in_viewport`]: engine/renderer/Geometry.lean#L90-L95
 [`newest_visible`]: engine/renderer/Geometry.lean#L99-L105
 [`pinned_visible`]: engine/renderer/Geometry.lean#L147-L151
