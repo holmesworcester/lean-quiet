@@ -170,4 +170,127 @@ store, at every state the node reaches. -/
 theorem fed_reqs {F : Type} {fam : Family F} {M : List Op} {s : DB F} (h : Fed fam M s) (x : Id) :
     ReqsLe maxReqs (s.ops x) := fun _ hx => stored_capped h hx
 
+/-! ## At every state the node reaches
+
+`step_capped` asks `ReqsLe maxReqs` of the store's every answer, in
+every state (`Sat`); the model reaches only states fed through intake
+(`Fed`), where `fed_reqs` gives it. Here the bound is taken at each such
+state, on the counted run itself (`cr`): judging one op there reads at
+most 4 + 2 · maxReqs rows (`step_reads_fed`), whatever the store holds;
+what it writes still grows with the op's fan-in (W). -/
+
+section
+variable {F : Type}
+
+/-- The model is a lawful monad: a state function, its binds threading
+the state. -/
+instance : LawfulMonad (Model F) := LawfulMonad.mk'
+  (id_map := fun _ => rfl)
+  (pure_bind := fun _ _ => rfl)
+  (bind_assoc := fun _ _ _ => rfl)
+
+/-- A counted run on the model from state s: value, meter, state. -/
+def cr {α : Type} (x : CostT (Model F) α) (s : DB F) : (α × Meter) × DB F := (x.run).run s
+
+theorem cr_bind_meter {α β : Type} (x : CostT (Model F) α) (f : α → CostT (Model F) β) (s : DB F) :
+    (cr (x >>= f) s).1.2 = (cr x s).1.2 + (cr (f (cr x s).1.1) (cr x s).2).1.2 := rfl
+
+theorem cr_pure_meter {α : Type} (a : α) (s : DB F) : (cr (pure a : CostT (Model F) α) s).1.2 = 0 := rfl
+
+/-- **On the model, a budget holds at every state.** -/
+theorem within_at {α : Type} {g : Meter → Nat} {B : Nat} {x : CostT (Model F) α} (h : Within g B x) (s : DB F) :
+    g (cr x s).1.2 ≤ B := by
+  obtain ⟨y, hy⟩ := h
+  have : cr x s = (((y s).1).1, (y s).2) := by unfold cr; rw [← hy]; rfl
+  rw [this]; exact (y s).1.2
+
+end
+
+section
+variable {F : Type} {m : Type → Type} [Monad m] [LawfulMonad m] [Store F m]
+
+/-- A door charged by its value, under a bound in g for every value. -/
+theorem within_chargedBy_all {α : Type} {g : Meter → Nat} {B : Nat} {f : α → Meter} {y : m α}
+    (hf : ∀ a, g (f a) ≤ B) : Within g B (CostT.chargedBy f y) :=
+  (withinP_chargedBy (P := fun _ => True) ⟨(fun a => ⟨a, trivial⟩) <$> y, by rw [Functor.map_map]; simp⟩
+    fun a _ => hf a).within
+
+/-- **Recording a verdict reads one row**, the waiter list, whatever its
+length. -/
+theorem decide_reads (fam : Family F) (x : Id) (v : Verdict F) :
+    Within Meter.reads 1 (decide (F := F) (m := CostT m) fam x v) := by
+  unfold decide
+  refine within_bind_le (A := 0) (B := 1) ((costs_charged { writes := 1, seeks := 1 } _).field Meter.reads)
+    (fun _ => ?_) (by omega)
+  have tail : Within Meter.reads 1
+      (do let ws ← Store.waiters (F := F) (m := CostT m) x
+          Store.clearWaiters (F := F) (m := CostT m) x
+          pushAll (F := F) (m := CostT m) ws) :=
+    within_bind_le (A := 1) (B := 0) (within_chargedBy_all (fun _ => Nat.le_refl 1)) (fun ws =>
+      within_bind_le (A := 0) (B := 0) ((costs_charged { writes := 1, seeks := 1 } _).field Meter.reads)
+        (fun _ => ((pushAll_costs ws).field Meter.reads).mono (by simp)) (by omega)) (by omega)
+  dsimp only
+  cases v with
+  | valid f =>
+    exact within_bind_le (A := 0) (B := 1) (((indexAll_costs x _).field Meter.reads).mono (by simp))
+      (fun _ => tail) (by omega)
+  | invalid => exact tail
+
+end
+
+/-- **At every state a node reaches, judging one op reads at most
+4 + 2 · maxReqs rows**: the pop, its status, the op, its requirements'
+statuses, and the verdict's waiter list or the requirements' statuses
+again; the op, read from a store fed through intake, cites at most
+`maxReqs`. -/
+theorem step_reads_fed {F : Type} {fam : Family F} {M : List Op} {s : DB F} (h : Fed fam M s) :
+    (cr (step (F := F) (m := CostT (Model F)) fam) s).1.2.reads ≤ 4 + 2 * maxReqs := by
+  unfold step
+  rw [cr_bind_meter]
+  have popc : ∀ s : DB F, cr (Store.pop (F := F) (m := CostT (Model F))) s =
+      (((Model.run (Store.pop (F := F)) s).1, ({ reads := 1, writes := 1, seeks := 2 } : Meter)),
+        (Model.run (Store.pop (F := F)) s).2) := fun _ => rfl
+  cases hq : s.queue with
+  | nil =>
+    rw [popc, run_pop_nil s hq]
+    simp only [Meter.reads_add, cr_pure_meter, Meter.reads_zero]; omega
+  | cons x q =>
+    rw [popc, run_pop_cons s x q hq]
+    try dsimp only
+    rw [cr_bind_meter]
+    have stc : cr (Store.getStatus (F := F) (m := CostT (Model F)) x) { s with queue := q } =
+        ((s.status x, { reads := 1, seeks := 1 }), { s with queue := q }) := rfl
+    rw [stc]
+    try dsimp only
+    cases hs : s.status x with
+    | some _ =>
+      simp only [Meter.reads_add, cr_pure_meter, Meter.reads_zero]; omega
+    | none =>
+      try dsimp only
+      rw [cr_bind_meter]
+      have opc : cr (Store.getOp (F := F) (m := CostT (Model F)) x) { s with queue := q } =
+          ((s.ops x, { reads := 1, seeks := 1 }), { s with queue := q }) := rfl
+      rw [opc]
+      try dsimp only
+      cases ho : s.ops x with
+      | none => simp only [Meter.reads_add, cr_pure_meter, Meter.reads_zero]; omega
+      | some o =>
+        have hc : o.reqs.length ≤ maxReqs := stored_capped h ho
+        try dsimp only
+        rw [cr_bind_meter]
+        have h1 := within_at ((statuses_costs (F := F) (m := Model F) o.reqs).field Meter.reads) { s with queue := q }
+        simp only at h1
+        generalize hst : cr (statuses (F := F) (m := CostT (Model F)) o.reqs) { s with queue := q } = st at h1 ⊢
+        try dsimp only
+        split
+        · rename_i v _
+          rw [cr_bind_meter]
+          have h2 := within_at (decide_reads (F := F) (m := Model F) fam x v) st.2
+          simp only [Meter.reads_add, cr_pure_meter, Meter.reads_zero] at h1 h2 ⊢
+          omega
+        · rw [cr_bind_meter]
+          have h2 := within_at ((waitOn_costs (F := F) (m := Model F) x o.reqs).field Meter.reads) st.2
+          simp only [Meter.reads_add, cr_pure_meter, Meter.reads_zero] at h1 h2 ⊢
+          omega
+
 end Engine
