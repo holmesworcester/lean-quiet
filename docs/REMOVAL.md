@@ -164,8 +164,8 @@ this node holds, and the peer key the session's `established` facts
 name (`roomsV`):
 - if this node is in c and the trust rule takes the peer: `sync c`;
 - otherwise, a notice for each removal that cuts a device admitted
-  under the peer's key (`removalsAt`) and is not yet settled on this
-  session (`conn.settled`);
+  under the peer's key (`removalsAt`) and is not yet given on this
+  session (`conn.given`);
 - otherwise nothing.
 
 **Giving a notice** (Engine/Sync/Conn.lean). On a connection's next
@@ -173,23 +173,35 @@ name (`roomsV`):
 stores ops, or on its next `tick`, sync gives each notice it has not
 given. It sends x and every stored op of x's requirement closure in c
 that the peer is not known to hold, requirements first. It reports the
-notice settled and records it given. Rounds, offers and wants are for
+notice and records it given. Rounds, offers and wants are for
 synced rooms only, so nothing is taken for a notice, and a removed
 peer's ops are not asked for.
 
-**The cut.** The node writes a local `conn.settled (cid, x)` for each
-settle (`Hooks.settled`). The view then carries nothing of c for that
-peer. A removal in c drops c's room and adds its notices; the session's
+**The cut.** The node writes a local `conn.given (cid, x)` for each
+notice given (through the node's settle hook). The view then carries
+nothing of c for that peer. A removal in c drops c's room and adds its notices; the session's
 other communities stay as they were (`rooms_complete`). `sessions`
 lists only sessions that carry something. So once a session carries
 nothing, in the same entry point the node closes it, after sealing the
 notice's frames, and `closing` purges it with its ops.
 
 **Once.** A notice is given once per session: the connection records
-it, the settled op takes it out of the view, and the session closes.
+it, the `given` op takes it out of the view, and the session closes.
 The trust rule refuses the removed node's key, so no new session opens
-for it. A removed node with no session open when the removal is decided
-is not told.
+for it: a redial by the removed node gets no answer (`answer_trusted`,
+`resend_trusted`). A removed node with no session open when the removal
+is decided is not told.
+
+**Why `given` is an op.** The rooms view decides what a session
+carries, and it reads only ops. Without a record that the notice was
+given, the view would carry the notice for as long as the session
+lives: the session would never carry nothing, so it would never close,
+and the notice would be given again whenever the session's connection
+is made afresh from its ops (a restart reopens a session from its
+`established`, with a new connection whose memory holds nothing). A
+connection's memory alone cannot end the session, since the view, not
+the connection, decides what it carries. The op cites the connection,
+so it lives exactly as long as the session.
 
 **Why give it rather than sync it.** A synced room has no end the
 remover can see. The removed node stops answering once it learns its
@@ -277,7 +289,7 @@ Built and proven, on lq main's layout:
 
 Waiting for the Node and Conn step (after a3's hostile and world
 branches land): typed rooms in `Hooks.rooms`, `Conn.give` called by
-`filed` and `tick`, and the `settled` hook; with them the notice laws
+`filed` and `tick`, and the settle hook writing `given`; with them the notice laws
 still `_stmt`s (`notice_sent`, `notice_send`, `notice_once`, `closure`,
 `removed_gets_only_notice`) and their TCP test (the removed node told,
 the session cut, the rejoin over TCP). Then `hold_reply_local` and

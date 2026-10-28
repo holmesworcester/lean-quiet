@@ -49,7 +49,7 @@ inductive Body where
   | established
   | send (addr : B)
   | recv (onConn : Bool) (via addr : B) (at_ : Nat)
-  | settled (room : B)
+  | given (x : B)
 
 inductive Fact where
   | eph (of pk sk : B)
@@ -59,12 +59,12 @@ inductive Fact where
   | established (cid c peer h sendKey recvKey : B) (dialer : Bool)
   | send (op addr : B)
   | recv (op : B) (onConn : Bool) (via addr : B) (at_ : Nat)
-  | settled (conn room : B)
+  | given (conn x : B)
   deriving Inhabited, BEq
 
 def Body.kind : Body → UInt8
   | .eph .. => 32 | .request .. => 33 | .opened => 34 | .connection .. => 35
-  | .established => 36 | .send .. => 37 | .recv .. => 38 | .settled .. => 39
+  | .established => 36 | .send .. => 37 | .recv .. => 38 | .given .. => 39
 
 open Community (decAs decAs_enc)
 
@@ -76,7 +76,7 @@ def Body.enc : Body → List UInt8
   | .established => [36]
   | .send a => 37 :: Codec.enc a
   | .recv c v a t => 38 :: Codec.enc (c, v, a, t)
-  | .settled r => 39 :: Codec.enc r
+  | .given x => 39 :: Codec.enc x
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 32 :: r => decAs (fun (p : B) => Body.eph p) r
@@ -86,7 +86,7 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 36 :: r => some (.established, r)
   | 37 :: r => decAs (fun (p : B) => Body.send p) r
   | 38 :: r => decAs (fun (p : Bool × B × B × Nat) => Body.recv p.1 p.2.1 p.2.2.1 p.2.2.2) r
-  | 39 :: r => decAs (fun (p : B) => Body.settled p) r
+  | 39 :: r => decAs (fun (p : B) => Body.given p) r
   | _ => none
 
 /-- `Body.enc`, as it runs: appended to a buffer (`Engine.Codec`). -/
@@ -98,7 +98,7 @@ def Body.encInto (buf : ByteArray) : Body → ByteArray
   | .established => buf.push 36
   | .send a => Codec.encInto (buf.push 37) a
   | .recv c v a t => Codec.encInto (buf.push 38) (c, v, a, t)
-  | .settled r => Codec.encInto (buf.push 39) r
+  | .given x => Codec.encInto (buf.push 39) x
 
 /-- `Body.dec`, as it runs: read at offset i of a byte array. -/
 def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
@@ -110,7 +110,7 @@ def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
   | some 36 => some (.established, i + 1)
   | some 37 => decFromAs (fun (p : B) => Body.send p) b (i + 1)
   | some 38 => decFromAs (fun (p : Bool × B × B × Nat) => Body.recv p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
-  | some 39 => decFromAs (fun (p : B) => Body.settled p) b (i + 1)
+  | some 39 => decFromAs (fun (p : B) => Body.given p) b (i + 1)
   | _ => none
 
 instance : Codec Body where
@@ -135,7 +135,7 @@ def Fact.enc : Fact → List UInt8
   | .established i c p h s k d => 4 :: Codec.enc (i, c, p, h, s, k, d)
   | .send o a => 5 :: Codec.enc (o, a)
   | .recv o c v a t => 6 :: Codec.enc (o, c, v, a, t)
-  | .settled c r => 7 :: Codec.enc (c, r)
+  | .given c x => 7 :: Codec.enc (c, x)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B) => Fact.eph p.1 p.2.1 p.2.2) r
@@ -148,7 +148,7 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 5 :: r => decAs (fun (p : B × B) => Fact.send p.1 p.2) r
   | 6 :: r => decAs (fun (p : B × Bool × B × B × Nat) =>
       Fact.recv p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
-  | 7 :: r => decAs (fun (p : B × B) => Fact.settled p.1 p.2) r
+  | 7 :: r => decAs (fun (p : B × B) => Fact.given p.1 p.2) r
   | _ => none
 
 /-- `Fact.enc`, as it runs: appended to a buffer (`Engine.Codec`). -/
@@ -160,7 +160,7 @@ def Fact.encInto (buf : ByteArray) : Fact → ByteArray
   | .established i c p h s k d => Codec.encInto (buf.push 4) (i, c, p, h, s, k, d)
   | .send o a => Codec.encInto (buf.push 5) (o, a)
   | .recv o c v a t => Codec.encInto (buf.push 6) (o, c, v, a, t)
-  | .settled c r => Codec.encInto (buf.push 7) (c, r)
+  | .given c x => Codec.encInto (buf.push 7) (c, x)
 
 /-- `Fact.dec`, as it runs: read at offset i of a byte array. -/
 def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
@@ -175,7 +175,7 @@ def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
   | some 5 => decFromAs (fun (p : B × B) => Fact.send p.1 p.2) b (i + 1)
   | some 6 => decFromAs (fun (p : B × Bool × B × B × Nat) =>
       Fact.recv p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
-  | some 7 => decFromAs (fun (p : B × B) => Fact.settled p.1 p.2) b (i + 1)
+  | some 7 => decFromAs (fun (p : B × B) => Fact.given p.1 p.2) b (i + 1)
   | _ => none
 
 instance : Codec Fact where

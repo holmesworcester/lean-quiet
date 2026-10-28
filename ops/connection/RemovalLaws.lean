@@ -227,8 +227,8 @@ theorem carrying_mem : ∀ (es : List (Id × B × Bool × B × Nat)) (s : DB F) 
 
 /-- **Notice, then cut (`notice_then_cut`).** If, for every community c
 this node is in, it is a live member, the trust rule refuses cid's peer,
-and every removal owed to the peer is settled on cid (given:
-`conn.settled`), then cid carries nothing, `sessions` does not list it,
+and every removal owed to the peer is given on cid (`conn.given`), then
+cid carries nothing, `sessions` does not list it,
 and `retired` names it if it is an established session: the node closes
 it, and `closing` purges its ops. A session that still carries another
 community stays open (`rooms_complete`). -/

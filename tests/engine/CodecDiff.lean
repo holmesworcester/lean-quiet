@@ -171,7 +171,7 @@ def kBody : Gen Connection.Body := do
   | 3 => return .connection (← bytes)
   | 4 => return .established
   | 5 => return .send (← bytes)
-  | 6 => return .settled (← bytes)
+  | 6 => return .given (← bytes)
   | _ => return .recv (← coin) (← bytes) (← bytes) (← nat)
 
 def kFact : Gen Connection.Fact := do
@@ -182,7 +182,7 @@ def kFact : Gen Connection.Fact := do
   | 3 => return .connection (← id32) (← bytes)
   | 4 => return .established (← id32) (← id32) (← bytes) (← bytes) (← bytes) (← bytes) (← coin)
   | 5 => return .send (← id32) (← bytes)
-  | 6 => return .settled (← id32) (← bytes)
+  | 6 => return .given (← id32) (← bytes)
   | _ => return .recv (← id32) (← coin) (← bytes) (← bytes) (← nat)
 
 def option {α} (g : Gen α) : Gen (Option α) := do

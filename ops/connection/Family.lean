@@ -6,7 +6,7 @@ every other op is local. It reads Community's facts as well as its
 own, for the device secret, so the node's one family is the two
 composed (`Engine.Family.sum`).
 -/
-import ops.connection.Settled
+import ops.connection.Given
 import engine.core.Families
 
 namespace Connection
@@ -20,7 +20,7 @@ def check (K : Keys) (o : Op) : Body → List F → Option Fact
   | .established, fs => Established.check K o fs
   | .send a, fs => Send.check o a fs
   | .recv c v a t, fs => Recv.check o c v a t fs
-  | .settled r, fs => Settled.check o r fs
+  | .given x, fs => Given.check o x fs
 
 def validate (K : Keys) (o : Op) (fs : List F) : Option Fact :=
   match (decode o.body : Option Body) with
@@ -29,7 +29,7 @@ def validate (K : Keys) (o : Op) (fs : List F) : Option Fact :=
 
 def rels : List (Rel Fact) :=
   [eph.byOf, request.byTo, request.byFrm, opened.all, opened.byRequest, connection.byRequest,
-   established.all, established.byConn, send.all, recv.byOp, settled.byConn]
+   established.all, established.byConn, send.all, recv.byOp, given.byConn]
 
 def keys : Fact → List ByteArray := keysOf rels
 

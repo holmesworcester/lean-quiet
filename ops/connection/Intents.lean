@@ -88,11 +88,11 @@ def heldV : View F (List B) := do
     | .accepted c _ => some c
     | _ => none).eraseDups
 
-/-- The rooms and notices settled on connection cid (`conn.settled`). -/
+/-- The notices given on connection cid (`conn.given`). -/
 def givenOn (cid : Id) : View F (List Id) := do
-  let a ← View.read (F := F) (settled.byConn.query [cid])
+  let a ← View.read (F := F) (given.byConn.query [cid])
   return a.rights.filterMap fun (_, f) => match f with
-    | .settled _ r => some r
+    | .given _ x => some x
     | _ => none
 
 /-- What a connection carries of community c for peer key `peer`: the
