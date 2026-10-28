@@ -1,12 +1,12 @@
 /-
 The connection family's ops and facts, and how they are written as
 bytes. Each op type's meaning lives in its own file: Eph, Request,
-Opened, Connection, Established, Send, Recv and Settled.
+Opened, Connection, Established, Send and Recv.
 
 Keys: devices are named by their Ed25519 keys, as in Community. Noise
 runs on the X25519 keys those convert to (`Keys`).
 
-Kinds 32–40 until the registry names them.
+Kinds 32–38 until the registry names them.
 -/
 import Connection.Noise
 import Community
@@ -54,7 +54,6 @@ inductive Body where
   | established
   | send (bare : Bool) (dest : B)
   | recv (onConn : Bool) (via addr : B) (at_ : Nat)
-  | settled (room : B)
 
 inductive Fact where
   | eph (of pk sk : B)
@@ -64,12 +63,11 @@ inductive Fact where
   | established (cid c peer h sendKey recvKey : B) (dialer : Bool)
   | send (op : B) (bare : Bool) (dest : B)
   | recv (op : B) (onConn : Bool) (via addr : B) (at_ : Nat)
-  | settled (cid room : B)
   deriving Inhabited, BEq
 
 def Body.kind : Body → UInt8
   | .eph .. => 32 | .request .. => 33 | .opened => 34 | .connection .. => 35
-  | .established => 36 | .send .. => 37 | .recv .. => 38 | .settled .. => 40
+  | .established => 36 | .send .. => 37 | .recv .. => 38
 
 open Community (decAs decAs_enc)
 
@@ -81,7 +79,6 @@ def Body.enc : Body → List UInt8
   | .established => [36]
   | .send b d => 37 :: Codec.enc (b, d)
   | .recv c v a t => 38 :: Codec.enc (c, v, a, t)
-  | .settled r => 40 :: Codec.enc r
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 32 :: r => decAs (fun (p : B) => Body.eph p) r
@@ -91,7 +88,6 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 36 :: r => some (.established, r)
   | 37 :: r => decAs (fun (p : Bool × B) => Body.send p.1 p.2) r
   | 38 :: r => decAs (fun (p : Bool × B × B × Nat) => Body.recv p.1 p.2.1 p.2.2.1 p.2.2.2) r
-  | 40 :: r => decAs (fun (p : B) => Body.settled p) r
   | _ => none
 
 instance : Codec Body where
@@ -109,7 +105,6 @@ def Fact.enc : Fact → List UInt8
   | .established i c p h s k d => 4 :: Codec.enc (i, c, p, h, s, k, d)
   | .send o b d => 5 :: Codec.enc (o, b, d)
   | .recv o c v a t => 6 :: Codec.enc (o, c, v, a, t)
-  | .settled i r => 8 :: Codec.enc (i, r)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B) => Fact.eph p.1 p.2.1 p.2.2) r
@@ -122,7 +117,6 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 5 :: r => decAs (fun (p : B × Bool × B) => Fact.send p.1 p.2.1 p.2.2) r
   | 6 :: r => decAs (fun (p : B × Bool × B × B × Nat) =>
       Fact.recv p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
-  | 8 :: r => decAs (fun (p : B × B) => Fact.settled p.1 p.2) r
   | _ => none
 
 instance : Codec Fact where

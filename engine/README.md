@@ -219,11 +219,13 @@ code (Connection/, one file per op type).
   because ops are idempotent.
 - **In and out.** Every op taken gets a `recv` (when it arrived and
   how). Everything leaves through `send` couriers, which cite the op
-  they carry and are read by reference when handed out. `settled`
-  records a room's first sync on a connection.
+  they carry and are read by reference when handed out.
+- **One session per peer.** If two devices dial each other at once,
+  both ends keep the session with the smaller connection id. They hold
+  the same connection ops, so they agree without a message.
 - **Closing purges two ops**, the connection and its request.
   Everything else of the session cites one of them (ephemerals, opened,
-  established, settled, couriers, arrivals), so purge takes it along.
+  established, couriers, arrivals), so purge takes it along.
 - **Reactions** (`Connection/Intents.lean`). `react` opens, delivers,
   answers only peers the trust rule admits, and establishes. `dial`
   resends a pending join's request every tick. Both are views over lists

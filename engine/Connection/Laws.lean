@@ -25,7 +25,7 @@ Node; see the README):
   other it writes no connection and no courier. This is lean-net's
   `no_connection_before_approval`, at the level of the ops that run.
 - `close_forgets`: after the node purges `closing cid`, no eph, opened,
-  established or settled op of cid is stored.
+  or established op of cid is stored.
 -/
 import Connection.Intents
 

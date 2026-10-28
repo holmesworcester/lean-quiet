@@ -65,6 +65,9 @@ def count (r : Rel Fact) (args : List B) : m Nat := do
   let a : Answer F ← Lists.list (m := m) (r.query args (limit := some 0))
   return a.total
 
+/-- Byte order on ids. -/
+def lt (a b : B) : Bool := a.toList < b.toList
+
 /-- This device, if its secret is stored: its key and its secret op. -/
 def mine (seed : B) : m (Option (B × Id)) := do
   let ed := Community.ed25519.pub seed
@@ -139,7 +142,7 @@ def dial (K : Keys) (seed listen : B) (_now : Nat) : m (List Op) := do
 
 /-- What closing connection cid purges: the connection and the request
 it answers. Purge takes every dependent with them: the ephemerals, the
-opened and established ops, the settled ops, the couriers and the
+opened and established ops, the couriers and the
 arrival records. -/
 def closing (cid : Id) : m (List Id) := do
   let some co ← Store.getOp (m := m) cid | return []
@@ -155,11 +158,19 @@ def rooms (seed : B) (cid : Id) : m (List Id) := do
   return out
 
 /-- Open sessions: id, the bare address the handshake ran on, and
-whether this side dialed. -/
+whether this side dialed. One per peer: if two devices dialed each
+other at once, both ends keep the session with the smaller connection
+id. Both hold the same connection ops, so they make the same choice
+with no message between them. -/
 def sessions : m (List (Id × B × Bool)) := do
-  let mut out := []
+  let mut best : List (B × Id × Bool) := []
   for (_, f) in ← rows established.all [] do
-    let .established cid _ _ _ _ _ dialer := f | continue
+    let .established cid _ peer _ _ _ dialer := f | continue
+    match best.find? (·.1 = peer) with
+    | some (_, c, _) => if lt cid c then best := best.map fun b => if b.1 = peer then (peer, cid, dialer) else b
+    | none => best := (peer, cid, dialer) :: best
+  let mut out := []
+  for (_, cid, dialer) in best do
     -- the dialer heard the connection arrive; the responder, its request
     let x ← if dialer then pure cid
       else pure ((← Store.getOp (m := m) cid).map (·.reqs.headD .empty) |>.getD cid)
@@ -220,7 +231,6 @@ def sealer (S : Noise.Suite) (sk rk : B) : Sealer where
 /-- What the node driver calls. -/
 def hooks (fam : Family F) (K : Keys) (seed listen : B) : Hooks F where
   rooms := rooms seed
-  settled cid room := [Settled.op cid room]
   recv via addr o at_ := [Recv.op o.id via addr at_]
   outbox := outbox
   react := react fam K seed

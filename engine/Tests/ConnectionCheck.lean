@@ -13,6 +13,8 @@ What it checks, in order:
   with crossed keys; B dialed and A answered.
 - **Sync over the session:** B ends admitted by its own ops, lets A in,
   and receives a later post.
+- **One session per peer:** after B dials A again, both ends hold two
+  sessions and both keep the same one, the smaller id.
 - **Loss:** with a third of all frames lost, both still establish a
   session. Completing the join under loss waits for purge: a dropped
   session is redialed once its ops are gone.
@@ -177,6 +179,20 @@ def main : IO UInt32 := do
   let w ← writeA w [p]
   let w ← w.run 10
   t.ok "a later post reaches B" (← stored w.b p.id)
+  -- Two sessions between one pair (B dials A again with a fresh
+  -- ephemeral): both ends keep the same one, the smaller id.
+  let e2 := sha256 "second ephemeral".toUTF8
+  let some ro2 := Request.op K w.b.seed dA.pk e2 (hello c w.b.addr []) | t.ok "a second request" false; return 1
+  let w ← writeB w [ro2, Eph.op e2 ro2.id, Send.op (.bare w.a.addr) ro2]
+  let w ← w.run 20
+  let ea2 ← ests w.a
+  t.ok "A now holds two sessions with B" (ea2.length == 2)
+  let sa ← (sessions : SqlM F _).run w.a.n.db
+  let sb ← (sessions : SqlM F _).run w.b.n.db
+  let cids := ea2.filterMap fun f => match f with | .established i .. => some i | _ => none
+  let least := cids.foldl (fun a b => if lt b a then b else a) (cids.headD .empty)
+  t.ok "each end keeps one session with the other" (sa.length == 1 && sb.length == 1)
+  t.ok "both keep the same one, the smaller id" (sa.map (·.1) == [least] && sb.map (·.1) == [least])
   -- Lossy wire.
   let (w2, c2, req2) ← setup 33
   let w2 ← w2.run 30

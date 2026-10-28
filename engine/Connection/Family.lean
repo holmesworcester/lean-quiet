@@ -6,7 +6,7 @@ every other op is local. It reads Community's facts as well as its
 own, for the device secret, so the node's one family is the two
 composed (`Engine.Family.sum`).
 -/
-import Connection.Settled
+import Connection.Recv
 import Engine.Families
 
 namespace Connection
@@ -20,7 +20,6 @@ def check (K : Keys) (o : Op) : Body → List F → Option Fact
   | .established, fs => Established.check K o fs
   | .send b d, fs => Send.check o b d fs
   | .recv c v a t, fs => Recv.check o c v a t fs
-  | .settled r, fs => Settled.check o r fs
 
 def validate (K : Keys) (o : Op) (fs : List F) : Option Fact :=
   match (decode o.body : Option Body) with
@@ -29,15 +28,14 @@ def validate (K : Keys) (o : Op) (fs : List F) : Option Fact :=
 
 def rels : List (Rel Fact) :=
   [eph.byOf, request.byTo, request.byFrm, opened.all, opened.byRequest, connection.byRequest,
-   established.all, established.byConn, send.all, recv.byOp, settled.byConn,
-   settled.byRoom]
+   established.all, established.byConn, send.all, recv.byOp]
 
 def keys : Fact → List ByteArray := keysOf rels
 
 /-- The request and the connection go on the bare wire; the rest is local. -/
 def scopeOf (o : Op) : Scope := if o.kind = 33 ∨ o.kind = 35 then .conn else .local
 
-def owns (k : UInt8) : Bool := 32 ≤ k && k ≤ 40
+def owns (k : UInt8) : Bool := 32 ≤ k && k ≤ 38
 
 def family (K : Keys) : Family₂ Community.Fact Fact :=
   { validate := validate K, keys, scope := scopeOf, owns }
