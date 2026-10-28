@@ -1,3 +1,9 @@
+import ops.sync.TimeLaws
+import ops.sync.RetryLaws
+import ops.sync.BoundsLaws
+import ops.sync.ServeLaws
+import engine.wire.CloseLaws
+import engine.wire.Slots
 import engine.core.Engine
 import ops.community.Community
 import ops.connection.All
@@ -252,6 +258,68 @@ open Engine Community
 #print axioms Engine.Sync.fanout_offers
 #print axioms Engine.Sync.seal_mem
 #print axioms Engine.Sync.conn_answers_ids
+#print axioms Engine.Sync.tick_drop_iff
+#print axioms Engine.Sync.patience_drop_iff
+#print axioms Engine.Sync.round_not_dropped
+#print axioms Engine.Sync.responder_expires
+#print axioms Engine.Sync.live_not_expired
+#print axioms Engine.Sync.uncarried_room_answered
+#print axioms Engine.Sync.limit_bounded
+#print axioms Engine.Sync.finish_bounded
+#print axioms Engine.Sync.start_bounded
+#print axioms Engine.Sync.round_bounded
+#print axioms Engine.Sync.hold_bounded
+#print axioms Engine.Sync.onWant_bounded
+#print axioms Engine.Sync.walkN_bounded
+#print axioms Engine.Sync.tick_bounded
+#print axioms Engine.Sync.recv_bounded
+#print axioms Engine.Sync.filed_bounded
+#print axioms Engine.Sync.conn_bounded
+#print axioms Engine.Sync.Read.run_held
+#print axioms Engine.Sync.Read.run_model
+#print axioms Engine.Sync.serve_reads
+#print axioms Engine.Sync.serve_shown
+#print axioms Engine.Sync.serve_blind
+#print axioms Engine.Sync.serve_budget
+#print axioms Engine.Sync.authorize_mem
+#print axioms Engine.Sync.want_reads_authorized
+#print axioms Engine.Sync.want_blind
+#print axioms Engine.Sync.want_blind_step
+#print axioms Engine.Sync.onWant_one
+#print axioms Engine.Sync.want_budget
+#print axioms Engine.Sync.endSession_purges
+#print axioms Engine.Sync.close_gone
+#print axioms Engine.Sync.close_purges
+#print axioms Engine.Sync.admit_bounded
+#print axioms Engine.Sync.Read.trace_map
+#print axioms Engine.Sync.Step.limit_send
+#print axioms Engine.Sync.Step.limit_take
+#print axioms Engine.Sync.Step.limit_rooms
+#print axioms Engine.Sync.Step.limit_snaps
+#print axioms Engine.Sync.Conn.finish_known
+#print axioms Engine.Sync.Conn.finish_asked
+#print axioms Engine.Sync.limit_snaps
+#print axioms Engine.Sync.keeps_limit
+#print axioms Engine.Sync.Step.limit_drop
+#print axioms Engine.Sync.expire_bounded
+#print axioms Engine.Sync.remember_bounded
+#print axioms Engine.Sync.remember_fits
+#print axioms Engine.Sync.admit_one
+#print axioms Engine.Sync.known_forgets
+#print axioms Engine.Sync.asked_full
+#print axioms Engine.Sync.round_no_drop
+#print axioms Engine.Sync.hold_no_drop
+#print axioms Engine.Sync.want_no_drop
+#print axioms Engine.Sync.recv_no_drop
+#print axioms Engine.Sync.honest_no_drop
+#print axioms Engine.Sync.honest_no_drop_runs
+#print axioms Engine.Sync.asks_expire
+#print axioms Engine.Sync.retried_append
+#print axioms Engine.Sync.retried_start
+#print axioms Engine.Sync.retried_holds
+#print axioms Engine.Sync.retried_chunks
+#print axioms Engine.Sync.pieces_short
+#print axioms Engine.Sync.retry_bounded
 end engine
 
 section app

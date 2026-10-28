@@ -235,3 +235,9 @@ lean_exe probe where
 
 lean_exe scene_check where
   root := `tests.net.SceneCheck
+
+lean_exe harden where
+  root := `tests.engine.Harden
+
+lean_exe harden_tcp where
+  root := `tests.engine.HardenTcp
