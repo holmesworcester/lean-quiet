@@ -35,3 +35,6 @@ lean_exe linkcheck where
 
 lean_exe lifecycle where
   root := `Tests.Lifecycle
+
+lean_exe wire where
+  root := `Tests.Wire

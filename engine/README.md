@@ -40,6 +40,14 @@ Proven (`Proofs.lean`), about that code run on the model:
   every verdict is the spec's.
 - `spec_extends`: a verdict, once reached, never changes.
 - `Codec.decode_encode`: what SQLite stores decodes to what was written.
+- `Codec.encode_decode`: decoding is strict; bytes decode only if they
+  are exactly their value's encoding, so a value has one byte string
+  wherever it is read (SQLite, the wire, an op's body, a link).
+- `Op.id_decode`: an op read from bytes has the SHA-256 of those bytes
+  as its id. An op's bytes are the same on the wire and in its SQLite
+  row, and nothing can build an op under another id (`Op.id_eq`).
+- `distinct_of_collisionFree`: ops share an id only through a SHA-256
+  collision on their bytes, so `Distinct` asks nothing of peers.
 
 ### Declarations: relations by name (`Decl.lean`)
 
@@ -157,7 +165,9 @@ and each named user's `removal.byUser`.
   checks the disk holds whole batches.
 - Signatures are unforgeable (`Unforgeable`, a hypothesis where used).
   Ed25519 is libsodium's at runtime.
-- Op ids do not collide (`Distinct`).
+- SHA-256 has no collision on the ops a node holds (`CollisionFree`,
+  which gives `Distinct`). `wire` tests a lying peer against it: forged
+  names, padded op bytes, and a signed post re-padded into a new id.
 - `Crypto.pub` gives a seed's public key (libsodium's Ed25519 at
   runtime); a secret op is Valid only if its seed derives to its key.
 - The SQLite writer drains with the proven `drain` and a budget it
@@ -171,7 +181,7 @@ and each named user's `removal.byUser`.
 ## Running
 
     mise run check   # build proofs, audit axioms (standard only)
-    mise run test    # scenario, differential, crash
+    mise run test    # scenario, differential, querydiff, linkcheck, lifecycle, wire, crash
 
 Needs `ELAN_HOME` with Lean 4.34.0, and SQLite and libsodium (headers
 for SQLite). The CI workflow runs both tasks; this repo has no remote

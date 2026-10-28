@@ -8,6 +8,10 @@ open Engine Community
 #print axioms Engine.reach_drain
 #print axioms Engine.spec_extends
 #print axioms Engine.Codec.decode_encode
+#print axioms Engine.Codec.encode_decode
+#print axioms Engine.Op.id_decode
+#print axioms Engine.Op.decode_bytes
+#print axioms Engine.distinct_of_collisionFree
 #print axioms Engine.run_step
 #print axioms Engine.run_drain
 #print axioms Community.message_authorized

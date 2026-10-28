@@ -4,11 +4,15 @@ What the SQLite store writes is `encode` of a value, and what it reads
 back is `decode` of those bytes, so an untampered database returns
 exactly what was written (`decode_encode`).
 
+`decode` is strict: it takes bytes only if they are exactly the
+encoding of the value they decode to (`encode_decode`), as poc-17's
+codec does. So a value has one byte string wherever it is read, from
+SQLite, the wire, an op's body or a link, and nothing that hashes bytes
+(an op's id) can be given a second name for the same value.
+
 Numbers are LEB128 (seven bits a byte, low first); byte strings and
 lists carry their length first; a sum carries its constructor's tag.
 -/
-import Engine.Core
-
 namespace Engine
 
 class Codec (α : Type) where
@@ -135,10 +139,10 @@ instance {α β} [Codec α] [Codec β] : Codec (α × β) where
 /-- The bytes of a value. -/
 def encode {α} [Codec α] (a : α) : ByteArray := ⟨(enc a).toArray⟩
 
-/-- The value of bytes holding exactly one. -/
+/-- The value of bytes holding exactly one, if they are its encoding. -/
 def decode {α} [Codec α] (b : ByteArray) : Option α :=
   match dec b.data.toList with
-  | some (a, []) => some a
+  | some (a, []) => if enc a = b.data.toList then some a else none
   | _ => none
 
 theorem decode_encode {α} [Codec α] (a : α) : decode (encode a) = some a := by
@@ -147,30 +151,26 @@ theorem decode_encode {α} [Codec α] (a : α) : decode (encode a) = some a := b
   simp only [List.append_nil] at this
   simp [this]
 
+/-- **Bytes decode only from their value's encoding**: a decoded value
+has no other byte string. -/
+theorem encode_decode {α} [Codec α] {b : ByteArray} {a : α} (h : decode b = some a) :
+    encode a = b := by
+  unfold decode at h
+  split at h
+  · rename_i a' _
+    split at h
+    · rename_i he
+      cases h
+      cases b with
+      | mk d => simp only [encode, he, Array.toArray_toList]
+    · cases h
+  · cases h
+
 theorem encode_inj {α} [Codec α] {a b : α} (h : encode a = encode b) : a = b := by
   have := congrArg (decode (α := α)) h
   rw [decode_encode, decode_encode] at this
   exact Option.some.inj this
 
 end Codec
-
-open Codec in
-instance : Codec Op where
-  enc o := enc (o.id, o.kind, o.reqs, o.body)
-  dec bs := (dec bs : Option ((Id × UInt8 × List Id × ByteArray) × List UInt8)).map
-    fun p => (⟨p.1.1, p.1.2.1, p.1.2.2.1, p.1.2.2.2⟩, p.2)
-  round o rest := by simp [round]
-
-open Codec in
-instance {F} [Codec F] : Codec (Verdict F) where
-  enc | .valid f => 1 :: enc f
-      | .invalid => [0]
-  dec | 1 :: rest => (dec rest).map fun p => (.valid p.1, p.2)
-      | 0 :: rest => some (.invalid, rest)
-      | _ => none
-  round v rest := by
-    cases v with
-    | valid f => simp [round]
-    | invalid => rfl
 
 end Engine
