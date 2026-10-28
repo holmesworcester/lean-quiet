@@ -125,7 +125,7 @@ theorem check_removal {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c t u :
     (h : check C o b fs = some (.removal c t u)) :
     ∃ s d0 e0 d e auth d' e', b = .remove s ∧
       fs = [.admission c c d0 e0, .admission c u d e, auth, .admission c t d' e'] ∧
-      o.reqs.head? = some c ∧ (t = u ∨ isAdmin c u auth = true) ∧
+      o.reqs.head? = some c ∧ ((t = u ∧ auth.isLocal = false) ∨ isAdmin c u auth = true) ∧
       C.verify d (signed o b) s = true := by
   unfold check at h
   split at h <;> (try split at h) <;> (try simp at h; done)
@@ -448,7 +448,7 @@ theorem removal_authorized {x c t u : Id} (h : V C ops x (.removal c t u)) :
   obtain ⟨_, _, _, _, _, auth, _, _, rfl, rfl, _, ha, _⟩ := check_removal hv
   obtain ⟨_, _, z, _, _, _, _, hz, _⟩ := all2_four hr
   rcases ha with ha | ha
-  · exact Or.inl ha
+  · exact Or.inl ha.1
   · exact Or.inr (isAdmin_sound hz ha)
 
 /-- **Every admin-issued removal stands.** A removal op signed by an
@@ -541,9 +541,6 @@ theorem named_by_admin {x c u : Id} {nm : ByteArray} {n : Nat} (h : V C ops x (.
   | cons hz _ => exact isAdmin_sound hz ha
 
 /-- The facts only a device's own local ops produce. -/
-def Fact.isLocal : Fact → Bool
-  | .secret .. | .accepted .. | .joining .. | .abandoned .. => true
-  | _ => false
 
 theorem check_local {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
     (h : check C o b fs = some f) (hl : f.isLocal = true) : b.isLocal = true := by
@@ -563,4 +560,192 @@ theorem local_fact_mine {M : List Op} {s : DB Fact} (hf : Fed (family C) M s) {x
   show (family C).room o = none
   simp [Family.room, family, scopeOf, hb, check_local hc hl]
 
+
+/-! ## Shared ops never read local state
+
+A shared op's validator reads only shared facts: never a secret, an
+acceptance, a pending join or a content key. So a verdict never depends
+on a key or on any plaintext, and every node holding the same shared ops
+judges them alike, whatever keys it holds. -/
+
+theorem blobsOf_shared {c : Id} : ∀ {fs : List Fact}, blobsOf c fs = true → ∀ g ∈ fs, g.isLocal = false
+  | [], _, g, hg => by cases hg
+  | .blob .. :: rest, h, g, hg => by
+    simp only [blobsOf, Bool.and_eq_true] at h
+    rcases List.mem_cons.1 hg with rfl | hg
+    · rfl
+    · exact blobsOf_shared h.2 g hg
+  | .admission .. :: _, h, _, _ | .invitation .. :: _, h, _, _ | .admin .. :: _, h, _, _
+  | .removal .. :: _, h, _, _ | .message .. :: _, h, _, _ | .wrap .. :: _, h, _, _
+  | .profile .. :: _, h, _, _ | .react .. :: _, h, _, _ | .request .. :: _, h, _, _
+  | .approval .. :: _, h, _, _ | .secret .. :: _, h, _, _ | .accepted .. :: _, h, _, _
+  | .joining .. :: _, h, _, _ | .named .. :: _, h, _, _ | .abandoned .. :: _, h, _, _
+  | .key .. :: _, h, _, _ => by simp [blobsOf] at h
+
+theorem approvers_shared {c r : Id} : ∀ {fs : List Fact} {us}, approvers c r fs = some us →
+    ∀ g ∈ fs, g.isLocal = false
+  | [], _, _, g, hg => by cases hg
+  | .approval .. :: rest, us, h, g, hg => by
+    simp only [approvers] at h
+    split at h
+    · obtain ⟨vs, hv, _⟩ := Option.map_eq_some_iff.1 h
+      rcases List.mem_cons.1 hg with rfl | hg
+      · rfl
+      · exact approvers_shared hv g hg
+    · cases h
+  | .admission .. :: _, _, h, _, _ | .invitation .. :: _, _, h, _, _ | .admin .. :: _, _, h, _, _
+  | .removal .. :: _, _, h, _, _ | .message .. :: _, _, h, _, _ | .wrap .. :: _, _, h, _, _
+  | .profile .. :: _, _, h, _, _ | .react .. :: _, _, h, _, _ | .request .. :: _, _, h, _, _
+  | .blob .. :: _, _, h, _, _ | .secret .. :: _, _, h, _, _ | .accepted .. :: _, _, h, _, _
+  | .joining .. :: _, _, h, _, _ | .named .. :: _, _, h, _, _ | .abandoned .. :: _, _, h, _, _
+  | .key .. :: _, _, h, _, _ => by simp [approvers] at h
+
+theorem prevMax_shared {c : Id} : ∀ {fs : List Fact} {m}, prevMax c fs = some m →
+    ∀ g ∈ fs, g.isLocal = false
+  | [], _, _, g, hg => by cases hg
+  | .named .. :: rest, m, h, g, hg => by
+    simp only [prevMax] at h
+    split at h
+    · obtain ⟨k, hk, _⟩ := Option.map_eq_some_iff.1 h
+      rcases List.mem_cons.1 hg with rfl | hg
+      · rfl
+      · exact prevMax_shared hk g hg
+    · cases h
+  | .admission .. :: _, _, h, _, _ | .invitation .. :: _, _, h, _, _ | .admin .. :: _, _, h, _, _
+  | .removal .. :: _, _, h, _, _ | .message .. :: _, _, h, _, _ | .wrap .. :: _, _, h, _, _
+  | .profile .. :: _, _, h, _, _ | .react .. :: _, _, h, _, _ | .request .. :: _, _, h, _, _
+  | .blob .. :: _, _, h, _, _ | .secret .. :: _, _, h, _, _ | .accepted .. :: _, _, h, _, _
+  | .joining .. :: _, _, h, _, _ | .approval .. :: _, _, h, _, _ | .abandoned .. :: _, _, h, _, _
+  | .key .. :: _, _, h, _, _ => by simp [prevMax] at h
+
+theorem isAdmin_shared {c u : Id} {g : Fact} (h : isAdmin c u g = true) : g.isLocal = false := by
+  cases g <;> simp_all [isAdmin, Fact.isLocal]
+
+theorem tally_shared {c r : Id} {t : Nat} {fs : List Fact} (h : tally c r t fs = true) :
+    ∀ g ∈ fs, g.isLocal = false := by
+  unfold tally at h
+  split at h
+  · rename_i us hu; exact approvers_shared hu
+  · cases h
+
+theorem counterOk_shared {c : Id} {n : Nat} {fs : List Fact} (h : counterOk c n fs = true) :
+    ∀ g ∈ fs, g.isLocal = false := by
+  unfold counterOk at h
+  split at h
+  · rename_i m hm; exact prevMax_shared hm
+  · cases h
+
+/-- **A shared op's validator reads only shared facts.** -/
+theorem check_reads_shared {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
+    (h : check C o b fs = some f) (hb : b.isLocal = false) : ∀ g ∈ fs, g.isLocal = false := by
+  unfold check at h
+  split at h <;> (try split at h) <;> (try simp at h; done) <;> (try (simp [Body.isLocal] at hb); done)
+  all_goals
+    rename_i hc
+    try simp only [List.forall_mem_cons]
+    repeat' constructor
+  all_goals first
+    | rfl
+    | (intro x hx; exact absurd hx List.not_mem_nil)
+    | exact isAdmin_shared hc.1
+    | exact isAdmin_shared hc.2
+    | exact isAdmin_shared hc.2.1
+    | exact isAdmin_shared hc.2.2.1
+    | exact isAdmin_shared hc.2.2.2.1
+    | exact isAdmin_shared hc.2.2.2.2.1
+    | exact isAdmin_shared hc.2.2.2.2.2.1
+    | exact isAdmin_shared hc.2.2.2.2.2.2.1
+    | exact isAdmin_shared hc.2.2.2.2.2.2.2.1
+    | exact isAdmin_shared hc.2.2
+    | exact isAdmin_shared hc.2.2.2
+    | exact isAdmin_shared hc.2.2.2.2
+    | exact isAdmin_shared hc.2.2.2.2.2
+    | exact isAdmin_shared hc.2.2.2.2.2.2
+    | exact isAdmin_shared hc.2.2.2.2.2.2.2
+    | exact isAdmin_shared hc.2.2.2.2.2.2.2.2
+    | exact counterOk_shared hc.1
+    | exact counterOk_shared hc.2
+    | exact counterOk_shared hc.2.1
+    | exact counterOk_shared hc.2.2.1
+    | exact counterOk_shared hc.2.2.2.1
+    | exact counterOk_shared hc.2.2.2.2.1
+    | exact counterOk_shared hc.2.2.2.2.2.1
+    | exact counterOk_shared hc.2.2.2.2.2.2.1
+    | exact counterOk_shared hc.2.2.2.2.2.2.2.1
+    | exact counterOk_shared hc.2.2
+    | exact counterOk_shared hc.2.2.2
+    | exact counterOk_shared hc.2.2.2.2
+    | exact counterOk_shared hc.2.2.2.2.2
+    | exact counterOk_shared hc.2.2.2.2.2.2
+    | exact counterOk_shared hc.2.2.2.2.2.2.2
+    | exact counterOk_shared hc.2.2.2.2.2.2.2.2
+    | exact tally_shared hc.1
+    | exact tally_shared hc.2
+    | exact tally_shared hc.2.1
+    | exact tally_shared hc.2.2.1
+    | exact tally_shared hc.2.2.2.1
+    | exact tally_shared hc.2.2.2.2.1
+    | exact tally_shared hc.2.2.2.2.2.1
+    | exact tally_shared hc.2.2.2.2.2.2.1
+    | exact tally_shared hc.2.2.2.2.2.2.2.1
+    | exact tally_shared hc.2.2
+    | exact tally_shared hc.2.2.2
+    | exact tally_shared hc.2.2.2.2
+    | exact tally_shared hc.2.2.2.2.2
+    | exact tally_shared hc.2.2.2.2.2.2
+    | exact tally_shared hc.2.2.2.2.2.2.2
+    | exact tally_shared hc.2.2.2.2.2.2.2.2
+    | exact blobsOf_shared hc.1
+    | exact blobsOf_shared hc.2
+    | exact blobsOf_shared hc.2.1
+    | exact blobsOf_shared hc.2.2.1
+    | exact blobsOf_shared hc.2.2.2.1
+    | exact blobsOf_shared hc.2.2.2.2.1
+    | exact blobsOf_shared hc.2.2.2.2.2.1
+    | exact blobsOf_shared hc.2.2.2.2.2.2.1
+    | exact blobsOf_shared hc.2.2.2.2.2.2.2.1
+    | exact blobsOf_shared hc.2.2
+    | exact blobsOf_shared hc.2.2.2
+    | exact blobsOf_shared hc.2.2.2.2
+    | exact blobsOf_shared hc.2.2.2.2.2
+    | exact blobsOf_shared hc.2.2.2.2.2.2
+    | exact blobsOf_shared hc.2.2.2.2.2.2.2
+    | exact blobsOf_shared hc.2.2.2.2.2.2.2.2
+    | (rcases hc.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hc.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hc.2.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hc.2.2.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hc.2.2.2.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hc.2.2.2.2.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hc.2.2.2.2.2.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hc.2.2.2.2.2.2.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hc.2.2.2.2.2.2.2.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hc.2.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hc.2.2.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hc.2.2.2.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hc.2.2.2.2.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hc.2.2.2.2.2.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hc.2.2.2.2.2.2.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hc.2.2.2.2.2.2.2.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+
+/-! ## Sealed bodies -/
+
+/-- **A sealed body opens with its key.** -/
+theorem openSealed_seal {S : Seal} (G : S.Good) {c kid k n text : ByteArray} (hn : n.size = 24) :
+    openSealed S c kid (n ++ sealBody S k n c kid text) k = some text := by
+  have hs : ¬ (n ++ sealBody S k n c kid text).size < 24 := by rw [ByteArray.size_append, hn]; omega
+  unfold openSealed
+  simp only [hs, ↓reduceIte]
+  rw [ByteArray.extract_append_eq_left hn.symm,
+    ByteArray.extract_append_eq_right hn.symm (by rw [ByteArray.size_append, hn])]
+  exact openBody_sealBody G _ _ _ _ _
+
+/-- **An admitted device opens every body sealed under a key wrapped to
+it.** A key wrapped to the device's X25519 key unwraps with its secret,
+and that key opens what was sealed under it. -/
+theorem member_opens {S : Seal} (G : S.Good) (rsk esk k n c text : ByteArray) (hn : n.size = 24) :
+    let kid := kidOf S k
+    ((unbox S rsk kid (box S esk (S.pub rsk) kid k)).bind fun k' =>
+      openSealed S c kid (n ++ sealBody S k n c kid text) k') = some text := by
+  simp only [unbox_box G, Option.bind_some, openSealed_seal G hn]
 end Community

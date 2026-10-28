@@ -37,9 +37,15 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   (`connect_iff`), so it travels only through peers that do not. When it
   arrives, it is Valid. Removal never invalidates an op; it changes who
   counts as a member.
-- A post is a message by an admitted device, under a content key.
-- A wrap delivers a content key to one device encryption key; it
-  admits nobody, so it needs no author.
+- A post is a message by an admitted device. Its body is sealed: it
+  names a content key by id and carries the nonce and ciphertext
+  (`Community.Keys`). Its header is clear: the key id, the time, the
+  signature, which covers the sealed bytes. Validators read only the
+  header, so a keyless node judges a post as a member does.
+- A content key is local (`key`): this device's copy of a community's
+  key. A wrap delivers one to a device's X25519 key, sealed so that
+  only that device opens it. A wrap admits nobody, so it needs no
+  author.
 - A post's time is its author's claim (it orders a conversation, as
   libquiet's created_at does), and it cites the blobs it attaches.
 - A profile is a user's name and avatar, a register: the newest by
@@ -55,6 +61,7 @@ Signatures are a parameter (`Crypto`), so the laws hold for any scheme;
 what unforgeability buys is stated as a hypothesis where it is used.
 -/
 import Engine
+import Community.Keys
 
 namespace Community
 open Engine Codec
@@ -83,6 +90,7 @@ inductive Fact where
   | joining (c : Id) (inviter : Key) (hints : List ByteArray) (req : Id) (name : ByteArray)
   | named (c u : Id) (name : ByteArray) (n : Nat)
   | abandoned (c req : Id)
+  | key (c kid k : ByteArray)
   deriving DecidableEq, Inhabited
 
 inductive Body where
@@ -103,6 +111,7 @@ inductive Body where
   | secret (pk seed : ByteArray)
   | name (n : Nat) (name sig : ByteArray)
   | abandon
+  | key (c k : ByteArray)
   deriving DecidableEq, Inhabited
 
 /-! ## Bytes -/
@@ -115,8 +124,6 @@ def decAs {α β} [Codec α] (f : α → β) (bs : List UInt8) : Option (β × L
 theorem decAs_enc {α β} [Codec α] (f : α → β) (a : α) (rest : List UInt8) :
     decAs f (enc a ++ rest) = some (f a, rest) := by
   unfold decAs; rw [Codec.round]
-
-abbrev B := ByteArray
 
 def Body.enc : Body → List UInt8
   | .root d e s => 0 :: Codec.enc (d, e, s)
@@ -136,6 +143,7 @@ def Body.enc : Body → List UInt8
   | .secret pk seed => 15 :: Codec.enc (pk, seed)
   | .name n nm s => 16 :: Codec.enc (n, nm, s)
   | .abandon => [17]
+  | .key c k => 18 :: Codec.enc (c, k)
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B) => Body.root p.1 p.2.1 p.2.2) r
@@ -156,6 +164,7 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 15 :: r => decAs (fun (p : B × B) => Body.secret p.1 p.2) r
   | 16 :: r => decAs (fun (p : Nat × B × B) => Body.name p.1 p.2.1 p.2.2) r
   | 17 :: r => some (.abandon, r)
+  | 18 :: r => decAs (fun (p : B × B) => Body.key p.1 p.2) r
   | _ => none
 
 instance : Codec Body where
@@ -182,6 +191,7 @@ def Fact.enc : Fact → List UInt8
   | .joining c k hs r nm => 13 :: Codec.enc (c, k, hs, r, nm)
   | .named c u nm n => 14 :: Codec.enc (c, u, nm, n)
   | .abandoned c r => 15 :: Codec.enc (c, r)
+  | .key c i k => 16 :: Codec.enc (c, i, k)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B × B) => Fact.admission p.1 p.2.1 p.2.2.1 p.2.2.2) r
@@ -205,6 +215,7 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
       Fact.joining p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 14 :: r => decAs (fun (p : B × B × B × Nat) => Fact.named p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | 15 :: r => decAs (fun (p : B × B) => Fact.abandoned p.1 p.2) r
+  | 16 :: r => decAs (fun (p : B × B × B) => Fact.key p.1 p.2.1 p.2.2) r
   | _ => none
 
 instance : Codec Fact where
@@ -235,6 +246,12 @@ def signed (o : Op) (b : Body) : ByteArray :=
   encode ("quiet/attest/v1".toUTF8, o.reqs, b.unsigned)
 
 /-! ## Validity -/
+
+/-- Whether a fact is this device's own: local ops' facts, never
+shared, never read by a shared op's validator (`check_reads_shared`). -/
+def Fact.isLocal : Fact → Bool
+  | .secret .. | .accepted .. | .joining .. | .abandoned .. | .key .. => true
+  | _ => false
 
 /-- Whether a fact shows that user u of community c is admin: the
 founder's admission (the founder's user is the community), or a grant. -/
@@ -304,7 +321,9 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
       C.verify d (signed o (.grant s)) s
     then some (.admin c t) else none
   | .remove s, [.admission c u0 _ _, .admission c1 u d _, auth, .admission c2 t _ _] =>
-    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ (t = u ∨ isAdmin c u auth) ∧
+    -- A self-removal needs no admin, but its third slot must still be a
+    -- shared fact: a shared op never reads this device's own state.
+    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ ((t = u ∧ auth.isLocal = false) ∨ isAdmin c u auth) ∧
       C.verify d (signed o (.remove s)) s
     then some (.removal c t u) else none
   | .post k txt tm s, .admission c u0 _ _ :: .admission c1 u d _ :: rest =>
@@ -325,6 +344,7 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
   | .wrap k r bx, [.admission c u0 _ _] =>
     if o.reqs.head? = some c ∧ u0 = c then some (.wrap c k r bx) else none
   | .secret pk seed, [] => if C.pub seed = pk then some (.secret pk seed) else none
+  | .key c k, [] => if k.size = 32 then some (.key c (kidOf cryptoSeal k) k) else none
   | .accept c d, [] => some (.accepted c d)
   | .joining c k hs r nm, [] => some (.joining c k hs r nm)
   | .abandon, [.joining c _ _ r _] => some (.abandoned c r)
@@ -363,7 +383,16 @@ end message
 
 namespace wrap
 def byContentKey : Rel Fact := ⟨"wrap", "byContentKey", fun | .wrap c k _ _ => some [c, k] | _ => none⟩
+/-- The keys wrapped to a device's X25519 key in c. -/
+def byRecipient : Rel Fact := ⟨"wrap", "byRecipient", fun | .wrap c _ r _ => some [c, r] | _ => none⟩
 end wrap
+
+namespace key
+/-- This device's content keys for c (local). -/
+def byCommunity : Rel Fact := ⟨"key", "byCommunity", fun | .key c .. => some [c] | _ => none⟩
+/-- This device's content key by id (local). -/
+def byId : Rel Fact := ⟨"key", "byId", fun | .key _ i _ => some [i] | _ => none⟩
+end key
 
 namespace profile
 def byUser : Rel Fact := ⟨"profile", "byUser", fun | .profile c u .. => some [c, u] | _ => none⟩
@@ -423,7 +452,7 @@ def rels : List (Rel Fact) :=
   [admission.byDevice, admission.all, removal.byUser, admin.byUser, message.all, message.byAuthor,
    wrap.byContentKey, profile.byUser, profile.all, react.byMessage, react.byMessageEmoji,
    request.all, approval.byRequest, secret.byKey, secret.all, accepted.all, joining.all, named.current,
-   abandoned.byRequest]
+   abandoned.byRequest, wrap.byRecipient, key.byCommunity, key.byId]
 
 /-- The keys a fact is filed under: its relations'. -/
 def keys : Fact → List ByteArray := keysOf rels
@@ -446,7 +475,7 @@ instance : SortKey Fact := ⟨sortOf⟩
 acceptances and its joins are, never sent or taken; everything else is
 shared in its community. -/
 def Body.isLocal : Body → Bool
-  | .secret .. | .accept .. | .joining .. | .abandon => true
+  | .secret .. | .accept .. | .joining .. | .abandon | .key .. => true
   | _ => false
 
 /-- The community an op is about: a root founds its own; every other op

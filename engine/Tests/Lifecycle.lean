@@ -43,10 +43,32 @@ def main (args : List String) : IO UInt32 := do
   let fromPeer (db : Db) (ops : List Op) : IO Unit := (receive fam (intake fam false ops)).run db
 
   -- A founds Acme as Ann: the secret, the root, the acceptance, the
-  -- name, A's profile.
-  let w := found seedA "Acme".toUTF8 "Ann".toUTF8 1
+  -- name, A's profile, and the community's content key, wrapped to A.
+  let kA := sha256 "Acme's content key".toUTF8
+  let w := found seedA "Acme".toUTF8 "Ann".toUTF8 1 kA (sha256 "esk 1".toUTF8)
   mine a w
   let c := (root dA).id
+  let kid := kidOf cryptoSeal kA
+  t.ok "A holds the content key" ((← rows a (key.byId.query [kid])).any fun (_, f) => f == .key c kid kA)
+  t.ok "and its wrap to A's device is stored"
+    ((← rows a (wrap.byRecipient.query [c, dA.enc])).length == 1)
+  t.ok "A's device key is a real X25519 key" (dA.enc.size == 32 && cryptoSeal.pub dA.encSecret == dA.enc)
+  -- A posts: the text is sealed; the op and its fact hold only ciphertext.
+  let nonce := (sha256 "nonce 1".toUTF8).extract 0 24
+  let wpost := send c c seedA kA nonce "hello from Ann".toUTF8 3 []
+  mine a wpost
+  let msgs ← rows a (message.all.query [c])
+  let sealed := msgs.findSome? fun (_, f) => match f with
+    | .message _ _ _ k s _ _ => if k == kid then some s else none
+    | _ => none
+  t.ok "A's post is Valid, under the key's id" sealed.isSome
+  let ct := sealed.getD .empty
+  let plain := "hello from Ann".toUTF8
+  t.ok "its stored body is not the plaintext"
+    (ct.size == 24 + plain.size + 16 && ct.extract 24 (24 + plain.size) != plain)
+  t.ok "A opens it with the key" (openSealed cryptoSeal c kid ct kA == some "hello from Ann".toUTF8)
+  t.ok "another key does not open it"
+    ((openSealed cryptoSeal c kid ct (sha256 "other".toUTF8)).isNone)
   let annOn (db : Db) : IO Bool := do
     return (← rows db (profile.byUser.query [c, c])).any fun (_, f) => match f with
       | .profile _ _ nm _ _ => nm == "Ann".toUTF8 | _ => false
@@ -83,8 +105,9 @@ def main (args : List String) : IO UInt32 := do
   t.ok "A sees the request pending" ((← rows a (request.all.query [c])).length == 1)
 
   -- A approves: its approval completes the tally, so it admits B.
-  let wa ← ((approveReq c req.id c seedA).run : SqlM Fact Write).run a
-  t.ok "approving composes the approval and the admission" (wa.ops.length == 2)
+  let wa ← ((approveReq c req.id c seedA (sha256 "esk 2".toUTF8)).run : SqlM Fact Write).run a
+  t.ok "approving composes the approval, the admission and the key's wrap to B"
+    (wa.ops.length == 3)
   mine a wa
   t.ok "A now lets B in" (← ((allowPeer c dB.pk).run : SqlM Fact Bool).run a)
 
@@ -102,6 +125,22 @@ def main (args : List String) : IO UInt32 := do
   t.ok "B shows the new name" (name3.map (·.2) == [.named c c "Acme Corp".toUTF8 2])
   t.ok "A's secret never reached B" ((← rows b (secret.byKey.query [dA.pk])).isEmpty)
   t.ok "B shows A as Ann" (← annOn b)
+  -- B opens the key wrapped to it, and with it A's post.
+  t.ok "before unwrapping, B holds no key" ((← rows b (key.byId.query [kid])).isEmpty)
+  let wu ← ((unwrap c seedB).run : SqlM Fact Write).run b
+  t.ok "B unwraps one key, A's" (wu.ops.length == 1)
+  mine b wu
+  let kB := (← rows b (key.byId.query [kid])).findSome? fun (_, f) => match f with
+    | .key _ _ k => some k | _ => none
+  t.ok "B now holds Acme's content key" (kB == some kA)
+  let ctB := (← rows b (message.all.query [c])).findSome? fun (_, f) => match f with
+    | .message _ _ _ _ s _ _ => some s | _ => none
+  t.ok "B opens A's post" ((ctB.bind fun s => kB.bind fun k => openSealed cryptoSeal c kid s k)
+    == some "hello from Ann".toUTF8)
+  let wu2 ← ((unwrap c seedB).run : SqlM Fact Write).run b
+  t.ok "unwrapping again writes nothing" wu2.ops.isEmpty
+  t.ok "A's content key travelled only wrapped: B holds it as its own local op"
+    ((← rows b (key.byCommunity.query [c])).length == 1)
 
   -- Admitted, B introduces itself by the name it joined with, once.
   let wp ← ((introduce c seedB 5).run : SqlM Fact Write).run b

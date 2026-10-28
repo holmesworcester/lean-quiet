@@ -75,7 +75,7 @@ def main (args : List String) : IO UInt32 := do
   let dA := Device.ofSeed a.seed
   let dB := Device.ofSeed b.seed
   -- A founds and invites at its address; B joins from the link.
-  a.run.write (found a.seed "Acme".toUTF8 "Ann".toUTF8 1).ops
+  a.run.write (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (sha256 "key".toUTF8) (sha256 "esk".toUTF8)).ops
   let c := (root dA).id
   let (wi, link) := inviteTo c c a.seed (sha256 "bearer".toUTF8) [a.addr]
   a.run.write wi.ops

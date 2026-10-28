@@ -16,7 +16,9 @@ export Engine (sha256)
 
 def ed25519 : Crypto := ⟨fun pk m s => edVerify pk m s, fun seed => (edKeypair seed).extract 0 32⟩
 
-/-- A device: its signing key pair and its encryption key. -/
+/-- A device: its Ed25519 signing key pair, and its X25519 encryption
+key (the conversion of the signing key), which content keys are wrapped
+to. -/
 structure Device where
   pk : Key
   sk : ByteArray
@@ -26,7 +28,10 @@ structure Device where
 /-- A device from a 32-byte seed (tests derive seeds from names). -/
 def Device.ofSeed (seed : ByteArray) : Device :=
   let kp := edKeypair seed
-  ⟨kp.extract 0 32, kp.extract 32 96, sha256 ("enc".toUTF8 ++ seed)⟩
+  ⟨kp.extract 0 32, kp.extract 32 96, Crypto.staticPubOf (kp.extract 0 32)⟩
+
+/-- A device's X25519 secret: what opens keys wrapped to it. -/
+def Device.encSecret (d : Device) : ByteArray := Crypto.staticOf d.sk
 
 def Device.named (name : String) : Device := Device.ofSeed (sha256 name.toUTF8)
 
@@ -36,6 +41,7 @@ def Body.tag : Body → UInt8
   | .profile .. => 7 | .blob .. => 8 | .react .. => 9
   | .approve .. => 10 | .admit => 11
   | .accept .. => 13 | .joining .. => 14 | .secret .. => 15 | .name .. => 16 | .abandon => 17
+  | .key .. => 18
 
 /-- The op with these requirements and body, named by its bytes' hash. -/
 def mkOp (reqs : List Id) (b : Body) : Op := Op.make b.tag reqs (encode b)
@@ -97,6 +103,24 @@ def react (c adm target : Id) (by_ : Device) (emoji : ByteArray) (time : Nat) : 
   mkOp reqs (.react emoji time (sig by_.sk reqs (.react emoji time .empty)))
 
 def wrap (c : Id) (ckey recipient box : ByteArray) : Op := mkOp [c] (.wrap ckey recipient box)
+
+/-! ## Content keys and sealed bodies (`Community.Keys`) -/
+
+/-- This device's copy of c's content key k (local). -/
+def contentKey (c k : ByteArray) : Op := mkOp [] (.key c k)
+
+/-- Content key k of c wrapped to the device whose X25519 key is `to`,
+with a fresh ephemeral secret `esk`. -/
+def wrapKey (c : Id) (k esk to : ByteArray) : Op :=
+  let kid := kidOf cryptoSeal k
+  wrap c kid to (box cryptoSeal esk to kid k)
+
+/-- A post whose text is sealed under content key k with a fresh
+24-byte nonce n: its sealed bytes are the nonce, then the ciphertext. -/
+def sealedPost (c adm : Id) (by_ : Device) (k n text : ByteArray) (time : Nat := 0)
+    (atts : List Id := []) : Op :=
+  let kid := kidOf cryptoSeal k
+  post c adm by_ kid (n ++ sealBody cryptoSeal k n c kid text) time atts
 
 /-- This device's secret seed (local). -/
 def secret (seed : ByteArray) : Op := mkOp [] (.secret (Device.ofSeed seed).pk seed)

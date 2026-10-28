@@ -96,3 +96,8 @@ open Engine Community
 #print axioms Engine.purge_inv
 #print axioms Engine.purge_settles
 #print axioms Engine.reach_ops
+#print axioms Community.unbox_box
+#print axioms Community.openBody_sealBody
+#print axioms Community.check_reads_shared
+#print axioms Community.openSealed_seal
+#print axioms Community.member_opens
