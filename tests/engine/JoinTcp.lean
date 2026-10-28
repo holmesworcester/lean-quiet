@@ -24,6 +24,12 @@ crypto. What a phone does, without the phone.
   anything for it, and answers nothing (`bare_takes_only_join`,
   `answer_trusted`). Negative control: the deliver step as it was
   before the fix, run on A's database, takes the post.
+- A rejoin is dialed beside an open session: A and B also share a
+  second community, so their one session stays open after the removal.
+  B, holding its removal, joins again as a new device; its request goes
+  bare beside the session, A approves it, and B is let in again
+  (`rejoin_dials`). Negative control: the dial rule before the fix, run
+  on B's database, would not dial it.
 
 Each step is read from the runners' databases through a second
 connection (SQLite's WAL lets it read beside the runner's writer).
@@ -83,6 +89,22 @@ def oldDeliver : SqlM F (List Op) := do
       let some o := Op.decode b | continue
       if decide (fam.scope o = .shared c) && (← (Store.getOp o.id : SqlM F _)).isNone then
         out := o :: out
+  return out
+
+/-- The dial rule before the rejoin fix: a pending join was skipped while
+a session to the inviter was open and the inviter was let in for c.
+What it would dial, as hints. The negative control. -/
+def oldDial : SqlM F (List ByteArray) := do
+  let joins : Answer F ← Lists.list (Community.joining.all.query [])
+  let mut out := []
+  for (_, f) in joins.lefts do
+    let .joining c inviter hints _ _ d _ := f | continue
+    let some hint := hints.head? | continue
+    let some (me, _) ← ((Community.mine c).liftL : View F _).run | continue
+    if me ≠ d then continue
+    if ← (connectedTo inviter : SqlM F Bool) then
+      if ← ((Community.allowPeer c inviter).liftL : View F Bool).run then continue
+    out := hint :: out
   return out
 
 def allowedOn (s : Peer) (c d : ByteArray) : IO Bool :=
@@ -150,6 +172,22 @@ def main (args : List String) : IO UInt32 := do
   a.run.write [p]
   let streamed ← waitFor 10000 (stored b p.id)
   t.ok "tcp: a later post reaches B" streamed.isSome
+  -- A second community between the same nodes: one session carries both.
+  let seedA2 := sha256 "seed A, second".toUTF8
+  a.run.write (← viewOn a (found seedA2 "Zed".toUTF8 "Ann".toUTF8 2 (sha256 "key Z".toUTF8)
+    (sha256 "esk Z".toUTF8) (sha256 "unused".toUTF8))).ops
+  let c' := (root (Device.ofSeed seedA2) a.key).id
+  let _ ← waitFor 10000 (stored a c')
+  let some (wiZ, linkZ) ← viewOn a (inviteTo c' c' seedA2 (sha256 "bearer Z".toUTF8) [a.addr])
+    | t.ok "tcp: A invites to Zed" false; stopAll
+  a.run.write wiZ.ops
+  let seedB2 := sha256 "seed B, second".toUTF8
+  b.run.write (← viewOn b (join linkZ seedB2 "Bea".toUTF8 (sha256 "unused".toUTF8))).ops
+  let reqZ := linkZ.request (Device.ofSeed seedB2) b.key
+  let _ ← waitFor 10000 (stored a reqZ.id)
+  a.run.write (← look a ((approveReq c' reqZ.id c' seedA2).liftL.run : SqlM F Community.Write)).ops
+  let inZed ← waitFor 20000 (allowedOn b c' b.key)
+  t.ok "tcp: B joins a second community of A's, over its node key" inZed.isSome
   IO.println s!"jointcp: opened in {opened}, established in {est}, admitted in {admitted}, post in {streamed} (ms)"
   -- A removes B, on the live session.
   let adms ← look a ((Community.admission.byDevice.read [c, dB.pk]).liftL.run : SqlM F (Answer Community.Fact))
@@ -190,6 +228,37 @@ def main (args : List String) : IO UInt32 := do
     let before ← look a oldDeliver
     t.ok "tcp: negative control: the deliver step before the fix takes it from that same store"
       (before.any (·.id == q2.id))
+    -- A rejoin beside an open session. B comes to hold its removal (the
+    -- notice will carry it; written here by hand): its entry for c is
+    -- not held, and its session with A stays open for Zed.
+    b.run.write [rm]
+    let dropped ← waitFor 5000 do return (← viewOn b (Community.mine c)).isNone
+    t.ok "tcp: B, holding its removal, holds c no more" dropped.isSome
+    t.ok "tcp: and its session with A stays open for the community they still share"
+      ((← ests b).length == 1 && (← allowedOn b c a.key))
+    let some (wi3, link3) ← viewOn a (inviteTo c c a.seed (sha256 "bearer 3".toUTF8) [a.addr])
+      | t.ok "tcp: A invites B again" false; let _ ← stopAll
+    a.run.write wi3.ops
+    let seedB3 := sha256 "seed B, rejoined".toUTF8
+    let dB3 := Device.ofSeed seedB3
+    b.run.write (← viewOn b (join link3 seedB3 "Bea".toUTF8 (sha256 "unused".toUTF8))).ops
+    let req3 := link3.request dB3 b.key
+    let _ ← waitFor 5000 do return (← viewOn b (Community.mine c)).isSome
+    let now ← look b (dial K b.addr 0 : SqlM F (List Op))
+    t.ok "tcp: today's dial, on B's store, sends the rejoin request beside the open session"
+      (now.any fun o => match (Codec.decode o.body : Option Connection.Body) with
+        | some (.send h) => h == a.addr
+        | _ => false)
+    let before ← look b oldDial
+    t.ok "tcp: negative control: the dial rule before the fix would not send it" before.isEmpty
+    let reached ← waitFor 10000 (stored a req3.id)
+    t.ok "tcp: B's rejoin request reaches A bare, beside the open session" reached.isSome
+    a.run.write (← look a ((approveReq c req3.id c a.seed).liftL.run : SqlM F Community.Write)).ops
+    let back ← waitFor 20000 do
+      return (← viewOn b (Community.mine c)).map (·.1) == some dB3.pk && (← allowedOn b c b.key)
+    t.ok "tcp: approved, B is in c again as its new device, by its own ops" back.isSome
+    t.ok "tcp: and A lets B's node in again" (← allowedOn a c b.key)
+    IO.println s!"jointcp: rejoin request reached A in {reached} ms, B back in {back} ms"
   a.run.stop
   b.run.stop
   let code ← t.finish "jointcp"

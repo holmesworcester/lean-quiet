@@ -24,14 +24,14 @@ community its hello named.
 - **establish**: a connection answering one of this node's requests,
   with no `established`, gets this side's.
 
-`dial`, on a tick: for each pending join, this node's request to the
-inviter's key is resent on a courier to the link's first hint, or
-composed if there is none yet, while no session to the inviter's key is
-open, or while one is but the inviter has not let this node into c (its
-key is not let in for c here: the inviter carries nothing of c for the
-joiner before it approves, so the request goes bare, beside a session
-open for other communities). A tick is the retry: lean-net's "the
-joiner re-sends the same hello every tick".
+`dial`, on a tick: for each pending join of this node's own entry, its
+request to the inviter's key (the one whose hello delivers the join's
+request) is resent on a courier to the link's first hint, or composed
+if there is none yet: while the join's device is not admitted, until a
+connection answers it, beside an open session or not; once admitted,
+while no session to the inviter is open (`rejoin_dials`,
+`reconnect_dials`). A tick is the retry: lean-net's "the joiner
+re-sends the same hello every tick".
 
 `closing cid`: what a closed session purges: the connection and its
 request. Purge takes every dependent with them.
@@ -265,15 +265,31 @@ def react (fam : Family F) (K : Keys) : m (List Op) := do
   let o4 ← establishAll eps
   return o1 ++ o2 ++ o3 ++ o4
 
-/-- The community a request of this node's names in its hello, recovered
-from its own message 1 with its ephemeral (`sent1`, as `established`
-does). -/
-def helloOf (K : Keys) (sk : B) (r to m1 : B) : m (Option B) := do
+/-- The hello a request of this node's sealed (community, address, op
+bytes), recovered from its own message 1 with its ephemeral (`sent1`,
+as `established` does). -/
+def helloOf (K : Keys) (sk : B) (r to m1 : B) : m (Option (B × B × List B)) := do
   match ← rows eph.byOf [r] with
   | (_, .eph _ _ e) :: _ =>
     return (Noise.sent1 K.suite prologue sk e to m1).bind fun (_, p1) =>
-      (decode p1 : Option (B × B × List B)).map (·.1)
+      (decode p1 : Option (B × B × List B))
   | _ => return none
+
+/-- Whether a hello delivers the op `req`. -/
+def delivers (req : Id) : Option (B × B × List B) → Bool
+  | some (_, _, ops) => ops.any fun b => (Op.decode b).any (·.id == req)
+  | none => false
+
+/-- Of these requests of this node's, the one to `inviter` whose hello
+delivers the join request `req`: the request a pending join is sent as. -/
+def requestOf (K : Keys) (sk inviter : B) (req : Id) : List (Id × Fact) → m (Option Id)
+  | [] => pure none
+  | (r, .request t _ m1) :: rest => do
+    if t = inviter then
+      let h ← helloOf K sk r inviter m1
+      if delivers req h then return some r
+    requestOf K sk inviter req rest
+  | _ :: rest => requestOf K sk inviter req rest
 
 /-- Whether this node holds a session with the node whose key is `peer`. -/
 def connectedTo (peer : B) : m Bool := do
@@ -281,34 +297,57 @@ def connectedTo (peer : B) : m Bool := do
     | .established _ _ p .. => decide (p = peer)
     | _ => false
 
-/-- `listen` is this node's own address, put in its hellos. Only the
-store's own entry for c (`mine`) is dialed; a join this device stopped
-waiting on (`abandon`) is not, and neither is a cut device's. -/
+/-- What a tick sends for one pending join of community c, by device d,
+to the inviter's key at the link's first hint, if this node is in c as d
+(`mine`: a join stopped waiting on is not, nor a cut device's):
+- **waiting** (d not admitted here): the request whose hello delivers
+  this join's request, resent, or composed if this node holds none,
+  until a connection answers it, beside an open session or not (a
+  session may be open for other communities, or carry c's old ops after
+  a removal: the inviter takes a new device's request only bare);
+- **admitted**: the same, while no session to the inviter is open, so a
+  dropped session is dialed again. -/
+def dialOne (K : Keys) (listen pk sk : B) : Community.Fact → m (List Op)
+  | .joining c inviter hints req _ d _ => do
+    let some hint := hints.head? | return []
+    let some (me, _) ← ((Community.mine c).liftL : View F _).run | return []
+    if me ≠ d then return []
+    let adm : Answer F ← Lists.list (m := m) (Community.admission.byDevice.query [c, d] (limit := some 0))
+    let r? ← requestOf K sk inviter req (← rows request.byFrm [pk])
+    let skip ← if adm.total ≠ 0 then connectedTo inviter else
+      match r? with
+      | some r => do
+        let n ← count connection.byRequest [r]
+        pure (decide (n ≠ 0))
+      | none => pure false
+    if skip then return []
+    match r? with
+    | some r =>
+      let ro ← Store.getOp (m := m) r
+      return match ro with
+        | some ro => [Send.op hint ro]
+        | none => []
+    | none =>
+      let some jr ← Store.getOp (m := m) req | return []
+      let e ← Fresh.fresh
+      return match Request.op K sk inviter e (hello c listen [jr]) with
+        | some ro => [ro, Eph.op e ro.id, Send.op hint ro]
+        | none => []
+  | _ => return []
+
+def dialAll (K : Keys) (listen pk sk : B) : List (Pos × Community.Fact) → m (List Op)
+  | [] => pure []
+  | (_, f) :: rest => do
+    let a ← dialOne K listen pk sk f
+    let b ← dialAll K listen pk sk rest
+    return a ++ b
+
+/-- `listen` is this node's own address, put in its hellos; each pending
+join is dialed as `dialOne` says, from this node's key. -/
 def dial (K : Keys) (listen : B) (_now : Nat) : m (List Op) := do
   let some (pk, sk, _) := (← endpoints).head? | return []
-  let mut out : Array Op := #[]
   let joins : Answer F ← Lists.list (m := m) (Community.joining.all.query [])
-  for (_, f) in joins.lefts do
-    let .joining c inviter hints req _ d _ := f | continue
-    let some hint := hints.head? | continue
-    let some (me, _) ← ((Community.mine c).liftL : View F _).run | continue
-    if me ≠ d then continue
-    if ← connectedTo inviter then
-      if ← ((Community.allowPeer c inviter).liftL : View F Bool).run then continue
-    let mut mineTo : Option Id := none
-    for (r, g) in ← rows request.byFrm [pk] do
-      let .request t _ m1 := g | continue
-      if t ≠ inviter then continue
-      if (← helloOf K sk r inviter m1) = some c then mineTo := some r
-    match mineTo with
-    | some r =>
-      if let some ro ← Store.getOp (m := m) r then out := out.push (Send.op hint ro)
-    | none =>
-      let some jr ← Store.getOp (m := m) req | continue
-      let e ← Fresh.fresh
-      let some ro := Request.op K sk inviter e (hello c listen [jr]) | continue
-      out := out ++ #[ro, Eph.op e ro.id, Send.op hint ro]
-  return out.toList
+  dialAll K listen pk sk joins.lefts
 
 /-- What closing connection cid purges: the connection and the request
 it answers. Purge takes every dependent with them: the ephemerals, the

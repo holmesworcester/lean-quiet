@@ -130,10 +130,12 @@ between two nodes carries a room for every community both hold
 still names one community: it is the community the responder checks
 trust for before answering, and the one a joiner's request rides in.
 Since a session may already exist for other communities, a pending
-join is dialed while its device is not admitted, not while no session
-exists. The request is the same op each time, so the responder opens it
-once and answers once it trusts the joiner; `kept` then keeps one of
-the two sessions.
+join is sent until a connection answers its request, beside an open
+session or not (`rejoin_dials`); an admitted join is dialed again only
+while no session is open (`reconnect_dials`). The request is the one
+whose hello delivers the join's request, the same op each time, so the
+responder opens it once and answers once it trusts the joiner; `kept`
+then keeps one of the two sessions.
 
 **Content keys** are wrapped to `enc`, as they are now, so to the node's
 key. Every device on a node is that node's: the node holds all their
@@ -247,6 +249,15 @@ Built and proven, on lq main's layout:
   join and refuses an admitted seed, and `introduce` names this device's
   join. Laws: `mine_not_removed`, `rejoin_fresh`, `join_new_device`,
   `removed_stays_removed`. Tested in `lifecycle`.
+- **Dialing a join**: a pending join of this node's own entry is sent as
+  the request whose hello delivers the join's request, while its device
+  is not admitted, until a connection answers it, beside an open
+  session or not; once admitted, while no session to the inviter is
+  open. Laws: `rejoin_dials`, `reconnect_dials`. Tested in `jointcp`: B,
+  removed from c but sharing another community with A over one open
+  session, rejoins c as a new device; negative control: the rule before
+  (skip while a session is open and the inviter is let in) would not
+  send it.
 - **The bare path** (E2's other side): `react` takes only join requests
   from a hello, answers only the trusted, and `onArrival` re-sends only
   to the trusted. Laws: `bare_takes_only_join`, `answer_trusted`,
@@ -284,10 +295,6 @@ Found on the way, in Conn (a3's), for that step:
   frame heard; after a quiet spell longer than `patience`, a dialer
   drops a healthy session at its next round. The lossy join in
   `connection_check` hit it once the session outlived 30 s.
-- A node removed from c but still sharing another community with the
-  inviter, session open, does not dial a rejoin of c: it already holds
-  the inviter's ops of c, so `dial` takes the session for c's. It dials
-  once that session closes.
 
 ## Changes to code others own
 

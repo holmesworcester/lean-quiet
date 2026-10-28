@@ -299,9 +299,10 @@ or op code (ops/connection/, one file per op type).
   only a hello's join request of its community (`bare_takes_only_join`),
   answers only peers the trust rule admits (`answer_trusted`), and
   establishes. `onArrival` re-sends an answer only to a trusted peer
-  (`resend_trusted`). `dial` resends a pending join's request every tick,
-  while no session to the inviter is open or the inviter has not let
-  this node into the community. Both are views over lists
+  (`resend_trusted`). `dial` resends a pending join's request every tick
+  until a connection answers it, beside an open session or not, and an
+  admitted join's while no session to the inviter is open
+  (`rejoin_dials`, `reconnect_dials`). Both are views over lists
   returning ops, generic in the monad (`Lists`, `Store`, `Fresh`), so
   they run on SQLite and on the model.
 

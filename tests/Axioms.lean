@@ -350,3 +350,8 @@ end net
 #print axioms Connection.rooms_complete
 #print axioms Connection.roomsV_nil
 #print axioms Connection.notice_then_cut
+#print axioms Connection.requestOf_state
+#print axioms Connection.dialOne_sends
+#print axioms Connection.dialOne_state
+#print axioms Connection.rejoin_dials
+#print axioms Connection.reconnect_dials

@@ -912,6 +912,232 @@ theorem resend_trusted (s : DB F) (addr : B) (o : Op) (at_ : Nat) (q : Op) (a : 
     · exact (hfirst _ hq).elim
   · exact (hfirst _ hq).elim
 
+
+/-! ## A pending join is dialed -/
+
+theorem helloOf_state (K : Keys) (sk r to m1 : B) (s : DB F) :
+    ((helloOf K sk r to m1 : Model F _).run s).2 = s := by
+  simp only [helloOf, Model.run_bind, run_rows]
+  split <;> rfl
+
+theorem requestOf_state (K : Keys) (sk inviter : B) (req : Id) :
+    ∀ (rs : List (Id × Fact)) (s : DB F), ((requestOf K sk inviter req rs : Model F _).run s).2 = s
+  | [], _ => rfl
+  | (r, f) :: rest, s => by
+    cases f with
+    | request t frm m1 =>
+      simp only [requestOf, Model.run_bind]
+      by_cases ht : t = inviter
+      · rw [if_pos ht]
+        simp only [Model.run_bind, Model.run_pure]
+        rw [helloOf_state]
+        split
+        · rfl
+        · exact requestOf_state K sk inviter req rest s
+      · rw [if_neg ht]; exact requestOf_state K sk inviter req rest s
+    | _ => exact requestOf_state K sk inviter req rest s
+
+/-- The request a pending join is sent as, read at s. -/
+def requestAt (K : Keys) (s : DB F) (pk sk inviter : B) (req : Id) : Option Id :=
+  ((requestOf K sk inviter req ((rows request.byFrm [pk] : Model F _).run s).1 : Model F _).run s).1
+
+/-- What sending a pending join needs here: its request is stored (and,
+while waiting, unanswered: no connection cites it); or this node holds
+none, holds the join's request, and message 1 seals to the inviter's
+key. -/
+def Unanswered (K : Keys) (listen : B) (s : DB F) (pk sk c inviter : B) (req : Id) (waiting : Bool) : Prop :=
+  match requestAt K s pk sk inviter req with
+  | some r => (waiting = true → (Engine.eval s (connection.byRequest.query [r] (limit := some 0))).total = 0) ∧
+      (s.ops r).isSome
+  | none => ∃ jr, s.ops req = some jr ∧ ∀ e, (Request.op K sk inviter e (hello c listen [jr])).isSome
+
+/-- `dialOne` sends a courier to the hint when it does not skip. -/
+theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint : B} {hs : List B}
+    {req : Id} {nm d : B} {n : Nat} {a : Id} {waiting : Bool}
+    (hm : ((Community.mine c).liftL : View F _).eval s = some (d, a))
+    (hw : waiting = decide ((Engine.eval s (Community.admission.byDevice.query [c, d]
+      (limit := some 0))).total = 0))
+    (hskip : waiting = false → ((connectedTo inviter : Model F Bool).run s).1 = false)
+    (hu : Unanswered K listen s pk sk c inviter req waiting) :
+    ∃ ro, Send.op hint ro ∈
+      ((dialOne K listen pk sk (.joining c inviter (hint :: hs) req nm d n) : Model F (List Op)).run s).1 := by
+  simp only [dialOne, List.head?_cons, Model.run_bind]
+  rw [run_view, hm]
+  simp only [ne_eq, not_true_eq_false, ite_false, Model.run_bind]
+  have hl : ((Lists.list (m := Model F) (Community.admission.byDevice.query [c, d] (limit := some 0)) :
+      Model F (Answer F)).run s) =
+      (Engine.eval s (Community.admission.byDevice.query [c, d] (limit := some 0)), s) := rfl
+  rw [hl]
+  simp only [Model.run_bind, run_rows]
+  rw [requestOf_state]
+  unfold Unanswered requestAt at hu
+  rw [run_rows] at hu
+  generalize ((requestOf K sk inviter req _ : Model F (Option Id)).run s).1 = r? at hu ⊢
+  cases hwt : waiting
+  · -- admitted: dialed while not connected
+    have hz : ¬ (Engine.eval s (Community.admission.byDevice.query [c, d] (limit := some 0))).total = 0 := by
+      intro h; rw [hwt, h] at hw; cases hw
+    rw [if_pos hz, Model.run_bind]
+    have hc := hskip hwt
+    have hcs : ((connectedTo inviter : Model F Bool).run s).2 = s := rfl
+    rw [hcs, hc]
+    simp only [Bool.false_eq_true, ite_false]
+    cases r? with
+    | some r =>
+      obtain ⟨_, ho⟩ := hu
+      simp only [Model.run_bind, run_getOp, Model.run_pure]
+      obtain ⟨ro, hro⟩ := Option.isSome_iff_exists.1 ho
+      rw [hro]; exact ⟨ro, List.mem_singleton_self _⟩
+    | none =>
+      obtain ⟨jr, hjr, hop⟩ := hu
+      simp only [Model.run_bind, run_getOp]
+      rw [hjr]
+      obtain ⟨ro, hro⟩ := Option.isSome_iff_exists.1 (hop ((Fresh.fresh : Model F B).run s).1)
+      simp only [Model.run_bind, Model.run_pure]
+      rw [hro]
+      exact ⟨ro, by simp⟩
+  · -- waiting: sent until answered
+    have hz : (Engine.eval s (Community.admission.byDevice.query [c, d] (limit := some 0))).total = 0 := by
+      rw [hwt] at hw; exact of_decide_eq_true hw.symm
+    rw [if_neg (fun h => h hz)]
+    cases r? with
+    | some r =>
+      obtain ⟨hn, ho⟩ := hu
+      simp only [Model.run_bind, Model.run_pure]
+      have hc : ((count connection.byRequest [r] : Model F Nat).run s).1 = 0 := hn hwt
+      have hcs : ((count connection.byRequest [r] : Model F Nat).run s).2 = s := rfl
+      rw [hcs, hc]
+      simp only [ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true, ite_false, Model.run_bind,
+        run_getOp, Model.run_pure]
+      obtain ⟨ro, hro⟩ := Option.isSome_iff_exists.1 ho
+      rw [hro]; exact ⟨ro, List.mem_singleton_self _⟩
+    | none =>
+      obtain ⟨jr, hjr, hop⟩ := hu
+      simp only [Model.run_pure, Bool.false_eq_true, ite_false, Model.run_bind, run_getOp]
+      rw [hjr]
+      obtain ⟨ro, hro⟩ := Option.isSome_iff_exists.1 (hop ((Fresh.fresh : Model F B).run s).1)
+      simp only [Model.run_bind, Model.run_pure]
+      rw [hro]
+      exact ⟨ro, by simp⟩
+
+theorem dialOne_state (hfr : FreshPure) (K : Keys) (listen pk sk : B) (f : Community.Fact) (s : DB F) :
+    ((dialOne K listen pk sk f : Model F (List Op)).run s).2 = s := by
+  cases f with
+  | joining c inviter hints req nm d n =>
+    cases hints with
+    | nil => rfl
+    | cons hint hs =>
+      simp only [dialOne, List.head?_cons, Model.run_bind]
+      rw [run_view]
+      cases hm : ((Community.mine c).liftL : View F _).eval s with
+      | none => rfl
+      | some da =>
+        obtain ⟨me, a⟩ := da
+        by_cases hme : me = d
+        · subst hme
+          simp only [ne_eq, not_true_eq_false, ite_false, Model.run_bind]
+          have hl : ((Lists.list (m := Model F) (Community.admission.byDevice.query [c, me]
+              (limit := some 0)) : Model F (Answer F)).run s).2 = s := rfl
+          rw [hl, run_rows]
+          simp only [Model.run_bind]
+          rw [requestOf_state]
+          generalize ((requestOf K sk inviter req _ : Model F (Option Id)).run s).1 = r?
+          generalize ((Lists.list (m := Model F) (Community.admission.byDevice.query [c, me]
+              (limit := some 0)) : Model F (Answer F)).run s).1 = adm
+          by_cases hz : adm.total ≠ 0
+          · rw [if_pos hz, Model.run_bind]
+            have hcs : ((connectedTo inviter : Model F Bool).run s).2 = s := rfl
+            rw [hcs]
+            cases hb : ((connectedTo inviter : Model F Bool).run s).1
+            · simp only [Bool.false_eq_true, ite_false]
+              cases r? with
+              | some r => simp only [Model.run_bind, run_getOp, Model.run_pure]
+              | none =>
+                simp only [Model.run_bind, run_getOp]
+                cases hj : s.ops req with
+                | none => rfl
+                | some jr => simp only [Model.run_bind, Model.run_pure]; exact hfr s
+            · rfl
+          · rw [if_neg hz]
+            cases r? with
+            | some r =>
+              simp only [Model.run_bind, Model.run_pure]
+              have hcs : ((count connection.byRequest [r] : Model F Nat).run s).2 = s := rfl
+              rw [hcs]
+              by_cases hn : ((count connection.byRequest [r] : Model F Nat).run s).1 ≠ 0
+              · simp only [hn, decide_true, ite_true]; rfl
+              · simp only [hn, decide_false, Bool.false_eq_true, ite_false, Model.run_bind, run_getOp,
+                  Model.run_pure]
+            | none =>
+              simp only [Model.run_pure, Bool.false_eq_true, ite_false, Model.run_bind, run_getOp]
+              cases hj : s.ops req with
+              | none => rfl
+              | some jr => simp only [Model.run_bind, Model.run_pure]; exact hfr s
+        · simp only [ne_eq, hme, not_false_eq_true, ite_true, Model.run_pure]
+  | _ => rfl
+
+theorem dialAll_mem (hfr : FreshPure) (K : Keys) (listen pk sk : B) :
+    ∀ (rows : List (Pos × Community.Fact)) (s : DB F) (p : Pos) (f : Community.Fact) (o : Op),
+      (p, f) ∈ rows → o ∈ ((dialOne K listen pk sk f : Model F (List Op)).run s).1 →
+      o ∈ ((dialAll K listen pk sk rows : Model F (List Op)).run s).1
+  | [], _, _, _, _, h, _ => by cases h
+  | (q, g) :: rest, s, p, f, o, hm, ho => by
+    simp only [dialAll, Model.run_bind, Model.run_pure, List.mem_append]
+    rcases List.mem_cons.1 hm with he | hm
+    · simp only [Prod.mk.injEq] at he
+      obtain ⟨_, rfl⟩ := he
+      exact Or.inl ho
+    · rw [dialOne_state hfr]
+      exact Or.inr (dialAll_mem hfr K listen pk sk rest s p f o hm ho)
+
+/-- **A pending join is sent until it is answered (`rejoin_dials`).** On
+a node with a key, a pending join of this node's own entry for c, whose
+device is not admitted here, is sent on a tick, to the link's first
+hint, while no connection answers its request: beside an open session
+or not, so a node removed from c that shares another community with the
+inviter dials its rejoin too. -/
+theorem rejoin_dials (K : Keys) (listen : B) (now : Nat) (hfr : FreshPure) (s : DB F)
+    {pk sk : B} {x : Id} {more : List (B × B × Id)}
+    (hk : ((endpoints : Model F _).run s).1 = (pk, sk, x) :: more)
+    {p : Pos} {c inviter hint : B} {hs : List B} {req : Id} {nm d : B} {n : Nat} {a : Id}
+    (hj : (p, Community.Fact.joining c inviter (hint :: hs) req nm d n) ∈
+      (Engine.eval s (Community.joining.all.query [])).lefts)
+    (hm : ((Community.mine c).liftL : View F _).eval s = some (d, a))
+    (hna : (Engine.eval s (Community.admission.byDevice.query [c, d] (limit := some 0))).total = 0)
+    (hu : Unanswered K listen s pk sk c inviter req true) :
+    ∃ ro, Send.op hint ro ∈ ((dial K listen now : Model F (List Op)).run s).1 := by
+  obtain ⟨ro, hro⟩ := dialOne_sends (hint := hint) (hs := hs) (nm := nm) (n := n) K listen pk sk s hm
+    (by simp [hna]) (fun h => by cases h) hu
+  refine ⟨ro, ?_⟩
+  simp only [dial, Model.run_bind]
+  have hs0 : ((endpoints : Model F _).run s).2 = s := rfl
+  rw [hk, hs0]
+  simp only [List.head?_cons, Model.run_bind]
+  exact dialAll_mem hfr K listen pk sk _ s p _ _ hj hro
+
+/-- **A dropped session is dialed again (`reconnect_dials`).** A pending
+join of this node's own entry whose device is admitted is sent while no
+session to the inviter is open. -/
+theorem reconnect_dials (K : Keys) (listen : B) (now : Nat) (hfr : FreshPure) (s : DB F)
+    {pk sk : B} {x : Id} {more : List (B × B × Id)}
+    (hk : ((endpoints : Model F _).run s).1 = (pk, sk, x) :: more)
+    {p : Pos} {c inviter hint : B} {hs : List B} {req : Id} {nm d : B} {n : Nat} {a : Id}
+    (hj : (p, Community.Fact.joining c inviter (hint :: hs) req nm d n) ∈
+      (Engine.eval s (Community.joining.all.query [])).lefts)
+    (hm : ((Community.mine c).liftL : View F _).eval s = some (d, a))
+    (had : (Engine.eval s (Community.admission.byDevice.query [c, d] (limit := some 0))).total ≠ 0)
+    (hc : ((connectedTo inviter : Model F Bool).run s).1 = false)
+    (hu : Unanswered K listen s pk sk c inviter req false) :
+    ∃ ro, Send.op hint ro ∈ ((dial K listen now : Model F (List Op)).run s).1 := by
+  obtain ⟨ro, hro⟩ := dialOne_sends (hint := hint) (hs := hs) (nm := nm) (n := n) K listen pk sk s hm
+    (by simp [had]) (fun _ => hc) hu
+  refine ⟨ro, ?_⟩
+  simp only [dial, Model.run_bind]
+  have hs0 : ((endpoints : Model F _).run s).2 = s := rfl
+  rw [hk, hs0]
+  simp only [List.head?_cons, Model.run_bind]
+  exact dialAll_mem hfr K listen pk sk _ s p _ _ hj hro
+
 end
 
 end Connection
