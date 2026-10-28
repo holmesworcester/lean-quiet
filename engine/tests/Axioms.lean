@@ -21,6 +21,7 @@ open Engine Community
 #print axioms Engine.Sync.recv_send
 #print axioms Engine.Sync.filed_send
 #print axioms Engine.Sync.tick_send
+#print axioms Engine.Sync.spec_local
 #print axioms Engine.run_step
 #print axioms Engine.run_drain
 #print axioms Community.message_authorized

@@ -20,3 +20,4 @@ import Engine.Sync.Conn
 import Engine.Sync.Node
 import Engine.Sync.Pair
 import Engine.Sync.ConnLaws
+import Engine.Sync.Locality

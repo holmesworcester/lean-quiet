@@ -158,6 +158,9 @@ Proven:
 - `recv_send`, `filed_send`, `tick_send`: a connection sends only sync
   wire ops and ops in one of its rooms.
 - `intakeConn_conn`: the bare wire takes conn ops only.
+- `spec_local` (locality): a decided verdict depends only on the op's
+  requirement closure. If a node holds every op the peer's verdict on x
+  was reached from, it reaches the same verdict.
 - From earlier: `intake_local`, `offer_shared`, `stored_local`.
 
 Tested, not yet proven (Tests/SyncPair.lean, on a 101-op community with
@@ -185,13 +188,10 @@ Still to prove:
    `items r` = the stored shared ops of room r, kept by `put`.
 3. **`closure_delivered`.** After a send and its offers are answered,
    the peer holds the op's closure, given the invariant that `known` is
-   a subset of the peer's store.
-4. **`locality`.** If a peer's verdict on op x is v and this node holds
-   x's closure, this node's verdict is v: `specAt` reads only through
-   `reqs`, plus the existing `spec_extends`. Together with 2 and 3 this
-   gives "every op a windowed node holds is judged as its peer judges
-   it", which the tests check.
-5. **Efficiency.** Each op's bytes are sent at most once per
+   a subset of the peer's store. With `spec_local` this gives "every op a
+   windowed node holds is judged as its peer judges it", which the tests
+   check.
+4. **Efficiency.** Each op's bytes are sent at most once per
    connection; each id is offered at most once; each Valid op is walked
    at most once; and the counting bound
    `claims ≤ fan · |A Δ B| · ⌈log_fan n⌉` (a mismatched range must
