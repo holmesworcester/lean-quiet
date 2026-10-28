@@ -452,7 +452,7 @@ def composer (s : St) : Bitmap := Id.run do
   b := b.round (m + k) (m + k) (fx1 - k) (h - m - k) (fr - k) selBg
   let ls := composerLines s
   if s.text.isEmpty then
-    b := b.line s.font (Text.oneLine s.font (textW s) "Message #general") tx ty dim
+    b := b.line s.font (Text.oneLine s.font (textW s) s!"Message {s.me.name}") tx ty dim
   else
     for i in [0:min 5 ls.size] do
       b := b.line s.font ls[i]! tx (ty + lh * i) ink
@@ -580,7 +580,7 @@ def pageOf (s : St) : Pages.Page :=
   | .paste => Pages.paste f dm W h s.field true s.refusal
   | .scan => Pages.scan f dm W h none "No camera is available."
   | .agree => Pages.agree f dm W h "this community"
-  | .waiting => Pages.waiting f dm W h s.me.name
+  | .waiting => Pages.waiting f dm W h (if s.me.waiting then "this community" else s.me.name)
   | .requests => Pages.requests f dm W h ((s.asking.filter fun r => !s.hidden.contains r.id).map fun r =>
       r.row (s.admitting.contains r.id))
   | .invite => Pages.invite f dm W h none ((s.links.find? (·.1 == s.me.c)).map (·.2) |>.getD "…")
@@ -993,7 +993,9 @@ def step (evs : List Event) : M (Option (List Event)) := do
   if let .list a _ ← read (.list (listAll s s.limit)) then
     modify fun s => { s with ids := (a.rows.map (·.1)).toArray, total := a.total }
   let s ← get
-  if let .list a _ ← read (.list { key := Community.profile.all.key [s.me.c], limit := some 0 }) then
+  -- people: the community's admissions (a person's every device counts
+  -- once per device; profiles are optional)
+  if let .list a _ ← read (.list { key := Community.admission.all.key [s.me.c], limit := some 0 }) then
     modify fun s => { s with people := a.total }
   -- 4. the offset, and the rows the frame and the fetch distance need
   let s ← get
