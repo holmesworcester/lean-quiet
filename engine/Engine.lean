@@ -12,3 +12,6 @@ import Engine.View
 import Engine.Sync
 import Engine.Decl
 import Engine.Budget
+import Engine.Sync.Fp
+import Engine.Sync.Round
+import Engine.Sync.RoundLaws
