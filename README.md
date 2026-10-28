@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 404 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 425 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -538,7 +538,7 @@ on the old layout comes over with `ci/reorg-map.tsv` (where each file
 went) and `ci/reorg-imports.py` (its new files' imports).
 
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
-[`Unforgeable`]: ops/community/Laws.lean#L270-L272
+[`Unforgeable`]: ops/community/Laws.lean#L271-L273
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
 [`Distinct`]: engine/core/Proofs.lean#L538-L540
 [`lbl_inj`]: ops/sync/Fp.lean#L264-L268
@@ -546,22 +546,22 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`assumptions_hold`]: ops/community/Merkle.lean#L543-L547
 [`Suite.Good`]: ops/connection/Noise.lean#L61-L65
 [`Keys.Good`]: ops/connection/Types.lean#L32-L36
-[`no_impersonation`]: ops/community/Laws.lean#L289-L302
-[`admission_needs_approval`]: ops/community/Laws.lean#L469-L477
-[`admission_approved`]: ops/community/Laws.lean#L388-L398
-[`request_invited`]: ops/community/Laws.lean#L352-L362
-[`removal_authorized`]: ops/community/Laws.lean#L517-L520
-[`admin_granted`]: ops/community/Laws.lean#L556-L557
-[`removed_stays`]: ops/community/Laws.lean#L563-L566
-[`valid_stays`]: ops/community/Laws.lean#L570-L574
-[`message_authorized`]: ops/community/Laws.lean#L255-L261
-[`approval_signed`]: ops/community/Laws.lean#L371-L381
-[`invitation_issued`]: ops/community/Laws.lean#L337-L343
-[`named_by_admin`]: ops/community/Laws.lean#L608-L610
-[`admission_consented`]: ops/community/Laws.lean#L274-L280
-[`admin_removal_stands`]: ops/community/Laws.lean#L528-L541
-[`mutual_removal`]: ops/community/Laws.lean#L549-L553
-[`removed_approver_admits`]: ops/community/Laws.lean#L488-L499
+[`no_impersonation`]: ops/community/Laws.lean#L290-L303
+[`admission_needs_approval`]: ops/community/Laws.lean#L470-L478
+[`admission_approved`]: ops/community/Laws.lean#L389-L399
+[`request_invited`]: ops/community/Laws.lean#L353-L363
+[`removal_authorized`]: ops/community/Laws.lean#L518-L521
+[`admin_granted`]: ops/community/Laws.lean#L557-L558
+[`removed_stays`]: ops/community/Laws.lean#L564-L567
+[`valid_stays`]: ops/community/Laws.lean#L571-L575
+[`message_authorized`]: ops/community/Laws.lean#L256-L262
+[`approval_signed`]: ops/community/Laws.lean#L372-L382
+[`invitation_issued`]: ops/community/Laws.lean#L338-L344
+[`named_by_admin`]: ops/community/Laws.lean#L609-L611
+[`admission_consented`]: ops/community/Laws.lean#L275-L281
+[`admin_removal_stands`]: ops/community/Laws.lean#L529-L542
+[`mutual_removal`]: ops/community/Laws.lean#L550-L554
+[`removed_approver_admits`]: ops/community/Laws.lean#L489-L500
 [`recv_send`]: ops/sync/ConnLaws.lean#L146-L148
 [`offer_shared`]: engine/core/Sync.lean#L112-L115
 [`wire_kinds`]: ops/connection/Laws.lean#L40-L41
@@ -574,10 +574,10 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`tick_send`]: ops/sync/ConnLaws.lean#L184-L187
 [`recipients_iff`]: ops/community/Connect.lean#L214-L218
 [`members_iff`]: ops/community/Connect.lean#L205-L208
-[`member_opens`]: ops/community/Laws.lean#L928-L932
-[`openSealed_seal`]: ops/community/Laws.lean#L918-L920
+[`member_opens`]: ops/community/Laws.lean#L929-L933
+[`openSealed_seal`]: ops/community/Laws.lean#L919-L921
 [`unbox_box`]: ops/community/Keys.lean#L89-L91
-[`check_reads_shared`]: ops/community/Laws.lean#L839-L841
+[`check_reads_shared`]: ops/community/Laws.lean#L840-L842
 [`kk_secret`]: ops/connection/NoiseSymbolic.lean#L595-L609
 [`kk_secret_init`]: ops/connection/NoiseSymbolic.lean#L547-L556
 [`kk_secret_resp`]: ops/connection/NoiseSymbolic.lean#L561-L569
@@ -606,7 +606,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`sessions_trusted`]: ops/connection/bootstrap/Laws.lean#L63-L68
 [`intake_local`]: engine/core/Sync.lean#L56-L58
 [`stored_local`]: engine/core/Sync.lean#L166-L169
-[`local_fact_mine`]: ops/community/Laws.lean#L627-L631
+[`local_fact_mine`]: ops/community/Laws.lean#L628-L632
 [`intakeConn_conn`]: engine/core/Sync.lean#L51-L52
 [`established_agrees`]: ops/connection/Laws.lean#L51-L61
 [`open_seal`]: ops/connection/Frame.lean#L51-L55
@@ -614,15 +614,15 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Codec.encode_decode`]: engine/core/Codec.lean#L743-L746
 [`Op.id_decode`]: engine/core/Core.lean#L89-L91
 [`distinct_of_collisionFree`]: engine/core/Proofs.lean#L546-L549
-[`op_of_valid`]: ops/community/Laws.lean#L227-L232
+[`op_of_valid`]: ops/community/Laws.lean#L228-L233
 [`Pic.decode_sized`]: engine/renderer/pic/Laws.lean#L198-L201
 [`Mdns.decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
 [`Community.parse_valid`]: ops/community/Link.lean#L213-L214
 [`Qr.parse_valid`]: engine/renderer/qr/SegLaws.lean#L336-L338
-[`chunk_is_slice`]: ops/community/Laws.lean#L673-L682
+[`chunk_is_slice`]: ops/community/Laws.lean#L674-L683
 [`verify_sound`]: ops/community/Merkle.lean#L435-L441
 [`complete_assembles`]: ops/community/Merkle.lean#L482-L488
-[`chunk_unique`]: ops/community/Laws.lean#L763-L769
+[`chunk_unique`]: ops/community/Laws.lean#L764-L770
 [`progress_exact`]: ops/community/Intents.lean#L618-L627
 [`no_injective_hash`]: ops/community/Merkle.lean#L245-L247
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
@@ -645,9 +645,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`sum_scope_left`]: engine/core/Families.lean#L85-L86
 [`Codec.decode_encode`]: engine/core/Codec.lean#L737-L737
 [`Op.decode_bytes`]: engine/core/Core.lean#L94-L94
-[`request_valid`]: ops/community/Laws.lean#L409-L417
-[`approve_valid`]: ops/community/Laws.lean#L425-L433
-[`admit_admits`]: ops/community/Laws.lean#L441-L452
+[`request_valid`]: ops/community/Laws.lean#L410-L418
+[`approve_valid`]: ops/community/Laws.lean#L426-L434
+[`admit_admits`]: ops/community/Laws.lean#L442-L453
 [`connect_admitted`]: ops/community/Connect.lean#L169-L179
 [`removeMember_valid`]: ops/community/Intents.lean#L484-L491
 [`exchange_complete`]: ops/sync/RoundLaws.lean#L232-L241
@@ -694,8 +694,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`digits_keep_order`]: engine/renderer/TextLaws.lean#L109-L116
 [`message_read`]: ops/community/message/ViewLaws.lean#L61-L66
 [`profile_read`]: ops/community/message/ViewLaws.lean#L39-L41
-[`profile_authorized`]: ops/community/Laws.lean#L307-L314
-[`no_renaming`]: ops/community/Laws.lean#L321-L332
+[`profile_authorized`]: ops/community/Laws.lean#L308-L315
+[`no_renaming`]: ops/community/Laws.lean#L322-L333
 [`name_placed`]: ops/community/reaction/RowLaws.lean#L89-L92
 [`oneLine_prefix`]: engine/renderer/TextLaws.lean#L97-L98
 [`controls_neutral`]: engine/renderer/TextLaws.lean#L153-L157

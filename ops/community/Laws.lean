@@ -30,14 +30,15 @@ theorem check_admission {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u :
 theorem check_invitation {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c issuer : Id}
     {k : Key} {l : Bool} {t : Nat} (h : check C o b fs = some (.invitation c issuer k l t)) :
     ∃ s d0 e0 d e, b = .invite k l t s ∧ fs = [.admission c c d0 e0, .admission c issuer d e] ∧
-      o.reqs.head? = some c ∧ 1 ≤ t ∧ (l = true → t = 1) ∧ C.verify d (signed o b) s = true := by
+      o.reqs.head? = some c ∧ 1 ≤ t ∧ t + 2 ≤ maxReqs ∧ (l = true → t = 1) ∧
+      C.verify d (signed o b) s = true := by
   unfold check at h
   split at h <;> (try split at h) <;> (try simp at h; done)
   simp only [Option.some.injEq, Fact.invitation.injEq] at h
   obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
   rename_i hc
-  obtain ⟨h1, rfl, rfl, h3, h4, h5⟩ := hc
-  exact ⟨_, _, _, _, _, rfl, rfl, h1, h3, h4, h5⟩
+  obtain ⟨h1, rfl, rfl, h3, h3', h4, h5⟩ := hc
+  exact ⟨_, _, _, _, _, rfl, rfl, h1, h3, h3', h4, h5⟩
 
 theorem check_request {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id} {d e : Key}
     {l : Bool} {t : Nat} (h : check C o b fs = some (.request c u d e l t)) :
@@ -342,7 +343,7 @@ theorem invitation_issued {i c issuer : Id} {k : Key} {l : Bool} {t : Nat}
       V C ops z (.admission c issuer d e) ∧ C.verify d (signed o b) s = true ∧
       1 ≤ t ∧ (l = true → t = 1) := by
   obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
-  obtain ⟨s, d0, e0, d, e, rfl, rfl, _, ht, hl, hs⟩ := check_invitation hv
+  obtain ⟨s, d0, e0, d, e, rfl, rfl, _, ht, _, hl, hs⟩ := check_invitation hv
   obtain ⟨_, z, _, _, hz⟩ := all2_two hr
   exact ⟨o, _, s, z, d, e, hx, hb, hz, hs, ht, hl⟩
 

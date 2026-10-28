@@ -152,7 +152,7 @@ def approveReq (c req myAdm : Id) (d : Device) (esk : ByteArray := .empty) :
       | .approval _ _ v => if v = u then none else some (p.2, v)
       | _ => none)
     let chosen := ok.id :: others.map (·.1)
-    pure (if t ≤ chosen.length then ⟨[ok, admit c req (chosen.take t)] ++ wrapTo e⟩
+    pure (if t ≤ chosen.length ∧ t + 2 ≤ maxReqs then ⟨[ok, admit c req (chosen.take t)] ++ wrapTo e⟩
       else ⟨[ok] ++ wrapTo e⟩)
   | _, _ => pure ⟨[ok]⟩
 

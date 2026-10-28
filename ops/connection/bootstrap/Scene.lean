@@ -124,7 +124,7 @@ theorem v_inv (h1 : x.r ∈ L) (h2 : x.inv ∈ L) :
     rw [show x.inv = invite x.c x.c x.A x.K.pk false 1 from rfl, invite, body_mk]
     simp only [mkOp, Body.tag, Op.make_kind, ↓reduceIte, check]
     rw [if_pos]
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> first | trivial | rfl | exact g.sigA _ | simp
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> first | trivial | rfl | decide | exact g.sigA _ | simp
 
 theorem v_req (h1 : x.r ∈ L) (h2 : x.inv ∈ L) (h3 : x.req ∈ L) :
     V C (table L) x.req.id (.request x.c x.req.id x.B.pk x.B.enc false 1) := by

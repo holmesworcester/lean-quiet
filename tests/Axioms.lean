@@ -29,6 +29,8 @@ import engine.renderer.BoardLaws
 import engine.renderer.Heights
 import ops.community.WrapLaws
 import engine.renderer.ReaderLaws
+import ops.community.ReqsLaws
+import ops.connection.ReqsLaws
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -396,6 +398,27 @@ section cost
 #print axioms Engine.within_at
 #print axioms Engine.decide_reads
 #print axioms Engine.step_reads_fed
+#print axioms Community.invite_threshold
+#print axioms Community.check_invitation
+#print axioms Community.attach_reqs
+#print axioms Community.found_authored
+#print axioms Community.inviteTo_authored
+#print axioms Community.joinOps_authored
+#print axioms Community.stopWaiting_authored
+#print axioms Community.reactTo_authored
+#print axioms Community.approveReq_authored
+#print axioms Community.rename_authored
+#print axioms Community.removeMember_authored
+#print axioms Community.introduce_authored
+#print axioms Community.receiptFor_authored
+#print axioms Community.join_authored
+#print axioms Community.send_authored
+#print axioms Connection.request_reqs
+#print axioms Connection.reply_reqs
+#print axioms Connection.writers_le
+#print axioms Connection.wire_not_conn
+#print axioms Connection.intakeConn_wire
+#print axioms Engine.Sync.recv_takes_no_wire
 #print axioms Engine.list_costs
 #print axioms Engine.model_fits
 #print axioms Engine.View.view_lists

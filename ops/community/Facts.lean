@@ -7,7 +7,9 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
 - An invite is issued by an admitted device, with a threshold: how
   many members must approve a request it carries, at least one (the
   user's decision, 2026-10-27: approvals are always needed; they are
-  where key-material wraps to the new device will hang). A link
+  where key-material wraps to the new device will hang), and at most
+  `maxReqs − 2` (62), so the admission completing it, which cites the
+  community, the request and each approval, passes intake's cap. A link
   invitation (another device for the issuer's user) needs exactly one
   approval, by the issuer's user, as libquiet's unbound device links
   do. There is no open link: the bearer key alone admits nobody.
@@ -468,7 +470,7 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
   | .root d e s, [] =>
     if C.verify d (signed o (.root d e s)) s then some (.admission o.id o.id d e) else none
   | .invite k l t s, [.admission c u0 _ _, .admission c' u d _] =>
-    if o.reqs.head? = some c ∧ u0 = c ∧ c' = c ∧ 1 ≤ t ∧ (l = true → t = 1) ∧
+    if o.reqs.head? = some c ∧ u0 = c ∧ c' = c ∧ 1 ≤ t ∧ t + 2 ≤ maxReqs ∧ (l = true → t = 1) ∧
       C.verify d (signed o (.invite k l t s)) s
     then some (.invitation c u k l t) else none
   | .request d e cs bs, [.admission c u0 _ _, .invitation c' issuer k l t] =>

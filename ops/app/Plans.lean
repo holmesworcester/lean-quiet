@@ -21,9 +21,8 @@ are restated over that code there. docs/PERF.md has the designs.
   Instead the reader reads them by window (the first n from an
   admission position, cut entries skipped), and the header shows a
   capped count ("999+").
-- **An invitation's threshold**: an admission cites its threshold's
-  approvals and two more, so a threshold over `maxReqs − 2` makes one
-  intake refuses; issuing and validating an invitation is to refuse it.
+(An invitation's threshold within the cap, planned here first, is now
+proven: `Community.invite_threshold`, ops/community/ReqsLaws.lean.)
 -/
 import ops.connection.Intents
 import ops.community.profile.View
@@ -92,13 +91,5 @@ def present_count_stmt (presentCount : Id → Nat → View Fact Nat)
     View.DepthLe (c * (cap + 1)) (presentCount cm cap)
 
 end
-
-/-! ## An invitation's threshold -/
-
-/-- **An invitation whose admission would exceed the cap is refused**:
-every Valid invitation's threshold is at most `maxReqs − 2`, so the
-admission completing it cites at most `maxReqs` and passes intake. -/
-def invite_threshold_stmt (valid : Community.Fact → Prop) : Prop :=
-  ∀ c issuer bearer link t, valid (.invitation c issuer bearer link t) → t + 2 ≤ maxReqs
 
 end Plans
