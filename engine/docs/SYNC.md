@@ -29,6 +29,19 @@ through `Hooks`.
 - Sync messages are three op kinds: `sync.rbsr` (claims back and forth),
   `sync.have` and `sync.want` (independent of rounds, and also the
   stream).
+- The handshake is ops the engine handles, as in poc-17 (holmes-fd's
+  Connection family).
+- Frames follow poc-17. A frame names its session and opens only under
+  that session's keys, with a random nonce, so no side keeps sealer
+  state. A replayed frame re-delivers ops, and ops are idempotent.
+  Sockets are not bound to sessions.
+- All state is ops, except the sockets at the seam and caches derived
+  from ops (docs/LAYOUT.md). This is a planned conversion; see
+  "Planned" below.
+- A dropped session is never reopened; a new connection needs a new
+  handshake.
+- The family hears every arrival (`recv`), a repeat included, so it can
+  answer a replayed request again (poc-17's healing for a lost answer).
 - Engine code and op code are strictly separate, and code that is
   neither is kept to a minimum: the daemon is sockets, timers and
   discovery; everything else is the engine's driver (`Node`) or a
@@ -105,35 +118,85 @@ family writes it as a local op, so it can't grow the log per message.
 | Engine/Sync/Wire.lean | the three wire kinds and their codec |
 | Engine/Sync/Conn.lean | one connection: room index, rounds, have/want, stream, closure, patience |
 | Engine/Sync/ConnLaws.lean | what a connection may take and send |
-| Engine/Sync/Node.lean | the driver a daemon calls; `Hooks` from families |
+| Engine/Sync/Held.lean | `Turn` (one write turn) and `Held` (a store as data) |
+| Engine/Sync/Node.lean | the driver; `Hooks` from families; frames and bundles |
+| Engine/Sync/Frame.lean | 4-byte length framing on TCP, with proven unframing |
+| Engine/Sync/Tcp.lean | the TCP runner |
+| Engine/Sync/Locality.lean | `spec_local` |
 | Engine/Sync/Pair.lean | two Nodes over a lossy in-memory queue, for tests |
 | Tests/SyncPair.lean | two-node suites on a real community |
+| Tests/TcpPair.lean | two runners over localhost TCP, with a toy handshake family |
 
-**The driver** (`Node`) owns the store, the in-memory room index and
-the open connections, and is the daemon's only entry point:
-- `connect cid dialer now`
-- `onBytes cid bytes now`
-- `onBare addr bytes now`, which takes conn ops only, for the handshake
-- `onTick now`
-- `onWrite ops`
-- `close cid`
+**The driver** (`Node`, generic in its store: `[Monad m] [Store F m]
+[Turn F m]`) holds the in-memory room index and the open connections,
+and no database. `Turn` is one write turn. On SQLite it is `receive`. On
+`Held` (the ops taken in, plus the model's tables) it ingests and then
+drains with the proven budget. The driver therefore runs the same on a
+device and in a proof's world of nodes as data.
 
-Each returns `Effects`: bytes to send by route (`conn cid` or
-`bare addr`) and connections to drop.
+Entry points:
+- `Node.onFrame addr bytes now`: every inbound payload. Its first byte
+  says what it is:
+  - `0x00` and an op's bytes is a bare op, the handshake's, taken
+    through `intakeConn` (conn ops only);
+  - `0x01` and a sealed frame is opened by the family's `openFrame`
+    into (session, bundle); each payload in the bundle goes to that
+    session's connection in order.
+  Anything else, a frame that does not open, or a frame for a session
+  not open here, is ignored.
+- `onTick now`, `onWrite ops now`.
+- `connect cid addr dialer now`, for the in-memory harness only.
 
-Every write goes through an intake and one write turn. The index grows
-by what was stored, and the stored ids are offered on every connection
-whose peer may see them (each connection's rooms are refreshed first).
-The family's `react` answers are then written, up to a fixpoint.
+Each entry point returns `Effects`: payloads to send to addresses,
+sessions dropped, and ids stored (for an app's reads).
 
-**Hooks**, from the Connection family:
-- `rooms cid`: which rooms the peer may see, from its established
-  connection and the trust rule.
+- Every write goes through `write`: one turn of the ops **not already
+  stored**, so a repeat is neither written nor reported again. The
+  index grows by what was stored; the stored ids are offered on every
+  connection whose peer may see them, each connection's rooms refreshed
+  first. Then the family's `react` answers are written, to a fixpoint.
+- After every entry point (`finish`):
+  - sessions the family lists as established are opened, and ones it
+    no longer lists are closed;
+  - the family's outbox (bare couriers) is handed out;
+  - sends are addressed and sealed. Bare sends go first, so a
+    handshake's reply precedes a session's first frame. Each session's
+    payloads are bundled, up to `bundle` (48 KiB) a frame, one
+    `sealFor` per bundle.
+- A session's frames go to the address its last frame arrived from (at
+  first, the one its handshake ran on).
+
+**Hooks**, from the Connection family, all in `m`:
+- `rooms cid`: which rooms the peer may see (from the session and the
+  trust rule).
 - `settled`: what a room's first settle writes.
-- `recv`: how an arrival is recorded.
-- `outbox` / `shipped`: the family's send couriers.
+- `recv`: called on every arrival, a repeat included, after it is
+  stored.
+- `outbox`: (courier, address, op bytes).
+- `shipped`: until purge lands.
 - `react`: level-triggered answers.
 - `dial`: what to write as time passes.
+- `established`: (session, address, dialer).
+- `sealFor cid bytes` and `openFrame bytes`: XChaCha20-Poly1305 with
+  ad = session, in the family.
+
+**The runner** (`Engine/Sync/Tcp.lean`, `Runner.start x db floor port
+notify`) is the one loop the phone apps and a desktop daemon run.
+- It listens, and dials addresses ("a.b.c.d:port") on demand, queueing
+  payloads until the dial completes.
+- It frames every payload (`Frame.lean`: a 4-byte length, at most
+  1 MiB, with proven unframing).
+- It hands every inbound payload to `onFrame` with its socket's address.
+  An accepted socket's address is its peer's, so replies go back on the
+  same socket.
+- It closes any socket idle past `idle`.
+- The app's writes come in through `Runner.write`; `notify` gets every
+  stored id, so the app can re-read (a write on the runner's connection
+  fires no other connection's triggers).
+- One task owns the node and the store; the listener and one reader per
+  socket feed it through a channel.
+- A test that runs it must call `IO.Process.exit`, because Lean waits
+  at exit for the runner's never-ending tasks.
 
 ## Laws
 
@@ -224,6 +287,30 @@ Still to prove:
 Grinding a degenerate treap costs the attacker O(n²) hashes and the
 victim compute only: rounds, bytes and censorship resistance are
 unaffected (Meyer and Scherer §I–II).
+
+## Planned (approved; after the join demo)
+
+- **Sync as an op family (`ops/sync/`, docs/LAYOUT.md).** hello, round
+  claims, have and want become ephemeral ops with responders, answered
+  from the live store (stores only grow, so `exchange_complete` is
+  restated for growing sets). Conn's memory goes away:
+  - snapshots: answered from the live store instead;
+  - known, offered, asked and closed: content addressing makes repeats
+    idempotent ("dedup may only delay a resend, never veto it");
+  - peer floor, round counters and patience: become ops and list reads.
+  A "due" standing question opens rounds, as poc-17's `compare.due`
+  does.
+- **The two-node world.** `World := { nodes over Held, wire, now }` and
+  `step`, with `Reachable`/`Run`/`Fair` defined over it, so lean-net's
+  laws are re-proven over the code that runs (holmes-fd). The user
+  asked to "induct over more". The IO pair interprets the same step,
+  with a model-versus-SQLite differential test.
+- **Open, with the user:**
+  - rounds from both sides on a cadence, without a dialer bit. Round
+    ids must name their initiator, and the cadence should not be every
+    tick until the cached treap lands;
+  - whether to keep `settled`, or have the screen read the device's own
+    admission instead.
 
 ## Follow-ups
 
