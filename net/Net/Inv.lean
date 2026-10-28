@@ -102,7 +102,7 @@ theorem ofC_S {o : Op} (h : o ∈ x.S) : ofC x.c o = true := by
 theorem filter_ofC {L : List Op} (hL : ∀ o ∈ L, o ∈ x.S) : L.filter (ofC x.c) = L :=
   List.filter_eq_self.2 fun o ho => x.ofC_S (hL o ho)
 
-theorem kinds : x.r.kind = 0 ∧ x.inv.kind = 1 ∧ x.req.kind = 2 ∧ x.appr.kind = 10 ∧ x.adm.kind = 11 :=
+theorem kinds : x.r.kind = 0 ∧ x.inv.kind = 1 ∧ x.req.kind = 12 ∧ x.appr.kind = 10 ∧ x.adm.kind = 11 :=
   ⟨rfl, rfl, rfl, rfl, rfl⟩
 
 theorem adm_ne : x.adm ≠ x.r ∧ x.adm ≠ x.inv ∧ x.adm ≠ x.req := by
