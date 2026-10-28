@@ -1,0 +1,642 @@
+/-
+What the two-node world does, proven of the running sync code (`Node`,
+`Conn`) on held data:
+
+- `stream_delivers`: an op written at a node whose session to the other
+  node is up reaches the other node in one exchange, an offer, a want,
+  and the op, when both sides' rooms on the session include its room.
+  The frames each entry point emits are computed exactly.
+
+The proofs run the code: each entry point, run on a `Held` store, is
+rewritten lemma by lemma (`HeldM.run_bind` and the loop lemmas) until
+its result is a term. Most of what a node does on the way leaves its
+store as it is (`Keeps`), and the `keeps` tactic proves that from a do
+block's structure.
+
+The world's family writes nothing (`Setup.sync`), so no session is
+managed by it and none is purged; `stream_delivers` assumes so of both
+nodes (`managed = []`), as `Node.connect` leaves them.
+-/
+import Engine.Sync.World
+
+namespace Engine.Sync
+variable {F : Type}
+
+/-! ## Running on held data -/
+
+@[simp] theorem HeldM.run_bind {α β} (m : HeldM F α) (k : α → HeldM F β) (h : Held F) :
+    (m >>= k).run h = (k (m.run h).1).run (m.run h).2 := rfl
+@[simp] theorem HeldM.run_pure {α} (a : α) (h : Held F) : (pure a : HeldM F α).run h = (a, h) := rfl
+@[simp] theorem HeldM.pure_bind {α β} (a : α) (k : α → HeldM F β) : (pure a >>= k) = k a := rfl
+@[simp] theorem HeldM.run_getOp (x : Id) (h : Held F) :
+    (Store.getOp (F := F) x : HeldM F _).run h = (h.db.ops x, h) := rfl
+@[simp] theorem HeldM.run_getStatus (x : Id) (h : Held F) :
+    (Store.getStatus (F := F) x : HeldM F _).run h = (h.db.status x, h) := rfl
+
+/-- The held store after a write turn of these ops. -/
+def turnH (fam : Family F) (ops : List Op) (h : Held F) : Held F :=
+  let s := ops.foldl (fun s o => ingestS o s) h.db
+  { log := h.log ++ ops, db := drainS fam (budget (h.log ++ ops) s) s }
+
+@[simp] theorem HeldM.run_turn (fam : Family F) (ops : List Op) (h : Held F) :
+    (Turn.turn fam ops : HeldM F Unit).run h = ((), turnH fam ops h) := rfl
+
+/-- A write turn of an op the store lacks stores it. -/
+theorem turnH_one (fam : Family F) (o : Op) (h : Held F) (hn : h.db.ops o.id = none) :
+    (turnH fam [o] h).db.ops o.id = some o := by
+  simp [turnH, drainS_ops, ingestS, hn, DB.putOp, DB.push]
+
+theorem Acts.append_def (a b : Acts) : a ++ b = ⟨a.send ++ b.send, a.drop ++ b.drop⟩ := rfl
+@[simp] theorem Acts.empty_append (a : Acts) : ({} : Acts) ++ a = a := rfl
+@[simp] theorem Acts.append_empty (a : Acts) : a ++ ({} : Acts) = a := by
+  cases a; simp [Acts.append_def]
+
+@[simp] theorem Conn.finish_send (s : Step) : (Conn.finish s).send = s.send := rfl
+@[simp] theorem Conn.finish_take (s : Step) : (Conn.finish s).take = s.take := rfl
+@[simp] theorem Conn.finish_drop (s : Step) : (Conn.finish s).drop = s.drop := rfl
+
+/-! ## Loops -/
+
+/-- A loop whose every turn keeps the store keeps it. -/
+theorem forIn_keeps {α β} (l : List α) (f : α → β → HeldM F (ForInStep β)) (h : Held F)
+    (hf : ∀ a ∈ l, ∀ b, ((f a b).run h).2 = h) (b : β) : ((forIn l b f).run h).2 = h := by
+  induction l generalizing b with
+  | nil => rfl
+  | cons a t ih =>
+    rw [List.forIn_cons, HeldM.run_bind, hf a (List.mem_cons_self ..)]
+    cases ((f a b).run h).1 with
+    | done b => rfl
+    | yield b => exact ih (fun a ha => hf a (List.mem_cons_of_mem _ ha)) b
+
+/-- A loop whose every turn yields its state back, and keeps the store. -/
+theorem forIn_fixed {α β} (l : List α) (f : α → β → HeldM F (ForInStep β)) (h : Held F) (b : β)
+    (hf : ∀ a ∈ l, (f a b).run h = (.yield b, h)) : (forIn l b f).run h = (b, h) := by
+  induction l with
+  | nil => rfl
+  | cons a t ih =>
+    rw [List.forIn_cons, HeldM.run_bind, hf a (List.mem_cons_self ..)]
+    exact ih (fun a ha => hf a (List.mem_cons_of_mem _ ha))
+
+/-- A loop whose every turn is a pure update of its state. -/
+theorem forIn_yield {α β} (l : List α) (f : α → β → HeldM F (ForInStep β)) (g : α → β → β)
+    (h : Held F) (hf : ∀ a ∈ l, ∀ b, (f a b).run h = (.yield (g a b), h)) (b : β) :
+    (forIn l b f).run h = (l.foldl (fun b a => g a b) b, h) := by
+  induction l generalizing b with
+  | nil => rfl
+  | cons a t ih =>
+    rw [List.forIn_cons, HeldM.run_bind, hf a (List.mem_cons_self ..)]
+    exact ih (fun a ha => hf a (List.mem_cons_of_mem _ ha)) _
+
+/-! ## Steps that keep the store -/
+
+/-- A step that leaves the store as it is, from any store. -/
+def Keeps {α} (p : HeldM F α) : Prop := ∀ h, (p.run h).2 = h
+
+theorem Keeps.pure' {α} (a : α) : Keeps (pure a : HeldM F α) := fun _ => rfl
+theorem Keeps.bind' {α β} {m : HeldM F α} {k : α → HeldM F β} (hm : Keeps m) (hk : ∀ a, Keeps (k a)) :
+    Keeps (m >>= k) := by
+  intro h; simp only [HeldM.run_bind]; rw [hk, hm]
+theorem Keeps.forIn' {α β} (l : List α) (b : β) {f : α → β → HeldM F (ForInStep β)}
+    (hf : ∀ a b, Keeps (f a b)) : Keeps (forIn l b f) :=
+  fun h => forIn_keeps l f h (fun a _ b => hf a b h) b
+theorem Keeps.getOp' (x : Id) : Keeps (Store.getOp (F := F) x : HeldM F _) := fun _ => rfl
+theorem Keeps.getStatus' (x : Id) : Keeps (Store.getStatus (F := F) x : HeldM F _) := fun _ => rfl
+
+/-- Prove `Keeps` of a do block from its structure, with these `Keeps`
+lemmas for the calls in it. -/
+syntax "keeps" "[" term,* "]" : tactic
+
+macro_rules
+  | `(tactic| keeps [$ts,*]) => do
+    let mut tac : Lean.TSyntax `tactic ← `(tactic| first | split | intro)
+    for t in ts.getElems.reverse do
+      tac ← `(tactic| first | with_reducible_and_instances apply $t | $tac:tactic)
+    `(tactic| repeat' (first
+      | dsimp only | with_reducible_and_instances apply Keeps.bind'
+      | with_reducible_and_instances apply Keeps.pure' | with_reducible_and_instances apply Keeps.forIn'
+      | with_reducible_and_instances apply Keeps.getOp' | with_reducible_and_instances apply Keeps.getStatus'
+      | $tac:tactic))
+
+theorem filed_keeps (fam : Family F) (cfg : Config) (c : Conn) (ids : List Id) :
+    Keeps (c.filed fam cfg ids : HeldM F Step) := by
+  unfold Conn.filed; keeps []
+
+theorem onHold_keeps (c : Conn) (cfg : Config) (ids : List Id) : Keeps (c.onHold cfg ids : HeldM F Step) := by
+  unfold Conn.onHold; keeps []
+
+/-! ## The world's hooks -/
+
+section
+variable (S : Setup F) (s : Who)
+
+@[simp] theorem sync_fam : (S.sync s).fam = S.fam := rfl
+@[simp] theorem sync_cfg : (S.sync s).cfg = S.cfg := rfl
+@[simp] theorem sync_openFrame : (S.sync s).hooks.openFrame = plainOpen := rfl
+@[simp] theorem sync_sealFor (cid : Id) (b : ByteArray) :
+    (S.sync s).hooks.sealFor cid b = pure (some (Codec.encode (cid, b))) := rfl
+@[simp] theorem sync_rooms (cid : Id) : (S.sync s).hooks.rooms cid = pure (S.rooms s cid) := rfl
+@[simp] theorem sync_recv (o : Option Id) (a : ByteArray) (op : Op) (t : Nat) :
+    (S.sync s).hooks.recv o a op t = pure [] := rfl
+@[simp] theorem sync_settled (cid r : Id) : (S.sync s).hooks.settled cid r = [] := rfl
+@[simp] theorem sync_outbox : (S.sync s).hooks.outbox = pure [] := rfl
+@[simp] theorem sync_closing (cid : Id) : (S.sync s).hooks.closing cid = pure [] := rfl
+@[simp] theorem sync_retired : (S.sync s).hooks.retired = pure [] := rfl
+@[simp] theorem sync_react : (S.sync s).hooks.react = pure [] := rfl
+@[simp] theorem sync_dial (now : Nat) : (S.sync s).hooks.dial now = pure [] := rfl
+@[simp] theorem sync_established : (S.sync s).hooks.established = pure [] := rfl
+
+/-! ## The entry points, piece by piece -/
+
+@[simp] theorem refresh_run (cid : Id) (c : Conn) (h : Held F) :
+    (Node.refresh (S.sync s) cid c).run h = (c.setRooms (S.rooms s cid), h) := rfl
+
+theorem write_nil (x : Sync F (HeldM F)) (n : Node) (h : Held F) : (n.write x []).run h = ((n, []), h) := by
+  simp [Node.write]
+
+/-- A write of one op the store lacks: one write turn, and the index
+grows by it. -/
+theorem write_one (x : Sync F (HeldM F)) (n : Node) (o : Op) (h : Held F) (hn : h.db.ops o.id = none) :
+    (n.write x [o]).run h =
+      (({ n with ix := n.ix.add x.fam o, fresh := n.fresh ++ [o.id] }, [o.id]), turnH x.fam [o] h) := by
+  simp [Node.write, hn, turnH_one _ _ _ hn]
+
+/-- The world's family writes no settles. -/
+@[simp] theorem settle_run (n : Node) (st : List (Id × Status)) (h : Held F) :
+    (Node.settle (S.sync s) n st).run h = (n, h) := by
+  have : (st.flatMap fun (p : Id × Status) => match p with
+      | (cid, .settled r) => (S.sync s).hooks.settled cid r) = [] := by
+    induction st with
+    | nil => rfl
+    | cons p t ih => obtain ⟨_, ⟨_⟩⟩ := p; simp at ih ⊢
+  simp only [Node.settle, Node.put, this, intake]; simp [write_nil]
+
+@[simp] theorem store_nil (n : Node) (mine : Bool) (h : Held F) :
+    (n.store (S.sync s) [] mine).run h = ((n, {}), h) := by
+  simp [Node.store, Node.put, intake, write_nil]
+
+/-- The world's family answers nothing: storing is a put, then a fanout. -/
+theorem store_run (n : Node) (ops : List Op) (mine : Bool) (h : Held F) :
+    (n.store (S.sync s) ops mine).run h =
+      let p := (n.put (S.sync s) ops mine).run h
+      if p.1.2.isEmpty then ((p.1.1, {}), p.2) else (p.1.1.fanout (S.sync s) p.1.2).run p.2 := by
+  simp only [Node.store, HeldM.run_bind]
+  split
+  · rfl
+  · simp [Std.Legacy.Range.forIn_eq_forIn_range', List.range']
+
+/-- What a node seals of one session's payloads: their bundles, each one
+frame to the session's address; nothing without an address. -/
+theorem seal_one (n : Node) (cid : Id) (ps : List ByteArray) (h : Held F) :
+    (n.seal (S.sync s) { send := ps.map fun p => (.conn cid, p) }).run h =
+      (((n.addr? cid).map fun a => (bundles S.cfg.bundle ps).map fun g => (a, plainFrame cid g)).getD [],
+        h) := by
+  cases ps with
+  | nil => cases n.addr? cid <;> simp [Node.seal, bundles]
+  | cons p ps =>
+    simp only [Node.seal, HeldM.run_bind, List.map_cons, List.forIn_cons]
+    simp only [HeldM.run_pure, has, Bool.not_false, ite_true]
+    rw [forIn_fixed (ps.map fun p => (Route.conn cid, p)) _ _ _
+      (fun a ha => by obtain ⟨_, _, rfl⟩ := List.mem_map.1 ha; simp [has])]
+    simp only [List.reverse_cons, List.reverse_nil, List.nil_append, List.forIn_cons, HeldM.run_bind]
+    cases n.addr? cid with
+    | none => simp
+    | some a =>
+      simp only [HeldM.run_bind]
+      rw [forIn_yield _ _ (fun g acc => (a, plainFrame cid g) :: acc) _
+        (fun g _ b => by simp [plainFrame])]
+      simp [List.filterMap_map, Function.comp_def]
+
+@[simp] theorem seal_sends (n : Node) (cid : Id) (ops : List Op) (h : Held F) :
+    (n.seal (S.sync s) (sends cid ops)).run h =
+      (((n.addr? cid).map fun a =>
+        (bundles S.cfg.bundle (ops.map Op.bytes)).map fun g => (a, plainFrame cid g)).getD [], h) := by
+  have := seal_one S s n cid (ops.map Op.bytes) h
+  simp only [List.map_map, Function.comp_def] at this
+  exact this
+
+theorem seal_keeps (n : Node) (out : Acts) : Keeps (n.seal (S.sync s) out) := by
+  simp only [Node.seal, sync_sealFor, HeldM.pure_bind]; keeps []
+
+theorem finish_keeps (n : Node) (out : Acts) (now : Nat) : Keeps (n.finish (S.sync s) out now) := by
+  simp only [Node.finish, Node.follow, Node.flush, sync_established, sync_outbox, sync_retired,
+    sync_closing, HeldM.pure_bind, List.isEmpty_nil, ite_true, List.forIn_nil, List.append_nil,
+    Bool.not_true, Bool.false_eq_true, ite_false]
+  keeps [seal_keeps]
+
+/-- An entry point's end, with no managed sessions: seal, and report. -/
+theorem finish_run (n : Node) (out : Acts) (now : Nat) (h : Held F) (hm : n.managed = []) :
+    (n.finish (S.sync s) out now).run h =
+      (({ n with fresh := [] },
+        { send := ((n.seal (S.sync s) out).run h).1, drop := out.drop, stored := n.fresh }), h) := by
+  have hk := finish_keeps S s n out now h
+  simp only [Node.finish, Node.follow, Node.flush, hm, sync_established, sync_outbox, sync_retired,
+    sync_closing, HeldM.pure_bind, List.isEmpty_nil, ite_true, List.forIn_nil, List.append_nil,
+    Bool.not_true, Bool.false_eq_true, ite_false, HeldM.run_bind, HeldM.run_pure,
+    Acts.append_empty] at hk ⊢
+  rw [hk]
+
+theorem fanout_keeps (n : Node) (ids : List Id) : Keeps (n.fanout (S.sync s) ids) := by
+  have h1 := filed_keeps (F := F) S.fam S.cfg
+  have h2 : ∀ (n : Node) st, Keeps (Node.settle (S.sync s) n st) := fun n st h => by simp
+  simp only [Node.fanout, sync_rooms, Node.refresh, HeldM.pure_bind, sync_fam, sync_cfg]
+  keeps [h1, h2]
+
+/-- A connection step that takes nothing keeps the store. -/
+theorem apply_keeps (n : Node) (cid : Id) (st : Step) (now : Nat) (ht : st.take = []) :
+    Keeps (n.apply (S.sync s) cid st now) := by
+  intro h
+  unfold Node.apply
+  split
+  · rfl
+  · simp [ht]
+
+/-- Storing an op this store lacks: one write turn of it, then a fanout
+that keeps the store. -/
+theorem store_one (n : Node) (o : Op) (mine : Bool) (h : Held F) (hn : h.db.ops o.id = none)
+    (hi : intake S.fam mine [o] = [o]) :
+    ((n.store (S.sync s) [o] mine).run h).2 = turnH S.fam [o] h := by
+  rw [store_run]
+  simp only [Node.put, sync_fam, hi, write_one _ _ _ _ hn]
+  simp only [List.isEmpty_cons, Bool.false_eq_true, ite_false]
+  exact fanout_keeps S s _ _ _
+
+/-- A connection step that takes one shared op the store lacks stores it. -/
+theorem apply_takes (n : Node) (cid : Id) (st : Step) (now : Nat) (o : Op) (h : Held F)
+    (hd : st.drop = false) (ht : st.take = [o]) (hn : h.db.ops o.id = none)
+    (hsh : S.fam.shared o = true) :
+    ((n.apply (S.sync s) cid st now).run h).2 = turnH S.fam [o] h := by
+  have hi : intake S.fam false [o] = [o] := by simp [intake, hsh]
+  simp [Node.apply, hd, ht, store_one S s _ o false h hn hi]
+
+end
+
+/-! ## Frames and messages -/
+
+theorem chunks_one (cfg : Config) (i : Id) (mk : List Id → Msg) (hmax : 0 < cfg.maxIds) :
+    chunks cfg [i] mk = [(mk [i]).op] := by
+  obtain ⟨k, hk⟩ : ∃ k, cfg.maxIds = k + 1 := ⟨cfg.maxIds - 1, by omega⟩
+  simp [chunks, pieceIds, hk]
+
+@[simp] theorem bundles_one (max : Nat) (b : ByteArray) : bundles max [b] = [[b]] := rfl
+
+theorem mem_bundles (max : Nat) (l : List ByteArray) : ∀ g ∈ bundles max l, ∀ x ∈ g, x ∈ l := by
+  induction l with
+  | nil => simp [bundles]
+  | cons b rest ih =>
+    intro g hg x hx
+    unfold bundles at hg
+    split at hg
+    · simp at hg; subst hg; simp at hx; simp [hx]
+    · rename_i g' gs he
+      have ih' : ∀ g ∈ g' :: gs, ∀ x ∈ g, x ∈ rest := he ▸ ih
+      split at hg
+      · simp only [List.mem_cons] at hg
+        rcases hg with rfl | hg
+        · simp only [List.mem_cons] at hx
+          rcases hx with rfl | hx
+          · simp
+          · exact List.mem_cons_of_mem _ (ih' g' (by simp) x hx)
+        · exact List.mem_cons_of_mem _ (ih' g (by simp [hg]) x hx)
+      · simp only [List.mem_cons] at hg
+        rcases hg with rfl | rfl | hg
+        · simp at hx; simp [hx]
+        · exact List.mem_cons_of_mem _ (ih' g (by simp) x hx)
+        · exact List.mem_cons_of_mem _ (ih' g (by simp [hg]) x hx)
+
+/-- The first bundle starts with the first payload. -/
+theorem bundles_head (max : Nat) (b : ByteArray) (rest : List ByteArray) :
+    ∃ g gs, bundles max (b :: rest) = (b :: g) :: gs ∧ ∀ x ∈ g, x ∈ rest := by
+  have hm := mem_bundles max rest
+  unfold bundles
+  split
+  · exact ⟨[], [], rfl, by simp⟩
+  · rename_i g gs he
+    split
+    · exact ⟨g, gs, rfl, fun x hx => hm g (by rw [he]; simp) x hx⟩
+    · exact ⟨[], g :: gs, rfl, by simp⟩
+
+theorem tagged_head (t : UInt8) (b : ByteArray) : (tagged t b)[0]? = some t := by
+  have h1 : (ByteArray.mk #[t]).size = 1 := rfl
+  have hs : 0 < (tagged t b).size := by simp [tagged, ByteArray.size_append, h1]; omega
+  rw [getElem?_pos (tagged t b) 0 hs]
+  simp only [tagged]
+  rw [ByteArray.getElem_append_left (by rw [h1]; omega)]
+  rfl
+
+theorem tagged_body (t : UInt8) (b : ByteArray) : (tagged t b).extract 1 (tagged t b).size = b := by
+  have h1 : (ByteArray.mk #[t]).size = 1 := rfl
+  exact ByteArray.extract_append_eq_right h1.symm (by simp [tagged, ByteArray.size_append, h1])
+
+@[simp] theorem plainFrame_head (cid : Id) (ps : List ByteArray) : (plainFrame cid ps)[0]? = some 1 :=
+  tagged_head _ _
+
+@[simp] theorem plainFrame_body (cid : Id) (ps : List ByteArray) :
+    (plainFrame cid ps).extract 1 (plainFrame cid ps).size = Codec.encode (cid, Codec.encode ps) :=
+  tagged_body _ _
+
+@[simp] theorem ofOp_hold (l : List Id) : Msg.ofOp (Msg.hold l).op = some (.hold l) := by
+  simp [Msg.ofOp, Msg.op, kRbsr, kHave]
+
+@[simp] theorem ofOp_want (l : List Id) : Msg.ofOp (Msg.want l).op = some (.want l) := by
+  simp [Msg.ofOp, Msg.op, kRbsr, kHave, kWant]
+
+theorem ofOp_data {o : Op} (h : isWire o.kind = false) : Msg.ofOp o = none := by
+  simp [isWire, Bool.or_eq_false_iff] at h
+  simp [Msg.ofOp, h.1.1, h.1.2, h.2]
+
+theorem has_of_mem {l : List Id} {x : Id} (h : x ∈ l) : has l x = true := (Engine.has_iff l x).2 h
+
+/-! ## What a connection does with each message -/
+
+theorem recv_hold (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (l : List Id) (now : Nat)
+    (h : Held F) :
+    (Conn.recv fam cfg ix c (Msg.hold l).op.bytes now : HeldM F Step).run h =
+      (Conn.finish (({ c with heard := now }.onHold cfg l : HeldM F Step).run h).1, h) := by
+  simp [Conn.recv, Op.decode_bytes]
+  exact onHold_keeps _ _ _ h
+
+theorem onHold_take (c : Conn) (cfg : Config) (l : List Id) (h : Held F) :
+    ((c.onHold cfg l : HeldM F Step).run h).1.take = [] := by
+  simp [Conn.onHold]
+
+/-- A data op of the connection's rooms is taken. -/
+theorem recv_data (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (o : Op) (now : Nat)
+    (h : Held F) (hw : isWire o.kind = false) (hsh : c.shows fam o = true) :
+    (Conn.recv fam cfg ix c o.bytes now : HeldM F Step).run h =
+      (Conn.finish (Step.mk { c with heard := now, asked := c.asked.erase o.id, known := c.known.insert o.id }
+        [] [o] [] false), h) := by
+  have hsh' : Conn.shows fam { c with heard := now } o = true := hsh
+  simp [Conn.recv, Op.decode_bytes, ofOp_data hw, hw, hsh']
+
+/-! ## The stream, one entry point at a time -/
+
+section
+variable (S : Setup F) (s : Who)
+
+/-- **A write is offered on the session at once:** a node with one
+session, which has neither offered op o nor heard that its peer holds
+it, writes o, a shared op of a room the session carries. It stores o,
+and sends exactly one frame, to the session's address, offering o. -/
+theorem write_offers (n : Node) (cid : Id) (c : Conn) (o : Op) (r : Id) (a : ByteArray) (h : Held F)
+    (t : Nat) (hc : n.conns = [(cid, c)]) (hm : n.managed = []) (ha : n.addr? cid = some a)
+    (hn : h.db.ops o.id = none) (hk : o.id ∉ c.known) (ho : o.id ∉ c.offered)
+    (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid) (hmax : 0 < S.cfg.maxIds) :
+    let p := (n.onWrite (S.sync s) [o] t).run h
+    (∃ c', p.1.1.conns = [(cid, c')]) ∧ p.1.1.managed = [] ∧ p.1.1.addrs = n.addrs ∧
+      p.1.2.send = [(a, plainFrame cid [(Msg.hold [o.id]).op.bytes])] ∧ p.2 = turnH S.fam [o] h := by
+  have hs' := has_of_mem hs
+  simp only [Node.addr?] at ha
+  simp [Node.onWrite, store_run, Node.put, intake, write_one _ _ _ _ hn, Node.fanout, hc, Conn.filed,
+    turnH_one _ _ _ hn, hk, ho, Conn.setRooms, Conn.shows, hr, hs', finish_run, hm,
+    chunks_one _ _ _ hmax, Node.addr?, ha]
+
+/-- **An offer of an op the node lacks is answered with a want,** on the
+session, to the address the offer came from; the store is unchanged. -/
+theorem hold_wants (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (i : Id) (h : Held F) (t : Nat)
+    (hc : n.conns = [(cid, c)]) (hm : n.managed = []) (hn : h.db.ops i = none) (hq : i ∉ c.asked)
+    (hmax : 0 < S.cfg.maxIds) :
+    let p := (n.onFrame (S.sync s) src (plainFrame cid [(Msg.hold [i]).op.bytes]) t).run h
+    (∃ c', p.1.1.conns = [(cid, c')]) ∧ p.1.1.managed = [] ∧
+      p.1.2.send = [(src, plainFrame cid [(Msg.want [i]).op.bytes])] ∧ p.2 = h := by
+  simp [Node.onFrame, plainOpen, Codec.decode_encode, Node.conn?, Node.setAddr, hc, Conn.recv,
+    Op.decode_bytes, Conn.onHold, hq, hn, Node.apply, finish_run, hm, chunks_one _ _ _ hmax,
+    Node.addr?, Conn.setRooms]
+
+/-- **A want for a stored op the peer may see is answered with the op,**
+first in the first frame, then offers of its closure. -/
+theorem want_sends (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (o : Op) (r : Id) (h : Held F)
+    (t : Nat) (hc : n.conns = [(cid, c)]) (hm : n.managed = []) (hn : h.db.ops o.id = some o)
+    (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid) (hmax : 0 < S.cfg.maxIds) :
+    let p := (n.onFrame (S.sync s) src (plainFrame cid [(Msg.want [o.id]).op.bytes]) t).run h
+    ∃ holds : List ByteArray, (∀ b ∈ holds, ∃ l, b = (Msg.hold l).op.bytes) ∧
+      p.1.2.send = (bundles S.cfg.bundle (o.bytes :: holds)).map fun g => (src, plainFrame cid g) := by
+  have hs' := has_of_mem hs
+  have hm0 : S.cfg.maxIds ≠ 0 := by omega
+  simp [Node.onFrame, plainOpen, Codec.decode_encode, Node.conn?, Node.setAddr, hc, Conn.recv,
+    Op.decode_bytes, Conn.onWant, hn, Node.apply, finish_run, hm, Node.addr?, Conn.setRooms,
+    Conn.shows, hr, hs', hm0, List.filterMapM, List.filterMapM.loop]
+  refine ⟨_, ?_, rfl⟩
+  intro b hb
+  simp only [chunks, List.map_map, List.mem_map, Function.comp_def] at hb
+  obtain ⟨l, _, rfl⟩ := hb
+  exact ⟨l, rfl⟩
+
+/-- **A frame that brings a new op of the session's rooms stores it,**
+whatever offers follow it in the frame. -/
+theorem op_taken (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (o : Op) (r : Id)
+    (more : List ByteArray) (h : Held F) (t : Nat)
+    (hc : n.conns = [(cid, c)]) (hn : h.db.ops o.id = none) (hw : isWire o.kind = false)
+    (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid)
+    (hmore : ∀ b ∈ more, ∃ l, b = (Msg.hold l).op.bytes) :
+    ((n.onFrame (S.sync s) src (plainFrame cid (o.bytes :: more)) t).run h).2 = turnH S.fam [o] h := by
+  have hs' := has_of_mem hs
+  simp only [Node.onFrame, plainFrame_head, plainFrame_body, sync_openFrame, plainOpen,
+    Codec.decode_encode, HeldM.pure_bind, Node.conn?, Node.setAddr, hc, List.find?_cons, decide_true,
+    List.forIn_cons, Option.map_some, HeldM.run_bind, HeldM.run_pure, refresh_run, sync_fam, sync_cfg]
+  rw [finish_keeps, recv_data _ _ _ _ _ _ _ hw (by simp [Conn.shows, Conn.setRooms, hr, hs'])]
+  dsimp only
+  rw [forIn_keeps more _ _ ?_, apply_takes S s _ _ _ _ o h rfl rfl hn (by simp [Family.shared, hr])]
+  intro b hb st
+  obtain ⟨l, rfl⟩ := hmore b hb
+  split
+  · simp only [HeldM.run_bind, HeldM.run_pure, refresh_run, recv_hold]
+    apply apply_keeps
+    rw [Conn.finish_take, onHold_take]
+  · rfl
+
+/-- Opening a session at a node with no managed sessions: the session's
+connection says hello, and the store is unchanged. -/
+theorem connect_run (n : Node) (cid : Id) (a : ByteArray) (dialer : Bool) (now : Nat) (h : Held F)
+    (hm : n.managed = []) :
+    let p := (n.connect (S.sync s) cid a dialer now).run h
+    p.1.1.conns = (cid, (Conn.open dialer (S.rooms s cid) n.floor now).conn) :: (n.close cid).conns ∧
+      p.1.1.managed = [] ∧ p.1.1.addr? cid = some a ∧ p.2 = h := by
+  simp [Node.connect, Node.open, finish_run, Node.close, Node.setAddr, Node.addr?, hm]
+
+end
+
+/-! ## The world -/
+
+@[simp] theorem Who.other_other (s : Who) : s.other.other = s := by cases s <;> rfl
+
+@[simp] theorem World.run_peer_self (w : World F) (s : Who) (net : List Frame) (t : Nat)
+    (f : Node → HeldM F (Node × Effects)) :
+    (w.run s net t f).peer s =
+      { w.peer s with node := ((f (w.peer s).node).run (w.peer s).held).1.1,
+                      held := ((f (w.peer s).node).run (w.peer s).held).2 } := by
+  cases s <;> rfl
+@[simp] theorem World.run_peer_other (w : World F) (s : Who) (net : List Frame) (t : Nat)
+    (f : Node → HeldM F (Node × Effects)) : (w.run s net t f).peer s.other = w.peer s.other := by
+  cases s <;> rfl
+@[simp] theorem World.run_peer_other' (w : World F) (s : Who) (net : List Frame) (t : Nat)
+    (f : Node → HeldM F (Node × Effects)) : (w.run s.other net t f).peer s = w.peer s := by
+  cases s <;> rfl
+@[simp] theorem World.run_net (w : World F) (s : Who) (net : List Frame) (t : Nat)
+    (f : Node → HeldM F (Node × Effects)) :
+    (w.run s net t f).net = net ++ frames ((f (w.peer s).node).run (w.peer s).held).1.2 := rfl
+@[simp] theorem World.run_now (w : World F) (s : Who) (net : List Frame) (t : Nat)
+    (f : Node → HeldM F (Node × Effects)) : (w.run s net t f).now = t := by
+  cases s <;> rfl
+
+/-- The run of `stream_delivers`, step by step. -/
+theorem stream_frames (S : Setup F) (w : World F) (s : Who) (cid : Id) (ca cb : Conn) (o : Op)
+    (r : Id) (t1 t2 t3 t4 : Nat)
+    (hca : (w.peer s).node.conns = [(cid, ca)]) (hcb : (w.peer s.other).node.conns = [(cid, cb)])
+    (hma : (w.peer s).node.managed = []) (hmb : (w.peer s.other).node.managed = [])
+    (haddr : (w.peer s).node.addr? cid = some (w.peer s.other).addr)
+    (hr : S.fam.room o = some r) (hra : r ∈ S.rooms s cid) (hrb : r ∈ S.rooms s.other cid)
+    (hw : isWire o.kind = false)
+    (hna : (w.peer s).held.db.ops o.id = none) (hnb : (w.peer s.other).held.db.ops o.id = none)
+    (hk : o.id ∉ ca.known) (ho : o.id ∉ ca.offered) (hq : o.id ∉ cb.asked)
+    (hmax : 0 < S.cfg.maxIds) :
+    let A := (w.peer s).addr
+    let B := (w.peer s.other).addr
+    let f1 : Frame := ⟨B, plainFrame cid [(Msg.hold [o.id]).op.bytes]⟩
+    let f2 : Frame := ⟨A, plainFrame cid [(Msg.want [o.id]).op.bytes]⟩
+    let w1 := w.write S s [o] t1
+    let w2 := w1.deliver S s.other w.net [] f1 t2
+    let w3 := w2.deliver S s w.net [] f2 t3
+    w1.net = w.net ++ [f1] ∧ w2.net = w.net ++ [f2] ∧
+    ∃ more rest, w3.net = w.net ++ ⟨B, plainFrame cid (o.bytes :: more)⟩ :: rest ∧
+      ((w3.deliver S s.other w.net rest ⟨B, plainFrame cid (o.bytes :: more)⟩ t4).peer s.other).held.db.ops
+        o.id = some o := by
+  intro A B f1 f2 w1 w2 w3
+  -- s writes o, and offers it on the session.
+  obtain ⟨⟨ca1, hca1⟩, hma1, -, hs1, hh1⟩ :=
+    write_offers S s _ cid ca o r B _ t1 hca hma haddr hna hk ho hr hra hmax
+  have e1 : w1.net = w.net ++ [f1] := by simp [w1, World.write, frames, hs1, f1]
+  -- The other node wants it.
+  obtain ⟨⟨cb1, hcb1⟩, -, hs2, hh2⟩ :=
+    hold_wants S s.other (w.peer s.other).node cid cb A o.id (w.peer s.other).held t2 hcb hmb hnb hq hmax
+  have e2 : w2.net = w.net ++ [f2] := by
+    simp [w2, World.deliver, frames, f1, f2, w1, World.write, hs2, A]
+  -- s sends it, first in its first frame.
+  have ha2 : (w2.peer s).node = ((Node.onWrite (S.sync s) (w.peer s).node [o] t1).run (w.peer s).held).1.1 ∧
+      (w2.peer s).held = turnH S.fam [o] (w.peer s).held ∧ (w2.peer s).addr = A ∧
+      (w2.peer s.other).addr = B := by
+    simp [w2, World.deliver, w1, World.write, hh1, A, B]
+  obtain ⟨holds, hholds, hs3⟩ := want_sends S s _ cid ca1 B o r (turnH S.fam [o] (w.peer s).held) t3
+    hca1 hma1 (turnH_one S.fam o _ hna) hr hra hmax
+  obtain ⟨g, gs, hg, hgm⟩ := bundles_head S.cfg.bundle o.bytes holds
+  refine ⟨e1, e2, g, gs.map fun g => ⟨B, plainFrame cid g⟩, ?_, ?_⟩
+  · simp [w3, World.deliver, ha2, frames, f2, hs3, hg]
+  -- The other node takes it.
+  · have hb3 : w3.peer s.other = w2.peer s.other := by simp [w3, World.deliver]
+    have hb2 : (w2.peer s.other).node = ((Node.onFrame (S.sync s.other) (w.peer s.other).node A
+        (plainFrame cid [(Msg.hold [o.id]).op.bytes]) t2).run (w.peer s.other).held).1.1 ∧
+        (w2.peer s.other).held = (w.peer s.other).held := by
+      simp [w2, World.deliver, hh2, A, f1, w1, World.write]
+    have := op_taken S s.other _ cid cb1 (w3.peer s).addr o r g (w.peer s.other).held t4 hcb1 hnb hw hr
+      hrb (fun b hb => hholds b (hgm b hb))
+    simp only [World.deliver, World.run_peer_self, hb3, hb2.1, hb2.2, Who.other_other]
+    rw [this]
+    exact turnH_one _ _ _ hnb
+
+/-- **New ops reach connected members.** Nodes s and s.other hold
+session cid open (and no other), and s's frames on it go to the other
+node. Op o is a data op of room r, which both sides' rooms on the
+session include. Neither node holds o, s's connection has neither
+offered it nor heard that the other holds it, and the other's has not
+asked for it. Then s's write of o sends one frame, an offer (`w1`);
+delivered to the other node, it is answered with one frame, a want
+(`w2`); delivered to s, that is answered with frames whose first begins
+with o (`w3`); and delivered to the other node, that one leaves it
+holding o (`w4`). Frames already in flight stay in flight. -/
+theorem stream_delivers (S : Setup F) (w : World F) (s : Who) (cid : Id) (ca cb : Conn) (o : Op)
+    (r : Id) (t1 t2 t3 t4 : Nat)
+    (hca : (w.peer s).node.conns = [(cid, ca)]) (hcb : (w.peer s.other).node.conns = [(cid, cb)])
+    (hma : (w.peer s).node.managed = []) (hmb : (w.peer s.other).node.managed = [])
+    (haddr : (w.peer s).node.addr? cid = some (w.peer s.other).addr)
+    (hr : S.fam.room o = some r) (hra : r ∈ S.rooms s cid) (hrb : r ∈ S.rooms s.other cid)
+    (hw : isWire o.kind = false)
+    (hna : (w.peer s).held.db.ops o.id = none) (hnb : (w.peer s.other).held.db.ops o.id = none)
+    (hk : o.id ∉ ca.known) (ho : o.id ∉ ca.offered) (hq : o.id ∉ cb.asked)
+    (hmax : 0 < S.cfg.maxIds) :
+    ∃ w1 w2 w3 w4 more rest,
+      w1 = w.write S s [o] t1 ∧
+      w1.net = w.net ++ [⟨(w.peer s.other).addr, plainFrame cid [(Msg.hold [o.id]).op.bytes]⟩] ∧
+      w2 = w1.deliver S s.other w.net [] ⟨(w.peer s.other).addr, plainFrame cid [(Msg.hold [o.id]).op.bytes]⟩ t2 ∧
+      w2.net = w.net ++ [⟨(w.peer s).addr, plainFrame cid [(Msg.want [o.id]).op.bytes]⟩] ∧
+      w3 = w2.deliver S s w.net [] ⟨(w.peer s).addr, plainFrame cid [(Msg.want [o.id]).op.bytes]⟩ t3 ∧
+      w3.net = w.net ++ ⟨(w.peer s.other).addr, plainFrame cid (o.bytes :: more)⟩ :: rest ∧
+      w4 = w3.deliver S s.other w.net rest ⟨(w.peer s.other).addr, plainFrame cid (o.bytes :: more)⟩ t4 ∧
+      (w4.peer s.other).held.db.ops o.id = some o := by
+  obtain ⟨e1, e2, more, rest, e3, hb⟩ :=
+    stream_frames S w s cid ca cb o r t1 t2 t3 t4 hca hcb hma hmb haddr hr hra hrb hw hna hnb hk ho hq hmax
+  exact ⟨_, _, _, _, more, rest, rfl, e1, rfl, e2, rfl, e3, rfl, hb⟩
+
+/-- The exchange of `stream_delivers` is a run of the world: a write,
+then three deliveries, each of a frame in flight to the node at its
+address. -/
+theorem stream_delivers_steps (S : Setup F) (w : World F) (s : Who) (cid : Id) (ca cb : Conn) (o : Op)
+    (r : Id) (t1 t2 t3 t4 : Nat)
+    (hca : (w.peer s).node.conns = [(cid, ca)]) (hcb : (w.peer s.other).node.conns = [(cid, cb)])
+    (hma : (w.peer s).node.managed = []) (hmb : (w.peer s.other).node.managed = [])
+    (haddr : (w.peer s).node.addr? cid = some (w.peer s.other).addr)
+    (hr : S.fam.room o = some r) (hra : r ∈ S.rooms s cid) (hrb : r ∈ S.rooms s.other cid)
+    (hw : isWire o.kind = false)
+    (hna : (w.peer s).held.db.ops o.id = none) (hnb : (w.peer s.other).held.db.ops o.id = none)
+    (hk : o.id ∉ ca.known) (ho : o.id ∉ ca.offered) (hq : o.id ∉ cb.asked)
+    (hmax : 0 < S.cfg.maxIds) (h1 : w.now ≤ t1) (h2 : t1 ≤ t2) (h3 : t2 ≤ t3) (h4 : t3 ≤ t4) :
+    ∃ w', World.Steps S w w' ∧ (w'.peer s.other).held.db.ops o.id = some o := by
+  obtain ⟨_, _, _, _, more, rest, rfl, e1, rfl, e2, rfl, e3, rfl, hb⟩ :=
+    stream_delivers S w s cid ca cb o r t1 t2 t3 t4 hca hcb hma hmb haddr hr hra hrb hw hna hnb hk ho hq hmax
+  refine ⟨_, .step (.write s [o] h1) (.step (.deliver s.other (e1.trans (by simp)) ?_ (by simpa [World.write]))
+    (.step (.deliver s (e2.trans (by simp)) ?_ (by simpa [World.deliver]))
+      (.step (.deliver s.other e3 ?_ (by simpa [World.deliver])) (.refl _)))), hb⟩
+  · simp [World.write]
+  · simp [World.deliver, World.write]
+  · simp [World.deliver, World.write]
+
+/-- A family of one room: every op is shared in it, and valid. -/
+def oneRoom (r : Id) : Family Unit :=
+  { validate := fun _ _ => some (), keys := fun _ => [], scope := fun _ => .shared r }
+
+/-- Two nodes with nothing stored and nothing in flight. -/
+def World.empty (fam : Family F) : World F :=
+  { a := Peer.empty fam 0 ⟨#[0]⟩, b := Peer.empty fam 0 ⟨#[1]⟩ }
+
+/-- A session opened at node s, which has no managed sessions. -/
+theorem World.connect_peer (S : Setup F) (w : World F) (s : Who) (cid : Id) (dialer : Bool) (t : Nat)
+    (hm : (w.peer s).node.managed = []) :
+    let w' := w.connect S s cid dialer t
+    (w'.peer s).node.conns =
+        (cid, (Conn.open dialer (S.rooms s cid) (w.peer s).node.floor t).conn) :: ((w.peer s).node.close cid).conns ∧
+      (w'.peer s).node.managed = [] ∧ (w'.peer s).node.addr? cid = some (w.peer s.other).addr ∧
+      (w'.peer s).held = (w.peer s).held ∧ w'.peer s.other = w.peer s.other := by
+  obtain ⟨h1, h2, h3, h4⟩ := connect_run S s (w.peer s).node cid (w.peer s.other).addr dialer t (w.peer s).held hm
+  simp only [World.connect, World.run_peer_self, World.run_peer_other, and_true]
+  exact ⟨h1, h2, h3, h4⟩
+
+/-- **`stream_delivers` is not vacuous.** From two empty nodes, open a
+session at each end (`Node.connect`, as the pair harness does), then
+run the stream: the other node holds the op written. -/
+theorem stream_delivers_runs (r cid : Id) :
+    ∃ w, World.Steps ⟨oneRoom r, {}, fun _ _ => [r]⟩ (World.empty (oneRoom r)) w ∧
+      (w.peer .b).held.db.ops (Op.make 1 [] .empty).id = some (Op.make 1 [] .empty) := by
+  let S : Setup Unit := ⟨oneRoom r, {}, fun _ _ => [r]⟩
+  let o := Op.make 1 [] .empty
+  show ∃ w, World.Steps S (World.empty S.fam) w ∧ (w.peer .b).held.db.ops o.id = some o
+  let w0 := World.empty S.fam
+  let w1 := w0.connect S .a cid true 0
+  let w2 := w1.connect S .b cid false 0
+  obtain ⟨hca, hma, haa, hha, hb1⟩ := World.connect_peer S w0 .a cid true 0 rfl
+  have eb : w1.peer .b = w0.peer .b := hb1
+  obtain ⟨hcb, hmb, -, hhb, ha2⟩ := World.connect_peer S w1 .b cid false 0 (by rw [eb]; rfl)
+  have ea : w2.peer .a = w1.peer .a := ha2
+  have hca' : (w2.peer .a).node.conns = [(cid, (Conn.open true [r] 0 0).conn)] := by rw [ea]; exact hca
+  have hcb' : (w2.peer .b).node.conns = [(cid, (Conn.open false [r] 0 0).conn)] := by
+    rw [hcb, eb]; rfl
+  have hma' : (w2.peer .a).node.managed = [] := by rw [ea]; exact hma
+  have haa' : (w2.peer .a).node.addr? cid = some (w2.peer .b).addr := by
+    rw [ea, haa]; show some (w0.peer .b).addr = some (w2.peer .b).addr
+    rw [← eb]; rfl
+  have hna : (w2.peer .a).held.db.ops o.id = none := by rw [ea, hha]; rfl
+  have hnb : (w2.peer .b).held.db.ops o.id = none := by rw [hhb, eb]; rfl
+  obtain ⟨w, hs, hw⟩ := stream_delivers_steps S w2 .a cid _ _ o r 0 0 0 0 hca' hcb' hma' hmb haa'
+    rfl (by simp [S]) (by simp [S]) (by decide) hna hnb
+    (by simp [Conn.open]) (by simp [Conn.open]) (by simp [Conn.open]) (by simp [S])
+    (Nat.le_refl _) (Nat.le_refl _) (Nat.le_refl _) (Nat.le_refl _)
+  exact ⟨w, .step (.connect .a cid true (Nat.le_refl _)) (.step (.connect .b cid false (Nat.le_refl _)) hs), hw⟩
+
+end Engine.Sync

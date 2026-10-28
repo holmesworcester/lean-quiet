@@ -124,7 +124,10 @@ family writes it as a local op, so it can't grow the log per message.
 | Engine/Sync/Tcp.lean | the TCP runner |
 | Engine/Sync/Locality.lean | `spec_local` |
 | Engine/Sync/Pair.lean | two Nodes over a lossy in-memory queue, for tests |
+| Engine/Sync/World.lean | two Nodes on held stores and the frames in flight, as data, with `World.Step` |
+| Engine/Sync/WorldLaws.lean | the entry points run on held stores; `stream_delivers` |
 | Tests/SyncPair.lean | two-node suites on a real community |
+| Tests/SyncWorld.lean | the world on a real community, and the stream run as `stream_delivers` says |
 | Tests/TcpPair.lean | two runners over localhost TCP, with a toy handshake family |
 
 **The driver** (`Node`, generic in its store: `[Monad m] [Store F m]
@@ -224,6 +227,22 @@ Proven:
 - `spec_local` (locality): a decided verdict depends only on the op's
   requirement closure. If a node holds every op the peer's verdict on x
   was reached from, it reaches the same verdict.
+- `stream_delivers`, over the two-node world (`World`: two Nodes, each
+  on a held store, and the frames in flight as a multiset; `World.Step`
+  delivers any frame in flight, ticks, writes or connects, running
+  `Node.onFrame`, `onTick`, `onWrite` and `Node.connect` with fixed
+  rooms and frames in the clear). Two nodes each hold one session, to
+  each other, whose rooms on both sides include room r. A node writes a
+  new data op of r, which neither holds and its connection has neither
+  offered nor heard the peer holds, and the peer's has not asked for.
+  The write sends exactly one frame, the offer; delivered, it is
+  answered with exactly one frame, the want; delivered, that is
+  answered with frames whose first begins with the op; delivered, the
+  peer holds it. Each entry point's frames are computed from the code
+  (`write_offers`, `hold_wants`, `want_sends`, `op_taken`).
+  `stream_delivers_steps`: the exchange is a run of `World.Step`.
+  `stream_delivers_runs`: from two empty nodes and two `connect` steps,
+  the premises hold, so the law is not vacuous.
 - From earlier: `intake_local`, `offer_shared`, `stored_local`.
 
 Tested, not yet proven (Tests/SyncPair.lean, on a 101-op community with
@@ -237,7 +256,9 @@ Ed25519 and SQLite):
 - A peer allowed one community never sees another's ops, cannot get
   them by asking, and cannot push them in. Garbage and peers' local ops
   are ignored.
-- A new op streams to the peer without another round.
+- A new op streams to the peer without another round (proven over the
+  world, `stream_delivers`; Tests/SyncWorld.lean runs it on a real
+  community and checks the premises hold of the live world).
 
 Negative controls, each failing the suite: windows that ignore the
 floor; no closure offers; rooms not checked.
@@ -300,11 +321,13 @@ unaffected (Meyer and Scherer §I–II).
   - peer floor, round counters and patience: become ops and list reads.
   A "due" standing question opens rounds, as poc-17's `compare.due`
   does.
-- **The two-node world.** `World := { nodes over Held, wire, now }` and
-  `step`, with `Reachable`/`Run`/`Fair` defined over it, so lean-net's
-  laws are re-proven over the code that runs (holmes-fd). The user
-  asked to "induct over more". The IO pair interprets the same step,
-  with a model-versus-SQLite differential test.
+- **The two-node world.** Built: `World` (two Nodes over `Held`, the
+  frames in flight, `now`) and `World.Step`, with `World.Steps` its
+  runs (Engine/Sync/World.lean). Still to come: `Fair` over it, an
+  attacker step (holmes-fd, `fd/pair-secrecy`), so lean-net's laws are
+  re-proven over the code that runs. The user asked to "induct over
+  more". The IO pair should interpret the same step, with a
+  model-versus-SQLite differential test.
 - **Open, with the user:**
   - rounds from both sides on a cadence, without a dialer bit. Round
     ids must name their initiator, and the cadence should not be every

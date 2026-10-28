@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 194 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 238 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as each part's `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -168,7 +168,7 @@ nothing else is assumed:
 | ✅ | 🥊🥊🥊 | **Partial sync is safe.** A node that holds an op's requirement closure judges it as its peer does. | [`spec_local`] |
 | 🟡 | 🥊🥊🥊 | **A joiner connects, and both sides converge,** over a socket that loses, duplicates and reorders. Proven over a model only. | [`bootstrap`], [`bootstrap_ideal`], [`bootstrap_possible`], [`reachable_inv`] *(model)* |
 | ⬜ | 🥊🥊🥊 | **The running connection does all this.** It performs the round, and delivers each op's requirement closure (`conn_runs_exchange`, `closure_delivered`). This retires `net/`'s model. | |
-| ⬜ | 🥊🥊🥊 | **New ops reach connected members.** An op stored while a member's connection is up is offered on it at once, if the member may see its room. The member holds it after one exchange (`stream_delivers`). Tested, not proven. | |
+| ✅ | 🥊🥊🥊 | **New ops reach connected members.** An op a node writes while a member's session is up is offered on it at once, if the member may see its room. The member holds it after one exchange: the offer, a want, and the op. This is over a world of two nodes running the sync code on held stores, each with one session, fixed rooms and frames in the clear. | [`stream_delivers`], [`stream_delivers_steps`], [`stream_delivers_runs`] |
 | ⬜ | 🥊🥊🥊 | **Everyone converges.** Under fair delivery, members linked by any chain of connections eventually hold every op of their community. By [`same_ops_same_verdicts`], they then hold the same verdicts. Proven so far for two nodes, over a model. | |
 | ⬜ | 🥊🥊 | **Staleness is never hidden.** What the screen says about sync is true of the ops held. "Up to date as of T" means a round the device opened at its own time T ended with it holding everything the peer held in that room. If no round ends within a stated bound, the screen says so within that bound. | |
 | ⬜ | 🥊🥊🥊 | **A synced page is complete:** after syncing a page, a device shows every row its peer shows for it (`page_sync`). | |
@@ -321,6 +321,9 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`bootstrap_ideal`]: net/Net/Laws.lean#L423-L424
 [`bootstrap_possible`]: net/Net/Laws.lean#L208-L218
 [`reachable_inv`]: net/Net/Steps.lean#L222-L223
+[`stream_delivers`]: engine/Engine/Sync/WorldLaws.lean#L535-L563
+[`stream_delivers_steps`]: engine/Engine/Sync/WorldLaws.lean#L568-L581
+[`stream_delivers_runs`]: engine/Engine/Sync/WorldLaws.lean#L611-L616
 [`visible_in_viewport`]: app/Quiet/Geometry.lean#L90-L95
 [`newest_visible`]: app/Quiet/Geometry.lean#L99-L105
 [`pinned_visible`]: app/Quiet/Geometry.lean#L147-L151

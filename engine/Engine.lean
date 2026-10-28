@@ -25,5 +25,7 @@ import Engine.Sync.Locality
 import Engine.Sync.Frame
 import Engine.Sync.Tcp
 import Engine.Sync.Held
+import Engine.Sync.World
+import Engine.Sync.WorldLaws
 import Engine.Crypto
 import Engine.Union

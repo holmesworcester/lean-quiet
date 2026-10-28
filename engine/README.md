@@ -228,7 +228,7 @@ and each named user's `removal.byUser`.
 ## Running
 
     mise run check   # build proofs, audit axioms (standard only)
-    mise run test    # scenario, differential, querydiff, linkcheck, lifecycle, wire, syncpair, noise_check, purge, crash
+    mise run test    # scenario, differential, querydiff, linkcheck, lifecycle, wire, syncpair, syncworld, noise_check, purge, crash
 
 Needs `ELAN_HOME` with Lean 4.34.0, and SQLite and libsodium (headers
 for SQLite). The CI workflow runs both tasks; this repo has no remote

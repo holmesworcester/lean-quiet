@@ -59,6 +59,9 @@ lean_exe wire where
 lean_exe syncpair where
   root := `Tests.SyncPair
 
+lean_exe syncworld where
+  root := `Tests.SyncWorld
+
 lean_exe tcppair where
   root := `Tests.TcpPair
 
