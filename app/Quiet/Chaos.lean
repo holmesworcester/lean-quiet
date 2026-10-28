@@ -5,7 +5,7 @@ talk, made of real ops (signed, judged, stored like any sync).
 - **People:** names in many scripts, each admitted the way the engine
   admits anyone: an invitation from this node's founder, the newcomer's
   request, the founder's approval, and the admission tallying it. Each
-  has a profile and an avatar: an identicon, or a crop of a photo.
+  has a profile.
 - **Messages:** text in many languages and scripts (Latin with accents,
   Greek, Cyrillic, Georgian, Armenian, Hebrew, Arabic, Thai, Japanese,
   Chinese, Korean), emoji, symbols, long unbreakable words, several
@@ -154,6 +154,19 @@ def photo (srcs : Array Image.Src) (g : Rng) : (Nat × Nat × ByteArray) × Rng 
   let (w, h) := if half == 0 then (w / 2, h / 2) else (w, h)
   return ((w, h, Image.encode w h (cropPx s fx fy cw ch w h)), g)
 
+/-- A picture's preview: the whole of it at most 32 px on its long side
+(well inside an attachment's 8 KiB). -/
+def preview (bytes : ByteArray) : ByteArray :=
+  match Image.decode bytes with
+  | some s =>
+    let (w, h) := if s.w ≥ s.h then (32, max 1 (32 * s.h / s.w)) else (max 1 (32 * s.w / s.h), 32)
+    Image.encode w h (cropPx s 0 0 s.w s.h w h)
+  | none => .empty
+
+/-- Chaos's pseudo-random bytes (test data only: never a key that guards
+anything real). -/
+def bytesOf (tag : String) (n : Nat) : ByteArray := (sha256 tag.toUTF8).extract 0 n
+
 /-! ## The community -/
 
 /-- This device in one community (Kinds.Accepted). -/
@@ -166,64 +179,34 @@ def freshSeed (salt : String) : IO ByteArray := do
 /-- Minutes since 2026-10-01, for message times. -/
 def epoch : Nat := 29330000
 
-/-- The jobs that make a community of about n messages. -/
-def make (me : Me) (srcs : Array Image.Src) (seed n : Nat) (start : Nat) : Array Job := Id.run do
+/-- The jobs that make a community of about n messages, their bodies
+sealed under the community's content key k; a few carry photos, each an
+attachment with its chunks (at most `maxFiles` files in all). -/
+def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n : Nat) (start : Nat) : Array Job := Id.run do
   let c := me.c
   let f := me.dev
   let mut g : Rng := ⟨seed.toUInt64 * 7919 + 17⟩
   let mut jobs : Array Job := #[]
   let mut batch : Array Op := #[]
-  let mut blobs : Array ByteArray := #[]
-  -- people
+  -- people: invited by the founder, who approves each request (threshold 1)
   let nUsers := max 6 (min names.size (n / 20))
   let mut people : Array (Id × Device) := #[(me.adm, f)]
   for i in [0:nUsers] do
     let d := Device.named s!"chaos-{seed}-{i}"
     let bearer := Device.named s!"chaos-bearer-{seed}-{i}"
-    -- invited by the founder, who then approves the request (threshold 1)
     let inv := invite c me.adm f bearer.pk false 1
     let rq := request c inv.id d bearer.sk
     let ap := approve c rq.id me.adm f
     let j := admit c rq.id [ap.id]
-    -- an avatar: an identicon, or a square crop of a photo
-    let (kind, g1) := g.below 3
-    g := g1
-    let (bytes, g2) := if kind == 0 && !srcs.isEmpty then
-        let (si, g2) := g.below srcs.size
-        let s := srcs[si]!
-        let m := min s.w s.h
-        let (fx, g3) := g2.below (s.w - m / 2 + 1)
-        let (fy, g4) := g3.below (s.h - m / 2 + 1)
-        let side := min (m / 2) (min (s.w - fx) (s.h - fy))
-        (Image.encode 128 128 (cropPx s fx fy side side 128 128), g4)
-      else
-        let (px, g2) := identicon g 128
-        (Image.encode 128 128 px, g2)
-    g := g2
-    let b := blob c bytes 128 128
-    let p := profile c j.id d names[i % names.size]!.toUTF8 start [b.id]
-    batch := batch ++ #[inv, rq, ap, j, b, p]
-    blobs := blobs.push bytes
+    let p := profile c j.id d names[i % names.size]!.toUTF8 start
+    batch := batch ++ #[inv, rq, ap, j, p]
     people := people.push (j.id, d)
-  jobs := jobs.push ⟨batch.toList, blobs.toList, false⟩
+  jobs := jobs.push ⟨batch.toList, false⟩
   batch := #[]
-  blobs := #[]
-  -- a pool of pictures, reused across messages
-  let mut pics : Array (Id × Nat × Nat) := #[]
-  if !srcs.isEmpty then
-    for _ in [0:min 24 (n / 30 + 4)] do
-      let ((w, h, bytes), g1) := photo srcs g
-      g := g1
-      let b := blob c bytes w h
-      batch := batch.push b
-      blobs := blobs.push bytes
-      pics := pics.push (b.id, w, h)
-    jobs := jobs.push ⟨batch.toList, blobs.toList, false⟩
-    batch := #[]
-    blobs := #[]
-  -- messages and reactions
+  -- messages, their photos, and reactions
+  let maxFiles := 12
+  let mut files := 0
   let mut t := start
-  let mut posts : Array Id := #[]
   let mut pending : Array Op := #[]
   for i in [0:n] do
     let (gap, g1) := g.below 100
@@ -237,40 +220,40 @@ def make (me : Me) (srcs : Array Image.Src) (seed n : Nat) (start : Nat) : Array
     let (u, d) := people[ai]!
     let text := if more == 0 then texts[ti]! ++ " " ++ texts[ti2]! else
       if more == 1 then texts[ti]! ++ "\n\n" ++ texts[ti2]! else texts[ti]!
-    let mut atts : List Id := []
-    if att < 12 && !pics.isEmpty then
-      let (k, g7) := g.below 3
-      g := g7
-      for j in [0:k + 1] do
-        let (pi, g8) := g.below pics.size
-        g := g8
-        if !atts.contains pics[pi]!.1 then atts := atts ++ [pics[pi]!.1]
-        let _ := j
-    let o := post c u d "k".toUTF8 (s!"{text}").toUTF8 t atts
+    let tag := s!"chaos {seed} {i}"
+    let o := sealedPost c u d k (bytesOf (tag ++ " nonce") 24) text.toUTF8 t
     pending := pending.push o
-    posts := posts.push o.id
+    if att < 12 && !srcs.isEmpty && files < maxFiles then
+      let ((w, h, bytes), g7) := photo srcs g
+      g := g7
+      files := files + 1
+      let nf : NewFile := { info := { name := s!"photo-{i}.qoi".toUTF8, kind := "image/qoi".toUTF8, w, h,
+                                      preview := preview bytes },
+                            bytes, key := bytesOf (tag ++ " file key") 32, nonce := bytesOf (tag ++ " file nonce") 24,
+                            metaNonce := bytesOf (tag ++ " meta nonce") 24 }
+      let (a, cs) := attach c u o.id d k nf
+      pending := pending ++ #[a] ++ cs.toArray
     -- reactions on this message, arriving with it
     let (r, g9) := g.below 3
     g := g9
     if r == 0 then
       let (ne, g10) := g.below 4
       g := g10
-      for k in [0:ne + 1] do
-        let e := emoji[(i + k * 3) % emoji.size]!
+      for kk in [0:ne + 1] do
+        let e := emoji[(i + kk * 3) % emoji.size]!
         let (nr, g11) := g.below 5
         g := g11
         for z in [0:nr + 1] do
-          let (u2, d2) := people[(ai + z * 7 + k) % people.size]!
+          let (u2, d2) := people[(ai + z * 7 + kk) % people.size]!
           pending := pending.push (react c u2 o.id d2 e.toUTF8 (t + z))
     if pending.size ≥ 100 then
       -- a little shuffled within the batch: replies before what they cite
       let (rot, g12) := g.below pending.size
       g := g12
       let shuffled := pending.extract rot pending.size ++ pending.extract 0 rot
-      jobs := jobs.push ⟨shuffled.toList, [], false⟩
+      jobs := jobs.push ⟨shuffled.toList, false⟩
       pending := #[]
-  if !pending.isEmpty then jobs := jobs.push ⟨pending.toList, [], false⟩
-  let _ := posts
+  if !pending.isEmpty then jobs := jobs.push ⟨pending.toList, false⟩
   return jobs
 
 end Chaos

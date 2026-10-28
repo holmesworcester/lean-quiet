@@ -28,3 +28,4 @@ import Quiet.App
 #print axioms App.pageIn_acc
 #print axioms Pages.switcherOrder_sound
 #print axioms Pages.switcherOrder_complete
+#print axioms Switch.dedupe_one_per_community

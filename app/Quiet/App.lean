@@ -257,7 +257,7 @@ def readRow (m : Id) : M (Option (RowData × Array Q)) := do
 def noticeLocal (keys : List ByteArray) : M Unit :=
   modify fun s => { s with live := s.live.notice keys.toArray }
 
-/-- A user action's write (an intent's ops, with their blobs): each op is
+/-- A user action's write (an intent's ops): each op is
 judged in order against what is decided and the ops before it in the
 same write. Valid ops show at once, pending. An op whose requirements are
 not all here yet (a join's request cites the community's ops, which come
@@ -286,15 +286,11 @@ def writeAll (w : Community.Write) : M Bool := do
   modify fun s => { s with out := s.out ++ pend }
   noticeLocal (pend.toList.flatMap (·.keys))
   match s.net with
-  | some r =>
-    -- the node owns the store's writes; blob bytes are the app's own table
-    for b in w.blobs do
-      let _ ← s.rd.query "INSERT OR IGNORE INTO blobs (hash, bytes) VALUES (?, ?)" #[sha256 b, b]
-    r.write w.ops
-  | none => s.wr.submit ⟨w.ops, w.blobs, true⟩
+  | some r => r.write w.ops  -- the node owns the store's writes
+  | none => s.wr.submit ⟨w.ops, true⟩
   return true
 
-def write (o : Op) : M Bool := writeAll ⟨[o], []⟩
+def write (o : Op) : M Bool := writeAll ⟨[o]⟩
 
 def newestTime (s : St) : Nat :=
   match s.ids[0]? with
@@ -305,8 +301,10 @@ def sendText (text : String) : M Bool := do
   let s ← get
   let t := text.trimAscii.toString
   if t.isEmpty then return false
-  let o := post s.me.c s.me.adm s.me.dev "k".toUTF8 t.toUTF8 (newestTime s + 1)
-  write o
+  -- sealed under the community's current key, as the composer's send is
+  let (k?, _) ← readView (Community.currentKey s.me.c) #[]
+  let some k := k? | return false
+  write (sealedPost s.me.c s.me.adm s.me.dev k (← Engine.Crypto.randomBytes 24) t.toUTF8 (newestTime s + 1))
 
 def reactTo (m : Id) (e : String) : M Bool := do
   let s ← get
@@ -362,19 +360,43 @@ def decodeTask (bytes : ByteArray) (w h : Nat) (sq : Bool) : Task Bitmap :=
     | some src => if sq then Image.square src w Row.bg else Image.scaled src w h Row.bg
     | none => Bitmap.blank w h (solid Row.placeholder w)
 
-/-- The decoded picture at its drawn size, if ready (a decode is started
-when the bytes are there). -/
-def image (hash : ByteArray) (w h : Nat) (sq : Bool) : M (Option Bitmap) := do
+/-- An attachment's slices, read from its chunk ops in order. -/
+def slicesOf (p : Row.Pic) : M (List ByteArray) := do
   let s ← get
-  let k := (hash, w, h)
-  match s.imgs[k]? with
+  let mut out := #[]
+  for x in p.chunks do
+    let some o ← (Store.getOp (F := SF) (m := SqlM SF) x).run s.rd | return []
+    match (Codec.decode o.body : Option Community.Body) with
+    | some (.chunk _ _ _ slice _) => out := out.push slice
+    | _ => return []
+  return out.toList
+
+/-- A decode of `k` started (or finished): its bitmap once done. -/
+def decoded (k : ImgKey) (start : M (Option (Task Bitmap))) : M (Option Bitmap) := do
+  match (← get).imgs[k]? with
   | some t => if ← IO.hasFinished t then return some t.get else return none
   | none =>
-    match ← Data.Db.blob s.rd hash with
-    | none => return none
-    | some bytes =>
-      modify fun s => { s with imgs := s.imgs.insert k (decodeTask bytes w h sq) }
-      return none
+    if let some t ← start then modify fun s => { s with imgs := s.imgs.insert k t }
+    return none
+
+/-- An attachment drawn at its size, if ready, and whether it is the file
+(not its preview): the preview until every chunk is here and the file
+is decoded, then the file (its slices assembled and opened with the
+file's key, off the app's thread). -/
+def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := do
+  let pre ← decoded (p.hash.push 0, w, h) do
+    pure (if p.preview.isEmpty then none else some (decodeTask p.preview w h false))
+  if !p.complete then return (pre, false)
+  let full ← decoded (p.hash.push 1, w, h) do
+    let slices ← slicesOf p
+    let (key, nonce) := (p.key, p.nonce)
+    pure <| some <| Task.spawn fun _ =>
+      match (Community.openFile slices key nonce).bind Image.decode with
+      | some src => Image.scaled src w h Row.bg
+      | none => Bitmap.blank w h (solid Row.placeholder w)
+  match full with
+  | some b => return (some b, true)
+  | none => return (pre, false)
 
 /-- Mount (read, lay out) row x if any of its answers are stale. -/
 def mount (x : Id) : M Unit := do
@@ -408,16 +430,18 @@ def mount (x : Id) : M Unit := do
 def paintRow (x : Id) : M Unit := do
   let s ← get
   let some r := s.rows[x]? | return
-  let av ← match r.data.avatar with
-    | some hh => image hh s.dim.avatar s.dim.avatar true
-    | none => pure none
+  let av : Option Bitmap := none  -- profiles carry no avatar: Row draws the initial
   let mut imgs := #[]
+  -- what is painted: each picture's presence and stage (preview, file)
+  let mut ready := [av.isSome]
   for i in [0:r.lay.pics.size] do
     let bx := r.lay.pics[i]!
     match r.data.pics[i]? with
-    | some p => imgs := imgs.push (← image p.hash bx.w bx.h false)
+    | some p =>
+      let (b, isFile) ← image p bx.w bx.h
+      imgs := imgs.push b
+      ready := ready ++ [b.isSome, isFile]
     | none => imgs := imgs.push none
-  let ready := av.isSome :: imgs.toList.map Option.isSome
   let s ← get
   let some r := s.rows[x]? | return
   -- a finished paint is shown
@@ -545,14 +569,6 @@ def openPage (p : PageId) : M Unit := do
   s.io.scrollTo 0
   modify fun s => { s with backStack := s.page :: s.backStack, page := p, refusal := none, pageKey := none }
 
-/-- A link pasted or scanned: Choose a name, then Agree & join. -/
-def takeInvite (i : Community.Invite) : M Unit := do
-  let s ← get
-  s.io.textClear
-  modify fun s => { s with invite := some i, field := "", refusal := none }
-  openPage .name
-  s.io.ime true
-
 /-- Back: the page before, or the conversation. -/
 def back : M Unit := do
   let s ← get
@@ -585,6 +601,24 @@ def switchToAcc (a : Id) : M Unit := do
 def switchTo (i : Nat) : M Unit := do
   if let some m := (← get).comms[i]? then switchToAcc m.acc
 
+/-- A link pasted or scanned: Choose a name, then Agree & join; but a link
+to a community this device already holds (a member, or its join pending)
+goes to that community instead, and joins nothing (libquiet's rule: a
+node holds a community at most once). -/
+def takeInvite (i : Community.Invite) : M Unit := do
+  let s ← get
+  if let some m := s.comms.find? (·.c == i.community) then
+    s.io.textClear
+    s.io.ime false
+    modify fun s => { s with invite := none, field := "", refusal := none }
+    switchToAcc m.acc
+    say (if m.waiting then "You're already waiting to join this community." else "You're already in this community.")
+    return
+  s.io.textClear
+  modify fun s => { s with invite := some i, field := "", refusal := none }
+  openPage .name
+  s.io.ime true
+
 /-- The acceptance a write makes (found's, join's): its accept op. -/
 def acceptOf (w : Community.Write) : Option Id :=
   (w.ops.find? fun o => match (Codec.decode o.body : Option Community.Body) with
@@ -596,6 +630,7 @@ current. -/
 def found (n myName : String) : M Unit := do
   let seed ← Chaos.freshSeed n
   let w := Community.found seed n.toUTF8 myName.toUTF8 (newestTime (← get) + 1)
+    (← Engine.Crypto.randomBytes 32) (← Engine.Crypto.randomBytes 32)
   if ← writeAll w then
     if let some a := acceptOf w then
       refreshComms
@@ -696,10 +731,13 @@ def refreshAsking : M Unit := do
 
 /-- My approval of request r (my device in this community signs it). -/
 def approveReq (r : Id) : M Unit := do
+  -- a fresh ephemeral secret for the wrap of the community's key to the
+  -- requester's device
+  let esk ← Engine.Crypto.randomBytes 32
   let s ← get
   -- the intent reads the request and its approvals: with mine, is the
   -- tally complete? then the admission goes in the same write
-  let w ← ((Community.approveReq s.me.c r s.me.adm s.me.seed).liftL.run : SqlM SF _).run s.rd
+  let w ← ((Community.approveReq s.me.c r s.me.adm s.me.seed esk).liftL.run : SqlM SF _).run s.rd
   let _ ← writeAll w
 
 /-- The current page's picture and taps (kept until what it shows changes). -/
@@ -867,13 +905,22 @@ def closeSheet : M Unit := do
   modify fun s => { s with sheet := none, selected := none }
 
 /-- Send what the composer holds: its text and photos, as the engine's
-send intent (the photos' blobs, then the post citing them), one write. -/
+send intent (the post sealed under the community's current key, then
+each photo's attachment and chunks), one write. -/
 def sendNow : M Unit := do
   let s ← get
   let t := s.text.trimAscii.toString
   if t.isEmpty && s.chips.isEmpty then return
-  let pics := s.chips.toList.map fun (b, w, h, _) => (b, w, h)
-  if ← writeAll (Community.send s.me.c s.me.adm s.me.seed "k".toUTF8 t.toUTF8 (newestTime s + 1) pics) then
+  let (k?, _) ← readView (Community.currentKey s.me.c) #[]
+  let some k := k? | say "This community's key hasn't arrived yet."; return
+  let mut files := []
+  for (bytes, w, h, _) in s.chips.toList do
+    files := files ++ [({ info := { name := "photo.qoi".toUTF8, kind := "image/qoi".toUTF8, w, h,
+                                    preview := Chaos.preview bytes },
+                          bytes, key := ← Engine.Crypto.randomBytes 32, nonce := ← Engine.Crypto.randomBytes 24,
+                          metaNonce := ← Engine.Crypto.randomBytes 24 } : Community.NewFile)]
+  let nonce ← Engine.Crypto.randomBytes 24
+  if ← writeAll (Community.send s.me.c s.me.adm s.me.seed k nonce t.toUTF8 (newestTime s + 1) files) then
     s.io.textClear
     modify fun s => { s with text := "", sel := #[0, 0, 0, 0], chips := #[], chromeKey := "" }
 
@@ -1091,6 +1138,8 @@ def command (line : String) : M Bool := do
       | none => IO.asTask loadSrcs >>= fun t => pure (t.map fun r => match r with | .ok a => a | .error _ => #[])
     modify fun s => { s with srcs := some srcs, seed := s.seed + 1 }
     let me := s.me
+    let (k?, _) ← readView (Community.currentKey me.c) #[]
+    let k := k?.getD .empty
     let seed := s.seed
     let start := newestTime s + 1
     let wr := s.wr
@@ -1098,7 +1147,7 @@ def command (line : String) : M Bool := do
     -- busy until every job is queued, so `wait` waits for the making too
     wr.busy.modify (· + 1)
     let _ ← IO.asTask (prio := .dedicated) do
-      let jobs := Chaos.make me srcs.get seed n start
+      let jobs := Chaos.make me k srcs.get seed n start
       for j in jobs do wr.submit j
       wr.busy.modify (· - 1)
       let t1 ← s.io.nowUs
@@ -1358,6 +1407,10 @@ def step (evs : List Event) : M (Option (List Event)) := do
   for m in s.comms do
     if m.waiting then continue
     let (w, _) ← readView (Community.introduce m.c m.seed (newestTime s + 1)) #[]
+    if !w.ops.isEmpty then let _ ← writeAll w
+    -- and the community's keys wrapped to this device, opened into local
+    -- key ops (a live view too: re-run when a wrap arrives)
+    let (w, _) ← readView (Community.unwrap m.c m.seed) #[]
     if !w.ops.isEmpty then let _ ← writeAll w
   -- a community this device waits to join shows Waiting in place of its
   -- conversation (read: no admission for my device there)

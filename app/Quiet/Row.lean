@@ -55,12 +55,25 @@ structure Tally where
   mine : Bool
   deriving BEq, Inhabited
 
-/-- A picture: its blob's hash and size (none until the blob is known). -/
+/-- A picture: an attachment of the message (Kinds.File). Its file's root
+(`hash`) and size; its preview, shown until every chunk is here; how many
+of its chunks are here (`got`, a count read from the store) of `total`;
+and what opens the file once they all are: the chunks' op ids in order,
+the file's key and nonce. -/
 structure Pic where
   hash : ByteArray
   w : Nat
   h : Nat
+  preview : ByteArray := .empty
+  got : Nat := 0
+  total : Nat := 0
+  chunks : List ByteArray := []
+  key : ByteArray := .empty
+  nonce : ByteArray := .empty
   deriving BEq, Inhabited
+
+/-- Whether every chunk is here. -/
+def Pic.complete (p : Pic) : Bool := p.total > 0 && p.got ≥ p.total
 
 structure RowData where
   name : String

@@ -10,10 +10,11 @@ yet answered `abandoned.byRequest [req]`: a join this device stopped
 waiting on is not listed (unless an approval let it in after all). Nothing else: which community is
 current is the app's memory, not state.
 
-Each entry is one acceptance, keyed by its op id (`acc`): a device that
-joined one community twice (two devices) has two entries, told apart by
-`acc`, never by the community id or a name. A join is this entry's own:
-the joining fact whose request is this device's.
+Each entry is one acceptance, keyed by its op id (`acc`), never by the
+community id or a name, and there is one per community: joining a held
+community is refused (App.takeInvite), and two acceptances that raced
+fold to the least (`dedupe`). A join is this entry's own: the joining
+fact whose request is this device's.
 -/
 import Quiet.Data
 
@@ -50,13 +51,21 @@ structure Key where
 
 def Me.key (m : Me) : Key := ⟨m.acc, m.c, m.name, m.waiting, m.dialing⟩
 
-/-- The first entry of each acceptance (a list read never repeats an op,
-but the switcher's laws should not rest on that). -/
-def dedupeL : List Me → List Id → List Me
+/-- The first entry of each key, in order. -/
+def dedupeBy (key : Me → Id) : List Me → List Id → List Me
   | [], _ => []
-  | m :: t, seen => if seen.any (fun x => decide (x = m.acc)) then dedupeL t seen else m :: dedupeL t (m.acc :: seen)
+  | m :: t, seen =>
+    if seen.any (fun x => decide (x = key m)) then dedupeBy key t seen else m :: dedupeBy key t (key m :: seen)
 
-def dedupe (ms : Array Me) : Array Me := (dedupeL ms.toList []).toArray
+/-- The entries the app holds, from the store's acceptances sorted by
+(name, admitted first, acceptance): one per community, and then one per
+acceptance (a list read never repeats an op, but the switcher's laws
+should not rest on that). A device holds a community at most once, so a
+second acceptance of one (two joins that raced) is folded away: its entry
+is the admitted one, else the least acceptance id, a tiebreak every reader
+of the same ops makes alike (entries of one community share its name). -/
+def dedupe (ms : Array Me) : Array Me :=
+  (dedupeBy (·.acc) (dedupeBy (·.c) ms.toList []) []).toArray
 
 /-- The entry for acceptance `a`. -/
 def select (ms : Array Me) (a : Id) : Option Me := ms.find? fun m => decide (m.acc = a)
@@ -104,8 +113,10 @@ def read : m (Array Me × Array Q) := do
         if ab.total > 0 then continue
         joiningOp := jid
     out := out.push { acc := accId, dev := Device.ofSeed seed, seed, c, adm := admId, user, name, joiningOp, dialing }
-  -- a total order: by name, then acceptance (op ids are distinct)
-  let sorted := out.qsort fun a b => a.name < b.name || (a.name == b.name && Engine.bcmp a.acc b.acc == .lt)
+  -- a total order: by name, then admitted before waiting, then acceptance
+  -- (op ids are distinct): `dedupe` keeps the first of each community
+  let sorted := out.qsort fun a b => a.name < b.name || (a.name == b.name &&
+    (!a.waiting && b.waiting || (a.waiting == b.waiting && Engine.bcmp a.acc b.acc == .lt)))
   return (dedupe sorted, deps)
 
 end Kinds.Accepted

@@ -22,7 +22,7 @@ def carry (src dst : St) : IO Nat := do
   let rows ← src.rd.query "SELECT id FROM ops" #[]
   let ids := rows.toList.filterMap (·[0]?)
   let ops ← (offer Data.fam ids : SqlM SF (List Op)).run src.rd
-  dst.wr.submit ⟨ops, [], false⟩
+  dst.wr.submit ⟨ops, false⟩
   return ops.length
 
 def tapAct (sm : Sim) (a : Pages.Act) : M Bool := do

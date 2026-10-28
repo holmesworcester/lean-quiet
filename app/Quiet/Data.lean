@@ -2,7 +2,7 @@
 The app's data: the engine on SQLite, read and written from two threads.
 
 - **One writer.** A task of its own owns the write connection. It takes
-  jobs (ops, with the blob bytes they name) from a queue, this node's own
+  jobs (ops) from a queue, this node's own
   writes first, and commits each job as one transaction (`receive`). After
   each commit it reads the keys that commit filed (`takeFiled`) and posts
   them as notices.
@@ -43,26 +43,13 @@ def nowUs : IO UInt64 := do return (← IO.monoNanosNow).toUInt64 / 1000
 
 /-! ## The database -/
 
-def appSchema : String := "
-CREATE TABLE IF NOT EXISTS blobs (hash BLOB PRIMARY KEY, bytes BLOB NOT NULL) WITHOUT ROWID;
-"
-
-def openDb (path : String) : IO Db := do
-  let db ← Db.openAt path
-  db.exec appSchema
-  return db
-
-def Db.blob (db : Db) (hash : ByteArray) : IO (Option ByteArray) := do
-  let rows ← db.query "SELECT bytes FROM blobs WHERE hash = ?" #[hash]
-  return rows[0]? >>= (·[0]?)
+def openDb (path : String) : IO Db := Db.openAt path
 
 /-! ## The writer -/
 
-/-- A write: ops, and the bytes of the blobs they name (stored only if
-their hash matches). -/
+/-- A write: ops (a file's bytes are ops too: its chunks). -/
 structure Job where
   ops : List Op
-  blobs : List ByteArray := []
   mine : Bool := false
   deriving Inhabited
 
@@ -86,12 +73,6 @@ def Writer.takeNotices (w : Writer) : IO (Array ByteArray) := w.notices.modifyGe
 
 def Writer.run1 (w : Writer) (db : Db) (j : Job) : IO Unit := do
   let t0 ← nowUs
-  db.exec "BEGIN IMMEDIATE"
-  try
-    for b in j.blobs do
-      let _ ← db.query "INSERT OR IGNORE INTO blobs (hash, bytes) VALUES (?, ?)" #[sha256 b, b]
-    db.exec "COMMIT"
-  catch e => db.exec "ROLLBACK"; throw e
   -- a peer's job keeps only shared ops: a local-only op is this node's
   -- own write, whatever peers send (Engine.Sync: intake_local, stored_local)
   (receive fam (intake fam j.mine j.ops)).run db
@@ -124,12 +105,12 @@ def Writer.start (path : String) : IO Writer := do
 Every read is a list (Engine.Query): one fact is the list under its own
 id's key (`Q.get`), so a component's subscriptions are exactly the keys of
 the lists it reads (Engine.eval_stable: a list's answer changes only if a
-row is filed under its key). Blob bytes, outside the engine and
-immutable, are the one other read, watched on their blob op's decision. -/
+row is filed under its key). The one other read is an op's own bytes
+(a chunk's slice, a pending request's body), immutable, watched on the
+op's key. -/
 
 inductive Q where
   | list (q : ListQ)
-  | bytes (op hash : ByteArray)
   /-- An op as stored, whatever its verdict (this device's own undecided
   request, say): its bytes. -/
   | op (x : Id)
@@ -147,7 +128,6 @@ inductive Ans where
 /-- The key whose filing can change q's answer. -/
 def Q.watch : Q → ByteArray
   | .list q => q.key
-  | .bytes o _ => opKey o
   | .op x => opKey x
 
 /-! ## The outbox -/
@@ -231,12 +211,11 @@ def Q.run (db : Db) (out : Array Pending) : Q → IO Ans
     let a : Answer Fact := ⟨a.lefts, a.inRange, a.total⟩
     let (a, pend) := overlayList out q a
     return .list a pend
-  | .bytes _ hash => return .bytes (← Data.Db.blob db hash)
   | .op x => return .bytes ((← (Store.getOp (F := SF) (m := SqlM SF) x).run db).map (·.bytes))
 
 /-! ## Components' reads
 
-A component reads only through `Reads.read`: a list (or blob bytes),
+A component reads only through `Reads.read`: a list (or an op's bytes),
 answered live (cached, watched on the list's key, the outbox included).
 Kinds (Quiet/Kinds) are written against this class, so they do not
 depend on the app, and every read a component makes is one of its

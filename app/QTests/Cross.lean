@@ -10,9 +10,9 @@ entries, a tap on each lands on that very entry (its acceptance and its
 community), its home lists its two members with exactly this device's
 user as "you", and its page key differs from the other entry's.
 
-Last, A joins B's club a second time (a second device for the same
-community): three entries, two of them B's club, each reachable by a
-tap; Stop waiting on the new one leaves the admitted one as it was.
+Last, A pastes B's link again: it joins nothing and opens B's club (a
+device holds a community at most once). And two joins that raced (the
+guard bypassed) still show one entry for the community, reachable.
 
     cross <outdir>
 -/
@@ -149,24 +149,27 @@ def main (args : List String) : IO UInt32 := do
     return s
   let a6 ← phone sa "A" a5
   let b6 ← phone sb "B" b5
-  -- A joins B's club a second time: a second device there
+  -- A pastes B's link again: a held community joins nothing, and opens
+  let bc := (a6.comms.find? fun m => m.adm != m.c).map (·.c)
   let ((), a7) ← (joinBy sa lb "Ann").run a6
-  let twins := a7.comms.filter fun m => a7.comms.any fun n => n.acc != m.acc && n.c == m.c
-  check s!"A: three entries, two of them one community ({a7.comms.size}, {twins.size})"
-    (a7.comms.size == 3 && twins.size == 2)
-  let mut a8 := a7
-  for m in twins do
-    let (ok, s') ← (tapEntry sa (·.acc == m.acc)).run a8
-    a8 := s'
-    check s!"A: the {if m.waiting then "waiting" else "admitted"} twin is reachable by a tap"
-      (ok && a8.me.acc == m.acc && a8.page == (if m.waiting then .waiting else .home))
-  -- stop waiting on the new one: the admitted twin is untouched
-  let ((), a9) ← (show M Unit from do
-    let _ ← tapEntry sa (·.waiting)
-    let _ ← tapAct sa .stopWaiting
-    waitIdle sa; steps 3).run a8
-  check s!"A: Stop waiting drops only the new twin ({a9.comms.size} entries, all admitted)"
-    (a9.comms.size == 2 && a9.comms.all (!·.waiting))
+  check s!"A: pasting a held community's link joins nothing ({a7.comms.size} entries) and opens it"
+    (a7.comms.size == 2 && some a7.me.c == bc && a7.page == .home &&
+     ((a7.toast.map (·.1)) == some "You're already in this community."))
+  -- two joins that raced (the guard bypassed): still one entry for it,
+  -- the least acceptance, reachable by a tap
+  let (ok, a8) ← (show M Bool from do
+    let some inv := Invite.parse lb | return false
+    let seed ← Chaos.freshSeed "race"
+    writeAll (Community.join inv seed "Ann".toUTF8)).run a7
+  let (a9, _, _) ← both a8 b6 3000 fun _ _ => false
+  let held ← (show M Nat from do
+    let (a, _, _) ← readList (accepted.all.query [] (limit := some 0)) #[]
+    return a.total).run' a9
+  check s!"A: a raced second join shows as one entry ({ok}, {a9.comms.size} entries, {(a9.comms.filter (some ·.c == bc)).size} for B's club, {held} acceptances held)"
+    (ok && held == 3 && a9.comms.size == 2 && (a9.comms.filter (some ·.c == bc)).size == 1)
+  let some e := a9.comms.find? (some ·.c == bc) | check "A: B's club is listed" false; return 1
+  let (ok, a9) ← (tapEntry sa (·.acc == e.acc)).run a9
+  check s!"A: and a tap on it lands on it ({ok}, {a9.me.acc == e.acc}, {repr a9.page}, waiting {e.waiting})" (ok && a9.me.acc == e.acc && a9.page == .home)
   for s in [a9, b6] do
     if let some r := s.net then r.stop
   (← IO.getStdout).flush

@@ -65,7 +65,7 @@ def liveSound : M (Nat × Nat) := do
         let desc := match q, e.ans, now with
           | .list lq, .list a pa, .list b pb =>
             s!"list key {Tests.hex lq.key}… limit {lq.limit} desc {lq.desc}: held {a.rows.length}/{a.inRange}/{a.total} pend {pa.length}, now {b.rows.length}/{b.inRange}/{b.total} pend {pb.length}"
-          | .bytes .., _, _ => "bytes"
+          | .op _, _, _ => "op bytes"
           | _, _, _ => "other"
         IO.eprintln s!"stale fresh answer: {desc}"
   return (n, bad)
@@ -163,7 +163,7 @@ def main (args : List String) : IO UInt32 := do
     let bearer := Device.named "joiner-bearer"
     let inv := Community.invite s.me.c s.me.adm s.me.dev bearer.pk false 1
     let rq := Community.request s.me.c inv.id joiner bearer.sk
-    s.wr.submit ⟨[inv, rq], [], false⟩
+    s.wr.submit ⟨[inv, rq], false⟩
     waitIdle sm
     steps 3
     check s!"the joiner waits under join requests ({(← get).asking.size})" ((← get).asking.size == 1)

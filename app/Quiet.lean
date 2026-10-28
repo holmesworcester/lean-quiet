@@ -12,7 +12,7 @@ import Quiet.App
 import Quiet.SheetGeom
 import Quiet.Sheet
 import Quiet.Pages
-import Quiet.Kinds.Blob
+import Quiet.Kinds.File
 import Quiet.Kinds.Profile
 import Quiet.Kinds.React
 import Quiet.Kinds.Message
