@@ -54,7 +54,7 @@ def main (args : List String) : IO UInt32 := do
   let a0 ← App.start sa.io screen (dir ++ "/a/quiet.db")
   let b0 ← App.start sb.io screen (dir ++ "/b/quiet.db")
   -- A founds "club" and opens Add members
-  let (link, a1) ← (show M String from do
+  let (link, a1) ← (show M (String × Option String) from do
     sa.cmds.modify (·.push "found club|Ann")
     steps 3
     waitIdle sa
@@ -62,9 +62,20 @@ def main (args : List String) : IO UInt32 := do
     steps 3
     waitIdle sa
     let s ← get
-    writePpm (dir ++ "/a-invite.ppm") 1080 (← screenOf sa 1080 2400 63)
-    return ((s.links.find? (·.1 == s.me.c)).map (·.2)).getD "").run a0
+    let scr ← screenOf sa 1080 2400 63
+    writePpm (dir ++ "/a-invite.ppm") 1080 scr
+    -- the code on screen, as a camera's Y plane: what a scan reads
+    let mut luma := ByteArray.emptyWithCapacity (1080 * 2400)
+    for r in scr do
+      for i in [0:1080] do
+        luma := luma.push ((r[4*i]!.toNat + r[4*i+1]!.toNat + r[4*i+2]!.toNat) / 3).toUInt8
+    let scanned := (Qr.decodeLuma 1080 2400 1080 luma).bind fun (b, _) => String.fromUTF8? b
+    return (((s.links.find? (·.1 == s.me.c)).map (·.2)).getD "", scanned)).run a0
+  let (link, scanned) := link
   check s!"A's Add members shows a link ({link.take 24}…)" (link.startsWith "quiet://join/")
+  check "and its QR code on screen scans back to that link" (scanned == some link)
+  let hs := ((Community.Invite.parse link).map fun i => i.hints.map fun h => (String.fromUTF8? h).getD "?").getD []
+  check s!"the link dials A on its LAN ({hs})" (hs.all (·.endsWith s!":{Link.port}"))
   -- B pastes it and agrees
   let ((), b1) ← (show M Unit from do
     steps 2

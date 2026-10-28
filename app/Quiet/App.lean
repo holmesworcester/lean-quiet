@@ -30,6 +30,7 @@ import Quiet.Geometry
 import Quiet.Sheet
 import Quiet.Pages
 import Quiet.Composer
+import Quiet.Link
 import Quiet.Kinds.Message
 import Quiet.Kinds.Request
 import Std.Data.HashMap
@@ -468,7 +469,9 @@ def openPage (p : PageId) : M Unit := do
   -- invitation op of mine, and the link that carries its bearer secret
   if p == .invite && !s.me.waiting && !(s.links.any (·.1 == s.me.c)) then
     let bearer ← Chaos.freshSeed "bearer"
-    let (w, i) := Community.inviteTo s.me.c s.me.adm s.me.seed bearer []
+    -- dial hints: this device's private LAN addresses (Link.hints)
+    let addrs ← try Link.local? catch _ => pure []
+    let (w, i) := Community.inviteTo s.me.c s.me.adm s.me.seed bearer (Link.hints addrs)
     if ← writeAll w then
       modify fun s => { s with links := (s.me.c, i.text) :: s.links }
   s.io.scrollTo 0
@@ -563,7 +566,9 @@ def pageOf (s : St) : Pages.Page :=
         ("Waiting for a member to let you in", "Quiet asks again whenever it finds one. They see you waiting the next time they open the app.", .next),
         ("Keys and history arrive", "Then the community opens, with what was shared before you got here.", .next)] #[]
   | .requests => Pages.requests f dm W h ((s.asking.filter fun r => !s.hidden.contains r.id).map (·.row))
-  | .invite => Pages.invite f dm W h none ((s.links.find? (·.1 == s.me.c)).map (·.2) |>.getD "…")
+  | .invite =>
+    let link := (s.links.find? (·.1 == s.me.c)).map (·.2)
+    Pages.invite f dm W h (link.bind fun l => Link.qr l (Pages.qrSide dm W h)) (link.getD "…")
   | .switcher => Pages.switcher f dm W h (s.comms.map fun m =>
       ({ name := m.name, id8 := Kinds.Request.hexShort m.c, unread := 0, current := m.c == s.me.c, waiting := m.waiting } : Pages.Entry))
       s.asking.size (!s.me.waiting && !s.me.c.isEmpty)
@@ -884,6 +889,14 @@ def command (line : String) : M Bool := do
   | "state" =>
     s.io.ctlReply s!"b {s.b} total {s.total} loaded {s.ids.size} people {s.people} mounted {s.rows.size} ime {s.imeH} text {repr s.text} outbox {s.out.size} busy {← s.wr.busy.get} viewH {viewH s}"
   | "stats" => s.io.ctlReply (stats s)
+  | "hints" =>
+    -- the dial hints an invite issued now would carry (writes nothing)
+    let r ← (try (do let as ← Std.Net.interfaceAddresses; pure (Except.ok as)) catch e => pure (Except.error (toString e)))
+    match r with
+    | .error e => s.io.ctlReply s!"error {e}"
+    | .ok as =>
+      let addrs ← Link.local?
+      s.io.ctlReply s!"{as.size} interfaces; hints {(Link.hints addrs).map fun h => (String.fromUTF8? h).getD "?"}"
   | "chaos" =>
     let n := (ws[1]? >>= String.toNat?).getD 500
     let srcs ← match s.srcs with

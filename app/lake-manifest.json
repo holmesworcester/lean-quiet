@@ -3,6 +3,13 @@
  "packages":
  [{"type": "path",
    "scope": "",
+   "name": "qr",
+   "manifestFile": "lake-manifest.json",
+   "inherited": false,
+   "dir": "../lean-qr",
+   "configFile": "lakefile.toml"},
+  {"type": "path",
+   "scope": "",
    "name": "engine",
    "manifestFile": "lake-manifest.json",
    "inherited": false,
