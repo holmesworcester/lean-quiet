@@ -1,0 +1,19 @@
+# Each part keeps its own tasks (engine/, app/, qr/, mdns/, net/mise.toml);
+# these run them from the top. mise asks once to trust each config file
+# (`mise trust` in the directory).
+[tasks."engine:check"]
+run = "cd engine && mise run check"
+[tasks."engine:test"]
+run = "cd engine && mise run test"
+[tasks."app:check"]
+run = "cd app && mise run check && mise run host:app && mise run host:two-nodes && mise run host:net-join"
+[tasks."qr:check"]
+run = "cd qr && mise run check"
+[tasks."mdns:check"]
+run = "cd mdns && mise run check"
+[tasks."net:check"]
+description = "Not yet gated: net's laws are being ported to this engine"
+run = "cd net && mise run check"
+[tasks.check]
+description = "Every gated part"
+depends = ["engine:check", "engine:test", "app:check", "qr:check", "mdns:check"]

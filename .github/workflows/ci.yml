@@ -1,0 +1,137 @@
+# One repository, one CI: each part's gate in its directory. The
+# emulator and Simulator suites need provisioned machines (see app/ and
+# qr/ READMEs) and run by hand or on a schedule, on self-hosted runners.
+name: ci
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+env:
+  ELAN_HOME: ${{ github.workspace }}/.elan
+  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+jobs:
+  engine:
+    runs-on: ubuntu-24.04
+    env: { TMPDIR: "${{ runner.temp }}" }
+    steps:
+      - uses: actions/checkout@v4
+      # SQLite; libsodium only for the crypto comparison test
+      - run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev libsodium23
+      - run: curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none && echo "$ELAN_HOME/bin" >> "$GITHUB_PATH"
+      - uses: jdx/mise-action@v2
+      - run: mise run check
+        working-directory: engine
+      - run: mise run test
+        working-directory: engine
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: engine, path: engine/out/ }
+
+  app:
+    runs-on: ubuntu-24.04
+    env: { TMPDIR: /tmp }
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev python3-pil
+      - run: curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none && echo "$ELAN_HOME/bin" >> "$GITHUB_PATH"
+      # the engine's crypto: a Rust library, built for the host
+      - run: cargo build --release
+        working-directory: engine/native/crypto
+        env: { CARGO_TARGET_DIR: target }
+      - uses: jdx/mise-action@v2
+      - run: mise run host:twin-demo
+        working-directory: app
+      - run: mise run host:app
+        working-directory: app
+      - run: mise run host:two-nodes
+        working-directory: app
+      # the join over real TCP on loopback: two apps, each its own node
+      - run: mise run host:net-join
+        working-directory: app
+      - run: mise run check
+        working-directory: app
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: app, path: "app/out/host-twin\napp/out/host\napp/out/two\napp/out/net" }
+
+  qr:
+    runs-on: ubuntu-24.04
+    env: { TMPDIR: "${{ runner.temp }}" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$ELAN_HOME/bin" >> "$GITHUB_PATH"
+          sudo apt-get update && sudo apt-get install -y qrencode zbar-tools python3-numpy python3-pil
+          python3 -m pip install --user --break-system-packages segno qrcodegen
+      - run: mise run check
+        working-directory: qr
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: qr, path: "qr/out/camera/\nqr/out/xcheck/" }
+
+  mdns:
+    runs-on: ubuntu-24.04
+    env: { TMPDIR: "${{ runner.temp }}" }
+    steps:
+      - uses: actions/checkout@v4
+      - run: curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none && echo "$ELAN_HOME/bin" >> "$GITHUB_PATH"
+      - uses: jdx/mise-action@v2
+      - run: mise run check
+        working-directory: mdns
+
+  # net's laws are being ported to this engine (Scope, View): not yet
+  # gated; its job runs and reports without failing the build.
+  net:
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    env: { TMPDIR: "${{ runner.temp }}" }
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - run: curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none && echo "$ELAN_HOME/bin" >> "$GITHUB_PATH"
+      - run: cargo build --release
+        working-directory: engine/native/crypto
+        env: { CARGO_TARGET_DIR: target }
+      - uses: jdx/mise-action@v2
+      - run: mise run check
+        working-directory: net
+
+  # Provisioned machines, by hand or on the schedule.
+  app-android-e2e:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, android]
+    steps:
+      - uses: actions/checkout@v4
+      - run: mise run android:twin-demo-e2e
+        working-directory: app
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: android-e2e-twin, path: app/out/e2e-twin }
+  app-ios-sim-e2e:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, ios]
+    steps:
+      - uses: actions/checkout@v4
+      - run: mise run ios:sim-e2e
+        working-directory: app
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: ios-sim-e2e, path: app/out/ios-sim }
+  qr-android-e2e:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, linux, kvm, android]
+    env: { TMPDIR: "${{ runner.temp }}" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: mise run android:runtime && mise run android:e2e
+        working-directory: qr
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: qr-e2e, path: qr/out/e2e/ }
