@@ -1,13 +1,14 @@
-// The Android activity, as the app's window twin (lean_android.c) sees it
-// =======================================================================
+// The Android activity, as the app's twin (quiet_android.c) sees it
+// ================================================================
 
-// activity.c owns the NativeActivity: its callbacks arrive on the UI
-// thread, and Lean's main runs on a thread of its own. The two meet
-// here, under one lock: the surface, the touches since the last frame,
-// and whether the activity is going away.
+// activity.c owns the NativeActivity and its Java half (LeanActivity):
+// their callbacks arrive on the UI thread, and Lean's main runs on a
+// thread of its own. The two meet here, under one lock: the surface, the
+// touches since the last frame, the insets, the keyboard's text and its
+// events, and whether the activity is going away.
 
-#ifndef LC_ACTIVITY_H
-#define LC_ACTIVITY_H
+#ifndef LQ_ACTIVITY_H
+#define LQ_ACTIVITY_H
 
 #include <android/native_window.h>
 #include <stdbool.h>
@@ -30,24 +31,39 @@ typedef struct {
 ANativeWindow* ba_lock(int32_t* w, int32_t* h);
 void           ba_unlock(void);
 
+// The surface's size once there is one (blocking), and the insets as last
+// reported: status bar, navigation bar, keyboard (0 when closed), px.
+void ba_size(int32_t* w, int32_t* h);
+void ba_insets(int32_t* top, int32_t* bottom, int32_t* ime);
+int32_t ba_dpi(void);
+
 // Moves up to max touches since the last call into out; returns the
 // count. *closed is set once the activity is going away.
 uint32_t ba_drain(BaTouch* out, uint32_t max, bool* closed);
 
-// Whether Window.native_scroll answers Android's scroll physics: true
-// unless the system property debug.lean.scroll was "app" at start (then
-// the app keeps its own scrolling, for comparison).
-bool ba_native_scroll(void);
-
-// The same touches for the scroller (scroll.c), its own queue.
+// The touches that began in the list's viewport, for the scroller
+// (scroll.c): its own queue.
 uint32_t ba_drain_scroll(BaTouch* out, uint32_t max);
 
-// Whether frames go to the compositor-slid layer (layer.c): true unless
-// the system property debug.lean.layer was 0 at start.
-bool ba_layer(void);
+// The list viewport's rows on screen, [top, bot): a touch that starts
+// there scrolls the list. Set by the twin each frame.
+void ba_set_viewport(int32_t top, int32_t bot);
 
-// Whether Lean draws ahead of the scroll (layer.c): true unless the
-// system property debug.lean.ahead was 0 at start.
+// Events from the Java half since the last call (four words each, as
+// App.Event.decode reads them: 4 text, 5 send, 6 ime height).
+uint32_t ba_drain_events(uint32_t* out, uint32_t max_words);
+
+// The keyboard's text, as the EditText last reported it (UTF-8, owned by
+// the caller: free it), and [selStart, selEnd, compStart, compEnd].
+char* ba_text(uint32_t pos[4]);
+
+// Asks the Java half to open or close the keyboard, or empty the text
+// (from any thread).
+void ba_ime(bool show);
+void ba_text_clear(void);
+
+// Debug properties, read at start: debug.lean.ahead=0 (no drawing ahead
+// of a fling), debug.lean.trace=1 (per-vsync log).
 bool ba_ahead(void);
 
 #endif

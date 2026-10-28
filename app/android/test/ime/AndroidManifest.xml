@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.holmes.testime" android:versionCode="1" android:versionName="0.1">
+  <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="35" />
+  <application android:label="Test IME" android:hasCode="true">
+    <service android:name=".TestIme" android:exported="true"
+        android:permission="android.permission.BIND_INPUT_METHOD">
+      <intent-filter>
+        <action android:name="android.view.InputMethod" />
+      </intent-filter>
+      <meta-data android:name="android.view.im" android:resource="@xml/method" />
+    </service>
+  </application>
+</manifest>
