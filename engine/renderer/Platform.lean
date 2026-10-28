@@ -113,6 +113,10 @@ asks for the camera permission. The app draws the preview itself
 tm_gmtoff), for showing times. -/
 @[extern "lq_tz_min"] opaque tzMin : IO Int32
 
+/-- A line for the platform's log: logcat (tag "lean") on Android, the
+device console on iOS, stderr on the host. -/
+@[extern "lq_log"] opaque log : @& String → IO Unit
+
 end Platform
 
 namespace App
