@@ -28,9 +28,9 @@ The user asked:
 |---|---|
 | The world and the network | built: engine/world/World.lean, Fair.lean |
 | Statements | 43, each a closed `Prop` with no `sorry` (engine/world/Statements.lean), audited |
-| Proven of the running code | **the pilot, `claim_delivers_stmt`** (`pilot`); `grows_stmt` (`grows_all`); the node invariant in every reachable world (`reach_ok`); the three hops of a round's leg (`claim_wants`, `want_sends`, `op_taken`); the walk's laws of main's `walkN` (`walk_proof`) |
+| Proven of the running code | **the pilot, `claim_delivers_stmt`** (`pilot`), re-proven on sync-harden (cad36f2) with finding 7's premises `Small` and `Roomy`; `round_forward_stmt`, `offer_delivers_stmt` likewise; `grows_stmt` (`grows_all`); the node invariant in every reachable world (`reach_ok`); the hops of a round's leg (`claim_wants`, `want_sends`, `op_taken`, `have_wants`); the walk's laws of main's `walkN` (`walk_proof`) |
 | Proven above the code | the reduction `edge_stmt → grows_stmt → converge_stmt`; from it, T-converge for 2, 3 and n peers, all-know-all and transitive; T-op, T-offline; chains, stars and webs, with their diameters |
-| False on today's code | `session_stable_stmt` (finding 1), `rooms_stmt` and `join_stmt` (finding 2): node-level witnesses in Lean. `fresh_stmt`: argued ("T-fresh" below), no Lean witness yet |
+| False on today's code | `rooms_stmt` and `join_stmt` (finding 2): node-level witnesses in Lean. `fresh_stmt`: argued ("T-fresh" below), no Lean witness yet. Finding 1 (`session_stable_stmt`) is fixed on main by sync-harden |
 | The open core | `edge_stmt`: per-edge progress. Every T- law above reduces to it and to growth |
 
 ## Decisions
@@ -278,10 +278,15 @@ The upper and lower bounds match up to a constant per hop:
     and an honest one says it came from its sender's address;
   - `grows_proof`: shared stores only grow;
   - the hops, at a node, over frames of any payloads: `claim_wants`
-    (H1), `want_sends` (H2), `op_taken` (H3);
+    (H1), `want_sends` (H2), `op_taken` (H3), `have_wants` (H4); and
+    what a session asks: asked before or wanted in the same frame
+    (`frame_fold_asked`), grown by at most the ids the frame offers
+    (`frame_fold_asked_size`);
+  - the want reader serves an op when the shown ops it finds before it
+    fit the byte budget (`serve_mem`, `onWant_sends`);
   - closed forms of the node's steps on a held store: `write_run`,
     `store_run`, `fanout_run`, `apply_run`, `finish_run`,
-    `onFrame_sealed`, `onTick_run`, and `seal_mem`;
+    `onFrame_fold`, `onTick_run`, and `seal_mem`;
   - the findings' witnesses.
 - **Above the code, from the per-edge bound** (engine/world/Epidemic.lean):
   - `hops`: d · B over a path of d live edges;
@@ -325,6 +330,10 @@ Negative controls, each run and reverted (not committed):
 
 What the pilot assumes, beyond `Fair` and the session:
 - nothing about the walk any more: main's `walkN` has its laws (`walk_proof`);
+- since sync-harden, finding 7's two premises: i's ops are `Small` (at
+  most B bytes, with B · `maxIds` < `wantBytes`, so a want is served
+  whole), and the claim is `Roomy` (while it is in flight, j's session
+  has not asked x and its asks have room for every id the frame offers);
 - the session's rooms are fixed at both ends (`∀ h, r ∈ Q.rooms i h
   cid`). Dynamic rooms need rooms to be monotone in the store within a
   step, a premise for the dynamic-trust work.
@@ -336,10 +345,10 @@ the window that i's index named when the round opened reaches j within
 
 `offer_delivers` (engine/world/Offer.lean) proves the other half of
 every delivery: a have of room r naming y, from j to i on a joined
-session, gets y to i within 3Δ, unless y is already asked at i while it
-is in flight (finding 8). It is H4 (a have of an op the node lacks, not
-yet asked, is answered with a want, over frames of any payloads), then
-H2 and H3. The stream, a round's reverse leg and closure offers each end
+session, gets y to i within 3Δ, with the same two premises (j's ops
+`Small`, the have `Roomy` at i). It is H4 (a have of an op the node
+lacks, not yet asked, is answered with a want, over frames of any
+payloads; engine/world/Asks.lean), then H2 and H3. The stream, a round's reverse leg and closure offers each end
 with such a have.
 
 What is still open for `round_stmt` in the leaf regime:
@@ -410,20 +419,15 @@ Conn, Node's send path and Tcp):
 Each finding is a statement above that is false of today's code, or a
 rule the proofs need. Witnesses are in engine/world/Findings.lean.
 
-1. **Patience counts from the last receipt, not from the wait's start**
-   (`patience_drops_idle`).
-   - A dialer's idle session opens a round at its cadence tick t. If
-     the peer was last heard patience or more before t, the next tick
-     drops the session, unless the answer has already come.
-   - With the defaults (rounds every 30 s, patience 20 s, a tick every
-     200 ms), every idle session is dropped at its next cadence round
-     whenever the round trip takes longer than one tick.
-   - So `session_stable_stmt` is false for every Δ above the tick.
-   - Convergence survives it: a new session's first round opens at the
-     hello, with `heard` fresh, so with `redial` every edge still gets
-     a full round. The cost is a session torn down and redialed per
-     cadence round on slow links.
-   - Fix: one field, `heard := now` in `Conn.start`.
+1. **Patience counted from the last receipt, not from the wait's start.
+   Fixed on main by sync-harden (cad36f2).** A dialer's idle session
+   opened a round at its cadence tick and dropped it at the next tick
+   whenever the peer was last heard patience or more before. Patience
+   now starts at `max heard lastRound`, and holmes-a3's
+   `round_not_dropped` (TimeLaws) proves a round opened at t survives
+   through t + patience. The witness `patience_drops_idle` no longer
+   holds and is gone; `session_stable_stmt` waits on the single timer
+   (simplification 2).
 2. **A room shown at only one end stops every round on the session**
    (`unshown_unanswered`, `no_round_while_open`).
    - The answerer sends nothing for a round in a room it does not show.
@@ -473,28 +477,42 @@ rule the proofs need. Witnesses are in engine/world/Findings.lean.
    but `idem_stmt` holds only when rooms do not depend on the store, and
    says so.
 
-7. **After a3/sync-harden (cad36f2), the pilot's 3Δ needs two premises.**
-   The pilot is proven on main. Under harden, as stated, it is false:
+7. **Since sync-harden (cad36f2), a hop's 3Δ needs two premises**, now
+   stated (`Small`, `Roomy` in Statements.lean) and carried by the
+   pilot, `round_forward` and `offer_delivers`, which are re-proven:
    - a want is served up to `wantBytes` plus one op, so if the ops wanted
      before x in the same want exceed it, x waits for a retry (`retry`
-     ms, at most `maxIds` ids per tick);
-   - j admits a want for x only while its `asked` holds fewer than
-     `maxKnown` ids; when full, x waits for the next offer or round.
+     ms, at most `maxIds` ids per tick). `Small`: every op the server
+     holds is at most B bytes, with B · `maxIds` < `wantBytes`
+     (`small_fits`, `serve_mem`);
+   - a claim or a have is answered with a want for x only if x is not
+     already asked on the session (`admitAsks` skips asked ids) and the
+     asks have room (it admits only `maxKnown − asked.size` ids).
+     `Roomy`: while the frame is in flight, x is not asked and the asks
+     have room for every id the frame offers (`admit_mem`,
+     `frame_fold_asked_size`). An id already asked arrives by the retry
+     instead, which the 3Δ bound does not count.
 
-   So today the pilot needs: the want's ops before x fit in `wantBytes`,
-   and j's `asked` is not full when the claim arrives. The paced
-   responder queue (simplification 3, fresh-lane) removes both.
-8. **On main, a lost want pins its id in `asked` for the session's
-   life.** `onHold` skips ids already asked, and nothing expires an ask.
-   If a want for y is lost (before gst, or to a peer whose rooms changed),
-   every later have of y on that session is ignored. In the leaf regime
-   the round offers y only by haves, so neither the stream nor any round
-   on that session brings y; only a new session does. So `round_stmt`'s
-   reverse leg holds on main only for an op that is not already asked on
-   the session when the offer arrives, and that is how it is proven.
-   Harden expires asks after patience, and holmes-a3's single-timer plan
-   keeps expiry ("an ask the peer never serves still expires"), which
-   removes the premise.
+   The paced responder queue (simplification 3, fresh-lane) removes the
+   first; the second is a bound on asks, which holds while a community
+   has fewer than `maxKnown` ops a session lacks.
+8. **A lost want pinned its id in `asked` for the session's life**
+   (fixed on main by sync-harden). `onHold` skipped ids already asked and
+   nothing expired an ask, so after a lost want every later have of y on
+   that session was ignored. Harden retries asks every `retry` ms and
+   expires each after `patience` from its first ask, and holmes-a3's
+   single-timer plan keeps expiry. The hops' `Roomy` premise keeps "not
+   asked" only for the 3Δ bound.
+9. **What a session knows its peer holds is a bounded hint since
+   sync-harden.** `remember` empties `known` when an insertion would pass
+   `maxKnown`, and `Step.limit` empties `known` and `asked` when either
+   is over. So a frame that stores x from the peer (x now known, not
+   offered back) and then overflows `known` ends with x not known and
+   not offered. `stream_offers_stored_stmt` said "x is known after the
+   step, or offered"; it is restated to name frames instead: i knew x
+   before the step, or a frame on the session to i names x, or i sends
+   one naming x. Within a frame, `known` grows only by what the frame's
+   payloads name or what the step sends, which is what its proof uses.
 
 How the earlier bugs map onto the statements:
 
@@ -502,7 +520,7 @@ How the earlier bugs map onto the statements:
 |---|---|
 | app writes bypassing the node, never offered | `index_store_stmt`: the only write step is `onWrite` |
 | a replayed purged request killing a live session | `frames_keep_sessions_stmt` here; pair-secrecy's `bareReplay_stmt` in the Connection world |
-| `Conn.tick` measuring patience from the last receipt | `session_stable_stmt` (finding 1) |
+| `Conn.tick` measuring patience from the last receipt (fixed by harden) | `session_stable_stmt` (finding 1) |
 | a one-sided room's rounds never answered | `rooms_stmt`, `join_stmt` (finding 2) |
 | new messages starving behind old | `fresh_stmt` |
 
@@ -519,7 +537,7 @@ cost bounds over a shared `Budget` record. Where they plug in:
 | `uncarried_room_answered` | finding 2, so `rooms_stmt`, then `join_stmt` |
 | RBSR cost bounds over `Budget` | `depth cfg W` from 2W + 1 to 2⌈log_fan W⌉ + 2; `W` becomes a `Budget` field |
 | `have_shown`, `hold_reply_local` | `Msg.hold` gains its room: the pilot's hop lemmas and `stream_offers_stored_stmt` read `Msg.hold r L` |
-| `sealed_auth`, `onFrame_sealed` | the Connection world's frame hops |
+| `sealed_auth`, `onFrame_fold` | the Connection world's frame hops |
 
 `edge_stmt` decomposes as: a session within ρ (redial, or stability),
 then a round within `gap` (cadence), then `round_stmt` within
@@ -610,8 +628,9 @@ Rough sizes are lines of Lean.
 1. **The reverse leg and the opening** (j's ops to i: offer, want, op,
    with the `asked` invariant; the dialer's opening lists its window),
    about 300, reusing the hops. Then `round_stmt` in the leaf regime.
-2. **The patience fix and `session_stable_stmt`**, with a3's
-   `tick_drop_iff`, about 300.
+2. **`session_stable_stmt`**, with a3's `tick_drop_iff`, against the
+   single timer (simplification 2; the patience fix is on main), about
+   300.
 3. **The cadence lemma (`gap`)**, with a3's cadence law, about 200.
    Then `edge_stmt` in the leaf regime, and with it every R row above.
 4. **Claim trees**, about 800: fingerprint hops as obligations measured

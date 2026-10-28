@@ -15,7 +15,7 @@ steps: what i holds it keeps (`grows_proof`), every node keeps the node
 invariant (`reach_ok`), and the network's packets say when and from
 whom they were sent (`reach_flight`).
 -/
-import engine.world.Hops
+import engine.world.Asks
 import engine.world.Epidemic
 namespace Engine.World
 open Engine Engine.Sync
@@ -164,7 +164,8 @@ obligation chain: the claim arrives (Δ); j wants x unless it has it
 arrives (Δ) and j stores it (`op_taken`). Whatever else the execution
 does meanwhile. -/
 theorem claim_delivers (hw : walk_stmt) : claim_delivers_stmt := by
-  intro F Q N E W i j cid r k kr p ps cs rg L x hf hG hJ hgst hlive hrooms hp hsrc hdst hpeek hclaim hcs hxL hx
+  intro F Q N E W B i j cid r k kr p ps cs rg L x hf hG hJ hgst hlive hrooms hp hsrc hdst hpeek hclaim hcs hxL hx
+    hsmall hroomy
   have wl := hw F Q.fam Q.cfg
   have hok : ∀ m l, NodeOk Q.fam ((E.world m).node l) ((E.world m).box l) := fun m => reach_ok Q wl noAdv _ (E.reachable m)
   have hfl : ∀ m, FlightOk Q (E.world m) := fun m => reach_flight Q noAdv _ (E.reachable m)
@@ -183,8 +184,10 @@ theorem claim_delivers (hw : walk_stmt) : claim_delivers_stmt := by
   have e1 : E.world (k1 + 1) = (E.world k1).step Q.setup (.deliver idx1 t1) := by rw [← hact1]; rfl
   obtain ⟨n1, b1, now1, sent1⟩ := deliver_at Q (E.world k1) idx1 t1 p j hfl1 (by rw [hdst]; exact atj)
   obtain ⟨⟨c1, hc1, -⟩, -⟩ := (hJ k1 hk1).2
+  obtain ⟨ha1, hroom1⟩ := hroomy k1 c1 hk1 (List.mem_of_getElem? hfl1) hc1
+  rw [show frameAsks p.bytes = ps.flatMap asksOf by simp [frameAsks, hpeek]] at hroom1
   rcases claim_wants Q.fam Q.cfg (Q.rooms j) wl _ _ (hok k1 j) p.origin p.bytes t1 cid ps hpeek c1 hc1 r
-      (fun h' => (hrooms h').2) kr cs rg L x hclaim hcs hxL hmax with hn | ⟨Wn, g, hxW, hWl, hWg, hsend⟩
+      (fun h' => (hrooms h').2) kr cs rg L x hclaim hcs hxL hmax ha1 hroom1 with hn | ⟨Wn, g, hxW, hWl, hWg, hsend⟩
   · -- j already holds x when the claim's frame is done.
     refine ⟨k1 + 1, by omega, by rw [e1, now1]; omega, ?_⟩
     apply holds_named Q _ (hf.unclashed (k1 + 1)) i j r x (grow i k (k1 + 1) (by omega) hx)
@@ -203,8 +206,11 @@ theorem claim_delivers (hw : walk_stmt) : claim_delivers_stmt := by
     obtain ⟨n2, b2, now2, sent2⟩ := deliver_at Q (E.world k2) idx2 t2 _ i hfl2 ati
     obtain ⟨⟨c2, hc2, -⟩, -⟩ := hJ k2 (by omega)
     obtain ⟨o, ho, hor⟩ := grow i k k2 (by omega) hx
+    have hsm2 : Small Q.cfg B (((E.world k2).node i).onFrame (psync Q.fam Q.cfg (Q.rooms i)) (Q.addr j)
+        (plainFrame cid g) t2 |>.run ((E.world k2).box i)).2 := by
+      have := hsmall (k2 + 1); rw [e2, b2] at this; exact this
     obtain ⟨g', hog, hsend'⟩ := want_sends Q.fam Q.cfg (Q.rooms i) wl _ _ (hok k2 i) (Q.addr j) _ t2 cid g
-      (peek_plainFrame cid g) c2 hc2 r (fun h' => (hrooms h').1) Wn x o hWg hWl hxW ho hor
+      (peek_plainFrame cid g) c2 hc2 r (fun h' => (hrooms h').1) Wn x o hWg hWl hxW ho hor B hsm2
     -- x goes to j.
     obtain ⟨s2, hq'⟩ := sent2 _ _ hsend'
     rw [← e2] at hq'
@@ -257,7 +263,7 @@ theorem restart_proof : restart_stmt := by
 window i's index named when the round opened is listed by the opening's
 claim for its range, and i still holds it, so the pilot carries it. -/
 theorem round_forward : round_forward_stmt := by
-  intro F Q N E W i j cid r kr k p X hf hleaf hG hJ hgst hlive hrooms hop it hit hwin
+  intro F Q N E W B i j cid r kr k p X hf hleaf hG hJ hgst hlive hrooms hsmall hop it hit hwin hroomy
   obtain ⟨hp, hsrc, hdst, ⟨k₀, hk₀, hX⟩, ps, hpeek, hmsg⟩ := hop
   obtain ⟨rg, hrg, hhas⟩ := hwin
   have hlen : (within Prod.fst rg X).length ≤ Q.cfg.params.leaf := by
@@ -274,7 +280,8 @@ theorem round_forward : round_forward_stmt := by
     ((reach_ok Q (walk_proof F Q.fam Q.cfg) noAdv _ (E.reachable k₀) i).exact r it.2).1 ⟨it, by rw [← hX]; exact hit, rfl⟩
   have hx : Q.Holds (E.world k) i r it.2 :=
     held_on E (fun m hm => grows_all F Q noAdv _ _ i r it.2 (E.reachable m) (E.legal m) hm) k₀ k hk₀ hx0
-  exact pilot F Q N E W i j cid r k kr p ps _ rg _ it.2 hf hG hJ hgst hlive hrooms hp hsrc hdst hpeek hmsg hcl hxL hx
+  exact pilot F Q N E W B i j cid r k kr p ps _ rg _ it.2 hf hG hJ hgst hlive hrooms hp hsrc hdst hpeek hmsg hcl hxL hx
+    hsmall hroomy
 
 theorem isOpen_iff {S : Type} {n : Nat} (w : World S n) (i : Fin n) (cid : Id) :
     w.isOpen i cid ↔ cid ∈ cids (w.node i) := by

@@ -1,3 +1,9 @@
+import ops.sync.TimeLaws
+import ops.sync.RetryLaws
+import ops.sync.BoundsLaws
+import ops.sync.ServeLaws
+import engine.wire.CloseLaws
+import engine.wire.Slots
 import engine.core.Engine
 import ops.community.Community
 import ops.connection.All
@@ -27,8 +33,10 @@ import engine.world.Epidemic
 import engine.world.Findings
 import engine.world.Plain
 import engine.world.Hops
+import engine.world.Asks
 import engine.world.Pilot
 import engine.world.Offer
+import engine.world.Stream
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -61,6 +69,7 @@ open Engine Community
 #print axioms Engine.Sync.spec_local
 #print axioms Engine.run_step
 #print axioms Engine.run_drain
+#print axioms Engine.run_ingest
 #print axioms Community.message_authorized
 #print axioms Community.no_impersonation
 #print axioms Community.profile_authorized
@@ -241,6 +250,7 @@ open Engine Community
 #print axioms Engine.Sync.write_snaps
 #print axioms Engine.Sync.have_shown
 #print axioms Engine.Sync.holdsOf_hold
+#print axioms Engine.Sync.holdsIn_apply
 #print axioms Engine.Sync.heldIn_local
 #print axioms Engine.Sync.onHold_local
 #print axioms Engine.Sync.hold_reply_local
@@ -261,6 +271,68 @@ open Engine Community
 #print axioms Engine.Sync.fanout_offers
 #print axioms Engine.Sync.seal_mem
 #print axioms Engine.Sync.conn_answers_ids
+#print axioms Engine.Sync.tick_drop_iff
+#print axioms Engine.Sync.patience_drop_iff
+#print axioms Engine.Sync.round_not_dropped
+#print axioms Engine.Sync.responder_expires
+#print axioms Engine.Sync.live_not_expired
+#print axioms Engine.Sync.uncarried_room_answered
+#print axioms Engine.Sync.limit_bounded
+#print axioms Engine.Sync.finish_bounded
+#print axioms Engine.Sync.start_bounded
+#print axioms Engine.Sync.round_bounded
+#print axioms Engine.Sync.hold_bounded
+#print axioms Engine.Sync.onWant_bounded
+#print axioms Engine.Sync.walkN_bounded
+#print axioms Engine.Sync.tick_bounded
+#print axioms Engine.Sync.recv_bounded
+#print axioms Engine.Sync.filed_bounded
+#print axioms Engine.Sync.conn_bounded
+#print axioms Engine.Sync.Read.run_held
+#print axioms Engine.Sync.Read.run_model
+#print axioms Engine.Sync.serve_reads
+#print axioms Engine.Sync.serve_shown
+#print axioms Engine.Sync.serve_blind
+#print axioms Engine.Sync.serve_budget
+#print axioms Engine.Sync.authorize_mem
+#print axioms Engine.Sync.want_reads_authorized
+#print axioms Engine.Sync.want_blind
+#print axioms Engine.Sync.want_blind_step
+#print axioms Engine.Sync.onWant_one
+#print axioms Engine.Sync.want_budget
+#print axioms Engine.Sync.endSession_purges
+#print axioms Engine.Sync.close_gone
+#print axioms Engine.Sync.close_purges
+#print axioms Engine.Sync.admit_bounded
+#print axioms Engine.Sync.Read.trace_map
+#print axioms Engine.Sync.Step.limit_send
+#print axioms Engine.Sync.Step.limit_take
+#print axioms Engine.Sync.Step.limit_rooms
+#print axioms Engine.Sync.Step.limit_snaps
+#print axioms Engine.Sync.Conn.finish_known
+#print axioms Engine.Sync.Conn.finish_asked
+#print axioms Engine.Sync.limit_snaps
+#print axioms Engine.Sync.keeps_limit
+#print axioms Engine.Sync.Step.limit_drop
+#print axioms Engine.Sync.expire_bounded
+#print axioms Engine.Sync.remember_bounded
+#print axioms Engine.Sync.remember_fits
+#print axioms Engine.Sync.admit_one
+#print axioms Engine.Sync.known_forgets
+#print axioms Engine.Sync.asked_full
+#print axioms Engine.Sync.round_no_drop
+#print axioms Engine.Sync.hold_no_drop
+#print axioms Engine.Sync.want_no_drop
+#print axioms Engine.Sync.recv_no_drop
+#print axioms Engine.Sync.honest_no_drop
+#print axioms Engine.Sync.honest_no_drop_runs
+#print axioms Engine.Sync.asks_expire
+#print axioms Engine.Sync.retried_append
+#print axioms Engine.Sync.retried_start
+#print axioms Engine.Sync.retried_holds
+#print axioms Engine.Sync.retried_chunks
+#print axioms Engine.Sync.pieces_short
+#print axioms Engine.Sync.retry_bounded
 end engine
 
 section app
@@ -450,7 +522,6 @@ open Engine.World
 #print axioms Engine.World.step_ext
 #print axioms Engine.World.write_sub
 #print axioms Engine.World.items_addStep
-#print axioms Engine.World.patience_drops_idle
 #print axioms Engine.World.unshown_unanswered
 #print axioms Engine.World.no_round_while_open
 -- hops (engine/world/Hops.lean)
@@ -463,7 +534,7 @@ open Engine.World
 #print axioms Engine.World.finish_run
 #print axioms Engine.World.apply_run
 #print axioms Engine.World.seal_mem
-#print axioms Engine.World.onFrame_sealed
+#print axioms Engine.World.onFrame_fold
 #print axioms Engine.World.peek_plainFrame
 #print axioms Engine.World.plainFrame_of_peek
 #print axioms Engine.World.write_ok
@@ -523,6 +594,22 @@ open Engine.World
 #print axioms Engine.World.have_step
 #print axioms Engine.World.frame_fold_asked
 #print axioms Engine.World.have_wants
+#print axioms Engine.World.Read.run_heldW
+#print axioms Engine.World.Read.keeps
+#print axioms Engine.World.serve_shownW
+#print axioms Engine.World.serve_mem
+#print axioms Engine.World.small_fits
+#print axioms Engine.World.admit_mem
+#print axioms Engine.World.answer_wants_len
+#print axioms Engine.World.onRbsr_asked_size
+#print axioms Engine.World.onHold_asked_size
+#print axioms Engine.World.recv_asked_size
+#print axioms Engine.World.frameStep_asked_size
+#print axioms Engine.World.frame_fold_asked_size
+#print axioms Engine.World.filed_offers'
+#print axioms Engine.World.write_reports
+#print axioms Engine.World.fanout_offers'
+#print axioms Engine.World.store_offers
 #print axioms Engine.World.offer_delivers
 #print axioms Engine.World.cached_exact
 #print axioms Engine.World.grows_all

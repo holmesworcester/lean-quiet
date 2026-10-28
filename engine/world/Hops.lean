@@ -5,7 +5,7 @@ of any payloads (docs/PROOFS.md, "The pilot"):
 
 - **Closed forms.** `write_run` (Run.lean), `store_run`, `fanout_run`,
   `apply_run`, `finish_run`, and a session's frame as a fold of
-  `frameStep` over its payloads (`onFrame_sealed`). A loop whose turns
+  `frameStep` over its payloads (`onFrame_fold`). A loop whose turns
   only yield is a fold (`forIn_fold`).
 - **The node invariant** (`NodeOk`): the index and every snapshot name
   stored ops, no session is the family's, each op is filed under its id,
@@ -111,9 +111,9 @@ theorem finish_run (n : Node) (out : Acts) (now : Nat) (h : Held F) (hm : n.mana
       (({ n with fresh := [] },
         { send := ((n.seal (psync fam cfg rms) out).run h).1, drop := out.drop, stored := n.fresh }), h) := by
   have hk := finish_grows fam cfg rms n out now h
-  simp only [Node.finish, Node.follow, Node.flush, hm, psync_established, psync_outbox, psync_retired,
-    psync_closing, HeldM.pure_bind, List.isEmpty_nil, ite_true, List.forIn_nil, List.append_nil,
-    Bool.not_true, Bool.false_eq_true, ite_false, HeldM.run_bind, HeldM.run_pure]
+  simp only [Node.finish, Node.follow, Node.flush, Node.endSession, hm, psync_established, psync_outbox,
+    psync_retired, psync_closing, HeldM.pure_bind, List.isEmpty_nil, ite_true, List.forIn_nil, List.append_nil,
+    Bool.not_true, Bool.false_eq_true, ite_false, HeldM.run_bind, HeldM.run_pure, List.foldl_nil]
   rw [Keeps.run_eq (seal_keeps fam cfg rms _ _) h]
   simp only [Acts.append_empty]
   rw [Keeps.forIn' _ _ (fun _ _ => Keeps.pure' _) h]
@@ -325,7 +325,7 @@ def frameStep (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (b : ByteAr
 
 /-- **A session's frame, on a held store:** its payloads one at a time
 (`frameStep`), then the entry point's end. -/
-theorem onFrame_sealed (hw : WalkLaws (F := F) fam cfg) (n : Node) (a b : ByteArray) (now : Nat) (h : Held F)
+theorem onFrame_fold (hw : WalkLaws (F := F) fam cfg) (n : Node) (a b : ByteArray) (now : Nat) (h : Held F)
     (cid : Id) (bundle : ByteArray) (inner : List ByteArray) (c : Conn)
     (h0 : b[0]? = some 1) (hb : Codec.decode (b.extract 1 b.size) = some (cid, bundle))
     (hi : (Codec.decode bundle : Option (List ByteArray)) = some inner) (hc : n.conn? cid = some c) :
@@ -839,7 +839,8 @@ theorem onRbsr_offered (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Cla
   · dsimp only at hx
     split at hx
     · exact Or.inl hx
-    · rcases mem_foldl_insert _ _ hx with hx | hx
+    · rw [Step.limit_offered] at hx
+      rcases mem_foldl_insert _ _ hx with hx | hx
       · left; split at hx <;> exact hx
       · right
         obtain ⟨o, ho, hxo⟩ := List.mem_flatMap.1 hx
@@ -1096,11 +1097,71 @@ theorem snapOf_named (ix : Index) (c : Conn) (r : Id) (k : Nat) (h : Held F) (hi
     exact hc _ (List.mem_of_find?_eq_some e) it hit
   · exact hi r it hit
 
+
+theorem length_eraseDups_le : ∀ (n : Nat) (l : List Id), l.length ≤ n → l.eraseDups.length ≤ l.length
+  | _, [], _ => by simp
+  | 0, _ :: _, h => by simp at h
+  | n + 1, a :: as, h => by
+    rw [List.eraseDups_cons, List.length_cons, List.length_cons]
+    have h1 := List.length_filter_le (fun b => !b == a) as
+    have := length_eraseDups_le n (as.filter fun b => !b == a) (by simp at h; omega)
+    omega
+
+/-- **An id not yet asked is admitted** when the asks have room for all
+the ids offered with it (finding 7). -/
+theorem admit_mem (cap : Nat) (asked : Std.HashSet Id) (ids : List Id) (x : Id) (hx : x ∈ ids) (ha : x ∉ asked)
+    (hroom : asked.size + ids.length ≤ cap) : x ∈ admitAsks cap asked ids := by
+  unfold admitAsks
+  have hl : ((ids.filter fun i => !asked.contains i).eraseDups).length ≤ cap - asked.size := by
+    have := length_eraseDups_le _ (ids.filter fun i => !asked.contains i) (Nat.le_refl _)
+    have := List.length_filter_le (fun i => !asked.contains i) ids
+    omega
+  rw [List.take_of_length_le hl, List.mem_eraseDups, List.mem_filter]
+  refine ⟨hx, ?_⟩
+  cases e : asked.contains x
+  · rfl
+  · exact absurd (Std.HashSet.mem_iff_contains.2 e) ha
+
+/-- An answer wants only ids its id claims list. -/
+theorem answer_wants_one (P : Params) (mine : List Item) (cl : Claim) :
+    ((answer Prod.fst Prod.snd sha256 P mine cl).flatMap
+      (fun | .want xs => xs | _ => [] : Out → List Id)).length ≤ (claimIds [cl]).length := by
+  cases cl with
+  | fp q n l =>
+    simp only [answer]
+    split
+    · simp
+    · split
+      · simp
+      · rw [List.flatMap_map]
+        have h0 : ∀ l : List Range, (l.map fun _ => (0 : Nat)).sum = 0 := fun l => by
+          induction l <;> simp [*]
+        simp [h0]
+  | ids q xs =>
+    simp only [answer, List.flatMap_cons, List.flatMap_nil, List.length_append, List.length_nil, claimIds]
+    have := List.length_filter_le (fun i => !named Prod.snd (within Prod.fst q mine) i) xs
+    simp
+    omega
+
+theorem answer_wants_len (P : Params) (mine : List Item) : ∀ cs : List Claim,
+    ((cs.flatMap (answer Prod.fst Prod.snd sha256 P mine)).flatMap
+      (fun | .want xs => xs | _ => [] : Out → List Id)).length ≤ (claimIds cs).length := by
+  intro cs
+  induction cs with
+  | nil => simp [claimIds]
+  | cons cl t ih =>
+    have h1 := answer_wants_one P mine cl
+    have e1 : claimIds (cl :: t) = claimIds [cl] ++ claimIds t := by simp [claimIds]
+    rw [List.flatMap_cons, List.flatMap_append, List.length_append, e1, List.length_append]
+    omega
+
 /-- **A claim of ids is answered with a want for each id the snapshot
-lacks.** -/
+lacks**, when it is not already asked and the asks have room for the
+ids the round offers (finding 7). -/
 theorem onRbsr_wants (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (rg : Range)
     (L : List Id) (now : Nat) (x : Id) (hr : r ∈ c.rooms) (hc : Claim.ids rg L ∈ cs) (hx : x ∈ L)
-    (hmax : 0 < cfg.maxIds) (hs : ∀ it ∈ Conn.snap ix c r k, it.2 ≠ x) :
+    (hmax : 0 < cfg.maxIds) (hs : ∀ it ∈ Conn.snap ix c r k, it.2 ≠ x)
+    (ha : x ∉ c.asked) (hroom : c.asked.size + (claimIds cs).length ≤ cfg.maxKnown) :
     ∃ W, x ∈ W ∧ W.length ≤ cfg.maxIds ∧ (Msg.want W).op ∈ (c.onRbsr cfg ix r k cs now).send := by
   have hw : x ∈ L.filter fun i => !named Prod.snd (within Prod.fst rg (Conn.snap ix c r k)) i := by
     refine List.mem_filter.2 ⟨hx, ?_⟩
@@ -1112,14 +1173,18 @@ theorem onRbsr_wants (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (
     cases cs with
     | nil => cases hc
     | cons _ _ => rfl
-  unfold Conn.onRbsr
-  simp only [has_of_mem hr, Bool.not_true, Bool.false_eq_true, ite_false, hne]
   have hwl : x ∈ (cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params (c.snap ix r k))).flatMap
-      (fun | .want xs => xs | _ => []) := by
+      (fun | .want xs => xs | _ => [] : Out → List Id) := by
     refine List.mem_flatMap.2 ⟨.want (L.filter fun i => !named Prod.snd (within Prod.fst rg (Conn.snap ix c r k)) i),
       List.mem_flatMap.2 ⟨.ids rg L, hc, by simp [answer]⟩, hw⟩
-  obtain ⟨W, hxW, hl, hm⟩ := chunks_cover cfg _ Msg.want hmax hwl
-  exact ⟨W, hxW, hl, List.mem_cons_of_mem _ (List.mem_append_right _ hm)⟩
+  have hlen := answer_wants_len cfg.params (Conn.snap ix c r k) cs
+  obtain ⟨W, hxW, hl, hm⟩ := chunks_cover cfg _ Msg.want hmax (admit_mem cfg.maxKnown c.asked _ x hwl ha (by omega))
+  refine ⟨W, hxW, hl, ?_⟩
+  unfold Conn.onRbsr
+  simp only [has_of_mem hr, Bool.not_true, Bool.false_eq_true, ite_false, hne, Step.limit_send]
+  split
+  · exact List.mem_cons_of_mem _ (List.mem_append_right _ hm)
+  · exact List.mem_cons_of_mem _ (List.mem_append_right _ hm)
 
 theorem conn_mem {n : Node} {cid : Id} {c : Conn} (h : n.conn? cid = some c) : (cid, c) ∈ n.conns := by
   unfold Node.conn? at h
@@ -1140,7 +1205,9 @@ theorem onRbsr_drop (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (c
     (c.onRbsr cfg ix r k cs now).drop = false := by
   unfold Conn.onRbsr; split
   · rfl
-  · dsimp only; split <;> rfl
+  · dsimp only; split
+    · rfl
+    · exact Step.limit_drop _ _
 
 section
 variable (fam : Family F) (cfg : Config) (rms : Held F → Id → List Id)
@@ -1154,7 +1221,9 @@ theorem recv_drop (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) (h : Held 
   | some o =>
     dsimp only
     cases Msg.ofOp o with
-    | none => dsimp only; split <;> rfl
+    | none => dsimp only; split
+              · rfl
+              · show (Conn.finish _).drop = false; rw [Conn.finish_drop, Step.limit_drop]
     | some m =>
       cases m with
       | hello f => show (Conn.finish _).drop = false; rw [Conn.finish_drop]; split
@@ -1165,12 +1234,14 @@ theorem recv_drop (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) (h : Held 
         simp only [HeldM.run_bind, HeldM.run_pure, Conn.finish_drop, Conn.onHold]
         split
         · rfl
-        · simp only [HeldM.run_bind, HeldM.run_pure]
+        · split
+          · rfl
+          · simp only [HeldM.run_bind, HeldM.run_pure, Step.limit_drop]
       | want ids =>
         simp only [HeldM.run_bind, HeldM.run_pure, Conn.finish_drop, Conn.onWant]
         split
         · rfl
-        · simp only [HeldM.run_bind, HeldM.run_pure]
+        · simp only [HeldM.run_bind, Read.run_heldW, HeldM.run_pure, Step.limit_drop]
 
 end
 
@@ -1184,41 +1255,156 @@ theorem recv_rbsr (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (
 
 theorem recv_want (ix : Index) (c : Conn) (W : List Id) (now : Nat) (h : Held F) :
     ((Conn.recv fam cfg ix c (Msg.want W).op.bytes now : HeldM F Step).run h).1 =
-      Conn.finish (((({ c with heard := now } : Conn).onWant fam cfg W : HeldM F Step).run h).1) := by
+      Conn.finish (((({ c with heard := now } : Conn).onWant fam cfg ix W : HeldM F Step).run h).1) := by
   simp [Conn.recv, Op.decode_bytes]
 
 /-- A data op of the connection's rooms is taken. -/
 theorem recv_data (ix : Index) (c : Conn) (o : Op) (now : Nat) (h : Held F) (hw : isWire o.kind = false)
     (hsh : c.shows fam o = true) :
     ((Conn.recv fam cfg ix c o.bytes now : HeldM F Step).run h).1 =
-      Conn.finish (Step.mk { c with heard := now, asked := c.asked.erase o.id, known := c.known.insert o.id }
-        [] [o] [] false) := by
+      Conn.finish (Step.limit cfg (Step.mk ({ c with heard := now, asked := c.asked.erase o.id, askTime := c.askTime.erase o.id, known := remember cfg.maxKnown c.known o.id } : Conn) [] [o] [] false)) := by
   have hsh' : Conn.shows fam { c with heard := now } o = true := hsh
   simp [Conn.recv, Op.decode_bytes, ofOp_data hw, hw, hsh']
 
-/-- **A want for a stored op the peer may see sends it.** -/
-theorem onWant_sends (c : Conn) (W : List Id) (h : Held F) (x : Id) (o : Op) (r : Id) (hW : W.length ≤ cfg.maxIds)
-    (hx : x ∈ W) (ho : h.db.ops x = some o) (hor : fam.room o = some r) (hr : r ∈ c.rooms) :
-    o ∈ ((c.onWant fam cfg W : HeldM F Step).run h).1.send := by
+/-- What the want reader serves it found in the store, shown (after
+holmes-a3's `serve_shown`). -/
+theorem serve_shownW (shows : Op → Bool) (get : Id → Option Op) (ids : List Id) (budget : Nat) :
+    ∀ o ∈ ((serve shows budget ids).trace get).1, shows o = true ∧ ∃ i ∈ ids, get i = some o := by
+  induction ids generalizing budget with
+  | nil => simp [serve, Read.trace]
+  | cons x xs ih =>
+    simp only [serve]
+    split
+    · simp [Read.trace]
+    · simp only [Read.trace]
+      cases hg : get x with
+      | none =>
+        intro o ho
+        obtain ⟨hs, i, hi, e⟩ := ih budget o ho
+        exact ⟨hs, i, List.mem_cons_of_mem _ hi, e⟩
+      | some y =>
+        dsimp only
+        split
+        · rename_i hy
+          split
+          · intro o ho; obtain rfl := List.mem_singleton.1 ho
+            exact ⟨hy, x, List.mem_cons_self .., hg⟩
+          · rw [Read.trace_map]
+            intro o ho
+            rcases List.mem_cons.1 ho with rfl | ho
+            · exact ⟨hy, x, List.mem_cons_self .., hg⟩
+            · obtain ⟨hs, i, hi, e⟩ := ih _ o ho
+              exact ⟨hs, i, List.mem_cons_of_mem _ hi, e⟩
+        · intro o ho
+          obtain ⟨hs, i, hi, e⟩ := ih budget o ho
+          exact ⟨hs, i, List.mem_cons_of_mem _ hi, e⟩
+
+/-- **The want reader serves x when the shown ops it finds before x fit
+its byte budget.** -/
+theorem serve_mem (shows : Op → Bool) (get : Id → Option Op) (x : Id) (o : Op) (hx : get x = some o)
+    (hs : shows o = true) (post : List Id) : ∀ (pre : List Id) (budget : Nat),
+    replyBytes ((pre.filterMap get).filter shows) < budget →
+    o ∈ ((serve shows budget (pre ++ x :: post)).trace get).1 := by
+  intro pre
+  induction pre with
+  | nil =>
+    intro budget hb
+    simp only [List.nil_append, serve]
+    rw [ite_eq_right (by omega)]
+    simp only [Read.trace, hx, hs, ite_true]
+    split
+    · exact List.mem_singleton_self o
+    · rw [Read.trace_map]; exact List.mem_cons_self ..
+  | cons i pre ih =>
+    intro budget hb
+    simp only [List.cons_append, serve]
+    rw [ite_eq_right (by omega)]
+    simp only [Read.trace]
+    cases hg : get i with
+    | none =>
+      simp only [List.filterMap_cons, hg] at hb
+      exact ih budget hb
+    | some o' =>
+      simp only [List.filterMap_cons, hg] at hb
+      dsimp only
+      by_cases hs' : shows o' = true
+      · simp only [List.filter_cons, hs', ite_true, replyBytes, List.map_cons, List.sum_cons] at hb
+        rw [ite_eq_left hs', ite_eq_right (by omega), Read.trace_map]
+        exact List.mem_cons_of_mem _ (ih _ (by simp only [replyBytes]; omega))
+      · simp only [List.filter_cons, hs', Bool.false_eq_true, ite_false] at hb
+        rw [ite_eq_right hs']
+        exact ih budget hb
+
+theorem replyBytes_prefix (get : Id → Option Op) (shows : Op → Bool) (pre post : List Id) :
+    replyBytes ((pre.filterMap get).filter shows) ≤ replyBytes (((pre ++ post).filterMap get).filter shows) := by
+  simp only [List.filterMap_append, List.filter_append, replyBytes, List.map_append, List.sum_append]
+  omega
+
+
+theorem Small.mono {cfg : Config} {B : Nat} {h h' : Held F} (hs : Small cfg B h') (e : Ext h h') : Small cfg B h :=
+  ⟨hs.1, fun y o ho => hs.2 y o (e.1 y o ho)⟩
+
+theorem replyBytes_le (get : Id → Option Op) (shows : Op → Bool) (B : Nat)
+    (hB : ∀ y o, get y = some o → o.bytes.size ≤ B) : ∀ l : List Id,
+    replyBytes ((l.filterMap get).filter shows) ≤ l.length * B := by
+  intro l
+  induction l with
+  | nil => simp [replyBytes]
+  | cons i t ih =>
+    simp only [List.filterMap_cons, List.length_cons, Nat.succ_mul]
+    cases hg : get i with
+    | none => simp only; omega
+    | some o =>
+      have := hB i o hg
+      simp only [List.filter_cons]
+      split
+      · simp only [replyBytes, List.map_cons, List.sum_cons] at ih ⊢; omega
+      · omega
+
+theorem small_fits (cfg : Config) (B : Nat) (h : Held F) (hs : Small cfg B h) (shows : Op → Bool) (l : List Id)
+    (hl : l.length ≤ cfg.maxIds) : replyBytes ((l.filterMap h.db.ops).filter shows) < cfg.wantBytes := by
+  have := replyBytes_le h.db.ops shows B hs.2 l
+  have : l.length * B ≤ cfg.maxIds * B := Nat.mul_le_mul_right _ hl
+  have := hs.1
+  rw [Nat.mul_comm] at this
+  omega
+
+/-- **A want for a stored op the peer may see sends it**, when x is in a
+shown room's index and the shown ops the want finds fit its byte budget
+(finding 7). -/
+theorem onWant_sends (ix : Index) (c : Conn) (W : List Id) (h : Held F) (x : Id) (o : Op) (r : Id)
+    (hW : W.length ≤ cfg.maxIds) (hx : x ∈ W) (ho : h.db.ops x = some o) (hor : fam.room o = some r)
+    (hr : r ∈ c.rooms) (hix : ∃ a ∈ ix.items r, a.2 = x)
+    (hfit : replyBytes (((authorize ix c W).filterMap h.db.ops).filter (c.shows fam)) < cfg.wantBytes) :
+    o ∈ ((c.onWant fam cfg ix W : HeldM F Step).run h).1.send := by
+  have hsh : c.shows fam o = true := by simp [Conn.shows, hor, has_of_mem hr]
+  have hxa : x ∈ authorize ix c W := by
+    obtain ⟨a, ha, e⟩ := hix
+    simp only [authorize, List.mem_filter, List.any_eq_true, decide_eq_true_eq]
+    exact ⟨hx, r, hr, a, ha, e⟩
+  obtain ⟨pre, post, e⟩ := List.append_of_mem hxa
   unfold Conn.onWant
   have hc : ¬ W.length > cfg.maxIds := by omega
-  simp only [hc, ↓reduceIte]
-  simp only [HeldM.run_bind, filterMapM_getOp, HeldM.run_pure]
-  apply List.mem_append_left
-  refine List.mem_filter.2 ⟨List.mem_filterMap.2 ⟨x, hx, ho⟩, ?_⟩
-  simp [Conn.shows, hor, has_of_mem hr]
+  simp only [hc, ↓reduceIte, HeldM.run_bind, Read.run_heldW, HeldM.run_pure, Step.limit_send]
+  rw [e]
+  apply serve_mem _ _ x o ho hsh post pre
+  have := replyBytes_prefix h.db.ops (c.shows fam) pre (x :: post)
+  rw [← e] at this
+  omega
 
 /-- **H1, one payload: a claim of ids is answered with a want for x**,
 an id it lists that the store lacks. -/
 theorem claim_step (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (ok : NodeOk fam st.1.1 st.2) (c : Conn)
     (hc : st.1.1.conn? cid = some c) (r : Id) (kr : Nat) (cs : List Claim) (rg : Range) (L : List Id) (x : Id)
-    (hr : r ∈ rms st.2 cid) (hcs : Claim.ids rg L ∈ cs) (hx : x ∈ L) (hmax : 0 < cfg.maxIds) (hn : ¬ Named st.2 x) :
+    (hr : r ∈ rms st.2 cid) (hcs : Claim.ids rg L ∈ cs) (hx : x ∈ L) (hmax : 0 < cfg.maxIds) (hn : ¬ Named st.2 x)
+    (ha : x ∉ c.asked) (hroom : c.asked.size + (claimIds cs).length ≤ cfg.maxKnown) :
     ∃ W, x ∈ W ∧ W.length ≤ cfg.maxIds ∧
       (Route.conn cid, (Msg.want W).op.bytes) ∈ (frameStep fam cfg rms cid now st (Msg.rbsr r kr cs).op.bytes).1.2.send := by
   have hsc : SnapsIn ({ c.setRooms (rms st.2 cid) with heard := now } : Conn) st.2 :=
     (ok.sub.2 _ (conn_mem hc)).setRooms _
   obtain ⟨W, hxW, hl, hm⟩ := onRbsr_wants cfg st.1.1.ix ({ c.setRooms (rms st.2 cid) with heard := now } : Conn)
     r kr cs rg L now x hr hcs hx hmax (fun it hit e => hn (e ▸ snapOf_named _ _ _ _ st.2 ok.sub.1 hsc it hit))
+    (by simpa [Conn.setRooms] using ha) (by simpa [Conn.setRooms] using hroom)
   refine ⟨W, hxW, hl, ?_⟩
   unfold frameStep
   rw [hc]; dsimp only
@@ -1230,10 +1416,10 @@ theorem claim_step (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (ok : 
 
 /-- **H2, one payload: a want for x, which the store holds in a room the
 session shows, sends x.** -/
-theorem want_step (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (c : Conn)
+theorem want_step (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (ok : NodeOk fam st.1.1 st.2) (c : Conn)
     (hc : st.1.1.conn? cid = some c) (r : Id) (W : List Id) (x : Id) (o : Op)
     (hr : r ∈ rms st.2 cid) (hW : W.length ≤ cfg.maxIds) (hx : x ∈ W) (ho : st.2.db.ops x = some o)
-    (hor : fam.room o = some r) :
+    (hor : fam.room o = some r) (B : Nat) (hsm : Small cfg B st.2) :
     (Route.conn cid, o.bytes) ∈ (frameStep fam cfg rms cid now st (Msg.want W).op.bytes).1.2.send := by
   unfold frameStep
   rw [hc]; dsimp only
@@ -1241,7 +1427,8 @@ theorem want_step (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (c : Co
   rw [apply_run fam cfg rms _ _ _ _ _ hd, recv_want]
   apply List.mem_append_right
   apply List.mem_append_left
-  exact List.mem_map.2 ⟨o, onWant_sends fam cfg _ W st.2 x o r hW hx ho hor hr, rfl⟩
+  refine List.mem_map.2 ⟨o, onWant_sends fam cfg _ _ W st.2 x o r hW hx ho hor hr ((ok.exact r x).2 ⟨o, ho, hor⟩) ?_, rfl⟩
+  exact small_fits cfg B st.2 hsm _ _ (Nat.le_trans (List.length_filter_le _ _) hW)
 
 /-- Storing a shared op stores it (or one under its id was there). -/
 theorem store_named (n : Node) (o : Op) (h : Held F) (hsh : fam.shared o = true) :
@@ -1260,7 +1447,9 @@ theorem onHold_offered (c : Conn) (r : Id) (ids : List Id) (h : Held F) :
   unfold Conn.onHold
   split
   · rfl
-  · simp only [HeldM.run_bind, HeldM.run_pure]
+  · split
+    · rfl
+    · simp only [HeldM.run_bind, HeldM.run_pure, Step.limit_offered]
 
 theorem foldl_insert_ids {x : Id} : ∀ (l : List Op) (s : Std.HashSet Id),
     x ∈ l.foldl (fun (k : Std.HashSet Id) (o : Op) => k.insert o.id) s → x ∈ s ∨ ∃ o ∈ l, o.id = x := by
@@ -1276,23 +1465,21 @@ theorem foldl_insert_ids {x : Id} : ∀ (l : List Op) (s : Std.HashSet Id),
       · exact Or.inl h
     · exact Or.inr ⟨o, List.mem_cons_of_mem _ ho, e⟩
 
-variable (hw : WalkLaws (F := F) fam cfg)
-include hw
-
 /-- **A want marks offered only ops it holds.** -/
-theorem onWant_offered (c : Conn) (ids : List Id) (h : Held F) (hi : IdsOk h) (x : Id)
-    (hx : x ∈ ((c.onWant fam cfg ids : HeldM F Step).run h).1.conn.offered) : x ∈ c.offered ∨ Named h x := by
+theorem onWant_offered (ix : Index) (c : Conn) (ids : List Id) (h : Held F) (hi : IdsOk h) (x : Id)
+    (hx : x ∈ ((c.onWant fam cfg ix ids : HeldM F Step).run h).1.conn.offered) : x ∈ c.offered ∨ Named h x := by
   unfold Conn.onWant at hx
   split at hx
   · exact Or.inl hx
-  · simp only [HeldM.run_bind, HeldM.run_pure, filterMapM_getOp] at hx
-    rcases hw.offered _ h x hx with hx | hx
-    · rcases foldl_insert_ids _ _ hx with hx | ⟨o, ho, e⟩
-      · exact Or.inl hx
-      · right
-        obtain ⟨i, _, hio⟩ := List.mem_filterMap.1 (List.mem_filter.1 ho).1
-        rw [← e, hi i o hio]; unfold Named; rw [hio]; rfl
-    · exact Or.inr hx
+  · simp only [HeldM.run_bind, Read.run_heldW, HeldM.run_pure, Step.limit_offered] at hx
+    rcases foldl_insert_ids _ _ hx with hx | ⟨o, ho, e⟩
+    · exact Or.inl hx
+    · right
+      obtain ⟨-, i, -, hio⟩ := serve_shownW _ _ _ _ o ho
+      rw [← e, hi i o hio]; unfold Named; rw [hio]; rfl
+
+variable (hw : WalkLaws (F := F) fam cfg)
+include hw
 
 /-- **What a connection receives marks offered only ops it holds.** -/
 theorem recv_offered (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) (h : Held F) (hi : IxIn ix h)
@@ -1308,7 +1495,7 @@ theorem recv_offered (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) (h : He
       simp only [hm] at hx
       split at hx
       · exact Or.inl hx
-      · simp only [HeldM.run_pure, finish_offered] at hx; exact Or.inl hx
+      · simp only [HeldM.run_pure, finish_offered, Step.limit_offered] at hx; exact Or.inl hx
     | some m =>
       simp only [hm] at hx
       cases m with
@@ -1328,7 +1515,7 @@ theorem recv_offered (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) (h : He
         exact Or.inl hx
       | want ids =>
         simp only [HeldM.run_bind, HeldM.run_pure, finish_offered] at hx
-        exact onWant_offered fam cfg hw ({ c with heard := now } : Conn) ids h hid x hx
+        exact onWant_offered fam cfg ix ({ c with heard := now } : Conn) ids h hid x hx
 
 /-- **The clock marks offered only ops it holds.** -/
 theorem tick_offered (ix : Index) (c : Conn) (now : Nat) (h : Held F) (x : Id)
@@ -1400,8 +1587,10 @@ theorem op_step (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (c : Conn
   unfold frameStep
   rw [hc]; dsimp only
   have hd := recv_drop fam cfg st.1.1.ix (c.setRooms (rms st.2 cid)) o.bytes now st.2
-  rw [apply_run fam cfg rms _ _ _ _ _ hd, recv_data fam cfg _ _ o now st.2 hwire
-    (by simp [Conn.shows, Conn.setRooms, hor, has_of_mem hr])]
+  have hsh : Conn.shows fam (c.setRooms (rms st.2 cid)) o = true := by
+    simp only [Conn.shows, Conn.setRooms, hor, has_of_mem hr]
+  rw [apply_run fam cfg rms _ _ _ _ _ hd, recv_data fam cfg _ _ o now st.2 hwire hsh, Conn.finish_take,
+    Step.limit_take]
   exact store_named fam cfg rms _ o st.2 (by simp [Family.shared, hor])
 
 
@@ -1443,38 +1632,6 @@ section
 variable (fam : Family F) (cfg : Config) (rms : Held F → Id → List Id) (hw : WalkLaws (F := F) fam cfg)
 include hw
 
-/-- **H1: a claim of ids, delivered, is answered with a want** for each
-id it lists that the node lacks, in a frame back to the claim's sender;
-or the node holds it by the frame's end. -/
-theorem claim_wants (n : Node) (h : Held F) (ok : NodeOk fam n h) (a bytes : ByteArray) (now : Nat) (cid : Id)
-    (inner : List ByteArray) (hp : plainPeek bytes = some (cid, inner)) (c : Conn) (hc : n.conn? cid = some c)
-    (r : Id) (hr : ∀ h', r ∈ rms h' cid) (kr : Nat) (cs : List Claim) (rg : Range) (L : List Id) (x : Id)
-    (hb : (Msg.rbsr r kr cs).op.bytes ∈ inner) (hcs : Claim.ids rg L ∈ cs) (hx : x ∈ L) (hmax : 0 < cfg.maxIds) :
-    Named ((n.onFrame (psync fam cfg rms) a bytes now).run h).2 x ∨
-      ∃ W g, x ∈ W ∧ W.length ≤ cfg.maxIds ∧ (Msg.want W).op.bytes ∈ g ∧
-        (a, plainFrame cid g) ∈ ((n.onFrame (psync fam cfg rms) a bytes now).run h).1.2.send := by
-  obtain ⟨h0, bundle, hb', hi⟩ := plainFrame_of_peek hp
-  rw [onFrame_sealed fam cfg rms hw n a bytes now h cid bundle inner c h0 hb' hi hc]
-  have ok0 := setAddr_ok fam n cid a h ok
-  obtain ⟨pre, post, e⟩ := fold_at (frameStep fam cfg rms cid now) inner _ hb ((n.setAddr cid a, {}), h)
-  rw [e]
-  obtain ⟨ok1, e1, c1, a1, -⟩ := frame_fold fam cfg rms hw cid now pre ((n.setAddr cid a, {}), h) ok0
-  generalize pre.foldl (frameStep fam cfg rms cid now) ((n.setAddr cid a, {}), h) = st1 at ok1 e1 c1 a1
-  obtain ⟨c1', hc1⟩ := (conn_iff _ _).2 (by rw [c1]; exact (conn_iff _ _).1 ⟨c, hc⟩)
-  obtain ⟨ok2, e2, -, a2, s2⟩ := frameStep_ok fam cfg rms hw cid now st1 (Msg.rbsr r kr cs).op.bytes ok1
-  obtain ⟨ok3, e3, -, a3, s3⟩ := frame_fold fam cfg rms hw cid now post _ ok2
-  by_cases hn : Named st1.2 x
-  · left
-    rw [frame_end_store fam cfg rms now _ ok3]
-    exact (hn.ext e2).ext e3
-  · right
-    obtain ⟨W, hxW, hl, hm⟩ := claim_step fam cfg rms cid now st1 ok1 c1' hc1 r kr cs rg L x (hr _) hcs hx hmax hn
-    have ha : (post.foldl (frameStep fam cfg rms cid now) (frameStep fam cfg rms cid now st1
-        (Msg.rbsr r kr cs).op.bytes)).1.1.addr? cid = some a := by
-      unfold Node.addr?; rw [a3, a2, a1]; exact setAddr_addr n cid a
-    obtain ⟨g, hg, hf⟩ := frame_end fam cfg rms cid now _ ok3 a _ ha (s3 _ hm)
-    exact ⟨W, g, hxW, hl, hg, hf⟩
-
 /-- **H2: a want, delivered, for an op the node holds in a room the
 session shows, is answered with the op**, in a frame back to the
 want's sender. -/
@@ -1482,19 +1639,21 @@ theorem want_sends (n : Node) (h : Held F) (ok : NodeOk fam n h) (a bytes : Byte
     (inner : List ByteArray) (hp : plainPeek bytes = some (cid, inner)) (c : Conn) (hc : n.conn? cid = some c)
     (r : Id) (hr : ∀ h', r ∈ rms h' cid) (W : List Id) (x : Id) (o : Op)
     (hb : (Msg.want W).op.bytes ∈ inner) (hW : W.length ≤ cfg.maxIds) (hx : x ∈ W) (ho : h.db.ops x = some o)
-    (hor : fam.room o = some r) :
+    (hor : fam.room o = some r) (B : Nat) (hsm : Small cfg B ((n.onFrame (psync fam cfg rms) a bytes now).run h).2) :
     ∃ g, o.bytes ∈ g ∧ (a, plainFrame cid g) ∈ ((n.onFrame (psync fam cfg rms) a bytes now).run h).1.2.send := by
   obtain ⟨h0, bundle, hb', hi⟩ := plainFrame_of_peek hp
-  rw [onFrame_sealed fam cfg rms hw n a bytes now h cid bundle inner c h0 hb' hi hc]
+  rw [onFrame_fold fam cfg rms hw n a bytes now h cid bundle inner c h0 hb' hi hc] at hsm ⊢
   have ok0 := setAddr_ok fam n cid a h ok
   obtain ⟨pre, post, e⟩ := fold_at (frameStep fam cfg rms cid now) inner _ hb ((n.setAddr cid a, {}), h)
-  rw [e]
+  rw [e] at hsm ⊢
   obtain ⟨ok1, e1, c1, a1, -⟩ := frame_fold fam cfg rms hw cid now pre ((n.setAddr cid a, {}), h) ok0
-  generalize pre.foldl (frameStep fam cfg rms cid now) ((n.setAddr cid a, {}), h) = st1 at ok1 e1 c1 a1
+  generalize pre.foldl (frameStep fam cfg rms cid now) ((n.setAddr cid a, {}), h) = st1 at ok1 e1 c1 a1 hsm ⊢
   obtain ⟨c1', hc1⟩ := (conn_iff _ _).2 (by rw [c1]; exact (conn_iff _ _).1 ⟨c, hc⟩)
-  obtain ⟨ok2, -, -, a2, -⟩ := frameStep_ok fam cfg rms hw cid now st1 (Msg.want W).op.bytes ok1
-  obtain ⟨ok3, -, -, a3, s3⟩ := frame_fold fam cfg rms hw cid now post _ ok2
-  have hm := want_step fam cfg rms cid now st1 c1' hc1 r W x o (hr _) hW hx (e1.1 x o ho) hor
+  obtain ⟨ok2, e2, -, a2, -⟩ := frameStep_ok fam cfg rms hw cid now st1 (Msg.want W).op.bytes ok1
+  obtain ⟨ok3, e3, -, a3, s3⟩ := frame_fold fam cfg rms hw cid now post _ ok2
+  rw [frame_end_store fam cfg rms now _ ok3] at hsm
+  have hm := want_step fam cfg rms cid now st1 ok1 c1' hc1 r W x o (hr _) hW hx (e1.1 x o ho) hor B
+    ((hsm.mono e3).mono e2)
   have ha : (post.foldl (frameStep fam cfg rms cid now) (frameStep fam cfg rms cid now st1
       (Msg.want W).op.bytes)).1.1.addr? cid = some a := by
     unfold Node.addr?; rw [a3, a2, a1]; exact setAddr_addr n cid a
@@ -1508,7 +1667,7 @@ theorem op_taken (n : Node) (h : Held F) (ok : NodeOk fam n h) (a bytes : ByteAr
     (hor : fam.room o = some r) :
     Named ((n.onFrame (psync fam cfg rms) a bytes now).run h).2 o.id := by
   obtain ⟨h0, bundle, hb', hi⟩ := plainFrame_of_peek hp
-  rw [onFrame_sealed fam cfg rms hw n a bytes now h cid bundle inner c h0 hb' hi hc]
+  rw [onFrame_fold fam cfg rms hw n a bytes now h cid bundle inner c h0 hb' hi hc]
   have ok0 := setAddr_ok fam n cid a h ok
   obtain ⟨pre, post, e⟩ := fold_at (frameStep fam cfg rms cid now) inner _ hb ((n.setAddr cid a, {}), h)
   rw [e]
@@ -1633,7 +1792,7 @@ theorem onFrame_ok (n : Node) (a b : ByteArray) (now : Nat) (h : Held F) (ok : N
           cases hi : (Codec.decode bundle : Option (List ByteArray)) with
           | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, Node.onSealed, hc, hi, HeldM.run_pure]; exact ok
           | some inner =>
-            rw [onFrame_sealed fam cfg rms hw n a b now h cid bundle inner c h0 hd hi hc]
+            rw [onFrame_fold fam cfg rms hw n a b now h cid bundle inner c h0 hd hi hc]
             exact finish_ok fam cfg rms _ _ _ _ (frame_fold fam cfg rms hw cid now inner _ (setAddr_ok fam n cid a h ok)).1
     · by_cases t0 : t = 0
       · subst t0
@@ -1704,7 +1863,7 @@ theorem onFrame_cids (n : Node) (a b : ByteArray) (now : Nat) (h : Held F) (ok :
           cases hi : (Codec.decode bundle : Option (List ByteArray)) with
           | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, Node.onSealed, hc, hi, HeldM.run_pure]
           | some inner =>
-            rw [onFrame_sealed fam cfg rms hw n a b now h cid bundle inner c h0 hd hi hc]
+            rw [onFrame_fold fam cfg rms hw n a b now h cid bundle inner c h0 hd hi hc]
             obtain ⟨ok1, -, c1, -, -⟩ := frame_fold fam cfg rms hw cid now inner ((n.setAddr cid a, {}), h)
               (setAddr_ok fam n cid a h ok)
             rw [finish_cids fam cfg rms _ _ _ _ ok1.managed, c1]; rfl

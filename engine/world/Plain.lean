@@ -204,7 +204,7 @@ theorem open_grows (n : Node) (cid : Id) (a : ByteArray) (d : Bool) (now : Nat) 
   unfold Node.open; simp only [psync_rooms]; grows []
 
 theorem finish_grows (n : Node) (out : Acts) (now : Nat) : Grows (n.finish (psync fam cfg rms) out now) := by
-  unfold Node.finish Node.follow Node.flush
+  unfold Node.finish Node.follow Node.flush Node.endSession
   simp only [psync_established, psync_outbox, psync_retired, psync_closing, HeldM.pure_bind,
     List.isEmpty_nil, ite_true, List.append_nil, Bool.not_true, Bool.false_eq_true, ite_false]
   grows [seal_grows, open_grows]
@@ -224,7 +224,7 @@ include hw
 
 theorem recv_keeps (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) :
     Keeps (Conn.recv fam cfg ix c b now : HeldM F Step) := by
-  unfold Conn.recv; keeps [onHold_keeps, onWant_keeps fam cfg hw]
+  unfold Conn.recv; keeps [onHold_keeps, onWant_keeps]
 
 theorem recv_grows (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) :
     Grows (Conn.recv fam cfg ix c b now : HeldM F Step) := (recv_keeps fam cfg hw ix c b now).grows
@@ -461,11 +461,10 @@ theorem onRbsr_snaps (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim
   unfold Conn.onRbsr
   split
   · exact hc
-  · dsimp only
-    split
+  · split
     · exact hothers
     · intro e he it hit
-      dsimp only at he
+      simp only [Step.limit_snaps] at he
       rcases mem_ite_snaps he with he | he
       · exact hothers e he it hit
       · simp only [List.mem_cons] at he
@@ -482,15 +481,16 @@ theorem onHold_snaps (c : Conn) (r : Id) (ids : List Id) (h : Held F) :
   unfold Conn.onHold
   split
   · rfl
-  · simp only [HeldM.run_bind, HeldM.run_pure]
+  · split
+    · rfl
+    · simp only [HeldM.run_bind, HeldM.run_pure, Step.limit_snaps]
 
-theorem onWant_snaps (hw : WalkLaws (F := F) fam cfg) (c : Conn) (ids : List Id) (h : Held F) :
-    ((c.onWant fam cfg ids : HeldM F Step).run h).1.conn.snaps = c.snaps := by
+theorem onWant_snaps (ix : Index) (c : Conn) (ids : List Id) (h : Held F) :
+    ((c.onWant fam cfg ix ids : HeldM F Step).run h).1.conn.snaps = c.snaps := by
   unfold Conn.onWant
   split
   · rfl
-  · simp only [HeldM.run_bind, HeldM.run_pure]
-    exact (hw.same _ _).snaps
+  · simp only [HeldM.run_bind, Read.run_heldW, HeldM.run_pure, Step.limit_snaps]
 
 theorem filed_snaps (c : Conn) (ids : List Id) (h : Held F) :
     ((c.filed fam cfg ids : HeldM F Step).run h).1.conn.snaps = c.snaps := by
@@ -529,11 +529,11 @@ theorem recv_snaps (hw : WalkLaws (F := F) fam cfg) (ix : Index) (c : Conn) (b :
     · simp only [HeldM.run_bind, HeldM.run_pure]
       intro e he; rw [finish_snaps, onHold_snaps] at he; exact hc e he
     · simp only [HeldM.run_bind, HeldM.run_pure]
-      intro e he; rw [finish_snaps, onWant_snaps fam cfg hw] at he; exact hc e he
+      intro e he; rw [finish_snaps, onWant_snaps fam cfg] at he; exact hc e he
     · split
       · exact hc
       · simp only [HeldM.run_pure]
-        intro e he; rw [finish_snaps] at he; exact hc e he
+        intro e he; rw [finish_snaps, Step.limit_snaps] at he; exact hc e he
 
 theorem tick_snaps (hw : WalkLaws (F := F) fam cfg) (ix : Index) (c : Conn) (now : Nat) (h : Held F) (hi : IxIn ix h) (hc : SnapsIn c h) :
     SnapsIn ((c.tick fam cfg ix now : HeldM F Step).run h).1.conn h := by
@@ -542,8 +542,10 @@ theorem tick_snaps (hw : WalkLaws (F := F) fam cfg) (ix : Index) (c : Conn) (now
   · exact hc
   · simp only [HeldM.run_bind, HeldM.run_pure]
     have e := hw.same c h
-    have hw' : SnapsIn ((c.walk fam cfg : HeldM F (Conn × List (Id × Id))).run h).1.1 h := by
-      intro x hx; rw [e.snaps] at hx; exact hc x hx
+    have hw' : SnapsIn (((c.walk fam cfg : HeldM F (Conn × List (Id × Id))).run h).1.1.expireAsks cfg now) h := by
+      intro x hx
+      have hx' : x ∈ ((c.walk fam cfg : HeldM F (Conn × List (Id × Id))).run h).1.1.snaps := hx
+      rw [e.snaps] at hx'; exact hc x hx'
     intro x hx
     rw [finish_snaps] at hx
     dsimp only at hx

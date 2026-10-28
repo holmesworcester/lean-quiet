@@ -109,6 +109,55 @@ structure Conn.Same (c c' : Conn) : Prop where
 
 theorem Conn.Same.refl (c : Conn) : Conn.Same c c := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
+/-- Expiring asks changes only the asks. -/
+@[simp] theorem Conn.expireAsks_dialer (cfg : Config) (c : Conn) (now : Nat) :
+    (c.expireAsks cfg now).dialer = c.dialer := rfl
+@[simp] theorem Conn.expireAsks_rooms (cfg : Config) (c : Conn) (now : Nat) :
+    (c.expireAsks cfg now).rooms = c.rooms := rfl
+@[simp] theorem Conn.expireAsks_peerFloor (cfg : Config) (c : Conn) (now : Nat) :
+    (c.expireAsks cfg now).peerFloor = c.peerFloor := rfl
+@[simp] theorem Conn.expireAsks_round (cfg : Config) (c : Conn) (now : Nat) :
+    (c.expireAsks cfg now).round = c.round := rfl
+@[simp] theorem Conn.expireAsks_lastRound (cfg : Config) (c : Conn) (now : Nat) :
+    (c.expireAsks cfg now).lastRound = c.lastRound := rfl
+@[simp] theorem Conn.expireAsks_snaps (cfg : Config) (c : Conn) (now : Nat) :
+    (c.expireAsks cfg now).snaps = c.snaps := rfl
+@[simp] theorem Conn.expireAsks_known (cfg : Config) (c : Conn) (now : Nat) :
+    (c.expireAsks cfg now).known = c.known := rfl
+@[simp] theorem Conn.expireAsks_offered (cfg : Config) (c : Conn) (now : Nat) :
+    (c.expireAsks cfg now).offered = c.offered := rfl
+@[simp] theorem Conn.expireAsks_heard (cfg : Config) (c : Conn) (now : Nat) :
+    (c.expireAsks cfg now).heard = c.heard := rfl
+
+/-- The size guard resets only the peer's hints and asks. -/
+@[simp] theorem Step.limit_offered (cfg : Config) (s : Step) : (s.limit cfg).conn.offered = s.conn.offered := by
+  unfold Step.limit; split <;> rfl
+@[simp] theorem Step.limit_heard (cfg : Config) (s : Step) : (s.limit cfg).conn.heard = s.conn.heard := by
+  unfold Step.limit; split <;> rfl
+@[simp] theorem Step.limit_dialer (cfg : Config) (s : Step) : (s.limit cfg).conn.dialer = s.conn.dialer := by
+  unfold Step.limit; split <;> rfl
+@[simp] theorem Step.limit_round (cfg : Config) (s : Step) : (s.limit cfg).conn.round = s.conn.round := by
+  unfold Step.limit; split <;> rfl
+@[simp] theorem Step.limit_status (cfg : Config) (s : Step) : (s.limit cfg).status = s.status := by
+  unfold Step.limit; split <;> rfl
+theorem Step.limit_known (cfg : Config) (s : Step) {x : Id} (h : x ∈ (s.limit cfg).conn.known) :
+    x ∈ s.conn.known := by
+  unfold Step.limit at h; split at h
+  · exact h
+  · simp at h
+theorem Step.limit_asked (cfg : Config) (s : Step) {x : Id} (h : x ∈ (s.limit cfg).conn.asked) :
+    x ∈ s.conn.asked := by
+  unfold Step.limit at h; split at h
+  · exact h
+  · simp at h
+/-- Within the bounds, the guard changes nothing. -/
+theorem Step.limit_of (cfg : Config) (s : Step) (h : s.conn.Bounded cfg) : s.limit cfg = s := by
+  unfold Step.limit; rw [if_pos (show _ ∧ _ from h)]
+
+theorem Conn.finish_conn_round (s : Step) : (Conn.finish s).conn.round = s.conn.round := by
+  unfold Conn.finish Conn.report
+  by_cases h : s.conn.asked.isEmpty = true <;> simp [h]
+
 /-- `ByteArray`'s `==` is equality: ids are compared and hashed with it. -/
 theorem byteArray_lawfulBEq : LawfulBEq ByteArray where
   eq_of_beq {a b} h := ByteArray.ext (eq_of_beq (show a.data == b.data from h))
@@ -239,12 +288,24 @@ theorem filterMapM_keeps (ids : List Id) :
 
 end
 
+/-- The want reader run on a held store is its trace (after holmes-a3's
+`Read.run_held`). -/
+theorem Read.run_heldW {α} (p : Read α) (h : Held F) :
+    (p.run (Store.getOp (F := F)) : HeldM F α).run h = ((p.trace h.db.ops).1, h) := by
+  induction p with
+  | done a => rfl
+  | get i next ih => simp [Read.run, Read.trace, ih]
+
+theorem Read.keeps {α} (p : Read α) : Keeps (p.run (Store.getOp (F := F)) : HeldM F α) := fun h => by
+  rw [Read.run_heldW]
+
+theorem onWant_keeps (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (ids : List Id) :
+    Keeps (c.onWant fam cfg ix ids : HeldM F Step) := by
+  unfold Conn.onWant; keeps [Read.keeps]
+
 section
 variable (fam : Family F) (cfg : Config) (hw : WalkLaws (F := F) fam cfg)
 include hw
-
-theorem onWant_keeps (c : Conn) (ids : List Id) : Keeps (c.onWant fam cfg ids : HeldM F Step) := by
-  unfold Conn.onWant; keeps [hw.keeps, filterMapM_keeps]
 
 theorem tick_keeps (ix : Index) (c : Conn) (now : Nat) : Keeps (c.tick fam cfg ix now : HeldM F Step) := by
   unfold Conn.tick; keeps [hw.keeps]

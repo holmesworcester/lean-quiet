@@ -89,13 +89,22 @@ def index_store_stmt : Prop :=
 /-- h' holds every op h holds. -/
 def Kept (h h' : Held F) : Prop := ∀ x o, h.db.ops x = some o → h'.db.ops x = some o
 
+/-- Payload b names op x: it is x, or a have naming x. -/
+def Names (b : ByteArray) (x : Id) : Prop :=
+  ∃ o, Op.decode b = some o ∧ (o.id = x ∨ ∃ r L, Msg.ofOp o = some (.hold r L) ∧ x ∈ L)
+
 /-- **L-offered, its second half: the stream offers every op a node
 stores**, not only its own writes: an op relayed from a third peer is
 offered on too. A step that stores op x of room r at node i, on a
 session cid that i held before the step and still holds after it, and
-that shows r at every store the step passes through, either learns or
-knew that the peer holds x, or puts in flight to the session's address
-a frame whose haves of room r name x.
+that shows r at every store the step passes through: either i knew
+before the step that the peer holds x, or a frame on the session to i
+names x (the peer sent x or a have of it), or the step puts in flight to
+the session's address a frame of i's naming x.
+
+Since sync-harden, what a session knows its peer holds is a bounded hint
+that a later payload may forget (finding 9), so the law names frames,
+not what the session knows after the step.
 
 What it does not cover: a session that comes to show r after x was
 stored never gets x on the stream; only a round in r carries it (today's
@@ -106,10 +115,11 @@ def stream_offers_stored_stmt : Prop :=
     ¬ Q.Holds w i r x → Q.Holds (w.step Q.setup a) i r x →
     (∀ h, Kept (w.box i) h → Kept h ((w.step Q.setup a).box i) → r ∈ Q.rooms i h cid) →
     (w.node i).conn? cid = some c₀ → ((w.step Q.setup a).node i).conn? cid = some c →
-      x ∈ c₀.known ∨ x ∈ c.known ∨
+      x ∈ c₀.known ∨
+        (∃ p ∈ w.flight, p.dst = Q.addr i ∧ ∃ ps, plainPeek p.bytes = some (cid, ps) ∧ ∃ b ∈ ps, Names b x) ∨
         ∃ p ∈ (w.step Q.setup a).flight, p ∉ w.flight ∧ p.src = some i ∧
           some p.dst = ((w.step Q.setup a).node i).addr? cid ∧
-          ∃ L ps, x ∈ L ∧ plainPeek p.bytes = some (cid, ps) ∧ (Msg.hold r L).op.bytes ∈ ps
+          ∃ ps, plainPeek p.bytes = some (cid, ps) ∧ ∃ b ∈ ps, Names b x
 
 /-- **L-offered: store = offered**, both halves. -/
 def offered_stmt : Prop := index_store_stmt ∧ stream_offers_stored_stmt
@@ -186,6 +196,39 @@ def local_stmt : Prop :=
 
 /-! ## L: one round, under any interleaving -/
 
+/-- The ids a round message's id claims list: all it can make its
+receiver ask (holmes-a3's `Msg.offers` of a round). -/
+def claimIds (cs : List Claim) : List Id := cs.flatMap fun | .ids _ xs => xs | .fp .. => []
+
+/-- The ids a payload can make its receiver ask: a have's, and a round's
+id claims'. -/
+def asksOf (b : ByteArray) : List Id :=
+  match Op.decode b with
+  | some o => match Msg.ofOp o with
+    | some (.hold _ ids) => ids
+    | some (.rbsr _ _ cs) => claimIds cs
+    | _ => []
+  | none => []
+
+/-- The ids a session frame can make its receiver ask. -/
+def frameAsks (bytes : ByteArray) : List Id :=
+  match plainPeek bytes with
+  | some (_, ps) => ps.flatMap asksOf
+  | none => []
+
+/-- **Finding 7's first premise.** Every op the store holds has at most B
+bytes, and a want's `maxIds` ops of B bytes fit its byte budget, so a want
+is served whole. -/
+def Small (cfg : Config) (B : Nat) (h : Held F) : Prop :=
+  B * cfg.maxIds < cfg.wantBytes ∧ ∀ y o, h.db.ops y = some o → o.bytes.size ≤ B
+
+/-- **Finding 7's second premise.** While packet p is in flight, node j's
+session cid has not asked x, and its asks have room for every id p's
+frame offers. -/
+def Roomy (Q : Plain F) (E : Q.Run) (j : Fin Q.n) (cid : Id) (k : Nat) (p : Packet Q.n) (x : Id) : Prop :=
+  ∀ k' c, k ≤ k' → p ∈ (E.world k').flight → ((E.world k').node j).conn? cid = some c →
+    x ∉ c.asked ∧ c.asked.size + (frameAsks p.bytes).length ≤ Q.cfg.maxKnown
+
 /-- Round kr of room r on session cid: its opening, a packet from i to
 j carrying i's openings of the window's ranges over X, i's index of room
 r at the step the round opened, is in flight at step k. -/
@@ -261,8 +304,9 @@ def dup_concurrent_stmt : Prop := frames_keep_sessions_stmt ∧ idem_stmt ∧ ro
 /-- **A session stays up.** Under timely delivery with 2Δ shorter than
 patience, a session joined across a live edge of G, whose rooms agree, is
 never dropped while neither end restarts and the harness opens nothing
-over it. False on today's code (finding 1, `patience_drops_idle`): a
-cadence round is dropped whenever its answer takes longer than a tick. -/
+over it. Finding 1 made it false; sync-harden fixed that (patience starts
+at the later of the last arrival and the last round). It waits on
+holmes-a3's single timer (simplification 2). -/
 def session_stable_stmt : Prop :=
   ∀ (F : Type) (Q : Plain F) (N : Net Q.n) (E : Q.Run) (W : Nat) (i j : Fin Q.n) (cid : Id) (k₀ k : Nat),
     Fair Q N E W → N.G i j → N.gst ≤ (E.world k₀).now →
@@ -276,43 +320,47 @@ def session_stable_stmt : Prop :=
 flight from i to j at step k on a session joined from k on, one of whose
 claims lists ids including x, which i holds: j holds x within 3Δ of the
 message's sending. Both ends
-show r on the session whatever they store (the fixed-rooms case). -/
+show r on the session whatever they store (the fixed-rooms case).
+Since sync-harden, with finding 7's premises: i's ops are small, and j
+has not asked x on the session and has room to. -/
 def claim_delivers_stmt : Prop :=
-  ∀ (F : Type) (Q : Plain F) (N : Net Q.n) (E : Q.Run) (W : Nat) (i j : Fin Q.n) (cid r : Id) (k kr : Nat)
+  ∀ (F : Type) (Q : Plain F) (N : Net Q.n) (E : Q.Run) (W B : Nat) (i j : Fin Q.n) (cid r : Id) (k kr : Nat)
     (p : Packet Q.n) (ps : List ByteArray) (cs : List Claim) (rg : Range) (L : List Id) (x : Id),
     Fair Q N E W → N.G i j → Joined E i j cid k → N.gst ≤ p.sent → N.Live i j p.sent (p.sent + 3 * N.Δ) →
     (∀ h, r ∈ Q.rooms i h cid ∧ r ∈ Q.rooms j h cid) →
     p ∈ (E.world k).flight → p.src = some i → p.dst = Q.addr j → plainPeek p.bytes = some (cid, ps) →
     (Msg.rbsr r kr cs).op.bytes ∈ ps → Claim.ids rg L ∈ cs → x ∈ L → Q.Holds (E.world k) i r x →
+    (∀ m, Small Q.cfg B ((E.world m).box i)) → Roomy Q E j cid k p x →
       ∃ k', k ≤ k' ∧ (E.world k').now ≤ p.sent + 3 * N.Δ ∧ Q.Holds (E.world k') j r x
 
 /-- **L-round's forward leg, in the leaf regime:** with every window of
 at most `leaf` items, a round's opening from i gets every op of its
 window that i's index named when the round opened to j within 3Δ (the
 opening lists ids, so each is the pilot). Both ends show r on the
-session whatever they store. -/
+session whatever they store. With finding 7's premises. -/
 def round_forward_stmt : Prop :=
-  ∀ (F : Type) (Q : Plain F) (N : Net Q.n) (E : Q.Run) (W : Nat) (i j : Fin Q.n) (cid r : Id) (kr k : Nat)
+  ∀ (F : Type) (Q : Plain F) (N : Net Q.n) (E : Q.Run) (W B : Nat) (i j : Fin Q.n) (cid r : Id) (kr k : Nat)
     (p : Packet Q.n) (X : List Item),
     Fair Q N E W → W ≤ Q.cfg.params.leaf → N.G i j → Joined E i j cid k → N.gst ≤ p.sent →
     N.Live i j p.sent (p.sent + 3 * N.Δ) → (∀ h, r ∈ Q.rooms i h cid ∧ r ∈ Q.rooms j h cid) →
-    Opening Q E i j cid r kr k p X → ∀ it ∈ X, InWindow Q E i j k it →
+    (∀ m, Small Q.cfg B ((E.world m).box i)) →
+    Opening Q E i j cid r kr k p X → ∀ it ∈ X, InWindow Q E i j k it → Roomy Q E j cid k p it.2 →
       ∃ k', k ≤ k' ∧ (E.world k').now ≤ p.sent + 3 * N.Δ ∧ Q.Holds (E.world k') j r it.2
 
 /-- **An offer delivers:** the stream, a round's reverse leg and closure
 offers all end this way. A have of room r naming y, in flight at step k
 from j to i on a session joined from k on, both of whose ends show r
 whatever they store, with j holding y: i holds y within 3Δ of the have's
-sending, provided y is not asked on i's side of the session while the
-have is in flight (on main a lost want pins its id there, finding 8). -/
+sending, with finding 7's premises: j's ops are small, and while the have
+is in flight i's side of the session has not asked y and has room to. -/
 def offer_delivers_stmt : Prop :=
-  ∀ (F : Type) (Q : Plain F) (N : Net Q.n) (E : Q.Run) (W : Nat) (i j : Fin Q.n) (cid r : Id) (k : Nat)
+  ∀ (F : Type) (Q : Plain F) (N : Net Q.n) (E : Q.Run) (W B : Nat) (i j : Fin Q.n) (cid r : Id) (k : Nat)
     (q : Packet Q.n) (qs : List ByteArray) (H : List Id) (y : Id),
     Fair Q N E W → N.G j i → (Joined E i j cid k ∨ Joined E j i cid k) → N.gst ≤ q.sent →
     N.Live j i q.sent (q.sent + 3 * N.Δ) → (∀ h, r ∈ Q.rooms i h cid ∧ r ∈ Q.rooms j h cid) →
     q ∈ (E.world k).flight → q.src = some j → q.dst = Q.addr i → plainPeek q.bytes = some (cid, qs) →
-    (Msg.hold r H).op.bytes ∈ qs → y ∈ H → Q.Holds (E.world k) j r y →
-    (∀ k' c, k ≤ k' → q ∈ (E.world k').flight → ((E.world k').node i).conn? cid = some c → y ∉ c.asked) →
+    (Msg.hold r H).op.bytes ∈ qs → y ∈ H → H.length ≤ Q.cfg.maxIds → Q.Holds (E.world k) j r y →
+    (∀ m, Small Q.cfg B ((E.world m).box j)) → Roomy Q E i cid k q y →
     ∃ k', k ≤ k' ∧ (E.world k').now ≤ q.sent + 3 * N.Δ ∧ Q.Holds (E.world k') i r y
 
 /-! ## Liveness: per edge -/

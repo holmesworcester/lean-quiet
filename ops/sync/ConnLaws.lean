@@ -11,7 +11,7 @@ the model store:
   of the connection's rooms). In particular a want for an op of another
   room, a local op or a conn op sends nothing of it.
 -/
-import ops.sync.Conn
+import ops.sync.ServeLaws
 import engine.core.Run
 
 namespace Engine.Sync
@@ -45,7 +45,7 @@ theorem start_send (ix : Index) (c : Conn) (now : Nat) :
   unfold Conn.start
   split
   · simp
-  · refine ⟨?_, rfl⟩
+  · refine ⟨?_, by trivial⟩
     intro o ho
     simp only [List.mem_map] at ho
     obtain ⟨_, _, rfl⟩ := ho
@@ -62,7 +62,8 @@ theorem onRbsr_send (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim)
     by_cases h2 : cs.isEmpty = true
     · simp [h2]
     · rw [if_neg h2]
-      refine ⟨?_, rfl⟩
+      simp only [Step.limit_send, Step.limit_take]
+      refine ⟨?_, by trivial⟩
       intro o ho
       simp only [List.mem_cons, List.mem_append] at ho
       rcases ho with rfl | ho | ho
@@ -76,7 +77,7 @@ theorem holdsOf_wire (offer : List (Id × Id)) : ∀ o ∈ holdsOf cfg offer, is
   obtain ⟨_, _, ho⟩ := ho
   exact chunks_wire cfg _ _ o ho
 
-variable [Store F (Model F)]
+
 
 theorem onHold_send (c : Conn) (r : Id) (ids : List Id) (s : DB F) :
     (∀ o ∈ ((c.onHold fam cfg r ids : Model F Step).run s).1.send, isWire o.kind = true) ∧
@@ -84,22 +85,22 @@ theorem onHold_send (c : Conn) (r : Id) (ids : List Id) (s : DB F) :
   unfold Conn.onHold
   split
   · simp [Model.run_pure]
-  · simp only [Model.run_bind, Model.run_pure]
-    exact ⟨chunks_wire cfg _ _, trivial⟩
+  · split
+    · simp
+    · simp only [Model.run_bind, Model.run_pure, Step.limit_send, Step.limit_take]
+      exact ⟨chunks_wire cfg _ _, trivial⟩
 
-theorem onWant_send (c : Conn) (ids : List Id) (s : DB F) :
-    (∀ o ∈ ((c.onWant fam cfg ids : Model F Step).run s).1.send, Sendable fam c o) ∧
-      ((c.onWant fam cfg ids : Model F Step).run s).1.take = [] := by
+theorem onWant_send (ix : Index) (c : Conn) (ids : List Id) (s : DB F) :
+    (∀ o ∈ ((c.onWant fam cfg ix ids : Model F Step).run s).1.send, Sendable fam c o) ∧
+      ((c.onWant fam cfg ix ids : Model F Step).run s).1.take = [] := by
   unfold Conn.onWant
   split
   · simp [Model.run_pure]
-  · simp only [Model.run_bind, Model.run_pure]
-    refine ⟨?_, trivial⟩
+  · rw [Model.run_bind, Read.run_model]
+    simp only [Model.run_pure, Step.limit_send, Step.limit_take]
+    refine ⟨?_, by trivial⟩
     intro o ho
-    simp only [List.mem_append, List.mem_filter] at ho
-    rcases ho with ⟨_, h⟩ | ho
-    · exact Or.inr h
-    · exact Or.inl (holdsOf_wire cfg _ o ho)
+    exact Or.inr ((serve_shown _ _ _ _ o ho).1)
 
 /-- What `recv` does with bytes that decode to op o: by o's message. -/
 theorem recv_cases (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (s : DB F) (o : Op)
@@ -111,10 +112,10 @@ theorem recv_cases (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (s : 
           ({ c' with peerFloor := some f } : Conn).start cfg ix now else { conn := { c' with peerFloor := some f } })
       | some (.rbsr r k cs) => Conn.finish (c'.onRbsr cfg ix r k cs now)
       | some (.hold r ids) => Conn.finish ((c'.onHold fam cfg r ids : Model F Step).run s).1
-      | some (.want ids) => Conn.finish ((c'.onWant fam cfg ids : Model F Step).run s).1
+      | some (.want ids) => Conn.finish ((c'.onWant fam cfg ix ids : Model F Step).run s).1
       | none => if isWire o.kind || !c'.shows fam o then { conn := c' }
-          else Conn.finish (Step.mk { c' with asked := c'.asked.erase o.id, known := c'.known.insert o.id }
-            [] [o] [] false) := by
+          else Conn.finish (Step.limit cfg (Step.mk { c' with asked := c'.asked.erase o.id, askTime := c'.askTime.erase o.id, known := remember cfg.maxKnown c'.known o.id }
+            [] [o] [] false)) := by
   intro c'
   unfold Conn.recv
   rw [hd]
@@ -136,6 +137,7 @@ theorem recv_take (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (s : D
       by_cases hw : (isWire o.kind || !c.shows fam o) = true
       · rw [if_pos (show (isWire o.kind || !Conn.shows fam ({ c with heard := now } : Conn) o) = true by rw [shows_heard]; exact hw)]; simp
       · rw [if_neg (show ¬ (isWire o.kind || !Conn.shows fam ({ c with heard := now } : Conn) o) = true by rw [shows_heard]; exact hw), (finish_send _).2]
+        simp only [Step.limit_take]
         intro p hp
         have hpo : p = o := by simpa using hp
         subst hpo
@@ -149,7 +151,7 @@ theorem recv_take (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (s : D
         · simp
       | rbsr r k cs => rw [(finish_send _).2, (onRbsr_send cfg ix _ _ _ _ now).2]; simp
       | hold r ids => rw [(finish_send _).2, (onHold_send fam cfg _ _ _ _).2]; simp
-      | want ids => rw [(finish_send _).2, (onWant_send fam cfg _ _ _).2]; simp
+      | want ids => rw [(finish_send _).2, (onWant_send fam cfg ix _ _ _).2]; simp
 
 /-- **A session sends only sync wire ops and ops the peer may see.** -/
 theorem recv_send (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (s : DB F) :
@@ -176,7 +178,7 @@ theorem recv_send (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (s : D
         rw [(finish_send _).1]; intro p hp; exact Or.inl ((onHold_send fam cfg _ _ _ _).1 p hp)
       | want ids =>
         rw [(finish_send _).1]; intro p hp
-        rcases (onWant_send fam cfg _ _ _).1 p hp with h | h
+        rcases (onWant_send fam cfg ix _ _ _).1 p hp with h | h
         · exact Or.inl h
         · exact Or.inr (by rw [shows_heard] at h; exact h)
 
@@ -204,11 +206,11 @@ theorem tick_send (ix : Index) (c : Conn) (now : Nat) (s : DB F) :
       simp only [List.mem_append] at ho
       rcases ho with ho | ho
       · exact (start_send cfg ix _ now).1 o ho
-      · exact holdsOf_wire cfg _ o ho
-    · refine ⟨?_, rfl⟩
+      · exact ho.elim (holdsOf_wire cfg _ o) (chunks_wire cfg _ _ o)
+    · refine ⟨?_, by trivial⟩
       intro o ho
       simp only [List.mem_append, List.not_mem_nil, false_or] at ho
-      exact holdsOf_wire cfg _ o ho
+      exact ho.elim (holdsOf_wire cfg _ o) (chunks_wire cfg _ _ o)
 
 end
 
