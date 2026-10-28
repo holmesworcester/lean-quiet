@@ -108,7 +108,7 @@ def main (args : List String) : IO UInt32 := do
                             bytes, key := ← Engine.Crypto.randomBytes 32, nonce := ← Engine.Crypto.randomBytes 24,
                             metaNonce := ← Engine.Crypto.randomBytes 24 }
     let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k (← Engine.Crypto.randomBytes 24)
-      "A photo, arriving".toUTF8 (newestTime s + 1) [file]) #[]
+      "A photo, arriving".toUTF8 (← nowMin) [file]) #[]
     let post :: att :: chunks := w.ops | check "the send makes a post, an attachment and chunks" false
     let n := chunks.length
     let len := (fileCipher file).size

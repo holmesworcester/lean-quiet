@@ -162,3 +162,7 @@ run = "platforms/ios/ship.sh ctl-guard"
 description = "Who can drive the app's control channel, on your own emulator (SERIAL, default emulator-5644): adb is answered, another app's uid is refused, a RELEASE=1 build does not listen"
 depends = ["android:apk"]
 run = "platforms/android/test/ctl_guard.sh ${SERIAL:-emulator-5644}"
+
+[tasks."test:harden"]
+description = "Daybreak sync regressions: read traces, deadlines, purge, hostile holds, backpressure and TCP socket limits"
+run = "tests/engine/harden.sh"

@@ -8,7 +8,8 @@ open App
 def Io.platform : Io :=
   ⟨Platform.screen, Platform.scroll, Platform.scrollBy, Platform.scrollTo, Platform.frame, Platform.text,
    Platform.ime, Platform.textClear, fun t => Platform.copy t, Platform.ctlPoll, fun s => Platform.ctlReply s, Platform.nowUs,
-   Platform.scan, Platform.luma⟩
+   do return ((← Std.Time.Timestamp.now).toSecondsSinceUnixEpoch.val.toNat / 60, (← Platform.tzMin).toInt),
+   Platform.scan, Platform.luma, Platform.log⟩
 
 def main : IO Unit := do
   let screen ← Platform.screen
