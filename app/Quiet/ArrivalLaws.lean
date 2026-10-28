@@ -352,26 +352,26 @@ theorem readView_model {α : Type} (v : View Fact α) (deps : Array Q) (db : DB 
 
 /-- **A picture's counts are the engine's**: `Community.progress` of its
 file, read as is. -/
-theorem pic_progress (c root : Id) (len : Nat) (info : FileMeta) (fk fn : ByteArray) (deps : Array Q)
+theorem pic_progress (c att root : Id) (len : Nat) (info : FileMeta) (fk fn : ByteArray) (deps : Array Q)
     (db : DB Fact) :
-    let p := ((Kinds.File.pic (m := Model) c root len info fk fn deps).run db).1
-    (p.got, p.total) = (progress c root len).eval db := by
+    let p := ((Kinds.File.pic (m := Model) c att root len info fk fn deps).run db).1
+    (p.got, p.total) = (progress c att len).eval db := by
   intro p
-  have hv := readView_model (progress c root len) deps db
+  have hv := readView_model (progress c att len) deps db
   simp only [p, Kinds.File.pic, ReaderT.run, bind, ReaderT.bind, pure] at *
   rw [hv]
-  generalize (progress c root len).eval db = gt
+  generalize (progress c att len).eval db = gt
   obtain ⟨g, t⟩ := gt
   dsimp only
   split <;> rfl
 
 /-- A picture's length is its attachment's. -/
-theorem pic_len (c root : Id) (len : Nat) (info : FileMeta) (fk fn : ByteArray) (deps : Array Q)
-    (db : DB Fact) : ((Kinds.File.pic (m := Model) c root len info fk fn deps).run db).1.len = len := by
-  have hv := readView_model (progress c root len) deps db
+theorem pic_len (c att root : Id) (len : Nat) (info : FileMeta) (fk fn : ByteArray) (deps : Array Q)
+    (db : DB Fact) : ((Kinds.File.pic (m := Model) c att root len info fk fn deps).run db).1.len = len := by
+  have hv := readView_model (progress c att len) deps db
   simp only [Kinds.File.pic, ReaderT.run, bind, ReaderT.bind, pure] at *
   rw [hv]
-  generalize (progress c root len).eval db = gt
+  generalize (progress c att len).eval db = gt
   obtain ⟨g, t⟩ := gt
   dsimp only
   split <;> rfl
@@ -381,21 +381,21 @@ pill drawn over the picture the app reads, in any box, is the one laid
 out from that view's answer (got, total) and the attachment's length,
 and from nothing else: its counts, its words (`layout_words`) and its lit
 ring pixels (`ring_counts`) are progress's. -/
-theorem arrival_progress (f : Font.Font) (dm : Dim) (bx : Box) (c root : Id) (len : Nat)
+theorem arrival_progress (f : Font.Font) (dm : Dim) (bx : Box) (c att root : Id) (len : Nat)
     (info : FileMeta) (fk fn : ByteArray) (deps : Array Q) (db : DB Fact) :
-    Row.arrival f dm bx ((Kinds.File.pic (m := Model) c root len info fk fn deps).run db).1 =
-      Arrival.layout f dm.arrival bx.x bx.y bx.w bx.h ((progress c root len).eval db).1
-        ((progress c root len).eval db).2 len := by
-  have hp := pic_progress c root len info fk fn deps db
-  have hl := pic_len c root len info fk fn deps db
+    Row.arrival f dm bx ((Kinds.File.pic (m := Model) c att root len info fk fn deps).run db).1 =
+      Arrival.layout f dm.arrival bx.x bx.y bx.w bx.h ((progress c att len).eval db).1
+        ((progress c att len).eval db).2 len := by
+  have hp := pic_progress c att root len info fk fn deps db
+  have hl := pic_len c att root len info fk fn deps db
   simp only [Prod.ext_iff] at hp
   simp only [Row.arrival, hl, ← hp.1, ← hp.2]
 
 /-- So a drawn pill's counts are progress's answer. -/
-theorem arrival_counts {f : Font.Font} {dm : Dim} {bx : Box} {c root : Id} {len : Nat}
+theorem arrival_counts {f : Font.Font} {dm : Dim} {bx : Box} {c att root : Id} {len : Nat}
     {info : FileMeta} {fk fn : ByteArray} {deps : Array Q} {db : DB Fact} {pl : Arrival.Pill}
-    (h : Row.arrival f dm bx ((Kinds.File.pic (m := Model) c root len info fk fn deps).run db).1 = some pl) :
-    (pl.got, pl.total) = (progress c root len).eval db := by
+    (h : Row.arrival f dm bx ((Kinds.File.pic (m := Model) c att root len info fk fn deps).run db).1 = some pl) :
+    (pl.got, pl.total) = (progress c att len).eval db := by
   rw [arrival_progress] at h
   obtain ⟨_, hg, ht, _⟩ := layout_words h
   rw [hg, ht]
@@ -406,16 +406,16 @@ variable {C : Crypto} {s : DB Fact} (hsize : ∀ x, (sha256 x).size = 32) {ct : 
 include hsize hspr
 
 /-- **Complete is every chunk held.** A picture whose counts are its
-file's progress (as `pic_progress` reads them) is complete exactly when
-the store holds a Valid chunk of the file at every index. -/
-theorem complete_iff_held (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (len : Nat)
-    {p : Pic} (hp : (p.got, p.total) = (progress c (Merkle.fileRoot sha256 ct) len).eval s) :
+attachment's progress (as `pic_progress` reads them) is complete exactly
+when the store holds a Valid chunk of that attachment at every index. -/
+theorem complete_iff_held (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
+    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x))
+    {p : Pic} (hp : (p.got, p.total) = (progress c att len).eval s) :
     p.complete = true ↔
-      ∀ i < Merkle.nChunks len, ∃ y, V C s.ops y (.chunk c (Merkle.fileRoot sha256 ct) len i) := by
-  have hle := progress_le hsize hspr h hq c len
-  have hfull := progress_full hsize hspr h hq c len
-  have ht : (progress c (Merkle.fileRoot sha256 ct) len).eval s =
-      (((progress c (Merkle.fileRoot sha256 ct) len).eval s).1, Merkle.nChunks len) := by
+      ∀ i < Merkle.nChunks len, ∃ y, V C s.ops y (.chunk c att (Merkle.fileRoot sha256 ct) len i) := by
+  have hle := progress_le hsize hspr h hq ha
+  have hfull := progress_full hsize hspr h hq ha
+  have ht : (progress c att len).eval s = (((progress c att len).eval s).1, Merkle.nChunks len) := by
     unfold progress; simp
   rw [← hp] at hle hfull ht
   simp only [Prod.mk.injEq] at ht
@@ -423,17 +423,18 @@ theorem complete_iff_held (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (l
   exact hfull
 
 /-- **A picture showing its file holds all of it.** Shown as the file
-(`shown_file`), its counts being the file's progress, the attachment's
-length is the file's and the store holds each of the file's chunk ops,
-whose slices are the file. -/
-theorem file_whole (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (len : Nat)
-    {p : Pic} (hp : (p.got, p.total) = (progress c (Merkle.fileRoot sha256 ct) len).eval s)
+(`shown_file`), its counts being its attachment's progress, the
+attachment's length is the file's and the store holds each of the
+file's chunk ops, whose slices are the file. -/
+theorem file_whole (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
+    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x))
+    {p : Pic} (hp : (p.got, p.total) = (progress c att len).eval s)
     {α : Type} (pre full : Option α) (hs : (p.shown pre full).2 = true) :
     len = ct.size ∧ ∀ i < Merkle.nChunks ct.size,
-      V C s.ops (fileChunk c ct i).id (.chunk c (Merkle.fileRoot sha256 ct) ct.size i) := by
+      V C s.ops (fileChunk c att ct i).id (.chunk c att (Merkle.fileRoot sha256 ct) ct.size i) := by
   have hc := ((shown_file p pre full).1 hs).1
-  have hle := progress_le hsize hspr h hq c len
-  refine progress_done hsize hspr h hq c len ?_
+  have hle := progress_le hsize hspr h hq ha
+  refine progress_done hsize hspr h hq ha ?_
   rw [← hp] at hle ⊢
   simp only [Pic.complete, done, Bool.and_eq_true, decide_eq_true_eq] at hc
   simp only at hle ⊢
@@ -441,11 +442,12 @@ theorem file_whole (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (len : Na
 
 /-- **The picture the app reads is complete exactly when its file is
 held**: `Kinds.File.pic` over the store, composed with `complete_iff_held`. -/
-theorem pic_complete_iff_held (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (len : Nat)
+theorem pic_complete_iff_held (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
+    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x))
     (info : FileMeta) (fk fn : ByteArray) (deps : Array Q) :
-    ((Kinds.File.pic (m := Model) c (Merkle.fileRoot sha256 ct) len info fk fn deps).run s).1.complete = true ↔
-      ∀ i < Merkle.nChunks len, ∃ y, V C s.ops y (.chunk c (Merkle.fileRoot sha256 ct) len i) :=
-  complete_iff_held hsize hspr h hq c len (pic_progress c _ len info fk fn deps s)
+    ((Kinds.File.pic (m := Model) c att (Merkle.fileRoot sha256 ct) len info fk fn deps).run s).1.complete = true ↔
+      ∀ i < Merkle.nChunks len, ∃ y, V C s.ops y (.chunk c att (Merkle.fileRoot sha256 ct) len i) :=
+  complete_iff_held hsize hspr h hq ha (pic_progress c att _ len info fk fn deps s)
 
 end
 
