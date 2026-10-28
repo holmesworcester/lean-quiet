@@ -22,6 +22,7 @@ import ops.connection.bootstrap.Net
 import engine.world.Epidemic
 import engine.world.Findings
 import engine.world.Plain
+import engine.world.Hops
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -357,6 +358,35 @@ open Engine.World
 #print axioms Engine.World.patience_drops_idle
 #print axioms Engine.World.unshown_unanswered
 #print axioms Engine.World.no_round_while_open
+-- hops (engine/world/Hops.lean)
+#print axioms Engine.World.forIn_fold
+#print axioms Engine.World.write_nil
+#print axioms Engine.World.settle_run
+#print axioms Engine.World.store_nil
+#print axioms Engine.World.store_run
+#print axioms Engine.World.fanout_run
+#print axioms Engine.World.finish_run
+#print axioms Engine.World.apply_run
+#print axioms Engine.World.seal_mem
+#print axioms Engine.World.onFrame_sealed
+#print axioms Engine.World.peek_plainFrame
+#print axioms Engine.World.plainFrame_of_peek
+#print axioms Engine.World.write_ok
+#print axioms Engine.World.write_named
+#print axioms Engine.World.fanout_ok
+#print axioms Engine.World.store_ok
+#print axioms Engine.World.apply_ok
+#print axioms Engine.World.recv_drop
+#print axioms Engine.World.onRbsr_wants
+#print axioms Engine.World.onWant_sends
+#print axioms Engine.World.frameStep_ok
+#print axioms Engine.World.frame_fold
+#print axioms Engine.World.claim_step
+#print axioms Engine.World.want_step
+#print axioms Engine.World.op_step
+#print axioms Engine.World.claim_wants
+#print axioms Engine.World.want_sends
+#print axioms Engine.World.op_taken
 -- statements: closed Props, no sorry (engine/world/Statements.lean)
 #print axioms Engine.World.walk_stmt
 #print axioms Engine.World.grows_stmt

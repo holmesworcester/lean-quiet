@@ -254,12 +254,13 @@ def session_stable_stmt : Prop :=
 
 /-- **The pilot (leaf regime, one leg):** a round's claim of ids in room
 r, in flight from i to j at step k on a session joined from k on, listing
-x, which i holds: j holds x within 3Δ of the claim's sending. -/
+x, which i holds: j holds x within 3Δ of the claim's sending. Both ends
+show r on the session whatever they store (the fixed-rooms case). -/
 def claim_delivers_stmt : Prop :=
   ∀ (F : Type) (Q : Plain F) (N : Net Q.n) (E : Q.Run) (W : Nat) (i j : Fin Q.n) (cid r : Id) (k kr : Nat)
     (p : Packet Q.n) (ps : List ByteArray) (rg : Range) (L : List Id) (x : Id),
     Fair Q N E W → N.G i j → Joined E i j cid k → N.gst ≤ p.sent → N.Live i j p.sent (p.sent + 3 * N.Δ) →
-    (∀ k', k ≤ k' → r ∈ Shows Q.setup (E.world k') i cid ∧ r ∈ Shows Q.setup (E.world k') j cid) →
+    (∀ h, r ∈ Q.rooms i h cid ∧ r ∈ Q.rooms j h cid) →
     p ∈ (E.world k).flight → p.src = some i → p.dst = Q.addr j → plainPeek p.bytes = some (cid, ps) →
     (Msg.rbsr r kr [.ids rg L]).op.bytes ∈ ps → x ∈ L → Q.Holds (E.world k) i r x →
       ∃ k', k ≤ k' ∧ (E.world k').now ≤ p.sent + 3 * N.Δ ∧ Q.Holds (E.world k') j r x

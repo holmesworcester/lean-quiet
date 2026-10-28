@@ -85,9 +85,10 @@ variable {n : Nat} (N : Net n)
 /-- Node i is online from t₁ to t₂. -/
 def Net.Up (i : Fin n) (t₁ t₂ : Nat) : Prop := ∀ t, t₁ ≤ t → t ≤ t₂ → N.online t i
 
-/-- The edge i — j is live from t₁ to t₂: both ends online, the link up. -/
+/-- The edge i — j is live from t₁ to t₂: both ends online, the link up
+both ways. -/
 def Net.Live (i j : Fin n) (t₁ t₂ : Nat) : Prop :=
-  ∀ t, t₁ ≤ t → t ≤ t₂ → N.online t i ∧ N.online t j ∧ N.link t i j
+  ∀ t, t₁ ≤ t → t ≤ t₂ → N.online t i ∧ N.online t j ∧ N.link t i j ∧ N.link t j i
 
 /-- Every node online and every edge of G live, from t₁ to t₂. -/
 def Net.Calm (t₁ t₂ : Nat) : Prop := (∀ i, N.Up i t₁ t₂) ∧ ∀ i j, N.G i j → N.Live i j t₁ t₂
