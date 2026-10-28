@@ -173,6 +173,9 @@ lean_exe codecdiff where
 lean_exe bench where
   root := `tests.engine.Bench
 
+lean_exe poolstarve where
+  root := `tests.engine.PoolStarve
+
 /-! ## The app on the headless twin (tests/app/run.sh) -/
 
 lean_exe twin_demo where
