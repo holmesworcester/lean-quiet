@@ -14,9 +14,11 @@
 #                         the Mac's simulator of our own (sim.sh), with the
 #                         chaos data (500 messages) if the database has
 #                         none; a screenshot into out/ios-sim/
-#        ship.sh e2e      sim, then the UI test (UITests/) in it: scroll,
-#                         header tap, long press, keyboard, typing, send;
-#                         screenshots and the result bundle in out/ios-sim/
+#        ship.sh e2e      sim, then the UI tests (UITests/) in it: the
+#                         conversation (scroll, long press, keyboard,
+#                         typing, send) and a pinned page (Paste: keyboard,
+#                         typing a link, Continue); screenshots and the
+#                         result bundle in out/ios-sim/
 #        ship.sh mdns     the network probe (probe/) in the simulator:
 #                         Lean's TCP both ways and lean-mdns both ways,
 #                         checked by the Mac's dns-sd; out/ios-sim/probe-sim.txt
@@ -101,7 +103,21 @@ stdc() {
   echo "$c"
 }
 
+# The twin's placement proofs (Placement.lean): they check, on standard
+# axioms only, or nothing is staged.
+proofs() {
+  local out
+  out=$(cd "$root" && "$lake" build Quiet.Geometry >/dev/null && "$lake" env lean ios/Placement.lean 2>&1) ||
+    { echo "$out" >&2; echo "ios/Placement.lean does not check" >&2; exit 1; }
+  if echo "$out" | grep -E "depends on axioms" |
+      grep -vqE "\[(propext|Classical.choice|Quot.sound)(, (propext|Classical.choice|Quot.sound))*\]$" ||
+      echo "$out" | grep -qE "sorryAx|error"; then
+    echo "$out" >&2; echo "ios/Placement.lean rests on more than the standard axioms" >&2; exit 1
+  fi
+}
+
 stage() {
+  proofs
   [ -f "$root/assets/font.bin" ] || "$root/tools/fetch_assets.sh"
   [ -d "$root/out/initc" ] || "$root/tools/gen_init_c.sh" "$root/out/initc"
   local engine closure targets
@@ -199,12 +215,9 @@ sim() {
   echo "built $app"
   on_mac "~/$dir/stage/ios/sim.sh ~/$dir install $app"
   on_mac "~/$dir/stage/ios/sim.sh ~/$dir launch $port" >/dev/null
-  local total
-  total=$(ctl state | sed -n 's/.* total \([0-9]*\) .*/\1/p')
-  if [ "${total:-0}" -lt 100 ]; then
-    ctl "chaos ${MESSAGES:-500}" wait
-  fi
-  ctl ping state
+  # a fresh install opens on Get started: found a community (its home),
+  # fill it with chaos, open its conversation
+  ctl ping "found general" "chaos ${MESSAGES:-500}" wait channel state
   sleep 3
   mkdir -p "$art"
   shot "$art/launch.png"
@@ -223,12 +236,27 @@ e2e() {
   udid=$(on_mac "~/$dir/stage/ios/sim.sh ~/$dir udid")
   xcr=$dir/out/e2e.xcresult
   on_mac "rm -rf ~/$xcr ~/$dir/out/shots; mkdir -p ~/$dir/out/shots"
+  # the Paste page's targets, the composer's text rows and a link, from Lean
+  # (test/Targets.lean), for the screen the twin reports
+  local tw W dpi tg
+  tw=$(ctl twin)
+  W=$(echo "$tw" | sed -n 's/.* w \([0-9]*\) dpi \([0-9]*\).*/\1/p')
+  dpi=$(echo "$tw" | sed -n 's/.* w \([0-9]*\) dpi \([0-9]*\).*/\2/p')
+  tg=$(cd "$root" && "$lake" build Quiet.Pages Quiet.Composer Community >/dev/null &&
+    "$lake" env lean --run ios/test/Targets.lean "$W" "$dpi")
+  local field cont comp link
+  field=$(echo "$tg" | sed -n 's/^field //p'); cont=$(echo "$tg" | sed -n 's/^continue //p')
+  comp=$(echo "$tg" | sed -n 's/^composer //p'); link=$(echo "$tg" | sed -n 's/^link //p')
+  [ -n "$field" ] && [ -n "$cont" ] && [ -n "$comp" ] && [ -n "$link" ] || { echo "no targets: $tg"; exit 1; }
   local ok=0
   on_mac "cd ~/$dir/stage/ios && TEST_RUNNER_LEANQUIET_CTL_PORT=$port \
-    TEST_RUNNER_LEANQUIET_SHOTS=\$HOME/$dir/out/shots xcodebuild test-without-building \
+    TEST_RUNNER_LEANQUIET_SHOTS=\$HOME/$dir/out/shots TEST_RUNNER_LEANQUIET_FIELD='$field' \
+    TEST_RUNNER_LEANQUIET_CONTINUE='$cont' TEST_RUNNER_LEANQUIET_COMPOSER='$comp' \
+    TEST_RUNNER_LEANQUIET_LINK='$link' xcodebuild test-without-building \
     -project LeanQuiet.xcodeproj -scheme LeanQuiet -configuration Release \
     -destination 'platform=iOS Simulator,id=$udid' -derivedDataPath ~/$dir/build/dd \
-    -resultBundlePath ~/$xcr ARCHS=arm64 2>&1 | tail -40" > "$art/e2e.log" || ok=$?
+    -resultBundlePath ~/$xcr ARCHS=arm64 2>&1" > "$art/e2e.log" || ok=$?
+  grep "pinned:" "$art/e2e.log" | sed 's/^.*pinned:/pinned:/' || true
   grep -Eq '\*\* TEST (EXECUTE )?SUCCEEDED \*\*' "$art/e2e.log" || ok=1
   rm -rf "$art/shots"
   scp -q -r "$mac:$dir/out/shots" "$art/shots" || true
@@ -302,5 +330,5 @@ case $what in
   clean)
     on_mac "~/$dir/stage/ios/sim.sh ~/$dir delete" || true
     ssh "$mac" "rm -rf ~/$dir" ;;
-  *) sed -n 2,44p "$0"; exit 2 ;;
+  *) sed -n 2,46p "$0"; exit 2 ;;
 esac

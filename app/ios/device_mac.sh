@@ -41,9 +41,12 @@ ctl() { python3 "$here/ctl.py" -H "$ip" -p "$port" -w 60 "$@"; }
 st=$(ctl state) || fail "the app does not answer at $ip:$port (local network permission?)"
 echo "$st"
 total=$(echo "$st" | sed -n 's/.* total \([0-9]*\) .*/\1/p')
+# no community yet (Get started): found one; fill it; open its conversation
+[ -n "$(ctl comms)" ] || ctl "found general"
 if [ "${total:-0}" -lt 100 ]; then
   ctl "chaos $n" wait
 fi
+ctl channel
 st=$(ctl state)
 echo "$st"
 total=$(echo "$st" | sed -n 's/.* total \([0-9]*\) .*/\1/p')

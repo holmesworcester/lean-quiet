@@ -5,7 +5,7 @@
 # installed and launched in it, screenshots, and its removal.
 #
 #   sim.sh work_dir udid               the simulator's UDID (made, booted)
-#   sim.sh work_dir install APP        installs the .app
+#   sim.sh work_dir install APP        installs the .app afresh (its data too)
 #   sim.sh work_dir launch [PORT]      (re)launches the app, the control
 #                                      channel on PORT (default 7417), its
 #                                      stdout and stderr to work_dir/app.log
@@ -38,7 +38,9 @@ udid() {
 
 case $what in
   udid) udid ;;
-  install) u=$(udid); xcrun simctl install "$u" "$3" ;;
+  install)
+    # a fresh install: no database from an earlier build
+    u=$(udid); xcrun simctl uninstall "$u" "$app_id" 2>/dev/null || true; xcrun simctl install "$u" "$3" ;;
   launch)
     u=$(udid)
     SIMCTL_CHILD_LEANQUIET_CTL_PORT=${3:-7417} xcrun simctl launch --terminate-running-process \

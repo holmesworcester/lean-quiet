@@ -6,11 +6,13 @@
 // Simulator that is the Mac's own loopback, so a client on the Mac reaches
 // the app directly (ios/ctl.py). On a phone, a test can ask for every
 // interface instead (LEANQUIET_CTL_ADDR=any, at launch only): the listener
-// then logs the phone's addresses. A thread listens, one reader thread per
-// connection splits what arrives into lines, and each line waits in a
-// queue for Lean. A reply answers the oldest unanswered command and goes
-// back on that command's connection. A connection is closed once its
-// peer has hung up and every command it sent has been answered.
+// then logs the phone's addresses. The line `twin` is the twin's own
+// report (lq_twin, for tests), answered at once. A thread listens, one
+// reader thread per connection splits what arrives into lines, and each
+// line waits in a queue for Lean. A reply answers the oldest unanswered
+// command and goes back on that command's connection. A connection is
+// closed once its peer has hung up and every command it sent has been
+// answered.
 
 #include <arpa/inet.h>
 #include <ifaddrs.h>
@@ -48,6 +50,17 @@ static void lq_release(Conn* c) {
   }
 }
 
+void lq_twin(char* out, size_t n);  // quiet_ios.m
+
+// `twin`: answered at once by the twin itself (lq_twin), not queued for Lean.
+static void lq_twin_line(Conn* c) {
+  char out[2048];
+  lq_twin(out, sizeof out - 1);
+  size_t n = strlen(out);
+  out[n] = '\n';
+  send(c->fd, out, n + 1, 0);
+}
+
 static void lq_queue(Conn* c, const char* s, size_t n) {
   Cmd* m = calloc(1, sizeof *m);
   m->conn = c;
@@ -76,7 +89,9 @@ static void* lq_reader(void* arg) {
         if (len > 0 && buf[i - 1] == '\r') {
           len -= 1;
         }
-        if (len > 0) {
+        if (len == 4 && memcmp(buf + start, "twin", 4) == 0) {
+          lq_twin_line(c);
+        } else if (len > 0) {
           lq_queue(c, buf + start, len);
         }
         start = i + 1;

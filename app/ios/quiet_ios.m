@@ -26,6 +26,13 @@
 //   (so every keyboard works as in any app: autocorrection, marked text
 //   of Japanese or Chinese input, dictation, emoji), mirrored to Lean as
 //   text, selection and marked range in code points.
+// - **Pages** (pin): a page is drawn at offset 0 and must not slide or be
+//   lifted (Geometry.Seam.pinned). The twin changes only the scroll view's
+//   bottom edge, to where the composer is with the keyboard closed (a
+//   layout guide on the safe area's bottom, the composer's height), and
+//   holds its offset at 0; the placement above then puts page row k at
+//   the scroll view's top + k, and a tap reports the distance pinned_tap
+//   reads (ios/Placement.lean proves both from Geometry's definitions).
 // - **The insets**: the header is pinned to the screen's top; the
 //   composer to the keyboard layout guide's top (the safe area's bottom
 //   while the keyboard is closed), so Auto Layout moves it inside the
@@ -122,7 +129,11 @@ static UIView*        lq_probe;    // on the keyboard layout guide's top
 static UITextField*   lq_field;
 static NSLayoutConstraint* lq_header_h;
 static NSLayoutConstraint* lq_composer_h;
+static NSLayoutConstraint* lq_lifted;  // the scroll view's bottom on the composer
+static NSLayoutConstraint* lq_pinned;  // on the keyboard-closed composer top
 static uint32_t       lq_shown_top_h, lq_shown_bot_h;
+static bool           lq_shown_pin;
+static uint32_t       lq_tap[3];       // the last list tap reported: kind, x, y
 
 static uint64_t lq_tick(void) {
   struct timespec ts;
@@ -337,12 +348,9 @@ lean_obj_res lq_scroll_to(double b) {
   return lean_io_result_mk_ok(lean_box(0));
 }
 
-// pin: the list frame is a page (Geometry.Seam.pinned). TODO(ios): place a
-// pinned frame at the scroll view's top, not bottom-anchored; until then a
-// page on iOS is placed as a conversation is.
+// pin: the list frame is a page, pinned (the header comment; Placement.lean).
 lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj_arg top,
   b_lean_obj_arg bot, uint8_t pin) {
-  (void)pin;
   uint32_t w  = lq_w;
   lq_over     = over;
   lq_stage(&lq_st[LQ_LIST], list, w, b, true);
@@ -393,6 +401,18 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
       lq_shown_bot_h          = bot_h;
       lq_header_h.constant    = top_h / k;
       lq_composer_h.constant  = bot_h / k;
+      [lq_root layoutIfNeeded];
+    }
+    if ((pin != 0) != lq_shown_pin) {
+      lq_shown_pin = pin != 0;
+      NSLayoutConstraint* was = lq_shown_pin ? lq_lifted : lq_pinned;
+      NSLayoutConstraint* now = lq_shown_pin ? lq_pinned : lq_lifted;
+      was.active = NO;  // (first: the two hold the same edge)
+      now.active = YES;
+      lq_sv.scrollEnabled = !lq_shown_pin;
+      if (lq_shown_pin) {
+        [lq_sv setContentOffset:CGPointZero animated:NO];
+      }
       [lq_root layoutIfNeeded];
     }
     CGFloat height = ch / k;
@@ -476,6 +496,28 @@ lean_obj_res lq_copy(b_lean_obj_arg text) {
 
 lean_obj_res lq_now_us(void) {
   return lean_io_result_mk_ok(lean_box_uint64(lq_tick() / 1000));
+}
+
+// What the twin did, as UIKit has it, for tests (the control channel's
+// `twin` line, answered here, not by Lean): the screen's width and
+// density, whether the list frame is a page, the header's height and the
+// frame's overscan, the screen rows of
+// the list frame's first row and of the scroll view's bottom edge, the
+// composer's top now, the last list tap reported (kind, x, y), and the
+// keyboard's text.
+void lq_twin(char* out, size_t n) {
+  dispatch_sync(dispatch_get_main_queue(), ^{
+    double k    = lq_k;
+    CGRect list = [lq_root.layer convertRect:lq_list.bounds fromLayer:lq_list];
+    CGRect sv   = [lq_root convertRect:lq_sv.bounds fromView:lq_sv];
+    CALayer* c  = lq_composer.layer.presentationLayer ?: lq_composer.layer;
+    pthread_mutex_lock(&lq_mu);
+    snprintf(out, n, "w %u dpi %u pin %d top %u over %u listY %ld svBottom %ld composerTop %ld "
+      "tap %u %u %u field %s", lq_w, lq_dpi, lq_shown_pin, lq_shown_top_h, lq_over,
+      lround(list.origin.y * k), lround(CGRectGetMaxY(sv) * k), lround(c.frame.origin.y * k),
+      lq_tap[0], lq_tap[1], lq_tap[2], lq_text_s ? lq_text_s : "");
+    pthread_mutex_unlock(&lq_mu);
+  });
 }
 
 // The keyboard's text
@@ -577,6 +619,11 @@ static void lq_touch(uint32_t kind, uint32_t a, UIGestureRecognizer* g) {
   uint32_t region = v == lq_header ? 1 : v == lq_composer ? 2 : 0;
   uint32_t y      = region == 0 ? (uint32_t)fmax(0, floor(p.y * lq_k)) : lq_px(p.y);
   lq_event(kind, kind == 8 ? a : region, lq_px(p.x), y);
+  if (region == 0 && kind != 8) {
+    lq_tap[0] = kind;
+    lq_tap[1] = lq_px(p.x);
+    lq_tap[2] = y;
+  }
 }
 
 @interface LeanTouches : NSObject <UIGestureRecognizerDelegate>
@@ -705,6 +752,11 @@ static void lq_listen(UIView* v, bool drag) {
   UILayoutGuide* kb = root.keyboardLayoutGuide;
   lq_header_h   = [header.heightAnchor constraintEqualToConstant:0];
   lq_composer_h = [composer.heightAnchor constraintEqualToConstant:0];
+  // where the composer is with the keyboard closed: a page's bottom edge
+  UILayoutGuide* closed = [UILayoutGuide new];
+  [root addLayoutGuide:closed];
+  lq_lifted = [sv.bottomAnchor constraintEqualToAnchor:composer.topAnchor];
+  lq_pinned = [sv.bottomAnchor constraintEqualToAnchor:closed.topAnchor];
   [NSLayoutConstraint activateConstraints:@[
     [header.topAnchor constraintEqualToAnchor:root.topAnchor],
     [header.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
@@ -719,7 +771,9 @@ static void lq_listen(UIView* v, bool drag) {
     [fill.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
     [fill.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
     [sv.topAnchor constraintEqualToAnchor:header.bottomAnchor],
-    [sv.bottomAnchor constraintEqualToAnchor:composer.topAnchor],
+    lq_lifted,
+    [closed.bottomAnchor constraintEqualToAnchor:root.safeAreaLayoutGuide.bottomAnchor],
+    [closed.heightAnchor constraintEqualToAnchor:composer.heightAnchor],
     [sv.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
     [sv.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
     [probe.topAnchor constraintEqualToAnchor:kb.topAnchor],
