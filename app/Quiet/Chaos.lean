@@ -2,9 +2,10 @@
 A chaos generator, as libquiet's: a community's worth of people and
 talk, made of real ops (signed, judged, stored like any sync).
 
-- **People:** names in many scripts, each joined by an invitation from
-  this node's founder, each with a profile and an avatar: an identicon,
-  or a crop of a photo.
+- **People:** names in many scripts, each admitted the way the engine
+  admits anyone: an invitation from this node's founder, the newcomer's
+  request, the founder's approval, and the admission tallying it. Each
+  has a profile and an avatar: an identicon, or a crop of a photo.
 - **Messages:** text in many languages and scripts (Latin with accents,
   Greek, Cyrillic, Georgian, Armenian, Hebrew, Arabic, Thai, Japanese,
   Chinese, Korean), emoji, symbols, long unbreakable words, several
@@ -192,8 +193,11 @@ def make (me : Me) (srcs : Array Image.Src) (seed n : Nat) (start : Nat) : Array
   for i in [0:nUsers] do
     let d := Device.named s!"chaos-{seed}-{i}"
     let bearer := Device.named s!"chaos-bearer-{seed}-{i}"
-    let inv := invite c me.adm f bearer.pk false
-    let j := join c inv.id d bearer.sk
+    -- invited by the founder, who then approves the request (threshold 1)
+    let inv := invite c me.adm f bearer.pk false 1
+    let rq := request c inv.id d bearer.sk
+    let ap := approve c rq.id me.adm f
+    let j := admit c rq.id [ap.id]
     -- an avatar: an identicon, or a square crop of a photo
     let (kind, g1) := g.below 3
     g := g1
@@ -211,7 +215,7 @@ def make (me : Me) (srcs : Array Image.Src) (seed n : Nat) (start : Nat) : Array
     g := g2
     let b := blob c bytes 128 128
     let p := profile c j.id d names[i % names.size]!.toUTF8 start [b.id]
-    batch := batch ++ #[inv, j, b, p]
+    batch := batch ++ #[inv, rq, ap, j, b, p]
     blobs := blobs.push bytes
     people := people.push (j.id, d)
   jobs := jobs.push ⟨batch.toList, blobs.toList, false⟩
