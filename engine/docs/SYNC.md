@@ -81,10 +81,13 @@ all of the claimant's ids in it. `answer` (Engine/Sync/Round.lean):
 Each side answers a round's claims from a snapshot of the room taken
 when it first saw the round. A message with no claims ends the round.
 
-**Have and want.** `hold` goes out as `sync.have`. The peer wants what it
-lacks (`sync.want`), and wanted ops are sent as their own bytes. A want
+**Have and want.** `hold` goes out as `sync.have`, naming its room (the
+round's, or each offered op's). The peer wants what it lacks in that
+room (`sync.want`), and wanted ops are sent as their own bytes. A want
 for an id outside the connection's rooms, a local or conn op, or an
-unknown id, is ignored silently.
+unknown id, is ignored silently. A have for a room the peer may not see
+is ignored, and a have is answered from that room's ops only, so a
+peer's haves learn nothing of other rooms or of local ops.
 
 **Stream.** Between rounds, each op newly stored is offered
 (`sync.have`) on every connection whose peer may see it and is not known
@@ -230,6 +233,11 @@ Proven:
   every write turn and purge keeps it so (`write_cached`,
   `purge_cached`). Proven of `Conn`'s code on held data; the walk is a
   budgeted recursion (`walkN`), so it can be reasoned about.
+- `hold_reply_local`: a have names its room; one for a room the peer
+  may not see is ignored, and the reply (which ids to want) reads only
+  this side's ops of that room, so two stores that hold the same ops of
+  the connection's rooms answer every have alike. With the cache law
+  the reply is the room's index (`heldIn_index`).
 - `sealed_auth`, `onFrame_sealed`: a sealed frame reaches the node only
   as `openFrame` gives it, and one that fails its AEAD check changes
   nothing and sends nothing.

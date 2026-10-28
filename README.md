@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 262 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 267 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as each part's `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -123,7 +123,7 @@ nothing else is assumed:
 | ✅ | 🥊🥊 | **Every op is signed by whom it must be.** A message is signed by an admitted device of its author, and an approval by a member other than the requester. An invitation is signed by its issuer, and a community's name by an admin. Each admission was consented to by its device. | [`message_authorized`], [`approval_signed`], [`invitation_issued`], [`named_by_admin`], [`admission_consented`] |
 | ✅ | 🥊🥊 | **Admins' removals stand,** even of each other, and a removed member's earlier approvals still count. | [`admin_removal_stands`], [`mutual_removal`], [`removed_approver_admits`] |
 | | | **Confidentiality** | |
-| ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A session sends only sync messages, and ops of the rooms its peer is let into. | [`recv_send`] |
+| ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A session sends only sync messages, and ops of the rooms its peer is let into. A peer's haves reveal nothing outside its rooms: a have names its room, one for a room the peer may not see is ignored, and the reply reads only this node's ops of that room. So a peer cannot ask whether this node holds an op of another community, or a local op. A test checks this with a negative control. | [`recv_send`], [`hold_reply_local`], [`heldIn_index`] |
 | ✅ | 🥊🥊🥊 | **Secrets stay on the device.** No local op (a secret, a session key, a pending join) is ever offered or sent. Of a connection's ops, only the two handshake messages are not local. | [`offer_shared`], [`wire_kinds`], [`local_kinds`], [`joinOps_travels`], [`found_travels`], [`stopWaiting_local`] |
 | ✅ | 🥊🥊 | **The stream discloses only what it may.** It offers only ids of stored, shared ops, never one still pending. The clock sends only round messages and offers. | [`filed_send`], [`offer_stored`], [`tick_send`] |
 | 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Proven: a content key goes to exactly the live members' devices, and a member opens what was sealed under the key wrapped to it. A shared op's validator reads only shared facts. Wanted: that a non-member cannot open it (the seal's secrecy). | [`recipients_iff`], [`members_iff`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`check_reads_shared`] |
@@ -250,16 +250,18 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`admin_removal_stands`]: engine/Community/Laws.lean#L528-L541
 [`mutual_removal`]: engine/Community/Laws.lean#L549-L553
 [`removed_approver_admits`]: engine/Community/Laws.lean#L488-L499
-[`recv_send`]: engine/Engine/Sync/ConnLaws.lean#L146-L148
+[`recv_send`]: engine/Engine/Sync/ConnLaws.lean#L154-L156
+[`hold_reply_local`]: engine/Engine/Sync/OfferLaws.lean#L659-L669
+[`heldIn_index`]: engine/Engine/Sync/OfferLaws.lean#L682-L685
 [`offer_shared`]: engine/Engine/Sync.lean#L83-L86
 [`wire_kinds`]: engine/Connection/Laws.lean#L48-L49
 [`local_kinds`]: engine/Connection/Laws.lean#L55-L56
 [`joinOps_travels`]: engine/Community/Intents.lean#L246-L250
 [`found_travels`]: engine/Community/Intents.lean#L257-L261
 [`stopWaiting_local`]: engine/Community/Intents.lean#L253-L254
-[`filed_send`]: engine/Engine/Sync/ConnLaws.lean#L175-L178
+[`filed_send`]: engine/Engine/Sync/ConnLaws.lean#L183-L186
 [`offer_stored`]: engine/Engine/Sync.lean#L98-L101
-[`tick_send`]: engine/Engine/Sync/ConnLaws.lean#L184-L187
+[`tick_send`]: engine/Engine/Sync/ConnLaws.lean#L192-L195
 [`recipients_iff`]: engine/Community/Connect.lean#L214-L218
 [`members_iff`]: engine/Community/Connect.lean#L205-L208
 [`member_opens`]: engine/Community/Laws.lean#L868-L872
@@ -279,11 +281,11 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`kk_forward_secret_resp`]: engine/Connection/NoiseSymbolic.lean#L662-L671
 [`purge_gone`]: engine/Engine/Purge.lean#L261-L263
 [`purge_named`]: engine/Engine/Purge.lean#L267-L271
-[`have_shown`]: engine/Engine/Sync/OfferLaws.lean#L505-L517
+[`have_shown`]: engine/Engine/Sync/OfferLaws.lean#L553-L565
 [`write_cached`]: engine/Engine/Sync/NodeLaws.lean#L436-L440
 [`purge_cached`]: engine/Engine/Sync/NodeLaws.lean#L508-L513
 [`cached_items`]: engine/Engine/Sync/NodeLaws.lean#L271-L274
-[`write_snaps`]: engine/Engine/Sync/OfferLaws.lean#L561-L564
+[`write_snaps`]: engine/Engine/Sync/OfferLaws.lean#L609-L612
 [`connect_iff`]: engine/Community/Connect.lean#L146-L150
 [`refuse_nonmember`]: engine/Community/Connect.lean#L161-L164
 [`connect_approved`]: engine/Community/Connect.lean#L182-L193
@@ -294,7 +296,7 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`rooms_cut`]: engine/Connection/RoomLaws.lean#L93-L103
 [`trusts_live`]: engine/Connection/RoomLaws.lean#L40-L46
 [`rooms_model`]: engine/Connection/RoomLaws.lean#L109-L111
-[`recv_take`]: engine/Engine/Sync/ConnLaws.lean#L118-L120
+[`recv_take`]: engine/Engine/Sync/ConnLaws.lean#L126-L128
 [`no_connection_before_approval`]: net/Net/Laws.lean#L39-L46
 [`sessions_trusted`]: net/Net/Laws.lean#L63-L68
 [`intake_local`]: engine/Engine/Sync.lean#L41-L43

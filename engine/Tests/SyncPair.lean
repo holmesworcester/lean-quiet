@@ -12,6 +12,9 @@ the engine's driver (`Node`) over the pair harness:
   even when it asks for them by id, and cannot push them in; and every
   id offered to it, in a have or an id claim, names a stored op of the
   community it may see (`have_shown`), new ops of the other included;
+  and its haves learn nothing of the other community or of local ops:
+  a have of an id held only there is answered as one of an id held
+  nowhere, and a have for the other room is ignored (`hold_reply_local`);
 - garbage frames are ignored;
 - stream: an op written after the round reaches the peer at once,
   without another round.
@@ -104,11 +107,21 @@ def offeredIn (f : ByteArray) : List Id × List Op := Id.run do
   for b in inner do
     let some o := Op.decode b | continue
     match Msg.ofOp o with
-    | some (.hold xs) => ids := ids ++ xs
+    | some (.hold _ xs) => ids := ids ++ xs
     | some (.rbsr _ _ cs) => ids := ids ++ cs.flatMap fun | .ids _ xs => xs | .fp .. => []
     | some _ => pure ()
     | none => data := data ++ [o]
   return (ids, data)
+
+/-- The ids a frame of the harness's plain seal wants. -/
+def wantedIn (f : ByteArray) : List Id := Id.run do
+  let some (_, bundle) := (Codec.decode (f.extract 1 f.size) : Option (Id × ByteArray)) | return []
+  let some inner := (Codec.decode bundle : Option (List ByteArray)) | return []
+  let mut ids : List Id := []
+  for b in inner do
+    let some o := Op.decode b | continue
+    if let some (.want xs) := Msg.ofOp o then ids := ids ++ xs
+  return ids
 
 /-- Run the pair as `Pair.run` does, keeping every frame a sends to b. -/
 def runWatch (xa xb : Sync Fact (SqlM Fact)) (p : Pair) (stop fuel : Nat) : IO (Pair × List ByteArray) := do
@@ -214,6 +227,23 @@ def main : IO UInt32 := do
   t.ok "rooms: every id offered to b names a stored op of the community it may see" ok
   t.ok "rooms: the new op b may see reached it" (has (← idsOf pr.b.db) (news.head!).id)
   IO.println s!"rooms: {offered} ids offered to b"
+  -- b's haves, answered by a: a holds x2 only in the other room, the
+  -- secret only locally, and nothing named y.
+  let (a', _) ← pr.a.run fun n => n.onWrite xa [secret "a seed".toUTF8] pr.now
+  let pr := { pr with a := a' }
+  let x2 := (h2.getLast!).id
+  let sec := (secret "a seed".toUTF8).id
+  let y := sha256 "held nowhere".toUTF8
+  let x1 := (h.getLast!).id
+  let reply (r : Id) (i : Id) : IO (List Id × Bool) := do
+    let (_, e) ← pr.a.run fun n => n.onFrame xa "b".toUTF8 (frameOf cid (Msg.hold r [i]).op.bytes) (pr.now + 1)
+    return (e.send.flatMap fun (_, f) => wantedIn f, e.send.isEmpty)
+  t.ok "holds: a holds the secret, only locally" (has (← idsOf pr.a.db) sec)
+  t.ok "holds: an id held nowhere is wanted" ((← reply c y).1 == [y])
+  t.ok "holds: an id a holds only in the other room is wanted, as if held nowhere" ((← reply c x2).1 == [x2])
+  t.ok "holds: an id a holds only locally is wanted, as if held nowhere" ((← reply c sec).1 == [sec])
+  t.ok "holds: an id a holds in b's room is not wanted" ((← reply c x1).1 == [])
+  t.ok "holds: a have for the other room is ignored" ((← reply c2 x2).2 && (← reply c2 y).2)
   -- b asks for the other's ops by id: a ignores it.
   let (_, e) ← pr.a.run fun n => n.onFrame xa "b".toUTF8 (frameOf cid (Msg.want (h2.map (·.id))).op.bytes) pr.now
   t.ok "rooms: a want for another room's ops is ignored" (e.send.isEmpty)

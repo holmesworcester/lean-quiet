@@ -5,8 +5,9 @@ codec, one strict decode, `Op.id_decode`), and never stored:
 - `sync.rbsr`: one room's claims for one round (`reqs = [room]`, body
   the round and the claims); with no room it is the hello, which only
   says the sender's window floor.
-- `sync.have`: ids the sender holds (`reqs`): a peer wants those it
-  lacks. This is also the stream: a newly stored op is offered so.
+- `sync.have`: ids the sender holds (`reqs`) in one room (body): a peer
+  wants those it lacks in that room. This is also the stream: a newly
+  stored op is offered so.
 - `sync.want`: ids the sender asks for (`reqs`), answered with the ops'
   bytes.
 
@@ -60,14 +61,14 @@ instance : Codec Claim where
 inductive Msg where
   | hello (floor : Nat)
   | rbsr (room : Id) (round : Nat) (claims : List Claim)
-  | hold (ids : List Id)
+  | hold (room : Id) (ids : List Id)
   | want (ids : List Id)
   deriving Inhabited
 
 def Msg.op : Msg → Op
   | .hello f => Op.make kRbsr [] (encode (0, f, ([] : List Claim)))
   | .rbsr c k cs => Op.make kRbsr [c] (encode (k, 0, cs))
-  | .hold ids => Op.make kHave ids .empty
+  | .hold r ids => Op.make kHave ids (encode r)
   | .want ids => Op.make kWant ids .empty
 
 /-- A wire op's message; none for a data op or a malformed wire op. -/
@@ -77,7 +78,7 @@ def Msg.ofOp (o : Op) : Option Msg :=
     | some (_, f, []), [] => some (.hello f)
     | some (k, _, cs), [c] => some (.rbsr c k cs)
     | _, _ => none
-  else if o.kind == kHave then (if o.body.size == 0 then some (.hold o.reqs) else none)
+  else if o.kind == kHave then (decode o.body : Option Id).map (.hold · o.reqs)
   else if o.kind == kWant then (if o.body.size == 0 then some (.want o.reqs) else none)
   else none
 
