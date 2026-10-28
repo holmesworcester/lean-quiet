@@ -56,7 +56,7 @@ def toyOpen (f : ByteArray) : SqlM Fact (Option (Id × ByteArray)) :=
   pure ((Codec.decode f : Option (Id × ByteArray)).map fun (c, b) => (c, ByteArray.mk (b.data.map (· ^^^ 0xA5))))
 
 def hooks (rooms : List Id) : Hooks Fact (SqlM Fact) where
-  rooms := fun _ => pure rooms
+  rooms := fun _ => pure (rooms.map .sync)
   recv := fun cid addr o _ => pure <|
     if cid.isNone && o.kind == kHello then [Op.make kRecord [] (Codec.encode (o.id, addr))] else []
   outbox := do

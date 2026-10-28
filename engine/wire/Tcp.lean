@@ -205,19 +205,13 @@ def RunState.close (st : RunState) (sid now : Nat) : IO (RunState × Effects) :=
     return ({ st.drop sid with node }, e)
 
 /-- Carry out what the node asked for: send each payload to its
-address, dialing if no socket has it. -/
+address, dialing if no socket has it; then close the sockets of the
+sessions it dropped. -/
 partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now : Nat) : IO RunState := do
   let close (st : RunState) (sid : Nat) : IO RunState := do
     let (st, more) ← st.close x sid now
     st.apply cfg more now
   let mut st := st
-  for cid in e.drop do
-    if let some addr := st.node.addr? cid then
-      -- A socket may carry several sessions (a join sent beside an open
-      -- one, until one is retired): close it once none is left on it.
-      unless st.node.conns.any fun (c, _) => st.node.addr? c == some addr do
-        for s in st.socks do
-          if s.addr == addr then st ← close st s.id
   for (addr, b) in e.send do
     match st.sockOf (fun s => s.addr == addr) with
     | some s => unless ← sendOn s.client b do st ← close st s.id
@@ -233,6 +227,15 @@ partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now 
         if ← st.slots.take cfg addr then
           st := { st with pending := (addr, [b]) :: st.pending }
           let _ ← IO.asTask (prio := .dedicated) (dialOut ch st.slots addr)
+  -- Then the dropped sessions' sockets close, after their last frames
+  -- (a removed member's notice) are sent on them.
+  for cid in e.drop do
+    if let some addr := st.node.addr? cid then
+      -- A socket may carry several sessions (a join sent beside an open
+      -- one, until one is retired): close it once none is left on it.
+      unless st.node.conns.any fun (c, _) => st.node.addr? c == some addr do
+        for s in st.socks do
+          if s.addr == addr then st ← close st s.id
   unless e.stored.isEmpty do notify e.stored
   return st
 

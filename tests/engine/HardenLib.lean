@@ -27,7 +27,7 @@ def keysGone (db : Db) : IO Bool := do
 
 def setup (addr : ByteArray) (dialer : Bool) (cfg : Config := {}) : Sync Nat (SqlM Nat) :=
   { fam, cfg, hooks := {
-      rooms := fun _ => pure ["room".toUTF8]
+      rooms := fun _ => pure [.sync "room".toUTF8]
       closing := fun _ => pure [session.id]
       established := do
         if (← Store.getOp (F := Nat) session.id).isSome then return [(session.id, addr, dialer)]

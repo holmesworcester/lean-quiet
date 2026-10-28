@@ -357,9 +357,16 @@ def closing (cid : Id) : m (List Id) := do
   let some co ← Store.getOp (m := m) cid | return []
   return cid :: co.reqs
 
-/-- The rooms the peer on connection cid may see now, synced
-(`roomsV`'s; its notices are given once the node carries typed rooms). -/
-def rooms (cid : Id) : m (List Id) := do return Room.syncs (← (roomsV cid).run)
+/-- What connection cid carries now (`roomsV`): rooms synced, and
+notices to give. -/
+def rooms (cid : Id) : m (List Room) := (roomsV cid).run
+
+/-- What a step's status writes: a notice given on cid is recorded
+(`conn.given`), so the rooms view stops carrying it; a room's settle
+writes nothing. -/
+def settled (cid : Id) : Status → List Op
+  | .given x => [Given.op cid x]
+  | .settled _ => []
 
 /-- When and from where op x first arrived bare, if it did. -/
 def arrival (x : Id) : m (Option (B × Nat)) := do
@@ -501,6 +508,7 @@ def onArrival (via : Option Id) (addr : B) (o : Op) (at_ : Nat) : m (List Op) :=
 /-- What the node driver calls. -/
 def hooks (fam : Family F) (K : Keys) (listen : B) : Hooks F m where
   rooms := rooms
+  settled := settled
   recv := onArrival
   outbox := outbox
   react := react fam K

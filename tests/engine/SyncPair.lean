@@ -75,7 +75,7 @@ def node (x : Sync Fact (SqlM Fact)) (ops : List Op) (floor : Nat) (addr : Strin
   return { db, node := Node.boot x.fam (← (dumpOps (F := Fact)).run db) floor, addr := addr.toUTF8 }
 
 def sync (rooms : List Id) : Sync Fact (SqlM Fact) :=
-  { fam, cfg, hooks := { rooms := fun _ => pure rooms, sealFor := plainSeal, openFrame := plainOpen } }
+  { fam, cfg, hooks := { rooms := fun _ => pure (rooms.map .sync), sealFor := plainSeal, openFrame := plainOpen } }
 
 /-- A payload as the session's sealed frame (the harness's plain one). -/
 def frameOf (cid : Id) (b : ByteArray) : ByteArray :=

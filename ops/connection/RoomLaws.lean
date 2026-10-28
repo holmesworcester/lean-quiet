@@ -134,11 +134,11 @@ theorem rooms_cut (s : DB F) {cid c : Id}
   rw [trusts_live s (hme me hm), hpeer peer hp] at ht
   cases ht
 
-/-- The hook runs the view: on the model, `rooms` gives `roomsV`'s synced
-rooms. -/
+/-- The hook runs the view: on the model, `rooms` gives `roomsV`, its
+synced rooms and its notices, and reads only. -/
 theorem rooms_model (s : DB F) (cid : Id) :
-    ((rooms cid : Model F (List Id))).run s = (Room.syncs ((roomsV cid).eval s), s) := by
+    ((rooms cid : Model F (List Room))).run s = ((roomsV cid).eval s, s) := by
   unfold rooms
-  simp only [Model.run_bind, View.run_model, Model.run_pure]
+  exact View.run_model _ s
 
 end Connection

@@ -17,27 +17,26 @@ Proven:
   trust rule takes). On the model, `react`'s fresh bytes leave the store
   as it is (`FreshPure`), as the model's do.
 
-Stated (`_stmt`), to be proven with the Node and Conn step (typed rooms
-in `Hooks.rooms`; docs/REMOVAL.md, Status). Read over the node's store
-(`DB F`, Community and Connection composed), as `rooms_cut` is; each
-connection step the node runs is a `Conn` step on the connection
-`Node.refresh` leaves, `c.carry ((roomsV cid).eval s)` on the model
-(then `carry` becomes `setRooms`, and the `rooms` hook gives rooms with
-notices). A session is one per peer key
-and carries a room for every community this node holds.
-- E2 `rooms_removed_stmt`: when this node is a live member of c and the
+The notice and the cut, read over the node's store (`DB F`, Community
+and Connection composed), as `rooms_cut` is. Each connection step the
+node runs is a `Conn` step on the connection `Node.refresh` leaves,
+`c.carry ((roomsV cid).eval s)` on the model (`rooms_model`). A session
+is one per peer key and carries a room for every community this node
+holds.
+- E2 `rooms_removed`: when this node is a live member of c and the
   trust rule refuses the peer, the connection carries no synced room c,
   only notices of removals the peer's key is owed.
-- `rooms_complete_stmt`: and it still carries every community whose
-  peer the trust rule takes: a removal in c drops c's room and adds the
+- `rooms_complete`: and it still carries every community whose peer
+  the trust rule takes: a removal in c drops c's room and adds the
   notice, and leaves the session's other communities as they were.
-- E2 `removed_gets_only_notice_stmt`: so every op a connection step
-  sends of c is a sync wire op or in the requirement closure of such a
-  removal, and nothing of c is taken.
-- E1 `notice_then_cut_stmt`: once, for every community this node
-  holds, the peer is refused and every removal owed is given on the
-  connection, it carries nothing; `sessions` drops it and `retired`
-  names it, so the node closes it and purges its ops.
+- E2 `removed_gets_only_notice`: so every op a connection step sends
+  of c is a sync wire op or in the requirement closure of such a
+  removal, and nothing of c is taken (with `notice_send`,
+  ops/sync/NoticeLaws.lean, which gives the notice: `notice_sent`).
+- E1 `notice_then_cut`: once, for every community this node holds, the
+  peer is refused and every removal owed is given on the connection, it
+  carries nothing; `sessions` drops it and `retired` names it, so the
+  node closes it and purges its ops.
 -/
 import ops.connection.Intents
 import ops.connection.RoomLaws
@@ -70,7 +69,8 @@ def Owed (s : DB F) (cid c x : B) : Prop :=
 another room, or an op in the requirement closure, in c, of a removal
 owed to the peer. -/
 def NoticeOnly (fam : Family F) (s : DB F) (cid c : B) (o : Op) : Prop :=
-  isWire o.kind = true ∨ fam.room o ≠ some c ∨ ∃ x, Owed s cid c x ∧ ReachIn fam s.ops c x o.id
+  isWire o.kind = true ∨ fam.room o ≠ some c ∨
+    ∃ x, Owed s cid c x ∧ ∃ y, s.ops y = some o ∧ ReachIn fam s.ops c x y
 
 theorem run_rows (r : Rel Fact) (args : List B) (s : DB F) :
     ((rows r args : Model F _).run s) =
@@ -134,24 +134,53 @@ theorem rooms_complete (s : DB F) {cid c me peer : B} (hm : (meV c).eval s = som
   · exact ⟨peer, hp, List.mem_map.2 ⟨c, hh, rfl⟩⟩
   · rw [eval_roomFor]; simp [hm, ht]
 
-/-- **Nothing but the notice (`removed_gets_only_notice`).** Under the
-same premises, on the connection as each step reads it afresh: opening
-says hello only; and of community c, a frame received, ops just stored
-(`filed`) and the clock (`tick`) send only sync wire ops and ops in the
+/-- **Nothing but the notice (`removed_gets_only_notice`).** If this
+node is a live member of c and the trust rule refuses every peer cid
+names in c, then on the connection as each step reads it afresh
+(`Node.refresh`: `carry` of `roomsV`): opening says hello only; and of
+community c, a frame received, ops just stored (`filedGive`) and the
+clock (`tickGive`) send only sync wire ops and stored ops in the
 requirement closure of a removal owed to the peer. A frame received
-hands the writer nothing of c. (With the Node and Conn step: then
-`carry` is `setRooms`, and `filed` and `tick` give notices.) -/
-def removed_gets_only_notice_stmt : Prop :=
-  ∀ (fam : Family F) (cfg : Config) (ix : Index) (s : DB F) (cid c : B) (conn : Conn)
-    (bytes : B) (ids : List Id) (now floor : Nat) (dialer : Bool),
-    LiveIn s c → Refused s cid c →
+hands the writer nothing of c. -/
+theorem removed_gets_only_notice (fam : Family F) (cfg : Config) (ix : Index) (s : DB F) (cid c : B)
+    (conn : Conn) (bytes : B) (ids : List Id) (now floor : Nat) (dialer : Bool)
+    (hl : LiveIn s c) (hr : Refused s cid c) :
     let k := conn.carry ((roomsV cid).eval s)
     (∀ rs, ∀ o ∈ (Conn.open dialer rs floor now).send, isWire o.kind = true) ∧
     (∀ o ∈ ((Conn.recv fam cfg ix k bytes now : Model F Step).run s).1.send,
       NoticeOnly fam s cid c o) ∧
     (∀ o ∈ ((Conn.recv fam cfg ix k bytes now : Model F Step).run s).1.take, fam.room o ≠ some c) ∧
-    (∀ o ∈ ((Conn.filed fam cfg k ids : Model F Step).run s).1.send, NoticeOnly fam s cid c o) ∧
-    (∀ o ∈ ((Conn.tick fam cfg ix k now : Model F Step).run s).1.send, NoticeOnly fam s cid c o)
+    (∀ o ∈ ((Conn.filedGive fam cfg k ids : Model F Step).run s).1.send, NoticeOnly fam s cid c o) ∧
+    (∀ o ∈ ((Conn.tickGive fam cfg ix k now : Model F Step).run s).1.send, NoticeOnly fam s cid c o) := by
+  intro k
+  have hrm := rooms_removed s hl hr
+  -- an op k may show is of a synced room, so not of c
+  have hshow : ∀ o, k.shows fam o = true → fam.room o ≠ some c := by
+    intro o ho hc
+    simp only [Conn.shows, hc] at ho
+    have := hrm _ (mem_syncs ((Engine.has_iff _ _).1 ho))
+    exact this rfl
+  -- a notice op of k is of another room, or of an owed removal of c
+  have hnote : ∀ o, NoticeOp fam s k o → NoticeOnly fam s cid c o := by
+    rintro o ⟨r, x, hm, _, y, hy, hroom, hreach⟩
+    by_cases hrc : r = c
+    · subst hrc
+      exact Or.inr (Or.inr ⟨x, hrm _ (mem_notices hm) rfl, y, hy, hreach⟩)
+    · exact Or.inr (Or.inl (by rw [hroom]; exact fun h => hrc (Option.some.inj h)))
+  refine ⟨fun rs o ho => ?_, fun o ho => ?_, fun o ho => ?_, fun o ho => ?_, fun o ho => ?_⟩
+  · simp only [Conn.open, List.mem_singleton] at ho
+    subst ho; exact msg_wire _
+  · rcases recv_send fam cfg ix k bytes now s o ho with h | h
+    · exact Or.inl h
+    · exact Or.inr (Or.inl (hshow o h))
+  · exact hshow o (recv_take fam cfg ix k bytes now s o ho).2
+  · rcases (notice_send fam cfg ix s k ids now _ (List.mem_cons_self ..)).1 o ho with h | h
+    · exact Or.inl h
+    · exact hnote o h
+  · rcases (notice_send fam cfg ix s k ids now _ (List.mem_cons_of_mem _ (List.mem_cons_self ..))).1 o ho
+      with h | h
+    · exact Or.inl h
+    · exact hnote o h
 
 /-! ## E1: then the cut -/
 

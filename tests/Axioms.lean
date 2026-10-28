@@ -497,3 +497,20 @@ end net
 #print axioms Connection.dialOne_state
 #print axioms Connection.rejoin_dials
 #print axioms Connection.reconnect_dials
+
+#print axioms Engine.Sync.closureOps_sound
+#print axioms Engine.Sync.closureOps_complete
+#print axioms Engine.Sync.closure
+#print axioms Engine.Sync.give_send
+#print axioms Engine.Sync.give_gives
+#print axioms Engine.Sync.give_quiet
+#print axioms Engine.Sync.filed_given
+#print axioms Engine.Sync.tick_given
+#print axioms Engine.Sync.tick_drop
+#print axioms Engine.Sync.notice_no_holds
+#print axioms Engine.Sync.notice_sent
+#print axioms Engine.Sync.notice_send
+#print axioms Engine.Sync.notice_once
+#print axioms Engine.Sync.filedGive_reads
+#print axioms Engine.Sync.filedGive_quiet
+#print axioms Connection.removed_gets_only_notice
