@@ -55,3 +55,8 @@ run = "ios/ship.sh mdns-device"
 [tasks."ios:e2e"]
 description = "End to end on the iPhone (DEVICE; ask before using it): build, install, launch, then over the Mac's Wi-Fi the chaos data, Lean's state and frames drawn; console in out/ios-device"
 run = "ios/ship.sh e2e-device"
+
+[tasks."android:scan-e2e"]
+description = "Join with QR code on this suite's own emulator (lean-quiet-scan, emulator-5590): a real invite's code on the virtual scene's wall, scanned by the app's camera; it must land on Choose a name with exactly that link"
+depends = ["android:apk"]
+run = "android/test/scan_e2e.sh out/quiet.apk out/scan"

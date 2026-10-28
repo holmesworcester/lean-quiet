@@ -934,6 +934,7 @@ def command (line : String) : M Bool := do
   | "state" =>
     s.io.ctlReply s!"b {s.b} total {s.total} loaded {s.ids.size} people {s.people} mounted {s.rows.size} ime {s.imeH} text {repr s.text} outbox {s.out.size} busy {← s.wr.busy.get} viewH {viewH s}"
   | "stats" => s.io.ctlReply (stats s)
+  | "invite" => s.io.ctlReply ((s.invite.map (·.text)).getD "")
   | "scans" => s.io.ctlReply s!"{s.scans} frames decoded, camera {if s.camOn then "on" else "off"}, preview {s.camView.isSome}"
   | "hints" =>
     -- the dial hints an invite issued now would carry (writes nothing)

@@ -40,3 +40,7 @@ lean_exe quiet_host where
 -- Two apps joined by link, ops carried between them as sync would.
 lean_exe two_nodes where
   root := `QTests.TwoNodes
+
+-- A real invite and its QR code (the camera e2e's poster).
+lean_exe invite_link where
+  root := `QTests.InviteLink

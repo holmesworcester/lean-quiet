@@ -196,6 +196,7 @@ public class LeanActivity extends NativeActivity {
 
   /** From native (any thread): the camera on or off. */
   public void scan(boolean on) {
+    android.util.Log.i("lean", "camera " + (on ? "on" : "off"));
     runOnUiThread(() -> {
       if (on) startCamera();
       else stopCamera();
@@ -226,6 +227,7 @@ public class LeanActivity extends NativeActivity {
     wanted = true;
     if (checkSelfPermission(android.Manifest.permission.CAMERA)
         != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+      android.util.Log.i("lean", "camera: asking for the permission");
       requestPermissions(new String[] {android.Manifest.permission.CAMERA}, 7);
       return;
     }
@@ -286,10 +288,14 @@ public class LeanActivity extends NativeActivity {
         @Override public void onOpened(android.hardware.camera2.CameraDevice d) {
           if (reader != rd) { d.close(); return; }
           camera = d;
+          android.util.Log.i("lean", "camera opened, " + rd.getWidth() + "x" + rd.getHeight() + ", orientation " + orientation);
           start(d, rd, h);
         }
         @Override public void onDisconnected(android.hardware.camera2.CameraDevice d) { d.close(); }
-        @Override public void onError(android.hardware.camera2.CameraDevice d, int e) { d.close(); }
+        @Override public void onError(android.hardware.camera2.CameraDevice d, int e) {
+          android.util.Log.e("lean", "camera error " + e);
+          d.close();
+        }
       }, h);
     } catch (Exception e) {
       android.util.Log.e("lean", "camera", e);
@@ -309,7 +315,9 @@ public class LeanActivity extends NativeActivity {
             @Override public void onConfigured(android.hardware.camera2.CameraCaptureSession s) {
               try { s.setRepeatingRequest(rb.build(), null, h); } catch (Exception e) { android.util.Log.e("lean", "repeat", e); }
             }
-            @Override public void onConfigureFailed(android.hardware.camera2.CameraCaptureSession s) {}
+            @Override public void onConfigureFailed(android.hardware.camera2.CameraCaptureSession s) {
+              android.util.Log.e("lean", "camera session failed");
+            }
           }, h);
     } catch (Exception e) {
       android.util.Log.e("lean", "camera session", e);
