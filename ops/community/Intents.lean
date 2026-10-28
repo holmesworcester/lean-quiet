@@ -564,6 +564,22 @@ theorem nodup_full {l : List Nat} {n : Nat} (hn : l.Nodup) (hb : ∀ i ∈ l, i 
     rw [List.length_range] at h1 h2; omega
 
 
+/-- **What an attachment writes are its file's chunk ops**: chunk i of
+`attach` is `fileChunk` of the file at i, for every i below the chunk
+count, so the progress laws count the ops `send` writes. -/
+theorem attach_chunks (c adm msg : Id) (d : Device) (k : ByteArray) (f : NewFile) :
+    (attach c adm msg d k f).2 = (List.range (Merkle.nChunks (fileCipher f).size)).map
+      (fileChunk c (attach c adm msg d k f).1.id (fileCipher f)) := by
+  apply List.map_congr_left
+  intro i hi
+  rw [List.mem_range] at hi
+  have hs : (Merkle.slices (fileCipher f)).getD i .empty = Merkle.slice (fileCipher f) i := by
+    simp [List.getD, Merkle.getElem?_slices, hi]
+  have hp : ((List.range (Merkle.nChunks (fileCipher f).size)).map
+      (Merkle.proof sha256 (fileCipher f))).getD i [] = Merkle.proof sha256 (fileCipher f) i := by
+    simp [List.getD, hi]
+  simp only [fileChunk, mkOp, Merkle.rootAndProofs, hs, hp, attach]
+
 section
 variable (hsize : ∀ x, (sha256 x).size = 32) {ct : ByteArray}
   (hspr : Merkle.NoSecondPreimage sha256 (Merkle.treeInputs sha256 ct))

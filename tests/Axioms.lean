@@ -34,6 +34,8 @@ open Engine Community
 #print axioms Engine.spec_extends
 #print axioms Engine.Codec.decode_encode
 #print axioms Engine.Codec.encode_decode
+#print axioms Engine.Codec.encode_eq_fast
+#print axioms Engine.Codec.decode_eq_fast
 #print axioms Engine.Op.id_decode
 #print axioms Engine.Op.decode_bytes
 #print axioms Engine.distinct_of_collisionFree
@@ -146,6 +148,9 @@ open Engine Community
 #print axioms Community.Merkle.climb_sub
 #print axioms Community.Merkle.no_injective_hash
 #print axioms Community.Merkle.assumptions_hold
+#print axioms Community.Merkle.fileRoot_eq_fast
+#print axioms Community.Merkle.proof_eq_fast
+#print axioms Community.Merkle.rootAndProofs_eq_fast
 #print axioms Community.op_of_valid
 #print axioms Community.chunk_id
 #print axioms Community.chunk_unique
@@ -154,6 +159,7 @@ open Engine Community
 #print axioms Community.progress_le
 #print axioms Community.progress_full
 #print axioms Community.progress_done
+#print axioms Community.attach_chunks
 #print axioms Connection.trusts_live
 #print axioms Connection.rooms_trusted
 #print axioms Connection.rooms_cut
