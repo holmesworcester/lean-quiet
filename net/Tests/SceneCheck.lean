@@ -18,7 +18,8 @@ def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/scene"
   IO.FS.createDirAll dir
   let t ← Checks.new
-  let x : Scene := ⟨Device.named "founder", Device.named "joiner", Device.named "bearer"⟩
+  let x : Scene := ⟨Device.named "founder", Device.named "joiner", sha256 "bearer seed".toUTF8⟩
+  t.ok "the scene's link parses back from its text" (Invite.parse x.inviteLink.text == some x.inviteLink)
   let fam := family ed25519
   t.ok "the five ops have distinct ids" ((x.S.map (·.id)).eraseDups.length == 5)
   t.ok "founder and joiner are different devices" (x.A.pk.data != x.B.pk.data)

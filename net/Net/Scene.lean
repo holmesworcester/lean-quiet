@@ -22,16 +22,24 @@ structure Scene where
   A : Device
   /-- The joiner's device. -/
   B : Device
-  /-- The invitation's bearer key pair; its secret is in the link. -/
-  K : Device
+  /-- The bearer seed the invitation's key pair derives from; it is in
+  the link. -/
+  secret : ByteArray
 
 namespace Scene
 variable (x : Scene)
 
 def r : Op := root x.A
 def c : Id := x.r.id
-def inv : Op := invite x.c x.c x.A x.K.pk false 1
-def req : Op := request x.c x.inv.id x.B x.K.sk
+/-- The invitation and its link, as A's app issues them (Community.issue). -/
+def issued : Op × Invite := issue x.c x.c x.A x.secret []
+def inv : Op := x.issued.1
+def inviteLink : Invite := x.issued.2
+/-- The bearer key pair, from the link's seed. -/
+def K : Device := x.inviteLink.bearer
+/-- B's request, as B's app composes it from the link it parsed
+(`parse_text`: the text parses back to `inviteLink`). -/
+def req : Op := x.inviteLink.request x.B
 def appr : Op := approve x.c x.req.id x.c x.A
 def adm : Op := admit x.c x.req.id [x.appr.id]
 def S : List Op := [x.r, x.inv, x.req, x.appr, x.adm]
@@ -122,7 +130,8 @@ theorem v_req (h1 : x.r ∈ L) (h2 : x.inv ∈ L) (h3 : x.req ∈ L) :
     V C (table L) x.req.id (.request x.c x.req.id x.B.pk x.B.enc false 1) := by
   have := request_valid (C := C) (table_keyed L) (table_of (hd g hL) h3)
     (body_mk _ _) rfl (v_root g hL h1) (v_inv g hL h1 h2) (g.sigB _) (g.sigK _)
-  simpa using this
+  have e : x.inviteLink.community = x.c := rfl
+  simpa [e] using this
 
 theorem v_appr (h1 : x.r ∈ L) (h2 : x.inv ∈ L) (h3 : x.req ∈ L) (h4 : x.appr ∈ L) :
     V C (table L) x.appr.id (.approval x.c x.req.id x.c) :=
