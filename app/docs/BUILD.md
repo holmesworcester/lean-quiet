@@ -41,21 +41,27 @@ builds, and the toolchain's own build.
 
 Export the committed trees side by side at two roots, since the lakefile
 finds `../lean-engine-lists` and `../lean-qr` by relative path. Build
-both, then compare:
+both, then compare. Only the `.olean` files of modules with warnings
+should differ (on 851ebbf: the same five as above).
 
 ```sh
 export ELAN_HOME=/mnt/storage/elan TMPDIR=/mnt/storage/holmes-tmp
 export PATH="$ELAN_HOME/bin:$PATH"
-W=/mnt/storage/holmes-wt
-rm -rf "$TMPDIR/repro"
-for root in "$TMPDIR/repro/a" "$TMPDIR/repro/b/deeper"; do
-  for r in lean-quiet lean-engine-lists lean-qr; do
-    mkdir -p "$root/$r"; git -C "$W/$r" archive HEAD | tar -x -C "$root/$r"
+W=/mnt/storage/holmes-wt R="$TMPDIR/repro"
+rm -rf "$R"
+# Export both roots from one commit per repo before building, so a commit
+# landing mid-run can't split them.
+for r in lean-quiet lean-engine-lists lean-qr; do
+  c=$(git -C "$W/$r" rev-parse HEAD)
+  for root in "$R/a" "$R/b/deeper"; do
+    mkdir -p "$root/$r"; git -C "$W/$r" archive "$c" | tar -x -C "$root/$r"
   done
+done
+for root in "$R/a" "$R/b/deeper"; do
   (cd "$root/lean-quiet" && lake build Quiet quiet_host two_nodes)
   (cd "$root" && find */.lake/build -type f ! -name '*.trace' ! -name '*.log*' \
      ! -name '*.hash' ! -name '*.setup.json' ! -name '*.rsp' |
    sort | xargs sha256sum) > "$root.sums"
 done
-diff "$TMPDIR/repro/a.sums" "$TMPDIR/repro/b/deeper.sums"
+diff "$R/a.sums" "$R/b/deeper.sums"
 ```
