@@ -299,10 +299,12 @@ def waiting (f : Font) (dm : Dim) (W h : Nat) (id8 : String) (beats : Array (Str
   let headH := dm.px 64
   let mut ry := cy + headH + dm.px 16
   let mut rows : Array (Nat × String × String × Beat × Nat) := #[]
+  let tw := x1 - x0 - dm.px 72
   for (t, sub, beat) in beats do
-    let ls := Text.layout f (x1 - x0 - dm.px 72) sub
-    rows := rows.push (ry, t, sub, beat, ls.size)
-    ry := ry + f.cell + dm.px 4 + ls.size * dm.lineH + dm.px 16
+    let ts := Text.layout f tw t
+    let ls := Text.layout f tw sub
+    rows := rows.push (ry, t, sub, beat, ts.size)
+    ry := ry + ts.size * dm.lineH + dm.px 4 + ls.size * dm.lineH + dm.px 16
   let doingY := ry
   ry := ry + doing.size * dm.lineH + (if doing.isEmpty then 0 else dm.px 12)
   let stopY := ry
@@ -321,7 +323,7 @@ def waiting (f : Font) (dm : Dim) (W h : Nat) (id8 : String) (beats : Array (Str
   let mx := x0 + dm.px 24
   let mr := dm.px 9
   for i in [0:rows.size] do
-    let (by0, t, sub, beat, _) := rows[i]!
+    let (by0, t, sub, beat, tl) := rows[i]!
     let mcy := by0 + f.cell / 2
     if i + 1 < rows.size then
       b := b.fill (mx + mr - 1) (mcy + mr) (mx + mr + 1) (rows[i+1]!.1 + f.cell / 2 - mr) cardLine
@@ -337,8 +339,10 @@ def waiting (f : Font) (dm : Dim) (W h : Nat) (id8 : String) (beats : Array (Str
       b := b.round mx (mcy - mr) (mx + 2 * mr) (mcy + mr) mr cardLine
       b := b.round (mx + 3) (mcy - mr + 3) (mx + 2 * mr - 3) (mcy + mr - 3) (mr - 3) card
     let rx := mx + 2 * mr + dm.px 16
-    b := b.line f (oneLine f (x1 - rx) t) rx by0 (if beat == .now then logo else if beat == .done then nameInk else dim) (beat != .next)
-    let (b2, _) := para f dm b sub rx (by0 + f.cell + dm.px 4) (x1 - rx - dm.px 16) dim
+    let ts := Text.layout f (x1 - rx - dm.px 16) t
+    for k in [0:ts.size] do
+      b := b.line f ts[k]! rx (by0 + k * dm.lineH) (if beat == .now then logo else if beat == .done then nameInk else dim) (beat != .next)
+    let (b2, _) := para f dm b sub rx (by0 + tl * dm.lineH + dm.px 4) (x1 - rx - dm.px 16) dim
     b := b2
   for i in [0:doing.size] do
     b := b.line f (oneLine f (x1 - x0 - dm.px 32) doing[i]!) (x0 + dm.px 16) (doingY + i * dm.lineH) dim

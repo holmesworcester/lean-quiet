@@ -1138,7 +1138,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
       let pg := pageOf s
       let (t, cross) := pageTitle s.page
       -- a first launch's Get started has nowhere to go back to
-      let top := if s.page == .getStarted && s.backStack.isEmpty && s.comms.isEmpty
+      let top := if (s.page == .getStarted && s.backStack.isEmpty && s.comms.isEmpty) || s.page == .waiting
         then Bitmap.blank s.W (s.insetTop + s.dim.px 56) s.bgRow
         else Pages.bar s.font s.dim s.W s.insetTop t cross
       let bot := Bitmap.blank s.W 1 s.bgRow
