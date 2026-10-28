@@ -1,6 +1,7 @@
 /-
 Wall times of the byte codec on the paths a photo takes, on SQLite with
-real Ed25519: encode and decode one 64 KiB chunk op, validate one chunk
+real Ed25519: build a 100-chunk attachment (its Merkle root, every
+chunk's proof, the chunk ops), encode and decode one 64 KiB chunk op, validate one chunk
 against its cited facts, ingest 100 chunk ops in one `receive`, and
 decode a 48 KiB frame bundle (the bundle's list, then `Op.decode` of
 each op in it). Then an adversarial input: numbers thousands of bytes
@@ -23,14 +24,16 @@ def fresh (dir name : String) : IO Db := do
 /-- Nanoseconds as microseconds, to a tenth. -/
 def usStr (ns : Nat) : String := s!"{ns / 1000}.{ns / 100 % 10} µs"
 
-/-- Run f at least 3 times and until 300 ms have passed (at most `cap`
-times); print the mean per run, and fold each result into `sum`. -/
-def bench (sum : IO.Ref Nat) (label : String) (f : Nat → IO Nat) (cap : Nat := 1000) : IO Unit := do
-  let _ ← f 0
+/-- Run f at least `minRuns` times and until 300 ms have passed (at
+most `cap` times), after one run to warm up unless `minRuns` is 1;
+print the mean per run, and fold each result into `sum`. -/
+def bench (sum : IO.Ref Nat) (label : String) (f : Nat → IO Nat) (cap : Nat := 1000)
+    (minRuns : Nat := 3) : IO Unit := do
+  if minRuns > 1 then let _ ← f 0
   let t0 ← IO.monoNanosNow
   let mut n := 0
   let mut el := 0
-  while n < 3 || (el < 300000000 && n < cap) do
+  while n < minRuns || (el < 300000000 && n < cap) do
     let r ← f n
     sum.modify (· + r)
     n := n + 1
@@ -51,6 +54,11 @@ with the setup's. -/
   match (Codec.decode b : Option (List ByteArray)) with
   | some bs => bs.foldl (fun n b => match Op.decode b with | some _ => n + 1 | none => n) 0
   | none => 0
+
+/-- Attach file f: its root, every chunk's proof, and the chunk ops. -/
+@[noinline] def attachFile (c : Id) (d : Device) (k : ByteArray) (f : NewFile) (_ : Nat) : Nat :=
+  let (a, cs) := attach c c c d k f
+  cs.foldl (fun n o => n + o.id.size) a.id.size
 
 @[noinline] def decodeNat (b : ByteArray) (_ : Nat) : Nat :=
   match (Codec.decode b : Option Nat) with | some n => n % 7 | none => 0
@@ -79,6 +87,8 @@ def main (args : List String) : IO UInt32 := do
     (sha256 "info nonce".toUTF8).extract 0 24⟩
   let wf := send c c seedA kA ((sha256 "nonce 2".toUTF8).extract 0 24) "a photo".toUTF8 7 [nf]
   let chunks := wf.ops.drop 2
+  bench sum s!"build a {chunks.length}-chunk attachment (attach: root, proofs, chunk ops)" (cap := 3)
+    fun i => pure (attachFile c dA kA nf i)
   let o := chunks.headD default
   let bytes := o.bytes
   IO.println s!"one chunk op: {bytes.size} bytes"
@@ -134,10 +144,14 @@ def main (args : List String) : IO UInt32 := do
   IO.println s!"one frame bundle: {payloads.size} ops, {bundle.size} bytes"
   bench sum "decode a 48 KiB frame bundle (the list, then Op.decode of each op)" fun i =>
     pure (decodeBundle bundle i)
-  -- Adversarial: a body's number field can be as long as the op. A long
-  -- number costs time quadratic in its length, to read and to write.
+  -- Adversarial: a body's number field can be as long as the op, and a
+  -- bare frame's op is decoded (`scope`) before anything refuses it; a
+  -- frame is at most 1 MiB (`Sync.maxFrame`).
   for n in [4096, 16384, 65536] do
     let b := longNumber n
     bench sum s!"decode a {n}-byte number (adversarial)" (cap := 3) fun i => pure (decodeNat b i)
+  let b := longNumber Sync.maxFrame
+  bench sum s!"decode a {Sync.maxFrame}-byte number (adversarial, one frame)" (cap := 1) (minRuns := 1)
+    fun i => pure (decodeNat b i)
   IO.println s!"checksum {← sum.get}"
   return 0

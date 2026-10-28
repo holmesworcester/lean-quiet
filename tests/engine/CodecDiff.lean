@@ -5,8 +5,9 @@ laws `encode_eq_fast` and `decode_eq_fast`); here the specification runs
 too, as `encodeSpec` and `decodeSpec`, which are `encode` and `decode`
 by rfl but are other constants, so the compiler leaves them on lists.
 
-On random values of every codec the engine has (numbers, byte strings
-of 0 to 200 KiB, booleans, bytes, lists, tuples, options, sums, ops,
+On random values of every codec the engine has (numbers, from one
+byte long to 4 KiB, which are read and written by halves past 8 bytes;
+byte strings of 0 to 200 KiB; booleans, bytes, lists, tuples, options, sums, ops,
 verdicts, Community's and Connection's bodies and facts, sync's keys,
 ranges and claims):
 - `encode` gives the specification's bytes, and so does `encInto` after
@@ -15,8 +16,10 @@ ranges and claims):
   at an offset, between other bytes;
 - `decode` and `decodeSpec` agree on mutants of those bytes: cut short,
   grown, a byte flipped, inserted, deleted or set to 0x80 or 0xFF, a
-  number's first byte padded to a longer LEB128 form, the tag followed
+  number's first or last byte padded to a longer LEB128 form, the tag followed
   by garbage, and garbage alone.
+
+A number 64 KiB long is checked against the specification too.
 
 Negative controls: decoding as `decFrom` alone (no end check, no
 re-encoding) and with the end check but no re-encoding must each take
@@ -88,6 +91,20 @@ boundaries, then sizes up to 200 KiB. -/
 def byteString (i : Nat) : Gen ByteArray := do
   let edges := #[0, 1, 2, 127, 128, 129, 255, 256, 16383, 16384, 16385, 65535, 65536, 65537, 204800]
   if h : i < edges.size then bytesOf edges[i] else bytesOf (← below 204801)
+
+/-- The number bytes b[i, i + L) spell, little-endian, built by halves
+(independently of the codec). -/
+def ofBytes (b : ByteArray) (i L : Nat) : Nat :=
+  if L ≤ 8 then (List.range L).foldr (fun k acc => acc * 256 + (b.get! (i + k)).toNat) 0
+  else ofBytes b i (L / 2) + (ofBytes b (i + L / 2) (L - L / 2) <<< (8 * (L / 2)))
+termination_by L
+decreasing_by all_goals omega
+
+/-- A number whose encoding is exactly L bytes long (L ≥ 1). -/
+def longNat (L : Nat) : Gen Nat := do
+  let r ← bytesOf L
+  let top := 7 * L - 1
+  return 2 ^ top + (ofBytes r 0 L &&& (2 ^ top - 1))
 
 def coin : Gen Bool := return (← below 2) == 1
 def byte : Gen UInt8 := return (← word).toUInt8
@@ -201,8 +218,9 @@ def mutants (e : ByteArray) : Gen (List ByteArray) := do
     ms := setAt e i (e.get! i ^^^ ((← below 255) + 1).toUInt8) :: ms
   ms := setAt e (← pos n) 0x80 :: setAt e (← pos n) 0xFF :: ms
   ms := insertAt e (← pos (n + 1)) (← byte) :: deleteAt e (← pos n) :: ms
-  -- A number's first byte as a longer LEB128 form: x, then 0x80 | x, 0.
-  for i in [0:min n 4] do
+  -- A number's first or last byte as a longer LEB128 form: x becomes
+  -- 0x80 | x, 0.
+  for i in List.range (min n 4) ++ (if n > 0 then [n - 1] else []) do
     let x := e.get! i
     if x < 128 then ms := insertAt (setAt e i (x ||| 0x80)) (i + 1) 0 :: ms
   ms := (ByteArray.empty.push (e.get! 0) ++ (← bytesOf (← below 64))) :: (← bytesOf (← below 300)) :: ms
@@ -264,6 +282,7 @@ def main (args : List String) : IO UInt32 := do
   let n := (args.headD "200").toNat!
   let t ← Checks.new
   suite t "Nat" n (fun _ => nat) 1
+  suite t "long Nat (up to 4 KiB)" (n / 5) (fun _ => do longNat ((← below 4096) + 1)) 21
   suite t "ByteArray" n byteString 2
   suite t "Bool" 4 (fun _ => coin) 3 (numbers := false)
   suite t "UInt8" n (fun _ => byte) 4 (numbers := false)
@@ -283,6 +302,15 @@ def main (args : List String) : IO UInt32 := do
   suite t "Range" n (fun _ => range) 18
   suite t "Claim" n (fun _ => claim) 19
   suite t "List Claim" n (fun _ => list claim) 20
+  -- A number 64 KiB long, against the specification (no mutants: the
+  -- specification takes a second on each).
+  let big := Id.run ((longNat 65536).run' ⟨22⟩)
+  let e := encodeSpec big
+  t.ok s!"a 64 KiB number: encode is the specification's bytes ({e.size} bytes)" (encode big == e)
+  t.ok "a 64 KiB number: decode gives it back, and so does decodeSpec"
+    ((decode e : Option Nat) == some big && (decodeSpec e : Option Nat) == some big)
+  t.ok "a 64 KiB number without its last byte decodes to nothing"
+    ((decode (e.extract 0 (e.size - 1)) : Option Nat) == none)
   -- Without the re-encoding, a longer LEB128 form of a number is taken.
   let tally ← IO.mkRef ({} : Tally)
   let _ ← one t tally "Nat 5 padded" (5 : Nat) ⟨7⟩
