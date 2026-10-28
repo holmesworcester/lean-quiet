@@ -198,7 +198,7 @@ def gridRow (f : Font) (dm : Dim) (W : Nat) (c : Cat) (cat : Array Item) (items 
   let g := c.grid
   let mut b := Bitmap.blank W g.key (solid panel W)
   for j in [0:g.cols] do
-    let i := r * g.cols + j
+    let i := g.itemAt r j
     if i < items.size then
       let e := (cat[items[i]!]!).toned tone
       if mine.contains e then b := ring dm b (g.left i) 0 g.key

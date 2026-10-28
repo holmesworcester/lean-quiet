@@ -72,6 +72,9 @@ structure Writer where
   /-- The journal's rows the frames have taken notice of, up to here:
   `prune` deletes them. -/
   read : IO.Ref Nat
+  /-- How many commits this writer has made: a reader that sees it
+  unmoved (and the node's likewise) need not read the journal. -/
+  count : IO.Ref Nat
 
 def Writer.submit (w : Writer) (j : Job) : IO Unit := do
   w.busy.modify (· + 1)
@@ -82,6 +85,7 @@ def Writer.run1 (w : Writer) (db : Db) (j : Job) : IO Unit := do
   -- a peer's job keeps only shared ops: a local-only op is this node's
   -- own write, whatever peers send (Engine.Sync: intake_local, stored_local)
   (receive fam (intake fam j.mine j.ops)).run db
+  w.count.modify (· + 1)
   let t1 ← nowUs
   w.commits.modify fun cs => (if cs.size > 200 then cs.extract 100 cs.size else cs).push
     (j.ops.length, (t1 - t0).toNat)
@@ -123,7 +127,7 @@ def Writer.start (path : String) : IO Writer := do
   -- reader take their notices
   dropKeyJournal db
   db.filings
-  let w : Writer := ⟨← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef false, ← IO.mkRef 0⟩
+  let w : Writer := ⟨← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef false, ← IO.mkRef 0, ← IO.mkRef 0⟩
   let _ ← IO.asTask (prio := .dedicated) (w.loop db)
   let _ ← IO.asTask (prio := .dedicated) (w.prune (← openDb path))
   return w

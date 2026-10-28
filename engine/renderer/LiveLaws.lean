@@ -48,7 +48,7 @@ theorem listQ_lawful : LawfulBEq ListQ where
     dsimp only at h
     unfold instBEqListQ.beq at h
     simp only [Bool.and_eq_true, beq_iff_eq] at h
-    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
+    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
     rfl
   rfl {a} := by
     cases a

@@ -24,6 +24,9 @@ would take the board.
 import engine.renderer.Board
 import ops.community.message.View
 import ops.community.Intents
+import ops.community.membership.AcceptedView
+import ops.community.membership.RequestView
+import ops.connection.Intents
 
 namespace Reader
 open Engine Community Data
@@ -46,7 +49,60 @@ inductive Want where
   /-- An attachment's chunk ops' bytes, in order (as stored, or in the
   outbox): what its file is opened from, off the frame. -/
   | slices (chunks : List Id)
+  /-- This device's communities (Kinds.Accepted.read). -/
+  | comms
+  /-- c's present members, each with its devices and name, and whether
+  `user` is an admin of c. -/
+  | members (c user : Id)
+  /-- c's join requests no admission answers yet. -/
+  | asking (c : Id)
+  /-- How many present members c has. -/
+  | people (c : Id)
   deriving DecidableEq, Hashable
+
+/-- Two of this device's communities alike: every field but the device,
+which its seed fixes (`dev_ok`). -/
+instance : BEq Kinds.Accepted.Me := ⟨fun a b =>
+  a.acc == b.acc && a.seed == b.seed && a.c == b.c && a.adm == b.adm && a.user == b.user &&
+    a.name == b.name && a.joiningOp == b.joiningOp && a.dialing == b.dialing && a.removed == b.removed⟩
+
+/-- The frame's wants: the window, its rows, the pictures, the counts,
+then the frame's lists. -/
+def Want.ofFrame (idsW : Want) (rows pics : Array Want) (countW : Want) (lists : Array Want) : Array Want :=
+  #[idsW] ++ rows ++ pics ++ #[countW] ++ lists
+
+/-- The frame's first wants, before it knows its rows: the window and
+the counts about the anchor, and the rest as last set. When both are
+wanted already, the wants are left as they are, so a steady frame does
+not move the generation (`withView_ofFrame`). -/
+def Want.withView (ws : Array Want) (idsW countW : Want) : Array Want :=
+  if ws.contains idsW && ws.contains countW then ws
+  else #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
+
+/-- **A steady frame keeps its wants**: the first set leaves the wants
+the last frame set as they were, so with the same anchor, rows and
+lists neither set moves the generation and the reader rests. -/
+theorem Want.withView_ofFrame (idsW countW : Want) (rows pics lists : Array Want) :
+    withView (ofFrame idsW rows pics countW lists) idsW countW = ofFrame idsW rows pics countW lists := by
+  simp [withView, ofFrame]
+
+/-- The mutant: the window first and the counts last, every frame. -/
+def Want.withViewLast (ws : Array Want) (idsW countW : Want) : Array Want :=
+  #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
+
+/-- The mutant moves the wants of every frame with a list: the counts
+go last, then back before the lists, so the reader never rests. -/
+theorem Want.withViewLast_moves (idsW countW : Want) (rows pics lists : Array Want) (hl : lists ≠ #[])
+    (hc : countW ∉ lists) :
+    withViewLast (ofFrame idsW rows pics countW lists) idsW countW ≠ ofFrame idsW rows pics countW lists := by
+  intro h
+  have := congrArg (fun a : Array Want => a.back?) h
+  simp [withViewLast, ofFrame, Array.back?_append] at this
+  cases hb : lists.back? with
+  | none => exact hl (by simpa using hb)
+  | some x =>
+    rw [hb] at this
+    exact hc (this ▸ Array.mem_of_back? hb)
 
 /-- What a want reads as. -/
 inductive Val where
@@ -59,6 +115,10 @@ inductive Val where
   | row (d : Option Row.RowData)
   /-- The chunk ops' bytes, or none while one is not here. -/
   | slices (raw : Option (List ByteArray))
+  | comms (all : Array Kinds.Accepted.Me)
+  | members (ms : Array (Id × List Key × String)) (admin : Bool)
+  | asking (rs : Array Kinds.Request.Data)
+  | people (n : Nat)
   deriving BEq
 
 /-- What the frame and the reader share. -/
@@ -74,9 +134,26 @@ structure Shared where
   /-- The journal's rows the reader has taken (the writer prunes below
   the frame's and this). -/
   seen : IO.Ref Nat
+  /-- The peers of the node's kept sessions, read every half second (a
+  connection family's list: not a want of the board). -/
+  peers : IO.Ref (List ByteArray)
+  /-- Moves each time the frame sets `wants` to something new. -/
+  gen : IO.Ref Nat
+  /-- The writers' commits (the app's writer counts its own, the node's
+  notify counts the node's): a pass that sees it unmoved, with no note,
+  the same wants and nothing dirty, reads nothing (RestLaws.start_rest). -/
+  commits : IO.Ref Nat
 
-def Shared.new : IO Shared :=
-  return ⟨← IO.mkRef {}, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0⟩
+def Shared.new (commits : IO.Ref Nat) : IO Shared :=
+  return ⟨← IO.mkRef {}, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef [], ← IO.mkRef 0,
+    commits⟩
+
+/-- The frame's wants, set; the generation moves only when they change,
+so a reader at rest stays at rest (RestLaws.nextGen_same). -/
+def Shared.setWants (sh : Shared) (ws : Array Want) : IO Unit := do
+  let old ← sh.wants.get
+  sh.gen.modify (_root_.Live.nextGen old ws)
+  if old != ws then sh.wants.set ws
 
 structure St where
   rd : Db
@@ -90,14 +167,33 @@ structure St where
   both see its change), and kept until read. -/
   dirty : Std.HashSet Want := {}
   passes : Nat := 0
+  /-- The communities last read: Kinds.Accepted.read keeps their devices. -/
+  known : Array Kinds.Accepted.Me := #[]
+  /-- When the session list was last read (ms). -/
+  peersAt : Nat := 0
   /-- The wants of the last pass: when they change, the reads no want
   holds stop being watched. -/
   last : Array Want := #[]
+  /-- The reverse index: each read, the wants that recorded it
+  (RestLaws' `rev`, complete). -/
+  rev : Std.HashMap Q (Array Want) := {}
+  /-- The frame's wants as of `gen`. -/
+  gen : Nat := 0
+  wantSet : Std.HashSet Want := {}
+  /-- The reads the want being read has made. -/
+  log : Array Q := #[]
+  /-- The writers' commit count as of the last journal read, and when
+  that was (ms). -/
+  seenC : Nat := 0
+  readAt : Nat := 0
+  /-- The passes that opened the store. -/
+  opens : Nat := 0
 
 abbrev RM := StateT St IO
 
 /-- A read through the pass's cache (App's `read`, on this connection). -/
 def read (q : Q) : RM Ans := do
+  modify fun s => { s with log := s.log.push q }
   let s ← get
   let (a, live) ← (Live.readWith (fun q => q.run s.rd s.out) q).run s.live
   modify fun s => { s with live }
@@ -126,6 +222,21 @@ def eval : Want → RM (Val × Array Q)
     let (o, deps) ← readView (Community.readable c (limit := some 0) (before := some (p.1, p.2.push 0))) #[]
     let (n, deps) ← readView (Community.readable c (limit := some 0) (after := some p)) deps
     return (.count n.inRange o.inRange, deps)
+  | .comms => do
+    let (all, deps) ← Kinds.Accepted.read (← get).known
+    modify fun s => { s with known := all }
+    return (.comms all, deps)
+  | .members c user => do
+    let (ms, deps) ← Kinds.Profile.members c
+    -- an admin: the founder's user (the community's id), or one granted admin
+    let (ad, _, deps) ← readList (Community.admin.byUser.query [c, user] (limit := some 0)) deps
+    return (.members (ms.map fun (u, ds, p) => (u, ds, p.name)) (!user.isEmpty && (user == c || ad.total > 0)), deps)
+  | .asking c => do
+    let (rs, deps) ← Kinds.Request.waiting c
+    return (.asking rs, deps)
+  | .people c => do
+    let (ps, deps) ← readView (Kinds.Profile.present c) #[]
+    return (.people ps.length, deps)
   | .row c me m => do
     match ← Kinds.Message.read c me m with
     | some (d, deps) => return (.row (some d), deps)
@@ -150,47 +261,97 @@ def eval : Want → RM (Val × Array Q)
 def stale (s : St) (w : Want) : Bool :=
   _root_.Live.staleW (fun q => !s.live.fresh q) (fun w => (s.deps[w]?).map (·.toList)) w
 
+/-- w's value, with every read it made recorded whatever it found: a
+row not shown yet holds the reads it made, so a notice on one of them,
+not every pass, reads it again. -/
+def evalLogged (w : Want) : RM Val := do
+  modify fun s => { s with log := #[] }
+  return (← eval w).1
+
+/-- The index after w's reads move from `old` to `new`. -/
+def reindex (rev : Std.HashMap Q (Array Want)) (w : Want) (old new : Array Q) :
+    Std.HashMap Q (Array Want) :=
+  let rev := old.foldl (fun r q => r.modify q (·.filter (· != w))) rev
+  new.foldl (fun r q => r.insert q ((r.getD q #[]).push w)) rev
+
 /-- One pass, in one read transaction; whether it put anything or took
 any change. -/
 def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
   let wants ← sh.wants.get
+  let gen ← sh.gen.get
   let out ← sh.out.get
   let notes ← sh.notes.modifyGet fun a => (a, #[])
+  -- at rest (the writers' counter unmoved, no note, the same wants,
+  -- nothing dirty) a pass reads nothing, not even the journal
+  -- (RestLaws.start_rest); once a second it reads it anyway, for commits
+  -- the counter does not see (the node's purges, until its notify counts
+  -- them), and the sessions with it
+  let c ← sh.commits.get
+  let now ← IO.monoMsNow
+  let s0 ← get
+  unless _root_.Live.mustRead c s0.seenC (!notes.isEmpty) (gen != s0.gen) s0.dirty (now ≥ s0.readAt + 1000) do
+    return false
+  modify fun s => { s with seenC := c, readAt := now, opens := s.opens + 1 }
   let rd := (← get).rd
   rd.exec "BEGIN"
   try
     let s ← get
     -- the journal, read first: the commits this pass's reads see
     let (fs, vs, top) ← rd.filingsSince s.seen
-    let want : Std.HashSet Want := wants.foldl (·.insert ·) {}
-    -- the store's rows and the outbox's are netted apart: a row the store
-    -- files as it leaves the outbox is two changes (stored, no longer
-    -- pending), not one undone
-    modify fun s => { s with seen := top, out, live := (s.live.notice fs (vs.map (·.1))).notice notes,
-                             deps := s.deps.filter fun w _ => want.contains w,
-                             dirty := s.dirty.filter want.contains, passes := s.passes + 1 }
-    sh.seen.set top
-    -- mark every want whose reads changed, before reading any again,
-    -- then read the first `cap` marked in the frame's order: the model's
-    -- decisions (Live.mark, Live.pick), so RWorld.inv_pass and settle
-    -- are about this pass
+    -- the session list, at most every half second, and only in a pass
+    -- that opened the store: a session's op is a commit the node's notify
+    -- counts, and its purge is seen within the second
+    if now ≥ s.peersAt + 500 then
+      let all ← ((Connection.allSessions : SqlM SF _)).run rd
+      let k := Connection.kept all
+      sh.peers.set (all.filterMap fun (cid, p, _) => if k.contains cid then some p else none)
+      modify fun s => { s with peersAt := now }
+    -- at rest (no filing, no note, the same wants, nothing dirty) a pass
+    -- does nothing (RestLaws.rest_idle)
+    if fs.isEmpty && vs.isEmpty && notes.isEmpty && gen == s.gen && s.dirty.isEmpty then
+      rd.exec "COMMIT"
+      return false
+    -- the wants moved: the new ones are marked, the gone ones forgotten,
+    -- and the reads none of them holds stop being watched (RestLaws.wantIdx;
+    -- Screen.screen_subs: what is watched is what the wants read)
+    let moved := gen != s.gen
+    if moved then
+      let want : Std.HashSet Want := wants.foldl (·.insert ·) {}
+      let fresh := wants.toList.filter fun w => !s.wantSet.contains w
+      let dirty := fresh.foldl (·.insert ·) (s.dirty.filter want.contains)
+      let deps := s.deps.filter fun w _ => want.contains w
+      let held := deps.fold (fun acc _ qs => qs.foldl (fun a q => a.insert q) acc) ({} : Std.HashSet Q)
+      modify fun s => { s with gen, wantSet := want, dirty, deps, last := wants,
+                               live := s.live.keep held.contains }
+    -- the reads this pass's filings and notes reach (Live.hit, exact per
+    -- window), before the notice disarms them; the store's rows and the
+    -- outbox's are netted apart: a row the store files as it leaves the
+    -- outbox is two changes (stored, no longer pending), not one undone
     let s ← get
-    let marked := _root_.Live.mark wants.toList (stale s) s.dirty
+    let hit := (s.live.hit fs (vs.map (·.1))).toList ++ (s.live.hit notes #[]).toList
+    modify fun s => { s with seen := top, out, live := (s.live.notice fs (vs.map (·.1))).notice notes,
+                             passes := s.passes + 1 }
+    sh.seen.set top
+    -- mark the dirty and the wanted wants those reads name, through the
+    -- index, then read the first `cap` marked in the frame's order: the
+    -- model's decisions (Live.markHit, Live.pick), so RestLaws'
+    -- inv_passIdx and settle_idx are about this pass
+    let s ← get
+    let marked := (_root_.Live.markHit (fun q => (s.rev.getD q #[]).toList) s.dirty hit).filter
+      s.wantSet.contains
     let todo := _root_.Live.pick wants.toList marked cap
     modify fun s => { s with dirty := marked }
     let mut puts : Array (Want × Val) := #[]
     for w in todo do
-      let (v, deps) ← eval w
-      modify fun s => { s with deps := s.deps.insert w deps, dirty := s.dirty.erase w }
+      let old := (← get).deps.getD w #[]
+      let v ← evalLogged w
+      modify fun s =>
+        { s with deps := s.deps.insert w s.log, dirty := s.dirty.erase w, rev := reindex s.rev w old s.log }
       puts := puts.push (w, v)
     rd.exec "COMMIT"
-    -- when the wants changed, forget the cached reads no want holds, and
-    -- stop watching their windows (Screen.screen_subs: what is watched is
-    -- what the wants read)
-    if (← get).last != wants then
-      let held := (← get).deps.fold (fun acc _ qs => qs.foldl (fun a q => a.insert q) acc) ({} : Std.HashSet Q)
-      modify fun s => { s with live := s.live.keep held.contains, last := wants }
-    sh.board.modify fun b => puts.foldl (fun b (w, v) => b.put w v) (b.keep want.contains)
+    if !puts.isEmpty || moved then
+      let want := (← get).wantSet
+      sh.board.modify fun b => puts.foldl (fun b (w, v) => b.put w v) (b.keep want.contains)
     return !puts.isEmpty || !fs.isEmpty || !vs.isEmpty
   catch e =>
     rd.exec "ROLLBACK"
