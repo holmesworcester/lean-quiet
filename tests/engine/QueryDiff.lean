@@ -5,7 +5,9 @@ random times (ties included) with attachments, profiles and reactions,
 some forged. For every message and user, and for whole-community lists,
 it asks for pages in both directions, from cursors, bounded on both
 sides, capped, counts only, and conjunctions (messages by one author),
-and compares answers exactly. It also checks that the filed keys a
+and compares answers exactly. And the sort that runs for `sortPos` (a
+merge sort, `sortPos_eq_fast`) against the insertion sort as written, on
+random lists with ties, with `bcmp` against list order. It also checks that the filed keys a
 write reports are exactly the keys its new index rows went under.
 -/
 import tests.engine.Lib
@@ -83,6 +85,64 @@ def queries (c : Id) (posts : Array Id) (users : Array (Id × Id × Device)) (cu
       :: { key := opKey m, limit := some 1 } :: qs
   return qs
 
+/-- `sortPos` as written, under another name: the compiler runs a merge
+sort for `sortPos` (`sortPos_eq_fast`), and this insertion sort as is. -/
+def sortPosSpec {α} (l : List (Pos × α)) : List (Pos × α) := l.foldr insertBy []
+
+example : @sortPosSpec = @sortPos := rfl
+
+/-- Byte strings in list order (memcmp's): a reference for `bcmp`. -/
+def refCmp (a b : ByteArray) : Ordering :=
+  if a.toList < b.toList then .lt else if b.toList < a.toList then .gt else .eq
+
+/-- Short byte strings over a small alphabet: ties, prefixes, and bytes
+on both sides of 128. -/
+def shortBytes (g : Rng) : ByteArray × Rng := Id.run do
+  let (n, g) := g.below 4
+  let mut g := g
+  let mut b := ByteArray.empty
+  for _ in [0:n] do
+    let (k, g') := g.below 4
+    g := g'
+    b := b.push #[0, 1, 128, 255][k]!
+  return (b, g)
+
+/-- The sort that runs against the insertion sort, and `bcmp` against
+list order. -/
+def sortChecks (t : Checks) : IO Unit := do
+  let mut g : Rng := ⟨77⟩
+  let mut pool : Array ByteArray := #[]
+  for _ in [0:60] do
+    let (b, g') := shortBytes g
+    g := g'
+    pool := pool.push b
+  let mut cmps := 0
+  let mut bad := 0
+  for a in pool do
+    for b in pool do
+      cmps := cmps + 1
+      if bcmp a b != refCmp a b then bad := bad + 1
+  t.ok s!"bcmp is list order on {cmps} pairs of short byte strings" (bad == 0)
+  let mut trials := 0
+  let mut differ := 0
+  let mut unstable := 0
+  for _ in [0:2000] do
+    let (n, g1) := g.below 61
+    g := g1
+    let mut l : List (Pos × Nat) := []
+    for i in [0:n] do
+      let (s, g2) := shortBytes g
+      let (x, g3) := shortBytes g2
+      g := g3
+      l := l ++ [((s, x), i)]
+    trials := trials + 1
+    if sortPos l != sortPosSpec l then differ := differ + 1
+    -- negative control: a merge sort by strict order, which reverses ties
+    if l.mergeSort (fun p q => p.1.cmp q.1 == .lt) != sortPosSpec l then unstable := unstable + 1
+  t.ok s!"sortPos (a merge sort) is the insertion sort on {trials} random lists with ties" (differ == 0)
+  IO.println s!"sorts: {trials} lists; an unstable sort differs from the insertion sort on {unstable}"
+  t.ok "an unstable sort is caught (negative control)" (unstable > 0)
+
 def main : IO UInt32 := do
   let t ← Checks.new
   let fam := family C
@@ -142,4 +202,5 @@ def main : IO UInt32 := do
     let rs ← ((recipients c).run : SqlM Fact (List Key)).run db
     t.ok s!"seed {seed}: recipients view" (rs == (recipients c).eval m)
     IO.println s!"seed {seed}: {n} queries, {base.total} valid messages"
+  sortChecks t
   t.finish "querydiff"
