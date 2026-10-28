@@ -74,9 +74,9 @@ all of them (`readable`, no limit), newest first. -/
 
 /-- One step's views for one community: the first profile, and the keys
 wrapped to this device (both write nothing here). -/
-@[noinline] def stepViews (db : Db) (c seed : ByteArray) (i : Nat) : IO Nat := do
-  let w1 ← ((introduce c seed (i + 100)).run : SqlM Fact Write).run db
-  let w2 ← ((unwrap c seed).run : SqlM Fact Write).run db
+@[noinline] def stepViews (db : Db) (c : ByteArray) (d : Device) (i : Nat) : IO Nat := do
+  let w1 ← ((introduce c d (i + 100)).run : SqlM Fact Write).run db
+  let w2 ← ((unwrap c d).run : SqlM Fact Write).run db
   return w1.ops.length + w2.ops.length
 
 @[noinline] def deviceOf (seed : ByteArray) (_ : Nat) : Nat := (Device.ofSeed seed).enc.size
@@ -106,7 +106,7 @@ def main (args : List String) : IO UInt32 := do
   let nf : NewFile := ⟨⟨"photo.qoi".toUTF8, "image/qoi".toUTF8, 640, 480, "tiny preview".toUTF8⟩, plain,
     sha256 "file key".toUTF8, (sha256 "file nonce".toUTF8).extract 0 24,
     (sha256 "info nonce".toUTF8).extract 0 24⟩
-  let wf := send c c seedA kA ((sha256 "nonce 2".toUTF8).extract 0 24) "a photo".toUTF8 7 [nf]
+  let wf := send c c dA kA ((sha256 "nonce 2".toUTF8).extract 0 24) "a photo".toUTF8 7 [nf]
   let chunks := wf.ops.drop 2
   bench sum s!"build a {chunks.length}-chunk attachment (attach: root, proofs, chunk ops)" (cap := 3)
     fun i => pure (attachFile c dA kA nf i)
@@ -155,7 +155,7 @@ def main (args : List String) : IO UInt32 := do
   let mut size := 0
   let mut t := 100
   while size < 49152 do
-    let p := (send c c seedA kA ((sha256 s!"nonce {t}".toUTF8).extract 0 24)
+    let p := (send c c dA kA ((sha256 s!"nonce {t}".toUTF8).extract 0 24)
       s!"message {t}: {String.ofList (List.replicate 160 'x')}".toUTF8 t).ops.headD default
     if size + p.bytes.size > 49152 then break
     payloads := payloads.push p.bytes
@@ -182,7 +182,7 @@ def main (args : List String) : IO UInt32 := do
   let keys := [kA] ++ (List.range 3).map fun j => sha256 s!"key {j}".toUTF8
   mine (keys.drop 1 |>.map (contentKey c))
   let posts := (List.range 1000).map fun t =>
-    (send c c seedA keys[t % 4]! ((sha256 s!"n {t}".toUTF8).extract 0 24) s!"message {t}".toUTF8 (t + 10)).ops.headD default
+    (send c c dA keys[t % 4]! ((sha256 s!"n {t}".toUTF8).extract 0 24) s!"message {t}".toUTF8 (t + 10)).ops.headD default
   mine posts
   let got ← readAllMessages rdb c 0
   IO.println s!"a union of {keys.length} keys' lists holds {got} messages"
@@ -190,6 +190,6 @@ def main (args : List String) : IO UInt32 := do
     fun i => readAllMessages rdb c i
   -- A device from its seed: what the intents derived on every step.
   bench sum "Device.ofSeed (Ed25519 key pair, X25519 conversion)" fun i => pure (deviceOf seedA i)
-  bench sum "one step's introduce and unwrap for one community, on SQLite" fun i => stepViews rdb c seedA i
+  bench sum "one step's introduce and unwrap for one community, on SQLite" fun i => stepViews rdb c dA i
   IO.println s!"checksum {← sum.get}"
   return 0

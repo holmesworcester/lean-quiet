@@ -212,6 +212,7 @@ section app
 #print axioms Pages.switcherOrder_sound
 #print axioms Pages.switcherOrder_complete
 #print axioms Switch.dedupe_one_per_community
+#print axioms Kinds.Accepted.read_known
 #print axioms Text.visual_perm
 #print axioms Text.place_shows
 #print axioms Text.oneLine_prefix
