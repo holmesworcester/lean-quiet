@@ -87,8 +87,7 @@ def main (args : List String) : IO UInt32 := do
   let screen : Array UInt32 := #[1080, 2400, 128, 63, 420]
   let sa ← Sim.new
   let sb ← Sim.new
-  let pa := 47221
-  let pb := 47222
+  let (pa, pb) ← testPorts
   let a0 ← App.start sa.io screen (dir ++ "/a/quiet.db") (some (pa, true))
   let b0 ← App.start sb.io screen (dir ++ "/b/quiet.db") (some (pb, true))
   -- the join, over ctl as it is driven on the phones: A's `link`; B's
