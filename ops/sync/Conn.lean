@@ -346,27 +346,36 @@ def Conn.onWant (ix : Index) (c : Conn) (ids : List Id) : Step :=
   let add := ((authorize ix c ids).filter fun i => !c.owing.contains i).eraseDups.take (cfg.maxKnown - c.owed.length)
   { conn := { c with owed := c.owed ++ add, owing := add.foldl (·.insert ·) c.owing } }
 
-/-- Serve the queue (docs/SYNC.md, "Lanes"): first the queued ids in
-`first` (this node's fresh writes), whatever the budget; then from the
-front, until `budget` bytes are out (the op that reaches it goes
-whole). An id not stored, or not in a room the session shows now,
-leaves the queue unanswered: the peer's ask for it expires. The urgent
-ops, and the serve lane's. What is served the peer holds, and its
-requirement closure is offered on later ticks. -/
-def Conn.serveOwed (c : Conn) (budget : Nat) (first : List Id) : m (Conn × List Op × List Op) := do
-  let hot := (first.filter c.owing.contains).eraseDups
-  let owed := if hot.isEmpty then c.owed else c.owed.filter fun i => !hot.contains i
-  let urgent ← (fetch (c.shows fam) hot).run (Store.getOp (F := F))
-  let (bulk, rest) ← (serve (c.shows fam) budget owed).run (Store.getOp (F := F))
-  let gone := hot ++ owed.take (owed.length - rest.length)
-  let sent := urgent ++ bulk
-  let c := { c with
+/-- The queued ids a step serves first: those of `first` (this node's
+fresh writes) the peer wants. -/
+def Conn.hotOf (c : Conn) (first : List Id) : List Id := (first.filter c.owing.contains).eraseDups
+
+/-- The rest of the queue, served in order. -/
+def Conn.owedAfter (c : Conn) (first : List Id) : List Id :=
+  if (c.hotOf first).isEmpty then c.owed else c.owed.filter fun i => !(c.hotOf first).contains i
+
+/-- The queue after a step: `gone` left it, `rest` is what remains, and
+the ops `sent` the peer now holds (their requirement closure is offered
+on later ticks). -/
+def Conn.served (c : Conn) (gone rest : List Id) (sent : List Op) : Conn :=
+  { c with
     owed := rest
     owing := gone.foldl (·.erase ·) c.owing
     known := sent.foldl (fun (k : HashSet Id) (o : Op) => remember cfg.maxKnown k o.id) c.known
     offered := sent.foldl (fun (k : HashSet Id) (o : Op) => k.insert o.id) c.offered
     frontier := c.frontier ++ sent.flatMap Op.reqs }
-  return (c, urgent, bulk)
+
+/-- Serve the queue (docs/SYNC.md, "Lanes"): first the queued ids in
+`first` (this node's fresh writes), whatever the budget; then from the
+front, until `budget` bytes are out (the op that reaches it goes
+whole). An id not stored, or not in a room the session shows now,
+leaves the queue unanswered: the peer's ask for it expires. The urgent
+ops, and the serve lane's. -/
+def Conn.serveOwed (c : Conn) (budget : Nat) (first : List Id) : m (Conn × List Op × List Op) := do
+  let urgent ← (fetch (c.shows fam) (c.hotOf first)).run (Store.getOp (F := F))
+  let owed := c.owedAfter first
+  let (bulk, rest) ← (serve (c.shows fam) budget owed).run (Store.getOp (F := F))
+  return (c.served cfg (c.hotOf first ++ owed.take (owed.length - rest.length)) rest (urgent ++ bulk), urgent, bulk)
 
 /-- Bytes from the peer. -/
 def Conn.recv (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) : m Step := do
