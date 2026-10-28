@@ -16,7 +16,7 @@ namespace Connection
 open Engine Codec
 
 def Opened.check (K : Keys) (o : Op) : List F → Option Fact
-  | [.inr (.request to frm m1), .inl (.secret pk seed)] =>
+  | [.inr (.request to frm m1), .inl (.secret pk _ _ _ seed)] =>
     if pk ≠ to then none else
     match Noise.read1 K.suite prologue (K.xSec seed) (K.xPub frm) m1 with
     | some (_, _, p) =>

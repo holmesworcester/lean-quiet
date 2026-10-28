@@ -99,6 +99,10 @@ open Engine Community
 #print axioms Community.parse_valid
 #print axioms Community.Base62.decode_encode
 #print axioms Community.secret_derives
+#print axioms Community.device_derives
+#print axioms Community.device_ofSeed
+#print axioms Community.ofSeed_of_keys
+#print axioms Community.ofSeed_ed25519
 #print axioms Community.named_by_admin
 #print axioms Community.local_fact_mine
 #print axioms Community.joinOps_travels
@@ -238,7 +242,6 @@ section app
 #print axioms Pages.switcherOrder_sound
 #print axioms Pages.switcherOrder_complete
 #print axioms Switch.dedupe_one_per_community
-#print axioms Kinds.Accepted.read_known
 #print axioms Text.visual_perm
 #print axioms Text.place_shows
 #print axioms Text.oneLine_prefix

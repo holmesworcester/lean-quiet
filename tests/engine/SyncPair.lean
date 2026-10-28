@@ -175,8 +175,8 @@ def main : IO UInt32 := do
   t.ok "rooms: an op of another room is not taken" (!has (← idsOf pr.a.db) foreign.id)
   -- Garbage, and a local op, are ignored.
   let (_, e2) ← pr.a.run fun n => n.onFrame xa "b".toUTF8 "not an op".toUTF8 pr.now
-  let (_, e3) ← pr.a.run fun n => n.onFrame xa "b".toUTF8 (frameOf cid (secret "seed".toUTF8).bytes) pr.now
+  let (_, e3) ← pr.a.run fun n => n.onFrame xa "b".toUTF8 (frameOf cid (secret (Device.ofSeed "seed".toUTF8)).bytes) pr.now
   t.ok "garbage: ignored" (e2.send.isEmpty && e2.drop.isEmpty)
-  t.ok "a peer's local op: not taken" (e3.send.isEmpty && !has (← idsOf pr.a.db) (secret "seed".toUTF8).id)
+  t.ok "a peer's local op: not taken" (e3.send.isEmpty && !has (← idsOf pr.a.db) (secret (Device.ofSeed "seed".toUTF8)).id)
 
   t.finish "syncpair"

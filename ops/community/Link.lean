@@ -228,16 +228,26 @@ theorem parse_valid {s : String} {i : Invite} (h : Invite.parse s = some i) : i.
 def Invite.bearer (i : Invite) : Device := Device.ofSeed i.secret
 
 /-- The joiner's request, composed from the link: device d asks to join
-through the link's invitation, signed by d and by the bearer key. -/
-def Invite.request (i : Invite) (d : Device) : Op :=
-  Community.request i.community i.invitation d i.bearer.sk
+through the link's invitation, signed by d and by the bearer key (the
+link's, `Invite.bearer`, derived by the caller). -/
+def Invite.requestAs (i : Invite) (bearer d : Device) : Op :=
+  Community.request i.community i.invitation d bearer.sk
+
+/-- The request, with the bearer derived from the link. -/
+def Invite.request (i : Invite) (d : Device) : Op := i.requestAs i.bearer d
 
 /-- An invitation of c by `by_` (whose admission is `issuerAdm`), and its
-link: the bearer key pair from `secret`, dial hints for the joiner. -/
+link: the bearer key pair (derived by the caller from its seed, which the
+link carries), dial hints for the joiner. -/
+def issueAs (c issuerAdm : Id) (by_ bearer : Device) (hints : List ByteArray)
+    (threshold : Nat := 1) : Op × Invite :=
+  let inv := invite c issuerAdm by_ bearer.pk false threshold
+  (inv, ⟨c, inv.id, by_.pk, hints, bearer.seed⟩)
+
+/-- The invitation and link, with the bearer derived from `secret`. -/
 def issue (c issuerAdm : Id) (by_ : Device) (secret : ByteArray) (hints : List ByteArray)
     (threshold : Nat := 1) : Op × Invite :=
-  let inv := invite c issuerAdm by_ (Device.ofSeed secret).pk false threshold
-  (inv, ⟨c, inv.id, by_.pk, hints, secret⟩)
+  issueAs c issuerAdm by_ (Device.ofSeed secret) hints threshold
 
 /-- This device's pending join (local): the link's community, its
 inviter and hints, the request the join presents, and the name to

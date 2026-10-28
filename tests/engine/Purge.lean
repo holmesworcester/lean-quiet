@@ -374,7 +374,7 @@ def forwardSecrecy (t : Checks) (dir : String) : IO Unit := do
   fsCase t "family" fam dir load eph [secret, derived] pin.id "unresolved" true
   -- Community: a device's secret seed, among a community's ops.
   let seed := "COMMUNITY-SEED:device-secret-01!".toUTF8
-  let sop := Community.secret seed
+  let sop := Community.secret (Community.Device.ofSeed seed)
   let cops := workload 7 300
   let cload := batchesOf (cops.take 150) 25 ++ [[sop]] ++ batchesOf (cops.drop 150) 25
   fsCase t "community" (Community.family Community.ed25519) dir cload sop [seed] cops.head!.id "valid" false

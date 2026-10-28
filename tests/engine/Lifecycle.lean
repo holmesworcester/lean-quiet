@@ -149,14 +149,14 @@ def main (args : List String) : IO UInt32 := do
   -- A founds Acme as Ann: the secret, the root, the acceptance, the
   -- name, A's profile, and the community's content key, wrapped to A.
   let kA := sha256 "Acme's content key".toUTF8
-  let w := found seedA "Acme".toUTF8 "Ann".toUTF8 1 kA (sha256 "esk 1".toUTF8)
+  let w := found (Device.ofSeed seedA) "Acme".toUTF8 "Ann".toUTF8 1 kA (sha256 "esk 1".toUTF8)
   mine a w
   let c := (root dA).id
   let kid := kidOf cryptoSeal kA
   t.ok "A holds the content key" ((← rows a (key.byId.query [kid])).any fun (_, f) => f == .key c kid kA)
   t.ok "and its wrap to A's device is stored"
     ((← rows a (wrap.byRecipient.query [c, dA.enc])).length == 1)
-  t.ok "A's device key is a real X25519 key" (dA.enc.size == 32 && cryptoSeal.pub dA.encSecret == dA.enc)
+  t.ok "A's device key is a real X25519 key" (dA.enc.size == 32 && cryptoSeal.pub dA.xsk == dA.enc)
   -- A posts: the text is sealed; the op and its fact hold only ciphertext.
   let nonce := (sha256 "nonce 1".toUTF8).extract 0 24
   let wpost ← sendOn a (send c c dA kA nonce "hello from Ann".toUTF8 3 [])
@@ -180,23 +180,30 @@ def main (args : List String) : IO UInt32 := do
   let wa ← ((introduce c dA 2).run : SqlM Fact Write).run a
   t.ok "the founder has a profile, so introducing writes nothing" wa.ops.isEmpty
   t.ok "A is in its community" ((← rows a (accepted.all.query [])).any fun (_, f) => f == .accepted c dA.pk)
-  t.ok "A's secret is held, and derives to its key"
-    ((← rows a (secret.byKey.query [dA.pk])).any fun (_, f) => f == .secret dA.pk seedA)
+  t.ok "A's secret is held: the whole device, as derived"
+    ((← rows a (secret.byKey.query [dA.pk])).any fun (_, f) => f == .secret dA.pk dA.sk dA.enc dA.xsk seedA)
+  -- A reader takes the device from the store (`device`), deriving nothing.
+  let same := fun (d e : Device) => d.pk == e.pk && d.sk == e.sk && d.enc == e.enc && d.xsk == e.xsk && d.seed == e.seed
+  let held ← ((device dA.pk).run : SqlM Fact (Option Device)).run a
+  t.ok "the device A reads from its store is the one derived when it founded"
+    ((held.map (same · dA)).getD false)
+  t.ok "and no device is read for a key whose secret is not held"
+    ((← ((device dB.pk).run : SqlM Fact (Option Device)).run a).isNone)
   let name ← rows a (named.current.query [c] (limit := some 1))
   t.ok "the community is named Acme" (name.map (·.2) == [.named c c "Acme".toUTF8 1])
 
   -- A invites; the link is text.
-  let (wi, link) := inviteTo c c dA (sha256 "bearer".toUTF8) ["10.0.0.5:7001".toUTF8]
+  let (wi, link) := inviteTo c c dA (Device.ofSeed (sha256 "bearer".toUTF8)) ["10.0.0.5:7001".toUTF8]
   mine a wi
 
   -- B pastes the link and joins: just ops on B.
   let some i := Invite.parse link.text | t.ok "the link parses" false; return 1
-  let wj ← ((join i seedB "Bea".toUTF8).run : SqlM Fact Write).run b
+  let wj ← ((join i i.bearer (Device.ofSeed seedB) "Bea".toUTF8).run : SqlM Fact Write).run b
   t.ok "a first join writes the secret, the request, the acceptance and the joining" (wj.ops.length == 4)
   mine b wj
-  let again ← ((join i seedB "Bea".toUTF8).run : SqlM Fact Write).run b
+  let again ← ((join i i.bearer (Device.ofSeed seedB) "Bea".toUTF8).run : SqlM Fact Write).run b
   t.ok "joining a community already held writes nothing" again.ops.isEmpty
-  let other ← ((join i (sha256 "device B2".toUTF8) "Bea2".toUTF8).run : SqlM Fact Write).run b
+  let other ← ((join i i.bearer (Device.ofSeed (sha256 "device B2".toUTF8)) "Bea2".toUTF8).run : SqlM Fact Write).run b
   t.ok "not even as another device" other.ops.isEmpty
   t.ok "B is in c as dB" ((← ((Community.mine c).run : SqlM Fact _).run b).map (·.1) == some dB.pk)
   let req := i.request dB
@@ -266,7 +273,7 @@ def main (args : List String) : IO UInt32 := do
   -- Two acceptances of c on B (a join that raced): B is in c as its
   -- admitted device, whichever acceptance id is less.
   let seedB2 := sha256 "device B twin".toUTF8
-  let w2 := joinOps i seedB2 "Bea twin".toUTF8
+  let w2 := joinOps i i.bearer (Device.ofSeed seedB2) "Bea twin".toUTF8
   mine b w2
   t.ok "with a raced second acceptance, B is still in c as its admitted device"
     ((← ((Community.mine c).run : SqlM Fact _).run b).map (·.1) == some dB.pk)
@@ -407,9 +414,9 @@ def main (args : List String) : IO UInt32 := do
   let seedC := sha256 "device C".toUTF8
   let dC := Device.ofSeed seedC
   let cdb ← fresh dir "c.db"
-  let (wi2, link2) := inviteTo c c dA (sha256 "bearer 2".toUTF8) []
+  let (wi2, link2) := inviteTo c c dA (Device.ofSeed (sha256 "bearer 2".toUTF8)) []
   mine a wi2
-  let wc ← ((join link2 seedC "Cy".toUTF8).run : SqlM Fact Write).run cdb
+  let wc ← ((join link2 link2.bearer (Device.ofSeed seedC) "Cy".toUTF8).run : SqlM Fact Write).run cdb
   mine cdb wc
   let reqC := link2.request dC
   let jC := (wc.ops.getLast!).id
@@ -424,7 +431,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "after stopping, C waits on nothing" waiting.isEmpty
   t.ok "and C holds no entry for c" ((← ((Community.mine c).run : SqlM Fact _).run cdb).isNone)
   -- Joining again resumes the stopped join: the same request, a new joining.
-  let wr ← ((join link2 seedC "Cy".toUTF8).run : SqlM Fact Write).run cdb
+  let wr ← ((join link2 link2.bearer (Device.ofSeed seedC) "Cy".toUTF8).run : SqlM Fact Write).run cdb
   t.ok "re-joining after stopping writes one joining op" (wr.ops.length == 1)
   let resumed := match wr.ops.head? with
     | some o => match (Codec.decode o.body : Option Body) with
@@ -447,11 +454,16 @@ def main (args : List String) : IO UInt32 := do
 
   channelOrder t a b c kA seedA seedB
 
-  -- A secret whose seed is not its key's is refused.
-  let bad := mkOp [] (.secret dB.pk seedA)
-  mine a ⟨[bad]⟩
-  t.ok "a secret with another key's seed is refused"
-    ((← (Store.getStatus (F := Fact) (m := SqlM Fact) bad.id).run a) == some .invalid)
+  -- A secret whose parts are not all its seed's is refused: another
+  -- key's public key, signing secret, X25519 key or X25519 secret.
+  let bads := [("public key", mkOp [] (.secret dB.pk dA.sk dA.enc dA.xsk seedA)),
+    ("signing secret", mkOp [] (.secret dA.pk dB.sk dA.enc dA.xsk seedA)),
+    ("X25519 key", mkOp [] (.secret dA.pk dA.sk dB.enc dA.xsk seedA)),
+    ("X25519 secret", mkOp [] (.secret dA.pk dA.sk dA.enc dB.xsk seedA))]
+  for (what, bad) in bads do
+    mine a ⟨[bad]⟩
+    t.ok s!"a secret with another key's {what} is refused"
+      ((← (Store.getStatus (F := Fact) (m := SqlM Fact) bad.id).run a) == some .invalid)
   -- A name by a non-admin is refused.
   let byB := setName c wa.ops.getLast!.id wa.ops.getLast!.id [] 9 dB "B's name".toUTF8
   fromPeer a [byB]

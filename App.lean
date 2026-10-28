@@ -609,7 +609,7 @@ def openPage (p : PageId) : M Unit := do
   if p == .invite && !s.me.waiting && !(s.links.any (·.1 == s.me.acc)) then
     let bearer ← Chaos.freshSeed "bearer"
     -- dial hints: this device's private LAN addresses (Link.hints)
-    let (w, i) := Community.inviteTo s.me.c s.me.adm s.me.dev bearer (← listenHints)
+    let (w, i) := Community.inviteTo s.me.c s.me.adm s.me.dev (Device.ofSeed bearer) (← listenHints)
     if ← writeAll w then
       modify fun s => { s with links := (s.me.acc, i.text) :: s.links }
   s.io.scrollTo 0
@@ -698,7 +698,7 @@ def acceptOf (w : Community.Write) : Option Id :=
 current. -/
 def found (n myName : String) : M Unit := do
   let seed ← Chaos.freshSeed n
-  let w := Community.found seed n.toUTF8 myName.toUTF8 (newestTime (← get) + 1)
+  let w := Community.found (Device.ofSeed seed) n.toUTF8 myName.toUTF8 (newestTime (← get) + 1)
     (← Engine.Crypto.randomBytes 32) (← Engine.Crypto.randomBytes 32)
   if ← writeAll w then
     if let some a := acceptOf w then
@@ -976,7 +976,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
       let seed ← Chaos.freshSeed "join"
       -- the engine's join: nothing for a held community, the same request
       -- again for a stopped one, else a fresh join
-      let (w, _) ← readView (Community.join i seed s.joinName.toUTF8) #[]
+      let (w, _) ← readView (Community.join i i.bearer (Device.ofSeed seed) s.joinName.toUTF8) #[]
       if ← writeAll w then
         s.io.textClear
         modify fun s => { s with invite := none, field := "", backStack := [] }

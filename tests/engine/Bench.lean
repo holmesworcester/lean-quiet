@@ -97,7 +97,7 @@ def main (args : List String) : IO UInt32 := do
   let seedA := sha256 "device A".toUTF8
   let dA := Device.ofSeed seedA
   let kA := sha256 "Acme's content key".toUTF8
-  let w := found seedA "Acme".toUTF8 "Ann".toUTF8 1 kA (sha256 "esk 1".toUTF8)
+  let w := found (Device.ofSeed seedA) "Acme".toUTF8 "Ann".toUTF8 1 kA (sha256 "esk 1".toUTF8)
   let c := (root dA).id
   -- A file whose ciphertext (the plaintext and a 16-byte tag) is exactly
   -- 100 slices.

@@ -14,24 +14,62 @@ export Engine (sha256)
 @[extern "le_ed25519_sign"] opaque edSign (sk msg : @& ByteArray) : ByteArray
 @[extern "le_ed25519_verify"] opaque edVerify (pk msg sig : @& ByteArray) : Bool
 
-def ed25519 : Crypto := ⟨fun pk m s => edVerify pk m s, fun seed => (edKeypair seed).extract 0 32⟩
+/-- A seed's Ed25519 key pair (public key, then the 64-byte secret key:
+seed ++ public key). -/
+def edPair (seed : ByteArray) : Key × ByteArray :=
+  let kp := edKeypair seed
+  (kp.extract 0 32, kp.extract 32 96)
 
-/-- A device: its Ed25519 signing key pair, and its X25519 encryption
-key (the conversion of the signing key), which content keys are wrapped
-to. -/
+/-- The rest of a device from its Ed25519 key pair: the signing secret,
+and the X25519 key and secret its key pair converts to. -/
+def edKeys (pk sk : ByteArray) : ByteArray × Key × ByteArray :=
+  (sk, Crypto.staticPubOf pk, Crypto.staticOf sk)
+
+def ed25519 : Crypto :=
+  ⟨fun pk m s => edVerify pk m s, fun seed => (edPair seed).1,
+   fun seed => edKeys (edPair seed).1 (edPair seed).2⟩
+
+/-- A device: its Ed25519 signing key pair, its X25519 encryption key
+(the conversion of the signing key), which content keys are wrapped to,
+and the X25519 secret that opens them, with the seed they all come from.
+Derived once, when its secret op is written (`Device.ofSeed`); the
+store holds it whole (`secret`), and every reader takes it from there
+(`device`), deriving nothing. -/
 structure Device where
   pk : Key
   sk : ByteArray
   enc : Key
+  xsk : ByteArray
+  seed : ByteArray
   deriving Inhabited
 
-/-- A device from a 32-byte seed (tests derive seeds from names). -/
+/-- A device from a 32-byte seed (tests derive seeds from names): one
+Ed25519 key pair and its two conversions. -/
 def Device.ofSeed (seed : ByteArray) : Device :=
-  let kp := edKeypair seed
-  ⟨kp.extract 0 32, kp.extract 32 96, Crypto.staticPubOf (kp.extract 0 32)⟩
+  let kp := edPair seed
+  let ks := edKeys kp.1 kp.2
+  ⟨kp.1, ks.1, ks.2.1, ks.2.2, seed⟩
 
-/-- A device's X25519 secret: what opens keys wrapped to it. -/
-def Device.encSecret (d : Device) : ByteArray := Crypto.staticOf d.sk
+/-- **A seed's device is the crypto's**: its public key is `pub`'s and
+the rest is `keys`'s, which is what a secret op's validator checks. -/
+theorem ofSeed_ed25519 (seed : ByteArray) :
+    ed25519.pub (Device.ofSeed seed).seed = (Device.ofSeed seed).pk ∧
+      ed25519.keys (Device.ofSeed seed).seed =
+        ((Device.ofSeed seed).sk, (Device.ofSeed seed).enc, (Device.ofSeed seed).xsk) :=
+  ⟨rfl, rfl⟩
+
+/-- **A device the crypto passes is the seed's**: parts that are the
+seed's (as the validator checks) are `Device.ofSeed` of it. -/
+theorem ofSeed_of_keys {d : Device} (hp : ed25519.pub d.seed = d.pk)
+    (hk : ed25519.keys d.seed = (d.sk, d.enc, d.xsk)) : d = Device.ofSeed d.seed := by
+  obtain ⟨pk, sk, enc, xsk, seed⟩ := d
+  simp only at hp hk
+  subst hp
+  have e1 : (ed25519.keys seed).1 = sk := by rw [hk]
+  have e2 : (ed25519.keys seed).2.1 = enc := by rw [hk]
+  have e3 : (ed25519.keys seed).2.2 = xsk := by rw [hk]
+  subst e1 e2 e3
+  rfl
 
 def Device.named (name : String) : Device := Device.ofSeed (sha256 name.toUTF8)
 
@@ -167,8 +205,8 @@ def openFile (slices : List ByteArray) (fileKey fileNonce : ByteArray) : Option 
 /-- This device's k-th receipt of saturated message m (local). -/
 def receipt (m : Id) (k : Nat) : Op := mkOp [m] (.receive k)
 
-/-- This device's secret seed (local). -/
-def secret (seed : ByteArray) : Op := mkOp [] (.secret (Device.ofSeed seed).pk seed)
+/-- This device's secret (local): the whole device, as derived. -/
+def secret (d : Device) : Op := mkOp [] (.secret d.pk d.sk d.enc d.xsk d.seed)
 
 /-- This device is in community c (local). -/
 def accept (c : Id) (device : Key) : Op := mkOp [] (.accept c device)

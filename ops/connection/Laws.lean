@@ -51,13 +51,13 @@ theorem local_kinds (o : Op) (h : ¬ (o.kind = 33 ∨ o.kind = 35)) : scopeOf o 
 /-- **Both ends of a connection hold one session.** -/
 theorem established_agrees (K : Keys) (G : K.suite.Good) (edPub : B → B)
     (hconv : ∀ seed, K.xPub (edPub seed) = K.suite.pub (K.xSec seed))
-    {oR oI : Op} {r m2 to frm m1 ofR ofI pkR pkI f e seedR seedI : B}
+    {oR oI : Op} {r m2 to frm m1 ofR ofI pkR pkI f e seedR seedI skR eR xR skI eI xI : B}
     {cidR cR pR hR sR kR cidI cI pI hI sI kI : B}
     (hto : to = edPub seedR) (hfrm : frm = edPub seedI) (hne : to ≠ frm)
     (hRc : Established.check K oR [.inr (.connection r m2), .inr (.request to frm m1), .inr (.eph ofR pkR f),
-      .inl (.secret to seedR)] = some (.established cidR cR pR hR sR kR false))
+      .inl (.secret to skR eR xR seedR)] = some (.established cidR cR pR hR sR kR false))
     (hIc : Established.check K oI [.inr (.connection r m2), .inr (.request to frm m1), .inr (.eph ofI pkI e),
-      .inl (.secret frm seedI)] = some (.established cidI cI pI hI sI kI true)) :
+      .inl (.secret frm skI eI xI seedI)] = some (.established cidI cI pI hI sI kI true)) :
     hR = hI ∧ cR = cI ∧ sR = kI ∧ kR = sI ∧ pR = frm ∧ pI = to := by
   have cR' : K.xPub to = K.suite.pub (K.xSec seedR) := by rw [hto]; exact hconv _
   have cI' : K.xPub frm = K.suite.pub (K.xSec seedI) := by rw [hfrm]; exact hconv _

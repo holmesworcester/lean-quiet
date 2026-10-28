@@ -575,19 +575,22 @@ theorem valid_stays {ops' : Id → Option Op} (he : Extends ops ops') {x : Id} {
 
 /-! ## A device's own state, and community names -/
 
-theorem check_secret {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {pk seed : ByteArray}
-    (h : check C o b fs = some (.secret pk seed)) : b = .secret pk seed ∧ fs = [] ∧ C.pub seed = pk := by
+theorem check_secret {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {pk sk e x seed : ByteArray}
+    (h : check C o b fs = some (.secret pk sk e x seed)) :
+    b = .secret pk sk e x seed ∧ fs = [] ∧ C.pub seed = pk ∧ C.keys seed = (sk, e, x) := by
   unfold check at h
   split at h <;> (try split at h) <;> (try simp at h; done)
   simp only [Option.some.injEq, Fact.secret.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
   rename_i hc
-  exact ⟨rfl, rfl, hc⟩
+  exact ⟨rfl, rfl, hc.1, hc.2⟩
 
-/-- **A secret's seed is its key's**: `secret.byKey [pk]` rows hold a
-seed whose key pair has public key pk. -/
-theorem secret_derives {x : Id} {pk seed : ByteArray} (h : V C ops x (.secret pk seed)) :
-    C.pub seed = pk := by
+/-- **A secret is its seed's whole device**: `secret.byKey [pk]` rows
+hold a seed whose key pair has public key pk, and the signing secret,
+X25519 key and X25519 secret of that key pair, so a reader takes them as
+they are, deriving nothing. -/
+theorem secret_derives {x : Id} {pk sk e xsk seed : ByteArray} (h : V C ops x (.secret pk sk e xsk seed)) :
+    C.pub seed = pk ∧ C.keys seed = (sk, e, xsk) := by
   obtain ⟨o, b, fs, _, _, _, hv⟩ := valid_inv h
   exact (check_secret hv).2.2
 

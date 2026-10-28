@@ -1,10 +1,11 @@
 /-
 The communities this device is in, each as this device sees it: its
-device there (from its secret, read by intents to sign), its admission
-(none while waiting to be approved), and its name.
+device there (its secret op's, whole: `Community.device`, which derives
+nothing), its admission (none while waiting to be approved), and its
+name.
 
 Reads: `accepted.all []` and `joining.all []` (this device's own local
-facts), then for each community `secret.byKey [pk]`, `admission.byDevice
+facts), then for each community `secret.byKey [pk]` (`Community.device`), `admission.byDevice
 [c, pk]` and `named.current [c]` (newest, one row), and for a join not
 yet answered `abandoned.byRequest [req]`: a join this device stopped
 waiting on is not listed (unless an approval let it in after all). Nothing else: which community is
@@ -25,11 +26,9 @@ open Engine Community Data
 structure Me where
   /-- This acceptance's op id: what the switcher and the app key it by. -/
   acc : Id := .empty
+  /-- The device, as its secret op holds it (`Community.device`): whoever
+  holds an entry signs and opens with it, deriving nothing. -/
   dev : Device
-  seed : ByteArray
-  /-- The device is the seed's, so whoever holds an entry signs with the
-  device without deriving it again (a curve25519 key pair). -/
-  dev_ok : dev = Device.ofSeed seed
   c : Id
   /-- This device's admission (the root for a founder); empty while waiting. -/
   adm : Id
@@ -45,7 +44,10 @@ structure Me where
   removed : Bool := false
 
 instance : Inhabited Me :=
-  ⟨{ dev := Device.ofSeed .empty, seed := .empty, dev_ok := rfl, c := .empty, adm := .empty, name := "" }⟩
+  ⟨{ dev := default, c := .empty, adm := .empty, name := "" }⟩
+
+/-- The seed the entry's device came from. -/
+def Me.seed (m : Me) : ByteArray := m.dev.seed
 
 def Me.waiting (m : Me) : Bool := m.adm.isEmpty
 
@@ -92,21 +94,11 @@ first listed one, else none (Get started). -/
 def landing (cs : Array Me) (cur : Id) : Option Me := select cs cur <|> cs[0]?
 
 
-/-- The device of a seed: an entry's of `known` for the same seed (it was
-derived when that entry was read), else derived now. -/
-def deviceOf (known : Array Me) (seed : ByteArray) : { d : Device // d = Device.ofSeed seed } :=
-  match h : known.find? (fun m => decide (m.seed = seed)) with
-  | some m => ⟨m.dev, by
-      have hp := Array.find?_some (p := fun (x : Me) => decide (x.seed = seed)) h
-      rw [m.dev_ok, of_decide_eq_true hp]⟩
-  | none => ⟨Device.ofSeed seed, rfl⟩
-
 variable {m : Type → Type} [Monad m] [Reads m]
 
-/-- The entries, as described above. Each entry's device is taken from
-an entry of `known` with the same seed if there is one (the entries the
-caller read last time), so a step derives no device it already holds. -/
-def read (known : Array Me := #[]) : m (Array Me × Array Q) := do
+/-- The entries, as described above. Each entry's device is its secret
+op's (`Community.device`): a read derives no key (`NoDerive`). -/
+def read : m (Array Me × Array Q) := do
   let (acc, _, deps) ← readList (accepted.all.query []) #[]
   let (jn, _, deps) ← readList (joining.all.query []) deps
   let mut deps := deps
@@ -121,11 +113,11 @@ def read (known : Array Me := #[]) : m (Array Me × Array Q) := do
     let (pick, d0) ← readView (Community.mine c) deps
     deps := d0
     let some (pk, accId) := pick | continue
-    let (sec, _, d1) ← readList (secret.byKey.query [pk] (limit := some 1)) deps
+    let (dev, d1) ← readView (Community.device pk) deps
     let (adm, _, d2) ← readList (admission.byDevice.query [c, pk] (limit := some 1)) d1
     let (nm, _, d3) ← readList (named.current.query [c] (limit := some 1)) d2
     deps := d3
-    let some (_, .secret _ seed) := sec.rows.head? | continue
+    let some dev := dev | continue
     let name := match nm.rows.head? with
       | some (_, .named _ _ n _) => (String.fromUTF8? n).getD "?"
       | _ => "Waiting to join"
@@ -146,22 +138,8 @@ def read (known : Array Me := #[]) : m (Array Me × Array Q) := do
     let (rm, _, d6) ← readList (removal.byUser.query [c, user] (limit := some 0)) deps
     deps := d6
     let removed := !user.isEmpty && rm.total > 0
-    let dv := deviceOf known seed
-    out := out.push { acc := accId, dev := dv.1, seed, dev_ok := dv.2, c, adm := admId, user, name, joiningOp,
-                      dialing, removed }
+    out := out.push { acc := accId, dev, c, adm := admId, user, name, joiningOp, dialing, removed }
   let sorted := out.qsort fun a b => a.name < b.name || (a.name == b.name && Engine.bcmp a.acc b.acc == .lt)
   return (dedupe sorted, deps)
-
-/-- Whatever devices are known, each seed's is the same: the seed's. -/
-theorem deviceOf_eq (known known' : Array Me) (seed : ByteArray) :
-    deviceOf known seed = deviceOf known' seed :=
-  Subtype.ext ((deviceOf known seed).2.trans (deviceOf known' seed).2.symm)
-
-/-- **Reading with the devices already held is reading**: `read known`
-is `read` for every `known`, so its entries are the same; it only
-derives no device it is given. -/
-theorem read_known (known : Array Me) : (read known : m (Array Me × Array Q)) = read := by
-  unfold read
-  simp only [deviceOf_eq known #[]]
 
 end Kinds.Accepted

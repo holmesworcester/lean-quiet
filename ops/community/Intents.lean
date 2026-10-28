@@ -8,9 +8,12 @@ shared ones. What a node shows about them (its communities, who is
 waiting, a community's name) is lists of those ops' facts.
 
 An intent that signs as this device takes the device itself
-(`Device`), derived from its seed once by the caller: a derivation is a
-curve25519 key pair, and some of these views are built on every step.
-Only those that write the seed (`found`, `joinOps`, `join`) take it.
+(`Device`): a derivation is a curve25519 key pair and two conversions,
+and some of these views are built on every step. The device is derived
+once, by the caller, when its secret op is written (`found`, `joinOps`,
+`join` write it whole: `secret`); after that it is read from the store
+(`device`). No intent derives a key (`NoDerive`): a link's bearer key
+pair is the caller's to derive too.
 -/
 import ops.community.Link
 import ops.community.Connect
@@ -23,32 +26,34 @@ open Engine
 structure Write where
   ops : List Op
 
-/-- Found a community named `name` from this device's seed, the founder
-known as `myName`: the device's secret (local), the root, the device's
+/-- Found a community named `name` as device d (derived by the caller
+from a fresh seed), the founder known as `myName`: the device's secret
+(local, the whole device), the root, the device's
 acceptance (local), the first name, the founder's first profile (the
 root is the founder's admission), and the community's first content
 key `k` (local), wrapped to the founder's device with ephemeral secret
 `esk` (both fresh random bytes from the caller). -/
-def found (seed name myName : ByteArray) (time : Nat) (k esk : ByteArray) : Write :=
-  let d := Device.ofSeed seed
+def found (d : Device) (name myName : ByteArray) (time : Nat) (k esk : ByteArray) : Write :=
   let r := root d
-  ⟨[secret seed, r, accept r.id d.pk, setName r.id r.id r.id [] 1 d name,
+  ⟨[secret d, r, accept r.id d.pk, setName r.id r.id r.id [] 1 d name,
     profile r.id r.id d myName time, contentKey r.id k, wrapKey r.id k esk d.enc]⟩
 
 /-- Invite to c from device d (admitted as `myAdm`): the invitation,
-and its link, with the bearer seed and dial hints given. -/
-def inviteTo (c myAdm : Id) (d : Device) (bearerSeed : ByteArray) (hints : List ByteArray)
+and its link, with the bearer key pair (derived by the caller from a
+fresh seed, which the link carries) and dial hints given. -/
+def inviteTo (c myAdm : Id) (d bearer : Device) (hints : List ByteArray)
     (threshold : Nat := 1) : Write × Invite :=
-  let p := issue c myAdm d bearerSeed hints threshold
+  let p := issueAs c myAdm d bearer hints threshold
   (⟨[p.1]⟩, p.2)
 
-/-- Join from a link, to be known as `name`: the device's secret, its
-request (the one op that travels), its acceptance of the community, and
-the pending join (which keeps the name until admission). -/
-def joinOps (i : Invite) (seed name : ByteArray) : Write :=
-  let d := Device.ofSeed seed
-  let req := i.request d
-  ⟨[secret seed, req, accept i.community d.pk, joining i req.id name d.pk]⟩
+/-- Join from a link as device d, to be known as `name`: the device's
+secret (the whole device), its request (the one op that travels, signed
+too by the link's bearer key pair, `Invite.bearer`, both derived by the
+caller), its acceptance of the community, and the pending join (which
+keeps the name until admission). -/
+def joinOps (i : Invite) (bearer d : Device) (name : ByteArray) : Write :=
+  let req := i.requestAs bearer d
+  ⟨[secret d, req, accept i.community d.pk, joining i req.id name d.pk]⟩
 
 /-- Byte order on ids. -/
 def idLt (a b : Id) : Bool := decide (a.toList < b.toList)
@@ -91,7 +96,7 @@ holds the community (`mine`): then nothing. A join of c stopped waiting
 on is resumed rather than made again: a new joining op (one epoch on)
 for the same request, so the inviter sees the same request (libquiet's
 dormant join). Otherwise a fresh join (`joinOps`). -/
-def join (i : Invite) (seed name : ByteArray) : View Fact Write := do
+def join (i : Invite) (bearer d : Device) (name : ByteArray) : View Fact Write := do
   let c := i.community
   if (← mine c).isSome then return ⟨[]⟩
   let joins ← joining.all.read []
@@ -104,7 +109,7 @@ def join (i : Invite) (seed name : ByteArray) : View Fact Write := do
     | _ => acc) none
   match dormant with
   | some (k, hs, r, nm, d, n) => return ⟨[mkOp [] (.joining c k hs r nm d (n + 1))]⟩
-  | none => return joinOps i seed name
+  | none => return joinOps i bearer d name
 
 /-- Once device d is admitted into c with no profile yet: the first
 profile, named as the join asked. Reads my admission, my profile and my
@@ -249,8 +254,21 @@ def currentKey (c : Id) : View Fact (Option ByteArray) := do
   let ks ← key.byCommunity.read [c] (limit := some 1)
   pure (ks.rows.head?.bind fun (_, f) => match f with | .key _ _ k => some k | _ => none)
 
+/-- A secret row's device, as written: nothing derived. -/
+def Device.ofFact : Fact → Option Device
+  | .secret pk sk enc xsk seed => some ⟨pk, sk, enc, xsk, seed⟩
+  | _ => none
+
+/-- This device's device for public key pk, as its secret op holds it
+(`secret.byKey [pk]`, one row): what every reader that signs or opens
+takes, deriving nothing (`device_derives`). -/
+def device (pk : Key) : View Fact (Option Device) := do
+  let a ← secret.byKey.read [pk] (limit := some 1)
+  pure (a.rows.head?.bind fun (_, f) => Device.ofFact f)
+
 /-- The content keys of c wrapped to device d that it does not hold
-yet, opened with its encryption secret: each becomes a local `key`. -/
+yet, opened with its encryption secret (held, `Device.xsk`: nothing is
+derived): each becomes a local `key`. -/
 def unwrap (c : Id) (d : Device) : View Fact Write := do
   let ws ← wrap.byRecipient.read [c, d.enc]
   let mut out : List Op := []
@@ -258,7 +276,7 @@ def unwrap (c : Id) (d : Device) : View Fact Write := do
     let .wrap _ kid _ bx := f | continue
     let held ← key.byId.read [kid] (limit := some 0)
     if held.total ≠ 0 then continue
-    match unbox cryptoSeal d.encSecret kid bx with
+    match unbox cryptoSeal d.xsk kid bx with
     | some k => if k.size = 32 && !out.any (fun o => o.body == (contentKey c k).body) then
         out := out ++ [contentKey c k]
     | none => pure ()
@@ -299,9 +317,9 @@ theorem shared_mkOp (C : Crypto) (reqs : List Id) (b : Body) :
 /-- **Joining is just ops, and only the request leaves the device.** The
 join intent writes the device's secret, the request, the acceptance and
 the pending join; of these, sync may offer only the request. -/
-theorem joinOps_travels (C : Crypto) (i : Invite) (seed name : ByteArray) :
-    (joinOps i seed name).ops.filter (family C).shared = [i.request (Device.ofSeed seed)] := by
-  simp [joinOps, Invite.request, Community.request, secret, accept, joining, shared_mkOp, Body.isLocal]
+theorem joinOps_travels (C : Crypto) (i : Invite) (bearer d : Device) (name : ByteArray) :
+    (joinOps i bearer d name).ops.filter (family C).shared = [i.requestAs bearer d] := by
+  simp [joinOps, Invite.requestAs, Community.request, secret, accept, joining, shared_mkOp, Body.isLocal]
 
 /-- **Stopping waiting is local.** -/
 theorem stopWaiting_local (C : Crypto) (j : Id) : (stopWaiting j).ops.filter (family C).shared = [] := by
@@ -309,9 +327,9 @@ theorem stopWaiting_local (C : Crypto) (j : Id) : (stopWaiting j).ops.filter (fa
 
 /-- **Founding is just ops**; the secret, the acceptance and the
 content key stay. Only the key's wrap travels. -/
-theorem found_travels (C : Crypto) (seed name myName : ByteArray) (time : Nat) (k esk : ByteArray) :
-    (found seed name myName time k esk).ops.filter (family C).shared =
-      let d := Device.ofSeed seed; let r := root d
+theorem found_travels (C : Crypto) (d : Device) (name myName : ByteArray) (time : Nat) (k esk : ByteArray) :
+    (found d name myName time k esk).ops.filter (family C).shared =
+      let r := root d
       [r, setName r.id r.id r.id [] 1 d name, profile r.id r.id d myName time,
         wrapKey r.id k esk d.enc] := by
   simp [found, root, secret, accept, setName, profile, contentKey, wrapKey, wrap, shared_mkOp,
@@ -391,6 +409,33 @@ theorem held_heldKids (h : Inv (family C) s) (hq : s.queue = []) {c kid k : Byte
   rw [View.eval_bind]
   simp only [View.eval_pure, List.mem_filterMap]
   exact ⟨_, at_row (C := C) (r := key.byCommunity) (by simp [rels]) h hq hk (by simp [key.byCommunity]), rfl⟩
+
+/-- **The device a reader takes is the seed's, whole**: `device pk`
+returns a device only from a Valid secret filed under pk, so its public
+key is pk and every part of it is its seed's (`secret_derives`): what
+the validator checked once, when the op was written, a reader need not
+derive again. -/
+theorem device_derives (h : Inv (family C) s) (hq : s.queue = []) {pk : Key} {d : Device}
+    (hd : (device pk).eval s = some d) :
+    d.pk = pk ∧ C.pub d.seed = d.pk ∧ C.keys d.seed = (d.sk, d.enc, d.xsk) := by
+  simp only [device, Rel.read, View.eval_bind, View.eval_read, View.eval_pure] at hd
+  obtain ⟨⟨p, f⟩, hh, hf⟩ := Option.bind_eq_some_iff.1 hd
+  obtain ⟨_, hv, hargs⟩ := row_at (C := C) (r := secret.byKey) (by simp [rels]) h hq
+    (List.mem_of_head? hh)
+  cases f with
+  | secret pk' sk e x seed =>
+    simp only [Device.ofFact, Option.some.injEq] at hf
+    subst hf
+    simp only [secret.byKey, Option.some.injEq, List.cons.injEq, and_true] at hargs
+    exact ⟨hargs, secret_derives hv⟩
+  | _ => simp [Device.ofFact] at hf
+
+/-- **With this crypto, it is `Device.ofSeed` of its seed**: the device
+`device` reads is the one derived when its secret was written. -/
+theorem device_ofSeed {s : DB Fact} (h : Inv (family ed25519) s) (hq : s.queue = []) {pk : Key}
+    {d : Device} (hd : (device pk).eval s = some d) : d = Device.ofSeed d.seed ∧ d.pk = pk := by
+  obtain ⟨hpk, hp, hk⟩ := device_derives h hq hd
+  exact ⟨ofSeed_of_keys hp hk, hpk⟩
 
 theorem eval_readable (c : Id) (lim : Option Nat) (desc : Bool) (after before : Option Pos) :
     (readable c lim desc after before).eval s =

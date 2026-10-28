@@ -59,7 +59,7 @@ def meV (c : B) : View F (Option B) := do
   let some (d, _) ← ((Community.mine c).liftL : View F _) | return none
   let a ← View.read (F := F) (Community.secret.all.query [])
   let held := a.lefts.any fun (_, f) => match f with
-    | .secret pk _ => decide (pk = d)
+    | .secret pk .. => decide (pk = d)
     | _ => false
   return if held then some d else none
 
@@ -109,7 +109,7 @@ all of them, so joining another community needs no restart. -/
 def devices : m (List (B × B × Id)) := do
   let a : Answer F ← Lists.list (m := m) (Community.secret.all.query [])
   return a.lefts.filterMap fun ((_, x), f) => match f with
-    | .secret pk seed => some (pk, seed, x)
+    | .secret pk _ _ _ seed => some (pk, seed, x)
     | _ => none
 
 /-- The device this node is in community c as (its acceptance of c),

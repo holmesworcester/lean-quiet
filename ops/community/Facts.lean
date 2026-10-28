@@ -99,6 +99,9 @@ structure Crypto where
   verify : Key → ByteArray → ByteArray → Bool
   /-- The public key a 32-byte seed's key pair has. -/
   pub : ByteArray → Key
+  /-- The rest of a seed's device: its signing secret, its X25519 key and
+  its X25519 secret. -/
+  keys : ByteArray → ByteArray × Key × ByteArray
 
 inductive Fact where
   | admission (c u : Id) (device enc : Key)
@@ -112,7 +115,7 @@ inductive Fact where
   | react (c u target : Id) (emoji : ByteArray) (time : Nat)
   | request (c u : Id) (device enc : Key) (link : Bool) (threshold : Nat)
   | approval (c req u : Id)
-  | secret (pk seed : ByteArray)
+  | secret (pk sk enc xsk seed : ByteArray)
   | accepted (c : Id) (device : Key)
   | joining (c : Id) (inviter : Key) (hints : List ByteArray) (req : Id) (name : ByteArray)
       (device : Key) (epoch : Nat)
@@ -139,7 +142,7 @@ inductive Body where
   | accept (c : Id) (device : Key)
   | joining (c : Id) (inviter : Key) (hints : List ByteArray) (req : Id) (name : ByteArray)
       (device : Key) (epoch : Nat)
-  | secret (pk seed : ByteArray)
+  | secret (pk sk enc xsk seed : ByteArray)
   | name (n : Nat) (name sig : ByteArray)
   | abandon
   | key (c k : ByteArray)
@@ -173,7 +176,7 @@ def Body.enc : Body → List UInt8
   | .admit => [11]
   | .accept c d => 13 :: Codec.enc (c, d)
   | .joining c k hs r nm d n => 14 :: Codec.enc (c, k, hs, r, nm, d, n)
-  | .secret pk seed => 15 :: Codec.enc (pk, seed)
+  | .secret pk sk e x seed => 15 :: Codec.enc (pk, sk, e, x, seed)
   | .name n nm s => 16 :: Codec.enc (n, nm, s)
   | .abandon => [17]
   | .key c k => 18 :: Codec.enc (c, k)
@@ -196,7 +199,7 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 13 :: r => decAs (fun (p : B × B) => Body.accept p.1 p.2) r
   | 14 :: r => decAs (fun (p : B × B × List B × B × B × B × Nat) =>
       Body.joining p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) r
-  | 15 :: r => decAs (fun (p : B × B) => Body.secret p.1 p.2) r
+  | 15 :: r => decAs (fun (p : B × B × B × B × B) => Body.secret p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 16 :: r => decAs (fun (p : Nat × B × B) => Body.name p.1 p.2.1 p.2.2) r
   | 17 :: r => some (.abandon, r)
   | 18 :: r => decAs (fun (p : B × B) => Body.key p.1 p.2) r
@@ -223,7 +226,7 @@ def Body.encInto (buf : ByteArray) : Body → ByteArray
   | .admit => buf.push 11
   | .accept c d => Codec.encInto (buf.push 13) (c, d)
   | .joining c k hs r nm d n => Codec.encInto (buf.push 14) (c, k, hs, r, nm, d, n)
-  | .secret pk seed => Codec.encInto (buf.push 15) (pk, seed)
+  | .secret pk sk e x seed => Codec.encInto (buf.push 15) (pk, sk, e, x, seed)
   | .name n nm s => Codec.encInto (buf.push 16) (n, nm, s)
   | .abandon => buf.push 17
   | .key c k => Codec.encInto (buf.push 18) (c, k)
@@ -248,7 +251,7 @@ def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
   | some 13 => decFromAs (fun (p : B × B) => Body.accept p.1 p.2) b (i + 1)
   | some 14 => decFromAs (fun (p : B × B × List B × B × B × B × Nat) =>
       Body.joining p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) b (i + 1)
-  | some 15 => decFromAs (fun (p : B × B) => Body.secret p.1 p.2) b (i + 1)
+  | some 15 => decFromAs (fun (p : B × B × B × B × B) => Body.secret p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
   | some 16 => decFromAs (fun (p : Nat × B × B) => Body.name p.1 p.2.1 p.2.2) b (i + 1)
   | some 17 => some (.abandon, i + 1)
   | some 18 => decFromAs (fun (p : B × B) => Body.key p.1 p.2) b (i + 1)
@@ -285,7 +288,7 @@ def Fact.enc : Fact → List UInt8
   | .react c u t e tm => 8 :: Codec.enc (c, u, t, e, tm)
   | .request c u d e l t => 9 :: Codec.enc (c, u, d, e, l, t)
   | .approval c r u => 10 :: Codec.enc (c, r, u)
-  | .secret pk seed => 11 :: Codec.enc (pk, seed)
+  | .secret pk sk e x seed => 11 :: Codec.enc (pk, sk, e, x, seed)
   | .accepted c d => 12 :: Codec.enc (c, d)
   | .joining c k hs r nm d n => 13 :: Codec.enc (c, k, hs, r, nm, d, n)
   | .named c u nm n => 14 :: Codec.enc (c, u, nm, n)
@@ -308,7 +311,7 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 9 :: r => decAs (fun (p : B × B × B × B × Bool × Nat) =>
       Fact.request p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2) r
   | 10 :: r => decAs (fun (p : B × B × B) => Fact.approval p.1 p.2.1 p.2.2) r
-  | 11 :: r => decAs (fun (p : B × B) => Fact.secret p.1 p.2) r
+  | 11 :: r => decAs (fun (p : B × B × B × B × B) => Fact.secret p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 12 :: r => decAs (fun (p : B × B) => Fact.accepted p.1 p.2) r
   | 13 :: r => decAs (fun (p : B × B × List B × B × B × B × Nat) =>
       Fact.joining p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) r
@@ -334,7 +337,7 @@ def Fact.encInto (buf : ByteArray) : Fact → ByteArray
   | .react c u t e tm => Codec.encInto (buf.push 8) (c, u, t, e, tm)
   | .request c u d e l t => Codec.encInto (buf.push 9) (c, u, d, e, l, t)
   | .approval c r u => Codec.encInto (buf.push 10) (c, r, u)
-  | .secret pk seed => Codec.encInto (buf.push 11) (pk, seed)
+  | .secret pk sk e x seed => Codec.encInto (buf.push 11) (pk, sk, e, x, seed)
   | .accepted c d => Codec.encInto (buf.push 12) (c, d)
   | .joining c k hs r nm d n => Codec.encInto (buf.push 13) (c, k, hs, r, nm, d, n)
   | .named c u nm n => Codec.encInto (buf.push 14) (c, u, nm, n)
@@ -359,7 +362,7 @@ def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
   | some 9 => decFromAs (fun (p : B × B × B × B × Bool × Nat) =>
       Fact.request p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2) b (i + 1)
   | some 10 => decFromAs (fun (p : B × B × B) => Fact.approval p.1 p.2.1 p.2.2) b (i + 1)
-  | some 11 => decFromAs (fun (p : B × B) => Fact.secret p.1 p.2) b (i + 1)
+  | some 11 => decFromAs (fun (p : B × B × B × B × B) => Fact.secret p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
   | some 12 => decFromAs (fun (p : B × B) => Fact.accepted p.1 p.2) b (i + 1)
   | some 13 => decFromAs (fun (p : B × B × List B × B × B × B × Nat) =>
       Fact.joining p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) b (i + 1)
@@ -516,7 +519,10 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
     then some (.react c u (o.reqs.getD 2 .empty) e tm) else none
   | .wrap k r bx, [.admission c u0 _ _] =>
     if o.reqs.head? = some c ∧ u0 = c then some (.wrap c k r bx) else none
-  | .secret pk seed, [] => if C.pub seed = pk then some (.secret pk seed) else none
+  -- A device's secret holds the whole device, derived once when it is
+  -- written; every part must be the seed's.
+  | .secret pk sk e x seed, [] =>
+    if C.pub seed = pk ∧ C.keys seed = (sk, e, x) then some (.secret pk sk e x seed) else none
   | .key c k, [] => if k.size = 32 then some (.key c (kidOf cryptoSeal k) k) else none
   | .accept c d, [] => some (.accepted c d)
   | .joining c k hs r nm d n, [] => some (.joining c k hs r nm d n)
@@ -629,7 +635,7 @@ end approval
 namespace secret
 /-- This device's own secret seeds, by public key: read by intents to
 sign, never by views. -/
-def byKey : Rel Fact := ⟨"secret", "byKey", fun | .secret pk _ => some [pk] | _ => none⟩
+def byKey : Rel Fact := ⟨"secret", "byKey", fun | .secret pk .. => some [pk] | _ => none⟩
 /-- Every device this node holds the secret of: the devices its network
 node speaks for. -/
 def all : Rel Fact := ⟨"secret", "all", fun | .secret .. => some [] | _ => none⟩
