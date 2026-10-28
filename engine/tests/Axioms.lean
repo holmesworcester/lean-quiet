@@ -1,5 +1,6 @@
 import Engine
 import Community
+import Connection.Noise
 open Engine Community
 #print axioms Engine.inv_ingest
 #print axioms Engine.inv_step
@@ -76,3 +77,4 @@ open Engine Community
 #print axioms Engine.drain_bounded
 #print axioms Engine.step_budget
 #print axioms Community.stopWaiting_local
+#print axioms Connection.Noise.handshake_agrees

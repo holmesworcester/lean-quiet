@@ -7,6 +7,7 @@ package engine where
 
 lean_lib Engine
 lean_lib Community
+lean_lib Connection
 lean_lib Tests
 
 target glue.o pkg : FilePath := do
@@ -32,6 +33,7 @@ extern_lib libglue pkg := do
   let o ← fetch <| pkg.target ``glue.o
   let c ← fetch <| pkg.target ``crypto.o
   buildStaticLib (pkg.staticLibDir / nameToStaticLib "glue") #[o, c]
+
 
 lean_exe scenario where
   root := `Tests.Scenario
@@ -59,3 +61,6 @@ lean_exe syncpair where
 
 lean_exe tcppair where
   root := `Tests.TcpPair
+
+lean_exe noise_check where
+  root := `Tests.NoiseCheck
