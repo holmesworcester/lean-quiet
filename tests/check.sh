@@ -2,7 +2,8 @@
 # The proof gate: build every library (`lake build`) and require each law
 # the audit lists (tests/Axioms.lean, every part's) to rest on Lean's
 # standard axioms only (propext, Classical.choice, Quot.sound): no sorry,
-# no added axiom.
+# no added axiom; and the cost laws' code to have no back doors
+# (tests/Doors.lean).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
@@ -19,3 +20,11 @@ bad=$(grep "depends on axioms" <<<"$out" | sed 's/.*\[\(.*\)\]/\1/' | tr ',' '\n
   grep -v -x -e propext -e Classical.choice -e Quot.sound || true)
 [ -z "$bad" ] || { echo "non-standard axioms: $bad" >&2; exit 1; }
 echo "all $want laws rest on standard axioms only"
+# The cost laws count what code does through its doors: the code they
+# are about must reach no task or IO, and the Merkle code no hash, but
+# through them (tests/Doors.lean; its negative control must be caught).
+doors=$(lake env lean tests/Doors.lean 2>&1) || { echo "$doors"; echo "a back door" >&2; exit 1; }
+echo "$doors"
+# The cost inventories name only audited laws (ci/inventory.py; its
+# negative control must be caught).
+python3 ci/inventory.py
