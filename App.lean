@@ -194,6 +194,14 @@ structure St where
   /-- When an image whose chunks were not all on the board may be tried
   again (a frame number; Pics.retryLater). -/
   imgRetry : Std.HashMap ImgKey Nat := {}
+  /-- The chunk read of each key waiting in imgRetry: still wanted while
+  it waits, so the reader reads it when its chunks land and the wait is
+  cleared (`takeBoard`); without it, the want lapses with the frame that
+  asked, and the picture waits out its two seconds. -/
+  retryWants : Std.HashMap ImgKey Reader.Want := {}
+  /-- The chunk read `slicesOf` asked for last: Pics.retryLater files it
+  under its key. -/
+  lastSlices : Option Reader.Want := none
   /-- The chunk reads this frame's paints asked for (Reader.Want.slices):
   the reader's wants from the next frame. -/
   picWants : Array Reader.Want := #[]
@@ -436,7 +444,8 @@ def slicesOf (p : Row.Pic) : M (Option (List ByteArray)) := do
   -- from the next frame, none until the board has them all; nothing is
   -- decoded here (a 64 KiB chunk is slow to decode; the frame must not wait)
   let w := Reader.Want.slices p.chunks
-  modify fun s => { s with picWants := if s.picWants.contains w then s.picWants else s.picWants.push w }
+  modify fun s => { s with picWants := if s.picWants.contains w then s.picWants else s.picWants.push w,
+                           lastSlices := some w }
   match (← (← get).sh.board.get).get? w with
   | some (.slices raw, _) => return raw
   | _ => return none
@@ -451,7 +460,9 @@ instance : Pics.Pics M where
   remember k t := modify fun s => { s with imgs := s.imgs.insert k t }
   finished t := return (← IO.hasFinished t)
   retryAt k := return (← get).imgRetry[k]?
-  retryLater k := modify fun s => { s with imgRetry := s.imgRetry.insert k (s.frames + 120) }
+  retryLater k := modify fun s =>
+    let wants := match s.lastSlices with | some w => s.retryWants.insert k w | none => s.retryWants
+    { s with imgRetry := s.imgRetry.insert k (s.frames + 120), retryWants := wants }
   frame := return (← get).frames
   chunks := slicesOf
   spawn f := fun s => pure (Task.spawn f, s)
@@ -478,7 +489,7 @@ picture is tried again at once, as a store notice once cleared it. -/
 def takeBoard : M (_root_.Live.Board Reader.Want Reader.Val) := do
   let (moved, b) ← (← get).sh.board.modifyGet fun b => let (mv, b') := b.take; ((mv, b'), b')
   if moved.toList.any fun | .slices _ => true | _ => false then
-    modify fun s => { s with imgRetry := {} }
+    modify fun s => { s with imgRetry := {}, retryWants := {} }
   return b
 
 /-- Row x from the board (Reader's row want), laid out again when its
@@ -1608,7 +1619,10 @@ def frame (evs : List Event) : M (Option (List Event)) := do
     let bot := bots0[i]!
     if bot > hi then break
     if bot + heightOf s s.ids[i]!.2 ≥ lo then win := win.push s.ids[i]!.2
-  s.sh.wants.set (#[idsW] ++ win.map (fun x => Reader.Want.row s.me.c s.me.adm x) ++ s.picWants)
+  -- the pictures' chunk reads: this frame's paints', and those of keys
+  -- still waiting to retry (their paints do not ask again until then)
+  let pics := s.retryWants.fold (fun ws _ w => if ws.contains w then ws else ws.push w) s.picWants
+  s.sh.wants.set (#[idsW] ++ win.map (fun x => Reader.Want.row s.me.c s.me.adm x) ++ pics)
   modify fun s => { s with picWants := #[] }
   readerPass
   let bd ← takeBoard

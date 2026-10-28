@@ -200,6 +200,10 @@ lean_exe quiet_host where
 lean_exe inkless where
   root := `platforms.headless.Inkless
 
+-- A picture whose chunks reach the board while its retry waits.
+lean_exe pic_retry where
+  root := `platforms.headless.PicRetry
+
 -- Two apps joined by link, ops carried between them as sync would.
 lean_exe two_nodes where
   root := `platforms.headless.TwoNodes
