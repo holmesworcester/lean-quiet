@@ -12,14 +12,11 @@ Lean is mostly used for mathematics, or to verify one part of a system.
 Here it is a whole, ordinary app, and nearly every theorem is about the
 code that runs on the phone, not a separate model of it
 ([what is proven](#what-is-proven)). Native code only connects Lean to
-each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)).
-
-**A credible path to proofs about n clients.** The sync laws already
-run the real sync code, entry point by entry point, in a world of two
-nodes whose network may delay, reorder and drop frames. Agreement needs
-only the same ops, in any order. Convergence for any number of clients
-is next, on the same world with n nodes and fair delivery:
-[toward n clients](#toward-n-clients).
+each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)). And there
+is a credible path to proofs about n clients: the sync laws already run
+the real sync code, entry point by entry point, in a world of two nodes
+whose network may delay, reorder and drop frames, and agreement needs
+only the same ops, in any order ([toward n clients](#toward-n-clients)).
 
 ## What is proven
 
