@@ -39,27 +39,29 @@ builds, and the toolchain's own build.
 
 ## Checking it again
 
-Export the committed trees side by side at two roots, since the lakefile
-finds `../lean-engine-lists` and `../lean-qr` by relative path. Build
-both, then compare. Only the `.olean` files of modules with warnings
-should differ (on 851ebbf: the same five as above).
+The measurement above predates the joined repository; its modules are
+now `ops/community/Connect`, `ops/community/Link`, `engine/core/Sqlite`,
+`engine/renderer/qr/SegLaws` and `engine/renderer/qr/Segment`, and the
+build now links the engine's Rust crypto. Export one commit at two
+roots, build both, then compare: by the measurement, only the `.olean`
+files of modules with warnings should differ (not yet re-measured on
+this layout).
 
 ```sh
 export ELAN_HOME=/mnt/storage/elan TMPDIR=/mnt/storage/holmes-tmp
 export PATH="$ELAN_HOME/bin:$PATH"
-W=/mnt/storage/holmes-wt R="$TMPDIR/repro"
+R="$TMPDIR/repro"
 rm -rf "$R"
-# Export both roots from one commit per repo before building, so a commit
-# landing mid-run can't split them.
-for r in lean-quiet lean-engine-lists lean-qr; do
-  c=$(git -C "$W/$r" rev-parse HEAD)
-  for root in "$R/a" "$R/b/deeper"; do
-    mkdir -p "$root/$r"; git -C "$W/$r" archive "$c" | tar -x -C "$root/$r"
-  done
+# Export both roots from one commit before building, so a commit landing
+# mid-run can't split them.
+c=$(git rev-parse HEAD)
+for root in "$R/a" "$R/b/deeper"; do
+  mkdir -p "$root"; git archive "$c" | tar -x -C "$root"
 done
 for root in "$R/a" "$R/b/deeper"; do
-  (cd "$root/lean-quiet" && lake build Quiet quiet_host two_nodes)
-  (cd "$root" && find */.lake/build -type f ! -name '*.trace' ! -name '*.log*' \
+  (cd "$root/engine/native/crypto" && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
+  (cd "$root" && lake build Quiet quiet_host two_nodes)
+  (cd "$root" && find .lake/build -type f ! -name '*.trace' ! -name '*.log*' \
      ! -name '*.hash' ! -name '*.setup.json' ! -name '*.rsp' |
    sort | xargs sha256sum) > "$root.sums"
 done

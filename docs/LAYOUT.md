@@ -98,35 +98,52 @@ relations, intents and validator laws. `Message/View.lean` holds its
 component, the component's laws and the end-to-end theorem. A daemon or
 a cloud node imports every op module and no view.
 
-## From today's repos
+## Where things are now
 
-| today | goes to |
+Step 2 moved every file of the five repositories' packages into this
+tree with `git mv` (`git log --follow` follows each);
+`ci/reorg-map.tsv` lists where each went. A module's name is its path
+from the top (`engine/core/Codec.lean` is `engine.core.Codec`); the
+namespaces inside are unchanged.
+
+| in the tree | what is there now |
 |---|---|
-| lean-engine `Engine/` (core) | `engine/core/` |
-| lean-engine `Engine/Sync/` (rounds, Conn, Node) | `ops/sync/` (rounds as ops) and `engine/wire/` (frames, runner) |
-| lean-engine `Community/` | `ops/community/`, split by domain |
-| lean-engine branch `connection`: `Connection/` | `ops/connection/` |
-| lean-quiet `Quiet/{Data, Row, Text, Font, Paint, Image, Qoi, Emoji, Geometry, Sheet*, Platform}` | `engine/renderer/` |
-| lean-quiet `Quiet/Kinds/*` | each domain's `View.lean` |
-| lean-quiet `Quiet/{App, Pages, Composer}` | `App.lean` and `ops/app/` |
-| lean-quiet `android/`, `ios/`, `host/` | `platforms/android/`, `platforms/ios/`, `platforms/headless/` |
-| lean-quiet branch `daemon` (lean-quiet-daemon) | `platforms/quietd/` |
-| lean-mdns | `engine/wire/mdns/` |
-| lean-qr | `engine/renderer/qr/` |
-| lean-net | retired once its laws are re-proven over the two-node world (`ops/connection/`) |
-| lean-chat | not imported (archived as is) |
+| `engine/core/` | lean-engine's `Engine/` (op, codec, judging, the SQLite store, lists, purge; `Engine.lean` imports all of the engine and sync), and from `Engine/Sync/`: `Sync.lean` (the intake), `Held.lean` (the held store) and `Locality.lean` (a verdict depends only on the op's requirement closure; core's purge laws are proven from it) |
+| `engine/wire/` | lean-engine's `Engine/Sync/{Frame, Node, Tcp, Pair}`: frames, the node and its TCP runner; `mdns/`: lean-mdns |
+| `engine/renderer/` | lean-quiet's `Quiet/{Data, Row, Text, Font, Paint, Image, Qoi, Emoji, Geometry, Sheet, SheetGeom, Platform, Camera, Arrival}` and the laws about them only (`TextLaws`, `WrapLaws`); `qr/` and `pic/`: lean-qr |
+| `ops/sync/` | lean-engine's `Engine/Sync/{Fp, Round, RoundLaws, Wire, Conn, ConnLaws}`: rounds as functions, not yet ephemeral ops |
+| `ops/connection/` | lean-engine's `Connection/` (`All.lean` imports all of it: `Connection.lean` is the connection op type); `bootstrap/`: lean-net's model, retired once its laws are re-proven over the two-node world |
+| `ops/community/` | lean-engine's `Community/` as it was (`Facts.lean` not yet split by domain); lean-quiet's `Quiet/Kinds/*`, each its domain's view: `message/View.lean`, `profile/View.lean`, `reaction/View.lean`, `attachment/View.lean` (File), `membership/{Accepted,Request}View.lean`, and `link/View.lean` (the invite sheet, `Quiet/Link`); each view's laws beside it (`message/ViewLaws`, `reaction/RowLaws`, `attachment/ArrivalLaws`, `membership/RemovedLaws`) |
+| `ops/app/` | lean-quiet's `Quiet/{Pages, Composer, Switch, Remove, PeopleLaws, Chaos}` (`Chaos` holds `Me`, the device's member in a community, besides the chaos generator) |
+| `App.lean` | lean-quiet's `Quiet/App`; beside it `Main.lean`, the app over the platform seam (every shell's main), and `Quiet.lean`, which imports every module of the app |
+| `platforms/android/`, `platforms/ios/` | lean-quiet's shells; `android/qr/`: lean-qr's camera harness |
+| `platforms/headless/` | lean-quiet's `host/` twin and its programs (`QTests/`) |
+| `platforms/quietd/` | not yet: lean-quiet's branch `daemon` |
+| `tests/` | `Axioms.lean`, the one axiom audit (every part's laws), and `check.sh`, its gate; each part's suites, fixtures and negative controls in `tests/<part>/` |
+| `docs/` | this file, `SYNC.md`, the parts' READMEs (`ENGINE.md`, `QR.md`, `MDNS.md`, `NET.md`) and `BUILD.md` |
+| `tools/`, `third_party/`, `assets/` | lean-quiet's and lean-qr's tools; the vendored SQLite; the app's fetched data (not committed) |
+
+lean-chat is not imported (archived as is).
+
+Imports that still cross the rule, for step 3: `engine/core/Engine.lean`
+imports `ops/sync`; `engine/wire/Node` imports `ops/sync/Conn`;
+`engine/renderer/Data` (the app's live data) imports the Community and
+Connection families; `ops/community/membership/RemovedLaws` imports
+`App`.
 
 ## Steps
 
 1. **Import.** At a pause point, rewrite each repo's history into its
    target directory (`git filter-repo`) and merge everything into one
    repository, so every commit and branch is kept.
-2. **One build.** A single Lake package (each library pointed at its
-   directory), one `mise.toml` with tasks per part, one CI. Module-name
-   collisions (`Tests`, `Main`) get renamed.
+2. **One build.** *Done (2026-10-28).* A single Lake package (each
+   library pointed at its directory), one `mise.toml` with tasks per
+   part, one CI. Module names are paths, so nothing collides (`Tests`
+   is `tests.engine`, `tests.qr`, …).
 3. **Refactors, by their owners, after the join demo:**
    - Community's `Facts.lean` split into domains;
-   - `Kinds/*` turned into components that read only their own fact;
+   - the views (each domain's `View.lean`, once `Kinds/*`) turned into
+     components that read only their own fact;
    - sync's rounds turned into ephemeral ops;
    - the ephemeral log added to the engine.
 4. **Before the first push to the public repository,** scan every

@@ -13,11 +13,11 @@ encoder); the joiner points the phone at it, a small native tool hands
 each camera frame's luma plane over, and Lean does all the parsing (the
 decoder).
 
-## The laws (Qr/Laws.lean)
+## The laws (engine/renderer/qr/Laws.lean)
 
 They are proven on the functions `decode` runs, not on a model of them.
 
-Data stream (Qr/SegLaws.lean):
+Data stream (engine/renderer/qr/SegLaws.lean):
 
 - **`parse_dataStream`**: `(∀ s ∈ ss, s.Valid v) → dataStream v cap ss =
   some cw → parse v (bytesBits cw) = some ss`. The data codewords the
@@ -31,7 +31,7 @@ Data stream (Qr/SegLaws.lean):
   characters are in the alphanumeric set, ECI numbers are below 10⁶), so
   it can be written back and read again.
 
-Format and version information (Qr/Format.lean):
+Format and version information (engine/renderer/qr/Format.lean):
 
 - **`decodeFormat_correct`**: `mask < 8 → hd 15 (formatBits e mask) x ≤ 3
   → decodeFormat x = some (e, mask)`. A format reading with at most three
@@ -40,7 +40,7 @@ Format and version information (Qr/Format.lean):
 - **`decodeVersion_correct`**: the same for version information, versions
   7–40 (BCH(18,6), codewords at least 8 apart: `version_distance`).
 
-Reed–Solomon over GF(256) (Qr/RS.lean, Qr/Laws.lean):
+Reed–Solomon over GF(256) (engine/renderer/qr/RS.lean, engine/renderer/qr/Laws.lean):
 
 - **`RS.correct_sound`**: `RS.correct k r = some c → (∀ j < k, eval c (exp
   j) = 0) ∧ c.size = r.size ∧ dist r c ≤ k / 2`. A block the corrector
@@ -126,13 +126,8 @@ L, M, Q, H all work. `Decoded.payload` is the bytes of the segments; ECI
 designators are passed through as `.eci n` segments in `segs` and do not
 change the bytes.
 
-From another Lake package:
-
-```toml
-[[require]]
-name = "qr"
-path = "/mnt/storage/holmes-wt/lean-qr"
-```
+In this repository: `import engine.renderer.qr.Qr` (and
+`engine.renderer.pic.Pic` for the pictures).
 
 The library imports only `Init`, so it cross-compiles to Android with
 Lean's runtime and nothing else.
@@ -161,17 +156,17 @@ Lean's runtime and nothing else.
 
 ## Tests
 
-`mise run check` is the deterministic gate (tests/check.sh):
+`mise run test:qr` is the deterministic gate (tests/qr/check.sh), and
+`mise run check` audits the laws' axioms (tests/check.sh). The gate:
 
-- builds the library (which checks the proofs), prints the laws' axioms
-  and fails on anything beyond the standard three, and scans for escape
+- builds the library (which checks the proofs) and scans for escape
   hatches;
-- runs `qr_check` (Tests/Check.lean), 45,092 checks:
+- runs `qr_check` (tests/qr/Check.lean), 45,092 checks:
   - pictures (Pic): QOI round trips, Pillow-made QOI blobs
-    (tests/fixtures/qoi), every truncation and 2,000 mutations of a blob,
+    (tests/qr/fixtures/qoi), every truncation and 2,000 mutations of a blob,
     hostile headers, sizes, the tray's layout and the composer's
     refusals: 4,872
-  - qrencode's matrices for every version 1–40 (tests/fixtures, frozen),
+  - qrencode's matrices for every version 1–40 (tests/qr/fixtures, frozen),
     decoded as matrices and as frames: 80
   - data streams: 3,000 random segment lists of every mode round trip,
     and 3,000 random bit strings parse to nothing or to segments that
@@ -193,7 +188,7 @@ Lean's runtime and nothing else.
   - fuzzing: 1,500 matrices with 0–29% of modules flipped and 300 frames
     with 0–24% of pixels replaced: 218 decoded right, 1,582 gave nothing,
     0 decoded to a wrong payload
-- the camera suite (tests/camera.sh, tools/distort): the invite link
+- the camera suite (tests/qr/camera.sh, tools/distort): the invite link
   `quiet://join/` + 187 base62 characters (200 bytes; versions 9, 10, 12,
   15 at L, M, Q, H), encoded by Lean and put into 640×480 frames with a
   perspective view, rotation, scale, blur, noise, uneven lighting, low
@@ -206,7 +201,7 @@ Lean's runtime and nothing else.
   images; then 16 random combinations per level.
 - QOI against Pillow (tools/xcheck/qoi.py): 7 pictures each way, 14 of 14
   agree;
-- the cross-checks (tests/xcheck.sh, tools/xcheck), versions 1–40 in 20
+- the cross-checks (tests/qr/xcheck.sh, tools/xcheck), versions 1–40 in 20
   steps × L M Q H × invite/mixed text/binary:
   - qrencode → Lean: 240 of 240 decode from pixels and 240 of 240 from
     the module matrix (byte mode and qrencode's own numeric/alphanumeric/
@@ -224,7 +219,7 @@ Lean's runtime and nothing else.
   -x; their libraries were installed), segno and qrcodegen from PyPI into
   out/xtools (tools/xcheck/fetch.sh). A tool that cannot be found is
   skipped and said so.
-- the negative controls (tests/negative_controls.sh): 34 mutants, each
+- the negative controls (tests/qr/negative_controls.sh): 34 mutants, each
   built from one snapshot of the tree, all killed: 19 by the proofs, 15 by
   the checks. For the QR codec, eleven are refused by the proofs or by
   Lean's termination check (bits written least significant first, digit
@@ -245,15 +240,15 @@ Lean's runtime and nothing else.
   A mutant that does not compile at all, rather than failing a proof,
   fails the run, and the unmutated copy must pass first.
 
-`mise run android:e2e` is the camera harness on its own emulator (below).
+`mise run android:qr-e2e` is the camera harness on its own emulator (below).
 
-## The Android harness (android/)
+## The Android harness (platforms/android/qr/)
 
 A standalone APK built with no Gradle and no libraries beyond the SDK and
 NDK: `ScanActivity.java` (Camera2: a preview and an `ImageReader` of
 YUV_420_888 frames) and `libleanqr.so`, which is the Qr library compiled
 to C by Lean, Lean's runtime cross-built for Android
-(android/leanrt/build.sh, copied from lean-chat), and `jni/qr_jni.c`.
+(platforms/android/qr/leanrt/build.sh, copied from lean-chat), and `jni/qr_jni.c`.
 
 The native side does no parsing. For each frame Java passes the Y plane's
 direct `ByteBuffer`, width, height and row stride; the C seam copies the
@@ -264,15 +259,15 @@ and a description, which Java shows on screen and logs under the tag
 
 - `mise run android:runtime`: Lean's runtime, Init and libuv for x86_64
   and arm64-v8a, into out/leanrt.
-- `mise run android:apk`: out/leanqr.apk.
-- `mise run android:e2e` (android/test/e2e.sh): creates the AVD
+- `mise run android:qr-apk`: out/leanqr.apk.
+- `mise run android:qr-e2e` (platforms/android/qr/test/e2e.sh): creates the AVD
   `qr-harness-20261027` if missing (an x86_64 API 36 google_apis image,
   back camera = virtual scene), boots it on emulator-5578 with Lean's
   rendering of a fresh invite as the wall poster, installs the APK, grants
   the camera, walks the virtual camera up to the poster over gRPC, and
   passes when logcat shows Lean decoded the invite. It talks only to its
   own serial, after checking the AVD's name. Logcat, a screenshot and the
-  poster go to out/e2e.
+  poster go to out/qr-e2e.
 
 Result on qr-harness-20261027 (API 36, x86_64, swiftshader, KVM): the
 camera delivers 1280×720 YUV frames; the virtual camera ends looking at
@@ -287,10 +282,10 @@ I LeanQR  : decoded (v10 M mask 2 fixed 58 mirrored no, 899 ms, frame 38): quiet
 PASS: Lean decoded the invite from the emulator's camera
 ```
 
-The screenshot (out/e2e/screen.png) shows the poster behind the table and
+The screenshot (out/qr-e2e/screen.png) shows the poster behind the table and
 Lean's text over the preview.
 
-## The composer's image tools (Pic/, android/app/.../Pics.java)
+## The composer's image tools (engine/renderer/pic/, platforms/android/qr/app/.../Pics.java)
 
 The platform's own pickers, with as little native code as they allow, as
 libquiet does it (app/src-tauri/src/source/pick.rs, Picker.kt):
@@ -307,7 +302,7 @@ libquiet does it (app/src-tauri/src/source/pick.rs, Picker.kt):
   libquiet's Picker.kt uses it too), at the size Lean's `fit` gives
   (`lean_pic_fit`: the longer side at most 2048), unpremultiplied, and hand
   the RGBA to Lean. It shows the tray Lean draws, as it is.
-- **Lean** (Pic/): checks the picture (exactly `w × h` RGBA, and exactly
+- **Lean** (engine/renderer/pic/): checks the picture (exactly `w × h` RGBA, and exactly
   `fit` of the original's size), encodes it as QOI for storage (lean-quiet
   stores pictures as QOI), decodes the stored QOI back and refuses it
   unless it is the same pixels, draws its thumbnail from that copy, lays
@@ -326,7 +321,7 @@ render : Geom → List Rgba → Rgba               -- the tray, opaque RGBA
 -- exports for JNI: lean_pic_fit, lean_pic_empty, lean_pic_add, lean_pic_tray, lean_pic_blob, lean_pic_count
 ```
 
-Laws (Pic/Laws.lean, on the running code, standard axioms only):
+Laws (engine/renderer/pic/Laws.lean, on the running code, standard axioms only):
 `fit_small`, `fit_le`, `fit_pos`, `fit_long`, `fit_round` (the size rule:
 kept if it fits, else the longer side exactly the edge and the other the
 nearest pixel, never 0); `layout_sizes`, `layout_inside`, `layout_apart`
@@ -354,7 +349,7 @@ blob (none, or a well-formed picture of the header's size). `add_stored`
 does not depend on that: the composer checks the round trip before it
 keeps a picture.
 
-`mise run android:e2e` covers the tools after the scanner (android/test/
+`mise run android:qr-e2e` covers the tools after the scanner (platforms/android/qr/test/
 pics.py): three pictures are pushed into the emulator's MediaStore (a
 4000×3000 JPEG in quadrants, a 600×400 JPEG whose EXIF says "rotate 90°",
 a 300×300 PNG with alpha), picked together in the system Photo Picker, and
@@ -365,7 +360,7 @@ turned upright), 300×300 (alpha 200 kept exactly, unpremultiplied) and the
 camera's 960×1280 photo (EXIF-rotated by the camera app); when the virtual
 camera was still at the poster, Lean also decoded the invite from that
 stored photo (reported, not required: the emulator can reset the virtual
-camera's pose when the system camera opens). Screenshot: out/e2e/pics.png.
+camera's pose when the system camera opens). Screenshot: out/qr-e2e/pics.png.
 The Photo Picker syncs its own copy of the MediaStore, so pictures pushed
 a moment ago may not be in it yet: the test closes and reopens it until
 they are.

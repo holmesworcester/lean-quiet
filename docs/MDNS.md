@@ -4,7 +4,7 @@ mDNS / DNS-SD in Lean 4 with no dependencies: a DNS message codec with
 proofs, the service logic (announce, browse, answer) as pure functions, and
 a small loop over Lean's own `Std.Async.UDP`.
 
-## The laws (Mdns/Laws.lean)
+## The laws (engine/wire/mdns/Laws.lean)
 
 They are proven on the functions the program runs, not on a model of them:
 
@@ -58,22 +58,16 @@ Net.localAddrs : IO (List (List UInt8))       -- non-loopback IPv4 addresses
 decode, and calls `onFound` for every service of a browsed type that an
 answer mentions (your own services are left out). `stop` is checked after
 each packet. Send `announce` or `query` from another task while it runs;
-`Tests/Demo.lean` does this.
+`tests/mdns/Demo.lean` does this.
 
-From another Lake package:
-
-```toml
-[[require]]
-name = "mdns"
-path = "/mnt/storage/holmes-wt/lean-mdns"
-```
+In this repository: `import engine.wire.mdns.Mdns`.
 
 ## Tests
 
-- `mise run check` is the deterministic gate. It builds the library, which
-  checks the proofs, and checks the axioms. It scans the codec for `sorry`,
-  `partial`, `panic`, `!`-indexing and `native_decide`. Then it runs
-  `Tests/Check.lean`:
+- `mise run test:mdns` is the deterministic gate (tests/mdns/check.sh;
+  `mise run check` audits the laws' axioms). It builds the library, which
+  checks the proofs. It scans the codec for `sorry`, `partial`, `panic`,
+  `!`-indexing and `native_decide`. Then it runs `tests/mdns/Check.lean`:
   - 22 packets captured on a LAN (avahi, eero routers, a Sonos)
   - hostile packets: pointer loops, self and forward pointers, 64-byte
     labels, 257- and 321-byte names built from pointer chains, and every
@@ -85,7 +79,7 @@ path = "/mnt/storage/holmes-wt/lean-mdns"
   purpose (for example: pointers that may aim at themselves, names over 255
   bytes, a little-endian u16), and each must be refused by the proofs or by
   the checks.
-- `mise run e2e` uses real multicast on this machine's network:
+- `mise run mdns:e2e` uses real multicast on this machine's network:
   Lean→Lean, Lean→avahi (avahi-browse resolves the Lean service) and
   avahi→Lean (Lean finds an `avahi-publish`ed service).
 

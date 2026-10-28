@@ -6,7 +6,7 @@ high-level guarantees about membership, removal, impersonation,
 connection and sealing. A first pass: deletion, channels,
 key rotation and a transport are not here yet.
 
-## The engine (`Engine/`)
+## The engine (`engine/core/`)
 
 An op names the ops it requires. Its verdict is inductive and local,
 as in libquiet's DESIGN.md: an Invalid requirement makes it Invalid;
@@ -81,7 +81,7 @@ job, after reading lists: `found`, `inviteTo`, `join` (with the name to introduc
 and `found_travels` (of those ops, only the request, or the root, the
 name and the founder's profile, may travel), `local_fact_mine` (every Valid secret, acceptance
 or pending join a node holds is its own write, whatever peers send).
-`Tests/Lifecycle.lean` runs it on two SQLite nodes.
+`tests/engine/Lifecycle.lean` runs it on two SQLite nodes.
 
 ### The invite link (`Link.lean`)
 
@@ -132,7 +132,7 @@ op's requirements), deletes and re-judges in one transaction, then runs
 `VACUUM` and a TRUNCATE checkpoint of the WAL. `secure_delete` is on
 for every connection, but alone it leaves copies of moved cells in the
 gaps of pages a b-tree split rebuilt, which `VACUUM` removes. `purge`
-(`Tests/Purge.lean`) runs random purges on SQLite against the model,
+(`tests/engine/Purge.lean`) runs random purges on SQLite against the model,
 then purges a 32-byte secret and reads the database's files raw: none of
 its bytes remain, with the database open or closed. Without
 `secure_delete`, without the checkpoint, or without `VACUUM`, the scan
@@ -160,7 +160,7 @@ watches are the keys of the lists it read: nothing is recorded.
 - `matching_nodup`: a list's rows name distinct ops, so its `total`
   counts ops (`perm_sortPos`: sorting only reorders).
 
-## The community (`Community/`)
+## The community (`ops/community/`)
 
 Root (founder, admin), invite (with an approval threshold), request,
 approve, admit (member or linked device), admin grant, removal, post,
@@ -227,8 +227,8 @@ and each named user's `removal.byUser`.
 
 ## Running
 
-    mise run check   # build proofs, audit axioms (standard only)
-    mise run test    # scenario, differential, querydiff, linkcheck, lifecycle, wire, syncpair, noise_check, purge, crash
+    mise run check         # build proofs, audit axioms (standard only)
+    mise run test:engine   # scenario, differential, querydiff, linkcheck, lifecycle, wire, syncpair, noise_check, purge, crash
 
 Needs `ELAN_HOME` with Lean 4.34.0, and SQLite and libsodium (headers
 for SQLite). The CI workflow runs both tasks; this repo has no remote
@@ -238,16 +238,16 @@ yet.
 
 Two nodes reconcile with Merkle RBSR over claimed-time windows, stream
 new ops between rounds, and send requirement closures: design, laws and
-follow-ups in [docs/SYNC.md](docs/SYNC.md).
+follow-ups in [SYNC.md](SYNC.md).
 
 ## The connection family
 
 Connecting is ops the engine judges, as in poc-17 and tiny (poc-13).
 The daemon only moves bytes. Everything else is engine code
-(Engine/Sync/Node.lean, Engine/Purge.lean, Engine/Families.lean) or op
-code (Connection/, one file per op type).
+(engine/wire/Node.lean, engine/core/Purge.lean, engine/core/Families.lean)
+or op code (ops/connection/, one file per op type).
 
-- **Handshake.** Noise_KK_25519_ChaChaPoly_SHA256 (`Connection/Noise.lean`,
+- **Handshake.** Noise_KK_25519_ChaChaPoly_SHA256 (`ops/connection/Noise.lean`,
   checked against cacophony's vector). Its two messages are two
   conn-scope ops on the bare wire, `request` and `connection`, and the
   connection op's id is the connection id. A joiner's request rides in
@@ -260,7 +260,7 @@ code (Connection/, one file per op type).
   `secret`. `established` is each side's session: its validator re-runs
   that side's half of the handshake. A close purges them, which makes
   sessions forward secret (the purge branch).
-- **Frames** (`Connection/Frame.lean`, not an op) are as poc-17's: the
+- **Frames** (`ops/connection/Frame.lean`, not an op) are as poc-17's: the
   connection id, a random nonce, and XChaCha20-Poly1305 with the id as
   associated data. They carry no counters and need no replay tracking,
   because ops are idempotent.
@@ -273,15 +273,15 @@ code (Connection/, one file per op type).
 - **Closing purges two ops**, the connection and its request.
   Everything else of the session cites one of them (ephemerals, opened,
   established, couriers, arrivals), so purge takes it along.
-- **Reactions** (`Connection/Intents.lean`). `react` opens, delivers,
+- **Reactions** (`ops/connection/Intents.lean`). `react` opens, delivers,
   answers only peers the trust rule admits, and establishes. `dial`
   resends a pending join's request every tick. Both are views over lists
   returning ops, generic in the monad (`Lists`, `Store`, `Fresh`), so
   they run on SQLite and on the model.
 
-Laws (`Connection/Laws.lean`, `Connection/Noise.lean`,
-`Connection/NoiseSymbolic.lean`, `Connection/Frame.lean`,
-`Engine/Families.lean`):
+Laws (`ops/connection/Laws.lean`, `ops/connection/Noise.lean`,
+`ops/connection/NoiseSymbolic.lean`, `ops/connection/Frame.lean`,
+`engine/core/Families.lean`):
 - `wire_kinds`;
 - `established_agrees` (both ends hold one session);
 - `handshake_agrees`, `sent1_write1`, `sent1_read1`, `read2_write2'`,
@@ -290,7 +290,7 @@ Laws (`Connection/Laws.lean`, `Connection/Noise.lean`,
 - `open_seal`, `cid_seal`;
 - `sum_left`.
 
-**The handshake in a symbolic model** (`Connection/NoiseSymbolic.lean`,
+**The handshake in a symbolic model** (`ops/connection/NoiseSymbolic.lean`,
 namespace `Connection.Noise.Symbolic`). `write1`, `read1`, `sent1`,
 `write2` and `read2` are the functions the validators run, at a term
 algebra `T` instead of bytes. Cryptography is perfect (free hashes,
@@ -341,6 +341,6 @@ and non-canonical points; clamping; the Ed25519-to-X25519 conversion);
 nonce reuse; payload secrecy; replay and session-key reveal; and the
 node around the handshake, such as when a close purges the ephemerals.
 
-`Tests/ConnectionCheck.lean` runs two SQLite nodes through the node
+`tests/engine/ConnectionCheck.lean` runs two SQLite nodes through the node
 driver: the join completes after approval, sync admits the joiner, and
 posts flow. The join under heavy loss is pending purge.

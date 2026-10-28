@@ -1,7 +1,7 @@
 # lean-net
 
 How two Quiet nodes in Lean get connected: the protocol rules as
-functions (`Net/Node.lean`), and proofs that bootstrap from an invite
+functions (`ops/connection/bootstrap/Node.lean`), and proofs that bootstrap from an invite
 link is possible over an ideal socket and inevitable over a failing one,
 without ever connecting anyone who has not been approved. It builds on
 lean-engine's `net-admission` branch (requests, approvals, admissions)
@@ -38,7 +38,7 @@ session) and libquiet's request/vouch/admission:
 
 ## The laws
 
-The scene (`Net/Scene.lean`) is this one. Founder A creates c and
+The scene (`ops/connection/bootstrap/Scene.lean`) is this one. Founder A creates c and
 invites B with a member invitation needing one approval. B pastes the
 link. A's user approves when it chooses. The ops are composed by
 lean-engine's own `Compose` (SHA-256 ids, Ed25519 signatures).
@@ -86,11 +86,10 @@ finite number of times. Bootstrapped means `Scene.Goal`.
 
 ## Tests
 
-`mise run check` runs `tests/check.sh`:
+`mise run test:net` runs `tests/net/check.sh`:
 
-- It builds every proof.
-- It checks that the 11 laws rest on `propext`, `Classical.choice` and
-  `Quot.sound` only.
+- It builds every proof. (`mise run check` checks that the 11 laws rest
+  on `propext`, `Classical.choice` and `Quot.sound` only.)
 - It refuses `sorry`, `axiom`, `native_decide` and externs in the model.
 - It runs `scene_check`: every subset of the five ops, in two orders,
   received into SQLite with real Ed25519. The running `allowPeer` and

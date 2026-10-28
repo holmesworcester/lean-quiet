@@ -1,10 +1,9 @@
 # lean-quiet on iOS
 
-The app (Main.lean over Quiet/) on UIKit: `quiet_ios.m` implements
-Platform.lean's seam, and `ctl_ios.c` is the control channel. Lean has no
-iOS libraries, so ship.sh stages the C of Main's whole module closure (the
-app's modules and those of every package it requires (lean-engine,
-lean-qr), and Std's), Init's C, Lean's runtime source, libuv's source, the
+The app (Main.lean over the app's modules) on UIKit: `quiet_ios.m`
+implements Platform.lean's seam, and `ctl_ios.c` is the control channel.
+Lean has no iOS libraries, so ship.sh stages the C of Main's whole module
+closure (the repository's modules and Std's), Init's C, Lean's runtime source, libuv's source, the
 SQLite glue and the engine's crypto (its Rust library, built here for both
 iOS targets). The Mac then builds all of it
 with Xcode's clang (`build_ios.sh`, `leanrt.sh`). The scripts run from the
@@ -20,16 +19,15 @@ Linux box and do the Mac's part over SSH.
 | `mise run ios:device` | Builds a signed app for an iPhone. It installs nothing. |
 | `mise run ios:e2e` | End to end on the iPhone (`DEVICE`; ask before using it). It builds, installs and launches the app (`device_mac.sh`) with the control channel on every interface (`LEANQUIET_CTL_ADDR=any`), then drives it from the Mac over the Wi-Fi: chaos data if the database has none, Lean's state (data present, rows mounted), and frames still being drawn 5 s later. The console goes to `out/ios-device/`. The app is left running. |
 | `mise run ios:mdns-device` | `ios:mdns` on the iPhone (instance `lean-ios-phone`), over the Mac's Wi-Fi. The first run needs a person to tap Allow on the phone's local network prompt. `IOS_MULTICAST=1` also asks for the multicast entitlement (see below). The report goes to `out/ios-sim/probe-device.txt`. |
-| `ios/ship.sh run` | Device build, then install and launch on `$DEVICE`. Ask before using the phone. |
-| `ios/ship.sh ctl CMD...` | Sends control commands (`state`, `chaos 500`, `wait`, `visible`, `send TEXT`, …; see `App.command`) to the app in the Simulator. |
-| `ios/ship.sh shot FILE` | Saves a screenshot of the simulator to FILE on this box. |
-| `ios/ship.sh clean` | Deletes the simulator and the Mac's work directory. |
+| `platforms/ios/ship.sh run` | Device build, then install and launch on `$DEVICE`. Ask before using the phone. |
+| `platforms/ios/ship.sh ctl CMD...` | Sends control commands (`state`, `chaos 500`, `wait`, `visible`, `send TEXT`, …; see `App.command`) to the app in the Simulator. |
+| `platforms/ios/ship.sh shot FILE` | Saves a screenshot of the simulator to FILE on this box. |
+| `platforms/ios/ship.sh clean` | Deletes the simulator and the Mac's work directory. |
 
 ## Prerequisites
 
 - **Here:** the Lean toolchain (`ELAN_HOME`, default `/mnt/storage/elan`)
-  and the packages in `lake-manifest.json` (the engine, lean-qr) built by
-  lake. You also need Lean's source at the toolchain's version
+  and the repository, built by lake. You also need Lean's source at the toolchain's version
   (`LEAN_SRC`, default `/mnt/storage/holmes-wt/lean-src/lean4`, tag
   v4.34.0) and libuv v1.51.0 (`UV_SRC`, default
   `/mnt/storage/holmes-wt/lean-src/libuv`). The engine's Rust crypto needs

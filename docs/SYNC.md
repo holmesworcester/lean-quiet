@@ -69,7 +69,7 @@ root, smaller keys left, larger right; `lbl [] = h ""`,
 through `top` and `filter`, so it is a function of the set.
 
 **Rounds** (Meyer 2023, Protocol 1). A claim is a range's fingerprint or
-all of the claimant's ids in it. `answer` (Engine/Sync/Round.lean):
+all of the claimant's ids in it. `answer` (ops/sync/Round.lean):
 - a matching fingerprint settles the range;
 - if this side holds `leaf` (128) items or fewer there, it answers with
   its ids;
@@ -112,20 +112,20 @@ family writes it as a local op, so it can't grow the log per message.
 
 | file | what |
 |---|---|
-| Engine/Sync/Fp.lean | keys, ranges, `lbl`, `fp`, `lbl_inj` |
-| Engine/Sync/Round.lean | claims, cutting ranges, `answer`, `exchange` |
-| Engine/Sync/RoundLaws.lean | `exchange_complete` |
-| Engine/Sync/Wire.lean | the three wire kinds and their codec |
-| Engine/Sync/Conn.lean | one connection: room index, rounds, have/want, stream, closure, patience |
-| Engine/Sync/ConnLaws.lean | what a connection may take and send |
-| Engine/Sync/Held.lean | `Turn` (one write turn) and `Held` (a store as data) |
-| Engine/Sync/Node.lean | the driver; `Hooks` from families; frames and bundles |
-| Engine/Sync/Frame.lean | 4-byte length framing on TCP, with proven unframing |
-| Engine/Sync/Tcp.lean | the TCP runner |
-| Engine/Sync/Locality.lean | `spec_local` |
-| Engine/Sync/Pair.lean | two Nodes over a lossy in-memory queue, for tests |
-| Tests/SyncPair.lean | two-node suites on a real community |
-| Tests/TcpPair.lean | two runners over localhost TCP, with a toy handshake family |
+| ops/sync/Fp.lean | keys, ranges, `lbl`, `fp`, `lbl_inj` |
+| ops/sync/Round.lean | claims, cutting ranges, `answer`, `exchange` |
+| ops/sync/RoundLaws.lean | `exchange_complete` |
+| ops/sync/Wire.lean | the three wire kinds and their codec |
+| ops/sync/Conn.lean | one connection: room index, rounds, have/want, stream, closure, patience |
+| ops/sync/ConnLaws.lean | what a connection may take and send |
+| engine/core/Held.lean | `Turn` (one write turn) and `Held` (a store as data) |
+| engine/wire/Node.lean | the driver; `Hooks` from families; frames and bundles |
+| engine/wire/Frame.lean | 4-byte length framing on TCP, with proven unframing |
+| engine/wire/Tcp.lean | the TCP runner |
+| engine/core/Locality.lean | `spec_local` |
+| engine/wire/Pair.lean | two Nodes over a lossy in-memory queue, for tests |
+| tests/engine/SyncPair.lean | two-node suites on a real community |
+| tests/engine/TcpPair.lean | two runners over localhost TCP, with a toy handshake family |
 
 **The driver** (`Node`, generic in its store: `[Monad m] [Store F m]
 [Turn F m]`) holds the in-memory room index and the open connections,
@@ -180,7 +180,7 @@ sessions dropped, and ids stored (for an app's reads).
 - `sealFor cid bytes` and `openFrame bytes`: XChaCha20-Poly1305 with
   ad = session, in the family.
 
-**The runner** (`Engine/Sync/Tcp.lean`, `Runner.start x db floor port
+**The runner** (`engine/wire/Tcp.lean`, `Runner.start x db floor port
 notify`) is the one loop the phone apps and a desktop daemon run.
 - It listens, and dials addresses ("a.b.c.d:port") on demand, queueing
   payloads until the dial completes.
@@ -226,7 +226,7 @@ Proven:
   was reached from, it reaches the same verdict.
 - From earlier: `intake_local`, `offer_shared`, `stored_local`.
 
-Tested, not yet proven (Tests/SyncPair.lean, on a 101-op community with
+Tested, not yet proven (tests/engine/SyncPair.lean, on a 101-op community with
 Ed25519 and SQLite):
 
 - Full sync converges, with the same verdict for every op on both
