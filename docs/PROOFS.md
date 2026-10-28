@@ -144,6 +144,134 @@ a box with entropy (`NodeM`).
 This unification goes to holmes-a3 for review before it replaces
 a3/world.
 
+## From `Plain` to the app's own Sync
+
+The World's laws run the phone's node code (`Engine.Sync.Node`) over
+`Plain`: plain hooks (`psync`), frames in the clear (`plainPeek`), held
+stores (`HeldM`), sessions from the harness (`connect`), and a crash that
+loses nothing. The app runs the same node under `Runner.start` with
+`Connection.hooks fam sodium listen` on SQLite (`SqlM`), sessions from
+Noise handshakes. Instantiating the World with that `Sync` is what makes
+these laws wired, and it is the n-phone convergence target.
+
+Where the World's 233 laws stand (tests/Wiring.lean, ed81f2d): 73 wired,
+62 World, 98 model. Of the models, 79 are blocked only by the modelled
+purge, and 13 are graph and list lemmas about no running code.
+
+### What differs, ranked by laws it holds back
+
+1. **The purge** (79 laws, model → World). Held's `Turn.purge` is the
+   model `purgeS`; the app purges in SQL (`purgeSql`). The World never
+   purges (the plain family's `closing` is empty), but every law through
+   `Node.finish` names `Node.endSession`'s purge. fd/purge-bridge's
+   `run_purge` bridges it: **when it lands, expect these 79 to move from
+   model to World** (to 141 World laws, three fifths of the area).
+2. **The store: `HeldM` vs SQLite** (181 laws name `HeldM`). Every World
+   law runs entry points on a held store. The app's reads and write turns
+   are assumed to answer as the model's tables (`Model.run`, tested by
+   Differential and QueryDiff). What is missing is one simulation: an
+   entry point run in `SqlM` from a database equals its run in `HeldM`
+   from the held store the database holds, given `Model.run` and
+   `run_purge`. Proven once per entry point (onFrame, onTick, onWrite,
+   onClose), it moves every World law to the app's store. No law needs
+   restating: they are about `Node` and the held store's contents.
+3. **The hooks: `psync` vs `Connection.hooks`** (98 laws name `psync`;
+   the closed forms use its empty hooks: `recv` 14 times, `rooms` 16,
+   `openFrame` 28, `dial`, `react`, `closing`, `established`, `retired`
+   and `outbox` 3–4 each).
+   - `rooms`: the trust rule (`roomsV`). `Plain.rooms` is already a
+     function of the store, so this one is an instance. Only the
+     statements that fix rooms (`∀ h, r ∈ Q.rooms i h cid`) need the
+     dynamic-rooms forms (finding 6, simplification 5).
+   - `recv` (`onArrival`): every arrival, a repeat included, writes a
+     receipt and a record (`Recv`), and a repeated request resends its
+     connection. The closed forms assume `recv` writes nothing; `idem`
+     needs it to write nothing on a repeat.
+   - `react` and `dial`: handshake writes after every store (to a
+     fixpoint, at most 16 rounds) and on every tick. The closed forms
+     assume none; `onTick_store` says the clock stores nothing.
+   - `established`, `retired`, `closing`: sessions come from the store
+     (`Node.follow`), are retired and purged. The World opens sessions
+     by the harness's `connect`, and `NodeOk.managed = []` is part of the
+     node invariant; `frames_keep_sessions` would gain retirement and
+     transport loss (`Node.onClose`) as closers.
+   - `outbox`: bare couriers, which the World sends as bare frames
+     (`members_only` speaks of session frames only).
+4. **The frame: `plainPeek` vs the sealed open** (31 laws state over
+   `plainPeek`, 9 over `plainFrame`). The app seals each frame for its
+   session's send key with a fresh 24-byte nonce (`sealFor`) and opens
+   it under the receive key (`openFrame`). Statements would say "opens
+   under the session's keys to (cid, ps)" (ops/connection's
+   `sealed_auth`), with `Unforgeable` and the symbolic model for the
+   attacker; pair-secrecy's laws are the bridge (simplification 8).
+5. **Entropy** for the handshake (`Fresh.fresh` in `dial`'s ephemeral
+   keys and `react`) and for every frame's nonce. The World's step is a
+   function; the app's door is `App.newBytes`. The World would need an
+   entropy stream per node (a seed in the Setup), and the laws that use
+   distinctness (`Unclashed`, keys) a premise on it.
+6. **Crash and restart.** `Plain`'s crash keeps the whole box, between
+   steps. The app commits each write turn; an entry point can make
+   several (a store, then up to 16 `react` rounds, the settle writes),
+   so a kill -9 can keep a prefix of an entry point's turns. `restart`
+   and `grows` hold per turn; the stream law does not (a crash after a
+   store and before the seal sends no have, and only a round brings it).
+7. **The transport** (`Runner` vs `World.step`): the runner's events
+   are the entry points, plus socket acceptance and dials (addresses)
+   and transport loss (`Node.onClose`, since sync-harden), which the
+   World has no act for. `Fair` stays an assumption about the network
+   (14 laws take it).
+
+### What carries over unchanged
+
+Given a store simulation (2) and hooks that write only non-room ops
+(3), these are statements about the node and the store's contents,
+generic in the family:
+- `grows`, `index_store`, `waiting_closure`, `closure_agree`, `local`
+  (engine-level: they need only that every store change is a turn);
+- the Epidemic reductions (`converge_*`, chains, stars, webs, offline),
+  which are about `edge_stmt` alone;
+- the hops (`claim_wants`, `want_sends`, `op_taken`, `have_wants`) and
+  so the pilot, `round_forward`, `offer_delivers`, with finding 7's
+  premises, once sessions are `Joined` by `established` instead of
+  `connect`.
+
+New premises needed: `members_only` and the stream (frames sealed:
+"opens under the session's keys", and the attacker cannot forge);
+`idem` (a repeat arrival writes nothing of a room); `frames_keep_sessions`
+(retirement and transport loss close sessions); `restart` (a crash keeps
+a prefix of turns).
+
+### Simplifications in the running code, ranked by laws unblocked
+
+1. **Make every entry point one SQLite transaction** (one turn, or
+   turns that commit together). Then a crash is between steps, as in the
+   World, and `restart`, the stream and every law through a crash carry
+   over (with 2, all 141 store-level laws).
+2. **Hooks that are reads, or ops**: have the Connection family's
+   writes (receipts, `Recv` records, handshake replies, dials) be
+   written by one `react` over what is stored, and never by `recv` on an
+   arrival, and state as a family law that they are local or connection
+   ops, never room ops. Then the closed forms take the family's writes
+   as ops of other scopes, and the stream, `members_only`, `idem` and
+   the hops carry over (about 98 laws name `psync`).
+3. **Sessions only from `established`**: drop the harness's `connect`
+   from the World and open and close sessions only through `follow`
+   (and `onClose`). The session laws are then about the family's own
+   lifecycle (8 laws name `connect`; every liveness law takes `Joined`).
+4. **Nonces from a counter, not entropy**: a frame's nonce from a
+   per-session counter makes `sealFor` a function of the store, so only
+   the handshake's ephemeral keys need entropy, and the frame laws (31
+   over `plainPeek`) restate over a deterministic seal.
+5. **Drop `settled`** (the user's decision, a3's sync-simplify): no
+   status writes from `Node.settle`, one hook less (finding 10).
+6. **One timer and independent rooms** (simplifications 2 and 5, a3's
+   sync-simplify): `session_stable`, rooms and joins state without the
+   cadence and the per-room snapshot interplay.
+
+The order to do it in: purge-bridge (79 laws, no restatement), then the
+store simulation (2), then the hook law and sessions from `established`
+(3), then sealing and entropy (4, 5) with pair-secrecy's laws.
+
 ## The network we tolerate
 
 engine/world/Fair.lean, `Net`:
@@ -705,15 +833,16 @@ statements (`index_store`, `stream`, `offered`, `members_only`,
 `frames_keep_sessions`, `idem`, `restart`, `waiting_closure`,
 `closure_agree`, `local`), and the hops re-proven on sync-harden.
 
-1. **The reverse leg and `round_ends`, in the leaf regime**, about 400.
-   Both rest on one invariant over executions with every window at most
-   `leaf` items: every round message on a session lists ids only, so a
-   responder never keeps a snapshot, answers from its index, and ends
-   every round it answers. The reverse leg's have is made inside the
-   proof, so finding 7's `Roomy` has to be stated for every have of y
-   to i while it is in flight; simplification 3 (fresh-lane) would
-   remove that premise and simplification 4 the snapshot reasoning.
-   Then `round_stmt` in the leaf regime.
+1. **`fresh_stmt` over the World**, on fd/fresh-lane's runner laws
+   (`ahead_bytes`, `lane_hot`, `write_hot`): per-link `Lanes` in the
+   World's flight with a step that moves one batch into flight, a bound
+   U on a node's own writes in the window, and the receiver's queue and
+   kernel buffers as constants in B. Its premises are stated to survive
+   fresh-lane's fix of `ahead_bytes` (which bounds only the serve part
+   today).
+   Then **claim trees** (4 below), the very-large-communities ask; the
+   leaf regime's reverse leg and `round_ends` (`leaf_flight`,
+   `leaf_resp` are proven) wait on simplifications 3 and 4.
 2. **`session_stable_stmt`**, with a3's `tick_drop_iff`, against the
    single timer (simplification 2; the patience fix is on main), about
    300.
