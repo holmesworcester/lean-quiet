@@ -42,6 +42,9 @@ Laws (proven):
 - `purge_named`: every conn or local op named is purged, whatever cites
   it, so a closed session's ops are gone (`close_forgets`).
 - `purge_shared`: no shared op is deleted.
+- `purge_undecides`: but a shared dependent is not left as it was: its
+  verdict and filings go and it is queued, to be judged again over the
+  remaining ops (Engine/Proofs.lean).
 - `mem_purgeSet`: the purged ops are exactly the conn and local ops among
   `ids` and their stored dependents (Engine/Proofs.lean).
 - `purge_inv`: a purge keeps the invariant, from any state that has it,

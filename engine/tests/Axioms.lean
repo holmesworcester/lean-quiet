@@ -91,6 +91,7 @@ open Engine Community
 #print axioms Engine.purge_gone
 #print axioms Engine.purge_named
 #print axioms Engine.purge_shared
+#print axioms Engine.purge_undecides
 #print axioms Engine.mem_purgeSet
 #print axioms Engine.purge_inv
 #print axioms Engine.purge_settles

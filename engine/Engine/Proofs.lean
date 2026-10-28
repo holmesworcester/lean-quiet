@@ -349,6 +349,21 @@ theorem mem_purgeSet {s : DB F} (h : Inv fam s) (ids : List Id) (x : Id) :
     exact ⟨reach_closed (C := (· ∈ closeUp s ids)) (closeUp_dependents h ids) hxy
       (closeUp_sub s ids hy), ho⟩
 
+/-- **A shared dependent is judged again, not kept as it was.** A shared
+op that requires one of `ids`, recursively, keeps its row
+(`purge_shared`), but its verdict and filings go and it is queued: the
+next drain judges it over the remaining ops. -/
+theorem purge_undecides {s : DB F} (h : Inv fam s) (ids : List Id) {x : Id} {o : Op}
+    (ho : s.ops x = some o) (hs : (fam.room o).isSome) (hd : ∃ y ∈ ids, Sync.Reach s.ops x y) :
+    (purgeS fam ids s).ops x = some o ∧ (purgeS fam ids s).status x = none ∧
+      (∀ k, x ∉ (purgeS fam ids s).idx k) ∧ x ∈ (purgeS fam ids s).queue := by
+  obtain ⟨y, hy, hxy⟩ := hd
+  have hc : x ∈ closeUp s ids :=
+    reach_closed (C := (· ∈ closeUp s ids)) (closeUp_dependents h ids) hxy (closeUp_sub s ids hy)
+  refine ⟨purge_shared s ids ho hs, purgeS_status_mem s ids hc,
+    fun k hk => ((mem_purgeS_idx s ids k x).1 hk).2 hc, ?_⟩
+  exact (mem_purgeS_queue s ids x).2 (Or.inr (mem_rejudgeSet_iff.2 ⟨hc, o, ho, hs⟩))
+
 /-- **A purge keeps the invariant**, at rest or not. No remaining
 decided op requires a purged one, so its verdict is still the spec's
 over the remaining ops (`Sync.spec_local`); the shared ops that did are
