@@ -29,6 +29,16 @@ instance {A B} [Codec A] [Codec B] : Codec (A ⊕ B) where
     | _ => none
   round x rest := by
     cases x <;> simp [Codec.round]
+  encInto buf
+    | .inl a => encInto (buf.push 0) a
+    | .inr b => encInto (buf.push 1) b
+  encInto_eq buf x := by cases x <;> simp [encInto_tag]
+  decFrom b i := match b[i]? with
+    | some 0 => decFromAs (β := A ⊕ B) .inl b (i + 1)
+    | some 1 => decFromAs (β := A ⊕ B) .inr b (i + 1)
+    | _ => none
+  decFrom_at x h := by
+    cases x <;> (simp only [h.tag]; exact decFromAs_tag _ h)
 
 instance {A B} [SortKey A] [SortKey B] : SortKey (A ⊕ B) where
   sortOf | .inl a => SortKey.sortOf a | .inr b => SortKey.sortOf b

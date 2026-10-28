@@ -9,3 +9,7 @@ run = "tests/check.sh"
 [tasks.test]
 description = "Scenario (Ed25519 + SQLite), SQLite-vs-model differential, purge and its on-disk erasure, kill -9 atomicity"
 run = "tests/run.sh"
+
+[tasks.bench]
+description = "Wall times of the byte codec on a photo's paths: a 64 KiB chunk op's encode, decode and validation, 100 chunks into SQLite, a 48 KiB frame bundle"
+run = "(cd native/crypto && CARGO_TARGET_DIR=\"$PWD/target\" cargo build --release --quiet) && lake build bench && .lake/build/bin/bench out/bench"

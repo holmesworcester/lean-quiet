@@ -44,6 +44,14 @@ Proven (`Proofs.lean`), about that code run on the model:
 - `Codec.encode_decode`: decoding is strict; bytes decode only if they
   are exactly their value's encoding, so a value has one byte string
   wherever it is read (SQLite, the wire, an op's body, a link).
+- `Codec.encode_eq_fast`, `Codec.decode_eq_fast` (`@[csimp]`): the
+  laws above are about the list encoding, which is the specification.
+  What runs is byte-array code: each codec appends to a buffer
+  (`encInto`) and reads at an offset (`decFrom`), with no list cell per
+  byte. These two equalities make the compiler run that code for
+  `encode` and `decode`, on every input. `tests/run.sh` checks the two
+  against each other on random values and mutants (`codecdiff`), and
+  `mise run bench` times them on a photo's paths.
 - `Op.id_decode`: an op read from bytes has the SHA-256 of those bytes
   as its id. An op's bytes are the same on the wire and in its SQLite
   row, and nothing can build an op under another id (`Op.id_eq`).
