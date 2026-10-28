@@ -18,13 +18,15 @@ structure Write where
   ops : List Op
   blobs : List ByteArray := []
 
-/-- Found a community named `name` from this device's seed: the device's
-secret (local), the root, the device's acceptance (local), the first
-name. -/
-def found (seed name : ByteArray) : Write :=
+/-- Found a community named `name` from this device's seed, the founder
+known as `myName`: the device's secret (local), the root, the device's
+acceptance (local), the first name, and the founder's first profile (the
+root is the founder's admission). -/
+def found (seed name myName : ByteArray) (time : Nat) : Write :=
   let d := Device.ofSeed seed
   let r := root d
-  ⟨[secret seed, r, accept r.id d.pk, setName r.id r.id r.id [] 1 d name], []⟩
+  ⟨[secret seed, r, accept r.id d.pk, setName r.id r.id r.id [] 1 d name,
+    profile r.id r.id d myName time []], []⟩
 
 /-- Invite to c from this device (admitted as `myAdm`): the invitation,
 and its link, with the bearer seed and dial hints given. -/
@@ -126,9 +128,10 @@ theorem stopWaiting_local (C : Crypto) (j : Id) : (stopWaiting j).ops.filter (fa
   simp [stopWaiting, abandon, shared_mkOp, Body.scope]
 
 /-- **Founding is just ops**; the secret and the acceptance stay. -/
-theorem found_travels (C : Crypto) (seed name : ByteArray) :
-    (found seed name).ops.filter (family C).shared =
-      let d := Device.ofSeed seed; let r := root d; [r, setName r.id r.id r.id [] 1 d name] := by
-  simp [found, root, secret, accept, setName, shared_mkOp, Body.scope]
+theorem found_travels (C : Crypto) (seed name myName : ByteArray) (time : Nat) :
+    (found seed name myName time).ops.filter (family C).shared =
+      let d := Device.ofSeed seed; let r := root d
+      [r, setName r.id r.id r.id [] 1 d name, profile r.id r.id d myName time []] := by
+  simp [found, root, secret, accept, setName, profile, shared_mkOp, Body.scope]
 
 end Community

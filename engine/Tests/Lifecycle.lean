@@ -42,10 +42,17 @@ def main (args : List String) : IO UInt32 := do
   let mine (db : Db) (w : Write) : IO Unit := (receive fam (intake fam true w.ops)).run db
   let fromPeer (db : Db) (ops : List Op) : IO Unit := (receive fam (intake fam false ops)).run db
 
-  -- A founds Acme: the secret, the root, the acceptance, the name.
-  let w := found seedA "Acme".toUTF8
+  -- A founds Acme as Ann: the secret, the root, the acceptance, the
+  -- name, A's profile.
+  let w := found seedA "Acme".toUTF8 "Ann".toUTF8 1
   mine a w
   let c := (root dA).id
+  let annOn (db : Db) : IO Bool := do
+    return (← rows db (profile.byUser.query [c, c])).any fun (_, f) => match f with
+      | .profile _ _ nm _ _ => nm == "Ann".toUTF8 | _ => false
+  t.ok "A's profile names it Ann (the founder is user c)" (← annOn a)
+  let wa ← ((introduce c seedA 2).run : SqlM Fact Write).run a
+  t.ok "the founder has a profile, so introducing writes nothing" wa.ops.isEmpty
   t.ok "A is in its community" ((← rows a (accepted.all.query [])).any fun (_, f) => f == .accepted c dA.pk)
   t.ok "A's secret is held, and derives to its key"
     ((← rows a (secret.byKey.query [dA.pk])).any fun (_, f) => f == .secret dA.pk seedA)
@@ -94,6 +101,7 @@ def main (args : List String) : IO UInt32 := do
   let name3 ← rows b (named.current.query [c] (limit := some 1))
   t.ok "B shows the new name" (name3.map (·.2) == [.named c c "Acme Corp".toUTF8 2])
   t.ok "A's secret never reached B" ((← rows b (secret.byKey.query [dA.pk])).isEmpty)
+  t.ok "B shows A as Ann" (← annOn b)
 
   -- Admitted, B introduces itself by the name it joined with, once.
   let wp ← ((introduce c seedB 5).run : SqlM Fact Write).run b

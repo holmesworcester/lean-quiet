@@ -77,8 +77,8 @@ job, after reading lists: `found`, `inviteTo`, `join` (with the name to introduc
 `introduce` (the first profile, once admitted), `stopWaiting` (a local
 `abandon` of a pending join; an approval still admits), `rename`, `send`
 (blobs and the post), `reactTo`. Laws: `join_travels`
-and `found_travels` (of those ops, only the request, or the root and
-name, may travel), `local_fact_mine` (every Valid secret, acceptance
+and `found_travels` (of those ops, only the request, or the root, the
+name and the founder's profile, may travel), `local_fact_mine` (every Valid secret, acceptance
 or pending join a node holds is its own write, whatever peers send).
 `Tests/Lifecycle.lean` runs it on two SQLite nodes.
 
