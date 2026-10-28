@@ -186,7 +186,8 @@ with the meter above.
 | step | bound | theorem | status |
 |---|---|---|---|
 | ingest one op | 1 read, ≤ 2 writes, 3 seeks | `ingest_costs` | ✅ |
-| judge one op (validate, file, wake) | ≤ 4 + 2R reads, 3 + R + K + W writes, 7 + 3R + 2K + W seeks: R requirements, K keys, W woken | `step_costs`, `decide_costs`, `waitOn_costs` | ✅ for R, K and W given; R is capped only by the frame (about 32 000 ids) and W by the fan-in, below |
+| judge one op (validate, file, wake) | ≤ 4 + 2R reads, 3 + R + K + W writes, 7 + 3R + 2K + W seeks: R requirements, K keys, W woken | `step_costs`, `decide_costs`, `waitOn_costs` | ✅ for R, K and W given; W is the fan-in, below |
+| the intake cap | an op citing more than `maxReqs` = 64 requirements is refused at intake, a peer's or this node's own, bare or in a job; every op a node stores is within it, so R = 64: at most 132 reads a step. Without the cap (the mutant) a 200-requirement op is stored and its step reads 403 | `intake_reqs`, `intakeConn_reqs`, `stored_capped`, `fed_reqs`, `step_capped` | ✅ |
 | a list read | ≤ limit + cap rows and 3 + limit seeks, on any store whose answers fit; the model's do, and SQLite's are the model's (querydiff) | `list_costs`, `model_fits` | ✅ for lists with a limit and a count cap |
 | a view | one list door per list it reads | `view_lists` | ✅ |
 | the frame's values | settle in ⌈marked / refill⌉ reader passes and one frame | `settle_passes` | ✅ of the board the reader and frame are to call; 1e is wiring it |
@@ -210,7 +211,7 @@ with the meter above.
 | range counts with `cap = 0` (every list the app reads) | the rows in range | `list_costs` (needs `0 < cap`) | ❌ fix: a3's capped counts ("999+") |
 | `present`, `members`, `recipients` (`admission.all.read [c]`, then `live` reads each admission's removals) | members: O(members) lists per re-read | `view_lists` | ❌ fix: a present-members key the removal files out of, read by window; a capped count for the header |
 | `decide` wakes every waiter at once | an op's fan-in: n ops that arrived before it, in one step | `decide_costs` (W) | ❌ fix: push the decided id once, and let pops wake its waiters at most `drain` at a time |
-| an op's requirements | only the frame bounds them (about 32 000) | `step_costs` (R) | ❌ fix: an intake cap `reqs` in the Budget |
+| an op's requirements | was bounded only by the frame (about 32 000) | `stored_capped`, `step_capped` | ✅ fixed: the intake cap, `maxReqs` = 64 (a3's `Budget.reqs`) |
 | `react` | `opened.all`, `request.byTo` and a count per request, every entry point | none | ❌ fix: a key of unanswered requests the opened op files out of; a cap on pending requests |
 | the runner's event channel | unbounded: a peer sending faster than the node handles grows memory | none | ❌ fix: a bounded channel per socket, its reader waiting on its own thread, so TCP pushes back |
 | the write turn, boot, purge, cold rounds | the store | docs/BOUNDS.md | a3's |

@@ -9,6 +9,11 @@ What sync may send and take, as the laws a networked node relies on.
   own (`intake_local`). So every local op a node stores is one of its own
   writes, whatever its peers send (`stored_local`): a peer can push no
   pending link, acceptance or session state into it.
+- **Capped.** Every job, a peer's or this node's own, and every bare op,
+  passes intake only if it cites at most `maxReqs` requirements
+  (`intake_reqs`, `intakeConn_reqs`). So every op a node stores is
+  within the cap (`stored_capped`), and judging one reads at most
+  `maxReqs` statuses (engine/core/IngestCost.lean, `step_capped`).
 
 `offer` runs where `Store` does: on SQLite, and on the model for proofs.
 -/
@@ -17,6 +22,15 @@ import engine.core.Proofs
 
 namespace Engine
 
+/-- The most requirements an op may cite (a3's `Budget.reqs`). The ops
+the families write cite at most four (a name, a removal, a grant; an
+admission its threshold's approvals and two more), so 64 leaves room
+for thresholds up to 62. An op citing more is refused at intake. -/
+def maxReqs : Nat := 64
+
+/-- Whether o cites at most `maxReqs` requirements. -/
+def Op.capped (o : Op) : Bool := Decidable.decide (o.reqs.length ≤ maxReqs)
+
 section
 variable {F : Type} (fam : Family F)
 
@@ -24,29 +38,44 @@ variable {F : Type} (fam : Family F)
 def Family.shared (o : Op) : Bool := (fam.room o).isSome
 
 /-- What the writer receives from a job: all of it if the job is this
-node's own; only shared ops if it came from a peer. -/
+node's own; only shared ops if it came from a peer; in either case only
+ops within the requirement cap. -/
 def intake (mine : Bool) (ops : List Op) : List Op :=
-  if mine then ops else ops.filter fam.shared
+  (if mine then ops else ops.filter fam.shared).filter Op.capped
 
 /-- What the bare wire takes: conn ops only (a handshake's), never a
-shared or a local op. -/
+shared or a local op, within the cap. -/
 def intakeConn (ops : List Op) : List Op :=
-  ops.filter fun o => Decidable.decide (fam.scope o = .conn)
+  ops.filter fun o => Decidable.decide (fam.scope o = .conn) && o.capped
 
 theorem intakeConn_conn {ops : List Op} {o : Op} (h : o ∈ intakeConn fam ops) :
     fam.scope o = .conn ∧ o ∈ ops := by
-  simp only [intakeConn, List.mem_filter, decide_eq_true_eq] at h
-  exact ⟨h.2, h.1⟩
+  simp only [intakeConn, List.mem_filter, Bool.and_eq_true, decide_eq_true_eq] at h
+  exact ⟨h.2.1, h.1⟩
 
 /-- **Nothing local is taken from a peer.** -/
 theorem intake_local {mine : Bool} {ops : List Op} {o : Op} (h : o ∈ intake fam mine ops)
     (hl : fam.room o = none) : mine = true ∧ o ∈ ops := by
   unfold intake at h
+  rw [List.mem_filter] at h
   cases mine with
-  | true => exact ⟨rfl, h⟩
+  | true => exact ⟨rfl, h.1⟩
   | false =>
+    have h := h.1
     simp only [Bool.false_eq_true, ite_false, List.mem_filter, Family.shared] at h
     rw [hl] at h; cases h.2
+
+/-- **Nothing over the cap is taken**, from a peer or from this node. -/
+theorem intake_reqs {mine : Bool} {ops : List Op} {o : Op} (h : o ∈ intake fam mine ops) :
+    o.reqs.length ≤ maxReqs := by
+  unfold intake at h
+  rw [List.mem_filter] at h
+  simpa [Op.capped] using h.2
+
+theorem intakeConn_reqs {ops : List Op} {o : Op} (h : o ∈ intakeConn fam ops) :
+    o.reqs.length ≤ maxReqs := by
+  simp only [intakeConn, List.mem_filter, Bool.and_eq_true] at h
+  simpa [Op.capped] using h.2.2
 
 variable {m : Type → Type} [Monad m] [Store F m]
 
@@ -146,8 +175,24 @@ theorem stored_local {M : List Op} {s : DB F} (h : Fed fam M s) {x : Id} {o : Op
       cases mine
       · exact this
       · exact List.mem_append_right _ this
-    · obtain ⟨rfl, ho⟩ := intake_local fam ho hl
-      exact List.mem_append_left _ ho
+    · obtain ⟨rfl, hmem⟩ := intake_local fam ho hl
+      exact List.mem_append_left _ hmem
+  | step _ ih => rw [stepS_ops'] at hx; exact ih hx
+  | @purge M s ids _ ih =>
+    by_cases hp : x ∈ purgeSet fam s ids
+    · rw [purgeS_ops_mem s ids hp] at hx; cases hx
+    · rw [purgeS_ops_not s ids hp] at hx; exact ih hx
+
+/-- **Every op a node stores is within the cap**, whatever its peers
+send it, and whatever it has judged or purged. -/
+theorem stored_capped {M : List Op} {s : DB F} (h : Fed fam M s) {x : Id} {o : Op}
+    (hx : s.ops x = some o) : o.reqs.length ≤ maxReqs := by
+  induction h with
+  | empty => cases hx
+  | job mine ops _ ih =>
+    rcases foldl_ingest_ops hx with hx | ho
+    · exact ih hx
+    · exact intake_reqs fam ho
   | step _ ih => rw [stepS_ops'] at hx; exact ih hx
   | @purge M s ids _ ih =>
     by_cases hp : x ∈ purgeSet fam s ids

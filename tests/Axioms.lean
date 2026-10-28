@@ -388,6 +388,11 @@ section cost
 #print axioms Engine.waitOn_costs
 #print axioms Engine.decide_costs
 #print axioms Engine.step_costs
+#print axioms Engine.intake_reqs
+#print axioms Engine.intakeConn_reqs
+#print axioms Engine.stored_capped
+#print axioms Engine.step_capped
+#print axioms Engine.fed_reqs
 #print axioms Engine.list_costs
 #print axioms Engine.model_fits
 #print axioms Engine.View.view_lists

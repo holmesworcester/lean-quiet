@@ -27,7 +27,8 @@ teeth.
   woken by its one step (W = 40: the fan-in burst). The negative
   control, a `waitOn` that reads every requirement's status again for
   each (`waitOnSlow`), is over `waitOn_costs` for every op of one or
-  more requirements.
+  more requirements. An op of 200 requirements is refused by intake;
+  taken as before the cap, its step reads 403, over 4 + 2·maxReqs.
 - A list read (engine/core/ListCost.lean), on the model store of 300
   facts under one key: limit 10, count capped at 50, within 60 rows and
   13 seeks; the same list uncapped (the negative control) steps over
@@ -249,6 +250,19 @@ def judgeCheck (t : Checks) : IO Unit := do
     if c.reads > n then slowOver := slowOver + 1
   t.ok "judge: the negative control is over waitOn's budget at every size" (slowOver == 6)
   IO.println s!"judge: a step within O(R + K + W); the root of 40 early ops wakes {c.rows} in one step"
+  -- the intake cap: an op of 200 requirements is refused; taken as it
+  -- was before the cap (the negative control), its step reads 403
+  let wide := Op.make 6 ((List.range 200).map fun i => (Op.make 7 [] ⟨#[i.toUInt8, (i / 256).toUInt8]⟩).id) ⟨#[1]⟩
+  let intakeOld (ops : List Op) : List Op := ops.filter fam.shared
+  t.ok "judge: the cap refuses an op of 200 requirements, from a peer or this node"
+    ((intake fam false [wide]).isEmpty && (intake fam true [wide]).isEmpty && (intakeConn fam [wide]).isEmpty)
+  let ((_, _), dbw) := onModel ((intakeOld [wide]).forM (ingest (F := Unit))) DB.empty
+  let ((_, cw), _) := onModel (step (F := Unit) fam) dbw
+  t.ok s!"judge: taken without the cap, its step reads {cw.reads}, over the capped budget {4 + 2 * maxReqs}"
+    (cw.reads == 403 && !(cw ≤ stepBudget maxReqs 1 0 : Bool))
+  let ((_, _), dbc) := onModel ((intake fam false [wide]).forM (ingest (F := Unit))) DB.empty
+  let ((_, cc), _) := onModel (step (F := Unit) fam) dbc
+  t.ok s!"judge: through the cap, nothing is stored and the step reads {cc.reads}" (cc.reads ≤ 1)
 
 end Judge
 

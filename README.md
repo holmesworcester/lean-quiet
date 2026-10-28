@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 391 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 396 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -563,14 +563,14 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`mutual_removal`]: ops/community/Laws.lean#L549-L553
 [`removed_approver_admits`]: ops/community/Laws.lean#L488-L499
 [`recv_send`]: ops/sync/ConnLaws.lean#L146-L148
-[`offer_shared`]: engine/core/Sync.lean#L83-L86
+[`offer_shared`]: engine/core/Sync.lean#L112-L115
 [`wire_kinds`]: ops/connection/Laws.lean#L40-L41
 [`local_kinds`]: ops/connection/Laws.lean#L47-L48
 [`joinOps_travels`]: ops/community/Intents.lean#L299-L303
 [`found_travels`]: ops/community/Intents.lean#L310-L314
 [`stopWaiting_local`]: ops/community/Intents.lean#L306-L307
 [`filed_send`]: ops/sync/ConnLaws.lean#L175-L178
-[`offer_stored`]: engine/core/Sync.lean#L98-L101
+[`offer_stored`]: engine/core/Sync.lean#L127-L130
 [`tick_send`]: ops/sync/ConnLaws.lean#L184-L187
 [`recipients_iff`]: ops/community/Connect.lean#L214-L218
 [`members_iff`]: ops/community/Connect.lean#L205-L208
@@ -604,10 +604,10 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`recv_take`]: ops/sync/ConnLaws.lean#L118-L120
 [`no_connection_before_approval`]: ops/connection/bootstrap/Laws.lean#L39-L46
 [`sessions_trusted`]: ops/connection/bootstrap/Laws.lean#L63-L68
-[`intake_local`]: engine/core/Sync.lean#L41-L43
-[`stored_local`]: engine/core/Sync.lean#L137-L140
+[`intake_local`]: engine/core/Sync.lean#L56-L58
+[`stored_local`]: engine/core/Sync.lean#L166-L169
 [`local_fact_mine`]: ops/community/Laws.lean#L627-L631
-[`intakeConn_conn`]: engine/core/Sync.lean#L36-L37
+[`intakeConn_conn`]: engine/core/Sync.lean#L51-L52
 [`established_agrees`]: ops/connection/Laws.lean#L51-L61
 [`open_seal`]: ops/connection/Frame.lean#L51-L55
 [`cid_seal`]: ops/connection/Frame.lean#L79-L82

@@ -9,6 +9,8 @@ works `ingest_costs` and `step_costs` through as its example).
   a pass over a list costs one door, or two, per element.
 - `decide_costs`: recording a verdict costs O(K + W): the K keys its
   fact is filed under, and the W ops that waited on it, woken.
+- `step_capped`: with the intake cap (engine/core/Sync.lean), R is the
+  constant `maxReqs` on every store fed through intake (`fed_reqs`).
 - `step_costs`: judging one queued op costs O(R + K + W), R its
   requirements. Nothing in it grows with the store, but through the
   SQLite assumption (`levels`, a seek's pages); W does grow with an op's
@@ -25,6 +27,7 @@ reads every requirement's status again for each one (`waitOnSlow`) is
 over `waitOn_costs` for every op of two or more requirements.
 -/
 import engine.core.CostStore
+import engine.core.Sync
 
 namespace Engine
 open CostT
@@ -147,6 +150,24 @@ theorem step_costs (fam : Family F) {R K W : Nat} (hK : ∀ x f, (fam.fileKeys x
         · exact costs_bind_le (decide_costs fam hK hW x _) (fun _ => costs_pure _) (by meter_le)
         · exact costs_bind_le (waitOn_costs x o.reqs) (fun _ => costs_pure _) (by meter_le)
 
+/-- **With the intake cap, judging one op costs a constant, O(K + W)**:
+R is `maxReqs` on every store fed through intake (`stored_capped`: each
+op it holds cites at most `maxReqs`), so the reads are at most
+4 + 2 · maxReqs whatever the store holds. -/
+theorem step_capped (fam : Family F) {K W : Nat} (hK : ∀ x f, (fam.fileKeys x f).length ≤ K)
+    (hR : ∀ x, Sat (ReqsLe maxReqs) (Store.getOp (F := F) (m := m) x))
+    (hW : ∀ x, Sat (WaitersLe W) (Store.waiters (F := F) (m := m) x)) :
+    Costs { reads := 4 + 2 * maxReqs, writes := 3 + K + W + maxReqs,
+            seeks := 7 + 3 * maxReqs + 2 * K + W, rows := W }
+      (step (F := F) (m := CostT m) fam) :=
+  step_costs fam hK hR hW
+
 end
+
+/-- On the model, a store fed through intake answers every op read
+within the cap: the `ReqsLe maxReqs` that `step_capped` asks of the
+store, at every state the node reaches. -/
+theorem fed_reqs {F : Type} {fam : Family F} {M : List Op} {s : DB F} (h : Fed fam M s) (x : Id) :
+    ReqsLe maxReqs (s.ops x) := fun _ hx => stored_capped h hx
 
 end Engine
