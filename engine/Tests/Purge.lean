@@ -202,7 +202,8 @@ def differential (t : Checks) (dir : String) (seed : Nat) (st : Stats) : IO Stat
     let again := rejudgeSet fam pre targets
     let storedPre := ids0.filterMap pre.ops
     (purgeSql fam targets).run db
-    m := rest fam (purgeS fam targets pre)
+    let undrained := purgeS fam targets pre
+    m := rest fam undrained
     let tag := s!"seed {seed} turn {turn} purge"
     sameTables t tag db m ids0
     st := { st with purges := st.purges + 1, purged := st.purged + gone.eraseDups.length,
@@ -223,6 +224,9 @@ def differential (t : Checks) (dir : String) (seed : Nat) (st : Stats) : IO Stat
       !sqlOps.contains x && !sqlIdx.any (·.2 == x) && !sqlSt.any (·.1 == x) &&
       !sqlWaits.any (·.2 == x) && !sqlReqs.any (·.2 == x))
     t.ok s!"{tag}: purge_shared" (storedPre.all fun o => !shared o || (m.ops o.id == some o && sqlOps.contains o.id))
+    t.ok s!"{tag}: purge_undecides: each shared dependent stored, undecided, unfiled and queued"
+      (again.all fun x => undrained.ops x == pre.ops x && undrained.status x == none &&
+        undrained.queue.contains x && !(undrained.idx (opKey x)).contains x)
     t.ok s!"{tag}: queue empty" (m.queue.isEmpty && (← (dumpQueue (F := ByteArray)).run db).isEmpty)
     t.ok s!"{tag}: verdicts are the spec's over what remains"
       (ids0.all fun x => m.status x == specAt fam m.ops (ops.length + 1) x)

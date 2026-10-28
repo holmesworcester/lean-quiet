@@ -116,6 +116,8 @@ purged.
 - `purge_named`: every conn or local op named is purged, whatever cites
   it.
 - `purge_shared`: no shared op is deleted.
+- `purge_undecides`: a shared dependent keeps its row, but its verdict
+  and filings go and it is queued, to be judged again over what remains.
 - `mem_purgeSet`: the purged ops are exactly the conn and local ops
   among `ids` and their stored dependents.
 - `purge_inv`: a purge keeps `Inv`, at rest or not. `Reach` has a
