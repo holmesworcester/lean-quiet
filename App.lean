@@ -36,6 +36,7 @@ import engine.renderer.Camera
 import ops.app.Remove
 import ops.community.message.View
 import ops.community.membership.RequestView
+import ops.app.Pics
 import Std.Data.HashMap
 
 namespace App
@@ -86,7 +87,7 @@ structure RowSt where
   dimVer : Nat := 0
   dimShown : Option Bitmap := none
 
-abbrev ImgKey := ByteArray × Nat × Nat
+abbrev ImgKey := Pics.Key
 
 /-- Which page is up: a conversation, or one of libquiet's other screens. -/
 inductive PageId where
@@ -414,12 +415,6 @@ def bottoms (s : St) : Array Nat × Nat := Id.run do
 
 /-! ## Mounting, measuring, painting -/
 
-def decodeTask (bytes : ByteArray) (w h : Nat) (sq : Bool) : Task Bitmap :=
-  Task.spawn fun _ =>
-    match Image.decode bytes with
-    | some src => if sq then Image.square src w Row.bg else Image.scaled src w h Row.bg
-    | none => Bitmap.blank w h (solid Row.placeholder w)
-
 /-- An attachment's slices, read from its chunk ops in order (a chunk this
 device sends may still be in the outbox); none while one is not here. -/
 def slicesOf (p : Row.Pic) : M (Option (List ByteArray)) := do
@@ -436,47 +431,24 @@ def slicesOf (p : Row.Pic) : M (Option (List ByteArray)) := do
       raw := raw.push b
   return some raw.toList
 
-/-- Chunk ops' bytes to their slices, in order (off the app's thread). -/
-def slicesFromOps (raw : List ByteArray) : Option (List ByteArray) :=
-  raw.mapM fun b => do
-    let o ← Engine.Op.decode b
-    match (Codec.decode o.body : Option Community.Body) with
-    | some (.chunk _ _ _ slice _) => some slice
-    | _ => none
+/-- The picture doors (ops/app/Pics.lean) in the app: the decode and
+retry tables are the app's state, `chunks` reads SQLite (and the
+outbox), and `spawn` makes its task inside the state function, so when
+the action runs, never when it is built. -/
+instance : Pics.Pics M where
+  started k := return (← get).imgs[k]?
+  remember k t := modify fun s => { s with imgs := s.imgs.insert k t }
+  finished t := return (← IO.hasFinished t)
+  retryAt k := return (← get).imgRetry[k]?
+  retryLater k := modify fun s => { s with imgRetry := s.imgRetry.insert k (s.frames + 120) }
+  frame := return (← get).frames
+  chunks := slicesOf
+  spawn f := fun s => pure (Task.spawn f, s)
 
-/-- A decode of `k` started (or finished): its bitmap once done. `start`
-is a thunk, run only when `k` has no decode yet: an argument is evaluated
-at the call, so a task built there would be spawned every frame. -/
-def decoded (k : ImgKey) (start : Unit → M (Option (Task Bitmap))) : M (Option Bitmap) := do
-  match (← get).imgs[k]? with
-  | some t => if ← IO.hasFinished t then return some t.get else return none
-  | none =>
-    if let some t ← start () then modify fun s => { s with imgs := s.imgs.insert k t }
-    return none
-
-/-- An attachment drawn at its size, if ready, and whether it is the file
-(not its preview), as `Row.Pic.shown` chooses: the preview (softened,
-Arrival.soften) until every chunk is here and the file is decoded, then
-the file (its slices assembled and opened with the file's key, off the
-app's thread). -/
-def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := do
-  let pre ← decoded (p.hash.push 0, w, h) fun _ => do
-    pure (if p.preview.isEmpty then none
-      else some ((decodeTask p.preview w h false).map (Arrival.soften Row.bg)))
-  let full ← if !p.complete then pure none else decoded (p.hash.push 1, w, h) fun _ => do
-    -- not every chunk op is readable yet: try again when the store next
-    -- changes (step clears imgRetry on notices), or in two seconds
-    let k := (p.hash.push 1, w, h)
-    if let some t := (← get).imgRetry[k]? then
-      if (← get).frames < t then return none
-    let some raw ← slicesOf p
-      | modify fun s => { s with imgRetry := s.imgRetry.insert k (s.frames + 120) }; pure none
-    let (key, nonce) := (p.key, p.nonce)
-    pure <| some <| Task.spawn fun _ =>
-      match ((slicesFromOps raw).bind fun slices => Community.openFile slices key nonce).bind Image.decode with
-      | some src => Image.scaled src w h Row.bg
-      | none => Bitmap.blank w h (solid Row.placeholder w)
-  return p.shown pre full
+/-- An attachment drawn at its size, if ready, and whether it is the
+file: `Pics.image`, each decode started once (`Pics.image_twice`: a frame
+whose data has not changed spawns no decode and reads nothing). -/
+def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := Pics.image p w h
 
 /-- Mount (read, lay out) row x if any of its answers are stale. -/
 def mount (x : Id) : M Unit := do

@@ -81,10 +81,12 @@ assume Engine.DB.setStatus = Engine.Model.run
 assume Engine.DB.addWait = Engine.Model.run
 assume Engine.DB.clearWaiters = Engine.Model.run
 assume Engine.DB.index = Engine.Model.run
-# What a read costs: a B-tree seek at most c·(log₂ N + 1), each next row
-# of an index in its order a step, a range bound a seek (tests/engine/
+# What a list read's statements cost: docs/PERF.md's SQLite assumption
+# (`levels`: a seek at most log₂ N + 1 page visits, each next row in
+# index order a step), in the form the read plan's laws take; and that a
+# LIMIT walks no row past it and a range bound is a seek (tests/engine/
 # QueryDiff.lean checks every statement's SQLite plan is such a walk)
-assume Engine.SeekCost A B-tree seek costs at most c·(log₂ N + 1) and each next in-order row a step; a LIMIT walks no row past it, and a range bound is a seek (each statement's plan is checked by tests/engine/QueryDiff.lean).
+assume Engine.SeekCost docs/PERF.md's SQLite assumption (`levels`), for a list read's statements: a seek costs at most c·(log₂ N + 1), each next in-order row a step; a LIMIT walks no row past it, and a range bound is a seek (each statement's plan is checked by tests/engine/QueryDiff.lean).
 assume Engine.SeekCost.seek = Engine.SeekCost
 assume Engine.Stmt.cost = Engine.SeekCost
 assume Engine.planCost = Engine.SeekCost

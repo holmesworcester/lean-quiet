@@ -26,6 +26,7 @@ write the writer reads exactly the keys it filed or unfiled
 -/
 import engine.core.Sqlite
 import engine.core.Model
+import engine.core.Cost
 
 namespace Engine
 
@@ -504,9 +505,9 @@ def listSql {F} [Codec F] (q : ListQ) : SqlM F (Answer F) := do
 
 /-! ## What a read costs
 
-**The assumption** (`SeekCost`, about SQLite's B-trees, not proven
-here): a seek costs at most c·(log₂ N + 1) for N rows, and each next row
-of an index, in its order, at most `step`; a statement that reads in its
+**The assumption** (`SeekCost`: docs/PERF.md's SQLite assumption,
+`levels`, not proven): a seek costs at most c·(log₂ N + 1) for N rows,
+and each next row of an index, in its order, at most `step`; a statement that reads in its
 index's order with a LIMIT and nothing else filtering walks no row past
 its limit, and a range bound is a seek, not a filter (`Stmt.walks`; the
 join on `status` filters nothing, as every row of `idx` is a decided
@@ -532,8 +533,8 @@ structure SeekCost where
   /-- The rows of the largest B-tree. -/
   N : Nat
 
-/-- A seek's cost: c·(log₂ N + 1). -/
-def SeekCost.seek (c : SeekCost) : Nat := c.c * (Nat.log2 c.N + 1)
+/-- A seek's cost: c·(log₂ N + 1), c a page visit's (`levels`). -/
+def SeekCost.seek (c : SeekCost) : Nat := c.c * levels c.N
 
 /-- The most rows a statement walks when its key's range holds m rows:
 up to its limit (or cap) when nothing else filters, else all of them. -/
