@@ -24,6 +24,7 @@ import engine.core.CodecCost
 import ops.community.MerkleCost
 import ops.app.Pics
 import engine.core.IngestCost
+import engine.core.ListCost
 import engine.renderer.BoardLaws
 
 /-! Every law of the repository, each of which must rest on Lean's
@@ -384,6 +385,9 @@ section cost
 #print axioms Engine.waitOn_costs
 #print axioms Engine.decide_costs
 #print axioms Engine.step_costs
+#print axioms Engine.list_costs
+#print axioms Engine.model_fits
+#print axioms Engine.View.view_lists
 #print axioms Live.Board.put_same
 #print axioms Live.Board.put_moves
 #print axioms Live.Board.ver_ident

@@ -28,12 +28,17 @@ teeth.
   control, a `waitOn` that reads every requirement's status again for
   each (`waitOnSlow`), is over `waitOn_costs` for every op of one or
   more requirements.
+- A list read (engine/core/ListCost.lean), on the model store of 300
+  facts under one key: limit 10, count capped at 50, within 60 rows and
+  13 seeks; the same list uncapped (the negative control) steps over
+  all 300 in range.
 -/
 import tests.engine.Lib
 import ops.community.MerkleCost
 import engine.core.CodecCost
 import ops.app.Pics
 import engine.core.IngestCost
+import engine.core.ListCost
 
 open Engine Engine.Counted Tests
 
@@ -239,10 +244,36 @@ def judgeCheck (t : Checks) : IO Unit := do
 
 end Judge
 
+section ListRead
+
+instance : SortKey Unit := ⟨fun _ => .empty⟩
+
+def listCheck (t : Checks) : IO Unit := do
+  let k : ByteArray := ⟨#[7, 7]⟩
+  let fam : Family Unit := { validate := fun _ _ => some (), keys := fun _ => [k] }
+  let mut db : DB Unit := DB.empty
+  for i in [0:300] do
+    let o := Op.make 5 [] ⟨#[i.toUInt8, (i / 256).toUInt8, 5]⟩
+    let ((_, _), db') := onModel (ingest (F := Unit) o *> drain (F := Unit) fam 4) db
+    db := db'
+  let q : ListQ := { key := k, limit := some 10, cap := 50 }
+  let ((a, c), _) := onModel (Lists.list (F := Unit) q) db
+  t.ok s!"list: 300 facts, limit 10, cap 50: {a.rows.length} rows, in range {a.inRange} of {a.total}"
+    (a.rows.length == 10 && a.inRange == 50 && a.total == 300)
+  t.ok s!"list: within list_costs (rows {c.rows}, seeks {c.seeks})"
+    (c ≤ { lists := 1, seeks := 13, rows := 60 } : Bool)
+  let ((_, cu), _) := onModel (Lists.list (F := Unit) { q with cap := 0 }) db
+  t.ok s!"list: uncapped, the negative control steps over all 300 (rows {cu.rows})"
+    (cu.rows == 310 && !(cu ≤ { lists := 1, seeks := 13, rows := 60 } : Bool))
+  IO.println s!"list: limit 10, cap 50 of 300: {c.rows} rows, {c.seeks} seeks; uncapped {cu.rows} rows"
+
+end ListRead
+
 def main : IO UInt32 := do
   let t ← Checks.new
   merkle t
   codec t
   pics t
   judgeCheck t
+  listCheck t
   t.finish "costcheck"
