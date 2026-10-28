@@ -133,3 +133,13 @@ These findings come from `ios:mdns` (Simulator) and `ios:mdns-device`
   grants it to a team on request
   (https://developer.apple.com/contact/request/networking-multicast). It
   then goes on an explicit App ID and profile, not the wildcard one.
+- **The fallback:** discovery through the system's DNS-SD. This is
+  `dns_sd.h`, the API under NWBrowser and NWListener. It needs only
+  `NSBonjourServices` and the local network permission, not the
+  entitlement. The probe app (`probe/probe_ios.m`) registers
+  `<instance>-sd` and browses `_leanquiet._udp`, resolving each service to
+  an IPv4 address and port, which is what Lean then connects to over TCP.
+  In the Simulator it interoperates both ways with lean-mdns: each finds
+  the other's services, and the Mac's dns-sd sees both. A lean-quiet seam
+  for it would be one twin extern each for announce, browse and found,
+  with Lean doing TCP and everything after.

@@ -7,7 +7,9 @@
 #   the Mac's own mDNS responder: the probe must log it found (multicast
 #   into the app);
 # - `dns-sd -B _leanquiet._udp` and, midway, `dns-sd -L <instance>` must
-#   list and resolve the probe's own announcement (multicast out of it).
+#   list and resolve the probe's own announcement (multicast out of it);
+# - the same for the app's DNS-SD fallback (probe_ios.m): the Mac must list
+#   <instance>-sd, and the app must resolve the Mac's `probe`.
 # The report: work_dir/out/probe.txt (the probe's log, the harness's and
 # the Mac's checks); a line starting `fail` is a failure.
 #
@@ -74,6 +76,11 @@ wait 2>/dev/null || true
   else
     echo "fail mac-lookup: dns-sd -L did not resolve $inst"
   fi
+  if grep -q "Add.*$inst-sd" "$out/browse.txt"; then
+    echo "ok mac-browse-dnssd: $(grep "Add.*$inst-sd" "$out/browse.txt" | head -1 | tr -s ' ')"
+  else
+    echo "fail mac-browse-dnssd: dns-sd -B never listed $inst-sd (the app's DNS-SD registration)"
+  fi
   # the Mac's registration: port 7001 at the Mac's own address (a name
   # taken on the LAN already is renamed by the responder: "probe (2)")
   mine=$(ipconfig getifaddr en0)
@@ -81,6 +88,11 @@ wait 2>/dev/null || true
     echo "ok app-found: the app logged the Mac's dns-sd -R registration (port 7001, $mine)"
   else
     echo "fail app-found: the probe never logged the Mac's 'probe' (dns-sd -R, port 7001, $mine)"
+  fi
+  if grep -E "^ok dnssd-found probe( \([0-9]+\))? .*port 7001 addr $mine" "$out/console.txt" >/dev/null; then
+    echo "ok app-found-dnssd: the app's DNS-SD resolved the Mac's registration to $mine:7001"
+  else
+    echo "fail app-found-dnssd: the app's DNS-SD never resolved the Mac's 'probe' to $mine:7001"
   fi
 } > "$out/probe.txt"
 cat "$out/probe.txt"
