@@ -53,8 +53,11 @@ def main():
             add(f'contrast{contrast}', label, path, rot=40, contrast=contrast, blur=0.5, noise=3)
         for rot in [0, 77, 200]:
             add(f'mirror{rot}', label, path, rot=rot, mirror=1, tilt=0.12, skew=60, blur=0.5, noise=3)
-        if label in ('Q', 'H'):
-            for occ in [0.1, 0.15] + ([0.2] if label == 'H' else []):
+        # a dark square over data: side 0.2 of the symbol (4% of its area) at M,
+        # up to 0.3 (9%) at Q and 0.4 (16%) at H
+        occs = {'M': [0.2], 'Q': [0.2, 0.3], 'H': [0.2, 0.3, 0.4]}.get(label, [])
+        if occs:
+            for occ in occs:
                 add(f'occlude{occ}', label, path, rot=25, occlude=occ, blur=0.5, noise=3)
         r = random.Random(label)
         for k in range(16):

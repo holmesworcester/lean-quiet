@@ -7,6 +7,9 @@ tools/.
       Prints "version mask size".
   qr_tool decode FILE.pgm...
       one line per file: "FILE ok HEX version ecc mask mirrored corrected ms" or "FILE none ms"
+  qr_tool matrix ECC VERSION MASK PAYLOAD_FILE
+      the module matrix at exactly that version and mask, one character a
+      module ('#' dark, '.' light)
   qr_tool ascii FILE
       decode a module matrix drawn with '#' (dark) and ' ' or '.' (light),
       two characters a module as qrencode -t ASCII prints it: "ok HEX" or "none"
@@ -76,6 +79,16 @@ def main (args : List String) : IO UInt32 := do
           let (a, b) := readFormat g
           IO.println s!"  n {n}: timing {timingScore g} fmt {decodeFormat a |>.map (fun (e, k) => (e.name, k))} {decodeFormat b |>.map (fun (e, k) => (e.name, k))} version {readVersion g} ok {(decodeGridAny g).isSome}"
     return 0
+  | ["matrix", ecc, ver, mask, file] =>
+    let some e := eccOf ecc | throw (IO.userError "ECC is L, M, Q or H")
+    let data ← IO.FS.readBinFile file
+    match encode data e ver.toNat! (some mask.toNat!) with
+    | some s =>
+      if s.version != ver.toNat! then IO.println "too long"; return 1
+      for y in [0:s.size] do
+        IO.println (String.ofList ((List.range s.size).map fun x => if s.grid.get x y then '#' else '.'))
+      return 0
+    | none => IO.println "too long"; return 1
   | ["ascii", file] =>
     let s ← IO.FS.readFile file
     let rows := (s.splitOn "\n").filter (· ≠ "")

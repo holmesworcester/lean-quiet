@@ -373,10 +373,32 @@ def fuzz (t : Tally) : IO (Tally × Nat × Nat) := do
     | none => nothing := nothing + 1
   return (t, right, nothing)
 
+/-- Matrices qrencode drew (tests/fixtures/qrencode, one for each version
+1–40, levels and data kinds by turns): decoded as matrices, and as frames
+drawn from them, turned a quarter. -/
+def fixtures (t : Tally) : IO Tally := do
+  let mut t := t
+  for line in (← IO.FS.lines "tests/fixtures/qrencode/manifest.tsv") do
+    let [path, want] := line.splitOn "\t" | continue
+    let rows := ((← IO.FS.readFile path).splitOn "\n").filter (· ≠ "")
+    let n := rows.length
+    let mut g := Grid.blank n
+    for y in [0:n] do
+      let r := (rows.getD y "").toList
+      for x in [0:n] do
+        if r.getD x '.' == '#' then g := g.set x y true
+    t := t.check ((decodeGrid g).map (hex ·.payload) == some want) s!"qrencode matrix {path}"
+    let img := render { version := (n - 17) / 4, ecc := .M, mask := 0, grid := g } 3 4
+    t := t.check ((decodeImage img.rot90).map (hex ·.payload) == some want) s!"qrencode frame {path}"
+  return t
+
 def main (args : List String) : IO UInt32 := do
   let mut t : Tally := {}
+  t ← fixtures t
+  IO.println s!"qrencode's matrices (tests/fixtures), as matrices and frames: {t.pass} passed, {t.fail} failed"
+  let t0 := t
   t := streams t
-  IO.println s!"data streams: {t.pass} passed, {t.fail} failed"
+  IO.println s!"data streams: {t.pass - t0.pass} passed, {t.fail - t0.fail} failed"
   let t0 := t
   let (t1, shapes, mis) := reedSolomon t
   t := t1

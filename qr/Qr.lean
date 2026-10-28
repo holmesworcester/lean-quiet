@@ -11,3 +11,5 @@ import Qr.Binarize
 import Qr.Geometry
 import Qr.Detect
 import Qr.Decode
+import Qr.Laws
+import Qr.Export
