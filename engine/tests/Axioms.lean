@@ -17,6 +17,10 @@ open Engine Community
 #print axioms Engine.Sync.exchange_complete
 #print axioms Engine.Sync.opening_honest
 #print axioms Engine.intakeConn_conn
+#print axioms Engine.Sync.recv_take
+#print axioms Engine.Sync.recv_send
+#print axioms Engine.Sync.filed_send
+#print axioms Engine.Sync.tick_send
 #print axioms Engine.run_step
 #print axioms Engine.run_drain
 #print axioms Community.message_authorized

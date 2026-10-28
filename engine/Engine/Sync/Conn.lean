@@ -153,14 +153,15 @@ def Conn.shows (c : Conn) (o : Op) : Bool :=
   | some r => has c.rooms r
   | none => false
 
+/-- l in pieces of at most n, within `fuel` pieces. -/
+def pieceIds (n : Nat) : Nat → List Id → List (List Id)
+  | 0, _ => []
+  | _, [] => []
+  | k + 1, l => l.take n :: pieceIds n k (l.drop n)
+
 /-- ids in ops of at most `cfg.maxIds`. -/
 def chunks (ids : List Id) (mk : List Id → Msg) : List Op :=
-  if ids.isEmpty then [] else
-  let rec go : Nat → List Id → List Op
-    | 0, _ => []
-    | _, [] => []
-    | n + 1, l => (mk (l.take cfg.maxIds)).op :: go n (l.drop cfg.maxIds)
-  go ids.length ids
+  (pieceIds cfg.maxIds ids.length ids).map fun l => (mk l).op
 
 def Conn.open (dialer : Bool) (rooms : List Id) (floor : Nat) (now : Nat) : Step :=
   { conn := { dialer, rooms, floor, heard := now, lastRound := now }, send := [(Msg.hello floor).op] }
@@ -250,20 +251,14 @@ def Conn.walk (c : Conn) : m (Conn × List Id) := do
 their closures. Anything else is ignored. -/
 def Conn.onWant (c : Conn) (ids : List Id) : m Step := do
   if ids.length > cfg.maxIds then return { conn := c }
-  let mut sent : List Op := []
-  let mut c := c
-  for i in ids do
-    match ← Store.getOp (F := F) i with
-    | some o =>
-      if c.shows fam o then
-        sent := o :: sent
-        c := { c with
-          known := c.known.insert i
-          offered := c.offered.insert i
-          frontier := c.frontier ++ o.reqs }
-    | none => pure ()
-  let (c', offer) ← c.walk fam cfg
-  return { conn := c', send := sent.reverse ++ chunks cfg offer .hold }
+  let found ← ids.filterMapM fun i => Store.getOp (F := F) i
+  let sent := found.filter (c.shows fam)
+  let c := { c with
+    known := sent.foldl (fun (k : HashSet Id) (o : Op) => k.insert o.id) c.known
+    offered := sent.foldl (fun (k : HashSet Id) (o : Op) => k.insert o.id) c.offered
+    frontier := c.frontier ++ sent.flatMap Op.reqs }
+  let (c, offer) ← c.walk fam cfg
+  return { conn := c, send := sent ++ chunks cfg offer .hold }
 
 /-- Bytes from the peer. -/
 def Conn.recv (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) : m Step := do

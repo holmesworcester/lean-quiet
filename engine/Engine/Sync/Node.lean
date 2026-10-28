@@ -41,6 +41,11 @@ structure Hooks (F : Type) where
   outbox : SqlM F (List (Id × Route × ByteArray)) := pure []
   /-- The local ops that mark a courier handed out. -/
   shipped : Id → List Op := fun _ => []
+  /-- What the family writes in answer to what is stored (views over
+  lists, returning ops): run after every write, to a fixpoint. -/
+  react : SqlM F (List Op) := pure []
+  /-- What the family writes as time passes (dialing, retries). -/
+  dial : Nat → SqlM F (List Op) := fun _ => pure []
 
 /-- A node's sync setup: its family, the connection settings, and the
 Connection family's hooks. -/
@@ -113,11 +118,24 @@ def Node.fanout (n : Node) (ids : List Id) : IO (Node × Effects) := do
   let n ← Node.settle x { n with conns := conns.reverse } st
   return (n, out)
 
-/-- Store ops (a local write, or a peer's) and offer them on. -/
+/-- Store ops (a local write, or a peer's) and offer them on; then
+write what the family answers, until it answers nothing (at most
+`react` rounds). -/
 def Node.store (n : Node) (ops : List Op) (mine : Bool) : IO (Node × Effects) := do
   let (n, ids) ← n.put x ops mine
   if ids.isEmpty then return (n, {})
-  n.fanout x ids
+  let (n, out) ← n.fanout x ids
+  let mut n := n
+  let mut out := out
+  for _ in [0:16] do
+    let more ← x.hooks.react.run n.db
+    if more.isEmpty then break
+    let (n', ids) ← n.put x more true
+    if ids.isEmpty then break
+    let (n'', o) ← n'.fanout x ids
+    n := n''
+    out := out ++ o
+  return (n, out)
 
 /-- Hand out the family's outbox once, and mark it shipped. -/
 def Node.flush (n : Node) (out : Effects) : IO (Node × Effects) := do
@@ -161,8 +179,9 @@ def Node.onBare (n : Node) (addr bytes : ByteArray) (now : Nat) : IO (Node × Ef
 
 /-- The clock. -/
 def Node.onTick (n : Node) (now : Nat) : IO (Node × Effects) := do
+  let (n, out) ← n.store x (← (x.hooks.dial now).run n.db) true
   let mut n := n
-  let mut out : Effects := {}
+  let mut out := out
   for (cid, _) in n.conns do
     match n.conn? cid with
     | none => pure ()
