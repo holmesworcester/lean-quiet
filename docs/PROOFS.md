@@ -678,22 +678,29 @@ Rules for node code and its proofs:
 
 ## Next, in order
 
-Rough sizes are lines of Lean.
+Rough sizes are lines of Lean. Done since the pilot: the safety
+statements (`index_store`, `stream`, `offered`, `members_only`,
+`frames_keep_sessions`, `idem`, `restart`, `waiting_closure`,
+`closure_agree`, `local`), and the hops re-proven on sync-harden.
 
-1. **The reverse leg and the opening** (j's ops to i: offer, want, op,
-   with the `asked` invariant; the dialer's opening lists its window),
-   about 300, reusing the hops. Then `round_stmt` in the leaf regime.
+1. **The reverse leg and `round_ends`, in the leaf regime**, about 400.
+   Both rest on one invariant over executions with every window at most
+   `leaf` items: every round message on a session lists ids only, so a
+   responder never keeps a snapshot, answers from its index, and ends
+   every round it answers. The reverse leg's have is made inside the
+   proof, so finding 7's `Roomy` has to be stated for every have of y
+   to i while it is in flight; simplification 3 (fresh-lane) would
+   remove that premise and simplification 4 the snapshot reasoning.
+   Then `round_stmt` in the leaf regime.
 2. **`session_stable_stmt`**, with a3's `tick_drop_iff`, against the
    single timer (simplification 2; the patience fix is on main), about
    300.
 3. **The cadence lemma (`gap`)**, with a3's cadence law, about 200.
    Then `edge_stmt` in the leaf regime, and with it every R row above.
 4. **Claim trees**, about 800: fingerprint hops as obligations measured
-   by `exchange_ends`; with a3's cost bounds, the log depth.
-5. **The remaining safety statements**, about 500 now that the closed
-   forms exist: `index_store`, `stream`, `members_only`,
-   `frames_keep_sessions`, `idem`, `restart`, `waiting_closure`,
-   `closure_agree`, `local`.
+   by `exchange_ends`; with a3's cost bounds, the log depth. This is
+   what large communities need: every room past `leaf` items.
+5. **Finding 10's fix**, then `no_false_settle_stmt`, about 200.
 6. **T-fresh**, after a3's send-path fix, about 400: `ahead` bounded by
    `burst`, then the 3-hop latency under `Fifo`.
 7. **Dynamic trust**, size unknown: `rooms_stmt` after finding 2's fix,
@@ -703,6 +710,7 @@ Rough sizes are lines of Lean.
    it, then handshake liveness (about 1000).
 9. **Non-vacuity witnesses** for the liveness laws: a concrete fair
    execution (round-robin schedule, every packet delivered at once),
-   about 300.
+   about 300. `Unclashed` and `FpSound` hold trivially only for tiny
+   executions; a witness with one op is the first target.
 10. **A CI check** that only engine/core and engine/wire call `Turn`,
     `receive` or `Store.putOp`, about 30 lines of script.
