@@ -226,7 +226,8 @@ def classify (env : Environment) (run : NameSet) (ns : Notes) (via : NameMap (Li
     | none => subj.toList.filter fun c => !ns.spec.contains c && !ns.assume.contains c
   let subject := subject.toArray.qsort (·.toString < ·.toString) |>.toList
   let missing := subject.filter fun c => !run.contains c && !ns.bridge.contains c
-  let assumes := named.filter ns.assume.contains ++ subject.flatMap (via.getD · [])
+  let assumes := (named ++ ty.getUsedConstants.toList).filter ns.assume.contains ++
+    subject.flatMap (via.getD · [])
   let assumes := assumes.eraseDups.toArray.qsort (·.toString < ·.toString) |>.toList
   return { name := law, subject, missing, assumes, wired := !subject.isEmpty && missing.isEmpty }
 

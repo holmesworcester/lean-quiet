@@ -172,7 +172,8 @@ def section(rows, decls, cited):
     laws = [(f[1], f[2], split(f[4]), split(f[5])) for f in rows if f[0] == "law"]
     stmts = [(f[1], f[2], split(f[4])) for f in rows if f[0] == "stmt"]
     missing = {f[1]: (int(f[2]), f[3], split(f[4])) for f in rows if f[0] == "missing"}
-    assumed = {f[1]: f[2] for f in rows if f[0] == "assume"}
+    given = {f[1]: f[2] for f in rows if f[0] == "assume"}
+    assumed = {a: given[a] for a in ASSUMED if a in given}  # in tests/wiring.txt's order
     count = dict(c.split(" ") for f in rows if f[0] == "count" for c in f[1:])
 
     def target(m, table):
@@ -187,8 +188,10 @@ def section(rows, decls, cited):
         t = target(m, notes_of)
         return (missing[t][0] if t in missing and missing[t][1] else 10 ** 6, t)
 
-    def link(n):
-        return f"[`{short(n, decls, 1 if len(n.split('.')[-1]) > 4 else 2)}`]" + ("†" if n in cited else "")
+    def link(n, mark=True):
+        """A reference; of two parts when its last is short (`Symbolic.good`)."""
+        label = short(n, decls, 1 if len(n.split(".")[-1]) > 4 else 2)
+        return f"[`{label}`]" + ("†" if mark and n in cited else "")
 
     def codes(t, names):
         """A row's definitions, its own first, four at most."""
@@ -232,8 +235,9 @@ def section(rows, decls, cited):
             continue
         part = [a] + [b for b in assumed if b != a and target(b, assumed) == a]
         n = sum(1 for _, _, _, asm in laws if set(asm) & set(part))
-        also = f", with {', '.join(f'`{short(b, assumed, 2)}`' for b in part[1:])}" if part[1:] else ""
-        out.append(f"- [`{short(a, decls)}`]{also} ({n} laws): {text}")
+        more = f" and {len(part) - 4} more" if len(part) > 4 else ""
+        also = f", with {', '.join(f'`{short(b, assumed, 2)}`' for b in part[1:4])}{more}" if part[1:] else ""
+        out.append(f"- {link(a, False)}{also} ({n} laws): {text}")
     return "\n" + "\n".join(out) + "\n"
 
 

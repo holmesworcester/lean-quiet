@@ -114,7 +114,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 365 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 366 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -228,7 +228,7 @@ wired. `ci/proof-links.py` writes this section, and local CI fails when
 it goes stale or a law marked wired is not.
 
 <!-- wiring: written by ci/proof-links.py from tests/Wiring.lean; do not edit -->
-**365 audited laws: 282 wired, 83 not yet** (about a model, a harness, or code nothing calls yet). **0 statements stated only. 8 assumptions.** † marks a law a guarantee above cites.
+**366 audited laws: 283 wired, 83 not yet** (about a model, a harness, or code nothing calls yet). **0 statements stated only. 8 assumptions.** † marks a law a guarantee above cites.
 
 | Does not run | Laws | What would make them real |
 |---|---|---|
@@ -249,14 +249,14 @@ it goes stale or a law marked wired is not.
 
 **Assumptions,** with the laws that take them or are stated over them:
 
-- [`CollisionFree`], with `Engine.Distinct` (20 laws): SHA-256 has no collision among the ops a node received.
-- [`Suite.Good`] (6 laws): X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only).
-- [`Seal.Good`] (4 laws): The seal's AEAD and key wrap open what they seal (correctness only).
-- [`Keys.Good`] (0 laws): A device's Ed25519 key converts to its seed's X25519 key.
 - [`Unforgeable`] (2 laws): An Ed25519 signature that verifies under a device key was made by that key's holder.
+- [`CollisionFree`], with `Engine.Distinct` (20 laws): SHA-256 has no collision among the ops a node received.
 - [`NoSecondPreimage`] (14 laws): SHA-256 has no second preimage on a file's Merkle tree inputs.
-- [`Model.run`], with `Engine.matching`, `HeldM.run`, `ArrivalLaws.modelReads`, `DB.empty`, `ArrivalLaws.readsOf`, `Engine.eval`, `Engine.budget` (79 laws): The store model: the SQLite store's reads and writes answer as the model's tables (`DB`), and a held store's (`Held`) do too. Tested, not proven: SQLite against the model (tests/engine/Differential.lean) and list queries against their meaning (tests/engine/QueryDiff.lean).
-- [`sym`] (13 laws): The symbolic model of the cryptography: the running handshake over a suite of symbols, where only a key's holder can derive what it guards.
+- [`Suite.Good`] (6 laws): X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only).
+- [`Keys.Good`] (0 laws): A device's Ed25519 key converts to its seed's X25519 key.
+- [`Seal.Good`] (4 laws): The seal's AEAD and key wrap open what they seal (correctness only).
+- [`Symbolic.sym`] (13 laws): The symbolic model of the cryptography: the running handshake over a suite of symbols, where only a key's holder can derive what it guards.
+- [`Model.run`], with `Engine.Model`, `Engine.DB`, `Sync.HeldM` and 8 more (113 laws): The store model: the SQLite store's reads and writes answer as the model's tables (`DB`), and a held store's (`Held`) do too. Tested, not proven: SQLite against the model (tests/engine/Differential.lean) and list queries against their meaning (tests/engine/QueryDiff.lean).
 <!-- /wiring -->
 
 ## The seam
@@ -866,6 +866,6 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
 [`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939
 [`Seal.Good`]: ops/community/Keys.lean#L40-L43
+[`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
 [`Model.run`]: engine/core/Model.lean#L103-L103
-[`sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
 <!-- /proof-links -->
