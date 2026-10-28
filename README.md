@@ -1,8 +1,8 @@
 # Lean Quiet
 
 **A peer-to-peer, local-first Discord, prototyped in Lean 4.** Lean runs
-its database, its sync and its encrypted networking, draws every pixel
-of its UI, and checks proofs about all four.
+its CRDT engine, its sync and its encrypted networking, draws every
+pixel of its UI, and checks proofs about all four.
 
 <table><tr><td>
 
