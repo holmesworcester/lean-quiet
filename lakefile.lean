@@ -229,3 +229,7 @@ lean_exe probe where
 
 lean_exe scene_check where
   root := `tests.net.SceneCheck
+
+-- A store's ops, one line each (for comparing devices' stores).
+lean_exe dump where
+  root := `platforms.headless.Dump

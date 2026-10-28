@@ -283,13 +283,21 @@ def readRow (m : Id) : M (Option (RowData × Array Q)) := do
 def noticeLocal (keys : List ByteArray) : M Unit :=
   modify fun s => { s with live := s.live.notice keys.toArray }
 
+/-- The one way into the store: through the node while it runs (it owns
+the store's writes, and offers peers only what it knows), else the local
+writer. A write behind the node's back is stored but never synced. -/
+def submit (s : St) (j : Job) : IO Unit :=
+  match s.net with
+  | some r => r.write j.ops
+  | none => s.wr.submit j
+
 /-- A user action's write (an intent's ops): each op is
 judged in order against what is decided and the ops before it in the
 same write. Valid ops show at once, pending. An op whose requirements are
 not all here yet (a join's request cites the community's ops, which come
 by sync) shows nothing and waits in the store, as the engine waits for
-any op. An Invalid op refuses the whole write. Otherwise the ops go to the
-writer as one job of this node's own. -/
+any op. An Invalid op refuses the whole write. Otherwise the ops go in as one job
+of this node's own (`submit`). -/
 def writeAll (w : Community.Write) : M Bool := do
   let s ← get
   let mut mine : Std.HashMap Id (Verdict SF) := {}
@@ -311,9 +319,7 @@ def writeAll (w : Community.Write) : M Bool := do
       return false
   modify fun s => { s with out := s.out ++ pend }
   noticeLocal (pend.toList.flatMap (·.keys))
-  match s.net with
-  | some r => r.write w.ops  -- the node owns the store's writes
-  | none => s.wr.submit ⟨w.ops, true⟩
+  submit s ⟨w.ops, true⟩
   return true
 
 def write (o : Op) : M Bool := writeAll ⟨[o]⟩
@@ -410,12 +416,14 @@ def slicesFromOps (raw : List ByteArray) : Option (List ByteArray) :=
     | some (.chunk _ _ _ slice _) => some slice
     | _ => none
 
-/-- A decode of `k` started (or finished): its bitmap once done. -/
-def decoded (k : ImgKey) (start : M (Option (Task Bitmap))) : M (Option Bitmap) := do
+/-- A decode of `k` started (or finished): its bitmap once done. `start`
+is a thunk, run only when `k` has no decode yet: an argument is evaluated
+at the call, so a task built there would be spawned every frame. -/
+def decoded (k : ImgKey) (start : Unit → M (Option (Task Bitmap))) : M (Option Bitmap) := do
   match (← get).imgs[k]? with
   | some t => if ← IO.hasFinished t then return some t.get else return none
   | none =>
-    if let some t ← start then modify fun s => { s with imgs := s.imgs.insert k t }
+    if let some t ← start () then modify fun s => { s with imgs := s.imgs.insert k t }
     return none
 
 /-- An attachment drawn at its size, if ready, and whether it is the file
@@ -424,12 +432,12 @@ Arrival.soften) until every chunk is here and the file is decoded, then
 the file (its slices assembled and opened with the file's key, off the
 app's thread). -/
 def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := do
-  let pre ← decoded (p.hash.push 0, w, h) do
+  let pre ← decoded (p.hash.push 0, w, h) fun _ => do
     pure (if p.preview.isEmpty then none
       else some ((decodeTask p.preview w h false).map (Arrival.soften Row.bg)))
-  let full ← if !p.complete then pure none else decoded (p.hash.push 1, w, h) do
-    -- not every chunk op is readable yet: try again in two seconds, not
-    -- every frame
+  let full ← if !p.complete then pure none else decoded (p.hash.push 1, w, h) fun _ => do
+    -- not every chunk op is readable yet: try again when the store next
+    -- changes (step clears imgRetry on notices), or in two seconds
     let k := (p.hash.push 1, w, h)
     if let some t := (← get).imgRetry[k]? then
       if (← get).frames < t then return none
@@ -1278,7 +1286,7 @@ def command (line : String) : M Bool := do
     wr.busy.modify (· + 1)
     let _ ← IO.asTask (prio := .dedicated) do
       let jobs := Chaos.make me k srcs.get seed n start
-      for j in jobs do wr.submit j
+      for j in jobs do submit s j
       wr.busy.modify (· - 1)
       let t1 ← s.io.nowUs
       IO.eprintln s!"chaos: {jobs.size} jobs of {jobs.foldl (· + ·.ops.length) 0} ops made in {(t1 - t0) / 1000} ms"
@@ -1474,9 +1482,11 @@ def step (evs : List Event) : M (Option (List Event)) := do
   let ns := (← s.wr.takeNotices) ++ (← netKeys)
   if !ns.isEmpty then
     let decided := s.out.filter fun p => ns.contains (opKey p.op.id)
+    -- the store changed: an image waiting for its chunk ops tries again now
     modify fun s => { s with
       live := s.live.notice ns
-      out := s.out.filter fun p => !ns.contains (opKey p.op.id) }
+      out := s.out.filter fun p => !ns.contains (opKey p.op.id)
+      imgRetry := {} }
     if !decided.isEmpty then noticeLocal (decided.toList.flatMap fun p => p.keys)
   -- 2. events and commands
   for e in evs do
