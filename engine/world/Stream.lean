@@ -358,4 +358,318 @@ theorem store_known (n : Node) (ops : List Op) (mine : Bool) (h : Held F) (d : I
 
 end
 
+
+/-! ## What a session knows, within a frame: what the frame names, or what it sent -/
+
+theorem remember_mem {cap : Nat} {k : Std.HashSet Id} {i y : Id} (h : y ∈ remember cap k i) : y ∈ k ∨ y = i := by
+  unfold remember at h
+  split at h
+  · simp at h
+  · dsimp only at h
+    split at h
+    · rcases Std.HashSet.mem_insert.1 h with e | h
+      · exact Or.inr (eq_of_beq e).symm
+      · exact Or.inl h
+    · rcases Std.HashSet.mem_insert.1 h with e | h
+      · exact Or.inr (eq_of_beq e).symm
+      · simp at h
+
+theorem foldl_remember_mem {cap : Nat} {y : Id} : ∀ (l : List Id) (k : Std.HashSet Id),
+    y ∈ l.foldl (remember cap) k → y ∈ k ∨ y ∈ l := by
+  intro l
+  induction l with
+  | nil => intro k h; exact Or.inl h
+  | cons a t ih =>
+    intro k h
+    rcases ih _ h with h | h
+    · rcases remember_mem h with h | rfl
+      · exact Or.inl h
+      · exact Or.inr (List.mem_cons_self ..)
+    · exact Or.inr (List.mem_cons_of_mem _ h)
+
+theorem foldl_remember_ids {cap : Nat} {y : Id} : ∀ (l : List Op) (k : Std.HashSet Id),
+    y ∈ l.foldl (fun (k : Std.HashSet Id) (o : Op) => remember cap k o.id) k → y ∈ k ∨ ∃ o ∈ l, o.id = y := by
+  intro l
+  induction l with
+  | nil => intro k h; exact Or.inl h
+  | cons a t ih =>
+    intro k h
+    rcases ih _ h with h | ⟨o, ho, e⟩
+    · rcases remember_mem h with h | rfl
+      · exact Or.inl h
+      · exact Or.inr ⟨a, List.mem_cons_self .., rfl⟩
+    · exact Or.inr ⟨o, List.mem_cons_of_mem _ ho, e⟩
+
+section
+variable (fam : Family F) (cfg : Config)
+
+/-- **What a connection knows after a payload**: it knew it, or the
+payload names it (the op itself, or a have of it), or the step sends it. -/
+theorem recv_known_sub (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) (h : Held F) (y : Id)
+    (hy : y ∈ ((Conn.recv fam cfg ix c b now : HeldM F Step).run h).1.conn.known) :
+    y ∈ c.known ∨ Names b y ∨ ∃ o ∈ ((Conn.recv fam cfg ix c b now : HeldM F Step).run h).1.send, o.id = y := by
+  unfold Conn.recv at hy ⊢
+  cases hd : Op.decode b with
+  | none => simp only [hd, HeldM.run_pure] at hy; exact Or.inl hy
+  | some o =>
+    simp only [hd] at hy ⊢
+    cases hm : Msg.ofOp o with
+    | none =>
+      simp only [hm] at hy ⊢
+      split at hy
+      · exact Or.inl hy
+      · simp only [HeldM.run_pure, finish_known] at hy
+        rcases remember_mem (Step.limit_known cfg _ hy) with hy | rfl
+        · exact Or.inl hy
+        · exact Or.inr (Or.inl ⟨o, hd, Or.inl rfl⟩)
+    | some m =>
+      simp only [hm] at hy ⊢
+      cases m with
+      | hello f =>
+        simp only [HeldM.run_pure, finish_known] at hy
+        left
+        split at hy
+        · unfold Conn.start at hy; split at hy <;> exact hy
+        · exact hy
+      | rbsr r k cs =>
+        simp only [HeldM.run_pure, finish_known] at hy
+        left
+        unfold Conn.onRbsr at hy
+        split at hy
+        · exact hy
+        · dsimp only at hy
+          split at hy
+          · exact hy
+          · have hy := Step.limit_known cfg _ hy
+            split at hy <;> exact hy
+      | hold r ids =>
+        simp only [HeldM.run_bind, HeldM.run_pure, finish_known] at hy
+        change y ∈ ((Conn.onHold fam cfg _ r ids : HeldM F Step) h).1.conn.known at hy
+        rw [onHold_apply] at hy
+        split at hy
+        · exact Or.inl hy
+        · split at hy
+          · exact Or.inl hy
+          · rcases foldl_remember_mem _ _ (Step.limit_known cfg _ hy) with hy | hy
+            · exact Or.inl hy
+            · exact Or.inr (Or.inl ⟨o, hd, Or.inr ⟨r, ids, hm, (List.mem_filter.1 hy).1⟩⟩)
+      | want ids =>
+        simp only [HeldM.run_bind, HeldM.run_pure, finish_known, Conn.finish_send] at hy ⊢
+        unfold Conn.onWant at hy ⊢
+        split at hy
+        · exact Or.inl hy
+        · rename_i hl
+          simp only [hl, ↓reduceIte, HeldM.run_bind, Read.run_heldW, HeldM.run_pure, Step.limit_send] at hy ⊢
+          rcases foldl_remember_ids _ _ (Step.limit_known cfg _ hy) with hy | ⟨o', ho', e⟩
+          · exact Or.inl hy
+          · exact Or.inr (Or.inr ⟨o', ho', e⟩)
+
+end
+
+
+theorem names_bytes (o : Op) : Names o.bytes o.id := ⟨o, Op.decode_bytes o, Or.inl rfl⟩
+
+theorem names_hold (r : Id) (L : List Id) (x : Id) (hx : x ∈ L) : Names (Msg.hold r L).op.bytes x :=
+  ⟨(Msg.hold r L).op, Op.decode_bytes _, Or.inr ⟨r, L, ofOp_have r L, hx⟩⟩
+
+/-- What session d knows at a point of a frame on session cid': it knew it
+when the frame came, or the frame so far (on d) names it, or the entry
+point has sent on d a payload naming it. -/
+def KnownBy (d cid' : Id) (c₀ : Conn) (pre : List ByteArray) (st : (Node × Acts) × Held F) : Prop :=
+  ∃ c, st.1.1.conn? d = some c ∧ ∀ y ∈ c.known,
+    y ∈ c₀.known ∨ (d = cid' ∧ ∃ b ∈ pre, Names b y) ∨ ∃ b, Names b y ∧ (Route.conn d, b) ∈ st.1.2.send
+
+section
+variable (fam : Family F) (cfg : Config) (rms : Held F → Id → List Id)
+
+/-- After session cid''s payload b, from st: session d's connection, and
+what is sent. -/
+theorem frameStep_at (cid' d : Id) (now : Nat) (st : (Node × Acts) × Held F) (b : ByteArray) (c' c : Conn)
+    (hc' : st.1.1.conn? cid' = some c') (hc : st.1.1.conn? d = some c) :
+    ∃ c2, (frameStep fam cfg rms cid' now st b).1.1.conn? d = some c2 ∧
+      c2.known = (if d = cid' then ((Conn.recv fam cfg st.1.1.ix (c'.setRooms (rms st.2 cid')) b now :
+        HeldM F Step).run st.2).1.conn else c).known ∧
+      ∀ o ∈ ((Conn.recv fam cfg st.1.1.ix (c'.setRooms (rms st.2 cid')) b now : HeldM F Step).run st.2).1.send,
+        (Route.conn cid', o.bytes) ∈ (frameStep fam cfg rms cid' now st b).1.2.send := by
+  unfold frameStep
+  rw [hc']; dsimp only
+  have hdr := recv_drop fam cfg st.1.1.ix (c'.setRooms (rms st.2 cid')) b now st.2
+  rw [apply_run fam cfg rms _ _ _ _ _ hdr]
+  have hs := setConn_conn st.1.1 cid'
+    ((Conn.recv fam cfg st.1.1.ix (c'.setRooms (rms st.2 cid')) b now : HeldM F Step).run st.2).1.conn d c hc
+  obtain ⟨c2, hc2, e2⟩ := store_known fam cfg rms _ _ false st.2 d _ hs
+  refine ⟨c2, hc2, e2, fun o ho => ?_⟩
+  apply List.mem_append_right
+  apply List.mem_append_left
+  exact List.mem_map.2 ⟨o, ho, rfl⟩
+
+/-- **One payload keeps `KnownBy`.** -/
+theorem frameStep_knownBy (d cid' : Id) (now : Nat) (c₀ : Conn) (pre : List ByteArray)
+    (st : (Node × Acts) × Held F) (b : ByteArray) (hk : KnownBy d cid' c₀ pre st) :
+    KnownBy d cid' c₀ (pre ++ [b]) (frameStep fam cfg rms cid' now st b) := by
+  obtain ⟨c, hc, hy⟩ := hk
+  have hsend : ∀ y ∈ st.1.2.send, y ∈ (frameStep fam cfg rms cid' now st b).1.2.send := by
+    intro y hy
+    unfold frameStep
+    split
+    · exact List.mem_append_left _ hy
+    · exact hy
+  have weak : ∀ y, (y ∈ c₀.known ∨ (d = cid' ∧ ∃ b' ∈ pre, Names b' y) ∨
+      ∃ b', Names b' y ∧ (Route.conn d, b') ∈ st.1.2.send) →
+      y ∈ c₀.known ∨ (d = cid' ∧ ∃ b' ∈ pre ++ [b], Names b' y) ∨
+        ∃ b', Names b' y ∧ (Route.conn d, b') ∈ (frameStep fam cfg rms cid' now st b).1.2.send := by
+    intro y h
+    rcases h with h | ⟨e, b', hb', hn⟩ | ⟨b', hn, hm⟩
+    · exact Or.inl h
+    · exact Or.inr (Or.inl ⟨e, b', List.mem_append_left _ hb', hn⟩)
+    · exact Or.inr (Or.inr ⟨b', hn, hsend _ hm⟩)
+  cases hc' : st.1.1.conn? cid' with
+  | none =>
+    have e : frameStep fam cfg rms cid' now st b = st := by unfold frameStep; rw [hc']
+    rw [e]
+    exact ⟨c, hc, fun y h => by rw [← e]; exact weak y (hy y h)⟩
+  | some c' =>
+    obtain ⟨c2, hc2, e2, hsent⟩ := frameStep_at fam cfg rms cid' d now st b c' c hc' hc
+    refine ⟨c2, hc2, fun y hy2 => ?_⟩
+    rw [e2] at hy2
+    split at hy2
+    · rename_i hdc
+      subst hdc
+      rw [hc] at hc'; cases hc'
+      rcases recv_known_sub fam cfg _ _ b now st.2 y hy2 with h | h | ⟨o, ho, e⟩
+      · exact weak y (hy y (by simpa [Conn.setRooms] using h))
+      · exact Or.inr (Or.inl ⟨rfl, b, List.mem_append_right _ (List.mem_singleton_self _), h⟩)
+      · exact Or.inr (Or.inr ⟨o.bytes, e ▸ names_bytes o, hsent o ho⟩)
+    · exact weak y (hy y hy2)
+
+theorem frame_fold_knownBy (d cid' : Id) (now : Nat) (c₀ : Conn) : ∀ (l pre : List ByteArray)
+    (st : (Node × Acts) × Held F), KnownBy d cid' c₀ pre st →
+    KnownBy d cid' c₀ (pre ++ l) (l.foldl (frameStep fam cfg rms cid' now) st) := by
+  intro l
+  induction l with
+  | nil => intro pre st h; simpa using h
+  | cons b t ih =>
+    intro pre st h
+    have := ih (pre ++ [b]) _ (frameStep_knownBy fam cfg rms d cid' now c₀ pre st b h)
+    simpa using this
+
+variable (hw : WalkLaws (F := F) fam cfg)
+include hw
+
+/-- **The stream, one payload:** a payload that stores an op of room r for
+the first time offers it on every session d that shows r throughout,
+unless d knew its peer holds it when the frame came, or the frame names
+it on d, or the entry point sends on d a payload naming it. -/
+theorem frameStep_offers (cid' : Id) (now : Nat) (st : (Node × Acts) × Held F) (b : ByteArray)
+    (ok : NodeOk fam st.1.1 st.2) (d : Id) (c₀ : Conn) (pre : List ByteArray) (hk : KnownBy d cid' c₀ pre st)
+    (x : Id) (o : Op) (r : Id)
+    (hn : st.2.db.ops x = none) (hs : (frameStep fam cfg rms cid' now st b).2.db.ops x = some o)
+    (hor : fam.room o = some r)
+    (hrooms : ∀ h', Kept st.2 h' → Kept h' (frameStep fam cfg rms cid' now st b).2 → r ∈ rms h' d)
+    (hmax : 0 < cfg.maxIds) :
+    x ∈ c₀.known ∨ (d = cid' ∧ ∃ b' ∈ pre ++ [b], Names b' x) ∨
+      ∃ b', Names b' x ∧ (Route.conn d, b') ∈ (frameStep fam cfg rms cid' now st b).1.2.send := by
+  have hk' := frameStep_knownBy fam cfg rms d cid' now c₀ pre st b hk
+  obtain ⟨c, hc, hy⟩ := hk
+  cases hc' : st.1.1.conn? cid' with
+  | none =>
+    unfold frameStep at hs; rw [hc'] at hs; rw [hn] at hs; cases hs
+  | some c' =>
+    obtain ⟨c2, hc2, hy2⟩ := hk'
+    unfold frameStep at hs hrooms hc2 hy2 ⊢
+    simp only [hc'] at hs hrooms hc2 hy2 ⊢
+    have hdr := recv_drop fam cfg st.1.1.ix (c'.setRooms (rms st.2 cid')) b now st.2
+    have hSs := recv_snaps fam cfg hw st.1.1.ix (c'.setRooms (rms st.2 cid')) b now st.2 ok.sub.1
+      ((ok.sub.2 _ (conn_mem hc')).setRooms (rms st.2 cid'))
+    have hSo : ∀ y ∈ ((Conn.recv fam cfg st.1.1.ix (c'.setRooms (rms st.2 cid')) b now : HeldM F Step).run st.2).1.conn.offered,
+        Named st.2 y := fun y hy => by
+      rcases recv_offered fam cfg hw st.1.1.ix (c'.setRooms (rms st.2 cid')) b now st.2 ok.sub.1
+        ((ok.sub.2 _ (conn_mem hc')).setRooms (rms st.2 cid')) ok.ids y hy with hy | hy
+      · exact ok.offered _ (conn_mem hc') y hy
+      · exact hy
+    rw [apply_run fam cfg rms _ _ _ _ _ hdr] at hs hrooms hc2 hy2 ⊢
+    have okm := setConn_ok fam _ cid' _ st.2 ok hSs hSo
+    have hcm := setConn_conn st.1.1 cid'
+      ((Conn.recv fam cfg st.1.1.ix (c'.setRooms (rms st.2 cid')) b now : HeldM F Step).run st.2).1.conn d c hc
+    rcases store_offers fam cfg rms _ _ false st.2 okm d _ hcm x o r hn hs hor hrooms hmax with hk | ⟨L, hxL, hL⟩
+    · obtain ⟨c3, hc3, e3⟩ := store_known fam cfg rms _ _ false st.2 d _ hcm
+      rw [hc3] at hc2; cases hc2
+      exact hy2 x (by rw [e3]; exact hk)
+    · right; right
+      exact ⟨_, names_hold r L x hxL, List.mem_append_right _ (List.mem_append_right _ hL)⟩
+
+end
+
+
+section
+variable (fam : Family F) (cfg : Config) (rms : Held F → Id → List Id) (hw : WalkLaws (F := F) fam cfg)
+include hw
+
+/-- **The stream, over a session's frame:** an op of room r that a frame
+on session cid' stores for the first time is offered on every session d
+that shows r throughout, in a frame to d's address, unless d knew its
+peer holds it when the frame came, or the frame (on d) names it, or the
+entry point sends on d a payload naming it. -/
+theorem frame_offers (n : Node) (h : Held F) (ok : NodeOk fam n h) (a bytes : ByteArray) (now : Nat) (cid' : Id)
+    (inner : List ByteArray) (hp : plainPeek bytes = some (cid', inner)) (c' : Conn) (hc' : n.conn? cid' = some c')
+    (d : Id) (c₀ : Conn) (hc₀ : n.conn? d = some c₀) (x : Id) (o : Op) (r : Id) (hn : h.db.ops x = none)
+    (hs : ((n.onFrame (psync fam cfg rms) a bytes now).run h).2.db.ops x = some o) (hor : fam.room o = some r)
+    (hrooms : ∀ h', Kept h h' → Kept h' ((n.onFrame (psync fam cfg rms) a bytes now).run h).2 → r ∈ rms h' d)
+    (hmax : 0 < cfg.maxIds) :
+    x ∈ c₀.known ∨ (d = cid' ∧ ∃ b ∈ inner, Names b x) ∨
+      ∃ g, (∃ b ∈ g, Names b x) ∧ ∀ a', ((n.onFrame (psync fam cfg rms) a bytes now).run h).1.1.addr? d = some a' →
+        (a', plainFrame d g) ∈ ((n.onFrame (psync fam cfg rms) a bytes now).run h).1.2.send := by
+  obtain ⟨h0, bundle, hb', hi⟩ := plainFrame_of_peek hp
+  rw [onFrame_fold fam cfg rms hw n a bytes now h cid' bundle inner c' h0 hb' hi hc'] at hs hrooms ⊢
+  have ok0 := setAddr_ok fam n cid' a h ok
+  obtain ⟨okE, -, -, -, -⟩ := frame_fold fam cfg rms hw cid' now inner (((n.setAddr cid' a, ({} : Acts)), h)) ok0
+  rw [frame_end_store fam cfg rms now _ okE] at hs hrooms
+  rw [finish_run fam cfg rms _ _ _ _ okE.managed]
+  have h0P : ¬ ((((n.setAddr cid' a, ({} : Acts)), h) : (Node × Acts) × Held F).2.db.ops x).isSome = true := by
+    simp [hn]
+  obtain ⟨pre, b, post, el, hP1, hP2⟩ := fold_first (frameStep fam cfg rms cid' now)
+    (fun st => (st.2.db.ops x).isSome = true) inner _ h0P (by rw [hs]; rfl)
+  have hk0 : KnownBy d cid' c₀ [] (((n.setAddr cid' a, ({} : Acts)), h) : (Node × Acts) × Held F) :=
+    ⟨c₀, hc₀, fun y hy => Or.inl hy⟩
+  have hk1 := frame_fold_knownBy fam cfg rms d cid' now c₀ pre [] _ hk0
+  simp only [List.nil_append] at hk1
+  rw [el, List.foldl_append, List.foldl_cons] at hs hrooms okE ⊢
+  obtain ⟨ok1, e1, -, -, -⟩ := frame_fold fam cfg rms hw cid' now pre (((n.setAddr cid' a, ({} : Acts)), h)) ok0
+  generalize pre.foldl (frameStep fam cfg rms cid' now) (((n.setAddr cid' a, ({} : Acts)), h)) = st1
+    at ok1 e1 hP1 hP2 hs hrooms okE hk1 ⊢
+  obtain ⟨ok2, -, -, -, -⟩ := frameStep_ok fam cfg rms hw cid' now st1 b ok1
+  obtain ⟨-, e3, -, -, s3⟩ := frame_fold fam cfg rms hw cid' now post _ ok2
+  have hn1 : st1.2.db.ops x = none := by
+    cases e : st1.2.db.ops x with
+    | none => rfl
+    | some _ => exact absurd (by rw [e]; rfl) hP1
+  have hso : (frameStep fam cfg rms cid' now st1 b).2.db.ops x = some o := by
+    obtain ⟨o', ho'⟩ := Option.isSome_iff_exists.1 hP2
+    have := e3.1 x o' ho'
+    rw [hs] at this; cases this; exact ho'
+  have hrm : ∀ h', Kept st1.2 h' → Kept h' (frameStep fam cfg rms cid' now st1 b).2 → r ∈ rms h' d :=
+    fun h' k1 k2 => hrooms h' (fun y q hq => k1 y q (e1.1 y q hq)) (fun y q hq => e3.1 y q (k2 y q hq))
+  rcases frameStep_offers fam cfg rms hw cid' now st1 b ok1 d c₀ pre hk1 x o r hn1 hso hor hrm hmax with
+    hk | ⟨e, b', hb', hnm⟩ | ⟨b', hnm, hm⟩
+  · exact Or.inl hk
+  · right; left
+    refine ⟨e, b', ?_, hnm⟩
+    rcases List.mem_append.1 hb' with hb' | hb'
+    · exact List.mem_append_left _ hb'
+    · rw [List.mem_singleton.1 hb']; exact List.mem_append_right _ (List.mem_cons_self ..)
+  · right; right
+    have hE := s3 _ hm
+    generalize post.foldl (frameStep fam cfg rms cid' now) (frameStep fam cfg rms cid' now st1 b) = fin at hE okE ⊢
+    cases hd0 : fin.1.1.addr? d with
+    | none =>
+      exact ⟨[b'], ⟨b', List.mem_singleton_self _, hnm⟩, fun a' ha' => by
+        simp only [Node.addr?] at ha' hd0; rw [hd0] at ha'; cases ha'⟩
+    | some d0 =>
+      obtain ⟨g, hg, hf⟩ := seal_mem fam cfg rms fin.1.1 fin.1.2 fin.2 d _ d0 hE hd0
+      refine ⟨g, ⟨b', hg, hnm⟩, fun a' ha' => ?_⟩
+      have : a' = d0 := by simp only [Node.addr?] at ha' hd0; rw [hd0] at ha'; cases ha'; rfl
+      subst this; exact hf
+
+end
+
 end Engine.World
