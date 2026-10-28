@@ -127,6 +127,10 @@ def ests (p : Peer) : IO (List Connection.Fact) := do
   return (← (rows established.all [] : SqlM F _).run p.db).map (·.2)
 def allowedOn (p : Peer) (c d : ByteArray) : IO Bool :=
   ((Community.allowPeer c d).liftL.run : SqlM F Bool).run p.db
+/-- The receipts p holds of message x. -/
+def receiptsOf (p : Peer) (x : Id) : IO (List Community.Fact) := do
+  let a ← ((Community.received.byMsg.read [x]).liftL.run : SqlM F (Answer Community.Fact)).run p.db
+  return a.rows.map (·.2)
 
 /-- A founds Acme and invites at its address; B joins from the link. -/
 def setup (loss : Nat) : IO (World × Id × Op) := do
@@ -135,13 +139,13 @@ def setup (loss : Nat) : IO (World × Id × Op) := do
   let mut w : World := { a, b, loss }
   w ← writeA w (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (sha256 "key".toUTF8) (sha256 "esk".toUTF8)).ops
   let c := (root (Device.ofSeed a.seed)).id
-  let (wi, link) := inviteTo c c a.seed (sha256 "bearer".toUTF8) [a.addr]
+  let (wi, link) := inviteTo c c (Device.ofSeed a.seed) (sha256 "bearer".toUTF8) [a.addr]
   w ← writeA w wi.ops
   w ← writeB w (joinOps link b.seed "Bea".toUTF8).ops
   return (w, c, link.request (Device.ofSeed b.seed))
 
 def approveOnA (w : World) (c : Id) (req : Op) : IO World := do
-  let wr ← ((approveReq c req.id c w.a.seed).liftL.run : SqlM F Community.Write).run w.a.db
+  let wr ← ((approveReq c req.id c (Device.ofSeed w.a.seed)).liftL.run : SqlM F Community.Write).run w.a.db
   writeA w wr.ops
 
 def dump (name : String) (p : Peer) : IO Unit := do
@@ -189,10 +193,23 @@ def main : IO UInt32 := do
   let w ← w.run 40
   t.ok "B is admitted by its own ops" (← allowedOn w.b c dB.pk)
   t.ok "B lets A in" (← allowedOn w.b c dA.pk)
-  let p := post c c dA "k".toUTF8 "hello B".toUTF8 5
+  let p := post c c dA "k".toUTF8 "hello B".toUTF8 1 5
   let w ← writeA w [p]
   let w ← w.run 10
   t.ok "a later post reaches B" (← stored w.b p.id)
+  -- Posts claiming the counter cap or more: the node writes its receipt
+  -- of each as it arrives (`onArrival`), numbered in arrival order.
+  let s1 := post c c dA "k".toUTF8 "saturating".toUTF8 (2 ^ 100) 6
+  let w ← writeA w [s1]
+  let w ← w.run 10
+  let s2 := post c c dA "k".toUTF8 "past the cap".toUTF8 countCap 7
+  let w ← writeA w [s2]
+  let w ← w.run 10
+  t.ok "B receives two saturated posts, and writes a receipt of each, in arrival order"
+    ((← receiptsOf w.b s1.id) == [.received c "k".toUTF8 s1.id 1] &&
+      (← receiptsOf w.b s2.id) == [.received c "k".toUTF8 s2.id 2])
+  t.ok "a post below the cap gets no receipt" ((← receiptsOf w.b p.id).isEmpty)
+  t.ok "receipts stay on the device that wrote them" ((← receiptsOf w.a s1.id).isEmpty)
   -- Two sessions between one pair (B dials A again with a fresh
   -- ephemeral): both ends keep the same one, the smaller id.
   let e2 := sha256 "second ephemeral".toUTF8
@@ -226,7 +243,7 @@ def main : IO UInt32 := do
   -- A pending join to a community that is not here, as another device.
   let ghost := sha256 "ghost".toUTF8
   let gr := root (Device.ofSeed ghost)
-  let (_, deadLink) := inviteTo gr.id gr.id ghost (sha256 "ghost bearer".toUTF8) ["Z:7001".toUTF8]
+  let (_, deadLink) := inviteTo gr.id gr.id (Device.ofSeed ghost) (sha256 "ghost bearer".toUTF8) ["Z:7001".toUTF8]
   let wd := joinOps deadLink (sha256 "old device".toUTF8) "Old".toUTF8
   w3 ← writeB w3 wd.ops
   w3 ← w3.run 5
@@ -237,7 +254,7 @@ def main : IO UInt32 := do
   w3 ← w3.run 10
   t.ok "a join this device stopped waiting on is not dialed" (w3.sentBare == s0)
   -- The same node joins A3 as a second device, with no restart.
-  let (wi3, link3) := inviteTo c3 c3 a3.seed (sha256 "bearer3".toUTF8) [a3.addr]
+  let (wi3, link3) := inviteTo c3 c3 (Device.ofSeed a3.seed) (sha256 "bearer3".toUTF8) [a3.addr]
   w3 ← writeA w3 wi3.ops
   w3 ← writeB w3 (joinOps link3 b3.seed "Bea".toUTF8).ops
   w3 ← w3.run 10

@@ -60,6 +60,27 @@ with the setup's. -/
   let (a, cs) := attach c c c d k f
   cs.foldl (fun n o => n + o.id.size) a.id.size
 
+/-- n rows newest first, as each list of a union reads them. -/
+def rowsDesc (n : Nat) : List (Pos × Fact) :=
+  (List.range n).reverse.map fun i => ((Merkle.be64 i, sha256 (toString i).toUTF8), Fact.admin .empty .empty)
+
+@[noinline] def sortRows (l : List (Pos × Fact)) (_ : Nat) : Nat := (sortPos l).length
+
+/-- Read the union of c's messages under the keys this device holds,
+all of them (`readable`, no limit), newest first. -/
+@[noinline] def readAllMessages (db : Db) (c : Id) (_ : Nat) : IO Nat := do
+  let a ← ((readable c (limit := none)).run : SqlM Fact (Answer Fact)).run db
+  return a.rows.length
+
+/-- One step's views for one community: the first profile, and the keys
+wrapped to this device (both write nothing here). -/
+@[noinline] def stepViews (db : Db) (c : ByteArray) (d : Device) (i : Nat) : IO Nat := do
+  let w1 ← ((introduce c d (i + 100)).run : SqlM Fact Write).run db
+  let w2 ← ((unwrap c d).run : SqlM Fact Write).run db
+  return w1.ops.length + w2.ops.length
+
+@[noinline] def deviceOf (seed : ByteArray) (_ : Nat) : Nat := (Device.ofSeed seed).enc.size
+
 @[noinline] def decodeNat (b : ByteArray) (_ : Nat) : Nat :=
   match (Codec.decode b : Option Nat) with | some n => n % 7 | none => 0
 
@@ -85,7 +106,7 @@ def main (args : List String) : IO UInt32 := do
   let nf : NewFile := ⟨⟨"photo.qoi".toUTF8, "image/qoi".toUTF8, 640, 480, "tiny preview".toUTF8⟩, plain,
     sha256 "file key".toUTF8, (sha256 "file nonce".toUTF8).extract 0 24,
     (sha256 "info nonce".toUTF8).extract 0 24⟩
-  let wf := send c c seedA kA ((sha256 "nonce 2".toUTF8).extract 0 24) "a photo".toUTF8 7 [nf]
+  let wf := (send c c dA kA ((sha256 "nonce 2".toUTF8).extract 0 24) "a photo".toUTF8 7 [nf]).eval DB.empty
   let chunks := wf.ops.drop 2
   bench sum s!"build a {chunks.length}-chunk attachment (attach: root, proofs, chunk ops)" (cap := 3)
     fun i => pure (attachFile c dA kA nf i)
@@ -134,8 +155,8 @@ def main (args : List String) : IO UInt32 := do
   let mut size := 0
   let mut t := 100
   while size < 49152 do
-    let p := (send c c seedA kA ((sha256 s!"nonce {t}".toUTF8).extract 0 24)
-      s!"message {t}: {String.ofList (List.replicate 160 'x')}".toUTF8 t).ops.headD default
+    let p := (send c c dA kA ((sha256 s!"nonce {t}".toUTF8).extract 0 24)
+      s!"message {t}: {String.ofList (List.replicate 160 'x')}".toUTF8 t).eval DB.empty |>.ops.headD default
     if size + p.bytes.size > 49152 then break
     payloads := payloads.push p.bytes
     size := size + p.bytes.size
@@ -153,5 +174,23 @@ def main (args : List String) : IO UInt32 := do
   let b := longNumber Sync.maxFrame
   bench sum s!"decode a {Sync.maxFrame}-byte number (adversarial, one frame)" (cap := 1) (minRuns := 1)
     fun i => pure (decodeNat b i)
+  -- Reads: a union merges its lists' rows by position (`sortPos`).
+  bench sum "sortPos of 1,000 rows, newest first" fun i => pure (sortRows (rowsDesc 1000) i)
+  let rdb ← fresh dir "reads.db"
+  let mine (ops : List Op) : IO Unit := (receive fam (intake fam true ops)).run rdb
+  mine w.ops
+  let keys := [kA] ++ (List.range 3).map fun j => sha256 s!"key {j}".toUTF8
+  mine (keys.drop 1 |>.map (contentKey c))
+  let posts := (List.range 1000).map fun t =>
+    ((send c c dA keys[t % 4]! ((sha256 s!"n {t}".toUTF8).extract 0 24) s!"message {t}".toUTF8 (t + 10)).eval
+      DB.empty).ops.headD default
+  mine posts
+  let got ← readAllMessages rdb c 0
+  IO.println s!"a union of {keys.length} keys' lists holds {got} messages"
+  bench sum "read 1,000 messages: the union of 4 keys' lists on SQLite (readable, no limit)" (cap := 50)
+    fun i => readAllMessages rdb c i
+  -- A device from its seed: what the intents derived on every step.
+  bench sum "Device.ofSeed (Ed25519 key pair, X25519 conversion)" fun i => pure (deviceOf seedA i)
+  bench sum "one step's introduce and unwrap for one community, on SQLite" fun i => stepViews rdb c dA i
   IO.println s!"checksum {← sum.get}"
   return 0

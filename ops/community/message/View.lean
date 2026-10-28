@@ -20,7 +20,7 @@ variable {m : Type → Type} [Monad m] [Reads m]
 
 def read (c me msg : Id) : m (Option (Row.RowData × Array Q)) := do
   let (f, pending, deps) ← readFact msg #[]
-  let some (.message _ u _ kid sealed tm) := f | return none
+  let some (.message _ u _ kid sealed _ tm) := f | return none
   let (ks, _, deps) ← readList (key.byId.query [kid] (limit := some 1)) deps
   -- no key here yet, or a body it does not open: not shown (the list
   -- leaves such messages out; this is the row's own check)

@@ -54,8 +54,8 @@ def main (args : List String) : IO UInt32 := do
   let f1 := Device.named "founder-1"
   let r := root f1
   let c := r.id
-  let hello := post c c f1 "k1".toUTF8 "hello".toUTF8
-  let other := post c c f1 "k1".toUTF8 "something else".toUTF8
+  let hello := post c c f1 "k1".toUTF8 "hello".toUTF8 1 0
+  let other := post c c f1 "k1".toUTF8 "something else".toUTF8 2 0
   run (receive fam [r, hello])
   t.ok "the founder's post is Valid" (← valid hello.id)
 

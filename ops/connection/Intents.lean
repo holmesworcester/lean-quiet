@@ -280,12 +280,14 @@ def outbox : m (List (Id × B × B)) := do
   return out.reverse
 
 /-- On every arrival: the first one of an op is recorded, when and
-how it came. A request that arrives again, already answered by this
-device, gets its connection resent to where it came from. That is the
-healing for a lost answer, as poc-17 has it ("a replayed request is
-answered with the identical bytes again"). -/
+how it came, and a saturated post gets this device's receipt, which
+orders it (`Community.receiptFor`). A request that arrives again, already
+answered by this device, gets its connection resent to where it came
+from. That is the healing for a lost answer, as poc-17 has it ("a
+replayed request is answered with the identical bytes again"). -/
 def onArrival (via : Option Id) (addr : B) (o : Op) (at_ : Nat) : m (List Op) := do
   let first := if (← count recv.byOp [o.id]) = 0 then [Recv.op o.id via addr at_] else []
+  let first := first ++ (← ((Community.receiptFor o).liftL : View F (List Op)).run)
   if via.isSome then return first
   let resend ← do
     match (decode o.body : Option Body) with

@@ -10,6 +10,7 @@ import engine.renderer.TextLaws
 import engine.renderer.WrapLaws
 import ops.community.reaction.RowLaws
 import ops.community.message.ViewLaws
+import ops.community.message.Order
 import ops.app.PeopleLaws
 import ops.app.Remove
 import ops.community.membership.RemovedLaws
@@ -127,6 +128,7 @@ open Engine Community
 #print axioms Engine.mem_purgeSet
 #print axioms Engine.purge_inv
 #print axioms Engine.perm_sortPos
+#print axioms Engine.sortPos_eq_fast
 #print axioms Engine.matching_nodup
 #print axioms Engine.purge_settles
 #print axioms Engine.reach_ops
@@ -138,11 +140,26 @@ open Engine Community
 #print axioms Community.check_attach
 #print axioms Community.check_chunk
 #print axioms Community.chunk_is_slice
-#print axioms Engine.eval_union
 #print axioms Engine.mem_union
 #print axioms Engine.mem_union_all
 #print axioms Community.readable_held
 #print axioms Community.readable_complete
+#print axioms Engine.Pos.cmp_eq_iff
+#print axioms Engine.Pos.cmp_swap
+#print axioms Engine.Pos.cmp_lt_trans
+#print axioms Engine.sortPos_sorted
+#print axioms Engine.top_max
+#print axioms Community.received_of_message
+#print axioms Community.lexCmp_be64
+#print axioms Community.msg_cmp
+#print axioms Community.time_is_display
+#print axioms Community.order_total
+#print axioms Community.topCount_ge
+#print axioms Community.receipt_once
+#print axioms Community.arrival_order
+#print axioms Community.send_after
+#print axioms Community.order_local
+#print axioms Community.display_agrees
 #print axioms Community.Merkle.encode_verify
 #print axioms Community.Merkle.verify_sound
 #print axioms Community.Merkle.index_bound
@@ -215,6 +232,7 @@ section app
 #print axioms Pages.switcherOrder_sound
 #print axioms Pages.switcherOrder_complete
 #print axioms Switch.dedupe_one_per_community
+#print axioms Kinds.Accepted.read_known
 #print axioms Text.visual_perm
 #print axioms Text.place_shows
 #print axioms Text.oneLine_prefix
