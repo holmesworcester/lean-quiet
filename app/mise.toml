@@ -18,15 +18,15 @@ run = "android/test/twin_demo_e2e.sh \"${SERIAL:-emulator-5644}\" out/e2e-twin"
 
 [tasks."host:app"]
 description = "The app's own session without a window (QTests/Host): chaos, cold open, a fling to the top with unpainted-row counts, send and react with the writer paused (pending, then stored); screenshots in out/host"
-run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build host && .lake/build/bin/host ${MESSAGES:-500} out/host"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build host && .lake/build/bin/host ${MESSAGES:-500} out/host"
 
 [tasks."android:apk"]
 description = "The app's APK (x86_64 for the emulator, arm64-v8a for phones); needs a Lean runtime for Android (LEANRT)"
-run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; android/twin/build_apk.sh out/quiet.apk com.holmes.leanquiet 'Lean Quiet' Main x86_64 arm64-v8a"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; android/twin/build_apk.sh out/quiet.apk com.holmes.leanquiet 'Lean Quiet' Main x86_64 arm64-v8a"
 
 [tasks."host:arrival"]
 description = "A photo arriving chunk by chunk (QTests/Arrival): after each chunk the row's count, its pill's words and its painted ring are exact and the preview shows; a chunk twice changes nothing; the last one swaps in the file; a sender sees its own file from the outbox"
-run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build arrival && .lake/build/bin/arrival out/arrival"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build arrival && .lake/build/bin/arrival out/arrival"
 
 [tasks.check]
 description = "The proof gate: the app's theorems (Geometry: list content never under the header, composer or keyboard) on standard axioms only"
@@ -34,7 +34,7 @@ run = "tests/check.sh"
 
 [tasks."host:two-nodes"]
 description = "Two apps, each its own database, joined by link through their own pages: invite, paste, agree, the request carried, approve, admission carried, a message back"
-run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build two_nodes && .lake/build/bin/two_nodes out/two"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build two_nodes && .lake/build/bin/two_nodes out/two"
 
 [tasks."ios:sim"]
 description = "The app in the iOS Simulator on the Mac (take it with mac-turn first; ios/README.md): build, install, launch with the chaos data, a screenshot in out/ios-sim"
@@ -67,12 +67,16 @@ run = "android/test/scan_e2e.sh out/quiet.apk out/scan"
 
 [tasks."host:net-join"]
 description = "Two apps, each its own database and node (the engine's Runner with the Connection family), joined over real TCP on loopback by their own pages: invite, paste, agree, the request over TCP, approve, admission by sync, a post back"
-run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build net_join && .lake/build/bin/net_join out/net"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build net_join && .lake/build/bin/net_join out/net"
 
 [tasks."host:cross"]
 description = "Two apps over real TCP, two communities both named club, each app in both, everyone named Ann: every entry reachable by a tap, each home right, a second join to one community and Stop waiting on it"
-run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build cross && .lake/build/bin/cross out/cross"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build cross && .lake/build/bin/cross out/cross"
 
 [tasks."host:attach"]
 description = "Photos over real TCP: two apps joined on loopback (as host:net-join), one photo each way through Add photos and send; the other side ends with every chunk, the file opened from them equal to the bytes sent, and its row drawn from the file"
-run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build attach && .lake/build/bin/attach out/attach"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build attach && .lake/build/bin/attach out/attach"
+
+[tasks."host:noto"]
+description = "Lean Noto rasterization against fontTools, hostile fonts, metrics, fallback and cache; builds its executable"
+run = "tests/noto.sh"

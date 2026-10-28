@@ -1,21 +1,22 @@
 /-
-GNU Unifont, read from assets/font.bin (tools/font.py): every glyph of
-the Basic Multilingual Plane and plane 1's emoji and symbols, smoothed by
-Scale2x (twice, for a 64-pixel cell): a narrow glyph is cell/2 pixels
-wide, a wide one (CJK, emoji) cell pixels. The file is read once and
-kept as one ByteArray; a glyph is located through the file's own table,
-so nothing is decoded ahead of use.
+Noto TrueType metrics and cached Lean coverage bitmaps, with GNU Unifont
+and colour emoji fallback. The cell is in screen pixels (density scaled
+from the asset's 420-dpi cell); the bitmap fallback is resampled from its
+source cell. Noto and the TrueType reader live in their own modules.
 -/
 import Quiet.Emoji
+import Quiet.Noto
 
 namespace Font
 
 structure Font where
   bytes : ByteArray
-  /-- The cell's height in pixels (32, 48 or 64). -/
+  /-- The cell's height in screen pixels (16..64). -/
   cell : Nat
   /-- Colour emoji, drawn instead of Unifont's (Quiet/Emoji.lean). -/
   emoji : Emoji.Set
+  noto : Noto.Set := {}
+  sourceCell : Nat := 48
 
 def tableEnd : Nat := 8 + 4 * 0x20000
 
@@ -24,7 +25,9 @@ def tableEnd : Nat := 8 + 4 * 0x20000
   let b := f.bytes
   b[i]!.toUInt32 ||| (b[i+1]!.toUInt32 <<< 8) ||| (b[i+2]!.toUInt32 <<< 16) ||| (b[i+3]!.toUInt32 <<< 24)
 
-def load (path : String := "assets/font.bin") : IO Font := do
+def pixelCell (source density : Nat) : Nat := max 16 (min 64 ((source * density + 210) / 420))
+
+def load (path : String := "assets/font.bin") (density : Nat := 420) : IO Font := do
   let b ← IO.FS.readBinFile path
   if b.size < tableEnd || b.extract 0 4 != "QFNT".toUTF8 then
     throw (IO.userError s!"{path}: not a font")
@@ -33,37 +36,55 @@ def load (path : String := "assets/font.bin") : IO Font := do
   let emoji ← match ← (Emoji.load).toBaseIO with
     | .ok e => pure e
     | .error err => do IO.eprintln s!"no colour emoji: {err}"; pure default
-  return ⟨b, cell, emoji⟩
+  let sourceCell := cell
+  let cell := pixelCell sourceCell density
+  let noto ← Noto.load cell
+  return ⟨b, cell, emoji, noto, sourceCell⟩
 
 /-- A glyph: where its 32 rows start in the file, and whether it is wide. -/
 structure Glyph where
   at_ : Nat
   wide : Bool
+  noto : Option Noto.Ref := none
 
 /-- The font's glyph for code point c, if it has one. -/
-@[inline] def Font.glyph? (f : Font) (c : UInt32) : Option Glyph :=
+@[inline] def Font.bitmapGlyph? (f : Font) (c : UInt32) : Option Glyph :=
   if c >= 0x20000 then none else
   let w := f.u32 (8 + 4 * c.toNat)
   if w == 0 then none
-  else some ⟨tableEnd + ((w &&& 0x7FFFFFFF) - 1).toNat, w &&& 0x80000000 != 0⟩
+  else some ⟨tableEnd + ((w &&& 0x7FFFFFFF) - 1).toNat, w &&& 0x80000000 != 0, none⟩
+
+/-- Noto supplies a real advance; fallback preserves the bitmap glyph. -/
+@[inline] def Font.glyph? (f : Font) (c : UInt32) : Option Glyph :=
+  match f.noto.chars[c]? with
+  | some r => some ⟨0, false, some r⟩
+  | none => f.bitmapGlyph? c
 
 /-- What a missing code point shows: the replacement character. -/
 def Font.glyph (f : Font) (c : UInt32) : Glyph :=
   match f.glyph? c with
   | some g => g
-  | none => (f.glyph? 0xFFFD).getD ⟨tableEnd, false⟩
+  | none => (f.glyph? 0xFFFD).getD ⟨tableEnd, false, none⟩
 
 /-- Row r (0 .. cell - 1) of a glyph, its leftmost pixel in bit 63. -/
 @[inline] def Font.row (f : Font) (g : Glyph) (r : Nat) : UInt64 := Id.run do
   let b := f.bytes
-  let n := (if g.wide then f.cell else f.cell / 2) / 8
-  let i := g.at_ + n * r
+  let n := (if g.wide then f.sourceCell else f.sourceCell / 2) / 8
+  let i := g.at_ + n * (r * f.sourceCell / f.cell)
   let mut v : UInt64 := 0
   for k in [0:n] do
     v := v ||| (b[i + k]!.toUInt64 <<< (56 - 8 * k).toUInt64)
-  return v
+  if f.cell == f.sourceCell then return v
+  let mut scaled : UInt64 := 0
+  for x in [0:if g.wide then f.cell else f.cell / 2] do
+    if v &&& (0x8000000000000000 >>> (x * f.sourceCell / f.cell).toUInt64) != 0 then
+      scaled := scaled ||| (0x8000000000000000 >>> x.toUInt64)
+  return scaled
 
-/-- A glyph's advance: half the cell, or the whole cell for a wide one. -/
-def Font.adv (f : Font) (g : Glyph) : Nat := if g.wide then f.cell else f.cell / 2
+/-- A glyph's hmtx advance, or the fallback's half/full cell. -/
+def Font.adv (f : Font) (g : Glyph) : Nat :=
+  match g.noto with
+  | some r => r.advance
+  | none => if g.wide then f.cell else f.cell / 2
 
 end Font

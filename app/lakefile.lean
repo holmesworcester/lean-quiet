@@ -62,3 +62,7 @@ lean_exe arrival where
 -- Photos over real TCP: two apps joined on loopback, one photo each way.
 lean_exe attach where
   root := `QTests.Attach
+
+-- Lean TrueType decoding and pixels against a fontTools outline pen.
+lean_exe noto where
+  root := `QTests.Noto

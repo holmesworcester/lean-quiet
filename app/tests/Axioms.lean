@@ -12,6 +12,7 @@ import Quiet.Remove
 import Quiet.RemovedLaws
 import Quiet.App
 import Quiet.ArrivalLaws
+import Quiet.Ttf.Laws
 #print axioms Geometry.placed_row
 #print axioms Geometry.visible_in_viewport
 #print axioms Geometry.newest_visible
@@ -99,3 +100,15 @@ import Quiet.ArrivalLaws
 #print axioms ArrivalLaws.complete_iff_held
 #print axioms ArrivalLaws.file_whole
 #print axioms ArrivalLaws.pic_complete_iff_held
+
+#print axioms Ttf.byte_in_bounds
+#print axioms Ttf.cmap_entry
+#print axioms Ttf.cmap12_glyph
+#print axioms Ttf.cmap4_delta
+#print axioms Ttf.cmap4_array
+#print axioms Ttf.coverage_value
+#print axioms Ttf.coverage_bound
+#print axioms Ttf.checked_valid
+#print axioms Ttf.raster_valid
+#print axioms Ttf.ink_witness
+#print axioms Ttf.raster_pixel

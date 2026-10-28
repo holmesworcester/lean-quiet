@@ -29,3 +29,6 @@ PYTHONPATH="$tmp/py" python3 "$root/tools/emoji.py" "$tmp/noto.ttf" "$tmp/emoji-
 # main 38a909706), converted by tools/picker.py.
 git -C "${LIBQUIET:-$HOME/libquiet}" show 38a909706:app/src/emoji-data.json > "$tmp/lq-emoji.json"
 python3 "$root/tools/picker.py" "$tmp/lq-emoji.json" "$root/assets/picker.txt"
+
+# Local Noto TrueType fonts, pinned independently of the fallback atlas.
+"$root/tools/noto_assets.sh"

@@ -120,6 +120,7 @@ proofs() {
 stage() {
   proofs
   [ -f "$root/assets/font.bin" ] || "$root/tools/fetch_assets.sh"
+  "$root/tools/noto_assets.sh"
   [ -d "$root/out/initc" ] || "$root/tools/gen_init_c.sh" "$root/out/initc"
   local closure targets roots engine
   # the engine's directory (its crypto: native/crypto.c and the Rust crate)

@@ -22,6 +22,7 @@ gate() {
     mdns|qr|net) tests/check.sh ;;
     app)
       [ -f assets/font.bin ] || tools/fetch_assets.sh
+      tools/noto_assets.sh && tests/noto.sh &&
       lake build host two_nodes net_join cross arrival attach &&
         .lake/build/bin/host "${MESSAGES:-500}" out/host &&
         .lake/build/bin/two_nodes out/two &&
