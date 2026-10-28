@@ -83,6 +83,9 @@ def clockChecks (t : Checks) : IO Unit := do
   let s := responder.onRbsr cfg {} r 7 [.ids ⟨⟨0, 0⟩, none⟩ []] 1001
   t.ok "uncarried shown room is answered" (!s.send.isEmpty)
 
+/-- The paced responder queue (simplification 3): a want queues what it
+may, and each step serves the queue in order within its budget, after
+the fresh writes the peer wants. -/
 def wantChecks (t : Checks) : IO Unit := do
   let a := "removed-room-A".toUTF8
   let b := "live-room-B".toUTF8
@@ -91,18 +94,34 @@ def wantChecks (t : Checks) : IO Unit := do
   let z := Op.make 1 [b] "next".toUTF8
   let c : Conn := { dialer := false, rooms := [b], floor := 0 }
   let ix := Index.ofOps fam [x, y, z]
-  let (s, trace) := (c.onWant fam {} ix [x.id, y.id] : TM Step).run { ops := [x, y, z] }
-  t.ok "cross-room want sends only y" (s.send.map (·.id) == [y.id])
+  let cfg : Config := {}
+  let q := (c.onWant cfg ix [x.id, y.id]).conn
+  t.ok "cross-room want queues only y, and reads nothing" (q.owed == [y.id])
+  let ((q1, urgent, bulk), trace) := (q.serveOwed fam cfg 1000 [] : TM _).run { ops := [x, y, z] }
+  t.ok "cross-room want sends only y" (bulk.map (·.id) == [y.id] && urgent.isEmpty && q1.owed.isEmpty)
   t.ok "cross-room want never reads large x" (trace.reads == [y.id])
-  let (s2, trace2) := (c.onWant fam {} ix [x.id, y.id] : TM Step).run { ops := [y, z] }
-  t.ok "outside possession changes neither reads nor reply" (trace2.reads == trace.reads && s2.send.map (·.id) == s.send.map (·.id))
-  let cfg : Config := { wantBytes := y.bytes.size }
-  let (s, trace) := (c.onWant fam cfg ix [y.id, z.id] : TM Step).run { ops := [x, y, z] }
-  t.ok "budget stops subsequent blob reads" (trace.reads == [y.id] && s.send.map (·.id) == [y.id])
-  let (s, trace) := (c.onWant fam { wantBytes := 0 } ix [y.id] : TM Step).run { ops := [y] }
-  t.ok "zero budget reads and sends nothing" (trace.reads.isEmpty && s.send.isEmpty)
-  let (s, trace) := (c.onWant fam { wantBytes := 1 } ix [y.id, z.id] : TM Step).run { ops := [y,z] }
-  t.ok "one oversize op is whole; next is unread" (trace.reads == [y.id] && s.send.map (·.id) == [y.id])
+  let ((_, _, bulk2), trace2) := (q.serveOwed fam cfg 1000 [] : TM _).run { ops := [y, z] }
+  t.ok "outside possession changes neither reads nor reply" (trace2.reads == trace.reads && bulk2.map (·.id) == bulk.map (·.id))
+  let q := (c.onWant cfg ix [y.id, z.id]).conn
+  let ((q1, _, bulk), trace) := (q.serveOwed fam cfg y.bytes.size [] : TM _).run { ops := [x, y, z] }
+  t.ok "budget stops subsequent blob reads" (trace.reads == [y.id] && bulk.map (·.id) == [y.id] && q1.owed == [z.id])
+  let ((q2, _, bulk), _) := (q1.serveOwed fam cfg y.bytes.size [] : TM _).run { ops := [x, y, z] }
+  t.ok "the rest is served at the next step, in order" (bulk.map (·.id) == [z.id] && q2.owed.isEmpty)
+  let ((q0, _, bulk), trace) := (q.serveOwed fam cfg 0 [] : TM _).run { ops := [y, z] }
+  t.ok "zero budget reads and sends nothing, and keeps the queue" (trace.reads.isEmpty && bulk.isEmpty && q0.owed == q.owed)
+  let ((_, _, bulk), trace) := (q.serveOwed fam cfg 1 [] : TM _).run { ops := [y, z] }
+  t.ok "one oversize op is whole; next is unread" (trace.reads == [y.id] && bulk.map (·.id) == [y.id])
+  let ((qf, urgent, bulk), _) := (q.serveOwed fam cfg 0 [z.id] : TM _).run { ops := [y, z] }
+  t.ok "a fresh write wanted is served urgent, whatever the budget" (urgent.map (·.id) == [z.id] && bulk.isEmpty && qf.owed == [y.id])
+  let gone := Op.make 1 [b] "purged".toUTF8
+  let ixg := Index.ofOps fam [gone, y]
+  let qg := (c.onWant cfg ixg [gone.id, y.id]).conn
+  let ((qg1, _, bulk), _) := (qg.serveOwed fam cfg 1000 [] : TM _).run { ops := [y] }
+  t.ok "an id no longer stored leaves the queue unanswered" (bulk.map (·.id) == [y.id] && qg1.owed.isEmpty)
+  let qb := (c.onWant { maxKnown := 1 } ix [y.id, z.id]).conn
+  t.ok "the queue holds at most maxKnown ids" (qb.owed == [y.id])
+  let qd := (q.onWant cfg ix [y.id, z.id]).conn
+  t.ok "a repeated want is not queued twice" (qd.owed == q.owed)
 
 def memoryChecks (t : Checks) : IO Unit := do
   let da ← Db.openAt ":memory:"
@@ -143,14 +162,14 @@ def wanted (ops : List Op) : List Id := ops.flatMap fun o =>
 def hostileChecks (t : Checks) : IO Unit := do
   let d ← Db.openAt ":memory:"
   seed d
-  let cfg : Config := { maxKnown := 16, maxIds := 4, patience := 20, retry := 1 }
+  let cfg : Config := { maxKnown := 16, maxIds := 4, patience := 20 }
   let x := setup "hostile".toUTF8 false cfg
   let (n, _) ← ((Node.boot fam [] 0).onTick x 0).run d
   let mut n := n
   let mut peak := 0
   let mut bounded := true
   let mut drops := 0
-  let mut retriesBounded := true
+  let mut noRetries := true
   for i in [1:1001] do
     let bytes := tagged sealedTag (Codec.encode (session.id, Codec.encode [(Msg.hold "room".toUTF8 [sha256 s!"fresh-{i}".toUTF8]).op.bytes]))
     let (next, e) ← (n.onFrame x "hostile".toUTF8 bytes i).run d
@@ -158,35 +177,36 @@ def hostileChecks (t : Checks) : IO Unit := do
     drops := drops + e.drop.length
     if let some c := n.conn? session.id then
       peak := max peak (max c.known.size c.asked.size)
-      bounded := bounded && c.known.size ≤ cfg.maxKnown && c.asked.size ≤ cfg.maxKnown && c.askTime.size ≤ cfg.maxKnown
+      bounded := bounded && c.known.size ≤ cfg.maxKnown && c.asked.size ≤ cfg.maxKnown && c.stale.size ≤ cfg.maxKnown
       let tick ← (c.tick fam cfg {} i : SqlM Nat Step).run d
-      retriesBounded := retriesBounded && (wanted tick.send).length ≤ cfg.maxIds
+      noRetries := noRetries && (wanted tick.send).isEmpty
     let (next, e) ← (n.onTick x i).run d
     n := next
     drops := drops + e.drop.length
-  t.ok "1000 fresh holds bound sets and timestamps" (bounded && peak == cfg.maxKnown)
+  t.ok "1000 fresh holds bound the ask sets" (bounded && peak == cfg.maxKnown)
   t.ok "fresh holds never drop for set size" (drops == 0 && (n.conn? session.id).isSome && !(← keysGone d))
-  t.ok "hostile retries bounded per tick" retriesBounded
+  t.ok "ticks retry no asks" noRetries
   let c : Conn := { dialer := false, rooms := ["room".toUTF8], floor := 0, peerFloor := some 0 }
   let (s, tr) := (c.onHold fam { maxIds := 1 } "room".toUTF8 ["x".toUTF8,"y".toUTF8] : TM Step).run {}
   t.ok "oversized hold ignored before any read" (!s.drop && tr.reads.isEmpty && s.send.isEmpty)
   let ids := (List.range 5).map fun i => s!"pending-{i}".toUTF8
-  let cfg : Config := { maxKnown := 4, maxIds := 5, patience := 20, retry := 1 }
+  let cfg : Config := { maxKnown := 4, maxIds := 5, patience := 20 }
   let first := (({ c with heard := 10 }.onHold fam cfg "room".toUTF8 ids : TM Step).run {}).1
-  t.ok "full asked defers missing ids without remembering them" (first.conn.asked.size == 4 && first.conn.known.size == 4 && !first.conn.known.contains ids[4]! && (wanted first.send) == ids.take 4)
+  t.ok "full asked still wants every missing id, remembering what fits" (first.conn.asked.size == 4 && (wanted first.send) == ids)
   let again := (({ first.conn with heard := 20 }.onHold fam cfg "room".toUTF8 ids : TM Step).run {}).1
-  t.ok "repeat offers do not renew original ask times" (again.conn.askTime[ids[0]!]? == some 10)
-  let cfg := { cfg with maxIds := 2 }
-  let retry := (({ again.conn with heard := 30 }.tick fam cfg {} 30 : TM Step).run {}).1
-  t.ok "tick reasks at most maxIds before expiry" ((wanted retry.send).length == 2 && retry.conn.asked.size == 4)
-  t.ok "retries do not renew original ask times" (retry.conn.askTime[ids[0]!]? == some 10)
-  let expired := (({ retry.conn with heard := 31 }.tick fam cfg {} 31 : TM Step).run {}).1
-  t.ok "asks expire after patience despite live peer traffic" (!expired.drop && expired.conn.asked.isEmpty && expired.conn.askTime.isEmpty && (wanted expired.send).isEmpty)
+  t.ok "repeat offers want only what was not remembered" ((wanted again.send) == [ids[4]!])
+  let tick1 := (({ again.conn with heard := 30 }.tick fam cfg {} 30 : TM Step).run {}).1
+  t.ok "ticks re-ask nothing" ((wanted tick1.send).isEmpty)
+  t.ok "a period's end keeps this period's asks as the last's" (tick1.conn.asked.isEmpty && tick1.conn.stale.size == 4 && !tick1.drop)
+  let tick2 := (({ tick1.conn with heard := 51 }.tick fam cfg {} 51 : TM Step).run {}).1
+  t.ok "asks expire after two periods despite live peer traffic" (!tick2.drop && tick2.conn.asked.isEmpty && tick2.conn.stale.isEmpty)
+  let after := (({ tick2.conn with heard := 52 }.onHold fam cfg "room".toUTF8 [ids[0]!] : TM Step).run {}).1
+  t.ok "an expired ask is asked again at the next offer" ((wanted after.send) == [ids[0]!])
   let fresh := "fresh".toUTF8
   let old := "old".toUTF8
   let hints := remember 1 (({} : Std.HashSet Id).insert old) fresh
   t.ok "full known forgets old hints and remembers the new id" (hints.size == 1 && hints.contains fresh && !hints.contains old)
-  t.ok "zero cap retains no hints or asks" ((remember 0 hints fresh).isEmpty && (admitAsks 0 {} ids).isEmpty)
+  t.ok "zero cap retains no hints or asks" ((remember 0 hints fresh).isEmpty && (noteAsks 0 {} ids).isEmpty)
 
 def closeEffectsChecks (t : Checks) : IO Unit := do
   let db ← Db.openAt ":memory:"

@@ -1,7 +1,8 @@
 /-
 An honest room larger than both connection sets, carried by two real
 Nodes on SQLite with an in-memory wire. Every observed transition is
-checked for bounds and session continuity; later rounds finish deferred asks.
+checked for bounds and session continuity; asks past the cap are sent
+all the same, and each side's queue of wants is served in full.
 -/
 import tests.engine.HardenLib
 
@@ -18,7 +19,7 @@ def bigSyncChecks (t : Checks) (count := 5000) (cap := 256) : IO Unit := do
   seed da
   seed db
   (Turn.turn fam ops : SqlM Nat Unit).run da
-  let cfg : Config := { maxKnown := cap, maxIds := 64, every := 10, patience := 100, lease := 300, retry := 1 }
+  let cfg : Config := { maxKnown := cap, maxIds := 64, every := 10, patience := 100, lease := 300 }
   let xa := setup b true cfg
   let xb := setup a false cfg
   let (na, ea) ← ((Node.boot fam ops 0).onTick xa 0).run da
@@ -49,7 +50,7 @@ def bigSyncChecks (t : Checks) (count := 5000) (cap := 256) : IO Unit := do
         sameSession := sameSession && n.conns.length == 1 && (n.conn? session.id).isSome
         for (_, c) in n.conns do
           peak := max peak (max c.known.size c.asked.size)
-          bounded := bounded && c.known.size ≤ cap && c.asked.size ≤ cap && c.askTime.size ≤ cap
+          bounded := bounded && c.known.size ≤ cap && c.asked.size ≤ cap && c.stale.size ≤ cap && c.owed.length ≤ cap
     if cursor < frames.size then throw <| IO.userError "big sync failed to quiesce"
     frames := #[]
     received := ((← (dumpOps (F := Nat)).run db).filter (fun o => o.kind == 1)).length
@@ -62,11 +63,11 @@ def bigSyncChecks (t : Checks) (count := 5000) (cap := 256) : IO Unit := do
       sameSession := sameSession && n.conns.length == 1 && (n.conn? session.id).isSome
       for (_, c) in n.conns do
         peak := max peak (max c.known.size c.asked.size)
-        bounded := bounded && c.known.size ≤ cap && c.asked.size ≤ cap && c.askTime.size ≤ cap
+        bounded := bounded && c.known.size ≤ cap && c.asked.size ≤ cap && c.stale.size ≤ cap && c.owed.length ≤ cap
   let stored := (← (dumpOps (F := Nat)).run db).foldl (fun s o => s.insert o.id) ({} : Std.HashSet Id)
   t.ok "honest big sync delivers every op" (received == count && ops.all fun o => stored.contains o.id)
   t.ok "honest big sync stays in one session without drops" (drops == 0 && sameSession && !(← keysGone da) && !(← keysGone db))
-  t.ok "honest big sync bounds sets and timestamps throughout" (bounded && peak == cap)
+  t.ok "honest big sync bounds its sets and queue throughout" (bounded && peak == cap)
   IO.println s!"big sync: {count} ops, cap {cap}, {rounds} rounds, {steps} frames, peak {peak}, drops {drops}"
 
 end Harden

@@ -9,10 +9,12 @@ is run by a simulated runner that calls the runner's own pure parts:
 - **lanes** (Tcp.lean today): local writes first (`Inbox.next`); a
   step's frames pushed onto the socket's `Lanes` (`laned`,
   `framesFor`, `Lanes.pushAll`) and drained by its writer one
-  `Lanes.take` at a time, whenever the kernel has room; a frame's wants
-  answered within `credit`;
-- **old** (before this branch): one FIFO channel for writes and frames,
-  and the loop waiting until each step's frames are all in the kernel.
+  `Lanes.take` at a time, whenever the kernel has room; each session's
+  queue served while the socket's serve lane is under `window`
+  (`Sync.room`);
+- **old** (main before this branch): one FIFO channel for writes and
+  frames, the loop waiting until each step's frames are all in the
+  kernel, and up to 4 MiB served a step (main's `wantBytes`).
 The link carries `bw` bytes per µs after `delay`, from a kernel send
 buffer of `sndbuf` bytes, into the receiver's event queue of `queue`
 frames; while that is full, nothing more arrives and at most `rcvbuf`
@@ -160,6 +162,14 @@ def Box.out (b : Box) (e : Effects) : Box :=
 def cost (e : Effects) : Nat :=
   sim.perEvent + sim.perOp * e.stored.length + sim.perKiB * bytesOf (e.send.map (·.2)) / 1024
 
+/-- The node's setup as the runner hands it a step: under lanes, the
+socket's room under `window` (`Sync.room`); in the old order, 4 MiB a
+step, as main's `wantBytes`. -/
+def Box.flow (b : Box) (x : Sync Fact (SqlM Fact)) : Sync Fact (SqlM Fact) :=
+  match order with
+  | .lanes => { x with room := fun _ => some (sim.window - b.lanes.queued) }
+  | .old => { x with room := fun _ => some sim.window }
+
 /-- The box's loop, if free: its next event, then the clock. -/
 def Box.loop (b : Box) (peer : ByteArray) (now : Nat) : IO (Box × List Id) := do
   -- In the old order the loop waits until its last step's frames are in the kernel.
@@ -184,16 +194,13 @@ def Box.loop (b : Box) (peer : ByteArray) (now : Nat) : IO (Box × List Id) := d
     stored := stored ++ e.stored
     spent := spent + cost sim e
   | some (.frame f) =>
-    let x' := match order with
-      | .lanes => { x with cfg := { x.cfg with wantBytes := credit sim.window x.cfg.wantBytes b.lanes.queued } }
-      | .old => x
-    let (s, e) ← b.side.run fun n => n.onFrame x' peer f ms
+    let (s, e) ← b.side.run fun n => n.onFrame (b.flow sim order x) peer f ms
     b := { b.out order e with side := s }
     stored := stored ++ e.stored
     spent := spent + cost sim e
   | none => pure ()
   if now ≥ b.lastTick + sim.tick then
-    let (s, e) ← b.side.run fun n => n.onTick x ms
+    let (s, e) ← b.side.run fun n => n.onTick (b.flow sim order x) ms
     b := { b.out order e with side := s, lastTick := now }
     stored := stored ++ e.stored
     spent := spent + cost sim e
