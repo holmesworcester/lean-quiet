@@ -51,7 +51,6 @@ structure Io where
   frame : Array ByteArray → UInt32 → UInt32 → Array ByteArray → Array ByteArray → Bool → IO (Array UInt32)
   text : IO (String × Array UInt32)
   ime : Bool → IO Unit
-  textClear : IO Unit
   copy : String → IO Unit
   ctlPoll : IO (Array String)
   ctlReply : String → IO Unit
@@ -64,6 +63,8 @@ structure Io where
   luma : IO (Array UInt32 × ByteArray)
   /-- A line for the platform's log (logcat, the device console, stderr). -/
   log : String → IO Unit := IO.eprintln
+  /-- The native text field's text becomes t (left alone if it is t). -/
+  setText : String → IO Unit := fun _ => pure ()
 
 /-- How far beyond each end of the viewport the list frame is drawn. -/
 def over : Nat := 1024
@@ -174,6 +175,8 @@ structure St where
   keeps watching (Screen.screen_subs). -/
   touched : Std.HashSet Q := {}
   out : Array Pending := #[]
+  /-- What the native text field holds, as last set or reported. -/
+  native : String := ""
   /-- The reader's board, and the frame's wants of it (Reader): the
   conversation's ids and rows are read there, not on the frame. -/
   sh : Reader.Shared
@@ -281,7 +284,7 @@ removal is not announced again. -/
   scans : Nat := 0
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln⟩⟩
+  pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure ()⟩⟩
 
 abbrev M := StateT St IO
 
@@ -300,6 +303,78 @@ def fresh (q : Q) : M Bool := do return (← get).live.fresh q
 
 
 instance : Reads M := ⟨read⟩
+
+/-! ## The native text field
+
+One native field edits one of the app's strings at a time. The `.text`
+event writes the field's text into it (`textInto`), and each frame sets
+the field to it (`syncText`), so the field and the app's string never
+drift: a page change never empties the composer's draft by way of the
+field (TextLaws in this file: `into_target`, `into_native`). -/
+
+/-- Which string the native field edits: a page's one-line field, the
+emoji sheet's search, the composer's draft, or none (the sheet open
+without its search: the field is left as it is). -/
+inductive TextTarget where
+  | field | query | draft | none
+  deriving BEq, DecidableEq
+
+def fieldPage (p : PageId) : Bool := p == .create || p == .createName || p == .paste || p == .name
+
+def textTarget (s : St) : TextTarget :=
+  if fieldPage s.page then .field
+  else match s.sheet with
+    | some sh => if sh.searching then .query else .none
+    | none => .draft
+
+/-- What the native field is to hold now, if anything. -/
+def nativeText (s : St) : Option String :=
+  match textTarget s with
+  | .field => some s.field
+  | .query => s.sheet.map (·.query)
+  | .draft => some s.text
+  | .none => none
+
+/-- A `.text` event's text and selection into the string the field edits. -/
+def textInto (s : St) (t : String) (sel : Array UInt32) : St :=
+  match textTarget s with
+  | .field => { s with field := t, refusal := none, pageKey := none }
+  | .query => match s.sheet with
+    | some sh => { s with sheet := some { sh with query := t, scroll := 0 } }
+    | none => s
+  | .draft => { s with text := t, sel := if sel.size == 4 then sel else #[0, 0, 0, 0] }
+  | .none => s
+
+/-- **A text event edits the string the field edits, and nothing that
+chooses it**: the target is the same after. -/
+theorem into_target (s : St) (t : String) (sel : Array UInt32) : textTarget (textInto s t sel) = textTarget s := by
+  unfold textInto
+  cases hf : fieldPage s.page
+  · cases hs : s.sheet with
+    | none => simp [textTarget, hf, hs]
+    | some sh => by_cases hq : sh.searching <;> simp [textTarget, hf, hs, hq]
+  · simp [textTarget, hf]
+
+/-- **After a text event the field holds what the app holds** (unless it
+edits nothing), so `syncText` sets nothing back: no echo, no lost text. -/
+theorem into_native (s : St) (t : String) (sel : Array UInt32) (h : textTarget s ≠ .none) :
+    nativeText (textInto s t sel) = some t := by
+  unfold nativeText
+  rw [into_target]
+  unfold textInto
+  cases hf : fieldPage s.page
+  · cases hs : s.sheet with
+    | none => simp [textTarget, hf, hs]
+    | some sh => by_cases hq : sh.searching <;> simp_all [textTarget]
+  · simp [textTarget, hf]
+
+/-- Set the native field to the string it edits, when they differ. -/
+def syncText : M Unit := do
+  let s ← get
+  if let some t := nativeText s then
+    if t != s.native then
+      s.io.setText t
+      modify fun s => { s with native := t }
 
 /-- Message m's row: its view (Kinds.Message.read: the claimed time, in
 UTC minutes), shown at the local time (the platform's timezone). -/
@@ -698,7 +773,6 @@ def openPage (p : PageId) : M Unit := do
 def back : M Unit := do
   let s ← get
   s.io.ime false
-  s.io.textClear
   s.io.scrollTo 0
   match s.backStack with
   | p :: rest => modify fun s => { s with page := p, backStack := rest, field := "", refusal := none, pageKey := none }
@@ -722,7 +796,6 @@ def refreshComms : M Unit := do
   let cs := Kinds.Accepted.listed all
   -- removed since last told: a standing notice each, and forgotten
   for g in Kinds.Accepted.newlyGone (← get).goneSeen all do
-    if (← get).me.acc == g.acc then (← get).io.textClear
     modify fun s => { forgetEntry s g.acc g.c with
       goneSeen := g.acc :: s.goneSeen,
       notices := s.notices ++ [s!"You’ve been removed from {if g.name.isEmpty then "a community" else g.name}."] }
@@ -756,13 +829,11 @@ node holds a community at most once). -/
 def takeInvite (i : Community.Invite) : M Unit := do
   let s ← get
   if let some m := s.comms.find? (·.c == i.community) then
-    s.io.textClear
     s.io.ime false
     modify fun s => { s with invite := none, field := "", refusal := none }
     switchToAcc m.acc
     say (if m.waiting then "You're already waiting to join this community." else "You're already in this community.")
     return
-  s.io.textClear
   modify fun s => { s with invite := some i, field := "", refusal := none }
   openPage .name
   s.io.ime true
@@ -1017,14 +1088,12 @@ def onPageAct (a : Pages.Act) : M Unit := do
   | .back => back
   | .joinCommunity => openPage .joinChoice
   | .createCommunity =>
-    s.io.textClear
     modify fun s => { s with field := "" }
     openPage .create
     s.io.ime true
   | .inviteLink => openPage .openInvite
   | .qrCode => openPage .scan
   | .pasteLink =>
-    s.io.textClear
     modify fun s => { s with field := "" }
     openPage .paste
     s.io.ime true
@@ -1034,7 +1103,6 @@ def onPageAct (a : Pages.Act) : M Unit := do
     | .create =>
       let n := s.field.trimAscii.toString
       if !n.isEmpty then
-        s.io.textClear
         modify fun s => { s with field := "", newCommunity := n }
         openPage .createName
         s.io.ime true
@@ -1042,7 +1110,6 @@ def onPageAct (a : Pages.Act) : M Unit := do
       let me := s.field.trimAscii.toString
       if !me.isEmpty then
         s.io.ime false
-        s.io.textClear
         modify fun s => { s with field := "" }
         found s.newCommunity me
     | .paste =>
@@ -1066,7 +1133,6 @@ def onPageAct (a : Pages.Act) : M Unit := do
       -- again for a stopped one, else a fresh join
       let (w, _) ← readView (Community.join i seed s.joinName.toUTF8) #[]
       if ← writeAll w then
-        s.io.textClear
         modify fun s => { s with invite := none, field := "", backStack := [] }
         refreshComms
         match acceptOf w, (← get).comms.find? (·.c == i.community) with
@@ -1119,7 +1185,6 @@ def closeSheet : M Unit := do
   let s ← get
   if (s.sheet.map (·.searching)).getD false then
     s.io.ime false
-    s.io.textClear
   modify fun s => { s with sheet := none, selected := none }
 
 /-- Send what the composer holds: its text and photos, as the engine's
@@ -1140,7 +1205,6 @@ def sendNow : M Unit := do
   let nonce ← Engine.Crypto.randomBytes 24
   let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files) #[]
   if ← writeAll w then
-    s.io.textClear
     modify fun s => { s with text := "", sel := #[0, 0, 0, 0], chips := #[], chromeKey := "" }
 
 /-- A photo prepared for sending: at most 2048 px a side, as QOI, with its
@@ -1192,7 +1256,7 @@ def onSheetTap (sh : SheetSt) (x y : Nat) : M Unit := do
     let c := catOf s sh
     match Sheet.hitCat c sh.scroll x y with
     | .back =>
-      if sh.searching then s.io.ime false; s.io.textClear
+      if sh.searching then s.io.ime false
       let sh' := { sh with catalog := false, searching := false, query := "" }
       modify fun s => { s with sheet := some sh' }
     | .search =>
@@ -1200,7 +1264,7 @@ def onSheetTap (sh : SheetSt) (x y : Nat) : M Unit := do
       modify fun s => { s with sheet := some { sh with searching := true } }
     | .tone t => modify fun s => { s with sheet := some { sh with tone := t } }
     | .category k =>
-      if sh.searching then s.io.ime false; s.io.textClear
+      if sh.searching then s.io.ime false
       let sh' := { sh with cat := k, scroll := 0, query := "", searching := false }
       modify fun s => { s with sheet := some sh' }
     | .pick i =>
@@ -1298,14 +1362,7 @@ def onEvent : Event → M Bool
   | .long r x y => do onTap r x.toNat y.toNat true; return true
   | .text => do
     let (t, sel) ← (← get).io.text
-    if (← get).page == .create || (← get).page == .createName || (← get).page == .paste || (← get).page == .name then
-      modify fun s => { s with field := t, refusal := none, pageKey := none }
-      return true
-    match (← get).sheet with
-    | some sh =>
-      if sh.searching then modify fun s => { s with sheet := some { sh with query := t, scroll := 0 } }
-    | none =>
-      modify fun s => { s with text := t, sel := if sel.size == 4 then sel else #[0, 0, 0, 0] }
+    modify fun s => { textInto s t sel with native := t }
     return true
   | .send => do
     if (← get).page == .create || (← get).page == .createName || (← get).page == .paste || (← get).page == .name then
@@ -1581,6 +1638,9 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   while !queue.isEmpty do
     if ← command queue[0]! then queue := queue.extract 1 queue.size else break
   modify fun s => { s with ctl := queue }
+  -- the native field holds the string it now edits (a page or sheet
+  -- change chose another)
+  syncText
   let tCommands ← (← get).io.nowUs
   -- 3. the list's ids and counts
   let s ← get

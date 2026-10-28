@@ -164,9 +164,14 @@ public class LeanActivity extends NativeActivity {
     });
   }
 
-  /** From native (any thread): empties the text. */
-  public void clearText() {
-    runOnUiThread(() -> edit.setText(""));
+  /** From native (any thread): the text becomes t, caret at its end; a
+   * field already holding t is left alone (its caret too). */
+  public void setText(String t) {
+    runOnUiThread(() -> {
+      if (edit.getText().toString().equals(t)) return;
+      edit.setText(t);
+      edit.setSelection(t.length());
+    });
   }
 
   /** From native (any thread): puts text on the clipboard. */

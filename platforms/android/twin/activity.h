@@ -66,7 +66,6 @@ char* ba_text(uint32_t pos[4]);
 // Asks the Java half to open or close the keyboard, or empty the text
 // (from any thread).
 void ba_ime(bool show);
-void ba_text_clear(void);
 
 // Debug properties, read at start: debug.lean.ahead=0 (no drawing ahead
 // of a fling), debug.lean.trace=1 (per-vsync log).
@@ -74,6 +73,7 @@ bool ba_ahead(void);
 
 // Puts UTF-8 text on the clipboard (the Java half, on the UI thread).
 void ba_copy(const char* utf8);
+void ba_set_text(const char* utf8);
 
 // The camera (Join with QR code): on or off; and the newest frame's Y plane
 // since the last take ([w, h, stride, sensor orientation]), malloc'd, the

@@ -234,9 +234,37 @@ def main (args : List String) : IO UInt32 := do
     writePpm (dir ++ "/top.ppm") W (← screenOf sm W Hs 63)
     let s ← get
     IO.println s!"at the top: loaded {s.ids.size} of {s.total}, mounted {s.rows.size}"
-    -- back to the newest; send and react
+    -- back to the newest
     sm.b.set 0
     steps 10
+    -- a draft survives a page and back: the native field is set to the
+    -- string it edits (a phone's field echoes what it is set to as a text
+    -- event, so the echo must carry the draft, not an empty field)
+    sm.native.set "a draft"
+    let _ ← onEvent .text
+    sm.cmds.modify (·.push "open switcher")
+    steps 3
+    sm.cmds.modify (·.push "back")
+    steps 3
+    let _ ← onEvent .text
+    check s!"a draft survives the switcher and back ({repr (← get).text}, field {repr (← sm.native.get)})"
+      ((← get).text == "a draft" && (← sm.native.get) == "a draft")
+    openPage .create
+    steps 2
+    let onCreate ← sm.native.get
+    let _ ← onEvent .text
+    back
+    steps 2
+    let _ ← onEvent .text
+    check s!"a page's field starts empty, not the draft ({repr onCreate}), and back restores the draft ({repr (← get).text})"
+      (onCreate == "" && (← get).text == "a draft" && (← sm.native.get) == "a draft")
+    -- control: a field emptied behind the app's back (what back did) and
+    -- echoed loses the draft
+    sm.native.set ""
+    let _ ← onEvent .text
+    check "control: a field emptied behind the app's back loses the draft" ((← get).text == "")
+    steps 2
+    -- send and react
     sm.cmds.modify (·.push "pause")
     sm.cmds.modify (·.push "send Hello from the host test 👋 שלום")
     let _ ← step []

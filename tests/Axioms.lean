@@ -366,6 +366,8 @@ section app
 #print axioms Switch.select_tapped_dedupe
 #print axioms App.drawPage_key
 #print axioms App.pageIn_acc
+#print axioms App.into_target
+#print axioms App.into_native
 #print axioms Pages.switcherOrder_sound
 #print axioms Pages.switcherOrder_complete
 #print axioms Switch.dedupe_one_per_community

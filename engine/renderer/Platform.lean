@@ -80,8 +80,9 @@ candidate). -/
 /-- Opens (true) or closes the keyboard on the composer. -/
 @[extern "lq_ime"] opaque ime (show_ : Bool) : IO Unit
 
-/-- Empties the composer's text (after a send). -/
-@[extern "lq_text_clear"] opaque textClear : IO Unit
+/-- The native field's text becomes t (caret at its end); left alone if
+it already is t. -/
+@[extern "lq_set_text"] opaque setText : @& String → IO Unit
 
 /-- Puts text on the system clipboard. -/
 @[extern "lq_copy"] opaque copy (text : @& String) : IO Unit

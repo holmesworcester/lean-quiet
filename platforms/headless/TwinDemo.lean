@@ -148,7 +148,7 @@ partial def loop (s : St) (lastB : Nat) : IO Unit := do
     | .tap .composer _ _ => Platform.ime true
     | .tap .header _ _ => Platform.ime false
     | .text => let (t, p) ← Platform.text; s := { s with text := t, pos := p }
-    | .send => s := s.append; Platform.textClear
+    | .send => s := s.append; Platform.setText ""
     | .ime h => s := { s with ime := h.toNat }
     | _ => pure ()
   for c in ← Platform.ctlPoll do
