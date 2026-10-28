@@ -168,6 +168,12 @@ structure St where
   /-- The people of the current community (Direct messages on home):
 names, and whether it is me. -/
   members : Array (String × Bool) := #[]
+  /-- Whether each member (as `members`) has a device this node holds a
+  session with now. -/
+  online : Array Bool := #[]
+  /-- The peers this node holds sessions with (their device keys), read
+  every half second. -/
+  peers : List ByteArray := []
   /-- A toast and the frame it goes at (libquiet's: centred, about 3 s). -/
   toast : Option (String × Nat) := none
   page : PageId := .chat
@@ -634,8 +640,19 @@ def refreshMembers : M Unit := do
   let s ← get
   if s.me.c.isEmpty || s.page != .home then return
   let (ms, _) ← Kinds.Profile.members s.me.c
-  let out := ms.map fun (u, p) => (p.name, u == s.me.user)
-  modify fun s => { s with members := out.filter (·.2) ++ out.filter (!·.2) }
+  let out := ms.map fun (u, ds, p) => ((p.name, u == s.me.user), ds.any (s.peers.contains ·))
+  let sorted := out.filter (·.1.2) ++ out.filter (!·.1.2)
+  modify fun s => { s with members := sorted.map (·.1), online := sorted.map (·.2) }
+
+/-- The node's sessions now (Connection.sessions' kept ones): their
+peers' device keys, every 30 frames. -/
+def refreshPeers : M Unit := do
+  let s ← get
+  if s.net.isNone || s.frames % 30 != 0 then return
+  let all ← ((Connection.allSessions : SqlM SF _)).run s.rd
+  let k := Connection.kept all
+  let ps := all.filterMap fun (cid, p, _) => if k.contains cid then some p else none
+  if ps != s.peers then modify fun s => { s with peers := ps, pageCache := "" }
 
 /-- The requests to join the current community, read by the Request kind. -/
 def refreshAsking : M Unit := do
@@ -671,7 +688,8 @@ def pageOf (s : St) : Pages.Page :=
   | .waiting => Pages.waiting f dm W h (Kinds.Request.hexShort s.me.c)
       -- the request is stored and waits for the community's ops; until the
       -- network says more, the first beat is where it is
-      #[("Looking for someone to hand your join to", "Nobody has taken it yet.", .now),
+      #[(if s.me.dialing.isEmpty then "Looking for someone to hand your join to" else s!"Sending your request to {s.me.dialing}",
+          "Quiet sends it again until a member's device answers.", .now),
         ("Waiting for a member to let you in", "Quiet asks again whenever it finds one. They see you waiting the next time they open the app.", .next),
         ("Keys and history arrive", "Then the community opens, with what was shared before you got here.", .next)] #[]
   | .requests => Pages.requests f dm W h ((s.asking.filter fun r => !s.hidden.contains r.id).map (·.row))
@@ -681,7 +699,7 @@ def pageOf (s : St) : Pages.Page :=
   | .switcher => Pages.switcher f dm W h (s.comms.map fun m =>
       ({ name := m.name, id8 := Kinds.Request.hexShort m.c, unread := 0, current := m.c == s.me.c, waiting := m.waiting } : Pages.Entry))
       s.asking.size (!s.me.waiting && !s.me.c.isEmpty)
-  | .home => Pages.home f dm W h (if s.me.waiting then 0 else s.asking.size) #["general"] s.members
+  | .home => Pages.home f dm W h (if s.me.waiting then 0 else s.asking.size) #["general"] s.members s.online
   | .chat => ⟨Bitmap.blank W h s.bgRow, #[]⟩
 
 def pageTitle : PageId → String × Bool
@@ -1260,6 +1278,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   -- join requests for the current community, and admissions they complete
   refreshComms
   refreshAsking
+  refreshPeers
   refreshMembers
   scanStep
   netStep
@@ -1283,7 +1302,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   -- layer (which does not scroll on a page), a one-row composer layer
   let s ← get
   if s.page != .chat then
-    let key := s!"{repr s.page}|{s.members.size}|{s.W}|{s.Hs}|{s.insetTop}|{s.insetBot}|{s.field}|{s.refusal}|{s.comms.size}|{s.asking.size}|{s.hidden.length}|{s.me.name}|{s.links.length}|{(s.comms.map (·.waiting)).toList}"
+    let key := s!"{repr s.page}|{s.members.size}|{s.W}|{s.Hs}|{s.insetTop}|{s.insetBot}|{s.field}|{s.refusal}|{s.comms.size}|{s.asking.size}|{s.hidden.length}|{s.me.name}|{s.links.length}|{s.online.toList}|{(s.comms.map (·.waiting)).toList}"
     if key != s.pageCache then
       let pg := pageOf s
       let (t, cross) := pageTitle s.page

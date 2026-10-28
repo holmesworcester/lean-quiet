@@ -34,19 +34,19 @@ def read (c u : Id) (deps : Array Q) : m (Data × Array Q) := do
   | _ => return (⟨"…", none⟩, deps)
 
 /-- The members of c, by admission (each user once, in admission order),
-with their profiles. -/
-def members (c : Id) : m (Array (Id × Data) × Array Q) := do
+with their devices and profiles. -/
+def members (c : Id) : m (Array (Id × List Key × Data) × Array Q) := do
   let (a, _, deps) ← readList (admission.all.query [c] (limit := some 200)) #[]
   let mut deps := deps
-  let mut seen : List Id := []
-  let mut out := #[]
+  let mut out : Array (Id × List Key × Data) := #[]
   for (_, f) in a.rows do
-    if let .admission _ u _ _ := f then
-      if seen.contains u then continue
-      seen := u :: seen
-      let (p, d) ← read c u deps
-      deps := d
-      out := out.push (u, p)
+    if let .admission _ u dev _ := f then
+      match out.findIdx? (·.1 == u) with
+      | some i => out := out.modify i fun (u, ds, p) => (u, dev :: ds, p)
+      | none =>
+        let (p, d) ← read c u deps
+        deps := d
+        out := out.push (u, [dev], p)
   return (out, deps)
 
 end Kinds.Profile

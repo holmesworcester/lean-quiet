@@ -86,6 +86,7 @@ def main (args : List String) : IO UInt32 := do
     waitIdle sb
     steps 3).run b0
   check "B waits to join" (b1.page == .waiting && b1.me.waiting)
+  check s!"B's Waiting says where its request goes ({b1.me.dialing})" (b1.me.dialing == s!"127.0.0.1:{pa}")
   -- B's node dials A with the request: it shows under Waiting to join
   let (a2, b2, asked) ← both a1 b1 20000 fun a _ => a.asking.size == 1
   check s!"A sees B's request over TCP (B's node {b2.net.map (·.port)})" asked
@@ -113,7 +114,15 @@ def main (args : List String) : IO UInt32 := do
   let rows := a7.rows.toList.map (·.2.data)
   check s!"B's post reaches A under B's name ({(rows.find? (·.text == "hello over tcp")).map (·.name)})"
     (got || rows.any fun d => d.text == "hello over tcp" && d.name == "Bea")
-  if let some r := a7.net then r.stop
+  -- A's home: Bea, with the online dot (a session with her device)
+  let ((), a8) ← (show M Unit from do
+    sa.cmds.modify (·.push "switch club")
+    for _ in [0:100] do
+      if (← get).online.toList == [false, true] then break
+      steps 1; IO.sleep 10).run a7
+  check s!"A's home shows Bea online ({a8.members.toList.zip a8.online.toList})"
+    (a8.members.toList.map (·.1) == ["Ann", "Bea"] && a8.online.toList == [false, true])
+  if let some r := a8.net then r.stop
   if let some r := b5.net then r.stop
   (← IO.getStdout).flush
   IO.Process.exit (if (← fails.get) == 0 then 0 else 1)

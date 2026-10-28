@@ -24,8 +24,10 @@ structure Me where
   /-- My user there (the community id for its founder); empty while waiting. -/
   user : Id := .empty
   name : String
-  /-- While waiting: the joining op (what Stop waiting supersedes). -/
+  /-- While waiting: the joining op (what Stop waiting supersedes), and
+  the address its request is sent to (the link's first hint). -/
   joiningOp : Id := .empty
+  dialing : String := ""
   deriving Inhabited
 
 def Me.waiting (m : Me) : Bool := m.adm.isEmpty
@@ -52,13 +54,15 @@ def read : m (Array Me × Array Q) := do
     -- a join not answered: its joining op, and whether I stopped waiting
     let jop := (jn.rows.find? fun (_, f) => match f with | .joining c' .. => c' == c | _ => false)
     let mut joiningOp := ByteArray.empty
+    let mut dialing := ""
     if admId.isEmpty then
-      if let some ((_, jid), .joining _ _ _ req _) := jop then
+      if let some ((_, jid), .joining _ _ hs req _) := jop then
+        dialing := (hs.head?.bind String.fromUTF8?).getD ""
         let (ab, _, d4) ← readList (abandoned.byRequest.query [req] (limit := some 0)) deps
         deps := d4
         if ab.total > 0 then continue
         joiningOp := jid
-    out := out.push ⟨Device.ofSeed seed, seed, c, admId, user, name, joiningOp⟩
+    out := out.push ⟨Device.ofSeed seed, seed, c, admId, user, name, joiningOp, dialing⟩
   -- a stable order: by name, then id
   let sorted := out.qsort fun a b => a.name < b.name || (a.name == b.name && Engine.bcmp a.c b.c == .lt)
   return (sorted, deps)

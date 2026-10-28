@@ -9,9 +9,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { path: lean-quiet }
+      # the lakefile's sibling packages, at the paths it requires: the
+      # engine at the commit the app pins (lean-engine `connection`), lean-qr
       - uses: actions/checkout@v4
-        with: { repository: "${{ github.repository_owner }}/lean-engine", path: lean-engine }
-      - run: sudo apt-get install -y libsqlite3-dev libsodium23 python3-pil
+        with: { repository: "${{ github.repository_owner }}/lean-engine", ref: 13da46d, path: lean-engine-quiet }
+      - uses: actions/checkout@v4
+        with: { repository: "${{ github.repository_owner }}/lean-qr", path: lean-qr }
+      - run: sudo apt-get install -y libsqlite3-dev python3-pil
+      # the engine's crypto: a Rust library (native/crypto), built for the host
+      - run: cargo build --release
+        working-directory: lean-engine-quiet/native/crypto
+        env: { CARGO_TARGET_DIR: target }
       - run: curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
       - uses: jdx/mise-action@v2
         with: { working_directory: lean-quiet }
@@ -19,9 +27,16 @@ jobs:
         working-directory: lean-quiet
       - run: mise run host:app
         working-directory: lean-quiet
+      - run: mise run host:two-nodes
+        working-directory: lean-quiet
+      # the join over real TCP on loopback: two apps, each its own node
+      - run: mise run host:net-join
+        working-directory: lean-quiet
+      - run: mise run check
+        working-directory: lean-quiet
       - uses: actions/upload-artifact@v4
         if: failure()
-        with: { name: host, path: "lean-quiet/out/host-twin\nlean-quiet/out/host" }
+        with: { name: host, path: "lean-quiet/out/host-twin\nlean-quiet/out/host\nlean-quiet/out/two\nlean-quiet/out/net" }
   # The emulator suite needs a provisioned machine (KVM, the Lean runtime
   # for Android): run it by hand (workflow_dispatch) on a self-hosted
   # runner labelled android.

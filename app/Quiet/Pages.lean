@@ -503,10 +503,15 @@ def homeBand (f : Font) (dm : Dim) (W insetTop : Nat) (name id8 me : String) : B
   b := b.line f (oneLine f f.cell mi) (mx + (d - f.cell / 2) / 2) (y + (d - f.cell) / 2) primaryInk
   return b
 
+/-- The online dot: a member's device holds a session with this node. -/
+def online : Color := 0x2EB67D
+
 /-- The community's home: "Waiting to join" with its red count while
 anyone waits (for those who can let them in), Channels, and Direct
-messages (the people). -/
-def home (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array String) (people : Array (String × Bool)) : Page := Id.run do
+messages (the people, a green dot on each whose device this node is
+connected to). -/
+def home (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array String) (people : Array (String × Bool))
+    (on : Array Bool := #[]) : Page := Id.run do
   let mut b := Bitmap.blank W h (solid band W)
   b := b.round 0 0 W (h + dm.px 16) (dm.px 16) Row.bg
   let mut taps := #[]
@@ -529,9 +534,17 @@ def home (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array Str
   b := b.line f (oneLine f W "Direct messages") (dm.px 16) y nameInk true
   y := y + dm.lineH + dm.px 8
   let d := dm.px 32
-  for (n, isMe) in people do
+  for i in [0:people.size] do
+    let (n, isMe) := people[i]!
     if y + rh > h then break
     b := b.round (dm.px 16) (y + (rh - d) / 2) (dm.px 16 + d) (y + (rh + d) / 2) (dm.px 4) (avatarColor n)
+    if on[i]?.getD false then
+      -- at the avatar's lower right, ringed with the page
+      let r := dm.px 6
+      let cx := dm.px 16 + d
+      let cy := y + (rh + d) / 2
+      b := b.round (cx - r - 2) (cy - r - 2) (cx + r + 2) (cy + r + 2) (r + 2) Row.bg
+      b := b.round (cx - r) (cy - r) (cx + r) (cy + r) r online
     let ini := String.ofList [(n.toList.headD '?').toUpper]
     b := b.line f (oneLine f f.cell ini) (dm.px 16 + (d - f.cell / 2) / 2) (y + (rh - f.cell) / 2) primaryInk
     let l := oneLine f (W - dm.px 100) n
