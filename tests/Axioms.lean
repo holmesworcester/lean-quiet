@@ -29,6 +29,10 @@ import engine.renderer.qr.Qr
 import engine.renderer.pic.Pic
 import engine.wire.mdns.Mdns
 import ops.connection.bootstrap.Net
+import engine.core.WindowRead
+import engine.core.WindowCost
+import engine.core.WindowMutants
+import engine.renderer.Screen
 import engine.core.CodecCost
 import ops.community.MerkleCost
 import ops.app.Pics
@@ -497,6 +501,42 @@ open Net
 #print axioms Net.allowPeer_iff
 #print axioms Net.allowPeer_settles
 end net
+
+section windows
+open Engine
+#print axioms Engine.run_exact
+#print axioms Engine.fact_stable
+#print axioms Engine.window_ne_iff
+#print axioms Engine.window_ne_iff_flips
+#print axioms Engine.oneOpPerId_of
+#print axioms Engine.notice_iff
+#print axioms Engine.rank_spec
+#print axioms Engine.find_build
+#print axioms Engine.Subs.find_iff
+#print axioms Engine.Subs.mem_notifyM
+#print axioms Engine.Subs.has_ofList
+#print axioms Engine.Subs.has_add
+#print axioms Engine.Subs.has_keep
+#print axioms Engine.Subs.add_wf
+#print axioms Engine.Subs.keep_wf
+#print axioms Engine.Subs.ofList_wf
+#print axioms Engine.mem_net
+#print axioms Engine.read_rows_iff
+#print axioms Engine.read_notice_iff
+#print axioms Engine.watch_stable
+#print axioms Engine.window_rows
+#print axioms Engine.rank_costs
+#print axioms Engine.find_costs
+#print axioms Engine.notify_cost
+#print axioms Engine.Mutants.key_notice_imprecise
+#print axioms Engine.Mutants.exact_silent
+#print axioms Engine.Mutants.unnetted_imprecise
+#print axioms Screen.screen_subs
+#print axioms Screen.hull_near
+#print axioms Screen.past_hull_le
+#print axioms Screen.screen_index
+#print axioms Screen.keep_scrolled_off
+end windows
 
 section cost
 -- Budgets over the code that runs (docs/PERF.md), and the negative
