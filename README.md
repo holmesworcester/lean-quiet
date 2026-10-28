@@ -6,7 +6,7 @@ of its UI, and checks proofs about all four.
 
 | 👋 **A note from a human** |
 |:---|
-| In ~1 day I vibe-coded a p2p, e2ee Discord alternative in Lean (informed by my work on [Quiet](https://tryquiet.org)) for iOS and Android with some fairly powerful correctness proofs. How does this stand up? |
+| In ~1 day I vibe-coded a p2p, e2ee Slack/Discord alternative in Lean (informed by my work on [Quiet](https://tryquiet.org)) for iOS and Android with some fairly powerful correctness proofs. How does this stand up? |
 
 It is a working prototype of [Quiet](https://github.com/TryQuiet/quiet):
 communities with members, invitations, messages, reactions and pictures,
