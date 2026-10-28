@@ -13,10 +13,10 @@ import Community.Connect
 namespace Community
 open Engine
 
-/-- What an intent writes: ops, and the bytes of the blobs they name. -/
+/-- What an intent writes: ops. Everything is ops, file bytes included
+(an attachment's chunks). -/
 structure Write where
   ops : List Op
-  blobs : List ByteArray := []
 
 /-- Found a community named `name` from this device's seed, the founder
 known as `myName`: the device's secret (local), the root, the device's
@@ -28,14 +28,14 @@ def found (seed name myName : ByteArray) (time : Nat) (k esk : ByteArray) : Writ
   let d := Device.ofSeed seed
   let r := root d
   ⟨[secret seed, r, accept r.id d.pk, setName r.id r.id r.id [] 1 d name,
-    profile r.id r.id d myName time [], contentKey r.id k, wrapKey r.id k esk d.enc], []⟩
+    profile r.id r.id d myName time, contentKey r.id k, wrapKey r.id k esk d.enc]⟩
 
 /-- Invite to c from this device (admitted as `myAdm`): the invitation,
 and its link, with the bearer seed and dial hints given. -/
 def inviteTo (c myAdm : Id) (seed bearerSeed : ByteArray) (hints : List ByteArray)
     (threshold : Nat := 1) : Write × Invite :=
   let p := issue c myAdm (Device.ofSeed seed) bearerSeed hints threshold
-  (⟨[p.1], []⟩, p.2)
+  (⟨[p.1]⟩, p.2)
 
 /-- Join from a link, to be known as `name`: the device's secret, its
 request (the one op that travels), its acceptance of the community, and
@@ -43,7 +43,7 @@ the pending join (which keeps the name until admission). -/
 def join (i : Invite) (seed name : ByteArray) : Write :=
   let d := Device.ofSeed seed
   let req := i.request d
-  ⟨[secret seed, req, accept i.community d.pk, joining i req.id name], []⟩
+  ⟨[secret seed, req, accept i.community d.pk, joining i req.id name]⟩
 
 /-- Once admitted into c with no profile yet: the first profile, named as
 the join asked. Reads my admission, my profile and my join; writes
@@ -59,12 +59,12 @@ def introduce (c : Id) (seed : ByteArray) (time : Nat) : View Fact Write := do
       | .joining c' _ _ _ nm => if c' = c then some nm else none
       | _ => none
     match name with
-    | some nm => pure (if prof.total = 0 then ⟨[profile c adm d nm time []], []⟩ else ⟨[], []⟩)
-    | none => pure ⟨[], []⟩
-  | _ => pure ⟨[], []⟩
+    | some nm => pure (if prof.total = 0 then ⟨[profile c adm d nm time]⟩ else ⟨[]⟩)
+    | none => pure ⟨[]⟩
+  | _ => pure ⟨[]⟩
 
 /-- Stop waiting on a join: the local record of it is closed. -/
-def stopWaiting (joiningOp : Id) : Write := ⟨[abandon joiningOp], []⟩
+def stopWaiting (joiningOp : Id) : Write := ⟨[abandon joiningOp]⟩
 
 /-- The first approval of each user, in order. -/
 def firstPerUser (l : List (Id × Id)) : List (Id × Id) :=
@@ -93,9 +93,9 @@ def approveReq (c req myAdm : Id) (seed : ByteArray) (esk : ByteArray := .empty)
       | .approval _ _ v => if v = u then none else some (p.2, v)
       | _ => none)
     let chosen := ok.id :: others.map (·.1)
-    pure (if t ≤ chosen.length then ⟨[ok, admit c req (chosen.take t)] ++ wrapTo e, []⟩
-      else ⟨[ok] ++ wrapTo e, []⟩)
-  | _, _ => pure ⟨[ok], []⟩
+    pure (if t ≤ chosen.length then ⟨[ok, admit c req (chosen.take t)] ++ wrapTo e⟩
+      else ⟨[ok] ++ wrapTo e⟩)
+  | _, _ => pure ⟨[ok]⟩
 
 /-- Rename c as this admin (admitted as `myAdm`, shown admin by `auth`):
 a name superseding the current one, its counter one past it. -/
@@ -104,15 +104,17 @@ def rename (c myAdm auth : Id) (seed name : ByteArray) : View Fact Write := do
   let (prev, n) := match cur.rows.head? with
     | some ((_, x), .named _ _ _ k) => ([x], k + 1)
     | _ => ([], 1)
-  pure ⟨[setName c myAdm auth prev n (Device.ofSeed seed) name], []⟩
+  pure ⟨[setName c myAdm auth prev n (Device.ofSeed seed) name]⟩
 
-/-- Send a message to c with pictures (bytes, width, height): a blob op
-per picture, then the post citing them; the bytes go in the blob store. -/
+/-- Send a message to c, its text sealed under content key k with
+nonce `nonce`, and attach files to it: the post, then each file's
+attachment (a child of the post) and its chunks. Everything is ops; no
+bytes live beside the store. -/
 def send (c myAdm : Id) (seed k nonce text : ByteArray) (time : Nat)
-    (pictures : List (ByteArray × Nat × Nat)) : Write :=
+    (files : List NewFile := []) : Write :=
   let d := Device.ofSeed seed
-  let bs := pictures.map fun (b, w, h) => blob c b w h
-  ⟨bs ++ [sealedPost c myAdm d k nonce text time (bs.map (·.id))], pictures.map (·.1)⟩
+  let p := sealedPost c myAdm d k nonce text time
+  ⟨p :: files.flatMap (fun f => let (a, cs) := attach c myAdm p.id d k f; a :: cs)⟩
 
 /-- This device's newest content key for c, if it holds one. -/
 def currentKey (c : Id) : View Fact (Option ByteArray) := do
@@ -133,11 +135,11 @@ def unwrap (c : Id) (seed : ByteArray) : View Fact Write := do
     | some k => if k.size = 32 && !out.any (fun o => o.body == (contentKey c k).body) then
         out := out ++ [contentKey c k]
     | none => pure ()
-  pure ⟨out, []⟩
+  pure ⟨out⟩
 
 /-- React to a message. -/
 def reactTo (c myAdm target : Id) (seed emoji : ByteArray) (time : Nat) : Write :=
-  ⟨[react c myAdm target (Device.ofSeed seed) emoji time], []⟩
+  ⟨[react c myAdm target (Device.ofSeed seed) emoji time]⟩
 
 /-! ## Laws -/
 
@@ -164,7 +166,7 @@ content key stay. Only the key's wrap travels. -/
 theorem found_travels (C : Crypto) (seed name myName : ByteArray) (time : Nat) (k esk : ByteArray) :
     (found seed name myName time k esk).ops.filter (family C).shared =
       let d := Device.ofSeed seed; let r := root d
-      [r, setName r.id r.id r.id [] 1 d name, profile r.id r.id d myName time [],
+      [r, setName r.id r.id r.id [] 1 d name, profile r.id r.id d myName time,
         wrapKey r.id k esk d.enc] := by
   simp [found, root, secret, accept, setName, profile, contentKey, wrapKey, wrap, shared_mkOp,
     Body.isLocal]

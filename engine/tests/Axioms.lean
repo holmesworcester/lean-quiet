@@ -101,3 +101,5 @@ open Engine Community
 #print axioms Community.check_reads_shared
 #print axioms Community.openSealed_seal
 #print axioms Community.member_opens
+#print axioms Community.check_attach
+#print axioms Community.check_chunk

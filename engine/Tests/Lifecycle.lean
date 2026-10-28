@@ -59,7 +59,7 @@ def main (args : List String) : IO UInt32 := do
   mine a wpost
   let msgs ← rows a (message.all.query [c])
   let sealed := msgs.findSome? fun (_, f) => match f with
-    | .message _ _ _ k s _ _ => if k == kid then some s else none
+    | .message _ _ _ k s _ => if k == kid then some s else none
     | _ => none
   t.ok "A's post is Valid, under the key's id" sealed.isSome
   let ct := sealed.getD .empty
@@ -71,7 +71,7 @@ def main (args : List String) : IO UInt32 := do
     ((openSealed cryptoSeal c kid ct (sha256 "other".toUTF8)).isNone)
   let annOn (db : Db) : IO Bool := do
     return (← rows db (profile.byUser.query [c, c])).any fun (_, f) => match f with
-      | .profile _ _ nm _ _ => nm == "Ann".toUTF8 | _ => false
+      | .profile _ _ nm _ => nm == "Ann".toUTF8 | _ => false
   t.ok "A's profile names it Ann (the founder is user c)" (← annOn a)
   let wa ← ((introduce c seedA 2).run : SqlM Fact Write).run a
   t.ok "the founder has a profile, so introducing writes nothing" wa.ops.isEmpty
@@ -134,13 +134,72 @@ def main (args : List String) : IO UInt32 := do
     | .key _ _ k => some k | _ => none
   t.ok "B now holds Acme's content key" (kB == some kA)
   let ctB := (← rows b (message.all.query [c])).findSome? fun (_, f) => match f with
-    | .message _ _ _ _ s _ _ => some s | _ => none
+    | .message _ _ _ _ s _ => some s | _ => none
   t.ok "B opens A's post" ((ctB.bind fun s => kB.bind fun k => openSealed cryptoSeal c kid s k)
     == some "hello from Ann".toUTF8)
   let wu2 ← ((unwrap c seedB).run : SqlM Fact Write).run b
   t.ok "unwrapping again writes nothing" wu2.ops.isEmpty
   t.ok "A's content key travelled only wrapped: B holds it as its own local op"
     ((← rows b (key.byCommunity.query [c])).length == 1)
+
+  -- A attaches a file to a post: an attachment (a child of the post)
+  -- and the file's chunks, all ops.
+  let plainFile := ByteArray.mk ((List.range 200000).map fun i => (i * 7 + i / 300).toUInt8).toArray
+  let info : FileMeta := ⟨"photo.qoi".toUTF8, "image/qoi".toUTF8, 640, 480, "tiny preview".toUTF8⟩
+  let nf : NewFile := ⟨info, plainFile, sha256 "file key".toUTF8, (sha256 "file nonce".toUTF8).extract 0 24,
+    (sha256 "info nonce".toUTF8).extract 0 24⟩
+  let wf := send c c seedA kA ((sha256 "nonce 2".toUTF8).extract 0 24) "a photo".toUTF8 7 [nf]
+  let nc := Merkle.nChunks (fileCipher nf).size
+  t.ok "the send writes the post, the attachment and the chunks" (wf.ops.length == 2 + nc && nc == 4)
+  mine a wf
+  let postId := (wf.ops.headD default).id
+  t.ok "on A, the post lists its attachment"
+    ((← rows a (attachment.byMessage.query [c, postId])).length == 1)
+  fromPeer b (← sendable a)
+  let atts ← rows b (attachment.byMessage.query [c, postId])
+  t.ok "on B, the post lists its attachment" (atts.length == 1)
+  match atts.head? with
+  | some (_, .attachment _ _ _ root len akid sealedInfo) =>
+    let cs ← rows b (chunk.byFile.query [root] (desc := false))
+    t.ok "B holds every chunk: progress is a count" (cs.length == Merkle.nChunks len)
+    let mut slicesB : List ByteArray := []
+    for ((_, x), _) in cs do
+      match ← ((Store.getOp x : SqlM Fact _).run b) with
+      | some o => match (Codec.decode o.body : Option Body) with
+        | some (.chunk _ _ _ sl _) => slicesB := slicesB ++ [sl]
+        | _ => pure ()
+      | none => pure ()
+    match openInfo c akid sealedInfo kA with
+    | some (i2, fk, fn) =>
+      t.ok "B opens the attachment's info with the content key" (i2 == info)
+      t.ok "B assembles the chunks and opens the file" (openFile slicesB fk fn == some plainFile)
+    | none => t.ok "B opens the attachment's info" false
+    t.ok "the info does not open with another key"
+      ((openInfo c akid sealedInfo (sha256 "other".toUTF8)).isNone)
+  | _ => t.ok "the attachment's fact" false
+  -- Chunks authenticate themselves: Valid on a node with no attachment,
+  -- and a tampered one is Invalid.
+  let solo ← fresh dir "solo.db"
+  let chunkOps := wf.ops.drop 2
+  fromPeer solo ([root dA] ++ chunkOps)
+  let soloChunks ← rows solo (message.all.query [c])
+  t.ok "a node without the post holds no message" soloChunks.isEmpty
+  let mut validChunks := 0
+  for o in chunkOps do
+    if let some (.valid _) ← ((Store.getStatus o.id : SqlM Fact _).run solo) then validChunks := validChunks + 1
+  t.ok "every chunk is Valid there, before its attachment" (validChunks == nc)
+  match (chunkOps.headD default |>.body |> fun b => (Codec.decode b : Option Body)) with
+  | some (.chunk r l i sl p) =>
+    let bad := mkOp [c] (.chunk r l i (sl.set! 5 (sl.get! 5 ^^^ 1)) p)
+    let short := mkOp [c] (.chunk r l i sl p.tail)
+    let wrongIndex := mkOp [c] (.chunk r l (i + 1) sl p)
+    fromPeer solo [bad, short, wrongIndex]
+    let st (o : Op) : IO Bool := do
+      return match ← ((Store.getStatus o.id : SqlM Fact _).run solo) with | some .invalid => true | _ => false
+    t.ok "a tampered chunk is Invalid" (← st bad)
+    t.ok "a chunk with a short path is Invalid" (← st short)
+    t.ok "a chunk under the wrong index is Invalid" (← st wrongIndex)
+  | _ => t.ok "a chunk op" false
 
   -- Admitted, B introduces itself by the name it joined with, once.
   let wp ← ((introduce c seedB 5).run : SqlM Fact Write).run b
@@ -150,7 +209,7 @@ def main (args : List String) : IO UInt32 := do
   let u := req.id
   t.ok "B's profile names it Bea"
     ((← rows b (profile.byUser.query [c, u])).any fun (_, f) => match f with
-      | .profile _ _ nm _ _ => nm == "Bea".toUTF8 | _ => false)
+      | .profile _ _ nm _ => nm == "Bea".toUTF8 | _ => false)
   let wp2 ← ((introduce c seedB 6).run : SqlM Fact Write).run b
   t.ok "with a profile, introducing writes nothing" (wp2.ops.isEmpty && reqA2 == 1)
 
@@ -185,7 +244,7 @@ def main (args : List String) : IO UInt32 := do
 
   -- A secret whose seed is not its key's is refused.
   let bad := mkOp [] (.secret dB.pk seedA)
-  mine a ⟨[bad], []⟩
+  mine a ⟨[bad]⟩
   t.ok "a secret with another key's seed is refused"
     ((← (Store.getStatus (F := Fact) (m := SqlM Fact) bad.id).run a) == some .invalid)
   -- A name by a non-admin is refused.
