@@ -97,8 +97,8 @@ def givenOn (cid : Id) : View F (List Id) := do
 
 /-- What a connection carries for these (community, peer) pairs: the
 community, synced, where this node is a device and the trust rule takes
-the peer; else a notice of each removal the peer's key is owed
-(`Community.removalsAt`) and not yet given on it. -/
+the peer; else a notice of each removal that cuts a device under the
+peer's key (`Community.removalsAt`), not yet given on it. -/
 def carriedOf (given : List Id) : List (B × B) → View F (List Room)
   | [] => pure []
   | (c, peer) :: rest => do
@@ -113,13 +113,29 @@ def carriedOf (given : List Id) : List (B × B) → View F (List Room)
     let tail ← carriedOf given rest
     return here ++ tail
 
+/-- The peer keys connection cid's established facts name. -/
+def peersOf (a : Answer F) : List B :=
+  a.rights.filterMap fun (_, f) => match f with
+    | .established _ _ peer .. => some peer
+    | _ => none
+
+/-- The communities this node has accepted, each once: the ones a
+session may carry. -/
+def heldV : View F (List B) := do
+  let a ← View.read (F := F) (Community.accepted.all.query [])
+  return (a.lefts.filterMap fun (_, f) => match f with
+    | .accepted c _ => some c
+    | _ => none).eraseDups
+
 /-- What connection cid carries now, as a view read afresh on every
-step: for each (community, peer) its established facts name, the room
-synced, or the notices owed to a removed member's node, or nothing. -/
+step. A session is one per peer key, whatever community its hello
+named: for each community this node holds, the room synced, or the
+notices owed to a removed member's node, or nothing. -/
 def carriedV (cid : Id) : View F (List Room) := do
   let a ← View.read (F := F) (established.byConn.query [cid])
   let given ← givenOn cid
-  carriedOf given (pairsOf a)
+  let cs ← heldV
+  carriedOf given ((peersOf a).flatMap fun peer => cs.map (·, peer))
 
 section
 variable {m : Type → Type} [Monad m] [Lists F m] [Store F m] [Fresh m]

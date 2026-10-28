@@ -9,18 +9,29 @@ on the connection `Node.refresh` leaves, `c.carry ((carriedV cid).eval s)`
 on the model (phase 2: `carriedV` becomes `roomsV`, `carry` becomes
 `setRooms`, and the `rooms` hook returns rooms with notices).
 
+A session is one per peer key and carries a room for every community
+this node holds (`carriedV`), whatever community its hello named.
+
 - E2 `rooms_removed_stmt`: when this node is a live member of c and the
   trust rule refuses the peer, the connection carries no synced room c,
   only notices of removals the peer's key is owed.
+- `rooms_complete_stmt`: and it still carries every community whose
+  peer the trust rule takes: a removal in c drops c's room and adds the
+  notice, and leaves the session's other communities as they were.
 - E2 `removed_gets_only_notice_stmt`: so every op a connection step
   sends of c is a sync wire op or in the requirement closure of such a
   removal, and nothing of c is taken.
-- E1 `notice_then_cut_stmt`: once every removal owed is given on the
+- E1 `notice_then_cut_stmt`: once, for every community this node
+  holds, the peer is refused and every removal owed is given on the
   connection, it carries nothing; `sessions` drops it and `retired`
   names it, so the node closes it and purges its ops.
 - E2 `answer_trusted_stmt`, `resend_trusted_stmt`: on the bare wire,
   `react` answers and `onArrival` re-sends an answer only for a request
   whose initiator the trust rule takes.
+- E2 `bare_takes_only_join_stmt`: the only shared op `react` takes from
+  a hello is a join request of the hello's community, trusted or not: a
+  removed member's node, or anyone who knows c's id, pushes nothing else
+  into a member's store without a session.
 - E3 `opened_endpoint_stmt`, `established_endpoint_stmt`: the
   handshake's statics are the two nodes' keys: a side's static is the
   secret of the endpoint op its `opened` or `established` cites, the
@@ -36,23 +47,23 @@ open Engine Engine.Sync Codec
 
 /-! ## Read over the node's store -/
 
-/-- The (community, peer) pairs connection cid's established facts name. -/
-def pairsAt (s : DB F) (cid : Id) : List (B × B) :=
-  pairsOf (Engine.eval s (established.byConn.query [cid]))
+/-- The peer keys connection cid's established facts name. -/
+def peersAt (s : DB F) (cid : Id) : List B :=
+  peersOf (Engine.eval s (established.byConn.query [cid]))
 
 /-- This node is a live member of c, as the trust rule reads it. -/
 def LiveIn (s : DB F) (c : B) : Prop :=
   ∀ me, (meV c).eval s = some me → ((Community.allowPeer c me).liftL : View F Bool).eval s = true
 
-/-- The trust rule refuses every peer connection cid names in c: once the
-removal is held, a removed member's node. -/
+/-- The trust rule refuses, for c, every peer key connection cid names:
+once the removal is held, a removed member's node. -/
 def Refused (s : DB F) (cid c : B) : Prop :=
-  ∀ peer, (c, peer) ∈ pairsAt s cid → ((Community.allowPeer c peer).liftL : View F Bool).eval s = false
+  ∀ peer ∈ peersAt s cid, ((Community.allowPeer c peer).liftL : View F Bool).eval s = false
 
 /-- Removal x of community c is owed to connection cid's peer: a removal
 of a user admitted under the peer's key, read from the lists. -/
 def Owed (s : DB F) (cid c x : B) : Prop :=
-  ∃ peer, (c, peer) ∈ pairsAt s cid ∧ x ∈ ((Community.removalsAt c peer).liftL : View F (List Id)).eval s
+  ∃ peer ∈ peersAt s cid, x ∈ ((Community.removalsAt c peer).liftL : View F (List Id)).eval s
 
 /-- What may go out of community c on cid: a sync wire op, an op of
 another room, or an op in the requirement closure, in c, of a removal
@@ -71,6 +82,16 @@ def rooms_removed_stmt : Prop :=
     ∀ rm ∈ (carriedV cid).eval s, match rm with
       | .sync r => r ≠ c
       | .notice r x => r = c → Owed s cid c x
+
+/-- **The session keeps its other communities (`rooms_complete`).** A
+connection carries, synced, every community c this node is in whose
+peer the trust rule takes. -/
+def rooms_complete_stmt : Prop :=
+  ∀ (s : DB F) (cid c me peer : B), (meV c).eval s = some me → peer ∈ peersAt s cid →
+    ((trusts c me peer).liftL : View F Bool).eval s = true →
+    ∃ rm ∈ (carriedV cid).eval s, match rm with
+      | .sync r => r = c
+      | .notice .. => False
 
 /-- **Nothing but the notice (`removed_gets_only_notice`).** Under the
 same premises, on the connection as each step reads it afresh: opening
@@ -92,16 +113,17 @@ def removed_gets_only_notice_stmt : Prop :=
 
 /-! ## E1: then the cut -/
 
-/-- **Notice, then cut (`notice_then_cut`).** If this node is a live
-member of c, the trust rule refuses cid's peer, cid is about c only, and
-every removal owed to the peer is settled on cid (given: `conn.settled`),
-then cid carries nothing, `sessions` does not list it, and `retired`
-names it if it is an established session: the node closes it, and
-`closing` purges its ops. -/
+/-- **Notice, then cut (`notice_then_cut`).** If, for every community c
+this node is in, it is a live member, the trust rule refuses cid's peer,
+and every removal owed to the peer is settled on cid (given:
+`conn.settled`), then cid carries nothing, `sessions` does not list it,
+and `retired` names it if it is an established session: the node closes
+it, and `closing` purges its ops. A session that still carries another
+community stays open (`rooms_complete`). -/
 def notice_then_cut_stmt : Prop :=
-  ∀ (s : DB F) (cid c : B), LiveIn s c → Refused s cid c →
-    (∀ p ∈ pairsAt s cid, p.1 = c) →
-    (∀ x, Owed s cid c x → x ∈ (givenOn cid).eval s) →
+  ∀ (s : DB F) (cid : B),
+    (∀ c me, (meV c).eval s = some me →
+      LiveIn s c ∧ Refused s cid c ∧ ∀ x, Owed s cid c x → x ∈ (givenOn cid).eval s) →
     (carriedV cid).eval s = [] ∧
     (∀ e ∈ ((sessions : Model F _).run s).1, e.1 ≠ cid) ∧
     ((∃ e ∈ ((allSessions : Model F _).run s).1, e.1 = cid) →
@@ -136,6 +158,18 @@ def resend_trusted_stmt : Prop :=
       (.inr (.opened o.id c frm addr' hs)) ∈
         (Engine.eval s (opened.byRequest.query [o.id])).rows.map (·.2) ∧
       ((trusts c to frm).liftL : View F Bool).eval s = true
+
+/-- **The bare path takes only a join (`bare_takes_only_join`).** Every
+shared op `react` writes is a join request of community c carried in
+the hello of a request opened here for c, whether or not the trust rule
+takes its initiator. Everything else of a hello is left on the wire. -/
+def bare_takes_only_join_stmt : Prop :=
+  ∀ (C : Community.Crypto) (K : Keys) (fr : Fresh (Model F)) (s : DB F) (o : Op),
+    o ∈ ((@react _ _ _ _ fr (node C K) K).run s).1 → ((node C K).room o).isSome = true →
+    ∃ r c frm addr hs d e cs bs,
+      (.inr (.opened r c frm addr hs)) ∈ (Engine.eval s (opened.all.query [])).rows.map (·.2) ∧
+      o.bytes ∈ hs ∧ o.reqs.head? = some c ∧
+      (decode o.body : Option Community.Body) = some (.request d e cs bs)
 
 /-! ## E3: the handshake runs on the nodes' keys -/
 

@@ -124,9 +124,16 @@ writes a new device, the members approve it, and nothing else changes.
 `recipients c`, the keys content keys are wrapped to, is the same set
 of keys.
 
-**Sessions** stay one per peer, where a peer is now a (node key,
-community) pair: two nodes may share several communities, and each
-hello names one.
+**Sessions** stay one per peer, and a peer is a node key. One session
+between two nodes carries a room for every community both hold
+(`carriedV` reads this node's communities, not the hello's). A hello
+still names one community: it is the community the responder checks
+trust for before answering, and the one a joiner's request rides in.
+Since a session may already exist for other communities, a pending
+join is dialed while its device is not admitted, not while no session
+exists. The request is the same op each time, so the responder opens it
+once and answers once it trusts the joiner; `kept` then keeps one of
+the two sessions.
 
 **Content keys** are wrapped to `enc`, as they are now, so to the node's
 key. Every device on a node is that node's: the node holds all their
@@ -150,8 +157,9 @@ Considered and not taken:
 **Rooms.** The family's view, read afresh on every connection step
 (`Node.refresh`), now gives a list of `Room`s: `sync c`, a community
 synced both ways, as now; or `notice c x`, op x of c with its
-requirement closure, given once and never taken. For each (community,
-peer) pair a session's `established` facts name (`carriedV`):
+requirement closure, given once and never taken. For each community
+this node holds, and the peer key the session's `established` facts
+name (`carriedV`):
 - if this node is in c and the trust rule takes the peer: `sync c`;
 - otherwise, a notice for each removal that cuts a device admitted
   under the peer's key (`removalsAt`) and is not yet settled on this
@@ -168,10 +176,12 @@ synced rooms only, so nothing is taken for a notice, and a removed
 peer's ops are not asked for.
 
 **The cut.** The node writes a local `conn.settled (cid, x)` for each
-settle (`Hooks.settled`). The view then carries nothing for that pair.
-`sessions` lists only sessions that carry something, so in the same
-entry point the node closes the session, after sealing the notice's
-frames, and `closing` purges it with its ops.
+settle (`Hooks.settled`). The view then carries nothing of c for that
+peer. A removal in c drops c's room and adds its notices; the session's
+other communities stay as they were (`rooms_complete`). `sessions`
+lists only sessions that carry something. So once a session carries
+nothing, in the same entry point the node closes it, after sealing the
+notice's frames, and `closing` purges it with its ops.
 
 **Once.** A notice is given once per session: the connection records
 it, the settled op takes it out of the view, and the session closes.
@@ -188,6 +198,16 @@ Giving ends when the frames are sealed.
 does not know yet), and judges the removal once its closure is in.
 Then `mine c` no longer holds the community (E4), so its view carries
 nothing and it closes the session too.
+
+**The bare path takes only a join.** A request's hello may carry ops.
+`react` used to store every shared op of c in an opened hello, as this
+node's own write, before and regardless of trust. So a removed member's
+node, or anyone who knows c's id, could push posts into a member's
+store with no session. Now the hello yields only what a pending join
+needs: a join request of the hello's community, which reaches the
+members before anyone approves it and opens nothing. Everything else
+in a hello is dropped, trusted or not, since a trusted peer's ops
+travel on the session (`bare_takes_only_join`).
 
 **Two leaks closed.** A session whose view carries nothing is retired:
 `sessions` and `retired` read the view, so a removed peer's session does
@@ -251,6 +271,8 @@ model, the views, the validators and the intents.
 | What reaches a removed member's node? | `removed_gets_only_notice` |
 | Is the session then closed? | `notice_then_cut` |
 | Does a removed node get a new session or a re-sent answer? | `answer_trusted`, `resend_trusted` |
+| Can anyone push ops in without a session? | `bare_takes_only_join` |
+| Does a removal in c disturb the session's other communities? | `rooms_complete` |
 | Whose keys does the handshake run on? | `opened_endpoint`, `established_endpoint`, `endpoint_derives` |
 | How is a node key tied to a device? | `endpoint_signed` |
 | Whom does the trust rule let in, dial, and seal to? | `connect_iff`, `refuse_nonmember`, `connect_admitted`, `new_device_trusted`, `meV_node`, `members_iff`, `recipients_iff` |
@@ -274,11 +296,14 @@ lists of the node's own store, as `rooms_cut`'s are.
   removed, and `allowPeer` lets B's node in.
 - `jointcp`, over localhost TCP: A removes B while their session is
   live. B receives the removal and its closure and nothing after it,
-  and both ends close the session. B's node rejoins with a new device
-  and is admitted again once A approves; a post then reaches B.
+  and both ends close the session. The removed B then dials A with a
+  fresh post in its hello; A stores neither the post nor anything but a
+  join request. B's node rejoins with a new device and is admitted
+  again once A approves; a post then reaches B.
 - Negative controls, each failing a check: a `rooms` hook without
   notices (B never learns its removal); `sessions` not reading the view
-  (A keeps the session open).
+  (A keeps the session open); a `react` that also stores the rest of a
+  hello, as it used to (A stores B's post).
 
 ## Not covered
 
