@@ -165,7 +165,6 @@ names, and whether it is me. -/
   field : String := ""
   refusal : Option String := none
   hidden : List Id := []
-  admitting : List Id := []
   pageCache : String := ""
   pageNow : Option Pages.Page := none
   /-- Requests to join the current community no admission answers yet:
@@ -573,8 +572,7 @@ def pageOf (s : St) : Pages.Page :=
       #[("Looking for someone to hand your join to", "Nobody has taken it yet.", .now),
         ("Waiting for a member to let you in", "Quiet asks again whenever it finds one. They see you waiting the next time they open the app.", .next),
         ("Keys and history arrive", "Then the community opens, with what was shared before you got here.", .next)] #[]
-  | .requests => Pages.requests f dm W h ((s.asking.filter fun r => !s.hidden.contains r.id).map fun r =>
-      r.row (s.admitting.contains r.id))
+  | .requests => Pages.requests f dm W h ((s.asking.filter fun r => !s.hidden.contains r.id).map (·.row))
   | .invite => Pages.invite f dm W h none ((s.links.find? (·.1 == s.me.c)).map (·.2) |>.getD "…")
   | .switcher => Pages.switcher f dm W h (s.comms.map fun m =>
       ({ name := m.name, id8 := Kinds.Request.hexShort m.c, unread := 0, current := m.c == s.me.c, waiting := m.waiting } : Pages.Entry))
@@ -1172,7 +1170,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   -- layer (which does not scroll on a page), a one-row composer layer
   let s ← get
   if s.page != .chat then
-    let key := s!"{repr s.page}|{s.members.size}|{s.W}|{s.Hs}|{s.insetTop}|{s.insetBot}|{s.field}|{s.refusal}|{s.comms.size}|{s.asking.size}|{s.hidden.length}|{s.admitting.length}|{s.me.name}|{s.links.length}|{(s.comms.map (·.waiting)).toList}"
+    let key := s!"{repr s.page}|{s.members.size}|{s.W}|{s.Hs}|{s.insetTop}|{s.insetBot}|{s.field}|{s.refusal}|{s.comms.size}|{s.asking.size}|{s.hidden.length}|{s.me.name}|{s.links.length}|{(s.comms.map (·.waiting)).toList}"
     if key != s.pageCache then
       let pg := pageOf s
       let (t, cross) := pageTitle s.page

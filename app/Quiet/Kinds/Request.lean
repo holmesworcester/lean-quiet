@@ -52,8 +52,8 @@ def hexShort (b : ByteArray) : String :=
     let t := String.ofList (Nat.toDigits 16 x.toNat); if t.length < 2 then "0" ++ t else t)
 
 /-- Its row on the Join requests page. -/
-def Data.row (r : Data) (going : Bool) : Pages.Asking :=
+def Data.row (r : Data) : Pages.Asking :=
   { device := s!"Device {hexShort r.device}", when := s!"{r.approvals.length} of {r.threshold} approvals",
-    going := going || r.pending > 0 || r.ready }
+    going := r.pending > 0 || r.ready }
 
 end Kinds.Request
