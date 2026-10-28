@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A Lean app as a NativeActivity: no Java, the app is libleanapp.so. Lean's
+     runtime does not keep arm64's heap pointer tags, so tagging is off. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="@PACKAGE@" android:versionCode="1" android:versionName="0.1">
+  <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="35" />
+  <application android:label="@LABEL@" android:hasCode="false"
+      android:extractNativeLibs="true"
+      android:allowNativeHeapPointerTagging="false">
+    <activity android:name="android.app.NativeActivity" android:exported="true"
+        android:screenOrientation="portrait"
+        android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen"
+        android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|uiMode|density|smallestScreenSize">
+      <meta-data android:name="android.app.lib_name" android:value="leanapp" />
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>
