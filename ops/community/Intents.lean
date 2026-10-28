@@ -116,6 +116,22 @@ def mine (c : Id) : View Fact (Option (Key × Id)) :=
     .list (joining.all.query []) fun joins =>
       (pick c joins.rows acc.rows).bind fun best => .pure (best.map fun (d, a, _) => (d, a))
 
+/-- The acceptance of c this store held until its device was cut (the
+first such, with the device's secret held), when `mine` holds none:
+not held, so not answered or dialed as, but what a removed member's app
+hides and tells its user about. -/
+def cutEntry (c : Id) : View Fact (Option (Key × Id)) := do
+  let acc ← accepted.all.read []
+  for ((_, aid), f) in acc.rows do
+    let .accepted c' d := f | continue
+    if c' ≠ c then continue
+    let sec ← secret.byKey.read [d] (limit := some 0)
+    if sec.total = 0 then continue
+    let adm ← admission.byDevice.read [c, d] (limit := some 0)
+    if adm.total = 0 then continue
+    if !(← deviceLive c d) then return some (d, aid)
+  return none
+
 /-- The latest join of c among these whose device was never admitted in
 c: one stopped waiting on, to resume. -/
 def dormant (c : Id) : List (Pos × Fact) →

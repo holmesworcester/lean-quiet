@@ -37,8 +37,10 @@ structure Me where
   the address its request is sent to (the link's first hint). -/
   joiningOp : Id := .empty
   dialing : String := ""
-  /-- Whether this entry's user has been removed from the community (a
-  Valid removal of it is in the store). -/
+  /-- Whether this entry's device has been cut: admitted, and a user of
+  it removed (a Valid removal of it is in the store). `Community.mine`
+  no longer holds such an entry; it is read (`Community.cutEntry`) only to
+  be hidden and told. -/
   removed : Bool := false
   deriving Inhabited
 
@@ -103,6 +105,13 @@ def read : m (Array Me × Array Q) := do
     -- one the node answers and dials as, so the two cannot disagree
     let (pick, d0) ← readView (Community.mine c) deps
     deps := d0
+    -- not held: the entry a cut device had, read only to hide and tell it
+    let pick ← match pick with
+      | some p => pure (some p)
+      | none => do
+        let (cut, d1) ← readView (Community.cutEntry c) deps
+        deps := d1
+        pure cut
     let some (pk, accId) := pick | continue
     let (sec, _, d1) ← readList (secret.byKey.query [pk] (limit := some 1)) deps
     let (adm, _, d2) ← readList (admission.byDevice.query [c, pk] (limit := some 1)) d1
@@ -126,9 +135,9 @@ def read : m (Array Me × Array Q) := do
         if ab.total == 0 then
           joiningOp := jid
           dialing := (hs.head?.bind String.fromUTF8?).getD ""
-    let (rm, _, d6) ← readList (removal.byUser.query [c, user] (limit := some 0)) deps
+    let (live, d6) ← readView (Community.deviceLive c pk) deps
     deps := d6
-    let removed := !user.isEmpty && rm.total > 0
+    let removed := !admId.isEmpty && !live
     out := out.push { acc := accId, dev := Device.ofSeed seed, seed, c, adm := admId, user, name, joiningOp, dialing,
                       removed }
   let sorted := out.qsort fun a b => a.name < b.name || (a.name == b.name && Engine.bcmp a.acc b.acc == .lt)

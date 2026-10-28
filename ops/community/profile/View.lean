@@ -29,13 +29,15 @@ def read (c u : Id) (deps : Array Q) : m (Data × Array Q) := do
   | _ => return (⟨"…"⟩, deps)
 
 /-- The users of these live admissions, each once (in admission order),
-with their devices. -/
+with the node keys their devices are admitted under: what a session
+names its peer by (the online dot). -/
 def byUser (ls : List (Id × Key × Key)) : List (Id × List Key) :=
-  (React.uniq (ls.map (·.1))).map fun u => (u, (ls.filter fun l => decide (l.1 = u)).map (·.2.1))
+  (React.uniq (ls.map (·.1))).map fun u => (u, (ls.filter fun l => decide (l.1 = u)).map (·.2.2))
 
 /-- The community's present members: users with a live device (the
 engine's `live`: admitted, and none of the device's users removed), with
-those devices. Laws (PeopleLaws): `present_iff`, `present_not_removed`. -/
+those devices' node keys. Laws (PeopleLaws): `present_iff`,
+`present_not_removed`. -/
 def present (c : Id) : View Fact (List (Id × List Key)) := do
   let a ← admission.all.read [c]
   let ls ← live c a.rows

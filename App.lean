@@ -794,7 +794,7 @@ def refreshMembers : M Unit := do
       say s!"Removed {name} from the community."
 
 /-- The node's sessions now (Connection.sessions' kept ones): their
-peers' device keys, every 30 frames. -/
+peers' node keys, every 30 frames. -/
 def refreshPeers : M Unit := do
   let s ← get
   if s.net.isNone || s.frames % 30 != 0 then return
