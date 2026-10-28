@@ -129,10 +129,6 @@ spec Engine.flips Whether a journal touches a key and position an odd number of 
 spec Engine.oddAt Whether a journal touches a pair an odd number of times, as `net` keeps it.
 spec Engine.Change.ingests The ops a batch of changes stores.
 spec Engine.searchSteps The steps of a binary search, for its bound.
-spec Engine.CostT.bind The cost meter: code measured in `CostT` is the code that runs, its doors counted.
-spec Engine.CostT.pure The cost meter's unit.
-spec Engine.CostT.run The cost meter's run.
-spec Engine.Counted.cost What a counted run charged.
 
 ## Subjects the heuristic takes too much of
 
