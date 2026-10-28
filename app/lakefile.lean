@@ -8,3 +8,8 @@ package quiet where
 require engine from ".." / "lean-engine"
 
 lean_lib Quiet
+
+lean_lib QTests
+
+lean_exe host where
+  root := `QTests.Host
