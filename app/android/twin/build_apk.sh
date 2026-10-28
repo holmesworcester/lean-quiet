@@ -3,7 +3,7 @@
 #
 # 1. lake emits C for the main module and every module it imports
 #    (followed through `import` lines): this package's and lean-engine's
-#    (.lake/build/ir of each); Std or Lean modules, which Android has no
+#    (.lake/build/ir of each package in lake-manifest.json); Std or Lean modules, which Android has no
 #    prebuilt library for, are compiled to C from the toolchain's own
 #    sources and .oleans (cached in out/stdc); Init is in libInit.
 # 2. NDK clang compiles that C with the twin (activity.c, layer.c,
@@ -34,8 +34,8 @@ export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 lake=$ELAN_HOME/bin/lake
 rt=${LEANRT:-/mnt/storage/holmes-wt/lean-chat/out/leanrt}
 [ -f "$rt/include/lean/lean.h" ] || { echo "no Lean runtime at $rt (set LEANRT)" >&2; exit 2; }
-engine=$(cd "$root" && python3 -c 'import json; m=json.load(open("lake-manifest.json")); print([p["dir"] for p in m["packages"] if p["name"]=="engine"][0])')
-engine=$(cd "$root" && realpath "$engine")
+# every required package's directory (lean-engine, lean-qr, ...)
+pkgs=$(cd "$root" && python3 -c 'import json, os; m=json.load(open("lake-manifest.json")); print(" ".join(os.path.realpath(p["dir"]) for p in m["packages"]))')
 toolchain=$("$ELAN_HOME/bin/lean" --print-prefix)
 work=$(mktemp -d "$TMPDIR/lean-apk.XXXXXX")
 trap 'rm -rf "$work"' EXIT
@@ -43,9 +43,9 @@ cache=$root/out/cache
 mkdir -p "$cache"
 
 # 1. The module closure, and its C.
-closure=$(python3 - "$main" "$root" "$engine" "$toolchain/src/lean" <<'PY'
+closure=$(python3 - "$main" "$toolchain/src/lean" "$root" $pkgs <<'PY'
 import re, sys, os
-main, roots = sys.argv[1], sys.argv[2:]
+main, core, roots = sys.argv[1], sys.argv[2], sys.argv[3:] + [sys.argv[2]]
 seen, order = set(), []
 def find(m):
     rel = m.replace('.', '/') + '.lean'
@@ -64,7 +64,7 @@ def go(m):
         mm = re.match(r'\s*(?:public\s+)?(?:meta\s+)?import\s+(?:all\s+)?([\w.]+)', line)
         if mm:
             go(mm.group(1))
-    order.append(f'{["app","engine","core"][i]} {m}')
+    order.append(f'{"core" if roots[i] == core else roots[i]} {m}')
 go(main)
 print('\n'.join(order))
 PY
@@ -75,8 +75,6 @@ cfiles=()
 while read -r where mod; do
   rel=${mod//./\/}.c
   case $where in
-    app) cfiles+=("$root/.lake/build/ir/$rel") ;;
-    engine) cfiles+=("$engine/.lake/build/ir/$rel") ;;
     core)
       c=$root/out/stdc/$rel
       if [ ! -f "$c" ]; then
@@ -84,9 +82,10 @@ while read -r where mod; do
         (cd "$toolchain/src/lean" && "$toolchain/bin/lean" -c "$c" "${mod//./\/}.lean")
       fi
       cfiles+=("$c") ;;
+    *) cfiles+=("$where/.lake/build/ir/$rel") ;;
   esac
 done <<< "$closure"
-echo "modules: $(echo "$closure" | wc -l) ($(echo "$closure" | awk '{print $2}' | tr '\n' ' '))"
+echo "modules: $(echo "$closure" | wc -l)"
 
 # 2. Native code, per ABI.
 for abi in "${abis[@]}"; do

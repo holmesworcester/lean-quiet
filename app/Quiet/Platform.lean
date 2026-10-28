@@ -95,6 +95,16 @@ reads them from its script). -/
 on the connection it came from. -/
 @[extern "lq_ctl_reply"] opaque ctlReply (s : @& String) : IO Unit
 
+/-- Shows the camera's preview in the screen rectangle (x, y, w, h), in
+pixels, and starts its frames; w = 0 stops it and takes the preview away.
+The first start asks for the camera permission. -/
+@[extern "lq_scan"] opaque scan (x y w h : UInt32) : IO Unit
+
+/-- The newest camera frame since the last call, as its luma (Y) plane:
+`[w, h, stride]` and the bytes, or `(#[], empty)` when there is none. The
+app decodes it (lean-qr's `Qr.decodeLuma`), off its own thread. -/
+@[extern "lq_luma"] opaque luma : IO (Array UInt32 × ByteArray)
+
 /-- Microseconds of a monotonic clock (CLOCK_MONOTONIC), shared with the twin's logs. -/
 @[extern "lq_now_us"] opaque nowUs : IO UInt64
 

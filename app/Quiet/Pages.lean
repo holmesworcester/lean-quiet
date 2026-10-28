@@ -235,13 +235,16 @@ def paste (f : Font) (dm : Dim) (W h : Nat) (text : String) (focused : Bool) (re
   let (b4, bt, _) := button f dm b "Continue" (y + dm.px 16) (!text.trimAscii.isEmpty) .continue_
   return ⟨b4, #[ft, bt]⟩
 
+/-- Where Join with QR code shows the camera: a square, in page rows. -/
+def scanBox (dm : Dim) (W h : Nat) : Box :=
+  let s := min (W - dm.px 96) (h / 2)
+  ⟨(W - s) / 2, dm.px 24, s, s⟩
+
 /-- Join with QR code: the camera's square (its frames, or why there are
 none), the instruction, and the way to paste instead. -/
 def scan (f : Font) (dm : Dim) (W h : Nat) (camera : Option Bitmap) (note : String) : Page := Id.run do
   let mut b := blank W h
-  let s := min (W - dm.px 96) (h / 2)
-  let x := (W - s) / 2
-  let y := dm.px 24
+  let ⟨x, y, s, _⟩ := scanBox dm W h
   match camera with
   | some img => b := b.image img x y (dm.px 12)
   | none =>
@@ -412,18 +415,21 @@ def requests (f : Font) (dm : Dim) (W h : Nat) (asking : Array Asking) : Page :=
     taps := taps.push (⟨hx, ky, k, k⟩, .hide i) |>.push (⟨ax, ky, k, k⟩, .approve i)
   return ⟨b, taps⟩
 
+/-- The QR code's square on Add members. -/
+def qrSide (dm : Dim) (W h : Nat) : Nat := min (W - dm.px 128) (h / 3)
+
 /-- Add members: the QR code (or its square while there is none), the
 share button, the link with Copy, the caution, what happens next. -/
 def invite (f : Font) (dm : Dim) (W h : Nat) (qr : Option Bitmap) (linkText : String) : Page := Id.run do
   let mut b := blank W h
-  let s := min (W - dm.px 128) (h / 3)
+  let s := qrSide dm W h
   let x := (W - s) / 2
   let y := dm.px 24
   b := b.round (x - dm.px 16) (y - dm.px 16) (x + s + dm.px 16) (y + s + dm.px 16) (dm.px 12) cardLine
   b := b.round (x - dm.px 15) (y - dm.px 15) (x + s + dm.px 15) (y + s + dm.px 15) (dm.px 12) Row.bg
-  match qr with
-  | some q => b := b.image q x y (dm.px 8)
-  | none => b := b.round x y (x + s) (y + s) (dm.px 8) 0xFFFFFF
+  -- white under the code (its quiet zone is white too), whole pixels
+  b := b.round x y (x + s) (y + s) (dm.px 8) 0xFFFFFF
+  if let some q := qr then b := b.image q (x + (s - q.w) / 2) (y + (s - q.h) / 2) 0
   let mut yy := y + s + dm.px 32
   b := centred f b "Scan with the Quiet app to ask to join." yy dim
   yy := yy + f.cell + dm.px 24

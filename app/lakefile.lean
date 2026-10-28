@@ -6,6 +6,7 @@ package quiet where
     "/usr/lib/x86_64-linux-gnu/libsodium.so.23"]
 
 require engine from ".." / "lean-engine-lists"
+require qr from ".." / "lean-qr"
 
 lean_lib Quiet
 

@@ -478,6 +478,19 @@ lean_obj_res lq_ime(uint8_t show) {
 
 static void lq_report(void);
 
+// The camera: not yet on iOS (it joins by Paste for now).
+lean_obj_res lq_scan(uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
+  (void)x; (void)y; (void)w; (void)h;
+  return lean_io_result_mk_ok(lean_box(0));
+}
+
+lean_obj_res lq_luma(void) {
+  lean_object* p = lean_alloc_ctor(0, 2, 0);
+  lean_ctor_set(p, 0, lean_mk_empty_array());
+  lean_ctor_set(p, 1, lean_alloc_sarray(1, 0, 0));
+  return lean_io_result_mk_ok(p);
+}
+
 lean_obj_res lq_text_clear(void) {
   dispatch_async(dispatch_get_main_queue(), ^{
     lq_field.text = @"";

@@ -7,6 +7,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="@PACKAGE@" android:versionCode="1" android:versionName="0.1">
   <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="35" />
+  <!-- the node: TCP to and from peers, and this device's LAN addresses
+       (the invite's dial hints; without it the address read is empty) -->
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
   <application android:label="@LABEL@" android:hasCode="true"
       android:extractNativeLibs="true"
       android:allowNativeHeapPointerTagging="false">
