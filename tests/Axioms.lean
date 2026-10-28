@@ -42,6 +42,7 @@ import engine.world.Idem
 import engine.world.Settle
 import engine.world.Round
 import engine.world.Leaf
+import engine.world.Tree
 import engine.core.CodecCost
 import ops.community.MerkleCost
 import ops.app.Pics
@@ -738,6 +739,7 @@ open Engine.World
 #print axioms Engine.World.onWrite_resp
 #print axioms Engine.World.connect_resp
 #print axioms Engine.World.leaf_resp
+#print axioms Engine.World.answer_step
 #print axioms Engine.World.offer_delivers
 #print axioms Engine.World.cached_exact
 #print axioms Engine.World.grows_all
