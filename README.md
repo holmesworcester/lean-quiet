@@ -14,7 +14,7 @@ Like [Quiet](https://github.com/TryQuiet/quiet), Lean Quiet is also local-first,
 
 Lean is mostly used for mathematics, or to verify one part of a system.
 Here it is a whole, ordinary app, and about three quarters of its
-theorems (369 of 472) are about the code that runs on the phone; the
+theorems (374 of 477) are about the code that runs on the phone; the
 rest are over models, and moving them onto running code is a todo
 ([what is proven](#what-is-proven)). Native code only connects Lean to
 each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)), so in a
@@ -143,7 +143,7 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 472 rest on Lean's standard axioms
+that rests on; 🥊 is supporting. All 477 rest on Lean's standard axioms
 only.
 
 ### Security proofs
@@ -192,6 +192,7 @@ only.
 | | | **The engine** | |
 | 🟡 | 🥊🥊🥊 | **Honest nodes agree.** The same ops, in any order, batching or interleaving, give the same verdicts. Not yet of the running node: proven of states whose purges are `purgeS`, a model of the SQL purge. | [`same_ops_same_verdicts`], [`order_free`] |
 | ✅ | 🥊🥊 | **Verdicts are the spec's, and final.** Once judging settles, every stored verdict is the spec's over the ops received, and no later op changes it. | [`drain_settles`], [`status_iff_spec`], [`spec_extends`], [`inv_ingest`], [`inv_step`] |
+| ✅ | 🥊🥊🥊 | **Taking an op in twice is taking it in once.** Proven of the running intake (each write turn's `ingest`, through `run_ingest` and `run_ingestEach`): an op the store holds changes nothing, the same op twice leaves the store as once, and after a write turn's ops any of them again changes nothing. So a retried write, a peer's resend, or an op written here and synced back is harmless: nothing is stored or queued twice, and every verdict stays. | [`ingestS_known`], [`ingestS_twice`], [`ingest_twice`], [`run_ingestEach`], [`ingestAll_again`] |
 | 🟡 | 🥊🥊🥊 | **Purge is safe.** A purged session or courier is gone, no shared op is ever deleted, and the engine settles on what remains. Not yet: proven of the purge's model (`purgeS`); the running purge is SQL, tested against it. | [`purge_gone`], [`purge_shared`], [`purge_settles`] |
 | 🟡 | 🥊🥊 | **Purge takes exactly what it must.** It takes the named conn and local ops and their stored dependents. Shared dependents are judged again. Not yet: proven of the purge's model (`purgeS`); the running purge is SQL, tested against it. | [`purge_named`], [`purge_undecides`], [`purge_inv`], [`mem_purgeSet`], [`reach_ops`] |
 | ✅ | 🥊 | **Families compose, op by op:** adding a family changes no verdict or scope of the first's ops. Strict decoding round-trips. | [`sum_left`], [`sum_scope_left`], [`Codec.decode_encode`], [`Op.decode_bytes`] |
@@ -214,6 +215,7 @@ only.
 | ⬜ | 🥊🥊🥊 | **Every control is big enough to tap.** Every tappable control's hit area, not just its drawn size, is at least 48 dp by 48 dp on Android and 44 pt by 44 pt on iOS, at every supported screen size and text scale. | |
 | ⬜ | 🥊🥊 | **A tap means one thing.** On every screen, no two controls' hit areas overlap, so a point selects at most one control. A tap selects the control drawn under it. Today this is proven for the emoji sheet and message rows only (`keys_disjoint`, `hit_iff`, `pinned_tap`). | |
 | ⬜ | 🥊🥊 | **Every control shown can be tapped.** A control that is drawn has its hit area on screen, and not under the header, the composer or the keyboard. | |
+| ⬜ | 🥊🥊🥊 | **Typing and sending never wait on sync.** A frame never waits on the node, however full its inbound channel. Tested today: `nodequeue`, over a real full channel (the app's offer returns at once and keeps every write in order; the control, the blocking send, waits). Wanted, as a proof in three parts: `offerAll` written once over any monad with an offer that answers yes or no, with laws that every write reaches the node exactly once and in submission order over any run of sends and frames, whatever the channel's capacity (no write is lost or duplicated, and taking one twice would be harmless anyway: `ingestAll_again`); a build check over the code `App.step` reaches that no frame path reaches a waiting primitive (`Runner.write`, `Engine.Sync.enqueue`, a channel's `send`, waiting on another thread's task); and, assumed as the platform's other primitives are, that a channel's `trySend` returns without waiting. | |
 | ⬜ | 🥊🥊 | **A tap acts once.** A second tap on a control while its action is in flight starts nothing new (Send sends once). A press that turns into a scroll past the slop is not a tap. | |
 | ⬜ | 🥊🥊 | **Destructive actions are guarded.** Every action that cannot be undone asks for a second confirmation, as removal does (`writes_only_after_two`). Its control keeps a clear gap from the controls around it. | |
 | ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
@@ -247,11 +249,11 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**369 of 472 laws are about running code;** 103 are not yet. Stated only: none.
+**374 of 477 laws are about running code;** 103 are not yet. Stated only: none.
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
-| Engine | 84 | 56 | 28 |
+| Engine | 89 | 61 | 28 |
 | Sync | 82 | 81 | 1 |
 | mDNS | 3 | 0 | 3 |
 | Node and wire | 35 | 19 | 16 |
@@ -296,7 +298,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 158 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Model.run`] | 163 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
 | [`Engine.runJ`] | 7 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`Engine.Inv`] | 52 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
@@ -856,6 +858,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`spec_extends`]: engine/core/SpecLemmas.lean#L137-L139
 [`inv_ingest`]: engine/core/Proofs.lean#L229-L229
 [`inv_step`]: engine/core/Proofs.lean#L260-L260
+[`ingestS_known`]: engine/core/IdemLaws.lean#L22-L23
+[`ingestS_twice`]: engine/core/IdemLaws.lean#L44-L45
+[`ingest_twice`]: engine/core/IdemLaws.lean#L49-L51
+[`run_ingestEach`]: engine/core/IdemLaws.lean#L72-L75
+[`ingestAll_again`]: engine/core/IdemLaws.lean#L82-L84
 [`purge_gone`]: engine/core/Purge.lean#L261-L263
 [`purge_shared`]: engine/core/Purge.lean#L274-L276
 [`purge_settles`]: engine/core/Budget.lean#L192-L198

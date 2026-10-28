@@ -91,6 +91,7 @@ holds Engine.Inv The tables' invariant. Purges keep it only by `purge_inv`, over
 bridge Engine.stepS Engine.run_step
 bridge Engine.drainS Engine.run_drain
 bridge Engine.ingestS Engine.run_ingest
+bridge Engine.ingestAll Engine.run_ingestEach
 bridge Engine.View.eval Engine.View.run_model
 bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
 # A want reply's read program: the running interpreter's answer is the

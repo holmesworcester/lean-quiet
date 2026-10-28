@@ -5,6 +5,7 @@ import ops.sync.ServeLaws
 import engine.wire.CloseLaws
 import engine.wire.Slots
 import engine.core.Engine
+import engine.core.IdemLaws
 import ops.community.Community
 import ops.connection.All
 import engine.renderer.Geometry
@@ -346,6 +347,11 @@ section app
 #print axioms SheetGeom.compose_top
 #print axioms Geometry.pinned_row
 #print axioms Cover.covered
+#print axioms Engine.ingestS_known
+#print axioms Engine.ingestS_twice
+#print axioms Engine.ingest_twice
+#print axioms Engine.run_ingestEach
+#print axioms Engine.ingestAll_again
 #print axioms Image.decode_sized
 #print axioms LiveLaws.agrees_empty
 #print axioms LiveLaws.answer_agrees
