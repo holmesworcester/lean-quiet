@@ -337,3 +337,10 @@ end net
 #print axioms Connection.answer_trusted
 #print axioms Connection.resend_trusted
 #print axioms PeopleLaws.present_not_removed
+
+#print axioms Connection.eval_roomFor
+#print axioms Connection.mem_roomsV
+#print axioms Connection.rooms_removed
+#print axioms Connection.rooms_complete
+#print axioms Connection.roomsV_nil
+#print axioms Connection.notice_then_cut

@@ -21,9 +21,9 @@ Stated (`_stmt`), to be proven with the Node and Conn step (typed rooms
 in `Hooks.rooms`; docs/REMOVAL.md, Status). Read over the node's store
 (`DB F`, Community and Connection composed), as `rooms_cut` is; each
 connection step the node runs is a `Conn` step on the connection
-`Node.refresh` leaves, `c.carry ((carriedV cid).eval s)` on the model
-(then `carriedV` becomes `roomsV`, `carry` becomes `setRooms`, and the
-`rooms` hook returns rooms with notices). A session is one per peer key
+`Node.refresh` leaves, `c.carry ((roomsV cid).eval s)` on the model
+(then `carry` becomes `setRooms`, and the `rooms` hook gives rooms with
+notices). A session is one per peer key
 and carries a room for every community this node holds.
 - E2 `rooms_removed_stmt`: when this node is a live member of c and the
   trust rule refuses the peer, the connection carries no synced room c,
@@ -72,39 +72,80 @@ owed to the peer. -/
 def NoticeOnly (fam : Family F) (s : DB F) (cid c : B) (o : Op) : Prop :=
   isWire o.kind = true ∨ fam.room o ≠ some c ∨ ∃ x, Owed s cid c x ∧ ReachIn fam s.ops c x o.id
 
+theorem run_rows (r : Rel Fact) (args : List B) (s : DB F) :
+    ((rows r args : Model F _).run s) =
+      ((Engine.eval s (r.query args)).rights.map fun ((_, x), f) => (x, f), s) := rfl
+
+theorem run_count (r : Rel Fact) (args : List B) (s : DB F) :
+    ((count r args : Model F _).run s) =
+      ((Engine.eval s (r.query args (limit := some 0))).total, s) := rfl
+
+theorem run_view {α : Type} (v : View F α) (s : DB F) : (v.run : Model F α).run s = (v.eval s, s) :=
+  View.run_model v s
+
+theorem has_of_mem {l : List Id} {x : Id} (h : x ∈ l) : has l x = true := by
+  induction l with
+  | nil => cases h
+  | cons y t ih =>
+    unfold has
+    by_cases hy : y = x
+    · simp [hy]
+    · rw [if_neg hy]
+      rcases List.mem_cons.1 h with h | h
+      · exact absurd h.symm hy
+      · exact ih h
+
 /-! ## E2: nothing but the notice -/
 
 /-- **A removed member's connection carries only notices
 (`rooms_removed`).** If this node is a live member of c and the trust
 rule refuses every peer cid names in c, cid carries no synced room c,
 and each notice of c it carries is of a removal owed to the peer. -/
-def rooms_removed_stmt : Prop :=
-  ∀ (s : DB F) (cid c : B), LiveIn s c → Refused s cid c →
-    ∀ rm ∈ (carriedV cid).eval s, match rm with
+theorem rooms_removed (s : DB F) {cid c : B} (hl : LiveIn s c) (hr : Refused s cid c) :
+    ∀ rm ∈ (roomsV cid).eval s, match rm with
       | .sync r => r ≠ c
-      | .notice r x => r = c → Owed s cid c x
+      | .notice r x => r = c → Owed s cid c x := by
+  intro rm hm
+  obtain ⟨c', peer, hpeer, _, hm⟩ := mem_roomsV s hm
+  rw [eval_roomFor] at hm
+  cases hme : (meV c').eval s with
+  | none => simp only [hme, List.not_mem_nil] at hm
+  | some me =>
+    cases ht : ((trusts c' me peer).liftL : View F Bool).eval s
+    · simp only [hme, ht, Bool.false_eq_true, ite_false, List.mem_map, List.mem_filter] at hm
+      obtain ⟨x, ⟨hx, _⟩, rfl⟩ := hm
+      intro hc; subst hc
+      exact ⟨peer, hpeer, hx⟩
+    · simp only [hme, ht, ite_true, List.mem_singleton] at hm
+      subst hm
+      intro hc; subst hc
+      rw [trusts_live s (hl me hme), hr peer hpeer] at ht
+      cases ht
 
 /-- **The session keeps its other communities (`rooms_complete`).** A
-connection carries, synced, every community c this node is in whose
-peer the trust rule takes. -/
-def rooms_complete_stmt : Prop :=
-  ∀ (s : DB F) (cid c me peer : B), (meV c).eval s = some me → peer ∈ peersAt s cid →
-    ((trusts c me peer).liftL : View F Bool).eval s = true →
-    ∃ rm ∈ (carriedV cid).eval s, match rm with
-      | .sync r => r = c
-      | .notice .. => False
+connection carries, synced, every community c this node holds and is
+in whose peer the trust rule takes. -/
+theorem rooms_complete (s : DB F) {cid c me peer : B} (hm : (meV c).eval s = some me)
+    (hp : peer ∈ peersAt s cid) (hh : c ∈ heldV.eval s)
+    (ht : ((trusts c me peer).liftL : View F Bool).eval s = true) :
+    Room.sync c ∈ (roomsV cid).eval s := by
+  simp only [roomsV, View.eval_bind, View.eval_read, eval_roomsOf, List.mem_flatMap]
+  refine ⟨(c, peer), ?_, ?_⟩
+  · exact ⟨peer, hp, List.mem_map.2 ⟨c, hh, rfl⟩⟩
+  · rw [eval_roomFor]; simp [hm, ht]
 
 /-- **Nothing but the notice (`removed_gets_only_notice`).** Under the
 same premises, on the connection as each step reads it afresh: opening
 says hello only; and of community c, a frame received, ops just stored
 (`filed`) and the clock (`tick`) send only sync wire ops and ops in the
 requirement closure of a removal owed to the peer. A frame received
-hands the writer nothing of c. -/
+hands the writer nothing of c. (With the Node and Conn step: then
+`carry` is `setRooms`, and `filed` and `tick` give notices.) -/
 def removed_gets_only_notice_stmt : Prop :=
   ∀ (fam : Family F) (cfg : Config) (ix : Index) (s : DB F) (cid c : B) (conn : Conn)
     (bytes : B) (ids : List Id) (now floor : Nat) (dialer : Bool),
     LiveIn s c → Refused s cid c →
-    let k := conn.carry ((carriedV cid).eval s)
+    let k := conn.carry ((roomsV cid).eval s)
     (∀ rs, ∀ o ∈ (Conn.open dialer rs floor now).send, isWire o.kind = true) ∧
     (∀ o ∈ ((Conn.recv fam cfg ix k bytes now : Model F Step).run s).1.send,
       NoticeOnly fam s cid c o) ∧
@@ -114,6 +155,76 @@ def removed_gets_only_notice_stmt : Prop :=
 
 /-! ## E1: then the cut -/
 
+/-- A connection carries nothing once, for every community this node
+is in, the trust rule refuses its peer and every removal owed to it is
+given on it. -/
+theorem roomsV_nil (s : DB F) {cid : B}
+    (h : ∀ c me, (meV c).eval s = some me →
+      LiveIn s c ∧ Refused s cid c ∧ ∀ x, Owed s cid c x → x ∈ (givenOn cid).eval s) :
+    (roomsV cid).eval s = [] := by
+  apply List.eq_nil_iff_forall_not_mem.2
+  intro rm hm
+  obtain ⟨c, peer, hpeer, _, hm⟩ := mem_roomsV s hm
+  rw [eval_roomFor] at hm
+  cases hme : (meV c).eval s with
+  | none => simp only [hme, List.not_mem_nil] at hm
+  | some me =>
+    obtain ⟨hl, hr, hg⟩ := h c me hme
+    have ht : ((trusts c me peer).liftL : View F Bool).eval s = false := by
+      rw [trusts_live s (hl me hme), hr peer hpeer]
+    simp only [hme, ht, Bool.false_eq_true, ite_false, List.mem_map, List.mem_filter] at hm
+    obtain ⟨x, ⟨hx, hn⟩, _⟩ := hm
+    rw [has_of_mem (hg x ⟨peer, hpeer, hx⟩)] at hn
+    cases hn
+
+theorem sessionOf_state (f : Fact) (s : DB F) : ((sessionOf f : Model F _).run s).2 = s := by
+  cases f with
+  | established cid c peer h sk rk dialer =>
+    simp only [sessionOf, Model.run_bind, Model.run_pure]
+    cases dialer
+    · simp only [Bool.false_eq_true, ite_false, Model.run_bind, run_getOp, Model.run_pure]; rfl
+    · rfl
+  | _ => rfl
+
+theorem sessionsOf_state : ∀ (rs : List (Id × Fact)) (s : DB F),
+    ((sessionsOf rs : Model F (List (Id × B × Bool × B × Nat))).run s).2 = s
+  | [], _ => rfl
+  | (_, f) :: t, s => by
+    simp only [sessionsOf, Model.run_bind, Model.run_pure]
+    rw [sessionsOf_state t, sessionOf_state]
+
+theorem allSessions_state (s : DB F) :
+    ((allSessions : Model F (List (Id × B × Bool × B × Nat))).run s).2 = s := by
+  simp only [allSessions, Model.run_bind, run_rows, Model.run_pure]
+  exact sessionsOf_state _ s
+
+theorem carrying_mem : ∀ (es : List (Id × B × Bool × B × Nat)) (s : DB F) (e : Id × B × Bool × B × Nat),
+    (e ∈ ((carrying es : Model F _).run s).1 ↔ e ∈ es ∧ (roomsV e.1).eval s ≠ []) ∧
+      ((carrying es : Model F _).run s).2 = s
+  | [], _, _ => by simp [carrying]
+  | x :: t, s, e => by
+    simp only [carrying, Model.run_bind, Model.run_pure]
+    rw [View.run_model]
+    obtain ⟨ih, hs⟩ := carrying_mem t s e
+    refine ⟨?_, hs⟩
+    by_cases hx : ((roomsV x.1).eval s).isEmpty = true
+    · rw [if_pos hx, ih]
+      constructor
+      · rintro ⟨hm, hn⟩; exact ⟨List.mem_cons_of_mem _ hm, hn⟩
+      · rintro ⟨hm, hn⟩
+        rcases List.mem_cons.1 hm with rfl | hm
+        · exact absurd (List.isEmpty_iff.1 hx) hn
+        · exact ⟨hm, hn⟩
+    · rw [if_neg hx, List.mem_cons, ih]
+      constructor
+      · rintro (rfl | ⟨hm, hn⟩)
+        · exact ⟨List.mem_cons_self .., fun h => hx (List.isEmpty_iff.2 h)⟩
+        · exact ⟨List.mem_cons_of_mem _ hm, hn⟩
+      · rintro ⟨hm, hn⟩
+        rcases List.mem_cons.1 hm with rfl | hm
+        · exact Or.inl rfl
+        · exact Or.inr ⟨hm, hn⟩
+
 /-- **Notice, then cut (`notice_then_cut`).** If, for every community c
 this node is in, it is a live member, the trust rule refuses cid's peer,
 and every removal owed to the peer is settled on cid (given:
@@ -121,14 +232,36 @@ and every removal owed to the peer is settled on cid (given:
 and `retired` names it if it is an established session: the node closes
 it, and `closing` purges its ops. A session that still carries another
 community stays open (`rooms_complete`). -/
-def notice_then_cut_stmt : Prop :=
-  ∀ (s : DB F) (cid : B),
-    (∀ c me, (meV c).eval s = some me →
-      LiveIn s c ∧ Refused s cid c ∧ ∀ x, Owed s cid c x → x ∈ (givenOn cid).eval s) →
-    (carriedV cid).eval s = [] ∧
+theorem notice_then_cut (s : DB F) {cid : B}
+    (h : ∀ c me, (meV c).eval s = some me →
+      LiveIn s c ∧ Refused s cid c ∧ ∀ x, Owed s cid c x → x ∈ (givenOn cid).eval s) :
+    (roomsV cid).eval s = [] ∧
     (∀ e ∈ ((sessions : Model F _).run s).1, e.1 ≠ cid) ∧
     ((∃ e ∈ ((allSessions : Model F _).run s).1, e.1 = cid) →
-      cid ∈ ((retired : Model F _).run s).1)
+      cid ∈ ((retired : Model F _).run s).1) := by
+  have hnil := roomsV_nil s h
+  -- what is open: kept sessions that carry something, read at s
+  have hopen : ∀ e, e ∈ ((openSessions : Model F _).run s).1 → e.1 ≠ cid := by
+    intro e he
+    simp only [openSessions, Model.run_bind, Model.run_pure] at he
+    rw [allSessions_state] at he
+    obtain ⟨_, hn⟩ := ((carrying_mem _ s e).1).1 he
+    intro hc; rw [hc] at hn; exact hn hnil
+  refine ⟨hnil, ?_, ?_⟩
+  · intro e he
+    simp only [sessions, Model.run_bind, Model.run_pure, List.mem_map] at he
+    obtain ⟨⟨cid', p, dialer, a, t⟩, ho, rfl⟩ := he
+    exact hopen _ ho
+  · rintro ⟨e, he, rfl⟩
+    simp only [retired, Model.run_bind, Model.run_pure]
+    rw [allSessions_state]
+    rw [List.mem_filterMap]
+    refine ⟨e, he, ?_⟩
+    have : (((openSessions : Model F _).run s).1.any fun x => decide (x.1 = e.1)) = false := by
+      rw [List.any_eq_false]
+      intro x hx hb
+      exact hopen x hx (of_decide_eq_true hb)
+    rw [this]; rfl
 
 /-! ## E2 on the bare wire -/
 
@@ -257,16 +390,6 @@ theorem room_connOp (C : Community.Crypto) (K : Keys) {o : Op} (h : ConnOp o) :
   simp only [Family.room, node, Family.sum, family, hk, ho, ite_true, scopeOf]
   by_cases hb : b.kind = 33 ∨ b.kind = 35 <;> simp [hb]
 
-theorem run_rows (r : Rel Fact) (args : List B) (s : DB F) :
-    ((rows r args : Model F _).run s) =
-      ((Engine.eval s (r.query args)).rights.map fun ((_, x), f) => (x, f), s) := rfl
-
-theorem run_count (r : Rel Fact) (args : List B) (s : DB F) :
-    ((count r args : Model F _).run s) =
-      ((Engine.eval s (r.query args (limit := some 0))).total, s) := rfl
-
-theorem run_view {α : Type} (v : View F α) (s : DB F) : (v.run : Model F α).run s = (v.eval s, s) :=
-  View.run_model v s
 
 theorem openEach_conn (epOp : Id) : ∀ (rs : List (Id × Fact)) (s : DB F),
     ∀ o ∈ ((openEach epOp rs : Model F (List Op)).run s).1, ConnOp o

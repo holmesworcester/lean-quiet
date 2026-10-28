@@ -74,18 +74,6 @@ def meV (c : B) : View F (Option B) := do
   let k ← ((Community.nodeKey).liftL : View F _)
   return k.map (·.1)
 
-/-- Of these (community, peer) pairs, the communities where this node
-is a device and the trust rule takes the peer, in order. -/
-def roomsOf : List (B × B) → View F (List Id)
-  | [] => pure []
-  | (c, peer) :: rest => do
-    let ok ← do
-      match ← meV c with
-      | some me => ((trusts c me peer).liftL : View F Bool)
-      | none => pure false
-    let tail ← roomsOf rest
-    return if ok then c :: tail else tail
-
 /-- The peer keys connection cid's established facts name. -/
 def peersOf (a : Answer F) : List B :=
   a.rights.filterMap fun (_, f) => match f with
@@ -100,16 +88,6 @@ def heldV : View F (List B) := do
     | .accepted c _ => some c
     | _ => none).eraseDups
 
-/-- The rooms the peer on connection cid may see now, as a view: of the
-communities this node holds, each one where this node is a device and
-the trust rule takes a peer key cid's established facts name
-(`trusts`). A session is one per peer key, and carries every community
-both nodes share, whatever its hello named. -/
-def roomsV (cid : Id) : View F (List Id) := do
-  let a ← View.read (F := F) (established.byConn.query [cid])
-  let cs ← heldV
-  roomsOf ((peersOf a).flatMap fun peer => cs.map (·, peer))
-
 /-- The rooms and notices settled on connection cid (`conn.settled`). -/
 def givenOn (cid : Id) : View F (List Id) := do
   let a ← View.read (F := F) (settled.byConn.query [cid])
@@ -117,33 +95,39 @@ def givenOn (cid : Id) : View F (List Id) := do
     | .settled _ r => some r
     | _ => none
 
-/-- What a connection carries for these (community, peer) pairs: the
-community, synced, where this node is a device and the trust rule takes
+/-- What a connection carries of community c for peer key `peer`: the
+room, synced, where this node is a device of c and the trust rule takes
 the peer; else a notice of each removal that cuts a device under the
-peer's key (`Community.removalsAt`), not yet given on it. -/
-def carriedOf (given : List Id) : List (B × B) → View F (List Room)
+peer's key (`Community.removalsAt`) and is not yet given on it
+(`given`); else nothing. -/
+def roomFor (given : List Id) (c peer : B) : View F (List Room) := do
+  match ← meV c with
+  | some me =>
+    let ok ← ((trusts c me peer).liftL : View F Bool)
+    if ok then return [Room.sync c]
+    let xs ← ((Community.removalsAt c peer).liftL : View F (List Id))
+    return (xs.filter fun x => !has given x).map (Room.notice c)
+  | none => return []
+
+/-- What a connection carries for these (community, peer) pairs. -/
+def roomsOf (given : List Id) : List (B × B) → View F (List Room)
   | [] => pure []
   | (c, peer) :: rest => do
-    let here ← do
-      match ← meV c with
-      | some me =>
-        if ← ((trusts c me peer).liftL : View F Bool) then pure [Room.sync c]
-        else
-          let xs ← ((Community.removalsAt c peer).liftL : View F (List Id))
-          pure ((xs.filter fun x => !has given x).map (Room.notice c))
-      | none => pure []
-    let tail ← carriedOf given rest
+    let here ← roomFor given c peer
+    let tail ← roomsOf given rest
     return here ++ tail
 
 /-- What connection cid carries now, as a view read afresh on every
-step. A session is one per peer key, whatever community its hello
-named: for each community this node holds, the room synced, or the
-notices owed to a removed member's node, or nothing. -/
-def carriedV (cid : Id) : View F (List Room) := do
+step (docs/REMOVAL.md): for each community this node holds and each
+peer key cid's established facts name, the room synced, or the notices
+owed to a removed member's node, or nothing. A session is one per peer
+key, and carries every community both nodes share, whatever its hello
+named. A session that carries nothing is retired (`sessions`). -/
+def roomsV (cid : Id) : View F (List Room) := do
   let a ← View.read (F := F) (established.byConn.query [cid])
   let given ← givenOn cid
   let cs ← heldV
-  carriedOf given ((peersOf a).flatMap fun peer => cs.map (·, peer))
+  roomsOf given ((peersOf a).flatMap fun peer => cs.map (·, peer))
 
 section
 variable {m : Type → Type} [Monad m] [Lists F m] [Store F m] [Fresh m]
@@ -334,8 +318,9 @@ def closing (cid : Id) : m (List Id) := do
   let some co ← Store.getOp (m := m) cid | return []
   return cid :: co.reqs
 
-/-- The rooms the peer on connection cid may see now (`roomsV`). -/
-def rooms (cid : Id) : m (List Id) := (roomsV cid).run
+/-- The rooms the peer on connection cid may see now, synced
+(`roomsV`'s; its notices are given once the node carries typed rooms). -/
+def rooms (cid : Id) : m (List Id) := do return Room.syncs (← (roomsV cid).run)
 
 /-- When and from where op x first arrived bare, if it did. -/
 def arrival (x : Id) : m (Option (B × Nat)) := do
@@ -343,17 +328,29 @@ def arrival (x : Id) : m (Option (B × Nat)) := do
     | .recv _ false _ a t => some (a, t)
     | _ => none
 
-/-- Every established session: its id, the peer, whether this side
-dialed, and the address and time its handshake arrived here (the
-connection, for the dialer; the request, for the responder). -/
-def allSessions : m (List (Id × B × Bool × B × Nat)) := do
-  let mut out := []
-  for (_, f) in ← rows established.all [] do
-    let .established cid _ peer _ _ _ dialer := f | continue
+/-- The established session of this fact: its id, the peer, whether
+this side dialed, and the address and time its handshake arrived here
+(the connection, for the dialer; the request, for the responder). -/
+def sessionOf : Fact → m (Option (Id × B × Bool × B × Nat))
+  | .established cid _ peer _ _ _ dialer => do
     let x ← if dialer then pure cid
       else pure ((← Store.getOp (m := m) cid).map (·.reqs.headD .empty) |>.getD cid)
-    if let some (a, t) ← arrival x then out := (cid, peer, dialer, a, t) :: out
-  return out
+    let at_ ← arrival x
+    return at_.map fun (a, t) => (cid, peer, dialer, a, t)
+  | _ => return none
+
+def sessionsOf : List (Id × Fact) → m (List (Id × B × Bool × B × Nat))
+  | [] => pure []
+  | (_, f) :: t => do
+    let e ← sessionOf f
+    let rest ← sessionsOf t
+    return match e with
+      | some e => e :: rest
+      | none => rest
+
+/-- Every established session (`sessionOf`). -/
+def allSessions : m (List (Id × B × Bool × B × Nat)) := do
+  return (← sessionsOf (← rows established.all [])).reverse
 
 /-- The sessions kept: one per peer. Per peer and side (this device
 dialed, or the peer did), the latest established is kept, since a
@@ -375,18 +372,34 @@ def kept (all : List (Id × B × Bool × B × Nat)) : List Id := Id.run do
     | none => out := (s.2.1, s.1) :: out
   return out.map (·.2)
 
-/-- Open sessions, one per peer (`kept`): id, the bare address the
-handshake ran on, and whether this side dialed. -/
-def sessions : m (List (Id × B × Bool)) := do
+/-- Of these sessions, those that carry something (`roomsV`): a room or
+a notice not yet given. -/
+def carrying : List (Id × B × Bool × B × Nat) → m (List (Id × B × Bool × B × Nat))
+  | [] => pure []
+  | e :: t => do
+    let rs ← (roomsV e.1).run
+    let rest ← carrying t
+    return if rs.isEmpty then rest else e :: rest
+
+/-- The sessions kept open: one per peer (`kept`), while it carries
+something. A session that carries nothing (no room the trust rule takes,
+no notice owed) is retired, so a removed member's session closes once
+its notices are given (`notice_then_cut`). -/
+def openSessions : m (List (Id × B × Bool × B × Nat)) := do
   let all ← allSessions
   let k := kept all
-  return all.filterMap fun (cid, _, dialer, a, _) => if k.contains cid then some (cid, a, dialer) else none
+  carrying (all.filter fun e => k.contains e.1)
 
-/-- Sessions no longer kept: to be closed and purged. -/
+/-- Open sessions (`openSessions`): id, the bare address the handshake
+ran on, and whether this side dialed. -/
+def sessions : m (List (Id × B × Bool)) := do
+  return (← openSessions).map fun (cid, _, dialer, a, _) => (cid, a, dialer)
+
+/-- Sessions not kept open: to be closed and purged. -/
 def retired : m (List Id) := do
   let all ← allSessions
-  let k := kept all
-  return all.filterMap fun (cid, _) => if k.contains cid then none else some cid
+  let open_ ← openSessions
+  return all.filterMap fun (cid, _) => if open_.any (fun e => decide (e.1 = cid)) then none else some cid
 
 /-- A session's transport keys: send, receive. -/
 def sessionKeys (cid : Id) : m (Option (B × B)) := do

@@ -52,12 +52,27 @@ structure Peer where
   /-- Frames waiting: (the sender's address, bytes). -/
   inbox : List (ByteArray × ByteArray) := []
 
-def mkPeer (name : String) : IO Peer := do
+/-- The sessions as they were before they read the rooms view: kept, one
+per peer, whatever they carry. The negative control's. -/
+def oldSessions : SqlM F (List (Id × ByteArray × Bool)) := do
+  let all ← (allSessions : SqlM F _)
+  let k := kept all
+  return all.filterMap fun (cid, _, dialer, a, _) => if k.contains cid then some (cid, a, dialer) else none
+
+def oldRetired : SqlM F (List Id) := do
+  let all ← (allSessions : SqlM F _)
+  let k := kept all
+  return all.filterMap fun (cid, _) => if k.contains cid then none else some cid
+
+/-- A peer; with `old`, its sessions are the old ones (`oldSessions`). -/
+def mkPeer (name : String) (old : Bool := false) : IO Peer := do
   let seed := sha256 s!"seed {name}".toUTF8
   let nk := sha256 s!"node {name}".toUTF8
   let addr := s!"{name}:7001".toUTF8
   let db ← Db.openAt ":memory:"
-  let x : Sync F (SqlM F) := { fam, cfg, hooks := hooks fam K addr }
+  let h := hooks fam K addr
+  let h := if old then { h with established := oldSessions, retired := oldRetired } else h
+  let x : Sync F (SqlM F) := { fam, cfg, hooks := h }
   return { addr, seed, nk, x, db, n := Node.boot fam [] 0 }
 
 structure World where
@@ -139,9 +154,9 @@ def allowedOn (p : Peer) (c d : ByteArray) : IO Bool :=
   ((Community.allowPeer c d).liftL.run : SqlM F Bool).run p.db
 
 /-- A founds Acme and invites at its address; B joins from the link. -/
-def setup (loss : Nat) : IO (World × Id × Op) := do
+def setup (loss : Nat) (old : Bool := false) : IO (World × Id × Op) := do
   let a ← mkPeer "A"
-  let b ← mkPeer "B"
+  let b ← mkPeer "B" old
   let mut w : World := { a, b, loss }
   w ← writeA w (← viewOn a (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (sha256 "key".toUTF8)
     (sha256 "esk".toUTF8) a.nk)).ops
@@ -163,6 +178,26 @@ def dump (name : String) (p : Peer) : IO Unit := do
     let st ← (Store.getStatus o.id : SqlM F _).run p.db
     line := line ++ s!" {o.kind}:" ++ (match st with | some (.valid _) => "v" | some .invalid => "X" | none => "?")
   IO.eprintln line
+
+/-- B, admitted, is removed by A and comes to hold its removal (handed to
+it here; the notice will carry it): whether B then closes its session
+with A, and whether A keeps its side while the notice is owed. -/
+def removalCut (old : Bool) : IO (Bool × Bool) := do
+  let (w, c, req) ← setup 0 old
+  let w ← w.run 20
+  let w ← approveOnA w c req
+  let w ← w.run 60
+  let dA := Device.ofSeed w.a.seed
+  let dB := Device.ofSeed w.b.seed
+  let adms ← viewOn w.a (Community.admission.byDevice.read [c, dB.pk])
+  let some ((_, admB), _) := adms.rows.head? | return (false, false)
+  let rm := remove c c c admB dA
+  let w ← writeA w [rm]
+  let w ← writeB w [rm]
+  let w ← w.run 5
+  let bOpen := !(← (sessions : SqlM F _).run w.b.db).isEmpty || !(← ests w.b).isEmpty
+  let aOpen := !(← (sessions : SqlM F _).run w.a.db).isEmpty
+  return (!bOpen, aOpen)
 
 def main : IO UInt32 := do
   let t ← Checks.new
@@ -295,4 +330,12 @@ def main : IO UInt32 := do
   w3 ← approveOnA w3 c3 (link3.request (Device.ofSeed b3.seed) b3.key)
   w3 ← w3.run 30
   t.ok "the same node then joins as another device, under the same node key" (← allowedOn w3.b c3 b3.key)
+  -- A session that carries nothing is retired: once B holds its own
+  -- removal, its entry is not held, so its session with A carries
+  -- nothing and B closes it; A keeps its side while B's notice is owed.
+  let (bClosed, aOpen) ← removalCut false
+  t.ok "a removed B, holding its removal, closes its session: it carries nothing" bClosed
+  t.ok "and A keeps its side while the notice is owed" aOpen
+  let (bClosedOld, _) ← removalCut true
+  t.ok "negative control: with sessions not reading the rooms view, B keeps the session open" (!bClosedOld)
   t.finish "connection_check"

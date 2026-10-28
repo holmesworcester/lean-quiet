@@ -126,7 +126,7 @@ of keys.
 
 **Sessions** stay one per peer, and a peer is a node key. One session
 between two nodes carries a room for every community both hold
-(`carriedV` reads this node's communities, not the hello's). A hello
+(`roomsV` reads this node's communities, not the hello's). A hello
 still names one community: it is the community the responder checks
 trust for before answering, and the one a joiner's request rides in.
 Since a session may already exist for other communities, a pending
@@ -159,7 +159,7 @@ Considered and not taken:
 synced both ways, as now; or `notice c x`, op x of c with its
 requirement closure, given once and never taken. For each community
 this node holds, and the peer key the session's `established` facts
-name (`carriedV`):
+name (`roomsV`):
 - if this node is in c and the trust rule takes the peer: `sync c`;
 - otherwise, a notice for each removal that cuts a device admitted
   under the peer's key (`removalsAt`) and is not yet settled on this
@@ -254,14 +254,25 @@ Built and proven, on lq main's layout:
 - **One session per node key**, carrying every community both nodes
   hold. Tested in `connection_check`: a second community's join beside
   an open session, approved and synced over one session.
+- **The rooms view**, typed: `roomsV` gives `.sync c` or `.notice c x`
+  per (held community, peer key); the `rooms` hook gives Node its synced
+  rooms until the Node step. `sessions` and `retired` read it, so a
+  session that carries nothing is retired. Laws: `rooms_trusted`,
+  `rooms_cut` (no `.sync c` for a refused peer), `rooms_model`,
+  `rooms_removed`, `rooms_complete`, `notice_then_cut`. Tested in
+  `connection_check`: a removed B holding its removal closes its
+  session, A keeps its side while the notice is owed; negative control:
+  sessions that do not read the view keep B's open.
 
-Waiting for the Node and Conn step (after a3's hostile branch lands):
-typed rooms in `Hooks.rooms`, `Conn.give` called by `filed` and `tick`,
-the `settled` hook, `sessions` and `retired` reading the view, and with
-them the notice laws (`notice_sent`, `notice_send`, `notice_once`,
-`closure`, `rooms_removed`, `removed_gets_only_notice`,
-`notice_then_cut`, `rooms_complete`), still `_stmt`s; and their TCP test
-(the removed node told, the session cut, the rejoin over TCP).
+Waiting for the Node and Conn step (after a3's hostile and world
+branches land): typed rooms in `Hooks.rooms`, `Conn.give` called by
+`filed` and `tick`, and the `settled` hook; with them the notice laws
+still `_stmt`s (`notice_sent`, `notice_send`, `notice_once`, `closure`,
+`removed_gets_only_notice`) and their TCP test (the removed node told,
+the session cut, the rejoin over TCP). Then `hold_reply_local` and
+`have_shown` must hold for `.sync` rooms, and a notice room answers no
+holds about c. Until then a removed member's session stays open on the
+remover's side with its notice owed (as before).
 
 Found on the way, in Conn (a3's), for that step:
 - A session carries a room on one side only while the other does not

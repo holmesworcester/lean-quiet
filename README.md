@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 297 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 303 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -137,7 +137,7 @@ nothing else is assumed:
 | ✅ | 🥊🥊🥊 | **The trust rule lets in exactly the live members' nodes.** Read from the node's tables, it accepts a node key exactly when a live device is admitted under it: admitted, and none of its users removed. Content keys are wrapped to exactly those keys. Nodes that hold the same ops agree on it. | [`connect_iff`], [`deviceLive_iff`], [`refuse_nonmember`], [`connect_approved`], [`recipients_iff`], [`connect_agree`] |
 | ✅ | 🥊🥊🥊 | **A removal cuts every device of the removed user,** wherever else the device is admitted, and for good: no later admission undoes it, and only the device's own consent ties it to a user, so nobody else can cut it. Once a node holds the removal, the rule refuses a node all of whose devices are cut. Only an admin can remove another user, and nothing undoes it. | [`removal_cuts_off`], [`cut_stays`], [`cut_consented`], [`removals_iff`], [`removal_authorized`], [`removed_stays`] |
 | ✅ | 🥊🥊🥊 | **A removed member's node stops holding the community, and can rejoin only as a new device.** A cut device's entry is not held, so a join writes a fresh one from the node's key; a join never asks for an admitted device; and whatever follows, the removed user stays removed and its devices stay cut. Tested end to end on two SQLite nodes (`tests/engine/Lifecycle.lean`). | [`mine_not_removed`], [`rejoin_fresh`], [`join_new_device`], [`removed_stays_removed`] |
-| 🟡 | 🥊🥊🥊 | **A removal ends a live session's sync.** Proven: a connection carries a room only if the trust rule takes its peer, and for a live member that rule is `allowPeer`. So a peer `allowPeer` refuses gets nothing of the room, and nothing of it is taken from them. Every connection step reads its rooms afresh. That is in the code and tested over TCP, with a negative control, but not a theorem. Wanted: deriving the refusal from the removal itself in the running node (`sum_project`). The session stays open, with no rooms. | [`rooms_trusted`], [`rooms_cut`], [`trusts_live`], [`rooms_model`], [`recv_send`], [`recv_take`], [`removal_cuts_off`] |
+| 🟡 | 🥊🥊🥊 | **A removal ends a live session's sync.** Proven: a connection carries a room synced only if the trust rule takes its peer, and for a live member that rule is `allowPeer`. So a peer `allowPeer` refuses gets nothing of the room by sync, and nothing of it is taken from them; what it carries of the room is only its removal's notice. Every connection step reads its rooms afresh, and a session that carries nothing is closed. That is in the code and tested over TCP, with a negative control, but not a theorem. Wanted: deriving the refusal from the removal itself in the running node (`sum_project`). | [`rooms_trusted`], [`rooms_cut`], [`rooms_removed`], [`rooms_complete`], [`notice_then_cut`], [`trusts_live`], [`rooms_model`], [`recv_send`], [`recv_take`], [`removal_cuts_off`] |
 | 🟡 | 🥊🥊🥊 | **No packet goes to a removed member but the notice of its removal.** From the first run of the engine loop after a node decides a removal, it sends the removed user's node only that removal and its requirement closure, once, and then closes the session (docs/REMOVAL.md). Proven: no handshake reply, and a replayed request gets nothing. Stated, landing with the node's typed rooms: the notice, nothing beside it, and the cut (`notice_sent`, `removed_gets_only_notice`, `notice_then_cut`). Today a removed member's session stays open with no rooms. | [`answer_trusted`], [`resend_trusted`] |
 | ✅ | 🥊🥊🥊 | **No session before approval,** however hellos are lost or replayed, and sessions form only with trusted peers. Proven over a model, and over the running code: a responder writes a connection, or re-sends one, only for a request whose initiator the trust rule takes. | [`no_connection_before_approval`], [`sessions_trusted`] *(model)*, [`answer_trusted`], [`resend_trusted`] |
 | ✅ | 🥊🥊🥊 | **Peers cannot push ops in** outside the rooms they are let into, nor plant a device's local state. On a session, only ops of its rooms are taken. On the bare wire, a hello yields only a join request of its community, trusted or not, so a removed member, or an outsider who knows the community, pushes nothing else in. Tested over TCP, with a negative control: the deliver step before the fix takes the post. | [`recv_take`], [`bare_takes_only_join`], [`intake_local`], [`stored_local`], [`local_fact_mine`], [`intakeConn_conn`] |
@@ -568,9 +568,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`offer_shared`]: engine/core/Sync.lean#L83-L86
 [`wire_kinds`]: ops/connection/Laws.lean#L40-L41
 [`local_kinds`]: ops/connection/Laws.lean#L47-L48
-[`joinOps_travels`]: ops/community/Intents.lean#L297-L301
-[`found_travels`]: ops/community/Intents.lean#L315-L321
-[`stopWaiting_local`]: ops/community/Intents.lean#L304-L305
+[`joinOps_travels`]: ops/community/Intents.lean#L313-L317
+[`found_travels`]: ops/community/Intents.lean#L331-L337
+[`stopWaiting_local`]: ops/community/Intents.lean#L320-L321
 [`filed_send`]: ops/sync/ConnLaws.lean#L175-L178
 [`offer_stored`]: engine/core/Sync.lean#L98-L101
 [`tick_send`]: ops/sync/ConnLaws.lean#L184-L187
@@ -593,11 +593,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`kk_forward_secret_resp`]: ops/connection/NoiseSymbolic.lean#L662-L671
 [`purge_gone`]: engine/core/Purge.lean#L261-L263
 [`purge_named`]: engine/core/Purge.lean#L267-L271
-[`opened_endpoint`]: ops/connection/RemovalLaws.lean#L136-L144
-[`established_endpoint`]: ops/connection/RemovalLaws.lean#L161-L174
+[`opened_endpoint`]: ops/connection/RemovalLaws.lean#L270-L278
+[`established_endpoint`]: ops/connection/RemovalLaws.lean#L295-L308
 [`endpoint_signed`]: ops/community/RemovalLaws.lean#L44-L51
 [`endpoint_derives`]: ops/community/RemovalLaws.lean#L91-L93
-[`meV_node`]: ops/connection/RemovalLaws.lean#L224-L229
+[`meV_node`]: ops/connection/RemovalLaws.lean#L358-L363
 [`new_device_trusted`]: ops/community/RemovalLaws.lean#L100-L106
 [`connect_iff`]: ops/community/Connect.lean#L252-L256
 [`deviceLive_iff`]: ops/community/Connect.lean#L135-L139
@@ -612,16 +612,19 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`rejoin_fresh`]: ops/community/RemovalLaws.lean#L432-L445
 [`join_new_device`]: ops/community/RemovalLaws.lean#L475-L482
 [`removed_stays_removed`]: ops/community/RemovalLaws.lean#L519-L529
-[`rooms_trusted`]: ops/connection/RoomLaws.lean#L75-L81
-[`rooms_cut`]: ops/connection/RoomLaws.lean#L100-L110
-[`trusts_live`]: ops/connection/RoomLaws.lean#L41-L47
-[`rooms_model`]: ops/connection/RoomLaws.lean#L116-L118
+[`rooms_trusted`]: ops/connection/RoomLaws.lean#L100-L107
+[`rooms_cut`]: ops/connection/RoomLaws.lean#L120-L131
+[`rooms_removed`]: ops/connection/RemovalLaws.lean#L100-L105
+[`rooms_complete`]: ops/connection/RemovalLaws.lean#L125-L131
+[`notice_then_cut`]: ops/connection/RemovalLaws.lean#L228-L241
+[`trusts_live`]: ops/connection/RoomLaws.lean#L45-L51
+[`rooms_model`]: ops/connection/RoomLaws.lean#L137-L140
 [`recv_take`]: ops/sync/ConnLaws.lean#L118-L120
-[`answer_trusted`]: ops/connection/RemovalLaws.lean#L693-L706
-[`resend_trusted`]: ops/connection/RemovalLaws.lean#L741-L752
+[`answer_trusted`]: ops/connection/RemovalLaws.lean#L817-L830
+[`resend_trusted`]: ops/connection/RemovalLaws.lean#L865-L876
 [`no_connection_before_approval`]: ops/connection/bootstrap/Laws.lean#L39-L46
 [`sessions_trusted`]: ops/connection/bootstrap/Laws.lean#L63-L68
-[`bare_takes_only_join`]: ops/connection/RemovalLaws.lean#L463-L475
+[`bare_takes_only_join`]: ops/connection/RemovalLaws.lean#L587-L599
 [`intake_local`]: engine/core/Sync.lean#L41-L43
 [`stored_local`]: engine/core/Sync.lean#L137-L140
 [`local_fact_mine`]: ops/community/Laws.lean#L636-L640
@@ -641,7 +644,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`verify_sound`]: ops/community/Merkle.lean#L426-L432
 [`complete_assembles`]: ops/community/Merkle.lean#L473-L479
 [`chunk_unique`]: ops/community/Laws.lean#L744-L750
-[`progress_exact`]: ops/community/Intents.lean#L556-L565
+[`progress_exact`]: ops/community/Intents.lean#L572-L581
 [`no_injective_hash`]: ops/community/Merkle.lean#L236-L238
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
@@ -667,7 +670,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`approve_valid`]: ops/community/Laws.lean#L434-L442
 [`admit_admits`]: ops/community/Laws.lean#L450-L461
 [`connect_admitted`]: ops/community/Connect.lean#L276-L286
-[`removeMember_valid`]: ops/community/Intents.lean#L438-L445
+[`removeMember_valid`]: ops/community/Intents.lean#L454-L461
 [`exchange_complete`]: ops/sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: ops/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: ops/sync/Fp.lean#L37-L37
@@ -723,8 +726,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
-[`readable_held`]: ops/community/Intents.lean#L358-L362
-[`readable_complete`]: ops/community/Intents.lean#L400-L404
+[`readable_held`]: ops/community/Intents.lean#L374-L378
+[`readable_complete`]: ops/community/Intents.lean#L416-L420
 [`switcherOrder_sound`]: ops/app/Pages.lean#L656-L658
 [`switcherOrder_complete`]: ops/app/Pages.lean#L663-L665
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53

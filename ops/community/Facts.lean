@@ -171,7 +171,7 @@ def Body.enc : Body → List UInt8
   | .abandon => [17]
   | .key c k => 18 :: Codec.enc (c, k)
   | .chunk r l i x p => 19 :: Codec.enc (r, l, i, x, p)
-  | .endpoint sk => 20 :: Codec.enc sk
+  | .endpoint sk => 22 :: Codec.enc sk
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B) => Body.root p.1 p.2.1 p.2.2) r
@@ -196,7 +196,7 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 18 :: r => decAs (fun (p : B × B) => Body.key p.1 p.2) r
   | 19 :: r => decAs (fun (p : B × Nat × Nat × B × List B) =>
       Body.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
-  | 20 :: r => decAs (fun (p : B) => Body.endpoint p) r
+  | 22 :: r => decAs (fun (p : B) => Body.endpoint p) r
   | _ => none
 
 instance : Codec Body where
@@ -225,7 +225,7 @@ def Fact.enc : Fact → List UInt8
   | .abandoned c r j => 15 :: Codec.enc (c, r, j)
   | .key c i k => 16 :: Codec.enc (c, i, k)
   | .chunk c a r l i => 17 :: Codec.enc (c, a, r, l, i)
-  | .endpoint pk sk => 18 :: Codec.enc (pk, sk)
+  | .endpoint pk sk => 20 :: Codec.enc (pk, sk)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B × B) => Fact.admission p.1 p.2.1 p.2.2.1 p.2.2.2) r
@@ -251,7 +251,7 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 15 :: r => decAs (fun (p : B × B × B) => Fact.abandoned p.1 p.2.1 p.2.2) r
   | 16 :: r => decAs (fun (p : B × B × B) => Fact.key p.1 p.2.1 p.2.2) r
   | 17 :: r => decAs (fun (p : B × B × B × Nat × Nat) => Fact.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
-  | 18 :: r => decAs (fun (p : B × B) => Fact.endpoint p.1 p.2) r
+  | 20 :: r => decAs (fun (p : B × B) => Fact.endpoint p.1 p.2) r
   | _ => none
 
 instance : Codec Fact where
@@ -405,7 +405,7 @@ def Body.tag : Body → UInt8
   | .profile .. => 7 | .attach .. => 8 | .react .. => 9
   | .approve .. => 10 | .admit => 11
   | .accept .. => 13 | .joining .. => 14 | .secret .. => 15 | .name .. => 16 | .abandon => 17
-  | .key .. => 18 | .chunk .. => 19 | .endpoint .. => 20
+  | .key .. => 18 | .chunk .. => 19 | .endpoint .. => 22
 
 /-- An op's verdict: its body's, if its type is its body's. The type is
 in the bytes its id hashes, so an op re-sent under another type would be
