@@ -53,9 +53,11 @@ structure Hooks (F : Type) where
   rooms : Id → SqlM F (List Id)
   /-- The local ops that record room r's first settle on connection cid. -/
   settled : Id → Id → List Op := fun _ _ => []
-  /-- The local ops that record op o's arrival (on a session, or bare
-  from an address) at a time. -/
-  recv : Option Id → ByteArray → Op → Nat → List Op := fun _ _ _ _ => []
+  /-- What the family writes on op o's arrival (on a session, or bare
+  from an address) at a time: called on every arrival, an op sent again
+  included, after it is stored. Recording the first arrival, and
+  answering a replayed request again, are the family's. -/
+  recv : Option Id → ByteArray → Op → Nat → SqlM F (List Op) := fun _ _ _ _ => pure []
   /-- The family's send couriers waiting: id, route, bytes. -/
   outbox : SqlM F (List (Id × Route × ByteArray)) := pure []
   /-- The local ops that mark a courier handed out. -/
@@ -261,8 +263,11 @@ def Node.apply (n : Node) (cid : Id) (s : Step) (now : Nat) : IO (Node × Effect
   let n := { n with conns := n.conns.map fun p => if p.1 = cid then (cid, s.conn) else p }
   let n ← Node.settle x n (s.status.map (cid, ·))
   let (n, out) ← n.store x s.take false
-  let (n, _) ← n.put x (s.take.flatMap fun o => x.hooks.recv (some cid) .empty o now) true
-  return (n, sends cid s.send ++ out)
+  let mut arrived : List Op := []
+  for o in s.take do
+    arrived := arrived ++ (← (x.hooks.recv (some cid) .empty o now).run n.db)
+  let (n, out') ← n.store x arrived true
+  return (n, sends cid s.send ++ out ++ out')
 
 /-- A connection opened without a handshake, unsealed: the in-memory
 harness's. -/
@@ -288,9 +293,10 @@ def Node.onBare (n : Node) (addr bytes : ByteArray) (now : Nat) : IO (Node × Ef
   match Op.decode bytes with
   | none => return (n, {})
   | some o =>
-    let (n, ids) ← n.write x (intakeConn x.fam [o])
-    if ids.isEmpty then return (n, {})
-    let (n, out) ← n.store x (x.hooks.recv none addr o now) true
+    let ops := intakeConn x.fam [o]
+    if ops.isEmpty then return (n, {})
+    let (n, _) ← n.write x ops
+    let (n, out) ← n.store x (← (x.hooks.recv none addr o now).run n.db) true
     n.finish x out now
 
 /-- The clock. -/

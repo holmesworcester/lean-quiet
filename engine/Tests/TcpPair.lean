@@ -59,7 +59,7 @@ def toySealer : Sealer where
 
 def hooks (rooms : List Id) : Hooks Fact where
   rooms := fun _ => pure rooms
-  recv := fun cid addr o _ =>
+  recv := fun cid addr o _ => pure <|
     if cid.isNone && o.kind == kHello then [Op.make kRecord [] (Codec.encode (o.id, addr))] else []
   outbox := do
     let shipped := (← opsOf kShipped).map (·.body)
@@ -166,13 +166,25 @@ def main (args : List String) : IO UInt32 := do
   t.ok "seal: a frame that does not unseal drops the session" (e.drop.any (· == cid) && (n.conn? cid).isNone)
   let (n, _) ← n.onTick x 2
   t.ok "seal: a dropped session is not reopened" ((n.conn? cid).isNone && has n.dropped cid)
-  -- A resent bare op is taken once: no second arrival record, nothing
-  -- reported stored again.
+  -- A resent bare op is taken once: the family hears it again (`recv`)
+  -- but its arrival record is the same op, and nothing new is stored.
   let hello := Op.make kHello [] "127.0.0.1:1".toUTF8
   let (n, e1) ← n.onBare x "10.0.0.9:5".toUTF8 hello.bytes 3
   let (_, e2) ← n.onBare x "10.0.0.9:5".toUTF8 hello.bytes 4
   let recs := (← (dumpOps (F := Fact)).run dm).filter (·.kind == kRecord)
   t.ok "bare: a resent op is taken once" (e1.stored.any (· == hello.id) && e2.stored.isEmpty && recs.length == 1)
+  -- The family hears every arrival, a repeat included (so it can answer
+  -- a replayed request again).
+  let heardRecv ← IO.mkRef (0 : Nat)
+  let xc : Sync Fact := { x with hooks := { x.hooks with
+    recv := fun c a o now => do
+      heardRecv.modify (· + 1)
+      x.hooks.recv c a o now } }
+  let dc ← Db.openAt ":memory:"
+  let nc ← Node.boot xc dc 0
+  let (nc, _) ← nc.onBare xc "10.0.0.9:5".toUTF8 hello.bytes 3
+  let (_, _) ← nc.onBare xc "10.0.0.9:5".toUTF8 hello.bytes 4
+  t.ok "bare: the family hears a repeat arrival" ((← heardRecv.get) == 2)
   let code ← t.finish "tcppair"
   -- The listener and the readers never end by themselves: exit.
   (← IO.getStdout).flush
