@@ -156,7 +156,8 @@ structure St where
   /-- The node's runner (Engine.Sync.Runner): it owns the writes once it
   runs. And the ids it stored since the frame last took them. -/
   net : Option Engine.Sync.Runner := none
-  netIds : Option (IO.Ref (Array Id)) := none
+  /-- The journal's newest row this app has taken notice of. -/
+  seen : Nat := 0
   me : Chaos.Me
   live : Live := {}
   out : Array Pending := #[]
@@ -771,30 +772,26 @@ def netStep : M Unit := do
   if s.net.isSome then return
   if (← s.wr.busy.get) > 0 then return
   let listen := ((← listenHints).head?).getD s!"127.0.0.1:{port}".toUTF8
-  let ids ← IO.mkRef #[]
   let x : Engine.Sync.Sync SF (SqlM SF) :=
     { fam, cfg := { every := 30000, patience := 20000 },
       hooks := Connection.hooks fam Connection.sodium listen }
   try
     let db ← Db.openAt s.dbPath
-    let r ← Engine.Sync.Runner.start x db 0 port.toUInt16 (fun is => ids.modify (· ++ is.toArray))
+    let r ← Engine.Sync.Runner.start x db 0 port.toUInt16
     IO.eprintln s!"node: listening on {r.port}, dialed as {(String.fromUTF8? listen).getD "?"}"
-    modify fun s => { s with net := some r, netIds := some ids }
+    modify fun s => { s with net := some r }
   catch e =>
     IO.eprintln s!"node: cannot start: {e}"
     modify fun s => { s with netCfg := none }
 
-/-- The keys the node's commits filed, for the live answers: each stored
-id's own key and its fact's (read back on the frame's connection). -/
-def netKeys : M (Array ByteArray) := do
+/-- The keys every commit since the last call filed (the writer's and the
+node's alike), from the store's journal: read inside the frame's read
+transaction, they are exactly the commits this frame's reads see. -/
+def takeChanges : M (Array ByteArray) := do
   let s ← get
-  let some ref := s.netIds | return #[]
-  let ids ← ref.modifyGet fun is => (is, #[])
-  let mut ks := #[]
-  for x in ids do
-    ks := ks.push (opKey x)
-    let a ← (listSql (F := SF) { key := opKey x, limit := some 1 }).run s.rd
-    for (_, f) in a.rows do ks := ks ++ (fam.keys f).toArray
+  let (ks, top) ← s.rd.changesSince s.seen
+  modify fun s => { s with seen := top }
+  s.wr.read.set top  -- taken: the writer may delete them
   return ks
 
 /-- Join with QR code: the camera on while the page shows; each new
@@ -1515,7 +1512,7 @@ def withToast (s : St) (fr : Array ByteArray) (vh : Nat) : Array ByteArray := Id
 
 /-- One frame; the twin's events for the next one, or none when the
 window closes. -/
-def step (evs : List Event) : M (Option (List Event)) := do
+def frame (evs : List Event) : M (Option (List Event)) := do
   let t0 ← (← get).io.nowUs
   -- 0. the screen and its insets, as of now (they can arrive after the
   -- first frame, and change with rotation or the navigation mode)
@@ -1526,7 +1523,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   modify fun s => { s with Hs := hs, insetTop := it, insetBot := ib }
   -- 1. notices
   let s ← get
-  let ns := (← s.wr.takeNotices) ++ (← netKeys)
+  let ns ← takeChanges
   if !ns.isEmpty then
     let decided := s.out.filter fun p => ns.contains (opKey p.op.id)
     -- the store changed: an image waiting for its chunk ops tries again now
@@ -1703,6 +1700,20 @@ def step (evs : List Event) : M (Option (List Event)) := do
   modify fun s => { s with b := b, frames := s.frames + 1, times := times }
   let evs ← s.io.frame fr b.toUInt32 over.toUInt32 s.topBmp.rows s.botBmp.rows false
   return some (Event.decode evs)
+
+/-- One frame, in one read transaction: every read it makes, and the
+notices it takes (`takeChanges`, its first read), are of one moment of the
+store, so no part of the screen is newer than another. -/
+def step (evs : List Event) : M (Option (List Event)) := do
+  let rd := (← get).rd
+  rd.exec "BEGIN"
+  try
+    let r ← frame evs
+    rd.exec "COMMIT"
+    return r
+  catch e =>
+    rd.exec "ROLLBACK"
+    throw e
 
 partial def loop (evs : List Event) : M Unit := do
   match ← step evs with
