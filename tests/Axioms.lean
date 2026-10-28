@@ -41,6 +41,7 @@ import engine.world.Members
 import engine.world.Idem
 import engine.world.Settle
 import engine.world.Round
+import engine.world.Leaf
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -685,6 +686,12 @@ open Engine.World
 #print axioms Engine.World.onRbsr_holds
 #print axioms Engine.World.onRbsr_ids_ends
 #print axioms Engine.World.onRbsr_empty
+#print axioms Engine.World.opening_ids
+#print axioms Engine.World.start_leaf
+#print axioms Engine.World.onRbsr_leaf
+#print axioms Engine.World.tick_leaf
+#print axioms Engine.World.filed_leaf
+#print axioms Engine.World.recv_leaf
 #print axioms Engine.World.offer_delivers
 #print axioms Engine.World.cached_exact
 #print axioms Engine.World.grows_all
