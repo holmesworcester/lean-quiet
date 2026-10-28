@@ -66,6 +66,10 @@ instance : Store Nat TM where
   pop := pure none
   index _ _ := pure ()
   lookup _ := pure []
+  dependents _ := pure []
+  undecide _ := pure ()
+  deleteOp _ := pure ()
+  countOps := pure 0
 
 def clockChecks (t : Checks) : IO Unit := do
   let cfg : Config := { every := 30, patience := 20, lease := 90 }
