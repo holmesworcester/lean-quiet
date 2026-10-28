@@ -25,6 +25,18 @@ def keysGone (db : Db) : IO Bool := do
   let ops ← (dumpOps (F := Nat)).run db
   return !ops.any (fun o => o.id == key1.id || o.id == key2.id || o.id == session.id)
 
+/-- A second session, for a socket that carries two (a join sent beside
+an open session). -/
+def session2 := Op.make 240 [] "harden-session-2".toUTF8
+def key3 := Op.make 241 [session2.id] "send-key-2-0123456789abcdef".toUTF8
+def key4 := Op.make 242 [session2.id] "recv-key-2-fedcba9876543210".toUTF8
+
+def seed2 (db : Db) : IO Unit := (Turn.turn fam [session2, key3, key4] : SqlM Nat Unit).run db
+
+def keysGone2 (db : Db) : IO Bool := do
+  let ops ← (dumpOps (F := Nat)).run db
+  return !ops.any (fun o => o.id == key3.id || o.id == key4.id || o.id == session2.id)
+
 def setup (addr : ByteArray) (dialer : Bool) (cfg : Config := {}) : Sync Nat (SqlM Nat) :=
   { fam, cfg, hooks := {
       rooms := fun _ => pure [.sync "room".toUTF8]
@@ -228,5 +240,60 @@ def queueChecks (t : Checks) : IO Unit := do
   t.ok "global socket cap rejects more peers" (!(← slots.take cfg "127.0.0.3:1".toUTF8))
   slots.release "127.0.0.1:1".toUTF8
   t.ok "close releases exactly one slot" (← slots.take cfg "127.0.0.3:1".toUTF8)
+
+/-- IPv6 peers are told apart by their address, as IPv4 peers are, and
+their ports do not evade the per-address cap either. -/
+def peerChecks (t : Checks) : IO Unit := do
+  let a : Std.Net.SocketAddress := .v6 ⟨Std.Net.IPv6Addr.ofParts 0x2001 0xdb8 0 0 0 0 0 1, 5000⟩
+  let b : Std.Net.SocketAddress := .v6 ⟨Std.Net.IPv6Addr.ofParts 0x2001 0xdb8 0 0 0 0 0 2, 5000⟩
+  t.ok "an IPv6 address's text names its host" (addrText a == "[2001:db8::1]:5000")
+  t.ok "an IPv6 peer's quota is its host" (peerHost (addrText a).toUTF8 == "[2001:db8::1]")
+  t.ok "an IPv4 peer's quota is its host" (peerHost "10.0.0.7:4242".toUTF8 == "10.0.0.7")
+  t.ok "bytes that are not UTF-8 are a quota, not a panic" (peerHost (ByteArray.mk #[0xff, 0x3a, 0x31]) == "?")
+  let slots : Slots ← Std.Mutex.new []
+  let cfg : RunConfig := { maxSocks := 8, perAddr := 2 }
+  let at_ (h : Std.Net.SocketAddress) (p : UInt16) : ByteArray := match h with
+    | .v6 x => (addrText (.v6 { x with port := p })).toUTF8
+    | .v4 x => (addrText (.v4 { x with port := p })).toUTF8
+  t.ok "first IPv6 socket admitted" (← slots.take cfg (at_ a 1))
+  t.ok "second IPv6 socket from its host admitted" (← slots.take cfg (at_ a 2))
+  t.ok "IPv6 source ports cannot evade per-address cap" (!(← slots.take cfg (at_ a 3)))
+  t.ok "IPv6 peers have separate quotas" (← slots.take cfg (at_ b 1))
+  t.ok "another IPv6 peer fills its own quota" (← slots.take cfg (at_ b 2))
+
+/-- A socket that carries two sessions (a join sent beside an open one)
+stays up when one is dropped, as `kept` retires one of two; the
+transport's end still ends both. Over RunState.apply itself, with a
+socket that is never connected (no network). -/
+def sharedSocketChecks (t : Checks) : IO Unit := do
+  let db ← Db.openAt ":memory:"
+  seed db; seed2 db
+  let addr := "peer".toUTF8
+  let x := setup addr true
+  let x := { x with hooks := { x.hooks with
+    closing := fun cid => pure [cid]
+    established := pure [(session2.id, addr, true)] } }
+  -- session was retired (Node.drop took it out of conns); session2 is
+  -- still open on the same address and socket
+  let n : Node := {
+    ix := {}, floor := 0
+    conns := [(session2.id, (Conn.open true [] 0 0).conn)]
+    addrs := [(session2.id, addr), (session.id, addr)]
+    managed := [session2.id], dropped := [session.id] }
+  let slots : Slots ← Std.Mutex.new []
+  let ch ← eventChannel { queue := 4 }
+  let c ← Std.Async.TCP.Socket.Client.mk
+  let stopped ← IO.mkRef false
+  let sock : Sock := { id := 0, client := c, addr, heard := 0, stopped }
+  let st : RunState := { db, node := n, slots, socks := [sock], next := 1 }
+  let st ← RunState.apply x ch (fun _ => pure ()) {} st { drop := [session.id] } 1
+  t.ok "shared socket: a dropped session leaves the socket up"
+    (st.socks.any (·.id == 0) && !(← stopped.get))
+  t.ok "shared socket: the other session stays open" (st.node.conn? session2.id).isSome
+  t.ok "shared socket: the other session keeps its keys" (!(← keysGone2 db))
+  let st ← RunState.closeApply x ch (fun _ => pure ()) {} st 0 2
+  t.ok "shared socket: the transport's end ends every session on it"
+    (st.node.conns.isEmpty && st.socks.isEmpty && (← stopped.get))
+  t.ok "shared socket: the transport's end purges the other session's keys" (← keysGone2 db)
 
 end Harden

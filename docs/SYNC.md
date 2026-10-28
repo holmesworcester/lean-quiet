@@ -140,8 +140,9 @@ Each inbound frame is at most 1 MiB. Reads stop at the current frame's
 boundary: each socket holds one assembling or blocked frame, plus a
 read of at most 64 KiB. Slots are reserved before accepting into the
 queue or dialing: at most `maxSocks` (64) in total and `perAddr` (4) per
-IP, ignoring source port. Extra accepts close immediately. IPv6's
-current textual placeholder conservatively shares one address quota.
+IP, ignoring source port (`peerHost`: an address's text without its
+port, `[addr]` for IPv6). Extra accepts close immediately. The listener
+binds IPv4 only today, and dials parse IPv4 only.
 Pending outbound dials keep at most `max 1 queue` payloads per address;
 overflow closes the session.
 

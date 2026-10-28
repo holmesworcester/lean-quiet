@@ -37,7 +37,7 @@ open Std Std.Async Std.Net
 /-- "a.b.c.d:port". -/
 def addrText : SocketAddress → String
   | .v4 a => s!"{".".intercalate (a.addr.octets.toList.map (toString ·.toNat))}:{a.port}"
-  | .v6 a => s!"[v6]:{a.port}"
+  | .v6 a => s!"[{a.addr}]:{a.port}"
 
 def parseAddr (s : String) : Option SocketAddress :=
   match s.splitOn ":" with
@@ -233,6 +233,7 @@ partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now 
     if let some addr := st.node.addr? cid then
       -- A socket may carry several sessions (a join sent beside an open
       -- one, until one is retired): close it once none is left on it.
+      -- A dropped session is already out of `conns` (Node.drop).
       unless st.node.conns.any fun (c, _) => st.node.addr? c == some addr do
         for s in st.socks do
           if s.addr == addr then st ← close st s.id

@@ -14,10 +14,17 @@ structure RunConfig where
   perAddr : Nat := 4
   maxSocks : Nat := 64
 
-/-- The port is not part of a peer's quota. IPv6's current textual
-placeholder groups IPv6 peers conservatively in one quota. -/
+/-- A peer's quota is its host, the port dropped from the address text
+(Tcp.addrText): `a.b.c.d` of `a.b.c.d:port`, `[v6]` of `[v6]:port`, and
+any other text whole. Bytes that are not UTF-8 share the quota "?". -/
 def peerHost (addr : ByteArray) : String :=
-  ((String.fromUTF8! addr).splitOn ":").headD "?"
+  match String.fromUTF8? addr with
+  | none => "?"
+  | some s =>
+    if s.startsWith "[" then (s.splitOn "]").headD s ++ "]"
+    else match s.splitOn ":" with
+      | [host, _] => host
+      | _ => s
 
 def admit (cfg : RunConfig) (peers : List String) (peer : String) : Bool :=
   peers.length < cfg.maxSocks && (peers.filter (· == peer)).length < cfg.perAddr

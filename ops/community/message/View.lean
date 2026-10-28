@@ -28,8 +28,9 @@ def read (c me msg : Id) : m (Option (Row.RowData × Array Q)) := do
     | some (_, .key _ _ k) => (openSealed cryptoSeal c kid sealed k).map Profile.bytesStr
     | _ => none) | return none
   let (who, deps) ← Profile.read c u deps
+  let (twin, deps) ← Profile.namesake c u who.name deps
   let (pics, deps) ← File.read c msg deps
   let (tallies, deps) ← React.read c msg me deps
-  return some (⟨who.name, none, text, tm, pics.toList, tallies, pending, false⟩, deps)
+  return some (⟨who.name, none, text, tm, pics.toList, tallies, pending, false, twin⟩, deps)
 
 end Kinds.Message

@@ -22,6 +22,7 @@ scripts), ligatures, and emoji sequences (ZWJ, skin tones), which draw
 their parts.
 -/
 import engine.renderer.Font
+import engine.renderer.Chars
 
 namespace Text
 open Font
@@ -33,23 +34,6 @@ structure Placed where
   deriving Inhabited
 
 abbrev Line := Array Placed
-
-def inRange (c lo hi : UInt32) : Bool := lo ≤ c && c ≤ hi
-
-/-- Marks: no advance, drawn on the glyph before. -/
-def isMark (c : UInt32) : Bool :=
-  inRange c 0x0300 0x036F || inRange c 0x0483 0x0489 || inRange c 0x0591 0x05BD ||
-  c == 0x05BF || inRange c 0x05C1 0x05C2 || inRange c 0x05C4 0x05C5 || c == 0x05C7 ||
-  inRange c 0x0610 0x061A || inRange c 0x064B 0x065F || c == 0x0670 ||
-  inRange c 0x06D6 0x06DC || inRange c 0x06DF 0x06E4 || inRange c 0x06E7 0x06E8 ||
-  inRange c 0x06EA 0x06ED || c == 0x0E31 || inRange c 0x0E34 0x0E3A || inRange c 0x0E47 0x0E4E ||
-  inRange c 0x1AB0 0x1AFF || inRange c 0x1DC0 0x1DFF || inRange c 0x20D0 0x20FF ||
-  inRange c 0xFE20 0xFE2F
-
-/-- Drawn as nothing at all. -/
-def isInvisible (c : UInt32) : Bool :=
-  inRange c 0x200B 0x200F || inRange c 0x2060 0x2064 || inRange c 0xFE00 0xFE0F ||
-  c == 0xFEFF || inRange c 0x1F3FB 0x1F3FF
 
 /-- Digits (European, Arabic-Indic, extended Arabic-Indic): weak, they
 keep their left-to-right order inside right-to-left text. -/
@@ -124,13 +108,6 @@ def isSpace (c : UInt32) : Bool := c == 32 || c == 9
 def adv (f : Font) (c : UInt32) : Nat :=
   if Emoji.isEmoji c then f.emoji.width c
   else if isMark c || isInvisible c then 0 else f.adv (f.glyph c)
-
-/-- A character's advance; with `reveal`, an invisible one is as wide as
-its glyph. -/
-def advR (f : Font) (reveal : Bool) (c : UInt32) : Nat :=
-  if reveal && isInvisible c then
-    (if Emoji.isEmoji c then f.emoji.width c else f.adv (f.glyph c))
-  else adv f c
 
 /-- Wide characters (CJK, emoji) are words of their own for wrapping. -/
 def wide (f : Font) (c : UInt32) : Bool := Emoji.isEmoji c || adv f c == f.cell
@@ -301,24 +278,21 @@ def visual (cs : Array UInt32) : Array UInt32 × Bool :=
 /-- A display-order line's glyphs placed from x (the last base at
 lastX); a mark sits on the glyph before it (after it, in a reversed run,
 where its base now follows it); invisibles are left out. -/
-def placeL (f : Font) (reveal : Bool) : List UInt32 → Nat → Nat → List Placed × Nat
+def placeL (f : Font) : List UInt32 → Nat → Nat → List Placed × Nat
   | [], x, _ => ([], x)
   | c :: t, x, lastX =>
-    if !reveal && isInvisible c then placeL f reveal t x lastX
+    if isInvisible c then placeL f t x lastX
     else if isMark c then
       -- in a reversed run the base is the next non-mark glyph
       let base := if !t.isEmpty && isRtl c then x else lastX
-      let (r, w) := placeL f reveal t x lastX
+      let (r, w) := placeL f t x lastX
       (⟨c, base⟩ :: r, w)
     else
-      let (r, w) := placeL f reveal t (x + advR f reveal c) x
+      let (r, w) := placeL f t (x + adv f c) x
       (⟨c, x⟩ :: r, w)
 
-/-- A line's glyphs placed; with `reveal` (names: identity-bearing text)
-an invisible character is drawn too, as its own glyph (Unifont's labelled
-box), so it cannot hide in a name. -/
-def place (f : Font) (cs : Array UInt32) (reveal : Bool := false) : Line × Nat :=
-  let (l, w) := placeL f reveal cs.toList 0 0
+def place (f : Font) (cs : Array UInt32) : Line × Nat :=
+  let (l, w) := placeL f cs.toList 0 0
   (l.toArray, w)
 
 /-- Laid-out text: each line's glyphs and its x offset (right-aligned
@@ -336,11 +310,11 @@ def layout (f : Font) (width : Nat) (s : String) : Array Line := Id.run do
   return out
 
 /-- How many characters of `cs`, from its logical start, fit `w` pixels. -/
-def fitting (f : Font) (w : Nat) (cs : List UInt32) (reveal : Bool := false) : Nat := Id.run do
+def fitting (f : Font) (w : Nat) (cs : List UInt32) : Nat := Id.run do
   let mut x := 0
   let mut k := 0
   for c in cs do
-    let a := if isMark c || (!reveal && isInvisible c) then 0 else advR f reveal c
+    let a := if isMark c || isInvisible c then 0 else adv f c
     if x + a > w then return k
     x := x + a
     k := k + 1
@@ -351,17 +325,17 @@ logical start (what a reader of either direction reads first), then the
 ellipsis where reading continues (at the right of a left-to-right line,
 the left of a right-to-left one: the ellipsis is a neutral at the line's
 end, and bidi places it). A right-to-left line sits at the right edge. -/
-def cutTo (f : Font) (width : Nat) (cs : Array UInt32) (reveal : Bool := false) : Array UInt32 :=
-  (cs.extract 0 (fitting f (width - min width (adv f 0x2026)) cs.toList reveal)).push 0x2026
+def cutTo (f : Font) (width : Nat) (cs : Array UInt32) : Array UInt32 :=
+  (cs.extract 0 (fitting f (width - min width (adv f 0x2026)) cs.toList)).push 0x2026
 
 /-- What a single line places: the text, or its cut when it is too wide. -/
-def oneLinePlaced (f : Font) (width : Nat) (cs : Array UInt32) (reveal : Bool := false) : Line × Nat :=
-  let (placed, w) := place f (visual cs).1 reveal
-  if w ≤ width then (placed, w) else place f (visual (cutTo f width cs reveal)).1 reveal
+def oneLinePlaced (f : Font) (width : Nat) (cs : Array UInt32) : Line × Nat :=
+  let (placed, w) := place f (visual cs).1
+  if w ≤ width then (placed, w) else place f (visual (cutTo f width cs)).1
 
-def oneLine (f : Font) (width : Nat) (s : String) (reveal : Bool := false) : Line :=
+def oneLine (f : Font) (width : Nat) (s : String) : Line :=
   let cs := shape (f.emoji.emojify (s.toList.toArray.map (·.val)))
-  let (placed, w) := oneLinePlaced f width cs reveal
+  let (placed, w) := oneLinePlaced f width cs
   let dx := if (visual cs).2 && w < width then width - w else 0
   placed.map fun g => { g with x := g.x + dx }
 

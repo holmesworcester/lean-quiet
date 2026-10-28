@@ -95,6 +95,7 @@ what unforgeability buys is stated as a hypothesis where it is used.
 import engine.core.Engine
 import ops.community.Keys
 import ops.community.Merkle
+import engine.renderer.Chars
 
 namespace Community
 open Engine Codec
@@ -624,9 +625,26 @@ def byCommunity : Rel Fact := ⟨"key", "byCommunity", fun | .key c .. => some [
 def byId : Rel Fact := ⟨"key", "byId", fun | .key _ i _ => some [i] | _ => none⟩
 end key
 
+/-- A space of any kind (Unicode's White_Space): each draws as blank. -/
+def isBlank (c : UInt32) : Bool :=
+  c == 32 || Text.inRange c 9 13 || c == 0x85 || c == 0xA0 || c == 0x1680 ||
+  Text.inRange c 0x2000 0x200A || c == 0x2028 || c == 0x2029 || c == 0x202F || c == 0x205F || c == 0x3000
+
+/-- What a name looks like: its words, without the characters drawn as
+nothing (`Text.isInvisible`), split at spaces of any kind and joined by
+one space. Two users whose names look alike by it are namesakes, and
+both are marked (Kinds.Profile.namesake). -/
+def look (s : String) : List UInt32 :=
+  [32].intercalate ((((s.toList.map (·.val)).filter (!Text.isInvisible ·)).splitOnP isBlank).filter (!·.isEmpty))
+
+def nameLook (s : String) : ByteArray := (String.mk ((look s).map fun c => Char.ofNat c.toNat)).toUTF8
+
 namespace profile
 def byUser : Rel Fact := ⟨"profile", "byUser", fun | .profile c u .. => some [c, u] | _ => none⟩
 def all : Rel Fact := ⟨"profile", "all", fun | .profile c .. => some [c] | _ => none⟩
+/-- By how the name looks: a name's namesakes. -/
+def byLook : Rel Fact :=
+  ⟨"profile", "byLook", fun | .profile c _ n _ => some [c, nameLook ((String.fromUTF8? n).getD "?")] | _ => none⟩
 end profile
 
 namespace react
@@ -701,7 +719,7 @@ end chunk
 def rels : List (Rel Fact) :=
   [admission.byDevice, admission.all, admission.byUser, admission.byKey, removal.byUser, admin.byUser, message.all, message.byAuthor,
    message.byKey, received.byKey, received.all, received.byMsg,
-   wrap.byContentKey, profile.byUser, profile.all, react.byMessage, react.byMessageEmoji,
+   wrap.byContentKey, profile.byUser, profile.all, profile.byLook, react.byMessage, react.byMessageEmoji,
    request.all, approval.byRequest, secret.byKey, secret.all, accepted.all, joining.all, named.current,
    abandoned.byRequest, abandoned.byJoining, wrap.byRecipient, key.byCommunity, key.byId, attachment.byMessage,
    chunk.byAttachment, endpoint.all]

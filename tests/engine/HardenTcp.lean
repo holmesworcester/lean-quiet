@@ -65,6 +65,65 @@ def main : IO UInt32 := do
   t.ok "socket flood retains at most maxSocks" (← rf.slots.atomically do return (← get).length == 2)
   for c in clients do closeSocket c
   rf.stop
+  -- Two sessions on one socket (a join sent beside an open one): A
+  -- retires one, as `kept` does. The socket and the other session stay
+  -- up, and its frames still flow; the socket's end then ends both on B.
+  let da2 ← Db.openAt ":memory:"
+  let db2 ← Db.openAt ":memory:"
+  seed da2; seed2 da2; seed db2; seed2 db2
+  let fast : Config := { every := 200 }
+  let retire ← IO.mkRef false
+  let remote2 ← IO.mkRef (none : Option ByteArray)
+  let seen2 ← IO.mkRef (0 : Nat)
+  let xb2 := setup .empty false fast
+  let xb2 := { xb2 with hooks := { xb2.hooks with
+    closing := fun cid => pure [cid]
+    openFrame := fun bytes => do
+      let frame ← plainOpen bytes
+      if let some (cid, _) := frame then
+        if cid == session2.id then seen2.modify (· + 1)
+      return frame
+    established := do
+      match ← remote2.get with
+      | none => pure []
+      | some addr => pure [(session.id, addr, false), (session2.id, addr, false)] } }
+  let rb2 ← Runner.start xb2 db2 0 0
+  let addrB := s!"127.0.0.1:{rb2.port}".toUTF8
+  let xa2 := setup addrB true fast
+  let xa2 := { xa2 with hooks := { xa2.hooks with
+    closing := fun cid => pure [cid]
+    established := do
+      let kept := [(session2.id, addrB, true)]
+      return if ← retire.get then kept else (session.id, addrB, true) :: kept } }
+  let ra2 ← Runner.start xa2 da2 0 0
+  remote2.set (some s!"127.0.0.1:{ra2.port}".toUTF8)
+  for _ in [0:300] do
+    if (← seen2.get) > 0 then break
+    IO.sleep 10
+  t.ok "two sessions share one socket" ((← seen2.get) > 0)
+  retire.set true
+  for _ in [0:300] do
+    if ← keysGone da2 then break
+    IO.sleep 10
+  t.ok "retiring one session of a shared socket purges its keys" (← keysGone da2)
+  let before ← seen2.get
+  let mut flowed := false
+  for _ in [0:300] do
+    if (← seen2.get) > before then
+      flowed := true
+      break
+    IO.sleep 10
+  t.ok "the other session's frames still flow on the shared socket" flowed
+  t.ok "the other session keeps its keys on both ends" (!(← keysGone2 da2) && !(← keysGone2 db2))
+  ra2.stop
+  let mut ended := false
+  for _ in [0:300] do
+    if (← keysGone db2) && (← keysGone2 db2) then
+      ended := true
+      break
+    IO.sleep 10
+  t.ok "the shared socket's EOF ends every session on it" ended
+  rb2.stop
   let code ← t.finish "harden_tcp"
   (← IO.getStdout).flush
   IO.Process.exit code.toUInt8
