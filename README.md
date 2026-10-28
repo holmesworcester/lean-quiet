@@ -237,7 +237,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**378 of 557 laws are about running code;** another 49 run its node code in a World, and 130 are not yet. Stated only: 27 in `Engine.World`.
+**378 of 557 laws are about running code;** another 49 run its node code in a World, and 130 are not yet. Stated only: 27 in `Engine.World`. 0 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
