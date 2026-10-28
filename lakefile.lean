@@ -273,7 +273,8 @@ target linux.o pkg : FilePath := do
 lean_exe linux where
   root := `platforms.linux.Main
   moreLinkObjs := #[linux.o]
-  moreLinkArgs := #["/usr/lib/x86_64-linux-gnu/libxcb.so.1", "/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0"]
+  moreLinkArgs := #["/usr/lib/x86_64-linux-gnu/libxcb.so.1", "/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0",
+    "/usr/lib/x86_64-linux-gnu/libxcb-sync.so.1"]
 
 -- The desktop root without a window: renders at boundary widths,
 -- switching, settings and resize (tests/app/desktop.sh).

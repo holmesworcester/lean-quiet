@@ -358,6 +358,7 @@ section app
 #print axioms LiveLaws.watched_held
 #print axioms LiveLaws.agrees_unmount
 #print axioms Cover.line_painted
+#print axioms Cover.painted_no_hold
 #print axioms Geometry.pinned_visible
 #print axioms Geometry.pinned_tap
 #print axioms Link.hints_fit

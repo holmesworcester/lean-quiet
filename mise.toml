@@ -75,8 +75,8 @@ description = "The Linux desktop under Xvfb at scale 1 and 2 and without MIT-SHM
 run = "platforms/linux/test.sh"
 
 [tasks."host:desktop-negative"]
-description = "The desktop's negative controls: eight layout and control laws broken, two native functions and four UI behaviours; each must fail"
-run = "python3 platforms/linux/negative.py && python3 platforms/linux/negative_ui.py"
+description = "The desktop's negative controls: eight layout and control laws broken, two native functions, five UI behaviours (the resize settle among them) and two X11 resize mechanisms (gravity, the sync request); each must fail"
+run = "python3 platforms/linux/negative.py && python3 platforms/linux/negative_ui.py && python3 platforms/linux/negative_x11.py"
 
 [tasks."host:twin-demo"]
 description = "The twin demo on the headless twin: the seam's effects from a script, checked by replies and dumped screens"

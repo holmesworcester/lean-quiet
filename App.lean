@@ -656,16 +656,13 @@ def holdLine (s : St) (li : Nat) : ByteArray :=
     let w := max 1 (s.W * 2 / 3 - x0)
     (solid Row.placeholder w).copySlice 0 s.bgRow (4 * x0) (4 * w)
 
-/-- The list frame: row r shows content at b + viewH + over - 1 - r, as
-Cover.seen says: a painted row's line, else a placeholder (Cover.covered:
-nothing inside the content is left blank, however slow a read or a
-decode is). -/
-def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run do
-  let vh := viewH s
-  let hgt := vh + 2 * over
-  let top := b + vh + over     -- content above the frame's first row
+/-- The rows overlapping the list frame, from the first one up: the
+first's index, and each one's height and the height of the paint it
+shows (Cover.seen's rows), with the paints. -/
+def frameSlice (s : St) (b : Nat) (bots : Array Nat) : Nat × Array (Nat × Option Nat) × Array (Option Bitmap) :=
+  Id.run do
+  let top := b + viewH s + over     -- content above the frame's first row
   let low := if b ≥ over then b - over else 0
-  -- the rows overlapping the frame, from the first one up
   let mut i0 := s.ids.size
   let mut slice : Array (Nat × Option Nat) := #[]
   let mut bmps : Array (Option Bitmap) := #[]
@@ -680,6 +677,17 @@ def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run 
       if s.selected.isSome && s.selected != some x then r.dimShown <|> r.shown else r.shown
     slice := slice.push (h, pick.map (·.h))
     bmps := bmps.push pick
+  return (i0, slice, bmps)
+
+/-- The list frame: row r shows content at b + viewH + over - 1 - r, as
+Cover.seen says: a painted row's line, else a placeholder (Cover.covered:
+nothing inside the content is left blank, however slow a read or a
+decode is). -/
+def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run do
+  let vh := viewH s
+  let hgt := vh + 2 * over
+  let top := b + vh + over     -- content above the frame's first row
+  let (i0, slice, bmps) := frameSlice s b bots
   let bottom := if i0 < s.ids.size then bots[i0]! else
     match s.ids.back? with
     | some (_, x) => bots.back! + heightOf s x

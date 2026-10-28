@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess as sp
 import time
+import signal
 import socket
 from PIL import Image
 
@@ -91,6 +92,25 @@ try:
             image = shot('chat')
             check(image.size == (1100*scale, 760*scale), tag + ' window size')
             check(image.getpixel((2*scale, 140*scale)) == (118,71,199), tag + ' Lean purple survives RGB/X11 blit')
+            # A resize shows the last frame until Lean's next one (north-west
+            # gravity, no background): stopped, the app cannot repaint, so a
+            # shrunk window shows only what the server keeps or fills.
+            os.kill(proc.pid, signal.SIGSTOP)
+            try:
+                xdo('windowsize', '--sync', win, 1000*scale, 700*scale)
+                image = shot('stopped-shrink')
+            finally:
+                os.kill(proc.pid, signal.SIGCONT)
+            check(image.getpixel((2*scale, 140*scale)) == (118,71,199) and
+                  image.getpixel((600*scale, 20*scale)) == (22,24,27),
+                  tag + ' a resize keeps the frame shown, never the server\'s fill')
+            wait(lambda: lines() and lines()[0] == '1000 700', 'shrink resize')
+            # A window manager's _NET_WM_SYNC_REQUEST: the counter is set once
+            # the frame at the new size is shown, and not before.
+            p = sp.run([str(OUT / 'sync_test'), win, str(1100*scale), str(760*scale), str(7 + scale)], env=env,
+                       stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=30)
+            check(p.returncode == 0 and lines()[0] == '1100 760',
+                  tag + ' the sync counter is set after the frame at the new size: ' + p.stdout.strip())
             before = lines()[1]
             click(90, 28)
             click(90, 116)  # second accepted community, by its drawn row

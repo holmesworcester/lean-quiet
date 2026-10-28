@@ -6,6 +6,7 @@
 #include <lean/lean.h>
 #include <xcb/xcb.h>
 #include <xcb/shm.h>
+#include <xcb/sync.h>
 #include <X11/keysym.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -23,7 +24,12 @@ static struct {
     xcb_screen_t *screen;
     xcb_window_t win;
     xcb_gcontext_t gc;
-    xcb_atom_t wm_delete, protocols, clipboard, utf8, targets, property;
+    xcb_atom_t wm_delete, protocols, clipboard, utf8, targets, property, wm_sync;
+    /* _NET_WM_SYNC_REQUEST: the counter the window manager waits on, the
+       value it asked for, and whether the configure it announced came */
+    xcb_sync_counter_t counter;
+    xcb_sync_int64_t sync_value;
+    bool sync_pending, sync_configured;
     xcb_shm_seg_t seg;
     uint8_t *pixels;
     size_t bytes;
@@ -111,16 +117,33 @@ static void init(void) {
     q.w = setting("QUIET_WIDTH", 1100, 320, 4096) * q.scale;
     q.h = setting("QUIET_HEIGHT", 760, 480, 2160) * q.scale;
     q.win = xcb_generate_id(q.c); q.gc = xcb_generate_id(q.c);
-    uint32_t values[] = {q.screen->black_pixel, XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_STRUCTURE_NOTIFY |
-        XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
-        XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_FOCUS_CHANGE};
+    /* No background and north-west gravity: a resize keeps what is shown
+       and paints nothing of its own over it until Lean's next frame. */
+    uint32_t values[] = {XCB_BACK_PIXMAP_NONE, XCB_GRAVITY_NORTH_WEST, XCB_EVENT_MASK_EXPOSURE |
+        XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_BUTTON_PRESS |
+        XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_FOCUS_CHANGE};
     xcb_create_window(q.c, XCB_COPY_FROM_PARENT, q.win, q.screen->root, 0, 0, q.w, q.h, 0,
-        XCB_WINDOW_CLASS_INPUT_OUTPUT, q.screen->root_visual, XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK, values);
+        XCB_WINDOW_CLASS_INPUT_OUTPUT, q.screen->root_visual,
+        XCB_CW_BACK_PIXMAP | XCB_CW_BIT_GRAVITY | XCB_CW_EVENT_MASK, values);
     xcb_create_gc(q.c, q.gc, q.win, 0, NULL);
     q.wm_delete = atom("WM_DELETE_WINDOW"); q.protocols = atom("WM_PROTOCOLS");
     q.clipboard = atom("CLIPBOARD"); q.utf8 = atom("UTF8_STRING");
     q.targets = atom("TARGETS"); q.property = atom("QUIET_PASTE");
-    xcb_change_property(q.c, XCB_PROP_MODE_REPLACE, q.win, q.protocols, XCB_ATOM_ATOM, 32, 1, &q.wm_delete);
+    q.wm_sync = atom("_NET_WM_SYNC_REQUEST");
+    xcb_atom_t protocols[2] = {q.wm_delete, q.wm_sync};
+    int nprotocols = 1;
+    /* A window manager that resizes waits for the frame at the new size
+       (the counter set in lq_desktop_frame), never showing a stale one. */
+    xcb_sync_initialize_reply_t *sync = xcb_sync_initialize_reply(q.c, xcb_sync_initialize(q.c, 3, 1), NULL);
+    if (sync) {
+        free(sync);
+        q.counter = xcb_generate_id(q.c);
+        xcb_sync_create_counter(q.c, q.counter, (xcb_sync_int64_t){0, 0});
+        xcb_change_property(q.c, XCB_PROP_MODE_REPLACE, q.win, atom("_NET_WM_SYNC_REQUEST_COUNTER"),
+            XCB_ATOM_CARDINAL, 32, 1, &q.counter);
+        nprotocols = 2;
+    }
+    xcb_change_property(q.c, XCB_PROP_MODE_REPLACE, q.win, q.protocols, XCB_ATOM_ATOM, 32, nprotocols, protocols);
     const char *title = "Lean Quiet";
     xcb_change_property(q.c, XCB_PROP_MODE_REPLACE, q.win, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, strlen(title), title);
     xcb_change_property(q.c, XCB_PROP_MODE_REPLACE, q.win, atom("_NET_WM_NAME"), q.utf8, 8, strlen(title), title);
@@ -239,12 +262,18 @@ static void events(void) {
     xcb_generic_event_t *ev;
     while ((ev=xcb_poll_for_event(q.c))) {
         switch (ev->response_type & 127) {
-        case XCB_CLIENT_MESSAGE:
-            if (((xcb_client_message_event_t *)ev)->data.data32[0] == q.wm_delete) event(1,0,0,0);
+        case XCB_CLIENT_MESSAGE: {
+            const uint32_t *d=((xcb_client_message_event_t *)ev)->data.data32;
+            if (d[0] == q.wm_delete) event(1,0,0,0);
+            else if (d[0] == q.wm_sync && q.counter) {
+                q.sync_value=(xcb_sync_int64_t){(int32_t)d[3], d[2]}; q.sync_pending=true;
+            }
             break;
+        }
         case XCB_DESTROY_NOTIFY: event(1,0,0,0); break;
         case XCB_CONFIGURE_NOTIFY: {
             xcb_configure_notify_event_t *e=(void *)ev;
+            if (q.sync_pending) q.sync_configured=true;
             if (e->width != q.w || e->height != q.h) {
                 unsigned w=e->width, h=e->height;
                 if (w < 320*q.scale) w=320*q.scale;
@@ -329,6 +358,11 @@ lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
             unsigned n=q.h-y < chunk ? q.h-y : chunk;
             xcb_put_image(q.c,XCB_IMAGE_FORMAT_Z_PIXMAP,q.win,q.gc,q.w,n,0,y,0,q.screen->root_depth,n*q.w*4,q.pixels+(size_t)y*q.w*4);
         }
+    }
+    /* The window manager's request is answered by the first frame shown
+       after its configure: the one Lean painted at that size. */
+    if (q.sync_pending && q.sync_configured) {
+        xcb_sync_set_counter(q.c,q.counter,q.sync_value); q.sync_pending=q.sync_configured=false;
     }
     /* A round trip fences the shared segment before the next CPU write. */
     free(xcb_get_input_focus_reply(q.c,xcb_get_input_focus(q.c),NULL));

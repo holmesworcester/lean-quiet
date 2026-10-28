@@ -24,6 +24,7 @@ fi
 if [ "${SKIP_TCP:-0}" != 1 ]; then .lake/build/bin/attach out/attach; else echo "SKIP attach (TCP sandbox; built)"; fi
 # the desktop root without a window, then the Linux shell under Xvfb
 tests/app/desktop.sh
-platforms/linux/test.sh
+if [ "${SKIP_X:-${SKIP_TCP:-0}}" != 1 ]; then platforms/linux/test.sh
+else platforms/linux/build.sh && echo "SKIP linux e2e (no local X sockets; the shell built)"; fi
 # navigation: each mutant of a rule must fail its law (ops/app/NavLaws)
 tests/app/nav_negative.sh

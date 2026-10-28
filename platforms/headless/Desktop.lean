@@ -91,6 +91,30 @@ private def suite (args : List String) : IO UInt32 := do
       writePpm (dir ++ "/" ++ tag ++ ".ppm") pic.w pic.rows
       manifest := manifest ++ s!"{tag} {g.nav.w} {g.main.w} {g.context.w}\n"
   IO.FS.writeFile (dir ++ "/frames.txt") manifest
+  -- a resize never flashes rows to placeholders (settleFrame, settled_no_hold):
+  -- a conversation taller than the window, then one frame after each
+  -- resize, every row it shows is painted and no placeholder is drawn
+  d ← settle (← resize { d with ui := { d.ui with context := .closed } } 1100 760)
+  for i in [0:40] do
+    let (_, s) ← (App.sendText s!"Message {i}: a desktop resize shows every row painted, never a placeholder").run d.app
+    d := { d with app := s }
+  for _ in [0:20] do
+    if d.app.total ≥ 41 then break
+    d ← settle d
+  check s!"a conversation taller than the window ({d.app.total} messages)" (d.app.total ≥ 41)
+  let mut unpainted := 0
+  let mut flashes := 0
+  for (w, h) in [(1040, 760), (980, 700), (900, 760), (771, 640), (1300, 900), (1440, 760), (1100, 760)] do
+    d ← tick (← resize d w h)
+    unless framePainted d.app do unpainted := unpainted + 1
+    -- a placeholder's bar (App.holdLine): its colour from pad + 48 dp on
+    let pic ← picture d
+    let x0 := d.layout.main.x + d.app.dim.pad + d.app.dim.px 48
+    let bars := (List.range (h - App.botH d.app - 40 - App.topH d.app)).filter fun k =>
+      (List.range 40).all fun i => Paint.getPx pic.rows[40 + App.topH d.app + k]! (x0 + i) == Row.placeholder
+    unless bars.isEmpty do flashes := flashes + 1
+  check s!"one frame after each of 7 resizes, no row shows a placeholder ({flashes} did)" (flashes == 0)
+  check s!"one frame after each of 7 resizes, every row it shows painted ({unpainted} not)" (unpainted == 0)
   IO.println s!"desktop: {← checks.get} checks; 27 renders"
   (← IO.getStdout).flush
   IO.Process.exit 0

@@ -3,6 +3,10 @@ Desktop integration without changing the phone app. The app still runs
 App.step on its real database, writer and views. Its three layers feed
 the desktop root; resize invalidates width-dependent row/page caches.
 The platform supplies logical pixels and does only the final scale/blit.
+
+A frame at a new size is shown only once the rows it shows are painted
+at that size (`settleFrame`): a resize never flashes rows to placeholders
+(Desktop.settled_no_hold).
 -/
 import platforms.desktop.View
 
@@ -15,6 +19,8 @@ structure Driver where
   height : Nat
   layers : IO.Ref Layers
   screen : IO.Ref (Array UInt32)
+  /-- The app's size (W, Hs) in the frame last settled. -/
+  settled : Nat × Nat := (0, 0)
 
 def Driver.layout (d : Driver) : Layout := Desktop.layout d.width (d.ui.context != .closed)
 
@@ -32,7 +38,7 @@ def start (base : App.Io) (w h : Nat) (path : String)
   -- cell. Font.row already handles that packing. Phones keep their font.
   let bytes ← IO.FS.readBinFile "out/desktop/font.bin"
   let font : Font.Font := ⟨bytes, 16, default⟩
-  return ⟨{ s with font, dim := ⟨160, 16⟩ }, {}, w, h, ls, sc⟩
+  return { app := { s with font, dim := ⟨160, 16⟩ }, width := w, height := h, layers := ls, screen := sc }
 
 def resize (d : Driver) (w h : Nat) : IO Driver := do
   let d := { d with width := max 320 w, height := max 480 h }
@@ -86,10 +92,38 @@ def tap (d : Driver) (x y : Nat) (long := false) : IO Driver := do
   let (_, s) ← (App.onTap r x py long).run s
   return { d with app := s }
 
+/-- Every row the list frame shows is painted at its own height, with
+no paint of it in flight; on a page, there is no list frame. The frame
+then shows no row's placeholder (`settled_no_hold`). -/
+def framePainted (s : App.St) : Bool :=
+  let (i0, slice, _) := App.frameSlice s s.b (App.bottoms s).1
+  s.page != .chat || (slice.all (fun r => r.2 == some r.1) &&
+    (List.range slice.size).all fun j =>
+      match s.ids[i0 + j]? with
+      | some (_, x) => (s.rows[x]?.map (·.task.isNone)).getD true
+      | none => true)
+
+/-- After the app's size changed, steps of the app until every row its
+frame shows is painted at the new size, with every picture decoded
+before the step that painted it; at most 50 steps, 2 ms apart. -/
+def settleFrame (d : Driver) : IO Driver := do
+  let mut d := d
+  -- whether every picture was decoded before the last step began, so
+  -- that step painted its rows with them
+  let mut decoded := false
+  for _ in [0:50] do
+    if decoded && framePainted d.app then break
+    IO.sleep 2
+    decoded ← d.app.imgs.toList.allM fun (_, t) => IO.hasFinished t
+    let (_, s) ← (App.step []).run d.app
+    d := { d with app := s }
+  return { d with settled := (d.app.W, d.app.Hs) }
+
 def tick (d : Driver) (events : List App.Event := []) : IO Driver := do
   let d ← resize d d.width d.height
   let (_, s) ← (App.step events).run d.app
-  return { d with app := s }
+  let d := { d with app := s }
+  if (s.W, s.Hs) != d.settled then settleFrame d else return d
 
 def picture (d : Driver) : IO Paint.Bitmap := do
   return paint d.layout d.height d.ui d.app (← d.layers.get)

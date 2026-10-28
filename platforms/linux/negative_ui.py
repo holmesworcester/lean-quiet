@@ -17,6 +17,7 @@ for name, path, old, new, expected in [
     ('switch', driver, 'App.switchTo i;', 'App.switchTo 0;', 'switch to distinct community'),
     ('draft', driver, '{ s with text := "", sel := #[0, 0, 0, 0] }', '{ s with sel := #[0, 0, 0, 0] }', 'switch clears editor and old draft'),
     ('resize', driver, 'rows := {}, heights := {},', 'rows := s.rows, heights := s.heights,', 'resize repaints cached rows'),
+    ('settle', driver, '  if (s.W, s.Hs) != d.settled then settleFrame d else return d\n', '  return d\n', 'no row shows a placeholder'),
     ('composer', view, '      b := b.fill g.main.x (h - 60) (g.main.x + g.main.w) h Row.bg\n', '', 'composer overlap'),
 ]:
     original = path.read_text()
@@ -40,4 +41,4 @@ for name, path, old, new, expected in [
 p = sp.run(['lake', 'build', 'linux', 'desktop'], cwd=app, env=env, stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=120)
 (out / 'ui-restored.log').write_text(p.stdout)
 assert p.returncode == 0, p.stdout
-print('negative controls: 4 UI mutations rejected; sources restored and executables rebuilt')
+print('negative controls: 5 UI mutations rejected; sources restored and executables rebuilt')

@@ -109,6 +109,38 @@ was blocked by this session's local-socket restrictions; the Figma export
 is the visual reference. A local headless Chromium CSS probe also exited
 in Crashpad with `setsockopt: Operation not permitted` before rendering.
 
+## Resizing without a flash
+
+A resize shows the last frame until the frame at the new size, which is
+complete when shown:
+
+- **Lean decides when to show it.** After the app's size changes,
+  `Desktop.settleFrame` runs the app's steps (at most 50, 2 ms apart)
+  until every row the list frame shows is painted at the new size, each
+  with the pictures decoded before the step that painted it
+  (`Desktop.framePainted`). [`Cover.painted_no_hold`](../../engine/renderer/Cover.lean)
+  proves that a frame whose rows are each painted at their own height
+  shows no row's placeholder, and `Desktop.settled_no_hold`
+  (platforms/desktop/Laws.lean) that this holds of the rows
+  `App.frameSlice` gives `App.listFrame`. Before, every configure event
+  cleared the rows and showed one frame of placeholders.
+- **The window keeps it meanwhile.** shell.c creates the window with no
+  background and north-west bit gravity, so the X server neither clears
+  it nor fills it on a resize. It answers a window manager's
+  `_NET_WM_SYNC_REQUEST` after the first frame shown since the
+  announced configure, so a compositing window manager shows the new
+  size only with Lean's frame for it. This needs `libxcb-sync-dev`.
+
+Tested: `host:desktop` resizes a 41-message conversation seven times;
+one frame after each, no row shows a placeholder and every row is painted.
+`linux:e2e` stops the app, shrinks its window and finds the last frame
+still shown. Acting as a window manager (`sync_test.c`), it asks for
+`_NET_WM_SYNC_REQUEST`, resizes, and requires the counter to be set once
+the frame at the new size is shown. Removing the settle, restoring the
+black background with ForgetGravity, or never setting the counter each
+fails its check (`host:desktop-negative`). The X server and the window
+manager are trusted; only the Lean half is proven.
+
 ## Checks and limits
 
 Named tasks in the root `mise.toml`:
@@ -119,7 +151,7 @@ Named tasks in the root `mise.toml`:
 | `linux:build` | offline Rust crypto and Linux executable build |
 | `linux:input` | compile; 21 native editor/pixel checks under ASan and UBSan |
 | `linux:e2e` | build; input checks; three Xvfb sessions, scale 1/2 and PutImage fallback |
-| `host:desktop-negative` | eight proof mutations, two native mutations, four UI mutations |
+| `host:desktop-negative` | eight proof mutations, two native mutations, five UI mutations, two X11 mutations |
 | `host:desktop` (again) | the eight desktop laws' own audit, `tests/app/DesktopAxioms.lean`, on standard axioms only |
 
 `tests/app/run.sh` (`ci/local.sh app`) runs the desktop render and Linux
@@ -195,6 +227,9 @@ generated in `out/desktop/negative/`; scripts reproduce the mutations.
 | Draft isolation | leave the native editor's old draft intact |
 | Resize | retain cached rows and heights at the old width |
 | Composer | leave the six phone icons visible under the desktop controls |
+| Resize settle | show the frame without waiting for the rows' paints |
+| X11 gravity | a black background pixel and ForgetGravity, as before |
+| X11 sync | never set the `_NET_WM_SYNC_REQUEST` counter |
 
 The eight mutated layout modules compiled before their proofs were
 checked. The four UI mutations built before their behavior/raster tests

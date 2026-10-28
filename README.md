@@ -14,7 +14,7 @@ Like [Quiet](https://github.com/TryQuiet/quiet), Lean Quiet is also local-first,
 
 Lean is mostly used for mathematics, or to verify one part of a system.
 Here it is a whole, ordinary app, and about three quarters of its
-theorems (385 of 488) are about the code that runs on the phone; the
+theorems (386 of 489) are about the code that runs on the phone; the
 rest are over models, and moving them onto running code is a todo
 ([what is proven](#what-is-proven)). Native code only connects Lean to
 each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)), so in a
@@ -143,7 +143,7 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 488 rest on Lean's standard axioms
+that rests on; 🥊 is supporting. All 489 rest on Lean's standard axioms
 only.
 
 ### Security proofs
@@ -248,7 +248,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**385 of 488 laws are about running code;** 103 are not yet. Stated only: none.
+**386 of 489 laws are about running code;** 103 are not yet. Stated only: none.
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
@@ -261,7 +261,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Community | 143 | 132 | 11 |
 | QR codes | 10 | 10 |  |
 | Pictures | 13 | 1 | 12 |
-| Screen | 50 | 33 | 17 |
+| Screen | 51 | 34 | 17 |
 | App | 27 | 26 | 1 |
 
 | Missing link | Laws | To make them real |
@@ -933,8 +933,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`agrees_store`]: engine/renderer/LiveLaws.lean#L92-L95
 [`agrees_keep`]: engine/renderer/LiveLaws.lean#L172-L174
 [`agrees_empty`]: engine/renderer/LiveLaws.lean#L78-L78
-[`covered`]: engine/renderer/Cover.lean#L78-L83
-[`line_painted`]: engine/renderer/Cover.lean#L119-L122
+[`covered`]: engine/renderer/Cover.lean#L81-L86
+[`line_painted`]: engine/renderer/Cover.lean#L122-L125
 [`placed_row`]: engine/renderer/Geometry.lean#L81-L85
 [`newest_drawn`]: engine/renderer/Geometry.lean#L108-L111
 [`pinned_row`]: engine/renderer/Geometry.lean#L141-L144
@@ -978,8 +978,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L1060-L1064
-[`pageIn_acc`]: App.lean#L1066-L1069
+[`drawPage_key`]: App.lean#L1068-L1072
+[`pageIn_acc`]: App.lean#L1074-L1077
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
