@@ -13,18 +13,23 @@ by its full name or any suffix of it that names one of these; the link
 definitions go in the block between the proof-links markers at its end.
 
 The section between the wiring markers ("Not yet about running code") is
-written from tests/Wiring.lean's classification: the counts, a row for
-each missing link with its laws and tests/wiring.txt's note, the
-statements stated only, and the assumptions. The check fails if that
-program does (a law tests/wiring.txt marks wired is not, a stale note).
-Its negative control runs first: the notes with a model law marked
-wired must fail.
+written from tests/Wiring.lean's classification: how many laws are about
+running code, per area; a row for each missing link with its laws and
+tests/wiring.txt's note; the statements stated only; the assumptions.
+The proofs tables above it must agree: a ✅ row must cite a law about
+running code, and a 🟡 row must say what is missing ("Wanted", "Not
+yet", "not proven").
 
   ci/proof-links.py           rewrite the block and the section
   ci/proof-links.py --check   fail if either is stale, a reference
                               names no audited theorem, the README's
                               "All N rest on" count is not the audit's,
-                              or the wiring check fails
+                              tests/Wiring.lean fails (a law marked wired
+                              is not, a stale note), or a proofs row
+                              disagrees. Negative controls first: notes
+                              marking a model law wired, a ✅ row citing
+                              only it, and a 🟡 row saying nothing missing
+                              must each fail.
 
 Needs the tree built (tests/check.sh builds it).
 """
@@ -36,8 +41,17 @@ README = os.path.join(TOP, "README.md")
 NOTES = os.path.join(TOP, "tests", "wiring.txt")
 BEGIN = "<!-- proof-links: written by ci/proof-links.py; do not edit -->"
 END = "<!-- /proof-links -->"
-WBEGIN = "<!-- wiring: written by ci/proof-links.py from tests/Wiring.lean; do not edit -->"
-WEND = "<!-- /wiring -->"
+WBEGIN = "<!-- wiring:begin -->"
+WEND = "<!-- wiring:end -->"
+# The areas of the per-area counts: the first module prefix a law's
+# module has.
+AREAS = [("engine.core", "Engine"), ("ops.sync", "Sync"), ("engine.wire.mdns", "mDNS"),
+         ("engine.wire", "Node and wire"), ("ops.connection.bootstrap", "Bootstrap"),
+         ("ops.connection", "Connections"), ("ops.community", "Community"),
+         ("engine.renderer.qr", "QR codes"), ("engine.renderer.pic", "Pictures"),
+         ("engine.renderer", "Screen"), ("ops.app", "App"), ("App", "App")]
+# What a 🟡 row says to name what is missing.
+WANTED = re.compile(r"wanted|not yet|not proven", re.I)
 # How many theorems the audit lists, counted as they are probed.
 AUDITED = [0]
 
@@ -135,23 +149,6 @@ def classify(notes_path=None):
     return rows, problems
 
 
-def control():
-    """A model law marked wired must fail the wiring check."""
-    rows, problems = classify()
-    model = next((f[1] for f in rows if f[0] == "law" and f[2] == "model"), None)
-    if model is None:
-        return []
-    os.makedirs(os.path.join(TOP, "out", "proof-links"), exist_ok=True)
-    path = os.path.join(TOP, "out", "proof-links", "wiring-control.txt")
-    with open(path, "w") as f:
-        f.write(open(NOTES).read() + f"\nwired {model}\n")
-    _, caught = classify(path)
-    if not any(f"marks {model} wired, but it is not" in p for p in caught):
-        return [f"negative control: {model}, marked wired, was not caught"]
-    print(f"proof-links: negative control: {model}, marked wired, caught")
-    return []
-
-
 def split(cell):
     return [x for x in cell.split(", ") if x]
 
@@ -167,9 +164,62 @@ def short(name, names, least=1):
     return name
 
 
+def resolver(decls):
+    """A reference's audited theorem or assumption, if it names one alone."""
+    def resolve(label):
+        hits = [n for n in decls if n == label or n.endswith("." + label)]
+        return hits[0] if len(hits) == 1 else None
+    return resolve
+
+
+def disagree(tables, wired, resolve):
+    """The proofs rows that disagree with the classification: a ✅ row that
+    cites no law about running code, a 🟡 row that does not say what is
+    missing."""
+    bad = []
+    for line in tables.split("\n"):
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 4 or cells[0] not in ("✅", "🟡"):
+            continue
+        title = re.sub(r"\*\*(.+?)\*\*.*", r"\1", cells[2]).strip()
+        laws = [resolve(l) for l in re.findall(r"\[`([^`\]]+)`\]", cells[3])]
+        if cells[0] == "✅" and not any(l in wired for l in laws if l):
+            bad.append(f"✅ \"{title}\" cites no law about running code: make it 🟡, saying what is missing")
+        if cells[0] == "🟡" and not WANTED.search(cells[2]):
+            bad.append(f"🟡 \"{title}\" does not say what is missing (Wanted, Not yet, not proven)")
+    return bad
+
+
+def controls(rows, resolve):
+    """The negative controls: notes marking a model law wired, a ✅ row
+    citing only it, and a 🟡 row saying nothing missing must each fail."""
+    model = next((f[1] for f in rows if f[0] == "law" and f[2] == "model"), None)
+    wired = {f[1] for f in rows if f[0] == "law" and f[2] == "wired"}
+    if model is None or not wired:
+        return []
+    problems = []
+    os.makedirs(os.path.join(TOP, "out", "proof-links"), exist_ok=True)
+    path = os.path.join(TOP, "out", "proof-links", "wiring-control.txt")
+    with open(path, "w") as f:
+        f.write(open(NOTES).read() + f"\nwired {model}\n")
+    _, caught = classify(path)
+    if not any(f"marks {model} wired, but it is not" in p for p in caught):
+        problems.append(f"negative control: {model}, marked wired, was not caught")
+    a_wired = sorted(wired)[0]
+    rows_ = (f"| ✅ | 🥊 | **Control.** | [`{model}`] |\n"
+             f"| 🟡 | 🥊 | **Control.** Proven. | [`{a_wired}`] |\n")
+    if len(disagree(rows_, wired, lambda l: l)) != 2:
+        problems.append("negative control: a ✅ row citing only a model law, or a 🟡 row "
+                        "saying nothing missing, was not caught")
+    if not problems:
+        print(f"proof-links: negative controls: {model} marked wired, a ✅ row citing only it, "
+              "and a 🟡 row saying nothing missing, all caught")
+    return problems
+
+
 def section(rows, decls, cited):
     """The README's todo section, from tests/Wiring.lean's lines."""
-    laws = [(f[1], f[2], split(f[4]), split(f[5])) for f in rows if f[0] == "law"]
+    laws = [(f[1], f[2], split(f[4]), split(f[5]), f[6], split(f[7])) for f in rows if f[0] == "law"]
     stmts = [(f[1], f[2], split(f[4])) for f in rows if f[0] == "stmt"]
     missing = {f[1]: (int(f[2]), f[3], split(f[4])) for f in rows if f[0] == "missing"}
     given = {f[1]: f[2] for f in rows if f[0] == "assume"}
@@ -184,78 +234,105 @@ def section(rows, decls, cited):
         return m
 
     notes_of = {m: v[1] for m, v in missing.items()}
+
     def place(m):
         t = target(m, notes_of)
         return (missing[t][0] if t in missing and missing[t][1] else 10 ** 6, t)
 
-    def link(n, mark=True):
+    def link(n, mark="", cite=True):
         """A reference; of two parts when its last is short (`Symbolic.good`)."""
         label = short(n, decls, 1 if len(n.split(".")[-1]) > 4 else 2)
-        return f"[`{label}`]" + ("†" if mark and n in cited else "")
+        return f"[`{label}`]" + mark + ("†" if cite and n in cited else "")
 
     def codes(t, names):
-        """A row's definitions, its own first, four at most."""
+        """A row's definitions, its own first, three at most."""
         ns = [t] + sorted(names - {t}) if t in names else sorted(names)
-        more = f" and {len(ns) - 4} more" if len(ns) > 4 else ""
-        return ", ".join(f"`{short(n, missing, 2)}`" for n in ns[:4]) + more
+        more = f" +{len(ns) - 3}" if len(ns) > 3 else ""
+        return ", ".join(f"`{short(n, missing, 2)}`" for n in ns[:3]) + more
 
-    groups, general = {}, []
-    for name, status, miss, _ in laws:
+    # per area
+    def area(mod):
+        return next((a for p, a in AREAS if mod == p or mod.startswith(p + ".")), "Other")
+    per = {}
+    for name, status, _, _, mod, _ in laws:
+        c = per.setdefault(area(mod), [0, 0])
+        c[0 if status == "wired" else 1] += 1
+    order = list(dict.fromkeys([a for _, a in AREAS] + ["Other"]))
+    out = [f"**{count['wired']} of {len(laws)} laws are about running code.** "
+           f"{count['model']} are about a model, a harness, or code nothing calls yet; "
+           f"{count['stated']} statements are stated only; {count['assumption']} assumptions.", "",
+           "| Area | Laws | About running code | Not yet |", "|---|---|---|---|"]
+    for a in order:
+        if a in per:
+            w, m = per[a]
+            out.append(f"| {a} | {w + m} | {w} | {m or ''} |")
+    # per missing link
+    groups, general, names_model = {}, [], []
+    for name, status, miss, _, _, prem in laws:
         if status == "wired":
+            if prem:
+                names_model.append((name, prem))
             continue
         if not miss:
             general.append(name)
             continue
-        t = place(min(miss, key=place))[1]
-        g = groups.setdefault(t, ([], set()))
-        g[0].append(name)
-        g[1].update(m for m in miss if place(m)[1] == t)
-    out = [f"**{len(laws)} audited laws: {count['wired']} wired, {count['model']} not yet** "
-           f"(about a model, a harness, or code nothing calls yet). "
-           f"**{count['stated']} statements stated only. {count['assumption']} assumptions.** "
-           "† marks a law a guarantee above cites.", "",
-           "| Does not run | Laws | What would make them real |", "|---|---|---|"]
+        only_premise = set(miss) <= set(prem)
+        for m in miss:
+            t = place(m)[1]
+            g = groups.setdefault(t, ({}, set()))
+            g[0][name] = only_premise
+            g[1].add(m)
+    out += ["", "| Missing link | Laws | To make them real |", "|---|---|---|"]
     for t in sorted(groups, key=lambda t: place(t)):
         ls, names = groups[t]
         note = missing[t][1] if t in missing and missing[t][1] else ""
         if not note:
             by = sorted({c for n in names for c in missing.get(n, (0, "", []))[2]} - names)
             note = "Nothing that runs calls it" + (f"; {codes(by[0], set(by))} do" if by else "") + "."
-        out.append(f"| {codes(t, names)} | {', '.join(map(link, ls))} | {note} |")
+        cell = ", ".join(link(n, "*" if p else "") for n, p in ls.items())
+        out.append(f"| {codes(t, names)} | {cell} | {note} |")
     if general:
-        out.append(f"| (none) | {', '.join(map(link, general))} | Nothing to wire: each is about a "
-                   "specification or an assumption, and names no running definition. |")
+        out.append(f"| (none) | {', '.join(map(link, general))} | Nothing to wire: each is about "
+                   "a specification or an assumption. |")
+    out += ["", "\\* only a premise names the model (a reachable state admits the modelled "
+            "purge). † a guarantee above cites it."]
+    if names_model:
+        out += ["", "About running code, but naming a model outside the code they are about: " +
+                "; ".join(f"{link(n)} (`{', '.join(short(m, missing, 2) for m in p)}`)"
+                          for n, p in names_model) + "."]
     stated = [(n, m) for n, st, m in stmts if st == "stated"]
     out += ["", "**Stated only** (a `…_stmt` no audited law concludes): " +
-            ("; ".join(f"`{n}`" + (f" (does not run: {', '.join(map(code, m))})" if m else "")
-                       for n, m in stated) if stated else "none") + ".", "",
+            ("; ".join(f"`{n}`" + (f" (does not run: {', '.join(f'`{short(x, missing, 2)}`' for x in m)})"
+                                   if m else "") for n, m in stated) if stated else "none") + ".", "",
             "**Assumptions,** with the laws that take them or are stated over them:", ""]
     for a, text in assumed.items():
         if text.startswith("= "):
             continue
         part = [a] + [b for b in assumed if b != a and target(b, assumed) == a]
-        n = sum(1 for _, _, _, asm in laws if set(asm) & set(part))
-        more = f" and {len(part) - 4} more" if len(part) > 4 else ""
+        n = sum(1 for law in laws if set(law[3]) & set(part))
+        more = f" +{len(part) - 4}" if len(part) > 4 else ""
         also = f", with {', '.join(f'`{short(b, assumed, 2)}`' for b in part[1:4])}{more}" if part[1:] else ""
-        out.append(f"- {link(a, False)}{also} ({n} laws): {text}")
+        out.append(f"- {link(a, cite=False)}{also} ({n} laws): {text}")
     return "\n" + "\n".join(out) + "\n"
 
 
 def main():
     check = "--check" in sys.argv[1:]
     decls = ranges()
-    problems = control() if check else []
+    resolve = resolver(decls)
+    rows, problems = classify()
+    if check:
+        problems = controls(rows, resolve) + problems
     text = open(README).read()
     if WBEGIN not in text or WEND not in text:
-        sys.exit("proof-links: no wiring markers in the README")
+        sys.exit(f"proof-links: no wiring markers ({WBEGIN}, {WEND}) in the README")
     pre, rest = text.split(WBEGIN)
     section_old, post = rest.split(WEND)
-    # the laws the guarantees cite: "What is proven", above the section
-    resolve = lambda l: [n for n in decls if n == l or n.endswith("." + l)]
-    cited = {h for l in re.findall(r"\[`([^`\]]+)`\]", pre.split("## What is proven")[-1])
-             for h in resolve(l) if len(resolve(l)) == 1}
-    rows, wproblems = classify()
-    problems += wproblems
+    # the proofs tables: "What is proven", above the section
+    tables = pre.split("## What is proven")[-1]
+    wired = {f[1] for f in rows if f[0] == "law" and f[2] == "wired"}
+    problems += disagree(tables, wired, resolve)
+    cited = {resolve(l) for l in re.findall(r"\[`([^`\]]+)`\]", tables)} - {None}
     section_new = section(rows, decls, cited)
     if check and section_new != section_old:
         problems.append("the wiring section is stale: run ci/proof-links.py")

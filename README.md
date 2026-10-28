@@ -156,7 +156,7 @@ nothing else is assumed:
 | ✅ | 🥊🥊🥊 | **One parse per op.** A decoded op re-encodes to exactly the bytes received, so there is no parser differential and no malleability: the signer, the hasher and every peer read the same op. Its id is the SHA-256 of those bytes, so a peer cannot name an op. A Valid op is exactly its body's encoding under its own type, so no re-typed copy of one is Valid. | [`Codec.encode_decode`], [`Op.id_decode`], [`distinct_of_collisionFree`], [`op_of_valid`] |
 | ✅ | 🥊🥊🥊 | **Hostile bytes decode to a well-formed value or to nothing.** A QOI picture comes out at 1–2048 px a side, with exactly its pixels' bytes, so at most 16 MiB whatever it claims. An mDNS packet keeps its RFC limits, and its pointer chains end by construction. Invite links and QR segments are valid. | [`Pic.decode_sized`], [`Mdns.decode_valid`], [`Community.parse_valid`], [`Qr.parse_valid`] |
 | ✅ | 🥊🥊🥊 | **Attachments authenticate themselves.** Any peer may relay a file's chunks, but a chunk is Valid only if it is its file's own slice. One op stands for each index, so download progress counts exactly the chunks held, and the chunks for every index put together are the file. This assumes SHA-256 has no second preimage on the tree's inputs. The premise is shown satisfiable for an empty file only; for every file, it's wanted. No hash with 32-byte outputs is injective, so the laws assume nothing stronger. | [`chunk_is_slice`], [`verify_sound`], [`complete_assembles`], [`chunk_unique`], [`progress_exact`], [`assumptions_hold`], [`no_injective_hash`] |
-| ✅ | 🥊🥊🥊 | **Judging cannot be hung.** From any state, judging empties its queue within a budget read off the tables. | [`drain_bounded`], [`drain_terminates`], [`step_budget`] |
+| 🟡 | 🥊🥊🥊 | **Judging cannot be hung.** From any state, judging empties its queue within a budget read off the tables. Not yet of the running node: proven of states whose purges are `purgeS`, a model of the SQL purge. | [`drain_bounded`], [`drain_terminates`], [`step_budget`] |
 | ✅ | 🥊🥊🥊 | **Authenticate before parsing:** a sealed frame's payload is decoded only after its AEAD check passes. The node sees a frame only as `openFrame` gives it, and that opens only under the receive key of the session the frame names. A frame that fails leaves the node and its store as they were, and sends nothing. A test forges frames over real XChaCha20-Poly1305. | [`sealed_auth`], [`openFrame_auth`], [`onFrame_sealed`], [`sealed_unopened`] |
 | 🟡 | 🥊🥊 | **Bounded buffering:** a connection holds at most one maximal frame (1 MiB) and a read, whatever the peer's length fields say. Proven of the TCP reader's buffer: between reads it keeps less than one maximal frame and its length, and a length over 1 MiB ends the connection in the read that completes it. Not yet: the frames the reader has taken wait for the node in the runner's event channel, which is unbounded, so a peer that sends frames faster than the node handles them grows that queue. | [`buffer_bounded`], [`frames_kept`], [`frames_tooBig`], [`frames_size`] |
 | ✅ | 🥊🥊 | **No amplification:** a decoded op is exactly its bytes, so no larger. A bundle's payloads are together smaller than it. Linear decoding time is not proven. | [`Op.decode_exact`], [`Op.decode_parts`], [`decode_sum`] |
@@ -167,27 +167,27 @@ nothing else is assumed:
 | | | Guarantee | Theorems |
 |---|---|---|---|
 | | | **The engine** | |
-| ✅ | 🥊🥊🥊 | **Honest nodes agree.** The same ops, in any order, batching or interleaving, give the same verdicts. | [`same_ops_same_verdicts`], [`order_free`] |
+| 🟡 | 🥊🥊🥊 | **Honest nodes agree.** The same ops, in any order, batching or interleaving, give the same verdicts. Not yet of the running node: proven of states whose purges are `purgeS`, a model of the SQL purge. | [`same_ops_same_verdicts`], [`order_free`] |
 | ✅ | 🥊🥊 | **Verdicts are the spec's, and final.** Once judging settles, every stored verdict is the spec's over the ops received, and no later op changes it. | [`drain_settles`], [`status_iff_spec`], [`spec_extends`], [`inv_ingest`], [`inv_step`] |
-| ✅ | 🥊🥊🥊 | **Purge is safe.** A purged session or courier is gone, no shared op is ever deleted, and the engine settles on what remains. | [`purge_gone`], [`purge_shared`], [`purge_settles`] |
-| ✅ | 🥊🥊 | **Purge takes exactly what it must.** It takes the named conn and local ops and their stored dependents. Shared dependents are judged again. | [`purge_named`], [`purge_undecides`], [`purge_inv`], [`mem_purgeSet`], [`reach_ops`] |
+| 🟡 | 🥊🥊🥊 | **Purge is safe.** A purged session or courier is gone, no shared op is ever deleted, and the engine settles on what remains. Not yet: proven of the purge's model (`purgeS`); the running purge is SQL, tested against it. | [`purge_gone`], [`purge_shared`], [`purge_settles`] |
+| 🟡 | 🥊🥊 | **Purge takes exactly what it must.** It takes the named conn and local ops and their stored dependents. Shared dependents are judged again. Not yet: proven of the purge's model (`purgeS`); the running purge is SQL, tested against it. | [`purge_named`], [`purge_undecides`], [`purge_inv`], [`mem_purgeSet`], [`reach_ops`] |
 | ✅ | 🥊 | **Families compose, op by op:** adding a family changes no verdict or scope of the first's ops. Strict decoding round-trips. | [`sum_left`], [`sum_scope_left`], [`Codec.decode_encode`], [`Op.decode_bytes`] |
 | ⬜ | 🥊🥊🥊 | **The Community laws hold in the running node** (`sum_project`). In the store composed with the Connection family, every Community view answers as it would in a store of the Community ops alone. This carries every law above to the node that runs. | |
 | ✅ | 🥊🥊🥊 | **The honest path works.** A request with its invitation and both signatures is valid, an eligible member's approval is valid, and enough approvals admit and let the device in. The remover's intent writes only removals that stand. | [`request_valid`], [`approve_valid`], [`admit_admits`], [`connect_admitted`], [`removeMember_valid`] |
 | | | **Sync** | |
-| ✅ | 🥊🥊🥊 | **A sync round is complete.** Each side is sent exactly what the other holds in the range and it lacks. On any path, it takes at most one answer more than the two sides hold in the range. | [`exchange_complete`] |
+| 🟡 | 🥊🥊🥊 | **A sync round is complete.** Each side is sent exactly what the other holds in the range and it lacks. On any path, it takes at most one answer more than the two sides hold in the range. Not yet: proven of the round's model (`exchange`); wanted of the running round (`conn_runs_exchange`). | [`exchange_complete`] |
 | ✅ | 🥊🥊 | **Fingerprints are honest.** Equal Merkle labels mean equal sets, and a side opens a round with an honest claim. | [`lbl_inj`], [`opening_honest`], [`num_inj`] |
-| ✅ | 🥊🥊🥊 | **Partial sync is safe.** A node that holds an op's requirement closure judges it as its peer does. | [`spec_local`] |
-| 🟡 | 🥊🥊🥊 | **A joiner connects, and both sides converge,** over a socket that loses, duplicates and reorders. Proven over a model only. | [`bootstrap`], [`bootstrap_ideal`], [`bootstrap_possible`], [`reachable_inv`] *(model)* |
+| 🟡 | 🥊🥊🥊 | **Partial sync is safe.** A node that holds an op's requirement closure judges it as its peer does. Not yet: proven of the spec, which running judging reaches only on states whose purges are modelled. | [`spec_local`] |
+| 🟡 | 🥊🥊🥊 | **A joiner connects, and both sides converge,** over a socket that loses, duplicates and reorders. Proven over a model only. Wanted: the same of the running code (`conn_runs_exchange`, `closure_delivered`). | [`bootstrap`], [`bootstrap_ideal`], [`bootstrap_possible`], [`reachable_inv`] *(model)* |
 | 🟡 | 🥊🥊🥊 | **The running connection does all this.** It performs the round, and delivers each op's requirement closure. Proven: a connection answers a claim that lists ids exactly as `exchange` does, from the round's snapshot. Wanted: the whole round under any delivery order (`conn_runs_exchange`), and the closure (`closure_delivered`). This retires the bootstrap's model (`ops/connection/bootstrap/`). | [`conn_answers_ids`] |
-| ✅ | 🥊🥊🥊 | **New ops reach connected members.** An op a node writes while a member's session is up is offered on it at once, in a have of its room, if the session carries that room and its connection has neither offered the op nor heard the member holds it. The member holds it after one exchange, each frame delivered in turn: the offer, a want, and the op. That needs both sides' rooms on the session to include the op's room, neither node to hold the op before, and the member's side not to have asked for it already. This is over a world of two nodes running the sync code on held stores, with fixed rooms, frames in the clear, and sessions opened directly (no handshake). The exchange is proven for nodes with one session each; the offer, for any sessions. | [`stream_offered`], [`stream_delivers`], [`stream_delivers_steps`], [`stream_offered_runs`], [`stream_delivers_runs`] |
+| 🟡 | 🥊🥊🥊 | **New ops reach connected members.** An op a node writes while a member's session is up is offered on it at once, in a have of its room, if the session carries that room and its connection has neither offered the op nor heard the member holds it. The member holds it after one exchange, each frame delivered in turn: the offer, a want, and the op. That needs both sides' rooms on the session to include the op's room, neither node to hold the op before, and the member's side not to have asked for it already. This is over a world of two nodes running the sync code on held stores, with fixed rooms, frames in the clear, and sessions opened directly (no handshake). The exchange is proven for nodes with one session each; the offer, for any sessions. Not yet of the runner, with TCP, sealed frames, the trust rule's rooms and the handshake. | [`stream_offered`], [`stream_delivers`], [`stream_delivers_steps`], [`stream_offered_runs`], [`stream_delivers_runs`] |
 | ⬜ | 🥊🥊🥊 | **Everyone converges.** Under fair delivery, members linked by any chain of connections eventually hold every op of their community. By [`same_ops_same_verdicts`], they then hold the same verdicts. Proven so far for two nodes, over a model. | |
 | ⬜ | 🥊🥊 | **Staleness is never hidden.** What the screen says about sync is true of the ops held. "Up to date as of T" means a round the device opened at its own time T ended with it holding everything the peer held in that room. If no round ends within a stated bound, the screen says so within that bound. | |
 | ⬜ | 🥊🥊🥊 | **A synced page is complete:** after syncing a page, a device shows every row its peer shows for it (`page_sync`). | |
 | ⬜ | 🥊🥊 | **Sync is efficient.** Each op is sent at most once per connection, and a round needs at most fan·Δ·⌈log n⌉ claims. | |
 | ⬜ | 🥊 | **The cached Merkle tree's labels are `lbl`'s,** for O(log n) fingerprints with no change on the wire. | |
 | | | **The screen** | |
-| ✅ | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. | [`visible_in_viewport`], [`newest_visible`], [`pinned_visible`], [`pinned_tap`], [`hit_iff`] |
+| 🟡 | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. Not yet: proven of the formulas the twins' C applies (`Seam`), and of a copy of the sheet painter's placement. | [`visible_in_viewport`], [`newest_visible`], [`pinned_visible`], [`pinned_tap`], [`hit_iff`] |
 | ⬜ | 🥊🥊🥊 | **Every control is big enough to tap.** Every tappable control's hit area, not just its drawn size, is at least 48 dp by 48 dp on Android and 44 pt by 44 pt on iOS, at every supported screen size and text scale. | |
 | ⬜ | 🥊🥊 | **A tap means one thing.** On every screen, no two controls' hit areas overlap, so a point selects at most one control. A tap selects the control drawn under it. Today this is proven for the emoji sheet and message rows only (`keys_disjoint`, `hit_iff`, `pinned_tap`). | |
 | ⬜ | 🥊🥊 | **Every control shown can be tapped.** A control that is drawn has its hit area on screen, and not under the header, the composer or the keyboard. | |
@@ -208,7 +208,7 @@ nothing else is assumed:
 | ✅ | 🥊🥊 | **Display order.** Devices with the same ops order messages alike, except past the counter's cap, where each device's arrival order shows. A channel sorts by a counter its devices share, then the time (for display), then the id, and no two messages are level. What a device sends sorts after everything it lists there, while its receipt counter stays below 2^64. The exception is itself a law: below the cap a message's place comes from its own bytes, the same on every device; past it, from this device's own receipt. | [`msg_cmp`], [`time_is_display`], [`order_total`], [`Pos.cmp_eq_iff`], [`Pos.cmp_lt_trans`], [`send_after`], [`arrival_order`], [`receipt_once`], [`order_local`], [`display_agrees`], [`readable_held`], [`readable_complete`] |
 | | | **Codes, pictures and discovery** | |
 | ✅ | 🥊🥊 | **What the encoders write reads back.** This holds for QR segments and codewords, invite links and mDNS packets. QR error correction is sound, and format and version readings tolerate their designed bit errors. | [`parse_segsBits`], [`parse_dataStream`], [`RS.correct_sound`], [`RS.correct_clean`], [`decodeFormat_correct`], [`decodeVersion_correct`], [`parse_text`], [`Base62.decode_encode`], [`Mdns.decode_encode`], [`decode_roundtrip`] |
-| ✅ | 🥊 | **Pictures render whole:** scaled and composited pictures are well-formed and opaque, and the tray's layout fits. | [`render_wellFormed`], [`render_opaque`], [`scale_wellFormed`], [`fit_round`], [`Pic.layout_inside`], [`Pic.layout_apart`] |
+| 🟡 | 🥊 | **Pictures render whole:** scaled and composited pictures are well-formed and opaque, and the tray's layout fits. Not yet: proven of `Pic`, which only qr's Android harness runs; the app draws its own. | [`render_wellFormed`], [`render_opaque`], [`scale_wellFormed`], [`fit_round`], [`Pic.layout_inside`], [`Pic.layout_apart`] |
 
 The theorems not listed here are lemmas. The axiom audit,
 `tests/Axioms.lean`, lists them all.
@@ -224,26 +224,48 @@ with what would make them real. `tests/Wiring.lean` classifies every law
 of the audit from the code; `tests/wiring.txt` holds what the code
 cannot say: the specifications laws state running code against, the
 assumptions, the bridges, the notes below, and the laws that must stay
-wired. `ci/proof-links.py` writes this section, and local CI fails when
-it goes stale or a law marked wired is not.
+wired. `ci/proof-links.py` writes this section between its markers.
+Local CI fails when it goes stale, when a law marked wired is not, when
+a ✅ row above cites no law about running code, or when a 🟡 row does
+not say what is missing.
 
-<!-- wiring: written by ci/proof-links.py from tests/Wiring.lean; do not edit -->
-**366 audited laws: 283 wired, 83 not yet** (about a model, a harness, or code nothing calls yet). **0 statements stated only. 8 assumptions.** † marks a law a guarantee above cites.
+<!-- wiring:begin -->
+**277 of 366 laws are about running code.** 89 are about a model, a harness, or code nothing calls yet; 0 statements are stated only; 8 assumptions.
 
-| Does not run | Laws | What would make them real |
+| Area | Laws | About running code | Not yet |
+|---|---|---|---|
+| Engine | 56 | 35 | 21 |
+| Sync | 29 | 28 | 1 |
+| mDNS | 3 | 0 | 3 |
+| Node and wire | 26 | 12 | 14 |
+| Bootstrap | 11 | 0 | 11 |
+| Connections | 30 | 28 | 2 |
+| Community | 140 | 129 | 11 |
+| QR codes | 10 | 10 |  |
+| Pictures | 13 | 0 | 13 |
+| Screen | 33 | 21 | 12 |
+| App | 15 | 14 | 1 |
+
+| Missing link | Laws | To make them real |
 |---|---|---|
-| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]†, [`reach_drain`], [`drain_terminates`]†, [`drain_settles`]†, [`same_ops_same_verdicts`]†, [`stored_local`]†, [`local_fact_mine`]†, [`drain_bounded`]†, [`step_budget`]†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]†, [`order_local`]†, [`allowPeer_iff`], [`allowPeer_settles`] | The running purge is SQL (`purgeSql`), tested against `purgeS` (tests/engine/Purge.lean), not proven. Write purge once over the store, as `drain` is, and bridge it (`run_purge`). Every law over reachable states (`Reach` admits purges) waits on this. |
-| `World.peer`, `Setup.sync`, `Who.other`, `World.connect` and 7 more | [`stream_delivers`]†, [`stream_delivers_steps`]†, [`stream_delivers_runs`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`stream_offered`]†, [`stream_offered_runs`]†, [`write_offers_all`], [`fanout_offers`], [`seal_mem`] | A harness: two nodes running the sync code on held stores, with frames in the clear, fixed rooms and sessions opened directly. The runner (`Runner.start`: TCP, sealed frames, rooms from the trust rule, the handshake) would have to be shown to step as `World` does. |
-| `Sync.exchange` | [`exchange_complete`]† | The running round (`Conn.onRbsr`) is shown to answer one claim as `exchange` does (`conn_answers_ids`). Wanted: the whole round under any delivery order (`conn_runs_exchange`). |
-| `Engine.offer` | [`offer_shared`]†, [`offer_stored`]† | Nothing that runs calls `offer`: a connection offers through `Conn.filed` and `Conn.tick` (whose sends `filed_send`, `tick_send` and `have_shown` cover). Restate `offer_shared` and `offer_stored` over `Conn`, or have the connection read its ops through `offer`. |
-| `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]† | The key-wrap writers (`found`, `approve`'s `wrapKey`) do not read `recipients`, and a wrap's validator does not tie its recipient to an admission. Wire them through the query. |
-| `Scene.approval`, `Scene.K`, `Scene.S`, `Scene.adm` and 11 more | [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`bootstrap_ideal`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`] | The bootstrap is a model (ops/connection/bootstrap/), not the running handshake and sync. Retired by the running round (`conn_runs_exchange`) and closure delivery (`closure_delivered`), and the handshake's trust (`answer_trusted`, `untrusted_silent`). |
-| `Seam.place`, `Geom.composerTop`, `Geom.viewNow`, `Seam.frameRow` and 4 more | [`placed_row`]†, [`visible_in_viewport`]†, [`newest_visible`]†, [`newest_drawn`]†, [`pinned_row`]†, [`pinned_visible`]†, [`pinned_tap`]† | The twins' C applies `place`'s formula (platforms/headless/host.c, platforms/android/twin); that it does is trusted. Export `Seam` for the twins to call, as `Pic` and `Qr` are. |
-| `Sync.keeps` | [`buffer_bounded`]† | The TCP reader's loop (engine/wire/Tcp.lean) takes frames with `frames`, read by read; `keeps` is that loop's model. Have the loop step through `keeps`'s step, or prove its buffers are `keeps`'s. |
-| `Pic.decode`, `Geom.box`, `Rgba.wellFormed`, `Pic.add` and 6 more | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]†, [`decode_sized`]† | The app decodes pictures with its own QOI (`Qoi.decode`, engine/renderer/Qoi.lean) and draws its own tray; `Pic` (engine/renderer/pic/) runs only in qr's own Android harness, through its `@[export]`s. Have the app's picture paths call `Pic`, or prove these of the app's decoder. |
-| `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (`Mdns.Net` is the loop, run by tests/mdns). Have the runner announce and browse with it. |
-| `Arrival.lit` | [`lit_zero`], [`lit_mono`], [`lit_full`], [`lit_clockwise`], [`ring_counts`] | `paintRing` tests `onRing` and `arc` inline. Have it paint by `lit`, so the ring's laws are about its pixels. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`pageIn_acc`]† | Nothing to wire: each is about a specification or an assumption, and names no running definition. |
+| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]*†, [`order_local`]*†, [`purge_cached`]†, [`allowPeer_iff`], [`allowPeer_settles`] | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
+| `World.peer`, `Setup.sync`, `Who.other` +8 | [`stream_delivers`]†, [`stream_delivers_steps`]†, [`stream_delivers_runs`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`stream_offered`]†, [`stream_offered_runs`]†, [`write_offers_all`], [`fanout_offers`], [`seal_mem`] | A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does. |
+| `Sync.exchange` | [`exchange_complete`]† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
+| `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
+| `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
+| `Scene.approval`, `Scene.K`, `Scene.S` +12 | [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`bootstrap_ideal`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`], [`allowPeer_settles`] | The bootstrap's model (ops/connection/bootstrap/): retired by `conn_runs_exchange`, `closure_delivered`, `answer_trusted` and `untrusted_silent` over the running code. |
+| `App.read` | [`read_one_moment`]† | States `App.read`'s two branches inline: state it of `App.read`. |
+| `Seam.place`, `Geom.composerTop`, `Geom.viewNow` +5 | [`placed_row`]†, [`visible_in_viewport`]†, [`newest_visible`]†, [`newest_drawn`]†, [`pinned_row`]†, [`pinned_visible`]†, [`pinned_tap`]† | The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are. |
+| `Grid.ctop` | [`hit_iff`]†, [`hit_cell`]*†, [`keys_disjoint`]*†, [`reachable`]† | A copy of the painter's placement (`Sheet.gridRow`, App's sheet rows): have the painter place keys by `Grid.ctop`. |
+| `Sync.keeps` | [`buffer_bounded`]*† | The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s. |
+| `Pic.decode`, `Geom.box`, `Rgba.wellFormed` +7 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]†, [`decode_sized`]† | Runs only in qr's Android harness; the app has its own QOI (`Qoi.decode`) and tray: use `Pic` in the app, or prove these of its code. |
+| `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
+| `Arrival.lit` | [`lit_zero`], [`lit_mono`], [`lit_full`], [`lit_clockwise`], [`ring_counts`] | `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`pageIn_acc`]† | Nothing to wire: each is about a specification or an assumption. |
+
+\* only a premise names the model (a reachable state admits the modelled purge). † a guarantee above cites it.
+
+About running code, but naming a model outside the code they are about: [`conn_answers_ids`]† (`Sync.exchange`).
 
 **Stated only** (a `…_stmt` no audited law concludes): none.
 
@@ -256,8 +278,8 @@ it goes stale or a law marked wired is not.
 - [`Keys.Good`] (0 laws): A device's Ed25519 key converts to its seed's X25519 key.
 - [`Seal.Good`] (4 laws): The seal's AEAD and key wrap open what they seal (correctness only).
 - [`Symbolic.sym`] (13 laws): The symbolic model of the cryptography: the running handshake over a suite of symbols, where only a key's holder can derive what it guards.
-- [`Model.run`], with `Engine.Model`, `Engine.DB`, `Sync.HeldM` and 8 more (113 laws): The store model: the SQLite store's reads and writes answer as the model's tables (`DB`), and a held store's (`Held`) do too. Tested, not proven: SQLite against the model (tests/engine/Differential.lean) and list queries against their meaning (tests/engine/QueryDiff.lean).
-<!-- /wiring -->
+- [`Model.run`], with `Engine.Model`, `Engine.DB`, `Sync.HeldM` +7 (113 laws): The store model: the SQLite store's reads, writes and write turns answer as the model's tables (`DB`), and a held store's (`Held`) do too. Tested, not proven: SQLite against the model (tests/engine/Differential.lean), list queries against their meaning (tests/engine/QueryDiff.lean). Not its purge: `purgeS` is a model, a todo.
+<!-- wiring:end -->
 
 ## The seam
 
