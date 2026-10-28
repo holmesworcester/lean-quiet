@@ -21,6 +21,7 @@ import engine.wire.mdns.Mdns
 import ops.connection.bootstrap.Net
 import engine.core.CodecCost
 import ops.community.MerkleCost
+import ops.app.Pics
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -346,4 +347,10 @@ section cost
 #print axioms Engine.Codec.slow_digits_over_budget
 #print axioms Engine.Codec.readAllM_eq
 #print axioms Engine.Codec.slow_bytes_over_budget
+#print axioms Pics.decoded_started
+#print axioms Pics.image_steady
+#print axioms Pics.image_settles
+#print axioms Pics.image_twice
+#print axioms Pics.steady_later
+#print axioms Pics.imageV_over_budget
 end cost

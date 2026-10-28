@@ -73,7 +73,7 @@ def received (sm : Sim) (t : String) : M (Option (Row.Pic × Option ByteArray ×
     if f && (b.map (·.rows[0]? != some (Paint.solid Row.placeholder 96))).getD false then full := true; break
     steps 1; IO.sleep 10
   -- the file opened from the chunks stored by now
-  let opened := ((← slicesOf p) >>= slicesFromOps) >>= fun sl => Community.openFile sl p.key p.nonce
+  let opened := ((← slicesOf p) >>= Pics.slicesFromOps) >>= fun sl => Community.openFile sl p.key p.nonce
   return some (p, opened, full, big)
 
 def main (args : List String) : IO UInt32 := do
