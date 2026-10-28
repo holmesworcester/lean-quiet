@@ -124,6 +124,13 @@ open Engine Community
 #print axioms Engine.purge_inv
 #print axioms Engine.perm_sortPos
 #print axioms Engine.sortPos_eq_fast
+#print axioms Engine.inRange_unbounded
+#print axioms Engine.readPlan_cost
+#print axioms Engine.readPlan_cost_range
+#print axioms Engine.mergeRuns_eq_sortPos
+#print axioms Engine.union_rows
+#print axioms Engine.eval_oriented
+#print axioms Engine.eval_union_sorted
 #print axioms Engine.matching_nodup
 #print axioms Engine.purge_settles
 #print axioms Engine.reach_ops

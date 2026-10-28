@@ -12,7 +12,12 @@ Every row comes with its fact. `eval` is the meaning, over the model's
 tables; `listSql` is what runs, on SQLite: the conjunct with the fewest rows (its counter row, kept
 exact by a trigger) is walked as one index range, and each row is kept
 if the other keys hold it too. The differential test checks the two
-agree; QTests in the app checks it on real workloads.
+agree; QTests in the app checks it on real workloads. A read never
+sorts: SQLite walks the index in the list's order, and what a read runs
+is a few statements computed as data (`readPlan`), so its cost is a law
+under a stated assumption about SQLite's B-trees (`Seeks`): a one-key
+read costs two seeks and a step and a seek per row it returns, however
+long the list (`readPlan_cost`, `readPlan_cost_range`).
 
 Watching: every row the index gains, or a purge takes from it, is
 recorded, per connection, in a temp table (`watchFiled`), so after a
@@ -218,6 +223,26 @@ theorem Pos.cmp_trans {p q r : Pos} (h1 : p.cmp q ≠ .gt) (h2 : q.cmp r ≠ .gt
     exact bcmp_trans (e1 a1) (e2 hq)
   · exact absurd a1 g1
 
+theorem Pos.cmp_eq {p q : Pos} (h : p.cmp q = .eq) : p = q := by
+  simp only [Pos.cmp, Ordering.then_eq_eq] at h
+  exact Prod.ext (bcmp_eq h.1) (bcmp_eq h.2)
+
+theorem Pos.cmp_lt_trans {p q r : Pos} (h1 : p.cmp q = .lt) (h2 : q.cmp r ≠ .gt) : p.cmp r = .lt := by
+  have hpr := Pos.cmp_trans (by rw [h1]; decide) h2
+  cases e : p.cmp r
+  · rfl
+  · obtain rfl := Pos.cmp_eq e
+    have := Pos.cmp_swap p q
+    rw [h1] at this
+    exact absurd this (by simp_all)
+  · exact absurd e hpr
+
+/-- p past y, and q not before p: q is past y. -/
+theorem Pos.cmp_gt_of_le {p q y : Pos} (hpq : p.cmp q ≠ .gt) (hpy : p.cmp y = .gt) : q.cmp y = .gt := by
+  have hyp : y.cmp p = .lt := by rw [Pos.cmp_swap p y, hpy]; rfl
+  have := Pos.cmp_lt_trans hyp hpq
+  rw [Pos.cmp_swap y q, this]; rfl
+
 /-- `sortPos`'s comparison: p goes before q unless p's position is past q's. -/
 def posLE {α} (p q : Pos × α) : Bool := !(p.1.cmp q.1 == .gt)
 
@@ -280,37 +305,80 @@ def eval (s : DB F) (q : ListQ) : Answer F :=
   let ordered := if q.desc then inR.reverse else inR
   ⟨q.cut ordered, capped q.cap inR.length, all.length⟩
 
+/-- **A list's range, when it is all of the list, counts its total**
+(capped): what lets a read take it from the counter (`listPlan`)
+rather than walk the list. -/
+theorem inRange_unbounded (s : DB F) {q : ListQ} (ha : q.after = none) (hb : q.before = none) :
+    (eval s q).inRange = capped q.cap (eval s q).total := by
+  have : (matching s q).filter (fun _ => true) = matching s q := List.filter_eq_self.2 (by simp)
+  simp [eval, ListQ.inside, ha, hb, this]
+
 end
 
-/-! ## What runs, on SQLite -/
+/-! ## What runs, on SQLite
 
-/-- The rows filed under k: its counter row (0 if none). -/
-def countOf {F} (k : ByteArray) : SqlM F Nat := do
-  let rows ← sqlQ (F := F) "SELECT CAST(n AS TEXT) FROM cnt WHERE k = ?" #[k]
-  return match rows[0]? >>= (·[0]?) with
-    | some b => (String.fromUTF8? b >>= String.toNat?).getD 0
-    | none => 0
+A list read is a few statements, each of one of three shapes (`Stmt`).
+`listSql` computes them as data (`readPlan`) and runs exactly those, so
+what is counted below is what runs. Every one is served by an index in
+the order it reads (tests/engine/QueryDiff: SQLite's EXPLAIN QUERY PLAN
+for each shows these indexes and no sort):
+- `counter k`: k's row of `cnt` (its primary key), kept exact by a
+  trigger: one seek.
+- `rows k others after before desc limit`: k's rows of `idx` in (s, id)
+  order (the index `idx_ks`), from one seek to the range's start, until
+  `limit` are kept; each walked row is checked against each key of
+  `others` (a seek of `idx`'s unique (k, id)), and each kept row is
+  joined to its verdict (a seek of `status`'s primary key).
+- `count k others after before cap`: as `rows`, counting, at most `cap`
+  (0: all). -/
+
+inductive Stmt where
+  | counter (k : ByteArray)
+  | rows (k : ByteArray) (others : List ByteArray) (after before : Option Pos) (desc : Bool)
+      (limit : Option Nat)
+  | count (k : ByteArray) (others : List ByteArray) (after before : Option Pos) (cap : Nat)
+  deriving Inhabited
+
+/-- A WHERE clause and its parameters: key k, the range (after, before),
+and each of `others` holding the row too. -/
+def whereSql (k : ByteArray) (others : List ByteArray) (after before : Option Pos) :
+    String × Array ByteArray := Id.run do
+  let mut w := "i.k = ?"
+  let mut ps := #[k]
+  if let some (s, x) := after then
+    w := w ++ " AND (i.s, i.id) > (?, ?)"; ps := ps.push s |>.push x
+  if let some (s, x) := before then
+    w := w ++ " AND (i.s, i.id) < (?, ?)"; ps := ps.push s |>.push x
+  for o in others do
+    w := w ++ " AND EXISTS (SELECT 1 FROM idx j WHERE j.k = ? AND j.id = i.id)"
+    ps := ps.push o
+  return (w, ps)
+
+/-- A statement's SQL text and parameters. -/
+def Stmt.sql : Stmt → String × Array ByteArray
+  | .counter k => ("SELECT CAST(n AS TEXT) FROM cnt WHERE k = ?", #[k])
+  | .rows k others after before desc limit =>
+    let (w, ps) := whereSql k others after before
+    let dir := if desc then "DESC" else "ASC"
+    let lim := match limit with | none => "" | some n => s!" LIMIT {n}"
+    (s!"SELECT i.s, i.id, st.verdict FROM idx i JOIN status st ON st.id = i.id WHERE {w} ORDER BY i.s {dir}, i.id {dir}{lim}", ps)
+  | .count k others after before cap =>
+    let (w, ps) := whereSql k others after before
+    let capSql := if cap = 0 then "" else s!" LIMIT {cap}"
+    (s!"SELECT CAST(count(*) AS TEXT) FROM (SELECT 1 FROM idx i WHERE {w}{capSql})", ps)
+
+def Stmt.run {F} (st : Stmt) : SqlM F (Array (Array ByteArray)) :=
+  let (sql, ps) := st.sql
+  sqlQ (F := F) sql ps
 
 def natOf (rows : Array (Array ByteArray)) : Nat :=
   match rows[0]? >>= (·[0]?) with
   | some b => (String.fromUTF8? b >>= String.toNat?).getD 0
   | none => 0
 
-/-- The query's WHERE clause and parameters, walking key k. Every
-statement here reads the index `idx_ks (k, s, id)` as one range. -/
-def ListQ.whereSql (q : ListQ) (k : ByteArray) (others : List ByteArray) (range : Bool) :
-    String × Array ByteArray := Id.run do
-  let mut w := "i.k = ?"
-  let mut ps := #[k]
-  if range then
-    if let some (s, x) := q.after then
-      w := w ++ " AND (i.s, i.id) > (?, ?)"; ps := ps.push s |>.push x
-    if let some (s, x) := q.before then
-      w := w ++ " AND (i.s, i.id) < (?, ?)"; ps := ps.push s |>.push x
-  for o in others do
-    w := w ++ " AND EXISTS (SELECT 1 FROM idx j WHERE j.k = ? AND j.id = i.id)"
-    ps := ps.push o
-  return (w, ps)
+/-- The rows filed under k: its counter row (0 if none). -/
+def countOf {F} (k : ByteArray) : SqlM F Nat := do
+  return natOf (← (Stmt.counter k).run (F := F))
 
 /-- The conjunct with the fewest rows, and the others. -/
 def pickWalk {F} (q : ListQ) : SqlM F (ByteArray × List ByteArray × Nat) := do
@@ -322,25 +390,97 @@ def pickWalk {F} (q : ListQ) : SqlM F (ByteArray × List ByteArray × Nat) := do
   let all := q.key :: q.also
   return (best, all.filter (· != best), bestN)
 
-/-- A list on SQLite: its rows with their facts in one statement (a join
-on the verdicts' primary key), then its counts. -/
+/-- What a list runs once it has chosen the key it walks (k, with n
+rows): its rows (none when it asks counts only), the range's count (none
+when the range is all of k and nothing else filters: then it is n,
+capped), and the total (none when nothing else filters: then it is n). -/
+structure Plan where
+  rows : Option Stmt
+  inRange : Option Stmt
+  total : Option Stmt
+
+def listPlan (q : ListQ) (k : ByteArray) (others : List ByteArray) : Plan where
+  rows := if q.limit = some 0 then none else some (.rows k others q.after q.before q.desc q.limit)
+  inRange := if q.after.isNone && q.before.isNone && others.isEmpty then none
+    else some (.count k others q.after q.before q.cap)
+  total := if others.isEmpty then none else some (.count k others none none 0)
+
+def Plan.stmts (p : Plan) : List Stmt := p.rows.toList ++ p.inRange.toList ++ p.total.toList
+
+/-- Everything a read of q runs, walking k: a counter for each key of q,
+then its plan. -/
+def readPlan (q : ListQ) (k : ByteArray) (others : List ByteArray) : List Stmt :=
+  (q.key :: q.also).map .counter ++ (listPlan q k others).stmts
+
+/-- A list on SQLite: its plan, run (`readPlan`). -/
 def listSql {F} [Codec F] (q : ListQ) : SqlM F (Answer F) := do
   let (k, others, n) ← pickWalk (F := F) q
-  let (w, ps) := q.whereSql k others true
-  let dir := if q.desc then "DESC" else "ASC"
-  let lim := match q.limit with | none => "" | some n => s!" LIMIT {n}"
-  let rows ← if q.limit = some 0 then pure #[] else
-    sqlQ (F := F) s!"SELECT i.s, i.id, st.verdict FROM idx i JOIN status st ON st.id = i.id WHERE {w} ORDER BY i.s {dir}, i.id {dir}{lim}" ps
-  let capSql := if q.cap = 0 then "" else s!" LIMIT {q.cap}"
-  let inR := natOf (← sqlQ (F := F) s!"SELECT CAST(count(*) AS TEXT) FROM (SELECT 1 FROM idx i WHERE {w}{capSql})" ps)
-  let total ← if others.isEmpty then pure n else do
-    let (w2, ps2) := q.whereSql k others false
-    pure (natOf (← sqlQ (F := F) s!"SELECT CAST(count(*) AS TEXT) FROM idx i WHERE {w2}" ps2))
+  let p := listPlan q k others
+  let rows ← match p.rows with | some st => st.run (F := F) | none => pure #[]
+  let inR ← match p.inRange with | some st => do pure (natOf (← st.run (F := F))) | none => pure (capped q.cap n)
+  let total ← match p.total with | some st => do pure (natOf (← st.run (F := F))) | none => pure n
   let pos := rows.toList.filterMap fun r => do
     match (← r[2]? >>= Codec.decode) with
     | Verdict.valid f => pure (((← r[0]?), (← r[1]?)), f)
     | .invalid => none
   return ⟨pos, inR, total⟩
+
+/-! ## What a read costs
+
+**The assumption** (`Seeks`, about SQLite, not proven here): a seek in a
+B-tree costs at most `seek` (O(log N) for N rows), and each next row of
+an index in its order at most `step` (O(1)); and a statement that reads
+in its index's order with a LIMIT and nothing else filtering walks no
+row past its limit (`Stmt.walks`). A statement's cost is then counted
+on the rows it walks (`Stmt.cost`). -/
+
+structure Seeks where
+  seek : Nat
+  step : Nat
+
+/-- The most rows a statement walks when its key's range holds m rows:
+up to its limit (or cap) when nothing else filters, else all of them. -/
+def Stmt.walks (m : Nat) : Stmt → Nat
+  | .counter _ => 0
+  | .rows _ others _ _ _ (some n) => if others.isEmpty then min n m else m
+  | .rows _ _ _ _ _ none => m
+  | .count _ others _ _ cap => if others.isEmpty && cap != 0 then min cap m else m
+
+/-- A statement's cost: its seek, then per row walked a step and a seek
+for each key it checks (and, for rows, the verdict's seek). -/
+def Stmt.cost (c : Seeks) (m : Nat) (st : Stmt) : Nat :=
+  match st with
+  | .counter _ => c.seek
+  | .rows _ others _ _ _ _ => c.seek + st.walks m * (c.step + (others.length + 1) * c.seek)
+  | .count _ others _ _ _ => c.seek + st.walks m * (c.step + others.length * c.seek)
+
+def planCost (c : Seeks) (m : Nat) (ss : List Stmt) : Nat := (ss.map (·.cost c m)).sum
+
+/-- **A one-key read costs its limit, not its list**: with no other key
+and no range, reading q costs two seeks and, per row it returns, a step
+and a seek, however many rows the list holds (m). -/
+theorem readPlan_cost (c : Seeks) (m n : Nat) {q : ListQ} (ha : q.also = []) (hr : q.after = none)
+    (hb : q.before = none) (hl : q.limit = some n) :
+    planCost c m (readPlan q q.key []) ≤ 2 * c.seek + n * (c.step + c.seek) := by
+  have hw := Nat.mul_le_mul_right (c.step + c.seek) (Nat.min_le_left n m)
+  by_cases h0 : n = 0
+  · subst h0
+    simp [readPlan, listPlan, Plan.stmts, planCost, ha, hr, hb, hl, Stmt.cost]
+    omega
+  · simp [readPlan, listPlan, Plan.stmts, planCost, ha, hr, hb, hl, h0, Stmt.cost, Stmt.walks]
+    omega
+
+/-- **With a range, a capped count adds at most its cap.** -/
+theorem readPlan_cost_range (c : Seeks) (m n : Nat) {q : ListQ} (ha : q.also = [])
+    (hl : q.limit = some n) (hc : q.cap ≠ 0) :
+    planCost c m (readPlan q q.key []) ≤ 3 * c.seek + n * (c.step + c.seek) + q.cap * c.step := by
+  rcases q with ⟨key, also, after, before, desc, limit, cap⟩
+  simp only at ha hl hc ⊢
+  subst ha hl
+  have hw := Nat.mul_le_mul_right (c.step + c.seek) (Nat.min_le_left n m)
+  have hm := Nat.mul_le_mul_right c.step (Nat.min_le_left cap m)
+  cases after <;> cases before <;> by_cases h0 : n = 0 <;>
+    simp [readPlan, listPlan, Plan.stmts, planCost, Stmt.cost, Stmt.walks, h0, hc] <;> omega
 
 /-! ## The one read -/
 

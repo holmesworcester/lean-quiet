@@ -85,6 +85,29 @@ def queries (c : Id) (posts : Array Id) (users : Array (Id × Id × Device)) (cu
       :: { key := opKey m, limit := some 1 } :: qs
   return qs
 
+/-- SQLite's plan for a statement: EXPLAIN QUERY PLAN's detail lines. -/
+def explain (db : Db) (sql : String) (ps : Array ByteArray) : IO (List String) := do
+  let rows ← db.query ("EXPLAIN QUERY PLAN " ++ sql) ps
+  return rows.toList.filterMap fun r => r[3]? >>= String.fromUTF8?
+
+def mentions (l sub : String) : Bool := (l.splitOn sub).length > 1
+
+/-- What the cost of a read assumes of a plan line (`Seeks`): a search
+through an index or a primary key, or the subqueries that hold them;
+never a scan of a table, never a sort. A key's range is searched in
+`idx_ks` (in (s, id) order), or, for a count, where order does not
+matter, in `idx`'s unique (k, id). -/
+def lineOk (l : String) : Bool :=
+  !mentions l "TEMP B-TREE" &&
+  (mentions l "SEARCH i USING COVERING INDEX idx_ks (k=?" ||
+   mentions l "SEARCH i USING COVERING INDEX sqlite_autoindex_idx_1 (k=?)" ||
+   mentions l "SEARCH st USING PRIMARY KEY (id=?)" ||
+   mentions l "SEARCH j USING COVERING INDEX sqlite_autoindex_idx_1 (k=? AND id=?)" ||
+   mentions l "SEARCH cnt USING PRIMARY KEY (k=?)" ||
+   mentions l "CORRELATED SCALAR SUBQUERY" ||
+   mentions l "CO-ROUTINE" ||
+   mentions l "SCAN (subquery")
+
 /-- `sortPos` as written, under another name: the compiler runs a merge
 sort for `sortPos` (`sortPos_eq_fast`), and this insertion sort as is. -/
 def sortPosSpec {α} (l : List (Pos × α)) : List (Pos × α) := l.foldr insertBy []
@@ -201,6 +224,35 @@ def main : IO UInt32 := do
     t.ok s!"seed {seed}: members view" (ms == (members c).eval m && ms.length == users.size)
     let rs ← ((recipients c).run : SqlM Fact (List Key)).run db
     t.ok s!"seed {seed}: recipients view" (rs == (recipients c).eval m)
-    IO.println s!"seed {seed}: {n} queries, {base.total} valid messages"
+    -- Every statement a read runs is served by an index in its order:
+    -- its plan searches, never scans a table, never sorts.
+    let mut stmts := 0
+    let mut badPlans : List String := []
+    for q in qs do
+      let (k, others, _) ← (pickWalk (F := Fact) q).run db
+      for st in readPlan q k others do
+        let (sql, ps) := st.sql
+        let lines ← explain db sql ps
+        stmts := stmts + 1
+        if lines.isEmpty || !lines.all lineOk then badPlans := (sql ++ " :: " ++ toString lines) :: badPlans
+    for b in badPlans.take 3 do IO.eprintln s!"plan: {b}"
+    t.ok s!"seed {seed}: every one of {stmts} statements is served by an index, unsorted" badPlans.isEmpty
+    -- Negative controls: a sort the index cannot give, and a scan.
+    let sorted ← explain db "SELECT i.s, i.id FROM idx i WHERE i.k = ? ORDER BY i.s DESC, i.id ASC LIMIT 5" #[c]
+    let scan ← explain db "SELECT count(*) FROM idx i WHERE i.s = ?" #[c]
+    t.ok s!"seed {seed}: a plan that sorts is caught" (!sorted.all lineOk)
+    t.ok s!"seed {seed}: a plan that scans is caught" (!scan.all lineOk)
+    -- Unions merge their lists (no sort): on SQLite as on the model.
+    let lists := users.toList.map fun (_, u, _) => message.byAuthor.query [c, u]
+    let mut unions := 0
+    for desc in [true, false] do
+      for limit in [some 0, some 5, some 30, none] do
+        for v in [View.union (F := Fact) lists limit desc,
+                  View.union (F := Fact) (lists.take 2 ++ lists.take 2) limit desc,
+                  View.union (F := Fact) ((lists.map fun q => { q with after := cursors.head? }).take 3) limit desc] do
+          let a ← ((v.run : SqlM Fact (Answer Fact))).run db
+          unions := unions + 1
+          t.ok s!"seed {seed}: union {unions} on SQLite is the model's" (a == v.eval m)
+    IO.println s!"seed {seed}: {n} queries, {base.total} valid messages, {stmts} statements' plans, {unions} unions"
   sortChecks t
   t.finish "querydiff"
