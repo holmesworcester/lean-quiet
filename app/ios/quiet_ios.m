@@ -650,6 +650,26 @@ void lq_twin(char* out, size_t n) {
   });
 }
 
+// `twin shot`: the app's window as UIKit renders it, to Documents/
+// screen.png (read back with devicectl device copy from: there is no
+// remote screenshot of an iPhone here). The status bar and the keyboard
+// are other windows and are not in it.
+void lq_twin_shot(char* out, size_t n) {
+  dispatch_sync(dispatch_get_main_queue(), ^{
+    UIView*  v = lq_root.window ?: lq_root;
+    UIGraphicsImageRendererFormat* f = [UIGraphicsImageRendererFormat preferredFormat];
+    f.scale = lq_k;
+    UIImage* im = [[[UIGraphicsImageRenderer alloc] initWithBounds:v.bounds format:f]
+      imageWithActions:^(UIGraphicsImageRendererContext* c) {
+        [v drawViewHierarchyInRect:v.bounds afterScreenUpdates:NO];
+      }];
+    NSData* png = UIImagePNGRepresentation(im);
+    BOOL    ok  = [png writeToFile:@"screen.png" atomically:YES];
+    snprintf(out, n, "shot %s %.0fx%.0f", ok ? "Documents/screen.png" : "failed",
+      im.size.width * im.scale, im.size.height * im.scale);
+  });
+}
+
 // The keyboard's text
 // -------------------
 

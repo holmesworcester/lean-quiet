@@ -102,7 +102,10 @@ Linux box and do the Mac's part over SSH.
   of the list frame's first row and of the scroll view's bottom (as UIKit
   laid them out), the composer's top, the last list tap reported, and the
   keyboard's text. `twin local` puts a channel opened on every interface
-  back on 127.0.0.1 without a relaunch.
+  back on 127.0.0.1 without a relaunch. `twin shot` writes the app's window, as UIKit
+  renders it, to `Documents/screen.png` (the iPhone has no remote
+  screenshot here; copy it off with `devicectl device copy from`). The
+  status bar and the keyboard are other windows and are not in it.
 - **Log:** stderr, Lean's and the twin's, also goes to `Documents/lean.log`,
   new at each launch. A phone's run can then be read back with `devicectl
   device copy from … --source Documents/lean.log`, for example the node's
