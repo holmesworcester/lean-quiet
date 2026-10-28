@@ -15,3 +15,6 @@ import Engine.Budget
 import Engine.Sync.Fp
 import Engine.Sync.Round
 import Engine.Sync.RoundLaws
+import Engine.Sync.Wire
+import Engine.Sync.Conn
+import Engine.Sync.Node

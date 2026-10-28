@@ -113,25 +113,25 @@ theorem body_mkOp (reqs : List Id) (b : Body) : (Codec.decode (mkOp reqs b).body
   Codec.decode_encode b
 
 theorem shared_mkOp (C : Crypto) (reqs : List Id) (b : Body) :
-    (family C).shared (mkOp reqs b) = decide (b.scope = .shared) := by
-  simp [Family.shared, family, scopeOf, body_mkOp]
+    (family C).shared (mkOp reqs b) = !b.isLocal := by
+  cases hs : b.isLocal <;> simp [Family.shared, Family.room, family, scopeOf, body_mkOp, hs]
 
 /-- **Joining is just ops, and only the request leaves the device.** The
 join intent writes the device's secret, the request, the acceptance and
 the pending join; of these, sync may offer only the request. -/
 theorem join_travels (C : Crypto) (i : Invite) (seed name : ByteArray) :
     (join i seed name).ops.filter (family C).shared = [i.request (Device.ofSeed seed)] := by
-  simp [join, Invite.request, Community.request, secret, accept, joining, shared_mkOp, Body.scope]
+  simp [join, Invite.request, Community.request, secret, accept, joining, shared_mkOp, Body.isLocal]
 
 /-- **Stopping waiting is local.** -/
 theorem stopWaiting_local (C : Crypto) (j : Id) : (stopWaiting j).ops.filter (family C).shared = [] := by
-  simp [stopWaiting, abandon, shared_mkOp, Body.scope]
+  simp [stopWaiting, abandon, shared_mkOp, Body.isLocal]
 
 /-- **Founding is just ops**; the secret and the acceptance stay. -/
 theorem found_travels (C : Crypto) (seed name myName : ByteArray) (time : Nat) :
     (found seed name myName time).ops.filter (family C).shared =
       let d := Device.ofSeed seed; let r := root d
       [r, setName r.id r.id r.id [] 1 d name, profile r.id r.id d myName time []] := by
-  simp [found, root, secret, accept, setName, profile, shared_mkOp, Body.scope]
+  simp [found, root, secret, accept, setName, profile, shared_mkOp, Body.isLocal]
 
 end Community

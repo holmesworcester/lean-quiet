@@ -21,21 +21,31 @@ section
 variable {F : Type} (fam : Family F)
 
 /-- Whether ops of o's kind travel. -/
-def Family.shared (o : Op) : Bool := Decidable.decide (fam.scope o = .shared)
+def Family.shared (o : Op) : Bool := (fam.room o).isSome
 
 /-- What the writer receives from a job: all of it if the job is this
 node's own; only shared ops if it came from a peer. -/
 def intake (mine : Bool) (ops : List Op) : List Op :=
   if mine then ops else ops.filter fam.shared
 
+/-- What the bare wire takes: conn ops only (a handshake's), never a
+shared or a local op. -/
+def intakeConn (ops : List Op) : List Op :=
+  ops.filter fun o => Decidable.decide (fam.scope o = .conn)
+
+theorem intakeConn_conn {ops : List Op} {o : Op} (h : o ∈ intakeConn fam ops) :
+    fam.scope o = .conn ∧ o ∈ ops := by
+  simp only [intakeConn, List.mem_filter, decide_eq_true_eq] at h
+  exact ⟨h.2, h.1⟩
+
 /-- **Nothing local is taken from a peer.** -/
 theorem intake_local {mine : Bool} {ops : List Op} {o : Op} (h : o ∈ intake fam mine ops)
-    (hl : fam.scope o = .local) : mine = true ∧ o ∈ ops := by
+    (hl : fam.room o = none) : mine = true ∧ o ∈ ops := by
   unfold intake at h
   cases mine with
   | true => exact ⟨rfl, h⟩
   | false =>
-    simp only [Bool.false_eq_true, ite_false, List.mem_filter, Family.shared, decide_eq_true_eq] at h
+    simp only [Bool.false_eq_true, ite_false, List.mem_filter, Family.shared] at h
     rw [hl] at h; cases h.2
 
 variable {m : Type → Type} [Monad m] [Store F m]
@@ -73,7 +83,7 @@ theorem run_offer (ids : List Id) (s : DB F) :
 /-- **Sync offers only stored, shared ops.** -/
 theorem offer_shared {s : DB F} {ids : List Id} {o : Op}
     (h : o ∈ ((offer fam ids : Model F (List Op)).run s).1) :
-    fam.scope o = .shared ∧ ∃ x ∈ ids, s.ops x = some o := by
+    (fam.room o).isSome = true ∧ ∃ x ∈ ids, s.ops x = some o := by
   rw [run_offer] at h
   simp only [offerS, List.mem_filterMap] at h
   obtain ⟨x, hx, hm⟩ := h
@@ -81,7 +91,7 @@ theorem offer_shared {s : DB F} {ids : List Id} {o : Op}
   · rename_i p hp
     split at hm
     · rename_i hs; cases hm
-      exact ⟨by simpa [Family.shared] using hs, x, hx, hp⟩
+      exact ⟨hs, x, hx, hp⟩
     · cases hm
   · cases hm
 
@@ -125,7 +135,7 @@ theorem stepS_ops' (s : DB F) : (stepS fam s).ops = s.ops := stepS_ops (fam := f
 /-- **Every local op a node stores is its own write**, whatever its
 peers send it. -/
 theorem stored_local {M : List Op} {s : DB F} (h : Fed fam M s) {x : Id} {o : Op}
-    (hx : s.ops x = some o) (hl : fam.scope o = .local) : o ∈ M := by
+    (hx : s.ops x = some o) (hl : fam.room o = none) : o ∈ M := by
   induction h with
   | empty => cases hx
   | job mine ops _ ih =>

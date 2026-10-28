@@ -107,23 +107,38 @@ instance {F} [Codec F] : Codec (Verdict F) where
     | valid f => simp [round]
     | invalid => rfl
 
-/-- Whether ops of a kind travel. Shared ops are what sync offers and
-takes. Local ops are a node's own bookkeeping (its accepted
-communities, pending links, connection state), judged and stored like
-any op, but never offered to a peer and never taken from one
-(Engine.Sync). -/
+/-- Where ops of a kind travel. Shared ops are what sync offers and
+takes, in their room (a community). Conn ops cross the bare wire to one
+peer during a connection's handshake and are never synced. Local ops
+are a node's own bookkeeping (its accepted communities, pending links,
+secrets), judged and stored like any op, but never offered to a peer
+and never taken from one (Engine.Sync). -/
 inductive Scope where
-  | shared
+  | shared (room : Id)
+  | conn
   | «local»
-  deriving DecidableEq, Repr, Inhabited
+  deriving DecidableEq, Inhabited
 
 /-- What an application supplies: each op type's validator, the index
-keys each fact is filed under, and each op's scope (read from its body:
-it never depends on the header's kind). -/
+keys each fact is filed under, where each op travels, and where it
+sorts in sync. Scope and order are read from the op's body: they never
+depend on the header's kind.
+
+- `scope`: shared in a room, conn, or local (`Scope`).
+- `order`: the op's claimed time, which sync ranges are over (a window
+  is "from this time on"); 0 for ops without one, which every window
+  includes. -/
 structure Family (F : Type) where
   validate : Op → List F → Option F
   keys : F → List ByteArray
-  scope : Op → Scope := fun _ => .shared
+  scope : Op → Scope := fun _ => .shared .empty
+  order : Op → Nat := fun _ => 0
+
+/-- The room an op is synced in; none unless it is shared. -/
+def Family.room {F} (fam : Family F) (o : Op) : Option Id :=
+  match fam.scope o with
+  | .shared r => some r
+  | _ => none
 
 /-- Op x's own key: what its verdict is watched under, and the key its
 Valid fact is filed under by id (`self`), so reading one fact is a list

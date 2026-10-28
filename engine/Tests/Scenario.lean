@@ -210,7 +210,7 @@ def main (args : List String) : IO UInt32 := do
   -- Sync scope, on SQLite: with admit ops declared local, sync offers
   -- every stored op but those; a peer's job loses them; this node's own
   -- job keeps them.
-  let famL : Family Fact := { fam with scope := fun o => if o.kind = 11 then .local else .shared }
+  let famL : Family Fact := { fam with scope := fun o => if o.kind = 11 then .local else fam.scope o }
   let isAdmit (o : Op) := o.kind == 11
   let offered ← run (offer famL (all.map (·.id)))
   t.ok "sync offers no local op" (!offered.any isAdmit)

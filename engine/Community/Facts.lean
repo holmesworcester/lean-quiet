@@ -439,18 +439,35 @@ def sortOf : Fact → ByteArray
 
 instance : SortKey Fact := ⟨sortOf⟩
 
-/-- An op's scope, from its body: a device's secrets, its acceptances
-and its joins are local, never sent or taken; everything else is
-shared. -/
-def Body.scope : Body → Scope
-  | .secret .. | .accept .. | .joining .. | .abandon => .local
-  | _ => .shared
+/-- Whether an op is local, from its body: a device's secrets, its
+acceptances and its joins are, never sent or taken; everything else is
+shared in its community. -/
+def Body.isLocal : Body → Bool
+  | .secret .. | .accept .. | .joining .. | .abandon => true
+  | _ => false
 
+/-- The community an op is about: a root founds its own; every other op
+names its community first. -/
+def Body.community (b : Body) (o : Op) : Id :=
+  match b with
+  | .root .. => o.id
+  | _ => o.reqs.headD o.id
+
+/-- Where an op travels: local, or shared in its community. -/
 def scopeOf (o : Op) : Scope :=
   match (decode o.body : Option Body) with
-  | some b => b.scope
-  | none => .shared
+  | some b => if b.isLocal then .local else .shared (b.community o)
+  | none => .shared (o.reqs.headD o.id)
 
-def family (C : Crypto) : Family Fact := { validate := validate C, keys, scope := scopeOf }
+/-- An op's claimed time, which sync ranges are over: a post's, a
+profile's or a reaction's; 0 for the rest (roots, invitations,
+admissions, removals, ...), which every window includes. -/
+def orderOf (o : Op) : Nat :=
+  match (decode o.body : Option Body) with
+  | some (.post _ _ t _) | some (.profile _ t _) | some (.react _ t _) => t
+  | _ => 0
+
+def family (C : Crypto) : Family Fact :=
+  { validate := validate C, keys, scope := scopeOf, order := orderOf }
 
 end Community

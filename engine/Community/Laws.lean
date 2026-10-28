@@ -546,7 +546,7 @@ def Fact.isLocal : Fact → Bool
   | _ => false
 
 theorem check_local {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
-    (h : check C o b fs = some f) (hl : f.isLocal = true) : b.scope = .local := by
+    (h : check C o b fs = some f) (hl : f.isLocal = true) : b.isLocal = true := by
   unfold check at h
   split at h <;> (try split at h) <;> (try simp at h; done) <;>
     first
@@ -560,7 +560,7 @@ theorem local_fact_mine {M : List Op} {s : DB Fact} (hf : Fed (family C) M s) {x
     (hv : V C s.ops x f) (hl : f.isLocal = true) : ∃ o ∈ M, s.ops x = some o := by
   obtain ⟨o, b, fs, hx, hb, _, hc⟩ := valid_inv hv
   refine ⟨o, stored_local hf hx ?_, hx⟩
-  show scopeOf o = .local
-  unfold scopeOf; rw [hb]; exact check_local hc hl
+  show (family C).room o = none
+  simp [Family.room, family, scopeOf, hb, check_local hc hl]
 
 end Community

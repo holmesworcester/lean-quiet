@@ -12,6 +12,11 @@ open Engine Community
 #print axioms Engine.Op.id_decode
 #print axioms Engine.Op.decode_bytes
 #print axioms Engine.distinct_of_collisionFree
+#print axioms Engine.Sync.num_inj
+#print axioms Engine.Sync.lbl_inj
+#print axioms Engine.Sync.exchange_complete
+#print axioms Engine.Sync.opening_honest
+#print axioms Engine.intakeConn_conn
 #print axioms Engine.run_step
 #print axioms Engine.run_drain
 #print axioms Community.message_authorized
