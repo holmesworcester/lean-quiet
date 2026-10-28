@@ -82,6 +82,9 @@ assume Engine.DB.addWait = Engine.Model.run
 assume Engine.DB.clearWaiters = Engine.Model.run
 assume Engine.DB.index = Engine.Model.run
 
+assume Engine.Sync.popW The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library).
+assume Engine.Sync.popE = Engine.Sync.popW
+assume Engine.Sync.Queues = Engine.Sync.popW
 holds Engine.Inv The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean).
 
 ## Bridges: a mirror, and the law that proves running code equal to it
@@ -108,6 +111,9 @@ spec Engine.Sync.largestOp A reply's largest op, for its bound.
 spec Community.Merkle.treeInputs A file's Merkle tree inputs, for the no-second-preimage hypothesis.
 spec Community.Merkle.subInputs A subtree's Merkle inputs, for the no-second-preimage hypothesis.
 spec Community.Merkle.slices A file's chunks, as the tree cuts it.
+spec Engine.Sync.Inbox.iter The run loop's choice made n times: `runLoop` repeats `Inbox.next`.
+spec Engine.Sync.urgents The urgent frames among a run of pushes, in order.
+spec Engine.Sync.serves The serve frames among a run of pushes, in order.
 spec Community.fileChunk A file's chunk at an index.
 spec Text.ns A line's characters other than spaces.
 spec Text.shown The characters a line draws.

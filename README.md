@@ -130,8 +130,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 521 rest on Lean's standard axioms
-only, and about three fifths of its theorems (340 of 521) are about
+that rests on; 🥊 is supporting. All 539 rest on Lean's standard axioms
+only, and about three fifths of its theorems (356 of 539) are about
 the code that runs; the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
 
@@ -233,14 +233,14 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**340 of 521 laws are about running code;** 181 are not yet. Stated only: none.
+**356 of 539 laws are about running code;** 183 are not yet. Stated only: none.
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
 | Engine | 81 | 35 | 46 |
 | Sync | 82 | 81 | 1 |
 | mDNS | 3 | 0 | 3 |
-| Node and wire | 35 | 19 | 16 |
+| Node and wire | 53 | 35 | 18 |
 | Bootstrap | 11 | 0 | 11 |
 | Connections | 30 | 27 | 3 |
 | Community | 152 | 132 | 20 |
@@ -251,8 +251,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 
 | Missing link | Laws | To make them real |
 |---|---|---|
-| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]*†, [`order_local`]*†, [`sealed_unopened`]*†, [`sealed_auth`]*†, [`purge_cached`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`write_offers_all`], [`close_gone`]*†, [`allowPeer_iff`], [`allowPeer_settles`] | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
-| `World.peer`, `Setup.sync`, `Who.other` +8 | [`stream_delivers`]†, [`stream_delivers_steps`]†, [`stream_delivers_runs`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`stream_offered`]†, [`stream_offered_runs`]†, [`write_offers_all`], [`fanout_offers`], [`seal_mem`] | A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does. |
+| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]*†, [`order_local`]*†, [`sealed_unopened`]*†, [`sealed_auth`]*†, [`purge_cached`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`write_offers_all`], [`close_gone`]*†, [`write_hot`]†, [`allowPeer_iff`], [`allowPeer_settles`] | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
+| `World.peer`, `Setup.sync`, `Who.other` +8 | [`stream_delivers`]†, [`stream_delivers_steps`]†, [`stream_delivers_runs`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`stream_offered`]†, [`stream_offered_runs`]†, [`write_offers_all`], [`fanout_offers`], [`seal_mem`], [`write_hot`]† | A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does. |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
 | `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
@@ -326,7 +326,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Pics.after` | [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`] | Nothing that runs calls it. |
 | `Pics.costIn` | [`decoded_started`], [`image_steady`], [`image_twice`], [`imageV_over_budget`] | Nothing that runs calls it. |
 | `Pics.imageV` | [`imageV_over_budget`] | Nothing that runs calls it. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`pageIn_acc`]†, [`model_fits`], [`window_rows`] | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`write_within`]†, [`pageIn_acc`]†, [`model_fits`], [`window_rows`] | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
@@ -338,7 +338,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 146 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Model.run`] | 147 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Sync.popW`] | 3 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.Inv`] | 43 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
 
@@ -767,7 +768,7 @@ on the old layout comes over with `ci/reorg-map.tsv` (where each file
 went) and `ci/reorg-imports.py` (its new files' imports).
 
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
-[`stream_delivers`]: engine/wire/WorldLaws.lean#L603-L635
+[`stream_delivers`]: engine/wire/WorldLaws.lean#L641-L673
 [`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
 [`Unforgeable`]: ops/community/Laws.lean#L270-L272
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
@@ -920,11 +921,22 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`bootstrap_ideal`]: ops/connection/bootstrap/Laws.lean#L423-L424
 [`bootstrap_possible`]: ops/connection/bootstrap/Laws.lean#L208-L218
 [`reachable_inv`]: ops/connection/bootstrap/Steps.lean#L222-L223
-[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1246-L1268
-[`stream_offered`]: engine/wire/WorldLaws.lean#L1192-L1204
-[`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L640-L657
-[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1211-L1217
-[`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L687-L692
+[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1337-L1359
+[`stream_offered`]: engine/wire/WorldLaws.lean#L1283-L1295
+[`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L678-L695
+[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1302-L1308
+[`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L725-L730
+[`write_first`]: engine/wire/LaneLaws.lean#L172-L175
+[`write_within`]: engine/wire/LaneLaws.lean#L194-L197
+[`urgent_ahead`]: engine/wire/LaneLaws.lean#L93-L102
+[`ahead_bytes`]: engine/wire/LaneLaws.lean#L111-L122
+[`cut_bytes`]: engine/wire/LaneLaws.lean#L52-L54
+[`apart`]: engine/wire/LaneLaws.lean#L134-L140
+[`credit_pos`]: engine/wire/LaneLaws.lean#L212-L214
+[`credit_window`]: engine/wire/LaneLaws.lean#L217-L221
+[`lane_control`]: engine/wire/LaneLaws.lean#L229-L232
+[`lane_hot`]: engine/wire/LaneLaws.lean#L241-L245
+[`write_hot`]: engine/wire/WorldLaws.lean#L1269-L1274
 [`visible_in_viewport`]: engine/renderer/Geometry.lean#L90-L95
 [`newest_visible`]: engine/renderer/Geometry.lean#L99-L105
 [`pinned_visible`]: engine/renderer/Geometry.lean#L147-L151
@@ -1018,15 +1030,15 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Pic.layout_inside`]: engine/renderer/pic/Laws.lean#L170-L172
 [`Pic.layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
 [`reach_drain`]: engine/core/Proofs.lean#L529-L530
-[`write_offers`]: engine/wire/WorldLaws.lean#L425-L433
-[`hold_wants`]: engine/wire/WorldLaws.lean#L442-L448
-[`want_sends`]: engine/wire/WorldLaws.lean#L457-L464
-[`op_taken`]: engine/wire/WorldLaws.lean#L487-L494
-[`write_offers_all`]: engine/wire/WorldLaws.lean#L1160-L1171
+[`write_offers`]: engine/wire/WorldLaws.lean#L457-L465
+[`hold_wants`]: engine/wire/WorldLaws.lean#L474-L480
+[`want_sends`]: engine/wire/WorldLaws.lean#L490-L497
+[`op_taken`]: engine/wire/WorldLaws.lean#L525-L532
+[`write_offers_all`]: engine/wire/WorldLaws.lean#L1198-L1209
 [`allowPeer_iff`]: ops/connection/bootstrap/Bridge.lean#L29-L32
 [`allowPeer_settles`]: ops/connection/bootstrap/Bridge.lean#L35-L39
-[`fanout_offers`]: engine/wire/WorldLaws.lean#L1017-L1023
-[`seal_mem`]: engine/wire/WorldLaws.lean#L1129-L1133
+[`fanout_offers`]: engine/wire/WorldLaws.lean#L1055-L1061
+[`seal_mem`]: engine/wire/WorldLaws.lean#L1167-L1171
 [`admitted_inv`]: ops/connection/bootstrap/Scene.lean#L154-L156
 [`allowedA`]: ops/connection/bootstrap/Scene.lean#L219-L219
 [`allowedB`]: ops/connection/bootstrap/Scene.lean#L231-L233
@@ -1139,5 +1151,6 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Seal.Good`]: ops/community/Keys.lean#L40-L43
 [`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
 [`Model.run`]: engine/core/Model.lean#L103-L103
+[`Sync.popW`]: engine/wire/LaneLaws.lean#L162-L165
 [`Engine.Inv`]: engine/core/Proofs.lean#L202-L219
 <!-- /proof-links -->
