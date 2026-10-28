@@ -81,6 +81,13 @@ ANativeWindow* ba_lock(int32_t* w, int32_t* h) {
   return ba_win;
 }
 
+bool ba_has_window(void) {
+  pthread_mutex_lock(&ba_mu);
+  bool on = ba_win != NULL;
+  pthread_mutex_unlock(&ba_mu);
+  return on;
+}
+
 void ba_unlock(void) {
   pthread_mutex_unlock(&ba_mu);
 }
@@ -93,6 +100,17 @@ void ba_size(int32_t* w, int32_t* h) {
   *w = ba_w;
   *h = ba_h;
   pthread_mutex_unlock(&ba_mu);
+}
+
+bool ba_size_now(int32_t* w, int32_t* h) {
+  pthread_mutex_lock(&ba_mu);
+  bool on = ba_win != NULL;
+  if (on) {
+    *w = ba_w;
+    *h = ba_h;
+  }
+  pthread_mutex_unlock(&ba_mu);
+  return on;
 }
 
 void ba_insets(int32_t* top, int32_t* bottom, int32_t* ime) {

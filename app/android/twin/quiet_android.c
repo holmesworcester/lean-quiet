@@ -26,6 +26,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <pthread.h>
+#include <stdatomic.h>
 
 #define LQ_LONG_NS 500000000
 
@@ -290,25 +292,127 @@ static void lq_time(uint64_t t0, uint64_t t1, uint64_t t2) {
   }
 }
 
+// The watchdog
+// ------------
+
+// Where Lean's thread is (0: in Lean; 1 frame start; 2 waiting for the
+// window; 3 drawing; 4 waiting a vsync; 10-12 presenting a layer), and
+// when it last moved. A thread on Lean's side or in a wait that has not
+// moved for 3 s while the window exists is reported: its phase, and a
+// backtrace of Lean's thread taken by a signal on it, so a hang names
+// the function it is in.
+#include <signal.h>
+#include <unwind.h>
+#include <dlfcn.h>
+
+static _Atomic int      lq_ph;
+static _Atomic int64_t  lq_moved;
+static pthread_t        lq_thread;
+static bool             lq_thread_known;
+
+static void lq_phase(int p) {
+  atomic_store(&lq_ph, p);
+  atomic_store(&lq_moved, (int64_t)lq_tick());
+}
+
+typedef struct { void** pcs; int n, max; } LqTrace;
+
+static _Unwind_Reason_Code lq_unwind(struct _Unwind_Context* c, void* arg) {
+  LqTrace* t = arg;
+  uintptr_t pc = _Unwind_GetIP(c);
+  if (pc != 0 && t->n < t->max) {
+    t->pcs[t->n++] = (void*)pc;
+  }
+  return t->n < t->max ? _URC_NO_REASON : _URC_END_OF_STACK;
+}
+
+static void lq_dump(int sig) {
+  (void)sig;
+  void*   pcs[40];
+  LqTrace t = { pcs, 0, 40 };
+  _Unwind_Backtrace(lq_unwind, &t);
+  for (int i = 0; i < t.n; i += 1) {
+    Dl_info d;
+    if (dladdr(pcs[i], &d) && d.dli_sname != NULL) {
+      __android_log_print(ANDROID_LOG_WARN, "lean", "  #%02d %s+%td", i, d.dli_sname,
+        (char*)pcs[i] - (char*)d.dli_saddr);
+    } else {
+      __android_log_print(ANDROID_LOG_WARN, "lean", "  #%02d %p", i, pcs[i]);
+    }
+  }
+}
+
+static void* lq_watch(void* arg) {
+  (void)arg;
+  int64_t reported = 0;
+  for (;;) {
+    struct timespec ts = { 1, 0 };
+    nanosleep(&ts, NULL);
+    int64_t moved = atomic_load(&lq_moved);
+    int     ph    = atomic_load(&lq_ph);
+    int64_t idle  = (int64_t)lq_tick() - moved;
+    // with no window, waiting is no hang (it waits for one)
+    if (moved == 0 || moved == reported || idle < 3000000000LL || !ba_has_window()) {
+      continue;
+    }
+    reported = moved;
+    __android_log_print(ANDROID_LOG_WARN, "lean", "watchdog: Lean's thread stuck %lld ms in phase %d",
+      (long long)(idle / 1000000), ph);
+    if (lq_thread_known) {
+      pthread_kill(lq_thread, SIGUSR2);
+    }
+  }
+  return NULL;
+}
+
+static void lq_watch_start(void) {
+  static bool started;
+  if (started) {
+    return;
+  }
+  started = true;
+  lq_thread       = pthread_self();
+  lq_thread_known = true;
+  struct sigaction sa;
+  memset(&sa, 0, sizeof sa);
+  sa.sa_handler = lq_dump;
+  sigaction(SIGUSR2, &sa, NULL);
+  lq_phase(0);
+  pthread_t t;
+  pthread_create(&t, NULL, lq_watch, NULL);
+  pthread_detach(t);
+}
+
 // Platform.lean
 // -------------
 
 lean_obj_res lq_screen(void) {
+  lq_watch_start();
+  lq_phase(0);
   int32_t w, h, top, bottom, ime;
-  ba_size(&w, &h);
-  // The Java half reports the insets at the first layout: the first call
-  // waits for it (up to a second); later calls (the app reads the screen
-  // every frame) answer what is known now.
+  // The first call waits for the window and its insets (up to a second
+  // for those); later calls (the app reads the screen every frame) never
+  // wait: with no window they answer the last size known. Waiting for a
+  // window happens in one place, lq_frame.
   static bool waited;
-  for (int i = 0; i < (waited ? 1 : 100); i += 1) {
-    ba_insets(&top, &bottom, &ime);
-    if (top > 0) {
-      break;
+  if (!waited) {
+    ba_size(&w, &h);
+    for (int i = 0; i < 100; i += 1) {
+      ba_insets(&top, &bottom, &ime);
+      if (top > 0) {
+        break;
+      }
+      struct timespec ts = { 0, 10000000 };
+      nanosleep(&ts, NULL);
     }
-    struct timespec ts = { 0, 10000000 };
-    nanosleep(&ts, NULL);
+    waited = true;
+  } else {
+    if (!ba_size_now(&w, &h)) {
+      w = (int32_t)lq.w;
+      h = (int32_t)lq.h;
+    }
+    ba_insets(&top, &bottom, &ime);
   }
-  waited = true;
   lq.w            = (uint32_t)w;
   lq.h            = (uint32_t)h;
   lq.inset_top    = (uint32_t)top;
@@ -344,6 +448,7 @@ lean_obj_res lq_scroll_to(double b) {
 
 lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj_arg top,
   b_lean_obj_arg bot) {
+  lq_phase(1);
   uint64_t t0    = lq_tick();
   uint32_t top_h = (uint32_t)lean_array_size(top);
   uint32_t bot_h = (uint32_t)lean_array_size(bot);
@@ -361,7 +466,9 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
   uint64_t t1 = lq_tick();
   bool any = lq.st[0].dirty || lq.st[1].dirty || lq.st[2].dirty;
   int32_t sw, sh;
+  lq_phase(2);
   ANativeWindow* on = ba_lock(&sw, &sh);
+  lq_phase(3);
   if (on != NULL) {
     bool fresh = on != lq.painted;
     lq_paint(on, sw, sh);
@@ -374,17 +481,23 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
       any = true;
     }
     if (!any) {
+      lq_phase(4);
       bl_idle();
     }
     for (int k = 0; k < 3; k += 1) {
       LqStage* s = &lq.st[k];
       if (s->dirty) {
-        bl_present((BlKind)k, s->pix, s->w, s->h, s->off,
-          k == BL_BOT ? lq.inset_bottom : 0);
+        lq_phase(10 + k);
+        if (!bl_present((BlKind)k, s->pix, s->w, s->h, s->off,
+            k == BL_BOT ? lq.inset_bottom : 0)) {
+          // not shown: present everything again with the next frame
+          lq.painted = NULL;
+        }
       }
     }
   }
   lq_time(t0, t1, lq_tick());
+  lq_phase(0);
   lean_object* evs = lean_mk_empty_array_with_capacity(lean_box(lq.n * 4));
   for (uint32_t i = 0; i < lq.n * 4; i += 1) {
     evs = lean_array_push(evs, lean_box_uint32(lq.evs[i]));

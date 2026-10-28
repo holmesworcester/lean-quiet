@@ -407,8 +407,30 @@ void bl_attach(ANativeWindow* win) {
   pthread_mutex_unlock(&bl_mu);
 }
 
+// Waits on the condition until it is signalled or ms have passed since
+// `from` (a CLOCK_REALTIME time, the condition's clock); false on timeout.
+// Every wait of Lean's thread here is bounded: while the screen is off or
+// locked over the app, vsyncs stop and the compositor releases nothing,
+// and an unbounded wait would hang the app for good.
+static bool bl_wait_until(const struct timespec* from, int ms) {
+  struct timespec dl = *from;
+  dl.tv_nsec += (long)(ms % 1000) * 1000000L;
+  dl.tv_sec  += ms / 1000 + dl.tv_nsec / 1000000000L;
+  dl.tv_nsec %= 1000000000L;
+  return pthread_cond_timedwait(&bl_cv, &bl_mu, &dl) == 0;
+}
+
+static bool bl_late(const struct timespec* from, int ms) {
+  struct timespec now;
+  clock_gettime(CLOCK_REALTIME, &now);
+  int64_t d = (int64_t)(now.tv_sec - from->tv_sec) * 1000 + (now.tv_nsec - from->tv_nsec) / 1000000;
+  return d >= ms;
+}
+
 bool bl_present(BlKind k, const uint32_t* pix, uint32_t w, uint32_t h, uint32_t y,
   uint32_t extend) {
+  struct timespec t0;
+  clock_gettime(CLOCK_REALTIME, &t0);
   BlLayer* l = &bl_l[k];
   pthread_mutex_lock(&bl_mu);
   if (l->sc == NULL) {
@@ -419,17 +441,25 @@ bool bl_present(BlKind k, const uint32_t* pix, uint32_t w, uint32_t h, uint32_t 
     bl_alloc(l, w, h + extend);
   }
   // At most one frame of a layer waits for a vsync: Lean goes at the
-  // display's pace.
+  // display's pace. With no vsync for 200 ms, the waiting frame (never
+  // shown) is overwritten by this one instead.
+  int i = -1;
   for (bool waiting = true; waiting && l->sc != NULL;) {
     waiting = false;
-    for (int i = 0; i < BL_BUFS; i += 1) {
-      waiting |= l->bufs[i].state == BL_NEXT;
+    for (int j = 0; j < BL_BUFS; j += 1) {
+      if (l->bufs[j].state == BL_NEXT) {
+        waiting = true;
+        if (bl_late(&t0, 200)) {
+          i = j;
+          waiting = false;
+        }
+      }
     }
     if (waiting) {
-      pthread_cond_wait(&bl_cv, &bl_mu);
+      bl_wait_until(&t0, 200);
     }
   }
-  int i = -1;
+  // A free buffer, waiting at most 200 ms for the compositor to release one.
   while (i < 0 && l->sc != NULL) {
     for (int j = 0; j < BL_BUFS && i < 0; j += 1) {
       if (l->bufs[j].state == BL_FREE && l->bufs[j].buf != NULL) {
@@ -437,7 +467,10 @@ bool bl_present(BlKind k, const uint32_t* pix, uint32_t w, uint32_t h, uint32_t 
       }
     }
     if (i < 0) {
-      pthread_cond_wait(&bl_cv, &bl_mu);
+      if (bl_late(&t0, 400)) {
+        break;
+      }
+      bl_wait_until(&t0, 400);
     }
   }
   if (i < 0) {
@@ -473,10 +506,13 @@ bool bl_present(BlKind k, const uint32_t* pix, uint32_t w, uint32_t h, uint32_t 
 }
 
 bool bl_idle(void) {
+  struct timespec t0;
+  clock_gettime(CLOCK_REALTIME, &t0);
   pthread_mutex_lock(&bl_mu);
   uint64_t seq = bl_seq;
-  while (bl_running && seq == bl_seq && bl_l[BL_LIST].sc != NULL) {
-    pthread_cond_wait(&bl_cv, &bl_mu);
+  // A vsync's wait, at most 100 ms (none come while the screen is off).
+  while (bl_running && seq == bl_seq && bl_l[BL_LIST].sc != NULL && !bl_late(&t0, 100)) {
+    bl_wait_until(&t0, 100);
   }
   bool on = bl_running && bl_l[BL_LIST].sc != NULL;
   pthread_mutex_unlock(&bl_mu);

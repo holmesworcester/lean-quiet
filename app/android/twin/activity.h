@@ -31,6 +31,12 @@ typedef struct {
 ANativeWindow* ba_lock(int32_t* w, int32_t* h);
 void           ba_unlock(void);
 
+// Whether the activity has a surface now (it never blocks for one).
+bool           ba_has_window(void);
+
+// The surface's size if there is one now, without waiting.
+bool           ba_size_now(int32_t* w, int32_t* h);
+
 // The surface's size once there is one (blocking), and the insets as last
 // reported: status bar, navigation bar, keyboard (0 when closed), px.
 void ba_size(int32_t* w, int32_t* h);
