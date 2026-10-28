@@ -4,20 +4,37 @@
 // Platform.ctlPoll and ctlReply, as android/twin/ctl.c does them, over TCP
 // on 127.0.0.1 instead of an abstract unix socket (iOS has none): in the
 // Simulator that is the Mac's own loopback, so a client on the Mac reaches
-// the app directly (ios/ctl.py). On a phone, a test can ask for every
-// interface instead (LEANQUIET_CTL_ADDR=any, at launch only): the listener
-// then logs the phone's addresses. The line `twin` is the twin's own
-// report (lq_twin, for tests), answered at once; `twin local` puts the
-// channel back on 127.0.0.1 alone; `twin shot` writes the app's window to
-// Documents/screen.png. A thread listens, one reader thread per
+// the app directly (ios/ctl.py). A thread listens, one reader thread per
 // connection splits what arrives into lines, and each line waits in a
 // queue for Lean. A reply answers the oldest unanswered command and goes
 // back on that command's connection. A connection is closed once its peer
-// has hung up and every command it sent has been answered.
+// has hung up and every command it sent has been answered. The line
+// `twin` is the twin's own report (lq_twin, for tests), answered at once;
+// `twin local` puts the channel back on 127.0.0.1 alone; `twin shot`
+// writes the app's window to Documents/screen.png.
+//
+// Who can reach it. TCP carries no peer uid (Android's SO_PEERCRED), and on
+// a phone any other app can connect to 127.0.0.1 too. So a connection's
+// first line must be the channel's token, `token <hex>` (128 random bits,
+// compared in constant time); one that is not is closed, unread and
+// unanswered. The token is the launch's LEANQUIET_CTL_TOKEN (a test
+// harness makes one per run and launches with it, through simctl or
+// devicectl: the Mac the phone is paired with), else one made at start and
+// kept in the app's container (Documents/ctl.token, 0600; read it with
+// devicectl device copy from). The channel listens on 127.0.0.1, and on
+// every interface only for a launch with LEANQUIET_CTL_REMOTE=1 (a device
+// test from the Mac over Wi-Fi), until `twin local`. And it exists only in
+// development builds: build_ios.sh compiles it with LQ_CTL unless
+// RELEASE=1. A release build has no listener at all, and ctlPoll answers
+// nothing.
+
+#include <lean/lean.h>
+
+#ifdef LQ_CTL
 
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <ifaddrs.h>
-#include <lean/lean.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdatomic.h>
@@ -32,7 +49,24 @@ typedef struct Conn {
   int  fd;
   int  pending;  // commands not yet answered
   bool hung;     // the peer hung up
+  bool authed;   // its first line was the token
 } Conn;
+
+// The token, as hex (32 characters).
+static char lq_token[65];
+
+// Whether line (n bytes) is `token <the token>`, in constant time.
+static bool lq_token_ok(const char* line, size_t n) {
+  size_t t = strlen(lq_token);
+  if (t == 0 || n != 6 + t || memcmp(line, "token ", 6) != 0) {
+    return false;
+  }
+  unsigned char d = 0;
+  for (size_t i = 0; i < t; i += 1) {
+    d |= (unsigned char)(line[6 + i] ^ lq_token[i]);
+  }
+  return d == 0;
+}
 
 typedef struct Cmd {
   Conn*       conn;
@@ -64,7 +98,7 @@ static void lq_twin_line(Conn* c) {
   send(c->fd, out, n + 1, 0);
 }
 
-// Whether the channel listens on every interface (LEANQUIET_CTL_ADDR=any
+// Whether the channel listens on every interface (LEANQUIET_CTL_REMOTE=1
 // at launch) until `twin local` puts it back on 127.0.0.1, and its port.
 static _Atomic bool lq_any;
 static int          lq_port;
@@ -117,7 +151,14 @@ static void* lq_reader(void* arg) {
         if (len > 0 && buf[i - 1] == '\r') {
           len -= 1;
         }
-        if (len == 4 && memcmp(buf + start, "twin", 4) == 0) {
+        if (!c->authed) {
+          // the first line: the token, or the connection ends unanswered
+          if (!lq_token_ok(buf + start, len)) {
+            goto done;
+          }
+          c->authed = true;
+          send(c->fd, "ok\n", 3, 0);
+        } else if (len == 4 && memcmp(buf + start, "twin", 4) == 0) {
           lq_twin_line(c);
         } else if (len == 10 && memcmp(buf + start, "twin local", 10) == 0) {
           lq_local(c);
@@ -139,6 +180,7 @@ static void* lq_reader(void* arg) {
       n = 0;  // a line longer than the buffer is dropped
     }
   }
+done:
   pthread_mutex_lock(&lq_ctl_mu);
   c->hung = true;
   lq_release(c);
@@ -199,9 +241,26 @@ static void* lq_listen(void* arg) {
   return NULL;
 }
 
-void lq_ctl_start(int port) {
-  const char* where = getenv("LEANQUIET_CTL_ADDR");
-  atomic_store(&lq_any, where != NULL && strcmp(where, "any") == 0);
+// Starts the channel on port: the launch's token, or a new one kept at
+// token_file (see the top).
+void lq_ctl_start(int port, const char* token_file) {
+  const char* given  = getenv("LEANQUIET_CTL_TOKEN");
+  const char* remote = getenv("LEANQUIET_CTL_REMOTE");
+  if (given != NULL && strlen(given) >= 32 && strlen(given) < sizeof lq_token) {
+    strcpy(lq_token, given);
+  } else {
+    unsigned char r[16];
+    arc4random_buf(r, sizeof r);
+    for (int i = 0; i < 16; i += 1) {
+      snprintf(lq_token + 2 * i, 3, "%02x", r[i]);
+    }
+    int fd = open(token_file, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (fd >= 0) {
+      write(fd, lq_token, strlen(lq_token));
+      close(fd);
+    }
+  }
+  atomic_store(&lq_any, remote != NULL && strcmp(remote, "1") == 0);
   lq_port = port;
   pthread_t t;
   if (pthread_create(&t, NULL, lq_listen, NULL) == 0) {
@@ -264,3 +323,16 @@ lean_obj_res lq_ctl_reply(b_lean_obj_arg s) {
   free(m);
   return lean_io_result_mk_ok(lean_box(0));
 }
+
+#else  // a release build: no channel; Lean's externs answer nothing
+
+lean_obj_res lq_ctl_poll(void) {
+  return lean_io_result_mk_ok(lean_mk_empty_array());
+}
+
+lean_obj_res lq_ctl_reply(b_lean_obj_arg s) {
+  (void)s;
+  return lean_io_result_mk_ok(lean_box(0));
+}
+
+#endif

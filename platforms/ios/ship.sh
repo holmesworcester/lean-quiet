@@ -28,6 +28,9 @@
 #                         network prompt); out/ios-sim/probe-device.txt
 #        ship.sh ctl CMD...   control commands to the app in the Simulator
 #        ship.sh shot FILE    a screenshot of the Simulator, here
+#        ship.sh ctl-guard    who can drive the control channel, in the
+#                         simulator: token required, loopback only, and a
+#                         RELEASE=1 build does not listen (test/ctl_guard_mac.sh)
 #        ship.sh device   build for an iPhone (signed), install nothing
 #        ship.sh e2e-device   device, then on $DEVICE: installed, launched,
 #                         driven over the Mac's Wi-Fi (chaos data, state,
@@ -60,7 +63,7 @@ lake=$ELAN_HOME/bin/lake
 T=$("$ELAN_HOME/bin/lean" --print-prefix)
 st=$root/out/ios-stage
 art=$root/out/ios-sim
-dx="export DEVELOPER_DIR=/Applications/Xcode-26.3.0.app/Contents/Developer IOS_MULTICAST=${IOS_MULTICAST:-0}${IOS_PROFILE:+ IOS_PROFILE=$IOS_PROFILE};"
+dx="export DEVELOPER_DIR=/Applications/Xcode-26.3.0.app/Contents/Developer IOS_MULTICAST=${IOS_MULTICAST:-0} RELEASE=${RELEASE:-}${IOS_PROFILE:+ IOS_PROFILE=$IOS_PROFILE};"
 
 # The modules main imports, followed through `import` lines over the
 # roots given (the last is the toolchain's sources), one "<i> <module>" a
@@ -121,6 +124,7 @@ proofs() {
 stage() {
   proofs
   [ -f "$root/assets/font.bin" ] || "$root/tools/fetch_assets.sh"
+  mkdir -p "$root/out"
   [ -d "$root/out/initc" ] || "$root/tools/gen_init_c.sh" "$root/out/initc"
   local closure targets roots engine
   # the engine's crypto: engine/native/crypto.c and the Rust crate
@@ -220,8 +224,20 @@ mac_build() {
   tail -1 "$log"
 }
 
+# The control channel's token for the Simulator's app: one per checkout
+# (out/ios-sim/ctl.token, 0600), given at each launch and sent first by
+# every client (ctl_ios.c answers nothing without it).
+token() {
+  local f=$art/ctl.token
+  if [ ! -s "$f" ]; then
+    mkdir -p "$art"
+    (umask 077; python3 -c 'import secrets; print(secrets.token_hex(16))' > "$f")
+  fi
+  cat "$f"
+}
+
 ctl() {
-  ssh "$mac" "$dx python3 - -p $port $(printf "'%s' " "$@")" < "$root/platforms/ios/ctl.py"
+  ssh "$mac" "$dx python3 - -p $port -T $(token) $(printf "'%s' " "$@")" < "$root/platforms/ios/ctl.py"
 }
 
 sim() {
@@ -231,7 +247,7 @@ sim() {
   app=$(mac_build sim "~/$dir/stage/ios/build_ios.sh ~/$dir/stage ~/$dir/build sim")
   echo "built $app"
   on_mac "~/$dir/stage/ios/sim.sh ~/$dir install $app"
-  on_mac "~/$dir/stage/ios/sim.sh ~/$dir launch $port" >/dev/null
+  on_mac "~/$dir/stage/ios/sim.sh ~/$dir launch $port $(token)" >/dev/null
   # a fresh install opens on Get started: found a community (its home),
   # fill it with chaos, open its conversation
   ctl ping "found general" "chaos ${MESSAGES:-500}" wait channel state
@@ -266,7 +282,7 @@ e2e() {
   comp=$(echo "$tg" | sed -n 's/^composer //p'); link=$(echo "$tg" | sed -n 's/^link //p')
   [ -n "$field" ] && [ -n "$cont" ] && [ -n "$comp" ] && [ -n "$link" ] || { echo "no targets: $tg"; exit 1; }
   local ok=0
-  on_mac "cd ~/$dir/stage/ios && TEST_RUNNER_LEANQUIET_CTL_PORT=$port \
+  on_mac "cd ~/$dir/stage/ios && TEST_RUNNER_LEANQUIET_CTL_PORT=$port TEST_RUNNER_LEANQUIET_CTL_TOKEN=$(token) \
     TEST_RUNNER_LEANQUIET_SHOTS=\$HOME/$dir/out/shots TEST_RUNNER_LEANQUIET_FIELD='$field' \
     TEST_RUNNER_LEANQUIET_CONTINUE='$cont' TEST_RUNNER_LEANQUIET_COMPOSER='$comp' \
     TEST_RUNNER_LEANQUIET_LINK='$link' xcodebuild test-without-building \
@@ -310,6 +326,25 @@ probe() {
   echo PASS
 }
 
+# Who can drive the app's control channel (test/ctl_guard_mac.sh, in the
+# simulator): no token or a wrong one gets nothing, the launch's token is
+# answered, the Mac's Wi-Fi address is refused, and a RELEASE=1 build
+# neither listens nor holds a listener. Leaves the development build in.
+ctl_guard() {
+  stage
+  push
+  local dev rel
+  dev=$(mac_build sim "~/$dir/stage/ios/build_ios.sh ~/$dir/stage ~/$dir/build sim")
+  on_mac "rm -rf ~/$dir/out/dev.app && cp -R $dev ~/$dir/out/dev.app"
+  rel=$(mac_build sim-release "RELEASE=1 ~/$dir/stage/ios/build_ios.sh ~/$dir/stage ~/$dir/build sim")
+  on_mac "rm -rf ~/$dir/out/release.app && cp -R $rel ~/$dir/out/release.app"
+  mkdir -p "$art"
+  local ok=0
+  on_mac "~/$dir/stage/ios/test/ctl_guard_mac.sh ~/$dir ~/$dir/out/dev.app ~/$dir/out/release.app $port $(token)" \
+    | tee "$art/ctl-guard.txt" || ok=$?
+  [ "$ok" = 0 ] && ! grep -q '^FAIL' "$art/ctl-guard.txt"
+}
+
 device() {
   stage
   push
@@ -340,6 +375,7 @@ case $what in
   shot) shot "${2:?file}" ;;
   device) device ;;
   e2e-device) e2e_device ;;
+  ctl-guard) ctl_guard ;;
   run)
     device
     on_mac "xcrun devicectl device install app --device $device $app" | tail -2
@@ -347,5 +383,5 @@ case $what in
   clean)
     on_mac "~/$dir/stage/ios/sim.sh ~/$dir delete" || true
     ssh "$mac" "rm -rf ~/$dir" ;;
-  *) sed -n 2,47p "$0"; exit 2 ;;
+  *) sed -n 2,50p "$0"; exit 2 ;;
 esac
