@@ -28,11 +28,14 @@ Linux box and do the Mac's part over SSH.
 ## Prerequisites
 
 - **Here:** the Lean toolchain (`ELAN_HOME`, default `/mnt/storage/elan`)
-  and `../lean-engine` built by lake. You also need Lean's source at the
-  toolchain's version (`LEAN_SRC`, default
-  `/mnt/storage/holmes-wt/lean-src/lean4`, tag v4.34.0) and libuv v1.51.0
-  (`UV_SRC`, default `/mnt/storage/holmes-wt/lean-src/libuv`). `assets/`
-  comes from `tools/fetch_assets.sh`. Init's C goes to `out/initc`
+  and the packages in `lake-manifest.json` (the engine, lean-qr) built by
+  lake. You also need Lean's source at the toolchain's version
+  (`LEAN_SRC`, default `/mnt/storage/holmes-wt/lean-src/lean4`, tag
+  v4.34.0) and libuv v1.51.0 (`UV_SRC`, default
+  `/mnt/storage/holmes-wt/lean-src/libuv`). The engine's Rust crypto needs
+  cargo with the targets `aarch64-apple-ios` and `aarch64-apple-ios-sim`
+  (`rustup target add`); it builds here, and the Mac only links it.
+  `assets/` comes from `tools/fetch_assets.sh`. Init's C goes to `out/initc`
   (`tools/gen_init_c.sh`). Std's C is cached in `out/stdc`.
 - **The Mac** (`MAC`, default `you@your-mac`): SSH without a
   password, and Xcode at `/Applications/Xcode-26.3.0.app` (used through
