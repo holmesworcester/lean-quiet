@@ -82,7 +82,7 @@ def main (args : List String) : IO UInt32 := do
   -- A founds and invites at its address; B joins from the link.
   a.run.write (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (sha256 "key".toUTF8) (sha256 "esk".toUTF8)).ops
   let c := (root dA).id
-  let (wi, link) := inviteTo c c a.seed (sha256 "bearer".toUTF8) [a.addr]
+  let (wi, link) := inviteTo c c dA (sha256 "bearer".toUTF8) [a.addr]
   a.run.write wi.ops
   let req := link.request dB
   b.run.write (joinOps link b.seed "Bea".toUTF8).ops
@@ -95,7 +95,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "tcp: B established nothing before approval" ((← ests b).isEmpty)
   t.ok "tcp: B is not admitted on A before approval" (!(← allowedOn a c dB.pk))
   -- A approves.
-  let wr ← look a ((approveReq c req.id c a.seed).liftL.run : SqlM F Community.Write)
+  let wr ← look a ((approveReq c req.id c dA).liftL.run : SqlM F Community.Write)
   a.run.write wr.ops
   let est ← waitFor 15000 do return (← ests a).length == 1 && (← ests b).length == 1
   t.ok "tcp: each holds one established session" est.isSome

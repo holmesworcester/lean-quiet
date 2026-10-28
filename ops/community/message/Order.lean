@@ -24,8 +24,8 @@ falls back on this device's receipts, and that exception is a law.
   shows two that differ there).
 
 `time_is_display` and `msg_cmp` rest on the byte order of sort keys
-(`cmpL_be64`: eight bytes, most significant first, order numbers below
-2^64) and the engine's `Engine.bcmp_eq`.
+(`lexCmp_be64`: eight bytes, most significant first, order numbers below
+2^64) and the engine's `Engine.bcmp_eq_lexCmp`.
 -/
 import ops.community.Intents
 import engine.core.Order
@@ -60,15 +60,15 @@ theorem compare_place {x y d e P : Nat} (hx : x < P) (hy : y < P) :
     rw [Nat.compare_eq_gt.2 h, Nat.compare_eq_gt.2 (by omega)]; rfl
 
 /-- k digits, most significant first, compare as the numbers mod 256^k. -/
-theorem cmpL_digits (a b : Nat) : ∀ k, cmpL (digits a (List.range k).reverse) (digits b (List.range k).reverse) =
+theorem lexCmp_digits (a b : Nat) : ∀ k, lexCmp (digits a (List.range k).reverse) (digits b (List.range k).reverse) =
     compare (a % 256 ^ k) (b % 256 ^ k)
-  | 0 => by simp [digits, cmpL, Nat.mod_one]
+  | 0 => by simp [digits, lexCmp, Nat.mod_one]
   | k + 1 => by
     rw [List.range_succ, List.reverse_append]
     simp only [List.reverse_cons, List.reverse_nil, List.nil_append, List.cons_append, digits, List.map_cons]
-    have ih := cmpL_digits a b k
+    have ih := lexCmp_digits a b k
     simp only [digits] at ih
-    simp only [cmpL]
+    simp only [lexCmp]
     have hp : 0 < 256 ^ k := Nat.pow_pos_iff.2 (.inl (by decide))
     rw [Nat.pow_succ, Nat.mod_mul, Nat.mod_mul, compare_place (Nat.mod_lt _ hp) (Nat.mod_lt _ hp)]
     have e1 : (a >>> (8 * k)).toUInt8 < (b >>> (8 * k)).toUInt8 ↔ a / 256 ^ k % 256 < b / 256 ^ k % 256 := by
@@ -92,9 +92,9 @@ theorem be64_len_eq (a b : Nat) : (be64 a).data.toList.length = (be64 b).data.to
   rw [be64_length, be64_length]
 
 /-- **Eight bytes, most significant first, order numbers below 2^64.** -/
-theorem cmpL_be64 {a b : Nat} (ha : a < 2 ^ 64) (hb : b < 2 ^ 64) :
-    cmpL (be64 a).data.toList (be64 b).data.toList = compare a b := by
-  rw [be64_toList, be64_toList, cmpL_digits, show (256 : Nat) ^ 8 = 2 ^ 64 by rfl,
+theorem lexCmp_be64 {a b : Nat} (ha : a < 2 ^ 64) (hb : b < 2 ^ 64) :
+    lexCmp (be64 a).data.toList (be64 b).data.toList = compare a b := by
+  rw [be64_toList, be64_toList, lexCmp_digits, show (256 : Nat) ^ 8 = 2 ^ 64 by rfl,
     Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb]
 
 theorem toList_append (a b : ByteArray) : (a ++ b).data.toList = a.data.toList ++ b.data.toList := by
@@ -110,9 +110,9 @@ theorem min_lt {n cap : Nat} (h : cap < 2 ^ 64) : min n cap < 2 ^ 64 :=
 theorem bcmp_msgKey (n tm n' tm' : Nat) :
     bcmp (msgKey n tm) (msgKey n' tm') =
       (compare (min n countCap) (min n' countCap)).then (compare (min tm timeCap) (min tm' timeCap)) := by
-  rw [bcmp_eq, msgKey, msgKey, toList_append, toList_append,
-    cmpL_append _ _ (be64_len_eq _ _), cmpL_be64 (min_lt countCap_lt) (min_lt countCap_lt),
-    cmpL_be64 (min_lt timeCap_lt) (min_lt timeCap_lt)]
+  rw [bcmp_eq_lexCmp, msgKey, msgKey, toList_append, toList_append,
+    lexCmp_append _ _ (be64_len_eq _ _), lexCmp_be64 (min_lt countCap_lt) (min_lt countCap_lt),
+    lexCmp_be64 (min_lt timeCap_lt) (min_lt timeCap_lt)]
 
 theorem recKey_toList (k : Nat) (m : Id) :
     (recKey k m).data.toList = (be64 countCap).data.toList ++ ((be64 k).data.toList ++ m.data.toList) := by
@@ -120,16 +120,16 @@ theorem recKey_toList (k : Nat) (m : Id) :
 
 theorem bcmp_recKey {k k' : Nat} (hk : k < 2 ^ 64) (hk' : k' < 2 ^ 64) (m m' : Id) :
     bcmp (recKey k m) (recKey k' m') = (compare k k').then (bcmp m m') := by
-  rw [bcmp_eq, bcmp_eq, recKey_toList, recKey_toList, cmpL_append _ _ (be64_len_eq _ _),
-    cmpL_append _ _ (be64_len_eq _ _), cmpL_be64 countCap_lt countCap_lt, cmpL_be64 hk hk',
+  rw [bcmp_eq_lexCmp, bcmp_eq_lexCmp, recKey_toList, recKey_toList, lexCmp_append _ _ (be64_len_eq _ _),
+    lexCmp_append _ _ (be64_len_eq _ _), lexCmp_be64 countCap_lt countCap_lt, lexCmp_be64 hk hk',
     Nat.compare_eq_eq.2 rfl]
   rfl
 
 /-- Every message below the cap sorts before every receipt. -/
 theorem bcmp_msg_rec {n : Nat} (hn : n < countCap) (tm k : Nat) (m : Id) :
     bcmp (msgKey n tm) (recKey k m) = .lt := by
-  rw [bcmp_eq, msgKey, recKey_toList, toList_append, cmpL_append _ _ (be64_len_eq _ _),
-    cmpL_be64 (min_lt countCap_lt) countCap_lt, Nat.min_eq_left (Nat.le_of_lt hn), Nat.compare_eq_lt.2 hn]
+  rw [bcmp_eq_lexCmp, msgKey, recKey_toList, toList_append, lexCmp_append _ _ (be64_len_eq _ _),
+    lexCmp_be64 (min_lt countCap_lt) countCap_lt, Nat.min_eq_left (Nat.le_of_lt hn), Nat.compare_eq_lt.2 hn]
   rfl
 
 /-! ## The order of a channel -/
@@ -165,18 +165,12 @@ def InOrder (desc : Bool) (a b : Pos × Fact) : Prop :=
   (if desc then Pos.cmp b.1 a.1 else Pos.cmp a.1 b.1) ≠ .gt ∧
     (a.1.2 ≠ b.1.2 → (if desc then Pos.cmp b.1 a.1 else Pos.cmp a.1 b.1) = .lt)
 
-theorem strict_of {p q : Pos} (h : Pos.cmp p q ≠ .gt) (hne : p ≠ q) : Pos.cmp p q = .lt := by
-  cases e : Pos.cmp p q
-  · rfl
-  · exact absurd ((Pos.cmp_eq_iff p q).1 e) hne
-  · exact absurd e h
-
 /-- **A channel's list is a strict total order on its messages.**
 `readable`'s rows are in its order, newest first or oldest first as
 asked, and two rows naming different messages are never level: one is
 strictly before the other (with equal counter and time, by id:
 `msg_cmp`). Sorting before is a strict total order on positions
-(`Pos.cmp_eq_iff`, `Pos.cmp_swap`, `Pos.cmp_trans`). -/
+(`Pos.cmp_eq_iff`, `Pos.cmp_swap`, `Pos.cmp_lt_trans`). -/
 theorem order_total (s : DB Fact) (c : Id) (lim : Option Nat) (desc : Bool) (after before : Option Pos) :
     ((readable c lim desc after before).eval s).rows.Pairwise (InOrder desc) := by
   rw [eval_readable]
@@ -375,24 +369,24 @@ cap it sorts at its own key, and past it at the receipt the same write
 holds; either way after every message this device lists in c when it
 writes (`Listed`, which every row of `readable c` is). The receipt
 counter must stay below 2^64, as in `arrival_order`. -/
-theorem send_after (h : Inv (family C) s) (hq : s.queue = []) (c myAdm : Id) (seed k nonce text : ByteArray)
+theorem send_after (h : Inv (family C) s) (hq : s.queue = []) (c myAdm : Id) (d : Device) (k nonce text : ByteArray)
     (now : Nat) (files : List NewFile)
     (hk : ∀ z kid m j, V C s.ops z (.received c kid m j) → j + 1 < 2 ^ 64) :
-    ∃ n, ((send c myAdm seed k nonce text now files).eval s).ops.head? =
-        some (sealedPost c myAdm (Device.ofSeed seed) k nonce text n now) ∧
-      (s.ops (sealedPost c myAdm (Device.ofSeed seed) k nonce text n now).id = none →
+    ∃ n, ((send c myAdm d k nonce text now files).eval s).ops.head? =
+        some (sealedPost c myAdm d k nonce text n now) ∧
+      (s.ops (sealedPost c myAdm d k nonce text n now).id = none →
         ∃ sk, (n < countCap ∧ sk = msgKey n now ∨
-            ∃ j, receipt (sealedPost c myAdm (Device.ofSeed seed) k nonce text n now).id j ∈
-              ((send c myAdm seed k nonce text now files).eval s).ops ∧
-              sk = recKey j (sealedPost c myAdm (Device.ofSeed seed) k nonce text n now).id) ∧
+            ∃ j, receipt (sealedPost c myAdm d k nonce text n now).id j ∈
+              ((send c myAdm d k nonce text now files).eval s).ops ∧
+              sk = recKey j (sealedPost c myAdm d k nonce text n now).id) ∧
           ∀ x sk', Listed C s.ops c x sk' →
-            Pos.cmp (sk', x) (sk, (sealedPost c myAdm (Device.ofSeed seed) k nonce text n now).id) = .lt) := by
+            Pos.cmp (sk', x) (sk, (sealedPost c myAdm d k nonce text n now).id) = .lt) := by
   let T := (topCount c).eval s
   let n := min (T + 1) countCap
-  let p := sealedPost c myAdm (Device.ofSeed seed) k nonce text n now
-  have hw : (send c myAdm seed k nonce text now files).eval s =
+  let p := sealedPost c myAdm d k nonce text n now
+  have hw : (send c myAdm d k nonce text now files).eval s =
       ⟨p :: (receiptFor p).eval s ++ files.flatMap (fun f =>
-        let (a, cs) := attach c myAdm p.id (Device.ofSeed seed) k f; a :: cs)⟩ := by
+        let (a, cs) := attach c myAdm p.id d k f; a :: cs)⟩ := by
     simp only [send, View.eval_bind, View.eval_pure]; rfl
   refine ⟨n, by rw [hw]; rfl, fun hnew => ?_⟩
   -- every message of c the device lists is at most T
@@ -413,7 +407,7 @@ theorem send_after (h : Inv (family C) s) (hq : s.queue = []) (c myAdm : Id) (se
   · have hsat : countCap ≤ n := by simp only [n]; omega
     have hp : (decode p.body : Option Body) = some (.post (kidOf cryptoSeal k)
         (nonce ++ sealBody cryptoSeal k nonce c (kidOf cryptoSeal k) text) n now
-        (sig (Device.ofSeed seed).sk [c, myAdm] (.post (kidOf cryptoSeal k)
+        (sig d.sk [c, myAdm] (.post (kidOf cryptoSeal k)
           (nonce ++ sealBody cryptoSeal k nonce c (kidOf cryptoSeal k) text) n now .empty))) :=
       body_mkOp _ _
     have hc : p.reqs.headD .empty = c := rfl

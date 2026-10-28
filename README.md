@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 297 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 298 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -425,12 +425,12 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`pageIn_acc`]: App.lean#L882-L885
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
-[`order_total`]: ops/community/message/Order.lean#L174-L181
-[`send_after`]: ops/community/message/Order.lean#L371-L389
-[`arrival_order`]: ops/community/message/Order.lean#L342-L354
-[`receipt_once`]: ops/community/message/Order.lean#L299-L302
-[`order_local`]: ops/community/message/Order.lean#L429-L441
-[`display_agrees`]: ops/community/message/Order.lean#L471-L481
+[`order_total`]: ops/community/message/Order.lean#L168-L175
+[`send_after`]: ops/community/message/Order.lean#L365-L383
+[`arrival_order`]: ops/community/message/Order.lean#L336-L348
+[`receipt_once`]: ops/community/message/Order.lean#L293-L296
+[`order_local`]: ops/community/message/Order.lean#L423-L435
+[`display_agrees`]: ops/community/message/Order.lean#L465-L475
 [`parse_segsBits`]: engine/renderer/qr/SegLaws.lean#L157-L161
 [`parse_dataStream`]: engine/renderer/qr/SegLaws.lean#L193-L197
 [`RS.correct_sound`]: engine/renderer/qr/Laws.lean#L55-L57

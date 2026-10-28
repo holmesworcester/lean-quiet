@@ -15,9 +15,10 @@ cd "$(dirname "$0")/../.."
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
 (cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
-lake build codecdiff scenario differential crash querydiff linkcheck lifecycle wire syncpair tcppair noise_check connection_check purge jointcp merkle_check
+lake build codecdiff poolstarve scenario differential crash querydiff linkcheck lifecycle wire syncpair tcppair noise_check connection_check purge jointcp merkle_check
 mkdir -p out
 .lake/build/bin/codecdiff "${CODEC_VALUES:-200}"
+.lake/build/bin/poolstarve
 .lake/build/bin/scenario out/scenario
 .lake/build/bin/differential out/differential "${SEEDS:-12}"
 .lake/build/bin/querydiff

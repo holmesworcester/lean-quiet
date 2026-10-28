@@ -124,6 +124,7 @@ open Engine Community
 #print axioms Engine.mem_purgeSet
 #print axioms Engine.purge_inv
 #print axioms Engine.perm_sortPos
+#print axioms Engine.sortPos_eq_fast
 #print axioms Engine.matching_nodup
 #print axioms Engine.purge_settles
 #print axioms Engine.reach_ops
@@ -139,14 +140,13 @@ open Engine Community
 #print axioms Engine.mem_union_all
 #print axioms Community.readable_held
 #print axioms Community.readable_complete
-#print axioms Engine.bcmp_eq
 #print axioms Engine.Pos.cmp_eq_iff
 #print axioms Engine.Pos.cmp_swap
-#print axioms Engine.Pos.cmp_trans
+#print axioms Engine.Pos.cmp_lt_trans
 #print axioms Engine.sortPos_sorted
 #print axioms Engine.top_max
 #print axioms Community.received_of_message
-#print axioms Community.cmpL_be64
+#print axioms Community.lexCmp_be64
 #print axioms Community.msg_cmp
 #print axioms Community.time_is_display
 #print axioms Community.order_total
@@ -228,6 +228,7 @@ section app
 #print axioms Pages.switcherOrder_sound
 #print axioms Pages.switcherOrder_complete
 #print axioms Switch.dedupe_one_per_community
+#print axioms Kinds.Accepted.read_known
 #print axioms Text.visual_perm
 #print axioms Text.place_shows
 #print axioms Text.oneLine_prefix
