@@ -542,7 +542,7 @@ theorem named_by_admin {x c u : Id} {nm : ByteArray} {n : Nat} (h : V C ops x (.
 
 /-- The facts only a device's own local ops produce. -/
 def Fact.isLocal : Fact → Bool
-  | .secret .. | .accepted .. | .joining .. => true
+  | .secret .. | .accepted .. | .joining .. | .abandoned .. => true
   | _ => false
 
 theorem check_local {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}

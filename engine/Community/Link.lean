@@ -240,8 +240,14 @@ def issue (c issuerAdm : Id) (by_ : Device) (secret : ByteArray) (hints : List B
   (inv, ⟨c, inv.id, by_.pk, hints, secret⟩)
 
 /-- This device's pending join (local): the link's community, its
-inviter and hints, and the request the join presents. The bearer seed
-is not kept: the request already carries the bearer's signature. -/
-def joining (i : Invite) (req : Id) : Op := mkOp [] (.joining i.community i.inviter i.hints req)
+inviter and hints, the request the join presents, and the name to
+introduce itself by once admitted. The bearer seed is not kept: the
+request already carries the bearer's signature. -/
+def joining (i : Invite) (req : Id) (name : ByteArray) : Op :=
+  mkOp [] (.joining i.community i.inviter i.hints req name)
+
+/-- This device stops waiting on a join (local): its joining op is cited,
+the request stays with the members, and an approval still admits it. -/
+def abandon (joiningOp : Id) : Op := mkOp [joiningOp] .abandon
 
 end Community

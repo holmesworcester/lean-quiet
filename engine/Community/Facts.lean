@@ -80,8 +80,9 @@ inductive Fact where
   | approval (c req u : Id)
   | secret (pk seed : ByteArray)
   | accepted (c : Id) (device : Key)
-  | joining (c : Id) (inviter : Key) (hints : List ByteArray) (req : Id)
+  | joining (c : Id) (inviter : Key) (hints : List ByteArray) (req : Id) (name : ByteArray)
   | named (c u : Id) (name : ByteArray) (n : Nat)
+  | abandoned (c req : Id)
   deriving DecidableEq, Inhabited
 
 inductive Body where
@@ -98,9 +99,10 @@ inductive Body where
   | approve (sig : ByteArray)
   | admit
   | accept (c : Id) (device : Key)
-  | joining (c : Id) (inviter : Key) (hints : List ByteArray) (req : Id)
+  | joining (c : Id) (inviter : Key) (hints : List ByteArray) (req : Id) (name : ByteArray)
   | secret (pk seed : ByteArray)
   | name (n : Nat) (name sig : ByteArray)
+  | abandon
   deriving DecidableEq, Inhabited
 
 /-! ## Bytes -/
@@ -130,9 +132,10 @@ def Body.enc : Body → List UInt8
   | .approve s => 10 :: Codec.enc s
   | .admit => [11]
   | .accept c d => 13 :: Codec.enc (c, d)
-  | .joining c k hs r => 14 :: Codec.enc (c, k, hs, r)
+  | .joining c k hs r nm => 14 :: Codec.enc (c, k, hs, r, nm)
   | .secret pk seed => 15 :: Codec.enc (pk, seed)
   | .name n nm s => 16 :: Codec.enc (n, nm, s)
+  | .abandon => [17]
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B) => Body.root p.1 p.2.1 p.2.2) r
@@ -148,9 +151,11 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 11 :: r => some (.admit, r)
   | 12 :: r => decAs (fun (p : B × B × B × B) => Body.request p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | 13 :: r => decAs (fun (p : B × B) => Body.accept p.1 p.2) r
-  | 14 :: r => decAs (fun (p : B × B × List B × B) => Body.joining p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 14 :: r => decAs (fun (p : B × B × List B × B × B) =>
+      Body.joining p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 15 :: r => decAs (fun (p : B × B) => Body.secret p.1 p.2) r
   | 16 :: r => decAs (fun (p : Nat × B × B) => Body.name p.1 p.2.1 p.2.2) r
+  | 17 :: r => some (.abandon, r)
   | _ => none
 
 instance : Codec Body where
@@ -174,8 +179,9 @@ def Fact.enc : Fact → List UInt8
   | .approval c r u => 10 :: Codec.enc (c, r, u)
   | .secret pk seed => 11 :: Codec.enc (pk, seed)
   | .accepted c d => 12 :: Codec.enc (c, d)
-  | .joining c k hs r => 13 :: Codec.enc (c, k, hs, r)
+  | .joining c k hs r nm => 13 :: Codec.enc (c, k, hs, r, nm)
   | .named c u nm n => 14 :: Codec.enc (c, u, nm, n)
+  | .abandoned c r => 15 :: Codec.enc (c, r)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B × B) => Fact.admission p.1 p.2.1 p.2.2.1 p.2.2.2) r
@@ -195,8 +201,10 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 10 :: r => decAs (fun (p : B × B × B) => Fact.approval p.1 p.2.1 p.2.2) r
   | 11 :: r => decAs (fun (p : B × B) => Fact.secret p.1 p.2) r
   | 12 :: r => decAs (fun (p : B × B) => Fact.accepted p.1 p.2) r
-  | 13 :: r => decAs (fun (p : B × B × List B × B) => Fact.joining p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 13 :: r => decAs (fun (p : B × B × List B × B × B) =>
+      Fact.joining p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 14 :: r => decAs (fun (p : B × B × B × Nat) => Fact.named p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 15 :: r => decAs (fun (p : B × B) => Fact.abandoned p.1 p.2) r
   | _ => none
 
 instance : Codec Fact where
@@ -318,7 +326,8 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
     if o.reqs.head? = some c ∧ u0 = c then some (.wrap c k r bx) else none
   | .secret pk seed, [] => if C.pub seed = pk then some (.secret pk seed) else none
   | .accept c d, [] => some (.accepted c d)
-  | .joining c k hs r, [] => some (.joining c k hs r)
+  | .joining c k hs r nm, [] => some (.joining c k hs r nm)
+  | .abandon, [.joining c _ _ r _] => some (.abandoned c r)
   | .name n nm s, .admission c u0 _ _ :: .admission c1 u d _ :: auth :: prev =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ isAdmin c u auth ∧ nm.size ≤ 64 ∧
       counterOk c n prev = true ∧ C.verify d (signed o (.name n nm s)) s
@@ -394,6 +403,11 @@ namespace joining
 def all : Rel Fact := ⟨"joining", "all", fun | .joining .. => some [] | _ => none⟩
 end joining
 
+namespace abandoned
+/-- The joins this device stopped waiting on, by request. -/
+def byRequest : Rel Fact := ⟨"abandoned", "byRequest", fun | .abandoned _ r => some [r] | _ => none⟩
+end abandoned
+
 namespace named
 /-- A community's names, by counter: the current one is the list read
 newest first, limit 1. -/
@@ -405,7 +419,8 @@ in none (read by their own key). -/
 def rels : List (Rel Fact) :=
   [admission.byDevice, admission.all, removal.byUser, admin.byUser, message.all, message.byAuthor,
    wrap.byContentKey, profile.byUser, profile.all, react.byMessage, react.byMessageEmoji,
-   request.all, approval.byRequest, secret.byKey, accepted.all, joining.all, named.current]
+   request.all, approval.byRequest, secret.byKey, accepted.all, joining.all, named.current,
+   abandoned.byRequest]
 
 /-- The keys a fact is filed under: its relations'. -/
 def keys : Fact → List ByteArray := keysOf rels
@@ -428,7 +443,7 @@ instance : SortKey Fact := ⟨sortOf⟩
 and its joins are local, never sent or taken; everything else is
 shared. -/
 def Body.scope : Body → Scope
-  | .secret .. | .accept .. | .joining .. => .local
+  | .secret .. | .accept .. | .joining .. | .abandon => .local
   | _ => .shared
 
 def scopeOf (o : Op) : Scope :=

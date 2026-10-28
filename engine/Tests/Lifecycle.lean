@@ -58,12 +58,14 @@ def main (args : List String) : IO UInt32 := do
 
   -- B pastes the link and joins: just ops on B.
   let some i := Invite.parse link.text | t.ok "the link parses" false; return 1
-  let wj := join i seedB
+  let wj := join i seedB "Bea".toUTF8
   mine b wj
   let req := i.request dB
   t.ok "B lists the community" ((← rows b (accepted.all.query [])).any fun (_, f) => f == .accepted c dB.pk)
   t.ok "B lists its pending join"
-    ((← rows b (joining.all.query [])).any fun (_, f) => f == .joining c dA.pk i.hints req.id)
+    ((← rows b (joining.all.query [])).any fun (_, f) => f == .joining c dA.pk i.hints req.id "Bea".toUTF8)
+  let wn ← ((introduce c seedB 5).run : SqlM Fact Write).run b
+  t.ok "before admission, introducing writes nothing" wn.ops.isEmpty
   t.ok "B is not admitted yet" (!(← ((allowPeer c dB.pk).run : SqlM Fact Bool).run b))
 
   -- B's join reaches A through sync: only the request lands.
@@ -92,6 +94,47 @@ def main (args : List String) : IO UInt32 := do
   let name3 ← rows b (named.current.query [c] (limit := some 1))
   t.ok "B shows the new name" (name3.map (·.2) == [.named c c "Acme Corp".toUTF8 2])
   t.ok "A's secret never reached B" ((← rows b (secret.byKey.query [dA.pk])).isEmpty)
+
+  -- Admitted, B introduces itself by the name it joined with, once.
+  let wp ← ((introduce c seedB 5).run : SqlM Fact Write).run b
+  t.ok "admitted, introducing writes one profile" (wp.ops.length == 1)
+  mine b wp
+  let reqA2 := (wj.ops.filter fun o => o.id == req.id).length
+  let u := req.id
+  t.ok "B's profile names it Bea"
+    ((← rows b (profile.byUser.query [c, u])).any fun (_, f) => match f with
+      | .profile _ _ nm _ _ => nm == "Bea".toUTF8 | _ => false)
+  let wp2 ← ((introduce c seedB 6).run : SqlM Fact Write).run b
+  t.ok "with a profile, introducing writes nothing" (wp2.ops.isEmpty && reqA2 == 1)
+
+  -- C joins and stops waiting: still listed, no longer waiting; the
+  -- request stays with A, and A's approval still admits C.
+  let seedC := sha256 "device C".toUTF8
+  let dC := Device.ofSeed seedC
+  let cdb ← fresh dir "c.db"
+  let (wi2, link2) := inviteTo c c seedA (sha256 "bearer 2".toUTF8) []
+  mine a wi2
+  let wc := join link2 seedC "Cy".toUTF8
+  mine cdb wc
+  let reqC := link2.request dC
+  let jC := (wc.ops.getLast!).id
+  mine cdb (stopWaiting jC)
+  let waiting ← do
+    let js ← rows cdb (joining.all.query [])
+    js.filterMapM fun (_, f) => match f with
+      | .joining _ _ _ r _ => do
+        let ab ← (Lists.list (abandoned.byRequest.query [r] (limit := some 0)) : SqlM Fact (Answer Fact)).run cdb
+        pure (if ab.total == 0 then some r else none)
+      | _ => pure none
+  t.ok "after stopping, C waits on nothing" waiting.isEmpty
+  t.ok "C still lists the community" ((← rows cdb (accepted.all.query [])).any fun (_, f) => f == .accepted c dC.pk)
+  fromPeer a (← sendable cdb)
+  t.ok "C's request reached A; its abandon did not"
+    ((← (dumpOps (F := Fact)).run a).any (·.id == reqC.id) &&
+      !((← (dumpOps (F := Fact)).run a).any fun o => o.id == (stopWaiting jC).ops.head!.id))
+  mine a (← ((approveReq c reqC.id c seedA).run : SqlM Fact Write).run a)
+  fromPeer cdb (← sendable a)
+  t.ok "an approval after stopping still admits C" (← ((allowPeer c dC.pk).run : SqlM Fact Bool).run cdb)
 
   -- A secret whose seed is not its key's is refused.
   let bad := mkOp [] (.secret dB.pk seedA)
