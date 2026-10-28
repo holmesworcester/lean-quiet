@@ -55,6 +55,7 @@ open Engine Community
 #print axioms Engine.Sync.spec_local
 #print axioms Engine.run_step
 #print axioms Engine.run_drain
+#print axioms Engine.run_ingest
 #print axioms Community.message_authorized
 #print axioms Community.no_impersonation
 #print axioms Community.profile_authorized
