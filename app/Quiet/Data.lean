@@ -22,6 +22,7 @@ The app's data: the engine on SQLite, read and written from two threads.
 -/
 import Engine
 import Community
+import Connection
 import Quiet.Platform
 import Std.Data.HashMap
 
@@ -29,7 +30,13 @@ namespace Data
 open Engine Community Codec
 
 def C := ed25519
-def fam := family C
+
+/-- What the store holds: the community's facts and the connection
+family's (Connection.F); the app reads and draws the community's. -/
+abbrev SF := Connection.F
+
+/-- The node's one family: Community's and Connection's, composed. -/
+def fam : Family SF := Connection.node C Connection.sodium
 
 /-- Microseconds of the monotonic clock. -/
 def nowUs : IO UInt64 := do return (← IO.monoNanosNow).toUInt64 / 1000
@@ -215,7 +222,9 @@ def Live.keep (l : Live) (want : Q → Bool) : Live :=
 /-- The store's answer to q on the read connection, with the outbox. -/
 def Q.run (db : Db) (out : Array Pending) : Q → IO Ans
   | .list q => do
-    let a ← (listSql (F := Fact) q).run db
+    let a ← (listSql (F := SF) q).run db
+    -- a community list's rows are all community facts (its key is theirs)
+    let a : Answer Fact := ⟨a.lefts, a.inRange, a.total⟩
     let (a, pend) := overlayList out q a
     return .list a pend
   | .bytes _ hash => return .bytes (← Data.Db.blob db hash)
@@ -259,7 +268,7 @@ def readView {α : Type} : View Fact α → Array Q → m (α × Array Q)
 end
 
 /-- An op's verdict, from the store (the judge reads requirements this way). -/
-def status (db : Db) (x : Id) : IO (Option (Verdict Fact)) :=
-  (Store.getStatus (F := Fact) (m := SqlM Fact) x).run db
+def status (db : Db) (x : Id) : IO (Option (Verdict SF)) :=
+  (Store.getStatus (F := SF) (m := SqlM SF) x).run db
 
 end Data
