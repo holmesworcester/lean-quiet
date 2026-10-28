@@ -608,11 +608,11 @@ theorem wrap_only_admitted (h : Inv (family C) s) (hq : s.queue = []) {c e : Byt
 /-- **A wrap goes only with the admission it serves.** What an approval
 writes is the approval alone, or the approval and an admit op of the
 request with wraps beside it. Each wrap is a content key wrapped to the
-encryption key e of the request, Valid at rest, citing that admit op,
-whose admission (once Valid) is the request's device into its user with
-key e; and that user is not removed. So an approval below the threshold
-wraps nothing, and an approval never wraps to a removed user's
-admission. -/
+encryption key e of the request, a Valid request of c at rest, and cites
+that admit op, whose admission is the request's device into its user
+with key e; and that user is not removed. So an approval below the
+threshold wraps nothing, and an approval never wraps to a removed
+user's admission. -/
 theorem approveReq_wraps (h : Inv (family C) s) (hq : s.queue = []) (c req myAdm : Id) (d : Device)
     (esk : ByteArray) :
     (approveReq c req myAdm d esk).eval s = ⟨[approve c req myAdm d]⟩ ∨

@@ -82,12 +82,13 @@ seed derives to the key: `secret_derives`), the communities it is in
 name is a shared admin register (`named.current`, newest counter first:
 `named_by_admin`). An intent is a user action as the ops of one writer
 job, after reading lists: `found`, `inviteTo`, `join` (with the name to introduce itself by), `approveReq`
-(the approval, and the admission when it completes the tally),
+(the approval; when it completes the tally, the admission and the
+content key's wrap citing it),
 `introduce` (the first profile, once admitted), `stopWaiting` (a local
 `abandon` of a pending join; an approval still admits), `rename`, `send`
 (blobs and the post), `reactTo`. Laws: `join_travels`
 and `found_travels` (of those ops, only the request, or the root, the
-name and the founder's profile, may travel), `local_fact_mine` (every Valid secret, acceptance
+name, the founder's profile and the content key's wrap, may travel), `local_fact_mine` (every Valid secret, acceptance
 or pending join a node holds is its own write, whatever peers send).
 `tests/engine/Lifecycle.lean` runs it on two SQLite nodes.
 
