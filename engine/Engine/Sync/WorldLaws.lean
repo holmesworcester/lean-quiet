@@ -639,4 +639,538 @@ theorem stream_delivers_runs (r cid : Id) :
     (Nat.le_refl _) (Nat.le_refl _) (Nat.le_refl _) (Nat.le_refl _)
   exact ⟨w, .step (.connect .a cid true (Nat.le_refl _)) (.step (.connect .b cid false (Nat.le_refl _)) hs), hw⟩
 
+/-! ## The stream, on every session
+
+`write_offers` above is one session's offer, computed exactly. Here a
+write of any ops at a node with any sessions: every new op is offered on
+every session that may show it (`stream_offered`). The lemmas follow the
+code's loops: the write's (`absentStep`), the stream's (`filedStep`),
+the fanout's (`fanoutStep`) and the seal's (`cidsStep`, `sealStep`).
+`ByteArray`'s `==` is equality (`byteArray_lawfulBEq`, local here): the
+write compares ids with it, and the connection's sets hash them. -/
+
+theorem byteArray_lawfulBEq : LawfulBEq ByteArray where
+  eq_of_beq {a b} h := ByteArray.ext (eq_of_beq (show a.data == b.data from h))
+  rfl {a} := show a.data == a.data from beq_self_eq_true a.data
+
+attribute [local instance] byteArray_lawfulBEq
+
+/-- A write's first loop: the ops not stored, each id once, newest first. -/
+def absentStep (db : DB F) (acc : List Op) (o : Op) : List Op :=
+  if !acc.any (·.id == o.id) then (if (db.ops o.id).isNone then o :: acc else acc) else acc
+
+theorem absent_sub (db : DB F) (L acc : List Op) : ∀ x ∈ L.foldl (absentStep db) acc, x ∈ acc ∨ x ∈ L := by
+  induction L generalizing acc with
+  | nil => intro x hx; exact Or.inl hx
+  | cons y L ih =>
+    intro x hx
+    rcases ih _ x hx with h | h
+    · unfold absentStep at h
+      split at h
+      · split at h
+        · rcases List.mem_cons.1 h with rfl | h
+          · exact Or.inr (List.mem_cons_self ..)
+          · exact Or.inl h
+        · exact Or.inl h
+      · exact Or.inl h
+    · exact Or.inr (List.mem_cons_of_mem _ h)
+
+theorem absent_mem (db : DB F) (o : Op) (hn : db.ops o.id = none) (L acc : List Op)
+    (hu : ∀ x ∈ acc ++ L, x.id = o.id → x = o) (ho : o ∈ acc ∨ o ∈ L) : o ∈ L.foldl (absentStep db) acc := by
+  induction L generalizing acc with
+  | nil => simpa using ho
+  | cons y L ih =>
+    simp only [List.foldl_cons]
+    apply ih
+    · intro x hx hxo
+      rcases List.mem_append.1 hx with hx | hx
+      · unfold absentStep at hx
+        split at hx
+        · split at hx
+          · rcases List.mem_cons.1 hx with rfl | hx
+            · exact hu x (by simp) hxo
+            · exact hu x (by simp [hx]) hxo
+          · exact hu x (by simp [hx]) hxo
+        · exact hu x (by simp [hx]) hxo
+      · exact hu x (by simp [hx]) hxo
+    · rcases ho with ho | ho
+      · left; unfold absentStep; split
+        · split
+          · exact List.mem_cons_of_mem _ ho
+          · exact ho
+        · exact ho
+      · rcases List.mem_cons.1 ho with rfl | ho
+        · left; unfold absentStep
+          by_cases ha : acc.any (·.id == o.id) = true
+          · obtain ⟨x, hx, hxo⟩ := List.any_eq_true.1 ha
+            have := hu x (by simp [hx]) (eq_of_beq hxo)
+            subst this
+            simp [ha, hx]
+          · simp [ha, hn]
+        · right; exact ho
+
+
+theorem ingest_get (o : Op) (L : List Op) (s : DB F) (hu : ∀ x ∈ L, x.id = o.id → x = o)
+    (h : s.ops o.id = some o ∨ (s.ops o.id = none ∧ o ∈ L)) :
+    (L.foldl (fun s o => ingestS o s) s).ops o.id = some o := by
+  induction L generalizing s with
+  | nil => simpa using h
+  | cons y L ih =>
+    simp only [List.foldl_cons]
+    apply ih _ (fun x hx => hu x (List.mem_cons_of_mem _ hx))
+    by_cases hy : y.id = o.id
+    · have := hu y (List.mem_cons_self ..) hy; subst this
+      left
+      rcases h with h | ⟨h, _⟩ <;> simp [ingestS, h, DB.putOp, DB.push]
+    · rcases h with h | ⟨h, ho⟩
+      · left; unfold ingestS; split
+        · exact h
+        · simp [DB.putOp, DB.push, Ne.symm hy, h]
+      · right
+        refine ⟨?_, ?_⟩
+        · unfold ingestS; split
+          · exact h
+          · simp [DB.putOp, DB.push, Ne.symm hy, h]
+        · rcases List.mem_cons.1 ho with rfl | ho
+          · exact absurd rfl hy
+          · exact ho
+
+theorem stored_ids_mem (fam : Family F) (db : DB F) (o : Op) (ho : (db.ops o.id).isSome = true) (L : List Op)
+    (ix : Index) (acc : List Id) (hL : o ∈ L ∨ o.id ∈ acc) :
+    o.id ∈ (L.foldl (fun (b : Index × List Id) a =>
+      if (db.ops a.id).isSome then (b.1.add fam a, a.id :: b.2) else b) (ix, acc)).2 := by
+  induction L generalizing ix acc with
+  | nil => simpa using hL
+  | cons y L ih =>
+    simp only [List.foldl_cons]
+    split
+    · apply ih
+      rcases hL with hL | hL
+      · rcases List.mem_cons.1 hL with rfl | hL
+        · exact Or.inr (List.mem_cons_self ..)
+        · exact Or.inl hL
+      · exact Or.inr (List.mem_cons_of_mem _ hL)
+    · rename_i hy
+      apply ih
+      rcases hL with hL | hL
+      · rcases List.mem_cons.1 hL with rfl | hL
+        · exact absurd ho hy
+        · exact Or.inl hL
+      · exact Or.inr hL
+
+theorem write_mem (x : Sync F (HeldM F)) (n : Node) (ops : List Op) (o : Op) (h : Held F)
+    (ho : o ∈ ops) (hn : h.db.ops o.id = none) (hu : ∀ y ∈ ops, y.id = o.id → y = o) :
+    let p := (n.write x ops).run h
+    o.id ∈ p.1.2 ∧ p.2.db.ops o.id = some o ∧ p.1.1.conns = n.conns ∧ p.1.1.addrs = n.addrs ∧
+      p.1.1.managed = n.managed := by
+  simp only [Node.write, HeldM.run_bind]
+  rw [forIn_yield ops _ (fun o acc => absentStep h.db acc o) h (fun y _ acc => by
+    simp only [absentStep]; split
+    · simp only [HeldM.run_bind, HeldM.run_getOp]
+      by_cases hc : (h.db.ops y.id).isNone = true <;> simp [hc]
+    · rfl)]
+  have hA := absent_mem h.db o hn ops [] (by simpa using hu) (Or.inr ho)
+  have hne : (List.foldl (fun acc o => absentStep h.db acc o) [] ops).isEmpty = false := by
+    cases hl : List.foldl (fun acc o => absentStep h.db acc o) [] ops with
+    | nil => rw [hl] at hA; cases hA
+    | cons _ _ => rfl
+  simp only [hne, Bool.false_eq_true, ite_false, HeldM.run_bind, HeldM.run_turn]
+  have hA' : o ∈ (List.foldl (fun b a => absentStep h.db b a) [] ops).reverse := List.mem_reverse.2 hA
+  have hsub : ∀ y ∈ (List.foldl (fun b a => absentStep h.db b a) [] ops).reverse, y ∈ ops := fun y hy => by
+    rcases absent_sub h.db ops [] y (List.mem_reverse.1 hy) with h | h
+    · cases h
+    · exact h
+  generalize (List.foldl (fun b a => absentStep h.db b a) [] ops).reverse = news at hA' hsub ⊢
+  have hget : (turnH x.fam news h).db.ops o.id = some o := by
+    simp only [turnH, drainS_ops]
+    exact ingest_get o news h.db (fun y hy => hu y (hsub y hy)) (Or.inr ⟨hn, hA'⟩)
+  rw [forIn_yield news _ (fun a b => if ((turnH x.fam news h).db.ops a.id).isSome then
+    (b.1.add x.fam a, a.id :: b.2) else b) _ (fun y _ b => by
+      simp only [HeldM.run_bind, HeldM.run_getOp]
+      by_cases hc : ((turnH x.fam news h).db.ops y.id).isSome = true <;> simp [hc])]
+  simp only [HeldM.run_pure, List.mem_reverse, and_true]
+  exact ⟨stored_ids_mem x.fam _ o (by simp [hget]) news n.ix [] (Or.inl hA'), hget⟩
+
+
+theorem pieceIds_cover (n : Nat) (hn : 0 < n) : ∀ (fuel : Nat) (l : List Id), l.length ≤ fuel →
+    ∀ x ∈ l, ∃ p ∈ pieceIds n fuel l, x ∈ p := by
+  intro fuel
+  induction fuel with
+  | zero => intro l hl x hx; cases l with
+    | nil => cases hx
+    | cons _ _ => simp at hl
+  | succ k ih =>
+    intro l hl x hx
+    cases l with
+    | nil => cases hx
+    | cons y t =>
+      simp only [pieceIds]
+      have hs : x ∈ (y :: t).take n ++ (y :: t).drop n := by rw [List.take_append_drop]; exact hx
+      rcases List.mem_append.1 hs with hx | hx
+      · exact ⟨_, List.mem_cons_self .., hx⟩
+      · obtain ⟨p, hp, hxp⟩ := ih _ (by simp at hl ⊢; omega) x hx
+        exact ⟨p, List.mem_cons_of_mem _ hp, hxp⟩
+
+theorem chunks_cover (cfg : Config) (ids : List Id) (mk : List Id → Msg) (hmax : 0 < cfg.maxIds) {x : Id}
+    (hx : x ∈ ids) : ∃ l, (mk l).op ∈ chunks cfg ids mk ∧ x ∈ l := by
+  obtain ⟨p, hp, hxp⟩ := pieceIds_cover cfg.maxIds hmax ids.length ids (Nat.le_refl _) x hx
+  exact ⟨p, List.mem_map.2 ⟨p, hp, rfl⟩, hxp⟩
+
+/-- One turn of the stream's loop (`Conn.filed`) on a store. -/
+def filedStep (fam : Family F) (db : DB F) (st : List Id × Conn) (i : Id) : List Id × Conn :=
+  if (!st.2.known.contains i && !st.2.offered.contains i) = true then
+    match db.ops i with
+    | some o => if st.2.shows fam o = true then (i :: st.1, { st.2 with offered := st.2.offered.insert i })
+      else (st.1, st.2)
+    | none => (st.1, st.2)
+  else (st.1, st.2)
+
+theorem filed_fold (fam : Family F) (db : DB F) (i : Id) (o : Op) (hget : db.ops i = some o) :
+    ∀ (L : List Id) (st : List Id × Conn), (i ∈ st.1 ∨ (i ∈ L ∧ i ∉ st.2.known ∧ i ∉ st.2.offered ∧
+      st.2.shows fam o = true)) → i ∈ (L.foldl (filedStep fam db) st).1 := by
+  intro L
+  induction L with
+  | nil => intro st h; rcases h with h | ⟨h, _⟩; exact h; cases h
+  | cons j L ih =>
+    intro st h
+    simp only [List.foldl_cons]
+    apply ih
+    rcases h with h | ⟨hi, hk, ho, hs⟩
+    · left; unfold filedStep; split
+      · split
+        · split
+          · exact List.mem_cons_of_mem _ h
+          · exact h
+        · exact h
+      · exact h
+    · by_cases hj : j = i
+      · subst hj
+        left
+        have hk' : st.2.known.contains j = false :=
+          Bool.eq_false_iff.2 fun hc => hk (Std.HashSet.mem_iff_contains.2 hc)
+        have ho' : st.2.offered.contains j = false :=
+          Bool.eq_false_iff.2 fun hc => ho (Std.HashSet.mem_iff_contains.2 hc)
+        simp [filedStep, hk', ho', hget, hs]
+      · right
+        have hiL : i ∈ L := by
+          rcases List.mem_cons.1 hi with h | h
+          · exact absurd h.symm hj
+          · exact h
+        refine ⟨hiL, ?_⟩
+        unfold filedStep
+        split
+        · split
+          · split
+            · refine ⟨hk, ?_, hs⟩
+              simp only [Std.HashSet.mem_iff_contains, Std.HashSet.contains_insert] at ho ⊢
+              simp [ho, hj]
+            · exact ⟨hk, ho, hs⟩
+          · exact ⟨hk, ho, hs⟩
+        · exact ⟨hk, ho, hs⟩
+
+/-- **The stream offers each new op it may show:** an id among those
+filed, not known to the peer or offered before, of a stored op the
+connection may show, goes out in an offer. -/
+theorem filed_offers (fam : Family F) (cfg : Config) (c : Conn) (ids : List Id) (h : Held F) (i : Id) (o : Op)
+    (hi : i ∈ ids) (hget : h.db.ops i = some o) (hsh : c.shows fam o = true)
+    (hk : i ∉ c.known) (ho : i ∉ c.offered) (hmax : 0 < cfg.maxIds) :
+    ∃ l, (Msg.hold l).op ∈ ((c.filed fam cfg ids : HeldM F Step).run h).1.send ∧ i ∈ l := by
+  simp only [Conn.filed, HeldM.run_bind]
+  rw [forIn_yield ids _ (fun i st => filedStep fam h.db st i) h (fun j _ st => by
+    simp only [filedStep]; split
+    · simp only [HeldM.run_bind, HeldM.run_getOp]
+      cases h.db.ops j with
+      | none => rfl
+      | some p => by_cases hs : st.2.shows fam p = true <;> simp [hs]
+    · rfl)]
+  simp only [HeldM.run_pure, Conn.finish_send]
+  exact chunks_cover cfg _ .hold hmax (List.mem_reverse.2
+    (filed_fold fam h.db i o hget ids ([], c) (Or.inr ⟨hi, hk, ho, hsh⟩)))
+
+
+section
+variable (S : Setup F) (s : Who)
+
+/-- One turn of the fanout's loop on a store: the connection's stream. -/
+def fanoutStep (ids : List Id) (h : Held F) (p : Id × Conn)
+    (st : List (Id × Conn) × Acts × List (Id × Status)) : List (Id × Conn) × Acts × List (Id × Status) :=
+  let f := (((p.2.setRooms (S.rooms s p.1)).filed S.fam S.cfg ids : HeldM F Step).run h).1
+  ((p.1, f.conn) :: st.1, st.2.1 ++ sends p.1 f.send, st.2.2 ++ f.status.map (p.1, ·))
+
+theorem fanout_fold (ids : List Id) (h : Held F) (x : Route × ByteArray) :
+    ∀ (L : List (Id × Conn)) st, ((∃ p ∈ L, ∀ st, x ∈ (fanoutStep S s ids h p st).2.1.send) ∨ x ∈ st.2.1.send) →
+      x ∈ (L.foldl (fun b a => fanoutStep S s ids h a b) st).2.1.send := by
+  intro L
+  induction L with
+  | nil => intro st hx; rcases hx with ⟨_, h, _⟩ | hx; cases h; exact hx
+  | cons q L ih =>
+    intro st hx
+    simp only [List.foldl_cons]
+    apply ih
+    rcases hx with ⟨p, hp, hpx⟩ | hx
+    · rcases List.mem_cons.1 hp with rfl | hp
+      · exact Or.inr (hpx st)
+      · exact Or.inl ⟨p, hp, hpx⟩
+    · right; simp only [fanoutStep, Acts.append_def, List.mem_append]; exact Or.inl hx
+
+/-- **A store's new ids are offered on every connection that may show
+them**, and not known to hold or offered them before. -/
+theorem fanout_offers (n : Node) (ids : List Id) (h : Held F) (cid : Id) (c : Conn) (hc : (cid, c) ∈ n.conns)
+    (i : Id) (o : Op) (hi : i ∈ ids) (hget : h.db.ops i = some o)
+    (hsh : (c.setRooms (S.rooms s cid)).shows S.fam o = true) (hk : i ∉ c.known) (ho : i ∉ c.offered)
+    (hmax : 0 < S.cfg.maxIds) :
+    let p := (n.fanout (S.sync s) ids).run h
+    (∃ l, (Route.conn cid, (Msg.hold l).op.bytes) ∈ p.1.2.send ∧ i ∈ l) ∧ p.2 = h ∧
+      p.1.1.addrs = n.addrs ∧ p.1.1.managed = n.managed := by
+  simp only [Node.fanout, HeldM.run_bind]
+  rw [forIn_yield n.conns _ (fun p st => fanoutStep S s ids h p st) h (fun p _ st => by
+    simp only [HeldM.run_bind, refresh_run, HeldM.run_pure, sync_fam, sync_cfg]
+    rw [filed_keeps _ _ _ _ h]; rfl)]
+  simp only [settle_run, HeldM.run_pure, and_true]
+  obtain ⟨l, hl, hil⟩ := filed_offers S.fam S.cfg (c.setRooms (S.rooms s cid)) ids h i o hi hget hsh hk ho hmax
+  refine ⟨l, fanout_fold S s ids h _ n.conns _ (Or.inl ⟨(cid, c), hc, fun st => ?_⟩), hil⟩
+  simp only [fanoutStep, Acts.append_def, List.mem_append, sends, List.mem_map]
+  exact Or.inr ⟨_, hl, rfl⟩
+
+
+theorem bundles_cover (max : Nat) : ∀ (l : List ByteArray), ∀ x ∈ l, ∃ g ∈ bundles max l, x ∈ g := by
+  intro l
+  induction l with
+  | nil => intro x hx; cases hx
+  | cons b rest ih =>
+    intro x hx
+    unfold bundles
+    split
+    · rename_i he
+      rcases List.mem_cons.1 hx with rfl | hx
+      · exact ⟨[x], by simp, by simp⟩
+      · obtain ⟨g, hg, _⟩ := ih x hx; rw [he] at hg; cases hg
+    · rename_i g gs he
+      rcases List.mem_cons.1 hx with rfl | hx
+      · split
+        · exact ⟨x :: g, by simp, by simp⟩
+        · exact ⟨[x], by simp, by simp⟩
+      · obtain ⟨g', hg', hxg⟩ := ih x hx
+        rw [he] at hg'
+        split
+        · rcases List.mem_cons.1 hg' with rfl | hg'
+          · exact ⟨b :: g', by simp, List.mem_cons_of_mem _ hxg⟩
+          · exact ⟨g', List.mem_cons_of_mem _ hg', hxg⟩
+        · exact ⟨g', List.mem_cons_of_mem _ hg', hxg⟩
+
+/-- The session ids a node's sends name, collected as `Node.seal` does. -/
+def cidsStep (st : List (ByteArray × ByteArray) × List Id) (x : Route × ByteArray) :
+    List (ByteArray × ByteArray) × List Id :=
+  match x.1 with
+  | .bare a => ((a, tagged bareTag x.2) :: st.1, st.2)
+  | .conn cid => if (!has st.2 cid) = true then (st.1, cid :: st.2) else (st.1, st.2)
+
+theorem cids_fold (cid : Id) : ∀ (L : List (Route × ByteArray)) st,
+    ((∃ b, (Route.conn cid, b) ∈ L) ∨ cid ∈ st.2) → cid ∈ (L.foldl cidsStep st).2 := by
+  intro L
+  induction L with
+  | nil => intro st h; rcases h with ⟨_, h⟩ | h; cases h; exact h
+  | cons x L ih =>
+    intro st h
+    simp only [List.foldl_cons]
+    apply ih
+    rcases h with ⟨b, hb⟩ | h
+    · rcases List.mem_cons.1 hb with rfl | hb
+      · right; simp only [cidsStep]; split
+        · exact List.mem_cons_self ..
+        · rename_i hh; simp only [Bool.not_eq_true', Bool.not_eq_false] at hh
+          exact (Engine.has_iff _ _).1 (by simpa using hh)
+      · exact Or.inl ⟨b, hb⟩
+    · right; simp only [cidsStep]; split <;> (try split) <;> simp [h]
+
+
+theorem foldl_cons_acc {α γ} (l : List α) (g : α → γ) (b : List γ) :
+    l.foldl (fun b a => g a :: b) b = (l.map g).reverse ++ b := by
+  induction l generalizing b with
+  | nil => rfl
+  | cons a t ih => simp [ih]
+
+/-- Session cid's payloads among a node's sends, in order. -/
+def payloadsOf (out : Acts) (cid : Id) : List ByteArray :=
+  out.send.filterMap fun x => match x.fst with
+    | .conn c => if c = cid then some x.snd else none
+    | .bare _ => none
+
+/-- `Node.seal`'s second loop, one session: its bundles, sealed in the clear. -/
+def sealStep (S : Setup F) (n : Node) (out : Acts) (sent : List (ByteArray × ByteArray)) (cid : Id) :
+    List (ByteArray × ByteArray) :=
+  match n.addr? cid with
+  | some a => (bundles S.cfg.bundle (payloadsOf out cid)).foldl (fun acc g => (a, plainFrame cid g) :: acc) sent
+  | none => sent
+
+theorem seal_fold (S : Setup F) (n : Node) (out : Acts) (x : ByteArray × ByteArray) (cid : Id)
+    (hx : ∀ acc, x ∈ sealStep S n out acc cid) :
+    ∀ (L : List Id) acc, (cid ∈ L ∨ x ∈ acc) → x ∈ L.foldl (sealStep S n out) acc := by
+  intro L
+  induction L with
+  | nil => intro acc h; rcases h with h | h; cases h; exact h
+  | cons c L ih =>
+    intro acc h
+    simp only [List.foldl_cons]
+    apply ih
+    rcases h with h | h
+    · rcases List.mem_cons.1 h with rfl | h
+      · exact Or.inr (hx acc)
+      · exact Or.inl h
+    · right; simp only [sealStep]; split
+      · rw [foldl_cons_acc]; exact List.mem_append_right _ h
+      · exact h
+
+section
+variable (S : Setup F) (s : Who)
+
+/-- **Every payload a node sends on a session goes out in a frame** to
+the session's address, sealed in the clear. -/
+theorem seal_mem (n : Node) (out : Acts) (h : Held F) (cid : Id) (p a : ByteArray)
+    (hp : (Route.conn cid, p) ∈ out.send) (ha : n.addr? cid = some a) :
+    ∃ g, p ∈ g ∧ (a, plainFrame cid g) ∈ ((n.seal (S.sync s) out).run h).1 := by
+  simp only [Node.seal, HeldM.run_bind]
+  rw [forIn_yield out.send _ (fun x st => cidsStep st x) h (fun x _ st => by
+    rcases x with ⟨r, b⟩; cases r <;> simp only [cidsStep] <;> (try split) <;> rfl)]
+  rw [forIn_yield _ _ (fun c sent => sealStep S n out sent c) h (fun c _ sent => by
+    simp only [sealStep]
+    cases hc : n.addr? c with
+    | none => rfl
+    | some a' =>
+      simp only [HeldM.run_bind]
+      rw [forIn_yield _ _ (fun g acc => (a', plainFrame c g) :: acc) h (fun g _ acc => by
+        simp [plainFrame])]
+      rfl)]
+  have hpl : p ∈ payloadsOf out cid := by
+    simp only [payloadsOf, List.mem_filterMap]
+    exact ⟨_, hp, by simp⟩
+  obtain ⟨g, hg, hpg⟩ := bundles_cover S.cfg.bundle _ p hpl
+  refine ⟨g, hpg, ?_⟩
+  simp only [HeldM.run_pure, List.mem_reverse]
+  refine seal_fold S n out _ cid (fun acc => ?_) _ _ (Or.inl (List.mem_reverse.2
+    (cids_fold cid out.send ([], []) (Or.inl ⟨p, hp⟩))))
+  simp only [sealStep, ha, foldl_cons_acc]
+  exact List.mem_append_left _ (List.mem_reverse.2 (List.mem_map.2 ⟨g, hg, rfl⟩))
+
+end
+
+
+/-- **A write is offered on every session that may show it:** each op
+of a write that the store lacked (and no other op of the write shares
+its id) goes out in an offer, in a frame to the session's address, on
+every session whose rooms include its room and whose connection has
+neither offered it nor heard that the peer holds it. -/
+theorem write_offers_all (n : Node) (ops : List Op) (t : Nat) (h : Held F) (hm : n.managed = [])
+    (o : Op) (ho : o ∈ ops) (hn : h.db.ops o.id = none) (hu : ∀ y ∈ ops, y.id = o.id → y = o)
+    (cid : Id) (c : Conn) (hc : (cid, c) ∈ n.conns) (r : Id) (hr : S.fam.room o = some r)
+    (hs : r ∈ S.rooms s cid) (hk : o.id ∉ c.known) (hof : o.id ∉ c.offered) (a : ByteArray)
+    (ha : n.addr? cid = some a) (hmax : 0 < S.cfg.maxIds) :
+    ∃ ps l, (a, plainFrame cid ps) ∈ ((n.onWrite (S.sync s) ops t).run h).1.2.send ∧
+      (Msg.hold l).op.bytes ∈ ps ∧ o.id ∈ l := by
+  obtain ⟨hid, hget, hcn, han, hmn⟩ := write_mem (S.sync s) n ops o h ho hn hu
+  have hsh : (c.setRooms (S.rooms s cid)).shows S.fam o = true := by
+    simp [Conn.shows, Conn.setRooms, hr, has_of_mem hs]
+  have hc' : (cid, c) ∈ ((n.write (S.sync s) ops).run h).1.1.conns := by rw [hcn]; exact hc
+  obtain ⟨⟨l, hl, hol⟩, -, han', hmn'⟩ := fanout_offers S s _ _ _ cid c hc' o.id o hid hget hsh hk hof hmax
+  have hne : (((n.write (S.sync s) ops).run h).1.2).isEmpty = false := by
+    cases hx : ((n.write (S.sync s) ops).run h).1.2 with
+    | nil => rw [hx] at hid; cases hid
+    | cons _ _ => rfl
+  simp only [Node.onWrite, HeldM.run_bind, store_run, Node.put, intake, ite_true, hne, Bool.false_eq_true,
+    ite_false]
+  rw [finish_run _ _ _ _ _ _ (by rw [hmn', hmn, hm])]
+  have ha' : (((n.write (S.sync s) ops).run h).1.1.fanout (S.sync s)
+      ((n.write (S.sync s) ops).run h).1.2).run ((n.write (S.sync s) ops).run h).2 |>.1.1.addr? cid = some a := by
+    simp only [Node.addr?] at ha ⊢; rw [han', han]; exact ha
+  obtain ⟨g, hpg, hg⟩ := seal_mem S s _ _ _ cid _ a hl ha'
+  exact ⟨g, l, hg, hpg, hol⟩
+
+end
+
+/-- **New ops are offered on every session that may see them.** Node s
+writes ops; op o among them is new to its store, and no other op of the
+write shares its id. Then on every session of s whose rooms include o's
+room, and whose connection has neither offered o nor heard that the
+peer holds it, a frame to the session's address is in flight that
+carries an offer naming o. -/
+theorem stream_offered (S : Setup F) (w : World F) (s : Who) (ops : List Op) (t : Nat)
+    (hm : (w.peer s).node.managed = []) (o : Op) (ho : o ∈ ops) (hn : (w.peer s).held.db.ops o.id = none)
+    (hu : ∀ y ∈ ops, y.id = o.id → y = o) (cid : Id) (c : Conn) (hc : (cid, c) ∈ (w.peer s).node.conns)
+    (r : Id) (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid) (hk : o.id ∉ c.known)
+    (hof : o.id ∉ c.offered) (a : ByteArray) (ha : (w.peer s).node.addr? cid = some a)
+    (hmax : 0 < S.cfg.maxIds) :
+    ∃ ps l, ⟨a, plainFrame cid ps⟩ ∈ (w.write S s ops t).net ∧ (Msg.hold l).op.bytes ∈ ps ∧ o.id ∈ l := by
+  obtain ⟨ps, l, hf, hps, hol⟩ :=
+    write_offers_all S s _ ops t _ hm o ho hn hu cid c hc r hr hs hk hof a ha hmax
+  refine ⟨ps, l, ?_, hps, hol⟩
+  simp only [World.write, World.run_net, frames, List.mem_append, List.mem_map]
+  exact Or.inr ⟨_, hf, rfl⟩
+
+/-- **`stream_offered` is not vacuous.** From two empty nodes and a
+session opened at each end, a write at one of them puts an offer of the
+op in flight, to the other. -/
+theorem stream_offered_runs (r cid : Id) :
+    ∃ w ps l, World.Steps ⟨oneRoom r, {}, fun _ _ => [r]⟩ (World.empty (oneRoom r)) w ∧
+      ⟨(w.peer .b).addr, plainFrame cid ps⟩ ∈ w.net ∧ (Msg.hold l).op.bytes ∈ ps ∧
+      (Op.make 1 [] .empty).id ∈ l := by
+  let S : Setup Unit := ⟨oneRoom r, {}, fun _ _ => [r]⟩
+  let o := Op.make 1 [] .empty
+  let w0 := World.empty S.fam
+  let w1 := w0.connect S .a cid true 0
+  let w2 := w1.connect S .b cid false 0
+  obtain ⟨hca, hma, haa, hha, hb1⟩ := World.connect_peer S w0 .a cid true 0 rfl
+  have eb : w1.peer .b = w0.peer .b := hb1
+  obtain ⟨-, -, -, -, ha2⟩ := World.connect_peer S w1 .b cid false 0 (by rw [eb]; rfl)
+  have ea : w2.peer .a = w1.peer .a := ha2
+  have hb2 : (w2.peer .b).addr = (w0.peer .b).addr := by
+    show ((w1.connect S .b cid false 0).peer .b).addr = _
+    simp [World.connect, eb]
+  have hc : (cid, (Conn.open true [r] 0 0).conn) ∈ (w2.peer .a).node.conns := by
+    rw [ea, hca]; exact List.mem_cons_self ..
+  have hma' : (w2.peer .a).node.managed = [] := by rw [ea]; exact hma
+  have haa' : (w2.peer .a).node.addr? cid = some (w2.peer .b).addr := by rw [ea, haa, hb2]; rfl
+  have hna : (w2.peer .a).held.db.ops o.id = none := by rw [ea, hha]; rfl
+  obtain ⟨ps, l, hf, hps, hol⟩ := stream_offered S w2 .a [o] 0 hma' o (List.mem_singleton_self _) hna
+    (fun y hy _ => List.mem_singleton.1 hy) cid _ hc r rfl (by simp [S]) (by simp [Conn.open])
+    (by simp [Conn.open]) _ haa' (by simp [S])
+  refine ⟨w2.write S .a [o] 0, ps, l, .step (.connect .a cid true (t := 0) (Nat.le_refl 0))
+    (.step (.connect .b cid false (t := 0) (Nat.le_refl 0)) (.step (.write .a [o] (t := 0) (Nat.le_refl 0))
+      (.refl _))), ?_, hps, hol⟩
+  have : (w2.write S .a [o] 0).peer .b = w2.peer .b := World.run_peer_other w2 .a _ _ _
+  rw [this]; exact hf
+
+/-! ## The round, at one connection -/
+
+/-- **`conn_runs_exchange`, its first case: a claim of ids.** What
+`conn_runs_exchange` is to say: in any run of the world, a round the
+dialer opens in a room is `exchange` (`RoundLaws.lean`) between the two
+sides' snapshots of the room, whatever order its frames arrive in. The
+ids one side offers, or the other asks for, are exactly the ids
+`exchange` sends from that side. Here is its base case, at the
+connection that answers. It answers round k's claim listing ids, the
+claimant's items in range rg (an honest claim). It offers exactly the
+first side of `exchange` from the round's snapshot X, and asks for
+exactly the second. Those are the ids X holds in rg that the claimant
+lacks, and the ids the claimant holds there that X lacks
+(`exchange_ids`). It sends no claim back, so the round ends there. -/
+theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (rg : Range)
+    (X Y : List Item) (now : Nat) (hr : r ∈ c.rooms)
+    (hX : X = ((c.snaps.find? fun p => Decidable.decide (p.1 = (r, k))).map (·.2)).getD (ix.items r)) :
+    ∃ A B, (A, B) = exchange Prod.fst Prod.snd sha256 cfg.params 1 X Y
+        (.ids rg ((within Prod.fst rg Y).map Prod.snd)) ∧
+      (c.onRbsr cfg ix r k [.ids rg ((within Prod.fst rg Y).map Prod.snd)] now).send =
+        (Msg.rbsr r k []).op :: (chunks cfg A .hold ++ chunks cfg B .want) ∧
+      ∀ i, (i ∈ A ↔ named Prod.snd (within Prod.fst rg X) i = true ∧
+          named Prod.snd (within Prod.fst rg Y) i = false) ∧
+        (i ∈ B ↔ named Prod.snd (within Prod.fst rg Y) i = true ∧
+          named Prod.snd (within Prod.fst rg X) i = false) := by
+  refine ⟨_, _, rfl, ?_, exchange_ids (P := cfg.params) 0 X Y rg _ rfl⟩
+  have hr' := has_of_mem hr
+  simp only [Conn.onRbsr, hr', Bool.not_true, Bool.false_eq_true, ite_false, List.flatMap_cons,
+    List.flatMap_nil, List.append_nil, List.isEmpty_cons]
+  simp only [hX, exchange, answer, give, get]
+  cases List.find? (fun p => Decidable.decide (p.fst = (r, k))) c.snaps with
+  | none => simp
+  | some p => obtain ⟨_, _⟩ := p; simp
+
 end Engine.Sync

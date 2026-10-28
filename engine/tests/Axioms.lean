@@ -29,6 +29,13 @@ open Engine Community
 #print axioms Engine.Sync.hold_wants
 #print axioms Engine.Sync.want_sends
 #print axioms Engine.Sync.op_taken
+#print axioms Engine.Sync.stream_offered
+#print axioms Engine.Sync.stream_offered_runs
+#print axioms Engine.Sync.write_offers_all
+#print axioms Engine.Sync.filed_offers
+#print axioms Engine.Sync.fanout_offers
+#print axioms Engine.Sync.seal_mem
+#print axioms Engine.Sync.conn_answers_ids
 #print axioms Engine.Sync.spec_local
 #print axioms Engine.run_step
 #print axioms Engine.run_drain

@@ -13,6 +13,8 @@ sealing, fixed rooms, and the frames in flight as data.
   write sends exactly the offer frame, the offer is answered with
   exactly the want frame, the answer's first frame begins with the op,
   and after it the peer holds the op, with no new round;
+- every session: with two sessions between the nodes, a write is
+  offered on each (`stream_offered`);
 - rooms (negative control): a peer whose rooms on the session leave the
   community out gets none of it, streamed or not.
 -/
@@ -77,6 +79,16 @@ def drain (S : Setup Fact) (w : World Fact) (g : Option Rng) (fuel : Nat) : Worl
         i := (w.net.findIdx? fun f => dstOf w f == want).getD 0
       w := deliverAt S w i (w.now + 1)
     return (w, g)
+
+/-- Whether frame f, on session cid, carries an offer naming x. -/
+def offers (f : Frame) (cid : Id) (x : Id) : Bool :=
+  match (Codec.decode (f.bytes.extract 1 f.bytes.size) : Option (Id × ByteArray)) with
+  | some (c, b) => c == cid && match (Codec.decode b : Option (List ByteArray)) with
+    | some ps => ps.any fun p => match (Op.decode p).bind Msg.ofOp with
+      | some (.hold l) => l.contains x
+      | _ => false
+    | none => false
+  | none => false
 
 def round (w : World Fact) (s : Who) (cid : Id) : Nat :=
   ((w.peer s).node.conn? cid).map (·.round) |>.getD 0
@@ -150,6 +162,19 @@ def main : IO UInt32 := do
   let w4 := w3.deliver S .b [] w3.net.tail w3.net.head! (w3.now + 1)
   t.ok "stream: the peer holds the op" (holds w4.b late.id)
   t.ok "stream: without another round" (round w4 .a cid == rounds)
+
+  -- Every session: a holds a second session to b; a write is offered on
+  -- both (`stream_offered`).
+  let cid2 := sha256 "conn2".toUTF8
+  let w5 := (w4.connect S .a cid2 true (w4.now + 1)).connect S .b cid2 false (w4.now + 1)
+  let (w5, _) := drain S w5 none 100000
+  let later := post c c (Device.named "acme-founder") "k".toUTF8 "later news".toUTF8 100000
+  let w6 := w5.write S .a [later] (w5.now + 1)
+  t.ok "stream: two sessions, each up" (w5.a.node.conns.length == 2 && w5.b.node.conns.length == 2)
+  t.ok "stream: a write is offered on each session" ([cid, cid2].all fun x =>
+    w6.net.any fun f => f.dst == w.b.addr && offers f x later.id)
+  t.ok "stream: and on no session that is not open" (!w6.net.any fun f =>
+    offers f (sha256 "conn3".toUTF8) later.id)
 
   -- Negative control: b's rooms on the session leave c out, so the
   -- stream's room premise fails; nothing of c reaches b.

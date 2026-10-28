@@ -243,6 +243,20 @@ Proven:
   `stream_delivers_steps`: the exchange is a run of `World.Step`.
   `stream_delivers_runs`: from two empty nodes and two `connect` steps,
   the premises hold, so the law is not vacuous.
+- `stream_offered`, over the same world, any number of sessions and
+  ops: each op of a write that the store lacked (no other op of the
+  write sharing its id) is offered at once on every session whose rooms
+  include its room and whose connection has neither offered it nor
+  heard that the peer holds it. A frame to the session's address,
+  carrying an offer that names it, is in flight. It follows the code's
+  loops (`write_offers_all`, `fanout_offers`, `filed_offers`,
+  `seal_mem`); `stream_offered_runs` shows it is not vacuous.
+- `conn_answers_ids`, the base case of `conn_runs_exchange` below: a
+  connection answering a round's claim that lists ids (honestly, the
+  claimant's items in the range) sends exactly `exchange`'s offers and
+  wants from the round's snapshot, and no claim back. By
+  `exchange_ids`, those are the ids the snapshot holds there that the
+  claimant lacks, and the reverse.
 - From earlier: `intake_local`, `offer_shared`, `stored_local`.
 
 Tested, not yet proven (Tests/SyncPair.lean, on a 101-op community with
@@ -266,7 +280,18 @@ floor; no closure offers; rooms not checked.
 Still to prove:
 1. **`conn_runs_exchange`.** Conn's message handling, over any delivery
    order, performs `exchange`. Each round is answered from its
-   snapshot, so the claim tree is the same in any order.
+   snapshot, so the claim tree is the same in any order. Stated over
+   the world: in any run (`World.Steps`) in which round k of room r,
+   opened by the dialer from snapshot Y and first seen by the peer with
+   snapshot X, has ended on both sides with none of its frames in
+   flight: for each window range w, the ids the peer offered or the
+   dialer asked for in it are exactly `(exchange … X Y (opening Y w)).1`,
+   and the ids the dialer offered or the peer asked for are exactly its
+   `.2`. The base
+   case is proven (`conn_answers_ids`, a claim of ids). Still to come:
+   fingerprint claims, whose answers are claims of their own, and
+   delivery in any order. Each side keeps the round's snapshot until
+   the round ends, so the claim tree does not depend on the order.
 2. **`have_shown`.** Every id offered names a stored op in one of the
    rooms. That needs the walk/filed loops plus the index invariant:
    `items r` = the stored shared ops of room r, kept by `put`.
