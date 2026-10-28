@@ -137,7 +137,7 @@ def setup (loss : Nat) : IO (World × Id × Op) := do
   let c := (root (Device.ofSeed a.seed)).id
   let (wi, link) := inviteTo c c a.seed (sha256 "bearer".toUTF8) [a.addr]
   w ← writeA w wi.ops
-  w ← writeB w (join link b.seed "Bea".toUTF8).ops
+  w ← writeB w (joinOps link b.seed "Bea".toUTF8).ops
   return (w, c, link.request (Device.ofSeed b.seed))
 
 def approveOnA (w : World) (c : Id) (req : Op) : IO World := do
@@ -227,7 +227,7 @@ def main : IO UInt32 := do
   let ghost := sha256 "ghost".toUTF8
   let gr := root (Device.ofSeed ghost)
   let (_, deadLink) := inviteTo gr.id gr.id ghost (sha256 "ghost bearer".toUTF8) ["Z:7001".toUTF8]
-  let wd := join deadLink (sha256 "old device".toUTF8) "Old".toUTF8
+  let wd := joinOps deadLink (sha256 "old device".toUTF8) "Old".toUTF8
   w3 ← writeB w3 wd.ops
   w3 ← w3.run 5
   t.ok "a pending join is dialed" (w3.sentBare ≥ 3)
@@ -239,7 +239,7 @@ def main : IO UInt32 := do
   -- The same node joins A3 as a second device, with no restart.
   let (wi3, link3) := inviteTo c3 c3 a3.seed (sha256 "bearer3".toUTF8) [a3.addr]
   w3 ← writeA w3 wi3.ops
-  w3 ← writeB w3 (join link3 b3.seed "Bea".toUTF8).ops
+  w3 ← writeB w3 (joinOps link3 b3.seed "Bea".toUTF8).ops
   w3 ← w3.run 10
   w3 ← approveOnA w3 c3 (link3.request (Device.ofSeed b3.seed))
   w3 ← w3.run 30

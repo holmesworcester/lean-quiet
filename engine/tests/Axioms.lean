@@ -72,7 +72,7 @@ open Engine Community
 #print axioms Community.secret_derives
 #print axioms Community.named_by_admin
 #print axioms Community.local_fact_mine
-#print axioms Community.join_travels
+#print axioms Community.joinOps_travels
 #print axioms Community.found_travels
 #print axioms Engine.drain_bounded
 #print axioms Engine.step_budget
