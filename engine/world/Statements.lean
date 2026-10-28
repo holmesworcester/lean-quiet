@@ -127,10 +127,13 @@ def frames_keep_sessions_stmt : Prop :=
 /-- **L-idem: a frame taken twice is taken once.** Delivering the same
 bytes to a node again, right after, leaves its store as the first
 delivery left it (wire messages may be answered again; nothing is
-stored twice). -/
+stored twice), when the node's rooms do not depend on its store. With
+rooms read from the store it is false (finding 6): a frame carrying an
+op of room r and then an admission that opens r skips the op the first
+time and takes it the second. -/
 def idem_stmt : Prop :=
   ∀ (F : Type) (Q : Plain F) adv (w : World (Held F) Q.n) (i : Fin Q.n) (a b : ByteArray) (t t' : Nat),
-    Q.Reach adv w →
+    Q.Reach adv w → (∀ h h' cid, Q.rooms i h cid = Q.rooms i h' cid) →
     let w₁ := w.enter Q.setup i t fun nd => nd.onFrame (Q.setup.sync i) a b t
     let w₂ := w₁.enter Q.setup i t' fun nd => nd.onFrame (Q.setup.sync i) a b t'
     w₂.box i = w₁.box i

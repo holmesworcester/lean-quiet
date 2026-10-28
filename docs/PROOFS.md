@@ -203,7 +203,7 @@ today's code (with the finding), **O** open.
 | `offered_stmt` | L-offered: both | O |
 | `members_only_stmt` | session frames carry only ops of rooms the session showed in that step | O (ConnLaws per entry point) |
 | `frames_keep_sessions_stmt` | no delivery, duplicate, injection or write closes a session | **P** (`frames_keep_sessions_proof`) |
-| `idem_stmt` | L-idem: the same bytes delivered again leave the store as they were | O |
+| `idem_stmt` | L-idem: the same bytes delivered again leave the store as they were (fixed rooms; finding 6) | O |
 | `restart_stmt` | L-restart: a restart keeps every op, rebuilds the index equal to the store, opens nothing | **P** (`restart_proof`) |
 | `waiting_closure_stmt` | every store at rest, verdicts = spec | O (engine laws + Held's turn) |
 | `closure_agree_stmt` | holding a closure, judge alike | O (`spec_local`) |
@@ -448,6 +448,15 @@ rule the proofs need. Witnesses are in engine/world/Findings.lean.
      (`concrete_goal`), and `write_sub` is proven from `write_run`, a
      closed form. The World library builds in seconds under a 16 GB cap.
    - Rule: state the loop or the call first, then prove `Keeps` of it.
+
+6. **A replayed frame is not inert under dynamic trust** (stated, not
+   yet witnessed in Lean). Rooms are read from the store between
+   payloads. A frame carrying an op x of room r and, after it, an
+   admission that makes the session show r skips x the first time (r
+   not yet shown) and takes x when the same frame is delivered again.
+   Taking x then is harmless, since x is in a room the peer may now see,
+   but `idem_stmt` holds only when rooms do not depend on the store, and
+   says so.
 
 How the earlier bugs map onto the statements:
 
