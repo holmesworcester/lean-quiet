@@ -147,9 +147,9 @@ def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
     -- decisions (Live.mark, Live.pick), so RWorld.inv_pass and settle
     -- are about this pass
     let s ← get
-    let marked := _root_.Live.mark wants.toList (stale s) s.dirty.toList
+    let marked := _root_.Live.mark wants.toList (stale s) s.dirty
     let todo := _root_.Live.pick wants.toList marked cap
-    modify fun s => { s with dirty := marked.foldl (·.insert ·) {} }
+    modify fun s => { s with dirty := marked }
     let mut puts : Array (Want × Val) := #[]
     for w in todo do
       let (v, deps) ← eval w

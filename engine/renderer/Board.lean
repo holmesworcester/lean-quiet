@@ -19,6 +19,7 @@ version is one value (`ver_ident`), no change is lost between two takes
 -/
 import Std.Data.HashMap
 import Std.Data.HashSet
+import engine.core.Cost
 
 namespace Live
 
@@ -70,13 +71,34 @@ def staleW {W Q : Type} (staleQ : Q → Bool) (deps : W → Option (List Q)) (x 
   | none => true
   | some qs => qs.isEmpty || qs.any staleQ
 
-/-- **Mark, then read**: every want whose reads changed is marked, before
-any is read again. -/
-def mark {W : Type} (wants : List W) (stale : W → Bool) (dirty : List W) : List W :=
-  dirty ++ wants.filter stale
+section
+variable {W : Type} [BEq W] [Hashable W] {m : Type → Type} [Monad m] [Engine.Tick m]
 
-/-- What a pass reads: the first `cap` marked wants, in the frame's order. -/
-def pick {W : Type} [BEq W] (wants dirty : List W) (cap : Nat) : List W :=
-  (wants.filter (dirty.contains ·)).take cap
+/-- **Mark, then read**: every want whose reads changed is marked, before
+any is read again; a hash insert per want marked, a step per want. -/
+def markM (stale : W → Bool) : Std.HashSet W → List W → m (Std.HashSet W)
+  | d, [] => pure d
+  | d, w :: ws => do
+    Engine.tick { work := 1 }
+    markM stale (if stale w then d.insert w else d) ws
+
+/-- What a pass reads: the first `cap` marked wants, in the frame's
+order; a hash lookup per want looked at, a step each. -/
+def pickM (dirty : Std.HashSet W) : Nat → List W → m (List W)
+  | 0, _ => pure []
+  | _, [] => pure []
+  | k + 1, w :: ws => do
+    Engine.tick { work := 1 }
+    if dirty.contains w then return w :: (← pickM dirty k ws) else pickM dirty (k + 1) ws
+
+end
+
+/-- What runs: the same code, at `Id`. -/
+def mark {W : Type} [BEq W] [Hashable W] (wants : List W) (stale : W → Bool) (dirty : Std.HashSet W) :
+    Std.HashSet W :=
+  Id.run (markM stale dirty wants)
+
+def pick {W : Type} [BEq W] [Hashable W] (wants : List W) (dirty : Std.HashSet W) (cap : Nat) : List W :=
+  Id.run (pickM dirty cap wants)
 
 end Live
