@@ -19,6 +19,8 @@ import engine.renderer.qr.Qr
 import engine.renderer.pic.Pic
 import engine.wire.mdns.Mdns
 import ops.connection.bootstrap.Net
+import engine.world.Epidemic
+import engine.world.Findings
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -315,3 +317,23 @@ open Net
 #print axioms Net.allowPeer_iff
 #print axioms Net.allowPeer_settles
 end net
+
+section world
+open Engine.World
+#print axioms Engine.World.hops
+#print axioms Engine.World.held_on
+#print axioms Engine.World.converge_of_edge
+#print axioms Engine.World.converge_all_of
+#print axioms Engine.World.converge_two_of
+#print axioms Engine.World.converge_three_of
+#print axioms Engine.World.diam_allKnow
+#print axioms Engine.World.diam_line3
+#print axioms Engine.World.walk_keeps
+#print axioms Engine.World.walk_same
+#print axioms Engine.World.walk_idle
+#print axioms Engine.World.onWant_keeps
+#print axioms Engine.World.tick_keeps
+#print axioms Engine.World.patience_drops_idle
+#print axioms Engine.World.unshown_unanswered
+#print axioms Engine.World.no_round_while_open
+end world

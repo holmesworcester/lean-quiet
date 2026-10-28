@@ -39,6 +39,11 @@ lean_lib Qr where
 lean_lib Pic where
   globs := #[.submodules `engine.renderer.pic]
 
+-- n real nodes and the network as data, executions and fairness: the laws
+-- about many nodes, proven by induction over every execution (docs/PROOFS.md)
+@[default_target] lean_lib World where
+  globs := #[.submodules `engine.world]
+
 /-! ## Ops: everything that names a kind -/
 
 -- rounds, fingerprints, the connection's sync messages
