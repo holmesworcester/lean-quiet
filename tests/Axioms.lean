@@ -98,6 +98,7 @@ open Engine Community
 #print axioms Community.parse_text
 #print axioms Community.parse_valid
 #print axioms Community.Base62.decode_encode
+#print axioms Community.check_secret
 #print axioms Community.secret_derives
 #print axioms Community.device_derives
 #print axioms Community.device_ofSeed
@@ -133,9 +134,11 @@ open Engine Community
 #print axioms Engine.readPlan_cost
 #print axioms Engine.readPlan_cost_range
 #print axioms Engine.readPlan_cost_le
+#print axioms Engine.plan_stmt_cost
 #print axioms Engine.pickMin_le
 #print axioms Engine.mergeRuns_eq_sortPos
 #print axioms Engine.union_rows
+#print axioms Engine.eval_pairwise
 #print axioms Engine.eval_oriented
 #print axioms Engine.eval_strict
 #print axioms Engine.union_sorted
