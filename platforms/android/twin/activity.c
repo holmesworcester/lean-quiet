@@ -58,7 +58,7 @@ static uint32_t        ba_pos[4];
 
 static JavaVM*   ba_vm;
 static jobject   ba_act;
-static jmethodID ba_show_ime, ba_clear_text, ba_copy_text, ba_scan_m;
+static jmethodID ba_show_ime, ba_copy_text, ba_scan_m, ba_set_text_m;
 
 // The newest camera frame's Y plane, until Lean takes it (ba_take_luma).
 static uint8_t* ba_luma;
@@ -321,9 +321,6 @@ void ba_ime(bool show) {
   ba_call(ba_show_ime, show);
 }
 
-void ba_text_clear(void) {
-  ba_call(ba_clear_text, false);
-}
 
 void ba_scan(bool on) {
   if (ba_vm == NULL || ba_act == NULL || ba_scan_m == NULL) {
@@ -359,6 +356,24 @@ void ba_copy(const char* utf8) {
   }
 }
 
+void ba_set_text(const char* utf8) {
+  if (ba_vm == NULL || ba_act == NULL || ba_set_text_m == NULL) {
+    return;
+  }
+  JNIEnv* env;
+  if ((*ba_vm)->GetEnv(ba_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK
+    && (*ba_vm)->AttachCurrentThread(ba_vm, &env, NULL) != JNI_OK) {
+    return;
+  }
+  jstring s = (*env)->NewStringUTF(env, utf8);
+  (*env)->CallVoidMethod(env, ba_act, ba_set_text_m, s);
+  (*env)->DeleteLocalRef(env, s);
+  if ((*env)->ExceptionCheck(env)) {
+    (*env)->ExceptionDescribe(env);
+    (*env)->ExceptionClear(env);
+  }
+}
+
 static void ba_java(ANativeActivity* act) {
   JNIEnv* env = act->env;
   jclass  cls = (*env)->GetObjectClass(env, act->clazz);
@@ -379,12 +394,12 @@ static void ba_java(ANativeActivity* act) {
   ba_vm         = act->vm;
   ba_act        = (*env)->NewGlobalRef(env, act->clazz);
   ba_show_ime   = (*env)->GetMethodID(env, cls, "showIme", "(Z)V");
-  ba_clear_text = (*env)->GetMethodID(env, cls, "clearText", "()V");
   ba_copy_text  = (*env)->GetMethodID(env, cls, "copyText", "(Ljava/lang/String;)V");
+  ba_set_text_m = (*env)->GetMethodID(env, cls, "setText", "(Ljava/lang/String;)V");
   ba_scan_m     = (*env)->GetMethodID(env, cls, "scan", "(Z)V");
   if ((*env)->ExceptionCheck(env)) {
     (*env)->ExceptionClear(env);
-    ba_show_ime = ba_clear_text = ba_copy_text = ba_scan_m = NULL;
+    ba_show_ime = ba_copy_text = ba_scan_m = ba_set_text_m = NULL;
   }
 }
 

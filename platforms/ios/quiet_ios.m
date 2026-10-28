@@ -622,9 +622,11 @@ lean_obj_res lq_luma(void) {
   return lean_io_result_mk_ok(p);
 }
 
-lean_obj_res lq_text_clear(void) {
+lean_obj_res lq_set_text(b_lean_obj_arg text) {
+  NSString* s = [NSString stringWithUTF8String:lean_string_cstr(text)];
   dispatch_async(dispatch_get_main_queue(), ^{
-    lq_field.text = @"";
+    if ([lq_field.text isEqualToString:s]) return;
+    lq_field.text = s;
     lq_report();
   });
   return lean_io_result_mk_ok(lean_box(0));

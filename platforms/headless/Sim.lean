@@ -16,6 +16,8 @@ structure Sim where
   /-- What the camera shows (a luma frame), and where its preview is. -/
   camera : IO.Ref (Array UInt32 × ByteArray)
   on : IO.Ref Bool
+  /-- The native text field's text (setText writes it, text reads it). -/
+  native : IO.Ref String
 
 /-- Two loopback ports for a test's two nodes, from its process id: tests
 running at once (in other worktrees too) get different ports, below
@@ -26,7 +28,7 @@ def testPorts : IO (Nat × Nat) := do
 
 def Sim.new : IO Sim := do
   return ⟨← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef (#[], 0, 0, #[], #[]), ← IO.mkRef 0,
-    ← IO.mkRef (#[], .empty), ← IO.mkRef false⟩
+    ← IO.mkRef (#[], .empty), ← IO.mkRef false, ← IO.mkRef ""⟩
 
 def Sim.io (sm : Sim) : Io where
   screen := pure #[1080, 2400, 128, 63, 420]
@@ -40,9 +42,9 @@ def Sim.io (sm : Sim) : Io where
   scrollBy d := sm.b.modify (· + d)
   scrollTo b := sm.b.set b
   frame fr b o top bot _ := do sm.last.set (fr, b.toNat, o.toNat, top, bot); return #[]
-  text := pure ("", #[0, 0, 0, 0])
+  text := do return (← sm.native.get, #[0, 0, 0, 0])
   ime _ := pure ()
-  textClear := pure ()
+  setText t := sm.native.set t
   copy t := sm.replies.modify (·.push s!"copied {t}")
   ctlPoll := sm.cmds.modifyGet fun c => (c, #[])
   ctlReply s := sm.replies.modify (·.push s)

@@ -312,8 +312,8 @@ lean_obj_res lq_luma(void) {
   return lean_io_result_mk_ok(p);
 }
 
-lean_obj_res lq_text_clear(void) {
-  set_text("");
+lean_obj_res lq_set_text(b_lean_obj_arg text) {
+  set_text(lean_string_cstr(text));
   return lean_io_result_mk_ok(lean_box(0));
 }
 
