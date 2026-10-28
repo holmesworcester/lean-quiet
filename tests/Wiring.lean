@@ -54,6 +54,12 @@ output, and local CI fails when it goes stale.
   handshake's entropy). These are reachability, not dataflow: a secret
   derived inline from the clock, without freshSeed, would not be seen;
   the single door is what makes every secret's source one place to read.
+- **Block:** what the frame must never wait on (a blocking send to the
+  node's bounded channel): walked from `App.step`, but not into a
+  `thread` it starts (the node's runner, the reader, which wait on
+  their own), no `block` definition is reached. Each `waits` mutant (a
+  send as it was, waiting) must be caught by the same walk, and must not
+  run: the rule's negative control.
 - **Instruments:** what the code under test runs in to be measured (the
   cost meter, `CostT`), each erased by an audited equation (`erase_bind`:
   a counted run, its costs dropped, is the plain run). Like an
@@ -162,7 +168,8 @@ def runs (env : Environment) (n : Name) : NameSet := Id.run do
 
 /-- A path the walk takes from an entry point to `target`, if it reaches
 it: each definition, then one it runs. -/
-def pathTo (env : Environment) (entry : List Name) (target : Name) : Option (List Name) := Id.run do
+def pathTo (env : Environment) (entry : List Name) (target : Name) (stop : NameSet := {}) :
+    Option (List Name) := Id.run do
   let mut parent : NameMap Name := {}
   let mut seen : NameSet := entry.foldl (·.insert ·) {}
   let mut todo : Array Name := entry.toArray
@@ -177,6 +184,7 @@ def pathTo (env : Environment) (entry : List Name) (target : Name) : Option (Lis
         path := p :: path
         c := p
       return some path
+    if stop.contains n then continue
     for c in runs env n do
       if !seen.contains c then
         seen := seen.insert c
@@ -185,8 +193,8 @@ def pathTo (env : Environment) (entry : List Name) (target : Name) : Option (Lis
   return none
 
 /-- Every definition the entry points reach, less those `implemented_by`
-replaces. -/
-def running (env : Environment) (entry : List Name) : NameSet := Id.run do
+replaces; a `stop` is reached but not entered. -/
+def running (env : Environment) (entry : List Name) (stop : NameSet := {}) : NameSet := Id.run do
   let mut seen : NameSet := {}
   let mut todo : Array Name := entry.toArray
   while h : todo.size > 0 do
@@ -194,6 +202,7 @@ def running (env : Environment) (entry : List Name) : NameSet := Id.run do
     todo := todo.pop
     if seen.contains n then continue
     seen := seen.insert n
+    if stop.contains n then continue
     for c in runs env n do
       if !seen.contains c then todo := todo.push c
   return seen.toList.foldl (fun s n => if (Compiler.getImplementedBy? env n).isSome then s.erase n else s) seen
@@ -338,6 +347,14 @@ structure Notes where
   /-- a definition ↦ the only definitions, among what the entry points
   reach, that may run it (the OS's randomness, through its doors) -/
   door : NameMap (List Name) := {}
+  /-- what the frame must never wait on (a blocking send to sync) -/
+  block : NameMap String := {}
+  /-- a thread the frame starts, which the `block` walk does not enter
+  (it waits on its own) -/
+  thread : List Name := []
+  /-- mutants that wait, which the `block` walk must catch (its negative
+  controls) -/
+  waits : NameMap String := {}
   /-- the `todo` names and the copied code, in the file's order -/
   order : Array Name := #[]
   subject : NameMap (List Name) := {}
@@ -376,6 +393,9 @@ def readNotes (path : System.FilePath) : IO Notes := do
     | (["world", n], t) => ns := at_ { ns with world := ns.world.insert n.toName t } n.toName
     | (["control", n], t) => ns := at_ { ns with control := ns.control.insert n.toName t } n.toName
     | (["weak", n], t) => ns := at_ { ns with weak := ns.weak.insert n.toName t } n.toName
+    | (["block", n], t) => ns := at_ { ns with block := ns.block.insert n.toName t } n.toName
+    | (["thread", n], _) => ns := at_ { ns with thread := n.toName :: ns.thread } n.toName
+    | (["waits", n], t) => ns := at_ { ns with waits := ns.waits.insert n.toName t } n.toName
     | (["door", n], t) =>
       let d := ((fields t 1).1.headD "").toName
       ns := at_ (at_ { ns with door := ns.door.insert n.toName (d :: ns.door.getD n.toName []) } n.toName) d
@@ -504,6 +524,23 @@ unsafe def main : IO UInt32 := do
       if (runs env c).contains n && !doors.contains c && !c.isPrefixOf n then
         let path := (pathTo env entries c).getD [c]
         problems := problems.push s!"door: {c} runs {n} outside its doors ({commas doors}): {" → ".intercalate (path.map toString)}"
+  -- what the frame must never wait on: walked from App.step, not into the
+  -- threads it starts (the node's runner, the reader: each waits on its
+  -- own, and the frame only offers to them); each mutant that waits must
+  -- be caught, and must not run
+  let threads : NameSet := ns.thread.foldl (·.insert ·) {}
+  let frame := running env [`App.step] threads
+  for (n, why) in ns.block do
+    if frame.contains n then
+      let path := (pathTo env [`App.step] n threads).getD [n]
+      problems := problems.push s!"block: the frame waits on {n} ({why}): {" → ".intercalate (path.map toString)}"
+  for n in ns.thread do
+    if !run.contains n then problems := problems.push s!"tests/wiring.txt: thread {n} does not run; drop it"
+  for (m, _) in ns.waits do
+    if run.contains m then problems := problems.push s!"tests/wiring.txt: waits {m}, a mutant, runs"
+    let reach := running env [m] threads
+    if !ns.block.toList.any (fun (n, _) => reach.contains n) then
+      problems := problems.push s!"negative control: {m}, which waits, was not caught by a block note"
   -- what calls each definition, among this repository's
   let mut callers : NameMap NameSet := {}
   for i in [0:env.header.moduleNames.size] do

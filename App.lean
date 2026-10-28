@@ -52,7 +52,6 @@ structure Io where
   frame : Array ByteArray → UInt32 → UInt32 → Array ByteArray → Array ByteArray → Bool → IO (Array UInt32)
   text : IO (String × Array UInt32)
   ime : Bool → IO Unit
-  textClear : IO Unit
   copy : String → IO Unit
   ctlPoll : IO (Array String)
   ctlReply : String → IO Unit
@@ -65,6 +64,8 @@ structure Io where
   luma : IO (Array UInt32 × ByteArray)
   /-- A line for the platform's log (logcat, the device console, stderr). -/
   log : String → IO Unit := IO.eprintln
+  /-- The native text field's text becomes t (left alone if it is t). -/
+  setText : String → IO Unit := fun _ => pure ()
 
 /-- How far beyond each end of the viewport the list frame is drawn. -/
 def over : Nat := 1024
@@ -167,11 +168,18 @@ structure St where
   /-- The node starting, off the frame (its connection opened and its
   first reads made on a thread of its own). -/
   netBoot : Option (Task (Except IO.Error Engine.Sync.Runner)) := none
+  /-- Writes the node's inbound channel could not take yet, in order. -/
+  toNode : Array (List Op) := #[]
   /-- The journal's newest row this app has taken notice of. -/
   seen : Nat := 0
   me : Chaos.Me
   live : Live := {}
+  /-- The reads the frame made since it last forgot the others: what it
+  keeps watching (Screen.screen_subs). -/
+  touched : Std.HashSet Q := {}
   out : Array Pending := #[]
+  /-- What the native text field holds, as last set or reported. -/
+  native : String := ""
   /-- The reader's board, and the frame's wants of it (Reader): the
   conversation's ids and rows are read there, not on the frame. -/
   sh : Reader.Shared
@@ -290,7 +298,7 @@ removal is not announced again. -/
   scans : Nat := 0
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln⟩⟩
+  pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure ()⟩⟩
 
 abbrev M := StateT St IO
 
@@ -299,6 +307,7 @@ def c (s : St) : Id := s.me.c
 /-! ## Reading through live answers -/
 
 def read (q : Q) : M Ans := do
+  modify fun s => { s with touched := s.touched.insert q }
   let s ← get
   let (a, live) ← (Live.readWith (fun q => q.run s.rd s.out) q).run s.live
   modify fun s => { s with live }
@@ -308,6 +317,78 @@ def fresh (q : Q) : M Bool := do return (← get).live.fresh q
 
 
 instance : Reads M := ⟨read⟩
+
+/-! ## The native text field
+
+One native field edits one of the app's strings at a time. The `.text`
+event writes the field's text into it (`textInto`), and each frame sets
+the field to it (`syncText`), so the field and the app's string never
+drift: a page change never empties the composer's draft by way of the
+field (TextLaws in this file: `into_target`, `into_native`). -/
+
+/-- Which string the native field edits: a page's one-line field, the
+emoji sheet's search, the composer's draft, or none (the sheet open
+without its search: the field is left as it is). -/
+inductive TextTarget where
+  | field | query | draft | none
+  deriving BEq, DecidableEq
+
+def fieldPage (p : PageId) : Bool := p == .create || p == .createName || p == .paste || p == .name
+
+def textTarget (s : St) : TextTarget :=
+  if fieldPage s.page then .field
+  else match s.sheet with
+    | some sh => if sh.searching then .query else .none
+    | none => .draft
+
+/-- What the native field is to hold now, if anything. -/
+def nativeText (s : St) : Option String :=
+  match textTarget s with
+  | .field => some s.field
+  | .query => s.sheet.map (·.query)
+  | .draft => some s.text
+  | .none => none
+
+/-- A `.text` event's text and selection into the string the field edits. -/
+def textInto (s : St) (t : String) (sel : Array UInt32) : St :=
+  match textTarget s with
+  | .field => { s with field := t, refusal := none, pageKey := none }
+  | .query => match s.sheet with
+    | some sh => { s with sheet := some { sh with query := t, scroll := 0 } }
+    | none => s
+  | .draft => { s with text := t, sel := if sel.size == 4 then sel else #[0, 0, 0, 0] }
+  | .none => s
+
+/-- **A text event edits the string the field edits, and nothing that
+chooses it**: the target is the same after. -/
+theorem into_target (s : St) (t : String) (sel : Array UInt32) : textTarget (textInto s t sel) = textTarget s := by
+  unfold textInto
+  cases hf : fieldPage s.page
+  · cases hs : s.sheet with
+    | none => simp [textTarget, hf, hs]
+    | some sh => by_cases hq : sh.searching <;> simp [textTarget, hf, hs, hq]
+  · simp [textTarget, hf]
+
+/-- **After a text event the field holds what the app holds** (unless it
+edits nothing), so `syncText` sets nothing back: no echo, no lost text. -/
+theorem into_native (s : St) (t : String) (sel : Array UInt32) (h : textTarget s ≠ .none) :
+    nativeText (textInto s t sel) = some t := by
+  unfold nativeText
+  rw [into_target]
+  unfold textInto
+  cases hf : fieldPage s.page
+  · cases hs : s.sheet with
+    | none => simp [textTarget, hf, hs]
+    | some sh => by_cases hq : sh.searching <;> simp_all [textTarget]
+  · simp [textTarget, hf]
+
+/-- Set the native field to the string it edits, when they differ. -/
+def syncText : M Unit := do
+  let s ← get
+  if let some t := nativeText s then
+    if t != s.native then
+      s.io.setText t
+      modify fun s => { s with native := t }
 
 /-- Message m's row: its view (Kinds.Message.read: the claimed time, in
 UTC minutes), shown at the local time (the platform's timezone). -/
@@ -319,18 +400,50 @@ def readRow (m : Id) : M (Option (RowData × Array Q)) := do
 
 /-! ## Writing -/
 
-/-- Notices made by this node itself: a change to the outbox. -/
-def noticeLocal (keys : List ByteArray) : M Unit := do
-  modify fun s => { s with live := s.live.notice keys.toArray }
-  (← get).sh.notes.modify (· ++ keys.toArray)
+/-- Notices made by this node itself: a change to the outbox, at its ops'
+positions under their keys. -/
+def noticeLocal (ps : List Pending) : M Unit := do
+  let fs := Pending.filings ps
+  modify fun s => { s with live := s.live.notice fs }
+  (← get).sh.notes.modify (· ++ fs)
+
+/-- Offer writes to the node's inbound channel, in order, without waiting:
+each that fits is in; the rest, from the first that did not fit, stay
+(the channel is bounded and shared with the peers' frames, so it can be
+full while sync is busy). -/
+def offerAll (ch : Std.CloseableChannel.Sync Engine.Sync.Event) (q : Array (List Op)) : IO (Array (List Op)) := do
+  for i in [0:q.size] do
+    if !(← ch.trySend (.write q[i]!)) then return q.extract i q.size
+  return #[]
 
 /-- The one way into the store: through the node while it runs (it owns
 the store's writes, and offers peers only what it knows), else the local
-writer. A write behind the node's back is stored but never synced. -/
-def submit (s : St) (j : Job) : IO Unit :=
+writer. A write behind the node's back is stored but never synced. To the
+node it never waits: what its channel cannot take now waits in `toNode`,
+offered again first each frame (`flushNode`), so a send never blocks the
+frame on sync. -/
+def submit (j : Job) : M Unit := do
+  let s ← get
   match s.net with
-  | some r => r.write j.ops
+  | some r =>
+    let rest ← offerAll r.events (s.toNode.push j.ops)
+    modify fun s => { s with toNode := rest }
   | none => s.wr.submit j
+
+/-- The negative control of the frame's no-wait rule (`block` and
+`waits` in tests/wiring.txt): `submit` to the node as it was, through
+`Runner.write`'s `enqueue`, which waits while the channel is full. Never
+run; the wiring check must catch it. -/
+def submitWaits (j : Job) : M Unit := do
+  if let some r := (← get).net then discard <| Engine.Sync.enqueue r.events (.write j.ops)
+
+/-- The writes the node's channel could not take yet, offered again. -/
+def flushNode : M Unit := do
+  let s ← get
+  let some r := s.net | return
+  if s.toNode.isEmpty then return
+  let rest ← offerAll r.events s.toNode
+  modify fun s => { s with toNode := rest }
 
 /-- A user action's write (an intent's ops): each op is
 judged in order against what is decided and the ops before it in the
@@ -359,8 +472,8 @@ def writeAll (w : Community.Write) : M Bool := do
       (← get).io.log s!"write refused: an op is Invalid"
       return false
   modify fun s => { s with out := s.out ++ pend }
-  noticeLocal (pend.toList.flatMap (·.keys))
-  submit s ⟨w.ops, true⟩
+  noticeLocal pend.toList
+  submit ⟨w.ops, true⟩
   return true
 
 def write (o : Op) : M Bool := writeAll ⟨[o]⟩
@@ -696,7 +809,6 @@ def openPage (p : PageId) : M Unit := do
 def back : M Unit := do
   let s ← get
   s.io.ime false
-  s.io.textClear
   s.io.scrollTo 0
   match s.backStack with
   | p :: rest => modify fun s => { s with page := p, backStack := rest, field := "", refusal := none, pageKey := none }
@@ -712,15 +824,13 @@ def forgetEntry (s : St) (a c : Id) : St :=
            profileOf := if cur then none else s.profileOf,
            text := if cur then "" else s.text, chips := if cur then #[] else s.chips }
 
-/-- The communities, read by the Community kind: those listed (a removed
-entry hidden), the current one kept or, gone, the first (Get started when
-none is left). -/
-def refreshComms : M Unit := do
-  let (all, _) ← Kinds.Accepted.read (← get).comms
+/-- The communities, as read by the Community kind: those listed (a
+removed entry hidden), the current one kept or, gone, the first (Get
+started when none is left). -/
+def applyComms (all : Array Chaos.Me) : M Unit := do
   let cs := Kinds.Accepted.listed all
   -- removed since last told: a standing notice each, and forgotten
   for g in Kinds.Accepted.newlyGone (← get).goneSeen all do
-    if (← get).me.acc == g.acc then (← get).io.textClear
     modify fun s => { forgetEntry s g.acc g.c with
       goneSeen := g.acc :: s.goneSeen,
       notices := s.notices ++ [s!"You’ve been removed from {if g.name.isEmpty then "a community" else g.name}."] }
@@ -732,6 +842,17 @@ def refreshComms : M Unit := do
       { s with comms := cs, me := default, cur := .empty,
                page := if s.comms.isEmpty then s.page else .getStarted,
                backStack := if s.comms.isEmpty then s.backStack else [] }
+
+/-- The communities as the reader's board has them (Reader.Want.comms):
+each frame. -/
+def refreshComms : M Unit := do
+  if let some (.comms all, _) := (← (← get).sh.board.get).get? .comms then applyComms all
+
+/-- The communities read now, on the frame: after an action that founds,
+joins or stops waiting, which the next page shows at once. -/
+def refreshCommsNow : M Unit := do
+  let (all, _) ← Kinds.Accepted.read (← get).comms
+  applyComms all
 
 /-- Make the entry of acceptance `a` the current one (memory only): the
 list starts again from its newest. An entry is its acceptance, never its
@@ -754,13 +875,11 @@ node holds a community at most once). -/
 def takeInvite (i : Community.Invite) : M Unit := do
   let s ← get
   if let some m := s.comms.find? (·.c == i.community) then
-    s.io.textClear
     s.io.ime false
     modify fun s => { s with invite := none, field := "", refusal := none }
     switchToAcc m.acc
     say (if m.waiting then "You're already waiting to join this community." else "You're already in this community.")
     return
-  s.io.textClear
   modify fun s => { s with invite := some i, field := "", refusal := none }
   openPage .name
   s.io.ime true
@@ -779,7 +898,7 @@ def found (n myName : String) : M Unit := do
     (← newBytes 32) (← newBytes 32)
   if ← writeAll w then
     if let some a := acceptOf w then
-      refreshComms
+      refreshCommsNow
       switchToAcc a
 
 /-- The node: started at launch, once (it speaks for every device whose
@@ -814,16 +933,17 @@ def netStep : M Unit := do
   s.io.log s!"node: starting, dialed as {(String.fromUTF8? listen).getD "?"}"
   modify fun s => { s with netBoot := some t }
 
-/-- The keys every commit since the last call filed (the writer's and the
-node's alike), from the store's journal: read inside the frame's read
-transaction, they are exactly the commits this frame's reads see. -/
-def takeChanges : M (Array ByteArray) := do
+/-- The rows every commit since the last call filed or unfiled (the
+writer's and the node's alike), and the verdicts it recorded or cleared,
+from the store's journal: read inside the frame's read transaction, they
+are exactly the commits this frame's reads see. -/
+def takeChanges : M (Array Filing × Array (Id × Bool)) := do
   let s ← get
-  let (ks, top) ← s.rd.changesSince s.seen
+  let (fs, vs, top) ← s.rd.filingsSince s.seen
   modify fun s => { s with seen := top }
   -- taken by the frame and the reader: the writer may delete them
   s.wr.read.set (min top (← s.sh.seen.get))
-  return ks
+  return (fs, vs)
 
 /-- Join with QR code: the camera on while the page shows; each new
 frame drawn in the page's square (Camera.preview: it reads only inside the
@@ -860,14 +980,12 @@ its members (the Profile kind's), me first. -/
 def refreshMembers : M Unit := do
   let s ← get
   if s.me.c.isEmpty || (s.page != .home && s.page != .profile && s.page != .removeConfirm) then return
-  let (ms, _) ← Kinds.Profile.members s.me.c
-  let out := ms.map fun (u, ds, p) => ((p.name, u == s.me.user), ds.any (s.peers.contains ·), u)
+  -- read by the reader (Reader.Want.members): nothing until it is
+  let some (.members ms admin, _) := (← s.sh.board.get).get? (.members s.me.c s.me.user) | return
+  let out := ms.map fun (u, ds, name) => ((name, u == s.me.user), ds.any (s.peers.contains ·), u)
   let sorted := out.filter (·.1.2) ++ out.filter (!·.1.2)
-  -- an admin: the founder's user (the community's id), or one granted admin
-  let (ad, _, _) ← readList (Community.admin.byUser.query [s.me.c, s.me.user] (limit := some 0)) #[]
   modify fun s => { s with members := sorted.map (·.1), online := sorted.map (·.2.1),
-                           memberIds := sorted.map (·.2.2),
-                           amAdmin := !s.me.user.isEmpty && (s.me.user == s.me.c || ad.total > 0) }
+                           memberIds := sorted.map (·.2.2), amAdmin := admin }
   -- a removal being sent is done once its target is no longer present
   if let .sending u := (← get).removal then
     if !(← get).memberIds.contains u then
@@ -880,18 +998,17 @@ def refreshMembers : M Unit := do
 peers' device keys, every 30 frames. -/
 def refreshPeers : M Unit := do
   let s ← get
-  if s.net.isNone || s.frames % 30 != 0 then return
-  let all ← ((Connection.allSessions : SqlM SF _)).run s.rd
-  let k := Connection.kept all
-  let ps := all.filterMap fun (cid, p, _) => if k.contains cid then some p else none
+  if s.net.isNone then return
+  -- read by the reader every half second
+  let ps ← s.sh.peers.get
   if ps != s.peers then modify fun s => { s with peers := ps, pageKey := none }
 
 /-- The requests to join the current community, read by the Request kind. -/
 def refreshAsking : M Unit := do
   let s ← get
   if s.me.c.isEmpty then return
-  let (out, _) ← Kinds.Request.waiting s.me.c
-  modify fun s => { s with asking := out }
+  if let some (.asking out, _) := (← s.sh.board.get).get? (.asking s.me.c) then
+    modify fun s => { s with asking := out }
 
 /-- My approval of request r (my device in this community signs it). -/
 def approveReq (r : Id) : M Unit := do
@@ -1014,14 +1131,12 @@ def onPageAct (a : Pages.Act) : M Unit := do
   | .back => back
   | .joinCommunity => openPage .joinChoice
   | .createCommunity =>
-    s.io.textClear
     modify fun s => { s with field := "" }
     openPage .create
     s.io.ime true
   | .inviteLink => openPage .openInvite
   | .qrCode => openPage .scan
   | .pasteLink =>
-    s.io.textClear
     modify fun s => { s with field := "" }
     openPage .paste
     s.io.ime true
@@ -1031,7 +1146,6 @@ def onPageAct (a : Pages.Act) : M Unit := do
     | .create =>
       let n := s.field.trimAscii.toString
       if !n.isEmpty then
-        s.io.textClear
         modify fun s => { s with field := "", newCommunity := n }
         openPage .createName
         s.io.ime true
@@ -1039,7 +1153,6 @@ def onPageAct (a : Pages.Act) : M Unit := do
       let me := s.field.trimAscii.toString
       if !me.isEmpty then
         s.io.ime false
-        s.io.textClear
         modify fun s => { s with field := "" }
         found s.newCommunity me
     | .paste =>
@@ -1063,9 +1176,8 @@ def onPageAct (a : Pages.Act) : M Unit := do
       -- again for a stopped one, else a fresh join
       let (w, _) ← readView (Community.join i seed s.joinName.toUTF8) #[]
       if ← writeAll w then
-        s.io.textClear
         modify fun s => { s with invite := none, field := "", backStack := [] }
-        refreshComms
+        refreshCommsNow
         match acceptOf w, (← get).comms.find? (·.c == i.community) with
         | some a, _ => switchToAcc a
         | none, some m => switchToAcc m.acc
@@ -1080,7 +1192,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
     -- members, and an approval would still let this device in
     if !s.me.joiningOp.isEmpty then
       if ← writeAll (Community.stopWaiting s.me.joiningOp) then
-        refreshComms
+        refreshCommsNow
         if (← get).comms.isEmpty then
           modify fun s => { s with page := .getStarted, backStack := [], pageKey := none }
         else switchTo 0
@@ -1116,7 +1228,6 @@ def closeSheet : M Unit := do
   let s ← get
   if (s.sheet.map (·.searching)).getD false then
     s.io.ime false
-    s.io.textClear
   modify fun s => { s with sheet := none, selected := none }
 
 /-- Send what the composer holds: its text and photos, as the engine's
@@ -1137,7 +1248,6 @@ def sendNow : M Unit := do
   let nonce ← newBytes 24
   let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files) #[]
   if ← writeAll w then
-    s.io.textClear
     modify fun s => { s with text := "", sel := #[0, 0, 0, 0], chips := #[], chromeKey := "" }
 
 /-- A photo prepared for sending: at most 2048 px a side, as QOI, with its
@@ -1189,7 +1299,7 @@ def onSheetTap (sh : SheetSt) (x y : Nat) : M Unit := do
     let c := catOf s sh
     match Sheet.hitCat c sh.scroll x y with
     | .back =>
-      if sh.searching then s.io.ime false; s.io.textClear
+      if sh.searching then s.io.ime false
       let sh' := { sh with catalog := false, searching := false, query := "" }
       modify fun s => { s with sheet := some sh' }
     | .search =>
@@ -1197,7 +1307,7 @@ def onSheetTap (sh : SheetSt) (x y : Nat) : M Unit := do
       modify fun s => { s with sheet := some { sh with searching := true } }
     | .tone t => modify fun s => { s with sheet := some { sh with tone := t } }
     | .category k =>
-      if sh.searching then s.io.ime false; s.io.textClear
+      if sh.searching then s.io.ime false
       let sh' := { sh with cat := k, scroll := 0, query := "", searching := false }
       modify fun s => { s with sheet := some sh' }
     | .pick i =>
@@ -1295,14 +1405,7 @@ def onEvent : Event → M Bool
   | .long r x y => do onTap r x.toNat y.toNat true; return true
   | .text => do
     let (t, sel) ← (← get).io.text
-    if (← get).page == .create || (← get).page == .createName || (← get).page == .paste || (← get).page == .name then
-      modify fun s => { s with field := t, refusal := none, pageKey := none }
-      return true
-    match (← get).sheet with
-    | some sh =>
-      if sh.searching then modify fun s => { s with sheet := some { sh with query := t, scroll := 0 } }
-    | none =>
-      modify fun s => { s with text := t, sel := if sel.size == 4 then sel else #[0, 0, 0, 0] }
+    modify fun s => { textInto s t sel with native := t }
     return true
   | .send => do
     if (← get).page == .create || (← get).page == .createName || (← get).page == .paste || (← get).page == .name then
@@ -1556,14 +1659,18 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   modify fun s => { s with Hs := hs, insetTop := it, insetBot := ib }
   -- 1. notices
   let s ← get
-  let ns ← takeChanges
-  if !ns.isEmpty then
-    let decided := s.out.filter fun p => ns.contains (opKey p.op.id)
+  let (fs, vs) ← takeChanges
+  if !fs.isEmpty || !vs.isEmpty then
+    -- an op whose verdict the store recorded leaves the outbox (the store
+    -- answers for it, same id)
+    let judged : Std.HashSet Id := vs.foldl (fun a (x, _) => a.insert x) {}
+    let decided := s.out.filter fun p => judged.contains p.op.id
     -- the store changed: an image waiting for its chunk ops tries again now
     modify fun s => { s with
-      live := s.live.notice ns
-      out := s.out.filter fun p => !ns.contains (opKey p.op.id) }
-    if !decided.isEmpty then noticeLocal (decided.toList.flatMap fun p => p.keys)
+      live := s.live.notice fs (vs.map (·.1))
+      out := s.out.filter fun p => !judged.contains p.op.id }
+    if !decided.isEmpty then noticeLocal decided.toList
+  flushNode
   chaosStep
   let tNotices ← (← get).io.nowUs
   -- 2. events and commands
@@ -1575,6 +1682,9 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   while !queue.isEmpty do
     if ← command queue[0]! then queue := queue.extract 1 queue.size else break
   modify fun s => { s with ctl := queue }
+  -- the native field holds the string it now edits (a page or sheet
+  -- change chose another)
+  syncText
   let tCommands ← (← get).io.nowUs
   -- 3. the list's ids and counts
   let s ← get
@@ -1585,18 +1695,26 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   -- (read by the reader: Reader.Want.window; the last window stays until
   -- the board has the wanted one, which is applied below, once the row at
   -- the viewport is known)
+  -- (the counts beside it are a want of their own, read after the rows:
+  -- the placeholders are the counts less the window's rows on each side)
   let idsW := Reader.Want.window s.me.c s.anchor half half
-  s.sh.wants.modify fun ws => #[idsW] ++ ws.filter (· != idsW)
+  let countW := Reader.Want.count s.me.c s.anchor
+  s.sh.wants.modify fun ws => #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
   readerPass
-  let fresh := match (← takeBoard).get? idsW with
-    | some (.window ids newer older total, _) =>
+  let bd ← takeBoard
+  let fresh := match bd.get? idsW with
+    | some (.window ids nr, _) =>
+      -- until this anchor's counts are read, the last placeholders stay
+      let (newer, older, total) := match bd.get? countW with
+        | some (.count cn co, _) => (cn - min cn nr, co - min co (ids.size - nr), cn + co)
+        | _ => (s.newer, s.older, s.total)
       if ids != s.ids || newer != s.newer || older != s.older || total != s.total then some (ids, newer, older, total)
       else none
     | _ => none
   let s ← get
   -- people: the present members (admitted, not removed), each once
-  let (ps, _) ← readView (Kinds.Profile.present s.me.c) #[]
-  modify fun s => { s with people := ps.length }
+  if let some (.people n, _) := (← s.sh.board.get).get? (.people s.me.c) then
+    modify fun s => { s with people := n }
   let tIds ← (← get).io.nowUs
   -- 4. the offset, and the rows the frame and the fetch distance need
   let s ← get
@@ -1630,7 +1748,12 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   -- the pictures' chunk reads: this frame's paints', and those of keys
   -- still waiting to retry (their paints do not ask again until then)
   let pics := s.retryWants.fold (fun ws _ w => if ws.contains w then ws else ws.push w) s.picWants
-  s.sh.wants.set (#[idsW] ++ win.map (fun x => Reader.Want.row s.me.c s.me.adm x) ++ pics)
+  -- and the frame's own lists, after the rows: the communities, the
+  -- people count, the requests, and the people list on the pages that show it
+  let lists := #[Reader.Want.comms] ++ (if s.me.c.isEmpty then #[] else
+    #[Reader.Want.people s.me.c, Reader.Want.asking s.me.c] ++
+      (if s.page == .home || s.page == .profile || s.page == .removeConfirm then #[Reader.Want.members s.me.c s.me.user] else #[]))
+  s.sh.wants.set (#[idsW] ++ win.map (fun x => Reader.Want.row s.me.c s.me.adm x) ++ pics ++ #[countW] ++ lists)
   modify fun s => { s with picWants := #[] }
   readerPass
   let bd ← takeBoard
@@ -1681,10 +1804,9 @@ def frame (evs : List Event) : M (Option (List Event)) := do
       let bot := bots[i]!
       if bot ≤ keepHi && bot + heightOf s s.ids[i]!.2 ≥ keepLo then keep := keep.insert s.ids[i]!.2 ()
     let rows := s.rows.filter fun x _ => keep.contains x
-    let deps := rows.fold (fun acc _ r => r.deps.foldl (fun a q => a.insert q ()) acc) ({} : Std.HashMap Q Unit)
-    modify fun s => { s with rows, live := s.live.keep fun q => match q with
-      | .list _ => true
-      | q => deps.contains q }
+    -- and stop watching what the frame no longer reads (the conversation's
+    -- reads are the reader's): a read it made in these 30 frames stays
+    modify fun s => { s with rows, live := s.live.keep s.touched.contains, touched := {} }
   -- the sheet's fling: its velocity carries the grid, decaying
   let s ← get
   if let some sh := s.sheet then

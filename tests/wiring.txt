@@ -44,6 +44,13 @@
 #   door NAME DOOR       among what the entry points reach, only DOOR (one
 #                        line per door) may run NAME: every secret the
 #                        app makes from the OS's randomness, one place
+#   block NAME TEXT      the frame (App.step, short of each `thread`) must
+#                        not reach NAME: a send that waits on sync
+#   thread NAME          a thread the frame starts, which waits on its own:
+#                        the `block` walk does not enter it
+#   waits NAME TEXT      NAME is a mutant that waits, the `block` rule's
+#                        negative control: the walk must catch it, and it
+#                        must not run
 #   copy NAME CODE TEXT  NAME restates running CODE instead of naming it:
 #                        a law (a model until it names CODE) or a
 #                        definition (a todo, until CODE calls it)
@@ -59,6 +66,17 @@ weak Chaos.freshSeed a seed from the microsecond clock, guessable by anyone who 
 # handshake's ephemerals, `Fresh`).
 door Engine.Crypto.randomBytes App.newBytes
 door Engine.Crypto.randomBytes Connection.instFreshSqlMFOfCodecOfSortKey
+# The frame never waits on sync: what App.step reaches, short of the
+# threads it starts, makes no blocking send to a bounded channel (the
+# node's is shared with the peers' frames, so it can be full while sync
+# is busy). The frame offers instead (App.offerAll: trySend, the rest
+# kept in St.toNode). Runner.write enqueues, so it is forbidden through
+# enqueue, not by name.
+block Engine.Sync.enqueue a send that waits while the node's channel is full
+block Std.CloseableChannel.Sync.send a channel send that waits while the channel is full
+thread Engine.Sync.Runner.start
+thread Reader.run
+waits App.submitWaits the frame's send to the node as it was before the toNode queue: it waits while the channel is full
 
 ## Wired, and must stay so: the laws "What is proven" rests on
 
@@ -176,6 +194,7 @@ spec Engine.searchSteps The steps of a binary search, for its bound.
 
 spec Engine.listCost What a list query costs, for its bound.
 spec Engine.Meter.time A meter's time on a store of N rows, for a bound.
+spec Engine.Win.has Whether a window holds a row filed under a key at a position.
 
 ## Subjects the heuristic takes too much of
 
@@ -265,23 +284,6 @@ spec Pic.Rgba.wellFormed A picture's pixels are 4 bytes for each of its w × h.
 todo Mdns.decode Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it.
 todo Mdns.encode = Mdns.decode
 todo Arrival.lit `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`.
-todo Engine.Subs.notify Nothing on main notices through the window index: the app's cache does on app-1e with fd/window-subs-app3 (`Data.Live.notice`, `Live.store`, `Q.win`); land it.
-todo Engine.Subs.find = Engine.Subs.notify
-todo Engine.Subs.notifyM = Engine.Subs.notify
-todo Engine.Subs.keep = Engine.Subs.notify
-todo Engine.Subs.add = Engine.Subs.notify
-todo Engine.Subs.at_ = Engine.Subs.notify
-todo Engine.Slots.build = Engine.Subs.notify
-todo Engine.Slots.find = Engine.Subs.notify
-todo Engine.rankM = Engine.Subs.notify
-todo Engine.posWork = Engine.Subs.notify
-todo Engine.net = Engine.Subs.notify
-todo Engine.Win.has = Engine.Subs.notify
-todo Engine.Win.inside = Engine.Subs.notify
-todo Engine.Win.all = Engine.Subs.notify
-todo Engine.ListQ.win = Engine.Subs.notify
-todo Engine.ListQ.watch = Engine.Subs.notify
-todo Engine.ListQ.kept = Engine.Subs.notify
 todo Screen.Frame.wants Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan).
 todo Screen.Frame.listWins = Screen.Frame.wants
 todo Screen.Frame.near = Screen.Frame.wants

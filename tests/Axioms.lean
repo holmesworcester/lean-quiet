@@ -372,6 +372,8 @@ section app
 #print axioms LiveLaws.agrees_notice
 #print axioms LiveLaws.agrees_keep
 #print axioms LiveLaws.read_one_moment
+#print axioms LiveLaws.watched_held
+#print axioms LiveLaws.agrees_unmount
 #print axioms Cover.line_painted
 #print axioms Geometry.pinned_visible
 #print axioms Geometry.pinned_tap
@@ -383,6 +385,8 @@ section app
 #print axioms Switch.select_tapped_dedupe
 #print axioms App.drawPage_key
 #print axioms App.pageIn_acc
+#print axioms App.into_target
+#print axioms App.into_native
 #print axioms Pages.switcherOrder_sound
 #print axioms Pages.switcherOrder_complete
 #print axioms Switch.dedupe_one_per_community

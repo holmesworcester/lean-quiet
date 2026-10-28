@@ -12,8 +12,9 @@ export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
 (cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
 [ -f assets/font.bin ] || tools/fetch_assets.sh
-lake build host two_nodes net_join cross arrival attach inkless pic_retry
+lake build host two_nodes net_join cross arrival attach inkless nodequeue pic_retry
 .lake/build/bin/inkless
+.lake/build/bin/nodequeue
 .lake/build/bin/host "${MESSAGES:-500}" out/host
 .lake/build/bin/two_nodes out/two
 if [ "${SKIP_TCP:-0}" != 1 ]; then

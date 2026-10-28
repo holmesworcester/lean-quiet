@@ -201,6 +201,10 @@ lean_exe host where
 lean_exe quiet_host where
   root := `Main
 
+-- A send never waits on the node's full inbound channel.
+lean_exe nodequeue where
+  root := `platforms.headless.NodeQueue
+
 -- The font's inkless glyphs are all invisible or spaces (names).
 lean_exe inkless where
   root := `platforms.headless.Inkless
