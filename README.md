@@ -135,8 +135,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 585 rest on Lean's standard axioms
-only, and about two thirds of its theorems (411 of 567, not counting 18 negative controls) are about the code that runs; another 7 run the
+that rests on; 🥊 is supporting. All 601 rest on Lean's standard axioms
+only, and about two thirds of its theorems (426 of 583, not counting 18 negative controls) are about the code that runs; another 7 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -219,8 +219,8 @@ World); the rest are over models so far
 | 🟡 | 🥊🥊🥊 | **Scrolling always shows something.** Proven of the running frame's `Cover.seen`: from the bottom padding up to the last loaded row's top, and above it while older messages are outside the window, no position is blank, and a bitmap line is shown only where its row has it. The frame reads no messages: the reader reads a window of at most 200 about an anchor and counts the rest. Not yet: the frame's own work bounded (its remaining reads through `App.read`), and that scrolling by δ shows what was δ away. | [`covered`], [`line_painted`] |
 | ⬜ | 🥊🥊 | **An action's toast stays until the screen shows it.** A toast for an action (removing someone, a new name or avatar) stays up until every component on screen has re-read a state that holds the action's op, or until the OS's toast time passes, whichever comes first. So a toast that leaves early proves the screen has caught up. | |
 | 🟡 | 🥊🥊 | **The layout is exact.** Proven of the running code: the sheet's composition and its emoji keys (the painter places item i by `itemAt` and the sheet's lines by `lineOf`, exactly over the box the taps answer for: `lineOf_ctop`), the composer's photo chips (in order, never overlapping, an X that never reaches the next chip, and all four on screen), the invite's hints and QR, and the camera preview. Not yet: the slide, the keyboard shift and page rows (Geometry's formulas, which the shells copy). | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`itemAt_place`], [`lineOf_ctop`], [`chips_apart`], [`x_clear`], [`chips_fit`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
-| 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** Proven: wrapping drops only spaces, keeps every other character in order, and every line fits when every character does; bidi reordering drops and invents nothing; the glyphs placed are exactly the visible characters. Not yet: numbers keep their order in right-to-left text in general (#3), and `layout` as one statement. | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`digits_keep_order`] |
-| 🟡 | 🥊🥊🥊 | **Names are shown correctly.** Proven: a row's name is its author's newest valid profile's, which only a device admitted into that user can write, cut to a logical prefix; no explicit bidi control can reorder a name or a message; a name starts next to the avatar whatever its direction (as do a message's lines, start-aligned as libquiet's); and a row is marked "⚠ Duplicate" exactly when another member's name looks alike (equal once invisible characters are dropped and spaces, and the glyphs the font draws empty, collapsed). Not covered: look-alike letters across scripts, and invisible characters in a message's body. | [`message_read`], [`profile_read`], [`profile_authorized`], [`no_renaming`], [`name_placed`], [`oneLine_prefix`], [`controls_neutral`], [`marks_invisible`], [`namesake_iff`], [`row_marked`], [`twin_shown`], [`twin_before_time`], [`hit_twin`], [`name_starts`], [`flush_shows`] |
+| 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** Proven: wrapping drops only spaces, keeps every other character in order, and every line fits when every character does; bidi reordering drops and invents nothing; the glyphs placed are exactly the visible characters; and every resolved European or Arabic number run, with its separators and terminators (decimals, times, percentages), stays contiguous and in logical order in either paragraph direction (#3). Tested: Unicode 16's BidiTest and BidiCharacterTest, 73,599 cases and 0 failures, in the scope the renderer implements (P2–P3, W1–W7, N1–N2, I1–I2, L1–L2, single lines without explicit embeddings, isolates or paired brackets; docs/BIDI.md names the 788,349 cases left out). Not yet: the bidi algorithm itself as a law (its rules are tested; the number runs are proven), embeddings and isolates, paired brackets (N0), mirrored glyphs (L4), marks (L3), paragraphs across soft wraps, and `layout` as one statement. | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`numbers_keep_order`], [`arabic_numbers_keep_order`] |
+| 🟡 | 🥊🥊🥊 | **Names are shown correctly.** Proven: a row's name is its author's newest valid profile's, which only a device admitted into that user can write, cut to a logical prefix; explicit bidi controls (embeddings, overrides, isolates, LRM, RLM and ALM) have no directional authority: the running bidi classes each as a neutral, though one inserted can still split a number run; a name starts next to the avatar whatever its direction (as do a message's lines, start-aligned as libquiet's); and a row is marked "⚠ Duplicate" exactly when another member's name looks alike (equal once invisible characters are dropped and spaces, and the glyphs the font draws empty, collapsed). Not covered: look-alike letters across scripts, and invisible characters in a message's body. | [`message_read`], [`profile_read`], [`profile_authorized`], [`no_renaming`], [`name_placed`], [`oneLine_prefix`], [`controls_neutral`], [`marks_invisible`], [`namesake_iff`], [`row_marked`], [`twin_shown`], [`twin_before_time`], [`hit_twin`], [`name_starts`], [`flush_shows`] |
 | ✅ | 🥊🥊 | **Times, reactions and pictures are shown as held:** the claimed time's clock, each reaction's count of distinct reactors, and each picture at its aspect inside its box. One pill per emoji, whose reactors are exactly who reacted with it, each once; a picture's box has one side at its bound and the other scaled by its aspect. | [`time_shown`], [`message_read`], [`tally_nodup`], [`tally_mem`], [`picBox_aspect`] |
 | 🟡 | 🥊🥊🥊 | **What you see is what was sent.** Proven over a model where every list read is the engine's: a shown message is a valid fact of the store, its row's name, time and text are its author's name, its claimed time and its body opened with a key the store holds, and the conversation is exactly the messages under keys this device holds. Not yet: from the row's layout to its pixels. | [`message_read`], [`readable_held`], [`readable_complete`], [`eval_stable`] |
 | ✅ | 🥊🥊🥊 | **Every community is reachable, and is one entry.** A switcher row's tap selects exactly the entry it draws, every entry has a row, no two entries share an acceptance or a community, and a page is drawn from its key alone, which names its entry's op, never a name. | [`switcherOrder_sound`], [`switcherOrder_complete`], [`dedupe_nodup`], [`dedupe_one_per_community`], [`select_tapped_dedupe`], [`drawPage_key`], [`pageIn_acc`] |
@@ -242,7 +242,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**411 of 567 laws are about running code;** another 7 run its node code in a World, and 149 are not yet. Stated only: none. 18 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**426 of 583 laws are about running code;** another 7 run its node code in a World, and 150 are not yet. Stated only: none. 18 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -255,7 +255,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Community | 151 | 140 |  | 11 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
-| Screen | 88 | 37 |  | 51 |
+| Screen | 104 | 52 |  | 52 |
 | App | 30 | 23 |  | 7 |
 
 | Missing link | Laws | To make them real |
@@ -280,6 +280,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
+| `Bidi.numberRuns` | [`run_contiguous`]* | Nothing that runs calls it; `Text.numberRuns` do. |
 | (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +15 more | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
@@ -949,25 +950,26 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Camera.src_in`]: engine/renderer/Camera.lean#L51-L53
 [`wrap_keeps`]: engine/renderer/WrapLaws.lean#L132-L135
 [`wrap_fits`]: engine/renderer/WrapLaws.lean#L206-L209
-[`visual_perm`]: engine/renderer/TextLaws.lean#L46-L47
-[`place_shows`]: engine/renderer/TextLaws.lean#L63-L65
-[`place_starts`]: engine/renderer/TextLaws.lean#L128-L134
-[`digits_keep_order`]: engine/renderer/TextLaws.lean#L109-L116
+[`visual_perm`]: engine/renderer/TextLaws.lean#L20-L21
+[`place_shows`]: engine/renderer/TextLaws.lean#L36-L38
+[`place_starts`]: engine/renderer/TextLaws.lean#L115-L121
+[`numbers_keep_order`]: engine/renderer/TextLaws.lean#L84-L88
+[`arabic_numbers_keep_order`]: engine/renderer/TextLaws.lean#L91-L94
 [`message_read`]: ops/community/message/ViewLaws.lean#L62-L67
 [`profile_read`]: ops/community/message/ViewLaws.lean#L40-L42
 [`profile_authorized`]: ops/community/Laws.lean#L307-L314
 [`no_renaming`]: ops/community/Laws.lean#L321-L332
 [`name_placed`]: ops/community/reaction/RowLaws.lean#L89-L92
-[`oneLine_prefix`]: engine/renderer/TextLaws.lean#L97-L98
-[`controls_neutral`]: engine/renderer/TextLaws.lean#L153-L157
-[`marks_invisible`]: engine/renderer/TextLaws.lean#L159-L159
+[`oneLine_prefix`]: engine/renderer/TextLaws.lean#L70-L71
+[`controls_neutral`]: engine/renderer/TextLaws.lean#L140-L143
+[`marks_invisible`]: engine/renderer/TextLaws.lean#L145-L145
 [`namesake_iff`]: ops/community/profile/NamesakeLaws.lean#L113-L118
 [`row_marked`]: ops/community/profile/NamesakeLaws.lean#L139-L144
-[`twin_shown`]: ops/community/reaction/RowLaws.lean#L128-L132
-[`twin_before_time`]: ops/community/reaction/RowLaws.lean#L135-L139
-[`hit_twin`]: ops/community/reaction/RowLaws.lean#L149-L151
-[`name_starts`]: ops/community/reaction/RowLaws.lean#L119-L122
-[`flush_shows`]: ops/community/reaction/RowLaws.lean#L94-L95
+[`twin_shown`]: ops/community/reaction/RowLaws.lean#L131-L135
+[`twin_before_time`]: ops/community/reaction/RowLaws.lean#L138-L142
+[`hit_twin`]: ops/community/reaction/RowLaws.lean#L152-L154
+[`name_starts`]: ops/community/reaction/RowLaws.lean#L122-L125
+[`flush_shows`]: ops/community/reaction/RowLaws.lean#L97-L98
 [`time_shown`]: ops/community/reaction/RowLaws.lean#L84-L87
 [`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
@@ -1026,11 +1028,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
 [`add_stored`]: engine/renderer/pic/Laws.lean#L239-L242
 [`decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
-[`lit_zero`]: ops/community/attachment/ArrivalLaws.lean#L84-L85
-[`lit_mono`]: ops/community/attachment/ArrivalLaws.lean#L88-L90
-[`lit_full`]: ops/community/attachment/ArrivalLaws.lean#L94-L95
-[`lit_clockwise`]: ops/community/attachment/ArrivalLaws.lean#L101-L106
-[`ring_counts`]: ops/community/attachment/ArrivalLaws.lean#L275-L278
+[`lit_zero`]: ops/community/attachment/ArrivalLaws.lean#L88-L89
+[`lit_mono`]: ops/community/attachment/ArrivalLaws.lean#L92-L94
+[`lit_full`]: ops/community/attachment/ArrivalLaws.lean#L98-L99
+[`lit_clockwise`]: ops/community/attachment/ArrivalLaws.lean#L105-L110
+[`ring_counts`]: ops/community/attachment/ArrivalLaws.lean#L279-L282
 [`has_ofList`]: engine/core/WindowIndex.lean#L452-L453
 [`ofList_wf`]: engine/core/WindowIndex.lean#L445-L445
 [`screen_index`]: engine/renderer/Screen.lean#L258-L261
@@ -1063,6 +1065,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`below_window`]: engine/renderer/Heights.lean#L248-L251
 [`above_window`]: engine/renderer/Heights.lean#L254-L258
 [`withViewLast_moves`]: ops/app/Reader.lean#L93-L97
+[`run_contiguous`]: engine/renderer/bidi/Laws.lean#L84-L87
 [`erase_run`]: engine/core/CostErase.lean#L22-L23
 [`erase_pure`]: engine/core/CostErase.lean#L25-L25
 [`erase_bind`]: engine/core/CostErase.lean#L28-L29

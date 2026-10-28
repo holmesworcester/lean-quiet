@@ -182,7 +182,7 @@ spec Community.fileChunk A file's chunk at an index.
 spec Text.ns A line's characters other than spaces.
 spec Text.shown The characters a line draws.
 spec Text.starts Where each glyph starts.
-spec Text.digitsShown The digits a line draws, in order.
+spec Text.numberRuns A line's maximal European or Arabic number runs, as its bidi resolves them.
 spec Text.bidiControls The explicit bidi controls.
 spec ViewLaws.nameIn A user's name, as the store holds it.
 spec ViewLaws.factIn A message's fact, as the store holds it.

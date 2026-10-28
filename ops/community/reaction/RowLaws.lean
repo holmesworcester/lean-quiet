@@ -89,7 +89,10 @@ theorem time_shown (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
 /-- **The row's name is the author's name as read**, cut as `oneLine`
 cuts (a logical prefix: Text.oneLine_prefix), flushed to the box's start. -/
 theorem name_placed (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
-    (layout f dm W d).name = flush (Text.oneLine f ((W - dm.textX - dm.pad) / 2) d.name) := rfl
+    (layout f dm W d).name = flush (Text.oneLine f ((W - dm.textX - dm.pad) / 2) d.name) := by
+  -- by rewriting, not `rfl`: a defeq check would unfold the bidi under
+  -- `oneLine` (out of heartbeats); `simp only` reaches the field directly
+  simp only [layout]
 
 /-- Flushing keeps a line's glyphs, in order. -/
 theorem flush_shows (l : Text.Line) : (flush l).toList.map (·.c) = l.toList.map (·.c) := by

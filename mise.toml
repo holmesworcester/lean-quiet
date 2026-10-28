@@ -166,3 +166,15 @@ run = "platforms/android/test/ctl_guard.sh ${SERIAL:-emulator-5644}"
 [tasks."test:harden"]
 description = "Daybreak sync regressions: read traces, deadlines, purge, hostile holds, backpressure and TCP socket limits"
 run = "tests/engine/harden.sh"
+
+[tasks."test:bidi"]
+description = "Unicode 16 paragraph bidi conformance, indexed number-run checks and issue #3 regressions"
+run = "tests/app/bidi.sh"
+
+[tasks."host:bidi"]
+description = "Send Hebrew and Arabic clocks through the headless app and compare their rendered pixels with logical 12:30"
+run = "tests/app/bidi_host.sh"
+
+[tasks."test:bidi-negative"]
+description = "Temporarily break bidi passes, number proofs and clock painting; require failures and restore sources"
+run = "python3 tests/app/bidi_negative.py"

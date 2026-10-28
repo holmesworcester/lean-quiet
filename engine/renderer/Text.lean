@@ -1,5 +1,5 @@
 /-
-Text to placed glyphs: a light shaper, line wrapping, and a light bidi.
+Text to placed glyphs: a light shaper, line wrapping, and paragraph bidi.
 
 - **Shaping.** Arabic letters take their contextual form (isolated,
   final, initial or medial) from Unicode's presentation forms, by their
@@ -9,20 +9,19 @@ Text to placed glyphs: a light shaper, line wrapping, and a light bidi.
 - **Wrapping.** Lines break at spaces, between any two wide characters
   (CJK breaks anywhere), at a newline, and inside a word too long for a
   line.
-- **Bidi.** Unicode's bidi algorithm for one paragraph without explicit
-  embeddings (`levels`, `reorder`): right-to-left letters at level 1,
-  left-to-right text and digits inside right-to-left text embedded at 2
-  (so a number keeps its order), neutrals as their neighbours agree, and
-  rule L2's reversals. A line whose first strong character is
-  right-to-left sits at the right edge. Bidi controls are neutrals: they
-  reorder nothing.
+- **Bidi.** Unicode 16.0.0 P2–P3, W1–W7, N1–N2, I1–I2, L1–L2 for
+  a line without embeddings, isolates or paired brackets. Maximal EN/AN
+  runs remain contiguous in logical order (`numbers_keep_order`,
+  `arabic_numbers_keep_order`); display is a permutation (`visual_perm`).
+  Directional controls are ON under Quiet's policy. Internal emoji
+  tokens are ON too. See docs/BIDI.md for the audit and limits.
 
 Not handled: scripts that reorder or stack (Devanagari and other Indic
-scripts), ligatures, and emoji sequences (ZWJ, skin tones), which draw
-their parts.
+scripts), ligatures, and emoji sequences absent from the emoji asset.
 -/
 import engine.renderer.Font
 import engine.renderer.Chars
+import engine.renderer.bidi.Basic
 
 namespace Text
 open Font
@@ -184,92 +183,23 @@ def wrapPara (f : Font) (width : Nat) (cs : Array UInt32) : Array (Array UInt32)
 
 /-! ## Bidi and placing -/
 
-/-- A character's bidi class, as this light bidi resolves it: strong
-right-to-left, strong left-to-right, a digit (weak), or neutral (spaces,
-punctuation, symbols, emoji, and every control: an explicit bidi control
-is a neutral here, so it cannot reorder anything). -/
-inductive Dir where
-  | r | l | en | n
-  deriving BEq, Inhabited, Repr
+/-- The Unicode 16 class, with Quiet's neutral-control policy. -/
+def dirOf (c : UInt32) : Bidi.Class :=
+  if Emoji.isEmoji c then .on else Bidi.dirOf c
 
-def dirOf (c : UInt32) : Dir :=
-  if isRtl c then .r else if isStrongLtr c then .l else if isDigit c then .en else .n
+/-- P2–P3 on the logical line. -/
+def rtlPara (cs : List UInt32) : Bool := Bidi.paragraph (cs.map dirOf)
 
-/-- The paragraph's direction: its first strong character's (left to right
-when it has none). -/
-def rtlPara (cs : List UInt32) : Bool :=
-  match cs.find? (fun c => isRtl c || isStrongLtr c) with
-  | some c => isRtl c
-  | none => false
-
-/-- Each character's resolved direction (true: right-to-left), none for a
-neutral: a digit takes the strong direction before it (`prev`, the
-paragraph's at its start). -/
-def resolve (prev : Bool) : List UInt32 → List (Option Bool)
-  | [] => []
-  | c :: t => match dirOf c with
-    | .r => some true :: resolve true t
-    | .l => some false :: resolve false t
-    | .en => some prev :: resolve prev t
-    | .n => none :: resolve prev t
-
-/-- For each position, the last resolved direction before it (`p` at the
-start). -/
-def before (p : Bool) : List (Option Bool) → List Bool
-  | [] => []
-  | d :: t => p :: before (d.getD p) t
-
-/-- For each position, the first resolved direction at or after it (`p`
-past the end). -/
-def after (p : Bool) : List (Option Bool) → List Bool
-  | [] => []
-  | d :: t => let rest := after p t; d.getD (rest.headD p) :: rest
-
-/-- A mark takes the level of the character before it. -/
-def markLevels (prev : Nat) : List (UInt32 × Nat) → List Nat
-  | [] => []
-  | (c, v) :: t => let v' := if isMark c then prev else v; v' :: markLevels v' t
-
-/-- Each character's level (Unicode's bidi algorithm, for one paragraph
-with no explicit embeddings): right-to-left at 1; left-to-right at the
-paragraph's level rounded up to even; a digit as the strong text before it
-makes it (after right-to-left: at 2, kept in order inside the run); a
-neutral as the strong directions on both its sides when they agree (a
-digit counting as right-to-left after right-to-left), else the
-paragraph's. A mark takes its base's level. -/
 def levels (cs : List UInt32) : List Nat :=
-  let rtl := rtlPara cs
-  let p := if rtl then 1 else 0
-  let lvl : Bool → Nat := fun r => if r then 1 else (if rtl then 2 else 0)
-  let res := resolve rtl cs
-  let one : (UInt32 × Option Bool) × Bool × Bool → Nat := fun ((c, d), b, a) =>
-    match d with
-    | some r => if dirOf c == .en && r then 2 else lvl r
-    | none => if b == a then lvl b else p
-  let base := ((cs.zip res).zip ((before rtl res).zip (after rtl res))).map one
-  markLevels p (cs.zip base)
+  Bidi.levels (rtlPara cs) (cs.map fun c => (c, dirOf c))
 
-/-- Reverse every maximal run of entries whose level is at least `lv`
-(`run` holds the current run, reversed as it is collected). -/
-def reverseRuns (lv : Nat) (run : List (UInt32 × Nat)) : List (UInt32 × Nat) → List (UInt32 × Nat)
-  | [] => run
-  | x :: t => if x.2 ≥ lv then reverseRuns lv (x :: run) t else run ++ x :: reverseRuns lv [] t
-
-def reverseFrom (lv : Nat) (xs : List (UInt32 × Nat)) : List (UInt32 × Nat) := reverseRuns lv [] xs
-
-/-- Unicode's rule L2: from the highest level down to 1, reverse each
-run at that level or above. -/
-def reorder (xs : List (UInt32 × Nat)) : List (UInt32 × Nat) :=
-  let top := xs.foldl (fun m x => max m x.2) 0
-  (List.range top).foldl (fun acc k => reverseFrom (top - k) acc) xs
-
-/-- The line in display order, and whether it is a right-to-left line. -/
-def withLevels (cs : List UInt32) : List (UInt32 × Nat) :=
-  let lv := levels cs
-  cs.mapIdx fun i c => (c, lv.getD i 0)
+/-- The running display path, with an explicit paragraph direction for
+callers that already know it (and the Unicode conformance harness). -/
+def visualIn (rtl : Bool) (cs : List UInt32) : List UInt32 :=
+  Bidi.display rtl (cs.map fun c => (c, dirOf c))
 
 def visualL (cs : List UInt32) : List UInt32 × Bool :=
-  ((reorder (withLevels cs)).map (·.1), rtlPara cs)
+  (visualIn (rtlPara cs) cs, rtlPara cs)
 
 def visual (cs : Array UInt32) : Array UInt32 × Bool :=
   let (v, r) := visualL cs.toList

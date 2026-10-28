@@ -78,7 +78,7 @@ lean_lib Headless where
 -- the test suites' modules (their executables are below)
 lean_lib Tests where
   globs := #[.submodules `tests.engine, .submodules `tests.net, .submodules `tests.mdns,
-    .submodules `tests.qr]
+    .submodules `tests.qr, .submodules `tests.app]
 
 /-! ## Native code
 
@@ -266,3 +266,9 @@ lean_exe harden where
 
 lean_exe harden_tcp where
   root := `tests.engine.HardenTcp
+
+lean_exe bidi_check where
+  root := `tests.app.Bidi
+
+lean_exe bidi_host where
+  root := `platforms.headless.Bidi
