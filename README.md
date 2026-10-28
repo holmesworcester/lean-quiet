@@ -14,7 +14,7 @@ Like [Quiet](https://github.com/TryQuiet/quiet), Lean Quiet is also local-first,
 
 Lean is mostly used for mathematics, or to verify one part of a system.
 Here it is a whole, ordinary app, and about three quarters of its
-theorems (384 of 484) are about the code that runs on the phone; the
+theorems (387 of 498) are about the code that runs on the phone; the
 rest are over models, and moving them onto running code is a todo
 ([what is proven](#what-is-proven)). Native code only connects Lean to
 each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)), so in a
@@ -143,7 +143,7 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 484 rest on Lean's standard axioms
+that rests on; 🥊 is supporting. All 498 rest on Lean's standard axioms
 only.
 
 ### Security proofs
@@ -249,7 +249,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**384 of 484 laws are about running code;** 100 are not yet. Stated only: none.
+**387 of 498 laws are about running code;** 111 are not yet. Stated only: none.
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
@@ -262,7 +262,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Community | 143 | 132 | 11 |
 | QR codes | 10 | 10 |  |
 | Pictures | 13 | 1 | 12 |
-| Screen | 43 | 31 | 12 |
+| Screen | 57 | 34 | 23 |
 | App | 25 | 22 | 3 |
 
 | Missing link | Laws | To make them real |
@@ -281,6 +281,24 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Frame.wants`, `Subs.ofList`, `Frame.listWins` +2 | [`has_ofList`], [`ofList_wf`], [`exact_silent`], [`screen_subs`]†, [`hull_near`]†, [`past_hull_le`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan). |
 | `Mutants.σ`, `Mutants.fam`, `Mutants.keyNotified` +4 | [`key_notice_imprecise`]†, [`exact_silent`], [`unnetted_imprecise`]† | Negative controls, on a one-op world of their own, meant not to run: they show notices by key and an unnetted journal imprecise. |
 | `View.counting` | [`eval_counting`] | Nothing marks a view's reads counted now: the conversation's counts are a want of their own (`Reader.Want.count`); count through it, or drop it. |
+| `AWorld.pass` | [`passActs_comp`], [`passActs_indep`], [`passActs_acts`] | Nothing that runs calls it. |
+| `AWorld.type` | [`type_only`] | Nothing that runs calls it. |
+| `Eager.apply` | [`acts_fresh`], [`late_stale`] | Nothing that runs calls it. |
+| `Eager.eval` | [`acts_fresh`], [`late_stale`] | Nothing that runs calls it. |
+| `Eager.hitQs` | [`acts_fresh`], [`late_stale`] | Nothing that runs calls it. |
+| `Eager.hits` | [`acts_fresh`], [`late_stale`] | Nothing that runs calls it. |
+| `Eager.reads` | [`acts_fresh`], [`late_stale`] | Nothing that runs calls it. |
+| `Eager.w0` | [`acts_fresh`], [`late_stale`] | Nothing that runs calls it. |
+| `RWorld.actsWorld` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.passActs` do. |
+| `RWorld.commitAll` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.actsWorld`, `RWorld.nTouched`, `RWorld.passLate` do. |
+| `RWorld.frame` | [`acts_shown`], [`acts_fresh`], [`late_stale`] | Nothing that runs calls it. |
+| `RWorld.markIdx` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.passIdx` do. |
+| `RWorld.nTouched` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.passActs` do. |
+| `RWorld.passActs` | [`passActs_nil`], [`inv_passActs`], [`idxok_passActs`], [`acts_shown`], [`acts_fresh`] | Nothing that runs calls it; `AWorld.pass` do. |
+| `RWorld.passIdx` | [`passActs_nil`] | Nothing that runs calls it; `RWorld.passActs`, `RWorld.passLate` do. |
+| `RWorld.passLate` | [`late_stale`] | Nothing that runs calls it. |
+| `RWorld.touched` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.actsWorld`, `RWorld.nTouched` do. |
+| `Live.staleW` | [`inv_passActs`], [`idxok_passActs`], [`acts_shown`] | Nothing that runs calls it; `Live.RWorld.marked`, `Live.RWorld.passEager`, `Reader.stale` do. |
 | `Want.withViewLast` | [`withViewLast_moves`] | Nothing that runs calls it. |
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
@@ -984,8 +1002,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L1078-L1082
-[`pageIn_acc`]: App.lean#L1084-L1087
+[`drawPage_key`]: App.lean#L1110-L1114
+[`pageIn_acc`]: App.lean#L1116-L1119
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
@@ -1044,6 +1062,17 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`exact_silent`]: engine/core/WindowMutants.lean#L118-L120
 [`screen_index`]: engine/renderer/Screen.lean#L258-L261
 [`eval_counting`]: engine/core/WindowRead.lean#L440-L441
+[`passActs_comp`]: engine/renderer/ActsLaws.lean#L291-L293
+[`passActs_indep`]: engine/renderer/ActsLaws.lean#L295-L298
+[`passActs_acts`]: engine/renderer/ActsLaws.lean#L301-L302
+[`type_only`]: engine/renderer/ActsLaws.lean#L304-L305
+[`acts_fresh`]: engine/renderer/ActsLaws.lean#L366-L368
+[`late_stale`]: engine/renderer/ActsLaws.lean#L353-L357
+[`passActs_picks`]: engine/renderer/ActsLaws.lean#L98-L103
+[`acts_shown`]: engine/renderer/ActsLaws.lean#L209-L218
+[`passActs_nil`]: engine/renderer/ActsLaws.lean#L141-L143
+[`inv_passActs`]: engine/renderer/ActsLaws.lean#L192-L195
+[`idxok_passActs`]: engine/renderer/ActsLaws.lean#L199-L203
 [`withViewLast_moves`]: ops/app/Reader.lean#L93-L97
 [`nodup_full`]: ops/community/Intents.lean#L578-L580
 [`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298

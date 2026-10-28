@@ -301,6 +301,23 @@ def main (args : List String) : IO UInt32 := do
     check s!"then stored, same id: {p1}" (p1.map (·.2) == some false && s.ids[0]!.2 == top.getD .empty)
     let (n2, b2) ← liveSound
     check s!"after a send, every fresh live answer equals the query now ({n2} answers)" (b2 == 0 && n2 > 0)
+    -- an act: the send intent runs in the reader's pass, before its marks,
+    -- and its row shows, pending, in the frame that pass serves
+    -- (ActsLaws.acts_shown); the write then reaches the store
+    let actText := "sent by an act"
+    let total0 := (← get).total
+    let queued ← sendTextAct actText
+    let _ ← step []
+    let rowOf := fun (s : St) => s.rows.toList.find? fun (_, r) => r.data.text == actText
+    let s ← get
+    check s!"an act's send shows in the frame its pass serves ({s.total - total0} new, row {(rowOf s).isSome}, pending {((rowOf s).map (·.2.data.pending)).getD false})"
+      (queued.isSome && s.total == total0 + 1 && ((rowOf s).map (·.2.data.pending)).getD false)
+    let mut ka := 0
+    while ka < 3000 && ((rowOf (← get)).map (·.2.data.pending)).getD true do
+      let _ ← step []
+      IO.sleep 1
+      ka := ka + 1
+    check s!"and is stored, its row no longer pending ({ka} frames)" (((rowOf (← get)).map (·.2.data.pending)) == some false)
     sm.cmds.modify (·.push "react 0 🎉")
     let _ ← step []
     steps 3

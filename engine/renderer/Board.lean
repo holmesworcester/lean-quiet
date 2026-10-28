@@ -132,4 +132,24 @@ def mark {W : Type} [BEq W] [Hashable W] (wants : List W) (stale : W → Bool) (
 def pick {W : Type} [BEq W] [Hashable W] (wants : List W) (dirty : Std.HashSet W) (cap : Nat) : List W :=
   Id.run (pickM dirty cap wants)
 
+/-! ## A pass with acts: the user's writes, before the marks -/
+
+/-- Whether a pass with acts must open the store: acts queued force it,
+whatever else (`acts_force`). -/
+def mustReadActs {W : Type} [BEq W] [Hashable W] (acts : Bool) (commits seen : Nat) (notes moved : Bool)
+    (dirty : Std.HashSet W) (late : Bool) : Bool :=
+  acts || mustRead commits seen notes moved dirty late
+
+/-- The frame's wants, the ones the acts touched first, each group in
+the frame's order. -/
+def actsFirst {W : Type} [BEq W] [Hashable W] (wants : List W) (touched : Std.HashSet W) : List W :=
+  wants.filter (touched.contains ·) ++ wants.filter (!touched.contains ·)
+
+/-- **What a pass with acts reads**: every want the acts touched, then
+the first `cap` other marked, in the frame's order: however long the
+backlog, the user's own write is read this pass (`acts_shown`). -/
+def pickActs {W : Type} [BEq W] [Hashable W] (wants : List W) (touched marked : Std.HashSet W) (cap : Nat) :
+    List W :=
+  pick (actsFirst wants touched) marked ((wants.filter (touched.contains ·)).length + cap)
+
 end Live

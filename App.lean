@@ -454,11 +454,13 @@ def writeAll (w : Community.Write) : M Bool := do
       (← get).io.log s!"write refused: an op is Invalid"
       return false
   modify fun s => { s with out := s.out ++ pend }
+  s.sh.out.modify (· ++ pend)
   noticeLocal pend.toList
   submit ⟨w.ops, true⟩
   return true
 
 def write (o : Op) : M Bool := writeAll ⟨[o]⟩
+
 
 /-- Chaos's writes, once made: each job one write, as a user's action is. -/
 def chaosStep : M Unit := do
@@ -481,6 +483,22 @@ def newSeed : IO ByteArray := newBytes 32
 /-- Wall-clock minutes since the Unix epoch: the time a write claims. -/
 def nowMin : M Nat := do return (← (← get).io.wall).1
 
+/-- A user action for the reader: its intent runs in the next pass, in
+its transaction and before the marks, and what it touches shows in the
+frame that pass serves (ActsLaws.acts_shown). Its id, for `takeDone`. -/
+def act (intent : Reader.RM Community.Write) : M Id := do
+  let id ← newBytes 16
+  (← get).sh.act id intent
+  return id
+
+/-- The acts the reader has run: each write submitted, as the frame's
+own are (`submit`), in order; what each wrote, for its continuation. -/
+def takeDone : M (Array (Id × Option Community.Write)) := do
+  let ds ← (← get).sh.done.modifyGet fun a => (a, #[])
+  for (_, w?) in ds do
+    if let some w := w? then submit ⟨w.ops, true⟩
+  return ds
+
 def sendText (text : String) : M Bool := do
   let s ← get
   let t := text.trimAscii.toString
@@ -491,6 +509,21 @@ def sendText (text : String) : M Bool := do
   let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k (← newBytes 24) t.toUTF8
     (← nowMin)) #[]
   writeAll w
+
+/-- `sendText` as an act: the reader reads the key and runs the send
+intent in its next pass; none when there is nothing to send. -/
+def sendTextAct (text : String) : M (Option Id) := do
+  let s ← get
+  let t := text.trimAscii.toString
+  if t.isEmpty then return none
+  let (c, adm, dev) := (s.me.c, s.me.adm, s.me.dev)
+  let nonce ← newBytes 24
+  let now ← nowMin
+  some <$> act do
+    let (k?, _) ← readView (Community.currentKey c) #[]
+    let some k := k? | throw (IO.userError "this community's key hasn't arrived yet")
+    let (w, _) ← readView (Community.send c adm dev k nonce t.toUTF8 now) #[]
+    return w
 
 def reactTo (m : Id) (e : String) : M Bool := do
   let s ← get
@@ -597,11 +630,10 @@ def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := do
   return p.shown pre full
 
 /-- In the headless twins, the frame runs the reader's pass itself; on a
-device the reader's thread runs them. Either way the reader sees the
-frame's outbox as of now. -/
+device the reader's thread runs them. The outbox is the reader's
+(`Reader.Shared.out`): the frame's writes join it as they are made. -/
 def readerPass : M Unit := do
   let s ← get
-  s.sh.out.set s.out
   if let some r := s.rst then
     let (_, r) ← (Reader.pass s.sh).run r
     modify fun s => { s with rst := some r }
@@ -1672,6 +1704,8 @@ def frame (evs : List Event) : M (Option (List Event)) := do
       out := s.out.filter fun p => !judged.contains p.op.id }
     if !decided.isEmpty then noticeLocal decided.toList
   flushNode
+  -- the reader's acts: their writes go to the node (or the writer)
+  let _ ← takeDone
   chaosStep
   let tNotices ← (← get).io.nowUs
   -- 2. events and commands
