@@ -22,10 +22,8 @@ inviter, this device's request to the inviter is resent on a courier to
 the link's first hint, or composed if there is none yet. A tick is the
 retry: it is lean-net's "the joiner re-sends the same hello every tick".
 
-`closing cid`: what a closed session purges: the connection, its
-request and this side's ephemeral. Purge takes their dependents with
-them (opened, established, settled, arrivals) and the couriers routed
-to cid.
+`closing cid`: what a closed session purges: the connection and its
+request. Purge takes every dependent with them.
 
 They run in any monad that reads lists and ops and gives fresh
 secrets: the node's SQLite monad, with the OS's random bytes, or the
@@ -99,14 +97,14 @@ def react (fam : Family F) (K : Keys) (seed : B) : m (List Op) := do
     let some addr ← arrivedFrom r | continue
     let f ← Fresh.fresh
     let some co := Reply.op K r seed frm m1 f | continue
-    let eo := Eph.op f
-    out := out ++ #[eo, co, Established.op co.id r eo.id secretOp, Send.op (.bare addr) co.bytes]
+    let eo := Eph.op f co.id
+    out := out ++ #[co, eo, Established.op co.id r eo.id secretOp, Send.op (.bare addr) co]
   -- establish
   for (r, f) in ← rows request.byFrm [me] do
     let .request _ _ m1 := f | continue
     for (cid, _) in ← rows connection.byRequest [r] do
       if (← count established.byConn [cid]) ≠ 0 then continue
-      match ← rows eph.byPub [m1.extract 0 32] with
+      match ← rows eph.byOf [r] with
       | (e, _) :: _ => out := out.push (Established.op cid r e secretOp)
       | [] => pure ()
   return out.toList
@@ -131,25 +129,21 @@ def dial (K : Keys) (seed listen : B) (_now : Nat) : m (List Op) := do
       | _ => false
     match mineTo with
     | some (r, _) =>
-      if let some ro ← Store.getOp (m := m) r then out := out.push (Send.op (.bare hint) ro.bytes)
+      if let some ro ← Store.getOp (m := m) r then out := out.push (Send.op (.bare hint) ro)
     | none =>
       let some jr ← Store.getOp (m := m) req | continue
       let e ← Fresh.fresh
       let some ro := Request.op K seed inviter e (hello c listen [jr]) | continue
-      out := out ++ #[Eph.op e, ro, Send.op (.bare hint) ro.bytes]
+      out := out ++ #[ro, Eph.op e ro.id, Send.op (.bare hint) ro]
   return out.toList
 
-/-- What closing connection cid purges (with their dependents). -/
+/-- What closing connection cid purges: the connection and the request
+it answers. Purge takes every dependent with them: the ephemerals, the
+opened and established ops, the settled ops, the couriers and the
+arrival records. -/
 def closing (cid : Id) : m (List Id) := do
   let some co ← Store.getOp (m := m) cid | return []
-  let ests ← rows established.byConn [cid]
-  let mut ids := [cid] ++ co.reqs
-  for (x, _) in ests do
-    if let some eo ← Store.getOp (m := m) x then ids := ids ++ (eo.reqs.drop 2).take 1
-  let couriers := (← rows send.all []).filterMap fun (x, g) => match g with
-    | .send false d _ => if d = cid then some x else none
-    | _ => none
-  return ids ++ couriers
+  return cid :: co.reqs
 
 /-- The rooms the peer on connection cid may see now. -/
 def rooms (seed : B) (cid : Id) : m (List Id) := do
@@ -193,10 +187,12 @@ def openFrame (K : Keys) (b : B) : m (Option (Id × B)) := do
   return Frame.open K rk b
 
 def outbox : m (List (Id × Route × B)) := do
-  return (← rows send.all []).filterMap fun (x, f) => match f with
-    | .send true d b => some (x, .bare d, b)
-    | .send false d b => some (x, .conn d, b)
-    | _ => none
+  let mut out := []
+  for (x, f) in ← rows send.all [] do
+    let .send op bare d := f | continue
+    let some o ← Store.getOp (m := m) op | continue
+    out := (x, if bare then Route.bare d else Route.conn d, o.bytes) :: out
+  return out.reverse
 
 end
 

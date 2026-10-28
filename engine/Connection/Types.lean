@@ -1,7 +1,7 @@
 /-
 The connection family's ops and facts, and how they are written as
 bytes. Each op type's meaning lives in its own file: Eph, Request,
-Opened, Connection, Established, Send, Recv, Seen and Settled.
+Opened, Connection, Established, Send, Recv and Settled.
 
 Keys: devices are named by their Ed25519 keys, as in Community. Noise
 runs on the X25519 keys those convert to (`Keys`).
@@ -52,26 +52,24 @@ inductive Body where
   | opened
   | connection (m2 : B)
   | established
-  | send (bare : Bool) (dest bytes : B)
+  | send (bare : Bool) (dest : B)
   | recv (onConn : Bool) (via addr : B) (at_ : Nat)
-  | seen (peer addr : B) (at_ : Nat)
   | settled (room : B)
 
 inductive Fact where
-  | eph (pk sk : B)
+  | eph (of pk sk : B)
   | request (to frm m1 : B)
   | opened (req c frm addr : B) (ops : List B)
   | connection (req m2 : B)
   | established (cid c peer h sendKey recvKey : B) (dialer : Bool)
-  | send (bare : Bool) (dest bytes : B)
+  | send (op : B) (bare : Bool) (dest : B)
   | recv (op : B) (onConn : Bool) (via addr : B) (at_ : Nat)
-  | seen (peer addr : B) (at_ : Nat)
   | settled (cid room : B)
   deriving Inhabited, BEq
 
 def Body.kind : Body → UInt8
   | .eph .. => 32 | .request .. => 33 | .opened => 34 | .connection .. => 35
-  | .established => 36 | .send .. => 37 | .recv .. => 38 | .seen .. => 39 | .settled .. => 40
+  | .established => 36 | .send .. => 37 | .recv .. => 38 | .settled .. => 40
 
 open Community (decAs decAs_enc)
 
@@ -81,9 +79,8 @@ def Body.enc : Body → List UInt8
   | .opened => [34]
   | .connection m => 35 :: Codec.enc m
   | .established => [36]
-  | .send b d x => 37 :: Codec.enc (b, d, x)
+  | .send b d => 37 :: Codec.enc (b, d)
   | .recv c v a t => 38 :: Codec.enc (c, v, a, t)
-  | .seen p a t => 39 :: Codec.enc (p, a, t)
   | .settled r => 40 :: Codec.enc r
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
@@ -92,9 +89,8 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 34 :: r => some (.opened, r)
   | 35 :: r => decAs (fun (p : B) => Body.connection p) r
   | 36 :: r => some (.established, r)
-  | 37 :: r => decAs (fun (p : Bool × B × B) => Body.send p.1 p.2.1 p.2.2) r
+  | 37 :: r => decAs (fun (p : Bool × B) => Body.send p.1 p.2) r
   | 38 :: r => decAs (fun (p : Bool × B × B × Nat) => Body.recv p.1 p.2.1 p.2.2.1 p.2.2.2) r
-  | 39 :: r => decAs (fun (p : B × B × Nat) => Body.seen p.1 p.2.1 p.2.2) r
   | 40 :: r => decAs (fun (p : B) => Body.settled p) r
   | _ => none
 
@@ -106,28 +102,26 @@ instance : Codec Body where
       first | rfl | exact decAs_enc _ _ _
 
 def Fact.enc : Fact → List UInt8
-  | .eph p s => 0 :: Codec.enc (p, s)
+  | .eph o p s => 0 :: Codec.enc (o, p, s)
   | .request t f m => 1 :: Codec.enc (t, f, m)
   | .opened r c f a os => 2 :: Codec.enc (r, c, f, a, os)
   | .connection r m => 3 :: Codec.enc (r, m)
   | .established i c p h s k d => 4 :: Codec.enc (i, c, p, h, s, k, d)
-  | .send b d x => 5 :: Codec.enc (b, d, x)
+  | .send o b d => 5 :: Codec.enc (o, b, d)
   | .recv o c v a t => 6 :: Codec.enc (o, c, v, a, t)
-  | .seen p a t => 7 :: Codec.enc (p, a, t)
   | .settled i r => 8 :: Codec.enc (i, r)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
-  | 0 :: r => decAs (fun (p : B × B) => Fact.eph p.1 p.2) r
+  | 0 :: r => decAs (fun (p : B × B × B) => Fact.eph p.1 p.2.1 p.2.2) r
   | 1 :: r => decAs (fun (p : B × B × B) => Fact.request p.1 p.2.1 p.2.2) r
   | 2 :: r => decAs (fun (p : B × B × B × B × List B) =>
       Fact.opened p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 3 :: r => decAs (fun (p : B × B) => Fact.connection p.1 p.2) r
   | 4 :: r => decAs (fun (p : B × B × B × B × B × B × Bool) =>
       Fact.established p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) r
-  | 5 :: r => decAs (fun (p : Bool × B × B) => Fact.send p.1 p.2.1 p.2.2) r
+  | 5 :: r => decAs (fun (p : B × Bool × B) => Fact.send p.1 p.2.1 p.2.2) r
   | 6 :: r => decAs (fun (p : B × Bool × B × B × Nat) =>
       Fact.recv p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
-  | 7 :: r => decAs (fun (p : B × B × Nat) => Fact.seen p.1 p.2.1 p.2.2) r
   | 8 :: r => decAs (fun (p : B × B) => Fact.settled p.1 p.2) r
   | _ => none
 
@@ -137,10 +131,9 @@ instance : Codec Fact where
   round f rest := by
     cases f <;> simp only [Fact.enc, Fact.dec, List.cons_append] <;> exact decAs_enc _ _ _
 
-/-- Where a fact sorts under its keys: arrivals and sightings by time. -/
+/-- Where a fact sorts under its keys: arrivals by time. -/
 def sortOf : Fact → B
   | .recv _ _ _ _ t => Community.be64 t
-  | .seen _ _ t => Community.be64 t
   | _ => .empty
 
 instance : SortKey Fact := ⟨sortOf⟩

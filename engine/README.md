@@ -218,8 +218,12 @@ code (Connection/, one file per op type).
   associated data. They carry no counters and need no replay tracking,
   because ops are idempotent.
 - **In and out.** Every op taken gets a `recv` (when it arrived and
-  how). Everything leaves through `send` couriers. `seen` records
-  addresses, and `settled` records a room's first sync on a connection.
+  how). Everything leaves through `send` couriers, which cite the op
+  they carry and are read by reference when handed out. `settled`
+  records a room's first sync on a connection.
+- **Closing purges two ops**, the connection and its request.
+  Everything else of the session cites one of them (ephemerals, opened,
+  established, settled, couriers, arrivals), so purge takes it along.
 - **Reactions** (`Connection/Intents.lean`). `react` opens, delivers,
   answers only peers the trust rule admits, and establishes. `dial`
   resends a pending join's request every tick. Both are views over lists

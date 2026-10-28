@@ -13,14 +13,13 @@ namespace Connection
 open Engine Codec
 
 def check (K : Keys) (o : Op) : Body → List F → Option Fact
-  | .eph sk, fs => Eph.check K sk fs
+  | .eph sk, fs => Eph.check K o sk fs
   | .request t f m, fs => Request.check K t f m fs
   | .opened, fs => Opened.check K o fs
   | .connection m, fs => Reply.check o m fs
   | .established, fs => Established.check K o fs
-  | .send b d x, fs => Send.check b d x fs
+  | .send b d, fs => Send.check o b d fs
   | .recv c v a t, fs => Recv.check o c v a t fs
-  | .seen p a t, fs => Seen.check p a t fs
   | .settled r, fs => Settled.check o r fs
 
 def validate (K : Keys) (o : Op) (fs : List F) : Option Fact :=
@@ -29,8 +28,8 @@ def validate (K : Keys) (o : Op) (fs : List F) : Option Fact :=
   | none => none
 
 def rels : List (Rel Fact) :=
-  [eph.byPub, request.byTo, request.byFrm, opened.all, opened.byRequest, connection.byRequest,
-   established.all, established.byConn, send.all, recv.byOp, seen.byPeer, settled.byConn,
+  [eph.byOf, request.byTo, request.byFrm, opened.all, opened.byRequest, connection.byRequest,
+   established.all, established.byConn, send.all, recv.byOp, settled.byConn,
    settled.byRoom]
 
 def keys : Fact → List ByteArray := keysOf rels

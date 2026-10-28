@@ -22,7 +22,7 @@ namespace Connection
 open Engine Codec
 
 def Established.check (K : Keys) (o : Op) : List F → Option Fact
-  | [.inr (.connection r m2), .inr (.request to frm m1), .inr (.eph _ esk), .inl (.secret pk seed)] =>
+  | [.inr (.connection r m2), .inr (.request to frm m1), .inr (.eph _ _ esk), .inl (.secret pk seed)] =>
     let cid := o.reqs.headD .empty
     if o.reqs.getD 1 .empty ≠ r then none
     else if pk = to then do

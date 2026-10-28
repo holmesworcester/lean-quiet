@@ -4,7 +4,7 @@ with this peer once). It cites the connection, and a close purges it
 with the session. A screen shows "joining" until a connection has
 settled the community, and reads admission and members after that.
 -/
-import Connection.Seen
+import Connection.Recv
 
 namespace Connection
 open Engine
