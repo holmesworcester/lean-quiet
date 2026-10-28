@@ -16,7 +16,7 @@ There is something exhilarating about adding a proof where one would usually add
 
 <p align="center"><img src="docs/media/android-demo.webp" width="300" alt="Lean Quiet on Android: a message, Hebrew, Arabic and mixed scripts, a heart reaction, a photo, then flings through 1,000 messages"></p>
 
-<p align="center"><em>On an Android emulator: a message, Hebrew, Arabic and mixed scripts, a ❤️ reaction, a photo, then flings through 1,000 messages. Lean draws everything in the app's window (the status bar is Android's, and the keyboard is a scripted demo input method), and what the frames show has proofs: each frame reads one moment of the store, and text keeps every character through wrapping and bidi.</em></p>
+<p align="center"><em>The status bar and keyboard are Android's, the rest is Lean Quiet.</em></p>
 
 ## What is proven
 
