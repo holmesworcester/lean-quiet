@@ -50,7 +50,7 @@
 //
 // Debugging, from the environment (SIMCTL_CHILD_x for simctl launch):
 // LEANQUIET_CTL_PORT=<port> the control channel's TCP port on 127.0.0.1
-// (default 7417, 0: none; ctl_ios.c); LEANQUIET_TRACE=1 logs each frame.
+// (default 7417, 0: none; ctl_ios.c).
 
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
@@ -109,7 +109,6 @@ static _Atomic double   lq_pend_b;
 static LqStage           lq_st[3];
 static uint32_t          lq_over;
 static uint32_t          lq_list_bg = 0xFF000000u;
-static bool              lq_trace;
 static dispatch_semaphore_t lq_vsync;
 static _Atomic bool      lq_vsync_due;
 
@@ -300,24 +299,6 @@ static UIColor* lq_color(uint32_t bgra) {
                           blue:(bgra & 0xFF) / 255.0 alpha:1];
 }
 
-// Every 120 frames, the mean cost per frame on stderr: Lean's own time,
-// the staging (row copies), and the show (surface copies, the wait for a
-// refresh and the transaction).
-static void lq_time(uint64_t t0, uint64_t t1, uint64_t t2) {
-  static uint64_t n, copy, show, app, last;
-  if (last != 0) {
-    app += t0 - last;
-  }
-  copy += t1 - t0;
-  show += t2 - t1;
-  last  = t2;
-  if (++n == 120) {
-    fprintf(stderr, "twin ms/frame: lean %.1f copy %.1f show %.1f b %.0f\n", app / 120e6,
-      copy / 120e6, show / 120e6, atomic_load(&lq_offset));
-    n = copy = show = app = 0;
-  }
-}
-
 // Platform.lean
 // -------------
 
@@ -358,13 +339,11 @@ lean_obj_res lq_scroll_to(double b) {
 
 lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj_arg top,
   b_lean_obj_arg bot) {
-  uint64_t t0 = lq_tick();
   uint32_t w  = lq_w;
   lq_over     = over;
   lq_stage(&lq_st[LQ_LIST], list, w, b, true);
   lq_stage(&lq_st[LQ_TOP], top, w, 0, false);
   lq_stage(&lq_st[LQ_BOT], bot, w, 0, false);
-  uint64_t t1 = lq_tick();
   IOSurfaceRef show[3] = { NULL, NULL, NULL };
   for (int k = 0; k < 3; k += 1) {
     if (lq_st[k].dirty && lq_fill_surface(&lq_st[k])) {
@@ -434,11 +413,6 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
     }
     [CATransaction commit];
   });
-  if (lq_trace) {
-    fprintf(stderr, "frame b %u shown %d%d%d content %u\n", b, show[0] != NULL, show[1] != NULL,
-      show[2] != NULL, ch);
-  }
-  lq_time(t0, t1, lq_tick());
   pthread_mutex_lock(&lq_mu);
   if (lq_gone && !lq_closed) {
     lq_closed = true;
@@ -517,7 +491,7 @@ static uint32_t lq_cp(NSString* s, NSInteger i) {
 }
 
 // The field's text, selection and marked (composing) range to Lean, with
-// a text event if any changed.
+// a text event.
 static void lq_report(void) {
   UITextField* f = lq_field;
   NSString*    t = f.text ?: @"";
@@ -530,13 +504,10 @@ static void lq_report(void) {
   uint32_t  pos[4] = { lq_cp(t, ss), lq_cp(t, se), lq_cp(t, ms), lq_cp(t, me) };
   const char* u = t.UTF8String ?: "";
   pthread_mutex_lock(&lq_mu);
-  bool same = lq_text_s != NULL && strcmp(lq_text_s, u) == 0 && memcmp(pos, lq_pos, sizeof pos) == 0;
-  if (!same) {
-    free(lq_text_s);
-    lq_text_s = strdup(u);
-    memcpy(lq_pos, pos, sizeof pos);
-    lq_push(4, 0, 0, 0);
-  }
+  free(lq_text_s);
+  lq_text_s = strdup(u);
+  memcpy(lq_pos, pos, sizeof pos);
+  lq_push(4, 0, 0, 0);
   pthread_mutex_unlock(&lq_mu);
 }
 
@@ -589,91 +560,77 @@ static void lq_report(void) {
 // Touches
 // -------
 
-// A finger on the header or the composer: a press and release that never
-// moved past the slop (8 points) is a tap, or a long press once held
-// LQ_LONG_NS (reported while still held, as the list's is; its release is
-// then no tap). A finger down on the composer (or the sheet in its place)
-// is the app's to scroll: its drag goes to Lean as event 8, at rows within
-// the composer as it was when the finger went down.
-static struct {
-  bool     down, moved, held;
-  uint32_t region;   // 1 header, 2 composer
-  double   x0, y0;   // where it went down, points on the screen
-  double   ctop;     // the composer's top then, points
-  uint64_t t0;
-} lq_touch;
-
-static void lq_press(uint32_t kind) {
-  uint32_t x = lq_px(lq_touch.x0);
-  if (lq_touch.region == 1) {
-    lq_event(kind, 1, x, lq_px(lq_touch.y0));
-  } else {
-    uint32_t y  = lq_px(lq_touch.y0 - lq_touch.ctop);
-    uint32_t bh = lq_shown_bot_h;
-    lq_event(kind, 2, x, bh > 0 && y >= bh ? bh - 1 : y);
-  }
+// UIKit's recognizers tell a tap from a long press (held LQ_LONG_NS within
+// 8 points, reported while still held; its release is then no tap) and
+// report a finger on the composer (or the sheet in its place) down, moved
+// and up as a drag (event 8): the app scrolls what is there itself. The
+// region is the view touched; y is the row within the header or composer,
+// and in the list the distance above the content's end (the scroll view's
+// own coordinates are content distances).
+static void lq_touch(uint32_t kind, uint32_t a, UIGestureRecognizer* g) {
+  UIView* v = g.view;
+  CGPoint p = [g locationInView:v];
+  uint32_t region = v == lq_header ? 1 : v == lq_composer ? 2 : 0;
+  uint32_t y      = region == 0 ? (uint32_t)fmax(0, floor(p.y * lq_k)) : lq_px(p.y);
+  lq_event(kind, kind == 8 ? a : region, lq_px(p.x), y);
 }
 
-@interface LeanChrome : UIView
-@property (nonatomic) uint32_t region;
+@interface LeanTouches : NSObject <UIGestureRecognizerDelegate>
 @end
 
-@implementation LeanChrome
+@implementation LeanTouches
 
-- (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)e {
-  if (lq_touch.down) {
-    return;
-  }
-  CGPoint p        = [touches.anyObject locationInView:lq_root];
-  lq_touch.down    = true;
-  lq_touch.moved   = false;
-  lq_touch.held    = false;
-  lq_touch.region  = self.region;
-  lq_touch.x0      = p.x;
-  lq_touch.y0      = p.y;
-  lq_touch.ctop    = lq_composer.layer.presentationLayer.frame.origin.y;
-  lq_touch.t0      = lq_tick();
-  if (self.region == 2) {
-    lq_event(8, 0, lq_px(p.x), lq_px(p.y - lq_touch.ctop));
+- (void)tapped:(UIGestureRecognizer*)g {
+  if (g.state == UIGestureRecognizerStateEnded) {
+    lq_touch(2, 0, g);
   }
 }
 
-- (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)e {
-  if (!lq_touch.down) {
-    return;
-  }
-  CGPoint p = [touches.anyObject locationInView:lq_root];
-  if (fabs(p.x - lq_touch.x0) > 8 || fabs(p.y - lq_touch.y0) > 8) {
-    lq_touch.moved = true;
-  }
-  if (lq_touch.region == 2) {
-    lq_event(8, 1, lq_px(p.x), lq_px(p.y - lq_touch.ctop));
+- (void)held:(UIGestureRecognizer*)g {
+  if (g.state == UIGestureRecognizerStateBegan) {
+    lq_touch(3, 0, g);
   }
 }
 
-- (void)lift:(NSSet<UITouch*>*)touches {
-  if (!lq_touch.down) {
-    return;
+- (void)dragged:(UIGestureRecognizer*)g {
+  UIGestureRecognizerState st = g.state;
+  if (st == UIGestureRecognizerStateBegan || st == UIGestureRecognizerStateChanged) {
+    lq_touch(8, st == UIGestureRecognizerStateBegan ? 0 : 1, g);
+  } else if (st == UIGestureRecognizerStateEnded || st == UIGestureRecognizerStateCancelled) {
+    lq_touch(8, 2, g);
   }
-  CGPoint p = [touches.anyObject locationInView:lq_root];
-  if (lq_touch.region == 2) {
-    lq_event(8, 2, lq_px(p.x), lq_px(p.y - lq_touch.ctop));
-  }
-  if (!lq_touch.moved && !lq_touch.held) {
-    lq_press((int64_t)(lq_tick() - lq_touch.t0) >= LQ_LONG_NS ? 3 : 2);
-  }
-  lq_touch.down = false;
 }
 
-- (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)e {
-  [self lift:touches];
-}
-
-- (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)e {
-  [self lift:touches];
+// The drag goes along with the tap and the long press.
+- (BOOL)gestureRecognizer:(UIGestureRecognizer*)a
+    shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer*)b {
+  return YES;
 }
 
 @end
+
+static LeanTouches* lq_touches;
+
+// Taps and long presses on v; and, for the composer, its drag.
+static void lq_listen(UIView* v, bool drag) {
+  UILongPressGestureRecognizer* hold = [[UILongPressGestureRecognizer alloc] initWithTarget:lq_touches
+    action:@selector(held:)];
+  hold.minimumPressDuration = LQ_LONG_NS / 1e9;
+  hold.allowableMovement    = 8;
+  UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc] initWithTarget:lq_touches
+    action:@selector(tapped:)];
+  [tap requireGestureRecognizerToFail:hold];
+  [v addGestureRecognizer:hold];
+  [v addGestureRecognizer:tap];
+  if (drag) {
+    UILongPressGestureRecognizer* d = [[UILongPressGestureRecognizer alloc] initWithTarget:lq_touches
+      action:@selector(dragged:)];
+    d.minimumPressDuration = 0;
+    d.allowableMovement    = CGFLOAT_MAX;
+    d.delegate             = lq_touches;
+    [v addGestureRecognizer:d];
+  }
+}
 
 // The view
 // --------
@@ -688,24 +645,6 @@ static void lq_press(uint32_t kind) {
   // viewport's bottom edge: Platform.scroll's b (negative in a bounce at
   // the newest end; scroll answers 0 there).
   atomic_store(&lq_offset, v.contentOffset.y * lq_k);
-}
-
-// A list tap or long press: x, and y as the distance above the content's
-// end (the scroll view's own coordinates are content distances).
-- (void)tapped:(UIGestureRecognizer*)g {
-  if (g.state != UIGestureRecognizerStateEnded) {
-    return;
-  }
-  CGPoint p = [g locationInView:self];
-  lq_event(2, 0, lq_px(p.x), (uint32_t)fmax(0, floor(p.y * lq_k)));
-}
-
-- (void)held:(UIGestureRecognizer*)g {
-  if (g.state != UIGestureRecognizerStateBegan) {
-    return;
-  }
-  CGPoint p = [g locationInView:self];
-  lq_event(3, 0, lq_px(p.x), (uint32_t)fmax(0, floor(p.y * lq_k)));
 }
 
 @end
@@ -734,25 +673,13 @@ static void lq_press(uint32_t kind) {
   lq_list.opaque    = YES;
   lq_list.transform = CATransform3DMakeScale(1, -1, 1);  // upright again
   [sv.layer insertSublayer:lq_list atIndex:0];
-  UILongPressGestureRecognizer* hold = [[UILongPressGestureRecognizer alloc] initWithTarget:sv
-    action:@selector(held:)];
-  hold.minimumPressDuration = LQ_LONG_NS / 1e9;
-  hold.allowableMovement    = 8;
-  UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc] initWithTarget:sv
-    action:@selector(tapped:)];
-  [tap requireGestureRecognizerToFail:hold];
-  [sv addGestureRecognizer:hold];
-  [sv addGestureRecognizer:tap];
 
-  LeanChrome* header = [LeanChrome new];
-  header.region = 1;
-  header.translatesAutoresizingMaskIntoConstraints = NO;
-  LeanChrome* composer = [LeanChrome new];
-  composer.region = 2;
-  composer.translatesAutoresizingMaskIntoConstraints = NO;
-  LeanChrome* fill = [LeanChrome new];
-  fill.region = 2;
-  fill.translatesAutoresizingMaskIntoConstraints = NO;
+  UIView* header   = [UIView new];
+  UIView* composer = [UIView new];
+  UIView* fill     = [UIView new];
+  for (UIView* v in @[ header, composer, fill ]) {
+    v.translatesAutoresizingMaskIntoConstraints = NO;
+  }
   UIView* probe = [UIView new];
   probe.userInteractionEnabled = NO;
   probe.translatesAutoresizingMaskIntoConstraints = NO;
@@ -766,6 +693,10 @@ static void lq_press(uint32_t kind) {
     [root addSubview:v];
   }
   [composer addSubview:field];
+  lq_touches = [LeanTouches new];
+  lq_listen(sv, false);
+  lq_listen(header, false);
+  lq_listen(composer, true);
 
   UILayoutGuide* kb = root.keyboardLayoutGuide;
   lq_header_h   = [header.heightAnchor constraintEqualToConstant:0];
@@ -859,8 +790,6 @@ static void* lq_run(void* arg) {
 @implementation LeanDelegate
 
 - (BOOL)application:(UIApplication*)app didFinishLaunchingWithOptions:(NSDictionary*)opts {
-  const char* tr = getenv("LEANQUIET_TRACE");
-  lq_trace = tr != NULL && tr[0] == '1';
   const char* port = getenv("LEANQUIET_CTL_PORT");
   int p = port != NULL ? atoi(port) : 7417;
   if (p > 0) {
@@ -885,8 +814,7 @@ static void* lq_run(void* arg) {
 
 // Once a display refresh: Lean's pace (one signal, never banked: a slow
 // frame does not earn the next ones a head start), the keyboard's height
-// mid-animation, whether the list is scrolling, and a long press held on
-// the chrome.
+// mid-animation, and whether the list is scrolling.
 - (void)vsync:(CADisplayLink*)l {
   if (!lq_vsync_due) {
     lq_vsync_due = true;
@@ -904,11 +832,6 @@ static void* lq_run(void* arg) {
   if (active != self.active) {
     self.active = active;
     lq_event(7, active, 0, 0);
-  }
-  if (lq_touch.down && !lq_touch.moved && !lq_touch.held &&
-      (int64_t)(lq_tick() - lq_touch.t0) >= LQ_LONG_NS) {
-    lq_touch.held = true;
-    lq_press(3);
   }
 }
 

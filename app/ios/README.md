@@ -68,10 +68,11 @@ Linux box and do the Mac's part over SSH.
   selection and marked range go to Lean in code points, and Return (shown
   as Send) is the send event. The keyboard's height is read every refresh
   from a probe view on the layout guide's presentation layer, mid-animation.
-- **Touches:** list taps and long presses come from gesture recognizers
-  on the scroll view, and `y` is the content distance. The header and
-  composer track their own touches: an 8 pt slop, a long press after
-  500 ms reported while still held, and the composer's drag as event 8.
+- **Touches:** UIKit's gesture recognizers tell taps from long presses
+  (500 ms within 8 points, reported while still held). On the composer
+  they also report the finger's down, move and up as a drag (event 8).
+  The twin keeps no touch state of its own. It forwards region, x and y;
+  in the list, y is the content distance.
 - **Pixels:** Lean's rows are R G B X and IOSurface's are B G R A, so a row
   is swizzled as it is copied. Rows that are the same object as last
   frame's are not copied: the staging buffer shifts and only new rows are
