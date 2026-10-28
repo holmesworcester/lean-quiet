@@ -1,18 +1,8 @@
-// SQLite and Ed25519 for Lean. SQLite statements take blob parameters
-// and return every column as bytes; libsodium (linked from its shared
-// library, whose headers this box lacks) supplies Ed25519 and SHA-256.
+// SQLite for Lean: statements take blob parameters and return every
+// column as bytes. The crypto is native/crypto.c.
 #include <lean/lean.h>
 #include <sqlite3.h>
 #include <string.h>
-
-// ---- libsodium, declared by hand -------------------------------------------
-int sodium_init(void);
-int crypto_hash_sha256(unsigned char* out, const unsigned char* in, unsigned long long n);
-int crypto_sign_ed25519_seed_keypair(unsigned char* pk, unsigned char* sk, const unsigned char* seed);
-int crypto_sign_ed25519_detached(unsigned char* sig, unsigned long long* siglen,
-  const unsigned char* m, unsigned long long mlen, const unsigned char* sk);
-int crypto_sign_ed25519_verify_detached(const unsigned char* sig, const unsigned char* m,
-  unsigned long long mlen, const unsigned char* pk);
 
 static lean_obj_res bytes(const void* p, size_t n) {
   lean_object* b = lean_alloc_sarray(1, n, n);
@@ -22,37 +12,6 @@ static lean_obj_res bytes(const void* p, size_t n) {
 
 static lean_obj_res io_error(const char* msg) {
   return lean_io_result_mk_error(lean_mk_io_user_error(lean_mk_string(msg)));
-}
-
-LEAN_EXPORT lean_obj_res le_sha256(b_lean_obj_arg in) {
-  unsigned char out[32];
-  crypto_hash_sha256(out, lean_sarray_cptr(in), lean_sarray_size(in));
-  return bytes(out, 32);
-}
-
-// seed (32 bytes) -> pk (32) ++ sk (64)
-LEAN_EXPORT lean_obj_res le_ed25519_keypair(b_lean_obj_arg seed) {
-  unsigned char pk[32], sk[64], out[96];
-  if (lean_sarray_size(seed) != 32) return bytes(out, 0);
-  sodium_init();
-  crypto_sign_ed25519_seed_keypair(pk, sk, lean_sarray_cptr(seed));
-  memcpy(out, pk, 32);
-  memcpy(out + 32, sk, 64);
-  return bytes(out, 96);
-}
-
-LEAN_EXPORT lean_obj_res le_ed25519_sign(b_lean_obj_arg sk, b_lean_obj_arg msg) {
-  unsigned char sig[64];
-  if (lean_sarray_size(sk) != 64) return bytes(sig, 0);
-  crypto_sign_ed25519_detached(sig, NULL, lean_sarray_cptr(msg), lean_sarray_size(msg),
-    lean_sarray_cptr(sk));
-  return bytes(sig, 64);
-}
-
-LEAN_EXPORT uint8_t le_ed25519_verify(b_lean_obj_arg pk, b_lean_obj_arg msg, b_lean_obj_arg sig) {
-  if (lean_sarray_size(pk) != 32 || lean_sarray_size(sig) != 64) return 0;
-  return crypto_sign_ed25519_verify_detached(lean_sarray_cptr(sig), lean_sarray_cptr(msg),
-    lean_sarray_size(msg), lean_sarray_cptr(pk)) == 0;
 }
 
 // ---- SQLite ------------------------------------------------------------------

@@ -1,8 +1,14 @@
 import Lake
 open Lake DSL System
 
+/-- The engine's crypto, libquiet's pure-Rust crates behind a C ABI
+(native/crypto), built by `cargo build --release` in that directory
+(tests/check.sh and tests/run.sh do it first). -/
+def lqCrypto : System.FilePath := __dir__ / "native" / "crypto" / "target" / "release" / "liblq_crypto.a"
+
 package engine where
-  moreLinkArgs := #["-Wl,--allow-shlib-undefined", "/usr/lib/x86_64-linux-gnu/libsqlite3.so.0", "/usr/lib/x86_64-linux-gnu/libsodium.so.23"]
+  moreLinkArgs := #["-Wl,--allow-shlib-undefined", "/usr/lib/x86_64-linux-gnu/libsqlite3.so.0",
+    lqCrypto.toString, "-lpthread", "-ldl", "-lm", "-lrt"]
 
 lean_lib Engine
 lean_lib Community
@@ -14,9 +20,16 @@ target glue.o pkg : FilePath := do
   let weakArgs := #["-I", (← getLeanIncludeDir).toString]
   buildO oFile srcJob weakArgs #["-fPIC", "-O2"] "cc"
 
+target crypto.o pkg : FilePath := do
+  let oFile := pkg.buildDir / "native" / "crypto.o"
+  let srcJob ← inputTextFile <| pkg.dir / "native" / "crypto.c"
+  let weakArgs := #["-I", (← getLeanIncludeDir).toString]
+  buildO oFile srcJob weakArgs #["-fPIC", "-O2"] "cc"
+
 extern_lib libglue pkg := do
   let o ← fetch <| pkg.target ``glue.o
-  buildStaticLib (pkg.staticLibDir / nameToStaticLib "glue") #[o]
+  let c ← fetch <| pkg.target ``crypto.o
+  buildStaticLib (pkg.staticLibDir / nameToStaticLib "glue") #[o, c]
 
 lean_exe scenario where
   root := `Tests.Scenario

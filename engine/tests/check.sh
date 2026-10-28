@@ -5,6 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
+(cd native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
 lake build Engine Community
 out=$(lake env lean tests/Axioms.lean)
 echo "$out"
