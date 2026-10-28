@@ -127,17 +127,12 @@ def picBox (dm : Dim) (maxW : Nat) (p : Pic) : Nat × Nat :=
   let h := max p.h 1
   if w * mh ≤ h * mw then (max 1 (w * mh / h), mh) else (mw, max 1 (h * mw / w))
 
-def layout (f : Font) (dm : Dim) (W : Nat) (d : RowData) : Layout := Id.run do
+/-- The row's pictures and pills below its text (from y), and its height. -/
+def layoutBody (f : Font) (dm : Dim) (W : Nat) (d : RowData) (y0 : Nat) :
+    Array Box × Array (Box × String × Line × Bool) × Nat := Id.run do
   let tx := dm.textX
   let tw := W - tx - dm.pad
-  let lh := dm.lineH
-  let name := oneLine f (tw / 2) d.name
-  let timeX := tx + Paint.Line.width f name + dm.px 8
-  let time := oneLine f (dm.cell * 4) (if d.pending then "pending" else clock d.time)
-  let text := if d.text.isEmpty then #[] else Text.layout f tw d.text
-  let mut y := dm.topPad + lh
-  let textY := y
-  y := y + text.size * lh
+  let mut y := y0
   let mut pics := #[]
   for p in d.pics do
     y := y + dm.gap
@@ -155,9 +150,21 @@ def layout (f : Font) (dm : Dim) (W : Nat) (d : RowData) : Layout := Id.run do
     pills := pills.push (⟨x, y, w, ph⟩, t.emoji, count, t.mine)
     x := x + w + dm.gap
   if !d.tallies.isEmpty then y := y + ph
-  let palette := #[]
-  let h := max (y + dm.px 8) (dm.topPad + dm.avatar + dm.px 8)
-  return ⟨h, name, time, timeX, text, textY, pics, pills, palette⟩
+  return (pics, pills, max (y + dm.px 8) (dm.topPad + dm.avatar + dm.px 8))
+
+/-- The row: its name and time on the first line (each cut as `oneLine`
+cuts), its text wrapped below, then its pictures and pills. -/
+def layout (f : Font) (dm : Dim) (W : Nat) (d : RowData) : Layout :=
+  let tx := dm.textX
+  let tw := W - tx - dm.pad
+  let lh := dm.lineH
+  let name := oneLine f (tw / 2) d.name
+  let timeX := tx + Paint.Line.width f name + dm.px 8
+  let time := oneLine f (dm.cell * 4) (if d.pending then "pending" else clock d.time)
+  let text := if d.text.isEmpty then #[] else Text.layout f tw d.text
+  let textY := dm.topPad + lh
+  let (pics, pills, h) := layoutBody f dm W d (textY + text.size * lh)
+  ⟨h, name, time, timeX, text, textY, pics, pills, #[]⟩
 
 /-! ## Paint -/
 

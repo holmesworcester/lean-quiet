@@ -5,6 +5,8 @@ import Quiet.Camera
 import Quiet.Switch
 import Quiet.TextLaws
 import Quiet.WrapLaws
+import Quiet.RowLaws
+import Quiet.ViewLaws
 import Quiet.App
 #print axioms Geometry.placed_row
 #print axioms Geometry.visible_in_viewport
@@ -38,3 +40,10 @@ import Quiet.App
 #print axioms Text.wrap_keeps
 #print axioms Text.wrap_fits
 #print axioms Text.place_starts
+#print axioms RowLaws.picBox_aspect
+#print axioms RowLaws.tally_nodup
+#print axioms RowLaws.tally_mem
+#print axioms RowLaws.time_shown
+#print axioms RowLaws.name_placed
+#print axioms ViewLaws.profile_read
+#print axioms ViewLaws.message_read

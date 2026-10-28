@@ -24,3 +24,5 @@ import Quiet.Camera
 import Quiet.Switch
 import Quiet.TextLaws
 import Quiet.WrapLaws
+import Quiet.RowLaws
+import Quiet.ViewLaws
