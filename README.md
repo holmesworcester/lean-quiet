@@ -102,7 +102,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 298 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 305 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -538,46 +538,50 @@ on the old layout comes over with `ci/reorg-map.tsv` (where each file
 went) and `ci/reorg-imports.py` (its new files' imports).
 
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
-[`Unforgeable`]: ops/community/Laws.lean#L270-L272
+[`Unforgeable`]: ops/community/Laws.lean#L300-L302
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
 [`Distinct`]: engine/core/Proofs.lean#L538-L540
 [`lbl_inj`]: ops/sync/Fp.lean#L264-L268
-[`NoSecondPreimage`]: ops/community/Merkle.lean#L142-L143
-[`assumptions_hold`]: ops/community/Merkle.lean#L539-L543
+[`NoSecondPreimage`]: ops/community/Merkle.lean#L144-L145
+[`assumptions_hold`]: ops/community/Merkle.lean#L681-L688
 [`Suite.Good`]: ops/connection/Noise.lean#L61-L65
 [`Keys.Good`]: ops/connection/Types.lean#L32-L36
-[`no_impersonation`]: ops/community/Laws.lean#L289-L302
-[`admission_needs_approval`]: ops/community/Laws.lean#L469-L477
-[`admission_approved`]: ops/community/Laws.lean#L388-L398
-[`request_invited`]: ops/community/Laws.lean#L352-L362
-[`removal_authorized`]: ops/community/Laws.lean#L517-L520
-[`admin_granted`]: ops/community/Laws.lean#L556-L557
-[`removed_stays`]: ops/community/Laws.lean#L563-L566
-[`valid_stays`]: ops/community/Laws.lean#L570-L574
-[`message_authorized`]: ops/community/Laws.lean#L255-L261
-[`approval_signed`]: ops/community/Laws.lean#L371-L381
-[`invitation_issued`]: ops/community/Laws.lean#L337-L343
-[`named_by_admin`]: ops/community/Laws.lean#L608-L610
-[`admission_consented`]: ops/community/Laws.lean#L274-L280
-[`admin_removal_stands`]: ops/community/Laws.lean#L528-L541
-[`mutual_removal`]: ops/community/Laws.lean#L549-L553
-[`removed_approver_admits`]: ops/community/Laws.lean#L488-L499
+[`no_impersonation`]: ops/community/Laws.lean#L319-L332
+[`admission_needs_approval`]: ops/community/Laws.lean#L499-L507
+[`admission_approved`]: ops/community/Laws.lean#L418-L428
+[`request_invited`]: ops/community/Laws.lean#L382-L392
+[`removal_authorized`]: ops/community/Laws.lean#L547-L550
+[`admin_granted`]: ops/community/Laws.lean#L586-L587
+[`removed_stays`]: ops/community/Laws.lean#L593-L596
+[`valid_stays`]: ops/community/Laws.lean#L600-L604
+[`message_authorized`]: ops/community/Laws.lean#L267-L273
+[`approval_signed`]: ops/community/Laws.lean#L401-L411
+[`invitation_issued`]: ops/community/Laws.lean#L367-L373
+[`named_by_admin`]: ops/community/Laws.lean#L638-L640
+[`admission_consented`]: ops/community/Laws.lean#L304-L310
+[`admin_removal_stands`]: ops/community/Laws.lean#L558-L571
+[`mutual_removal`]: ops/community/Laws.lean#L579-L583
+[`removed_approver_admits`]: ops/community/Laws.lean#L518-L529
 [`recv_send`]: ops/sync/ConnLaws.lean#L146-L148
 [`offer_shared`]: engine/core/Sync.lean#L83-L86
 [`wire_kinds`]: ops/connection/Laws.lean#L40-L41
 [`local_kinds`]: ops/connection/Laws.lean#L47-L48
-[`joinOps_travels`]: ops/community/Intents.lean#L299-L303
-[`found_travels`]: ops/community/Intents.lean#L310-L314
-[`stopWaiting_local`]: ops/community/Intents.lean#L306-L307
+[`joinOps_travels`]: ops/community/Intents.lean#L310-L314
+[`found_travels`]: ops/community/Intents.lean#L321-L325
+[`stopWaiting_local`]: ops/community/Intents.lean#L317-L318
 [`filed_send`]: ops/sync/ConnLaws.lean#L175-L178
 [`offer_stored`]: engine/core/Sync.lean#L98-L101
 [`tick_send`]: ops/sync/ConnLaws.lean#L184-L187
+[`wrap_cites_admission`]: ops/community/Laws.lean#L282-L291
+[`wrap_only_admitted`]: ops/community/Intents.lean#L591-L600
+[`approveReq_wraps`]: ops/community/Intents.lean#L608-L621
+[`admitted_reads`]: ops/community/Intents.lean#L645-L663
 [`recipients_iff`]: ops/community/Connect.lean#L214-L218
 [`members_iff`]: ops/community/Connect.lean#L205-L208
-[`member_opens`]: ops/community/Laws.lean#L928-L932
-[`openSealed_seal`]: ops/community/Laws.lean#L918-L920
+[`member_opens`]: ops/community/Laws.lean#L958-L962
+[`openSealed_seal`]: ops/community/Laws.lean#L948-L950
 [`unbox_box`]: ops/community/Keys.lean#L89-L91
-[`check_reads_shared`]: ops/community/Laws.lean#L839-L841
+[`check_reads_shared`]: ops/community/Laws.lean#L869-L871
 [`kk_secret`]: ops/connection/NoiseSymbolic.lean#L595-L609
 [`kk_secret_init`]: ops/connection/NoiseSymbolic.lean#L547-L556
 [`kk_secret_resp`]: ops/connection/NoiseSymbolic.lean#L561-L569
@@ -606,7 +610,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`sessions_trusted`]: ops/connection/bootstrap/Laws.lean#L63-L68
 [`intake_local`]: engine/core/Sync.lean#L41-L43
 [`stored_local`]: engine/core/Sync.lean#L137-L140
-[`local_fact_mine`]: ops/community/Laws.lean#L627-L631
+[`local_fact_mine`]: ops/community/Laws.lean#L657-L661
 [`intakeConn_conn`]: engine/core/Sync.lean#L36-L37
 [`established_agrees`]: ops/connection/Laws.lean#L51-L61
 [`open_seal`]: ops/connection/Frame.lean#L51-L55
@@ -614,17 +618,17 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Codec.encode_decode`]: engine/core/Codec.lean#L641-L644
 [`Op.id_decode`]: engine/core/Core.lean#L89-L91
 [`distinct_of_collisionFree`]: engine/core/Proofs.lean#L546-L549
-[`op_of_valid`]: ops/community/Laws.lean#L227-L232
+[`op_of_valid`]: ops/community/Laws.lean#L239-L244
 [`Pic.decode_sized`]: engine/renderer/pic/Laws.lean#L198-L201
 [`Mdns.decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
 [`Community.parse_valid`]: ops/community/Link.lean#L213-L214
 [`Qr.parse_valid`]: engine/renderer/qr/SegLaws.lean#L336-L338
-[`chunk_is_slice`]: ops/community/Laws.lean#L673-L682
-[`verify_sound`]: ops/community/Merkle.lean#L431-L437
-[`complete_assembles`]: ops/community/Merkle.lean#L478-L484
-[`chunk_unique`]: ops/community/Laws.lean#L763-L769
-[`progress_exact`]: ops/community/Intents.lean#L618-L627
-[`no_injective_hash`]: ops/community/Merkle.lean#L241-L243
+[`chunk_is_slice`]: ops/community/Laws.lean#L703-L712
+[`verify_sound`]: ops/community/Merkle.lean#L433-L439
+[`complete_assembles`]: ops/community/Merkle.lean#L480-L486
+[`chunk_unique`]: ops/community/Laws.lean#L793-L799
+[`progress_exact`]: ops/community/Intents.lean#L756-L765
+[`no_injective_hash`]: ops/community/Merkle.lean#L243-L245
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
 [`step_budget`]: engine/core/Budget.lean#L124-L126
@@ -645,11 +649,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`sum_scope_left`]: engine/core/Families.lean#L85-L86
 [`Codec.decode_encode`]: engine/core/Codec.lean#L635-L635
 [`Op.decode_bytes`]: engine/core/Core.lean#L94-L94
-[`request_valid`]: ops/community/Laws.lean#L409-L417
-[`approve_valid`]: ops/community/Laws.lean#L425-L433
-[`admit_admits`]: ops/community/Laws.lean#L441-L452
+[`request_valid`]: ops/community/Laws.lean#L439-L447
+[`approve_valid`]: ops/community/Laws.lean#L455-L463
+[`admit_admits`]: ops/community/Laws.lean#L471-L482
 [`connect_admitted`]: ops/community/Connect.lean#L169-L179
-[`removeMember_valid`]: ops/community/Intents.lean#L484-L491
+[`removeMember_valid`]: ops/community/Intents.lean#L495-L502
 [`exchange_complete`]: ops/sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: ops/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: ops/sync/Fp.lean#L37-L37
@@ -694,8 +698,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`digits_keep_order`]: engine/renderer/TextLaws.lean#L109-L116
 [`message_read`]: ops/community/message/ViewLaws.lean#L61-L66
 [`profile_read`]: ops/community/message/ViewLaws.lean#L39-L41
-[`profile_authorized`]: ops/community/Laws.lean#L307-L314
-[`no_renaming`]: ops/community/Laws.lean#L321-L332
+[`profile_authorized`]: ops/community/Laws.lean#L337-L344
+[`no_renaming`]: ops/community/Laws.lean#L351-L362
 [`name_placed`]: ops/community/reaction/RowLaws.lean#L89-L92
 [`oneLine_prefix`]: engine/renderer/TextLaws.lean#L97-L98
 [`controls_neutral`]: engine/renderer/TextLaws.lean#L153-L157
@@ -704,8 +708,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
-[`readable_held`]: ops/community/Intents.lean#L407-L419
-[`readable_complete`]: ops/community/Intents.lean#L447-L457
+[`readable_held`]: ops/community/Intents.lean#L418-L430
+[`readable_complete`]: ops/community/Intents.lean#L458-L468
 [`switcherOrder_sound`]: ops/app/Pages.lean#L656-L658
 [`switcherOrder_complete`]: ops/app/Pages.lean#L663-L665
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
