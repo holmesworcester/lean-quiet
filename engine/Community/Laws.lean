@@ -148,6 +148,19 @@ theorem check_message {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : I
   obtain ⟨h1, rfl, rfl, h4⟩ := hc
   exact ⟨_, _, _, _, rfl, rfl, h1, h4⟩
 
+theorem check_profile {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id}
+    {n : ByteArray} {tm : Nat}
+    (h : check C o b fs = some (.profile c u n tm)) :
+    ∃ s d0 e0 d e, b = .profile n tm s ∧ fs = [.admission c c d0 e0, .admission c u d e] ∧
+      o.reqs.head? = some c ∧ n.size ≤ 64 ∧ C.verify d (signed o b) s = true := by
+  unfold check at h
+  split at h <;> (try split at h) <;> (try simp at h; done)
+  simp only [Option.some.injEq, Fact.profile.injEq] at h
+  obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+  rename_i hc
+  obtain ⟨h1, rfl, rfl, h4, h5⟩ := hc
+  exact ⟨_, _, _, _, _, rfl, rfl, h1, h4, h5⟩
+
 theorem all2_two {α β} {R : α → β → Prop} {l : List α} {a b : β} (h : All2 R l [a, b]) :
     ∃ x y, l = [x, y] ∧ R x a ∧ R y b := by
   cases h with | cons h1 h2 => cases h2 with | cons h3 h4 => cases h4; exact ⟨_, _, rfl, h1, h3⟩
@@ -269,6 +282,36 @@ theorem no_impersonation {Signed : Key → ByteArray → Prop} (hU : Unforgeable
   obtain ⟨o, s, e, y, hx, hb, _, hy, hs⟩ := message_authorized h
   obtain ⟨z, oz, bz, s', hz, hoz, hbz, hs'⟩ := admission_consented hy
   exact ⟨o, s, hx, hb, hU _ _ _ hs, y, e, z, oz, bz, hy, hz, hoz, hbz, hU _ _ _ hs'⟩
+
+/-- **A name is set only by its user.** A Valid profile of user u (the
+name every row of u's shows) was signed, as this exact op, by a device
+admitted into u, and the name is at most 64 bytes. -/
+theorem profile_authorized {x c u : Id} {n : ByteArray} {tm : Nat}
+    (h : V C ops x (.profile c u n tm)) :
+    ∃ o s d e y, ops x = some o ∧ (decode o.body : Option Body) = some (.profile n tm s) ∧
+      o.reqs = [c, y] ∧ V C ops y (.admission c u d e) ∧ n.size ≤ 64 ∧
+      C.verify d (signed o (.profile n tm s)) s = true := by
+  obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
+  obtain ⟨s, d0, e0, d, e, rfl, rfl, hh, hn, hs⟩ := check_profile hv
+  obtain ⟨a, y, hreq, _, hy⟩ := all2_two hr
+  rw [hreq] at hh; simp at hh; subst hh
+  exact ⟨o, s, d, e, y, hx, hb, hreq, hy, hn, hs⟩
+
+/-- **Nobody can rename another user.** If signatures are unforgeable, a
+Valid profile of user u was signed, as this exact op, by the holder of a
+device key admitted into u, and that holder also signed the op that
+admitted it: the root, or the request its admission tallies. -/
+theorem no_renaming {Signed : Key → ByteArray → Prop} (hU : Unforgeable C Signed)
+    {x c u : Id} {n : ByteArray} {tm : Nat}
+    (h : V C ops x (.profile c u n tm)) :
+    ∃ o s d, ops x = some o ∧ (decode o.body : Option Body) = some (.profile n tm s) ∧
+      Signed d (signed o (.profile n tm s)) ∧
+      ∃ y e z oz bz, V C ops y (.admission c u d e) ∧
+        (z = y ∨ ∃ oy, ops y = some oy ∧ oy.reqs.getD 1 .empty = z) ∧ ops z = some oz ∧
+        (decode oz.body : Option Body) = some bz ∧ Signed d (signed oz bz) := by
+  obtain ⟨o, s, d, e, y, hx, hb, _, hy, _, hs⟩ := profile_authorized h
+  obtain ⟨z, oz, bz, s', hz, hoz, hbz, hs'⟩ := admission_consented hy
+  exact ⟨o, s, d, hx, hb, hU _ _ _ hs, y, e, z, oz, bz, hy, hz, hoz, hbz, hU _ _ _ hs'⟩
 
 /-- Every invitation was signed by a device admitted into its issuer,
 needs at least one approval, and exactly one for a link. -/

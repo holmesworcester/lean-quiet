@@ -406,6 +406,9 @@ end admin
 namespace message
 def all : Rel Fact := ⟨"message", "all", fun | .message c .. => some [c] | _ => none⟩
 def byAuthor : Rel Fact := ⟨"message", "byAuthor", fun | .message c u .. => some [c, u] | _ => none⟩
+/-- A community's messages sealed under content key kid: a device lists
+the ones it can read as the union over the keys it holds (`readable`). -/
+def byKey : Rel Fact := ⟨"message", "byKey", fun | .message c _ _ k _ _ => some [c, k] | _ => none⟩
 end message
 
 namespace wrap
@@ -490,6 +493,7 @@ end chunk
 (read by their own key). -/
 def rels : List (Rel Fact) :=
   [admission.byDevice, admission.all, removal.byUser, admin.byUser, message.all, message.byAuthor,
+   message.byKey,
    wrap.byContentKey, profile.byUser, profile.all, react.byMessage, react.byMessageEmoji,
    request.all, approval.byRequest, secret.byKey, secret.all, accepted.all, joining.all, named.current,
    abandoned.byRequest, abandoned.byJoining, wrap.byRecipient, key.byCommunity, key.byId, attachment.byMessage,

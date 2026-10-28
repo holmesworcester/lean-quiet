@@ -172,6 +172,23 @@ def send (c myAdm : Id) (seed k nonce text : ByteArray) (time : Nat)
   let p := sealedPost c myAdm d k nonce text time
   ⟨p :: files.flatMap (fun f => let (a, cs) := attach c myAdm p.id d k f; a :: cs)⟩
 
+/-- The ids of the content keys of c this device holds. -/
+def heldKids (c : Id) : View Fact (List ByteArray) := do
+  let ks ← key.byCommunity.read [c] (limit := none)
+  pure (ks.rows.filterMap fun (_, f) => match f with | .key _ kid _ => some kid | _ => none)
+
+/-- The messages of c this device can read: the union of the lists of
+messages under each content key it holds (`message.byKey [c, kid]`). A
+message sealed under a key not yet held is not listed. When the key
+arrives, `key.byCommunity [c]` is filed, so a live reader of this view
+reads again and the message appears. Ranges and limits are a list's
+(`after`, `before`, `limit`, `desc`), so pages and counts are the
+union's. -/
+def readable (c : Id) (limit : Option Nat := some 50) (desc : Bool := true)
+    (after before : Option Pos := none) : View Fact (Answer Fact) := do
+  let kids ← heldKids c
+  View.union (kids.map fun kid => message.byKey.query [c, kid] (after := after) (before := before)) limit desc
+
 /-- This device's newest content key for c, if it holds one. -/
 def currentKey (c : Id) : View Fact (Option ByteArray) := do
   let ks ← key.byCommunity.read [c] (limit := some 1)
@@ -226,5 +243,100 @@ theorem found_travels (C : Crypto) (seed name myName : ByteArray) (time : Nat) (
         wrapKey r.id k esk d.enc] := by
   simp [found, root, secret, accept, setName, profile, contentKey, wrapKey, wrap, shared_mkOp,
     Body.isLocal]
+
+/-! ## What a device can read
+
+`readable` lists exactly the messages under keys this device holds:
+`readable_held` (each row is a Valid message of c, under a key a Valid
+local key fact holds) and `readable_complete` (with no limit, every such
+message is listed). -/
+
+section
+variable {s : DB Fact} {C : Crypto}
+theorem matching_also_nil (q : ListQ) (h : q.also = []) :
+    matching s q = matching s { key := q.key, limit := q.limit } := by
+  unfold matching; simp [h]
+
+theorem mem_eval_matching {q : ListQ} {pf : Pos × Fact} (h : pf ∈ (Engine.eval s q).rows) :
+    pf ∈ matching s q := by
+  unfold Engine.eval at h
+  simp only at h
+  have h1 : pf ∈ (if q.desc then ((matching s q).filter fun p => q.inside p.1).reverse
+      else (matching s q).filter fun p => q.inside p.1) := by
+    unfold ListQ.cut at h; split at h
+    · exact h
+    · exact List.mem_of_mem_take h
+  have h2 : pf ∈ (matching s q).filter fun p => q.inside p.1 := by
+    split at h1
+    · exact List.mem_reverse.1 h1
+    · exact h1
+  exact (List.mem_filter.1 h2).1
+
+theorem readable_held (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (lim : Option Nat)
+    (desc : Bool) (after before : Option Pos) {pf : Pos × Fact}
+    (hp : pf ∈ ((readable c lim desc after before).eval s).rows) :
+    ∃ y u d kid sealed tm, pf.2 = .message c u d kid sealed tm ∧ V C s.ops y pf.2 ∧
+      ∃ x k, V C s.ops x (.key c kid k) := by
+  unfold readable at hp
+  rw [View.eval_bind, eval_union] at hp
+  obtain ⟨a, ha, hpa⟩ := mem_union hp
+  rw [List.map_map, List.mem_map] at ha
+  obtain ⟨kid, hkid, rfl⟩ := ha
+  have hm := mem_eval_matching hpa
+  rw [matching_also_nil _ rfl] at hm
+  obtain ⟨y, f, rfl, hy, hf⟩ := (mem_matching _ _).1 hm
+  obtain ⟨hv, hargs⟩ := (filed (C := C) (r := message.byKey) (by simp [rels]) h hq [c, kid] y f).1 ⟨hy, hf⟩
+  cases f <;> simp [message.byKey] at hargs
+  obtain ⟨rfl, rfl⟩ := hargs
+  refine ⟨y, _, _, _, _, _, rfl, hv, ?_⟩
+  -- the key: kid came from a key.byCommunity row
+  unfold heldKids at hkid
+  rw [View.eval_bind] at hkid
+  simp only [View.eval_pure, List.mem_filterMap] at hkid
+  obtain ⟨⟨p, g⟩, hg, hk⟩ := hkid
+  cases g <;> simp at hk
+  rename_i c' kid' k
+  subst hk
+  have hm2 := mem_eval_matching hg
+  rw [matching_also_nil _ rfl] at hm2
+  obtain ⟨x, g, hpx, hx, hgx⟩ := (mem_matching _ _).1 hm2
+  simp only [Prod.mk.injEq] at hpx
+  obtain ⟨_, rfl⟩ := hpx
+  obtain ⟨hv2, hargs2⟩ := (filed (C := C) (r := key.byCommunity) (by simp [rels]) h hq _ x _).1 ⟨hx, hgx⟩
+  simp [key.byCommunity] at hargs2
+  subst hargs2
+  exact ⟨x, k, hv2⟩
+
+
+theorem mem_eval_all {q : ListQ} (ha : q.after = none) (hb : q.before = none) (hl : q.limit = none)
+    {pf : Pos × Fact} : pf ∈ (Engine.eval s q).rows ↔ pf ∈ matching s q := by
+  unfold Engine.eval ListQ.cut ListQ.inside
+  simp only [ha, hb, hl, Bool.and_self]
+  split <;> simp
+
+theorem readable_complete (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (desc : Bool)
+    {y x : Id} {u d kid sealed k : ByteArray} {tm : Nat}
+    (hm : V C s.ops y (.message c u d kid sealed tm)) (hk : V C s.ops x (.key c kid k)) :
+    ((SortKey.sortOf (Fact.message c u d kid sealed tm), y), Fact.message c u d kid sealed tm) ∈
+      ((readable c none desc).eval s).rows := by
+  unfold readable
+  rw [View.eval_bind, eval_union, mem_union_all]
+  have hkid : kid ∈ (heldKids c).eval s := by
+    unfold heldKids
+    rw [View.eval_bind]
+    simp only [View.eval_pure, List.mem_filterMap]
+    have hf := (filed (C := C) (r := key.byCommunity) (by simp [rels]) h hq [c] x (.key c kid k)).2
+      ⟨hk, by simp [key.byCommunity]⟩
+    refine ⟨((SortKey.sortOf (Fact.key c kid k), x), .key c kid k), ?_, rfl⟩
+    show _ ∈ (Engine.eval s (key.byCommunity.query [c] (limit := none))).rows
+    rw [mem_eval_all rfl rfl rfl, matching_also_nil _ rfl, mem_matching]
+    exact ⟨x, _, rfl, hf.1, hf.2⟩
+  refine ⟨_, List.mem_map.2 ⟨_, List.mem_map.2 ⟨kid, hkid, rfl⟩, rfl⟩, ?_⟩
+  have hf := (filed (C := C) (r := message.byKey) (by simp [rels]) h hq [c, kid] y _).2
+    ⟨hm, by simp [message.byKey]⟩
+  rw [mem_eval_all rfl rfl rfl, matching_also_nil _ rfl, mem_matching]
+  exact ⟨y, _, rfl, hf.1, hf.2⟩
+
+end
 
 end Community

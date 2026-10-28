@@ -27,6 +27,8 @@ open Engine Community
 #print axioms Engine.run_drain
 #print axioms Community.message_authorized
 #print axioms Community.no_impersonation
+#print axioms Community.profile_authorized
+#print axioms Community.no_renaming
 #print axioms Community.admission_consented
 #print axioms Community.admission_approved
 #print axioms Community.request_invited
@@ -103,3 +105,8 @@ open Engine Community
 #print axioms Community.member_opens
 #print axioms Community.check_attach
 #print axioms Community.check_chunk
+#print axioms Engine.eval_union
+#print axioms Engine.mem_union
+#print axioms Engine.mem_union_all
+#print axioms Community.readable_held
+#print axioms Community.readable_complete
