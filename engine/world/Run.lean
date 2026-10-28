@@ -7,6 +7,7 @@ a do block's structure. After holmes-a3's two-node world (a3/world,
 WorldLaws.lean), on which these are modelled.
 -/
 import engine.world.World
+import Lean.Elab.Tactic.Basic
 
 namespace Engine.World
 open Engine Engine.Sync
@@ -65,8 +66,18 @@ theorem Keeps.range' {β} (r : Std.Legacy.Range) (b : β) {f : Nat → β → He
 theorem Keeps.getOp' (x : Id) : Keeps (Store.getOp (F := F) x : HeldM F _) := fun _ => rfl
 theorem Keeps.getStatus' (x : Id) : Keeps (Store.getStatus (F := F) x : HeldM F _) := fun _ => rfl
 
+/-- Fails on a goal that still has metavariables. `keeps` and `grows`
+apply bind rules, and on a goal whose program is not yet known each
+application makes the program a bind of two unknown programs, forever:
+that is what ran a build of engine/world/Plain.lean to 70 GB
+(docs/PROOFS.md, finding 5). -/
+elab "concrete_goal" : tactic => do
+  let t ← Lean.Elab.Tactic.getMainTarget
+  if (← Lean.instantiateMVars t).hasExprMVar then
+    throwError "the goal's program is not known yet: state the loop or the call first"
+
 /-- Prove `Keeps` of a do block from its structure, with these `Keeps`
-lemmas for the calls in it. -/
+lemmas for the calls in it. Only on a goal with no metavariables. -/
 syntax "keeps" "[" term,* "]" : tactic
 
 macro_rules
@@ -74,19 +85,51 @@ macro_rules
     let mut tac : Lean.TSyntax `tactic ← `(tactic| first | split | intro)
     for t in ts.getElems.reverse do
       tac ← `(tactic| first | with_reducible_and_instances apply $t | $tac:tactic)
-    `(tactic| repeat' (first
+    `(tactic| repeat' (concrete_goal; first
       | dsimp only | with_reducible_and_instances apply Keeps.bind'
       | with_reducible_and_instances apply Keeps.pure' | with_reducible_and_instances apply Keeps.forIn'
       | with_reducible_and_instances apply Keeps.range'
       | with_reducible_and_instances apply Keeps.getOp' | with_reducible_and_instances apply Keeps.getStatus'
       | $tac:tactic))
 
+/-- What the walk leaves as it was: everything but its frontier, what it
+offered, and the closures it closed. -/
+structure Conn.Same (c c' : Conn) : Prop where
+  dialer : c'.dialer = c.dialer
+  rooms : c'.rooms = c.rooms
+  peerFloor : c'.peerFloor = c.peerFloor
+  round : c'.round = c.round
+  lastRound : c'.lastRound = c.lastRound
+  snaps : c'.snaps = c.snaps
+  asked : c'.asked = c.asked
+  known : c'.known = c.known
+  heard : c'.heard = c.heard
+
+theorem Conn.Same.refl (c : Conn) : Conn.Same c c := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- **What the laws need of the closure walk.** On main, `Conn.walk`
+loops with `while`, which Lean compiles through a `partial` definition,
+so no proof can see what it returns (finding 3), and every law that
+runs a tick or answers a want takes this as a hypothesis. holmes-a3's
+a3/hostile replaces the loop by the structural `Conn.walkN`, of which
+each field is a short induction on the budget (its `walkN_keeps`
+already proves the store is kept); the hypothesis is discharged once
+that lands. -/
+structure WalkLaws (fam : Family F) (cfg : Config) : Prop where
+  /-- The walk only reads. -/
+  keeps : ∀ c : Conn, Keeps (c.walk fam cfg : HeldM F (Conn × List Id))
+  /-- It touches only its frontier, offers and closures. -/
+  same : ∀ (c : Conn) (h : Held F), Conn.Same c ((c.walk fam cfg : HeldM F (Conn × List Id)).run h).1.1
+  /-- With nothing on its frontier it offers nothing and changes nothing. -/
+  idle : ∀ (c : Conn) (h : Held F), c.frontier = [] →
+    (c.walk fam cfg : HeldM F (Conn × List Id)).run h = ((c, []), h)
+
+/-- **The walk's laws, for every family and settings**: the one premise
+the world laws carry about today's code (true of a3/hostile's `walkN`). -/
+def walk_stmt : Prop := ∀ (F : Type) (fam : Family F) (cfg : Config), WalkLaws fam cfg
+
 section
 variable (fam : Family F) (cfg : Config)
-
-/-- **The closure walk only reads**, now that it is a loop over a range. -/
-theorem walk_keeps (c : Conn) : Keeps (c.walk fam cfg : HeldM F (Conn × List Id)) := by
-  unfold Conn.walk; keeps []
 
 theorem filed_keeps (c : Conn) (ids : List Id) : Keeps (c.filed fam cfg ids : HeldM F Step) := by
   unfold Conn.filed; keeps []
@@ -115,22 +158,20 @@ theorem filterMapM_keeps (ids : List Id) :
     Keeps ((ids.filterMapM fun i => Store.getOp (F := F) i : HeldM F (List Op))) := fun h => by
   rw [filterMapM_getOp]
 
+end
+
+section
+variable (fam : Family F) (cfg : Config) (hw : WalkLaws (F := F) fam cfg)
+include hw
+
 theorem onWant_keeps (c : Conn) (ids : List Id) : Keeps (c.onWant fam cfg ids : HeldM F Step) := by
-  unfold Conn.onWant; keeps [walk_keeps, filterMapM_keeps]
+  unfold Conn.onWant; keeps [hw.keeps, filterMapM_keeps]
 
 theorem tick_keeps (ix : Index) (c : Conn) (now : Nat) : Keeps (c.tick fam cfg ix now : HeldM F Step) := by
-  unfold Conn.tick; keeps [walk_keeps]
-
-/-- A walk with nothing on its frontier offers nothing. -/
-theorem walk_idle (c : Conn) (hf : c.frontier = []) (h : Held F) :
-    (c.walk fam cfg : HeldM F (Conn × List Id)).run h = ((c, []), h) := by
-  unfold Conn.walk
-  simp only [Std.Legacy.Range.forIn_eq_forIn_range', HeldM.run_bind, Std.Legacy.Range.size]
-  cases cfg.walk with
-  | zero => simp
-  | succ k => simp [List.range', hf]
+  unfold Conn.tick; keeps [hw.keeps]
 
 end
+
 
 end Engine.World
 
@@ -151,41 +192,43 @@ theorem forIn_inv {α β} (l : List α) (f : α → β → HeldM F (ForInStep β
     | done b' => rw [e] at this; exact this
     | yield b' => rw [e] at this; exact ih b' _ this
 
-/-- What the walk leaves as it was: everything but its frontier, what it
-offered, and the closures it closed. -/
-structure Conn.Same (c c' : Conn) : Prop where
-  dialer : c'.dialer = c.dialer
-  rooms : c'.rooms = c.rooms
-  peerFloor : c'.peerFloor = c.peerFloor
-  round : c'.round = c.round
-  lastRound : c'.lastRound = c.lastRound
-  snaps : c'.snaps = c.snaps
-  asked : c'.asked = c.asked
-  known : c'.known = c.known
-  heard : c'.heard = c.heard
+/-- A loop whose every turn yields, keeping the store, is a fold. -/
+theorem forIn_yield {α β} (l : List α) (f : α → β → HeldM F (ForInStep β)) (g : β → α → β) (h : Held F)
+    (hf : ∀ a b, (f a b).run h = (.yield (g b a), h)) : ∀ b, (forIn l b f).run h = (l.foldl g b, h) := by
+  induction l with
+  | nil => intro b; rfl
+  | cons a t ih => intro b; rw [List.forIn_cons, HeldM.run_bind, hf]; exact ih _
 
-theorem Conn.Same.refl (c : Conn) : Conn.Same c c := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+/-- `Node.write`'s first loop: the ops not stored, each id once, newest first. -/
+def absentStep (db : DB F) (acc : List Op) (o : Op) : List Op :=
+  if (!acc.any (·.id == o.id)) && (db.ops o.id).isNone then o :: acc else acc
 
-/-- **The walk touches only its frontier, offers and closures.** -/
-theorem walk_same (fam : Family F) (cfg : Config) (c : Conn) (h : Held F) :
-    Conn.Same c ((c.walk fam cfg : HeldM F (Conn × List Id)).run h).1.1 := by
-  unfold Conn.walk
-  simp only [Std.Legacy.Range.forIn_eq_forIn_range', HeldM.run_bind, HeldM.run_pure]
-  apply forIn_inv _ _ (fun st : Conn × List Id => Conn.Same c st.1)
-  · intro a st h hs
-    obtain ⟨c', off⟩ := st
-    obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9⟩ := hs
-    dsimp only at *
-    split
-    · exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9⟩
-    · split
-      · simp only [HeldM.run_bind]
-        split
-        · exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9⟩
-        · split
-          · split <;> (simp only [HeldM.run_bind, HeldM.run_getStatus]; split <;> exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9⟩)
-          · exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9⟩
-      · exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9⟩
-  · exact Conn.Same.refl c
+/-- Its second loop: each op now stored joins the index. -/
+def addStep (fam : Family F) (db : DB F) (st : Index × List Id) (o : Op) : Index × List Id :=
+  if (db.ops o.id).isSome then (st.1.add fam o, o.id :: st.2) else st
 
+/-- **`Node.write` on a held store, as a term.** -/
+theorem write_run (x : Sync F (HeldM F)) (n : Node) (ops : List Op) (h : Held F) :
+    (n.write x ops).run h =
+      let ab := ops.foldl (absentStep h.db) []
+      let h' := turnH x.fam ab.reverse h
+      let st := ab.reverse.foldl (addStep x.fam h'.db) (n.ix, [])
+      if ab.isEmpty then ((n, []), h)
+      else (({ n with ix := st.1, fresh := n.fresh ++ st.2.reverse }, st.2.reverse), h') := by
+  unfold Node.write
+  rw [HeldM.run_bind, forIn_yield _ _ (absentStep h.db) h (fun o acc => by
+    unfold absentStep
+    by_cases e : (!acc.any (·.id == o.id)) = true
+    · cases hop : h.db.ops o.id <;> simp [e, hop] <;> rfl
+    · simp only [Bool.not_eq_true] at e
+      simp [e])]
+  dsimp only
+  split
+  · rfl
+  · simp only [HeldM.run_bind, HeldM.run_turn]
+    rw [forIn_yield _ _ (addStep x.fam (turnH x.fam (ops.foldl (absentStep h.db) []).reverse h).db) _
+      (fun o st => by
+        unfold addStep
+        cases hop : (turnH x.fam (ops.foldl (absentStep h.db) []).reverse h).db.ops o.id <;> simp [hop] <;> rfl)]
+    rfl
 end Engine.World

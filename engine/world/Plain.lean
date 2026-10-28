@@ -160,7 +160,7 @@ macro_rules
     let mut tac : Lean.TSyntax `tactic ← `(tactic| first | split | intro)
     for t in ts.getElems.reverse do
       tac ← `(tactic| first | with_reducible_and_instances apply $t | $tac:tactic)
-    `(tactic| repeat' (first
+    `(tactic| repeat' (concrete_goal; first
       | dsimp only | with_reducible_and_instances apply Grows.bind'
       | with_reducible_and_instances apply Grows.pure' | with_reducible_and_instances apply Grows.forIn'
       | with_reducible_and_instances apply Grows.range'
@@ -173,14 +173,6 @@ macro_rules
 section
 variable (fam : Family F) (cfg : Config) (rms : Id → List Id)
 
-theorem recv_keeps (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) :
-    Keeps (Conn.recv fam cfg ix c b now : HeldM F Step) := by
-  unfold Conn.recv; keeps [onHold_keeps, onWant_keeps]
-
-theorem recv_grows (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) :
-    Grows (Conn.recv fam cfg ix c b now : HeldM F Step) := (recv_keeps fam cfg ix c b now).grows
-theorem tick_grows (ix : Index) (c : Conn) (now : Nat) : Grows (c.tick fam cfg ix now : HeldM F Step) :=
-  (tick_keeps fam cfg ix c now).grows
 theorem filed_grows (c : Conn) (ids : List Id) : Grows (c.filed fam cfg ids : HeldM F Step) :=
   (filed_keeps fam cfg c ids).grows
 
@@ -218,20 +210,43 @@ theorem finish_grows (n : Node) (out : Acts) (now : Nat) : Grows (n.finish (psyn
     List.isEmpty_nil, ite_true, List.append_nil, Bool.not_true, Bool.false_eq_true, ite_false]
   grows [seal_grows, open_grows]
 
-theorem onFrame_grows (n : Node) (a b : ByteArray) (now : Nat) : Grows (n.onFrame (psync fam cfg rms) a b now) := by
-  unfold Node.onFrame; simp only [psync_openFrame, psync_recv, Node.refresh, psync_rooms]
-  grows [write_grows, store_grows, finish_grows, apply_grows, recv_grows]
-
-theorem onTick_grows (n : Node) (now : Nat) : Grows (n.onTick (psync fam cfg rms) now) := by
-  unfold Node.onTick; simp only [psync_dial, Node.refresh, psync_rooms]
-  grows [store_grows, finish_grows, apply_grows, tick_grows]
-
 theorem onWrite_grows (n : Node) (ops : List Op) (now : Nat) : Grows (n.onWrite (psync fam cfg rms) ops now) := by
   unfold Node.onWrite; grows [store_grows, finish_grows]
 
 theorem connect_grows (n : Node) (cid : Id) (a : ByteArray) (d : Bool) (now : Nat) :
     Grows (n.connect (psync fam cfg rms) cid a d now) := by
   unfold Node.connect; grows [open_grows, finish_grows]
+
+end
+
+section
+variable (fam : Family F) (cfg : Config) (rms : Id → List Id) (hw : WalkLaws (F := F) fam cfg)
+include hw
+
+theorem recv_keeps (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) :
+    Keeps (Conn.recv fam cfg ix c b now : HeldM F Step) := by
+  unfold Conn.recv; keeps [onHold_keeps, onWant_keeps fam cfg hw]
+
+theorem recv_grows (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) :
+    Grows (Conn.recv fam cfg ix c b now : HeldM F Step) := (recv_keeps fam cfg hw ix c b now).grows
+theorem tick_grows (ix : Index) (c : Conn) (now : Nat) : Grows (c.tick fam cfg ix now : HeldM F Step) :=
+  (tick_keeps fam cfg hw ix c now).grows
+
+/-- The same, with the family and settings as a plain node reads them. -/
+theorem recv_grows' (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) :
+    Grows (Conn.recv (psync fam cfg rms).fam (psync fam cfg rms).cfg ix c b now : HeldM F Step) :=
+  recv_grows fam cfg hw ix c b now
+theorem tick_grows' (ix : Index) (c : Conn) (now : Nat) :
+    Grows (c.tick (psync fam cfg rms).fam (psync fam cfg rms).cfg ix now : HeldM F Step) :=
+  tick_grows fam cfg hw ix c now
+
+theorem onFrame_grows (n : Node) (a b : ByteArray) (now : Nat) : Grows (n.onFrame (psync fam cfg rms) a b now) := by
+  unfold Node.onFrame; simp only [psync_openFrame, psync_recv, Node.refresh, psync_rooms]
+  grows [write_grows, store_grows, finish_grows, apply_grows, recv_grows' fam cfg rms hw]
+
+theorem onTick_grows (n : Node) (now : Nat) : Grows (n.onTick (psync fam cfg rms) now) := by
+  unfold Node.onTick; simp only [psync_dial, Node.refresh, psync_rooms]
+  grows [store_grows, finish_grows, apply_grows, tick_grows' fam cfg rms hw]
 
 end
 
@@ -249,7 +264,7 @@ theorem enter_ext (w : World (Held F) n) (i : Fin n) (t : Nat) (f : Node → Hel
   · exact Ext.refl _
 
 /-- **No step takes an op out of any store.** -/
-theorem step_ext (w : World (Held F) n) (a : Act n) (j : Fin n) :
+theorem step_ext (hw : WalkLaws (F := F) fam cfg) (w : World (Held F) n) (a : Act n) (j : Fin n) :
     Ext (w.box j) ((w.step (plain fam cfg n addr rooms) a).box j) := by
   cases a with
   | deliver k t =>
@@ -262,10 +277,10 @@ theorem step_ext (w : World (Held F) n) (a : Act n) (j : Fin n) :
       · rename_i j' _
         exact enter_ext fam cfg n addr rooms { w with flight := w.flight.eraseIdx k } j' t
           (fun nd => Node.onFrame ((plain fam cfg n addr rooms).sync j') nd p.origin p.bytes t)
-          (fun nd => onFrame_grows fam cfg _ nd _ _ _) j
+          (fun nd => onFrame_grows fam cfg _ hw nd _ _ _) j
   | dup k => simp only [World.step]; split <;> exact Ext.refl _
   | drop k => exact Ext.refl _
-  | tick i t => simp only [World.step]; apply enter_ext; intro nd; exact onTick_grows fam cfg _ _ _
+  | tick i t => simp only [World.step]; apply enter_ext; intro nd; exact onTick_grows fam cfg _ hw _ _
   | write i ops t =>
     simp only [World.step]
     exact enter_ext fam cfg n addr rooms w i t _ (fun nd => onWrite_grows fam cfg _ nd _ _) j
@@ -278,16 +293,17 @@ theorem step_ext (w : World (Held F) n) (a : Act n) (j : Fin n) :
     simp only [World.step]; apply enter_ext; intro nd; exact connect_grows fam cfg _ _ _ _ _ _
   | inject i o b t =>
     simp only [World.step]
-    exact enter_ext fam cfg n addr rooms w i t _ (fun nd => onFrame_grows fam cfg _ nd _ _ _) j
+    exact enter_ext fam cfg n addr rooms w i t _ (fun nd => onFrame_grows fam cfg _ hw nd _ _ _) j
 
 end
 
 /-- **Shared stores only grow,** proven: no step of any node, against any
-attacker, takes an op out of a plain node's store. -/
-theorem grows_proof : grows_stmt := by
+attacker, takes an op out of a plain node's store (given the walk's
+laws, until a3/hostile's `walkN` lands). -/
+theorem grows_proof (hw : walk_stmt) : grows_stmt := by
   intro F fam cfg n addr rooms adv w a i r x _ _ hx
   obtain ⟨o, ho, hr⟩ := hx
-  exact ⟨o, (step_ext fam cfg n addr rooms w a i).1 x o ho, hr⟩
+  exact ⟨o, (step_ext fam cfg n addr rooms (hw F fam cfg) w a i).1 x o ho, hr⟩
 
 /-! ## Indexes and snapshots name stored ops -/
 
@@ -461,13 +477,13 @@ theorem onHold_snaps (c : Conn) (ids : List Id) (h : Held F) :
     ((c.onHold cfg ids : HeldM F Step).run h).1.conn.snaps = c.snaps := by
   simp only [Conn.onHold, HeldM.run_bind, HeldM.run_pure]
 
-theorem onWant_snaps (c : Conn) (ids : List Id) (h : Held F) :
+theorem onWant_snaps (hw : WalkLaws (F := F) fam cfg) (c : Conn) (ids : List Id) (h : Held F) :
     ((c.onWant fam cfg ids : HeldM F Step).run h).1.conn.snaps = c.snaps := by
   unfold Conn.onWant
   split
   · rfl
   · simp only [HeldM.run_bind, HeldM.run_pure]
-    exact (walk_same fam cfg _ _).snaps
+    exact (hw.same _ _).snaps
 
 theorem filed_snaps (c : Conn) (ids : List Id) (h : Held F) :
     ((c.filed fam cfg ids : HeldM F Step).run h).1.conn.snaps = c.snaps := by
@@ -485,7 +501,7 @@ theorem filed_snaps (c : Conn) (ids : List Id) (h : Held F) :
     · exact hs
   · rfl
 
-theorem recv_snaps (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) (h : Held F) (hi : IxIn ix h)
+theorem recv_snaps (hw : WalkLaws (F := F) fam cfg) (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) (h : Held F) (hi : IxIn ix h)
     (hc : SnapsIn c h) : SnapsIn ((Conn.recv fam cfg ix c b now : HeldM F Step).run h).1.conn h := by
   unfold Conn.recv
   split
@@ -506,27 +522,27 @@ theorem recv_snaps (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) (h : Held
     · simp only [HeldM.run_bind, HeldM.run_pure]
       intro e he; rw [finish_snaps, onHold_snaps] at he; exact hc e he
     · simp only [HeldM.run_bind, HeldM.run_pure]
-      intro e he; rw [finish_snaps, onWant_snaps] at he; exact hc e he
+      intro e he; rw [finish_snaps, onWant_snaps fam cfg hw] at he; exact hc e he
     · split
       · exact hc
       · simp only [HeldM.run_pure]
         intro e he; rw [finish_snaps] at he; exact hc e he
 
-theorem tick_snaps (ix : Index) (c : Conn) (now : Nat) (h : Held F) (hi : IxIn ix h) (hc : SnapsIn c h) :
+theorem tick_snaps (hw : WalkLaws (F := F) fam cfg) (ix : Index) (c : Conn) (now : Nat) (h : Held F) (hi : IxIn ix h) (hc : SnapsIn c h) :
     SnapsIn ((c.tick fam cfg ix now : HeldM F Step).run h).1.conn h := by
   unfold Conn.tick
   split
   · exact hc
   · simp only [HeldM.run_bind, HeldM.run_pure]
-    have e := walk_same fam cfg c h
-    have hw : SnapsIn ((c.walk fam cfg : HeldM F (Conn × List Id)).run h).1.1 h := by
+    have e := hw.same c h
+    have hw' : SnapsIn ((c.walk fam cfg : HeldM F (Conn × List Id)).run h).1.1 h := by
       intro x hx; rw [e.snaps] at hx; exact hc x hx
     intro x hx
     rw [finish_snaps] at hx
     dsimp only at hx
     split at hx
-    · exact start_snaps cfg ix _ now h hi hw x hx
-    · exact hw x hx
+    · exact start_snaps cfg ix _ now h hi hw' x hx
+    · exact hw' x hx
 
 end
 
@@ -552,30 +568,37 @@ theorem forIn_at {α β} (l : List α) (f : α → β → HeldM F (ForInStep β)
 section
 variable (fam : Family F) (cfg : Config) (rms : Id → List Id)
 
+/-- What the write's second loop adds to the index names stored ops. -/
+theorem items_addStep (fam : Family F) (db : DB F) (r : Id) : ∀ (l : List Op) (st : Index × List Id) it,
+    it ∈ (l.foldl (addStep fam db) st).1.items r → it ∈ st.1.items r ∨ (db.ops it.2).isSome = true := by
+  intro l
+  induction l with
+  | nil => intro st it h; exact Or.inl h
+  | cons o t ih =>
+    intro st it h
+    rcases ih _ it h with h | h
+    · unfold addStep at h
+      split at h
+      · rename_i hs
+        rcases items_add fam st.1 o r it h with h | e
+        · exact Or.inl h
+        · exact Or.inr (by rw [e]; exact hs)
+      · exact Or.inl h
+    · exact Or.inr h
+
+/-- **A write keeps the node invariant:** its index grows only by ops it
+stored. -/
 theorem write_sub (n : Node) (ops : List Op) (h : Held F) (hs : Sub n h) :
     Sub ((n.write (psync fam cfg rms) ops).run h).1.1 ((n.write (psync fam cfg rms) ops).run h).2 := by
-  have he := write_grows fam cfg rms n ops h
-  unfold Node.write
-  simp only [HeldM.run_bind]
-  rw [(forIn_at _ _ h (fun _ => True) (fun o _ b => by keeps []) (fun _ _ _ _ => trivial) [] trivial).2]
+  rw [write_run]
+  dsimp only
   split
   · exact hs
-  · simp only [HeldM.run_bind, HeldM.run_turn, psync_fam]
-    obtain ⟨hix, hk⟩ := forIn_at _ _ (turnH fam _ h) (fun st : Index × List Id => IxIn st.1 (turnH fam _ h))
-      (fun o _ b => by keeps [])
-      (fun o _ b hb => by
-        trace_state
-        simp only [HeldM.run_bind, HeldM.run_getOp]
-        split
-        · rename_i hsome
-          intro r it hit
-          rcases items_add fam b.1 o r it hit with hit | e
-          · exact hb r it hit
-          · rw [e]; exact hsome
-        · exact hb) (n.ix, []) (hs.1.ext (turnH_ext fam _ h))
-    simp only [HeldM.run_pure]
-    rw [hk]
-    exact ⟨hix, fun p hp => (hs.2 p hp).ext (turnH_ext fam _ h)⟩
+  · have e := turnH_ext fam (List.foldl (absentStep h.db) [] ops).reverse h
+    refine ⟨fun r it hit => ?_, fun p hp => (hs.2 p hp).ext e⟩
+    rcases items_addStep _ _ r _ _ it hit with hit | hit
+    · exact (hs.1 r it hit).ext e
+    · exact hit
 
 end
 

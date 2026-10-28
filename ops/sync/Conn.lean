@@ -225,16 +225,16 @@ def Conn.onHold (c : Conn) (ids : List Id) : m Step := do
   return { conn := c, send := chunks cfg want.reverse .want }
 
 /-- Walk requirement closures from the frontier: offer every stored op
-the peer may see and is not known to hold or already offered. At most
-`cfg.walk` steps: a loop over a range, not `while`, which is `partial`
-and so opaque to proofs (docs/PROOFS.md). -/
+the peer may see and is not known to hold or already offered. -/
 def Conn.walk (c : Conn) : m (Conn × List Id) := do
   let mut c := c
   let mut offer : List Id := []
-  for _ in [0:cfg.walk] do
+  let mut budget := cfg.walk
+  while budget > 0 do
     match c.frontier with
-    | [] => break
+    | [] => budget := 0
     | x :: rest =>
+      budget := budget - 1
       c := { c with frontier := rest }
       if !c.closed.contains x then
         match ← Store.getOp (F := F) x with

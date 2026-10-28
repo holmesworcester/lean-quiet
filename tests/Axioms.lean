@@ -21,6 +21,7 @@ import engine.wire.mdns.Mdns
 import ops.connection.bootstrap.Net
 import engine.world.Epidemic
 import engine.world.Findings
+import engine.world.Plain
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -328,11 +329,11 @@ open Engine.World
 #print axioms Engine.World.converge_three_of
 #print axioms Engine.World.diam_allKnow
 #print axioms Engine.World.diam_line3
-#print axioms Engine.World.walk_keeps
-#print axioms Engine.World.walk_same
-#print axioms Engine.World.walk_idle
 #print axioms Engine.World.onWant_keeps
 #print axioms Engine.World.tick_keeps
+#print axioms Engine.World.write_run
+#print axioms Engine.World.grows_proof
+#print axioms Engine.World.write_sub
 #print axioms Engine.World.patience_drops_idle
 #print axioms Engine.World.unshown_unanswered
 #print axioms Engine.World.no_round_while_open

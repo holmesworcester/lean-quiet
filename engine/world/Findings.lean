@@ -43,7 +43,7 @@ hello heard, nothing asked, no round open), its closure walk done, whose
 cadence is due at t, and whose peer was last heard patience or more
 before t: its tick at t opens a round, and its tick at t + 1 drops the
 connection, though nothing could have been answered in between. -/
-theorem patience_drops_idle (ix : Index) (c : Conn) (pf t : Nat) (h : Held F)
+theorem patience_drops_idle (wl : WalkLaws (F := F) fam cfg) (ix : Index) (c : Conn) (pf t : Nat) (h : Held F)
     (hd : c.dialer = true) (hp : c.peerFloor = some pf) (hs : c.snaps = []) (ha : c.asked.isEmpty = true)
     (hf : c.frontier = []) (hr : c.rooms ≠ []) (hl : c.lastRound + cfg.every ≤ t)
     (hpat : c.heard + cfg.patience ≤ t) :
@@ -56,7 +56,7 @@ theorem patience_drops_idle (ix : Index) (c : Conn) (pf t : Nat) (h : Held F)
     | nil => exact absurd e hr
     | cons _ _ => rfl
   simp only [Conn.tick, hw, Bool.false_and, Bool.false_eq_true, ite_false, HeldM.run_bind,
-    walk_idle fam cfg c hf h, hd, hs, List.isEmpty_nil, Bool.and_true,
+    wl.idle c h hf, hd, hs, List.isEmpty_nil, Bool.and_true,
     decide_eq_true hl, ite_true, HeldM.run_pure, Conn.start, hp, Conn.finish, Conn.report]
   refine ⟨trivial, by simp [ha], ?_⟩
   have hlt : c.heard + cfg.patience < t + 1 := by omega
@@ -71,9 +71,10 @@ theorem unshown_unanswered (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List
 
 /-- **Finding 2, the dialer.** While a round is open on a connection (its
 snapshot kept), the clock opens no other: the round number stays. -/
-theorem no_round_while_open (ix : Index) (c : Conn) (now : Nat) (h : Held F) (hs : c.snaps ≠ []) :
+theorem no_round_while_open (hw : WalkLaws (F := F) fam cfg) (ix : Index) (c : Conn) (now : Nat) (h : Held F)
+    (hs : c.snaps ≠ []) :
     ((c.tick fam cfg ix now : HeldM F Step).run h).1.conn.round = c.round := by
-  have e := walk_same fam cfg c h
+  have e := hw.same c h
   unfold Conn.tick
   split
   · rfl
