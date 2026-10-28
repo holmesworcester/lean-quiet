@@ -22,3 +22,4 @@ import Quiet.Composer
 import Quiet.Link
 import Quiet.Camera
 import Quiet.Switch
+import Quiet.TextLaws

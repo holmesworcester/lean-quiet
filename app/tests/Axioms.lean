@@ -3,6 +3,7 @@ import Quiet.SheetGeom
 import Quiet.Link
 import Quiet.Camera
 import Quiet.Switch
+import Quiet.TextLaws
 import Quiet.App
 #print axioms Geometry.placed_row
 #print axioms Geometry.visible_in_viewport
@@ -29,3 +30,7 @@ import Quiet.App
 #print axioms Pages.switcherOrder_sound
 #print axioms Pages.switcherOrder_complete
 #print axioms Switch.dedupe_one_per_community
+#print axioms Text.visual_perm
+#print axioms Text.place_shows
+#print axioms Text.oneLine_prefix
+#print axioms Text.digits_keep_order

@@ -9,10 +9,13 @@ Text to placed glyphs: a light shaper, line wrapping, and a light bidi.
 - **Wrapping.** Lines break at spaces, between any two wide characters
   (CJK breaks anywhere), at a newline, and inside a word too long for a
   line.
-- **Bidi.** In each line, a run of right-to-left characters (Hebrew,
-  Arabic) and the neutral characters between them is reversed; a line
-  whose first strong character is right-to-left also reverses the order
-  of its runs and sits at the right edge.
+- **Bidi.** Unicode's bidi algorithm for one paragraph without explicit
+  embeddings (`levels`, `reorder`): right-to-left letters at level 1,
+  left-to-right text and digits inside right-to-left text embedded at 2
+  (so a number keeps its order), neutrals as their neighbours agree, and
+  rule L2's reversals. A line whose first strong character is
+  right-to-left sits at the right edge. Bidi controls are neutrals: they
+  reorder nothing.
 
 Not handled: scripts that reorder or stack (Devanagari and other Indic
 scripts), ligatures, and emoji sequences (ZWJ, skin tones), which draw
@@ -48,9 +51,14 @@ def isInvisible (c : UInt32) : Bool :=
   inRange c 0x200B 0x200F || inRange c 0x2060 0x2064 || inRange c 0xFE00 0xFE0F ||
   c == 0xFEFF || inRange c 0x1F3FB 0x1F3FF
 
+/-- Digits (European, Arabic-Indic, extended Arabic-Indic): weak, they
+keep their left-to-right order inside right-to-left text. -/
+def isDigit (c : UInt32) : Bool :=
+  inRange c 0x30 0x39 || inRange c 0x0660 0x0669 || inRange c 0x06F0 0x06F9
+
 def isRtl (c : UInt32) : Bool :=
-  inRange c 0x0590 0x05FF || inRange c 0x0600 0x06FF || inRange c 0xFB1D 0xFDFF ||
-  inRange c 0xFE70 0xFEFF
+  (inRange c 0x0590 0x05FF || inRange c 0x0600 0x06FF || inRange c 0xFB1D 0xFDFF ||
+   inRange c 0xFE70 0xFEFF) && !isDigit c
 
 def isStrongLtr (c : UInt32) : Bool :=
   (inRange c 0x41 0x5A || inRange c 0x61 0x7A || inRange c 0xC0 0x24F || inRange c 0x370 0x58F ||
@@ -164,68 +172,116 @@ def wrapPara (f : Font) (width : Nat) (cs : Array UInt32) : Array (Array UInt32)
 
 /-! ## Bidi and placing -/
 
-/-- The line in display order: right-to-left runs reversed (with the
-neutrals between their characters), and, in a right-to-left line, the
-runs' order too. -/
-def visual (cs : Array UInt32) : Array UInt32 × Bool := Id.run do
-  let rtlLine := match cs.find? (fun c => isRtl c || isStrongLtr c) with
-    | some c => isRtl c
-    | none => false
-  -- runs: maximal stretches that are RTL, or LTR; neutrals join an RTL
-  -- run when RTL characters are on both sides
-  let n := cs.size
-  let mut kinds : Array Bool := Array.replicate n false
-  for i in [0:n] do
-    kinds := kinds.set! i (isRtl cs[i]!)
-  -- a mark takes its base's direction
-  for i in [1:n] do
-    if isMark cs[i]! then kinds := kinds.set! i kinds[i-1]!
-  -- neutrals between two RTL characters are RTL
-  let strong (c : UInt32) := isRtl c || isStrongLtr c
-  let mut i := 0
-  while i < n do
-    if !strong cs[i]! && !kinds[i]! then
-      let mut j := i
-      while j < n && !strong cs[j]! do j := j + 1
-      let before := i > 0 && kinds[i-1]!
-      let after := j < n && isRtl cs[j]!
-      let edge := (i == 0 || j == n) && rtlLine && (before || after)
-      if (before && after) || edge then
-        for k in [i:j] do kinds := kinds.set! k true
-      i := j
-    else i := i + 1
-  -- split into runs, reverse the RTL ones, and in an RTL line their order
-  let mut runs : Array (Array UInt32 × Bool) := #[]
-  let mut k := 0
-  while k < n do
-    let d := kinds[k]!
-    let mut j := k
-    while j < n && kinds[j]! == d do j := j + 1
-    let run := cs.extract k j
-    runs := runs.push (if d then run.reverse else run, d)
-    k := j
-  let ordered := if rtlLine then runs.reverse else runs
-  return (ordered.foldl (fun acc r => acc ++ r.1) #[], rtlLine)
+/-- A character's bidi class, as this light bidi resolves it: strong
+right-to-left, strong left-to-right, a digit (weak), or neutral (spaces,
+punctuation, symbols, emoji, and every control: an explicit bidi control
+is a neutral here, so it cannot reorder anything). -/
+inductive Dir where
+  | r | l | en | n
+  deriving BEq, Inhabited, Repr
 
-/-- A display-order line's glyphs placed from x = 0; a mark sits on the
-glyph before it (after it, in a reversed run, where its base now
-follows it). -/
-def place (f : Font) (cs : Array UInt32) : Line × Nat := Id.run do
-  let mut out : Line := #[]
-  let mut x := 0
-  let mut lastX := 0
-  for i in [0:cs.size] do
-    let c := cs[i]!
-    if isInvisible c then continue
-    if isMark c then
+def dirOf (c : UInt32) : Dir :=
+  if isRtl c then .r else if isStrongLtr c then .l else if isDigit c then .en else .n
+
+/-- The paragraph's direction: its first strong character's (left to right
+when it has none). -/
+def rtlPara (cs : List UInt32) : Bool :=
+  match cs.find? (fun c => isRtl c || isStrongLtr c) with
+  | some c => isRtl c
+  | none => false
+
+/-- Each character's resolved direction (true: right-to-left), none for a
+neutral: a digit takes the strong direction before it (`prev`, the
+paragraph's at its start). -/
+def resolve (prev : Bool) : List UInt32 → List (Option Bool)
+  | [] => []
+  | c :: t => match dirOf c with
+    | .r => some true :: resolve true t
+    | .l => some false :: resolve false t
+    | .en => some prev :: resolve prev t
+    | .n => none :: resolve prev t
+
+/-- For each position, the last resolved direction before it (`p` at the
+start). -/
+def before (p : Bool) : List (Option Bool) → List Bool
+  | [] => []
+  | d :: t => p :: before (d.getD p) t
+
+/-- For each position, the first resolved direction at or after it (`p`
+past the end). -/
+def after (p : Bool) : List (Option Bool) → List Bool
+  | [] => []
+  | d :: t => let rest := after p t; d.getD (rest.headD p) :: rest
+
+/-- A mark takes the level of the character before it. -/
+def markLevels (prev : Nat) : List (UInt32 × Nat) → List Nat
+  | [] => []
+  | (c, v) :: t => let v' := if isMark c then prev else v; v' :: markLevels v' t
+
+/-- Each character's level (Unicode's bidi algorithm, for one paragraph
+with no explicit embeddings): right-to-left at 1; left-to-right at the
+paragraph's level rounded up to even; a digit as the strong text before it
+makes it (after right-to-left: at 2, kept in order inside the run); a
+neutral as the strong directions on both its sides when they agree (a
+digit counting as right-to-left after right-to-left), else the
+paragraph's. A mark takes its base's level. -/
+def levels (cs : List UInt32) : List Nat :=
+  let rtl := rtlPara cs
+  let p := if rtl then 1 else 0
+  let lvl : Bool → Nat := fun r => if r then 1 else (if rtl then 2 else 0)
+  let res := resolve rtl cs
+  let one : (UInt32 × Option Bool) × Bool × Bool → Nat := fun ((c, d), b, a) =>
+    match d with
+    | some r => if dirOf c == .en && r then 2 else lvl r
+    | none => if b == a then lvl b else p
+  let base := ((cs.zip res).zip ((before rtl res).zip (after rtl res))).map one
+  markLevels p (cs.zip base)
+
+/-- Reverse every maximal run of entries whose level is at least `lv`
+(`run` holds the current run, reversed as it is collected). -/
+def reverseRuns (lv : Nat) (run : List (UInt32 × Nat)) : List (UInt32 × Nat) → List (UInt32 × Nat)
+  | [] => run
+  | x :: t => if x.2 ≥ lv then reverseRuns lv (x :: run) t else run ++ x :: reverseRuns lv [] t
+
+def reverseFrom (lv : Nat) (xs : List (UInt32 × Nat)) : List (UInt32 × Nat) := reverseRuns lv [] xs
+
+/-- Unicode's rule L2: from the highest level down to 1, reverse each
+run at that level or above. -/
+def reorder (xs : List (UInt32 × Nat)) : List (UInt32 × Nat) :=
+  let top := xs.foldl (fun m x => max m x.2) 0
+  (List.range top).foldl (fun acc k => reverseFrom (top - k) acc) xs
+
+/-- The line in display order, and whether it is a right-to-left line. -/
+def withLevels (cs : List UInt32) : List (UInt32 × Nat) :=
+  let lv := levels cs
+  cs.mapIdx fun i c => (c, lv.getD i 0)
+
+def visualL (cs : List UInt32) : List UInt32 × Bool :=
+  ((reorder (withLevels cs)).map (·.1), rtlPara cs)
+
+def visual (cs : Array UInt32) : Array UInt32 × Bool :=
+  let (v, r) := visualL cs.toList
+  (v.toArray, r)
+
+/-- A display-order line's glyphs placed from x (the last base at
+lastX); a mark sits on the glyph before it (after it, in a reversed run,
+where its base now follows it); invisibles are left out. -/
+def placeL (f : Font) : List UInt32 → Nat → Nat → List Placed × Nat
+  | [], x, _ => ([], x)
+  | c :: t, x, lastX =>
+    if isInvisible c then placeL f t x lastX
+    else if isMark c then
       -- in a reversed run the base is the next non-mark glyph
-      let base := if i + 1 < cs.size && isRtl c then x else lastX
-      out := out.push ⟨c, base⟩
+      let base := if !t.isEmpty && isRtl c then x else lastX
+      let (r, w) := placeL f t x lastX
+      (⟨c, base⟩ :: r, w)
     else
-      out := out.push ⟨c, x⟩
-      lastX := x
-      x := x + adv f c
-  return (out, x)
+      let (r, w) := placeL f t (x + adv f c) x
+      (⟨c, x⟩ :: r, w)
+
+def place (f : Font) (cs : Array UInt32) : Line × Nat :=
+  let (l, w) := placeL f cs.toList 0 0
+  (l.toArray, w)
 
 /-- Laid-out text: each line's glyphs and its x offset (right-aligned
 right-to-left lines), within `width`. -/
@@ -241,13 +297,34 @@ def layout (f : Font) (width : Nat) (s : String) : Array Line := Id.run do
       out := out.push (placed.map fun g => { g with x := g.x + dx })
   return out
 
-/-- A single line, cut to `width` with an ellipsis when longer. -/
-def oneLine (f : Font) (width : Nat) (s : String) : Line := Id.run do
+/-- How many characters of `cs`, from its logical start, fit `w` pixels. -/
+def fitting (f : Font) (w : Nat) (cs : List UInt32) : Nat := Id.run do
+  let mut x := 0
+  let mut k := 0
+  for c in cs do
+    let a := if isMark c || isInvisible c then 0 else adv f c
+    if x + a > w then return k
+    x := x + a
+    k := k + 1
+  return k
+
+/-- A single line, cut to `width` with an ellipsis when longer: its
+logical start (what a reader of either direction reads first), then the
+ellipsis where reading continues (at the right of a left-to-right line,
+the left of a right-to-left one: the ellipsis is a neutral at the line's
+end, and bidi places it). A right-to-left line sits at the right edge. -/
+def cutTo (f : Font) (width : Nat) (cs : Array UInt32) : Array UInt32 :=
+  (cs.extract 0 (fitting f (width - min width (adv f 0x2026)) cs.toList)).push 0x2026
+
+/-- What a single line places: the text, or its cut when it is too wide. -/
+def oneLinePlaced (f : Font) (width : Nat) (cs : Array UInt32) : Line × Nat :=
+  let (placed, w) := place f (visual cs).1
+  if w ≤ width then (placed, w) else place f (visual (cutTo f width cs)).1
+
+def oneLine (f : Font) (width : Nat) (s : String) : Line :=
   let cs := shape (f.emoji.emojify (s.toList.toArray.map (·.val)))
-  let (vis, _) := visual cs
-  let (placed, w) := place f vis
-  if w ≤ width then return placed
-  let ell := adv f 0x2026
-  return (placed.filter (·.x + f.cell / 2 + ell ≤ width)).push ⟨0x2026, width - ell⟩
+  let (placed, w) := oneLinePlaced f width cs
+  let dx := if (visual cs).2 && w < width then width - w else 0
+  placed.map fun g => { g with x := g.x + dx }
 
 end Text
