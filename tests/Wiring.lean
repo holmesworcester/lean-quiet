@@ -106,12 +106,14 @@ def roots : List Name := [`engine, `ops, `App, `Quiet, `Main]
 /-- The negative controls: harnesses the entry points must not reach
 (the Worlds' steps among them), laws that must be classified models (one
 over the bootstrap's model, one over code only qr's harness runs, one
-whose model is in a premise, and a cost law over a mirrored function,
-in the meter), and laws that must be World laws (the two-node World's
-stream). Update them if one becomes real. -/
+whose model is in a premise, and a cost law, in the meter, over code
+nothing calls), laws that must be negative controls (a mutant over its
+budget), and laws that must be World laws (the two-node World's stream). Update them if one becomes real. -/
 def harnesses : List Name := [`Engine.Sync.World.peer, `Net.step, `Pic.decode]
 def models : List Name :=
-  [`Net.Scene.bootstrap, `Pic.decode_sized, `Engine.offer_shared, `Community.Merkle.slow_hashes]
+  [`Net.Scene.bootstrap, `Pic.decode_sized, `Engine.offer_shared, `Heights.T.findM_cost]
+/-- Laws that must be negative controls: a mutant over its budget. -/
+def controlLaws : List Name := [`Community.Merkle.slow_over_budget, `Engine.Codec.slow_digits_over_budget]
 /-- Laws that must be World laws: the node's code over a World. -/
 def worlds : List Name := [`Engine.Sync.stream_delivers]
 
@@ -589,6 +591,9 @@ unsafe def main : IO UInt32 := do
   for m in worlds do
     if !(lawList.find? (·.name == m)).any (·.world) then
       problems := problems.push s!"control: {m}, a World law, is not classified World"
+  for m in controlLaws do
+    if !(lawList.find? (·.name == m)).any (·.control) then
+      problems := problems.push s!"control: {m}, a mutant's law, is not classified a negative control"
   let nw := (lawList.filter (·.wired)).length
   let nW := (lawList.filter (·.world)).length
   let nc := (lawList.filter (·.control)).length

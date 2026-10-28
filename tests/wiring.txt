@@ -173,6 +173,24 @@ world Engine.Sync.Setup.sync = Engine.Sync.World.peer
 world Engine.Sync.plainFrame = Engine.Sync.World.peer
 world Engine.Sync.oneRoom = Engine.Sync.World.peer
 
+## Negative controls: mutants, each kept only to show the old shape breaks
+## its law (a budget, or freshness). Their laws are counted apart.
+
+control Community.Merkle.rootAndProofsSlowM Every proof rebuilding its siblings, as before the levels: over `rootAndProofs_hashes`' budget (`slow_over_budget`).
+control Engine.Codec.digitsSlowM A number's digits a byte at a time, as before the halves: over the digits' budget (`slow_digits_over_budget`).
+control Engine.Codec.decBytesListM A byte string the list codec's way: over the bytes' budget (`slow_bytes_over_budget`).
+control Engine.Codec.readAllM = Engine.Codec.decBytesListM
+control Pics.imageV `image` with the old `decoded`, as it shipped: over the frame's budget (`imageV_over_budget`).
+control Community.approveWrapAll An approval that wraps the key to every member: wraps to a non-member (`wrapAll_over`).
+control Live.Gated.quiet A frame gated on notices: stale for ever (`gated_stale`); its example world (`w5`) shows the ungated frame fresh.
+control Live.Gated.w5 = Live.Gated.quiet
+control Live.RWorld.passEager The pass as first written, checking staleness while reading: stale for ever (`eager_stale`); its example world (`Eager.w1`) shows the marking pass fresh.
+control Live.Eager.eager = Live.RWorld.passEager
+control Live.Eager.w1 = Live.RWorld.passEager
+control Live.Eager.eval = Live.RWorld.passEager
+control Live.Eager.hits = Live.RWorld.passEager
+control Live.Eager.reads = Live.RWorld.passEager
+
 ## What would make each model real, most valuable first (the README's order)
 
 todo Engine.purgeS The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`).
@@ -222,3 +240,39 @@ todo Mdns.encode = Mdns.decode
 todo Arrival.lit `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`.
 todo Pics.after The picture doors as data (`PicM`), measured: the app's own doors (its decode table and frame counter) are not shown to answer as `PicM`'s. Prove they do, or state these over them.
 todo Pics.costIn = Pics.after
+todo Live.Board.put The change signal's board and reader, as a model (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's cache (`Data.Live`) does not run `Board`. Have the reader use it.
+todo Live.Board.apply = Live.Board.put
+todo Live.Board.keep = Live.Board.put
+todo Live.Board.take = Live.Board.put
+todo Live.World.afterActs = Live.Board.put
+todo Live.World.commit = Live.Board.put
+todo Live.World.frame = Live.Board.put
+todo Live.World.marked = Live.Board.put
+todo Live.World.pass = Live.Board.put
+todo Live.World.passActs = Live.Board.put
+todo Live.World.type = Live.Board.put
+todo Live.RWorld.commit = Live.Board.put
+todo Live.RWorld.evict = Live.Board.put
+todo Live.RWorld.frame = Live.Board.put
+todo Live.RWorld.marked = Live.Board.put
+todo Live.RWorld.pass = Live.Board.put
+todo Live.staleW = Live.Board.put
+todo Heights.T.sum The row-heights tree (engine/renderer/Heights.lean): the app keeps its rows' heights in a map (`App.heightOf`) and adds them up itself. Have its list frame place rows by `Heights`.
+todo Heights.Both.bottom = Heights.T.sum
+todo Heights.Both.rowAt = Heights.T.sum
+todo Heights.Both.top = Heights.T.sum
+todo Heights.Rows.push = Heights.T.sum
+todo Heights.T.build = Heights.T.sum
+todo Heights.T.buildM = Heights.T.sum
+todo Heights.T.depth = Heights.T.sum
+todo Heights.T.find = Heights.T.sum
+todo Heights.T.findM = Heights.T.sum
+todo Heights.T.set = Heights.T.sum
+todo Heights.T.setM = Heights.T.sum
+todo Heights.T.size = Heights.T.sum
+todo Heights.T.start = Heights.T.sum
+todo Heights.T.startM = Heights.T.sum
+todo Heights.T.toList = Heights.T.sum
+todo Heights.clog = Heights.T.sum
+todo Heights.rebuild = Heights.T.sum
+todo Heights.screenY = Heights.T.sum
