@@ -42,7 +42,7 @@ def history (tag : String) (members posts : Nat) : List Op × Id := Id.run do
   let mut postIds : Array Id := #[]
   for i in [0:posts] do
     let (a, d) := adms[i % adms.size]!
-    let p := post c a d "k".toUTF8 s!"{tag} post {i}".toUTF8 (1000 + 100 * i)
+    let p := post c a d "k".toUTF8 s!"{tag} post {i}".toUTF8 (i + 1) (1000 + 100 * i)
     ops := ops.push p
     postIds := postIds.push p.id
     if i % 4 == 3 then
@@ -124,7 +124,7 @@ def main : IO UInt32 := do
 
   -- Stream: a new op reaches the peer without another round.
   let a1 := (h.find? fun o => o.kind == 11).map (·.id) |>.getD c
-  let late := post c c (Device.named "acme-founder") "k".toUTF8 "late news".toUTF8 99999
+  let late := post c c (Device.named "acme-founder") "k".toUTF8 "late news".toUTF8 1 99999
   let rounds := (p.a.node.conn? cid).map (·.round) |>.getD 0
   let p ← p.writeA x x [late]
   let p ← p.run x x (p.now + 50) 1000 1000

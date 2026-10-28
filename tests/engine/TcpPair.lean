@@ -97,7 +97,7 @@ def history (members posts : Nat) : List Op × Id := Id.run do
     adms := adms.push (adm.id, d)
   for i in [0:posts] do
     let (a, d) := adms[i % adms.size]!
-    ops := ops.push (post c a d "k".toUTF8 s!"tcp post {i}".toUTF8 (1000 + 100 * i))
+    ops := ops.push (post c a d "k".toUTF8 s!"tcp post {i}".toUTF8 (i + 1) (1000 + 100 * i))
   return (ops.toList, c)
 
 def fresh (path : String) : IO Db := do
@@ -139,7 +139,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "tcp: b receives the whole history over TCP" done
   t.ok "tcp: b's app heard the stored ids" ((← heard.get) ≥ h.length - 30)
   -- a writes a post after the round: it streams to b.
-  let late := post c c (Device.named "tcp-founder") "k".toUTF8 "late over tcp".toUTF8 999999
+  let late := post c c (Device.named "tcp-founder") "k".toUTF8 "late over tcp".toUTF8 1 999999
   ra.write [late]
   let mut streamed := false
   for _ in [0:100] do
