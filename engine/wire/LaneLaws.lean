@@ -274,22 +274,24 @@ frames back only by being taken. -/
 theorem frame_next {W E : Type} (e : E) (es : List E) :
     (Inbox.next (popW (W := W)) popE).run ([], e :: es) = (some (.inr e), ([], es)) := rfl
 
-/-- n iterations of the loop's choice. -/
-def Inbox.iter {W E : Type} : Nat → Queues W E (List (Option (W ⊕ E)))
+/-- n iterations of a loop's choice. -/
+def Inbox.iter {W E : Type} (next : Queues W E (Option (W ⊕ E))) : Nat → Queues W E (List (Option (W ⊕ E)))
   | 0 => pure []
   | n + 1 => do
-    let x ← Inbox.next popW popE
-    let xs ← Inbox.iter n
+    let x ← next
+    let xs ← Inbox.iter next n
     return x :: xs
 
 theorem iter_write {W E : Type} (n : Nat) (w : W) (ws : List W) (es : List E) :
-    (Inbox.iter (n + 1)).run (w :: ws, es) =
-      (some (.inl w) :: ((Inbox.iter n).run (ws, es)).1, ((Inbox.iter n).run (ws, es)).2) := rfl
+    (Inbox.iter (Inbox.next popW popE) (n + 1)).run (w :: ws, es) =
+      (some (.inl w) :: ((Inbox.iter (Inbox.next popW popE) n).run (ws, es)).1,
+        ((Inbox.iter (Inbox.next popW popE) n).run (ws, es)).2) := rfl
 
-/-- **The p-th write waiting enters within p + 1 iterations**, whatever
-frames are queued and however many. -/
+/-- **The p-th write waiting enters within p + 1 iterations** of the
+loop's choice (`Inbox.next`), whatever frames are queued and however
+many. -/
 theorem write_within {W E : Type} (ws : List W) (es : List E) (p : Nat) (hp : p < ws.length) :
-    ((Inbox.iter (p + 1)).run (ws, es)).1 = (ws.take (p + 1)).map (some ∘ .inl) := by
+    ((Inbox.iter (Inbox.next popW popE) (p + 1)).run (ws, es)).1 = (ws.take (p + 1)).map (some ∘ .inl) := by
   induction p generalizing ws with
   | zero =>
     cases ws with

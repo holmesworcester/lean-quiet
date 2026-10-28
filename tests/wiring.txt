@@ -156,7 +156,7 @@ spec Engine.Sync.largestOp A reply's largest op, for its bound.
 spec Community.Merkle.treeInputs A file's Merkle tree inputs, for the no-second-preimage hypothesis.
 spec Community.Merkle.subInputs A subtree's Merkle inputs, for the no-second-preimage hypothesis.
 spec Community.Merkle.slices A file's chunks, as the tree cuts it.
-spec Engine.Sync.Inbox.iter The run loop's choice made n times: `runLoop` repeats `Inbox.next`.
+spec Engine.Sync.Inbox.iter A loop's choice made n times: `runLoop` repeats `Inbox.next`, which the laws name.
 spec Engine.Sync.urgents The urgent frames among a run of pushes, in order.
 spec Engine.Sync.serves The serve frames among a run of pushes, in order.
 spec Community.fileChunk A file's chunk at an index.

@@ -132,8 +132,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 567 rest on Lean's standard axioms
-only, and about two thirds of its theorems (372 of 549, not counting 18 negative controls) are about the code that runs; another 7 run the
+that rests on; 🥊 is supporting. All 603 rest on Lean's standard axioms
+only, and about two thirds of its theorems (405 of 585, not counting 18 negative controls) are about the code that runs; another 9 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -173,7 +173,7 @@ World); the rest are over models so far
 | ✅ | 🥊🥊🥊 | **Authenticate before parsing:** a sealed frame's payload is decoded only after its AEAD check passes, under the receive key of the session the frame names. A frame that fails leaves the node and its store as they were, and sends nothing. | [`sealed_auth`], [`openFrame_auth`], [`onFrame_sealed`], [`sealed_unopened`] |
 | 🟡 | 🥊🥊 | **Bounded buffering:** inbound frames wait in a bounded queue, each at most 1 MiB, with one partial frame per socket, whatever the peer's length fields say; a full queue blocks its producer, and sockets are capped globally and per address. Proven of a model of the reader's loop (`keeps`); wiring it to the running reader is a todo. Tested: the queue's backpressure and socket admission. | [`buffer_bounded`], [`frames_kept`], [`frames_tooBig`], [`admit_bounded`] |
 | ✅ | 🥊🥊 | **No amplification:** a decoded op is exactly its bytes, so no larger. A bundle's payloads are together smaller than it. Linear decoding time is not proven. | [`Op.decode_exact`], [`Op.decode_parts`], [`decode_sum`] |
-| 🟡 | 🥊🥊 | **Resources are capped:** sockets, each connection's `known` and `asked` sets and its queue of the peer's wants, what a step serves, and each socket's queued frames, without dropping honest sessions. An ask the peer never answers expires, and a socket that takes nothing for `stallMs`, or holds more than `sockCap`, is closed. Not covered: the local room index, snapshots and closure caches, and round and CPU work. | [`hold_bounded`], [`conn_bounded`], [`honest_no_drop`], [`onWant_bounded_owed`], [`serveOwed_budget`], [`asks_expire`], [`push_capped`], [`stall_closes`] |
+| 🟡 | 🥊🥊 | **Resources are capped:** sockets, each connection's `known` and `asked` sets and its queue of the peer's wants, what a step serves, and each socket's queued frames, without dropping honest sessions. An ask the peer never answers expires, and a socket that takes nothing for `stallMs`, or holds more than `sockCap`, is closed. Not covered: the local room index, snapshots and closure caches, and round and CPU work. | [`hold_bounded`], [`conn_bounded`], [`honest_no_drop`], [`onWant_bounded_owed`], [`serveOwed_budget`], [`asks_expire`], [`push_capped`], [`lanes_bounded`], [`room_window`], [`stall_closes`] |
 
 ### Quality proofs
 
@@ -238,14 +238,14 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**372 of 549 laws are about running code;** another 7 run its node code in a World, and 170 are not yet. Stated only: none. 18 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**405 of 585 laws are about running code;** another 9 run its node code in a World, and 171 are not yet. Stated only: none. 18 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 109 | 49 |  | 60 |
-| Sync | 82 | 81 |  | 1 |
+| Sync | 94 | 93 |  | 1 |
 | mDNS | 3 | 0 |  | 3 |
-| Node and wire | 35 | 19 | 7 | 9 |
+| Node and wire | 59 | 40 | 9 | 10 |
 | Bootstrap | 11 | 0 |  | 11 |
 | Connections | 30 | 27 |  | 3 |
 | Community | 151 | 140 |  | 11 |
@@ -256,8 +256,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 
 | Missing link | Laws | To make them real |
 |---|---|---|
-| `World.peer`, `Setup.sync`, `Who.other` +7 | 7 World laws; not yet: [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`write_offers_all`] | Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired. |
-| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]† +18 more | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
+| `World.peer`, `Setup.sync`, `Who.other` +7 | 9 World laws; not yet: [`write_offers`], [`hold_wants`], [`want_sends`]†, [`op_taken`], [`write_offers_all`], [`write_hot`]† | Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired. |
+| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]† +19 more | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
 | `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
@@ -288,7 +288,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 156 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Model.run`] | 168 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Sync.popW`] | 3 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`Engine.Inv`] | 52 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
@@ -718,7 +719,7 @@ on the old layout comes over with `ci/reorg-map.tsv` (where each file
 went) and `ci/reorg-imports.py` (its new files' imports).
 
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
-[`stream_delivers`]: engine/wire/WorldLaws.lean#L603-L635
+[`stream_delivers`]: engine/wire/WorldLaws.lean#L751-L784
 [`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
 [`Unforgeable`]: ops/community/Laws.lean#L270-L272
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
@@ -743,22 +744,22 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`admin_removal_stands`]: ops/community/Laws.lean#L528-L541
 [`mutual_removal`]: ops/community/Laws.lean#L549-L553
 [`removed_approver_admits`]: ops/community/Laws.lean#L488-L499
-[`recv_send`]: ops/sync/ConnLaws.lean#L156-L158
-[`hold_reply_local`]: ops/sync/OfferLaws.lean#L663-L673
-[`heldIn_index`]: ops/sync/OfferLaws.lean#L686-L689
-[`hold_reply_local_premises`]: ops/sync/OfferLaws.lean#L712-L716
-[`want_reads_authorized`]: ops/sync/ServeLaws.lean#L124-L128
-[`want_blind`]: ops/sync/ServeLaws.lean#L132-L138
-[`want_blind_step`]: ops/sync/ServeLaws.lean#L144-L149
+[`recv_send`]: ops/sync/ConnLaws.lean#L158-L160
+[`hold_reply_local`]: ops/sync/OfferLaws.lean#L652-L662
+[`heldIn_index`]: ops/sync/OfferLaws.lean#L675-L678
+[`hold_reply_local_premises`]: ops/sync/OfferLaws.lean#L701-L705
+[`onWant_authorized`]: ops/sync/ServeLaws.lean#L282-L285
+[`serveOwed_shown`]: ops/sync/ServeLaws.lean#L451-L457
+[`serveOwed_blind`]: ops/sync/ServeLaws.lean#L469-L473
 [`offer_shared`]: engine/core/Sync.lean#L83-L86
 [`wire_kinds`]: ops/connection/Laws.lean#L48-L49
 [`local_kinds`]: ops/connection/Laws.lean#L55-L56
 [`joinOps_travels`]: ops/community/Intents.lean#L299-L303
 [`found_travels`]: ops/community/Intents.lean#L310-L314
 [`stopWaiting_local`]: ops/community/Intents.lean#L306-L307
-[`filed_send`]: ops/sync/ConnLaws.lean#L185-L188
+[`filed_send`]: ops/sync/ConnLaws.lean#L187-L190
 [`offer_stored`]: engine/core/Sync.lean#L98-L101
-[`tick_send`]: ops/sync/ConnLaws.lean#L194-L197
+[`tick_send`]: ops/sync/ConnLaws.lean#L196-L199
 [`recipients_iff`]: ops/community/Connect.lean#L214-L218
 [`members_iff`]: ops/community/Connect.lean#L205-L208
 [`member_opens`]: ops/community/Laws.lean#L928-L932
@@ -781,13 +782,13 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`round_not_dropped`]: ops/sync/TimeLaws.lean#L34-L37
 [`kk_forward_secret`]: ops/connection/NoiseSymbolic.lean#L685-L696
 [`purge_named`]: engine/core/Purge.lean#L267-L271
-[`have_shown`]: ops/sync/OfferLaws.lean#L557-L569
+[`have_shown`]: ops/sync/OfferLaws.lean#L546-L558
 [`boot_cached`]: engine/wire/NodeLaws.lean#L259-L260
 [`write_cached`]: engine/wire/NodeLaws.lean#L436-L440
 [`purge_cached`]: engine/wire/NodeLaws.lean#L508-L513
 [`cached_items`]: engine/wire/NodeLaws.lean#L271-L274
-[`write_snaps`]: ops/sync/OfferLaws.lean#L613-L616
-[`have_shown_premises`]: ops/sync/OfferLaws.lean#L705-L709
+[`write_snaps`]: ops/sync/OfferLaws.lean#L602-L605
+[`have_shown_premises`]: ops/sync/OfferLaws.lean#L694-L698
 [`connect_iff`]: ops/community/Connect.lean#L146-L150
 [`refuse_nonmember`]: ops/community/Connect.lean#L161-L164
 [`connect_approved`]: ops/community/Connect.lean#L182-L193
@@ -798,7 +799,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`rooms_cut`]: ops/connection/RoomLaws.lean#L93-L103
 [`trusts_live`]: ops/connection/RoomLaws.lean#L40-L46
 [`rooms_model`]: ops/connection/RoomLaws.lean#L109-L111
-[`recv_take`]: ops/sync/ConnLaws.lean#L127-L129
+[`recv_take`]: ops/sync/ConnLaws.lean#L129-L131
 [`no_connection_before_approval`]: ops/connection/bootstrap/Laws.lean#L39-L46
 [`sessions_trusted`]: ops/connection/bootstrap/Laws.lean#L63-L68
 [`intake_local`]: engine/core/Sync.lean#L41-L43
@@ -833,15 +834,20 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`buffer_bounded`]: engine/wire/Frame.lean#L213-L218
 [`frames_kept`]: engine/wire/Frame.lean#L158-L161
 [`frames_tooBig`]: engine/wire/Frame.lean#L180-L183
-[`admit_bounded`]: engine/wire/Slots.lean#L49-L54
+[`admit_bounded`]: engine/wire/Slots.lean#L69-L74
 [`Op.decode_exact`]: engine/core/Core.lean#L96-L98
 [`Op.decode_parts`]: engine/core/Core.lean#L101-L104
 [`decode_sum`]: engine/core/Codec.lean#L779-L782
-[`hold_bounded`]: ops/sync/BoundsLaws.lean#L38-L39
-[`conn_bounded`]: ops/sync/BoundsLaws.lean#L177-L178
-[`honest_no_drop`]: ops/sync/RetryLaws.lean#L78-L83
-[`retry_bounded`]: ops/sync/RetryLaws.lean#L141-L142
-[`want_budget`]: ops/sync/ServeLaws.lean#L174-L177
+[`hold_bounded`]: ops/sync/BoundsLaws.lean#L65-L66
+[`conn_bounded`]: ops/sync/BoundsLaws.lean#L229-L233
+[`honest_no_drop`]: ops/sync/RetryLaws.lean#L80-L85
+[`onWant_bounded_owed`]: ops/sync/ServeLaws.lean#L338-L340
+[`serveOwed_budget`]: ops/sync/ServeLaws.lean#L441-L443
+[`asks_expire`]: ops/sync/RetryLaws.lean#L103-L109
+[`push_capped`]: engine/wire/LaneLaws.lean#L126-L130
+[`lanes_bounded`]: engine/wire/LaneLaws.lean#L161-L163
+[`room_window`]: engine/wire/LaneLaws.lean#L210-L217
+[`stall_closes`]: engine/wire/LaneLaws.lean#L223-L227
 [`order_free`]: engine/core/Proofs.lean#L634-L639
 [`drain_settles`]: engine/core/Termination.lean#L110-L114
 [`status_iff_spec`]: engine/core/Proofs.lean#L483-L485
@@ -872,11 +878,27 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`bootstrap_ideal`]: ops/connection/bootstrap/Laws.lean#L423-L424
 [`bootstrap_possible`]: ops/connection/bootstrap/Laws.lean#L208-L218
 [`reachable_inv`]: ops/connection/bootstrap/Steps.lean#L222-L223
-[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1246-L1268
-[`stream_offered`]: engine/wire/WorldLaws.lean#L1192-L1204
-[`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L640-L657
-[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1211-L1217
-[`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L687-L692
+[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1449-L1471
+[`stream_offered`]: engine/wire/WorldLaws.lean#L1395-L1407
+[`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L789-L806
+[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1414-L1420
+[`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L836-L841
+[`onWant_all`]: ops/sync/ServeLaws.lean#L297-L301
+[`onWant_order`]: ops/sync/ServeLaws.lean#L316-L319
+[`serveOwed_head`]: ops/sync/ServeLaws.lean#L382-L387
+[`serveOwed_fifo`]: ops/sync/ServeLaws.lean#L392-L393
+[`owed_within`]: ops/sync/ServeLaws.lean#L430-L438
+[`want_sends`]: engine/wire/WorldLaws.lean#L594-L604
+[`write_first`]: engine/wire/LaneLaws.lean#L267-L270
+[`write_within`]: engine/wire/LaneLaws.lean#L290-L294
+[`urgent_ahead`]: engine/wire/LaneLaws.lean#L100-L109
+[`ahead_bytes`]: engine/wire/LaneLaws.lean#L169-L184
+[`cut_bytes`]: engine/wire/LaneLaws.lean#L59-L61
+[`serveOwed_hot`]: ops/sync/ServeLaws.lean#L374-L378
+[`hot_ids`]: engine/wire/LaneLaws.lean#L323-L326
+[`lane_control`]: engine/wire/LaneLaws.lean#L312-L315
+[`fresh_served`]: engine/wire/WorldLaws.lean#L582-L589
+[`write_hot`]: engine/wire/WorldLaws.lean#L1381-L1386
 [`visible_in_viewport`]: engine/renderer/Geometry.lean#L90-L95
 [`newest_visible`]: engine/renderer/Geometry.lean#L99-L105
 [`pinned_visible`]: engine/renderer/Geometry.lean#L147-L151
@@ -973,11 +995,10 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`fit_round`]: engine/renderer/pic/Laws.lean#L87-L90
 [`Pic.layout_inside`]: engine/renderer/pic/Laws.lean#L170-L172
 [`Pic.layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
-[`write_offers`]: engine/wire/WorldLaws.lean#L425-L433
-[`hold_wants`]: engine/wire/WorldLaws.lean#L442-L448
-[`want_sends`]: engine/wire/WorldLaws.lean#L457-L464
-[`op_taken`]: engine/wire/WorldLaws.lean#L487-L494
-[`write_offers_all`]: engine/wire/WorldLaws.lean#L1160-L1171
+[`write_offers`]: engine/wire/WorldLaws.lean#L473-L481
+[`hold_wants`]: engine/wire/WorldLaws.lean#L491-L498
+[`op_taken`]: engine/wire/WorldLaws.lean#L635-L642
+[`write_offers_all`]: engine/wire/WorldLaws.lean#L1310-L1321
 [`reach_drain`]: engine/core/Proofs.lean#L529-L530
 [`admitted_inv`]: ops/connection/bootstrap/Scene.lean#L154-L156
 [`allowedA`]: ops/connection/bootstrap/Scene.lean#L219-L219
@@ -1055,6 +1076,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Seal.Good`]: ops/community/Keys.lean#L40-L43
 [`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
 [`Model.run`]: engine/core/Model.lean#L103-L103
+[`Sync.popW`]: engine/wire/LaneLaws.lean#L257-L260
 [`Engine.runJ`]: engine/core/WindowLaws.lean#L148-L151
 [`Engine.Inv`]: engine/core/Proofs.lean#L202-L219
 <!-- /proof-links -->

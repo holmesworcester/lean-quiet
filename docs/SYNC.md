@@ -205,7 +205,7 @@ family writes it as a local op, so it can't grow the log per message.
 | engine/wire/Frame.lean | 4-byte length framing on TCP, with proven unframing and bounded buffering |
 | engine/wire/Tcp.lean | the TCP runner |
 | engine/wire/Lanes.lean | the send lanes and the run loop's inbox: what the runner calls |
-| engine/wire/LaneLaws.lean | fresh ops ahead of backlog: `write_first`, `urgent_ahead`, `ahead_bytes`, `apart` |
+| engine/wire/LaneLaws.lean | fresh ops ahead of backlog: `write_first`, `urgent_ahead`, `ahead_bytes`; the socket cap and stalls: `lanes_bounded`, `room_window`, `stall_closes` |
 | engine/core/Locality.lean | `spec_local` |
 | engine/wire/Pair.lean | two Nodes over a lossy in-memory queue, for tests |
 | engine/wire/World.lean | two Nodes on held stores and the frames in flight, as data, with `World.Step` |
@@ -452,10 +452,12 @@ Still to prove:
 - A step serves the queue up to its budget plus one whole op.
 - `queue` pending inbound events, `maxSocks` sockets and `perAddr` per IP.
 - `walk` closure steps per call (the rest continues on the next tick).
-- `burst` serve bytes per native write after the urgent frames, and
-  `window` serve bytes queued per socket before each want on it gets one
-  op (`RunConfig`); `urgentIds` ids for a wire op to stay urgent, and
-  `hotMs`, `hotCap` for this node's fresh writes (`Config`).
+- `burst` serve bytes per native write after the urgent frames;
+  `window` bytes queued per socket (both lanes) past which its sessions
+  are served nothing more; `sockCap` bytes queued per socket, past which
+  it is closed; `stallMs` for a writer's write, past which its socket is
+  closed (`RunConfig`). `urgentIds` ids for a wire op to stay urgent,
+  and `hotMs`, `hotCap` for this node's fresh writes (`Config`).
 - `leaf` and `fan` bound a message's claims.
 
 Grinding a degenerate treap costs the attacker O(n²) hashes and the
@@ -503,15 +505,40 @@ engine/wire/Lanes.lean, Tcp):
   frame, then serve frames up to `burst` bytes, at least one. The run
   loop only pushes frames onto lanes, so no send blocks it, and a slow
   socket blocks only its own writer. A closed socket's writer shuts it
-  down once its write under way is done.
+  down once its write under way is done; the frames still in its lanes
+  are dropped then (`Sock.stop`), as the session ends with the socket.
 - **Local writes have their own channel**, read before any frame
   (`Inbox.next`). It is unbounded, so `Runner.write` no longer blocks
-  the app behind a full event queue.
-- **Flow control.** The runner tells the node what each socket's serve
-  lane has room for under `window` (`Sync.room`), and a step serves a
-  session's queue only that far (and one op more). So the serve lane
-  holds at most `window` and one op of queued ops, whatever the backlog,
-  and nothing is dropped: the queue keeps the ids, not the bytes.
+  the app behind a full event queue. This is the one write path: the
+  app calls `Runner.write`, and nothing sits between them. A retry
+  queue in the app (holmes-1e's `toNode`/`offerAll`, 653b7e4, not on
+  main) would only buffer the same writes twice; what must never happen
+  is the app's write blocking on the events channel (`enqueue`), and
+  `write_first`/`write_within` are about the channel it uses instead.
+- **Flow control.** The runner tells the node what each socket's lanes,
+  both of them, have left of `window` (`Sync.room`, `roomOf`), and a
+  step serves a session's queue only that far (and one op more). So
+  serving leaves a socket's lanes within `window` and one op
+  (`room_window`), whatever the backlog. The queue keeps the ids, not
+  the bytes: an id not yet served waits there, not in the lanes.
+- **The socket cap.** Every push goes through `Lanes.admit`: if a
+  socket's lanes would then hold more than `sockCap` bytes (16 MiB), the
+  push is refused and the runner closes the socket through the close
+  path, as for any other end. So no socket ever holds more than
+  `sockCap` here (`lanes_bounded`), whatever its peer sends: the urgent
+  lane too, which the window does not pace (a peer that never reads,
+  asking again and again for this node's fresh writes, or a node writing
+  faster than a peer takes). Serving alone stays within `window` and one
+  op, so an honest peer that reads never reaches the cap.
+- **Stalls.** A writer marks when its write under way began
+  (`Outbox.since`). The loop's clock closes a socket whose write is not
+  done in `stallMs` (30 s; `shut`, `stall_closes`), through the close
+  path: the node ends its sessions there and the lanes are dropped. A
+  native write cannot be cancelled in Lean's TCP (`shutdown` waits for
+  pending writes), so the writer stays on that write until the peer
+  takes it or the connection dies, and only then shuts the socket down
+  and releases the socket's slot. So `maxSocks` caps such writers, and
+  `Runner.stop` waits for writers to end at most `stopMs`.
 
 `burst` is uiprio's `idleBatchBytes` on the send side (one native write
 of several frames, `sendMany`, as uiprio's). When Schedule's Params
@@ -536,9 +563,20 @@ over the functions the node and the runner call):
   is the loop's next event, whatever frames are queued), `urgent_ahead`
   and `ahead_bytes` (an urgent frame goes out in its socket's next
   native write, after only the urgent frames before it, ahead of every
-  serve frame queued since the last write began), `cut_bytes` (a write's
-  serve part is at most `burst`, or one frame), `apart` (a socket's next
-  write depends only on its own lanes).
+  serve frame queued since the last write began; the write under way and
+  those urgent frames are each at most `sockCap`), `cut_bytes` (a
+  write's serve part is at most `burst`, or one frame).
+- The socket: `push_capped`, `push_over` (a push either keeps the lanes
+  within `sockCap` or is refused, and the socket closed),
+  `lanes_bounded` (so a socket's lanes, from empty through the loop's
+  pushes and the writer's writes, never hold more), `room_window`
+  (serving into a socket's room leaves its lanes within `window` and
+  one op), `stall_closes` and `shut_live` (the clock closes a socket
+  whose write is `stallMs` old, and not one heard from within `idle`
+  whose write is younger).
+- Not proven: that one socket's backlog holds up no other. Each socket
+  has its own lanes and writer thread, but threads are not modelled;
+  FreshTcp tests it.
 - What goes urgent: `lane_control`, `hot_ids`, `write_hot` (a local
   write's ops are hot from the write on, for `hotMs`).
 
@@ -546,9 +584,20 @@ With `fresh_stmt`'s FIFO links of bandwidth bw, each of the three hops
 (offer, want, op) then waits for at most the kernel's buffer, one burst
 or one frame, and the urgent traffic ahead: B = 3(Δ + (sndbuf + burst +
 maxFrame + U)/bw), plus each side's processing, independent of the
-backlog. `fresh_stmt` itself, over the world, is proof-arch's (it needs
-the writer's lanes per link in the world, and a bound U on a node's own
-writes in the window).
+backlog. U is the urgent traffic ahead: a premise bounds a node's own
+writes in the window by U bytes, and `sockCap` bounds it in any case.
+`fresh_stmt` itself, over the world, is proof-arch's and not proven: it
+needs the writer's lanes per link in the world (`Lanes` and its laws are
+that per-link state), with a step that moves one batch into flight.
+
+**Known gap: a relayed op is not hot.** Only this node's own writes are
+served first (`Node.heat` in `onWrite`). An op P stored from its writer
+W and then offers to Q waits in P's queue for Q behind what Q already
+asked of P; Q gets it promptly only from W's own stream, or when Q's
+queue at P is short. Heating every op stored within `hotMs` would let a
+peer's bulk sync fill the hot set and put backlog in the urgent lane;
+doing it safely needs the op's own time (within `hotMs` of now) and the
+`hotCap` bound with own writes first, which is a later change.
 
 **What stays FIFO, and is still a constant ahead of a fresh frame:**
 - the kernel's send buffer and the peer's receive buffer, which the
@@ -585,24 +634,33 @@ writes in the window).
   latency is within the bound above (724 ms here); the old order waits
   for every step's bulk queued ahead on one FIFO, so it grows with the
   backlog, though not smoothly.
-- tests/engine/FreshTcp.lean, over real TCP: a client asks node R for
-  32 MiB and never reads. Another node still gets all of R's ops, and
-  R's app write reaches it in milliseconds with the backlog still
-  flowing. With the old blocking send, R's loop stops at the client's
-  first full buffer.
+- tests/engine/FreshTcp.lean, over real TCP: a client S asks node R
+  for 32 MiB, in eight wants and 64 more frames wanting it all again, and
+  never reads. Another node still gets all of R's ops, and R's app write
+  reaches it in milliseconds with the backlog still flowing. S's lanes
+  at R (`Runner.lanes`) peak at the window and 555 bytes; R closes S
+  1.63–1.65 s after its wants (`stallMs` 1.5 s here, never before), and
+  S's slot stays held until S reads, when R's writer ends, shuts the
+  socket down (S reads 2.6 MB, then the end) and releases it. With the
+  old blocking send, R's loop stops at the client's first full buffer.
 - tests/engine/HardenLib.lean's want checks: a cross-room want is never
   read, the budget stops reads, the rest is served the next step in
   order, a fresh write is served first at a zero budget, a purged id
   leaves the queue, a repeated want is not queued twice; asks are never
   deferred and expire in two periods, and ticks re-ask nothing.
-- tests/engine/fresh_negative.py: nine mutants, each refused by a law or
-  a test: the shared FIFO (`write_first`), one lane (`urgent_ahead`), no
-  burst cap (`cut_bytes`), no hot set (`hot_ids`), a write left cold
-  (`write_hot`), fresh writes not served first (`serveOwed_hot`), a
-  truncated want (`onWant_all`), a want ahead of the queue
-  (`onWant_order`), and the blocking send (FreshTcp: the other node gets
-  nothing). tests/engine/harden_negative.py refuses the queue's and the
-  asks' mutants too (no aging, deferred asks, no budget).
+- tests/engine/fresh_negative.py: fifteen mutants, each refused by a
+  law or a test: the shared FIFO (`write_first`), one lane
+  (`urgent_ahead`), no burst cap (`cut_bytes`), no hot set (`hot_ids`),
+  a write left cold (`write_hot`), fresh writes not served first
+  (`serveOwed_hot`), a truncated want (`onWant_all`), a want ahead of
+  the queue (`onWant_order`), no socket cap (`push_capped`), a clock
+  blind to stalls (`stall_closes`); and in FreshTcp, the blocking send
+  (the other node gets nothing), the frame handler serving with no room
+  and a room blind to the lanes (S's lanes pass the window), no stall
+  deadline (S is never closed), and the slot released at close (it is
+  free while S's writer still waits). tests/engine/harden_negative.py
+  refuses the queue's and the asks' mutants too (no aging, deferred
+  asks, no budget).
 - `mise run test:fresh` runs them; tests/engine/run.sh (the engine
   gate) runs it.
 
