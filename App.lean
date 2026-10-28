@@ -172,15 +172,9 @@ structure St where
   people : Nat := 0
   heights : Std.HashMap Id Nat := {}
   rows : Std.HashMap Id RowSt := {}
-  /-- Per community, how many of my content keys and how many admissions
-were stored when its `shareKey` last ran. -/
-  shared : Std.HashMap Id (Nat × Nat) := {}
-  /-- The admissions this device completed (wrote the admit of): it wraps
-  its key to them at once (`shareDue`). -/
-  completed : Std.HashSet Id := {}
-  /-- Per community, its admissions lacking a wrap of my key, each with
-  the second this device first saw it lack one. -/
-  lack : Std.HashMap Id (List (Id × Nat)) := {}
+  /-- Per community, how many of my content keys and admissions were
+  stored, and which grace on the clock it was, when `shareKey` last ran. -/
+  shared : Std.HashMap Id (Nat × Nat × Nat) := {}
   imgs : Std.HashMap ImgKey (Task Bitmap) := {}
   /-- When an image whose chunks were not all readable may be tried again
   (a frame number). -/
@@ -879,8 +873,6 @@ def approveReq (r : Id) : M Unit := do
   -- tally complete? then the admission goes in the same write (the
   -- community's key follows it, by shareKey, once it is in the store)
   let w ← ((Community.approveReq s.me.c r s.me.adm s.me.dev).liftL.run : SqlM SF _).run s.rd
-  -- an admission this device completes: it wraps its key to it at once
-  if let some a := w.ops[1]? then modify fun s => { s with completed := s.completed.insert a.id }
   let _ ← writeAll w
 
 /-- The current page's picture and taps (kept until what it shows changes). -/
@@ -1656,25 +1648,16 @@ def frame (evs : List Event) : M (Option (List Event)) := do
     -- key ops (a live view too: re-run when a wrap arrives)
     let (w, _) ← readView (Community.unwrap m.c m.dev) #[]
     if !w.ops.isEmpty then let _ ← writeAll w
-    -- and this device's key wrapped to each live member's key lacking
-    -- one: at once to an admission it completed, else after
-    -- `shareGrace` seconds with no wrap arrived (`shareDue`). It reads
-    -- every admission, so it runs only when more of my keys or more
-    -- admissions are stored (both only grow; pending ones not counted),
-    -- or when a grace ends.
+    -- and this device's key wrapped to each live member's key it owes
+    -- (`shareKey`, read from ops): when more of my keys or admissions are
+    -- stored (pending ones not counted), and once a grace on the clock
     let (ka, kp, _) ← readList (Community.key.byCommunity.query [m.c] (limit := some 0)) #[]
     let (aa, ap, _) ← readList (Community.admission.all.query [m.c] (limit := some 0)) #[]
-    let stored := (ka.total - kp.length, aa.total - ap.length)
-    let now := (← (← get).io.nowUs).toNat / 1000000
-    let s ← get
-    let lack := s.lack.getD m.c []
-    let first (y : Id) : Option Nat := (lack.find? (·.1 == y)).map (·.2)
-    if s.shared[m.c]? != some stored || lack.any (·.2 + Community.shareGrace ≤ now) then
-      let due := Community.shareDue s.completed.contains first now Community.shareGrace
-      let ((w, ys), _) ← readView (Community.shareKey m.c m.dev due) #[]
-      -- a due one still lacking a wrap next time waits a grace again
-      let lack' := ys.map fun y => (y, if due y then now else (first y).getD now)
-      modify fun s => { s with shared := s.shared.insert m.c stored, lack := s.lack.insert m.c lack' }
+    let now ← nowMin
+    let at_ := (ka.total - kp.length, aa.total - ap.length, now / Community.shareGrace)
+    if (← get).shared[m.c]? != some at_ then
+      let (w, _) ← readView (Community.shareKey m.c m.dev now) #[]
+      modify fun s => { s with shared := s.shared.insert m.c at_ }
       if !w.ops.isEmpty then let _ ← writeAll w
   let tRefresh ← (← get).io.nowUs
   -- a frame over 20 ms says where its time went (logcat / stderr)

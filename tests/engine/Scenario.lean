@@ -24,7 +24,7 @@ def allow (c : Id) (d : Device) : SqlM Fact Bool := (allowPeer c d.pk).run
 
 /-- The keys a content key is wrapped to (`recipients`, without the
 admissions each wrap cites). -/
-def sealedTo (c : Id) : SqlM Fact (List Key) := return (← (recipients c).run).map (·.2)
+def sealedTo (c : Id) : SqlM Fact (List Key) := return (← (recipients c).run).map (·.2.2)
 
 
 def dialed (c : Id) : SqlM Fact (List Key) := (members c).run
@@ -34,12 +34,13 @@ def getFact (x : Id) : SqlM Fact (Option Fact) := do
   let a ← (Lists.list { key := opKey x, limit := some 1 } : SqlM Fact (Answer Fact))
   return a.rows.head?.map (·.2)
 
-/-- Whether each recipient's id is a Valid admission into c with its key. -/
+/-- Whether each recipient's id is a Valid admission into c with its
+user and key. -/
 def citesAdmissions (c : Id) : SqlM Fact Bool := do
   let rs ← (recipients c).run
-  rs.allM fun (y, e) => do
+  rs.allM fun (y, u, e) => do
     return match ← getFact y with
-      | some (.admission c' _ _ e') => c' == c && e' == e
+      | some (.admission c' u' _ e') => c' == c && u' == u && e' == e
       | _ => false
 
 def main (args : List String) : IO UInt32 := do

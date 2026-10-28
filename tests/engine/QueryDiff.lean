@@ -247,7 +247,7 @@ def main : IO UInt32 := do
       t.ok s!"seed {seed}: allowPeer view" (a == (allowPeer c d.pk).eval m)
     let ms ← ((members c).run : SqlM Fact (List Key)).run db
     t.ok s!"seed {seed}: members view" (ms == (members c).eval m && ms.length == users.size)
-    let rs ← ((recipients c).run : SqlM Fact (List (Id × Key))).run db
+    let rs ← ((recipients c).run : SqlM Fact (List (Id × Id × Key))).run db
     t.ok s!"seed {seed}: recipients view" (rs == (recipients c).eval m)
     readableChecks t seed db m c
     IO.println s!"seed {seed}: {n} queries, {base.total} valid messages"

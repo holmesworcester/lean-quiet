@@ -215,20 +215,20 @@ theorem members_iff (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d : Key
   · rintro ⟨u, e, ⟨y, hv⟩, hr⟩; exact ⟨(y, u, d, e), (mem_live_all h hq c y u d e).2 ⟨hv, hr⟩, rfl⟩
 
 /-- **Who a content key is wrapped to.** At rest, `recipients` names
-exactly the live admissions of c, each with its encryption key: an
-admission into a user of c not removed. No outsider, no removed user's
-admission, and no member left out. `shareKey`, the running wrap writer,
-wraps to these. -/
-theorem recipients_iff (h : Inv (family C) s) (hq : s.queue = []) (c y : Id) (e : Key) :
-    (y, e) ∈ (recipients c).eval s ↔
-      ∃ u d, V C s.ops y (.admission c u d e) ∧ ¬ Removed C s.ops c u := by
+exactly the live admissions of c, each with its user and encryption
+key: an admission into a user of c not removed. No outsider, no removed
+user's admission, and no member left out. `shareKey`, the running wrap
+writer, wraps to these. -/
+theorem recipients_iff (h : Inv (family C) s) (hq : s.queue = []) (c y u : Id) (e : Key) :
+    (y, u, e) ∈ (recipients c).eval s ↔
+      ∃ d, V C s.ops y (.admission c u d e) ∧ ¬ Removed C s.ops c u := by
   simp only [recipients, View.eval_bind, View.eval_read, View.eval_pure, List.mem_map]
   constructor
-  · rintro ⟨⟨y', u, d, e'⟩, hm, he⟩
+  · rintro ⟨⟨y', u', d, e'⟩, hm, he⟩
     simp only [Prod.mk.injEq] at he
-    obtain ⟨rfl, rfl⟩ := he
-    exact ⟨u, d, (mem_live_all h hq c y' u d e').1 hm⟩
-  · rintro ⟨u, d, hm⟩; exact ⟨(y, u, d, e), (mem_live_all h hq c y u d e).2 hm, rfl⟩
+    obtain ⟨rfl, rfl, rfl⟩ := he
+    exact ⟨d, (mem_live_all h hq c y' u' d e').1 hm⟩
+  · rintro ⟨d, hm⟩; exact ⟨(y, u, d, e), (mem_live_all h hq c y u d e).2 hm, rfl⟩
 
 /-! ## Partitions -/
 

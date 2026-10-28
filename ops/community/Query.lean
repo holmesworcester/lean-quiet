@@ -42,10 +42,10 @@ def members (c : Id) : View Fact (List Key) := do
   pure (ls.map (·.2.2.1))
 
 /-- The live admissions of c, which a content key is wrapped to: each
-one's id (what a wrap cites) and encryption key (`shareKey`). -/
-def recipients (c : Id) : View Fact (List (Id × Key)) := do
+one's id (what a wrap cites), user and encryption key (`shareKey`). -/
+def recipients (c : Id) : View Fact (List (Id × Id × Key)) := do
   let a ← admission.all.read [c]
   let ls ← live c a.rows
-  pure (ls.map fun l => (l.1, l.2.2.2))
+  pure (ls.map fun l => (l.1, l.2.1, l.2.2.2))
 
 end Community

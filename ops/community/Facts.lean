@@ -49,10 +49,11 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   is (`wrap_only_admitted`). The founder wraps the first key to itself,
   citing the root; after that `shareKey` wraps a device's key to every
   live admission (`recipients`) whose key holds none, citing it
-  (`shareKey_recipients`, `shareKey_complete`): the admission's
-  completer at once, any other holder only after a grace with no wrap
-  arrived, so an admission gets one wrap of a key when its completer
-  holds it (`wraps_bounded`). An approval writes no wrap
+  (`shareKey_recipients`, `shareKey_complete`): the devices of the
+  users who approved it at once, any other holder only once the new
+  member's profile is a grace old with no wrap held, so an admission's
+  wraps of a key are at most its approvers' devices plus those fallback
+  holders (`wraps_bounded`). An approval writes no wrap
   (`approveReq_ops`), so nothing reaches a requester before its
   admission. A wrap admits nobody, so it needs no author.
 - A post claims two numbers: a counter, which orders its channel, and

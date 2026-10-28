@@ -155,21 +155,33 @@ def approveReqOld (c req myAdm : Id) (d : Device) (esk : ByteArray) : View Fact 
       [mkOp [c] (.wrap kid e (box cryptoSeal esk e kid k))]
     | _, _ => []⟩
 
-/-- `shareKey` with every admission due (as its completer would, or past
-the grace): its wraps. -/
+/-- `shareKey` owing every recipient at once, whoever approved it (the
+mutant that ignores the grace): its wraps. -/
 def shareAll (db : Db) (c : Id) (d : Device) : IO Write :=
-  return (← ((shareKey c d (fun _ => true)).run : SqlM Fact (Write × List Id)).run db).1
+  ((shareKeyBy (fun _ _ => .pure true) c d).run : SqlM Fact Write).run db
 
-/-- A content key goes only to a live admission. D joins through an
-invitation needing two approvals. A's approval admits nobody and wraps
-nothing, and A's `shareKey` has nothing for D's key; the mutant's (the
-code before the fix) wraps at once, which the old validator lists for
-D's key with no admission of it (`wrap_only_admitted` broken) and the
-fixed one refuses. B's approval completes the tally; B, the completer,
-wraps to D's key at once, citing the admission, while A waits a grace:
-with B's wrap arrived, A writes none (one wrap), and without it A falls
-back. The mutant where every holder wraps at once writes two. On D the
-wrap waits for its admission, then D unwraps and reads. -/
+/-- `shareKey` owing only after the grace, whoever approved (the mutant
+that ignores approvals): its wraps. -/
+def shareLate (db : Db) (c : Id) (d : Device) (now : Nat) : IO Write :=
+  ((shareKeyBy (fun me u => do
+      let ps ← profile.byUser.read [c, u]
+      return (u == me) || ps.rows.any fun (_, f) => match f with
+        | .profile _ _ _ t => decide (t + shareGrace ≤ now) | _ => false) c d).run : SqlM Fact Write).run db
+
+/-- A content key goes only to a live admission, owed it.
+- D joins through an invitation needing two approvals. A's approval
+  admits nobody and wraps nothing.
+- The mutant of the code before the fix wraps at that approval: the old
+  validator lists that wrap for D's key with no admission of it
+  (`wrap_only_admitted` broken); the fixed one refuses it.
+- B's approval completes the tally. Both approvers wrap at once, B again
+  after a restart (the same op: nothing remembered but ops); the mutant
+  that ignores approvals waits instead.
+- E joins through D, which approves it without holding the key. A, no
+  approver, wraps to E only once E's profile is a grace old; the mutant
+  that ignores the grace wraps at once, more wraps than `wraps_bounded`
+  allows the runs owed.
+- On D the wrap waits for its admission; then D unwraps and reads. -/
 def wrapsGoWithAdmissions (t : Checks) (dir : String) (a b : Db) (c : Id) (kA seedA seedB : ByteArray) :
     IO Unit := do
   let dA := Device.ofSeed seedA
@@ -225,37 +237,30 @@ def wrapsGoWithAdmissions (t : Checks) (dir : String) (a b : Db) (c : Id) (kA se
   t.ok "the completing approval writes the approval and the admission, no wrap"
     (w2.ops.length == 2 && admitOp.kind == 11 && !w2.ops.any (·.kind == 6))
   mine b w2
-  -- The completer wraps at once; A, which did not complete it, waits a
-  -- grace (`shareDue`), then reads afresh.
+  -- Both approvers owe D's admission the key at once, read from ops.
   fromPeer a (← sendable b)
-  let share (db : Db) (d : Device) (due : Id → Bool) : IO (Write × List Id) :=
-    ((shareKey c d due).run : SqlM Fact (Write × List Id)).run db
+  let share (db : Db) (d : Device) (now : Nat) : IO Write :=
+    ((shareKey c d now).run : SqlM Fact Write).run db
   let toD (w : Write) : List Op := w.ops.filter (·.reqs == [c, admitOp.id])
-  let (wa0, lackA) ← share a dA (shareDue (fun _ => false) (fun _ => none) 0 shareGrace)
-  t.ok "A, not the completer, wraps nothing to D at once, and times D's admission"
-    (toD wa0 == [] && lackA.contains admitOp.id)
-  -- (B's shareKey also covers C, admitted earlier with no wrap, once due.)
-  let (ws, _) ← share b dB (shareDue (· == admitOp.id) (fun _ => none) 0 shareGrace)
+  t.ok "the mutant that ignores approvals waits: B, D's approver, wraps nothing to D at once"
+    (toD (← shareLate b c dB 0) == [])
+  -- (B's shareKey also covers C, admitted earlier with no wrap.)
+  let ws ← share b dB 0
   let wrapOp := (toD ws).headD default
-  t.ok "B, the completer, wraps the key to D's key at once, once, citing D's admission"
+  t.ok "B, an approver, wraps the key to D's key at once, once, citing D's admission"
     ((toD ws).length == 1 && wrapOp.id == (wrapKey c admitOp.id kA (wrapEsk dB kid dD.enc) dD.enc).id &&
       ws.ops.all (·.kind == 6))
-  let (wm, _) ← share a dA (fun _ => true)
-  t.ok "the mutant, every key holder wrapping at once, writes two wraps for D's one admission"
-    ((toD wm ++ toD ws).eraseDups.length == 2)
-  let graceOver := shareDue (fun _ => false) (fun y => if y == admitOp.id then some 0 else none)
-    shareGrace shareGrace
-  let (wf, _) ← share a dA graceOver
-  t.ok "had no wrap arrived when A's grace ends, A falls back: one wrap to D, citing D's admission"
-    ((toD wf).length == 1)
+  let b' ← Db.openAt (dir ++ "/b.db")
+  t.ok "after a restart, B still wraps to D at once: the same op, read from ops alone"
+    ((toD (← share b' dB 0)).map (·.id) == [wrapOp.id])
+  t.ok "A, D's other approver, wraps at once too: approvers' devices, at most the threshold"
+    ((toD (← share a dA 0)).length == 1)
   mine b ws
   fromPeer a (← sendable b)
-  let (wg, _) ← share a dA graceOver
-  t.ok "B's wrap arrived first: A's grace ends with a fresh read and no wrap; D's admission has one"
-    (toD wg == [] && (← wrapsTo a dD.enc) == 1)
   t.ok "on B, D is admitted and B's wrap is listed for D's key"
     ((← keyed b dD.enc) && (← wrapsTo b dD.enc) == 1)
-  t.ok "and B's shareKey has nothing more for D" (toD (← shareAll b c dB) == [])
+  t.ok "with B's wrap held, neither approver writes another to D's key"
+    (toD (← share b dB 0) == [] && toD (← share a dA 0) == [])
   -- On D the wrap arrives before its admission: it waits, listed nowhere.
   let fromB ← sendable b
   fromPeer ddb (fromB.filter (·.id != admitOp.id))
@@ -265,6 +270,40 @@ def wrapsGoWithAdmissions (t : Checks) (dir : String) (a b : Db) (c : Id) (kA se
   t.ok "once the admission arrives, D is admitted and the wrap is listed for its key"
     ((← status ddb wrapOp) matches some (.valid _) && (← wrapsTo ddb dD.enc) == 1 &&
       (← ((allowPeer c dD.pk).run : SqlM Fact Bool).run ddb))
+  -- E joins through D, which approves it before holding the key.
+  let admD := admitOp.id
+  let seedE := sha256 "device E".toUTF8
+  let dE := Device.ofSeed seedE
+  let edb ← fresh dir "e.db"
+  let (wiE, linkE) := inviteTo c c dA (sha256 "bearer 5".toUTF8) []
+  mine a wiE
+  mine edb (← sendOn edb (join linkE seedE "Eve".toUTF8))
+  let reqE := linkE.request dE
+  fromPeer ddb (← sendable a)
+  fromPeer ddb (← sendable edb)
+  let wE ← sendOn ddb (approveReq c reqE.id admD dD)
+  let admE := (wE.ops.getD 1 default).id
+  mine ddb wE
+  let toE (w : Write) : List Op := w.ops.filter (·.reqs == [c, admE])
+  t.ok "D, E's approver, admits E but holds no key: it wraps nothing"
+    (wE.ops.length == 2 && (← share ddb dD 0).ops.isEmpty)
+  fromPeer a (← sendable ddb)
+  t.ok "A, no approver of E, owes E nothing while E has no profile, however late"
+    (toE (← share a dA 0) == [] && toE (← share a dA 1000000000) == [])
+  let mutant := toE (← shareAll a c dA)
+  let owedA ← ((owed c c (reqE.id) 0).run : SqlM Fact Bool).run a
+  t.ok "the mutant that ignores the grace wraps to E at once: one wrap where wraps_bounded allows the runs owed none"
+    (mutant.length == 1 && !owedA)
+  fromPeer edb (← sendable ddb)
+  let tE := 29350000
+  let wp ← sendOn edb (introduce c dE tE)
+  mine edb wp
+  fromPeer a (← sendable edb)
+  t.ok "E introduces itself; within the grace A still writes nothing"
+    (wp.ops.length == 1 && toE (← share a dA tE) == [])
+  let late := toE (← share a dA (tE + shareGrace))
+  t.ok "once E's profile is a grace old with no wrap held, A falls back: one wrap, citing E's admission"
+    (late.map (·.id) == [(wrapKey c admE kA (wrapEsk dA kid dE.enc) dE.enc).id])
   let wu ← sendOn ddb (unwrap c dD)
   t.ok "D unwraps one key, the community's" (wu.ops.map (·.id) == [(contentKey c kA).id])
   mine ddb wu
@@ -365,11 +404,11 @@ def main (args : List String) : IO UInt32 := do
   t.ok "A now lets B in" (← ((allowPeer c dB.pk).run : SqlM Fact Bool).run a)
   -- With B's admission in A's store, B's key is a recipient: A's
   -- content key goes to it, citing the admission.
-  let ws ← shareAll a c dA
+  let ws ← ((shareKey c dA 0).run : SqlM Fact Write).run a
   t.ok "A shares its key: one wrap, to B's key, citing B's admission"
     (ws.ops.map (·.id) == [(wrapKey c (wa.ops.getD 1 default).id kA (wrapEsk dA kid dB.enc) dB.enc).id])
   mine a ws
-  t.ok "sharing again writes nothing" (← shareAll a c dA).ops.isEmpty
+  t.ok "sharing again writes nothing" (← ((shareKey c dA 0).run : SqlM Fact Write).run a).ops.isEmpty
 
   -- A renames: one past the current name.
   let wr ← ((rename c c c dA "Acme Corp".toUTF8).run : SqlM Fact Write).run a

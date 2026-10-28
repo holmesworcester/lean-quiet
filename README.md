@@ -151,7 +151,7 @@ only.
 | ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A session sends only sync messages and ops of the rooms its peer is let into. A have for a room the peer may not see is ignored, so a peer cannot ask whether this node holds an op of another community, or a local op. Wants authorize ids against the shown rooms' index before any blob read. | [`recv_send`], [`hold_reply_local`], [`heldIn_index`], [`hold_reply_local_premises`], [`want_reads_authorized`], [`want_blind`], [`want_blind_step`] |
 | ✅ | 🥊🥊🥊 | **Secrets stay on the device.** No local op (a secret, a session key, a pending join) is ever offered or sent. Of a connection's ops, only the two handshake messages are not local. | [`offer_shared`], [`wire_kinds`], [`local_kinds`], [`joinOps_travels`], [`found_travels`], [`stopWaiting_local`] |
 | 🟡 | 🥊🥊 | **The stream discloses only what it may.** It offers only ids of stored, shared ops, never one still pending, and the clock sends only round messages, offers and retries of outstanding wants. Proven of the running code: what a filed write and a tick send. Not yet: that an offer names only stored ops is proven of a model of offering (`Engine.offer`). | [`filed_send`], [`offer_stored`], [`tick_send`] |
-| 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** A content key is wrapped only to a live admission's key: a wrap is Valid only to the key of the admission it cites, so none reaches a device before its admission, and no approval writes one. The running wrap writer reads `recipients` (exactly the live admissions, with their keys) and wraps to each that lacks one: the admission's completer at once, other holders after a grace, so one wrap per admission when the completer holds the key. A member holding its key's secret opens what was sealed to it. Not yet: the seal's secrecy from non-members, and key rotation (a removal leaves earlier wraps standing). | [`wrap_cites_admission`], [`wrap_only_admitted`], [`approveReq_ops`], [`recipients_iff`], [`shareKey_recipients`], [`shareKey_complete`], [`wraps_bounded`], [`admitted_reads`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`check_reads_shared`] |
+| 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** A content key is wrapped only to a live admission's key: a wrap is Valid only to the key of the admission it cites, so none reaches a device before its admission, and no approval writes one. The running wrap writer reads `recipients` (exactly the live admissions, with their users and keys) and wraps to each that lacks one and is owed it, read from ops: the approvers' devices at once, other holders once the member's profile is a grace old, so an admission gets at most its approvers' devices' wraps plus the fallback holders'. A member holding its key's secret opens what was sealed to it. Not yet: the seal's secrecy from non-members, and key rotation (a removal leaves earlier wraps standing). | [`wrap_cites_admission`], [`wrap_only_admitted`], [`approveReq_ops`], [`recipients_iff`], [`shareKey_recipients`], [`shareKey_complete`], [`owed_iff`], [`wraps_bounded`], [`admitted_reads`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`check_reads_shared`] |
 | ✅ | 🥊🥊🥊 | **Sessions are secret and authenticated,** in the symbolic model, over the handshake functions that run. An attacker who reads, replays and injects every message, and knows every key but the two devices' static keys and the session's ephemerals, derives neither transport key, and the initiator accepts only the reply the responder wrote to this request. Replays are accepted again; payloads are not covered. | [`kk_secret`], [`kk_secret_init`], [`kk_secret_resp`], [`kk_authentic`], [`kk_authentic_resp`], [`kk_secret_init_tight`], [`kk_runs`], [`handshake_agrees`] |
 | 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered,** from the disk or from the static keys later. Every way a session ends purges its keys, and a silent responder's session ends once its lease (90 s by default) passes. With the ephemerals gone, the transcript and both static keys do not give the transport keys (tested: no file of the database keeps a byte of them). Not yet: that `closing` names every ephemeral (`close_forgets`). | [`close_purges`], [`close_gone`], [`responder_expires`], [`live_not_expired`], [`tick_drop_iff`], [`round_not_dropped`], [`kk_forward_secret`], [`purge_named`] |
 | ⬜ | 🥊🥊🥊 | **Session secrets never reach the disk.** They would be ephemeral ops, held in memory, so forward secrecy would not rest on deletion. A restart then redials. | |
@@ -278,8 +278,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 5 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 150 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
-| [`Engine.Inv`] | 48 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
+| [`Model.run`] | 151 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Engine.Inv`] | 49 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
 
 ## What isn't Lean, and why
@@ -742,20 +742,21 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`offer_shared`]: engine/core/Sync.lean#L83-L86
 [`wire_kinds`]: ops/connection/Laws.lean#L48-L49
 [`local_kinds`]: ops/connection/Laws.lean#L55-L56
-[`joinOps_travels`]: ops/community/Intents.lean#L344-L348
-[`found_travels`]: ops/community/Intents.lean#L355-L359
-[`stopWaiting_local`]: ops/community/Intents.lean#L351-L352
+[`joinOps_travels`]: ops/community/Intents.lean#L364-L368
+[`found_travels`]: ops/community/Intents.lean#L375-L379
+[`stopWaiting_local`]: ops/community/Intents.lean#L371-L372
 [`filed_send`]: ops/sync/ConnLaws.lean#L185-L188
 [`offer_stored`]: engine/core/Sync.lean#L98-L101
 [`tick_send`]: ops/sync/ConnLaws.lean#L194-L197
 [`wrap_cites_admission`]: ops/community/Laws.lean#L282-L291
-[`wrap_only_admitted`]: ops/community/Intents.lean#L607-L616
-[`approveReq_ops`]: ops/community/Intents.lean#L624-L629
+[`wrap_only_admitted`]: ops/community/Intents.lean#L627-L636
+[`approveReq_ops`]: ops/community/Intents.lean#L644-L649
 [`recipients_iff`]: ops/community/Connect.lean#L217-L224
-[`shareKey_recipients`]: ops/community/Intents.lean#L710-L721
-[`shareKey_complete`]: ops/community/Intents.lean#L733-L745
-[`wraps_bounded`]: ops/community/Intents.lean#L786-L806
-[`admitted_reads`]: ops/community/Intents.lean#L825-L843
+[`shareKey_recipients`]: ops/community/Intents.lean#L830-L845
+[`shareKey_complete`]: ops/community/Intents.lean#L861-L874
+[`owed_iff`]: ops/community/Intents.lean#L722-L724
+[`wraps_bounded`]: ops/community/Intents.lean#L898-L921
+[`admitted_reads`]: ops/community/Intents.lean#L940-L958
 [`member_opens`]: ops/community/Laws.lean#L958-L962
 [`openSealed_seal`]: ops/community/Laws.lean#L948-L950
 [`unbox_box`]: ops/community/Keys.lean#L89-L91
@@ -815,7 +816,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`verify_sound`]: ops/community/Merkle.lean#L433-L439
 [`complete_assembles`]: ops/community/Merkle.lean#L480-L486
 [`chunk_unique`]: ops/community/Laws.lean#L793-L799
-[`progress_exact`]: ops/community/Intents.lean#L936-L945
+[`progress_exact`]: ops/community/Intents.lean#L1051-L1060
 [`no_injective_hash`]: ops/community/Merkle.lean#L243-L245
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
@@ -857,7 +858,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`approve_valid`]: ops/community/Laws.lean#L455-L463
 [`admit_admits`]: ops/community/Laws.lean#L471-L482
 [`connect_admitted`]: ops/community/Connect.lean#L170-L180
-[`removeMember_valid`]: ops/community/Intents.lean#L529-L536
+[`removeMember_valid`]: ops/community/Intents.lean#L549-L556
 [`exchange_complete`]: ops/sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: ops/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: ops/sync/Fp.lean#L37-L37
@@ -928,15 +929,15 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
-[`readable_held`]: ops/community/Intents.lean#L452-L464
-[`readable_complete`]: ops/community/Intents.lean#L492-L502
+[`readable_held`]: ops/community/Intents.lean#L472-L484
+[`readable_complete`]: ops/community/Intents.lean#L512-L522
 [`switcherOrder_sound`]: ops/app/Pages.lean#L674-L676
 [`switcherOrder_complete`]: ops/app/Pages.lean#L681-L683
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L940-L944
-[`pageIn_acc`]: App.lean#L946-L949
+[`drawPage_key`]: App.lean#L932-L936
+[`pageIn_acc`]: App.lean#L938-L941
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
@@ -991,7 +992,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`lit_full`]: ops/community/attachment/ArrivalLaws.lean#L94-L95
 [`lit_clockwise`]: ops/community/attachment/ArrivalLaws.lean#L101-L106
 [`ring_counts`]: ops/community/attachment/ArrivalLaws.lean#L275-L278
-[`nodup_full`]: ops/community/Intents.lean#L896-L898
+[`nodup_full`]: ops/community/Intents.lean#L1011-L1013
 [`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
 [`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939
 [`Seal.Good`]: ops/community/Keys.lean#L40-L43

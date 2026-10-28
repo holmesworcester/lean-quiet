@@ -148,7 +148,7 @@ open Engine Community
 #print axioms Community.approveReq_ops
 #print axioms Community.shareKey_recipients
 #print axioms Community.shareKey_complete
-#print axioms Community.shareDue_iff
+#print axioms Community.owed_iff
 #print axioms Community.wraps_bounded
 #print axioms Community.admitted_reads
 #print axioms Community.check_attach
