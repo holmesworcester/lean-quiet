@@ -147,7 +147,7 @@ def read (q : Q) : M Ans := do
 
 def fresh (q : Q) : M Bool := do return (← get).live.fresh q
 
-def listAll (s : St) (limit : Nat) : ListQ := { key := key 4 s.me.c s.me.c, desc := true, limit := some limit }
+def listAll (s : St) (limit : Nat) : ListQ := { key := Community.message.all.key [s.me.c], desc := true, limit := some limit }
 
 def getFact (x : Id) : M (Option Fact × Bool) := do
   match ← read (Q.get x) with
@@ -165,7 +165,7 @@ def readRow (m : Id) : M (Option (RowData × Array Q)) := do
   let (f, pending) ← getFact m
   let some (.message _ u _ _ text tm atts) := f | return none
   -- author: the newest profile
-  let pq : Q := .list { key := key 7 c u, desc := true, limit := some 1 }
+  let pq : Q := .list { key := Community.profile.byUser.key [c, u], desc := true, limit := some 1 }
   deps := deps.push pq
   let mut name := "…"
   let mut avatar : Option ByteArray := none
@@ -181,7 +181,7 @@ def readRow (m : Id) : M (Option (RowData × Array Q)) := do
     deps := deps.push (Q.get a)
     if let (some (.blob _ hh w h), _) ← getFact a then pics := pics.push (Pic.mk hh w h)
   -- reactions, tallied by emoji: distinct people, and whether I am one
-  let rq : Q := .list { key := key 8 c m, desc := false, limit := some 500 }
+  let rq : Q := .list { key := Community.react.byMessage.key [c, m], desc := false, limit := some 500 }
   deps := deps.push rq
   let mut tallies : Array (String × List Id) := #[]
   if let .list a _ ← read rq then
@@ -756,7 +756,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   if let .list a _ ← read (.list (listAll s s.limit)) then
     modify fun s => { s with ids := (a.rows.map (·.1)).toArray, total := a.total }
   let s ← get
-  if let .list a _ ← read (.list { key := key 10 s.me.c s.me.c, limit := some 0 }) then
+  if let .list a _ ← read (.list { key := Community.profile.all.key [s.me.c], limit := some 0 }) then
     modify fun s => { s with people := a.total }
   -- 4. the offset, and the rows the frame and the fetch distance need
   let s ← get
