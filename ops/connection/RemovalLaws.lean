@@ -47,10 +47,6 @@ open Engine Engine.Sync Codec
 
 /-! ## Read over the node's store -/
 
-/-- The peer keys connection cid's established facts name. -/
-def peersAt (s : DB F) (cid : Id) : List B :=
-  peersOf (Engine.eval s (established.byConn.query [cid]))
-
 /-- This node is a live member of c, as the trust rule reads it. -/
 def LiveIn (s : DB F) (c : B) : Prop :=
   ∀ me, (meV c).eval s = some me → ((Community.allowPeer c me).liftL : View F Bool).eval s = true
@@ -58,12 +54,12 @@ def LiveIn (s : DB F) (c : B) : Prop :=
 /-- The trust rule refuses, for c, every peer key connection cid names:
 once the removal is held, a removed member's node. -/
 def Refused (s : DB F) (cid c : B) : Prop :=
-  ∀ peer ∈ peersAt s cid, ((Community.allowPeer c peer).liftL : View F Bool).eval s = false
+  ∀ peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])), ((Community.allowPeer c peer).liftL : View F Bool).eval s = false
 
 /-- Removal x of community c is owed to connection cid's peer: a removal
 of a user admitted under the peer's key, read from the lists. -/
 def Owed (s : DB F) (cid c x : B) : Prop :=
-  ∃ peer ∈ peersAt s cid, x ∈ ((Community.removalsAt c peer).liftL : View F (List Id)).eval s
+  ∃ peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])), x ∈ ((Community.removalsAt c peer).liftL : View F (List Id)).eval s
 
 /-- What may go out of community c on cid: a sync wire op, an op of
 another room, or an op in the requirement closure, in c, of a removal
@@ -126,7 +122,7 @@ theorem rooms_removed (s : DB F) {cid c : B} (hl : LiveIn s c) (hr : Refused s c
 connection carries, synced, every community c this node holds and is
 in whose peer the trust rule takes. -/
 theorem rooms_complete (s : DB F) {cid c me peer : B} (hm : (meV c).eval s = some me)
-    (hp : peer ∈ peersAt s cid) (hh : c ∈ heldV.eval s)
+    (hp : peer ∈ peersOf (Engine.eval s (established.byConn.query [cid]))) (hh : c ∈ heldV.eval s)
     (ht : ((trusts c me peer).liftL : View F Bool).eval s = true) :
     Room.sync c ∈ (roomsV cid).eval s := by
   simp only [roomsV, View.eval_bind, View.eval_read, eval_roomsOf, List.mem_flatMap]
@@ -1004,16 +1000,13 @@ theorem requestOf_state (K : Keys) (sk inviter : B) (req : Id) :
       · rw [if_neg ht]; exact requestOf_state K sk inviter req rest s
     | _ => exact requestOf_state K sk inviter req rest s
 
-/-- The request a pending join is sent as, read at s. -/
-def requestAt (K : Keys) (s : DB F) (pk sk inviter : B) (req : Id) : Option Id :=
-  ((requestOf K sk inviter req ((rows request.byFrm [pk] : Model F _).run s).1 : Model F _).run s).1
-
 /-- What sending a pending join needs here: its request is stored (and,
 while waiting, unanswered: no connection cites it); or this node holds
 none, holds the join's request, and message 1 seals to the inviter's
 key. -/
 def Unanswered (K : Keys) (listen : B) (s : DB F) (pk sk c inviter : B) (req : Id) (waiting : Bool) : Prop :=
-  match requestAt K s pk sk inviter req with
+  -- the request a pending join is sent as, read at s
+  match ((requestOf K sk inviter req ((rows request.byFrm [pk] : Model F _).run s).1 : Model F _).run s).1 with
   | some r => (waiting = true → (Engine.eval s (connection.byRequest.query [r] (limit := some 0))).total = 0) ∧
       (s.ops r).isSome
   | none => ∃ jr, s.ops req = some jr ∧ ∀ e, (Request.op K sk inviter e (hello c listen [jr])).isSome
@@ -1037,7 +1030,7 @@ theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint :
   rw [hl]
   simp only [Model.run_bind, run_rows]
   rw [requestOf_state]
-  unfold Unanswered requestAt at hu
+  unfold Unanswered at hu
   rw [run_rows] at hu
   generalize ((requestOf K sk inviter req _ : Model F (Option Id)).run s).1 = r? at hu ⊢
   cases hwt : waiting
