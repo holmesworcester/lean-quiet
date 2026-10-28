@@ -55,6 +55,13 @@ nothing else is assumed:
   AEAD opens what it seals, and public keys are 32 bytes. With
   [`Keys.Good`], a device's Ed25519 key converts to its seed's X25519
   key. These are correctness only, and say nothing about secrecy.
+- **A read transaction is one moment** (`read_one_moment` and
+  `agrees_notice` take it): inside one SQLite read transaction, every read
+  answers as one state of the store and outbox (SQLite's snapshot
+  isolation, on a WAL reader); and the keys a notice names (the
+  journal's, written by triggers on the index and verdict tables, and a
+  write's own ops') include every watch whose answer changed since the
+  last moment. Not tested on its own.
 - **The session secrecy theorems assume the symbolic (Dolev-Yao)
   model:** perfect primitives, with the attacker reading, replaying and
   injecting every message. They have no computational reduction. DH is
@@ -102,7 +109,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 358 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 364 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -184,7 +191,7 @@ nothing else is assumed:
 | ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
 | ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
 | ✅ | 🥊🥊 | **The people list is the present members,** each once. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_nodup`] |
-| ⬜ | 🥊🥊🥊 | **The screen is one moment.** Every frame is the root component drawn over a single settled store state, the latest the app has seen, so if one row is current, all are. Half of this is proven: a cached component whose keys did not fire answers as a fresh read would. **Today it is false, not just unproven.** The writer and the frame read on separate SQLite connections, so a frame's reads can span two commits, and one frame can show a user under two names. Wanted: one snapshot per frame, and re-reading exactly what fired. | [`eval_stable`], [`view_stable`], [`drain_bounded`] |
+| 🟡 | 🥊🥊🥊 | **The screen is one moment.** Every frame is drawn over a single store state, the latest the app has seen, so if one row is current, all are. Each frame runs in one SQLite read transaction, and takes the journal's notices as its first read. Proven over the running cache, given the snapshot and journal hypotheses (above): every answer it holds unstaled is the moment's and armed on its watch, from the empty cache, through a read that asks the store, a notice that moves to the next moment, and a pruning; so every read a frame makes, cached or not, returns the frame's moment's answer. A cached component whose keys did not fire answers as a fresh read would. Wanted: the outbox's notice keys derived from its ops rather than assumed, and `step` itself as a statement (today read from the code: BEGIN, the notices, the frame, COMMIT). | [`read_one_moment`], [`answer_agrees`], [`agrees_store`], [`agrees_notice`], [`agrees_keep`], [`agrees_empty`], [`eval_stable`], [`view_stable`] |
 | ⬜ | 🥊🥊 | **An action's toast stays until the screen shows it.** A toast for an action (removing someone, a new name or avatar) stays up until every component on screen has re-read a state that holds the action's op, or until the OS's toast time passes, whichever comes first. So a toast that leaves early proves the screen has caught up. | |
 | ✅ | 🥊🥊 | **The layout is exact.** The slide and keyboard shift are exact, and page rows are where the page put them. Emoji keys never overlap, and every key is reachable. An invite's hints and QR fit, and the camera preview reads inside its frame. | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
 | 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** A row's glyphs, read in order, are exactly the body's visible characters. Nothing is clipped, reordered or taken from another row, and every line fits. Proven: wrapping drops only spaces and keeps every other character in order, and every line fits when every character does; bidi reordering is a permutation (nothing dropped or invented); the glyphs placed are exactly the visible characters, each starting where the one before ends; numbers keep their order inside right-to-left text, for the reported cases. Wanted: that order in general, and `layout` as one statement over the three. | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`digits_keep_order`] |
@@ -702,6 +709,12 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`offered_only`]: ops/app/Remove.lean#L83-L86
 [`present_iff`]: ops/app/PeopleLaws.lean#L27-L30
 [`present_nodup`]: ops/app/PeopleLaws.lean#L37-L38
+[`read_one_moment`]: engine/renderer/LiveLaws.lean#L227-L232
+[`answer_agrees`]: engine/renderer/LiveLaws.lean#L73-L75
+[`agrees_store`]: engine/renderer/LiveLaws.lean#L84-L87
+[`agrees_notice`]: engine/renderer/LiveLaws.lean#L201-L205
+[`agrees_keep`]: engine/renderer/LiveLaws.lean#L213-L215
+[`agrees_empty`]: engine/renderer/LiveLaws.lean#L70-L70
 [`placed_row`]: engine/renderer/Geometry.lean#L81-L85
 [`newest_drawn`]: engine/renderer/Geometry.lean#L108-L111
 [`pinned_row`]: engine/renderer/Geometry.lean#L141-L144
@@ -743,8 +756,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L930-L934
-[`pageIn_acc`]: App.lean#L936-L939
+[`drawPage_key`]: App.lean#L929-L933
+[`pageIn_acc`]: App.lean#L935-L938
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175

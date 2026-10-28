@@ -199,18 +199,26 @@ structure Live where
   reads : Nat := 0
   deriving Inhabited
 
+/-- Instance q goes stale. -/
+def Live.staleOne (l : Live) (q : Q) : Live :=
+  match l.entries[q]? with
+  | some e => { l with entries := l.entries.insert q { e with stale := true } }
+  | none => l
+
+/-- A notice of key k: the instances armed on it go stale and disarm. -/
+def Live.notice1 (l : Live) (k : ByteArray) : Live :=
+  match l.armed[k]? with
+  | none => l
+  | some qs => qs.foldl Live.staleOne { l with armed := l.armed.erase k }
+
 /-- A notice: the instances armed on these keys go stale and disarm. -/
-def Live.notice (l : Live) (keys : Array ByteArray) : Live := Id.run do
-  let mut l := l
-  for k in keys do
-    match l.armed[k]? with
-    | none => pure ()
-    | some qs =>
-      l := { l with armed := l.armed.erase k }
-      for q in qs do
-        if let some e := l.entries[q]? then
-          l := { l with entries := l.entries.insert q { e with stale := true } }
-  return l
+def Live.notice (l : Live) (keys : Array ByteArray) : Live := keys.foldl Live.notice1 l
+
+/-- q's answer, if no notice has made it stale: what a read returns
+without asking the store. -/
+def Live.answer (l : Live) (q : Q) : Option Ans := match l.entries[q]? with
+  | some e => if e.stale then none else some e.ans
+  | none => none
 
 /-- Whether q has an answer that no notice has made stale. -/
 def Live.fresh (l : Live) (q : Q) : Bool := match l.entries[q]? with
@@ -228,9 +236,9 @@ def Live.store (l : Live) (q : Q) (a : Ans) : Live :=
 
 /-- Forget instances nobody reads any more, and their watches. -/
 def Live.keep (l : Live) (want : Q → Bool) : Live :=
-  let armed := l.armed.fold (fun acc k qs =>
+  let armed := l.armed.filterMap fun _ qs =>
     let qs := qs.filter want
-    if qs.isEmpty then acc else acc.insert k qs) {}
+    if qs.isEmpty then none else some qs
   { l with entries := l.entries.filter fun q _ => want q, armed }
 
 /-- An op's verdict, from the store (the judge reads requirements this way). -/

@@ -3,6 +3,7 @@ import ops.community.Community
 import ops.connection.All
 import engine.renderer.Geometry
 import engine.renderer.Cover
+import engine.renderer.LiveLaws
 import engine.renderer.SheetGeom
 import ops.community.link.View
 import engine.renderer.Camera
@@ -270,6 +271,12 @@ section app
 #print axioms SheetGeom.compose_top
 #print axioms Geometry.pinned_row
 #print axioms Cover.covered
+#print axioms LiveLaws.agrees_empty
+#print axioms LiveLaws.answer_agrees
+#print axioms LiveLaws.agrees_store
+#print axioms LiveLaws.agrees_notice
+#print axioms LiveLaws.agrees_keep
+#print axioms LiveLaws.read_one_moment
 #print axioms Cover.line_painted
 #print axioms Geometry.pinned_visible
 #print axioms Geometry.pinned_tap

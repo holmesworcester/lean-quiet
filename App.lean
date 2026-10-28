@@ -269,8 +269,7 @@ def c (s : St) : Id := s.me.c
 
 def read (q : Q) : M Ans := do
   let s ← get
-  if let some e := s.live.entries[q]? then
-    if !e.stale then return e.ans
+  if let some a := s.live.answer q then return a
   let a ← q.run s.rd s.out
   modify fun s => { s with live := s.live.store q a }
   return a
