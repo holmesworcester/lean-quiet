@@ -2,8 +2,9 @@
 # lean-quiet onto the iOS Simulator (or an iPhone) through the Mac, from
 # here: lake emits C for Main's module closure (followed through `import`
 # lines, as android/twin/build_apk.sh does: this package's modules and
-# lean-engine's from their .lake/build/ir, Std's compiled from the
-# toolchain's sources into out/stdc), and this stages it with Init's C
+# those of every package it requires (lake-manifest.json: lean-engine,
+# lean-qr) from their .lake/build/ir, Std's compiled from the toolchain's
+# sources into out/stdc), and this stages it with Init's C
 # (tools/gen_init_c.sh), Lean's runtime source and headers, libuv's
 # source, the SQLite/Ed25519 glue (android/native, third_party), the
 # assets and ios/; copies the tree to the Mac and builds it there
@@ -120,10 +121,11 @@ stage() {
   proofs
   [ -f "$root/assets/font.bin" ] || "$root/tools/fetch_assets.sh"
   [ -d "$root/out/initc" ] || "$root/tools/gen_init_c.sh" "$root/out/initc"
-  local engine closure targets
-  engine=$(cd "$root" && python3 -c 'import json; m=json.load(open("lake-manifest.json")); print([p["dir"] for p in m["packages"] if p["name"]=="engine"][0])')
-  engine=$(cd "$root" && realpath "$engine")
-  closure=$(closure Main "$root" "$engine" "$T/src/lean")
+  local closure targets roots
+  # this package, then every package it requires (lean-engine, lean-qr, ...)
+  # shellcheck disable=SC2207
+  roots=("$root" $(cd "$root" && python3 -c 'import json, os; m=json.load(open("lake-manifest.json")); print(" ".join(os.path.realpath(p["dir"]) for p in m["packages"]))'))
+  closure=$(closure Main "${roots[@]}" "$T/src/lean")
   targets=$(echo "$closure" | awk '$1 != "core" {print "+" $2 ":c"}')
   # shellcheck disable=SC2086
   (cd "$root" && "$lake" build $targets >/dev/null)
@@ -135,9 +137,8 @@ stage() {
   while read -r where mod; do
     rel=${mod//./\/}.c
     case $where in
-      0) c=$root/.lake/build/ir/$rel ;;
-      1) c=$engine/.lake/build/ir/$rel ;;
       core) c=$(stdc "$mod") ;;
+      *) c=${roots[$where]}/.lake/build/ir/$rel ;;
     esac
     cp -p "$c" "$st/ir/$mod.c"
   done <<< "$closure"
@@ -330,5 +331,5 @@ case $what in
   clean)
     on_mac "~/$dir/stage/ios/sim.sh ~/$dir delete" || true
     ssh "$mac" "rm -rf ~/$dir" ;;
-  *) sed -n 2,46p "$0"; exit 2 ;;
+  *) sed -n 2,47p "$0"; exit 2 ;;
 esac

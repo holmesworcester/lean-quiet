@@ -28,8 +28,10 @@ esac
 rt=$b/leanrt
 [ -f "$rt/$sdk/libInit.a" ] || "$st/ios/leanrt.sh" "$st" "$rt" "$sdk" >/dev/null
 
-# The app's C: one object per source, kept across builds (rsync keeps the
-# staged sources' times, so an unchanged source is not compiled again).
+# The app's C: one object per source, kept across builds and compiled again
+# only when its source or flags change (a hash of both beside the object:
+# sources can change to older files, as when a package is swapped, so
+# their times would not tell).
 o=$b/app-$sdk
 mkdir -p "$o"
 cc="xcrun -sdk $sdk clang --target=$tgt"
@@ -53,8 +55,9 @@ sqlite="-DSQLITE_THREADSAFE=2 -DSQLITE_DQS=0 -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLI
 tr '\n' '\0' < "$b/sources-$sdk.txt" | xargs -0 -P "$(sysctl -n hw.ncpu)" -n 1 sh -c '
   src=${0%%|*}; flags=${0#*|}
   obj='"$o"'/$(basename "${src%.c}").o
-  if [ ! -f "$obj" ] || [ "$src" -nt "$obj" ]; then
-    '"$cc"' $flags -c "$src" -o "$obj.tmp" && mv "$obj.tmp" "$obj" || exit 255
+  h=$( (echo "$flags"; cat "$src") | shasum | cut -c1-40)
+  if [ ! -f "$obj" ] || [ "$(cat "$obj.sha" 2>/dev/null)" != "$h" ]; then
+    '"$cc"' $flags -c "$src" -o "$obj.tmp" && mv "$obj.tmp" "$obj" && echo "$h" > "$obj.sha" || exit 255
   fi'
 # only this build's objects (a module gone from the closure leaves none)
 objs=$(sed 's/|.*//; s|.*/||; s|\.c$|.o|' "$b/sources-$sdk.txt" | sed "s|^|$o/|")
