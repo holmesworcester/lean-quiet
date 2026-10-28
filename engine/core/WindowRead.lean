@@ -162,9 +162,6 @@ theorem below_before (q : ListQ) (p : Pos) : below (q.before.map (·, false)) p 
   | none => rfl
   | some b => simp only [Option.map_some, below]; cases p.cmp b <;> rfl
 
-/-- The read's range as a window. -/
-def ListQ.rangeWin (q : ListQ) : Win := { key := q.key, lo := q.after.map (·, false), hi := q.before.map (·, false) }
-
 theorem rangeWin_inside (q : ListQ) (p : Pos) : q.rangeWin.inside p = q.inside p := by
   simp only [ListQ.rangeWin, Win.inside, above_after, below_before, inside_eq]
 
@@ -360,7 +357,12 @@ theorem read_rows_iff {fam : Family F} {s t : DB F} (hs : Inv fam s) (ht : Inv f
 /-- **A read's notices are exact.** A subscriber whose one window is the
 read's (from its answer in s) is notified of a batch exactly when the
 read's rows changed: a row filed outside the window (below a newest-n
-answer, say) notifies nothing. -/
+answer, say) notifies nothing.
+
+Known gap: a union of reads (`Community.readable`, one read per key)
+watches each read's own window, so its notices are complete but not
+precise for the union's own cut: each key's window is cut at that key's
+last row, not at the union's. -/
 theorem read_notice_iff {S : Type} {fam : Family F} {s : DB F} (hs : Inv fam s) {cs : List Change}
     (ho : OneOpPerId s cs) {I : Subs S} (hI : I.WF) {x : S} {q : ListQ} (hq : q.also = [])
     (hl : q.limit ≠ some 0) (hx : ∀ w, I.Has x w ↔ w = q.win (eval s q)) :
@@ -372,6 +374,64 @@ theorem read_notice_iff {S : Type} {fam : Family F} {s : DB F} (hs : Inv fam s) 
     exact hne he.symm
   · intro hne
     exact ⟨_, (hx _).2 rfl, fun he => hne he.symm⟩
+
+end
+
+/-! ## A read's watch -/
+
+section
+variable {F : Type} [SortKey F]
+
+theorem eval_eq (s : DB F) (q : ListQ) :
+    eval s q = ⟨q.cut (if q.desc then (inRange s q).reverse else inRange s q),
+      capped q.cap (inRange s q).length, (matching s q).length⟩ := rfl
+
+/-- **Marking reads counted changes no answer.** -/
+theorem eval_counting {α : Type} (s : DB F) : ∀ v : View F α, v.counting.eval s = v.eval s
+  | .pure _ => rfl
+  | .list q k => by
+    show (k (Engine.eval s { q with counted := true })).counting.eval s = (k (Engine.eval s q)).eval s
+    exact eval_counting s (k (Engine.eval s q))
+
+theorem window_all {s : DB F} (k : ByteArray) : window s (Win.all k) = matching s { key := k } := by
+  unfold window
+  apply List.filter_eq_self.2
+  intro r _
+  rfl
+
+/-- **A read's watch covers what its reader uses.** For a read of one key,
+if its watch (`ListQ.watch`, from its answer in s) holds the same rows in
+s and t, the read answers the same in both, but for the counts no reader
+of it uses (`ListQ.kept`). So, with `notice_iff`, a subscriber watching
+it misses no change its reader can see. -/
+theorem watch_stable {fam : Family F} {s t : DB F} (hs : Inv fam s) (ht : Inv fam t) {q : ListQ}
+    (hq : q.also = []) (h : window t (q.watch (eval s q)) = window s (q.watch (eval s q))) :
+    q.kept (eval t q) = q.kept (eval s q) := by
+  unfold ListQ.watch at h
+  unfold ListQ.kept
+  have hal : q.also.isEmpty = true := by rw [hq]; rfl
+  by_cases h0 : q.limit = some 0
+  · have hc : (q.limit == some 0 || !q.also.isEmpty) = true := by simp [h0]
+    rw [if_pos hc] at h
+    rw [if_pos hc, if_pos hc]
+    rw [window_all, window_all, ← matching_key hq, ← matching_key hq] at h
+    rw [eval_eq, eval_eq]
+    unfold inRange
+    rw [h]
+  · have hc : ¬ ((q.limit == some 0 || !q.also.isEmpty) = true) := by simp [h0, hal]
+    rw [if_neg hc] at h
+    rw [if_neg hc, if_neg hc]
+    by_cases hct : q.counted = true
+    · rw [if_pos hct] at h
+      rw [if_pos hct, if_pos hct]
+      rw [window_range hq, window_range hq] at h
+      rw [eval_eq, eval_eq, h]
+    · rw [if_neg hct] at h
+      rw [if_neg hct, if_neg hct]
+      have hr := (read_rows_iff hs ht hq h0).2 h
+      rw [eval_eq, eval_eq] at hr ⊢
+      simp only at hr ⊢
+      rw [hr]
 
 end
 

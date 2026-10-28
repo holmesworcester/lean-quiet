@@ -365,6 +365,8 @@ open Engine
 #print axioms Engine.mem_net
 #print axioms Engine.read_rows_iff
 #print axioms Engine.read_notice_iff
+#print axioms Engine.watch_stable
+#print axioms Engine.eval_counting
 #print axioms Engine.rank_costs
 #print axioms Engine.find_costs
 #print axioms Engine.notify_cost
