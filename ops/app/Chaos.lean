@@ -172,7 +172,8 @@ def bytesOf (tag : String) (n : Nat) : ByteArray := (sha256 tag.toUTF8).extract 
 /-- This device in one community (Kinds.Accepted). -/
 abbrev Me := Kinds.Accepted.Me
 
-/-- A fresh seed. -/
+/-- A test seed from the clock: guessable, so only for test identities
+(the app's secrets come from `App.newSeed`). -/
 def freshSeed (salt : String) : IO ByteArray := do
   return sha256 s!"lean-quiet {salt} {← Data.nowUs}".toUTF8
 
