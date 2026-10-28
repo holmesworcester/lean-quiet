@@ -128,6 +128,9 @@ structure World where
   delivered : List (Bool × B) := []
   /-- Every op a user wrote, in order: at A or not, the op. -/
   wrote : List (Bool × Op) := []
+  /-- Every delivery that opened as a session frame at its node, in
+  order: at A or not, the session's id. -/
+  opened : List (Bool × Id) := []
 
 namespace World
 
@@ -162,6 +165,14 @@ def Setup.enter (P : Setup) (isA : Bool) (n : Node) : Act → NodeM (Node × Eff
   | .tick _ now => n.onTick (P.sync isA) now
   | .write _ ops now => n.onWrite (P.sync isA) ops now
 
+/-- A read on node A's (true) or B's store. -/
+def World.at (w : World) (isA : Bool) {α : Type} (m : NodeM α) : α := (m (w.side isA).box).1
+
+/-- These bytes as a session frame, opened at node A (true) or B with
+its own keys (`openFrame`, what `Node.onFrame` calls). -/
+def Setup.opens (P : Setup) (w : World) (isA : Bool) (b : B) : Option (Id × B) :=
+  if (b[0]? : Option UInt8) = some sealedTag then w.at isA (openFrame P.K (b.extract 1 b.size)) else none
+
 /-- **The step**: the act's node runs its entry point on its own store;
 what it sends goes on the wire. -/
 def World.step (P : Setup) (w : World) (a : Act) : World :=
@@ -176,13 +187,15 @@ def World.step (P : Setup) (w : World) (a : Act) : World :=
       | _ => w.delivered
     wrote := match a with
       | .write t ops _ => w.wrote ++ ops.map (t, ·)
-      | _ => w.wrote }
+      | _ => w.wrote
+    opened := match a with
+      | .deliver t _ bytes _ => match P.opens w t bytes with
+        | some (cid, _) => w.opened ++ [(t, cid)]
+        | none => w.opened
+      | _ => w.opened }
 
 /-- The ops node A (true) or B holds. -/
 def World.ops (w : World) (isA : Bool) : List Op := (w.side isA).box.held.log
-
-/-- A read on node A's (true) or B's store. -/
-def World.at (w : World) (isA : Bool) {α : Type} (m : NodeM α) : α := (m (w.side isA).box).1
 
 /-- The sessions node A (true) or B has established: op and fact. -/
 def World.ests (w : World) (isA : Bool) : List (Id × Fact) := w.at isA (rows established.all [])

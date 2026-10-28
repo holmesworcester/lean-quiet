@@ -53,6 +53,21 @@ def ests (w : World) (isA : Bool) : List Connection.Fact := (onSide w isA (rows 
 def cids (l : List Connection.Fact) : List ByteArray := l.filterMap fun | .established i .. => some i | _ => none
 def opCount (w : World) (isA : Bool) : Nat := (w.side isA).box.held.log.length
 
+/-- `heard_stmt` at this world: every record that a session heard its
+peer sits at a node where a frame of that session opened. -/
+def heardOk (w : World) : Bool :=
+  [true, false].all fun isA => (w.ops isA).all fun o =>
+    match o.reqs, (Codec.decode o.body : Option Connection.Body) with
+    | [cid], some (.recv true v _ _) => v != cid || w.opened.any fun (t, c) => t == isA && c == cid
+    | _, _ => true
+
+/-- How many heard records the nodes hold. -/
+def heardCount (w : World) : Nat :=
+  [true, false].foldl (fun n isA => n + ((w.ops isA).filter fun o =>
+    match o.reqs, (Codec.decode o.body : Option Connection.Body) with
+    | [cid], some (.recv true v _ _) => v == cid
+    | _, _ => false).length) 0
+
 /-- A founds and invites, B joins, A approves, both run 60 rounds. -/
 def joined (P : Setup) : World × Id := Id.run do
   let dA := Device.ofSeed P.seedA
@@ -102,11 +117,16 @@ def main : IO UInt32 := do
   let w := rounds P w 20000 10
   t.ok "a post crosses the session from A to B" (stored w false pA.id)
   t.ok "and from B to A" (stored w true pB.id)
+  t.ok "both ends recorded that the session heard its peer, each after a frame of it opened there (heard_stmt)"
+    (heardCount w == 2 && heardOk w)
+  t.ok "negative control: a heard record for a session that never opened a frame fails that check"
+    (!heardOk (w.step P (.write true [heardOp (sha256 "no such session".toUTF8)] 20000)))
   -- Replay: every payload sent so far, again, to both nodes.
   let mut wr := w
   for (_, _, bytes) in w.wire do
     wr := wr.step P (.deliver true "X:1".toUTF8 bytes 23000)
     wr := wr.step P (.deliver false "X:1".toUTF8 bytes 23000)
+  t.ok "heard_stmt holds after replaying everything" (heardOk wr)
   t.ok "replaying everything opens no session at either end"
     (ests wr true == ests w true && ests wr false == ests w false)
   let shared (w : World) (isA : Bool) : Nat :=
@@ -131,6 +151,7 @@ def main : IO UInt32 := do
       (live.length == 1 && cids (ests w false) == live)
     t.ok "a replayed purged request: A answers it, and still holds the live session"
       (live.all (cids (ests w2 true)).contains && (ests w2 true).length == 2 && cids (ests w2 false) == live)
+    t.ok "heard_stmt holds through the redial and the replay" (heardOk w2 && heardOk w3)
     t.ok "the answer has not heard its peer; the live session has"
       (let all := onSide w2 true (allSessions : NodeM _)
        all.all fun s => s.heard == live.contains s.cid)

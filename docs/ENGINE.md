@@ -397,7 +397,9 @@ bytes it can derive, to either node, from any address.
   op), `frameReplay_stmt` (a frame delivered again changes nothing),
   `bareReplay_stmt` (a handshake op delivered again closes no session
   and opens none another node holds), `deadDropped_stmt` (a session
-  that never hears its peer is dropped by patience), `forward_stmt` (after both close a
+  that never hears its peer is dropped by patience), `heard_stmt` (a
+  node records that a session heard its peer only after a frame of it
+  opened there), `forward_stmt` (after both close a
   session, neither store holds its ephemerals, and an attacker knowing
   everything not built from them derives neither key), `live_stmt` (some
   execution establishes a session and carries an op each way).

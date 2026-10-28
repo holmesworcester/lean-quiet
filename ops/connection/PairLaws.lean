@@ -32,6 +32,11 @@ def EphOf (w : World) (isA : Bool) (cid e : B) : Prop :=
 def Closed (w : World) (isA : Bool) (cid : B) : Prop :=
   ∀ o ∈ w.ops isA, (Codec.decode o.body : Option Body) = some .established → o.reqs.head? ≠ some cid
 
+/-- Node A's (true) or B's store holds the record that session `cid` has
+heard its peer: a `recv` citing the connection `cid`, on `cid` itself. -/
+def HeardAt (w : World) (isA : Bool) (cid : Id) : Prop :=
+  ∃ o ∈ w.ops isA, o.reqs = [cid] ∧ ∃ addr t, (Codec.decode o.body : Option Body) = some (.recv true cid addr t)
+
 end World
 
 namespace Setup
@@ -40,11 +45,6 @@ variable (P : Setup) (I : Ideal P.K)
 /-- What every law assumes, besides `Ideal` itself: `Apart`, and that the
 nodes keep sessions by the family's rule. -/
 def Assumed : Prop := Apart P I ∧ P.keepRule = kept
-
-/-- These bytes as a session frame, opened at node A (true) or B with
-its own keys (`openFrame`, what `Node.onFrame` calls). -/
-def opens (w : World) (isA : Bool) (b : B) : Option (Id × B) :=
-  if (b[0]? : Option UInt8) = some sealedTag then w.at isA (openFrame P.K (b.extract 1 b.size)) else none
 
 /-- **1. Secrecy.** At every world an execution reaches, the attacker
 derives none of the pair's secrets (either device's seed or X25519
@@ -119,6 +119,16 @@ def deadDropped_stmt : Prop :=
   P.Assumed I → ∀ w, P.Reach I w → ∀ isA cid c now, (w.side isA).node.conn? cid = some c →
     c.peerFloor = none → c.heard + P.cfg.patience < now →
       cid ∉ (w.step P (.tick isA now)).sessionIds isA
+
+/-- **3d. "Heard" is never forged.** A node records that a session has
+heard its peer only if a frame delivered to it opened there under that
+session's keys. Neither the bare wire (bare arrivals are recorded with
+no session) nor a user's writes (no Connection ops) nor any other step
+writes it: the settle it rides on is reported only when a peer's message
+ends a round, and a node steps a session's connection only on frames
+that opened under its keys. -/
+def heard_stmt : Prop :=
+  P.Assumed I → ∀ w, P.Reach I w → ∀ isA cid, w.HeardAt isA cid → (isA, cid) ∈ w.opened
 
 /-- **4. Forward secrecy.** A session both nodes held, made with
 ephemeral `e` at A and `f` at B, once both have closed it: neither store
