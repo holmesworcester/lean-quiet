@@ -586,8 +586,9 @@ theorem fresh_served (n : Node) (cid : Id) (c1 : Conn) (A : List (Id × ByteArra
     (now t : Nat) (hq : c1.owed = [o.id]) (hw : c1.owing = ({} : Std.HashSet Id).insert o.id)
     (hg : h.db.ops o.id = some o) (hsh : (c1.setRooms (S.rooms s cid)).shows S.fam o = true)
     (hb : 0 < S.cfg.burst) (hh : (o.id, t) ∈ n.hot) (ht : now ≤ t + S.cfg.hotMs) :
-    (((({ n with conns := [(cid, c1)], addrs := A } : Node).serveOwed (S.sync s) cid now).run h).1.2 =
-      sends cid [o] := by
+    let N : Node := { n with conns := [(cid, c1)], addrs := A }
+    ((N.serveOwed (S.sync s) cid now).run h).1.2 = sends cid [o] := by
+  intro N
   rw [(serveOwed_world S s n cid c1 A o h now hq hw hg hsh hb).1, if_pos (hot_ids (S.sync s) n o.id t now hh ht)]
 
 /-- **A want for a stored op the peer may see is answered with the op in
