@@ -24,7 +24,8 @@ no collisions.
 **Not yet proven:** that sessions and messages are secret from someone
 on the wire (in progress), that a removal reaches a live session, the
 bootstrap over the running code rather than a model, and that content
-is drawn faithfully.
+is drawn faithfully all the way to pixels (proven up to each row's
+layout; painting it is not).
 
 ### Assumed
 
@@ -168,10 +169,11 @@ nothing else is assumed:
 | ⬜ | 🥊🥊🥊 | **The screen is one moment.** Every frame is the root component drawn over a single settled store state, the latest the app has seen, so if one row is current, all are. Half of this is proven: a cached component whose keys did not fire answers as a fresh read would. Wanted: the renderer re-reads exactly what fired, and reads only between write turns. | [`eval_stable`], [`view_stable`], [`drain_bounded`] |
 | ⬜ | 🥊🥊 | **An action's toast stays until the screen shows it.** A toast for an action (removing someone, a new name or avatar) stays up until every component on screen has re-read a state that holds the action's op, or until the OS's toast time passes, whichever comes first. So a toast that leaves early proves the screen has caught up. | |
 | ✅ | 🥊🥊 | **The layout is exact.** The slide and keyboard shift are exact, and page rows are where the page put them. Emoji keys never overlap, and every key is reachable. An invite's hints and QR fit, and the camera preview reads inside its frame. | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
-| ⬜ | 🥊🥊🥊 | **Message text is shown faithfully.** A row's glyphs, read in order, are exactly the body's visible characters. Nothing is clipped, reordered or taken from another row, and every line fits. | |
-| ⬜ | 🥊🥊🥊 | **Names are shown correctly.** A message row draws its author's name, as the views pick it, and no one else's. No bidi override or invisible character can disguise a name or a message. | |
-| ⬜ | 🥊🥊 | **Times, reactions and pictures are shown as held:** the claimed time's clock, each reaction's count of distinct reactors, and each picture at its aspect inside its box. | |
-| ⬜ | 🥊🥊🥊 | **What you see is what was sent.** The rows a device draws are the views of the facts its ops hold, from network to pixel. | |
+| 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** A row's glyphs, read in order, are exactly the body's visible characters. Nothing is clipped, reordered or taken from another row, and every line fits. Proven: wrapping drops only spaces and keeps every other character in order, and every line fits when every character does; bidi reordering is a permutation (nothing dropped or invented); the glyphs placed are exactly the visible characters, each starting where the one before ends; numbers keep their order inside right-to-left text, for the reported cases. Wanted: that order in general, and `layout` as one statement over the three. | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`digits_keep_order`] |
+| 🟡 | 🥊🥊🥊 | **Names are shown correctly.** A message row draws its author's name, as the views pick it, and no one else's. No bidi override or invisible character can disguise a name or a message. Proven: a row's name is its author's newest valid profile's (or "…"), and only a device admitted into that user can have written it; the row draws it cut to a logical prefix and an ellipsis, so a long name keeps its beginning in either direction. Bidi controls are neutrals in the running bidi, so they reorder nothing; that is not yet a theorem. | [`message_read`], [`profile_read`], [`profile_authorized`], [`no_renaming`], [`name_placed`], [`oneLine_prefix`] |
+| ✅ | 🥊🥊 | **Times, reactions and pictures are shown as held:** the claimed time's clock, each reaction's count of distinct reactors, and each picture at its aspect inside its box. One pill per emoji, whose reactors are exactly who reacted with it, each once; a picture's box has one side at its bound and the other scaled by its aspect. | [`time_shown`], [`message_read`], [`tally_nodup`], [`tally_mem`], [`picBox_aspect`] |
+| 🟡 | 🥊🥊🥊 | **What you see is what was sent.** The rows a device draws are the views of the facts its ops hold, from network to pixel. Proven, over a model where every list read is the engine's: a shown message is a valid fact of the store, and its row's name, time and text are its author's name, its claimed time and its body opened with a key the store holds; the conversation is exactly the messages under keys this device holds. Wanted: the same from the row's layout to its pixels. | [`message_read`], [`readable_held`], [`readable_complete`], [`eval_stable`] |
+| ✅ | 🥊🥊🥊 | **Every community is reachable, and is one entry.** A switcher row's tap selects exactly the entry it draws, every entry has a row, no two entries share an acceptance or a community, and a page is drawn from its key alone, which names its entry's op, never a name. | [`switcherOrder_sound`], [`switcherOrder_complete`], [`dedupe_nodup`], [`dedupe_one_per_community`], [`select_tapped_dedupe`], [`drawPage_key`], [`pageIn_acc`] |
 | ⬜ | 🥊🥊 | **The screen keeps up:** no blank rows past a latency bound, within a frame budget, with bounded reads. | |
 | ⬜ | 🥊🥊 | **Display order** (design in `engine/docs/SYNC.md`). Devices with the same ops order messages alike, except a saturated tail, which follows receipt order. | |
 | | | **Codes, pictures and discovery** | |
@@ -211,35 +213,34 @@ lean-quiet, lean-qr, lean-mdns, lean-net), rewritten into its directory.
 Their other branches are kept as `import/<dir>/<branch>`.
 
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
-[`Unforgeable`]: engine/Community/Laws.lean#L239-L241
+[`Unforgeable`]: engine/Community/Laws.lean#L249-L251
 [`CollisionFree`]: engine/Engine/Proofs.lean#L515-L517
 [`Distinct`]: engine/Engine/Proofs.lean#L511-L513
 [`lbl_inj`]: engine/Engine/Sync/Fp.lean#L264-L268
 [`Suite.Good`]: engine/Connection/Noise.lean#L49-L53
 [`Keys.Good`]: engine/Connection/Types.lean#L32-L36
-[`no_impersonation`]: engine/Community/Laws.lean#L258-L271
-[`admission_needs_approval`]: engine/Community/Laws.lean#L408-L416
-[`admission_approved`]: engine/Community/Laws.lean#L327-L337
-[`request_invited`]: engine/Community/Laws.lean#L291-L301
-[`removal_authorized`]: engine/Community/Laws.lean#L443-L446
-[`admin_granted`]: engine/Community/Laws.lean#L482-L483
-[`removed_stays`]: engine/Community/Laws.lean#L489-L492
-[`valid_stays`]: engine/Community/Laws.lean#L496-L500
-[`message_authorized`]: engine/Community/Laws.lean#L222-L229
-[`approval_signed`]: engine/Community/Laws.lean#L310-L320
-[`invitation_issued`]: engine/Community/Laws.lean#L276-L282
-[`named_by_admin`]: engine/Community/Laws.lean#L534-L536
-[`admission_consented`]: engine/Community/Laws.lean#L243-L249
-[`admin_removal_stands`]: engine/Community/Laws.lean#L454-L467
-[`mutual_removal`]: engine/Community/Laws.lean#L475-L479
-[`removed_approver_admits`]: engine/Community/Laws.lean#L427-L438
+[`no_impersonation`]: engine/Community/Laws.lean#L268-L281
+[`admission_needs_approval`]: engine/Community/Laws.lean#L448-L456
+[`admission_approved`]: engine/Community/Laws.lean#L367-L377
+[`request_invited`]: engine/Community/Laws.lean#L331-L341
+[`removal_authorized`]: engine/Community/Laws.lean#L483-L486
+[`admin_granted`]: engine/Community/Laws.lean#L522-L523
+[`removed_stays`]: engine/Community/Laws.lean#L529-L532
+[`valid_stays`]: engine/Community/Laws.lean#L536-L540
+[`message_authorized`]: engine/Community/Laws.lean#L234-L240
+[`approval_signed`]: engine/Community/Laws.lean#L350-L360
+[`invitation_issued`]: engine/Community/Laws.lean#L316-L322
+[`named_by_admin`]: engine/Community/Laws.lean#L574-L576
+[`admission_consented`]: engine/Community/Laws.lean#L253-L259
+[`admin_removal_stands`]: engine/Community/Laws.lean#L494-L507
+[`mutual_removal`]: engine/Community/Laws.lean#L515-L519
+[`removed_approver_admits`]: engine/Community/Laws.lean#L467-L478
 [`recv_send`]: engine/Engine/Sync/ConnLaws.lean#L146-L148
 [`offer_shared`]: engine/Engine/Sync.lean#L83-L86
 [`wire_kinds`]: engine/Connection/Laws.lean#L35-L36
 [`local_kinds`]: engine/Connection/Laws.lean#L42-L43
-[`join_travels`]: engine/Community/Intents.lean#L119-L123
-[`found_travels`]: engine/Community/Intents.lean#L130-L133
-[`stopWaiting_local`]: engine/Community/Intents.lean#L126-L127
+[`found_travels`]: engine/Community/Intents.lean#L237-L241
+[`stopWaiting_local`]: engine/Community/Intents.lean#L233-L234
 [`filed_send`]: engine/Engine/Sync/ConnLaws.lean#L175-L178
 [`offer_stored`]: engine/Engine/Sync.lean#L98-L101
 [`tick_send`]: engine/Engine/Sync/ConnLaws.lean#L184-L187
@@ -262,7 +263,7 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`sessions_trusted`]: net/Net/Laws.lean#L63-L68
 [`intake_local`]: engine/Engine/Sync.lean#L41-L43
 [`stored_local`]: engine/Engine/Sync.lean#L137-L140
-[`local_fact_mine`]: engine/Community/Laws.lean#L556-L560
+[`local_fact_mine`]: engine/Community/Laws.lean#L593-L597
 [`intakeConn_conn`]: engine/Engine/Sync.lean#L36-L37
 [`established_agrees`]: engine/Connection/Laws.lean#L46-L56
 [`open_seal`]: engine/Connection/Frame.lean#L51-L55
@@ -294,9 +295,9 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`sum_scope_left`]: engine/Engine/Families.lean#L75-L76
 [`Codec.decode_encode`]: engine/Engine/Codec.lean#L148-L148
 [`Op.decode_bytes`]: engine/Engine/Core.lean#L90-L90
-[`request_valid`]: engine/Community/Laws.lean#L348-L356
-[`approve_valid`]: engine/Community/Laws.lean#L364-L372
-[`admit_admits`]: engine/Community/Laws.lean#L380-L391
+[`request_valid`]: engine/Community/Laws.lean#L388-L396
+[`approve_valid`]: engine/Community/Laws.lean#L404-L412
+[`admit_admits`]: engine/Community/Laws.lean#L420-L431
 [`connect_admitted`]: engine/Community/Connect.lean#L169-L179
 [`exchange_complete`]: engine/Engine/Sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: engine/Engine/Sync/RoundLaws.lean#L323-L325
@@ -326,6 +327,31 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`Link.hints_fit`]: app/Quiet/Link.lean#L49-L51
 [`Link.qr_fits`]: app/Quiet/Link.lean#L67-L67
 [`Camera.src_in`]: app/Quiet/Camera.lean#L51-L53
+[`wrap_keeps`]: app/Quiet/WrapLaws.lean#L132-L135
+[`wrap_fits`]: app/Quiet/WrapLaws.lean#L206-L209
+[`visual_perm`]: app/Quiet/TextLaws.lean#L46-L47
+[`place_shows`]: app/Quiet/TextLaws.lean#L63-L65
+[`place_starts`]: app/Quiet/TextLaws.lean#L128-L134
+[`digits_keep_order`]: app/Quiet/TextLaws.lean#L109-L116
+[`message_read`]: app/Quiet/ViewLaws.lean#L61-L66
+[`profile_read`]: app/Quiet/ViewLaws.lean#L39-L41
+[`profile_authorized`]: engine/Community/Laws.lean#L286-L293
+[`no_renaming`]: engine/Community/Laws.lean#L300-L311
+[`name_placed`]: app/Quiet/RowLaws.lean#L89-L92
+[`oneLine_prefix`]: app/Quiet/TextLaws.lean#L97-L98
+[`time_shown`]: app/Quiet/RowLaws.lean#L84-L87
+[`tally_nodup`]: app/Quiet/RowLaws.lean#L56-L60
+[`tally_mem`]: app/Quiet/RowLaws.lean#L68-L71
+[`picBox_aspect`]: app/Quiet/RowLaws.lean#L19-L28
+[`readable_held`]: engine/Community/Intents.lean#L275-L279
+[`readable_complete`]: engine/Community/Intents.lean#L317-L321
+[`switcherOrder_sound`]: app/Quiet/Pages.lean#L583-L585
+[`switcherOrder_complete`]: app/Quiet/Pages.lean#L590-L592
+[`dedupe_nodup`]: app/Quiet/Switch.lean#L52-L53
+[`dedupe_one_per_community`]: app/Quiet/Switch.lean#L56-L58
+[`select_tapped_dedupe`]: app/Quiet/Switch.lean#L82-L84
+[`drawPage_key`]: app/Quiet/App.lean#L795-L799
+[`pageIn_acc`]: app/Quiet/App.lean#L801-L804
 [`parse_segsBits`]: qr/Qr/SegLaws.lean#L157-L161
 [`parse_dataStream`]: qr/Qr/SegLaws.lean#L193-L197
 [`RS.correct_sound`]: qr/Qr/Laws.lean#L55-L57
