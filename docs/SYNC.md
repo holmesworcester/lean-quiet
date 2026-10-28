@@ -319,30 +319,33 @@ unaffected (Meyer and Scherer §I–II).
   out, `Node.close` purging a connection's ephemeral ops, and
   `Index.remove` for purged ids. Sync never offers a purged op because
   every offer and send re-reads the store.
-- **Message display order (follow-up; not built).** Display a channel by
-  a channel-wide counter shared across devices. A new message's counter
-  is higher than any it has seen in the channel, and the timestamp
-  breaks ties. If the counter saturates, fall back to "received at",
-  recorded as a local op. This is a deliberate exception to "everyone
-  sees the same state", stated as laws:
-  - `display_agrees`: two devices with the same shared ops order any
-    two messages alike unless both are saturated.
-  - `display_local`: saturated messages show in each device's own
-    receipt order.
-  - `exception_real`: a witness of two devices that differ, and only
-    there.
-  - `reply_below`: a message shows below what its author held when
-    writing it, unless saturated.
+- **Message display order (built, 2026-10-28).** A channel displays by
+  a counter its devices share: a post claims one more than the highest
+  its author holds in the channel (`send`), and the claimed time
+  (wall-clock minutes since the Unix epoch, for display) breaks ties,
+  then the id (`msg_cmp`, `time_is_display`, `order_total`,
+  `send_after`). The counter is claimed, not validated: validating it
+  would mean citing earlier messages, which would pull a channel's
+  history into every closure. So one post claiming the cap (2^63) or
+  more saturates the channel, and every later post claims the cap. A
+  saturated message is listed by this device's receipt of it, a local op
+  (`received`) numbered in its arrival order, written on sending and on
+  every arrival (`Connection.onArrival`). This is the deliberate
+  exception to "everyone sees the same state", stated as laws:
+  - `display_agrees`: two devices with the same posts order any two
+    messages alike unless both are saturated.
+  - `arrival_order`: saturated messages show in each device's own
+    receipt order (`order_local`: the receipt is the device's own op).
+  - `send_after`: a message sorts after everything its author listed in
+    the channel when writing it.
+  - Two devices that differ: tests/engine/Lifecycle.lean (a theorem
+    witness is not built).
 
-  The counter is claimed, not validated: validating it would mean citing
-  earlier messages, which would pull a channel's history into every
-  closure. So one message at the top value saturates the channel; the
-  cheapest mitigation is that authors take the max over messages by
-  members who have not been removed. Open choices:
-  - whether received-at is recorded for every message or only saturated
-    ones;
-  - whether to apply that mitigation;
-  - the counter's width (UInt64).
+  Decided: a receipt is written for saturated messages only; no
+  mitigation (authors do not skip removed members' counters); the
+  counter and the time each take 8 bytes of the sort key; the counter
+  does not feed sync's `ord`, which stays the claimed time, common to
+  every timed kind.
 - **Wire kinds** as UInt8 (240–242) until the registry names kinds by
   hash.
 - **`sync.have` / `sync.want` as a family?** They are transient and never

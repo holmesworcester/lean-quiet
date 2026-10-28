@@ -165,31 +165,84 @@ def rename (c myAdm auth : Id) (d : Device) (name : ByteArray) : View Fact Write
     | _ => ([], 1)
   pure ⟨[setName c myAdm auth prev n d name]⟩
 
-/-- Send a message to c as device d, its text sealed under content key k
-with nonce `nonce`, and attach files to it: the post, then each file's
-attachment (a child of the post) and its chunks. Everything is ops; no
-bytes live beside the store. -/
-def send (c myAdm : Id) (d : Device) (k nonce text : ByteArray) (time : Nat)
-    (files : List NewFile := []) : Write :=
-  let p := sealedPost c myAdm d k nonce text time
-  ⟨p :: files.flatMap (fun f => let (a, cs) := attach c myAdm p.id d k f; a :: cs)⟩
+/-- The highest counter, capped, of c's messages this device holds (0
+for none): the first of `message.all [c]`, newest first. -/
+def topCount (c : Id) : View Fact Nat := do
+  let a ← message.all.read [c] (limit := some 1)
+  pure (match a.rows.head? with
+    | some (_, .message _ _ _ _ _ n _) => min n countCap
+    | _ => 0)
+
+/-- The counter of this device's newest receipt in c (0 for none). -/
+def topReceived (c : Id) : View Fact Nat := do
+  let a ← received.all.read [c] (limit := some 1)
+  pure (match a.rows.head? with
+    | some (_, .received _ _ _ k) => k
+    | _ => 0)
+
+/-- What this device writes on receiving op o, sent from here or
+arrived: for a post claiming the counter cap or more, its receipt, one
+past this device's newest receipt in the post's community, unless it
+holds one of o already. Nothing for any other op, whose body it does
+not decode (a post is kind 23). The network node writes it on every
+arrival (`Connection.onArrival`); `send` with the post. -/
+def receiptFor (o : Op) : View Fact (List Op) := do
+  if o.kind ≠ 23 then return []
+  match (Codec.decode o.body : Option Body) with
+  | some (.post _ _ n _ _) =>
+    if n < countCap then return []
+    let held ← received.byMsg.read [o.id] (limit := some 0)
+    if held.total ≠ 0 then return []
+    return [receipt o.id ((← topReceived (o.reqs.headD .empty)) + 1)]
+  | _ => return []
+
+/-- Send a message to c as device d at `now` (wall-clock minutes since
+the Unix epoch, the caller's clock), its text sealed under content key k with
+nonce `nonce`, and attach files to it: the post, its receipt if it is
+saturated (`receiptFor`), then each file's attachment (a child of the post)
+and its chunks. The post claims one more than the highest counter this
+device holds in c, up to the cap, so it sorts after every message here
+(`send_after`); its time is `now` as given. Everything is ops; no bytes
+live beside the store. -/
+def send (c myAdm : Id) (d : Device) (k nonce text : ByteArray) (now : Nat)
+    (files : List NewFile := []) : View Fact Write := do
+  let p := sealedPost c myAdm d k nonce text (min ((← topCount c) + 1) countCap) now
+  let r ← receiptFor p
+  pure ⟨p :: r ++ files.flatMap (fun f => let (a, cs) := attach c myAdm p.id d k f; a :: cs)⟩
 
 /-- The ids of the content keys of c this device holds. -/
 def heldKids (c : Id) : View Fact (List ByteArray) := do
   let ks ← key.byCommunity.read [c] (limit := none)
   pure (ks.rows.filterMap fun (_, f) => match f with | .key _ kid _ => some kid | _ => none)
 
-/-- The messages of c this device can read: the union of the lists of
-messages under each content key it holds (`message.byKey [c, kid]`). A
-message sealed under a key not yet held is not listed. When the key
-arrives, `key.byCommunity [c]` is filed, so a live reader of this view
-reads again and the message appears. Ranges and limits are a list's
-(`after`, `before`, `limit`, `desc`), so pages and counts are the
-union's. -/
+/-- A row of `received.byKey` as its message's: the message's id, at
+the receipt's position. -/
+def asMsg (r : Pos × Fact) : Pos × Fact :=
+  match r.2 with
+  | .received _ _ m _ => ((r.1.1, m), r.2)
+  | _ => r
+
+/-- Past every op's id (ids are 32 bytes). -/
+def idTop : ByteArray := ⟨Array.replicate 33 0xFF⟩
+
+/-- The messages of c this device can read, in the channel's order: the
+union of the lists of messages under each content key it holds
+(`message.byKey [c, kid]`, by counter, time and id), then of its receipts
+of saturated ones (`received.byKey [c, kid]`, in the order it received
+them), each row named by its message (`asMsg`). A message sealed under a
+key not yet held is not listed. When the key arrives,
+`key.byCommunity [c]` is filed, so a live reader of this view reads
+again and the message appears. Ranges and limits are a list's (`after`,
+`before`, `limit`, `desc`), so pages and counts are the union's; a bound
+is a row's position (a receipt's sort key names its message, so a
+receipt list is bounded by sort key alone). -/
 def readable (c : Id) (limit : Option Nat := some 50) (desc : Bool := true)
     (after before : Option Pos := none) : View Fact (Answer Fact) := do
   let kids ← heldKids c
-  View.union (kids.map fun kid => message.byKey.query [c, kid] (after := after) (before := before)) limit desc
+  let ms ← View.readAll (kids.map fun kid => message.byKey.query [c, kid] limit desc after before)
+  let rs ← View.readAll (kids.map fun kid =>
+    received.byKey.query [c, kid] limit desc (after.map (·.1, idTop)) (before.map (·.1, .empty)))
+  pure (unionAnswers desc limit (ms ++ rs.map fun a => { a with rows := a.rows.map asMsg }))
 
 /-- This device's newest content key for c, if it holds one. -/
 def currentKey (c : Id) : View Fact (Option ByteArray) := do
@@ -292,70 +345,126 @@ theorem mem_eval_matching {q : ListQ} {pf : Pos × Fact} (h : pf ∈ (Engine.eva
     · exact h1
   exact (List.mem_filter.1 h2).1
 
-theorem readable_held (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (lim : Option Nat)
-    (desc : Bool) (after before : Option Pos) {pf : Pos × Fact}
-    (hp : pf ∈ ((readable c lim desc after before).eval s).rows) :
-    ∃ y u d kid sealed tm, pf.2 = .message c u d kid sealed tm ∧ V C s.ops y pf.2 ∧
-      ∃ x k, V C s.ops x (.key c kid k) := by
-  unfold readable at hp
-  rw [View.eval_bind, eval_union] at hp
-  obtain ⟨a, ha, hpa⟩ := mem_union hp
-  rw [List.map_map, List.mem_map] at ha
-  obtain ⟨kid, hkid, rfl⟩ := ha
-  have hm := mem_eval_matching hpa
-  rw [matching_also_nil _ rfl] at hm
-  obtain ⟨y, f, rfl, hy, hf⟩ := (mem_matching _ _).1 hm
-  obtain ⟨hv, hargs⟩ := (filed (C := C) (r := message.byKey) (by simp [rels]) h hq [c, kid] y f).1 ⟨hy, hf⟩
-  cases f <;> simp [message.byKey] at hargs
-  obtain ⟨rfl, rfl⟩ := hargs
-  refine ⟨y, _, _, _, _, _, rfl, hv, ?_⟩
-  -- the key: kid came from a key.byCommunity row
-  unfold heldKids at hkid
-  rw [View.eval_bind] at hkid
-  simp only [View.eval_pure, List.mem_filterMap] at hkid
-  obtain ⟨⟨p, g⟩, hg, hk⟩ := hkid
-  cases g <;> simp at hk
-  rename_i c' kid' k
-  subst hk
-  have hm2 := mem_eval_matching hg
-  rw [matching_also_nil _ rfl] at hm2
-  obtain ⟨x, g, hpx, hx, hgx⟩ := (mem_matching _ _).1 hm2
-  simp only [Prod.mk.injEq] at hpx
-  obtain ⟨_, rfl⟩ := hpx
-  obtain ⟨hv2, hargs2⟩ := (filed (C := C) (r := key.byCommunity) (by simp [rels]) h hq _ x _).1 ⟨hx, hgx⟩
-  simp [key.byCommunity] at hargs2
-  subst hargs2
-  exact ⟨x, k, hv2⟩
-
-
 theorem mem_eval_all {q : ListQ} (ha : q.after = none) (hb : q.before = none) (hl : q.limit = none)
     {pf : Pos × Fact} : pf ∈ (Engine.eval s q).rows ↔ pf ∈ matching s q := by
   unfold Engine.eval ListQ.cut ListQ.inside
   simp only [ha, hb, hl, Bool.and_self]
   split <;> simp
 
-theorem readable_complete (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (desc : Bool)
-    {y x : Id} {u d kid sealed k : ByteArray} {tm : Nat}
-    (hm : V C s.ops y (.message c u d kid sealed tm)) (hk : V C s.ops x (.key c kid k)) :
-    ((SortKey.sortOf (Fact.message c u d kid sealed tm), y), Fact.message c u d kid sealed tm) ∈
-      ((readable c none desc).eval s).rows := by
-  unfold readable
-  rw [View.eval_bind, eval_union, mem_union_all]
-  have hkid : kid ∈ (heldKids c).eval s := by
-    unfold heldKids
-    rw [View.eval_bind]
-    simp only [View.eval_pure, List.mem_filterMap]
-    have hf := (filed (C := C) (r := key.byCommunity) (by simp [rels]) h hq [c] x (.key c kid k)).2
-      ⟨hk, by simp [key.byCommunity]⟩
-    refine ⟨((SortKey.sortOf (Fact.key c kid k), x), .key c kid k), ?_, rfl⟩
-    show _ ∈ (Engine.eval s (key.byCommunity.query [c] (limit := none))).rows
-    rw [mem_eval_all rfl rfl rfl, matching_also_nil _ rfl, mem_matching]
-    exact ⟨x, _, rfl, hf.1, hf.2⟩
-  refine ⟨_, List.mem_map.2 ⟨_, List.mem_map.2 ⟨kid, hkid, rfl⟩, rfl⟩, ?_⟩
-  have hf := (filed (C := C) (r := message.byKey) (by simp [rels]) h hq [c, kid] y _).2
-    ⟨hm, by simp [message.byKey]⟩
+/-- A row of a relation's list, read with any range, order and limit, is
+a Valid fact filed in it, at its sort key and id. -/
+theorem row_at {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : s.queue = [])
+    {as : List ByteArray} {lim : Option Nat} {desc : Bool} {after before : Option Pos} {pf : Pos × Fact}
+    (hp : pf ∈ (Engine.eval s (r.query as lim desc after before)).rows) :
+    pf = ((SortKey.sortOf pf.2, pf.1.2), pf.2) ∧ V C s.ops pf.1.2 pf.2 ∧ r.args pf.2 = some as := by
+  have hm := mem_eval_matching hp
+  rw [matching_also_nil (s := s) _ rfl] at hm
+  obtain ⟨y, f, rfl, hy, hf⟩ := (mem_matching _ _).1 hm
+  exact ⟨rfl, (filed (C := C) hr h hq as y f).1 ⟨hy, hf⟩⟩
+
+/-- A Valid fact filed in a relation is a row of its whole list. -/
+theorem at_row {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : s.queue = [])
+    {as : List ByteArray} {desc : Bool} {y : Id} {f : Fact} (hv : V C s.ops y f) (ha : r.args f = some as) :
+    ((SortKey.sortOf f, y), f) ∈ (Engine.eval s (r.query as none desc)).rows := by
+  have hf := (filed (C := C) hr h hq as y f).2 ⟨hv, ha⟩
   rw [mem_eval_all rfl rfl rfl, matching_also_nil _ rfl, mem_matching]
   exact ⟨y, _, rfl, hf.1, hf.2⟩
+
+/-- The keys `heldKids` names are held: a Valid local key fact holds each. -/
+theorem heldKids_held (h : Inv (family C) s) (hq : s.queue = []) {c kid : ByteArray}
+    (hkid : kid ∈ (heldKids c).eval s) : ∃ x k, V C s.ops x (.key c kid k) := by
+  unfold heldKids at hkid
+  rw [View.eval_bind] at hkid
+  simp only [View.eval_pure, List.mem_filterMap] at hkid
+  obtain ⟨⟨p, g⟩, hg, hk⟩ := hkid
+  cases g <;> simp at hk
+  subst hk
+  obtain ⟨_, hv, hargs⟩ := row_at (C := C) (r := key.byCommunity) (by simp [rels]) h hq hg
+  simp [key.byCommunity] at hargs
+  subst hargs
+  exact ⟨_, _, hv⟩
+
+/-- Every key a Valid local key fact holds is one `heldKids` names. -/
+theorem held_heldKids (h : Inv (family C) s) (hq : s.queue = []) {c kid k : ByteArray} {x : Id}
+    (hk : V C s.ops x (.key c kid k)) : kid ∈ (heldKids c).eval s := by
+  unfold heldKids
+  rw [View.eval_bind]
+  simp only [View.eval_pure, List.mem_filterMap]
+  exact ⟨_, at_row (C := C) (r := key.byCommunity) (by simp [rels]) h hq hk (by simp [key.byCommunity]), rfl⟩
+
+theorem eval_readable (c : Id) (lim : Option Nat) (desc : Bool) (after before : Option Pos) :
+    (readable c lim desc after before).eval s =
+      let kids := (heldKids c).eval s
+      unionAnswers desc lim
+        (kids.map (fun kid => Engine.eval s (message.byKey.query [c, kid] lim desc after before)) ++
+         kids.map fun kid =>
+          let a := Engine.eval s (received.byKey.query [c, kid] lim desc (after.map (·.1, idTop))
+            (before.map (·.1, .empty)))
+          { a with rows := a.rows.map asMsg }) := by
+  simp [readable, View.eval_bind, eval_readAll, List.map_map]
+  rfl
+
+/-- **A channel's list holds only messages this device can read, each
+where it belongs.** Every row of `readable c` is a Valid message of c
+sealed under a key a Valid local key fact holds, named by its id: below
+the counter cap at its own position (its counter, time and id), at or
+past it at a receipt of it this device holds. -/
+theorem readable_held (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (lim : Option Nat)
+    (desc : Bool) (after before : Option Pos) {pf : Pos × Fact}
+    (hp : pf ∈ ((readable c lim desc after before).eval s).rows) :
+    ∃ u d kid sealed n tm, V C s.ops pf.1.2 (.message c u d kid sealed n tm) ∧
+      (∃ x k, V C s.ops x (.key c kid k)) ∧
+      ((n < countCap ∧ pf = ((msgKey n tm, pf.1.2), .message c u d kid sealed n tm)) ∨
+       (countCap ≤ n ∧ ∃ y k, V C s.ops y (.received c kid pf.1.2 k) ∧
+          pf = ((recKey k pf.1.2, pf.1.2), .received c kid pf.1.2 k))) := by
+  rw [eval_readable] at hp
+  obtain ⟨a, ha, hpa⟩ := mem_union hp
+  rcases List.mem_append.1 ha with ha | ha
+  · obtain ⟨kid, hkid, rfl⟩ := List.mem_map.1 ha
+    obtain ⟨he, hv, hargs⟩ := row_at (C := C) (r := message.byKey) (by simp [rels]) h hq hpa
+    obtain ⟨⟨sk, y⟩, f⟩ := pf
+    simp only at he hv hargs ⊢
+    cases f <;> simp [message.byKey] at hargs
+    rename_i c' u d kid' sealed n tm
+    obtain ⟨hn, hc, hk⟩ := hargs
+    subst c'; subst kid'
+    refine ⟨u, d, kid, sealed, n, tm, hv, heldKids_held h hq hkid, .inl ⟨hn, ?_⟩⟩
+    rw [he]; rfl
+  · obtain ⟨kid, hkid, rfl⟩ := List.mem_map.1 ha
+    obtain ⟨r, hr, rfl⟩ := List.mem_map.1 hpa
+    obtain ⟨he, hv, hargs⟩ := row_at (C := C) (r := received.byKey) (by simp [rels]) h hq hr
+    obtain ⟨⟨sk, z⟩, f⟩ := r
+    simp only at he hv hargs
+    cases f <;> simp [received.byKey] at hargs
+    rename_i c' kid' m k
+    obtain ⟨hc, hk⟩ := hargs
+    subst c'; subst kid'
+    obtain ⟨_, u, d, sealed, n, tm, _, _, hn, hm⟩ := received_of_message hv
+    refine ⟨u, d, kid, sealed, n, tm, hm, heldKids_held h hq hkid, .inr ⟨hn, z, k, hv, ?_⟩⟩
+    simp only [Prod.mk.injEq] at he
+    rw [he.1.1]; rfl
+
+/-- **A channel's list misses no message this device can read.** Read
+whole (no limit, no range), `readable c` lists every Valid message of c
+sealed under a key a Valid local key fact holds: below the counter cap
+at its own position, and at each receipt of it this device holds. -/
+theorem readable_complete (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (desc : Bool)
+    {y x : Id} {u d kid sealed k : ByteArray} {n tm : Nat}
+    (hm : V C s.ops y (.message c u d kid sealed n tm)) (hk : V C s.ops x (.key c kid k)) :
+    (n < countCap → ((msgKey n tm, y), Fact.message c u d kid sealed n tm) ∈
+        ((readable c none desc).eval s).rows) ∧
+      ∀ z j, V C s.ops z (.received c kid y j) →
+        ((recKey j y, y), Fact.received c kid y j) ∈ ((readable c none desc).eval s).rows := by
+  have hkid := held_heldKids h hq hk
+  rw [eval_readable]
+  simp only
+  refine ⟨fun hn => ?_, fun z j hz => ?_⟩
+  · rw [mem_union_all]
+    refine ⟨_, List.mem_append_left _ (List.mem_map.2 ⟨kid, hkid, rfl⟩), ?_⟩
+    exact at_row (C := C) (r := message.byKey) (by simp [rels]) h hq hm (by simp [message.byKey, hn])
+  · rw [mem_union_all]
+    refine ⟨_, List.mem_append_right _ (List.mem_map.2 ⟨kid, hkid, rfl⟩), List.mem_map.2 ⟨_,
+      at_row (C := C) (r := received.byKey) (by simp [rels]) h hq hz (by simp [received.byKey]), rfl⟩⟩
 
 theorem admission_byUser_args {c u : Id} {f : Fact} :
     admission.byUser.args f = some [c, u] ↔ ∃ d e, f = .admission c u d e := by

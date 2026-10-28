@@ -127,6 +127,10 @@ def ests (p : Peer) : IO (List Connection.Fact) := do
   return (← (rows established.all [] : SqlM F _).run p.db).map (·.2)
 def allowedOn (p : Peer) (c d : ByteArray) : IO Bool :=
   ((Community.allowPeer c d).liftL.run : SqlM F Bool).run p.db
+/-- The receipts p holds of message x. -/
+def receiptsOf (p : Peer) (x : Id) : IO (List Community.Fact) := do
+  let a ← ((Community.received.byMsg.read [x]).liftL.run : SqlM F (Answer Community.Fact)).run p.db
+  return a.rows.map (·.2)
 
 /-- A founds Acme and invites at its address; B joins from the link. -/
 def setup (loss : Nat) : IO (World × Id × Op) := do
@@ -189,10 +193,23 @@ def main : IO UInt32 := do
   let w ← w.run 40
   t.ok "B is admitted by its own ops" (← allowedOn w.b c dB.pk)
   t.ok "B lets A in" (← allowedOn w.b c dA.pk)
-  let p := post c c dA "k".toUTF8 "hello B".toUTF8 5
+  let p := post c c dA "k".toUTF8 "hello B".toUTF8 1 5
   let w ← writeA w [p]
   let w ← w.run 10
   t.ok "a later post reaches B" (← stored w.b p.id)
+  -- Posts claiming the counter cap or more: the node writes its receipt
+  -- of each as it arrives (`onArrival`), numbered in arrival order.
+  let s1 := post c c dA "k".toUTF8 "saturating".toUTF8 (2 ^ 100) 6
+  let w ← writeA w [s1]
+  let w ← w.run 10
+  let s2 := post c c dA "k".toUTF8 "past the cap".toUTF8 countCap 7
+  let w ← writeA w [s2]
+  let w ← w.run 10
+  t.ok "B receives two saturated posts, and writes a receipt of each, in arrival order"
+    ((← receiptsOf w.b s1.id) == [.received c "k".toUTF8 s1.id 1] &&
+      (← receiptsOf w.b s2.id) == [.received c "k".toUTF8 s2.id 2])
+  t.ok "a post below the cap gets no receipt" ((← receiptsOf w.b p.id).isEmpty)
+  t.ok "receipts stay on the device that wrote them" ((← receiptsOf w.a s1.id).isEmpty)
   -- Two sessions between one pair (B dials A again with a fresh
   -- ephemeral): both ends keep the same one, the smaller id.
   let e2 := sha256 "second ephemeral".toUTF8

@@ -339,7 +339,7 @@ def chaosStep : M Unit := do
 
 def newestTime (s : St) : Nat :=
   match s.ids[0]? with
-  | some (sk, _) => sk.foldl (fun n b => n * 256 + b.toNat) 0
+  | some (sk, _) => (sk.extract 8 16).foldl (fun n b => n * 256 + b.toNat) 0
   | none => Chaos.epoch
 
 def sendText (text : String) : M Bool := do
@@ -349,7 +349,9 @@ def sendText (text : String) : M Bool := do
   -- sealed under the community's current key, as the composer's send is
   let (k?, _) ← readView (Community.currentKey s.me.c) #[]
   let some k := k? | return false
-  write (sealedPost s.me.c s.me.adm s.me.dev k (← Engine.Crypto.randomBytes 24) t.toUTF8 (newestTime s + 1))
+  let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k (← Engine.Crypto.randomBytes 24) t.toUTF8
+    (newestTime s + 1)) #[]
+  writeAll w
 
 def reactTo (m : Id) (e : String) : M Bool := do
   let s ← get
@@ -1093,7 +1095,8 @@ def sendNow : M Unit := do
                           bytes, key := ← Engine.Crypto.randomBytes 32, nonce := ← Engine.Crypto.randomBytes 24,
                           metaNonce := ← Engine.Crypto.randomBytes 24 } : Community.NewFile)]
   let nonce ← Engine.Crypto.randomBytes 24
-  if ← writeAll (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (newestTime s + 1) files) then
+  let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (newestTime s + 1) files) #[]
+  if ← writeAll w then
     s.io.textClear
     modify fun s => { s with text := "", sel := #[0, 0, 0, 0], chips := #[], chromeKey := "" }
 

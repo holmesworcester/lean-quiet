@@ -221,7 +221,7 @@ def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n : Nat) (star
     let text := if more == 0 then texts[ti]! ++ " " ++ texts[ti2]! else
       if more == 1 then texts[ti]! ++ "\n\n" ++ texts[ti2]! else texts[ti]!
     let tag := s!"chaos {seed} {i}"
-    let o := sealedPost c u d k (bytesOf (tag ++ " nonce") 24) text.toUTF8 t
+    let o := sealedPost c u d k (bytesOf (tag ++ " nonce") 24) text.toUTF8 (i + 1) t
     pending := pending.push o
     if att < 12 && !srcs.isEmpty && files < maxFiles then
       let ((w, h, bytes), g7) := photo srcs g
