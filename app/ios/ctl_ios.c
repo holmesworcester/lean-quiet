@@ -6,17 +6,20 @@
 // Simulator that is the Mac's own loopback, so a client on the Mac reaches
 // the app directly (ios/ctl.py). On a phone, a test can ask for every
 // interface instead (LEANQUIET_CTL_ADDR=any, at launch only): the listener
-// then logs the phone's addresses. A thread listens, one reader thread per
+// then logs the phone's addresses. The line `twin` is the twin's own
+// report (lq_twin, for tests), answered at once; `twin local` puts the
+// channel back on 127.0.0.1 alone. A thread listens, one reader thread per
 // connection splits what arrives into lines, and each line waits in a
 // queue for Lean. A reply answers the oldest unanswered command and goes
-// back on that command's connection. A connection is closed once its
-// peer has hung up and every command it sent has been answered.
+// back on that command's connection. A connection is closed once its peer
+// has hung up and every command it sent has been answered.
 
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <lean/lean.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,6 +51,42 @@ static void lq_release(Conn* c) {
   }
 }
 
+void lq_twin(char* out, size_t n);  // quiet_ios.m
+
+// `twin`: answered at once by the twin itself (lq_twin), not queued for Lean.
+static void lq_twin_line(Conn* c) {
+  char out[2048];
+  lq_twin(out, sizeof out - 1);
+  size_t n = strlen(out);
+  out[n] = '\n';
+  send(c->fd, out, n + 1, 0);
+}
+
+// Whether the channel listens on every interface (LEANQUIET_CTL_ADDR=any
+// at launch) until `twin local` puts it back on 127.0.0.1, and its port.
+static _Atomic bool lq_any;
+static int          lq_port;
+
+// `twin local`: from now on the channel listens on 127.0.0.1 only (a test
+// that asked for every interface at launch gives the LAN back without a
+// relaunch). The listener is woken by a connection of its own.
+static void lq_local(Conn* c) {
+  bool was = atomic_exchange(&lq_any, false);
+  if (was) {
+    int s = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in a;
+    memset(&a, 0, sizeof a);
+    a.sin_len         = sizeof a;
+    a.sin_family      = AF_INET;
+    a.sin_port        = htons((uint16_t)lq_port);
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    connect(s, (struct sockaddr*)&a, sizeof a);
+    close(s);
+  }
+  const char* r = "control: 127.0.0.1 only\n";
+  send(c->fd, r, strlen(r), 0);
+}
+
 static void lq_queue(Conn* c, const char* s, size_t n) {
   Cmd* m = calloc(1, sizeof *m);
   m->conn = c;
@@ -76,7 +115,11 @@ static void* lq_reader(void* arg) {
         if (len > 0 && buf[i - 1] == '\r') {
           len -= 1;
         }
-        if (len > 0) {
+        if (len == 4 && memcmp(buf + start, "twin", 4) == 0) {
+          lq_twin_line(c);
+        } else if (len == 10 && memcmp(buf + start, "twin local", 10) == 0) {
+          lq_local(c);
+        } else if (len > 0) {
           lq_queue(c, buf + start, len);
         }
         start = i + 1;
@@ -96,10 +139,9 @@ static void* lq_reader(void* arg) {
 }
 
 static void* lq_listen(void* arg) {
-  int         port = (int)(intptr_t)arg;
-  const char* where = getenv("LEANQUIET_CTL_ADDR");
-  bool        any   = where != NULL && strcmp(where, "any") == 0;
-  int s    = socket(AF_INET, SOCK_STREAM, 0);
+  int  port = lq_port;
+  bool any  = atomic_load(&lq_any);
+  int  s    = socket(AF_INET, SOCK_STREAM, 0);
   int one  = 1;
   setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
   struct sockaddr_in a;
@@ -129,6 +171,12 @@ static void* lq_listen(void* arg) {
     if (fd < 0) {
       continue;
     }
+    if (atomic_load(&lq_any) != any) {
+      // `twin local` (its wake-up connection): listen again, on loopback
+      close(fd);
+      close(s);
+      return lq_listen(arg);
+    }
     setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);
     Conn* c = calloc(1, sizeof *c);
     c->fd   = fd;
@@ -144,8 +192,11 @@ static void* lq_listen(void* arg) {
 }
 
 void lq_ctl_start(int port) {
+  const char* where = getenv("LEANQUIET_CTL_ADDR");
+  atomic_store(&lq_any, where != NULL && strcmp(where, "any") == 0);
+  lq_port = port;
   pthread_t t;
-  if (pthread_create(&t, NULL, lq_listen, (void*)(intptr_t)port) == 0) {
+  if (pthread_create(&t, NULL, lq_listen, NULL) == 0) {
     pthread_detach(t);
   }
 }

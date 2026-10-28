@@ -26,6 +26,13 @@
 //   (so every keyboard works as in any app: autocorrection, marked text
 //   of Japanese or Chinese input, dictation, emoji), mirrored to Lean as
 //   text, selection and marked range in code points.
+// - **Pages** (pin): a page is drawn at offset 0 and must not slide or be
+//   lifted (Geometry.Seam.pinned). The twin changes only the scroll view's
+//   bottom edge, to where the composer is with the keyboard closed (a
+//   layout guide on the safe area's bottom, the composer's height), and
+//   holds its offset at 0; the placement above then puts page row k at
+//   the scroll view's top + k, and a tap reports the distance pinned_tap
+//   reads (ios/Placement.lean proves both from Geometry's definitions).
 // - **The insets**: the header is pinned to the screen's top; the
 //   composer to the keyboard layout guide's top (the safe area's bottom
 //   while the keyboard is closed), so Auto Layout moves it inside the
@@ -53,6 +60,7 @@
 // (default 7417, 0: none; ctl_ios.c).
 
 #import <UIKit/UIKit.h>
+#import <AVFoundation/AVFoundation.h>
 #import <QuartzCore/QuartzCore.h>
 #import <IOSurface/IOSurfaceRef.h>
 #include <lean/lean.h>
@@ -60,6 +68,7 @@
 #include <pthread.h>
 #include <stdatomic.h>
 #include <time.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 int  lean_app_main(int argc, char** argv);
@@ -122,7 +131,11 @@ static UIView*        lq_probe;    // on the keyboard layout guide's top
 static UITextField*   lq_field;
 static NSLayoutConstraint* lq_header_h;
 static NSLayoutConstraint* lq_composer_h;
+static NSLayoutConstraint* lq_lifted;  // the scroll view's bottom on the composer
+static NSLayoutConstraint* lq_pinned;  // on the keyboard-closed composer top
 static uint32_t       lq_shown_top_h, lq_shown_bot_h;
+static bool           lq_shown_pin;
+static uint32_t       lq_tap[3];       // the last list tap reported: kind, x, y
 
 static uint64_t lq_tick(void) {
   struct timespec ts;
@@ -337,12 +350,9 @@ lean_obj_res lq_scroll_to(double b) {
   return lean_io_result_mk_ok(lean_box(0));
 }
 
-// pin: the list frame is a page (Geometry.Seam.pinned). TODO(ios): place a
-// pinned frame at the scroll view's top, not bottom-anchored; until then a
-// page on iOS is placed as a conversation is.
+// pin: the list frame is a page, pinned (the header comment; Placement.lean).
 lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj_arg top,
   b_lean_obj_arg bot, uint8_t pin) {
-  (void)pin;
   uint32_t w  = lq_w;
   lq_over     = over;
   lq_stage(&lq_st[LQ_LIST], list, w, b, true);
@@ -393,6 +403,18 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
       lq_shown_bot_h          = bot_h;
       lq_header_h.constant    = top_h / k;
       lq_composer_h.constant  = bot_h / k;
+      [lq_root layoutIfNeeded];
+    }
+    if ((pin != 0) != lq_shown_pin) {
+      lq_shown_pin = pin != 0;
+      NSLayoutConstraint* was = lq_shown_pin ? lq_lifted : lq_pinned;
+      NSLayoutConstraint* now = lq_shown_pin ? lq_pinned : lq_lifted;
+      was.active = NO;  // (first: the two hold the same edge)
+      now.active = YES;
+      lq_sv.scrollEnabled = !lq_shown_pin;
+      if (lq_shown_pin) {
+        [lq_sv setContentOffset:CGPointZero animated:NO];
+      }
       [lq_root layoutIfNeeded];
     }
     CGFloat height = ch / k;
@@ -458,16 +480,130 @@ lean_obj_res lq_ime(uint8_t show) {
 
 static void lq_report(void);
 
-// The camera: not yet on iOS (it joins by Paste for now).
+// The camera
+// ----------
+
+// Platform.scan and luma, as android/twin's Camera2 does them: the back
+// camera's frames (1280 x 720, 420f: full-range luma), and the newest
+// one's Y plane handed to Lean with the sensor's clockwise orientation (90:
+// frames come in the sensor's landscape, unrotated, and a quarter turn
+// clockwise makes them upright in portrait, as Camera2's
+// SENSOR_ORIENTATION says of a back camera). Lean draws the preview and
+// decodes (Camera.preview, Qr.decodeLuma). With no camera (the Simulator)
+// nothing starts and no frames come: Lean keeps its waiting state.
+
+@interface LeanCamera : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
+@end
+
+static dispatch_queue_t lq_cam_q;    // the camera's own (start, stop, frames)
+static AVCaptureSession* lq_cam;     // running, or nil
+static LeanCamera*       lq_cam_d;
+static bool              lq_cam_want;
+static uint8_t*          lq_y;       // the newest Y plane, or NULL (under lq_mu)
+static size_t            lq_yn;
+static uint32_t          lq_yhdr[4]; // w, h, stride, orientation
+
+@implementation LeanCamera
+
+- (void)captureOutput:(AVCaptureOutput*)o didOutputSampleBuffer:(CMSampleBufferRef)sb
+    fromConnection:(AVCaptureConnection*)c {
+  CVPixelBufferRef pb = CMSampleBufferGetImageBuffer(sb);
+  CVPixelBufferLockBaseAddress(pb, kCVPixelBufferLock_ReadOnly);
+  size_t   h = CVPixelBufferGetHeightOfPlane(pb, 0);
+  size_t   r = CVPixelBufferGetBytesPerRowOfPlane(pb, 0);
+  uint8_t* y = malloc(r * h);
+  memcpy(y, CVPixelBufferGetBaseAddressOfPlane(pb, 0), r * h);
+  uint32_t hdr[4] = { (uint32_t)CVPixelBufferGetWidthOfPlane(pb, 0), (uint32_t)h, (uint32_t)r, 90 };
+  CVPixelBufferUnlockBaseAddress(pb, kCVPixelBufferLock_ReadOnly);
+  pthread_mutex_lock(&lq_mu);
+  free(lq_y);
+  lq_y  = y;
+  lq_yn = r * h;
+  memcpy(lq_yhdr, hdr, sizeof hdr);
+  pthread_mutex_unlock(&lq_mu);
+}
+
+@end
+
+static AVCaptureDevice* lq_cam_device(void) {
+  return [AVCaptureDevice defaultDeviceWithDeviceType:AVCaptureDeviceTypeBuiltInWideAngleCamera
+    mediaType:AVMediaTypeVideo position:AVCaptureDevicePositionBack];
+}
+
+// On lq_cam_q.
+static void lq_cam_start(void) {
+  NSError*              e  = nil;
+  AVCaptureDeviceInput* in = [AVCaptureDeviceInput deviceInputWithDevice:lq_cam_device() error:&e];
+  if (in == nil) {
+    fprintf(stderr, "camera: cannot open: %s\n", e.localizedDescription.UTF8String);
+    return;
+  }
+  AVCaptureSession*         s   = [AVCaptureSession new];
+  AVCaptureVideoDataOutput* out = [AVCaptureVideoDataOutput new];
+  s.sessionPreset   = AVCaptureSessionPreset1280x720;
+  out.videoSettings = @{ (id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) };
+  out.alwaysDiscardsLateVideoFrames = YES;
+  [out setSampleBufferDelegate:lq_cam_d queue:lq_cam_q];
+  if (![s canAddInput:in] || ![s canAddOutput:out]) {
+    fprintf(stderr, "camera: cannot open\n");
+    return;
+  }
+  [s addInput:in];
+  [s addOutput:out];
+  [s startRunning];
+  lq_cam = s;
+  fprintf(stderr, "camera: opened 1280x720, orientation 90\n");
+}
+
 lean_obj_res lq_scan(uint8_t on) {
-  (void)on;
+  dispatch_async(lq_cam_q, ^{
+    fprintf(stderr, "camera %s\n", on ? "on" : "off");
+    lq_cam_want = on != 0;
+    if (on && lq_cam == nil && lq_cam_device() == nil) {
+      fprintf(stderr, "camera: none\n");  // (the Simulator): no frames, and no permission asked
+    } else if (on && lq_cam == nil) {
+      AVAuthorizationStatus st = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
+      if (st == AVAuthorizationStatusAuthorized) {
+        lq_cam_start();
+      } else if (st == AVAuthorizationStatusNotDetermined) {
+        fprintf(stderr, "camera: asking for the permission\n");
+        [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo completionHandler:^(BOOL ok) {
+          dispatch_async(lq_cam_q, ^{
+            if (ok && lq_cam_want && lq_cam == nil) {
+              lq_cam_start();
+            }
+          });
+        }];
+      } else {
+        fprintf(stderr, "camera: not permitted\n");
+      }
+    } else if (!on && lq_cam != nil) {
+      [lq_cam stopRunning];
+      lq_cam = nil;
+    }
+  });
   return lean_io_result_mk_ok(lean_box(0));
 }
 
+// The newest frame's Y plane since the last call (Platform.luma).
 lean_obj_res lq_luma(void) {
+  pthread_mutex_lock(&lq_mu);
+  uint8_t* y = lq_y;
+  size_t   n = lq_yn;
+  lq_y       = NULL;
+  lean_object* hdr = lean_mk_empty_array();
+  for (int i = 0; y != NULL && i < 4; i += 1) {
+    hdr = lean_array_push(hdr, lean_box_uint32(lq_yhdr[i]));
+  }
+  pthread_mutex_unlock(&lq_mu);
+  lean_object* px = lean_alloc_sarray(1, y ? n : 0, y ? n : 0);
+  if (y != NULL) {
+    memcpy(lean_sarray_cptr(px), y, n);
+    free(y);
+  }
   lean_object* p = lean_alloc_ctor(0, 2, 0);
-  lean_ctor_set(p, 0, lean_mk_empty_array());
-  lean_ctor_set(p, 1, lean_alloc_sarray(1, 0, 0));
+  lean_ctor_set(p, 0, hdr);
+  lean_ctor_set(p, 1, px);
   return lean_io_result_mk_ok(p);
 }
 
@@ -489,6 +625,29 @@ lean_obj_res lq_copy(b_lean_obj_arg text) {
 
 lean_obj_res lq_now_us(void) {
   return lean_io_result_mk_ok(lean_box_uint64(lq_tick() / 1000));
+}
+
+// What the twin did, as UIKit has it, for tests (the control channel's
+// `twin` line, answered here, not by Lean): the screen's width and
+// density, whether the list frame is a page, the header's height and the
+// frame's overscan, the screen rows of
+// the list frame's first row and of the scroll view's bottom edge, the
+// composer's top now, the last list tap reported (kind, x, y), the last
+// camera frame's [w, h, stride, orientation], and the keyboard's text.
+void lq_twin(char* out, size_t n) {
+  dispatch_sync(dispatch_get_main_queue(), ^{
+    double k    = lq_k;
+    CGRect list = [lq_root.layer convertRect:lq_list.bounds fromLayer:lq_list];
+    CGRect sv   = [lq_root convertRect:lq_sv.bounds fromView:lq_sv];
+    CALayer* c  = lq_composer.layer.presentationLayer ?: lq_composer.layer;
+    pthread_mutex_lock(&lq_mu);
+    snprintf(out, n, "w %u dpi %u pin %d top %u over %u listY %ld svBottom %ld composerTop %ld "
+      "tap %u %u %u luma %u %u %u %u field %s", lq_w, lq_dpi, lq_shown_pin, lq_shown_top_h, lq_over,
+      lround(list.origin.y * k), lround(CGRectGetMaxY(sv) * k), lround(c.frame.origin.y * k),
+      lq_tap[0], lq_tap[1], lq_tap[2], lq_yhdr[0], lq_yhdr[1], lq_yhdr[2], lq_yhdr[3],
+      lq_text_s ? lq_text_s : "");
+    pthread_mutex_unlock(&lq_mu);
+  });
 }
 
 // The keyboard's text
@@ -590,6 +749,11 @@ static void lq_touch(uint32_t kind, uint32_t a, UIGestureRecognizer* g) {
   uint32_t region = v == lq_header ? 1 : v == lq_composer ? 2 : 0;
   uint32_t y      = region == 0 ? (uint32_t)fmax(0, floor(p.y * lq_k)) : lq_px(p.y);
   lq_event(kind, kind == 8 ? a : region, lq_px(p.x), y);
+  if (region == 0 && kind != 8) {
+    lq_tap[0] = kind;
+    lq_tap[1] = lq_px(p.x);
+    lq_tap[2] = y;
+  }
 }
 
 @interface LeanTouches : NSObject <UIGestureRecognizerDelegate>
@@ -718,6 +882,11 @@ static void lq_listen(UIView* v, bool drag) {
   UILayoutGuide* kb = root.keyboardLayoutGuide;
   lq_header_h   = [header.heightAnchor constraintEqualToConstant:0];
   lq_composer_h = [composer.heightAnchor constraintEqualToConstant:0];
+  // where the composer is with the keyboard closed: a page's bottom edge
+  UILayoutGuide* closed = [UILayoutGuide new];
+  [root addLayoutGuide:closed];
+  lq_lifted = [sv.bottomAnchor constraintEqualToAnchor:composer.topAnchor];
+  lq_pinned = [sv.bottomAnchor constraintEqualToAnchor:closed.topAnchor];
   [NSLayoutConstraint activateConstraints:@[
     [header.topAnchor constraintEqualToAnchor:root.topAnchor],
     [header.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
@@ -732,7 +901,9 @@ static void lq_listen(UIView* v, bool drag) {
     [fill.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
     [fill.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
     [sv.topAnchor constraintEqualToAnchor:header.bottomAnchor],
-    [sv.bottomAnchor constraintEqualToAnchor:composer.topAnchor],
+    lq_lifted,
+    [closed.bottomAnchor constraintEqualToAnchor:root.safeAreaLayoutGuide.bottomAnchor],
+    [closed.heightAnchor constraintEqualToAnchor:composer.heightAnchor],
     [sv.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
     [sv.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
     [probe.topAnchor constraintEqualToAnchor:kb.topAnchor],
@@ -774,6 +945,38 @@ static void lq_listen(UIView* v, bool drag) {
 // The app
 // -------
 
+// Lean's stderr (and the twin's) also goes to Documents/lean.log, new at
+// each launch, so a phone's run can be read back (devicectl device copy
+// from) without holding its console: fd 2 becomes a pipe whose reader
+// writes each chunk to the old stderr and to the file.
+static void* lq_tee(void* arg) {
+  int*    fds = arg;  // the pipe's read end, the old stderr, the file
+  char    buf[4096];
+  ssize_t n;
+  while ((n = read(fds[0], buf, sizeof buf)) > 0) {
+    write(fds[1], buf, (size_t)n);
+    write(fds[2], buf, (size_t)n);
+  }
+  return NULL;
+}
+
+static void lq_log_to(const char* path) {
+  static int fds[3];
+  int        p[2];
+  fds[2] = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (fds[2] < 0 || pipe(p) != 0) {
+    return;
+  }
+  fds[0] = p[0];
+  fds[1] = dup(2);
+  dup2(p[1], 2);
+  close(p[1]);
+  setvbuf(stderr, NULL, _IOLBF, 0);
+  pthread_t t;
+  pthread_create(&t, NULL, lq_tee, fds);
+  pthread_detach(t);
+}
+
 static void* lq_run(void* arg) {
   // Lean's working directory: Documents (writable; quiet.db goes there),
   // with `assets` a link to the bundle's, made anew each launch (the
@@ -786,6 +989,7 @@ static void* lq_run(void* arg) {
   [fm removeItemAtPath:link error:NULL];
   [fm createSymbolicLinkAtPath:link withDestinationPath:res error:NULL];
   chdir(docs.fileSystemRepresentation);
+  lq_log_to("lean.log");
   // Lean's threads (its main and every task worker) reserve 1 GB of stack
   // each on 64-bit; an iOS app's address space runs out after a few, and
   // pthread_create fails with EAGAIN (on the phone, not the Simulator).
@@ -813,6 +1017,8 @@ static void* lq_run(void* arg) {
     lq_ctl_start(p);
   }
   lq_vsync = dispatch_semaphore_create(0);
+  lq_cam_q = dispatch_queue_create("lean.camera", DISPATCH_QUEUE_SERIAL);
+  lq_cam_d = [LeanCamera new];
   self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
   self.window.rootViewController = [LeanController new];
   self.window.backgroundColor    = UIColor.blackColor;
