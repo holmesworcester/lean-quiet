@@ -45,6 +45,7 @@ inductive Act where
   | switchTo (i : Nat)
   | addCommunity
   | requests
+  | openChannel (i : Nat)
   | stopWaiting
   | none
   deriving BEq, Inhabited, Repr
@@ -460,6 +461,80 @@ def invite (f : Font) (dm : Dim) (W h : Nat) (qr : Option Bitmap) (linkText : St
     yy := yy + sh2 + dm.px 8
   return ⟨b, #[st, ct]⟩
 
+/-- A square avatar for a community: its initial on a colour from its id. -/
+def avatarColor (id8 : String) : Color :=
+  let palette : Array Color := #[0x0E7C7B, 0xB23A48, 0x5B2A86, 0x2D6A4F, 0xB5651D, 0x1D4E89]
+  palette[(id8.toList.foldl (fun n c => n + c.toNat) 0) % palette.size]!
+
+/-! ## Home -/
+
+def band : Color := 0x2F193D
+def badgeRed : Color := 0xE42656
+
+/-- A red count badge (libquiet's), its right edge at x. -/
+def badge (f : Font) (dm : Dim) (b : Bitmap) (n : Nat) (xr y : Nat) : Bitmap :=
+  let l := oneLine f (4 * f.cell) (if n > 99 then "99+" else toString n)
+  let w := max (dm.px 24) (Paint.Line.width f l + dm.px 12)
+  let h := dm.px 24
+  let b := b.round (xr - w) y xr (y + h) (h / 2) badgeRed
+  b.line f l (xr - w + (w - Paint.Line.width f l) / 2) (y + (h - f.cell) / 2) primaryInk
+
+/-- The home band (the header layer): the community's avatar and name,
+with the caret that opens the switcher, and my avatar on the right. -/
+def homeBand (f : Font) (dm : Dim) (W insetTop : Nat) (name id8 me : String) : Bitmap := Id.run do
+  let h := insetTop + dm.px 64
+  let mut b := Bitmap.blank W h (solid band W)
+  let d := dm.px 32
+  let y := insetTop + (dm.px 64 - d) / 2
+  let x := dm.px 16
+  b := b.round x y (x + d) (y + d) (dm.px 4) (avatarColor id8)
+  let ini := String.ofList [(name.toList.headD '?').toUpper]
+  b := b.line f (oneLine f f.cell ini) (x + (d - f.cell / 2) / 2) (y + (d - f.cell) / 2) primaryInk
+  b := b.line f (oneLine f (W - dm.px 140) s!"{name} ▾") (x + d + dm.px 10) (y + (d - f.cell) / 2) primaryInk true
+  let mx := W - dm.px 16 - d
+  b := b.round mx y (mx + d) (y + d) (dm.px 4) 0xA0580A
+  let mi := String.ofList [(me.toList.headD '?').toUpper]
+  b := b.line f (oneLine f f.cell mi) (mx + (d - f.cell / 2) / 2) (y + (d - f.cell) / 2) primaryInk
+  return b
+
+/-- The community's home: "Waiting to join" with its red count while
+anyone waits (for those who can let them in), Channels, and Direct
+messages (the people). -/
+def home (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array String) (people : Array (String × Bool)) : Page := Id.run do
+  let mut b := Bitmap.blank W h (solid band W)
+  b := b.round 0 0 W (h + dm.px 16) (dm.px 16) Row.bg
+  let mut taps := #[]
+  let mut y := dm.px 16
+  let rh := dm.px 44
+  if waiting > 0 then
+    b := b.line f (oneLine f f.cell "☺") (dm.px 16) (y + (rh - f.cell) / 2) dim
+    b := b.line f (oneLine f (W - dm.px 120) "Waiting to join") (dm.px 16 + f.cell) (y + (rh - f.cell) / 2) nameInk
+    b := badge f dm b waiting (W - dm.px 16) (y + (rh - dm.px 24) / 2)
+    taps := taps.push (⟨0, y, W, rh⟩, Act.requests)
+    y := y + rh + dm.px 24
+  b := b.line f (oneLine f W "Channels") (dm.px 16) y nameInk true
+  y := y + dm.lineH + dm.px 8
+  for i in [0:channels.size] do
+    b := b.line f (oneLine f f.cell "#") (dm.px 16) (y + (rh - f.cell) / 2) dim
+    b := b.line f (oneLine f (W - dm.px 64) channels[i]!) (dm.px 16 + f.cell) (y + (rh - f.cell) / 2) nameInk
+    taps := taps.push (⟨0, y, W, rh⟩, Act.openChannel i)
+    y := y + rh
+  y := y + dm.px 24
+  b := b.line f (oneLine f W "Direct messages") (dm.px 16) y nameInk true
+  y := y + dm.lineH + dm.px 8
+  let d := dm.px 32
+  for (n, isMe) in people do
+    if y + rh > h then break
+    b := b.round (dm.px 16) (y + (rh - d) / 2) (dm.px 16 + d) (y + (rh + d) / 2) (dm.px 4) (avatarColor n)
+    let ini := String.ofList [(n.toList.headD '?').toUpper]
+    b := b.line f (oneLine f f.cell ini) (dm.px 16 + (d - f.cell / 2) / 2) (y + (rh - f.cell) / 2) primaryInk
+    let l := oneLine f (W - dm.px 100) n
+    b := b.line f l (dm.px 16 + d + dm.px 12) (y + (rh - f.cell) / 2) nameInk
+    if isMe then
+      b := b.line f (oneLine f W "(you)") (dm.px 16 + d + dm.px 20 + Paint.Line.width f l) (y + (rh - f.cell) / 2) dim
+    y := y + rh
+  return ⟨b, taps⟩
+
 /-- One community in the switcher. -/
 structure Entry where
   name : String
@@ -469,11 +544,6 @@ structure Entry where
   current : Bool
   waiting : Bool
   deriving Inhabited
-
-/-- A square avatar for a community: its initial on a colour from its id. -/
-def avatarColor (id8 : String) : Color :=
-  let palette : Array Color := #[0x0E7C7B, 0xB23A48, 0x5B2A86, 0x2D6A4F, 0xB5651D, 0x1D4E89]
-  palette[(id8.toList.foldl (fun n c => n + c.toNat) 0) % palette.size]!
 
 /-- The community switcher, libquiet's left panel: the current community
 first, outlined, with Add members; the others; pending joins as muted

@@ -93,8 +93,13 @@ def main (args : List String) : IO UInt32 := do
     waitIdle sa
     steps 3
     check s!"A sees one request ({nb} ops carried from B)" ((← get).asking.size == 1)
-    sa.cmds.modify (·.push "open requests")
+    -- A's home shows Waiting to join with its count; its row opens the page
+    sa.cmds.modify (·.push "switch club")
     steps 3
+    writePpm (dir ++ "/a-home.ppm") 1080 (← screenOf sa 1080 2400 63)
+    check "A's home shows Waiting to join (count 1)"
+      ((← get).page == .home && (← get).asking.size == 1 && ((← get).pageNow.map fun pg => pg.taps.any (·.2 == .requests)).getD false)
+    check "its row opens Waiting to join" ((← tapAct sa .requests) && (← get).page == .requests)
     writePpm (dir ++ "/a-requests.ppm") 1080 (← screenOf sa 1080 2400 63)
     check "A approves it" (← tapAct sa (.approve 0))
     waitIdle sa
@@ -107,8 +112,10 @@ def main (args : List String) : IO UInt32 := do
     steps 5
     let s ← get
     writePpm (dir ++ "/b-in.ppm") 1080 (← screenOf sb 1080 2400 63)
-    check s!"B is admitted, named \"{s.me.name}\", on its conversation ({na} ops carried from A)"
-      (!s.me.waiting && s.me.name == "club" && s.page == .chat)
+    check s!"B is admitted, named \"{s.me.name}\", on its home ({na} ops carried from A)"
+      (!s.me.waiting && s.me.name == "club" && s.page == .home)
+    sb.cmds.modify (·.push "channel")
+    steps 2
     sb.cmds.modify (·.push "send hello from B")
     steps 2
     waitIdle sb).run b1
@@ -117,7 +124,9 @@ def main (args : List String) : IO UInt32 := do
   let ((), _) ← (show M Unit from do
     waitIdle sa
     steps 5
-    sa.cmds.modify (·.push "back")
+    sa.cmds.modify (·.push "switch club")
+    steps 2
+    sa.cmds.modify (·.push "channel")
     steps 3
     let s ← get
     writePpm (dir ++ "/a-chat.ppm") 1080 (← screenOf sa 1080 2400 63)
