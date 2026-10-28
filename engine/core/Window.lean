@@ -201,7 +201,7 @@ def dedupSorted : List Pos → List Pos
 
 /-- The positions a set of windows' ends name. -/
 def endsOf {S : Type} (ws : Array (S × Win)) : List Pos :=
-  ws.toList.flatMap fun (_, w) => w.lo.toList.map (·.1) ++ w.hi.toList.map (·.1)
+  ws.toList.flatMap fun x => x.2.lo.toList.map (·.1) ++ x.2.hi.toList.map (·.1)
 
 /-- Whether a lower end lies at or below every position of gap i (those
 strictly between b[i-1] and b[i]). -/
