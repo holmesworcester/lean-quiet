@@ -7,5 +7,5 @@ description = "Build the engine and community proofs; audit their axioms"
 run = "tests/check.sh"
 
 [tasks.test]
-description = "Scenario (Ed25519 + SQLite), SQLite-vs-model differential, kill -9 atomicity"
+description = "Scenario (Ed25519 + SQLite), SQLite-vs-model differential, purge and its on-disk erasure, kill -9 atomicity"
 run = "tests/run.sh"

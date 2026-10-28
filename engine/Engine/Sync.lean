@@ -102,12 +102,14 @@ theorem offer_stored {s : DB F} {ids : List Id} {o : Op}
   let ⟨_, x, _, hx⟩ := offer_shared h; ⟨x, hx⟩
 
 /-- A node's tables after receiving jobs, each through `intake`, with
-judging anywhere in between. `M` collects the ops of its own jobs. -/
+judging and purges anywhere in between. `M` collects the ops of its own
+jobs. -/
 inductive Fed (fam : Family F) : List Op → DB F → Prop
   | empty : Fed fam [] DB.empty
   | job {M : List Op} {s : DB F} (mine : Bool) (ops : List Op) : Fed fam M s →
       Fed fam (if mine then ops ++ M else M) ((intake fam mine ops).foldl (fun s o => ingestS o s) s)
   | step {M : List Op} {s : DB F} : Fed fam M s → Fed fam M (stepS fam s)
+  | purge {M : List Op} {s : DB F} (ids : List Id) : Fed fam M s → Fed fam M (purgeS fam ids s)
 
 theorem ingestS_ops {o : Op} {s : DB F} {x : Id} {p : Op} (h : (ingestS o s).ops x = some p) :
     s.ops x = some p ∨ p = o := by
@@ -133,7 +135,7 @@ theorem foldl_ingest_ops {ops : List Op} {s : DB F} {x : Id} {p : Op}
 theorem stepS_ops' (s : DB F) : (stepS fam s).ops = s.ops := stepS_ops (fam := fam) s
 
 /-- **Every local op a node stores is its own write**, whatever its
-peers send it. -/
+peers send it, and whatever it has purged. -/
 theorem stored_local {M : List Op} {s : DB F} (h : Fed fam M s) {x : Id} {o : Op}
     (hx : s.ops x = some o) (hl : fam.room o = none) : o ∈ M := by
   induction h with
@@ -147,6 +149,10 @@ theorem stored_local {M : List Op} {s : DB F} (h : Fed fam M s) {x : Id} {o : Op
     · obtain ⟨rfl, ho⟩ := intake_local fam ho hl
       exact List.mem_append_left _ ho
   | step _ ih => rw [stepS_ops'] at hx; exact ih hx
+  | @purge M s ids _ ih =>
+    by_cases hp : x ∈ purgeSet fam s ids
+    · rw [purgeS_ops_mem s ids hp] at hx; cases hx
+    · rw [purgeS_ops_not s ids hp] at hx; exact ih hx
 
 end
 

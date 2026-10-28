@@ -22,9 +22,9 @@ transaction.
 
 Proven (`Proofs.lean`), about that code run on the model:
 
-- `inv_ingest`, `inv_step`: the tables keep `Inv` through any
-  interleaving of arrivals and steps (so through any crash, which
-  leaves a committed state).
+- `inv_ingest`, `inv_step`, `purge_inv`: the tables keep `Inv` through
+  any interleaving of arrivals, steps and purges (so through any crash,
+  which leaves a committed state).
 - `status_iff_spec`: at rest (queue empty), the persisted verdicts are
   exactly the declarative spec's (`Spec.lean`: the least fixpoint of
   `judge`), and the index holds exactly the Valid facts' keys.
@@ -100,6 +100,41 @@ and stored like any op, never sent or taken.
   drops local ops; so every local op a node stores is one of its own
   writes, whatever its peers send.
 
+### Purge (`Purge.lean`)
+
+Forgetting ops, for forward secrecy: a closed session's ephemeral
+secrets and keys, and shipped couriers. `purge ids` deletes the conn
+and local ops among `ids` and every stored op that requires one of
+them, transitively: from every table. Shared ops are never deleted. A
+shared op among the dependents keeps its row but loses its verdict and
+filings and is judged again over what remains, so it waits on what was
+purged, as it does on every node that never held it. So a peer that
+sends a shared op citing a session's ops cannot keep them from being
+purged.
+
+- `purge_gone`: no purged op is stored, or filed under any key.
+- `purge_named`: every conn or local op named is purged, whatever cites
+  it.
+- `purge_shared`: no shared op is deleted.
+- `mem_purgeSet`: the purged ops are exactly the conn and local ops
+  among `ids` and their stored dependents.
+- `purge_inv`: a purge keeps `Inv`, at rest or not. `Reach` has a
+  purge step, so `order_free`, `drain_bounded`, `drain_settles` and the
+  rest hold with purges anywhere; `purge_settles`: after a purge,
+  draining with the budget empties the queue, and every verdict is the
+  spec's over the remaining ops.
+
+On SQLite, `purgeSql` finds dependents through a `reqs` table (each
+op's requirements), deletes and re-judges in one transaction, then runs
+`VACUUM` and a TRUNCATE checkpoint of the WAL. `secure_delete` is on
+for every connection, but alone it leaves copies of moved cells in the
+gaps of pages a b-tree split rebuilt, which `VACUUM` removes. `purge`
+(`Tests/Purge.lean`) runs random purges on SQLite against the model,
+then purges a 32-byte secret and reads the database's files raw: none of
+its bytes remain, with the database open or closed. Without
+`secure_delete`, without the checkpoint, or without `VACUUM`, the scan
+finds them.
+
 ### Reading: lists and views (`Query.lean`, `View.lean`)
 
 There is one read, a list: the Valid facts filed under a key (and
@@ -167,6 +202,11 @@ and each named user's `removal.byUser`.
   checks the disk holds whole batches.
 - Signatures are unforgeable (`Unforgeable`, a hypothesis where used).
   Ed25519 is libsodium's at runtime.
+- SQLite's purge is the model's (`differential` for purge in `purge`),
+  and it leaves no byte of a purged op in the database's files: tested
+  by reading them raw, not proven. The filesystem below is out of
+  scope: blocks a file gave up, and an SSD's remapped ones, may still
+  hold old bytes.
 - SHA-256 has no collision on the ops a node holds (`CollisionFree`,
   which gives `Distinct`). `wire` tests a lying peer against it: forged
   names, padded op bytes, and a signed post re-padded into a new id.
@@ -183,7 +223,7 @@ and each named user's `removal.byUser`.
 ## Running
 
     mise run check   # build proofs, audit axioms (standard only)
-    mise run test    # scenario, differential, querydiff, linkcheck, lifecycle, wire, crash
+    mise run test    # scenario, differential, querydiff, linkcheck, lifecycle, wire, syncpair, noise_check, purge, crash
 
 Needs `ELAN_HOME` with Lean 4.34.0, and SQLite and libsodium (headers
 for SQLite). The CI workflow runs both tasks; this repo has no remote
@@ -221,6 +261,6 @@ code (Connection/, one file per op type).
   and `dial` are views over lists that return ops; the node runs them
   after every write and on every tick.
 
-Laws to prove are stated in `Connection/Laws.lean`, `Engine/Purge.lean`
+Laws to prove are stated in `Connection/Laws.lean`
 and `Engine/Families.lean`. The end-to-end tests are named and skipped
 in `Tests/ConnectionCheck.lean`.

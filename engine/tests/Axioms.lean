@@ -83,3 +83,10 @@ open Engine Community
 #print axioms Connection.local_kinds
 #print axioms Engine.sum_left
 #print axioms Engine.sum_scope_left
+#print axioms Engine.purge_gone
+#print axioms Engine.purge_named
+#print axioms Engine.purge_shared
+#print axioms Engine.mem_purgeSet
+#print axioms Engine.purge_inv
+#print axioms Engine.purge_settles
+#print axioms Engine.reach_ops
