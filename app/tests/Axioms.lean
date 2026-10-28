@@ -1,3 +1,4 @@
+import Quiet.UxLaws
 import Quiet.Geometry
 import Quiet.SheetGeom
 import Quiet.Link
@@ -99,3 +100,9 @@ import Quiet.ArrivalLaws
 #print axioms ArrivalLaws.complete_iff_held
 #print axioms ArrivalLaws.file_whole
 #print axioms ArrivalLaws.pic_complete_iff_held
+#print axioms Anchor.pinned
+#print axioms Anchor.restored
+#print axioms Anchor.possible
+#print axioms Label.copy_exact
+#print axioms Label.line_reachable
+#print axioms UxLaws.sessions_not_presence

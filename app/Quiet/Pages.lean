@@ -11,6 +11,7 @@ header layer), and the boxes a tap can land on, each with what it does.
 The painter and the taps read the same boxes.
 -/
 import Quiet.Row
+import Quiet.Label
 
 namespace Pages
 open Paint Text Font Row
@@ -52,8 +53,22 @@ inductive Act where
   | removeStart
   | removeYes
   | removeCancel
+  | copyLabel | labelNext | labelPrev
   | none
   deriving BEq, Inhabited, Repr
+
+/-- The source label behind each compact navigation row. -/
+def fullLabel (a : Act) (communities people : Array String) : Option String :=
+  match a with
+  | .switchTo i => communities[i]?
+  | .person i => people[i]?
+  | .openChannel _ => some "general"
+  | .requests => some "Waiting to join"
+  | .joinCommunity => some "Join a community"
+  | .createCommunity => some "Create a community"
+  | .inviteLink => some "Join with invite link"
+  | .qrCode => some "Join with QR code"
+  | _ => none
 
 structure Box where
   x : Nat
@@ -517,15 +532,12 @@ def homeBand (f : Font) (dm : Dim) (W insetTop : Nat) (name id8 me : String) : B
   b := b.line f (oneLine f f.cell mi) (mx + (d - f.cell / 2) / 2) (y + (d - f.cell) / 2) primaryInk
   return b
 
-/-- The online dot: a member's device holds a session with this node. -/
-def online : Color := 0x2EB67D
-
 /-- The community's home: "Waiting to join" with its red count while
 anyone waits (for those who can let them in), Channels, and Direct
-messages (the people, a green dot on each whose device this node is
-connected to). -/
+messages (the people). Stored sessions say nothing about a person's
+activity, so they do not decorate avatars. -/
 def home (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array String) (people : Array (String × Bool))
-    (on : Array Bool := #[]) : Page := Id.run do
+    (_on : Array Bool := #[]) : Page := Id.run do
   let mut b := Bitmap.blank W h (solid band W)
   b := b.round 0 0 W (h + dm.px 16) (dm.px 16) Row.bg
   let mut taps := #[]
@@ -552,13 +564,6 @@ def home (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array Str
     let (n, isMe) := people[i]!
     if y + rh > h then break
     b := b.round (dm.px 16) (y + (rh - d) / 2) (dm.px 16 + d) (y + (rh + d) / 2) (dm.px 4) (avatarColor n)
-    if on[i]?.getD false then
-      -- at the avatar's lower right, ringed with the page
-      let r := dm.px 6
-      let cx := dm.px 16 + d
-      let cy := y + (rh + d) / 2
-      b := b.round (cx - r - 2) (cy - r - 2) (cx + r + 2) (cy + r + 2) (r + 2) Row.bg
-      b := b.round (cx - r) (cy - r) (cx + r) (cy + r) r online
     let ini := String.ofList [(n.toList.headD '?').toUpper]
     b := b.line f (oneLine f f.cell ini) (dm.px 16 + (d - f.cell / 2) / 2) (y + (rh - f.cell) / 2) primaryInk
     let l := oneLine f (W - dm.px 100) n
@@ -736,5 +741,13 @@ def switcher (f : Font) (dm : Dim) (W h : Nat) (es : Array Entry) (asking : Nat)
   -- a tap on the dimmed conversation closes the panel
   taps := taps.push (⟨pw, 0, W - pw, h⟩, .back)
   return ⟨b, taps⟩
+
+/-- Read a compact label in full, page by page, or copy it verbatim. -/
+def label (f : Font) (dm : Dim) (W h : Nat) (text : String) (page : Nat) : Page :=
+  let b := Label.paint f dm W h text page
+  let (b, copy, _) := button f dm b "Copy full text" (h - dm.px 144) false .copyLabel
+  let (b, next, _) := button f dm b "Next" (h - dm.px 96) false .labelNext
+  let (b, prev, _) := button f dm b "Previous" (h - dm.px 48) false .labelPrev
+  ⟨b, #[copy, next, prev]⟩
 
 end Pages

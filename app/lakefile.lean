@@ -62,3 +62,7 @@ lean_exe arrival where
 -- Photos over real TCP: two apps joined on loopback, one photo each way.
 lean_exe attach where
   root := `QTests.Attach
+
+-- Dogfood UX regressions on the same app step and headless seam.
+lean_exe ux where
+  root := `QTests.Ux

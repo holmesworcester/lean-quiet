@@ -32,6 +32,7 @@ import Quiet.Pages
 import Quiet.Composer
 import Quiet.Link
 import Quiet.Camera
+import Quiet.Anchor
 import Quiet.Remove
 import Quiet.Kinds.Message
 import Quiet.Kinds.Request
@@ -84,7 +85,7 @@ abbrev ImgKey := ByteArray × Nat × Nat
 /-- Which page is up: a conversation, or one of libquiet's other screens. -/
 inductive PageId where
   | home | chat | getStarted | create | createName | joinChoice | openInvite | paste | scan | name | agree | waiting
-  | requests | invite | switcher | profile | removeConfirm
+  | requests | invite | switcher | profile | removeConfirm | label
   deriving BEq, Repr, Inhabited
 
 /-- The reaction sheet's state: quick or the catalogue, its category,
@@ -113,6 +114,8 @@ structure PageIn where
   insetTop : Nat
   dim : Dim
   field : String
+  labelText : String := ""
+  labelPage : Nat := 0
   refusal : Option String
   me : Kinds.Accepted.Key
   comms : Array Kinds.Accepted.Key
@@ -232,6 +235,8 @@ removal is not announced again. -/
   backStack : List PageId := []
   /-- A page's one-line field (the keyboard's text while a page shows one). -/
   field : String := ""
+  labelText : String := ""
+  labelPage : Nat := 0
   refusal : Option String := none
   hidden : List Id := []
   /-- The key of the page drawn (`drawPage`): it is redrawn when the key changes. -/
@@ -827,6 +832,7 @@ def pageTitle : PageId → String × Bool
   | .invite => ("Add members", true) | .switcher => ("Communities", true) | .chat => ("", false)
   | .profile => ("", true) | .removeConfirm => ("", true)
   | .home => ("", false)
+  | .label => ("Full label", true)
 
 /-- A page and its bar, from its key alone (and the font, background and
 camera frame): nothing else of the app's state can reach the pixels, so a
@@ -859,6 +865,7 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
         ({ name := m.name, id8 := Kinds.Request.hexShort m.c, unread := 0, current := m.acc == me.acc, waiting := m.waiting } : Pages.Entry))
         k.askingAll (!me.waiting && !me.c.isEmpty)
     | .home => Pages.home f dm W h (if me.waiting then 0 else k.askingAll) #["general"] k.members k.online
+    | .label => Pages.label f dm W h k.labelText k.labelPage
     | .profile => let (n, isMe, removed, can) := k.profile; Pages.profile f dm W h n isMe removed can
     | .removeConfirm => Pages.removeConfirm f dm W h k.profile.1 k.removeStage k.removeWhy
     | .chat => ⟨Bitmap.blank W h bg, #[]⟩
@@ -888,7 +895,7 @@ def pageIn (s : St) : PageIn :=
     refusal := s.refusal, me := s.me.key, comms := s.comms.map (·.key),
     asking := (s.asking.filter fun r => !s.hidden.contains r.id).map (·.row), askingAll := s.asking.size,
     link := (s.links.find? (·.1 == s.me.acc)).map (·.2), members := s.members, online := s.online,
-    backEmpty := s.backStack.isEmpty, camFrame := s.camFrame,
+    backEmpty := s.backStack.isEmpty, camFrame := s.camFrame, labelText := s.labelText, labelPage := s.labelPage,
     profile := match s.profileOf with
       | some (u, n, isMe) =>
         let present := s.memberIds.contains u
@@ -925,6 +932,12 @@ def onPageAct (a : Pages.Act) : M Unit := do
   let s ← get
   match a with
   | .back => back
+  | .copyLabel => s.io.copy (Label.copied s.labelText); say "Label copied."
+  | .labelNext =>
+    let n := (Label.lines s.font s.dim s.W s.labelText).size
+    let last := (n - 1) / Label.capacity s.dim (viewH s)
+    modify fun s => { s with labelPage := min last (s.labelPage + 1) }
+  | .labelPrev => modify fun s => { s with labelPage := s.labelPage - 1 }
   | .joinCommunity => openPage .joinChoice
   | .createCommunity =>
     s.io.textClear
@@ -1143,12 +1156,20 @@ def onSheetDrag (phase x y : Nat) : M Unit := do
       modify fun s => { s with sheet := some sh' }
   let _ := x
 
+/-- Long-press a compact label to read every line and copy its source. -/
+def showLabel (text : String) : M Unit := do
+  closeSheet
+  modify fun s => { s with labelText := text, labelPage := 0 }
+  openPage .label
+
 def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   let s ← get
   -- a tap puts a standing notice away
   if !s.notices.isEmpty then
     modify fun s => { s with notices := s.notices.drop 1 }
     return
+  if long && r == .header && (s.page == .home || s.page == .chat) then
+    showLabel s.me.name; return
   -- a page: its bar's back, or its content's taps (rows from its top)
   if s.page != .chat then
     match r with
@@ -1159,7 +1180,12 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
       let vh := viewH s
       if y < vh then
         let pg := (s.pageNow).getD (drawPage s.font s.bgRow s.camView (pageIn s)).1
-        onPageAct (pg.hit x (vh - 1 - y))
+        let act := pg.hit x (vh - 1 - y)
+        if long then
+          let name := if s.page == .profile then s.profileOf.map (·.2.1) else
+            Pages.fullLabel act (s.comms.map (·.name)) (s.members.map (·.1))
+          if let some name := name then showLabel name; return
+        onPageAct act
     | .composer => pure ()
     return
   if let some sh := s.sheet then
@@ -1487,6 +1513,12 @@ def step (evs : List Event) : M (Option (List Event)) := do
   while !queue.isEmpty do
     if ← command queue[0]! then queue := queue.extract 1 queue.size else break
   modify fun s => { s with ctl := queue }
+  -- Capture before replacing ids: arrivals below a reader move the
+  -- bottom offset, not the message under their eyes.
+  let old ← get
+  let oldRows := old.ids.toList.map fun p => (p.2, heightOf old p.2)
+  let offset ← old.io.scroll (bottoms old).2.toUInt32 (viewH old).toUInt32
+  let saved := Anchor.capture oldRows bottomPad offset.toNat
   -- 3. the list's ids and counts
   let s ← get
   -- the conversation: the messages this device can read (Community.readable,
@@ -1494,7 +1526,10 @@ def step (evs : List Event) : M (Option (List Event)) := do
   -- is not in it, and appears when its key's wrap opens (the key's list is
   -- one the view reads)
   let (a, _) ← readView (Community.readable s.me.c (limit := some s.limit)) #[]
-  modify fun s => { s with ids := (a.rows.map (·.1)).toArray, fetched := a.rows.length, total := a.total }
+  let limit := Anchor.grow offset.toNat s.limit s.total a.total
+  let (a, _) ← if limit > s.limit then readView (Community.readable s.me.c (limit := some limit)) #[]
+              else pure (a, #[])
+  modify fun s => { s with ids := (a.rows.map (·.1)).toArray, fetched := a.rows.length, total := a.total, limit }
   let s ← get
   -- people: the present members (admitted, not removed), each once
   let (ps, _) ← readView (Kinds.Profile.present s.me.c) #[]
@@ -1502,8 +1537,14 @@ def step (evs : List Event) : M (Option (List Event)) := do
   -- 4. the offset, and the rows the frame and the fetch distance need
   let s ← get
   let (bots0, ch0) := bottoms s
+  let next := Anchor.restore offset.toNat saved (s.ids.toList.map fun p => (p.2, heightOf s p.2)) bottomPad
+  -- Publish the new range before shifting (the host clamps immediately).
+  -- Paint the shift now, even when the native shell applies it at vsync.
   let b ← s.io.scroll ch0.toUInt32 (viewH s).toUInt32
-  let b := b.toNat
+  let b ← if next != offset.toNat then do
+    s.io.scrollBy (next.toFloat - offset.toNat.toFloat)
+    pure (b.toNat + next - offset.toNat)
+    else pure b.toNat
   -- the anchor: the row at the viewport's bottom edge, and how far into it
   let anchor := (rowAt s b).map fun (x, _) => (x, b - (bots0[s.ids.findIdx? (·.2 == x) |>.getD 0]?.getD 0))
   let vh := viewH s

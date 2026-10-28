@@ -114,13 +114,14 @@ def main (args : List String) : IO UInt32 := do
   let rows := a7.rows.toList.map (·.2.data)
   check s!"B's post reaches A under B's name ({(rows.find? (·.text == "hello over tcp")).map (·.name)})"
     (got || rows.any fun d => d.text == "hello over tcp" && d.name == "Bea")
-  -- A's home: Bea, with the online dot (a session with her device)
+  -- The retained session cache knows Bea's device. It is not presence;
+  -- Ux checks that the home page does not paint an activity dot from it.
   let ((), a8) ← (show M Unit from do
     sa.cmds.modify (·.push "switch club")
     for _ in [0:100] do
       if (← get).online.toList == [false, true] then break
       steps 1; IO.sleep 10).run a7
-  check s!"A's home shows Bea online ({a8.members.toList.zip a8.online.toList})"
+  check s!"A's session cache includes Bea's device ({a8.members.toList.zip a8.online.toList})"
     (a8.members.toList.map (·.1) == ["Ann", "Bea"] && a8.online.toList == [false, true])
   if let some r := a8.net then r.stop
   if let some r := b5.net then r.stop
