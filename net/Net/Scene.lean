@@ -109,7 +109,7 @@ theorem v_root (h : x.r ∈ L) : V C (table L) x.c (.admission x.c x.c x.A.pk x.
   show validate C x.r [] = _
   unfold validate
   rw [show x.r = root x.A from rfl, root, body_mk]
-  simp only [check]
+  simp only [Body.tag, Op.make_kind, ↓reduceIte, check]
   rw [if_pos]
   · rfl
   · exact g.sigA _
@@ -122,20 +122,20 @@ theorem v_inv (h1 : x.r ∈ L) (h2 : x.inv ∈ L) :
   · show validate C x.inv _ = _
     unfold validate
     rw [show x.inv = invite x.c x.c x.A x.K.pk false 1 from rfl, invite, body_mk]
-    simp only [check]
+    simp only [mkOp, Body.tag, Op.make_kind, ↓reduceIte, check]
     rw [if_pos]
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> first | trivial | rfl | exact g.sigA _ | simp
 
 theorem v_req (h1 : x.r ∈ L) (h2 : x.inv ∈ L) (h3 : x.req ∈ L) :
     V C (table L) x.req.id (.request x.c x.req.id x.B.pk x.B.enc false 1) := by
   have := request_valid (C := C) (table_keyed L) (table_of (hd g hL) h3)
-    (body_mk _ _) rfl (v_root g hL h1) (v_inv g hL h1 h2) (g.sigB _) (g.sigK _)
+    (body_mk _ _) rfl rfl (v_root g hL h1) (v_inv g hL h1 h2) (g.sigB _) (g.sigK _)
   have e : x.inviteLink.community = x.c := rfl
   simpa [e] using this
 
 theorem v_appr (h1 : x.r ∈ L) (h2 : x.inv ∈ L) (h3 : x.req ∈ L) (h4 : x.appr ∈ L) :
     V C (table L) x.appr.id (.approval x.c x.req.id x.c) :=
-  approve_valid (table_of (hd g hL) h4) (body_mk _ _) rfl (v_root g hL h1)
+  approve_valid (table_of (hd g hL) h4) (body_mk _ _) rfl rfl (v_root g hL h1)
     (v_req g hL h1 h2 h3) (v_root g hL h1) (fun h => absurd h (by simp)) g.AB (g.sigA _)
 
 theorem v_adm (h : ∀ o ∈ x.S, o ∈ L) :
@@ -143,7 +143,7 @@ theorem v_adm (h : ∀ o ∈ x.S, o ∈ L) :
   have h1 := h x.r (by simp [S]); have h2 := h x.inv (by simp [S])
   have h3 := h x.req (by simp [S]); have h4 := h x.appr (by simp [S])
   have h5 := h x.adm (by simp [S])
-  exact admit_admits (us := [x.c]) (table_of (hd g hL) h5) (body_mk _ _) rfl (v_root g hL h1)
+  exact admit_admits (us := [x.c]) (table_of (hd g hL) h5) (body_mk _ _) rfl rfl (v_root g hL h1)
     (v_req g hL h1 h2 h3) (.cons (v_appr g hL h1 h2 h3 h4) .nil) (by simp) rfl
 
 omit g in
