@@ -29,3 +29,6 @@ lean_exe crash where
 
 lean_exe querydiff where
   root := `Tests.QueryDiff
+
+lean_exe linkcheck where
+  root := `Tests.LinkCheck
