@@ -22,7 +22,10 @@ def isInvalid (x : Id) : SqlM Fact Bool := do
 
 def allow (c : Id) (d : Device) : SqlM Fact Bool := (allowPeer c d.pk).run
 
-def sealedTo (c : Id) : SqlM Fact (List Key) := (recipients c).run
+/-- The keys a content key is wrapped to (`recipients`, without the
+admissions each wrap cites). -/
+def sealedTo (c : Id) : SqlM Fact (List Key) := return (← (recipients c).run).map (·.2)
+
 
 def dialed (c : Id) : SqlM Fact (List Key) := (members c).run
 
@@ -30,6 +33,14 @@ def dialed (c : Id) : SqlM Fact (List Key) := (members c).run
 def getFact (x : Id) : SqlM Fact (Option Fact) := do
   let a ← (Lists.list { key := opKey x, limit := some 1 } : SqlM Fact (Answer Fact))
   return a.rows.head?.map (·.2)
+
+/-- Whether each recipient's id is a Valid admission into c with its key. -/
+def citesAdmissions (c : Id) : SqlM Fact Bool := do
+  let rs ← (recipients c).run
+  rs.allM fun (y, e) => do
+    return match ← getFact y with
+      | some (.admission c' _ _ e') => c' == c && e' == e
+      | _ => false
 
 def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/scenario"
@@ -129,6 +140,7 @@ def main (args : List String) : IO UInt32 := do
   let keys1 ← run (sealedTo c)
   t.ok "seals to every member device" ([f1, f2, a1, b1, c1].all fun d => keys1.contains d.enc)
   t.ok "seals to nobody else" (keys1.length == 5 && !keys1.contains m1.enc && !keys1.contains d1.enc)
+  t.ok "each with the admission its wrap cites" (← run (citesAdmissions c))
   let dial1 ← run (dialed c)
   t.ok "dials every member device, and nobody else"
     (dial1.length == 5 && [f1, f2, a1, b1, c1].all fun d => dial1.contains d.pk)

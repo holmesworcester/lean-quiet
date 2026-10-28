@@ -164,9 +164,9 @@ structure St where
   people : Nat := 0
   heights : Std.HashMap Id Nat := {}
   rows : Std.HashMap Id RowSt := {}
-  /-- The communities whose `shareKey` has run since its triggers (my
-  content key, the admissions) last changed. -/
-  shared : Std.HashSet Id := {}
+  /-- Per community, how many of my content keys and how many admissions
+were stored when its `shareKey` last ran. -/
+  shared : Std.HashMap Id (Nat × Nat) := {}
   imgs : Std.HashMap ImgKey (Task Bitmap) := {}
   /-- When an image whose chunks were not all readable may be tried again
   (a frame number). -/
@@ -1590,15 +1590,18 @@ def step (evs : List Event) : M (Option (List Event)) := do
     if !w.ops.isEmpty then let _ ← writeAll w
     -- and this device's key wrapped to every live member's key that has
     -- none yet, a new admission's included. It reads every admission, so
-    -- it runs only when my content key or the admissions changed: only
-    -- those add a key to wrap to (a removal or a wrap takes one away). A
-    -- device's wrap of a key to a key is one op, so writing it again adds
-    -- nothing.
-    let trig : Array Q := #[.list (Community.key.byCommunity.query [m.c] (limit := some 1)),
-      .list (Community.admission.all.query [m.c])]
-    if !((← get).shared.contains m.c && (← trig.allM fresh)) then
+    -- it runs only when more of my content keys or more admissions are
+    -- stored than when it last ran: only those add a key to wrap to (a
+    -- removal or a wrap takes one away), and both lists only grow. Stored,
+    -- not pending: a wrap citing an admission still in the outbox would
+    -- not be judged yet. A device's wrap of a key to a key is one op, so
+    -- writing it again adds nothing.
+    let (ka, kp, _) ← readList (Community.key.byCommunity.query [m.c] (limit := some 0)) #[]
+    let (aa, ap, _) ← readList (Community.admission.all.query [m.c] (limit := some 0)) #[]
+    let stored := (ka.total - kp.length, aa.total - ap.length)
+    if (← get).shared[m.c]? != some stored then
       let (w, _) ← readView (Community.shareKey m.c m.dev) #[]
-      modify fun s => { s with shared := s.shared.insert m.c }
+      modify fun s => { s with shared := s.shared.insert m.c stored }
       if !w.ops.isEmpty then let _ ← writeAll w
   -- a community this device waits to join shows Waiting in place of its
   -- conversation (read: no admission for my device there)
