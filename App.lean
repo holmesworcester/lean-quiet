@@ -61,6 +61,8 @@ structure Io where
     return ((← Std.Time.Timestamp.now).toSecondsSinceUnixEpoch.val.toNat / 60, 0)
   scan : Bool → IO Unit
   luma : IO (Array UInt32 × ByteArray)
+  /-- A line for the platform's log (logcat, the device console, stderr). -/
+  log : String → IO Unit := IO.eprintln
 
 /-- How far beyond each end of the viewport the list frame is drawn. -/
 def over : Nat := 1024
@@ -259,7 +261,7 @@ removal is not announced again. -/
   scans : Nat := 0
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty)⟩⟩
+  pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln⟩⟩
 
 abbrev M := StateT St IO
 
@@ -325,7 +327,7 @@ def writeAll (w : Community.Write) : M Bool := do
     | some (.valid v) => mine := mine.insert o.id (.valid v)
     | none => pure ()
     | some .invalid =>
-      IO.eprintln s!"write refused: an op is Invalid"
+      (← get).io.log s!"write refused: an op is Invalid"
       return false
   modify fun s => { s with out := s.out ++ pend }
   noticeLocal (pend.toList.flatMap (·.keys))
@@ -342,7 +344,7 @@ def chaosStep : M Unit := do
   for j in t.get do
     let _ ← writeAll ⟨j.ops⟩
   (← get).wr.busy.modify (· - 1)
-  IO.eprintln s!"chaos: {t.get.size} writes of {t.get.foldl (· + ·.ops.length) 0} ops"
+  (← get).io.log s!"chaos: {t.get.size} writes of {t.get.foldl (· + ·.ops.length) 0} ops"
 
 /-- The newest message's counter (its sort key's first 8 bytes; 0 for none). -/
 def newestCounter (s : St) : Nat :=
@@ -777,10 +779,10 @@ def netStep : M Unit := do
   try
     let db ← Db.openAt s.dbPath
     let r ← Engine.Sync.Runner.start x db 0 port.toUInt16
-    IO.eprintln s!"node: listening on {r.port}, dialed as {(String.fromUTF8? listen).getD "?"}"
+    (← get).io.log s!"node: listening on {r.port}, dialed as {(String.fromUTF8? listen).getD "?"}"
     modify fun s => { s with net := some r }
   catch e =>
-    IO.eprintln s!"node: cannot start: {e}"
+    (← get).io.log s!"node: cannot start: {e}"
     modify fun s => { s with netCfg := none }
 
 /-- The keys every commit since the last call filed (the writer's and the
@@ -1650,7 +1652,7 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   let slow (t1 : UInt64) : IO Unit := do
     if t1 - t0 > 20000 then
       let ms (a b : UInt64) := s!"{(b - a) / 1000}"
-      IO.eprintln s!"slow frame {ms t0 t1} ms: notices {ms t0 tNotices} commands {ms tNotices tCommands} ids {ms tCommands tIds} mount {ms tIds tMount} paint {ms tMount tPaint} refresh {ms tPaint tRefresh} frame {ms tRefresh t1}"
+      s.io.log s!"slow frame {ms t0 t1} ms: notices {ms t0 tNotices} commands {ms tNotices tCommands} ids {ms tCommands tIds} mount {ms tIds tMount} paint {ms tMount tPaint} refresh {ms tPaint tRefresh} frame {ms tRefresh t1}"
   -- a community this device waits to join shows Waiting in place of its
   -- conversation (read: no admission for my device there)
   let s ← get
