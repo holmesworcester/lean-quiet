@@ -26,6 +26,7 @@ import ops.app.Pics
 import engine.core.IngestCost
 import engine.core.ListCost
 import engine.renderer.BoardLaws
+import engine.renderer.Heights
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -403,4 +404,12 @@ section cost
 #print axioms Live.World.settle_passes
 #print axioms Live.Gated.gated_stale
 #print axioms Live.Gated.ungated_fresh
+#print axioms Heights.T.start_eq
+#print axioms Heights.T.find_spec
+#print axioms Heights.T.set_toList
+#print axioms Heights.Rows.push_ok
+#print axioms Heights.T.findM_cost
+#print axioms Heights.T.startM_cost
+#print axioms Heights.T.setM_cost
+#print axioms Heights.rows_cost
 end cost

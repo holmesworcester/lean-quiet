@@ -194,7 +194,8 @@ with the meter above.
 | step | grows with | theorem | status |
 |---|---|---|---|
 | the frame reads SQLite (`readView`, `slicesOf`): a slow read is a slow frame | the lists on screen and their rows | `frame_reads` | ❌ fix: the reader and the board (above) |
-| `bottoms`, the mount and paint loops, `findIdx?` | loaded rows: every row from the newest to the window, each frame | `frame_work` | ❌ fix: a tree of row heights with sums at its nodes (O(log n) to move a height, to find the row at an offset) |
+| `bottoms`, the mount and paint loops, `findIdx?` | loaded rows: every row from the newest to the window, each frame | `frame_work` | ❌ fix: the rows' heights tree (below), which App is yet to call |
+| the rows' heights tree (engine/renderer/Heights.lean): the row at an offset, where a row starts, a height set, a row pushed | log₂ rows: at most the tree's depth d, 2^(d-1) < rows; 13 steps at 5,000 rows, where the walk takes 4,981 | `find_spec`, `start_eq`, `set_toList`, `push_ok`, `rows_cost` | ✅ of the structure |
 | the conversation's re-read | `limit`, which grows as the list scrolls up | `list_costs` | ❌ fix: a window of rows around the anchor, read by `after`/`before` |
 | range counts with `cap = 0` (every list the app reads) | the rows in range | `list_costs` (needs `0 < cap`) | ❌ fix: a3's capped counts ("999+") |
 | `present`, `members`, `recipients` (`admission.all.read [c]`, then `live` reads each admission's removals) | members: O(members) lists per re-read | `view_lists` | ❌ fix: a present-members key the removal files out of, read by window; a capped count for the header |
