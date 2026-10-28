@@ -284,7 +284,9 @@ def sharedSocketChecks (t : Checks) : IO Unit := do
   let ch ← eventChannel { queue := 4 }
   let c ← Std.Async.TCP.Socket.Client.mk
   let stopped ← IO.mkRef false
-  let sock : Sock := { id := 0, client := c, addr, heard := 0, stopped }
+  let out ← Std.Mutex.new ({} : Outbox)
+  let wake ← Std.Condvar.new
+  let sock : Sock := { id := 0, client := c, addr, heard := 0, stopped, out := out, wake := wake }
   let st : RunState := { db, node := n, slots, socks := [sock], next := 1 }
   let st ← RunState.apply x ch (fun _ => pure ()) {} st { drop := [session.id] } 1
   t.ok "shared socket: a dropped session leaves the socket up"

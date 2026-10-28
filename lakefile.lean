@@ -245,3 +245,11 @@ lean_exe harden where
 
 lean_exe harden_tcp where
   root := `tests.engine.HardenTcp
+
+-- T-fresh: a fresh post's latency while a backlog syncs, simulated time
+lean_exe fresh where
+  root := `tests.engine.Fresh
+
+-- T-fresh over real TCP: a peer that never reads stops no one else
+lean_exe fresh_tcp where
+  root := `tests.engine.FreshTcp
