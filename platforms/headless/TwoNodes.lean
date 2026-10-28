@@ -127,7 +127,7 @@ def main (args : List String) : IO UInt32 := do
       (!s.me.waiting && s.me.name == "club" && s.page == .home)
     steps 10
     let s ← get
-    let (adm, _, _) ← (show M _ from readList (admission.byDevice.query [s.me.c, (Device.ofSeed s.me.seed).pk]) #[])
+    let (adm, _, _) ← (show M _ from readList (admission.byDevice.query [s.me.c, s.me.dev.pk]) #[])
     let u := match adm.rows.head? with | some (_, .admission _ u _ _) => u | _ => .empty
     let (p, _, _) ← (show M _ from readList (profile.byUser.query [s.me.c, u] (limit := some 0)) #[])
     check s!"B wrote one first profile, however many frames ran ({p.total})" (p.total == 1)
