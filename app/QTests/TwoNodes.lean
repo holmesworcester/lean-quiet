@@ -54,7 +54,7 @@ def main (args : List String) : IO UInt32 := do
   let a0 ← App.start sa.io screen (dir ++ "/a/quiet.db")
   let b0 ← App.start sb.io screen (dir ++ "/b/quiet.db")
   -- A founds "club" and opens Add members
-  let (link, a1) ← (show M (String × Option String) from do
+  let (link, a1) ← (show M (String × Option String × ByteArray) from do
     sa.cmds.modify (·.push "found club|Ann")
     steps 3
     waitIdle sa
@@ -70,8 +70,8 @@ def main (args : List String) : IO UInt32 := do
       for i in [0:1080] do
         luma := luma.push ((r[4*i]!.toNat + r[4*i+1]!.toNat + r[4*i+2]!.toNat) / 3).toUInt8
     let scanned := (Qr.decodeLuma 1080 2400 1080 luma).bind fun (b, _) => String.fromUTF8? b
-    return (((s.links.find? (·.1 == s.me.c)).map (·.2)).getD "", scanned)).run a0
-  let (link, scanned) := link
+    return (((s.links.find? (·.1 == s.me.c)).map (·.2)).getD "", scanned, luma)).run a0
+  let (link, scanned, aLuma) := link
   check s!"A's Add members shows a link ({link.take 24}…)" (link.startsWith "quiet://join/")
   check "and its QR code on screen scans back to that link" (scanned == some link)
   let hs := ((Community.Invite.parse link).map fun i => i.hints.map fun h => (String.fromUTF8? h).getD "?").getD []
@@ -165,18 +165,26 @@ def main (args : List String) : IO UInt32 := do
     steps 3
     let ms := (← get).members.toList
     check s!"A's home lists Ann (me) then Bea ({ms}, page {repr (← get).page})" (ms == [("Ann", true), ("Bea", false)])).run a2
-  -- C joins with the same link, then stops waiting: back on Get started
+  -- C joins by scanning A's code with its camera, then stops waiting: back on Get started
   fresh (dir ++ "/c")
   let sc ← Sim.new
   let c0 ← App.start sc.io screen (dir ++ "/c/quiet.db")
   let ((), _) ← (show M Unit from do
     steps 2
     let _ ← tapAct sc .joinCommunity
-    let _ ← tapAct sc .inviteLink
-    let _ ← tapAct sc .pasteLink
-    modify fun s => { s with field := link }
+    check "Join with QR code" (← tapAct sc .qrCode)
+    let pv ← sc.preview.get
+    let bx := Pages.scanBox (← get).dim 1080 (viewH (← get))
+    check s!"the camera shows over the page's square ({pv})"
+      ((← get).page == .scan && pv == #[bx.x.toUInt32, (topH (← get) + bx.y).toUInt32, bx.w.toUInt32, bx.h.toUInt32])
+    -- the camera sees A's Add members screen
+    sc.camera.set (#[1080, 2400, 1080], aLuma)
+    for _ in [0:200] do
+      if (← get).page == .scan then steps 1; IO.sleep 5
+    check s!"the scanned code opens Choose a name (page {repr (← get).page})"
+      ((← get).page == .name && ((← get).invite.map (·.text)) == some link)
     steps 1
-    let _ ← tapAct sc .continue_
+    check "and the camera is off again" ((← sc.preview.get).isEmpty)
     modify fun s => { s with field := "Cy" }
     steps 1
     let _ ← tapAct sc .continue_

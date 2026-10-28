@@ -52,6 +52,8 @@ structure Io where
   ctlPoll : IO (Array String)
   ctlReply : String → IO Unit
   nowUs : IO UInt64
+  scan : UInt32 → UInt32 → UInt32 → UInt32 → IO Unit
+  luma : IO (Array UInt32 × ByteArray)
 
 /-- How far beyond each end of the viewport the list frame is drawn. -/
 def over : Nat := 1024
@@ -169,9 +171,13 @@ names, and whether it is me. -/
   /-- Requests to join the current community no admission answers yet:
   the request's id, its fact, and its approvals' ids. -/
   asking : Array Kinds.Request.Data := #[]
+  /-- The camera preview's screen rectangle as last asked of the twin. -/
+  preview : Array UInt32 := #[]
+  /-- A camera frame being decoded, off the app's thread. -/
+  decoding : Option (Task (Option String)) := none
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0⟩⟩
+  pure ("", #[]), fun _ => pure (), pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, fun _ _ _ _ => pure (), pure (#[], .empty)⟩⟩
 
 abbrev M := StateT St IO
 
@@ -477,6 +483,14 @@ def openPage (p : PageId) : M Unit := do
   s.io.scrollTo 0
   modify fun s => { s with backStack := s.page :: s.backStack, page := p, refusal := none, pageCache := "" }
 
+/-- A link pasted or scanned: Choose a name, then Agree & join. -/
+def takeInvite (i : Community.Invite) : M Unit := do
+  let s ← get
+  s.io.textClear
+  modify fun s => { s with invite := some i, field := "", refusal := none }
+  openPage .name
+  s.io.ime true
+
 /-- Back: the page before, or the conversation. -/
 def back : M Unit := do
   let s ← get
@@ -519,6 +533,34 @@ def found (n myName : String) : M Unit := do
       refreshComms
       switchToId r.id
 
+/-- Join with QR code: the camera's preview over the page's square (a
+pinned page's row k is at screen row top + k: Geometry.pinned_row), its
+newest frame decoded off the app's thread, one at a time, and a code that
+is an invite taken as a pasted link is. -/
+def scanStep : M Unit := do
+  let s ← get
+  let want : Array UInt32 := if s.page != .scan then #[] else
+    let b := Pages.scanBox s.dim s.W (viewH s)
+    #[b.x.toUInt32, (topH s + b.y).toUInt32, b.w.toUInt32, b.h.toUInt32]
+  if want != s.preview then
+    if want.isEmpty then s.io.scan 0 0 0 0 else s.io.scan want[0]! want[1]! want[2]! want[3]!
+    modify fun s => { s with preview := want, decoding := none }
+  if s.page != .scan then return
+  match s.decoding with
+  | some t =>
+    if ← IO.hasFinished t then
+      modify fun s => { s with decoding := none }
+      if let some text := t.get then
+        match Community.Invite.parse text with
+        | some i => takeInvite i
+        | none => say "That code isn't a Quiet invite."
+  | none =>
+    let (hdr, px) ← s.io.luma
+    if hdr.size == 3 && px.size > 0 then
+      let t := Task.spawn fun _ =>
+        (Qr.decodeLuma hdr[0]! hdr[1]! hdr[2]! px).bind fun (b, _) => String.fromUTF8? b
+      modify fun s => { s with decoding := some t }
+
 /-- The people of the current community, for home's Direct messages:
 its members (the Profile kind's), me first. -/
 def refreshMembers : M Unit := do
@@ -557,7 +599,7 @@ def pageOf (s : St) : Pages.Page :=
   | .paste => Pages.paste f dm W h s.field true s.refusal
   | .name => Pages.chooseName f dm W h s.field
   | .createName => Pages.chooseName f dm W h s.field
-  | .scan => Pages.scan f dm W h none "No camera is available."
+  | .scan => Pages.scan f dm W h none "Starting the camera…"
   | .agree => Pages.agree f dm W h "this community"
   | .waiting => Pages.waiting f dm W h (Kinds.Request.hexShort s.me.c)
       -- the request is stored and waits for the community's ops; until the
@@ -620,11 +662,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
         found s.newCommunity me
     | .paste =>
       match Community.Invite.parse s.field with
-      | some i =>
-        s.io.textClear
-        modify fun s => { s with invite := some i, field := "" }
-        openPage .name
-        s.io.ime true
+      | some i => takeInvite i
       | none =>
         modify fun s => { s with refusal := some "That isn't a Quiet invite link. Check that you copied all of it.", pageCache := "" }
     | .name =>
@@ -1154,6 +1192,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   refreshComms
   refreshAsking
   refreshMembers
+  scanStep
   -- admitted in a community I joined: my first profile (the name I chose).
   -- introduce is a view run through the live cache, so it is re-evaluated
   -- only when a list it read changes, and writes nothing once a profile

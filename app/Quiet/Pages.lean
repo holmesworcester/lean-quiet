@@ -235,13 +235,16 @@ def paste (f : Font) (dm : Dim) (W h : Nat) (text : String) (focused : Bool) (re
   let (b4, bt, _) := button f dm b "Continue" (y + dm.px 16) (!text.trimAscii.isEmpty) .continue_
   return ⟨b4, #[ft, bt]⟩
 
+/-- Where Join with QR code shows the camera: a square, in page rows. -/
+def scanBox (dm : Dim) (W h : Nat) : Box :=
+  let s := min (W - dm.px 96) (h / 2)
+  ⟨(W - s) / 2, dm.px 24, s, s⟩
+
 /-- Join with QR code: the camera's square (its frames, or why there are
 none), the instruction, and the way to paste instead. -/
 def scan (f : Font) (dm : Dim) (W h : Nat) (camera : Option Bitmap) (note : String) : Page := Id.run do
   let mut b := blank W h
-  let s := min (W - dm.px 96) (h / 2)
-  let x := (W - s) / 2
-  let y := dm.px 24
+  let ⟨x, y, s, _⟩ := scanBox dm W h
   match camera with
   | some img => b := b.image img x y (dm.px 12)
   | none =>

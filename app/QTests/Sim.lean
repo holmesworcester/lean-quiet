@@ -13,9 +13,13 @@ structure Sim where
   cmds : IO.Ref (Array String)
   last : IO.Ref (Array ByteArray × Nat × Nat × Array ByteArray × Array ByteArray)
   maxB : IO.Ref Float
+  /-- What the camera shows (a luma frame), and where its preview is. -/
+  camera : IO.Ref (Array UInt32 × ByteArray)
+  preview : IO.Ref (Array UInt32)
 
 def Sim.new : IO Sim := do
-  return ⟨← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef (#[], 0, 0, #[], #[]), ← IO.mkRef 0⟩
+  return ⟨← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef (#[], 0, 0, #[], #[]), ← IO.mkRef 0,
+    ← IO.mkRef (#[], .empty), ← IO.mkRef #[]⟩
 
 def Sim.io (sm : Sim) : Io where
   screen := pure #[1080, 2400, 128, 63, 420]
@@ -36,6 +40,10 @@ def Sim.io (sm : Sim) : Io where
   ctlPoll := sm.cmds.modifyGet fun c => (c, #[])
   ctlReply s := sm.replies.modify (·.push s)
   nowUs := do return (← IO.monoNanosNow).toUInt64 / 1000
+  scan x y w h := sm.preview.set (if w == 0 then #[] else #[x, y, w, h])
+  luma := do
+    if (← sm.preview.get).isEmpty then return (#[], .empty)
+    sm.camera.get
 
 /-- The screen as the twin composes it: header, the list's viewport rows,
 the composer above the bottom inset. -/

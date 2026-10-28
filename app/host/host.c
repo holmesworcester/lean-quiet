@@ -299,6 +299,19 @@ lean_obj_res lq_copy(b_lean_obj_arg text) {
   return lean_io_result_mk_ok(lean_box(0));
 }
 
+// The camera: none here (QTests/Sim.lean feeds frames to its own Io).
+lean_obj_res lq_scan(uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
+  (void)x; (void)y; (void)w; (void)h;
+  return lean_io_result_mk_ok(lean_box(0));
+}
+
+lean_obj_res lq_luma(void) {
+  lean_object* p = lean_alloc_ctor(0, 2, 0);
+  lean_ctor_set(p, 0, lean_mk_empty_array());
+  lean_ctor_set(p, 1, lean_alloc_sarray(1, 0, 0));
+  return lean_io_result_mk_ok(p);
+}
+
 lean_obj_res lq_text_clear(void) {
   set_text("");
   return lean_io_result_mk_ok(lean_box(0));
