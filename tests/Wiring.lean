@@ -48,7 +48,12 @@ output, and local CI fails when it goes stale.
   mutant breaks its law. Counted apart: never wired, never a todo, and
   out of the lead's count.
 - **Weak:** a `weak` definition (a seed from the clock) must not be
-  reached from any entry point; the check names the path that does.
+  reached from any entry point; the check names the path that does. A
+  `door` definition (the OS's randomness) may be run, among what the
+  entry points reach, only by its doors (`App.newBytes`, and the
+  handshake's entropy). These are reachability, not dataflow: a secret
+  derived inline from the clock, without freshSeed, would not be seen;
+  the single door is what makes every secret's source one place to read.
 - **Instruments:** what the code under test runs in to be measured (the
   cost meter, `CostT`), each erased by an audited equation (`erase_bind`:
   a counted run, its costs dropped, is the plain run). Like an
@@ -330,6 +335,9 @@ structure Notes where
   instrument : NameMap Name := {}
   /-- what no shipping path may reach (a secret from the clock) -/
   weak : NameMap String := {}
+  /-- a definition ↦ the only definitions, among what the entry points
+  reach, that may run it (the OS's randomness, through its doors) -/
+  door : NameMap (List Name) := {}
   /-- the `todo` names and the copied code, in the file's order -/
   order : Array Name := #[]
   subject : NameMap (List Name) := {}
@@ -368,6 +376,9 @@ def readNotes (path : System.FilePath) : IO Notes := do
     | (["world", n], t) => ns := at_ { ns with world := ns.world.insert n.toName t } n.toName
     | (["control", n], t) => ns := at_ { ns with control := ns.control.insert n.toName t } n.toName
     | (["weak", n], t) => ns := at_ { ns with weak := ns.weak.insert n.toName t } n.toName
+    | (["door", n], t) =>
+      let d := ((fields t 1).1.headD "").toName
+      ns := at_ (at_ { ns with door := ns.door.insert n.toName (d :: ns.door.getD n.toName []) } n.toName) d
     | (["instrument", n], t) =>
       let law := ((fields t 1).1.headD "").toName
       ns := at_ (at_ { ns with instrument := ns.instrument.insert n.toName law } n.toName) law
@@ -479,10 +490,20 @@ unsafe def main : IO UInt32 := do
   for n in harnesses do
     if run.contains n then problems := problems.push s!"control: the entry points reach {n}, a harness"
   -- what no shipping path may reach, with the path that does
+  let entries := [`main, `Engine.Sync.Runner.start] ++ ns.entry
   for (n, why) in ns.weak do
     if run.contains n then
-      let path := (pathTo env ([`main, `Engine.Sync.Runner.start] ++ ns.entry) n).getD [n]
+      let path := (pathTo env entries n).getD [n]
       problems := problems.push s!"weak: the shipping app reaches {n} ({why}): {" → ".intercalate (path.map toString)}"
+  -- what only its doors may run, among what the entry points reach
+  for (n, doors) in ns.door do
+    if !run.contains n then problems := problems.push s!"door: nothing shipping runs {n}; drop the note"
+    for d in doors do
+      if !run.contains d then problems := problems.push s!"door: {d}, a door of {n}, does not run; drop it"
+    for c in run do
+      if (runs env c).contains n && !doors.contains c && !c.isPrefixOf n then
+        let path := (pathTo env entries c).getD [c]
+        problems := problems.push s!"door: {c} runs {n} outside its doors ({commas doors}): {" → ".intercalate (path.map toString)}"
   -- what calls each definition, among this repository's
   let mut callers : NameMap NameSet := {}
   for i in [0:env.header.moduleNames.size] do
