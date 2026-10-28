@@ -235,6 +235,7 @@ section app
 #print axioms Text.visual_perm
 #print axioms Text.place_shows
 #print axioms Text.oneLine_prefix
+#print axioms Text.name_shows
 #print axioms Text.digits_keep_order
 #print axioms Text.wrap_keeps
 #print axioms Text.wrap_fits

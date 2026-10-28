@@ -180,7 +180,7 @@ def layout (f : Font) (dm : Dim) (W : Nat) (d : RowData) : Layout :=
   let tx := dm.textX
   let tw := W - tx - dm.pad
   let lh := dm.lineH
-  let name := oneLine f (tw / 2) d.name
+  let name := oneLine f (tw / 2) d.name (reveal := true)
   let timeX := tx + Paint.Line.width f name + dm.px 8
   let time := oneLine f (dm.cell * 4) (if d.pending then "pending" else clock d.time)
   let text := if d.text.isEmpty then #[] else Text.layout f tw d.text
