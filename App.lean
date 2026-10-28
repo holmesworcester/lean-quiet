@@ -657,7 +657,7 @@ def forgetEntry (s : St) (a c : Id) : St :=
 entry hidden), the current one kept or, gone, the first (Get started when
 none is left). -/
 def refreshComms : M Unit := do
-  let (all, _) ← Kinds.Accepted.read
+  let (all, _) ← Kinds.Accepted.read (← get).comms
   let cs := Kinds.Accepted.listed all
   -- removed since last told: a standing notice each, and forgotten
   for g in Kinds.Accepted.newlyGone (← get).goneSeen all do
