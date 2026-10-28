@@ -94,8 +94,8 @@ structure Run where
   /-- When the post was written, and when the peer stored it. -/
   wrote : Option Nat := none
   got : Option Nat := none
-  /-- Most serve bytes queued at a socket, and chunk ops stored by b. -/
-  peakServe : Nat := 0
+  /-- Most bytes a socket's lanes held, and chunk ops stored by b. -/
+  peakLanes : Nat := 0
   chunksAtB : Nat := 0
 
 section
@@ -163,11 +163,11 @@ def cost (e : Effects) : Nat :=
   sim.perEvent + sim.perOp * e.stored.length + sim.perKiB * bytesOf (e.send.map (·.2)) / 1024
 
 /-- The node's setup as the runner hands it a step: under lanes, the
-socket's room under `window` (`Sync.room`); in the old order, 4 MiB a
+socket's room under `window` (`Sync.room`, `roomOf`); in the old order, 4 MiB a
 step, as main's `wantBytes`. -/
 def Box.flow (b : Box) (x : Sync Fact (SqlM Fact)) : Sync Fact (SqlM Fact) :=
   match order with
-  | .lanes => { x with room := fun _ => some (sim.window - b.lanes.queued) }
+  | .lanes => { x with room := fun _ => some (sim.window - b.lanes.bytes) }
   | .old => { x with room := fun _ => some sim.window }
 
 /-- The box's loop, if free: its next event, then the clock. -/
@@ -301,7 +301,7 @@ def runOnce (sim : Sim) (order : Order) (fx : Fixture) (n : Nat) (writer : Write
     r := { r with
       a := ra, b := rb, ab := ab, ba := ba, now := t
       got := if got then some t else r.got
-      peakServe := max r.peakServe (max ra.lanes.queued rb.lanes.queued)
+      peakLanes := max r.peakLanes (max ra.lanes.bytes rb.lanes.bytes)
       chunksAtB := r.chunksAtB + (gotB.filter chunks.contains).length }
     t := t + sim.dt
   return r
@@ -331,9 +331,9 @@ def main (args : List String) : IO UInt32 := do
         let lat := match r.wrote, r.got with
           | some w, some g => g - w
           | _, _ => 600000000
-        IO.println s!"{wname} {oname} N={n}: latency {ms lat}; peak serve queue {r.peakServe} B; b stored {r.chunksAtB} ops"
+        IO.println s!"{wname} {oname} N={n}: latency {ms lat}; peak lanes {r.peakLanes} B; b stored {r.chunksAtB} ops"
         table := table ++ [(s!"{wname} {oname}", n, lat)]
-        peaks := peaks ++ [(s!"{wname} {oname}", n, r.peakServe)]
+        peaks := peaks ++ [(s!"{wname} {oname}", n, r.peakLanes)]
   let lat (k : String) (n : Nat) : Nat := ((table.find? fun (k', n', _) => k' == k && n' == n).map (·.2.2)).getD 0
   let peak (k : String) (n : Nat) : Nat := ((peaks.find? fun (k', n', _) => k' == k && n' == n).map (·.2.2)).getD 0
   let lo := sizes.headD 100
@@ -352,11 +352,11 @@ def main (args : List String) : IO UInt32 := do
     for n in sizes do
       t.ok s!"{w}: the old order waits at least 4 times longer than lanes at N={n}"
         (lat s!"{w} old" n ≥ 4 * lat s!"{w} lanes" n)
-    -- The serve lane holds the queue's releases (within the window and
-    -- one op, `serveOwed_budget`) and long offers and wants (a round's
-    -- difference), which no window paces.
+    -- The lanes hold the queue's releases (within the window and one op,
+    -- `room_window`), urgent frames, and long offers and wants (a
+    -- round's difference), which no window paces.
     for n in sizes do
-      t.ok s!"{w}: a socket's serve lane stays within its window, one op and a round's offers at N={n}"
+      t.ok s!"{w}: a socket's lanes stay within its window, one op and a round's offers at N={n}"
         (peak s!"{w} lanes" n ≤ sim.window + 4 * frame)
   let code ← t.finish "fresh"
   (← IO.getStdout).flush

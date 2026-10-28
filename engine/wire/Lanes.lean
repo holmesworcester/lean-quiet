@@ -11,8 +11,15 @@ from waiting behind a backlog on its way out. Pure, so the laws
   Each native write (`take`) is every urgent frame, then serve frames up
   to `burst` bytes, at least one, so a frame longer than `burst` still
   goes.
+- `admit`: a push that keeps a socket's lanes, both of them, within its
+  cap (`RunConfig.sockCap`); past it the runner closes the socket.
+- `roomOf`: what a session may have served now (`Sync.room`): the
+  window less what its socket's lanes hold.
 - `framesFor`: a step's frames for one socket, those to its address, in
   order: each socket's lanes get only their own.
+- `shut`: whether the loop closes a socket: silent too long, or its
+  writer's write under way not done in `stallMs` (its peer takes
+  nothing).
 - `Inbox.next`: the run loop's next event, a local write before any
   frame.
 -/
@@ -46,8 +53,20 @@ def Lanes.pushAll (q : Lanes) (ps : List (Lane × ByteArray)) : Lanes :=
 
 def Lanes.isEmpty (q : Lanes) : Bool := q.urgent.isEmpty && q.serve.isEmpty
 
-/-- Serve bytes waiting. -/
-def Lanes.queued (q : Lanes) : Nat := bytesOf q.serve
+/-- Bytes waiting, in both lanes. -/
+def Lanes.bytes (q : Lanes) : Nat := bytesOf q.urgent + bytesOf q.serve
+
+/-- The push, if the lanes then hold at most `cap` bytes; none, and the
+socket is closed, if not. -/
+def Lanes.admit (cap : Nat) (q : Lanes) (ps : List (Lane × ByteArray)) : Option Lanes :=
+  let q' := q.pushAll ps
+  if q'.bytes ≤ cap then some q' else none
+
+/-- What a session at address a may have served now (`Sync.room`):
+`window` less what the lanes of a's socket hold; nothing at an address
+with no socket yet (its frames wait for the dial). -/
+def roomOf (window : Nat) (qs : List (ByteArray × Lanes)) (a : ByteArray) : Option Nat :=
+  some (((qs.find? (·.1 == a)).map fun p => window - p.2.bytes).getD 0)
 
 /-- Frames from the front while they fit in `room` bytes. -/
 def fill (room : Nat) : List ByteArray → List ByteArray × List ByteArray
@@ -83,6 +102,12 @@ s's (`sockOf`). -/
 def framesFor (sockOf : ByteArray → Option Nat) (s : Nat) (fs : List (ByteArray × Lane × ByteArray)) :
     List (Lane × ByteArray) :=
   fs.filterMap fun p => if sockOf p.1 = some s then some p.2 else none
+
+/-- Whether the loop closes a socket at `now`: heard from last at
+`heard`, more than `idle` ms ago, or its writer's write under way, begun
+at `since`, not done in `stallMs`. -/
+def shut (idle stallMs now heard : Nat) (since : Option Nat) : Bool :=
+  heard + idle < now || since.any (· + stallMs ≤ now)
 
 /-- The run loop's next event: a local write waiting, else the next
 event from the sockets and the listener. -/

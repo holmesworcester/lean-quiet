@@ -344,7 +344,13 @@ open Engine Community
 #print axioms Engine.Sync.take_append
 #print axioms Engine.Sync.cut_bytes
 #print axioms Engine.Sync.cut_progress
-#print axioms Engine.Sync.apart
+#print axioms Engine.Sync.push_capped
+#print axioms Engine.Sync.push_over
+#print axioms Engine.Sync.take_bytes
+#print axioms Engine.Sync.lanes_bounded
+#print axioms Engine.Sync.room_window
+#print axioms Engine.Sync.stall_closes
+#print axioms Engine.Sync.shut_live
 #print axioms Engine.Sync.framesFor_mem
 #print axioms Engine.Sync.framesFor_only
 #print axioms Engine.Sync.lane_control

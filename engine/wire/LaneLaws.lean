@@ -8,9 +8,18 @@ functions the runner calls:
   write, after only the urgent frames before it and ahead of the whole
   serve backlog; `cut_bytes`: a write's serve part is at most `burst`
   bytes, or one frame; `ahead_bytes`: so what reaches the socket between
-  an urgent frame's push and the frame is urgent traffic and one burst;
-- `apart`: a socket's next write depends on its own lanes and frames
-  only, whatever any other socket holds;
+  an urgent frame's push and the frame is the write under way and the
+  urgent frames pushed before it, each at most `sockCap` bytes;
+- `push_capped`, `lanes_bounded`: a socket's lanes, both of them, never
+  hold more than `sockCap` bytes, whatever is pushed (`Lanes.admit`),
+  and `room_window`: serving into a socket's room leaves its lanes
+  within `window` and one op;
+- `stall_closes`: a socket whose writer's write is not done in
+  `stallMs` is one the loop's clock closes.
+
+That one socket's backlog holds up no other is tested over TCP
+(tests/engine/FreshTcp.lean), not proven: each socket has its own lanes
+and writer, but the threads are not modelled.
 - `lane_control`, `hot_ids`, `heat_hot`: what a node sends urgent:
   messages naming few ids, and the ops it wrote, from the write on for
   `hotMs` (`fresh_served`, WorldLaws).
@@ -106,37 +115,125 @@ theorem urgent_ahead (burst : Nat) (q : Lanes) (u : ByteArray) (ps : List (Lane 
 theorem bytesOf_append (a b : List ByteArray) : bytesOf (a ++ b) = bytesOf a + bytesOf b := by
   simp [bytesOf]
 
+/-! ## The socket cap -/
+
+theorem pushAll_bytes (q : Lanes) (ps : List (Lane × ByteArray)) :
+    (q.pushAll ps).bytes = q.bytes + bytesOf (urgents ps) + bytesOf (serves ps) := by
+  obtain ⟨hu, hs⟩ := pushAll_lanes q ps
+  simp only [Lanes.bytes, hu, hs, bytesOf_append]
+  omega
+
+/-- **A push keeps a socket's lanes within its cap**, or is refused (and
+the runner closes the socket): what `Sock.push` does with every step's
+frames, whatever the peer sent. -/
+theorem push_capped (cap : Nat) (q q' : Lanes) (ps : List (Lane × ByteArray)) (h : q.admit cap ps = some q') :
+    q' = q.pushAll ps ∧ q'.bytes ≤ cap := by
+  simp only [Lanes.admit] at h
+  split at h
+  · cases h; exact ⟨rfl, by assumption⟩
+  · cases h
+
+theorem push_over (cap : Nat) (q : Lanes) (ps : List (Lane × ByteArray)) (h : q.admit cap ps = none) :
+    cap < (q.pushAll ps).bytes := by
+  simp only [Lanes.admit] at h
+  split at h
+  · cases h
+  · omega
+
+/-- A write only takes from the lanes. -/
+theorem take_bytes (burst : Nat) (q : Lanes) :
+    bytesOf (q.take burst).1 + (q.take burst).2.bytes = q.bytes := by
+  have h := congrArg bytesOf (take_append burst q).1
+  simp only [bytesOf_append] at h
+  simp only [Lanes.bytes, (take_append burst q).2]
+  have : bytesOf ([] : List ByteArray) = 0 := rfl
+  omega
+
+/-- The lanes a socket's writer and the loop can leave: from none,
+through the loop's pushes (`Sock.push`, by `admit`), the writer's
+writes (`take`), and the stop, which drops them (`Sock.stop`). -/
+inductive Lanes.Reach (cap burst : Nat) : Lanes → Prop
+  | empty : Reach cap burst {}
+  | push {q q' : Lanes} (ps : List (Lane × ByteArray)) :
+      Reach cap burst q → q.admit cap ps = some q' → Reach cap burst q'
+  | take {q : Lanes} : Reach cap burst q → Reach cap burst (q.take burst).2
+
+/-- **A socket never holds more than `sockCap` bytes**, urgent and serve
+together, whatever its peer sends or fails to take. -/
+theorem lanes_bounded {cap burst : Nat} {q : Lanes} (h : Lanes.Reach cap burst q) : q.bytes ≤ cap := by
+  induction h with
+  | empty => simp [Lanes.bytes, bytesOf]
+  | push ps _ ha _ => exact (push_capped _ _ _ ps ha).2
+  | take _ ih => have := take_bytes burst ‹Lanes›; omega
+
 /-- **What a fresh frame waits for on its socket**, the send-path premise
 of `fresh_stmt`. Write w₁ began from lanes q₀; while it was under way the
-loop pushed `pre`, then urgent frame u, then `post`. The writer's next
-write w₂ sends u after only the urgent frames of `pre`; and w₁ is the
-urgent frames queued when it began, and at most `burst` bytes of serve
-frames, or one frame. So what reaches the socket from u's push to u is
-bounded by the urgent traffic and one burst, whatever backlog the serve
-lane holds. -/
-theorem ahead_bytes (burst : Nat) (q₀ : Lanes) (pre post : List (Lane × ByteArray)) (u : ByteArray) :
+loop pushed `pre`, then urgent frame u, then `post`, admitted within the
+cap. The writer's next write w₂ sends u after only the urgent frames of
+`pre`. w₁ is the urgent frames queued when it began, and at most
+`burst` bytes of serve frames, or one frame, and at most `cap` bytes in
+all; the urgent frames of `pre` and u are at most `cap` bytes. So what
+reaches the socket from u's push to u is at most twice the cap, whatever
+backlog the serve lane holds. -/
+theorem ahead_bytes (cap burst : Nat) (q₀ : Lanes) (pre post : List (Lane × ByteArray)) (u : ByteArray)
+    (h₀ : Lanes.Reach cap burst q₀)
+    (h : ((((q₀.take burst).2.pushAll pre).push .urgent u).pushAll post).bytes ≤ cap) :
     (∃ rest, (((((q₀.take burst).2.pushAll pre).push .urgent u).pushAll post).take burst).1 =
       urgents pre ++ u :: rest) ∧
-    bytesOf (q₀.take burst).1 ≤ bytesOf q₀.urgent + max burst (q₀.serve.headD .empty).size := by
-  refine ⟨?_, ?_⟩
+    bytesOf (q₀.take burst).1 ≤ min cap (bytesOf q₀.urgent + max burst (q₀.serve.headD .empty).size) ∧
+    bytesOf (urgents pre) + u.size ≤ cap := by
+  refine ⟨?_, ?_, ?_⟩
   · rw [urgent_ahead]
     obtain ⟨hu, -⟩ := pushAll_lanes (q₀.take burst).2 pre
     rw [hu, (take_append burst q₀).2]
     exact ⟨_, by simp; rfl⟩
-  · rw [take_urgent_first, bytesOf_append]
+  · have h1 := lanes_bounded h₀
+    have h2 := take_bytes burst q₀
+    rw [take_urgent_first, bytesOf_append] at h2 ⊢
     have := cut_bytes burst q₀.serve
     omega
+  · rw [pushAll_bytes] at h
+    have hp := pushAll_bytes (q₀.take burst).2 pre
+    have hu : (((q₀.take burst).2.pushAll pre).push .urgent u).bytes =
+        ((q₀.take burst).2.pushAll pre).bytes + u.size := by
+      simp [Lanes.push, Lanes.bytes, bytesOf]; omega
+    omega
 
-/-! ## Sockets apart -/
+/-! ## Serving into the window -/
 
-/-- **A slow socket holds up no other.** Socket s's lanes after a step
-are its own, with the step's frames to its address pushed in order; so
-its next native write is the same whatever any other socket holds
-(`o` and `o'` agree at s only), however long another's backlog. -/
-theorem apart (o o' : Nat → Lanes) (sockOf : ByteArray → Option Nat) (fs : List (ByteArray × Lane × ByteArray))
-    (s burst : Nat) (h : o s = o' s) :
-    ((o s).pushAll (framesFor sockOf s fs)).take burst = ((o' s).pushAll (framesFor sockOf s fs)).take burst := by
-  rw [h]
+/-- A session's room at a socket's address is `window` less what the
+socket's lanes hold. -/
+theorem roomOf_found (w : Nat) (qs : List (ByteArray × Lanes)) (a a' : ByteArray) (q : Lanes)
+    (h : qs.find? (·.1 == a) = some (a', q)) : roomOf w qs a = some (w - q.bytes) := by
+  simp [roomOf, h]
+
+/-- **Serving stays within the window and one op.** A step serves a
+session at most its room and one op (`serveOwed_budget`); its room is
+what its socket's lanes, holding b bytes, have left of `window`. So the
+lanes then hold at most `window` and that op, or the b they held. -/
+theorem room_window (w : Nat) (qs : List (ByteArray × Lanes)) (a a' : ByteArray) (q : Lanes)
+    (h : qs.find? (·.1 == a) = some (a', q)) (served op : Nat)
+    (hs : ∀ r, roomOf w qs a = some r → served ≤ r + op) :
+    q.bytes + served ≤ max q.bytes w + op := by
+  have := hs _ (roomOf_found w qs a a' q h)
+  omega
+
+/-! ## Stalls -/
+
+/-- **A writer stalled for `stallMs` is closed.** A socket whose writer's
+write under way began at t is one the loop's clock closes (`shut`) at
+any time from t + `stallMs` on. -/
+theorem stall_closes (idle stallMs now heard t : Nat) (h : t + stallMs ≤ now) :
+    shut idle stallMs now heard (some t) = true := by
+  simp [shut, h]
+
+/-- And one heard from within `idle`, with no write under way, or one
+under way for less than `stallMs`, is not. -/
+theorem shut_live (idle stallMs now heard : Nat) (since : Option Nat) (hh : now ≤ heard + idle)
+    (hs : ∀ t, since = some t → now < t + stallMs) : shut idle stallMs now heard since = false := by
+  cases since with
+  | none => simp [shut]; omega
+  | some t => have := hs t rfl; simp [shut]; omega
 
 /-- And the frames pushed onto socket s are exactly the step's frames to
 an address of s, in order. -/

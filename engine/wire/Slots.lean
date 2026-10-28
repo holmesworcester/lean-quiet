@@ -16,9 +16,23 @@ structure RunConfig where
   /-- Serve bytes in one native write, after the urgent frames (uiprio's
   `idleBatchBytes` on the send side). -/
   burst : Nat := 131072
-  /-- Serve bytes a socket may hold queued: a session's queue of wants is
-  served only while its socket's serve lane holds less (`Sync.room`). -/
+  /-- Bytes a socket's lanes may hold before a session at its address
+  is served more: a session's queue of wants is served only into what
+  is left of this (`Sync.room`, `roomOf`). -/
   window : Nat := 4194304
+  /-- Bytes a socket's lanes may hold, both of them: a push past this
+  closes the socket (`Lanes.admit`). Serving stays under `window` and
+  one op, so only a peer that takes nothing while asking for more, or
+  for many of this node's fresh ops, reaches it. -/
+  sockCap : Nat := 16777216
+  /-- A writer's write not done in this many ms closes its socket: the
+  peer took less than one write (urgent frames and `burst`) in that
+  time. The writer stays on that write until the peer takes it or the
+  connection dies, holding its slot, so `maxSocks` caps such writers. -/
+  stallMs : Nat := 30000
+  /-- How long `Runner.stop` waits for writers to end their write under
+  way. -/
+  stopMs : Nat := 1000
 
 /-- A peer's quota is its host, the port dropped from the address text
 (Tcp.addrText): `a.b.c.d` of `a.b.c.d:port`, `[v6]` of `[v6]:port`, and
