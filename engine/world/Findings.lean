@@ -6,30 +6,26 @@ engine/world/Statements.lean is false today, and names the fix.
 1. **Patience counts from the last receipt, not from the wait's start**
    (`patience_drops_idle`). A dialer's idle session (not waiting, last
    heard at h) opens a round at its cadence tick t; if h + patience ≤ t,
-   its very next tick drops the session, before any answer could have
-   arrived. With the defaults (a round every 30 s, patience 20 s) every
-   session idle between rounds is dropped at its next round. This
-   falsifies `session_stable_stmt` for any Δ > 0. Fix: `Conn.start` sets
-   `heard := now` (the wait's start), so patience is silence while
-   waiting, as SYNC.md says.
+   its very next tick drops the session unless the answer has come.
+   With the defaults (a round every 30 s, patience 20 s, a tick every
+   200 ms), every idle session is dropped at its next cadence round
+   whenever the round trip is longer than a tick. This falsifies
+   `session_stable_stmt`. Fix: `Conn.start` sets `heard := now`, so
+   patience is silence while waiting, as SYNC.md says.
 2. **A room only one end shows stops every round on the session**
    (`unshown_unanswered`, `no_round_while_open`). The answerer of a
    round in a room it does not show sends nothing; the dialer keeps that
    round's snapshot, so it waits (patience drops the session), and it
    opens no round in any room while one is open. Rooms differ at the two
    ends whenever one end has stored an admission the other has not, so
-   this is the bootstrap's case. It is why `Healthy` must assume the
-   rooms agree at both ends of a session, not only that both show r.
-   Fix: answer a round in an unshown room with an empty claim list (it
-   ends the round; the dialer's settle for that room is then vacuous, a
-   choice for the user) or have the hello say which rooms it shows.
-3. **`while` is `partial`, so opaque** (fixed on this branch).
-   `Conn.walk` looped with `while`, which Lean compiles through a
-   `partial` definition: no theorem can say anything about its result.
-   Every tick and every answered want runs it, so after either, a node's
-   store and connection were unknown to every proof. It is now a loop
-   over `[0:cfg.walk]` with `break`, the same steps (`walk_keeps`,
-   `walk_same`, `walk_idle` in engine/world/Run.lean).
+   this is every join. It falsifies `rooms_stmt` and `join_stmt`, and is
+   why `Carries` assumes the rooms agree at both ends.
+3. **`while` is `partial`, so opaque.** `Conn.walk` loops with `while`,
+   which Lean compiles through a `partial` definition: no theorem can
+   say anything about its result, and every tick and every answered want
+   runs it. The laws here take what they need of it as the premise
+   `WalkLaws` (`walk_stmt`), which a3/hostile's structural `walkN`
+   discharges.
 -/
 import engine.world.Run
 

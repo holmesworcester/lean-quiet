@@ -65,6 +65,7 @@ theorem Keeps.range' {β} (r : Std.Legacy.Range) (b : β) {f : Nat → β → He
   intro h; rw [Std.Legacy.Range.forIn_eq_forIn_range']; exact Keeps.forIn' _ b hf h
 theorem Keeps.getOp' (x : Id) : Keeps (Store.getOp (F := F) x : HeldM F _) := fun _ => rfl
 theorem Keeps.getStatus' (x : Id) : Keeps (Store.getStatus (F := F) x : HeldM F _) := fun _ => rfl
+theorem Keeps.read' {α} (f : Held F → α) : Keeps (readH f) := fun _ => rfl
 
 /-- Fails on a goal that still has metavariables. `keeps` and `grows`
 apply bind rules, and on a goal whose program is not yet known each
@@ -90,6 +91,7 @@ macro_rules
       | with_reducible_and_instances apply Keeps.pure' | with_reducible_and_instances apply Keeps.forIn'
       | with_reducible_and_instances apply Keeps.range'
       | with_reducible_and_instances apply Keeps.getOp' | with_reducible_and_instances apply Keeps.getStatus'
+      | with_reducible_and_instances apply Keeps.read'
       | $tac:tactic))
 
 /-- What the walk leaves as it was: everything but its frontier, what it

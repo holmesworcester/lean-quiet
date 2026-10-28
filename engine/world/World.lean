@@ -243,7 +243,22 @@ def World.isOpen {n : Nat} (w : World S n) (i : Fin n) (cid : Id) : Prop := ((w.
 
 end
 
-/-! ## The plain setup: fixed rooms, frames in the clear -/
+/-! ## The plain setup: rooms read from the store, frames in the clear -/
+
+section
+variable {F : Type}
+
+/-- A read of the store that leaves it as it is. -/
+def readH {α : Type} (f : Held F → α) : HeldM F α := fun h => (f h, h)
+
+/-- A node of the plain setup: its family and settings, the rooms it
+shows on each session read from its store (`rooms h cid`), and frames
+sealed in the clear. Its family writes nothing else. -/
+def psync (fam : Family F) (cfg : Config) (rooms : Held F → Id → List Id) : Sync F (HeldM F) :=
+  { fam := fam, cfg := cfg,
+    hooks := { rooms := (fun cid => readH fun h => rooms h cid), sealFor := plainSeal, openFrame := plainOpen } }
+
+end
 
 /-- A sealed frame read in the clear: its session and payloads. -/
 def plainPeek (b : ByteArray) : Option (Id × List ByteArray) :=
@@ -252,23 +267,50 @@ def plainPeek (b : ByteArray) : Option (Id × List ByteArray) :=
       (Codec.decode p.2 : Option (List ByteArray)).map (p.1, ·)
   else none
 
-/-- A node of the plain setup: its family and settings, fixed rooms per
-session, frames sealed in the clear; its family writes nothing else. -/
-def psync (fam : Family F) (cfg : Config) (rooms : Id → List Id) : Sync F (HeldM F) :=
-  { fam := fam, cfg := cfg,
-    hooks := { rooms := (fun cid => pure (rooms cid)), sealFor := plainSeal, openFrame := plainOpen } }
+/-- **The plain world** (a3's two-node world, for n nodes): n nodes on
+held stores, frames sealed in the clear, sessions from the harness's
+`connect` (the family writes no handshake), and each node's rooms on
+each session read from its own store, which is the trust rule as data:
+- fixed rooms ignore the store ("they all know and trust each other");
+- a stored admission adds a room to a session, and a stored removal
+  takes one away (joins, removals, rooms that differ at the two ends). -/
+structure Plain (F : Type) where
+  fam : Family F
+  cfg : Config := {}
+  n : Nat
+  /-- Node i's address: what it listens on, and what its frames say they
+  come from. -/
+  addr : Fin n → ByteArray
+  /-- The rooms node i shows on session cid, given its store. -/
+  rooms : Fin n → Held F → Id → List Id
 
-/-- n nodes on held stores, each with fixed rooms per session and frames
-sealed in the clear (`plainSeal`); the family writes nothing else, so
-sessions come from `connect` (a3's two-node world, for n nodes). -/
-def plain (fam : Family F) (cfg : Config) (n : Nat) (addr : Fin n → ByteArray)
-    (rooms : Fin n → Id → List Id) : Setup F (HeldM F) (Held F) where
-  n := n
-  sync i := psync fam cfg (rooms i)
-  addr := addr
+namespace Plain
+variable {F : Type} (Q : Plain F)
+
+/-- What the world runs for a plain setup. -/
+def setup : Setup F (HeldM F) (Held F) where
+  n := Q.n
+  sync i := psync Q.fam Q.cfg (Q.rooms i)
+  addr := Q.addr
   run m h := m.run h
   held h := h
   harness := true
   peek := plainPeek
+
+/-- Every node booted on an empty store, nothing in flight. -/
+def start : World (Held F) Q.n := World.init Q.setup fun _ => {}
+
+/-- The worlds a legal run reaches from empty stores, against attacker
+`adv`. -/
+def Reach (adv : World (Held F) Q.n → ByteArray → Prop) (w : World (Held F) Q.n) : Prop :=
+  Reachable Q.setup adv Q.start w
+
+/-- Executions from empty stores with no attacker. -/
+abbrev Run := Exec Q.setup noAdv Q.start
+
+/-- Node i holds op x of room r. -/
+abbrev Holds (w : World (Held F) Q.n) (i : Fin Q.n) (r x : Id) : Prop := Engine.World.Holds Q.setup w i r x
+
+end Plain
 
 end Engine.World

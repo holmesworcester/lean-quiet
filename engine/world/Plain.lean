@@ -26,11 +26,11 @@ variable {F : Type}
 /-! ## The plain hooks -/
 
 section
-variable (fam : Family F) (cfg : Config) (rms : Id → List Id)
+variable (fam : Family F) (cfg : Config) (rms : Held F → Id → List Id)
 
 @[simp] theorem psync_fam : (psync fam cfg rms).fam = fam := rfl
 @[simp] theorem psync_cfg : (psync fam cfg rms).cfg = cfg := rfl
-@[simp] theorem psync_rooms (cid : Id) : (psync fam cfg rms).hooks.rooms cid = pure (rms cid) := rfl
+@[simp] theorem psync_rooms (cid : Id) : (psync fam cfg rms).hooks.rooms cid = readH fun h => rms h cid := rfl
 @[simp] theorem psync_openFrame (b : ByteArray) :
     (psync fam cfg rms).hooks.openFrame b = pure (Codec.decode b) := rfl
 @[simp] theorem psync_sealFor (cid : Id) (b : ByteArray) :
@@ -46,13 +46,11 @@ variable (fam : Family F) (cfg : Config) (rms : Id → List Id)
 @[simp] theorem psync_established : (psync fam cfg rms).hooks.established = pure [] := rfl
 
 @[simp] theorem refresh_run (cid : Id) (c : Conn) (h : Held F) :
-    (Node.refresh (psync fam cfg rms) cid c).run h = (c.setRooms (rms cid), h) := rfl
+    (Node.refresh (psync fam cfg rms) cid c).run h = (c.setRooms (rms h cid), h) := rfl
 
 end
 
-@[simp] theorem plain_sync (fam : Family F) (cfg : Config) (n : Nat) (addr : Fin n → ByteArray)
-    (rooms : Fin n → Id → List Id) (i : Fin n) : (plain fam cfg n addr rooms).sync i = psync fam cfg (rooms i) :=
-  rfl
+@[simp] theorem setup_sync (Q : Plain F) (i : Fin Q.n) : Q.setup.sync i = psync Q.fam Q.cfg (Q.rooms i) := rfl
 
 /-! ## Stores only grow -/
 
@@ -102,6 +100,7 @@ theorem Grows.range' {β} (r : Std.Legacy.Range) (b : β) {f : Nat → β → He
   intro h; rw [Std.Legacy.Range.forIn_eq_forIn_range']; exact Grows.forIn' _ b hf h
 theorem Grows.getOp' (x : Id) : Grows (Store.getOp (F := F) x : HeldM F _) := (Keeps.getOp' x).grows
 theorem Grows.getStatus' (x : Id) : Grows (Store.getStatus (F := F) x : HeldM F _) := (Keeps.getStatus' x).grows
+theorem Grows.read' {α} (f : Held F → α) : Grows (readH f) := (Keeps.read' f).grows
 
 theorem ingestS_ext (o : Op) (s : DB F) : ∀ x p, s.ops x = some p → (ingestS o s).ops x = some p := by
   intro x p hx
@@ -165,13 +164,13 @@ macro_rules
       | with_reducible_and_instances apply Grows.pure' | with_reducible_and_instances apply Grows.forIn'
       | with_reducible_and_instances apply Grows.range'
       | with_reducible_and_instances apply Grows.getOp' | with_reducible_and_instances apply Grows.getStatus'
-      | with_reducible_and_instances apply Grows.turn'
+      | with_reducible_and_instances apply Grows.turn' | with_reducible_and_instances apply Grows.read'
       | $tac:tactic))
 
 /-! ## Every entry point grows the store -/
 
 section
-variable (fam : Family F) (cfg : Config) (rms : Id → List Id)
+variable (fam : Family F) (cfg : Config) (rms : Held F → Id → List Id)
 
 theorem filed_grows (c : Conn) (ids : List Id) : Grows (c.filed fam cfg ids : HeldM F Step) :=
   (filed_keeps fam cfg c ids).grows
@@ -220,7 +219,7 @@ theorem connect_grows (n : Node) (cid : Id) (a : ByteArray) (d : Bool) (now : Na
 end
 
 section
-variable (fam : Family F) (cfg : Config) (rms : Id → List Id) (hw : WalkLaws (F := F) fam cfg)
+variable (fam : Family F) (cfg : Config) (rms : Held F → Id → List Id) (hw : WalkLaws (F := F) fam cfg)
 include hw
 
 theorem recv_keeps (ix : Index) (c : Conn) (b : ByteArray) (now : Nat) :
@@ -253,19 +252,19 @@ end
 /-! ## In the world: stores only grow -/
 
 section
-variable (fam : Family F) (cfg : Config) (n : Nat) (addr : Fin n → ByteArray) (rooms : Fin n → Id → List Id)
+variable (Q : Plain F)
 
-theorem enter_ext (w : World (Held F) n) (i : Fin n) (t : Nat) (f : Node → HeldM F (Node × Effects))
-    (hf : ∀ nd, Grows (f nd)) (j : Fin n) :
-    Ext (w.box j) ((w.enter (plain fam cfg n addr rooms) i t f).box j) := by
+theorem enter_ext (w : World (Held F) Q.n) (i : Fin Q.n) (t : Nat) (f : Node → HeldM F (Node × Effects))
+    (hf : ∀ nd, Grows (f nd)) (j : Fin Q.n) :
+    Ext (w.box j) ((w.enter Q.setup i t f).box j) := by
   simp only [World.enter, upd]
   split
   · rename_i e; subst e; exact hf _ _
   · exact Ext.refl _
 
 /-- **No step takes an op out of any store.** -/
-theorem step_ext (hw : WalkLaws (F := F) fam cfg) (w : World (Held F) n) (a : Act n) (j : Fin n) :
-    Ext (w.box j) ((w.step (plain fam cfg n addr rooms) a).box j) := by
+theorem step_ext (hw : WalkLaws (F := F) Q.fam Q.cfg) (w : World (Held F) Q.n) (a : Act Q.n) (j : Fin Q.n) :
+    Ext (w.box j) ((w.step Q.setup a).box j) := by
   cases a with
   | deliver k t =>
     simp only [World.step]
@@ -275,25 +274,25 @@ theorem step_ext (hw : WalkLaws (F := F) fam cfg) (w : World (Held F) n) (a : Ac
       split
       · exact Ext.refl _
       · rename_i j' _
-        exact enter_ext fam cfg n addr rooms { w with flight := w.flight.eraseIdx k } j' t
-          (fun nd => Node.onFrame ((plain fam cfg n addr rooms).sync j') nd p.origin p.bytes t)
-          (fun nd => onFrame_grows fam cfg _ hw nd _ _ _) j
+        exact enter_ext Q { w with flight := w.flight.eraseIdx k } j' t
+          (fun nd => Node.onFrame (Q.setup.sync j') nd p.origin p.bytes t)
+          (fun nd => onFrame_grows Q.fam Q.cfg _ hw nd _ _ _) j
   | dup k => simp only [World.step]; split <;> exact Ext.refl _
   | drop k => exact Ext.refl _
-  | tick i t => simp only [World.step]; apply enter_ext; intro nd; exact onTick_grows fam cfg _ hw _ _
+  | tick i t => simp only [World.step]; apply enter_ext; intro nd; exact onTick_grows Q.fam Q.cfg _ hw _ _
   | write i ops t =>
     simp only [World.step]
-    exact enter_ext fam cfg n addr rooms w i t _ (fun nd => onWrite_grows fam cfg _ nd _ _) j
+    exact enter_ext Q w i t _ (fun nd => onWrite_grows Q.fam Q.cfg _ nd _ _) j
   | restart i t =>
     simp only [World.step, upd]
     split
     · rename_i e; subst e; exact Ext.refl _
     · exact Ext.refl _
   | connect i j' cid d t =>
-    simp only [World.step]; apply enter_ext; intro nd; exact connect_grows fam cfg _ _ _ _ _ _
+    simp only [World.step]; apply enter_ext; intro nd; exact connect_grows Q.fam Q.cfg _ _ _ _ _ _
   | inject i o b t =>
     simp only [World.step]
-    exact enter_ext fam cfg n addr rooms w i t _ (fun nd => onFrame_grows fam cfg _ hw nd _ _ _) j
+    exact enter_ext Q w i t _ (fun nd => onFrame_grows Q.fam Q.cfg _ hw nd _ _ _) j
 
 end
 
@@ -301,9 +300,9 @@ end
 attacker, takes an op out of a plain node's store (given the walk's
 laws, until a3/hostile's `walkN` lands). -/
 theorem grows_proof (hw : walk_stmt) : grows_stmt := by
-  intro F fam cfg n addr rooms adv w a i r x _ _ hx
+  intro F Q adv w a i r x _ _ hx
   obtain ⟨o, ho, hr⟩ := hx
-  exact ⟨o, (step_ext fam cfg n addr rooms (hw F fam cfg) w a i).1 x o ho, hr⟩
+  exact ⟨o, (step_ext Q (hw F Q.fam Q.cfg) w a i).1 x o ho, hr⟩
 
 /-! ## Indexes and snapshots name stored ops -/
 
@@ -566,7 +565,7 @@ theorem forIn_at {α β} (l : List α) (f : α → β → HeldM F (ForInStep β)
       exact ih (fun a ha => hk a (List.mem_cons_of_mem _ ha)) (fun a ha => hf a (List.mem_cons_of_mem _ ha)) b' this
 
 section
-variable (fam : Family F) (cfg : Config) (rms : Id → List Id)
+variable (fam : Family F) (cfg : Config) (rms : Held F → Id → List Id)
 
 /-- What the write's second loop adds to the index names stored ops. -/
 theorem items_addStep (fam : Family F) (db : DB F) (r : Id) : ∀ (l : List Op) (st : Index × List Id) it,
