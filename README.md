@@ -18,7 +18,7 @@ There is something exhilarating about adding a proof where one would usually add
 
 <p align="center"><img src="docs/media/android-demo.webp" width="300" alt="Lean Quiet on Android: a message, Hebrew, Arabic and mixed scripts, a heart reaction, a photo, then flings through 1,000 messages"></p>
 
-<p align="center"><em>The status bar and keyboard are Android's, the rest is Lean Quiet.</em></p>
+<p align="center"><em>The status bar and keyboard are Android's, the rest is Lean Quiet. Scrolling is better in person.</em></p>
 
 ## What is proven
 
