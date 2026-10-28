@@ -66,7 +66,7 @@ def main (args : List String) : IO UInt32 := do
     sa.cmds.modify (·.push "open invite")
     steps 3
     let s ← get
-    return ((s.links.find? (·.1 == s.me.c)).map (·.2)).getD "").run a0
+    return ((s.links.find? (·.1 == s.me.acc)).map (·.2)).getD "").run a0
   check s!"A's node runs ({a1.net.map (·.port)})" (a1.net.map (·.port.toNat) == some pa)
   let hints := ((Invite.parse link).map (·.hints.map fun h => (String.fromUTF8? h).getD "?")).getD []
   check s!"A's link dials A's node ({hints})" (hints == [s!"127.0.0.1:{pa}"])

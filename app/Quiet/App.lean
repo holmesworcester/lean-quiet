@@ -101,6 +101,31 @@ structure SheetSt where
   vel : Float := 0
   deriving Inhabited
 
+/-- Everything a page and its bar are drawn from, besides the font, the
+background row and the camera's frame: the page cache's key. Communities
+appear by their keys (acceptance op id, community id, name, …), so two
+entries that share a name are still two keys. -/
+structure PageIn where
+  page : PageId
+  W : Nat
+  h : Nat
+  insetTop : Nat
+  dim : Dim
+  field : String
+  refusal : Option String
+  me : Kinds.Accepted.Key
+  comms : Array Kinds.Accepted.Key
+  /-- The join requests shown (not hidden), and how many there are in all. -/
+  asking : Array Pages.Asking
+  askingAll : Nat
+  link : Option String
+  members : Array (String × Bool)
+  online : Array Bool
+  backEmpty : Bool
+  /-- Which camera frame is shown (a new frame, a new key). -/
+  camFrame : Nat
+  deriving BEq, Inhabited
+
 structure St where
   io : Io
   W : Nat
@@ -153,10 +178,10 @@ structure St where
   /-- Every community this device is in; `me` is the current one. -/
   comms : Array Chaos.Me := #[]
   /-- The current community: memory, not state. -/
-  cur : Id := .empty
+  cur : Id := .empty  -- the current entry's acceptance (Kinds.Accepted.Me.acc)
   /-- The link pasted or scanned, while Agree & join is asked. -/
   invite : Option Community.Invite := none
-  /-- This session's invite link per community (Add members). -/
+  /-- This session's invite link per entry (acceptance; Add members). -/
   links : List (Id × String) := []
   /-- Photos attached in the composer: QOI bytes, size, and the chip. -/
   chips : Array (ByteArray × Nat × Nat × Composer.Chip) := #[]
@@ -182,7 +207,8 @@ names, and whether it is me. -/
   field : String := ""
   refusal : Option String := none
   hidden : List Id := []
-  pageCache : String := ""
+  /-- The key of the page drawn (`drawPage`): it is redrawn when the key changes. -/
+  pageKey : Option PageIn := none
   pageNow : Option Pages.Page := none
   /-- Requests to join the current community no admission answers yet:
   the request's id, its fact, and its approvals' ids. -/
@@ -191,6 +217,7 @@ names, and whether it is me. -/
   frame as drawn on Join with QR code. -/
   camOn : Bool := false
   camView : Option Bitmap := none
+  camFrame : Nat := 0
   /-- A camera frame being decoded, off the app's thread. -/
   decoding : Option (Task (Option String)) := none
   /-- Camera frames decoded so far (ctl `scans`). -/
@@ -509,14 +536,14 @@ def openPage (p : PageId) : M Unit := do
   if s.page == p then return
   -- Add members issues this community's link once per session: an
   -- invitation op of mine, and the link that carries its bearer secret
-  if p == .invite && !s.me.waiting && !(s.links.any (·.1 == s.me.c)) then
+  if p == .invite && !s.me.waiting && !(s.links.any (·.1 == s.me.acc)) then
     let bearer ← Chaos.freshSeed "bearer"
     -- dial hints: this device's private LAN addresses (Link.hints)
     let (w, i) := Community.inviteTo s.me.c s.me.adm s.me.seed bearer (← listenHints)
     if ← writeAll w then
-      modify fun s => { s with links := (s.me.c, i.text) :: s.links }
+      modify fun s => { s with links := (s.me.acc, i.text) :: s.links }
   s.io.scrollTo 0
-  modify fun s => { s with backStack := s.page :: s.backStack, page := p, refusal := none, pageCache := "" }
+  modify fun s => { s with backStack := s.page :: s.backStack, page := p, refusal := none, pageKey := none }
 
 /-- A link pasted or scanned: Choose a name, then Agree & join. -/
 def takeInvite (i : Community.Invite) : M Unit := do
@@ -533,29 +560,36 @@ def back : M Unit := do
   s.io.textClear
   s.io.scrollTo 0
   match s.backStack with
-  | p :: rest => modify fun s => { s with page := p, backStack := rest, field := "", refusal := none, pageCache := "" }
-  | [] => modify fun s => { s with page := .chat, field := "", refusal := none, pageCache := "" }
+  | p :: rest => modify fun s => { s with page := p, backStack := rest, field := "", refusal := none, pageKey := none }
+  | [] => modify fun s => { s with page := .chat, field := "", refusal := none, pageKey := none }
 
 /-- The communities, read by the Community kind; the current one is kept
 (or the first, when it is gone or none is current). -/
 def refreshComms : M Unit := do
   let (cs, _) ← Kinds.Accepted.read
   modify fun s =>
-    let me := (cs.find? (·.c == s.cur)) <|> cs[0]?
-    { s with comms := cs, me := me.getD s.me, cur := (me.map (·.c)).getD s.cur }
+    let me := Kinds.Accepted.select cs s.cur <|> cs[0]?
+    { s with comms := cs, me := me.getD s.me, cur := (me.map (·.acc)).getD s.cur }
 
-/-- Make community c the current one (memory only): the list starts again
-from its newest. -/
-def switchToId (c : Id) : M Unit := do
+/-- Make the entry of acceptance `a` the current one (memory only): the
+list starts again from its newest. An entry is its acceptance, never its
+community id or name (Switch.select_tapped). -/
+def switchToAcc (a : Id) : M Unit := do
   let s ← get
   s.io.scrollTo 0
-  modify fun s => { s with cur := c, me := (s.comms.find? (·.c == c)).getD s.me, page := PageId.home, backStack := [] }
+  modify fun s => { s with cur := a, me := (Kinds.Accepted.select s.comms a).getD s.me, page := PageId.home, backStack := [] }
   modify fun s => { s with ids := #[], total := 0, people := 0, limit := 64 }
   modify fun s => { s with heights := {}, rows := {}, selected := none, sheet := none }
-  modify fun s => { s with asking := #[], hidden := [], chromeKey := "", pageCache := "" }
+  modify fun s => { s with asking := #[], hidden := [], chromeKey := "", pageKey := none }
 
 def switchTo (i : Nat) : M Unit := do
-  if let some m := (← get).comms[i]? then switchToId m.c
+  if let some m := (← get).comms[i]? then switchToAcc m.acc
+
+/-- The acceptance a write makes (found's, join's): its accept op. -/
+def acceptOf (w : Community.Write) : Option Id :=
+  (w.ops.find? fun o => match (Codec.decode o.body : Option Community.Body) with
+    | some (.accept ..) => true
+    | _ => false).map (·.id)
 
 /-- Found a community named n: its root and my profile, and it becomes
 current. -/
@@ -563,10 +597,9 @@ def found (n myName : String) : M Unit := do
   let seed ← Chaos.freshSeed n
   let w := Community.found seed n.toUTF8 myName.toUTF8 (newestTime (← get) + 1)
   if ← writeAll w then
-    -- the root is the community: the write's second op, after the secret
-    if let some r := w.ops[1]? then
+    if let some a := acceptOf w then
       refreshComms
-      switchToId r.id
+      switchToAcc a
 
 /-- The node: started at launch, once (it speaks for every device whose
 secret this store holds: Connection.hooks reads them all, and picks the
@@ -619,7 +652,7 @@ def scanStep : M Unit := do
   if hdr.size == 4 && px.size > 0 then
     let fr : Camera.Frame := ⟨hdr[0]!.toNat, hdr[1]!.toNat, hdr[2]!.toNat, hdr[3]!.toNat, px⟩
     let side := (Pages.scanBox s.dim s.W (viewH s)).w
-    modify fun s => { s with camView := some (Camera.preview fr side), pageCache := "" }
+    modify fun s => { s with camView := some (Camera.preview fr side), camFrame := s.camFrame + 1 }
     if s.decoding.isNone then
       let t := Task.spawn fun _ =>
         (Qr.decodeLuma hdr[0]! hdr[1]! hdr[2]! px).bind fun (b, _) => String.fromUTF8? b
@@ -652,7 +685,7 @@ def refreshPeers : M Unit := do
   let all ← ((Connection.allSessions : SqlM SF _)).run s.rd
   let k := Connection.kept all
   let ps := all.filterMap fun (cid, p, _) => if k.contains cid then some p else none
-  if ps != s.peers then modify fun s => { s with peers := ps, pageCache := "" }
+  if ps != s.peers then modify fun s => { s with peers := ps, pageKey := none }
 
 /-- The requests to join the current community, read by the Request kind. -/
 def refreshAsking : M Unit := do
@@ -670,38 +703,6 @@ def approveReq (r : Id) : M Unit := do
   let _ ← writeAll w
 
 /-- The current page's picture and taps (kept until what it shows changes). -/
-def pageOf (s : St) : Pages.Page :=
-  let f := s.font
-  let dm := s.dim
-  let W := s.W
-  let h := viewH s
-  match s.page with
-  | .getStarted => Pages.getStarted f dm W h
-  | .create => Pages.create f dm W h s.field true
-  | .joinChoice => Pages.joinChoice f dm W h none
-  | .openInvite => Pages.openInvite f dm W h
-  | .paste => Pages.paste f dm W h s.field true s.refusal
-  | .name => Pages.chooseName f dm W h s.field
-  | .createName => Pages.chooseName f dm W h s.field
-  | .scan => Pages.scan f dm W h s.camView "Starting the camera…"
-  | .agree => Pages.agree f dm W h "this community"
-  | .waiting => Pages.waiting f dm W h (Kinds.Request.hexShort s.me.c)
-      -- the request is stored and waits for the community's ops; until the
-      -- network says more, the first beat is where it is
-      #[(if s.me.dialing.isEmpty then "Looking for someone to hand your join to" else s!"Sending your request to {s.me.dialing}",
-          "Quiet sends it again until a member's device answers.", .now),
-        ("Waiting for a member to let you in", "Quiet asks again whenever it finds one. They see you waiting the next time they open the app.", .next),
-        ("Keys and history arrive", "Then the community opens, with what was shared before you got here.", .next)] #[]
-  | .requests => Pages.requests f dm W h ((s.asking.filter fun r => !s.hidden.contains r.id).map (·.row))
-  | .invite =>
-    let link := (s.links.find? (·.1 == s.me.c)).map (·.2)
-    Pages.invite f dm W h (link.bind fun l => Link.qr l (Pages.qrSide dm W h)) (link.getD "…")
-  | .switcher => Pages.switcher f dm W h (s.comms.map fun m =>
-      ({ name := m.name, id8 := Kinds.Request.hexShort m.c, unread := 0, current := m.c == s.me.c, waiting := m.waiting } : Pages.Entry))
-      s.asking.size (!s.me.waiting && !s.me.c.isEmpty)
-  | .home => Pages.home f dm W h (if s.me.waiting then 0 else s.asking.size) #["general"] s.members s.online
-  | .chat => ⟨Bitmap.blank W h s.bgRow, #[]⟩
-
 def pageTitle : PageId → String × Bool
   | .getStarted => ("", false) | .create => ("", false) | .joinChoice => ("", false)
   | .openInvite => ("", false) | .paste => ("", false) | .scan => ("Join with QR code", true)
@@ -709,6 +710,66 @@ def pageTitle : PageId → String × Bool
   | .agree => ("Agree & join", false) | .waiting => ("", false) | .requests => ("Waiting to join", true)
   | .invite => ("Add members", true) | .switcher => ("Communities", true) | .chat => ("", false)
   | .home => ("", false)
+
+/-- A page and its bar, from its key alone (and the font, background and
+camera frame): nothing else of the app's state can reach the pixels, so a
+cached page whose key matches is the page (`drawPage_key`). -/
+def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pages.Page × Bitmap :=
+  let dm := k.dim
+  let W := k.W
+  let h := k.h
+  let me := k.me
+  let pg : Pages.Page := match k.page with
+    | .getStarted => Pages.getStarted f dm W h
+    | .create => Pages.create f dm W h k.field true
+    | .joinChoice => Pages.joinChoice f dm W h none
+    | .openInvite => Pages.openInvite f dm W h
+    | .paste => Pages.paste f dm W h k.field true k.refusal
+    | .name => Pages.chooseName f dm W h k.field
+    | .createName => Pages.chooseName f dm W h k.field
+    | .scan => Pages.scan f dm W h cam "Starting the camera…"
+    | .agree => Pages.agree f dm W h "this community"
+    | .waiting => Pages.waiting f dm W h (Kinds.Request.hexShort me.c)
+        -- the request is stored and waits for the community's ops; until the
+        -- network says more, the first beat is where it is
+        #[(if me.dialing.isEmpty then "Looking for someone to hand your join to" else s!"Sending your request to {me.dialing}",
+            "Quiet sends it again until a member's device answers.", .now),
+          ("Waiting for a member to let you in", "Quiet asks again whenever it finds one. They see you waiting the next time they open the app.", .next),
+          ("Keys and history arrive", "Then the community opens, with what was shared before you got here.", .next)] #[]
+    | .requests => Pages.requests f dm W h k.asking
+    | .invite => Pages.invite f dm W h (k.link.bind fun l => Link.qr l (Pages.qrSide dm W h)) (k.link.getD "…")
+    | .switcher => Pages.switcher f dm W h (k.comms.map fun m =>
+        ({ name := m.name, id8 := Kinds.Request.hexShort m.c, unread := 0, current := m.acc == me.acc, waiting := m.waiting } : Pages.Entry))
+        k.askingAll (!me.waiting && !me.c.isEmpty)
+    | .home => Pages.home f dm W h (if me.waiting then 0 else k.askingAll) #["general"] k.members k.online
+    | .chat => ⟨Bitmap.blank W h bg, #[]⟩
+  let (t, cross) := pageTitle k.page
+  -- a first launch's Get started has nowhere to go back to
+  let top := if k.page == .home then
+      Pages.homeBand f dm W k.insetTop me.name (Kinds.Request.hexShort me.c) ((k.members.find? (·.2)).map (·.1) |>.getD "Me")
+    else if (k.page == .getStarted && k.backEmpty && k.comms.isEmpty) || k.page == .waiting
+    then Bitmap.blank W (k.insetTop + dm.px 56) bg
+    else Pages.bar f dm W k.insetTop t cross
+  (pg, top)
+
+/-- **A page is its key.** Two app states whose keys match draw the same
+page and bar (with the same font, background and camera frame): what the
+cache relies on to keep a page drawn earlier. -/
+theorem drawPage_key (f : Font) (bg : ByteArray) (cam : Option Bitmap) {k k' : PageIn} (h : k = k') :
+    drawPage f bg cam k = drawPage f bg cam k' := by rw [h]
+
+/-- **The current entry is in the key.** Two states on different entries
+(acceptances) have different keys, whatever their names: a switch always
+redraws. -/
+theorem pageIn_acc {k k' : PageIn} (h : k = k') : k.me.acc = k'.me.acc := by rw [h]
+
+/-- The current state's page key. -/
+def pageIn (s : St) : PageIn :=
+  { page := s.page, W := s.W, h := viewH s, insetTop := s.insetTop, dim := s.dim, field := s.field,
+    refusal := s.refusal, me := s.me.key, comms := s.comms.map (·.key),
+    asking := (s.asking.filter fun r => !s.hidden.contains r.id).map (·.row), askingAll := s.asking.size,
+    link := (s.links.find? (·.1 == s.me.acc)).map (·.2), members := s.members, online := s.online,
+    backEmpty := s.backStack.isEmpty, camFrame := s.camFrame }
 
 /-- A page's tap: what it does. -/
 def onPageAct (a : Pages.Act) : M Unit := do
@@ -749,7 +810,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
       match Community.Invite.parse s.field with
       | some i => takeInvite i
       | none =>
-        modify fun s => { s with refusal := some "That isn't a Quiet invite link. Check that you copied all of it.", pageCache := "" }
+        modify fun s => { s with refusal := some "That isn't a Quiet invite link. Check that you copied all of it.", pageKey := none }
     | .name =>
       let n := s.field.trimAscii.toString
       if !n.isEmpty then
@@ -762,14 +823,15 @@ def onPageAct (a : Pages.Act) : M Unit := do
     -- asks for, and this device's accept and joining facts, as one write
     if let some i := s.invite then
       let seed ← Chaos.freshSeed "join"
-      if ← writeAll (Community.join i seed s.joinName.toUTF8) then
+      let w := Community.join i seed s.joinName.toUTF8
+      if ← writeAll w then
         s.io.textClear
         modify fun s => { s with invite := none, field := "", backStack := [] }
         refreshComms
-        switchToId i.community
+        if let some a := acceptOf w then switchToAcc a
   | .addMembers => openPage .invite
   | .share | .copy =>
-    if let some (_, l) := s.links.find? (·.1 == s.me.c) then
+    if let some (_, l) := s.links.find? (·.1 == s.me.acc) then
       s.io.copy l
       say "Invitation copied."
   | .stopWaiting =>
@@ -779,7 +841,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
       if ← writeAll (Community.stopWaiting s.me.joiningOp) then
         refreshComms
         if (← get).comms.isEmpty then
-          modify fun s => { s with page := .getStarted, backStack := [], pageCache := "" }
+          modify fun s => { s with page := .getStarted, backStack := [], pageKey := none }
         else switchTo 0
   | .approve i =>
     let shown := s.asking.filter fun r => !s.hidden.contains r.id
@@ -788,13 +850,13 @@ def onPageAct (a : Pages.Act) : M Unit := do
       say s!"Approved <{Kinds.Request.hexShort r.device}>"
   | .hide i =>
     let shown := s.asking.filter fun r => !s.hidden.contains r.id
-    if let some r := shown[i]? then modify fun s => { s with hidden := r.id :: s.hidden, pageCache := "" }
+    if let some r := shown[i]? then modify fun s => { s with hidden := r.id :: s.hidden, pageKey := none }
   | .switchTo i => switchTo i
   | .addCommunity => openPage .getStarted
   | .requests => openPage .requests
   | .openChannel _ =>
     s.io.scrollTo 0
-    modify fun s => { s with backStack := s.page :: s.backStack, page := .chat, pageCache := "", chromeKey := "" }
+    modify fun s => { s with backStack := s.page :: s.backStack, page := .chat, pageKey := none, chromeKey := "" }
   | .none => pure ()
 
 def closeSheet : M Unit := do
@@ -919,7 +981,7 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
     | .list =>
       let vh := viewH s
       if y < vh then
-        let pg := (s.pageNow).getD (pageOf s)
+        let pg := (s.pageNow).getD (drawPage s.font s.bgRow s.camView (pageIn s)).1
         onPageAct (pg.hit x (vh - 1 - y))
     | .composer => pure ()
     return
@@ -968,7 +1030,7 @@ def onEvent : Event → M Bool
   | .text => do
     let (t, sel) ← (← get).io.text
     if (← get).page == .create || (← get).page == .createName || (← get).page == .paste || (← get).page == .name then
-      modify fun s => { s with field := t, refusal := none, pageCache := "" }
+      modify fun s => { s with field := t, refusal := none, pageKey := none }
       return true
     match (← get).sheet with
     | some sh =>
@@ -1082,7 +1144,11 @@ def command (line : String) : M Bool := do
   | "switch" =>
     match ws[1]? >>= String.toNat? with
     | some i => switchTo i
-    | none => if let some m := (← get).comms.find? (·.name == rest) then switchToId m.c
+    | none =>
+      -- by name, for scripts: refused when two entries share it
+      match (← get).comms.filter (·.name == rest) with
+      | #[m] => switchToAcc m.acc
+      | ms => s.io.ctlReply s!"switch: {ms.size} communities named {rest}; use an index"
     s.io.ctlReply s!"current {(← get).me.name}"
   | "open" =>
     let p : Option PageId := match ws[1]? with
@@ -1282,37 +1348,34 @@ def step (evs : List Event) : M (Option (List Event)) := do
   refreshMembers
   scanStep
   netStep
-  -- admitted in a community I joined: my first profile (the name I chose).
-  -- introduce is a view run through the live cache, so it is re-evaluated
-  -- only when a list it read changes, and writes nothing once a profile
-  -- is filed or in the outbox
+  -- admitted in a community I joined: my first profile (the name I chose),
+  -- in every community this device is admitted to, not only the current
+  -- one (a join approved while another is on screen still introduces
+  -- itself). introduce is a view run through the live cache, so it is
+  -- re-evaluated only when a list it read changes, and writes nothing once
+  -- a profile is filed or in the outbox
   let s ← get
-  if !s.me.c.isEmpty then
-    let (w, _) ← readView (Community.introduce s.me.c s.me.seed (newestTime s + 1)) #[]
+  for m in s.comms do
+    if m.waiting then continue
+    let (w, _) ← readView (Community.introduce m.c m.seed (newestTime s + 1)) #[]
     if !w.ops.isEmpty then let _ ← writeAll w
   -- a community this device waits to join shows Waiting in place of its
   -- conversation (read: no admission for my device there)
   let s ← get
   if (s.page == .chat || s.page == .home) && s.me.waiting && !s.me.c.isEmpty then
-    modify fun s => { s with page := .waiting, pageCache := "" }
+    modify fun s => { s with page := .waiting, pageKey := none }
   if s.page == .waiting && !s.me.waiting then
-    modify fun s => { s with page := .home, pageCache := "" }
+    modify fun s => { s with page := .home, pageKey := none }
     say "You're in."
   -- a page instead of the conversation: its bar, its content in the list
   -- layer (which does not scroll on a page), a one-row composer layer
   let s ← get
   if s.page != .chat then
-    let key := s!"{repr s.page}|{s.members.size}|{s.W}|{s.Hs}|{s.insetTop}|{s.insetBot}|{s.field}|{s.refusal}|{s.comms.size}|{s.asking.size}|{s.hidden.length}|{s.me.name}|{s.links.length}|{s.online.toList}|{(s.comms.map (·.waiting)).toList}"
-    if key != s.pageCache then
-      let pg := pageOf s
-      let (t, cross) := pageTitle s.page
-      -- a first launch's Get started has nowhere to go back to
-      let top := if s.page == .home then Pages.homeBand s.font s.dim s.W s.insetTop s.me.name (Kinds.Request.hexShort s.me.c) ((s.members.find? (·.2)).map (·.1) |>.getD "Me")
-        else if (s.page == .getStarted && s.backStack.isEmpty && s.comms.isEmpty) || s.page == .waiting
-        then Bitmap.blank s.W (s.insetTop + s.dim.px 56) s.bgRow
-        else Pages.bar s.font s.dim s.W s.insetTop t cross
+    let key := pageIn s
+    if some key != s.pageKey then
+      let (pg, top) := drawPage s.font s.bgRow s.camView key
       let bot := Bitmap.blank s.W 1 s.bgRow
-      modify fun s => { s with pageNow := some pg, pageCache := key }
+      modify fun s => { s with pageNow := some pg, pageKey := some key }
       modify fun s => { s with topBmp := top, botBmp := bot, chromeKey := "" }
     let s ← get
     let vh := viewH s

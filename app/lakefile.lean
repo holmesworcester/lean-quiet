@@ -50,3 +50,7 @@ lean_exe invite_link where
 -- Two apps joined over real TCP on loopback, each with its own node.
 lean_exe net_join where
   root := `QTests.NetJoin
+
+-- Two phones, two communities, each in both, everything named alike.
+lean_exe cross where
+  root := `QTests.Cross

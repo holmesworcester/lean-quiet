@@ -64,3 +64,7 @@ run = "android/test/scan_e2e.sh out/quiet.apk out/scan"
 [tasks."host:net-join"]
 description = "Two apps, each its own database and node (the engine's Runner with the Connection family), joined over real TCP on loopback by their own pages: invite, paste, agree, the request over TCP, approve, admission by sync, a post back"
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build net_join && .lake/build/bin/net_join out/net"
+
+[tasks."host:cross"]
+description = "Two apps over real TCP, two communities both named club, each app in both, everyone named Ann: every entry reachable by a tap, each home right, a second join to one community and Stop waiting on it"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build cross && .lake/build/bin/cross out/cross"

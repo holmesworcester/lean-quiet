@@ -9,6 +9,11 @@ facts), then for each community `secret.byKey [pk]`, `admission.byDevice
 yet answered `abandoned.byRequest [req]`: a join this device stopped
 waiting on is not listed (unless an approval let it in after all). Nothing else: which community is
 current is the app's memory, not state.
+
+Each entry is one acceptance, keyed by its op id (`acc`): a device that
+joined one community twice (two devices) has two entries, told apart by
+`acc`, never by the community id or a name. A join is this entry's own:
+the joining fact whose request is this device's.
 -/
 import Quiet.Data
 
@@ -16,6 +21,8 @@ namespace Kinds.Accepted
 open Engine Community Data
 
 structure Me where
+  /-- This acceptance's op id: what the switcher and the app key it by. -/
+  acc : Id := .empty
   dev : Device
   seed : ByteArray
   c : Id
@@ -32,6 +39,28 @@ structure Me where
 
 def Me.waiting (m : Me) : Bool := m.adm.isEmpty
 
+/-- What a page shows of an entry, and its key. -/
+structure Key where
+  acc : Id
+  c : Id
+  name : String
+  waiting : Bool
+  dialing : String
+  deriving BEq, Inhabited
+
+def Me.key (m : Me) : Key := ⟨m.acc, m.c, m.name, m.waiting, m.dialing⟩
+
+/-- The first entry of each acceptance (a list read never repeats an op,
+but the switcher's laws should not rest on that). -/
+def dedupeL : List Me → List Id → List Me
+  | [], _ => []
+  | m :: t, seen => if seen.any (fun x => decide (x = m.acc)) then dedupeL t seen else m :: dedupeL t (m.acc :: seen)
+
+def dedupe (ms : Array Me) : Array Me := (dedupeL ms.toList []).toArray
+
+/-- The entry for acceptance `a`. -/
+def select (ms : Array Me) (a : Id) : Option Me := ms.find? fun m => decide (m.acc = a)
+
 variable {m : Type → Type} [Monad m] [Reads m]
 
 def read : m (Array Me × Array Q) := do
@@ -39,7 +68,7 @@ def read : m (Array Me × Array Q) := do
   let (jn, _, deps) ← readList (joining.all.query []) deps
   let mut out := #[]
   let mut deps := deps
-  for (_, f) in acc.rows do
+  for ((_, accId), f) in acc.rows do
     let .accepted c pk := f | continue
     let (sec, _, d1) ← readList (secret.byKey.query [pk] (limit := some 1)) deps
     let (adm, _, d2) ← readList (admission.byDevice.query [c, pk] (limit := some 1)) d1
@@ -51,8 +80,20 @@ def read : m (Array Me × Array Q) := do
       | _ => "Waiting to join"
     let admId := (adm.rows.head?.map (·.1.2)).getD .empty
     let user := match adm.rows.head? with | some (_, .admission _ u _ _) => u | _ => .empty
-    -- a join not answered: its joining op, and whether I stopped waiting
-    let jop := (jn.rows.find? fun (_, f) => match f with | .joining c' .. => c' == c | _ => false)
+    -- a join not answered: this device's joining op (its request is this
+    -- device's), and whether I stopped waiting
+    let mut jop := none
+    for ((p, jid), g) in jn.rows do
+      let .joining c' _ _ req _ := g | continue
+      if c' != c then continue
+      -- the request op as stored (it waits, undecided, for the
+      -- community's ops): its body names the device that asked
+      let a ← Reads.read (.op req)
+      deps := deps.push (.op req)
+      if let .bytes (some b) := a then
+        if let some o := Engine.Op.decode b then
+          if let some (.request d _ _ _) := (Codec.decode o.body : Option Community.Body) then
+            if d == pk then jop := some ((p, jid), g)
     let mut joiningOp := ByteArray.empty
     let mut dialing := ""
     if admId.isEmpty then
@@ -62,9 +103,9 @@ def read : m (Array Me × Array Q) := do
         deps := d4
         if ab.total > 0 then continue
         joiningOp := jid
-    out := out.push ⟨Device.ofSeed seed, seed, c, admId, user, name, joiningOp, dialing⟩
-  -- a stable order: by name, then id
-  let sorted := out.qsort fun a b => a.name < b.name || (a.name == b.name && Engine.bcmp a.c b.c == .lt)
-  return (sorted, deps)
+    out := out.push { acc := accId, dev := Device.ofSeed seed, seed, c, adm := admId, user, name, joiningOp, dialing }
+  -- a total order: by name, then acceptance (op ids are distinct)
+  let sorted := out.qsort fun a b => a.name < b.name || (a.name == b.name && Engine.bcmp a.acc b.acc == .lt)
+  return (dedupe sorted, deps)
 
 end Kinds.Accepted

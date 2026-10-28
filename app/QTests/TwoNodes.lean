@@ -70,7 +70,7 @@ def main (args : List String) : IO UInt32 := do
       for i in [0:1080] do
         luma := luma.push ((r[4*i]!.toNat + r[4*i+1]!.toNat + r[4*i+2]!.toNat) / 3).toUInt8
     let scanned := (Qr.decodeLuma 1080 2400 1080 luma).bind fun (b, _) => String.fromUTF8? b
-    return (((s.links.find? (·.1 == s.me.c)).map (·.2)).getD "", scanned, luma)).run a0
+    return (((s.links.find? (·.1 == s.me.acc)).map (·.2)).getD "", scanned, luma)).run a0
   let (link, scanned, aLuma) := link
   check s!"A's Add members shows a link ({link.take 24}…)" (link.startsWith "quiet://join/")
   check "and its QR code on screen scans back to that link" (scanned == some link)

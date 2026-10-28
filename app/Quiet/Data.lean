@@ -130,6 +130,9 @@ immutable, are the one other read, watched on their blob op's decision. -/
 inductive Q where
   | list (q : ListQ)
   | bytes (op hash : ByteArray)
+  /-- An op as stored, whatever its verdict (this device's own undecided
+  request, say): its bytes. -/
+  | op (x : Id)
   deriving BEq, Hashable, Inhabited
 
 /-- One fact: the list under its op's own key, at most one row. -/
@@ -144,7 +147,8 @@ inductive Ans where
 /-- The key whose filing can change q's answer. -/
 def Q.watch : Q → ByteArray
   | .list q => q.key
-  | .bytes op _ => opKey op
+  | .bytes o _ => opKey o
+  | .op x => opKey x
 
 /-! ## The outbox -/
 
@@ -228,6 +232,7 @@ def Q.run (db : Db) (out : Array Pending) : Q → IO Ans
     let (a, pend) := overlayList out q a
     return .list a pend
   | .bytes _ hash => return .bytes (← Data.Db.blob db hash)
+  | .op x => return .bytes ((← (Store.getOp (F := SF) (m := SqlM SF) x).run db).map (·.bytes))
 
 /-! ## Components' reads
 

@@ -375,7 +375,7 @@ structure Asking where
   device : String
   when : String
   going : Bool
-  deriving Inhabited
+  deriving Inhabited, BEq, Repr
 
 /-- Join requests: who is waiting, each with approve and hide; or none,
 and the way to add members. -/
@@ -564,6 +564,44 @@ structure Entry where
   waiting : Bool
   deriving Inhabited
 
+/-- The switcher's rows: the current entry first, then the others in, then
+the pending joins; each with its index in the entries. A row's tap selects
+by that index, never by what the row shows (two entries may show the same
+name and community). Laws: `switcherOrder_sound` (each row's index is the
+entry it draws) and `switcherOrder_complete` (every entry has a row). -/
+def switcherOrder (es : Array Entry) : List (Nat × Entry) :=
+  let ix := (List.range es.size).filterMap fun i => es[i]?.map (i, ·)
+  ix.filter (·.2.current) ++ ix.filter (fun p => !p.2.current && !p.2.waiting) ++
+    ix.filter (fun p => !p.2.current && p.2.waiting)
+
+theorem ix_sound (es : Array Entry) {p : Nat × Entry}
+    (h : p ∈ (List.range es.size).filterMap fun i => es[i]?.map (i, ·)) : es[p.1]? = some p.2 := by
+  simp only [List.mem_filterMap, List.mem_range, Option.map_eq_some_iff] at h
+  obtain ⟨i, _, e, he, rfl⟩ := h
+  exact he
+
+/-- **A row's index is the entry it draws.** -/
+theorem switcherOrder_sound (es : Array Entry) {p : Nat × Entry} (h : p ∈ switcherOrder es) :
+    es[p.1]? = some p.2 := by
+  unfold switcherOrder at h
+  simp only [List.mem_append, List.mem_filter] at h
+  rcases h with (⟨h, _⟩ | ⟨h, _⟩) | ⟨h, _⟩ <;> exact ix_sound es h
+
+/-- **Every entry has a row.** -/
+theorem switcherOrder_complete (es : Array Entry) (i : Nat) (hi : i < es.size) :
+    ∃ p ∈ switcherOrder es, p.1 = i := by
+  have hm : (i, es[i]) ∈ (List.range es.size).filterMap fun i => es[i]?.map (i, ·) := by
+    simp only [List.mem_filterMap, List.mem_range, Option.map_eq_some_iff]
+    exact ⟨i, hi, es[i], by simp, rfl⟩
+  refine ⟨(i, es[i]), ?_, rfl⟩
+  unfold switcherOrder
+  simp only [List.mem_append, List.mem_filter]
+  by_cases hc : es[i].current
+  · exact Or.inl (Or.inl ⟨hm, by simp [hc]⟩)
+  · by_cases hw : es[i].waiting
+    · exact Or.inr ⟨hm, by simp [hc, hw]⟩
+    · exact Or.inl (Or.inr ⟨hm, by simp [hc, hw]⟩)
+
 /-- The community switcher, libquiet's left panel: the current community
 first, outlined, with Add members; the others; pending joins as muted
 rows (their id, "Waiting for a member to let you in.", a "joining"
@@ -576,9 +614,8 @@ def switcher (f : Font) (dm : Dim) (W h : Nat) (es : Array Entry) (asking : Nat)
   let mut taps := #[]
   let rh := dm.px 76
   let d := dm.px 48
-  let ordered := (es.filter (·.current)) ++ (es.filter fun e => !e.current && !e.waiting) ++ (es.filter (·.waiting))
   let mut y := dm.px 8
-  for e in ordered do
+  for (idx, e) in switcherOrder es do
     let ax := dm.px 24
     let ay := y + (rh - d) / 2
     if e.current then
@@ -607,7 +644,6 @@ def switcher (f : Font) (dm : Dim) (W h : Nat) (es : Array Entry) (asking : Nat)
       taps := taps.push (⟨gx - dm.px 8, y, dm.px 56, rh⟩, .addMembers)
     if e.unread > 0 then
       b := b.round (ax + d - dm.px 10) (ay - dm.px 8) (ax + d + dm.px 14) (ay + dm.px 12) (dm.px 10) errorInk
-    let idx := (es.findIdx? (fun x => x.id8 == e.id8 && x.name == e.name)).getD 0
     taps := taps.push (⟨0, y, pw - (if e.current && canInvite then dm.px 56 else 0), rh⟩, .switchTo idx)
     y := y + rh
   y := y + dm.px 16
