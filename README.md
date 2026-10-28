@@ -14,7 +14,7 @@ Like [Quiet](https://github.com/TryQuiet/quiet), Lean Quiet is also local-first,
 
 Lean is mostly used for mathematics, or to verify one part of a system.
 Here it is a whole, ordinary app, and about three quarters of its
-theorems (368 of 470) are about the code that runs on the phone; the
+theorems (369 of 472) are about the code that runs on the phone; the
 rest are over models, and moving them onto running code is a todo
 ([what is proven](#what-is-proven)). Native code only connects Lean to
 each OS ([what isn't Lean, and why](#what-isnt-lean-and-why)), so in a
@@ -143,7 +143,7 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 470 rest on Lean's standard axioms
+that rests on; 🥊 is supporting. All 472 rest on Lean's standard axioms
 only.
 
 ### Security proofs
@@ -247,7 +247,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**368 of 470 laws are about running code;** 102 are not yet. Stated only: none.
+**369 of 472 laws are about running code;** 103 are not yet. Stated only: none.
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
@@ -261,7 +261,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | QR codes | 10 | 10 |  |
 | Pictures | 13 | 1 | 12 |
 | Screen | 41 | 25 | 16 |
-| App | 18 | 17 | 1 |
+| App | 20 | 18 | 2 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
@@ -280,6 +280,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Frame.wants`, `Subs.ofList`, `Frame.listWins` +2 | [`has_ofList`], [`ofList_wf`], [`exact_silent`], [`screen_subs`]†, [`hull_near`]†, [`past_hull_le`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan). |
 | `Mutants.σ`, `Mutants.fam`, `Mutants.keyNotified` +4 | [`key_notice_imprecise`]†, [`exact_silent`], [`unnetted_imprecise`]† | Negative controls, on a one-op world of their own, meant not to run: they show notices by key and an unnetted journal imprecise. |
 | `View.counting` | [`eval_counting`] | Nothing marks a view's reads counted now: the conversation's counts are a want of their own (`Reader.Want.count`); count through it, or drop it. |
+| `Want.withViewLast` | [`withViewLast_moves`] | Nothing that runs calls it. |
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
@@ -969,8 +970,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L1075-L1079
-[`pageIn_acc`]: App.lean#L1081-L1084
+[`drawPage_key`]: App.lean#L1077-L1081
+[`pageIn_acc`]: App.lean#L1083-L1086
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
@@ -1029,6 +1030,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`exact_silent`]: engine/core/WindowMutants.lean#L118-L120
 [`screen_index`]: engine/renderer/Screen.lean#L258-L261
 [`eval_counting`]: engine/core/WindowRead.lean#L440-L441
+[`withViewLast_moves`]: ops/app/Reader.lean#L93-L97
 [`nodup_full`]: ops/community/Intents.lean#L578-L580
 [`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
 [`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939

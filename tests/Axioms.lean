@@ -398,6 +398,8 @@ section app
 #print axioms ViewLaws.message_read
 #print axioms PeopleLaws.present_iff
 #print axioms PeopleLaws.present_nodup
+#print axioms Reader.Want.withView_ofFrame
+#print axioms Reader.Want.withViewLast_moves
 #print axioms Remove.writes_only_after_two
 #print axioms Remove.cancel_writes_nothing
 #print axioms Remove.open_fresh
