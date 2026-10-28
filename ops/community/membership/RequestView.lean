@@ -21,7 +21,7 @@ structure Data where
   approvals : List Id
   pending : Nat
   admitted : Bool
-  deriving Inhabited
+  deriving Inhabited, BEq
 
 variable {m : Type → Type} [Monad m] [Reads m]
 

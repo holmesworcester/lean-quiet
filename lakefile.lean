@@ -175,6 +175,10 @@ lean_exe jointcp where
 lean_exe merkle_check where
   root := `tests.engine.MerkleCheck
 
+-- The cost laws on the code that runs, with their negative controls.
+lean_exe costcheck where
+  root := `tests.engine.CostCheck
+
 lean_exe codecdiff where
   root := `tests.engine.CodecDiff
 
@@ -197,9 +201,17 @@ lean_exe host where
 lean_exe quiet_host where
   root := `Main
 
+-- A send never waits on the node's full inbound channel.
+lean_exe nodequeue where
+  root := `platforms.headless.NodeQueue
+
 -- The font's inkless glyphs are all invisible or spaces (names).
 lean_exe inkless where
   root := `platforms.headless.Inkless
+
+-- A picture whose chunks reach the board while its retry waits.
+lean_exe pic_retry where
+  root := `platforms.headless.PicRetry
 
 -- Two apps joined by link, ops carried between them as sync would.
 lean_exe two_nodes where

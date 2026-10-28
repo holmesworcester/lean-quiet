@@ -91,7 +91,38 @@ def pickM (dirty : Std.HashSet W) : Nat → List W → m (List W)
     Engine.tick { work := 1 }
     if dirty.contains w then return w :: (← pickM dirty k ws) else pickM dirty (k + 1) ws
 
+/-- **A mark at rest**: the dirty set, and the wants this pass's notices
+hit, found through the reverse index (each read's wants, by its key): a
+step per key noticed and per want it names, nothing per want held. -/
+def markHitM {K : Type} (rev : K → List W) : Std.HashSet W → List K → m (Std.HashSet W)
+  | d, [] => pure d
+  | d, k :: ks => do
+    Engine.tick { work := 1 + (rev k).length }
+    markHitM rev ((rev k).foldl (·.insert ·) d) ks
+
 end
+
+/-- The frame's wants' generation: it moves only when the wants change,
+so a reader at rest stays at rest (`nextGen_same`). -/
+def nextGen {W : Type} [BEq W] (old new : Array W) (gen : Nat) : Nat :=
+  if old != new then gen + 1 else gen
+
+/-- Whether a pass must open the store at all: a commit since the last
+pass (the writers' counter moved), a note, the wants moved, a want
+dirty, or `late` (the clock's fallback: a second since the store was
+last opened, for commits no counter sees). At rest none, and the pass
+reads nothing, not even the journal. -/
+def mustRead {W : Type} [BEq W] [Hashable W] (commits seen : Nat) (notes moved : Bool)
+    (dirty : Std.HashSet W) (late : Bool) : Bool :=
+  commits != seen || notes || moved || !dirty.isEmpty || late
+
+/-- Whether a pass has nothing to do: no notice, no dirty want. -/
+def idle {W K : Type} [BEq W] [Hashable W] (ks : List K) (dirty : Std.HashSet W) : Bool :=
+  ks.isEmpty && dirty.isEmpty
+
+def markHit {W K : Type} [BEq W] [Hashable W] (rev : K → List W) (dirty : Std.HashSet W) (ks : List K) :
+    Std.HashSet W :=
+  Id.run (markHitM rev dirty ks)
 
 /-- What runs: the same code, at `Id`. -/
 def mark {W : Type} [BEq W] [Hashable W] (wants : List W) (stale : W → Bool) (dirty : Std.HashSet W) :

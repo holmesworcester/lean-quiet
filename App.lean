@@ -26,6 +26,7 @@ code without a window (QTests).
 import engine.renderer.Data
 import ops.app.Chaos
 import ops.app.Reader
+import ops.app.NodeOffer
 import engine.renderer.Row
 import engine.renderer.Geometry
 import engine.renderer.Nav
@@ -38,6 +39,7 @@ import engine.renderer.Camera
 import ops.app.Remove
 import ops.community.message.View
 import ops.community.membership.RequestView
+import ops.app.Pics
 import Std.Data.HashMap
 
 namespace App
@@ -93,7 +95,7 @@ structure RowSt where
   dimVer : Nat := 0
   dimShown : Option Bitmap := none
 
-abbrev ImgKey := ByteArray × Nat × Nat
+abbrev ImgKey := Pics.Key
 
 /-- Which page is up: a conversation, or one of libquiet's other screens. -/
 inductive PageId where
@@ -173,6 +175,8 @@ structure St where
   /-- The node starting, off the frame (its connection opened and its
   first reads made on a thread of its own). -/
   netBoot : Option (Task (Except IO.Error Engine.Sync.Runner)) := none
+  /-- Writes the node's inbound channel could not take yet, in order. -/
+  toNode : Array (List Op) := #[]
   /-- The journal's newest row this app has taken notice of. -/
   seen : Nat := 0
   me : Chaos.Me
@@ -202,6 +206,17 @@ structure St where
   heights : Std.HashMap Id Nat := {}
   rows : Std.HashMap Id RowSt := {}
   imgs : Std.HashMap ImgKey (Task Bitmap) := {}
+  /-- When an image whose chunks were not all on the board may be tried
+  again (a frame number; Pics.retryLater). -/
+  imgRetry : Std.HashMap ImgKey Nat := {}
+  /-- The chunk read of each key waiting in imgRetry: still wanted while
+  it waits, so the reader reads it when its chunks land and the wait is
+  cleared (`takeBoard`); without it, the want lapses with the frame that
+  asked, and the picture waits out its two seconds. -/
+  retryWants : Std.HashMap ImgKey Reader.Want := {}
+  /-- The chunk read `slicesOf` asked for last: Pics.retryLater files it
+  under its key. -/
+  lastSlices : Option Reader.Want := none
   /-- The chunk reads this frame's paints asked for (Reader.Want.slices):
   the reader's wants from the next frame. -/
   picWants : Array Reader.Want := #[]
@@ -399,13 +414,43 @@ def noticeLocal (ps : List Pending) : M Unit := do
   modify fun s => { s with live := s.live.notice fs }
   (← get).sh.notes.modify (· ++ fs)
 
+/-- Offer writes to the node's inbound channel, in order, without waiting:
+each that fits is in; the rest, from the first that did not fit, stay
+(the channel is bounded and shared with the peers' frames, so it can be
+full while sync is busy). It is `NodeOffer.offerList` over the channel's
+`trySend`: NodeOffer.offer_split and offer_runs say no write is lost,
+sent twice or overtaken, whatever the channel answers. -/
+def offerAll (ch : Std.CloseableChannel.Sync Engine.Sync.Event) (q : Array (List Op)) : IO (Array (List Op)) := do
+  return (← NodeOffer.offerList (fun w => (ch.trySend (.write w) : IO Bool)) q.toList).toArray
+
 /-- The one way into the store: through the node while it runs (it owns
 the store's writes, and offers peers only what it knows), else the local
-writer. A write behind the node's back is stored but never synced. -/
-def submit (s : St) (j : Job) : IO Unit :=
+writer. A write behind the node's back is stored but never synced. To the
+node it never waits: what its channel cannot take now waits in `toNode`,
+offered again first each frame (`flushNode`), so a send never blocks the
+frame on sync. -/
+def submit (j : Job) : M Unit := do
+  let s ← get
   match s.net with
-  | some r => r.write j.ops
+  | some r =>
+    let rest ← offerAll r.events (s.toNode.push j.ops)
+    modify fun s => { s with toNode := rest }
   | none => s.wr.submit j
+
+/-- The negative control of the frame's no-wait rule (`block` and
+`waits` in tests/wiring.txt): `submit` to the node as it was, through
+`Runner.write`'s `enqueue`, which waits while the channel is full. Never
+run; the wiring check must catch it. -/
+def submitWaits (j : Job) : M Unit := do
+  if let some r := (← get).net then discard <| Engine.Sync.enqueue r.events (.write j.ops)
+
+/-- The writes the node's channel could not take yet, offered again. -/
+def flushNode : M Unit := do
+  let s ← get
+  let some r := s.net | return
+  if s.toNode.isEmpty then return
+  let rest ← offerAll r.events s.toNode
+  modify fun s => { s with toNode := rest }
 
 /-- A user action's write (an intent's ops): each op is
 judged in order against what is decided and the ops before it in the
@@ -435,7 +480,7 @@ def writeAll (w : Community.Write) : M Bool := do
       return false
   modify fun s => { s with out := s.out ++ pend }
   noticeLocal pend.toList
-  submit s ⟨w.ops, true⟩
+  submit ⟨w.ops, true⟩
   return true
 
 def write (o : Op) : M Bool := writeAll ⟨[o]⟩
@@ -450,6 +495,14 @@ def chaosStep : M Unit := do
   (← get).wr.busy.modify (· - 1)
   (← get).io.log s!"chaos: {t.get.size} writes of {t.get.foldl (· + ·.ops.length) 0} ops"
 
+/-- n bytes of the OS's randomness (`randomBytes`: getrandom, through
+engine/native/crypto): the one door every secret, key and nonce the app
+makes goes through. Nothing derives one from the clock. -/
+def newBytes (n : UInt32) : IO ByteArray := Engine.Crypto.randomBytes n
+
+/-- A new secret seed: a device's, or an invitation's bearer secret. -/
+def newSeed : IO ByteArray := newBytes 32
+
 /-- Wall-clock minutes since the Unix epoch: the time a write claims. -/
 def nowMin : M Nat := do return (← (← get).io.wall).1
 
@@ -460,7 +513,7 @@ def sendText (text : String) : M Bool := do
   -- sealed under the community's current key, as the composer's send is
   let (k?, _) ← readView (Community.currentKey s.me.c) #[]
   let some k := k? | return false
-  let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k (← Engine.Crypto.randomBytes 24) t.toUTF8
+  let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k (← newBytes 24) t.toUTF8
     (← nowMin)) #[]
   writeAll w
 
@@ -512,12 +565,6 @@ def bottoms (s : St) : Array Nat × Nat := Id.run do
 
 /-! ## Mounting, measuring, painting -/
 
-def decodeTask (bytes : ByteArray) (w h : Nat) (sq : Bool) : Task Bitmap :=
-  Task.spawn fun _ =>
-    match Image.decode bytes with
-    | some src => if sq then Image.square src w Row.bg else Image.scaled src w h Row.bg
-    | none => Bitmap.blank w h (solid Row.placeholder w)
-
 /-- An attachment's slices, read from its chunk ops in order (a chunk this
 device sends may still be in the outbox); none while one is not here. -/
 def slicesOf (p : Row.Pic) : M (Option (List ByteArray)) := do
@@ -525,48 +572,33 @@ def slicesOf (p : Row.Pic) : M (Option (List ByteArray)) := do
   -- from the next frame, none until the board has them all; nothing is
   -- decoded here (a 64 KiB chunk is slow to decode; the frame must not wait)
   let w := Reader.Want.slices p.chunks
-  modify fun s => { s with picWants := if s.picWants.contains w then s.picWants else s.picWants.push w }
+  modify fun s => { s with picWants := if s.picWants.contains w then s.picWants else s.picWants.push w,
+                           lastSlices := some w }
   match (← (← get).sh.board.get).get? w with
   | some (.slices raw, _) => return raw
   | _ => return none
 
-/-- Chunk ops' bytes to their slices, in order (off the app's thread). -/
-def slicesFromOps (raw : List ByteArray) : Option (List ByteArray) :=
-  raw.mapM fun b => do
-    let o ← Engine.Op.decode b
-    match (Codec.decode o.body : Option Community.Body) with
-    | some (.chunk _ _ _ slice _) => some slice
-    | _ => none
+/-- The picture doors (ops/app/Pics.lean) in the app: the decode and
+retry tables are the app's state, `chunks` asks the reader's board
+(`slicesOf`; the retry table is cleared when a `slices` want's value
+lands, `takeBoard`), and `spawn` makes its task inside the state
+function, so when the action runs, never when it is built. -/
+instance : Pics.Pics M where
+  started k := return (← get).imgs[k]?
+  remember k t := modify fun s => { s with imgs := s.imgs.insert k t }
+  finished t := return (← IO.hasFinished t)
+  retryAt k := return (← get).imgRetry[k]?
+  retryLater k := modify fun s =>
+    let wants := match s.lastSlices with | some w => s.retryWants.insert k w | none => s.retryWants
+    { s with imgRetry := s.imgRetry.insert k (s.frames + 120), retryWants := wants }
+  frame := return (← get).frames
+  chunks := slicesOf
+  spawn f := fun s => pure (Task.spawn f, s)
 
-/-- A decode of `k` started (or finished): its bitmap once done. `start`
-is a thunk, run only when `k` has no decode yet: an argument is evaluated
-at the call, so a task built there would be spawned every frame. -/
-def decoded (k : ImgKey) (start : Unit → M (Option (Task Bitmap))) : M (Option Bitmap) := do
-  match (← get).imgs[k]? with
-  | some t => if ← IO.hasFinished t then return some t.get else return none
-  | none =>
-    if let some t ← start () then modify fun s => { s with imgs := s.imgs.insert k t }
-    return none
-
-/-- An attachment drawn at its size, if ready, and whether it is the file
-(not its preview), as `Row.Pic.shown` chooses: the preview (softened,
-Arrival.soften) until every chunk is here and the file is decoded, then
-the file (its slices assembled and opened with the file's key, off the
-app's thread). -/
-def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := do
-  let pre ← decoded (p.hash.push 0, w, h) fun _ => do
-    pure (if p.preview.isEmpty then none
-      else some ((decodeTask p.preview w h false).map (Arrival.soften Row.bg)))
-  let full ← if !p.complete then pure none else decoded (p.hash.push 1, w, h) fun _ => do
-    -- not every chunk op is here yet: the reader reads them again when one
-    -- arrives, and the frame asks the board again
-    let some raw ← slicesOf p | pure none
-    let (key, nonce) := (p.key, p.nonce)
-    pure <| some <| Task.spawn fun _ =>
-      match ((slicesFromOps raw).bind fun slices => Community.openFile slices key nonce).bind Image.decode with
-      | some src => Image.scaled src w h Row.bg
-      | none => Bitmap.blank w h (solid Row.placeholder w)
-  return p.shown pre full
+/-- An attachment drawn at its size, if ready, and whether it is the
+file: `Pics.image`, each decode started once (`Pics.image_twice`: a frame
+whose data has not changed spawns no decode and reads nothing). -/
+def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := Pics.image p w h
 
 /-- In the headless twins, the frame runs the reader's pass itself; on a
 device the reader's thread runs them. Either way the reader sees the
@@ -579,9 +611,14 @@ def readerPass : M Unit := do
     modify fun s => { s with rst := some r }
 
 /-- The board, taken: its values, its moved set cleared (one swap; the
-frame never waits on the reader). -/
+frame never waits on the reader). When an attachment's chunk bytes have
+landed (a `slices` want moved), Pics' retry table is cleared, so the
+picture is tried again at once, as a store notice once cleared it. -/
 def takeBoard : M (_root_.Live.Board Reader.Want Reader.Val) := do
-  (← get).sh.board.modifyGet fun b => let (_, b') := b.take; (b', b')
+  let (moved, b) ← (← get).sh.board.modifyGet fun b => let (mv, b') := b.take; ((mv, b'), b')
+  if moved.toList.any fun | .slices _ => true | _ => false then
+    modify fun s => { s with imgRetry := {}, retryWants := {} }
+  return b
 
 /-- Row x from the board (Reader's row want), laid out again when its
 version moved; nothing while the board has none (the frame shows the
@@ -793,7 +830,7 @@ def openPage (p : PageId) : M Unit := do
   -- Add members issues this community's link once per session: an
   -- invitation op of mine, and the link that carries its bearer secret
   if p == .invite && !s.me.waiting && !(s.links.any (·.1 == s.me.acc)) then
-    let bearer ← Chaos.freshSeed "bearer"
+    let bearer ← newSeed
     -- dial hints: this device's private LAN addresses (Link.hints)
     let (w, i) := Community.inviteTo s.me.c s.me.adm s.me.dev bearer (← listenHints)
     if ← writeAll w then
@@ -818,11 +855,10 @@ def forgetEntry (s : St) (a c : Id) : St :=
            profileOf := if cur then none else s.profileOf,
            text := if cur then "" else s.text, chips := if cur then #[] else s.chips }
 
-/-- The communities, read by the Community kind: those listed (a removed
-entry hidden), the current one kept or, gone, the first (Get started when
-none is left). -/
-def refreshComms : M Unit := do
-  let (all, _) ← Kinds.Accepted.read (← get).comms
+/-- The communities, as read by the Community kind: those listed (a
+removed entry hidden), the current one kept or, gone, the first (Get
+started when none is left). -/
+def applyComms (all : Array Chaos.Me) : M Unit := do
   let cs := Kinds.Accepted.listed all
   -- removed since last told: a standing notice each, and forgotten
   for g in Kinds.Accepted.newlyGone (← get).goneSeen all do
@@ -844,6 +880,17 @@ def switchSt (a : Id) (s : St) : St :=
   let s := { s with ids := #[], total := 0, people := 0, anchor := none, newer := 0, older := 0 }
   let s := { s with heights := {}, rows := {}, selected := none, sheet := none }
   { s with asking := #[], hidden := [], chromeKey := "", pageKey := none }
+
+/-- The communities as the reader's board has them (Reader.Want.comms):
+each frame. -/
+def refreshComms : M Unit := do
+  if let some (.comms all, _) := (← (← get).sh.board.get).get? .comms then applyComms all
+
+/-- The communities read now, on the frame: after an action that founds,
+joins or stops waiting, which the next page shows at once. -/
+def refreshCommsNow : M Unit := do
+  let (all, _) ← Kinds.Accepted.read (← get).comms
+  applyComms all
 
 /-- Make the entry of acceptance `a` the current one (memory only): the
 list starts again from its newest. An entry is its acceptance, never its
@@ -880,12 +927,12 @@ def acceptOf (w : Community.Write) : Option Id :=
 /-- Found a community named n: its root and my profile, and it becomes
 current. -/
 def found (n myName : String) : M Unit := do
-  let seed ← Chaos.freshSeed n
+  let seed ← newSeed
   let w := Community.found seed n.toUTF8 myName.toUTF8 (← nowMin)
-    (← Engine.Crypto.randomBytes 32) (← Engine.Crypto.randomBytes 32)
+    (← newBytes 32) (← newBytes 32)
   if ← writeAll w then
     if let some a := acceptOf w then
-      refreshComms
+      refreshCommsNow
       switchToAcc a
 
 /-- The node: started at launch, once (it speaks for every device whose
@@ -914,9 +961,11 @@ def netStep : M Unit := do
     { fam, cfg := { every := 30000, patience := 20000 },
       hooks := Connection.hooks fam Connection.sodium listen }
   let path := s.dbPath
+  let sh := s.sh
   let t ← IO.asTask (prio := .dedicated) do
     let db ← Db.openAt path
-    Engine.Sync.Runner.start x db 0 port.toUInt16
+    -- the node's commits move the reader's counter (Reader.Shared.commits)
+    Engine.Sync.Runner.start x db 0 port.toUInt16 (notify := fun _ => sh.commits.modify (· + 1))
   s.io.log s!"node: starting, dialed as {(String.fromUTF8? listen).getD "?"}"
   modify fun s => { s with netBoot := some t }
 
@@ -967,14 +1016,12 @@ its members (the Profile kind's), me first. -/
 def refreshMembers : M Unit := do
   let s ← get
   if s.me.c.isEmpty || (s.page != .home && s.page != .profile && s.page != .removeConfirm) then return
-  let (ms, _) ← Kinds.Profile.members s.me.c
-  let out := ms.map fun (u, ds, p) => ((p.name, u == s.me.user), ds.any (s.peers.contains ·), u)
+  -- read by the reader (Reader.Want.members): nothing until it is
+  let some (.members ms admin, _) := (← s.sh.board.get).get? (.members s.me.c s.me.user) | return
+  let out := ms.map fun (u, ds, name) => ((name, u == s.me.user), ds.any (s.peers.contains ·), u)
   let sorted := out.filter (·.1.2) ++ out.filter (!·.1.2)
-  -- an admin: the founder's user (the community's id), or one granted admin
-  let (ad, _, _) ← readList (Community.admin.byUser.query [s.me.c, s.me.user] (limit := some 0)) #[]
   modify fun s => { s with members := sorted.map (·.1), online := sorted.map (·.2.1),
-                           memberIds := sorted.map (·.2.2),
-                           amAdmin := !s.me.user.isEmpty && (s.me.user == s.me.c || ad.total > 0) }
+                           memberIds := sorted.map (·.2.2), amAdmin := admin }
   -- a removal being sent is done once its target is no longer present
   if let .sending u := (← get).removal then
     if !(← get).memberIds.contains u then
@@ -987,24 +1034,23 @@ def refreshMembers : M Unit := do
 peers' device keys, every 30 frames. -/
 def refreshPeers : M Unit := do
   let s ← get
-  if s.net.isNone || s.frames % 30 != 0 then return
-  let all ← ((Connection.allSessions : SqlM SF _)).run s.rd
-  let k := Connection.kept all
-  let ps := all.filterMap fun (cid, p, _) => if k.contains cid then some p else none
+  if s.net.isNone then return
+  -- read by the reader every half second
+  let ps ← s.sh.peers.get
   if ps != s.peers then modify fun s => { s with peers := ps, pageKey := none }
 
 /-- The requests to join the current community, read by the Request kind. -/
 def refreshAsking : M Unit := do
   let s ← get
   if s.me.c.isEmpty then return
-  let (out, _) ← Kinds.Request.waiting s.me.c
-  modify fun s => { s with asking := out }
+  if let some (.asking out, _) := (← s.sh.board.get).get? (.asking s.me.c) then
+    modify fun s => { s with asking := out }
 
 /-- My approval of request r (my device in this community signs it). -/
 def approveReq (r : Id) : M Unit := do
   -- a fresh ephemeral secret for the wrap of the community's key to the
   -- requester's device
-  let esk ← Engine.Crypto.randomBytes 32
+  let esk ← newBytes 32
   let s ← get
   -- the intent reads the request and its approvals: with mine, is the
   -- tally complete? then the admission goes in the same write
@@ -1161,13 +1207,13 @@ def onPageAct (a : Pages.Act) : M Unit := do
     -- join: a device of its own for this community, the request the link
     -- asks for, and this device's accept and joining facts, as one write
     if let some i := s.invite then
-      let seed ← Chaos.freshSeed "join"
+      let seed ← newSeed
       -- the engine's join: nothing for a held community, the same request
       -- again for a stopped one, else a fresh join
       let (w, _) ← readView (Community.join i seed s.joinName.toUTF8) #[]
       if ← writeAll w then
         modify fun s => { s.withNav (Nav.reset s.page) with invite := none, field := "" }
-        refreshComms
+        refreshCommsNow
         match acceptOf w, (← get).comms.find? (·.c == i.community) with
         | some a, _ => switchToAcc a
         | none, some m => switchToAcc m.acc
@@ -1182,7 +1228,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
     -- members, and an approval would still let this device in
     if !s.me.joiningOp.isEmpty then
       if ← writeAll (Community.stopWaiting s.me.joiningOp) then
-        refreshComms
+        refreshCommsNow
         if (← get).comms.isEmpty then
           modify fun s => { s.withNav (Nav.reset .getStarted) with pageKey := none }
         else switchTo 0
@@ -1233,9 +1279,9 @@ def sendNow : M Unit := do
   for (bytes, w, h, _) in s.chips.toList do
     files := files ++ [({ info := { name := "photo.qoi".toUTF8, kind := "image/qoi".toUTF8, w, h,
                                     preview := Chaos.preview bytes },
-                          bytes, key := ← Engine.Crypto.randomBytes 32, nonce := ← Engine.Crypto.randomBytes 24,
-                          metaNonce := ← Engine.Crypto.randomBytes 24 } : Community.NewFile)]
-  let nonce ← Engine.Crypto.randomBytes 24
+                          bytes, key := ← newBytes 32, nonce := ← newBytes 24,
+                          metaNonce := ← newBytes 24 } : Community.NewFile)]
+  let nonce ← newBytes 24
   let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files) #[]
   if ← writeAll w then
     modify fun s => { s with text := "", sel := #[0, 0, 0, 0], chips := #[], chromeKey := "" }
@@ -1614,8 +1660,9 @@ def sheetBitmap (sh : SheetSt) (mine : List String) : M Bitmap := do
   let rows := (← get).gridRows
   let blank := solid Sheet.panel s.W
   let line (k : Nat) : ByteArray :=
-    match rows[k / g.key]? with
-    | some b => b.rows[k % g.key]?.getD blank
+    let (r, li) := g.lineOf k
+    match rows[r]? with
+    | some b => b.rows[li]?.getD blank
     | none => blank
   let top := Sheet.catTop s.font s.dim s.W c backdrop sh.query sh.searching sh.tone sh.cat
   let bot := Sheet.catBot s.font s.dim s.W c sh.cat sh.searching
@@ -1660,6 +1707,7 @@ def frame (evs : List Event) : M (Option (List Event)) := do
       live := s.live.notice fs (vs.map (·.1))
       out := s.out.filter fun p => !judged.contains p.op.id }
     if !decided.isEmpty then noticeLocal decided.toList
+  flushNode
   chaosStep
   let tNotices ← (← get).io.nowUs
   -- 2. events and commands
@@ -1688,7 +1736,9 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   -- the placeholders are the counts less the window's rows on each side)
   let idsW := Reader.Want.window s.me.c s.anchor half half
   let countW := Reader.Want.count s.me.c s.anchor
-  s.sh.wants.modify fun ws => #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
+  -- (the wants as last set, unless the anchor moved: a steady frame
+  -- moves no generation, Reader.Want.withView_ofFrame)
+  s.sh.setWants (Reader.Want.withView (← s.sh.wants.get) idsW countW)
   readerPass
   let bd ← takeBoard
   let fresh := match bd.get? idsW with
@@ -1702,8 +1752,8 @@ def frame (evs : List Event) : M (Option (List Event)) := do
     | _ => none
   let s ← get
   -- people: the present members (admitted, not removed), each once
-  let (ps, _) ← readView (Kinds.Profile.present s.me.c) #[]
-  modify fun s => { s with people := ps.length }
+  if let some (.people n, _) := (← s.sh.board.get).get? (.people s.me.c) then
+    modify fun s => { s with people := n }
   let tIds ← (← get).io.nowUs
   -- 4. the offset, and the rows the frame and the fetch distance need
   let s ← get
@@ -1734,7 +1784,15 @@ def frame (evs : List Event) : M (Option (List Event)) := do
     let bot := bots0[i]!
     if bot > hi then break
     if bot + heightOf s s.ids[i]!.2 ≥ lo then win := win.push s.ids[i]!.2
-  s.sh.wants.set (#[idsW] ++ win.map (fun x => Reader.Want.row s.me.c s.me.adm x) ++ s.picWants ++ #[countW])
+  -- the pictures' chunk reads: this frame's paints', and those of keys
+  -- still waiting to retry (their paints do not ask again until then)
+  let pics := s.retryWants.fold (fun ws _ w => if ws.contains w then ws else ws.push w) s.picWants
+  -- and the frame's own lists, after the rows: the communities, the
+  -- people count, the requests, and the people list on the pages that show it
+  let lists := #[Reader.Want.comms] ++ (if s.me.c.isEmpty then #[] else
+    #[Reader.Want.people s.me.c, Reader.Want.asking s.me.c] ++
+      (if s.page == .home || s.page == .profile || s.page == .removeConfirm then #[Reader.Want.members s.me.c s.me.user] else #[]))
+  s.sh.setWants (Reader.Want.ofFrame idsW (win.map (fun x => Reader.Want.row s.me.c s.me.adm x)) pics countW lists)
   modify fun s => { s with picWants := #[] }
   readerPass
   let bd ← takeBoard
@@ -1905,7 +1963,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   let wr ← Writer.start dbPath
   -- the communities are this device's accepted facts: read them once
   -- here to choose the first page
-  let sh ← Reader.Shared.new
+  let sh ← Reader.Shared.new wr.count
   let probe : St := { io := io, W := W, Hs := Hs, insetTop := 0, insetBot := 0, font := font, bgRow := .empty, rd := rd, wr := wr, me := default, sh := sh }
   let ((all, _), _) ← (Kinds.Accepted.read : M _).run probe
   let comms := Kinds.Accepted.listed all

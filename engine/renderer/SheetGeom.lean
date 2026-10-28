@@ -53,6 +53,13 @@ def Grid.row (g : Grid) (i : Nat) : Nat := i / g.cols
 def Grid.left (g : Grid) (i : Nat) : Nat := g.x0 + g.col i * g.pitch
 def Grid.ctop (g : Grid) (i : Nat) : Nat := g.row i * g.key
 
+/-- The item the painter puts in grid row r, column j. -/
+def Grid.itemAt (g : Grid) (r j : Nat) : Nat := r * g.cols + j
+
+/-- A content line k: its grid row, and its line within that row (what
+the sheet's rows show at k). -/
+def Grid.lineOf (g : Grid) (k : Nat) : Nat × Nat := (k / g.key, k % g.key)
+
 /-- Whether screen point (x, y) is in item i's box, at scroll s, and on
 the grid's visible rows. -/
 def Grid.inBox (g : Grid) (s i x y : Nat) : Prop :=
@@ -77,6 +84,30 @@ structure Grid.Ok (g : Grid) : Prop where
   key_pos : 0 < g.key
   key_le : g.key ≤ g.pitch
   cols_pos : 0 < g.cols
+
+/-- **The painter's item r, j is in row r, column j.** -/
+theorem itemAt_place (g : Grid) (ok : g.Ok) {r j : Nat} (hj : j < g.cols) :
+    g.itemAt r j / g.cols = r ∧ g.itemAt r j % g.cols = j := by
+  have hc := ok.cols_pos
+  unfold Grid.itemAt
+  constructor
+  · rw [Nat.add_comm, Nat.add_mul_div_right _ _ hc, Nat.div_eq_of_lt hj, Nat.zero_add]
+  · rw [Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hj]
+
+/-- **Item i is drawn exactly over its box's rows**: each content line k
+of [ctop i, ctop i + key) shows its row's line k - ctop i. So the box
+the taps answer for (`inBox`, `ctop`) is where its pixels are. -/
+theorem lineOf_ctop (g : Grid) (ok : g.Ok) (i k : Nat) (h1 : g.ctop i ≤ k) (h2 : k < g.ctop i + g.key) :
+    g.lineOf k = (i / g.cols, k - g.ctop i) := by
+  have hk := ok.key_pos
+  unfold Grid.lineOf Grid.ctop Grid.row at *
+  have hd : k / g.key = i / g.cols := by
+    apply Nat.div_eq_of_lt_le
+    · exact h1
+    · rw [Nat.succ_mul]; omega
+  refine Prod.ext hd ?_
+  simp only
+  rw [Nat.mod_eq_sub_mul_div, hd, Nat.mul_comm]
 
 theorem div_eq {m d k : Nat} (_hd : 0 < d) (lo : k * d ≤ m) (hi : m < k * d + d) : m / d = k := by
   apply Nat.div_eq_of_lt_le

@@ -26,7 +26,6 @@ outside them and always for one inside; and a read's window changes
 exactly when its answer does (`read_notice_iff`).
 -/
 import engine.core.Query
-import engine.core.View
 import engine.core.Cost
 import Std.Data.HashMap
 
@@ -88,35 +87,23 @@ def ListQ.win {F : Type} (q : ListQ) (a : Answer F) : Win :=
     else { key := q.key, lo, hi }
   | _, _ => { key := q.key, lo, hi }
 
-/-- A read's range as a window: what its range count counts. -/
+/-- A read's range as a window. -/
 def ListQ.rangeWin (q : ListQ) : Win :=
   { key := q.key, lo := q.after.map (·, false), hi := q.before.map (·, false) }
 
-/-- **What a watch on a read must cover**, given its answer a:
-- a count (limit 0), or a list of several keys: the whole key, as its
-  total counts it (`Win.all`);
-- a read whose range count is used (`counted`): its range;
-- else its rows' window (`ListQ.win`).
+/-- **What a watch on a read must cover**, given its answer a: a count
+(limit 0), or a list of several keys, its whole key, as its total counts
+it (`Win.all`); any other read its rows' window (`ListQ.win`).
 `WindowRead.watch_stable`: if that window holds the same rows, the
-answer is the same, but for the counts no reader uses (`ListQ.kept`). -/
+answer is the same, but for the counts a rows read does not keep
+(`ListQ.kept`). -/
 def ListQ.watch {F : Type} (q : ListQ) (a : Answer F) : Win :=
-  if q.limit == some 0 || !q.also.isEmpty then Win.all q.key
-  else if q.counted then q.rangeWin
-  else q.win a
+  if q.limit == some 0 || !q.also.isEmpty then Win.all q.key else q.win a
 
-/-- An answer as its watch covers it: a count keeps its counts; a counted
-read, its range count; any other, its rows alone. -/
+/-- An answer as its watch covers it: a count keeps its counts; any other
+read, its rows alone. -/
 def ListQ.kept {F : Type} (q : ListQ) (a : Answer F) : Answer F :=
-  if q.limit == some 0 || !q.also.isEmpty then a
-  else if q.counted then { a with total := 0 }
-  else { a with inRange := 0, total := 0 }
-
-/-- A view whose reader uses every read's range count: each read marked
-`counted`, so its watch covers its range. Nothing else changes: no read
-looks at the mark (`WindowRead.eval_counting`). -/
-def View.counting {F α : Type} : View F α → View F α
-  | .pure a => .pure a
-  | .list q k => .list { q with counted := true } fun a => (k a).counting
+  if q.limit == some 0 || !q.also.isEmpty then a else { a with inRange := 0, total := 0 }
 
 /-! ## The journal -/
 
