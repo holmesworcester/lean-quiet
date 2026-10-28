@@ -92,7 +92,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 148 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 194 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as each part's `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -114,7 +114,7 @@ nothing else is assumed:
 | ✅ | 🥊🥊 | **Admins' removals stand,** even of each other, and a removed member's earlier approvals still count. | [`admin_removal_stands`], [`mutual_removal`], [`removed_approver_admits`] |
 | | | **Confidentiality** | |
 | ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A session sends only sync messages, and ops of the rooms its peer is let into. | [`recv_send`] |
-| ✅ | 🥊🥊🥊 | **Secrets stay on the device.** No local op (a secret, a session key, a pending join) is ever offered or sent. Of a connection's ops, only the two handshake messages are not local. | [`offer_shared`], [`wire_kinds`], [`local_kinds`], [`join_travels`], [`found_travels`], [`stopWaiting_local`] |
+| ✅ | 🥊🥊🥊 | **Secrets stay on the device.** No local op (a secret, a session key, a pending join) is ever offered or sent. Of a connection's ops, only the two handshake messages are not local. | [`offer_shared`], [`wire_kinds`], [`local_kinds`], [`joinOps_travels`], [`found_travels`], [`stopWaiting_local`] |
 | ✅ | 🥊🥊 | **The stream discloses only what it may.** It offers only ids of stored, shared ops, never one still pending. The clock sends only round messages and offers. | [`filed_send`], [`offer_stored`], [`tick_send`] |
 | 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Proven: a content key goes to exactly the live members' devices. In progress: sealing posts with it. | [`recipients_iff`], [`members_iff`] |
 | ⬜ | 🥊🥊🥊 | **Sessions are secret and authenticated:** only the two devices can derive a session's keys. In progress (`kk_secret`, `kk_authentic`). Proven so far: an honest handshake agrees. | [`handshake_agrees`], [`sent1_write1`], [`sent1_read1`], [`read2_write2'`] |
@@ -239,6 +239,7 @@ Their other branches are kept as `import/<dir>/<branch>`.
 [`offer_shared`]: engine/Engine/Sync.lean#L83-L86
 [`wire_kinds`]: engine/Connection/Laws.lean#L35-L36
 [`local_kinds`]: engine/Connection/Laws.lean#L42-L43
+[`joinOps_travels`]: engine/Community/Intents.lean#L226-L230
 [`found_travels`]: engine/Community/Intents.lean#L237-L241
 [`stopWaiting_local`]: engine/Community/Intents.lean#L233-L234
 [`filed_send`]: engine/Engine/Sync/ConnLaws.lean#L175-L178
