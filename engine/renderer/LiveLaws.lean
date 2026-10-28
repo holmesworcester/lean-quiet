@@ -224,16 +224,19 @@ theorem agrees_keep {l : Live} {ans : Q → Ans} (h : Agrees l ans) (want : Q �
   simp [ha]
   exact ⟨q, hm, hw⟩
 
-/-- **One moment.** A read in a frame whose cache agrees with the
-frame's moment (and whose store answers as it, snapshot) returns the
-moment's answer, cached or not, and leaves the cache in agreement: App's
-`read`, its two branches. -/
+/-- **One moment.** A read through the cache (`Live.readWith`, which
+App's `read` and the reader's run) whose cache agrees with the moment,
+and whose store answers as it (snapshot), returns the moment's answer,
+cached or not, and leaves the cache in agreement. -/
 theorem read_one_moment {l : Live} {ans : Q → Ans} (h : Agrees l ans) (q : Q) :
-    (match l.answer q with
-      | some a => (a, l)
-      | none => (ans q, l.store q (ans q))) |> fun r => r.1 = ans q ∧ Agrees r.2 ans := by
-  split
-  · next a ha => exact ⟨answer_agrees h ha, h⟩
-  · exact ⟨rfl, agrees_store h q⟩
+    let r := (Live.readWith (m := Id) (fun q => pure (ans q)) q).run l
+    r.1 = ans q ∧ Agrees r.2 ans := by
+  simp only [Live.readWith, StateT.run, bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+    pure]
+  cases ha : l.answer q with
+  | some a => exact ⟨answer_agrees h ha, h⟩
+  | none =>
+    simp only [modify, modifyGet, MonadStateOf.modifyGet]
+    exact ⟨rfl, agrees_store h q⟩
 
 end LiveLaws

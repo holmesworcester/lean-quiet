@@ -83,9 +83,8 @@ abbrev RM := StateT St IO
 /-- A read through the pass's cache (App's `read`, on this connection). -/
 def read (q : Q) : RM Ans := do
   let s ← get
-  if let some a := s.live.answer q then return a
-  let a ← q.run s.rd s.out
-  modify fun s => { s with live := s.live.store q a }
+  let (a, live) ← (Live.readWith (fun q => q.run s.rd s.out) q).run s.live
+  modify fun s => { s with live }
   return a
 
 instance : Reads RM := ⟨read⟩

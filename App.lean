@@ -288,9 +288,8 @@ def c (s : St) : Id := s.me.c
 
 def read (q : Q) : M Ans := do
   let s ← get
-  if let some a := s.live.answer q then return a
-  let a ← q.run s.rd s.out
-  modify fun s => { s with live := s.live.store q a }
+  let (a, live) ← (Live.readWith (fun q => q.run s.rd s.out) q).run s.live
+  modify fun s => { s with live }
   return a
 
 def fresh (q : Q) : M Bool := do return (← get).live.fresh q

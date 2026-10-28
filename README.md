@@ -528,9 +528,7 @@ first.
   `Live.pick`, `Live.staleW`): every want whose reads went stale is
   marked before any is read again, so two rows reading one list both see
   its change (the eager pass is the model's mutant).
-- **Limits:** `read_one_moment` is stated over App's `read`'s two
-  branches as the law writes them, not over `read` itself. A frame that
-  writes spans more than one outbox moment. The board's values can come
+- **Limits:** a frame that writes spans more than one outbox moment. The board's values can come
   from different passes (a row wanted later is read in a later pass),
   and the frame's own reads are its own connection's moment, so the
   screen is a few moments, each consistent, until the passes catch up
@@ -1264,8 +1262,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L953-L957
-[`pageIn_acc`]: App.lean#L959-L962
+[`drawPage_key`]: App.lean#L957-L961
+[`pageIn_acc`]: App.lean#L963-L966
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
