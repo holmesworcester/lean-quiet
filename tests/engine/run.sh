@@ -10,7 +10,8 @@
 # (connection_check), purge (SQLite against the model, and a purged
 # secret searched for in the database's files), attachment chunks against
 # their Merkle root with forgeries and mutant verifiers (merkle_check),
-# and kill -9 atomicity.
+# kill -9 atomicity, and the n-node World's negative controls (each
+# mutant refused inside its World law).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
@@ -42,3 +43,4 @@ tests/engine/crypto_compat.sh
 tests/engine/crash.sh "${CRASH_ROUNDS:-10}" out/crash
 
 tests/engine/harden.sh
+tests/engine/negative_controls.sh

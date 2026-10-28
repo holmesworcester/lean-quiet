@@ -27,10 +27,10 @@ The user asked:
 | | |
 |---|---|
 | The world and the network | built: engine/world/World.lean, Fair.lean |
-| Statements | 43, each a closed `Prop` with no `sorry` (engine/world/Statements.lean), audited |
+| Statements | 42, each a closed `Prop` with no `sorry` (engine/world/Statements.lean), audited |
 | Proven of the running code | **the pilot, `claim_delivers_stmt`** (`pilot`), re-proven on sync-harden (cad36f2) with finding 7's premises `Small` and `Roomy`; `round_forward_stmt`, `offer_delivers_stmt` likewise; `grows_stmt` (`grows_all`); the node invariant in every reachable world (`reach_ok`); the hops of a round's leg (`claim_wants`, `want_sends`, `op_taken`, `have_wants`); the walk's laws of main's `walkN` (`walk_proof`) |
 | Proven above the code | the reduction `edge_stmt → grows_stmt → converge_stmt`; from it, T-converge for 2, 3 and n peers, all-know-all and transitive; T-op, T-offline; chains, stars and webs, with their diameters |
-| False on today's code | `rooms_stmt` and `join_stmt` (finding 2), `no_false_settle_stmt` (finding 10): node-level witnesses in Lean. `fresh_stmt`: argued ("T-fresh" below), no Lean witness yet. Finding 1 (`session_stable_stmt`) is fixed on main by sync-harden |
+| False on today's code | `rooms_stmt` and `join_stmt` (finding 2): node-level witnesses in Lean. `fresh_stmt`: argued ("T-fresh" below), no Lean witness yet. Finding 1 (`session_stable_stmt`) is fixed on main by sync-harden |
 | The open core | `edge_stmt`: per-edge progress. Every T- law above reduces to it and to growth |
 
 ## Decisions
@@ -213,7 +213,6 @@ today's code (with the finding), **O** open.
 | `round_forward_stmt` | L-round's forward leg, leaf regime: every op of the window i's index named at the opening reaches j within 3Δ | **P** (`round_forward`, from the pilot) |
 | `offer_delivers_stmt` | a have of room r naming y, from j to i on a joined session, gets y to i within 3Δ, with finding 7's premises | **P** (`offer_delivers`) |
 | `round_ends_stmt` | L-round-terminates: a round ends at both ends within (D+1)Δ | O |
-| `no_false_settle_stmt` | L-no-false-settle: "settled" means holding the peer's snapshot of the window | **F** (finding 10) |
 | `dup_concurrent_stmt` | L-dup-concurrent: frames keep sessions, idem, and `round_stmt` | O |
 | `session_stable_stmt` | a joined session over a live edge is never dropped | O (finding 1 fixed by harden; waits on the single timer) |
 | `claim_delivers_stmt` | the pilot: a claim listing x, from i to j → j holds x within 3Δ, with finding 7's premises | **P** (`pilot`) |
@@ -295,9 +294,9 @@ The upper and lower bounds match up to a constant per hop:
     `offered_proof`. On the way: only a session frame or a local write
     stores an op of a room (`onFrame_new`), every session has an
     address (`reach_addr`), and a sent packet is new by its serial
-    (`reach_serial`). Negative control (run and reverted): `Conn.filed`
-    sending all but its first have, with its closed form following,
-    breaks `filed_offers'`;
+    (`reach_serial`). Negative control (scripted, below):
+    `Conn.filed` sending all but its first have is refused inside
+    `filed_offers'`;
   - only members receive, `members_only_proof`: every session frame an
     honest node puts on the wire, against any attacker, carries sync
     messages and ops of rooms the session showed at a store the step
@@ -306,9 +305,8 @@ The upper and lower bounds match up to a constant per hop:
     `onRbsr_send`); at a node every payload sent on a session is
     (`SendsOk` through frames, ticks, writes, connects) and a session's
     frame carries only that session's payloads (`seal_from`). Negative
-    control (run and reverted): `Conn.onWant` serving ops regardless of
-    room is caught by a3's ServeLaws, ConnLaws and OfferLaws, and with
-    those stubbed, by `recv_shown`;
+    control (scripted, below): `Conn.onWant` serving ops regardless of
+    room is refused inside `recv_shown`;
   - L-idem, `idem_proof`: the same bytes delivered to a node again,
     right after, leave its store as the first delivery left it, with
     fixed rooms. What a connection takes is the payload's op, a shown
@@ -325,9 +323,9 @@ The upper and lower bounds match up to a constant per hop:
     since the index holds exactly the Valid facts' keys, each once, and
     sorting by position makes the lists equal (`list_eval_congr`,
     `local_proof`). Every entry point keeps a store settled
-    (`settles`, as `grows` for growth). Negative control (run and
-    reverted): a turn draining one step short is caught by a3's
-    NodeLaws (`turn_apply`, `write_cached`);
+    (`settles`, as `grows` for growth). Negative controls (scripted,
+    below): a turn draining one step short is refused inside
+    `turnH_settled`, lists left unsorted inside `list_eval_congr`;
   - the findings' witnesses.
 - **Above the code, from the per-edge bound** (engine/world/Epidemic.lean):
   - `hops`: d · B over a path of d live edges;
@@ -340,6 +338,26 @@ The upper and lower bounds match up to a constant per hop:
 So the whole T-converge family, chains, stars, webs and T-offline hang
 on one lemma about one edge. That lemma is the program's core, and the
 pilot is the first third of its round.
+
+## Negative controls
+
+tests/engine/negative_controls.sh (mise `test:world-negative`, run by
+the engine gate, tests/engine/run.sh) mutates the running code on a
+scratch snapshot. Laws of holmes-a3's or the engine's that would refuse
+a mutant first are stubbed (`sorry`, in the snapshot only), and so are
+closed forms that must follow it, so the build reaches the World law
+the control is about; the control passes only if the build then fails
+between that theorem's first line and the next declaration.
+
+| mutant | refused inside |
+|---|---|
+| `Conn.filed` sends all but its first have | `filed_offers'` (the stream) |
+| `Conn.onWant` serves ops regardless of room | `recv_shown` (only members receive) |
+| `Node.write` writes ops it already holds | `absentStep_held` (idem) |
+| a write turn drains one step short | `turnH_settled` (waiting ops close) |
+| list answers left unsorted | `list_eval_congr` (L-local's views) |
+| the index lists an op twice under a key | the engine's `indexAllS_nodup`, which L-local takes as given (`Inv.nodup`) |
+| an opening of exactly `leaf` items sent as a fingerprint | `opening_ids` (the leaf regime) |
 
 ## The pilot
 
@@ -363,11 +381,13 @@ one entry point run on any state that keeps the node invariant:
 3. x arrives within Δ, and j stores it (`op_taken`). It is filed under
    its id (`NodeOk.ids`), so j holds x in room r (`Unclashed`).
 
-Negative controls, each run and reverted (not committed):
+Negative controls, hand-run and reverted when the pilot landed:
 - `Conn.onWant` sending none of the wanted ops: `onWant_sends` fails,
   so H2 and the pilot do not build;
 - `Conn.onRbsr` dropping the first id it wants: `onRbsr_wants` fails,
   so H1 and the pilot do not build.
+
+The World's other controls are scripted ("Negative controls" below).
 
 What the pilot assumes, beyond `Fair` and the session:
 - nothing about the walk any more: main's `walkN` has its laws (`walk_proof`);
@@ -493,7 +513,7 @@ rule the proofs need. Witnesses are in engine/world/Findings.lean.
    - The round continues from the live index, which only grows. That is
      harmless for liveness, but `exchange_complete`'s fixed-snapshot
      premise does not hold under duplication.
-   - The first round, the one `no_false_settle_stmt` is about, has no
+   - The first round, the one a room's settle reported, has no
      older round, so settling is unaffected.
 5. **A tactic run on an unknown program never stops.** The 70 GB `lean`
    of 05:15 was this.
@@ -564,7 +584,9 @@ rule the proofs need. Witnesses are in engine/world/Findings.lean.
     or the peer never serving it), the next tick reports the room
     settled though the op never came; the Connection family writes that
     report as a local op. (`Step.limit` emptying `asked` on overflow does
-    the same.) This falsifies `no_false_settle_stmt`. Fix: settle only
+    the same.) Resolved by deletion: the user dropped `settled`, and
+    holmes-a3's sync-simplify removes the status, `report` and
+    `Node.settle`; the statement about it is gone. Fix, had it stayed: settle only
     when every id asked in the room's first round has arrived (a set
     only arrivals clear), or open a fresh round after an expiry before
     settling. It bears on SYNC.md's open question of keeping `settled`.
@@ -700,7 +722,7 @@ statements (`index_store`, `stream`, `offered`, `members_only`,
 4. **Claim trees**, about 800: fingerprint hops as obligations measured
    by `exchange_ends`; with a3's cost bounds, the log depth. This is
    what large communities need: every room past `leaf` items.
-5. **Finding 10's fix**, then `no_false_settle_stmt`, about 200.
+5. (Finding 10 is resolved by deleting `settled`.)
 6. **T-fresh**, after a3's send-path fix, about 400: `ahead` bounded by
    `burst`, then the 3-hop latency under `Fifo`.
 7. **Dynamic trust**, size unknown: `rooms_stmt` after finding 2's fix,

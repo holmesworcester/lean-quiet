@@ -282,22 +282,6 @@ def round_ends_stmt : Prop :=
       ∀ c c', ((E.world k').node i).conn? cid = some c → ((E.world k').node j).conn? cid = some c' →
         (∀ e ∈ c.snaps, e.1 ≠ (r, kr)) ∧ (∀ e ∈ c'.snaps, e.1 ≠ (r, kr))
 
-/-- **L-no-false-settle.** When node i reports room r settled on session
-cid (the first round has ended and nothing it wanted is outstanding), it
-holds every op of r in the round's window that the other end j held
-when it took its snapshot of that round. False since sync-harden
-(finding 10, `expiry_settles`): an ask that expires empties `asked`, and
-the room is reported settled without the op. -/
-def no_false_settle_stmt : Prop :=
-  ∀ (F : Type) (Q : Plain F) (E : Q.Run) (i j : Fin Q.n) (cid r : Id) (k : Nat),
-    PlainOk Q → (∀ k, Unclashed (E.world k)) → FpSound Q E →
-    (JoinedAt Q.setup (E.world k) i j cid ∨ JoinedAt Q.setup (E.world k) j i cid) →
-    (∀ c, ((E.world k).node i).conn? cid = some c → r ∉ c.settled) →
-    (∃ c, ((E.world (k + 1)).node i).conn? cid = some c ∧ r ∈ c.settled) →
-    ∀ k₁ c' X, k₁ ≤ k → ((E.world k₁).node j).conn? cid = some c' → ((r, 1), X) ∈ c'.snaps →
-      ∀ it ∈ X, (∃ rg ∈ window (max ((E.world k₁).node i).floor ((E.world k₁).node j).floor), rg.has it.1 = true) →
-        Q.Holds (E.world (k + 1)) i r it.2
-
 /-- **L-dup-concurrent.** Duplicates and concurrency break nothing:
 frames never close a session, a frame taken twice is taken once, and a
 round delivers whatever runs beside it (`round_stmt` names no other

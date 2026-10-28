@@ -30,7 +30,9 @@ engine/world/Statements.lean is false today, and names the fix.
    `asked` is empty, so when the last ask expires (its wants lost, or
    the peer never serving it), the next tick reports the room settled
    though the op never came. The Connection family writes that report
-   as a local op. This falsifies `no_false_settle_stmt`. Fix: settle
+   as a local op. Resolved by deletion: the user dropped `settled`, and
+   holmes-a3's sync-simplify removes it; this witness goes with it. Fix,
+   had it stayed: settle
    only when every id asked in the room's first round has arrived (a
    set only arrivals clear), or open a fresh round after an expiry.
 -/
