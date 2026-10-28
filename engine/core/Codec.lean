@@ -29,7 +29,16 @@ A byte string's length is read only while it still fits in the input
 number is read and written by halves (`digitsFast`, `contDigitsInto`),
 so one n bytes long costs O(n log n), not O(n²): a peer's 1 MiB number
 is milliseconds, not minutes.
+
+The number and byte-string readers are written over a monad and charge
+what they do (`tick`; engine/core/Cost.lean): where they run (`Id`) the
+meter is free, and counted (`Counted`) the same code gives its budget
+(engine/core/CodecCost.lean): a number n bytes long costs O(n log n)
+word operations, and a byte string's bytes are copied once, never read
+one at a time.
 -/
+import engine.core.Cost
+
 namespace Engine
 
 namespace Codec
@@ -297,33 +306,87 @@ theorem digits_add (b : ByteArray) : ∀ (k i L : Nat),
     rw [Nat.mul_comm p 128, ← Nat.mul_assoc y 128 p, Nat.mul_comm y 128, Nat.mul_assoc 128 y p]
     omega
 
-/-- `digits`, by halves. -/
-def digitsFast (b : ByteArray) (i L : Nat) : Nat :=
-  if L ≤ 8 then digits b i L
-  else digitsFast b i (L / 2) + (digitsFast b (i + L / 2) (L - L / 2) <<< (7 * (L / 2)))
+section
+variable {m : Type → Type} [Monad m] [Tick m]
+
+/-- `digits`, by halves, charged. Up to 8 digits a number is one machine
+word, read a byte at a time: a word operation a digit. Above, joining
+two halves into an L-digit number (a shift and an add of numbers of at
+most L digits) is charged L. -/
+def digitsM (b : ByteArray) (i L : Nat) : m Nat :=
+  if L ≤ 8 then do
+    tick { work := L }
+    pure (digits b i L)
+  else do
+    let lo ← digitsM b i (L / 2)
+    let hi ← digitsM b (i + L / 2) (L - L / 2)
+    tick { work := L }
+    pure (lo + (hi <<< (7 * (L / 2))))
 termination_by L
 decreasing_by all_goals omega
+
+end
+
+/-- `digits`, by halves: `digitsM` where it runs. -/
+def digitsFast (b : ByteArray) (i L : Nat) : Nat := Id.run (digitsM b i L)
+
+theorem digitsFast_unfold (b : ByteArray) (i L : Nat) :
+    digitsFast b i L = if L ≤ 8 then digits b i L
+      else digitsFast b i (L / 2) + (digitsFast b (i + L / 2) (L - L / 2) <<< (7 * (L / 2))) := by
+  unfold digitsFast; rw [digitsM]; split <;> rfl
 
 theorem digitsFast_eq (b : ByteArray) (L : Nat) : ∀ i, digitsFast b i L = digits b i L := by
   induction L using Nat.strongRecOn with
   | _ L ih =>
     intro i
-    rw [digitsFast]
+    rw [digitsFast_unfold]
     split
     · rfl
     · rw [ih _ (by omega), ih _ (by omega), Nat.shiftLeft_eq, two_pow_seven, ← digits_add,
         show L / 2 + (L - L / 2) = L by omega]
 
-/-- Where the number at offset i ends: its first byte under 128. -/
-def numEnd (b : ByteArray) (i : Nat) : Option Nat :=
-  if h : i < b.size then (if b[i].toNat < 128 then some i else numEnd b (i + 1)) else none
+section
+variable {m : Type → Type} [Monad m] [Tick m]
+
+/-- Where the number at offset i ends (its first byte under 128),
+charged a word operation a byte read. -/
+def numEndM (b : ByteArray) (i : Nat) : m (Option Nat) :=
+  if h : i < b.size then do
+    tick { work := 1 }
+    if b[i].toNat < 128 then pure (some i) else numEndM b (i + 1)
+  else pure none
 termination_by b.size - i
 
 /-- A number at offset i: where it ends, then its digits, by halves. -/
-def decNatFrom (b : ByteArray) (i : Nat) : Option (Nat × Nat) :=
-  match numEnd b i with
-  | some j => some (digitsFast b i (j + 1 - i), j + 1)
-  | none => none
+def decNatFromM (b : ByteArray) (i : Nat) : m (Option (Nat × Nat)) := do
+  match ← numEndM b i with
+  | some j =>
+    let n ← digitsM b i (j + 1 - i)
+    pure (some (n, j + 1))
+  | none => pure none
+
+end
+
+/-- Where the number at offset i ends: `numEndM` where it runs. -/
+def numEnd (b : ByteArray) (i : Nat) : Option Nat := Id.run (numEndM b i)
+
+theorem numEnd_unfold (b : ByteArray) (i : Nat) :
+    numEnd b i = if h : i < b.size then (if b[i].toNat < 128 then some i else numEnd b (i + 1)) else none := by
+  unfold numEnd; rw [numEndM]; split
+  · split <;> rfl
+  · rfl
+
+/-- A number at offset i: `decNatFromM` where it runs. -/
+def decNatFrom (b : ByteArray) (i : Nat) : Option (Nat × Nat) := Id.run (decNatFromM b i)
+
+theorem decNatFrom_unfold (b : ByteArray) (i : Nat) : decNatFrom b i =
+    match numEnd b i with
+    | some j => some (digitsFast b i (j + 1 - i), j + 1)
+    | none => none := by
+  unfold decNatFrom decNatFromM numEnd digitsFast
+  generalize numEndM (m := Id) b i = x
+  change Option Nat at x
+  cases x <;> rfl
 
 theorem numEnd_digits_at {b : ByteArray} (n : Nat) : ∀ {i : Nat}, At b i (encNat n) →
     numEnd b i = some (i + (encNat n).length - 1) ∧ digits b i (encNat n).length = n := by
@@ -334,14 +397,14 @@ theorem numEnd_digits_at {b : ByteArray} (n : Nat) : ∀ {i : Nat}, At b i (encN
     · rw [encNat_small hn] at h ⊢
       obtain ⟨hi, hx⟩ := h.get
       have hb : byteAt b i = b[i].toNat := by simp [byteAt, hi]
-      rw [numEnd, dite_eq_left hi, hx, toNat_small hn, ite_eq_left hn]
+      rw [numEnd_unfold, dite_eq_left hi, hx, toNat_small hn, ite_eq_left hn]
       simp [digits, hb, hx, toNat_small hn, Nat.mod_eq_of_lt hn]
     · rw [encNat_big hn] at h ⊢
       obtain ⟨hi, hx⟩ := h.get
       have hb : byteAt b i = b[i].toNat := by simp [byteAt, hi]
       obtain ⟨ih1, ih2⟩ := ih (n / 128) (by omega) h.cons
       have := length_encNat_pos (n / 128)
-      rw [numEnd, dite_eq_left hi, hx, toNat_big, ite_eq_right (by omega), ih1]
+      rw [numEnd_unfold, dite_eq_left hi, hx, toNat_big, ite_eq_right (by omega), ih1]
       simp only [List.length_cons, digits, hb, hx, toNat_big, ih2]
       constructor
       · congr 1; omega
@@ -351,7 +414,7 @@ theorem decNatFrom_at {b : ByteArray} {i : Nat} (n : Nat) (h : At b i (encNat n)
     decNatFrom b i = some (n, i + (encNat n).length) := by
   obtain ⟨h1, h2⟩ := numEnd_digits_at n h
   have := length_encNat_pos n
-  rw [decNatFrom, h1]
+  rw [decNatFrom_unfold, h1]
   simp only
   rw [show i + (encNat n).length - 1 + 1 - i = (encNat n).length by omega, digitsFast_eq, h2]
   congr 2; omega
@@ -368,14 +431,32 @@ instance : Codec Nat where
 /-- A byte array's length at offset i, a byte at a time, given up as
 soon as it could not fit in b: no length that fits is refused
 (`decLenFrom_at`), and no large number is ever built. -/
-def decLenFrom (b : ByteArray) (i acc m : Nat) : Option (Nat × Nat) :=
-  if h : i < b.size then
+def decLenFromM {m : Type → Type} [Monad m] [Tick m] (b : ByteArray) (i acc k : Nat) :
+    m (Option (Nat × Nat)) :=
+  if h : i < b.size then do
+    tick { work := 1 }
     let x := b[i].toNat
-    if x < 128 then some (acc + x * m, i + 1)
-    else if b.size < m * 128 then none
-    else decLenFrom b (i + 1) (acc + (x - 128) * m) (m * 128)
-  else none
+    if x < 128 then pure (some (acc + x * k, i + 1))
+    else if b.size < k * 128 then pure none
+    else decLenFromM b (i + 1) (acc + (x - 128) * k) (k * 128)
+  else pure none
 termination_by b.size - i
+
+/-- `decLenFromM` where it runs. -/
+def decLenFrom (b : ByteArray) (i acc m : Nat) : Option (Nat × Nat) := Id.run (decLenFromM b i acc m)
+
+theorem decLenFrom_unfold (b : ByteArray) (i acc m : Nat) : decLenFrom b i acc m =
+    if h : i < b.size then
+      let x := b[i].toNat
+      if x < 128 then some (acc + x * m, i + 1)
+      else if b.size < m * 128 then none
+      else decLenFrom b (i + 1) (acc + (x - 128) * m) (m * 128)
+    else none := by
+  unfold decLenFrom; rw [decLenFromM]; split
+  · simp only; split
+    · rfl
+    · split <;> rfl
+  · rfl
 
 theorem split128 (n acc m : Nat) : acc + (n % 128 + 128 - 128) * m + n / 128 * (m * 128) = acc + n * m := by
   rw [Nat.add_sub_cancel]
@@ -394,12 +475,12 @@ theorem decLenFrom_at {b : ByteArray} (n : Nat) : ∀ {i : Nat} (acc m : Nat), A
     by_cases hn : n < 128
     · simp only [hn, ite_true] at h ⊢
       obtain ⟨hi, hx⟩ := h.get
-      rw [decLenFrom, dite_eq_left hi]
+      rw [decLenFrom_unfold, dite_eq_left hi]
       simp [hx, toNat_small hn, hn]
     · simp only [hn, ite_false] at h ⊢
       obtain ⟨hi, hx⟩ := h.get
       have hm : 128 * m ≤ n * m := Nat.mul_le_mul_right m (by omega)
-      rw [decLenFrom, dite_eq_left hi]
+      rw [decLenFrom_unfold, dite_eq_left hi]
       simp only [hx, toNat_big, show ¬ (n % 128 + 128 < 128) by omega, ite_false,
         show ¬ (b.size < m * 128) by omega]
       rw [ih (n / 128) (by omega) _ _ h.cons (by rw [split128]; exact hb), split128]
@@ -420,10 +501,32 @@ theorem decBytesL_encBytesL (l rest : List UInt8) : decBytesL (encBytesL l ++ re
   rw [List.append_assoc, decNat_encNat]
   simp
 
-def decBytesFrom (b : ByteArray) (i : Nat) : Option (ByteArray × Nat) :=
-  match decLenFrom b i 0 1 with
-  | some (n, j) => if j + n ≤ b.size then some (b.extract j (j + n), j + n) else none
-  | none => none
+/-- A byte string at offset i: its length, then its bytes, copied at
+once (charged their count). -/
+def decBytesFromM {m : Type → Type} [Monad m] [Tick m] (b : ByteArray) (i : Nat) :
+    m (Option (ByteArray × Nat)) := do
+  match ← decLenFromM b i 0 1 with
+  | some (n, j) =>
+    if j + n ≤ b.size then do
+      tick { copied := n }
+      pure (some (b.extract j (j + n), j + n))
+    else pure none
+  | none => pure none
+
+/-- `decBytesFromM` where it runs. -/
+def decBytesFrom (b : ByteArray) (i : Nat) : Option (ByteArray × Nat) := Id.run (decBytesFromM b i)
+
+theorem decBytesFrom_unfold (b : ByteArray) (i : Nat) : decBytesFrom b i =
+    match decLenFrom b i 0 1 with
+    | some (n, j) => if j + n ≤ b.size then some (b.extract j (j + n), j + n) else none
+    | none => none := by
+  unfold decBytesFrom decBytesFromM decLenFrom
+  generalize decLenFromM (m := Id) b i 0 1 = x
+  change Option (Nat × Nat) at x
+  rcases x with _ | ⟨n, j⟩
+  · rfl
+  · show Id.run (if j + n ≤ b.size then _ else _) = (if j + n ≤ b.size then _ else _)
+    by_cases h : j + n ≤ b.size <;> simp only [h, ite_true, ite_false] <;> rfl
 
 instance : Codec ByteArray where
   enc b := encBytesL b.data.toList
@@ -439,8 +542,7 @@ instance : Codec ByteArray where
     have hle := h.length_le
     have := length_encNat_pos x.size
     simp only [List.length_append, Array.length_toList, ByteArray.size_data] at hle
-    unfold decBytesFrom
-    rw [decLenFrom_at x.size 0 1 h.left (by omega)]
+    rw [decBytesFrom_unfold, decLenFrom_at x.size 0 1 h.left (by omega)]
     simp only [Nat.zero_add, Nat.mul_one]
     rw [ite_eq_left (by omega), h.right.extract]
     simp only [List.length_append, Array.length_toList, ByteArray.size_data]
