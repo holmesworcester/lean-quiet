@@ -76,3 +76,9 @@ lean_exe jointcp where
 
 lean_exe merkle_check where
   root := `Tests.MerkleCheck
+
+lean_exe codecdiff where
+  root := `Tests.CodecDiff
+
+lean_exe bench where
+  root := `Tests.Bench

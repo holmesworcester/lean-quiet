@@ -10,6 +10,8 @@ open Engine Community
 #print axioms Engine.spec_extends
 #print axioms Engine.Codec.decode_encode
 #print axioms Engine.Codec.encode_decode
+#print axioms Engine.Codec.encode_eq_fast
+#print axioms Engine.Codec.decode_eq_fast
 #print axioms Engine.Op.id_decode
 #print axioms Engine.Op.decode_bytes
 #print axioms Engine.distinct_of_collisionFree

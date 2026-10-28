@@ -34,16 +34,36 @@ instance {α} [Codec α] : Codec (Option α) where
     cases o with
     | none => rfl
     | some a => simp [round]
+  encInto buf
+    | none => buf.push 0
+    | some a => encInto (buf.push 1) a
+  encInto_eq buf o := by cases o <;> simp [encInto_tag]
+  decFrom b i := match b[i]? with
+    | some 0 => some (none, i + 1)
+    | some 1 => decFromAs some b (i + 1)
+    | _ => none
+  decFrom_at o h := by
+    cases o with
+    | none => simp [h.tag]
+    | some a => simp only [h.tag]; exact decFromAs_tag _ h
 
 instance : Codec Key where
   enc k := enc (k.t, k.n)
   dec bs := (dec bs : Option ((Nat × Nat) × List UInt8)).map fun p => (⟨p.1.1, p.1.2⟩, p.2)
   round k rest := by simp [round]
+  encInto buf k := encInto buf (k.t, k.n)
+  encInto_eq buf k := encInto_eq buf (k.t, k.n)
+  decFrom := decFromAs fun (p : Nat × Nat) => (⟨p.1, p.2⟩ : Key)
+  decFrom_at k h := decFromAs_at _ h
 
 instance : Codec Range where
   enc r := enc (r.lo, r.hi)
   dec bs := (dec bs : Option ((Key × Option Key) × List UInt8)).map fun p => (⟨p.1.1, p.1.2⟩, p.2)
   round r rest := by simp [round]
+  encInto buf r := encInto buf (r.lo, r.hi)
+  encInto_eq buf r := encInto_eq buf (r.lo, r.hi)
+  decFrom := decFromAs fun (p : Key × Option Key) => (⟨p.1, p.2⟩ : Range)
+  decFrom_at r h := decFromAs_at _ h
 
 instance : Codec Claim where
   enc | .fp r n l => 0 :: enc (r, n, l)
@@ -55,6 +75,16 @@ instance : Codec Claim where
       | _ => none
   round c rest := by
     cases c <;> simp [round]
+  encInto buf
+    | .fp r n l => encInto (buf.push 0) (r, n, l)
+    | .ids r xs => encInto (buf.push 1) (r, xs)
+  encInto_eq buf c := by cases c <;> simp [encInto_tag]
+  decFrom b i := match b[i]? with
+    | some 0 => decFromAs (fun (p : Range × Nat × ByteArray) => Claim.fp p.1 p.2.1 p.2.2) b (i + 1)
+    | some 1 => decFromAs (fun (p : Range × List ByteArray) => Claim.ids p.1 p.2) b (i + 1)
+    | _ => none
+  decFrom_at c h := by
+    cases c <;> (simp only [h.tag]; exact decFromAs_tag _ h)
 
 /-- What a wire op says. -/
 inductive Msg where

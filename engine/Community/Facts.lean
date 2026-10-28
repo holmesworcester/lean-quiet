@@ -189,12 +189,68 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
       Body.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | _ => none
 
+/-- `Body.enc`, as it runs: appended to a buffer (`Engine.Codec`). -/
+def Body.encInto (buf : ByteArray) : Body → ByteArray
+  | .root d e s => Codec.encInto (buf.push 0) (d, e, s)
+  | .invite k l t s => Codec.encInto (buf.push 1) (k, l, t, s)
+  | .request d e c b => Codec.encInto (buf.push 12) (d, e, c, b)
+  | .grant s => Codec.encInto (buf.push 3) s
+  | .remove s => Codec.encInto (buf.push 4) s
+  | .post k t tm s => Codec.encInto (buf.push 5) (k, t, tm, s)
+  | .wrap k r b => Codec.encInto (buf.push 6) (k, r, b)
+  | .profile n tm s => Codec.encInto (buf.push 7) (n, tm, s)
+  | .attach r l k x s => Codec.encInto (buf.push 8) (r, l, k, x, s)
+  | .react e tm s => Codec.encInto (buf.push 9) (e, tm, s)
+  | .approve s => Codec.encInto (buf.push 10) s
+  | .admit => buf.push 11
+  | .accept c d => Codec.encInto (buf.push 13) (c, d)
+  | .joining c k hs r nm d n => Codec.encInto (buf.push 14) (c, k, hs, r, nm, d, n)
+  | .secret pk seed => Codec.encInto (buf.push 15) (pk, seed)
+  | .name n nm s => Codec.encInto (buf.push 16) (n, nm, s)
+  | .abandon => buf.push 17
+  | .key c k => Codec.encInto (buf.push 18) (c, k)
+  | .chunk r l i x p => Codec.encInto (buf.push 19) (r, l, i, x, p)
+
+/-- `Body.dec`, as it runs: read at offset i of a byte array. -/
+def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
+  match b[i]? with
+  | some 0 => decFromAs (fun (p : B × B × B) => Body.root p.1 p.2.1 p.2.2) b (i + 1)
+  | some 1 => decFromAs (fun (p : B × Bool × Nat × B) => Body.invite p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
+  | some 3 => decFromAs (fun (p : B) => Body.grant p) b (i + 1)
+  | some 4 => decFromAs (fun (p : B) => Body.remove p) b (i + 1)
+  | some 5 => decFromAs (fun (p : B × B × Nat × B) => Body.post p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
+  | some 6 => decFromAs (fun (p : B × B × B) => Body.wrap p.1 p.2.1 p.2.2) b (i + 1)
+  | some 7 => decFromAs (fun (p : B × Nat × B) => Body.profile p.1 p.2.1 p.2.2) b (i + 1)
+  | some 8 => decFromAs (fun (p : B × Nat × B × B × B) =>
+      Body.attach p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
+  | some 9 => decFromAs (fun (p : B × Nat × B) => Body.react p.1 p.2.1 p.2.2) b (i + 1)
+  | some 10 => decFromAs (fun (p : B) => Body.approve p) b (i + 1)
+  | some 11 => some (.admit, i + 1)
+  | some 12 => decFromAs (fun (p : B × B × B × B) => Body.request p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
+  | some 13 => decFromAs (fun (p : B × B) => Body.accept p.1 p.2) b (i + 1)
+  | some 14 => decFromAs (fun (p : B × B × List B × B × B × B × Nat) =>
+      Body.joining p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) b (i + 1)
+  | some 15 => decFromAs (fun (p : B × B) => Body.secret p.1 p.2) b (i + 1)
+  | some 16 => decFromAs (fun (p : Nat × B × B) => Body.name p.1 p.2.1 p.2.2) b (i + 1)
+  | some 17 => some (.abandon, i + 1)
+  | some 18 => decFromAs (fun (p : B × B) => Body.key p.1 p.2) b (i + 1)
+  | some 19 => decFromAs (fun (p : B × Nat × Nat × B × List B) =>
+      Body.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
+  | _ => none
+
 instance : Codec Body where
   enc := Body.enc
   dec := Body.dec
   round b rest := by
     cases b <;> simp only [Body.enc, Body.dec, List.cons_append] <;>
       first | rfl | exact decAs_enc _ _ _
+  encInto := Body.encInto
+  encInto_eq buf x := by
+    cases x <;> simp only [Body.encInto, Body.enc] <;> first | exact encInto_tag .. | exact push_toList ..
+  decFrom := Body.decFrom
+  decFrom_at x h := by
+    cases x <;> simp only [Body.enc] at h <;> simp only [Body.decFrom, h.tag] <;>
+      first | exact decFromAs_tag _ h | rfl
 
 def Fact.enc : Fact → List UInt8
   | .admission c u d e => 0 :: Codec.enc (c, u, d, e)
@@ -242,11 +298,67 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 17 :: r => decAs (fun (p : B × B × B × Nat × Nat) => Fact.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | _ => none
 
+/-- `Fact.enc`, as it runs: appended to a buffer (`Engine.Codec`). -/
+def Fact.encInto (buf : ByteArray) : Fact → ByteArray
+  | .admission c u d e => Codec.encInto (buf.push 0) (c, u, d, e)
+  | .invitation c i k l t => Codec.encInto (buf.push 1) (c, i, k, l, t)
+  | .admin c u => Codec.encInto (buf.push 2) (c, u)
+  | .removal c u b => Codec.encInto (buf.push 3) (c, u, b)
+  | .message c u d k t tm => Codec.encInto (buf.push 4) (c, u, d, k, t, tm)
+  | .wrap c k r b => Codec.encInto (buf.push 5) (c, k, r, b)
+  | .profile c u n tm => Codec.encInto (buf.push 6) (c, u, n, tm)
+  | .attachment c m u r l k x => Codec.encInto (buf.push 7) (c, m, u, r, l, k, x)
+  | .react c u t e tm => Codec.encInto (buf.push 8) (c, u, t, e, tm)
+  | .request c u d e l t => Codec.encInto (buf.push 9) (c, u, d, e, l, t)
+  | .approval c r u => Codec.encInto (buf.push 10) (c, r, u)
+  | .secret pk seed => Codec.encInto (buf.push 11) (pk, seed)
+  | .accepted c d => Codec.encInto (buf.push 12) (c, d)
+  | .joining c k hs r nm d n => Codec.encInto (buf.push 13) (c, k, hs, r, nm, d, n)
+  | .named c u nm n => Codec.encInto (buf.push 14) (c, u, nm, n)
+  | .abandoned c r j => Codec.encInto (buf.push 15) (c, r, j)
+  | .key c i k => Codec.encInto (buf.push 16) (c, i, k)
+  | .chunk c a r l i => Codec.encInto (buf.push 17) (c, a, r, l, i)
+
+/-- `Fact.dec`, as it runs: read at offset i of a byte array. -/
+def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
+  match b[i]? with
+  | some 0 => decFromAs (fun (p : B × B × B × B) => Fact.admission p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
+  | some 1 => decFromAs (fun (p : B × B × B × Bool × Nat) =>
+      Fact.invitation p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
+  | some 2 => decFromAs (fun (p : B × B) => Fact.admin p.1 p.2) b (i + 1)
+  | some 3 => decFromAs (fun (p : B × B × B) => Fact.removal p.1 p.2.1 p.2.2) b (i + 1)
+  | some 4 => decFromAs (fun (p : B × B × B × B × B × Nat) =>
+      Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2) b (i + 1)
+  | some 5 => decFromAs (fun (p : B × B × B × B) => Fact.wrap p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
+  | some 6 => decFromAs (fun (p : B × B × B × Nat) => Fact.profile p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
+  | some 7 => decFromAs (fun (p : B × B × B × B × Nat × B × B) =>
+      Fact.attachment p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) b (i + 1)
+  | some 8 => decFromAs (fun (p : B × B × B × B × Nat) => Fact.react p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
+  | some 9 => decFromAs (fun (p : B × B × B × B × Bool × Nat) =>
+      Fact.request p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2) b (i + 1)
+  | some 10 => decFromAs (fun (p : B × B × B) => Fact.approval p.1 p.2.1 p.2.2) b (i + 1)
+  | some 11 => decFromAs (fun (p : B × B) => Fact.secret p.1 p.2) b (i + 1)
+  | some 12 => decFromAs (fun (p : B × B) => Fact.accepted p.1 p.2) b (i + 1)
+  | some 13 => decFromAs (fun (p : B × B × List B × B × B × B × Nat) =>
+      Fact.joining p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) b (i + 1)
+  | some 14 => decFromAs (fun (p : B × B × B × Nat) => Fact.named p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
+  | some 15 => decFromAs (fun (p : B × B × B) => Fact.abandoned p.1 p.2.1 p.2.2) b (i + 1)
+  | some 16 => decFromAs (fun (p : B × B × B) => Fact.key p.1 p.2.1 p.2.2) b (i + 1)
+  | some 17 => decFromAs (fun (p : B × B × B × Nat × Nat) => Fact.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
+  | _ => none
+
 instance : Codec Fact where
   enc := Fact.enc
   dec := Fact.dec
   round f rest := by
     cases f <;> simp only [Fact.enc, Fact.dec, List.cons_append] <;> exact decAs_enc _ _ _
+  encInto := Fact.encInto
+  encInto_eq buf x := by
+    cases x <;> simp only [Fact.encInto, Fact.enc] <;> first | exact encInto_tag .. | exact push_toList ..
+  decFrom := Fact.decFrom
+  decFrom_at x h := by
+    cases x <;> simp only [Fact.enc] at h <;> simp only [Fact.decFrom, h.tag] <;>
+      first | exact decFromAs_tag _ h | rfl
 
 /-! ## Signing -/
 
