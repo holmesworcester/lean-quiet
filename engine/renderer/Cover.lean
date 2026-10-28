@@ -12,6 +12,9 @@ what runs.
   empty screen.
 - `line_painted`: a bitmap line is shown only where the row's bitmap has
   that line.
+- `painted_no_hold`: when every row is painted at its own height, no
+  position shows a row's placeholder. A frame shown once its rows are
+  painted (the desktop's, after a resize) has none to flash.
 -/
 namespace Cover
 
@@ -131,5 +134,32 @@ theorem line_painted (pad bottom : Nat) (more : Bool) (rows : List (Nat × Optio
       obtain ⟨hj, bh, hr, hl, _⟩ := find_line p rows 0 bottom j li hx
       exact ⟨hj, bh, by simpa using hr, hl⟩
     · split at h <;> simp at h
+
+theorem find_painted (p : Nat) : ∀ (rows : List (Nat × Option Nat)) (i y j : Nat),
+    y ≤ p → (∀ r ∈ rows, r.2 = some r.1) → find p i y rows ≠ some (.hold j)
+  | [], _, _, _, _, _ => by simp [find]
+  | (h, pt) :: t, i, y, j, hy, hall => by
+    have hpt : pt = some h := hall (h, pt) (List.mem_cons_self ..)
+    subst hpt
+    unfold find
+    split
+    · dsimp; split
+      · simp
+      · omega
+    · exact find_painted p t (i + 1) (y + h) j (by omega) fun r hr => hall r (List.mem_cons_of_mem _ hr)
+
+/-- **A painted frame holds no placeholder:** when every row is painted
+at its own height, no position shows a row's placeholder. -/
+theorem painted_no_hold (pad bottom : Nat) (more : Bool) (rows : List (Nat × Option Nat)) (p j : Nat)
+    (hall : ∀ r ∈ rows, r.2 = some r.1) : seen pad bottom more rows p ≠ .hold j := by
+  unfold seen
+  split
+  · simp
+  split
+  · simp
+  · next hb =>
+    split
+    · next x hx => intro h; subst h; exact find_painted p rows 0 bottom j (by omega) hall hx
+    · split <;> simp
 
 end Cover

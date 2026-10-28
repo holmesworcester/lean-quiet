@@ -53,6 +53,31 @@ run = "cd engine/native/crypto && CARGO_TARGET_DIR=\"$PWD/target\" cargo build -
 
 # The app on the headless twin
 
+[tasks."nav:negative"]
+description = "Navigation's negative controls: each mutant of Nav or of App's steps over it (back at a root, a page pushed twice, a draft cleared, a switch that keeps the stack) fails its law"
+run = "tests/app/nav_negative.sh"
+
+[tasks."host:desktop"]
+description = "The desktop root without a window (platforms/headless/Desktop): boundary renders, community switching, settings and resize; CSS track measurements compared"
+depends = ["crypto"]
+run = "tests/app/desktop.sh"
+
+[tasks."linux:build"]
+description = "The Linux desktop (platforms/linux): Lean's pixels through xcb and MIT-SHM"
+run = "platforms/linux/build.sh"
+
+[tasks."linux:input"]
+description = "The Linux shell's native editor and RGB conversion, under ASan and UBSan"
+run = "platforms/linux/input_test.sh"
+
+[tasks."linux:e2e"]
+description = "The Linux desktop under Xvfb at scale 1 and 2 and without MIT-SHM: resize, switching, settings, editing, clipboard, screenshots (needs local X sockets)"
+run = "platforms/linux/test.sh"
+
+[tasks."host:desktop-negative"]
+description = "The desktop's negative controls: eight layout and control laws broken, two native functions, five UI behaviours (the resize settle among them) and two X11 resize mechanisms (gravity, the sync request); each must fail"
+run = "python3 platforms/linux/negative.py && python3 platforms/linux/negative_ui.py && python3 platforms/linux/negative_x11.py"
+
 [tasks."host:twin-demo"]
 description = "The twin demo on the headless twin: the seam's effects from a script, checked by replies and dumped screens"
 depends = ["crypto"]

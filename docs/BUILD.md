@@ -37,6 +37,18 @@ So:
 Not measured: a second machine, the Android (NDK) and iOS (Xcode)
 builds, and the toolchain's own build.
 
+## System packages for the Linux desktop
+
+`platforms/linux` (the `linux` executable, `linux:input`, `linux:e2e`)
+links xcb from the system, and its tests drive a real X server. On
+Ubuntu:
+
+- To build: `libxcb1-dev`, `libxcb-shm0-dev` and `libxcb-sync-dev` (the
+  window manager's `_NET_WM_SYNC_REQUEST` on resize).
+- For `linux:e2e`: `xvfb`, `xdotool`, ImageMagick's `import` and Python's
+  PIL. `tests/app/run.sh` skips it, building the shell only, under
+  `SKIP_X=1` (by default whatever `SKIP_TCP` is).
+
 ## Checking it again
 
 The measurement above predates the joined repository; its modules are

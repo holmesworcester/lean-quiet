@@ -1,0 +1,46 @@
+{
+  "date": "2026-10-28",
+  "desktop_behavior_checks": 94,
+  "headless_renders": 27,
+  "reference_scanline_and_composer_pixels": 67733,
+  "reference_tolerance_px": 0,
+  "reference_tolerance_rgb": 0,
+  "reference_scope": "track geometry and declared first-slice flat colors, not full libquiet pixel parity",
+  "native_input_checks": 21,
+  "native_input_sanitizers": [
+    "ASan (leak detection disabled under sandbox ptrace restrictions)",
+    "UBSan"
+  ],
+  "axiom_audits": {
+    "app": 95,
+    "engine": 151
+  },
+  "app_regressions": {
+    "host_500_messages": 29,
+    "two_nodes": 49,
+    "arrival": 24
+  },
+  "engine_suites_before_socket_failure": {
+    "scenario": 67,
+    "differential": 517,
+    "querydiff": 873,
+    "linkcheck": 16,
+    "lifecycle": 90,
+    "wire": 29,
+    "syncpair": 19
+  },
+  "negative_controls": {
+    "layout_laws_rejected": 8,
+    "native_mutations_rejected": 2,
+    "ui_mutations_rejected": 4,
+    "sources_restored": true
+  },
+  "native_window_sessions_completed": 0,
+  "ci_local_app_engine": "FAIL: app Xvfb local socket bind and engine TCP fail with operation not permitted",
+  "browser_reference": "BLOCKED: local headless Chromium exits with Crashpad setsockopt operation not permitted",
+  "proof_links": {
+    "count": 199,
+    "status": "PASS"
+  },
+  "phones_emulators_mac_used": false
+}

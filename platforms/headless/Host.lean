@@ -162,14 +162,33 @@ def main (args : List String) : IO UInt32 := do
     check s!"two communities, the new one current, on its home: {s.comms.map (·.name)}" (s.comms.size == 2 && s.me.name == "design team" && s.page == .home)
     sm.cmds.modify (·.push "switch general")
     steps 3
+    -- navigation (ops/app/NavLaws): a switch is a root, back goes back,
+    -- a page already under the shown one is gone back to, drafts stay
+    sm.cmds.modify (·.push "back")
+    steps 2
+    check s!"back after a switch stays on its home (page {repr (← get).page}, under it {repr (← get).backStack})"
+      ((← get).page == .home && (← get).backStack.isEmpty)
     sm.cmds.modify (·.push "channel")
     steps 5
     check s!"switching back shows the first community's {(← get).total} messages" ((← get).me.name == "general" && (← get).total > 0)
+    modify fun s => { s with text := "half a thought" }
     sm.cmds.modify (·.push "open switcher")
     steps 3
     writePpm (dir ++ "/switcher-two.ppm") W (← screenOf sm W Hs 63)
     sm.cmds.modify (·.push "back")
     steps 2
+    check s!"back from the switcher is the conversation it was opened from (page {repr (← get).page})"
+      ((← get).page == .chat && (← get).backStack == [.home])
+    check "and the draft is still there" ((← get).text == "half a thought")
+    for pg in ["switcher", "getStarted", "switcher"] do
+      sm.cmds.modify (·.push s!"open {pg}")
+      steps 2
+    check s!"opening the switcher again goes back to it (page {repr (← get).page}, under it {repr (← get).backStack})"
+      ((← get).page == .switcher && (← get).backStack == [.chat, .home])
+    sm.cmds.modify (·.push "back")
+    steps 2
+    check s!"one back from there is the conversation (page {repr (← get).page})" ((← get).page == .chat)
+    modify fun s => { s with text := "" }
     -- a joiner: invited by me, asking with its own device and the link's bearer
     let s ← get
     let joiner := Device.named "joiner-test"

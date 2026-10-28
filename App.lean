@@ -29,6 +29,7 @@ import ops.app.Reader
 import ops.app.NodeOffer
 import engine.renderer.Row
 import engine.renderer.Geometry
+import engine.renderer.Nav
 import engine.renderer.Cover
 import engine.renderer.Sheet
 import ops.app.Pages
@@ -100,7 +101,12 @@ abbrev ImgKey := Pics.Key
 inductive PageId where
   | home | chat | getStarted | create | createName | joinChoice | openInvite | paste | scan | name | agree | waiting
   | requests | invite | switcher | profile | removeConfirm | duplicate
-  deriving BEq, Repr, Inhabited
+  deriving DecidableEq, Repr, Inhabited
+
+/-- Every page (Nav.depth: back reaches a root in fewer steps than this). -/
+def PageId.all : List PageId :=
+  [.home, .chat, .getStarted, .create, .createName, .joinChoice, .openInvite, .paste, .scan, .name, .agree,
+   .waiting, .requests, .invite, .switcher, .profile, .removeConfirm, .duplicate]
 
 /-- The reaction sheet's state: quick or the catalogue, its category,
 tone, search, and the grid's scroll (with a drag or fling in progress). -/
@@ -687,16 +693,13 @@ def holdLine (s : St) (li : Nat) : ByteArray :=
     let w := max 1 (s.W * 2 / 3 - x0)
     (solid Row.placeholder w).copySlice 0 s.bgRow (4 * x0) (4 * w)
 
-/-- The list frame: row r shows content at b + viewH + over - 1 - r, as
-Cover.seen says: a painted row's line, else a placeholder (Cover.covered:
-nothing inside the content is left blank, however slow a read or a
-decode is). -/
-def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run do
-  let vh := viewH s
-  let hgt := vh + 2 * over
-  let top := b + vh + over     -- content above the frame's first row
+/-- The rows overlapping the list frame, from the first one up: the
+first's index, and each one's height and the height of the paint it
+shows (Cover.seen's rows), with the paints. -/
+def frameSlice (s : St) (b : Nat) (bots : Array Nat) : Nat × Array (Nat × Option Nat) × Array (Option Bitmap) :=
+  Id.run do
+  let top := b + viewH s + over     -- content above the frame's first row
   let low := if b ≥ over then b - over else 0
-  -- the rows overlapping the frame, from the first one up
   let mut i0 := s.ids.size
   let mut slice : Array (Nat × Option Nat) := #[]
   let mut bmps : Array (Option Bitmap) := #[]
@@ -711,6 +714,17 @@ def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run 
       if s.selected.isSome && s.selected != some x then r.dimShown <|> r.shown else r.shown
     slice := slice.push (h, pick.map (·.h))
     bmps := bmps.push pick
+  return (i0, slice, bmps)
+
+/-- The list frame: row r shows content at b + viewH + over - 1 - r, as
+Cover.seen says: a painted row's line, else a placeholder (Cover.covered:
+nothing inside the content is left blank, however slow a read or a
+decode is). -/
+def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run do
+  let vh := viewH s
+  let hgt := vh + 2 * over
+  let top := b + vh + over     -- content above the frame's first row
+  let (i0, slice, bmps) := frameSlice s b bots
   let bottom := if i0 < s.ids.size then bots[i0]! else
     match s.ids.back? with
     | some (_, x) => bots.back! + heightOf s x
@@ -791,6 +805,24 @@ def listenHints : M (List ByteArray) := do
   let addrs ← try Link.local? catch _ => pure []
   return Link.hints addrs port
 
+/-! ## Navigation
+
+The page and the back stack change only by Nav's steps (its laws in
+engine/renderer/Nav.lean, the app's in ops/app/NavLaws.lean). -/
+
+/-- The page and the back stack, as Nav has them. -/
+def St.nav (s : St) : Nav.Nav PageId := ⟨s.page, s.backStack⟩
+
+/-- The page and the back stack, set to a Nav step's. -/
+def St.withNav (s : St) (n : Nav.Nav PageId) : St := { s with page := n.page, backStack := n.stack }
+
+/-- Open p (Nav.go); the page's refusal is cleared. -/
+def openSt (p : PageId) (s : St) : St := { s.withNav (Nav.go p s.nav) with refusal := none, pageKey := none }
+
+/-- Back (Nav.back); the page's one-line field and refusal are cleared
+(the native field's text with them), never the composer's draft. -/
+def backSt (s : St) : St := { s.withNav (Nav.back s.nav) with field := "", refusal := none, pageKey := none }
+
 /-- Open a page (the current one goes on the back stack). -/
 def openPage (p : PageId) : M Unit := do
   let s ← get
@@ -804,16 +836,14 @@ def openPage (p : PageId) : M Unit := do
     if ← writeAll w then
       modify fun s => { s with links := (s.me.acc, i.text) :: s.links }
   s.io.scrollTo 0
-  modify fun s => { s with backStack := s.page :: s.backStack, page := p, refusal := none, pageKey := none }
+  modify (openSt p)
 
-/-- Back: the page before, or the conversation. -/
+/-- Back: the page before; at a root, it stays (Nav.back_root). -/
 def back : M Unit := do
   let s ← get
   s.io.ime false
   s.io.scrollTo 0
-  match s.backStack with
-  | p :: rest => modify fun s => { s with page := p, backStack := rest, field := "", refusal := none, pageKey := none }
-  | [] => modify fun s => { s with page := .chat, field := "", refusal := none, pageKey := none }
+  modify backSt
 
 /-- What the app holds for an entry no longer listed, forgotten: its
 invite link, a pasted link to its community, an open profile, and, if it
@@ -840,9 +870,16 @@ def applyComms (all : Array Chaos.Me) : M Unit := do
     | some me => { s with comms := cs, me, cur := me.acc }
     | none =>
       -- nothing listed: Get started (unless a join is being made)
-      { s with comms := cs, me := default, cur := .empty,
-               page := if s.comms.isEmpty then s.page else .getStarted,
-               backStack := if s.comms.isEmpty then s.backStack else [] }
+      { s.withNav (if s.comms.isEmpty then s.nav else Nav.reset .getStarted) with
+          comms := cs, me := default, cur := .empty }
+
+/-- The state a switch to acceptance `a` leaves: its home as a root (back
+stays there: Nav.back_reset), and its conversation's window empty. -/
+def switchSt (a : Id) (s : St) : St :=
+  let s := { s.withNav (Nav.reset .home) with cur := a, me := (Kinds.Accepted.select s.comms a).getD s.me }
+  let s := { s with ids := #[], total := 0, people := 0, anchor := none, newer := 0, older := 0 }
+  let s := { s with heights := {}, rows := {}, selected := none, sheet := none }
+  { s with asking := #[], hidden := [], chromeKey := "", pageKey := none }
 
 /-- The communities as the reader's board has them (Reader.Want.comms):
 each frame. -/
@@ -859,12 +896,8 @@ def refreshCommsNow : M Unit := do
 list starts again from its newest. An entry is its acceptance, never its
 community id or name (Switch.select_tapped). -/
 def switchToAcc (a : Id) : M Unit := do
-  let s ← get
-  s.io.scrollTo 0
-  modify fun s => { s with cur := a, me := (Kinds.Accepted.select s.comms a).getD s.me, page := PageId.home, backStack := [] }
-  modify fun s => { s with ids := #[], total := 0, people := 0, anchor := none, newer := 0, older := 0 }
-  modify fun s => { s with heights := {}, rows := {}, selected := none, sheet := none }
-  modify fun s => { s with asking := #[], hidden := [], chromeKey := "", pageKey := none }
+  (← get).io.scrollTo 0
+  modify (switchSt a)
 
 def switchTo (i : Nat) : M Unit := do
   if let some m := (← get).comms[i]? then switchToAcc m.acc
@@ -993,8 +1026,8 @@ def refreshMembers : M Unit := do
   if let .sending u := (← get).removal then
     if !(← get).memberIds.contains u then
       let name := ((← get).profileOf.map (·.2.1)).getD "They"
-      modify fun s => { s with removal := (Remove.step s.removal .done).1, profileOf := none,
-                               page := .home, backStack := [] }
+      modify fun s => { s.withNav (Nav.reset .home) with
+          removal := (Remove.step s.removal .done).1, profileOf := none }
       say s!"Removed {name} from the community."
 
 /-- The node's sessions now (Connection.sessions' kept ones): their
@@ -1179,7 +1212,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
       -- again for a stopped one, else a fresh join
       let (w, _) ← readView (Community.join i seed s.joinName.toUTF8) #[]
       if ← writeAll w then
-        modify fun s => { s with invite := none, field := "", backStack := [] }
+        modify fun s => { s.withNav (Nav.reset s.page) with invite := none, field := "" }
         refreshCommsNow
         match acceptOf w, (← get).comms.find? (·.c == i.community) with
         | some a, _ => switchToAcc a
@@ -1197,7 +1230,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
       if ← writeAll (Community.stopWaiting s.me.joiningOp) then
         refreshCommsNow
         if (← get).comms.isEmpty then
-          modify fun s => { s with page := .getStarted, backStack := [], pageKey := none }
+          modify fun s => { s.withNav (Nav.reset .getStarted) with pageKey := none }
         else switchTo 0
   | .approve i =>
     let shown := s.asking.filter fun r => !s.hidden.contains r.id
@@ -1224,7 +1257,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
   | .removeCancel => removeEv .cancel
   | .openChannel _ =>
     s.io.scrollTo 0
-    modify fun s => { s with backStack := s.page :: s.backStack, page := .chat, pageKey := none, chromeKey := "" }
+    modify fun s => { openSt .chat s with chromeKey := "" }
   | .none => pure ()
 
 def closeSheet : M Unit := do
@@ -1853,9 +1886,9 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   -- conversation (read: no admission for my device there)
   let s ← get
   if (s.page == .chat || s.page == .home) && s.me.waiting && !s.me.c.isEmpty then
-    modify fun s => { s with page := .waiting, pageKey := none }
+    modify fun s => { s.withNav (Nav.swap .waiting s.nav) with pageKey := none }
   if s.page == .waiting && !s.me.waiting then
-    modify fun s => { s with page := .home, pageKey := none }
+    modify fun s => { s.withNav (Nav.swap .home s.nav) with pageKey := none }
     say "You're in."
   -- a page instead of the conversation: its bar, its content in the list
   -- layer (which does not scroll on a page), a one-row composer layer

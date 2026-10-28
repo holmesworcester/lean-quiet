@@ -1,0 +1,143 @@
+{
+  "source": "/home/holmes/libquiet/.worktrees/windows-main-parity",
+  "commit": "f96c12c5f9cbea5a2c0fb3baa54ece911523c7f4",
+  "sha256": {
+    "app/src/styles.css": "d1287525ebf9f6785fc44ec61383a7d028b50e55ad36da961982d930118ffc07",
+    "app/src/layout.ts": "3e3c98d2f5bbd4cfcefcbad0d4af952cddc59733bb77c228dbdb997f0cb96a5b",
+    "app/src/Sidebar.svelte": "5a37bdc593f32beee7aad3a99535e36f016748a741a8f951475ff8f78b176cd5",
+    "app/src/SettingsDrawer.svelte": "fddf0beb6cb8ae548e07073605665586e60c527b958063bc8404efcf98a2d053",
+    "app/src/design/tokens.css": "d3e4f40a50782b52ea2996993fead78d6ce2f255af8ae91c3a42b2c3e4b6d1ac"
+  },
+  "measurements": {
+    "desktop_breakpoint": 720,
+    "context_breakpoint": 770,
+    "sidebar": 220,
+    "context_min": 275,
+    "context_max": 375,
+    "channel_row": 26,
+    "person_row": 30,
+    "sidebar_top": 12,
+    "sidebar_horizontal_inset": 16,
+    "sidebar_group_gap": 32,
+    "community_name_size": 18,
+    "message_font_size": 14,
+    "message_line_height": 20,
+    "settings_row": 48,
+    "settings_font_size": 14,
+    "settings_line_height": 20,
+    "purple": "#7647c7",
+    "purple_dark": "#5c37a0"
+  },
+  "figma": {
+    "id": "6218:16416",
+    "name": "Mode=Desktop sidebar - V1 release, Placeholder=False, Content=For V1 2025",
+    "absoluteBoundingBox": {
+      "x": -40549.0,
+      "y": 2708.0,
+      "width": 220.0,
+      "height": 755.0
+    },
+    "itemSpacing": 8.0,
+    "paddingBottom": 48.0,
+    "fills": [
+      {
+        "blendMode": "NORMAL",
+        "type": "SOLID",
+        "color": {
+          "r": 0.31686386466026306,
+          "g": 0.09788969159126282,
+          "b": 0.4547363221645355,
+          "a": 1.0
+        }
+      }
+    ]
+  },
+  "expected_tracks": [
+    [
+      320,
+      0,
+      320,
+      0,
+      0,
+      0,
+      320
+    ],
+    [
+      719,
+      0,
+      719,
+      0,
+      0,
+      0,
+      719
+    ],
+    [
+      720,
+      220,
+      500,
+      0,
+      0,
+      0,
+      720
+    ],
+    [
+      769,
+      220,
+      549,
+      0,
+      0,
+      0,
+      769
+    ],
+    [
+      770,
+      220,
+      550,
+      0,
+      220,
+      275,
+      275
+    ],
+    [
+      800,
+      220,
+      580,
+      0,
+      220,
+      275,
+      305
+    ],
+    [
+      869,
+      220,
+      649,
+      0,
+      220,
+      275,
+      374
+    ],
+    [
+      870,
+      220,
+      650,
+      0,
+      220,
+      275,
+      375
+    ],
+    [
+      1440,
+      220,
+      1220,
+      0,
+      220,
+      845,
+      375
+    ]
+  ],
+  "tolerance": {
+    "track_edges_px": 0,
+    "flat_surface_rgb": 0,
+    "full_image_typography": "not claimed; existing 16px Unifont and dark phone surfaces retained"
+  }
+}
