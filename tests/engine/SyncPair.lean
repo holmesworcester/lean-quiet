@@ -211,8 +211,8 @@ def main : IO UInt32 := do
   t.ok "rooms: b holds nothing of the other" (!h2.any fun o => has ir o.id)
   -- What a offered b: new ops of both communities are written at a too.
   let f2 := Device.named "other-founder"
-  let news := [post c c (Device.named "acme-founder") "k".toUTF8 "news here".toUTF8 99990,
-    post c2 c2 f2 "k".toUTF8 "news there".toUTF8 99991]
+  let news := [post c c (Device.named "acme-founder") "k".toUTF8 "news here".toUTF8 100 99990,
+    post c2 c2 f2 "k".toUTF8 "news there".toUTF8 100 99991]
   let pr ← pr.writeA xa xb news
   let (pr, seen2) ← runWatch xa xb pr (pr.now + 5000) 10000
   let shown := (h ++ news.take 1).map (·.id)
