@@ -70,3 +70,6 @@ lean_exe connection_check where
 
 lean_exe purge where
   root := `Tests.Purge
+
+lean_exe jointcp where
+  root := `Tests.JoinTcp
