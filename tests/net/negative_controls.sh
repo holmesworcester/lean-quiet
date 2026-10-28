@@ -9,10 +9,11 @@ export PATH="$ELAN_HOME/bin:$PATH"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/net-nc.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 # what every mutant starts from (tests/snapshot.sh): the model and what it
-# imports (the engine, sync, the Community family), and their part of the
-# built tree
+# imports (the engine, sync, the Community family, and the renderer's
+# character classes, which a profile's name is keyed by), and their part
+# of the built tree
 . tests/snapshot.sh
-snapshot "$tmp/base" engine/core engine/wire ops/sync ops/community ops/connection
+snapshot "$tmp/base" engine/core engine/wire ops/sync ops/community ops/connection engine/renderer/Chars.lean
 # the copy itself must build, or every mutant would look refused
 cp -a "$tmp/base" "$tmp/w"
 (cd "$tmp/w" && lake build Net >/dev/null 2>&1) || { echo "FAIL: the unmutated copy does not build"; exit 1; }

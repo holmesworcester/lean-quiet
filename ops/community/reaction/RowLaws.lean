@@ -98,12 +98,18 @@ theorem twin_shown (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
     (layout f dm W d).twin.map (·.2) = if d.namesake then some (Text.oneLine f (dm.cell * 8) twinText) else none := by
   simp only [layout]; split <;> rfl
 
-/-- The label sits between the name and the time. -/
+/-- The label sits between the name and the time: it starts after the
+name ends and ends before the time starts. -/
 theorem twin_before_time (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) {bx : Box} {l : Text.Line}
-    (h : (layout f dm W d).twin = some (bx, l)) : bx.x + bx.w ≤ (layout f dm W d).timeX := by
+    (h : (layout f dm W d).twin = some (bx, l)) :
+    dm.textX + Paint.Line.width f (layout f dm W d).name ≤ bx.x ∧ bx.x + bx.w ≤ (layout f dm W d).timeX := by
   simp only [layout] at h ⊢
   split at h
-  · next hn => simp only [Option.some.injEq] at h; simp only [hn, ite_true, h]; omega
+  · next hn =>
+    simp only [Option.some.injEq, twinPill, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    simp only [hn, ite_true, twinPill]
+    omega
   · cases h
 
 /-- **A tap on the label lands on it** (it opens Quiet's warning). -/
