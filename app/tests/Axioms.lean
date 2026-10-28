@@ -1,6 +1,7 @@
 import Quiet.Geometry
 import Quiet.SheetGeom
 import Quiet.Link
+import Quiet.Camera
 #print axioms Geometry.placed_row
 #print axioms Geometry.visible_in_viewport
 #print axioms Geometry.newest_visible
@@ -17,3 +18,4 @@ import Quiet.Link
 #print axioms Geometry.pinned_tap
 #print axioms Link.hints_fit
 #print axioms Link.qr_fits
+#print axioms Camera.src_in

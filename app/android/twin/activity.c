@@ -58,7 +58,12 @@ static uint32_t        ba_pos[4];
 
 static JavaVM*   ba_vm;
 static jobject   ba_act;
-static jmethodID ba_show_ime, ba_clear_text, ba_copy_text;
+static jmethodID ba_show_ime, ba_clear_text, ba_copy_text, ba_scan_m;
+
+// The newest camera frame's Y plane, until Lean takes it (ba_take_luma).
+static uint8_t* ba_luma;
+static size_t   ba_luma_n;
+static uint32_t ba_luma_wh[4];
 
 bool ba_ahead(void) {
   return ba_lead;
@@ -252,6 +257,38 @@ static void JNICALL ba_n_text(JNIEnv* env, jclass cls, jstring text, jint ss, ji
   pthread_mutex_unlock(&ba_mu);
 }
 
+static void JNICALL ba_n_luma(JNIEnv* env, jclass cls, jobject buf, jint w, jint h, jint stride,
+  jint orient) {
+  const uint8_t* y = (*env)->GetDirectBufferAddress(env, buf);
+  jlong          n = (*env)->GetDirectBufferCapacity(env, buf);
+  if (y == NULL || n <= 0 || w <= 0 || h <= 0 || stride <= 0) {
+    return;
+  }
+  pthread_mutex_lock(&ba_mu);
+  uint8_t* p = realloc(ba_luma, (size_t)n);
+  if (p != NULL) {
+    memcpy(p, y, (size_t)n);
+    ba_luma       = p;
+    ba_luma_n     = (size_t)n;
+    ba_luma_wh[0] = (uint32_t)w;
+    ba_luma_wh[1] = (uint32_t)h;
+    ba_luma_wh[2] = (uint32_t)stride;
+    ba_luma_wh[3] = (uint32_t)orient;
+  }
+  pthread_mutex_unlock(&ba_mu);
+}
+
+uint8_t* ba_take_luma(size_t* n, uint32_t wh[4]) {
+  pthread_mutex_lock(&ba_mu);
+  uint8_t* p = ba_luma;
+  *n         = ba_luma_n;
+  memcpy(wh, ba_luma_wh, sizeof ba_luma_wh);
+  ba_luma   = NULL;
+  ba_luma_n = 0;
+  pthread_mutex_unlock(&ba_mu);
+  return p;
+}
+
 static void JNICALL ba_n_send(JNIEnv* env, jclass cls) {
   pthread_mutex_lock(&ba_mu);
   ba_event(5, 0, 0, 0);
@@ -288,6 +325,22 @@ void ba_text_clear(void) {
   ba_call(ba_clear_text, false);
 }
 
+void ba_scan(bool on) {
+  if (ba_vm == NULL || ba_act == NULL || ba_scan_m == NULL) {
+    return;
+  }
+  JNIEnv* env;
+  if ((*ba_vm)->GetEnv(ba_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK
+    && (*ba_vm)->AttachCurrentThread(ba_vm, &env, NULL) != JNI_OK) {
+    return;
+  }
+  (*env)->CallVoidMethod(env, ba_act, ba_scan_m, (jboolean)on);
+  if ((*env)->ExceptionCheck(env)) {
+    (*env)->ExceptionDescribe(env);
+    (*env)->ExceptionClear(env);
+  }
+}
+
 void ba_copy(const char* utf8) {
   if (ba_vm == NULL || ba_act == NULL || ba_copy_text == NULL) {
     return;
@@ -313,8 +366,9 @@ static void ba_java(ANativeActivity* act) {
     { "nInsets", "(III)V", (void*)ba_n_insets },
     { "nText", "(Ljava/lang/String;IIII)V", (void*)ba_n_text },
     { "nSend", "()V", (void*)ba_n_send },
+    { "nLuma", "(Ljava/nio/ByteBuffer;IIII)V", (void*)ba_n_luma },
   };
-  if ((*env)->RegisterNatives(env, cls, ms, 3) != 0) {
+  if ((*env)->RegisterNatives(env, cls, ms, 4) != 0) {
     (*env)->ExceptionClear(env);
     __android_log_write(ANDROID_LOG_ERROR, "lean", "cannot register the Java half's natives");
     return;
@@ -327,9 +381,10 @@ static void ba_java(ANativeActivity* act) {
   ba_show_ime   = (*env)->GetMethodID(env, cls, "showIme", "(Z)V");
   ba_clear_text = (*env)->GetMethodID(env, cls, "clearText", "()V");
   ba_copy_text  = (*env)->GetMethodID(env, cls, "copyText", "(Ljava/lang/String;)V");
+  ba_scan_m     = (*env)->GetMethodID(env, cls, "scan", "(Z)V");
   if ((*env)->ExceptionCheck(env)) {
     (*env)->ExceptionClear(env);
-    ba_show_ime = ba_clear_text = ba_copy_text = NULL;
+    ba_show_ime = ba_clear_text = ba_copy_text = ba_scan_m = NULL;
   }
 }
 
