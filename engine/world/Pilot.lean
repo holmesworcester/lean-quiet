@@ -166,7 +166,7 @@ does meanwhile. -/
 theorem claim_delivers (hw : walk_stmt) : claim_delivers_stmt := by
   intro F Q N E W i j cid r k kr p ps rg L x hf hG hJ hgst hlive hrooms hp hsrc hdst hpeek hclaim hxL hx
   have wl := hw F Q.fam Q.cfg
-  have hok : ∀ m l, NodeOk ((E.world m).node l) ((E.world m).box l) := fun m => reach_ok Q wl noAdv _ (E.reachable m)
+  have hok : ∀ m l, NodeOk Q.fam ((E.world m).node l) ((E.world m).box l) := fun m => reach_ok Q wl noAdv _ (E.reachable m)
   have hfl : ∀ m, FlightOk Q (E.world m) := fun m => reach_flight Q noAdv _ (E.reachable m)
   have hmax := hf.ok.maxIds
   have atj : Q.setup.at? (Q.addr j) = some j := at_addr Q hf.ok j
@@ -232,5 +232,25 @@ theorem pilot : claim_delivers_stmt := claim_delivers walk_proof
 
 /-- **Shared stores only grow**, with no premise left. -/
 theorem grows_all : grows_stmt := grows_proof walk_proof
+
+/-- **L-offered, its first half, proven: the room index is the store.**
+At every world the plain world reaches, against any attacker, each
+node's index of room r names exactly the ops of room r it stores. -/
+theorem index_store_proof : index_store_stmt := by
+  intro F Q adv w hr i r x
+  exact (reach_ok Q (walk_proof F Q.fam Q.cfg) adv w hr i).exact r x
+
+/-- **L-restart, proven: a restart loses only memory.** -/
+theorem restart_proof : restart_stmt := by
+  intro F Q adv w i t hr hl
+  have hr' : Q.Reach adv (w.step Q.setup (.restart i t)) := Reachable.step hr hl
+  have hb : (w.step Q.setup (.restart i t)).box i = w.box i := by
+    show upd w.box i (Q.setup.crash (w.box i)) i = w.box i
+    simp only [upd, ite_true]; rfl
+  refine ⟨fun r x => ?_, fun r x => (reach_ok Q (walk_proof F Q.fam Q.cfg) adv _ hr' i).exact r x, ?_⟩
+  · show (∃ o, (w.box i).db.ops x = some o ∧ _) ↔ (∃ o, ((w.step Q.setup (.restart i t)).box i).db.ops x = some o ∧ _)
+    rw [hb]
+  · show (upd w.node i (Node.boot _ _ _) i).conns = []
+    simp only [upd, ite_true]; rfl
 
 end Engine.World

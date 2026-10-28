@@ -364,14 +364,343 @@ def IdsOk (h : Held F) : Prop := ∀ x o, h.db.ops x = some o → o.id = x
 /-- Every logged op is stored. -/
 def LogIn (h : Held F) : Prop := ∀ o ∈ h.log, Named h o.id
 
-/-- **What every plain node keeps:** its index and snapshots name stored
-ops, no session is the family's, and its store files each op under its
-id and holds everything it logged. -/
-structure NodeOk (n : Node) (h : Held F) : Prop where
+/-! ## The index names exactly the stored ops of each room -/
+
+/-- Room r's index names id x. -/
+def Named' (ix : Index) (r x : Id) : Prop := ∃ it ∈ ix.items r, it.2 = x
+
+/-- Every item's key carries its id's number, so equal keys mean equal ids. -/
+def IxWf (ix : Index) : Prop := ∀ r it, it ∈ ix.items r → it.1.n = num it.2.data.toList
+
+/-- **The index is the store:** room r's index names exactly the ids of
+the stored ops of room r. -/
+def IxExact (fam : Family F) (ix : Index) (h : Held F) : Prop :=
+  ∀ r x, Named' ix r x ↔ ∃ o, h.db.ops x = some o ∧ fam.room o = some r
+
+theorem id_of_key {a b : Item} (ha : a.1.n = num a.2.data.toList) (hb : b.1.n = num b.2.data.toList)
+    (e : b.1 = a.1) : b.2 = a.2 := by
+  have : num b.2.data.toList = num a.2.data.toList := by rw [← ha, ← hb, e]
+  have h2 := num_inj this
+  cases hA : a.2 with | mk da => cases hB : b.2 with | mk db =>
+    rw [hA, hB] at h2; simp only at h2
+    rw [Array.toList_inj] at h2; rw [h2]
+
+theorem sub_ins (a : Item) : ∀ (l : List Item), ∀ it ∈ l, it ∈ Engine.Sync.ins a l := by
+  intro l
+  induction l with
+  | nil => intro it h; cases h
+  | cons b t ih =>
+    intro it h
+    simp only [Engine.Sync.ins]
+    split
+    · exact List.mem_cons_of_mem _ h
+    · split
+      · exact h
+      · rcases List.mem_cons.1 h with rfl | h
+        · exact List.mem_cons_self ..
+        · exact List.mem_cons_of_mem _ (ih it h)
+
+theorem ins_has (a : Item) : ∀ (l : List Item), a ∈ Engine.Sync.ins a l ∨ ∃ b ∈ l, b.1 = a.1 := by
+  intro l
+  induction l with
+  | nil => left; simp [Engine.Sync.ins]
+  | cons b t ih =>
+    simp only [Engine.Sync.ins]
+    split
+    · left; exact List.mem_cons_self ..
+    · split
+      · rename_i e; right; exact ⟨b, List.mem_cons_self .., e.symm⟩
+      · rcases ih with h | ⟨b', hb', e⟩
+        · left; exact List.mem_cons_of_mem _ h
+        · right; exact ⟨b', List.mem_cons_of_mem _ hb', e⟩
+
+theorem named_ins (a : Item) (l : List Item) (hl : ∀ b ∈ l, b.1.n = num b.2.data.toList)
+    (ha : a.1.n = num a.2.data.toList) (x : Id) :
+    (∃ it ∈ Engine.Sync.ins a l, it.2 = x) ↔ (∃ it ∈ l, it.2 = x) ∨ a.2 = x := by
+  constructor
+  · rintro ⟨it, hit, e⟩
+    rcases mem_ins a l it hit with h | rfl
+    · exact Or.inl ⟨it, h, e⟩
+    · exact Or.inr e
+  · rintro (⟨it, hit, e⟩ | e)
+    · exact ⟨it, sub_ins a l it hit, e⟩
+    · rcases ins_has a l with h | ⟨b, hb, eb⟩
+      · exact ⟨a, h, e⟩
+      · exact ⟨b, sub_ins a l b hb, by rw [id_of_key ha (hl b hb) eb, e]⟩
+
+theorem ins_wf (a : Item) (l : List Item) (hl : ∀ b ∈ l, b.1.n = num b.2.data.toList)
+    (ha : a.1.n = num a.2.data.toList) : ∀ b ∈ Engine.Sync.ins a l, b.1.n = num b.2.data.toList := by
+  intro b hb
+  rcases mem_ins a l b hb with h | rfl
+  · exact hl b h
+  · exact ha
+
+/-- What adding an op does to each room's items. -/
+theorem items_add_eq (fam : Family F) (ix : Index) (o : Op) (r : Id) :
+    (ix.add fam o).items r =
+      if fam.room o = some r then Engine.Sync.ins (keyOf fam o, o.id) (ix.items r) else ix.items r := by
+  unfold Index.add
+  cases hr : fam.room o with
+  | none => simp
+  | some c =>
+    dsimp only
+    rw [items_def, items_def]
+    split
+    · rw [find_map_fst _ (fun p => by split <;> rfl)]
+      by_cases e : c = r
+      · subst e
+        simp only [↓reduceIte]
+        cases hf : ix.rooms.find? fun p => Decidable.decide (p.1 = c) with
+        | none =>
+          rename_i hany
+          exfalso
+          obtain ⟨p, hp, hpc⟩ := List.any_eq_true.1 hany
+          have := List.find?_eq_none.1 hf p hp
+          exact this hpc
+        | some p =>
+          have hp := List.find?_some hf
+          simp only [decide_eq_true_eq] at hp
+          simp [hp]
+      · have e' : ¬ (some c = some r) := fun h => e (Option.some.inj h)
+        simp only [e', ↓reduceIte]
+        cases hf : ix.rooms.find? fun p => Decidable.decide (p.1 = r) with
+        | none => rfl
+        | some p =>
+          have hp := List.find?_some hf
+          simp only [decide_eq_true_eq] at hp
+          have e2 : ¬ r = c := fun h => e h.symm
+          simp [hp, e2]
+    · rename_i hany
+      by_cases e : c = r
+      · subst e
+        simp only [↓reduceIte, List.find?_cons, decide_true, Option.map_some, Option.getD_some]
+        have : ix.rooms.find? (fun p => Decidable.decide (p.1 = c)) = none := by
+          apply List.find?_eq_none.2
+          intro p hp hpc
+          exact hany (List.any_eq_true.2 ⟨p, hp, hpc⟩)
+        rw [this]; rfl
+      · have e' : ¬ (some c = some r) := fun h => e (Option.some.inj h)
+        simp only [e', ↓reduceIte, List.find?_cons]
+        simp [e]
+
+theorem add_wf (fam : Family F) (ix : Index) (o : Op) (hw : IxWf ix) : IxWf (ix.add fam o) := by
+  intro r it hit
+  rw [items_add_eq] at hit
+  split at hit
+  · exact ins_wf _ _ (hw r) rfl it hit
+  · exact hw r it hit
+
+theorem named_add (fam : Family F) (ix : Index) (o : Op) (hw : IxWf ix) (r x : Id) :
+    Named' (ix.add fam o) r x ↔ Named' ix r x ∨ (o.id = x ∧ fam.room o = some r) := by
+  unfold Named'
+  rw [items_add_eq]
+  split
+  · rename_i hr
+    rw [named_ins _ _ (hw r) rfl]
+    simp [hr]
+  · rename_i hr
+    simp [hr]
+
+theorem fold_add (fam : Family F) (r x : Id) : ∀ (l : List Op) (ix : Index), IxWf ix →
+    IxWf (l.foldl (Index.add fam) ix) ∧
+    (Named' (l.foldl (Index.add fam) ix) r x ↔ Named' ix r x ∨ ∃ o ∈ l, o.id = x ∧ fam.room o = some r) := by
+  intro l
+  induction l with
+  | nil => intro ix hw; exact ⟨hw, by simp⟩
+  | cons o t ih =>
+    intro ix hw
+    obtain ⟨w1, e1⟩ := ih _ (add_wf fam ix o hw)
+    refine ⟨w1, ?_⟩
+    rw [List.foldl_cons, e1, named_add fam ix o hw]
+    constructor
+    · rintro ((h | h) | ⟨o', ho', h⟩)
+      · exact Or.inl h
+      · exact Or.inr ⟨o, List.mem_cons_self .., h⟩
+      · exact Or.inr ⟨o', List.mem_cons_of_mem _ ho', h⟩
+    · rintro (h | ⟨o', ho', h⟩)
+      · exact Or.inl (Or.inl h)
+      · rcases List.mem_cons.1 ho' with rfl | ho'
+        · exact Or.inl (Or.inr h)
+        · exact Or.inr ⟨o', ho', h⟩
+
+/-! ## What a write turn stores -/
+
+/-- An op the turn stored was there, or is one of the turn's. -/
+theorem ingest_from (l : List Op) : ∀ (s : DB F) x o', (l.foldl (fun s o => ingestS o s) s).ops x = some o' →
+    s.ops x = some o' ∨ (o' ∈ l ∧ o'.id = x) := by
+  induction l with
+  | nil => intro s x o' h; exact Or.inl h
+  | cons o t ih =>
+    intro s x o' h
+    rcases ih _ x o' h with h | h
+    · unfold ingestS at h
+      dsimp only at h
+      split at h
+      · exact Or.inl h
+      · simp only [DB.push, DB.putOp] at h
+        split at h
+        · rename_i e; cases h; exact Or.inr ⟨List.mem_cons_self .., e.symm⟩
+        · exact Or.inl h
+    · exact Or.inr ⟨List.mem_cons_of_mem _ h.1, h.2⟩
+
+/-- A turn of ops absent from the store, no two with one id, stores each
+under its id. -/
+theorem ingest_each (l : List Op) : ∀ (s : DB F), (∀ o ∈ l, s.ops o.id = none) →
+    l.Pairwise (fun a b => a.id ≠ b.id) → ∀ o ∈ l, (l.foldl (fun s o => ingestS o s) s).ops o.id = some o := by
+  induction l with
+  | nil => intro s _ _ o h; cases h
+  | cons a t ih =>
+    intro s ha hp o ho
+    have hpt := (List.pairwise_cons.1 hp)
+    have hs : (ingestS a s).ops a.id = some a := by
+      unfold ingestS; rw [ha a (List.mem_cons_self ..)]; simp [DB.push, DB.putOp]
+    have hrest : ∀ o ∈ t, (ingestS a s).ops o.id = none := by
+      intro o' ho'
+      unfold ingestS; rw [ha a (List.mem_cons_self ..)]
+      simp only [DB.push, DB.putOp]
+      have : o'.id ≠ a.id := fun e => hpt.1 o' ho' e.symm
+      simp [this, ha o' (List.mem_cons_of_mem _ ho')]
+    rcases List.mem_cons.1 ho with rfl | ho
+    · rw [List.foldl_cons]
+      exact (foldl_ingest_ext t _ _ _ hs)
+    · exact ih _ hrest hpt.2 o ho
+
+/-- The write's new ops: absent from the store, from the ops given, no two
+with one id. -/
+theorem absent_props (db : DB F) : ∀ (l acc : List Op),
+    (∀ o ∈ acc, db.ops o.id = none) → acc.Pairwise (fun a b => a.id ≠ b.id) →
+    (∀ o ∈ l.foldl (absentStep db) acc, db.ops o.id = none ∧ (o ∈ acc ∨ o ∈ l)) ∧
+      (l.foldl (absentStep db) acc).Pairwise (fun a b => a.id ≠ b.id) := by
+  intro l
+  induction l with
+  | nil => intro acc ha hp; exact ⟨fun o h => ⟨ha o h, Or.inl h⟩, hp⟩
+  | cons o t ih =>
+    intro acc ha hp
+    rw [List.foldl_cons]
+    unfold absentStep
+    split
+    · rename_i hc
+      simp only [Bool.and_eq_true, Bool.not_eq_true', Option.isNone_iff_eq_none] at hc
+      have ha' : ∀ o' ∈ o :: acc, db.ops o'.id = none := by
+        intro o' h; rcases List.mem_cons.1 h with rfl | h
+        · exact hc.2
+        · exact ha o' h
+      have hp' : (o :: acc).Pairwise (fun a b => a.id ≠ b.id) := by
+        refine List.pairwise_cons.2 ⟨fun b hb e => ?_, hp⟩
+        have : (acc.any fun x => x.id == o.id) = true := List.any_eq_true.2 ⟨b, hb, by simp [e]⟩
+        rw [hc.1] at this; cases this
+      obtain ⟨h1, h2⟩ := ih _ ha' hp'
+      refine ⟨fun o' h => ⟨(h1 o' h).1, ?_⟩, h2⟩
+      rcases (h1 o' h).2 with h | h
+      · rcases List.mem_cons.1 h with rfl | h
+        · exact Or.inr (List.mem_cons_self ..)
+        · exact Or.inl h
+      · exact Or.inr (List.mem_cons_of_mem _ h)
+    · obtain ⟨h1, h2⟩ := ih _ ha hp
+      refine ⟨fun o' h => ⟨(h1 o' h).1, ?_⟩, h2⟩
+      rcases (h1 o' h).2 with h | h
+      · exact Or.inl h
+      · exact Or.inr (List.mem_cons_of_mem _ h)
+
+/-! ## What the store keeps -/
+
+/-- Every logged op is stored as itself. -/
+def LogExact (h : Held F) : Prop := ∀ o ∈ h.log, h.db.ops o.id = some o
+
+/-- Every stored op is logged. -/
+def StoredLogged (h : Held F) : Prop := ∀ x o, h.db.ops x = some o → o ∈ h.log
+
+theorem addStep_fst (fam : Family F) (db : DB F) : ∀ (l : List Op) (st : Index × List Id),
+    (∀ o ∈ l, (db.ops o.id).isSome = true) → (l.foldl (addStep fam db) st).1 = l.foldl (Index.add fam) st.1 := by
+  intro l
+  induction l with
+  | nil => intro st _; rfl
+  | cons o t ih =>
+    intro st h
+    rw [List.foldl_cons, List.foldl_cons, ih _ (fun o' ho' => h o' (List.mem_cons_of_mem _ ho'))]
+    unfold addStep
+    rw [if_pos (h o (List.mem_cons_self ..))]
+
+section
+variable (fam : Family F) (cfg : Config) (rms : Held F → Id → List Id)
+
+/-- **A write keeps the index the store**, and the store's log exact. -/
+theorem write_ix (n : Node) (ops : List Op) (h : Held F) (hw : IxWf n.ix) (hx : IxExact fam n.ix h)
+    (hl : LogExact h) (hs : StoredLogged h) :
+    IxWf ((n.write (psync fam cfg rms) ops).run h).1.1.ix ∧
+    IxExact fam ((n.write (psync fam cfg rms) ops).run h).1.1.ix ((n.write (psync fam cfg rms) ops).run h).2 ∧
+    LogExact ((n.write (psync fam cfg rms) ops).run h).2 ∧ StoredLogged ((n.write (psync fam cfg rms) ops).run h).2 := by
+  rw [write_run]
+  simp only [psync_fam]
+  split
+  · exact ⟨hw, hx, hl, hs⟩
+  · obtain ⟨hA, hP⟩ := absent_props h.db ops [] (fun o h => by cases h) List.Pairwise.nil
+    have hA' : ∀ o ∈ (List.foldl (absentStep h.db) [] ops).reverse, h.db.ops o.id = none :=
+      fun o ho => (hA o (List.mem_reverse.1 ho)).1
+    have hP' : (List.foldl (absentStep h.db) [] ops).reverse.Pairwise (fun a b => a.id ≠ b.id) :=
+      List.pairwise_reverse.2 (hP.imp fun h e => h e.symm)
+    have each := ingest_each _ h.db hA' hP'
+    have stored : ∀ o ∈ (List.foldl (absentStep h.db) [] ops).reverse,
+        ((turnH fam (List.foldl (absentStep h.db) [] ops).reverse h).db.ops o.id) = some o := by
+      intro o ho; simp only [turnH, drainS_ops]; exact each o ho
+    rw [addStep_fst _ _ _ _ (fun o ho => by rw [stored o ho]; rfl)]
+    refine ⟨(fold_add fam ByteArray.empty ByteArray.empty _ _ hw).1, fun r x => ?_, ?_, ?_⟩
+    · rw [(fold_add fam r x _ _ hw).2]
+      constructor
+      · rintro (h1 | ⟨o, ho, e, hr⟩)
+        · obtain ⟨o, ho, hr⟩ := (hx r x).1 h1
+          exact ⟨o, (turnH_ext fam _ h).1 x o ho, hr⟩
+        · exact ⟨o, by rw [← e]; exact stored o ho, hr⟩
+      · rintro ⟨o', ho', hr⟩
+        simp only [turnH, drainS_ops] at ho'
+        rcases ingest_from _ h.db x o' ho' with h1 | ⟨hm, e⟩
+        · exact Or.inl ((hx r x).2 ⟨o', h1, hr⟩)
+        · exact Or.inr ⟨o', hm, e, hr⟩
+    · intro o ho
+      simp only [turnH, List.mem_append] at ho
+      rcases ho with ho | ho
+      · exact (turnH_ext fam _ h).1 _ _ (hl o ho)
+      · exact stored o ho
+    · intro x o' ho'
+      simp only [turnH, drainS_ops] at ho'
+      simp only [turnH, List.mem_append]
+      rcases ingest_from _ h.db x o' ho' with h1 | ⟨hm, _⟩
+      · exact Or.inl (hs x o' h1)
+      · exact Or.inr hm
+
+end
+
+/-- **A booted node's index is its store**, when the store's log is
+exact and holds every stored op. -/
+theorem boot_ix (fam : Family F) (h : Held F) (hi : IdsOk h) (hl : LogExact h) (hs : StoredLogged h) (floor : Nat) :
+    IxWf (Node.boot fam h.log floor).ix ∧ IxExact fam (Node.boot fam h.log floor).ix h := by
+  have hw0 : IxWf ({} : Index) := fun r it hit => by simp [Index.items] at hit
+  refine ⟨(fold_add fam ByteArray.empty ByteArray.empty h.log {} hw0).1, fun r x => ?_⟩
+  show Named' (h.log.foldl (Index.add fam) {}) r x ↔ _
+  rw [(fold_add fam r x h.log {} hw0).2]
+  constructor
+  · rintro (⟨it, hit, _⟩ | ⟨o, ho, e, hr⟩)
+    · simp [Index.items] at hit
+    · exact ⟨o, by rw [← e]; exact hl o ho, hr⟩
+  · rintro ⟨o, ho, hr⟩
+    exact Or.inr ⟨o, hs x o ho, hi x o ho, hr⟩
+
+
+/-- **What every plain node keeps:** its index names exactly the stored
+ops of each room, its snapshots name stored ops, no session is the
+family's, and its store files each op under its id, and logs exactly
+what it stores. -/
+structure NodeOk (fam : Family F) (n : Node) (h : Held F) : Prop where
   sub : Sub n h
   managed : n.managed = []
   ids : IdsOk h
   log : LogIn h
+  /-- Its index of each room names exactly the stored ops of that room. -/
+  wf : IxWf n.ix
+  exact : IxExact fam n.ix h
+  /-- Its log is exactly what it stores. -/
+  logx : LogExact h
+  stored : StoredLogged h
 
 theorem LogIn.ext {h h' : Held F} (e : Ext h h') (hl : LogIn h) : LogIn h' := fun o ho => by
   rcases e.2 o ho with ho | ho
@@ -417,11 +746,12 @@ theorem write_store (n : Node) (ops : List Op) (h : Held F) :
   · exact Or.inl rfl
   · exact Or.inr ⟨_, rfl⟩
 
-theorem write_ok (n : Node) (ops : List Op) (h : Held F) (ok : NodeOk n h) :
-    NodeOk ((n.write (psync fam cfg rms) ops).run h).1.1 ((n.write (psync fam cfg rms) ops).run h).2 := by
+theorem write_ok (n : Node) (ops : List Op) (h : Held F) (ok : NodeOk fam n h) :
+    NodeOk fam ((n.write (psync fam cfg rms) ops).run h).1.1 ((n.write (psync fam cfg rms) ops).run h).2 := by
   have e := write_grows fam cfg rms n ops h
+  obtain ⟨w1, x1, l1, s1⟩ := write_ix fam cfg rms n ops h ok.wf ok.exact ok.logx ok.stored
   refine ⟨write_sub fam cfg rms n ops h ok.sub, by rw [(write_node fam cfg rms n ops h).2.2]; exact ok.managed,
-    ?_, ok.log.ext e⟩
+    ?_, ok.log.ext e, w1, x1, l1, s1⟩
   rcases write_store fam cfg rms n ops h with hs | ⟨l, hs⟩
   · rw [hs]; exact ok.ids
   · rw [hs]; exact turnH_ids fam l h ok.ids
@@ -527,11 +857,12 @@ theorem fanout_node (n : Node) (ids : List Id) (h : Held F) :
   show (n.conns.foldl (fanStep fam cfg rms h ids) ([], {}, [])).1.reverse = _
   rw [fanStep_conns]; simp
 
-theorem fanout_ok (n : Node) (ids : List Id) (h : Held F) (ok : NodeOk n h) :
-    NodeOk ((n.fanout (psync fam cfg rms) ids).run h).1.1 ((n.fanout (psync fam cfg rms) ids).run h).2 := by
+theorem fanout_ok (n : Node) (ids : List Id) (h : Held F) (ok : NodeOk fam n h) :
+    NodeOk fam ((n.fanout (psync fam cfg rms) ids).run h).1.1 ((n.fanout (psync fam cfg rms) ids).run h).2 := by
   obtain ⟨e1, e2, -, e4, e5⟩ := fanout_node fam cfg rms n ids h
   rw [e1]
-  refine ⟨⟨by rw [e2]; exact ok.sub.1, ?_⟩, by rw [e4]; exact ok.managed, ok.ids, ok.log⟩
+  refine ⟨⟨by rw [e2]; exact ok.sub.1, ?_⟩, by rw [e4]; exact ok.managed, ok.ids, ok.log,
+    by rw [e2]; exact ok.wf, by rw [e2]; exact ok.exact, ok.logx, ok.stored⟩
   intro p hp
   rw [e5] at hp
   obtain ⟨q, hq, rfl⟩ := List.mem_map.1 hp
@@ -543,8 +874,8 @@ theorem fanout_cids (n : Node) (ids : List Id) (h : Held F) :
     cids ((n.fanout (psync fam cfg rms) ids).run h).1.1 = cids n := by
   rw [cids, (fanout_node fam cfg rms n ids h).2.2.2.2]; simp [cids]
 
-theorem store_ok (n : Node) (ops : List Op) (mine : Bool) (h : Held F) (ok : NodeOk n h) :
-    NodeOk ((n.store (psync fam cfg rms) ops mine).run h).1.1 ((n.store (psync fam cfg rms) ops mine).run h).2 := by
+theorem store_ok (n : Node) (ops : List Op) (mine : Bool) (h : Held F) (ok : NodeOk fam n h) :
+    NodeOk fam ((n.store (psync fam cfg rms) ops mine).run h).1.1 ((n.store (psync fam cfg rms) ops mine).run h).2 := by
   rw [store_run]
   have wk := write_ok fam cfg rms n (intake fam mine ops) h ok
   simp only [Node.put, psync_fam]
@@ -572,13 +903,13 @@ theorem setConn_cids (n : Node) (cid : Id) (c : Conn) : cids (setConn n cid c) =
   unfold setConn cids; simp only [List.map_map]
   congr 1; funext p; simp only [Function.comp_apply]; split <;> simp_all
 
-theorem apply_ok (n : Node) (cid : Id) (s : Step) (now : Nat) (h : Held F) (ok : NodeOk n h)
+theorem apply_ok (n : Node) (cid : Id) (s : Step) (now : Nat) (h : Held F) (ok : NodeOk fam n h)
     (hs : SnapsIn s.conn h) :
-    NodeOk ((n.apply (psync fam cfg rms) cid s now).run h).1.1 ((n.apply (psync fam cfg rms) cid s now).run h).2 := by
+    NodeOk fam ((n.apply (psync fam cfg rms) cid s now).run h).1.1 ((n.apply (psync fam cfg rms) cid s now).run h).2 := by
   cases hd : s.drop
   · rw [apply_run fam cfg rms n cid s now h hd]
     apply store_ok
-    refine ⟨⟨ok.sub.1, ?_⟩, ok.managed, ok.ids, ok.log⟩
+    refine ⟨⟨ok.sub.1, ?_⟩, ok.managed, ok.ids, ok.log, ok.wf, ok.exact, ok.logx, ok.stored⟩
     intro p hp
     simp only [setConn, List.mem_map] at hp
     obtain ⟨q, hq, e⟩ := hp
@@ -586,7 +917,7 @@ theorem apply_ok (n : Node) (cid : Id) (s : Step) (now : Nat) (h : Held F) (ok :
     · rw [← e]; exact hs
     · rw [← e]; exact ok.sub.2 q hq
   · simp only [Node.apply, hd, ite_true, HeldM.run_pure]
-    refine ⟨⟨ok.sub.1, fun p hp => ok.sub.2 p ?_⟩, ?_, ok.ids, ok.log⟩
+    refine ⟨⟨ok.sub.1, fun p hp => ok.sub.2 p ?_⟩, ?_, ok.ids, ok.log, ok.wf, ok.exact, ok.logx, ok.stored⟩
     · simp only [Node.drop, Node.close] at hp; exact (List.mem_filter.1 hp).1
     · simp [Node.drop, Node.close, ok.managed]
 
@@ -763,7 +1094,7 @@ theorem onWant_sends (c : Conn) (W : List Id) (h : Held F) (x : Id) (o : Op) (r 
 
 /-- **H1, one payload: a claim of ids is answered with a want for x**,
 an id it lists that the store lacks. -/
-theorem claim_step (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (ok : NodeOk st.1.1 st.2) (c : Conn)
+theorem claim_step (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (ok : NodeOk fam st.1.1 st.2) (c : Conn)
     (hc : st.1.1.conn? cid = some c) (r : Id) (kr : Nat) (rg : Range) (L : List Id) (x : Id)
     (hr : r ∈ rms st.2 cid) (hx : x ∈ L) (hmax : 0 < cfg.maxIds) (hn : ¬ Named st.2 x) :
     ∃ W, x ∈ W ∧ W.length ≤ cfg.maxIds ∧
@@ -814,8 +1145,8 @@ include hw
 /-- **One payload keeps the node invariant**, grows the store, keeps the
 sessions and addresses, and only adds to what is sent. -/
 theorem frameStep_ok (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (b : ByteArray)
-    (ok : NodeOk st.1.1 st.2) :
-    NodeOk (frameStep fam cfg rms cid now st b).1.1 (frameStep fam cfg rms cid now st b).2 ∧
+    (ok : NodeOk fam st.1.1 st.2) :
+    NodeOk fam (frameStep fam cfg rms cid now st b).1.1 (frameStep fam cfg rms cid now st b).2 ∧
     Ext st.2 (frameStep fam cfg rms cid now st b).2 ∧
     cids (frameStep fam cfg rms cid now st b).1.1 = cids st.1.1 ∧
     (frameStep fam cfg rms cid now st b).1.1.addrs = st.1.1.addrs ∧
@@ -838,8 +1169,8 @@ theorem frameStep_ok (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (b :
 /-- Through a frame's payloads: the invariant, growth, the sessions, the
 addresses, and what is sent only grows. -/
 theorem frame_fold (cid : Id) (now : Nat) : ∀ (l : List ByteArray) (st : (Node × Acts) × Held F),
-    NodeOk st.1.1 st.2 →
-    NodeOk (l.foldl (frameStep fam cfg rms cid now) st).1.1 (l.foldl (frameStep fam cfg rms cid now) st).2 ∧
+    NodeOk fam st.1.1 st.2 →
+    NodeOk fam (l.foldl (frameStep fam cfg rms cid now) st).1.1 (l.foldl (frameStep fam cfg rms cid now) st).2 ∧
     Ext st.2 (l.foldl (frameStep fam cfg rms cid now) st).2 ∧
     cids (l.foldl (frameStep fam cfg rms cid now) st).1.1 = cids st.1.1 ∧
     (l.foldl (frameStep fam cfg rms cid now) st).1.1.addrs = st.1.1.addrs ∧
@@ -878,8 +1209,8 @@ variable (fam : Family F) (cfg : Config) (rms : Held F → Id → List Id)
 theorem setAddr_addr (n : Node) (cid : Id) (a : ByteArray) : (n.setAddr cid a).addr? cid = some a := by
   simp [Node.setAddr, Node.addr?]
 
-theorem setAddr_ok (n : Node) (cid : Id) (a : ByteArray) (h : Held F) (ok : NodeOk n h) : NodeOk (n.setAddr cid a) h :=
-  ⟨ok.sub, ok.managed, ok.ids, ok.log⟩
+theorem setAddr_ok (n : Node) (cid : Id) (a : ByteArray) (h : Held F) (ok : NodeOk fam n h) : NodeOk fam (n.setAddr cid a) h :=
+  ⟨ok.sub, ok.managed, ok.ids, ok.log, ok.wf, ok.exact, ok.logx, ok.stored⟩
 
 /-- A frame's payloads up to and after one of them. -/
 theorem fold_at {α β : Type} (f : α → β → α) (l : List β) (b : β) (hb : b ∈ l) (st : α) :
@@ -889,13 +1220,13 @@ theorem fold_at {α β : Type} (f : α → β → α) (l : List β) (b : β) (hb
 
 /-- The end of a session's frame: what it sent on the session goes out
 to the frame's sender, and the store is as the payloads left it. -/
-theorem frame_end (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (ok : NodeOk st.1.1 st.2) (a p : ByteArray)
+theorem frame_end (cid : Id) (now : Nat) (st : (Node × Acts) × Held F) (ok : NodeOk fam st.1.1 st.2) (a p : ByteArray)
     (ha : st.1.1.addr? cid = some a) (hp : (Route.conn cid, p) ∈ st.1.2.send) :
     ∃ g, p ∈ g ∧ (a, plainFrame cid g) ∈ ((st.1.1.finish (psync fam cfg rms) st.1.2 now).run st.2).1.2.send := by
   rw [finish_run fam cfg rms _ _ _ _ ok.managed]
   exact seal_mem fam cfg rms _ _ _ cid p a hp ha
 
-theorem frame_end_store (now : Nat) (st : (Node × Acts) × Held F) (ok : NodeOk st.1.1 st.2) :
+theorem frame_end_store (now : Nat) (st : (Node × Acts) × Held F) (ok : NodeOk fam st.1.1 st.2) :
     ((st.1.1.finish (psync fam cfg rms) st.1.2 now).run st.2).2 = st.2 := by
   rw [finish_run fam cfg rms _ _ _ _ ok.managed]
 
@@ -908,7 +1239,7 @@ include hw
 /-- **H1: a claim of ids, delivered, is answered with a want** for each
 id it lists that the node lacks, in a frame back to the claim's sender;
 or the node holds it by the frame's end. -/
-theorem claim_wants (n : Node) (h : Held F) (ok : NodeOk n h) (a bytes : ByteArray) (now : Nat) (cid : Id)
+theorem claim_wants (n : Node) (h : Held F) (ok : NodeOk fam n h) (a bytes : ByteArray) (now : Nat) (cid : Id)
     (inner : List ByteArray) (hp : plainPeek bytes = some (cid, inner)) (c : Conn) (hc : n.conn? cid = some c)
     (r : Id) (hr : ∀ h', r ∈ rms h' cid) (kr : Nat) (rg : Range) (L : List Id) (x : Id)
     (hb : (Msg.rbsr r kr [.ids rg L]).op.bytes ∈ inner) (hx : x ∈ L) (hmax : 0 < cfg.maxIds) :
@@ -917,7 +1248,7 @@ theorem claim_wants (n : Node) (h : Held F) (ok : NodeOk n h) (a bytes : ByteArr
         (a, plainFrame cid g) ∈ ((n.onFrame (psync fam cfg rms) a bytes now).run h).1.2.send := by
   obtain ⟨h0, bundle, hb', hi⟩ := plainFrame_of_peek hp
   rw [onFrame_sealed fam cfg rms hw n a bytes now h cid bundle inner c h0 hb' hi hc]
-  have ok0 := setAddr_ok n cid a h ok
+  have ok0 := setAddr_ok fam n cid a h ok
   obtain ⟨pre, post, e⟩ := fold_at (frameStep fam cfg rms cid now) inner _ hb ((n.setAddr cid a, {}), h)
   rw [e]
   obtain ⟨ok1, e1, c1, a1, -⟩ := frame_fold fam cfg rms hw cid now pre ((n.setAddr cid a, {}), h) ok0
@@ -940,7 +1271,7 @@ theorem claim_wants (n : Node) (h : Held F) (ok : NodeOk n h) (a bytes : ByteArr
 /-- **H2: a want, delivered, for an op the node holds in a room the
 session shows, is answered with the op**, in a frame back to the
 want's sender. -/
-theorem want_sends (n : Node) (h : Held F) (ok : NodeOk n h) (a bytes : ByteArray) (now : Nat) (cid : Id)
+theorem want_sends (n : Node) (h : Held F) (ok : NodeOk fam n h) (a bytes : ByteArray) (now : Nat) (cid : Id)
     (inner : List ByteArray) (hp : plainPeek bytes = some (cid, inner)) (c : Conn) (hc : n.conn? cid = some c)
     (r : Id) (hr : ∀ h', r ∈ rms h' cid) (W : List Id) (x : Id) (o : Op)
     (hb : (Msg.want W).op.bytes ∈ inner) (hW : W.length ≤ cfg.maxIds) (hx : x ∈ W) (ho : h.db.ops x = some o)
@@ -948,7 +1279,7 @@ theorem want_sends (n : Node) (h : Held F) (ok : NodeOk n h) (a bytes : ByteArra
     ∃ g, o.bytes ∈ g ∧ (a, plainFrame cid g) ∈ ((n.onFrame (psync fam cfg rms) a bytes now).run h).1.2.send := by
   obtain ⟨h0, bundle, hb', hi⟩ := plainFrame_of_peek hp
   rw [onFrame_sealed fam cfg rms hw n a bytes now h cid bundle inner c h0 hb' hi hc]
-  have ok0 := setAddr_ok n cid a h ok
+  have ok0 := setAddr_ok fam n cid a h ok
   obtain ⟨pre, post, e⟩ := fold_at (frameStep fam cfg rms cid now) inner _ hb ((n.setAddr cid a, {}), h)
   rw [e]
   obtain ⟨ok1, e1, c1, a1, -⟩ := frame_fold fam cfg rms hw cid now pre ((n.setAddr cid a, {}), h) ok0
@@ -964,14 +1295,14 @@ theorem want_sends (n : Node) (h : Held F) (ok : NodeOk n h) (a bytes : ByteArra
 
 /-- **H3: an op, delivered in a frame, of a room the session shows, is
 stored.** -/
-theorem op_taken (n : Node) (h : Held F) (ok : NodeOk n h) (a bytes : ByteArray) (now : Nat) (cid : Id)
+theorem op_taken (n : Node) (h : Held F) (ok : NodeOk fam n h) (a bytes : ByteArray) (now : Nat) (cid : Id)
     (inner : List ByteArray) (hp : plainPeek bytes = some (cid, inner)) (c : Conn) (hc : n.conn? cid = some c)
     (r : Id) (hr : ∀ h', r ∈ rms h' cid) (o : Op) (hb : o.bytes ∈ inner) (hwire : isWire o.kind = false)
     (hor : fam.room o = some r) :
     Named ((n.onFrame (psync fam cfg rms) a bytes now).run h).2 o.id := by
   obtain ⟨h0, bundle, hb', hi⟩ := plainFrame_of_peek hp
   rw [onFrame_sealed fam cfg rms hw n a bytes now h cid bundle inner c h0 hb' hi hc]
-  have ok0 := setAddr_ok n cid a h ok
+  have ok0 := setAddr_ok fam n cid a h ok
   obtain ⟨pre, post, e⟩ := fold_at (frameStep fam cfg rms cid now) inner _ hb ((n.setAddr cid a, {}), h)
   rw [e]
   obtain ⟨ok1, -, c1, -, -⟩ := frame_fold fam cfg rms hw cid now pre ((n.setAddr cid a, {}), h) ok0
@@ -1000,23 +1331,23 @@ def tickStep (now : Nat) (st : (Node × Acts) × Held F) (p : Id × Conn) : (Nod
     ((r.1.1, st.1.2 ++ r.1.2), r.2)
   | none => st
 
-theorem finish_ok (n : Node) (out : Acts) (now : Nat) (h : Held F) (ok : NodeOk n h) :
-    NodeOk ((n.finish (psync fam cfg rms) out now).run h).1.1 ((n.finish (psync fam cfg rms) out now).run h).2 := by
+theorem finish_ok (n : Node) (out : Acts) (now : Nat) (h : Held F) (ok : NodeOk fam n h) :
+    NodeOk fam ((n.finish (psync fam cfg rms) out now).run h).1.1 ((n.finish (psync fam cfg rms) out now).run h).2 := by
   rw [finish_run fam cfg rms _ _ _ _ ok.managed]
-  exact ⟨ok.sub, ok.managed, ok.ids, ok.log⟩
+  exact ⟨ok.sub, ok.managed, ok.ids, ok.log, ok.wf, ok.exact, ok.logx, ok.stored⟩
 
-theorem onWrite_ok (n : Node) (ops : List Op) (now : Nat) (h : Held F) (ok : NodeOk n h) :
-    NodeOk ((n.onWrite (psync fam cfg rms) ops now).run h).1.1 ((n.onWrite (psync fam cfg rms) ops now).run h).2 := by
+theorem onWrite_ok (n : Node) (ops : List Op) (now : Nat) (h : Held F) (ok : NodeOk fam n h) :
+    NodeOk fam ((n.onWrite (psync fam cfg rms) ops now).run h).1.1 ((n.onWrite (psync fam cfg rms) ops now).run h).2 := by
   unfold Node.onWrite
   simp only [HeldM.run_bind]
   exact finish_ok fam cfg rms _ _ _ _ (store_ok fam cfg rms n ops true h ok)
 
-theorem connect_ok (n : Node) (cid : Id) (a : ByteArray) (d : Bool) (now : Nat) (h : Held F) (ok : NodeOk n h) :
-    NodeOk ((n.connect (psync fam cfg rms) cid a d now).run h).1.1 ((n.connect (psync fam cfg rms) cid a d now).run h).2 := by
+theorem connect_ok (n : Node) (cid : Id) (a : ByteArray) (d : Bool) (now : Nat) (h : Held F) (ok : NodeOk fam n h) :
+    NodeOk fam ((n.connect (psync fam cfg rms) cid a d now).run h).1.1 ((n.connect (psync fam cfg rms) cid a d now).run h).2 := by
   unfold Node.connect Node.open
   simp only [HeldM.run_bind, psync_rooms, readH_run, HeldM.run_pure]
   apply finish_ok
-  refine ⟨⟨ok.sub.1, ?_⟩, ?_, ok.ids, ok.log⟩
+  refine ⟨⟨ok.sub.1, ?_⟩, ?_, ok.ids, ok.log, ok.wf, ok.exact, ok.logx, ok.stored⟩
   · intro p hp
     simp only [List.mem_cons] at hp
     rcases hp with rfl | hp
@@ -1047,20 +1378,20 @@ theorem onTick_run (n : Node) (now : Nat) (h : Held F) :
     rw [Keeps.run_eq (tick_keeps fam cfg hw _ _ _) _]
     rfl
 
-theorem tickStep_ok (now : Nat) (st : (Node × Acts) × Held F) (p : Id × Conn) (ok : NodeOk st.1.1 st.2) :
-    NodeOk (tickStep fam cfg rms now st p).1.1 (tickStep fam cfg rms now st p).2 := by
+theorem tickStep_ok (now : Nat) (st : (Node × Acts) × Held F) (p : Id × Conn) (ok : NodeOk fam st.1.1 st.2) :
+    NodeOk fam (tickStep fam cfg rms now st p).1.1 (tickStep fam cfg rms now st p).2 := by
   unfold tickStep
   cases hc : st.1.1.conn? p.1 with
   | none => exact ok
   | some c =>
     exact apply_ok fam cfg rms _ _ _ _ _ ok (tick_snaps fam cfg hw _ _ _ _ ok.sub.1 ((ok.sub.2 _ (conn_mem hc)).setRooms _))
 
-theorem onTick_ok (n : Node) (now : Nat) (h : Held F) (ok : NodeOk n h) :
-    NodeOk ((n.onTick (psync fam cfg rms) now).run h).1.1 ((n.onTick (psync fam cfg rms) now).run h).2 := by
+theorem onTick_ok (n : Node) (now : Nat) (h : Held F) (ok : NodeOk fam n h) :
+    NodeOk fam ((n.onTick (psync fam cfg rms) now).run h).1.1 ((n.onTick (psync fam cfg rms) now).run h).2 := by
   rw [onTick_run fam cfg rms hw]
   apply finish_ok
-  have : ∀ (l : List (Id × Conn)) st, NodeOk st.1.1 st.2 →
-      NodeOk (l.foldl (tickStep fam cfg rms now) st).1.1 (l.foldl (tickStep fam cfg rms now) st).2 := by
+  have : ∀ (l : List (Id × Conn)) st, NodeOk fam st.1.1 st.2 →
+      NodeOk fam (l.foldl (tickStep fam cfg rms now) st).1.1 (l.foldl (tickStep fam cfg rms now) st).2 := by
     intro l
     induction l with
     | nil => intro st h; exact h
@@ -1068,8 +1399,8 @@ theorem onTick_ok (n : Node) (now : Nat) (h : Held F) (ok : NodeOk n h) :
   exact this _ _ ok
 
 
-theorem onFrame_ok (n : Node) (a b : ByteArray) (now : Nat) (h : Held F) (ok : NodeOk n h) :
-    NodeOk ((n.onFrame (psync fam cfg rms) a b now).run h).1.1 ((n.onFrame (psync fam cfg rms) a b now).run h).2 := by
+theorem onFrame_ok (n : Node) (a b : ByteArray) (now : Nat) (h : Held F) (ok : NodeOk fam n h) :
+    NodeOk fam ((n.onFrame (psync fam cfg rms) a b now).run h).1.1 ((n.onFrame (psync fam cfg rms) a b now).run h).2 := by
   cases h0 : b[0]? with
   | none => simp only [Node.onFrame, h0, HeldM.run_pure]; exact ok
   | some t =>
@@ -1086,7 +1417,7 @@ theorem onFrame_ok (n : Node) (a b : ByteArray) (now : Nat) (h : Held F) (ok : N
           | none => simp only [Node.onFrame, h0, psync_openFrame, HeldM.pure_bind, hd, Node.onSealed, hc, hi, HeldM.run_pure]; exact ok
           | some inner =>
             rw [onFrame_sealed fam cfg rms hw n a b now h cid bundle inner c h0 hd hi hc]
-            exact finish_ok fam cfg rms _ _ _ _ (frame_fold fam cfg rms hw cid now inner _ (setAddr_ok n cid a h ok)).1
+            exact finish_ok fam cfg rms _ _ _ _ (frame_fold fam cfg rms hw cid now inner _ (setAddr_ok fam n cid a h ok)).1
     · by_cases t0 : t = 0
       · subst t0
         cases hd : Op.decode (b.extract 1 b.size) with
@@ -1108,16 +1439,17 @@ end
 
 /-- A booted node, from a store that files ops under their ids and holds
 what it logged, keeps the invariant. -/
-theorem boot_ok (fam : Family F) (h : Held F) (hi : IdsOk h) (hl : LogIn h) (floor : Nat) :
-    NodeOk (Node.boot fam h.log floor) h := by
-  refine ⟨⟨fun r it hit => ?_, fun p hp => by cases hp⟩, rfl, hi, hl⟩
+theorem boot_ok (fam : Family F) (h : Held F) (hi : IdsOk h) (hl : LogIn h) (hx : LogExact h)
+    (hs : StoredLogged h) (floor : Nat) : NodeOk fam (Node.boot fam h.log floor) h := by
+  obtain ⟨w, e⟩ := boot_ix fam h hi hx hs floor
+  refine ⟨⟨fun r it hit => ?_, fun p hp => by cases hp⟩, rfl, hi, hl, w, e, hx, hs⟩
   rcases items_foldl fam h.log {} r it hit with hit | ⟨o, ho, e⟩
   · simp [Index.items] at hit
   · rw [e]; exact hl o ho
 
 theorem enter_ok (Q : Plain F) (w : World (Held F) Q.n) (i : Fin Q.n) (t : Nat) (f : Node → HeldM F (Node × Effects))
-    (hf : NodeOk (w.node i) (w.box i) → NodeOk ((f (w.node i)).run (w.box i)).1.1 ((f (w.node i)).run (w.box i)).2)
-    (ok : ∀ j, NodeOk (w.node j) (w.box j)) : ∀ j, NodeOk ((w.enter Q.setup i t f).node j) ((w.enter Q.setup i t f).box j) := by
+    (hf : NodeOk Q.fam (w.node i) (w.box i) → NodeOk Q.fam ((f (w.node i)).run (w.box i)).1.1 ((f (w.node i)).run (w.box i)).2)
+    (ok : ∀ j, NodeOk Q.fam (w.node j) (w.box j)) : ∀ j, NodeOk Q.fam ((w.enter Q.setup i t f).node j) ((w.enter Q.setup i t f).box j) := by
   intro j
   simp only [World.enter, upd]
   by_cases e : j = i
@@ -1128,8 +1460,8 @@ theorem enter_ok (Q : Plain F) (w : World (Held F) Q.n) (i : Fin Q.n) (t : Nat) 
 invariant**, against any attacker. -/
 theorem reach_ok' (Q : Plain F) (hw : WalkLaws (F := F) Q.fam Q.cfg)
     (adv : World (Held F) Q.setup.n → ByteArray → Prop) (w₀ w : World (Held F) Q.setup.n)
-    (h0 : ∀ i, NodeOk (w₀.node i) (w₀.box i)) (hr : Reachable Q.setup adv w₀ w) :
-    ∀ i, NodeOk (w.node i) (w.box i) := by
+    (h0 : ∀ i, NodeOk Q.fam (w₀.node i) (w₀.box i)) (hr : Reachable Q.setup adv w₀ w) :
+    ∀ i, NodeOk Q.fam (w.node i) (w.box i) := by
   induction hr with
   | init => exact h0
   | @step w a _ _ ih =>
@@ -1158,7 +1490,7 @@ theorem reach_ok' (Q : Plain F) (hw : WalkLaws (F := F) Q.fam Q.cfg)
       simp only [World.step, upd]
       by_cases e : j = i
       · subst e; simp only [ite_true]
-        exact boot_ok Q.fam _ (ih j).ids (ih j).log _
+        exact boot_ok Q.fam _ (ih j).ids (ih j).log (ih j).logx (ih j).stored _
       · simp only [e, ite_false]; exact ih j
     | connect i j cid d t =>
       exact enter_ok Q w i t (fun nd => nd.connect (psync Q.fam Q.cfg (Q.rooms i)) cid (Q.setup.addr j) d t)
@@ -1169,7 +1501,8 @@ theorem reach_ok' (Q : Plain F) (hw : WalkLaws (F := F) Q.fam Q.cfg)
 
 
 theorem reach_ok (Q : Plain F) (hw : WalkLaws (F := F) Q.fam Q.cfg) (adv : World (Held F) Q.n → ByteArray → Prop)
-    (w : World (Held F) Q.n) (hr : Q.Reach adv w) : ∀ i, NodeOk (w.node i) (w.box i) :=
-  reach_ok' Q hw adv Q.start w (fun _ => boot_ok Q.fam {} (fun x o h => by cases h) (fun o ho => by cases ho) _) hr
+    (w : World (Held F) Q.n) (hr : Q.Reach adv w) : ∀ i, NodeOk Q.fam (w.node i) (w.box i) :=
+  reach_ok' Q hw adv Q.start w (fun _ => boot_ok Q.fam {} (fun x o h => by cases h) (fun o ho => by cases ho)
+    (fun o ho => by cases ho) (fun x o h => by cases h) _) hr
 
 end Engine.World

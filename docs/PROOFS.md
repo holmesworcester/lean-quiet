@@ -198,13 +198,13 @@ today's code (with the finding), **O** open.
 | statement | says | |
 |---|---|---|
 | `grows_stmt` | no step, against any attacker, takes a shared op out of a store | **P** (`grows_all`) |
-| `index_store_stmt` | the room index names exactly the stored ops of each room | O |
+| `index_store_stmt` | the room index names exactly the stored ops of each room | **P** (`index_store_proof`) |
 | `stream_stmt` | a stored op is offered at once on every session that shows its room | O (a3's `stream_offered` for writes) |
 | `offered_stmt` | L-offered: both | O |
 | `members_only_stmt` | session frames carry only ops of rooms the session showed in that step | O (ConnLaws per entry point) |
 | `frames_keep_sessions_stmt` | no delivery, duplicate, injection or write closes a session | O |
 | `idem_stmt` | L-idem: the same bytes delivered again leave the store as they were | O |
-| `restart_stmt` | L-restart: a restart keeps every op, rebuilds the index equal to the store, opens nothing | O |
+| `restart_stmt` | L-restart: a restart keeps every op, rebuilds the index equal to the store, opens nothing | **P** (`restart_proof`) |
 | `waiting_closure_stmt` | every store at rest, verdicts = spec | O (engine laws + Held's turn) |
 | `closure_agree_stmt` | holding a closure, judge alike | O (`spec_local`) |
 | `local_stmt` | L-local: the same ops give the same verdicts and every view the same answer | O |
@@ -264,9 +264,10 @@ The upper and lower bounds match up to a constant per hop:
 - **Over the running code** (given `walk_stmt`):
   - the pilot, `claim_delivers` (below);
   - `reach_ok`: every node of every world the plain world reaches keeps
-    `NodeOk` (index and snapshots name stored ops, no family sessions,
-    ops filed under their ids, the log stored), against any attacker,
-    over every entry point and restart;
+    `NodeOk` (its index names exactly the stored ops of each room, its
+    snapshots name stored ops, no family sessions, ops filed under their
+    ids, the log exactly the store), against any attacker, over every
+    entry point and restart; so `index_store_proof` and `restart_proof`;
   - `reach_flight`: every packet in flight was sent no later than now,
     and an honest one says it came from its sender's address;
   - `grows_proof`: shared stores only grow;

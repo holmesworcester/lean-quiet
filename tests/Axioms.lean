@@ -497,6 +497,16 @@ open Engine.World
 #print axioms Engine.World.holds_named
 #print axioms Engine.World.claim_delivers
 #print axioms Engine.World.pilot
+#print axioms Engine.World.items_add_eq
+#print axioms Engine.World.named_add
+#print axioms Engine.World.fold_add
+#print axioms Engine.World.ingest_from
+#print axioms Engine.World.ingest_each
+#print axioms Engine.World.absent_props
+#print axioms Engine.World.write_ix
+#print axioms Engine.World.boot_ix
+#print axioms Engine.World.index_store_proof
+#print axioms Engine.World.restart_proof
 #print axioms Engine.World.grows_all
 #print axioms Engine.World.walkN_laws
 #print axioms Engine.World.walk_proof
