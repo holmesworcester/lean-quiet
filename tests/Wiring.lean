@@ -38,8 +38,8 @@ output, and local CI fails when it goes stale.
   and tests/wiring.txt's `todo` note: which running code would have to
   call what.
 - **World:** not wired, but every definition it misses is a World's
-  network, transport or harness (`world` in tests/wiring.txt: the step,
-  `psync`, `plainPeek`, the harness's `connect`), and the code it is
+  network, transport or harness (`world` in tests/wiring.txt: its steps,
+  its plain frames, its directly opened sessions), and the code it is
   about, or the World runs, is the running node's (`Engine.Sync.Node`).
   Counted apart: never wired, and not a model. A law about the harness
   alone, with no node code, stays a model.
@@ -102,7 +102,7 @@ def roots : List Name := [`engine, `ops, `App, `Quiet, `Main]
 over the bootstrap's model, one over code only qr's harness runs, one
 whose model is in a premise), and laws that must be World laws (the
 two-node World's stream). Update them if one becomes real. -/
-def harnesses : List Name := [`Engine.Sync.World.peer, `Net.step, `Pic.decode, `Engine.World.World.step]
+def harnesses : List Name := [`Engine.Sync.World.peer, `Net.step, `Pic.decode]
 def models : List Name := [`Net.Scene.bootstrap, `Pic.decode_sized, `Engine.offer_shared]
 /-- Laws that must be World laws: the node's code over a World. -/
 def worlds : List Name := [`Engine.Sync.stream_delivers]

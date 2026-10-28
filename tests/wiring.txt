@@ -92,9 +92,7 @@ assume Engine.DB.addWait = Engine.Model.run
 assume Engine.DB.clearWaiters = Engine.Model.run
 assume Engine.DB.index = Engine.Model.run
 assume Engine.Sync.turnH = Engine.Model.run
-assume Engine.World.turnH = Engine.Model.run
 
-assume Engine.World.Fair Liveness in a World: after `gst`, partial synchrony (each packet to an online neighbour within Δ, ticks every τ, redials within ρ). Proposed: the user has not yet approved it.
 
 holds Engine.Inv The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean).
 
@@ -105,13 +103,6 @@ bridge Engine.drainS Engine.run_drain
 bridge Engine.ingestS Engine.run_ingest
 bridge Engine.View.eval Engine.View.run_model
 bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
-# The node's entry points on a held store, as terms of their loop bodies.
-bridge Engine.World.absentStep Engine.World.write_run
-bridge Engine.World.addStep Engine.World.write_run
-bridge Engine.World.fanStep Engine.World.fanout_run
-bridge Engine.World.setConn Engine.World.apply_run
-bridge Engine.World.frameStep Engine.World.onFrame_fold
-bridge Engine.World.tickStep Engine.World.onTick_run
 # A want reply's read program: the running interpreter's answer is the
 # trace's (the trace's read list follows the same program, read by read).
 bridge Engine.Sync.Read.trace Engine.Sync.Read.run_model
@@ -126,19 +117,6 @@ spec Engine.Sync.Msg.offers The ids a sync message offers.
 spec Engine.Sync.retried The ids an output's wants ask for.
 spec Engine.Sync.replyBytes A reply's payload bytes, for its bound.
 spec Engine.Sync.largestOp A reply's largest op, for its bound.
-spec Engine.World.depth A round's depth, for its time bound.
-spec Engine.World.roundTime A round's time bound.
-spec Engine.World.gap The time between rounds, for the bound.
-spec Engine.World.epoch The time an op takes to cross an edge.
-spec Engine.World.hop The time an op takes to cross an edge by the stream.
-spec Engine.World.Plain.epochW The epoch for a window.
-spec Engine.World.asksOf The ids a frame's wants ask for.
-spec Engine.World.claimIds The ids a round's claims list.
-spec Engine.World.frameAsks The ids a frame asks for.
-spec Engine.World.cids The sessions a node holds.
-spec Engine.World.sentBy The packets a node sent in a span.
-spec Engine.World.potential The ops of a room some node holds and another lacks.
-spec Engine.World.held The ops of a room a store holds.
 spec Community.Merkle.treeInputs A file's Merkle tree inputs, for the no-second-preimage hypothesis.
 spec Community.Merkle.subInputs A subtree's Merkle inputs, for the no-second-preimage hypothesis.
 spec Community.Merkle.slices A file's chunks, as the tree cuts it.
@@ -161,32 +139,19 @@ spec Mdns.Name.wireLen A name's length on the wire, for its validity.
 # The running round's answer to a claim, stated against the round's model.
 subject Engine.Sync.conn_answers_ids Engine.Sync.Conn.onRbsr Engine.Sync.within Engine.Sync.named Engine.Sync.chunks
 
-## The Worlds: the running node's code, n nodes (engine/world) or two
-## (engine/wire/World.lean), over a modelled network and plain transport
+## The World: the running node's code, two nodes (engine/wire/World.lean),
+## over a modelled network and plain transport
 
-world Engine.World.World.step Real: each node is the running `Engine.Sync.Node`, its entry points run on a held store. Assumed: the network may deliver, duplicate, drop or delay anything, and an attacker inject what it can make (safety); the liveness laws take `Fair`, partial synchrony after `gst` (proposed, not yet approved). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake) for `Plain`'s, which makes these laws wired, and is the n-phone convergence target.
-world Engine.World.World.enter = Engine.World.World.step
-world Engine.World.packets = Engine.World.World.step
-world Engine.World.Exec.world = Engine.World.World.step
-world Engine.World.Setup.at? = Engine.World.World.step
-world Engine.World.ahead = Engine.World.World.step
-world Engine.World.Shows = Engine.World.World.step
-world Engine.World.psync = Engine.World.World.step
-world Engine.World.plainPeek = Engine.World.World.step
-world Engine.World.plainFrame = Engine.World.World.step
-world Engine.World.Plain.setup = Engine.World.World.step
-world Engine.World.Plain.start = Engine.World.World.step
-world Engine.Sync.Node.connect = Engine.World.World.step
-world Engine.Sync.World.peer = Engine.World.World.step
-world Engine.Sync.World.write = Engine.World.World.step
-world Engine.Sync.World.deliver = Engine.World.World.step
-world Engine.Sync.World.connect = Engine.World.World.step
-world Engine.Sync.World.tick = Engine.World.World.step
-world Engine.Sync.World.empty = Engine.World.World.step
-world Engine.Sync.Who.other = Engine.World.World.step
-world Engine.Sync.Setup.sync = Engine.World.World.step
-world Engine.Sync.plainFrame = Engine.World.World.step
-world Engine.Sync.oneRoom = Engine.World.World.step
+world Engine.Sync.World.peer Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired.
+world Engine.Sync.World.write = Engine.Sync.World.peer
+world Engine.Sync.World.deliver = Engine.Sync.World.peer
+world Engine.Sync.World.connect = Engine.Sync.World.peer
+world Engine.Sync.World.tick = Engine.Sync.World.peer
+world Engine.Sync.World.empty = Engine.Sync.World.peer
+world Engine.Sync.Who.other = Engine.Sync.World.peer
+world Engine.Sync.Setup.sync = Engine.Sync.World.peer
+world Engine.Sync.plainFrame = Engine.Sync.World.peer
+world Engine.Sync.oneRoom = Engine.Sync.World.peer
 
 ## What would make each model real, most valuable first (the README's order)
 
