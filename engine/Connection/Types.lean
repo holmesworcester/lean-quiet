@@ -52,7 +52,7 @@ inductive Body where
   | opened
   | connection (m2 : B)
   | established
-  | send (bare : Bool) (dest : B)
+  | send (addr : B)
   | recv (onConn : Bool) (via addr : B) (at_ : Nat)
 
 inductive Fact where
@@ -61,7 +61,7 @@ inductive Fact where
   | opened (req c frm addr : B) (ops : List B)
   | connection (req m2 : B)
   | established (cid c peer h sendKey recvKey : B) (dialer : Bool)
-  | send (op : B) (bare : Bool) (dest : B)
+  | send (op addr : B)
   | recv (op : B) (onConn : Bool) (via addr : B) (at_ : Nat)
   deriving Inhabited, BEq
 
@@ -77,7 +77,7 @@ def Body.enc : Body → List UInt8
   | .opened => [34]
   | .connection m => 35 :: Codec.enc m
   | .established => [36]
-  | .send b d => 37 :: Codec.enc (b, d)
+  | .send a => 37 :: Codec.enc a
   | .recv c v a t => 38 :: Codec.enc (c, v, a, t)
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
@@ -86,7 +86,7 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 34 :: r => some (.opened, r)
   | 35 :: r => decAs (fun (p : B) => Body.connection p) r
   | 36 :: r => some (.established, r)
-  | 37 :: r => decAs (fun (p : Bool × B) => Body.send p.1 p.2) r
+  | 37 :: r => decAs (fun (p : B) => Body.send p) r
   | 38 :: r => decAs (fun (p : Bool × B × B × Nat) => Body.recv p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | _ => none
 
@@ -103,7 +103,7 @@ def Fact.enc : Fact → List UInt8
   | .opened r c f a os => 2 :: Codec.enc (r, c, f, a, os)
   | .connection r m => 3 :: Codec.enc (r, m)
   | .established i c p h s k d => 4 :: Codec.enc (i, c, p, h, s, k, d)
-  | .send o b d => 5 :: Codec.enc (o, b, d)
+  | .send o a => 5 :: Codec.enc (o, a)
   | .recv o c v a t => 6 :: Codec.enc (o, c, v, a, t)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
@@ -114,7 +114,7 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 3 :: r => decAs (fun (p : B × B) => Fact.connection p.1 p.2) r
   | 4 :: r => decAs (fun (p : B × B × B × B × B × B × Bool) =>
       Fact.established p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) r
-  | 5 :: r => decAs (fun (p : B × Bool × B) => Fact.send p.1 p.2.1 p.2.2) r
+  | 5 :: r => decAs (fun (p : B × B) => Fact.send p.1 p.2) r
   | 6 :: r => decAs (fun (p : B × Bool × B × B × Nat) =>
       Fact.recv p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | _ => none

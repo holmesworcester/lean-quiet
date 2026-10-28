@@ -101,7 +101,7 @@ def react (fam : Family F) (K : Keys) (seed : B) : m (List Op) := do
     let f ← Fresh.fresh
     let some co := Reply.op K r seed frm m1 f | continue
     let eo := Eph.op f co.id
-    out := out ++ #[co, eo, Established.op co.id r eo.id secretOp, Send.op (.bare addr) co]
+    out := out ++ #[co, eo, Established.op co.id r eo.id secretOp, Send.op addr co]
   -- establish
   for (r, f) in ← rows request.byFrm [me] do
     let .request _ _ m1 := f | continue
@@ -132,12 +132,12 @@ def dial (K : Keys) (seed listen : B) (_now : Nat) : m (List Op) := do
       | _ => false
     match mineTo with
     | some (r, _) =>
-      if let some ro ← Store.getOp (m := m) r then out := out.push (Send.op (.bare hint) ro)
+      if let some ro ← Store.getOp (m := m) r then out := out.push (Send.op hint ro)
     | none =>
       let some jr ← Store.getOp (m := m) req | continue
       let e ← Fresh.fresh
       let some ro := Request.op K seed inviter e (hello c listen [jr]) | continue
-      out := out ++ #[ro, Eph.op e ro.id, Send.op (.bare hint) ro]
+      out := out ++ #[ro, Eph.op e ro.id, Send.op hint ro]
   return out.toList
 
 /-- What closing connection cid purges: the connection and the request
@@ -197,45 +197,44 @@ def openFrame (K : Keys) (b : B) : m (Option (Id × B)) := do
   let some (_, rk) ← sessionKeys cid | return none
   return Frame.open K rk b
 
-def outbox : m (List (Id × Route × B)) := do
+def outbox : m (List (Id × B × B)) := do
   let mut out := []
   for (x, f) in ← rows send.all [] do
-    let .send op bare d := f | continue
+    let .send op addr := f | continue
     let some o ← Store.getOp (m := m) op | continue
-    out := (x, if bare then Route.bare d else Route.conn d, o.bytes) :: out
+    out := (x, addr, o.bytes) :: out
   return out.reverse
 
-end
-
-/-- A session's sealer. Each frame is its counter (8 bytes, big-endian)
-then the sealed bytes, with the counter as Noise's nonce: the send key's
-for frames out, the receive key's for frames in. A frame opens only if
-its counter is at least the next one expected, so a replayed or
-reordered-back frame is refused and a lost one costs nothing. The state
-is the two keys and the two counters. -/
-def sealer (S : Noise.Suite) (sk rk : B) : Sealer where
-  state := encode (sk, (0 : Nat), rk, (0 : Nat))
-  sealFrame st p :=
-    match (decode st : Option (B × Nat × B × Nat)) with
-    | some (k, n, r, m) => (encode (k, n + 1, r, m), Community.be64 n ++ S.enc k n.toUInt64 .empty p)
-    | none => (st, .empty)
-  openFrame st c :=
-    match (decode st : Option (B × Nat × B × Nat)) with
-    | some (k, n, r, m) =>
-      if c.size < 24 then none else
-      let i := (c.extract 0 8).foldl (fun a b => a * 256 + b.toNat) 0
-      if i < m ∨ i ≥ 2 ^ 64 - 1 then none else
-      (S.dec r i.toUInt64 .empty (c.extract 8 c.size)).map fun p => (encode (k, n, r, i + 1), p)
-    | none => none
+/-- On every arrival: the first one of an op is recorded, when and
+how it came. A request that arrives again, already answered by this
+device, gets its connection resent to where it came from. That is the
+healing for a lost answer, as poc-17 has it ("a replayed request is
+answered with the identical bytes again"). -/
+def onArrival (via : Option Id) (addr : B) (o : Op) (at_ : Nat) : m (List Op) := do
+  let first := if (← count recv.byOp [o.id]) = 0 then [Recv.op o.id via addr at_] else []
+  if via.isSome then return first
+  let resend ← do
+    match (decode o.body : Option Body) with
+    | some (.request ..) =>
+      let mut out := []
+      for (cid, _) in ← rows connection.byRequest [o.id] do
+        if (← count opened.byRequest [o.id]) ≠ 0 then
+          if let some co ← Store.getOp (m := m) cid then out := Send.op addr co :: out
+      pure out
+    | _ => pure []
+  return first ++ resend
 
 /-- What the node driver calls. -/
-def hooks (fam : Family F) (K : Keys) (seed listen : B) : Hooks F where
+def hooks (fam : Family F) (K : Keys) (seed listen : B) : Hooks F m where
   rooms := rooms seed
-  recv via addr o at_ := [Recv.op o.id via addr at_]
+  recv := onArrival
   outbox := outbox
   react := react fam K seed
   dial := dial K seed listen
   established := sessions
-  session cid := do return (← sessionKeys cid).map fun (sk, rk) => sealer K.suite sk rk
+  sealFor := sealFor K
+  openFrame := openFrame K
+
+end
 
 end Connection

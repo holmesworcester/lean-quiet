@@ -18,7 +18,7 @@ def check (K : Keys) (o : Op) : Body → List F → Option Fact
   | .opened, fs => Opened.check K o fs
   | .connection m, fs => Reply.check o m fs
   | .established, fs => Established.check K o fs
-  | .send b d, fs => Send.check o b d fs
+  | .send a, fs => Send.check o a fs
   | .recv c v a t, fs => Recv.check o c v a t fs
 
 def validate (K : Keys) (o : Op) (fs : List F) : Option Fact :=

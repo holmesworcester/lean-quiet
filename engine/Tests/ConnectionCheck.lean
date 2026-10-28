@@ -38,17 +38,18 @@ def cfg : Config := { every := 30000, patience := 20000 }
 structure Peer where
   addr : ByteArray
   seed : ByteArray
-  x : Sync F
+  x : Sync F (SqlM F)
+  db : Db
   n : Node
-  /-- Frames waiting: (session id, if on one; the sender's address; bytes). -/
-  inbox : List (Option Id × ByteArray × ByteArray) := []
+  /-- Frames waiting: (the sender's address, bytes). -/
+  inbox : List (ByteArray × ByteArray) := []
 
 def mkPeer (name : String) : IO Peer := do
   let seed := sha256 s!"seed {name}".toUTF8
   let addr := s!"{name}:7001".toUTF8
   let db ← Db.openAt ":memory:"
-  let x : Sync F := { fam, cfg, hooks := hooks fam K seed addr }
-  return { addr, seed, x, n := ← Node.boot x db 0 }
+  let x : Sync F (SqlM F) := { fam, cfg, hooks := hooks fam K seed addr }
+  return { addr, seed, x, db, n := Node.boot fam [] 0 }
 
 structure World where
   a : Peer
@@ -65,26 +66,27 @@ def World.rand (w : World) (n : Nat) : Nat × World :=
 /-- Put one side's effects on the wire to the other. -/
 def World.route (w : World) (fromA : Bool) (e : Effects) : World := Id.run do
   let mut w := w
-  for (r, bytes) in e.send do
+  for (_, bytes) in e.send do
     let (l, w') := w.rand 100
     w := w'
-    let src := if fromA then w.a.addr else w.b.addr
-    let (via, bare) := match r with | .bare _ => (none, true) | .conn cid => (some cid, false)
-    if bare then w := { w with sentBare := w.sentBare + 1 }
+    if bytes[0]? == some 0 then w := { w with sentBare := w.sentBare + 1 }
     if l < w.loss then continue
-    if fromA then w := { w with b := { w.b with inbox := w.b.inbox ++ [(via, src, bytes)] } }
-    else w := { w with a := { w.a with inbox := w.a.inbox ++ [(via, src, bytes)] } }
+    let src := if fromA then w.a.addr else w.b.addr
+    if fromA then w := { w with b := { w.b with inbox := w.b.inbox ++ [(src, bytes)] } }
+    else w := { w with a := { w.a with inbox := w.a.inbox ++ [(src, bytes)] } }
   return w
+
+def run (p : Peer) (k : Node → SqlM F (Node × Effects)) : IO (Peer × Effects) := do
+  let (n, e) ← (k p.n).run p.db
+  return ({ p with n }, e)
 
 def deliverAll (p : Peer) (now : Nat) : IO (Peer × Effects) := do
   let mut p := p
   let mut out : Effects := {}
-  for (via, src, bytes) in p.inbox do
-    let (n, e) ← match via with
-      | none => p.n.onBare p.x src bytes now
-      | some cid => p.n.onBytes p.x cid bytes now
-    p := { p with n }
-    out := out ++ e
+  for (src, bytes) in p.inbox do
+    let (p', e) ← run p fun n => n.onFrame p.x src bytes now
+    p := p'
+    out := { send := out.send ++ e.send, drop := out.drop ++ e.drop, stored := out.stored ++ e.stored }
   return ({ p with inbox := [] }, out)
 
 /-- One step: deliver everything waiting, then tick both. -/
@@ -93,9 +95,9 @@ def World.step (w : World) : IO World := do
   let (a, ea) ← deliverAll w.a now
   let (b, eb) ← deliverAll w.b now
   let w := ({ w with a, b, now }.route true ea).route false eb
-  let (an, ta) ← w.a.n.onTick w.a.x now
-  let (bn, tb) ← w.b.n.onTick w.b.x now
-  return ({ w with a := { w.a with n := an }, b := { w.b with n := bn } }.route true ta).route false tb
+  let (a, ta) ← run w.a fun n => n.onTick w.a.x now
+  let (b, tb) ← run w.b fun n => n.onTick w.b.x now
+  return ({ w with a, b }.route true ta).route false tb
 
 def World.run (w : World) (steps : Nat) : IO World := do
   let mut w := w
@@ -103,19 +105,19 @@ def World.run (w : World) (steps : Nat) : IO World := do
   return w
 
 def writeA (w : World) (ops : List Op) : IO World := do
-  let (n, e) ← w.a.n.onWrite w.a.x ops w.now
-  return { w with a := { w.a with n } }.route true e
+  let (a, e) ← run w.a fun n => n.onWrite w.a.x ops w.now
+  return { w with a }.route true e
 
 def writeB (w : World) (ops : List Op) : IO World := do
-  let (n, e) ← w.b.n.onWrite w.b.x ops w.now
-  return { w with b := { w.b with n } }.route false e
+  let (b, e) ← run w.b fun n => n.onWrite w.b.x ops w.now
+  return { w with b }.route false e
 
-def cnt (p : Peer) (r : Rel Connection.Fact) (args : List ByteArray) : IO Nat := (count r args : SqlM F _).run p.n.db
-def stored (p : Peer) (x : Id) : IO Bool := do return (← (Store.getOp x : SqlM F _).run p.n.db).isSome
+def cnt (p : Peer) (r : Rel Connection.Fact) (args : List ByteArray) : IO Nat := (count r args : SqlM F _).run p.db
+def stored (p : Peer) (x : Id) : IO Bool := do return (← (Store.getOp x : SqlM F _).run p.db).isSome
 def ests (p : Peer) : IO (List Connection.Fact) := do
-  return (← (rows established.all [] : SqlM F _).run p.n.db).map (·.2)
+  return (← (rows established.all [] : SqlM F _).run p.db).map (·.2)
 def allowedOn (p : Peer) (c d : ByteArray) : IO Bool :=
-  ((Community.allowPeer c d).liftL.run : SqlM F Bool).run p.n.db
+  ((Community.allowPeer c d).liftL.run : SqlM F Bool).run p.db
 
 /-- A founds Acme and invites at its address; B joins from the link. -/
 def setup (loss : Nat) : IO (World × Id × Op) := do
@@ -130,14 +132,14 @@ def setup (loss : Nat) : IO (World × Id × Op) := do
   return (w, c, link.request (Device.ofSeed b.seed))
 
 def approveOnA (w : World) (c : Id) (req : Op) : IO World := do
-  let wr ← ((approveReq c req.id c w.a.seed).liftL.run : SqlM F Community.Write).run w.a.n.db
+  let wr ← ((approveReq c req.id c w.a.seed).liftL.run : SqlM F Community.Write).run w.a.db
   writeA w wr.ops
 
 def dump (name : String) (p : Peer) : IO Unit := do
-  let ops ← (dumpOps (F := F)).run p.n.db
+  let ops ← (dumpOps (F := F)).run p.db
   let mut line := s!"{name}:"
   for o in ops do
-    let st ← (Store.getStatus o.id : SqlM F _).run p.n.db
+    let st ← (Store.getStatus o.id : SqlM F _).run p.db
     line := line ++ s!" {o.kind}:" ++ (match st with | some (.valid _) => "v" | some .invalid => "X" | none => "?")
   IO.eprintln line
 
@@ -183,12 +185,12 @@ def main : IO UInt32 := do
   -- ephemeral): both ends keep the same one, the smaller id.
   let e2 := sha256 "second ephemeral".toUTF8
   let some ro2 := Request.op K w.b.seed dA.pk e2 (hello c w.b.addr []) | t.ok "a second request" false; return 1
-  let w ← writeB w [ro2, Eph.op e2 ro2.id, Send.op (.bare w.a.addr) ro2]
+  let w ← writeB w [ro2, Eph.op e2 ro2.id, Send.op w.a.addr ro2]
   let w ← w.run 20
   let ea2 ← ests w.a
   t.ok "A now holds two sessions with B" (ea2.length == 2)
-  let sa ← (sessions : SqlM F _).run w.a.n.db
-  let sb ← (sessions : SqlM F _).run w.b.n.db
+  let sa ← (sessions : SqlM F _).run w.a.db
+  let sb ← (sessions : SqlM F _).run w.b.db
   let cids := ea2.filterMap fun f => match f with | .established i .. => some i | _ => none
   let least := cids.foldl (fun a b => if lt b a then b else a) (cids.headD .empty)
   t.ok "each end keeps one session with the other" (sa.length == 1 && sb.length == 1)
