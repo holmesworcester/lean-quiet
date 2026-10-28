@@ -6,6 +6,11 @@ naming, sending and reacting are all just ops: local ones (this
 device's secret, the communities it is in, its pending joins) and
 shared ones. What a node shows about them (its communities, who is
 waiting, a community's name) is lists of those ops' facts.
+
+An intent that signs as this device takes the device itself
+(`Device`), derived from its seed once by the caller: a derivation is a
+curve25519 key pair, and some of these views are built on every step.
+Only those that write the seed (`found`, `joinOps`, `join`) take it.
 -/
 import ops.community.Link
 import ops.community.Connect
@@ -30,11 +35,11 @@ def found (seed name myName : ByteArray) (time : Nat) (k esk : ByteArray) : Writ
   ⟨[secret seed, r, accept r.id d.pk, setName r.id r.id r.id [] 1 d name,
     profile r.id r.id d myName time, contentKey r.id k, wrapKey r.id k esk d.enc]⟩
 
-/-- Invite to c from this device (admitted as `myAdm`): the invitation,
+/-- Invite to c from device d (admitted as `myAdm`): the invitation,
 and its link, with the bearer seed and dial hints given. -/
-def inviteTo (c myAdm : Id) (seed bearerSeed : ByteArray) (hints : List ByteArray)
+def inviteTo (c myAdm : Id) (d : Device) (bearerSeed : ByteArray) (hints : List ByteArray)
     (threshold : Nat := 1) : Write × Invite :=
-  let p := issue c myAdm (Device.ofSeed seed) bearerSeed hints threshold
+  let p := issue c myAdm d bearerSeed hints threshold
   (⟨[p.1]⟩, p.2)
 
 /-- Join from a link, to be known as `name`: the device's secret, its
@@ -101,11 +106,10 @@ def join (i : Invite) (seed name : ByteArray) : View Fact Write := do
   | some (k, hs, r, nm, d, n) => return ⟨[mkOp [] (.joining c k hs r nm d (n + 1))]⟩
   | none => return joinOps i seed name
 
-/-- Once admitted into c with no profile yet: the first profile, named as
-the join asked. Reads my admission, my profile and my join; writes
-nothing otherwise. -/
-def introduce (c : Id) (seed : ByteArray) (time : Nat) : View Fact Write := do
-  let d := Device.ofSeed seed
+/-- Once device d is admitted into c with no profile yet: the first
+profile, named as the join asked. Reads my admission, my profile and my
+join; writes nothing otherwise. -/
+def introduce (c : Id) (d : Device) (time : Nat) : View Fact Write := do
   let adms ← admission.byDevice.read [c, d.pk]
   match adms.rows.head? with
   | some ((_, adm), .admission _ u _ _) =>
@@ -126,12 +130,11 @@ def stopWaiting (joiningOp : Id) : Write := ⟨[abandon joiningOp]⟩
 def firstPerUser (l : List (Id × Id)) : List (Id × Id) :=
   l.foldl (fun acc p => if acc.any (fun q => decide (q.2 = p.2)) then acc else acc ++ [p]) []
 
-/-- Approve request req of c as this device (admitted as `myAdm`): my
+/-- Approve request req of c as device d (admitted as `myAdm`): my
 approval, and the admission too when mine completes the tally. Reads the
 request, my admission and the approvals so far. -/
-def approveReq (c req myAdm : Id) (seed : ByteArray) (esk : ByteArray := .empty) :
+def approveReq (c req myAdm : Id) (d : Device) (esk : ByteArray := .empty) :
     View Fact Write := do
-  let d := Device.ofSeed seed
   let ok := approve c req myAdm d
   let rq ← View.read { key := opKey req, limit := some 1 }
   let me ← View.read { key := opKey myAdm, limit := some 1 }
@@ -153,22 +156,21 @@ def approveReq (c req myAdm : Id) (seed : ByteArray) (esk : ByteArray := .empty)
       else ⟨[ok] ++ wrapTo e⟩)
   | _, _ => pure ⟨[ok]⟩
 
-/-- Rename c as this admin (admitted as `myAdm`, shown admin by `auth`):
-a name superseding the current one, its counter one past it. -/
-def rename (c myAdm auth : Id) (seed name : ByteArray) : View Fact Write := do
+/-- Rename c as device d of an admin (admitted as `myAdm`, shown admin by
+`auth`): a name superseding the current one, its counter one past it. -/
+def rename (c myAdm auth : Id) (d : Device) (name : ByteArray) : View Fact Write := do
   let cur ← named.current.read [c] (limit := some 1)
   let (prev, n) := match cur.rows.head? with
     | some ((_, x), .named _ _ _ k) => ([x], k + 1)
     | _ => ([], 1)
-  pure ⟨[setName c myAdm auth prev n (Device.ofSeed seed) name]⟩
+  pure ⟨[setName c myAdm auth prev n d name]⟩
 
-/-- Send a message to c, its text sealed under content key k with
-nonce `nonce`, and attach files to it: the post, then each file's
+/-- Send a message to c as device d, its text sealed under content key k
+with nonce `nonce`, and attach files to it: the post, then each file's
 attachment (a child of the post) and its chunks. Everything is ops; no
 bytes live beside the store. -/
-def send (c myAdm : Id) (seed k nonce text : ByteArray) (time : Nat)
+def send (c myAdm : Id) (d : Device) (k nonce text : ByteArray) (time : Nat)
     (files : List NewFile := []) : Write :=
-  let d := Device.ofSeed seed
   let p := sealedPost c myAdm d k nonce text time
   ⟨p :: files.flatMap (fun f => let (a, cs) := attach c myAdm p.id d k f; a :: cs)⟩
 
@@ -194,10 +196,9 @@ def currentKey (c : Id) : View Fact (Option ByteArray) := do
   let ks ← key.byCommunity.read [c] (limit := some 1)
   pure (ks.rows.head?.bind fun (_, f) => match f with | .key _ _ k => some k | _ => none)
 
-/-- The content keys of c wrapped to this device that it does not hold
+/-- The content keys of c wrapped to device d that it does not hold
 yet, opened with its encryption secret: each becomes a local `key`. -/
-def unwrap (c : Id) (seed : ByteArray) : View Fact Write := do
-  let d := Device.ofSeed seed
+def unwrap (c : Id) (d : Device) : View Fact Write := do
   let ws ← wrap.byRecipient.read [c, d.enc]
   let mut out : List Op := []
   for (_, f) in ws.rows do
@@ -215,8 +216,7 @@ user u: the removal cites the root, this device's admission, what makes
 u an admin (its own admission for the founder, else a grant), and an
 admission of t. Nothing when u is not an admin, t is u, or t is already
 removed (`removeMember_valid`). -/
-def removeMember (c t : Id) (seed : ByteArray) : View Fact Write := do
-  let d := Device.ofSeed seed
+def removeMember (c t : Id) (d : Device) : View Fact Write := do
   let me ← admission.byDevice.read [c, d.pk] (limit := some 1)
   let gone ← removal.byUser.read [c, t] (limit := some 0)
   let tgt ← admission.byUser.read [c, t] (limit := some 1)
@@ -230,9 +230,9 @@ def removeMember (c t : Id) (seed : ByteArray) : View Fact Write := do
     | _, _ => pure ⟨[]⟩
   | _ => pure ⟨[]⟩
 
-/-- React to a message. -/
-def reactTo (c myAdm target : Id) (seed emoji : ByteArray) (time : Nat) : Write :=
-  ⟨[react c myAdm target (Device.ofSeed seed) emoji time]⟩
+/-- React to a message as device d. -/
+def reactTo (c myAdm target : Id) (d : Device) (emoji : ByteArray) (time : Nat) : Write :=
+  ⟨[react c myAdm target d emoji time]⟩
 
 /-! ## Laws -/
 
@@ -373,11 +373,11 @@ theorem row_filed {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : 
   exact (filed (C := C) hr h hq as _ _).1 ⟨hy, hf⟩
 
 /-- **A removal the remover flow writes stands.** Every op
-`removeMember c t seed` writes is, once stored, a Valid removal of t by
-an admin u other than t (Ed25519 signing as the suite's). -/
-theorem removeMember_valid (h : Inv (family C) s) (hq : s.queue = []) {c t : Id} {seed : ByteArray}
-    (hsig : ∀ m, C.verify (Device.ofSeed seed).pk m (edSign (Device.ofSeed seed).sk m) = true)
-    {o : Op} (ho : o ∈ ((removeMember c t seed).eval s).ops)
+`removeMember c t d` writes is, once stored, a Valid removal of t by
+an admin u other than t (d's signatures verifying under the suite). -/
+theorem removeMember_valid (h : Inv (family C) s) (hq : s.queue = []) {c t : Id} {d : Device}
+    (hsig : ∀ m, C.verify d.pk m (edSign d.sk m) = true)
+    {o : Op} (ho : o ∈ ((removeMember c t d).eval s).ops)
     {ops' : Id → Option Op} (he : Extends s.ops ops') (hs : ops' o.id = some o) :
     ∃ u, u ≠ t ∧ IsAdmin C s.ops c u ∧ V C ops' o.id (.removal c t u) := by
   unfold removeMember at ho

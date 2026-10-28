@@ -627,7 +627,7 @@ def openPage (p : PageId) : M Unit := do
   if p == .invite && !s.me.waiting && !(s.links.any (·.1 == s.me.acc)) then
     let bearer ← Chaos.freshSeed "bearer"
     -- dial hints: this device's private LAN addresses (Link.hints)
-    let (w, i) := Community.inviteTo s.me.c s.me.adm s.me.seed bearer (← listenHints)
+    let (w, i) := Community.inviteTo s.me.c s.me.adm s.me.dev bearer (← listenHints)
     if ← writeAll w then
       modify fun s => { s with links := (s.me.acc, i.text) :: s.links }
   s.io.scrollTo 0
@@ -835,7 +835,7 @@ def approveReq (r : Id) : M Unit := do
   let s ← get
   -- the intent reads the request and its approvals: with mine, is the
   -- tally complete? then the admission goes in the same write
-  let w ← ((Community.approveReq s.me.c r s.me.adm s.me.seed esk).liftL.run : SqlM SF _).run s.rd
+  let w ← ((Community.approveReq s.me.c r s.me.adm s.me.dev esk).liftL.run : SqlM SF _).run s.rd
   let _ ← writeAll w
 
 /-- The current page's picture and taps (kept until what it shows changes). -/
@@ -924,7 +924,7 @@ def removeWrite (u : Id) : M Bool := do
   -- nothing when this device is no admin, u is its own user, already
   -- removed, or not admitted (removeMember_valid: what it writes is a
   -- Valid removal of u by an admin)
-  let (w, _) ← readView (Community.removeMember s.me.c u s.me.seed) #[]
+  let (w, _) ← readView (Community.removeMember s.me.c u s.me.dev) #[]
   if w.ops.isEmpty then return false
   writeAll w
 
@@ -1068,7 +1068,7 @@ def sendNow : M Unit := do
                           bytes, key := ← Engine.Crypto.randomBytes 32, nonce := ← Engine.Crypto.randomBytes 24,
                           metaNonce := ← Engine.Crypto.randomBytes 24 } : Community.NewFile)]
   let nonce ← Engine.Crypto.randomBytes 24
-  if ← writeAll (Community.send s.me.c s.me.adm s.me.seed k nonce t.toUTF8 (newestTime s + 1) files) then
+  if ← writeAll (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (newestTime s + 1) files) then
     s.io.textClear
     modify fun s => { s with text := "", sel := #[0, 0, 0, 0], chips := #[], chromeKey := "" }
 
@@ -1601,11 +1601,11 @@ def step (evs : List Event) : M (Option (List Event)) := do
   let s ← get
   for m in s.comms do
     if m.waiting then continue
-    let (w, _) ← readView (Community.introduce m.c m.seed (newestTime s + 1)) #[]
+    let (w, _) ← readView (Community.introduce m.c m.dev (newestTime s + 1)) #[]
     if !w.ops.isEmpty then let _ ← writeAll w
     -- and the community's keys wrapped to this device, opened into local
     -- key ops (a live view too: re-run when a wrap arrives)
-    let (w, _) ← readView (Community.unwrap m.c m.seed) #[]
+    let (w, _) ← readView (Community.unwrap m.c m.dev) #[]
     if !w.ops.isEmpty then let _ ← writeAll w
   let tRefresh ← (← get).io.nowUs
   -- a frame over 20 ms says where its time went (logcat / stderr)

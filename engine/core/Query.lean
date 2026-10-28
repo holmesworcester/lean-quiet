@@ -24,15 +24,16 @@ import engine.core.Model
 
 namespace Engine
 
+/-- Bytes from offset i on compared as memcmp does: the first differing
+byte, then length. -/
+def bcmpFrom (a b : ByteArray) (i : Nat) : Ordering :=
+  if h : i < a.size ∧ i < b.size then
+    if a[i] < b[i] then .lt else if b[i] < a[i] then .gt else bcmpFrom a b (i + 1)
+  else compare a.size b.size
+termination_by a.size - i
+
 /-- Bytes compared as memcmp does: the first differing byte, then length. -/
-def bcmp (a b : ByteArray) : Ordering := Id.run do
-  let n := min a.size b.size
-  for i in [0:n] do
-    let x := a[i]!
-    let y := b[i]!
-    if x < y then return .lt
-    if y < x then return .gt
-  return compare a.size b.size
+def bcmp (a b : ByteArray) : Ordering := bcmpFrom a b 0
 
 /-- A position in a list: a row's sort key and id. -/
 abbrev Pos := ByteArray × Id
@@ -80,6 +81,186 @@ def insertBy {α} (p : Pos × α) : List (Pos × α) → List (Pos × α)
   | q :: t => if p.1.cmp q.1 == .gt then q :: insertBy p t else p :: q :: t
 
 def sortPos {α} (l : List (Pos × α)) : List (Pos × α) := l.foldr insertBy []
+
+/-! ### What runs: a merge sort
+
+`sortPos` is an insertion sort, and the laws (`perm_sortPos`,
+`mem_sortPos`, and through them every list's) are about it. It costs
+O(n²) comparisons: a union of a thousand rows, newest first, is half a
+million. What runs is the library's stable merge sort (`List.mergeSort`)
+under the same comparison, through `@[csimp] sortPos_eq_fast`, proven:
+positions compare as a total order (bytes lexicographically, `lexCmp`),
+so inserting each row into the sorted rest puts it where the stable
+merge sort does (`List.mergeSort_cons`). -/
+
+/-- Byte lists compared lexicographically, a shorter prefix first:
+what `bcmp` computes (`bcmp_eq_lexCmp`). -/
+def lexCmp : List UInt8 → List UInt8 → Ordering
+  | [], [] => .eq
+  | [], _ :: _ => .lt
+  | _ :: _, [] => .gt
+  | x :: xs, y :: ys => if x < y then .lt else if y < x then .gt else lexCmp xs ys
+
+theorem drop_data_nil {a : ByteArray} {i : Nat} (h : a.size ≤ i) : a.data.toList.drop i = [] :=
+  List.drop_eq_nil_of_le (by simpa using h)
+
+theorem drop_data_cons {a : ByteArray} {i : Nat} (h : i < a.size) :
+    a.data.toList.drop i = a[i] :: a.data.toList.drop (i + 1) :=
+  List.drop_eq_getElem_cons (by simpa using h)
+
+theorem bcmpFrom_eq (a b : ByteArray) (i : Nat) (h : i ≤ a.size ∧ i ≤ b.size) :
+    bcmpFrom a b i = lexCmp (a.data.toList.drop i) (b.data.toList.drop i) := by
+  obtain ⟨h1, h2⟩ := h
+  rw [bcmpFrom]
+  by_cases hi : i < a.size ∧ i < b.size
+  · rw [dite_eq_left hi, drop_data_cons hi.1, drop_data_cons hi.2, lexCmp,
+      bcmpFrom_eq a b (i + 1) ⟨hi.1, hi.2⟩]
+  · rw [dite_eq_right hi]
+    by_cases ha : i < a.size
+    · have hb : ¬ i < b.size := fun hb => hi ⟨ha, hb⟩
+      rw [drop_data_cons ha, drop_data_nil (Nat.le_of_not_lt hb), lexCmp]
+      exact Nat.compare_eq_gt.2 (by omega)
+    · by_cases hb : i < b.size
+      · rw [drop_data_nil (Nat.le_of_not_lt ha), drop_data_cons hb, lexCmp]
+        exact Nat.compare_eq_lt.2 (by omega)
+      · rw [drop_data_nil (Nat.le_of_not_lt ha), drop_data_nil (Nat.le_of_not_lt hb), lexCmp]
+        exact Nat.compare_eq_eq.2 (by omega)
+termination_by a.size - i
+
+theorem bcmp_eq_lexCmp (a b : ByteArray) : bcmp a b = lexCmp a.data.toList b.data.toList := by
+  rw [bcmp, bcmpFrom_eq a b 0 ⟨Nat.zero_le _, Nat.zero_le _⟩]
+  simp
+
+theorem lexCmp_swap : ∀ xs ys : List UInt8, lexCmp ys xs = (lexCmp xs ys).swap
+  | [], [] => rfl
+  | [], _ :: _ => rfl
+  | _ :: _, [] => rfl
+  | x :: xs, y :: ys => by
+    simp only [lexCmp]
+    by_cases h1 : x < y
+    · have : ¬ y < x := by simp only [UInt8.lt_iff_toNat_lt] at *; omega
+      simp [h1, this]
+    · by_cases h2 : y < x
+      · simp [h1, h2]
+      · simp [h1, h2, lexCmp_swap xs ys]
+
+theorem lexCmp_eq : ∀ {xs ys : List UInt8}, lexCmp xs ys = .eq → xs = ys
+  | [], [], _ => rfl
+  | [], _ :: _, h => by simp [lexCmp] at h
+  | _ :: _, [], h => by simp [lexCmp] at h
+  | x :: xs, y :: ys, h => by
+    simp only [lexCmp] at h
+    split at h
+    · cases h
+    · split at h
+      · cases h
+      · rename_i h1 h2
+        have : x = y := by
+          apply UInt8.toNat_inj.1
+          simp only [UInt8.lt_iff_toNat_lt] at h1 h2; omega
+        rw [this, lexCmp_eq h]
+
+theorem lexCmp_trans : ∀ {xs ys zs : List UInt8}, lexCmp xs ys ≠ .gt → lexCmp ys zs ≠ .gt →
+    lexCmp xs zs ≠ .gt
+  | [], _, [], _, _ => by simp [lexCmp]
+  | [], _, _ :: _, _, _ => by simp [lexCmp]
+  | _ :: _, [], _, h, _ => by simp [lexCmp] at h
+  | _ :: _, _ :: _, [], _, h => by simp [lexCmp] at h
+  | x :: xs, y :: ys, z :: zs, h1, h2 => by
+    simp only [lexCmp, UInt8.lt_iff_toNat_lt] at h1 h2 ⊢
+    have hxy : x.toNat ≤ y.toNat := by
+      apply Nat.le_of_not_lt; intro hc
+      rw [if_neg (by omega), if_pos hc] at h1; exact h1 rfl
+    have hyz : y.toNat ≤ z.toNat := by
+      apply Nat.le_of_not_lt; intro hc
+      rw [if_neg (by omega), if_pos hc] at h2; exact h2 rfl
+    by_cases c1 : x.toNat < z.toNat
+    · rw [if_pos c1]; simp
+    · rw [if_neg c1, if_neg (by omega)]
+      rw [if_neg (by omega), if_neg (by omega)] at h1
+      rw [if_neg (by omega), if_neg (by omega)] at h2
+      exact lexCmp_trans h1 h2
+
+theorem bcmp_swap (a b : ByteArray) : bcmp b a = (bcmp a b).swap := by
+  rw [bcmp_eq_lexCmp, bcmp_eq_lexCmp, lexCmp_swap]
+
+theorem bcmp_eq {a b : ByteArray} (h : bcmp a b = .eq) : a = b := by
+  rw [bcmp_eq_lexCmp] at h
+  exact ByteArray.ext (Array.toList_inj.1 (lexCmp_eq h))
+
+theorem bcmp_trans {a b c : ByteArray} (h1 : bcmp a b ≠ .gt) (h2 : bcmp b c ≠ .gt) : bcmp a c ≠ .gt := by
+  rw [bcmp_eq_lexCmp] at *
+  exact lexCmp_trans h1 h2
+
+theorem bcmp_lt_trans {a b c : ByteArray} (h1 : bcmp a b = .lt) (h2 : bcmp b c ≠ .gt) : bcmp a c = .lt := by
+  have hac := bcmp_trans (by rw [h1]; decide) h2
+  cases e : bcmp a c
+  · rfl
+  · obtain rfl := bcmp_eq e
+    have := bcmp_swap a b
+    rw [h1] at this
+    exact absurd this (by cases e' : bcmp b a <;> simp_all)
+  · exact absurd e hac
+
+theorem Pos.cmp_swap (p q : Pos) : q.cmp p = (p.cmp q).swap := by
+  rw [Pos.cmp, Pos.cmp, bcmp_swap p.1, bcmp_swap p.2, Ordering.swap_then]
+
+theorem Pos.cmp_trans {p q r : Pos} (h1 : p.cmp q ≠ .gt) (h2 : q.cmp r ≠ .gt) : p.cmp r ≠ .gt := by
+  simp only [Pos.cmp, ne_eq, Ordering.then_eq_gt, not_or, not_and] at *
+  obtain ⟨g1, e1⟩ := h1
+  obtain ⟨g2, e2⟩ := h2
+  cases a1 : bcmp p.1 q.1
+  · have := bcmp_lt_trans a1 g2
+    simp [this]
+  · obtain hpq := bcmp_eq a1
+    rw [hpq]
+    refine ⟨g2, fun hq => ?_⟩
+    exact bcmp_trans (e1 a1) (e2 hq)
+  · exact absurd a1 g1
+
+/-- `sortPos`'s comparison: p goes before q unless p's position is past q's. -/
+def posLE {α} (p q : Pos × α) : Bool := !(p.1.cmp q.1 == .gt)
+
+theorem posLE_iff {α} {p q : Pos × α} : posLE p q = true ↔ p.1.cmp q.1 ≠ .gt := by
+  simp [posLE]
+
+theorem posLE_trans {α} (p q r : Pos × α) (h1 : posLE p q) (h2 : posLE q r) : posLE p r :=
+  posLE_iff.2 (Pos.cmp_trans (posLE_iff.1 h1) (posLE_iff.1 h2))
+
+theorem posLE_total {α} (p q : Pos × α) : (posLE p q || posLE q p) = true := by
+  rw [Bool.or_eq_true, posLE_iff, posLE_iff, Pos.cmp_swap p.1]
+  cases p.1.cmp q.1 <;> simp
+
+theorem insertBy_split {α} (a : Pos × α) :
+    ∀ (l₁ l₂ : List (Pos × α)), (∀ b ∈ l₁, posLE a b = false) → (∀ b ∈ l₂, posLE a b = true) →
+      insertBy a (l₁ ++ l₂) = l₁ ++ a :: l₂
+  | [], [], _, _ => rfl
+  | [], q :: t, _, h2 => by
+    have := posLE_iff.1 (h2 q (List.mem_cons_self ..))
+    simp [insertBy, this]
+  | b :: t, l₂, h1, h2 => by
+    have hb : a.1.cmp b.1 = .gt := by
+      have := h1 b (List.mem_cons_self ..)
+      simp only [posLE, Bool.not_eq_false', beq_iff_eq] at this
+      exact this
+    simp only [List.cons_append, insertBy, hb, beq_self_eq_true, ite_true]
+    rw [insertBy_split a t l₂ (fun x hx => h1 x (List.mem_cons_of_mem _ hx)) h2]
+
+/-- `sortPos`, as it runs: a stable merge sort. -/
+def sortPosFast {α} (l : List (Pos × α)) : List (Pos × α) := l.mergeSort posLE
+
+/-- **`sortPos` runs as a merge sort**, on every list. -/
+@[csimp] theorem sortPos_eq_fast : @sortPos = @sortPosFast := by
+  funext α l
+  induction l with
+  | nil => simp [sortPos, sortPosFast]
+  | cons a t ih =>
+    rw [sortPos, List.foldr_cons, ← sortPos, ih, sortPosFast]
+    obtain ⟨l₁, l₂, hs, ht, hl⟩ := List.mergeSort_cons (le := posLE) posLE_trans posLE_total a t
+    have hp := List.pairwise_mergeSort (le := posLE) posLE_trans posLE_total (a :: t)
+    rw [hs, List.pairwise_append, List.pairwise_cons] at hp
+    rw [sortPosFast, ht, hs]
+    exact insertBy_split a l₁ l₂ (fun b hb => by simpa using hl b hb) (fun b hb => hp.2.1.1 b hb)
 
 /-- The Valid ops under every key of q, with their positions and facts,
 ascending. -/

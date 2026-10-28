@@ -123,6 +123,7 @@ open Engine Community
 #print axioms Engine.mem_purgeSet
 #print axioms Engine.purge_inv
 #print axioms Engine.perm_sortPos
+#print axioms Engine.sortPos_eq_fast
 #print axioms Engine.matching_nodup
 #print axioms Engine.purge_settles
 #print axioms Engine.reach_ops
@@ -211,6 +212,7 @@ section app
 #print axioms Pages.switcherOrder_sound
 #print axioms Pages.switcherOrder_complete
 #print axioms Switch.dedupe_one_per_community
+#print axioms Kinds.Accepted.read_known
 #print axioms Text.visual_perm
 #print axioms Text.place_shows
 #print axioms Text.oneLine_prefix
