@@ -3,12 +3,13 @@
 # SQLite-vs-model differential, list queries against their meaning
 # (querydiff), ops as wire bytes against a lying peer (wire), two nodes
 # syncing through the driver (syncpair) and over localhost TCP through the
-# runner (tcppair), and kill -9 atomicity.
+# runner (tcppair), and kill -9 atomicity,
+# and the Noise handshake against its published vector.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
-lake build scenario differential crash querydiff linkcheck lifecycle wire syncpair tcppair
+lake build scenario differential crash querydiff linkcheck lifecycle wire syncpair tcppair noise_check
 mkdir -p out
 .lake/build/bin/scenario out/scenario
 .lake/build/bin/differential out/differential "${SEEDS:-12}"
@@ -18,4 +19,5 @@ mkdir -p out
 .lake/build/bin/wire out/wire
 .lake/build/bin/syncpair
 .lake/build/bin/tcppair out/tcppair
+.lake/build/bin/noise_check
 tests/crash.sh "${CRASH_ROUNDS:-10}" out/crash
