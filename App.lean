@@ -1624,8 +1624,9 @@ def sheetBitmap (sh : SheetSt) (mine : List String) : M Bitmap := do
   let rows := (← get).gridRows
   let blank := solid Sheet.panel s.W
   let line (k : Nat) : ByteArray :=
-    match rows[k / g.key]? with
-    | some b => b.rows[k % g.key]?.getD blank
+    let (r, li) := g.lineOf k
+    match rows[r]? with
+    | some b => b.rows[li]?.getD blank
     | none => blank
   let top := Sheet.catTop s.font s.dim s.W c backdrop sh.query sh.searching sh.tone sh.cat
   let bot := Sheet.catBot s.font s.dim s.W c sh.cat sh.searching

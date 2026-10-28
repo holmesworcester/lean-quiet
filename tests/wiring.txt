@@ -187,7 +187,7 @@ todo Geometry.Seam.pageRow = Geometry.Seam.place
 todo Geometry.Seam.tapRow = Geometry.Seam.place
 todo Geometry.Geom.viewNow = Geometry.Seam.place
 todo Geometry.Geom.composerTop = Geometry.Seam.place
-copy SheetGeom.Grid.ctop Sheet.gridRow Its index arithmetic, and App's sheet rows'. Todo: have the painter place keys by `Grid.ctop`.
+bridge SheetGeom.Grid.ctop SheetGeom.lineOf_ctop
 todo Engine.Sync.keeps The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s.
 todo Pic.add The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code.
 todo Pic.fit = Pic.add
