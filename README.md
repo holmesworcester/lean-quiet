@@ -4,9 +4,9 @@
 its CRDT engine, its sync and its encrypted networking, draws every
 pixel of its UI, and checks proofs about all four.
 
-<table><tr><td>
+<table><tr></tr><tr><td>
 
-👋 $\color{#8957e5}{\textsf{\textbf{Note from a human:}}}$ In ~1 day I vibe-coded a p2p, e2ee Slack/Discord alternative in Lean (informed by my work on [Quiet](https://tryquiet.org)) for iOS and Android with some fairly powerful correctness proofs. How does this stand up?
+👋 In ~1 day I vibe-coded a p2p, e2ee Slack/Discord alternative in Lean (informed by my work on [Quiet](https://tryquiet.org)) for iOS and Android with some fairly powerful correctness proofs. How does this stand up?
 
 </td></tr></table>
 
@@ -53,6 +53,12 @@ no collisions. ³ in the symbolic model of the cryptography.
 - the bootstrap over the running code, rather than a model;
 - that content is drawn faithfully all the way to pixels (proven up to
   each row's layout; painting is not).
+
+<table><tr></tr><tr><td>
+
+🙋 The most obviously valuable thing about building a user-facing communication tool entirely in Lean is that you can prove strict safety properties. In a p2p, e2ee app where code is law, this means potentially being able to prove them over all possible deployments, too! But an even more interesting question: can you also prove absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size, or lack of responsiveness under load. It seems like you can!
+
+</td></tr></table>
 
 ### Assumed
 
@@ -291,12 +297,6 @@ About running code, but naming a model outside the code they are about: [`conn_a
 - [`Model.run`], with `Engine.Model`, `Engine.DB`, `Sync.HeldM` +15 (113 laws): The store model: the SQLite store's reads, writes and write turns answer as the model's tables (`DB`), and a held store's (`Held`) do too. Tested, not proven: SQLite against the model (tests/engine/Differential.lean), list queries against their meaning (tests/engine/QueryDiff.lean). Not its purge: `purgeS` is a model, a todo.
 - [`Engine.Inv`] (43 laws): The tables' invariant, which judging keeps (`inv_ingest`, `inv_step`) and purges keep only by `purge_inv`, proven of the model `purgeS`, and the SQLite-vs-model purge test (tests/engine/Purge.lean).
 <!-- wiring:end -->
-
-<table><tr><td>
-
-🙋 $\color{#2f81f7}{\textsf{\textbf{Another note from a human:}}}$ The most obviously valuable thing about building a user-facing communication tool entirely in Lean is that you can prove strict safety properties. In a p2p, e2ee app where code is law, this means potentially being able to prove them over all possible deployments, too! But an even more interesting question: can you also prove absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size, or lack of responsiveness under load. It seems like you can!
-
-</td></tr></table>
 
 ## What isn't Lean, and why
 
