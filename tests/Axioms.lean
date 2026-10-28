@@ -3,6 +3,7 @@ import ops.sync.RetryLaws
 import ops.sync.BoundsLaws
 import ops.sync.ServeLaws
 import engine.wire.CloseLaws
+import engine.wire.LaneLaws
 import engine.wire.Slots
 import engine.core.Engine
 import ops.community.Community
@@ -323,6 +324,24 @@ open Engine Community
 #print axioms Engine.Sync.retried_chunks
 #print axioms Engine.Sync.pieces_short
 #print axioms Engine.Sync.retry_bounded
+#print axioms Engine.Sync.write_first
+#print axioms Engine.Sync.write_within
+#print axioms Engine.Sync.frame_next
+#print axioms Engine.Sync.urgent_ahead
+#print axioms Engine.Sync.ahead_bytes
+#print axioms Engine.Sync.take_append
+#print axioms Engine.Sync.cut_bytes
+#print axioms Engine.Sync.cut_progress
+#print axioms Engine.Sync.apart
+#print axioms Engine.Sync.framesFor_mem
+#print axioms Engine.Sync.framesFor_only
+#print axioms Engine.Sync.credit_pos
+#print axioms Engine.Sync.credit_window
+#print axioms Engine.Sync.lane_control
+#print axioms Engine.Sync.lane_hot
+#print axioms Engine.Sync.heat_hot
+#print axioms Engine.Sync.write_hot
+#print axioms Engine.Sync.split_urgent
 end engine
 
 section app

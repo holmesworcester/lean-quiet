@@ -133,7 +133,7 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 426 rest on Lean's standard axioms
+that rests on; 🥊 is supporting. All 444 rest on Lean's standard axioms
 only.
 
 ### Security proofs
@@ -194,6 +194,7 @@ only.
 | 🟡 | 🥊🥊🥊 | **A joiner connects, and both sides converge,** over a socket that loses, duplicates and reorders. Proven over a model only. | [`bootstrap`], [`bootstrap_ideal`], [`bootstrap_possible`], [`reachable_inv`] *(model)* |
 | 🟡 | 🥊🥊🥊 | **The running connection does all this.** It performs the round, and delivers each op's requirement closure. [More](#sync-in-the-running-node) | [`conn_answers_ids`] |
 | 🟡 | 🥊🥊🥊 | **New ops reach connected members.** An op written while a member's session is up is offered at once, and the member holds it after one exchange. [More](#sync-in-the-running-node) | [`stream_offered`], [`stream_delivers`], [`stream_delivers_steps`], [`stream_offered_runs`], [`stream_delivers_runs`] |
+| 🟡 | 🥊🥊🥊 | **A new op never waits behind backlog.** The app's write is the runner's next event, whatever frames are queued. On each socket, control naming few ids and this node's fresh writes go out in the next native write, ahead of every queued want answer, so only urgent traffic and one burst reach the socket first. One socket's backlog holds up no other. Not yet: the end-to-end bound (`fresh_stmt`) over the world; tested in simulated time against the old order, and over TCP. | [`write_first`], [`write_within`], [`urgent_ahead`], [`ahead_bytes`], [`cut_bytes`], [`apart`], [`credit_pos`], [`credit_window`], [`lane_control`], [`lane_hot`], [`write_hot`] |
 | ⬜ | 🥊🥊🥊 | **Everyone converges.** Under fair delivery, members linked by any chain of connections end up holding every op of their community, and so the same verdicts. [More](#toward-n-clients) | |
 | ⬜ | 🥊🥊 | **Staleness is never hidden.** What the screen says about sync is true of the ops held, and a sync that stalls is shown within a stated bound. [More](#sync-in-the-running-node) | |
 | ⬜ | 🥊🥊🥊 | **A synced page is complete:** after syncing a page, a device shows every row its peer shows for it (`page_sync`). | |
@@ -1135,7 +1136,7 @@ it, from this device's own receipt.
 [`buffer_bounded`]: engine/wire/Frame.lean#L213-L218
 [`frames_kept`]: engine/wire/Frame.lean#L158-L161
 [`frames_tooBig`]: engine/wire/Frame.lean#L180-L183
-[`admit_bounded`]: engine/wire/Slots.lean#L49-L54
+[`admit_bounded`]: engine/wire/Slots.lean#L55-L60
 [`Op.decode_exact`]: engine/core/Core.lean#L96-L98
 [`Op.decode_parts`]: engine/core/Core.lean#L101-L104
 [`decode_sum`]: engine/core/Codec.lean#L677-L680
@@ -1175,12 +1176,23 @@ it, from this device's own receipt.
 [`bootstrap_ideal`]: ops/connection/bootstrap/Laws.lean#L423-L424
 [`bootstrap_possible`]: ops/connection/bootstrap/Laws.lean#L208-L218
 [`reachable_inv`]: ops/connection/bootstrap/Steps.lean#L222-L223
-[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1246-L1268
-[`stream_offered`]: engine/wire/WorldLaws.lean#L1192-L1204
-[`stream_delivers`]: engine/wire/WorldLaws.lean#L603-L635
-[`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L640-L657
-[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1211-L1217
-[`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L687-L692
+[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1284-L1306
+[`stream_offered`]: engine/wire/WorldLaws.lean#L1230-L1242
+[`stream_delivers`]: engine/wire/WorldLaws.lean#L641-L673
+[`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L678-L695
+[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1249-L1255
+[`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L725-L730
+[`write_first`]: engine/wire/LaneLaws.lean#L172-L175
+[`write_within`]: engine/wire/LaneLaws.lean#L194-L197
+[`urgent_ahead`]: engine/wire/LaneLaws.lean#L93-L102
+[`ahead_bytes`]: engine/wire/LaneLaws.lean#L111-L122
+[`cut_bytes`]: engine/wire/LaneLaws.lean#L52-L54
+[`apart`]: engine/wire/LaneLaws.lean#L134-L140
+[`credit_pos`]: engine/wire/LaneLaws.lean#L212-L214
+[`credit_window`]: engine/wire/LaneLaws.lean#L217-L221
+[`lane_control`]: engine/wire/LaneLaws.lean#L229-L232
+[`lane_hot`]: engine/wire/LaneLaws.lean#L241-L245
+[`heat_hot`]: engine/wire/LaneLaws.lean#L252-L255
 [`visible_in_viewport`]: engine/renderer/Geometry.lean#L90-L95
 [`newest_visible`]: engine/renderer/Geometry.lean#L99-L105
 [`pinned_visible`]: engine/renderer/Geometry.lean#L147-L151

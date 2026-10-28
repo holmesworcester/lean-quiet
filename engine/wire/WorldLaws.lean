@@ -1227,6 +1227,59 @@ theorem write_offers_all (n : Node) (ops : List Op) (t : Nat) (h : Held F) (hm :
 
 end
 
+section
+variable (S : Setup F) (s : Who)
+
+/-- A write turn changes a node's index and fresh ids only. -/
+theorem write_keeps (x : Sync F (HeldM F)) (n : Node) (ops : List Op) (h : Held F) :
+    ((n.write x ops).run h).1.1.managed = n.managed := by
+  simp only [Node.write, HeldM.run_bind]
+  rw [forIn_yield ops _ (fun o acc => writeAbsent h.db acc o) h (fun y _ acc => by
+    simp only [writeAbsent]; split
+    · simp only [HeldM.run_bind, HeldM.run_getOp]
+      by_cases hc : (h.db.ops y.id).isNone = true <;> simp [hc]
+    · rfl)]
+  split
+  · rfl
+  · simp only [HeldM.run_bind, HeldM.run_turn]
+    generalize (List.foldl (fun b a => writeAbsent h.db b a) [] ops).reverse = news
+    rw [forIn_yield news _ (fun a b => if ((turnH x.fam news h).db.ops a.id).isSome then
+      (b.1.add x.fam a, a.id :: b.2) else b) _ (fun y _ b => by
+        simp only [HeldM.run_bind, HeldM.run_getOp]
+        by_cases hc : ((turnH x.fam news h).db.ops y.id).isSome = true <;> simp [hc])]
+    rfl
+
+/-- Offering keeps a node's managed sessions. -/
+theorem fanout_keeps (n : Node) (ids : List Id) (h : Held F) :
+    ((n.fanout (S.sync s) ids).run h).1.1.managed = n.managed := by
+  simp only [Node.fanout, HeldM.run_bind]
+  rw [forIn_yield n.conns _ (fun p st => fanoutStep S s ids h p st) h (fun p _ st => by
+    simp only [HeldM.run_bind, refresh_run, HeldM.run_pure, sync_fam, sync_cfg]
+    rw [filed_reads _ _ _ _ h]; rfl)]
+  simp [settle_run]
+
+theorem store_keeps (n : Node) (ops : List Op) (mine : Bool) (h : Held F) :
+    ((n.store (S.sync s) ops mine).run h).1.1.managed = n.managed := by
+  rw [store_run]
+  simp only [Node.put]
+  by_cases hb : ((Node.write (S.sync s) n (intake (S.sync s).fam mine ops)).run h).1.2.isEmpty = true
+  · simp only [hb, ↓reduceIte]; exact write_keeps _ _ _ _
+  · simp only [hb, ↓reduceIte, Bool.false_eq_true]; rw [fanout_keeps]; exact write_keeps _ _ _ _
+
+/-- **A write's ops are hot when it returns.** Every id a local write
+stores (at most `hotCap` of them) is hot from the write's time, so the
+want that follows its offer is answered urgent (`lane_hot`). -/
+theorem write_hot (n : Node) (ops : List Op) (t : Nat) (h : Held F) (hm : n.managed = [])
+    (hc : ((n.onWrite (S.sync s) ops t).run h).1.2.stored.length ≤ S.cfg.hotCap) :
+    ∀ i ∈ ((n.onWrite (S.sync s) ops t).run h).1.2.stored, (i, t) ∈ ((n.onWrite (S.sync s) ops t).run h).1.1.hot := by
+  have e : (n.onWrite (S.sync s) ops t).run h =
+      (((n.store (S.sync s) ops true).run h).1.1.heat (S.sync s) ((n.store (S.sync s) ops true).run h).1.1.fresh t
+        |>.finish (S.sync s) ((n.store (S.sync s) ops true).run h).1.2 t).run ((n.store (S.sync s) ops true).run h).2 := rfl
+  rw [e, finish_run _ _ _ _ _ _ (by rw [heat_managed, store_keeps, hm])] at hc ⊢
+  exact heat_hot _ _ _ _ hc
+
+end
+
 /-- **New ops are offered on every session that may see them.** Node s
 writes ops; op o among them is new to its store, and no other op of the
 write shares its id. Then on every session of s whose rooms include o's

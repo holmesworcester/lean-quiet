@@ -96,13 +96,15 @@ def main : IO UInt32 := do
   IO.println s!"fresh_tcp: P held {before} of 64 when R wrote; the write arrived in {arrived.map (· - wrote)} ms"
   t.ok "P syncs while S never reads: some of the backlog arrives" (before ≥ 8)
   t.ok "R's write reaches P within 2 s, the backlog still flowing" (arrived.any (· ≤ wrote + 2000) && backlogLeft > 0)
-  for _ in [0:3000] do
+  for _ in [0:1000] do
     if (← count) ≥ 64 then break
     IO.sleep 20
   t.ok "P gets all 64 ops while S never reads" ((← count) == 64)
-  closeSocket s
-  rp.stop
-  rr.stop
+  -- A loop stuck on S's socket (the old blocking send) would never stop.
+  if (← t.failed.get) == 0 then
+    closeSocket s
+    rp.stop
+    rr.stop
   let code ← t.finish "fresh_tcp"
   (← IO.getStdout).flush
   IO.Process.exit code.toUInt8

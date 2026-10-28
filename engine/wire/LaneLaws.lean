@@ -7,7 +7,8 @@ functions the runner calls:
 - `urgent_ahead`: an urgent frame goes out in its socket's next native
   write, after only the urgent frames before it and ahead of the whole
   serve backlog; `cut_bytes`: a write's serve part is at most `burst`
-  bytes, or one frame;
+  bytes, or one frame; `ahead_bytes`: so what reaches the socket between
+  an urgent frame's push and the frame is urgent traffic and one burst;
 - `apart`: a socket's next write depends on its own lanes and frames
   only, whatever any other socket holds;
 - `credit_pos`, `credit_window`: a want is always answered with its
@@ -103,6 +104,30 @@ theorem urgent_ahead (burst : Nat) (q : Lanes) (u : ByteArray) (ps : List (Lane 
   obtain ⟨hu, hs⟩ := pushAll_lanes (q.push .urgent u) ps
   rw [hu, hs]
   simp [Lanes.push]
+
+theorem bytesOf_append (a b : List ByteArray) : bytesOf (a ++ b) = bytesOf a + bytesOf b := by
+  simp [bytesOf]
+
+/-- **What a fresh frame waits for on its socket**, the send-path premise
+of `fresh_stmt`. Write w₁ began from lanes q₀; while it was under way the
+loop pushed `pre`, then urgent frame u, then `post`. The writer's next
+write w₂ sends u after only the urgent frames of `pre`; and w₁ is the
+urgent frames queued when it began, and at most `burst` bytes of serve
+frames, or one frame. So what reaches the socket from u's push to u is
+bounded by the urgent traffic and one burst, whatever backlog the serve
+lane holds. -/
+theorem ahead_bytes (burst : Nat) (q₀ : Lanes) (pre post : List (Lane × ByteArray)) (u : ByteArray) :
+    (∃ rest, (((((q₀.take burst).2.pushAll pre).push .urgent u).pushAll post).take burst).1 =
+      urgents pre ++ u :: rest) ∧
+    bytesOf (q₀.take burst).1 ≤ bytesOf q₀.urgent + max burst (q₀.serve.headD .empty).size := by
+  refine ⟨?_, ?_⟩
+  · rw [urgent_ahead]
+    obtain ⟨hu, -⟩ := pushAll_lanes (q₀.take burst).2 pre
+    rw [hu, (take_append burst q₀).2]
+    exact ⟨_, by simp; rfl⟩
+  · rw [take_urgent_first, bytesOf_append]
+    have := cut_bytes burst q₀.serve
+    omega
 
 /-! ## Sockets apart -/
 
