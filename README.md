@@ -181,7 +181,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 395 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 397 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **The tables are short; the long stories are below them,** under
   [Proofs in depth](#proofs-in-depth), where each row's More link goes.
@@ -263,7 +263,7 @@ nothing else is assumed:
 | ⬜ | 🥊🥊 | **A tap acts once.** A second tap on a control while its action is in flight starts nothing new (Send sends once). A press that turns into a scroll past the slop is not a tap. | |
 | ⬜ | 🥊🥊 | **Destructive actions are guarded.** Every action that cannot be undone asks for a second confirmation, as removal does (`writes_only_after_two`). Its control keeps a clear gap from the controls around it. | |
 | ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
-| 🟡 | 🥊🥊🥊 | **Notices are exact, and the screen watches only what it shows.** A screen watches windows: a list's rows between two positions. The store's journal records each row filed or unfiled; a reader nets a batch and matches it against an index of windows. A subscriber is then notified exactly when one of its windows changed. It is never notified for a row outside them, a row filed and purged between two passes, or an old message backfilled below a newest-50 read, and always for a row inside. A read's window, cut at its last row, changes exactly when its rows do; a read whose range count is used watches its range, and a count its key, so a watch misses nothing its reader uses. A union of reads (the conversation) is watched read by read: complete, but not precise for the union's own cut. Matching a filing costs a hash and ⌊log₂ 2S⌋+2 comparisons, S being its key's windows. The frame wants exactly its page's reads, the near rows' hull per list key, and the near rows' own reads. Notices by key, and an unnetted journal, are each shown imprecise. This assumes one op per id (SHA-256 has no collision), over the model; SQLite's triggers are tested against it (`tests/engine/WindowCheck.lean`). **Not yet:** the app still notices by key. Its reads, `Live` and the frame's keep move to windows in holmes-1e's change. | [`notice_iff`], [`read_notice_iff`], [`read_rows_iff`], [`watch_stable`], [`run_exact`], [`fact_stable`], [`find_costs`], [`notify_cost`], [`screen_subs`], [`hull_near`], [`key_notice_imprecise`], [`unnetted_imprecise`], [`keep_scrolled_off`] |
+| 🟡 | 🥊🥊🥊 | **Notices are exact, and the screen watches only what it shows.** A screen watches windows: a list's rows between two positions. The store's journal records each row filed or unfiled; a reader nets a batch and matches it against an index of windows. A subscriber is then notified exactly when one of its windows changed. It is never notified for a row outside them, a row filed and purged between two passes, or an old message backfilled below a newest-50 read, and always for a row inside. A read's window, cut at its last row, changes exactly when its rows do; a read whose range count is used watches its range, and a count its key, so a watch misses nothing its reader uses. A union of reads (the conversation) is watched read by read: complete, but not precise for the union's own cut. Matching a filing costs a hash and ⌊log₂ 2S⌋+2 comparisons, S being its key's windows. The frame wants exactly its page's reads, the near rows' hull per list key, and the near rows' own reads. Notices by key, and an unnetted journal, are each shown imprecise. This assumes one op per id (SHA-256 has no collision), over the model; SQLite's triggers are tested against it (`tests/engine/WindowCheck.lean`). The app's cache watches each read's window, takes its notices from the journal netted, and stops watching what no want reads: a component's reads at once when it unmounts (`agrees_notice`, `agrees_unmount`, `watched_held`). **Not yet:** the conversation's window counts the messages beside it, so its reads watch their whole ranges, not the near rows' hull; its rows alone would be its anchor ± 100. | [`notice_iff`], [`read_notice_iff`], [`read_rows_iff`], [`watch_stable`], [`run_exact`], [`fact_stable`], [`find_costs`], [`notify_cost`], [`screen_subs`], [`hull_near`], [`key_notice_imprecise`], [`unnetted_imprecise`], [`keep_scrolled_off`], [`agrees_notice`], [`agrees_unmount`], [`watched_held`] |
 | ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
 | ✅ | 🥊🥊 | **The people list is the present members,** each once. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_nodup`] |
 | 🟡 | 🥊🥊🥊 | **The screen is one moment.** Every frame is drawn over a single store state, the latest the app has seen, so if one row is current, all are. [More](#from-the-store-to-the-screen) | [`read_one_moment`], [`answer_agrees`], [`agrees_store`], [`agrees_notice`], [`agrees_keep`], [`agrees_empty`], [`eval_stable`], [`view_stable`] |
@@ -1062,7 +1062,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`offer_shared`]: engine/core/Sync.lean#L83-L86
 [`kk_secret`]: ops/connection/NoiseSymbolic.lean#L595-L609
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
-[`read_one_moment`]: engine/renderer/LiveLaws.lean#L227-L232
+[`read_one_moment`]: engine/renderer/LiveLaws.lean#L200-L205
 [`wrap_keeps`]: engine/renderer/WrapLaws.lean#L132-L135
 [`visual_perm`]: engine/renderer/TextLaws.lean#L46-L47
 [`visible_in_viewport`]: engine/renderer/Geometry.lean#L90-L95
@@ -1226,6 +1226,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`key_notice_imprecise`]: engine/core/WindowMutants.lean#L110-L113
 [`unnetted_imprecise`]: engine/core/WindowMutants.lean#L160-L164
 [`keep_scrolled_off`]: engine/renderer/Screen.lean#L276-L281
+[`agrees_notice`]: engine/renderer/LiveLaws.lean#L139-L144
+[`agrees_unmount`]: engine/renderer/LiveLaws.lean#L182-L188
+[`watched_held`]: engine/renderer/LiveLaws.lean#L194-L198
 [`writes_only_after_two`]: ops/app/Remove.lean#L56-L59
 [`cancel_writes_nothing`]: ops/app/Remove.lean#L63-L64
 [`open_fresh`]: ops/app/Remove.lean#L67-L69
@@ -1233,11 +1236,10 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`offered_only`]: ops/app/Remove.lean#L83-L86
 [`present_iff`]: ops/app/PeopleLaws.lean#L27-L30
 [`present_nodup`]: ops/app/PeopleLaws.lean#L37-L38
-[`answer_agrees`]: engine/renderer/LiveLaws.lean#L73-L75
-[`agrees_store`]: engine/renderer/LiveLaws.lean#L84-L87
-[`agrees_notice`]: engine/renderer/LiveLaws.lean#L201-L205
-[`agrees_keep`]: engine/renderer/LiveLaws.lean#L213-L215
-[`agrees_empty`]: engine/renderer/LiveLaws.lean#L70-L70
+[`answer_agrees`]: engine/renderer/LiveLaws.lean#L81-L83
+[`agrees_store`]: engine/renderer/LiveLaws.lean#L92-L95
+[`agrees_keep`]: engine/renderer/LiveLaws.lean#L172-L174
+[`agrees_empty`]: engine/renderer/LiveLaws.lean#L78-L78
 [`covered`]: engine/renderer/Cover.lean#L78-L83
 [`line_painted`]: engine/renderer/Cover.lean#L119-L122
 [`placed_row`]: engine/renderer/Geometry.lean#L81-L85
@@ -1278,8 +1280,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L953-L957
-[`pageIn_acc`]: App.lean#L959-L962
+[`drawPage_key`]: App.lean#L960-L964
+[`pageIn_acc`]: App.lean#L966-L969
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
