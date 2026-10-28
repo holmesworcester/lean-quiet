@@ -85,7 +85,18 @@ when it first saw the round. A message with no claims ends the round.
 round's, or each offered op's). The peer wants what it lacks in that
 room (`sync.want`), and wanted ops are sent as their own bytes. A want
 for an id outside the connection's rooms, a local or conn op, or an
-unknown id, is ignored silently. A have for a room the peer may not see
+unknown id, is ignored silently. `authorize ix c ids` filters ids against
+only the connection's shown rooms in the index before `Store.getOp`.
+The read program `serve` reads only that list, stopping after the first
+whole op that reaches `wantBytes` (4 MiB by default); encoded op payloads
+are bounded by `wantBytes` plus one op, excluding transport envelopes.
+The store outside those rooms changes neither the read sequence nor the
+reply. Closure reads are deferred to ticks. The receiver retains admitted unsatisfied ids in `asked`. Every `retry` ms
+(1000 by default) a tick re-wants at most `maxIds` of them. Each ask expires
+strictly after its original ask time plus `patience`; repeat offers and
+retries do not renew that time. Expiry frees capacity even if other peer
+traffic keeps the session alive. Later rounds or offers rediscover deferred
+or expired ids, so a byte-limited response does not abandon the rest forever. A have for a room the peer may not see
 is ignored, and a have is answered from that room's ops only, so a
 peer's haves learn nothing of other rooms or of local ops.
 
@@ -94,18 +105,62 @@ peer's haves learn nothing of other rooms or of local ops.
 to hold it. The stream is only ever safe (laws below). Liveness comes
 from rounds.
 
-**Closure.** With each op sent goes an offer of its requirement closure:
+**Closure.** Each op sent queues its requirement closure for the next tick:
 the ids the peer is not known to hold. The walk stops at ops whose
 closure this connection already offered and that are Valid here, since
 a Valid op's closure is complete and can never grow. It visits at most
 `walk` ops per call and continues on the next tick, so nothing is
 capped silently.
 
-**Patience.** While a side waits (for the peer's hello, a round's
-answer, or ops it wanted after the peer said it holds them), a peer
-silent for `patience` ms drops the connection. The next connection's
-round finds what is still missing. Silence, not age, is the trigger, so
-a large sync that is making progress is never dropped.
+**Patience and lease.** While a side waits (for hello, a round answer,
+or wanted ops), it drops strictly after `max heard lastRound + patience`.
+An arrival sets `heard` before handling it, so newly created wants get a
+fresh deadline; opening a local round sets `lastRound`. A round opened
+at `now` survives through `now + patience`. Time is a plain logical time
+comparison; this module has no pause accounting.
+
+A responder also drops strictly after `heard + lease`, whether waiting
+or settled. The default lease is 90000 ms, three default dialer cadences.
+Every decoded round message, including the empty end, refreshes `heard`.
+If the next dialer arrival is within `every` ms of `heard` and
+`every ≤ lease`, lease expiry is impossible. A lease closes on the next
+tick, so scheduler delay adds to the wall-clock bound.
+
+**Every end purges.** TCP EOF, errors, oversized framing, idle closure,
+send failure and runner stop notify `Node.onClose` with the socket's
+address. All sessions currently routed through it drop. The common
+`Node.finish` path runs `closing` then `Turn.purge fam ids true` for
+transport drops, patience/protocol drops, lease expiry, sessions removed
+from `established`, and retirement. Retired sessions leave memory too.
+A closed session cannot reopen; a new handshake is needed.
+
+**Peer-controlled storage.** `RunConfig.queue` (64) bounds queued events;
+readers block on a full queue, carrying TCP backpressure to the peer.
+Each inbound frame is at most 1 MiB. Reads stop at the current frame's
+boundary: each socket holds one assembling or blocked frame, plus a
+read of at most 64 KiB. Slots are reserved before accepting into the
+queue or dialing: at most `maxSocks` (64) in total and `perAddr` (4) per
+IP, ignoring source port. Extra accepts close immediately. IPv6's
+current textual placeholder conservatively shares one address quota.
+Pending outbound dials keep at most `max 1 queue` payloads per address;
+overflow closes the session.
+
+Both `known` and `asked` hold at most `maxKnown` (65536) ids: together at
+most `2 * maxKnown` ids per connection, plus a timestamp per outstanding
+ask (a parallel map whose entries leave with their asks). Inserting a new
+`known` hint that would exceed the cap clears old hints, then remembers the
+new id. Redundant offers are harmless. A full `asked` admits no more missing
+ids, sends no wants for them and does not add them to `known`; later rounds
+or offers bring them again. Neither case is a protocol violation or ends
+the session. A zero cap retains no hints or asks. `hold` checks `maxIds`
+before reads and silently ignores oversized offers. `conn_bounded` covers
+all connection transitions; `honest_no_drop` proves that within Conn only
+patience or lease expiry can drop, independently of set sizes. Transport
+loss and retirement still use the common close-and-purge path.
+These are bounds on inbound buffering and the two
+peer-controlled sets, not a total RSS bound: the shared room index,
+round snapshots, offered/closed caches, closure frontier and transient
+handler allocations are separate. Round/CPU bounds remain separate work.
 
 **Status.** `settled room` once per room per connection, when its first
 round has ended and nothing wanted is outstanding. The Connection
@@ -152,7 +207,7 @@ Entry points:
     session's connection in order.
   Anything else, a frame that does not open, or a frame for a session
   not open here, is ignored.
-- `onTick now`, `onWrite ops now`.
+- `onTick now`, `onWrite ops now`, `onClose addr now`.
 - `connect cid addr dialer now`, for the in-memory harness only.
 
 Each entry point returns `Effects`: payloads to send to addresses,
@@ -197,14 +252,14 @@ notify`) is the one loop the phone apps and a desktop daemon run.
 - It hands every inbound payload to `onFrame` with its socket's address.
   An accepted socket's address is its peer's, so replies go back on the
   same socket.
-- It closes any socket idle past `idle`.
+- It closes any socket idle past `idle`, and reports every socket end to the node for key purging.
 - The app's writes come in through `Runner.write`; `notify` gets every
   stored id, so the app can re-read (a write on the runner's connection
   fires no other connection's triggers).
 - One task owns the node and the store; the listener and one reader per
   socket feed it through a channel.
-- A test that runs it must call `IO.Process.exit`, because Lean waits
-  at exit for the runner's never-ending tasks.
+- Stopping closes the event channel, cancels readers, closes sessions and
+  releases queued sockets; tests still use `IO.Process.exit` as their harness exit.
 
 ## Laws
 
@@ -263,7 +318,9 @@ Proven:
   The write sends exactly one frame, the offer; delivered, it is
   answered with exactly one frame, the want; delivered, that is
   answered with frames whose first begins with the op; delivered, the
-  peer holds it. Each entry point's frames are computed from the code
+  peer holds it. The receiver needs one free ask slot; the sender needs a
+  positive byte budget and the op in its shown-room index. No spare `known`
+  capacity is needed. Each entry point's frames are computed from the code
   (`write_offers`, `hold_wants`, `want_sends`, `op_taken`).
   `stream_delivers_steps`: the exchange is a run of `World.Step`.
   `stream_delivers_runs`: from two empty nodes and two `connect` steps,
@@ -313,7 +370,9 @@ Still to prove:
    dialer asked for in it are exactly `(exchange … X Y (opening Y w)).1`,
    and the ids the dialer offered or the peer asked for are exactly its
    `.2`. The base
-   case is proven (`conn_answers_ids`, a claim of ids). Still to come:
+   case is proven with bounded ask admission (`conn_answers_ids`, a claim
+   of ids): offers remain exact, wants take only the admitted subset.
+   Completing a large difference now spans rounds. Still to come:
    fingerprint claims, whose answers are claims of their own, and
    delivery in any order. Each side keeps the round's snapshot until
    the round ends, so the claim tree does not depend on the order.
@@ -326,16 +385,16 @@ Still to prove:
    a subset of the peer's store. With `spec_local` this gives "every op a
    windowed node holds is judged as its peer judges it", which the tests
    check.
-4. **Efficiency.** Each op's bytes are sent at most once per
-   connection; each id is offered at most once; each Valid op is walked
-   at most once; and the counting bound
+4. **Efficiency.** Repeated offers and sends are allowed when hint
+   memory resets or wants retry; at-most-once delivery is not a goal.
+   Bounds are still wanted for Valid-op closure walks and round work,
+   including the counting bound
    `claims ≤ fan · |A Δ B| · ⌈log_fan n⌉` (a mismatched range must
    contain an item of the difference).
-5. **A bound on frames waiting for the node.** The reader's buffer is
-   bounded (`buffer_bounded`), but each frame it takes goes into the
-   TCP runner's event channel, which is unbounded (`Std.Channel.new`
-   with no capacity). A peer that sends frames faster than the node
-   handles them grows that queue.
+5. **Buffering beyond the inbound queue.** The event channel now has
+   `queue` slots and blocks producers; socket admission has per-IP and
+   total caps. Total RSS, snapshots, closure caches and CPU work still
+   need separate bounds; see the peer-controlled-storage section above.
 
 ## Costs
 
@@ -357,7 +416,12 @@ Still to prove:
 
 ## Caps
 
-- `maxIds` ids per have or want (a want for more is ignored).
+- `maxIds` ids per have or want (oversized messages are ignored), and
+  at most `maxIds` retried ids per tick.
+- `maxKnown` entries in each hint/ask set; forgetting or deferral, never a drop.
+- `patience` bounds ask age; retries do not extend it.
+- `wantBytes` encoded response payload bytes plus one whole op.
+- `queue` pending inbound events, `maxSocks` sockets and `perAddr` per IP.
 - `walk` closure steps per call (the rest continues on the next tick).
 - `leaf` and `fan` bound a message's claims.
 
