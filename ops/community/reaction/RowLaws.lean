@@ -86,10 +86,9 @@ while its op waits in the outbox): what layout places is `oneLine` of it. -/
 theorem time_shown (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
     (layout f dm W d).time = Text.oneLine f (dm.cell * 4) (if d.pending then "pending" else clock d.time) := rfl
 
-/-- **The row's name is the author's name as read**, every character drawn (an
-invisible one as its own glyph: Text.name_shows), cut as `oneLine`
+/-- **The row's name is the author's name as read**, cut as `oneLine`
 cuts (a logical prefix: Text.oneLine_prefix). -/
 theorem name_placed (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
-    (layout f dm W d).name = Text.oneLine f ((W - dm.textX - dm.pad) / 2) d.name (reveal := true) := rfl
+    (layout f dm W d).name = Text.oneLine f ((W - dm.textX - dm.pad) / 2) d.name := rfl
 
 end RowLaws
