@@ -46,3 +46,7 @@ lean_exe two_nodes where
 -- A real invite and its QR code (the camera e2e's poster).
 lean_exe invite_link where
   root := `QTests.InviteLink
+
+-- Two apps joined over real TCP on loopback, each with its own node.
+lean_exe net_join where
+  root := `QTests.NetJoin

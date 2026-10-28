@@ -111,6 +111,17 @@ structure St where
   bgRow : ByteArray
   rd : Db
   wr : Writer
+  dbPath : String := ""
+  /-- The network, if this app runs one: the port its node listens on,
+  and whether it is reached on loopback (two apps on one machine, in
+  tests) instead of its LAN addresses. -/
+  netCfg : Option (Nat × Bool) := none
+  /-- The node's runner (Engine.Sync.Runner), once this device has a
+  community: it owns the writes then. Its seed, and the ids it stored
+  since the frame last took them. -/
+  net : Option Engine.Sync.Runner := none
+  netSeed : ByteArray := .empty
+  netIds : Option (IO.Ref (Array Id)) := none
   me : Chaos.Me
   live : Live := {}
   out : Array Pending := #[]
@@ -243,7 +254,13 @@ def writeAll (w : Community.Write) : M Bool := do
       return false
   modify fun s => { s with out := s.out ++ pend }
   noticeLocal (pend.toList.flatMap (·.keys))
-  s.wr.submit ⟨w.ops, w.blobs, true⟩
+  match s.net with
+  | some r =>
+    -- the node owns the store's writes; blob bytes are the app's own table
+    for b in w.blobs do
+      let _ ← s.rd.query "INSERT OR IGNORE INTO blobs (hash, bytes) VALUES (?, ?)" #[sha256 b, b]
+    r.write w.ops
+  | none => s.wr.submit ⟨w.ops, w.blobs, true⟩
   return true
 
 def write (o : Op) : M Bool := writeAll ⟨[o], []⟩
@@ -473,6 +490,15 @@ def hexShort (b : ByteArray) : String :=
 /-- A toast, for about 3 s (libquiet's: an outcome stated, then gone). -/
 def say (t : String) : M Unit := modify fun s => { s with toast := some (t, s.frames + 180) }
 
+/-- Where this device is dialed: its LAN addresses at the node's port
+(Link.hints, Wi-Fi first), or loopback in a one-machine test. -/
+def listenHints : M (List ByteArray) := do
+  let s ← get
+  let (port, loop) := s.netCfg.getD (Link.port, false)
+  if loop then return [s!"127.0.0.1:{port}".toUTF8]
+  let addrs ← try Link.local? catch _ => pure []
+  return Link.hints addrs port
+
 /-- Open a page (the current one goes on the back stack). -/
 def openPage (p : PageId) : M Unit := do
   let s ← get
@@ -482,8 +508,7 @@ def openPage (p : PageId) : M Unit := do
   if p == .invite && !s.me.waiting && !(s.links.any (·.1 == s.me.c)) then
     let bearer ← Chaos.freshSeed "bearer"
     -- dial hints: this device's private LAN addresses (Link.hints)
-    let addrs ← try Link.local? catch _ => pure []
-    let (w, i) := Community.inviteTo s.me.c s.me.adm s.me.seed bearer (Link.hints addrs)
+    let (w, i) := Community.inviteTo s.me.c s.me.adm s.me.seed bearer (← listenHints)
     if ← writeAll w then
       modify fun s => { s with links := (s.me.c, i.text) :: s.links }
   s.io.scrollTo 0
@@ -538,6 +563,44 @@ def found (n myName : String) : M Unit := do
     if let some r := w.ops[1]? then
       refreshComms
       switchToId r.id
+
+/-- The node: started once this device has a community (its device
+seed is the node's: the hooks dial, answer and seal as that device),
+restarted if the current community's device differs. Until it runs,
+writes go to the local writer; it starts once that writer is idle, so it
+boots from everything written. -/
+def netStep : M Unit := do
+  let s ← get
+  let some (port, _) := s.netCfg | return
+  if s.me.seed.isEmpty || (s.net.isSome && s.netSeed == s.me.seed) then return
+  if (← s.wr.busy.get) > 0 then return
+  if let some r := s.net then r.stop
+  let listen := ((← listenHints).head?).getD s!"127.0.0.1:{port}".toUTF8
+  let ids ← IO.mkRef #[]
+  let x : Engine.Sync.Sync SF (SqlM SF) :=
+    { fam, cfg := { every := 30000, patience := 20000 },
+      hooks := Connection.hooks fam Connection.sodium s.me.seed listen }
+  try
+    let db ← Db.openAt s.dbPath
+    let r ← Engine.Sync.Runner.start x db 0 port.toUInt16 (fun is => ids.modify (· ++ is.toArray))
+    IO.eprintln s!"node: listening on {r.port}, dialed as {(String.fromUTF8? listen).getD "?"}"
+    modify fun s => { s with net := some r, netSeed := s.me.seed, netIds := some ids }
+  catch e =>
+    IO.eprintln s!"node: cannot start: {e}"
+    modify fun s => { s with netCfg := none }
+
+/-- The keys the node's commits filed, for the live answers: each stored
+id's own key and its fact's (read back on the frame's connection). -/
+def netKeys : M (Array ByteArray) := do
+  let s ← get
+  let some ref := s.netIds | return #[]
+  let ids ← ref.modifyGet fun is => (is, #[])
+  let mut ks := #[]
+  for x in ids do
+    ks := ks.push (opKey x)
+    let a ← (listSql (F := SF) { key := opKey x, limit := some 1 }).run s.rd
+    for (_, f) in a.rows do ks := ks ++ (fam.keys f).toArray
+  return ks
 
 /-- Join with QR code: the camera on while the page shows; each new
 frame drawn in the page's square (Camera.preview: it reads only inside the
@@ -943,8 +1006,8 @@ def command (line : String) : M Bool := do
     match r with
     | .error e => s.io.ctlReply s!"error {e}"
     | .ok as =>
-      let addrs ← Link.local?
-      s.io.ctlReply s!"{as.size} interfaces; hints {(Link.hints addrs).map fun h => (String.fromUTF8? h).getD "?"}"
+      let hs ← listenHints
+      s.io.ctlReply s!"{as.size} interfaces; hints {hs.map fun h => (String.fromUTF8? h).getD "?"}"
   | "chaos" =>
     let n := (ws[1]? >>= String.toNat?).getD 500
     let srcs ← match s.srcs with
@@ -1110,7 +1173,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   modify fun s => { s with Hs := hs, insetTop := it, insetBot := ib }
   -- 1. notices
   let s ← get
-  let ns ← s.wr.takeNotices
+  let ns := (← s.wr.takeNotices) ++ (← netKeys)
   if !ns.isEmpty then
     let decided := s.out.filter fun p => ns.contains (opKey p.op.id)
     modify fun s => { s with
@@ -1203,6 +1266,7 @@ def step (evs : List Event) : M (Option (List Event)) := do
   refreshAsking
   refreshMembers
   scanStep
+  netStep
   -- admitted in a community I joined: my first profile (the name I chose).
   -- introduce is a view run through the live cache, so it is re-evaluated
   -- only when a list it read changes, and writes nothing once a profile
@@ -1273,7 +1337,8 @@ partial def loop (evs : List Event) : M Unit := do
 
 /-- The app's state at start: the window's size, the font, both
 connections, this node's identity (the community founded on first run). -/
-def start (io : Io) (screen : Array UInt32) (dbPath : String) : IO St := do
+def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat × Bool) := none) :
+    IO St := do
   let W := (screen[0]?.getD 1080).toNat
   let Hs := (screen[1]?.getD 2400).toNat
   let font ← Font.load
@@ -1291,6 +1356,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) : IO St := do
   return { io := io, W := W, Hs := Hs, insetTop := (screen[2]?.getD 0).toNat, catalog := catalog,
            dim := ⟨(screen[4]?.getD 420).toNat, font.cell⟩,
            insetBot := (screen[3]?.getD 0).toNat, font := font, bgRow := solid Row.bg W, rd := rd,
-           wr := wr, me := me, comms := comms, cur := me.c, page := if comms.isEmpty then .getStarted else .home }
+           wr := wr, me := me, comms := comms, cur := me.c, page := if comms.isEmpty then .getStarted else .home,
+           dbPath := dbPath, netCfg := net }
 
 end App

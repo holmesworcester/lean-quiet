@@ -19,7 +19,7 @@ import Quiet.Paint
 namespace Link
 open Paint
 
-/-- The port the node listens on. -/
+/-- The port the node listens on (the app's default). -/
 def port : Nat := 47100
 
 /-- A private IPv4 address (10/8, 172.16/12, 192.168/16). -/
@@ -30,27 +30,34 @@ def isPrivate (o : List Nat) : Bool :=
   | [192, 168, _, _] => true
   | _ => false
 
-def hintOf (o : List Nat) : String :=
+def hintOf (o : List Nat) (port : Nat) : String :=
   String.intercalate "." (o.map toString) ++ ":" ++ toString port
 
-/-- The dial hints for these addresses (octets, loopback or not): the
-private IPv4 ones, at most 8, in order. -/
-def hints (addrs : List (List Nat × Bool)) : List ByteArray :=
-  (((addrs.filter fun (o, lo) => !lo && isPrivate o).map fun (o, _) => (hintOf o).toUTF8).filter
-    (·.size ≤ 255)).take 8
+/-- An interface's rank: Wi-Fi first (Android's wlan*, Apple's en*), then
+wired, then the rest (a phone's cellular rmnet* is private too, and a
+joiner dials the first hint). -/
+def rank (name : String) : Nat :=
+  if name.startsWith "wlan" || name.startsWith "en" then 0
+  else if name.startsWith "eth" then 1 else 2
+
+/-- The dial hints for these addresses (interface, octets, loopback or
+not) and port: the private IPv4 ones, Wi-Fi first, at most 8. -/
+def hints (addrs : List (String × List Nat × Bool)) (port : Nat := port) : List ByteArray :=
+  let ok := (addrs.filter fun (_, o, lo) => !lo && isPrivate o).mergeSort fun a b => rank a.1 ≤ rank b.1
+  ((ok.map fun (_, o, _) => (hintOf o port).toUTF8).filter (·.size ≤ 255)).take 8
 
 /-- **Every hint fits the link** (`Invite.Valid`'s hint clause). -/
-theorem hints_fit (a : List (List Nat × Bool)) :
-    (hints a).length ≤ 8 ∧ ∀ h ∈ hints a, h.size ≤ 255 := by
+theorem hints_fit (a : List (String × List Nat × Bool)) (port : Nat) :
+    (hints a port).length ≤ 8 ∧ ∀ h ∈ hints a port, h.size ≤ 255 := by
   refine ⟨by simp only [hints, List.length_take]; omega, fun h hm => ?_⟩
   have := (List.mem_filter.1 (List.mem_of_mem_take hm)).2
   simpa using this
 
 /-- This device's addresses, as `hints` takes them. -/
-def local? : IO (List (List Nat × Bool)) := do
+def local? : IO (List (String × List Nat × Bool)) := do
   let as ← Std.Net.interfaceAddresses
   return as.toList.filterMap fun a => match a.address with
-    | .v4 v => some (v.octets.toList.map (·.toNat), a.isLoopback)
+    | .v4 v => some (a.name, v.octets.toList.map (·.toNat), a.isLoopback)
     | .v6 _ => none
 
 /-- Pixels a module, for a symbol of n modules (and a 4-module quiet zone

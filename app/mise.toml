@@ -60,3 +60,7 @@ run = "ios/ship.sh e2e-device"
 description = "Join with QR code on this suite's own emulator (lean-quiet-scan, emulator-5590): a real invite's code on the virtual scene's wall, scanned by the app's camera; it must land on Choose a name with exactly that link"
 depends = ["android:apk"]
 run = "android/test/scan_e2e.sh out/quiet.apk out/scan"
+
+[tasks."host:net-join"]
+description = "Two apps, each its own database and node (the engine's Runner with the Connection family), joined over real TCP on loopback by their own pages: invite, paste, agree, the request over TCP, approve, admission by sync, a post back"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build net_join && .lake/build/bin/net_join out/net"
