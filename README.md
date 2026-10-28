@@ -14,9 +14,11 @@ Can we also prove the absence of the *qualitative* bugs that only show up in cer
 
 There is something exhilarating about adding a proof where one would usually add an end-to-end test. Sci fi. 🪐 
 
+# What it looks like
+
 <p align="center"><img src="docs/media/android-demo.webp" width="300" alt="Lean Quiet on Android: a message, Hebrew, Arabic and mixed scripts, a heart reaction, a photo, then flings through 1,000 messages"></p>
 
-<p align="center"><em>On an Android emulator: a message, Hebrew, Arabic and mixed scripts, a ❤️ reaction, a photo, then flings through 1,000 messages. Lean draws everything in the app's window (the status bar is Android's, and the keyboard is a scripted demo input method), and what the frames show has proofs: each frame reads one moment of the store, and text keeps every character through wrapping and bidi.</em></p>
+<p align="center"><em>The status bar and keyboard are Android's, the rest is Lean Quiet.</em></p>
 
 ## What is proven
 
@@ -130,9 +132,10 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 599 rest on Lean's standard axioms
-only, and about three fifths of its theorems (363 of 599) are about
-the code that runs; the rest are over models so far
+that rests on; 🥊 is supporting. All 619 rest on Lean's standard axioms
+only, and about three fifths of its theorems (382 of 598, not counting 21 negative controls) are about the code that runs; another 7 run the
+phone's node code over a modelled network and plain transport (the
+World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
 
 | | | Guarantee | Theorems |
@@ -233,26 +236,26 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**363 of 599 laws are about running code;** 236 are not yet. Stated only: `Plans.present_count_stmt`, `Plans.react_sound_stmt`, `Plans.react_live_stmt`, `Plans.present_window_stmt`, `Plans.present_window_cost_stmt`, `Plans.react_reads_stmt`, `Plans.react_scans_stmt`.
+**382 of 598 laws are about running code;** another 7 run its node code in a World, and 209 are not yet. Stated only: 7 in `Plans`. 21 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
-| Area | Laws | About running code | Not yet |
-|---|---|---|---|
-| Engine | 117 | 39 | 78 |
-| Sync | 82 | 81 | 1 |
-| mDNS | 3 | 0 | 3 |
-| Node and wire | 35 | 19 | 16 |
-| Bootstrap | 11 | 0 | 11 |
-| Connections | 36 | 33 | 3 |
-| Community | 167 | 145 | 22 |
-| QR codes | 10 | 10 |  |
-| Pictures | 13 | 0 | 13 |
-| Screen | 104 | 21 | 83 |
-| App | 21 | 15 | 6 |
+| Area | Laws | About running code | In a World | Not yet |
+|---|---|---|---|---|
+| Engine | 118 | 53 |  | 65 |
+| Sync | 82 | 81 |  | 1 |
+| mDNS | 3 | 0 |  | 3 |
+| Node and wire | 35 | 19 | 7 | 9 |
+| Bootstrap | 11 | 0 |  | 11 |
+| Connections | 36 | 33 |  | 3 |
+| Community | 163 | 150 |  | 13 |
+| QR codes | 10 | 10 |  |  |
+| Pictures | 13 | 0 |  | 13 |
+| Screen | 107 | 21 |  | 86 |
+| App | 20 | 15 |  | 5 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
-| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]*†, [`order_local`]*†, [`sealed_unopened`]*†, [`sealed_auth`]*†, [`purge_cached`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`write_offers_all`], [`close_gone`]*†, [`allowPeer_iff`], [`allowPeer_settles`], [`stored_capped`]*, [`fed_reqs`]*, [`step_reads_fed`], [`oneOpPerId_of`]* | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
-| `World.peer`, `Setup.sync`, `Who.other` +8 | [`stream_delivers`]†, [`stream_delivers_steps`]†, [`stream_delivers_runs`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`stream_offered`]†, [`stream_offered_runs`]†, [`write_offers_all`], [`fanout_offers`], [`seal_mem`] | A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does. |
+| `World.peer`, `Setup.sync`, `Who.other` +7 | 7 World laws; not yet: [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`write_offers_all`] | Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired. |
+| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]† +21 more | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
 | `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
@@ -261,84 +264,25 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Seam.place`, `Geom.composerTop`, `Geom.viewNow` +5 | [`placed_row`]†, [`visible_in_viewport`]†, [`newest_visible`]†, [`newest_drawn`]†, [`pinned_row`]†, [`pinned_visible`]†, [`pinned_tap`]† | The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are. |
 | `Grid.ctop` (restates `Sheet.gridRow`) | [`hit_iff`]†, [`hit_cell`]*†, [`keys_disjoint`]*†, [`reachable`]† | Its index arithmetic, and App's sheet rows'. Todo: have the painter place keys by `Grid.ctop`. |
 | `Sync.keeps` | [`buffer_bounded`]*† | The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s. |
-| `Pic.decode`, `Geom.box`, `Rgba.wellFormed` +7 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]†, [`decode_sized`]† | Runs only in qr's Android harness; the app has its own QOI (`Qoi.decode`) and tray: use `Pic` in the app, or prove these of its code. |
+| `Pic.decode`, `Geom.box`, `Rgba.wellFormed` +7 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]† +1 more | Runs only in qr's Android harness; the app has its own QOI (`Qoi.decode`) and tray: use `Pic` in the app, or prove these of its code. |
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
 | `Arrival.lit` | [`lit_zero`], [`lit_mono`], [`lit_full`], [`lit_clockwise`], [`ring_counts`] | `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`. |
-| `Subs.notify`, `ListQ.kept`, `ListQ.watch` +15 | [`window_ne_iff`], [`window_ne_iff_flips`], [`notice_iff`]†, [`rank_spec`], [`find_build`], [`find_iff`], [`mem_notifyM`], [`has_ofList`], [`has_add`], [`has_keep`], [`add_wf`], [`keep_wf`], [`ofList_wf`], [`mem_net`], [`read_rows_iff`]†, [`read_notice_iff`]†, [`watch_stable`]†, [`eval_counting`], [`rank_costs`], [`find_costs`]†, [`notify_cost`]†, [`exact_silent`], [`screen_subs`]†, [`hull_near`]†, [`screen_index`], [`keep_scrolled_off`]†, [`Engine.window_rows`]† | Nothing on main notices through the window index: the app's cache does on app-1e with fd/window-subs-app3 (`Data.Live.notice`, `Live.store`, `Q.win`); land it. |
-| `Frame.wants`, `Subs.ofList`, `Frame.listWins` +2 | [`has_ofList`], [`ofList_wf`], [`exact_silent`], [`screen_subs`]†, [`hull_near`]†, [`screen_index`], [`keep_scrolled_off`]†, [`past_hull_le`]† | Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan). |
-| `Mutants.σ`, `Mutants.fam`, `Mutants.keyNotified` +4 | [`key_notice_imprecise`]†, [`exact_silent`], [`unnetted_imprecise`]† | Negative controls, on a one-op world of their own, meant not to run: they show notices by key and an unnetted journal imprecise. |
-| `Board.put`, `Board.keep`, `Board.take` | [`put_same`], [`put_moves`], [`ver_ident`]*, [`fresh`]*, [`seen_put`], [`seen_take`], [`seen_keep`] | holmes-1e's reader (app-1e's ops/app/Reader.lean) puts and the frame takes through the board; it lands with that reader. |
-| `Board.apply` | [`seen_take`] | The frame shows the board's values through it once holmes-1e's reader lands (app-1e's App.step). |
-| `Live.pickM`, `Live.pick` | [`pick_eq`], [`pickM_cost`] | Reader.pass's pick (app-1e), which lands with the reader. |
-| `Live.markM`, `Live.mark` | [`mem_mark`], [`markM_cost`] | Reader.pass's mark (app-1e), which lands with the reader. |
-| `Live.markHitM`, `Live.markHit` | [`mem_markHit`], [`markHitM_cost`] | Reader.pass's mark at rest (the diff sent to holmes-1e), which lands with the reader. |
-| `T.findM`, `T.setM`, `T.startM` +1 | [`findM_cost`], [`startM_cost`], [`setM_cost`], [`rows_cost`], [`rebuild_ok`] | The frame's rows by window (holmes-1e's Cover over a windowed read) call the tree; until then App's `bottoms` walks every row. |
-| `Merkle.rootAndProofsSlowM` | [`val_rootAndProofsSlowM`], [`slow_hashes`], [`slow_over_budget`] | Nothing that runs calls it. |
-| `Community.approveWrapAll` | [`wrapAll_over`] | Nothing that runs calls it. |
+| `Subs.notify`, `ListQ.kept`, `ListQ.watch` +15 | [`window_ne_iff`], [`window_ne_iff_flips`], [`notice_iff`]†, [`rank_spec`], [`find_build`], [`find_iff`], [`mem_notifyM`], [`has_ofList`], [`has_add`], [`has_keep`], [`add_wf`], [`keep_wf`] +14 more | Nothing on main notices through the window index: the app's cache does on app-1e with fd/window-subs-app3 (`Data.Live.notice`, `Live.store`, `Q.win`); land it. |
+| `Frame.wants`, `Subs.ofList`, `Frame.listWins` +2 | [`has_ofList`], [`ofList_wf`], [`screen_subs`]†, [`hull_near`]†, [`screen_index`], [`keep_scrolled_off`]†, [`past_hull_le`]† | Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan). |
+| `Pics.after`, `Pics.costIn` | [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`] | The picture doors as data (`PicM`), measured: the app's own doors (its decode table and frame counter) are not shown to answer as `PicM`'s. Prove they do, or state these over them. |
+| `Board.put`, `Board.apply`, `Board.keep` +23 | [`put_same`], [`put_moves`], [`ver_ident`]*, [`fresh`]*, [`seen_put`], [`seen_take`], [`seen_keep`], [`World.inv_commit`], [`mem_mark`], [`pick_eq`], [`markM_cost`], [`pickM_cost`] +31 more | The change signal's board and reader, as a model (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's cache (`Data.Live`) does not run `Board`. Have the reader use it. |
+| `T.sum`, `Both.bottom`, `Both.rowAt` +16 | [`start_eq`], [`find_spec`], [`set_toList`], [`push_ok`], [`findM_cost`], [`startM_cost`], [`setM_cost`], [`rows_cost`], [`start_mono`], [`start_size`], [`below_window`], [`above_window`] +8 more | The row-heights tree (engine/renderer/Heights.lean): the app keeps its rows' heights in a map (`App.heightOf`) and adds them up itself. Have its list frame place rows by `Heights`. |
 | `Community.reactTo` | [`reactTo_authored`] | Nothing that runs calls it. |
 | `Community.rename` | [`rename_authored`] | Nothing that runs calls it. |
-| `Codec.decBytesListM` | [`slow_bytes_over_budget`] | Nothing that runs calls it. |
-| `Codec.digitsSlowM` | [`val_digitsSlowM`], [`work_digitsSlowM`], [`slow_digits_over_budget`] | Nothing that runs calls it. |
-| `Codec.readAllM` | [`readAllM_eq`] | Nothing that runs calls it; `Codec.decBytesListM` do. |
-| `CostT.bind` | [`val_rootAndProofsM`], [`rootAndProofs_hashes`], [`rootAndProofs_hashes_lt`], [`rootAndProofs_hashed`], [`rootAndProofs_hashed_lt`], [`val_rootAndProofsSlowM`], [`slow_hashes`], [`slow_over_budget`], [`val_decNatFromM`], [`work_digitsM`], [`work_decNatFromM`], [`val_decBytesFromM`], [`work_decBytesFromM`], [`cost_decBytesFromM_at`], [`val_digitsSlowM`], [`work_digitsSlowM`], [`slow_digits_over_budget`], [`readAllM_eq`], [`slow_bytes_over_budget`], [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`], [`imageV_over_budget`], [`within_bind`], [`within_bindP`], [`costs_bind`], [`costs_bindP`], [`ingest_costs`], [`statuses_costs`], [`waitOn_costs`], [`decide_costs`], [`step_costs`], [`step_capped`], [`decide_reads`], [`step_reads_fed`], [`view_lists`], [`markM_cost`], [`pickM_cost`], [`markHitM_cost`], [`scanM_cost`], [`findM_cost`], [`startM_cost`], [`setM_cost`], [`rows_cost`], [`buildM_cost`], [`rebuild_cost`], [`rank_costs`], [`find_costs`]†, [`notify_cost`]† | Nothing that runs calls it. |
-| `CostT.charged` | [`image_steady`], [`image_settles`], [`image_twice`], [`imageV_over_budget`], [`ingest_costs`], [`statuses_costs`], [`waitOn_costs`], [`decide_costs`], [`step_costs`], [`step_capped`], [`decide_reads`], [`step_reads_fed`] | Nothing that runs calls it; `CostT.lift` do. |
-| `CostT.chargedBy` | [`costs_bindP`], [`decide_costs`], [`step_costs`], [`step_capped`], [`decide_reads`], [`step_reads_fed`], [`list_costs`], [`view_lists`] | Nothing that runs calls it. |
-| `CostT.lift` | [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`], [`imageV_over_budget`] | Nothing that runs calls it. |
-| `CostT.pure` | [`val_rootAndProofsM`], [`rootAndProofs_hashes`], [`rootAndProofs_hashes_lt`], [`rootAndProofs_hashed`], [`rootAndProofs_hashed_lt`], [`val_rootAndProofsSlowM`], [`slow_hashes`], [`slow_over_budget`], [`val_decNatFromM`], [`work_digitsM`], [`work_decNatFromM`], [`val_decBytesFromM`], [`work_decBytesFromM`], [`cost_decBytesFromM_at`], [`val_digitsSlowM`], [`work_digitsSlowM`], [`slow_digits_over_budget`], [`readAllM_eq`], [`slow_bytes_over_budget`], [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`], [`imageV_over_budget`], [`costs_bindP`], [`ingest_costs`], [`statuses_costs`], [`waitOn_costs`], [`decide_costs`], [`step_costs`], [`step_capped`], [`decide_reads`], [`step_reads_fed`], [`view_lists`], [`markM_cost`], [`pickM_cost`], [`markHitM_cost`], [`scanM_cost`], [`findM_cost`], [`startM_cost`], [`setM_cost`], [`rows_cost`], [`buildM_cost`], [`rebuild_cost`], [`rank_costs`], [`find_costs`]†, [`notify_cost`]† | Nothing that runs calls it. |
-| `CostT.run` | [`within_bind`], [`within_bindP`], [`Costs.time`], [`Costs.mono`], [`costs_bind`], [`costs_bindP`], [`ingest_costs`], [`statuses_costs`], [`waitOn_costs`], [`decide_costs`], [`step_costs`], [`step_capped`], [`within_at`], [`decide_reads`], [`list_costs`], [`view_lists`], [`rank_costs`], [`find_costs`]† | Nothing that runs calls it; `CostT.bind`, `Counted.cost`, `Counted.val` +1 do. |
-| `Counted.cost` | [`rootAndProofs_hashes`], [`rootAndProofs_hashes_lt`], [`rootAndProofs_hashed`], [`rootAndProofs_hashed_lt`], [`slow_hashes`], [`slow_over_budget`], [`work_digitsM`], [`work_decNatFromM`], [`work_decBytesFromM`], [`cost_decBytesFromM_at`], [`work_digitsSlowM`], [`slow_digits_over_budget`], [`readAllM_eq`], [`slow_bytes_over_budget`], [`markM_cost`], [`pickM_cost`], [`markHitM_cost`], [`scanM_cost`], [`findM_cost`], [`startM_cost`], [`setM_cost`], [`rows_cost`], [`buildM_cost`], [`rebuild_cost`], [`notify_cost`]† | Nothing that runs calls it. |
-| `Counted.val` | [`val_rootAndProofsM`], [`val_rootAndProofsSlowM`], [`val_decNatFromM`], [`val_decBytesFromM`], [`val_digitsSlowM`], [`readAllM_eq`] | Nothing that runs calls it. |
-| `Meter.time` | [`Costs.time`] | Nothing that runs calls it. |
 | `Engine.cr` | [`within_at`], [`step_reads_fed`] | Nothing that runs calls it. |
-| `Engine.listCost` | [`list_costs`], [`view_lists`] | Nothing that runs calls it. |
-| `Both.bottom` | [`rowAt_spec`] | Nothing that runs calls it. |
-| `Both.rowAt` | [`rowAt_spec`] | Nothing that runs calls it. |
-| `Both.top` | [`rowAt_spec`] | Nothing that runs calls it. |
-| `Rows.push` | [`push_ok`] | Nothing that runs calls it; `Heights.Both.pushNewer`, `Heights.Both.pushOlder` do. |
-| `T.build` | [`build_ok`] | Nothing that runs calls it; `Heights.rebuild` do. |
-| `T.buildM` | [`buildM_cost`], [`rebuild_cost`] | Nothing that runs calls it; `T.build` do. |
-| `T.depth` | [`set_toList`], [`findM_cost`], [`startM_cost`], [`setM_cost`] | Nothing that runs calls it. |
-| `T.find` | [`find_spec`], [`below_window`], [`above_window`] | Nothing that runs calls it; `Both.rowAt` do. |
-| `T.set` | [`set_toList`] | Nothing that runs calls it; `Rows.push` do. |
-| `T.size` | [`start_eq`], [`find_spec`], [`set_toList`], [`push_ok`], [`rows_cost`], [`start_mono`], [`start_size`], [`below_window`], [`above_window`], [`rowAt_spec`], [`build_ok`], [`rebuild_ok`] | Nothing that runs calls it; `Heights.T.mk` do. |
-| `T.start` | [`start_eq`], [`find_spec`], [`start_mono`], [`start_size`], [`below_window`], [`above_window`] | Nothing that runs calls it; `Both.bottom`, `Both.top`, `Heights.screenY` do. |
-| `T.sum` | [`start_eq`], [`find_spec`], [`set_toList`], [`push_ok`], [`rows_cost`], [`start_mono`], [`start_size`], [`below_window`], [`above_window`], [`rowAt_spec`], [`build_ok`], [`rebuild_ok`] | Nothing that runs calls it; `Both.bottom`, `Both.rowAt`, `Both.top` +1 do. |
-| `T.toList` | [`start_eq`], [`set_toList`], [`push_ok`], [`rows_cost`], [`build_ok`], [`rebuild_ok`] | Nothing that runs calls it. |
-| `Heights.clog` | [`le_pow_clog`], [`clog_least`], [`rebuild_cost`] | Nothing that runs calls it; `Heights.rebuild` do. |
-| `Heights.screenY` | [`anchor_stable`] | Nothing that runs calls it. |
-| `Eager.eager` | [`eager_stale`] | Nothing that runs calls it. |
-| `Eager.eval` | [`w1_inv`], [`eager_stale`], [`marked_fresh`] | Nothing that runs calls it. |
-| `Eager.hits` | [`w1_inv`], [`eager_stale`], [`marked_fresh`] | Nothing that runs calls it. |
-| `Eager.reads` | [`w1_inv`], [`eager_stale`], [`marked_fresh`] | Nothing that runs calls it. |
-| `Eager.w1` | [`w1_inv`], [`eager_stale`], [`marked_fresh`] | Nothing that runs calls it. |
-| `Gated.quiet` | [`gated_stale`] | Nothing that runs calls it. |
-| `Gated.w5` | [`gated_stale`], [`ungated_fresh`] | Nothing that runs calls it. |
-| `RWorld.commit` | [`RWorld.inv_commit`] | Nothing that runs calls it. |
-| `RWorld.evict` | [`inv_evict`] | Nothing that runs calls it. |
-| `RWorld.frame` | [`settleWith`], [`settle_idx`], [`RWorld.inv_frame`], [`RWorld.settle`], [`eager_stale`], [`marked_fresh`] | Nothing that runs calls it. |
 | `RWorld.markIdx` | [`marked_sub_idx`], [`settle_idx`] | Nothing that runs calls it; `RWorld.passIdx` do. |
-| `RWorld.marked` | [`inv_passWith`], [`settleWith`], [`marked_sub_idx`], [`RWorld.settle`] | Nothing that runs calls it; `RWorld.pass` do. |
-| `RWorld.pass` | [`RWorld.inv_pass`], [`RWorld.settle`], [`marked_fresh`] | Nothing that runs calls it. |
-| `RWorld.passEager` | [`eager_stale`] | Nothing that runs calls it. |
-| `RWorld.passIdx` | [`rest_idle`], [`inv_passIdx`], [`settle_idx`], [`idxok_passIdx`] | Nothing that runs calls it. |
+| `RWorld.passIdx` | [`rest_idle`], [`inv_passIdx`], [`settle_idx`], [`idxok_passIdx`], [`countok_passIdx`] | Nothing that runs calls it. |
 | `RWorld.passWith` | [`inv_passWith`], [`settleWith`] | Nothing that runs calls it; `RWorld.pass`, `RWorld.passIdx` do. |
 | `RWorld.wantIdx` | [`idxok_want`] | Nothing that runs calls it. |
-| `World.afterActs` | [`acts_shown`] | Nothing that runs calls it. |
-| `World.commit` | [`World.inv_commit`], [`fold_commits`] | Nothing that runs calls it; `Live.Gated.w4`, `Live.World.runActs` do. |
-| `World.frame` | [`World.inv_frame`], [`World.settle`], [`settle_passes`], [`ungated_fresh`], [`acts_shown`] | Nothing that runs calls it; `Live.Gated.frameGated`, `Live.Gated.w4` do. |
-| `World.marked` | [`World.settle`], [`marked_pass`], [`settle_passes`] | Nothing that runs calls it; `World.pass` do. |
-| `World.pass` | [`World.inv_pass`], [`World.settle`], [`marked_pass`], [`settle_passes`] | Nothing that runs calls it; `Live.Gated.w4`, `Gated.w5`, `World.passActs` do. |
-| `World.passActs` | [`acts_shown`], [`passActs_acts`], [`passActs_comp`], [`passActs_indep`] | Nothing that runs calls it. |
-| `World.type` | [`type_only`] | Nothing that runs calls it. |
-| `Live.scanM` | [`scanM_cost`] | Nothing that runs calls it. |
-| `Live.staleW` | [`RWorld.inv_commit`], [`inv_passWith`], [`settleWith`], [`marked_sub_idx`], [`inv_passIdx`], [`settle_idx`], [`idxok_want`], [`idxok_passIdx`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`], [`w1_inv`] | Nothing that runs calls it; `RWorld.marked`, `RWorld.passEager` do. |
-| `Pics.after` | [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`] | Nothing that runs calls it. |
-| `Pics.costIn` | [`decoded_started`], [`image_steady`], [`image_twice`], [`imageV_over_budget`] | Nothing that runs calls it. |
-| `Pics.imageV` | [`imageV_over_budget`] | Nothing that runs calls it. |
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`no_injective_hash`]†, [`nodup_full`], [`Symbolic.good`], [`exposed_parts`], [`pageIn_acc`]†, [`model_fits`], [`mem_eraseAll`], [`Heights.window_rows`] | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +17 more | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
@@ -350,8 +294,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 164 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
-| [`Engine.runJ`] | 7 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
+| [`Model.run`] | 161 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`Engine.Inv`] | 52 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
 
@@ -1017,8 +961,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L903-L907
-[`pageIn_acc`]: App.lean#L909-L912
+[`drawPage_key`]: App.lean#L911-L915
+[`pageIn_acc`]: App.lean#L917-L920
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
@@ -1045,23 +989,17 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`fit_round`]: engine/renderer/pic/Laws.lean#L87-L90
 [`Pic.layout_inside`]: engine/renderer/pic/Laws.lean#L170-L172
 [`Pic.layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
-[`reach_drain`]: engine/core/Proofs.lean#L529-L530
 [`write_offers`]: engine/wire/WorldLaws.lean#L425-L433
 [`hold_wants`]: engine/wire/WorldLaws.lean#L442-L448
 [`want_sends`]: engine/wire/WorldLaws.lean#L457-L464
 [`op_taken`]: engine/wire/WorldLaws.lean#L487-L494
 [`write_offers_all`]: engine/wire/WorldLaws.lean#L1160-L1172
-[`allowPeer_iff`]: ops/connection/bootstrap/Bridge.lean#L29-L32
-[`allowPeer_settles`]: ops/connection/bootstrap/Bridge.lean#L35-L39
-[`stored_capped`]: engine/core/Sync.lean#L186-L189
-[`fed_reqs`]: engine/core/IngestCost.lean#L167-L171
-[`step_reads_fed`]: engine/core/IngestCost.lean#L241-L247
-[`oneOpPerId_of`]: engine/core/WindowLaws.lean#L669-L672
-[`fanout_offers`]: engine/wire/WorldLaws.lean#L1017-L1023
-[`seal_mem`]: engine/wire/WorldLaws.lean#L1129-L1133
+[`reach_drain`]: engine/core/Proofs.lean#L529-L530
 [`admitted_inv`]: ops/connection/bootstrap/Scene.lean#L154-L156
 [`allowedA`]: ops/connection/bootstrap/Scene.lean#L219-L219
 [`allowedB`]: ops/connection/bootstrap/Scene.lean#L231-L233
+[`allowPeer_iff`]: ops/connection/bootstrap/Bridge.lean#L29-L32
+[`allowPeer_settles`]: ops/connection/bootstrap/Bridge.lean#L35-L39
 [`fit_small`]: engine/renderer/pic/Laws.lean#L37-L37
 [`fit_le`]: engine/renderer/pic/Laws.lean#L50-L50
 [`fit_pos`]: engine/renderer/pic/Laws.lean#L59-L59
@@ -1069,7 +1007,6 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`layout_sizes`]: engine/renderer/pic/Laws.lean#L143-L144
 [`layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
 [`add_stored`]: engine/renderer/pic/Laws.lean#L239-L242
-[`decode_sized`]: engine/renderer/pic/Laws.lean#L198-L201
 [`decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
 [`lit_zero`]: ops/community/attachment/ArrivalLaws.lean#L84-L85
 [`lit_mono`]: ops/community/attachment/ArrivalLaws.lean#L88-L90
@@ -1088,11 +1025,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`add_wf`]: engine/core/WindowIndex.lean#L419-L419
 [`keep_wf`]: engine/core/WindowIndex.lean#L493-L493
 [`ofList_wf`]: engine/core/WindowIndex.lean#L445-L445
-[`mem_net`]: engine/core/WindowIndex.lean#L584-L585
-[`eval_counting`]: engine/core/WindowRead.lean#L440-L441
-[`rank_costs`]: engine/core/WindowCost.lean#L55-L57
-[`exact_silent`]: engine/core/WindowMutants.lean#L118-L120
 [`screen_index`]: engine/renderer/Screen.lean#L258-L261
+[`decoded_started`]: ops/app/Pics.lean#L240-L244
+[`image_steady`]: ops/app/Pics.lean#L332-L335
+[`image_settles`]: ops/app/Pics.lean#L394-L396
+[`image_twice`]: ops/app/Pics.lean#L407-L411
 [`put_same`]: engine/renderer/BoardLaws.lean#L48-L49
 [`put_moves`]: engine/renderer/BoardLaws.lean#L75-L79
 [`ver_ident`]: engine/renderer/BoardLaws.lean#L211-L216
@@ -1100,112 +1037,45 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`seen_put`]: engine/renderer/BoardLaws.lean#L232-L233
 [`seen_take`]: engine/renderer/BoardLaws.lean#L245-L246
 [`seen_keep`]: engine/renderer/BoardLaws.lean#L257-L258
-[`pick_eq`]: engine/renderer/ReaderLaws.lean#L111-L113
-[`pickM_cost`]: engine/renderer/ReaderLaws.lean#L136-L139
-[`mem_mark`]: engine/renderer/ReaderLaws.lean#L95-L97
-[`markM_cost`]: engine/renderer/ReaderLaws.lean#L127-L129
-[`mem_markHit`]: engine/renderer/RestLaws.lean#L77-L80
-[`markHitM_cost`]: engine/renderer/RestLaws.lean#L83-L86
+[`World.inv_commit`]: engine/renderer/BoardLaws.lean#L335-L336
+[`mem_mark`]: engine/renderer/ReaderLaws.lean#L99-L101
+[`pick_eq`]: engine/renderer/ReaderLaws.lean#L115-L117
+[`markM_cost`]: engine/renderer/ReaderLaws.lean#L131-L133
+[`pickM_cost`]: engine/renderer/ReaderLaws.lean#L140-L143
+[`start_eq`]: engine/renderer/Heights.lean#L148-L149
+[`find_spec`]: engine/renderer/Heights.lean#L173-L176
+[`set_toList`]: engine/renderer/Heights.lean#L202-L206
+[`push_ok`]: engine/renderer/Heights.lean#L328-L330
 [`findM_cost`]: engine/renderer/Heights.lean#L571-L571
 [`startM_cost`]: engine/renderer/Heights.lean#L589-L589
 [`setM_cost`]: engine/renderer/Heights.lean#L607-L607
 [`rows_cost`]: engine/renderer/Heights.lean#L627-L632
-[`rebuild_ok`]: engine/renderer/Heights.lean#L462-L463
-[`val_rootAndProofsSlowM`]: ops/community/MerkleCost.lean#L308-L310
-[`slow_hashes`]: ops/community/MerkleCost.lean#L339-L342
-[`slow_over_budget`]: ops/community/MerkleCost.lean#L351-L354
-[`wrapAll_over`]: ops/community/WrapLaws.lean#L90-L94
-[`reactTo_authored`]: ops/community/ReqsLaws.lean#L102-L103
-[`rename_authored`]: ops/community/ReqsLaws.lean#L121-L122
-[`slow_bytes_over_budget`]: engine/core/CodecCost.lean#L392-L395
-[`val_digitsSlowM`]: engine/core/CodecCost.lean#L166-L167
-[`work_digitsSlowM`]: engine/core/CodecCost.lean#L173-L174
-[`slow_digits_over_budget`]: engine/core/CodecCost.lean#L192-L195
-[`readAllM_eq`]: engine/core/CodecCost.lean#L371-L373
-[`val_rootAndProofsM`]: ops/community/MerkleCost.lean#L52-L55
-[`rootAndProofs_hashes`]: ops/community/MerkleCost.lean#L94-L98
-[`rootAndProofs_hashes_lt`]: ops/community/MerkleCost.lean#L112-L114
-[`rootAndProofs_hashed`]: ops/community/MerkleCost.lean#L205-L209
-[`rootAndProofs_hashed_lt`]: ops/community/MerkleCost.lean#L223-L225
-[`val_decNatFromM`]: engine/core/CodecCost.lean#L121-L122
-[`work_digitsM`]: engine/core/CodecCost.lean#L75-L78
-[`work_decNatFromM`]: engine/core/CodecCost.lean#L133-L136
-[`val_decBytesFromM`]: engine/core/CodecCost.lean#L292-L293
-[`work_decBytesFromM`]: engine/core/CodecCost.lean#L300-L303
-[`cost_decBytesFromM_at`]: engine/core/CodecCost.lean#L328-L332
-[`decoded_started`]: ops/app/Pics.lean#L240-L244
-[`image_steady`]: ops/app/Pics.lean#L332-L335
-[`image_settles`]: ops/app/Pics.lean#L394-L396
-[`image_twice`]: ops/app/Pics.lean#L407-L411
-[`imageV_over_budget`]: ops/app/Pics.lean#L447-L450
-[`within_bind`]: engine/core/Cost.lean#L210-L212
-[`within_bindP`]: engine/core/Cost.lean#L268-L271
-[`costs_bind`]: engine/core/Cost.lean#L410-L411
-[`costs_bindP`]: engine/core/Cost.lean#L425-L429
-[`ingest_costs`]: engine/core/IngestCost.lean#L44-L46
-[`statuses_costs`]: engine/core/IngestCost.lean#L56-L58
-[`waitOn_costs`]: engine/core/IngestCost.lean#L65-L67
-[`decide_costs`]: engine/core/IngestCost.lean#L96-L98
-[`step_costs`]: engine/core/IngestCost.lean#L119-L123
-[`step_capped`]: engine/core/IngestCost.lean#L153-L158
-[`decide_reads`]: engine/core/IngestCost.lean#L218-L221
-[`view_lists`]: engine/core/ListCost.lean#L78-L81
-[`scanM_cost`]: engine/renderer/RestLaws.lean#L101-L104
-[`buildM_cost`]: engine/renderer/Heights.lean#L437-L439
-[`rebuild_cost`]: engine/renderer/Heights.lean#L470-L472
-[`list_costs`]: engine/core/ListCost.lean#L32-L35
-[`Costs.time`]: engine/core/Cost.lean#L393-L395
-[`Costs.mono`]: engine/core/Cost.lean#L397-L397
-[`within_at`]: engine/core/IngestCost.lean#L200-L202
-[`rowAt_spec`]: engine/renderer/Heights.lean#L548-L551
-[`push_ok`]: engine/renderer/Heights.lean#L328-L330
-[`build_ok`]: engine/renderer/Heights.lean#L421-L422
-[`set_toList`]: engine/renderer/Heights.lean#L202-L206
-[`find_spec`]: engine/renderer/Heights.lean#L173-L176
-[`below_window`]: engine/renderer/Heights.lean#L248-L251
-[`above_window`]: engine/renderer/Heights.lean#L254-L258
-[`start_eq`]: engine/renderer/Heights.lean#L148-L149
 [`start_mono`]: engine/renderer/Heights.lean#L236-L237
 [`start_size`]: engine/renderer/Heights.lean#L244-L245
-[`le_pow_clog`]: engine/renderer/Heights.lean#L388-L388
-[`clog_least`]: engine/renderer/Heights.lean#L394-L394
-[`anchor_stable`]: engine/renderer/Heights.lean#L498-L503
-[`eager_stale`]: engine/renderer/ReaderLaws.lean#L614-L619
-[`w1_inv`]: engine/renderer/ReaderLaws.lean#L510-L510
-[`marked_fresh`]: engine/renderer/ReaderLaws.lean#L626-L628
-[`gated_stale`]: engine/renderer/BoardLaws.lean#L653-L656
-[`ungated_fresh`]: engine/renderer/BoardLaws.lean#L668-L670
-[`RWorld.inv_commit`]: engine/renderer/ReaderLaws.lean#L233-L234
-[`inv_evict`]: engine/renderer/ReaderLaws.lean#L255-L256
-[`settleWith`]: engine/renderer/ReaderLaws.lean#L409-L415
-[`settle_idx`]: engine/renderer/RestLaws.lean#L199-L204
-[`RWorld.inv_frame`]: engine/renderer/ReaderLaws.lean#L252-L252
-[`RWorld.settle`]: engine/renderer/ReaderLaws.lean#L454-L456
-[`marked_sub_idx`]: engine/renderer/RestLaws.lean#L146-L148
-[`inv_passWith`]: engine/renderer/ReaderLaws.lean#L372-L374
-[`RWorld.inv_pass`]: engine/renderer/ReaderLaws.lean#L406-L407
-[`rest_idle`]: engine/renderer/RestLaws.lean#L170-L173
-[`inv_passIdx`]: engine/renderer/RestLaws.lean#L189-L191
-[`idxok_passIdx`]: engine/renderer/RestLaws.lean#L270-L273
-[`idxok_want`]: engine/renderer/RestLaws.lean#L240-L240
-[`acts_shown`]: engine/renderer/BoardLaws.lean#L550-L557
-[`World.inv_commit`]: engine/renderer/BoardLaws.lean#L335-L336
-[`fold_commits`]: engine/renderer/BoardLaws.lean#L538-L544
-[`World.inv_frame`]: engine/renderer/BoardLaws.lean#L399-L399
-[`World.settle`]: engine/renderer/BoardLaws.lean#L405-L410
-[`settle_passes`]: engine/renderer/BoardLaws.lean#L475-L482
-[`marked_pass`]: engine/renderer/BoardLaws.lean#L448-L451
-[`World.inv_pass`]: engine/renderer/BoardLaws.lean#L373-L374
-[`passActs_acts`]: engine/renderer/BoardLaws.lean#L576-L577
-[`passActs_comp`]: engine/renderer/BoardLaws.lean#L590-L591
-[`passActs_indep`]: engine/renderer/BoardLaws.lean#L601-L604
-[`type_only`]: engine/renderer/BoardLaws.lean#L618-L620
-[`nodup_full`]: ops/community/Intents.lean#L578-L580
-[`Symbolic.good`]: ops/connection/NoiseSymbolic.lean#L296-L298
-[`exposed_parts`]: ops/connection/NoiseSymbolic.lean#L936-L939
-[`model_fits`]: engine/core/ListCost.lean#L59-L60
-[`mem_eraseAll`]: engine/renderer/ReaderLaws.lean#L115-L117
-[`Heights.window_rows`]: engine/renderer/Heights.lean#L488-L490
+[`below_window`]: engine/renderer/Heights.lean#L248-L251
+[`above_window`]: engine/renderer/Heights.lean#L254-L258
+[`reactTo_authored`]: ops/community/ReqsLaws.lean#L102-L103
+[`rename_authored`]: ops/community/ReqsLaws.lean#L121-L122
+[`within_at`]: engine/core/IngestCost.lean#L200-L202
+[`step_reads_fed`]: engine/core/IngestCost.lean#L241-L247
+[`marked_sub_idx`]: engine/renderer/RestLaws.lean#L240-L242
+[`settle_idx`]: engine/renderer/RestLaws.lean#L317-L322
+[`rest_idle`]: engine/renderer/RestLaws.lean#L264-L268
+[`inv_passIdx`]: engine/renderer/RestLaws.lean#L307-L309
+[`idxok_passIdx`]: engine/renderer/RestLaws.lean#L388-L391
+[`countok_passIdx`]: engine/renderer/RestLaws.lean#L282-L283
+[`inv_passWith`]: engine/renderer/ReaderLaws.lean#L376-L378
+[`settleWith`]: engine/renderer/ReaderLaws.lean#L413-L419
+[`idxok_want`]: engine/renderer/RestLaws.lean#L358-L358
+[`erase_run`]: engine/core/CostErase.lean#L22-L23
+[`erase_pure`]: engine/core/CostErase.lean#L25-L25
+[`erase_bind`]: engine/core/CostErase.lean#L28-L29
+[`erase_charged`]: engine/core/CostErase.lean#L38-L38
+[`erase_chargedBy`]: engine/core/CostErase.lean#L41-L41
+[`erase_lift`]: engine/core/CostErase.lean#L44-L44
+[`erase_tick`]: engine/core/CostErase.lean#L47-L47
+[`val_erase`]: engine/core/CostErase.lean#L55-L56
+[`cost_run`]: engine/core/CostErase.lean#L58-L60
 [`Seal.Good`]: ops/community/Keys.lean#L40-L43
 [`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
 [`Model.run`]: engine/core/Model.lean#L103-L103

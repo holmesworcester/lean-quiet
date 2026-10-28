@@ -45,6 +45,7 @@ import engine.core.WindowRead
 import engine.core.WindowCost
 import engine.core.WindowMutants
 import engine.renderer.Screen
+import engine.core.CostErase
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -78,6 +79,15 @@ open Engine Community
 #print axioms Engine.run_step
 #print axioms Engine.run_drain
 #print axioms Engine.run_ingest
+#print axioms Engine.CostT.erase_run
+#print axioms Engine.CostT.erase_pure
+#print axioms Engine.CostT.erase_bind
+#print axioms Engine.CostT.erase_charged
+#print axioms Engine.CostT.erase_chargedBy
+#print axioms Engine.CostT.erase_lift
+#print axioms Engine.CostT.erase_tick
+#print axioms Engine.Counted.val_erase
+#print axioms Engine.Counted.cost_run
 #print axioms Community.message_authorized
 #print axioms Community.no_impersonation
 #print axioms Community.profile_authorized
