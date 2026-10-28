@@ -299,6 +299,22 @@ def round_forward_stmt : Prop :=
     Opening Q E i j cid r kr k p X → ∀ it ∈ X, InWindow Q E i j k it →
       ∃ k', k ≤ k' ∧ (E.world k').now ≤ p.sent + 3 * N.Δ ∧ Q.Holds (E.world k') j r it.2
 
+/-- **An offer delivers:** the stream, a round's reverse leg and closure
+offers all end this way. A have of room r naming y, in flight at step k
+from j to i on a session joined from k on, both of whose ends show r
+whatever they store, with j holding y: i holds y within 3Δ of the have's
+sending, provided y is not asked on i's side of the session while the
+have is in flight (on main a lost want pins its id there, finding 8). -/
+def offer_delivers_stmt : Prop :=
+  ∀ (F : Type) (Q : Plain F) (N : Net Q.n) (E : Q.Run) (W : Nat) (i j : Fin Q.n) (cid r : Id) (k : Nat)
+    (q : Packet Q.n) (qs : List ByteArray) (H : List Id) (y : Id),
+    Fair Q N E W → N.G j i → (Joined E i j cid k ∨ Joined E j i cid k) → N.gst ≤ q.sent →
+    N.Live j i q.sent (q.sent + 3 * N.Δ) → (∀ h, r ∈ Q.rooms i h cid ∧ r ∈ Q.rooms j h cid) →
+    q ∈ (E.world k).flight → q.src = some j → q.dst = Q.addr i → plainPeek q.bytes = some (cid, qs) →
+    (Msg.hold r H).op.bytes ∈ qs → y ∈ H → Q.Holds (E.world k) j r y →
+    (∀ k' c, k ≤ k' → q ∈ (E.world k').flight → ((E.world k').node i).conn? cid = some c → y ∉ c.asked) →
+    ∃ k', k ≤ k' ∧ (E.world k').now ≤ q.sent + 3 * N.Δ ∧ Q.Holds (E.world k') i r y
+
 /-! ## Liveness: per edge -/
 
 /-- **Per-edge progress** in room r, the lemma every liveness law rests

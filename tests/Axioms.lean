@@ -28,6 +28,7 @@ import engine.world.Findings
 import engine.world.Plain
 import engine.world.Hops
 import engine.world.Pilot
+import engine.world.Offer
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -512,6 +513,17 @@ open Engine.World
 #print axioms Engine.World.onWrite_cids
 #print axioms Engine.World.connect_cids
 #print axioms Engine.World.frames_keep_sessions_proof
+#print axioms Engine.World.onHold_wants
+#print axioms Engine.World.onHold_asked
+#print axioms Engine.World.onRbsr_asked
+#print axioms Engine.World.recv_asked
+#print axioms Engine.World.filed_asked
+#print axioms Engine.World.apply_asked
+#print axioms Engine.World.frameStep_asked
+#print axioms Engine.World.have_step
+#print axioms Engine.World.frame_fold_asked
+#print axioms Engine.World.have_wants
+#print axioms Engine.World.offer_delivers
 #print axioms Engine.World.grows_all
 #print axioms Engine.World.walkN_laws
 #print axioms Engine.World.walk_proof
@@ -535,6 +547,7 @@ open Engine.World
 #print axioms Engine.World.session_stable_stmt
 #print axioms Engine.World.claim_delivers_stmt
 #print axioms Engine.World.round_forward_stmt
+#print axioms Engine.World.offer_delivers_stmt
 #print axioms Engine.World.edge_stmt
 #print axioms Engine.World.op_stmt
 #print axioms Engine.World.converge_stmt

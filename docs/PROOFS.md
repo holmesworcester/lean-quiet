@@ -27,7 +27,7 @@ The user asked:
 | | |
 |---|---|
 | The world and the network | built: engine/world/World.lean, Fair.lean |
-| Statements | 42, each a closed `Prop` with no `sorry` (engine/world/Statements.lean), audited |
+| Statements | 43, each a closed `Prop` with no `sorry` (engine/world/Statements.lean), audited |
 | Proven of the running code | **the pilot, `claim_delivers_stmt`** (`pilot`); `grows_stmt` (`grows_all`); the node invariant in every reachable world (`reach_ok`); the three hops of a round's leg (`claim_wants`, `want_sends`, `op_taken`); the walk's laws of main's `walkN` (`walk_proof`) |
 | Proven above the code | the reduction `edge_stmt → grows_stmt → converge_stmt`; from it, T-converge for 2, 3 and n peers, all-know-all and transitive; T-op, T-offline; chains, stars and webs, with their diameters |
 | False on today's code | `session_stable_stmt` (finding 1), `rooms_stmt` and `join_stmt` (finding 2): node-level witnesses in Lean. `fresh_stmt`: argued ("T-fresh" below), no Lean witness yet |
@@ -211,6 +211,7 @@ today's code (with the finding), **O** open.
 | `local_stmt` | L-local: the same ops give the same verdicts and every view the same answer | O |
 | `round_stmt` | L-round: a round carries both sides' ops within `roundTime`, whatever interleaves | O; the pilot is its first leg |
 | `round_forward_stmt` | L-round's forward leg, leaf regime: every op of the window i's index named at the opening reaches j within 3Δ | **P** (`round_forward`, from the pilot) |
+| `offer_delivers_stmt` | a have of room r naming y, from j to i on a joined session, gets y to i within 3Δ, if y is not asked at i while it is in flight (finding 8) | **P** (`offer_delivers`) |
 | `round_ends_stmt` | L-round-terminates: a round ends at both ends within (D+1)Δ | O |
 | `no_false_settle_stmt` | L-no-false-settle: "settled" means holding the peer's snapshot of the window | O |
 | `dup_concurrent_stmt` | L-dup-concurrent: frames keep sessions, idem, and `round_stmt` | O |
@@ -330,11 +331,21 @@ forward leg of a round follows: `round_forward` proves that every op of
 the window that i's index named when the round opened reaches j within
 3Δ, in the leaf regime (the index is the store, `index_store_proof`).
 
+`offer_delivers` (engine/world/Offer.lean) proves the other half of
+every delivery: a have of room r naming y, from j to i on a joined
+session, gets y to i within 3Δ, unless y is already asked at i while it
+is in flight (finding 8). It is H4 (a have of an op the node lacks, not
+yet asked, is answered with a want, over frames of any payloads), then
+H2 and H3. The stream, a round's reverse leg and closure offers each end
+with such a have.
+
 What is still open for `round_stmt` in the leaf regime:
-- the reverse leg (j's ops to i: an offer in the answer, i's want, the
-  op), with the `asked` invariant for an offer whose want went earlier.
-  a3/sync-harden changes `asked` (bounded, deferred, expiring), so this
-  waits for it to land;
+- the reverse leg's first step: j's answer to the opening offers every
+  op of j's snapshot in the range that the claim does not list. With
+  `offer_delivers` that gives the leg, within 4Δ of the opening; what
+  remains is the snapshot j answers from (the index, unless an earlier
+  message of the round left one), which simplification 4 would make the
+  index always;
 - a non-vacuity witness: a concrete fair execution satisfying the
   premises.
 
