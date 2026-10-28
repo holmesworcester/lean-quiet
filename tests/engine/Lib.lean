@@ -114,7 +114,7 @@ def workload (seed : Nat) (n : Nat) : List Op := Id.run do
         let t := if flag == 1 && w2 != 1 then 1 else if w2 == 2 then 0 else 1 + k2 % 2
         invite c a (signer dv) (Device.named s!"bearer-{seed}-{i}").pk (flag == 1) t
       | 1 =>
-        if invs.isEmpty then post c (adm k1).1 d "k".toUTF8 "early".toUTF8 else
+        if invs.isEmpty then post c (adm k1).1 d "k".toUTF8 "early".toUTF8 0 0 else
         let (inv, bearer) := invs[k1 % invs.size]!
         request c inv d (keyOf d) (if w2 == 0 then d.sk else bearer.sk)
       | 8 =>
@@ -122,7 +122,7 @@ def workload (seed : Nat) (n : Nat) : List Op := Id.run do
         let (a, dv) := adm k2
         approve c rq a (signer dv)
       | 9 =>
-        if reqs.isEmpty then post c (adm k1).1 d "k".toUTF8 "early".toUTF8 else
+        if reqs.isEmpty then post c (adm k1).1 d "k".toUTF8 "early".toUTF8 0 0 else
         let rq := reqs[k1 % reqs.size]!.1
         let mine := (apps.filter (·.1 == rq)).toList.map (·.2)
         -- Mostly the approvals held, cut to 0..2 of them; sometimes a
@@ -137,10 +137,15 @@ def workload (seed : Nat) (n : Nat) : List Op := Id.run do
         let (a, dv) := adm k1
         let auth := if w1 == 1 then a else admins[k2 % admins.size]!
         remove c a auth (adm k3).1 (signer dv)
-      | 5 => let (a, dv) := adm k1; post c a (signer dv) "k".toUTF8 s!"m{i}".toUTF8
-      | 6 => wrap c "k".toUTF8 (keyOf d) "box".toUTF8
+      | 5 =>
+        -- counters small and colliding, now and then past the cap
+        let (a, dv) := adm k1
+        post c a (signer dv) "k".toUTF8 s!"m{i}".toUTF8 (if w2 == 7 then countCap + k2 else k2 % 50) k3
+      | 6 =>
+        -- now and then a receipt, of any op (Valid only of a saturated post)
+        if w1 ≥ 6 then receipt (anyId k1) k2 else wrap c "k".toUTF8 (keyOf d) "box".toUTF8
       | _ =>
-        if w2 < 4 then mkOp [c, anyId k1] (.post "k".toUTF8 "unsigned".toUTF8 0 .empty)
+        if w2 < 4 then mkOp [c, anyId k1] (.post "k".toUTF8 "unsigned".toUTF8 0 0 .empty)
         else Op.make 9 [anyId k1] s!"junk-{seed}-{i}".toUTF8
     if !(ids.contains o.id) then
       ops := ops.push o

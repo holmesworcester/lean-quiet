@@ -97,10 +97,10 @@ def main (args : List String) : IO UInt32 := do
     let body : ByteArray := ⟨(2 :: Codec.enc (m1.pk, (keyOf m1), ByteArray.empty, ByteArray.empty)).toArray⟩
     Op.make 2 [c, invB.id] body
   let grantA := grant c c c joinA.id f1
-  let postA := post c joinA.id a1 "k1".toUTF8 "hello".toUTF8
+  let postA := post c joinA.id a1 "k1".toUTF8 "hello".toUTF8 1 0
   -- Forgeries: mallory posting as alice; mallory joining without the
   -- link's bearer key; bob (not admin) granting himself admin.
-  let forged := post c joinA.id m1 "k1".toUTF8 "I am alice".toUTF8
+  let forged := post c joinA.id m1 "k1".toUTF8 "I am alice".toUTF8 1 0
   let sneak := request c invB.id m1 (keyOf m1) m1.sk
   let selfGrant := grant c joinB.id joinB.id joinB.id b1
   let phase1 := [r, invA, invB, invC, invL, reqA, reqB, reqC, reqL, okA, okB, okC, joinA, joinB, joinC,

@@ -8,7 +8,15 @@
 // queue for Lean. A reply answers the oldest unanswered command and goes
 // back on that command's connection. A connection is closed once its
 // peer has hung up and every command it sent has been answered.
+//
+// Who can reach it: an abstract socket has no file permissions, so any
+// app on the phone could connect. So a connection is accepted only from
+// the shell (uid 2000: adb, and so `adb forward`) or root, by the
+// kernel's SO_PEERCRED; any other app's is closed unread. And the channel
+// exists only in builds made with LQ_CTL (build_apk.sh: every build but
+// RELEASE=1): a release build does not listen at all.
 
+#define _GNU_SOURCE  // struct ucred, SO_PEERCRED
 #include <android/log.h>
 #include <lean/lean.h>
 #include <pthread.h>
@@ -19,6 +27,16 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+
+/** Whether the peer on fd may drive the app: the shell (adb) or root. */
+static bool lq_peer_allowed(int fd) {
+  struct ucred cr;
+  socklen_t    n = sizeof cr;
+  if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cr, &n) != 0) {
+    return false;
+  }
+  return cr.uid == 2000 || cr.uid == 0;
+}
 
 typedef struct Conn {
   int  fd;
@@ -107,6 +125,11 @@ static void* lq_listen(void* arg) {
   for (;;) {
     int fd = accept(s, NULL, NULL);
     if (fd < 0) {
+      continue;
+    }
+    if (!lq_peer_allowed(fd)) {
+      __android_log_write(ANDROID_LOG_WARN, "lean", "control: refused a connection from another app");
+      close(fd);
       continue;
     }
     Conn* c = calloc(1, sizeof *c);

@@ -49,20 +49,30 @@ theorem visual_perm (cs : Array UInt32) : (visual cs).1.toList.Perm cs.toList :=
   have := (reorder_perm (withLevels cs.toList)).map (·.1)
   simpa [withLevels_fst] using this
 
-theorem placeL_shows (f : Font.Font) : ∀ (cs : List UInt32) (x lastX : Nat),
-    (placeL f cs x lastX).1.map (·.c) = cs.filter (fun c => !isInvisible c)
+/-- What a line keeps: every character with `reveal` (names), else its
+visible ones. -/
+def kept (reveal : Bool) (c : UInt32) : Bool := reveal || !isInvisible c
+
+theorem placeL_shows (f : Font.Font) (reveal : Bool) : ∀ (cs : List UInt32) (x lastX : Nat),
+    (placeL f reveal cs x lastX).1.map (·.c) = cs.filter (kept reveal)
   | [], _, _ => by simp [placeL]
   | c :: t, x, lastX => by
     unfold placeL
-    by_cases hi : isInvisible c
-    · simp [hi, placeL_shows f t x lastX]
-    · by_cases hm : isMark c
-      · simp [hi, hm, placeL_shows f t x lastX]
-      · simp [hi, hm, placeL_shows f t (x + adv f c) x]
+    by_cases hi : (!reveal && isInvisible c) = true
+    · have hk : kept reveal c = false := by simp [kept] at hi ⊢; exact hi
+      simp only [hi, ite_true, List.filter_cons, hk]
+      exact placeL_shows f reveal t x lastX
+    · have hk : kept reveal c = true := by
+        simp [kept] at hi ⊢; cases reveal <;> simp_all
+      simp only [hi, Bool.false_eq_true, ite_false, List.filter_cons, hk, ite_true]
+      by_cases hm : isMark c
+      · simp [hm, placeL_shows f reveal t x lastX]
+      · simp [hm, placeL_shows f reveal t (x + advR f reveal c) x]
 
-/-- **The glyphs placed are the line's visible characters.** -/
-theorem place_shows (f : Font.Font) (cs : Array UInt32) :
-    (place f cs).1.toList.map (·.c) = cs.toList.filter (fun c => !isInvisible c) := by
+/-- **The glyphs placed are the line's visible characters** (all of its
+characters, with `reveal`). -/
+theorem place_shows (f : Font.Font) (cs : Array UInt32) (reveal : Bool := false) :
+    (place f cs reveal).1.toList.map (·.c) = cs.toList.filter (kept reveal) := by
   simp [place, placeL_shows]
 
 /-- What a line shows, as code points in display order. -/
@@ -75,13 +85,13 @@ theorem shown_shift (l : Line) (d : Nat) : shown (l.map fun g => { g with x := g
 ellipsis.** Its glyphs are a permutation of the visible characters of the
 whole text, or of a prefix of it (in logical order: what is read first)
 followed by "…". -/
-theorem oneLinePlaced_prefix (f : Font.Font) (width : Nat) (cs : Array UInt32) :
-    (shown (oneLinePlaced f width cs).1).Perm (cs.toList.filter (fun c => !isInvisible c)) ∨
-    ∃ k, (shown (oneLinePlaced f width cs).1).Perm
-      (((cs.toList.take k) ++ [0x2026]).filter (fun c => !isInvisible c)) := by
+theorem oneLinePlaced_prefix (f : Font.Font) (width : Nat) (cs : Array UInt32) (reveal : Bool := false) :
+    (shown (oneLinePlaced f width cs reveal).1).Perm (cs.toList.filter (kept reveal)) ∨
+    ∃ k, (shown (oneLinePlaced f width cs reveal).1).Perm
+      (((cs.toList.take k) ++ [0x2026]).filter (kept reveal)) := by
   unfold oneLinePlaced
-  have h := place_shows f (visual cs).1
-  rcases hp : place f (visual cs).1 with ⟨placed, w⟩
+  have h := place_shows f (visual cs).1 reveal
+  rcases hp : place f (visual cs).1 reveal with ⟨placed, w⟩
   rw [hp] at h
   by_cases hw : w ≤ width
   · left
@@ -89,16 +99,16 @@ theorem oneLinePlaced_prefix (f : Font.Font) (width : Nat) (cs : Array UInt32) :
     rw [h]
     exact (visual_perm cs).filter _
   · right
-    refine ⟨fitting f (width - min width (adv f 0x2026)) cs.toList, ?_⟩
+    refine ⟨fitting f (width - min width (adv f 0x2026)) cs.toList reveal, ?_⟩
     simp only [hw, if_false, shown, place_shows]
-    have := (visual_perm (cutTo f width cs)).filter (fun c => !isInvisible c)
+    have := (visual_perm (cutTo f width cs reveal)).filter (kept reveal)
     simpa [cutTo, Array.toList_extract, List.extract] using this
 
 theorem oneLine_prefix (f : Font.Font) (width : Nat) (s : String) :
     let cs := shape (f.emoji.emojify (s.toList.toArray.map (·.val)))
-    (shown (oneLine f width s)).Perm (cs.toList.filter (fun c => !isInvisible c)) ∨
+    (shown (oneLine f width s)).Perm (cs.toList.filter (kept false)) ∨
     ∃ k, (shown (oneLine f width s)).Perm
-      (((cs.toList.take k) ++ [0x2026]).filter (fun c => !isInvisible c)) := by
+      (((cs.toList.take k) ++ [0x2026]).filter (kept false)) := by
   intro cs
   simp only [oneLine, shown_shift]
   exact oneLinePlaced_prefix f width cs
@@ -129,17 +139,36 @@ def starts (x : Nat) : List Nat → List Nat
 start exactly where the one before ends: glyph i spans [sᵢ, sᵢ + aᵢ) and
 sᵢ₊₁ = sᵢ + aᵢ, from the line's start, in display order. (A mark sits on
 its base, with no advance.) -/
-theorem place_starts (f : Font.Font) : ∀ (cs : List UInt32) (x lastX : Nat),
-    ((placeL f cs x lastX).1.filter (fun g => !isMark g.c)).map (·.x) =
-      starts x ((cs.filter fun c => !isInvisible c && !isMark c).map (adv f))
+theorem place_starts (f : Font.Font) (reveal : Bool) : ∀ (cs : List UInt32) (x lastX : Nat),
+    ((placeL f reveal cs x lastX).1.filter (fun g => !isMark g.c)).map (·.x) =
+      starts x ((cs.filter fun c => kept reveal c && !isMark c).map (advR f reveal))
   | [], _, _ => by simp [placeL, starts]
   | c :: t, x, lastX => by
     unfold placeL
-    by_cases hi : isInvisible c
-    · simp [hi, place_starts f t x lastX]
-    · by_cases hm : isMark c
-      · simp [hi, hm, place_starts f t x lastX]
-      · simp [hi, hm, starts, place_starts f t (x + adv f c) x]
+    by_cases hi : (!reveal && isInvisible c) = true
+    · have hk : kept reveal c = false := by simp [kept] at hi ⊢; exact hi
+      simp [hi, hk, place_starts f reveal t x lastX]
+    · have hk : kept reveal c = true := by
+        simp [kept] at hi ⊢; cases reveal <;> simp_all
+      simp only [hi, Bool.false_eq_true, ite_false]
+      by_cases hm : isMark c
+      · simp [hk, hm, place_starts f reveal t x lastX]
+      · simp [hk, hm, starts, place_starts f reveal t (x + advR f reveal c) x]
+
+/-- **A name hides nothing:** placed with `reveal`, every character of a
+name is drawn (an invisible one as its own glyph), so its glyphs are a
+permutation of all its characters, or of a prefix and the ellipsis when
+it is cut. "Alice" and "Alice" + U+200B differ by a glyph. -/
+theorem name_shows (f : Font.Font) (width : Nat) (s : String) :
+    let cs := shape (f.emoji.emojify (s.toList.toArray.map (·.val)))
+    (shown (oneLine f width s true)).Perm cs.toList ∨
+    ∃ k, (shown (oneLine f width s true)).Perm ((cs.toList.take k) ++ [0x2026]) := by
+  intro cs
+  simp only [oneLine, shown_shift]
+  have hk (l : List UInt32) : l.filter (kept true) = l := List.filter_eq_self.2 (by simp [kept])
+  have h := oneLinePlaced_prefix f width cs true
+  simp only [hk] at h
+  exact h
 
 end Text
 

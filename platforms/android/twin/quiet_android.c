@@ -566,3 +566,10 @@ lean_obj_res lq_copy(b_lean_obj_arg text) {
 lean_obj_res lq_now_us(void) {
   return lean_io_result_mk_ok(lean_box_uint64(lq_tick() / 1000));
 }
+
+lean_obj_res lq_tz_min(void) {
+  time_t t = time(NULL);
+  struct tm tm;
+  localtime_r(&t, &tm);
+  return lean_io_result_mk_ok(lean_box_uint32((uint32_t)(int32_t)(tm.tm_gmtoff / 60)));
+}

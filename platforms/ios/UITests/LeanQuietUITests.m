@@ -9,8 +9,10 @@
 //
 // Expects a community with the chaos data in the app's database (ship.sh
 // sim seeds it). The runner's environment (TEST_RUNNER_x from xcodebuild):
-// LEANQUIET_CTL_PORT (default 7417); LEANQUIET_SHOTS, a directory on the
-// Mac for the screenshots (also attached to the result bundle); and from
+// LEANQUIET_CTL_PORT (default 7417); LEANQUIET_CTL_TOKEN (the channel's
+// token: the app is launched with it, and it is sent first);
+// LEANQUIET_SHOTS, a directory on the Mac for the screenshots (also
+// attached to the result bundle); and from
 // Lean (test/Targets.lean), so the test computes no layout of its own:
 // LEANQUIET_FIELD and LEANQUIET_CONTINUE (the Paste page's boxes, "x y w h"
 // in page rows), LEANQUIET_COMPOSER ("height textRows") and LEANQUIET_LINK
@@ -24,6 +26,7 @@
 @interface LeanQuietUITests : XCTestCase
 @property (strong) XCUIApplication* app;
 @property (nonatomic) int port;
+@property (copy) NSString* token;
 @end
 
 @implementation LeanQuietUITests
@@ -43,10 +46,15 @@
     close(s);
     return nil;
   }
+  // the channel's token first (ctl_ios.c answers nothing without it)
+  NSData* auth = [[NSString stringWithFormat:@"token %@\n", self.token] dataUsingEncoding:NSUTF8StringEncoding];
+  write(s, auth.bytes, auth.length);
+  char c;
+  while (read(s, &c, 1) == 1 && c != '\n') {
+  }
   NSData* line = [[cmd stringByAppendingString:@"\n"] dataUsingEncoding:NSUTF8StringEncoding];
   write(s, line.bytes, line.length);
   NSMutableData* got = [NSMutableData data];
-  char c;
   while (read(s, &c, 1) == 1 && c != '\n') {
     [got appendBytes:&c length:1];
   }
@@ -162,8 +170,10 @@
   self.continueAfterFailure = NO;
   NSString* p = NSProcessInfo.processInfo.environment[@"LEANQUIET_CTL_PORT"];
   self.port   = p.length > 0 ? p.intValue : 7417;
+  self.token  = NSProcessInfo.processInfo.environment[@"LEANQUIET_CTL_TOKEN"] ?: @"";
   self.app    = [XCUIApplication new];
-  self.app.launchEnvironment = @{ @"LEANQUIET_CTL_PORT": [NSString stringWithFormat:@"%d", self.port] };
+  self.app.launchEnvironment = @{ @"LEANQUIET_CTL_PORT": [NSString stringWithFormat:@"%d", self.port],
+                                  @"LEANQUIET_CTL_TOKEN": self.token };
   [self.app launch];
   XCTAssertTrue([self until:30 ask:@"ping" that:^BOOL(NSString* s) { return [s isEqual:@"pong"]; }],
     @"the app does not answer on the control channel");

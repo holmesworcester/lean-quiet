@@ -479,15 +479,17 @@ def resendConns (addr : B) : List (Id × Fact) → m (List Op)
       | none => rest
 
 /-- On every arrival: the first one of an op is recorded, when and how
-it came. A request that arrives again bare, opened here for community c
-from key frm, and still from a peer the trust rule takes for c, gets its
-connections resent to where it came from. That is the healing for a
-lost answer, as poc-17 has it ("a replayed request is answered with the
-identical bytes again"); a removed member's node replaying its request
-gets nothing (`resend_trusted`). -/
+it came, and a saturated post gets this device's receipt, which orders
+it (`Community.receiptFor`). A request that arrives again bare, opened
+here for community c from key frm, and still from a peer the trust rule
+takes for c, gets its connections resent to where it came from. That is
+the healing for a lost answer, as poc-17 has it ("a replayed request is
+answered with the identical bytes again"); a removed member's node
+replaying its request gets nothing (`resend_trusted`). -/
 def onArrival (via : Option Id) (addr : B) (o : Op) (at_ : Nat) : m (List Op) := do
   let n ← count recv.byOp [o.id]
   let first := if n = 0 then [Recv.op o.id via addr at_] else []
+  let first := first ++ (← ((Community.receiptFor o).liftL : View F (List Op)).run)
   if via.isSome then return first
   let some (.request to _ _) := (decode o.body : Option Body) | return first
   let some (_, .opened _ c frm _ _) := (← rows opened.byRequest [o.id]).head? | return first

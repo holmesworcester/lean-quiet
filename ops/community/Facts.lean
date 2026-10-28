@@ -52,8 +52,21 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
 - A content key is local (`key`): this node's copy of a community's
   key. A wrap delivers one to a node's X25519 key, sealed so that only
   that node opens it. A wrap admits nobody, so it needs no author.
-- A post's time is its author's claim (it orders a conversation, as
-  libquiet's created_at does).
+- A post claims two numbers: a counter, which orders its channel, and
+  a time, wall-clock minutes since the Unix epoch, which is shown (the
+  user's decision, 2026-10-28: "don't hack order onto time"). A
+  channel's list sorts by (counter, time, id), and a new post's counter
+  is one more than the highest its author holds (`send`), so it sorts
+  after everything its author had seen. Both are claims: validating the
+  counter would mean citing earlier messages, pulling a channel's whole
+  history into every closure. So one post claiming the cap or more
+  (`countCap`) saturates the channel: every later post claims the cap.
+  Past the cap a device orders by its own receipts instead (`received`,
+  a local op written when a saturated post arrives or is sent): the one
+  place two devices may order alike messages differently (the user's
+  decision, 2026-10-27, stated as `order_local`).
+- A post is body tag 23 and its message fact tag 21; tags 5 and 4 (the
+  post and message before the counter) no longer decode.
 - A profile is a user's name, a register: the newest by (time, id) is
   current.
 - An attachment is a child of a message, by the message's author, as
@@ -98,7 +111,7 @@ inductive Fact where
   | invitation (c issuer : Id) (bearer : Key) (link : Bool) (threshold : Nat)
   | admin (c u : Id)
   | removal (c u by_ : Id)
-  | message (c u : Id) (device ckey text : ByteArray) (time : Nat)
+  | message (c u : Id) (device ckey text : ByteArray) (n time : Nat)
   | wrap (c : Id) (ckey recipient box : ByteArray)
   | profile (c u : Id) (name : ByteArray) (time : Nat)
   | attachment (c msg u root : Id) (len : Nat) (kid sealed : ByteArray)
@@ -114,6 +127,7 @@ inductive Fact where
   | key (c kid k : ByteArray)
   | chunk (c att root : Id) (len index : Nat)
   | endpoint (pk sk : ByteArray)
+  | received (c kid msg : Id) (k : Nat)
   deriving DecidableEq, Inhabited
 
 inductive Body where
@@ -122,7 +136,7 @@ inductive Body where
   | request (device enc consent bearerSig : ByteArray)
   | grant (sig : ByteArray)
   | remove (sig : ByteArray)
-  | post (ckey text : ByteArray) (time : Nat) (sig : ByteArray)
+  | post (ckey text : ByteArray) (n time : Nat) (sig : ByteArray)
   | wrap (ckey recipient box : ByteArray)
   | profile (name : ByteArray) (time : Nat) (sig : ByteArray)
   | attach (root : ByteArray) (len : Nat) (kid sealed sig : ByteArray)
@@ -138,6 +152,7 @@ inductive Body where
   | key (c k : ByteArray)
   | chunk (root : ByteArray) (len index : Nat) (slice : ByteArray) (sibs : List ByteArray)
   | endpoint (sk : ByteArray)
+  | receive (k : Nat)
   deriving DecidableEq, Inhabited
 
 /-! ## Bytes -/
@@ -157,7 +172,7 @@ def Body.enc : Body → List UInt8
   | .request d e c b => 12 :: Codec.enc (d, e, c, b)
   | .grant s => 3 :: Codec.enc s
   | .remove s => 4 :: Codec.enc s
-  | .post k t tm s => 5 :: Codec.enc (k, t, tm, s)
+  | .post k t n tm s => 23 :: Codec.enc (k, t, n, tm, s)
   | .wrap k r b => 6 :: Codec.enc (k, r, b)
   | .profile n tm s => 7 :: Codec.enc (n, tm, s)
   | .attach r l k x s => 8 :: Codec.enc (r, l, k, x, s)
@@ -172,13 +187,13 @@ def Body.enc : Body → List UInt8
   | .key c k => 18 :: Codec.enc (c, k)
   | .chunk r l i x p => 19 :: Codec.enc (r, l, i, x, p)
   | .endpoint sk => 22 :: Codec.enc sk
+  | .receive k => 24 :: Codec.enc k
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B) => Body.root p.1 p.2.1 p.2.2) r
   | 1 :: r => decAs (fun (p : B × Bool × Nat × B) => Body.invite p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | 3 :: r => decAs (fun (p : B) => Body.grant p) r
   | 4 :: r => decAs (fun (p : B) => Body.remove p) r
-  | 5 :: r => decAs (fun (p : B × B × Nat × B) => Body.post p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | 6 :: r => decAs (fun (p : B × B × B) => Body.wrap p.1 p.2.1 p.2.2) r
   | 7 :: r => decAs (fun (p : B × Nat × B) => Body.profile p.1 p.2.1 p.2.2) r
   | 8 :: r => decAs (fun (p : B × Nat × B × B × B) =>
@@ -197,6 +212,9 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 19 :: r => decAs (fun (p : B × Nat × Nat × B × List B) =>
       Body.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 22 :: r => decAs (fun (p : B) => Body.endpoint p) r
+  | 23 :: r => decAs (fun (p : B × B × Nat × Nat × B) =>
+      Body.post p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
+  | 24 :: r => decAs (fun (p : Nat) => Body.receive p) r
   | _ => none
 
 /-- `Body.enc`, as it runs: appended to a buffer (`Engine.Codec`). -/
@@ -206,7 +224,7 @@ def Body.encInto (buf : ByteArray) : Body → ByteArray
   | .request d e c b => Codec.encInto (buf.push 12) (d, e, c, b)
   | .grant s => Codec.encInto (buf.push 3) s
   | .remove s => Codec.encInto (buf.push 4) s
-  | .post k t tm s => Codec.encInto (buf.push 5) (k, t, tm, s)
+  | .post k t n tm s => Codec.encInto (buf.push 23) (k, t, n, tm, s)
   | .wrap k r b => Codec.encInto (buf.push 6) (k, r, b)
   | .profile n tm s => Codec.encInto (buf.push 7) (n, tm, s)
   | .attach r l k x s => Codec.encInto (buf.push 8) (r, l, k, x, s)
@@ -221,6 +239,7 @@ def Body.encInto (buf : ByteArray) : Body → ByteArray
   | .key c k => Codec.encInto (buf.push 18) (c, k)
   | .chunk r l i x p => Codec.encInto (buf.push 19) (r, l, i, x, p)
   | .endpoint sk => Codec.encInto (buf.push 22) sk
+  | .receive k => Codec.encInto (buf.push 24) k
 
 /-- `Body.dec`, as it runs: read at offset i of a byte array. -/
 def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
@@ -229,7 +248,6 @@ def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
   | some 1 => decFromAs (fun (p : B × Bool × Nat × B) => Body.invite p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
   | some 3 => decFromAs (fun (p : B) => Body.grant p) b (i + 1)
   | some 4 => decFromAs (fun (p : B) => Body.remove p) b (i + 1)
-  | some 5 => decFromAs (fun (p : B × B × Nat × B) => Body.post p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
   | some 6 => decFromAs (fun (p : B × B × B) => Body.wrap p.1 p.2.1 p.2.2) b (i + 1)
   | some 7 => decFromAs (fun (p : B × Nat × B) => Body.profile p.1 p.2.1 p.2.2) b (i + 1)
   | some 8 => decFromAs (fun (p : B × Nat × B × B × B) =>
@@ -248,6 +266,9 @@ def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
   | some 19 => decFromAs (fun (p : B × Nat × Nat × B × List B) =>
       Body.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
   | some 22 => decFromAs (fun (p : B) => Body.endpoint p) b (i + 1)
+  | some 23 => decFromAs (fun (p : B × B × Nat × Nat × B) =>
+      Body.post p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
+  | some 24 => decFromAs (fun (p : Nat) => Body.receive p) b (i + 1)
   | _ => none
 
 instance : Codec Body where
@@ -269,7 +290,7 @@ def Fact.enc : Fact → List UInt8
   | .invitation c i k l t => 1 :: Codec.enc (c, i, k, l, t)
   | .admin c u => 2 :: Codec.enc (c, u)
   | .removal c u b => 3 :: Codec.enc (c, u, b)
-  | .message c u d k t tm => 4 :: Codec.enc (c, u, d, k, t, tm)
+  | .message c u d k t n tm => 21 :: Codec.enc (c, u, d, k, t, n, tm)
   | .wrap c k r b => 5 :: Codec.enc (c, k, r, b)
   | .profile c u n tm => 6 :: Codec.enc (c, u, n, tm)
   | .attachment c m u r l k x => 7 :: Codec.enc (c, m, u, r, l, k, x)
@@ -284,6 +305,7 @@ def Fact.enc : Fact → List UInt8
   | .key c i k => 16 :: Codec.enc (c, i, k)
   | .chunk c a r l i => 17 :: Codec.enc (c, a, r, l, i)
   | .endpoint pk sk => 20 :: Codec.enc (pk, sk)
+  | .received c k m n => 22 :: Codec.enc (c, k, m, n)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B × B) => Fact.admission p.1 p.2.1 p.2.2.1 p.2.2.2) r
@@ -291,8 +313,6 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
       Fact.invitation p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 2 :: r => decAs (fun (p : B × B) => Fact.admin p.1 p.2) r
   | 3 :: r => decAs (fun (p : B × B × B) => Fact.removal p.1 p.2.1 p.2.2) r
-  | 4 :: r => decAs (fun (p : B × B × B × B × B × Nat) =>
-      Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2) r
   | 5 :: r => decAs (fun (p : B × B × B × B) => Fact.wrap p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | 6 :: r => decAs (fun (p : B × B × B × Nat) => Fact.profile p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | 7 :: r => decAs (fun (p : B × B × B × B × Nat × B × B) =>
@@ -310,6 +330,9 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 16 :: r => decAs (fun (p : B × B × B) => Fact.key p.1 p.2.1 p.2.2) r
   | 17 :: r => decAs (fun (p : B × B × B × Nat × Nat) => Fact.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 20 :: r => decAs (fun (p : B × B) => Fact.endpoint p.1 p.2) r
+  | 21 :: r => decAs (fun (p : B × B × B × B × B × Nat × Nat) =>
+      Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) r
+  | 22 :: r => decAs (fun (p : B × B × B × Nat) => Fact.received p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | _ => none
 
 /-- `Fact.enc`, as it runs: appended to a buffer (`Engine.Codec`). -/
@@ -318,7 +341,7 @@ def Fact.encInto (buf : ByteArray) : Fact → ByteArray
   | .invitation c i k l t => Codec.encInto (buf.push 1) (c, i, k, l, t)
   | .admin c u => Codec.encInto (buf.push 2) (c, u)
   | .removal c u b => Codec.encInto (buf.push 3) (c, u, b)
-  | .message c u d k t tm => Codec.encInto (buf.push 4) (c, u, d, k, t, tm)
+  | .message c u d k t n tm => Codec.encInto (buf.push 21) (c, u, d, k, t, n, tm)
   | .wrap c k r b => Codec.encInto (buf.push 5) (c, k, r, b)
   | .profile c u n tm => Codec.encInto (buf.push 6) (c, u, n, tm)
   | .attachment c m u r l k x => Codec.encInto (buf.push 7) (c, m, u, r, l, k, x)
@@ -333,6 +356,7 @@ def Fact.encInto (buf : ByteArray) : Fact → ByteArray
   | .key c i k => Codec.encInto (buf.push 16) (c, i, k)
   | .chunk c a r l i => Codec.encInto (buf.push 17) (c, a, r, l, i)
   | .endpoint pk sk => Codec.encInto (buf.push 20) (pk, sk)
+  | .received c k m n => Codec.encInto (buf.push 22) (c, k, m, n)
 
 /-- `Fact.dec`, as it runs: read at offset i of a byte array. -/
 def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
@@ -342,8 +366,6 @@ def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
       Fact.invitation p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
   | some 2 => decFromAs (fun (p : B × B) => Fact.admin p.1 p.2) b (i + 1)
   | some 3 => decFromAs (fun (p : B × B × B) => Fact.removal p.1 p.2.1 p.2.2) b (i + 1)
-  | some 4 => decFromAs (fun (p : B × B × B × B × B × Nat) =>
-      Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2) b (i + 1)
   | some 5 => decFromAs (fun (p : B × B × B × B) => Fact.wrap p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
   | some 6 => decFromAs (fun (p : B × B × B × Nat) => Fact.profile p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
   | some 7 => decFromAs (fun (p : B × B × B × B × Nat × B × B) =>
@@ -361,6 +383,9 @@ def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
   | some 16 => decFromAs (fun (p : B × B × B) => Fact.key p.1 p.2.1 p.2.2) b (i + 1)
   | some 17 => decFromAs (fun (p : B × B × B × Nat × Nat) => Fact.chunk p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
   | some 20 => decFromAs (fun (p : B × B) => Fact.endpoint p.1 p.2) b (i + 1)
+  | some 21 => decFromAs (fun (p : B × B × B × B × B × Nat × Nat) =>
+      Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) b (i + 1)
+  | some 22 => decFromAs (fun (p : B × B × B × Nat) => Fact.received p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
   | _ => none
 
 instance : Codec Fact where
@@ -385,7 +410,7 @@ def Body.unsigned : Body → Body
   | .request d e _ _ => .request d e .empty .empty
   | .grant _ => .grant .empty
   | .remove _ => .remove .empty
-  | .post k t tm _ => .post k t tm .empty
+  | .post k t n tm _ => .post k t n tm .empty
   | .profile n tm _ => .profile n tm .empty
   | .attach r l k x _ => .attach r l k x .empty
   | .react e tm _ => .react e tm .empty
@@ -403,7 +428,7 @@ def signed (o : Op) (b : Body) : ByteArray :=
 /-- Whether a fact is this device's own: local ops' facts, never
 shared, never read by a shared op's validator (`check_reads_shared`). -/
 def Fact.isLocal : Fact → Bool
-  | .secret .. | .accepted .. | .joining .. | .abandoned .. | .key .. | .endpoint .. => true
+  | .secret .. | .accepted .. | .joining .. | .abandoned .. | .key .. | .endpoint .. | .received .. => true
   | _ => false
 
 /-- The largest file an attachment may name: 64 MiB of ciphertext. -/
@@ -419,6 +444,11 @@ def isAdmin (c u : Id) : Fact → Bool
   | .admission c' u' _ _ => decide (c' = c ∧ u' = c ∧ u = c)
   | .admin c' u' => decide (c' = c ∧ u' = u)
   | _ => false
+
+/-- The counter cap: a post claiming this or more is saturated, and is
+ordered by this device's receipt of it (`received`). Below 2^64, so a
+counter and the cap fit the 8 bytes a sort key gives them. -/
+def countCap : Nat := 2 ^ 63
 
 /-- The users of these facts, if every one approves request r of c. -/
 def approvers (c r : Id) : List Fact → Option (List Id)
@@ -480,14 +510,14 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ ((t = u ∧ auth.isLocal = false) ∨ isAdmin c u auth) ∧
       C.verify d (signed o (.remove s)) s
     then some (.removal c t u) else none
-  | .post k txt tm s, [.admission c u0 _ _, .admission c1 u d _] =>
-    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ C.verify d (signed o (.post k txt tm s)) s
-    then some (.message c u d k txt tm) else none
+  | .post k txt n tm s, [.admission c u0 _ _, .admission c1 u d _] =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ C.verify d (signed o (.post k txt n tm s)) s
+    then some (.message c u d k txt n tm) else none
   | .profile n tm s, [.admission c u0 _ _, .admission c1 u d _] =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ n.size ≤ 64 ∧ C.verify d (signed o (.profile n tm s)) s
     then some (.profile c u n tm) else none
   -- An attachment: a child of a message, by its author's user.
-  | .attach r l k x s, [.admission c u0 _ _, .admission c1 u d _, .message c2 u2 _ _ _ _] =>
+  | .attach r l k x s, [.admission c u0 _ _, .admission c1 u d _, .message c2 u2 _ _ _ _ _] =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ u2 = u ∧ r.size = 32 ∧ 0 < l ∧
       l ≤ maxFile ∧ x.size ≤ maxSealedMeta ∧ C.verify d (signed o (.attach r l k x s)) s
     then some (.attachment c (o.reqs.getD 2 .empty) u r l k x) else none
@@ -496,7 +526,7 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
   | .chunk r l i x p, [.admission c u0 _ _, .attachment c2 _ _ r2 l2 _ _] =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c2 = c ∧ r = r2 ∧ l = l2 ∧ Merkle.verify sha256 r l i x p = true
     then some (.chunk c (o.reqs.getD 1 .empty) r l i) else none
-  | .react e tm s, [.admission c u0 _ _, .admission c1 u d _, .message c2 _ _ _ _ _] =>
+  | .react e tm s, [.admission c u0 _ _, .admission c1 u d _, .message c2 _ _ _ _ _ _] =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ 0 < e.size ∧ e.size ≤ 32 ∧
       C.verify d (signed o (.react e tm s)) s
     then some (.react c u (o.reqs.getD 2 .empty) e tm) else none
@@ -508,6 +538,10 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
   | .accept c d, [] => some (.accepted c d)
   | .joining c k hs r nm d n, [] => some (.joining c k hs r nm d n)
   | .abandon, [.joining c _ _ r _ _ _] => some (.abandoned c r (o.reqs.headD .empty))
+  -- This device's receipt of a saturated post: local, so it may read
+  -- what it cites, and its counter is the writer's (`receiptFor`).
+  | .receive k, [.message c _ _ kid _ n _] =>
+    if countCap ≤ n then some (.received c kid (o.reqs.headD .empty) k) else none
   | .name n nm s, .admission c u0 _ _ :: .admission c1 u d _ :: auth :: prev =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ isAdmin c u auth ∧ nm.size ≤ 64 ∧
       counterOk c n prev = true ∧ C.verify d (signed o (.name n nm s)) s
@@ -517,11 +551,11 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
 /-- Each body's op type. -/
 def Body.tag : Body → UInt8
   | .root .. => 0 | .invite .. => 1 | .request .. => 12 | .grant .. => 3
-  | .remove .. => 4 | .post .. => 5 | .wrap .. => 6
+  | .remove .. => 4 | .wrap .. => 6
   | .profile .. => 7 | .attach .. => 8 | .react .. => 9
   | .approve .. => 10 | .admit => 11
   | .accept .. => 13 | .joining .. => 14 | .secret .. => 15 | .name .. => 16 | .abandon => 17
-  | .key .. => 18 | .chunk .. => 19 | .endpoint .. => 22
+  | .key .. => 18 | .chunk .. => 19 | .endpoint .. => 22 | .post .. => 23 | .receive .. => 24
 
 /-- An op's verdict: its body's, if its type is its body's. The type is
 in the bytes its id hashes, so an op re-sent under another type would be
@@ -555,12 +589,27 @@ def byUser : Rel Fact := ⟨"admin", "byUser", fun | .admin c u => some [c, u] |
 end admin
 
 namespace message
+/-- A channel's messages, saturated ones included: the first, newest
+first, has the highest counter (`topCount`). -/
 def all : Rel Fact := ⟨"message", "all", fun | .message c .. => some [c] | _ => none⟩
 def byAuthor : Rel Fact := ⟨"message", "byAuthor", fun | .message c u .. => some [c, u] | _ => none⟩
-/-- A community's messages sealed under content key kid: a device lists
-the ones it can read as the union over the keys it holds (`readable`). -/
-def byKey : Rel Fact := ⟨"message", "byKey", fun | .message c _ _ k _ _ => some [c, k] | _ => none⟩
+/-- A community's messages sealed under content key kid, below the
+counter cap: a device lists the ones it can read as the union over the
+keys it holds, its receipts of saturated ones after them (`readable`). -/
+def byKey : Rel Fact :=
+  ⟨"message", "byKey", fun | .message c _ _ k _ n _ => if n < countCap then some [c, k] else none | _ => none⟩
 end message
+
+namespace received
+/-- This device's receipts of c's saturated messages under content key
+kid, in the order it received them: where `readable` lists them. -/
+def byKey : Rel Fact := ⟨"received", "byKey", fun | .received c k .. => some [c, k] | _ => none⟩
+/-- This device's receipts in c: the newest one's counter is the next
+one's less one (`topReceived`). -/
+def all : Rel Fact := ⟨"received", "all", fun | .received c .. => some [c] | _ => none⟩
+/-- Whether this device has received message m. -/
+def byMsg : Rel Fact := ⟨"received", "byMsg", fun | .received _ _ m _ => some [m] | _ => none⟩
+end received
 
 namespace wrap
 def byContentKey : Rel Fact := ⟨"wrap", "byContentKey", fun | .wrap c k _ _ => some [c, k] | _ => none⟩
@@ -651,7 +700,7 @@ end chunk
 (read by their own key). -/
 def rels : List (Rel Fact) :=
   [admission.byDevice, admission.all, admission.byUser, admission.byKey, removal.byUser, admin.byUser, message.all, message.byAuthor,
-   message.byKey,
+   message.byKey, received.byKey, received.all, received.byMsg,
    wrap.byContentKey, profile.byUser, profile.all, react.byMessage, react.byMessageEmoji,
    request.all, approval.byRequest, secret.byKey, secret.all, accepted.all, joining.all, named.current,
    abandoned.byRequest, abandoned.byJoining, wrap.byRecipient, key.byCommunity, key.byId, attachment.byMessage,
@@ -664,9 +713,22 @@ def keys : Fact → List ByteArray := keysOf rels
 numeric order. -/
 def be64 (n : Nat) : ByteArray := ByteArray.mk ((List.range 8).reverse.map fun i => (n >>> (8 * i)).toUInt8).toArray
 
-/-- Where a fact sorts under its keys: timed facts by time (ties by id). -/
+/-- The largest time a sort key tells apart: later claims sort as it. -/
+def timeCap : Nat := 2 ^ 64 - 1
+
+/-- A message's sort key: its counter, then its time, each capped, so
+the order is (counter, time, id) (`msg_cmp`). -/
+def msgKey (n tm : Nat) : ByteArray := be64 (min n countCap) ++ be64 (min tm timeCap)
+
+/-- A receipt's sort key: after every counter below the cap, then by
+this device's receipt counter, then by the message. -/
+def recKey (k : Nat) (m : Id) : ByteArray := be64 countCap ++ be64 k ++ m
+
+/-- Where a fact sorts under its keys: messages by counter and time,
+receipts by arrival, other timed facts by time (ties by id). -/
 def sortOf : Fact → ByteArray
-  | .message _ _ _ _ _ tm => be64 tm
+  | .message _ _ _ _ _ n tm => msgKey n tm
+  | .received _ _ m k => recKey k m
   | .profile _ _ _ tm => be64 tm
   | .chunk _ _ _ _ i => be64 i
   | .react _ _ _ _ tm => be64 tm
@@ -679,7 +741,7 @@ instance : SortKey Fact := ⟨sortOf⟩
 acceptances and its joins are, never sent or taken; everything else is
 shared in its community. -/
 def Body.isLocal : Body → Bool
-  | .secret .. | .accept .. | .joining .. | .abandon | .key .. | .endpoint .. => true
+  | .secret .. | .accept .. | .joining .. | .abandon | .key .. | .endpoint .. | .receive .. => true
   | _ => false
 
 /-- The community an op is about: a root founds its own; every other op
@@ -697,10 +759,14 @@ def scopeOf (o : Op) : Scope :=
 
 /-- An op's claimed time, which sync ranges are over: a post's, a
 profile's or a reaction's; 0 for the rest (roots, invitations,
-admissions, removals, ...), which every window includes. -/
+admissions, removals, ...), which every window includes. A post's
+counter does not feed it: sync's windows are over every timed kind in a
+room, and only time is common to them, in minutes that mean the same on
+every device; a counter orders one channel's messages only, and one
+claim can saturate it. -/
 def orderOf (o : Op) : Nat :=
   match (decode o.body : Option Body) with
-  | some (.post _ _ t _) | some (.profile _ t _) | some (.react _ t _) => t
+  | some (.post _ _ _ t _) | some (.profile _ t _) | some (.react _ t _) => t
   | _ => 0
 
 def family (C : Crypto) : Family Fact :=

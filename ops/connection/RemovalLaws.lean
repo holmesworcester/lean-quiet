@@ -862,6 +862,37 @@ theorem resendConns_send (addr : B) : ∀ (rs : List (Id × Fact)) (s : DB F),
       · exact resendConns_send addr t _ q h
     · exact resendConns_send addr t _ q h
 
+/-- What `receiptFor` writes, read in the node's store, is receipts of
+the op: nothing else. -/
+theorem receiptFor_receipts (s : DB F) (o : Op) {r : Op}
+    (hr : r ∈ ((Community.receiptFor o).liftL : View F (List Op)).eval s) :
+    ∃ j, r = Community.receipt o.id j := by
+  unfold Community.receiptFor at hr
+  by_cases hkind : o.kind ≠ 23
+  · simp [hkind] at hr; cases hr
+  simp only [hkind, ite_false] at hr
+  split at hr
+  · rename_i n _ _ _
+    by_cases hn : n < Community.countCap
+    · simp [hn] at hr; cases hr
+    · simp only [hn, ite_false, Rel.read] at hr
+      rw [eval_liftL_bind] at hr
+      split at hr
+      · cases hr
+      · rw [eval_liftL_bind] at hr
+        exact ⟨_, List.mem_singleton.1 hr⟩
+  · cases hr
+
+/-- A receipt is a Community op: no Connection body decodes from it. -/
+theorem receipt_not_send (m : Id) (j : Nat) (a : B) :
+    (decode (Community.receipt m j).body : Option Body) ≠ some (.send a) := by
+  intro h
+  rw [decode_some] at h
+  have : (Community.receipt m j).body.data.toList = 24 :: Codec.enc j := by
+    simp [Community.receipt, Community.mkOp, Op.make, encode, Codec.enc, Community.Body.enc]
+  rw [this] at h
+  simp [Codec.enc, Body.enc] at h
+
 /-- **A re-sent answer only to the trusted (`resend_trusted`).** A
 request arriving again, bare, gets its answer re-sent (a courier) only
 if it was opened here for community c from key frm and the trust rule
@@ -874,13 +905,17 @@ theorem resend_trusted (s : DB F) (addr : B) (o : Op) (at_ : Nat) (q : Op) (a : 
       (.inr (.opened r c frm addr' hs)) ∈
         (Engine.eval s (opened.byRequest.query [o.id])).rows.map (·.2) ∧
       ((trusts c to frm).liftL : View F Bool).eval s = true := by
-  have hfirst : ∀ (n : Nat), q ∈ (if n = 0 then [Recv.op o.id none addr at_] else []) → False := by
+  have hfirst : ∀ (n : Nat), (q ∈ (if n = 0 then [Recv.op o.id none addr at_] else [])) ∨
+      q ∈ ((Community.receiptFor o).liftL : View F (List Op)).eval s → False := by
     intro n hm
-    split at hm
-    · rw [List.mem_singleton] at hm; subst hm
-      unfold Recv.op at hb; rw [body_conn] at hb; cases hb
-    · cases hm
-  simp only [onArrival, Model.run_bind, Option.isSome_none, Bool.false_eq_true, ite_false] at hq
+    rcases hm with hm | hm
+    · split at hm
+      · rw [List.mem_singleton] at hm; subst hm
+        unfold Recv.op at hb; rw [body_conn] at hb; cases hb
+      · cases hm
+    · obtain ⟨j, rfl⟩ := receiptFor_receipts s o hm
+      exact receipt_not_send _ _ _ hb
+  simp only [onArrival, Model.run_bind, run_view, Option.isSome_none, Bool.false_eq_true, ite_false] at hq
   have hs0 : ((count recv.byOp [o.id] : Model F Nat).run s).2 = s := rfl
   rw [hs0] at hq
   split at hq
@@ -908,9 +943,12 @@ theorem resend_trusted (s : DB F) (addr : B) (o : Op) (at_ : Nat) (q : Op) (a : 
           | inl _ => simp at hf
           | inr y => simp only [Option.some.injEq, Prod.mk.injEq] at hf; obtain ⟨_, rfl⟩ := hf; rfl
       · rw [if_pos (by simpa using hok)] at hq
+        simp only [Model.run_pure, List.mem_append] at hq
         exact (hfirst _ hq).elim
-    · exact (hfirst _ hq).elim
-  · exact (hfirst _ hq).elim
+    · simp only [Model.run_pure, List.mem_append] at hq
+      exact (hfirst _ hq).elim
+  · simp only [Model.run_pure, List.mem_append] at hq
+    exact (hfirst _ hq).elim
 
 
 /-! ## A pending join is dialed -/

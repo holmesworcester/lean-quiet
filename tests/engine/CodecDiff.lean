@@ -119,13 +119,13 @@ def list {α} (g : Gen α) : Gen (List α) := do
 def op : Gen Op := return Op.make (← byte) (← list id32) (← bytes)
 
 def cBody : Gen Community.Body := do
-  match ← below 20 with
+  match ← below 21 with
   | 0 => return .root (← bytes) (← bytes) (← bytes)
   | 1 => return .invite (← bytes) (← coin) (← nat) (← bytes)
   | 2 => return .request (← bytes) (← bytes) (← bytes) (← bytes)
   | 3 => return .grant (← bytes)
   | 4 => return .remove (← bytes)
-  | 5 => return .post (← bytes) (← bytes) (← nat) (← bytes)
+  | 5 => return .post (← bytes) (← bytes) (← nat) (← nat) (← bytes)
   | 6 => return .wrap (← bytes) (← bytes) (← bytes)
   | 7 => return .profile (← bytes) (← nat) (← bytes)
   | 8 => return .attach (← bytes) (← nat) (← bytes) (← bytes) (← bytes)
@@ -139,15 +139,16 @@ def cBody : Gen Community.Body := do
   | 16 => return .abandon
   | 17 => return .key (← bytes) (← bytes)
   | 18 => return .endpoint (← bytes)
-  | _ => return .chunk (← bytes) (← nat) (← nat) (← bytes) (← list id32)
+  | 19 => return .chunk (← bytes) (← nat) (← nat) (← bytes) (← list id32)
+  | _ => return .receive (← nat)
 
 def cFact : Gen Community.Fact := do
-  match ← below 19 with
+  match ← below 20 with
   | 0 => return .admission (← id32) (← id32) (← bytes) (← bytes)
   | 1 => return .invitation (← id32) (← id32) (← bytes) (← coin) (← nat)
   | 2 => return .admin (← id32) (← id32)
   | 3 => return .removal (← id32) (← id32) (← id32)
-  | 4 => return .message (← id32) (← id32) (← bytes) (← bytes) (← bytes) (← nat)
+  | 4 => return .message (← id32) (← id32) (← bytes) (← bytes) (← bytes) (← nat) (← nat)
   | 5 => return .wrap (← id32) (← bytes) (← bytes) (← bytes)
   | 6 => return .profile (← id32) (← id32) (← bytes) (← nat)
   | 7 => return .attachment (← id32) (← id32) (← id32) (← id32) (← nat) (← bytes) (← bytes)
@@ -161,7 +162,8 @@ def cFact : Gen Community.Fact := do
   | 15 => return .abandoned (← id32) (← id32) (← id32)
   | 16 => return .key (← bytes) (← bytes) (← bytes)
   | 17 => return .endpoint (← bytes) (← bytes)
-  | _ => return .chunk (← id32) (← id32) (← id32) (← nat) (← nat)
+  | 18 => return .chunk (← id32) (← id32) (← id32) (← nat) (← nat)
+  | _ => return .received (← id32) (← id32) (← id32) (← nat)
 
 def kBody : Gen Connection.Body := do
   match ← below 8 with

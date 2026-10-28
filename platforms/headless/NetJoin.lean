@@ -53,8 +53,7 @@ def main (args : List String) : IO UInt32 := do
   let screen : Array UInt32 := #[1080, 2400, 128, 63, 420]
   let sa ← Sim.new
   let sb ← Sim.new
-  let pa := 47211
-  let pb := 47212
+  let (pa, pb) ← testPorts
   let a0 ← App.start sa.io screen (dir ++ "/a/quiet.db") (some (pa, true))
   let b0 ← App.start sb.io screen (dir ++ "/b/quiet.db") (some (pb, true))
   -- A founds "club"; its node starts; Add members gives the link
@@ -122,6 +121,21 @@ def main (args : List String) : IO UInt32 := do
       steps 1; IO.sleep 10).run a7
   check s!"A's home shows Bea online ({a8.members.toList.zip a8.online.toList})"
     (a8.members.toList.map (·.1) == ["Ann", "Bea"] && a8.online.toList == [false, true])
+  -- A makes 30 chaos messages (people, posts, a few photos) while its
+  -- node runs: they reach B too, as a phone's chaos must
+  let before := b5.total
+  let ((), a9) ← (show M Unit from do
+    sa.cmds.modify (·.push "switch club")
+    sa.cmds.modify (·.push "chaos 30")
+    steps 3; waitIdle sa; steps 3).run a8
+  let ((), b6) ← (show M Unit from do sb.cmds.modify (·.push "channel"); steps 2).run b5
+  let (a8, b5, synced) ← both a9 b6 60000 fun a b => a.total ≥ before + 30 && b.total == a.total
+  check s!"A's chaos reaches B over TCP (A {a8.total}, B {b5.total}, before {before})" synced
+  -- QUIET_IDLE_MS: both apps keep stepping, joined and idle, for a CPU
+  -- profile of an idle phone (per thread: top -H -p <pid>)
+  if let some ms := (← IO.getEnv "QUIET_IDLE_MS") >>= String.toNat? then
+    IO.println s!"idle {ms} ms, pid {← IO.Process.getPID}"; (← IO.getStdout).flush
+    let _ ← both a8 b5 ms fun _ _ => false
   if let some r := a8.net then r.stop
   if let some r := b5.net then r.stop
   (← IO.getStdout).flush

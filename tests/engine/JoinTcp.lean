@@ -140,7 +140,7 @@ def main (args : List String) : IO UInt32 := do
     let code ← t.finish "jointcp"
     (← IO.getStdout).flush
     IO.Process.exit code.toUInt8
-  let some (wi, link) ← viewOn a (inviteTo c c a.seed (sha256 "bearer".toUTF8) [a.addr])
+  let some (wi, link) ← viewOn a (inviteTo c c dA (sha256 "bearer".toUTF8) [a.addr])
     | t.ok "tcp: A invites" false; stopAll
   t.ok "tcp: the link names A's node key" (link.inviter == a.key)
   a.run.write wi.ops
@@ -155,7 +155,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "tcp: B established nothing before approval" ((← ests b).isEmpty)
   t.ok "tcp: B is not admitted on A before approval" (!(← allowedOn a c b.key))
   -- A approves.
-  let wr ← look a ((approveReq c req.id c a.seed).liftL.run : SqlM F Community.Write)
+  let wr ← look a ((approveReq c req.id c dA).liftL.run : SqlM F Community.Write)
   a.run.write wr.ops
   let est ← waitFor 15000 do return (← ests a).length == 1 && (← ests b).length == 1
   t.ok "tcp: each holds one established session" est.isSome
@@ -168,7 +168,7 @@ def main (args : List String) : IO UInt32 := do
   -- Sync over the sealed session.
   let admitted ← waitFor 20000 do return (← allowedOn b c b.key) && (← allowedOn b c a.key)
   t.ok "tcp: B is admitted by its own ops, and lets A in" admitted.isSome
-  let p := post c c dA "k".toUTF8 "hello B over TCP".toUTF8 5
+  let p := post c c dA "k".toUTF8 "hello B over TCP".toUTF8 1 5
   a.run.write [p]
   let streamed ← waitFor 10000 (stored b p.id)
   t.ok "tcp: a later post reaches B" streamed.isSome
@@ -178,14 +178,14 @@ def main (args : List String) : IO UInt32 := do
     (sha256 "esk Z".toUTF8) (sha256 "unused".toUTF8))).ops
   let c' := (root (Device.ofSeed seedA2) a.key).id
   let _ ← waitFor 10000 (stored a c')
-  let some (wiZ, linkZ) ← viewOn a (inviteTo c' c' seedA2 (sha256 "bearer Z".toUTF8) [a.addr])
+  let some (wiZ, linkZ) ← viewOn a (inviteTo c' c' (Device.ofSeed seedA2) (sha256 "bearer Z".toUTF8) [a.addr])
     | t.ok "tcp: A invites to Zed" false; stopAll
   a.run.write wiZ.ops
   let seedB2 := sha256 "seed B, second".toUTF8
   b.run.write (← viewOn b (join linkZ seedB2 "Bea".toUTF8 (sha256 "unused".toUTF8))).ops
   let reqZ := linkZ.request (Device.ofSeed seedB2) b.key
   let _ ← waitFor 10000 (stored a reqZ.id)
-  a.run.write (← look a ((approveReq c' reqZ.id c' seedA2).liftL.run : SqlM F Community.Write)).ops
+  a.run.write (← look a ((approveReq c' reqZ.id c' (Device.ofSeed seedA2)).liftL.run : SqlM F Community.Write)).ops
   let inZed ← waitFor 20000 (allowedOn b c' b.key)
   t.ok "tcp: B joins a second community of A's, over its node key" inZed.isSome
   IO.println s!"jointcp: opened in {opened}, established in {est}, admitted in {admitted}, post in {streamed} (ms)"
@@ -198,9 +198,9 @@ def main (args : List String) : IO UInt32 := do
     a.run.write [rm]
     let cut ← waitFor 5000 do return !(← allowedOn a c b.key)
     t.ok "tcp: A's trust rule refuses B's node once the removal is held" cut.isSome
-    let p2 := post c c dA "k".toUTF8 "after the removal".toUTF8 6
+    let p2 := post c c dA "k".toUTF8 "after the removal".toUTF8 2 6
     a.run.write [p2]
-    let q := post c admB dB "k".toUTF8 "B, not knowing".toUTF8 7
+    let q := post c admB dB "k".toUTF8 "B, not knowing".toUTF8 3 7
     b.run.write [q]
     -- Well past the time the earlier post took to stream.
     IO.sleep 4000
@@ -210,7 +210,7 @@ def main (args : List String) : IO UInt32 := do
     IO.println s!"jointcp: removal held in {cut} ms; B holds the removal: {← stored b rm.id}; sessions on A: {(← ests a).length}"
     -- The bare path takes only a join: the removed B dials A with a
     -- fresh post in its hello, on a new request from B's node key.
-    let q2 := post c admB dB "k".toUTF8 "pushed in a hello".toUTF8 8
+    let q2 := post c admB dB "k".toUTF8 "pushed in a hello".toUTF8 4 8
     let e := sha256 "B's pushing ephemeral".toUTF8
     let some ro := Request.op K b.nk a.key e (hello c b.addr [q2])
       | t.ok "tcp: B composes a request" false; let _ ← stopAll
@@ -236,7 +236,7 @@ def main (args : List String) : IO UInt32 := do
     t.ok "tcp: B, holding its removal, holds c no more" dropped.isSome
     t.ok "tcp: and its session with A stays open for the community they still share"
       ((← ests b).length == 1 && (← allowedOn b c a.key))
-    let some (wi3, link3) ← viewOn a (inviteTo c c a.seed (sha256 "bearer 3".toUTF8) [a.addr])
+    let some (wi3, link3) ← viewOn a (inviteTo c c dA (sha256 "bearer 3".toUTF8) [a.addr])
       | t.ok "tcp: A invites B again" false; let _ ← stopAll
     a.run.write wi3.ops
     let seedB3 := sha256 "seed B, rejoined".toUTF8
@@ -253,7 +253,7 @@ def main (args : List String) : IO UInt32 := do
     t.ok "tcp: negative control: the dial rule before the fix would not send it" before.isEmpty
     let reached ← waitFor 10000 (stored a req3.id)
     t.ok "tcp: B's rejoin request reaches A bare, beside the open session" reached.isSome
-    a.run.write (← look a ((approveReq c req3.id c a.seed).liftL.run : SqlM F Community.Write)).ops
+    a.run.write (← look a ((approveReq c req3.id c dA).liftL.run : SqlM F Community.Write)).ops
     let back ← waitFor 20000 do
       return (← viewOn b (Community.mine c)).map (·.1) == some dB3.pk && (← allowedOn b c b.key)
     t.ok "tcp: approved, B is in c again as its new device, by its own ops" back.isSome

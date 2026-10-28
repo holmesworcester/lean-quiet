@@ -87,8 +87,7 @@ def main (args : List String) : IO UInt32 := do
   let screen : Array UInt32 := #[1080, 2400, 128, 63, 420]
   let sa ← Sim.new
   let sb ← Sim.new
-  let pa := 47221
-  let pb := 47222
+  let (pa, pb) ← testPorts
   let a0 ← App.start sa.io screen (dir ++ "/a/quiet.db") (some (pa, true))
   let b0 ← App.start sb.io screen (dir ++ "/b/quiet.db") (some (pb, true))
   -- the join, over ctl as it is driven on the phones: A's `link`; B's
@@ -180,6 +179,14 @@ def main (args : List String) : IO UInt32 := do
       x.rows.toList.any (·.2.data.text == "and a text after it")
   a := a'; b := b'
   check s!"four photos: all four complete on the other side ({(pics4 a).map fun p => s!"{p.got}/{p.total}"}), and the text after" got
+  -- QUIET_IDLE_MS: both apps keep stepping, idle with their photos on
+  -- screen, for a CPU profile (per thread: top -H -p <pid>)
+  if let some ms := (← IO.getEnv "QUIET_IDLE_MS") >>= String.toNat? then
+    IO.println s!"idle {ms} ms, pid {← IO.Process.getPID}"; (← IO.getStdout).flush
+    let (a', b', _) ← both a b ms fun _ _ => false
+    let fin (x : St) : IO Nat := x.imgs.toList.foldlM (fun n (_, t) => do return n + (if ← IO.hasFinished t then 1 else 0)) 0
+    IO.println s!"idle: finished decodes {← fin a'}/{a'.imgs.size} and {← fin b'}/{b'.imgs.size}"
+    IO.println s!"idle: paints {a.paints} → {a'.paints} and {b.paints} → {b'.paints}, imgs {a'.imgs.size} {b'.imgs.size}, frames {a'.frames - a.frames}"
   if let some r := a.net then r.stop
   if let some r := b.net then r.stop
   (← IO.getStdout).flush

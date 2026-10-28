@@ -136,14 +136,14 @@ theorem check_removal {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c t u :
   exact ⟨_, _, _, _, _, _, _, _, rfl, rfl, h1, h5, h6⟩
 
 theorem check_message {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id}
-    {d k t : ByteArray} {tm : Nat}
-    (h : check C o b fs = some (.message c u d k t tm)) :
-    ∃ s d0 e0 e, b = .post k t tm s ∧ fs = [.admission c c d0 e0, .admission c u d e] ∧
+    {d k t : ByteArray} {n tm : Nat}
+    (h : check C o b fs = some (.message c u d k t n tm)) :
+    ∃ s d0 e0 e, b = .post k t n tm s ∧ fs = [.admission c c d0 e0, .admission c u d e] ∧
       o.reqs.head? = some c ∧ C.verify d (signed o b) s = true := by
   unfold check at h
   split at h <;> (try split at h) <;> (try simp at h; done)
   simp only [Option.some.injEq, Fact.message.injEq] at h
-  obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
+  obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
   rename_i hc
   obtain ⟨h1, rfl, rfl, h4⟩ := hc
   exact ⟨_, _, _, _, rfl, rfl, h1, h4⟩
@@ -263,11 +263,11 @@ theorem isAdmin_sound {c u y : Id} {g : Fact} (hg : V C ops y g) (h : isAdmin c 
 
 /-- A Valid message cites an admission of its author's device into its
 author's user, and that device signed it. -/
-theorem message_authorized {x c u : Id} {d k t : ByteArray} {tm : Nat}
-    (h : V C ops x (.message c u d k t tm)) :
-    ∃ o s e y, ops x = some o ∧ (decode o.body : Option Body) = some (.post k t tm s) ∧
+theorem message_authorized {x c u : Id} {d k t : ByteArray} {n tm : Nat}
+    (h : V C ops x (.message c u d k t n tm)) :
+    ∃ o s e y, ops x = some o ∧ (decode o.body : Option Body) = some (.post k t n tm s) ∧
       o.reqs = [c, y] ∧ V C ops y (.admission c u d e) ∧
-      C.verify d (signed o (.post k t tm s)) s = true := by
+      C.verify d (signed o (.post k t n tm s)) s = true := by
   obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
   obtain ⟨s, d0, e0, e, rfl, rfl, hh, hs⟩ := check_message hv
   obtain ⟨a, y, hreq, _, hy⟩ := all2_two hr
@@ -302,10 +302,10 @@ admitted d into u: the root, or the request its admission tallies.
 Nobody can post as a user without a device the user's admission binds
 and that device's key. -/
 theorem no_impersonation {Signed : Key → ByteArray → Prop} (hU : Unforgeable C Signed)
-    {x c u : Id} {d k t : ByteArray} {tm : Nat}
-    (h : V C ops x (.message c u d k t tm)) :
-    ∃ o s, ops x = some o ∧ (decode o.body : Option Body) = some (.post k t tm s) ∧
-      Signed d (signed o (.post k t tm s)) ∧
+    {x c u : Id} {d k t : ByteArray} {n tm : Nat}
+    (h : V C ops x (.message c u d k t n tm)) :
+    ∃ o s, ops x = some o ∧ (decode o.body : Option Body) = some (.post k t n tm s) ∧
+      Signed d (signed o (.post k t n tm s)) ∧
       ∃ y e z oz bz, V C ops y (.admission c u d e) ∧
         (z = y ∨ ∃ oy, ops y = some oy ∧ oy.reqs.getD 1 .empty = z) ∧ ops z = some oz ∧
         (decode oz.body : Option Body) = some bz ∧ Signed d (signed oz bz) := by
@@ -651,8 +651,8 @@ cites the root's admission, an admission of its signing device into user
 u, and a message of c by the same user u; that device signed it. -/
 theorem check_attach {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c m u root : Id} {len : Nat}
     {kid sealed : ByteArray} (h : check C o b fs = some (.attachment c m u root len kid sealed)) :
-    ∃ s d0 e0 d e d2 k2 t2 tm2, b = .attach root len kid sealed s ∧
-      fs = [.admission c c d0 e0, .admission c u d e, .message c u d2 k2 t2 tm2] ∧
+    ∃ s d0 e0 d e d2 k2 t2 n2 tm2, b = .attach root len kid sealed s ∧
+      fs = [.admission c c d0 e0, .admission c u d e, .message c u d2 k2 t2 n2 tm2] ∧
       o.reqs.head? = some c ∧ m = o.reqs.getD 2 .empty ∧ root.size = 32 ∧
       C.verify d (signed o b) s = true := by
   unfold check at h
@@ -661,7 +661,7 @@ theorem check_attach {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c m u ro
   obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
   rename_i hc
   obtain ⟨h1, rfl, rfl, rfl, rfl, h6, _, _, _, h10⟩ := hc
-  exact ⟨_, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, h6, h10⟩
+  exact ⟨_, _, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, h6, h10⟩
 
 /-- **A chunk is Valid only if its Merkle path verifies** against the
 root and length it names (`Merkle.verify_sound` then makes it that
@@ -693,6 +693,34 @@ theorem chunk_is_slice {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c att 
   obtain ⟨hl, hs, rfl⟩ := Merkle.verify_sound hsize hspr hv
   exact ⟨slice, rfl, hl, hs⟩
 
+/-- A receipt's validator: it cites one message, saturated, and names
+it with its community and key. -/
+theorem check_received {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c kid m : Id} {k : Nat}
+    (h : check C o b fs = some (.received c kid m k)) :
+    b = .receive k ∧ m = o.reqs.headD .empty ∧
+      ∃ u d sealed n tm, fs = [.message c u d kid sealed n tm] ∧ countCap ≤ n := by
+  unfold check at h
+  split at h <;> (try split at h) <;> (try simp at h; done)
+  simp only [Option.some.injEq, Fact.received.injEq] at h
+  obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+  rename_i hc
+  exact ⟨rfl, rfl, _, _, _, _, _, rfl, hc⟩
+
+/-- **A receipt is of a saturated message.** A Valid receipt of m in c
+under kid cites only m, a Valid message of c sealed under kid that
+claims the counter cap or more. -/
+theorem received_of_message {x c kid m : Id} {k : Nat} (h : V C ops x (.received c kid m k)) :
+    ∃ o u d sealed n tm, ops x = some o ∧ o.reqs = [m] ∧ countCap ≤ n ∧
+      V C ops m (.message c u d kid sealed n tm) := by
+  obtain ⟨o, b, fs, hx, _, hr, hv⟩ := valid_inv h
+  obtain ⟨rfl, hm, u, d, sealed, n, tm, rfl, hn⟩ := check_received hv
+  have h1 : ∃ y, o.reqs = [y] ∧ V C ops y (.message c u d kid sealed n tm) := by
+    generalize o.reqs = l at hr
+    cases hr with | cons hy hrest => cases hrest; exact ⟨_, rfl, hy⟩
+  obtain ⟨y, hreq, hy⟩ := h1
+  rw [hreq] at hm; simp at hm; subst hm
+  exact ⟨o, u, d, sealed, n, tm, hx, hreq, hn, hy⟩
+
 /-- **A chunk is its attachment's.** A Valid chunk cites an attachment
 of its community whose root and length are the chunk's, and that
 attachment cites its message: so a message's dependents reach every
@@ -714,7 +742,7 @@ theorem chunk_hangs_off {x c att root m u : Id} {len i : Nat} {k s : ByteArray}
     ∃ o oa, ops x = some o ∧ att ∈ o.reqs ∧ ops att = some oa ∧ m = oa.reqs.getD 2 .empty := by
   obtain ⟨o, _, _, _, _, hx, hreq, _⟩ := chunk_of_attachment h
   obtain ⟨oa, b, fs, hxa, _, _, hva⟩ := valid_inv ha
-  obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, hm, _⟩ := check_attach hva
+  obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, hm, _⟩ := check_attach hva
   exact ⟨o, oa, hx, by rw [hreq]; simp, hxa, hm⟩
 
 /-- Chunk i of file ct, of attachment att in community c: the one op it

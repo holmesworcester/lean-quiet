@@ -49,7 +49,7 @@ Proven (`Proofs.lean`), about that code run on the model:
   What runs is byte-array code: each codec appends to a buffer
   (`encInto`) and reads at an offset (`decFrom`), with no list cell per
   byte. These two equalities make the compiler run that code for
-  `encode` and `decode`, on every input. `tests/run.sh` checks the two
+  `encode` and `decode`, on every input. `tests/engine/run.sh` checks the two
   against each other on random values and mutants (`codecdiff`), and
   `mise run bench` times them on a photo's paths.
 - `Op.id_decode`: an op read from bytes has the SHA-256 of those bytes
@@ -243,7 +243,7 @@ user's `removal.byUser`.
 ## Running
 
     mise run check         # build proofs, audit axioms (standard only)
-    mise run test:engine   # scenario, differential, querydiff, linkcheck, lifecycle, wire, syncpair, noise_check, purge, crash
+    mise run test:engine   # scenario, differential, querydiff, linkcheck, lifecycle, wire, syncpair, syncworld, noise_check, purge, crash
 
 Needs `ELAN_HOME` with Lean 4.34.0, and SQLite and libsodium (headers
 for SQLite). The CI workflow runs both tasks; this repo has no remote
@@ -318,6 +318,8 @@ Laws (`ops/connection/Laws.lean`, `ops/connection/Noise.lean`,
   for any suite whose DH commutes, whose AEAD opens what it seals and
   whose messages split into their key and the rest;
 - `open_seal`, `cid_seal`;
+- `openFrame_auth`, `sealed_auth` (a sealed frame is decoded only after
+  its AEAD check passes under its session's receive key);
 - `sum_left`.
 
 **The handshake in a symbolic model** (`ops/connection/NoiseSymbolic.lean`,

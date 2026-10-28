@@ -149,6 +149,9 @@ lean_exe wire where
 lean_exe syncpair where
   root := `tests.engine.SyncPair
 
+lean_exe syncworld where
+  root := `tests.engine.SyncWorld
+
 lean_exe tcppair where
   root := `tests.engine.TcpPair
 
@@ -232,3 +235,7 @@ lean_exe probe where
 
 lean_exe scene_check where
   root := `tests.net.SceneCheck
+
+-- A store's ops, one line each (for comparing devices' stores).
+lean_exe dump where
+  root := `platforms.headless.Dump

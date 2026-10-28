@@ -6,8 +6,9 @@
 #
 #   sim.sh work_dir udid               the simulator's UDID (made, booted)
 #   sim.sh work_dir install APP        installs the .app afresh (its data too)
-#   sim.sh work_dir launch [PORT]      (re)launches the app, the control
-#                                      channel on PORT (default 7417), its
+#   sim.sh work_dir launch [PORT] [TOKEN]  (re)launches the app, the
+#                                      control channel on PORT (default
+#                                      7417) with TOKEN (else the app's own), its
 #                                      stdout and stderr to work_dir/app.log
 #   sim.sh work_dir shot FILE.png      a screenshot of the simulator
 #   sim.sh work_dir data               the app's data container (quiet.db)
@@ -43,7 +44,8 @@ case $what in
     u=$(udid); xcrun simctl uninstall "$u" "$app_id" 2>/dev/null || true; xcrun simctl install "$u" "$3" ;;
   launch)
     u=$(udid)
-    SIMCTL_CHILD_LEANQUIET_CTL_PORT=${3:-7417} xcrun simctl launch --terminate-running-process \
+    SIMCTL_CHILD_LEANQUIET_CTL_PORT=${3:-7417} SIMCTL_CHILD_LEANQUIET_CTL_TOKEN=${4:-} \
+      xcrun simctl launch --terminate-running-process \
       --stdout="$w/app.log" --stderr="$w/app.log" "$u" "$app_id" ;;
   shot) u=$(udid); xcrun simctl io "$u" screenshot "$3" >/dev/null 2>&1 ;;
   data) u=$(udid); xcrun simctl get_app_container "$u" "$app_id" data ;;
