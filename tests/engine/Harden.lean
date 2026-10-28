@@ -10,5 +10,6 @@ def main : IO UInt32 := do
   Harden.hostileChecks t
   Harden.bigSyncChecks t
   Harden.queueChecks t
+  Harden.sharedSocketChecks t
   Harden.closeEffectsChecks t
   t.finish "harden"

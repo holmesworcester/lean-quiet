@@ -213,8 +213,12 @@ partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now 
   let mut st := st
   for cid in e.drop do
     if let some addr := st.node.addr? cid then
-      for s in st.socks do
-        if s.addr == addr then st ← close st s.id
+      -- A socket may carry several sessions (a join sent beside an open
+      -- one, until one is retired): close it once none is left on it.
+      -- A dropped session is already out of `conns` (Node.drop).
+      unless st.node.conns.any fun (c, _) => st.node.addr? c == some addr do
+        for s in st.socks do
+          if s.addr == addr then st ← close st s.id
   for (addr, b) in e.send do
     match st.sockOf (fun s => s.addr == addr) with
     | some s => unless ← sendOn s.client b do st ← close st s.id

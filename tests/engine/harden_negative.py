@@ -37,6 +37,7 @@ cases = [
     ("admission-law", "engine/wire/Slots.lean", "peers.length < cfg.maxSocks && (peers.filter (· == peer)).length < cfg.perAddr", "true", "engine.wire.Slots", "error:", False),
     ("close-effects", "engine/wire/Tcp.lean", "r.1.apply x ch notify cfg r.2 now", "r.1.apply x ch notify cfg { r.2 with send := [] } now", "harden", "close effects", True),
     ("no-retry", "ops/sync/Conn.lean", "chunks cfg (c.retryIds cfg now) .want", "chunks cfg [] .want", "harden", "tick reasks", True),
+    ("shared-socket", "engine/wire/Tcp.lean", "unless st.node.conns.any fun (c, _) => st.node.addr? c == some addr do", "unless false do", "harden", "shared socket: a dropped session leaves the socket up", True),
 ]
 for name, source, old, new, target, expected, runtime in cases:
     path = root / source
