@@ -144,19 +144,33 @@ def icon (f : Font) (dm : Dim) (b : Bitmap) (h : Hit) (x y S : Nat) (c ground : 
     return b
   | _ => return b
 
+/-- The caret's width. -/
+def caretW (dm : Dim) : Nat := max 2 (dm.px 1) + 1
+
+/-- Where the placeholder starts: past the caret at the text's start, so
+the caret covers none of its glyphs (`caret_clear`). -/
+def placeholderX (dm : Dim) (l : Layout) : Nat := l.textX + caretW dm + dm.px 2
+
+/-- **The caret never covers the placeholder.** With no text the caret
+is at the text's start; its right edge is at or before every placeholder
+glyph's left edge. -/
+theorem caret_clear (f : Font) (dm : Dim) (l : Layout) (ph : String) {g : Text.Placed}
+    (_hg : g ∈ (oneLine f l.textW ph).toList) : l.textX + 0 + caretW dm ≤ placeholderX dm l + g.x := by
+  unfold placeholderX; omega
+
 /-- The composer's pixels; `caret` is the caret's line and x, if focused. -/
 def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (l : Layout) (text : String)
     (placeholder : String) (chips : Array Chip) (caret : Option (Nat × Nat)) : Bitmap := Id.run do
   let mut b := Bitmap.blank W l.h bgRow
   b := b.fill 0 0 W (max 2 (dm.px 1)) line
   if text.isEmpty then
-    b := b.line f (oneLine f l.textW placeholder) l.textX l.textY dim
+    b := b.line f (oneLine f l.textW placeholder) (placeholderX dm l) l.textY dim
   else
     for i in [0:min 5 l.lines.size] do
       b := b.line f l.lines[i]! l.textX (l.textY + i * dm.lineH) ink
   if let some (cl, cx) := caret then
     let cy := l.textY + (min 4 cl) * dm.lineH
-    b := b.fill (l.textX + cx) cy (l.textX + cx + max 2 (dm.px 1) + 1) (cy + f.cell) accent
+    b := b.fill (l.textX + cx) cy (l.textX + cx + caretW dm) (cy + f.cell) accent
   for i in [0:min chips.size l.chips.size] do
     let (tb, xb) := l.chips[i]!
     b := b.image chips[i]!.thumb tb.x tb.y (dm.px 8)

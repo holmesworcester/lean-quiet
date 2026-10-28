@@ -116,6 +116,8 @@ assume Engine.Sync.turnH = Engine.Model.run
 assume Engine.Sync.popW The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library).
 assume Engine.Sync.popE = Engine.Sync.popW
 assume Engine.Sync.Queues = Engine.Sync.popW
+assume Engine.runJ The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean).
+
 holds Engine.Inv The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean).
 
 ## Instruments: what the code under test runs in to be measured, each
@@ -170,6 +172,12 @@ spec ArrivalLaws.readsOf The reads a view makes, on the model.
 spec Mdns.known The record types mDNS validity knows.
 spec Mdns.encRData A record's data as encoded, for its validity.
 spec Mdns.Name.wireLen A name's length on the wire, for its validity.
+spec Engine.window A window's rows, on the model: what a subscriber watches.
+spec Engine.filed Whether a row is filed under a key at a position, on the model.
+spec Engine.flips Whether a journal touches a key and position an odd number of times.
+spec Engine.oddAt Whether a journal touches a pair an odd number of times, as `net` keeps it.
+spec Engine.Change.ingests The ops a batch of changes stores.
+spec Engine.searchSteps The steps of a binary search, for its bound.
 
 spec Engine.listCost What a list query costs, for its bound.
 spec Engine.Meter.time A meter's time on a store of N rows, for a bound.
@@ -210,6 +218,13 @@ control Live.Eager.w1 = Live.RWorld.passEager
 control Live.Eager.eval = Live.RWorld.passEager
 control Live.Eager.hits = Live.RWorld.passEager
 control Live.Eager.reads = Live.RWorld.passEager
+control Engine.Mutants.σ The window laws' one-op world, with notices by key and an unnetted journal: each notifies an unchanged window (`key_notice_imprecise`, `unnetted_imprecise`), where the exact matcher is silent (`exact_silent`).
+control Engine.Mutants.o = Engine.Mutants.σ
+control Engine.Mutants.fam = Engine.Mutants.σ
+control Engine.Mutants.w5 = Engine.Mutants.σ
+control Engine.Mutants.wk = Engine.Mutants.σ
+control Engine.Mutants.keyNotified = Engine.Mutants.σ
+control Engine.Mutants.rawNotified = Engine.Mutants.σ
 
 ## What would make each model real, most valuable first (the README's order)
 
@@ -234,7 +249,6 @@ todo Net.Scene.S = Net.Scene.approval
 todo Net.sent = Net.Scene.approval
 todo Net.step = Net.Scene.approval
 todo Net.table = Net.Scene.approval
-copy LiveLaws.read_one_moment App.read Its two branches, inline. Todo: state it of `App.read`.
 todo Geometry.Seam.place The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are.
 todo Geometry.Seam.frameRow = Geometry.Seam.place
 todo Geometry.Seam.home = Geometry.Seam.place
@@ -245,38 +259,54 @@ todo Geometry.Geom.viewNow = Geometry.Seam.place
 todo Geometry.Geom.composerTop = Geometry.Seam.place
 copy SheetGeom.Grid.ctop Sheet.gridRow Its index arithmetic, and App's sheet rows'. Todo: have the painter place keys by `Grid.ctop`.
 todo Engine.Sync.keeps The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s.
-todo Pic.decode Runs only in qr's Android harness; the app has its own QOI (`Qoi.decode`) and tray: use `Pic` in the app, or prove these of its code.
-todo Pic.add = Pic.decode
-todo Pic.fit = Pic.decode
-todo Pic.layout = Pic.decode
-todo Pic.render = Pic.decode
-todo Pic.scale = Pic.decode
-todo Pic.attachEdge = Pic.decode
-todo Pic.maxSide = Pic.decode
-todo Pic.Geom.box = Pic.decode
-todo Pic.Rgba.wellFormed = Pic.decode
+todo Pic.add The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code.
+todo Pic.fit = Pic.add
+todo Pic.layout = Pic.add
+todo Pic.render = Pic.add
+todo Pic.scale = Pic.add
+todo Pic.attachEdge = Pic.add
+todo Pic.Geom.box = Pic.add
+spec Pic.Rgba.wellFormed A picture's pixels are 4 bytes for each of its w × h.
 todo Mdns.decode Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it.
 todo Mdns.encode = Mdns.decode
 todo Arrival.lit `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`.
+todo Engine.Subs.notify Nothing on main notices through the window index: the app's cache does on app-1e with fd/window-subs-app3 (`Data.Live.notice`, `Live.store`, `Q.win`); land it.
+todo Engine.Subs.find = Engine.Subs.notify
+todo Engine.Subs.notifyM = Engine.Subs.notify
+todo Engine.Subs.keep = Engine.Subs.notify
+todo Engine.Subs.add = Engine.Subs.notify
+todo Engine.Subs.at_ = Engine.Subs.notify
+todo Engine.Slots.build = Engine.Subs.notify
+todo Engine.Slots.find = Engine.Subs.notify
+todo Engine.rankM = Engine.Subs.notify
+todo Engine.posWork = Engine.Subs.notify
+todo Engine.net = Engine.Subs.notify
+todo Engine.Win.has = Engine.Subs.notify
+todo Engine.Win.inside = Engine.Subs.notify
+todo Engine.Win.all = Engine.Subs.notify
+todo Engine.ListQ.win = Engine.Subs.notify
+todo Engine.ListQ.watch = Engine.Subs.notify
+todo Engine.ListQ.kept = Engine.Subs.notify
+todo Screen.Frame.wants Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan).
+todo Screen.Frame.listWins = Screen.Frame.wants
+todo Screen.Frame.near = Screen.Frame.wants
+todo Screen.Frame.shown = Screen.Frame.wants
+todo Engine.Subs.ofList = Screen.Frame.wants
 todo Pics.after The picture doors as data (`PicM`), measured: the app's own doors (its decode table and frame counter) are not shown to answer as `PicM`'s. Prove they do, or state these over them.
 todo Pics.costIn = Pics.after
-todo Live.Board.put The change signal's board and reader, as a model (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's cache (`Data.Live`) does not run `Board`. Have the reader use it.
-todo Live.Board.apply = Live.Board.put
-todo Live.Board.keep = Live.Board.put
-todo Live.Board.take = Live.Board.put
-todo Live.World.afterActs = Live.Board.put
-todo Live.World.commit = Live.Board.put
-todo Live.World.frame = Live.Board.put
-todo Live.World.marked = Live.Board.put
-todo Live.World.pass = Live.Board.put
-todo Live.World.passActs = Live.Board.put
-todo Live.World.type = Live.Board.put
-todo Live.RWorld.commit = Live.Board.put
-todo Live.RWorld.evict = Live.Board.put
-todo Live.RWorld.frame = Live.Board.put
-todo Live.RWorld.marked = Live.Board.put
-todo Live.RWorld.pass = Live.Board.put
-todo Live.staleW = Live.Board.put
+todo Live.Board.apply The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`.
+todo Live.World.afterActs = Live.Board.apply
+todo Live.World.commit = Live.Board.apply
+todo Live.World.frame = Live.Board.apply
+todo Live.World.marked = Live.Board.apply
+todo Live.World.pass = Live.Board.apply
+todo Live.World.passActs = Live.Board.apply
+todo Live.World.type = Live.Board.apply
+todo Live.RWorld.commit = Live.Board.apply
+todo Live.RWorld.evict = Live.Board.apply
+todo Live.RWorld.frame = Live.Board.apply
+todo Live.RWorld.marked = Live.Board.apply
+todo Live.RWorld.pass = Live.Board.apply
 todo Heights.T.sum The row-heights tree (engine/renderer/Heights.lean): the app keeps its rows' heights in a map (`App.heightOf`) and adds them up itself. Have its list frame place rows by `Heights`.
 todo Heights.Both.bottom = Heights.T.sum
 todo Heights.Both.rowAt = Heights.T.sum

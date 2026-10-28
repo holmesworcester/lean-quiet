@@ -10,6 +10,7 @@ import ops.community.Community
 import ops.connection.All
 import engine.renderer.Geometry
 import engine.renderer.Cover
+import engine.renderer.ImageLaws
 import engine.renderer.LiveLaws
 import engine.renderer.SheetGeom
 import ops.community.link.View
@@ -30,6 +31,10 @@ import engine.renderer.qr.Qr
 import engine.renderer.pic.Pic
 import engine.wire.mdns.Mdns
 import ops.connection.bootstrap.Net
+import engine.core.WindowRead
+import engine.core.WindowCost
+import engine.core.WindowMutants
+import engine.renderer.Screen
 import engine.core.CodecCost
 import ops.community.MerkleCost
 import ops.app.Pics
@@ -391,6 +396,7 @@ section app
 #print axioms SheetGeom.compose_top
 #print axioms Geometry.pinned_row
 #print axioms Cover.covered
+#print axioms Image.decode_sized
 #print axioms LiveLaws.agrees_empty
 #print axioms LiveLaws.answer_agrees
 #print axioms LiveLaws.agrees_store
@@ -424,6 +430,10 @@ section app
 #print axioms RowLaws.tally_mem
 #print axioms RowLaws.time_shown
 #print axioms RowLaws.name_placed
+#print axioms RowLaws.flush_shows
+#print axioms RowLaws.flush_start
+#print axioms RowLaws.name_starts
+#print axioms Composer.caret_clear
 #print axioms ViewLaws.profile_read
 #print axioms ViewLaws.others_iff
 #print axioms ViewLaws.namesake_iff
@@ -528,6 +538,42 @@ open Net
 #print axioms Net.allowPeer_iff
 #print axioms Net.allowPeer_settles
 end net
+
+section windows
+open Engine
+#print axioms Engine.run_exact
+#print axioms Engine.fact_stable
+#print axioms Engine.window_ne_iff
+#print axioms Engine.window_ne_iff_flips
+#print axioms Engine.oneOpPerId_of
+#print axioms Engine.notice_iff
+#print axioms Engine.rank_spec
+#print axioms Engine.find_build
+#print axioms Engine.Subs.find_iff
+#print axioms Engine.Subs.mem_notifyM
+#print axioms Engine.Subs.has_ofList
+#print axioms Engine.Subs.has_add
+#print axioms Engine.Subs.has_keep
+#print axioms Engine.Subs.add_wf
+#print axioms Engine.Subs.keep_wf
+#print axioms Engine.Subs.ofList_wf
+#print axioms Engine.mem_net
+#print axioms Engine.read_rows_iff
+#print axioms Engine.read_notice_iff
+#print axioms Engine.watch_stable
+#print axioms Engine.window_rows
+#print axioms Engine.rank_costs
+#print axioms Engine.find_costs
+#print axioms Engine.notify_cost
+#print axioms Engine.Mutants.key_notice_imprecise
+#print axioms Engine.Mutants.exact_silent
+#print axioms Engine.Mutants.unnetted_imprecise
+#print axioms Screen.screen_subs
+#print axioms Screen.hull_near
+#print axioms Screen.past_hull_le
+#print axioms Screen.screen_index
+#print axioms Screen.keep_scrolled_off
+end windows
 
 section cost
 -- Budgets over the code that runs (docs/PERF.md), and the negative

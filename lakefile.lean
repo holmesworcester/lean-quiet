@@ -164,6 +164,11 @@ lean_exe connection_check where
 lean_exe purge where
   root := `tests.engine.Purge
 
+-- Exact notices on SQLite: the journal netted and matched, against the
+-- windows read again, with the key-level and unnetted controls.
+lean_exe window_check where
+  root := `tests.engine.WindowCheck
+
 lean_exe jointcp where
   root := `tests.engine.JoinTcp
 
@@ -195,6 +200,14 @@ lean_exe host where
 -- The app itself on the headless twin: Main over host.c's script.
 lean_exe quiet_host where
   root := `Main
+
+-- The font's inkless glyphs are all invisible or spaces (names).
+lean_exe inkless where
+  root := `platforms.headless.Inkless
+
+-- A picture whose chunks reach the board while its retry waits.
+lean_exe pic_retry where
+  root := `platforms.headless.PicRetry
 
 -- Two apps joined by link, ops carried between them as sync would.
 lean_exe two_nodes where

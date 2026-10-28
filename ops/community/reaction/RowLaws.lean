@@ -87,9 +87,43 @@ theorem time_shown (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
     (layout f dm W d).time = Text.oneLine f (dm.cell * 4) (if d.pending then "pending" else clock d.time) := rfl
 
 /-- **The row's name is the author's name as read**, cut as `oneLine`
-cuts (a logical prefix: Text.oneLine_prefix). -/
+cuts (a logical prefix: Text.oneLine_prefix), flushed to the box's start. -/
 theorem name_placed (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
-    (layout f dm W d).name = Text.oneLine f ((W - dm.textX - dm.pad) / 2) d.name := rfl
+    (layout f dm W d).name = flush (Text.oneLine f ((W - dm.textX - dm.pad) / 2) d.name) := rfl
+
+/-- Flushing keeps a line's glyphs, in order. -/
+theorem flush_shows (l : Text.Line) : (flush l).toList.map (·.c) = l.toList.map (·.c) := by
+  unfold flush; split <;> simp
+
+/-- **A flushed line starts at its box's start edge**: its leftmost glyph
+is at 0, whatever the line's direction. -/
+theorem flush_start (l : Text.Line) (h : l.size ≠ 0) :
+    (∃ g ∈ (flush l).toList, g.x = 0) ∧ ∀ g ∈ (flush l).toList, ∃ g' ∈ l.toList, g.x + (l.toList.map (·.x)).min?.getD 0 = g'.x := by
+  unfold flush
+  split
+  · next m hm =>
+    have hmem := List.min?_mem hm
+    have hle : ∀ x ∈ l.toList.map (·.x), m ≤ x := fun x hx => (List.min?_eq_some_iff.1 hm).2 x hx
+    refine ⟨?_, ?_⟩
+    · obtain ⟨g, hg, rfl⟩ := List.mem_map.1 hmem
+      exact ⟨{ g with x := g.x - g.x }, by simp; exact ⟨g, by simpa using hg, by simp⟩, by simp⟩
+    · intro g hg
+      simp only [Array.toList_map, List.mem_map] at hg
+      obtain ⟨g', hg', rfl⟩ := hg
+      have := hle g'.x (List.mem_map.2 ⟨g', hg', rfl⟩)
+      exact ⟨g', hg', by simp [hm]; omega⟩
+  · next hm =>
+    simp only [List.min?_eq_none_iff, List.map_eq_nil_iff, Array.toList_eq_nil_iff] at hm
+    exact absurd (by simp [hm]) h
+
+/-- **The row's name starts next to the avatar**, in either direction:
+its line's leftmost glyph is at the name box's start. -/
+theorem name_starts (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData)
+    (h : (layout f dm W d).name.size ≠ 0) : ∃ g ∈ (layout f dm W d).name.toList, g.x = 0 := by
+  rw [name_placed] at h ⊢
+  have h' : (Text.oneLine f ((W - dm.textX - dm.pad) / 2) d.name).size ≠ 0 := by
+    unfold flush at h; split at h <;> simp_all
+  exact (flush_start _ h').1
 
 /-- **The row is labelled "⚠ Duplicate" exactly when its name has a
 namesake** (the row's `namesake`, read as NamesakeLaws.row_marked says),
