@@ -24,6 +24,7 @@ import engine.core.CodecCost
 import ops.community.MerkleCost
 import ops.app.Pics
 import engine.core.IngestCost
+import engine.renderer.BoardLaws
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -383,4 +384,19 @@ section cost
 #print axioms Engine.waitOn_costs
 #print axioms Engine.decide_costs
 #print axioms Engine.step_costs
+#print axioms Live.Board.put_same
+#print axioms Live.Board.put_moves
+#print axioms Live.Board.ver_ident
+#print axioms Live.Board.Step.fresh
+#print axioms Live.Board.seen_put
+#print axioms Live.Board.seen_take
+#print axioms Live.Board.seen_keep
+#print axioms Live.World.inv_commit
+#print axioms Live.World.inv_pass
+#print axioms Live.World.inv_frame
+#print axioms Live.World.settle
+#print axioms Live.World.marked_pass
+#print axioms Live.World.settle_passes
+#print axioms Live.Gated.gated_stale
+#print axioms Live.Gated.ungated_fresh
 end cost

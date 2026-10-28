@@ -138,30 +138,36 @@ negative control is a table that breaks both rules.
 
 ## The app's frame (the Live change signal)
 
-Proposed, with its law statements; not yet proven or built.
-
 The frame never reads the store. A reader on its own thread (dedicated,
 its own connection, one read transaction per pass) owns the journal's
 cursor, the live cache of list answers, the outbox, and every view's
-evaluation. It publishes each value the frame wants to a `Board`,
-versioned: a refill whose value is equal keeps its version, and a
-different one takes the next version of one counter and is marked moved.
-The frame takes the moved set with one atomic swap and works only on the
-values in it that are on screen.
+evaluation. It publishes each value the frame wants to a `Board`
+(engine/renderer/Board.lean), versioned: a refill whose value is equal
+keeps its version, and a different one takes the next version of one
+counter and is marked moved. The frame takes the moved set with one
+atomic swap and works only on the values in it that are on screen.
 
 The signal is the effect (a value moved) at the moment it lands, not its
 cause (a commit's notice): with refills off the frame, the two land in
 different frames, and a frame gated on notices misses the refill that
 lands after its notice was taken (holmes-1e's TwoNodes failures).
 
-| law | statement |
-|---|---|
-| `put_same` | a refill equal to the held value changes nothing |
-| `put_moves` | a different or new value takes the next version and is moved |
-| `ver_ident` | along any run, one version of a want is one value |
-| `take_complete` | between two takes, every want whose version moved is in the moved set |
-| `inv_step`, `settle` | with no commits after seq s, after ⌈dirty / refill⌉ passes and one frame, the screen's values equal the store's |
-| `notice_gated_stale` | the mutant: a frame gated on notices stays stale forever on a three-step trace |
-| `frame_reads` | the frame's step makes no store read and no list, and reaches no SQL, decrypt or decode but through `Pics.spawn` (Doors) |
-| `frame_work` | the frame's work is at most a + b · rows on screen + the moved values' sizes |
-| `frame_idle` | nothing moved, no event, no scroll, no paint finished: no work, and the same rows out |
+The board's operations are the code the reader and the frame call; the
+world (`Live.World`, engine/renderer/BoardLaws.lean) is a model of the
+threads around it whose steps are those operations: the writer's
+commits, the reader's passes, the frame, in any order. Its store is
+abstract, and the one thing assumed of it is the engine's `view_stable`
+(`World.Stable`: a commit that touches no list a value read leaves it).
+
+| step | bound | theorem | status |
+|---|---|---|---|
+| a refill | equal: nothing changes; different or new: the next version, moved | `put_same`, `put_moves` | ✅ |
+| a version | one value, along any run of puts, takes and keeps | `ver_ident`, `Step.fresh` | ✅ |
+| between two takes | no change lost: every value held is moved or shown | `seen_put`, `seen_take`, `seen_keep` | ✅ |
+| any interleaving | every value held is dirty, touched by a commit not taken, or the store's; and seen | `inv_commit`, `inv_pass`, `inv_frame` | ✅ |
+| no missed update | a pass refilling every marked want, then a frame: every want shows the store's value | `settle` | ✅ |
+| settling time | passes of `refill` each: ⌈marked / refill⌉ of them, then a frame | `marked_pass`, `settle_passes` | ✅ |
+| the mutant | a frame gated on notices shows 0 for ever where the store holds 1; this frame shows 1 | `gated_stale`, `ungated_fresh` | ✅ |
+| the frame's reads | none: no store read, no list, no SQL, decrypt or decode but through `Pics.spawn` | `frame_reads` (Doors over App.step) | ❌ the frame reads SQLite today (readView, slicesOf); fix: the reader above |
+| the frame's work | a + b · rows on screen + the moved values' sizes | `frame_work` | ❌ `bottoms` and the mount and paint loops walk every loaded row; fix: a prefix-sum tree over heights and a binary search for the window |
+| an unchanged frame | nothing moved, no event, no scroll, no paint finished: no work, the same rows | `frame_idle` | ❌ every frame re-runs the views through the cache; fix: the moved set |
