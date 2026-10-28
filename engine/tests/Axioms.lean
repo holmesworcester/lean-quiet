@@ -134,3 +134,17 @@ open Engine Community
 #print axioms Connection.rooms_trusted
 #print axioms Connection.rooms_cut
 #print axioms Connection.rooms_model
+#print axioms Connection.Noise.Symbolic.good
+#print axioms Connection.Noise.Symbolic.kk_runs
+#print axioms Connection.Noise.Symbolic.derivable_clean
+#print axioms Connection.Noise.Symbolic.derivable_sealed
+#print axioms Connection.Noise.Symbolic.kk_secret_init
+#print axioms Connection.Noise.Symbolic.kk_secret_resp
+#print axioms Connection.Noise.Symbolic.kk_secret
+#print axioms Connection.Noise.Symbolic.kk_forward_secret_init
+#print axioms Connection.Noise.Symbolic.kk_forward_secret_resp
+#print axioms Connection.Noise.Symbolic.kk_forward_secret
+#print axioms Connection.Noise.Symbolic.kk_authentic
+#print axioms Connection.Noise.Symbolic.kk_authentic_resp
+#print axioms Connection.Noise.Symbolic.exposed_parts
+#print axioms Connection.Noise.Symbolic.kk_secret_init_tight

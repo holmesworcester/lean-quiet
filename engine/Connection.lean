@@ -1,4 +1,5 @@
 import Connection.Noise
+import Connection.NoiseSymbolic
 import Connection.Eph
 import Connection.Request
 import Connection.Opened
