@@ -11,11 +11,9 @@ functions the runner calls:
   an urgent frame's push and the frame is urgent traffic and one burst;
 - `apart`: a socket's next write depends on its own lanes and frames
   only, whatever any other socket holds;
-- `credit_pos`, `credit_window`: a want is always answered with its
-  first op, and a serve lane passes its window by at most that op;
-- `lane_control`, `lane_hot`, `heat_hot`: what a node sends urgent:
-  wire control naming few ids, and the ops it wrote, from the write on
-  for `hotMs`.
+- `lane_control`, `hot_ids`, `heat_hot`: what a node sends urgent:
+  messages naming few ids, and the ops it wrote, from the write on for
+  `hotMs` (`fresh_served`, WorldLaws).
 -/
 import engine.wire.Node
 
@@ -207,47 +205,27 @@ theorem write_within {W E : Type} (ws : List W) (es : List E) (p : Nat) (hp : p 
       rw [iter_write, ih ws (by simp at hp; omega)]
       simp
 
-/-! ## Credit -/
-
-/-- **A want is always answered with at least its first op**, so a want
-for a fresh op is never held back by the window. -/
-theorem credit_pos (window wantBytes queued : Nat) : 0 < credit window wantBytes queued := by
-  unfold credit; omega
-
-/-- **A serve lane passes its window by at most one op**: what a want
-may add stays within the window, or is the one byte that sends the
-first op. -/
-theorem credit_window (window wantBytes queued : Nat) :
-    queued + credit window wantBytes queued ≤ max window (queued + 1) := by
-  unfold credit; omega
-
 /-! ## What a node sends urgent -/
 
 section
 variable {F : Type} {m : Type → Type} [Monad m] (x : Sync F m)
 
-/-- **Control goes urgent:** a wire op naming at most `urgentIds` ids
-(at least one) takes the urgent lane. -/
-theorem lane_control (n : Node) (o : Op) (now : Nat) (hw : isWire o.kind = true)
-    (hl : o.reqs.length ≤ max x.cfg.urgentIds 1) : n.lane x o now = .urgent := by
-  simp [Node.lane, wireLane, hw, hl]
+/-- **Control goes urgent:** a message naming at most `urgentIds` ids
+(at least one) takes the urgent lane; a longer one (a round's
+difference, closure offers) the serve lane. -/
+theorem lane_control (o : Op) (hl : o.reqs.length ≤ max x.cfg.urgentIds 1) : wireLane x o = .urgent := by
+  simp [wireLane, hl]
 
-/-- A wire op naming one id or none (an offer or a want of one op, a
+/-- A message naming one id or none (an offer or a want of one op, a
 round's claims, a hello) is urgent whatever `urgentIds` is. -/
-theorem lane_one (n : Node) (o : Op) (now : Nat) (hw : isWire o.kind = true) (hl : o.reqs.length ≤ 1) :
-    n.lane x o now = .urgent :=
-  lane_control x n o now hw (by omega)
+theorem lane_one (o : Op) (hl : o.reqs.length ≤ 1) : wireLane x o = .urgent :=
+  lane_control x o (by omega)
 
-/-- **A fresh write goes urgent:** an op this node wrote at t is sent
-urgent until t + `hotMs`, so the answer to the want that follows its
-offer overtakes the backlog. -/
-theorem lane_hot (n : Node) (o : Op) (t now : Nat) (hw : isWire o.kind = false) (hh : (o.id, t) ∈ n.hot)
-    (ht : now ≤ t + x.cfg.hotMs) : n.lane x o now = .urgent := by
-  have : n.hot.any (fun p => p.1 == o.id && Decidable.decide (now ≤ p.2 + x.cfg.hotMs)) = true :=
-    List.any_eq_true.2 ⟨(o.id, t), hh, Bool.and_eq_true_iff.2
-      ⟨show o.id.data == o.id.data from beq_self_eq_true _, by simpa using ht⟩⟩
-  simp only [Node.lane, hw, Bool.false_eq_true, ite_false]
-  simp [this]
+/-- **A fresh write is hot:** an op this node wrote at t is among the
+ids it serves first until t + `hotMs` (`Node.serveOwed`). -/
+theorem hot_ids (n : Node) (i : Id) (t now : Nat) (hh : (i, t) ∈ n.hot) (ht : now ≤ t + x.cfg.hotMs) :
+    i ∈ n.hotIds x now :=
+  List.mem_filterMap.2 ⟨(i, t), hh, by simp [ht]⟩
 
 /-- **A write's ops are hot from the write on**, while they are at most
 `hotCap`. -/
@@ -260,11 +238,11 @@ theorem heat_hot (n : Node) (ids : List Id) (now : Nat) (hc : ids.length ≤ x.c
   exact List.mem_map.2 ⟨i, List.mem_reverse.2 hi, rfl⟩
 
 /-- The stream's single offer and want are urgent. -/
-@[simp] theorem lane_want_one (n : Node) (i : Id) (now : Nat) : n.lane x (Msg.want [i]).op now = .urgent :=
-  lane_one x n _ now (by simp [Msg.op, isWire, kWant, kRbsr, kHave]) (by simp [Msg.op])
+@[simp] theorem lane_want_one (i : Id) : wireLane x (Msg.want [i]).op = .urgent :=
+  lane_one x _ (by simp [Msg.op])
 
-@[simp] theorem lane_hold_one (n : Node) (r i : Id) (now : Nat) : n.lane x (Msg.hold r [i]).op now = .urgent :=
-  lane_one x n _ now (by simp [Msg.op, isWire, kWant, kRbsr, kHave]) (by simp [Msg.op])
+@[simp] theorem lane_hold_one (r i : Id) : wireLane x (Msg.hold r [i]).op = .urgent :=
+  lane_one x _ (by simp [Msg.op])
 
 @[simp] theorem heat_conns (n : Node) (ids : List Id) (now : Nat) : (n.heat x ids now).conns = n.conns := rfl
 @[simp] theorem heat_managed (n : Node) (ids : List Id) (now : Nat) : (n.heat x ids now).managed = n.managed := rfl

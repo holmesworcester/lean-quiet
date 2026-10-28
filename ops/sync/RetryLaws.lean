@@ -1,7 +1,9 @@
 /-
 Bounds do not end sessions: honest_no_drop classifies every dropping
-connection call as a timer expiry. retry_bounded counts actual decoded
-want ids in tick's output. Ask timestamps expire independently of traffic.
+connection call as a timer expiry. Asks age by periods of patience,
+whatever the traffic, so an ask the peer never answers (its op purged)
+expires within two periods (`asks_expire`); nothing is retried, since a
+want is served whole (ServeLaws, `owed_within`).
 -/
 import ops.sync.TimeLaws
 import ops.sync.BoundsLaws
@@ -16,9 +18,12 @@ theorem known_forgets (cap : Nat) (known : Std.HashSet Id) (i : Id)
     remember cap known i = ({} : Std.HashSet Id).insert i := by
   simp [remember, show cap ≠ 0 by omega, show ¬ (known.insert i).size ≤ cap by omega]
 
-theorem asked_full (cap : Nat) (asked : Std.HashSet Id) (ids : List Id)
-    (hf : cap ≤ asked.size) : admitAsks cap asked ids = [] := by
-  simp [admitAsks, Nat.sub_eq_zero_of_le hf]
+/-- **Asks are never deferred:** every id offered that is not already
+asked is wanted, whatever the asks hold (the cap only limits what is
+remembered, `noteAsks`). -/
+theorem asks_all (asked stale : Std.HashSet Id) (ids : List Id) (i : Id) (hi : i ∈ ids)
+    (ha : asked.contains i = false) (hs : stale.contains i = false) : i ∈ freshAsks asked stale ids :=
+  List.mem_eraseDups.2 (List.mem_filter.2 ⟨hi, by simp [ha, hs]⟩)
 
 theorem round_no_drop (ix : Index) (c : Conn) (r : Id) (k now : Nat) (cs : List Claim) :
     (c.onRbsr cfg ix r k cs now).drop = false := by
@@ -37,11 +42,8 @@ theorem hold_no_drop (c : Conn) (r : Id) (ids : List Id) (h : Held F) :
     · rfl
     · exact Step.limit_drop _ _
 
-theorem want_no_drop (ix : Index) (c : Conn) (ids : List Id) (h : Held F) :
-    ((c.onWant fam cfg ix ids : HeldM F Step) h).1.drop = false := by
-  unfold Conn.onWant; split
-  · rfl
-  · simp only [HeldM.bind_apply, HeldM.pure_apply, Step.limit_drop]
+theorem want_no_drop (ix : Index) (c : Conn) (ids : List Id) :
+    (c.onWant cfg ix ids).drop = false := onWant_drop cfg ix c ids
 
 theorem recv_no_drop (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (h : Held F) :
     ((c.recv fam cfg ix bytes now : HeldM F Step) h).1.drop = false := by
@@ -62,7 +64,7 @@ theorem recv_no_drop (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (h 
         split <;> rfl
       | rbsr r k cs => exact round_no_drop cfg _ _ _ _ _ _
       | hold r ids => simp only [HeldM.bind_apply, HeldM.pure_apply, Conn.finish_drop]; exact hold_no_drop fam cfg _ _ _ _
-      | want ids => simp only [HeldM.bind_apply, HeldM.pure_apply, Conn.finish_drop]; exact want_no_drop fam cfg _ _ _ _
+      | want ids => simp only [HeldM.pure_apply, Conn.finish_drop]; exact want_no_drop cfg _ _ _
 
 /-- An observed return from a public Conn entry point, using the running code. -/
 inductive Conn.Call (fam : Family F) (cfg : Config) (c : Conn) (now : Nat) (h : Held F) : Step → Prop where
@@ -70,7 +72,7 @@ inductive Conn.Call (fam : Family F) (cfg : Config) (c : Conn) (now : Nat) (h : 
   | start (ix) : Call fam cfg c now h (c.start cfg ix now)
   | round (ix r k cs) : Call fam cfg c now h (c.onRbsr cfg ix r k cs now)
   | hold (r ids) : Call fam cfg c now h ((c.onHold fam cfg r ids : HeldM F Step) h).1
-  | want (ix ids) : Call fam cfg c now h ((c.onWant fam cfg ix ids : HeldM F Step) h).1
+  | want (ix ids) : Call fam cfg c now h (c.onWant cfg ix ids)
   | recv (ix bytes) : Call fam cfg c now h ((c.recv fam cfg ix bytes now : HeldM F Step) h).1
   | tick (ix) : Call fam cfg c now h ((c.tick fam cfg ix now : HeldM F Step) h).1
   | filed (ids) : Call fam cfg c now h ((c.filed fam cfg ids : HeldM F Step) h).1
@@ -98,62 +100,21 @@ theorem honest_no_drop_runs :
   refine ⟨c, _, .tick {}, ?_⟩
   exact responder_expires fam cfg {} c (cfg.lease + 1) {} rfl (by simp [c])
 
-theorem asks_expire (c : Conn) (now : Nat) (i : Id)
-    (ht : (c.askTime[i]?.getD c.heard) + cfg.patience < now) :
-    i ∉ (c.expireAsks cfg now).asked := by
-  simp [Conn.expireAsks, Std.HashSet.mem_filter, show ¬ now ≤ (c.askTime[i]?.getD c.heard) + cfg.patience by omega]
+/-- **An unanswered ask expires.** Two period ends after an ask (each
+at least `patience` after the last), it is in neither set, so the next
+offer of the op asks for it again. The peer may have purged the op, or
+not queued the want: no ask waits forever. -/
+theorem asks_expire (c : Conn) (now₁ now₂ : Nat) (h1 : c.askedAt + cfg.patience ≤ now₁)
+    (h2 : now₁ + cfg.patience ≤ now₂) :
+    ((c.age cfg now₁).age cfg now₂).asked = {} ∧ ((c.age cfg now₁).age cfg now₂).stale = {} := by
+  simp [Conn.age, h1, h2]
 
-/-- All decoded want ids, including every chunk, in an actual output. -/
-def retried (ops : List Op) : List Id := ops.flatMap fun o =>
-  match Msg.ofOp o with | some (.want ids) => ids | _ => []
-
-@[simp] theorem retried_append (a b : List Op) : retried (a ++ b) = retried a ++ retried b := by
-  simp [retried]
-
-theorem retried_start (ix : Index) (c : Conn) (now : Nat) :
-    retried (c.start cfg ix now).send = [] := by
-  unfold Conn.start; split
-  · rfl
-  · simp [retried, Msg.ofOp, Msg.op, kRbsr, kHave, kWant, Codec.decode_encode]
-
-theorem retried_holds (offers : List (Id × Id)) : retried (holdsOf cfg offers) = [] := by
-  apply List.flatMap_eq_nil_iff.mpr
-  intro o ho
-  obtain ⟨r, _, ho⟩ := List.mem_flatMap.mp ho
-  obtain ⟨ids, _, rfl⟩ := List.mem_map.mp ho
-  simp
-
-theorem retried_chunks (ids : List Id) :
-    retried (chunks cfg ids .want) = (pieceIds cfg.maxIds ids.length ids).flatten := by
-  simp [retried, chunks, List.flatMap_map, Function.comp_def, List.flatten]
-
-theorem pieces_short (n k : Nat) (ids : List Id) (hl : ids.length ≤ n) :
-    (pieceIds n k ids).flatten.length ≤ ids.length := by
-  cases k with
-  | zero => simp [pieceIds]
-  | succ k =>
-    cases ids with
-    | nil => simp [pieceIds]
-    | cons i ids =>
-      have he : pieceIds n k [] = [] := by cases k <;> rfl
-      simp [pieceIds, List.take_of_length_le hl, List.drop_eq_nil_iff.mpr hl, he]
-
-theorem retry_bounded (ix : Index) (c : Conn) (now : Nat) (h : Held F) :
-    (retried ((c.tick fam cfg ix now : HeldM F Step) h).1.send).length ≤ cfg.maxIds := by
-  unfold Conn.tick
-  split
-  · simp [HeldM.pure_apply, retried]
-  · simp only [HeldM.bind_apply, HeldM.pure_apply, Conn.finish_send, retried_append, retried_holds, List.nil_append]
-    have hr : ∀ d : Conn, (retried (chunks cfg (d.retryIds cfg now) .want)).length ≤ cfg.maxIds := by
-      intro d
-      rw [retried_chunks]
-      have hl : (d.retryIds cfg now).length ≤ cfg.maxIds := by
-        unfold Conn.retryIds; split
-        · exact List.length_take_le _ _
-        · simp
-      exact Nat.le_trans (pieces_short _ _ _ hl) hl
-    split
-    · simpa only [retried_start, List.nil_append] using hr _
-    · simpa only [retried, List.flatMap_nil, List.nil_append] using hr _
+/-- And an ask lasts at least one period: aging keeps this period's
+asks as the last period's. -/
+theorem asks_last (c : Conn) (now : Nat) (i : Id) (hi : i ∈ c.asked) :
+    i ∈ (c.age cfg now).asked ∨ i ∈ (c.age cfg now).stale := by
+  unfold Conn.age; split
+  · exact Or.inr hi
+  · exact Or.inl hi
 
 end Engine.Sync

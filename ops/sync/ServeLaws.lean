@@ -314,7 +314,7 @@ theorem onWant_all (cfg : Config) (ix : Index) (c : Conn) (ids : List Id) (hm : 
     omega
 
 /-- A want sends nothing at once: everything goes through the queue. -/
-@[simp] theorem onWant_send (cfg : Config) (ix : Index) (c : Conn) (ids : List Id) :
+@[simp] theorem onWant_silent (cfg : Config) (ix : Index) (c : Conn) (ids : List Id) :
     (c.onWant cfg ix ids).send = [] := by
   unfold Conn.onWant; split <;> rfl
 
