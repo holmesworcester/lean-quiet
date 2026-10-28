@@ -16,6 +16,7 @@
 #include "scroll.h"
 
 #include <android/asset_manager.h>
+#include <dlfcn.h>
 #include <android/configuration.h>
 #include <android/log.h>
 #include <android/native_activity.h>
@@ -417,13 +418,39 @@ static void ba_queue_destroyed(ANativeActivity* act, AInputQueue* q) {
 // Files
 // -----
 
+// The install this library came from: its file's modification time,
+// which an update or reinstall changes.
+static long long ba_install_stamp(void) {
+  Dl_info     info;
+  struct stat st;
+  if (dladdr((void*)ba_install_stamp, &info) == 0 || info.dli_fname == NULL
+    || stat(info.dli_fname, &st) != 0) {
+    return -1;
+  }
+  return (long long)st.st_mtime;
+}
+
 // Copies the APK's assets/assets/* (one level) to <dir>/assets/ and
-// makes dir the cwd. Returns false (logged) on any failure.
+// makes dir the cwd, unless assets/.stamp says this install's assets are
+// already there (the font is large: a launch should not copy it again).
+// Returns false (logged) on any failure.
 static bool ba_files(ANativeActivity* act) {
   const char* dir = act->internalDataPath;
   if (dir == NULL || chdir(dir) != 0) {
     __android_log_print(ANDROID_LOG_ERROR, "lean", "cannot enter %s", dir);
     return false;
+  }
+  long long stamp = ba_install_stamp();
+  FILE*     sf    = fopen("assets/.stamp", "r");
+  long long had   = -2;
+  if (sf != NULL) {
+    if (fscanf(sf, "%lld", &had) != 1) {
+      had = -2;
+    }
+    fclose(sf);
+  }
+  if (stamp >= 0 && had == stamp) {
+    return true;
   }
   AAssetDir* ad = AAssetManager_openDir(act->assetManager, "assets");
   if (ad == NULL) {
@@ -454,6 +481,10 @@ static bool ba_files(ANativeActivity* act) {
     }
   }
   AAssetDir_close(ad);
+  if (ok && stamp >= 0 && (sf = fopen("assets/.stamp", "w")) != NULL) {
+    fprintf(sf, "%lld\n", stamp);
+    fclose(sf);
+  }
   return ok;
 }
 

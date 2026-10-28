@@ -97,6 +97,7 @@ structure St where
   times : Array Nat := #[]
   paints : Nat := 0
   seed : Nat := 1
+  dim : Dim := default
 
 instance : Inhabited Io := ⟨⟨fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ => pure #[],
   pure ("", #[]), fun _ => pure (), pure (), pure #[], fun _ => pure (), pure 0⟩⟩
@@ -208,13 +209,20 @@ def reactTo (m : Id) (e : String) : M Bool := do
 
 /-! ## Geometry -/
 
-def topH (s : St) : Nat := s.insetTop + 112
+def topH (s : St) : Nat := s.insetTop + s.dim.px 16 + 2 * s.dim.lineH
+
+/-- The composer: a margin, the field (text inset in it), the send button. -/
+def margin (s : St) : Nat := s.dim.px 8
+def sendD (s : St) : Nat := s.dim.cell + s.dim.px 12
+def fieldX1 (s : St) : Nat := s.W - margin s - sendD s - margin s
+def textX0 (s : St) : Nat := margin s + s.dim.px 12
+def textY0 (s : St) : Nat := margin s + s.dim.px 8
+def textW (s : St) : Nat := fieldX1 s - textX0 s - s.dim.px 12
 
 def composerLines (s : St) : Array Text.Line :=
-  let tw := s.W - 24 - 96 - 24 - 48
-  if s.text.isEmpty then #[#[]] else Text.layout s.font tw s.text
+  if s.text.isEmpty then #[#[]] else Text.layout s.font (textW s) s.text
 
-def botH (s : St) : Nat := 32 + 32 + (min 5 (composerLines s).size) * 40
+def botH (s : St) : Nat := 2 * textY0 s + (min 5 (composerLines s).size) * s.dim.lineH
 
 def viewH (s : St) : Nat := s.Hs - topH s - botH s - s.insetBot
 
@@ -273,11 +281,11 @@ def mount (x : Id) : M Unit := do
       if r.data == d then
         modify fun s => { s with rows := s.rows.insert x { r with deps } }
       else
-        let lay := Row.layout s.font s.W d
+        let lay := Row.layout s.font s.dim s.W d
         modify fun s => { s with rows := s.rows.insert x { r with data := d, lay, deps, ver := r.ver + 1 },
                                   heights := s.heights.insert x lay.h }
     | none =>
-      let lay := Row.layout s.font s.W d
+      let lay := Row.layout s.font s.dim s.W d
       modify fun s => { s with rows := s.rows.insert x ⟨d, lay, deps, (0, []), none, none, 1⟩,
                                 heights := s.heights.insert x lay.h }
 
@@ -286,7 +294,7 @@ def paintRow (x : Id) : M Unit := do
   let s ← get
   let some r := s.rows[x]? | return
   let av ← match r.data.avatar with
-    | some hh => image hh Row.avatar Row.avatar true
+    | some hh => image hh s.dim.avatar s.dim.avatar true
     | none => pure none
   let mut imgs := #[]
   for i in [0:r.lay.pics.size] do
@@ -302,8 +310,8 @@ def paintRow (x : Id) : M Unit := do
   if let some t := r.task then
     if ← IO.hasFinished t then r := { r with shown := some t.get, task := none }
   if r.painted != (r.ver, ready) && r.task.isNone then
-    let (f, W, bgRow, d, l) := (s.font, s.W, s.bgRow, r.data, r.lay)
-    let t := Task.spawn fun _ => Row.paint f W bgRow d l av imgs
+    let (f, dm, W, bgRow, d, l) := (s.font, s.dim, s.W, s.bgRow, r.data, r.lay)
+    let t := Task.spawn fun _ => Row.paint f dm W bgRow d l av imgs
     r := { r with task := some t, painted := (r.ver, ready) }
     modify fun s => { s with paints := s.paints + 1 }
   modify fun s => { s with rows := s.rows.insert x r }
@@ -337,48 +345,60 @@ def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run 
 def header (s : St) : Bitmap := Id.run do
   let h := topH s
   let hb := 0x16181B
+  let x := s.dim.pad
   let mut b := Bitmap.blank s.W h (solid hb s.W)
-  b := b.line s.font (Text.oneLine s.font (s.W - 64) "# general") 32 (s.insetTop + 16) nameInk true
+  let y := s.insetTop + s.dim.px 8
+  b := b.line s.font (Text.oneLine s.font (s.W - 2 * x) "# general") x y nameInk true
   let sub := s!"{s.total} messages · {s.people} people"
-  b := b.line s.font (Text.oneLine s.font (s.W - 64) sub) 32 (s.insetTop + 60) dim
-  b := b.fill 0 (h - 2) s.W h pill
+  b := b.line s.font (Text.oneLine s.font (s.W - 2 * x) sub) x (y + s.dim.lineH) dim
+  b := b.fill 0 (h - max 2 (s.dim.px 1)) s.W h pill
   return b
 
 def cursorAt (s : St) (i : Nat) : Nat × Nat :=
-  let tw := s.W - 24 - 96 - 24 - 48
   let pre := String.ofList (s.text.toList.take i)
-  let ls := if pre.isEmpty then #[#[]] else Text.layout s.font tw pre
+  let ls := if pre.isEmpty then #[#[]] else Text.layout s.font (textW s) pre
   let last := ls.back?.getD #[]
   -- a prefix ending in a newline puts the cursor on the next line
   if pre.endsWith "\n" then (ls.size, 0) else (ls.size - 1, Paint.Line.width s.font last)
 
 def composer (s : St) : Bitmap := Id.run do
   let h := botH s
+  let m := margin s
+  let lh := s.dim.lineH
+  let tx := textX0 s
+  let ty := textY0 s
   let mut b := Bitmap.blank s.W h s.bgRow
-  b := b.fill 0 0 s.W 2 pill
-  let fx1 := s.W - 24 - 96
-  b := b.round 24 16 fx1 (h - 16) 28 0x3A3D41
-  b := b.round 26 18 (fx1 - 2) (h - 18) 26 selBg
+  b := b.fill 0 0 s.W (max 2 (s.dim.px 1)) pill
+  let fx1 := fieldX1 s
+  let fr := (h - 2 * m) / 2
+  let k := max 2 (s.dim.px 1)
+  b := b.round m m fx1 (h - m) fr 0x3A3D41
+  b := b.round (m + k) (m + k) (fx1 - k) (h - m - k) (fr - k) selBg
   let ls := composerLines s
   if s.text.isEmpty then
-    b := b.line s.font (Text.oneLine s.font (fx1 - 72) "Message #general") 48 32 dim
+    b := b.line s.font (Text.oneLine s.font (textW s) "Message #general") tx ty dim
   else
     for i in [0:min 5 ls.size] do
-      b := b.line s.font ls[i]! 48 (32 + 40 * i) ink
+      b := b.line s.font ls[i]! tx (ty + lh * i) ink
     -- the composing span, underlined
     let cs := s.sel[2]!.toNat
     let ce := s.sel[3]!.toNat
     if ce > cs then
       let (l0, x0) := cursorAt s cs
       let (l1, x1) := cursorAt s ce
-      if l0 == l1 then b := b.fill (48 + x0) (32 + 40 * l0 + 34) (48 + x1) (32 + 40 * l0 + 37) ink
+      if l0 == l1 then
+        let uy := ty + lh * l0 + s.dim.cell
+        b := b.fill (tx + x0) uy (tx + x1) (uy + k) ink
   let (cl, cx) := cursorAt s s.sel[0]!.toNat
-  b := b.fill (48 + cx) (32 + 40 * (min 4 cl)) (48 + cx + 3) (32 + 40 * (min 4 cl) + 32) accent
+  let cy := ty + lh * (min 4 cl)
+  b := b.fill (tx + cx) cy (tx + cx + k + 1) (cy + s.dim.cell) accent
   -- send
-  let sx := s.W - 24 - 88
-  let sy := (h - 88) / 2
-  b := b.round sx sy (sx + 88) (sy + 88) 44 (if s.text.trimAscii.isEmpty then pill else accent)
-  b := b.glyph s.font 0x27A4 (sx + 28) (sy + 28) nameInk false
+  let d := sendD s
+  let sx := s.W - m - d
+  let sy := (h - d) / 2
+  b := b.round sx sy (sx + d) (sy + d) (d / 2) (if s.text.trimAscii.isEmpty then pill else accent)
+  let g := s.font.adv (s.font.glyph 0x27A4)
+  b := b.glyph s.font 0x27A4 (sx + (d - g) / 2) (sy + (d - s.dim.cell) / 2) nameInk false
   return b
 
 /-! ## Events and commands -/
@@ -397,7 +417,7 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   let s ← get
   match r with
   | .composer =>
-    if x ≥ s.W - 24 - 96 then
+    if x ≥ fieldX1 s then
       if ← sendText s.text then
         modify fun s => { s with text := "", sel := #[0, 0, 0, 0] }
         s.io.textClear
@@ -635,6 +655,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) : IO St := do
   if (← (getSql (F := Fact) me.c).run rd).isNone then
     wr.submit ⟨first, [], true⟩
   return { io := io, W := W, Hs := Hs, insetTop := (screen[2]?.getD 0).toNat,
+           dim := ⟨(screen[4]?.getD 420).toNat, font.cell⟩,
            insetBot := (screen[3]?.getD 0).toNat, font := font, bgRow := solid Row.bg W, rd := rd,
            wr := wr, me := me }
 

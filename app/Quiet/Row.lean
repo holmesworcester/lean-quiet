@@ -29,11 +29,22 @@ def accent : Color := 0x1D9BD1
 def selBg : Color := 0x222529
 def placeholder : Color := 0x2C2F33
 
-def pad : Nat := 32
-def avatar : Nat := 80
-def textX : Nat := pad + avatar + 24
-def lineH : Nat := 40
-def topPad : Nat := 16
+/-- Sizes for a screen: its density (dpi) and the font's cell. Lengths
+are given in dp (Android's density-independent pixels, 160 a inch) and
+drawn in pixels; text is the font's cell, about 24 dp. -/
+structure Dim where
+  dpi : Nat
+  cell : Nat
+  deriving Inhabited, BEq
+
+def Dim.px (d : Dim) (dp : Nat) : Nat := (dp * d.dpi + 80) / 160
+def Dim.pad (d : Dim) : Nat := d.px 12
+def Dim.avatar (d : Dim) : Nat := d.px 40
+def Dim.textX (d : Dim) : Nat := d.pad + d.avatar + d.px 12
+def Dim.lineH (d : Dim) : Nat := d.cell + d.cell / 8
+def Dim.topPad (d : Dim) : Nat := d.px 8
+def Dim.gap (d : Dim) : Nat := d.px 6
+def Dim.pillH (d : Dim) : Nat := d.cell + d.px 8
 
 /-! ## Data -/
 
@@ -93,49 +104,54 @@ def clock (t : Nat) : String :=
   let mm := m % 60
   s!"{hh}:{if mm < 10 then "0" else ""}{mm}"
 
-/-- The picture's box: at most 600 x 480 and the text's width, its
+/-- The picture's box: at most 280 x 240 dp and the text's width, its
 aspect kept. -/
-def picBox (maxW : Nat) (p : Pic) : Nat × Nat :=
-  let mw := min 600 maxW
-  let mh := 480
+def picBox (dm : Dim) (maxW : Nat) (p : Pic) : Nat × Nat :=
+  let mw := min (dm.px 280) maxW
+  let mh := dm.px 240
   let w := max p.w 1
   let h := max p.h 1
   if w * mh ≤ h * mw then (max 1 (w * mh / h), mh) else (mw, max 1 (h * mw / w))
 
-def layout (f : Font) (W : Nat) (d : RowData) : Layout := Id.run do
-  let tw := W - textX - pad
+def layout (f : Font) (dm : Dim) (W : Nat) (d : RowData) : Layout := Id.run do
+  let tx := dm.textX
+  let tw := W - tx - dm.pad
+  let lh := dm.lineH
   let name := oneLine f (tw / 2) d.name
-  let timeX := textX + Paint.Line.width f name + 16
-  let time := oneLine f 200 (if d.pending then "pending" else clock d.time)
+  let timeX := tx + Paint.Line.width f name + dm.px 8
+  let time := oneLine f (dm.cell * 4) (if d.pending then "pending" else clock d.time)
   let text := if d.text.isEmpty then #[] else Text.layout f tw d.text
-  let mut y := topPad + 4 + lineH
+  let mut y := dm.topPad + lh
   let textY := y
-  y := y + text.size * lineH
+  y := y + text.size * lh
   let mut pics := #[]
   for p in d.pics do
-    y := y + 12
-    let (w, h) := picBox tw p
-    pics := pics.push ⟨textX, y, w, h⟩
+    y := y + dm.gap
+    let (w, h) := picBox dm tw p
+    pics := pics.push ⟨tx, y, w, h⟩
     y := y + h
   let mut pills := #[]
-  let mut x := textX
-  if !d.tallies.isEmpty then y := y + 12
+  let mut x := tx
+  let ph := dm.pillH
+  if !d.tallies.isEmpty then y := y + dm.gap
   for t in d.tallies do
-    let count := oneLine f 80 (toString t.n)
-    let w := 24 + 32 + 8 + Paint.Line.width f count + 20
-    if x + w > W - pad then x := textX; y := y + 56
-    pills := pills.push (⟨x, y, w, 48⟩, t.emoji, count, t.mine)
-    x := x + w + 12
-  if !d.tallies.isEmpty then y := y + 48
+    let count := oneLine f (dm.cell * 3) (toString t.n)
+    let w := dm.px 10 + dm.cell + dm.px 4 + Paint.Line.width f count + dm.px 10
+    if x + w > W - dm.pad then x := tx; y := y + ph + dm.gap
+    pills := pills.push (⟨x, y, w, ph⟩, t.emoji, count, t.mine)
+    x := x + w + dm.gap
+  if !d.tallies.isEmpty then y := y + ph
   let mut palette := #[]
   if d.selected then
-    y := y + 16
-    let mut px := textX
+    y := y + dm.px 8
+    let mut px := tx
+    let bw := dm.cell + dm.px 12
     for e in emojiPalette do
-      palette := palette.push (⟨px, y, 80, 64⟩, e)
-      px := px + 92
-    y := y + 64
-  let h := max (y + 16) (topPad + avatar + 16)
+      if px + bw > W - dm.pad then break
+      palette := palette.push (⟨px, y, bw, ph⟩, e)
+      px := px + bw + dm.gap
+    y := y + ph
+  let h := max (y + dm.px 8) (dm.topPad + dm.avatar + dm.px 8)
   return ⟨h, name, time, timeX, text, textY, pics, pills, palette⟩
 
 /-! ## Paint -/
@@ -144,44 +160,46 @@ def layout (f : Font) (W : Nat) (d : RowData) : Layout := Id.run do
 def emojiAt (f : Font) (b : Bitmap) (e : String) (x y : Nat) (c : Color) : Bitmap :=
   b.glyph f (e.toList.headD ' ').val x y c false
 
-/-- The row's pixels: the layout's parts, each in its box. imgs holds the
-avatar (index 0) and the pictures, each at its box's size, or none while
-it decodes (a placeholder box is drawn instead). -/
-def paint (f : Font) (W : Nat) (bgRow : ByteArray) (d : RowData) (l : Layout)
+/-- The row's pixels: the layout's parts, each in its box. av is the
+avatar and imgs the pictures, each at its box's size, or none while it
+decodes (a placeholder box is drawn instead). -/
+def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (d : RowData) (l : Layout)
     (av : Option Bitmap) (imgs : Array (Option Bitmap)) : Bitmap := Id.run do
   let mut b := Bitmap.blank W l.h bgRow
   if d.selected then b := b.fill 0 0 W l.h selBg
-  -- avatar
-  let ay := topPad
+  let tx := dm.textX
+  let lh := dm.lineH
+  -- glyphs sit in their line: the cell, then an eighth of it below
+  let ay := dm.topPad
+  let a := dm.avatar
   match av with
-  | some a => b := b.image a pad ay (avatar / 2)
-  | none => b := b.round pad ay (pad + avatar) (ay + avatar) (avatar / 2) placeholder
-  -- name and time
-  b := b.line f l.name textX (topPad + 4) nameInk true
-  b := b.line f l.time l.timeX (topPad + 4) dim
-  -- text
+  | some img => b := b.image img dm.pad ay (a / 2)
+  | none => b := b.round dm.pad ay (dm.pad + a) (ay + a) (a / 2) placeholder
+  b := b.line f l.name tx dm.topPad nameInk true
+  b := b.line f l.time l.timeX dm.topPad dim
   let tc := if d.pending then dim else ink
   for i in [0:l.text.size] do
-    b := b.line f l.text[i]! textX (l.textY + i * lineH) tc
-  -- pictures
+    b := b.line f l.text[i]! tx (l.textY + i * lh) tc
+  let r := dm.px 8
   for i in [0:l.pics.size] do
     let bx := l.pics[i]!
     match imgs[i]? >>= id with
-    | some img => b := b.image img bx.x bx.y 12
-    | none => b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) 12 placeholder
-  -- reactions
+    | some img => b := b.image img bx.x bx.y r
+    | none => b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) r placeholder
+  let pr := dm.pillH / 2
+  let inset := dm.px 4
   for (bx, e, count, mine) in l.pills do
     if mine then
-      b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) 24 accent
-      b := b.round (bx.x + 3) (bx.y + 3) (bx.x + bx.w - 3) (bx.y + bx.h - 3) 21 pillMine
+      b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) pr accent
+      let k := max 2 (dm.px 1)
+      b := b.round (bx.x + k) (bx.y + k) (bx.x + bx.w - k) (bx.y + bx.h - k) (pr - k) pillMine
     else
-      b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) 24 pill
-    b := emojiAt f b e (bx.x + 24) (bx.y + 8) 0xF5C542
-    b := b.line f count (bx.x + 24 + 32 + 8) (bx.y + 8) (if mine then nameInk else ink)
-  -- palette
+      b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) pr pill
+    b := emojiAt f b e (bx.x + dm.px 10) (bx.y + inset) 0xF5C542
+    b := b.line f count (bx.x + dm.px 10 + dm.cell + dm.px 4) (bx.y + inset) (if mine then nameInk else ink)
   for (bx, e) in l.palette do
-    b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) 20 pill
-    b := emojiAt f b e (bx.x + 24) (bx.y + 16) 0xF5C542
+    b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) pr pill
+    b := emojiAt f b e (bx.x + dm.px 6) (bx.y + inset) 0xF5C542
   return b
 
 /-! ## Hits -/

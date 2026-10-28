@@ -114,7 +114,7 @@ def isSpace (c : UInt32) : Bool := c == 32 || c == 9
 
 /-- The advance of code point c in the font. -/
 def adv (f : Font) (c : UInt32) : Nat :=
-  if isMark c || isInvisible c then 0 else (f.glyph c).adv
+  if isMark c || isInvisible c then 0 else f.adv (f.glyph c)
 
 /-- Paragraphs (split at newlines) into lines of at most `width` pixels,
 as code points in logical order. -/
@@ -133,11 +133,11 @@ def wrapPara (f : Font) (width : Nat) (cs : Array UInt32) : Array (Array UInt32)
     -- a word: up to the next space; wide characters are words of their own
     let mut j := i
     let mut w := 0
-    if a == 32 then
+    if a == f.cell then
       j := i + 1; w := a
       while j < cs.size && adv f cs[j]! == 0 do j := j + 1
     else
-      while j < cs.size && !isSpace cs[j]! && (adv f cs[j]! != 32 || j == i) do
+      while j < cs.size && !isSpace cs[j]! && (adv f cs[j]! != f.cell || j == i) do
         w := w + adv f cs[j]!; j := j + 1
     if curW + w ≤ width then
       cur := cur ++ cs.extract i j; curW := curW + w
@@ -244,6 +244,6 @@ def oneLine (f : Font) (width : Nat) (s : String) : Line := Id.run do
   let (placed, w) := place f vis
   if w ≤ width then return placed
   let ell := adv f 0x2026
-  return (placed.filter (·.x + 16 + ell ≤ width)).push ⟨0x2026, width - ell⟩
+  return (placed.filter (·.x + f.cell / 2 + ell ≤ width)).push ⟨0x2026, width - ell⟩
 
 end Text

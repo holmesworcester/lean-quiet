@@ -98,19 +98,22 @@ def Bitmap.round (b : Bitmap) (x0 y0 x1 y1 r : Nat) (c : Color) : Bitmap := Id.r
   return b
 
 /-- The glyph of code point ch with its top left at (x, y), in colour
-c; bold smears each row one pixel right. -/
+c; bold smears each row right. -/
 def Bitmap.glyph (f : Font) (b : Bitmap) (ch : UInt32) (x y : Nat) (c : Color) (bold : Bool) : Bitmap := Id.run do
   let g := f.glyph ch
-  let n := if g.wide then 32 else 16
+  let n := f.adv g
+  -- bold smears each row right by a sixteenth of the cell
+  let smear := if bold then max 1 (f.cell / 32) else 0
   let mut b := b
-  for r in [0:32] do
-    let bits := f.row g r
-    let bits := if bold then bits ||| (bits >>> 1) else bits
+  for r in [0:f.cell] do
+    let bits0 := f.row g r
+    let mut bits := bits0
+    for k in [1:smear + 1] do bits := bits ||| (bits0 >>> k.toUInt64)
     if bits == 0 then continue
     b := b.modify (y + r) fun row => Id.run do
       let mut row := row
-      for i in [0:n + (if bold then 1 else 0)] do
-        if bits &&& (0x80000000 >>> i.toUInt32) != 0 then row := setPx row (x + i) c
+      for i in [0:min 64 (n + smear)] do
+        if bits &&& (0x8000000000000000 >>> i.toUInt64) != 0 then row := setPx row (x + i) c
       return row
   return b
 
