@@ -224,7 +224,7 @@ any op. An Invalid op refuses the whole write. Otherwise the ops go to the
 writer as one job of this node's own. -/
 def writeAll (w : Community.Write) : M Bool := do
   let s ← get
-  let mut mine : Std.HashMap Id (Verdict Fact) := {}
+  let mut mine : Std.HashMap Id (Verdict SF) := {}
   let mut pend := #[]
   for o in w.ops do
     let mut sts := []
@@ -233,9 +233,10 @@ def writeAll (w : Community.Write) : M Bool := do
         | some v => pure (some v)
         | none => Data.status s.rd r]
     match judge fam o sts with
-    | some (.valid f) =>
-      mine := mine.insert o.id (.valid f)
+    | some (.valid (.inl f)) =>
+      mine := mine.insert o.id (.valid (.inl f))
       pend := pend.push (⟨o, f, opKey o.id :: keys f⟩ : Pending)
+    | some (.valid v) => mine := mine.insert o.id (.valid v)
     | none => pure ()
     | some .invalid =>
       IO.eprintln s!"write refused: an op is Invalid"
@@ -589,7 +590,7 @@ def approveReq (r : Id) : M Unit := do
   let s ← get
   -- the intent reads the request and its approvals: with mine, is the
   -- tally complete? then the admission goes in the same write
-  let w ← ((Community.approveReq s.me.c r s.me.adm s.me.seed).run : SqlM Fact _).run s.rd
+  let w ← ((Community.approveReq s.me.c r s.me.adm s.me.seed).liftL.run : SqlM SF _).run s.rd
   let _ ← writeAll w
 
 /-- The current page's picture and taps (kept until what it shows changes). -/

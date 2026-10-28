@@ -21,7 +21,7 @@ by the other as a peer's (not its own) job. -/
 def carry (src dst : St) : IO Nat := do
   let rows ← src.rd.query "SELECT id FROM ops" #[]
   let ids := rows.toList.filterMap (·[0]?)
-  let ops ← (offer (family ed25519) ids : SqlM Fact (List Op)).run src.rd
+  let ops ← (offer Data.fam ids : SqlM SF (List Op)).run src.rd
   dst.wr.submit ⟨ops, [], false⟩
   return ops.length
 
