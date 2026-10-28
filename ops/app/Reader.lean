@@ -35,15 +35,23 @@ inductive Want where
   the newest `above`. A refill reads O(above + below) rows, however long
   the conversation (Heights' `window_rows`). -/
   | window (c : Id) (anchor : Option Pos) (above below : Nat)
+  /-- How many readable messages of c are newer than the anchor, and how
+  many at or older than it (no anchor: all are older): counted, not read.
+  They size the scroll extent beside the window (the page's own read,
+  Screen's `chrome`), so a message filed outside the window notifies
+  this want alone; the frame reads it after the rows. -/
+  | count (c : Id) (anchor : Option Pos)
   /-- Message m's row in c, as `me` sees it (Kinds.Message.read). -/
   | row (c me m : Id)
   deriving DecidableEq, Hashable
 
 /-- What a want reads as. -/
 inductive Val where
-  /-- The window's positions, newest first; how many readable messages
-  are newer than it and older than it (counted, not read), and in all. -/
-  | window (ids : Array Pos) (newer older total : Nat)
+  /-- The window's positions, newest first, and how many of them are
+  newer than its anchor. -/
+  | window (ids : Array Pos) (newerRows : Nat)
+  /-- The counts beside the anchor: newer than it, and at or older. -/
+  | count (newer older : Nat)
   /-- The row, or none while its message cannot be shown. -/
   | row (d : Option Row.RowData)
   deriving BEq
@@ -95,18 +103,25 @@ instance : Reads RM := ⟨read⟩
 
 /-- A want's value, and the reads it made. -/
 def eval : Want → RM (Val × Array Q)
-  -- the window counts the messages beside it (each read's inRange): its
-  -- reads are marked counted, so each watches its range (ListQ.watch)
+  -- the window's reads are rows alone: each watches its rows' window,
+  -- which holds exactly its rows (WindowRead.window_rows)
   | .window c none above _ => do
-    let (a, deps) ← readView (Community.readable c (limit := some above)).counting #[]
-    return (.window (a.rows.map (·.1)).toArray 0 (a.inRange - min a.inRange a.rows.length) a.inRange, deps)
+    let (a, deps) ← readView (Community.readable c (limit := some above)) #[]
+    return (.window (a.rows.map (·.1)).toArray 0, deps)
   | .window c (some p) above below => do
     -- at and older than p (one byte past its id: p itself is in), and newer
-    let (o, deps) ← readView (Community.readable c (limit := some above) (before := some (p.1, p.2.push 0))).counting #[]
-    let (n, deps) ← readView (Community.readable c (limit := some below) (desc := false) (after := some p)).counting deps
+    let (o, deps) ← readView (Community.readable c (limit := some above) (before := some (p.1, p.2.push 0))) #[]
+    let (n, deps) ← readView (Community.readable c (limit := some below) (desc := false) (after := some p)) deps
     let ids := (n.rows.reverse ++ o.rows).map (·.1)
-    return (.window ids.toArray (n.inRange - min n.inRange n.rows.length) (o.inRange - min o.inRange o.rows.length)
-      (n.inRange + o.inRange), deps)
+    return (.window ids.toArray n.rows.length, deps)
+  -- counts (limit 0): each watches its key
+  | .count c none => do
+    let (a, deps) ← readView (Community.readable c (limit := some 0)) #[]
+    return (.count 0 a.inRange, deps)
+  | .count c (some p) => do
+    let (o, deps) ← readView (Community.readable c (limit := some 0) (before := some (p.1, p.2.push 0))) #[]
+    let (n, deps) ← readView (Community.readable c (limit := some 0) (after := some p)) deps
+    return (.count n.inRange o.inRange, deps)
   | .row c me m => do
     match ← Kinds.Message.read c me m with
     | some (d, deps) => return (.row (some d), deps)

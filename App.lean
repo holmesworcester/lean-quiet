@@ -1588,11 +1588,19 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   -- (read by the reader: Reader.Want.window; the last window stays until
   -- the board has the wanted one, which is applied below, once the row at
   -- the viewport is known)
+  -- (the counts beside it are a want of their own, read after the rows:
+  -- the placeholders are the counts less the window's rows on each side)
   let idsW := Reader.Want.window s.me.c s.anchor half half
-  s.sh.wants.modify fun ws => #[idsW] ++ ws.filter (· != idsW)
+  let countW := Reader.Want.count s.me.c s.anchor
+  s.sh.wants.modify fun ws => #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
   readerPass
-  let fresh := match (← takeBoard).get? idsW with
-    | some (.window ids newer older total, _) =>
+  let bd ← takeBoard
+  let fresh := match bd.get? idsW with
+    | some (.window ids nr, _) =>
+      -- until this anchor's counts are read, the last placeholders stay
+      let (newer, older, total) := match bd.get? countW with
+        | some (.count cn co, _) => (cn - min cn nr, co - min co (ids.size - nr), cn + co)
+        | _ => (s.newer, s.older, s.total)
       if ids != s.ids || newer != s.newer || older != s.older || total != s.total then some (ids, newer, older, total)
       else none
     | _ => none
@@ -1630,7 +1638,7 @@ def frame (evs : List Event) : M (Option (List Event)) := do
     let bot := bots0[i]!
     if bot > hi then break
     if bot + heightOf s s.ids[i]!.2 ≥ lo then win := win.push s.ids[i]!.2
-  s.sh.wants.set (#[idsW] ++ win.map fun x => Reader.Want.row s.me.c s.me.adm x)
+  s.sh.wants.set (#[idsW] ++ win.map (fun x => Reader.Want.row s.me.c s.me.adm x) ++ #[countW])
   readerPass
   let bd ← takeBoard
   for x in win do mount bd x
