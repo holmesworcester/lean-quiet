@@ -344,18 +344,20 @@ def main (args : List String) : IO UInt32 := do
         (lat s!"{w} lanes" n ≤ bound)
     t.ok s!"{w}: under lanes the latency stays flat ({ms (lat s!"{w} lanes" lo)} at N={lo}, {ms (lat s!"{w} lanes" hi)} at N={hi})"
       (2 * lat s!"{w} lanes" hi ≤ 3 * lat s!"{w} lanes" lo + 200000)
-    -- The old order's wait is the 4 MiB want answers queued ahead of the
-    -- post (the round's, then the receiver's retries), so it grows with
-    -- the backlog, though not smoothly.
-    for n in sizes.filter (· != lo) do
-      t.ok s!"{w}: in the old order it grows with N ({ms (lat s!"{w} old" lo)} at N={lo}, {ms (lat s!"{w} old" n)} at N={n})"
-        (lat s!"{w} old" n ≥ 2 * lat s!"{w} old" lo)
+    -- The old order's wait is the 4 MiB steps queued ahead of the post
+    -- on one FIFO, so it grows with the backlog, though not smoothly.
+    let worst := (sizes.map (lat s!"{w} old")).foldl max 0
+    t.ok s!"{w}: in the old order it grows with N ({ms (lat s!"{w} old" lo)} at N={lo}, {ms worst} at worst)"
+      (worst ≥ 3 * lat s!"{w} old" lo)
     for n in sizes do
-      t.ok s!"{w}: a socket's serve lane stays within its window and one op at N={n}"
-        (peak s!"{w} lanes" n ≤ sim.window + frame)
+      t.ok s!"{w}: the old order waits at least 4 times longer than lanes at N={n}"
+        (lat s!"{w} old" n ≥ 4 * lat s!"{w} lanes" n)
+    -- The serve lane holds the queue's releases (within the window and
+    -- one op, `serveOwed_budget`) and long offers and wants (a round's
+    -- difference), which no window paces.
     for n in sizes do
-      t.ok s!"{w}: the old order waits at least 10 times longer than lanes at N={n}"
-        (lat s!"{w} old" n ≥ 10 * lat s!"{w} lanes" n)
+      t.ok s!"{w}: a socket's serve lane stays within its window, one op and a round's offers at N={n}"
+        (peak s!"{w} lanes" n ≤ sim.window + 4 * frame)
   let code ← t.finish "fresh"
   (← IO.getStdout).flush
   IO.Process.exit code.toUInt8

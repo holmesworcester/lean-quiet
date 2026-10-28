@@ -130,8 +130,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 539 rest on Lean's standard axioms
-only, and about three fifths of its theorems (356 of 539) are about
+that rests on; 🥊 is supporting. All 551 rest on Lean's standard axioms
+only, and about three fifths of its theorems (366 of 551) are about
 the code that runs; the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
 
@@ -145,9 +145,9 @@ the code that runs; the rest are over models so far
 | ✅ | 🥊🥊 | **Every op is signed by whom it must be.** A message is signed by an admitted device of its author, and an approval by a member other than the requester. An invitation is signed by its issuer, and a community's name by an admin. Each admission was consented to by its device. | [`message_authorized`], [`approval_signed`], [`invitation_issued`], [`named_by_admin`], [`admission_consented`] |
 | ✅ | 🥊🥊 | **Admins' removals stand,** even of each other, and a removed member's earlier approvals still count. | [`admin_removal_stands`], [`mutual_removal`], [`removed_approver_admits`] |
 | | | **Confidentiality** | |
-| ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A session sends only sync messages and ops of the rooms its peer is let into. A have for a room the peer may not see is ignored, so a peer cannot ask whether this node holds an op of another community, or a local op. Wants authorize ids against the shown rooms' index before any blob read. | [`recv_send`], [`hold_reply_local`], [`heldIn_index`], [`hold_reply_local_premises`], [`want_reads_authorized`], [`want_blind`], [`want_blind_step`] |
+| ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A session sends only sync messages and ops of the rooms its peer is let into. A have for a room the peer may not see is ignored, so a peer cannot ask whether this node holds an op of another community, or a local op. A want queues only ids indexed in the shown rooms, before any blob read, and serving the queue sends only ops of the rooms shown at its turn. | [`recv_send`], [`hold_reply_local`], [`heldIn_index`], [`hold_reply_local_premises`], [`onWant_authorized`], [`serveOwed_shown`], [`serveOwed_blind`] |
 | ✅ | 🥊🥊🥊 | **Secrets stay on the device.** No local op (a secret, a session key, a pending join) is ever offered or sent. Of a connection's ops, only the two handshake messages are not local. | [`offer_shared`], [`wire_kinds`], [`local_kinds`], [`joinOps_travels`], [`found_travels`], [`stopWaiting_local`] |
-| 🟡 | 🥊🥊 | **The stream discloses only what it may.** It offers only ids of stored, shared ops, never one still pending, and the clock sends only round messages, offers and retries of outstanding wants. Proven of the running code: what a filed write and a tick send. Not yet: that an offer names only stored ops is proven of a model of offering (`Engine.offer`). | [`filed_send`], [`offer_stored`], [`tick_send`] |
+| 🟡 | 🥊🥊 | **The stream discloses only what it may.** It offers only ids of stored, shared ops, never one still pending, and the clock sends only round messages and offers. Proven of the running code: what a filed write and a tick send. Not yet: that an offer names only stored ops is proven of a model of offering (`Engine.offer`). | [`filed_send`], [`offer_stored`], [`tick_send`] |
 | 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Proven: the `recipients` query names exactly the live members' encryption keys, and a member opens what was sealed under the key wrapped to it. Not yet: the running wrap writers use that query (today an approval below its threshold already wraps the key to the requester), and the seal's secrecy from non-members. | [`recipients_iff`], [`members_iff`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`check_reads_shared`] |
 | ✅ | 🥊🥊🥊 | **Sessions are secret and authenticated,** in the symbolic model, over the handshake functions that run. An attacker who reads, replays and injects every message, and knows every key but the two devices' static keys and the session's ephemerals, derives neither transport key, and the initiator accepts only the reply the responder wrote to this request. Replays are accepted again; payloads are not covered. | [`kk_secret`], [`kk_secret_init`], [`kk_secret_resp`], [`kk_authentic`], [`kk_authentic_resp`], [`kk_secret_init_tight`], [`kk_runs`], [`handshake_agrees`] |
 | 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered,** from the disk or from the static keys later. Every way a session ends purges its keys, and a silent responder's session ends once its lease (90 s by default) passes. With the ephemerals gone, the transcript and both static keys do not give the transport keys (tested: no file of the database keeps a byte of them). Not yet: that `closing` names every ephemeral (`close_forgets`). | [`close_purges`], [`close_gone`], [`responder_expires`], [`live_not_expired`], [`tick_drop_iff`], [`round_not_dropped`], [`kk_forward_secret`], [`purge_named`] |
@@ -170,7 +170,7 @@ the code that runs; the rest are over models so far
 | ✅ | 🥊🥊🥊 | **Authenticate before parsing:** a sealed frame's payload is decoded only after its AEAD check passes, under the receive key of the session the frame names. A frame that fails leaves the node and its store as they were, and sends nothing. | [`sealed_auth`], [`openFrame_auth`], [`onFrame_sealed`], [`sealed_unopened`] |
 | 🟡 | 🥊🥊 | **Bounded buffering:** inbound frames wait in a bounded queue, each at most 1 MiB, with one partial frame per socket, whatever the peer's length fields say; a full queue blocks its producer, and sockets are capped globally and per address. Proven of a model of the reader's loop (`keeps`); wiring it to the running reader is a todo. Tested: the queue's backpressure and socket admission. | [`buffer_bounded`], [`frames_kept`], [`frames_tooBig`], [`admit_bounded`] |
 | ✅ | 🥊🥊 | **No amplification:** a decoded op is exactly its bytes, so no larger. A bundle's payloads are together smaller than it. Linear decoding time is not proven. | [`Op.decode_exact`], [`Op.decode_parts`], [`decode_sum`] |
-| 🟡 | 🥊🥊 | **Resources are capped:** sockets, each connection's `known` and `asked` sets, retries and want replies, without dropping honest sessions. Not covered: the local room index, snapshots and closure caches, and round and CPU work. | [`hold_bounded`], [`conn_bounded`], [`honest_no_drop`], [`retry_bounded`], [`want_reads_authorized`], [`want_blind`], [`want_budget`] |
+| 🟡 | 🥊🥊 | **Resources are capped:** sockets, each connection's `known` and `asked` sets and its queue of the peer's wants, and what a step serves, without dropping honest sessions. An ask the peer never answers expires. Not covered: the local room index, snapshots and closure caches, and round and CPU work. | [`hold_bounded`], [`conn_bounded`], [`honest_no_drop`], [`onWant_bounded_owed`], [`serveOwed_budget`], [`asks_expire`], [`onWant_authorized`] |
 
 ### Quality proofs
 
@@ -191,7 +191,8 @@ the code that runs; the rest are over models so far
 | 🟡 | 🥊🥊🥊 | **A joiner connects, and both sides converge,** over a socket that loses, duplicates and reorders. Proven over a model only. Wanted: the same of the running code (`conn_runs_exchange`, `closure_delivered`). | [`bootstrap`], [`bootstrap_ideal`], [`bootstrap_possible`], [`reachable_inv`] *(model)* |
 | 🟡 | 🥊🥊🥊 | **The running connection does all this.** Proven: a connection answers a claim that lists ids exactly as `exchange` does, from the round's snapshot. Not yet: the whole round under any delivery order (`conn_runs_exchange`), and each op's requirement closure (`closure_delivered`). | [`conn_answers_ids`] |
 | 🟡 | 🥊🥊🥊 | **New ops reach connected members.** In a world of two nodes running the sync code on held stores, with fixed rooms, frames in the clear and no handshake: an op written while a member's session is up is offered at once, and the member holds it after one exchange (the offer, a want, the op), when both sides' rooms include its room, neither held it, and the receiver has a free ask slot and a response budget. Not yet of the runner, with TCP, sealed frames, the trust rule's rooms and the handshake. | [`stream_offered`], [`stream_delivers`], [`stream_delivers_steps`], [`stream_offered_runs`], [`stream_delivers_runs`] |
-| 🟡 | 🥊🥊🥊 | **A new op never waits behind backlog.** The app's write is the runner's next event, whatever frames are queued. On each socket, control naming few ids and this node's fresh writes go out in the next native write, ahead of every queued want answer, so only urgent traffic and one burst reach the socket first. One socket's backlog holds up no other. Not yet: the end-to-end bound (`fresh_stmt`) over the world; tested in simulated time against the old order, and over TCP. | [`write_first`], [`write_within`], [`urgent_ahead`], [`ahead_bytes`], [`cut_bytes`], [`apart`], [`credit_pos`], [`credit_window`], [`lane_control`], [`lane_hot`], [`write_hot`] |
+| ✅ | 🥊🥊🥊 | **Every want is served in full, and in order.** A want's authorized ids join the session's queue behind what it already owes, and each step serves the queue from its front within its budget, so the id at position p is served within p + 1 steps (in the same step, on an empty queue). Nothing is truncated or retried; an ask whose op the peer has since purged expires. | [`onWant_all`], [`onWant_order`], [`serveOwed_head`], [`serveOwed_fifo`], [`owed_within`], [`want_sends`], [`asks_expire`] |
+| 🟡 | 🥊🥊🥊 | **A new op never waits behind backlog.** The app's write is the runner's next event, whatever frames are queued. On each socket, control naming few ids and this node's fresh writes go out in the next native write, ahead of every queued want answer, so only urgent traffic and one burst reach the socket first. One socket's backlog holds up no other. Not yet: the end-to-end bound (`fresh_stmt`) over the world; tested in simulated time against the old order, and over TCP. | [`write_first`], [`write_within`], [`urgent_ahead`], [`ahead_bytes`], [`cut_bytes`], [`apart`], [`serveOwed_hot`], [`hot_ids`], [`lane_control`], [`fresh_served`], [`write_hot`] |
 | ⬜ | 🥊🥊🥊 | **Everyone converges.** Wanted: under fair delivery, members linked by any chain of connections eventually hold every op of their community, and so the same verdicts. Proven so far for two nodes, over a model. | |
 | ⬜ | 🥊🥊 | **Staleness is never hidden.** Wanted: "up to date as of T" means a round this device opened at T ended with it holding everything the peer held in that room, and a sync that stalls is shown within a stated bound. | |
 | ⬜ | 🥊🥊🥊 | **A synced page is complete:** after syncing a page, a device shows every row its peer shows for it (`page_sync`). | |
@@ -233,14 +234,14 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**356 of 539 laws are about running code;** 183 are not yet. Stated only: none.
+**366 of 551 laws are about running code;** 185 are not yet. Stated only: none.
 
 | Area | Laws | About running code | Not yet |
 |---|---|---|---|
 | Engine | 81 | 35 | 46 |
-| Sync | 82 | 81 | 1 |
+| Sync | 94 | 93 | 1 |
 | mDNS | 3 | 0 | 3 |
-| Node and wire | 53 | 35 | 18 |
+| Node and wire | 53 | 33 | 20 |
 | Bootstrap | 11 | 0 | 11 |
 | Connections | 30 | 27 | 3 |
 | Community | 152 | 132 | 20 |
@@ -251,8 +252,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 
 | Missing link | Laws | To make them real |
 |---|---|---|
-| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]*†, [`order_local`]*†, [`sealed_unopened`]*†, [`sealed_auth`]*†, [`purge_cached`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`write_offers_all`], [`close_gone`]*†, [`write_hot`]†, [`allowPeer_iff`], [`allowPeer_settles`] | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
-| `World.peer`, `Setup.sync`, `Who.other` +8 | [`stream_delivers`]†, [`stream_delivers_steps`]†, [`stream_delivers_runs`]†, [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`stream_offered`]†, [`stream_offered_runs`]†, [`write_offers_all`], [`fanout_offers`], [`seal_mem`], [`write_hot`]† | A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does. |
+| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]†, [`purge_undecides`]†, [`mem_purgeSet`]†, [`purge_inv`]†, [`purge_settles`]†, [`reach_ops`]*†, [`order_local`]*†, [`sealed_unopened`]*†, [`sealed_auth`]*†, [`purge_cached`]†, [`write_offers`], [`hold_wants`], [`want_sends`]†, [`op_taken`], [`write_offers_all`], [`close_gone`]*†, [`write_hot`]†, [`allowPeer_iff`], [`allowPeer_settles`] | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
+| `World.peer`, `Setup.sync`, `Who.other` +8 | [`stream_delivers`]†, [`stream_delivers_steps`]†, [`stream_delivers_runs`]†, [`write_offers`], [`hold_wants`], [`want_sends`]†, [`op_taken`], [`stream_offered`]†, [`stream_offered_runs`]†, [`write_offers_all`], [`fanout_offers`], [`seal_mem`], [`write_hot`]†, [`fresh_served`]†, [`serveOwed_world`] | A harness (held stores, frames in the clear, fixed rooms, no handshake): show the runner (`Runner.start`) steps as `World` does. |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
 | `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
@@ -338,7 +339,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 147 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Model.run`] | 158 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
 | [`Sync.popW`] | 3 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.Inv`] | 43 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
@@ -768,7 +769,7 @@ on the old layout comes over with `ci/reorg-map.tsv` (where each file
 went) and `ci/reorg-imports.py` (its new files' imports).
 
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
-[`stream_delivers`]: engine/wire/WorldLaws.lean#L641-L673
+[`stream_delivers`]: engine/wire/WorldLaws.lean#L751-L784
 [`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
 [`Unforgeable`]: ops/community/Laws.lean#L270-L272
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
@@ -793,22 +794,22 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`admin_removal_stands`]: ops/community/Laws.lean#L528-L541
 [`mutual_removal`]: ops/community/Laws.lean#L549-L553
 [`removed_approver_admits`]: ops/community/Laws.lean#L488-L499
-[`recv_send`]: ops/sync/ConnLaws.lean#L156-L158
-[`hold_reply_local`]: ops/sync/OfferLaws.lean#L663-L673
-[`heldIn_index`]: ops/sync/OfferLaws.lean#L686-L689
-[`hold_reply_local_premises`]: ops/sync/OfferLaws.lean#L712-L716
-[`want_reads_authorized`]: ops/sync/ServeLaws.lean#L124-L128
-[`want_blind`]: ops/sync/ServeLaws.lean#L132-L138
-[`want_blind_step`]: ops/sync/ServeLaws.lean#L144-L149
+[`recv_send`]: ops/sync/ConnLaws.lean#L158-L160
+[`hold_reply_local`]: ops/sync/OfferLaws.lean#L652-L662
+[`heldIn_index`]: ops/sync/OfferLaws.lean#L675-L678
+[`hold_reply_local_premises`]: ops/sync/OfferLaws.lean#L701-L705
+[`onWant_authorized`]: ops/sync/ServeLaws.lean#L282-L285
+[`serveOwed_shown`]: ops/sync/ServeLaws.lean#L451-L457
+[`serveOwed_blind`]: ops/sync/ServeLaws.lean#L469-L473
 [`offer_shared`]: engine/core/Sync.lean#L83-L86
 [`wire_kinds`]: ops/connection/Laws.lean#L48-L49
 [`local_kinds`]: ops/connection/Laws.lean#L55-L56
 [`joinOps_travels`]: ops/community/Intents.lean#L299-L303
 [`found_travels`]: ops/community/Intents.lean#L310-L314
 [`stopWaiting_local`]: ops/community/Intents.lean#L306-L307
-[`filed_send`]: ops/sync/ConnLaws.lean#L185-L188
+[`filed_send`]: ops/sync/ConnLaws.lean#L187-L190
 [`offer_stored`]: engine/core/Sync.lean#L98-L101
-[`tick_send`]: ops/sync/ConnLaws.lean#L194-L197
+[`tick_send`]: ops/sync/ConnLaws.lean#L196-L199
 [`recipients_iff`]: ops/community/Connect.lean#L214-L218
 [`members_iff`]: ops/community/Connect.lean#L205-L208
 [`member_opens`]: ops/community/Laws.lean#L928-L932
@@ -831,13 +832,13 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`round_not_dropped`]: ops/sync/TimeLaws.lean#L34-L37
 [`kk_forward_secret`]: ops/connection/NoiseSymbolic.lean#L685-L696
 [`purge_named`]: engine/core/Purge.lean#L267-L271
-[`have_shown`]: ops/sync/OfferLaws.lean#L557-L569
+[`have_shown`]: ops/sync/OfferLaws.lean#L546-L558
 [`boot_cached`]: engine/wire/NodeLaws.lean#L259-L260
 [`write_cached`]: engine/wire/NodeLaws.lean#L436-L440
 [`purge_cached`]: engine/wire/NodeLaws.lean#L508-L513
 [`cached_items`]: engine/wire/NodeLaws.lean#L271-L274
-[`write_snaps`]: ops/sync/OfferLaws.lean#L613-L616
-[`have_shown_premises`]: ops/sync/OfferLaws.lean#L705-L709
+[`write_snaps`]: ops/sync/OfferLaws.lean#L602-L605
+[`have_shown_premises`]: ops/sync/OfferLaws.lean#L694-L698
 [`connect_iff`]: ops/community/Connect.lean#L146-L150
 [`refuse_nonmember`]: ops/community/Connect.lean#L161-L164
 [`connect_approved`]: ops/community/Connect.lean#L182-L193
@@ -848,7 +849,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`rooms_cut`]: ops/connection/RoomLaws.lean#L93-L103
 [`trusts_live`]: ops/connection/RoomLaws.lean#L40-L46
 [`rooms_model`]: ops/connection/RoomLaws.lean#L109-L111
-[`recv_take`]: ops/sync/ConnLaws.lean#L127-L129
+[`recv_take`]: ops/sync/ConnLaws.lean#L129-L131
 [`no_connection_before_approval`]: ops/connection/bootstrap/Laws.lean#L39-L46
 [`sessions_trusted`]: ops/connection/bootstrap/Laws.lean#L63-L68
 [`intake_local`]: engine/core/Sync.lean#L41-L43
@@ -886,11 +887,12 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Op.decode_exact`]: engine/core/Core.lean#L96-L98
 [`Op.decode_parts`]: engine/core/Core.lean#L101-L104
 [`decode_sum`]: engine/core/Codec.lean#L779-L782
-[`hold_bounded`]: ops/sync/BoundsLaws.lean#L38-L39
-[`conn_bounded`]: ops/sync/BoundsLaws.lean#L177-L178
-[`honest_no_drop`]: ops/sync/RetryLaws.lean#L78-L83
-[`retry_bounded`]: ops/sync/RetryLaws.lean#L141-L142
-[`want_budget`]: ops/sync/ServeLaws.lean#L174-L177
+[`hold_bounded`]: ops/sync/BoundsLaws.lean#L65-L66
+[`conn_bounded`]: ops/sync/BoundsLaws.lean#L229-L233
+[`honest_no_drop`]: ops/sync/RetryLaws.lean#L80-L85
+[`onWant_bounded_owed`]: ops/sync/ServeLaws.lean#L338-L340
+[`serveOwed_budget`]: ops/sync/ServeLaws.lean#L441-L443
+[`asks_expire`]: ops/sync/RetryLaws.lean#L103-L109
 [`order_free`]: engine/core/Proofs.lean#L634-L639
 [`drain_settles`]: engine/core/Termination.lean#L110-L114
 [`status_iff_spec`]: engine/core/Proofs.lean#L483-L485
@@ -921,22 +923,28 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`bootstrap_ideal`]: ops/connection/bootstrap/Laws.lean#L423-L424
 [`bootstrap_possible`]: ops/connection/bootstrap/Laws.lean#L208-L218
 [`reachable_inv`]: ops/connection/bootstrap/Steps.lean#L222-L223
-[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1337-L1359
-[`stream_offered`]: engine/wire/WorldLaws.lean#L1283-L1295
-[`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L678-L695
-[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1302-L1308
-[`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L725-L730
-[`write_first`]: engine/wire/LaneLaws.lean#L172-L175
-[`write_within`]: engine/wire/LaneLaws.lean#L194-L197
-[`urgent_ahead`]: engine/wire/LaneLaws.lean#L93-L102
-[`ahead_bytes`]: engine/wire/LaneLaws.lean#L111-L122
-[`cut_bytes`]: engine/wire/LaneLaws.lean#L52-L54
-[`apart`]: engine/wire/LaneLaws.lean#L134-L140
-[`credit_pos`]: engine/wire/LaneLaws.lean#L212-L214
-[`credit_window`]: engine/wire/LaneLaws.lean#L217-L221
-[`lane_control`]: engine/wire/LaneLaws.lean#L229-L232
-[`lane_hot`]: engine/wire/LaneLaws.lean#L241-L245
-[`write_hot`]: engine/wire/WorldLaws.lean#L1269-L1274
+[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1449-L1471
+[`stream_offered`]: engine/wire/WorldLaws.lean#L1395-L1407
+[`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L789-L806
+[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1414-L1420
+[`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L836-L841
+[`onWant_all`]: ops/sync/ServeLaws.lean#L297-L301
+[`onWant_order`]: ops/sync/ServeLaws.lean#L316-L319
+[`serveOwed_head`]: ops/sync/ServeLaws.lean#L382-L387
+[`serveOwed_fifo`]: ops/sync/ServeLaws.lean#L392-L393
+[`owed_within`]: ops/sync/ServeLaws.lean#L430-L438
+[`want_sends`]: engine/wire/WorldLaws.lean#L594-L604
+[`write_first`]: engine/wire/LaneLaws.lean#L170-L173
+[`write_within`]: engine/wire/LaneLaws.lean#L192-L195
+[`urgent_ahead`]: engine/wire/LaneLaws.lean#L91-L100
+[`ahead_bytes`]: engine/wire/LaneLaws.lean#L109-L120
+[`cut_bytes`]: engine/wire/LaneLaws.lean#L50-L52
+[`apart`]: engine/wire/LaneLaws.lean#L132-L138
+[`serveOwed_hot`]: ops/sync/ServeLaws.lean#L374-L378
+[`hot_ids`]: engine/wire/LaneLaws.lean#L224-L227
+[`lane_control`]: engine/wire/LaneLaws.lean#L213-L216
+[`fresh_served`]: engine/wire/WorldLaws.lean#L582-L589
+[`write_hot`]: engine/wire/WorldLaws.lean#L1381-L1386
 [`visible_in_viewport`]: engine/renderer/Geometry.lean#L90-L95
 [`newest_visible`]: engine/renderer/Geometry.lean#L99-L105
 [`pinned_visible`]: engine/renderer/Geometry.lean#L147-L151
@@ -1030,15 +1038,15 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Pic.layout_inside`]: engine/renderer/pic/Laws.lean#L170-L172
 [`Pic.layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
 [`reach_drain`]: engine/core/Proofs.lean#L529-L530
-[`write_offers`]: engine/wire/WorldLaws.lean#L457-L465
-[`hold_wants`]: engine/wire/WorldLaws.lean#L474-L480
-[`want_sends`]: engine/wire/WorldLaws.lean#L490-L497
-[`op_taken`]: engine/wire/WorldLaws.lean#L525-L532
-[`write_offers_all`]: engine/wire/WorldLaws.lean#L1198-L1209
+[`write_offers`]: engine/wire/WorldLaws.lean#L473-L481
+[`hold_wants`]: engine/wire/WorldLaws.lean#L491-L498
+[`op_taken`]: engine/wire/WorldLaws.lean#L635-L642
+[`write_offers_all`]: engine/wire/WorldLaws.lean#L1310-L1321
 [`allowPeer_iff`]: ops/connection/bootstrap/Bridge.lean#L29-L32
 [`allowPeer_settles`]: ops/connection/bootstrap/Bridge.lean#L35-L39
-[`fanout_offers`]: engine/wire/WorldLaws.lean#L1055-L1061
-[`seal_mem`]: engine/wire/WorldLaws.lean#L1167-L1171
+[`fanout_offers`]: engine/wire/WorldLaws.lean#L1167-L1173
+[`seal_mem`]: engine/wire/WorldLaws.lean#L1279-L1283
+[`serveOwed_world`]: engine/wire/WorldLaws.lean#L566-L571
 [`admitted_inv`]: ops/connection/bootstrap/Scene.lean#L154-L156
 [`allowedA`]: ops/connection/bootstrap/Scene.lean#L219-L219
 [`allowedB`]: ops/connection/bootstrap/Scene.lean#L231-L233
@@ -1151,6 +1159,6 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Seal.Good`]: ops/community/Keys.lean#L40-L43
 [`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
 [`Model.run`]: engine/core/Model.lean#L103-L103
-[`Sync.popW`]: engine/wire/LaneLaws.lean#L162-L165
+[`Sync.popW`]: engine/wire/LaneLaws.lean#L160-L163
 [`Engine.Inv`]: engine/core/Proofs.lean#L202-L219
 <!-- /proof-links -->

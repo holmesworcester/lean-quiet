@@ -83,20 +83,41 @@ when it first saw the round. A message with no claims ends the round.
 
 **Have and want.** `hold` goes out as `sync.have`, naming its room (the
 round's, or each offered op's). The peer wants what it lacks in that
-room (`sync.want`), and wanted ops are sent as their own bytes. A want
-for an id outside the connection's rooms, a local or conn op, or an
-unknown id, is ignored silently. `authorize ix c ids` filters ids against
-only the connection's shown rooms in the index before `Store.getOp`.
-The read program `serve` reads only that list, stopping after the first
-whole op that reaches `wantBytes` (4 MiB by default); encoded op payloads
-are bounded by `wantBytes` plus one op, excluding transport envelopes.
-The store outside those rooms changes neither the read sequence nor the
-reply. Closure reads are deferred to ticks. The receiver retains admitted unsatisfied ids in `asked`. Every `retry` ms
-(1000 by default) a tick re-wants at most `maxIds` of them. Each ask expires
-strictly after its original ask time plus `patience`; repeat offers and
-retries do not renew that time. Expiry frees capacity even if other peer
-traffic keeps the session alive. Later rounds or offers rediscover deferred
-or expired ids, so a byte-limited response does not abandon the rest forever. A have for a room the peer may not see
+room (`sync.want`), and wanted ops are sent as their own bytes, every
+one, in order: the paced responder queue (simplification 3 of
+docs/PROOFS.md, "Lanes" below).
+- **The queue.** `authorize ix c ids` filters a want's ids against only
+  the connection's shown rooms in the index, before any blob read; the
+  ones not queued already join the back of the session's queue
+  (`Conn.owed`, at most `maxKnown` ids: a want past it waits for the
+  peer's next ask). A want for an id outside the rooms, a local or conn
+  op, or an unknown id, is never queued: the peer learns nothing.
+- **Serving.** Each step (a frame on the session, or a tick) serves the
+  queue: first the queued ops this node wrote within `hotMs`, urgent,
+  whatever the budget; then from the front, until the budget is out
+  (the op that reaches it goes whole). The read program `serve` reads
+  only queued ids. An id whose op is no longer stored (purged), or no
+  longer in a shown room, leaves the queue unanswered. The budget is
+  what the socket's serve lane has room for under `window`
+  (`Sync.room`, the runner's flow control), or `burst` a step without a
+  transport (a proof's world).
+- **Asks.** The asker wants every id offered that it lacks and has not
+  asked, remembering asks while there is room (`noteAsks`: an ask past
+  `maxKnown` is sent, not remembered; nothing is deferred). Asks age by
+  periods of `patience` (`Conn.age`): an ask not answered within two
+  periods expires, and the next offer asks again. Nothing is retried:
+  every want is served whole, so only a purged op goes unanswered.
+- **Removed, for a3's review** (sync-harden's mechanisms this replaces):
+  `wantBytes` truncation, the `retry` re-wants (`retryIds`, `lastAsk`),
+  per-ask times (`askTime`, `expireAsks`), and deferral when `asked` is
+  full (`admitAsks`). After cad36f2 the truncation and the deferral
+  broke the pilot's 3Δ (`claim_delivers`, finding 7 of docs/PROOFS.md);
+  the queue restores it: a want on an empty queue is answered in the
+  same step (`want_sends`), and the id at position p within p + 1 steps
+  (`owed_within`).
+
+The store outside the shown rooms changes neither the read sequence
+nor what is served (`serveOwed_blind`). A have for a room the peer may not see
 is ignored, and a have is answered from that room's ops only, so a
 peer's haves learn nothing of other rooms or of local ops.
 
@@ -183,7 +204,7 @@ family writes it as a local op, so it can't grow the log per message.
 | ops/sync/OfferLaws.lean | `have_shown`: what a connection offers |
 | engine/wire/Frame.lean | 4-byte length framing on TCP, with proven unframing and bounded buffering |
 | engine/wire/Tcp.lean | the TCP runner |
-| engine/wire/Lanes.lean | the send lanes, the run loop's inbox, and credit: what the runner calls |
+| engine/wire/Lanes.lean | the send lanes and the run loop's inbox: what the runner calls |
 | engine/wire/LaneLaws.lean | fresh ops ahead of backlog: `write_first`, `urgent_ahead`, `ahead_bytes`, `apart` |
 | engine/core/Locality.lean | `spec_local` |
 | engine/wire/Pair.lean | two Nodes over a lossy in-memory queue, for tests |
@@ -423,11 +444,12 @@ Still to prove:
 
 ## Caps
 
-- `maxIds` ids per have or want (oversized messages are ignored), and
-  at most `maxIds` retried ids per tick.
-- `maxKnown` entries in each hint/ask set; forgetting or deferral, never a drop.
-- `patience` bounds ask age; retries do not extend it.
-- `wantBytes` encoded response payload bytes plus one whole op.
+- `maxIds` ids per have or want (oversized messages are ignored).
+- `maxKnown` entries in each hint and ask set, and ids in the queue of
+  wants; hints forget, asks past it are sent and not remembered, wants
+  past it wait for the next ask; never a drop.
+- `patience` periods: an ask expires within two of them.
+- A step serves the queue up to its budget plus one whole op.
 - `queue` pending inbound events, `maxSocks` sockets and `perAddr` per IP.
 - `walk` closure steps per call (the rest continues on the next tick).
 - `burst` serve bytes per native write after the urgent frames, and
@@ -457,20 +479,25 @@ backlog through head-of-line blocking in the runner and on the socket
 4. the closure walk offers up to `walk` ids per tick;
 5. the receiver takes frames in order.
 
-**The fix, on the send side** (engine/wire/Lanes.lean, Node, Tcp):
+**The fix, on the send side** (ops/sync/Conn.lean's queue, Node,
+engine/wire/Lanes.lean, Tcp):
+- **The paced responder queue** (item 3, simplification 3 of
+  docs/PROOFS.md; "Have and want" above). A want is queued whole, never
+  truncated; each step serves the queue in order within its budget,
+  after the ops this node wrote within `hotMs`, which go urgent. No
+  retries remain to compete with a fresh want.
 - **Two lanes per socket.**
   - `Lane.urgent` is interaction: the stream's offers (`filed`), every
-    other wire op naming at most `urgentIds` ids (a hello, a round's
-    claims, a want of the offered op), and the ops this node wrote
-    within `hotMs`. The last makes the answer to a want right after a
-    fresh offer urgent.
-  - `Lane.serve` is uiprio's `serve` class on the sending side: answers
-    to a peer's wants, and long offers and wants (a round's difference,
-    the closure walk, retries).
-  - `Node.lane` decides for each op a connection's step sends. Each
-    lane's payloads are sealed in frames of their own, the serve lane's
-    last; `Effects.serve` counts them, so every reader of `send` still
-    sees every frame.
+    other message naming at most `urgentIds` ids (a hello, a round's
+    claims, a want of the offered op), and the fresh writes the queue
+    serves first.
+  - `Lane.serve` is uiprio's `serve` class on the sending side: the
+    queue's ops, and long offers and wants (a round's difference, the
+    closure walk).
+  - `wireLane` and `Node.serveOwed` decide. Each lane's payloads are
+    sealed in frames of their own, the serve lane's last;
+    `Effects.serve` counts them, so every reader of `send` still sees
+    every frame.
 - **A writer task per socket** owns its sends, on its own thread, from
   the socket's `Lanes`. Each native write (`Lanes.take`) is every urgent
   frame, then serve frames up to `burst` bytes, at least one. The run
@@ -480,42 +507,40 @@ backlog through head-of-line blocking in the runner and on the socket
 - **Local writes have their own channel**, read before any frame
   (`Inbox.next`). It is unbounded, so `Runner.write` no longer blocks
   the app behind a full event queue.
-- **Credit.** A frame from a socket whose serve lane holds `window`
-  bytes or more is answered as if `wantBytes` were what is left of the
-  window, and never less than one byte (`credit`), so each want still
-  gets its first op. The serve lane stays bounded without dropping
-  anything, as the blocking send bounded it before. The budget is per
-  want, computed once per frame, so a frame of k wants may add k times
-  it: as `wantBytes` already allows today (for a3: a per-frame budget
-  would close that for hostile frames too).
+- **Flow control.** The runner tells the node what each socket's serve
+  lane has room for under `window` (`Sync.room`), and a step serves a
+  session's queue only that far (and one op more). So the serve lane
+  holds at most `window` and one op of queued ops, whatever the backlog,
+  and nothing is dropped: the queue keeps the ids, not the bytes.
 
 `burst` is uiprio's `idleBatchBytes` on the send side (one native write
 of several frames, `sendMany`, as uiprio's). When Schedule's Params
 land, they set it.
 
-**Laws** (engine/wire/LaneLaws.lean, over the functions the runner
-calls):
-- `write_first`: a local write waiting is the loop's next event,
-  whatever frames are queued; `write_within`: the p-th waiting write
-  enters within p + 1 iterations. `frame_next`: with no write waiting,
-  the next frame.
-- `urgent_ahead`: an urgent frame pushed onto any lanes, followed by any
-  pushes, goes out in the writer's next native write after only the
-  urgent frames queued before it, and ahead of every serve frame queued
-  since the last write began. `cut_bytes`: a write's serve part is at
-  most `burst` bytes, or one frame.
-- `ahead_bytes`: so from an urgent frame's push to the frame, the
-  socket gets the write under way (the urgent frames queued when it
-  began, and one burst or one frame) and the urgent frames pushed
-  before it. That is the send-path premise of `fresh_stmt`.
-- `apart`: a socket's next write depends on its own lanes and the
-  step's frames to its address only, whatever any other socket holds.
-- `credit_pos`, `credit_window`: a want is always answered with its
-  first op, and a want brings a serve lane past `window` by at most that
-  op.
-- `lane_control`, `lane_hot`, `write_hot`: wire ops naming few ids are
-  urgent, and so are a local write's ops, from the write on for `hotMs`
-  (`write_hot` is of the running `onWrite`, in the world's setup).
+**Laws** (ServeLaws, LaneLaws, RetryLaws, BoundsLaws, WorldLaws; all
+over the functions the node and the runner call):
+- The queue: `onWant_all` (every authorized id of a want is queued, when
+  the queue has room), `onWant_order` (behind what was owed),
+  `onWant_authorized` (only ids of the shown rooms' index, no read),
+  `serveOwed_head` and `serveOwed_fifo` (each step serves the front, in
+  order), `owed_within` (a queue of p ids is served within p steps),
+  `serveOwed_budget` (the budget and one op), `serveOwed_hot` (a fresh
+  write the peer wants is served first, whatever the budget),
+  `serveOwed_shown`, `serveOwed_blind` (only shown ops; nothing outside
+  the queue read), `conn_bounded` (the queue within `maxKnown`).
+- Asks: `asks_all` (every new id offered is asked, never deferred),
+  `asks_expire` (two periods), `asks_last` (at least one).
+- In the world: `want_sends` (a want on an empty queue is answered in
+  the same step, the pilot's 3Δ hop again), `fresh_served`.
+- The runner: `write_first` and `write_within` (a local write waiting
+  is the loop's next event, whatever frames are queued), `urgent_ahead`
+  and `ahead_bytes` (an urgent frame goes out in its socket's next
+  native write, after only the urgent frames before it, ahead of every
+  serve frame queued since the last write began), `cut_bytes` (a write's
+  serve part is at most `burst`, or one frame), `apart` (a socket's next
+  write depends only on its own lanes).
+- What goes urgent: `lane_control`, `hot_ids`, `write_hot` (a local
+  write's ops are hot from the write on, for `hotMs`).
 
 With `fresh_stmt`'s FIFO links of bandwidth bw, each of the three hops
 (offer, want, op) then waits for at most the kernel's buffer, one burst
@@ -540,34 +565,45 @@ writes in the window).
 - tests/engine/Fresh.lean runs two real nodes (SQLite, the Community
   family, real 64 KiB attachment chunks) over a simulated link (2 MB/s,
   10 ms, a 256 KiB kernel buffer, the receiver's 64-frame queue), through
-  the runner's own `Inbox.next`, `Lanes` and `credit`, against the old
-  order (one FIFO channel, the loop waiting on each send). A post is
-  written once the receiver holds half of N chunks; latency is until the
-  peer stores it:
+  the runner's own `Inbox.next`, `Lanes` and flow control, against the
+  old order (one FIFO channel, the loop waiting on each send, 4 MiB
+  served a step as main's `wantBytes`). A post is written once the
+  receiver holds half of N chunks; latency is until the peer stores it:
 
   | N | 100 | 500 | 1000 | 2000 | 5000 |
   |---|---|---|---|---|---|
-  | backlog's sender writes, lanes | 330 ms | 330 ms | 330 ms | 330 ms | 330 ms |
-  | backlog's sender writes, old order | 4.9 s | 12.7 s | 15.0 s | 87.6 s | 13.2 s |
-  | backlog's receiver writes, lanes | 177 ms | 177 ms | 210 ms | 177 ms | 177 ms |
-  | backlog's receiver writes, old order | 4.7 s | 12.7 s | 14.8 s | 87.4 s | 13.0 s |
+  | backlog's sender writes, lanes | 330 ms | 331 ms | 331 ms | 330 ms | 330 ms |
+  | backlog's sender writes, old runner order | 1.7 s | 2.3 s | 2.5 s | 11.4 s | 4.2 s |
+  | backlog's sender writes, main (truncation and retries) | 4.9 s | 12.7 s | 15.0 s | 87.6 s | 13.2 s |
+  | backlog's receiver writes, lanes | 177 ms | 177 ms | 177 ms | 177 ms | 177 ms |
+  | backlog's receiver writes, old runner order | 1.5 s | 4.3 s | 4.4 s | 13.3 s | 6.2 s |
+  | backlog's receiver writes, main (truncation and retries) | 4.7 s | 12.7 s | 14.8 s | 87.4 s | 13.0 s |
 
-  Under lanes every latency is within the bound above (724 ms here) and
-  a socket's serve lane stays within `window` and one op. The old
-  order waits for every 4 MiB want answer queued ahead (the round's, then
-  the receiver's retries), so its wait grows with the backlog, though
-  not smoothly.
+  The rows for main were measured by the same harness on this branch
+  before the queue replaced truncation and retries (9b37001); the old
+  runner order is today's runner over the queue. Under lanes every
+  latency is within the bound above (724 ms here); the old order waits
+  for every step's bulk queued ahead on one FIFO, so it grows with the
+  backlog, though not smoothly.
 - tests/engine/FreshTcp.lean, over real TCP: a client asks node R for
   32 MiB and never reads. Another node still gets all of R's ops, and
   R's app write reaches it in milliseconds with the backlog still
   flowing. With the old blocking send, R's loop stops at the client's
   first full buffer.
-- tests/engine/fresh_negative.py: seven mutants, each refused by a law
-  or a test: the shared FIFO (`write_first`), one lane (`urgent_ahead`),
-  no burst cap (`cut_bytes`), no credit (`credit_window`), no hot set
-  (`lane_hot`), a write left cold (`write_hot`), and the blocking send
-  (FreshTcp: the other node gets nothing).
-- `mise run test:fresh` runs all three; tests/engine/run.sh (the engine
+- tests/engine/HardenLib.lean's want checks: a cross-room want is never
+  read, the budget stops reads, the rest is served the next step in
+  order, a fresh write is served first at a zero budget, a purged id
+  leaves the queue, a repeated want is not queued twice; asks are never
+  deferred and expire in two periods, and ticks re-ask nothing.
+- tests/engine/fresh_negative.py: nine mutants, each refused by a law or
+  a test: the shared FIFO (`write_first`), one lane (`urgent_ahead`), no
+  burst cap (`cut_bytes`), no hot set (`hot_ids`), a write left cold
+  (`write_hot`), fresh writes not served first (`serveOwed_hot`), a
+  truncated want (`onWant_all`), a want ahead of the queue
+  (`onWant_order`), and the blocking send (FreshTcp: the other node gets
+  nothing). tests/engine/harden_negative.py refuses the queue's and the
+  asks' mutants too (no aging, deferred asks, no budget).
+- `mise run test:fresh` runs them; tests/engine/run.sh (the engine
   gate) runs it.
 
 ## Planned (approved; after the join demo)

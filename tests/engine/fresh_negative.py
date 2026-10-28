@@ -8,7 +8,7 @@ def run(args, name):
     with (logs / (name + ".log")).open("w") as out:
         return subprocess.run(args, cwd=root, stdout=out, stderr=subprocess.STDOUT, timeout=600).returncode
 
-assert run(["lake", "build", "engine.wire.LaneLaws", "fresh_tcp"], "baseline-build") == 0
+assert run(["lake", "build", "engine.wire.LaneLaws", "ops.sync.ServeLaws", "engine.wire.WorldLaws", "fresh_tcp"], "baseline-build") == 0
 assert run([".lake/build/bin/fresh_tcp"], "baseline-run") == 0
 # (name, source, unique original, mutant, target, expected failure text, runtime?)
 cases = [
@@ -24,14 +24,22 @@ cases = [
      "    let (a, b) := fill (burst - f.size) fs\n    (f :: a, b)",
      "    (f :: fs, [])",
      "engine.wire.LaneLaws", "error:", False),
-    ("no-credit", "engine/wire/Lanes.lean",
-     "def credit (window wantBytes queued : Nat) : Nat := max 1 (min wantBytes (window - queued))",
-     "def credit (window wantBytes queued : Nat) : Nat := max 1 wantBytes",
-     "engine.wire.LaneLaws", "error:", False),
     ("no-hot", "engine/wire/Node.lean",
-     "  else if n.hot.any (fun p => p.1 == o.id && now ≤ p.2 + x.cfg.hotMs) then .urgent else .serve",
-     "  else .serve",
+     "  n.hot.filterMap fun p => if now ≤ p.2 + x.cfg.hotMs then some p.1 else none",
+     "  []",
      "engine.wire.LaneLaws", "error:", False),
+    ("hot-last", "ops/sync/Conn.lean",
+     "def Conn.hotOf (c : Conn) (first : List Id) : List Id := (first.filter c.owing.contains).eraseDups",
+     "def Conn.hotOf (c : Conn) (first : List Id) : List Id := []",
+     "ops.sync.ServeLaws", "error:", False),
+    ("truncated-want", "ops/sync/Conn.lean",
+     ".eraseDups.take (cfg.maxKnown - c.owed.length)",
+     ".eraseDups.take 1",
+     "ops.sync.ServeLaws", "error:", False),
+    ("want-jumps-queue", "ops/sync/Conn.lean",
+     "{ conn := { c with owed := c.owed ++ add, owing := add.foldl (·.insert ·) c.owing } }",
+     "{ conn := { c with owed := add ++ c.owed, owing := add.foldl (·.insert ·) c.owing } }",
+     "ops.sync.ServeLaws", "error:", False),
     ("cold-write", "engine/wire/Node.lean",
      "  (n.heat x n.fresh now).finish x out now",
      "  n.finish x out now",
@@ -59,6 +67,6 @@ for name, source, old, new, target, expected, runtime in cases:
     finally:
         path.write_text(original)
     assert run(["lake", "build", target], name + "-restored") == 0, (name, "restored source did not build")
-assert run(["lake", "build", "engine.wire.LaneLaws", "fresh_tcp"], "restored-build") == 0
+assert run(["lake", "build", "engine.wire.LaneLaws", "ops.sync.ServeLaws", "engine.wire.WorldLaws", "fresh_tcp"], "restored-build") == 0
 assert run([".lake/build/bin/fresh_tcp"], "restored-run") == 0
 print(f"fresh negative controls: {len(cases)} refused; restored suite passes")

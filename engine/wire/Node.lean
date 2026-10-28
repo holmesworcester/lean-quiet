@@ -35,13 +35,15 @@ frame came from (at first, the one its handshake ran on).
 - After each entry point the family's outbox (its send couriers) is
   handed out once and marked shipped.
 - Every id stored is reported (`stored`), so an app can re-read.
-- What a connection's step sends takes one of two lanes (`lane`,
-  docs/SYNC.md, "Lanes"): urgent (wire control naming few ids, the
-  stream's offers, and the answer to a want for an op this node just
-  wrote) or serve (the rest: want answers, and long offers and wants).
-  Each lane's payloads are sealed in frames of their own, the serve
-  lane's last (`Effects.serve` counts them), so the runner can send
-  urgent frames ahead of a backlog.
+- What a step sends takes one of two lanes (docs/SYNC.md, "Lanes"):
+  urgent (messages naming few ids, `wireLane`; the stream's offers; and
+  the wanted ops this node just wrote) or serve (the rest: the queue of
+  the peer's wants, and long offers and wants). Each session's queue is
+  served once a step, after the step's payloads (`serveOwed`), within
+  the room its socket has (`Sync.room`). Each lane's payloads are
+  sealed in frames of their own, the serve lane's last (`Effects.serve`
+  counts them), so the runner can send urgent frames ahead of a
+  backlog.
 -/
 import ops.sync.Conn
 import engine.core.Held

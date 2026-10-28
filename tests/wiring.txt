@@ -105,7 +105,6 @@ spec Engine.View.keys The keys a view reads, on the model: what a screen watches
 spec Engine.lexCmp Byte order, which `be64` keeps.
 spec Engine.Sync.pres The byte strings a label hashes, for the no-collision hypothesis.
 spec Engine.Sync.Msg.offers The ids a sync message offers.
-spec Engine.Sync.retried The ids an output's wants ask for.
 spec Engine.Sync.replyBytes A reply's payload bytes, for its bound.
 spec Engine.Sync.largestOp A reply's largest op, for its bound.
 spec Community.Merkle.treeInputs A file's Merkle tree inputs, for the no-second-preimage hypothesis.

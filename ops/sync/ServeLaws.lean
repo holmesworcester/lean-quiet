@@ -313,6 +313,15 @@ theorem onWant_all (cfg : Config) (ix : Index) (c : Conn) (ids : List Id) (hm : 
       Nat.le_trans (eraseDups_length_le _) (Nat.le_trans (List.length_filter_le _ _) (List.length_filter_le _ _))
     omega
 
+/-- **A want joins the back of the queue:** what was queued before it is
+served first. -/
+theorem onWant_order (cfg : Config) (ix : Index) (c : Conn) (ids : List Id) :
+    ∃ add, (c.onWant cfg ix ids).conn.owed = c.owed ++ add := by
+  unfold Conn.onWant
+  split
+  · exact ⟨[], by simp⟩
+  · exact ⟨_, rfl⟩
+
 /-- A want sends nothing at once: everything goes through the queue. -/
 @[simp] theorem onWant_silent (cfg : Config) (ix : Index) (c : Conn) (ids : List Id) :
     (c.onWant cfg ix ids).send = [] := by

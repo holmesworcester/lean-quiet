@@ -16,8 +16,8 @@ structure RunConfig where
   /-- Serve bytes in one native write, after the urgent frames (uiprio's
   `idleBatchBytes` on the send side). -/
   burst : Nat := 131072
-  /-- Serve bytes a socket may hold queued before each want on it is
-  answered with one op (`credit`). -/
+  /-- Serve bytes a socket may hold queued: a session's queue of wants is
+  served only while its socket's serve lane holds less (`Sync.room`). -/
   window : Nat := 4194304
 
 /-- A peer's quota is its host, the port dropped from the address text
