@@ -133,6 +133,7 @@ spec Engine.CostT.bind The cost meter: code measured in `CostT` is the code that
 spec Engine.CostT.pure The cost meter's unit.
 spec Engine.CostT.run The cost meter's run.
 spec Engine.Counted.cost What a counted run charged.
+spec Engine.Win.has Whether a window holds a row filed under a key at a position.
 
 ## Subjects the heuristic takes too much of
 
@@ -194,24 +195,6 @@ spec Pic.Rgba.wellFormed A picture's pixels are 4 bytes for each of its w × h.
 todo Mdns.decode Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it.
 todo Mdns.encode = Mdns.decode
 todo Arrival.lit `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`.
-todo Engine.Subs.notify Nothing on main notices through the window index: the app's cache does on app-1e with fd/window-subs-app3 (`Data.Live.notice`, `Live.store`, `Q.win`); land it.
-todo Engine.Subs.find = Engine.Subs.notify
-todo Engine.Subs.notifyM = Engine.Subs.notify
-todo Engine.Subs.keep = Engine.Subs.notify
-todo Engine.Subs.add = Engine.Subs.notify
-todo Engine.Subs.at_ = Engine.Subs.notify
-todo Engine.Slots.build = Engine.Subs.notify
-todo Engine.Slots.find = Engine.Subs.notify
-todo Engine.rankM = Engine.Subs.notify
-todo Engine.posWork = Engine.Subs.notify
-todo Engine.net = Engine.Subs.notify
-todo Engine.Win.has = Engine.Subs.notify
-todo Engine.Win.inside = Engine.Subs.notify
-todo Engine.Win.all = Engine.Subs.notify
-todo Engine.ListQ.win = Engine.Subs.notify
-todo Engine.ListQ.watch = Engine.Subs.notify
-todo Engine.ListQ.kept = Engine.Subs.notify
-todo Engine.View.counting = Engine.Subs.notify
 todo Screen.Frame.wants Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan).
 todo Screen.Frame.listWins = Screen.Frame.wants
 todo Screen.Frame.near = Screen.Frame.wants
@@ -224,3 +207,4 @@ todo Engine.Mutants.w5 = Engine.Mutants.σ
 todo Engine.Mutants.wk = Engine.Mutants.σ
 todo Engine.Mutants.keyNotified = Engine.Mutants.σ
 todo Engine.Mutants.rawNotified = Engine.Mutants.σ
+todo Engine.View.counting Nothing marks a view's reads counted now: the conversation's counts are a want of their own (`Reader.Want.count`); count through it, or drop it.

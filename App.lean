@@ -170,6 +170,9 @@ structure St where
   seen : Nat := 0
   me : Chaos.Me
   live : Live := {}
+  /-- The reads the frame made since it last forgot the others: what it
+  keeps watching (Screen.screen_subs). -/
+  touched : Std.HashSet Q := {}
   out : Array Pending := #[]
   /-- The reader's board, and the frame's wants of it (Reader): the
   conversation's ids and rows are read there, not on the frame. -/
@@ -287,6 +290,7 @@ def c (s : St) : Id := s.me.c
 /-! ## Reading through live answers -/
 
 def read (q : Q) : M Ans := do
+  modify fun s => { s with touched := s.touched.insert q }
   let s ← get
   let (a, live) ← (Live.readWith (fun q => q.run s.rd s.out) q).run s.live
   modify fun s => { s with live }
@@ -307,10 +311,12 @@ def readRow (m : Id) : M (Option (RowData × Array Q)) := do
 
 /-! ## Writing -/
 
-/-- Notices made by this node itself: a change to the outbox. -/
-def noticeLocal (keys : List ByteArray) : M Unit := do
-  modify fun s => { s with live := s.live.notice keys.toArray }
-  (← get).sh.notes.modify (· ++ keys.toArray)
+/-- Notices made by this node itself: a change to the outbox, at its ops'
+positions under their keys. -/
+def noticeLocal (ps : List Pending) : M Unit := do
+  let fs := Pending.filings ps
+  modify fun s => { s with live := s.live.notice fs }
+  (← get).sh.notes.modify (· ++ fs)
 
 /-- The one way into the store: through the node while it runs (it owns
 the store's writes, and offers peers only what it knows), else the local
@@ -347,7 +353,7 @@ def writeAll (w : Community.Write) : M Bool := do
       (← get).io.log s!"write refused: an op is Invalid"
       return false
   modify fun s => { s with out := s.out ++ pend }
-  noticeLocal (pend.toList.flatMap (·.keys))
+  noticeLocal pend.toList
   submit s ⟨w.ops, true⟩
   return true
 
@@ -810,16 +816,17 @@ def netStep : M Unit := do
   s.io.log s!"node: starting, dialed as {(String.fromUTF8? listen).getD "?"}"
   modify fun s => { s with netBoot := some t }
 
-/-- The keys every commit since the last call filed (the writer's and the
-node's alike), from the store's journal: read inside the frame's read
-transaction, they are exactly the commits this frame's reads see. -/
-def takeChanges : M (Array ByteArray) := do
+/-- The rows every commit since the last call filed or unfiled (the
+writer's and the node's alike), and the verdicts it recorded or cleared,
+from the store's journal: read inside the frame's read transaction, they
+are exactly the commits this frame's reads see. -/
+def takeChanges : M (Array Filing × Array (Id × Bool)) := do
   let s ← get
-  let (ks, top) ← s.rd.changesSince s.seen
+  let (fs, vs, top) ← s.rd.filingsSince s.seen
   modify fun s => { s with seen := top }
   -- taken by the frame and the reader: the writer may delete them
   s.wr.read.set (min top (← s.sh.seen.get))
-  return ks
+  return (fs, vs)
 
 /-- Join with QR code: the camera on while the page shows; each new
 frame drawn in the page's square (Camera.preview: it reads only inside the
@@ -1552,14 +1559,17 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   modify fun s => { s with Hs := hs, insetTop := it, insetBot := ib }
   -- 1. notices
   let s ← get
-  let ns ← takeChanges
-  if !ns.isEmpty then
-    let decided := s.out.filter fun p => ns.contains (opKey p.op.id)
+  let (fs, vs) ← takeChanges
+  if !fs.isEmpty || !vs.isEmpty then
+    -- an op whose verdict the store recorded leaves the outbox (the store
+    -- answers for it, same id)
+    let judged : Std.HashSet Id := vs.foldl (fun a (x, _) => a.insert x) {}
+    let decided := s.out.filter fun p => judged.contains p.op.id
     -- the store changed: an image waiting for its chunk ops tries again now
     modify fun s => { s with
-      live := s.live.notice ns
-      out := s.out.filter fun p => !ns.contains (opKey p.op.id) }
-    if !decided.isEmpty then noticeLocal (decided.toList.flatMap fun p => p.keys)
+      live := s.live.notice fs (vs.map (·.1))
+      out := s.out.filter fun p => !judged.contains p.op.id }
+    if !decided.isEmpty then noticeLocal decided.toList
   chaosStep
   let tNotices ← (← get).io.nowUs
   -- 2. events and commands
@@ -1581,11 +1591,19 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   -- (read by the reader: Reader.Want.window; the last window stays until
   -- the board has the wanted one, which is applied below, once the row at
   -- the viewport is known)
+  -- (the counts beside it are a want of their own, read after the rows:
+  -- the placeholders are the counts less the window's rows on each side)
   let idsW := Reader.Want.window s.me.c s.anchor half half
-  s.sh.wants.modify fun ws => #[idsW] ++ ws.filter (· != idsW)
+  let countW := Reader.Want.count s.me.c s.anchor
+  s.sh.wants.modify fun ws => #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
   readerPass
-  let fresh := match (← takeBoard).get? idsW with
-    | some (.window ids newer older total, _) =>
+  let bd ← takeBoard
+  let fresh := match bd.get? idsW with
+    | some (.window ids nr, _) =>
+      -- until this anchor's counts are read, the last placeholders stay
+      let (newer, older, total) := match bd.get? countW with
+        | some (.count cn co, _) => (cn - min cn nr, co - min co (ids.size - nr), cn + co)
+        | _ => (s.newer, s.older, s.total)
       if ids != s.ids || newer != s.newer || older != s.older || total != s.total then some (ids, newer, older, total)
       else none
     | _ => none
@@ -1623,7 +1641,7 @@ def frame (evs : List Event) : M (Option (List Event)) := do
     let bot := bots0[i]!
     if bot > hi then break
     if bot + heightOf s s.ids[i]!.2 ≥ lo then win := win.push s.ids[i]!.2
-  s.sh.wants.set (#[idsW] ++ win.map (fun x => Reader.Want.row s.me.c s.me.adm x) ++ s.picWants)
+  s.sh.wants.set (#[idsW] ++ win.map (fun x => Reader.Want.row s.me.c s.me.adm x) ++ s.picWants ++ #[countW])
   modify fun s => { s with picWants := #[] }
   readerPass
   let bd ← takeBoard
@@ -1674,10 +1692,9 @@ def frame (evs : List Event) : M (Option (List Event)) := do
       let bot := bots[i]!
       if bot ≤ keepHi && bot + heightOf s s.ids[i]!.2 ≥ keepLo then keep := keep.insert s.ids[i]!.2 ()
     let rows := s.rows.filter fun x _ => keep.contains x
-    let deps := rows.fold (fun acc _ r => r.deps.foldl (fun a q => a.insert q ()) acc) ({} : Std.HashMap Q Unit)
-    modify fun s => { s with rows, live := s.live.keep fun q => match q with
-      | .list _ => true
-      | q => deps.contains q }
+    -- and stop watching what the frame no longer reads (the conversation's
+    -- reads are the reader's): a read it made in these 30 frames stays
+    modify fun s => { s with rows, live := s.live.keep s.touched.contains, touched := {} }
   -- the sheet's fling: its velocity carries the grid, decaying
   let s ← get
   if let some sh := s.sheet then
