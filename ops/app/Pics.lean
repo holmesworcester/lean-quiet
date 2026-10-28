@@ -6,8 +6,9 @@ The app draws every picture on screen every frame (`image`). Decoding is
 slow (a 64 KiB chunk's file, or a preview, scaled), so it runs on a task
 and its bitmap is kept by key (hash, stage, size): a frame looks the key
 up and starts a decode only when there is none. A file whose chunk ops
-are not all readable yet is tried again two seconds on, or when the
-store changes (the app clears the retry table on its notices).
+are not all readable yet is tried again two seconds on, or when its
+chunks land (the app clears the retry table when the reader's board
+takes them).
 
 Everything `image` does that costs goes through a door of `Pics`: the
 store (`chunks`, the chunk ops' bytes) and a task (`spawn`). App.lean

@@ -2,8 +2,13 @@
 Images: QOI bytes to rows at the size they are drawn (box-filtered,
 composited over the background), and an encoder for the chaos
 generator's pictures.
+
+A picture from the network is decoded by `Pic.decode`, the decoder the
+hostile-input laws are about (Pic/Laws: `decode_sized`, whatever the
+bytes): ImageLaws' `decode_sized` carries them to what the app draws.
 -/
 import engine.renderer.Qoi
+import engine.renderer.pic.Qoi
 import engine.renderer.Paint
 
 namespace Image
@@ -18,7 +23,15 @@ structure Src where
 
 def Src.ofQoi (q : Qoi.Qoi) : Src := ⟨q.w.toNat, q.h.toNat, q.px⟩
 
-def decode (bytes : ByteArray) : Option Src := (Qoi.decode bytes).map Src.ofQoi
+/-- An RGBA picture's pixels as words, r << 24 | g << 16 | b << 8 | a. -/
+def Src.ofRgba (p : Pic.Rgba) : Src :=
+  ⟨p.w, p.h, (List.range (p.w * p.h)).toArray.map fun i =>
+    let b := p.px
+    (b[4*i]!.toUInt32 <<< 24) ||| (b[4*i+1]!.toUInt32 <<< 16) ||| (b[4*i+2]!.toUInt32 <<< 8) ||| b[4*i+3]!.toUInt32⟩
+
+/-- A QOI blob's picture: through `Pic.decode`, the proven decoder. -/
+def decode (bytes : ByteArray) : Option Src := (Pic.decode bytes).map Src.ofRgba
+
 
 /-- The rectangle [x0, x0 + cw) x [y0, y0 + ch) of s, box-filtered down
 (or repeated up) to tw x th, laid over bg, as rows. -/
