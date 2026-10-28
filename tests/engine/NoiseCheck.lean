@@ -76,6 +76,26 @@ def main : IO UInt32 := do
   t.ok "the initiator reads payload 2" (q2 == p[1]!)
   t.ok "the handshake hash is the vector's, at both ends" (si.h == hh && sr.h == hh)
   t.ok "the keys cross" (si.send == sr.recv && si.recv == sr.send)
+  -- The guarded assumptions (Suite.Good, Keys.Good, Seal.Good) on the
+  -- vector's keys, and the unguarded ones failing at a wrong size: the
+  -- negative control that shows why the guard is there.
+  t.ok "the transport keys are HKDF outputs the AEAD takes (keyOk, hkdf_ok)"
+    (S.keyOk si.send.k && S.keyOk si.recv.k && S.keyOk (S.hkdf sI e).1 && S.keyOk (S.hkdf sI e).2)
+  t.ok "the AEAD opens what it sealed under a key it takes (dec_enc, guarded)"
+    (S.dec si.send.k 7 hh (S.enc si.send.k 7 hh p[2]!) == some p[2]!)
+  t.ok "negative control: unguarded, dec_enc fails at a 3-byte key, which keyOk refuses"
+    (!S.keyOk short && S.dec short 7 hh (S.enc short 7 hh p[2]!) != some p[2]!)
+  let K := Connection.sodium
+  let n24 := sha256 "n24".toUTF8 |>.extract 0 24
+  t.ok "the frames' AEAD opens what it sealed under a 32-byte key and a 24-byte nonce"
+    (K.fdec si.send.k n24 hh (K.fenc si.send.k n24 hh p[2]!) == some p[2]!)
+  t.ok "negative control: unguarded, it fails at a 23-byte nonce"
+    (K.fdec si.send.k (n24.extract 0 23) hh (K.fenc si.send.k (n24.extract 0 23) hh p[2]!) != some p[2]!)
+  let C := Community.cryptoSeal
+  t.ok "the content seal opens what it sealed under a 32-byte key and a 24-byte nonce; its hash is 32 bytes"
+    (C.dec si.send.k n24 hh (C.enc si.send.k n24 hh p[2]!) == some p[2]! && (C.hash p[2]!).size == 32)
+  t.ok "negative control: unguarded, it fails at a 3-byte key"
+    (C.dec short n24 hh (C.enc short n24 hh p[2]!) != some p[2]!)
   -- Transport: the initiator sends 3 and 5, the responder 4 and 6.
   let mut a := si
   let mut b := sr

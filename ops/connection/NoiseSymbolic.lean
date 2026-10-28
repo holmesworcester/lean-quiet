@@ -221,7 +221,25 @@ theorem read2_some {st : Sym α} {s e m p : α} {ses : Session α}
           obtain ⟨rfl, rfl⟩ := h
           exact ⟨rf, c, ee, se, r, rfl, hee, hse, hd, rfl⟩
 
+/-- **A responder's session keys are keys the AEAD takes.** -/
+theorem write2_keys_ok (G : S.Good) {st : Sym α} {f rs re p m : α} {ses : Session α}
+    (h : write2 S st f rs re p = some (ses, m)) :
+    S.keyOk ses.send.k = true ∧ S.keyOk ses.recv.k = true := by
+  obtain ⟨_, _, _, _, rfl, -⟩ := write2_some h
+  exact (split_ok G _).symm
+
+/-- **An initiator's too.** -/
+theorem read2_keys_ok (G : S.Good) {st : Sym α} {s e m p : α} {ses : Session α}
+    (h : read2 S st s e m = some (ses, p)) :
+    S.keyOk ses.send.k = true ∧ S.keyOk ses.recv.k = true := by
+  obtain ⟨_, _, _, _, _, -, -, -, -, rfl⟩ := read2_some h
+  exact split_ok G _
+
 end
+
+/-- On bytes, a key the AEAD takes is a 32-byte one. -/
+theorem suite_keyOk (k : ByteArray) : suite.keyOk k = true ↔ k.size = 32 := by
+  simp [suite]
 
 namespace Symbolic
 
@@ -270,6 +288,7 @@ def sym : Suite T where
   pair := .pair
   split := unpair
   lit := .lit
+  keyOk _ := true
 
 theorem dh_atom (i j : Nat) : dh (.atom i) (.pub (.atom j)) = some (.dh (min i j) (max i j)) := rfl
 
@@ -301,8 +320,9 @@ Noise.lean holds over terms too. -/
 theorem good : sym.Good where
   dh_comm a b := by
     cases a <;> cases b <;> simp [sym, dh, Nat.min_comm, Nat.max_comm]
-  dec_enc k n ad p := by simp [sym, dec]
+  dec_enc k n ad p _ := by simp [sym, dec]
   split_pair _ _ := rfl
+  hkdf_ok _ _ := ⟨rfl, rfl⟩
 
 /-- **The honest symbolic run completes**: for any names and payloads,
 the four calls succeed and the sessions match. So the secrecy laws are

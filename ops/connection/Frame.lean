@@ -60,13 +60,13 @@ theorem seal_parts (cid sk n p : B) :
   simp [Frame.seal, ByteArray.append_assoc]
 
 /-- **A frame opens to what was sealed, under the matching key.** -/
-theorem open_seal (hd : ∀ k n ad p, K.fdec k n ad (K.fenc k n ad p) = some p)
-    (he : ∀ k n ad p, (K.fenc k n ad p).size = p.size + 16)
-    {cid sk n p : B} (hc : cid.size = 32) (hn : n.size = 24) :
+theorem open_seal (hd : ∀ k n ad p, k.size = 32 → n.size = 24 → K.fdec k n ad (K.fenc k n ad p) = some p)
+    (he : ∀ k n ad p, k.size = 32 → n.size = 24 → (K.fenc k n ad p).size = p.size + 16)
+    {cid sk n p : B} (hk : sk.size = 32) (hc : cid.size = 32) (hn : n.size = 24) :
     Frame.open K sk (Frame.seal K cid sk n p) = some (cid, p) := by
   have h1 : (⟨#[Frame.version]⟩ : B).size = 1 := rfl
   have hs : (Frame.seal K cid sk n p).size = 73 + p.size := by
-    rw [seal_parts]; simp only [ByteArray.size_append, h1, hc, hn, he]; omega
+    rw [seal_parts]; simp only [ByteArray.size_append, h1, hc, hn, he sk n (Frame.ad cid) p hk hn]; omega
   have h0 : (Frame.seal K cid sk n p).get! 0 = Frame.version := by
     rw [seal_parts]; rfl
   have hcid : (Frame.seal K cid sk n p).extract 1 33 = cid := by
@@ -82,18 +82,18 @@ theorem open_seal (hd : ∀ k n ad p, K.fdec k n ad (K.fenc k n ad p) = some p)
     rw [hs, seal_parts, show (57 : Nat) = 1 + (32 + 24) from rfl,
       show 73 + p.size = 1 + (32 + (24 + (p.size + 16))) by omega,
       ByteArray.extract_append_size_add' (by rw [h1]), ByteArray.extract_append_size_add' (by rw [hc])]
-    exact ByteArray.extract_append_eq_right (by rw [hn]) (by rw [he, hn])
+    exact ByteArray.extract_append_eq_right (by rw [hn]) (by rw [he sk n (Frame.ad cid) p hk hn, hn])
   unfold Frame.open
   rw [hcid, hn', hct, h0]
-  simp [hd, hs]
+  simp [hd sk n (Frame.ad cid) p hk hn, hs]
 
 /-- **A frame's header names the connection it was sealed for.** -/
-theorem cid_seal (he : ∀ k n ad p, (K.fenc k n ad p).size = p.size + 16)
-    {cid sk n p : B} (hc : cid.size = 32) (hn : n.size = 24) :
+theorem cid_seal (he : ∀ k n ad p, k.size = 32 → n.size = 24 → (K.fenc k n ad p).size = p.size + 16)
+    {cid sk n p : B} (hk : sk.size = 32) (hc : cid.size = 32) (hn : n.size = 24) :
     Frame.cid (Frame.seal K cid sk n p) = some cid := by
   have h1 : (⟨#[Frame.version]⟩ : B).size = 1 := rfl
   have hs : (Frame.seal K cid sk n p).size = 73 + p.size := by
-    rw [seal_parts]; simp only [ByteArray.size_append, h1, hc, hn, he]; omega
+    rw [seal_parts]; simp only [ByteArray.size_append, h1, hc, hn, he sk n (Frame.ad cid) p hk hn]; omega
   have h0 : (Frame.seal K cid sk n p).get! 0 = Frame.version := by rw [seal_parts]; rfl
   have hcid : (Frame.seal K cid sk n p).extract 1 33 = cid := by
     rw [seal_parts, show (33 : Nat) = 1 + 32 from rfl, show (1 : Nat) = 1 + 0 from rfl,
@@ -176,13 +176,13 @@ section
 variable {K : Keys}
 
 /-- **A frame opens to the counter it was sealed with.** -/
-theorem openAt_seal (hd : ∀ k n ad p, K.fdec k n ad (K.fenc k n ad p) = some p)
-    (he : ∀ k n ad p, (K.fenc k n ad p).size = p.size + 16)
-    {cid sk p rnd : B} {ctr : Nat} (hc : cid.size = 32) (hr : 16 ≤ rnd.size) :
+theorem openAt_seal (hd : ∀ k n ad p, k.size = 32 → n.size = 24 → K.fdec k n ad (K.fenc k n ad p) = some p)
+    (he : ∀ k n ad p, k.size = 32 → n.size = 24 → (K.fenc k n ad p).size = p.size + 16)
+    {cid sk p rnd : B} {ctr : Nat} (hk : sk.size = 32) (hc : cid.size = 32) (hr : 16 ≤ rnd.size) :
     Frame.openAt K sk (Frame.seal K cid sk (Frame.nonce ctr rnd) p) = some (cid, ctr % 2 ^ 64, p) := by
   have hn := Frame.size_nonce ctr hr
   unfold Frame.openAt
-  rw [open_seal hd he hc hn, nonce_seal hc hn, Frame.ctrOf_nonce]
+  rw [open_seal hd he hk hc hn, nonce_seal hc hn, Frame.ctrOf_nonce]
   rfl
 
 /-- **A frame that opens was sealed under that key, with the counter it

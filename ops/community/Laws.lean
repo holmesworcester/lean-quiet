@@ -888,21 +888,23 @@ theorem check_reads_shared {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f 
 /-! ## Sealed bodies -/
 
 /-- **A sealed body opens with its key.** -/
-theorem openSealed_seal {S : Seal} (G : S.Good) {c kid k n text : ByteArray} (hn : n.size = 24) :
+theorem openSealed_seal {S : Seal} (G : S.Good) {c kid k n text : ByteArray} (hk : k.size = 32)
+    (hn : n.size = 24) :
     openSealed S c kid (n ++ sealBody S k n c kid text) k = some text := by
   have hs : ¬ (n ++ sealBody S k n c kid text).size < 24 := by rw [ByteArray.size_append, hn]; omega
   unfold openSealed
   simp only [hs, ↓reduceIte]
   rw [ByteArray.extract_append_eq_left hn.symm,
     ByteArray.extract_append_eq_right hn.symm (by rw [ByteArray.size_append, hn])]
-  exact openBody_sealBody G _ _ _ _ _
+  exact openBody_sealBody G _ _ _ _ _ hk hn
 
 /-- **An admitted device opens every body sealed under a key wrapped to
 it.** A key wrapped to the device's X25519 key unwraps with its secret,
 and that key opens what was sealed under it. -/
-theorem member_opens {S : Seal} (G : S.Good) (rsk esk k n c text : ByteArray) (hn : n.size = 24) :
+theorem member_opens {S : Seal} (G : S.Good) (rsk esk k n c text : ByteArray) (hk : k.size = 32)
+    (hn : n.size = 24) :
     let kid := kidOf S k
     ((unbox S rsk kid (box S esk (S.pub rsk) kid k)).bind fun k' =>
       openSealed S c kid (n ++ sealBody S k n c kid text) k') = some text := by
-  simp only [unbox_box G, Option.bind_some, openSealed_seal G hn]
+  simp only [unbox_box G, Option.bind_some, openSealed_seal G hk hn]
 end Community

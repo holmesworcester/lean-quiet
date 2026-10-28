@@ -30,10 +30,12 @@ structure Keys where
   fdec : B → B → B → B → Option B
 
 /-- What the laws assume of the conversion: a seed's X25519 secret has
-the X25519 key of the seed's device key. -/
+the X25519 key of the seed's device key; and of the frames' AEAD: it
+opens what it sealed under a 32-byte key and a 24-byte nonce (it refuses
+other sizes both ways). -/
 def Keys.Good (K : Keys) (edPub : B → B) : Prop :=
   K.suite.Good ∧ (∀ seed, K.xPub (edPub seed) = K.suite.pub (K.xSec seed)) ∧
-    ∀ k n ad p, K.fdec k n ad (K.fenc k n ad p) = some p
+    ∀ k n ad p, k.size = 32 → n.size = 24 → K.fdec k n ad (K.fenc k n ad p) = some p
 
 /-- libsodium's. -/
 def sodium : Keys where

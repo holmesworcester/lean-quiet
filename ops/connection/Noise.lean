@@ -27,8 +27,9 @@ libsodium's (native/noise.c), which cacophony's test vectors check
 functions at symbolic terms to prove the session keys secret.
 
 Law: `handshake_agrees`. For any suite whose DH commutes, whose AEAD
-opens what it seals, and whose messages split back into the public key
-and the rest, an honest run whose four DHs succeed succeeds. The
+opens what it seals under a key it takes (`keyOk`), whose HKDF outputs
+are such keys, and whose messages split back into the public key and
+the rest, an honest run whose four DHs succeed succeeds. The
 responder reads the initiator's payload, the initiator reads the
 responder's, both ends hold the same handshake hash, and each end's
 sending key is the other's receiving key.
@@ -57,12 +58,20 @@ structure Suite (α : Type) where
   split : α → Option (α × α)
   /-- A constant: the protocol name, an empty payload. -/
   lit : ByteArray → α
+  /-- Whether the AEAD takes this as a key: 32 bytes, on bytes. -/
+  keyOk : α → Bool
 
-/-- What the laws assume of a suite. -/
+/-- What the laws assume of a suite. The AEAD opens what it sealed only
+under a key it takes (`keyOk`): libsodium's refuses a key of the wrong
+size both ways. Every key the handshake seals under is an HKDF output,
+and those are keys it takes (`hkdf_ok`): on bytes, HKDF's outputs are
+HMAC-SHA-256's, so this says SHA-256 is 32 bytes wide, a property of the
+suite stated here as the Merkle laws state `hsize`. -/
 structure Suite.Good {α : Type} (S : Suite α) : Prop where
   dh_comm : ∀ a b, S.dh a (S.pub b) = S.dh b (S.pub a)
-  dec_enc : ∀ k n ad p, S.dec k n ad (S.enc k n ad p) = some p
+  dec_enc : ∀ k n ad p, S.keyOk k = true → S.dec k n ad (S.enc k n ad p) = some p
   split_pair : ∀ a c, S.split (S.pair (S.pub a) c) = some (S.pub a, c)
+  hkdf_ok : ∀ a b, S.keyOk (S.hkdf a b).1 = true ∧ S.keyOk (S.hkdf a b).2 = true
 
 /-! ## Keys from a chaining key, in bytes -/
 
@@ -205,9 +214,26 @@ end
 section
 variable {α : Type} {S : Suite α}
 
-theorem decHash_encHash (G : S.Good) (st : Sym α) (p : α) :
+theorem decHash_encHash (G : S.Good) (st : Sym α) (p : α) (hk : S.keyOk st.k = true) :
     st.decHash S (st.encHash S p).2 = some ((st.encHash S p).1, p) := by
-  simp [Sym.decHash, Sym.encHash, G.dec_enc]
+  simp [Sym.decHash, Sym.encHash, G.dec_enc _ _ _ _ hk]
+
+/-- Message 1's payload is sealed under an HKDF output, which the AEAD takes. -/
+theorem decHash_encHash_one (G : S.Good) (pro si sr epub es ss p : α) :
+    (Sym.one S pro si sr epub es ss).decHash S ((Sym.one S pro si sr epub es ss).encHash S p).2 =
+      some (((Sym.one S pro si sr epub es ss).encHash S p).1, p) :=
+  decHash_encHash G _ p (G.hkdf_ok _ _).2
+
+/-- So is message 2's. -/
+theorem decHash_encHash_two (G : S.Good) (st : Sym α) (fpub ee se p : α) :
+    (Sym.two S st fpub ee se).decHash S ((Sym.two S st fpub ee se).encHash S p).2 =
+      some (((Sym.two S st fpub ee se).encHash S p).1, p) :=
+  decHash_encHash G _ p (G.hkdf_ok _ _).2
+
+/-- **The transport keys are keys the AEAD takes**: HKDF outputs. -/
+theorem split_ok (G : S.Good) (st : Sym α) :
+    S.keyOk (st.split S).1.k = true ∧ S.keyOk (st.split S).2.k = true :=
+  G.hkdf_ok _ _
 
 /-- The responder reads what the initiator wrote, and holds its state. -/
 theorem read1_write1 (G : S.Good) {prologue sI sR e p es ss : α}
@@ -218,7 +244,7 @@ theorem read1_write1 (G : S.Good) {prologue sI sR e p es ss : α}
   have hss' : S.dh sR (S.pub sI) = some ss := by rw [← G.dh_comm]; exact hss
   let r := (Sym.one S prologue (S.pub sI) (S.pub sR) (S.pub e) es ss).encHash S p
   refine ⟨r.1, S.pair (S.pub e) r.2, by simp [write1, hes, hss, r], ?_⟩
-  simp [read1, G.split_pair, hes', hss', r, decHash_encHash G]
+  simp [read1, G.split_pair, hes', hss', r, decHash_encHash_one G]
 
 /-- The initiator recovers, from its own message 1, the state and
 payload it wrote. -/
@@ -234,7 +260,7 @@ theorem sent1_write1 [DecidableEq α] (G : S.Good) {prologue sI e rs p : α} {st
       simp only [hes, hss, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
         Option.some.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
-      simp [sent1, G.split_pair, hes, hss, decHash_encHash G]
+      simp [sent1, G.split_pair, hes, hss, decHash_encHash_one G]
 
 /-- The initiator reads what the responder wrote, and the sessions match. -/
 theorem read2_write2 (G : S.Good) (st : Sym α) {sI e f p ee se : α}
@@ -248,7 +274,7 @@ theorem read2_write2 (G : S.Good) (st : Sym α) {sI e f p ee se : α}
   let ks := r.1.split S
   refine ⟨⟨r.1.h, ks.2, ks.1⟩, S.pair (S.pub f) r.2, by simp [write2, hee, hse, r, ks],
     ⟨r.1.h, ks.1, ks.2⟩, ?_, rfl, rfl, rfl⟩
-  simp [read2, G.split_pair, hee', hse', r, ks, decHash_encHash G]
+  simp [read2, G.split_pair, hee', hse', r, ks, decHash_encHash_two G]
 
 /-- The initiator's state recovered from its message 1 is the
 responder's after reading it, and the responder reads the initiator's
@@ -301,7 +327,7 @@ theorem read2_write2' (G : S.Good) {st : Sym α} {f sI e pl m2 : α} {sr si : Se
       simp only [h1, h2, Option.bind_some, Option.some.injEq, Prod.mk.injEq] at hw
       obtain ⟨rfl, rfl⟩ := hw
       simp only [read2, G.split_pair, h1', h2', Option.bind_eq_bind,
-        Option.bind_some, decHash_encHash G, Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hr
+        Option.bind_some, decHash_encHash_two G, Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hr
       obtain ⟨rfl, rfl⟩ := hr
       exact ⟨rfl, rfl, rfl⟩
 
@@ -340,5 +366,6 @@ def suite : Suite ByteArray where
   pair a b := a ++ b
   split m := if m.size < 32 then none else some (m.extract 0 32, m.extract 32 m.size)
   lit b := b
+  keyOk k := decide (k.size = 32)
 
 end Connection.Noise

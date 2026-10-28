@@ -182,6 +182,10 @@ open Engine Community
 #print axioms Connection.Frame.ctrOf_nonce
 #print axioms Connection.kept_heard
 #print axioms Connection.kept_unheard
+#print axioms Connection.Noise.split_ok
+#print axioms Connection.Noise.write2_keys_ok
+#print axioms Connection.Noise.read2_keys_ok
+#print axioms Connection.Noise.suite_keyOk
 end engine
 
 section app

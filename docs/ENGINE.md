@@ -297,8 +297,11 @@ Laws (`ops/connection/Laws.lean`, `ops/connection/Noise.lean`,
 - `wire_kinds`;
 - `established_agrees` (both ends hold one session);
 - `handshake_agrees`, `sent1_write1`, `sent1_read1`, `read2_write2'`,
-  for any suite whose DH commutes, whose AEAD opens what it seals and
-  whose messages split into their key and the rest;
+  for any suite whose DH commutes, whose AEAD opens what it seals under
+  a key it takes (`keyOk`: 32 bytes), whose HKDF gives such keys, and
+  whose messages split into their key and the rest; `split_ok`,
+  `write2_keys_ok`, `read2_keys_ok` (the session keys are keys the AEAD
+  takes);
 - `kept_heard`, `kept_unheard`;
 - `open_seal`, `cid_seal`; `openAt_seal` (a frame opens to the counter
   it was sealed with), `openAt_sealed` (one that opens was sealed under

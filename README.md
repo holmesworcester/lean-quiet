@@ -52,7 +52,9 @@ nothing else is assumed:
   Merkle tree inputs, for the attachment laws. [`assumptions_hold`]
   shows that it can hold.
 - [`Suite.Good`]: X25519 agrees (`dh a (pub b) = dh b (pub a)`), the
-  AEAD opens what it seals, and public keys are 32 bytes. With
+  AEAD opens what it seals under a key it takes (32 bytes), HKDF's
+  outputs are such keys (SHA-256 is 32 bytes wide), and a message
+  splits into its public key and the rest. With
   [`Keys.Good`], a device's Ed25519 key converts to its seed's X25519
   key. These are correctness only, and say nothing about secrecy.
 - **The session secrecy theorems assume the symbolic (Dolev-Yao)
@@ -102,7 +104,7 @@ nothing else is assumed:
   The running node composes it with the Connection family. That
   composition is proven op by op (`sum_left`), but not yet for the
   whole store (`sum_project`, wanted below).
-- **All 280 rest on Lean's standard axioms only:** no `sorry` and no
+- **All 284 rest on Lean's standard axioms only:** no `sorry` and no
   added axiom, as `tests/check.sh` checks.
 - **Each name links to its docstring and statement.**
   `ci/proof-links.py` writes the links from Lean's declaration ranges,
@@ -337,7 +339,7 @@ it moves first in the checklist below.
 | **Where the list lands** (`bl_place_list`, and the composer's top in `bl_vsync`, in layer.c; `dump` in host.c) | 14, 34 | Frame row r, drawn at offset bf, goes to screen row `top - over - shift + (bn - bf) + r` for the vsync's offset bn (a page: `top - over + r`), cropped to the viewport. The composer's top is `h - bot - max(ime, inset)`. | [`placed_row`], [`visible_in_viewport`] and [`newest_visible`] are about `Seam.place`. That the C computes the same is trusted, as Geometry.lean says. |
 | **The offset** (`bs_touch`, `bs_at`, `bs_pending` and `bs_vsync` in scroll.c; `bl_ahead` in layer.c) | 116, 27 | A drag follows the finger, resampled 5 ms before the vsync. The offset stays within 0 and the content's height less the viewport's. During a fling, Lean draws at the offset predicted for when its frame shows: at most two vsyncs ahead, and short of where the fling stops. | Nothing. |
 | **Which input counts** (`ba_push` and `ba_motion` in activity.c; the editor action in LeanActivity.java; `textFieldShouldReturn` in quiet_ios.m) | 15, 29 | Only the first finger counts. A full queue drops moves but keeps downs and ups. The keyboard's Send, or Enter, sends. | Nothing. |
-| **Crypto sizes** (crypto.c) | | A ChaCha20-Poly1305 key that is not 32 bytes seals under 32 zero bytes, while opening refuses it. XChaCha20-Poly1305 with a wrong-sized key or nonce seals to empty bytes. A wrong-sized Ed25519 seed gives empty bytes. | [`Suite.Good`] and `Seal.Good` say the AEAD opens what it seals for every key and nonce. The running AEADs do so only for 32-byte keys and 24-byte nonces. |
+| **Crypto sizes** (crypto.c) | | Both AEADs refuse a key that is not 32 bytes, seal and open alike (seal gives empty bytes), and XChaCha20-Poly1305 a nonce that is not 24 bytes. A wrong-sized Ed25519 seed gives empty bytes. | [`Suite.Good`], `Seal.Good` and `Keys.Good` say the AEAD opens what it seals under a 32-byte key (and a 24-byte nonce), and the laws carry those sizes: handshake and session keys are HKDF outputs (`split_ok`, `write2_keys_ok`, `read2_keys_ok`), and the frame and body laws take 32-byte keys. noise_check checks the guarded forms on libsodium, and that the unguarded ones fail at a wrong size. |
 | **The camera on iOS** (quiet_ios.m) | | The back camera at 1280 × 720, oriented 90° always. Android reads the sensor's own orientation. | [`Camera.src_in`] takes the frame's header as given. |
 | **The control channel** (ctl.c and ctl_ios.c, started by activity.c and quiet_ios.m) | | It starts at every launch, with no authentication. On Android it is the abstract socket `@leanquiet`. On iOS it is 127.0.0.1:7417 unless `LEANQUIET_CTL_PORT=0`, and every interface with `LEANQUIET_CTL_ADDR=any`. Its commands include `send` (posts as this device), `invite` (the current invite link), `found` and `chaos` (both write ops), and `state` (the composer's text). An abstract socket has no file permissions; what Android's SELinux policy lets other apps reach was not checked. | Nothing. The attacker is the network's; another process on the device is not in the model. |
 
@@ -544,8 +546,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`lbl_inj`]: ops/sync/Fp.lean#L264-L268
 [`NoSecondPreimage`]: ops/community/Merkle.lean#L137-L138
 [`assumptions_hold`]: ops/community/Merkle.lean#L534-L538
-[`Suite.Good`]: ops/connection/Noise.lean#L61-L65
-[`Keys.Good`]: ops/connection/Types.lean#L32-L36
+[`Suite.Good`]: ops/connection/Noise.lean#L64-L74
+[`Keys.Good`]: ops/connection/Types.lean#L32-L38
 [`no_impersonation`]: ops/community/Laws.lean#L289-L302
 [`admission_needs_approval`]: ops/community/Laws.lean#L469-L477
 [`admission_approved`]: ops/community/Laws.lean#L388-L398
@@ -574,21 +576,21 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`tick_send`]: ops/sync/ConnLaws.lean#L184-L187
 [`recipients_iff`]: ops/community/Connect.lean#L214-L218
 [`members_iff`]: ops/community/Connect.lean#L205-L208
-[`member_opens`]: ops/community/Laws.lean#L900-L904
-[`openSealed_seal`]: ops/community/Laws.lean#L890-L892
-[`unbox_box`]: ops/community/Keys.lean#L89-L91
+[`member_opens`]: ops/community/Laws.lean#L901-L906
+[`openSealed_seal`]: ops/community/Laws.lean#L890-L893
+[`unbox_box`]: ops/community/Keys.lean#L96-L98
 [`check_reads_shared`]: ops/community/Laws.lean#L811-L813
-[`kk_secret`]: ops/connection/NoiseSymbolic.lean#L599-L613
-[`kk_secret_init`]: ops/connection/NoiseSymbolic.lean#L551-L560
-[`kk_secret_resp`]: ops/connection/NoiseSymbolic.lean#L565-L573
-[`kk_authentic`]: ops/connection/NoiseSymbolic.lean#L810-L824
-[`kk_authentic_resp`]: ops/connection/NoiseSymbolic.lean#L876-L889
-[`kk_secret_init_tight`]: ops/connection/NoiseSymbolic.lean#L620-L629
-[`kk_runs`]: ops/connection/NoiseSymbolic.lean#L307-L315
-[`handshake_agrees`]: ops/connection/Noise.lean#L308-L320
-[`kk_forward_secret`]: ops/connection/NoiseSymbolic.lean#L689-L700
-[`kk_forward_secret_init`]: ops/connection/NoiseSymbolic.lean#L647-L655
-[`kk_forward_secret_resp`]: ops/connection/NoiseSymbolic.lean#L666-L675
+[`kk_secret`]: ops/connection/NoiseSymbolic.lean#L619-L633
+[`kk_secret_init`]: ops/connection/NoiseSymbolic.lean#L571-L580
+[`kk_secret_resp`]: ops/connection/NoiseSymbolic.lean#L585-L593
+[`kk_authentic`]: ops/connection/NoiseSymbolic.lean#L830-L844
+[`kk_authentic_resp`]: ops/connection/NoiseSymbolic.lean#L896-L909
+[`kk_secret_init_tight`]: ops/connection/NoiseSymbolic.lean#L640-L649
+[`kk_runs`]: ops/connection/NoiseSymbolic.lean#L327-L335
+[`handshake_agrees`]: ops/connection/Noise.lean#L334-L346
+[`kk_forward_secret`]: ops/connection/NoiseSymbolic.lean#L709-L720
+[`kk_forward_secret_init`]: ops/connection/NoiseSymbolic.lean#L667-L675
+[`kk_forward_secret_resp`]: ops/connection/NoiseSymbolic.lean#L686-L695
 [`purge_gone`]: engine/core/Purge.lean#L261-L263
 [`purge_named`]: engine/core/Purge.lean#L267-L271
 [`connect_iff`]: ops/community/Connect.lean#L146-L150
