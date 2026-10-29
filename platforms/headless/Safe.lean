@@ -112,6 +112,34 @@ def main (args : List String) : IO UInt32 := do
       if render then writePpm s!"{dir}/{name}-sheet.ppm" sc[0]!.toNat (← compose sm (← get))
       let (_, bottom, _, _) ← bars.get
       check s!"{name}/sheet: bottom ground" (bottom == Palette.color (← get).dim.theme .panel)
+    -- A cutout can exchange sides without changing content width. A
+    -- pointer acquired before that move must not activate the moved page.
+    report.set #[1080, 2400, 128, 63, 420, 0, 100, 0, 0]
+    openPage .getStarted
+    steps 3
+    let before ← get
+    let some pg := before.pageNow | throw (IO.userError "missing onboarding page")
+    let some (box, _) := pg.taps.find? (·.2 == .createCommunity)
+      | throw (IO.userError "missing Create control")
+    let down : Input.Touch := ⟨0, 5, ⟨100 + box.x + box.w/2, topH before + box.y + box.h/2⟩, 100⟩
+    sm.raw.set (down.words.set! 6 before.input.serial.toUInt32)
+    discard <| step []
+    check "equal-width cutout test has an active pointer" ((← get).input.press.isSome)
+    report.set #[1080, 2400, 128, 63, 420, 0, 0, 100, 0]
+    discard <| step []
+    check "equal-width cutout shift revokes old pointer" ((← get).W == before.W && (← get).input.press.isNone)
+    let up := { down with phase := 2, time := 200 }
+    sm.raw.set (up.words.set! 6 (← get).input.serial.toUInt32)
+    let events ← step []
+    discard <| step (events.getD [])
+    check "release after cutout shift does not activate moved control" ((← get).page == .getStarted)
+    let serial := (← get).input.serial.toUInt32
+    sm.events.set (down.words.set! 6 serial ++ up.words.set! 6 serial)
+    report.set #[1080, 2400, 128, 63, 420, 0, 100, 0, 0]
+    let generation := (← get).life.generation
+    discard <| step []
+    check "same-poll tap is revoked when safe origin changes"
+      ((← get).page == .getStarted && (← get).life.generation > generation)
     -- A queued keyboard event must not overwrite the new snapshot.
     report.set #[1080, 2400, 128, 63, 420, 0, 0, 0, 900]
     let _ ← step [.ime 0]

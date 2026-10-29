@@ -63,3 +63,5 @@ mise run host:theme-negative
 mise run host:safe
 mise run host:safe-negative
 mise run host:desktop-negative
+
+mise run test:people-reader

@@ -49,6 +49,34 @@ through `Hooks`.
 
 Papers and the poc survey behind these: `/mnt/storage/holmes-research/rbsr/`.
 
+## Notice delivery after the simplification
+
+`Hooks.rooms` still returns typed `List Room`: `Room.sync r` permits sync;
+`Room.notice r x` permits only the removal notice and its requirement
+closure. `Conn.carry` refreshes these separately on every node step.
+The per-room snapshots and gates operate only on `Room.syncs`.
+
+The delivery result has one field, `Step.given : List Id`, beside send and
+take. `Conn.given` suppresses repeats on this connection. `Step.then`
+concatenates the results; `filedGive` and `tickGive` retain their order.
+`Node.recordGiven` passes each `(connection, notice)` to
+`Hooks.onGiven : Id → Id → List Op`; Connection returns the same local
+`Given.op` as before. The next rooms read excludes that notice, and a
+session with no remaining rooms is retired. This is a local record of
+handing out the notice, not a remote acknowledgment. It needs no generic
+status sum, settled room, or completion report.
+
+The notice laws keep their premises and conclusions: keyed ops, the
+carried notice not already given, one room per notice, its closure fitting
+`cfg.walk`, and (for tick delivery) a tick that does not drop. `Gives` now
+reads `x ∈ st.given` where it read `Status.given x ∈ st.status`; its
+connection-history and full closure-delivery conjuncts are unchanged.
+The tick's non-drop premise now means `now ≤ c.heard + cfg.live`.
+No removal-law premise is added, and all 24 pinned removal laws keep
+their statements. Notice delivery preserves phase and heard time
+(`give_shape`); `honest_no_drop`, `handlers_transition` and
+`closed_terminal` also cover carry, notify, filedGive and tickGive.
+
 ## Model
 
 **Items and keys.** A room's sync set is its stored shared ops. Each is
@@ -87,13 +115,15 @@ room (`sync.want`), and wanted ops are sent as their own bytes. A want
 for an id outside the connection's rooms, a local or conn op, or an
 unknown id, is ignored silently. `authorize ix c ids` filters ids against
 only the connection's shown rooms in the index before `Store.getOp`.
-The read program `serve` reads only that list, stopping after the first
-whole op that reaches `wantBytes` (4 MiB by default); encoded op payloads
-are bounded by `wantBytes` plus one op, excluding transport envelopes.
+Authorized ids join a bounded responder queue. `serveOwed` reads fresh
+local ids first, then `serve` reads from the queue until the transport
+budget is reached. The last op goes whole, so bulk payloads are bounded
+by that budget plus one op, excluding transport envelopes. Unserved ids
+stay queued for later steps.
 The store outside those rooms changes neither the read sequence nor the
 reply. Closure reads are deferred to ticks. The receiver retains admitted unsatisfied ids in `asked`. Every `retry` ms
 (1000 by default) a tick re-wants at most `maxIds` of them. Each ask expires
-strictly after its original ask time plus `patience`; repeat offers and
+strictly after its original ask time plus `askTime`; repeat offers and
 retries do not renew that time. Expiry frees capacity even if other peer
 traffic keeps the session alive. Later rounds or offers rediscover deferred
 or expired ids, so a byte-limited response does not abandon the rest forever. A have for a room the peer may not see
@@ -105,32 +135,97 @@ peer's haves learn nothing of other rooms or of local ops.
 to hold it. The stream is only ever safe (laws below). Liveness comes
 from rounds.
 
-**Closure.** Each op sent queues its requirement closure for the next tick:
-the ids the peer is not known to hold. The walk stops at ops whose
-closure this connection already offered and that are Valid here, since
-a Valid op's closure is complete and can never grow. It visits at most
-`walk` ops per call and continues on the next tick, so nothing is
-capped silently.
+**Closure.** A full-range round (`max floor peerFloor ≤ 1`) keeps no
+sender per-op bookkeeping: neither its holds nor served wants add to
+`offered`, `closed`, or `frontier`. RBSR reconciles the entire room,
+requirements included (`exchange_complete`, `ends_log`). Each round
+captures its overlap floor in `roundFloor` alongside its room snapshots;
+all rooms in that round share that window. The captured floor survives
+the empty end, so delayed wants do not consult a later hello. Wants have
+no round id on the wire; they use the connection's latest captured round.
+Honest peers keep their negotiated floors fixed during a session.
 
-**Patience and lease.** While a side waits (for hello, a round answer,
-or wanted ops), it drops strictly after `max heard lastRound + patience`.
-An arrival sets `heard` before handling it, so newly created wants get a
-fresh deadline; opening a local round sets `lastRound`. A round opened
-at `now` survives through `now + patience`. Time is a plain logical time
-comparison; this module has no pause accounting.
+Only a windowed round (`roundFloor > 1`) queues the requirements of
+served ops. `closureCap` (4096 ids by default) bounds **visited plus
+pending** distinct requirement ids (`closed.size + frontier.length`).
+Repeated requirements consume no additional slots. The cap is shared by
+all rooms in the round, so a connection's total closure state is bounded.
+Closure uses no share of `offered`: visited ids record its deduplication.
+A tick visits at most `walk` admitted ids. The walk records each visited
+id, including missing or invalid ops, and a new round clears visited,
+pending, and the cut flag before retrying from that round's served ops.
 
-A responder also drops strictly after `heard + lease`, whether waiting
-or settled. The default lease is 90000 ms, three default dialer cadences.
-Every decoded round message, including the empty end, refreshes `heard`.
-If the next dialer arrival is within `every` ms of `heard` and
-`every ≤ lease`, lease expiry is impossible. A lease closes on the next
-tick, so scheduler delay adds to the wall-clock bound.
+Admission keeps only the prefix that fits and sets `Conn.closureCut` on
+overflow. The local app can inspect that flag on its Node connection;
+it stays set for that round. Admitted work drains on later ticks, but no
+additional distinct id fits after a cut. Discarded ids are never marked
+visited or promised as closure offers. A windowed receiver then lacks
+some older requirements and their transitive dependencies: some received
+ops remain Missing, so agreement with the full peer holds only for ops
+whose verdict dependencies it actually holds (`spec_local`). The flag
+is local to the sender; with no wire change the receiver gets no remote
+cut notification. There is no settled status. Completion checks compare the actual stored
+room ops; a round ending does not certify closure completeness.
+
+When the entire stored, shown requirement closure fits, the walk offers
+all its ids not already advertised or known held by the peer. The
+completeness law uses any finite requirement-closed superset of the
+served ops' requirement seeds as a size witness, distinct initial
+pending ids, no previously visited ids, and enough walk fuel to visit
+that set. The witness is proof data, not another runtime cache.
+
+`offered` now belongs only to live stream deduplication. Like `known`,
+it uses `remember maxKnown`: when an insertion would exceed the cap,
+it forgets old hints and retains the new id (zero disables hints). The
+cost of forgetting is a repeated have, never a lost op or a dropped session.
+
+**Proposal only: receiver-driven missing requirements.** A future
+windowed receiver could inspect the requirements of each stored Missing
+op and request absent ids with existing wants. The sender would serve
+authorized ids without walking or retaining closure state, even for
+windows. This is not implemented: today's receiver asks only for ids
+advertised in rounds or haves. It would require bounded scheduling,
+deduplication, retries and fair discovery at the receiver, plus a rule
+for absent or out-of-room requirements. Chains cost additional network
+round trips and store reads; batching helps breadth but cannot remove
+serial dependency latency. A peer would learn which specific requirement
+ids the receiver lacks, and could infer dependency interests and partial
+possession, beyond the ordinary overlap fingerprints. Authorization must
+still precede blob reads; requests must not probe unrelated rooms.
+The user decides whether to change sync behavior this way.
+
+**Liveness.** Both roles drop exactly when `heard + live < now`.
+`live` defaults to 90000 ms. Each decoded op refreshes `heard`. A tick
+with no other output sends an empty `have` after `live/3` without sending;
+Node records the outgoing time for all payloads, including local writes.
+With positive `live/3`, each side ticking at least that often and frames
+delivered within that interval never drops: `live_stays` inducts over
+tick histories, using the scheduler's preceding tick and delivery of its
+output (or the earlier output remembered in `sent`). The scheduler and
+transport guarantees are assumptions, not properties of the OS.
+Opening a round does not refresh peer liveness. An unserved ask expires
+after `askTime` (20000 ms), even while keepalives arrive, freeing `asked`
+without closing the session. Logical time has no pause accounting.
+
+**Independent rooms.** A cadence starts only rooms without their own
+snapshot; another room in flight cannot gate them. An unshown room gets
+an empty end without changing the connection. Snapshot and closure caps
+still apply across the connection; this is not a fairness or CPU bound.
+
+**Session phases.** A fresh connection goes from Dialing to Hello; the
+peer's hello advances it to Live. Timeout enters Closed. Every handler
+respects the transition relation, and Closed cannot become another phase.
+Node removes ended connections and remembers their ids against reopening;
+a fresh session needs a fresh handshake.
+The responder answers the dialer's hello with its own window. Its first
+hello can have arrived before the dialer got session keys if the bare
+handshake answer was lost; this reply completes sync without a redial.
 
 **Every end purges.** TCP EOF, errors, oversized framing, idle closure,
 send failure and runner stop notify `Node.onClose` with the socket's
 address. All sessions currently routed through it drop. The common
 `Node.finish` path runs `closing` then `Turn.purge fam ids true` for
-transport drops, patience/protocol drops, lease expiry, sessions removed
+transport drops, silence expiry, sessions removed
 from `established`, and retirement. Retired sessions leave memory too.
 A closed session cannot reopen; a new handshake is needed.
 
@@ -146,26 +241,22 @@ binds IPv4 only today, and dials parse IPv4 only.
 Pending outbound dials keep at most `max 1 queue` payloads per address;
 overflow closes the session.
 
-Both `known` and `asked` hold at most `maxKnown` (65536) ids: together at
-most `2 * maxKnown` ids per connection, plus a timestamp per outstanding
+`known`, `asked`, and stream `offered` each hold at most `maxKnown`
+(65536) ids: together at most `3 * maxKnown` ids per connection, plus a timestamp per outstanding
 ask (a parallel map whose entries leave with their asks). Inserting a new
 `known` hint that would exceed the cap clears old hints, then remembers the
 new id. Redundant offers are harmless. A full `asked` admits no more missing
 ids, sends no wants for them and does not add them to `known`; later rounds
 or offers bring them again. Neither case is a protocol violation or ends
 the session. A zero cap retains no hints or asks. `hold` checks `maxIds`
-before reads and silently ignores oversized offers. `conn_bounded` covers
-all connection transitions; `honest_no_drop` proves that within Conn only
-patience or lease expiry can drop, independently of set sizes. Transport
+before reads and silently ignores oversized offers. `conn_state_bounded`
+covers all connection transitions and includes the closure and snapshot-count bounds; `honest_no_drop` proves that within Conn only
+silence expiry can drop, independently of set sizes. Transport
 loss and retirement still use the common close-and-purge path.
-These are bounds on inbound buffering and the two
-peer-controlled sets, not a total RSS bound: the shared room index,
-round snapshots, offered/closed caches, closure frontier and transient
-handler allocations are separate. Round/CPU bounds remain separate work.
-
-**Status.** `settled room` once per room per connection, when its first
-round has ended and nothing wanted is outstanding. The Connection
-family writes it as a local op, so it can't grow the log per message.
+These are bounds on inbound buffering and persistent per-connection id
+state, not a total RSS bound: the shared room index, snapshot contents,
+and transient handler allocations are separate. Round/CPU bounds remain
+separate work.
 
 ## Code
 
@@ -175,7 +266,7 @@ family writes it as a local op, so it can't grow the log per message.
 | ops/sync/Round.lean | claims, cutting ranges, `answer`, `exchange` |
 | ops/sync/RoundLaws.lean | `exchange_complete` |
 | ops/sync/Wire.lean | the three wire kinds and their codec |
-| ops/sync/Conn.lean | one connection: room index, rounds, have/want, stream, closure, patience |
+| ops/sync/Conn.lean | one connection: room index, rounds, have/want, stream, closure, keepalives |
 | ops/sync/ConnLaws.lean | what a connection may take and send |
 | engine/core/Held.lean | `Turn` (one write turn) and `Held` (a store as data) |
 | engine/wire/Node.lean | the driver; `Hooks` from families; frames and bundles |
@@ -183,6 +274,8 @@ family writes it as a local op, so it can't grow the log per message.
 | ops/sync/OfferLaws.lean | `have_shown`: what a connection offers |
 | engine/wire/Frame.lean | 4-byte length framing on TCP, with proven unframing and bounded buffering |
 | engine/wire/Tcp.lean | the TCP runner |
+| engine/wire/Lanes.lean | the send lanes and the run loop's inbox: what the runner calls |
+| engine/wire/LaneLaws.lean | fresh ops ahead of backlog: `write_first`, `urgent_ahead`, `ahead_bytes`; the socket cap and stalls: `lanes_bounded`, `room_window`, `stall_closes` |
 | engine/core/Locality.lean | `spec_local` |
 | engine/wire/Pair.lean | two Nodes over a lossy in-memory queue, for tests |
 | engine/wire/World.lean | two Nodes on held stores and the frames in flight, as data, with `World.Step` |
@@ -190,6 +283,8 @@ family writes it as a local op, so it can't grow the log per message.
 | tests/engine/SyncPair.lean | two-node suites on a real community |
 | tests/engine/SyncWorld.lean | the world on a real community, and the stream run as `stream_delivers` says |
 | tests/engine/TcpPair.lean | two runners over localhost TCP, with a toy handshake family |
+| tests/engine/Fresh.lean | a fresh post's latency while N chunks sync, in simulated time, against the old order |
+| tests/engine/FreshTcp.lean | over TCP, a peer that never reads stops no one else |
 
 **The driver** (`Node`, generic in its store: `[Monad m] [Store F m]
 [Turn F m]`) holds the in-memory room index and the open connections,
@@ -212,7 +307,7 @@ Entry points:
 - `connect cid addr dialer now`, for the in-memory harness only.
 
 Each entry point returns `Effects`: payloads to send to addresses,
-sessions dropped, and ids stored (for an app's reads).
+sessions dropped, ids stored and purge roots (for an app's reads).
 
 - Every write goes through `write`: one turn of the ops **not already
   stored**, so a repeat is neither written nor reported again. The
@@ -231,13 +326,8 @@ sessions dropped, and ids stored (for an app's reads).
   first, the one its handshake ran on).
 
 **Hooks**, from the Connection family, all in `m`:
-- `rooms cid`: what the connection carries (from the session and the
-  trust rule): rooms the peer may see, synced; and notices, an op with
-  its requirement closure given once to a removed member's node
-  (docs/REMOVAL.md, ops/sync/Notice.lean). The node gives a
-  connection's notices where it runs `filed` and `tick`.
-- `settled`: what a step's status writes: a room's first settle, a
-  notice given.
+- `rooms cid`: which rooms the peer may see (from the session and the
+  trust rule).
 - `recv`: called on every arrival, a repeat included, after it is
   stored.
 - `outbox`: (courier, address, op bytes).
@@ -259,10 +349,11 @@ notify`) is the one loop the phone apps and a desktop daemon run.
   same socket.
 - It closes any socket idle past `idle`, and reports every socket end to the node for key purging.
 - The app's writes come in through `Runner.write`; `notify` gets every
-  stored id, so the app can re-read (a write on the runner's connection
+  stored id and every purge root, so the app can re-read (a write on the runner's connection
   fires no other connection's triggers).
 - One task owns the node and the store; the listener and one reader per
-  socket feed it through a channel.
+  socket feed it through a channel. One writer per socket sends, from
+  the socket's lanes ("Lanes", below), so no send blocks the loop.
 - Stopping closes the event channel, cancels readers, closes sessions and
   releases queued sockets; tests still use `IO.Process.exit` as their harness exit.
 
@@ -313,6 +404,19 @@ Proven:
   the connection at a length over `maxFrame`.
 - `Op.decode_exact`, `decode_sum`: a decoded op is exactly its bytes; a
   bundle's payloads are together smaller than it.
+- `conn_state_bounded`: every reachable connection has known, asked and
+  stream-offered at most `maxKnown`, visited plus pending closure ids at
+  most `closureCap`, and at most as many snapshots as shown rooms.
+  `conn_bounded` retains its original known/asked statement.
+- `full_round_stateless`: serving wants with a captured full-range floor
+  leaves offered, closed and frontier unchanged.
+- `closure_capped`: every prefix of the actual closure walk preserves
+  the visited-plus-pending bound.
+- `closure_complete_under_cap`: from a fresh windowed closure, every id
+  reachable from its seeds is offered, previously streamed, or known
+  held, provided a finite stored, shown requirement-closed superset fits
+  the cap and the walk has enough fuel. The frontier is then empty.
+  `closure_under_cap_runs` supplies a nonempty stored-leaf witness.
 - `spec_local` (locality): a decided verdict depends only on the op's
   requirement closure. If a node holds every op the peer's verdict on x
   was reached from, it reaches the same verdict.
@@ -348,13 +452,19 @@ Proven:
   wants from the round's snapshot, and no claim back. By
   `exchange_ids`, those are the ids the snapshot holds there that the
   claimant lacks, and the reverse.
-- From earlier: `intake_local`, `offer_shared`, `stored_local`.
+- `offer_shared`, `offer_stored`: the real filed stream and closure walk
+  advertise only stored shared ops; the unused `Engine.offer` is deleted.
+- `purges_notified`: the single purge primitive reports every purge root
+  in `Effects.purged`; flush and session end carry them to finish.
+- `handlers_transition`, `closed_terminal`: every existing connection
+  handler respects the session relation; Closed never reopens.
+- From earlier: `intake_local`, `stored_local`.
 
 Tested, not yet proven (tests/engine/SyncPair.lean, on a 101-op community with
 Ed25519 and SQLite):
 
 - Full sync converges, with the same verdict for every op on both
-  sides, and both report the room settled.
+  sides; completion means equal stored room ops.
 - Windowed: a node with a floor ends with exactly its window and the
   requirement closure, and judges every op it holds as its peer does.
 - 25% frame loss converges through redials.
@@ -365,7 +475,18 @@ Ed25519 and SQLite):
   world, `stream_delivers`; tests/engine/SyncWorld.lean runs it on a real
   community and checks the premises hold of the live world).
 
-Negative controls, each failing the suite: windows that ignore the
+`mise run test:stateless` builds and runs a parameterized 5000-op full
+sync over two Nodes, SQLite and memory frames, checking the peak of each
+set after transitions. It also checks two signed Community windows: a
+closure within 64 slots and one exceeding 16, with a three-visit tick
+budget. The former has all verdicts; the latter reports the cut and
+checks agreement for decided ops and Missing for incomplete ones.
+Boundary checks cover zero capacity, duplicate seeds, cut stickiness,
+round reset, delayed wants, and stream-hint eviction. Eight restored
+mutations exercise the new bounds, completeness and state-free full
+rounds (`tests/engine/stateless_negative.py`). These run in the engine gate.
+
+Earlier negative controls, each failing the suite: windows that ignore the
 floor; no closure offers; rooms not checked.
 
 Still to prove:
@@ -390,19 +511,19 @@ Still to prove:
    entry point (`onFrame`, `onTick`, `onWrite`) keeps the cache law and
    the snapshots between them is read from the code.
 3. **`closure_delivered`.** After a send and its offers are answered,
-   the peer holds the op's closure, given the invariant that `known` is
+   the peer holds the op's closure when it fits the cap, given the invariant that `known` is
    a subset of the peer's store. With `spec_local` this gives "every op a
    windowed node holds is judged as its peer judges it", which the tests
    check.
 4. **Efficiency.** Repeated offers and sends are allowed when hint
    memory resets or wants retry; at-most-once delivery is not a goal.
-   Bounds are still wanted for Valid-op closure walks and round work,
+   Round-work bounds are still wanted,
    including the counting bound
    `claims ≤ fan · |A Δ B| · ⌈log_fan n⌉` (a mismatched range must
    contain an item of the difference).
 5. **Buffering beyond the inbound queue.** The event channel now has
    `queue` slots and blocks producers; socket admission has per-IP and
-   total caps. Total RSS, snapshots, closure caches and CPU work still
+   total caps. Total RSS, snapshot contents and round CPU work still
    need separate bounds; see the peer-controlled-storage section above.
 
 ## Costs
@@ -428,15 +549,230 @@ Still to prove:
 - `maxIds` ids per have or want (oversized messages are ignored), and
   at most `maxIds` retried ids per tick.
 - `maxKnown` entries in each hint/ask set; forgetting or deferral, never a drop.
-- `patience` bounds ask age; retries do not extend it.
-- `wantBytes` encoded response payload bytes plus one whole op.
-- `queue` pending inbound events, `maxSocks` sockets and `perAddr` per IP.
+- `askTime` bounds ask age; retries do not extend it.
+- `queue` pending inbound events and, separately, local write batches;
+  `maxSocks` sockets and `perAddr` per IP.
 - `walk` closure steps per call (the rest continues on the next tick).
+- `burst` serve bytes per native write after the urgent frames;
+  `window` bytes queued per socket (both lanes) past which its sessions
+  are served nothing more; `sockCap` bytes queued per socket, past which
+  it is closed; `stallMs` for a writer's write, past which its socket is
+  closed (`RunConfig`). `urgentIds` ids for a wire op to stay urgent,
+  and `hotMs`, `hotCap` for this node's fresh writes (`Config`).
 - `leaf` and `fan` bound a message's claims.
 
 Grinding a degenerate treap costs the attacker O(n²) hashes and the
 victim compute only: rounds, bytes and censorship resistance are
 unaffected (Meyer and Scherer §I–II).
+
+## Lanes: a fresh op never waits behind backlog (T-fresh)
+
+The user saw a new message stall behind a 200-message sync: "prove or
+show non starvation of newly sent messages while old stuff is syncing".
+Nothing in `Node` or `Conn` reorders ops. A fresh op waited behind
+backlog through head-of-line blocking in the runner and on the socket
+(docs/PROOFS.md, "T-fresh", on fd/proofs):
+
+1. local writes shared the runner's one FIFO channel with every frame;
+2. `sendOn` blocked the whole loop on every payload, so one slow socket
+   stopped every other socket, the clock and the app's writes;
+3. one want is answered with up to `wantBytes` (4 MiB), a frame may carry
+   several wants, and every byte went on the socket before the next
+   offer;
+4. the closure walk offers up to `walk` ids per tick;
+5. the receiver takes frames in order.
+
+**The fix, on the send side** (ops/sync/Conn.lean's queue, Node,
+engine/wire/Lanes.lean, Tcp):
+- **The paced responder queue** (item 3, simplification 3 of
+  docs/PROOFS.md; "Have and want" above). A want is queued whole, never
+  truncated; each step serves the queue in order within its budget,
+  after the ops this node wrote within `hotMs`, which go urgent. Repeat
+  wants are deduplicated; the existing bounded ask retries and expiry
+  remain, so dropped or deferred work can be rediscovered.
+- **Two lanes per socket.**
+  - `Lane.urgent` is interaction: the stream's offers (`filed`), every
+    other message naming at most `urgentIds` ids (a hello, a round's
+    claims, a want of the offered op), and the fresh writes the queue
+    serves first.
+  - `Lane.serve` is uiprio's `serve` class on the sending side: the
+    queue's ops, and long offers and wants (a round's difference, the
+    closure walk).
+  - `wireLane` and `Node.serveOwed` decide. Each lane's payloads are
+    sealed in frames of their own, the serve lane's last;
+    `Effects.serve` counts them, so every reader of `send` still sees
+    every frame.
+- **A writer task per socket** owns its sends, on its own thread, from
+  the socket's `Lanes`. Each native write (`Lanes.take`) is every urgent
+  frame, then serve frames up to `burst` bytes, at least one. The run
+  loop only pushes frames onto lanes, so no send blocks it, and a slow
+  socket blocks only its own writer. A closed socket's writer shuts it
+  down once its write under way is done; the frames still in its lanes
+  are dropped on transport failure (`Sock.stop`). Protocol retirement
+  drains queued final notices before shutdown (`Sock.drain`), so removal
+  messages survive the asynchronous handoff.
+- **Local writes have their own bounded channel**, read before any frame
+  (`Inbox.next`). The app offers with `writes.trySend` through `offerAll`;
+  a full queue retains the unaccepted suffix in `toNode`, in submission
+  order, for later frames and across suspension. `Runner.write` is the
+  blocking interface for background callers. `write_first` and
+  `write_within` apply to the channel the actual app uses.
+- **Flow control.** The runner tells the node what each socket's lanes,
+  both of them, have left of `window` (`Sync.room`, `roomOf`), and a
+  step serves a session's queue only that far (and one op more). So
+  serving leaves a socket's lanes within `window` and one op
+  (`room_window`), whatever the backlog. The queue keeps the ids, not
+  the bytes: an id not yet served waits there, not in the lanes.
+- **The socket cap.** Every push goes through `Lanes.admit`: if a
+  socket's lanes would then hold more than `sockCap` bytes (16 MiB), the
+  push is refused and the runner closes the socket through the close
+  path, as for any other end. So no socket ever holds more than
+  `sockCap` here (`lanes_bounded`), whatever its peer sends: the urgent
+  lane too, which the window does not pace (a peer that never reads,
+  asking again and again for this node's fresh writes, or a node writing
+  faster than a peer takes). Serving alone stays within `window` and one
+  op, so an honest peer that reads never reaches the cap.
+- **Stalls.** A writer marks when its write under way began
+  (`Outbox.since`). The loop's clock closes a socket whose write is not
+  done in `stallMs` (30 s; `shut`, `stall_closes`), through the close
+  path: the node ends its sessions there and the lanes are dropped. A
+  native write cannot be cancelled in Lean's TCP (`shutdown` waits for
+  pending writes), so the writer stays on that write until the peer
+  takes it or the connection dies, and only then shuts the socket down
+  and releases the socket's slot. So `maxSocks` caps such writers, and
+  `Runner.stop` waits for writers to end at most `stopMs`.
+
+`burst` is uiprio's `idleBatchBytes` on the send side (one native write
+of several frames, `sendMany`, as uiprio's). When Schedule's Params
+land, they set it.
+
+**Laws** (ServeLaws, LaneLaws, RetryLaws, BoundsLaws, WorldLaws; all
+over the functions the node and the runner call):
+- The queue: `onWant_all` (every authorized id of a want is queued, when
+  the queue has room), `onWant_order` (behind what was owed),
+  `onWant_authorized` (only ids of the shown rooms' index, no read),
+  `serveOwed_head` and `serveOwed_fifo` (each step serves the front, in
+  order), `owed_within` (a queue of p ids is served within p steps),
+  `serveOwed_budget` (the budget and one op), `serveOwed_hot` (a fresh
+  write the peer wants is served first, whatever the budget),
+  `serveOwed_shown`, `serveOwed_blind` (only shown ops; nothing outside
+  the queue read), `onWant_bounded_owed` (the queue within `maxKnown`),
+  `serveOwed_shrinks` (service only shortens it), and `conn_bounded`
+  (hint and ask sets stay bounded, including after service).
+- Asks: `admitAsks_bounded` (capacity defers excess ids), `asks_expire`
+  (the original timestamp bounds age), and `retry_bounded` (bounded
+  retry traffic).
+- In the world: `want_sends` (a want on an empty queue is answered in
+  the same step, the pilot's 3Δ hop again), `fresh_served`.
+- The runner: `write_first` and `write_within` (a local write waiting
+  is the loop's next event, whatever frames are queued), `urgent_ahead`
+  and `ahead_bytes` (an urgent frame goes out in its socket's next
+  native write, after only the urgent frames before it, ahead of every
+  serve frame queued since the last write began; the write under way and
+  those urgent frames are each at most `sockCap`), `cut_bytes` (a
+  write's serve part is at most `burst`, or one frame).
+- The socket: `push_capped`, `push_over` (a push either keeps the lanes
+  within `sockCap` or is refused, and the socket closed),
+  `lanes_bounded` (so a socket's lanes, from empty through the loop's
+  pushes and the writer's writes, never hold more), `room_window`
+  (serving into a socket's room leaves its lanes within `window` and
+  one op), `stall_closes` and `shut_live` (the clock closes a socket
+  whose write is `stallMs` old, and not one heard from within `idle`
+  whose write is younger).
+- Not proven: that one socket's backlog holds up no other. Each socket
+  has its own lanes and writer thread, but threads are not modelled;
+  FreshTcp tests it.
+- What goes urgent: `lane_control`, `hot_ids`, `write_hot` (a local
+  write's ops are hot from the write on, for `hotMs`).
+
+With `fresh_stmt`'s FIFO links of bandwidth bw, each of the three hops
+(offer, want, op) then waits for at most the kernel's buffer, one burst
+or one frame, and the urgent traffic ahead: B = 3(Δ + (sndbuf + burst +
+maxFrame + U)/bw), plus each side's processing, independent of the
+backlog. U is the urgent traffic ahead: a premise bounds a node's own
+writes in the window by U bytes, and `sockCap` bounds it in any case.
+`fresh_stmt` itself, over the world, is proof-arch's and not proven: it
+needs the writer's lanes per link in the world (`Lanes` and its laws are
+that per-link state), with a step that moves one batch into flight.
+
+**Known gap: a relayed op is not hot.** Only this node's own writes are
+served first (`Node.heat` in `onWrite`). An op P stored from its writer
+W and then offers to Q waits in P's queue for Q behind what Q already
+asked of P; Q gets it promptly only from W's own stream, or when Q's
+queue at P is short. Heating every op stored within `hotMs` would let a
+peer's bulk sync fill the hot set and put backlog in the urgent lane;
+doing it safely needs the op's own time (within `hotMs` of now) and the
+`hotCap` bound with own writes first, which is a later change.
+
+**What stays FIFO, and is still a constant ahead of a fresh frame:**
+- the kernel's send buffer and the peer's receive buffer, which the
+  runner cannot see (Lean's TCP has no `SO_SNDBUF` or
+  `TCP_NOTSENT_LOWAT`);
+- the receiver's inbound queue, at most `queue` frames, each taken in
+  order and each op its own write turn (item 5). When the receiver is
+  the slower side (small ops on a phone), this is the largest delay
+  left. Removing it needs either receiver feedback (credit granted by
+  the receiver as it processes, a wire change for the user to decide)
+  or lane-aware ingress at the receiver (uiprio's receive side).
+
+**Tests.**
+- tests/engine/Fresh.lean runs two real nodes (SQLite, the Community
+  family, real 64 KiB attachment chunks) over a simulated link (2 MB/s,
+  10 ms, a 256 KiB kernel buffer, the receiver's 64-frame queue), through
+  the runner's own `Inbox.next`, `Lanes` and flow control, against the
+  old order (one FIFO channel, the loop waiting on each send, 4 MiB
+  served a step as main's `wantBytes`). A post is written once the
+  receiver holds half of N chunks; latency is until the peer stores it:
+
+  | N | 100 | 500 | 1000 | 2000 | 5000 |
+  |---|---|---|---|---|---|
+  | backlog's sender writes, lanes | 330 ms | 331 ms | 331 ms | 330 ms | 330 ms |
+  | backlog's sender writes, old runner order | 1.7 s | 2.3 s | 2.5 s | 11.4 s | 4.2 s |
+  | backlog's sender writes, main (truncation and retries) | 4.9 s | 12.7 s | 15.0 s | 87.6 s | 13.2 s |
+  | backlog's receiver writes, lanes | 177 ms | 177 ms | 177 ms | 177 ms | 177 ms |
+  | backlog's receiver writes, old runner order | 1.5 s | 4.3 s | 4.4 s | 13.3 s | 6.2 s |
+  | backlog's receiver writes, main (truncation and retries) | 4.7 s | 12.7 s | 14.8 s | 87.4 s | 13.0 s |
+
+  The rows for main were measured by the same harness on this branch
+  before the queue replaced truncation and retries (9b37001); the old
+  runner order is today's runner over the queue. Under lanes every
+  latency is within the bound above (724 ms here); the old order waits
+  for every step's bulk queued ahead on one FIFO, so it grows with the
+  backlog, though not smoothly.
+- tests/engine/FreshTcp.lean, over real TCP: a client S asks node R
+  for 32 MiB, in eight wants and 64 more frames wanting it all again, and
+  never reads. Another node still gets all of R's ops, and R's app write
+  reaches it in milliseconds with the backlog still flowing. S's lanes
+  at R (`Runner.lanes`) peak at the window and 555 bytes; R closes S
+  1.63–1.65 s after its wants (`stallMs` 1.5 s here, never before), and
+  S's slot stays held until S reads, when R's writer ends, shuts the
+  socket down (S reads 2.6 MB, then the end) and releases it. With the
+  old blocking send, R's loop stops at the client's first full buffer.
+- tests/engine/HardenLib.lean's want checks: a cross-room want is never
+  read, the budget stops reads, the rest is served the next step in
+  order, a fresh write is served first at a zero budget, a purged id
+  leaves the queue, a repeated want is not queued twice; ask admission
+  defers excess ids, retries remain bounded, and offers/retries never
+  renew the original expiry timestamp.
+- tests/engine/fresh_negative.py: sixteen mutants, each refused by a
+  law or a test: the shared FIFO (`write_first`), one lane
+  (`urgent_ahead`), no burst cap (`cut_bytes`), no hot set (`hot_ids`),
+  a write left cold (`write_hot`), fresh writes not served first
+  (`serveOwed_hot`), a truncated want (`onWant_all`), a want ahead of
+  the queue (`onWant_order`), no socket cap (`push_capped`), a clock
+  blind to stalls (`stall_closes`); and in FreshTcp, the blocking send
+  (the other node gets nothing), the frame handler serving with no room
+  (S's lanes pass the window), a room blind to the lanes (the safety
+  cap closes S before its stall deadline), no stall
+  deadline (S is never closed), and the slot released at close (it is
+  free while S's writer still waits), and dropping queued retirement
+  frames (the final notice never reaches the peer). The retirement
+  regression gates the real writer until after `RunState.apply` retires
+  the session, then checks the exact bytes before EOF.
+  tests/engine/harden_negative.py also rejects broken admission,
+  timestamp renewal, missing expiry, unbounded retries, and no budget.
+- `mise run test:fresh` runs them; tests/engine/run.sh (the engine
+  gate) runs it.
 
 ## Planned (approved; after the join demo)
 
@@ -447,7 +783,7 @@ unaffected (Meyer and Scherer §I–II).
   - snapshots: answered from the live store instead;
   - known, offered, asked and closed: content addressing makes repeats
     idempotent ("dedup may only delay a resend, never veto it");
-  - peer floor, round counters and patience: become ops and list reads.
+  - peer floor, round counters and liveness: become ops and list reads.
   A "due" standing question opens rounds, as poc-17's `compare.due`
   does.
 - **The two-node world.** Built: `World` (two Nodes over `Held`, the
@@ -461,8 +797,8 @@ unaffected (Meyer and Scherer §I–II).
   - rounds from both sides on a cadence, without a dialer bit. Round
     ids must name their initiator, and the cadence should not be every
     tick until the cached treap lands;
-  - whether to keep `settled`, or have the screen read the device's own
-    admission instead.
+  The settled machinery was removed by the user's decision; the screen
+  reads the device's own admission.
 
 ## Follow-ups
 
@@ -502,3 +838,23 @@ unaffected (Meyer and Scherer §I–II).
   hash.
 - **`sync.have` / `sync.want` as a family?** They are transient and never
   stored, so they stay engine wire kinds under the RBSR exception for now.
+
+
+## Claim trees
+
+`ops/sync/TreeLaws.lean` proves the logarithmic depth of the running
+RBSR `answer` and its two-sided composition `exchange`. With sorted,
+consistently named snapshots and the explicit no-fingerprint-collision
+assumption, `answer_step` preserves each differing id or settles it.
+`pieces_le` bounds each cut by `runLen`; `exchange_log` completes within
+`i+j+2` answers when the two sides hold at most `leaf·fan^j` and
+`leaf·fan^i` items in the range. The production connection calls this
+same `answer`; `exchange` is the composition used to state a round's
+result, not a replacement network implementation.
+
+These are snapshot/one-round claims. They do not prove eventual
+many-node delivery under churn, fair scheduling, transport loss, or
+expired requests. The integration preserves the stateless session and
+ask-expiry/retry semantics rather than restoring older session APIs.
+`mise run test:claim-tree` checks actual non-leaf exchanges at that depth
+and rejects runtime mutations that stop splitting or discard wants.

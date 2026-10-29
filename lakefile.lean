@@ -383,3 +383,28 @@ lean_exe appearance_seam where
 
 lean_exe safe where
   root := `platforms.headless.Safe
+
+lean_exe stateless where
+  root := `tests.engine.Stateless
+
+lean_exe fullsync where
+  root := `tests.engine.FullSync
+
+lean_exe simplify where
+  root := `tests.engine.Simplify
+
+-- T-fresh: a fresh post's latency while a backlog syncs, simulated time
+lean_exe fresh where
+  root := `tests.engine.Fresh
+
+-- T-fresh over real TCP: a peer that never reads stops no one else
+lean_exe fresh_tcp where
+  root := `tests.engine.FreshTcp
+
+-- Bounded header reads, full people list, and live removal invalidation.
+lean_exe people_reader where
+  root := `tests.app.PeopleReader
+
+-- Actual RBSR exchange at its proved non-leaf logarithmic depth.
+lean_exe claim_tree where
+  root := `tests.engine.ClaimTree

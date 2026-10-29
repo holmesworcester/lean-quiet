@@ -15,6 +15,10 @@ run = "tests/check.sh"
 description = "Scenario (Ed25519 + SQLite), SQLite-vs-model differential, purge and its on-disk erasure, kill -9 atomicity"
 run = "tests/engine/run.sh"
 
+[tasks."test:fresh"]
+description = "T-fresh: a fresh post's latency while N chunks sync (simulated time, against the old order), a peer that never reads over TCP, and the lanes' negative controls"
+run = "tests/engine/fresh.sh"
+
 [tasks.bench]
 description = "Wall times of the byte codec on a photo's paths: a 64 KiB chunk op's encode, decode and validation, 100 chunks into SQLite, a 48 KiB frame bundle"
 run = "(cd engine/native/crypto && CARGO_TARGET_DIR=\"$PWD/target\" cargo build --release --quiet) && lake build bench && mkdir -p out && .lake/build/bin/bench out/bench"
@@ -313,3 +317,23 @@ run = "tests/app/bar_state.sh"
 [tasks."android:phone-apk"]
 description = "Build the current arm64 app for a physical phone, reusing LEANRT when provided (otherwise build the Android runtime)"
 run = "[ -f \"${LEANRT:-out/leanrt}/arm64-v8a/libInit.a\" ] || mise run android:runtime; [ -f assets/font.bin ] || tools/fetch_assets.sh; platforms/android/twin/build_apk.sh out/quiet-phone.apk com.holmes.leanquiet 'Lean Quiet' Main arm64-v8a"
+
+[tasks."test:stateless"]
+description = "Full and capped window syncs on real Nodes/SQLite, peaks and negative controls"
+run = "tests/engine/stateless.sh"
+
+[tasks."test:simplify"]
+description = "Sync sessions: delayed keepalives on two SQLite nodes, independent rooms, secrecy, purges and negative controls"
+run = "tests/engine/simplify.sh"
+
+[tasks."test:read-plan"]
+description = "Exact SQLite plans/counts and ordered unions against the model, with proof mutation controls"
+run = "tests/engine/read_plan.sh"
+
+[tasks."test:claim-tree"]
+description = "Actual RBSR at logarithmic depth, its checked laws, and runtime mutation controls"
+run = "tests/engine/claim_tree.sh"
+
+[tasks."test:people-reader"]
+description = "Bounded people header, full membership list, cached removal invalidation and controls"
+run = "tests/app/people_reader.sh"

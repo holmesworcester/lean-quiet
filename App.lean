@@ -166,12 +166,12 @@ def noticeLocal (ps : List Pending) : M Unit := do
 
 /-- Offer writes to the node's inbound channel, in order, without waiting:
 each that fits is in; the rest, from the first that did not fit, stay
-(the channel is bounded and shared with the peers' frames, so it can be
-full while sync is busy). It is `NodeOffer.offerList` over the channel's
+(the dedicated local-write channel is bounded, so it can be full
+while sync is busy). It is `NodeOffer.offerList` over the channel's
 `trySend`: NodeOffer.offer_split and offer_runs say no write is lost,
 sent twice or overtaken, whatever the channel answers. -/
-def offerAll (ch : Std.CloseableChannel.Sync Engine.Sync.Event) (q : Array (List Op)) : IO (Array (List Op)) := do
-  return (← NodeOffer.offerList (fun w => (ch.trySend (.write w) : IO Bool)) q.toList).toArray
+def offerAll (ch : Std.CloseableChannel.Sync (List Op)) (q : Array (List Op)) : IO (Array (List Op)) := do
+  return (← NodeOffer.offerList (fun w => (ch.trySend w : IO Bool)) q.toList).toArray
 
 /-- Re-offer parked writes in submission order, only after teardown. -/
 def flushNode : M Unit := do
@@ -182,7 +182,7 @@ def flushNode : M Unit := do
       for ops in s.toNode do s.wr.submit ⟨ops, true⟩
       modify fun s => { s with toNode := #[] }
     return
-  let rest ← offerAll r.events s.toNode
+  let rest ← offerAll r.writes s.toNode
   modify fun s => { s with toNode := rest }
 
 /-- Store-owned writes survive unmount and are journaled before offering. -/
@@ -197,10 +197,10 @@ def submit (j : Job) : M Unit := do
 
 /-- The negative control of the frame's no-wait rule (`block` and
 `waits` in tests/wiring.txt): `submit` to the node as it was, through
-`Runner.write`'s `enqueue`, which waits while the channel is full. Never
+`Runner.write`, which waits while the local channel is full. Never
 run; the wiring check must catch it. -/
 def submitWaits (j : Job) : M Unit := do
-  if let some r := (← get).net then discard <| Engine.Sync.enqueue r.events (.write j.ops)
+  if let some r := (← get).net then r.write j.ops
 
 /-- A user action's write (an intent's ops): each op is
 judged in order against what is decided and the ops before it in the
@@ -542,7 +542,7 @@ def header (s : St) : Bitmap := Id.run do
   b := b.line s.font (Text.oneLine s.font s.font.cell "←") x iy (Palette.color s.dim.theme .fg)
   let tx := x + s.dim.px 40
   b := b.line s.font (Text.oneLine s.font (s.W - tx - x) s!"# general · {s.me.name} ▾") tx y (Palette.color s.dim.theme .fg) true
-  let sub := s!"{s.total} messages · {s.people} people"
+  let sub := s!"{s.total} messages · {s.people}{if s.peopleAll then "" else "+"} people"
   b := b.line s.font (Text.oneLine s.font (s.W - tx - x) sub) tx (y + s.dim.lineH) (Palette.color s.dim.theme .muted)
   b := b.fill 0 (h - max 2 (s.dim.px 1)) s.W h (Palette.color s.dim.theme .line)
   return b
@@ -669,7 +669,7 @@ def applyComms (all : Array Chaos.Me) : M Unit := do
 stays there: Nav.back_reset), and its conversation's window empty. -/
 def switchSt (a : Id) (s : St) : St :=
   let s := { s.withNav (Nav.reset .home) with cur := a, me := (Kinds.Accepted.select s.comms a).getD s.me }
-  let s := { s with ids := #[], total := 0, people := 0, anchor := none, newer := 0, older := 0 }
+  let s := { s with ids := #[], total := 0, people := 0, peopleAll := true, anchor := none, newer := 0, older := 0 }
   let s := { s with heights := {}, rows := {}, selected := none, sheet := none }
   { s with asking := #[], hidden := [], chromeKey := "", pageKey := none }
 
@@ -759,7 +759,7 @@ def netStep : M Unit := do
   if (← s.wr.busy.get) > 0 then return
   let listen := ((← listenHints).head?).getD s!"127.0.0.1:{port}".toUTF8
   let x : Engine.Sync.Sync SF (SqlM SF) :=
-    { fam, cfg := { every := 30000, patience := 20000 },
+    { fam, cfg := { every := 30000, askTime := 20000 },
       hooks := Connection.hooks fam Connection.sodium listen }
   let path := s.dbPath
   let sh := s.sh
@@ -828,7 +828,7 @@ def refreshMembers : M Unit := do
   let some (.members ms admin, _) := (← s.sh.board.get).get? (.members s.me.c s.me.user) | return
   let out := ms.map fun (u, _, name) => ((name, u == s.me.user), u)
   let sorted := out.filter (·.1.2) ++ out.filter (!·.1.2)
-  modify fun s => { s with members := sorted.map (·.1), people := ms.size,
+  modify fun s => { s with members := sorted.map (·.1), people := ms.size, peopleAll := true,
                            memberIds := sorted.map (·.2), amAdmin := admin }
   -- a removal being sent is done once its target is no longer present
   if let .sending u := (← get).removal then
@@ -1642,8 +1642,8 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
     | _ => none
   let s ← get
   -- people: the present members (admitted, not removed), each once
-  if let some (.people n, _) := (← s.sh.board.get).get? (.people s.me.c) then
-    modify fun s => { s with people := n }
+  if let some (.people n all, _) := (← s.sh.board.get).get? (.people s.me.c) then
+    modify fun s => { s with people := n, peopleAll := all }
   let tIds ← (← get).io.nowUs
   -- 4. the offset, and the rows the frame and the fetch distance need
   let s ← get
@@ -1866,7 +1866,7 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
   let sheetKey := match s.sheet, s.selected with
     | some sh, some m => s!"{sh.catalog}|{sh.cat}|{sh.tone}|{sh.query}|{sh.searching}|{sh.scroll}|{mineOn s m}"
     | _, _ => ""
-  let key := s!"{s.W}|{s.insetTop}|{s.total}|{s.people}|{s.text}|{s.sel}|{sheetKey}|{s.me.name}|{s.asking.size}|{s.chips.size}"
+  let key := s!"{s.W}|{s.insetTop}|{s.total}|{s.people}|{s.peopleAll}|{s.text}|{s.sel}|{sheetKey}|{s.me.name}|{s.asking.size}|{s.chips.size}"
   if key != s.chromeKey then
     let bot ← match s.sheet, s.selected with
       | some sh, some m => sheetBitmap sh (mineOn s m)

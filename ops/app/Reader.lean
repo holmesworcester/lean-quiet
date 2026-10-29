@@ -119,7 +119,7 @@ inductive Val where
   | comms (all : Array Kinds.Accepted.Me)
   | members (ms : Array (Id × List Key × String)) (admin : Bool)
   | asking (rs : Array Kinds.Request.Data)
-  | people (n : Nat)
+  | people (n : Nat) (complete : Bool)
   deriving BEq
 
 structure St where
@@ -234,9 +234,9 @@ def eval : Want → RM (Val × Array Q)
     let (a, deps) ← readView (Community.readable c (limit := some 0)) #[]
     return (.count 0 a.inRange, deps)
   | .count c (some p) => do
-    let (o, deps) ← readView (Community.readable c (limit := some 0) (before := some (p.1, p.2.push 0))) #[]
-    let (n, deps) ← readView (Community.readable c (limit := some 0) (after := some p)) deps
-    return (.count n.inRange o.inRange, deps)
+    -- count_partition: newer and at-or-older are disjoint and exhaustive.
+    let (n, deps) ← readView (Community.readable c (limit := some 0) (after := some p)) #[]
+    return (.count n.inRange (n.total - n.inRange), deps)
   | .comms => do
     let (all, deps) ← Kinds.Accepted.read (← get).known
     modify fun s => { s with known := all }
@@ -250,8 +250,8 @@ def eval : Want → RM (Val × Array Q)
     let (rs, deps) ← Kinds.Request.waiting c
     return (.asking rs, deps)
   | .people c => do
-    let (ps, deps) ← readView (Kinds.Profile.present c) #[]
-    return (.people ps.length, deps)
+    let ((n, all), deps) ← readView (Kinds.Profile.presentCount c 999 1024) #[]
+    return (.people n (all && n < 999), deps)
   | .row c me m => do
     match ← Kinds.Message.read c me m with
     | some (d, deps) => return (.row (some d), deps)

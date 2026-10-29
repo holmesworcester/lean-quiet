@@ -29,17 +29,28 @@ frame came from (at first, the one its handshake ran on).
   once. What it sends and takes is then that step's rooms'
   (`recv_send`, `recv_take`). Where the node stores ops and on the clock
   it also gives the connection's notices (`filedGive`, `tickGive`), and
-  writes what the settle hook makes of each one given.
+  writes the local ops returned by onGiven for each notice given.
 - Sessions come from the family: after each entry point every
   connection its handshake has established is opened here, and every
-  one it no longer lists is closed. A session dropped here (patience)
+  one it no longer lists is closed. A session dropped here (silence)
   is never reopened: a new connection needs a new handshake.
 - After each entry point the family's outbox (its send couriers) is
   handed out once and marked shipped.
+- Every stored id and purge root is reported, so an app can re-read.
 - Every id stored is reported (`stored`), so an app can re-read.
+- What a step sends takes one of two lanes (docs/SYNC.md, "Lanes"):
+  urgent (messages naming few ids, `wireLane`; the stream's offers; and
+  the wanted ops this node just wrote) or serve (the rest: the queue of
+  the peer's wants, and long offers and wants). Each session's queue is
+  served once a step, after the step's payloads (`serveOwed`), within
+  the room its socket has (`Sync.room`). Each lane's payloads are
+  sealed in frames of their own, the serve lane's last (`Effects.serve`
+  counts them), so the runner can send urgent frames ahead of a
+  backlog.
 -/
 import ops.sync.Notice
 import engine.core.Held
+import engine.wire.Lanes
 
 namespace Engine.Sync
 
@@ -54,9 +65,8 @@ structure Hooks (F : Type) (m : Type → Type) [Monad m] where
   /-- What connection cid carries now: the rooms its peer may see,
   synced, and the notices it is to give (ops/sync/Notice.lean). -/
   rooms : Id → m (List Room)
-  /-- The local ops that record a status a step on connection cid
-  reports: a room's first settle, a notice given. -/
-  settled : Id → Status → List Op := fun _ _ => []
+  /-- Local ops recording notice x given on connection cid. -/
+  onGiven : Id → Id → List Op := fun _ _ => []
   /-- What the family writes on op o's arrival (on a session, or bare
   from an address) at a time: called on every arrival, a repeat
   included, after it is stored. -/
@@ -89,6 +99,10 @@ structure Sync (F : Type) (m : Type → Type) [Monad m] where
   fam : Family F
   cfg : Config := {}
   hooks : Hooks F m
+  /-- Serve-lane bytes the transport has room for at an address: the
+  runner's flow control (none, as in a proof's world: `cfg.burst` a
+  step). -/
+  room : ByteArray → Option Nat := fun _ => none
 
 structure Node where
   ix : Index
@@ -102,13 +116,20 @@ structure Node where
   dropped : List Id := []
   /-- Ids stored since the last entry point returned. -/
   fresh : List Id := []
+  /-- Purge roots since the last entry point, including shipped couriers. -/
+  purged : List Id := []
+  /-- Ids this node wrote, newest first, each with when (at most
+  `hotCap`): a want for one within `hotMs` is answered urgent. -/
+  hot : List (Id × Nat) := []
 
 /-- What a step asks for, before sealing. -/
 structure Acts where
   send : List (Route × ByteArray) := []
   drop : List Id := []
+  /-- Payloads of the serve lane. -/
+  serve : List (Route × ByteArray) := []
 
-instance : Append Acts := ⟨fun a b => ⟨a.send ++ b.send, a.drop ++ b.drop⟩⟩
+instance : Append Acts := ⟨fun a b => ⟨a.send ++ b.send, a.drop ++ b.drop, a.serve ++ b.serve⟩⟩
 
 /-- What to do: payloads to send to addresses, sessions dropped, ids
 stored. -/
@@ -116,6 +137,11 @@ structure Effects where
   send : List (ByteArray × ByteArray) := []
   drop : List Id := []
   stored : List Id := []
+  /-- Every root passed to a purge, with its dependents invalidated by the store. -/
+  purged : List Id := []
+  /-- How many of `send`'s payloads, at its end, are the serve lane's
+  (the rest are urgent). -/
+  serve : Nat := 0
 
 /-- The discriminators: a bare op, a sealed frame. -/
 def bareTag : UInt8 := 0
@@ -148,7 +174,41 @@ def Node.drop (n : Node) (cid : Id) : Node :=
 def sends (cid : Id) (ops : List Op) : Acts := { send := ops.map fun o => (.conn cid, o.bytes) }
 
 section
+variable {F : Type} {m : Type → Type} [Monad m] (x : Sync F m)
+
+/-- A wire op naming at most `urgentIds` ids (at least one) is urgent;
+a longer one is served. -/
+def wireLane (o : Op) : Lane :=
+  if o.reqs.length ≤ max x.cfg.urgentIds 1 then .urgent else .serve
+
+/-- The ids this node wrote within `hotMs`: a want for one is served
+urgent (`Node.serveOwed`). -/
+def Node.hotIds (n : Node) (now : Nat) : List Id :=
+  n.hot.filterMap fun p => if now ≤ p.2 + x.cfg.hotMs then some p.1 else none
+
+end
+
+/-- Session cid's sends, each in its lane, in order. -/
+def split (lane : Op → Lane) (cid : Id) (ops : List Op) : Acts :=
+  { send := (ops.filter fun o => lane o = .urgent).map fun o => (.conn cid, o.bytes)
+    serve := (ops.filter fun o => lane o = .serve).map fun o => (.conn cid, o.bytes) }
+
+section
+variable {F : Type} {m : Type → Type} [Monad m] (x : Sync F m)
+
+/-- This node's own ops just stored, hot from `now`. -/
+def Node.heat (n : Node) (ids : List Id) (now : Nat) : Node :=
+  { n with hot := ((ids.reverse.map (·, now)) ++ n.hot.filter fun p => now ≤ p.2 + x.cfg.hotMs).take x.cfg.hotCap }
+
+end
+
+section
 variable {F : Type} {m : Type → Type} [Monad m] [Store F m] [Turn F m] (x : Sync F m)
+
+/-- Every purge the node runs carries its roots to the app's notices. -/
+def Effects.purge (ids : List Id) (scrub : Bool) : m Effects := do
+  if !ids.isEmpty then Turn.purge x.fam ids scrub
+  return { purged := ids }
 
 /-- One write turn of the ops not already stored, already through an
 intake; the index grows by them; the ids newly stored. -/
@@ -172,9 +232,9 @@ def Node.write (n : Node) (ops : List Op) : m (Node × List Id) := do
 def Node.put (n : Node) (ops : List Op) (mine : Bool) : m (Node × List Id) :=
   n.write x (intake x.fam mine ops)
 
-/-- Write each settle the steps report. -/
-def Node.settle (n : Node) (st : List (Id × Status)) : m Node := do
-  let ops := st.flatMap fun (cid, v) => x.hooks.settled cid v
+/-- Persist each notice acknowledgment through the family. -/
+def Node.recordGiven (n : Node) (st : List (Id × Id)) : m Node := do
+  let ops := st.flatMap fun (cid, v) => x.hooks.onGiven cid v
   return (← n.put x ops true).1
 
 /-- Connection c as its next step must see it: its rooms and notices
@@ -186,14 +246,14 @@ def Node.refresh (cid : Id) (c : Conn) : m Conn := do
 def Node.fanout (n : Node) (ids : List Id) : m (Node × Acts) := do
   let mut conns : List (Id × Conn) := []
   let mut out : Acts := {}
-  let mut st : List (Id × Status) := []
+  let mut given : List (Id × Id) := []
   for (cid, c) in n.conns do
     let c ← Node.refresh x cid c
     let s ← Conn.filedGive x.fam x.cfg c ids
     conns := (cid, s.conn) :: conns
     out := out ++ sends cid s.send
-    st := st ++ s.status.map (cid, ·)
-  let n ← Node.settle x { n with conns := conns.reverse } st
+    given := given ++ s.given.map (cid, ·)
+  let n ← Node.recordGiven x { n with conns := conns.reverse } given
   return (n, out)
 
 /-- Store ops (a local write, or a peer's) and offer them on; then
@@ -244,8 +304,9 @@ def Node.flush (n : Node) (out : Acts) : m (Node × Acts) := do
   let box ← x.hooks.outbox
   if box.isEmpty then return (n, out)
   -- Handed out: the couriers are purged (poc-17's shipped courier).
-  Turn.purge x.fam (box.map (·.1)) false
-  return (n, out ++ { send := box.map fun (_, a, b) => (.bare a, b) })
+  let e ← Effects.purge x (box.map (·.1)) false
+  return ({ n with purged := n.purged ++ e.purged },
+    out ++ { send := box.map fun (_, a, b) => (.bare a, b) })
 
 /-- Payloads in bundles of at most `max` bytes, in order (a payload
 longer than `max` goes alone). -/
@@ -278,11 +339,16 @@ def Node.seal (n : Node) (out : Acts) : m (List (ByteArray × ByteArray)) := do
           sent := (a, tagged sealedTag f) :: sent
   return sent.reverse
 
+/-- Remember output time once, including stream offers from local writes. -/
+def Node.sent (n : Node) (out : Acts) (now : Nat) : Node :=
+  { n with conns := n.conns.map fun (cid, c) =>
+      (cid, if out.send.any (fun (r, _) => match r with
+        | .conn i => i == cid | .bare _ => false) then { c with sent := now } else c) }
+
 /-- The common end of every session: ask the family for its secrets,
 then purge them and their dependents, with disk scrubbing. -/
-def Node.endSession (cid : Id) : m Unit := do
-  let ids ← x.hooks.closing cid
-  if !ids.isEmpty then Turn.purge x.fam ids true
+def Node.endSession (cid : Id) : m Effects := do
+  Effects.purge x (← x.hooks.closing cid) true
 
 /-- Every entry point ends here: follow the sessions, hand out the
 outbox (the handshake's bare replies go before a new session's first
@@ -295,11 +361,15 @@ def Node.finish (n : Node) (out : Acts) (now : Nat) : m (Node × Effects) := do
   let n := retired.foldl Node.drop n
   let out := { out with drop := out.drop ++ retired }
   let sent ← n.seal x out
+  let served ← n.seal x { send := out.serve }
+  let n := n.sent { out with send := out.send ++ out.serve } now
   -- A session that dropped, or left `established`, is forgotten: its
   -- secrets are purged, and a redial makes a new one.
+  let mut purged := n.purged
   for cid in out.drop do
-    Node.endSession x cid
-  return ({ n with fresh := [] }, { send := sent, drop := out.drop, stored := n.fresh })
+    purged := purged ++ (← Node.endSession x cid).purged
+  return ({ n with fresh := [], purged := [] },
+    { send := sent ++ served, drop := out.drop, stored := n.fresh, purged, serve := served.length })
 
 /-- Loss of the transport ends all sessions routed through that address.
 The same finish path as a protocol drop purges their keys. -/
@@ -312,14 +382,29 @@ def Node.onClose (n : Node) (addr : ByteArray) (now : Nat) : m (Node × Effects)
 /-- Apply a connection's step. -/
 def Node.apply (n : Node) (cid : Id) (s : Step) (now : Nat) : m (Node × Acts) := do
   if s.drop then return (n.drop cid, { drop := [cid] })
-  let n := { n with conns := n.conns.map fun p => if p.1 = cid then (cid, s.conn) else p }
-  let n ← Node.settle x n (s.status.map (cid, ·))
+  let n : Node := { n with conns := n.conns.map fun p => if p.1 = cid then (cid, s.conn) else p }
+  let n ← n.recordGiven x (s.given.map (cid, ·))
   let (n, out) ← n.store x s.take false
   let mut arrived : List Op := []
   for o in s.take do
     arrived := arrived ++ (← x.hooks.recv (some cid) .empty o now)
   let (n, out') ← n.store x arrived true
-  return (n, sends cid s.send ++ out ++ out')
+  return (n, split (wireLane x) cid s.send ++ out ++ out')
+
+/-- Serve session cid's queue (`Conn.serveOwed`): the ops it wants that
+this node wrote within `hotMs` go urgent; then, in the serve lane, as
+many bytes as the transport has room for at its address (`x.room`), or
+`cfg.burst` without a transport. -/
+def Node.serveOwed (n : Node) (cid : Id) (now : Nat) : m (Node × Acts) := do
+  match n.conn? cid with
+  | none => return (n, {})
+  | some c =>
+    if c.owed.isEmpty then return (n, {})
+    let c ← Node.refresh x cid c
+    let budget := ((n.addr? cid).bind x.room).getD x.cfg.burst
+    let (c, urgent, bulk) ← c.serveOwed x.fam x.cfg budget (n.hotIds x now)
+    return ({ n with conns := n.conns.map fun p => if p.1 = cid then (cid, c) else p },
+      { send := urgent.map fun o => (.conn cid, o.bytes), serve := bulk.map fun o => (.conn cid, o.bytes) })
 
 /-- A connection opened without a handshake: the in-memory harness's. -/
 def Node.connect (n : Node) (cid : Id) (addr : ByteArray) (dialer : Bool) (now : Nat) :
@@ -346,7 +431,8 @@ def Node.onSealed (n : Node) (addr : ByteArray) (opened : Option (Id × ByteArra
           let (n', o) ← n.apply x cid (← Conn.recv x.fam x.cfg n.ix c b now) now
           n := n'
           out := out ++ o
-      n.finish x out now
+      let (n', o) ← n.serveOwed x cid now
+      n'.finish x (out ++ o) now
     | _, _ => return (n, {})
 
 /-- A payload from an address: a bare op (the handshake's), or a sealed
@@ -377,14 +463,15 @@ def Node.onTick (n : Node) (now : Nat) : m (Node × Effects) := do
     | some c =>
       let c ← Node.refresh x cid c
       let (n', o) ← n.apply x cid (← Conn.tickGive x.fam x.cfg n.ix c now) now
+      let (n', o') ← n'.serveOwed x cid now
       n := n'
-      out := out ++ o
+      out := out ++ o ++ o'
   n.finish x out now
 
-/-- A local write: this device's own ops. -/
+/-- A local write: this device's own ops, hot from now on. -/
 def Node.onWrite (n : Node) (ops : List Op) (now : Nat) : m (Node × Effects) := do
   let (n, out) ← n.store x ops true
-  n.finish x out now
+  (n.heat x n.fresh now).finish x out now
 
 end
 

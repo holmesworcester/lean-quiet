@@ -40,7 +40,7 @@ jobs:
       - run: mise run test:engine
       - if: failure()
         uses: actions/upload-artifact@v4
-        with: { name: engine, path: "out/scenario\nout/differential\nout/lifecycle\nout/wire\nout/tcppair\nout/jointcp\nout/purge\nout/crash\nout/shipped/engine" }
+        with: { name: engine, path: "out/scenario\nout/differential\nout/lifecycle\nout/wire\nout/tcppair\nout/jointcp\nout/purge\nout/crash\nout/shipped/engine\nout/**/*.log", retention-days: 14 }
 
   app:
     runs-on: ubuntu-24.04

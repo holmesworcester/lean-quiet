@@ -3,12 +3,19 @@ import engine.renderer.ThemeLaws
 import engine.renderer.SlideLaws
 import engine.renderer.InputLaws
 import engine.renderer.TranslateLaws
+import ops.sync.TreeLaws
 import ops.app.LifecycleLaws
+import ops.sync.StateLaws
+import ops.sync.ClosureComplete
 import ops.sync.TimeLaws
+import ops.sync.SessionLaws
+import ops.sync.SecrecyLaws
+import ops.sync.Witnesses
 import ops.sync.RetryLaws
 import ops.sync.BoundsLaws
 import ops.sync.ServeLaws
 import engine.wire.CloseLaws
+import engine.wire.LaneLaws
 import engine.wire.Slots
 import engine.core.Engine
 import engine.core.IdemLaws
@@ -141,8 +148,8 @@ open Engine Community
 #print axioms Engine.filed_rel
 #print axioms Community.rels_distinct
 #print axioms Engine.intake_local
-#print axioms Engine.offer_shared
-#print axioms Engine.offer_stored
+#print axioms Engine.Sync.offer_shared
+#print axioms Engine.Sync.offer_stored
 #print axioms Engine.stored_local
 #print axioms Community.parse_text
 #print axioms Community.parse_valid
@@ -302,14 +309,7 @@ open Engine Community
 #print axioms Engine.Sync.fanout_offers
 #print axioms Engine.Sync.seal_mem
 #print axioms Engine.Sync.conn_answers_ids
-#print axioms Engine.Sync.tick_drop_iff
-#print axioms Engine.Sync.patience_drop_iff
-#print axioms Engine.Sync.round_not_dropped
-#print axioms Engine.Sync.responder_expires
-#print axioms Engine.Sync.live_not_expired
 #print axioms Engine.Sync.uncarried_room_answered
-#print axioms Engine.Sync.limit_bounded
-#print axioms Engine.Sync.finish_bounded
 #print axioms Engine.Sync.start_bounded
 #print axioms Engine.Sync.round_bounded
 #print axioms Engine.Sync.hold_bounded
@@ -326,31 +326,15 @@ open Engine Community
 #print axioms Engine.Sync.serve_blind
 #print axioms Engine.Sync.serve_budget
 #print axioms Engine.Sync.authorize_mem
-#print axioms Engine.Sync.want_reads_authorized
-#print axioms Engine.Sync.want_blind
-#print axioms Engine.Sync.want_blind_step
-#print axioms Engine.Sync.onWant_one
-#print axioms Engine.Sync.want_budget
 #print axioms Engine.Sync.endSession_purges
 #print axioms Engine.Sync.close_gone
 #print axioms Engine.Sync.close_purges
 #print axioms Engine.Sync.admit_bounded
 #print axioms Engine.Sync.Read.trace_map
-#print axioms Engine.Sync.Step.limit_send
-#print axioms Engine.Sync.Step.limit_take
-#print axioms Engine.Sync.Step.limit_rooms
-#print axioms Engine.Sync.Step.limit_snaps
-#print axioms Engine.Sync.Conn.finish_known
-#print axioms Engine.Sync.Conn.finish_asked
-#print axioms Engine.Sync.limit_snaps
-#print axioms Engine.Sync.keeps_limit
-#print axioms Engine.Sync.Step.limit_drop
 #print axioms Engine.Sync.expire_bounded
 #print axioms Engine.Sync.remember_bounded
 #print axioms Engine.Sync.remember_fits
-#print axioms Engine.Sync.admit_one
 #print axioms Engine.Sync.known_forgets
-#print axioms Engine.Sync.asked_full
 #print axioms Engine.Sync.round_no_drop
 #print axioms Engine.Sync.hold_no_drop
 #print axioms Engine.Sync.want_no_drop
@@ -358,12 +342,51 @@ open Engine Community
 #print axioms Engine.Sync.honest_no_drop
 #print axioms Engine.Sync.honest_no_drop_runs
 #print axioms Engine.Sync.asks_expire
-#print axioms Engine.Sync.retried_append
-#print axioms Engine.Sync.retried_start
-#print axioms Engine.Sync.retried_holds
-#print axioms Engine.Sync.retried_chunks
-#print axioms Engine.Sync.pieces_short
-#print axioms Engine.Sync.retry_bounded
+#print axioms Engine.Sync.write_first
+#print axioms Engine.Sync.write_within
+#print axioms Engine.Sync.frame_next
+#print axioms Engine.Sync.urgent_ahead
+#print axioms Engine.Sync.ahead_bytes
+#print axioms Engine.Sync.take_append
+#print axioms Engine.Sync.cut_bytes
+#print axioms Engine.Sync.cut_progress
+#print axioms Engine.Sync.push_capped
+#print axioms Engine.Sync.push_over
+#print axioms Engine.Sync.take_bytes
+#print axioms Engine.Sync.lanes_bounded
+#print axioms Engine.Sync.room_window
+#print axioms Engine.Sync.stall_closes
+#print axioms Engine.Sync.shut_live
+#print axioms Engine.Sync.framesFor_mem
+#print axioms Engine.Sync.framesFor_only
+#print axioms Engine.Sync.lane_control
+#print axioms Engine.Sync.heat_hot
+#print axioms Engine.Sync.write_hot
+#print axioms Engine.Sync.serve_rest
+#print axioms Engine.Sync.serve_head
+#print axioms Engine.Sync.serve_shrinks
+#print axioms Engine.Sync.fetch_all
+#print axioms Engine.Sync.fetch_shown
+#print axioms Engine.Sync.fetch_blind
+#print axioms Engine.Sync.onWant_authorized
+#print axioms Engine.Sync.onWant_all
+#print axioms Engine.Sync.onWant_order
+#print axioms Engine.Sync.onWant_bounded_owed
+#print axioms Engine.Sync.serveOwed_hot
+#print axioms Engine.Sync.serveOwed_head
+#print axioms Engine.Sync.serveOwed_fifo
+#print axioms Engine.Sync.serveOwed_shrinks
+#print axioms Engine.Sync.owed_drains
+#print axioms Engine.Sync.owed_within
+#print axioms Engine.Sync.serveOwed_budget
+#print axioms Engine.Sync.serveOwed_shown
+#print axioms Engine.Sync.serveOwed_blind
+#print axioms Engine.Sync.serveOwed_bounded
+#print axioms Engine.Sync.serveOwed_send
+#print axioms Engine.Sync.hot_ids
+#print axioms Engine.Sync.fresh_served
+#print axioms Engine.Sync.serveOwed_world
+#print axioms Engine.Sync.split_urgent
 end engine
 
 section app
@@ -665,6 +688,13 @@ open Engine
 #print axioms Screen.keep_scrolled_off
 end windows
 
+#print axioms Engine.Sync.conn_state_bounded
+#print axioms Engine.Sync.full_round_stateless
+#print axioms Engine.Sync.closure_capped
+#print axioms Engine.Sync.closure_complete_under_cap
+#print axioms Engine.Sync.full_round_runs
+#print axioms Engine.Sync.closure_under_cap_runs
+
 section cost
 -- Budgets over the code that runs (docs/PERF.md), and the negative
 -- controls they catch.
@@ -959,3 +989,124 @@ end cost
 #print axioms App.screenChanged_size
 #print axioms App.screenChanged_insets
 #print axioms SafeFrame.target_minimum
+
+#print axioms Engine.Sync.drop_iff_silent
+#print axioms Engine.Sync.keepalive_sent
+#print axioms Engine.Sync.live_stays
+#print axioms Engine.Sync.keepalive_runs
+#print axioms Engine.Sync.unshown_room_answered
+#print axioms Engine.Sync.room_independent
+#print axioms Engine.Sync.handlers_transition
+#print axioms Engine.Sync.closed_terminal
+#print axioms Engine.Sync.open_session
+#print axioms Engine.Sync.session_runs
+
+#print axioms Engine.Sync.purges_notified
+#print axioms Engine.Sync.flush_notifies
+#print axioms Engine.Sync.Step.pulse_conn
+#print axioms Engine.Sync.Step.pulse_take
+#print axioms Engine.Sync.Step.pulse_drop
+#print axioms Engine.Sync.work_no_drop
+#print axioms Engine.Sync.tick_sends_or_recent
+#print axioms Engine.Sync.peer_keeps_live
+#print axioms Engine.Sync.start_session
+#print axioms Engine.Sync.round_session
+#print axioms Engine.Sync.hold_session
+#print axioms Engine.Sync.want_session
+#print axioms Engine.Sync.walk_session
+#print axioms Engine.Sync.work_session
+#print axioms Engine.Sync.filed_session
+#print axioms Engine.Sync.recv_transition
+#print axioms Engine.Sync.work_send
+#print axioms Engine.Sync.secrecy_runs
+#print axioms Engine.Sync.live_runs
+#print axioms Engine.Sync.Session.hello_allowed
+#print axioms Engine.Sync.Session.closed_terminal
+#print axioms Engine.Sync.filed_origin
+#print axioms Engine.Sync.holdsOf_shown
+#print axioms Engine.Sync.work_retry_bounded
+#print axioms Engine.Sync.work_keeps
+#print axioms Engine.Sync.inserts_size
+#print axioms Engine.Sync.remembers_bounded
+#print axioms Engine.Sync.seal_single
+
+#print axioms Engine.Sync.admitAsks_bounded
+#print axioms Engine.Sync.hello_answered
+
+#print axioms Engine.Sync.give_shape
+#print axioms Engine.Sync.filedGive_no_drop
+#print axioms Engine.Sync.tickGive_drop
+#print axioms Engine.Sync.extra_give
+
+#print axioms Engine.Sync.filedGive_reachable
+#print axioms Engine.Sync.tickGive_reachable
+
+/-! Compatible read-plan, membership-window and claim-tree ports. -/
+#print axioms Engine.Pos.cmp_eq
+#print axioms Engine.Pos.cmp_gt_of_le
+#print axioms Engine.Pos.cmp_lt_le_trans
+#print axioms Engine.Stmt.walks_le
+#print axioms Engine.countWith_split
+#print axioms Engine.id_bind
+#print axioms Engine.inRange_unbounded
+#print axioms Engine.listPlan_split
+#print axioms Engine.pickMin_le
+#print axioms Engine.plan_stmt_cost
+#print axioms Engine.readPlan_cost
+#print axioms Engine.readPlan_cost_le
+#print axioms Engine.readPlan_cost_range
+#print axioms Engine.sideCount_run
+#print axioms Engine.splitWalk_cost
+#print axioms Engine.splitWalk_exact
+#print axioms Engine.splitWalk_steps
+#print axioms Engine.eval_oriented
+#print axioms Engine.eval_pairwise
+#print axioms Engine.eval_strict
+#print axioms Engine.foldr_insertBy
+#print axioms Engine.insertBy_merge
+#print axioms Engine.mem_mergeRuns_orient
+#print axioms Engine.mem_orient
+#print axioms Engine.mergeRuns_eq_sortPos
+#print axioms Engine.pairwise_orient_cut
+#print axioms Engine.perm_mergeRuns
+#print axioms Engine.union_rows
+#print axioms Engine.union_sorted
+#print axioms Engine.Pos.cmp_succ
+#print axioms Engine.bcmp_push_zero
+#print axioms Engine.eval_partition
+#print axioms Engine.lexCmp_append_zero
+#print axioms Community.anchor_read
+#print axioms Community.asMsg_sorted
+#print axioms Community.count_partition
+#print axioms Community.mem_eval_unlimited
+#print axioms Community.orient_map
+#print axioms Community.orient_orient
+#print axioms Community.recKey_inj
+#print axioms Community.recMsg_recKey
+#print axioms Community.rec_succ
+#print axioms Community.sum_map_add
+#print axioms PeopleLaws.all_take
+#print axioms PeopleLaws.byUser_users
+#print axioms PeopleLaws.deviceLive_lists
+#print axioms PeopleLaws.live_append
+#print axioms PeopleLaws.live_lists_ge
+#print axioms PeopleLaws.live_lists_le
+#print axioms PeopleLaws.presentCount_complete
+#print axioms PeopleLaws.presentW_complete
+#print axioms PeopleLaws.presentW_lists
+#print axioms PeopleLaws.presentW_lists_eq
+#print axioms PeopleLaws.presentW_prefix
+#print axioms PeopleLaws.present_lists_eq
+#print axioms PeopleLaws.present_scans
+#print axioms PeopleLaws.uniq_cons
+#print axioms PeopleLaws.uniq_prefix
+#print axioms PeopleLaws.unremoved_lists
+#print axioms Engine.Sync.Tree.answer_step
+#print axioms Engine.Sync.Tree.exchange_ids_stable
+#print axioms Engine.Sync.Tree.exchange_log
+#print axioms Engine.Sync.Tree.exchange_stable
+#print axioms Engine.Sync.Tree.fold_congr
+#print axioms Engine.Sync.Tree.pick_keys_gt
+#print axioms Engine.Sync.Tree.pieces_le
+#print axioms Engine.Sync.Tree.pieces_le_aux
+#print axioms Engine.Sync.Tree.runLen_le

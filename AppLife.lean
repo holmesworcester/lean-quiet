@@ -297,6 +297,13 @@ def resize (sc : Array UInt32) : M Unit := do
   let safe := Safe.content { window with ime := {} }
   resizeContent #[safe.w.toUInt32, window.h.toUInt32, safe.y.toUInt32,
     (window.h - safe.bottom).toUInt32, sc[4]?.getD s.dim.dpi.toUInt32]
+  -- Insets can move content sideways without changing its width. Revoke
+  -- the displayed input contexts for every changed safe-area/IME snapshot.
+  if window != s.window && (← get).life.generation == s.life.generation then
+    if let some p := s.input.press then s.io.motion { p.first with phase := 3 }.words
+    modify fun s => { s with
+      input := Input.revoke s.input,
+      life := { s.life with generation := s.life.generation + 1 } }
   modify (screenChanged sc ((← s.io.nowUs).toNat / 1000))
 
 /-- The native field may have changed in the same poll as background.

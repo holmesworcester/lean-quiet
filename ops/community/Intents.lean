@@ -289,8 +289,23 @@ def asMsg (r : Pos × Fact) : Pos × Fact :=
   | .received _ _ m _ => ((r.1.1, m), r.2)
   | _ => r
 
-/-- Past every op's id (ids are 32 bytes). -/
-def idTop : ByteArray := ⟨Array.replicate 33 0xFF⟩
+/-- The message a receipt's sort key names: its bytes past the two
+counters (`recKey`). -/
+def recMsg (sk : ByteArray) : ByteArray := ⟨(sk.data.toList.drop 16).toArray⟩
+
+/-- A receipt list's bound for the rows past a, as `readable` names them
+(by their messages, `asMsg`): a receipt row is past a when its sort key
+is, or is a's and names a message past a's. The sort key decides, so
+the bound is a key and the least id (`afterRec`, `beforeRec` and a
+position's successor partition every list: `count_partition`). -/
+def afterRec (a : Pos) : Pos :=
+  (if bcmp (recMsg a.1) a.2 == .gt then a.1 else a.1.push 0, .empty)
+
+/-- A receipt list's bound for the rows before b, as `readable` names
+them: its sort key before b's, or b's and naming a message before b's
+(so before a row's successor, the row itself is in: `anchor_read`). -/
+def beforeRec (b : Pos) : Pos :=
+  (if bcmp (recMsg b.1) b.2 == .lt then b.1.push 0 else b.1, ByteArray.empty.push 0)
 
 /-- The messages of c this device can read, in the channel's order: the
 union of the lists of messages under each content key it holds
@@ -308,7 +323,7 @@ def readable (c : Id) (limit : Option Nat := some 50) (desc : Bool := true)
   let kids ← heldKids c
   let ms ← View.readAll (kids.map fun kid => message.byKey.query [c, kid] limit desc after before)
   let rs ← View.readAll (kids.map fun kid =>
-    received.byKey.query [c, kid] limit desc (after.map (·.1, idTop)) (before.map (·.1, .empty)))
+    received.byKey.query [c, kid] limit desc (after.map afterRec) (before.map beforeRec))
   pure (unionAnswers desc limit (ms ++ rs.map fun a => { a with rows := a.rows.map asMsg }))
 
 /-- This device's newest content key for c, if it holds one. -/
@@ -478,8 +493,8 @@ theorem eval_readable (c : Id) (lim : Option Nat) (desc : Bool) (after before : 
       unionAnswers desc lim
         (kids.map (fun kid => Engine.eval s (message.byKey.query [c, kid] lim desc after before)) ++
          kids.map fun kid =>
-          let a := Engine.eval s (received.byKey.query [c, kid] lim desc (after.map (·.1, idTop))
-            (before.map (·.1, .empty)))
+          let a := Engine.eval s (received.byKey.query [c, kid] lim desc (after.map afterRec)
+            (before.map beforeRec))
           { a with rows := a.rows.map asMsg }) := by
   simp [readable, View.eval_bind, eval_readAll, List.map_map]
   rfl

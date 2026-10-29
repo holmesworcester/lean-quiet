@@ -68,17 +68,17 @@ instance : Store Nat TM where
   lookup _ := pure []
 
 def clockChecks (t : Checks) : IO Unit := do
-  let cfg : Config := { every := 30, patience := 20, lease := 90 }
-  let c : Conn := { dialer := true, rooms := ["room".toUTF8], floor := 0, peerFloor := some 0, heard := 1 }
+  let cfg : Config := { every := 30, askTime := 20, live := 90 }
+  let c : Conn := { dialer := true, rooms := ["room".toUTF8], floor := 0, peerFloor := some 0, heard := 1000 }
   let started := c.start cfg {} 1000
-  for now in [1000:1021] do
+  for now in [1000:1091] do
     let s := ((started.conn.tick fam cfg {} now : TM Step).run {}).1
-    t.ok s!"new round survives tick {now}" (!s.drop)
-  t.ok "round drops strictly after patience" (((started.conn.tick fam cfg {} 1021 : TM Step).run {}).1.drop)
-  let responder := { c with dialer := false, heard := 1000 }
-  t.ok "unwaiting responder expires" (((responder.tick fam cfg {} 1091 : TM Step).run {}).1.drop)
-  for now in [1000:1031] do
-    t.ok s!"cadence keeps lease at {now}" (!responder.expired cfg now)
+    t.ok s!"silence boundary stays live at {now}" (!s.drop)
+  t.ok "silence drops strictly after live" (((started.conn.tick fam cfg {} 1091 : TM Step).run {}).1.drop)
+  let responder := { c with dialer := false }
+  t.ok "both roles expire on silence" (((responder.tick fam cfg {} 1091 : TM Step).run {}).1.drop)
+  let stale := { c with heard := 1 }
+  t.ok "starting a round never renews peer liveness" ((((stale.start cfg {} 1000).conn.tick fam cfg {} 1000 : TM Step).run {}).1.drop)
   let r := "room".toUTF8
   let s := responder.onRbsr cfg {} r 7 [.ids ⟨⟨0, 0⟩, none⟩ []] 1001
   t.ok "uncarried shown room is answered" (!s.send.isEmpty)
@@ -91,18 +91,34 @@ def wantChecks (t : Checks) : IO Unit := do
   let z := Op.make 1 [b] "next".toUTF8
   let c : Conn := { dialer := false, rooms := [b], floor := 0 }
   let ix := Index.ofOps fam [x, y, z]
-  let (s, trace) := (c.onWant fam {} ix [x.id, y.id] : TM Step).run { ops := [x, y, z] }
-  t.ok "cross-room want sends only y" (s.send.map (·.id) == [y.id])
+  let cfg : Config := {}
+  let q := (c.onWant cfg ix [x.id, y.id]).conn
+  t.ok "cross-room want queues only y, and reads nothing" (q.owed == [y.id])
+  let ((q1, urgent, bulk), trace) := (q.serveOwed fam cfg 1000 [] : TM _).run { ops := [x, y, z] }
+  t.ok "cross-room want sends only y" (bulk.map (·.id) == [y.id] && urgent.isEmpty && q1.owed.isEmpty)
   t.ok "cross-room want never reads large x" (trace.reads == [y.id])
-  let (s2, trace2) := (c.onWant fam {} ix [x.id, y.id] : TM Step).run { ops := [y, z] }
-  t.ok "outside possession changes neither reads nor reply" (trace2.reads == trace.reads && s2.send.map (·.id) == s.send.map (·.id))
-  let cfg : Config := { wantBytes := y.bytes.size }
-  let (s, trace) := (c.onWant fam cfg ix [y.id, z.id] : TM Step).run { ops := [x, y, z] }
-  t.ok "budget stops subsequent blob reads" (trace.reads == [y.id] && s.send.map (·.id) == [y.id])
-  let (s, trace) := (c.onWant fam { wantBytes := 0 } ix [y.id] : TM Step).run { ops := [y] }
-  t.ok "zero budget reads and sends nothing" (trace.reads.isEmpty && s.send.isEmpty)
-  let (s, trace) := (c.onWant fam { wantBytes := 1 } ix [y.id, z.id] : TM Step).run { ops := [y,z] }
-  t.ok "one oversize op is whole; next is unread" (trace.reads == [y.id] && s.send.map (·.id) == [y.id])
+  let ((_, _, bulk2), trace2) := (q.serveOwed fam cfg 1000 [] : TM _).run { ops := [y, z] }
+  t.ok "outside possession changes neither reads nor reply" (trace2.reads == trace.reads && bulk2.map (·.id) == bulk.map (·.id))
+  let q := (c.onWant cfg ix [y.id, z.id]).conn
+  let ((q1, _, bulk), trace) := (q.serveOwed fam cfg y.bytes.size [] : TM _).run { ops := [x, y, z] }
+  t.ok "budget stops subsequent blob reads" (trace.reads == [y.id] && bulk.map (·.id) == [y.id] && q1.owed == [z.id])
+  let ((q2, _, bulk), _) := (q1.serveOwed fam cfg y.bytes.size [] : TM _).run { ops := [x, y, z] }
+  t.ok "the rest is served at the next step, in order" (bulk.map (·.id) == [z.id] && q2.owed.isEmpty)
+  let ((q0, _, bulk), trace) := (q.serveOwed fam cfg 0 [] : TM _).run { ops := [y, z] }
+  t.ok "zero budget reads and sends nothing, and keeps the queue" (trace.reads.isEmpty && bulk.isEmpty && q0.owed == q.owed)
+  let ((_, _, bulk), trace) := (q.serveOwed fam cfg 1 [] : TM _).run { ops := [y, z] }
+  t.ok "one oversize op is whole; next is unread" (trace.reads == [y.id] && bulk.map (·.id) == [y.id])
+  let ((qf, urgent, bulk), _) := (q.serveOwed fam cfg 0 [z.id] : TM _).run { ops := [y, z] }
+  t.ok "a fresh write wanted is served urgent, whatever the budget" (urgent.map (·.id) == [z.id] && bulk.isEmpty && qf.owed == [y.id])
+  let gone := Op.make 1 [b] "purged".toUTF8
+  let ixg := Index.ofOps fam [gone, y]
+  let qg := (c.onWant cfg ixg [gone.id, y.id]).conn
+  let ((qg1, _, bulk), _) := (qg.serveOwed fam cfg 1000 [] : TM _).run { ops := [y] }
+  t.ok "an id no longer stored leaves the queue unanswered" (bulk.map (·.id) == [y.id] && qg1.owed.isEmpty)
+  let qb := (c.onWant { maxKnown := 1 } ix [y.id, z.id]).conn
+  t.ok "the queue holds at most maxKnown ids" (qb.owed == [y.id])
+  let qd := (q.onWant cfg ix [y.id, z.id]).conn
+  t.ok "a repeated want is not queued twice" (qd.owed == q.owed)
 
 def memoryChecks (t : Checks) : IO Unit := do
   let da ← Db.openAt ":memory:"
@@ -129,7 +145,7 @@ def memoryChecks (t : Checks) : IO Unit := do
   for reason in [0:3] do
     let d ← Db.openAt ":memory:"
     seed d
-    let x := setup a (reason == 0) { patience := 2, lease := 3 }
+    let x := setup a (reason == 0) { askTime := 2, live := 3 }
     let (n, _) ← ((Node.boot fam [] 0).onTick x 0).run d
     let n := if reason == 1 then { n with conns := n.conns.map fun (id,c) => (id,{c with peerFloor := some 0}) } else n
     let x := if reason == 2 then { x with hooks := { x.hooks with retired := pure [session.id] } } else x
@@ -143,7 +159,7 @@ def wanted (ops : List Op) : List Id := ops.flatMap fun o =>
 def hostileChecks (t : Checks) : IO Unit := do
   let d ← Db.openAt ":memory:"
   seed d
-  let cfg : Config := { maxKnown := 16, maxIds := 4, patience := 20, retry := 1 }
+  let cfg : Config := { maxKnown := 16, maxIds := 4, askTime := 20, retry := 1 }
   let x := setup "hostile".toUTF8 false cfg
   let (n, _) ← ((Node.boot fam [] 0).onTick x 0).run d
   let mut n := n
@@ -171,7 +187,7 @@ def hostileChecks (t : Checks) : IO Unit := do
   let (s, tr) := (c.onHold fam { maxIds := 1 } "room".toUTF8 ["x".toUTF8,"y".toUTF8] : TM Step).run {}
   t.ok "oversized hold ignored before any read" (!s.drop && tr.reads.isEmpty && s.send.isEmpty)
   let ids := (List.range 5).map fun i => s!"pending-{i}".toUTF8
-  let cfg : Config := { maxKnown := 4, maxIds := 5, patience := 20, retry := 1 }
+  let cfg : Config := { maxKnown := 4, maxIds := 5, askTime := 20, retry := 1 }
   let first := (({ c with heard := 10 }.onHold fam cfg "room".toUTF8 ids : TM Step).run {}).1
   t.ok "full asked defers missing ids without remembering them" (first.conn.asked.size == 4 && first.conn.known.size == 4 && !first.conn.known.contains ids[4]! && (wanted first.send) == ids.take 4)
   let again := (({ first.conn with heard := 20 }.onHold fam cfg "room".toUTF8 ids : TM Step).run {}).1
@@ -181,7 +197,7 @@ def hostileChecks (t : Checks) : IO Unit := do
   t.ok "tick reasks at most maxIds before expiry" ((wanted retry.send).length == 2 && retry.conn.asked.size == 4)
   t.ok "retries do not renew original ask times" (retry.conn.askTime[ids[0]!]? == some 10)
   let expired := (({ retry.conn with heard := 31 }.tick fam cfg {} 31 : TM Step).run {}).1
-  t.ok "asks expire after patience despite live peer traffic" (!expired.drop && expired.conn.asked.isEmpty && expired.conn.askTime.isEmpty && (wanted expired.send).isEmpty)
+  t.ok "asks expire after askTime despite live peer traffic" (!expired.drop && expired.conn.asked.isEmpty && expired.conn.askTime.isEmpty && (wanted expired.send).isEmpty)
   let fresh := "fresh".toUTF8
   let old := "old".toUTF8
   let hints := remember 1 (({} : Std.HashSet Id).insert old) fresh
@@ -284,7 +300,9 @@ def sharedSocketChecks (t : Checks) : IO Unit := do
   let ch ← eventChannel { queue := 4 }
   let c ← Std.Async.TCP.Socket.Client.mk
   let stopped ← IO.mkRef false
-  let sock : Sock := { id := 0, client := c, addr, heard := 0, stopped }
+  let out ← Std.Mutex.new {}
+  let wake ← Std.Condvar.new
+  let sock : Sock := { id := 0, client := c, addr, heard := 0, stopped, out, wake, done := Task.pure (.ok ()) }
   let st : RunState := { db, node := n, slots, socks := [sock], next := 1 }
   let st ← RunState.apply x ch (fun _ => pure ()) {} st { drop := [session.id] } 1
   t.ok "shared socket: a dropped session leaves the socket up"

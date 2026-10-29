@@ -70,10 +70,9 @@ door Engine.Crypto.randomBytes App.newBytes
 door Engine.Crypto.randomBytes Connection.instFreshSqlMFOfCodecOfSortKey
 # The frame never waits on sync: what App.step reaches, short of the
 # threads it starts, makes no blocking send to a bounded channel (the
-# node's is shared with the peers' frames, so it can be full while sync
-# is busy), and waits on no other thread's task. The frame offers
+# local-write queue can be full while sync is busy), and waits on no other thread's task. The frame offers
 # instead (App.offerAll: trySend, the rest kept in St.toNode).
-# Runner.write enqueues, so it is forbidden through enqueue, not by name.
+# Runner.write waits through channel.send; App offers with trySend instead.
 block Engine.Sync.enqueue a send that waits while the node's channel is full
 block Std.CloseableChannel.Sync.send a channel send that waits while the channel is full
 block IO.wait waiting on another thread's task
@@ -163,6 +162,9 @@ assume Engine.DB.index = Engine.Model.run
 assume Engine.Sync.turnH = Engine.Model.run
 
 
+assume Engine.Sync.popW The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library).
+assume Engine.Sync.popE = Engine.Sync.popW
+assume Engine.Sync.Queues = Engine.Sync.popW
 assume Engine.runJ The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean).
 
 holds Engine.Inv The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean).
@@ -205,12 +207,14 @@ spec NodeOffer.run A run of the app's sends and frames' re-offers, against the n
 spec NodeOffer.submitted The writes a run submits, in order.
 spec Engine.Sync.pres The byte strings a label hashes, for the no-collision hypothesis.
 spec Engine.Sync.Msg.offers The ids a sync message offers.
-spec Engine.Sync.retried The ids an output's wants ask for.
 spec Engine.Sync.replyBytes A reply's payload bytes, for its bound.
 spec Engine.Sync.largestOp A reply's largest op, for its bound.
 spec Community.Merkle.treeInputs A file's Merkle tree inputs, for the no-second-preimage hypothesis.
 spec Community.Merkle.subInputs A subtree's Merkle inputs, for the no-second-preimage hypothesis.
 spec Community.Merkle.slices A file's chunks, as the tree cuts it.
+spec Engine.Sync.Inbox.iter A loop's choice made n times: `runLoop` repeats `Inbox.next`, which the laws name.
+spec Engine.Sync.urgents The urgent frames among a run of pushes, in order.
+spec Engine.Sync.serves The serve frames among a run of pushes, in order.
 spec Community.fileChunk A file's chunk at an index.
 spec Text.ns A line's characters other than spaces.
 spec Text.shown The characters a line draws.
@@ -284,7 +288,6 @@ control Engine.Mutants.rawNotified = Engine.Mutants.σ
 todo Engine.purgeS The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`).
 todo Engine.purgeSet = Engine.purgeS
 todo Engine.Sync.exchange The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`).
-todo Engine.offer Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`.
 todo Community.recipients The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission.
 todo Community.members = Community.recipients
 todo Net.Scene.approval The bootstrap's model (ops/connection/bootstrap/): retired by `conn_runs_exchange`, `closure_delivered`, `answer_trusted` and `untrusted_silent` over the running code.
@@ -420,3 +423,7 @@ spec Translate.fillRect The viewport crop of that plane inside Translate.edge (S
 spec Translate.seen The compositor's content contract: main's running Cover.seen at its selected source, else unloaded. Source selection is transferred by Slide.pick_eq; fill pixels by Slide.fillRow_eq and fill_pixel.
 
 block Theme.save a device appearance write must run on the checkpoint writer, never the UI thread
+
+wired Engine.Sync.offer_shared
+wired Engine.Sync.offer_stored
+wired Engine.Sync.purges_notified

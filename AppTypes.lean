@@ -196,6 +196,7 @@ structure St where
   older : Nat := 0
   total : Nat := 0
   people : Nat := 0
+  peopleAll : Bool := true
   heights : Std.HashMap Id Nat := {}
   rows : Std.HashMap Id RowSt := {}
   imgs : Std.HashMap ImgKey (Task Bitmap) := {}

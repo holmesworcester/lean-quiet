@@ -12,7 +12,7 @@ def localClose (t : Checks) : IO Unit := do
   let native ← listenerFixture
   let ch ← eventChannel {}
   let r : Runner := {
-    events := ch, port := 0, done := Task.pure (.ok ()), stopped := ← IO.mkRef false,
+    events := ch, writes := ← Std.CloseableChannel.Sync.new (some 1), port := 0, done := Task.pure (.ok ()), stopped := ← IO.mkRef false,
     listening := Task.pure (.ok ()), slots := ← Std.Mutex.new [],
     listener := native, closing := ← Std.Mutex.new false }
   let held ← IO.mkRef r
@@ -31,7 +31,7 @@ def restart (t : Checks) : IO Unit := do
   let second ← Runner.start x db 0 first.port
   t.ok "restart rebinds the same port while old Runner is retained" (second.port == first.port)
   (← held.get).stop
-  t.ok "stopped runner's channel rejects new writes" (!(← first.events.trySend (.write [])))
+  t.ok "stopped runner's channel rejects new writes" (!(← first.writes.trySend []))
   second.stop
   let third ← Runner.start x db 0 first.port
   t.ok "same port restarts a second time" (third.port == first.port)

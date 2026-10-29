@@ -21,7 +21,7 @@ What each door costs SQLite (engine/core/Sqlite.lean, Query.lean):
 | waiters, lookup | primary-key range | 1 | the list's length |
 | clearWaiters | delete a primary-key range | 1 | 0 (its rows were read by waiters) |
 | pop | the queue's first row, deleted | 2 | 0 |
-| list | `listSql`: counters (1 + also), rows (1, and 1 per row for its verdict), the range count (1) | 3 + also + rows | rows + the range count, and with `also` the smallest conjunct's count |
+| list | `listSql`: counters, rows and verdicts, and `countCost` for the actual range plan | 2 + count seeks + also + rows | rows + count rows, plus conjunction work |
 
 A list with `also` is charged its total for the conjunct walk; SQLite
 walks the smallest conjunct, which can be longer, so no law may rest on
@@ -42,11 +42,24 @@ instance {F : Type} : Tick (Sync.HeldM F) := Tick.free
 
 /-! ## A store, counted -/
 
+/-- What a list's range count costs SQLite (seeks, rows), from the
+actual plan. An unbounded one-key count uses its counter. A split count
+has at most two statements per doubling plus its exact fallback; this
+meter conservatively charges the whole key per statement. The tighter
+smaller-side bound is `splitWalk_cost`, when its stated fuel condition
+holds. No approximate counts are returned. -/
+def countCost {F : Type} (q : ListQ) (a : Answer F) : Nat × Nat :=
+  if q.after.isNone && q.before.isNone && q.also.isEmpty then (0, 0)
+  else if (splitOf q q.also).isSome then
+    (2 * walkFuel + 1, (2 * walkFuel + 1) * a.total)
+  else (1, a.inRange)
+
 /-- What a list costs SQLite, from its answer (the table above). -/
 def listCost {F : Type} (q : ListQ) (a : Answer F) : Meter :=
   { lists := 1
-    seeks := 3 + q.also.length + a.rows.length + (if q.also.isEmpty then 0 else 1 + a.total * q.also.length)
-    rows := a.rows.length + a.inRange + (if q.also.isEmpty then 0 else a.total) }
+    seeks := 2 + (countCost q a).1 + q.also.length + a.rows.length +
+      (if q.also.isEmpty then 0 else 1 + a.total * q.also.length)
+    rows := a.rows.length + (countCost q a).2 + (if q.also.isEmpty then 0 else a.total) }
 
 section
 variable {F : Type} {m : Type → Type} [Monad m]

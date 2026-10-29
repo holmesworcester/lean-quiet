@@ -66,7 +66,7 @@ def statusOf (db : Db) (x : Id) : IO (Option (Verdict Fact)) := (Store.getStatus
 
 def sameSet (a b : List Id) : Bool := a.all (has b) && b.all (has a)
 
-def cfg : Config := { every := 30000, patience := 20000 }
+def cfg : Config := { every := 30000, askTime := 20000 }
 
 /-- A side whose store holds these ops, with this floor. -/
 def node (x : Sync Fact (SqlM Fact)) (ops : List Op) (floor : Nat) (addr : String) : IO Side := do
@@ -159,8 +159,7 @@ def main : IO UInt32 := do
   for o in h do
     if (← statusOf p.a.db o.id) != (← statusOf p.b.db o.id) then agree := false
   t.ok "full: same verdict for every op" agree
-  t.ok "full: both report the room settled" (
-    (p.a.node.conn? cid).any (has ·.settled c) && (p.b.node.conn? cid).any (has ·.settled c))
+  t.ok "full: both stores hold the same room ops" (sameSet ia ib)
   IO.println s!"full: {p.frames} frames"
 
   -- Stream: a new op reaches the peer without another round.

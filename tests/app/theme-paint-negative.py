@@ -25,5 +25,5 @@ for name,file,old,new,mode in cases:
   (out/(name+'.log')).write_text(log)
   print(f'negative {name}: rejected by {mode}',flush=True)
  finally:p.write_text(original)
-subprocess.run(['lake','build','appearance','quiet_host'],check=True,stdout=(out/'paint-restored.log').open('w'))
+subprocess.run(['lake','build','appearance','appearance_seam'],check=True,stdout=(out/'paint-restored.log').open('w'))
 print('4 rendering/storage controls rejected; sources and binaries restored',flush=True)

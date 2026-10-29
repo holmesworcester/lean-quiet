@@ -207,8 +207,9 @@ with the meter above.
 | the window | at most above + below rows: its two reads, each within its limit (`Fits`) | `window_rows`, `list_costs` | ✅ |
 | the anchor | when the estimate below the window changes by Δ, moving the offset by Δ leaves every window row where it was on screen | `anchor_stable` | ✅ |
 | the conversation's re-read | the window: at most 200 rows about an anchor, read by `after`/`before` (the reader's `Want.window`), the rest counted | `window_rows`, `list_costs` | ✅ |
-| range counts with `cap = 0` (every list the app reads) | the rows in range | `list_costs` (needs `0 < cap`) | ❌ fix: a3's capped counts ("999+") |
-| `present`, `members`, `recipients` (`admission.all.read [c]`, then `live` reads each admission's removals) | members: O(members) lists per re-read | `view_lists` | ❌ fix: a present-members key the removal files out of, read by window; a capped count for the header |
+| exact counts without a cap | an unbounded one-key list uses its maintained counter; a one-sided range walks its smaller side; two-sided ranges and conjunctions can still walk the range | `readPlan_cost`, `splitWalk_exact`, `splitWalk_cost` | ✅ exact SQL results; the smaller-side work bound requires enough doubling fuel |
+| the people header | newest 1,024 admissions, at most 999 users shown; incomplete scans/capped display carry “+”; at most `1 + m·(1+D)` list doors given at most D admissions per device | `presentW_lists`, `presentCount_complete` | ✅ running Reader uses the bounded view; D is a premise, not an enforced admission cap |
+| full `present`, `members`, `recipients` | all admissions and each device's liveness | `present_scans`, `view_lists` | Still proportional to membership; the opened people list remains exact |
 | `decide` wakes every waiter at once | an op's fan-in: n ops that arrived before it, in one step | `decide_costs` (W) | ❌ fix: push the decided id once, and let pops wake its waiters at most `drain` at a time |
 | an op's requirements | only the frame bounds them (about 32 000) | `step_costs` (R) | ❌ fix: an intake cap `reqs` in the Budget |
 | `react` | `opened.all`, `request.byTo` and a count per request, every entry point | none | ❌ fix: a key of unanswered requests the opened op files out of; a cap on pending requests |
@@ -313,3 +314,39 @@ the node or a socket thread into the pool:
   thread's work; SQLite's WAL lets a reader run beside a writer.
 - **SQLite**: the B-tree assumption above, and that the plan of each
   statement is the one engine/core/CostStore.lean charges.
+
+## Exact read plans and bounded membership headers
+
+`listSql` executes the `Stmt`/`Plan` data built by `readPlan`. Statements
+seek directly on the index tuple `(k,s,id)`, including range bounds;
+`querydiff` checks SQLite's EXPLAIN plans for indexed searches without
+a sort or a range bound applied only as a filter. One-key unbounded
+counts use the maintained counter. Exact one-sided counts alternate
+between the requested side and its complement, doubling the limit until
+one completes (`splitWalk_exact`). `splitWalk_cost` bounds the walked
+rows by `walk0 + 7·min(range,rest)` when the stated fuel condition holds.
+At fuel exhaustion the implementation performs an exact full count;
+it never estimates a message count. `listCost` conservatively charges
+that fallback, separately from the tighter conditional cost theorem.
+
+Readable message lists merge already ordered runs. Receipt-derived
+positions use the receipt's message id for anchor bounds, so saturated
+messages remain in their own older window (`anchor_read`) and newer plus
+older remains the exact total (`count_partition`). The Reader computes
+both sides from one newer-side count. No stored key or secret format
+changes are needed.
+
+The membership header uses `presentCount c 999 1024` through Reader's
+normal dependency tracking. “+” means at least the displayed number,
+including a short unique-user count from an incomplete admission scan.
+Opening the people list still reads every current user. Device liveness
+and removal behavior remain shared with full membership reads. The cost
+law bounds list doors conditional on at most D admissions per device;
+it does not claim a constant row budget under arbitrary device reuse.
+
+Run `mise run test:read-plan`, `mise run test:people-reader`, and
+`mise run test:claim-tree`. CI's engine/app tasks invoke these same named
+tasks. They require the pinned Lean toolchain, Rust native crypto build,
+and bundled SQLite; no external service or device is needed. Failure
+logs are retained in `out/read-plan-negative`, `out/people-negative`,
+and `out/tree-negative`; mutation failures propagate to CI.
