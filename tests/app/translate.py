@@ -8,8 +8,9 @@ import subprocess
 out = pathlib.Path('out/translate')
 out.mkdir(parents=True, exist_ok=True)
 W, H, TOP, BOTTOM, VIEW, OVER = 1080, 2400, 128, 2217, 2089, 32
-BG = bytes.fromhex('1a1d21')
-HOLD = bytes.fromhex('2c2f33')
+# Current dark palette; kept independent of the renderer under test.
+BG = bytes.fromhex('242424')
+HOLD = bytes.fromhex('2f2f2f')
 # Exact holdLine at 420dpi: pad=32, px48=126, x0=158, end=W*2/3=720.
 tile = [BG * W if i < 12 or i >= 36 else BG * 158 + HOLD * (720-158) + BG * (W-720) for i in range(48)]
 
