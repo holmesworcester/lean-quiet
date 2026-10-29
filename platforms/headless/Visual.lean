@@ -48,6 +48,19 @@ def sidebarPeople : M Unit := do
     unless ← writeAll ⟨[invitation, req, approval, admission, profile]⟩ do
       throw (IO.userError "sidebar fixture rejected")
 
+/-- Several real accepted communities, leaving the original selected. -/
+def switcherCommunities : M Unit := do
+  let current := (← get).cur
+  for i in [0:16] do
+    let name := if i == 0 then "Alexandria's community with a long name" else if i == 1 then "Zoë & Søren" else s!"Community {i + 1}"
+    let w ← intentView (Community.found (Chaos.bytesOf s!"switcher identity {i}" 32)
+      name.toUTF8 "Alice Nakamura".toUTF8 29330000
+      (Chaos.bytesOf s!"switcher community {i}" 32) (Chaos.bytesOf s!"switcher key {i}" 32)
+      (Chaos.bytesOf s!"switcher node {i}" 32))
+    unless ← writeAll w do throw (IO.userError "switcher fixture rejected")
+  refreshCommsNow
+  switchToAcc current
+
 def capture (dir name : String) (width height : Nat) (theme page : String) (zoom : Nat := 100) : IO Unit := do
   let db := dir ++ "/" ++ name ++ ".db"
   for suffix in ["", "-wal", "-shm"] do
@@ -61,12 +74,13 @@ def capture (dir name : String) (width height : Nat) (theme page : String) (zoom
     fixture
     if page == "conversation" then conversation
     if page == "sidebar" then sidebarPeople
+    if page == "switcher-many" || page == "switcher-end" then switcherCommunities
     setTheme .system
     waitIdle sm).run d.app
   d := { d with app := s }
   let target : PageId := match page with
     | "home" => .home
-    | "chat" | "conversation" | "sidebar" => .chat
+    | "chat" | "conversation" | "sidebar" | "switcher" | "switcher-many" | "switcher-end" | "switcher-hover" => .chat
     | "you" => .you
     | "appearance" => .appearance
     | "community" => .communitySettings
@@ -103,6 +117,14 @@ def capture (dir name : String) (width height : Nat) (theme page : String) (zoom
     let names := d.app.members.toList.zip d.app.memberIds.toList
     IO.FS.writeFile (dir ++ "/sidebar-members.tsv") (String.intercalate "\n" (names.map fun ((name, _), id) =>
       s!"{name}\t{Pages.identity id}"))
+  if page.startsWith "switcher" then
+    d ← Desktop.act d .switcher
+    if page == "switcher-end" then d ← Desktop.wheel d (d.app.dim.px 150) (d.app.dim.px 200) 100000
+    if page == "switcher-hover" then
+      d := { d with ui := { d.ui with hover := (d.app.dim.px 275, d.app.dim.px 139) } }
+    let m := Desktop.Switcher.model d.app d.height d.ui.switchOffset
+    IO.FS.writeFile (dir ++ "/" ++ name ++ ".popup.tsv") s!"{m.box.x}\t{m.box.y}\t{m.box.w}\t{m.box.h}\t{m.offset}\t{m.contentH}\n"
+    IO.FS.writeFile (dir ++ "/switcher-" ++ page ++ "-communities.tsv") (String.intercalate "\n" (d.app.comms.toList.map fun c => s!"{Pages.identity c.c}\t{c.name}"))
   let bmp := Desktop.paint d.layout d.height d.ui d.app (← d.layers.get)
   if bmp.w != width || bmp.h != height then
     throw (IO.userError s!"{name}: wrong dimensions {bmp.w}x{bmp.h}")

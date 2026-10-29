@@ -133,6 +133,23 @@ try:
             before = lines()[1]
             click(90, 28)
             wait(lambda: any(s.startswith('switch ') for s in lines()), 'community menu')
+            image = shot('switcher')
+            check(image.getpixel((300*scale, 200*scale)) == (255,255,255),
+                  tag + ' community popup extends over main, retaining a white panel')
+            scroll_before = lines()[7]
+            xdo('mousemove', '--window', win, 800*scale, 300*scale, 'click', '4')
+            time.sleep(.2)
+            check(lines()[7] == scroll_before, tag + ' popup prevents wheel reaching history')
+            xdo('key', 'Escape')
+            wait(lambda: not any(s.startswith('switch ') for s in lines()), 'Escape closes switcher')
+            check(lines()[1] == before, tag + ' Escape keeps current community')
+            click(90, 28)
+            wait(lambda: any(s.startswith('switch ') for s in lines()), 'reopen switcher')
+            click(800, 500)
+            wait(lambda: not any(s.startswith('switch ') for s in lines()), 'outside click closes switcher')
+            check(lines()[1] == before, tag + ' outside click dismisses without switching')
+            click(90, 28)
+            wait(lambda: any(s.startswith('switch ') for s in lines()), 'switcher before choice')
             _, _, _, cx, cy = next(s for s in lines() if s.startswith('switch ') and s.split()[2] == '0').split()
             click(int(cx), int(cy))  # a different accepted community, by its drawn row
             wait(lambda: len(lines()) >= 2 and lines()[1] != before, 'community switch')
@@ -172,6 +189,16 @@ try:
             wait(lambda: any('#[0, 5,' in s for s in lines()), 'drag selection')
             check(True, tag + ' drag selects codepoints')
             shot('selection')
+            count_before = lines()[5]
+            click(90, 28)
+            wait(lambda: any(s.startswith('switch ') for s in lines()), 'popup over draft')
+            xdo('key', 'Return')
+            time.sleep(.2)
+            check(lines()[4] == 'hello world' and lines()[5] == count_before,
+                  tag + ' Return in popup cannot send the covered draft')
+            xdo('key', 'Escape')
+            wait(lambda: not any(s.startswith('switch ') for s in lines()), 'dismiss popup over draft')
+            click(int(ex)+20, int(ey)+4)
             xdo('key', 'Return')
             wait(lambda: len(lines()) >= 6 and lines()[4] == '' and int(lines()[5]) >= 1, 'send')
             check(True, tag + ' send reaches writer')

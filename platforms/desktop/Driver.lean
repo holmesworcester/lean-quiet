@@ -53,6 +53,12 @@ def resize (d : Driver) (w h : Nat) : IO Driver := do
       for (parent, _) in d.ui.parents.reverse do App.openPage parent
       App.openPage d.ui.drawer).run { d.app with labelText := d.ui.stubTitle }
     d := { d with app := s, ui := { d.ui with context := .closed } }
+  if w < ((720 * d.dpi + 80) / 160) && d.ui.switching then
+    let (_, s) ← (App.openPage .switcher).run d.app
+    d := { d with app := s, ui := { d.ui with switching := false, switchOffset := 0 } }
+  if w ≥ ((720 * d.dpi + 80) / 160) && d.app.page == .switcher then
+    let (_, s) ← App.back.run d.app
+    d := { d with app := s, ui := { d.ui with switching := true, switchOffset := 0 } }
   if w ≥ ((720 * d.dpi + 80) / 160) && d.app.page.drawer then
     let viewPage := d.app.page
     let parents := (d.app.backStack.takeWhile App.PageId.drawer).map fun p =>
@@ -77,25 +83,34 @@ def zoom (d : Driver) (percent : Nat) : IO Driver := do
   return d
 
 def act (d : Driver) (a : Action) : IO Driver := do
-  let blurs := match a with | .settings | .threads | .page _ | .drawerAct _ => true | _ => false
+  if (a == .close || a == .popup .close) && d.ui.switching then
+    return { d with ui := { d.ui with switching := false, switchOffset := 0 } }
+  let a := match a with
+    | .popup .close => Action.close
+    | .popup (.community i) => .community i
+    | .popup .settings => .page .communitySettings
+    | .popup .invite => .drawerAct .addMembers
+    | .popup .join => .drawerAct .joinCommunity
+    | .popup .create => .drawerAct .createCommunity
+    | .popup .linked => .drawerAct (.stub "Linked devices")
+    | a => a
+  let blurs := match a with | .switcher | .settings | .threads | .page _ | .drawerAct _ => true | _ => false
   if blurs then d.app.io.ime false
   let d := if blurs then { d with app := { d.app with editorFocused := false, chromeKey := "" } } else d
   match a with
-  | .settings => return { d with ui := { d.ui with context := .settings, drawer := .you, parents := [], offset := 0 } }
+  | .settings => return { d with ui := { d.ui with context := .settings, drawer := .you, parents := [], offset := 0, switching := false } }
   | .threads => return { d with ui := { d.ui with context := .threads, drawer := .stub, stubTitle := "Threads", parents := [], offset := 0 } }
   | .close | .drawerAct .back =>
     match d.ui.parents with
     | (parent, title) :: rest => return { d with ui := { d.ui with drawer := parent, stubTitle := title, parents := rest, offset := 0 } }
     | [] => return { d with ui := { d.ui with context := .closed } }
-  | .previous => return { d with ui := { d.ui with first := d.ui.first - (d.height - d.app.dim.px 180) / max 1 (d.app.dim.px 36) } }
-  | .next =>
-    let n := (d.height - d.app.dim.px 180) / max 1 (d.app.dim.px 36)
-    return { d with ui := { d.ui with first := if d.ui.first + n < d.app.comms.size then d.ui.first + n else d.ui.first } }
   | .switcher =>
-    if d.layout.nav.w > 0 then return { d with ui := { d.ui with switching := !d.ui.switching } }
+    if d.layout.nav.w > 0 then return { d with ui := { d.ui with switching := !d.ui.switching, switchOffset := 0 } }
     let (_, s) ← (App.openPage .switcher).run d.app
     return { d with app := s }
+  | .popup _ => return d -- normalized above
   | .community i =>
+    if d.app.comms[i]?.any (·.waiting) then return d
     let (_, s) ← (do App.switchTo i; App.openPage .chat).run d.app
     return { d with app := s, ui := { d.ui with switching := false } }
   | .send =>
@@ -111,6 +126,7 @@ def act (d : Driver) (a : Action) : IO Driver := do
     let (_, s) ← (App.openPage (if p == .home && d.width ≥ ((720 * d.dpi + 80) / 160) then .chat else p)).run d.app
     return { d with app := s, ui := { d.ui with context := .closed, switching := false } }
   | .drawerAct action =>
+    let d := { d with ui := { d.ui with switching := false } }
     let target : Option App.PageId := match action with
       | .appearance => some .appearance | .you => some .you
       | .communitySettings => some .communitySettings | .channelSettings => some .channelSettings
@@ -126,7 +142,16 @@ def act (d : Driver) (a : Action) : IO Driver := do
 
 def tap (d : Driver) (x y : Nat) (long := false) : IO Driver := do
   let g := d.layout
-  if let some c := hit (scene g d.height d.ui d.app) x y then return ← act d c.action
+  if let some c := hit (scene g d.height d.ui d.app) x y then
+    if long then
+      if let .popup (.community i) := c.action then
+        let full := (d.app.comms[i]?.map (fun m => m.name)).getD ""
+        let (_, s) ← App.openPage .label |>.run { d.app with labelText := full }
+        return { d with app := s, ui := { d.ui with switching := false } }
+    return ← act d c.action
+  if d.ui.switching then
+    if (Switcher.model d.app d.height d.ui.switchOffset).box.has x y then return d
+    return ← act d .close
   if g.context.w > 0 && x ≥ g.context.x then return d
   if x < g.main.x || x ≥ g.main.x + g.main.w || y ≥ d.height then return d
   let x := x - g.main.x
@@ -143,6 +168,10 @@ def tap (d : Driver) (x y : Nat) (long := false) : IO Driver := do
 never scrolls the covered conversation. Positive delta means down the page. -/
 def wheel (d : Driver) (x y : Nat) (delta : Int) : IO Driver := do
   let g := d.layout
+  if d.ui.switching then
+    let m := Switcher.model d.app d.height d.ui.switchOffset
+    if !m.box.has x y then return d
+    return { d with ui := { d.ui with switchOffset := min (m.contentH - m.box.h) (Int.ofNat m.offset + delta).toNat } }
   if g.context.w > 0 && x ≥ g.context.x then
     if y < d.app.dim.px 60 then return d
     let maxOffset := (drawerPage g d.height d.ui d.app).1.bmp.h - (d.height - d.app.dim.px 60)

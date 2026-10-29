@@ -6,7 +6,7 @@ conversation. Below the breakpoint a drawer occupies the whole window.
 namespace Desktop
 
 inductive Pane where
-  | nav | main | context
+  | nav | main | context | overlay
   deriving BEq, DecidableEq, Repr, Inhabited
 
 structure Track where
@@ -41,6 +41,7 @@ def Layout.track (g : Layout) : Pane → Track
   | .nav => g.nav
   | .main => g.main
   | .context => g.context
+  | .overlay => ⟨0, g.width⟩
 
 def Layout.count (g : Layout) : Nat :=
   (if g.nav.w > 0 then 1 else 0) + (if g.main.w > 0 then 1 else 0) +

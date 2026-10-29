@@ -63,14 +63,21 @@ def capture(url, destination, chrome=None, cases=None):
                     # Let query subscriptions and ResizeObserver measurements settle.
                     if scenario == 'conversation':
                         page.locator('.said').last.wait_for()
+                    if scenario.startswith('switcher'):
+                        popup = page.locator('[data-switcher="desktop"]')
+                        popup.wait_for()
+                        if scenario == 'switcher-end':
+                            popup.evaluate('(el) => {el.scrollTop = el.scrollHeight}')
+                        if scenario == 'switcher-hover':
+                            popup.get_by_role('button', name='Community settings', exact=True).hover()
                     page.wait_for_timeout(250)
                     page.screenshot(path=str(destination / f'{name}.png'), animations='disabled')
                     if zoom != 1:
                         from PIL import Image
                         with Image.open(destination / f'{name}.png') as im:
                             im.crop((0, 0, int(width), int(height))).save(destination / f'{name}.png')
-                    geometry = page.evaluate('''() => [...document.querySelectorAll('.pane-list,.pane-thread,.drawer,.drawer-body,.composer,.sidebar,.virtual-row,.said,.author,.text')].map(el => {
-                      const r=el.getBoundingClientRect(); return {selector:el.className, x:r.x,y:r.y,w:r.width,h:r.height,display:getComputedStyle(el).display,font:getComputedStyle(el).font,padding:getComputedStyle(el).padding}
+                    geometry = page.evaluate('''() => [...document.querySelectorAll('.pane-list,.pane-thread,.drawer,.drawer-body,.composer,.sidebar,.virtual-row,.said,.author,.text,[data-switcher=desktop],.panel-head,.panel-list,.sw-row,.sw-pick,.sw-tile,.sw-tool,.sw-label')].map(el => {
+                      const r=el.getBoundingClientRect(); return {selector:el.className, x:r.x,y:r.y,w:r.width,h:r.height,scrollTop:el.scrollTop,scrollHeight:el.scrollHeight,clientHeight:el.clientHeight,scale:devicePixelRatio,display:getComputedStyle(el).display,font:getComputedStyle(el).font,padding:getComputedStyle(el).padding}
                     })''')
                     (destination / f'{name}.json').write_text(json.dumps(geometry, indent=2) + '\n')
                     print(f'reference: {name}', flush=True)

@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 
-def metrics(expected, actual):
+def metrics(expected, actual, sidebar=True):
     if expected.size != actual.size:
         raise ValueError(f'dimensions differ: reference {expected.size}, actual {actual.size}')
     a = np.asarray(expected.convert('RGB'), dtype=np.float32)
@@ -25,7 +25,7 @@ def metrics(expected, actual):
     # A blank conversation must not dilute errors in the navigation people
     # use constantly. Keep the full-image score and independently gate the
     # actual 220px sidebar at desktop widths.
-    if expected.width >= 720:
+    if sidebar and expected.width >= 720:
         region = (0, 0, 220, expected.height)
         sidebar, _ = metrics(expected.crop(region), actual.crop(region))
         scores.update({f'sidebar_{key}': value for key, value in sidebar.items()})
@@ -47,6 +47,30 @@ def compare(reference, actual, out, budgets=None):
         expected = Image.open(expected_file).convert('RGB')
         observed = Image.open(actual_file).convert('RGB')
         scores, diff = metrics(expected, observed)
+        geometry = expected_file.with_suffix('.json')
+        if name.startswith('switcher-'):
+            if not geometry.exists():
+                raise ValueError(f'{name}: missing independent popup geometry')
+            popup = next((r for r in json.loads(geometry.read_text())
+                          if r['selector'].startswith('panel only-wide') and r['w'] > 0), None)
+            if popup is None:
+                raise ValueError(f'{name}: reference popup is not visible')
+            scale = popup['scale']
+            native_geometry = actual_file.with_suffix('.popup.tsv')
+            if not native_geometry.exists():
+                raise ValueError(f'{name}: missing running popup geometry')
+            native = [int(v) for v in native_geometry.read_text().split()]
+            oracle = [popup[k] * scale for k in ['x', 'y', 'w', 'h', 'scrollTop']]
+            # Chrome rounds scrollTop to a CSS pixel. Native keeps device pixels.
+            if any(abs(a - b) > max(1, scale) for a, b in zip(native, oracle)):
+                failures.append(f'{name}: native popup geometry {native[:5]} differs from DOM {oracle}')
+            region = tuple(round(v * scale) for v in (popup['x'], popup['y'], popup['x'] + popup['w'], popup['y'] + popup['h']))
+            expected_popup, actual_popup = expected.crop(region), observed.crop(region)
+            # Disable sidebar recursion for the independently cropped popup.
+            popup_scores, _ = metrics(expected_popup, actual_popup, sidebar=False)
+            scores.update({f'popup_{key}': value for key, value in popup_scores.items()})
+            expected_popup.save(out / f'{name}-popup-reference.png')
+            actual_popup.save(out / f'{name}-popup-actual.png')
         results[name] = scores
         expected.save(out / f'{name}-reference.png')
         observed.save(out / f'{name}-actual.png')
@@ -64,9 +88,10 @@ def compare(reference, actual, out, budgets=None):
                 for metric, limit in budgets[name].items():
                     if scores[metric] > limit:
                         failures.append(f'{name}: {metric} {scores[metric]:.5f} > {limit:.5f}')
+        crops = (''.join(f'<figure><figcaption>popup {kind}</figcaption><img src="{name}-popup-{kind}.png"></figure>' for kind in ['reference', 'actual']) if name.startswith('switcher-') else '')
         cards.append(f'<article><h2>{html.escape(name)}</h2><p>{html.escape(json.dumps(scores))}</p>'
                      + ''.join(f'<figure><figcaption>{kind}</figcaption><img src="{name}-{kind}.png"></figure>'
-                               for kind in ['reference', 'actual', 'diff', 'overlay']) + '</article>')
+                               for kind in ['reference', 'actual', 'diff', 'overlay']) + crops + '</article>')
     if budgets is not None:
         for name in budgets.keys() - results.keys():
             failures.append(f'{name}: reviewed case was not rendered')

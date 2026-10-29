@@ -16,7 +16,8 @@ private def settle (d : Driver) : IO Driver := do
   return d
 
 private def click (d : Driver) (a : Action) : IO Driver := do
-  if let some c := (scene d.layout d.height d.ui d.app).find? (·.action == a) then
+  let wanted := if d.ui.switching then (match a with | .community i => Action.popup (.community i) | a => a) else a
+  if let some c := (scene d.layout d.height d.ui d.app).find? (·.action == wanted) then
     return ← settle (← tap d (c.box.x + c.box.w / 2) (c.box.y + c.box.h / 2))
   let c : Composer.Layout := App.composerLayout d.app
   let box : Option Composer.Box := match a with
@@ -240,6 +241,123 @@ private def suite (args : List String) : IO UInt32 := do
     unless bars.isEmpty do flashes := flashes + 1
   check s!"one frame after each of 7 resizes, no row shows a placeholder ({flashes} did)" (flashes == 0)
   check s!"one frame after each of 7 resizes, every row it shows painted ({unpainted} not)" (unpainted == 0)
+  -- Actual popover interaction over the same database, composer and history.
+  d ← settle (← resize { d with ui := {} } 1100 760)
+  d ← settle (← act d (.page .chat))
+  let basePicture ← picture d
+  let beforePopup := d.app.b
+  let beforeDraft := d.app.text
+  let beforeCommunity := d.app.cur
+  d ← click d .switcher
+  let m := Switcher.model d.app d.height d.ui.switchOffset
+  check "switcher is a 300px popover below the unchanged sidebar head"
+    (m.box.x == 8 && m.box.y == 48 && m.box.w == 300 && d.layout.nav.w == 220 && d.ui.switching)
+  let rows := (scene d.layout d.height d.ui d.app).filter fun c => match c.action with | .popup (.community _) => true | _ => false
+  check "switcher puts the selected acceptance first"
+    (rows.head?.any fun c => c.action == .popup (.community ((d.app.comms.findIdx? (·.acc == d.app.cur)).getD 999)))
+  let popupPicture ← picture d
+  check "popover leaves exposed sidebar and main pixels unchanged"
+    ((popupPicture.rows.extract 600 700).map (·.extract 0 800) == (basePicture.rows.extract 600 700).map (·.extract 0 800) &&
+     (popupPicture.rows.map (·.extract 1600 4400)) == (basePicture.rows.map (·.extract 1600 4400)))
+  let composer := App.composerLayout d.app
+  let cx := d.layout.main.x + composer.textX
+  let cy := d.height - App.botH d.app + composer.textY + 1
+  check "popup excludes composer selection and history scrollbar grabs"
+    ((caret d cx cy).isNone && (scrollGrab d (d.width - 4) 200).isNone)
+  d ← settle (← wheel d 900 300 1000)
+  check "wheel outside popup cannot scroll its conversation" (d.app.b == beforePopup && d.ui.switchOffset == 0)
+  d ← settle (← tap d cx cy)
+  check "outside click dismisses without changing draft or community"
+    (!d.ui.switching && d.app.text == beforeDraft && d.app.cur == beforeCommunity && !d.app.editorFocused)
+  d ← click d .settings
+  d ← settle (← act d .switcher)
+  d ← settle (← act d .close)
+  check "Escape dismisses only the topmost popup, preserving underlying settings"
+    (!d.ui.switching && d.ui.context == .settings)
+  d ← click d .close
+  d ← click d .switcher
+  d ← click d (.popup .settings)
+  check "current community gear opens its settings and dismisses popup"
+    (!d.ui.switching && d.ui.drawer == .communitySettings && d.ui.context == .settings && d.app.cur == beforeCommunity)
+  d ← click d .close
+  d ← click d .switcher
+  d ← click d (.popup .invite)
+  check "current community invite opens the real Add members flow"
+    (!d.ui.switching && d.app.page == .invite && d.app.cur == beforeCommunity && (App.pageIn d.app).link.isSome)
+  for (action, page) in [(Switcher.Act.join, App.PageId.joinChoice), (.create, .create)] do
+    d ← settle (← act d (.page .chat))
+    d ← click d .switcher
+    d ← click d (.popup action)
+    check s!"popup {repr action} opens its entry flow" (!d.ui.switching && d.app.page == page)
+  d ← settle (← act d (.page .chat))
+  d ← click d .switcher
+  d ← click d (.popup .linked)
+  check "Linked devices has an honest destination and closes the popup"
+    (!d.ui.switching && d.ui.drawer == .stub && d.ui.stubTitle == "Linked devices")
+  d ← click d .close
+  -- Long lists use real accepted communities, including equal labels. Every
+  -- acceptance remains reachable; scrolling never spills into the messages.
+  for i in [0:14] do
+    let (_, s) ← (App.found (if i < 2 then "Same community name" else s!"Switcher {i}") "Alex").run d.app
+    d ← settle { d with app := s }
+  d ← settle (← resize d 1600 600)
+  d ← click d .switcher
+  let mut seen : List Nat := []
+  for _ in [0:30] do
+    for c in scene d.layout d.height d.ui d.app do
+      if let .popup (.community i) := c.action then seen := i :: seen
+    d ← settle (← wheel d 150 250 40)
+  check "every real acceptance in a long community list is reachable"
+    ((List.range d.app.comms.size).all seen.contains)
+  check "long popup reaches its exact scroll limit"
+    (d.ui.switchOffset == (Switcher.model d.app d.height 0).contentH - (Switcher.model d.app d.height 0).box.h)
+  d ← click d (.popup .linked)
+  check "last action remains clickable after scrolling the entire popup"
+    (!d.ui.switching && d.ui.stubTitle == "Linked devices")
+  d ← click d .close
+  for zoomPct in [75, 100, 150, 200] do
+    d ← settle (← zoom d zoomPct)
+    d ← settle (← act d .switcher)
+    let px := d.app.dim.px
+    let top := Switcher.model d.app d.height d.ui.switchOffset
+    check s!"{zoomPct}% popup respects zoom and window height"
+      (top.box.w == px 300 && top.box.y + top.box.h ≤ d.height - px 8 && top.offset == 0)
+    let mut offset := 0
+    for _ in [0:10] do
+      d ← settle (← wheel d (px 150) (px 200) (Int.ofNat (px 180)))
+      let m := Switcher.model d.app d.height d.ui.switchOffset
+      check s!"{zoomPct}% scroll controls stay inside their visible popup"
+        ((scene d.layout d.height d.ui d.app).all fun c =>
+          c.pane == .overlay && c.box.x ≥ m.box.x && c.box.x + c.box.w ≤ m.box.x + m.box.w &&
+          c.box.y ≥ m.box.y && c.box.y + c.box.h ≤ m.box.y + m.box.h)
+      offset := d.ui.switchOffset
+    check s!"{zoomPct}% all scrolling is confined to the popup" (offset > 0 && d.app.b == 0)
+    d ← settle (← act d .close)
+  d ← settle (← zoom d 100)
+  d ← click d .switcher
+  d ← settle (← resize d 390 760)
+  check "narrowing hands the switcher to the existing mobile navigation"
+    (!d.ui.switching && d.app.page == .switcher)
+  d ← settle (← resize d 1280 760)
+  check "widening returns to the desktop popover over the same community"
+    (d.ui.switching && d.app.page == .chat)
+  let same := (d.app.comms.toList.zipIdx).filter fun (c, _) => c.name == "Same community name"
+  check "fixture contains two distinct acceptances with identical labels" (same.length == 2 && same[0]!.1.acc != same[1]!.1.acc)
+  for (community, i) in same do
+    d ← settle (← act d .close)
+    d ← click d .switcher
+    for _ in [0:20] do
+      if (scene d.layout d.height d.ui d.app).any (·.action == .popup (.community i)) then break
+      d ← settle (← wheel d 150 250 52)
+    d ← click d (.popup (.community i))
+    check "identical displayed names still select their own acceptance" (d.app.cur == community.acc && !d.ui.switching)
+  d ← click d .switcher
+  let some c := (scene d.layout d.height d.ui d.app).find? (fun c => match c.action with | .popup (.community _) => true | _ => false)
+    | throw (IO.userError "missing current community")
+  let selected := d.app.cur
+  d ← settle (← tap d (c.box.x + c.box.w / 2) (c.box.y + c.box.h / 2) true)
+  check "long press exposes the full label without switching community"
+    (!d.ui.switching && d.app.page == .label && d.app.labelText == "Same community name" && d.app.cur == selected)
   IO.println s!"desktop: {← checks.get} checks; 27 renders"
   (← IO.getStdout).flush
   IO.Process.exit 0

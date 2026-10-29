@@ -1,0 +1,23 @@
+# name	width	height	theme	page	optional zoom
+switcher-720-light	720	480	light	switcher
+switcher-720-dark	720	480	dark	switcher
+switcher-1280-light	1280	800	light	switcher
+switcher-1280-dark	1280	800	dark	switcher
+switcher-many-720-light	720	480	light	switcher-many
+switcher-many-720-dark	720	480	dark	switcher-many
+switcher-many-1280-light	1280	800	light	switcher-many
+switcher-many-1280-dark	1280	800	dark	switcher-many
+switcher-end-720-light	720	480	light	switcher-end
+switcher-end-720-dark	720	480	dark	switcher-end
+switcher-end-1280-light	1280	800	light	switcher-end
+switcher-end-1280-dark	1280	800	dark	switcher-end
+switcher-hover-720-light	720	480	light	switcher-hover
+switcher-hover-720-dark	720	480	dark	switcher-hover
+switcher-hover-1280-light	1280	800	light	switcher-hover
+switcher-hover-1280-dark	1280	800	dark	switcher-hover
+switcher-zoom75-light	1600	1000	light	switcher	75
+switcher-zoom75-dark	1600	1000	dark	switcher	75
+switcher-zoom150-light	1600	1000	light	switcher	150
+switcher-zoom150-dark	1600	1000	dark	switcher	150
+switcher-zoom200-light	1600	1000	light	switcher	200
+switcher-zoom200-dark	1600	1000	dark	switcher	200

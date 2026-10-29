@@ -36,6 +36,33 @@ scripts' Noto fallbacks. Rasterization still differs. Unsupported settings are
 disabled or open explanatory pages, and About identifies this implementation
 as Lean. Tightening ceilings requires reviewing the actual/diff images.
 
+The desktop switcher has 22 additional cases in `switcher-cases.tsv`:
+light/dark at 720 and 1280px, a real 17-community list at the top and end,
+a hovered settings button, and 75/150/200% desktop zoom. Its references live
+in `switcher-reference` with their own capture provenance. The popover's
+source (`CommunitySwitcher.svelte`, `SquareAvatar.svelte`, `CommunityUnread.svelte`)
+is unchanged between the pinned commit and libquiet `46f9d748d853cc417ef0bfd1093372c3ba8acf98`.
+The fixture uses actual signed identities from the Lean SQLite fixture.
+`popup_*` metrics independently gate its entire rectangle, including its
+text, glyphs, border and corners; the whole-window score also includes the
+shadow and underlying sidebar. DOM bounds and scroll position must agree
+with the running native renderer within one CSS pixel
+(after mapping both renderers into device pixels). No region is masked or resized.
+The reviewed ceilings allow 3% metric headroom plus 0.00005, and the gate
+rejects missing content, a moved popup, a heavy border and incorrect native
+geometry in both themes, retaining those negative-control reports.
+`host:desktop` also exercises dismissal, draft isolation, hit containment,
+actual community switching with identical names, scrolling, popup actions,
+and both directions across the mobile breakpoint. Mobile still uses its
+existing page implementation; these new cases assert **desktop** parity.
+Linked devices opens an explanatory placeholder until linking is implemented.
+
+To refresh only these additional references, using an existing Chromium:
+
+```sh
+CHROME=/path/to/chromium LIBQUIET=/path/to/libquiet mise run visual:reference -- --cases tests/visual/switcher-cases.tsv --output tests/visual/switcher-reference
+```
+
 The pinned reference still draws settings as a floating drawer with a shadow.
 The running libquiet shell at `ab3d244cfb9937c05dc53736046127150c3e0bb9`
 embeds settings without a shadow (`ContextPanel`, `.drawer.embedded`). Quiet

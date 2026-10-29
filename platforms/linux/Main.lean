@@ -33,7 +33,7 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
         if let .theme choice := action then
           controls := controls ++ s!"choice {Theme.encode choice} {d.layout.main.x + box.x + box.w/2} {App.topH d.app + box.y + box.h/2}\n"
     for control in Desktop.scene d.layout d.height d.ui d.app do
-      if let .community i := control.action then
+      if let .popup (.community i) := control.action then
         controls := controls ++ s!"switch {i} {if (d.app.comms[i]?.map (·.acc == d.app.cur)).getD false then 1 else 0} {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
       if let .drawerAct (.theme choice) := control.action then
         controls := controls ++ s!"choice {Theme.encode choice} {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
@@ -61,7 +61,7 @@ partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab :
     if k == 1 then return d
     else if k == 2 || k == 3 then
       if scrollGrab.isNone then d ← Desktop.tap d x y (k == 3)
-    else if k == 4 || k == 5 then
+    else if (k == 4 || k == 5) && !d.ui.switching then
       let (_, s) ← (App.onEvent (if k == 4 then .text else .send)).run d.app
       d := { d with app := s }
     else if k == 9 then
