@@ -54,6 +54,7 @@ tests/app/pic_retry_negative.sh
 tests/app/ux_negative.sh
 tests/shipped/check.sh app
 tests/app/lifecycle.sh
+mise run host:reader-request-negative
 tests/app/lifecycle_node.sh
 tests/app/lifecycle_node_negative.sh
 
