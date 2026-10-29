@@ -41,7 +41,7 @@ cases = [
         ("ops/app/Reader.lean", "if !(← s.enabled) then return default", "if false then return default"),
     ], "FAIL: superseded reader stops at the next query boundary"),
     ("child-never-unmounts", "op_components", [
-        ("App.lean", "if Raster.near childBottom bx.h offset viewport over then", "if true then"),
+        ("App.lean", "if Raster.near childBottom bx.h offset viewport imageOver then", "if true then"),
     ], "FAIL: offscreen attachment children release every chunk query"),
 
 ]

@@ -461,7 +461,7 @@ def paintRow (x : Id) (bottom offset viewport : Nat := 0) : M Unit := do
     let childBottom := bottom + r.lay.h - (bx.y + bx.h)
     match r.data.pics[i]? with
     | some p =>
-      if Raster.near childBottom bx.h offset viewport over then
+      if Raster.near childBottom bx.h offset viewport imageOver then
         let owner := Raster.pictureOwner s.me.c x p.attachment
         let visible := Raster.near childBottom bx.h offset viewport 0
         let want := Reader.Want.picture s.me.c p.attachment

@@ -37,6 +37,18 @@ def run (dir : String) (ck : Checks) : IO Unit := do
       (active.all fun n => row.data.pics.any fun p =>
         n.owner == Raster.pictureOwner s.me.c message p.attachment &&
           (n.key == .slices p.chunks || n.key == .picture s.me.c p.attachment))
+    -- The original image horizon remains useful beyond 512 px, while
+    -- the larger text buffer must not silently double image demand.
+    let rowBottom := (bottoms s).1[0]!
+    let pictureTop := row.lay.pics.foldl (fun top bx => max top (rowBottom + row.lay.h - bx.y)) 0
+    sm.b.set (pictureTop + 768).toFloat
+    steps 8
+    ck.ok "images 768px beyond the viewport retain their original prefetch demand"
+      (!(← get).pictureNeeds.isEmpty && (← get).rows.contains message)
+    sm.b.set (pictureTop + 1536).toFloat
+    steps 8
+    ck.ok "the extended text buffer does not extend image queries past 1024px"
+      ((← get).pictureNeeds.isEmpty && (← get).rows.contains message)
     -- Move from the pictures at the bottom to the text at the top, in
     -- the same row. The row cannot unmount to make this test pass.
     sm.b.set (← sm.maxB.get)

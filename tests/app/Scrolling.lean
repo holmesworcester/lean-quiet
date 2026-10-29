@@ -1,7 +1,8 @@
 /- The actual App.step, threaded SQLite reader and asynchronous paints.
-This harness intentionally uses the pre-scheduler public API too: compile
-the identical file against the baseline for an honest before/after run.
-No fake frame clock; CSV records measured frame and fill latency. -/
+The measured loop uses the pre-scheduler public API for before/after
+comparisons. The separate 1536px native-buffer check intentionally rejects
+the old overscan margin. No fake frame clock; CSV records frame/row latency,
+not whether every image inside a completed row has decoded. -/
 import platforms.headless.Sim
 
 open App Engine Community Data
@@ -40,6 +41,23 @@ def run (dir : String) (backlog : Bool) : IO UInt32 := do
     steps 2
     sm.cmds.modify (·.push "chaos 500")
     waitIdle sm).run initial
+  -- Sample the already prepared pixels 1536 px ahead without running
+  -- another UI frame. This is the native compositor outrunning one frame.
+  let ((), prepared) ← (show M Unit from do
+    let deadline := (← IO.monoMsNow) + 5000
+    while missing { (← get) with b := 1536 } > 0 && (← IO.monoMsNow) < deadline do
+      steps 1
+      IO.sleep 2
+    let s ← get
+    sm.b.set 1536
+    let composed ← screenOf sm s.W s.Hs s.insetBot
+    sm.b.set 0
+    let expected := listFrame s 1536 (bottoms s).1
+    let pixelsMatch := (List.range (geom s).viewNow).all fun y =>
+      composed[(geom s).top + y]? == expected[over + y]?
+    if missing { s with b := 1536 } > 0 || !pixelsMatch then
+      throw (IO.userError "text overscan cannot cover a 1536px native scroll without a new frame")
+    ).run prepared
   let initial ← App.spawnReader prepared
   -- Fault injection: unrelated background tasks occupy the shared pool
   -- while the user scrolls. Reader IO and native input remain runnable.
@@ -102,6 +120,7 @@ def run (dir : String) (backlog : Bool) : IO UInt32 := do
 end Scrolling
 
 def main (args : List String) : IO Unit := do
-  let code ← Scrolling.run (args.headD "out/scrolling") (args[1]? == some "backlog")
+  let code ← try Scrolling.run (args.headD "out/scrolling") (args[1]? == some "backlog")
+    catch e => IO.eprintln s!"scrolling: {e}"; pure 1
   (← IO.getStdout).flush
   IO.Process.exit code.toUInt8

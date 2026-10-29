@@ -13,6 +13,15 @@ message id / attachment / attachment id. A component declares a query or
 render key, its owner path, and whether it is visible or speculative.
 The same `Demand.Plan` governs both `Reader.Shared` and `Work.Pool`.
 
+Comparison build `compare/overscan-only`: based on `7807d15`, with the
+text/native frame margin increased to 2048 px and the original 1024 px
+attachment margin retained. Queries, scheduling and page lifetimes are
+those of that base: attachment chunk IDs and bytes are separate wants;
+there is no list-body projection, Home preloader or motion predictor.
+`host:component-demand` also checks that a native 1536 px jump uses
+already published pixels without another Lean frame. This comparison
+isolates the larger text buffer from the other changes in `0b79a0f`.
+
 There are only two work classes for now: visible work and prefetch. Native
 editing/motion and the Lean frame do not wait for these workers. Frame
 assembly pauses admission to the raster worker; it resumes before native

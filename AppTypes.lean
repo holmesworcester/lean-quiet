@@ -57,7 +57,9 @@ structure Io where
   bars : UInt32 → UInt32 → Bool → Bool → IO Unit := fun _ _ _ _ => pure ()
 
 /-- How far beyond each end of the viewport the list frame is drawn. -/
-def over : Nat := 1024
+def over : Nat := 2048
+/-- Keep the original image horizon while text gains more overscan. -/
+def imageOver : Nat := 1024
 /-- A row's height before it is measured. -/
 def est : Nat := 150
 /-- A window's rows on each side of its anchor. -/
