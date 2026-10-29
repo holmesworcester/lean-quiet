@@ -59,6 +59,8 @@ static uint64_t lq_tick(void) {
   return (uint64_t)ts.tv_sec * 1000000000u + (uint64_t)ts.tv_nsec;
 }
 
+static uint32_t lq_last_serial;
+
 static void lq_raw(uint32_t kind, uint32_t a, uint32_t b, uint32_t c, uint64_t ms, uint64_t frame) {
   if (lq.n == lq.cap) {
     lq.cap = lq.cap == 0 ? 64 : lq.cap * 2;
@@ -87,9 +89,14 @@ static void lq_pump(void) {
   uint32_t n;
   do {
     n = ba_drain(ts, 256, &closed);
-    for (uint32_t i = 0; i < n; i++)
+    for (uint32_t i = 0; i < n; i++) {
+#ifdef LQ_CTL
+      if (ts[i].kind == 0) __android_log_print(ANDROID_LOG_INFO, "lean", "input down displayed=%u submitted=%u lag=%u",
+        (uint32_t)ts[i].frame, lq_last_serial, lq_last_serial - (uint32_t)ts[i].frame);
+#endif
       lq_raw(9 + ts[i].kind, ts[i].id, (int32_t)lroundf(ts[i].x),
         (int32_t)lroundf(ts[i].y), ts[i].t / 1000000, ts[i].frame);
+    }
   } while (n == 256);
   uint32_t ws[256];
   do {
@@ -394,6 +401,7 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
   (void)pin;
   uint32_t place[LQ_PLACEMENT_WORDS];
   for (int i = 0; i < LQ_PLACEMENT_WORDS; i++) place[i] = lean_unbox_uint32(lean_array_get_core(placement, i));
+  lq_last_serial = place[16];
   uint64_t t0    = lq_tick();
   uint32_t top_h = (uint32_t)lean_array_size(top);
   uint32_t bot_h = (uint32_t)lean_array_size(bot);
