@@ -83,13 +83,13 @@ abbrev ImgKey := Pics.Key
 /-- Which page is up: a conversation, or one of libquiet's other screens. -/
 inductive PageId where
   | home | chat | getStarted | create | createName | joinChoice | openInvite | paste | scan | name | agree | waiting
-  | requests | invite | switcher | profile | removeConfirm | duplicate | you | appearance
+  | requests | invite | switcher | profile | removeConfirm | duplicate | you | appearance | label
   deriving DecidableEq, Repr, Inhabited
 
 /-- Every page (Nav.depth: back reaches a root in fewer steps than this). -/
 def PageId.all : List PageId :=
   [.home, .chat, .getStarted, .create, .createName, .joinChoice, .openInvite, .paste, .scan, .name, .agree,
-   .waiting, .requests, .invite, .switcher, .profile, .removeConfirm, .duplicate, .you, .appearance]
+   .waiting, .requests, .invite, .switcher, .profile, .removeConfirm, .duplicate, .you, .appearance, .label]
 
 /-- The reaction sheet's state: quick or the catalogue, its category,
 tone, search, and the grid's scroll (with a drag or fling in progress). -/
@@ -118,6 +118,9 @@ structure PageIn where
   insetTop : Nat
   dim : Dim
   field : String
+  /-- The full label shown (Full label), and its page. -/
+  labelText : String := ""
+  labelPage : Nat := 0
   refusal : Option String
   me : Kinds.Accepted.Key
   comms : Array Kinds.Accepted.Key
@@ -126,7 +129,6 @@ structure PageIn where
   askingAll : Nat
   link : Option String
   members : Array (String × Bool)
-  online : Array Bool
   backEmpty : Bool
   /-- Which camera frame is shown (a new frame, a new key). -/
   camFrame : Nat
@@ -260,18 +262,15 @@ removal is not announced again. -/
   notices : List String := []
   /-- The removal flow (Remove.step). -/
   removal : Remove.Step := .idle
-  /-- Whether each member (as `members`) has a device this node holds a
-  session with now. -/
-  online : Array Bool := #[]
-  /-- The peers this node holds sessions with (their device keys), read
-  every half second. -/
-  peers : List ByteArray := []
   /-- A toast and the frame it goes at (libquiet's: centred, about 3 s). -/
   toast : Option (String × Nat) := none
   page : PageId := .chat
   backStack : List PageId := []
   /-- A page's one-line field (the keyboard's text while a page shows one). -/
   field : String := ""
+  /-- The full label a long press opened (Full label), and its page. -/
+  labelText : String := ""
+  labelPage : Nat := 0
   refusal : Option String := none
   hidden : List Id := []
   /-- The key of the page drawn (`drawPage`): it is redrawn when the key changes. -/

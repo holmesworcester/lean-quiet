@@ -136,8 +136,6 @@ structure St where
   passes : Nat := 0
   /-- The communities last read: Kinds.Accepted.read keeps their devices. -/
   known : Array Kinds.Accepted.Me := #[]
-  /-- When the session list was last read (ms). -/
-  peersAt : Nat := 0
   /-- The wants of the last pass: when they change, the reads no want
   holds stop being watched. -/
   last : Array Want := #[]
@@ -178,9 +176,6 @@ structure Shared where
   /-- The journal's rows the reader has taken (the writer prunes below
   the frame's and this). -/
   seen : IO.Ref Nat
-  /-- The peers of the node's kept sessions, read every half second (a
-  connection family's list: not a want of the board). -/
-  peers : IO.Ref (List ByteArray)
   /-- Moves each time the frame sets `wants` to something new. -/
   gen : IO.Ref Nat
   /-- The writers' commits (the app's writer counts its own, the node's
@@ -195,7 +190,7 @@ structure Shared where
   done : IO.Ref (Array (Id × Option Community.Write))
 
 def Shared.new (commits : IO.Ref Nat) : IO Shared :=
-  return ⟨← IO.mkRef {}, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef [], ← IO.mkRef 0,
+  return ⟨← IO.mkRef {}, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef 0,
     commits, ← IO.mkRef #[], ← IO.mkRef #[]⟩
 
 /-- Queue an act: the next pass opens the store for it (`Live.mustReadActs`). -/
@@ -340,14 +335,6 @@ def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
     let s ← get
     -- the journal, read first: the commits this pass's reads see
     let (fs, vs, top) ← rd.filingsSince s.seen
-    -- the session list, at most every half second, and only in a pass
-    -- that opened the store: a session's op is a commit the node's notify
-    -- counts, and its purge is seen within the second
-    if (← (← get).enabled) && now ≥ s.peersAt + 500 then
-      let all ← ((Connection.allSessions : SqlM SF _)).run rd
-      let k := Connection.kept all
-      sh.peers.set (all.filterMap fun (cid, p, _) => if k.contains cid then some p else none)
-      modify fun s => { s with peersAt := now }
     -- the outbox is the pass's: the ops the store has decided leave it
     -- (their rows move from pending to stored, a notice too)
     let judged : Std.HashSet Id := vs.foldl (fun a (x, _) => a.insert x) {}

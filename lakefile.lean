@@ -264,6 +264,10 @@ lean_exe arrival where
 lean_exe attach where
   root := `platforms.headless.Attach
 
+-- Dogfood UX regressions on the same app step and headless seam.
+lean_exe ux where
+  root := `platforms.headless.Ux
+
 /-! ## QR, mDNS and the bootstrap (tests/qr, tests/mdns, tests/net) -/
 
 lean_exe qr_check where

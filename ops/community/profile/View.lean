@@ -49,7 +49,7 @@ def namesake (c u : Id) (name : String) (deps : Array Q) : m (Bool × Array Q) :
 
 /-- The users of these live admissions, each once (in admission order),
 with the node keys their devices are admitted under: what a session
-names its peer by (the online dot). -/
+names its peer by. -/
 def byUser (ls : List (Id × Key × Key)) : List (Id × List Key) :=
   (React.uniq (ls.map (·.1))).map fun u => (u, (ls.filter fun l => decide (l.1 = u)).map (·.2.2))
 

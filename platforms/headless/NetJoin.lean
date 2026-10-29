@@ -113,14 +113,24 @@ def main (args : List String) : IO UInt32 := do
   let rows := a7.rows.toList.map (·.2.data)
   check s!"B's post reaches A under B's name ({(rows.find? (·.text == "hello over tcp")).map (·.name)})"
     (got || rows.any fun d => d.text == "hello over tcp" && d.name == "Bea")
-  -- A's home: Bea, with the online dot (a session with her node's key)
+  -- A holds a session with a node Bea is admitted under, read from A's
+  -- store as the Runner's hooks read it. No app field mirrors sessions:
+  -- a stored session is not presence, so home draws no dot for it.
+  let beaHeld : M Bool := do
+    let s ← get
+    let (ms, _) ← Kinds.Profile.members s.me.c
+    let all ← (Connection.allSessions : SqlM SF _).run s.rd
+    let k := Connection.kept all
+    let bea := (ms.toList.filter fun (_, _, p) => p.name == "Bea").flatMap (·.2.1)
+    return all.any fun (cid, peer, _) => k.contains cid && bea.contains peer
   let ((), a8) ← (show M Unit from do
     sa.cmds.modify (·.push "switch club")
     for _ in [0:100] do
-      if (← get).online.toList == [false, true] then break
+      if ← beaHeld then break
       steps 1; IO.sleep 10).run a7
-  check s!"A's home shows Bea online ({a8.members.toList.zip a8.online.toList})"
-    (a8.members.toList.map (·.1) == ["Ann", "Bea"] && a8.online.toList == [false, true])
+  check "A holds a session with Bea's node" (a8.net.isSome && (← beaHeld.run' a8))
+  check s!"A's home lists Ann and Bea ({a8.members.toList})"
+    (a8.members.toList.map (·.1) == ["Ann", "Bea"])
   -- A makes 30 chaos messages (people, posts, a few photos) while its
   -- node runs: they reach B too, as a phone's chaos must
   let before := b5.total
