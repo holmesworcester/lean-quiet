@@ -509,7 +509,7 @@ def header (s : St) : Bitmap := Id.run do
   b := b.line s.font (Text.oneLine s.font s.font.cell "←") x iy nameInk
   let tx := x + s.dim.px 40
   b := b.line s.font (Text.oneLine s.font (s.W - tx - x) s!"# general · {s.me.name} ▾") tx y nameInk true
-  let sub := s!"{s.total} messages · {s.people} people"
+  let sub := s!"{s.total} messages · {s.people}{if s.peopleAll then "" else "+"} people"
   b := b.line s.font (Text.oneLine s.font (s.W - tx - x) sub) tx (y + s.dim.lineH) dim
   b := b.fill 0 (h - max 2 (s.dim.px 1)) s.W h pill
   return b
@@ -634,7 +634,7 @@ def applyComms (all : Array Chaos.Me) : M Unit := do
 stays there: Nav.back_reset), and its conversation's window empty. -/
 def switchSt (a : Id) (s : St) : St :=
   let s := { s.withNav (Nav.reset .home) with cur := a, me := (Kinds.Accepted.select s.comms a).getD s.me }
-  let s := { s with ids := #[], total := 0, people := 0, anchor := none, newer := 0, older := 0 }
+  let s := { s with ids := #[], total := 0, people := 0, peopleAll := true, anchor := none, newer := 0, older := 0 }
   let s := { s with heights := {}, rows := {}, selected := none, sheet := none }
   { s with asking := #[], hidden := [], chromeKey := "", pageKey := none }
 
@@ -793,7 +793,7 @@ def refreshMembers : M Unit := do
   let some (.members ms admin, _) := (← s.sh.board.get).get? (.members s.me.c s.me.user) | return
   let out := ms.map fun (u, ds, name) => ((name, u == s.me.user), ds.any (s.peers.contains ·), u)
   let sorted := out.filter (·.1.2) ++ out.filter (!·.1.2)
-  modify fun s => { s with members := sorted.map (·.1), people := ms.size, online := sorted.map (·.2.1),
+  modify fun s => { s with members := sorted.map (·.1), people := ms.size, peopleAll := true, online := sorted.map (·.2.1),
                            memberIds := sorted.map (·.2.2), amAdmin := admin }
   -- a removal being sent is done once its target is no longer present
   if let .sending u := (← get).removal then
@@ -1507,8 +1507,8 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
     | _ => none
   let s ← get
   -- people: the present members (admitted, not removed), each once
-  if let some (.people n, _) := (← s.sh.board.get).get? (.people s.me.c) then
-    modify fun s => { s with people := n }
+  if let some (.people n all, _) := (← s.sh.board.get).get? (.people s.me.c) then
+    modify fun s => { s with people := n, peopleAll := all }
   let tIds ← (← get).io.nowUs
   -- 4. the offset, and the rows the frame and the fetch distance need
   let s ← get
@@ -1730,7 +1730,7 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
   let sheetKey := match s.sheet, s.selected with
     | some sh, some m => s!"{sh.catalog}|{sh.cat}|{sh.tone}|{sh.query}|{sh.searching}|{sh.scroll}|{mineOn s m}"
     | _, _ => ""
-  let key := s!"{s.W}|{s.insetTop}|{s.total}|{s.people}|{s.text}|{s.sel}|{sheetKey}|{s.me.name}|{s.asking.size}|{s.chips.size}"
+  let key := s!"{s.W}|{s.insetTop}|{s.total}|{s.people}|{s.peopleAll}|{s.text}|{s.sel}|{sheetKey}|{s.me.name}|{s.asking.size}|{s.chips.size}"
   if key != s.chromeKey then
     let bot ← match s.sheet, s.selected with
       | some sh, some m => sheetBitmap sh (mineOn s m)

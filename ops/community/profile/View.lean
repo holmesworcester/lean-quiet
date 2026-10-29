@@ -62,6 +62,24 @@ def present (c : Id) : View Fact (List (Id × List Key)) := do
   let ls ← live c a.rows
   pure (byUser ls)
 
+/-- **The people list by window**: the first n present members of c (in
+`present`'s order), found among c's newest m admissions, each with the
+node keys of their live devices among those; and whether those m were
+all of c's admissions (then the window is `present`'s first n:
+PeopleLaws.presentW_complete). It reads one list of m rows and each
+row's liveness, never every admission (PeopleLaws.presentW_lists). -/
+def presentW (c : Id) (n m : Nat) : View Fact (List (Id × List Key) × Bool) := do
+  let a ← admission.all.read [c] (limit := some m)
+  let ls ← live c a.rows
+  pure ((byUser ls).take n, decide (a.rows.length < m))
+
+/-- **The header's count, capped**: the present members of c among its
+newest m admissions, at most `cap`; and whether those were all of c's
+admissions (then it is the count, capped: PeopleLaws.presentCount_complete). -/
+def presentCount (c : Id) (cap m : Nat) : View Fact (Nat × Bool) := do
+  let (us, all) ← presentW c cap m
+  pure (us.length, all)
+
 /-- The present members of c with their profiles, for the people list
 and its count. A removed member is not among them (their messages keep
 their names: Message reads the profile by author). -/

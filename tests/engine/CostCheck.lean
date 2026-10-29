@@ -270,7 +270,7 @@ def listCheck (t : Checks) : IO Unit := do
     (a.rows.length == 10 && a.inRange == 50 && a.total == 300)
   t.ok s!"list: within list_costs (rows {c.rows}, seeks {c.seeks})"
     (c ≤ { lists := 1, seeks := 13, rows := 60 } : Bool)
-  let ((_, cu), _) := onModel (Lists.list (F := Unit) { q with cap := 0 }) db
+  let ((_, cu), _) := onModel (Lists.list (F := Unit) { q with cap := 0, after := some (.empty, .empty), before := some (⟨#[0xFF]⟩, .empty) }) db
   t.ok s!"list: uncapped, the negative control steps over all 300 (rows {cu.rows})"
     (cu.rows == 310 && !(cu ≤ { lists := 1, seeks := 13, rows := 60 } : Bool))
   IO.println s!"list: limit 10, cap 50 of 300: {c.rows} rows, {c.seeks} seeks; uncapped {cu.rows} rows"

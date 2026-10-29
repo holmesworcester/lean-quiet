@@ -39,8 +39,11 @@ theorem list_costs (q : ListQ) (hq : q.also = []) {L C : Nat} (hL : q.limit = so
     costs_bindP hS (fun a ha => by
       have h1 := ha.1 L hL
       have h2 := ha.2 hC
-      simp only [listCost, hq, List.length_nil, List.isEmpty_nil, ite_true, Nat.add_zero]
-      meter_le) (fun a _ => costs_pure a)
+      have hs : (splitOf q []).isSome = false := by
+        simp [splitOf, Nat.pos_iff_ne_zero.1 hC]
+      simp only [listCost, countCost, hs, hq, List.length_nil, List.isEmpty_nil, ite_true, Nat.add_zero,
+        Bool.false_eq_true, ite_false]
+      split <;> meter_le) (fun a _ => costs_pure a)
   rw [bind_pure, Meter.add_zero] at this
   exact this
 
@@ -66,6 +69,25 @@ end
 
 namespace View
 variable {F α : Type}
+
+/-- How many lists a view reads on store s: its path there. -/
+def listsAt [SortKey F] (s : DB F) : View F α → Nat
+  | .pure _ => 0
+  | .list q k => 1 + listsAt s (k (Engine.eval s q))
+
+theorem listsAt_bind [SortKey F] (s : DB F) {β : Type} : ∀ (v : View F α) (f : α → View F β),
+    listsAt s (v.bind f) = listsAt s v + listsAt s (f (v.eval s))
+  | .pure a, f => by simp [View.bind, listsAt, View.eval]
+  | .list q k, f => by
+    simp only [View.bind, listsAt, View.eval, listsAt_bind s (k (Engine.eval s q)) f]
+    omega
+
+theorem listsAt_bindOp [SortKey F] (s : DB F) {β : Type} (v : View F α) (f : α → View F β) :
+    listsAt s (v >>= f) = listsAt s v + listsAt s (f (v.eval s)) := listsAt_bind s v f
+
+theorem listsAt_pure [SortKey F] (s : DB F) (a : α) : listsAt s (Pure.pure a : View F α) = 0 := rfl
+
+theorem listsAt_read [SortKey F] (s : DB F) (q : ListQ) : listsAt s (View.read q : View F (Answer F)) = 1 := rfl
 
 /-- How many lists a view reads, on every path: at most n. -/
 def DepthLe : Nat → View F α → Prop

@@ -357,3 +357,11 @@ lean_exe fresh where
 -- T-fresh over real TCP: a peer that never reads stops no one else
 lean_exe fresh_tcp where
   root := `tests.engine.FreshTcp
+
+-- Bounded header reads, full people list, and live removal invalidation.
+lean_exe people_reader where
+  root := `tests.app.PeopleReader
+
+-- Actual RBSR exchange at its proved non-leaf logarithmic depth.
+lean_exe claim_tree where
+  root := `tests.engine.ClaimTree

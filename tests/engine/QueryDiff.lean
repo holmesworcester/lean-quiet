@@ -98,6 +98,52 @@ def queries (c : Id) (posts : Array Id) (users : Array (Id × Id × Device)) (cu
       :: { key := opKey m, limit := some 1 } :: qs
   return qs
 
+/-- SQLite's plan for a statement: EXPLAIN QUERY PLAN's detail lines. -/
+def explain (db : Db) (sql : String) (ps : Array ByteArray) : IO (List String) := do
+  let rows ← db.query ("EXPLAIN QUERY PLAN " ++ sql) ps
+  return rows.toList.filterMap fun r => r[3]? >>= String.fromUTF8?
+
+def mentions (l sub : String) : Bool := (l.splitOn sub).length > 1
+
+/-- What the cost of a read assumes of a plan line (`SeekCost`): a search
+through an index or a primary key, or the subqueries that hold them;
+never a scan of a table, never a sort. A key's range is searched in
+`idx_ks` (in (s, id) order), or, for a count, where order does not
+matter, in `idx`'s unique (k, id). -/
+def lineOk (l : String) : Bool :=
+  !mentions l "TEMP B-TREE" &&
+  (mentions l "SEARCH i USING COVERING INDEX idx_ks (k=?" ||
+   mentions l "SEARCH i USING COVERING INDEX sqlite_autoindex_idx_1 (k=?)" ||
+   mentions l "SEARCH st USING PRIMARY KEY (id=?)" ||
+   mentions l "SEARCH j USING COVERING INDEX sqlite_autoindex_idx_1 (k=? AND id=?)" ||
+   mentions l "SEARCH cnt USING PRIMARY KEY (k=?)" ||
+   mentions l "CORRELATED SCALAR SUBQUERY" ||
+   mentions l "CO-ROUTINE" ||
+   mentions l "SCAN (subquery")
+
+def ranged : Stmt → Bool
+  | .rows _ _ a b _ _ => a.isSome || b.isSome
+  | .count _ _ a b _ => a.isSome || b.isSome
+  | .side .. => true
+  | .counter _ => false
+
+/-- A statement's plan is the walk its cost counts (`Stmt.walks`): every
+line a search, a counter its primary key, rows in `idx_ks`'s order, and
+a range bound a seek in `idx_ks`, not a filter. -/
+def planOk (st : Stmt) (lines : List String) : Bool :=
+  !lines.isEmpty && lines.all lineOk &&
+  (match st with
+   | .counter _ => lines.any (mentions · "SEARCH cnt USING PRIMARY KEY (k=?)")
+   | .rows .. => lines.any (mentions · "SEARCH i USING COVERING INDEX idx_ks (k=?")
+   | .count .. | .side .. => true) &&
+  (!ranged st || lines.any (mentions · "USING COVERING INDEX idx_ks (k=? AND (s,id)"))
+
+/-- Several lists read as one (`unionAnswers` over `View.readAll`), each
+with the given limit and order: a union, as `readable` reads one. -/
+def unionOf (qs : List ListQ) (limit : Option Nat) (desc : Bool) : View Fact (Answer Fact) := do
+  let as ← View.readAll (qs.map fun q => { q with limit, desc })
+  pure (unionAnswers desc limit as)
+
 /-- `sortPos` as written, under another name: the compiler runs a merge
 sort for `sortPos` (`sortPos_eq_fast`), and this insertion sort as is. -/
 def sortPosSpec {α} (l : List (Pos × α)) : List (Pos × α) := l.foldr insertBy []
@@ -191,6 +237,7 @@ def readableChecks (t : Checks) (seed : Nat) (db : Db) (m : DB Fact) (c : Id) : 
     t.ok s!"seed {seed}: pages of 7 {if desc then "newest" else "oldest"} first read the whole list once, in order ({all.length} rows)"
       (got == all && (got.map (·.1.2)).eraseDups.length == got.length)
 
+
 def main : IO UInt32 := do
   let t ← Checks.new
   let fam := family C
@@ -206,7 +253,7 @@ def main : IO UInt32 := do
     let m := modelRun fam shuffled
     -- Cursors: real positions from the middle of the list, and ties.
     let base := eval m { key := message.all.key [c], desc := false, limit := some 1000 }
-    let cursors := [5, 17, 60].filterMap (fun i => base.rows[i]?.map (·.1)) ++ [(be64 25, ByteArray.empty)]
+    let cursors := [5, 17, 60, 100].filterMap (fun i => base.rows[i]?.map (·.1)) ++ [(be64 25, ByteArray.empty)]
     let qs := queries c posts users cursors
     -- Notices are complete: after each commit, every list whose answer
     -- changed had its key filed (eval_stable, on SQLite).
@@ -241,6 +288,17 @@ def main : IO UInt32 := do
       if a != b then
         IO.eprintln s!"key {hex q.key} desc {q.desc} limit {q.limit}: sql {a.rows.length}/{a.inRange}/{a.total} model {b.rows.length}/{b.inRange}/{b.total}"
       t.ok s!"seed {seed}: query {n}" (a == b)
+    -- A window's counts from one read: newer than the anchor (a split
+    -- count, by its smaller side), and older (at or below it) the total
+    -- less it, against the model's count at or below the anchor.
+    let allK := message.all.key [c]
+    let mut windows := 0
+    for p in cursors do
+      let a ← (listSql (F := Fact) { key := allK, after := some p }).run db
+      let older := (eval m { key := allK, before := some (p.1, p.2.push 0), limit := some 0 }).inRange
+      windows := windows + 1
+      t.ok s!"seed {seed}: window {windows}: newer {a.inRange}, older {a.total - a.inRange}"
+        (a.inRange == (eval m { key := allK, after := some p }).inRange && a.total - a.inRange == older)
     -- The network's views on SQLite against their meaning.
     for (_, _, d) in users do
       let a ← ((allowPeer c (keyOf d)).run : SqlM Fact Bool).run db
@@ -249,7 +307,45 @@ def main : IO UInt32 := do
     t.ok s!"seed {seed}: members view" (ms == (members c).eval m && ms.length == users.size)
     let rs ← ((recipients c).run : SqlM Fact (List Key)).run db
     t.ok s!"seed {seed}: recipients view" (rs == (recipients c).eval m)
+    -- Every statement a read runs is served by an index in its order:
+    -- its plan searches, never scans a table, never sorts.
+    let mut stmts := 0
+    let mut badPlans : List String := []
+    for q in qs do
+      let (k, others, _) ← (pickWalk (F := Fact) q).run db
+      -- and a split count's statements: each side at its first limit,
+      -- and the range whole (the walk's last resort)
+      let split := match (listPlan q k others).split with
+        | some (k, b, above) => [.side k b above false (some walk0), .side k b (!above) true (some walk0),
+            .side k b above false none]
+        | none => []
+      for st in readPlan q k others ++ split do
+        let (sql, ps) := st.sql
+        let lines ← explain db sql ps
+        stmts := stmts + 1
+        if !planOk st lines then badPlans := (sql ++ " :: " ++ toString lines) :: badPlans
+    for b in badPlans.take 3 do IO.eprintln s!"plan: {b}"
+    t.ok s!"seed {seed}: every one of {stmts} statements is served by an index, unsorted" badPlans.isEmpty
+    -- Negative controls: a sort the index cannot give, and a scan.
+    let sorted ← explain db "SELECT i.s, i.id FROM idx i WHERE i.k = ? ORDER BY i.s DESC, i.id ASC LIMIT 5" #[c]
+    let scan ← explain db "SELECT count(*) FROM idx i WHERE i.s = ?" #[c]
+    t.ok s!"seed {seed}: a plan that sorts is caught" (!sorted.all lineOk)
+    t.ok s!"seed {seed}: a plan that scans is caught" (!scan.all lineOk)
+    let p := cursors.headD (be64 0, ByteArray.empty)
+    let filtered ← explain db "SELECT count(*) FROM idx i INDEXED BY sqlite_autoindex_idx_1 WHERE i.k = ? AND (i.s, i.id) > (?, ?)" #[c, p.1, p.2]
+    t.ok s!"seed {seed}: a range walked as a filter is caught" (!planOk (.count c [] (some p) none 0) filtered)
+    -- Unions merge their lists (no sort): on SQLite as on the model.
+    let lists := users.toList.map fun (_, u, _) => message.byAuthor.query [c, u]
+    let mut unions := 0
+    for desc in [true, false] do
+      for limit in [some 0, some 5, some 30, none] do
+        for v in [unionOf lists limit desc,
+                  unionOf (lists.take 2 ++ lists.take 2) limit desc,
+                  unionOf ((lists.map fun q => { q with after := cursors.head? }).take 3) limit desc] do
+          let a ← ((v.run : SqlM Fact (Answer Fact))).run db
+          unions := unions + 1
+          t.ok s!"seed {seed}: union {unions} on SQLite is the model's" (a == v.eval m)
     readableChecks t seed db m c
-    IO.println s!"seed {seed}: {n} queries, {base.total} valid messages"
+    IO.println s!"seed {seed}: {n} queries, {base.total} valid messages, {stmts} statements' plans, {unions} unions"
   sortChecks t
   t.finish "querydiff"

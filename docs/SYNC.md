@@ -838,3 +838,23 @@ doing it safely needs the op's own time (within `hotMs` of now) and the
   hash.
 - **`sync.have` / `sync.want` as a family?** They are transient and never
   stored, so they stay engine wire kinds under the RBSR exception for now.
+
+
+## Claim trees
+
+`ops/sync/TreeLaws.lean` proves the logarithmic depth of the running
+RBSR `answer` and its two-sided composition `exchange`. With sorted,
+consistently named snapshots and the explicit no-fingerprint-collision
+assumption, `answer_step` preserves each differing id or settles it.
+`pieces_le` bounds each cut by `runLen`; `exchange_log` completes within
+`i+j+2` answers when the two sides hold at most `leaf·fan^j` and
+`leaf·fan^i` items in the range. The production connection calls this
+same `answer`; `exchange` is the composition used to state a round's
+result, not a replacement network implementation.
+
+These are snapshot/one-round claims. They do not prove eventual
+many-node delivery under churn, fair scheduling, transport loss, or
+expired requests. The integration preserves the stateless session and
+ask-expiry/retry semantics rather than restoring older session APIs.
+`mise run test:claim-tree` checks actual non-leaf exchanges at that depth
+and rejects runtime mutations that stop splitting or discard wants.

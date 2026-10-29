@@ -1,3 +1,4 @@
+import ops.sync.TreeLaws
 import ops.app.LifecycleLaws
 import ops.sync.StateLaws
 import ops.sync.ClosureComplete
@@ -916,3 +917,73 @@ end cost
 
 #print axioms Engine.Sync.filedGive_reachable
 #print axioms Engine.Sync.tickGive_reachable
+
+/-! Compatible read-plan, membership-window and claim-tree ports. -/
+#print axioms Engine.Pos.cmp_eq
+#print axioms Engine.Pos.cmp_gt_of_le
+#print axioms Engine.Pos.cmp_lt_le_trans
+#print axioms Engine.Stmt.walks_le
+#print axioms Engine.countWith_split
+#print axioms Engine.id_bind
+#print axioms Engine.inRange_unbounded
+#print axioms Engine.listPlan_split
+#print axioms Engine.pickMin_le
+#print axioms Engine.plan_stmt_cost
+#print axioms Engine.readPlan_cost
+#print axioms Engine.readPlan_cost_le
+#print axioms Engine.readPlan_cost_range
+#print axioms Engine.sideCount_run
+#print axioms Engine.splitWalk_cost
+#print axioms Engine.splitWalk_exact
+#print axioms Engine.splitWalk_steps
+#print axioms Engine.eval_oriented
+#print axioms Engine.eval_pairwise
+#print axioms Engine.eval_strict
+#print axioms Engine.foldr_insertBy
+#print axioms Engine.insertBy_merge
+#print axioms Engine.mem_mergeRuns_orient
+#print axioms Engine.mem_orient
+#print axioms Engine.mergeRuns_eq_sortPos
+#print axioms Engine.pairwise_orient_cut
+#print axioms Engine.perm_mergeRuns
+#print axioms Engine.union_rows
+#print axioms Engine.union_sorted
+#print axioms Engine.Pos.cmp_succ
+#print axioms Engine.bcmp_push_zero
+#print axioms Engine.eval_partition
+#print axioms Engine.lexCmp_append_zero
+#print axioms Community.anchor_read
+#print axioms Community.asMsg_sorted
+#print axioms Community.count_partition
+#print axioms Community.mem_eval_unlimited
+#print axioms Community.orient_map
+#print axioms Community.orient_orient
+#print axioms Community.recKey_inj
+#print axioms Community.recMsg_recKey
+#print axioms Community.rec_succ
+#print axioms Community.sum_map_add
+#print axioms PeopleLaws.all_take
+#print axioms PeopleLaws.byUser_users
+#print axioms PeopleLaws.deviceLive_lists
+#print axioms PeopleLaws.live_append
+#print axioms PeopleLaws.live_lists_ge
+#print axioms PeopleLaws.live_lists_le
+#print axioms PeopleLaws.presentCount_complete
+#print axioms PeopleLaws.presentW_complete
+#print axioms PeopleLaws.presentW_lists
+#print axioms PeopleLaws.presentW_lists_eq
+#print axioms PeopleLaws.presentW_prefix
+#print axioms PeopleLaws.present_lists_eq
+#print axioms PeopleLaws.present_scans
+#print axioms PeopleLaws.uniq_cons
+#print axioms PeopleLaws.uniq_prefix
+#print axioms PeopleLaws.unremoved_lists
+#print axioms Engine.Sync.Tree.answer_step
+#print axioms Engine.Sync.Tree.exchange_ids_stable
+#print axioms Engine.Sync.Tree.exchange_log
+#print axioms Engine.Sync.Tree.exchange_stable
+#print axioms Engine.Sync.Tree.fold_congr
+#print axioms Engine.Sync.Tree.pick_keys_gt
+#print axioms Engine.Sync.Tree.pieces_le
+#print axioms Engine.Sync.Tree.pieces_le_aux
+#print axioms Engine.Sync.Tree.runLen_le

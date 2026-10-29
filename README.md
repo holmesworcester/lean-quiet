@@ -135,8 +135,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 815 rest on Lean's standard axioms
-only, and about three quarters of its theorems (603 of 795, not counting 20 negative controls) are about the code that runs; another 10 run the
+that rests on; 🥊 is supporting. All 883 rest on Lean's standard axioms
+only, and about two thirds of its theorems (637 of 863, not counting 20 negative controls) are about the code that runs; another 10 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -252,27 +252,27 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**603 of 795 laws are about running code;** another 10 run its node code in a World, and 182 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**637 of 863 laws are about running code;** another 10 run its node code in a World, and 216 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 141 | 91 |  | 50 |
-| Sync | 142 | 137 |  | 5 |
+| Engine | 174 | 103 |  | 71 |
+| Sync | 151 | 142 |  | 9 |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 61 | 40 | 10 | 11 |
 | Bootstrap | 11 | 0 |  | 11 |
 | Connections | 68 | 60 |  | 8 |
-| Community | 165 | 154 |  | 11 |
+| Community | 175 | 163 |  | 12 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
 | Screen | 126 | 64 |  | 62 |
-| App | 55 | 46 |  | 9 |
+| App | 71 | 54 |  | 17 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
 | `World.peer`, `Setup.sync`, `Who.other` +7 | 10 World laws; not yet: [`write_offers`], [`hold_wants`], [`want_sends`]†, [`op_taken`], [`write_offers_all`], [`write_hot`]†, [`secrecy_runs`] | Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired. |
 | `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]† +21 more | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
-| `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
+| `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°†, [`exchange_ids_stable`], [`exchange_log`], [`exchange_stable`] | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]†, [`reads_members`], [`reads_recipients`], [`members_iff_node`]†, [`recipients_iff_node`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
 | `Scene.approval`, `Scene.K`, `Scene.S` +12 | [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`bootstrap_ideal`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`], [`allowPeer_settles`] | The bootstrap's model (ops/connection/bootstrap/): retired by `conn_runs_exchange`, `closure_delivered`, `answer_trusted` and `untrusted_silent` over the running code. |
 | `Seam.place`, `Geom.composerTop`, `Geom.viewNow` +5 | [`placed_row`]†, [`visible_in_viewport`]†, [`newest_visible`]†, [`newest_drawn`]†, [`pinned_row`]†, [`pinned_visible`]†, [`pinned_tap`]†, [`viewport_geometry`]† | The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are. |
@@ -284,9 +284,22 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Pics.after`, `Pics.costIn` | [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`] | The picture doors as data (`PicM`), measured: the app's own doors (its decode table and frame counter) are not shown to answer as `PicM`'s. Prove they do, or state these over them. |
 | `Board.apply`, `RWorld.commit`, `RWorld.evict` +10 | [`RWorld.acts_shown`], [`seen_take`], [`World.inv_commit`], [`RWorld.inv_commit`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`], [`World.inv_pass`], [`World.inv_frame`], [`World.settle`], [`marked_pass`] +7 more | The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`. |
 | `T.sum`, `Both.bottom`, `Both.rowAt` +16 | [`start_eq`], [`find_spec`], [`set_toList`], [`push_ok`], [`findM_cost`], [`startM_cost`], [`setM_cost`], [`rows_cost`], [`start_mono`], [`start_size`], [`below_window`], [`above_window`] +8 more | The row-heights tree (engine/renderer/Heights.lean): the app keeps its rows' heights in a map (`App.heightOf`) and adds them up itself. Have its list frame place rows by `Heights`. |
+| `Plan.stmts` | [`plan_stmt_cost`] | Nothing that runs calls it; `Engine.readPlan` do. |
+| `SeekCost.seek` | [`plan_stmt_cost`], [`readPlan_cost`], [`readPlan_cost_le`], [`readPlan_cost_range`] | Nothing that runs calls it; `Stmt.cost` do. |
+| `Stmt.cost` | [`plan_stmt_cost`] | Nothing that runs calls it; `Engine.planCost` do. |
+| `Stmt.walks` | [`walks_le`] | Nothing that runs calls it; `Stmt.cost` do. |
+| `Sync.get` | [`fold_congr`] | Nothing that runs calls it. |
+| `Sync.give` | [`fold_congr`] | Nothing that runs calls it. |
 | `Sync.retried` | [`work_retry_bounded`]† | Nothing that runs calls it. |
+| `View.listsAt` | [`deviceLive_lists`], [`live_lists_ge`], [`live_lists_le`], [`presentW_lists`], [`presentW_lists_eq`], [`present_lists_eq`], [`present_scans`], [`unremoved_lists`] | Nothing that runs calls it. |
 | `Engine.inlRow` | [`matching_proj`], [`eval_proj`], [`filterMap_inlRow`] | Nothing that runs calls it. |
+| `Engine.insertBy` | [`insertBy_map`], [`foldr_insertBy`], [`insertBy_merge`] | Nothing that runs calls it; `Engine.sortPos` do. |
 | `Engine.leftValid` | [`mem_proj_idx`] | Nothing that runs calls it; `Engine.DB.proj` do. |
+| `Engine.planCost` | [`readPlan_cost`], [`readPlan_cost_le`], [`readPlan_cost_range`] | Nothing that runs calls it. |
+| `Engine.readPlan` | [`readPlan_cost`], [`readPlan_cost_le`], [`readPlan_cost_range`] | Nothing that runs calls it. |
+| `Engine.sideCount` | [`sideCount_run`], [`splitWalk_cost`], [`splitWalk_exact`], [`splitWalk_steps`] | Nothing that runs calls it. |
+| `Engine.sortPos` | [`perm_sortPos`], [`sortPos_eq_fast`], [`sortPos_sorted`], [`sortPos_map`], [`mergeRuns_eq_sortPos`], [`union_rows`] | Nothing that runs calls it; `Engine.matching` do. |
+| `Engine.sortPosFast` | [`sortPos_eq_fast`] | Nothing that runs calls it; `Engine.sortPos` do. |
 | `Engine.specVerdict` | [`specVerdict_eq_some`] | Nothing that runs calls it; `Engine.DB.proj` do. |
 | `AWorld.pass` | [`AWorld.passActs_comp`], [`AWorld.passActs_indep`], [`AWorld.passActs_acts`] | Nothing that runs calls it. |
 | `AWorld.type` | [`AWorld.type_only`] | Nothing that runs calls it. |
@@ -297,12 +310,13 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `RWorld.passActs` | [`passActs_nil`], [`inv_passActs`], [`idxok_passActs`], [`RWorld.acts_shown`] | Nothing that runs calls it; `AWorld.pass` do. |
 | `RWorld.passIdx` | [`passActs_nil`] | Nothing that runs calls it; `RWorld.passActs`, `RWorld.passLate` do. |
 | `RWorld.touched` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.actsWorld`, `RWorld.nTouched` do. |
+| `PeopleLaws.admIn` | [`live_lists_ge`], [`present_scans`] | Nothing that runs calls it. |
 | `Want.withViewLast` | [`withViewLast_moves`] | Nothing that runs calls it. |
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Bidi.numberRuns` | [`run_contiguous`]* | Nothing that runs calls it; `Text.numberRuns` do. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +25 more | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +29 more | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
@@ -315,10 +329,10 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 271 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Model.run`] | 293 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
 | [`Sync.popW`] | 3 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
-| [`Engine.Inv`] | 82 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
+| [`Engine.Inv`] | 86 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
 
 ## What isn't Lean, and why
@@ -833,9 +847,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`offer_shared`]: ops/sync/SecrecyLaws.lean#L60-L64
 [`wire_kinds`]: ops/connection/Laws.lean#L48-L49
 [`local_kinds`]: ops/connection/Laws.lean#L55-L56
-[`joinOps_travels`]: ops/community/Intents.lean#L367-L371
-[`found_travels`]: ops/community/Intents.lean#L385-L391
-[`stopWaiting_local`]: ops/community/Intents.lean#L374-L375
+[`joinOps_travels`]: ops/community/Intents.lean#L382-L386
+[`found_travels`]: ops/community/Intents.lean#L400-L406
+[`stopWaiting_local`]: ops/community/Intents.lean#L389-L390
 [`filed_send`]: ops/sync/ConnLaws.lean#L185-L188
 [`offer_stored`]: ops/sync/SecrecyLaws.lean#L78-L82
 [`tick_send`]: ops/sync/ConnLaws.lean#L211-L213
@@ -928,7 +942,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`verify_sound`]: ops/community/Merkle.lean#L435-L441
 [`complete_assembles`]: ops/community/Merkle.lean#L482-L488
 [`chunk_unique`]: ops/community/Laws.lean#L772-L778
-[`progress_exact`]: ops/community/Intents.lean#L698-L707
+[`progress_exact`]: ops/community/Intents.lean#L713-L722
 [`no_injective_hash`]: ops/community/Merkle.lean#L245-L247
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
@@ -993,7 +1007,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`approve_valid`]: ops/community/Laws.lean#L434-L442
 [`admit_admits`]: ops/community/Laws.lean#L450-L461
 [`connect_admitted`]: ops/community/Connect.lean#L276-L286
-[`removeMember_valid`]: ops/community/Intents.lean#L564-L571
+[`removeMember_valid`]: ops/community/Intents.lean#L579-L586
 [`exchange_complete`]: ops/sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: ops/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: ops/sync/Fp.lean#L37-L37
@@ -1134,8 +1148,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
-[`readable_held`]: ops/community/Intents.lean#L487-L499
-[`readable_complete`]: ops/community/Intents.lean#L527-L537
+[`readable_held`]: ops/community/Intents.lean#L502-L514
+[`readable_complete`]: ops/community/Intents.lean#L542-L552
 [`switcherOrder_sound`]: ops/app/Pages.lean#L674-L676
 [`switcherOrder_complete`]: ops/app/Pages.lean#L681-L683
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
@@ -1145,14 +1159,14 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`pageIn_acc`]: App.lean#L893-L896
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
-[`order_total`]: ops/community/message/Order.lean#L168-L175
+[`order_total`]: ops/community/message/Order.lean#L217-L227
 [`Pos.cmp_eq_iff`]: engine/core/Order.lean#L44-L46
 [`Pos.cmp_lt_trans`]: engine/core/Order.lean#L57-L59
-[`send_after`]: ops/community/message/Order.lean#L365-L383
-[`arrival_order`]: ops/community/message/Order.lean#L336-L348
-[`receipt_once`]: ops/community/message/Order.lean#L293-L296
-[`order_local`]: ops/community/message/Order.lean#L423-L435
-[`display_agrees`]: ops/community/message/Order.lean#L465-L475
+[`send_after`]: ops/community/message/Order.lean#L424-L442
+[`arrival_order`]: ops/community/message/Order.lean#L395-L407
+[`receipt_once`]: ops/community/message/Order.lean#L352-L355
+[`order_local`]: ops/community/message/Order.lean#L482-L494
+[`display_agrees`]: ops/community/message/Order.lean#L524-L534
 [`parse_segsBits`]: engine/renderer/qr/SegLaws.lean#L157-L161
 [`parse_dataStream`]: engine/renderer/qr/SegLaws.lean#L193-L197
 [`RS.correct_sound`]: engine/renderer/qr/Laws.lean#L55-L57
@@ -1175,6 +1189,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`write_offers_all`]: engine/wire/WorldLaws.lean#L1353-L1364
 [`secrecy_runs`]: ops/sync/Witnesses.lean#L10-L14
 [`reach_drain`]: engine/core/Proofs.lean#L529-L530
+[`exchange_ids_stable`]: ops/sync/TreeLaws.lean#L163-L165
+[`exchange_log`]: ops/sync/TreeLaws.lean#L210-L221
+[`exchange_stable`]: ops/sync/TreeLaws.lean#L171-L179
 [`reads_members`]: ops/connection/NodeLaws.lean#L78-L78
 [`reads_recipients`]: ops/connection/NodeLaws.lean#L82-L82
 [`admitted_inv`]: ops/connection/bootstrap/Scene.lean#L159-L162
@@ -1226,10 +1243,37 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`start_size`]: engine/renderer/Heights.lean#L244-L245
 [`below_window`]: engine/renderer/Heights.lean#L248-L251
 [`above_window`]: engine/renderer/Heights.lean#L254-L258
+[`plan_stmt_cost`]: engine/core/Query.lean#L600-L603
+[`readPlan_cost`]: engine/core/Query.lean#L560-L565
+[`readPlan_cost_le`]: engine/core/Query.lean#L611-L616
+[`readPlan_cost_range`]: engine/core/Query.lean#L574-L577
+[`walks_le`]: engine/core/Query.lean#L586-L586
+[`fold_congr`]: ops/sync/TreeLaws.lean#L148-L151
+[`deviceLive_lists`]: ops/app/PeopleLaws.lean#L145-L147
+[`live_lists_ge`]: ops/app/PeopleLaws.lean#L180-L182
+[`live_lists_le`]: ops/app/PeopleLaws.lean#L160-L164
+[`presentW_lists`]: ops/app/PeopleLaws.lean#L221-L225
+[`presentW_lists_eq`]: ops/app/PeopleLaws.lean#L204-L208
+[`present_lists_eq`]: ops/app/PeopleLaws.lean#L214-L215
+[`present_scans`]: ops/app/PeopleLaws.lean#L233-L236
+[`unremoved_lists`]: ops/app/PeopleLaws.lean#L129-L130
 [`matching_proj`]: engine/core/Project.lean#L366-L368
 [`eval_proj`]: engine/core/Project.lean#L385-L389
 [`filterMap_inlRow`]: engine/core/Project.lean#L404-L405
+[`insertBy_map`]: engine/core/Project.lean#L350-L351
+[`foldr_insertBy`]: engine/core/Union.lean#L105-L108
+[`insertBy_merge`]: engine/core/Union.lean#L68-L71
 [`mem_proj_idx`]: engine/core/Project.lean#L215-L216
+[`sideCount_run`]: engine/core/Query.lean#L666-L669
+[`splitWalk_cost`]: engine/core/Query.lean#L735-L740
+[`splitWalk_exact`]: engine/core/Query.lean#L675-L678
+[`splitWalk_steps`]: engine/core/Query.lean#L690-L696
+[`perm_sortPos`]: engine/core/Decl.lean#L124-L125
+[`sortPos_eq_fast`]: engine/core/Query.lean#L278-L279
+[`sortPos_sorted`]: engine/core/Order.lean#L152-L153
+[`sortPos_map`]: engine/core/Project.lean#L359-L360
+[`mergeRuns_eq_sortPos`]: engine/core/Union.lean#L114-L117
+[`union_rows`]: engine/core/Union.lean#L158-L164
 [`specVerdict_eq_some`]: engine/core/Project.lean#L71-L72
 [`AWorld.passActs_comp`]: engine/renderer/ActsLaws.lean#L291-L293
 [`AWorld.passActs_indep`]: engine/renderer/ActsLaws.lean#L295-L298

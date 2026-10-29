@@ -245,3 +245,15 @@ run = "tests/engine/stateless.sh"
 [tasks."test:simplify"]
 description = "Sync sessions: delayed keepalives on two SQLite nodes, independent rooms, secrecy, purges and negative controls"
 run = "tests/engine/simplify.sh"
+
+[tasks."test:read-plan"]
+description = "Exact SQLite plans/counts and ordered unions against the model, with proof mutation controls"
+run = "tests/engine/read_plan.sh"
+
+[tasks."test:claim-tree"]
+description = "Actual RBSR at logarithmic depth, its checked laws, and runtime mutation controls"
+run = "tests/engine/claim_tree.sh"
+
+[tasks."test:people-reader"]
+description = "Bounded people header, full membership list, cached removal invalidation and controls"
+run = "tests/app/people_reader.sh"
