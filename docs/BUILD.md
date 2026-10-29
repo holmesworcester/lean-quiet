@@ -113,11 +113,20 @@ runtime, xcodegen, SSH, matching Lean/libuv sources and the configured signing
 setup for device builds. Failures retain `out/ios-sim/e2e.xcresult`, logs and
 screenshots. `ios:device` produces a signed device build and installs nothing.
 
-Provisioned mobile CI uses `ci/local.sh android-photo ios-photo` (the same named
-Mise tasks), as the mobile release gate and as its manual dispatch. Run it before
+Provisioned mobile CI uses `ci/local.sh android-photo ios-ui` (the same named
+Mise tasks), as the mobile release gate and as its manual dispatch. `ios-photo`
+runs just the picker case; `android-ui` runs the native twin's input/keyboard
+suite on the provisioned emulator named by `SERIAL` (default emulator-5644).
+Run these before
 a mobile release alongside the default deterministic local CI. GitHub Actions
 is not used. The caller must hold the Mac lease and clean its private staging
 folder/simulator after collecting build artifacts before releasing the lease.
+
+During local app-test iteration, `APP_TEST_FROM=navigation ci/local.sh app`
+resumes at a named stage after completing build/asset setup. Available stages
+are `fonts`, `input`, `network`, `desktop`, `navigation`, `lifecycle`,
+`appearance`, `safety`, and `components`. Omitted stages are explicitly logged;
+a resumed run is not a full run. Without this variable, CI runs every stage.
 
 ### Android build modes
 

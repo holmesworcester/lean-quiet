@@ -33,6 +33,8 @@ gate() {
     android-photo) mise run android:photo-e2e ;;
     android-release) mise run android:release-e2e ;;
     ios-photo) mise run ios:photo-e2e ;;
+    ios-ui) mise run ios:sim-e2e ;;
+    android-ui) mise run android:twin-demo-e2e ;;
     pixel-scroll) mise run android:scroll-measure ;;
     readme) mise run readme:links ;;
     reorg) mise run reorg:test ;;
@@ -50,7 +52,9 @@ for p in "${parts[@]}"; do
   fi
 done
 [ ${#failed[@]} -eq 0 ] || { echo "failed: ${failed[*]}"; exit 1; }
-if [ "${SKIP_TCP:-0}" = 1 ]; then
+if [ -n "${APP_TEST_FROM:-}" ]; then
+  echo "all enabled checks pass; app resumed at $APP_TEST_FROM (earlier stages were NOT rerun)"
+elif [ "${SKIP_TCP:-0}" = 1 ]; then
   echo "all enabled checks pass; TCP suites built but NOT run (SKIP_TCP=1)"
 else
   echo "all parts pass"

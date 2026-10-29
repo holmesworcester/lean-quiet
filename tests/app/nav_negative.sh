@@ -43,8 +43,8 @@ mutant "back at a root opens the conversation" App.lean \
   "def backSt (s : St) : St := { s.withNav (if s.backStack.isEmpty then Nav.reset .chat else Nav.back s.nav) with"
 # NavLaws.draft_back and back_open are false: back clears the draft.
 mutant "back clears the composer's draft" App.lean \
-  "with field := \"\", refusal := none, pageKey := none }" \
-  "with field := \"\", text := \"\", refusal := none, pageKey := none }"
+  "with field := \"\", refusal := none, pageKey := none, pageScrollStarted := false }" \
+  "with field := \"\", text := \"\", refusal := none, pageKey := none, pageScrollStarted := false }"
 # NavLaws.back_switch is false: a switch keeps what was under the page.
 mutant "a switch keeps the old back stack" App.lean \
   "  let s := { s.withNav (Nav.reset .home) with" "  let s := { s.withNav (Nav.go .home s.nav) with"

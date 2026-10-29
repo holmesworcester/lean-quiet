@@ -409,10 +409,14 @@ private def crash (mode dir : String) : IO Unit := do
       found "Crash" "Ann"
       waitIdle sm
       openPage .chat
-      for i in [0:20] do discard <| sendText s!"crash anchor message {i}"
+      -- Short messages now share one compact clump. Use multiline content
+      -- so this exercises a real scroll anchor even at phone density.
+      for i in [0:20] do discard <| sendText s!"crash anchor message {i}\nsecond line\nthird line\nfourth line"
       waitIdle sm
       sm.b.set 1500
       steps 4
+      unless (captureAnchor (← get)).isSome do
+        throw (IO.userError "crash fixture must have a nonempty scrolled anchor")
       sm.input.set "durable before kill"
       discard <| step [.text]
       (← get).wr.paused.set true
