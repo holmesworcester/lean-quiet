@@ -53,10 +53,10 @@ tests/app/pic_retry_negative.sh
 .lake/build/bin/ux out/ux-queued queued
 tests/app/ux_negative.sh
 tests/shipped/check.sh app
-tests/app/lifecycle.sh
+mise run host:lifecycle
 mise run host:reader-request-negative
-tests/app/lifecycle_node.sh
-tests/app/lifecycle_node_negative.sh
+mise run host:lifecycle-node
+mise run host:lifecycle-node-negative
 
 mise run host:theme-restart
 mise run host:theme-live
