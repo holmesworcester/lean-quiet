@@ -125,7 +125,8 @@ def main (args : List String) : IO UInt32 := do
     -- the preview as it should show: decoded at the box's size, softened
     let some bx := r0.lay.pics[0]? | check "the row has a picture" false
     let some psrc := Image.decode file.info.preview | check "the preview decodes" false
-    let wantPre := Arrival.soften Row.bg (Image.scaled psrc bx.w bx.h Row.bg)
+    let bg := Palette.color dm.theme .bg
+    let wantPre := Arrival.soften bg (Image.scaled psrc bx.w bx.h bg)
     let need (t : String) := dm.arrival.fixed + Paint.Line.width font (Text.oneLine font bx.w t)
     IO.println s!"picture box {bx.w}x{bx.h} px; the pill needs {2 * dm.arrival.inset + dm.arrival.height font} px of height, and of width {need "99%"} px with the percent alone, {need s!"99% of {Arrival.humanBytes len}"} px with the caption"
     -- deliver the chunks one at a time: the even indices, then the odd, descending
@@ -168,7 +169,7 @@ def main (args : List String) : IO UInt32 := do
       (lits[0]? == some 0 && (List.range (lits.size - 1)).all fun i => lits[i]! ≤ lits[i + 1]!)
     check "the ring lights strictly more over the download" ((lits[0]?.getD 0) < (lits.back?.getD 0))
     let (img, isFile) ← awaitFile x
-    let wantFile := Image.scaled src bx.w bx.h Row.bg
+    let wantFile := Image.scaled src bx.w bx.h bg
     check "the file replaces the preview, pixel for pixel its own decode"
       (isFile && (img.map (sameRows · wantFile)).getD false)
     settle x
@@ -198,7 +199,7 @@ def main (args : List String) : IO UInt32 := do
       (ry.data.pending && sp.complete && (Row.arrival font dm sbx sp).isNone)
     let (simg, sfile) ← awaitFile y
     check "the sender sees the file, its own decode, while its chunks are only in the outbox"
-      (sfile && (simg.map (sameRows · (Image.scaled ssrc sbx.w sbx.h Row.bg))).getD false &&
+      (sfile && (simg.map (sameRows · (Image.scaled ssrc sbx.w sbx.h bg))).getD false &&
         ((← rowOf y).map (·.data.pending)).getD false)
     sm.cmds.modify (·.push "resume")
     waitIdle sm
