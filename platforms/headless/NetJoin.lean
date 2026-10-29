@@ -125,8 +125,11 @@ def main (args : List String) : IO UInt32 := do
     return all.any fun (cid, peer, _) => k.contains cid && bea.contains peer
   let ((), a8) ← (show M Unit from do
     sa.cmds.modify (·.push "switch club")
+    -- Consume navigation before observing Home. The session may already
+    -- exist while the app is still showing the conversation.
+    steps 1
     for _ in [0:100] do
-      if ← beaHeld then break
+      if (← get).page == .home && (← get).members.toList.map (·.1) == ["Ann", "Bea"] && (← beaHeld) then break
       steps 1; IO.sleep 10).run a7
   check "A holds a session with Bea's node" (a8.net.isSome && (← beaHeld.run' a8))
   check s!"A's home lists Ann and Bea ({a8.members.toList})"
