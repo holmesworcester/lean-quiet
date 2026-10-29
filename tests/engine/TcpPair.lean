@@ -115,7 +115,7 @@ def main (args : List String) : IO UInt32 := do
   IO.FS.createDirAll dir
   let t ← Checks.new
   let (h, c) := history 4 40
-  let x : Sync Fact (SqlM Fact) := { fam, cfg := { every := 5000, patience := 8000 }, hooks := hooks [c] }
+  let x : Sync Fact (SqlM Fact) := { fam, cfg := { every := 5000, askTime := 8000 }, hooks := hooks [c] }
   let pa := dir ++ "/a.db"
   let pb := dir ++ "/b.db"
   let da ← fresh pa
@@ -160,7 +160,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "session: an established session is opened" ((n.conn? cid).isSome)
   let (n, e) ← run n fun n => n.onFrame xs "10.0.0.7:1".toUTF8 (tagged sealedTag "tampered".toUTF8) 2
   t.ok "seal: a frame that does not open is ignored" (e.send.isEmpty && e.stored.isEmpty && (n.conn? cid).isSome)
-  -- A session dropped here (patience) is not reopened, though the family
+  -- A session dropped here (silence) is not reopened, though the family
   -- still lists it.
   let (n, _) ← run (n.drop cid) fun n => n.onTick xs 3
   t.ok "session: a dropped session is not reopened" ((n.conn? cid).isNone && has n.dropped cid)

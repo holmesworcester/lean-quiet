@@ -233,3 +233,11 @@ run = "tests/app/lifecycle_node.sh"
 description = "Mutants of Home's count, bounded teardown, parked writes, and the frame's blocking-call rule"
 depends = ["crypto"]
 run = "tests/app/lifecycle_node_negative.sh"
+
+[tasks."test:stateless"]
+description = "Full and capped window syncs on real Nodes/SQLite, peaks and negative controls"
+run = "tests/engine/stateless.sh"
+
+[tasks."test:simplify"]
+description = "Sync sessions: delayed keepalives on two SQLite nodes, independent rooms, secrecy, purges and negative controls"
+run = "tests/engine/simplify.sh"

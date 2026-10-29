@@ -6,8 +6,8 @@ and never taken. The family's view gives the rooms afresh on every step
 (`Hooks.rooms`, `Node.refresh`, `carry`).
 
 `notify` gives each notice not given yet: it sends x and its closure,
-records x in `given`, and reports it (`Status.given`), which the node's
-settle hook writes as an op. The node runs it on every connection where
+records x in `Conn.given`, and returns x in `Step.given`. The node's
+`onGiven` hook persists the existing local acknowledgment op. The node runs it on every connection where
 it runs `filed` and `tick` (`filedGive`, `tickGive`), so `filed` and
 `tick` themselves stay sync only (`filed_send`, `tick_send`, and
 `have_shown` for the synced rooms). The laws are in NoticeLaws.lean.
@@ -50,9 +50,9 @@ def Conn.carry (c : Conn) (rs : List Room) : Conn :=
   { c.setRooms (Room.syncs rs) with notices := Room.notices rs }
 
 /-- Step g, then step s on g's connection: s's connection, and both
-steps' sends, takes and statuses in order. -/
+steps' sends, takes and notice acknowledgments in order. -/
 def Step.then (g s : Step) : Step :=
-  { s with send := g.send ++ s.send, take := g.take ++ s.take, status := g.status ++ s.status,
+  { s with send := g.send ++ s.send, take := g.take ++ s.take, given := g.given ++ s.given,
            drop := g.drop || s.drop }
 
 /-- A step that does nothing, then s, is s. -/
@@ -61,28 +61,6 @@ def Step.then (g s : Step) : Step :=
 
 section
 variable {F : Type} {m : Type → Type} [Monad m] [Store F m] (fam : Family F) (cfg : Config)
-
-/-- The stored ops of room r reached from `todo` through requirements,
-each id visited once, in visiting order, at most `fuel` of them. An op
-of another room, or an id not stored, is not followed. -/
-def closureOps (r : Id) (fuel : Nat) (todo seen : List Id) : m (List Op) :=
-  match fuel, todo with
-  | 0, _ => pure []
-  | _, [] => pure []
-  | n + 1, y :: rest =>
-    if has seen y then closureOps r (n + 1) rest seen
-    else do
-      match ← Store.getOp (F := F) y with
-      | some o =>
-        if fam.room o = some r then
-          return o :: (← closureOps r n (o.reqs ++ rest) (y :: seen))
-        else closureOps r n rest (y :: seen)
-      | none => closureOps r n rest (y :: seen)
-termination_by (fuel, todo.length)
-
-@[simp] theorem closureOps_nil (r : Id) (fuel : Nat) (seen : List Id) :
-    (closureOps fam r fuel [] seen : m (List Op)) = pure [] := by
-  cases fuel <;> rw [closureOps]; simp
 
 /-- Give each notice not given yet on this connection: its op and the
 op's requirement closure in its room, less what the peer is known to
@@ -97,7 +75,7 @@ def Conn.give (c : Conn) : List (Id × Id) → m Step
       let s ← ({ c with given := x :: c.given } : Conn).give rest
       return { s with
         send := (ops.filter fun (o : Op) => !c.known.contains o.id).reverse ++ s.send
-        status := .given x :: s.status }
+        given := x :: s.given }
 
 /-- The notices this connection carries and has not given, given. -/
 def Conn.notify (c : Conn) : m Step := c.give fam cfg c.notices

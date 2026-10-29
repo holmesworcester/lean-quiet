@@ -340,3 +340,12 @@ lean_exe runner_restart where
 
 lean_exe app_lifecycle_node where
   root := `platforms.headless.LifecycleNode
+
+lean_exe stateless where
+  root := `tests.engine.Stateless
+
+lean_exe fullsync where
+  root := `tests.engine.FullSync
+
+lean_exe simplify where
+  root := `tests.engine.Simplify

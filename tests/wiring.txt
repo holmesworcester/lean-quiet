@@ -284,7 +284,6 @@ control Engine.Mutants.rawNotified = Engine.Mutants.σ
 todo Engine.purgeS The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`).
 todo Engine.purgeSet = Engine.purgeS
 todo Engine.Sync.exchange The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`).
-todo Engine.offer Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`.
 todo Community.recipients The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission.
 todo Community.members = Community.recipients
 todo Net.Scene.approval The bootstrap's model (ops/connection/bootstrap/): retired by `conn_runs_exchange`, `closure_delivered`, `answer_trusted` and `untrusted_silent` over the running code.
@@ -381,3 +380,7 @@ waits App.waitsOnDeadline deadline polling on an ordinary frame must be caught
 # frame hands checkpoints to the writer's thread (Data.Writer.save).
 block Lifecycle.save a commit that waits for SQLite's write lock while the frame holds its read transaction
 waits App.saveWaits the checkpoint as it was committed: on the frame's thread, while its read transaction is open
+
+wired Engine.Sync.offer_shared
+wired Engine.Sync.offer_stored
+wired Engine.Sync.purges_notified

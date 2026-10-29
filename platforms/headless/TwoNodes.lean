@@ -13,15 +13,14 @@ community named, its conversation showing, and its post reaches A.
 -/
 import Quiet
 import platforms.headless.Sim
+import tests.engine.Stream
 
 open App Engine Community Data
 
 /-- Every shared op one node has stored, offered as sync offers it, taken
 by the other as a peer's (not its own) job. -/
 def carry (src dst : St) : IO Nat := do
-  let rows ← src.rd.query "SELECT id FROM ops" #[]
-  let ids := rows.toList.filterMap (·[0]?)
-  let ops ← (offer Data.fam ids : SqlM SF (List Op)).run src.rd
+  let ops ← Tests.streamOps Data.fam src.rd
   dst.wr.submit ⟨ops, false⟩
   return ops.length
 

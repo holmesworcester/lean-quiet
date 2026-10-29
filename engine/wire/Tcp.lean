@@ -240,6 +240,7 @@ partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now 
         for s in st.socks do
           if s.addr == addr then st ← close st s.id
   unless e.stored.isEmpty do notify e.stored
+  unless e.purged.isEmpty do notify e.purged
   return st
 
 /-- Run a node step on the store. -/
