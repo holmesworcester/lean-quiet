@@ -18,7 +18,7 @@ open Engine Community Data
 
 variable {m : Type → Type} [Monad m] [Reads m]
 
-def read (c me msg : Id) : m (Option (Row.RowData × Array Q)) := do
+def read (c me msg : Id) (attachmentProgress : Bool := true) : m (Option (Row.RowData × Array Q)) := do
   let (f, pending, deps) ← readFact msg #[]
   let some (.message _ u _ kid sealed _ tm) := f | return none
   let (ks, _, deps) ← readList (key.byId.query [kid] (limit := some 1)) deps
@@ -29,7 +29,7 @@ def read (c me msg : Id) : m (Option (Row.RowData × Array Q)) := do
     | _ => none) | return none
   let (who, deps) ← Profile.read c u deps
   let (twin, deps) ← Profile.namesake c u who.name deps
-  let (pics, deps) ← File.read c msg deps
+  let (pics, deps) ← File.read c msg deps attachmentProgress
   let (tallies, deps) ← React.read c msg me deps
   return some (⟨who.name, none, text, tm, pics.toList, tallies, pending, false, twin⟩, deps)
 

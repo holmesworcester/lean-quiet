@@ -13,7 +13,7 @@ def work (sh : Shared) (stopped : IO.Ref Bool) (initial : St) : IO St := do
   let mut s := initial
   while !(← stopped.get) do
     try
-      let (busy, next) ← (pass sh).run s
+      let (busy, next) ← (pass sh (budgetMs := 4)).run s
       s := next
       if !busy then IO.sleep 2
     catch e =>

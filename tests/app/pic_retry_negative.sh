@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# pic_retry's negative controls: each mutant takes away half of what lets
-# a picture whose chunks land while its retry waits show at once, and
-# pic_retry must then fail (the decode waits out its two seconds). Runs
+# pic_retry's negative controls: remove a child's query declaration or
+# ignore its available answer. Both must prevent prompt decoding. Runs
 # in a scratch copy, never in this tree; the copy must pass first.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -35,13 +34,10 @@ PY
   echo "refused by pic_retry: $what"
 }
 
-# the want lapses with the frame that asked: a waiting key's chunks are
-# never read, so its wait is never cleared
-mutant "a waiting key's chunk read is not kept wanted" \
-  "let pics := s.retryWants.fold (fun ws _ w => if ws.contains w then ws else ws.push w) s.picWants" \
-  "let pics := s.picWants"
-# the chunks are read, but the wait stands until frames + 120
-mutant "the board's chunk bytes do not clear the wait" \
-  "    modify fun s => { s with imgRetry := {}, retryWants := {} }" \
+mutant "a mounted picture does not declare its chunk query" \
+  "    modify fun s => { s with pictureNeeds := s.pictureNeeds.push need }" \
   "    pure ()"
+mutant "the picture ignores its available chunk bytes" \
+  "| some (.slices (some raw), _) => full ← stage 1 (fun _ => Raster.fileSource p raw)" \
+  "| some (.slices (some _raw), _) => pure ()"
 echo "pic_retry negative controls: all refused"

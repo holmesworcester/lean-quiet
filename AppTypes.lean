@@ -21,6 +21,7 @@ import ops.app.Remove
 import ops.community.message.View
 import ops.community.membership.RequestView
 import ops.app.Pics
+import ops.app.Raster
 import Std.Data.HashMap
 
 namespace App
@@ -70,14 +71,14 @@ structure RowSt where
   /-- What the current paint was made from: data version and which
   pictures were ready. -/
   painted : Nat × List Bool
-  task : Option (Task Bitmap)
+  task : Option (Work.Handle Raster.Key Bitmap)
   shown : Option Bitmap
   ver : Nat
   /-- The board version its data came from (Reader). -/
   bver : Nat := 0
   /-- The shown paint darkened, for behind the reaction tray, and the
   version it was made from. -/
-  dimmed : Option (Task Bitmap) := none
+  dimmed : Option (Work.Handle Raster.Key Bitmap) := none
   dimVer : Nat := 0
   dimShown : Option Bitmap := none
 
@@ -199,21 +200,13 @@ structure St where
   peopleAll : Bool := true
   heights : Std.HashMap Id Nat := {}
   rows : Std.HashMap Id RowSt := {}
-  imgs : Std.HashMap ImgKey (Task Bitmap) := {}
-  /-- When an image whose chunks were not all on the board may be tried
-  again (a frame number; Pics.retryLater). -/
-  imgRetry : Std.HashMap ImgKey Nat := {}
-  /-- The chunk read of each key waiting in imgRetry: still wanted while
-  it waits, so the reader reads it when its chunks land and the wait is
-  cleared (`takeBoard`); without it, the want lapses with the frame that
-  asked, and the picture waits out its two seconds. -/
-  retryWants : Std.HashMap ImgKey Reader.Want := {}
-  /-- The chunk read `slicesOf` asked for last: Pics.retryLater files it
-  under its key. -/
-  lastSlices : Option Reader.Want := none
-  /-- The chunk reads this frame's paints asked for (Reader.Want.slices):
-  the reader's wants from the next frame. -/
-  picWants : Array Reader.Want := #[]
+  imgs : Std.HashMap ImgKey (Work.Handle Raster.Key Bitmap) := {}
+  raster : Work.Pool Raster.Key Bitmap
+  rasterNeeds : Array (Demand.Need Raster.Key) := #[]
+  pictureNeeds : Array (Demand.Need Reader.Want) := #[]
+  /-- Diagnostic: mounted pictures waiting for their chunk bytes. Demand,
+  never a timer, owns these queries. -/
+  imgWaiting : Std.HashSet ImgKey := {}
   selected : Option Id := none
   b : Nat := 0
   imeH : Nat := 0

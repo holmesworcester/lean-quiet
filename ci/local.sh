@@ -29,6 +29,7 @@ gate() {
     runtime) mise run test:engine-runtime ;;
     mdns|qr|net) mise run "test:$1" ;;
     app) mise run test:app ;;
+    pixel-scroll) mise run android:scroll-measure ;;
     readme) mise run readme:links ;;
     reorg) mise run reorg:test ;;
     *) echo "no part $1" >&2; return 2 ;;

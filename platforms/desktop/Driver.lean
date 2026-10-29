@@ -110,7 +110,7 @@ def settleFrame (d : Driver) : IO Driver := do
   for _ in [0:50] do
     if decoded && framePainted d.app then break
     IO.sleep 2
-    decoded ← d.app.imgs.toList.allM fun (_, t) => IO.hasFinished t
+    decoded ← d.app.imgs.toList.allM fun (_, t) => IO.hasFinished t.result
     let (_, s) ← (App.step []).run d.app
     d := { d with app := s }
   return { d with settled := (d.app.W, d.app.Hs) }

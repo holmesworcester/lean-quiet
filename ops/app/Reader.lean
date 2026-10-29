@@ -22,6 +22,8 @@ one (the headless twins) the frame runs a pass itself, at the points it
 would take the board.
 -/
 import engine.renderer.Board
+import engine.renderer.Demand
+import Std.Sync.Mutex
 import ops.app.Lifecycle
 import ops.community.message.View
 import ops.community.Intents
@@ -47,6 +49,8 @@ inductive Want where
   | count (c : Id) (anchor : Option Pos)
   /-- Message m's row in c, as `me` sees it (Kinds.Message.read). -/
   | row (c me m : Id)
+  /-- An attachment child owns its metadata/progress/chunk-list view. -/
+  | picture (c attachment : Id)
   /-- An attachment's chunk ops' bytes, in order (as stored, or in the
   outbox): what its file is opened from, off the frame. -/
   | slices (chunks : List Id)
@@ -114,6 +118,7 @@ inductive Val where
   | count (newer older : Nat)
   /-- The row, or none while its message cannot be shown. -/
   | row (d : Option Row.RowData)
+  | picture (data : Option Row.Pic)
   /-- The chunk ops' bytes, or none while one is not here. -/
   | slices (raw : Option (List ByteArray))
   | comms (all : Array Kinds.Accepted.Me)
@@ -153,8 +158,14 @@ structure St where
   readAt : Nat := 0
   /-- The passes that opened the store. -/
   opens : Nat := 0
+  /-- FIFO among continuously pending requests, retained across passes. -/
+  queue : List Want := []
+  retired : Nat := 0
   /-- Revocation checked before each query and board publication. -/
   enabled : IO Bool := pure true
+  /-- Deterministic instrumentation after a real query/cache operation.
+  Production leaves it empty; tests can hold an in-flight read here. -/
+  afterQuery : Q → IO Unit := fun _ => pure ()
 
 abbrev RM := StateT St IO
 
@@ -187,10 +198,17 @@ structure Shared where
   Invalid, or the intent failed). The frame takes them, submits each
   write and runs its continuation. -/
   done : IO.Ref (Array (Id × Option Community.Write))
+  plan : IO.Ref (Demand.Plan Want)
+  /-- Protects only demand changes and publication, never database IO. -/
+  gate : Std.BaseMutex
 
 def Shared.new (commits : IO.Ref Nat) : IO Shared :=
   return ⟨← IO.mkRef {}, ← IO.mkRef (0, #[]), ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0,
-    commits, ← IO.mkRef #[], ← IO.mkRef #[]⟩
+    commits, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef {}, ← Std.BaseMutex.new⟩
+
+def Shared.locked (sh : Shared) (action : IO α) : IO α := do
+  sh.gate.lock
+  try action finally sh.gate.unlock
 
 /-- Queue an act: the next pass opens the store for it (`Live.mustReadActs`). -/
 def Shared.act (sh : Shared) (id : Id) (intent : RM Community.Write) : IO Unit :=
@@ -198,8 +216,35 @@ def Shared.act (sh : Shared) (id : Id) (intent : RM Community.Write) : IO Unit :
 
 /-- The frame's wants, set; the generation moves only when they change,
 so a reader at rest stays at rest (RestLaws.nextGen_same). -/
-def Shared.setWants (sh : Shared) (ws : Array Want) : IO Unit := do
+def Shared.setNeeds (sh : Shared) (needs : Array (Demand.Need Want)) : IO Unit := sh.locked do
+  let old ← sh.plan.get
+  if old.needs == needs.toList then return
+  let plan := old.reconcile needs.toList
+  -- Ref.modify uses take/set, so concurrent readers cannot put an older
+  -- snapshot back over this update (a bare Ref.set does not take first).
+  sh.plan.modify (fun _ => plan)
+  let ws := (needs.toList.map (·.key)).eraseDups.toArray
   sh.request.modify fun (gen, old) => (_root_.Live.nextGen old ws gen, ws)
+  sh.board.modify (·.keep plan.held)
+
+/-- Compatibility for page-level callers. Components pass their own paths
+through setNeeds; counts and secondary page lists are prefetch priority. -/
+def Want.need (w : Want) : Demand.Need Want :=
+  { key := w, owner := match w with
+      | .row c _ m => ["community".toUTF8, c, "message".toUTF8, m]
+      | _ => ["page".toUTF8],
+    visible := match w with | .count .. | .people .. | .members .. => false | _ => true }
+
+def Shared.setWants (sh : Shared) (ws : Array Want) : IO Unit := sh.setNeeds (ws.map Want.need)
+
+def Shared.current (sh : Shared) (ticket : Demand.Ticket Want) : IO Bool :=
+  return (← sh.plan.get).current ticket
+
+/-- Validation and publication share the demand lock: an unmount cannot
+slip between a successful ticket check and the board update. -/
+def Shared.publish (sh : Shared) (ticket : Demand.Ticket Want) (value : Val) : IO Unit := sh.locked do
+  if let some v := Demand.complete (← sh.plan.get) ticket value then
+    sh.board.modify (·.put ticket.key v)
 
 def Shared.wants (sh : Shared) : IO (Array Want) := return (← sh.request.get).2
 def Shared.generation (sh : Shared) : IO Nat := return (← sh.request.get).1
@@ -212,6 +257,7 @@ def read (q : Q) : RM Ans := do
   modify fun s => { s with log := s.log.push q }
   let (a, live) ← (Live.readWith (fun q => q.run s.rd s.out) q).run s.live
   modify fun s => { s with live }
+  s.afterQuery q
   return a
 
 instance : Reads RM := ⟨read⟩
@@ -253,10 +299,13 @@ def eval : Want → RM (Val × Array Q)
     let ((n, all), deps) ← readView (Kinds.Profile.presentCount c 999 1024) #[]
     return (.people n (all && n < 999), deps)
   | .row c me m => do
-    match ← Kinds.Message.read c me m with
+    match ← Kinds.Message.read c me m false with
     | some (d, deps) => return (.row (some d), deps)
     -- not shown yet: no reads held, so it is read again each pass
     | none => return (.row none, #[])
+  | .picture c attachment => do
+    let (p, deps) ← Kinds.File.readOne c attachment
+    return (.picture p, deps)
   | .slices xs => do
     -- each chunk op's read is held: one arriving reads the want again
     let mut raw := #[]
@@ -311,9 +360,11 @@ def judgeWrite (rd : Db) (out : Array Pending) (w : Community.Write) : IO (Optio
 /-- One pass, in one read transaction; whether it put anything or took
 any change. `afterSnapshot` is a deterministic scheduling seam: a test
 may publish another request after this pass has captured its whole pair. -/
-def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ()) : RM Bool := do
+def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
+    (budgetMs : Nat := 0) : RM Bool := do
   if !(← (← get).enabled) then return false
   let (gen, wants) ← sh.request.get
+  let plan ← sh.plan.get
   afterSnapshot
   let notes ← sh.notes.modifyGet fun a => (a, #[])
   let acts ← sh.acts.modifyGet fun a => (a, #[])
@@ -377,11 +428,15 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ()) : 
     let moved := gen != s.gen
     if moved then
       let want : Std.HashSet Want := wants.foldl (·.insert ·) {}
-      let fresh := wants.toList.filter fun w => !s.wantSet.contains w
+      -- Unmount/remount can happen entirely between two reader passes.
+      -- The key then looks unchanged, but its board answer was revoked.
+      let board ← sh.board.get
+      let fresh := wants.toList.filter fun w => !s.wantSet.contains w || (board.get? w).isNone
       let dirty := fresh.foldl (·.insert ·) (s.dirty.filter want.contains)
       let deps := s.deps.filter fun w _ => want.contains w
       let held := deps.fold (fun acc _ qs => qs.foldl (fun a q => a.insert q) acc) ({} : Std.HashSet Q)
-      modify fun s => { s with gen, wantSet := want, dirty, deps, last := wants,
+      let rev := deps.fold (fun acc w qs => reindex acc w #[] qs) {}
+      modify fun s => { s with gen, wantSet := want, dirty, deps, rev, last := wants,
                                live := s.live.keep held.contains }
     -- the reads this pass's filings and notes reach (Live.hit, exact per
     -- window), before the notice disarms them; the store's rows and the
@@ -402,20 +457,34 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ()) : 
     let rev := fun q => (s.rev.getD q #[]).toList
     let marked := (_root_.Live.markHit rev s.dirty hit).filter s.wantSet.contains
     let touched := (_root_.Live.markHit rev {} hitActs).filter s.wantSet.contains
-    let todo := _root_.Live.pickActs wants.toList touched marked cap
-    modify fun s => { s with dirty := marked }
-    let mut puts : Array (Want × Val) := #[]
-    for w in todo do
+    let ready := _root_.Live.pickActs wants.toList touched marked wants.size
+    let queue := Demand.reconcile ready s.queue
+    modify fun s => { s with dirty := marked, queue }
+    let start ← IO.monoMsNow
+    let mut published := 0
+    for i in [0:cap] do
+      if i > 0 && budgetMs > 0 && (← IO.monoMsNow) - start ≥ budgetMs then break
+      let some w := Demand.next (fun w => touched.contains w || plan.visible w) true (← get).queue | break
+      modify fun s => { s with queue := s.queue.filter (· != w) }
+      let some ticket := plan.ticket w | continue
+      unless ← sh.current ticket do
+        modify fun s => { s with retired := s.retired + 1 }
+        continue
       let old := (← get).deps.getD w #[]
-      let v ← evalLogged w
+      let enabled := (← get).enabled
+      modify fun s => { s with enabled := do return (← enabled) && (← sh.current ticket) }
+      let v ← try evalLogged w finally modify fun s => { s with enabled }
+      unless (← enabled) && (← sh.current ticket) do
+        modify fun s => { s with retired := s.retired + 1 }
+        continue
       modify fun s =>
         { s with deps := s.deps.insert w s.log, dirty := s.dirty.erase w, rev := reindex s.rev w old s.log }
-      puts := puts.push (w, v)
+      -- Publish each finished value promptly; a later, slow want cannot
+      -- hold an already-read visible row behind the rest of the batch.
+      sh.publish ticket v
+      published := published + 1
     rd.exec "COMMIT"
-    if (← (← get).enabled) && (!puts.isEmpty || moved) then
-      let want := (← get).wantSet
-      sh.board.modify fun b => puts.foldl (fun b (w, v) => b.put w v) (b.keep want.contains)
-    return !puts.isEmpty || !fs.isEmpty || !vs.isEmpty || !acts.isEmpty
+    return published > 0 || moved || !fs.isEmpty || !vs.isEmpty || !acts.isEmpty
   catch e =>
     rd.exec "ROLLBACK"
     throw e

@@ -142,12 +142,13 @@ def applyCheckpoint (s : St) (cp : Lifecycle.Checkpoint) : St := Id.run do
 revocation. Retain them for suspend's bounded quiescence check. -/
 def retireRow (r : RowSt) : M Unit := do
   for t in r.task.toList ++ r.dimmed.toList do
-    modify fun s => { s with paintStop := s.paintStop.push (t.map fun _ => ()) }
+    modify fun s => { s with paintStop := s.paintStop.push (t.result.map fun _ => ()) }
 
 def retirePaints (s : St) : M Unit := do
+  s.raster.reconcile []
   for (_, r) in s.rows.toList do retireRow r
   for (_, t) in s.imgs.toList do
-    modify fun s => { s with paintStop := s.paintStop.push (t.map fun _ => ()) }
+    modify fun s => { s with paintStop := s.paintStop.push (t.result.map fun _ => ()) }
   if let some t := s.decoding then
     modify fun s => { s with paintStop := s.paintStop.push (t.map fun _ => ()) }
 
@@ -184,10 +185,10 @@ def pollRetired : M Unit := do
 def unmountState (s : St) : St :=
   { stashDraft s with
     mark := captureAnchor s, life := s.life.unmount, input := Input.revoke s.input,
-    rows := {}, imgs := {}, imgRetry := {}, live := { reads := s.live.reads }, touched := {},
+    rows := {}, imgs := {}, imgWaiting := {}, live := { reads := s.live.reads }, touched := {},
     sheet := none, selected := none, camOn := false, camView := none, decoding := none,
     pageNow := none, pageKey := none, chromeKey := "", imeH := 0, mountedPage := none,
-    picWants := #[], retryWants := {}, lastSlices := none }
+    rasterNeeds := #[], pictureNeeds := #[] }
 
 /-- Revoke before detaching the board. An issued SQLite read may finish
 on the old refs, but no subsequent query or publication is authorized. -/
@@ -272,8 +273,7 @@ def resizeContent (sc : Array UInt32) : M Unit := do
     heights := heights.insert x lay.h
   modify fun s => { s with
     W := w, Hs := h, insetTop := it, insetBot := ib, font, dim := dm, input := Input.revoke s.input,
-    bgRow := solid (Palette.color s.dim.theme .bg) w, rows, heights, imgs := {}, imgRetry := {},
-    picWants := #[], retryWants := {}, lastSlices := none,
+    bgRow := solid (Palette.color s.dim.theme .bg) w, rows, heights, imgs := {}, imgWaiting := {},
     life := { s.life with generation := s.life.generation + 1 },
     mark := captureAnchor s, restoreAnchor := true, pageKey := none, pageNow := none,
     chromeKey := "", gridKey := "", gridRows := {} }

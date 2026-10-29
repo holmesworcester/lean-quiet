@@ -87,6 +87,8 @@ structure Pic where
   chunks : List ByteArray := []
   key : ByteArray := .empty
   nonce : ByteArray := .empty
+  /-- The attachment op's identity, distinct from its shared content hash. -/
+  attachment : ByteArray := .empty
   deriving BEq, Inhabited
 
 /-- Whether every chunk is here. -/

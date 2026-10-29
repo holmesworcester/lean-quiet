@@ -1,4 +1,6 @@
 import engine.renderer.SafeLaws
+import engine.renderer.Demand
+
 import engine.renderer.ThemeLaws
 import engine.renderer.SlideLaws
 import engine.renderer.InputLaws
@@ -1110,3 +1112,32 @@ end cost
 #print axioms Engine.Sync.Tree.pieces_le
 #print axioms Engine.Sync.Tree.pieces_le_aux
 #print axioms Engine.Sync.Tree.runLen_le
+
+#print axioms Demand.complete_retired
+#print axioms Demand.complete_current
+#print axioms Demand.reconcile_empty
+#print axioms Demand.visible_first
+#print axioms Demand.background_paused
+#print axioms Demand.idle_fifo
+#print axioms Demand.visible_owner_holds
+#print axioms Demand.unmounted
+#print axioms Demand.unmounted_ticket
+#print axioms Demand.serial_monotone
+#print axioms Demand.owned_iff
+#print axioms Demand.next_visible
+#print axioms Demand.reconcile_members
+#print axioms Demand.retained_prefix
+#print axioms Demand.ticket_key
+#print axioms Demand.assigned_key
+#print axioms Demand.reconcile_keys
+#print axioms Demand.ticket_none
+#print axioms Demand.reconcile_ticket_none
+#print axioms Demand.reconcile_ticket_origin
+#print axioms Demand.retained_ticket
+#print axioms Demand.fresh_ticket
+#print axioms Demand.empty_before_next
+#print axioms Demand.reconcile_before_next
+#print axioms Demand.remount_fresh
+
+#print axioms Raster.key_eq
+#print axioms Demand.remount_rejects

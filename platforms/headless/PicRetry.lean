@@ -1,19 +1,7 @@
-/-
-A picture whose chunk bytes reach the board while its retry waits is
-tried again on the frame after the reader has them, not two seconds on.
-
-The first frame that draws a picture asks the board for its chunk bytes
-(a `slices` want) and, finding none yet, files a retry (Pics.retryLater:
-frames + 120). Its paints do not ask again until then, so the want is
-kept registered while the key waits (App's retryWants), and the frame
-that takes the board the read moved clears the wait (takeBoard).
-
-Here the reader is held back for three frames after that first miss, as
-a reader thread busy with a long pass would be, and then let run. The
-file's decode must start within a few frames. Without the kept want
-(the want lapses with the frame that asked) or without the clear, it
-waits out the 120 frames (tests/app/pic_retry_negative.sh).
-
+/- A mounted attachment keeps its chunk query until bytes arrive.
+Hold the real reader back for three frames after the first miss, then
+release it: decoding must begin promptly, with no polling/retry timer.
+Negative controls remove the declaration or ignore its available answer.
     pic_retry <outdir>
 -/
 import Quiet
@@ -54,7 +42,7 @@ def main (args : List String) : IO UInt32 := do
     let mut miss := false
     for _ in [0:400] do
       steps 1
-      if !(← get).imgRetry.isEmpty then miss := true; break
+      if !(← get).imgWaiting.isEmpty then miss := true; break
       IO.sleep 1
     let s ← get
     let some p := (s.rows.toList.find? (·.2.data.text == "a photo")) >>= fun (_, r) => r.data.pics.head?

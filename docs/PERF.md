@@ -1,10 +1,119 @@
 # Performance
 
-What each step of the app and the node costs, proven over the code that
-runs, as a function of the configuration (`Budget`) and never of how
-much the community holds, except where a row below says so and names
-its fix. A phone k times slower multiplies each bound's time by k; the
-bounds do not move.
+This document separates proved scheduling decisions, tested runtime
+integration, measured latency, and unfinished cost bounds. A count bound
+is not a wall-clock guarantee: SQLite, decoding, allocation, native frame
+publication and OS scheduling still have measured costs.
+
+## Component demand: the running starting point
+
+The cross-cutting unit is **work held by a mounted component**. Components
+map to op types, with instances named by op identity: community / message /
+message id / attachment / attachment id. A component declares a query or
+render key, its owner path, and whether it is visible or speculative.
+The same `Demand.Plan` governs both `Reader.Shared` and `Work.Pool`.
+
+There are only two work classes for now: visible work and prefetch. Native
+editing/motion and the Lean frame do not wait for these workers. Frame
+assembly pauses admission to the raster worker; it resumes before native
+presentation waits. Work already executing may finish its current unit.
+This is a practical first policy, not an end-to-end latency guarantee or
+a new sync scheduler.
+
+| Layer | Contract | Evidence and boundary |
+|---|---|---|
+| Ownership | A key is held exactly when at least one component declares it. Removing one of several owners preserves it. Leaving the demand set revokes its ticket; remounting uses a fresh one. | Runtime `Demand.Plan`; `owned_iff`, `retained_ticket`, `reconcile_ticket_none`, `remount_fresh`. The serial invariant holds initially and is preserved by reconciliation (`empty_before_next`, `reconcile_before_next`). Shared-owner and unmount/remount races test the actual workers, including a remount entirely between reader passes. |
+| Publication | A revoked completion cannot publish. Reconciliation and completion share a short bookkeeping lock, never a database or decode lock. | `complete_retired` and `complete_current` prove the gate both workers call. Barrier tests cover the integration and stale results after remount. |
+| Service order | Visible pending work precedes prefetch. Reconciliation preserves retained pending order; render continuations rotate to the tail of their class. | `next_visible`, `visible_first`, `background_paused`, `idle_fifo`, `reconcile_members`, `retained_prefix`; runtime tests of priority and rotation. No claim that prefetch progresses under permanent visible overload. |
+| Cancellation | Obsolete queued render closures never start; an in-flight closure gets no next step. Reader revocation is checked before every query and publication. | Real pool and SQLite tests with barriers, including a 40-query membership read cancelled after its first query. A query/native operation already running cannot be interrupted. |
+| Component lifecycle | A visible attachment owns progress, chunk-list, chunk-bytes, preview and full-image work independently of its message. Going offscreen releases subscriptions, reverse-index entries and work handles. | `op_components`: signed ops, SQLite, one tall message with four attachment ops, scrolling within the still-mounted parent. |
+| Perceived stability | Keep the last displayed row while its replacement is pending; keep overlapping requests when the viewport moves; never delay a finished row behind the rest of an old reader batch. | Actual `App.step` scrolling, typing, arrival, lifecycle and native seam suites. These properties do not by themselves prove subjective smoothness. |
+
+`engine/renderer/Demand.lean` contains the executable decisions and their
+26 audited laws. Reader keys use decidable equality; `Raster.key_eq` also proves that the render keys satisfy the kernel’s lawful-equality premise. `engine/renderer/Work.lean` supplies one dedicated worker
+per pool, short locks, promises, cooperative steps and timing counters.
+There is one app raster pool, not one thread per component. It exits when
+idle and does not join the shared task pool's old backlog. Reader work
+uses its existing dedicated connection, publishes each completed value
+promptly, and checks a 4 ms budget between wants.
+
+The useful conditional best-effort argument is small: if each unit takes
+at most U, at most N same-priority units are ahead, and the OS schedules
+the worker, FIFO admission/rotation gives service after at most those N
+units. New peers do not jump ahead. A cancellation costs at most the
+remainder of the current unit. The queue decisions are proved; the full
+threaded fairness theorem and premises U/N are not. Measure violations
+of U, then split the offending operation rather than inventing a stronger
+clock assumption. Scaling yields after eight output rows; file opening,
+QOI decoding and row painting remain whole units. The development
+control command `work` reports counts, cancellations and `maxUs`.
+
+### Components own queries, including children
+
+The message query reads text, author/reactions, and an immutable attachment
+layout manifest. It no longer subscribes to attachment progress. A child
+inside the viewport or explicit 1024 px prefetch margin declares
+`Reader.Want.picture community attachment`, then `.slices chunks` when
+complete, and its raster keys. Leaving that region drops all declarations.
+The parent keeps dimensions so scrolling does not change geometry.
+Rows retain measured heights after unmount. Query answers are shared by
+key even when several component paths need them.
+
+The migration path for profile and reaction op types is the same:
+
+1. Give the child an op-type/identity path and bounds. Keep only immutable
+   identity/layout information in its parent's view.
+2. Move its changing view to a typed reader want; declare it only for
+   mounted visibility/prefetch demand. Consume a board answer without IO.
+3. Declare expensive preparation through the same work pool. Return a
+   continuation for another bounded step instead of spawning a task.
+4. Test that the parent remains mounted while the child releases and
+   reacquires queries, and that shared owners survive independently.
+
+Profile/reaction views are still bundled into the message today. Full
+decode buffers have no byte-budget proof; long messages can still have
+expensive row paints. Sync/ingestion admission does not yet use this
+policy. A later interaction policy can pause speculative work through
+`Demand.next`'s background flag and give ingest/upload their own bounded
+units. It must preserve protocol liveness and measure each unit first.
+No fixed per-phone millisecond constant is assumed by the laws.
+
+### Reproducing the scrolling regression
+
+`mise run host:component-demand` builds and runs the worker/SQLite races,
+the op-type component test and a real threaded app scroll session with
+500 chaos messages, direction reversals and a text event every frame.
+The backlog mode occupies both shared-pool workers, then releases them
+when scrolling stops. This deliberately reproduces old paint backlog;
+it does not claim to simulate every possible reason a phone is slow.
+The identical `tests/app/Scrolling.lean` harness also runs against the
+pre-change revision. CSV records frame time, visible placeholder pixels,
+offset and mounted rows; the suite retains a final screenshot.
+
+`mise run host:component-demand-negative` builds scratch copies and
+requires specific failures for obsolete work, reversed priority,
+continued obsolete reader queries, children that never unmount, reused
+tickets and a broken publication gate. `pic_retry` additionally rejects
+a missing child query declaration and ignored available data.
+
+The local app gate invokes these same tasks (`ci/local.sh app`); no
+GitHub Actions workflow is needed. Prerequisites are the ordinary host
+Lean/Rust/C toolchain, assets, Python 3 and Mise. Logs, CSV, JSON summaries,
+databases and screenshots remain in `out/component-demand`; failures
+propagate. The deterministic acceptance limits concern placeholder
+coverage and eventual completion, not a fragile wall-clock threshold.
+
+Physical-phone measurement additionally needs the Android runtime,
+SDK/NDK, Java, an already authorized device, and an existing conversation.
+`SERIAL=... mise run android:scroll-measure` builds, installs retaining
+data, cold-starts and warms the bottom viewport, then records a fixed
+sequence of jumps and reversals. `ci/local.sh pixel-scroll` invokes that
+same optional provisioned-device task. `APK` and `OUT` select a baseline
+APK and artifact directory for a paired run. The script restores the
+screen timeout, retains logs even on failure, and propagates errors.
+Screen recordings, control replies and logcat provide device evidence,
+separate from the deterministic local gate. Native event acquisition,
+frame copying and compositor delays remain outside these Lean proofs.
 
 docs/BOUNDS.md (holmes-a3's) is the node's and sync's inventory; this
 file holds the cost model both use, the app's steps, the O(N) table, and
@@ -138,7 +247,8 @@ negative control is a table that breaks both rules.
 
 ## The app's frame (the Live change signal)
 
-The frame never reads the store. A reader on its own thread (dedicated,
+Row and attachment views consume the board. Other frame paths still
+reach SQLite, as the `frame_reads` audit reports below. A reader on its own thread (dedicated,
 its own connection, one read transaction per pass) owns the journal's
 cursor, the live cache of list answers, the outbox, and every view's
 evaluation. It publishes each value the frame wants to a `Board`

@@ -135,8 +135,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 993 rest on Lean's standard axioms
-only, and about three quarters of its theorems (751 of 973, not counting 20 negative controls) are about the code that runs; another 10 run the
+that rests on; 🥊 is supporting. All 1020 rest on Lean's standard axioms
+only, and about three quarters of its theorems (777 of 1000, not counting 20 negative controls) are about the code that runs; another 10 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -211,6 +211,7 @@ World); the rest are over models so far
 | ⬜ | 🥊🥊 | **Sync is efficient.** Each op is sent at most once per connection, and a round needs at most fan·Δ·⌈log n⌉ claims. | |
 | ⬜ | 🥊 | **The cached Merkle tree's labels are `lbl`'s,** for O(log n) fingerprints with no change on the wire. | |
 | | | **The screen** | |
+| ✅ | 🥊🥊🥊 | **Component work has revocable ownership.** The reader and raster worker use the same demand plan: a key is held iff some component declares it, revoked completions are rejected, visible queued work takes priority, and reconciliation keeps retained pending order. These are laws of their running decision functions; thread scheduling and millisecond latency are measured/tested, not proved. Message attachment children already own their queries and render work independently. See [the hierarchy, tests and remaining migration](docs/PERF.md#component-demand-the-running-starting-point). | [`Demand.owned_iff`], [`Demand.complete_retired`], [`Demand.next_visible`], [`Demand.retained_prefix`], [`Demand.retained_ticket`], [`Demand.remount_rejects`] |
 | ✅ | 🥊🥊 | **Unmounted pages issue no new reads or writes.** The running read/write gates reject unmounted pages and old leases, including after remount. Cache pruning leaves exactly the mounted queries after each has an answer; watches are their keys. Worker retirement, bounded suspend and native callback delivery are tested, not proved by these gate laws. | [`unmount_read`], [`unmount_write`], [`old_callback`], [`unmounted_quiet`], [`old_quiet`], [`live_exact`], [`subscriptions_exact`], [`mounted_runs`] |
 | 🟡 | 🥊🥊 | **Lifecycle state survives a restart or resize.** Proven: the running checkpoint codec and application preserve page and message anchor, and resize's offset keeps the anchor's top-edge distance when it fits. Not yet: SQLite crash durability as a Lean law; the headless twin tests crashes, viewport changes, keyboard transitions and invite launch ([inventory](docs/LIFECYCLE.md)). Placement is supplied by the shared Lean seam below. | [`restore_checkpoint`], [`page_round`], [`restore_page_anchor`], [`apply_page_anchor`], [`resize_anchor`], [`viewport_geometry`], [`viewport_possible`] |
 | 🟡 | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. The phones and twins call the shared placement and input functions. Not yet: OS event acquisition and compositor pixel copies as Lean laws. | [`Surface.visible_in_viewport`], [`newest_visible`], [`Surface.pinned_visible`], [`pinned_tap`], [`hit_iff`] |
@@ -253,7 +254,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**751 of 973 laws are about running code;** another 10 run its node code in a World, and 212 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**777 of 1000 laws are about running code;** another 10 run its node code in a World, and 213 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -266,8 +267,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Community | 175 | 163 |  | 12 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
-| Screen | 235 | 177 |  | 58 |
-| App | 72 | 55 |  | 17 |
+| Screen | 261 | 203 |  | 58 |
+| App | 73 | 55 |  | 18 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
@@ -281,7 +282,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
 | `Arrival.lit` | [`lit_zero`], [`lit_mono`], [`lit_full`], [`lit_clockwise`], [`ring_counts`] | `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`. |
 | `Frame.wants`, `Subs.ofList`, `Frame.listWins` +2 | [`has_ofList`], [`ofList_wf`], [`screen_subs`]†, [`hull_near`]†, [`past_hull_le`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan). |
-| `Pics.after`, `Pics.costIn` | [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`] | The picture doors as data (`PicM`), measured: the app's own doors (its decode table and frame counter) are not shown to answer as `PicM`'s. Prove they do, or state these over them. |
+| `Pics.after`, `Pics.costIn` | [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`] | Legacy picture-door model (`PicM`); the app now uses owned Reader wants and Work.Pool continuations. Restate these cost/settling laws over that running path, including decode-unit bounds. |
 | `Board.apply`, `RWorld.commit`, `RWorld.evict` +10 | [`RWorld.acts_shown`], [`seen_take`], [`World.inv_commit`], [`RWorld.inv_commit`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`], [`World.inv_pass`], [`World.inv_frame`], [`World.settle`], [`marked_pass`] +7 more | The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`. |
 | `T.sum`, `Both.bottom`, `Both.rowAt` +16 | [`start_eq`], [`find_spec`], [`set_toList`], [`push_ok`], [`findM_cost`], [`startM_cost`], [`setM_cost`], [`rows_cost`], [`start_mono`], [`start_size`], [`below_window`], [`above_window`] +8 more | The row-heights tree (engine/renderer/Heights.lean): the app keeps its rows' heights in a map (`App.heightOf`) and adds them up itself. Have its list frame place rows by `Heights`. |
 | `PageId.all` | [`NavLaws.depth`]† | Nothing that runs calls it. |
@@ -312,6 +313,9 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `RWorld.passIdx` | [`passActs_nil`] | Nothing that runs calls it; `RWorld.passActs`, `RWorld.passLate` do. |
 | `RWorld.touched` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.actsWorld`, `RWorld.nTouched` do. |
 | `PeopleLaws.admIn` | [`live_lists_ge`], [`present_scans`] | Nothing that runs calls it. |
+| `Pics.decoded` | [`decoded_started`] | Nothing that runs calls it; `Pics.image`, `Pics.imageV` do. |
+| `Pics.image` | [`image_steady`], [`image_settles`], [`image_twice`] | Nothing that runs calls it. |
+| `Want.ofFrame` | [`withView_ofFrame`], [`withViewLast_moves`] | Nothing that runs calls it. |
 | `Want.withViewLast` | [`withViewLast_moves`] | Nothing that runs calls it. |
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
@@ -333,6 +337,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Model.run`] | 293 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
 | [`Sync.popW`] | 3 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
+| [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
 | [`Engine.Inv`] | 86 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
 
@@ -1020,6 +1025,12 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`lane_control`]: engine/wire/LaneLaws.lean#L312-L315
 [`fresh_served`]: engine/wire/WorldLaws.lean#L613-L620
 [`write_hot`]: engine/wire/WorldLaws.lean#L1424-L1429
+[`Demand.owned_iff`]: engine/renderer/Demand.lean#L120-L123
+[`Demand.complete_retired`]: engine/renderer/Demand.lean#L73-L74
+[`Demand.next_visible`]: engine/renderer/Demand.lean#L126-L128
+[`Demand.retained_prefix`]: engine/renderer/Demand.lean#L141-L143
+[`Demand.retained_ticket`]: engine/renderer/Demand.lean#L185-L187
+[`Demand.remount_rejects`]: engine/renderer/Demand.lean#L237-L241
 [`unmount_read`]: ops/app/LifecycleLaws.lean#L12-L14
 [`unmount_write`]: ops/app/LifecycleLaws.lean#L16-L18
 [`old_callback`]: ops/app/LifecycleLaws.lean#L20-L22
@@ -1148,8 +1159,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L918-L922
-[`pageIn_acc`]: App.lean#L924-L927
+[`drawPage_key`]: App.lean#L944-L948
+[`pageIn_acc`]: App.lean#L950-L953
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L217-L227
@@ -1276,7 +1287,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`passActs_nil`]: engine/renderer/ActsLaws.lean#L141-L143
 [`inv_passActs`]: engine/renderer/ActsLaws.lean#L192-L195
 [`idxok_passActs`]: engine/renderer/ActsLaws.lean#L199-L203
-[`withViewLast_moves`]: ops/app/Reader.lean#L94-L98
+[`withView_ofFrame`]: ops/app/Reader.lean#L87-L91
+[`withViewLast_moves`]: ops/app/Reader.lean#L98-L102
 [`run_contiguous`]: engine/renderer/bidi/Laws.lean#L84-L87
 [`erase_run`]: engine/core/CostErase.lean#L22-L23
 [`erase_pure`]: engine/core/CostErase.lean#L25-L25
@@ -1293,5 +1305,6 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Model.run`]: engine/core/Model.lean#L103-L103
 [`Sync.popW`]: engine/wire/LaneLaws.lean#L257-L260
 [`Engine.runJ`]: engine/core/WindowLaws.lean#L148-L151
+[`BeforeNext`]: engine/renderer/Demand.lean#L201-L203
 [`Engine.Inv`]: engine/core/Proofs.lean#L202-L219
 <!-- /proof-links -->

@@ -128,6 +128,15 @@ def main (args : List String) : IO UInt32 := do
     check "conversation has 80 real messages" ((← get).total == 80)
     -- Late row measurements and an arrival while scrolled back.
     sm.b.set 4000; steps 12
+    -- Native presentation gives the dedicated painter time between
+    -- frames; this fast headless loop has no vsync wait. Establish the
+    -- painted-anchor fixture before testing arrival stability.
+    for _ in [0:200] do
+      let s ← get
+      if let some (x, _) := rowAt s s.b then
+        if (s.rows[x]?.bind (·.shown)).isSome then break
+      steps 1
+      IO.sleep 2
     let old ← get
     let some (anchor, _) := rowAt old old.b | check "a visible scroll anchor exists" false; return
     let before := position old anchor

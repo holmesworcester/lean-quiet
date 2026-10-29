@@ -15,7 +15,7 @@ cases = [
     ("drop-stop", "AppLife.lean", "netStop := some stopping", "netStop := none", "timed-out runner remains owned", False),
     ("leave-late-boot", "ops/app/Wait.lean", "if let .ok r ← IO.wait t then r.stop", "discard <| IO.wait t", "a runner born after timeout is stopped", False),
     ("read-after-revoke", "ops/app/Reader.lean", "  if !(← s.enabled) then return default\n", "", "revoked reader issues no query", False),
-    ("publish-after-revoke", "ops/app/Reader.lean", "    if (← (← get).enabled) && (!puts.isEmpty || moved) then", "    if !puts.isEmpty || moved then", "revoked pass cannot publish", False),
+    ("publish-after-revoke", "ops/app/Reader.lean", "      unless (← enabled) && (← sh.current ticket) do", "      unless (← sh.current ticket) do", "revoked pass cannot publish", False),
     ("offer-while-stopping", "App.lean", "if !s.active || !s.surface || s.net.isSome || s.netBoot.isSome || s.netStop.isSome then", "if !s.active || !s.surface || s.net.isSome || s.netBoot.isSome then", "foreground writes also park", False),
     ("join-unfinished-stop", "AppLife.lean", "if let some t := s.netStop then\n    if ← IO.hasFinished t then", "if let some t := s.netStop then\n    if true then", "suspend returns within its deadline", False),
     ("drop-reader", "AppLife.lean", "readerStop := s.reader.orElse fun _ => s.readerStop", "readerStop := none", "timed-out work remains owned", False),

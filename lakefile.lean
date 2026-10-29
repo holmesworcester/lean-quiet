@@ -83,6 +83,15 @@ lean_lib Tests where
   globs := #[.submodules `tests.engine, .submodules `tests.net, .submodules `tests.mdns,
     .submodules `tests.qr, .submodules `tests.app]
 
+lean_exe component_demand where
+  root := `tests.app.Demand
+
+lean_exe scrolling where
+  root := `tests.app.Scrolling
+
+lean_exe op_components where
+  root := `tests.app.Components
+
 /-! ## Native code
 
 The engine's glue (engine/native) and the headless twin

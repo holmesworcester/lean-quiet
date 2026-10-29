@@ -69,8 +69,17 @@ def received (sm : Sim) (t : String) : M (Option (Row.Pic × Option ByteArray ×
   -- open draws
   let mut full := false
   for _ in [0:400] do
-    let (b, f) ← image p 96 64
-    if f && (b.map (·.rows[0]? != some (Paint.solid Row.placeholder 96))).getD false then full := true; break
+    -- Observe the actual mounted child and its painted parent. A test-only
+    -- 96x64 image request outside a frame has no mounted owner and must
+    -- now be cancelled by reconciliation.
+    let s ← get
+    let painted := s.rows.toList.any fun (_, r) => r.data.text == t &&
+      r.task.isNone && r.shown.isSome && r.painted.2[2]?.getD false
+    for (key, handle) in s.imgs.toList do
+      if key.1 == p.hash.push 1 then
+        if let some b ← handle.value then
+          if painted && b.rows[0]? != some (Paint.solid Row.placeholder b.w) then full := true
+    if full then break
     steps 1; IO.sleep 10
   -- the file opened from the chunks stored by now (asked of the reader's
   -- board, as a paint asks: wanted from the next frame)
@@ -190,7 +199,7 @@ def main (args : List String) : IO UInt32 := do
   if let some ms := (← IO.getEnv "QUIET_IDLE_MS") >>= String.toNat? then
     IO.println s!"idle {ms} ms, pid {← IO.Process.getPID}"; (← IO.getStdout).flush
     let (a', b', _) ← both a b ms fun _ _ => false
-    let fin (x : St) : IO Nat := x.imgs.toList.foldlM (fun n (_, t) => do return n + (if ← IO.hasFinished t then 1 else 0)) 0
+    let fin (x : St) : IO Nat := x.imgs.toList.foldlM (fun n (_, t) => do return n + (if ← IO.hasFinished t.result then 1 else 0)) 0
     IO.println s!"idle: finished decodes {← fin a'}/{a'.imgs.size} and {← fin b'}/{b'.imgs.size}"
     IO.println s!"idle: paints {a.paints} → {a'.paints} and {b.paints} → {b'.paints}, imgs {a'.imgs.size} {b'.imgs.size}, frames {a'.frames - a.frames}"
   if let some r := a.net then r.stop

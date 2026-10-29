@@ -30,12 +30,12 @@ def pic (c att root : Id) (len : Nat) (info : FileMeta) (fk fn : ByteArray) (dep
     m (Row.Pic × Array Q) := do
   let ((got, total), deps) ← readView (progress c att len) deps
   let p : Row.Pic := { hash := root, w := info.w, h := info.h, len, preview := info.preview,
-                       got, total, key := fk, nonce := fn }
+                       got, total, key := fk, nonce := fn, attachment := att }
   if !p.complete then return (p, deps)
   let (ch, _, deps) ← readList (chunk.byAttachment.query [c, att] (desc := false)) deps
   return ({ p with chunks := ch.rows.map (·.1.2) }, deps)
 
-def read (c msg : Id) (deps : Array Q) : m (Array Row.Pic × Array Q) := do
+def read (c msg : Id) (deps : Array Q) (withProgress : Bool := true) : m (Array Row.Pic × Array Q) := do
   let (as, _, deps) ← readList (attachment.byMessage.query [c, msg] (limit := some maxShown) (desc := false)) deps
   let mut deps := deps
   let mut out := #[]
@@ -46,9 +46,26 @@ def read (c msg : Id) (deps : Array Q) : m (Array Row.Pic × Array Q) := do
     let some k := ks.rows.head?.bind fun (_, g) => match g with | .key _ _ k => some k | _ => none
       | continue
     let some (info, fk, fn) := openInfo c kid sealed k | continue
-    let (p, d2) ← pic c att root len info fk fn deps
+    -- The parent's layout manifest needs immutable dimensions/preview,
+    -- never the offscreen child's changing chunk/progress subscriptions.
+    let (p, d2) ← if withProgress then pic c att root len info fk fn deps else
+      pure ({
+        hash := root, w := info.w, h := info.h, len, preview := info.preview,
+        key := fk, nonce := fn, attachment := att : Row.Pic }, deps)
     deps := d2
     out := out.push p
   return (out, deps)
+
+/-- The attachment component's own view. Its live subscriptions end when
+its last visible/prefetch owner leaves, independently of its message. -/
+def readOne (c att : Id) : m (Option Row.Pic × Array Q) := do
+  let (fact, _, deps) ← readFact att #[]
+  let some (.attachment _ _ _ root len kid sealed) := fact | return (none, deps)
+  let (ks, _, deps) ← readList (key.byId.query [kid] (limit := some 1)) deps
+  let some key := ks.rows.head?.bind fun (_, f) => match f with | .key _ _ k => some k | _ => none
+    | return (none, deps)
+  let some (info, fk, fn) := openInfo c kid sealed key | return (none, deps)
+  let (p, deps) ← pic c att root len info fk fn deps
+  return (some p, deps)
 
 end Kinds.File

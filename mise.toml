@@ -31,6 +31,16 @@ run = "tests/engine/run.sh --phone-runtime"
 description = "The native C twin and the app sessions: host:twin-demo, host:app, host:two-nodes, host:net-join, host:cross, host:arrival, host:attach and host:ux"
 run = "tests/app/run.sh"
 
+[tasks."host:component-demand"]
+description = "Build and test owned query lifetimes, cancellation races, fair work rotation, actual attachment components and scrolling with an occupied pool"
+depends = ["crypto"]
+run = "bash tests/app/demand.sh"
+
+[tasks."host:component-demand-negative"]
+description = "Reject stale publication, obsolete work, wrong priority and missing child-query declarations in scratch copies"
+depends = ["host:component-demand"]
+run = "python3 tests/app/demand_negative.py"
+
 [tasks."test:shipped"]
 description = "Build and check the SQLite configuration and native C twin; kill system-SQLite, wrong-threading and broken-keyboard mutants"
 depends = ["crypto"]
@@ -322,6 +332,11 @@ run = "tests/app/bar_state.sh"
 [tasks."android:phone-apk"]
 description = "Build the current arm64 app for a physical phone, reusing LEANRT when provided (otherwise build the Android runtime)"
 run = "[ -f \"${LEANRT:-out/leanrt}/arm64-v8a/libInit.a\" ] || mise run android:runtime; [ -f assets/font.bin ] || tools/fetch_assets.sh; platforms/android/twin/build_apk.sh out/quiet-phone.apk com.holmes.leanquiet 'Lean Quiet' Main arm64-v8a"
+
+[tasks."android:scroll-measure"]
+description = "Provisioned phone: build/install preserving data, cold-start scroll recording and logs; requires SERIAL and an existing conversation"
+depends = ["android:phone-apk"]
+run = "python3 tests/app/pixel_scroll.py"
 
 [tasks."test:stateless"]
 description = "Full and capped window syncs on real Nodes/SQLite, peaks and negative controls"

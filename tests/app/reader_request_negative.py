@@ -11,7 +11,7 @@ logs = root / "out/app-lifecycle/reader-request-negative"
 logs.mkdir(parents=True, exist_ok=True)
 source = root / "ops/app/Reader.lean"
 original = source.read_bytes()
-anchor = "  let (gen, wants) ← sh.request.get\n  afterSnapshot\n"
+anchor = "  let (gen, wants) ← sh.request.get\n  let plan ← sh.plan.get\n  afterSnapshot\n"
 mutant = anchor + "  let gen ← sh.generation\n"
 assert original.decode().count(anchor) == 1, "reader sampling seam missing"
 

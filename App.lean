@@ -37,7 +37,7 @@ def themed (s : St) (theme : Theme.State) : St :=
     theme := theme
     dim := dm
     bgRow := solid (Palette.color (Theme.effective theme) .bg) s.W,
-    rows := {}, imgs := {}, imgRetry := {}, gridRows := {}, gridKey := "",
+    rows := {}, imgs := {}, imgWaiting := {}, gridRows := {}, gridKey := "",
     chips := s.chips.map fun (bytes, w, h, chip) =>
       let thumb := match Image.decode bytes with
         | some src => Image.square src (s.dim.px 64) (Palette.color (Theme.effective theme) .bg)
@@ -357,34 +357,43 @@ def slicesOf (p : Row.Pic) : M (Option (List ByteArray)) := do
   -- from the next frame, none until the board has them all; nothing is
   -- decoded here (a 64 KiB chunk is slow to decode; the frame must not wait)
   let w := Reader.Want.slices p.chunks
-  modify fun s => { s with picWants := if s.picWants.contains w then s.picWants else s.picWants.push w,
-                           lastSlices := some w }
   match (← (← get).sh.board.get).get? w with
   | some (.slices raw, _) => return raw
   | _ => return none
 
-/-- The picture doors (ops/app/Pics.lean) in the app: the decode and
-retry tables are the app's state, `chunks` asks the reader's board
-(`slicesOf`; the retry table is cleared when a `slices` want's value
-lands, `takeBoard`), and `spawn` makes its task inside the state
-function, so when the action runs, never when it is built. -/
-instance : Pics.Pics M where
-  started k := return (← get).imgs[k]?
-  remember k t := modify fun s => { s with imgs := s.imgs.insert k t }
-  finished t := return (← IO.hasFinished t)
-  retryAt k := return (← get).imgRetry[k]?
-  retryLater k := modify fun s =>
-    let wants := match s.lastSlices with | some w => s.retryWants.insert k w | none => s.retryWants
-    { s with imgRetry := s.imgRetry.insert k (s.frames + 120), retryWants := wants }
-  frame := return (← get).frames
-  chunks := slicesOf
-  spawn f := fun s => pure (Task.spawn f, s)
+/-- All expensive visual work passes through the shared component pool.
+The declaration is retained for this frame even when its result is cached. -/
+def rasterRequest (owner : Demand.Owner) (key : Raster.Key) (visible : Bool)
+    (action : Work.Action Bitmap) : M (Work.Handle Raster.Key Bitmap) := do
+  let need : Demand.Need Raster.Key := ⟨owner, key, visible⟩
+  modify fun s => { s with rasterNeeds := s.rasterNeeds.push need }
+  (← get).raster.request need action
 
-/-- An attachment drawn at its size, if ready, and whether it is the
-file: `Pics.image`, each decode started once (`Pics.image_twice`: a frame
-whose data has not changed spawns no decode and reads nothing). -/
-def image (p : Row.Pic) (w h : Nat) : M (Option Bitmap × Bool) := do
-  Pics.image p w h (← get).dim.theme
+/-- An attachment child owns its chunk request and both image stages.
+Its parent supplies identity, metadata and bounds; it does not start its
+work. No timer keeps an offscreen picture subscribed. -/
+def image (p : Row.Pic) (w h : Nat) (owner : Demand.Owner := [])
+    (visible : Bool := true) : M (Option Bitmap × Bool) := do
+  let s ← get
+  let stage (n : UInt8) (source : Unit → Option Image.Src) : M (Option Bitmap) := do
+    let k : ImgKey := (p.hash.push n, w, h)
+    let action ← Raster.image source w h s.dim.theme (n == 0)
+    let handle ← rasterRequest owner (.image k s.dim.theme) visible action
+    modify fun s => { s with imgs := s.imgs.insert k handle }
+    handle.value
+  let pre ← if p.preview.isEmpty then pure none else stage 0 (fun _ => Image.decode p.preview)
+  let mut full := none
+  if p.complete then
+    let want := Reader.Want.slices p.chunks
+    let need : Demand.Need Reader.Want := ⟨owner, want, visible⟩
+    modify fun s => { s with pictureNeeds := s.pictureNeeds.push need }
+    match (← s.sh.board.get).get? want with
+    | some (.slices (some raw), _) => full ← stage 1 (fun _ => Raster.fileSource p raw)
+    | _ =>
+      -- Kept for diagnostics of a missing dependency, never as a timer
+      -- authorizing work. The child's declaration alone owns the query.
+      modify fun s => { s with imgWaiting := s.imgWaiting.insert (p.hash.push 1, w, h) }
+  return p.shown pre full
 
 /-- In the headless twins, the frame runs the reader's pass itself; on a
 device the reader's thread runs them. The outbox is the reader's
@@ -396,14 +405,12 @@ def readerPass : M Unit := do
     let (_, r) ← (Reader.pass s.sh).run r
     modify fun s => { s with rst := some r }
 
-/-- The board, taken: its values, its moved set cleared (one swap; the
-frame never waits on the reader). When an attachment's chunk bytes have
-landed (a `slices` want moved), Pics' retry table is cleared, so the
-picture is tried again at once, as a store notice once cleared it. -/
+/-- Take the board's moved set in one swap. A mounted attachment checks
+its answer every frame; this only clears its waiting diagnostic. -/
 def takeBoard : M (_root_.Live.Board Reader.Want Reader.Val) := do
   let (moved, b) ← (← get).sh.board.modifyGet fun b => let (mv, b') := b.take; ((mv, b'), b')
   if moved.toList.any fun | .slices _ => true | _ => false then
-    modify fun s => { s with imgRetry := {}, retryWants := {} }
+    modify fun s => { s with imgWaiting := {} }
   return b
 
 /-- Row x from the board (Reader's row want), laid out again when its
@@ -416,6 +423,12 @@ def mount (bd : _root_.Live.Board Reader.Want Reader.Val) (x : Id) : M Unit := d
   if (s.rows[x]?.map (·.bver)) == some ver then return
   let tz := (← s.io.wall).2
   let d := { d with time := (d.time + tz).toNat }
+  -- Preserve a child's already displayed value when an unrelated parent
+  -- query changes. The child still refreshes from its own board entry.
+  let d := match s.rows[x]? with
+    | none => d
+    | some r => { d with pics := d.pics.map fun p =>
+        (r.data.pics.find? (fun old => old.attachment == p.attachment && old.hash == p.hash)).getD p }
   match s.rows[x]? with
   | some r =>
     if r.data == d then
@@ -432,45 +445,58 @@ def mount (bd : _root_.Live.Board Reader.Want Reader.Val) (x : Id) : M Unit := d
       heights := s.heights.insert x lay.h }
 
 /-- Start a paint of row x if what it shows changed; collect a finished one. -/
-def paintRow (x : Id) : M Unit := do
+def paintRow (x : Id) (bottom offset viewport : Nat := 0) : M Unit := do
   let s ← get
   if s.page != .chat || !s.life.mounted then return
   let some r := s.rows[x]? | return
-  let av : Option Bitmap := none  -- profiles carry no avatar: Row draws the initial
+  let viewport := if viewport == 0 then viewH s else viewport
+  let owner := Raster.messageOwner s.me.c x
+  let visible := Raster.near bottom r.lay.h offset viewport 0
+  let av : Option Bitmap := none
   let mut imgs := #[]
-  -- what is painted: each picture's presence and stage (preview, file)
-  let mut ready := [av.isSome]
+  let mut ready := [false]
+  let mut data := r.data
   for i in [0:r.lay.pics.size] do
     let bx := r.lay.pics[i]!
+    let childBottom := bottom + r.lay.h - (bx.y + bx.h)
     match r.data.pics[i]? with
     | some p =>
-      let (b, isFile) ← image p bx.w bx.h
-      imgs := imgs.push b
-      ready := ready ++ [b.isSome, isFile]
+      if Raster.near childBottom bx.h offset viewport over then
+        let owner := Raster.pictureOwner s.me.c x p.attachment
+        let visible := Raster.near childBottom bx.h offset viewport 0
+        let want := Reader.Want.picture s.me.c p.attachment
+        modify fun s => { s with pictureNeeds := s.pictureNeeds.push ⟨owner, want, visible⟩ }
+        let p := match (← s.sh.board.get).get? want with
+          | some (.picture (some current), _) => current
+          | _ => p
+        data := { data with pics := data.pics.set i p }
+        let (b, isFile) ← image p bx.w bx.h owner visible
+        imgs := imgs.push b
+        ready := ready ++ [b.isSome, isFile]
+      else
+        imgs := imgs.push none
+        ready := ready ++ [false, false]
     | none => imgs := imgs.push none
   let s ← get
-  let some r := s.rows[x]? | return
-  -- a finished paint is shown
   let mut r := r
+  if data != r.data then r := { r with data, ver := r.ver + 1 }
   let selected := s.selected == some x
   if r.data.selected != selected then
     r := { r with data := { r.data with selected }, ver := r.ver + 1 }
-  if let some t := r.task then
-    if ← IO.hasFinished t then r := { r with shown := some t.get, task := none }
-  -- behind an open tray, every other row is shown darkened
-  if s.selected.isSome && s.selected != some x then
+  let key := Raster.Key.row s.life.generation x r.ver ready s.dim.theme
+  let (f, dm, W, bgRow, d, l) := (s.font, s.dim, s.W, s.bgRow, r.data, r.lay)
+  let handle ← rasterRequest owner key visible (fun _ => pure (some (Row.paint f dm W bgRow d l av imgs)))
+  let value ← handle.value
+  if r.painted != (r.ver, ready) then modify fun s => { s with paints := s.paints + 1 }
+  r := { r with
+    task := if value.isSome then none else some handle,
+    painted := (r.ver, ready), shown := value.orElse fun _ => r.shown }
+  if s.selected.isSome && !selected then
     if let some bmp := r.shown then
-      if r.dimmed.isNone || r.dimVer != r.painted.1 then
-        r := { r with dimmed := some (Task.spawn fun _ => Row.Bitmap.dim bmp), dimVer := r.painted.1 }
-    if let some t := r.dimmed then
-      if ← IO.hasFinished t then r := { r with dimShown := some t.get }
-  else if r.dimmed.isSome then
-    r := { r with dimmed := none, dimShown := none }
-  if r.painted != (r.ver, ready) && r.task.isNone then
-    let (f, dm, W, bgRow, d, l) := (s.font, s.dim, s.W, s.bgRow, r.data, r.lay)
-    let t := Task.spawn fun _ => Row.paint f dm W bgRow d l av imgs
-    r := { r with task := some t, painted := (r.ver, ready) }
-    modify fun s => { s with paints := s.paints + 1 }
+      let key := Raster.Key.dim s.life.generation x r.ver ready s.dim.theme
+      let dimmed ← rasterRequest owner key visible (fun _ => pure (some (Row.Bitmap.dim bmp)))
+      r := { r with dimmed := some dimmed, dimVer := r.ver, dimShown := ← dimmed.value }
+  else r := { r with dimmed := none, dimShown := none }
   modify fun s => { s with rows := s.rows.insert x r }
 
 /-! ## The frame -/
@@ -1355,6 +1381,7 @@ def command (line : String) : M Bool := do
   | "state" =>
     s.io.ctlReply s!"b {s.b} total {s.total} loaded {s.ids.size} people {s.people} mounted {s.rows.size} ime {s.imeH} text {repr s.text} outbox {s.out.size} busy {← s.wr.busy.get} viewH {viewH s}"
   | "stats" => s.io.ctlReply (stats s)
+  | "work" => s.io.ctlReply s!"{repr (← s.raster.stats)} owned_queries {(← s.sh.wants).size} picture_queries {s.pictureNeeds.size}"
   | "input" => s.io.ctlReply s!"page {repr s.page} serial {s.input.serial} retained {s.input.frames.map (·.1)} press {s.input.press.isSome} lastTap {s.input.lastTap} generation {s.life.generation}"
   | "reader" =>
     let ws ← s.sh.wants
@@ -1588,6 +1615,11 @@ def withToast (s : St) (fr : Array ByteArray) (_vh : Nat) : Array ByteArray := I
 
 /-- The same placement and raw-input boundary on every phone and twin. -/
 def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
+  let work ← get
+  work.raster.reconcile work.rasterNeeds.toList
+  work.raster.pause false
+  modify fun s => { s with imgs := s.imgs.filter (fun _ h =>
+    work.rasterNeeds.any (fun n => n.key == h.ticket.key)) }
   let s ← get
   let screen := if s.sheet.isSome then SafeFrame.Screen.sheet else if s.page == .chat then .channel
     else if s.page == .home then .home else .page
@@ -1637,7 +1669,9 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   let countW := Reader.Want.count s.me.c s.anchor
   -- (the wants as last set, unless the anchor moved: a steady frame
   -- moves no generation, Reader.Want.withView_ofFrame)
-  s.sh.setWants (Reader.Want.withView (← s.sh.wants) idsW countW)
+  let previous ← s.sh.wants
+  let requested := Reader.Want.withView previous idsW countW
+  if requested != previous then s.sh.setWants requested
   readerPass
   let bd ← takeBoard
   let fresh := match bd.get? idsW with
@@ -1656,7 +1690,7 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   let tIds ← (← get).io.nowUs
   -- 4. the offset, and the rows the frame and the fetch distance need
   let s ← get
-  let (bots0, ch0) := bottoms s
+  let (_, ch0) := bottoms s
   let sample ← s.io.scroll ch0.toUInt32 (geom s).viewNow.toUInt32
   let input := Input.sampleOffset (ch0 - (geom s).viewNow) s.input sample.toInt64.toInt
   modify fun s => { s with input }
@@ -1691,14 +1725,14 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
     let bot := bots0[i]!
     if bot > hi then break
     if bot + heightOf s s.ids[i]!.2 ≥ lo then win := win.push s.ids[i]!.2
-  -- the pictures' chunk reads: this frame's paints', and those of keys
-  -- still waiting to retry (their paints do not ask again until then)
-  let pics := s.retryWants.fold (fun ws _ w => if ws.contains w then ws else ws.push w) s.picWants
-  -- and the frame's own lists, after the rows: the communities, the
-  -- people count, the requests, and the people list on the pages that show it
+  let rowNeeds := win.map fun x =>
+    { (Reader.Want.row s.me.c s.me.adm x).need with
+      visible := Raster.near ((s.ids.findIdx? (·.2 == x)).map (fun i => bots0[i]!) |>.getD 0)
+        (heightOf s x) bv vh 0 }
   let lists := pageWants s
-  s.sh.setWants (Reader.Want.ofFrame idsW (win.map (fun x => Reader.Want.row s.me.c s.me.adm x)) pics countW lists)
-  modify fun s => { s with picWants := #[] }
+  let needs := #[idsW.need] ++ rowNeeds ++ s.pictureNeeds ++ #[countW.need] ++ lists.map Reader.Want.need
+  s.sh.setNeeds needs
+  modify fun s => { s with pictureNeeds := #[], b := bv }
   readerPass
   let bd ← takeBoard
   for x in win do mount bd x
@@ -1737,14 +1771,15 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   for i in [0:s.ids.size] do
     let bot := bots[i]!
     if bot > fhi then break
-    if bot + heightOf s s.ids[i]!.2 ≥ flo then paintRow s.ids[i]!.2
+    if bot + heightOf s s.ids[i]!.2 ≥ flo then paintRow s.ids[i]!.2 bot b vh
+  let current ← get
+  current.sh.setNeeds (#[idsW.need] ++ rowNeeds ++ current.pictureNeeds ++ #[countW.need] ++ lists.map Reader.Want.need)
   let tPaint ← (← get).io.nowUs
   -- Retire paints when their row leaves the retained window.
   let s ← get
   let mut rows := s.rows
   for (x, r) in s.rows.toList do
-    let bot := (rowBottom s x).getD 0
-    if bot > b + 5 * vh || bot + r.lay.h < b - 4 * vh then
+    if !win.contains x then
       retireRow r
       rows := rows.erase x
   modify fun s => { s with
@@ -1895,7 +1930,7 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
 /-- One frame, in one read transaction: every read it makes, and the
 notices it takes (`takeChanges`, its first read), are of one moment of the
 store, so no part of the screen is newer than another. -/
-def step (evs : List Event) : M (Option (List Event)) := do
+def stepCore (evs : List Event) : M (Option (List Event)) := do
   let io := (← get).io
   let incoming := evs ++ (← pollInput) ++ (← io.links).toList.map Event.deepLink
   let lease := (← get).life.lease
@@ -1946,6 +1981,14 @@ def step (evs : List Event) : M (Option (List Event)) := do
   saveCheckpoint
   return r
 
+/-- Foreground assembly suspends admission; the pool can run while the
+native shell presents. Finally also releases it on suspend or errors. -/
+def step (evs : List Event) : M (Option (List Event)) := do
+  let pool := (← get).raster
+  pool.pause true
+  modify fun s => { s with rasterNeeds := #[], imgWaiting := {} }
+  try stepCore evs finally pool.pause false
+
 partial def loop (evs : List Event) : M Unit := do
   match ← step evs with
   | none => pure ()
@@ -1974,7 +2017,8 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   -- the communities are this device's accepted facts: read them once
   -- here to choose the first page
   let sh ← Reader.Shared.new wr.count
-  let probe : St := { io := io, W := W, Hs := Hs, insetTop := 0, insetBot := 0, font := font, bgRow := .empty, rd := rd, wr := wr, me := default, sh := sh }
+  let raster ← Work.Pool.new
+  let probe : St := { io := io, W := W, Hs := Hs, insetTop := 0, insetBot := 0, font := font, bgRow := .empty, rd := rd, wr := wr, me := default, sh := sh, raster }
   let ((all, _), _) ← (Kinds.Accepted.read : M _).run probe
   let comms := Kinds.Accepted.listed all
   let me := comms[0]?.getD default
@@ -1988,7 +2032,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
            wr := wr, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
            -- a removal already in the store at launch is not announced
            goneSeen := (all.toList.filter (·.removed)).map (·.acc),
-           dbPath := dbPath, netCfg := net, sh := sh, rst := some { rd := ← openDb dbPath } }
+           dbPath := dbPath, netCfg := net, sh := sh, raster, rst := some { rd := ← openDb dbPath } }
   let mut initial := initial
   if let some cp := saved then
     let (version, _, acc, _, _, _) := cp

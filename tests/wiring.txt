@@ -95,6 +95,17 @@ wired Engine.Sync.recv_send
 wired Engine.Sync.hold_reply_local
 wired Connection.wire_kinds
 wired Connection.local_kinds
+## Component demand: these laws must keep naming running decisions.
+wired Demand.complete_retired
+wired Demand.complete_current
+wired Demand.owned_iff
+wired Demand.next_visible
+wired Demand.retained_prefix
+wired Demand.retained_ticket
+wired Demand.reconcile_ticket_none
+wired Demand.remount_fresh
+wired Demand.remount_rejects
+holds Demand.Plan.BeforeNext Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile.
 wired Community.connect_iff
 wired Community.removal_cuts_off
 wired Connection.Noise.Symbolic.kk_secret
@@ -323,7 +334,7 @@ todo Screen.Frame.listWins = Screen.Frame.wants
 todo Screen.Frame.near = Screen.Frame.wants
 todo Screen.Frame.shown = Screen.Frame.wants
 todo Engine.Subs.ofList = Screen.Frame.wants
-todo Pics.after The picture doors as data (`PicM`), measured: the app's own doors (its decode table and frame counter) are not shown to answer as `PicM`'s. Prove they do, or state these over them.
+todo Pics.after Legacy picture-door model (`PicM`); the app now uses owned Reader wants and Work.Pool continuations. Restate these cost/settling laws over that running path, including decode-unit bounds.
 todo Pics.costIn = Pics.after
 
 # Noto: measured payload is a specification of the retained running cache.
