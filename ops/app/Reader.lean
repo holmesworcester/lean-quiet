@@ -309,10 +309,12 @@ def judgeWrite (rd : Db) (out : Array Pending) (w : Community.Write) : IO (Optio
   return some pend
 
 /-- One pass, in one read transaction; whether it put anything or took
-any change. -/
-def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
+any change. `afterSnapshot` is a deterministic scheduling seam: a test
+may publish another request after this pass has captured its whole pair. -/
+def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ()) : RM Bool := do
   if !(← (← get).enabled) then return false
   let (gen, wants) ← sh.request.get
+  afterSnapshot
   let notes ← sh.notes.modifyGet fun a => (a, #[])
   let acts ← sh.acts.modifyGet fun a => (a, #[])
   -- at rest (the writers' counter unmoved, no note, the same wants,

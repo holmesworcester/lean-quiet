@@ -228,6 +228,11 @@ description = "Lifecycle, production reader teardown, parked writes and same-sto
 depends = ["crypto"]
 run = "tests/app/lifecycle.sh"
 
+[tasks."host:reader-request-negative"]
+description = "Deterministic SQLite reader request interleaving and torn-generation negative control"
+depends = ["crypto"]
+run = "bash tests/app/reader_request_negative.sh"
+
 [tasks."engine:restart"]
 description = "Stop a retained runner, explicitly close its listener, and restart on the same port"
 depends = ["crypto"]

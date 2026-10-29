@@ -263,6 +263,61 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
   ck.ok "cold start records stored removal without announcing it"
     (afterRemoval.goneSeen.contains switched.cur && afterRemoval.notices.isEmpty)
 
+/-- The real Reader.pass, paused between sampling its request and opening
+SQLite, while another thread publishes a new window. A torn old-wants /
+new-generation pair would permanently consume the new generation without
+ever reading its window, even on the periodic journal fallback. -/
+private def readerRequest (dir : String) (ck : Tests.Checks) : IO Unit := do
+  let path := dir ++ "/reader-request.db"
+  freshDb path
+  let db ← openDb path
+  db.filings
+  let d := Device.named "reader request snapshot"
+  let r := root d (Tests.keyOf d)
+  let k := sha256 "reader request key".toUTF8
+  let msg := sealedPost r.id r.id d k (ByteArray.mk (Array.replicate 24 7))
+    "a committed message before navigation".toUTF8 1 1234
+  (receive fam (intake fam true [r, contentKey r.id k, msg])).run db
+  let commits ← IO.mkRef 1
+  let sh ← Reader.Shared.new commits
+  let countW := Reader.Want.count r.id none
+  let windowW := Reader.Want.window r.id none 100 100
+  sh.setWants #[countW]
+  let (_, initial) ← (Reader.pass sh).run { rd := ← openDb path }
+  ck.ok "request fixture has a real count and no window"
+    (((← sh.board.get).get? countW).map (·.1) == some (.count 0 1) &&
+      ((← sh.board.get).get? windowW).isNone)
+  let sampled ← IO.mkRef false
+  let release ← IO.mkRef false
+  let await (flag : IO.Ref Bool) : IO Unit := do
+    let deadline := (← IO.monoMsNow) + 5000
+    while !(← flag.get) do
+      if (← IO.monoMsNow) ≥ deadline then throw (IO.userError "reader request barrier timed out")
+      IO.sleep 1
+  let pending ← IO.asTask (prio := .dedicated) do
+    (Reader.pass sh (afterSnapshot := do sampled.set true; await release)).run initial
+  try
+    await sampled
+    sh.setWants #[windowW, countW]
+  finally
+    release.set true
+  let (_, sampledState) ← match ← IO.wait pending with
+    | .ok result => pure result
+    | .error e => throw e
+  ck.ok "sampled request keeps its original generation" (sampledState.gen == initial.gen)
+  -- No commit, note, further request, or arbitrary sleep repairs the state.
+  let (_, next) ← (Reader.pass sh).run sampledState
+  let expected : Reader.Val := .window #[(msgKey 1 1234, msg.id)] 0
+  ck.ok "new window arrives on next pass without another change"
+    (((← sh.board.get).get? windowW).map (·.1) == some expected &&
+      next.gen == (← sh.generation))
+  let (_, fallback) ← (Reader.pass sh).run { next with readAt := 0 }
+  ck.ok "periodic fallback retains the requested message window"
+    (((← sh.board.get).get? windowW).map (·.1) == some expected &&
+      fallback.wantSet.contains windowW)
+  ck.ok "request regression performs no intervening writes or notifications"
+    ((← commits.get) == 1 && (← sh.notes.get).isEmpty && fallback.seen == initial.seen)
+
 private def threaded (dir : String) (ck : Tests.Checks) : IO Unit := do
   let path := dir ++ "/reader.db"
   freshDb path
@@ -373,10 +428,15 @@ private def crash (mode dir : String) : IO Unit := do
 def main (args : List String) : IO UInt32 := do
   let dir := args[0]?.getD "out/lifecycle"
   IO.FS.createDirAll dir
+  if args[1]? == some "reader-request" then
+    let ck ← Tests.Checks.new
+    readerRequest dir ck
+    return ← ck.finish "reader request"
   if let some mode := args[1]? then crash mode dir; return 0
   let ck ← Tests.Checks.new
   try
     scenario dir ck
+    readerRequest dir ck
     threaded dir ck
   catch e => IO.eprintln s!"lifecycle exception: {e}"; IO.Process.exit 1
   IO.Process.exit (← ck.finish "lifecycle").toUInt8
