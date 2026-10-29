@@ -480,10 +480,14 @@ def commas (ns : List Name) : String := ", ".intercalate (ns.map toString)
 probes and tests). -/
 def shipping : IO (Array String) := do
   let mut out := #[]
-  for dir in ["platforms/android/twin", "platforms/android/native"] do
+  for dir in ["platforms/android/twin"] do
     for f in ← System.FilePath.walkDir dir do
       if [some "c", some "h", some "java", some "kt"].contains f.extension then
         out := out.push (← IO.FS.readFile f)
+  -- the glue every platform compiles (glue_android.c is gone: Android and
+  -- iOS build engine/native's)
+  for f in ["engine/native/glue.c", "engine/native/crypto.c"] do
+    out := out.push (← IO.FS.readFile f)
   for e in ← System.FilePath.readDir "platforms/ios" do
     if [some "m", some "c", some "h"].contains e.path.extension then
       out := out.push (← IO.FS.readFile e.path)
