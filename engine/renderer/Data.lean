@@ -99,9 +99,10 @@ def Writer.save (w : Writer) (b : ByteArray) : IO Unit :=
 def Writer.saveDone (w : Writer) : IO Bool :=
   return (← w.saved.get) == (← w.saving.get).1
 
-/-- Commit the newest checkpoint, if one waits. On an error it stays, to
-be tried again; one handed over meanwhile replaces it. -/
-def Writer.commitSave (w : Writer) (db : Db) (save : Db → ByteArray → IO Unit) : IO Unit := do
+/-- Commit the newest checkpoint, if one waits. On an error retry before
+returning to the job: one handed over meanwhile replaces it. Only the
+writer's thread waits; the frame and suspend's deadline never do. -/
+partial def Writer.commitSave (w : Writer) (db : Db) (save : Db → ByteArray → IO Unit) : IO Unit := do
   let (n, some b) ← w.saving.get | return
   try
     save db b
@@ -110,6 +111,7 @@ def Writer.commitSave (w : Writer) (db : Db) (save : Db → ByteArray → IO Uni
   catch e =>
     IO.eprintln s!"writer: checkpoint: {e}"
     IO.sleep 50
+    w.commitSave db save
 
 def Writer.run1 (w : Writer) (db : Db) (j : Job) : IO Unit := do
   let t0 ← nowUs

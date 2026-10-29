@@ -25,7 +25,9 @@ journaled intents by op id before reading accepted communities. Repeated
 replay is idempotent. Each changed checkpoint is handed to the writer's
 thread before the event turn returns (`Data.Writer.save`); the writer
 commits the newest one, before any job submitted after it, and suspend's
-deadline covers that commit. The frame never commits: it holds its read
+deadline covers that commit. A failed checkpoint is retried on the writer
+before its following job runs; a temporary SQLite write lock cannot make
+the writer attempt and discard that job. The frame never commits: it holds its read
 transaction all turn, and a node's `wal_checkpoint(TRUNCATE)` (a purge's)
 holds SQLite's write lock until every reader finishes, so a commit on the
 frame waited on the frame itself until the busy timeout threw out of

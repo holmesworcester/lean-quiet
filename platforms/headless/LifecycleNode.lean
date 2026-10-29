@@ -309,6 +309,42 @@ def purge (dir : String) (ck : Checks) : IO Unit := do
     ck.ok "the send is stored and the newest checkpoint committed" (stored && cp.isSome && cp == (← get).saved)
     discard <| step [.background]).run s
 
+/-- A real SQLite write lock makes checkpoint saves fail. The writer must
+retain the following job until its checkpoint commits, even through
+retries; otherwise it also attempts the job under that lock and loses it. -/
+def writerRetry (dir : String) (ck : Checks) : IO Unit := do
+  let path := dir ++ "/writer-retry.db"
+  for suffix in ["", "-wal", "-shm"] do
+    if ← System.FilePath.pathExists (path ++ suffix) then IO.FS.removeFile (path ++ suffix)
+  let rd ← openDb path
+  Lifecycle.init rd
+  let attempts ← IO.mkRef 0
+  let w ← Writer.start path fun db bytes => do
+    attempts.modify (· + 1)
+    db.exec "PRAGMA busy_timeout=1"
+    Lifecycle.save db bytes
+  w.paused.set true
+  let lock ← openDb path
+  lock.exec "BEGIN IMMEDIATE"
+  let cp : Lifecycle.Checkpoint := (1, 0, .empty, .empty, 0, [])
+  let op := Op.make 250 [] "a write after the checkpoint".toUTF8
+  try
+    w.save (Codec.encode cp)
+    w.submit ⟨[op], true⟩
+    w.paused.set false
+    let deadline := (← IO.monoMsNow) + 3000
+    while (← attempts.get) < 3 && (← IO.monoMsNow) < deadline do IO.sleep 2
+    ck.ok "the held SQLite write lock forces checkpoint retries" ((← attempts.get) ≥ 3)
+    ck.ok "a failed checkpoint keeps its following job pending"
+      ((← w.busy.get) == 1 && !(← w.saveDone) && (← Data.status rd op.id).isNone)
+  finally
+    lock.exec "ROLLBACK"
+  let deadline := (← IO.monoMsNow) + 3000
+  while ((← w.busy.get) != 0 || !(← w.saveDone)) && (← IO.monoMsNow) < deadline do IO.sleep 2
+  ck.ok "the retried checkpoint and its following job both reach SQLite"
+    ((← w.busy.get) == 0 && (← w.saveDone) && (← Lifecycle.load rd) == some cp &&
+      (← (Q.op op.id).run rd #[]) == .bytes (some op.bytes))
+
 end LifecycleNode
 
 def main (args : List String) : IO UInt32 := do
@@ -318,4 +354,5 @@ def main (args : List String) : IO UInt32 := do
   LifecycleNode.bounded dir ck
   LifecycleNode.acts dir ck
   LifecycleNode.purge dir ck
+  LifecycleNode.writerRetry dir ck
   IO.Process.exit (← ck.finish "lifecycle node").toUInt8

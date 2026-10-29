@@ -225,7 +225,7 @@ depends = ["crypto"]
 run = "tests/engine/restart.sh"
 
 [tasks."host:lifecycle-node"]
-description = "Chaos through pending boot and a full node channel, Home's count, and bounded suspend"
+description = "Chaos through pending boot and a full node channel, Home's count, bounded suspend, purge checkpoint deadlocks and checkpoint retries under a SQLite write lock"
 depends = ["crypto"]
 run = "tests/app/lifecycle_node.sh"
 
