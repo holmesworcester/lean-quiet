@@ -10,7 +10,7 @@ export PATH="$ELAN_HOME/bin:$PATH"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/pic-nc.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 . tests/snapshot.sh
-snapshot "$tmp/base" engine/core engine/wire engine/renderer ops platforms/headless App.lean Quiet.lean assets
+snapshot "$tmp/base" engine/core engine/wire engine/renderer ops platforms/headless App.lean AppTypes.lean AppLife.lean Quiet.lean assets
 run() {  # build and run pic_retry in $tmp/w; its exit code
   (cd "$tmp/w" && lake build pic_retry >"$tmp/build.log" 2>&1) || { echo "FAIL: the copy does not build"; tail -20 "$tmp/build.log"; exit 1; }
   (cd "$tmp/w" && .lake/build/bin/pic_retry "$tmp/out" >"$tmp/run.log" 2>&1)

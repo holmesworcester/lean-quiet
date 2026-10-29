@@ -25,9 +25,8 @@ typedef struct {
   int64_t t;
 } BaTouch;
 
-// Blocks until the activity has a surface or is going away; with a
-// surface, returns it locked for use, with its size, until ba_unlock.
-// Returns NULL once the activity is going away.
+// Returns the resumed activity's current surface locked until ba_unlock.
+// Returns NULL immediately while paused, without a surface, or closing.
 ANativeWindow* ba_lock(int32_t* w, int32_t* h);
 void           ba_unlock(void);
 
@@ -66,6 +65,7 @@ char* ba_text(uint32_t pos[4]);
 // Asks the Java half to open or close the keyboard, or empty the text
 // (from any thread).
 void ba_ime(bool show);
+char* ba_take_link(void);
 
 // Debug properties, read at start: debug.lean.ahead=0 (no drawing ahead
 // of a fling), debug.lean.trace=1 (per-vsync log).

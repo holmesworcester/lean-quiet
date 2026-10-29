@@ -48,6 +48,8 @@
 #                        not reach NAME: a send that waits on sync
 #   thread NAME          a thread the frame starts, which waits on its own:
 #                        the `block` walk does not enter it
+#   bounded NAME TEXT    the sole App.suspend barrier, with its deadline;
+#                        its walk permits waitFor but no other blocking call
 #   waits NAME TEXT      NAME is a mutant that waits, the `block` rule's
 #                        negative control: the walk must catch it, and it
 #                        must not run
@@ -76,7 +78,6 @@ block Engine.Sync.enqueue a send that waits while the node's channel is full
 block Std.CloseableChannel.Sync.send a channel send that waits while the channel is full
 block IO.wait waiting on another thread's task
 thread Engine.Sync.Runner.start
-thread Reader.run
 waits App.submitWaits the frame's send to the node as it was before the toNode queue: it waits while the channel is full
 
 ## Wired, and must stay so: the laws "What is proven" rests on
@@ -357,3 +358,15 @@ todo Heights.T.toList = Heights.T.sum
 todo Heights.clog = Heights.T.sum
 todo Heights.rebuild = Heights.T.sum
 todo Heights.screenY = Heights.T.sum
+
+spec Lifecycle.Mount.subscriptions The watch-key projection of the mounted tree's running queries; Lifecycle.prune keeps their live entries.
+
+# Same block walk as ca4d713. Only the lifecycle barrier may poll a deadline;
+# all ordinary navigation, resize and resume paths must remain nonblocking.
+block App.waitFor bounded polling is reserved for suspend, never a normal frame or resume
+thread Reader.work
+thread App.stopNodes
+bounded App.suspend One shared 250ms deadline via waitFor; unfinished teardown remains owned, and resume only polls it.
+waits App.waitsOnNode a blocking send must be caught even when suspend is exempted
+waits App.waitsOnTask an unguarded task join must be caught
+waits App.waitsOnDeadline deadline polling on an ordinary frame must be caught

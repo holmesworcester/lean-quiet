@@ -2,7 +2,7 @@
 // =================
 
 // Platform.lean's effects with no OS, for tests and CI. The screen is a
-// fixed 1080 x 2400 at 420 dpi with a 128 px status bar and a 63 px
+// initially 1080 x 2400 at 420 dpi with a 128 px status bar and a 63 px
 // navigation bar. Everything the OS would do is driven by a script (the
 // file named by QUIET_SCRIPT, else stdin), one line per frame:
 //
@@ -16,6 +16,10 @@
 //   !send              the keyboard's send
 //   !scroll B          the list's offset becomes B
 //   !ime H             the keyboard's height becomes H (0: closed)
+//   !background / !foreground / !surface 0|1
+//                      lifecycle events, delivered even without a frame
+//   !resize W H        change the viewport
+//   !link URL          deliver a warm URL (QUIET_LINK supplies a launch URL)
 //   !frames N          N frames pass with nothing new
 //   !sync              frames pass until every command has been answered
 //   !dump FILE.ppm     the screen as the compositor would show it
@@ -33,8 +37,9 @@
 #include <string.h>
 #include <time.h>
 
-#define HW 1080
-#define HH 2400
+#define HW host_w
+#define HH host_h
+static uint32_t host_w = 1080, host_h = 2400;
 #define HTOP 128
 #define HBOT 63
 #define HDPI 420
@@ -66,6 +71,8 @@ typedef struct {
 } Host;
 
 static Host hs;
+static bool polled, suspended, surface = true, pinned;
+static char* pending_link;
 
 static void ev_push(uint32_t k, uint32_t a, uint32_t b, uint32_t c) {
   if (hs.n + 4 > 1024) return;
@@ -116,7 +123,7 @@ static void tap(uint32_t kind, const char* region, int x, int y) {
   } else if (strcmp(region, "composer") == 0) {
     ev_push(kind, 2, (uint32_t)x, (uint32_t)y);
   } else {
-    int32_t d = (int32_t)lroundf(hs.off) + composer_top() - 1 - y;
+    int32_t d = (int32_t)lroundf(hs.off) + composer_top() + (pinned && hs.ime > HBOT ? hs.ime - HBOT : 0) - 1 - y;
     ev_push(kind, 0, (uint32_t)x, (uint32_t)(d < 0 ? 0 : d));
   }
 }
@@ -126,11 +133,10 @@ static void tap(uint32_t kind, const char* region, int x, int y) {
 // the viewport), the header at the top, the composer above the navigation
 // bar or keyboard with its last row repeated to the screen's bottom.
 static void dump(const char* path) {
-  static uint8_t px[HW * HH * 3];
-  memset(px, 0, sizeof px);
+  uint8_t* px = calloc((size_t)HW * HH, 3);
   uint32_t th   = rows_of(hs.top);
   int32_t  ctop = composer_top();
-  int32_t  s    = hs.ime > HBOT ? (int32_t)hs.ime - HBOT : 0;
+  int32_t  s    = !pinned && hs.ime > HBOT ? (int32_t)hs.ime - HBOT : 0;
   for (int32_t y = 0; y < HH; y++) {
     lean_object* row = NULL;
     if (y < (int32_t)th) {
@@ -153,10 +159,12 @@ static void dump(const char* path) {
   FILE* f = fopen(path, "wb");
   if (f == NULL) {
     fprintf(stderr, "host: cannot write %s\n", path);
+    free(px);
     return;
   }
   fprintf(f, "P6\n%d %d\n255\n", HW, HH);
-  fwrite(px, 1, sizeof px, f);
+  fwrite(px, 1, (size_t)HW * HH * 3, f);
+  free(px);
   fclose(f);
 }
 
@@ -190,9 +198,19 @@ static void script(void) {
       if (hs.ncmd < 256) hs.cmds[hs.ncmd++] = strdup(line);
       return;
     }
-    char a[64] = { 0 }, r[64] = { 0 };
+    char r[64] = { 0 };
     int  x = 0, y = 0;
-    if (sscanf(line, "!tap %63s %d %d", r, &x, &y) == 3) {
+    if (strcmp(line, "!background") == 0) {
+      suspended = true; ev_push(9, 0, 0, 0);
+    } else if (strcmp(line, "!foreground") == 0) {
+      suspended = false; ev_push(10, 0, 0, 0);
+    } else if (sscanf(line, "!surface %d", &x) == 1) {
+      surface = x != 0; ev_push(11, surface, 0, 0);
+    } else if (sscanf(line, "!resize %d %d", &x, &y) == 2 && x > 0 && y > 0) {
+      host_w = x; host_h = y; ev_push(12, 0, 0, 0);
+    } else if (strncmp(line, "!link ", 6) == 0) {
+      free(pending_link); pending_link = strdup(line + 6);
+    } else if (sscanf(line, "!tap %63s %d %d", r, &x, &y) == 3) {
       tap(2, r, x, y);
     } else if (sscanf(line, "!long %63s %d %d", r, &x, &y) == 3) {
       tap(3, r, x, y);
@@ -212,8 +230,8 @@ static void script(void) {
       hs.wait = x > 0 ? (uint32_t)x - 1 : 0;
     } else if (strcmp(line, "!sync") == 0) {
       hs.syncing = true;
-    } else if (sscanf(line, "!dump %63s", a) == 1) {
-      dump(a);
+    } else if (strncmp(line, "!dump ", 6) == 0) {
+      dump(line + 6);
       continue;  // a dump shows what is there; no frame passes
     } else {
       fprintf(stderr, "host: unknown line: %s\n", line);
@@ -264,13 +282,16 @@ lean_obj_res lq_scroll_to(double b) {
 
 lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj_arg top,
   b_lean_obj_arg bot, uint8_t pin) {
-  (void)pin;
+  pinned = pin != 0;
+  if (suspended || !surface) {
+    fprintf(stderr, "host: frame without an active surface\n"); abort();
+  }
   hold(&hs.list, list);
   hold(&hs.top, top);
   hold(&hs.bot, bot);
   hs.b    = b;
   hs.over = over;
-  script();
+  if (!polled) script();
   lean_object* evs = lean_mk_empty_array_with_capacity(lean_box(hs.n));
   for (uint32_t i = 0; i < hs.n; i++) evs = lean_array_push(evs, lean_box_uint32(hs.ev[i]));
   hs.n = 0;
@@ -344,6 +365,32 @@ lean_obj_res lq_now_us(void) {
   clock_gettime(CLOCK_MONOTONIC, &ts);
   return lean_io_result_mk_ok(lean_box_uint64((uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u));
 }
+
+lean_obj_res lq_poll(void) {
+  polled = true;
+  script();
+  lean_object* evs = lean_mk_empty_array();
+  for (uint32_t i = 0; i < hs.n; i++) evs = lean_array_push(evs, lean_box_uint32(hs.ev[i]));
+  hs.n = 0;
+  return lean_io_result_mk_ok(evs);
+}
+
+lean_obj_res lq_links(void) {
+  static bool launched;
+  lean_object* links = lean_mk_empty_array();
+  if (!launched) {
+    launched = true;
+    const char* url = getenv("QUIET_LINK");
+    if (url != NULL) links = lean_array_push(links, lean_mk_string(url));
+  }
+  if (pending_link != NULL) {
+    links = lean_array_push(links, lean_mk_string(pending_link));
+    free(pending_link); pending_link = NULL;
+  }
+  return lean_io_result_mk_ok(links);
+}
+
+
 
 lean_obj_res lq_log(b_lean_obj_arg s) {
   fprintf(stderr, "%s\n", lean_string_cstr(s));

@@ -58,7 +58,7 @@ AREAS = [("engine.core", "Engine"), ("ops.sync", "Sync"), ("engine.world", "The 
          ("engine.wire", "Node and wire"), ("ops.connection.bootstrap", "Bootstrap"),
          ("ops.connection", "Connections"), ("ops.community", "Community"),
          ("engine.renderer.qr", "QR codes"), ("engine.renderer.pic", "Pictures"),
-         ("engine.renderer", "Screen"), ("ops.app", "App"), ("App", "App")]
+         ("engine.renderer", "Screen"), ("ops.app", "App"), ("App", "App"), ("AppLife", "App"), ("AppTypes", "App")]
 # What a 🟡 row says to name what is missing.
 WANTED = re.compile(r"wanted|not yet|not proven|not covered|todo", re.I)
 # The lead's count, and the share "nearly every" needs.

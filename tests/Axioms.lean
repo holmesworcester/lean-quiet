@@ -1,3 +1,4 @@
+import ops.app.LifecycleLaws
 import ops.sync.TimeLaws
 import ops.sync.RetryLaws
 import ops.sync.BoundsLaws
@@ -766,3 +767,20 @@ end cost
 #print axioms Text.Bidi.reorder_perm
 #print axioms Text.Bidi.display_perm
 #print axioms Text.Bidi.run_contiguous
+
+
+#print axioms Lifecycle.unmounted_quiet
+#print axioms Lifecycle.old_quiet
+#print axioms Lifecycle.subscriptions_exact
+#print axioms Lifecycle.resize_anchor
+#print axioms Lifecycle.restore_checkpoint
+#print axioms Lifecycle.mounted_runs
+#print axioms App.page_round
+#print axioms LifecycleLaws.unmount_read
+#print axioms LifecycleLaws.unmount_write
+#print axioms LifecycleLaws.old_callback
+#print axioms LifecycleLaws.restore_page_anchor
+#print axioms LifecycleLaws.viewport_geometry
+#print axioms LifecycleLaws.viewport_possible
+#print axioms LifecycleLaws.apply_page_anchor
+#print axioms Lifecycle.live_exact

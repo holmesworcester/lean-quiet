@@ -1,3 +1,4 @@
+#include "listener.h"
 // SQLite for Lean on Android and iOS: the same symbols as
 // lean-engine/native/glue.c, over the vendored SQLite amalgamation
 // (third_party/sqlite) instead of the system library. The crypto is

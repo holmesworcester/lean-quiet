@@ -46,9 +46,7 @@ def resize (d : Driver) (w h : Nat) : IO Driver := do
   let aw := max 275 g.main.w
   let ah := d.height - 40
   d.screen.set #[aw.toUInt32, ah.toUInt32, 0, 0, 160]
-  let s := d.app
-  let s := if s.W == aw && s.Hs == ah then s else
-    { s with W := aw, Hs := ah, bgRow := Paint.solid Row.bg aw, rows := {}, heights := {}, imgs := {}, pageKey := none, chromeKey := "", gridKey := "", gridRows := {} }
+  let (_, s) ← (App.resize (← d.screen.get)).run d.app
   return { d with app := s }
 
 def act (d : Driver) (a : Action) : IO Driver := do

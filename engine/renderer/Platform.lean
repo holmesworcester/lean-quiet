@@ -118,6 +118,11 @@ tm_gmtoff), for showing times. -/
 device console on iOS, stderr on the host. -/
 @[extern "lq_log"] opaque log : @& String → IO Unit
 
+/-- Events without submitting a frame; usable while suspended. -/
+@[extern "lq_poll"] opaque poll : IO (Array UInt32)
+/-- Cold/warm OS URL deliveries, independent of the debug channel. -/
+@[extern "lq_links"] opaque links : IO (Array String)
+
 end Platform
 
 namespace App
@@ -130,6 +135,11 @@ inductive Region where
 /-- What a frame's events can be. -/
 inductive Event where
   | close
+  | background
+  | foreground
+  | surface (present : Bool)
+  | resize
+  | deepLink (url : String)
   /-- A tap: a press and release without a drag. In the list, `y` is the
   distance above the content's end (the same coordinate as the list
   frame's rows); in the header or composer, the row within it. -/
@@ -176,6 +186,10 @@ def Event.decode (ws : Array UInt32) : List Event := Id.run do
     else if k == 6 then out := out.push (.ime a)
     else if k == 7 then out := out.push (.scrolling (a != 0))
     else if k == 8 then out := out.push (.drag a b c)
+    else if k == 9 then out := out.push .background
+    else if k == 10 then out := out.push .foreground
+    else if k == 11 then out := out.push (.surface (a != 0))
+    else if k == 12 then out := out.push .resize
   return out.toList
 
 end App

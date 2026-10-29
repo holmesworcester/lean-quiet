@@ -18,6 +18,12 @@ structure Sim where
   on : IO.Ref Bool
   /-- The native text field's text (setText writes it, text reads it). -/
   native : IO.Ref String
+  viewport : IO.Ref (Array UInt32)
+  keyboard : IO.Ref Bool
+  events : IO.Ref (Array UInt32)
+  urls : IO.Ref (Array String)
+  visible : IO.Ref Bool
+  frames : IO.Ref Nat
 
 /-- Two loopback ports for a test's two nodes, from its process id: tests
 running at once (in other worktrees too) get different ports, below
@@ -28,10 +34,14 @@ def testPorts : IO (Nat × Nat) := do
 
 def Sim.new : IO Sim := do
   return ⟨← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef (#[], 0, 0, #[], #[]), ← IO.mkRef 0,
-    ← IO.mkRef (#[], .empty), ← IO.mkRef false, ← IO.mkRef ""⟩
+    ← IO.mkRef (#[], .empty), ← IO.mkRef false,
+    ← IO.mkRef "", ← IO.mkRef #[1080, 2400, 128, 63, 420], ← IO.mkRef false,
+    ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef true, ← IO.mkRef 0⟩
+
+def Sim.input (sm : Sim) : IO.Ref String := sm.native
 
 def Sim.io (sm : Sim) : Io where
-  screen := pure #[1080, 2400, 128, 63, 420]
+  screen := sm.viewport.get
   scroll ch vh := do
     let mx := if ch > vh then (ch - vh).toNat.toFloat else 0
     sm.maxB.set mx
@@ -41,15 +51,21 @@ def Sim.io (sm : Sim) : Io where
     return b.toUInt32
   scrollBy d := sm.b.modify (· + d)
   scrollTo b := sm.b.set b
-  frame fr b o top bot _ := do sm.last.set (fr, b.toNat, o.toNat, top, bot); return #[]
+  frame fr b o top bot _ := do
+    unless ← sm.visible.get do throw (IO.userError "frame without a surface")
+    sm.frames.modify (· + 1)
+    sm.last.set (fr, b.toNat, o.toNat, top, bot)
+    return #[]
   text := do return (← sm.native.get, #[0, 0, 0, 0])
-  ime _ := pure ()
-  setText t := sm.native.set t
+  ime on := sm.keyboard.set on
+  setText := sm.native.set
   copy t := sm.replies.modify (·.push s!"copied {t}")
   ctlPoll := sm.cmds.modifyGet fun c => (c, #[])
   ctlReply s := sm.replies.modify (·.push s)
   nowUs := do return (← IO.monoNanosNow).toUInt64 / 1000
   scan on := sm.on.set on
+  poll := sm.events.modifyGet fun es => (es, #[])
+  links := sm.urls.modifyGet fun us => (us, #[])
   luma := do
     if !(← sm.on.get) then return (#[], .empty)
     sm.camera.get

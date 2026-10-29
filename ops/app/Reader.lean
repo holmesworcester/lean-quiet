@@ -22,6 +22,7 @@ one (the headless twins) the frame runs a pass itself, at the points it
 would take the board.
 -/
 import engine.renderer.Board
+import ops.app.Lifecycle
 import ops.community.message.View
 import ops.community.Intents
 import ops.community.membership.AcceptedView
@@ -154,6 +155,8 @@ structure St where
   readAt : Nat := 0
   /-- The passes that opened the store. -/
   opens : Nat := 0
+  /-- Revocation checked before each query and board publication. -/
+  enabled : IO Bool := pure true
 
 abbrev RM := StateT St IO
 
@@ -209,8 +212,9 @@ def Shared.setWants (sh : Shared) (ws : Array Want) : IO Unit := do
 
 /-- A read through the pass's cache (App's `read`, on this connection). -/
 def read (q : Q) : RM Ans := do
-  modify fun s => { s with log := s.log.push q }
   let s ← get
+  if !(← s.enabled) then return default
+  modify fun s => { s with log := s.log.push q }
   let (a, live) ← (Live.readWith (fun q => q.run s.rd s.out) q).run s.live
   modify fun s => { s with live }
   return a
@@ -317,6 +321,7 @@ def judgeWrite (rd : Db) (out : Array Pending) (w : Community.Write) : IO (Optio
 /-- One pass, in one read transaction; whether it put anything or took
 any change. -/
 def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
+  if !(← (← get).enabled) then return false
   let wants ← sh.wants.get
   let gen ← sh.gen.get
   let notes ← sh.notes.modifyGet fun a => (a, #[])
@@ -343,7 +348,7 @@ def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
     -- the session list, at most every half second, and only in a pass
     -- that opened the store: a session's op is a commit the node's notify
     -- counts, and its purge is seen within the second
-    if now ≥ s.peersAt + 500 then
+    if (← (← get).enabled) && now ≥ s.peersAt + 500 then
       let all ← ((Connection.allSessions : SqlM SF _)).run rd
       let k := Connection.kept all
       sh.peers.set (all.filterMap fun (cid, p, _) => if k.contains cid then some p else none)
@@ -361,14 +366,17 @@ def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
     -- this pass's notices, so the wants they touch are read now
     let mut actNotes : Array Filing := #[]
     for (id, intent) in acts do
+      if !(← (← get).enabled) then break
       let r ← try
           let w ← intent
-          pure (some (w, ← judgeWrite rd (← get).out w))
+          if !(← (← get).enabled) then pure none
+          else pure (some (w, ← judgeWrite rd (← get).out w))
         catch e => do
           IO.eprintln s!"reader: an act failed: {e}"
           pure none
       match r with
       | some (w, some pend) =>
+        if !(← (← get).enabled) then break
         modify fun s => { s with out := s.out ++ pend }
         sh.out.modify (· ++ pend)
         actNotes := actNotes ++ Pending.filings pend.toList
@@ -421,7 +429,7 @@ def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
         { s with deps := s.deps.insert w s.log, dirty := s.dirty.erase w, rev := reindex s.rev w old s.log }
       puts := puts.push (w, v)
     rd.exec "COMMIT"
-    if !puts.isEmpty || moved then
+    if (← (← get).enabled) && (!puts.isEmpty || moved) then
       let want := (← get).wantSet
       sh.board.modify fun b => puts.foldl (fun b (w, v) => b.put w v) (b.keep want.contains)
     return !puts.isEmpty || !fs.isEmpty || !vs.isEmpty || !acts.isEmpty

@@ -156,7 +156,7 @@ stage() {
   touch -r "$T/include/lean/config.h" "$st/lean/include/githash.h"
   cp -rp "$lean_src/src/runtime" "$lean_src/src/util" "$st/lean/src/"
   cp -rp "$uv_src/include" "$uv_src/src" "$st/uv/"
-  cp -p "$root/platforms/android/native/glue_android.c" "$engine/native/crypto.c" \
+  cp -p "$root/platforms/android/native/glue_android.c" "$engine/native/crypto.c" "$engine/native/listener.h" \
     "$root"/third_party/sqlite/sqlite3.[ch] "$st/glue/"
   # The engine's Rust crypto, built here for the device and the
   # Simulator (pure Rust: the Mac only links it).

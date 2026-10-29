@@ -43,6 +43,10 @@ static int32_t         ba_top, ba_bottom, ba_kb;
 static int32_t         ba_density = 420;
 static int32_t         ba_vtop, ba_vbot = 1 << 30;
 static bool            ba_closing;
+static bool            ba_resumed;
+static char*           ba_links[32];
+static unsigned        ba_nlinks;
+static void ba_event(uint32_t k, uint32_t a, uint32_t b, uint32_t c);
 static BaTouch         ba_q[BA_CAP];
 static uint32_t        ba_n;
 static BaTouch         ba_sq[BA_CAP];
@@ -61,6 +65,7 @@ static jobject   ba_act;
 static jmethodID ba_show_ime, ba_copy_text, ba_scan_m, ba_set_text_m;
 
 // The newest camera frame's Y plane, until Lean takes it (ba_take_luma).
+static bool     ba_camera_wanted;
 static uint8_t* ba_luma;
 static size_t   ba_luma_n;
 static uint32_t ba_luma_wh[4];
@@ -74,10 +79,7 @@ bool ba_ahead(void) {
 
 ANativeWindow* ba_lock(int32_t* w, int32_t* h) {
   pthread_mutex_lock(&ba_mu);
-  while (ba_win == NULL && !ba_closing) {
-    pthread_cond_wait(&ba_cv, &ba_mu);
-  }
-  if (ba_closing) {
+  if (ba_win == NULL || !ba_resumed || ba_closing) {
     pthread_mutex_unlock(&ba_mu);
     return NULL;
   }
@@ -88,7 +90,7 @@ ANativeWindow* ba_lock(int32_t* w, int32_t* h) {
 
 bool ba_has_window(void) {
   pthread_mutex_lock(&ba_mu);
-  bool on = ba_win != NULL;
+  bool on = ba_win != NULL && ba_resumed;
   pthread_mutex_unlock(&ba_mu);
   return on;
 }
@@ -135,6 +137,8 @@ static void ba_window_created(ANativeActivity* act, ANativeWindow* win) {
   ba_win = win;
   ba_w   = ANativeWindow_getWidth(win);
   ba_h   = ANativeWindow_getHeight(win);
+  ba_event(11, 1, 0, 0);
+  ba_event(12, 0, 0, 0);
   pthread_cond_broadcast(&ba_cv);
   pthread_mutex_unlock(&ba_mu);
 }
@@ -145,9 +149,31 @@ static void ba_window_resized(ANativeActivity* act, ANativeWindow* win) {
 
 // Returns only once Lean's thread is not drawing to the surface.
 static void ba_window_destroyed(ANativeActivity* act, ANativeWindow* win) {
-  bl_window_gone();
   pthread_mutex_lock(&ba_mu);
   ba_win = NULL;
+  ba_event(11, 0, 0, 0);
+  bl_window_gone();
+  pthread_mutex_unlock(&ba_mu);
+}
+
+static void ba_pause(ANativeActivity* act) {
+  pthread_mutex_lock(&ba_mu);
+  ba_resumed = false;
+  ba_camera_wanted = false;
+  free(ba_luma); ba_luma = NULL; ba_luma_n = 0;
+  ba_kb = 0;
+  ba_n = ba_sn = 0;
+  ba_event(9, 0, 0, 0);
+  bl_window_gone();
+  pthread_cond_broadcast(&ba_cv);
+  pthread_mutex_unlock(&ba_mu);
+}
+
+static void ba_resume(ANativeActivity* act) {
+  pthread_mutex_lock(&ba_mu);
+  ba_resumed = true;
+  ba_event(10, 0, 0, 0);
+  pthread_cond_broadcast(&ba_cv);
   pthread_mutex_unlock(&ba_mu);
 }
 
@@ -163,7 +189,10 @@ static void ba_destroy(ANativeActivity* act) {
 
 static void ba_event(uint32_t k, uint32_t a, uint32_t b, uint32_t c) {
   if (ba_en == BA_EVS) {
-    return;
+    if (k < 9) return;
+    // Lifecycle cannot be lost behind a burst of text or touch events.
+    memmove(ba_ev, ba_ev + 4, (BA_EVS - 1) * 4 * sizeof(uint32_t));
+    --ba_en;
   }
   uint32_t* e = ba_ev + 4 * ba_en++;
   e[0] = k;
@@ -265,6 +294,7 @@ static void JNICALL ba_n_luma(JNIEnv* env, jclass cls, jobject buf, jint w, jint
     return;
   }
   pthread_mutex_lock(&ba_mu);
+  if (!ba_camera_wanted || !ba_resumed) { pthread_mutex_unlock(&ba_mu); return; }
   uint8_t* p = realloc(ba_luma, (size_t)n);
   if (p != NULL) {
     memcpy(p, y, (size_t)n);
@@ -323,6 +353,10 @@ void ba_ime(bool show) {
 
 
 void ba_scan(bool on) {
+  pthread_mutex_lock(&ba_mu);
+  ba_camera_wanted = on;
+  free(ba_luma); ba_luma = NULL; ba_luma_n = 0;
+  pthread_mutex_unlock(&ba_mu);
   if (ba_vm == NULL || ba_act == NULL || ba_scan_m == NULL) {
     return;
   }
@@ -374,16 +408,37 @@ void ba_set_text(const char* utf8) {
   }
 }
 
+// URL delivery is independent of the debug control socket.
+static void JNICALL ba_n_link(JNIEnv* env, jclass cls, jstring text) {
+  char* url = ba_utf8(env, text);
+  pthread_mutex_lock(&ba_mu);
+  if (ba_nlinks < 32) ba_links[ba_nlinks++] = url;
+  else free(url);
+  pthread_mutex_unlock(&ba_mu);
+}
+
+char* ba_take_link(void) {
+  pthread_mutex_lock(&ba_mu);
+  char* url = ba_nlinks ? ba_links[0] : NULL;
+  if (ba_nlinks) {
+    --ba_nlinks;
+    memmove(ba_links, ba_links + 1, ba_nlinks * sizeof(char*));
+  }
+  pthread_mutex_unlock(&ba_mu);
+  return url;
+}
+
 static void ba_java(ANativeActivity* act) {
   JNIEnv* env = act->env;
   jclass  cls = (*env)->GetObjectClass(env, act->clazz);
   JNINativeMethod ms[] = {
     { "nInsets", "(III)V", (void*)ba_n_insets },
     { "nText", "(Ljava/lang/String;IIII)V", (void*)ba_n_text },
+    { "nLink", "(Ljava/lang/String;)V", (void*)ba_n_link },
     { "nSend", "()V", (void*)ba_n_send },
     { "nLuma", "(Ljava/nio/ByteBuffer;IIII)V", (void*)ba_n_luma },
   };
-  if ((*env)->RegisterNatives(env, cls, ms, 4) != 0) {
+  if ((*env)->RegisterNatives(env, cls, ms, 5) != 0) {
     (*env)->ExceptionClear(env);
     __android_log_write(ANDROID_LOG_ERROR, "lean", "cannot register the Java half's natives");
     return;
@@ -638,6 +693,8 @@ void ANativeActivity_onCreate(ANativeActivity* act, void* saved, size_t n) {
   act->callbacks->onNativeWindowDestroyed = ba_window_destroyed;
   act->callbacks->onInputQueueCreated     = ba_queue_created;
   act->callbacks->onInputQueueDestroyed   = ba_queue_destroyed;
+  act->callbacks->onPause                 = ba_pause;
+  act->callbacks->onResume                = ba_resume;
   act->callbacks->onDestroy               = ba_destroy;
   ba_java(act);
   if (ba_started) {

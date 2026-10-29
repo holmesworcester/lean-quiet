@@ -6,7 +6,7 @@ private def platform : App.Io :=
   ⟨Platform.screen, Platform.scroll, Platform.scrollBy, Platform.scrollTo, Platform.frame, Platform.text,
    Platform.ime, fun t => Platform.copy t, Platform.ctlPoll, fun s => Platform.ctlReply s, Platform.nowUs,
    do return ((← Std.Time.Timestamp.now).toSecondsSinceUnixEpoch.val.toNat / 60, (← Platform.tzMin).toInt),
-   Platform.scan, Platform.luma, Platform.log, fun t => Platform.setText t⟩
+   Platform.scan, Platform.luma, Platform.log, (fun t => Platform.setText t), Platform.poll, Platform.links⟩
 
 @[extern "lq_desktop_frame"] opaque desktopFrame (rows : @& Array ByteArray) : IO (Array UInt32)
 @[extern "lq_desktop_select"] opaque desktopSelect (anchor caret : UInt32) : IO Unit

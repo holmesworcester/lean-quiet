@@ -47,3 +47,5 @@ tests/engine/crypto_compat.sh
 tests/engine/crash.sh "${CRASH_ROUNDS:-10}" out/crash
 
 tests/engine/harden.sh
+
+tests/engine/restart.sh
