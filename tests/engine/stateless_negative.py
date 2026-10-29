@@ -17,8 +17,8 @@ assert run([".lake/build/bin/fullsync", "512"], "baseline-run") == 0
 # name, source, old, mutant, target, runtime assertion (None means proof)
 cases = [
     ("full-bookkeeping", "ops/sync/Conn.lean",
-     "  let c := c.queue cfg (sent.flatMap Op.reqs)",
-     "  let c := { c with offered := sent.foldl (fun k o => k.insert o.id) c.offered, frontier := c.frontier ++ sent.flatMap Op.reqs }",
+     " } |>.queue cfg (sent.flatMap Op.reqs)",
+     " } |> fun c => { c with offered := sent.foldl (fun k o => k.insert o.id) c.offered, frontier := c.frontier ++ sent.flatMap Op.reqs }",
      "fullsync", "full round keeps no sender per-op state"),
     ("full-law", "ops/sync/Conn.lean",
      "if c.roundFloor ≤ 1 then (c.frontier, false)", "if False then (c.frontier, false)",

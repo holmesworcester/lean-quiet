@@ -91,18 +91,34 @@ def wantChecks (t : Checks) : IO Unit := do
   let z := Op.make 1 [b] "next".toUTF8
   let c : Conn := { dialer := false, rooms := [b], floor := 0 }
   let ix := Index.ofOps fam [x, y, z]
-  let (s, trace) := (c.onWant fam {} ix [x.id, y.id] : TM Step).run { ops := [x, y, z] }
-  t.ok "cross-room want sends only y" (s.send.map (·.id) == [y.id])
+  let cfg : Config := {}
+  let q := (c.onWant cfg ix [x.id, y.id]).conn
+  t.ok "cross-room want queues only y, and reads nothing" (q.owed == [y.id])
+  let ((q1, urgent, bulk), trace) := (q.serveOwed fam cfg 1000 [] : TM _).run { ops := [x, y, z] }
+  t.ok "cross-room want sends only y" (bulk.map (·.id) == [y.id] && urgent.isEmpty && q1.owed.isEmpty)
   t.ok "cross-room want never reads large x" (trace.reads == [y.id])
-  let (s2, trace2) := (c.onWant fam {} ix [x.id, y.id] : TM Step).run { ops := [y, z] }
-  t.ok "outside possession changes neither reads nor reply" (trace2.reads == trace.reads && s2.send.map (·.id) == s.send.map (·.id))
-  let cfg : Config := { wantBytes := y.bytes.size }
-  let (s, trace) := (c.onWant fam cfg ix [y.id, z.id] : TM Step).run { ops := [x, y, z] }
-  t.ok "budget stops subsequent blob reads" (trace.reads == [y.id] && s.send.map (·.id) == [y.id])
-  let (s, trace) := (c.onWant fam { wantBytes := 0 } ix [y.id] : TM Step).run { ops := [y] }
-  t.ok "zero budget reads and sends nothing" (trace.reads.isEmpty && s.send.isEmpty)
-  let (s, trace) := (c.onWant fam { wantBytes := 1 } ix [y.id, z.id] : TM Step).run { ops := [y,z] }
-  t.ok "one oversize op is whole; next is unread" (trace.reads == [y.id] && s.send.map (·.id) == [y.id])
+  let ((_, _, bulk2), trace2) := (q.serveOwed fam cfg 1000 [] : TM _).run { ops := [y, z] }
+  t.ok "outside possession changes neither reads nor reply" (trace2.reads == trace.reads && bulk2.map (·.id) == bulk.map (·.id))
+  let q := (c.onWant cfg ix [y.id, z.id]).conn
+  let ((q1, _, bulk), trace) := (q.serveOwed fam cfg y.bytes.size [] : TM _).run { ops := [x, y, z] }
+  t.ok "budget stops subsequent blob reads" (trace.reads == [y.id] && bulk.map (·.id) == [y.id] && q1.owed == [z.id])
+  let ((q2, _, bulk), _) := (q1.serveOwed fam cfg y.bytes.size [] : TM _).run { ops := [x, y, z] }
+  t.ok "the rest is served at the next step, in order" (bulk.map (·.id) == [z.id] && q2.owed.isEmpty)
+  let ((q0, _, bulk), trace) := (q.serveOwed fam cfg 0 [] : TM _).run { ops := [y, z] }
+  t.ok "zero budget reads and sends nothing, and keeps the queue" (trace.reads.isEmpty && bulk.isEmpty && q0.owed == q.owed)
+  let ((_, _, bulk), trace) := (q.serveOwed fam cfg 1 [] : TM _).run { ops := [y, z] }
+  t.ok "one oversize op is whole; next is unread" (trace.reads == [y.id] && bulk.map (·.id) == [y.id])
+  let ((qf, urgent, bulk), _) := (q.serveOwed fam cfg 0 [z.id] : TM _).run { ops := [y, z] }
+  t.ok "a fresh write wanted is served urgent, whatever the budget" (urgent.map (·.id) == [z.id] && bulk.isEmpty && qf.owed == [y.id])
+  let gone := Op.make 1 [b] "purged".toUTF8
+  let ixg := Index.ofOps fam [gone, y]
+  let qg := (c.onWant cfg ixg [gone.id, y.id]).conn
+  let ((qg1, _, bulk), _) := (qg.serveOwed fam cfg 1000 [] : TM _).run { ops := [y] }
+  t.ok "an id no longer stored leaves the queue unanswered" (bulk.map (·.id) == [y.id] && qg1.owed.isEmpty)
+  let qb := (c.onWant { maxKnown := 1 } ix [y.id, z.id]).conn
+  t.ok "the queue holds at most maxKnown ids" (qb.owed == [y.id])
+  let qd := (q.onWant cfg ix [y.id, z.id]).conn
+  t.ok "a repeated want is not queued twice" (qd.owed == q.owed)
 
 def memoryChecks (t : Checks) : IO Unit := do
   let da ← Db.openAt ":memory:"
@@ -284,7 +300,9 @@ def sharedSocketChecks (t : Checks) : IO Unit := do
   let ch ← eventChannel { queue := 4 }
   let c ← Std.Async.TCP.Socket.Client.mk
   let stopped ← IO.mkRef false
-  let sock : Sock := { id := 0, client := c, addr, heard := 0, stopped }
+  let out ← Std.Mutex.new {}
+  let wake ← Std.Condvar.new
+  let sock : Sock := { id := 0, client := c, addr, heard := 0, stopped, out, wake, done := Task.pure (.ok ()) }
   let st : RunState := { db, node := n, slots, socks := [sock], next := 1 }
   let st ← RunState.apply x ch (fun _ => pure ()) {} st { drop := [session.id] } 1
   t.ok "shared socket: a dropped session leaves the socket up"

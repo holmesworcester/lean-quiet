@@ -9,6 +9,7 @@ import ops.sync.RetryLaws
 import ops.sync.BoundsLaws
 import ops.sync.ServeLaws
 import engine.wire.CloseLaws
+import engine.wire.LaneLaws
 import engine.wire.Slots
 import engine.core.Engine
 import engine.core.IdemLaws
@@ -316,11 +317,6 @@ open Engine Community
 #print axioms Engine.Sync.serve_blind
 #print axioms Engine.Sync.serve_budget
 #print axioms Engine.Sync.authorize_mem
-#print axioms Engine.Sync.want_reads_authorized
-#print axioms Engine.Sync.want_blind
-#print axioms Engine.Sync.want_blind_step
-#print axioms Engine.Sync.onWant_one
-#print axioms Engine.Sync.want_budget
 #print axioms Engine.Sync.endSession_purges
 #print axioms Engine.Sync.close_gone
 #print axioms Engine.Sync.close_purges
@@ -329,9 +325,7 @@ open Engine Community
 #print axioms Engine.Sync.expire_bounded
 #print axioms Engine.Sync.remember_bounded
 #print axioms Engine.Sync.remember_fits
-#print axioms Engine.Sync.admit_one
 #print axioms Engine.Sync.known_forgets
-#print axioms Engine.Sync.asked_full
 #print axioms Engine.Sync.round_no_drop
 #print axioms Engine.Sync.hold_no_drop
 #print axioms Engine.Sync.want_no_drop
@@ -339,12 +333,51 @@ open Engine Community
 #print axioms Engine.Sync.honest_no_drop
 #print axioms Engine.Sync.honest_no_drop_runs
 #print axioms Engine.Sync.asks_expire
-#print axioms Engine.Sync.retried_append
-#print axioms Engine.Sync.retried_start
-#print axioms Engine.Sync.retried_holds
-#print axioms Engine.Sync.retried_chunks
-#print axioms Engine.Sync.pieces_short
-#print axioms Engine.Sync.retry_bounded
+#print axioms Engine.Sync.write_first
+#print axioms Engine.Sync.write_within
+#print axioms Engine.Sync.frame_next
+#print axioms Engine.Sync.urgent_ahead
+#print axioms Engine.Sync.ahead_bytes
+#print axioms Engine.Sync.take_append
+#print axioms Engine.Sync.cut_bytes
+#print axioms Engine.Sync.cut_progress
+#print axioms Engine.Sync.push_capped
+#print axioms Engine.Sync.push_over
+#print axioms Engine.Sync.take_bytes
+#print axioms Engine.Sync.lanes_bounded
+#print axioms Engine.Sync.room_window
+#print axioms Engine.Sync.stall_closes
+#print axioms Engine.Sync.shut_live
+#print axioms Engine.Sync.framesFor_mem
+#print axioms Engine.Sync.framesFor_only
+#print axioms Engine.Sync.lane_control
+#print axioms Engine.Sync.heat_hot
+#print axioms Engine.Sync.write_hot
+#print axioms Engine.Sync.serve_rest
+#print axioms Engine.Sync.serve_head
+#print axioms Engine.Sync.serve_shrinks
+#print axioms Engine.Sync.fetch_all
+#print axioms Engine.Sync.fetch_shown
+#print axioms Engine.Sync.fetch_blind
+#print axioms Engine.Sync.onWant_authorized
+#print axioms Engine.Sync.onWant_all
+#print axioms Engine.Sync.onWant_order
+#print axioms Engine.Sync.onWant_bounded_owed
+#print axioms Engine.Sync.serveOwed_hot
+#print axioms Engine.Sync.serveOwed_head
+#print axioms Engine.Sync.serveOwed_fifo
+#print axioms Engine.Sync.serveOwed_shrinks
+#print axioms Engine.Sync.owed_drains
+#print axioms Engine.Sync.owed_within
+#print axioms Engine.Sync.serveOwed_budget
+#print axioms Engine.Sync.serveOwed_shown
+#print axioms Engine.Sync.serveOwed_blind
+#print axioms Engine.Sync.serveOwed_bounded
+#print axioms Engine.Sync.serveOwed_send
+#print axioms Engine.Sync.hot_ids
+#print axioms Engine.Sync.fresh_served
+#print axioms Engine.Sync.serveOwed_world
+#print axioms Engine.Sync.split_urgent
 end engine
 
 section app

@@ -1,9 +1,8 @@
 /-
 A send never waits on sync: App.submit offers a write to the node's
-bounded inbound channel with `offerAll` (trySend), and what does not fit
+bounded local-write channel with `offerAll` (trySend), and what does not fit
 waits in the app, offered again first each frame. Here, over a real
-bounded channel kept full (as peers' frames keep it while the node is
-slow): the offer returns at once, keeps every write in order, and takes
+bounded channel kept full while the node is slow: the offer returns at once, keeps every write in order, and takes
 exactly as many as there is room for; and, the negative control, the
 blocking send Runner.write uses waits on the same full channel.
 
@@ -18,10 +17,10 @@ def main : IO UInt32 := do
   let check (name : String) (ok : Bool) : IO Unit := do
     IO.println s!"{if ok then "ok  " else "FAIL"} {name}"
     if !ok then fails.modify (· + 1)
-  let ch ← Std.CloseableChannel.Sync.new (α := Engine.Sync.Event) (some 2)
-  -- full: the peers' frames got there first
-  let _ ← ch.trySend .stop
-  let _ ← ch.trySend .stop
+  let ch ← Std.CloseableChannel.Sync.new (α := List Op) (some 2)
+  -- full: older local writes occupy both slots
+  let _ ← ch.trySend []
+  let _ ← ch.trySend []
   let o1 := Op.make 0 [] "1".toUTF8
   let o2 := Op.make 0 [] "2".toUTF8
   let o3 := Op.make 0 [] "3".toUTF8
@@ -36,7 +35,7 @@ def main : IO UInt32 := do
   check s!"one slot free: the first goes in, the others stay in order ({rest.size} left)"
     (rest.size == 2 && (rest.map fun w => w.map (·.id)) == #[[o2.id], [o3.id]])
   -- the negative control: the blocking send waits while the channel is full
-  let t ← IO.asTask (prio := .dedicated) (Engine.Sync.enqueue ch (.write [o2]))
+  let t ← IO.asTask (prio := .dedicated) (do discard <| (ch.send [o2]).toBaseIO)
   IO.sleep 200
   check "control: the blocking send (Runner.write's) is still waiting on the full channel" !(← IO.hasFinished t)
   -- release it

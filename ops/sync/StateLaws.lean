@@ -51,13 +51,15 @@ theorem extra_hold (c : Conn) (r : Id) (ids : List Id) (h : Held F) (hb : c.Extr
     · exact hb
     · exact hb
 
-theorem extra_want (ix : Index) (c : Conn) (ids : List Id) (h : Held F) (hb : c.ExtraBounded cfg) :
-    ((c.onWant fam cfg ix ids : HeldM F Step) h).1.conn.ExtraBounded cfg := by
+theorem extra_want (ix : Index) (c : Conn) (ids : List Id) (hb : c.ExtraBounded cfg) :
+    (c.onWant cfg ix ids).conn.ExtraBounded cfg := by
   unfold Conn.onWant
-  split
-  · exact hb
-  · simp only [HeldM.bind_apply, HeldM.pure_apply]
-    exact ⟨hb.1, queue_bounded cfg _ _ hb.2.1, hb.2.2⟩
+  split <;> exact hb
+
+theorem extra_serve (c : Conn) (budget : Nat) (first : List Id) (h : Held F)
+    (hb : c.ExtraBounded cfg) : ((c.serveOwed fam cfg budget first : HeldM F _) h).1.1.ExtraBounded cfg := by
+  rw [serveOwed_eq]
+  exact ⟨hb.1, queue_bounded cfg _ _ hb.2.1, hb.2.2⟩
 
 theorem walk_offered (h : Held F) : ∀ fuel (c : Conn) offers,
     ((c.walkN fam cfg offers fuel : HeldM F _) h).1.1.offered = c.offered := by
@@ -121,7 +123,7 @@ theorem extra_recv (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (h : 
         exact (extra_hold fam cfg _ _ _ _ hb)
       | want ids =>
         dsimp only
-        exact (extra_want fam cfg _ _ _ _ hb)
+        exact (extra_want cfg _ _ _ hb)
 
 theorem extra_filed (c : Conn) (ids : List Id) (h : Held F) (hb : c.ExtraBounded cfg) :
     ((c.filed fam cfg ids : HeldM F Step) h).1.conn.ExtraBounded cfg := by
@@ -168,7 +170,8 @@ theorem conn_state_bounded {c : Conn} (hc : c.Reachable fam cfg) :
   | start _ _ _ ih => exact extra_start cfg _ _ _ ih
   | round _ _ _ _ _ _ ih => exact extra_round cfg _ _ _ _ _ _ ih
   | hold _ _ _ _ ih => exact extra_hold fam cfg _ _ _ _ ih
-  | want _ _ _ _ ih => exact extra_want fam cfg _ _ _ _ ih
+  | want _ _ _ ih => exact extra_want cfg _ _ _ ih
+  | serve _ _ _ _ ih => exact extra_serve fam cfg _ _ _ _ ih
   | recv _ _ _ _ _ ih => exact extra_recv fam cfg _ _ _ _ _ ih
   | tick _ _ _ _ ih => exact extra_tick fam cfg _ _ _ _ ih
   | filed _ _ _ ih => exact extra_filed fam cfg _ _ _ ih

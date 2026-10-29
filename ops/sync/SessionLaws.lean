@@ -26,11 +26,9 @@ theorem hold_session (c : Conn) (r : Id) (ids : List Id) (h : Held F) :
   · rfl
   · split <;> rfl
 
-theorem want_session (ix : Index) (c : Conn) (ids : List Id) (h : Held F) :
-    ((c.onWant fam cfg ix ids : HeldM F Step) h).1.conn.session = c.session := by
-  unfold Conn.onWant; split
-  · rfl
-  · simp only [HeldM.bind_apply, HeldM.pure_apply]; rfl
+theorem want_session (ix : Index) (c : Conn) (ids : List Id) :
+    (c.onWant cfg ix ids).conn.session = c.session := by
+  unfold Conn.onWant; split <;> rfl
 
 theorem walk_session (h : Held F) : ∀ fuel (c : Conn) offers,
     ((c.walkN fam cfg offers fuel : HeldM F _) h).1.1.session = c.session := by

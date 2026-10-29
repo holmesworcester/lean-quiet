@@ -37,11 +37,9 @@ theorem hold_no_drop (c : Conn) (r : Id) (ids : List Id) (h : Held F) :
     · rfl
     · rfl
 
-theorem want_no_drop (ix : Index) (c : Conn) (ids : List Id) (h : Held F) :
-    ((c.onWant fam cfg ix ids : HeldM F Step) h).1.drop = false := by
-  unfold Conn.onWant; split
-  · rfl
-  · simp only [HeldM.bind_apply, HeldM.pure_apply]
+theorem want_no_drop (ix : Index) (c : Conn) (ids : List Id) :
+    (c.onWant cfg ix ids).drop = false := by
+  unfold Conn.onWant; split <;> rfl
 
 theorem recv_no_drop (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (h : Held F) :
     ((c.recv fam cfg ix bytes now : HeldM F Step) h).1.drop = false := by
@@ -61,7 +59,7 @@ theorem recv_no_drop (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (h 
         split <;> rfl
       | rbsr r k cs => exact round_no_drop cfg _ _ _ _ _ _
       | hold r ids => simp only [HeldM.bind_apply, HeldM.pure_apply]; exact hold_no_drop fam cfg _ _ _ _
-      | want ids => simp only [HeldM.bind_apply, HeldM.pure_apply]; exact want_no_drop fam cfg _ _ _ _
+      | want ids => simp only [HeldM.bind_apply, HeldM.pure_apply]; exact want_no_drop cfg _ _ _
 
 theorem filedGive_no_drop (c : Conn) (ids : List Id) (h : Held F) :
     ((c.filedGive fam cfg ids : HeldM F Step) h).1.drop = false := by
@@ -96,7 +94,7 @@ inductive Conn.Call (fam : Family F) (cfg : Config) (c : Conn) (now : Nat) (h : 
   | start (ix) : Call fam cfg c now h (c.start cfg ix now)
   | round (ix r k cs) : Call fam cfg c now h (c.onRbsr cfg ix r k cs now)
   | hold (r ids) : Call fam cfg c now h ((c.onHold fam cfg r ids : HeldM F Step) h).1
-  | want (ix ids) : Call fam cfg c now h ((c.onWant fam cfg ix ids : HeldM F Step) h).1
+  | want (ix ids) : Call fam cfg c now h (c.onWant cfg ix ids)
   | recv (ix bytes) : Call fam cfg c now h ((c.recv fam cfg ix bytes now : HeldM F Step) h).1
   | tick (ix) : Call fam cfg c now h ((c.tick fam cfg ix now : HeldM F Step) h).1
   | filed (ids) : Call fam cfg c now h ((c.filed fam cfg ids : HeldM F Step) h).1

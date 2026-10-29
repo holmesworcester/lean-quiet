@@ -1,7 +1,8 @@
 /-
-A bounded want reply as a read program. The interpreter is the running
-store reader; trace runs that same program with a lookup and records
-every read. Authorization happens before constructing the program.
+A session's queue of wanted ids, served as a read program (`serve`,
+`fetch`). The interpreter is the running store reader; trace runs that
+same program with a lookup and records every read. Authorization
+happens before an id joins the queue (`Conn.onWant`).
 -/
 import engine.core.Sync
 
@@ -34,19 +35,28 @@ theorem trace_map (f : α → β) (get : Id → Option Op) (p : Read α) :
 
 end Read
 
-/-- Read only this list, stopping after the first op reaching the byte
-budget. That last op is sent whole; the remaining ids are not read. -/
-def serve (shows : Op → Bool) (budget : Nat) : List Id → Read (List Op)
-  | [] => .done []
+/-- Serve a queue from its front: read each id, send its op if shown,
+until the ops sent reach the byte budget (that last op goes whole);
+an id not stored, or not shown, leaves the queue unanswered. The ops
+sent, and the ids left, unread. -/
+def serve (shows : Op → Bool) (budget : Nat) : List Id → Read (List Op × List Id)
+  | [] => .done ([], [])
   | i :: ids =>
-    if budget = 0 then .done [] else
+    if budget = 0 then .done ([], i :: ids) else
     .get i fun found => match found with
       | none => serve shows budget ids
       | some o =>
         if shows o then
-          if budget ≤ o.bytes.size then .done [o]
-          else (serve shows (budget - o.bytes.size) ids).map (o :: ·)
+          if budget ≤ o.bytes.size then .done ([o], ids)
+          else (serve shows (budget - o.bytes.size) ids).map fun p => (o :: p.1, p.2)
         else serve shows budget ids
+
+/-- Read every id of the list, and keep the ops shown. -/
+def fetch (shows : Op → Bool) : List Id → Read (List Op)
+  | [] => .done []
+  | i :: ids => .get i fun found => match found with
+    | some o => if shows o then (fetch shows ids).map (o :: ·) else fetch shows ids
+    | none => fetch shows ids
 
 /-- Encoded payload bytes, before the transport's frame envelope. -/
 def replyBytes (ops : List Op) : Nat := (ops.map (·.bytes.size)).sum

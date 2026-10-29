@@ -113,8 +113,6 @@ structure Config where
   live : Nat := 90000
   /-- ids retained in each of known and asked. Full hints reset; full asks defer. -/
   maxKnown : Nat := 65536
-  /-- encoded op bytes served by one want, plus at most its last op. -/
-  wantBytes : Nat := 4 * 1024 * 1024
   /-- ids per have or want op; a want for more is ignored. -/
   maxIds : Nat := 4096
   /-- Distinct requirement ids retained by a windowed round. -/
@@ -123,6 +121,11 @@ structure Config where
   walk : Nat := 100000
   /-- bytes of payloads sealed together in one frame. -/
   bundle : Nat := 49152
+  /-- Serve-lane bytes released per step, plus at most one whole op. -/
+  burst : Nat := 131072
+  urgentIds : Nat := 64
+  hotMs : Nat := 20000
+  hotCap : Nat := 256
 
 structure Conn where
   session : Session := .dialing
@@ -151,6 +154,9 @@ structure Conn where
   asked : HashSet Id := {}
   /-- Original ask times; retries and repeat offers do not renew them. -/
   askTime : HashMap Id Nat := {}
+  /-- Authorized wants queued in order, and their membership set. -/
+  owed : List Id := []
+  owing : HashSet Id := {}
   /-- When the peer was last heard. -/
   heard : Nat := 0
   /-- Last outgoing payload, recorded by Node when it hands out sends. -/
@@ -326,15 +332,43 @@ def Conn.walk (c : Conn) : m (Conn × List (Id × Id)) := c.walkN fam cfg [] cfg
 def authorize (ix : Index) (c : Conn) (ids : List Id) : List Id :=
   ids.filter fun i => c.rooms.any fun r => (ix.items r).any fun a => Decidable.decide (a.2 = i)
 
-/-- The peer wants these: authorize first, then read within the byte
-budget. Closure reads continue on ticks, outside this response. -/
-def Conn.onWant (ix : Index) (c : Conn) (ids : List Id) : m Step := do
-  if ids.length > cfg.maxIds then return { conn := c }
-  let sent ← (serve (c.shows fam) cfg.wantBytes (authorize ix c ids)).run (Store.getOp (F := F))
-  let c := { c with
-    known := sent.foldl (fun (k : HashSet Id) (o : Op) => remember cfg.maxKnown k o.id) c.known }
-  let c := c.queue cfg (sent.flatMap Op.reqs)
-  return { conn := c, send := sent }
+/-- The peer wants these: the ids authorized from the shown rooms'
+index (before any read) and not queued already join the session's
+queue, in order, while it holds fewer than `maxKnown`; `serveOwed`
+serves them all. A want for more than `maxIds` ids is ignored. -/
+def Conn.onWant (ix : Index) (c : Conn) (ids : List Id) : Step :=
+  if ids.length > cfg.maxIds then { conn := c } else
+  let add := ((authorize ix c ids).filter fun i => !c.owing.contains i).eraseDups.take (cfg.maxKnown - c.owed.length)
+  { conn := { c with owed := c.owed ++ add, owing := add.foldl (·.insert ·) c.owing } }
+
+/-- The queued ids a step serves first: those of `first` (this node's
+fresh writes) the peer wants. -/
+def Conn.hotOf (c : Conn) (first : List Id) : List Id := (first.filter c.owing.contains).eraseDups
+
+/-- The rest of the queue, served in order. -/
+def Conn.owedAfter (c : Conn) (first : List Id) : List Id :=
+  if (c.hotOf first).isEmpty then c.owed else c.owed.filter fun i => !(c.hotOf first).contains i
+
+/-- The queue after a step: `gone` left it, `rest` is what remains, and
+the ops `sent` the peer now holds (their requirement closure is offered
+on later ticks). -/
+def Conn.served (c : Conn) (gone rest : List Id) (sent : List Op) : Conn :=
+  { c with
+    owed := rest
+    owing := gone.foldl (·.erase ·) c.owing
+    known := sent.foldl (fun (k : HashSet Id) (o : Op) => remember cfg.maxKnown k o.id) c.known } |>.queue cfg (sent.flatMap Op.reqs)
+
+/-- Serve the queue (docs/SYNC.md, "Lanes"): first the queued ids in
+`first` (this node's fresh writes), whatever the budget; then from the
+front, until `budget` bytes are out (the op that reaches it goes
+whole). An id not stored, or not in a room the session shows now,
+leaves the queue unanswered: the peer's ask for it expires. The urgent
+ops, and the serve lane's. -/
+def Conn.serveOwed (c : Conn) (budget : Nat) (first : List Id) : m (Conn × List Op × List Op) := do
+  let urgent ← (fetch (c.shows fam) (c.hotOf first)).run (Store.getOp (F := F))
+  let owed := c.owedAfter first
+  let (bulk, rest) ← (serve (c.shows fam) budget owed).run (Store.getOp (F := F))
+  return (c.served cfg (c.hotOf first ++ owed.take (owed.length - rest.length)) rest (urgent ++ bulk), urgent, bulk)
 
 /-- Bytes from the peer. -/
 def Conn.recv (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) : m Step := do
@@ -351,7 +385,7 @@ def Conn.recv (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) : m Step :
         { conn := c, send := [(Msg.hello c.floor).op] })
     | some (.rbsr r k cs) => return (c.onRbsr cfg ix r k cs now)
     | some (.hold r ids) => return (← c.onHold fam cfg r ids)
-    | some (.want ids) => return (← c.onWant fam cfg ix ids)
+    | some (.want ids) => return c.onWant cfg ix ids
     | none =>
       if isWire o.kind || !c.shows fam o then return { conn := c }
       else

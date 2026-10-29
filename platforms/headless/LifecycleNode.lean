@@ -18,12 +18,13 @@ def node (path : String) (consume : IO.Ref Bool) : IO Runner := do
   let node := Node.boot fam (← (dumpOps (F := SF)).run db) 0
   let cfg : RunConfig := { queue := 1 }
   let ch ← eventChannel cfg
+  let writes ← Std.CloseableChannel.Sync.new (some cfg.queue)
   let slots ← Std.Mutex.new []
   let done ← IO.asTask (prio := .dedicated) do
     while !(← consume.get) do IO.sleep 1
-    runLoop x ch (fun _ => pure ()) cfg { db, node, slots }
+    runLoop x ch (fun _ => pure ()) cfg writes { db, node, slots }
   return {
-    events := ch, port := 0, done, slots
+    events := ch, writes, port := 0, done, slots
     stopped := ← IO.mkRef false, listening := Task.pure (.ok ()),
     listener := ← listener, closing := ← Std.Mutex.new false }
 
@@ -104,7 +105,7 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
     let message := before.ids[0]!.2
     let consume ← IO.mkRef false
     let old ← node path consume
-    discard <| old.events.trySend (.write [])
+    discard <| old.writes.trySend []
     modify fun s => { s with net := some old }
     let release ← IO.asTask (prio := .dedicated) do IO.sleep 400; consume.set true
     let begin ← IO.monoMsNow
@@ -150,7 +151,7 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
     let (_, cancelled) ← (Reader.pass sh).run { rd := before.rd, enabled }
     ck.ok "revocation during a real pass prevents later queries" (cancelled.live.reads == 1 && (← checks.get) > 3)
     ck.ok "revoked pass cannot publish its answer" (((← sh.board.get).get? want).isNone)
-    ck.ok "old runner rejects offers after teardown" (!(← old.events.trySend (.write [])))
+    ck.ok "old runner rejects offers after teardown" (!(← old.writes.trySend []))
     discard <| step [.background]
     -- A boot that finishes only after suspension must still be stopped.
     let late ← IO.mkRef (none : Option Runner)

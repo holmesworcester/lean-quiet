@@ -42,7 +42,8 @@ theorem close_purges {m : Type → Type} [Monad m] [Store F m] [Turn F m]
       let n := retired.foldl Node.drop n
       let out := { out ++ o with drop := (out ++ o).drop ++ retired }
       let sent ← n.seal x out
-      let n := n.sent out now
+      let served ← n.seal x { send := out.serve }
+      let n := n.sent { out with send := out.send ++ out.serve } now
       let mut purged := n.purged
       for cid in out.drop do
         let e : Effects ← (do
@@ -51,7 +52,7 @@ theorem close_purges {m : Type → Type} [Monad m] [Store F m] [Turn F m]
           return { purged := ids })
         purged := purged ++ e.purged
       return ({ n with fresh := [], purged := [] },
-        { send := sent, drop := out.drop, stored := n.fresh, purged })) := rfl
+        { send := sent ++ served, drop := out.drop, stored := n.fresh, purged, serve := served.length })) := rfl
 
 /-- The one purge primitive used by flush and endSession reports every root. -/
 theorem purges_notified {m : Type → Type} [Monad m] [LawfulMonad m] [Store F m] [Turn F m]

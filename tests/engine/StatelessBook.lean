@@ -11,12 +11,14 @@ def bookChecks (t : Checks) : IO Unit := do
   let cfg : Config := { maxKnown := 4, closureCap := 2 }
   let c : Conn := { dialer := false, rooms := [room], floor := 0, peerFloor := some 0 }
   let full := { c.beginRound 1 with peerFloor := some 86400 }
-  let served := ((full.onWant fam cfg ix [o.id] : TM Step).run { ops := [o] }).1
-  t.ok "full captured range survives a later hello" (served.send == [o] && served.conn.frontier.isEmpty && served.conn.offered.isEmpty)
+  let queued := (full.onWant cfg ix [o.id]).conn
+  let ((served, _, bulk), _) := (queued.serveOwed fam cfg 1000 [] : TM _).run { ops := [o] }
+  t.ok "full captured range survives a later hello" (bulk == [o] && served.frontier.isEmpty && served.offered.isEmpty)
   let window := ({ c with peerFloor := some 86400 } : Conn).beginRound 1
   let ended := (window.onRbsr cfg ix room 1 [] 1).conn
-  let served := (({ ended with peerFloor := some 0 }.onWant fam cfg ix [o.id] : TM Step).run { ops := [o] }).1
-  t.ok "window captured range survives its end and later hello" (served.conn.frontier == [room])
+  let queued := ({ ended with peerFloor := some 0 }.onWant cfg ix [o.id]).conn
+  let ((served, _, _), _) := (queued.serveOwed fam cfg 1000 [] : TM _).run { ops := [o] }
+  t.ok "window captured range survives its end and later hello" (served.frontier == [room])
   let queued := window.queue cfg [room, room, room]
   t.ok "duplicate requirements use one slot" (queued.frontier == [room] && !queued.closureCut)
   let zero := window.queue { cfg with closureCap := 0 } [room]

@@ -16,8 +16,11 @@ def streamOps {F : Type} [Codec F] [SortKey F] (fam : Family F) (db : Db) : IO (
   let mut sent := []
   for msg in s.send do
     if let some (.hold _ ids) := Msg.ofOp msg then
-      let reply ← (s.conn.onWant fam {} ix ids : SqlM F Step).run db
-      sent := sent ++ reply.send
+      let mut queued := (s.conn.onWant {} ix ids).conn
+      while !queued.owed.isEmpty do
+        let (rest, urgent, bulk) ← (queued.serveOwed fam {} 131072 [] : SqlM F _).run db
+        queued := rest
+        sent := sent ++ urgent ++ bulk
   return sent
 
 end Tests

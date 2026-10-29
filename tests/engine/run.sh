@@ -62,6 +62,7 @@ if [ "${1:-}" != --phone-runtime ]; then
   tests/engine/harden.sh
   tests/engine/stateless.sh
   tests/engine/simplify.sh
+  tests/engine/fresh.sh
   tests/engine/restart.sh
   tests/shipped/check.sh engine
 fi

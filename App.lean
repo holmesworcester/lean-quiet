@@ -133,12 +133,12 @@ def noticeLocal (ps : List Pending) : M Unit := do
 
 /-- Offer writes to the node's inbound channel, in order, without waiting:
 each that fits is in; the rest, from the first that did not fit, stay
-(the channel is bounded and shared with the peers' frames, so it can be
-full while sync is busy). It is `NodeOffer.offerList` over the channel's
+(the dedicated local-write channel is bounded, so it can be full
+while sync is busy). It is `NodeOffer.offerList` over the channel's
 `trySend`: NodeOffer.offer_split and offer_runs say no write is lost,
 sent twice or overtaken, whatever the channel answers. -/
-def offerAll (ch : Std.CloseableChannel.Sync Engine.Sync.Event) (q : Array (List Op)) : IO (Array (List Op)) := do
-  return (← NodeOffer.offerList (fun w => (ch.trySend (.write w) : IO Bool)) q.toList).toArray
+def offerAll (ch : Std.CloseableChannel.Sync (List Op)) (q : Array (List Op)) : IO (Array (List Op)) := do
+  return (← NodeOffer.offerList (fun w => (ch.trySend w : IO Bool)) q.toList).toArray
 
 /-- Re-offer parked writes in submission order, only after teardown. -/
 def flushNode : M Unit := do
@@ -149,7 +149,7 @@ def flushNode : M Unit := do
       for ops in s.toNode do s.wr.submit ⟨ops, true⟩
       modify fun s => { s with toNode := #[] }
     return
-  let rest ← offerAll r.events s.toNode
+  let rest ← offerAll r.writes s.toNode
   modify fun s => { s with toNode := rest }
 
 /-- Store-owned writes survive unmount and are journaled before offering. -/
@@ -164,10 +164,10 @@ def submit (j : Job) : M Unit := do
 
 /-- The negative control of the frame's no-wait rule (`block` and
 `waits` in tests/wiring.txt): `submit` to the node as it was, through
-`Runner.write`'s `enqueue`, which waits while the channel is full. Never
+`Runner.write`, which waits while the local channel is full. Never
 run; the wiring check must catch it. -/
 def submitWaits (j : Job) : M Unit := do
-  if let some r := (← get).net then discard <| Engine.Sync.enqueue r.events (.write j.ops)
+  if let some r := (← get).net then r.write j.ops
 
 /-- A user action's write (an intent's ops): each op is
 judged in order against what is decided and the ops before it in the

@@ -63,13 +63,18 @@ theorem hold_bounded (c : Conn) (r : Id) (ids : List Id) (h : Held F) (hb : c.Bo
     · exact hb
     · exact ⟨remembers_bounded _ id _ _ hb.1, admitAsks_bounded _ _ _ hb.2⟩
 
-theorem onWant_bounded (ix : Index) (c : Conn) (ids : List Id) (h : Held F) (hb : c.Bounded cfg) :
-    ((c.onWant fam cfg ix ids : HeldM F Step) h).1.conn.Bounded cfg := by
+theorem onWant_bounded (ix : Index) (c : Conn) (ids : List Id) (hb : c.Bounded cfg) :
+    (c.onWant cfg ix ids).conn.Bounded cfg := by
   unfold Conn.onWant
-  split
-  · exact hb
-  · simp only [HeldM.bind_apply, HeldM.pure_apply]
-    exact ⟨remembers_bounded _ Op.id _ _ hb.1, hb.2⟩
+  split <;> exact hb
+
+/-- Serving changes only bounded hints and closure bookkeeping; asks keep
+both their membership and original timestamps. -/
+theorem serveOwed_bounded (c : Conn) (budget : Nat) (first : List Id) (h : Held F)
+    (hb : c.Bounded cfg) : ((c.serveOwed fam cfg budget first : HeldM F _) h).1.1.Bounded cfg := by
+  rw [serveOwed_eq]
+  simp only [Conn.served, Conn.queue]
+  split <;> exact ⟨remembers_bounded _ Op.id _ _ hb.1, hb.2⟩
 
 theorem walkN_bounded (h : Held F) : ∀ (k : Nat) (c : Conn) (offer : List (Id × Id)),
     c.Bounded cfg → ((c.walkN fam cfg offer k : HeldM F _) h).1.1.Bounded cfg := by
@@ -137,7 +142,7 @@ theorem recv_bounded (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (h 
         exact (hold_bounded fam cfg _ _ _ _ hb)
       | want ids =>
         dsimp only
-        exact (onWant_bounded fam cfg _ _ _ _ hb)
+        exact (onWant_bounded cfg _ _ _ hb)
 
 theorem filed_bounded (c : Conn) (ids : List Id) (h : Held F) (hb : c.Bounded cfg) :
     ((c.filed fam cfg ids : HeldM F Step) h).1.conn.Bounded cfg := by
@@ -188,8 +193,10 @@ inductive Conn.Reachable (fam : Family F) (cfg : Config) : Conn → Prop where
   | round {c} (hc : Reachable fam cfg c) (ix r k cs now) : Reachable fam cfg (c.onRbsr cfg ix r k cs now).conn
   | hold {c} (hc : Reachable fam cfg c) (r ids) (h : Held F) :
       Reachable fam cfg ((c.onHold fam cfg r ids : HeldM F Step) h).1.conn
-  | want {c} (hc : Reachable fam cfg c) (ix ids) (h : Held F) :
-      Reachable fam cfg ((c.onWant fam cfg ix ids : HeldM F Step) h).1.conn
+  | want {c} (hc : Reachable fam cfg c) (ix ids) :
+      Reachable fam cfg (c.onWant cfg ix ids).conn
+  | serve {c} (hc : Reachable fam cfg c) (budget first) (h : Held F) :
+      Reachable fam cfg ((c.serveOwed fam cfg budget first : HeldM F _) h).1.1
   | recv {c} (hc : Reachable fam cfg c) (ix bytes now) (h : Held F) :
       Reachable fam cfg ((c.recv fam cfg ix bytes now : HeldM F Step) h).1.conn
   | tick {c} (hc : Reachable fam cfg c) (ix now) (h : Held F) :
@@ -219,7 +226,8 @@ theorem conn_bounded {c : Conn} (hc : c.Reachable fam cfg) :
   | start _ _ _ ih => exact start_bounded cfg _ _ _ ih
   | round _ _ _ _ _ _ ih => exact round_bounded cfg _ _ _ _ _ _ ih
   | hold _ _ _ _ ih => exact hold_bounded fam cfg _ _ _ _ ih
-  | want _ _ _ _ ih => exact onWant_bounded fam cfg _ _ _ _ ih
+  | want _ _ _ ih => exact onWant_bounded cfg _ _ _ ih
+  | serve _ _ _ _ ih => exact serveOwed_bounded fam cfg _ _ _ _ ih
   | recv _ _ _ _ _ ih => exact recv_bounded fam cfg _ _ _ _ _ ih
   | tick _ _ _ _ ih => exact tick_bounded fam cfg _ _ _ _ ih
   | filed _ _ _ ih => exact filed_bounded fam cfg _ _ _ ih

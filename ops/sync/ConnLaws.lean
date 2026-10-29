@@ -86,17 +86,19 @@ theorem onHold_send (c : Conn) (r : Id) (ids : List Id) (s : DB F) :
     · simp only [Model.run_bind, Model.run_pure]
       exact ⟨chunks_wire cfg _ _, trivial⟩
 
-theorem onWant_send (ix : Index) (c : Conn) (ids : List Id) (s : DB F) :
-    (∀ o ∈ ((c.onWant fam cfg ix ids : Model F Step).run s).1.send, Sendable fam c o) ∧
-      ((c.onWant fam cfg ix ids : Model F Step).run s).1.take = [] := by
-  unfold Conn.onWant
-  split
-  · simp [Model.run_pure]
-  · rw [Model.run_bind, Read.run_model]
-    simp only [Model.run_pure]
-    refine ⟨?_, by trivial⟩
-    intro o ho
-    exact Or.inr ((serve_shown _ _ _ _ o ho).1)
+theorem onWant_send (ix : Index) (c : Conn) (ids : List Id) :
+    (∀ o ∈ (c.onWant cfg ix ids).send, Sendable fam c o) ∧ (c.onWant cfg ix ids).take = [] := by
+  simp
+
+/-- **Serving the queue sends only ops the peer may see.** -/
+theorem serveOwed_send (c : Conn) (budget : Nat) (first : List Id) (s : DB F) :
+    ∀ o ∈ ((c.serveOwed fam cfg budget first : Model F _).run s).1.2.1 ++
+        ((c.serveOwed fam cfg budget first : Model F _).run s).1.2.2, Sendable fam c o := by
+  intro o ho
+  simp only [Conn.serveOwed, Model.run_bind, Read.run_model, Model.run_pure, List.mem_append] at ho
+  rcases ho with ho | ho
+  · exact Or.inr (fetch_shown _ _ _ o ho).1
+  · exact Or.inr (serve_shown _ _ _ _ o ho).1
 
 /-- What `recv` does with bytes that decode to op o: by o's message. -/
 theorem recv_cases (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (s : DB F) (o : Op)
@@ -108,7 +110,7 @@ theorem recv_cases (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (s : 
           ({ c' with peerFloor := some f, session := c'.session.hearHello } : Conn).start cfg ix now else { conn := { c' with peerFloor := some f, session := c'.session.hearHello }, send := [(Msg.hello c'.floor).op] })
       | some (.rbsr r k cs) => (c'.onRbsr cfg ix r k cs now)
       | some (.hold r ids) => ((c'.onHold fam cfg r ids : Model F Step).run s).1
-      | some (.want ids) => ((c'.onWant fam cfg ix ids : Model F Step).run s).1
+      | some (.want ids) => c'.onWant cfg ix ids
       | none => if isWire o.kind || !c'.shows fam o then { conn := c' }
           else ((Step.mk { c' with asked := c'.asked.erase o.id, askTime := c'.askTime.erase o.id, known := remember cfg.maxKnown c'.known o.id }
             [] [o] [] false)) := by
@@ -147,7 +149,7 @@ theorem recv_take (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (s : D
         · simp
       | rbsr r k cs => rw [(onRbsr_send cfg ix _ _ _ _ now).2]; simp
       | hold r ids => rw [(onHold_send fam cfg _ _ _ _).2]; simp
-      | want ids => rw [(onWant_send fam cfg ix _ _ _).2]; simp
+      | want ids => rw [(onWant_send fam cfg ix _ _).2]; simp
 
 /-- **A session sends only sync wire ops and ops the peer may see.** -/
 theorem recv_send (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (s : DB F) :
@@ -176,7 +178,7 @@ theorem recv_send (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (s : D
         intro p hp; exact Or.inl ((onHold_send fam cfg _ _ _ _).1 p hp)
       | want ids =>
         intro p hp
-        rcases (onWant_send fam cfg ix _ _ _).1 p hp with h | h
+        rcases (onWant_send fam cfg ix _ _).1 p hp with h | h
         · exact Or.inl h
         · exact Or.inr (by rw [shows_heard] at h; exact h)
 

@@ -70,16 +70,13 @@ theorem closure_capped (h : Held F) : ∀ (fuel : Nat) (c : Conn) (offers : List
           · exact ih _ _ (queue_bounded cfg _ _ hb'')
           · exact ih _ _ hb''
 
-/-- Wants in a full round keep all three sender bookkeeping collections. -/
-theorem full_round_stateless (ix : Index) (c : Conn) (ids : List Id) (h : Held F)
+/-- Receiving a want only queues it; serving a full round keeps sender
+bookkeeping stateless. -/
+theorem full_round_stateless (c : Conn) (gone left : List Id) (sent : List Op)
     (hf : c.roundFloor ≤ 1) :
-    let d := ((c.onWant fam cfg ix ids : HeldM F Step) h).1.conn
+    let d := c.served cfg gone left sent
     d.offered = c.offered ∧ d.closed = c.closed ∧ d.frontier = c.frontier := by
-  unfold Conn.onWant
-  split
-  · exact ⟨rfl, rfl, rfl⟩
-  · simp only [HeldM.bind_apply, Read.run_held, HeldM.pure_apply]
-    simp [Conn.queue, hf]
+  simp [Conn.served, Conn.queue, hf]
 
 end Engine.Sync
 

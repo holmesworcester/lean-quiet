@@ -377,15 +377,9 @@ theorem onHold_keeps (cfg : Config) {ix : Index} {c : Conn} (hs : SnapsIn ix c) 
     · exact ⟨rfl, rfl, hs, chunks_want fam cfg _⟩
 
 theorem onWant_keeps (cfg : Config) {ix : Index} {c : Conn} (hs : SnapsIn ix c) (ids : List Id) (h : Held F) :
-    Keeps fam ix c h ((c.onWant fam cfg ix ids : HeldM F Step) h) := by
+    Keeps fam ix c h (c.onWant cfg ix ids, h) := by
   unfold Conn.onWant
-  split
-  · exact ⟨rfl, rfl, hs, by simp⟩
-  · rw [HeldM.bind_apply, Read.run_held]
-    refine ⟨rfl, rfl, hs, ?_⟩
-    intro o ho
-    obtain ⟨hs, i, _, hi⟩ := serve_shown _ _ _ _ o ho
-    exact Or.inr ⟨⟨i, hi⟩, hs⟩
+  split <;> exact ⟨rfl, rfl, hs, by simp⟩
 
 theorem keeps_rooms {ix : Index} {c d : Conn} {h : Held F} {r : Step × Held F} (e : d.rooms = c.rooms)
     (hk : Keeps fam ix d h r) : Keeps fam ix c h r :=
