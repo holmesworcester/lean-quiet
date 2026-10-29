@@ -29,14 +29,20 @@ def queue (ck : Checks) : IO Unit := do
   for i in [0:40] do
     old := old.push (← pool.request (need i) fun _ => do calls.modify (·.push i); return some i)
   let latest ← pool.request (need 100) fun _ => do calls.modify (·.push 100); return some 100
-  pool.reconcile [need 100]
+  -- A background barrier sits behind any accidentally retained obsolete
+  -- jobs. Waiting only for the visible result would race with those jobs:
+  -- priority correctly runs the visible result first even in that mutant.
+  let drained ← pool.request (need 101 "drain" false) fun _ => do calls.modify (·.push 101); return some 101
+  pool.reconcile [need 100, need 101 "drain" false]
   pool.pause false
-  ck.ok "fast viewport changes discard every obsolete queued action" ((← result latest) == some 100 && (← calls.get) == #[100])
+  let newest ← result latest
+  discard <| result drained
+  ck.ok "fast viewport changes discard every obsolete queued action" (newest == some 100 && (← calls.get) == #[100, 101])
   let mut retired := true
   for h in old do retired := retired && (← result h).isNone
   ck.ok "retired queued handles finish without waiting for abandoned work" retired
   let stats ← pool.stats
-  ck.ok "only the final viewport spends a work step" (stats.steps == 1 && stats.cancelled == 40)
+  ck.ok "only the final viewport and drain barrier spend work steps" (stats.steps == 2 && stats.cancelled == 40)
 
   pool.pause true
   let shared ← pool.request (need 200 "author-a") fun _ => return some 200

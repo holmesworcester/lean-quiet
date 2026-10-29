@@ -10,8 +10,8 @@ namespace LifecycleLaws
 open App Engine Data
 
 /-- No query is run on behalf of an unmounted page. -/
-theorem unmount_read (s : St) (q : Q) :
-    (App.read q).run (unmountState s) = pure (default, unmountState s) := by rfl
+theorem unmount_read (s : St) (scope : Component.Scope) (q : Reader.Want) :
+    (App.query scope q).run (unmountState s) = pure (none, unmountState s) := by rfl
 
 /-- No write is submitted on behalf of an unmounted page. -/
 theorem unmount_write (s : St) (w : Community.Write) :

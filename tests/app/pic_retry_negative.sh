@@ -35,9 +35,9 @@ PY
 }
 
 mutant "a mounted picture does not declare its chunk query" \
-  "    modify fun s => { s with pictureNeeds := s.pictureNeeds.push need }" \
-  "    pure ()"
+  "    match ← query ⟨owner, visible⟩ want with" \
+  "    match (none : Option Reader.Val) with"
 mutant "the picture ignores its available chunk bytes" \
-  "| some (.slices (some raw), _) => full ← stage 1 (fun _ => Raster.fileSource p raw)" \
-  "| some (.slices (some _raw), _) => pure ()"
+  "| some (.slices (some raw)) => full ← stage 1 (fun _ => Raster.fileSource p raw)" \
+  "| some (.slices (some _raw)) => pure ()"
 echo "pic_retry negative controls: all refused"

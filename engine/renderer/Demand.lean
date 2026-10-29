@@ -46,6 +46,16 @@ def Plan.visible (p : Plan K) (key : K) : Bool :=
 def Plan.held (p : Plan K) (key : K) : Bool :=
   p.needs.any (fun n => n.key == key)
 
+/-- Build once per reconciliation, then filter board entries in constant
+expected lookup time rather than scanning the component tree per entry. -/
+def Plan.heldIndex [Hashable K] (p : Plan K) : Std.HashSet K :=
+  Std.HashSet.ofList (p.needs.map (·.key))
+
+theorem heldIndex_agrees [Hashable K] [LawfulBEq K] (p : Plan K) (key : K) :
+    p.heldIndex.contains key = p.held key := by
+  apply Bool.eq_iff_iff.mpr
+  simp [Plan.heldIndex, Plan.held, List.any_eq_true, List.mem_map]
+
 /-- Preserve tickets for overlapping demand, including a change of owner.
 Reserve fresh serials even when some keys reuse their old ticket. -/
 def Plan.reconcile (p : Plan K) (needs : List (Need K)) : Plan K :=

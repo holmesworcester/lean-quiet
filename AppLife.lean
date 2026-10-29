@@ -185,10 +185,10 @@ def pollRetired : M Unit := do
 def unmountState (s : St) : St :=
   { stashDraft s with
     mark := captureAnchor s, life := s.life.unmount, input := Input.revoke s.input,
-    rows := {}, imgs := {}, imgWaiting := {}, live := { reads := s.live.reads }, touched := {},
+    rows := {}, imgs := {}, imgWaiting := {},
     sheet := none, selected := none, camOn := false, camView := none, decoding := none,
     pageNow := none, pageKey := none, chromeKey := "", imeH := 0, mountedPage := none,
-    rasterNeeds := #[], pictureNeeds := #[] }
+    rasterNeeds := #[], queryNeeds := #[], querySeen := {} }
 
 /-- Revoke before detaching the board. An issued SQLite read may finish
 on the old refs, but no subsequent query or publication is authorized. -/
@@ -242,9 +242,6 @@ def mountPage : M Unit := do
   let t := if fieldPage s.page then s.field else s.text
   s.io.setText t
   modify fun s => { s with native := t }
-
-def pruneLive : M Unit := do
-  modify fun s => { s with live := Lifecycle.prune (s.live.keep s.touched.contains) s.life, touched := {} }
 
 /-- The callback's lease is captured when queued. -/
 def owned (l : Lifecycle.Lease) (action : M α) : M (Option α) := do

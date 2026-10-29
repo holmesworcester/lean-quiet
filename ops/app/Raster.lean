@@ -1,7 +1,7 @@
 /- Op-type components use the generic Work pool. A picture's QOI decode
 is one native/pure unit; scaling yields every eight output rows. The
 measured largest unit is reported separately from the scheduler's laws. -/
-import ops.app.Pics
+import ops.community.attachment.Image
 import engine.renderer.Work
 import engine.core.WindowIndex
 
@@ -11,7 +11,7 @@ open Engine Paint
 inductive Key where
   | row (generation : Nat) (message : Id) (version : Nat) (ready : List Bool) (theme : Theme.Value)
   | dim (generation : Nat) (message : Id) (version : Nat) (ready : List Bool) (theme : Theme.Value)
-  | image (key : Pics.Key) (theme : Theme.Value)
+  | image (key : FileImage.Key) (theme : Theme.Value)
   deriving BEq
 
 private theorem lawfulTheme : LawfulBEq Theme.Value where
@@ -61,6 +61,6 @@ def image (source : Unit → Option Image.Src) (w h : Nat) (theme : Theme.Value)
       return none
 
 def fileSource (p : Row.Pic) (raw : List ByteArray) : Option Image.Src :=
-  ((Pics.slicesFromOps raw).bind fun slices => Community.openFile slices p.key p.nonce).bind Image.decode
+  FileImage.source p raw
 
 end Raster

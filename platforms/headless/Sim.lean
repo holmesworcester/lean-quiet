@@ -8,6 +8,10 @@ import engine.renderer.TranslatePaint
 
 open App Engine Community Data
 
+/-- Test oracles may inspect the store through the transaction interpreter.
+Shipping UI code imports App, which deliberately has no Reads M instance. -/
+instance : Reads M := ⟨fun q => transaction (Reader.read q)⟩
+
 structure Sim where
   b : IO.Ref Float
   replies : IO.Ref (Array String)

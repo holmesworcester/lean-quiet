@@ -96,6 +96,8 @@ wired Engine.Sync.hold_reply_local
 wired Connection.wire_kinds
 wired Connection.local_kinds
 ## Component demand: these laws must keep naming running decisions.
+bridge Demand.Plan.held Demand.heldIndex_agrees
+wired Demand.heldIndex_agrees
 wired Demand.complete_retired
 wired Demand.complete_current
 wired Demand.owned_iff

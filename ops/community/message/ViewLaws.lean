@@ -94,4 +94,39 @@ theorem message_read (db : DB Fact) (c me msg : Id) (d : Row.RowData) (deps : Ar
   refine ⟨c', u, dev, kid, sealed, n, tm, by simpa [factIn] using hf, profile_read db c u _, rfl,
     ⟨_, rfl⟩, x, y, k, by simp [keyIn, hk], ht⟩
 
+/-- The running message component reads only its own fact and content
+key. Its author is an identity for a child, never a profile subscription. -/
+theorem message_own (db : DB Fact) (msg : Id) (d : Row.RowData) (deps : Array Q)
+    (h : (Message.readOwn (m := Model) msg).run db = some (d, deps)) :
+    ∃ c u dev kid sealed n tm,
+      factIn db msg = some (.message c u dev kid sealed n tm) ∧
+      d.author = u ∧ d.time = tm ∧
+      deps = #[Q.get msg, .list (key.byId.query [kid] (limit := some 1))] ∧
+      ∃ x y k, keyIn db kid = some (.key x y k) ∧
+        (openSealed cryptoSeal c kid sealed k).map Profile.bytesStr = some d.text := by
+  simp only [Message.readOwn, readFact, readList, ReaderT.run, bind, ReaderT.bind,
+    pure, ReaderT.pure, Reads.read] at h
+  generalize hf : Option.map (fun x => x.snd)
+    (eval db { key := opKey msg, limit := some 1 }).rows.head? = fo at h
+  rcases fo with _ | f
+  · exact absurd h (pure_none_ne _ _)
+  cases f
+  all_goals try (exact absurd h (pure_none_ne _ _))
+  rename_i c u dev kid sealed n tm
+  simp only [ReaderT.bind, ReaderT.pure, id_bind] at h
+  generalize hk : (eval db (key.byId.query [kid] (some 1))).rows.head? = kr at h
+  rcases kr with _ | ⟨p, kf⟩
+  · exact absurd h (pure_none_ne _ _)
+  cases kf
+  all_goals dsimp only at h
+  all_goals try (exact absurd h (pure_none_ne _ _))
+  rename_i x y k
+  generalize ht : Option.map Profile.bytesStr (openSealed cryptoSeal c kid sealed k) = tx at h
+  rcases tx with _ | text
+  · dsimp only at h; exact absurd h (pure_none_ne _ _)
+  simp only [ReaderT.bind, ReaderT.pure, id_bind, Option.some.injEq, Prod.mk.injEq] at h
+  obtain ⟨rfl, rfl⟩ := h
+  exact ⟨c, u, dev, kid, sealed, n, tm, by simpa [factIn] using hf,
+    rfl, rfl, rfl, x, y, k, by simp [keyIn, hk], ht⟩
+
 end ViewLaws

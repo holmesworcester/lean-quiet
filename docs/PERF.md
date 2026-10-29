@@ -13,14 +13,11 @@ message id / attachment / attachment id. A component declares a query or
 render key, its owner path, and whether it is visible or speculative.
 The same `Demand.Plan` governs both `Reader.Shared` and `Work.Pool`.
 
-Comparison build `compare/overscan-only`: based on `7807d15`, with the
-text/native frame margin increased to 2048 px and the original 1024 px
-attachment margin retained. Queries, scheduling and page lifetimes are
-those of that base: attachment chunk IDs and bytes are separate wants;
-there is no list-body projection, Home preloader or motion predictor.
-`host:component-demand` also checks that a native 1536 px jump uses
-already published pixels without another Lean frame. This comparison
-isolates the larger text buffer from the other changes in `0b79a0f`.
+The text/native frame margin is 2048 px; image demand retains its 1024 px
+margin. Attachment chunk IDs and bytes remain separate queries. There is
+no list-body projection, Home preloader or motion predictor.
+`host:component-demand` checks that a native 1536 px jump uses already
+published pixels without another Lean frame.
 
 There are only two work classes for now: visible work and prefetch. Native
 editing/motion and the Lean frame do not wait for these workers. Frame
@@ -39,7 +36,10 @@ a new sync scheduler.
 | Perceived stability | Keep the last displayed row while its replacement is pending; keep overlapping requests when the viewport moves; never delay a finished row behind the rest of an old reader batch. | Actual `App.step` scrolling, typing, arrival, lifecycle and native seam suites. These properties do not by themselves prove subjective smoothness. |
 
 `engine/renderer/Demand.lean` contains the executable decisions and their
-26 audited laws. Reader keys use decidable equality; `Raster.key_eq` also proves that the render keys satisfy the kernel’s lawful-equality premise. `engine/renderer/Work.lean` supplies one dedicated worker
+27 audited laws. `heldIndex_agrees` connects the reader's hash-set lookup to
+the ownership predicate. Reader keys use decidable equality; `Raster.key_eq`
+also proves that render keys satisfy the kernel’s lawful-equality premise.
+`engine/renderer/Work.lean` supplies one dedicated worker
 per pool, short locks, promises, cooperative steps and timing counters.
 There is one app raster pool, not one thread per component. It exits when
 idle and does not join the shared task pool's old backlog. Reader work
@@ -59,27 +59,46 @@ control command `work` reports counts, cancellations and `maxUs`.
 
 ### Components own queries, including children
 
-The message query reads text, author/reactions, and an immutable attachment
-layout manifest. It no longer subscribes to attachment progress. A child
-inside the viewport or explicit 1024 px prefetch margin declares
-`Reader.Want.picture community attachment`, then `.slices chunks` when
-complete, and its raster keys. Leaving that region drops all declarations.
-The parent keeps dimensions so scrolling does not change geometry.
-Rows retain measured heights after unmount. Query answers are shared by
-key even when several component paths need them.
+Every visual observation uses `Component.Queries.query`, implemented by
+`App.query`. A scope supplies the component's identity and visibility;
+the interpreter declares demand and consumes a board answer without SQL.
+Devices publish the complete declaration set once per frame. Publishing
+partial trees repeatedly caused needless request-generation changes and
+reader-index rebuilds; the scrolling regression checks this integration.
 
-The migration path for profile and reaction op types is the same:
+A message's own query reads only its fact and content key. Its attachment
+collection discovers op IDs; each attachment opens its dimensions, key and
+preview. Initial measurement waits for those answers, so remounting does
+not temporarily collapse a previously measured image into a text-only row.
+Image decoding remains independent. Immutable metadata stays in the
+measured row while progress, chunk lists, bytes and decode handles are
+released when the attachment leaves its own visibility/prefetch margin.
 
-1. Give the child an op-type/identity path and bounds. Keep only immutable
-   identity/layout information in its parent's view.
-2. Move its changing view to a typed reader want; declare it only for
-   mounted visibility/prefetch demand. Consume a board answer without IO.
-3. Declare expensive preparation through the same work pool. Return a
-   continuation for another bounded step instead of spawning a task.
-4. Test that the parent remains mounted while the child releases and
-   reacquires queries, and that shared owners survive independently.
+Author components share profile queries by user identity, including visible
+member rows. A reaction block queries the distinct emoji set. Each pill
+queries the distinct reactors for its message/emoji and displays their
+count and whether the current user belongs. `Data.readSet` uses the same
+indexed list/outbox/watch machinery; it currently projects distinct values
+from returned rows, not SQL aggregation. `projectSet_mem` and
+`projectSet_nodup` prove the projection used by that runtime path. There is
+no constant-cost claim for counting arbitrarily many reactions.
 
-Profile/reaction views are still bundled into the message today. Full
+The message retains child outputs and paints a whole row when displayed
+data changes. A profile or reaction update does not rerun its own message
+query. Independent ownership concerns reads and preparation, not a forced
+bitmap layer for every child. The signed-op component tests cover these
+updates, pending writes, duplicate reactors, shared authors, child unmounts,
+and delayed size metadata.
+
+The old UI `Live` cache and production `Reads App.M` instance are removed.
+Home counts, community lists, join requests and session maintenance also
+use the common query interpreter. Page-level collections still compose
+some identity/authorization data internally. One-shot action preflight
+uses an explicit `App.transaction` boundary through the same Reader views;
+it is not a visibility subscription and still runs synchronously. Startup,
+the durable checkpoint and accepted writes have application lifetimes.
+
+Full
 decode buffers have no byte-budget proof; long messages can still have
 expensive row paints. Sync/ingestion admission does not yet use this
 policy. A later interaction policy can pause speculative work through
@@ -124,9 +143,12 @@ Screen recordings, control replies and logcat provide device evidence,
 separate from the deterministic local gate. Native event acquisition,
 frame copying and compositor delays remain outside these Lean proofs.
 
-docs/BOUNDS.md (holmes-a3's) is the node's and sync's inventory; this
-file holds the cost model both use, the app's steps, the O(N) table, and
-the argument that the UI and the node always make progress.
+The remaining sections preserve the earlier cost-model inventory and its
+open proof obligations. References there to `Pics`, the old UI cache, or
+unfinished reader wiring describe that historical model. The ownership
+and query implementation above is current; README's generated wiring
+audit distinguishes laws about running code from model-only laws.
+`docs/BOUNDS.md` holds the node/sync inventory.
 
 ## The cost model
 

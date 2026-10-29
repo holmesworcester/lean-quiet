@@ -115,6 +115,8 @@ structure RowData where
   selected : Bool
   /-- Another user's name looks the same: marked "Duplicate". -/
   namesake : Bool := false
+  /-- Identity supplied by the message op; the author component owns its profile. -/
+  author : ByteArray := .empty
   deriving BEq, Inhabited
 
 /-! ## Layout -/

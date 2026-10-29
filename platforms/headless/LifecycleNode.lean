@@ -82,9 +82,9 @@ def run (dir : String) (ck : Checks) : IO Unit := do
     steps 5
     ck.ok "Home's count follows the stored chaos messages" ((← get).page == .home && (← get).total == 31)
     ck.ok "Home never remounts the hidden conversation" ((← get).rows.isEmpty && (← get).reader.isNone)
-    let old := (← get).live.reads
+    let old := (← get).queryReads
     steps 3
-    ck.ok "Home's stable subscriptions do not reread" ((← get).live.reads == old)
+    ck.ok "Home's stable subscriptions do not reread" ((← get).queryReads == old)
     discard <| step [.background]).run s
 
 /-- A full channel, a late boot, a scheduled reader and a slow producer

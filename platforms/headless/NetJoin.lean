@@ -103,16 +103,17 @@ def main (args : List String) : IO UInt32 := do
     steps 2
     sb.cmds.modify (·.push "send hello over tcp")
     steps 3).run b4
-  let (a6, _, got) ← both a4 b5 20000 fun a _ =>
-    a.rows.toList.any (·.2.data.text == "hello over tcp")
+  let (_, a4) ← (App.openPage .chat).run a4
+  let (a6, _, _) ← both a4 b5 20000 fun a _ =>
+    a.rows.toList.any fun (_, r) => r.data.text == "hello over tcp" && r.data.name == "Bea"
   let ((), a7) ← (show M Unit from do
     sa.cmds.modify (·.push "channel")
     for _ in [0:200] do
-      if (← get).rows.toList.any (·.2.data.text == "hello over tcp") then break
+      if (← get).rows.toList.any (fun (_, r) => r.data.text == "hello over tcp" && r.data.name == "Bea") then break
       steps 1; IO.sleep 10).run a6
   let rows := a7.rows.toList.map (·.2.data)
   check s!"B's post reaches A under B's name ({(rows.find? (·.text == "hello over tcp")).map (·.name)})"
-    (got || rows.any fun d => d.text == "hello over tcp" && d.name == "Bea")
+    (rows.any fun d => d.text == "hello over tcp" && d.name == "Bea")
   -- A holds a session with a node Bea is admitted under, read from A's
   -- store as the Runner's hooks read it. No app field mirrors sessions:
   -- a stored session is not presence, so home draws no dot for it.

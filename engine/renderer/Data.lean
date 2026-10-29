@@ -240,8 +240,10 @@ def overlayList (out : Array Pending) (q : ListQ) (a : Answer Fact) (stored : Id
   let all := a.rows ++ inR.map fun p => (p.pos, p.fact)
   let sorted := all.mergeSort fun x y => x.1.cmp y.1 != .gt
   let rows := q.cut (if q.desc then sorted.reverse else sorted)
-  -- a pending row pushed past the limit is left out like any other
-  return (⟨rows, a.inRange + inR.length, a.total + mine.length⟩, mine.map (·.op.id))
+  -- Pending flags describe returned rows only. Keeping an out-of-window
+  -- id here would let its commit change the answer outside its watch.
+  let pending := mine.filter (fun p => rows.any (·.1.2 == p.op.id))
+  return (⟨rows, a.inRange + inR.length, a.total + mine.length⟩, pending.map (·.op.id))
 
 /-- **The overlay counts every op once.** Its total is the store's plus
 the pending ops the store has not counted (`pendingFor`): one held both
@@ -311,8 +313,8 @@ def Live.store (l : Live) (q : Q) (a : Ans) : Live :=
     reads := l.reads + 1 }
 
 /-- A read through the cache: its answer if no notice has made it stale,
-else `run`'s (the store's), recorded. App's `read` and the reader's are
-this (LiveLaws.read_one_moment is about it). -/
+else `run`'s (the store's), recorded. Reader.read uses this function
+(LiveLaws.read_one_moment is about it). -/
 def Live.readWith {m : Type → Type} [Monad m] (run : Q → m Ans) (q : Q) : StateT Live m Ans := do
   if let some a := (← get).answer q then return a
   let a ← run q
@@ -375,6 +377,37 @@ def readList (q : ListQ) (deps : Array Q) : m (Answer Fact × List Id × Array Q
 def readFact (x : Id) (deps : Array Q) : m (Option Fact × Bool × Array Q) := do
   let (a, pend, deps) ← readList { key := opKey x, limit := some 1 } deps
   return (a.rows.head?.map (·.2), pend.contains x, deps)
+
+/-- The set operation actually used by list-backed component views. -/
+def projectSet {α : Type} [BEq α] (rows : List (Pos × Fact)) (project : Fact → Option α) : List α :=
+  (rows.filterMap fun (_, f) => project f).eraseDups
+
+theorem projectSet_mem {α : Type} [BEq α] [LawfulBEq α]
+    (rows : List (Pos × Fact)) (project : Fact → Option α) (x : α) :
+    x ∈ projectSet rows project ↔ ∃ row ∈ rows, project row.2 = some x := by
+  simp [projectSet, List.mem_eraseDups, List.mem_filterMap]
+
+private theorem set_nodup {α : Type} [BEq α] [LawfulBEq α] : ∀ xs : List α, xs.eraseDups.Nodup
+  | [] => by simp
+  | x :: xs => by
+    rw [List.eraseDups_cons]
+    refine List.nodup_cons.2 ⟨?_, set_nodup _⟩
+    rw [List.mem_eraseDups]
+    simp
+termination_by xs => xs.length
+decreasing_by all_goals (simp_wf; exact Nat.lt_succ_of_le (List.length_filter_le _ _))
+
+theorem projectSet_nodup {α : Type} [BEq α] [LawfulBEq α]
+    (rows : List (Pos × Fact)) (project : Fact → Option α) :
+    (projectSet rows project).Nodup := set_nodup _
+
+/-- A set projected from a list, in first-occurrence order. The same
+query/watch/outbox path serves lists, sets, cardinality and membership.
+The projection is a view operation, not a second storage API. -/
+def readSet {α : Type} [BEq α] (q : ListQ) (project : Fact → Option α)
+    (deps : Array Q) : m (List α × Array Q) := do
+  let (a, _, deps) ← readList q deps
+  return (projectSet a.rows project, deps)
 
 /-- A view run through the reads (the live cache, outbox overlaid): its
 answer and the lists it read. By `view_stable` the answer changes only

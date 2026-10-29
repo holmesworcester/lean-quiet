@@ -43,6 +43,9 @@ cases = [
     ("child-never-unmounts", "op_components", [
         ("App.lean", "if Raster.near childBottom bx.h offset viewport imageOver then", "if true then"),
     ], "FAIL: offscreen attachment children release every chunk query"),
+    ("pending-outside-window", "op_components", [
+        ("engine/renderer/Data.lean", "let pending := mine.filter (fun p => rows.any (·.1.2 == p.op.id))", "let pending := mine"),
+    ], "FAIL: an out-of-window pending row cannot change a bounded answer's pending flags"),
 
 ]
 

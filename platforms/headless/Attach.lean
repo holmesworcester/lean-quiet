@@ -88,7 +88,7 @@ def received (sm : Sim) (t : String) : M (Option (Row.Pic × Option ByteArray ×
     raw ← slicesOf p
     if raw.isSome then break
     steps 1
-  let opened := (raw >>= Pics.slicesFromOps) >>= fun sl => Community.openFile sl p.key p.nonce
+  let opened := (raw >>= FileImage.slices) >>= fun sl => Community.openFile sl p.key p.nonce
   return some (p, opened, full, big)
 
 def main (args : List String) : IO UInt32 := do

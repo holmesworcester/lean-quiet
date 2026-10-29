@@ -58,14 +58,24 @@ def read (c msg : Id) (deps : Array Q) (withProgress : Bool := true) : m (Array 
 
 /-- The attachment component's own view. Its live subscriptions end when
 its last visible/prefetch owner leaves, independently of its message. -/
-def readOne (c att : Id) : m (Option Row.Pic × Array Q) := do
+def readOne (c att : Id) (withProgress : Bool := true) : m (Option Row.Pic × Array Q) := do
   let (fact, _, deps) ← readFact att #[]
   let some (.attachment _ _ _ root len kid sealed) := fact | return (none, deps)
   let (ks, _, deps) ← readList (key.byId.query [kid] (limit := some 1)) deps
   let some key := ks.rows.head?.bind fun (_, f) => match f with | .key _ _ k => some k | _ => none
     | return (none, deps)
   let some (info, fk, fn) := openInfo c kid sealed key | return (none, deps)
+  if !withProgress then
+    return (some { hash := root, w := info.w, h := info.h, len, preview := info.preview,
+                   key := fk, nonce := fn, attachment := att }, deps)
   let (p, deps) ← pic c att root len info fk fn deps
   return (some p, deps)
+
+/-- The collection discovers attachment op identities. Each attachment
+opens its own metadata, including dimensions, through readOne. -/
+def ids (c msg : Id) : m (List Id × Array Q) := do
+  let (a, _, deps) ← readList (attachment.byMessage.query [c, msg]
+    (limit := some maxShown) (desc := false)) #[]
+  return (a.rows.map (·.1.2), deps)
 
 end Kinds.File

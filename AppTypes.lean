@@ -20,8 +20,8 @@ import engine.renderer.Camera
 import ops.app.Remove
 import ops.community.message.View
 import ops.community.membership.RequestView
-import ops.app.Pics
 import ops.app.Raster
+import ops.app.Components
 import Std.Data.HashMap
 
 namespace App
@@ -69,7 +69,6 @@ def bottomPad : Nat := 16
 structure RowSt where
   data : RowData
   lay : Layout
-  deps : Array Q
   /-- What the current paint was made from: data version and which
   pictures were ready. -/
   painted : Nat × List Bool
@@ -84,7 +83,7 @@ structure RowSt where
   dimVer : Nat := 0
   dimShown : Option Bitmap := none
 
-abbrev ImgKey := Pics.Key
+abbrev ImgKey := FileImage.Key
 
 /-- Which page is up: a conversation, or one of libquiet's other screens. -/
 inductive PageId where
@@ -176,10 +175,9 @@ structure St where
   /-- The journal's newest row this app has taken notice of. -/
   seen : Nat := 0
   me : Chaos.Me
-  live : Live := {}
-  /-- The reads the frame made since it last forgot the others: what it
-  keeps watching (Screen.screen_subs). -/
-  touched : Std.HashSet Q := {}
+  /-- One-shot command reads; persistent observations belong to Reader. -/
+  intentReads : Nat := 0
+  serviceSeen : Std.HashMap Id (List ByteArray) := {}
   out : Array Pending := #[]
   /-- What the native text field holds, as last set or reported. -/
   native : String := ""
@@ -205,7 +203,8 @@ structure St where
   imgs : Std.HashMap ImgKey (Work.Handle Raster.Key Bitmap) := {}
   raster : Work.Pool Raster.Key Bitmap
   rasterNeeds : Array (Demand.Need Raster.Key) := #[]
-  pictureNeeds : Array (Demand.Need Reader.Want) := #[]
+  queryNeeds : Array (Demand.Need Reader.Want) := #[]
+  querySeen : Std.HashSet (Demand.Owner × Reader.Want × Bool) := {}
   /-- Diagnostic: mounted pictures waiting for their chunk bytes. Demand,
   never a timer, owns these queries. -/
   imgWaiting : Std.HashSet ImgKey := {}
@@ -292,7 +291,6 @@ removal is not announced again. -/
   scans : Nat := 0
 
   life : Lifecycle.Mount := {}
-  owner : Id := .empty
   active : Bool := true
   surface : Bool := true
   /-- A message and its top-edge distance above the viewport bottom.
@@ -317,6 +315,28 @@ instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 
   pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure (), pure #[], pure #[], fun _ => pure (), fun _ _ => pure (), fun _ _ _ _ => pure ()⟩⟩
 
 abbrev M := StateT St IO
+
+/-- The only observation door for UI components. It declares ownership
+and consumes a published answer; it never performs database IO. -/
+def query (scope : Component.Scope) (want : Reader.Want) : M (Option Reader.Val) := do
+  let s ← get
+  if !s.life.mounted then return none
+  let need := scope.need want
+  let id := (scope.owner, want, scope.visible)
+  if !s.querySeen.contains id then
+    modify fun s => { s with queryNeeds := s.queryNeeds.push need, querySeen := s.querySeen.insert id }
+  return ((← s.sh.board.get).get? want).map (·.1)
+
+instance : Component.Queries M := ⟨query⟩
+
+/-- Attachment demand, for diagnostics and lifecycle regression tests. -/
+def St.pictureNeeds (s : St) : Array (Demand.Need Reader.Want) :=
+  s.queryNeeds.filter fun n => match n.key with
+    | .picture .. | .slices .. | .attachment .. => true
+    | _ => false
+
+/-- Headless accounting includes the reader state driven by the twin. -/
+def St.queryReads (s : St) : Nat := s.intentReads + (s.rst.map (·.live.reads)).getD 0
 
 def c (s : St) : Id := s.me.c
 

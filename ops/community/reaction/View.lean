@@ -26,6 +26,18 @@ def tally (xs : List (String × Id)) : List (String × List Id) :=
 
 variable {m : Type → Type} [Monad m] [Reads m]
 
+/-- The reaction block discovers distinct emoji identities, not counts. -/
+def emojis (c msg : Id) : m (List String × Array Q) :=
+  readSet (react.byMessage.query [c, msg] (desc := false))
+    (fun | .react _ _ _ e _ => String.fromUTF8? e | _ => none) #[]
+
+/-- One emoji component owns its set of reactors. Duplicate ops by one
+person count once; membership gives the current user's selected state. -/
+def one (c msg me : Id) (emoji : String) : m (Row.Tally × Array Q) := do
+  let (users, deps) ← readSet (react.byMessageEmoji.query [c, msg, emoji.toUTF8] (desc := false))
+    (fun | .react _ who _ _ _ => some who | _ => none) #[]
+  return (⟨emoji, users.length, users.contains me⟩, deps)
+
 def read (c msg me : Id) (deps : Array Q) : m (List Row.Tally × Array Q) := do
   let (a, _, deps) ← readList (react.byMessage.query [c, msg] (limit := some 500) (desc := false)) deps
   let xs := a.rows.filterMap fun (_, f) => match f with

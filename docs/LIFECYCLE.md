@@ -4,7 +4,9 @@ The lifecycle implementation is `ops/app/Lifecycle.lean`, `AppLife.lean`
 and `ops/app/LifecycleLaws.lean`. `AppTypes.lean` is a mechanical extraction of
 the app's types, needed to share them with the hooks without an import cycle.
 `App.lean` retains the root, page actions and existing proved functions.
-`Kinds.Message.read` and its read order are unchanged.
+Visual reads use `Component.Queries` and the shared Reader. The running
+message view is `Kinds.Message.readOwn`; author, attachment and reaction
+children own separate queries.
 
 ## State and ordering
 
@@ -53,8 +55,9 @@ viewport, mounts, re-reads current facts, starts sync, resumes the scan page's
 camera, and submits a frame. The camera permission flow can cause another
 pause/resume; Java does not independently reopen the camera.
 
-Root reads are synchronous on the app thread, so navigation cannot interleave
-inside a root SQLite read. The dedicated reader is signalled and its shared refs are detached. Each subsequent query and board publication
+Visual queries consume published values without SQL on the app thread.
+One-shot command preflight and lifecycle journal reads remain synchronous.
+The dedicated reader is signalled and its shared refs are detached. Each subsequent query and board publication
 checks revocation; a SQLite read already issued may finish on the old refs. Queued callbacks carry a mount generation; work from
 an earlier mount is rejected, including after remounting the same page.
 Paint/QR/image workers are pure and cannot publish into app state themselves.
@@ -64,12 +67,14 @@ them. Suspend alone may poll, bounded by its deadline. Already accepted durable 
 the store and can finish after navigation; no new write can be issued by
 the revoked callback.
 
-`Mount.tree` records the root's queries and each mounted row's queries.
-Cached reads register ownership too. Every turn prunes `Live.entries` and
-`Live.subs`, including **list** queries. The former is exactly the mounted
-query set after a successful read turn. The latter indexes the windows of
-its fresh answers: firing disarms a watch until its next read. It is not correct
-to equate that fresh subset with all live subscriptions.
+`queryNeeds` records the declarations made by this frame's mounted
+components. Presentation reconciles the complete set with `Demand.Plan`.
+The reader drops queries and reverse-index entries without owners, then
+keeps only lower-level `Live` entries held by the remaining queries.
+Fresh answers register their exact windows; a notice disarms a watch until
+its next read. The fresh watch subset is not the complete demand set.
+The earlier `Mount.tree` cache model remains historical; it is not the
+runtime owner registry.
 
 ## Callback inventory
 
@@ -145,8 +150,8 @@ Lifecycle.mounted_runs (n : Nat) :
 
 App.page_round (p : PageId) : PageId.ofCode p.code = p
 
-LifecycleLaws.unmount_read (s : St) (q : Q) :
-  (App.read q).run (unmountState s) = pure (default, unmountState s)
+LifecycleLaws.unmount_read (s : St) (scope : Component.Scope) (q : Reader.Want) :
+  (App.query scope q).run (unmountState s) = pure (none, unmountState s)
 
 LifecycleLaws.unmount_write (s : St) (w : Community.Write) :
   (App.writeAll w).run (unmountState s) = pure (false, unmountState s)

@@ -1,6 +1,7 @@
 import engine.renderer.SafeLaws
 import engine.renderer.Demand
 
+
 import engine.renderer.ThemeLaws
 import engine.renderer.SlideLaws
 import engine.renderer.InputLaws
@@ -1113,6 +1114,7 @@ end cost
 #print axioms Engine.Sync.Tree.pieces_le_aux
 #print axioms Engine.Sync.Tree.runLen_le
 
+#print axioms Demand.heldIndex_agrees
 #print axioms Demand.complete_retired
 #print axioms Demand.complete_current
 #print axioms Demand.reconcile_empty
@@ -1141,3 +1143,7 @@ end cost
 
 #print axioms Raster.key_eq
 #print axioms Demand.remount_rejects
+
+#print axioms Data.projectSet_mem
+#print axioms Data.projectSet_nodup
+#print axioms ViewLaws.message_own

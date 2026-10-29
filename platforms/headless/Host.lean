@@ -50,14 +50,16 @@ def liveSound : M (Nat × Nat) := do
   let s ← get
   -- take what the writer has filed first: a fresh answer is promised only
   -- up to the notices the frame has seen
-  let (fs, vs) ← takeChanges
-  modify fun s => { s with live := s.live.notice fs (vs.map (·.1)) }
+  readerPass
   let s ← get
+  let some reader := s.rst | throw (IO.userError "live oracle requires the headless reader")
+  let (fs, vs, _) ← s.rd.filingsSince reader.seen
+  let live := reader.live.notice fs (vs.map (·.1))
   let mut n := 0
   let mut bad := 0
-  for (q, e) in s.live.entries.toList do
+  for (q, e) in live.entries.toList do
     if e.stale then continue
-    let now ← q.run s.rd s.out
+    let now ← q.run s.rd reader.out
     n := n + 1
     if now != e.ans then
       bad := bad + 1
@@ -208,7 +210,7 @@ def main (args : List String) : IO UInt32 := do
     waitIdle sm
     steps 5
     let s ← get
-    let admitted : Bool ← match ← read (.list (Community.admission.byDevice.query [s.me.c, joiner.pk] (limit := some 0))) with
+    let admitted : Bool ← match ← Reads.read (.list (Community.admission.byDevice.query [s.me.c, joiner.pk] (limit := some 0))) with
       | .list a _ => pure (decide (a.total > 0))
       | _ => pure false
     check "the approval completes the tally and the joiner is admitted" (admitted && (← get).asking.isEmpty)

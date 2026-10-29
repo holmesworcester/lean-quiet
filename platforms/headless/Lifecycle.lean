@@ -29,9 +29,7 @@ private def readerSubscriptions (r : Reader.St) : Bool :=
   qs.all (fun q => r.live.entries.contains q) && heldSubscriptions r.live qs
 
 private def subscriptions (s : St) : Bool :=
-  s.live.entries.toList.all (fun (q, _) => s.life.queries.contains q) &&
-  s.life.queries.all (fun q => s.live.entries.contains q) &&
-  heldSubscriptions s.live s.life.queries && (s.rst.map readerSubscriptions).getD true
+  (s.rst.map readerSubscriptions).getD true
 
 private def settled (s : St) : IO Bool :=
   return (← s.wr.busy.get) == 0 && (← s.wr.jobs.get).isEmpty
@@ -58,9 +56,9 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
       else ck.ok "TCP runner starts when a listener is permitted" false
     ck.ok "actual chat rows read and painted" (s.total == 45 && s.rows.size > 0 && s.paints > 0)
     ck.ok "exact mounted subscriptions" (subscriptions s)
-    let oldReads := s.live.reads
+    let oldReads := s.queryReads
     steps 3
-    ck.ok "stable mounted queries do not reread" ((← get).live.reads == oldReads)
+    ck.ok "stable mounted queries do not reread" ((← get).queryReads == oldReads)
     sm.b.set 1800
     steps 4
     let before ← get
@@ -93,7 +91,8 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
     openPage .home
     steps 2
     ck.ok "navigation unmounts every conversation row" ((← get).rows.isEmpty)
-    ck.ok "navigation removes the old row's subscription" (!((← get).life.queries.contains (Q.get msg)))
+    ck.ok "navigation removes the old row's subscription"
+      (!((← (← get).sh.plan.get).held (.row old.me.c old.me.adm msg)))
     let before ← get
     let rejected ← owned lease (do
       discard <| readRow msg
@@ -102,7 +101,7 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
     let after ← get
     ck.ok "in-flight old callback is rejected" rejected.isNone
     ck.ok "old callback performs no reads, paints or writes"
-      (before.live.reads == after.live.reads && before.paints == after.paints && before.out.size == after.out.size)
+      (before.queryReads == after.queryReads && before.paints == after.paints && before.out.size == after.out.size)
     -- An actual committed incoming message's notices reach the root only.
     let k := (← ((Community.currentKey after.me.c).liftL.run : SqlM SF _).run after.rd).getD .empty
     let op := sealedPost after.me.c after.me.adm after.me.dev k (← Engine.Crypto.randomBytes 24)
@@ -111,7 +110,8 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
     waitIdle sm
     ck.ok "arriving message is stored" ((← Data.status after.rd op.id).isSome)
     ck.ok "arrival does not remount or paint chat" ((← get).rows.isEmpty && (← get).paints == after.paints)
-    ck.ok "arrival does not re-arm the old row" (!((← get).life.queries.contains (Q.get msg)))
+    ck.ok "arrival does not re-arm the old row"
+      (!((← (← get).sh.plan.get).held (.row old.me.c old.me.adm msg)))
     ck.ok "page tree subscriptions remain exact" (subscriptions (← get))
     openPage .chat
     steps 3
@@ -122,7 +122,7 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
     steps 1
     ck.ok "scan mount owns a camera" (← sm.on.get)
     let n ← sm.frames.get
-    let r := (← get).live.reads
+    let r := (← get).queryReads
     let parked := sealedPost s.me.c s.me.adm s.me.dev k (← Engine.Crypto.randomBytes 24)
       "queued while suspended".toUTF8 101 (← nowMin)
     sm.visible.set false
@@ -140,7 +140,7 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
     ck.ok "suspension stops camera and sync runner" (!(← sm.on.get) && asleep.net.isNone)
     ck.ok "suspension clears keyboard, subscriptions and tasks"
       (asleep.imeH == 0 && asleep.life.tree.isEmpty && asleep.rows.isEmpty && asleep.decoding.isNone)
-    ck.ok "no read or frame without surface" (asleep.live.reads == r && (← sm.frames.get) == n)
+    ck.ok "no read or frame without surface" (asleep.queryReads == r && (← sm.frames.get) == n)
     discard <| step [.foreground]
     ck.ok "foreground waits for surface before restarting" ((← get).net.isNone && !(← sm.on.get) && (← sm.frames.get) == n)
     sm.viewport.set #[720, 1280, 32, 24, 160]

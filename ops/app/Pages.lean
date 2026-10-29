@@ -539,6 +539,11 @@ def homeBand (f : Font) (dm : Dim) (W insetTop : Nat) (name id8 me : String) : B
 anyone waits (for those who can let them in), Channels, and Direct
 messages (the people). Stored sessions say nothing about a person's
 activity, so they do not decorate avatars. -/
+-- Shared by layout and profile demand: only rows that fit are shown.
+def homePeopleTop (dm : Dim) (waiting channels : Nat) : Nat :=
+  dm.px 16 + (if waiting > 0 then dm.px 44 + dm.px 24 else 0) +
+    dm.lineH + dm.px 8 + channels * dm.px 44 + dm.px 24 + dm.lineH + dm.px 8
+
 def home (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array String) (people : Array (String × Bool)) : Page := Id.run do
   let mut b := Bitmap.blank W h (solid (Palette.color dm.theme .panel) W)
   b := b.round 0 0 W (h + dm.px 16) (dm.px 16) (Palette.color dm.theme .bg)
@@ -562,6 +567,7 @@ def home (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array Str
   b := b.line f (oneLine f W "Direct messages") (dm.px 16) y (Palette.color dm.theme .fg) true
   y := y + dm.lineH + dm.px 8
   let d := dm.px 32
+  y := homePeopleTop dm waiting channels.size
   for i in [0:people.size] do
     let (n, isMe) := people[i]!
     if y + rh > h then break

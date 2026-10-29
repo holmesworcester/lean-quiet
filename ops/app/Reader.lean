@@ -47,8 +47,13 @@ inductive Want where
   Screen's `chrome`), so a message filed outside the window notifies
   this want alone; the frame reads it after the rows. -/
   | count (c : Id) (anchor : Option Pos)
-  /-- Message m's row in c, as `me` sees it (Kinds.Message.read). -/
+  /-- Message m's own fact and content key (Kinds.Message.readOwn). -/
   | row (c me m : Id)
+  | author (c user : Id)
+  | attachments (c message : Id)
+  | attachment (c attachment : Id)
+  | emojis (c message : Id)
+  | reaction (c message me : Id) (emoji : String)
   /-- An attachment child owns its metadata/progress/chunk-list view. -/
   | picture (c attachment : Id)
   /-- An attachment's chunk ops' bytes, in order (as stored, or in the
@@ -56,13 +61,15 @@ inductive Want where
   | slices (chunks : List Id)
   /-- This device's communities (Kinds.Accepted.read). -/
   | comms
-  /-- c's present members, each with its devices and name, and whether
-  `user` is an admin of c. -/
+  /-- c's present member identities/devices and whether `user` is an
+  admin. Mounted author components supply their profiles. -/
   | members (c user : Id)
   /-- c's join requests no admission answers yet. -/
   | asking (c : Id)
   /-- How many present members c has. -/
   | people (c : Id)
+  /-- Session-owned reconciliation, not a visible widget subscription. -/
+  | maintenance (c : Id)
   deriving DecidableEq, Hashable
 
 /-- Two of this device's communities alike: every field but the device,
@@ -118,6 +125,10 @@ inductive Val where
   | count (newer older : Nat)
   /-- The row, or none while its message cannot be shown. -/
   | row (d : Option Row.RowData)
+  | author (name : String) (namesake : Bool)
+  | ids (ids : List Id)
+  | emojis (emojis : List String)
+  | reaction (tally : Row.Tally)
   | picture (data : Option Row.Pic)
   /-- The chunk ops' bytes, or none while one is not here. -/
   | slices (raw : Option (List ByteArray))
@@ -125,6 +136,7 @@ inductive Val where
   | members (ms : Array (Id × List Key × String)) (admin : Bool)
   | asking (rs : Array Kinds.Request.Data)
   | people (n : Nat) (complete : Bool)
+  | writes (ops : List ByteArray)
   deriving BEq
 
 structure St where
@@ -225,7 +237,8 @@ def Shared.setNeeds (sh : Shared) (needs : Array (Demand.Need Want)) : IO Unit :
   sh.plan.modify (fun _ => plan)
   let ws := (needs.toList.map (·.key)).eraseDups.toArray
   sh.request.modify fun (gen, old) => (_root_.Live.nextGen old ws gen, ws)
-  sh.board.modify (·.keep plan.held)
+  let held := plan.heldIndex
+  sh.board.modify (·.keep held.contains)
 
 /-- Compatibility for page-level callers. Components pass their own paths
 through setNeeds; counts and secondary page lists are prefetch priority. -/
@@ -250,7 +263,7 @@ def Shared.wants (sh : Shared) : IO (Array Want) := return (← sh.request.get).
 def Shared.generation (sh : Shared) : IO Nat := return (← sh.request.get).1
 
 
-/-- A read through the pass's cache (App's `read`, on this connection). -/
+/-- A read through the pass's cache, on this connection. -/
 def read (q : Q) : RM Ans := do
   let s ← get
   if !(← s.enabled) then return default
@@ -288,21 +301,44 @@ def eval : Want → RM (Val × Array Q)
     modify fun s => { s with known := all }
     return (.comms all, deps)
   | .members c user => do
-    let (ms, deps) ← Kinds.Profile.members c
+    let (ms, deps) ← readView (Kinds.Profile.present c) #[]
     -- an admin: the founder's user (the community's id), or one granted admin
     let (ad, _, deps) ← readList (Community.admin.byUser.query [c, user] (limit := some 0)) deps
-    return (.members (ms.map fun (u, ds, p) => (u, ds, p.name)) (!user.isEmpty && (user == c || ad.total > 0)), deps)
+    return (.members (ms.toArray.map fun (u, ds) => (u, ds, "…")) (!user.isEmpty && (user == c || ad.total > 0)), deps)
   | .asking c => do
     let (rs, deps) ← Kinds.Request.waiting c
     return (.asking rs, deps)
   | .people c => do
     let ((n, all), deps) ← readView (Kinds.Profile.presentCount c 999 1024) #[]
     return (.people n (all && n < 999), deps)
-  | .row c me m => do
-    match ← Kinds.Message.read c me m false with
+  | .maintenance c => do
+    let (all, deps) ← Kinds.Accepted.read (← get).known
+    let some me := all.find? (fun m => m.c == c && !m.waiting) | return (.writes [], deps)
+    let now := (← Std.Time.Timestamp.now).toSecondsSinceUnixEpoch.val.toNat / 60
+    let (profile, deps) ← readView (Community.introduce c me.dev now) deps
+    let (keys, deps) ← readView (Community.unwrap c) deps
+    return (.writes ((profile.ops ++ keys.ops).map Op.bytes), deps)
+  | .row _ _ m => do
+    match ← Kinds.Message.readOwn m with
     | some (d, deps) => return (.row (some d), deps)
     -- not shown yet: no reads held, so it is read again each pass
     | none => return (.row none, #[])
+  | .author c u => do
+    let (who, deps) ← Kinds.Profile.read c u #[]
+    let (twin, deps) ← Kinds.Profile.namesake c u who.name deps
+    return (.author who.name twin, deps)
+  | .attachments c msg => do
+    let (ids, deps) ← Kinds.File.ids c msg
+    return (.ids ids, deps)
+  | .attachment c att => do
+    let (p, deps) ← Kinds.File.readOne c att false
+    return (.picture p, deps)
+  | .emojis c msg => do
+    let (emojis, deps) ← Kinds.React.emojis c msg
+    return (.emojis emojis, deps)
+  | .reaction c msg me emoji => do
+    let (tally, deps) ← Kinds.React.one c msg me emoji
+    return (.reaction tally, deps)
   | .picture c attachment => do
     let (p, deps) ← Kinds.File.readOne c attachment
     return (.picture p, deps)

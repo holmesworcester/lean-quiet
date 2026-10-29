@@ -61,21 +61,20 @@ def systemTheme (system : Theme.Value) : M Unit := do
   let s ← get
   s.io.appearance (Theme.effective s.theme == .dark) (Palette.color s.dim.theme .bg)
 
-/-! ## Reading through live answers -/
+/-! ## One-shot transactions
 
-def read (q : Q) : M Ans := do
+Visual components cannot perform store reads: M has no Reads instance.
+Commands needing an authoritative snapshot run the same Reader/Reads
+interpreter once. These are transaction reads, never UI subscriptions. -/
+
+def transaction (action : Reader.RM α) : M α := do
   let s ← get
-  if !s.life.allows s.life.lease then return default
-  modify fun s => { s with touched := s.touched.insert q }
-  modify fun s => { s with life := s.life.track s.owner q }
-  let (a, live) ← (Live.readWith (fun q => q.run s.rd s.out) q).run s.live
-  modify fun s => { s with live }
+  let (a, r) ← action.run { rd := s.rd, out := s.out, known := s.comms }
+  modify fun s => { s with intentReads := s.intentReads + r.live.reads }
   return a
 
-def fresh (q : Q) : M Bool := do return (← get).live.fresh q
-
-
-instance : Reads M := ⟨read⟩
+def intentView (view : View Fact α) : M α :=
+  transaction do return (← readView view #[]).1
 
 /-! ## The native text field
 
@@ -151,9 +150,8 @@ def syncText : M Unit := do
 UTC minutes), shown at the local time (the platform's timezone). -/
 def readRow (m : Id) : M (Option (RowData × Array Q)) := do
   let s ← get
-  let tz := (← s.io.wall).2
-  return (← Kinds.Message.read s.me.c s.me.adm m).map fun (d, qs) =>
-    ({ d with time := (d.time + tz).toNat }, qs)
+  if !s.life.mounted then return none
+  return (s.rows[m]?).map fun r => (r.data, #[])
 
 /-! ## Writing -/
 
@@ -161,7 +159,6 @@ def readRow (m : Id) : M (Option (RowData × Array Q)) := do
 positions under their keys. -/
 def noticeLocal (ps : List Pending) : M Unit := do
   let fs := Pending.filings ps
-  modify fun s => { s with live := s.live.notice fs }
   (← get).sh.notes.modify (· ++ fs)
 
 /-- Offer writes to the node's inbound channel, in order, without waiting:
@@ -281,10 +278,10 @@ def sendText (text : String) : M Bool := do
   let t := text.trimAscii.toString
   if t.isEmpty then return false
   -- sealed under the community's current key, as the composer's send is
-  let (k?, _) ← readView (Community.currentKey s.me.c) #[]
+  let k? ← intentView (Community.currentKey s.me.c)
   let some k := k? | return false
-  let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k (← newBytes 24) t.toUTF8
-    (← nowMin)) #[]
+  let w ← intentView (Community.send s.me.c s.me.adm s.me.dev k (← newBytes 24) t.toUTF8
+    (← nowMin))
   writeAll w
 
 /-- `sendText` as an act: the reader reads the key and runs the send
@@ -385,10 +382,8 @@ def image (p : Row.Pic) (w h : Nat) (owner : Demand.Owner := [])
   let mut full := none
   if p.complete then
     let want := Reader.Want.slices p.chunks
-    let need : Demand.Need Reader.Want := ⟨owner, want, visible⟩
-    modify fun s => { s with pictureNeeds := s.pictureNeeds.push need }
-    match (← s.sh.board.get).get? want with
-    | some (.slices (some raw), _) => full ← stage 1 (fun _ => Raster.fileSource p raw)
+    match ← query ⟨owner, visible⟩ want with
+    | some (.slices (some raw)) => full ← stage 1 (fun _ => Raster.fileSource p raw)
     | _ =>
       -- Kept for diagnostics of a missing dependency, never as a timer
       -- authorizing work. The child's declaration alone owns the query.
@@ -401,6 +396,15 @@ device the reader's thread runs them. The outbox is the reader's
 def readerPass : M Unit := do
   let s ← get
   if !s.life.mounted then return
+  -- Devices publish the complete component tree once, in present. A
+  -- partial tree would reorder requests twice per frame and repeatedly
+  -- rebuild the reader's dependency index while it is serving them.
+  if s.rst.isNone then return
+  -- Keep last frame's owners while this frame discovers descendants.
+  -- Presentation reconciles the completed declaration set exactly once.
+  let previous := (← s.sh.plan.get).needs.toArray
+  s.sh.setNeeds (s.queryNeeds ++ previous.filter fun n => !s.queryNeeds.any
+    (fun current => current.owner == n.owner && current.key == n.key))
   if let some r := s.rst then
     let (_, r) ← (Reader.pass s.sh).run r
     modify fun s => { s with rst := some r }
@@ -423,12 +427,19 @@ def mount (bd : _root_.Live.Board Reader.Want Reader.Val) (x : Id) : M Unit := d
   if (s.rows[x]?.map (·.bver)) == some ver then return
   let tz := (← s.io.wall).2
   let d := { d with time := (d.time + tz).toNat }
+  let measured ← match s.rows[x]? with
+    | some r => pure (some (r.data.pics, r.data.tallies))
+    | none => Component.measure ⟨Raster.messageOwner s.me.c x, true⟩ s.me.c x
+  let some (pics, tallies) := measured | return
+  let d := { d with pics, tallies }
   -- Preserve a child's already displayed value when an unrelated parent
   -- query changes. The child still refreshes from its own board entry.
   let d := match s.rows[x]? with
     | none => d
-    | some r => { d with pics := d.pics.map fun p =>
-        (r.data.pics.find? (fun old => old.attachment == p.attachment && old.hash == p.hash)).getD p }
+    | some r => { d with
+        pics := r.data.pics, tallies := r.data.tallies,
+        name := if d.author == r.data.author then r.data.name else d.name,
+        namesake := d.author == r.data.author && r.data.namesake }
   match s.rows[x]? with
   | some r =>
     if r.data == d then
@@ -440,8 +451,56 @@ def mount (bd : _root_.Live.Board Reader.Want Reader.Val) (x : Id) : M Unit := d
   | none =>
     let lay := Row.layout s.font s.dim s.W d
     modify fun s => { s with
-      rows := s.rows.insert x { data := d, lay, deps := #[], painted := (0, []), task := none, shown := none,
+      rows := s.rows.insert x { data := d, lay, painted := (0, []), task := none, shown := none,
                                 ver := 1, bver := ver },
+      heights := s.heights.insert x lay.h }
+
+/-- Assemble child outputs. Each child observes by identity through the
+same API; only the message op's own data arrives through its row query.
+Geometry is recomputed before anchoring when a child supplies a new size. -/
+def mountChildren (x : Id) (bottom offset viewport : Nat) : M Unit := do
+  let s ← get
+  let some r := s.rows[x]? | return
+  let scope : Component.Scope := ⟨Raster.messageOwner s.me.c x,
+    Raster.near bottom r.lay.h offset viewport 0⟩
+  let mut d := r.data
+  let ids ← Component.attachments (scope.child "attachments" x) s.me.c x (d.pics.map (·.attachment))
+  let mut pics := []
+  for id in ids do
+    if let some p ← Component.attachment (scope.child "attachment" id) s.me.c id
+        (d.pics.find? (·.attachment == id)) then pics := pics ++ [p]
+  d := { d with pics }
+  let lay := if d == r.data then r.lay else Row.layout s.font s.dim s.W d
+  let authorBottom := bottom + lay.h - (s.dim.topPad + s.dim.lineH)
+  if Raster.near authorBottom s.dim.lineH offset viewport over then
+    let authorScope := { scope.child "author" d.author with
+      visible := Raster.near authorBottom s.dim.lineH offset viewport 0 }
+    let (name, twin) ← Component.author authorScope s.me.c d.author (d.name, d.namesake)
+    d := { d with name, namesake := twin }
+  let reactionHeight := match lay.pills[0]? with
+    | some (box, _) => lay.h - box.y
+    | none => s.dim.pillH + s.dim.gap + s.dim.px 8
+  if Raster.near bottom reactionHeight offset viewport over then
+    let block := { scope.child "reactions" x with
+      visible := Raster.near bottom reactionHeight offset viewport 0 }
+    let es ← Component.emojis block s.me.c x (d.tallies.map (·.emoji))
+    let tallies := es.map fun e => (d.tallies.find? (·.emoji == e)).getD ⟨e, 0, false⟩
+    let pillLayout := if tallies == d.tallies then lay else Row.layout s.font s.dim s.W { d with tallies }
+    let mut next := []
+    for i in [0:tallies.length] do
+      let old := tallies[i]!
+      let box := (pillLayout.pills[i]!).1
+      let childBottom := bottom + pillLayout.h - box.y - box.h
+      let t ← if Raster.near childBottom box.h offset viewport over then
+        Component.reaction { block.child "reaction" old.emoji.toUTF8 with
+          visible := Raster.near childBottom box.h offset viewport 0 } s.me.c x s.me.user old.emoji old
+        else pure old
+      next := next ++ [t]
+    d := { d with tallies := next }
+  if d != r.data then
+    let lay := Row.layout s.font s.dim s.W d
+    modify fun s => { s with
+      rows := s.rows.insert x { r with data := d, lay, ver := r.ver + 1 },
       heights := s.heights.insert x lay.h }
 
 /-- Start a paint of row x if what it shows changed; collect a finished one. -/
@@ -464,11 +523,7 @@ def paintRow (x : Id) (bottom offset viewport : Nat := 0) : M Unit := do
       if Raster.near childBottom bx.h offset viewport imageOver then
         let owner := Raster.pictureOwner s.me.c x p.attachment
         let visible := Raster.near childBottom bx.h offset viewport 0
-        let want := Reader.Want.picture s.me.c p.attachment
-        modify fun s => { s with pictureNeeds := s.pictureNeeds.push ⟨owner, want, visible⟩ }
-        let p := match (← s.sh.board.get).get? want with
-          | some (.picture (some current), _) => current
-          | _ => p
+        let p ← Component.picture ⟨owner, visible⟩ s.me.c p.attachment p
         data := { data with pics := data.pics.set i p }
         let (b, isFile) ← image p bx.w bx.h owner visible
         imgs := imgs.push b
@@ -642,7 +697,7 @@ def openPage (p : PageId) : M Unit := do
     let bearer ← newSeed
     -- dial hints: this device's private LAN addresses (Link.hints)
     -- the link names this node's key (Community.inviteTo reads it)
-    let (issued, _) ← readView (Community.inviteTo s.me.c s.me.adm s.me.dev bearer (← listenHints)) #[]
+    let issued ← intentView (Community.inviteTo s.me.c s.me.adm s.me.dev bearer (← listenHints))
     if let some (w, i) := issued then
       if ← writeAll w then
         modify fun s => { s with links := (s.me.acc, i.text) :: s.links }
@@ -702,12 +757,13 @@ def switchSt (a : Id) (s : St) : St :=
 /-- The communities as the reader's board has them (Reader.Want.comms):
 each frame. -/
 def refreshComms : M Unit := do
-  if let some (.comms all, _) := (← (← get).sh.board.get).get? .comms then applyComms all
+  if let some (.comms all) ← query ⟨["session".toUTF8, "communities".toUTF8], true⟩ .comms then applyComms all
 
 /-- The communities read now, on the frame: after an action that founds,
 joins or stops waiting, which the next page shows at once. -/
 def refreshCommsNow : M Unit := do
-  let (all, _) ← Kinds.Accepted.read (← get).comms
+  let known := (← get).comms
+  let (all, _) ← transaction (Kinds.Accepted.read known)
   applyComms all
 
 /-- Make the entry of acceptance `a` the current one (memory only): the
@@ -750,8 +806,8 @@ current. -/
 def found (n myName : String) : M Unit := do
   let seed ← newSeed
   -- the last fresh bytes are this node's key, if it has none yet
-  let (w, _) ← readView (Community.found seed n.toUTF8 myName.toUTF8 (← nowMin)
-    (← newBytes 32) (← newBytes 32) (← newBytes 32)) #[]
+  let w ← intentView (Community.found seed n.toUTF8 myName.toUTF8 (← nowMin)
+    (← newBytes 32) (← newBytes 32) (← newBytes 32))
   if ← writeAll w then
     if let some a := acceptOf w then
       refreshCommsNow
@@ -842,8 +898,8 @@ def scanStep : M Unit := do
 def refreshHomeCount : M Unit := do
   let s ← get
   if s.page != .home || s.me.c.isEmpty then return
-  let (a, _) ← readView (Community.readable s.me.c (limit := some 0)) #[]
-  modify fun s => { s with total := a.inRange }
+  if let some (.count _ total) ← query ⟨["home".toUTF8, s.me.c, "messages".toUTF8], true⟩ (.count s.me.c none) then
+    modify fun s => { s with total }
 
 /-- The people of the current community, for home's Direct messages:
 its members (the Profile kind's), me first. -/
@@ -851,9 +907,21 @@ def refreshMembers : M Unit := do
   let s ← get
   if s.me.c.isEmpty || (s.page != .home && s.page != .profile && s.page != .removeConfirm) then return
   -- read by the reader (Reader.Want.members): nothing until it is
-  let some (.members ms admin, _) := (← s.sh.board.get).get? (.members s.me.c s.me.user) | return
-  let out := ms.map fun (u, _, name) => ((name, u == s.me.user), u)
-  let sorted := out.filter (·.1.2) ++ out.filter (!·.1.2)
+  let some (.members ms admin) ← query ⟨["page".toUTF8, s.cur, "members".toUTF8], true⟩
+    (.members s.me.c s.me.user) | return
+  let ordered := ms.filter (·.1 == s.me.user) ++ ms.filter (·.1 != s.me.user)
+  let mut sorted := #[]
+  let peopleY := Pages.homePeopleTop s.dim s.asking.size 1
+  for i in [0:ordered.size] do
+    let (u, _, _) := ordered[i]!
+    let old := ((s.memberIds.findIdx? (· == u)).bind fun i => s.members[i]?).map (·.1) |>.getD "…"
+    let rowVisible := s.page == .home && peopleY + (i + 1) * s.dim.px 44 ≤ viewH s
+    let profileVisible := (s.page == .profile || s.page == .removeConfirm) && s.profileOf.any (·.1 == u)
+    let name ← if rowVisible || profileVisible || (s.page == .home && u == s.me.user) then
+      pure (← Component.author ⟨["page".toUTF8, s.cur, "profile".toUTF8, u], true⟩ s.me.c u (old, false)).1
+      else pure old
+    sorted := sorted.push ((name, u == s.me.user), u)
+    if profileVisible then modify fun s => { s with profileOf := s.profileOf.map fun (id, _, me) => (id, name, me) }
   modify fun s => { s with members := sorted.map (·.1), people := ms.size, peopleAll := true,
                            memberIds := sorted.map (·.2), amAdmin := admin }
   -- a removal being sent is done once its target is no longer present
@@ -868,7 +936,7 @@ def refreshMembers : M Unit := do
 def refreshAsking : M Unit := do
   let s ← get
   if s.me.c.isEmpty then return
-  if let some (.asking out, _) := (← s.sh.board.get).get? (.asking s.me.c) then
+  if let some (.asking out) ← query ⟨["page".toUTF8, s.cur, "requests".toUTF8], true⟩ (.asking s.me.c) then
     modify fun s => { s with asking := out }
 
 /-- My approval of request r (my device in this community signs it). -/
@@ -879,7 +947,7 @@ def approveReq (r : Id) : M Unit := do
   let s ← get
   -- the intent reads the request and its approvals: with mine, is the
   -- tally complete? then the admission goes in the same write
-  let w ← ((Community.approveReq s.me.c r s.me.adm s.me.dev esk).liftL.run : SqlM SF _).run s.rd
+  let w ← intentView (Community.approveReq s.me.c r s.me.adm s.me.dev esk)
   let _ ← writeAll w
 
 /-- The current page's picture and taps (kept until what it shows changes). -/
@@ -974,7 +1042,7 @@ def removeWrite (u : Id) : M Bool := do
   -- nothing when this device is no admin, u is its own user, already
   -- removed, or not admitted (removeMember_valid: what it writes is a
   -- Valid removal of u by an admin)
-  let (w, _) ← readView (Community.removeMember s.me.c u s.me.dev) #[]
+  let w ← intentView (Community.removeMember s.me.c u s.me.dev)
   if w.ops.isEmpty then return false
   writeAll w
 
@@ -1049,7 +1117,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
       let seed ← newSeed
       -- the engine's join: nothing for a held community, the same request
       -- again for a stopped one, else a fresh join
-      let (w, _) ← readView (Community.join i seed s.joinName.toUTF8 (← newBytes 32)) #[]
+      let w ← intentView (Community.join i seed s.joinName.toUTF8 (← newBytes 32))
       if ← writeAll w then
         modify fun s => { s.withNav (Nav.reset s.page) with invite := none, field := "" }
         refreshCommsNow
@@ -1112,7 +1180,7 @@ def sendNow : M Unit := do
   let s ← get
   let t := s.text.trimAscii.toString
   if t.isEmpty && s.chips.isEmpty then return
-  let (k?, _) ← readView (Community.currentKey s.me.c) #[]
+  let k? ← intentView (Community.currentKey s.me.c)
   let some k := k? | say "This community's key hasn't arrived yet."; return
   let mut files := []
   for (bytes, w, h, _) in s.chips.toList do
@@ -1121,7 +1189,7 @@ def sendNow : M Unit := do
                           bytes, key := ← newBytes 32, nonce := ← newBytes 24,
                           metaNonce := ← newBytes 24 } : Community.NewFile)]
   let nonce ← newBytes 24
-  let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files) #[]
+  let w ← intentView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files)
   if ← writeAll w then
     modify fun s => { s with text := "", sel := #[0, 0, 0, 0], chips := #[], chromeKey := "" }
 
@@ -1369,7 +1437,7 @@ def stats (s : St) : String :=
   let sorted := ts.qsort (· < ·)
   let p95 := sorted[sorted.size * 95 / 100]?.getD 0
   let mx := sorted.back?.getD 0
-  s!"frames {s.frames} lean_us avg {avg} p95 {p95} max {mx} paints {s.paints} reads {s.live.reads} rows {s.rows.size} imgs {s.imgs.size}"
+  s!"frames {s.frames} lean_us avg {avg} p95 {p95} max {mx} paints {s.paints} intent_reads {s.intentReads} rows {s.rows.size} imgs {s.imgs.size}"
 
 /-- One control command; false if it must wait (and the rest behind it). -/
 def command (line : String) : M Bool := do
@@ -1408,10 +1476,10 @@ def command (line : String) : M Bool := do
       | none => IO.asTask loadSrcs >>= fun t => pure (t.map fun r => match r with | .ok a => a | .error _ => #[])
     modify fun s => { s with srcs := some srcs, seed := s.seed + 1 }
     let me := s.me
-    let (k?, _) ← readView (Community.currentKey me.c) #[]
+    let k? ← intentView (Community.currentKey me.c)
     let k := k?.getD .empty
     let seed := s.seed
-    let (top, _) ← readView (Community.topCount me.c) #[]
+    let top ← intentView (Community.topCount me.c)
     let now ← nowMin
     -- made off the app's thread; written by `chaosStep` as user actions
     -- are (writeAll: judged, shown pending, through the node)
@@ -1616,6 +1684,7 @@ def withToast (s : St) (fr : Array ByteArray) (_vh : Nat) : Array ByteArray := I
 /-- The same placement and raw-input boundary on every phone and twin. -/
 def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
   let work ← get
+  work.sh.setNeeds work.queryNeeds
   work.raster.reconcile work.rasterNeeds.toList
   work.raster.pause false
   modify fun s => { s with imgs := s.imgs.filter (fun _ h =>
@@ -1645,13 +1714,6 @@ def pollInput : M (List Event) := do
   modify fun s => { s with input := result.state }
   return result.events
 
-/-- Root facts read for the mounted page, after any conversation rows. -/
-def pageWants (s : St) : Array Reader.Want :=
-  #[Reader.Want.comms] ++ (if s.me.c.isEmpty then #[] else
-    #[Reader.Want.people s.me.c, Reader.Want.asking s.me.c] ++
-      (if s.page == .home || s.page == .profile || s.page == .removeConfirm then
-        #[Reader.Want.members s.me.c s.me.user] else #[]))
-
 /-- Read and paint only the mounted conversation. -/
 def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   -- 3. the list's ids and counts
@@ -1669,9 +1731,9 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   let countW := Reader.Want.count s.me.c s.anchor
   -- (the wants as last set, unless the anchor moved: a steady frame
   -- moves no generation, Reader.Want.withView_ofFrame)
-  let previous ← s.sh.wants
-  let requested := Reader.Want.withView previous idsW countW
-  if requested != previous then s.sh.setWants requested
+  discard <| query ⟨["community".toUTF8, s.me.c, "messages".toUTF8], true⟩ idsW
+  discard <| query ⟨["community".toUTF8, s.me.c, "count".toUTF8], false⟩ countW
+  discard <| query ⟨["community".toUTF8, s.me.c, "people".toUTF8], false⟩ (.people s.me.c)
   readerPass
   let bd ← takeBoard
   let fresh := match bd.get? idsW with
@@ -1725,17 +1787,30 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
     let bot := bots0[i]!
     if bot > hi then break
     if bot + heightOf s s.ids[i]!.2 ≥ lo then win := win.push s.ids[i]!.2
-  let rowNeeds := win.map fun x =>
-    { (Reader.Want.row s.me.c s.me.adm x).need with
-      visible := Raster.near ((s.ids.findIdx? (·.2 == x)).map (fun i => bots0[i]!) |>.getD 0)
-        (heightOf s x) bv vh 0 }
-  let lists := pageWants s
-  let needs := #[idsW.need] ++ rowNeeds ++ s.pictureNeeds ++ #[countW.need] ++ lists.map Reader.Want.need
-  s.sh.setNeeds needs
-  modify fun s => { s with pictureNeeds := #[], b := bv }
+  for x in win do
+    let visible := Raster.near ((s.ids.findIdx? (·.2 == x)).map (fun i => bots0[i]!) |>.getD 0)
+      (heightOf s x) bv vh 0
+    discard <| query ⟨Raster.messageOwner s.me.c x, visible⟩ (.row s.me.c s.me.adm x)
+    -- A collection already knows its owning message's identity. Mount
+    -- it alongside the message, rather than waiting a frame for its text.
+    let scope : Component.Scope := ⟨Raster.messageOwner s.me.c x, visible⟩
+    let old := (s.rows[x]?).map (·.data.pics) |>.getD []
+    let ids ← Component.attachments (scope.child "attachments" x) s.me.c x (old.map (·.attachment))
+    for id in ids do
+      discard <| Component.attachment (scope.child "attachment" id) s.me.c id (old.find? (·.attachment == id))
+    -- Collections that determine a message's first measured height can
+    -- start from its identity, concurrently with its own text query.
+    if !s.rows.contains x then
+      discard <| Component.emojis (scope.child "reactions" x) s.me.c x []
+  modify fun s => { s with b := bv }
   readerPass
   let bd ← takeBoard
   for x in win do mount bd x
+  let mounted ← get
+  let (childBots, _) := bottoms mounted
+  for i in [0:mounted.ids.size] do
+    let x := mounted.ids[i]!.2
+    if win.contains x then mountChildren x childBots[i]! bv vh
   -- the window follows the viewport: once its edge with messages beyond
   -- comes within the fetch distance, it is read again about the row at
   -- the viewport (or its nearest end); pinned to the newest, it is the
@@ -1772,8 +1847,6 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
     let bot := bots[i]!
     if bot > fhi then break
     if bot + heightOf s s.ids[i]!.2 ≥ flo then paintRow s.ids[i]!.2 bot b vh
-  let current ← get
-  current.sh.setNeeds (#[idsW.need] ++ rowNeeds ++ current.pictureNeeds ++ #[countW.need] ++ lists.map Reader.Want.need)
   let tPaint ← (← get).io.nowUs
   -- Retire paints when their row leaves the retained window.
   let s ← get
@@ -1792,7 +1865,6 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
 window closes. -/
 def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id) : M (Option (List Event)) := do
   let t0 ← (← get).io.nowUs
-  modify fun s => { s with life := s.life.forget .empty }
   -- 1. notices
   let s ← get
   let (fs, vs) ← takeChanges
@@ -1803,7 +1875,6 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
     let decided := s.out.filter fun p => judged.contains p.op.id
     -- the store changed: an image waiting for its chunk ops tries again now
     modify fun s => { s with
-      live := s.live.notice fs (vs.map (·.1))
       out := s.out.filter fun p => !judged.contains p.op.id }
     if !decided.isEmpty then noticeLocal decided.toList
   flushNode
@@ -1832,8 +1903,6 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
   let tCommands ← (← get).io.nowUs
   mountPage
   let (b, bots, tIds, tMount, tPaint) ← if (← get).page == .chat then chatFrame else do
-    let s ← get
-    s.sh.setWants (pageWants s)
     readerPass
     let t ← (← get).io.nowUs
     pure (0, #[], t, t, t)
@@ -1861,12 +1930,10 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
   let s ← get
   for m in s.comms do
     if m.waiting then continue
-    let (w, _) ← readView (Community.introduce m.c m.dev (← nowMin)) #[]
-    if !w.ops.isEmpty then let _ ← writeAll w
-    -- and the community's keys wrapped to this device, opened into local
-    -- key ops (a live view too: re-run when a wrap arrives)
-    let (w, _) ← readView (Community.unwrap m.c) #[]
-    if !w.ops.isEmpty then let _ ← writeAll w
+    if let some (.writes ops) ← query ⟨["session".toUTF8, m.acc, "maintenance".toUTF8], false⟩ (.maintenance m.c) then
+      if (s.serviceSeen[m.c]?).getD [] != ops then
+        if ← writeAll ⟨ops.filterMap Op.decode⟩ then
+          modify fun s => { s with serviceSeen := s.serviceSeen.insert m.c ops }
   let tRefresh ← (← get).io.nowUs
   -- a frame over 20 ms says where its time went (logcat / stderr)
   let slow (t1 : UInt64) : IO Unit := do
@@ -1882,7 +1949,6 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
     modify fun s => { s.withNav (Nav.swap .home s.nav) with pageKey := none }
     say "You're in."
   mountPage
-  pruneLive
   -- a page instead of the conversation: its bar, its content in the list
   -- layer (which does not scroll on a page), a one-row composer layer
   let s ← get
@@ -1986,7 +2052,7 @@ native shell presents. Finally also releases it on suspend or errors. -/
 def step (evs : List Event) : M (Option (List Event)) := do
   let pool := (← get).raster
   pool.pause true
-  modify fun s => { s with rasterNeeds := #[], imgWaiting := {} }
+  modify fun s => { s with rasterNeeds := #[], queryNeeds := #[], querySeen := {}, imgWaiting := {} }
   try stepCore evs finally pool.pause false
 
 partial def loop (evs : List Event) : M Unit := do
@@ -2018,8 +2084,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   -- here to choose the first page
   let sh ← Reader.Shared.new wr.count
   let raster ← Work.Pool.new
-  let probe : St := { io := io, W := W, Hs := Hs, insetTop := 0, insetBot := 0, font := font, bgRow := .empty, rd := rd, wr := wr, me := default, sh := sh, raster }
-  let ((all, _), _) ← (Kinds.Accepted.read : M _).run probe
+  let ((all, _), _) ← (Kinds.Accepted.read : Reader.RM _).run { rd }
   let comms := Kinds.Accepted.listed all
   let me := comms[0]?.getD default
   let catalog ← match ← (Sheet.loadCatalog).toBaseIO with

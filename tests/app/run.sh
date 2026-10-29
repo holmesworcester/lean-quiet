@@ -67,4 +67,5 @@ mise run host:safe-negative
 mise run host:desktop-negative
 
 mise run test:people-reader
+mise run host:component-demand
 mise run host:component-demand-negative

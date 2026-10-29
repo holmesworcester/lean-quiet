@@ -129,6 +129,14 @@ def reachDoors (env : Environment) (root : Name) (extra : List Name := []) : Lis
 
 #eval show CoreM Unit from do
   let env ← getEnv
+  -- The shipping component boundary is enforced even while one-shot
+  -- command validation and lifecycle bookkeeping still use transactions.
+  for r in [``App.query, ``App.mountChildren, ``App.paintRow,
+      ``App.refreshHomeCount, ``App.refreshMembers, ``App.refreshAsking,
+      ``Component.author, ``Component.attachment, ``Component.reaction] do
+    match reachPaths env r sqlDoors with
+    | [] => IO.println s!"component query boundary: {r} reaches no SQLite"
+    | paths => throwError s!"component bypasses query API: {r}: {paths}"
   for (r, extra) in counted do
     match reachDoors env r extra with
     | [] => IO.println s!"{r}: no back doors"
