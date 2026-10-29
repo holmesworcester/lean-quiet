@@ -73,6 +73,25 @@ def queue (ck : Checks) : IO Unit := do
   ck.ok "visible work runs before earlier prefetch" ((← calls.get) == #[401, 400])
 
   pool.pause true
+  pool.allowBackground false
+  calls.set #[]
+  let speculative ← pool.request (need 450 "overscan" false) fun _ => do
+    calls.modify (·.push 450); return some 450
+  let arriving ← pool.request (need 451 "visible" true) fun _ => do
+    calls.modify (·.push 451); return some 451
+  pool.pause false
+  try
+    discard <| result arriving
+    ck.ok "visible work runs while speculative admission is held for a dependency"
+      ((← calls.get) == #[451] && !(← IO.hasFinished speculative.result))
+  finally pool.allowBackground true
+  discard <| result speculative
+  ck.ok "speculation resumes after the visible dependency is delivered" ((← calls.get) == #[451, 450])
+  ck.ok "stationary viewport outranks overscan; motion promotes only its predicted viewport"
+    (!Raster.urgent 1300 100 0 1000 512 0 && Raster.urgent 1300 100 0 1000 512 200 &&
+     !Raster.urgent 1300 100 0 1000 512 (-200) && Raster.urgent 0 100 0 1000 512 200)
+
+  pool.pause true
   calls.set #[]
   let mut hs := #[]
   for i in [500:503] do
@@ -150,8 +169,12 @@ def reader (ck : Checks) : IO Unit := do
 end DemandTest
 
 def main : IO UInt32 := do
-  let ck ← Checks.new
-  DemandTest.queue ck
-  DemandTest.pixels ck
-  DemandTest.reader ck
-  ck.finish "component-demand"
+  let code ← try
+    let ck ← Checks.new
+    DemandTest.queue ck
+    DemandTest.pixels ck
+    DemandTest.reader ck
+    ck.finish "component-demand"
+  catch e => IO.eprintln s!"component-demand: {e}"; pure 1
+  (← IO.getStdout).flush
+  IO.Process.exit code.toUInt8

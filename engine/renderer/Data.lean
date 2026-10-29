@@ -181,6 +181,8 @@ the op's verdict. -/
 
 inductive Q where
   | list (q : ListQ)
+  /-- A list with the immutable stored bytes of its returned rows. -/
+  | bodies (q : ListQ)
   /-- An op as stored, whatever its verdict (this device's own undecided
   request, say): its bytes. -/
   | op (x : Id)
@@ -193,6 +195,7 @@ def Q.get (x : Id) : Q := .list { key := opKey x, limit := some 1 }
 inductive Ans where
   | list (a : Answer Fact) (pending : List Id)
   | bytes (b : Option ByteArray)
+  | bodies (a : Answer Fact) (pending : List Id) (raw : List (Id × ByteArray))
   deriving Inhabited, BEq
 
 /-- The key an op's verdict is journaled under, for reads of its bytes:
@@ -208,6 +211,8 @@ before. -/
 def Q.win : Q → Ans → Win
   | .list q, .list a _ => q.watch a
   | .list q, _ => Win.all q.key
+  | .bodies q, .bodies a _ _ => q.watch a
+  | .bodies q, _ => Win.all q.key
   | .op x, _ => Win.all (verdictKey x)
 
 /-! ## The outbox -/
@@ -332,22 +337,28 @@ def Pending.filings (ps : List Pending) : Array Filing :=
 def status (db : Db) (x : Id) : IO (Option (Verdict SF)) :=
   (Store.getStatus (F := SF) (m := SqlM SF) x).run db
 
+/-- Both list projections share selection, pending overlay and watch shape.
+Bodies come from the same SQL row, or directly from an uncommitted op;
+there is no per-row query and no decode/re-encode on the reader. -/
+def runList (db : Db) (out : Array Pending) (q : ListQ) (bodies : Bool) : IO Ans := do
+  let (a, raw) ← (listSqlRead (F := SF) q bodies).run db
+  let a : Answer Fact := ⟨a.lefts, a.inRange, a.total⟩
+  let mut held : List Id := []
+  for p in out do
+    if (← Data.status db p.op.id).isSome then held := p.op.id :: held
+  let (a, pend) := overlayList out q a fun x => held.any (· == x)
+  let a := q.kept a
+  if !bodies then return .list a pend
+  let stored : Std.HashMap Id ByteArray := Std.HashMap.ofList raw
+  let pending : Std.HashMap Id ByteArray := Std.HashMap.ofList (out.toList.map fun p => (p.op.id, p.op.bytes))
+  let raw := a.rows.filterMap fun (pos, _) =>
+    ((stored[pos.2]?).orElse fun _ => pending[pos.2]?).map (pos.2, ·)
+  return .bodies a pend raw
+
 /-- The store's answer to q on the read connection, with the outbox. -/
 def Q.run (db : Db) (out : Array Pending) : Q → IO Ans
-  | .list q => do
-    let a ← (listSql (F := SF) q).run db
-    -- a community list's rows are all community facts (its key is theirs)
-    let a : Answer Fact := ⟨a.lefts, a.inRange, a.total⟩
-    -- each pending op the store already holds decided is counted by the
-    -- store, not again by the outbox (between a commit and the frame
-    -- taking its notice, an op is in both)
-    let mut held : List Id := []
-    for p in out do
-      if (← Data.status db p.op.id).isSome then held := p.op.id :: held
-    let (a, pend) := overlayList out q a fun x => held.any (· == x)
-    -- only what the read's watch covers: the counts its reader uses
-    -- (ListQ.kept, Q.win)
-    return .list (q.kept a) pend
+  | .list q => runList db out q false
+  | .bodies q => runList db out q true
   | .op x => return .bytes ((← (Store.getOp (F := SF) (m := SqlM SF) x).run db).map (·.bytes))
 
 /-! ## Components' reads
@@ -370,6 +381,17 @@ def readList (q : ListQ) (deps : Array Q) : m (Answer Fact × List Id × Array Q
   match ← Reads.read (Q.list q) with
   | .list a pend => return (a, pend, deps.push (.list q))
   | _ => return (⟨[], 0, 0⟩, [], deps.push (.list q))
+
+/-- Opt in to bodies for this list only. Bytes follow exactly the returned
+row order; a missing body is explicit, never a silently truncated file. -/
+def readListBodies (q : ListQ) (deps : Array Q) :
+    m (Answer Fact × Option (List ByteArray) × Array Q) := do
+  let deps := deps.push (.bodies q)
+  match ← Reads.read (Q.bodies q) with
+  | .bodies a _ raw =>
+    let byId : Std.HashMap Id ByteArray := Std.HashMap.ofList raw
+    return (a, a.rows.mapM (fun (p, _) => byId[p.2]?), deps)
+  | _ => return (⟨[], 0, 0⟩, none, deps)
 
 /-- One fact (the list under its own id), whether it is pending, and deps. -/
 def readFact (x : Id) (deps : Array Q) : m (Option Fact × Bool × Array Q) := do

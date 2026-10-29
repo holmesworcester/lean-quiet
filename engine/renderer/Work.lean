@@ -35,6 +35,7 @@ structure State (K V : Type) where
   handles : List (Handle K V) := []
   running : Bool := false
   paused : Bool := false
+  background : Bool := true
   stats : Stats := {}
 
 structure Pool (K V : Type) where
@@ -48,6 +49,11 @@ def Pool.stats (p : Pool K V) : IO Stats := p.state.atomically do return (← ge
 
 def Pool.pause (p : Pool K V) (paused : Bool) : IO Unit :=
   p.state.atomically do modify fun s => { s with paused }
+
+/-- Hold speculative work while a foreground dependency is still in flight.
+Visible work remains admitted, including work published by a later frame. -/
+def Pool.allowBackground (p : Pool K V) (allow : Bool) : IO Unit :=
+  p.state.atomically do modify fun s => { s with background := allow }
 
 /-- Revoke immediately, and resolve retired queued handles without
 running their closures. An in-flight step is checked when it returns. -/
@@ -71,7 +77,7 @@ private partial def run (p : Pool K V) : IO Unit := do
       set { s with running := false }
       return (false, none)
     if s.paused then return (true, none)
-    let key := Demand.next (fun t => s.plan.visible t.key) true (s.jobs.map (·.ticket))
+    let key := Demand.next (fun t => s.plan.visible t.key) s.background (s.jobs.map (·.ticket))
     let job := key.bind fun k => s.jobs.find? (fun j => j.ticket == k)
     if let some j := job then
       set { s with jobs := s.jobs.filter (fun x => x.ticket != j.ticket) }

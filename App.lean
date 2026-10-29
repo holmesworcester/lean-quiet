@@ -37,7 +37,7 @@ def themed (s : St) (theme : Theme.State) : St :=
     theme := theme
     dim := dm
     bgRow := solid (Palette.color (Theme.effective theme) .bg) s.W,
-    rows := {}, imgs := {}, imgWaiting := {}, gridRows := {}, gridKey := "",
+    rows := {}, imgs := {}, imgWaiting := {}, prepared := #[], handoff := #[], gridRows := {}, gridKey := "",
     chips := s.chips.map fun (bytes, w, h, chip) =>
       let thumb := match Image.decode bytes with
         | some src => Image.square src (s.dim.px 64) (Palette.color (Theme.effective theme) .bg)
@@ -308,8 +308,10 @@ def reactTo (m : Id) (e : String) : M Bool := do
 
 /-! ## Geometry -/
 
+def channelTop (s : St) : Nat := s.insetTop + s.dim.px 16 + 2 * s.dim.lineH
+
 def topH (s : St) : Nat :=
-  if s.page == .chat then s.insetTop + s.dim.px 16 + 2 * s.dim.lineH
+  if s.page == .chat then channelTop s
   else if s.page == .home then s.insetTop + s.dim.px 64
   else s.insetTop + s.dim.px 56
 
@@ -335,6 +337,10 @@ def geom (s : St) : Geometry.Geom := ⟨s.Hs, s.insetBot, s.imeH, topH s, botH s
 
 def viewH (s : St) : Nat := (geom s).view
 
+/-- The channel's entry geometry with its saved draft and closed keyboard. -/
+def entryViewH (s : St) : Nat :=
+  (⟨s.Hs, s.insetBot, 0, channelTop s, (composerLayout s).h⟩ : Geometry.Geom).view
+
 def heightOf (s : St) (x : Id) : Nat := s.heights.getD x est
 
 /-- The window's rows' bottoms (bottom-anchored), newest first, and the
@@ -350,14 +356,12 @@ def bottoms (s : St) : Array Nat × Nat := Id.run do
 
 /-! ## Mounting, measuring, painting -/
 
-/-- An attachment's slices, read from its chunk ops in order (a chunk this
-device sends may still be in the outbox); none while one is not here. -/
+/-- Compatibility for callers inspecting an attachment's bytes. Mounted
+attachments receive these with their list; legacy slice wants can still
+be inspected without doing any store work on the UI thread. -/
 def slicesOf (p : Row.Pic) : M (Option (List ByteArray)) := do
-  -- the chunk ops' bytes, read by the reader (Reader.Want.slices): wanted
-  -- from the next frame, none until the board has them all; nothing is
-  -- decoded here (a 64 KiB chunk is slow to decode; the frame must not wait)
-  let w := Reader.Want.slices p.chunks
-  match (← (← get).sh.board.get).get? w with
+  if let some raw := p.raw then return some raw
+  match (← (← get).sh.board.get).get? (.slices p.chunks) with
   | some (.slices raw, _) => return raw
   | _ => return none
 
@@ -384,14 +388,9 @@ def image (p : Row.Pic) (w h : Nat) (owner : Demand.Owner := [])
   let pre ← if p.preview.isEmpty then pure none else stage 0 (fun _ => Image.decode p.preview)
   let mut full := none
   if p.complete then
-    let want := Reader.Want.slices p.chunks
-    let need : Demand.Need Reader.Want := ⟨owner, want, visible⟩
-    modify fun s => { s with pictureNeeds := s.pictureNeeds.push need }
-    match (← s.sh.board.get).get? want with
-    | some (.slices (some raw), _) => full ← stage 1 (fun _ => Raster.fileSource p raw)
-    | _ =>
-      -- Kept for diagnostics of a missing dependency, never as a timer
-      -- authorizing work. The child's declaration alone owns the query.
+    match p.raw with
+    | some raw => full ← stage 1 (fun _ => Raster.fileSource p raw)
+    | none =>
       modify fun s => { s with imgWaiting := s.imgWaiting.insert (p.hash.push 1, w, h) }
   return p.shown pre full
 
@@ -451,7 +450,7 @@ def paintRow (x : Id) (bottom offset viewport : Nat := 0) : M Unit := do
   let some r := s.rows[x]? | return
   let viewport := if viewport == 0 then viewH s else viewport
   let owner := Raster.messageOwner s.me.c x
-  let visible := Raster.near bottom r.lay.h offset viewport 0
+  let visible := Raster.urgent bottom r.lay.h offset viewport imageOver s.scrollDelta
   let av : Option Bitmap := none
   let mut imgs := #[]
   let mut ready := [false]
@@ -461,19 +460,23 @@ def paintRow (x : Id) (bottom offset viewport : Nat := 0) : M Unit := do
     let childBottom := bottom + r.lay.h - (bx.y + bx.h)
     match r.data.pics[i]? with
     | some p =>
-      if Raster.near childBottom bx.h offset viewport over then
+      if Raster.near childBottom bx.h offset viewport imageOver then
         let owner := Raster.pictureOwner s.me.c x p.attachment
-        let visible := Raster.near childBottom bx.h offset viewport 0
+        let visible := Raster.urgent childBottom bx.h offset viewport imageOver s.scrollDelta
         let want := Reader.Want.picture s.me.c p.attachment
         modify fun s => { s with pictureNeeds := s.pictureNeeds.push ⟨owner, want, visible⟩ }
-        let p := match (← s.sh.board.get).get? want with
-          | some (.picture (some current), _) => current
-          | _ => p
+        let p ← match (← s.sh.board.get).get? want with
+          | some (.picture (some current), _) => pure current
+          | _ =>
+            modify fun s => { s with imgWaiting := s.imgWaiting.insert (p.hash.push 1, bx.w, bx.h) }
+            pure ((s.prepared.find? (fun cached => cached.pic.attachment == p.attachment &&
+              cached.pic.hash == p.hash && cached.w == bx.w && cached.h == bx.h)).map (·.pic) |>.getD p)
         data := { data with pics := data.pics.set i p }
         let (b, isFile) ← image p bx.w bx.h owner visible
         imgs := imgs.push b
         ready := ready ++ [b.isSome, isFile]
       else
+        data := { data with pics := data.pics.set i { p with raw := none } }
         imgs := imgs.push none
         ready := ready ++ [false, false]
     | none => imgs := imgs.push none
@@ -646,7 +649,7 @@ def openPage (p : PageId) : M Unit := do
     if let some (w, i) := issued then
       if ← writeAll w then
         modify fun s => { s with links := (s.me.acc, i.text) :: s.links }
-  leavePage
+  leavePage ((s.page == .home && p == .chat) || (s.page == .chat && p == .home))
   s.io.scrollTo 0
   modify (openSt p)
   modify fun s => { s with restoreAnchor := p == .chat && s.mark.isSome }
@@ -654,7 +657,9 @@ def openPage (p : PageId) : M Unit := do
 
 /-- Back: the page before; at a root, it stays (Nav.back_root). -/
 def back : M Unit := do
-  leavePage
+  let s ← get
+  let dest := (backSt s).page
+  leavePage ((s.page == .home && dest == .chat) || (s.page == .chat && dest == .home))
   let s ← get
   s.io.ime false
   s.io.scrollTo 0
@@ -1094,9 +1099,7 @@ def onPageAct (a : Pages.Act) : M Unit := do
         openPage .removeConfirm
   | .removeYes => removeEv .yes
   | .removeCancel => removeEv .cancel
-  | .openChannel _ =>
-    s.io.scrollTo 0
-    modify fun s => { openSt .chat s with chromeKey := "" }
+  | .openChannel _ => openPage .chat
   | .none => pure ()
 
 def closeSheet : M Unit := do
@@ -1616,10 +1619,10 @@ def withToast (s : St) (fr : Array ByteArray) (_vh : Nat) : Array ByteArray := I
 /-- The same placement and raw-input boundary on every phone and twin. -/
 def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
   let work ← get
-  work.raster.reconcile work.rasterNeeds.toList
+  work.raster.reconcile (work.rasterNeeds ++ work.handoff).toList
   work.raster.pause false
   modify fun s => { s with imgs := s.imgs.filter (fun _ h =>
-    work.rasterNeeds.any (fun n => n.key == h.ticket.key)) }
+    (work.rasterNeeds ++ work.handoff).any (fun n => n.key == h.ticket.key)) }
   let s ← get
   let screen := if s.sheet.isSome then SafeFrame.Screen.sheet else if s.page == .chat then .channel
     else if s.page == .home then .home else .page
@@ -1651,6 +1654,61 @@ def pageWants (s : St) : Array Reader.Want :=
     #[Reader.Want.people s.me.c, Reader.Want.asking s.me.c] ++
       (if s.page == .home || s.page == .profile || s.page == .removeConfirm then
         #[Reader.Want.members s.me.c s.me.user] else #[]))
+
+/-- Home's visible channel owns the entry viewport. Cold startup reads
+its saved cursor; no previous bitmap or visit is required. Each candidate
+message is measured in order, stopping as soon as the viewport is covered.
+All of this demand is speculative relative to the page's visible lists. -/
+def preloadChannel : M Unit := do
+  let s ← get
+  s.raster.allowBackground true
+  let channelVisible := s.pageNow.any fun pg => pg.taps.any fun (box, act) =>
+    (act == .openChannel 0) && box.y < viewH s && box.h > 0
+  if s.page != .home || s.me.waiting || !channelVisible then
+    s.sh.setWants (pageWants s)
+    modify fun s => { s with prepared := #[], handoff := #[] }
+    return
+  let owner := ["home".toUTF8, s.me.c, "channel".toUTF8]
+  let cursor := s.mark.bind fun (x, _) => (s.ids.find? (·.2 == x)).orElse fun _ => s.anchor
+  let count := min half (entryViewH s / max 1 s.dim.lineH + 2)
+  let want := Reader.Want.window s.me.c cursor count 0
+  let mut needs := (pageWants s).map Reader.Want.need
+  needs := needs.push ⟨owner, want, false⟩
+  let board ← s.sh.board.get
+  let mut prepared := #[]
+  let mut settled := false
+  if let some (.window ids _, _) := board.get? want then
+    let vh := entryViewH s
+    let mut y := bottomPad
+    let mut offset := 0
+    settled := true
+    for (_, x) in ids do
+      if y > offset + vh then break
+      let rw := Reader.Want.row s.me.c s.me.adm x
+      needs := needs.push ⟨owner ++ ["message".toUTF8, x], rw, false⟩
+      let some (.row (some d), _) := board.get? rw | settled := false; break
+      let lay := Row.layout s.font s.dim s.W d
+      if s.mark.any (fun m => m.1 == x) then offset := y + lay.h - (s.mark.getD (.empty, 0)).2
+      for i in [0:lay.pics.size] do
+        let box := lay.pics[i]!
+        if !Raster.near (y + lay.h - box.y - box.h) box.h offset vh 0 then continue
+        let some manifest := d.pics[i]? | continue
+        let pw := Reader.Want.picture s.me.c manifest.attachment
+        let child := owner ++ ["attachment".toUTF8, manifest.attachment]
+        needs := needs.push ⟨child, pw, false⟩
+        let p := match board.get? pw with
+          | some (.picture (some p), _) => p
+          | _ => (s.prepared.find? (fun p => p.pic.attachment == manifest.attachment &&
+              p.pic.hash == manifest.hash)).map (·.pic) |>.getD manifest
+        if (board.get? pw).isNone then settled := false
+        discard <| image p box.w box.h child false
+        prepared := prepared.push ⟨p, box.w, box.h⟩
+      y := y + lay.h
+  s.sh.setNeeds needs
+  modify fun s => { s with
+    prepared := if settled then prepared else prepared ++ s.prepared.filter (fun old =>
+      !prepared.any (fun p => p.pic.attachment == old.pic.attachment)),
+    handoff := if settled then #[] else s.handoff }
 
 /-- Read and paint only the mounted conversation. -/
 def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
@@ -1695,6 +1753,7 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   let input := Input.sampleOffset (ch0 - (geom s).viewNow) s.input sample.toInt64.toInt
   modify fun s => { s with input }
   let b := input.offset
+  modify fun s => { s with scrollDelta := (Int.ofNat b) - (Int.ofNat s.b) }
   -- the anchor: the row at the viewport's bottom edge, and how far into it
   let mut anchor := if s.restoreAnchor then s.mark else captureAnchor { s with b }
   -- a new window: in place now; the viewport, in its offsets, is where
@@ -1727,8 +1786,8 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
     if bot + heightOf s s.ids[i]!.2 ≥ lo then win := win.push s.ids[i]!.2
   let rowNeeds := win.map fun x =>
     { (Reader.Want.row s.me.c s.me.adm x).need with
-      visible := Raster.near ((s.ids.findIdx? (·.2 == x)).map (fun i => bots0[i]!) |>.getD 0)
-        (heightOf s x) bv vh 0 }
+      visible := Raster.urgent ((s.ids.findIdx? (·.2 == x)).map (fun i => bots0[i]!) |>.getD 0)
+        (heightOf s x) bv vh imageOver s.scrollDelta }
   let lists := pageWants s
   let needs := #[idsW.need] ++ rowNeeds ++ s.pictureNeeds ++ #[countW.need] ++ lists.map Reader.Want.need
   s.sh.setNeeds needs
@@ -1774,6 +1833,24 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
     if bot + heightOf s s.ids[i]!.2 ≥ flo then paintRow s.ids[i]!.2 bot b vh
   let current ← get
   current.sh.setNeeds (#[idsW.need] ++ rowNeeds ++ current.pictureNeeds ++ #[countW.need] ++ lists.map Reader.Want.need)
+  let mut prepared := #[]
+  let mut settled := !current.ids.isEmpty
+  for i in [0:current.ids.size] do
+    let x := current.ids[i]!.2
+    let bot := bots[i]!
+    if Raster.near bot (heightOf current x) b vh 0 then
+      match current.rows[x]? with
+      | none => settled := false
+      | some row =>
+        for j in [0:row.lay.pics.size] do
+          let bx := row.lay.pics[j]!
+          if Raster.near (bot + row.lay.h - bx.y - bx.h) bx.h b vh 0 then
+            if let some p := row.data.pics[j]? then
+              prepared := prepared.push ⟨p, bx.w, bx.h⟩
+              if ((← current.sh.board.get).get? (.picture current.me.c p.attachment)).isNone then settled := false
+  current.raster.allowBackground settled
+  modify fun s => { s with
+    prepared := if settled then prepared else s.prepared, handoff := if settled then #[] else s.handoff }
   let tPaint ← (← get).io.nowUs
   -- Retire paints when their row leaves the retained window.
   let s ← get
@@ -1833,7 +1910,7 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
   mountPage
   let (b, bots, tIds, tMount, tPaint) ← if (← get).page == .chat then chatFrame else do
     let s ← get
-    s.sh.setWants (pageWants s)
+    if s.page != .home then s.sh.setWants (pageWants s)
     readerPass
     let t ← (← get).io.nowUs
     pure (0, #[], t, t, t)
@@ -1893,6 +1970,7 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
       let bot := Bitmap.blank s.W 1 s.bgRow
       modify fun s => { s with pageNow := some pg, pageKey := some key }
       modify fun s => { s with topBmp := top, botBmp := bot, chromeKey := "" }
+    preloadChannel
     let s ← get
     let vh := viewH s
     let pb ← s.io.scroll vh.toUInt32 vh.toUInt32

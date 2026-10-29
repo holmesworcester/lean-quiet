@@ -378,6 +378,18 @@ def Stmt.sql : Stmt → String × Array ByteArray
     (s!"SELECT CAST(count(*) AS TEXT) FROM (SELECT 1 FROM idx i WHERE i.k = ? AND (i.s, i.id) {op} (?, ?){lim})",
       #[k, p.1, p.2])
 
+/-- The same bounded index walk, optionally carrying immutable op bytes.
+Counts never join ops. Body reads add one primary-key lookup per row;
+the metadata-only cost laws do not include that lookup or payload size. -/
+def Stmt.sqlBodies (st : Stmt) : String × Array ByteArray :=
+  match st with
+  | .rows k others after before desc limit =>
+    let (w, ps) := whereSql k others after before
+    let dir := if desc then "DESC" else "ASC"
+    let lim := match limit with | none => "" | some n => s!" LIMIT {n}"
+    (s!"SELECT i.s, i.id, st.verdict, o.bytes FROM idx i JOIN status st ON st.id = i.id JOIN ops o ON o.id = i.id WHERE {w} ORDER BY i.s {dir}, i.id {dir}{lim}", ps)
+  | _ => st.sql
+
 def Stmt.run {F} (st : Stmt) : SqlM F (Array (Array ByteArray)) :=
   let (sql, ps) := st.sql
   sqlQ (F := F) sql ps
@@ -491,17 +503,27 @@ def Plan.countWith {m : Type → Type} [Monad m] (p : Plan) (cnt : Stmt → m Na
   | none, none => pure (capped cap n)
 
 /-- A list on SQLite: its plan, run (`readPlan`). -/
-def listSql {F} [Codec F] (q : ListQ) : SqlM F (Answer F) := do
+def listSqlRead {F} [Codec F] (q : ListQ) (bodies : Bool) :
+    SqlM F (Answer F × List (Id × ByteArray)) := do
   let (k, others, n) ← pickWalk (F := F) q
   let p := listPlan q k others
-  let rows ← match p.rows with | some st => st.run (F := F) | none => pure #[]
+  let rows ← match p.rows with
+    | some st =>
+      let (sql, ps) := if bodies then st.sqlBodies else st.sql
+      sqlQ (F := F) sql ps
+    | none => pure #[]
   let inR ← p.countWith (fun st => do pure (natOf (← st.run (F := F)))) q.cap n
   let total ← match p.total with | some st => do pure (natOf (← st.run (F := F))) | none => pure n
   let pos := rows.toList.filterMap fun r => do
     match (← r[2]? >>= Codec.decode) with
     | Verdict.valid f => pure (((← r[0]?), (← r[1]?)), f)
     | .invalid => none
-  return ⟨pos, inR, total⟩
+  let raw := if bodies then rows.toList.filterMap (fun r => do pure ((← r[1]?), (← r[3]?))) else []
+  return (⟨pos, inR, total⟩, raw)
+
+/-- Metadata-only reads never fetch the op bodies. -/
+def listSql {F} [Codec F] (q : ListQ) : SqlM F (Answer F) := do
+  return (← listSqlRead (F := F) q false).1
 
 /-! ## What a read costs
 

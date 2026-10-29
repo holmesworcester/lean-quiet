@@ -115,6 +115,7 @@ def lineOk (l : String) : Bool :=
   (mentions l "SEARCH i USING COVERING INDEX idx_ks (k=?" ||
    mentions l "SEARCH i USING COVERING INDEX sqlite_autoindex_idx_1 (k=?)" ||
    mentions l "SEARCH st USING PRIMARY KEY (id=?)" ||
+   mentions l "SEARCH o USING PRIMARY KEY (id=?)" ||
    mentions l "SEARCH j USING COVERING INDEX sqlite_autoindex_idx_1 (k=? AND id=?)" ||
    mentions l "SEARCH cnt USING PRIMARY KEY (k=?)" ||
    mentions l "CORRELATED SCALAR SUBQUERY" ||
@@ -288,6 +289,10 @@ def main : IO UInt32 := do
       if a != b then
         IO.eprintln s!"key {hex q.key} desc {q.desc} limit {q.limit}: sql {a.rows.length}/{a.inRange}/{a.total} model {b.rows.length}/{b.inRange}/{b.total}"
       t.ok s!"seed {seed}: query {n}" (a == b)
+      let (withBodies, raw) ← (listSqlRead (F := Fact) q true).run db
+      t.ok s!"seed {seed}: body projection {n} preserves selection/counts and returns exact ops"
+        (withBodies == b && raw == b.rows.filterMap (fun (pos, _) =>
+          (ops.find? (·.id == pos.2)).map (fun o => (pos.2, o.bytes))))
     -- A window's counts from one read: newer than the anchor (a split
     -- count, by its smaller side), and older (at or below it) the total
     -- less it, against the model's count at or below the anchor.
@@ -321,6 +326,10 @@ def main : IO UInt32 := do
         | none => []
       for st in readPlan q k others ++ split do
         let (sql, ps) := st.sql
+        let lines ← explain db sql ps
+        stmts := stmts + 1
+        if !planOk st lines then badPlans := (sql ++ " :: " ++ toString lines) :: badPlans
+        let (sql, ps) := st.sqlBodies
         let lines ← explain db sql ps
         stmts := stmts + 1
         if !planOk st lines then badPlans := (sql ++ " :: " ++ toString lines) :: badPlans

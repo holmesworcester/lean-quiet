@@ -33,6 +33,22 @@ priority. A margin is explicit; it does not silently retain whole rows. -/
 def near (bottom height offset viewport margin : Nat) : Bool :=
   bottom ≤ offset + viewport + margin && offset - margin ≤ bottom + height
 
+/-- A two-sample travel horizon, capped at the image retention margin.
+At rest only visible work is urgent. In motion, the predicted viewport
+also becomes urgent; current pixels never lose their priority. -/
+def urgent (bottom height offset viewport margin : Nat) (delta : Int) : Bool :=
+  let travel := min margin (2 * delta.natAbs)
+  let predicted := if delta < 0 then offset - travel else offset + travel
+  near bottom height offset viewport 0 || near bottom height predicted viewport 0
+
+theorem urgent_visible (bottom height offset viewport margin : Nat) (delta : Int)
+    (h : near bottom height offset viewport 0 = true) :
+    urgent bottom height offset viewport margin delta = true := by simp [urgent, h]
+
+theorem urgent_stationary (bottom height offset viewport margin : Nat) :
+    urgent bottom height offset viewport margin 0 = near bottom height offset viewport 0 := by
+  simp [urgent]
+
 /-- Exactly the sample box used by Image.scaled for target row y. -/
 def scaledRow (src : Image.Src) (w h y : Nat) (bg : Color) : ByteArray :=
   let y0 := y * src.h / max h 1

@@ -47,8 +47,8 @@ def main (args : List String) : IO UInt32 := do
     let s ← get
     let some p := (s.rows.toList.find? (·.2.data.text == "a photo")) >>= fun (_, r) => r.data.pics.head?
       | check "the post's picture is on screen" false
-    check s!"the picture is drawn, complete, and its first draw misses its chunks ({p.got}/{p.total})"
-      (miss && p.complete && !fileStarted s p)
+    check s!"the picture declares its first attachment read before decoding ({p.got}/{p.total})"
+      (miss && !fileStarted s p)
     -- the reader held back three frames (a reader thread mid-pass)
     let r := s.rst
     modify fun s => { s with rst := none }

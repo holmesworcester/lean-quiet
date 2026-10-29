@@ -13,7 +13,12 @@ message id / attachment / attachment id. A component declares a query or
 render key, its owner path, and whether it is visible or speculative.
 The same `Demand.Plan` governs both `Reader.Shared` and `Work.Pool`.
 
-There are only two work classes for now: visible work and prefetch. Native
+There are two work classes: urgent work and prefetch. At rest, urgent
+means visible. In motion it includes a predicted viewport two offset
+samples ahead, capped at the 512 px image margin (`Raster.urgent`). This
+is a short spatial prediction, not a velocity or decode-time estimate;
+`urgent_stationary` and `urgent_visible` prove stationary behavior and
+that current pixels never lose priority. Native
 editing/motion and the Lean frame do not wait for these workers. Frame
 assembly pauses admission to the raster worker; it resumes before native
 presentation waits. Work already executing may finish its current unit.
@@ -30,7 +35,7 @@ a new sync scheduler.
 | Perceived stability | Keep the last displayed row while its replacement is pending; keep overlapping requests when the viewport moves; never delay a finished row behind the rest of an old reader batch. | Actual `App.step` scrolling, typing, arrival, lifecycle and native seam suites. These properties do not by themselves prove subjective smoothness. |
 
 `engine/renderer/Demand.lean` contains the executable decisions and their
-26 audited laws. Reader keys use decidable equality; `Raster.key_eq` also proves that the render keys satisfy the kernel’s lawful-equality premise. `engine/renderer/Work.lean` supplies one dedicated worker
+26 audited laws. The two `Raster.urgent` laws cover the runtime predictor. Reader keys use decidable equality; `Raster.key_eq` also proves that the render keys satisfy the kernel’s lawful-equality premise. `engine/renderer/Work.lean` supplies one dedicated worker
 per pool, short locks, promises, cooperative steps and timing counters.
 There is one app raster pool, not one thread per component. It exits when
 idle and does not join the shared task pool's old backlog. Reader work
@@ -52,12 +57,51 @@ control command `work` reports counts, cancellations and `maxUs`.
 
 The message query reads text, author/reactions, and an immutable attachment
 layout manifest. It no longer subscribes to attachment progress. A child
-inside the viewport or explicit 1024 px prefetch margin declares
-`Reader.Want.picture community attachment`, then `.slices chunks` when
-complete, and its raster keys. Leaving that region drops all declarations.
+inside the viewport or explicit 512 px prefetch margin declares
+`Reader.Want.picture community attachment` and its raster keys. Its chunk
+list opts into bodies through `Data.readListBodies`; progress, ordered
+chunk IDs and bytes arrive in that same reader result. Leaving that
+region drops all declarations and removes bytes from the parent manifest.
+Text rows and the native list buffer use 2048 px of overscan. The native
+composition test checks a 1536 px scroll without another Lean frame.
 The parent keeps dimensions so scrolling does not change geometry.
 Rows retain measured heights after unmount. Query answers are shared by
 key even when several component paths need them.
+
+### List bodies and destination-owned preparation
+
+`Q.list` returns validated facts and pending status. `Q.bodies` adds the
+immutable op bytes of exactly those returned rows, in the same order.
+Both use the same range/limit/count selection, pending overlay and watch
+window. SQLite joins `ops` by primary key in the bounded row statement;
+counts and metadata-only lists never fetch bodies. Pending rows use their
+outbox bytes. There is no per-chunk SQL read or reader-side decode/re-encode.
+The existing list cost laws apply to metadata projection; body reads add
+one point lookup per row plus payload bytes, with no claimed byte bound.
+`QueryDiff` checks both projections and their index plans on 924 varied
+queries; the component test covers pending and committed photo bodies.
+
+Home's visible channel component owns preparation around its saved entry
+cursor, even on cold startup. It reads a bounded candidate window, measures
+rows until the future viewport is covered, and owns only those attachment
+queries and image jobs. The same keys/tickets transfer between Home and
+the channel. Other navigation, community changes and width/theme changes
+release this demand. This is a destination viewport lifetime, not a global
+LRU cache. Tests restart the app on Home with no bitmaps, wait for its
+viewport images, enter chat and require identical decode tickets, then
+leave both scopes and require release.
+
+While visible row/attachment answers are outstanding, the raster pool
+holds speculative admission. Visible jobs still run; speculative work
+resumes when those dependencies are delivered. A slow source decode that
+has already started remains nonpreemptible. The photo handoff regression
+starts full decoding on the first frame after the reader resumes; this
+is a frame-count test, not a claim of instantaneous image decoding.
+
+Height/inset-only changes retain row bitmaps. Width or font-density
+changes require new row geometry. The UX suite checks that an offscreen
+pending and committed send retains visible text versions, pixels and
+scroll anchors. This does not establish the cause of every observed flash.
 
 The migration path for profile and reaction op types is the same:
 
@@ -73,9 +117,10 @@ The migration path for profile and reaction op types is the same:
 Profile/reaction views are still bundled into the message today. Full
 decode buffers have no byte-budget proof; long messages can still have
 expensive row paints. Sync/ingestion admission does not yet use this
-policy. A later interaction policy can pause speculative work through
-`Demand.next`'s background flag and give ingest/upload their own bounded
-units. It must preserve protocol liveness and measure each unit first.
+policy. Raster admission now uses `Demand.next`'s background flag while
+visible dependencies are outstanding. A later interaction policy can
+give ingest/upload their own bounded units. It must preserve protocol
+liveness and measure each unit first.
 No fixed per-phone millisecond constant is assumed by the laws.
 
 ### Reproducing the scrolling regression
@@ -86,14 +131,17 @@ the op-type component test and a real threaded app scroll session with
 The backlog mode occupies both shared-pool workers, then releases them
 when scrolling stops. This deliberately reproduces old paint backlog;
 it does not claim to simulate every possible reason a phone is slow.
-The identical `tests/app/Scrolling.lean` harness also runs against the
-pre-change revision. CSV records frame time, visible placeholder pixels,
+The original before/after measurement used the same 180-frame loop on
+both revisions. The current harness also checks the expanded overscan
+before that loop; that added check intentionally rejects the old margin.
+CSV records frame time, visible placeholder pixels,
 offset and mounted rows; the suite retains a final screenshot.
 
 `mise run host:component-demand-negative` builds scratch copies and
 requires specific failures for obsolete work, reversed priority,
-continued obsolete reader queries, children that never unmount, reused
-tickets and a broken publication gate. `pic_retry` additionally rejects
+continued obsolete reader queries, children that never unmount, missing
+list bodies, disabled Home preloading, insufficient native overscan,
+reused tickets and a broken publication gate. `pic_retry` additionally rejects
 a missing child query declaration and ignored available data.
 
 The local app gate invokes these same tasks (`ci/local.sh app`); no
@@ -283,7 +331,7 @@ abstract, and the one thing assumed of it is the engine's `view_stable`
 | a commit's stability | asked of each commit as made (`StableAt`), as window-subs' `notice_iff` gives it | `inv_commit` | ✅ |
 | the reader's pass as it runs (`RWorld`: Live's stale reads, each want's reads, mark then pick, as Reader.pass does with `Live.mark` and `Live.pick`) | every step keeps the invariant; a pass reading every marked want, then a frame, shows the store's values | `RWorld.inv_pass`, `RWorld.inv_commit`, `RWorld.inv_evict`, `RWorld.settle` | ✅ of the decisions Reader.pass calls (the diff that makes it call them is with the lead); its reads are the moment's by holmes-1e's LiveLaws |
 | the mutant: staleness checked while reading (holmes-1e's first pass) | two wants sharing a read: the first read refreshes it, the second shows 0 for ever where the store holds 1; marking first shows 1 | `eager_stale`, `marked_fresh` | ✅ |
-| the frame's reads | none: no store read, no list, no SQL, decrypt or decode but through `Pics.spawn` | `frame_reads` (Doors over App.step) | ❌ the frame reads SQLite today (readView, slicesOf); fix: the reader above |
+| the frame's reads | none: no store read, no list, no SQL, decrypt or decode but through `Pics.spawn` | `frame_reads` (Doors over App.step) | ❌ the frame reads SQLite today (legacy readView paths); fix: the reader above |
 | the frame's work | a + b · rows on screen + the moved values' sizes | `frame_work` | ❌ `bottoms` and the mount and paint loops walk every loaded row; fix: a prefix-sum tree over heights and a binary search for the window |
 | an unchanged frame | nothing moved, no event, no scroll, no paint finished: no work, the same rows | `frame_idle` | ❌ every frame re-runs the views through the cache; fix: the moved set |
 

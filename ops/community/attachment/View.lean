@@ -26,12 +26,15 @@ variable {m : Type → Type} [Monad m] [Reads m]
 /-- One attachment's picture, its info opened: how many of its file's
 chunks are here, of how many (`Community.progress`), and once all are,
 their op ids in index order. -/
-def pic (c att root : Id) (len : Nat) (info : FileMeta) (fk fn : ByteArray) (deps : Array Q) :
+def pic (c att root : Id) (len : Nat) (info : FileMeta) (fk fn : ByteArray) (deps : Array Q) (bodies : Bool := false) :
     m (Row.Pic × Array Q) := do
   let ((got, total), deps) ← readView (progress c att len) deps
   let p : Row.Pic := { hash := root, w := info.w, h := info.h, len, preview := info.preview,
                        got, total, key := fk, nonce := fn, attachment := att }
   if !p.complete then return (p, deps)
+  if bodies then
+    let (ch, raw, deps) ← readListBodies (chunk.byAttachment.query [c, att] (desc := false)) deps
+    return ({ p with chunks := ch.rows.map (·.1.2), raw }, deps)
   let (ch, _, deps) ← readList (chunk.byAttachment.query [c, att] (desc := false)) deps
   return ({ p with chunks := ch.rows.map (·.1.2) }, deps)
 
@@ -65,7 +68,7 @@ def readOne (c att : Id) : m (Option Row.Pic × Array Q) := do
   let some key := ks.rows.head?.bind fun (_, f) => match f with | .key _ _ k => some k | _ => none
     | return (none, deps)
   let some (info, fk, fn) := openInfo c kid sealed key | return (none, deps)
-  let (p, deps) ← pic c att root len info fk fn deps
+  let (p, deps) ← pic c att root len info fk fn deps true
   return (some p, deps)
 
 end Kinds.File

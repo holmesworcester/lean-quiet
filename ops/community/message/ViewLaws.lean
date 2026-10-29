@@ -30,6 +30,9 @@ instance : Reads Model where
   read q := fun db => match q with
     | .list q => .list (Engine.eval db q) []
     | .op _ => .bytes none
+    | .bodies q =>
+      let a := Engine.eval db q
+      .bodies a [] (a.rows.filterMap fun (p, _) => (db.ops p.2).map fun o => (p.2, o.bytes))
 
 /-- A person's name, as the store holds it. -/
 def nameIn (db : DB Fact) (c u : Id) : String :=

@@ -438,3 +438,7 @@ block Theme.save a device appearance write must run on the checkpoint writer, ne
 wired Engine.Sync.offer_shared
 wired Engine.Sync.offer_stored
 wired Engine.Sync.purges_notified
+
+# The runtime predictor used by row/picture queries and paint jobs.
+wired Raster.urgent_visible
+wired Raster.urgent_stationary

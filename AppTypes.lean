@@ -57,7 +57,9 @@ structure Io where
   bars : UInt32 → UInt32 → Bool → Bool → IO Unit := fun _ _ _ _ => pure ()
 
 /-- How far beyond each end of the viewport the list frame is drawn. -/
-def over : Nat := 1024
+def over : Nat := 2048
+/-- Images retain a smaller horizon than cheap text rows. -/
+def imageOver : Nat := 512
 /-- A row's height before it is measured. -/
 def est : Nat := 150
 /-- A window's rows on each side of its anchor. -/
@@ -144,6 +146,13 @@ structure PageIn where
   removeWhy : String := ""
   deriving BEq, Inhabited
 
+/-- Images owned by the selected channel's predicted entry viewport.
+This is a component lifetime, not a size/age-based global cache. -/
+structure PreparedPic where
+  pic : Row.Pic
+  w : Nat
+  h : Nat
+
 structure St where
   io : Io
   theme : Theme.State := {}
@@ -204,11 +213,14 @@ structure St where
   raster : Work.Pool Raster.Key Bitmap
   rasterNeeds : Array (Demand.Need Raster.Key) := #[]
   pictureNeeds : Array (Demand.Need Reader.Want) := #[]
+  prepared : Array PreparedPic := #[]
+  handoff : Array (Demand.Need Raster.Key) := #[]
   /-- Diagnostic: mounted pictures waiting for their chunk bytes. Demand,
   never a timer, owns these queries. -/
   imgWaiting : Std.HashSet ImgKey := {}
   selected : Option Id := none
   b : Nat := 0
+  scrollDelta : Int := 0
   imeH : Nat := 0
   input : Input.State := {}
   text : String := ""

@@ -141,11 +141,19 @@ def main (args : List String) : IO UInt32 := do
     let some (anchor, _) := rowAt old old.b | check "a visible scroll anchor exists" false; return
     let before := position old anchor
     check "reader is away from the bottom on a painted row" (old.b > 4 && before.isSome && (old.rows[anchor]?.bind (·.shown)).isSome)
+    let stable := old.rows.toList.filter fun (x, r) =>
+      r.data.pics.isEmpty && r.shown.isSome &&
+        (rowBottom old x).any (fun bot => Raster.near bot r.lay.h old.b (viewH old) 0)
+    check "offscreen-send fixture includes a visible painted text row" (!stable.isEmpty)
+    let stablePixels := fun (s : St) => stable.all fun (x, r) => (s.rows[x]?).any fun now =>
+      now.ver == r.ver && now.painted == r.painted && now.shown.map (·.rows) == r.shown.map (·.rows)
     let text := "Arriving while reading older messages\nwith a second line\nand a third"
     let sent ← sendText text
     steps 1
     check "pending arrival keeps the visible row at the same pixel" (sent && position (← get) anchor == before)
+    check "offscreen pending send retains visible text bitmaps without repainting" (stablePixels (← get))
     waitIdle sm
+    check "offscreen committed send retains visible text bitmaps without repainting" (stablePixels (← get))
     check "filing that arrival still keeps the same pixel" (position (← get) anchor == before)
     -- An incoming notice, without the optimistic outbox path.
     let s ← get

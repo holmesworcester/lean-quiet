@@ -40,8 +40,17 @@ cases = [
     ("reader-continues", "component_demand", [
         ("ops/app/Reader.lean", "if !(← s.enabled) then return default", "if false then return default"),
     ], "FAIL: superseded reader stops at the next query boundary"),
+    ("short-text-overscan", "scrolling", [
+        ("AppTypes.lean", "def over : Nat := 2048", "def over : Nat := 1024"),
+    ], "text overscan cannot cover a 1536px native scroll without a new frame"),
+    ("bodies-not-fetched", "op_components", [
+        ("engine/core/Query.lean", "let (sql, ps) := if bodies then st.sqlBodies else st.sql", "let (sql, ps) := st.sql"),
+    ], "FAIL: stored body projection returns every chunk without point reads"),
+    ("home-does-not-preload", "op_components", [
+        ("App.lean", "    preloadChannel\n    let s ← get", "    let s ← get"),
+    ], "FAIL: cold Home preloads complete viewport images before visiting the channel"),
     ("child-never-unmounts", "op_components", [
-        ("App.lean", "if Raster.near childBottom bx.h offset viewport over then", "if true then"),
+        ("App.lean", "if Raster.near childBottom bx.h offset viewport imageOver then", "if true then"),
     ], "FAIL: offscreen attachment children release every chunk query"),
 
 ]
@@ -50,10 +59,14 @@ with tempfile.TemporaryDirectory(prefix="demand-negative-", dir=os.environ["TMPD
     base, work = Path(tmp) / "base", Path(tmp) / "work"
     snapshot = run(["bash", "-c", '. tests/snapshot.sh\nsnapshot "$1" engine/core engine/wire engine/renderer ops platforms/headless tests/app tests/engine App.lean AppTypes.lean AppLife.lean Quiet.lean assets', "snapshot", str(base)], ROOT, "snapshot")
     assert snapshot.returncode == 0, "snapshot failed"
-    assert run(["lake", "build", "component_demand", "op_components"], base, "baseline-build").returncode == 0, "baseline build failed"
-    for exe in ["component_demand", "op_components"]:
+    assert run(["lake", "build", "component_demand", "op_components", "scrolling"], base, "baseline-build").returncode == 0, "baseline build failed"
+    for exe in ["component_demand", "op_components", "scrolling"]:
         assert run([str(base / ".lake/build/bin" / exe), str(LOGS / "baseline")], base, "baseline-" + exe).returncode == 0, "baseline failed"
-    for name, exe, changes, expected in cases:
+    # Resume a long local run after completed controls; the default CI
+    # task runs all of them. The unmodified baseline always runs first.
+    start = int(os.environ.get("DEMAND_NEGATIVE_START", "0"))
+    assert 0 <= start <= len(cases), "invalid mutation resume index"
+    for name, exe, changes, expected in cases[start:]:
         shutil.copytree(base, work, symlinks=True)
         try:
             for file, old, new in changes:

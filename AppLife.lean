@@ -144,8 +144,8 @@ def retireRow (r : RowSt) : M Unit := do
   for t in r.task.toList ++ r.dimmed.toList do
     modify fun s => { s with paintStop := s.paintStop.push (t.result.map fun _ => ()) }
 
-def retirePaints (s : St) : M Unit := do
-  s.raster.reconcile []
+def retirePaints (s : St) (keep : Array (Demand.Need Raster.Key) := #[]) : M Unit := do
+  s.raster.reconcile keep.toList
   for (_, r) in s.rows.toList do retireRow r
   for (_, t) in s.imgs.toList do
     modify fun s => { s with paintStop := s.paintStop.push (t.result.map fun _ => ()) }
@@ -221,21 +221,28 @@ def resumeReader : M Unit := do
     modify fun s => { s with reader := some w, rst := none }
 
 /-- The unmount barrier used by navigation and suspension. -/
-def leavePage : M Unit := do
+def leavePage (keepPrepared : Bool := false) : M Unit := do
   let s ← get
   s.io.ime false
   if let some p := s.input.press then s.io.motion { p.first with phase := 3 }.words
   if s.camOn then s.io.scan false
   stopReader
-  retirePaints s
+  let keep := if keepPrepared then (s.rasterNeeds ++ s.handoff).filter (fun n => match n.key with
+    | .image (hash, w, h) _ => s.prepared.any (fun p => p.w == w && p.h == h &&
+        (hash == p.pic.hash.push 0 || hash == p.pic.hash.push 1))
+    | _ => false) else #[]
+  retirePaints s keep
   modify unmountState
+  modify fun t => { t with
+    handoff := keep, prepared := if keepPrepared then s.prepared else #[] }
 
 /-- Mount after refreshing the viewport. -/
 def mountPage : M Unit := do
   let s ← get
   if !s.active || !s.surface || s.netStop.isSome then return
   if s.mountedPage == some (s.page, s.cur) then resumeReader; return
-  if s.mountedPage.isSome then leavePage
+  if let some (old, acc) := s.mountedPage then
+    leavePage (acc == s.cur && ((old == .home && s.page == .chat) || (old == .chat && s.page == .home)))
   modify fun s => { s with life := s.life.mount, mountedPage := some (s.page, s.cur) }
   let s ← get
   resumeReader
@@ -260,6 +267,15 @@ def resizeContent (sc : Array UInt32) : M Unit := do
   let dpi := (sc[4]?.getD s.dim.dpi.toUInt32).toNat
   if w == s.W && h == s.Hs && it == s.insetTop && ib == s.insetBot && dpi == s.dim.dpi then return
   if let some p := s.input.press then s.io.motion { p.first with phase := 3 }.words
+  -- Row pixels depend on content width, font density and theme, not the
+  -- window's height or inset placement. Keep them during keyboard/bar
+  -- changes so a send cannot expose a blank list while they repaint.
+  if w == s.W && dpi == s.dim.dpi then
+    modify fun s => { s with
+      Hs := h, insetTop := it, insetBot := ib, input := Input.revoke s.input,
+      mark := captureAnchor s, restoreAnchor := true, pageKey := none, pageNow := none,
+      chromeKey := "", gridKey := "", gridRows := {} }
+    return
   retirePaints s
   let font ← if dpi == s.dim.dpi then pure s.font else Font.load (density := dpi)
   let dm : Dim := ⟨dpi, font.cell, s.dim.theme⟩
@@ -274,6 +290,7 @@ def resizeContent (sc : Array UInt32) : M Unit := do
   modify fun s => { s with
     W := w, Hs := h, insetTop := it, insetBot := ib, font, dim := dm, input := Input.revoke s.input,
     bgRow := solid (Palette.color s.dim.theme .bg) w, rows, heights, imgs := {}, imgWaiting := {},
+    prepared := #[], handoff := #[],
     life := { s.life with generation := s.life.generation + 1 },
     mark := captureAnchor s, restoreAnchor := true, pageKey := none, pageNow := none,
     chromeKey := "", gridKey := "", gridRows := {} }

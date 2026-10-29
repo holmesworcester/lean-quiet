@@ -135,8 +135,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 1020 rest on Lean's standard axioms
-only, and about three quarters of its theorems (777 of 1000, not counting 20 negative controls) are about the code that runs; another 10 run the
+that rests on; 🥊 is supporting. All 1022 rest on Lean's standard axioms
+only, and about three quarters of its theorems (779 of 1002, not counting 20 negative controls) are about the code that runs; another 10 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -254,7 +254,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**777 of 1000 laws are about running code;** another 10 run its node code in a World, and 213 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**779 of 1002 laws are about running code;** another 10 run its node code in a World, and 213 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -268,7 +268,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
 | Screen | 261 | 203 |  | 58 |
-| App | 73 | 55 |  | 18 |
+| App | 75 | 57 |  | 18 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
@@ -1126,8 +1126,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`place_starts`]: engine/renderer/TextLaws.lean#L115-L121
 [`numbers_keep_order`]: engine/renderer/TextLaws.lean#L84-L88
 [`arabic_numbers_keep_order`]: engine/renderer/TextLaws.lean#L91-L94
-[`message_read`]: ops/community/message/ViewLaws.lean#L62-L67
-[`profile_read`]: ops/community/message/ViewLaws.lean#L40-L42
+[`message_read`]: ops/community/message/ViewLaws.lean#L65-L70
+[`profile_read`]: ops/community/message/ViewLaws.lean#L43-L45
 [`profile_authorized`]: ops/community/Laws.lean#L316-L323
 [`no_renaming`]: ops/community/Laws.lean#L330-L341
 [`name_placed`]: ops/community/reaction/RowLaws.lean#L89-L92
@@ -1159,8 +1159,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L944-L948
-[`pageIn_acc`]: App.lean#L950-L953
+[`drawPage_key`]: App.lean#L949-L953
+[`pageIn_acc`]: App.lean#L955-L958
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L217-L227
@@ -1247,11 +1247,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`start_size`]: engine/renderer/Heights.lean#L244-L245
 [`below_window`]: engine/renderer/Heights.lean#L248-L251
 [`above_window`]: engine/renderer/Heights.lean#L254-L258
-[`plan_stmt_cost`]: engine/core/Query.lean#L600-L603
-[`readPlan_cost`]: engine/core/Query.lean#L560-L565
-[`readPlan_cost_le`]: engine/core/Query.lean#L611-L616
-[`readPlan_cost_range`]: engine/core/Query.lean#L574-L577
-[`walks_le`]: engine/core/Query.lean#L586-L586
+[`plan_stmt_cost`]: engine/core/Query.lean#L622-L625
+[`readPlan_cost`]: engine/core/Query.lean#L582-L587
+[`readPlan_cost_le`]: engine/core/Query.lean#L633-L638
+[`readPlan_cost_range`]: engine/core/Query.lean#L596-L599
+[`walks_le`]: engine/core/Query.lean#L608-L608
 [`fold_congr`]: ops/sync/TreeLaws.lean#L148-L151
 [`deviceLive_lists`]: ops/app/PeopleLaws.lean#L145-L147
 [`live_lists_ge`]: ops/app/PeopleLaws.lean#L180-L182
@@ -1268,10 +1268,10 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`foldr_insertBy`]: engine/core/Union.lean#L105-L108
 [`insertBy_merge`]: engine/core/Union.lean#L68-L71
 [`mem_proj_idx`]: engine/core/Project.lean#L215-L216
-[`sideCount_run`]: engine/core/Query.lean#L666-L669
-[`splitWalk_cost`]: engine/core/Query.lean#L735-L740
-[`splitWalk_exact`]: engine/core/Query.lean#L675-L678
-[`splitWalk_steps`]: engine/core/Query.lean#L690-L696
+[`sideCount_run`]: engine/core/Query.lean#L688-L691
+[`splitWalk_cost`]: engine/core/Query.lean#L757-L762
+[`splitWalk_exact`]: engine/core/Query.lean#L697-L700
+[`splitWalk_steps`]: engine/core/Query.lean#L712-L718
 [`perm_sortPos`]: engine/core/Decl.lean#L124-L125
 [`sortPos_eq_fast`]: engine/core/Query.lean#L278-L279
 [`sortPos_sorted`]: engine/core/Order.lean#L152-L153

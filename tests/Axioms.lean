@@ -1140,4 +1140,6 @@ end cost
 #print axioms Demand.remount_fresh
 
 #print axioms Raster.key_eq
+#print axioms Raster.urgent_visible
+#print axioms Raster.urgent_stationary
 #print axioms Demand.remount_rejects

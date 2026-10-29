@@ -327,18 +327,20 @@ private def threaded (dir : String) (ck : Tests.Checks) : IO Unit := do
     found "Reader" "Ann"
     waitIdle sm
     openPage .chat
-    discard <| sendText "reader-owned message"
+    sm.cmds.modify (·.push "photo")
+    steps 2
+    sm.cmds.modify (·.push "post reader-owned message")
     waitIdle sm
     set (← spawnReader (← get))
     for _ in [0:30] do steps 1; IO.sleep 2
     let s ← get
     ck.ok "production reader is running" (s.reader.isSome && s.rst.isNone)
     let worker := s.reader
-    let pic : Row.Pic := { hash := "waiting-picture".toUTF8, w := 1, h := 1, chunks := [s.ids[0]!.2] }
-    discard <| image { pic with got := 1, total := 1 } 1 1
-      (Raster.pictureOwner s.me.c s.ids[0]!.2 pic.attachment)
-    ck.ok "picture teardown has live requests to remove" (!(← get).pictureNeeds.isEmpty)
-    openPage .home
+    ck.ok "picture teardown has live requests to remove" (!s.pictureNeeds.isEmpty &&
+      s.rows.toList.any (fun (_, r) => !r.data.pics.isEmpty))
+    -- Home now owns destination preloads; leave both scopes to test the
+    -- full retirement barrier on a real attachment and its active reads.
+    openPage .you
     IO.sleep 10
     ck.ok "unmount joins the in-flight reader" (← match worker with
       | some w => IO.hasFinished w.done | none => pure false)

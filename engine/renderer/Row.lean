@@ -85,6 +85,8 @@ structure Pic where
   got : Nat := 0
   total : Nat := 0
   chunks : List ByteArray := []
+  /-- Only the mounted attachment requests bodies; its parent keeps a manifest. -/
+  raw : Option (List ByteArray) := none
   key : ByteArray := .empty
   nonce : ByteArray := .empty
   /-- The attachment op's identity, distinct from its shared content hash. -/
