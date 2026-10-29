@@ -135,8 +135,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 747 rest on Lean's standard axioms
-only, and about two thirds of its theorems (542 of 727, not counting 20 negative controls) are about the code that runs; another 7 run the
+that rests on; 🥊 is supporting. All 764 rest on Lean's standard axioms
+only, and about three quarters of its theorems (559 of 744, not counting 20 negative controls) are about the code that runs; another 7 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -226,6 +226,7 @@ World); the rest are over models so far
 | 🟡 | 🥊🥊 | **The layout is exact.** Proven of the running code: the sheet's composition and its emoji keys (the painter places item i by `itemAt` and the sheet's lines by `lineOf`, exactly over the box the taps answer for: `lineOf_ctop`), the composer's photo chips (in order, never overlapping, an X that never reaches the next chip, and all four on screen), the invite's hints and QR, and the camera preview. Not yet: the slide, the keyboard shift and page rows (Geometry's formulas, which the shells copy). | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`itemAt_place`], [`lineOf_ctop`], [`chips_apart`], [`x_clear`], [`chips_fit`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
 | 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** Proven: wrapping drops only spaces, keeps every other character in order, and every line fits when every character does; bidi reordering drops and invents nothing; the glyphs placed are exactly the visible characters; and every resolved European or Arabic number run, with its separators and terminators (decimals, times, percentages), stays contiguous and in logical order in either paragraph direction (#3). Tested: Unicode 16's BidiTest and BidiCharacterTest, 73,599 cases and 0 failures, in the scope the renderer implements (P2–P3, W1–W7, N1–N2, I1–I2, L1–L2, single lines without explicit embeddings, isolates or paired brackets; docs/BIDI.md names the 788,349 cases left out). Not yet: the bidi algorithm itself as a law (its rules are tested; the number runs are proven), embeddings and isolates, paired brackets (N0), mirrored glyphs (L4), marks (L3), paragraphs across soft wraps, and `layout` as one statement. | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`numbers_keep_order`], [`arabic_numbers_keep_order`] |
 | 🟡 | 🥊🥊🥊 | **Names are shown correctly.** Proven: a row's name is its author's newest valid profile's, which only a device admitted into that user can write, cut to a logical prefix; explicit bidi controls (embeddings, overrides, isolates, LRM, RLM and ALM) have no directional authority: the running bidi classes each as a neutral, though one inserted can still split a number run; a name starts next to the avatar whatever its direction (as do a message's lines, start-aligned as libquiet's); and a row is marked "⚠ Duplicate" exactly when another member's name looks alike (equal once invisible characters are dropped and spaces, and the glyphs the font draws empty, collapsed). Not covered: look-alike letters across scripts, and invisible characters in a message's body. | [`message_read`], [`profile_read`], [`profile_authorized`], [`no_renaming`], [`name_placed`], [`oneLine_prefix`], [`controls_neutral`], [`marks_invisible`], [`namesake_iff`], [`row_marked`], [`twin_shown`], [`twin_before_time`], [`hit_twin`], [`name_starts`], [`flush_shows`] |
+| 🟡 | 🥊🥊 | **Noto coverage and its cache are bounded.** Proven: Lean's reader uses checked indices, returned coverage fits its bitmap and declared overhang, coverage saturates, and cache insertion stays within a 4 MiB charge and 1,024 entries. Source.bitmap's compiled equivalence is tested, not proven. Not yet proven: pixel fidelity or native allocator/RSS bounds; the compact index and raster are checked against fontTools ([report](docs/NOTO.md)). | [`Ttf.byte_in_bounds`], [`Ttf.cmap_entry`], [`Ttf.coverage_value`], [`Ttf.raster_valid`], [`Ttf.raster_pixel`], [`Ttf.Cache.put_bound`], [`Ttf.Cache.put_payload_bound`] |
 | ✅ | 🥊🥊 | **Times, reactions and pictures are shown as held:** the claimed time's clock, each reaction's count of distinct reactors, and each picture at its aspect inside its box. One pill per emoji, whose reactors are exactly who reacted with it, each once; a picture's box has one side at its bound and the other scaled by its aspect. | [`time_shown`], [`message_read`], [`tally_nodup`], [`tally_mem`], [`picBox_aspect`] |
 | 🟡 | 🥊🥊🥊 | **What you see is what was sent.** Proven over a model where every list read is the engine's: a shown message is a valid fact of the store, its row's name, time and text are its author's name, its claimed time and its body opened with a key the store holds, and the conversation is exactly the messages under keys this device holds. Not yet: from the row's layout to its pixels. | [`message_read`], [`readable_held`], [`readable_complete`], [`eval_stable`] |
 | ✅ | 🥊🥊🥊 | **Every community is reachable, and is one entry.** A switcher row's tap selects exactly the entry it draws, every entry has a row, no two entries share an acceptance or a community, and a page is drawn from its key alone, which names its entry's op, never a name. | [`switcherOrder_sound`], [`switcherOrder_complete`], [`dedupe_nodup`], [`dedupe_one_per_community`], [`select_tapped_dedupe`], [`drawPage_key`], [`pageIn_acc`] |
@@ -247,7 +248,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**542 of 727 laws are about running code;** another 7 run its node code in a World, and 178 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**559 of 744 laws are about running code;** another 7 run its node code in a World, and 178 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -260,7 +261,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Community | 165 | 154 |  | 11 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
-| Screen | 126 | 64 |  | 62 |
+| Screen | 143 | 81 |  | 62 |
 | App | 55 | 46 |  | 9 |
 
 | Missing link | Laws | To make them real |
@@ -443,15 +444,19 @@ what happens if it is wrong.
 
 ### Pixels
 
-**Painting is Lean's.** Glyphs are blitted from a prebuilt bitmap of GNU
-Unifont ([`Font.lean`](engine/renderer/Font.lean),
-[`Paint.lean`](engine/renderer/Paint.lean)). Pictures are decoded (QOI) and
-box-filtered in Lean, and rows are painted on Lean's task threads. No
-font is rasterized at run time: [`font.py`](tools/font.py) scales
-Unifont up (Scale3x) and [`emoji.py`](tools/emoji.py) resamples
-Noto Color Emoji into QOI pictures, at build time. emoji.py also
-decides which code points draw as emoji (Unicode's presentation rules),
-as a flag Lean reads.
+**Painting is Lean's.** Lean reads and rasterizes pinned Noto TrueType
+fonts, including common CJK subsets instanced at Regular (400). A compact
+cmap/metric index supports layout before parsing; faces and outlines are
+parsed on demand. Unifont remains the fallback, and colour emoji remain
+prebuilt QOI pictures. See [Noto rendering](docs/NOTO.md).
+
+The glyph cache has a 4 MiB accounting budget and at most 1,024 entries.
+Its insertion and the reader/raster bounds are proved over running Lean
+functions. The pure paint API has one memoization seam:
+Source.bitmap's compiled equivalence is tested, not proven. Tests compare
+every bitmap field and byte with the pure raster, including eviction,
+failed reads and concurrent calls. Native allocator/RSS bounds and the
+build-time metric index's correspondence are not kernel theorems.
 
 Native code copies the finished rows into the OS's buffers:
 
@@ -1098,6 +1103,13 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`hit_twin`]: ops/community/reaction/RowLaws.lean#L152-L154
 [`name_starts`]: ops/community/reaction/RowLaws.lean#L122-L125
 [`flush_shows`]: ops/community/reaction/RowLaws.lean#L97-L98
+[`Ttf.byte_in_bounds`]: engine/renderer/Ttf/Laws.lean#L11-L12
+[`Ttf.cmap_entry`]: engine/renderer/Ttf/Laws.lean#L18-L19
+[`Ttf.coverage_value`]: engine/renderer/Ttf/Laws.lean#L43-L44
+[`Ttf.raster_valid`]: engine/renderer/Ttf/Laws.lean#L60-L61
+[`Ttf.raster_pixel`]: engine/renderer/Ttf/Laws.lean#L69-L73
+[`Ttf.Cache.put_bound`]: engine/renderer/Ttf/Cache.lean#L90-L93
+[`Ttf.Cache.put_payload_bound`]: engine/renderer/Ttf/Cache.lean#L112-L113
 [`time_shown`]: ops/community/reaction/RowLaws.lean#L84-L87
 [`tally_nodup`]: ops/community/reaction/RowLaws.lean#L56-L60
 [`tally_mem`]: ops/community/reaction/RowLaws.lean#L68-L71

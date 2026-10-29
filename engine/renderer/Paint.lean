@@ -7,6 +7,7 @@ copies a row it already holds.
 -/
 import engine.renderer.Font
 import engine.renderer.Text
+import engine.renderer.Ttf.Blit
 
 namespace Paint
 open Font Text
@@ -120,6 +121,10 @@ c; bold smears each row right. -/
 def Bitmap.glyph (f : Font) (b : Bitmap) (ch : UInt32) (x y : Nat) (c : Color) (bold : Bool) : Bitmap := Id.run do
   if Emoji.isEmoji ch then return b.emoji f ch x y
   let g := f.glyph ch
+  if let some r := g.noto then
+    if let some ink := f.noto.bitmap r then
+      return { b with rows := Ttf.blit ink b.rows x y c (if bold then max 1 (f.cell / 32) else 0) }
+  let g := (f.bitmapGlyph? ch).getD (f.bitmapGlyph? 0xFFFD |>.getD ⟨Font.tableEnd, false, none⟩)
   let n := f.adv g
   -- bold smears each row right by a sixteenth of the cell
   let smear := if bold then max 1 (f.cell / 32) else 0

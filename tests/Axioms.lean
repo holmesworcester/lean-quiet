@@ -29,6 +29,8 @@ import ops.app.PeopleLaws
 import ops.app.Remove
 import ops.community.membership.RemovedLaws
 import App
+import engine.renderer.Ttf.Laws
+import engine.renderer.Ttf.Cache
 import ops.community.attachment.ArrivalLaws
 import engine.renderer.qr.Qr
 import engine.renderer.pic.Pic
@@ -836,3 +838,22 @@ end cost
 #print axioms LifecycleLaws.viewport_possible
 #print axioms LifecycleLaws.apply_page_anchor
 #print axioms Lifecycle.live_exact
+
+-- Noto reader, raster and bounded cache.
+#print axioms Ttf.byte_in_bounds
+#print axioms Ttf.cmap_entry
+#print axioms Ttf.lookup_singleton
+#print axioms Ttf.cmap12_glyph
+#print axioms Ttf.cmap4_delta
+#print axioms Ttf.cmap4_array
+#print axioms Ttf.coverage_value
+#print axioms Ttf.coverage_bound
+#print axioms Ttf.checked_valid
+#print axioms Ttf.raster_valid
+#print axioms Ttf.ink_witness
+#print axioms Ttf.raster_pixel
+#print axioms Ttf.Cache.empty_valid
+#print axioms Ttf.Cache.checked_valid
+#print axioms Ttf.Cache.put_bound
+#print axioms Ttf.Cache.payload_le_bytes
+#print axioms Ttf.Cache.put_payload_bound

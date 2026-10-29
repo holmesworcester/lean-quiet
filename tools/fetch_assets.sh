@@ -29,3 +29,18 @@ PYTHONPATH="$tmp/py" python3 "$root/tools/emoji.py" "$tmp/noto.ttf" "$tmp/emoji-
 # main 38a909706), converted by tools/picker.py.
 git -C "${LIBQUIET:-$HOME/libquiet}" show 38a909706:app/src/emoji-data.json > "$tmp/lq-emoji.json"
 python3 "$root/tools/picker.py" "$tmp/lq-emoji.json" "$root/assets/picker.txt"
+
+# Local Noto Core and CJK are installed after the pinned CJK inputs below.
+
+# Google Fonts glyf variable sources, pinned at commit
+# 9b59ea9f333c5b8a99fa44e2a698496d6cde5b8e. Exact URLs and hashes live in
+# cjk_fonts.tsv (NotoSans{SC,TC,JP,KR}%5Bwght%5D.ttf). Prefer local copies;
+# downloads, when needed by this online fetch command, stay in its temp dir.
+cjk_local=${CJK_FONTS:-/mnt/storage/holmes-wt/lq-tonight/fonts}
+mkdir -p "$tmp/cjk"
+while read -r hash name url; do
+  if [ -f "$cjk_local/$name" ]; then cp "$cjk_local/$name" "$tmp/cjk/$name"
+  else curl --proto '=https' -fsSL -o "$tmp/cjk/$name" "$url"; fi
+  echo "$hash  $tmp/cjk/$name" | sha256sum -c - >/dev/null
+done < "$root/tools/cjk_fonts.tsv"
+CJK_FONTS="$tmp/cjk" "$root/tools/noto_assets.sh"

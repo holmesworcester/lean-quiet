@@ -18,9 +18,11 @@ def isMark (c : UInt32) : Bool :=
   inRange c 0x1AB0 0x1AFF || inRange c 0x1DC0 0x1DFF || inRange c 0x20D0 0x20FF ||
   inRange c 0xFE20 0xFE2F
 
-/-- Drawn as nothing at all. -/
+/-- Drawn as nothing at all, including Noto's inkless NUL, Arabic letter
+mark and bidi isolates. The name key removes the same characters. -/
 def isInvisible (c : UInt32) : Bool :=
-  inRange c 0x200B 0x200F || inRange c 0x2060 0x2064 || inRange c 0xFE00 0xFE0F ||
+  c == 0 || c == 0x061C || inRange c 0x200B 0x200F || inRange c 0x2060 0x2064 ||
+  inRange c 0x2066 0x2069 || inRange c 0xFE00 0xFE0F ||
   c == 0xFEFF || inRange c 0x1F3FB 0x1F3FF
 
 end Text

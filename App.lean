@@ -1800,7 +1800,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
     IO St := do
   let W := (screen[0]?.getD 1080).toNat
   let Hs := (screen[1]?.getD 2400).toNat
-  let font ← Font.load
+  let font ← Font.load (density := (screen[4]?.getD 420).toNat)
   let rd ← openDb dbPath
   Lifecycle.init rd
   let saved ← Lifecycle.load rd

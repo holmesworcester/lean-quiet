@@ -340,3 +340,18 @@ lean_exe runner_restart where
 
 lean_exe app_lifecycle_node where
   root := `platforms.headless.LifecycleNode
+
+lean_exe noto where
+  root := `platforms.headless.Noto
+
+lean_exe cjk where
+  root := `platforms.headless.Cjk
+
+lean_exe cjk_scroll where
+  root := `platforms.headless.CjkScroll
+
+lean_exe font_load where
+  root := `platforms.headless.FontLoad
+
+lean_exe font_contract where
+  root := `platforms.headless.FontContract

@@ -6,7 +6,7 @@ export PATH="$ELAN_HOME/bin:$PATH"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 test -f assets/font.bin
 python3 platforms/linux/font.py assets/font.bin out/desktop/font.bin
-lake build desktop
+lake build desktop engine.renderer.desktop.Laws platforms.desktop.Laws
 # the desktop's laws, on standard axioms only (tests/app/DesktopAxioms.lean)
 out=$(lake env lean tests/app/DesktopAxioms.lean 2>&1)
 want=$(grep -c "^#print axioms" tests/app/DesktopAxioms.lean)

@@ -36,6 +36,12 @@ private def suite (args : List String) : IO UInt32 := do
     checks.modify (· + 1)
     IO.println s!"ok {name}"
     (← IO.getStdout).flush
+  let mobileFont ← Font.load "assets/font.bin" 160
+  let fontSample (font : Font.Font) :=
+    (Paint.Bitmap.blank 320 48 (Paint.solid Row.bg 320)).line font
+      (Text.oneLine font 320 "Quiet שלום 日本語 🙂") 0 0 Row.nameInk
+  check "desktop paints the same Noto and emoji as the mobile renderer at logical density"
+    (!d.app.font.noto.chars.isEmpty && (fontSample d.app.font).rows == (fontSample mobileFont).rows)
   for name in ["Quiet", "Garden"] do
     let (_, s) ← (App.found name "Alex").run d.app
     d ← settle { d with app := s }

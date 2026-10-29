@@ -330,6 +330,26 @@ todo Screen.Frame.shown = Screen.Frame.wants
 todo Engine.Subs.ofList = Screen.Frame.wants
 todo Pics.after The picture doors as data (`PicM`), measured: the app's own doors (its decode table and frame counter) are not shown to answer as `PicM`'s. Prove they do, or state these over them.
 todo Pics.costIn = Pics.after
+
+# Noto: measured payload is a specification of the retained running cache.
+spec Ttf.Cache.payload The sum of retained bitmap bytes, measured on the running cache for its payload bound.
+wired Ttf.byte_in_bounds
+wired Ttf.cmap_entry
+wired Ttf.lookup_singleton
+wired Ttf.cmap12_glyph
+wired Ttf.cmap4_delta
+wired Ttf.cmap4_array
+wired Ttf.coverage_value
+wired Ttf.coverage_bound
+wired Ttf.checked_valid
+wired Ttf.raster_valid
+wired Ttf.ink_witness
+wired Ttf.raster_pixel
+wired Ttf.Cache.empty_valid
+wired Ttf.Cache.checked_valid
+wired Ttf.Cache.put_bound
+wired Ttf.Cache.payload_le_bytes
+wired Ttf.Cache.put_payload_bound
 todo Live.Board.apply The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`.
 todo Live.World.afterActs = Live.Board.apply
 todo Live.World.commit = Live.Board.apply

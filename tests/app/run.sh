@@ -14,11 +14,16 @@ export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
 (cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
 [ -f assets/font.bin ] || tools/fetch_assets.sh
+tools/noto_assets.sh
+tests/app/noto.sh
+bash tests/app/font_contract.sh
+tests/app/cjk.sh
 tests/app/bidi.sh
 tests/app/bidi_host.sh
 lake build host two_nodes net_join cross arrival attach inkless nodequeue pic_retry
 tests/app/host_twin_demo.sh
 .lake/build/bin/inkless
+tests/app/inkless_negative.sh
 .lake/build/bin/nodequeue
 .lake/build/bin/host "${MESSAGES:-500}" out/host
 .lake/build/bin/two_nodes out/two

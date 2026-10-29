@@ -148,6 +148,7 @@ javac --release 17 -nowarn -classpath "$jar" -d "$work/classes" \
 "$bt/d8" --min-api 30 --lib "$jar" --output "$work/dex" $(find "$work/classes" -name '*.class')
 sed -e "s/@PACKAGE@/$pkg/" -e "s/@LABEL@/$label/" \
   "$here/AndroidManifest.xml.in" > "$work/AndroidManifest.xml"
+"$root/tools/noto_assets.sh"
 mkdir -p "$work/assets/assets"
 if [ -d "$root/assets" ]; then
   find "$root/assets" -maxdepth 1 -type f -exec cp {} "$work/assets/assets/" \;

@@ -34,11 +34,9 @@ def start (base : App.Io) (w h : Nat) (path : String)
       ls.set ⟨fr, top, bot, o.toNat⟩
       return #[] }
   let s ← App.start io (← sc.get) path net
-  -- The offline build reduces the existing font to its original 16px
-  -- cell. Font.row already handles that packing. Phones keep their font.
-  let bytes ← IO.FS.readBinFile "out/desktop/font.bin"
-  let font : Font.Font := ⟨bytes, 16, default⟩
-  return { app := { s with font, dim := ⟨160, 16⟩ }, width := w, height := h, layers := ls, screen := sc }
+  -- Use the app's density-scaled font, including Noto and colour emoji.
+  -- Replacing it with the old reduced bitmap discards the shared renderer.
+  return { app := s, width := w, height := h, layers := ls, screen := sc }
 
 def resize (d : Driver) (w h : Nat) : IO Driver := do
   let d := { d with width := max 320 w, height := max 480 h }
