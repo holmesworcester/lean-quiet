@@ -25,6 +25,7 @@ tests/app/bidi_host.sh
 lake build host two_nodes net_join cross arrival attach inkless nodequeue pic_retry ux
 mise run host:twin-demo
 mise run host:seam
+mise run host:seam-negative
 mise run host:slide
 mise run host:translate
 .lake/build/bin/inkless
