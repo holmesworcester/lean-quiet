@@ -67,7 +67,9 @@ else
   mutate platforms/headless/host.c 'hs.ime = show ? 900 : 0;' 'hs.ime = 0;'
   killed keyboard 'FAIL a composer tap opens the keyboard'
   copy
-  mutate tests/app/host_twin_demo.sh '!dump start.ppm' '!dump $out/start.ppm'
+  # the screen dumped somewhere the checks do not read (an absolute path to
+  # the same file is no longer a mutant: host.c's !dump takes the whole path)
+  mutate tests/app/host_twin_demo.sh '!dump start.ppm' '!dump elsewhere.ppm'
   killed dump-path 'FAIL composer above the navigation bar'
 fi
 echo "shipped $part negative controls: PASS (scratch mutations discarded)"
