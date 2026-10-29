@@ -394,3 +394,10 @@ bounded App.suspend One shared 250ms deadline via waitFor; unfinished teardown r
 waits App.waitsOnNode a blocking send must be caught even when suspend is exempted
 waits App.waitsOnTask an unguarded task join must be caught
 waits App.waitsOnDeadline deadline polling on an ordinary frame must be caught
+# The frame never writes the store. It holds its read transaction all
+# turn, and a node's wal_checkpoint(TRUNCATE) (a purge's) holds SQLite's
+# write lock until every reader finishes: a commit on the frame waits on
+# the frame itself until the busy timeout throws out of App.step. The
+# frame hands checkpoints to the writer's thread (Data.Writer.save).
+block Lifecycle.save a commit that waits for SQLite's write lock while the frame holds its read transaction
+waits App.saveWaits the checkpoint as it was committed: on the frame's thread, while its read transaction is open

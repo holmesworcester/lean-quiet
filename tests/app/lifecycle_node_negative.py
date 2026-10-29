@@ -26,6 +26,9 @@ cases = [
     ("broad-exemption", "tests/wiring.txt", "bounded App.suspend One shared", "bounded App.resumeReader invalid exemption\nbounded App.suspend One shared", "bounded: only the reached App.suspend", True),
     ("blocking-resume", "AppLife.lean", "def resumeReader : M Unit := do\n", "def resumeReader : M Unit := do\n  discard <| IO.wait (Task.pure ())\n", "block: the frame waits on IO.wait", True),
     ("unbounded-suspend", "AppLife.lean", "def suspend (budget : Nat := 250) : M Unit := do\n", "def suspend (budget : Nat := 250) : M Unit := do\n  discard <| IO.wait (Task.pure ())\n", "bounded: App.suspend reaches unbounded IO.wait", True),
+    ("commit-on-frame", "AppLife.lean", "  s.wr.save (Codec.encode cp)\n", "  Lifecycle.save (← openDb s.dbPath) (Codec.encode cp)\n", "a frame during a purge's checkpoint returns at once", False),
+    ("commit-on-frame-wiring", "AppLife.lean", "  s.wr.save (Codec.encode cp)\n", "  Lifecycle.save (← openDb s.dbPath) (Codec.encode cp)\n", "block: the frame waits on Lifecycle.save", True),
+    ("checkpoint-failure-loses-job", "engine/renderer/Data.lean", "    w.commitSave db save\n", "    pure ()\n", "a failed checkpoint keeps its following job pending", False),
 ]
 
 def run(cmd, path):

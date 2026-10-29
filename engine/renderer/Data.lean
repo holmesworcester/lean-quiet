@@ -6,11 +6,17 @@ The app's data: the engine on SQLite, read and written from two threads.
   writes first, and commits each job as one transaction (`receive`).
   Every commit, the writer's or the node's, records each row it files or
   unfiles, with its key and position, in the store's journal
-  (Engine.Db.filings), in the same transaction.
+  (Engine.Db.filings), in the same transaction. It also journals the
+  app's newest lifecycle checkpoint (`Writer.save`).
 - **Reads never wait for it.** The frame reads on its own connection
   (SQLite's WAL: a long write never blocks it), all in one read
   transaction, so a frame is one moment of the store; its notices are the
   journal's rows that moment holds.
+- **The frame never writes.** A write on the frame's thread would wait
+  for SQLite's write lock while the frame holds its read; a node's
+  `wal_checkpoint(TRUNCATE)` (a purge's) holds that lock while it waits
+  for every reader to finish: each waits for the other until a busy
+  timeout throws.
 - **Live answers.** Every read is a query instance (`Q`). Reading one
   arms a one-shot watch on its window (`Q.win`: the part of its key's
   list its answer depends on; a read with a limit, from its last row
@@ -75,10 +81,37 @@ structure Writer where
   /-- How many commits this writer has made: a reader that sees it
   unmoved (and the node's likewise) need not read the journal. -/
   count : IO.Ref Nat
+  /-- The newest checkpoint handed over, numbered, while not yet
+  committed (a newer one replaces it). Committed even while `paused`. -/
+  saving : IO.Ref (Nat × Option ByteArray)
+  /-- The number of the last checkpoint committed. -/
+  saved : IO.Ref Nat
 
 def Writer.submit (w : Writer) (j : Job) : IO Unit := do
   w.busy.modify (· + 1)
   w.jobs.modify fun js => if j.mine then #[j] ++ js else js.push j
+
+/-- Hand a checkpoint to the writer's thread: the frame never commits. -/
+def Writer.save (w : Writer) (b : ByteArray) : IO Unit :=
+  w.saving.modify fun (n, _) => (n + 1, some b)
+
+/-- Whether the last checkpoint handed over is committed. -/
+def Writer.saveDone (w : Writer) : IO Bool :=
+  return (← w.saved.get) == (← w.saving.get).1
+
+/-- Commit the newest checkpoint, if one waits. On an error retry before
+returning to the job: one handed over meanwhile replaces it. Only the
+writer's thread waits; the frame and suspend's deadline never do. -/
+partial def Writer.commitSave (w : Writer) (db : Db) (save : Db → ByteArray → IO Unit) : IO Unit := do
+  let (n, some b) ← w.saving.get | return
+  try
+    save db b
+    w.saved.set n
+    w.saving.modify fun (m, x) => (m, if m == n then none else x)
+  catch e =>
+    IO.eprintln s!"writer: checkpoint: {e}"
+    IO.sleep 50
+    w.commitSave db save
 
 def Writer.run1 (w : Writer) (db : Db) (j : Job) : IO Unit := do
   let t0 ← nowUs
@@ -90,16 +123,19 @@ def Writer.run1 (w : Writer) (db : Db) (j : Job) : IO Unit := do
   w.commits.modify fun cs => (if cs.size > 200 then cs.extract 100 cs.size else cs).push
     (j.ops.length, (t1 - t0).toNat)
 
-partial def Writer.loop (w : Writer) (db : Db) : IO Unit := do
+/-- Each turn takes a job, then commits the newest checkpoint, then the
+job: a checkpoint handed over before a job was submitted commits first. -/
+partial def Writer.loop (w : Writer) (db : Db) (save : Db → ByteArray → IO Unit) : IO Unit := do
   let next ← if ← w.paused.get then pure none else
     w.jobs.modifyGet fun js => if js.isEmpty then (none, js) else (some js[0]!, js.extract 1 js.size)
+  w.commitSave db save
   match next with
-  | none => IO.sleep 2; w.loop db
+  | none => IO.sleep 2; w.loop db save
   | some j =>
     try w.run1 db j
     catch e => IO.eprintln s!"writer: {e}"
     w.busy.modify (· - 1)
-    w.loop db
+    w.loop db save
 
 /-- Every few seconds, on a connection of its own, delete the journal's
 rows the frames have taken (whoever's commits filed them: this writer's
@@ -120,15 +156,17 @@ DROP TRIGGER IF EXISTS journal_unstatus;
 DROP TABLE IF EXISTS changes;
 "
 
-def Writer.start (path : String) : IO Writer := do
+/-- `save` commits a checkpoint handed over (`Writer.save`). -/
+def Writer.start (path : String) (save : Db → ByteArray → IO Unit) : IO Writer := do
   let db ← openDb path
   -- every commit, this writer's or the node's, records the rows it files
   -- and unfiles in the store's journal (Db.filings), where frames and the
   -- reader take their notices
   dropKeyJournal db
   db.filings
-  let w : Writer := ⟨← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef false, ← IO.mkRef 0, ← IO.mkRef 0⟩
-  let _ ← IO.asTask (prio := .dedicated) (w.loop db)
+  let w : Writer := ⟨← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef false, ← IO.mkRef 0, ← IO.mkRef 0,
+    ← IO.mkRef (0, none), ← IO.mkRef 0⟩
+  let _ ← IO.asTask (prio := .dedicated) (w.loop db save)
   let _ ← IO.asTask (prio := .dedicated) (w.prune (← openDb path))
   return w
 

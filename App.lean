@@ -1808,8 +1808,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
     let queued := (Codec.decode (bs[10]?.getD .empty) : Option (List ByteArray)).getD []
     let ops := queued.filterMap Op.decode
     if !ops.isEmpty then (receive fam (intake fam true ops)).run rd
-  let uiDb ← Db.openAt dbPath
-  let wr ← Writer.start dbPath
+  let wr ← Writer.start dbPath Lifecycle.save
   -- the communities are this device's accepted facts: read them once
   -- here to choose the first page
   let sh ← Reader.Shared.new wr.count
@@ -1827,7 +1826,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
            wr := wr, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
            -- a removal already in the store at launch is not announced
            goneSeen := (all.toList.filter (·.removed)).map (·.acc),
-           dbPath := dbPath, netCfg := net, sh := sh, rst := some { rd := ← openDb dbPath }, uiDb := some uiDb }
+           dbPath := dbPath, netCfg := net, sh := sh, rst := some { rd := ← openDb dbPath } }
   let mut initial := initial
   if let some cp := saved then
     let (version, _, acc, _, _, _) := cp

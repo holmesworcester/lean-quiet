@@ -75,13 +75,25 @@ def checkpoint (s : St) : Lifecycle.Checkpoint :=
      Codec.encode (s.links.map fun (a, l) => (a, l.toUTF8)), Codec.encode s.queuedWrites,
      Codec.encode (s.mark.bind fun (x, _) => s.ids.find? (·.2 == x))])
 
+/-- A changed checkpoint, handed to the writer's thread, which commits
+it. The frame never commits: it holds its read transaction all turn, and
+a node's `wal_checkpoint(TRUNCATE)` holds the write lock until every
+reader finishes, so a commit here waited on the frame itself until
+SQLite's busy timeout threw out of `step`. -/
 def saveCheckpoint : M Unit := do
   let s ← get
   if s.dbPath.isEmpty then return
   let cp := checkpoint s
   if s.saved == some cp then return
-  Lifecycle.save (s.uiDb.getD s.rd) cp
+  s.wr.save (Codec.encode cp)
   modify fun s => { s with saved := some cp }
+
+/-- `saveCheckpoint` as it was: committed on the frame's thread while
+its read transaction is open. The `block` rule's negative control (`waits` in
+tests/wiring.txt); never run. -/
+def saveWaits : M Unit := do
+  let s ← get
+  Lifecycle.save s.rd (Codec.encode (checkpoint s))
 
 def restoreChips (s : St) (bs : List ByteArray) : Array (ByteArray × Nat × Nat × Composer.Chip) :=
   (bs.filterMap fun b => do
@@ -299,6 +311,6 @@ def suspend (budget : Nat := 250) : M Unit := do
     reap
     let s ← get
     return s.netStop.isNone && s.readerStop.isNone && s.paintStop.isEmpty &&
-      s.chaos.isNone && (← s.wr.busy.get) == 0
+      s.chaos.isNone && (← s.wr.busy.get) == 0 && (← s.wr.saveDone)
 
 end App

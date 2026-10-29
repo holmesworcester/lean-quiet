@@ -20,9 +20,18 @@ composer text and photo bytes, page field, invite/name/create flow, removal
 confirmation or sending state and target, issued invite links, reader window,
 and the anchor's message id and top-edge distance. Joining, admissions,
 removals, messages and keys remain the existing engine ops. A write intent
-is checkpointed before enqueueing it; startup replays journaled intents by
-op id before reading accepted communities. Repeated replay is idempotent.
-Changed UI checkpoints are committed before the event turn returns. There
+is in the checkpoint handed over before it is enqueued; startup replays
+journaled intents by op id before reading accepted communities. Repeated
+replay is idempotent. Each changed checkpoint is handed to the writer's
+thread before the event turn returns (`Data.Writer.save`); the writer
+commits the newest one, before any job submitted after it, and suspend's
+deadline covers that commit. A failed checkpoint is retried on the writer
+before its following job runs; a temporary SQLite write lock cannot make
+the writer attempt and discard that job. The frame never commits: it holds its read
+transaction all turn, and a node's `wal_checkpoint(TRUNCATE)` (a purge's)
+holds SQLite's write lock until every reader finishes, so a commit on the
+frame waited on the frame itself until the busy timeout threw out of
+`App.step` (the `block Lifecycle.save` note in tests/wiring.txt). There
 is no dependence on a final OS termination callback.
 
 Ephemeral: keyboard height/composition, selection, reaction sheet/velocity,
@@ -204,7 +213,8 @@ channel. Failed offers stay in toNode in order. Suspension preserves them
 and offers nothing; foreground re-offers them to the new runner. A revoked
 page still cannot call writeAll (unmount_write). A store-owned submit while
 suspended is allowed, durable and parked; it is not an old page callback.
-The checkpoint connection is separate from the frame's read transaction.
+Checkpoints are committed on the writer's connection and thread, never
+the frame's.
 Ordinary input still runs inside that transaction. Lifecycle barriers run
 outside it, and suspension reads the native field before hiding it so the
 last edit in the same poll is not lost.
