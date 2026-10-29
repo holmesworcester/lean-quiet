@@ -958,7 +958,7 @@ end cost
 #print axioms Theme.follows
 #print axioms Theme.forced
 #print axioms Theme.roundtrip
-#print axioms Appearance.selected_label
+#print axioms Appearance.selected_check
 #print axioms Contrast.channel_bounds
 #print axioms Contrast.ink_meets
 #print axioms Contrast.ink_control

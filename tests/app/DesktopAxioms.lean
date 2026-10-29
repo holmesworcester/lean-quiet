@@ -8,6 +8,8 @@ import engine.renderer.desktop.Laws
 import platforms.desktop.Laws
 #print axioms Desktop.widths
 #print axioms Desktop.adjacent
+#print axioms Desktop.drawer_preserves_main
+#print axioms Desktop.overlay_contained
 #print axioms Desktop.minimum
 #print axioms Desktop.monotone
 #print axioms Desktop.controls_fit

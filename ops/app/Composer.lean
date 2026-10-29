@@ -50,6 +50,9 @@ structure Layout where
   chipsY : Nat
   deck : Array (Box × Hit)
   send : Box
+  lineH : Nat := 20
+  wide : Bool := false
+  mobile : Bool := true
 
 /-- Chip i's thumbnail and its X, on the chips' row at y: 64 dp squares
 12 dp apart from the text's left edge, the X overhanging the top right. -/
@@ -96,27 +99,30 @@ theorem chips_fit (dm : Dim) (y W : Nat) {i : Nat} (hi : i < maxChips)
   rw [Nat.succ_mul] at this
   constructor <;> omega
 
-def layout (f : Font) (dm : Dim) (W : Nat) (text : String) (chips : Nat) : Layout := Id.run do
-  let pad := dm.px 16
-  let tx := pad
-  let tw := W - 2 * pad
+def layout (f : Font) (dm : Dim) (W : Nat) (text : String) (chips : Nat) (wide := false) (mobile := true) : Layout := Id.run do
+  let px := dm.px
+  let gutter := if wide then px 16 else 0
+  let edge := px 1
+  let tx := gutter + px 16 + (if wide then edge else 0)
+  let tw := W - 2 * tx
   let lines := if text.isEmpty then #[#[]] else Text.layout f tw text
-  let ty := dm.px 12
-  let mut y := ty + (min 5 lines.size) * dm.lineH + dm.px 8
+  let lineH := px 20
+  let ty := px 13
+  let mut y := px 25 + (min 5 lines.size) * lineH
   let chipsY := y
-  let c := dm.px 64
-  let columns := max 1 ((W - pad) / (dm.px 64 + dm.px 12))
-  let chipH := c + dm.px 4 + 3 * dm.lineH
-  let cs := (List.range chips).toArray.map fun i => chipBoxes dm (y + (i / columns) * chipH) (i % columns)
+  let columns := max 1 ((W - 2 * gutter - px 16) / px 76)
+  let chipH := px 68 + 3 * lineH
+  let cs := (List.range chips).toArray.map fun i =>
+    let (box, close) := chipBoxes dm (y + (i / columns) * chipH) (i % columns)
+    ({ box with x := box.x + gutter }, { close with x := close.x + gutter })
   if chips > 0 then y := y + ((chips + columns - 1) / columns) * chipH
-  let k := min (dm.px 48) ((W - dm.px 28) / 6)
-  let dy := y + dm.px 4
-  let mut deck := #[]
-  let acts := #[Hit.addPhotos, .takePhoto, .emoji, .mention, .voice]
-  for i in [0:acts.size] do
-    deck := deck.push (⟨dm.px 4 + i * (k + dm.px 4), dy, k, k⟩, acts[i]!)
-  let send : Box := ⟨W - dm.px 8 - k, dy, k, k⟩
-  return ⟨dy + k + dm.px 8, tx, ty, tw, lines, cs, chipsY, deck, send⟩
+  let acts := if mobile then #[Hit.addPhotos, .takePhoto, .emoji, .mention, .voice]
+    else #[Hit.addPhotos, .emoji, .mention, .voice]
+  let k := min (px (if wide then 32 else 44)) ((W - 2 * gutter - px 16) / (acts.size + 1))
+  let dy := y + px 8
+  let deck := acts.mapIdx fun i act => (⟨gutter + px 8 + i * k, dy, k, k⟩, act)
+  let send : Box := ⟨W - gutter - px 8 - k, dy, k, k⟩
+  return ⟨dy + k + px 9 + (if wide then px 8 else 0), tx, ty, tw, lines, cs, chipsY, deck, send, lineH, wide, mobile⟩
 
 /-- A glyph at 3/2 of the font's cell (nearest; Unifont is already
 smoothed), its top left at (x, y). -/
@@ -212,14 +218,23 @@ theorem caret_clear (f : Font) (dm : Dim) (l : Layout) (ph : String) {g : Text.P
 def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (l : Layout) (text : String)
     (placeholder : String) (chips : Array Chip) (caret : Option (Nat × Nat)) : Bitmap := Id.run do
   let mut b := Bitmap.blank W l.h bgRow
-  b := b.fill 0 0 W (max 2 (dm.px 1)) (Palette.color dm.theme .edge)
+  let color := Palette.color dm.theme
+  let gutter := if l.wide then dm.px 16 else 0
+  let rowH := l.h - (if l.wide then dm.px 8 else 0)
+  if l.wide then
+    b := b.round gutter 0 (W - gutter) rowH (dm.px 16) (color .line)
+    b := b.round (gutter + dm.px 1) (dm.px 1) (W - gutter - dm.px 1) (rowH - dm.px 1) (dm.px 15) (color .panel)
+  else
+    b := b.fill 0 0 W rowH (color .panel)
+    b := b.fill 0 0 W (dm.px 1) (color .selected)
+    b := b.fill 0 (l.textY + l.lines.size * l.lineH + dm.px 11) W (l.textY + l.lines.size * l.lineH + dm.px 12) (color .bg)
   if text.isEmpty then
-    b := b.line f (oneLine f l.textW placeholder) (placeholderX dm l) l.textY (Palette.color dm.theme .muted)
+    b := b.line f (oneLine f l.textW placeholder) (if caret.isSome then placeholderX dm l else l.textX) l.textY (Palette.color dm.theme .muted)
   else
     for i in [0:min 5 l.lines.size] do
-      b := b.line f l.lines[i]! l.textX (l.textY + i * dm.lineH) (Palette.color dm.theme .fg)
+      b := b.line f l.lines[i]! l.textX (l.textY + i * l.lineH) (Palette.color dm.theme .fg)
   if let some (cl, cx) := caret then
-    let cy := l.textY + (min 4 cl) * dm.lineH
+    let cy := l.textY + (min 4 cl) * l.lineH
     b := b.fill (l.textX + cx) cy (l.textX + cx + caretW dm) (cy + f.cell) (Palette.color dm.theme .accentInk)
   for i in [0:min chips.size l.chips.size] do
     let (tb, xb) := l.chips[i]!
@@ -229,15 +244,17 @@ def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (l : Layout) (text
     let ls := Text.layout f (dm.px 76) chips[i]!.caption
     for k in [0:min 3 ls.size] do
       b := b.line f ls[k]! tb.x (tb.y + tb.h + dm.px 4 + k * dm.lineH) (Palette.color dm.theme .muted)
-  -- the icons at 3/2 of the text's size (26 dp), centred in their keys
-  let S := dm.px 26
-  let ground := getPx bgRow 0
-  for (bx, h) in l.deck do
-    b := icon f dm b h (bx.x + (bx.w - S) / 2) (bx.y + (bx.h - S) / 2) S (Palette.color dm.theme .muted) ground
+  for (bx, action) in l.deck do
+    let name := match action with
+      | .addPhotos => if l.mobile then "image-plus" else "icon-clip"
+      | .takePhoto => "camera" | .emoji => "emoji" | .mention => "mention" | .voice => "icon-mic" | _ => ""
+    let size := dm.px 20
+    b := b.icon f name (bx.x + (bx.w - size) / 2) (bx.y + (bx.h - size) / 2) size
+      (if dm.theme == .dark then 0xa0a0a0 else 0x7f7f7f)
   let full := !text.trimAscii.isEmpty || !chips.isEmpty
-  let sw := f.adv (f.glyph 0x27A4) * 3 / 2
-  b := bigGlyph f b 0x27A4 (l.send.x + (l.send.w - sw) / 2) (l.send.y + (l.send.h - f.cell * 3 / 2) / 2)
-    (if full then (Palette.color dm.theme .link) else (Palette.color dm.theme .muted))
+  let size := dm.px 24
+  b := b.icon f "send" (l.send.x + (l.send.w - size) / 2) (l.send.y + (l.send.h - size) / 2) size
+    (if full then color .link else if dm.theme == .dark then 0xa0a0a0 else 0x7f7f7f)
   return b
 
 def hit (l : Layout) (x y : Nat) : Hit := Id.run do

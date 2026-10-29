@@ -1,0 +1,202 @@
+{
+  "appearance-1280-dark": {
+    "mae": 0.00352,
+    "changed_fraction": 0.01223,
+    "layout_mae": 0.00199
+  },
+  "appearance-1280-light": {
+    "mae": 0.00372,
+    "changed_fraction": 0.01405,
+    "layout_mae": 0.00245
+  },
+  "appearance-390-dark": {
+    "mae": 0.00167,
+    "changed_fraction": 0.00819,
+    "layout_mae": 0.00101
+  },
+  "appearance-390-light": {
+    "mae": 0.00178,
+    "changed_fraction": 0.0081,
+    "layout_mae": 0.00098
+  },
+  "channel-1280-dark": {
+    "mae": 0.0058,
+    "changed_fraction": 0.01859,
+    "layout_mae": 0.00297
+  },
+  "channel-1280-light": {
+    "mae": 0.00686,
+    "changed_fraction": 0.02096,
+    "layout_mae": 0.00375
+  },
+  "channel-390-dark": {
+    "mae": 0.00879,
+    "changed_fraction": 0.0309,
+    "layout_mae": 0.00414
+  },
+  "channel-390-light": {
+    "mae": 0.0116,
+    "changed_fraction": 0.03303,
+    "layout_mae": 0.00529
+  },
+  "chat-1280-dark": {
+    "mae": 0.00305,
+    "changed_fraction": 0.01096,
+    "layout_mae": 0.00183
+  },
+  "chat-1280-light": {
+    "mae": 0.00259,
+    "changed_fraction": 0.01057,
+    "layout_mae": 0.00167
+  },
+  "chat-390-dark": {
+    "mae": 0.00375,
+    "changed_fraction": 0.01311,
+    "layout_mae": 0.00192
+  },
+  "chat-390-light": {
+    "mae": 0.00392,
+    "changed_fraction": 0.01295,
+    "layout_mae": 0.00196
+  },
+  "chat-719-dark": {
+    "mae": 0.00241,
+    "changed_fraction": 0.0088,
+    "layout_mae": 0.00133
+  },
+  "chat-719-light": {
+    "mae": 0.00254,
+    "changed_fraction": 0.00875,
+    "layout_mae": 0.00135
+  },
+  "chat-720-dark": {
+    "mae": 0.00493,
+    "changed_fraction": 0.01715,
+    "layout_mae": 0.00273
+  },
+  "chat-720-light": {
+    "mae": 0.0041,
+    "changed_fraction": 0.01646,
+    "layout_mae": 0.00246
+  },
+  "chat-959-dark": {
+    "mae": 0.00386,
+    "changed_fraction": 0.01363,
+    "layout_mae": 0.00223
+  },
+  "chat-959-light": {
+    "mae": 0.00324,
+    "changed_fraction": 0.01311,
+    "layout_mae": 0.00202
+  },
+  "chat-960-dark": {
+    "mae": 0.00386,
+    "changed_fraction": 0.01362,
+    "layout_mae": 0.00222
+  },
+  "chat-960-light": {
+    "mae": 0.00324,
+    "changed_fraction": 0.01309,
+    "layout_mae": 0.00201
+  },
+  "community-1280-dark": {
+    "mae": 0.00728,
+    "changed_fraction": 0.02347,
+    "layout_mae": 0.00345
+  },
+  "community-1280-light": {
+    "mae": 0.00775,
+    "changed_fraction": 0.0254,
+    "layout_mae": 0.00398
+  },
+  "community-390-dark": {
+    "mae": 0.01357,
+    "changed_fraction": 0.05046,
+    "layout_mae": 0.00632
+  },
+  "community-390-light": {
+    "mae": 0.01475,
+    "changed_fraction": 0.05024,
+    "layout_mae": 0.0067
+  },
+  "home-1280-dark": {
+    "mae": 0.00305,
+    "changed_fraction": 0.01096,
+    "layout_mae": 0.00183
+  },
+  "home-1280-light": {
+    "mae": 0.00259,
+    "changed_fraction": 0.01057,
+    "layout_mae": 0.00167
+  },
+  "home-390-dark": {
+    "mae": 0.00542,
+    "changed_fraction": 0.01713,
+    "layout_mae": 0.00243
+  },
+  "home-390-light": {
+    "mae": 0.00531,
+    "changed_fraction": 0.01682,
+    "layout_mae": 0.00237
+  },
+  "home-719-dark": {
+    "mae": 0.00332,
+    "changed_fraction": 0.01109,
+    "layout_mae": 0.00166
+  },
+  "home-719-light": {
+    "mae": 0.00327,
+    "changed_fraction": 0.01091,
+    "layout_mae": 0.00164
+  },
+  "home-720-dark": {
+    "mae": 0.00493,
+    "changed_fraction": 0.01715,
+    "layout_mae": 0.00273
+  },
+  "home-720-light": {
+    "mae": 0.0041,
+    "changed_fraction": 0.01646,
+    "layout_mae": 0.00246
+  },
+  "home-959-dark": {
+    "mae": 0.00386,
+    "changed_fraction": 0.01363,
+    "layout_mae": 0.00223
+  },
+  "home-959-light": {
+    "mae": 0.00324,
+    "changed_fraction": 0.01311,
+    "layout_mae": 0.00202
+  },
+  "home-960-dark": {
+    "mae": 0.00386,
+    "changed_fraction": 0.01362,
+    "layout_mae": 0.00222
+  },
+  "home-960-light": {
+    "mae": 0.00324,
+    "changed_fraction": 0.01309,
+    "layout_mae": 0.00201
+  },
+  "you-1280-dark": {
+    "mae": 0.00782,
+    "changed_fraction": 0.02508,
+    "layout_mae": 0.00376
+  },
+  "you-1280-light": {
+    "mae": 0.00872,
+    "changed_fraction": 0.0271,
+    "layout_mae": 0.00472
+  },
+  "you-390-dark": {
+    "mae": 0.01493,
+    "changed_fraction": 0.05531,
+    "layout_mae": 0.00702
+  },
+  "you-390-light": {
+    "mae": 0.01739,
+    "changed_fraction": 0.05557,
+    "layout_mae": 0.00873
+  }
+}

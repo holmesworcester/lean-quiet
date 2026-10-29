@@ -43,6 +43,11 @@ def source (bytes : ByteArray) (size cell : Nat) : BaseIO Source := do
 def Source.uncached (f : Source) (glyph : Nat) : Option Bitmap :=
   f.font.get >>= fun font => raster font glyph f.size f.cell
 
+/-- Sizes share immutable font bytes and parsing. The memo key already
+includes size/cell, so differently sized glyphs cannot alias. -/
+def Source.sized (f : Source) (size cell : Nat) : Source :=
+  { f with size, cell }
+
 /-- Give the cache an exact-capacity coverage buffer, independent of the
 raster builder's spare allocation capacity. -/
 private def compact (b : Bitmap) : Bitmap := Id.run do

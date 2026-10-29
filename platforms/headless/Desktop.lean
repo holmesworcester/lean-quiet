@@ -70,8 +70,42 @@ private def suite (args : List String) : IO UInt32 := do
   d ← click d (.community 1)
   d ← click d .settings
   check "settings opens three panes" (d.layout.count == 3 && d.ui.context == .settings)
-  d ← click d (.page .requests)
-  check "settings uses real requests page" (d.app.page == .requests && d.ui.context == .closed)
+  let conversationWidth := d.app.W
+  d ← click d (.drawerAct .appearance)
+  check "settings uses real appearance page without replacing conversation" (d.ui.drawer == .appearance && d.app.page == .chat)
+  check "settings preserves conversation width" (d.app.W == conversationWidth)
+  d ← click d (.drawerAct (.theme .dark))
+  check "drawer theme control changes the actual app" (d.app.theme.setting == .dark)
+  d ← click d (.drawerAct (.theme .light))
+  d ← click d .close
+  check "settings back returns to You" (d.ui.drawer == .you && d.ui.context == .settings)
+  d ← click d .close
+  -- Reach the last settings row in a short window using the real wheel,
+  -- hit dispatch and page stack; the conversation must not move behind it.
+  d ← settle (← resize d 1000 480)
+  d ← click d .settings
+  let before := d.app.b
+  d ← settle (← wheel d 900 300 10000)
+  check "drawer wheel scrolls only its own viewport" (d.ui.offset > 0 && d.app.b == before)
+  d ← click d (.drawerAct (.stub "About Quiet"))
+  check "scrolled drawer row opens its child" (d.ui.drawer == .stub && d.ui.stubTitle == "About Quiet")
+  d ← click d .close
+  check "drawer child back resets the parent scroll" (d.ui.drawer == .you && d.ui.offset == 0)
+  d ← click d .close
+  d ← settle (← resize d 390 480)
+  d ← settle (← act d (.page .you))
+  check "phone settings starts at the top" (d.app.page == .you && d.app.b == App.scrollHeight d.app - App.viewH d.app)
+  let initial ← picture d
+  d ← settle (← wheel d 200 300 10000)
+  let scrolled ← picture d
+  check "phone settings scrolls real page pixels" (d.app.b == 0 && initial.rows != scrolled.rows)
+  let some pg := d.app.pageNow | throw (IO.userError "missing phone settings")
+  let some (box, _) := pg.taps.find? (·.2 == .stub "About Quiet") | throw (IO.userError "missing About row")
+  let top := pg.bmp.h - App.viewH d.app - d.app.b
+  d ← settle (← tap d (box.x + box.w / 2) (App.topH d.app + box.y - top + box.h / 2))
+  check "phone scrolled row dispatches to the visible child" (d.app.page == .stub && d.app.labelText == "About Quiet")
+  d ← settle (← resize d 1100 760)
+  d ← click d .close
   d ← click d (.page .chat)
   text.set ("A desktop message", #[17, 17, 17, 17])
   d ← tick d [.text]
@@ -84,19 +118,24 @@ private def suite (args : List String) : IO UInt32 := do
   check "resize keeps draft and selection" (d.app.text == "Keep this draft" && d.app.sel == #[4, 9, 9, 9])
   check "resize updates actual row width" (d.app.W == 550 && d.app.rows.size > 0)
   check "resize repaints cached rows" (d.app.rows.toArray.all fun (_, r) => r.shown.any (·.w == d.app.W))
-  let cy := d.height - App.botH d.app + 12
-  check "composer drag starts at first codepoint" (caret d (d.layout.main.x + 16) cy == some 0)
+  let compose := App.composerLayout d.app
+  let cy := d.height - App.botH d.app + compose.textY + 1
+  check "composer drag starts at first codepoint" (caret d (d.layout.main.x + compose.textX) cy == some 0)
   check "sidebar cannot select composer text" ((caret d 10 cy).isNone)
-  -- Independent expected tracks, transcribed from CSS (reference.json).
-  let cases := #[(320, 0, 320, 0, 0, 0, 320), (719, 0, 719, 0, 0, 0, 719),
-    (720, 220, 500, 0, 0, 0, 720), (769, 220, 549, 0, 0, 0, 769),
-    (770, 220, 550, 0, 220, 275, 275), (800, 220, 580, 0, 220, 275, 305),
-    (869, 220, 649, 0, 220, 275, 374), (870, 220, 650, 0, 220, 275, 375),
-    (1440, 220, 1220, 0, 220, 845, 375)]
+  -- Boundary cases accompany the independently rendered libquiet pixel
+  -- fixtures in tests/visual; context width does not subtract from main.
+  let cases := #[(320, 0, 320, 0, 0, 320, 0), (719, 0, 719, 0, 0, 719, 0),
+    (720, 220, 500, 0, 220, 500, 375), (769, 220, 549, 0, 220, 549, 375),
+    (770, 220, 550, 0, 220, 550, 375), (800, 220, 580, 0, 220, 580, 375),
+    (869, 220, 649, 0, 220, 649, 375), (870, 220, 650, 0, 220, 650, 375),
+    (1440, 220, 1220, 0, 220, 1220, 375)]
   let mut manifest := ""
   for (w, l, m, r, lo, mo, ro) in cases do
     for ctx in [Context.closed, .settings, .threads] do
-      d ← settle (← resize { d with ui := { d.ui with context := ctx } } w 760)
+      d ← resize { d with ui := { d.ui with context := .closed } } w 760
+      d ← act d (.page .chat)
+      d ← if ctx == .settings then act d (.page .you) else if ctx == .threads then act d .threads else pure d
+      d ← settle d
       let g := d.layout
       let (el, em, er) := if ctx == .closed then (l, m, r) else (lo, mo, ro)
       check s!"tracks {w} {repr ctx}" (g.nav.w == el && g.main.w == em && g.context.w == er)
@@ -109,7 +148,9 @@ private def suite (args : List String) : IO UInt32 := do
         let ls ← d.layers.get
         let expected := Translate.compose ls.placement (ls.placement[15]?.getD 0).toInt32 d.height
           d.app.bgRow ls.list ls.top ls.bot ls.hold
-        let actual := pic.rows.map fun row => row.extract (4*g.main.x) (4*(g.main.x+g.main.w))
+        let visibleWidth := if g.context.w > 0 then g.context.x - g.main.x - 24 else g.main.w
+        let actual := pic.rows.map fun row => row.extract (4*g.main.x) (4*(g.main.x+visibleWidth))
+        let expected := expected.map (·.extract 0 (4*visibleWidth))
         check s!"{w}/{repr ctx}: every content pixel matches the shared mobile frame" (actual == expected)
         check s!"{w}/{repr ctx}: shared composer buttons fit without overlap" (Id.run do
           let c : Composer.Layout := App.composerLayout d.app
@@ -117,7 +158,7 @@ private def suite (args : List String) : IO UInt32 := do
           return boxes.all (fun b => b.w ≥ 24 && b.x+b.w ≤ d.app.W) &&
             (Array.range boxes.size).all fun i => (Array.range boxes.size).all fun j =>
               i == j || boxes[i]!.x+boxes[i]!.w ≤ boxes[j]!.x || boxes[j]!.x+boxes[j]!.w ≤ boxes[i]!.x)
-        let chips := Composer.layout d.app.font d.app.dim d.app.W "" 4
+        let chips := Composer.layout (App.composerFont d.app) d.app.dim d.app.W "" 4 d.app.wide d.app.mobile
         check s!"{w}/{repr ctx}: four photo chips remain reachable" (chips.chips.all fun (b,x) =>
           b.x+b.w ≤ d.app.W && b.y+b.h ≤ chips.h && x.x+x.w ≤ d.app.W && x.y+x.h ≤ chips.h)
       let tag := s!"{w}-{if ctx == .closed then "chat" else if ctx == .settings then "settings" else "threads"}"

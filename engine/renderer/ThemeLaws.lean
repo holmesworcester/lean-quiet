@@ -22,7 +22,7 @@ theorem cleared (s : St) (t : Theme.State) :
 new effective theme, regardless of the previous cache contents. -/
 theorem palette (s : St) (t : Theme.State) :
     (themed s t).dim.theme = Theme.effective t ∧
-    (themed s t).bgRow = solid (Palette.color (Theme.effective t) .bg) s.W := ⟨rfl, rfl⟩
+    (themed s t).bgRow = solid (Palette.color (Theme.effective t) (if s.wide then .panel else .bg)) s.W := ⟨rfl, rfl⟩
 
 /-- Theme changes preserve the content and layout inputs. -/
 theorem content (s : St) (t : Theme.State) :

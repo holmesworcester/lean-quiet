@@ -17,6 +17,8 @@ structure Ref where
   face : Nat
   glyph : Nat
   advance : Nat
+  unitsAdvance : Nat := 0
+  units : Nat := 1
   deriving Inhabited
 
 abbrev Cached := Ttf.Memo.Source
@@ -38,6 +40,12 @@ def supported (c : Nat) : Bool :=
 def Set.bitmap (s : Set) (r : Ref) : Option Ttf.Bitmap := do
   let f ← s.faces[r.face]?
   f.bitmap r.glyph
+
+/-- Prepare a typography size once, sharing source bytes and parsed faces.
+Advances use original hmtx units, never rescale rounded pixel advances. -/
+def Set.sized (s : Set) (cell : Nat) : Set :=
+  { faces := s.faces.map (·.sized cell cell)
+    chars := s.chars.map fun _ r => { r with advance := (r.unitsAdvance * cell + r.units / 2) / r.units } }
 
 /-- Layout consumes a compact cmap/hmtx index. Face parsing and outline
 validation are deferred to first paint; file reads measured about 1 ms. -/
@@ -62,7 +70,7 @@ def load (cell : Nat) (dir : String := "assets") : IO Set := do
           | none => true
           | some old => (Cjk.order c).idxOf (i-names.size) < (Cjk.order c).idxOf (old.face-names.size)
       if take then
-        out := { out with chars := out.chars.insert c.toUInt32 ⟨i, g, (a*cell+metrics.units/2)/metrics.units⟩ }
+        out := { out with chars := out.chars.insert c.toUInt32 ⟨i, g, (a*cell+metrics.units/2)/metrics.units, a, metrics.units⟩ }
   return out
 
 end Noto

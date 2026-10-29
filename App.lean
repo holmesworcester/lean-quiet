@@ -36,7 +36,7 @@ def themed (s : St) (theme : Theme.State) : St :=
   { s with
     theme := theme
     dim := dm
-    bgRow := solid (Palette.color (Theme.effective theme) .bg) s.W,
+    bgRow := solid (Palette.color (Theme.effective theme) (if s.wide then .panel else .bg)) s.W,
     rows := {}, imgs := {}, imgWaiting := {}, gridRows := {}, gridKey := "",
     chips := s.chips.map fun (bytes, w, h, chip) =>
       let thumb := match Image.decode bytes with
@@ -306,13 +306,16 @@ def reactTo (m : Id) (e : String) : M Bool := do
 /-! ## Geometry -/
 
 def topH (s : St) : Nat :=
-  if s.page == .chat then s.insetTop + s.dim.px 16 + 2 * s.dim.lineH
+  if s.page == .chat then s.insetTop + s.dim.px (if s.wide then 64 else 60)
   else if s.page == .home then s.insetTop + s.dim.px 64
+  else if s.page.drawer then s.insetTop + s.dim.px 60
   else s.insetTop + s.dim.px 56
 
 /-- The composer's layout (Composer: the painter and the taps both read it). -/
+def composerFont (s : St) : Font := s.font.atSize (s.dim.px 14)
+
 def composerLayout (s : St) : Composer.Layout :=
-  Composer.layout s.font s.dim s.W s.text s.chips.size
+  Composer.layout (composerFont s) s.dim s.W s.text s.chips.size s.wide s.mobile
 
 def sheetItems (s : St) (sh : SheetSt) : Array Nat := Sheet.shown s.catalog sh.cat sh.query
 
@@ -612,36 +615,35 @@ def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run 
   return fr
 
 def header (s : St) : Bitmap := Id.run do
+  let px := s.dim.px
   let h := topH s
-  let hb := Palette.color s.dim.theme .panel
-  let x := s.dim.pad
-  let mut b := Bitmap.blank s.W h (solid hb s.W)
-  let y := s.insetTop + s.dim.px 8
-  -- back to the community's home on the left; the channel and the
-  -- community's name, which opens the switcher
-  let iy := y + (2 * s.dim.lineH - s.font.cell) / 2
-  b := b.line s.font (Text.oneLine s.font s.font.cell "←") x iy (Palette.color s.dim.theme .fg)
-  let tx := x + s.dim.px 40
-  b := b.line s.font (Text.oneLine s.font (s.W - tx - x) s!"# general · {s.me.name} ▾") tx y (Palette.color s.dim.theme .fg) true
-  let sub := s!"{s.total} messages · {s.people}{if s.peopleAll then "" else "+"} people"
-  b := b.line s.font (Text.oneLine s.font (s.W - tx - x) sub) tx (y + s.dim.lineH) (Palette.color s.dim.theme .muted)
-  b := b.fill 0 (h - max 2 (s.dim.px 1)) s.W h (Palette.color s.dim.theme .line)
-  return b
+  let color := Palette.color s.dim.theme
+  let mut b := Bitmap.blank s.W h (solid (color .panel) s.W)
+  let font := s.font.atSize (px 16)
+  if s.wide then
+    b := b.icon s.font "title-hash" (px 20) (s.insetTop + px 26) (px 12) (color .fg)
+    b := b.line font (Text.oneLine font (s.W - px 96) "general") (px 36) (s.insetTop + px 22) (color .fg)
+  else
+    b := b.icon s.font "arrow-back" (px 16) (s.insetTop + px 18) (px 24) (color .fg)
+    b := Pages.centred font b "#general" (s.insetTop + px 12) (color .fg)
+    b := Pages.centred (s.font.atSize (px 12)) b s!"({s.me.name})" (s.insetTop + px 32) (color .fg)
+  b := b.icon s.font "more" (s.W - px 42) (s.insetTop + px 18) (px 24) (if s.dim.theme == .dark then 0x909090 else 0x999999)
+  return b.fill 0 (h - px 1) s.W h (color .selected)
 
-/-- Where the header's controls are, in its own rows. -/
+/-- Header targets share the visible navigation: Back, channel settings. -/
 def headerHit (s : St) (x _y : Nat) : PageId :=
-  if x < s.dim.pad + s.dim.px 40 then .home else .switcher
+  if !s.wide && x < s.dim.px 56 then .home else .channelSettings
 
 def cursorAt (s : St) (i : Nat) : Nat × Nat :=
   let pre := String.ofList (s.text.toList.take i)
-  let ls := if pre.isEmpty then #[#[]] else Text.layout s.font (composerLayout s).textW pre
+  let ls := if pre.isEmpty then #[#[]] else Text.layout (composerFont s) (composerLayout s).textW pre
   let last := ls.back?.getD #[]
   -- a prefix ending in a newline puts the cursor on the next line
-  if pre.endsWith "\n" then (ls.size, 0) else (ls.size - 1, Paint.Line.width s.font last)
+  if pre.endsWith "\n" then (ls.size, 0) else (ls.size - 1, Paint.Line.width (composerFont s) last)
 
 def composer (s : St) : Bitmap :=
-  Composer.paint s.font s.dim s.W s.bgRow (composerLayout s) s.text s!"Message {s.me.name}"
-    (s.chips.map (·.2.2.2)) (some (cursorAt s s.sel[0]!.toNat))
+  Composer.paint (composerFont s) s.dim s.W s.bgRow (composerLayout s) s.text "Message #general"
+    (s.chips.map (·.2.2.2)) (if s.editorFocused || s.imeH > 0 then some (cursorAt s s.sel[0]!.toNat) else none)
 
 /-! ## Events and commands -/
 
@@ -681,11 +683,11 @@ The page and the back stack change only by Nav's steps (its laws in
 engine/renderer/Nav.lean, the app's in ops/app/NavLaws.lean). -/
 
 /-- Open p (Nav.go); the page's refusal is cleared. -/
-def openSt (p : PageId) (s : St) : St := { s.withNav (Nav.go p s.nav) with refusal := none, pageKey := none }
+def openSt (p : PageId) (s : St) : St := { s.withNav (Nav.go p s.nav) with refusal := none, pageKey := none, pageScrollStarted := false }
 
 /-- Back (Nav.back); the page's one-line field and refusal are cleared
 (the native field's text with them), never the composer's draft. -/
-def backSt (s : St) : St := { s.withNav (Nav.back s.nav) with field := "", refusal := none, pageKey := none }
+def backSt (s : St) : St := { s.withNav (Nav.back s.nav) with field := "", refusal := none, pageKey := none, pageScrollStarted := false }
 
 /-- Open a page (the current one goes on the back stack). -/
 def openPage (p : PageId) : M Unit := do
@@ -704,6 +706,7 @@ def openPage (p : PageId) : M Unit := do
   leavePage
   s.io.scrollTo 0
   modify (openSt p)
+  modify fun s => { s with editorFocused := false }
   modify fun s => { s with restoreAnchor := p == .chat && s.mark.isSome }
   mountPage
 
@@ -752,7 +755,7 @@ def switchSt (a : Id) (s : St) : St :=
   let s := { s.withNav (Nav.reset .home) with cur := a, me := (Kinds.Accepted.select s.comms a).getD s.me }
   let s := { s with ids := #[], total := 0, people := 0, peopleAll := true, anchor := none, newer := 0, older := 0 }
   let s := { s with heights := {}, rows := {}, selected := none, sheet := none }
-  { s with asking := #[], hidden := [], chromeKey := "", pageKey := none }
+  { s with asking := #[], hidden := [], chromeKey := "", pageKey := none, ownName := "…", ownDevices := 1 }
 
 /-- The communities as the reader's board has them (Reader.Want.comms):
 each frame. -/
@@ -915,7 +918,7 @@ def refreshMembers : M Unit := do
   for i in [0:ordered.size] do
     let (u, _, _) := ordered[i]!
     let old := ((s.memberIds.findIdx? (· == u)).bind fun i => s.members[i]?).map (·.1) |>.getD "…"
-    let rowVisible := s.page == .home && peopleY + (i + 1) * s.dim.px 44 ≤ viewH s
+    let rowVisible := s.page == .home && peopleY + (i + 1) * s.dim.px 40 ≤ viewH s
     let profileVisible := (s.page == .profile || s.page == .removeConfirm) && s.profileOf.any (·.1 == u)
     let name ← if rowVisible || profileVisible || (s.page == .home && u == s.me.user) then
       pure (← Component.author ⟨["page".toUTF8, s.cur, "profile".toUTF8, u], true⟩ s.me.c u (old, false)).1
@@ -950,10 +953,27 @@ def approveReq (r : Id) : M Unit := do
   let w ← intentView (Community.approveReq s.me.c r s.me.adm s.me.dev esk)
   let _ ← writeAll w
 
+/-- The profile and counts belong to the settings surfaces that show them. -/
+def observeSettings (owner : Demand.Owner) (profile counts : Bool) : M Unit := do
+  let s ← get
+  if s.me.c.isEmpty then return
+  if profile then
+    let (name, _) ← Component.author ⟨owner ++ ["author".toUTF8], true⟩ s.me.c s.me.user (s.ownName, false)
+    modify fun s => { s with ownName := name }
+    if let some (.members ms _) ← query ⟨owner ++ ["devices".toUTF8], true⟩ (.members s.me.c s.me.user) then
+      let devices := (ms.find? (·.1 == s.me.user)).map (·.2.1.length) |>.getD 1
+      modify fun s => { s with ownDevices := devices }
+  if counts then
+    if let some (.people n all) ← query ⟨owner ++ ["people".toUTF8], true⟩ (.people s.me.c) then
+      modify fun s => { s with people := n, peopleAll := all }
+
 /-- The current page's picture and taps (kept until what it shows changes). -/
 def pageTitle : PageId → String × Bool
   | .you => ("You", false)
   | .appearance => ("Appearance", false)
+  | .communitySettings => ("Community settings", true)
+  | .channelSettings => ("#general", true)
+  | .stub => ("", false)
   | .getStarted => ("", false) | .create => ("", false) | .joinChoice => ("", false)
   | .openInvite => ("", false) | .paste => ("", false) | .scan => ("Join with QR code", true)
   | .name => ("", false) | .createName => ("", false)
@@ -992,20 +1012,24 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
     | .switcher => Pages.switcher f dm W h (k.comms.map fun m =>
         ({ name := m.name, id8 := Kinds.Request.hexShort m.c, unread := 0, current := m.acc == me.acc, waiting := m.waiting } : Pages.Entry))
         k.askingAll (!me.waiting && !me.c.isEmpty)
-    | .home => Pages.home f dm W h (if me.waiting then 0 else k.askingAll) #["general"] k.members
+    | .home => Pages.home f dm W h (if me.waiting then 0 else k.askingAll) #["general"] k.members k.memberIds
     | .label => Pages.label f dm W h k.labelText k.labelPage
     | .profile => let (n, isMe, removed, can) := k.profile; Pages.profile f dm W h n isMe removed can
     | .removeConfirm => Pages.removeConfirm f dm W h k.profile.1 k.removeStage k.removeWhy
     | .duplicate => Pages.duplicate f dm W h
-    | .you => Appearance.you f dm W h
+    | .you => Appearance.you f dm W h k.ownName k.ownId k.comms.size k.devices k.setting
     | .appearance => Appearance.page f dm W h k.setting
+    | .communitySettings => Appearance.community f dm W h me.name k.communityId k.people
+    | .channelSettings => Appearance.channel f dm W h k.people
+    | .stub => Appearance.stub f dm W h k.labelText
     | .chat => ⟨Bitmap.blank W h bg, #[]⟩
   let (t, cross) := pageTitle k.page
   -- a first launch's Get started has nowhere to go back to
   let top := if k.page == .home then
-      Pages.homeBand f dm W k.insetTop me.name (Kinds.Request.hexShort me.c) ((k.members.find? (·.2)).map (·.1) |>.getD "Me")
+      Pages.homeBand f dm W k.insetTop me.name k.communityId k.ownName k.ownId
     else if (k.page == .getStarted && k.backEmpty && k.comms.isEmpty) || k.page == .waiting
     then Bitmap.blank W (k.insetTop + dm.px 56) bg
+    else if k.page.drawer then Appearance.header f dm W k.insetTop (if k.page == .stub then k.labelText else t)
     else Pages.bar f dm W k.insetTop t cross
   (pg, top)
 
@@ -1023,9 +1047,10 @@ theorem pageIn_acc {k k' : PageIn} (h : k = k') : k.me.acc = k'.me.acc := by rw 
 /-- The current state's page key. -/
 def pageIn (s : St) : PageIn :=
   { page := s.page, setting := s.theme.setting, W := s.W, h := viewH s, insetTop := s.insetTop, dim := s.dim, field := s.field,
+    ownName := s.ownName, ownId := Pages.identity s.me.user, communityId := Pages.identity s.me.c, devices := s.ownDevices, people := s.people,
     refusal := s.refusal, me := s.me.key, comms := s.comms.map (·.key),
     asking := (s.asking.filter fun r => !s.hidden.contains r.id).map (·.row), askingAll := s.asking.size,
-    link := (s.links.find? (·.1 == s.me.acc)).map (·.2), members := s.members,
+    link := (s.links.find? (·.1 == s.me.acc)).map (·.2), members := s.members, memberIds := s.memberIds.map Pages.identity,
     backEmpty := s.backStack.isEmpty, camFrame := s.camFrame, labelText := s.labelText, labelPage := s.labelPage,
     profile := match s.profileOf with
       | some (u, n, isMe) =>
@@ -1065,6 +1090,11 @@ def onPageAct (a : Pages.Act) : M Unit := do
   | .back => back
   | .you => openPage .you
   | .appearance => openPage .appearance
+  | .communitySettings => openPage .communitySettings
+  | .channelSettings => openPage .channelSettings
+  | .stub title =>
+    modify fun s => { s with labelText := title }
+    openPage .stub
   | .theme setting => setTheme setting
   | .copyLabel => s.io.copy (Label.copied s.labelText); say "Label copied."
   | .labelNext =>
@@ -1322,13 +1352,13 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   if s.page != .chat then
     match r with
     | .header =>
-      if s.page == .home then openPage .switcher
+      if s.page == .home then openPage (if x ≥ s.W - s.dim.px 60 then .you else .switcher)
       else if (Pages.barBack s.dim s.insetTop).has x y then back
     | .list =>
       let vh := viewH s
-      if y < vh then
-        let pg := (s.pageNow).getD (drawPage s.font s.bgRow s.camView (pageIn s)).1
-        onPageAct (pg.hit x (vh - 1 - y))
+      let pg := (s.pageNow).getD (drawPage s.font s.bgRow s.camView (pageIn s)).1
+      let height := if s.page.drawer then pg.bmp.h else vh
+      if y < height then onPageAct (pg.hit x (height - 1 - y))
     | .composer => pure ()
     return
   if let some sh := s.sheet then
@@ -1340,7 +1370,7 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   match r with
   | .composer =>
     match Composer.hit (composerLayout s) x y with
-    | .text => s.io.ime true
+    | .text => modify (fun s => { s with editorFocused := true, chromeKey := "" }); s.io.ime true
     | .send => sendNow
     | .addPhotos => attachPhoto
     | .takePhoto => say "Taking a photo arrives with the native camera."
@@ -1381,7 +1411,7 @@ def onScreenTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   let sy := match r with
     | .header => y
     | .composer => g.composerTop + y
-    | .list => if s.page == .chat then (Int.ofNat g.composerTop - 1 - (Int.ofNat y - s.b)).toNat
+    | .list => if s.page == .chat || s.page.drawer then (Int.ofNat g.composerTop - 1 - (Int.ofNat y - s.b)).toNat
       else g.composerTop + g.shift - 1 - y
   let i := { s.window with ime := ⟨0, 0, 0, s.imeH⟩ }
   if (Safe.target i ⟨x, sy, 1, 1⟩).isNone then return
@@ -1406,7 +1436,7 @@ def onEvent : Event → M Bool
   | .long r x y => do onScreenTap r x.toNat y.toNat true; return true
   | .text => do
     let (t, sel) ← (← get).io.text
-    modify fun s => { textInto s t sel with native := t }
+    modify fun s => { textInto s t sel with native := t, editorFocused := s.page == .chat }
     return true
   | .send => do
     if !Occlusion.active (← get).sheet.isSome .page then return true
@@ -1681,6 +1711,12 @@ def withToast (s : St) (fr : Array ByteArray) (_vh : Nat) : Array ByteArray := I
       fr := fr.set! (r0 + k) (Overlay.toastRow s.dim.theme fr[r0 + k]! tb.rows[k]! placed.rect.x k tb.w tb.h (s.dim.px 16) (max 2 (s.dim.px 2)))
   return fr
 
+/-- Settings and conversations share the native scrolling seam. -/
+def scrollHeight (s : St) : Nat :=
+  if s.page == .chat then (bottoms s).2
+  else if s.page.drawer then max (viewH s) (s.pageNow.map (·.bmp.h) |>.getD 0)
+  else viewH s
+
 /-- The same placement and raw-input boundary on every phone and twin. -/
 def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
   let work ← get
@@ -1700,7 +1736,7 @@ def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
     s.io.frame (SafeFrame.extend s.window list) b over (SafeFrame.extend s.window top)
       (SafeFrame.extend s.window bot) pin words (SafeFrame.extend s.window hold)
   let result ← Session.present display s.io.motion (geom s) s.dim.dpi
-    ((bottoms s).2 - (geom s).viewNow) s.input fr b over s.topBmp.rows s.botBmp.rows pin
+    (scrollHeight s - (geom s).viewNow) s.input fr b over s.topBmp.rows s.botBmp.rows pin
     (Hold.plane ⟨s.bgRow, s.dim, s.W⟩ (geom s).viewNow)
   modify fun s => { s with input := result.state }
   return result.events
@@ -1708,8 +1744,8 @@ def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
 /-- Lifecycle polling uses the same raw decoder, even with no surface. -/
 def pollInput : M (List Event) := do
   let s ← get
-  let context : Input.Context := ⟨Surface.make (geom s) (s.page != .chat) over s.b s.b 0,
-    s.dim.dpi, (bottoms s).2 - (geom s).viewNow⟩
+  let context : Input.Context := ⟨Surface.make (geom s) (s.page != .chat && !s.page.drawer) over s.b s.b 0,
+    s.dim.dpi, scrollHeight s - (geom s).viewNow⟩
   let result ← Session.receive s.io.motion context s.input (← s.io.poll)
   modify fun s => { s with input := result.state }
   return result.events
@@ -1919,6 +1955,9 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
   refreshAsking
   refreshMembers
   refreshHomeCount
+  let viewPage := (← get).page
+  observeSettings ["page".toUTF8, (← get).cur, "settings".toUTF8]
+    (viewPage == .you || viewPage == .home) (viewPage == .communitySettings || viewPage == .channelSettings)
   netStep
   scanStep
   -- admitted in a community I joined: my first profile (the name I chose),
@@ -1961,16 +2000,28 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
       modify fun s => { s with topBmp := top, botBmp := bot, chromeKey := "" }
     let s ← get
     let vh := viewH s
-    let pb ← s.io.scroll vh.toUInt32 vh.toUInt32
-    let _ := pb
+    let height := scrollHeight s
+    let maxB := height - vh
+    if s.page.drawer && !s.pageScrollStarted then
+      -- Publish the extent before moving: native scrollTo clamps to it.
+      discard <| s.io.scroll height.toUInt32 vh.toUInt32
+      s.io.scrollTo maxB.toFloat
+      modify fun s => { s with pageScrollStarted := true }
+    let sample ← s.io.scroll height.toUInt32 vh.toUInt32
+    let input := Input.sampleOffset maxB s.input sample.toInt64.toInt
+    let b := if s.page.drawer then input.offset else 0
+    let top := height - vh - b
     let mut fr := Array.replicate (vh + 2 * over) s.bgRow
     if let some pg := s.pageNow then
-      for k in [0:min vh pg.bmp.h] do fr := fr.set! (over + k) pg.bmp.rows[k]!
+      for k in [0:fr.size] do
+        if top + k ≥ over then
+          if let some row := pg.bmp.rows[top + k - over]? then fr := fr.set! k row
     let shown := withToast s fr vh
+    modify fun s => { s with input }
     let t1 ← s.io.nowUs
     slow t1
-    modify fun s => { s with b := 0, frames := s.frames + 1, times := s.times.push (t1 - t0).toNat }
-    return some (← present shown 0 true)
+    modify fun s => { s with b, frames := s.frames + 1, times := s.times.push (t1 - t0).toNat }
+    return some (← present shown b (!s.page.drawer))
   -- 7. chrome and the frame
   let s ← get
   let sheetKey := match s.sheet, s.selected with
@@ -2049,10 +2100,12 @@ def stepCore (evs : List Event) : M (Option (List Event)) := do
 
 /-- Foreground assembly suspends admission; the pool can run while the
 native shell presents. Finally also releases it on suspend or errors. -/
-def step (evs : List Event) : M (Option (List Event)) := do
+def step (evs : List Event) (roots : Array (Demand.Need Reader.Want) := #[]) : M (Option (List Event)) := do
   let pool := (← get).raster
   pool.pause true
-  modify fun s => { s with rasterNeeds := #[], queryNeeds := #[], querySeen := {}, imgWaiting := {} }
+  modify fun s => { s with
+    rasterNeeds := #[], queryNeeds := roots,
+    querySeen := roots.foldl (fun out n => out.insert (n.owner, n.key, n.visible)) {}, imgWaiting := {} }
   try stepCore evs finally pool.pause false
 
 partial def loop (evs : List Event) : M Unit := do

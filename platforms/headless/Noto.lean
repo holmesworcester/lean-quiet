@@ -84,6 +84,32 @@ unsafe def main (args : List String) : IO Unit := do
   let fallback (f : Font.Font) := (List.range f.cell).any fun row => f.row (f.glyph '龘'.val) row != 0
   require (fallback small && fallback big) "density fallback pixels"
   let mobile ← Font.load (density := 160)
+  -- Typography variants must equal fresh parsing/metrics at the requested
+  -- size. Alternate sizes to catch a cache key that aliases their pixels.
+  for size in [14, 24, 14, 56, 12, 16] do
+    let resized := mobile.atSize size
+    let fresh ← Noto.load size
+    require (resized.cell == size) s!"typography size {size} exists"
+    for c in "Quiet Wi Å שלום".toList do
+      let some actual := resized.noto.chars[c.val]? | throw (IO.userError "missing variant glyph")
+      let some expected := fresh.chars[c.val]? | throw (IO.userError "missing fresh glyph")
+      require (actual.advance == expected.advance) s!"variant exact hmtx {size}/{c}"
+      let a := resized.noto.bitmap actual
+      let e := fresh.bitmap expected
+      require (a.map (·.pixels) == e.map (·.pixels) && a.map (·.w) == e.map (·.w)) s!"variant actual pixels {size}/{c}"
+  let atlas ← IO.FS.readBinFile "assets/ui-glyphs.bin"
+  require ((Glyphs.parse (atlas.extract 0 (atlas.size - 1))).isNone) "truncated icon coverage refused"
+  require ((Glyphs.parse (atlas ++ ⟨#[0]⟩)).isNone) "trailing icon data refused"
+  for size in [12, 16, 20, 24, 63, 96] do
+    for name in ["send", "image-plus", "icon-clip", "icon-check", "icon-close"] do
+      let some coverage := mobile.icons.coverage name size | throw (IO.userError s!"missing icon {name}/{size}")
+      require (coverage.size == size * size && coverage.data.any (· > 0) && coverage.data.any (· == 0)) s!"icon geometry {name}/{size}"
+      let ground := 0xf7f7f7
+      let ink := 0x7647c7
+      let b := (Paint.Bitmap.blank (size + 4) (size + 4) (Paint.solid ground (size + 4))).icon mobile name 2 2 size ink
+      for y in [0:size] do
+        for x in [0:size] do
+          require (Paint.getPx b.rows[y + 2]! (x + 2) == Paint.blendText ink ground coverage[y * size + x]!.toNat) s!"native icon compositing {name}/{size}"
   for f in [mobile, small, font, big] do
     for sample in ["🙂", "👩🏽‍💻", "🇯🇵"] do
       let token := (f.emoji.emojify (sample.toList.map Char.val).toArray)[0]!

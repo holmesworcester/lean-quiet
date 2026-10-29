@@ -8,7 +8,7 @@ cases=[
  ('system','engine/renderer/Theme.lean','| .system => s.system','| .system => .light','Theme.follows'),
  ('forced','engine/renderer/Theme.lean','| .light => .light','| .light => .dark','Theme.forced'),
  ('roundtrip','engine/renderer/Theme.lean','| "light" => .light','| "light" => .dark','Theme.roundtrip'),
- ('selection','engine/renderer/Appearance.lean','name ++ " · Selected" else name','name else name','Appearance.selected_label'),
+ ('selection','engine/renderer/Appearance.lean','def chosen (current choice : Theme.Setting) : Bool := current == choice','def chosen (_current _choice : Theme.Setting) : Bool := false','Appearance.selected_check'),
  ('srgb','engine/renderer/Contrast.lean','0, 303, 607','0, 0, 607','Contrast.channel_bounds'),
  ('contrast','engine/renderer/Contrast.lean','else if luminance ground ≥ 1800000000 then Palette.color .light .black','else if luminance ground ≥ 1800000000 then ground','Contrast.ink_meets / ink_control'),
  ('palette-ink','engine/renderer/Contrast.lean','if meets wanted ground then wanted','if meets wanted ground then ground','Contrast.ink_kept'),

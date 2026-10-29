@@ -103,6 +103,20 @@ def Bitmap.fill (b : Bitmap) (x0 y0 x1 y1 : Nat) (c : Color) : Bitmap := Id.run 
     b := b.modify y fun row => src.copySlice 0 row (4 * x0) (4 * (x1 - x0))
   return b
 
+/-- Source SVG coverage at the final device size; no font fallback or
+nearest-neighbour enlargement. Icons keep the caller's semantic colour. -/
+def Bitmap.icon (b : Bitmap) (f : Font) (name : String) (x y size : Nat) (c : Color) : Bitmap := Id.run do
+  let some alpha := f.icons.coverage name size | return b
+  let mut b := b
+  for gy in [0:size] do
+    b := b.modify (y + gy) fun row => Id.run do
+      let mut row := row
+      for gx in [0:size] do
+        let a := alpha[gy * size + gx]!.toNat
+        if a > 0 then row := setPx row (x + gx) (blendText c (getPx row (x + gx)) a)
+      return row
+  return b
+
 /-- How much of pixel (x, y) a box with corners of radius r covers, in
 256ths (antialiased at the corners only). -/
 @[inline] def cover (x0 y0 x1 y1 r x y : Nat) : Nat :=

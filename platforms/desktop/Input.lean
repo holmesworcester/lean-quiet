@@ -14,8 +14,8 @@ def caret (d : Driver) (x y : Nat) : Option Nat := Id.run do
   let x0 := g.main.x + c.textX
   let y0 := d.height - App.botH s + c.textY
   if s.page != .chat || g.main.w == 0 || x < x0 || x ≥ x0 + c.textW ||
-      y < y0 || y ≥ y0 + min 5 c.lines.size * s.dim.lineH then return none
-  let row := (y - y0) / s.dim.lineH
+      (g.context.w > 0 && x ≥ g.context.x) || y < y0 || y ≥ y0 + min 5 c.lines.size * c.lineH then return none
+  let row := (y - y0) / c.lineH
   let px := x - x0
   let mut best := 0
   let mut distance := 1000000

@@ -19,14 +19,14 @@ out.mkdir(parents=True, exist_ok=True)
 layout = app / 'engine/renderer/desktop/Layout.lean'
 original = layout.read_text()
 mutations = [
-    ('widths', 'w - 220 - r⟩', 'w - 220 - r + 1⟩'),
-    ('adjacent', '⟨220, w - 220 - r⟩', '⟨221, w - 220 - r⟩'),
-    ('minimum', 'min 375 (w - 495)', 'min 1 (w - 495)'),
-    ('monotone', 'if w < 770 then', 'if w < 770 ∨ 2000 ≤ w then'),
+    ('widths', 'w - 220⟩', 'w - 220 + 1⟩'),
+    ('adjacent', '⟨220, w - 220⟩', '⟨221, w - 220⟩'),
+    ('minimum', '⟨w - 375, 375⟩', '⟨w - 1, 1⟩'),
+    ('monotone', 'if 720 ≤ w then', 'if 720 ≤ w && w < 2000 then'),
     ('controls_fit', 'xs.filter fun c => decide (Fits g h c.pane c.box)', 'xs.filter fun _ => true'),
     ('controls_screen', 'b.x + b.w ≤ (g.track p).x + (g.track p).w ∧', 'b.x + b.w ≤ (g.track p).x + (g.track p).w + 1 ∧'),
     ('hit_drawn', 'xs.find? fun c => c.box.has x y', '(xs.map fun c => { c with label := c.label ++ "!" }).find? fun c => c.box.has x y'),
-    ('witness', 'decide (Fits g h c.pane c.box)', 'decide (Fits g h c.pane c.box) && g.width != 770'),
+    ('witness', 'decide (Fits g h c.pane c.box)', 'decide (Fits g h c.pane c.box) && g.width != 720'),
 ]
 
 

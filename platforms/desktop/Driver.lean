@@ -37,10 +37,19 @@ def start (base : App.Io) (w h : Nat) (path : String)
   let s ← App.start io (← sc.get) path net
   -- Use the app's density-scaled font, including Noto and colour emoji.
   -- Replacing it with the old reduced bitmap discards the shared renderer.
-  return { app := s, width := w, height := h, layers := ls, screen := sc }
+  let s := { s with wide := w ≥ 720, mobile := false }
+  return { app := App.themed s s.theme, width := w, height := h, layers := ls, screen := sc }
 
 def resize (d : Driver) (w h : Nat) : IO Driver := do
-  let d := { d with width := max 320 w, height := max 480 h }
+  let mut d := { d with width := max 320 w, height := max 480 h }
+  if w < 720 && d.ui.context != .closed then
+    let (_, s) ← (App.openPage d.ui.drawer).run d.app
+    d := { d with app := s, ui := { d.ui with context := .closed } }
+  if w ≥ 720 && d.app.page.drawer then
+    let viewPage := d.app.page
+    let (_, s) ← (do App.back; App.openPage .chat).run d.app
+    d := { d with app := s, ui := { d.ui with context := .settings, drawer := viewPage } }
+  d := { d with app := { d.app with wide := w ≥ 720 } }
   let g := d.layout
   let aw := max 275 g.main.w
   let ah := d.height
@@ -49,10 +58,16 @@ def resize (d : Driver) (w h : Nat) : IO Driver := do
   return { d with app := s }
 
 def act (d : Driver) (a : Action) : IO Driver := do
+  let blurs := match a with | .settings | .threads | .page _ | .drawerAct _ => true | _ => false
+  if blurs then d.app.io.ime false
+  let d := if blurs then { d with app := { d.app with editorFocused := false, chromeKey := "" } } else d
   match a with
-  | .settings => return { d with ui := { d.ui with context := .settings } }
-  | .threads => return { d with ui := { d.ui with context := .threads } }
-  | .close => return { d with ui := { d.ui with context := .closed } }
+  | .settings => return { d with ui := { d.ui with context := .settings, drawer := .you, parents := [], offset := 0 } }
+  | .threads => return { d with ui := { d.ui with context := .threads, drawer := .stub, stubTitle := "Threads", parents := [], offset := 0 } }
+  | .close =>
+    match d.ui.parents with
+    | (parent, title) :: rest => return { d with ui := { d.ui with drawer := parent, stubTitle := title, parents := rest, offset := 0 } }
+    | [] => return { d with ui := { d.ui with context := .closed } }
   | .previous => return { d with ui := { d.ui with first := d.ui.first - (d.height - 180) / 36 } }
   | .next =>
     let n := (d.height - 180) / 36
@@ -71,12 +86,29 @@ def act (d : Driver) (a : Action) : IO Driver := do
     let (_, s) ← App.attachPhoto.run d.app
     return { d with app := s }
   | .page p =>
-    let (_, s) ← (App.openPage p).run d.app
+    if p.drawer && d.width ≥ 720 then
+      let (_, s) ← (if d.app.page == .home then App.openPage .chat else pure ()).run d.app
+      return { d with app := s, ui := { d.ui with context := .settings, drawer := p, parents := [], offset := 0, switching := false } }
+    let (_, s) ← (App.openPage (if p == .home && d.width ≥ 720 then .chat else p)).run d.app
     return { d with app := s, ui := { d.ui with context := .closed, switching := false } }
+  | .drawerAct action =>
+    let target : Option App.PageId := match action with
+      | .appearance => some .appearance | .you => some .you
+      | .communitySettings => some .communitySettings | .channelSettings => some .channelSettings
+      | .stub _ => some .stub | _ => none
+    if let some target := target then
+      let title := match action with | .stub title => title | _ => ""
+      return { d with ui := { d.ui with
+        context := .settings, drawer := target, stubTitle := title, offset := 0,
+        parents := if d.ui.context == .closed then [] else (d.ui.drawer, d.ui.stubTitle) :: d.ui.parents } }
+    let (_, s) ← (App.onPageAct action).run d.app
+    let stay := match action with | .theme _ => true | _ => false
+    return { d with app := s, ui := { d.ui with context := if stay then d.ui.context else .closed } }
 
 def tap (d : Driver) (x y : Nat) (long := false) : IO Driver := do
   let g := d.layout
   if let some c := hit (scene g d.height d.ui d.app) x y then return ← act d c.action
+  if g.context.w > 0 && x ≥ g.context.x then return d
   if x < g.main.x || x ≥ g.main.x + g.main.w || y ≥ d.height then return d
   let x := x - g.main.x
   let s := d.app
@@ -84,8 +116,55 @@ def tap (d : Driver) (x y : Nat) (long := false) : IO Driver := do
   let th := App.topH s
   let (r, py) := if y < th then (App.Region.header, y)
     else if y ≥ s.Hs - bh then (.composer, y - (s.Hs - bh))
-    else (.list, (if s.page == .chat then s.b else 0) + s.Hs - bh - 1 - y)
+    else (.list, (if s.page == .chat || s.page.drawer then s.b else 0) + s.Hs - bh - 1 - y)
   let (_, s) ← (App.onTap r x py long).run s
+  return { d with app := s }
+
+/-- Wheel events belong to the topmost visible scroll viewport. A drawer
+never scrolls the covered conversation. Positive delta means down the page. -/
+def wheel (d : Driver) (x y : Nat) (delta : Int) : IO Driver := do
+  let g := d.layout
+  if g.context.w > 0 && x ≥ g.context.x then
+    if y < 60 then return d
+    let maxOffset := (drawerPage g d.height d.ui d.app).1.bmp.h - (d.height - 60)
+    return { d with ui := { d.ui with offset := min maxOffset (Int.ofNat d.ui.offset + delta).toNat } }
+  if x ≥ g.main.x && x < g.main.x + g.main.w && y ≥ App.topH d.app &&
+      y < d.height - App.botH d.app && (d.app.page == .chat || d.app.page.drawer) then
+    d.app.io.scrollBy (-delta).toFloat
+  return d
+
+/-- Sidebar and drawer are independent mounted query roots. They declare
+through App.query, then join the conversation in one frame publication. -/
+def observe (d : Driver) : App.M Unit := do
+  modify fun s => { s with queryNeeds := #[], querySeen := {} }
+  let s ← get
+  if s.me.c.isEmpty then return
+  if d.layout.nav.w > 0 then
+    let owner := ["sidebar".toUTF8, s.cur]
+    let (name, _) ← Component.author ⟨owner ++ ["you".toUTF8], true⟩ s.me.c s.me.user (s.ownName, false)
+    modify fun s => { s with ownName := name }
+    if let some (.members members _) ← App.query ⟨owner ++ ["people".toUTF8], true⟩ (.members s.me.c s.me.user) then
+      let ordered := members.filter (·.1 == s.me.user) ++ members.filter (·.1 != s.me.user)
+      let mut names := #[]
+      for i in [0:ordered.size] do
+        let (id, _, _) := ordered[i]!
+        let old := ((s.memberIds.findIdx? (· == id)).bind fun j => s.members[j]?).map (·.1) |>.getD "…"
+        let name ← if 186 + (i + 1) * 30 ≤ d.height - 48 then
+          pure (← Component.author ⟨owner ++ ["author".toUTF8, id], true⟩ s.me.c id (old, false)).1
+          else pure old
+        names := names.push (name, id == s.me.user)
+      modify fun s => { s with members := names, memberIds := ordered.map (·.1) }
+  if d.ui.context != .closed then
+    App.observeSettings ["drawer".toUTF8, s.cur] (d.ui.drawer == .you)
+      (d.ui.drawer == .communitySettings || d.ui.drawer == .channelSettings)
+
+def stepApp (d : Driver) (events : List App.Event := []) : IO Driver := do
+  let action : App.M Unit := do
+    if d.width ≥ 720 && (← get).page == .home then App.openPage .chat
+    observe d
+    let roots := (← get).queryNeeds
+    discard <| App.step events roots
+  let (_, s) ← action.run d.app
   return { d with app := s }
 
 /-- Every row the list frame shows is painted at its own height, with
@@ -111,15 +190,13 @@ def settleFrame (d : Driver) : IO Driver := do
     if decoded && framePainted d.app then break
     IO.sleep 2
     decoded ← d.app.imgs.toList.allM fun (_, t) => IO.hasFinished t.result
-    let (_, s) ← (App.step []).run d.app
-    d := { d with app := s }
+    d ← stepApp d
   return { d with settled := (d.app.W, d.app.Hs) }
 
 def tick (d : Driver) (events : List App.Event := []) : IO Driver := do
   let d ← resize d d.width d.height
-  let (_, s) ← (App.step events).run d.app
-  let d := { d with app := s }
-  if (s.W, s.Hs) != d.settled then settleFrame d else return d
+  let d ← stepApp d events
+  if (d.app.W, d.app.Hs) != d.settled then settleFrame d else return d
 
 def picture (d : Driver) : IO Paint.Bitmap := do
   return paint d.layout d.height d.ui d.app (← d.layers.get)

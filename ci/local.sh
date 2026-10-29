@@ -10,7 +10,7 @@
 # them.
 # `reorg` checks the reorg's import rewriter for branches begun on the old
 # layout (ci/reorg-imports.py --self-test).
-#   ci/local.sh [part...]   (default: check engine mdns qr net app readme reorg)
+#   ci/local.sh [part...]   (default: check engine mdns qr net app visual readme reorg)
 # SKIP_TCP=1 builds the TCP suites but omits their runs in a socket sandbox.
 # `runtime` is an additional gate on machines with Lean/libuv sources.
 set -uo pipefail
@@ -20,7 +20,7 @@ export PATH="$ELAN_HOME/bin:$PATH"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 logs=$top/out/ci
 mkdir -p "$logs"
-parts=("${@:-check engine mdns qr net app readme reorg}")
+parts=("${@:-check engine mdns qr net app visual readme reorg}")
 read -r -a parts <<< "${parts[*]}"
 gate() {
   case $1 in
@@ -29,6 +29,7 @@ gate() {
     runtime) mise run test:engine-runtime ;;
     mdns|qr|net) mise run "test:$1" ;;
     app) mise run test:app ;;
+    visual) mise run visual:compare ;;
     pixel-scroll) mise run android:scroll-measure ;;
     readme) mise run readme:links ;;
     reorg) mise run reorg:test ;;

@@ -8,5 +8,6 @@ cd "$top/engine/native/crypto"
 CARGO_TARGET_DIR=$PWD/target cargo build --release --offline
 cd "$top"
 test -f assets/font.bin
+tools/noto_assets.sh
 python3 platforms/linux/font.py assets/font.bin out/desktop/font.bin
 lake build linux

@@ -14,12 +14,14 @@ def PageId.code : PageId → Nat
   | .joinChoice => 5 | .openInvite => 6 | .paste => 7 | .scan => 8 | .name => 9
   | .agree => 10 | .waiting => 11 | .requests => 12 | .invite => 13 | .switcher => 14
   | .profile => 15 | .removeConfirm => 16 | .duplicate => 17 | .you => 18 | .appearance => 19 | .label => 20
+  | .communitySettings => 21 | .channelSettings => 22 | .stub => 23
 
 def PageId.ofCode : Nat → PageId
   | 0 => .home | 1 => .chat | 2 => .getStarted | 3 => .create | 4 => .createName
   | 5 => .joinChoice | 6 => .openInvite | 7 => .paste | 8 => .scan | 9 => .name
   | 10 => .agree | 11 => .waiting | 12 => .requests | 13 => .invite | 14 => .switcher
-  | 15 => .profile | 16 => .removeConfirm | 17 => .duplicate | 18 => .you | 19 => .appearance | 20 => .label | _ => .getStarted
+  | 15 => .profile | 16 => .removeConfirm | 17 => .duplicate | 18 => .you | 19 => .appearance | 20 => .label
+  | 21 => .communitySettings | 22 => .channelSettings | 23 => .stub | _ => .getStarted
 
 theorem page_round (p : PageId) : PageId.ofCode p.code = p := by cases p <;> rfl
 
@@ -270,7 +272,7 @@ def resizeContent (sc : Array UInt32) : M Unit := do
     heights := heights.insert x lay.h
   modify fun s => { s with
     W := w, Hs := h, insetTop := it, insetBot := ib, font, dim := dm, input := Input.revoke s.input,
-    bgRow := solid (Palette.color s.dim.theme .bg) w, rows, heights, imgs := {}, imgWaiting := {},
+    bgRow := solid (Palette.color s.dim.theme (if s.wide then .panel else .bg)) w, rows, heights, imgs := {}, imgWaiting := {},
     life := { s.life with generation := s.life.generation + 1 },
     mark := captureAnchor s, restoreAnchor := true, pageKey := none, pageNow := none,
     chromeKey := "", gridKey := "", gridRows := {} }

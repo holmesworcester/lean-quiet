@@ -17,4 +17,5 @@ bad=$(grep "depends on axioms" <<<"$out" | sed 's/.*\[\(.*\)\]/\1/' | tr ',' '\n
 [ -z "$bad" ] || { echo "non-standard axioms: $bad" >&2; exit 1; }
 echo "desktop: all $want laws rest on standard axioms only"
 .lake/build/bin/desktop out/desktop
-python3 platforms/linux/compare.py
+# Full pixel comparison against pinned libquiet renders is visual:compare,
+# invoked by local CI. No hand-maintained CSS screenshot stand-in here.

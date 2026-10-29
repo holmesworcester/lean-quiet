@@ -1,0 +1,3 @@
+Glyph paths from TryQuiet/libquiet, commit bd9d9a010062ab59a0ab0fc67731d827dd02fe27.
+app/src/Glyph.svelte and app/src/icons.ts; retain source geometry and masks.
+Rendered by tools/glyph_assets.py as monochrome coverage; runtime recolors it.

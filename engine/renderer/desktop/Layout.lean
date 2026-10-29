@@ -1,8 +1,7 @@
 /-
-Desktop tracks, in logical pixels. These are the tracks the root paints
-and hit-tests, not a second model. libquiet: 45rem = 720, sidebar 220,
-context minimum 275 and maximum 375. A context replaces the whole screen
-until both content tracks fit. Laws are in Desktop.Laws.
+Desktop tracks, in logical pixels. libquiet: 45rem = 720, sidebar 220.
+Settings overlay the rightmost 375 pixels without shrinking the main
+conversation. Below the breakpoint a drawer occupies the whole window.
 -/
 namespace Desktop
 
@@ -23,12 +22,9 @@ structure Layout where
   deriving BEq, Repr, Inhabited
 
 def layout (w : Nat) (opened : Bool) : Layout :=
-  if opened then
-    if w < 770 then ⟨w, ⟨0, 0⟩, ⟨0, 0⟩, ⟨0, w⟩⟩
-    else
-      let r := min 375 (w - 495)
-      ⟨w, ⟨0, 220⟩, ⟨220, w - 220 - r⟩, ⟨w - r, r⟩⟩
-  else if 720 ≤ w then ⟨w, ⟨0, 220⟩, ⟨220, w - 220⟩, ⟨w, 0⟩⟩
+  if 720 ≤ w then
+    ⟨w, ⟨0, 220⟩, ⟨220, w - 220⟩, if opened then ⟨w - 375, 375⟩ else ⟨w, 0⟩⟩
+  else if opened then ⟨w, ⟨0, 0⟩, ⟨0, 0⟩, ⟨0, w⟩⟩
   else ⟨w, ⟨0, 0⟩, ⟨0, w⟩, ⟨w, 0⟩⟩
 
 def Layout.track (g : Layout) : Pane → Track

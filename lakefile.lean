@@ -92,6 +92,9 @@ lean_exe scrolling where
 lean_exe op_components where
   root := `tests.app.Components
 
+lean_exe visual where
+  root := `platforms.headless.Visual
+
 /-! ## Native code
 
 The engine's glue (engine/native) and the headless twin

@@ -25,6 +25,11 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
     for control in Desktop.scene d.layout d.height d.ui d.app do
       if let .community i := control.action then
         controls := controls ++ s!"switch {i} {if (d.app.comms[i]?.map (·.acc == d.app.cur)).getD false then 1 else 0} {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
+      if let .drawerAct (.theme choice) := control.action then
+        controls := controls ++ s!"choice {Theme.encode choice} {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
+      if control.action == .drawerAct .appearance then
+        controls := controls ++ s!"appearance {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
+    controls := controls ++ s!"drawer {repr d.ui.drawer}\n"
     if let some bar := Desktop.scrollbar d.layout d.app then
       controls := controls ++ s!"scrollbar {bar.thumb.x} {bar.thumb.y} {bar.thumb.w} {bar.thumb.h} {bar.track.y} {bar.track.h} {bar.range}\n"
     IO.FS.writeFile (path ++ ".tmp") s!"{d.width} {d.height}\n{d.app.me.name}\n{repr d.ui.context}\n{repr d.app.page}\n{d.app.text}\n{d.app.total}\n{d.app.sel}\n{d.app.b}\n{controls}theme {Theme.encode d.app.theme.setting}\n"
@@ -63,9 +68,7 @@ partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab :
     else if k == 12 then d ← Desktop.act d .close
     else if k == 13 then d ← Desktop.resize d x y
     else if k == 14 then
-      let g := d.layout
-      if x ≥ g.main.x && x < g.main.x + g.main.w && y ≥ App.topH d.app && y < d.height - App.botH d.app && d.app.page == .chat then
-        Platform.scrollBy (if z == 1 then 48 else -48)
+      d ← Desktop.wheel d x y (if z == 1 then -48 else 48)
   run d anchor scrollGrab
 
 def main (args : List String) : IO Unit := do

@@ -89,12 +89,18 @@ abbrev ImgKey := FileImage.Key
 inductive PageId where
   | home | chat | getStarted | create | createName | joinChoice | openInvite | paste | scan | name | agree | waiting
   | requests | invite | switcher | profile | removeConfirm | duplicate | you | appearance | label
+  | communitySettings | channelSettings | stub
   deriving DecidableEq, Repr, Inhabited
 
 /-- Every page (Nav.depth: back reaches a root in fewer steps than this). -/
 def PageId.all : List PageId :=
   [.home, .chat, .getStarted, .create, .createName, .joinChoice, .openInvite, .paste, .scan, .name, .agree,
-   .waiting, .requests, .invite, .switcher, .profile, .removeConfirm, .duplicate, .you, .appearance, .label]
+   .waiting, .requests, .invite, .switcher, .profile, .removeConfirm, .duplicate, .you, .appearance, .label,
+   .communitySettings, .channelSettings, .stub]
+
+def PageId.drawer : PageId → Bool
+  | .you | .appearance | .communitySettings | .channelSettings | .stub => true
+  | _ => false
 
 /-- The reaction sheet's state: quick or the catalogue, its category,
 tone, search, and the grid's scroll (with a drag or fling in progress). -/
@@ -118,6 +124,11 @@ entries that share a name are still two keys. -/
 structure PageIn where
   page : PageId
   setting : Theme.Setting := .system
+  ownName : String := "…"
+  ownId : String := ""
+  communityId : String := ""
+  devices : Nat := 1
+  people : Nat := 0
   W : Nat
   h : Nat
   insetTop : Nat
@@ -134,6 +145,7 @@ structure PageIn where
   askingAll : Nat
   link : Option String
   members : Array (String × Bool)
+  memberIds : Array String := #[]
   backEmpty : Bool
   /-- Which camera frame is shown (a new frame, a new key). -/
   camFrame : Nat
@@ -148,6 +160,11 @@ structure PageIn where
 structure St where
   io : Io
   theme : Theme.State := {}
+  wide : Bool := false
+  mobile : Bool := true
+  editorFocused : Bool := false
+  ownName : String := "…"
+  ownDevices : Nat := 1
   window : Safe.Input := ⟨1080, 2400, {}, {}, {}⟩
   nowMs : Nat := 0
   noticeClock : Option (String × Nat) := none
@@ -277,6 +294,8 @@ removal is not announced again. -/
   /-- The key of the page drawn (`drawPage`): it is redrawn when the key changes. -/
   pageKey : Option PageIn := none
   pageNow : Option Pages.Page := none
+  /-- Initialize a settings viewport at its top once on entry, not on repaint. -/
+  pageScrollStarted : Bool := false
   /-- Requests to join the current community no admission answers yet:
   the request's id, its fact, and its approvals' ids. -/
   asking : Array Kinds.Request.Data := #[]

@@ -81,9 +81,17 @@ description = "Navigation's negative controls: each mutant of Nav or of App's st
 run = "tests/app/nav_negative.sh"
 
 [tasks."host:desktop"]
-description = "The desktop root without a window (platforms/headless/Desktop): boundary renders, community switching, settings and resize; CSS track measurements compared"
+description = "The desktop root without a window (platforms/headless/Desktop): boundary renders, community switching, settings scrolling and resize"
 depends = ["crypto"]
 run = "tests/app/desktop.sh"
+
+[tasks."visual:compare"]
+description = "Build the real Lean renderer; compare all pixels against pinned libquiet screens; retain heatmaps and overlays"
+run = "tests/visual/run.sh"
+
+[tasks."visual:reference"]
+description = "Explicitly regenerate libquiet references from a pinned git archive using its real App.svelte and bundled fonts"
+run = "tests/visual/reference.sh"
 
 [tasks."linux:build"]
 description = "The Linux desktop (platforms/linux): Lean's pixels through xcb and MIT-SHM"

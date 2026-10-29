@@ -6,6 +6,7 @@ source cell. Noto and the TrueType reader live in their own modules.
 -/
 import engine.renderer.Emoji
 import engine.renderer.Noto
+import engine.renderer.Glyphs
 
 namespace Font
 
@@ -17,6 +18,8 @@ structure Font where
   emoji : Emoji.Set
   noto : Noto.Set := {}
   sourceCell : Nat := 48
+  sizes : Std.HashMap Nat Noto.Set := {}
+  icons : Glyphs.Set := {}
 
 def tableEnd : Nat := 8 + 4 * 0x20000
 
@@ -39,7 +42,16 @@ def load (path : String := "assets/font.bin") (density : Nat := 420) : IO Font :
   let sourceCell := cell
   let cell := pixelCell sourceCell density
   let noto ← Noto.load cell
-  return ⟨b, cell, emoji, noto, sourceCell⟩
+  let sizes := [11, 12, 14, 16, 18, 20, 24, 32, 48, 56].foldl (fun out dp =>
+    let px := (dp * density + 80) / 160
+    out.insert px (noto.sized px)) ({} : Std.HashMap Nat Noto.Set)
+  return ⟨b, cell, emoji, noto, sourceCell, sizes, ← Glyphs.load⟩
+
+/-- Select a prepared size without IO, font parsing or raster scaling. -/
+def Font.atSize (f : Font) (size : Nat) : Font :=
+  match f.sizes[size]? with
+  | some noto => { f with cell := size, noto }
+  | none => f
 
 /-- A glyph: where its 32 rows start in the file, and whether it is wide. -/
 structure Glyph where

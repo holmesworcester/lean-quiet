@@ -19,9 +19,9 @@ for name, path, old, new, expected in [
     ('switch', driver, 'App.switchTo i;', 'App.switchTo 0;', 'switch to distinct community'),
     ('draft', driver, 'app := s, ui := { d.ui with switching := false }', 'app := { s with text := "" }, ui := { d.ui with switching := false }', 'returning to community restores its draft'),
     ('resize', life, 'if w == s.W && h == s.Hs && it == s.insetTop && ib == s.insetBot && dpi == s.dim.dpi then return', 'if true then return', 'resize updates actual row width'),
-    ('settle', driver, '  if (s.W, s.Hs) != d.settled then settleFrame d else return d\n', '  return d\n', 'no row shows a placeholder'),
+    ('settle', driver, '  if (d.app.W, d.app.Hs) != d.settled then settleFrame d else return d\n', '  return d\n', 'no row shows a placeholder'),
     ('mobile', view, 'g.main.x 0 0', 'g.main.x 40 0', 'every content pixel matches the shared mobile frame'),
-    ('composer', composer, 'min (dm.px 48) ((W - dm.px 28) / 6)', 'dm.px 48', 'shared composer buttons fit without overlap'),
+    ('composer', composer, 'min (px (if wide then 32 else 44)) ((W - 2 * gutter - px 16) / (acts.size + 1))', 'px 80', 'shared composer buttons fit without overlap'),
 ]:
     original = path.read_text()
     assert old in original

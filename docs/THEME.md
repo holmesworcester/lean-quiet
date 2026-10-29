@@ -64,8 +64,7 @@ Theme.follows (v : Value) : effective ⟨.system, v⟩ = v
 Theme.forced (v : Value) :
   effective ⟨.light, v⟩ = .light ∧ effective ⟨.dark, v⟩ = .dark
 Theme.roundtrip (s : Setting) : decode (encode s) = s
-Appearance.selected_label (s : Theme.Setting) (name : String) :
-  label s s name = name ++ " · Selected"
+Appearance.selected_check (s : Theme.Setting) : chosen s s = true
 Contrast.channel_bounds : ∀ c : Fin 256, channelBound c.val.toUInt8
 Contrast.ink_meets (wanted ground : UInt32) : meets (ink wanted ground) ground
 Contrast.ink_control (wanted ground : UInt32) : meets (ink wanted ground) ground 30

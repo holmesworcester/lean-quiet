@@ -5,7 +5,7 @@ channel, join, Stop waiting and removal steps through Nav too).
 
 - `back_open`: **back goes back.** Back after opening a page that is
   neither shown nor under it gives the state before, but for what back
-  always clears: the page's one-line field and refusal. The composer's
+  always clears: the page's one-line field, refusal and viewport initialization. The composer's
   draft and everything else are as they were.
 - `back_root`: at a root, back keeps the page and the state.
 - `back_switch`: after a switch, any number of backs stays on the new
@@ -28,7 +28,7 @@ theorem nav_switch (a : Engine.Id) (s : St) : (switchSt a s).nav = Nav.reset Pag
 
 /-- **Back goes back.** -/
 theorem back_open (p : PageId) (s : St) (hp : p ≠ s.page) (hs : p ∉ s.backStack) :
-    backSt (openSt p s) = { s with field := "", refusal := none, pageKey := none } := by
+    backSt (openSt p s) = { s with field := "", refusal := none, pageKey := none, pageScrollStarted := false } := by
   have h := Nav.back_go p s.nav hp hs
   unfold backSt
   rw [nav_open, h]
@@ -36,7 +36,7 @@ theorem back_open (p : PageId) (s : St) (hp : p ≠ s.page) (hs : p ∉ s.backSt
 
 /-- **Back at a root keeps the page.** -/
 theorem back_root (s : St) (h : s.backStack = []) :
-    backSt s = { s with field := "", refusal := none, pageKey := none } := by
+    backSt s = { s with field := "", refusal := none, pageKey := none, pageScrollStarted := false } := by
   have hb := Nav.back_root s.nav h
   unfold backSt
   rw [hb]
