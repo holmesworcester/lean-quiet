@@ -11,16 +11,27 @@ open App Engine Community Data
 
 def clockChars : List UInt32 := [0x31, 0x32, 0x3A, 0x33, 0x30]
 
-/-- A reference strip painted directly from the five expected glyphs;
-no bidi, layout, or placement code participates in this oracle. -/
-def reference (f : Font.Font) (theme : Theme.Value) : Paint.Bitmap := Id.run do
-  let w := (clockChars.map (Text.adv f)).sum
+/-- Paint the five expected logical glyphs at the observed positions. Order
+and spacing are checked separately: this oracle checks actual glyph pixels,
+including the fractional-advance phase inherited from the preceding RTL text. -/
+def reference (f : Font.Font) (theme : Theme.Value) (xs : Array Nat) : Paint.Bitmap := Id.run do
+  let w := (xs.back?.getD 0) + Text.adv f 0x30
   let mut bmp := Paint.Bitmap.blank w f.cell (Paint.solid (Palette.color theme .bg) w)
-  let mut x := 0
-  for c in clockChars do
+  for (c, x) in clockChars.zip xs.toList do
     bmp := bmp.glyph f c x 0 (Palette.color theme .fg) false
-    x := x + Text.adv f c
   return bmp
+
+/-- Independently use the font's hmtx units, allowing only the one-pixel
+rounding phase at the start of a run. No bidi or text layout participates. -/
+def spacing (f : Font.Font) (xs : Array Nat) : Bool := Id.run do
+  if xs.size != clockChars.length then return false
+  let mut advance := 0
+  for (c, x) in clockChars.zip xs.toList do
+    let expected := (advance + 32) / 64
+    if x + 1 < expected || expected + 1 < x then return false
+    let some r := f.noto.chars[c]? | return false
+    advance := advance + (r.unitsAdvance * f.cell * 64 + r.units / 2) / r.units
+  return true
 
 def stripEq (actual expected : Paint.Bitmap) (x y : Nat) : Bool := Id.run do
   if x + expected.w > actual.w || y + expected.h > actual.h then return false
@@ -79,9 +90,12 @@ def main (args : List String) : IO UInt32 := do
         (BidiHost.clockOrder (Text.oneLine s.font 800 body))
       let xs := (line.filter fun g => BidiHost.clockChars.contains g.c).map (·.x)
       let left := xs.foldl min s.W
-      let ref := BidiHost.reference s.font s.dim.theme
+      let bodyFont := s.font.atSize (s.dim.px (if row.data.wide then 14 else 15))
+      let positions := xs.map (· - left)
+      check s!"{label}: clock spacing matches independent font metrics" (BidiHost.spacing bodyFont positions)
+      let ref := BidiHost.reference bodyFont s.dim.theme positions
       check s!"{label}: all {ref.w * ref.h} clock pixels match logical 12:30"
-        (BidiHost.stripEq bmp ref (s.dim.textX + left) row.lay.textY)
+        (BidiHost.stripEq bmp ref (s.dim.textX + left) (row.lay.textY + s.dim.px (if row.data.wide then 3 else 5)))
       writePpm (dir ++ s!"/{label}-row.ppm") bmp.w bmp.rows
       writePpm (dir ++ s!"/{label}-screen.ppm") s.W (← screenOf sm s.W s.Hs s.insetBot)
     pure ()).run s
