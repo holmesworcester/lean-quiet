@@ -8,6 +8,7 @@ copies a row it already holds.
 import engine.renderer.Font
 import engine.renderer.Text
 import engine.renderer.Ttf.Blit
+import engine.renderer.Contrast
 
 namespace Paint
 open Font Text
@@ -25,15 +26,31 @@ def solid (c : Color) (w : Nat) : ByteArray := Id.run do
     b := b.push (r8 c) |>.push (g8 c) |>.push (b8 c) |>.push 255
   return b
 
+/-- A painted glyph row and its actual ground, retained for a later scrim.
+Only monochrome glyphs have strokes; photographs and emoji keep their pixels. -/
+structure Stroke where
+  x : Nat
+  y : Nat
+  bits : UInt64
+  n : Nat
+  ink : Color
+  /-- Only this stroke's horizontal span, starting at local x = 0. -/
+  ground : ByteArray
+  /-- Noto coverage; empty for the older 64-bit monochrome glyph. -/
+  coverage : ByteArray := .empty
+  /-- Pixels immediately before this stroke, including earlier overlapping glyphs. -/
+  under : ByteArray := .empty
+
 structure Bitmap where
   w : Nat
   rows : Array ByteArray
+  strokes : Array Stroke := #[]
   deriving Inhabited
 
 def Bitmap.h (b : Bitmap) : Nat := b.rows.size
 
 /-- h rows of the given background row (one shared object). -/
-def Bitmap.blank (w h : Nat) (bg : ByteArray) : Bitmap := ⟨w, Array.replicate h bg⟩
+def Bitmap.blank (w h : Nat) (bg : ByteArray) : Bitmap := { w := w, rows := Array.replicate h bg }
 
 @[inline] def setPx (row : ByteArray) (x : Nat) (c : Color) : ByteArray :=
   let i := 4 * x
@@ -51,6 +68,26 @@ def Bitmap.blank (w h : Nat) (bg : ByteArray) : Bitmap := ⟨w, Array.replicate 
   if i + 3 < row.size then
     (row[i]!.toUInt32 <<< 16) ||| (row[i+1]!.toUInt32 <<< 8) ||| row[i+2]!.toUInt32
   else 0
+
+/-- Text resolves its colour against the pixel already composited below. -/
+def textColor (wanted : Color) (row : ByteArray) (x : Nat) : Color :=
+  Contrast.ink wanted (getPx row x)
+
+/-- Coverage is retained so a scrim repaints antialiased edges without
+turning them into solid bitmap text. -/
+def Stroke.alpha (s : Stroke) (i : Nat) : Nat :=
+  if s.coverage.isEmpty then
+    if i < 64 && s.bits &&& (0x8000000000000000 >>> i.toUInt64) != 0 then 255 else 0
+  else (s.coverage[i]?.getD 0).toNat
+
+def blendText (ink ground : Color) (alpha : Nat) : Color :=
+  let ch (shift : UInt32) :=
+    ((((ink >>> shift) &&& 255).toNat * alpha +
+       ((ground >>> shift) &&& 255).toNat * (255 - alpha) + 127) / 255).toUInt32
+  (ch 16 <<< 16) ||| (ch 8 <<< 8) ||| ch 0
+
+def Stroke.color (s : Stroke) (i : Nat) : Color :=
+  blendText (textColor s.ink s.ground i) (getPx (if s.under.isEmpty then s.ground else s.under) i) (s.alpha i)
 
 /-- Row y, changed by f (in place when the row is not shared). -/
 @[inline] def Bitmap.modify (b : Bitmap) (y : Nat) (f : ByteArray → ByteArray) : Bitmap :=
@@ -116,14 +153,47 @@ def Bitmap.emoji (f : Font) (b : Bitmap) (ch : UInt32) (x y : Nat) : Bitmap := I
       return row
   return b
 
+/-- Noto's actual coverage, resolved against the composited ground and
+retained for later Surface scrims. Signed bearings clip before indexing. -/
+def Bitmap.notoGlyph (b : Bitmap) (g : Ttf.Bitmap) (x y : Nat) (ink : Color)
+    (smear : Nat) (grounds : Option (Array ByteArray) := none) : Bitmap := Id.run do
+  let mut b := b
+  for gy in [0:g.h] do
+    let py := (y : Int) + g.y + (gy : Int)
+    if py < 0 || py.toNat ≥ b.h then continue
+    let left := (x : Int) + g.x
+    let x0 := left.toNat
+    let x1 := min b.w (left + (g.w + smear : Nat)).toNat
+    if x0 ≥ x1 then continue
+    let row := b.rows[py.toNat]!
+    let mut coverage := ByteArray.emptyWithCapacity (x1 - x0)
+    for px in [x0:x1] do
+      let gx := ((px : Int) - left).toNat
+      let mut alpha := 0
+      for k in [0:smear + 1] do
+        if gx ≥ k && gx - k < g.w then
+          alpha := max alpha (g.pixels[gy * g.w + gx - k]?.getD 0).toNat
+      coverage := coverage.push alpha.toUInt8
+    if coverage.data.all (· == 0) then continue
+    let stroke : Stroke := ⟨x0, py.toNat, 0, x1 - x0, ink,
+      ((grounds.bind (·[py.toNat]?)).getD row).extract (4*x0) (4*x1), coverage,
+      row.extract (4*x0) (4*x1)⟩
+    b := { b with strokes := b.strokes.push stroke }
+    b := b.modify py.toNat fun r => Id.run do
+      let mut r := r
+      for i in [0:stroke.n] do
+        if stroke.alpha i > 0 then r := setPx r (x0 + i) (stroke.color i)
+      return r
+  return b
+
 /-- The glyph of code point ch with its top left at (x, y), in colour
 c; bold smears each row right. -/
-def Bitmap.glyph (f : Font) (b : Bitmap) (ch : UInt32) (x y : Nat) (c : Color) (bold : Bool) : Bitmap := Id.run do
+def Bitmap.glyph (f : Font) (b : Bitmap) (ch : UInt32) (x y : Nat) (c : Color) (bold : Bool) (grounds : Option (Array ByteArray) := none) : Bitmap := Id.run do
   if Emoji.isEmoji ch then return b.emoji f ch x y
   let g := f.glyph ch
   if let some r := g.noto then
     if let some ink := f.noto.bitmap r then
-      return { b with rows := Ttf.blit ink b.rows x y c (if bold then max 1 (f.cell / 32) else 0) }
+      return b.notoGlyph ink x y c (if bold then max 1 (f.cell / 32) else 0) grounds
   let g := (f.bitmapGlyph? ch).getD (f.bitmapGlyph? 0xFFFD |>.getD ⟨Font.tableEnd, false, none⟩)
   let n := f.adv g
   -- bold smears each row right by a sixteenth of the cell
@@ -134,16 +204,21 @@ def Bitmap.glyph (f : Font) (b : Bitmap) (ch : UInt32) (x y : Nat) (c : Color) (
     let mut bits := bits0
     for k in [1:smear + 1] do bits := bits ||| (bits0 >>> k.toUInt64)
     if bits == 0 then continue
+    if let some row := b.rows[y + r]? then
+      b := { b with strokes := b.strokes.push ⟨x, y + r, bits, min 64 (n + smear), c,
+        ((grounds.bind (·[y+r]?)).getD row).extract (4*x) (4*min b.w (x + min 64 (n + smear))), .empty,
+        row.extract (4*x) (4*min b.w (x + min 64 (n + smear)))⟩ }
     b := b.modify (y + r) fun row => Id.run do
       let mut row := row
       for i in [0:min 64 (n + smear)] do
-        if bits &&& (0x8000000000000000 >>> i.toUInt64) != 0 then row := setPx row (x + i) c
+        if bits &&& (0x8000000000000000 >>> i.toUInt64) != 0 then
+          row := setPx row (x + i) (textColor c ((grounds.bind (·[y+r]?)).getD row) (x + i))
       return row
   return b
 
 /-- A laid-out line at (x, y). -/
 def Bitmap.line (f : Font) (b : Bitmap) (l : Line) (x y : Nat) (c : Color) (bold := false) : Bitmap :=
-  l.foldl (fun b g => b.glyph f g.c (x + g.x) y c bold) b
+  l.foldl (fun out g => out.glyph f g.c (x + g.x) y c bold (some b.rows)) b
 
 /-- The width a line's glyphs take. -/
 def Line.width (f : Font) (l : Line) : Nat := l.foldl (fun w g => max w (g.x + adv f g.c)) 0

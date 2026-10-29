@@ -89,7 +89,7 @@ def scene (g : Layout) (h : Nat) (ui : Ui) (s : App.St) : List (Control Action) 
 /-- Compose the app's actual three layers, in their own track. -/
 def content (w h : Nat) (ls : Layers) : Bitmap :=
   ⟨w, Translate.compose ls.placement (ls.placement[15]?.getD 0).toInt32 h
-    (solid Row.bg w) ls.list ls.top ls.bot ls.hold⟩
+    (solid Row.bg w) ls.list ls.top ls.bot ls.hold, #[]⟩
 
 /-- Painting traverses exactly `scene`, the list hit testing consumes. -/
 def paint (g : Layout) (h : Nat) (ui : Ui) (s : App.St) (ls : Layers) : Bitmap := Id.run do

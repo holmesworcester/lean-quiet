@@ -9,6 +9,8 @@ import engine.renderer.Nav
 import engine.renderer.Cover
 import engine.renderer.Session
 import engine.renderer.Sheet
+import engine.renderer.Appearance
+import engine.renderer.ThemeStore
 import ops.app.Pages
 import ops.app.Composer
 import ops.community.link.View
@@ -48,6 +50,7 @@ structure Io where
   poll : IO (Array UInt32) := pure #[]
   links : IO (Array String) := pure #[]
   motion : Array UInt32 → IO Unit := fun _ => pure ()
+  appearance : Bool → UInt32 → IO Unit := fun _ _ => pure ()
 
 /-- How far beyond each end of the viewport the list frame is drawn. -/
 def over : Nat := 1024
@@ -80,13 +83,13 @@ abbrev ImgKey := Pics.Key
 /-- Which page is up: a conversation, or one of libquiet's other screens. -/
 inductive PageId where
   | home | chat | getStarted | create | createName | joinChoice | openInvite | paste | scan | name | agree | waiting
-  | requests | invite | switcher | profile | removeConfirm | duplicate
+  | requests | invite | switcher | profile | removeConfirm | duplicate | you | appearance
   deriving DecidableEq, Repr, Inhabited
 
 /-- Every page (Nav.depth: back reaches a root in fewer steps than this). -/
 def PageId.all : List PageId :=
   [.home, .chat, .getStarted, .create, .createName, .joinChoice, .openInvite, .paste, .scan, .name, .agree,
-   .waiting, .requests, .invite, .switcher, .profile, .removeConfirm, .duplicate]
+   .waiting, .requests, .invite, .switcher, .profile, .removeConfirm, .duplicate, .you, .appearance]
 
 /-- The reaction sheet's state: quick or the catalogue, its category,
 tone, search, and the grid's scroll (with a drag or fling in progress). -/
@@ -109,6 +112,7 @@ appear by their keys (acceptance op id, community id, name, …), so two
 entries that share a name are still two keys. -/
 structure PageIn where
   page : PageId
+  setting : Theme.Setting := .system
   W : Nat
   h : Nat
   insetTop : Nat
@@ -136,6 +140,7 @@ structure PageIn where
 
 structure St where
   io : Io
+  theme : Theme.State := {}
   W : Nat
   Hs : Nat
   insetTop : Nat
@@ -308,7 +313,7 @@ removal is not announced again. -/
   paintStop : Array (Task Unit) := #[]
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure (), pure #[], pure #[], fun _ => pure ()⟩⟩
+  pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure (), pure #[], pure #[], fun _ => pure (), fun _ _ => pure ()⟩⟩
 
 abbrev M := StateT St IO
 

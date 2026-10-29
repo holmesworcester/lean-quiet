@@ -1,15 +1,9 @@
 /-
 The app on a platform twin: the seam's externs as the app's `Io`.
 -/
-import Quiet
+import engine.renderer.PlatformIo
 
 open App
-
-def Io.platform : Io :=
-  ⟨Platform.screen, Platform.scroll, Platform.scrollBy, Platform.scrollTo, Platform.frame, Platform.text,
-   Platform.ime, fun t => Platform.copy t, Platform.ctlPoll, fun s => Platform.ctlReply s, Platform.nowUs,
-   do return ((← Std.Time.Timestamp.now).toSecondsSinceUnixEpoch.val.toNat / 60, (← Platform.tzMin).toInt),
-   Platform.scan, Platform.luma, Platform.log, (fun t => Platform.setText t), Platform.poll, Platform.links, Platform.motion⟩
 
 def main : IO Unit := do
   let screen ← Platform.screen

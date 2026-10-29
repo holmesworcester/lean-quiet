@@ -70,7 +70,7 @@ def scaleCrop (s : Src) (x0 y0 cw ch tw th : Nat) (bg : Color) : Bitmap := Id.ru
       let k := max n 1
       row := row.push (r / k).toUInt8 |>.push (g / k).toUInt8 |>.push (b / k).toUInt8 |>.push 255
     rows := rows.push row
-  return ⟨tw, rows⟩
+  return { w := tw, rows := rows }
 
 /-- The whole image fitted into at most mw x mh, its aspect kept. -/
 def fit (s : Src) (mw mh : Nat) : Nat × Nat :=

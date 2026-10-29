@@ -418,3 +418,5 @@ spec Translate.content The content coordinate at a translated screen row, equate
 spec Translate.fillOrigin The periodic plane origin inside the scalar edge and fillRow specifications.
 spec Translate.fillRect The viewport crop of that plane inside Translate.edge (Slide.edge_eq).
 spec Translate.seen The compositor's content contract: main's running Cover.seen at its selected source, else unloaded. Source selection is transferred by Slide.pick_eq; fill pixels by Slide.fillRow_eq and fill_pixel.
+
+block Theme.save a device appearance write must run on the checkpoint writer, never the UI thread

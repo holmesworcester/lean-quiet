@@ -274,3 +274,15 @@ run = "python3 tests/app/slide_negative.py"
 [tasks."host:translate-negative"]
 description = "Break translate laws and native behavior, require detection, restore sources"
 run = "python3 tests/app/translate_negative.py"
+
+[tasks."host:theme-restart"]
+description = "Appearance preference restored by a fresh process, all three settings"
+run = "tests/app/appearance.sh restart"
+
+[tasks."host:theme-live"]
+description = "Live OS switches, fresh versus cached pixels, composited contrast, both phone sizes"
+run = "tests/app/appearance.sh live"
+
+[tasks."host:theme-negative"]
+description = "Reject faults in appearance persistence, contrast and cache invalidation"
+run = "lake build appearance engine.renderer.ThemeLaws && python3 tests/app/theme-negative.py && python3 tests/app/theme-paint-negative.py"

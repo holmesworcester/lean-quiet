@@ -2,6 +2,9 @@ package com.holmes.leanquiet;
 
 import android.app.NativeActivity;
 import android.content.Context;
+import android.content.res.Configuration;
+import android.graphics.drawable.ColorDrawable;
+import android.view.WindowInsetsController;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.os.Bundle;
@@ -36,6 +39,7 @@ import java.util.List;
  * unhandled reach the EditText.
  */
 public class LeanActivity extends NativeActivity {
+  static native void nAppearance(boolean dark);
   static native void nInsets(int top, int bottom, int ime);
   static native void nText(String text, int selStart, int selEnd, int compStart, int compEnd);
   static native void nAction(int kind, int code, int action);
@@ -43,6 +47,31 @@ public class LeanActivity extends NativeActivity {
   /** A camera frame's Y plane, as the camera filled it (copied in native),
    * and the sensor's clockwise orientation in degrees. */
   static native void nLuma(ByteBuffer y, int width, int height, int rowStride, int orientation);
+
+  private boolean appliedDark;
+  private int appliedBackground = -1;
+
+  private void reportAppearance(Configuration config) {
+    nAppearance((config.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES);
+  }
+
+  @Override public void onConfigurationChanged(Configuration config) {
+    super.onConfigurationChanged(config);
+    reportAppearance(config);
+  }
+
+  /** Called with Lean's effective theme; never changes the OS observation. */
+  public void appearance(boolean dark, int background) {
+    runOnUiThread(() -> {
+      if (appliedBackground == background && appliedDark == dark) return;
+      appliedDark = dark;
+      appliedBackground = background;
+      int mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+          | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+      getWindow().getInsetsController().setSystemBarsAppearance(dark ? 0 : mask, mask);
+      getWindow().setBackgroundDrawable(new ColorDrawable(0xff000000 | background));
+    });
+  }
 
   private EditText edit;
   private InputMethodManager imm;
@@ -80,6 +109,7 @@ public class LeanActivity extends NativeActivity {
   @Override protected void onCreate(Bundle saved) {
     super.onCreate(saved);
     deliverLink(getIntent());
+    reportAppearance(getResources().getConfiguration());
     getWindow().setDecorFitsSystemWindows(false);
     getWindow().setStatusBarColor(Color.TRANSPARENT);
     getWindow().setNavigationBarColor(Color.TRANSPARENT);

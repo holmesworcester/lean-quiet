@@ -79,7 +79,7 @@ def screenOf (sm : Sim) (W Hs insetBot : Nat) : IO (Array ByteArray) := do
   let (fr, _, _, top, bot) ← sm.last.get
   let _ := insetBot
   return Translate.compose (← sm.placement.get) (← sm.b.get).toInt64.toInt32 Hs
-    (Paint.solid Row.bg W) fr top bot (← sm.hold.get)
+    (bot.back?.getD (Paint.solid (Palette.color .light .bg) W)) fr top bot (← sm.hold.get)
 
 def writePpm (path : String) (W : Nat) (rows : Array ByteArray) : IO Unit := do
   let mut b := s!"P6\n{W} {rows.size}\n255\n".toUTF8

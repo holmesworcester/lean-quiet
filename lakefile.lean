@@ -370,3 +370,9 @@ lean_exe seam_app where
 
 lean_exe translate where
   root := `platforms.headless.Translate
+
+lean_exe appearance where
+  root := `platforms.headless.Appearance
+
+lean_exe appearance_seam where
+  root := `platforms.headless.AppearanceSeam

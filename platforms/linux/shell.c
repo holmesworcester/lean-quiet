@@ -451,3 +451,8 @@ lean_obj_res lq_log(b_lean_obj_arg s) { fprintf(stderr,"%s\n",lean_string_cstr(s
 /* Lifecycle polling shares the Linux frame's event pump. */
 lean_obj_res lq_poll(void) { return lean_io_result_mk_ok(lean_mk_empty_array()); }
 lean_obj_res lq_links(void) { return lean_io_result_mk_ok(lean_mk_empty_array()); }
+
+/* Lean owns appearance; X11 has no mobile status/navigation bars. */
+lean_obj_res lq_appearance(uint8_t dark, uint32_t background) {
+    (void)dark; (void)background; return lean_io_result_mk_ok(lean_box(0));
+}

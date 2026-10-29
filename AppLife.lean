@@ -13,13 +13,13 @@ def PageId.code : PageId → Nat
   | .home => 0 | .chat => 1 | .getStarted => 2 | .create => 3 | .createName => 4
   | .joinChoice => 5 | .openInvite => 6 | .paste => 7 | .scan => 8 | .name => 9
   | .agree => 10 | .waiting => 11 | .requests => 12 | .invite => 13 | .switcher => 14
-  | .profile => 15 | .removeConfirm => 16 | .duplicate => 17
+  | .profile => 15 | .removeConfirm => 16 | .duplicate => 17 | .you => 18 | .appearance => 19
 
 def PageId.ofCode : Nat → PageId
   | 0 => .home | 1 => .chat | 2 => .getStarted | 3 => .create | 4 => .createName
   | 5 => .joinChoice | 6 => .openInvite | 7 => .paste | 8 => .scan | 9 => .name
   | 10 => .agree | 11 => .waiting | 12 => .requests | 13 => .invite | 14 => .switcher
-  | 15 => .profile | 16 => .removeConfirm | 17 => .duplicate | _ => .getStarted
+  | 15 => .profile | 16 => .removeConfirm | 17 => .duplicate | 18 => .you | 19 => .appearance | _ => .getStarted
 
 theorem page_round (p : PageId) : PageId.ofCode p.code = p := by cases p <;> rfl
 
@@ -73,7 +73,15 @@ def checkpoint (s : St) : Lifecycle.Checkpoint :=
      Codec.encode (s.profileOf.toList.map fun (u, n, me) => (u, n.toUTF8, me)),
      Codec.encode (s.drafts.map fun (a, t, bs) => (a, t.toUTF8, bs)), Codec.encode s.anchor,
      Codec.encode (s.links.map fun (a, l) => (a, l.toUTF8)), Codec.encode s.queuedWrites,
-     Codec.encode (s.mark.bind fun (x, _) => s.ids.find? (·.2 == x))])
+     Codec.encode (s.mark.bind fun (x, _) => s.ids.find? (·.2 == x)),
+     (Theme.encode s.theme.setting).toUTF8])
+
+/-- Called only by the writer thread. Both writes are idempotent when its
+checkpoint retry meets a transient SQLite lock. -/
+def commitCheckpoint (db : Db) (bytes : ByteArray) : IO Unit := do
+  if let some (_, _, _, _, _, bs) := (Codec.decode bytes : Option Lifecycle.Checkpoint) then
+    if let some value := bs[12]? then Theme.save db (Theme.decode (String.fromUTF8! value))
+  Lifecycle.save db bytes
 
 /-- A changed checkpoint, handed to the writer's thread, which commits
 it. The frame never commits: it holds its read transaction all turn, and
@@ -98,7 +106,7 @@ def saveWaits : M Unit := do
 def restoreChips (s : St) (bs : List ByteArray) : Array (ByteArray × Nat × Nat × Composer.Chip) :=
   (bs.filterMap fun b => do
     let src ← Image.decode b
-    return (b, src.w, src.h, ⟨Image.square src (s.dim.px 64) Row.bg, s!"{Arrival.humanBytes b.size}"⟩)).toArray
+    return (b, src.w, src.h, ⟨Image.square src (s.dim.px 64) (Palette.color s.dim.theme .bg), s!"{Arrival.humanBytes b.size}"⟩)).toArray
 
 def useDraft (s : St) : St :=
   let (_, t, bs) := (s.drafts.find? (·.1 == s.me.acc)).getD (.empty, "", [])
@@ -250,7 +258,7 @@ def resize (sc : Array UInt32) : M Unit := do
   if w == s.W && h == s.Hs && it == s.insetTop && ib == s.insetBot && dpi == s.dim.dpi then return
   if let some p := s.input.press then s.io.motion { p.first with phase := 3 }.words
   retirePaints s
-  let dm : Dim := ⟨dpi, s.font.cell⟩
+  let dm : Dim := ⟨dpi, s.font.cell, s.dim.theme⟩
   let mut rows := s.rows
   let mut heights := if w == s.W && dpi == s.dim.dpi then s.heights else {}
   for (x, r) in s.rows.toList do
@@ -261,7 +269,7 @@ def resize (sc : Array UInt32) : M Unit := do
     heights := heights.insert x lay.h
   modify fun s => { s with
     W := w, Hs := h, insetTop := it, insetBot := ib, dim := dm, input := Input.revoke s.input,
-    bgRow := solid Row.bg w, rows, heights, imgs := {}, imgRetry := {},
+    bgRow := solid (Palette.color s.dim.theme .bg) w, rows, heights, imgs := {}, imgRetry := {},
     picWants := #[], retryWants := {}, lastSlices := none,
     life := { s.life with generation := s.life.generation + 1 },
     mark := captureAnchor s, restoreAnchor := true, pageKey := none, pageNow := none,

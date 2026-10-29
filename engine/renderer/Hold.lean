@@ -13,7 +13,7 @@ def holdLine (s : St) (li : Nat) : ByteArray :=
   else
     let x0 := s.dim.pad + s.dim.px 48
     let w := max 1 (s.W * 2 / 3 - x0)
-    (solid Row.placeholder w).copySlice 0 s.bgRow (4 * x0) (4 * w)
+    (solid (Palette.color s.dim.theme .selected) w).copySlice 0 s.bgRow (4 * x0) (4 * w)
 
 /-- One period, reversed because content distances count upwards. -/
 def tile (s : St) : Array ByteArray := (Array.range 48).map fun i => holdLine s (47 - i)

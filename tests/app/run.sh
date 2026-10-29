@@ -50,3 +50,7 @@ tests/shipped/check.sh app
 tests/app/lifecycle.sh
 tests/app/lifecycle_node.sh
 tests/app/lifecycle_node_negative.sh
+
+mise run host:theme-restart
+mise run host:theme-live
+mise run host:theme-negative

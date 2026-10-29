@@ -51,6 +51,8 @@ typedef struct {
 
 static pthread_mutex_t lq_mu = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  lq_cv = PTHREAD_COND_INITIALIZER;
+static bool            lq_system_dark;
+static bool            lq_effective_dark;
 static bool            lq_up;      // the view is laid out in its window
 static _Atomic bool    lq_foreground;
 static NSMutableArray<NSString*>* lq_urls;
@@ -291,11 +293,11 @@ lean_obj_res lq_screen(void) {
     pthread_cond_wait(&lq_cv, &lq_mu);
   }
   waited = true;
-  uint32_t v[5] = { lq_w, lq_h, lq_itop, lq_ibot, lq_dpi };
+  uint32_t v[6] = { lq_w, lq_h, lq_itop, lq_ibot, lq_dpi, lq_system_dark };
   lq_read_w = lq_w; lq_read_h = lq_h;
   pthread_mutex_unlock(&lq_mu);
-  lean_object* a = lean_mk_empty_array_with_capacity(lean_box(5));
-  for (int i = 0; i < 5; i += 1) {
+  lean_object* a = lean_mk_empty_array_with_capacity(lean_box(6));
+  for (int i = 0; i < 6; i += 1) {
     a = lean_array_push(a, lean_box_uint32(v[i]));
   }
   return lean_io_result_mk_ok(a);
@@ -969,6 +971,7 @@ lean_obj_res lq_motion(b_lean_obj_arg samples) {
   lq_k = v.window.screen.scale;
   UIEdgeInsets in = v.safeAreaInsets;
   pthread_mutex_lock(&lq_mu);
+  lq_system_dark = self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark;
   lq_w    = lq_px(v.bounds.size.width);
   lq_h    = lq_px(v.bounds.size.height);
   lq_itop = lq_px(in.top);
@@ -983,8 +986,15 @@ lean_obj_res lq_motion(b_lean_obj_arg samples) {
   pthread_mutex_unlock(&lq_mu);
 }
 
+- (void)traitCollectionDidChange:(UITraitCollection*)previous {
+  [super traitCollectionDidChange:previous];
+  pthread_mutex_lock(&lq_mu);
+  lq_system_dark = self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark;
+  pthread_mutex_unlock(&lq_mu);
+}
+
 - (UIStatusBarStyle)preferredStatusBarStyle {
-  return UIStatusBarStyleLightContent;
+  return lq_effective_dark ? UIStatusBarStyleLightContent : UIStatusBarStyleDarkContent;
 }
 
 @end
@@ -1179,4 +1189,16 @@ lean_obj_res lq_links(void) {
   [lq_urls removeAllObjects];
   pthread_mutex_unlock(&lq_mu);
   return lean_io_result_mk_ok(links);
+}
+
+// Lean chooses the effective theme. Keep traitCollection as the OS input.
+lean_obj_res lq_appearance(uint8_t dark, uint32_t background) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (lq_effective_dark != (bool)dark) {
+      lq_effective_dark = dark;
+      [lq_root.window.rootViewController setNeedsStatusBarAppearanceUpdate];
+    }
+    lq_root.window.backgroundColor = lq_color(background);
+  });
+  return lean_io_result_mk_ok(lean_box(0));
 }

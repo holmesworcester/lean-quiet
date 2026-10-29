@@ -135,8 +135,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 819 rest on Lean's standard axioms
-only, and about three quarters of its theorems (619 of 799, not counting 20 negative controls) are about the code that runs; another 7 run the
+that rests on; 🥊 is supporting. All 836 rest on Lean's standard axioms
+only, and about three quarters of its theorems (635 of 816, not counting 20 negative controls) are about the code that runs; another 7 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -248,7 +248,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**619 of 799 laws are about running code;** another 7 run its node code in a World, and 173 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**635 of 816 laws are about running code;** another 7 run its node code in a World, and 174 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -261,8 +261,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Community | 165 | 154 |  | 11 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
-| Screen | 198 | 140 |  | 58 |
-| App | 55 | 47 |  | 8 |
+| Screen | 215 | 157 |  | 58 |
+| App | 55 | 46 |  | 9 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
@@ -280,6 +280,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Pics.after`, `Pics.costIn` | [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`] | The picture doors as data (`PicM`), measured: the app's own doors (its decode table and frame counter) are not shown to answer as `PicM`'s. Prove they do, or state these over them. |
 | `Board.apply`, `RWorld.commit`, `RWorld.evict` +10 | [`RWorld.acts_shown`], [`seen_take`], [`World.inv_commit`], [`RWorld.inv_commit`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`], [`World.inv_pass`], [`World.inv_frame`], [`World.settle`], [`marked_pass`] +7 more | The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`. |
 | `T.sum`, `Both.bottom`, `Both.rowAt` +16 | [`start_eq`], [`find_spec`], [`set_toList`], [`push_ok`], [`findM_cost`], [`startM_cost`], [`setM_cost`], [`rows_cost`], [`start_mono`], [`start_size`], [`below_window`], [`above_window`] +8 more | The row-heights tree (engine/renderer/Heights.lean): the app keeps its rows' heights in a map (`App.heightOf`) and adds them up itself. Have its list frame place rows by `Heights`. |
+| `PageId.all` | [`NavLaws.depth`]† | Nothing that runs calls it. |
 | `Engine.inlRow` | [`matching_proj`], [`eval_proj`], [`filterMap_inlRow`] | Nothing that runs calls it. |
 | `Engine.leftValid` | [`mem_proj_idx`] | Nothing that runs calls it; `Engine.DB.proj` do. |
 | `Engine.specVerdict` | [`specVerdict_eq_some`] | Nothing that runs calls it; `Engine.DB.proj` do. |
@@ -1030,7 +1031,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`go_inv`]: engine/renderer/Nav.lean#L107-L107
 [`NavLaws.depth`]: ops/app/NavLaws.lean#L82-L84
 [`draft_back`]: ops/app/NavLaws.lean#L65-L67
-[`into_native`]: App.lean#L96-L99
+[`into_native`]: App.lean#L129-L132
 [`present_iff`]: ops/app/PeopleLaws.lean#L28-L31
 [`present_not_removed`]: ops/app/PeopleLaws.lean#L38-L41
 [`present_nodup`]: ops/app/PeopleLaws.lean#L45-L46
@@ -1096,13 +1097,13 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
 [`readable_held`]: ops/community/Intents.lean#L487-L499
 [`readable_complete`]: ops/community/Intents.lean#L527-L537
-[`switcherOrder_sound`]: ops/app/Pages.lean#L674-L676
-[`switcherOrder_complete`]: ops/app/Pages.lean#L681-L683
+[`switcherOrder_sound`]: ops/app/Pages.lean#L681-L683
+[`switcherOrder_complete`]: ops/app/Pages.lean#L688-L690
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L883-L887
-[`pageIn_acc`]: App.lean#L889-L892
+[`drawPage_key`]: App.lean#L924-L928
+[`pageIn_acc`]: App.lean#L930-L933
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
@@ -1159,9 +1160,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`ofList_wf`]: engine/core/WindowIndex.lean#L445-L445
 [`screen_index`]: engine/renderer/Screen.lean#L258-L261
 [`decoded_started`]: ops/app/Pics.lean#L241-L245
-[`image_steady`]: ops/app/Pics.lean#L333-L336
-[`image_settles`]: ops/app/Pics.lean#L395-L397
-[`image_twice`]: ops/app/Pics.lean#L408-L412
+[`image_steady`]: ops/app/Pics.lean#L336-L339
+[`image_settles`]: ops/app/Pics.lean#L398-L400
+[`image_twice`]: ops/app/Pics.lean#L411-L415
 [`RWorld.acts_shown`]: engine/renderer/ActsLaws.lean#L209-L218
 [`seen_take`]: engine/renderer/BoardLaws.lean#L245-L246
 [`World.inv_commit`]: engine/renderer/BoardLaws.lean#L335-L336

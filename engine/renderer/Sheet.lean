@@ -63,8 +63,8 @@ def shown (cat : Array Item) (c : Nat) (query : String) : Array Nat := Id.run do
       out := out.push i
   return out
 
-def panel : Color := 0x222529
-def line : Color := 0x3A3D41
+def panel : Color := Palette.color .dark .panel
+def line : Color := Palette.color .dark .edge
 
 /-! ## Quick -/
 
@@ -88,42 +88,42 @@ def quick (dm : Dim) (W : Nat) : Quick :=
   ⟨copyY + copyH + dm.px 16, ⟨pad, ky, pitch, k, n, k, n⟩, copyY, copyH⟩
 
 /-- A key's emoji centred in its box. -/
-def key (f : Font) (b : Bitmap) (e : String) (x y k : Nat) : Bitmap :=
+def key (f : Font) (b : Bitmap) (e : String) (x y k : Nat) (theme : Theme.Value := .dark) : Bitmap :=
   let l := oneLine f (4 * f.cell) e
   let w := Paint.Line.width f l
-  b.line f l (x + (k - min k w) / 2) (y + (k - f.cell) / 2) ink
+  b.line f l (x + (k - min k w) / 2) (y + (k - f.cell) / 2) (Palette.color theme .fg)
 
 def ring (dm : Dim) (b : Bitmap) (x y k : Nat) : Bitmap :=
   let e := max 2 (dm.px 1)
-  (b.round x y (x + k) (y + k) (k / 2) accent).round (x + e) (y + e) (x + k - e) (y + k - e) (k / 2 - e) pillMine
+  (b.round x y (x + k) (y + k) (k / 2) (Palette.color dm.theme .accentInk)).round (x + e) (y + e) (x + k - e) (y + k - e) (k / 2 - e) (Palette.color dm.theme .tint)
 
 /-- The sheet's ground: its top corners rounded over the dimmed list. -/
 def ground (dm : Dim) (W h : Nat) (backdrop : Color) : Bitmap :=
   let r := dm.px 16
-  (Bitmap.blank W h (solid backdrop W)).round 0 0 W (h + r) r panel
+  (Bitmap.blank W h (solid backdrop W)).round 0 0 W (h + r) r (Palette.color dm.theme .panel)
 
 def paintQuick (f : Font) (dm : Dim) (W : Nat) (backdrop : Color) (mine : List String) : Bitmap := Id.run do
   let q := quick dm W
   let mut b := ground dm W q.h backdrop
   -- the grip
   let gw := dm.px 36
-  b := b.round ((W - gw) / 2) (dm.px 8) ((W + gw) / 2) (dm.px 12) (dm.px 2) line
+  b := b.round ((W - gw) / 2) (dm.px 8) ((W + gw) / 2) (dm.px 12) (dm.px 2) (Palette.color dm.theme .edge)
   let g := q.keys
   for i in [0:g.n] do
     let x := g.left i
     if i < Row.quick.size then
       let e := Row.quick[i]!
       if mine.contains e then b := ring dm b x g.y0 g.key
-      b := key f b e x g.y0 g.key
+      b := key f b e x g.y0 g.key dm.theme
     else
       -- Browse: a face with a plus
-      b := b.line f (oneLine f f.cell "☺") (x + (g.key - f.cell / 2) / 2) (g.y0 + (g.key - f.cell) / 2) ink
-      b := b.line f (oneLine f f.cell "+") (x + g.key - f.cell / 2) g.y0 ink
+      b := b.line f (oneLine f f.cell "☺") (x + (g.key - f.cell / 2) / 2) (g.y0 + (g.key - f.cell) / 2) (Palette.color dm.theme .fg)
+      b := b.line f (oneLine f f.cell "+") (x + g.key - f.cell / 2) g.y0 (Palette.color dm.theme .fg)
   -- Copy text
-  b := b.fill 0 q.copyY W (q.copyY + max 1 (dm.px 1) / 2 + 1) line
+  b := b.fill 0 q.copyY W (q.copyY + max 1 (dm.px 1) / 2 + 1) (Palette.color dm.theme .edge)
   let ty := q.copyY + (q.copyH - f.cell) / 2
-  b := b.line f (oneLine f f.cell "⧉") (dm.px 16) ty ink
-  b := b.line f (oneLine f (W / 2) "Copy text") (dm.px 16 + f.cell / 2 + dm.px 16) ty ink
+  b := b.line f (oneLine f f.cell "⧉") (dm.px 16) ty (Palette.color dm.theme .fg)
+  b := b.line f (oneLine f (W / 2) "Copy text") (dm.px 16 + f.cell / 2 + dm.px 16) ty (Palette.color dm.theme .fg)
   return b
 
 inductive QuickHit where
@@ -175,20 +175,20 @@ def cat (dm : Dim) (f : Font) (W Hs insetTop n : Nat) : Cat :=
 def catTop (f : Font) (dm : Dim) (W : Nat) (c : Cat) (backdrop : Color) (query : String) (searching : Bool)
     (tone category : Nat) : Bitmap := Id.run do
   let mut b := ground dm W c.grid.y0 backdrop
-  b := key f b "‹" (c.back.left 0) c.back.y0 c.back.key
+  b := key f b "‹" (c.back.left 0) c.back.y0 c.back.key dm.theme
   let (x0, y0, x1, y1) := c.search
-  b := b.round x0 y0 x1 y1 ((y1 - y0) / 2) line
+  b := b.round x0 y0 x1 y1 ((y1 - y0) / 2) (Palette.color dm.theme .edge)
   let e := max 2 (dm.px 1)
-  b := b.round (x0 + e) (y0 + e) (x1 - e) (y1 - e) ((y1 - y0) / 2 - e) (if searching then selBg else panel)
+  b := b.round (x0 + e) (y0 + e) (x1 - e) (y1 - e) ((y1 - y0) / 2 - e) (if searching then (Palette.color dm.theme .selected) else (Palette.color dm.theme .panel))
   let ty := y0 + (y1 - y0 - f.cell) / 2
   b := b.line f (oneLine f (x1 - x0 - dm.px 32) (if query.isEmpty then "Search emoji" else query))
-    (x0 + dm.px 16) ty (if query.isEmpty then dim else ink)
+    (x0 + dm.px 16) ty (if query.isEmpty then (Palette.color dm.theme .muted) else (Palette.color dm.theme .fg))
   for i in [0:6] do
     let x := c.tones.left i
     if i == tone then b := ring dm b x c.tones.y0 c.tones.key
-    b := key f b toneEmoji[i]! x c.tones.y0 c.tones.key
+    b := key f b toneEmoji[i]! x c.tones.y0 c.tones.key dm.theme
   let head := if query.isEmpty then (categories[category]?.map (·.1)).getD "" else "Search results"
-  b := b.line f (oneLine f (W - 2 * dm.px 16) head) (dm.px 16) c.headY dim
+  b := b.line f (oneLine f (W - 2 * dm.px 16) head) (dm.px 16) c.headY (Palette.color dm.theme .muted)
   return b
 
 /-- Grid row r's pixels: its items' emoji, each in its key's box
@@ -196,26 +196,26 @@ def catTop (f : Font) (dm : Dim) (W : Nat) (c : Cat) (backdrop : Color) (query :
 def gridRow (f : Font) (dm : Dim) (W : Nat) (c : Cat) (cat : Array Item) (items : Array Nat)
     (tone : Nat) (mine : List String) (r : Nat) : Bitmap := Id.run do
   let g := c.grid
-  let mut b := Bitmap.blank W g.key (solid panel W)
+  let mut b := Bitmap.blank W g.key (solid (Palette.color dm.theme .panel) W)
   for j in [0:g.cols] do
     let i := g.itemAt r j
     if i < items.size then
       let e := (cat[items[i]!]!).toned tone
       if mine.contains e then b := ring dm b (g.left i) 0 g.key
-      b := key f b e (g.left i) 0 g.key
+      b := key f b e (g.left i) 0 g.key dm.theme
   return b
 
 /-- The rows below the grid: the category bar. -/
 def catBot (f : Font) (dm : Dim) (W : Nat) (c : Cat) (category : Nat) (searching : Bool) : Bitmap := Id.run do
   let h := c.h - c.grid.y0 - c.grid.vh
-  let mut b := Bitmap.blank W h (solid panel W)
-  b := b.fill 0 0 W (max 1 (dm.px 1) / 2 + 1) line
+  let mut b := Bitmap.blank W h (solid (Palette.color dm.theme .panel) W)
+  b := b.fill 0 0 W (max 1 (dm.px 1) / 2 + 1) (Palette.color dm.theme .edge)
   let by0 := c.bar.y0 - c.grid.y0 - c.grid.vh
   for i in [0:categories.size] do
     let x := c.bar.left i
     if i == category && !searching then
-      b := b.round x by0 (x + c.bar.key) (by0 + c.bar.key) (c.bar.key / 2) line
-    b := key f b categories[i]!.2.1 x by0 c.bar.key
+      b := b.round x by0 (x + c.bar.key) (by0 + c.bar.key) (c.bar.key / 2) (Palette.color dm.theme .edge)
+    b := key f b categories[i]!.2.1 x by0 c.bar.key dm.theme
   return b
 
 inductive CatHit where

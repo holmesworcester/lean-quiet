@@ -75,10 +75,10 @@ def qr (text : String) (side : Nat) : Option Bitmap := do
   let s ← Qr.encode text.toUTF8 .M
   let img := Qr.render s (scale s.size side) 4
   let rows := (List.range img.h).toArray.map fun y => Id.run do
-    let mut row := solid 0xFFFFFF img.w
+    let mut row := solid (Palette.color .light .white) img.w
     for x in [0:img.w] do
-      if img.px[y * img.stride + x]! == 0 then row := setPx row x 0x000000
+      if img.px[y * img.stride + x]! == 0 then row := setPx row x (Palette.color .light .black)
     return row
-  return ⟨img.w, rows⟩
+  return { w := img.w, rows := rows }
 
 end Link
