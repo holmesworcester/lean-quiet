@@ -144,12 +144,16 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
     let (_, revoked) ← (Reader.read (Q.op first.id)).run { rd := before.rd, enabled := pure false }
     ck.ok "revoked reader issues no query" (revoked.live.reads == 0 && revoked.live.entries.isEmpty)
     let sh ← Reader.Shared.new (← IO.mkRef 0)
-    let want := Reader.Want.window before.me.c none 0 0
+    -- Three distinct, committed ops make the exact query boundary explicit:
+    -- allow the pass and its first two reads, then revoke before the third.
+    let want := Reader.Want.slices [first.id, second.id, third.id]
     sh.setWants #[want]
     let checks ← IO.mkRef (0 : Nat)
     let enabled : IO Bool := checks.modifyGet fun n => (decide (n < 3), n + 1)
     let (_, cancelled) ← (Reader.pass sh).run { rd := before.rd, enabled }
-    ck.ok "revocation during a real pass prevents later queries" (cancelled.live.reads == 1 && (← checks.get) > 3)
+    ck.ok "revocation during a real pass prevents later queries" (cancelled.live.reads == 2 &&
+      cancelled.live.entries.contains (.op first.id) && cancelled.live.entries.contains (.op second.id) &&
+      !cancelled.live.entries.contains (.op third.id) && (← checks.get) > 3)
     ck.ok "revoked pass cannot publish its answer" (((← sh.board.get).get? want).isNone)
     ck.ok "old runner rejects offers after teardown" (!(← old.writes.trySend []))
     discard <| step [.background]

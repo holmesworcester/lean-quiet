@@ -69,18 +69,19 @@ shells; physical-device testing remains separate.
 
 ## Provisioned mobile machines
 
-These are manual or nightly jobs in `.github/workflows/ci.yml`.
-They require the provisioned runners below; ordinary PR checks run the
-deterministic headless and X11 suites through the same named Mise tasks. Both suites include their build step,
-fail on a failed build, and upload artifacts even when the run fails
-(14-day retention). They must have exclusive use of their test targets.
+Run these named Mise tasks manually on provisioned local machines.
+`ci/local.sh app` runs the deterministic headless and X11 suites; no
+GitHub Actions workflow is enabled. Both mobile suites include their
+build step, propagate failures, and retain local artifacts on failure.
+They require exclusive use of their test targets.
 
-| Task / runner label | Required machine | Session and artifacts |
+| Task | Required machine | Session and artifacts |
 |---|---|---|
-| `android:twin-demo-e2e` / `linux, kvm, android` | Linux x86_64 with KVM, SDK/NDK, build-tools, Java 17+, Rust's x86_64 and arm64 Android targets, Lean/libuv sources above, Python with Pillow, mise. A dedicated **already booted** x86_64 emulator at `SERIAL` (default `emulator-5644`), 1080-pixel wide screen with the suite's expected 63-pixel navigation inset. No physical-device serial is accepted. `ANDROID_SDK`/`ANDROID_HOME` default to `~/android-sdk`; set both when overriding it. | Builds the runtime and twin APK for both ABIs, then builds/installs the test IME and drives taps, keyboard animation, Unicode composition, send, drag/fling, scrolling and Back. Restores the IME on exit. `out/e2e-twin/`: build/suite logs, logcat and screenshots, collected on failure too. |
-| `ios:sim-e2e` / `linux, ios` | Linux build coordinator with Lean/libuv sources, Rust's `aarch64-apple-ios` and `aarch64-apple-ios-sim` targets, assets and SSH access to a dedicated Apple Silicon Mac (`MAC`, CI variable `LEANQUIET_CI_MAC`). The Mac needs Xcode 26.3 at the path in `ship.sh`, an iOS Simulator runtime, xcodegen at `~/quiet-e2e/xcodegen/bin/xcodegen`, and an unlocked login session. The task builds on the Mac; it is not a native macOS mise task. | Stages generated C, shared glue, SQLite and assets; builds, installs and launches in the suite's `lean-quiet-ios` Simulator, then runs both XCTest UI sessions (conversation and pinned Paste page). `out/ios-sim/`: complete run/build log, test/app logs, screenshots and the copied `e2e.xcresult`, also after failure. See [the shell's setup](../platforms/ios/README.md). |
+| `android:twin-demo-e2e` | Linux x86_64 with KVM, SDK/NDK, build-tools, Java 17+, Rust's x86_64 and arm64 Android targets, Lean/libuv sources above, Python with Pillow, mise. A dedicated **already booted** x86_64 emulator at `SERIAL` (default `emulator-5644`), 1080-pixel wide screen with the suite's expected 63-pixel navigation inset. No physical-device serial is accepted. `ANDROID_SDK`/`ANDROID_HOME` default to `~/android-sdk`; set both when overriding it. | Builds the runtime and twin APK for both ABIs, then builds/installs the test IME and drives taps, keyboard animation, Unicode composition, send, drag/fling, scrolling and Back. Restores the IME on exit. `out/e2e-twin/`: build/suite logs, logcat and screenshots, collected on failure too. |
+| `ios:sim-e2e` | Linux build coordinator with Lean/libuv sources, Rust's `aarch64-apple-ios` and `aarch64-apple-ios-sim` targets, assets and SSH access to a dedicated Apple Silicon Mac (`MAC`). The Mac needs Xcode 26.3 at the path in `ship.sh`, an iOS Simulator runtime, xcodegen at `~/quiet-e2e/xcodegen/bin/xcodegen`, and an unlocked login session. The task builds on the Mac; it is not a native macOS mise task. | Stages generated C, shared glue, SQLite and assets; builds, installs and launches in the suite's `lean-quiet-ios` Simulator, then runs both XCTest UI sessions (conversation and pinned Paste page). `out/ios-sim/`: complete run/build log, test/app logs, screenshots and the copied `e2e.xcresult`, also after failure. See [the shell's setup](../platforms/ios/README.md). |
 
-The `lean-runtime` runner needs the Linux runtime prerequisites above;
-its manual/nightly job runs the engine suites without socket omissions
-and retains compiler logs and test databases. No job uses a phone.
-The mobile jobs use fixed concurrency groups so runs cannot overlap.
+Run `ci/local.sh runtime` with the Linux runtime prerequisites above to
+exercise the engine suites without socket omissions and retain compiler
+logs and test databases. Mobile test tasks use dedicated emulators or
+Simulators; physical-phone testing is separate. Avoid concurrent runs
+against the same test target.

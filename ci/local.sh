@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Local CI: every part's gate, from the repository's top, on this
-# machine and in .github/workflows/ci.yml. Every gate calls its named
+# machine. GitHub Actions is not enabled. Every gate calls its named
 # Mise task; output goes to out/ci/<part>.log, and failure artifacts stay in
 # out/. Exits non-zero if any part fails; runs them all. `check` is the
 # proof gate (every library builds; every law of tests/Axioms.lean rests

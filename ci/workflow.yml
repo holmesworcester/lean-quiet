@@ -1,1 +1,2 @@
-# Historical path: the active workflow is .github/workflows/ci.yml.
+# Tests run locally through ci/local.sh and the named Mise tasks.
+# No GitHub Actions workflow is enabled for this repository.
