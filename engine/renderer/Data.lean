@@ -56,7 +56,12 @@ def nowUs : IO UInt64 := do return (← IO.monoNanosNow).toUInt64 / 1000
 
 /-! ## The database -/
 
-def openDb (path : String) : IO Db := Db.openAt path
+def openDb (path : String) : IO Db := do
+  let db ← Db.openAt path
+  discard <| (reindexOnce (F := SF) "community-clumps-v1" (fun
+    | .inl f => keysOf [message.rootsByKey, message.childrenByKey, received.rootsByKey, received.childrenByKey] f
+    | .inr _ => []) (some fam)).run db
+  return db
 
 /-! ## The writer -/
 

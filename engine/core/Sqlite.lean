@@ -157,6 +157,45 @@ def receive [Codec F] [SortKey F] (fam : Family F) (ops : List Op) : SqlM F Unit
 
 /-! ## Purging -/
 
+/-- Add a versioned set of derived indexes without rewriting ops or verdicts.
+Used before starting a node's reader/writer threads. The migration and marker
+commit together; interruption rolls both back. Pages bound working memory,
+and INSERT OR IGNORE keeps both old filings and count triggers idempotent. -/
+def reindexOnce [Codec F] [SortKey F] (version : String) (keys : F → List ByteArray)
+    (retryInvalid : Option (Family F) := none) : SqlM F Bool := do
+  let db ← getDb
+  db.exec "CREATE TABLE IF NOT EXISTS index_versions (version BLOB PRIMARY KEY) WITHOUT ROWID"
+  let done : SqlM F Bool := do
+    return !(← sqlQ "SELECT version FROM index_versions WHERE version = ?" #[version.toUTF8]).isEmpty
+  if ← done then return false
+  transact do
+    if ← done then return false
+    let n ← countSql (F := F) "SELECT CAST(count(*) AS TEXT) FROM status"
+    let mut after : Option Id := none
+    for _ in [0:n / 256 + 1] do
+      let rows ← match after with
+        | none => sqlQ "SELECT id, verdict FROM status ORDER BY id LIMIT 256" #[]
+        | some id => sqlQ "SELECT id, verdict FROM status WHERE id > ? ORDER BY id LIMIT 256" #[id]
+      if rows.isEmpty then break
+      for row in rows do
+        let some id := row[0]? | throw (IO.userError "index migration: missing id")
+        let some bytes := row[1]? | throw (IO.userError "index migration: missing verdict")
+        let some verdict := (Codec.decode bytes : Option (Verdict F))
+          | throw (IO.userError "index migration: undecodable verdict")
+        if let .valid fact := verdict then
+          for key in keys fact do
+            sqlDo "INSERT OR IGNORE INTO idx (k, s, id) VALUES (?, ?, ?)" #[key, SortKey.sortOf fact, id]
+        else if retryInvalid.isSome then
+          -- An older validator may have refused a newly supported op and
+          -- its dependents. Retry together; never discard their op bytes.
+          sqlDo "DELETE FROM status WHERE id = ?" #[id]
+          Store.push (F := F) id
+        after := some id
+    if let some fam := retryInvalid then
+      drain (m := SqlM F) fam (← budgetSql (F := F))
+    sqlDo "INSERT INTO index_versions (version) VALUES (?)" #[version.toUTF8]
+    return true
+
 /-- `ids` and every stored op that requires one of them, transitively
 (the model's `closeUp`), walked through `reqs`. Each id enters the walk
 once, so it ends within the stored ops plus `ids` steps; a walk that

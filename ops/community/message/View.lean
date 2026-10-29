@@ -17,17 +17,17 @@ variable {m : Type → Type} [Monad m] [Reads m]
 profile, attachment and reaction reads; this view never subscribes to them. -/
 def readOwn (msg : Id) : m (Option (Row.RowData × Array Q)) := do
   let (f, pending, deps) ← readFact msg #[]
-  let some (.message c u _ kid sealed _ tm) := f | return none
+  let some (.message c u _ kid sealed _ tm clump) := f | return none
   let (ks, _, deps) ← readList (key.byId.query [kid] (limit := some 1)) deps
   let some text := (match ks.rows.head? with
     | some (_, .key _ _ k) => (openSealed cryptoSeal c kid sealed k).map Profile.bytesStr
     | _ => none) | return none
   return some ({ name := "…", avatar := none, text, time := tm, pics := [], tallies := [],
-                 pending, selected := false, author := u }, deps)
+                 pending, selected := false, author := u, clump }, deps)
 
 def read (c me msg : Id) (attachmentProgress : Bool := true) : m (Option (Row.RowData × Array Q)) := do
   let (f, pending, deps) ← readFact msg #[]
-  let some (.message _ u _ kid sealed _ tm) := f | return none
+  let some (.message _ u _ kid sealed _ tm clump) := f | return none
   let (ks, _, deps) ← readList (key.byId.query [kid] (limit := some 1)) deps
   -- no key here yet, or a body it does not open: not shown (the list
   -- leaves such messages out; this is the row's own check)
@@ -38,6 +38,6 @@ def read (c me msg : Id) (attachmentProgress : Bool := true) : m (Option (Row.Ro
   let (twin, deps) ← Profile.namesake c u who.name deps
   let (pics, deps) ← File.read c msg deps attachmentProgress
   let (tallies, deps) ← React.read c msg me deps
-  return some (⟨who.name, none, text, tm, pics.toList, tallies, pending, false, twin, u⟩, deps)
+  return some (⟨who.name, none, text, tm, pics.toList, tallies, pending, false, twin, u, clump⟩, deps)
 
 end Kinds.Message

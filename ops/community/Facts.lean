@@ -112,7 +112,7 @@ inductive Fact where
   | invitation (c issuer : Id) (bearer : Key) (link : Bool) (threshold : Nat)
   | admin (c u : Id)
   | removal (c u by_ : Id)
-  | message (c u : Id) (device ckey text : ByteArray) (n time : Nat)
+  | message (c u : Id) (device ckey text : ByteArray) (n time : Nat) (clump : Option Id := none)
   | wrap (c : Id) (ckey recipient box : ByteArray)
   | profile (c u : Id) (name : ByteArray) (time : Nat)
   | attachment (c msg u root : Id) (len : Nat) (kid sealed : ByteArray)
@@ -128,7 +128,7 @@ inductive Fact where
   | key (c kid k : ByteArray)
   | chunk (c att root : Id) (len index : Nat)
   | endpoint (pk sk : ByteArray)
-  | received (c kid msg : Id) (k : Nat)
+  | received (c kid msg : Id) (k : Nat) (clump : Option Id := none)
   deriving DecidableEq, Inhabited
 
 inductive Body where
@@ -291,7 +291,8 @@ def Fact.enc : Fact → List UInt8
   | .invitation c i k l t => 1 :: Codec.enc (c, i, k, l, t)
   | .admin c u => 2 :: Codec.enc (c, u)
   | .removal c u b => 3 :: Codec.enc (c, u, b)
-  | .message c u d k t n tm => 21 :: Codec.enc (c, u, d, k, t, n, tm)
+  | .message c u d k t n tm none => 21 :: Codec.enc (c, u, d, k, t, n, tm)
+  | .message c u d k t n tm (some root) => 23 :: Codec.enc (c, u, d, k, t, n, tm, root)
   | .wrap c k r b => 5 :: Codec.enc (c, k, r, b)
   | .profile c u n tm => 6 :: Codec.enc (c, u, n, tm)
   | .attachment c m u r l k x => 7 :: Codec.enc (c, m, u, r, l, k, x)
@@ -306,7 +307,8 @@ def Fact.enc : Fact → List UInt8
   | .key c i k => 16 :: Codec.enc (c, i, k)
   | .chunk c a r l i => 17 :: Codec.enc (c, a, r, l, i)
   | .endpoint pk sk => 20 :: Codec.enc (pk, sk)
-  | .received c k m n => 22 :: Codec.enc (c, k, m, n)
+  | .received c k m n none => 22 :: Codec.enc (c, k, m, n)
+  | .received c k m n (some root) => 24 :: Codec.enc (c, k, m, n, root)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B × B) => Fact.admission p.1 p.2.1 p.2.2.1 p.2.2.2) r
@@ -334,6 +336,9 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 21 :: r => decAs (fun (p : B × B × B × B × B × Nat × Nat) =>
       Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) r
   | 22 :: r => decAs (fun (p : B × B × B × Nat) => Fact.received p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 23 :: r => decAs (fun (p : B × B × B × B × B × Nat × Nat × B) =>
+      Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2.1 (some p.2.2.2.2.2.2.2)) r
+  | 24 :: r => decAs (fun (p : B × B × B × Nat × B) => Fact.received p.1 p.2.1 p.2.2.1 p.2.2.2.1 (some p.2.2.2.2)) r
   | _ => none
 
 /-- `Fact.enc`, as it runs: appended to a buffer (`Engine.Codec`). -/
@@ -342,7 +347,8 @@ def Fact.encInto (buf : ByteArray) : Fact → ByteArray
   | .invitation c i k l t => Codec.encInto (buf.push 1) (c, i, k, l, t)
   | .admin c u => Codec.encInto (buf.push 2) (c, u)
   | .removal c u b => Codec.encInto (buf.push 3) (c, u, b)
-  | .message c u d k t n tm => Codec.encInto (buf.push 21) (c, u, d, k, t, n, tm)
+  | .message c u d k t n tm none => Codec.encInto (buf.push 21) (c, u, d, k, t, n, tm)
+  | .message c u d k t n tm (some root) => Codec.encInto (buf.push 23) (c, u, d, k, t, n, tm, root)
   | .wrap c k r b => Codec.encInto (buf.push 5) (c, k, r, b)
   | .profile c u n tm => Codec.encInto (buf.push 6) (c, u, n, tm)
   | .attachment c m u r l k x => Codec.encInto (buf.push 7) (c, m, u, r, l, k, x)
@@ -357,7 +363,8 @@ def Fact.encInto (buf : ByteArray) : Fact → ByteArray
   | .key c i k => Codec.encInto (buf.push 16) (c, i, k)
   | .chunk c a r l i => Codec.encInto (buf.push 17) (c, a, r, l, i)
   | .endpoint pk sk => Codec.encInto (buf.push 20) (pk, sk)
-  | .received c k m n => Codec.encInto (buf.push 22) (c, k, m, n)
+  | .received c k m n none => Codec.encInto (buf.push 22) (c, k, m, n)
+  | .received c k m n (some root) => Codec.encInto (buf.push 24) (c, k, m, n, root)
 
 /-- `Fact.dec`, as it runs: read at offset i of a byte array. -/
 def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
@@ -387,19 +394,22 @@ def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
   | some 21 => decFromAs (fun (p : B × B × B × B × B × Nat × Nat) =>
       Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) b (i + 1)
   | some 22 => decFromAs (fun (p : B × B × B × Nat) => Fact.received p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
+  | some 23 => decFromAs (fun (p : B × B × B × B × B × Nat × Nat × B) =>
+      Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2.1 (some p.2.2.2.2.2.2.2)) b (i + 1)
+  | some 24 => decFromAs (fun (p : B × B × B × Nat × B) => Fact.received p.1 p.2.1 p.2.2.1 p.2.2.2.1 (some p.2.2.2.2)) b (i + 1)
   | _ => none
 
 instance : Codec Fact where
   enc := Fact.enc
   dec := Fact.dec
   round f rest := by
-    cases f <;> simp only [Fact.enc, Fact.dec, List.cons_append] <;> exact decAs_enc _ _ _
+    cases f <;> (try rename_i clump; cases clump) <;> simp only [Fact.enc, Fact.dec, List.cons_append] <;> exact decAs_enc _ _ _
   encInto := Fact.encInto
   encInto_eq buf x := by
-    cases x <;> simp only [Fact.encInto, Fact.enc] <;> first | exact encInto_tag .. | exact push_toList ..
+    cases x <;> (try rename_i clump; cases clump) <;> simp only [Fact.encInto, Fact.enc] <;> first | exact encInto_tag .. | exact push_toList ..
   decFrom := Fact.decFrom
   decFrom_at x h := by
-    cases x <;> simp only [Fact.enc] at h <;> simp only [Fact.decFrom, h.tag] <;>
+    cases x <;> (try rename_i clump; cases clump) <;> simp only [Fact.enc] at h <;> simp only [Fact.decFrom, h.tag] <;>
       first | exact decFromAs_tag _ h | rfl
 
 /-! ## Signing -/
@@ -514,11 +524,17 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
   | .post k txt n tm s, [.admission c u0 _ _, .admission c1 u d _] =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ C.verify d (signed o (.post k txt n tm s)) s
     then some (.message c u d k txt n tm) else none
+  -- A child cites exactly one root of the same community and user. The
+  -- signature covers this requirement; receivers do not regroup by time.
+  | .post k txt n tm s, [.admission c u0 _ _, .admission c1 u d _, .message c2 u2 _ _ _ _ _ none] =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ u2 = u ∧
+      C.verify d (signed o (.post k txt n tm s)) s
+    then some (.message c u d k txt n tm (some (o.reqs.getD 2 .empty))) else none
   | .profile n tm s, [.admission c u0 _ _, .admission c1 u d _] =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ n.size ≤ 64 ∧ C.verify d (signed o (.profile n tm s)) s
     then some (.profile c u n tm) else none
   -- An attachment: a child of a message, by its author's user.
-  | .attach r l k x s, [.admission c u0 _ _, .admission c1 u d _, .message c2 u2 _ _ _ _ _] =>
+  | .attach r l k x s, [.admission c u0 _ _, .admission c1 u d _, .message c2 u2 _ _ _ _ _ _] =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ u2 = u ∧ r.size = 32 ∧ 0 < l ∧
       l ≤ maxFile ∧ x.size ≤ maxSealedMeta ∧ C.verify d (signed o (.attach r l k x s)) s
     then some (.attachment c (o.reqs.getD 2 .empty) u r l k x) else none
@@ -527,7 +543,7 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
   | .chunk r l i x p, [.admission c u0 _ _, .attachment c2 _ _ r2 l2 _ _] =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c2 = c ∧ r = r2 ∧ l = l2 ∧ Merkle.verify sha256 r l i x p = true
     then some (.chunk c (o.reqs.getD 1 .empty) r l i) else none
-  | .react e tm s, [.admission c u0 _ _, .admission c1 u d _, .message c2 _ _ _ _ _ _] =>
+  | .react e tm s, [.admission c u0 _ _, .admission c1 u d _, .message c2 _ _ _ _ _ _ _] =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ 0 < e.size ∧ e.size ≤ 32 ∧
       C.verify d (signed o (.react e tm s)) s
     then some (.react c u (o.reqs.getD 2 .empty) e tm) else none
@@ -541,8 +557,8 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
   | .abandon, [.joining c _ _ r _ _ _] => some (.abandoned c r (o.reqs.headD .empty))
   -- This device's receipt of a saturated post: local, so it may read
   -- what it cites, and its counter is the writer's (`receiptFor`).
-  | .receive k, [.message c _ _ kid _ n _] =>
-    if countCap ≤ n then some (.received c kid (o.reqs.headD .empty) k) else none
+  | .receive k, [.message c _ _ kid _ n _ clump] =>
+    if countCap ≤ n then some (.received c kid (o.reqs.headD .empty) k clump) else none
   | .name n nm s, .admission c u0 _ _ :: .admission c1 u d _ :: auth :: prev =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ isAdmin c u auth ∧ nm.size ≤ 64 ∧
       counterOk c n prev = true ∧ C.verify d (signed o (.name n nm s)) s
@@ -598,7 +614,13 @@ def byAuthor : Rel Fact := ⟨"message", "byAuthor", fun | .message c u .. => so
 counter cap: a device lists the ones it can read as the union over the
 keys it holds, its receipts of saturated ones after them (`readable`). -/
 def byKey : Rel Fact :=
-  ⟨"message", "byKey", fun | .message c _ _ k _ n _ => if n < countCap then some [c, k] else none | _ => none⟩
+  ⟨"message", "byKey", fun | .message c _ _ k _ n _ _ => if n < countCap then some [c, k] else none | _ => none⟩
+/-- Roots under an available key, for the conversation's outer list. -/
+def rootsByKey : Rel Fact :=
+  ⟨"message", "rootsByKey", fun | .message c _ _ k _ n _ none => if n < countCap then some [c, k] else none | _ => none⟩
+/-- Each clump component owns its bounded child list. -/
+def childrenByKey : Rel Fact :=
+  ⟨"message", "childrenByKey", fun | .message c _ _ k _ n _ (some root) => if n < countCap then some [c, root, k] else none | _ => none⟩
 end message
 
 namespace received
@@ -609,7 +631,11 @@ def byKey : Rel Fact := ⟨"received", "byKey", fun | .received c k .. => some [
 one's less one (`topReceived`). -/
 def all : Rel Fact := ⟨"received", "all", fun | .received c .. => some [c] | _ => none⟩
 /-- Whether this device has received message m. -/
-def byMsg : Rel Fact := ⟨"received", "byMsg", fun | .received _ _ m _ => some [m] | _ => none⟩
+def byMsg : Rel Fact := ⟨"received", "byMsg", fun | .received _ _ m _ _ => some [m] | _ => none⟩
+def rootsByKey : Rel Fact :=
+  ⟨"received", "rootsByKey", fun | .received c k _ _ none => some [c, k] | _ => none⟩
+def childrenByKey : Rel Fact :=
+  ⟨"received", "childrenByKey", fun | .received c k _ _ (some root) => some [c, root, k] | _ => none⟩
 end received
 
 namespace wrap
@@ -726,7 +752,7 @@ def rels : List (Rel Fact) :=
    wrap.byContentKey, profile.byUser, profile.all, profile.byLook, react.byMessage, react.byMessageEmoji,
    request.all, approval.byRequest, secret.byKey, secret.all, accepted.all, joining.all, named.current,
    abandoned.byRequest, abandoned.byJoining, wrap.byRecipient, key.byCommunity, key.byId, attachment.byMessage,
-   chunk.byAttachment, endpoint.all]
+   chunk.byAttachment, endpoint.all, message.rootsByKey, message.childrenByKey, received.rootsByKey, received.childrenByKey]
 
 /-- The keys a fact is filed under: its relations'. -/
 def keys : Fact → List ByteArray := keysOf rels
@@ -749,8 +775,8 @@ def recKey (k : Nat) (m : Id) : ByteArray := be64 countCap ++ be64 k ++ m
 /-- Where a fact sorts under its keys: messages by counter and time,
 receipts by arrival, other timed facts by time (ties by id). -/
 def sortOf : Fact → ByteArray
-  | .message _ _ _ _ _ n tm => msgKey n tm
-  | .received _ _ m k => recKey k m
+  | .message _ _ _ _ _ n tm _ => msgKey n tm
+  | .received _ _ m k _ => recKey k m
   | .profile _ _ _ tm => be64 tm
   | .chunk _ _ _ _ i => be64 i
   | .react _ _ _ _ tm => be64 tm

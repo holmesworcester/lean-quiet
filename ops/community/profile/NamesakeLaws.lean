@@ -142,11 +142,11 @@ another user of the community has a Valid profile whose newest name
 looks as its author's does. -/
 theorem row_marked (h : Inv (family C) s) (hq : s.queue = []) {c me msg : Id} {d : Row.RowData}
     {deps : Array Q} (hr : (Message.read (m := Model) c me msg).run s = some (d, deps)) :
-    ∃ c' u dev kid sealed n tm, factIn s msg = some (.message c' u dev kid sealed n tm) ∧
+    ∃ c' u dev kid sealed n tm clump, factIn s msg = some (.message c' u dev kid sealed n tm clump) ∧
       (d.namesake = true ↔ ∃ u', u' ≠ u ∧ (∃ y n tm, V C s.ops y (.profile c u' n tm)) ∧
         nameLook (nameIn s c u') = nameLook (nameIn s c u)) := by
-  obtain ⟨c', u, dev, kid, sealed, n, tm, hf, hn, -, ⟨deps', hd⟩, -⟩ := message_read s c me msg d deps hr
-  refine ⟨c', u, dev, kid, sealed, n, tm, hf, ?_⟩
+  obtain ⟨c', u, dev, kid, sealed, n, tm, clump, hf, hn, -, ⟨deps', hd⟩, -⟩ := message_read s c me msg d deps hr
+  refine ⟨c', u, dev, kid, sealed, n, tm, clump, hf, ?_⟩
   rw [hd, hn]
   exact namesake_iff h hq c u deps'
 

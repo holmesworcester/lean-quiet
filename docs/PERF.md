@@ -491,3 +491,42 @@ tasks. They require the pinned Lean toolchain, Rust native crypto build,
 and bundled SQLite; no external service or device is needed. Failure
 logs are retained in `out/read-plan-negative`, `out/people-negative`,
 and `out/tree-negative`; mutation failures propagate to CI.
+
+### Sender-owned clump protocol
+
+`Community.Clump.choose` follows the sender-declared grouping in libquiet
+`bd9d9a010062ab59a0ab0fc67731d827dd02fe27`. A post with its existing two
+requirements is a root; a child adds its root as signed requirement 2. The
+validator accepts only a root of the same community and user, including a
+linked device of that user. A child cannot name another child. Receiver arrival
+order never chooses or changes this relationship. This first client still has
+one channel per community and no threads.
+
+The sender continues only its latest locally known author's clump, when the
+clock is at or after its root and strictly before five minutes from that root.
+Quiet's time unit is minutes, so the boundary has that resolution. The validator
+checks ownership and the graph, not this optional sender policy. An intervening
+author, a backwards clock or the five-minute boundary starts a new root.
+
+`readableClumps c none` lists roots; `readableClumps c (some root)` lists that
+root's children. Both are ordinary bounded list queries over held content keys,
+with saturated counters still ordered through local receipts. The timeline's
+existing chronological queries remain available. These are the protocol and
+query foundation for the nested component UI; the screen must use these lists
+rather than infer clumps from adjacent author names.
+
+Root and receipt encodings remain byte-for-byte compatible with old databases.
+New child facts carry the root id. Before reader/writer threads start,
+`Data.openDb` runs a versioned, atomic `reindexOnce` migration: 256 status rows at
+a time, only the new derived indexes, and no op-byte rewrite. It also retries
+invalid ops and dependents: an older installed validator may already have
+received and refused a child. This is a tested SQLite migration, not a Lean
+proof of SQLite. A failed migration rolls back its filings and marker.
+
+`mise run test:clumps` builds and exercises real signatures and SQLite: sender
+time boundaries, linked devices, out-of-order arrival, bounded root/child lists,
+forged/foreign/nested references, receipt ordering, codec compatibility, a
+300-message migration, rollback and upgrading already refused children. Local
+engine CI invokes the same task. `check_child`, `child_has_root` and the sender
+policy laws are over the running code, alongside the generalized authorization,
+readability and ordering proofs.

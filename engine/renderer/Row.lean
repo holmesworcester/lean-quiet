@@ -117,6 +117,8 @@ structure RowData where
   namesake : Bool := false
   /-- Identity supplied by the message op; the author component owns its profile. -/
   author : ByteArray := .empty
+  /-- The signed root identity. None is a root, including legacy messages. -/
+  clump : Option ByteArray := none
   deriving BEq, Inhabited
 
 /-! ## Layout -/

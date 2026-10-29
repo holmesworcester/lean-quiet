@@ -63,6 +63,7 @@ if [ "${1:-}" != --phone-runtime ]; then
   tests/engine/stateless.sh
   tests/engine/simplify.sh
   tests/engine/fresh.sh
+  mise run test:clumps
   mise run test:read-plan
   mise run test:claim-tree
   tests/engine/restart.sh

@@ -138,8 +138,8 @@ theorem bcmp_msg_rec {n : Nat} (hn : n < countCap) (tm k : Nat) (m : Id) :
 compare, where a list files them (`sortOf`, ties by id), by their
 counters (capped at `countCap`), then their times (capped at `timeCap`),
 then their ids. -/
-theorem msg_cmp {c u d kid sealed c' u' d' kid' sealed' : ByteArray} {n tm n' tm' : Nat} (x y : Id) :
-    Pos.cmp (sortOf (.message c u d kid sealed n tm), x) (sortOf (.message c' u' d' kid' sealed' n' tm'), y) =
+theorem msg_cmp {clump clump' : Option Id} {c u d kid sealed c' u' d' kid' sealed' : ByteArray} {n tm n' tm' : Nat} (x y : Id) :
+    Pos.cmp (sortOf (.message c u d kid sealed n tm clump), x) (sortOf (.message c' u' d' kid' sealed' n' tm' clump'), y) =
       ((compare (min n countCap) (min n' countCap)).then
         (compare (min tm timeCap) (min tm' timeCap))).then (bcmp x y) := by
   show (bcmp (msgKey n tm) (msgKey n' tm')).then (bcmp x y) = _
@@ -148,9 +148,9 @@ theorem msg_cmp {c u d kid sealed c' u' d' kid' sealed' : ByteArray} {n tm n' tm
 /-- **Time is for display.** Between two messages whose counters differ
 (below the cap, or one of them past it), the counters alone decide:
 neither claimed time nor id moves one past the other. -/
-theorem time_is_display {c u d kid sealed c' u' d' kid' sealed' : ByteArray} {n n' : Nat}
+theorem time_is_display {clump clump' : Option Id} {c u d kid sealed c' u' d' kid' sealed' : ByteArray} {n n' : Nat}
     (h : min n countCap ≠ min n' countCap) (tm tm' : Nat) (x y : Id) :
-    Pos.cmp (sortOf (.message c u d kid sealed n tm), x) (sortOf (.message c' u' d' kid' sealed' n' tm'), y) =
+    Pos.cmp (sortOf (.message c u d kid sealed n tm clump), x) (sortOf (.message c' u' d' kid' sealed' n' tm' clump'), y) =
       compare (min n countCap) (min n' countCap) := by
   rw [msg_cmp]
   cases hc : compare (min n countCap) (min n' countCap)
@@ -196,17 +196,17 @@ theorem asMsg_sorted (h : Inv (family C) s) (hq : s.queue = []) {c kid : ByteArr
   rw [orient_map, List.pairwise_map]
   refine ho.imp_of_mem fun {x y} hx hy hxy => ?_
   have row : ∀ {r}, r ∈ orient desc a.rows →
-      ∃ k m z, r = ((recKey k m, z), .received c kid m k) := fun {r} hr => by
+      ∃ k m z clump, r = ((recKey k m, z), .received c kid m k clump) := fun {r} hr => by
     obtain ⟨he, _, hargs⟩ := row_at (C := C) (r := received.byKey) (by simp [rels]) h hq (mem_orient.1 hr)
     obtain ⟨⟨sk, z⟩, f⟩ := r
     cases f with
-    | received c' kid' m k =>
+    | received c' kid' m k clump =>
       simp only [received.byKey, Option.some.injEq, List.cons.injEq, and_true] at hargs
       obtain ⟨rfl, rfl⟩ := hargs
-      exact ⟨k, m, z, by simpa [SortKey.sortOf, sortOf] using he⟩
+      exact ⟨k, m, z, clump, by simpa [SortKey.sortOf, sortOf] using he⟩
     | _ => simp [received.byKey] at hargs
-  obtain ⟨k, m, z, rfl⟩ := row hx
-  obtain ⟨k', m', z', rfl⟩ := row hy
+  obtain ⟨k, m, z, clump, rfl⟩ := row hx
+  obtain ⟨k', m', z', clump', rfl⟩ := row hy
   rw [posLE_iff] at hxy ⊢
   simp only [asMsg, Pos.cmp] at hxy ⊢
   cases e : bcmp (recKey k m) (recKey k' m')
@@ -255,17 +255,17 @@ theorem order_total (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (lim : O
 below the counter cap at its own key, past it at a receipt of it this
 device holds. -/
 def Listed (C : Crypto) (ops : Id → Option Op) (c x : Id) (sk : ByteArray) : Prop :=
-  (∃ u d kid sealed n tm, V C ops x (.message c u d kid sealed n tm) ∧ n < countCap ∧ sk = msgKey n tm) ∨
-    ∃ z kid k, V C ops z (.received c kid x k) ∧ sk = recKey k x
+  (∃ u d kid sealed n tm clump, V C ops x (.message c u d kid sealed n tm clump) ∧ n < countCap ∧ sk = msgKey n tm) ∨
+    ∃ z kid k clump, V C ops z (.received c kid x k clump) ∧ sk = recKey k x
 
 /-- Every row of a channel's list is a listed message, at its place. -/
 theorem readable_listed (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (lim : Option Nat) (desc : Bool)
     (after before : Option Pos) {pf : Pos × Fact} (hp : pf ∈ ((readable c lim desc after before).eval s).rows) :
     Listed C s.ops c pf.1.2 pf.1.1 := by
-  obtain ⟨u, d, kid, sealed, n, tm, hv, _, hw⟩ := readable_held h hq c lim desc after before hp
+  obtain ⟨u, d, kid, sealed, n, tm, clump, hv, _, hw⟩ := readable_held h hq c lim desc after before hp
   rcases hw with ⟨hn, he⟩ | ⟨_, z, k, hz, he⟩
-  · exact .inl ⟨u, d, kid, sealed, n, tm, hv, hn, by rw [he]⟩
-  · exact .inr ⟨z, kid, k, hz, by rw [he]⟩
+  · exact .inl ⟨u, d, kid, sealed, n, tm, clump, hv, hn, by rw [he]⟩
+  · exact .inr ⟨z, kid, k, clump, hz, by rw [he]⟩
 
 /-- The first row of a relation's list, read newest first with limit 1,
 is at or after every fact filed in it. -/
@@ -286,12 +286,12 @@ theorem first_after {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq 
 /-- **`send`'s counter is past every message's.** The counter it starts
 from is at least every Valid message's of c, capped. -/
 theorem topCount_ge (h : Inv (family C) s) (hq : s.queue = []) {c y : Id} {u d kid sealed : ByteArray}
-    {n tm : Nat} (hv : V C s.ops y (.message c u d kid sealed n tm)) :
+    {clump : Option Id} {n tm : Nat} (hv : V C s.ops y (.message c u d kid sealed n tm clump)) :
     min n countCap ≤ (topCount c).eval s := by
   obtain ⟨y', f', ht, _, ha', hle⟩ :=
     first_after (r := message.all) (as := [c]) (by simp [rels]) h hq hv (by simp [message.all])
   cases f' with
-  | message c' u' d' kid' sealed' n' tm' => ?_
+  | message c' u' d' kid' sealed' n' tm' clump' => ?_
   | _ => simp [message.all] at ha'
   have hc : (topCount c).eval s = min n' countCap := by
     simp only [topCount, Rel.read, View.eval_bind, View.eval_read, View.eval_pure, ht]
@@ -301,25 +301,25 @@ theorem topCount_ge (h : Inv (family C) s) (hq : s.queue = []) {c y : Id} {u d k
   rw [Nat.compare_eq_gt.2 hlt]; rfl
 
 /-- **A receipt's counter is past every held receipt's.** -/
-theorem topReceived_ge (h : Inv (family C) s) (hq : s.queue = []) {c z : Id} {kid m : ByteArray} {j : Nat}
-    (hall : ∀ z kid m j, V C s.ops z (.received c kid m j) → j < 2 ^ 64)
-    (hv : V C s.ops z (.received c kid m j)) :
-    j ≤ (topReceived c).eval s ∧ ∃ z' kid' m', V C s.ops z' (.received c kid' m' ((topReceived c).eval s)) := by
+theorem topReceived_ge (h : Inv (family C) s) (hq : s.queue = []) {c z : Id} {kid m : ByteArray} {j : Nat} {clump : Option Id}
+    (hall : ∀ z kid m j clump, V C s.ops z (.received c kid m j clump) → j < 2 ^ 64)
+    (hv : V C s.ops z (.received c kid m j clump)) :
+    j ≤ (topReceived c).eval s ∧ ∃ z' kid' m' clump', V C s.ops z' (.received c kid' m' ((topReceived c).eval s) clump') := by
   obtain ⟨y', f', ht, hv', ha', hle⟩ :=
     first_after (r := received.all) (as := [c]) (by simp [rels]) h hq hv (by simp [received.all])
   cases f' with
-  | received c' kid' m' j' => ?_
+  | received c' kid' m' j' clump' => ?_
   | _ => simp [received.all] at ha'
   simp [received.all] at ha'
   subst ha'
   have hc : (topReceived c').eval s = j' := by
     simp only [topReceived, Rel.read, View.eval_bind, View.eval_read, View.eval_pure, ht]
   rw [hc]
-  refine ⟨?_, y', kid', m', hv'⟩
-  have e : Pos.cmp (sortOf (Fact.received c' kid m j), z) (sortOf (Fact.received c' kid' m' j'), y') =
+  refine ⟨?_, y', kid', m', clump', hv'⟩
+  have e : Pos.cmp (sortOf (Fact.received c' kid m j clump), z) (sortOf (Fact.received c' kid' m' j' clump'), y') =
       ((compare j j').then (bcmp m m')).then (bcmp z y') := by
     show (bcmp (recKey j m) (recKey j' m')).then (bcmp z y') = _
-    rw [bcmp_recKey (hall _ _ _ _ hv) (hall _ _ _ _ hv')]
+    rw [bcmp_recKey (hall _ _ _ _ _ hv) (hall _ _ _ _ _ hv')]
   rw [e] at hle
   refine Nat.not_lt.1 fun hlt => hle ?_
   rw [Nat.compare_eq_gt.2 hlt]; rfl
@@ -327,11 +327,11 @@ theorem topReceived_ge (h : Inv (family C) s) (hq : s.queue = []) {c z : Id} {ki
 /-- The counter `receiptFor` writes is past every held receipt's in c,
 and below 2^64 while every held one's successor is. -/
 theorem receipt_past (h : Inv (family C) s) (hq : s.queue = []) {c : Id}
-    (hk : ∀ z kid m j, V C s.ops z (.received c kid m j) → j + 1 < 2 ^ 64) :
+    (hk : ∀ z kid m j clump, V C s.ops z (.received c kid m j clump) → j + 1 < 2 ^ 64) :
     (topReceived c).eval s + 1 < 2 ^ 64 ∧
-      ∀ z kid m j, V C s.ops z (.received c kid m j) → Pos.cmp (recKey j m, m) (recKey ((topReceived c).eval s + 1) m', m') = .lt := by
-  have hall : ∀ z kid m j, V C s.ops z (.received c kid m j) → j < 2 ^ 64 :=
-    fun z kid m j hv => Nat.lt_of_succ_lt (hk z kid m j hv)
+      ∀ z kid m j clump, V C s.ops z (.received c kid m j clump) → Pos.cmp (recKey j m, m) (recKey ((topReceived c).eval s + 1) m', m') = .lt := by
+  have hall : ∀ z kid m j clump, V C s.ops z (.received c kid m j clump) → j < 2 ^ 64 :=
+    fun z kid m j clump hv => Nat.lt_of_succ_lt (hk z kid m j clump hv)
   have hb : (topReceived c).eval s + 1 < 2 ^ 64 := by
     simp only [topReceived, Rel.read, View.eval_bind, View.eval_read, View.eval_pure]
     cases ht : (Engine.eval s (received.all.query [c] (some 1))).rows.head? with
@@ -340,19 +340,19 @@ theorem receipt_past (h : Inv (family C) s) (hq : s.queue = []) {c : Id}
       obtain ⟨⟨sk, z⟩, f⟩ := t
       obtain ⟨_, hv, ha⟩ := row_at (C := C) (r := received.all) (by simp [rels]) h hq (List.mem_of_mem_head? ht)
       cases f with
-      | received c' kid m j =>
+      | received c' kid m j clump =>
         simp [received.all] at ha; subst ha
-        exact hk _ _ _ _ hv
+        exact hk _ _ _ _ _ hv
       | _ => simp [received.all] at ha
-  refine ⟨hb, fun z kid m j hv => ?_⟩
+  refine ⟨hb, fun z kid m j clump hv => ?_⟩
   have hj := (topReceived_ge h hq hall hv).1
-  rw [Pos.cmp, bcmp_recKey (hall _ _ _ _ hv) hb, Nat.compare_eq_lt.2 (by omega)]
+  rw [Pos.cmp, bcmp_recKey (hall _ _ _ _ _ hv) hb, Nat.compare_eq_lt.2 (by omega)]
   rfl
 
 /-- **One receipt per message.** A device holding a receipt of o writes
 no other. -/
-theorem receipt_once (h : Inv (family C) s) (hq : s.queue = []) {o : Op} {z : Id} {c kid : ByteArray} {j : Nat}
-    (hz : V C s.ops z (.received c kid o.id j)) : (receiptFor o).eval s = [] := by
+theorem receipt_once (h : Inv (family C) s) (hq : s.queue = []) {o : Op} {z : Id} {c kid : ByteArray} {j : Nat} {clump : Option Id}
+    (hz : V C s.ops z (.received c kid o.id j clump)) : (receiptFor o).eval s = [] := by
   have hpos : (Engine.eval s (received.byMsg.query [o.id] (some 0))).total ≠ 0 := by
     have hf := (filed (C := C) (r := received.byMsg) (by simp [rels]) h hq [o.id] z _).2
       ⟨hz, by simp [received.byMsg]⟩
@@ -401,9 +401,9 @@ they share a counter and fall back on their messages' ids. The counter
 must stay below 2^64: the device has received fewer saturated messages
 there. -/
 theorem arrival_order (h : Inv (family C) s) (hq : s.queue = []) (o : Op)
-    (hk : ∀ z kid m j, V C s.ops z (.received (o.reqs.headD .empty) kid m j) → j + 1 < 2 ^ 64)
+    (hk : ∀ z kid m j clump, V C s.ops z (.received (o.reqs.headD .empty) kid m j clump) → j + 1 < 2 ^ 64)
     {r : Op} (hr : r ∈ (receiptFor o).eval s) :
-    ∃ j, r = receipt o.id j ∧ ∀ z kid m j', V C s.ops z (.received (o.reqs.headD .empty) kid m j') →
+    ∃ j, r = receipt o.id j ∧ ∀ z kid m j' clump, V C s.ops z (.received (o.reqs.headD .empty) kid m j' clump) →
       Pos.cmp (recKey j' m, m) (recKey j o.id, o.id) = .lt := by
   refine ⟨(topReceived (o.reqs.headD .empty)).eval s + 1, ?_, (receipt_past h hq hk).2⟩
   unfold receiptFor at hr
@@ -430,43 +430,46 @@ writes (`Listed`, which every row of `readable c` is). The receipt
 counter must stay below 2^64, as in `arrival_order`. -/
 theorem send_after (h : Inv (family C) s) (hq : s.queue = []) (c myAdm : Id) (d : Device) (k nonce text : ByteArray)
     (now : Nat) (files : List NewFile)
-    (hk : ∀ z kid m j, V C s.ops z (.received c kid m j) → j + 1 < 2 ^ 64) :
+    (hk : ∀ z kid m j clump, V C s.ops z (.received c kid m j clump) → j + 1 < 2 ^ 64) :
+    let group := (Clump.choose c myAdm now).eval s
     ∃ n, ((send c myAdm d k nonce text now files).eval s).ops.head? =
-        some (sealedPost c myAdm d k nonce text n now) ∧
-      (s.ops (sealedPost c myAdm d k nonce text n now).id = none →
+        some (sealedPost c myAdm d k nonce text n now group) ∧
+      (s.ops (sealedPost c myAdm d k nonce text n now group).id = none →
         ∃ sk, (n < countCap ∧ sk = msgKey n now ∨
-            ∃ j, receipt (sealedPost c myAdm d k nonce text n now).id j ∈
+            ∃ j, receipt (sealedPost c myAdm d k nonce text n now group).id j ∈
               ((send c myAdm d k nonce text now files).eval s).ops ∧
-              sk = recKey j (sealedPost c myAdm d k nonce text n now).id) ∧
+              sk = recKey j (sealedPost c myAdm d k nonce text n now group).id) ∧
           ∀ x sk', Listed C s.ops c x sk' →
-            Pos.cmp (sk', x) (sk, (sealedPost c myAdm d k nonce text n now).id) = .lt) := by
+            Pos.cmp (sk', x) (sk, (sealedPost c myAdm d k nonce text n now group).id) = .lt) := by
+  dsimp only
+  let group := (Clump.choose c myAdm now).eval s
   let T := (topCount c).eval s
   let n := min (T + 1) countCap
-  let p := sealedPost c myAdm d k nonce text n now
+  let p := sealedPost c myAdm d k nonce text n now group
   have hw : (send c myAdm d k nonce text now files).eval s =
       ⟨p :: (receiptFor p).eval s ++ files.flatMap (fun f =>
         let (a, cs) := attach c myAdm p.id d k f; a :: cs)⟩ := by
     simp only [send, View.eval_bind, View.eval_pure]; rfl
   refine ⟨n, by rw [hw]; rfl, fun hnew => ?_⟩
   -- every message of c the device lists is at most T
-  have hmsg : ∀ y u d kid sealed n' tm', V C s.ops y (.message c u d kid sealed n' tm') → min n' countCap ≤ T :=
-    fun _ _ _ _ _ _ _ hv => topCount_ge h hq hv
+  have hmsg : ∀ y u d kid sealed n' tm' clump, V C s.ops y (.message c u d kid sealed n' tm' clump) → min n' countCap ≤ T :=
+    fun _ _ _ _ _ _ _ _ hv => topCount_ge h hq hv
   by_cases hn : T + 1 < countCap
   · have hn' : n = T + 1 := Nat.min_eq_left (Nat.le_of_lt hn)
     refine ⟨msgKey n now, .inl ⟨by omega, rfl⟩, fun x sk' hl => ?_⟩
-    rcases hl with ⟨u, d, kid, sealed, n', tm', hv, hlt, rfl⟩ | ⟨z, kid, j, hz, _⟩
-    · have hle := hmsg _ _ _ _ _ _ _ hv
-      have e := time_is_display (c := c) (u := u) (d := d) (kid := kid) (sealed := sealed) (c' := c) (u' := .empty)
+    rcases hl with ⟨u, d, kid, sealed, n', tm', clump, hv, hlt, rfl⟩ | ⟨z, kid, j, clump, hz, _⟩
+    · have hle := hmsg _ _ _ _ _ _ _ _ hv
+      have e := time_is_display (clump := clump) (clump' := none) (c := c) (u := u) (d := d) (kid := kid) (sealed := sealed) (c' := c) (u' := .empty)
         (d' := .empty) (kid' := .empty) (sealed' := .empty) (n := n') (n' := n) (by omega) tm' now x p.id
-      show Pos.cmp (sortOf (Fact.message c u d kid sealed n' tm'), x) (sortOf (Fact.message c .empty .empty .empty .empty n now), p.id) = .lt
+      show Pos.cmp (sortOf (Fact.message c u d kid sealed n' tm' clump), x) (sortOf (Fact.message c .empty .empty .empty .empty n now), p.id) = .lt
       rw [e, Nat.compare_eq_lt.2 (by omega)]
     · obtain ⟨_, _, _, _, n'', _, _, _, hcap, hm⟩ := received_of_message hz
-      have := hmsg _ _ _ _ _ _ _ hm
+      have := hmsg _ _ _ _ _ _ _ _ hm
       omega
   · have hsat : countCap ≤ n := by simp only [n]; omega
     have hp : (decode p.body : Option Body) = some (.post (kidOf cryptoSeal k)
         (nonce ++ sealBody cryptoSeal k nonce c (kidOf cryptoSeal k) text) n now
-        (sig d.sk [c, myAdm] (.post (kidOf cryptoSeal k)
+        (sig d.sk ([c, myAdm] ++ group.toList) (.post (kidOf cryptoSeal k)
           (nonce ++ sealBody cryptoSeal k nonce c (kidOf cryptoSeal k) text) n now .empty))) :=
       body_mkOp _ _
     have hc : p.reqs.headD .empty = c := rfl
@@ -474,10 +477,10 @@ theorem send_after (h : Inv (family C) s) (hq : s.queue = []) (c myAdm : Id) (d 
     rw [hc] at hr
     refine ⟨recKey ((topReceived c).eval s + 1) p.id, .inr ⟨_, by rw [hw, hr]; simp; exact .inr (.inl rfl), rfl⟩,
       fun x sk' hl => ?_⟩
-    rcases hl with ⟨u, d, kid, sealed, n', tm', hv, hlt, rfl⟩ | ⟨z, kid, j, hz, rfl⟩
+    rcases hl with ⟨u, d, kid, sealed, n', tm', clump, hv, hlt, rfl⟩ | ⟨z, kid, j, clump, hz, rfl⟩
     · show (bcmp (msgKey n' tm') _).then _ = .lt
       rw [bcmp_msg_rec hlt]; rfl
-    · exact (receipt_past h hq hk).2 z kid x j hz
+    · exact (receipt_past h hq hk).2 z kid x j clump hz
 
 /-- **The exception to "every device sees the same", as a law.** Below
 the counter cap, a message's place in a channel's list is its post's own
@@ -491,12 +494,12 @@ theorem order_local {M : List Op} (hf : Fed (family C) M s) {c x : Id} {sk : Byt
     (hl : Listed C s.ops c x sk) :
     (∃ o kid sealed n tm sig, s.ops x = some o ∧ (decode o.body : Option Body) = some (.post kid sealed n tm sig) ∧
         n < countCap ∧ sk = msgKey n tm) ∨
-      ∃ z o kid k, o ∈ M ∧ s.ops z = some o ∧ V C s.ops z (.received c kid x k) ∧ sk = recKey k x := by
-  rcases hl with ⟨u, d, kid, sealed, n, tm, hv, hn, rfl⟩ | ⟨z, kid, k, hz, rfl⟩
+      ∃ z o kid k clump, o ∈ M ∧ s.ops z = some o ∧ V C s.ops z (.received c kid x k clump) ∧ sk = recKey k x := by
+  rcases hl with ⟨u, d, kid, sealed, n, tm, clump, hv, hn, rfl⟩ | ⟨z, kid, k, clump, hz, rfl⟩
   · obtain ⟨o, sig, _, _, hx, hb, _⟩ := message_authorized hv
     exact .inl ⟨o, kid, sealed, n, tm, sig, hx, hb, hn, rfl⟩
   · obtain ⟨o, hm, hx⟩ := local_fact_mine hf hz rfl
-    exact .inr ⟨z, o, kid, k, hm, hx, hz, rfl⟩
+    exact .inr ⟨z, o, kid, k, clump, hm, hx, hz, rfl⟩
 
 /-- Post x claims counter n and time tm: its op's body says so. -/
 def Posted (ops : Id → Option Op) (x : Id) (n tm : Nat) : Prop :=
@@ -514,7 +517,7 @@ theorem posted_unique {ops : Id → Option Op} {x : Id} {n tm n' tm' : Nat} (h :
 below the cap, a receipt's past it. -/
 theorem listed_cases {ops : Id → Option Op} {c x : Id} {sk : ByteArray} (hl : Listed C ops c x sk) :
     ∃ n tm, Posted ops x n tm ∧ (n < countCap ∧ sk = msgKey n tm ∨ countCap ≤ n ∧ ∃ k, sk = recKey k x) := by
-  rcases hl with ⟨u, d, kid, sealed, n, tm, hv, hn, rfl⟩ | ⟨z, kid, k, hz, rfl⟩
+  rcases hl with ⟨u, d, kid, sealed, n, tm, clump, hv, hn, rfl⟩ | ⟨z, kid, k, clump, hz, rfl⟩
   · obtain ⟨o, sig, _, _, hx, hb, _⟩ := message_authorized hv
     exact ⟨n, tm, ⟨o, kid, sealed, sig, hx, hb⟩, .inl ⟨hn, rfl⟩⟩
   · obtain ⟨_, u, d, sealed, n, tm, _, _, hn, hm⟩ := received_of_message hz
@@ -652,7 +655,7 @@ theorem anchor_read (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (desc : 
     obtain ⟨he, _, hargs⟩ := row_at (C := C) (r := received.byKey) (by simp [rels]) h hq hr
     obtain ⟨⟨sk, z⟩, f⟩ := r
     cases f with
-    | received c' kid' m k =>
+    | received c' kid' m k clump =>
       simp only [received.byKey, Option.some.injEq, List.cons.injEq, and_true] at hargs
       obtain ⟨rfl, rfl⟩ := hargs
       have hsk : sk = recKey k m := by simpa [SortKey.sortOf, sortOf] using congrArg (·.1.1) he

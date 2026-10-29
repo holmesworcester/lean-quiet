@@ -77,8 +77,8 @@ def remove (c removerAdm auth targetAdm : Id) (by_ : Device) : Op :=
   mkOp reqs (.remove (sig by_.sk reqs (.remove .empty)))
 
 /-- A post claiming counter n, at `time` (minutes since the Unix epoch). -/
-def post (c adm : Id) (by_ : Device) (ckey text : ByteArray) (n time : Nat) : Op :=
-  let reqs := [c, adm]
+def post (c adm : Id) (by_ : Device) (ckey text : ByteArray) (n time : Nat) (clump : Option Id := none) : Op :=
+  let reqs := [c, adm] ++ clump.toList
   mkOp reqs (.post ckey text n time (sig by_.sk reqs (.post ckey text n time .empty)))
 
 def profile (c adm : Id) (by_ : Device) (name : ByteArray) (time : Nat) : Op :=
@@ -104,9 +104,9 @@ def wrapKey (c : Id) (k esk to : ByteArray) : Op :=
 
 /-- A post whose text is sealed under content key k with a fresh
 24-byte nonce: its sealed bytes are the nonce, then the ciphertext. -/
-def sealedPost (c adm : Id) (by_ : Device) (k nonce text : ByteArray) (n time : Nat) : Op :=
+def sealedPost (c adm : Id) (by_ : Device) (k nonce text : ByteArray) (n time : Nat) (clump : Option Id := none) : Op :=
   let kid := kidOf cryptoSeal k
-  post c adm by_ kid (nonce ++ sealBody cryptoSeal k nonce c kid text) n time
+  post c adm by_ kid (nonce ++ sealBody cryptoSeal k nonce c kid text) n time clump
 
 /-! ## Attachments -/
 

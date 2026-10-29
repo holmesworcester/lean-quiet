@@ -1151,3 +1151,8 @@ end cost
 #print axioms Photo.inactive_rejects
 #print axioms Photo.stale_rejects
 #print axioms Photo.other_owner_rejects
+#print axioms Community.check_child
+#print axioms Community.child_has_root
+#print axioms Community.Clump.within_iff
+#print axioms Community.Clump.expired
+#print axioms Community.Clump.backwards

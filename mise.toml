@@ -85,6 +85,11 @@ description = "The desktop root without a window (platforms/headless/Desktop): b
 depends = ["crypto"]
 run = "tests/app/desktop.sh"
 
+[tasks."test:clumps"]
+description = "Build and test sender-owned clumps: real signatures, SQLite, child/root queries, arrival order and legacy index migration"
+depends = ["crypto"]
+run = "lake build clumps && .lake/build/bin/clumps out/clumps"
+
 [tasks."host:photo"]
 description = "Build and test native photo handoff under sanitizers, then drive composer ownership, cancellation, backgrounding and signed attachment sends"
 depends = ["crypto"]

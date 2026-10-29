@@ -14,6 +14,7 @@ Only those that write the seed (`found`, `joinOps`, `join`) take it.
 -/
 import ops.community.Link
 import ops.community.Connect
+import ops.community.message.Clump
 
 namespace Community
 open Engine
@@ -237,14 +238,14 @@ for none): the first of `message.all [c]`, newest first. -/
 def topCount (c : Id) : View Fact Nat := do
   let a ← message.all.read [c] (limit := some 1)
   pure (match a.rows.head? with
-    | some (_, .message _ _ _ _ _ n _) => min n countCap
+    | some (_, .message _ _ _ _ _ n _ _) => min n countCap
     | _ => 0)
 
 /-- The counter of this device's newest receipt in c (0 for none). -/
 def topReceived (c : Id) : View Fact Nat := do
   let a ← received.all.read [c] (limit := some 1)
   pure (match a.rows.head? with
-    | some (_, .received _ _ _ k) => k
+    | some (_, .received _ _ _ k _) => k
     | _ => 0)
 
 /-- What this device writes on receiving op o, sent from here or
@@ -273,7 +274,8 @@ device holds in c, up to the cap, so it sorts after every message here
 live beside the store. -/
 def send (c myAdm : Id) (d : Device) (k nonce text : ByteArray) (now : Nat)
     (files : List NewFile := []) : View Fact Write := do
-  let p := sealedPost c myAdm d k nonce text (min ((← topCount c) + 1) countCap) now
+  let clump ← Clump.choose c myAdm now
+  let p := sealedPost c myAdm d k nonce text (min ((← topCount c) + 1) countCap) now clump
   let r ← receiptFor p
   pure ⟨p :: r ++ files.flatMap (fun f => let (a, cs) := attach c myAdm p.id d k f; a :: cs)⟩
 
@@ -286,7 +288,7 @@ def heldKids (c : Id) : View Fact (List ByteArray) := do
 the receipt's position. -/
 def asMsg (r : Pos × Fact) : Pos × Fact :=
   match r.2 with
-  | .received _ _ m _ => ((r.1.1, m), r.2)
+  | .received _ _ m _ _ => ((r.1.1, m), r.2)
   | _ => r
 
 /-- The message a receipt's sort key names: its bytes past the two
@@ -325,6 +327,20 @@ def readable (c : Id) (limit : Option Nat := some 50) (desc : Bool := true)
   let rs ← View.readAll (kids.map fun kid =>
     received.byKey.query [c, kid] limit desc (after.map afterRec) (before.map beforeRec))
   pure (unionAnswers desc limit (ms ++ rs.map fun a => { a with rows := a.rows.map asMsg }))
+
+/-- A clump list uses exactly the same query API and pagination as the
+message timeline. `none` lists roots; `some root` lists that root's children.
+Saturated messages still use this device's receipts, including in clumps. -/
+def readableClumps (c : Id) (root : Option Id) (limit : Option Nat := some 50)
+    (desc : Bool := true) (after before : Option Pos := none) : View Fact (Answer Fact) := do
+  let kids ← heldKids c
+  let (messages, receipts, args) := match root with
+    | none => (message.rootsByKey, received.rootsByKey, [c])
+    | some r => (message.childrenByKey, received.childrenByKey, [c, r])
+  let ms ← View.readAll (kids.map fun kid => messages.query (args ++ [kid]) limit desc after before)
+  let rs ← View.readAll (kids.map fun kid =>
+    receipts.query (args ++ [kid]) limit desc (after.map afterRec) (before.map beforeRec))
+  return unionAnswers desc limit (ms ++ rs.map fun a => { a with rows := a.rows.map asMsg })
 
 /-- This device's newest content key for c, if it holds one. -/
 def currentKey (c : Id) : View Fact (Option ByteArray) := do
@@ -507,11 +523,11 @@ past it at a receipt of it this device holds. -/
 theorem readable_held (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (lim : Option Nat)
     (desc : Bool) (after before : Option Pos) {pf : Pos × Fact}
     (hp : pf ∈ ((readable c lim desc after before).eval s).rows) :
-    ∃ u d kid sealed n tm, V C s.ops pf.1.2 (.message c u d kid sealed n tm) ∧
+    ∃ u d kid sealed n tm clump, V C s.ops pf.1.2 (.message c u d kid sealed n tm clump) ∧
       (∃ x k, V C s.ops x (.key c kid k)) ∧
-      ((n < countCap ∧ pf = ((msgKey n tm, pf.1.2), .message c u d kid sealed n tm)) ∨
-       (countCap ≤ n ∧ ∃ y k, V C s.ops y (.received c kid pf.1.2 k) ∧
-          pf = ((recKey k pf.1.2, pf.1.2), .received c kid pf.1.2 k))) := by
+      ((n < countCap ∧ pf = ((msgKey n tm, pf.1.2), .message c u d kid sealed n tm clump)) ∨
+       (countCap ≤ n ∧ ∃ y k, V C s.ops y (.received c kid pf.1.2 k clump) ∧
+          pf = ((recKey k pf.1.2, pf.1.2), .received c kid pf.1.2 k clump))) := by
   rw [eval_readable] at hp
   obtain ⟨a, ha, hpa⟩ := mem_union hp
   rcases List.mem_append.1 ha with ha | ha
@@ -520,10 +536,10 @@ theorem readable_held (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (lim :
     obtain ⟨⟨sk, y⟩, f⟩ := pf
     simp only at he hv hargs ⊢
     cases f <;> simp [message.byKey] at hargs
-    rename_i c' u d kid' sealed n tm
+    rename_i c' u d kid' sealed n tm clump
     obtain ⟨hn, hc, hk⟩ := hargs
     subst c'; subst kid'
-    refine ⟨u, d, kid, sealed, n, tm, hv, heldKids_held h hq hkid, .inl ⟨hn, ?_⟩⟩
+    refine ⟨u, d, kid, sealed, n, tm, clump, hv, heldKids_held h hq hkid, .inl ⟨hn, ?_⟩⟩
     rw [he]; rfl
   · obtain ⟨kid, hkid, rfl⟩ := List.mem_map.1 ha
     obtain ⟨r, hr, rfl⟩ := List.mem_map.1 hpa
@@ -531,11 +547,11 @@ theorem readable_held (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (lim :
     obtain ⟨⟨sk, z⟩, f⟩ := r
     simp only at he hv hargs
     cases f <;> simp [received.byKey] at hargs
-    rename_i c' kid' m k
+    rename_i c' kid' m k clump
     obtain ⟨hc, hk⟩ := hargs
     subst c'; subst kid'
     obtain ⟨_, u, d, sealed, n, tm, _, _, hn, hm⟩ := received_of_message hv
-    refine ⟨u, d, kid, sealed, n, tm, hm, heldKids_held h hq hkid, .inr ⟨hn, z, k, hv, ?_⟩⟩
+    refine ⟨u, d, kid, sealed, n, tm, clump, hm, heldKids_held h hq hkid, .inr ⟨hn, z, k, hv, ?_⟩⟩
     simp only [Prod.mk.injEq] at he
     rw [he.1.1]; rfl
 
@@ -544,12 +560,12 @@ whole (no limit, no range), `readable c` lists every Valid message of c
 sealed under a key a Valid local key fact holds: below the counter cap
 at its own position, and at each receipt of it this device holds. -/
 theorem readable_complete (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (desc : Bool)
-    {y x : Id} {u d kid sealed k : ByteArray} {n tm : Nat}
-    (hm : V C s.ops y (.message c u d kid sealed n tm)) (hk : V C s.ops x (.key c kid k)) :
-    (n < countCap → ((msgKey n tm, y), Fact.message c u d kid sealed n tm) ∈
+    {clump : Option Id} {y x : Id} {u d kid sealed k : ByteArray} {n tm : Nat}
+    (hm : V C s.ops y (.message c u d kid sealed n tm clump)) (hk : V C s.ops x (.key c kid k)) :
+    (n < countCap → ((msgKey n tm, y), Fact.message c u d kid sealed n tm clump) ∈
         ((readable c none desc).eval s).rows) ∧
-      ∀ z j, V C s.ops z (.received c kid y j) →
-        ((recKey j y, y), Fact.received c kid y j) ∈ ((readable c none desc).eval s).rows := by
+      ∀ z j, V C s.ops z (.received c kid y j clump) →
+        ((recKey j y, y), Fact.received c kid y j clump) ∈ ((readable c none desc).eval s).rows := by
   have hkid := held_heldKids h hq hk
   rw [eval_readable]
   simp only
