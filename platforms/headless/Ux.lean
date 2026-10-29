@@ -83,7 +83,7 @@ def main (args : List String) : IO UInt32 := do
     check "long press on the header opens its complete label" ((← get).page == .label && (← get).labelText == longName)
     -- A short window (e.g. split screen) forces pagination even for a
     -- valid name within the engine's 64-byte limit.
-    sm.viewport.set #[540, 900, 128, 63, 420]
+    sm.viewport.set #[540, 820, 128, 63, 420]
     steps 1
     let s ← get
     let all := Label.lines s.font s.dim s.W longName

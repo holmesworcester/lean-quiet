@@ -1,8 +1,8 @@
 /-
 Noto TrueType metrics and cached Lean coverage bitmaps, with GNU Unifont
 and colour emoji fallback. The cell is in screen pixels (density scaled
-from the asset's 420-dpi cell); the bitmap fallback is resampled from its
-source cell. Noto and the TrueType reader live in their own modules.
+from the design's 14 dp body); the bitmap fallback is resampled from its
+independent source cell. Noto and the TrueType reader live in their own modules.
 -/
 import engine.renderer.Emoji
 import engine.renderer.Noto
@@ -12,7 +12,7 @@ namespace Font
 
 structure Font where
   bytes : ByteArray
-  /-- The cell's height in screen pixels (16..64). -/
+  /-- The body cell in screen pixels; Noto rasterizes at this size. -/
   cell : Nat
   /-- Colour emoji, drawn instead of Unifont's (Quiet/Emoji.lean). -/
   emoji : Emoji.Set
@@ -31,7 +31,9 @@ def tableEnd : Nat := 8 + 4 * 0x20000
   let b := f.bytes
   b[i]!.toUInt32 ||| (b[i+1]!.toUInt32 <<< 8) ||| (b[i+2]!.toUInt32 <<< 16) ||| (b[i+3]!.toUInt32 <<< 24)
 
-def pixelCell (source density : Nat) : Nat := max 16 (min 64 ((source * density + 210) / 420))
+/-- The design's 14 dp body, independent of the fallback asset resolution.
+The supported 80..1280 dpi range gives 7..112 pixels. -/
+def pixelCell (_source density : Nat) : Nat := max 1 (min 256 ((14 * density + 80) / 160))
 
 def load (path : String := "assets/font.bin") (density : Nat := 420) : IO Font := do
   let b ← IO.FS.readBinFile path
@@ -46,19 +48,20 @@ def load (path : String := "assets/font.bin") (density : Nat := 420) : IO Font :
   let cell := pixelCell sourceCell density
   let noto ← Noto.load cell
   let sizes := [11, 12, 13, 14, 15, 16, 18, 20, 21, 24, 32, 48, 56].foldl (fun out dp =>
-    let px := (dp * density + 80) / 160
+    let px := max 1 (min 256 ((dp * density + 80) / 160))
     out.insert px (noto.sized px)) ({} : Std.HashMap Nat Noto.Set)
   let medium ← Noto.medium
   let mediumSizes := [14, 16, 18].foldl (fun out dp =>
-    let px := (dp * density + 80) / 160
+    let px := max 1 (min 256 ((dp * density + 80) / 160))
     out.insert px ((sizes.getD px noto).overlay (medium.sized px))) ({} : Std.HashMap Nat Noto.Set)
   return ⟨b, cell, emoji, noto, sourceCell, sizes, ← Glyphs.load, false, mediumSizes⟩
 
 /-- Select a prepared size without IO, font parsing or raster scaling. -/
 def Font.atSize (f : Font) (size : Nat) : Font :=
+  let size := max 1 (min 256 size)
   match f.sizes[size]? with
   | some noto => { f with cell := size, noto }
-  | none => f
+  | none => { f with cell := max 1 (min 256 size), noto := f.noto.sized (max 1 (min 256 size)) }
 
 /-- Real 500-weight outlines at the prepared UI sizes, with script fallback. -/
 def Font.medium (f : Font) : Font :=

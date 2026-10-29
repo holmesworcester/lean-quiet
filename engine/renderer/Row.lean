@@ -49,7 +49,7 @@ def Dim.px (d : Dim) (dp : Nat) : Nat := (dp * d.dpi + 80) / 160
 def Dim.pad (d : Dim) : Nat := d.px 16
 def Dim.avatar (d : Dim) : Nat := d.px 36
 def Dim.textX (d : Dim) : Nat := d.px 66
-def Dim.lineH (d : Dim) : Nat := d.cell + d.cell / 8
+def Dim.lineH (d : Dim) : Nat := max (d.px 20) (d.cell + d.cell / 8)
 def Dim.topPad (d : Dim) : Nat := d.px 8
 def Dim.gap (d : Dim) : Nat := d.px 6
 def Dim.pillH (d : Dim) : Nat := d.px 28
@@ -215,9 +215,18 @@ def flush (l : Line) : Line :=
 def twinText : String := "⚠ Duplicate"
 
 /-- The duplicate label's box, from x on the name's line, and its line. -/
-def twinPill (f : Font) (dm : Dim) (x : Nat) : Box × Line :=
-  let l := oneLine f (dm.cell * 8) twinText
+def twinPill (f : Font) (dm : Dim) (x : Nat) (width : Nat := dm.cell * 8 + dm.px 12) : Box × Line :=
+  let l := oneLine f (width - dm.px 12) twinText
   (⟨x, dm.topPad - min dm.topPad (dm.px 1), dm.px 6 + Paint.Line.width f l + dm.px 6, f.cell + dm.px 2⟩, l)
+
+/-- Space reserved for the one-line author label after the clock and badge. -/
+def nameWidth (f : Font) (dm : Dim) (W : Nat) (d : RowData) : Nat :=
+  let tw := W - dm.textX - dm.pad
+  let stamp := f.atSize (dm.px 14)
+  let time := oneLineFine stamp (min (dm.px 80) (tw / 3)) (if d.pending then "pending" else clock d.time)
+  let badgeW := if d.namesake then min (tw / 3) (dm.cell * 8 + dm.px 12) else 0
+  -- One pixel for the independently rounded fractional author advance.
+  min (tw / 2) (tw - Paint.Line.width stamp time - badgeW - dm.px 8 * (if d.namesake then 2 else 1) - 1)
 
 /-- The row: its name and time on the first line (each cut as `oneLine`
 cuts), its text wrapped below, then its pictures and pills. -/
@@ -227,11 +236,11 @@ def layout (f : Font) (dm : Dim) (W : Nat) (d : RowData) : Layout :=
   let body := f.atSize (dm.px (bodySize d))
   let author := f.atSize (dm.px 16)
   let stamp := f.atSize (dm.px 14)
-  let name := if d.clump.isSome then #[] else flush (oneLineFine author (tw / 2) d.name)
+  let name := if d.clump.isSome then #[] else flush (oneLineFine author (nameWidth f dm W d) d.name)
   let nx := tx + Paint.Line.width author name + dm.px 8
-  let twin := if d.namesake && d.clump.isNone then some (twinPill author dm nx) else none
+  let twin := if d.namesake && d.clump.isNone then some (twinPill author dm nx (min (tw / 3) (dm.cell * 8 + dm.px 12))) else none
   let timeX := match twin with | some (bx, _) => bx.x + bx.w + dm.px 8 | none => nx
-  let time := if d.clump.isSome then #[] else oneLineFine stamp (dm.px 80) (if d.pending then "pending" else clock d.time)
+  let time := if d.clump.isSome then #[] else oneLineFine stamp (min (dm.px 80) (tw / 3)) (if d.pending then "pending" else clock d.time)
   let text := if d.text.isEmpty then #[] else (Text.layoutFine body tw d.text).map flush
   let textY := headY dm d + (if d.clump.isSome then 0 else dm.px (if d.wide then 26 else 28))
   let (pics, pills, h) := layoutBody body dm W d (textY + bodyHeight dm d text.size)

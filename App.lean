@@ -1535,6 +1535,10 @@ def command (line : String) : M Bool := do
   | "ping" => s.io.ctlReply "pong"
   | "state" =>
     s.io.ctlReply s!"b {s.b} total {s.total} loaded {s.ids.size} people {s.people} mounted {s.rows.size} ime {s.imeH} text {repr s.text} outbox {s.out.size} busy {← s.wr.busy.get} viewH {viewH s}"
+  | "typography" =>
+    -- Native accessibility tests read the running font and actual OS report.
+    let sc ← s.io.screen
+    s.io.ctlReply s!"dpi {s.dim.dpi} cell {s.font.cell} line {s.dim.lineH} W {s.W} H {s.Hs} osDpi {(sc[4]?.getD 0).toNat} generation {s.life.generation}"
   | "stats" => s.io.ctlReply (stats s)
   | "work" => s.io.ctlReply s!"{repr (← s.raster.stats)} owned_queries {(← s.sh.wants).size} picture_queries {s.pictureNeeds.size}"
   | "input" => s.io.ctlReply s!"page {repr s.page} serial {s.input.serial} retained {s.input.frames.map (·.1)} press {s.input.press.isSome} lastTap {s.input.lastTap} generation {s.life.generation}"
@@ -2274,6 +2278,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   let W := safe.w
   let Hs := window.h
   let font ← Font.load (density := (screen[4]?.getD 420).toNat)
+  let font := font.atSize (((screen[4]?.getD 420).toNat * 15 + 80) / 160)
   let rd ← openDb dbPath
   Lifecycle.init rd
   let saved ← Lifecycle.load rd

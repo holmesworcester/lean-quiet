@@ -36,6 +36,17 @@ scripts' Noto fallbacks. Rasterization still differs. Unsupported settings are
 disabled or open explanatory pages, and About identifies this implementation
 as Lean. Tightening ceilings requires reviewing the actual/diff images.
 
+The pinned reference still draws settings as a floating drawer with a shadow.
+The running libquiet shell at `ab3d244cfb9937c05dc53736046127150c3e0bb9`
+embeds settings without a shadow (`ContextPanel`, `.drawer.embedded`). Quiet
+follows that newer edge treatment. The nine 1280px light settings cases have
+reviewed full-frame ceilings accounting for this deliberate difference; their
+references and sidebar ceilings are unchanged. `host:desktop` also compares
+every exposed conversation pixel through the panel's left edge against the
+underlying frame, so restoring the old shadow fails. Updating the reference
+to the newer docked layout remains separate work; this gate does not claim
+the older overlay geometry matches that layout.
+
 To explicitly refresh references (never part of comparison CI):
 
 ```sh

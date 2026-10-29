@@ -429,3 +429,6 @@ lean_exe claim_tree where
 
 lean_exe clump_lists where
   root := `tests.app.ClumpLists
+
+lean_exe zoom where
+  root := `platforms.headless.Zoom

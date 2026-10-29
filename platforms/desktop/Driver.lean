@@ -17,12 +17,14 @@ structure Driver where
   ui : Ui := {}
   width : Nat
   height : Nat
+  dpi : Nat := 160
+  requestedZoom : Nat := 100
   layers : IO.Ref Layers
   screen : IO.Ref (Array UInt32)
   /-- The app's size (W, Hs) in the frame last settled. -/
   settled : Nat × Nat := (0, 0)
 
-def Driver.layout (d : Driver) : Layout := Desktop.layout d.width (d.ui.context != .closed)
+def Driver.layout (d : Driver) : Layout := Desktop.zoomLayout d.width (d.ui.context != .closed) d.dpi
 
 def start (base : App.Io) (w h : Nat) (path : String)
     (net : Option (Nat × Bool) := none) : IO Driver := do
@@ -37,29 +39,42 @@ def start (base : App.Io) (w h : Nat) (path : String)
   let s ← App.start io (← sc.get) path net
   -- Use the app's density-scaled font, including Noto and colour emoji.
   -- Replacing it with the old reduced bitmap discards the shared renderer.
-  let s := { s with wide := w ≥ 720, mobile := false }
+  let font := s.font.atSize (if w ≥ 720 then 14 else 15)
+  let s := { s with wide := w ≥ 720, mobile := false, font, dim := { s.dim with cell := font.cell } }
   return { app := App.themed s s.theme, width := w, height := h, layers := ls, screen := sc }
 
 def resize (d : Driver) (w h : Nat) : IO Driver := do
-  let mut d := { d with width := max 320 w, height := max 480 h }
-  if w < 720 && d.ui.context != .closed then
+  let w := max 320 w
+  let h := max 480 h
+  let dpi := max 80 (min (d.requestedZoom * 160 / 100) (min (w * 160 / 320) (h * 160 / 240)))
+  let mut d := { d with width := w, height := h, dpi }
+  if w < ((720 * d.dpi + 80) / 160) && d.ui.context != .closed then
     let (_, s) ← (do
       for (parent, _) in d.ui.parents.reverse do App.openPage parent
       App.openPage d.ui.drawer).run { d.app with labelText := d.ui.stubTitle }
     d := { d with app := s, ui := { d.ui with context := .closed } }
-  if w ≥ 720 && d.app.page.drawer then
+  if w ≥ ((720 * d.dpi + 80) / 160) && d.app.page.drawer then
     let viewPage := d.app.page
     let parents := (d.app.backStack.takeWhile App.PageId.drawer).map fun p =>
       (p, ((d.ui.parents.find? (·.1 == p)).map (·.2)).getD "")
     let (_, s) ← (App.openPage .chat).run d.app
     d := { d with app := s, ui := { d.ui with context := .settings, drawer := viewPage, parents, stubTitle := d.app.labelText } }
-  d := { d with app := { d.app with wide := w ≥ 720 } }
+  d := { d with app := { d.app with wide := w ≥ ((720 * d.dpi + 80) / 160) } }
   let g := d.layout
-  let aw := max 275 g.main.w
+  let aw := max ((275 * d.dpi + 80) / 160) g.main.w
   let ah := d.height
-  d.screen.set #[aw.toUInt32, ah.toUInt32, 0, 0, 160, (← d.screen.get)[5]?.getD 0]
+  d.screen.set #[aw.toUInt32, ah.toUInt32, 0, 0, d.dpi.toUInt32, (← d.screen.get)[5]?.getD 0]
   let (_, s) ← (App.resize (← d.screen.get)).run d.app
   return { d with app := s }
+
+/-- Browser zoom changes CSS density, never the native window size. Width-
+dependent content and glyph raster caches are retired by App.resize. -/
+def zoom (d : Driver) (percent : Nat) : IO Driver := do
+  let percent := max 50 (min 200 percent)
+  -- Below a 320 x 240 CSS viewport, keep controls reachable rather than
+  -- allowing fixed chrome to consume the entire window.
+  let d ← resize { d with requestedZoom := percent, settled := (0, 0), ui := { d.ui with offset := 0 } } d.width d.height
+  return d
 
 def act (d : Driver) (a : Action) : IO Driver := do
   let blurs := match a with | .settings | .threads | .page _ | .drawerAct _ => true | _ => false
@@ -72,9 +87,9 @@ def act (d : Driver) (a : Action) : IO Driver := do
     match d.ui.parents with
     | (parent, title) :: rest => return { d with ui := { d.ui with drawer := parent, stubTitle := title, parents := rest, offset := 0 } }
     | [] => return { d with ui := { d.ui with context := .closed } }
-  | .previous => return { d with ui := { d.ui with first := d.ui.first - (d.height - 180) / 36 } }
+  | .previous => return { d with ui := { d.ui with first := d.ui.first - (d.height - d.app.dim.px 180) / max 1 (d.app.dim.px 36) } }
   | .next =>
-    let n := (d.height - 180) / 36
+    let n := (d.height - d.app.dim.px 180) / max 1 (d.app.dim.px 36)
     return { d with ui := { d.ui with first := if d.ui.first + n < d.app.comms.size then d.ui.first + n else d.ui.first } }
   | .switcher =>
     if d.layout.nav.w > 0 then return { d with ui := { d.ui with switching := !d.ui.switching } }
@@ -90,10 +105,10 @@ def act (d : Driver) (a : Action) : IO Driver := do
     let (_, s) ← App.attachPhoto.run d.app
     return { d with app := s }
   | .page p =>
-    if p.drawer && d.width ≥ 720 then
+    if p.drawer && d.width ≥ ((720 * d.dpi + 80) / 160) then
       let (_, s) ← (if d.app.page == .home then App.openPage .chat else pure ()).run d.app
       return { d with app := s, ui := { d.ui with context := .settings, drawer := p, parents := [], offset := 0, switching := false } }
-    let (_, s) ← (App.openPage (if p == .home && d.width ≥ 720 then .chat else p)).run d.app
+    let (_, s) ← (App.openPage (if p == .home && d.width ≥ ((720 * d.dpi + 80) / 160) then .chat else p)).run d.app
     return { d with app := s, ui := { d.ui with context := .closed, switching := false } }
   | .drawerAct action =>
     let target : Option App.PageId := match action with
@@ -129,8 +144,8 @@ never scrolls the covered conversation. Positive delta means down the page. -/
 def wheel (d : Driver) (x y : Nat) (delta : Int) : IO Driver := do
   let g := d.layout
   if g.context.w > 0 && x ≥ g.context.x then
-    if y < 60 then return d
-    let maxOffset := (drawerPage g d.height d.ui d.app).1.bmp.h - (d.height - 60)
+    if y < d.app.dim.px 60 then return d
+    let maxOffset := (drawerPage g d.height d.ui d.app).1.bmp.h - (d.height - d.app.dim.px 60)
     return { d with ui := { d.ui with offset := min maxOffset (Int.ofNat d.ui.offset + delta).toNat } }
   if x ≥ g.main.x && x < g.main.x + g.main.w && y ≥ App.topH d.app &&
       y < d.height - App.botH d.app && (d.app.page == .chat || d.app.page.drawer) then
@@ -153,7 +168,7 @@ def observe (d : Driver) : App.M Unit := do
       for i in [0:ordered.size] do
         let (id, _, _) := ordered[i]!
         let old := ((s.memberIds.findIdx? (· == id)).bind fun j => s.members[j]?).map (·.1) |>.getD "…"
-        let name ← if 186 + (i + 1) * 30 ≤ d.height - 48 then
+        let name ← if s.dim.px 186 + (i + 1) * s.dim.px 30 ≤ d.height - s.dim.px 48 then
           pure (← Component.author ⟨owner ++ ["author".toUTF8, id], true⟩ s.me.c id (old, false)).1
           else pure old
         names := names.push (name, id == s.me.user)
@@ -164,7 +179,7 @@ def observe (d : Driver) : App.M Unit := do
 
 def stepApp (d : Driver) (events : List App.Event := []) : IO Driver := do
   let action : App.M Unit := do
-    if d.width ≥ 720 && (← get).page == .home then App.openPage .chat
+    if d.width ≥ ((720 * d.dpi + 80) / 160) && (← get).page == .home then App.openPage .chat
     observe d
     let roots := (← get).queryNeeds
     discard <| App.step events roots

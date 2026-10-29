@@ -64,3 +64,8 @@ containment of the drawer, unchanged main width when the drawer opens, minimum
 pane sizes, monotonic pane count, control containment and hit membership. They
 do not prove raster identity or native platform scheduling. All are audited
 against standard Lean axioms in `tests/app/DesktopAxioms.lean`.
+
+Ctrl+/− zooms the whole interface (Ctrl+= and keypad variants are accepted);
+Ctrl+0 resets. The requested level persists beside the database. See
+[zoom and phone typography](../../docs/ZOOM.md) for supported limits,
+accessibility policy, pixel comparisons, proofs and test tasks.

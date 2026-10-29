@@ -1,0 +1,34 @@
+[
+  {
+    "selector": "pane pane-list",
+    "x": 0,
+    "y": 0,
+    "w": 220,
+    "h": 534,
+    "display": "flex"
+  },
+  {
+    "selector": "sidebar svelte-1hv280f",
+    "x": 0,
+    "y": 0,
+    "w": 220,
+    "h": 534,
+    "display": "flex"
+  },
+  {
+    "selector": "pane pane-thread",
+    "x": 220,
+    "y": 0,
+    "w": 634,
+    "h": 534,
+    "display": "flex"
+  },
+  {
+    "selector": "composer svelte-jdanaw",
+    "x": 237,
+    "y": 433,
+    "w": 600,
+    "h": 44,
+    "display": "block"
+  }
+]

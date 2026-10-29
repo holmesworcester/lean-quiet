@@ -48,7 +48,7 @@ def sidebarPeople : M Unit := do
     unless ← writeAll ⟨[invitation, req, approval, admission, profile]⟩ do
       throw (IO.userError "sidebar fixture rejected")
 
-def capture (dir name : String) (width height : Nat) (theme page : String) : IO Unit := do
+def capture (dir name : String) (width height : Nat) (theme page : String) (zoom : Nat := 100) : IO Unit := do
   let db := dir ++ "/" ++ name ++ ".db"
   for suffix in ["", "-wal", "-shm"] do
     if ← System.FilePath.pathExists (db ++ suffix) then IO.FS.removeFile (db ++ suffix)
@@ -56,6 +56,7 @@ def capture (dir name : String) (width height : Nat) (theme page : String) : IO 
   sm.viewport.set #[width.toUInt32, height.toUInt32, 0, 0, 160, if theme == "dark" then 1 else 0]
   let io := { sm.io with wall := pure (29330000, 0) }
   let mut d ← Desktop.start io width height db
+  d ← Desktop.zoom d zoom
   let (_, s) ← (do
     fixture
     if page == "conversation" then conversation
@@ -118,6 +119,11 @@ def run (args : List String) : IO Unit := do
   for line in (← IO.FS.readFile manifest).splitOn "\n" do
     if line.isEmpty || line.startsWith "#" then continue
     match line.splitOn "\t" with
+    | [name, w, h, theme, page, zoom] =>
+      let some w := w.toNat? | throw (IO.userError "invalid visual width")
+      let some h := h.toNat? | throw (IO.userError "invalid visual height")
+      let some zoom := zoom.toNat? | throw (IO.userError "invalid visual zoom")
+      capture dir name w h theme page zoom
     | [name, w, h, theme, page] =>
       let some w := w.toNat? | throw (IO.userError "invalid visual width")
       let some h := h.toNat? | throw (IO.userError "invalid visual height")

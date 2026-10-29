@@ -8,9 +8,9 @@
     "sidebar_layout_mae": 0.001684
   },
   "about-1280-light": {
-    "mae": 0.003294,
-    "changed_fraction": 0.011478,
-    "layout_mae": 0.001924,
+    "mae": 0.003739,
+    "changed_fraction": 0.017896,
+    "layout_mae": 0.002492,
     "sidebar_mae": 0.002568,
     "sidebar_changed_fraction": 0.019929,
     "sidebar_layout_mae": 0.001002
@@ -34,9 +34,9 @@
     "sidebar_layout_mae": 0.001751
   },
   "appearance-1280-light": {
-    "mae": 0.002994,
-    "changed_fraction": 0.011005,
-    "layout_mae": 0.001777,
+    "mae": 0.00347,
+    "changed_fraction": 0.017471,
+    "layout_mae": 0.00236,
     "sidebar_mae": 0.002701,
     "sidebar_changed_fraction": 0.020998,
     "sidebar_layout_mae": 0.001037
@@ -61,8 +61,8 @@
   },
   "channel-1280-light": {
     "mae": 0.006146,
-    "changed_fraction": 0.018324,
-    "layout_mae": 0.003059,
+    "changed_fraction": 0.024026,
+    "layout_mae": 0.003508,
     "sidebar_mae": 0.002701,
     "sidebar_changed_fraction": 0.020998,
     "sidebar_layout_mae": 0.001037
@@ -171,8 +171,8 @@
   },
   "community-1280-light": {
     "mae": 0.007314,
-    "changed_fraction": 0.023708,
-    "layout_mae": 0.003401,
+    "changed_fraction": 0.028848,
+    "layout_mae": 0.003815,
     "sidebar_mae": 0.002701,
     "sidebar_changed_fraction": 0.020998,
     "sidebar_layout_mae": 0.001037
@@ -249,8 +249,8 @@
   },
   "disappearing-1280-light": {
     "mae": 0.006836,
-    "changed_fraction": 0.022868,
-    "layout_mae": 0.002464,
+    "changed_fraction": 0.028097,
+    "layout_mae": 0.002975,
     "sidebar_mae": 0.002568,
     "sidebar_changed_fraction": 0.019929,
     "sidebar_layout_mae": 0.001002
@@ -359,8 +359,8 @@
   },
   "leave-1280-light": {
     "mae": 0.007161,
-    "changed_fraction": 0.022341,
-    "layout_mae": 0.003049,
+    "changed_fraction": 0.027625,
+    "layout_mae": 0.003499,
     "sidebar_mae": 0.002568,
     "sidebar_changed_fraction": 0.019929,
     "sidebar_layout_mae": 0.001002
@@ -385,8 +385,8 @@
   },
   "retention-1280-light": {
     "mae": 0.006483,
-    "changed_fraction": 0.021611,
-    "layout_mae": 0.002556,
+    "changed_fraction": 0.026971,
+    "layout_mae": 0.003058,
     "sidebar_mae": 0.002568,
     "sidebar_changed_fraction": 0.019929,
     "sidebar_layout_mae": 0.001002
@@ -442,9 +442,9 @@
     "sidebar_layout_mae": 0.001684
   },
   "storage-1280-light": {
-    "mae": 0.00417,
-    "changed_fraction": 0.014719,
-    "layout_mae": 0.00194,
+    "mae": 0.004525,
+    "changed_fraction": 0.020799,
+    "layout_mae": 0.002507,
     "sidebar_mae": 0.002568,
     "sidebar_changed_fraction": 0.019929,
     "sidebar_layout_mae": 0.001002
@@ -469,8 +469,8 @@
   },
   "you-1280-light": {
     "mae": 0.008149,
-    "changed_fraction": 0.025395,
-    "layout_mae": 0.004173,
+    "changed_fraction": 0.030359,
+    "layout_mae": 0.004506,
     "sidebar_mae": 0.002701,
     "sidebar_changed_fraction": 0.020998,
     "sidebar_layout_mae": 0.001037

@@ -992,7 +992,10 @@ lean_obj_res lq_motion(b_lean_obj_arg samples) {
   lq_ibot = lq_px(in.bottom);
   lq_ileft = lq_px(in.left);
   lq_iright = lq_px(in.right);
-  lq_dpi  = (uint32_t)lround(160 * lq_k);
+  // Match the 15 pt design body and honor the selected Dynamic Type size.
+  CGFloat body = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleBody]
+      scaledValueForValue:15 compatibleWithTraitCollection:self.traitCollection];
+  lq_dpi  = (uint32_t)lround(160 * lq_k * body / 15);
   lq_push(12, 0, 0, 0);
   if (!lq_up && lq_w > 0 && lq_h > 0) {
     lq_up = true;
@@ -1004,6 +1007,7 @@ lean_obj_res lq_motion(b_lean_obj_arg samples) {
 
 - (void)traitCollectionDidChange:(UITraitCollection*)previous {
   [super traitCollectionDidChange:previous];
+  [self.view setNeedsLayout];
   pthread_mutex_lock(&lq_mu);
   lq_system_dark = self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark;
   pthread_mutex_unlock(&lq_mu);

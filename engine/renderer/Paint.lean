@@ -218,6 +218,18 @@ def Bitmap.glyph (f : Font) (b : Bitmap) (ch : UInt32) (x y : Nat) (c : Color) (
       return b.notoGlyph ink x y c (if bold then max 1 (f.cell / 32) else 0) grounds exactInk
   let g := (f.bitmapGlyph? ch).getD (f.bitmapGlyph? 0xFFFD |>.getD ⟨Font.tableEnd, false, none⟩)
   let n := f.adv g
+  if f.cell > 64 then
+    -- Wide fallback pixels cannot be represented by a UInt64 scanline.
+    -- Sample the original asset into coverage, just like a Noto bitmap.
+    let source := { f with cell := f.sourceCell }
+    let mut pixels := ByteArray.empty
+    for yy in [0:f.cell] do
+      let bits := source.row g (yy * f.sourceCell / f.cell)
+      for xx in [0:n] do
+        let bit := xx * f.sourceCell / f.cell
+        pixels := pixels.push (if bits &&& (0x8000000000000000 >>> bit.toUInt64) != 0 then 255 else 0)
+    let ink : Ttf.Bitmap := ⟨0, 0, n, f.cell, n, f.cell, 0, n, 0, f.cell, pixels⟩
+    return b.notoGlyph ink x y c (if bold then max 1 (f.cell / 32) else 0) grounds exactInk
   -- bold smears each row right by a sixteenth of the cell
   let smear := if bold then max 1 (f.cell / 32) else 0
   let mut b := b

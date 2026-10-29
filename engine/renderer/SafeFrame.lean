@@ -30,7 +30,7 @@ structure Colours where
   sheet : Color
 
 def colours (theme : Theme.Value) : Colours :=
-  ⟨Palette.color theme .bg, Palette.color theme .panel, Palette.color theme .panel, Palette.color theme .panel⟩
+  ⟨Palette.color theme .bg, Palette.color theme .accent, Palette.color theme .panel, Palette.color theme .panel⟩
 
 def current : Colours := colours .dark
 

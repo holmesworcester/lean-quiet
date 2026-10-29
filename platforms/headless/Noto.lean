@@ -77,7 +77,7 @@ unsafe def main (args : List String) : IO Unit := do
   IO.println s!"cache: 10000 repeated lookups in {(t1 - t0) / 1000} us"
   let small ← Font.load (density := 280)
   let big ← Font.load (density := 560)
-  require (small.cell == 32 && font.cell == 48 && big.cell == 64) "density cells"
+  require (small.cell == 25 && font.cell == 37 && big.cell == 49) "density cells"
   require (Text.adv small 'W'.val < Text.adv font 'W'.val && Text.adv font 'W'.val < Text.adv big 'W'.val) "density metrics"
   let ink (f : Font.Font) := (f.noto.chars['W'.val]? >>= f.noto.bitmap).map (·.pixels.size) |>.getD 0
   require (ink small < ink font && ink font < ink big) "density raster cache keys"

@@ -11,6 +11,16 @@ private def platform : App.Io :=
 @[extern "lq_desktop_frame"] opaque desktopFrame (rows : @& Array ByteArray) : IO (Array UInt32)
 @[extern "lq_desktop_select"] opaque desktopSelect (anchor caret : UInt32) : IO Unit
 
+private def zoomLevels : List Nat := [50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200]
+
+private def zoomPercent (d : Desktop.Driver) : Nat := d.requestedZoom
+
+private def zoomStep (d : Desktop.Driver) (direction : Nat) : Nat :=
+  let current := zoomPercent d
+  if direction == 0 then 100
+  else if direction == 1 then (zoomLevels.find? (· > current)).getD 200
+  else ((zoomLevels.filter (· < current)).getLast?).getD 50
+
 private def traceState (d : Desktop.Driver) : IO Unit := do
   if let some path ← IO.getEnv "QUIET_STATE" then
     -- written whole, then renamed: a reader never sees it half written
@@ -29,6 +39,7 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
         controls := controls ++ s!"choice {Theme.encode choice} {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
       if control.action == .drawerAct .appearance then
         controls := controls ++ s!"appearance {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
+    controls := controls ++ s!"zoom {zoomPercent d} dpi {d.dpi} cell {d.app.font.cell}\n"
     controls := controls ++ s!"drawer {repr d.ui.drawer}\n"
     if let some bar := Desktop.scrollbar d.layout d.app then
       controls := controls ++ s!"scrollbar {bar.thumb.x} {bar.thumb.y} {bar.thumb.w} {bar.thumb.h} {bar.track.y} {bar.track.h} {bar.range}\n"
@@ -68,7 +79,14 @@ partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab :
     else if k == 12 then d ← Desktop.act d .close
     else if k == 13 then d ← Desktop.resize d x y
     else if k == 14 then
-      d ← Desktop.wheel d x y (if z == 1 then -48 else 48)
+      let step := d.app.dim.px 48
+      d ← Desktop.wheel d x y (if z == 1 then -(Int.ofNat step) else Int.ofNat step)
+    else if k == 15 then
+      d ← Desktop.zoom d (zoomStep d x)
+      anchor := none
+      scrollGrab := none
+      let db := (← IO.getEnv "QUIET_DB").getD "quiet-linux.db"
+      IO.FS.writeFile (db ++ ".zoom") (toString (zoomPercent d))
   run d anchor scrollGrab
 
 def main (args : List String) : IO Unit := do
@@ -76,6 +94,9 @@ def main (args : List String) : IO Unit := do
   let db := (← IO.getEnv "QUIET_DB").getD "quiet-linux.db"
   let net := if args.contains "--offline" || args.contains "--demo" then none else some (Link.port, false)
   let mut d ← Desktop.start platform sc[0]!.toNat sc[1]!.toNat db net
+  if ← System.FilePath.pathExists (db ++ ".zoom") then
+    if let some percent := (← IO.FS.readFile (db ++ ".zoom")).trimAscii.toString.toNat? then
+      d ← Desktop.zoom d percent
   if args.contains "--demo" && d.app.comms.isEmpty then
     for name in ["Quiet", "Garden"] do
       let (_, s) ← (App.found name "Alex").run d.app

@@ -212,6 +212,12 @@ static void key(xcb_key_press_event_t *e) {
     if (caps && k >= 'a' && k <= 'z') k -= 32;
     else if (caps && k >= 'A' && k <= 'Z') k += 32;
     if (k == XK_Escape) { event(12, 0, 0, 0); return; }
+    /* Application shortcuts work even when the composer has no focus. */
+    if (e->state & XCB_MOD_MASK_CONTROL) {
+        if (k == XK_plus || k == XK_equal || k == XK_KP_Add) { q.down=false; event(15,1,0,0); return; }
+        if (k == XK_minus || k == XK_KP_Subtract) { q.down=false; event(15,2,0,0); return; }
+        if (k == XK_0 || k == XK_KP_0) { q.down=false; event(15,0,0,0); return; }
+    }
     if (!q.focused) return;
     if (e->state & XCB_MOD_MASK_CONTROL) {
         if (k >= 'A' && k <= 'Z') k += 32;

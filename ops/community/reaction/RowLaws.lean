@@ -85,13 +85,13 @@ theorem tally_mem (xs : List (String × Id)) (e : String) (w : Id) :
 while its op waits in the outbox): what layout places is `oneLine` of it. -/
 theorem time_shown (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
     (layout f dm W d).time = if d.clump.isSome then #[] else
-      Text.oneLineFine (f.atSize (dm.px 14)) (dm.px 80) (if d.pending then "pending" else clock d.time) := rfl
+      Text.oneLineFine (f.atSize (dm.px 14)) (min (dm.px 80) ((W - dm.textX - dm.pad) / 3)) (if d.pending then "pending" else clock d.time) := rfl
 
 /-- **The row's name is the author's name as read**, cut as `oneLine`
 cuts (a logical prefix: Text.oneLine_prefix), flushed to the box's start. -/
 theorem name_placed (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
     (layout f dm W d).name = if d.clump.isSome then #[] else
-      flush (Text.oneLineFine (f.atSize (dm.px 16)) ((W - dm.textX - dm.pad) / 2) d.name) := by
+      flush (Text.oneLineFine (f.atSize (dm.px 16)) (nameWidth f dm W d) d.name) := by
   -- by rewriting, not `rfl`: a defeq check would unfold the bidi under
   -- `oneLine` (out of heartbeats); `simp only` reaches the field directly
   simp only [layout]
@@ -130,7 +130,7 @@ theorem name_starts (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData)
   · simp at h
   · next hc =>
     simp only [hc, ite_false]
-    generalize Text.oneLineFine (f.atSize (dm.px 16)) ((W - dm.textX - dm.pad) / 2) d.name = line at h ⊢
+    generalize Text.oneLineFine (f.atSize (dm.px 16)) (nameWidth f dm W d) d.name = line at h ⊢
     have h' : line.size ≠ 0 := by
       unfold flush at h
       split at h <;> simpa only [Array.size_map] using h
@@ -140,7 +140,7 @@ theorem name_starts (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData)
 namesake** (the row's `namesake`, read as NamesakeLaws.row_marked says),
 after the name and before the time. -/
 theorem twin_shown (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
-    (layout f dm W d).twin.map (·.2) = if d.namesake && d.clump.isNone then some (Text.oneLine (f.atSize (dm.px 16)) (dm.cell * 8) twinText) else none := by
+    (layout f dm W d).twin.map (·.2) = if d.namesake && d.clump.isNone then some (Text.oneLine (f.atSize (dm.px 16)) (min ((W - dm.textX - dm.pad) / 3) (dm.cell * 8 + dm.px 12) - dm.px 12) twinText) else none := by
   simp only [layout]; split <;> rfl
 
 /-- The label sits between the name and the time: it starts after the
