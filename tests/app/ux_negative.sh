@@ -12,7 +12,7 @@ mkdir -p "$logs"
 # Skip controls already verified by a longer gate run; every invocation
 # still builds and checks the unmodified fixture on both scroll seams.
 start=${UX_NEGATIVE_START:-0}
-[[ "$start" =~ ^[0-9]$ ]] || { echo "UX_NEGATIVE_START must be 0..9"; exit 1; }
+[[ "$start" =~ ^([0-9]|10)$ ]] || { echo "UX_NEGATIVE_START must be 0..10"; exit 1; }
 index=0
 ran=0
 label=baseline
@@ -79,12 +79,9 @@ law "each label page starts a line late" engine/renderer/Label.lean \
 law "the window may be the newest away from it" ops/app/Lifecycle.lean \
   "  else if near || cur.isNone then" "  else if near then"
 suite "a session dot on home's avatars" "" "home avatars have no connection dots" ops/app/Pages.lean \
-  "    let ini := String.ofList [(n.toList.headD '?').toUpper]" \
-  "    let r := dm.px 6
-    let cx := dm.px 48
-    let cy := y + (rh + d) / 2
-    b := b.round (cx - r) (cy - r) (cx + r) (cy + r) r 0x2EB67D
-    let ini := String.ofList [(n.toList.headD '?').toUpper]"
+  "    let initial := oneLine font (px 24) (String.ofList [(name.toList.headD '?').toUpper])" \
+  "    b := b.round (px 38) (y + px 30) (px 46) (y + px 38) (px 4) 0x2EB67D
+    let initial := oneLine font (px 24) (String.ofList [(name.toList.headD '?').toUpper])"
 suite "the header's long press opens nothing" "" "long press on the header opens its complete label" App.lean \
   "| .header => pure (if s.page == .home || s.page == .chat then some s.me.name else none)" "| .header => pure none"
 suite "a page row's long press opens nothing" "" "switcher long press discloses without switching" App.lean \
@@ -100,4 +97,7 @@ suite "the frame keeps no anchor" "" "pending arrival keeps the visible row at t
 # a shell that shifts at vsync: the frame must paint at the shifted offset
 suite "the frame paints the offset before its shift lands" queued "pending arrival keeps the visible row at the same pixel" App.lean \
   "          b := b'" "          b := (← s.io.scroll (bottoms s).2.toUInt32 vh.toUInt32).toInt64.toInt.toNat"
+suite "the anchor clump collapses before its new coordinate is known" "" "pending burst preserves the visible anchor" App.lean \
+  "    let near := Raster.near bottom span offset viewport (over + viewport) || heldRoot == some root.2" \
+  "    let near := Raster.near bottom span offset viewport (over + viewport)"
 echo "ux negative controls: $ran selected controls refused; logs in $logs"

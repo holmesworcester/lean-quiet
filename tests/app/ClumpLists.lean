@@ -79,6 +79,27 @@ def run (dir : String) (ck : Checks) : IO Unit := do
     settle
     let saved ← get
     let mark := captureAnchor saved
+    let position (state : St) := mark.bind fun (x, _) =>
+      (rowBottom state x).map fun bottom => (bottom : Int) - (state.b : Int)
+    let beforePosition := position saved
+    let mut arriving := []
+    for i in [0:220] do
+      arriving := arriving ++ [sealedPost saved.me.c saved.me.adm saved.me.dev key (← newBytes 24)
+        s!"Arriving child {i}".toUTF8 (600 + i) 101 (some root.id)]
+    saved.wr.paused.set true
+    ck.ok "a burst of child messages is accepted" (← writeAll ⟨arriving⟩)
+    steps 1
+    let shifted ← get
+    ck.ok "child arrivals preserve the reading position on their first frame"
+      (mark.isSome && position shifted == beforePosition &&
+       captureAnchor shifted == mark)
+    saved.wr.paused.set false
+    waitIdle sm
+    settle
+    let saved ← get
+    ck.ok "filing a child burst preserves the cursor and bounded child page"
+      (captureAnchor saved == mark && (saved.clumps.getD root.id {}).ids.size ≤ 2 * half &&
+        saved.total == 562)
     let cp := checkpoint { saved with mark := mark }
     ck.ok "a child checkpoint records both its root cursor and its own position"
       (mark.isSome && ((applyCheckpoint saved cp).anchor.map (·.2) == some root.id) &&

@@ -1815,7 +1815,7 @@ def pollInput : M (List Event) := do
 /-- Materialize only nearby clumps into message cells. Every other clump
 is one spacer at its last measured extent. A large clump's child window
 has two counted spacers; it never becomes a whole-clump paint task. -/
-def projectClumps (offset viewport : Nat) : M Unit := do
+def projectClumps (offset viewport : Nat) (heldRoot : Option Id := none) : M Unit := do
   let s ← get
   let mut ids := #[]
   let mut owners := ({} : Std.HashMap Id Id)
@@ -1828,7 +1828,10 @@ def projectClumps (offset viewport : Nat) : M Unit := do
     let old := clumps.getD root.2 {}
     let span := if old.ready then ClumpList.extent root old (heightOf s) est
       else spans.getD root.2 est
-    let near := Raster.near bottom span offset viewport (over + viewport)
+    -- A new root/count answer can move the current anchor beyond the old
+    -- viewport. Keep its bounded child collection until chatFrame has
+    -- corrected the offset; only then can geometry decide visibility.
+    let near := Raster.near bottom span offset viewport (over + viewport) || heldRoot == some root.2
     let scope : Component.Scope := ⟨["community".toUTF8, s.me.c, "clump".toUTF8, root.2],
       Raster.near bottom span offset viewport 0⟩
     let old := if s.restoreAnchor && s.anchor.map (·.2) == some root.2 && old.anchor.isNone then
@@ -1929,16 +1932,20 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   let b := input.offset
   -- the anchor: the row at the viewport's bottom edge, and how far into it
   let mut anchor := if s.restoreAnchor then s.mark else captureAnchor { s with b }
+  let heldRoot := anchor.bind fun (x, _) => s.cellRoot[x]? <|> s.anchor.map (·.2)
   -- a new window: in place now; the viewport, in its offsets, is where
   -- the anchor row went (`bv`; the native offset `b` follows in 5)
   let mut b := b
   let mut bv := b
   if let some (roots, newer, older, _) := fresh then
     modify fun s => { s with roots, newer, older }
-  projectClumps bv (viewH (← get))
+  projectClumps bv (viewH (← get)) heldRoot
   readerPass
-  projectClumps bv (viewH (← get))
-  if fresh.isSome || s.restoreAnchor then
+  projectClumps bv (viewH (← get)) heldRoot
+  -- Child-count changes can move a message even when the outer root list
+  -- is unchanged. Resolve its new coordinate before choosing the child
+  -- window, queries and paints for this frame.
+  if b > 4 || s.restoreAnchor then
     let s ← get
     if let some (x, off) := anchor then
       if let some i := s.ids.findIdx? (·.2 == x) then

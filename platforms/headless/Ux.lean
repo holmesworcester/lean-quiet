@@ -121,7 +121,7 @@ def main (args : List String) : IO UInt32 := do
     -- The former dot's centre is just outside each avatar's lower-right
     -- corner. Check the real people's rows, not an empty-page fixture.
     check "home avatars have no connection dots" (s.page == .home && !people.isEmpty && people.all fun (b, _) =>
-      Paint.getPx pg.bmp.rows[b.y + (b.h + s.dim.px 32) / 2]! (s.dim.px 48) == Palette.color s.dim.theme .bg)
+      Paint.getPx pg.bmp.rows[b.y + s.dim.px 34]! (s.dim.px 42) == Palette.color s.dim.theme .panel)
     let _ ← tap (.openChannel 0)
     sm.cmds.modify (·.push "chaos 80")
     steps 2; waitIdle sm; steps 15

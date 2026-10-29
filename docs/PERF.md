@@ -549,6 +549,15 @@ falling back. The clump UI suite in `test:clumps` uses 340 signed children and
 checks both jumps, query retirement, bounded geometry and cold restoration.
 The component suite also retains its two-independent-headers shared-author case.
 
+Arrival correction retains the current anchor's bounded child collection until
+its new coordinate is known. The corrected coordinate selects the queries,
+child windows and paints for that frame, even when only a child count changed.
+Otherwise a large arrival burst could collapse the anchor into an offscreen
+spacer using its old coordinate and lose the reading position. The real app
+suites check root bursts beyond the old native scroll range on immediate and
+queued scroll seams, and 220 child arrivals inside a 340-child clump. The UX
+mutation suite also removes this retention and requires the anchor test to fail.
+
 The populated visual fixtures compare two sender-owned clumps at 390, 719,
 720 and 1280 pixels in both themes. Text wrapping uses 1/64 pixel metrics and
 rounds only final glyph origins; the pixel-width rounding law and glyph-order
