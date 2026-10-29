@@ -245,3 +245,17 @@ Before the latter, the engine audited 151 laws and passed scenario 67,
 differential 517, querydiff 873, linkcheck 16, lifecycle 90, wire 29 and
 syncpair 19 checks (1,611 total). TCP-dependent suites and the remainder
 of those gates were not verified. The README theorem-link check passes.
+
+Responsive usability integration (October 2026): the app occupies the full
+content height, with the shared mobile header, composer, theme, and Noto fonts.
+Below 720 logical pixels the desktop adds no toolbar or action overlay. From
+720 pixels it adds the 220px sidebar; open context panels use the pinned
+770px breakpoint and 275–375px width. At the smallest content width, composer
+buttons contract without overlap and four photo chips wrap onto reachable rows.
+
+`mise run host:desktop` checks every content pixel against the mobile frame
+at each boundary, plus drafts, selection, scroll anchors, and chip/button bounds.
+`mise run linux:e2e` exercises the real X11 app at 1x/2x and without MIT-SHM,
+including narrow/wide resizing and selecting Dark through the Appearance page.
+The preference persists locally through the checkpoint writer. Linux's current
+System input defaults to light; Android/iOS supply their system appearance.

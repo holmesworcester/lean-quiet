@@ -102,7 +102,7 @@ try:
             finally:
                 os.kill(proc.pid, signal.SIGCONT)
             check(image.getpixel((2*scale, 140*scale)) == (118,71,199) and
-                  image.getpixel((600*scale, 20*scale)) == (22,24,27),
+                  image.getpixel((600*scale, 20*scale)) == (255,255,255),
                   tag + ' a resize keeps the frame shown, never the server\'s fill')
             wait(lambda: lines() and lines()[0] == '1000 700', 'shrink resize')
             # A window manager's _NET_WM_SYNC_REQUEST: the counter is set once
@@ -119,20 +119,21 @@ try:
             click(90, 730)
             wait(lambda: 'Desktop.Context.settings' in lines(), 'settings')
             image = shot('settings')
-            check(image.getpixel((725*scale, 420*scale)) == (58,61,65), tag + ' context divider at 1100-375')
+            check(image.getpixel((725*scale, 420*scale)) == (229,229,229), tag + ' context divider at 1100-375')
             xdo('windowsize', '--sync', win, 770*scale, 600*scale)
             wait(lambda: lines() and lines()[0] == '770 600', '770 resize')
             image = shot('770')
-            check(image.getpixel((495*scale, 420*scale)) == (58,61,65), tag + ' context minimum at 770')
+            check(image.getpixel((495*scale, 420*scale)) == (229,229,229), tag + ' context minimum at 770')
             xdo('windowsize', '--sync', win, 719*scale, 600*scale)
             wait(lambda: lines() and lines()[0] == '719 600', '719 resize')
             image = shot('719')
-            check(image.getpixel((100*scale,420*scale)) == (38,41,46), tag + ' context replaces narrow window')
+            check(image.getpixel((100*scale,420*scale)) == (255,255,255), tag + ' context replaces narrow window')
             click(695, 24)
             wait(lambda: 'Desktop.Context.closed' in lines(), 'close context')
             xdo('windowsize', '--sync', win, 1100*scale, 760*scale)
             wait(lambda: lines() and lines()[0] == '1100 760', 'restore size')
-            click(300, 676)
+            editor = next(s for s in lines() if s.startswith('editor ')).split()
+            click(int(editor[1])+20, int(editor[2])+4)
             xdo('type', '--clearmodifiers', '--delay', '5', 'desktop input')
             wait(lambda: 'desktop input' in lines(), 'keyboard')
             check(True, tag + ' keyboard edits real composer')
@@ -142,8 +143,9 @@ try:
             xdo('key', 'ctrl+a')
             xdo('type', '--clearmodifiers', 'hello world')
             wait(lambda: 'hello world' in lines(), 'replace selection')
-            xdo('mousemove', '--window', win, 237*scale, 677*scale, 'mousedown', '1',
-                'mousemove', '--window', win, 277*scale, 677*scale)
+            _, ex, ey, fifth = next(s for s in lines() if s.startswith('editor ')).split()
+            xdo('mousemove', '--window', win, int(ex)*scale, (int(ey)+4)*scale, 'mousedown', '1',
+                'mousemove', '--window', win, int(fifth)*scale, (int(ey)+4)*scale)
             time.sleep(.2)
             xdo('mouseup', '1')
             wait(lambda: any('#[0, 5,' in s for s in lines()), 'drag selection')
@@ -152,6 +154,23 @@ try:
             xdo('key', 'Return')
             wait(lambda: len(lines()) >= 6 and lines()[4] == '' and int(lines()[5]) >= 1, 'send')
             check(True, tag + ' send reaches writer')
+            # Shared mobile proportions at a phone-sized desktop window.
+            xdo('windowsize', '--sync', win, 390*scale, 844*scale)
+            wait(lambda: lines() and lines()[0] == '390 844', 'phone proportions')
+            image = shot('mobile')
+            check(image.size == (390*scale, 844*scale) and image.getpixel((2*scale, 140*scale)) == (247,247,247),
+                  tag + ' narrow window shows shared mobile content without a desktop sidebar')
+            xdo('windowsize', '--sync', win, 1100*scale, 760*scale)
+            wait(lambda: lines() and lines()[0] == '1100 760', 'return to desktop')
+            click(90, 730)
+            wait(lambda: 'Desktop.Context.settings' in lines(), 'appearance settings')
+            click(800, 328)
+            wait(lambda: 'App.PageId.appearance' in lines(), 'appearance page')
+            _, _, ax, ay = next(s for s in lines() if s.startswith('choice dark ')).split()
+            click(int(ax), int(ay))
+            wait(lambda: 'theme dark' in lines(), 'dark appearance')
+            image = shot('dark')
+            check(image.getpixel((2*scale, 140*scale)) == (47,25,61), tag + ' live theme repaints desktop sidebar')
             # Exit through the WM protocol, never signal unrelated processes.
             xdo('windowclose', win)
             proc.wait(timeout=10)

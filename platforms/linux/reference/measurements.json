@@ -138,6 +138,6 @@
   "tolerance": {
     "track_edges_px": 0,
     "flat_surface_rgb": 0,
-    "full_image_typography": "not claimed; existing 16px Unifont and dark phone surfaces retained"
+    "full_image_typography": "not claimed against libquiet; shared mobile content is compared pixel-for-pixel, with Noto and light/dark palettes"
   }
 }

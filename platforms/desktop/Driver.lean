@@ -1,5 +1,5 @@
 /-
-Desktop integration without changing the phone app. The app still runs
+Responsive desktop composition of the phone app. The app still runs
 App.step on its real database, writer and views. Its three layers feed
 the desktop root; resize invalidates width-dependent row/page caches.
 The platform supplies logical pixels and does only the final scale/blit.
@@ -27,9 +27,10 @@ def Driver.layout (d : Driver) : Layout := Desktop.layout d.width (d.ui.context 
 def start (base : App.Io) (w h : Nat) (path : String)
     (net : Option (Nat × Bool) := none) : IO Driver := do
   let ls ← IO.mkRef ({} : Layers)
-  let sc ← IO.mkRef #[w.toUInt32, (h - 40).toUInt32, 0, 0, 160]
+  let g := Desktop.layout w false
+  let sc ← IO.mkRef #[g.main.w.toUInt32, h.toUInt32, 0, 0, 160, (← base.screen)[5]?.getD 0]
   let io := { base with
-    screen := sc.get
+    screen := do return (← sc.get).set! 5 ((← base.screen)[5]?.getD 0)
     frame := fun fr _ o top bot _ placement hold => do
       ls.set ⟨fr, top, bot, o.toNat, placement, hold⟩
       return #[] }
@@ -42,8 +43,8 @@ def resize (d : Driver) (w h : Nat) : IO Driver := do
   let d := { d with width := max 320 w, height := max 480 h }
   let g := d.layout
   let aw := max 275 g.main.w
-  let ah := d.height - 40
-  d.screen.set #[aw.toUInt32, ah.toUInt32, 0, 0, 160]
+  let ah := d.height
+  d.screen.set #[aw.toUInt32, ah.toUInt32, 0, 0, 160, (← d.screen.get)[5]?.getD 0]
   let (_, s) ← (App.resize (← d.screen.get)).run d.app
   return { d with app := s }
 
@@ -62,7 +63,7 @@ def act (d : Driver) (a : Action) : IO Driver := do
     return { d with app := s }
   | .community i =>
     let (_, s) ← (do App.switchTo i; App.openPage .chat).run d.app
-    return { d with app := { s with text := "", sel := #[0, 0, 0, 0] }, ui := { d.ui with switching := false } }
+    return { d with app := s, ui := { d.ui with switching := false } }
   | .send =>
     let (_, s) ← App.sendNow.run d.app
     return { d with app := s }
@@ -76,9 +77,8 @@ def act (d : Driver) (a : Action) : IO Driver := do
 def tap (d : Driver) (x y : Nat) (long := false) : IO Driver := do
   let g := d.layout
   if let some c := hit (scene g d.height d.ui d.app) x y then return ← act d c.action
-  if x < g.main.x || x ≥ g.main.x + g.main.w || y < 40 then return d
+  if x < g.main.x || x ≥ g.main.x + g.main.w || y ≥ d.height then return d
   let x := x - g.main.x
-  let y := y - 40
   let s := d.app
   let bh := App.botH s
   let th := App.topH s

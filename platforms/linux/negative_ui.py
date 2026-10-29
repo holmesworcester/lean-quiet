@@ -13,12 +13,15 @@ out.mkdir(parents=True, exist_ok=True)
 driver = app / 'platforms/desktop/Driver.lean'
 view = app / 'platforms/desktop/View.lean'
 
+composer = app / 'ops/app/Composer.lean'
+life = app / 'AppLife.lean'
 for name, path, old, new, expected in [
     ('switch', driver, 'App.switchTo i;', 'App.switchTo 0;', 'switch to distinct community'),
-    ('draft', driver, '{ s with text := "", sel := #[0, 0, 0, 0] }', '{ s with sel := #[0, 0, 0, 0] }', 'switch clears editor and old draft'),
-    ('resize', driver, 'rows := {}, heights := {},', 'rows := s.rows, heights := s.heights,', 'resize repaints cached rows'),
+    ('draft', driver, 'app := s, ui := { d.ui with switching := false }', 'app := { s with text := "" }, ui := { d.ui with switching := false }', 'returning to community restores its draft'),
+    ('resize', life, 'if w == s.W && h == s.Hs && it == s.insetTop && ib == s.insetBot && dpi == s.dim.dpi then return', 'if true then return', 'resize updates actual row width'),
     ('settle', driver, '  if (s.W, s.Hs) != d.settled then settleFrame d else return d\n', '  return d\n', 'no row shows a placeholder'),
-    ('composer', view, '      b := b.fill g.main.x (h - 60) (g.main.x + g.main.w) h Row.bg\n', '', 'composer overlap'),
+    ('mobile', view, 'g.main.x 0 0', 'g.main.x 40 0', 'every content pixel matches the shared mobile frame'),
+    ('composer', composer, 'min (dm.px 48) ((W - dm.px 28) / 6)', 'dm.px 48', 'shared composer buttons fit without overlap'),
 ]:
     original = path.read_text()
     assert old in original
@@ -29,9 +32,6 @@ for name, path, old, new, expected in [
         assert p.returncode == 0, p.stdout
         directory = app / ('out/negative-' + name)
         p = sp.run(['.lake/build/bin/desktop', str(directory)], cwd=app, env=env, stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=60)
-        if name == 'composer':
-            assert p.returncode == 0, p.stdout
-            p = sp.run(['python3', 'platforms/linux/compare.py', str(directory)], cwd=app, env=env, stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=60)
         (out / (name+'.log')).write_text(p.stdout)
         assert p.returncode != 0 and expected in p.stdout, p.stdout
         print('rejected', name, flush=True)
@@ -41,4 +41,4 @@ for name, path, old, new, expected in [
 p = sp.run(['lake', 'build', 'linux', 'desktop'], cwd=app, env=env, stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=120)
 (out / 'ui-restored.log').write_text(p.stdout)
 assert p.returncode == 0, p.stdout
-print('negative controls: 5 UI mutations rejected; sources restored and executables rebuilt')
+print('negative controls: 6 UI mutations rejected; sources restored and executables rebuilt')

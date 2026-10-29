@@ -139,13 +139,16 @@ def Bitmap.round (b : Bitmap) (x0 y0 x1 y1 r : Nat) (c : Color) : Bitmap := Id.r
 what is there by its alpha. -/
 def Bitmap.emoji (f : Font) (b : Bitmap) (ch : UInt32) (x y : Nat) : Bitmap := Id.run do
   let some q := f.emoji.picture ch | return b
-  let w := q.w.toNat
+  let sourceW := q.w.toNat
+  let sourceH := q.h.toNat
+  let w := f.emoji.scale f.cell sourceW
+  let h := f.emoji.scale f.cell sourceH
   let mut b := b
-  for r in [0:q.h.toNat] do
+  for r in [0:h] do
     b := b.modify (y + r) fun row => Id.run do
       let mut row := row
       for i in [0:w] do
-        let p := q.px[r * w + i]!
+        let p := q.px[(r * sourceH / h) * sourceW + i * sourceW / w]!
         let a := (p &&& 255).toNat
         if a == 0 then continue
         let src : Color := ((p >>> 24) <<< 16) ||| (((p >>> 16) &&& 255) <<< 8) ||| ((p >>> 8) &&& 255)

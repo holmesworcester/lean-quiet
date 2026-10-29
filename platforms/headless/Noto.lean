@@ -83,6 +83,25 @@ unsafe def main (args : List String) : IO Unit := do
   require (ink small < ink font && ink font < ink big) "density raster cache keys"
   let fallback (f : Font.Font) := (List.range f.cell).any fun row => f.row (f.glyph '龘'.val) row != 0
   require (fallback small && fallback big) "density fallback pixels"
+  let mobile ← Font.load (density := 160)
+  for f in [mobile, small, font, big] do
+    for sample in ["🙂", "👩🏽‍💻", "🇯🇵"] do
+      let token := (f.emoji.emojify (sample.toList.map Char.val).toArray)[0]!
+      let some pic := f.emoji.picture token | throw (IO.userError "missing density emoji")
+      let expectedW := max 1 ((f.emoji.width token * f.cell + f.emoji.size/2) / f.emoji.size)
+      require (Text.adv f token == expectedW) s!"emoji layout scales at cell {f.cell}"
+      let bitmap := (Paint.Bitmap.blank 160 160 (Paint.solid 0xffffff 160)).glyph f token 4 4 0 false
+      let mut ink := 0
+      let mut lower := 0
+      for y in [0:160] do
+        for x in [0:160] do
+          if Paint.getPx bitmap.rows[y]! x != 0xffffff then
+            ink := ink + 1
+            require (4 ≤ x && x < 4+expectedW && 4 ≤ y && y < 4+f.cell)
+              s!"emoji painting fits its text cell at {f.cell}px (source {pic.w}x{pic.h})"
+            if y ≥ 4+f.cell/2 then lower := lower + 1
+      require (ink > 0 && lower > 0) "scaled emoji retains the lower half, not a clipped source"
+  IO.println "emoji density: 12 actual glyph renders fit their measured cells, including desktop"
   let samples := (← IO.FS.readFile s!"{dir}/lines.txt").splitOn "\n"
   let mut image := Paint.Bitmap.blank 1100 (samples.length * 90 + 30) (Paint.solid 0xFFFFFF 1100)
   let mut placed := ""

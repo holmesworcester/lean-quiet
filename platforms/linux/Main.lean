@@ -14,7 +14,15 @@ private def platform : App.Io :=
 private def traceState (d : Desktop.Driver) : IO Unit := do
   if let some path ← IO.getEnv "QUIET_STATE" then
     -- written whole, then renamed: a reader never sees it half written
-    IO.FS.writeFile (path ++ ".tmp") s!"{d.width} {d.height}\n{d.app.me.name}\n{repr d.ui.context}\n{repr d.app.page}\n{d.app.text}\n{d.app.total}\n{d.app.sel}\n{d.app.b}\n"
+    let c := App.composerLayout d.app
+    let x := d.layout.main.x + c.textX
+    let y := d.height - App.botH d.app + c.textY
+    let mut controls := s!"editor {x} {y} {x + (App.cursorAt d.app 5).2}\n"
+    if let some pg := d.app.pageNow then
+      for (box, action) in pg.taps do
+        if let .theme choice := action then
+          controls := controls ++ s!"choice {Theme.encode choice} {d.layout.main.x + box.x + box.w/2} {App.topH d.app + box.y + box.h/2}\n"
+    IO.FS.writeFile (path ++ ".tmp") s!"{d.width} {d.height}\n{d.app.me.name}\n{repr d.ui.context}\n{repr d.app.page}\n{d.app.text}\n{d.app.total}\n{d.app.sel}\n{d.app.b}\n{controls}theme {Theme.encode d.app.theme.setting}\n"
     IO.FS.rename (path ++ ".tmp") path
 
 partial def run (d : Desktop.Driver) (anchor : Option Nat := none) : IO Desktop.Driver := do
@@ -46,7 +54,7 @@ partial def run (d : Desktop.Driver) (anchor : Option Nat := none) : IO Desktop.
     else if k == 13 then d ← Desktop.resize d x y
     else if k == 14 then
       let g := d.layout
-      if x ≥ g.main.x && x < g.main.x + g.main.w && y ≥ 40 && d.app.page == .chat then
+      if x ≥ g.main.x && x < g.main.x + g.main.w && y ≥ App.topH d.app && y < d.height - App.botH d.app && d.app.page == .chat then
         Platform.scrollBy (if z == 1 then 48 else -48)
   run d anchor
 
@@ -60,9 +68,10 @@ def main (args : List String) : IO Unit := do
       let (_, s) ← (App.found name "Alex").run d.app
       d := { d with app := s }
       for _ in [0:50] do d ← Desktop.tick d; IO.sleep 2
-    d ← Desktop.act d (.community 0)
-    let (_, s) ← (App.sendText "Welcome to Lean Quiet on Linux.").run d.app
-    d := { d with app := s }
+    d ← Desktop.act d (.community (d.app.comms.findIdx? (·.name == "Quiet") |>.getD 0))
+    for message in ["Welcome to Lean Quiet.", "Noto: café · Ελληνικά · שלום · 日本語 · 🙂"] do
+      let (_, s) ← (App.sendText message).run d.app
+      d := { d with app := s }
   d ← run d
   if let some r := d.app.net then r.stop
   -- The existing writer is a dedicated infinite task. Drain accepted

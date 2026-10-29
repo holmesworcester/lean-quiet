@@ -107,6 +107,10 @@ def Set.emojify (e : Set) (cs : Array UInt32) : Array UInt32 := Id.run do
 def Set.width (e : Set) (c : UInt32) : Nat :=
   (e.entries[(c - base).toNat]?.map (·.w)).getD e.size
 
+/-- Asset pixels scale with the same density-adjusted cell as text. -/
+def Set.scale (e : Set) (cell pixels : Nat) : Nat :=
+  max 1 ((pixels * cell + e.size / 2) / max 1 e.size)
+
 /-- The picture of emoji code point c: width, height and packed RGBA
 pixels (r << 24 | g << 16 | b << 8 | a), decoded now. -/
 def Set.picture (e : Set) (c : UInt32) : Option Qoi.Qoi := do

@@ -105,9 +105,11 @@ def layout (f : Font) (dm : Dim) (W : Nat) (text : String) (chips : Nat) : Layou
   let mut y := ty + (min 5 lines.size) * dm.lineH + dm.px 8
   let chipsY := y
   let c := dm.px 64
-  let cs := (List.range chips).toArray.map (chipBoxes dm y)
-  if chips > 0 then y := y + c + dm.px 4 + 3 * dm.lineH
-  let k := dm.px 48
+  let columns := max 1 ((W - pad) / (dm.px 64 + dm.px 12))
+  let chipH := c + dm.px 4 + 3 * dm.lineH
+  let cs := (List.range chips).toArray.map fun i => chipBoxes dm (y + (i / columns) * chipH) (i % columns)
+  if chips > 0 then y := y + ((chips + columns - 1) / columns) * chipH
+  let k := min (dm.px 48) ((W - dm.px 28) / 6)
   let dy := y + dm.px 4
   let mut deck := #[]
   let acts := #[Hit.addPhotos, .takePhoto, .emoji, .mention, .voice]
@@ -119,7 +121,14 @@ def layout (f : Font) (dm : Dim) (W : Nat) (text : String) (chips : Nat) : Layou
 /-- A glyph at 3/2 of the font's cell (nearest; Unifont is already
 smoothed), its top left at (x, y). -/
 def bigGlyph (f : Font) (b : Bitmap) (ch : UInt32) (x y : Nat) (c : Color) : Bitmap := Id.run do
-  let g := f.glyph ch
+  if let some ref := (f.glyph ch).noto then
+    if let some ink := f.noto.bitmap ref then
+      let w := ink.w * 3 / 2
+      let h := ink.h * 3 / 2
+      let pixels := ByteArray.mk ((Array.range (w*h)).map fun i =>
+        ink.pixels[(i / w * 2 / 3) * ink.w + i % w * 2 / 3]?.getD 0)
+      return b.notoGlyph { ink with x := ink.x * 3 / 2, y := ink.y * 3 / 2, w, h, pixels } x y c 0
+  let g := (f.bitmapGlyph? ch).getD (f.glyph 0xFFFD)
   let n := f.adv g
   let mut b := b
   for ty in [0:f.cell * 3 / 2] do

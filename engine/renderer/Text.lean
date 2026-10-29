@@ -105,7 +105,7 @@ def isSpace (c : UInt32) : Bool := c == 32 || c == 9
 
 /-- The advance of code point c in the font. -/
 def adv (f : Font) (c : UInt32) : Nat :=
-  if Emoji.isEmoji c then f.emoji.width c
+  if Emoji.isEmoji c then f.emoji.scale f.cell (f.emoji.width c)
   else if isMark c || isInvisible c then 0 else f.adv (f.glyph c)
 
 /-- Wide characters (CJK, emoji) are words of their own for wrapping. -/

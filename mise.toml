@@ -291,3 +291,8 @@ run = "tests/app/appearance.sh live"
 [tasks."host:theme-negative"]
 description = "Reject faults in appearance persistence, contrast and cache invalidation"
 run = "lake build appearance engine.renderer.ThemeLaws && python3 tests/app/theme-negative.py && python3 tests/app/theme-paint-negative.py"
+
+[tasks."linux:demo-video"]
+description = "Record the real Linux app resizing from desktop to mobile and changing appearance (Xvfb, xdotool, ImageMagick, ffmpeg)"
+depends = ["linux:build"]
+run = "python3 platforms/linux/demo.py"

@@ -16,9 +16,16 @@ private def settle (d : Driver) : IO Driver := do
   return d
 
 private def click (d : Driver) (a : Action) : IO Driver := do
-  let some c := (scene d.layout d.height d.ui d.app).find? (·.action == a)
-    | throw (IO.userError s!"no drawn control {repr a}")
-  settle (← tap d (c.box.x + c.box.w / 2) (c.box.y + c.box.h / 2))
+  if let some c := (scene d.layout d.height d.ui d.app).find? (·.action == a) then
+    return ← settle (← tap d (c.box.x + c.box.w / 2) (c.box.y + c.box.h / 2))
+  let c : Composer.Layout := App.composerLayout d.app
+  let box : Option Composer.Box := match a with
+    | .send => some c.send
+    | .photos => (c.deck.find? (fun (entry : Composer.Box × Composer.Hit) => entry.2 == Composer.Hit.addPhotos)).map (fun (entry : Composer.Box × Composer.Hit) => entry.1)
+    | _ => none
+  let some box := box | throw (IO.userError s!"no drawn control {repr a}")
+  settle (← tap d (d.layout.main.x + box.x + box.w / 2)
+    (d.height - App.botH d.app + box.y + box.h / 2))
 
 private def suite (args : List String) : IO UInt32 := do
   let dir := args[0]?.getD "out/desktop"
@@ -55,7 +62,12 @@ private def suite (args : List String) : IO UInt32 := do
   d ← click d .switcher
   d ← click d (.community 1)
   check "switch to distinct community" (d.app.cur != first && d.app.cur == d.app.comms[1]!.acc)
-  check "switch clears editor and old draft" (d.app.text.isEmpty && (← text.get).1.isEmpty)
+  check "new community starts with its own empty draft" (d.app.text.isEmpty && (← text.get).1.isEmpty)
+  d ← click d .switcher
+  d ← click d (.community 0)
+  check "returning to community restores its draft" (d.app.cur == first && d.app.text == "Unsent in first community")
+  d ← click d .switcher
+  d ← click d (.community 1)
   d ← click d .settings
   check "settings opens three panes" (d.layout.count == 3 && d.ui.context == .settings)
   d ← click d (.page .requests)
@@ -89,10 +101,25 @@ private def suite (args : List String) : IO UInt32 := do
       let (el, em, er) := if ctx == .closed then (l, m, r) else (lo, mo, ro)
       check s!"tracks {w} {repr ctx}" (g.nav.w == el && g.main.w == em && g.context.w == er)
       let cs := scene g d.height d.ui d.app
-      check s!"controls {w} {repr ctx}" (!cs.isEmpty && cs.all fun c =>
+      check s!"controls {w} {repr ctx}" ((if g.nav.w == 0 && g.context.w == 0 then cs.isEmpty else !cs.isEmpty) && cs.all fun c =>
         decide (Fits g d.height c.pane c.box) && (hit cs (c.box.x + c.box.w / 2) (c.box.y + c.box.h / 2)).isSome)
       let pic ← picture d
       check s!"frame {w} {repr ctx}" (pic.w == w && pic.h == 760 && pic.rows.all (·.size == w * 4))
+      if g.main.w > 0 then
+        let ls ← d.layers.get
+        let expected := Translate.compose ls.placement (ls.placement[15]?.getD 0).toInt32 d.height
+          d.app.bgRow ls.list ls.top ls.bot ls.hold
+        let actual := pic.rows.map fun row => row.extract (4*g.main.x) (4*(g.main.x+g.main.w))
+        check s!"{w}/{repr ctx}: every content pixel matches the shared mobile frame" (actual == expected)
+        check s!"{w}/{repr ctx}: shared composer buttons fit without overlap" (Id.run do
+          let c : Composer.Layout := App.composerLayout d.app
+          let boxes := (c.deck.map (·.1)).push c.send
+          return boxes.all (fun b => b.w ≥ 24 && b.x+b.w ≤ d.app.W) &&
+            (Array.range boxes.size).all fun i => (Array.range boxes.size).all fun j =>
+              i == j || boxes[i]!.x+boxes[i]!.w ≤ boxes[j]!.x || boxes[j]!.x+boxes[j]!.w ≤ boxes[i]!.x)
+        let chips := Composer.layout d.app.font d.app.dim d.app.W "" 4
+        check s!"{w}/{repr ctx}: four photo chips remain reachable" (chips.chips.all fun (b,x) =>
+          b.x+b.w ≤ d.app.W && b.y+b.h ≤ chips.h && x.x+x.w ≤ d.app.W && x.y+x.h ≤ chips.h)
       let tag := s!"{w}-{if ctx == .closed then "chat" else if ctx == .settings then "settings" else "threads"}"
       writePpm (dir ++ "/" ++ tag ++ ".ppm") pic.w pic.rows
       manifest := manifest ++ s!"{tag} {g.nav.w} {g.main.w} {g.context.w}\n"
@@ -114,15 +141,15 @@ private def suite (args : List String) : IO UInt32 := do
   check "desktop resize has a nonempty message anchor" anchor.isSome
   let mut unpainted := 0
   let mut flashes := 0
-  for (w, h) in [(1040, 760), (980, 700), (900, 760), (771, 640), (1300, 900), (1440, 760), (1100, 760)] do
+  for (w, h) in [(1040, 760), (719, 700), (720, 760), (390, 844), (770, 640), (1440, 760), (1100, 760)] do
     d ← tick (← resize d w h)
     check s!"{w}x{h}: desktop resize preserves the message anchor" (App.captureAnchor d.app == anchor)
     unless framePainted d.app do unpainted := unpainted + 1
     -- a placeholder's bar (App.holdLine): its colour from pad + 48 dp on
     let pic ← picture d
     let x0 := d.layout.main.x + d.app.dim.pad + d.app.dim.px 48
-    let bars := (List.range (h - App.botH d.app - 40 - App.topH d.app)).filter fun k =>
-      (List.range 40).all fun i => Paint.getPx pic.rows[40 + App.topH d.app + k]! (x0 + i) == Row.placeholder
+    let bars := (List.range (h - App.botH d.app - App.topH d.app)).filter fun k =>
+      (List.range 40).all fun i => Paint.getPx pic.rows[App.topH d.app + k]! (x0 + i) == Palette.color d.app.dim.theme .selected
     unless bars.isEmpty do flashes := flashes + 1
   check s!"one frame after each of 7 resizes, no row shows a placeholder ({flashes} did)" (flashes == 0)
   check s!"one frame after each of 7 resizes, every row it shows painted ({unpainted} not)" (unpainted == 0)
