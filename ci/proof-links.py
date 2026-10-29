@@ -409,6 +409,12 @@ def main():
     decls = ranges()
     resolve = resolver(decls)
     rows, problems = classify()
+    if not any(f[0] == "law" for f in rows):
+        # the walk failed (a moved file, an unbuilt tree): say why, and
+        # write nothing, rather than count from nothing
+        for p in problems or ["tests/Wiring.lean classified no law"]:
+            print(f"proof-links: wiring: {p}")
+        sys.exit(1)
     if check:
         problems = controls(rows, resolve) + problems
     text = open(README).read()
