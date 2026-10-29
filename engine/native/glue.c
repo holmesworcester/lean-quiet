@@ -1,3 +1,4 @@
+#include "listener.h"
 // SQLite for Lean: statements take blob parameters and return every
 // column as bytes, on desktop, Android and iOS. The crypto is crypto.c.
 #include <lean/lean.h>

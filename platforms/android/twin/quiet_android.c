@@ -59,6 +59,7 @@ typedef struct {
 } LqWin;
 
 static LqWin lq;
+lean_obj_res lq_poll(void);
 
 static uint64_t lq_tick(void) {
   struct timespec ts;
@@ -451,6 +452,7 @@ lean_obj_res lq_scroll_to(double b) {
 lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj_arg top,
   b_lean_obj_arg bot, uint8_t pin) {
   lq_phase(1);
+  if (!ba_has_window()) return lq_poll();
   bl_set_pin(pin != 0);
   uint64_t t0    = lq_tick();
   uint32_t top_h = (uint32_t)lean_array_size(top);
@@ -473,6 +475,12 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
   ANativeWindow* on = ba_lock(&sw, &sh);
   lq_phase(3);
   if (on != NULL) {
+    if (sw != (int32_t)lq.w || sh != (int32_t)lq.h) {
+      ba_unlock();
+      lq.painted = NULL;
+      lq_push(12, 0, 0, 0);
+      return lq_poll();
+    }
     bool fresh = on != lq.painted;
     lq_paint(on, sw, sh);
     bl_attach(on);
@@ -566,6 +574,32 @@ lean_obj_res lq_set_text(b_lean_obj_arg text) {
 lean_obj_res lq_now_us(void) {
   return lean_io_result_mk_ok(lean_box_uint64(lq_tick() / 1000));
 }
+
+lean_obj_res lq_poll(void) {
+  lq_pump(lq.st[BL_TOP].h, lq.st[BL_BOT].h);
+  lean_object* evs = lean_mk_empty_array();
+  for (uint32_t i = 0; i < lq.n * 4; i++) {
+    if (i % 4 == 0 && (lq.evs[i] == 9 || lq.evs[i] == 11)) {
+      lq.painted = NULL;
+      lq.down = false;
+    }
+    evs = lean_array_push(evs, lean_box_uint32(lq.evs[i]));
+  }
+  lq.n = 0;
+  return lean_io_result_mk_ok(evs);
+}
+
+lean_obj_res lq_links(void) {
+  lean_object* links = lean_mk_empty_array();
+  char* url;
+  while ((url = ba_take_link()) != NULL) {
+    links = lean_array_push(links, lean_mk_string(url));
+    free(url);
+  }
+  return lean_io_result_mk_ok(links);
+}
+
+
 
 lean_obj_res lq_log(b_lean_obj_arg s) {
   __android_log_write(ANDROID_LOG_INFO, "lean", lean_string_cstr(s));

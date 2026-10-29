@@ -27,6 +27,9 @@ targets:
     info:
       path: LeanQuiet-Info.plist
       properties:
+        CFBundleURLTypes:
+          - CFBundleURLName: local.leanquiet.invite
+            CFBundleURLSchemes: [quiet]
         NSLocalNetworkUsageDescription: Lean Quiet finds and talks to the devices of your community on this network.
         NSBonjourServices: [_leanquiet._udp, _leanquiet._tcp]
     settings:
@@ -38,7 +41,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Lean Quiet
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
         INFOPLIST_KEY_UIFileSharingEnabled: YES
         INFOPLIST_KEY_NSCameraUsageDescription: Lean Quiet reads an invite's QR code with the camera.

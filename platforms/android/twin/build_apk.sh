@@ -99,7 +99,7 @@ for abi in "${abis[@]}"; do
   [ -f "$rt/$abi/libInit.a" ] || { echo "no runtime for $abi in $rt" >&2; exit 2; }
   o=$work/$abi
   mkdir -p "$o" "$work/apk/lib/$abi" "$cache/$abi"
-  flags=(--target=$tgt -O3 -fPIC -ffunction-sections -fdata-sections -w -I"$rt/include")
+  flags=(--target=$tgt -O3 -fPIC -ffunction-sections -fdata-sections -w -I"$rt/include" -I"$engine/native")
   i=0
   for c in "${cfiles[@]}"; do
     i=$((i + 1))
@@ -127,11 +127,11 @@ for abi in "${abis[@]}"; do
   ctl=-DLQ_CTL
   [ "${RELEASE:-}" = 1 ] && ctl=
   for c in activity scroll layer quiet_android ctl; do
-    "$cc" --target=$tgt -std=c11 -O3 -fPIC $ctl -I"$here" -I"$rt/include" -c "$here/$c.c" -o "$o/twin_$c.o"
+    "$cc" --target=$tgt -std=c11 -O3 -fPIC $ctl -I"$here" -I"$rt/include" -I"$engine/native" -c "$here/$c.c" -o "$o/twin_$c.o"
   done
-  "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$rt/include" -I"$tp/sqlite" \
+  "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$rt/include" -I"$engine/native" -I"$tp/sqlite" \
     -c "$engine/native/glue.c" -o "$o/glue.o"
-  "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$rt/include" -c "$engine/native/crypto.c" -o "$o/glue_crypto.o"
+  "$cc" --target=$tgt -std=c11 -O3 -fPIC -I"$rt/include" -I"$engine/native" -c "$engine/native/crypto.c" -o "$o/glue_crypto.o"
   (cd "$engine/native/crypto" && CARGO_TARGET_DIR="$cache/rust" cargo build --release --quiet --target "$rtgt")
   lqcrypto=$cache/rust/$rtgt/release/liblq_crypto.a
   "$cc" --target=$tgt -O3 -fPIC -c "$root/platforms/android/leanrt/notag.c" -o "$o/twin_notag.o"

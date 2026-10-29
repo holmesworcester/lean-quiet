@@ -18,10 +18,16 @@
       android:extractNativeLibs="true"
       android:allowNativeHeapPointerTagging="false">
     <activity android:name="com.holmes.leanquiet.LeanActivity" android:exported="true"
-        android:screenOrientation="portrait"
+        android:launchMode="singleTask"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:windowSoftInputMode="adjustResize|stateHidden"
         android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|uiMode|density|smallestScreenSize">
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="quiet" />
+      </intent-filter>
       <meta-data android:name="android.app.lib_name" android:value="leanapp" />
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />

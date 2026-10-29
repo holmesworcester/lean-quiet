@@ -13,7 +13,8 @@ neither carries socket code.
 - A socket silent for `idle` ms is closed: a join request waiting for
   approval is resent every tick, and sessions exchange rounds, so a
   live one is never idle that long.
-- The app's writes come in through `Runner.write`; every id the node
+- Writes arrive on the runner's channel (`Runner.write`, or the app's
+  nonblocking offers); every id the node
   stores goes to the app's `notify`.
 
 One task owns the node and its SQLite connection; the listener and one
@@ -30,6 +31,7 @@ import engine.wire.Frame
 import engine.wire.Slots
 import Std.Async.TCP
 import Std.Sync.Channel
+import engine.wire.Listener
 
 namespace Engine.Sync
 open Std Std.Async Std.Net
@@ -320,6 +322,8 @@ structure Runner where
   stopped : IO.Ref Bool
   listening : Task (Except IO.Error Unit)
   slots : Slots
+  listener : Std.Internal.UV.TCP.Socket
+  closing : Std.Mutex Bool
 
 /-- Listen on `port` (0: any) and run a node on this store, keeping
 what is from `floor` on (0: everything). -/
@@ -338,18 +342,22 @@ def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (db : Db
   let stopped ← IO.mkRef false
   let listening ← IO.asTask (prio := .dedicated) (acceptor ch srv stopped slots cfg)
   let done ← IO.asTask (prio := .dedicated) (runLoop x ch notify cfg { db, node, slots })
-  return { events := ch, port := bound, done, stopped, listening, slots }
+  let closing ← Std.Mutex.new false
+  return { events := ch, port := bound, done, stopped, listening, slots, listener := srv.native, closing }
 
 /-- The app's own writes. -/
 def Runner.write (r : Runner) (ops : List Op) : IO Unit := discard <| enqueue r.events (.write ops)
 
 /-- Stop: the loop ends and shuts every socket down, the listener is
 released (its port free for the next start), and both are waited for. -/
-def Runner.stop (r : Runner) : IO Unit := do
+def Runner.stop (r : Runner) : IO Unit := r.closing.atomically do
+  if ← getThe Bool then return
+  set true
   r.stopped.set true
   discard <| enqueue r.events .stop
   discard <| IO.wait r.done
   discard <| IO.wait r.listening
+  closeListener r.listener
   while let some ev ← r.events.tryRecv do
     match ev with
     | .accepted c addr | .dialed addr (some c) =>

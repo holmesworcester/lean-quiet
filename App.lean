@@ -23,299 +23,18 @@ Each frame:
 Everything the platform does goes through `Io`, so tests drive the same
 code without a window (QTests).
 -/
-import engine.renderer.Data
-import ops.app.Chaos
-import ops.app.Reader
-import ops.app.NodeOffer
-import engine.renderer.Row
-import engine.renderer.Geometry
-import engine.renderer.Nav
-import engine.renderer.Cover
-import engine.renderer.Sheet
-import ops.app.Pages
-import ops.app.Composer
-import ops.community.link.View
-import engine.renderer.Camera
-import ops.app.Remove
-import ops.community.message.View
-import ops.community.membership.RequestView
-import ops.app.Pics
-import Std.Data.HashMap
+import AppLife
 
 namespace App
 open Engine Community Data Paint Font Row
 
-/-- The platform, as the app uses it. -/
-structure Io where
-  screen : IO (Array UInt32)
-  scroll : UInt32 → UInt32 → IO UInt32
-  scrollBy : Float → IO Unit
-  scrollTo : Float → IO Unit
-  frame : Array ByteArray → UInt32 → UInt32 → Array ByteArray → Array ByteArray → Bool → IO (Array UInt32)
-  text : IO (String × Array UInt32)
-  ime : Bool → IO Unit
-  copy : String → IO Unit
-  ctlPoll : IO (Array String)
-  ctlReply : String → IO Unit
-  nowUs : IO UInt64
-  /-- Wall-clock minutes since the Unix epoch, and the local timezone's
-  offset from UTC in minutes. -/
-  wall : IO (Nat × Int) := do
-    return ((← Std.Time.Timestamp.now).toSecondsSinceUnixEpoch.val.toNat / 60, 0)
-  scan : Bool → IO Unit
-  luma : IO (Array UInt32 × ByteArray)
-  /-- A line for the platform's log (logcat, the device console, stderr). -/
-  log : String → IO Unit := IO.eprintln
-  /-- The native text field's text becomes t (left alone if it is t). -/
-  setText : String → IO Unit := fun _ => pure ()
-
-/-- How far beyond each end of the viewport the list frame is drawn. -/
-def over : Nat := 1024
-/-- A row's height before it is measured. -/
-def est : Nat := 150
-/-- A window's rows on each side of its anchor. -/
-def half : Nat := 100
-def bottomPad : Nat := 16
-
-structure RowSt where
-  data : RowData
-  lay : Layout
-  deps : Array Q
-  /-- What the current paint was made from: data version and which
-  pictures were ready. -/
-  painted : Nat × List Bool
-  task : Option (Task Bitmap)
-  shown : Option Bitmap
-  ver : Nat
-  /-- The board version its data came from (Reader). -/
-  bver : Nat := 0
-  /-- The shown paint darkened, for behind the reaction tray, and the
-  version it was made from. -/
-  dimmed : Option (Task Bitmap) := none
-  dimVer : Nat := 0
-  dimShown : Option Bitmap := none
-
-abbrev ImgKey := Pics.Key
-
-/-- Which page is up: a conversation, or one of libquiet's other screens. -/
-inductive PageId where
-  | home | chat | getStarted | create | createName | joinChoice | openInvite | paste | scan | name | agree | waiting
-  | requests | invite | switcher | profile | removeConfirm | duplicate
-  deriving DecidableEq, Repr, Inhabited
-
-/-- Every page (Nav.depth: back reaches a root in fewer steps than this). -/
-def PageId.all : List PageId :=
-  [.home, .chat, .getStarted, .create, .createName, .joinChoice, .openInvite, .paste, .scan, .name, .agree,
-   .waiting, .requests, .invite, .switcher, .profile, .removeConfirm, .duplicate]
-
-/-- The reaction sheet's state: quick or the catalogue, its category,
-tone, search, and the grid's scroll (with a drag or fling in progress). -/
-structure SheetSt where
-  catalog : Bool := false
-  cat : Nat := 0
-  tone : Nat := 0
-  query : String := ""
-  searching : Bool := false
-  scroll : Nat := 0
-  drag : Option (Nat × Nat) := none
-  lastY : Nat := 0
-  lastT : Nat := 0
-  vel : Float := 0
-  deriving Inhabited
-
-/-- Everything a page and its bar are drawn from, besides the font, the
-background row and the camera's frame: the page cache's key. Communities
-appear by their keys (acceptance op id, community id, name, …), so two
-entries that share a name are still two keys. -/
-structure PageIn where
-  page : PageId
-  W : Nat
-  h : Nat
-  insetTop : Nat
-  dim : Dim
-  field : String
-  refusal : Option String
-  me : Kinds.Accepted.Key
-  comms : Array Kinds.Accepted.Key
-  /-- The join requests shown (not hidden), and how many there are in all. -/
-  asking : Array Pages.Asking
-  askingAll : Nat
-  link : Option String
-  members : Array (String × Bool)
-  online : Array Bool
-  backEmpty : Bool
-  /-- Which camera frame is shown (a new frame, a new key). -/
-  camFrame : Nat
-  /-- The open profile: name, whether it is me, whether removed, and
-  whether Remove is offered (Remove.offered); and the removal's stage
-  (1, 2: asked once, twice; 3: sending; 4: refused) and refusal. -/
-  profile : String × Bool × Bool × Bool := ("", false, false, false)
-  removeStage : Nat := 0
-  removeWhy : String := ""
-  deriving BEq, Inhabited
-
-structure St where
-  io : Io
-  W : Nat
-  Hs : Nat
-  insetTop : Nat
-  insetBot : Nat
-  font : Font
-  bgRow : ByteArray
-  rd : Db
-  wr : Writer
-  dbPath : String := ""
-  /-- The network, if this app runs one: the port its node listens on,
-  and whether it is reached on loopback (two apps on one machine, in
-  tests) instead of its LAN addresses. -/
-  netCfg : Option (Nat × Bool) := none
-  /-- The node's runner (Engine.Sync.Runner): it owns the writes once it
-  runs. And the ids it stored since the frame last took them. -/
-  net : Option Engine.Sync.Runner := none
-  /-- The node starting, off the frame (its connection opened and its
-  first reads made on a thread of its own). -/
-  netBoot : Option (Task (Except IO.Error Engine.Sync.Runner)) := none
-  /-- Writes the node's inbound channel could not take yet, in order. -/
-  toNode : Array (List Op) := #[]
-  /-- The journal's newest row this app has taken notice of. -/
-  seen : Nat := 0
-  me : Chaos.Me
-  live : Live := {}
-  /-- The reads the frame made since it last forgot the others: what it
-  keeps watching (Screen.screen_subs). -/
-  touched : Std.HashSet Q := {}
-  out : Array Pending := #[]
-  /-- What the native text field holds, as last set or reported. -/
-  native : String := ""
-  /-- The reader's board, and the frame's wants of it (Reader): the
-  conversation's ids and rows are read there, not on the frame. -/
-  sh : Reader.Shared
-  /-- The reader's state while the frame runs its passes itself (no
-  reader thread: the headless twins); none once a thread runs them. -/
-  rst : Option Reader.St := none
-  /-- The window of the conversation loaded (Reader.Want.window): its
-  anchor (none: the newest), its rows newest first, and how many
-  readable messages are newer and older than it, counted, not read: they
-  take `est` each, as placeholders, until a window holds them. -/
-  anchor : Option Pos := none
-  ids : Array Pos := #[]
-  newer : Nat := 0
-  older : Nat := 0
-  total : Nat := 0
-  people : Nat := 0
-  heights : Std.HashMap Id Nat := {}
-  rows : Std.HashMap Id RowSt := {}
-  imgs : Std.HashMap ImgKey (Task Bitmap) := {}
-  /-- When an image whose chunks were not all on the board may be tried
-  again (a frame number; Pics.retryLater). -/
-  imgRetry : Std.HashMap ImgKey Nat := {}
-  /-- The chunk read of each key waiting in imgRetry: still wanted while
-  it waits, so the reader reads it when its chunks land and the wait is
-  cleared (`takeBoard`); without it, the want lapses with the frame that
-  asked, and the picture waits out its two seconds. -/
-  retryWants : Std.HashMap ImgKey Reader.Want := {}
-  /-- The chunk read `slicesOf` asked for last: Pics.retryLater files it
-  under its key. -/
-  lastSlices : Option Reader.Want := none
-  /-- The chunk reads this frame's paints asked for (Reader.Want.slices):
-  the reader's wants from the next frame. -/
-  picWants : Array Reader.Want := #[]
-  selected : Option Id := none
-  b : Nat := 0
-  imeH : Nat := 0
-  text : String := ""
-  sel : Array UInt32 := #[0, 0, 0, 0]
-  topBmp : Bitmap := default
-  botBmp : Bitmap := default
-  chromeKey : String := ""
-  srcs : Option (Task (Array Image.Src)) := none
-  /-- Chaos's writes, being made (ctl `chaos`). -/
-  chaos : Option (Task (Array Job)) := none
-  ctl : Array String := #[]
-  frames : Nat := 0
-  times : Array Nat := #[]
-  paints : Nat := 0
-  seed : Nat := 1
-  dim : Dim := default
-  /-- The reaction sheet, open on the message in `selected`. -/
-  sheet : Option SheetSt := none
-  catalog : Array Sheet.Item := #[]
-  gridKey : String := ""
-  gridRows : Std.HashMap Nat Bitmap := {}
-  /-- Every community this device is in; `me` is the current one. -/
-  comms : Array Chaos.Me := #[]
-  /-- The current community: memory, not state. -/
-  cur : Id := .empty  -- the current entry's acceptance (Kinds.Accepted.Me.acc)
-  /-- The link pasted or scanned, while Agree & join is asked. -/
-  invite : Option Community.Invite := none
-  /-- This session's invite link per entry (acceptance; Add members). -/
-  links : List (Id × String) := []
-  /-- Photos attached in the composer: QOI bytes, size, and the chip. -/
-  chips : Array (ByteArray × Nat × Nat × Composer.Chip) := #[]
-  photoNext : Nat := 0
-  /-- The name chosen for joining (Choose a name). -/
-  joinName : String := ""
-  /-- The community being created, while its founder names themself. -/
-  newCommunity : String := ""
-  /-- The people of the current community (Direct messages on home):
-names, and whether it is me. -/
-  members : Array (String × Bool) := #[]
-  /-- Each member's user (as `members`). -/
-  memberIds : Array Id := #[]
-  /-- Whether this device's user is an admin of the current community. -/
-  amAdmin : Bool := false
-  /-- The member whose profile is open: user, name, whether it is me. -/
-  profileOf : Option (Id × String × Bool) := none
-  /-- Entries already removed when told (or when the app started): their
-removal is not announced again. -/
-  goneSeen : List Id := []
-  /-- Standing notices (libquiet's: no timeout; a tap puts the first
-  away), e.g. "You've been removed from …". -/
-  notices : List String := []
-  /-- The removal flow (Remove.step). -/
-  removal : Remove.Step := .idle
-  /-- Whether each member (as `members`) has a device this node holds a
-  session with now. -/
-  online : Array Bool := #[]
-  /-- The peers this node holds sessions with (their device keys), read
-  every half second. -/
-  peers : List ByteArray := []
-  /-- A toast and the frame it goes at (libquiet's: centred, about 3 s). -/
-  toast : Option (String × Nat) := none
-  page : PageId := .chat
-  backStack : List PageId := []
-  /-- A page's one-line field (the keyboard's text while a page shows one). -/
-  field : String := ""
-  refusal : Option String := none
-  hidden : List Id := []
-  /-- The key of the page drawn (`drawPage`): it is redrawn when the key changes. -/
-  pageKey : Option PageIn := none
-  pageNow : Option Pages.Page := none
-  /-- Requests to join the current community no admission answers yet:
-  the request's id, its fact, and its approvals' ids. -/
-  asking : Array Kinds.Request.Data := #[]
-  /-- Whether the camera is on (as last asked of the twin), and its newest
-  frame as drawn on Join with QR code. -/
-  camOn : Bool := false
-  camView : Option Bitmap := none
-  camFrame : Nat := 0
-  /-- A camera frame being decoded, off the app's thread. -/
-  decoding : Option (Task (Option String)) := none
-  /-- Camera frames decoded so far (ctl `scans`). -/
-  scans : Nat := 0
-
-instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure ()⟩⟩
-
-abbrev M := StateT St IO
-
-def c (s : St) : Id := s.me.c
-
 /-! ## Reading through live answers -/
 
 def read (q : Q) : M Ans := do
-  modify fun s => { s with touched := s.touched.insert q }
   let s ← get
+  if !s.life.allows s.life.lease then return default
+  modify fun s => { s with touched := s.touched.insert q }
+  modify fun s => { s with life := s.life.track s.owner q }
   let (a, live) ← (Live.readWith (fun q => q.run s.rd s.out) q).run s.live
   modify fun s => { s with live }
   return a
@@ -339,8 +58,6 @@ without its search: the field is left as it is). -/
 inductive TextTarget where
   | field | query | draft | none
   deriving BEq, DecidableEq
-
-def fieldPage (p : PageId) : Bool := p == .create || p == .createName || p == .paste || p == .name
 
 def textTarget (s : St) : TextTarget :=
   if fieldPage s.page then .field
@@ -423,19 +140,27 @@ sent twice or overtaken, whatever the channel answers. -/
 def offerAll (ch : Std.CloseableChannel.Sync Engine.Sync.Event) (q : Array (List Op)) : IO (Array (List Op)) := do
   return (← NodeOffer.offerList (fun w => (ch.trySend (.write w) : IO Bool)) q.toList).toArray
 
-/-- The one way into the store: through the node while it runs (it owns
-the store's writes, and offers peers only what it knows), else the local
-writer. A write behind the node's back is stored but never synced. To the
-node it never waits: what its channel cannot take now waits in `toNode`,
-offered again first each frame (`flushNode`), so a send never blocks the
-frame on sync. -/
+/-- Re-offer parked writes in submission order, only after teardown. -/
+def flushNode : M Unit := do
+  let s ← get
+  if !s.active || !s.surface || s.netStop.isSome || s.toNode.isEmpty then return
+  let some r := s.net | do
+    if s.netCfg.isNone && s.netBoot.isNone then
+      for ops in s.toNode do s.wr.submit ⟨ops, true⟩
+      modify fun s => { s with toNode := #[] }
+    return
+  let rest ← offerAll r.events s.toNode
+  modify fun s => { s with toNode := rest }
+
+/-- Store-owned writes survive unmount and are journaled before offering. -/
 def submit (j : Job) : M Unit := do
   let s ← get
-  match s.net with
-  | some r =>
-    let rest ← offerAll r.events (s.toNode.push j.ops)
-    modify fun s => { s with toNode := rest }
-  | none => s.wr.submit j
+  modify fun s => { s with queuedWrites := s.queuedWrites ++ j.ops.map Op.bytes }
+  saveCheckpoint
+  if !s.active || !s.surface || s.net.isSome || s.netBoot.isSome || s.netStop.isSome then
+    modify fun s => { s with toNode := s.toNode.push j.ops }
+    flushNode
+  else s.wr.submit j
 
 /-- The negative control of the frame's no-wait rule (`block` and
 `waits` in tests/wiring.txt): `submit` to the node as it was, through
@@ -443,14 +168,6 @@ def submit (j : Job) : M Unit := do
 run; the wiring check must catch it. -/
 def submitWaits (j : Job) : M Unit := do
   if let some r := (← get).net then discard <| Engine.Sync.enqueue r.events (.write j.ops)
-
-/-- The writes the node's channel could not take yet, offered again. -/
-def flushNode : M Unit := do
-  let s ← get
-  let some r := s.net | return
-  if s.toNode.isEmpty then return
-  let rest ← offerAll r.events s.toNode
-  modify fun s => { s with toNode := rest }
 
 /-- A user action's write (an intent's ops): each op is
 judged in order against what is decided and the ops before it in the
@@ -461,6 +178,7 @@ any op. An Invalid op refuses the whole write. Otherwise the ops go in as one jo
 of this node's own (`submit`). -/
 def writeAll (w : Community.Write) : M Bool := do
   let s ← get
+  if !s.life.allows s.life.lease then return false
   let mut mine : Std.HashMap Id (Verdict SF) := {}
   let mut pend := #[]
   for o in w.ops do
@@ -512,6 +230,7 @@ def nowMin : M Nat := do return (← (← get).io.wall).1
 its transaction and before the marks, and what it touches shows in the
 frame that pass serves (ActsLaws.acts_shown). Its id, for `takeDone`. -/
 def act (intent : Reader.RM Community.Write) : M Id := do
+  if !(← get).life.mounted then return .empty
   let id ← newBytes 16
   (← get).sh.act id intent
   return id
@@ -638,6 +357,7 @@ device the reader's thread runs them. The outbox is the reader's
 (`Reader.Shared.out`): the frame's writes join it as they are made. -/
 def readerPass : M Unit := do
   let s ← get
+  if !s.life.mounted then return
   if let some r := s.rst then
     let (_, r) ← (Reader.pass s.sh).run r
     modify fun s => { s with rst := some r }
@@ -657,6 +377,7 @@ version moved; nothing while the board has none (the frame shows the
 row's placeholder, Cover). Its time is shown in the local timezone. -/
 def mount (bd : _root_.Live.Board Reader.Want Reader.Val) (x : Id) : M Unit := do
   let s ← get
+  if s.page != .chat || !s.life.mounted then return
   let some (.row (some d), ver) := bd.get? (.row s.me.c s.me.adm x) | return
   if (s.rows[x]?.map (·.bver)) == some ver then return
   let tz := (← s.io.wall).2
@@ -679,6 +400,7 @@ def mount (bd : _root_.Live.Board Reader.Want Reader.Val) (x : Id) : M Unit := d
 /-- Start a paint of row x if what it shows changed; collect a finished one. -/
 def paintRow (x : Id) : M Unit := do
   let s ← get
+  if s.page != .chat || !s.life.mounted then return
   let some r := s.rows[x]? | return
   let av : Option Bitmap := none  -- profiles carry no avatar: Row draws the initial
   let mut imgs := #[]
@@ -842,12 +564,6 @@ def listenHints : M (List ByteArray) := do
 The page and the back stack change only by Nav's steps (its laws in
 engine/renderer/Nav.lean, the app's in ops/app/NavLaws.lean). -/
 
-/-- The page and the back stack, as Nav has them. -/
-def St.nav (s : St) : Nav.Nav PageId := ⟨s.page, s.backStack⟩
-
-/-- The page and the back stack, set to a Nav step's. -/
-def St.withNav (s : St) (n : Nav.Nav PageId) : St := { s with page := n.page, backStack := n.stack }
-
 /-- Open p (Nav.go); the page's refusal is cleared. -/
 def openSt (p : PageId) (s : St) : St := { s.withNav (Nav.go p s.nav) with refusal := none, pageKey := none }
 
@@ -869,15 +585,22 @@ def openPage (p : PageId) : M Unit := do
     if let some (w, i) := issued then
       if ← writeAll w then
         modify fun s => { s with links := (s.me.acc, i.text) :: s.links }
+  leavePage
   s.io.scrollTo 0
   modify (openSt p)
+  modify fun s => { s with restoreAnchor := p == .chat && s.mark.isSome }
+  mountPage
 
 /-- Back: the page before; at a root, it stays (Nav.back_root). -/
 def back : M Unit := do
+  leavePage
   let s ← get
   s.io.ime false
   s.io.scrollTo 0
   modify backSt
+
+  modify fun s => { s with restoreAnchor := s.page == .chat && s.mark.isSome }
+  mountPage
 
 /-- What the app holds for an entry no longer listed, forgotten: its
 invite link, a pasted link to its community, an open profile, and, if it
@@ -930,8 +653,11 @@ def refreshCommsNow : M Unit := do
 list starts again from its newest. An entry is its acceptance, never its
 community id or name (Switch.select_tapped). -/
 def switchToAcc (a : Id) : M Unit := do
+  leavePage
   (← get).io.scrollTo 0
   modify (switchSt a)
+  modify fun s => { useDraft s with mark := none, restoreAnchor := false }
+  mountPage
 
 def switchTo (i : Nat) : M Unit := do
   if let some m := (← get).comms[i]? then switchToAcc m.acc
@@ -976,6 +702,7 @@ device for each community from its acceptance). Its first frame waits
 for the local writer to be idle, so it boots from everything written. -/
 def netStep : M Unit := do
   let s ← get
+  if !s.active || !s.surface || s.netStop.isSome then return
   let some (port, _) := s.netCfg | return
   if s.net.isSome then return
   -- started: taken once it is up (the frame never waits on it)
@@ -986,9 +713,13 @@ def netStep : M Unit := do
     | .ok r =>
       s.io.log s!"node: listening on {r.port}"
       modify fun s => { s with net := some r }
+      flushNode
     | .error e =>
       s.io.log s!"node: cannot start: {e}"
       modify fun s => { s with netCfg := none }
+      let pending := (← get).toNode
+      modify fun s => { s with toNode := #[] }
+      if !pending.isEmpty then for ops in pending do s.wr.submit ⟨ops, true⟩
     return
   if (← s.wr.busy.get) > 0 then return
   let listen := ((← listenHints).head?).getD s!"127.0.0.1:{port}".toUTF8
@@ -1046,6 +777,13 @@ def scanStep : M Unit := do
         | none => say "That code isn't a Quiet invite."
   | none => pure ()
 
+/-- Home owns a count subscription, not the hidden conversation's rows. -/
+def refreshHomeCount : M Unit := do
+  let s ← get
+  if s.page != .home || s.me.c.isEmpty then return
+  let (a, _) ← readView (Community.readable s.me.c (limit := some 0)) #[]
+  modify fun s => { s with total := a.inRange }
+
 /-- The people of the current community, for home's Direct messages:
 its members (the Profile kind's), me first. -/
 def refreshMembers : M Unit := do
@@ -1055,7 +793,7 @@ def refreshMembers : M Unit := do
   let some (.members ms admin, _) := (← s.sh.board.get).get? (.members s.me.c s.me.user) | return
   let out := ms.map fun (u, ds, name) => ((name, u == s.me.user), ds.any (s.peers.contains ·), u)
   let sorted := out.filter (·.1.2) ++ out.filter (!·.1.2)
-  modify fun s => { s with members := sorted.map (·.1), online := sorted.map (·.2.1),
+  modify fun s => { s with members := sorted.map (·.1), people := ms.size, online := sorted.map (·.2.1),
                            memberIds := sorted.map (·.2.2), amAdmin := admin }
   -- a removal being sent is done once its target is no longer present
   if let .sending u := (← get).removal then
@@ -1471,7 +1209,20 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
           | _ => pure ()
 
 def onEvent : Event → M Bool
-  | .close => return false
+  | .close => do suspend; return false
+  | .background => do
+    suspend
+    modify fun s => { s with active := false }
+    return true
+  | .foreground => do modify fun s => { s with active := true }; return true
+  | .surface present => do
+    if !present then suspend
+    modify fun s => { s with surface := present }
+    return true
+  | .resize => do resize (← (← get).io.screen); return true
+  | .deepLink url => do
+    modify fun s => { s with pendingLinks := s.pendingLinks ++ [url] }
+    return true
   | .tap r x y => do onTap r x.toNat y.toNat false; return true
   | .long r x y => do onTap r x.toNat y.toNat true; return true
   | .text => do
@@ -1718,48 +1469,15 @@ def withToast (s : St) (fr : Array ByteArray) (vh : Nat) : Array ByteArray := Id
       fr := fr.set! (r0 + k) (tb.rows[k]!.copySlice 0 fr[r0 + k]! (4 * x) (4 * tb.w))
   return fr
 
-/-- One frame; the twin's events for the next one, or none when the
-window closes. -/
-def frame (evs : List Event) : M (Option (List Event)) := do
-  let t0 ← (← get).io.nowUs
-  -- 0. the screen and its insets, as of now (they can arrive after the
-  -- first frame, and change with rotation or the navigation mode)
-  let sc ← (← get).io.screen
-  let hs := (sc[1]?.map (·.toNat)).getD (← get).Hs
-  let it := (sc[2]?.map (·.toNat)).getD (← get).insetTop
-  let ib := (sc[3]?.map (·.toNat)).getD (← get).insetBot
-  modify fun s => { s with Hs := hs, insetTop := it, insetBot := ib }
-  -- 1. notices
-  let s ← get
-  let (fs, vs) ← takeChanges
-  if !fs.isEmpty || !vs.isEmpty then
-    -- an op whose verdict the store recorded leaves the outbox (the store
-    -- answers for it, same id)
-    let judged : Std.HashSet Id := vs.foldl (fun a (x, _) => a.insert x) {}
-    let decided := s.out.filter fun p => judged.contains p.op.id
-    -- the store changed: an image waiting for its chunk ops tries again now
-    modify fun s => { s with
-      live := s.live.notice fs (vs.map (·.1))
-      out := s.out.filter fun p => !judged.contains p.op.id }
-    if !decided.isEmpty then noticeLocal decided.toList
-  flushNode
-  -- the reader's acts: their writes go to the node (or the writer)
-  let _ ← takeDone
-  chaosStep
-  let tNotices ← (← get).io.nowUs
-  -- 2. events and commands
-  for e in evs do
-    if !(← onEvent e) then return none
-  let cmds ← (← get).io.ctlPoll
-  modify fun s => { s with ctl := s.ctl ++ cmds }
-  let mut queue := (← get).ctl
-  while !queue.isEmpty do
-    if ← command queue[0]! then queue := queue.extract 1 queue.size else break
-  modify fun s => { s with ctl := queue }
-  -- the native field holds the string it now edits (a page or sheet
-  -- change chose another)
-  syncText
-  let tCommands ← (← get).io.nowUs
+/-- Root facts read for the mounted page, after any conversation rows. -/
+def pageWants (s : St) : Array Reader.Want :=
+  #[Reader.Want.comms] ++ (if s.me.c.isEmpty then #[] else
+    #[Reader.Want.people s.me.c, Reader.Want.asking s.me.c] ++
+      (if s.page == .home || s.page == .profile || s.page == .removeConfirm then
+        #[Reader.Want.members s.me.c s.me.user] else #[]))
+
+/-- Read and paint only the mounted conversation. -/
+def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   -- 3. the list's ids and counts
   let s ← get
   -- the conversation: the messages this device can read (Community.readable,
@@ -1784,7 +1502,7 @@ def frame (evs : List Event) : M (Option (List Event)) := do
       let (newer, older, total) := match bd.get? countW with
         | some (.count cn co, _) => (cn - min cn nr, co - min co (ids.size - nr), cn + co)
         | _ => (s.newer, s.older, s.total)
-      if ids != s.ids || newer != s.newer || older != s.older || total != s.total then some (ids, newer, older, total)
+      if ids != s.ids || newer != s.newer || older != s.older || total != s.total || s.restoreAnchor then some (ids, newer, older, total)
       else none
     | _ => none
   let s ← get
@@ -1798,7 +1516,7 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   let b ← s.io.scroll ch0.toUInt32 (viewH s).toUInt32
   let b := b.toNat
   -- the anchor: the row at the viewport's bottom edge, and how far into it
-  let anchor := (rowAt s b).map fun (x, _) => (x, b - (bots0[s.ids.findIdx? (·.2 == x) |>.getD 0]?.getD 0))
+  let mut anchor := if s.restoreAnchor then s.mark else captureAnchor { s with b }
   -- a new window: in place now; the viewport, in its offsets, is where
   -- the anchor row went (`bv`; the native offset `b` follows in 5)
   let mut b := b
@@ -1808,7 +1526,13 @@ def frame (evs : List Event) : M (Option (List Event)) := do
     let s ← get
     if let some (x, off) := anchor then
       if let some i := s.ids.findIdx? (·.2 == x) then
-        bv := (bottoms s).1[i]! + off
+        bv := Lifecycle.offset ((bottoms s).1[i]! + heightOf s x) off
+      else if s.restoreAnchor then
+        anchor := none
+        b := 0
+        bv := 0
+        s.io.scrollTo 0
+        modify fun s => { s with mark := none, anchor := none, restoreAnchor := false }
   let s ← get
   let (bots0, _) := bottoms s
   let vh := viewH s
@@ -1826,9 +1550,7 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   let pics := s.retryWants.fold (fun ws _ w => if ws.contains w then ws else ws.push w) s.picWants
   -- and the frame's own lists, after the rows: the communities, the
   -- people count, the requests, and the people list on the pages that show it
-  let lists := #[Reader.Want.comms] ++ (if s.me.c.isEmpty then #[] else
-    #[Reader.Want.people s.me.c, Reader.Want.asking s.me.c] ++
-      (if s.page == .home || s.page == .profile || s.page == .removeConfirm then #[Reader.Want.members s.me.c s.me.user] else #[]))
+  let lists := pageWants s
   s.sh.setWants (Reader.Want.ofFrame idsW (win.map (fun x => Reader.Want.row s.me.c s.me.adm x)) pics countW lists)
   modify fun s => { s with picWants := #[] }
   readerPass
@@ -1855,10 +1577,10 @@ def frame (evs : List Event) : M (Option (List Event)) := do
     if next != s.anchor then modify fun s => { s with anchor := next }
   let tMount ← (← get).io.nowUs
   -- 5. keep the anchor still (unless pinned to the newest)
-  if b > 4 then
+  if b > 4 || s.restoreAnchor then
     if let some (x, off) := anchor then
       if let some i := s.ids.findIdx? (·.2 == x) then
-        let b' := bots[i]! + off
+        let b' := Lifecycle.offset (bots[i]! + heightOf s x) off
         if b' != b then
           s.io.scrollBy (b'.toFloat - b.toFloat)
           b := b'
@@ -1870,19 +1592,69 @@ def frame (evs : List Event) : M (Option (List Event)) := do
     if bot > fhi then break
     if bot + heightOf s s.ids[i]!.2 ≥ flo then paintRow s.ids[i]!.2
   let tPaint ← (← get).io.nowUs
-  -- forget rows far away (their heights stay)
+  -- Retire paints when their row leaves the retained window.
   let s ← get
-  if s.frames % 30 == 0 then
-    let keepLo := if b ≥ 4 * vh then b - 4 * vh else 0
-    let keepHi := b + 5 * vh
-    let mut keep : Std.HashMap Id Unit := {}
-    for i in [0:s.ids.size] do
-      let bot := bots[i]!
-      if bot ≤ keepHi && bot + heightOf s s.ids[i]!.2 ≥ keepLo then keep := keep.insert s.ids[i]!.2 ()
-    let rows := s.rows.filter fun x _ => keep.contains x
-    -- and stop watching what the frame no longer reads (the conversation's
-    -- reads are the reader's): a read it made in these 30 frames stays
-    modify fun s => { s with rows, live := s.live.keep s.touched.contains, touched := {} }
+  let mut rows := s.rows
+  for (x, r) in s.rows.toList do
+    let bot := (rowBottom s x).getD 0
+    if bot > b + 5 * vh || bot + r.lay.h < b - 4 * vh then
+      retireRow r
+      rows := rows.erase x
+  modify fun s => { s with
+    rows, b, mark := anchor,
+    restoreAnchor := s.restoreAnchor && !(s.ids.any fun p => some p.2 == anchor.map (·.1)) }
+  modify fun s => { s with mark := if s.restoreAnchor then s.mark else captureAnchor s }
+  return (b, bots, tIds, tMount, tPaint)
+
+/-- One frame; the twin's events for the next one, or none when the
+window closes. -/
+def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id) : M (Option (List Event)) := do
+  let t0 ← (← get).io.nowUs
+  modify fun s => { s with life := s.life.forget .empty }
+  -- 1. notices
+  let s ← get
+  let (fs, vs) ← takeChanges
+  if !fs.isEmpty || !vs.isEmpty then
+    -- an op whose verdict the store recorded leaves the outbox (the store
+    -- answers for it, same id)
+    let judged : Std.HashSet Id := vs.foldl (fun a (x, _) => a.insert x) {}
+    let decided := s.out.filter fun p => judged.contains p.op.id
+    -- the store changed: an image waiting for its chunk ops tries again now
+    modify fun s => { s with
+      live := s.live.notice fs (vs.map (·.1))
+      out := s.out.filter fun p => !judged.contains p.op.id }
+    if !decided.isEmpty then noticeLocal decided.toList
+  flushNode
+  -- the reader's acts: their writes go to the node (or the writer)
+  let _ ← takeDone
+  chaosStep
+  let tNotices ← (← get).io.nowUs
+  -- 2. events and commands
+  for e in evs do
+    match e with
+    | .ime h =>
+      let s ← get
+      if s.active && s.surface && s.life.mounted && inputPage == (s.page, s.cur) then
+        discard <| onEvent (.ime h)
+    | _ =>
+      if let some false ← owned lease (onEvent e) then return none
+  let cmds ← (← get).io.ctlPoll
+  modify fun s => { s with ctl := s.ctl ++ cmds }
+  let mut queue := (← get).ctl
+  while !queue.isEmpty do
+    if ← command queue[0]! then queue := queue.extract 1 queue.size else break
+  modify fun s => { s with ctl := queue }
+  -- the native field holds the string it now edits (a page or sheet
+  -- change chose another)
+  syncText
+  let tCommands ← (← get).io.nowUs
+  mountPage
+  let (b, bots, tIds, tMount, tPaint) ← if (← get).page == .chat then chatFrame else do
+    let s ← get
+    s.sh.setWants (pageWants s)
+    readerPass
+    let t ← (← get).io.nowUs
+    pure (0, #[], t, t, t)
   -- the sheet's fling: its velocity carries the grid, decaying
   let s ← get
   if let some sh := s.sheet then
@@ -1896,8 +1668,9 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   refreshAsking
   refreshPeers
   refreshMembers
-  scanStep
+  refreshHomeCount
   netStep
+  scanStep
   -- admitted in a community I joined: my first profile (the name I chose),
   -- in every community this device is admitted to, not only the current
   -- one (a join approved while another is on screen still introduces
@@ -1927,6 +1700,8 @@ def frame (evs : List Event) : M (Option (List Event)) := do
   if s.page == .waiting && !s.me.waiting then
     modify fun s => { s.withNav (Nav.swap .home s.nav) with pageKey := none }
     say "You're in."
+  mountPage
+  pruneLive
   -- a page instead of the conversation: its bar, its content in the list
   -- layer (which does not scroll on a page), a one-row composer layer
   let s ← get
@@ -1974,15 +1749,45 @@ def frame (evs : List Event) : M (Option (List Event)) := do
 notices it takes (`takeChanges`, its first read), are of one moment of the
 store, so no part of the screen is newer than another. -/
 def step (evs : List Event) : M (Option (List Event)) := do
+  let io := (← get).io
+  let incoming := evs ++ Event.decode (← io.poll) ++ (← io.links).toList.map Event.deepLink
+  let lease := (← get).life.lease
+  let inputPage := ((← get).page, (← get).cur)
+  let mut input := []
+  for e in incoming do
+    match e with
+    | .background | .foreground | .surface _ | .resize | .deepLink _ | .close =>
+      if !(← onEvent e) then return none
+    | _ => input := input ++ [e]
+  reap
+  let s ← get
+  if !s.active || !s.surface || s.netStop.isSome then
+    IO.sleep 16
+    return some []
+  resize (← io.screen)
+  mountPage
+  let links := (← get).pendingLinks
+  modify fun s => { s with pendingLinks := [] }
+  for url in links do
+    match Community.Invite.parse url with
+    | some i => takeInvite i
+    | none => say "That isn't a Quiet invite link."
   let rd := (← get).rd
   rd.exec "BEGIN"
-  try
-    let r ← frame evs
+  let r ← try
+    let r ← frame input lease inputPage
     rd.exec "COMMIT"
-    return r
+    pure r
   catch e =>
     rd.exec "ROLLBACK"
     throw e
+  let mut queued := []
+  for bytes in (← get).queuedWrites do
+    if let some op := Op.decode bytes then
+      if (← (Q.op op.id).run rd #[]) == .bytes none then queued := queued ++ [bytes]
+  modify fun s => { s with queuedWrites := queued }
+  saveCheckpoint
+  return r
 
 partial def loop (evs : List Event) : M Unit := do
   match ← step evs with
@@ -1997,6 +1802,13 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   let Hs := (screen[1]?.getD 2400).toNat
   let font ← Font.load
   let rd ← openDb dbPath
+  Lifecycle.init rd
+  let saved ← Lifecycle.load rd
+  if let some (_, _, _, _, _, bs) := saved then
+    let queued := (Codec.decode (bs[10]?.getD .empty) : Option (List ByteArray)).getD []
+    let ops := queued.filterMap Op.decode
+    if !ops.isEmpty then (receive fam (intake fam true ops)).run rd
+  let uiDb ← Db.openAt dbPath
   let wr ← Writer.start dbPath
   -- the communities are this device's accepted facts: read them once
   -- here to choose the first page
@@ -2008,21 +1820,28 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   let catalog ← match ← (Sheet.loadCatalog).toBaseIO with
     | .ok c => pure c
     | .error e => do IO.eprintln s!"no emoji catalogue: {e}"; pure #[]
-  return { io := io, W := W, Hs := Hs, insetTop := (screen[2]?.getD 0).toNat, catalog := catalog,
+  let initial : St := {
+           io := io, W := W, Hs := Hs, insetTop := (screen[2]?.getD 0).toNat, catalog := catalog,
            dim := ⟨(screen[4]?.getD 420).toNat, font.cell⟩,
            insetBot := (screen[3]?.getD 0).toNat, font := font, bgRow := solid Row.bg W, rd := rd,
            wr := wr, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
            -- a removal already in the store at launch is not announced
            goneSeen := (all.toList.filter (·.removed)).map (·.acc),
-           dbPath := dbPath, netCfg := net, sh := sh, rst := some { rd := ← openDb dbPath } }
+           dbPath := dbPath, netCfg := net, sh := sh, rst := some { rd := ← openDb dbPath }, uiDb := some uiDb }
+  let mut initial := initial
+  if let some cp := saved then
+    let (version, _, acc, _, _, _) := cp
+    if version == 1 then
+      if acc.isEmpty && comms.isEmpty then initial := applyCheckpoint initial cp
+      else if (Kinds.Accepted.select comms acc).isSome then
+        initial := (← (switchToAcc acc).run initial).2
+        initial := applyCheckpoint initial cp
+  initial.io.setText (if fieldPage initial.page then initial.field else initial.text)
+  return initial
 
 /-- On a device: the reader's passes on a thread of their own (never the
 shared task pool), so the frame only takes the board. -/
 def spawnReader (s : St) : IO St := do
-  match s.rst with
-  | some r =>
-    let _ ← IO.asTask (prio := .dedicated) (Reader.run s.sh r)
-    return { s with rst := none }
-  | none => return s
+  return (← resumeReader.run { s with threaded := true }).2
 
 end App

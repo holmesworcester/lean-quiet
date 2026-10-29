@@ -98,11 +98,15 @@ typedef struct {
 static pthread_mutex_t lq_mu = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  lq_cv = PTHREAD_COND_INITIALIZER;
 static bool            lq_up;      // the view is laid out in its window
+static _Atomic bool    lq_foreground;
+static NSMutableArray<NSString*>* lq_urls;
+lean_obj_res lq_poll(void);
 static bool            lq_gone;    // the app is going away
 static bool            lq_closed;  // the close event was handed over
 
 // The screen, px, as of the last layout (under lq_mu).
 static uint32_t lq_w, lq_h, lq_itop, lq_ibot, lq_dpi;
+static uint32_t lq_read_w, lq_read_h;
 static double   lq_k = 3;          // px per point
 
 // Events for the next frame, four words each (under lq_mu).
@@ -322,10 +326,13 @@ static UIColor* lq_color(uint32_t bgra) {
 
 lean_obj_res lq_screen(void) {
   pthread_mutex_lock(&lq_mu);
-  while (!lq_up && !lq_gone) {
+  static bool waited;
+  while (!waited && !lq_up && !lq_gone) {
     pthread_cond_wait(&lq_cv, &lq_mu);
   }
+  waited = true;
   uint32_t v[5] = { lq_w, lq_h, lq_itop, lq_ibot, lq_dpi };
+  lq_read_w = lq_w; lq_read_h = lq_h;
   pthread_mutex_unlock(&lq_mu);
   lean_object* a = lean_mk_empty_array_with_capacity(lean_box(5));
   for (int i = 0; i < 5; i += 1) {
@@ -358,7 +365,12 @@ lean_obj_res lq_scroll_to(double b) {
 // pin: the list frame is a page, pinned (the header comment; Placement.lean).
 lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj_arg top,
   b_lean_obj_arg bot, uint8_t pin) {
-  uint32_t w  = lq_w;
+  pthread_mutex_lock(&lq_mu);
+  bool available = lq_foreground && lq_up;
+  pthread_mutex_unlock(&lq_mu);
+  if (!available) return lq_poll();
+  uint32_t w  = lq_read_w;
+  uint32_t h  = lq_read_h;
   lq_over     = over;
   lq_stage(&lq_st[LQ_LIST], list, w, b, true);
   lq_stage(&lq_st[LQ_TOP], top, w, 0, false);
@@ -387,7 +399,10 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
   double   tob     = atomic_load(&lq_pend_b);
   double   by      = atomic_exchange(&lq_pend_by, 0.0);
   lq_wait_vsync();
+  __block bool presented = false;
   dispatch_sync(dispatch_get_main_queue(), ^{
+    if (!lq_foreground || !lq_up || w != lq_w || h != lq_h) return;
+    presented = true;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     double k = lq_k;
@@ -444,6 +459,12 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
     }
     [CATransaction commit];
   });
+  if (!presented) {
+    for (int k = 0; k < 3; k++) {
+      if (lq_st[k].last != NULL) lean_dec(lq_st[k].last);
+      lq_st[k].last = NULL;
+    }
+  }
   pthread_mutex_lock(&lq_mu);
   if (lq_gone && !lq_closed) {
     lq_closed = true;
@@ -516,6 +537,7 @@ static uint32_t          lq_yhdr[4]; // w, h, stride, orientation
 
 - (void)captureOutput:(AVCaptureOutput*)o didOutputSampleBuffer:(CMSampleBufferRef)sb
     fromConnection:(AVCaptureConnection*)c {
+  if (!lq_cam_want || !lq_foreground) return;
   CVPixelBufferRef pb = CMSampleBufferGetImageBuffer(sb);
   CVPixelBufferLockBaseAddress(pb, kCVPixelBufferLock_ReadOnly);
   size_t   h = CVPixelBufferGetHeightOfPlane(pb, 0);
@@ -573,10 +595,13 @@ static void lq_cam_start(void) {
 lean_obj_res lq_scan(uint8_t on) {
   dispatch_async(lq_cam_q, ^{
     fprintf(stderr, "camera %s\n", on ? "on" : "off");
-    lq_cam_want = on != 0;
-    if (on && lq_cam == nil && lq_cam_device() == nil) {
+    lq_cam_want = on != 0 && lq_foreground;
+    pthread_mutex_lock(&lq_mu);
+    free(lq_y); lq_y = NULL; lq_yn = 0;
+    pthread_mutex_unlock(&lq_mu);
+    if (lq_cam_want && lq_cam == nil && lq_cam_device() == nil) {
       fprintf(stderr, "camera: none\n");  // (the Simulator): no frames, and no permission asked
-    } else if (on && lq_cam == nil) {
+    } else if (lq_cam_want && lq_cam == nil) {
       AVAuthorizationStatus st = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
       if (st == AVAuthorizationStatusAuthorized) {
         lq_cam_start();
@@ -592,7 +617,7 @@ lean_obj_res lq_scan(uint8_t on) {
       } else {
         fprintf(stderr, "camera: not permitted\n");
       }
-    } else if (!on && lq_cam != nil) {
+    } else if (!lq_cam_want && lq_cam != nil) {
       [lq_cam stopRunning];
       lq_cam = nil;
     }
@@ -970,6 +995,10 @@ static void lq_listen(UIView* v, bool drag) {
   [super viewDidLayoutSubviews];
   UIView* v = self.view;
   if (v.window == nil) {
+    pthread_mutex_lock(&lq_mu);
+    lq_up = false;
+    lq_push(11, 0, 0, 0);
+    pthread_mutex_unlock(&lq_mu);
     return;
   }
   lq_k = v.window.screen.scale;
@@ -980,8 +1009,10 @@ static void lq_listen(UIView* v, bool drag) {
   lq_itop = lq_px(in.top);
   lq_ibot = lq_px(in.bottom);
   lq_dpi  = (uint32_t)lround(160 * lq_k);
+  lq_push(12, 0, 0, 0);
   if (!lq_up && lq_w > 0 && lq_h > 0) {
     lq_up = true;
+    lq_push(11, 1, 0, 0);
     pthread_cond_broadcast(&lq_cv);
   }
   pthread_mutex_unlock(&lq_mu);
@@ -1057,11 +1088,15 @@ static void* lq_run(void* arg) {
 @property (strong, nonatomic) UIWindow* window;
 @property (nonatomic) uint32_t ime;
 @property (nonatomic) bool active;
+@property (strong, nonatomic) CADisplayLink* displayLink;
 @end
 
 @implementation LeanDelegate
 
 - (BOOL)application:(UIApplication*)app didFinishLaunchingWithOptions:(NSDictionary*)opts {
+  lq_urls = [NSMutableArray new];
+  NSURL* url = opts[UIApplicationLaunchOptionsURLKey];
+  if (url != nil) [lq_urls addObject:url.absoluteString];
 #ifdef LQ_CTL
   const char* port = getenv("LEANQUIET_CTL_PORT");
   int p = port != NULL ? atoi(port) : 7417;
@@ -1087,6 +1122,7 @@ static void* lq_run(void* arg) {
   pthread_attr_setstacksize(&at, 64 << 20);
   pthread_create(&t, &at, lq_run, NULL);
   CADisplayLink* link = [CADisplayLink displayLinkWithTarget:self selector:@selector(vsync:)];
+  self.displayLink = link;
   [link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
   return YES;
 }
@@ -1114,6 +1150,37 @@ static void* lq_run(void* arg) {
   }
 }
 
+- (void)applicationWillResignActive:(UIApplication*)app {
+  lq_foreground = false;
+  self.displayLink.paused = YES;
+  [lq_field resignFirstResponder];
+  [lq_sv setContentOffset:lq_sv.contentOffset animated:NO];
+  dispatch_async(lq_cam_q, ^{
+    lq_cam_want = false;
+    [lq_cam stopRunning];
+    lq_cam = nil;
+  });
+  lq_event(9, 0, 0, 0);
+  // Release a frame already waiting for vsync before the display paused.
+  dispatch_semaphore_signal(lq_vsync);
+}
+
+- (void)applicationDidBecomeActive:(UIApplication*)app {
+  lq_foreground = true;
+  self.displayLink.paused = NO;
+  [lq_root setNeedsLayout];
+  [lq_root layoutIfNeeded];
+  lq_event(10, 0, 0, 0);
+}
+
+- (BOOL)application:(UIApplication*)app openURL:(NSURL*)url options:(NSDictionary*)options {
+  if (![url.scheme.lowercaseString isEqualToString:@"quiet"]) return NO;
+  pthread_mutex_lock(&lq_mu);
+  [lq_urls addObject:url.absoluteString];
+  pthread_mutex_unlock(&lq_mu);
+  return YES;
+}
+
 - (void)applicationWillTerminate:(UIApplication*)app {
   pthread_mutex_lock(&lq_mu);
   lq_gone = true;
@@ -1127,4 +1194,23 @@ int main(int argc, char** argv) {
   @autoreleasepool {
     return UIApplicationMain(argc, argv, nil, NSStringFromClass([LeanDelegate class]));
   }
+}
+
+lean_obj_res lq_poll(void) {
+  pthread_mutex_lock(&lq_mu);
+  if (lq_gone && !lq_closed) { lq_closed = true; lq_push(1, 0, 0, 0); }
+  lean_object* evs = lean_mk_empty_array();
+  for (uint32_t i = 0; i < lq_n * 4; i++) evs = lean_array_push(evs, lean_box_uint32(lq_evs[i]));
+  lq_n = 0;
+  pthread_mutex_unlock(&lq_mu);
+  return lean_io_result_mk_ok(evs);
+}
+
+lean_obj_res lq_links(void) {
+  pthread_mutex_lock(&lq_mu);
+  lean_object* links = lean_mk_empty_array();
+  for (NSString* url in lq_urls) links = lean_array_push(links, lean_mk_string(url.UTF8String));
+  [lq_urls removeAllObjects];
+  pthread_mutex_unlock(&lq_mu);
+  return lean_io_result_mk_ok(links);
 }

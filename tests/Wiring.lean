@@ -57,7 +57,10 @@ output, and local CI fails when it goes stale.
 - **Block:** what the frame must never wait on (a blocking send to the
   node's bounded channel): walked from `App.step`, but not into a
   `thread` it starts (the node's runner, the reader, which wait on
-  their own), no `block` definition is reached. Each `waits` mutant (a
+  their own), no `block` definition is reached. The sole `bounded`
+  exception is `App.suspend`: its separate walk permits `App.waitFor`
+  but still rejects other blocking calls outside those threads.
+  Each `waits` mutant (a
   send as it was, waiting) must be caught by the same walk, and must not
   run: the rule's negative control.
 - **Instruments:** what the code under test runs in to be measured (the
@@ -114,7 +117,7 @@ import Lean
 open Lean
 
 /-- The module roots of this repository. -/
-def roots : List Name := [`engine, `ops, `App, `Quiet, `Main]
+def roots : List Name := [`engine, `ops, `App, `AppTypes, `AppLife, `Quiet, `Main]
 
 /-- The negative controls: harnesses the entry points must not reach
 (the Worlds' steps among them), laws that must be classified models (one
@@ -349,6 +352,8 @@ structure Notes where
   door : NameMap (List Name) := {}
   /-- what the frame must never wait on (a blocking send to sync) -/
   block : NameMap String := {}
+  /-- The sole bounded lifecycle barrier, with its deadline contract. -/
+  bounded : NameMap String := {}
   /-- a thread the frame starts, which the `block` walk does not enter
   (it waits on its own) -/
   thread : List Name := []
@@ -394,6 +399,7 @@ def readNotes (path : System.FilePath) : IO Notes := do
     | (["control", n], t) => ns := at_ { ns with control := ns.control.insert n.toName t } n.toName
     | (["weak", n], t) => ns := at_ { ns with weak := ns.weak.insert n.toName t } n.toName
     | (["block", n], t) => ns := at_ { ns with block := ns.block.insert n.toName t } n.toName
+    | (["bounded", n], t) => ns := at_ { ns with bounded := ns.bounded.insert n.toName t } n.toName
     | (["thread", n], _) => ns := at_ { ns with thread := n.toName :: ns.thread } n.toName
     | (["waits", n], t) => ns := at_ { ns with waits := ns.waits.insert n.toName t } n.toName
     | (["door", n], t) =>
@@ -533,10 +539,18 @@ unsafe def main : IO UInt32 := do
   -- own, and the frame only offers to them); each mutant that waits must
   -- be caught, and must not run
   let threads : NameSet := ns.thread.foldl (·.insert ·) {}
-  let frame := running env [`App.step] threads
+  let barriers := ns.bounded.foldl (fun acc n _ => acc.insert n) threads
+  for (n, why) in ns.bounded do
+    if n != `App.suspend || why.isEmpty || !(running env [`App.step] threads).contains n then
+      problems := problems.push s!"bounded: only the reached App.suspend may be exempted, with its deadline contract ({n})"
+    let inside := running env [n] threads
+    for (b, _) in ns.block do
+      if b != `App.waitFor && inside.contains b then
+        problems := problems.push s!"bounded: {n} reaches unbounded {b}; every wait must use waitFor"
+  let frame := running env [`App.step] barriers
   for (n, why) in ns.block do
     if frame.contains n then
-      let path := (pathTo env [`App.step] n threads).getD [n]
+      let path := (pathTo env [`App.step] n barriers).getD [n]
       problems := problems.push s!"block: the frame waits on {n} ({why}): {" → ".intercalate (path.map toString)}"
   for n in ns.thread do
     if !run.contains n then problems := problems.push s!"tests/wiring.txt: thread {n} does not run; drop it"

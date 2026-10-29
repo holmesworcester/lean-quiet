@@ -66,7 +66,8 @@ lean_lib Net where
 /-! ## The app -/
 
 -- the root component
-@[default_target] lean_lib App
+@[default_target] lean_lib App where
+  roots := #[`App, `AppTypes, `AppLife]
 
 -- every module of the app, for its executables
 @[default_target] lean_lib Quiet
@@ -92,9 +93,10 @@ target glue.o pkg : FilePath := do
   let oFile := pkg.buildDir / "native" / "glue.o"
   let srcJob ← inputTextFile <| pkg.dir / "engine" / "native" / "glue.c"
   let header ← inputTextFile <| pkg.dir / "third_party" / "sqlite" / "sqlite3.h"
+  let closeJob ← inputTextFile <| pkg.dir / "engine" / "native" / "listener.h"
   let weakArgs := #["-I", (← getLeanIncludeDir).toString,
     "-I", (pkg.dir / "third_party" / "sqlite").toString]
-  buildO oFile (srcJob.zipWith (fun s _ => s) header) weakArgs #["-fPIC", "-O2"] "cc"
+  buildO oFile ((srcJob.zipWith (fun s _ => s) header).zipWith (fun s _ => s) closeJob) weakArgs #["-fPIC", "-O2"] "cc"
 
 target crypto.o pkg : FilePath := do
   let oFile := pkg.buildDir / "native" / "crypto.o"
@@ -320,3 +322,21 @@ lean_exe linux where
 -- switching, settings and resize (tests/app/desktop.sh).
 lean_exe desktop where
   root := `platforms.headless.Desktop
+
+lean_exe app_lifecycle where
+  root := `platforms.headless.Lifecycle
+
+target listener_fixture.o pkg : FilePath := do
+  let src ← inputTextFile <| pkg.dir / "tests" / "engine" / "listener_fixture.c"
+  buildO (pkg.buildDir / "native" / "listener_fixture.o") src
+    #["-I", (← getLeanIncludeDir).toString] #["-fPIC", "-O2"] "cc"
+
+extern_lib listener_fixture pkg := do
+  let o ← fetch <| pkg.target ``listener_fixture.o
+  buildStaticLib (pkg.staticLibDir / nameToStaticLib "listener_fixture") #[o]
+
+lean_exe runner_restart where
+  root := `tests.engine.Restart
+
+lean_exe app_lifecycle_node where
+  root := `platforms.headless.LifecycleNode

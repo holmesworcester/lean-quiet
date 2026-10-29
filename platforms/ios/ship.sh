@@ -157,7 +157,7 @@ stage() {
   cp -p "$root/platforms/leanrt/runtime.txt" "$st/lean/runtime.txt"
   cp -rp "$lean_src/src/runtime" "$lean_src/src/util" "$st/lean/src/"
   cp -rp "$uv_src/include" "$uv_src/src" "$st/uv/"
-  cp -p "$engine/native/glue.c" "$engine/native/crypto.c" \
+  cp -p "$engine/native/glue.c" "$engine/native/crypto.c" "$engine/native/listener.h" \
     "$root"/third_party/sqlite/sqlite3.[ch] "$root/third_party/sqlite/quiet_config.h" "$st/glue/"
   # The engine's Rust crypto, built here for the device and the
   # Simulator (pure Rust: the Mac only links it).

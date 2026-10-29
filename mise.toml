@@ -110,7 +110,7 @@ run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build net_join && .
 [tasks."host:cross"]
 description = "Two apps over real TCP, two communities both named club, each app in both, everyone named Ann: every entry reachable by a tap, each home right, a second join to one community and Stop waiting on it"
 depends = ["crypto"]
-run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build cross && .lake/build/bin/cross out/cross"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build cross && if [ \"${SKIP_TCP:-0}\" = 1 ]; then echo 'SKIP cross (TCP sandbox; built)'; else .lake/build/bin/cross out/cross; fi"
 
 [tasks."host:arrival"]
 description = "A photo arriving chunk by chunk (platforms/headless/Arrival): after each chunk the row's count, its pill's words and its painted ring are exact and the preview shows; a chunk twice changes nothing; the last one swaps in the file; a sender sees its own file from the outbox"
@@ -120,7 +120,7 @@ run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build arrival && .l
 [tasks."host:attach"]
 description = "Photos over real TCP: two apps joined on loopback (as host:net-join), one photo each way through Add photos and send; the other side ends with every chunk, the file opened from them equal to the bytes sent, and its row drawn from the file"
 depends = ["crypto"]
-run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build attach && .lake/build/bin/attach out/attach"
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build attach && if [ \"${SKIP_TCP:-0}\" = 1 ]; then echo 'SKIP attach (TCP sandbox; built)'; else .lake/build/bin/attach out/attach; fi"
 
 # Android (platforms/android)
 
@@ -213,3 +213,23 @@ run = "tests/app/bidi_host.sh"
 [tasks."test:bidi-negative"]
 description = "Temporarily break bidi passes, number proofs and clock painting; require failures and restore sources"
 run = "python3 tests/app/bidi_negative.py"
+
+[tasks."host:lifecycle"]
+description = "Lifecycle, production reader teardown, parked writes and same-store crash restoration"
+depends = ["crypto"]
+run = "tests/app/lifecycle.sh"
+
+[tasks."engine:restart"]
+description = "Stop a retained runner, explicitly close its listener, and restart on the same port"
+depends = ["crypto"]
+run = "tests/engine/restart.sh"
+
+[tasks."host:lifecycle-node"]
+description = "Chaos through pending boot and a full node channel, Home's count, and bounded suspend"
+depends = ["crypto"]
+run = "tests/app/lifecycle_node.sh"
+
+[tasks."host:lifecycle-node-negative"]
+description = "Mutants of Home's count, bounded teardown, parked writes, and the frame's blocking-call rule"
+depends = ["crypto"]
+run = "tests/app/lifecycle_node_negative.sh"

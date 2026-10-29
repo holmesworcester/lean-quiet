@@ -135,8 +135,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 732 rest on Lean's standard axioms
-only, and about two thirds of its theorems (529 of 712, not counting 20 negative controls) are about the code that runs; another 7 run the
+that rests on; 🥊 is supporting. All 747 rest on Lean's standard axioms
+only, and about two thirds of its theorems (542 of 727, not counting 20 negative controls) are about the code that runs; another 7 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -206,6 +206,8 @@ World); the rest are over models so far
 | ⬜ | 🥊🥊 | **Sync is efficient.** Each op is sent at most once per connection, and a round needs at most fan·Δ·⌈log n⌉ claims. | |
 | ⬜ | 🥊 | **The cached Merkle tree's labels are `lbl`'s,** for O(log n) fingerprints with no change on the wire. | |
 | | | **The screen** | |
+| ✅ | 🥊🥊 | **Unmounted pages issue no new reads or writes.** The running read/write gates reject unmounted pages and old leases, including after remount. Cache pruning leaves exactly the mounted queries after each has an answer; watches are their keys. Worker retirement, bounded suspend and native callback delivery are tested, not proved by these gate laws. | [`unmount_read`], [`unmount_write`], [`old_callback`], [`unmounted_quiet`], [`old_quiet`], [`live_exact`], [`subscriptions_exact`], [`mounted_runs`] |
+| 🟡 | 🥊🥊 | **Lifecycle state survives a restart or resize.** Proven: the running checkpoint codec and application preserve page and message anchor, and resize's offset keeps the anchor's top-edge distance when it fits. Not yet: SQLite crash durability or native placement as Lean laws; the headless twin tests crashes, viewport changes, keyboard transitions and invite launch ([inventory](docs/LIFECYCLE.md)). Geometry still has the native seam described below. | [`restore_checkpoint`], [`page_round`], [`restore_page_anchor`], [`apply_page_anchor`], [`resize_anchor`], [`viewport_geometry`], [`viewport_possible`] |
 | 🟡 | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. Not yet: proven of the formulas the twins' C applies (`Seam`), and of a copy of the sheet painter's placement. | [`visible_in_viewport`], [`newest_visible`], [`pinned_visible`], [`pinned_tap`], [`hit_iff`] |
 | ⬜ | 🥊🥊🥊 | **Every control is big enough to tap.** Every tappable control's hit area, not just its drawn size, is at least 48 dp by 48 dp on Android and 44 pt by 44 pt on iOS, at every supported screen size and text scale. | |
 | ⬜ | 🥊🥊 | **A tap means one thing.** On every screen, no two controls' hit areas overlap, so a point selects at most one control. A tap selects the control drawn under it. Today this is proven for the emoji sheet and message rows only (`keys_disjoint`, `hit_iff`, `pinned_tap`). | |
@@ -245,7 +247,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**529 of 712 laws are about running code;** another 7 run its node code in a World, and 176 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**542 of 727 laws are about running code;** another 7 run its node code in a World, and 178 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -259,7 +261,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
 | Screen | 126 | 64 |  | 62 |
-| App | 40 | 33 |  | 7 |
+| App | 55 | 46 |  | 9 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
@@ -269,7 +271,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]†, [`reads_members`], [`reads_recipients`], [`members_iff_node`]†, [`recipients_iff_node`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
 | `Scene.approval`, `Scene.K`, `Scene.S` +12 | [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`bootstrap_ideal`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`], [`allowPeer_settles`] | The bootstrap's model (ops/connection/bootstrap/): retired by `conn_runs_exchange`, `closure_delivered`, `answer_trusted` and `untrusted_silent` over the running code. |
-| `Seam.place`, `Geom.composerTop`, `Geom.viewNow` +5 | [`placed_row`]†, [`visible_in_viewport`]†, [`newest_visible`]†, [`newest_drawn`]†, [`pinned_row`]†, [`pinned_visible`]†, [`pinned_tap`]† | The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are. |
+| `Seam.place`, `Geom.composerTop`, `Geom.viewNow` +5 | [`placed_row`]†, [`visible_in_viewport`]†, [`newest_visible`]†, [`newest_drawn`]†, [`pinned_row`]†, [`pinned_visible`]†, [`pinned_tap`]†, [`viewport_geometry`]† | The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are. |
 | `Sync.keeps` | [`buffer_bounded`]*† | The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s. |
 | `Pic.add`, `Geom.box`, `Pic.attachEdge` +4 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]† | The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code. |
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
@@ -295,7 +297,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Bidi.numberRuns` | [`run_contiguous`]* | Nothing that runs calls it; `Text.numberRuns` do. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +22 more | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +23 more | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
@@ -323,7 +325,7 @@ native shell, and the engine sits on two vetted libraries. Where they
 meet Lean is the *seam*, and there are six places it runs:
 
 - **Input in.** Touches, the keyboard's text, the screen's insets, the
-  camera's frames and the clock, through Platform.lean's 14 externs;
+  camera's frames and the clock, through Platform.lean's 18 externs;
   touches come as small fixed-size events, in the order the OS gave
   them.
 - **Pixels out.** Lean hands over finished rows of pixels for three
@@ -415,6 +417,14 @@ let us prove.
   `app/android`, `app/ios` and `app/host` are now `platforms/android`,
   `platforms/ios` and `platforms/headless`.
 
+The lifecycle port also adds an explicit listener close in
+[`listener.h`](engine/native/listener.h). After the acceptor joins,
+`Runner.stop` invokes the Lean 4.34 UV external object's finalizer once and
+replaces its finalizer with a no-op. This depends on the runtime's external
+object ABI and UV finalizer, not a Lean proof. A retained-runner test checks
+explicit close and repeated stop; the TCP test rebinds the same port while
+retaining the stopped runner.
+
 ### Each platform's shell
 
 What Lean cannot reach without the OS: why each piece is native, and
@@ -466,7 +476,7 @@ Lean could do. They are under
 
 | | lines | what it does | what the proofs assume of it |
 |---|---|---|---|
-| **Platform.lean on Android** ([`quiet_android.c`](platforms/android/twin/quiet_android.c)) | 538 | The 16 externs. Each frame's three row arrays go into the layers. Touches and the Java half's events come back as four words each, the layout `App.Event.decode` reads. The text, the camera's luma (into a ByteArray), the clipboard, and the local timezone's offset (`lq_tz_min`: `localtime_r`'s `tm_gmtoff`, also in quiet_ios.m and host.c), by which rows show a message's UTC time. A log line (`lq_log`: logcat's "lean" tag, NSLog on iOS, stderr on the host). A watchdog logs a backtrace of Lean's thread if it stalls 3 s. | The words mean what `Event.decode` reads, and the offset is the OS's. |
+| **Platform.lean on Android** ([`quiet_android.c`](platforms/android/twin/quiet_android.c)) | 538 | The 18 externs, including lifecycle polling and OS links. Each frame's three row arrays go into the layers. Touches and the Java half's events come back as four words each, the layout `App.Event.decode` reads. The text, the camera's luma (into a ByteArray), the clipboard, and the local timezone's offset (`lq_tz_min`: `localtime_r`'s `tm_gmtoff`, also in quiet_ios.m and host.c), by which rows show a message's UTC time. A log line (`lq_log`: logcat's "lean" tag, NSLog on iOS, stderr on the host). A watchdog logs a backtrace of Lean's thread if it stalls 3 s. | The words mean what `Event.decode` reads, and the offset is the OS's. |
 | **SQLite** ([`glue.c`](engine/native/glue.c)) | 72 | Open, exec, and one statement with blob parameters, every column back as bytes. One file on every platform: the desktop, Android and iOS compile it. | Rows come back as stored. |
 | **The crypto** ([`crypto.c`](engine/native/crypto.c)) | 141 | Checks sizes, calls the Rust, and wipes secret bytes from its stack. | Its size rules are decisions of its own (below). |
 | **Text** (`ba_utf8` in activity.c, `cp` in LeanActivity.java, `lq_cp` in quiet_ios.m) | 37, 4, 11 | UTF-16 to UTF-8, and the selection and composition in code points, three ways. | The positions index the text Lean gets. |
@@ -982,6 +992,21 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L685-L702
 [`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1258-L1264
 [`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L732-L737
+[`unmount_read`]: ops/app/LifecycleLaws.lean#L12-L14
+[`unmount_write`]: ops/app/LifecycleLaws.lean#L16-L18
+[`old_callback`]: ops/app/LifecycleLaws.lean#L20-L22
+[`unmounted_quiet`]: ops/app/Lifecycle.lean#L66-L67
+[`old_quiet`]: ops/app/Lifecycle.lean#L70-L71
+[`live_exact`]: ops/app/Lifecycle.lean#L86-L90
+[`subscriptions_exact`]: ops/app/Lifecycle.lean#L74-L75
+[`mounted_runs`]: ops/app/Lifecycle.lean#L117-L119
+[`restore_checkpoint`]: ops/app/Lifecycle.lean#L114-L114
+[`page_round`]: AppLife.lean#L24-L24
+[`restore_page_anchor`]: ops/app/LifecycleLaws.lean#L28-L34
+[`apply_page_anchor`]: ops/app/LifecycleLaws.lean#L38-L43
+[`resize_anchor`]: ops/app/Lifecycle.lean#L104-L105
+[`viewport_geometry`]: ops/app/LifecycleLaws.lean#L54-L58
+[`viewport_possible`]: ops/app/LifecycleLaws.lean#L61-L62
 [`visible_in_viewport`]: engine/renderer/Geometry.lean#L90-L95
 [`newest_visible`]: engine/renderer/Geometry.lean#L99-L105
 [`pinned_visible`]: engine/renderer/Geometry.lean#L147-L151
@@ -1024,7 +1049,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`go_inv`]: engine/renderer/Nav.lean#L107-L107
 [`NavLaws.depth`]: ops/app/NavLaws.lean#L82-L84
 [`draft_back`]: ops/app/NavLaws.lean#L65-L67
-[`into_native`]: App.lean#L379-L382
+[`into_native`]: App.lean#L96-L99
 [`present_iff`]: ops/app/PeopleLaws.lean#L28-L31
 [`present_not_removed`]: ops/app/PeopleLaws.lean#L38-L41
 [`present_nodup`]: ops/app/PeopleLaws.lean#L45-L46
@@ -1084,8 +1109,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L1149-L1153
-[`pageIn_acc`]: App.lean#L1155-L1158
+[`drawPage_key`]: App.lean#L887-L891
+[`pageIn_acc`]: App.lean#L893-L896
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
@@ -1182,7 +1207,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`passActs_nil`]: engine/renderer/ActsLaws.lean#L141-L143
 [`inv_passActs`]: engine/renderer/ActsLaws.lean#L192-L195
 [`idxok_passActs`]: engine/renderer/ActsLaws.lean#L199-L203
-[`withViewLast_moves`]: ops/app/Reader.lean#L93-L97
+[`withViewLast_moves`]: ops/app/Reader.lean#L94-L98
 [`run_contiguous`]: engine/renderer/bidi/Laws.lean#L84-L87
 [`erase_run`]: engine/core/CostErase.lean#L22-L23
 [`erase_pure`]: engine/core/CostErase.lean#L25-L25

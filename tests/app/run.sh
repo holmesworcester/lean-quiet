@@ -39,3 +39,6 @@ tests/app/nav_negative.sh
 .lake/build/bin/pic_retry out/pic_retry
 tests/app/pic_retry_negative.sh
 tests/shipped/check.sh app
+tests/app/lifecycle.sh
+tests/app/lifecycle_node.sh
+tests/app/lifecycle_node_negative.sh

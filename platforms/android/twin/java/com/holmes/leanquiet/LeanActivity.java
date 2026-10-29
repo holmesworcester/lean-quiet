@@ -39,6 +39,7 @@ public class LeanActivity extends NativeActivity {
   static native void nInsets(int top, int bottom, int ime);
   static native void nText(String text, int selStart, int selEnd, int compStart, int compEnd);
   static native void nSend();
+  static native void nLink(String url);
   /** A camera frame's Y plane, as the camera filled it (copied in native),
    * and the sensor's clockwise orientation in degrees. */
   static native void nLuma(ByteBuffer y, int width, int height, int rowStride, int orientation);
@@ -78,6 +79,7 @@ public class LeanActivity extends NativeActivity {
 
   @Override protected void onCreate(Bundle saved) {
     super.onCreate(saved);
+    deliverLink(getIntent());
     getWindow().setDecorFitsSystemWindows(false);
     getWindow().setStatusBarColor(Color.TRANSPARENT);
     getWindow().setNavigationBarColor(Color.TRANSPARENT);
@@ -164,6 +166,17 @@ public class LeanActivity extends NativeActivity {
     });
   }
 
+  private void deliverLink(android.content.Intent intent) {
+    if (intent != null && android.content.Intent.ACTION_VIEW.equals(intent.getAction())
+        && intent.getData() != null) nLink(intent.getData().toString());
+  }
+
+  @Override protected void onNewIntent(android.content.Intent intent) {
+    super.onNewIntent(intent);
+    setIntent(intent);
+    deliverLink(intent);
+  }
+
   /** From native (any thread): the text becomes t, caret at its end; a
    * field already holding t is left alone (its caret too). */
   public void setText(String t) {
@@ -193,11 +206,11 @@ public class LeanActivity extends NativeActivity {
   // so no view of ours could show a preview anyway.)
 
   private android.os.HandlerThread camThread;
-  private android.os.Handler cam;
-  private android.hardware.camera2.CameraDevice camera;
-  private android.media.ImageReader reader;
+  private volatile android.os.Handler cam;
+  private volatile android.hardware.camera2.CameraDevice camera;
+  private volatile android.media.ImageReader reader;
   private int orientation;
-  private boolean wanted;
+  private volatile boolean wanted;
 
   /** From native (any thread): the camera on or off. */
   public void scan(boolean on) {
@@ -216,15 +229,14 @@ public class LeanActivity extends NativeActivity {
   }
 
   @Override protected void onPause() {
-    boolean w = wanted;
     stopCamera();
-    wanted = w;  // reopened on resume
+    showIme(false);
     super.onPause();
   }
 
   @Override protected void onResume() {
     super.onResume();
-    if (wanted) startCamera();
+    // Lean resumes the camera only after restoring the mounted scan page.
   }
 
   private void startCamera() {
@@ -242,7 +254,7 @@ public class LeanActivity extends NativeActivity {
     open(cam);
   }
 
-  private void stopCamera() {
+  private synchronized void stopCamera() {
     wanted = false;
     if (cam != null) {
       final android.hardware.camera2.CameraDevice c = camera;
@@ -272,6 +284,7 @@ public class LeanActivity extends NativeActivity {
   }
 
   private void open(final android.os.Handler h) {
+    if (!wanted || cam != h) return;
     try {
       android.hardware.camera2.CameraManager cm = getSystemService(android.hardware.camera2.CameraManager.class);
       String id = null;
@@ -287,12 +300,17 @@ public class LeanActivity extends NativeActivity {
           .getOutputSizes(android.graphics.ImageFormat.YUV_420_888));
       final android.media.ImageReader rd = android.media.ImageReader.newInstance(
           size.getWidth(), size.getHeight(), android.graphics.ImageFormat.YUV_420_888, 2);
-      reader = rd;
+      synchronized (this) {
+        if (!wanted || cam != h) { rd.close(); return; }
+        reader = rd;
+      }
       rd.setOnImageAvailableListener(this::frame, h);
       cm.openCamera(id, new android.hardware.camera2.CameraDevice.StateCallback() {
         @Override public void onOpened(android.hardware.camera2.CameraDevice d) {
-          if (reader != rd) { d.close(); return; }
-          camera = d;
+          synchronized (LeanActivity.this) {
+            if (!wanted || cam != h || reader != rd) { d.close(); return; }
+            camera = d;
+          }
           android.util.Log.i("lean", "camera opened, " + rd.getWidth() + "x" + rd.getHeight() + ", orientation " + orientation);
           start(d, rd, h);
         }
@@ -318,6 +336,7 @@ public class LeanActivity extends NativeActivity {
       d.createCaptureSession(Arrays.asList(rd.getSurface()),
           new android.hardware.camera2.CameraCaptureSession.StateCallback() {
             @Override public void onConfigured(android.hardware.camera2.CameraCaptureSession s) {
+              if (!wanted || cam != h || reader != rd) { s.close(); return; }
               try { s.setRepeatingRequest(rb.build(), null, h); } catch (Exception e) { android.util.Log.e("lean", "repeat", e); }
             }
             @Override public void onConfigureFailed(android.hardware.camera2.CameraCaptureSession s) {
@@ -330,7 +349,8 @@ public class LeanActivity extends NativeActivity {
   }
 
   /** One camera frame: its Y plane to native, for Lean. */
-  private void frame(android.media.ImageReader r) {
+  private synchronized void frame(android.media.ImageReader r) {
+    if (!wanted || reader != r) return;
     android.media.Image img = r.acquireLatestImage();
     if (img == null) return;
     try {

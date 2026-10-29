@@ -102,10 +102,15 @@ private def suite (args : List String) : IO UInt32 := do
     if d.app.total ≥ 41 then break
     d ← settle d
   check s!"a conversation taller than the window ({d.app.total} messages)" (d.app.total ≥ 41)
+  sm.b.set 800
+  d ← settle d
+  let anchor := App.captureAnchor d.app
+  check "desktop resize has a nonempty message anchor" anchor.isSome
   let mut unpainted := 0
   let mut flashes := 0
   for (w, h) in [(1040, 760), (980, 700), (900, 760), (771, 640), (1300, 900), (1440, 760), (1100, 760)] do
     d ← tick (← resize d w h)
+    check s!"{w}x{h}: desktop resize preserves the message anchor" (App.captureAnchor d.app == anchor)
     unless framePainted d.app do unpainted := unpainted + 1
     -- a placeholder's bar (App.holdLine): its colour from pad + 48 dp on
     let pic ← picture d

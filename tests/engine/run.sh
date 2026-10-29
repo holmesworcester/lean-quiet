@@ -60,5 +60,6 @@ tests/engine/crypto_compat.sh
 ENGINE_BIN="$bin" tests/engine/crash.sh "${CRASH_ROUNDS:-10}" "$out"/crash
 if [ "${1:-}" != --phone-runtime ]; then
   tests/engine/harden.sh
+  tests/engine/restart.sh
   tests/shipped/check.sh engine
 fi
