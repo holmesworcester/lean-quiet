@@ -118,3 +118,22 @@ Mise tasks), as the mobile release gate and as its manual dispatch. Run it befor
 a mobile release alongside the default deterministic local CI. GitHub Actions
 is not used. The caller must hold the Mac lease and clean its private staging
 folder/simulator after collecting build artifacts before releasing the lease.
+
+### Android build modes
+
+Both development and release APKs compile Lean-generated C and the Android
+shell with `-O3`, SQLite with `-O2`, the Lean runtime with `-O3 -DNDEBUG`, and
+Rust crypto with `--release`. `RELEASE=1` additionally removes the development
+control listener, omits the manifest's debuggable flag, and selects D8's
+`--release` mode. Local APKs still use the same development signing certificate
+so installation can preserve an existing database; this is not store signing.
+
+`mise run android:release-e2e` builds both modes and creates its own API 36 AVD
+(`lean-quiet-release`, port 5594) under `/mnt/storage/holmes-avd`. It verifies
+debug/run-as access and control-channel isolation, then runs the same native
+swipe sequence over the same retained chaos database in each mode. It checks
+that the transcript changes and the process survives, retaining screenshots,
+CPU measurements, 120-frame native timing averages, and logcat under
+`out/ctl-guard`. These emulator measurements are not Pixel latency guarantees.
+This requires the Android photo suite's SDK/KVM/Java/Python prerequisites.
+The provisioned release/manual CI entry is `ci/local.sh android-release`.

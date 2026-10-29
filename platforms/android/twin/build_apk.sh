@@ -16,7 +16,8 @@
 #
 # usage: build_apk.sh out.apk package label main-module [abi...]
 #   abi: arm64-v8a (default) and/or x86_64 (the emulator)
-# env: RELEASE=1 (no control channel); ANDROID_SDK (default ~/android-sdk); LEANRT, the built runtime
+# env: RELEASE=1 (non-debuggable, release DEX, no control channel);
+#   ANDROID_SDK (default ~/android-sdk); LEANRT, the built runtime
 #   (default out/leanrt; android/leanrt/build.sh makes one)
 set -euo pipefail
 [ $# -ge 4 ] || { sed -n 2,21p "$0"; exit 2; }
@@ -143,9 +144,15 @@ done
 
 # 3. The Java half, the manifest, assets; package and sign.
 mkdir -p "$work/classes" "$work/dex"
+dex_mode=--debug
+manifest_flags=(--debug-mode)
+if [ "${RELEASE:-}" = 1 ]; then
+  dex_mode=--release
+  manifest_flags=()
+fi
 javac --release 17 -nowarn -classpath "$jar" -d "$work/classes" \
   $(find "$here/java" -name '*.java') 2>&1 | sed '/^Note:/d'
-"$bt/d8" --min-api 30 --lib "$jar" --output "$work/dex" $(find "$work/classes" -name '*.class')
+"$bt/d8" "$dex_mode" --min-api 30 --lib "$jar" --output "$work/dex" $(find "$work/classes" -name '*.class')
 sed -e "s/@PACKAGE@/$pkg/" -e "s/@LABEL@/$label/" \
   "$here/AndroidManifest.xml.in" > "$work/AndroidManifest.xml"
 "$root/tools/noto_assets.sh"
@@ -153,7 +160,7 @@ mkdir -p "$work/assets/assets"
 if [ -d "$root/assets" ]; then
   find "$root/assets" -maxdepth 1 -type f -exec cp {} "$work/assets/assets/" \;
 fi
-"$bt/aapt2" link --debug-mode --manifest "$work/AndroidManifest.xml" -I "$jar" \
+"$bt/aapt2" link "${manifest_flags[@]}" --manifest "$work/AndroidManifest.xml" -I "$jar" \
   -A "$work/assets" -o "$work/base.apk"
 cp "$work/dex/classes.dex" "$work/apk/"
 (cd "$work/apk" && zip -qr "$work/base.apk" lib classes.dex)

@@ -31,6 +31,7 @@ gate() {
     app) mise run test:app ;;
     visual) mise run visual:compare ;;
     android-photo) mise run android:photo-e2e ;;
+    android-release) mise run android:release-e2e ;;
     ios-photo) mise run ios:photo-e2e ;;
     pixel-scroll) mise run android:scroll-measure ;;
     readme) mise run readme:links ;;

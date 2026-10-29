@@ -244,6 +244,11 @@ description = "Who can drive the app's control channel, on your own emulator (SE
 depends = ["android:apk"]
 run = "platforms/android/test/ctl_guard.sh ${SERIAL:-emulator-5644}"
 
+[tasks."android:release-e2e"]
+description = "Build both APK modes; setup a private AVD; verify release packaging, control isolation and external-input scrolling with paired CPU measurements"
+depends = ["android:runtime"]
+run = "bash platforms/android/test/release_e2e.sh"
+
 [tasks."test:harden"]
 description = "Daybreak sync regressions: read traces, deadlines, purge, hostile holds, backpressure and TCP socket limits"
 run = "tests/engine/harden.sh"
