@@ -290,7 +290,6 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `RWorld.passActs` | [`passActs_nil`], [`inv_passActs`], [`idxok_passActs`], [`RWorld.acts_shown`] | Nothing that runs calls it; `AWorld.pass` do. |
 | `RWorld.passIdx` | [`passActs_nil`] | Nothing that runs calls it; `RWorld.passActs`, `RWorld.passLate` do. |
 | `RWorld.touched` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.actsWorld`, `RWorld.nTouched` do. |
-| `Live.staleW` | [`inv_passActs`], [`idxok_passActs`], [`RWorld.acts_shown`], [`RWorld.inv_commit`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`] | Nothing that runs calls it; `RWorld.marked`, `RWorld.passEager`, `Reader.stale` do. |
 | `Want.withViewLast` | [`withViewLast_moves`] | Nothing that runs calls it. |
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |

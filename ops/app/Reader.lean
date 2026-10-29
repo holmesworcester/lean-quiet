@@ -272,11 +272,6 @@ def eval : Want → RM (Val × Array Q)
         | _ => return (.slices none, deps)
     return (.slices (some raw.toList), deps)
 
-/-- Whether w's reads changed: not held, or one of its reads stale
-(`Live.staleW`, the model's: engine/renderer/ReaderLaws.lean). -/
-def stale (s : St) (w : Want) : Bool :=
-  _root_.Live.staleW (fun q => !s.live.fresh q) (fun w => (s.deps[w]?).map (·.toList)) w
-
 /-- w's value, with every read it made recorded whatever it found: a
 row not shown yet holds the reads it made, so a notice on one of them,
 not every pass, reads it again. -/
