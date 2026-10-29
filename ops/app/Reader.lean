@@ -165,8 +165,9 @@ abbrev Act := Id × RM Community.Write
 /-- What the frame and the reader share. -/
 structure Shared where
   board : IO.Ref (_root_.Live.Board Want Val)
-  /-- The frame's wants, most urgent first. -/
-  wants : IO.Ref (Array Want)
+  /-- One atomic publication: generation and wants, most urgent first.
+  A reader must never pair a new generation with the previous wants. -/
+  request : IO.Ref (Nat × Array Want)
   /-- The outbox: the pass's. The frame's own writes join it; the pass
   adds its acts' ops and drops those the store has decided. -/
   out : IO.Ref (Array Pending)
@@ -176,8 +177,6 @@ structure Shared where
   /-- The journal's rows the reader has taken (the writer prunes below
   the frame's and this). -/
   seen : IO.Ref Nat
-  /-- Moves each time the frame sets `wants` to something new. -/
-  gen : IO.Ref Nat
   /-- The writers' commits (the app's writer counts its own, the node's
   notify counts the node's): a pass that sees it unmoved, with no note,
   the same wants and nothing dirty, reads nothing (RestLaws.start_rest). -/
@@ -190,7 +189,7 @@ structure Shared where
   done : IO.Ref (Array (Id × Option Community.Write))
 
 def Shared.new (commits : IO.Ref Nat) : IO Shared :=
-  return ⟨← IO.mkRef {}, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef 0,
+  return ⟨← IO.mkRef {}, ← IO.mkRef (0, #[]), ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0,
     commits, ← IO.mkRef #[], ← IO.mkRef #[]⟩
 
 /-- Queue an act: the next pass opens the store for it (`Live.mustReadActs`). -/
@@ -200,9 +199,10 @@ def Shared.act (sh : Shared) (id : Id) (intent : RM Community.Write) : IO Unit :
 /-- The frame's wants, set; the generation moves only when they change,
 so a reader at rest stays at rest (RestLaws.nextGen_same). -/
 def Shared.setWants (sh : Shared) (ws : Array Want) : IO Unit := do
-  let old ← sh.wants.get
-  sh.gen.modify (_root_.Live.nextGen old ws)
-  if old != ws then sh.wants.set ws
+  sh.request.modify fun (gen, old) => (_root_.Live.nextGen old ws gen, ws)
+
+def Shared.wants (sh : Shared) : IO (Array Want) := return (← sh.request.get).2
+def Shared.generation (sh : Shared) : IO Nat := return (← sh.request.get).1
 
 
 /-- A read through the pass's cache (App's `read`, on this connection). -/
@@ -312,8 +312,7 @@ def judgeWrite (rd : Db) (out : Array Pending) (w : Community.Write) : IO (Optio
 any change. -/
 def pass (sh : Shared) (cap : Nat := 64) : RM Bool := do
   if !(← (← get).enabled) then return false
-  let wants ← sh.wants.get
-  let gen ← sh.gen.get
+  let (gen, wants) ← sh.request.get
   let notes ← sh.notes.modifyGet fun a => (a, #[])
   let acts ← sh.acts.modifyGet fun a => (a, #[])
   -- at rest (the writers' counter unmoved, no note, the same wants,

@@ -13,6 +13,13 @@ def receive (motion : Array UInt32 → IO Unit) (context : Input.Context)
   motion (result.motion.foldl (fun ws t => ws ++ t.words) #[])
   return { result with state := { result.state with lastTap := Input.trace state.lastTap result.events } }
 
+/-- Android reports whether it accepted this publication. Synchronous shells
+without a status record accept on return. Records share the raw eight-word ABI. -/
+def accepted (raw : Array UInt32) : Bool := Id.run do
+  for i in [0:raw.size / 8] do
+    if raw[i * 8]! == 20 && raw[i * 8 + 1]! == 0 then return false
+  return true
+
 def present (display : Show) (motion : Array UInt32 → IO Unit) (g : Geometry.Geom)
     (dpi maxB : Nat) (state : Input.State) (list : Array ByteArray) (b over : Nat)
     (top bot : Array ByteArray) (pin : Bool) (hold : Array ByteArray := #[]) : IO Input.Result := do
@@ -20,11 +27,8 @@ def present (display : Show) (motion : Array UInt32 → IO Unit) (g : Geometry.G
   let frame := Surface.make g pin over b state.offset list.size
   let context : Input.Context := ⟨frame, dpi, maxB⟩
   let serial := state.serial + 1
-  -- Shells stamp touches with the frame actually displayed at acquisition.
-  -- One frame may be pending; the queue is drained completely each call.
-  let state := { state with
-    serial := serial
-    frames := (serial, context) :: state.frames.take 2 }
+  -- A failed publication cannot evict the frame still visible on the device.
+  let state := { state with serial := serial }
   let width := ((list[0]?).getD ByteArray.empty).size / 4
   let hold := if hold.isEmpty then
       Hold.plane ⟨Paint.solid Row.bg width, ⟨dpi, 0, .dark⟩, width⟩ g.viewNow else hold
@@ -34,5 +38,11 @@ def present (display : Show) (motion : Array UInt32 → IO Unit) (g : Geometry.G
       ((high : Int) - list.size).toInt32.toUInt32, high.toUInt32,
       hold.size.toUInt32, 48, Row.placeholder, Row.bg]
   let raw ← display list b.toUInt32 over.toUInt32 top (Surface.fill g bot) pin words hold
-  receive motion context state raw
+  let published := accepted raw
+  -- Drain touches against all previously accepted contexts before pruning:
+  -- the oldest frame may still have been visible when this batch was acquired.
+  let pending := if published then (serial, context) :: state.frames else state.frames
+  let result ← receive motion context { state with frames := pending } raw
+  let retained := if published then (serial, context) :: state.frames.take 2 else state.frames
+  return { result with state := { result.state with frames := retained } }
 end Session

@@ -197,7 +197,7 @@ def stopReader : M Unit := do
   parkDone s.sh
   let out ← s.sh.out.get
   s.sh.acts.set #[]
-  s.sh.wants.set #[]
+  s.sh.setWants #[]
   s.sh.board.set {}
   s.sh.out.set #[]
   s.sh.notes.set #[]

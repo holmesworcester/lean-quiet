@@ -287,15 +287,28 @@ private def threaded (dir : String) (ck : Tests.Checks) : IO Unit := do
     IO.sleep 10
     ck.ok "unmount joins the in-flight reader" (← match worker with
       | some w => IO.hasFinished w.done | none => pure false)
-    ck.ok "unmount drops reader wants and board" ((← s.sh.wants.get).isEmpty &&
+    ck.ok "unmount drops reader wants and board" ((← s.sh.wants).isEmpty &&
       ((← s.sh.board.get).get? (.row s.me.c s.me.adm s.ids[0]!.2)).isNone)
     ck.ok "unmount drops every picture request" ((← get).picWants.isEmpty && (← get).retryWants.isEmpty &&
       (← get).imgRetry.isEmpty && (← get).imgs.isEmpty)
     openPage .chat
     for _ in [0:30] do steps 1; IO.sleep 2
     ck.ok "remount restarts the reader and repopulates rows" ((← get).reader.isSome && !(← get).rows.isEmpty)
+    -- Each navigation starts a real dedicated reader. Its initial request
+    -- and subsequent row request must both populate the actual chat viewport.
+    for cycle in [0:12] do
+      openPage .home
+      steps 1
+      openPage .chat
+      let start ← IO.monoMsNow
+      while (← get).rows.isEmpty && (← IO.monoMsNow) < start + 2000 do
+        steps 1
+        IO.sleep 2
+      let live ← get
+      ck.ok s!"threaded navigation {cycle}: message window arrives" (live.total == 1 &&
+        live.ids.size == 1 && live.rows.size == 1 && live.reader.isSome)
     discard <| step [.background]
-    ck.ok "background joins reader and clears its board" ((← get).reader.isNone && (← s.sh.wants.get).isEmpty)
+    ck.ok "background joins reader and clears its board" ((← get).reader.isNone && (← s.sh.wants).isEmpty)
     discard <| step [.foreground]
     for _ in [0:30] do steps 1; IO.sleep 2
     ck.ok "foreground restarts production reader" ((← get).reader.isSome && !(← get).rows.isEmpty)

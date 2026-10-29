@@ -116,14 +116,14 @@ def main (args : List String) : IO UInt32 := do
     check s!"after chaos, every fresh live answer equals the query now ({n1} answers)" (b1 == 0 && n1 > 0)
     -- at rest: idle frames set the same wants (no generation moves) and
     -- their passes open the store at most once a second (Live.mustRead)
-    let g0 ← (← get).sh.gen.get
+    let g0 ← (← get).sh.generation
     let o0 := ((← get).rst.map (·.opens)).getD 0
     let ta ← IO.monoMsNow
     for _ in [0:60] do
       let _ ← step []
       IO.sleep 20
     let tb ← IO.monoMsNow
-    let g1 ← (← get).sh.gen.get
+    let g1 ← (← get).sh.generation
     let o1 := ((← get).rst.map (·.opens)).getD 0
     check s!"at rest, 60 frames move no generation ({g0} to {g1}) and open the store {o1 - o0} times in {tb - ta} ms"
       (g1 == g0 && o1 - o0 ≤ (tb - ta) / 1000 + 1)

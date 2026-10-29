@@ -1355,6 +1355,15 @@ def command (line : String) : M Bool := do
   | "state" =>
     s.io.ctlReply s!"b {s.b} total {s.total} loaded {s.ids.size} people {s.people} mounted {s.rows.size} ime {s.imeH} text {repr s.text} outbox {s.out.size} busy {← s.wr.busy.get} viewH {viewH s}"
   | "stats" => s.io.ctlReply (stats s)
+  | "input" => s.io.ctlReply s!"page {repr s.page} serial {s.input.serial} retained {s.input.frames.map (·.1)} press {s.input.press.isSome} lastTap {s.input.lastTap} generation {s.life.generation}"
+  | "reader" =>
+    let ws ← s.sh.wants
+    let board ← s.sh.board.get
+    let window := match board.get? (.window s.me.c s.anchor half half) with
+      | some (.window ids _, _) => s!"ids={ids.size}"
+      | _ => "missing"
+    s.io.ctlReply s!"threaded {s.threaded} active {s.active} surface {s.surface} reader {s.reader.isSome} stopping {s.readerStop.isSome} rst {s.rst.isSome} wants {ws.size} generation {← s.sh.generation} window {window} anchor {s.anchor.isSome} restore {s.restoreAnchor} netStop {s.netStop.isSome}"
+
   | "invite" => s.io.ctlReply ((s.invite.map (·.text)).getD "")
   | "scans" => s.io.ctlReply s!"{s.scans} frames decoded, camera {if s.camOn then "on" else "off"}, preview {s.camView.isSome}"
   | "hints" =>
@@ -1628,7 +1637,7 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   let countW := Reader.Want.count s.me.c s.anchor
   -- (the wants as last set, unless the anchor moved: a steady frame
   -- moves no generation, Reader.Want.withView_ofFrame)
-  s.sh.setWants (Reader.Want.withView (← s.sh.wants.get) idsW countW)
+  s.sh.setWants (Reader.Want.withView (← s.sh.wants) idsW countW)
   readerPass
   let bd ← takeBoard
   let fresh := match bd.get? idsW with

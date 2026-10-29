@@ -13,12 +13,12 @@ def clockChars : List UInt32 := [0x31, 0x32, 0x3A, 0x33, 0x30]
 
 /-- A reference strip painted directly from the five expected glyphs;
 no bidi, layout, or placement code participates in this oracle. -/
-def reference (f : Font.Font) : Paint.Bitmap := Id.run do
+def reference (f : Font.Font) (theme : Theme.Value) : Paint.Bitmap := Id.run do
   let w := (clockChars.map (Text.adv f)).sum
-  let mut bmp := Paint.Bitmap.blank w f.cell (Paint.solid Row.bg w)
+  let mut bmp := Paint.Bitmap.blank w f.cell (Paint.solid (Palette.color theme .bg) w)
   let mut x := 0
   for c in clockChars do
-    bmp := bmp.glyph f c x 0 Row.ink false
+    bmp := bmp.glyph f c x 0 (Palette.color theme .fg) false
     x := x + Text.adv f c
   return bmp
 
@@ -79,7 +79,7 @@ def main (args : List String) : IO UInt32 := do
         (BidiHost.clockOrder (Text.oneLine s.font 800 body))
       let xs := (line.filter fun g => BidiHost.clockChars.contains g.c).map (·.x)
       let left := xs.foldl min s.W
-      let ref := BidiHost.reference s.font
+      let ref := BidiHost.reference s.font s.dim.theme
       check s!"{label}: all {ref.w * ref.h} clock pixels match logical 12:30"
         (BidiHost.stripEq bmp ref (s.dim.textX + left) row.lay.textY)
       writePpm (dir ++ s!"/{label}-row.ppm") bmp.w bmp.rows

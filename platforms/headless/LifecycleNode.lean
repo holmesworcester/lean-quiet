@@ -211,7 +211,7 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
       (← get).queuedWrites.contains produced.bytes && (durable.getD []).contains produced.bytes &&
       (← (← get).wr.busy.get) == 0)
     ck.ok "late tasks cannot repopulate the unmounted page" ((← get).rows.isEmpty &&
-      (← get).decoding.isNone && (← (← get).sh.wants.get).isEmpty)
+      (← get).decoding.isNone && (← (← get).sh.wants).isEmpty)
     let last ← node path (← IO.mkRef true)
     modify fun s => { s with active := false, netCfg := some (0, true), netBoot := some (Task.pure (.ok last)) }
     discard <| step [.foreground]

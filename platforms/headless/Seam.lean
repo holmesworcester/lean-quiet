@@ -61,7 +61,36 @@ def unit : IO Unit := do
       for y in [g.top:g.composerTop] do
         let r := (Int.ofNat y - f.origin).toNat
         check "published crop" (screen[y]! == list[r]!)
-  IO.println s!"unit: {cases.length + 14} cases, 3280 viewport rows"
+  -- A compositor may reject arbitrarily many attempts while the same frame
+  -- stays visible. Those attempts must not age its hit-test context out.
+  let publish (g : Geometry.Geom) (state : Input.State) (raw : Array UInt32) :=
+    Session.present (fun _ _ _ _ _ _ _ _ => pure raw) (fun _ => pure ())
+      g 160 100 state (Array.replicate 704 (row 1 0)) 10 32
+      (Array.replicate 80 (row 1 0)) (Array.replicate 60 (row 1 0)) false
+  let status (ok : Bool) : Array UInt32 := #[20, if ok then 1 else 0, 0, 0, 0, 0, 0, 0]
+  let tap (serial : UInt32) : Array UInt32 :=
+    #[9, 1, 100, 120, 1000, 0, serial, 0, 11, 1, 100, 120, 1100, 0, serial, 0]
+  let initial ← publish g {} (status true)
+  let mut held := initial.state
+  for _ in [0:100] do
+    let r ← publish { g with ime := 0 } held (status false ++ tap 1)
+    check "rejected frames preserve displayed-frame tap" (r.events == [.tap .list 100 329])
+    check "rejection preserves accepted history" (r.state.frames == initial.state.frames)
+    held := r.state
+  check "attempt serials remain unique" (held.serial == 101)
+  let unknown ← publish g held (status false ++ tap 102)
+  check "a rejected candidate cannot authorize a tap" unknown.events.isEmpty
+  let mut history := initial.state
+  for _ in [0:2] do
+    history := (← publish { g with ime := 0 } history (status true)).state
+  let queued ← publish { g with ime := 0 } history (status true ++ tap 1)
+  check "drain oldest accepted touch before pruning" (queued.events == [.tap .list 100 329])
+  check "accepted history stays bounded" (queued.state.frames.map (·.1) == [4, 3, 2])
+  let obsolete ← publish g queued.state (status true ++ tap 1)
+  check "unknown old frames stay rejected" obsolete.events.isEmpty
+  let legacy ← publish g {} #[]
+  check "synchronous legacy shell accepts" (legacy.state.frames.length == 1)
+  IO.println s!"unit: {cases.length + 221} checks, 3280 viewport rows"
 
 partial def loop (pin : Bool) (ime : Nat) (state : Input.State) : IO Unit := do
   let g : Geometry.Geom := ⟨2400, 63, ime, 128, 120⟩
