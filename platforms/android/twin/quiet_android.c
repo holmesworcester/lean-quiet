@@ -572,3 +572,20 @@ lean_obj_res lq_appearance(uint8_t dark, uint32_t background) {
   ba_appearance(dark, background);
   return lean_io_result_mk_ok(lean_box(0));
 }
+
+lean_obj_res lq_pick_photo(uint32_t token) {
+  return lean_io_result_mk_ok(lean_box(ba_pick_photo(token)));
+}
+
+lean_obj_res lq_photo_result(void) {
+  uint32_t header[4]; uint8_t* bytes; size_t size;
+  bool ready = ba_take_photo(header, &bytes, &size);
+  lean_object* hdr = lean_mk_empty_array();
+  lean_object* px = lean_alloc_sarray(1, size, size);
+  if (ready) for (int i = 0; i < 4; i++) hdr = lean_array_push(hdr, lean_box_uint32(header[i]));
+  if (size) memcpy(lean_sarray_cptr(px), bytes, size);
+  free(bytes);
+  lean_object* result = lean_alloc_ctor(0, 2, 0);
+  lean_ctor_set(result, 0, hdr); lean_ctor_set(result, 1, px);
+  return lean_io_result_mk_ok(result);
+}

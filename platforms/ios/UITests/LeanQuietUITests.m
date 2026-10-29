@@ -252,6 +252,45 @@
 // A page is pinned (Geometry.Seam.pinned; ios/Placement.lean): opening the
 // keyboard on Paste must not move it, and a tap on it must reach the row
 // drawn under the finger (Geometry.pinned_tap).
+- (void)testSystemPhotoPicker {
+  [self ctl:@"channel"];
+  // Any previous test draft is sent before starting this selection.
+  [self ctl:@"post"];
+  XCTAssertTrue([[self ctl:@"photo-status"] hasPrefix:@"photos 0 pending false"]);
+  [self ctl:@"pick-photo"];
+  XCUIElement* cancel = self.app.buttons[@"Cancel"];
+  if (![cancel waitForExistenceWithTimeout:10]) cancel = self.app.buttons[@"Close"];
+  XCTAssertTrue([cancel waitForExistenceWithTimeout:10], @"native photo picker: %@", self.app.debugDescription);
+  [cancel tap];
+  XCTAssertTrue([self until:15 ask:@"photo-status" that:^BOOL(NSString* value) {
+    return [value hasPrefix:@"photos 0 pending false"];
+  }]);
+  [self ctl:@"pick-photo"];
+  XCUIElement* cell = [self.app.images matchingPredicate:[NSPredicate predicateWithFormat:@"label BEGINSWITH %@", @"Photo,"]].firstMatch;
+  XCTAssertTrue([cell waitForExistenceWithTimeout:15], @"seeded native photo: %@", self.app.debugDescription);
+  // Photos exposes each texture-backed thumbnail as an Image. Its
+  // accessibility hit point is absent on iOS 26; tap its reported bounds.
+  CGRect r = cell.frame;
+  XCTAssertTrue(r.size.width > 0 && r.size.height > 0 && CGRectContainsRect(self.app.frame, r));
+  [[[self.app coordinateWithNormalizedOffset:CGVectorMake(0, 0)]
+      coordinateWithOffset:CGVectorMake(CGRectGetMidX(r), CGRectGetMidY(r))] tap];
+  XCUIElement* add = self.app.buttons[@"Add"];
+  if ([add waitForExistenceWithTimeout:2]) [add tap];
+  XCTAssertTrue([self until:120 ask:@"photo-status" that:^BOOL(NSString* value) {
+    return [value hasPrefix:@"photos 1 pending false"] && [value containsString:@"(1024, 2048)"];
+  }], @"the native selection must be oriented and bounded: %@", [self ctl:@"photo-status"]);
+  [self shot:@"system-photo-chip"];
+  [self ctl:@"post Native iOS picker photo"];
+  [self ctl:@"wait"];
+  XCTAssertTrue([self until:60 ask:@"pics" that:^BOOL(NSString* value) {
+    for (NSString* row in [value componentsSeparatedByString:@" | "])
+      if ([row containsString:@"Native iOS picker photo"] && [row containsString:@" painted"]) return YES;
+    return NO;
+  }]);
+  XCTAssertTrue([[self ctl:@"photo-status"] hasPrefix:@"photos 0 pending false"]);
+  [self shot:@"system-photo-sent"];
+}
+
 - (void)testPinnedPaste {
   NSArray<NSNumber*>* field = [self env:@"LEANQUIET_FIELD"];
   NSArray<NSNumber*>* cont  = [self env:@"LEANQUIET_CONTINUE"];

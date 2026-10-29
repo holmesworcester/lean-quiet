@@ -1147,3 +1147,7 @@ end cost
 #print axioms Data.projectSet_mem
 #print axioms Data.projectSet_nodup
 #print axioms ViewLaws.message_own
+
+#print axioms Photo.inactive_rejects
+#print axioms Photo.stale_rejects
+#print axioms Photo.other_owner_rejects

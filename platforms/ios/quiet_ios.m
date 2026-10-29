@@ -88,6 +88,7 @@ static dispatch_semaphore_t lq_vsync;
 static _Atomic bool      lq_vsync_due;
 
 static UIView*        lq_root;
+#include "photo_ios.h"
 static UIScrollView*  lq_sv;
 static CALayer*       lq_list;
 static CALayer*       lq_hold;

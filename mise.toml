@@ -85,6 +85,11 @@ description = "The desktop root without a window (platforms/headless/Desktop): b
 depends = ["crypto"]
 run = "tests/app/desktop.sh"
 
+[tasks."host:photo"]
+description = "Build and test native photo handoff under sanitizers, then drive composer ownership, cancellation, backgrounding and signed attachment sends"
+depends = ["crypto"]
+run = "platforms/native/photo_test.sh && tools/noto_assets.sh && lake build photo && .lake/build/bin/photo out/photo/app"
+
 [tasks."visual:compare"]
 description = "Build the real Lean renderer; compare all pixels against pinned libquiet screens; retain heatmaps and overlays"
 run = "tests/visual/run.sh"
@@ -156,6 +161,11 @@ description = "The app's APK (x86_64 for the emulator, arm64-v8a for phones); ne
 depends = ["android:runtime"]
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; platforms/android/twin/build_apk.sh out/quiet.apk com.holmes.leanquiet 'Lean Quiet' Main x86_64 arm64-v8a"
 
+[tasks."android:photo-e2e"]
+description = "Build/setup a private Android emulator; drive system photo picker cancellation, EXIF-oriented bounded selection and attachment send"
+depends = ["android:apk"]
+run = "platforms/android/test/photo_e2e.sh"
+
 [tasks."android:scan-e2e"]
 description = "Join with QR code on this suite's own emulator (lean-quiet-scan, emulator-5590): a real invite's code on the virtual scene's wall, scanned by the app's camera; it must land on Choose a name with exactly that link"
 depends = ["android:apk"]
@@ -193,6 +203,10 @@ run = "platforms/ios/ship.sh sim"
 [tasks."ios:sim-e2e"]
 description = "Build and run in the iOS Simulator: scroll, tap, long-press, type and send, checked in Lean's state; logs, screenshots and xcresult in out/ios-sim even on failure"
 run = "tests/app/mobile.sh ios"
+
+[tasks."ios:photo-e2e"]
+description = "Build/setup the private iOS simulator via MAC; seed Photos and run native picker cancellation, oriented bounded decode and send"
+run = "PHOTO_ONLY=1 platforms/ios/ship.sh e2e"
 
 [tasks."ios:device"]
 description = "The app built and signed for an iPhone on the Mac (installs nothing; platforms/ios/ship.sh run installs and launches)"

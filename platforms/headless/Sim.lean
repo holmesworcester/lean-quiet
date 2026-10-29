@@ -32,6 +32,8 @@ structure Sim where
   urls : IO.Ref (Array String)
   visible : IO.Ref Bool
   frames : IO.Ref Nat
+  photo : IO.Ref (Array UInt32 × ByteArray)
+  nextPhoto : IO.Ref Nat
 
 /-- Two loopback ports for a test's two nodes, from its process id: tests
 running at once (in other worktrees too) get different ports, below
@@ -44,7 +46,7 @@ def Sim.new : IO Sim := do
   return ⟨← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef (#[], 0, 0, #[], #[]), ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0,
     ← IO.mkRef (#[], .empty), ← IO.mkRef false,
     ← IO.mkRef "", ← IO.mkRef #[1080, 2400, 128, 63, 420], ← IO.mkRef false,
-    ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef true, ← IO.mkRef 0⟩
+    ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef true, ← IO.mkRef 0, ← IO.mkRef (#[], .empty), ← IO.mkRef 0⟩
 
 def Sim.input (sm : Sim) : IO.Ref String := sm.native
 
@@ -73,6 +75,17 @@ def Sim.io (sm : Sim) : Io where
   scan on := sm.on.set on
   poll := sm.events.modifyGet fun es => (es, #[])
   links := sm.urls.modifyGet fun us => (us, #[])
+  pickPhoto token := do
+    if token == 0 then sm.photo.set (#[], .empty); return true
+    let i ← sm.nextPhoto.modifyGet fun n => (n % 6, n + 1)
+    let bytes ← IO.FS.readBinFile s!"assets/{i}.qoi"
+    let some src := Image.decode bytes | return false
+    let mut rgba := ByteArray.emptyWithCapacity (src.w * src.h * 4)
+    for px in src.px do
+      rgba := rgba.push (px >>> 24).toUInt8 |>.push (px >>> 16).toUInt8 |>.push (px >>> 8).toUInt8 |>.push px.toUInt8
+    sm.photo.set (#[token, 1, src.w.toUInt32, src.h.toUInt32], rgba)
+    return true
+  photoResult := sm.photo.modifyGet fun p => (p, (#[], .empty))
   luma := do
     if !(← sm.on.get) then return (#[], .empty)
     sm.camera.get

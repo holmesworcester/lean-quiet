@@ -92,6 +92,9 @@ lean_exe scrolling where
 lean_exe op_components where
   root := `tests.app.Components
 
+lean_exe photo where
+  root := `platforms.headless.Photo
+
 lean_exe visual where
   root := `platforms.headless.Visual
 

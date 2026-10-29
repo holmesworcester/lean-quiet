@@ -283,6 +283,10 @@ e2e() {
   local udid xcr
   udid=$(on_mac "~/$dir/stage/ios/sim.sh ~/$dir udid")
   xcr=$dir/out/e2e.xcresult
+  # A private simulator's actual Photos library, including EXIF orientation.
+  python3 "$root/platforms/native/photo_fixture.py" "$art/photo-fixture.jpg"
+  scp -q "$art/photo-fixture.jpg" "$mac:$dir/out/photo-fixture.jpg"
+  on_mac "xcrun simctl addmedia '$udid' ~/$dir/out/photo-fixture.jpg"
   on_mac "rm -rf ~/$xcr ~/$dir/out/shots; mkdir -p ~/$dir/out/shots"
   # the Paste page's targets, the composer's text rows and a link, from Lean
   # (test/Targets.lean), for the screen the twin reports
@@ -303,7 +307,7 @@ e2e() {
     TEST_RUNNER_LEANQUIET_LINK='$link' xcodebuild test-without-building \
     -project LeanQuiet.xcodeproj -scheme LeanQuiet -configuration Release \
     -destination 'platform=iOS Simulator,id=$udid' -derivedDataPath ~/$dir/build/dd \
-    -resultBundlePath ~/$xcr ARCHS=arm64 2>&1" > "$art/e2e.log" || ok=$?
+    -resultBundlePath ~/$xcr ${PHOTO_ONLY:+-only-testing:LeanQuietUITests/LeanQuietUITests/testSystemPhotoPicker} ARCHS=arm64 2>&1" > "$art/e2e.log" || ok=$?
   grep "pinned:" "$art/e2e.log" | sed 's/^.*pinned:/pinned:/' || true
   grep -Eq '\*\* TEST (EXECUTE )?SUCCEEDED \*\*' "$art/e2e.log" || ok=1
   tail -15 "$art/e2e.log"

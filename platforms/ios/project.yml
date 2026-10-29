@@ -48,7 +48,7 @@ targets:
         CLANG_ENABLE_OBJC_ARC: YES
         HEADER_SEARCH_PATHS: ${LEANQUIET_ST}/lean/include
         LIBRARY_SEARCH_PATHS: ${LEANQUIET_LIBS}
-        OTHER_LDFLAGS: -lleanapp -llq_crypto -lInit -lleanrt -luv -lc++
+        OTHER_LDFLAGS: -lleanapp -llq_crypto -lInit -lleanrt -luv -lc++ -framework PhotosUI -framework ImageIO
         GCC_OPTIMIZATION_LEVEL: 3
         TARGETED_DEVICE_FAMILY: 1
   NetProbe:

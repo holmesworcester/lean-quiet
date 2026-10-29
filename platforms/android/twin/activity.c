@@ -14,6 +14,7 @@
 #include "activity.h"
 #include "layer.h"
 #include "scroll.h"
+#include "../../native/photo.h"
 
 #include <android/asset_manager.h>
 #include <dlfcn.h>
@@ -67,7 +68,8 @@ static jobject   ba_act;
 static jmethodID ba_appearance_m;
 static bool ba_system_dark;
 static jmethodID ba_show_ime, ba_copy_text, ba_scan_m, ba_set_text_m;
-static jmethodID ba_bars_m;
+static jmethodID ba_bars_m, ba_pick_photo_m;
+static LqPhoto ba_photo = LQ_PHOTO_INIT;
 
 // The newest camera frame's Y plane, until Lean takes it (ba_take_luma).
 static bool     ba_camera_wanted;
@@ -325,6 +327,35 @@ static void JNICALL ba_n_text(JNIEnv* env, jclass cls, jstring text, jint ss, ji
   pthread_mutex_unlock(&ba_mu);
 }
 
+static void JNICALL ba_n_photo(JNIEnv* env, jclass cls, jint token, jint status,
+    jint w, jint h, jbyteArray rgba) {
+  (void)cls;
+  jsize n = rgba ? (*env)->GetArrayLength(env, rgba) : 0;
+  if (status == 1 && (w <= 0 || h <= 0 || w > 2048 || h > 2048 || n != (int64_t)w*h*4)) return;
+  jbyte* bytes = rgba ? (*env)->GetByteArrayElements(env, rgba, NULL) : NULL;
+  if (rgba && !bytes) return;
+  lq_photo_publish(&ba_photo, (uint32_t)token, (uint32_t)status, (uint32_t)w, (uint32_t)h,
+      (const unsigned char*)bytes, (size_t)n);
+  if (bytes) (*env)->ReleaseByteArrayElements(env, rgba, bytes, JNI_ABORT);
+}
+
+bool ba_take_photo(uint32_t header[4], uint8_t** bytes, size_t* size) {
+  return lq_photo_take(&ba_photo, header, bytes, size);
+}
+
+bool ba_pick_photo(uint32_t token) {
+  lq_photo_begin(&ba_photo, token);
+  if (!ba_vm || !ba_act || !ba_pick_photo_m) return false;
+  JNIEnv* env = NULL;
+  bool attached = (*ba_vm)->GetEnv(ba_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK;
+  if (attached && (*ba_vm)->AttachCurrentThread(ba_vm, &env, NULL) != JNI_OK) return false;
+  (*env)->CallVoidMethod(env, ba_act, ba_pick_photo_m, (jint)token);
+  bool ok = !(*env)->ExceptionCheck(env);
+  if (!ok) (*env)->ExceptionClear(env);
+  if (attached) (*ba_vm)->DetachCurrentThread(ba_vm);
+  return ok;
+}
+
 static void JNICALL ba_n_luma(JNIEnv* env, jclass cls, jobject buf, jint w, jint h, jint stride,
   jint orient) {
   const uint8_t* y = (*env)->GetDirectBufferAddress(env, buf);
@@ -490,8 +521,9 @@ static void ba_java(ANativeActivity* act) {
     { "nLink", "(Ljava/lang/String;)V", (void*)ba_n_link },
     { "nAction", "(III)V", (void*)ba_n_action },
     { "nLuma", "(Ljava/nio/ByteBuffer;IIII)V", (void*)ba_n_luma },
+    { "nPhoto", "(IIII[B)V", (void*)ba_n_photo },
   };
-  if ((*env)->RegisterNatives(env, cls, ms, 5) != 0) {
+  if ((*env)->RegisterNatives(env, cls, ms, (jint)(sizeof ms / sizeof ms[0])) != 0) {
     (*env)->ExceptionClear(env);
     __android_log_write(ANDROID_LOG_ERROR, "lean", "cannot register the Java half's natives");
     return;
@@ -505,6 +537,7 @@ static void ba_java(ANativeActivity* act) {
   ba_show_ime   = (*env)->GetMethodID(env, cls, "showIme", "(Z)V");
   ba_copy_text  = (*env)->GetMethodID(env, cls, "copyText", "(Ljava/lang/String;)V");
   ba_set_text_m = (*env)->GetMethodID(env, cls, "setText", "(Ljava/lang/String;)V");
+  ba_pick_photo_m = (*env)->GetMethodID(env, cls, "pickPhoto", "(I)V");
   ba_scan_m     = (*env)->GetMethodID(env, cls, "scan", "(Z)V");
   ba_bars_m     = (*env)->GetMethodID(env, cls, "applyBars", "(IIZZ)V");
   if ((*env)->ExceptionCheck(env)) {

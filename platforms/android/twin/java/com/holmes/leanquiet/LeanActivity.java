@@ -49,6 +49,77 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
    * and the sensor's clockwise orientation in degrees. */
   static native void nLuma(ByteBuffer y, int width, int height, int rowStride, int orientation);
 
+  static native void nPhoto(int token, int status, int width, int height, byte[] rgba);
+  private int pickerToken;
+  private volatile int photoToken;
+  private final java.util.concurrent.ExecutorService photoWorker =
+      java.util.concurrent.Executors.newSingleThreadExecutor();
+
+  /** A system picker grants access to only the selected image. The app's
+   * worker receives bounded, oriented sRGB pixels, never a full-size decode. */
+  public void pickPhoto(int token) {
+    photoToken = token;
+    runOnUiThread(() -> {
+      if (token == 0 || photoToken != token) return;
+      if (pickerToken != 0) { nPhoto(token, 3, 0, 0, null); return; }
+      pickerToken = token;
+      showIme(false);
+      android.content.Intent intent = new android.content.Intent(
+          android.os.Build.VERSION.SDK_INT >= 33
+              ? android.provider.MediaStore.ACTION_PICK_IMAGES
+              : android.content.Intent.ACTION_OPEN_DOCUMENT);
+      intent.setType("image/*");
+      if (android.os.Build.VERSION.SDK_INT < 33) intent.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+      try { startActivityForResult(intent, 42); }
+      catch (RuntimeException error) {
+        pickerToken = 0;
+        nPhoto(token, 3, 0, 0, null);
+      }
+    });
+  }
+
+  @Override protected void onActivityResult(int request, int result, android.content.Intent data) {
+    super.onActivityResult(request, result, data);
+    if (request != 42) return;
+    final int token = pickerToken;
+    pickerToken = 0;
+    if (token == 0 || photoToken != token) return;
+    if (result != RESULT_OK || data == null || data.getData() == null) {
+      nPhoto(token, 2, 0, 0, null);
+      return;
+    }
+    final android.net.Uri uri = data.getData();
+    photoWorker.execute(() -> {
+      android.graphics.Bitmap bitmap = null;
+      try {
+        bitmap = android.graphics.ImageDecoder.decodeBitmap(
+            android.graphics.ImageDecoder.createSource(getContentResolver(), uri),
+            (decoder, info, source) -> {
+              decoder.setAllocator(android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE);
+              decoder.setTargetColorSpace(android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.SRGB));
+              int w = info.getSize().getWidth(), h = info.getSize().getHeight();
+              int side = Math.max(w, h);
+              if (side > 2048) decoder.setTargetSize(Math.max(1, (int)((long)w*2048/side)), Math.max(1, (int)((long)h*2048/side)));
+            });
+        if (photoToken != token || isDestroyed()) return;
+        int w = bitmap.getWidth(), h = bitmap.getHeight();
+        if (w < 1 || h < 1 || w > 2048 || h > 2048) throw new IllegalArgumentException("image dimensions");
+        int[] argb = new int[w*h];
+        bitmap.getPixels(argb, 0, w, 0, 0, w, h);
+        byte[] rgba = new byte[w*h*4];
+        for (int i = 0; i < argb.length; i++) {
+          int c = argb[i];
+          rgba[4*i] = (byte)(c >>> 16); rgba[4*i+1] = (byte)(c >>> 8);
+          rgba[4*i+2] = (byte)c; rgba[4*i+3] = (byte)(c >>> 24);
+        }
+        if (photoToken == token && !isDestroyed()) nPhoto(token, 1, w, h, rgba);
+      } catch (Exception | OutOfMemoryError error) {
+        android.util.Log.w("lean", "photo decode failed", error);
+        if (photoToken == token && !isDestroyed()) nPhoto(token, 3, 0, 0, null);
+      } finally { if (bitmap != null) bitmap.recycle(); }
+    });
+  }
+
   private boolean appliedDark;
   private int appliedBackground = -1;
 
@@ -100,6 +171,8 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
 
   @Override protected void onDestroy() {
     bars.detach(this);
+    photoToken = 0;
+    photoWorker.shutdownNow();
     super.onDestroy();
   }
 

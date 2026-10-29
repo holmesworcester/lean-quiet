@@ -85,3 +85,7 @@ uint8_t* ba_take_luma(size_t* n, uint32_t wh[4]);
 
 bool ba_dark(void);
 void ba_appearance(bool dark, uint32_t background);
+
+// Owned system photo picker; metadata is token/status/width/height.
+bool ba_pick_photo(uint32_t token);
+bool ba_take_photo(uint32_t header[4], uint8_t** bytes, size_t* size);

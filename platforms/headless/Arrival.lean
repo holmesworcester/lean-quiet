@@ -184,6 +184,11 @@ def main (args : List String) : IO UInt32 := do
       if let some b := box then
         onTap .composer (b.x + b.w / 2) (b.y + b.h / 2) false
         steps 2
+        if h == .addPhotos then
+          for _ in [0:1000] do
+            if (← get).photoRequest.isNone then break
+            IO.sleep 5
+            steps 1
     tapComposer .addPhotos
     let some (sent, _, _, _) := (← get).chips[0]? | check "a photo attaches" false
     let some ssrc := Image.decode sent | check "the attached photo decodes" false

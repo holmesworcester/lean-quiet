@@ -22,6 +22,7 @@ import ops.community.message.View
 import ops.community.membership.RequestView
 import ops.app.Raster
 import ops.app.Components
+import ops.app.Photo
 import Std.Data.HashMap
 
 namespace App
@@ -55,6 +56,8 @@ structure Io where
   motion : Array UInt32 → IO Unit := fun _ => pure ()
   appearance : Bool → UInt32 → IO Unit := fun _ _ => pure ()
   bars : UInt32 → UInt32 → Bool → Bool → IO Unit := fun _ _ _ _ => pure ()
+  pickPhoto : UInt32 → IO Bool := fun _ => pure false
+  photoResult : IO (Array UInt32 × ByteArray) := pure (#[], .empty)
 
 /-- How far beyond each end of the viewport the list frame is drawn. -/
 def over : Nat := 2048
@@ -259,6 +262,9 @@ structure St where
   /-- Photos attached in the composer: QOI bytes, size, and the chip. -/
   chips : Array (ByteArray × Nat × Nat × Composer.Chip) := #[]
   photoNext : Nat := 0
+  photoSerial : UInt32 := 0
+  photoRequest : Option Photo.Request := none
+  photoWork : Option (Task (Option (ByteArray × Nat × Nat × Composer.Chip))) := none
   /-- The name chosen for joining (Choose a name). -/
   joinName : String := ""
   /-- The community being created, while its founder names themself. -/
@@ -331,7 +337,7 @@ removal is not announced again. -/
   paintStop : Array (Task Unit) := #[]
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure (), pure #[], pure #[], fun _ => pure (), fun _ _ => pure (), fun _ _ _ _ => pure ()⟩⟩
+  pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure (), pure #[], pure #[], fun _ => pure (), fun _ _ => pure (), fun _ _ _ _ => pure (), fun _ => pure false, pure (#[], .empty)⟩⟩
 
 abbrev M := StateT St IO
 

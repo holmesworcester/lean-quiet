@@ -79,3 +79,42 @@ for root in "$R/a" "$R/b/deeper"; do
 done
 diff "$R/a.sums" "$R/b/deeper.sums"
 ```
+
+### Native system-photo selection
+
+The composer uses Android's system photo picker (the document picker on API
+30–32) and iOS PHPicker. Both read only the selected file, decode an oriented
+sRGB image with a maximum side of 2048 pixels on a worker, and deliver a bounded
+RGBA packet. Lean prepares the QOI attachment off the frame thread. Cancelling,
+navigating, switching communities and duplicate/late callbacks cannot attach to
+a different composer request. Presenting the OS picker may background the app;
+that alone preserves the selection request. Desktop photo selection still opens
+an availability notice. The development `photo` control command remains an
+explicit bundled fixture; the drawn mobile button uses the real picker.
+
+`mise run host:photo` builds and runs the shared native handoff under ASan/UBSan,
+then drives actual composer/lifecycle/writer/attachment components against a
+simulated OS result source. It is in the default local app CI gate. The request
+predicates are running Lean code with accompanying laws; no claim is made that
+Lean verifies UIKit, Android's decoder, or a wall-clock latency bound.
+
+`mise run android:photo-e2e` builds the APK and a private AVD on `/mnt/storage`,
+seeds a generated 4096×2048 JPEG with EXIF rotation, then drives the real picker:
+cancel, immediately retry, choose, check 1024×2048 output, attach and send. It
+never clears or tests against a physical phone. Prerequisites are the existing
+Android SDK/NDK, API 36 google_apis x86_64 image, emulator/KVM, Java 17, Python
+and Pillow. Logs, UI hierarchy and screenshots remain under `out/photo/android`.
+
+`mise run ios:photo-e2e` builds/setup the private simulator via `MAC`, seeds its
+Photos library and runs the same flow through XCUITest. The complete
+`ios:sim-e2e` suite includes this case alongside scrolling/typing/navigation.
+Prerequisites: the Mac lease described above, Xcode 26.3, an iOS simulator
+runtime, xcodegen, SSH, matching Lean/libuv sources and the configured signing
+setup for device builds. Failures retain `out/ios-sim/e2e.xcresult`, logs and
+screenshots. `ios:device` produces a signed device build and installs nothing.
+
+Provisioned mobile CI uses `ci/local.sh android-photo ios-photo` (the same named
+Mise tasks), as the mobile release gate and as its manual dispatch. Run it before
+a mobile release alongside the default deterministic local CI. GitHub Actions
+is not used. The caller must hold the Mac lease and clean its private staging
+folder/simulator after collecting build artifacts before releasing the lease.

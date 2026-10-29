@@ -689,10 +689,18 @@ def openSt (p : PageId) (s : St) : St := { s.withNav (Nav.go p s.nav) with refus
 (the native field's text with them), never the composer's draft. -/
 def backSt (s : St) : St := { s.withNav (Nav.back s.nav) with field := "", refusal := none, pageKey := none, pageScrollStarted := false }
 
+/-- Navigation revokes an outstanding photo selection. OS backgrounding
+alone does not: presenting the native picker itself suspends the app. -/
+def cancelPhoto : M Unit := do
+  let s ← get
+  if s.photoRequest.isSome then discard <| s.io.pickPhoto 0
+  modify fun s => { s with photoRequest := none, photoWork := none }
+
 /-- Open a page (the current one goes on the back stack). -/
 def openPage (p : PageId) : M Unit := do
   let s ← get
   if s.page == p then return
+  cancelPhoto
   -- Add members issues this community's link once per session: an
   -- invitation op of mine, and the link that carries its bearer secret
   if p == .invite && !s.me.waiting && !(s.links.any (·.1 == s.me.acc)) then
@@ -712,6 +720,7 @@ def openPage (p : PageId) : M Unit := do
 
 /-- Back: the page before; at a root, it stays (Nav.back_root). -/
 def back : M Unit := do
+  cancelPhoto
   leavePage
   let s ← get
   s.io.ime false
@@ -773,6 +782,7 @@ def refreshCommsNow : M Unit := do
 list starts again from its newest. An entry is its acceptance, never its
 community id or name (Switch.select_tapped). -/
 def switchToAcc (a : Id) : M Unit := do
+  cancelPhoto
   leavePage
   (← get).io.scrollTo 0
   modify (switchSt a)
@@ -1208,6 +1218,7 @@ send intent (the post sealed under the community's current key, then
 each photo's attachment and chunks), one write. -/
 def sendNow : M Unit := do
   let s ← get
+  if s.photoRequest.isSome then say "Finishing the selected photo…"; return
   let t := s.text.trimAscii.toString
   if t.isEmpty && s.chips.isEmpty then return
   let k? ← intentView (Community.currentKey s.me.c)
@@ -1234,9 +1245,8 @@ def preparePhoto (dm : Dim) (src : Image.Src) : ByteArray × Nat × Nat × Compo
   let thumb := Image.square src (dm.px 64) (Palette.color dm.theme .bg)
   (bytes, w, h, ⟨thumb, s!"{Arrival.humanBytes bytes.size} · {pct}% smaller"⟩)
 
-/-- Add photos: until the system picker lands in the twin, the bundled
-test photos, one per tap. -/
-def attachPhoto : M Unit := do
+/-- Deterministic development-control fixture; never the composer button. -/
+def attachSamplePhoto : M Unit := do
   let s ← get
   if s.chips.size ≥ Composer.maxChips then say "At most 4 photos in one message."; return
   let i := s.photoNext % 6
@@ -1246,6 +1256,49 @@ def attachPhoto : M Unit := do
     | some src => modify fun s => { s with chips := s.chips.push (preparePhoto s.dim src), photoNext := s.photoNext + 1, chromeKey := "" }
     | none => say "That photo could not be read."
   | .error _ => say "No photos here."
+
+/-- The composer requests one OS selection. Its bytes are prepared on a
+worker; frame/input work never waits for a full-size decode or QOI encode. -/
+def attachPhoto : M Unit := do
+  let s ← get
+  if s.page != .chat then return
+  if s.chips.size ≥ Composer.maxChips then say "At most 4 photos in one message."; return
+  if s.photoRequest.isSome then say "Finishing the selected photo…"; return
+  let token := if s.photoSerial + 1 == 0 then 1 else s.photoSerial + 1
+  modify fun s => { s with photoSerial := token }
+  s.io.ime false
+  if ← s.io.pickPhoto token then
+    modify fun s => { s with photoRequest := some ⟨token, s.cur⟩, photoWork := none }
+  else say "Photo selection is not available on this platform yet."
+
+def photoStep : M Unit := do
+  let s ← get
+  let some request := s.photoRequest | return
+  unless request.accepts request.token s.cur (s.page == .chat) do cancelPhoto; return
+  if let some task := s.photoWork then
+    unless ← IO.hasFinished task do return
+    let result := task.get
+    modify fun s => { s with photoWork := none, photoRequest := none }
+    match result with
+    | some chip =>
+      if s.chips.size < Composer.maxChips then
+        modify fun s => { s with chips := s.chips.push chip, chromeKey := "" }
+    | none => say "That photo could not be read."
+    return
+  let (header, bytes) ← s.io.photoResult
+  if header.isEmpty then return
+  unless request.accepts (header[0]?.getD 0) s.cur (s.page == .chat) do return
+  let status := header[1]?.getD 3
+  if status == 2 then
+    modify fun s => { s with photoRequest := none }
+  else if status != 1 then
+    modify fun s => { s with photoRequest := none }
+    say "That photo could not be read."
+  else
+    let dm := s.dim
+    let task ← BaseIO.asTask (prio := .dedicated) do
+      return (Photo.pixels header bytes).map (preparePhoto dm)
+    modify fun s => { s with photoWork := some task }
 
 def mineOn (s : St) (m : Id) : List String :=
   ((s.rows[m]?.map (·.data.tallies)).getD []).filter (·.mine) |>.map (·.emoji)
@@ -1628,8 +1681,13 @@ def command (line : String) : M Bool := do
       else s.io.ctlReply s!"no such button on page {repr s.page}"
     | none => s.io.ctlReply "act continue|agree|approve I"
   | "photo" =>
-    attachPhoto
+    attachSamplePhoto
     s.io.ctlReply s!"photos {(← get).chips.size}"
+  | "pick-photo" =>
+    attachPhoto
+    s.io.ctlReply "photo picker requested"
+  | "photo-status" =>
+    s.io.ctlReply s!"photos {s.chips.size} pending {s.photoRequest.isSome} sizes {s.chips.toList.map fun p => (p.2.1, p.2.2.1)}"
   | "post" =>
     modify fun s => { s with text := rest }
     sendNow
@@ -1638,7 +1696,7 @@ def command (line : String) : M Bool := do
     -- the mounted rows with pictures: text, and each picture's chunks here
     let out := s.rows.toList.filterMap fun (_, r) =>
       if r.data.pics.isEmpty then none else
-      some s!"{r.data.name}: {String.ofList (r.data.text.toList.take 30)} [{", ".intercalate (r.data.pics.map fun p => s!"{p.got}/{p.total}{if p.complete then " complete" else ""}")}]"
+      some s!"{r.data.name}: {String.ofList (r.data.text.toList.take 30)} [{", ".intercalate (r.data.pics.map fun p => s!"{p.got}/{p.total}{if p.complete then " complete" else ""}")}]{if r.shown.isSome && r.task.isNone && (r.painted.2.drop 1).all id then " painted" else ""}"
     s.io.ctlReply (if out.isEmpty then "no pictures mounted" else " | ".intercalate out)
   | "visible" =>
     let (bots, _) := bottoms s
@@ -1936,6 +1994,7 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
   -- the native field holds the string it now edits (a page or sheet
   -- change chose another)
   syncText
+  photoStep
   let tCommands ← (← get).io.nowUs
   mountPage
   let (b, bots, tIds, tMount, tPaint) ← if (← get).page == .chat then chatFrame else do

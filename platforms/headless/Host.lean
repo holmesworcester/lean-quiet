@@ -414,6 +414,11 @@ def main (args : List String) : IO UInt32 := do
         sm.cmds.modify (·.push s!"!composer {b.x + b.w / 2} {b.y + b.h / 2}")
         onTap .composer (b.x + b.w / 2) (b.y + b.h / 2) false
         steps 2
+        if h == .addPhotos then
+          for _ in [0:1000] do
+            if (← get).photoRequest.isNone then break
+            IO.sleep 5
+            steps 1
     tapComposer .addPhotos
     tapComposer .addPhotos
     modify fun s => { s with text := "Two photos from the composer" }

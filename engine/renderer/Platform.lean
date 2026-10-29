@@ -99,6 +99,12 @@ device console on iOS, stderr on the host. -/
 /-- Cold/warm OS URL deliveries, independent of the debug channel. -/
 @[extern "lq_links"] opaque links : IO (Array String)
 
+/-- Present the system image picker, or cancel request ownership with zero. -/
+@[extern "lq_pick_photo"] opaque pickPhoto (token : UInt32) : IO Bool
+/-- One completion: [request, status, width, height], straight sRGB RGBA.
+Status 1 is success, 2 cancellation, 3 error; empty header means pending. -/
+@[extern "lq_photo_result"] opaque photoResult : IO (Array UInt32 × ByteArray)
+
 end Platform
 
 namespace App
