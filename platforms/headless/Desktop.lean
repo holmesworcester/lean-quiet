@@ -174,7 +174,9 @@ private def suite (args : List String) : IO UInt32 := do
         let ls ← d.layers.get
         let expected := Translate.compose ls.placement (ls.placement[15]?.getD 0).toInt32 d.height
           d.app.bgRow ls.list ls.top ls.bot ls.hold
-        let visibleWidth := if g.context.w > 0 then g.context.x - g.main.x - 24 else g.main.w
+        -- Include every pixel right up to the panel edge. A shadow or scrim
+        -- on the still-visible conversation must fail this comparison.
+        let visibleWidth := if g.context.w > 0 then g.context.x - g.main.x else g.main.w
         let actual := pic.rows.map fun row => row.extract (4*g.main.x) (4*(g.main.x+visibleWidth))
         let expected := expected.map (·.extract 0 (4*visibleWidth))
         check s!"{w}/{repr ctx}: every content pixel matches the shared mobile frame" (actual == expected)

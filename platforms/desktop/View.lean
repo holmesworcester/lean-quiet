@@ -154,12 +154,8 @@ def paint (g : Layout) (h : Nat) (ui : Ui) (s : App.St) (ls : Layers) : Bitmap :
       b := b.round 34 (h - 18) 43 (h - 9) 4 0xffc75a
       b := b.round 36 (h - 16) 41 (h - 11) 2 nav
   if g.context.w > 0 then
-    -- A short, deterministic shadow on the covered conversation.
-    for i in [0:24] do
-      let x := g.context.x - 24 + i
-      let alpha := (i + 1) * (i + 1) * 34 / (24 * 24)
-      for y in [0:h] do
-        b := b.modify y fun row => setPx row x (mixC (getPx row x) 0 alpha)
+    -- The shell's settings panel has a hairline, not the floating drawer's
+    -- shadow (libquiet ContextPanel / .drawer.embedded).
     let (pg, head) := drawerPage g h ui s
     b := b.image { pg.bmp with rows := pg.bmp.rows.extract ui.offset (ui.offset + h - 60) } g.context.x 60 0
     b := b.image head g.context.x 0 0
