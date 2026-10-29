@@ -64,7 +64,9 @@ suite "a session dot on home's avatars" "" "home avatars have no connection dots
     b := b.round (cx - r) (cy - r) (cx + r) (cy + r) r 0x2EB67D
     let ini := String.ofList [(n.toList.headD '?').toUpper]"
 suite "the header's long press opens nothing" "" "long press on the header opens its complete label" App.lean \
-  "    showLabel s.me.name; return" "    pure (); return"
+  "| .header => pure (if s.page == .home || s.page == .chat then some s.me.name else none)" "| .header => pure none"
+suite "a page row's long press opens nothing" "" "switcher long press discloses without switching" App.lean \
+  "pure (Pages.fullLabel (pg.hit x (vh - 1 - y))" "pure (Pages.fullLabel Pages.Act.none"
 # the window's old rule: "the newest" until an edge comes near
 suite "the window stays the newest away from it" "" "a burst larger than the reader's window" App.lean \
   "let next := Lifecycle.follow s.anchor s.newer (bv ≤ 4) near" \

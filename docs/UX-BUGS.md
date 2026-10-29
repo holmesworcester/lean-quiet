@@ -117,6 +117,7 @@ or the suite at the named check.
 | follow | The window may stay "the newest" away from it | `Lifecycle.follow_away` |
 | dot | A green dot on home's avatars | home avatars have no connection dots |
 | header | The header's long press opens nothing | long press on the header opens its complete label |
+| rows | A page row's long press opens nothing | switcher long press discloses without switching |
 | window | The window's old rule: "the newest" until an edge comes near | a burst larger than the reader's window |
 | range | The shift is clamped to the shell's old range | a burst larger than the reader's window |
 | anchor | The frame keeps no anchor | pending arrival keeps the visible row |

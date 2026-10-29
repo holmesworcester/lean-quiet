@@ -1154,15 +1154,32 @@ def showLabel (text : String) : M Unit := do
   modify fun s => { s with labelText := text, labelPage := 0 }
   openPage .label
 
+/-- A long press on a compact label opens it in full: the community's
+header (home or the conversation), a page's row naming a community or a
+person, or a profile. True when it did. -/
+def longLabel (r : Region) (x y : Nat) : M Bool := do
+  let s ← get
+  let name ← match r with
+    | .header => pure (if s.page == .home || s.page == .chat then some s.me.name else none)
+    | .list =>
+      let vh := viewH s
+      if s.page == .chat || y ≥ vh then pure none
+      else if s.page == .profile then pure (s.profileOf.map (·.2.1))
+      else
+        let pg := (s.pageNow).getD (drawPage s.font s.bgRow s.camView (pageIn s)).1
+        pure (Pages.fullLabel (pg.hit x (vh - 1 - y)) (s.comms.map (·.name)) (s.members.map (·.1)))
+    | .composer => pure none
+  let some name := name | return false
+  showLabel name
+  return true
+
 def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   let s ← get
   -- a tap puts a standing notice away
   if !s.notices.isEmpty then
     modify fun s => { s with notices := s.notices.drop 1 }
     return
-  -- a long press on the community's header shows its whole name
-  if long && r == .header && (s.page == .home || s.page == .chat) then
-    showLabel s.me.name; return
+  if long then if ← longLabel r x y then return
   -- a page: its bar's back, or its content's taps (rows from its top)
   if s.page != .chat then
     match r with
@@ -1173,13 +1190,7 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
       let vh := viewH s
       if y < vh then
         let pg := (s.pageNow).getD (drawPage s.font s.bgRow s.camView (pageIn s)).1
-        let act := pg.hit x (vh - 1 - y)
-        -- a long press on a compact row shows its label in full
-        if long then
-          let name := if s.page == .profile then s.profileOf.map (·.2.1) else
-            Pages.fullLabel act (s.comms.map (·.name)) (s.members.map (·.1))
-          if let some name := name then showLabel name; return
-        onPageAct act
+        onPageAct (pg.hit x (vh - 1 - y))
     | .composer => pure ()
     return
   if let some sh := s.sheet then
