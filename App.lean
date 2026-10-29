@@ -791,10 +791,10 @@ def refreshMembers : M Unit := do
   if s.me.c.isEmpty || (s.page != .home && s.page != .profile && s.page != .removeConfirm) then return
   -- read by the reader (Reader.Want.members): nothing until it is
   let some (.members ms admin, _) := (← s.sh.board.get).get? (.members s.me.c s.me.user) | return
-  let out := ms.map fun (u, ds, name) => ((name, u == s.me.user), ds.any (s.peers.contains ·), u)
+  let out := ms.map fun (u, _, name) => ((name, u == s.me.user), u)
   let sorted := out.filter (·.1.2) ++ out.filter (!·.1.2)
-  modify fun s => { s with members := sorted.map (·.1), people := ms.size, online := sorted.map (·.2.1),
-                           memberIds := sorted.map (·.2.2), amAdmin := admin }
+  modify fun s => { s with members := sorted.map (·.1), people := ms.size,
+                           memberIds := sorted.map (·.2), amAdmin := admin }
   -- a removal being sent is done once its target is no longer present
   if let .sending u := (← get).removal then
     if !(← get).memberIds.contains u then
@@ -802,15 +802,6 @@ def refreshMembers : M Unit := do
       modify fun s => { s.withNav (Nav.reset .home) with
           removal := (Remove.step s.removal .done).1, profileOf := none }
       say s!"Removed {name} from the community."
-
-/-- The node's sessions now (Connection.sessions' kept ones): their
-peers' node keys, every 30 frames. -/
-def refreshPeers : M Unit := do
-  let s ← get
-  if s.net.isNone then return
-  -- read by the reader every half second
-  let ps ← s.sh.peers.get
-  if ps != s.peers then modify fun s => { s with peers := ps, pageKey := none }
 
 /-- The requests to join the current community, read by the Request kind. -/
 def refreshAsking : M Unit := do
@@ -838,7 +829,7 @@ def pageTitle : PageId → String × Bool
   | .agree => ("Agree & join", false) | .waiting => ("", false) | .requests => ("Waiting to join", true)
   | .invite => ("Add members", true) | .switcher => ("Communities", true) | .chat => ("", false)
   | .profile => ("", true) | .removeConfirm => ("", true) | .duplicate => ("Warning!", true)
-  | .home => ("", false)
+  | .home => ("", false) | .label => ("Full label", true)
 
 /-- A page and its bar, from its key alone (and the font, background and
 camera frame): nothing else of the app's state can reach the pixels, so a
@@ -870,7 +861,8 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
     | .switcher => Pages.switcher f dm W h (k.comms.map fun m =>
         ({ name := m.name, id8 := Kinds.Request.hexShort m.c, unread := 0, current := m.acc == me.acc, waiting := m.waiting } : Pages.Entry))
         k.askingAll (!me.waiting && !me.c.isEmpty)
-    | .home => Pages.home f dm W h (if me.waiting then 0 else k.askingAll) #["general"] k.members k.online
+    | .home => Pages.home f dm W h (if me.waiting then 0 else k.askingAll) #["general"] k.members
+    | .label => Pages.label f dm W h k.labelText k.labelPage
     | .profile => let (n, isMe, removed, can) := k.profile; Pages.profile f dm W h n isMe removed can
     | .removeConfirm => Pages.removeConfirm f dm W h k.profile.1 k.removeStage k.removeWhy
     | .duplicate => Pages.duplicate f dm W h
@@ -900,8 +892,8 @@ def pageIn (s : St) : PageIn :=
   { page := s.page, W := s.W, h := viewH s, insetTop := s.insetTop, dim := s.dim, field := s.field,
     refusal := s.refusal, me := s.me.key, comms := s.comms.map (·.key),
     asking := (s.asking.filter fun r => !s.hidden.contains r.id).map (·.row), askingAll := s.asking.size,
-    link := (s.links.find? (·.1 == s.me.acc)).map (·.2), members := s.members, online := s.online,
-    backEmpty := s.backStack.isEmpty, camFrame := s.camFrame,
+    link := (s.links.find? (·.1 == s.me.acc)).map (·.2), members := s.members,
+    backEmpty := s.backStack.isEmpty, camFrame := s.camFrame, labelText := s.labelText, labelPage := s.labelPage,
     profile := match s.profileOf with
       | some (u, n, isMe) =>
         let present := s.memberIds.contains u
@@ -938,6 +930,12 @@ def onPageAct (a : Pages.Act) : M Unit := do
   let s ← get
   match a with
   | .back => back
+  | .copyLabel => s.io.copy (Label.copied s.labelText); say "Label copied."
+  | .labelNext =>
+    let n := (Label.lines s.font s.dim s.W s.labelText).size
+    let last := (n - 1) / Label.capacity s.dim (viewH s)
+    modify fun s => { s with labelPage := min last (s.labelPage + 1) }
+  | .labelPrev => modify fun s => { s with labelPage := s.labelPage - 1 }
   | .joinCommunity => openPage .joinChoice
   | .createCommunity =>
     modify fun s => { s with field := "" }
@@ -1150,12 +1148,21 @@ def onSheetDrag (phase x y : Nat) : M Unit := do
       modify fun s => { s with sheet := some sh' }
   let _ := x
 
+/-- Long-press a compact label to read every line and copy its source. -/
+def showLabel (text : String) : M Unit := do
+  closeSheet
+  modify fun s => { s with labelText := text, labelPage := 0 }
+  openPage .label
+
 def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   let s ← get
   -- a tap puts a standing notice away
   if !s.notices.isEmpty then
     modify fun s => { s with notices := s.notices.drop 1 }
     return
+  -- a long press on the community's header shows its whole name
+  if long && r == .header && (s.page == .home || s.page == .chat) then
+    showLabel s.me.name; return
   -- a page: its bar's back, or its content's taps (rows from its top)
   if s.page != .chat then
     match r with
@@ -1166,7 +1173,13 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
       let vh := viewH s
       if y < vh then
         let pg := (s.pageNow).getD (drawPage s.font s.bgRow s.camView (pageIn s)).1
-        onPageAct (pg.hit x (vh - 1 - y))
+        let act := pg.hit x (vh - 1 - y)
+        -- a long press on a compact row shows its label in full
+        if long then
+          let name := if s.page == .profile then s.profileOf.map (·.2.1) else
+            Pages.fullLabel act (s.comms.map (·.name)) (s.members.map (·.1))
+          if let some name := name then showLabel name; return
+        onPageAct act
     | .composer => pure ()
     return
   if let some sh := s.sheet then
@@ -1558,7 +1571,9 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   for x in win do mount bd x
   -- the window follows the viewport: once its edge with messages beyond
   -- comes within the fetch distance, it is read again about the row at
-  -- the viewport (or its nearest end); at the newest, it is the newest
+  -- the viewport (or its nearest end); pinned to the newest, it is the
+  -- newest, and away from it always about a row, so arrivals cannot push
+  -- the row being read out of it (Lifecycle.follow_away)
   let s ← get
   let (bots, _) := bottoms s
   if fresh.isSome || ((← takeBoard).get? idsW).isSome then
@@ -1567,13 +1582,9 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
       | some (_, x) => bots.back!.add (heightOf s x)
       | none => winLo
     let near := (s.newer > 0 && lo < winLo) || (s.older > 0 && hi > winHi)
-    let next : Option Pos :=
-      if s.newer == 0 && lo ≤ winLo then none
-      else if near then
-        match rowAt s bv with
-        | some (x, _) => s.ids.find? (·.2 == x)
-        | none => if bv < winLo then s.ids[0]? else s.ids.back?
-      else s.anchor
+    let next := Lifecycle.follow s.anchor s.newer (bv ≤ 4) near
+      ((rowAt s bv).bind fun (x, _) => s.ids.find? (·.2 == x))
+      (if bv < winLo then s.ids[0]? else s.ids.back?)
     if next != s.anchor then modify fun s => { s with anchor := next }
   let tMount ← (← get).io.nowUs
   -- 5. keep the anchor still (unless pinned to the newest)
@@ -1582,7 +1593,10 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
       if let some i := s.ids.findIdx? (·.2 == x) then
         let b' := Lifecycle.offset (bots[i]! + heightOf s x) off
         if b' != b then
-          s.io.scrollBy (b'.toFloat - b.toFloat)
+          -- the content's new range first (a new window, its placeholders):
+          -- a shell clamps a shift to the range it was last told
+          let cur ← s.io.scroll (bottoms s).2.toUInt32 vh.toUInt32
+          s.io.scrollBy (b'.toFloat - cur.toNat.toFloat)
           b := b'
   -- 6. paint what the frame shows
   let flo := if b ≥ over then b - over else 0
@@ -1666,7 +1680,6 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
   -- join requests for the current community, and admissions they complete
   refreshComms
   refreshAsking
-  refreshPeers
   refreshMembers
   refreshHomeCount
   netStep

@@ -21,6 +21,7 @@ import engine.renderer.Nav
 import ops.app.NavLaws
 import engine.renderer.TextLaws
 import engine.renderer.WrapLaws
+import engine.renderer.Label
 import ops.community.reaction.RowLaws
 import ops.community.message.ViewLaws
 import ops.community.profile.NamesakeLaws
@@ -825,6 +826,7 @@ end cost
 #print axioms Lifecycle.old_quiet
 #print axioms Lifecycle.subscriptions_exact
 #print axioms Lifecycle.resize_anchor
+#print axioms Lifecycle.follow_away
 #print axioms Lifecycle.restore_checkpoint
 #print axioms Lifecycle.mounted_runs
 #print axioms App.page_round
@@ -836,3 +838,5 @@ end cost
 #print axioms LifecycleLaws.viewport_possible
 #print axioms LifecycleLaws.apply_page_anchor
 #print axioms Lifecycle.live_exact
+#print axioms Label.copy_exact
+#print axioms Label.line_reachable

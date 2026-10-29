@@ -13,13 +13,13 @@ def PageId.code : PageId → Nat
   | .home => 0 | .chat => 1 | .getStarted => 2 | .create => 3 | .createName => 4
   | .joinChoice => 5 | .openInvite => 6 | .paste => 7 | .scan => 8 | .name => 9
   | .agree => 10 | .waiting => 11 | .requests => 12 | .invite => 13 | .switcher => 14
-  | .profile => 15 | .removeConfirm => 16 | .duplicate => 17
+  | .profile => 15 | .removeConfirm => 16 | .duplicate => 17 | .label => 18
 
 def PageId.ofCode : Nat → PageId
   | 0 => .home | 1 => .chat | 2 => .getStarted | 3 => .create | 4 => .createName
   | 5 => .joinChoice | 6 => .openInvite | 7 => .paste | 8 => .scan | 9 => .name
   | 10 => .agree | 11 => .waiting | 12 => .requests | 13 => .invite | 14 => .switcher
-  | 15 => .profile | 16 => .removeConfirm | 17 => .duplicate | _ => .getStarted
+  | 15 => .profile | 16 => .removeConfirm | 17 => .duplicate | 18 => .label | _ => .getStarted
 
 theorem page_round (p : PageId) : PageId.ofCode p.code = p := by cases p <;> rfl
 
@@ -73,7 +73,8 @@ def checkpoint (s : St) : Lifecycle.Checkpoint :=
      Codec.encode (s.profileOf.toList.map fun (u, n, me) => (u, n.toUTF8, me)),
      Codec.encode (s.drafts.map fun (a, t, bs) => (a, t.toUTF8, bs)), Codec.encode s.anchor,
      Codec.encode (s.links.map fun (a, l) => (a, l.toUTF8)), Codec.encode s.queuedWrites,
-     Codec.encode (s.mark.bind fun (x, _) => s.ids.find? (·.2 == x))])
+     Codec.encode (s.mark.bind fun (x, _) => s.ids.find? (·.2 == x)),
+     Codec.encode (s.labelText.toUTF8, s.labelPage)])
 
 def saveCheckpoint : M Unit := do
   let s ← get
@@ -103,12 +104,14 @@ def applyCheckpoint (s : St) (cp : Lifecycle.Checkpoint) : St := Id.run do
   let profile := ((Codec.decode (b 6) : Option (List (Id × ByteArray × Bool))).getD []).head?.map
     fun (u, n, me) => (u, String.fromUTF8! n, me)
   let stack := ((Codec.decode (b 0) : Option (List Nat)).getD []).map PageId.ofCode
+  let (label, labelPage) := (Codec.decode (b 12) : Option (ByteArray × Nat)).getD (.empty, 0)
   let nav := match stack.reverse with
     | [] => Nav.reset (PageId.ofCode p)
     | x :: xs => xs.foldl (fun n p => Nav.go p n) (Nav.reset x)
   let s := { s.withNav (Nav.go (PageId.ofCode p) nav) with
     field := str 1, invite := Community.Invite.parse (str 2), joinName := str 3, newCommunity := str 4,
     removal := removalFrom (b 5), profileOf := profile, drafts,
+    labelText := String.fromUTF8! label, labelPage,
     mark := if x.isEmpty then none else some (x, off), restoreAnchor := !x.isEmpty,
     anchor := (Codec.decode (b 11) : Option (Option Pos)).getD
       ((Codec.decode (b 8) : Option (Option Pos)).getD none),

@@ -24,7 +24,7 @@ description = "Build Lean/Init/Std from source with phone options for x86_64 Lin
 run = "tests/engine/run.sh --phone-runtime"
 
 [tasks."test:app"]
-description = "The native C twin and the app sessions: host:twin-demo, host:app, host:two-nodes, host:net-join, host:cross, host:arrival and host:attach"
+description = "The native C twin and the app sessions: host:twin-demo, host:app, host:two-nodes, host:net-join, host:cross, host:arrival, host:attach and host:ux"
 run = "tests/app/run.sh"
 
 [tasks."test:shipped"]
@@ -121,6 +121,11 @@ run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build arrival && .l
 description = "Photos over real TCP: two apps joined on loopback (as host:net-join), one photo each way through Add photos and send; the other side ends with every chunk, the file opened from them equal to the bytes sent, and its row drawn from the file"
 depends = ["crypto"]
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build attach && if [ \"${SKIP_TCP:-0}\" = 1 ]; then echo 'SKIP attach (TCP sandbox; built)'; else .lake/build/bin/attach out/attach; fi"
+
+[tasks."host:ux"]
+description = "Dogfood UX on the headless twin (platforms/headless/Ux), on both scroll seams (shifts clamped at once, as the C twin; queued to the frame, as native vsync): arrivals keep the row being read still, a burst larger than the reader's window too; full labels by long press, paged and copied exactly; no session dots on home's avatars; photo reactions, Copy, switching; then its negative controls (tests/app/ux_negative.sh)"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; lake build ux && .lake/build/bin/ux out/ux && .lake/build/bin/ux out/ux-queued queued && tests/app/ux_negative.sh"
 
 # Android (platforms/android)
 

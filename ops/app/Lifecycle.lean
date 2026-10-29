@@ -105,6 +105,28 @@ theorem resize_anchor (top above : Nat) (fits : above ≤ top) :
     (top : Int) - offset top above = above := by
   unfold offset; omega
 
+/-- The conversation window's next anchor (`Reader.Want.window`'s): the
+newest (none) only when pinned there with nothing newer; else the row at
+the viewport, or the window's nearest end, when the window is about no
+row yet or its edge with messages beyond comes within the fetch
+distance; else the same. -/
+def follow (cur : Option α) (newer : Nat) (pinned near : Bool) (atView nearEnd : Option α) : Option α :=
+  if newer == 0 && pinned then none
+  else if near || cur.isNone then
+    match atView with
+    | some p => some p
+    | none => nearEnd
+  else cur
+
+/-- Away from the newest the window is always about a row, never "the
+newest" (given a row to take): the window about a row holds it and the
+rows older (`Reader.eval`'s `before`), so no burst of arrivals, however
+large, pushes the row being read out of it. -/
+theorem follow_away (cur : Option α) (newer : Nat) (near : Bool) (atView nearEnd : Option α)
+    (h : nearEnd.isSome) : (follow cur newer false near atView nearEnd).isSome := by
+  unfold follow
+  cases cur <;> cases near <;> cases atView <;> simp_all
+
 /-- The serialized checkpoint: version, page, acceptance, anchor id and
 top-edge distance; the rest is an extensible list of canonical byte fields. -/
 abbrev Checkpoint := Nat × Nat × Id × Id × Nat × List ByteArray

@@ -79,9 +79,9 @@ theorem inv_switch (a : Engine.Id) (s : St) : Nav.Inv (switchSt a s).nav := by
 theorem all_pages (p : PageId) : p ∈ PageId.all := by
   cases p <;> simp [PageId.all]
 
-/-- **Back reaches a root** in fewer than 18 steps (there are 18 pages):
+/-- **Back reaches a root** in fewer than 19 steps (there are 19 pages):
 opening a page never stacks more. -/
-theorem depth (p : PageId) (s : St) (h : Nav.Inv s.nav) : (openSt p s).backStack.length < 18 :=
+theorem depth (p : PageId) (s : St) (h : Nav.Inv s.nav) : (openSt p s).backStack.length < 19 :=
   Nav.depth PageId.all all_pages (openSt p s).nav (inv_open p s h)
 
 end NavLaws
