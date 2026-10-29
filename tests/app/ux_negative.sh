@@ -93,7 +93,10 @@ suite "the window stays the newest away from it" "" "a burst larger than the rea
 suite "the shift is clamped to the old range" "" "pending burst preserves the visible anchor in App.b and native Sim.b on its first frame" App.lean \
   "let cur ← s.io.scroll (bottoms s).2.toUInt32 vh.toUInt32" "let cur := b.toFloat"
 suite "the frame keeps no anchor" "" "pending arrival keeps the visible row at the same pixel" App.lean \
-  "  if b > 4 || s.restoreAnchor then" "  if false then"
+  "  -- 5. keep the anchor still (unless pinned to the newest)
+  if b > 4 || s.restoreAnchor then" \
+  "  -- 5. keep the anchor still (unless pinned to the newest)
+  if false then"
 # a shell that shifts at vsync: the frame must paint at the shifted offset
 suite "the frame paints the offset before its shift lands" queued "pending arrival keeps the visible row at the same pixel" App.lean \
   "          b := b'" "          b := (← s.io.scroll (bottoms s).2.toUInt32 vh.toUInt32).toInt64.toInt.toNat"
