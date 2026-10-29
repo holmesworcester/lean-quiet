@@ -46,7 +46,7 @@ def Keyed (s : DB F) : Prop := ∀ y o, s.ops y = some o → o.id = y
 recorded, and every stored op of x's closure in r the peer is not known
 to hold goes out. -/
 def Gives (s : DB F) (c : Conn) (r x : Id) (st : Step) : Prop :=
-  Status.given x ∈ st.status ∧ has st.conn.given x = true ∧
+  x ∈ st.given ∧ has st.conn.given x = true ∧
     ∀ y o, ReachIn fam s.ops r x y → s.ops y = some o → fam.room o = some r →
       c.known.contains y = false → o ∈ st.send
 
@@ -456,7 +456,7 @@ theorem notice_no_holds (ix : Index) (c : Conn) (rs : List Room) (r : Id) (ids :
   dsimp only
   unfold Conn.onHold
   have hn' : has ({ c.carry rs with heard := now } : Conn).rooms r = false := hn
-  simp [hn', Conn.finish, Conn.report]
+  simp [hn']
 
 /-! ## The node's steps -/
 
@@ -478,26 +478,26 @@ theorem tickGive_run (ix : Index) (c : Conn) (now : Nat) (s : DB F) :
   simp only [Conn.tickGive, Model.run_bind, Model.run_pure]
   rw [notify_state]
 
-/-- Whether a tick drops the connection: patience, or a responder's
-lease (`Conn.tick`). -/
+/-- A tick drops exactly on silence; giving notices never changes heard. -/
 theorem tick_drop (ix : Index) (c : Conn) (now : Nat) (s : DB F) :
     ((c.tick fam cfg ix now : Model F Step).run s).1.drop =
-      ((c.waiting && Decidable.decide (c.waitStart + cfg.patience < now)) || c.expired cfg now) := by
+      Decidable.decide (c.heard + cfg.live < now) := by
   unfold Conn.tick
   split
-  · rename_i h; simp only [Model.run_pure]; exact h.symm
+  · rename_i h; simp [h]
   · rename_i h
-    rw [Bool.eq_false_iff.2 h]
-    simp only [Model.run_bind, Model.run_pure, Conn.finish]
+    simp only [Model.run_bind, Model.run_pure, Step.pulse_drop]
+    unfold Conn.work
+    simp only [Model.run_bind, Model.run_pure]
     split
-    · unfold Conn.start; split <;> rfl
-    · rfl
+    · unfold Conn.start; split <;> simp [h]
+    · simp [h]
 
 /-- A connection whose `given` alone differs ticks alike as to dropping. -/
 theorem tick_drop_given (ix : Index) (c : Conn) (gs : List Id) (now : Nat) (s : DB F) :
     (((({ c with given := gs } : Conn)).tick fam cfg ix now : Model F Step).run s).1.drop =
       ((c.tick fam cfg ix now : Model F Step).run s).1.drop := by
-  rw [tick_drop, tick_drop]; rfl
+  rw [tick_drop, tick_drop]
 
 /-! What a step after `notify` keeps of it: its `given`, through `filed`
 and `tick`. -/
@@ -513,8 +513,8 @@ theorem filed_given (c : Conn) (ids : List Id) (s : DB F) :
     ((c.filed fam cfg ids : Model F Step).run s).1.conn.given = c.given := by
   unfold Conn.filed
   simp only [Model.run_bind]
-  rw [Model.forIn_reads (g := fileOffer fam s)]
-  · have := foldl_inv (fun b : List (Id × Id) × Conn => b.2.given = c.given) (fileOffer fam s) (by
+  rw [Model.forIn_reads (g := fileOffer fam cfg s)]
+  · have := foldl_inv (fun b : List (Id × Id) × Conn => b.2.given = c.given) (fileOffer fam cfg s) (by
       intro b i e
       unfold fileOffer
       split
@@ -524,8 +524,7 @@ theorem filed_given (c : Conn) (ids : List Id) (s : DB F) :
           · exact e
         · exact e
       · exact e) ids ([], c) rfl
-    simp only [Model.run_pure, Conn.finish, Conn.report]
-    split <;> exact this
+    exact this
   · intro a b
     unfold fileOffer
     by_cases h1 : (!b.2.known.contains a && !b.2.offered.contains a) = true
@@ -541,46 +540,38 @@ theorem filed_given (c : Conn) (ids : List Id) (s : DB F) :
     · rw [ite_eq_right h1, ite_eq_right h1]; rfl
 
 theorem walkN_given (s : DB F) : ∀ (k : Nat) (c : Conn) (offer : List (Id × Id)),
-    ((c.walkN fam offer k : Model F _).run s).1.1.given = c.given := by
+    ((c.walkN fam cfg offer k : Model F _).run s).1.1.given = c.given := by
   intro k
   induction k with
-  | zero => intro c offer; rfl
+  | zero => intros; rfl
   | succ k ih =>
     intro c offer
     rw [Conn.walkN]
-    cases hf : c.frontier with
+    cases c.frontier with
     | nil => rfl
     | cons x rest =>
       dsimp only
-      by_cases h1 : (!c.closed.contains x) = true
-      · rw [ite_eq_left h1, Model.run_bind, run_getOp]
-        dsimp only
-        cases hx : s.ops x with
+      split
+      · exact ih _ _
+      · rw [Model.run_bind, run_getOp]
+        cases s.ops x with
         | none => exact ih _ _
-        | some o =>
-          dsimp only
-          by_cases hsh : Conn.shows fam { c with frontier := rest } o = true
-          · rw [ite_eq_left hsh]
-            by_cases h2 : (!c.known.contains x && !c.offered.contains x) = true
-            · rw [ite_eq_left h2, Model.run_bind, run_getStatus]
-              rcases s.status x with _ | _ | _ <;> exact ih _ _
-            · rw [ite_eq_right h2, Model.run_bind, run_getStatus]
-              rcases s.status x with _ | _ | _ <;> exact ih _ _
-          · rw [ite_eq_right hsh]; exact ih _ _
-      · rw [ite_eq_right h1]; exact ih _ _
+        | some o => dsimp only; split <;> exact ih _ _
 
 theorem tick_given (ix : Index) (c : Conn) (now : Nat) (s : DB F) :
     ((c.tick fam cfg ix now : Model F Step).run s).1.conn.given = c.given := by
   unfold Conn.tick
   split
   · rfl
-  · simp only [Model.run_bind, Model.run_pure, Conn.walk]
-    have hw := walkN_given fam s cfg.walk c []
-    generalize ((c.walkN fam [] cfg.walk : Model F _).run s).1 = p at hw
+  · simp only [Model.run_bind, Model.run_pure, Step.pulse_conn]
+    unfold Conn.work
+    simp only [Model.run_bind, Model.run_pure, Conn.walk]
+    have hw := walkN_given fam cfg s cfg.walk c []
+    generalize ((c.walkN fam cfg [] cfg.walk : Model F _).run s).1 = p at hw
     obtain ⟨c', offer⟩ := p
     dsimp only at hw ⊢
-    simp only [Conn.finish, Conn.report]
-    split <;> (split <;> simp_all [Conn.start, Conn.expireAsks] <;> (try split) <;> simp_all)
+    split <;> simp_all [Conn.start, Conn.expireAsks, Conn.beginRound] <;>
+      (try split) <;> simp_all
 
 /-- **E1, the notice is given (`notice_sent`).** A connection carrying
 notice (r, x) it has not given gives it on its next `filedGive` (the

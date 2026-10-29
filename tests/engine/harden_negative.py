@@ -11,21 +11,16 @@ assert run(["lake", "build", "harden", "ops.sync.TimeLaws", "ops.sync.BoundsLaws
 assert run([".lake/build/bin/harden"], "baseline-run") == 0
 # (name, source, unique original, mutant, target, expected failure text, runtime?)
 cases = [
-    ("wait-origin", "ops/sync/Conn.lean", "def Conn.waitStart (c : Conn) : Nat := max c.heard c.lastRound", "def Conn.waitStart (c : Conn) : Nat := c.heard", "ops.sync.TimeLaws", "round_not_dropped", False),
-    ("no-lease", "ops/sync/Conn.lean", " || c.expired cfg now then", " then", "ops.sync.TimeLaws", "error:", False),
-    ("early-lease", "ops/sync/Conn.lean", "!c.dialer && c.heard + cfg.lease < now", "!c.dialer && c.heard < now", "ops.sync.TimeLaws", "error:", False),
-    ("uncarried-room", "ops/sync/Conn.lean", "  if !has c.rooms r then { conn := c } else", "  if !has c.rooms r || c.snaps.isEmpty then { conn := c } else", "ops.sync.TimeLaws", "error:", False),
-    ("no-purge", "engine/wire/Node.lean", "  if !ids.isEmpty then Turn.purge x.fam ids true", "  if !ids.isEmpty then pure ()", "engine.wire.CloseLaws", "error:", False),
+    ("uncarried-room", "ops/sync/Conn.lean", "  if !has c.rooms r then { conn := c, send := [(Msg.rbsr r k []).op] } else", "  if !has c.rooms r || c.snaps.isEmpty then { conn := c, send := [(Msg.rbsr r k []).op] } else", "ops.sync.TimeLaws", "error:", False),
+    ("no-purge", "engine/wire/Node.lean", "  if !ids.isEmpty then Turn.purge x.fam ids scrub", "  if !ids.isEmpty then pure ()", "engine.wire.CloseLaws", "error:", False),
     ("no-close-event", "engine/wire/Node.lean", "  n.finish x { drop := ids } now", "  n.finish x {} now", "harden", "transport end", True),
     ("known-forget", "ops/sync/Memory.lean", "then next else ({} : HashSet Id).insert i", "then next else next", "ops.sync.RetryLaws", "error:", False),
     ("asked-admission", "ops/sync/Memory.lean", ".take (cap - asked.size)", "", "harden", "full asked defers", True),
-    ("size-drop", "ops/sync/Conn.lean", "conn := { s.conn with known := {}, asked := {}, askTime := {} } }", "conn := { s.conn with known := {}, asked := {}, askTime := {} }, drop := true }", "ops.sync.RetryLaws", "error:", False),
     ("no-expiry", "ops/sync/Conn.lean", "let c := c.expireAsks cfg now", "let c := c", "harden", "asks expire", True),
     ("expiry-law", "ops/sync/Conn.lean", "asked := c.asked.filter live", "asked := c.asked.filter (fun _ => true)", "ops.sync.RetryLaws", "error: ops/sync/RetryLaws.lean", False),
     ("offer-renews", "ops/sync/Conn.lean", "askTime := accepted.foldl (fun ts i => ts.insert i c.heard) c.askTime", "askTime := accepted.foldl (fun ts i => ts.insert i c.heard) (c.askTime.map (fun _ _ => c.heard))", "harden", "repeat offers do not renew", True),
     ("retry-renews", "ops/sync/Conn.lean", "lastAsk := if due then now else c.lastAsk }", "lastAsk := if due then now else c.lastAsk, askTime := c.askTime.map (fun _ _ => now) }", "harden", "retries do not renew", True),
     ("retry-cap", "ops/sync/Conn.lean", "c.asked.toList.take cfg.maxIds", "c.asked.toList", "ops.sync.RetryLaws", "error:", False),
-    ("unlimited-sets", "ops/sync/Conn.lean", "if s.conn.known.size ≤ cfg.maxKnown ∧ s.conn.asked.size ≤ cfg.maxKnown then s", "if True then s", "ops.sync.BoundsLaws", "error:", False),
     ("oversized-hold", "ops/sync/Conn.lean", "  if ids.length > cfg.maxIds then return { conn := c }\n  let mut want", "  if False then return { conn := c }\n  let mut want", "harden", "oversized hold", True),
     ("unauthorized-read", "ops/sync/Conn.lean", "ids.filter fun i => c.rooms.any fun r => (ix.items r).any fun a => Decidable.decide (a.2 = i)", "ids", "harden", "never reads large x", True),
     ("blindness", "ops/sync/Conn.lean", "ids.filter fun i => c.rooms.any fun r => (ix.items r).any fun a => Decidable.decide (a.2 = i)", "ids", "ops.sync.ServeLaws", "error:", False),
@@ -54,9 +49,7 @@ for name, source, old, new, target, expected, runtime in cases:
             text = (logs / (name + ".log")).read_text()
         else:
             text = (logs / (name + "-build.log")).read_text()
-        # Lean errors may report a source line rather than the theorem name.
-        needle = "error:" if expected == "round_not_dropped" else expected
-        assert code != 0 and needle in text, (name, "survived or failed for a different reason")
+        assert code != 0 and expected in text, (name, "survived or failed for a different reason")
         print("refused:", name, flush=True)
     finally:
         path.write_text(original)

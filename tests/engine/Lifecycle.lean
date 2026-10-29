@@ -1,7 +1,7 @@
 /-
 A community's lifecycle as ops, intents and lists only, on two SQLite
 nodes with real Ed25519: A founds "Acme" and invites; B pastes the link
-and joins; ops move between the nodes only through sync's `offer` and
+and joins; ops move between the nodes through sync's filed/want path and
 `intake`; A approves; A renames; B ends up admitted, with A's ops and
 the new name. Everything a screen would show (communities, who is
 waiting, names) is read as lists; nothing is kept beside the ops. A
@@ -9,6 +9,7 @@ peer's local ops never land, and a secret whose seed is not its key's
 is refused.
 -/
 import tests.engine.Lib
+import tests.engine.Stream
 
 open Engine Community Tests
 
@@ -25,9 +26,7 @@ def rows (db : Db) (q : ListQ) : IO (List (Pos × Fact)) := do
   return (← (Lists.list q : SqlM Fact (Answer Fact)).run db).rows
 
 /-- Ops held by db that a peer may be sent. -/
-def sendable (db : Db) : IO (List Op) := do
-  let all ← (dumpOps (F := Fact)).run db
-  (offer fam (all.map (·.id)) : SqlM Fact (List Op)).run db
+def sendable (db : Db) : IO (List Op) := streamOps fam db
 
 /-- The channel's order, on A and B once both are admitted to c and
 hold its content key kA: a counter every device shares, the time

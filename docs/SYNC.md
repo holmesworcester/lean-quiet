@@ -49,6 +49,34 @@ through `Hooks`.
 
 Papers and the poc survey behind these: `/mnt/storage/holmes-research/rbsr/`.
 
+## Notice delivery after the simplification
+
+`Hooks.rooms` still returns typed `List Room`: `Room.sync r` permits sync;
+`Room.notice r x` permits only the removal notice and its requirement
+closure. `Conn.carry` refreshes these separately on every node step.
+The per-room snapshots and gates operate only on `Room.syncs`.
+
+The delivery result has one field, `Step.given : List Id`, beside send and
+take. `Conn.given` suppresses repeats on this connection. `Step.then`
+concatenates the results; `filedGive` and `tickGive` retain their order.
+`Node.recordGiven` passes each `(connection, notice)` to
+`Hooks.onGiven : Id → Id → List Op`; Connection returns the same local
+`Given.op` as before. The next rooms read excludes that notice, and a
+session with no remaining rooms is retired. This is a local record of
+handing out the notice, not a remote acknowledgment. It needs no generic
+status sum, settled room, or completion report.
+
+The notice laws keep their premises and conclusions: keyed ops, the
+carried notice not already given, one room per notice, its closure fitting
+`cfg.walk`, and (for tick delivery) a tick that does not drop. `Gives` now
+reads `x ∈ st.given` where it read `Status.given x ∈ st.status`; its
+connection-history and full closure-delivery conjuncts are unchanged.
+The tick's non-drop premise now means `now ≤ c.heard + cfg.live`.
+No removal-law premise is added, and all 24 pinned removal laws keep
+their statements. Notice delivery preserves phase and heard time
+(`give_shape`); `honest_no_drop`, `handlers_transition` and
+`closed_terminal` also cover carry, notify, filedGive and tickGive.
+
 ## Model
 
 **Items and keys.** A room's sync set is its stored shared ops. Each is
@@ -93,7 +121,7 @@ are bounded by `wantBytes` plus one op, excluding transport envelopes.
 The store outside those rooms changes neither the read sequence nor the
 reply. Closure reads are deferred to ticks. The receiver retains admitted unsatisfied ids in `asked`. Every `retry` ms
 (1000 by default) a tick re-wants at most `maxIds` of them. Each ask expires
-strictly after its original ask time plus `patience`; repeat offers and
+strictly after its original ask time plus `askTime`; repeat offers and
 retries do not renew that time. Expiry frees capacity even if other peer
 traffic keeps the session alive. Later rounds or offers rediscover deferred
 or expired ids, so a byte-limited response does not abandon the rest forever. A have for a room the peer may not see
@@ -105,32 +133,97 @@ peer's haves learn nothing of other rooms or of local ops.
 to hold it. The stream is only ever safe (laws below). Liveness comes
 from rounds.
 
-**Closure.** Each op sent queues its requirement closure for the next tick:
-the ids the peer is not known to hold. The walk stops at ops whose
-closure this connection already offered and that are Valid here, since
-a Valid op's closure is complete and can never grow. It visits at most
-`walk` ops per call and continues on the next tick, so nothing is
-capped silently.
+**Closure.** A full-range round (`max floor peerFloor ≤ 1`) keeps no
+sender per-op bookkeeping: neither its holds nor served wants add to
+`offered`, `closed`, or `frontier`. RBSR reconciles the entire room,
+requirements included (`exchange_complete`, `ends_log`). Each round
+captures its overlap floor in `roundFloor` alongside its room snapshots;
+all rooms in that round share that window. The captured floor survives
+the empty end, so delayed wants do not consult a later hello. Wants have
+no round id on the wire; they use the connection's latest captured round.
+Honest peers keep their negotiated floors fixed during a session.
 
-**Patience and lease.** While a side waits (for hello, a round answer,
-or wanted ops), it drops strictly after `max heard lastRound + patience`.
-An arrival sets `heard` before handling it, so newly created wants get a
-fresh deadline; opening a local round sets `lastRound`. A round opened
-at `now` survives through `now + patience`. Time is a plain logical time
-comparison; this module has no pause accounting.
+Only a windowed round (`roundFloor > 1`) queues the requirements of
+served ops. `closureCap` (4096 ids by default) bounds **visited plus
+pending** distinct requirement ids (`closed.size + frontier.length`).
+Repeated requirements consume no additional slots. The cap is shared by
+all rooms in the round, so a connection's total closure state is bounded.
+Closure uses no share of `offered`: visited ids record its deduplication.
+A tick visits at most `walk` admitted ids. The walk records each visited
+id, including missing or invalid ops, and a new round clears visited,
+pending, and the cut flag before retrying from that round's served ops.
 
-A responder also drops strictly after `heard + lease`, whether waiting
-or settled. The default lease is 90000 ms, three default dialer cadences.
-Every decoded round message, including the empty end, refreshes `heard`.
-If the next dialer arrival is within `every` ms of `heard` and
-`every ≤ lease`, lease expiry is impossible. A lease closes on the next
-tick, so scheduler delay adds to the wall-clock bound.
+Admission keeps only the prefix that fits and sets `Conn.closureCut` on
+overflow. The local app can inspect that flag on its Node connection;
+it stays set for that round. Admitted work drains on later ticks, but no
+additional distinct id fits after a cut. Discarded ids are never marked
+visited or promised as closure offers. A windowed receiver then lacks
+some older requirements and their transitive dependencies: some received
+ops remain Missing, so agreement with the full peer holds only for ops
+whose verdict dependencies it actually holds (`spec_local`). The flag
+is local to the sender; with no wire change the receiver gets no remote
+cut notification. There is no settled status. Completion checks compare the actual stored
+room ops; a round ending does not certify closure completeness.
+
+When the entire stored, shown requirement closure fits, the walk offers
+all its ids not already advertised or known held by the peer. The
+completeness law uses any finite requirement-closed superset of the
+served ops' requirement seeds as a size witness, distinct initial
+pending ids, no previously visited ids, and enough walk fuel to visit
+that set. The witness is proof data, not another runtime cache.
+
+`offered` now belongs only to live stream deduplication. Like `known`,
+it uses `remember maxKnown`: when an insertion would exceed the cap,
+it forgets old hints and retains the new id (zero disables hints). The
+cost of forgetting is a repeated have, never a lost op or a dropped session.
+
+**Proposal only: receiver-driven missing requirements.** A future
+windowed receiver could inspect the requirements of each stored Missing
+op and request absent ids with existing wants. The sender would serve
+authorized ids without walking or retaining closure state, even for
+windows. This is not implemented: today's receiver asks only for ids
+advertised in rounds or haves. It would require bounded scheduling,
+deduplication, retries and fair discovery at the receiver, plus a rule
+for absent or out-of-room requirements. Chains cost additional network
+round trips and store reads; batching helps breadth but cannot remove
+serial dependency latency. A peer would learn which specific requirement
+ids the receiver lacks, and could infer dependency interests and partial
+possession, beyond the ordinary overlap fingerprints. Authorization must
+still precede blob reads; requests must not probe unrelated rooms.
+The user decides whether to change sync behavior this way.
+
+**Liveness.** Both roles drop exactly when `heard + live < now`.
+`live` defaults to 90000 ms. Each decoded op refreshes `heard`. A tick
+with no other output sends an empty `have` after `live/3` without sending;
+Node records the outgoing time for all payloads, including local writes.
+With positive `live/3`, each side ticking at least that often and frames
+delivered within that interval never drops: `live_stays` inducts over
+tick histories, using the scheduler's preceding tick and delivery of its
+output (or the earlier output remembered in `sent`). The scheduler and
+transport guarantees are assumptions, not properties of the OS.
+Opening a round does not refresh peer liveness. An unserved ask expires
+after `askTime` (20000 ms), even while keepalives arrive, freeing `asked`
+without closing the session. Logical time has no pause accounting.
+
+**Independent rooms.** A cadence starts only rooms without their own
+snapshot; another room in flight cannot gate them. An unshown room gets
+an empty end without changing the connection. Snapshot and closure caps
+still apply across the connection; this is not a fairness or CPU bound.
+
+**Session phases.** A fresh connection goes from Dialing to Hello; the
+peer's hello advances it to Live. Timeout enters Closed. Every handler
+respects the transition relation, and Closed cannot become another phase.
+Node removes ended connections and remembers their ids against reopening;
+a fresh session needs a fresh handshake.
+The responder answers the dialer's hello with its own window. Its first
+hello can have arrived before the dialer got session keys if the bare
+handshake answer was lost; this reply completes sync without a redial.
 
 **Every end purges.** TCP EOF, errors, oversized framing, idle closure,
 send failure and runner stop notify `Node.onClose` with the socket's
 address. All sessions currently routed through it drop. The common
 `Node.finish` path runs `closing` then `Turn.purge fam ids true` for
-transport drops, patience/protocol drops, lease expiry, sessions removed
+transport drops, silence expiry, sessions removed
 from `established`, and retirement. Retired sessions leave memory too.
 A closed session cannot reopen; a new handshake is needed.
 
@@ -146,26 +239,22 @@ binds IPv4 only today, and dials parse IPv4 only.
 Pending outbound dials keep at most `max 1 queue` payloads per address;
 overflow closes the session.
 
-Both `known` and `asked` hold at most `maxKnown` (65536) ids: together at
-most `2 * maxKnown` ids per connection, plus a timestamp per outstanding
+`known`, `asked`, and stream `offered` each hold at most `maxKnown`
+(65536) ids: together at most `3 * maxKnown` ids per connection, plus a timestamp per outstanding
 ask (a parallel map whose entries leave with their asks). Inserting a new
 `known` hint that would exceed the cap clears old hints, then remembers the
 new id. Redundant offers are harmless. A full `asked` admits no more missing
 ids, sends no wants for them and does not add them to `known`; later rounds
 or offers bring them again. Neither case is a protocol violation or ends
 the session. A zero cap retains no hints or asks. `hold` checks `maxIds`
-before reads and silently ignores oversized offers. `conn_bounded` covers
-all connection transitions; `honest_no_drop` proves that within Conn only
-patience or lease expiry can drop, independently of set sizes. Transport
+before reads and silently ignores oversized offers. `conn_state_bounded`
+covers all connection transitions and includes the closure and snapshot-count bounds; `honest_no_drop` proves that within Conn only
+silence expiry can drop, independently of set sizes. Transport
 loss and retirement still use the common close-and-purge path.
-These are bounds on inbound buffering and the two
-peer-controlled sets, not a total RSS bound: the shared room index,
-round snapshots, offered/closed caches, closure frontier and transient
-handler allocations are separate. Round/CPU bounds remain separate work.
-
-**Status.** `settled room` once per room per connection, when its first
-round has ended and nothing wanted is outstanding. The Connection
-family writes it as a local op, so it can't grow the log per message.
+These are bounds on inbound buffering and persistent per-connection id
+state, not a total RSS bound: the shared room index, snapshot contents,
+and transient handler allocations are separate. Round/CPU bounds remain
+separate work.
 
 ## Code
 
@@ -175,7 +264,7 @@ family writes it as a local op, so it can't grow the log per message.
 | ops/sync/Round.lean | claims, cutting ranges, `answer`, `exchange` |
 | ops/sync/RoundLaws.lean | `exchange_complete` |
 | ops/sync/Wire.lean | the three wire kinds and their codec |
-| ops/sync/Conn.lean | one connection: room index, rounds, have/want, stream, closure, patience |
+| ops/sync/Conn.lean | one connection: room index, rounds, have/want, stream, closure, keepalives |
 | ops/sync/ConnLaws.lean | what a connection may take and send |
 | engine/core/Held.lean | `Turn` (one write turn) and `Held` (a store as data) |
 | engine/wire/Node.lean | the driver; `Hooks` from families; frames and bundles |
@@ -212,7 +301,7 @@ Entry points:
 - `connect cid addr dialer now`, for the in-memory harness only.
 
 Each entry point returns `Effects`: payloads to send to addresses,
-sessions dropped, and ids stored (for an app's reads).
+sessions dropped, ids stored and purge roots (for an app's reads).
 
 - Every write goes through `write`: one turn of the ops **not already
   stored**, so a repeat is neither written nor reported again. The
@@ -231,13 +320,8 @@ sessions dropped, and ids stored (for an app's reads).
   first, the one its handshake ran on).
 
 **Hooks**, from the Connection family, all in `m`:
-- `rooms cid`: what the connection carries (from the session and the
-  trust rule): rooms the peer may see, synced; and notices, an op with
-  its requirement closure given once to a removed member's node
-  (docs/REMOVAL.md, ops/sync/Notice.lean). The node gives a
-  connection's notices where it runs `filed` and `tick`.
-- `settled`: what a step's status writes: a room's first settle, a
-  notice given.
+- `rooms cid`: which rooms the peer may see (from the session and the
+  trust rule).
 - `recv`: called on every arrival, a repeat included, after it is
   stored.
 - `outbox`: (courier, address, op bytes).
@@ -259,7 +343,7 @@ notify`) is the one loop the phone apps and a desktop daemon run.
   same socket.
 - It closes any socket idle past `idle`, and reports every socket end to the node for key purging.
 - The app's writes come in through `Runner.write`; `notify` gets every
-  stored id, so the app can re-read (a write on the runner's connection
+  stored id and every purge root, so the app can re-read (a write on the runner's connection
   fires no other connection's triggers).
 - One task owns the node and the store; the listener and one reader per
   socket feed it through a channel.
@@ -313,6 +397,19 @@ Proven:
   the connection at a length over `maxFrame`.
 - `Op.decode_exact`, `decode_sum`: a decoded op is exactly its bytes; a
   bundle's payloads are together smaller than it.
+- `conn_state_bounded`: every reachable connection has known, asked and
+  stream-offered at most `maxKnown`, visited plus pending closure ids at
+  most `closureCap`, and at most as many snapshots as shown rooms.
+  `conn_bounded` retains its original known/asked statement.
+- `full_round_stateless`: serving wants with a captured full-range floor
+  leaves offered, closed and frontier unchanged.
+- `closure_capped`: every prefix of the actual closure walk preserves
+  the visited-plus-pending bound.
+- `closure_complete_under_cap`: from a fresh windowed closure, every id
+  reachable from its seeds is offered, previously streamed, or known
+  held, provided a finite stored, shown requirement-closed superset fits
+  the cap and the walk has enough fuel. The frontier is then empty.
+  `closure_under_cap_runs` supplies a nonempty stored-leaf witness.
 - `spec_local` (locality): a decided verdict depends only on the op's
   requirement closure. If a node holds every op the peer's verdict on x
   was reached from, it reaches the same verdict.
@@ -348,13 +445,19 @@ Proven:
   wants from the round's snapshot, and no claim back. By
   `exchange_ids`, those are the ids the snapshot holds there that the
   claimant lacks, and the reverse.
-- From earlier: `intake_local`, `offer_shared`, `stored_local`.
+- `offer_shared`, `offer_stored`: the real filed stream and closure walk
+  advertise only stored shared ops; the unused `Engine.offer` is deleted.
+- `purges_notified`: the single purge primitive reports every purge root
+  in `Effects.purged`; flush and session end carry them to finish.
+- `handlers_transition`, `closed_terminal`: every existing connection
+  handler respects the session relation; Closed never reopens.
+- From earlier: `intake_local`, `stored_local`.
 
 Tested, not yet proven (tests/engine/SyncPair.lean, on a 101-op community with
 Ed25519 and SQLite):
 
 - Full sync converges, with the same verdict for every op on both
-  sides, and both report the room settled.
+  sides; completion means equal stored room ops.
 - Windowed: a node with a floor ends with exactly its window and the
   requirement closure, and judges every op it holds as its peer does.
 - 25% frame loss converges through redials.
@@ -365,7 +468,18 @@ Ed25519 and SQLite):
   world, `stream_delivers`; tests/engine/SyncWorld.lean runs it on a real
   community and checks the premises hold of the live world).
 
-Negative controls, each failing the suite: windows that ignore the
+`mise run test:stateless` builds and runs a parameterized 5000-op full
+sync over two Nodes, SQLite and memory frames, checking the peak of each
+set after transitions. It also checks two signed Community windows: a
+closure within 64 slots and one exceeding 16, with a three-visit tick
+budget. The former has all verdicts; the latter reports the cut and
+checks agreement for decided ops and Missing for incomplete ones.
+Boundary checks cover zero capacity, duplicate seeds, cut stickiness,
+round reset, delayed wants, and stream-hint eviction. Eight restored
+mutations exercise the new bounds, completeness and state-free full
+rounds (`tests/engine/stateless_negative.py`). These run in the engine gate.
+
+Earlier negative controls, each failing the suite: windows that ignore the
 floor; no closure offers; rooms not checked.
 
 Still to prove:
@@ -390,19 +504,19 @@ Still to prove:
    entry point (`onFrame`, `onTick`, `onWrite`) keeps the cache law and
    the snapshots between them is read from the code.
 3. **`closure_delivered`.** After a send and its offers are answered,
-   the peer holds the op's closure, given the invariant that `known` is
+   the peer holds the op's closure when it fits the cap, given the invariant that `known` is
    a subset of the peer's store. With `spec_local` this gives "every op a
    windowed node holds is judged as its peer judges it", which the tests
    check.
 4. **Efficiency.** Repeated offers and sends are allowed when hint
    memory resets or wants retry; at-most-once delivery is not a goal.
-   Bounds are still wanted for Valid-op closure walks and round work,
+   Round-work bounds are still wanted,
    including the counting bound
    `claims ≤ fan · |A Δ B| · ⌈log_fan n⌉` (a mismatched range must
    contain an item of the difference).
 5. **Buffering beyond the inbound queue.** The event channel now has
    `queue` slots and blocks producers; socket admission has per-IP and
-   total caps. Total RSS, snapshots, closure caches and CPU work still
+   total caps. Total RSS, snapshot contents and round CPU work still
    need separate bounds; see the peer-controlled-storage section above.
 
 ## Costs
@@ -428,7 +542,7 @@ Still to prove:
 - `maxIds` ids per have or want (oversized messages are ignored), and
   at most `maxIds` retried ids per tick.
 - `maxKnown` entries in each hint/ask set; forgetting or deferral, never a drop.
-- `patience` bounds ask age; retries do not extend it.
+- `askTime` bounds ask age; retries do not extend it.
 - `wantBytes` encoded response payload bytes plus one whole op.
 - `queue` pending inbound events, `maxSocks` sockets and `perAddr` per IP.
 - `walk` closure steps per call (the rest continues on the next tick).
@@ -447,7 +561,7 @@ unaffected (Meyer and Scherer §I–II).
   - snapshots: answered from the live store instead;
   - known, offered, asked and closed: content addressing makes repeats
     idempotent ("dedup may only delay a resend, never veto it");
-  - peer floor, round counters and patience: become ops and list reads.
+  - peer floor, round counters and liveness: become ops and list reads.
   A "due" standing question opens rounds, as poc-17's `compare.due`
   does.
 - **The two-node world.** Built: `World` (two Nodes over `Held`, the
@@ -461,8 +575,8 @@ unaffected (Meyer and Scherer §I–II).
   - rounds from both sides on a cadence, without a dialer bit. Round
     ids must name their initiator, and the cadence should not be every
     tick until the cached treap lands;
-  - whether to keep `settled`, or have the screen read the device's own
-    admission instead.
+  The settled machinery was removed by the user's decision; the screen
+  reads the device's own admission.
 
 ## Follow-ups
 

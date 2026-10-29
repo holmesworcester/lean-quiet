@@ -961,7 +961,7 @@ def netStep : M Unit := do
   if (← s.wr.busy.get) > 0 then return
   let listen := ((← listenHints).head?).getD s!"127.0.0.1:{port}".toUTF8
   let x : Engine.Sync.Sync SF (SqlM SF) :=
-    { fam, cfg := { every := 30000, patience := 20000 },
+    { fam, cfg := { every := 30000, askTime := 20000 },
       hooks := Connection.hooks fam Connection.sodium listen }
   let path := s.dbPath
   let sh := s.sh

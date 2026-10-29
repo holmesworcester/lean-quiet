@@ -7,6 +7,7 @@ it carries afresh and the notices it gives included (`notify_bounded`).
 -/
 import ops.sync.OfferLaws
 import ops.sync.Notice
+import engine.wire.WorldLaws
 
 namespace Engine.Sync
 
@@ -16,14 +17,29 @@ local instance : LawfulBEq ByteArray where
 
 variable {F : Type} (fam : Family F) (cfg : Config)
 
-theorem limit_bounded (s : Step) : (s.limit cfg).conn.Bounded cfg := by
-  unfold Step.limit
-  split
-  · assumption
-  · simp [Conn.Bounded]
+theorem inserts_size (ids : List Id) (asked : Std.HashSet Id) :
+    (ids.foldl (·.insert ·) asked).size ≤ asked.size + ids.length := by
+  induction ids generalizing asked with
+  | nil => simp
+  | cons i ids ih =>
+    have hi := Std.HashSet.size_insert_le (m := asked) (k := i)
+    have ht := ih (asked.insert i)
+    simp only [List.foldl_cons, List.length_cons]
+    omega
 
-theorem finish_bounded (s : Step) (hb : s.conn.Bounded cfg) : (Conn.finish s).conn.Bounded cfg := by
-  by_cases he : s.conn.asked.isEmpty = true <;> simpa [Conn.finish, Conn.report, he, Conn.Bounded] using hb
+theorem admitAsks_bounded (cap : Nat) (asked : Std.HashSet Id) (ids : List Id)
+    (hb : asked.size ≤ cap) :
+    ((admitAsks cap asked ids).foldl (·.insert ·) asked).size ≤ cap := by
+  have hi := inserts_size (admitAsks cap asked ids) asked
+  have hl : (admitAsks cap asked ids).length ≤ cap - asked.size := List.length_take_le ..
+  omega
+
+theorem remembers_bounded {α : Type} (cap : Nat) (key : α → Id) (ids : List α)
+    (known : Std.HashSet Id) (hb : known.size ≤ cap) :
+    (ids.foldl (fun k i => remember cap k (key i)) known).size ≤ cap := by
+  induction ids generalizing known with
+  | nil => exact hb
+  | cons i ids ih => exact ih _ (remember_bounded ..)
 
 theorem start_bounded (ix : Index) (c : Conn) (now : Nat) (hb : c.Bounded cfg) :
     (c.start cfg ix now).conn.Bounded cfg := by
@@ -36,7 +52,7 @@ theorem round_bounded (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Clai
   · exact hb
   · dsimp only; split
     · exact hb
-    · exact limit_bounded cfg _
+    · split <;> exact ⟨hb.1, admitAsks_bounded _ _ _ hb.2⟩
 
 theorem hold_bounded (c : Conn) (r : Id) (ids : List Id) (h : Held F) (hb : c.Bounded cfg) :
     ((c.onHold fam cfg r ids : HeldM F Step) h).1.conn.Bounded cfg := by
@@ -45,7 +61,7 @@ theorem hold_bounded (c : Conn) (r : Id) (ids : List Id) (h : Held F) (hb : c.Bo
   · exact hb
   · split
     · exact hb
-    · exact limit_bounded cfg _
+    · exact ⟨remembers_bounded _ id _ _ hb.1, admitAsks_bounded _ _ _ hb.2⟩
 
 theorem onWant_bounded (ix : Index) (c : Conn) (ids : List Id) (h : Held F) (hb : c.Bounded cfg) :
     ((c.onWant fam cfg ix ids : HeldM F Step) h).1.conn.Bounded cfg := by
@@ -53,10 +69,10 @@ theorem onWant_bounded (ix : Index) (c : Conn) (ids : List Id) (h : Held F) (hb 
   split
   · exact hb
   · simp only [HeldM.bind_apply, HeldM.pure_apply]
-    exact limit_bounded cfg _
+    exact ⟨remembers_bounded _ Op.id _ _ hb.1, hb.2⟩
 
 theorem walkN_bounded (h : Held F) : ∀ (k : Nat) (c : Conn) (offer : List (Id × Id)),
-    c.Bounded cfg → ((c.walkN fam offer k : HeldM F _) h).1.1.Bounded cfg := by
+    c.Bounded cfg → ((c.walkN fam cfg offer k : HeldM F _) h).1.1.Bounded cfg := by
   intro k
   induction k with
   | zero => intro c offer hb; exact hb
@@ -67,25 +83,16 @@ theorem walkN_bounded (h : Held F) : ∀ (k : Nat) (c : Conn) (offer : List (Id 
     | nil => exact hb
     | cons x rest =>
       dsimp only
-      by_cases hc : (!c.closed.contains x) = true
-      · rw [ite_eq_left hc, HeldM.bind_apply, HeldM.getOp_apply]
-        dsimp only
-        cases ho : h.db.ops x with
+      split
+      · exact ih _ _ hb
+      · rw [HeldM.bind_apply, HeldM.getOp_apply]
+        cases h.db.ops x with
         | none => exact ih _ _ hb
         | some o =>
           dsimp only
           split
-          · split
-            · rw [HeldM.bind_apply, HeldM.getStatus_apply]
-              cases h.db.status x with
-              | none => exact ih _ _ hb
-              | some v => cases v <;> exact ih _ _ hb
-            · rw [HeldM.bind_apply, HeldM.getStatus_apply]
-              cases h.db.status x with
-              | none => exact ih _ _ hb
-              | some v => cases v <;> exact ih _ _ hb
           · exact ih _ _ hb
-      · rw [ite_eq_right hc]; exact ih _ _ hb
+          · exact ih _ _ hb
 
 theorem expire_bounded (c : Conn) (now : Nat) (hb : c.Bounded cfg) :
     (c.expireAsks cfg now).Bounded cfg :=
@@ -93,11 +100,10 @@ theorem expire_bounded (c : Conn) (now : Nat) (hb : c.Bounded cfg) :
 
 theorem tick_bounded (ix : Index) (c : Conn) (now : Nat) (h : Held F) (hb : c.Bounded cfg) :
     ((c.tick fam cfg ix now : HeldM F Step) h).1.conn.Bounded cfg := by
-  unfold Conn.tick
+  unfold Conn.tick Conn.work
   split
   · exact hb
-  · rw [HeldM.bind_apply]
-    apply finish_bounded
+  · simp only [HeldM.bind_apply, HeldM.pure_apply, Step.pulse_conn]
     have hw := walkN_bounded fam cfg h cfg.walk c [] hb
     change ((c.walk fam cfg : HeldM F _) h).1.1.Bounded cfg at hw
     have hw := expire_bounded cfg _ now hw
@@ -117,31 +123,28 @@ theorem recv_bounded (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (h 
       dsimp only
       split
       · exact hb
-      · exact finish_bounded cfg _ (limit_bounded cfg _)
+      · exact ⟨remember_bounded .., Nat.le_trans Std.HashSet.size_erase_le hb.2⟩
     | some msg =>
       cases msg with
       | hello f =>
-        apply finish_bounded
+        dsimp only
         split
         · exact start_bounded cfg _ _ _ hb
         · exact hb
-      | rbsr r k cs => exact finish_bounded cfg _ (round_bounded cfg _ _ _ _ _ _ hb)
+      | rbsr r k cs => exact (round_bounded cfg _ _ _ _ _ _ hb)
       | hold r ids =>
         dsimp only
-        rw [HeldM.bind_apply]
-        exact finish_bounded cfg _ (hold_bounded fam cfg _ _ _ _ hb)
+        exact (hold_bounded fam cfg _ _ _ _ hb)
       | want ids =>
         dsimp only
-        rw [HeldM.bind_apply]
-        exact finish_bounded cfg _ (onWant_bounded fam cfg _ _ _ _ hb)
+        exact (onWant_bounded fam cfg _ _ _ _ hb)
 
 theorem filed_bounded (c : Conn) (ids : List Id) (h : Held F) (hb : c.Bounded cfg) :
     ((c.filed fam cfg ids : HeldM F Step) h).1.conn.Bounded cfg := by
   unfold Conn.filed
   simp only [HeldM.bind_apply]
-  rw [HeldM.forIn_reads (g := fileOffer fam h.db)]
-  · apply finish_bounded
-    exact foldl_inv (fun b : List (Id × Id) × Conn => b.2.Bounded cfg) (fileOffer fam h.db)
+  rw [HeldM.forIn_reads (g := fileOffer fam cfg h.db)]
+  · exact foldl_inv (fun b : List (Id × Id) × Conn => b.2.Bounded cfg) (fileOffer fam cfg h.db)
       (by intro b i hb; unfold fileOffer; split <;> try exact hb
           split <;> try exact hb
           split <;> exact hb) ids ([], c) hb
@@ -197,6 +200,17 @@ inductive Conn.Reachable (fam : Family F) (cfg : Config) : Conn → Prop where
   | carry {c} (hc : Reachable fam cfg c) (rs : List Room) : Reachable fam cfg (c.carry rs)
   | notify {c} (hc : Reachable fam cfg c) (h : Held F) :
       Reachable fam cfg ((c.notify fam cfg : HeldM F Step) h).1.conn
+
+/-- The node's notice wrappers are compositions of reachable transitions. -/
+theorem filedGive_reachable {c : Conn} (hc : c.Reachable fam cfg) (ids : List Id) (h : Held F) :
+    (((c.filedGive fam cfg ids : HeldM F Step) h).1.conn).Reachable fam cfg := by
+  simp only [Conn.filedGive, HeldM.bind_apply, HeldM.pure_apply, Step.then]
+  exact .filed (.notify hc h) ids _
+
+theorem tickGive_reachable {c : Conn} (hc : c.Reachable fam cfg) (ix : Index) (now : Nat) (h : Held F) :
+    (((c.tickGive fam cfg ix now : HeldM F Step) h).1.conn).Reachable fam cfg := by
+  simp only [Conn.tickGive, HeldM.bind_apply, HeldM.pure_apply]
+  split <;> exact .tick (.notify hc h) ix now _
 
 theorem conn_bounded {c : Conn} (hc : c.Reachable fam cfg) :
     c.known.size ≤ cfg.maxKnown ∧ c.asked.size ≤ cfg.maxKnown := by

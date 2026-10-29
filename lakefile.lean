@@ -298,3 +298,12 @@ lean_exe linux where
 -- switching, settings and resize (tests/app/desktop.sh).
 lean_exe desktop where
   root := `platforms.headless.Desktop
+
+lean_exe stateless where
+  root := `tests.engine.Stateless
+
+lean_exe fullsync where
+  root := `tests.engine.FullSync
+
+lean_exe simplify where
+  root := `tests.engine.Simplify

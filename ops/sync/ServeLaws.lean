@@ -158,10 +158,8 @@ theorem onWant_one (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (o : 
     (ha : authorize ix c [o.id] = [o.id]) (hg : h.db.ops o.id = some o)
     (hs : c.shows fam o = true) :
     (c.onWant fam cfg ix [o.id] : HeldM F Step).run h =
-      (Step.limit cfg { conn := { c with
-          known := remember cfg.maxKnown c.known o.id
-          offered := c.offered.insert o.id
-          frontier := c.frontier ++ o.reqs }, send := [o] }, h) := by
+      ({ conn := ({ c with
+          known := remember cfg.maxKnown c.known o.id } : Conn).queue cfg o.reqs, send := [o] }, h) := by
   have hp : (serve (c.shows fam) cfg.wantBytes [o.id]).trace h.db.ops = ([o], [o.id]) := by
     simp only [serve, Nat.ne_of_gt hb, ite_false, Read.trace, hg, hs, ite_true]
     split <;> rfl
@@ -180,6 +178,6 @@ theorem want_budget (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (ids
   split
   · simp [replyBytes, largestOp]
   · rw [HeldM.bind_apply, Read.run_held]
-    simpa only [HeldM.pure_apply, Step.limit_send] using serve_budget (c.shows fam) h.db.ops (authorize ix c ids) cfg.wantBytes
+    simpa only [HeldM.pure_apply] using serve_budget (c.shows fam) h.db.ops (authorize ix c ids) cfg.wantBytes
 
 end Engine.Sync

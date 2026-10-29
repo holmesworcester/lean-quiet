@@ -361,12 +361,8 @@ def closing (cid : Id) : m (List Id) := do
 notices to give. -/
 def rooms (cid : Id) : m (List Room) := (roomsV cid).run
 
-/-- What a step's status writes: a notice given on cid is recorded
-(`conn.given`), so the rooms view stops carrying it; a room's settle
-writes nothing. -/
-def settled (cid : Id) : Status → List Op
-  | .given x => [Given.op cid x]
-  | .settled _ => []
+/-- Record a notice given on cid, so the rooms view stops carrying it. -/
+def onGiven (cid x : Id) : List Op := [Given.op cid x]
 
 /-- When and from where op x first arrived bare, if it did. -/
 def arrival (x : Id) : m (Option (B × Nat)) := do
@@ -508,7 +504,7 @@ def onArrival (via : Option Id) (addr : B) (o : Op) (at_ : Nat) : m (List Op) :=
 /-- What the node driver calls. -/
 def hooks (fam : Family F) (K : Keys) (listen : B) : Hooks F m where
   rooms := rooms
-  settled := settled
+  onGiven := onGiven
   recv := onArrival
   outbox := outbox
   react := react fam K

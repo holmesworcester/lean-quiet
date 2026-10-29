@@ -124,7 +124,7 @@ nothing calls), laws that must be negative controls (a mutant over its
 budget), and laws that must be World laws (the two-node World's stream). Update them if one becomes real. -/
 def harnesses : List Name := [`Engine.Sync.World.peer, `Net.step, `Pic.render]
 def models : List Name :=
-  [`Net.Scene.bootstrap, `Pic.render_wellFormed, `Engine.offer_shared, `Heights.T.findM_cost]
+  [`Net.Scene.bootstrap, `Pic.render_wellFormed, `Engine.stored_local, `Heights.T.findM_cost]
 /-- Laws that must be negative controls: a mutant over its budget. -/
 def controlLaws : List Name := [`Community.Merkle.slow_over_budget, `Engine.Codec.slow_digits_over_budget]
 /-- Laws that must be World laws: the node's code over a World. -/

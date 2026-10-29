@@ -85,15 +85,6 @@ theorem Acts.append_def (a b : Acts) : a ++ b = ⟨a.send ++ b.send, a.drop ++ b
 @[simp] theorem Acts.append_empty (a : Acts) : a ++ ({} : Acts) = a := by
   cases a; simp [Acts.append_def]
 
-@[simp] theorem Conn.finish_send (s : Step) : (Conn.finish s).send = s.send := rfl
-@[simp] theorem Conn.finish_take (s : Step) : (Conn.finish s).take = s.take := rfl
-@[simp] theorem Conn.finish_drop (s : Step) : (Conn.finish s).drop = s.drop := rfl
-
-@[simp] theorem Conn.finish_known (s : Step) : (Conn.finish s).conn.known = s.conn.known := by
-  by_cases he : s.conn.asked.isEmpty = true <;> simp [Conn.finish, Conn.report, he]
-@[simp] theorem Conn.finish_asked (s : Step) : (Conn.finish s).conn.asked = s.conn.asked := by
-  by_cases he : s.conn.asked.isEmpty = true <;> simp [Conn.finish, Conn.report, he]
-
 /-! ## Loops -/
 
 /-- A loop whose every turn keeps the store keeps it. -/
@@ -223,7 +214,7 @@ variable (S : Setup F) (s : Who)
 @[simp] theorem sync_rooms (cid : Id) : (S.sync s).hooks.rooms cid = pure ((S.rooms s cid).map .sync) := rfl
 @[simp] theorem sync_recv (o : Option Id) (a : ByteArray) (op : Op) (t : Nat) :
     (S.sync s).hooks.recv o a op t = pure [] := rfl
-@[simp] theorem sync_settled (cid : Id) (v : Status) : (S.sync s).hooks.settled cid v = [] := rfl
+@[simp] theorem sync_onGiven (cid : Id) (v : Id) : (S.sync s).hooks.onGiven cid v = [] := rfl
 @[simp] theorem sync_outbox : (S.sync s).hooks.outbox = pure [] := rfl
 @[simp] theorem sync_closing (cid : Id) : (S.sync s).hooks.closing cid = pure [] := rfl
 @[simp] theorem sync_retired : (S.sync s).hooks.retired = pure [] := rfl
@@ -248,15 +239,15 @@ theorem write_one (x : Sync F (HeldM F)) (n : Node) (o : Op) (h : Held F) (hn : 
       (({ n with ix := n.ix.add x.fam o, fresh := n.fresh ++ [o.id] }, [o.id]), turnH x.fam [o] h) := by
   simp [Node.write, hn, turnH_one _ _ _ hn]
 
-/-- The world's family writes no settles. -/
-@[simp] theorem settle_run (n : Node) (st : List (Id × Status)) (h : Held F) :
-    (Node.settle (S.sync s) n st).run h = (n, h) := by
-  have : (st.flatMap fun (p : Id × Status) => match p with
-      | (cid, v) => (S.sync s).hooks.settled cid v) = [] := by
+/-- The world's family records no notices. -/
+@[simp] theorem recordGiven_run (n : Node) (st : List (Id × Id)) (h : Held F) :
+    (Node.recordGiven (S.sync s) n st).run h = (n, h) := by
+  have : (st.flatMap fun (p : Id × Id) => match p with
+      | (cid, v) => (S.sync s).hooks.onGiven cid v) = [] := by
     induction st with
     | nil => rfl
     | cons p t ih => obtain ⟨_, _⟩ := p; simp at ih ⊢
-  simp only [Node.settle, Node.put, this, intake]; simp [write_nil]
+  simp only [Node.recordGiven, Node.put, this, intake]; simp [write_nil]
 
 @[simp] theorem store_nil (n : Node) (mine : Bool) (h : Held F) :
     (n.store (S.sync s) [] mine).run h = ((n, {}), h) := by
@@ -302,11 +293,16 @@ theorem seal_one (n : Node) (cid : Id) (ps : List ByteArray) (h : Held F) :
   simp only [List.map_map, Function.comp_def] at this
   exact this
 
+@[simp] theorem seal_single (n : Node) (cid : Id) (b : ByteArray) (h : Held F) :
+    (n.seal (S.sync s) { send := [(Route.conn cid, b)] }).run h =
+      (((n.addr? cid).map fun a => [(a, plainFrame cid [b])]).getD [], h) :=
+  seal_one S s n cid [b] h
+
 theorem seal_reads (n : Node) (out : Acts) : Reads (n.seal (S.sync s) out) := by
   simp only [Node.seal, sync_sealFor, HeldM.pure_bind]; keeps []
 
 theorem finish_reads (n : Node) (out : Acts) (now : Nat) : Reads (n.finish (S.sync s) out now) := by
-  simp only [Node.finish, Node.endSession, List.foldl_nil, Node.follow, Node.flush, sync_established, sync_outbox, sync_retired,
+  simp only [Node.finish, Node.sent, Node.endSession, Effects.purge, List.foldl_nil, Node.follow, Node.flush, sync_established, sync_outbox, sync_retired,
     sync_closing, HeldM.pure_bind, List.isEmpty_nil, ite_true, List.forIn_nil, List.append_nil,
     Bool.not_true, Bool.false_eq_true, ite_false]
   keeps [seal_reads]
@@ -314,18 +310,19 @@ theorem finish_reads (n : Node) (out : Acts) (now : Nat) : Reads (n.finish (S.sy
 /-- An entry point's end, with no managed sessions: seal, and report. -/
 theorem finish_run (n : Node) (out : Acts) (now : Nat) (h : Held F) (hm : n.managed = []) :
     (n.finish (S.sync s) out now).run h =
-      (({ n with fresh := [] },
-        { send := ((n.seal (S.sync s) out).run h).1, drop := out.drop, stored := n.fresh }), h) := by
+      (({ n.sent out now with fresh := [], purged := [] },
+        { send := ((n.seal (S.sync s) out).run h).1, drop := out.drop, stored := n.fresh, purged := n.purged }), h) := by
   have hk := finish_reads S s n out now h
-  simp only [Node.finish, Node.endSession, List.foldl_nil, Node.follow, Node.flush, hm, sync_established, sync_outbox, sync_retired,
+  simp only [Node.finish, Node.sent, Node.endSession, Effects.purge, List.foldl_nil, Node.follow, Node.flush, hm, sync_established, sync_outbox, sync_retired,
     sync_closing, HeldM.pure_bind, List.isEmpty_nil, ite_true, List.forIn_nil, List.append_nil,
     Bool.not_true, Bool.false_eq_true, ite_false, HeldM.run_bind, HeldM.run_pure,
     Acts.append_empty] at hk ⊢
+  rw [forIn_fixed _ _ _ _ (by intros; rfl)] at hk ⊢
   rw [hk]
 
 theorem fanout_reads (n : Node) (ids : List Id) : Reads (n.fanout (S.sync s) ids) := by
   have h1 := filedGive_reads (F := F) S.fam S.cfg
-  have h2 : ∀ (n : Node) st, Reads (Node.settle (S.sync s) n st) := fun n st h => by simp
+  have h2 : ∀ (n : Node) st, Reads (Node.recordGiven (S.sync s) n st) := fun n st h => by simp
   simp only [Node.fanout, sync_rooms, Node.refresh, HeldM.pure_bind, sync_fam, sync_cfg]
   keeps [h1, h2]
 
@@ -443,9 +440,9 @@ theorem has_of_mem {l : List Id} {x : Id} (h : x ∈ l) : has l x = true := (Eng
 theorem recv_hold (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (r : Id) (l : List Id) (now : Nat)
     (h : Held F) :
     (Conn.recv fam cfg ix c (Msg.hold r l).op.bytes now : HeldM F Step).run h =
-      (Conn.finish (({ c with heard := now }.onHold fam cfg r l : HeldM F Step).run h).1, h) := by
-  simp [Conn.recv, Op.decode_bytes]
-  exact onHold_reads _ _ _ _ _ h
+      ((({ c with heard := now }.onHold fam cfg r l : HeldM F Step).run h).1, h) := by
+  simp only [Conn.recv, Op.decode_bytes, ofOp_hold]
+  exact Prod.ext rfl (onHold_reads _ _ _ _ _ h)
 
 theorem onHold_take (fam : Family F) (c : Conn) (cfg : Config) (r : Id) (l : List Id) (h : Held F) :
     ((c.onHold fam cfg r l : HeldM F Step).run h).1.take = [] := by
@@ -457,7 +454,7 @@ theorem onHold_take (fam : Family F) (c : Conn) (cfg : Config) (r : Id) (l : Lis
 theorem recv_data (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (o : Op) (now : Nat)
     (h : Held F) (hw : isWire o.kind = false) (hsh : c.shows fam o = true) :
     (Conn.recv fam cfg ix c o.bytes now : HeldM F Step).run h =
-      (Conn.finish (Step.limit cfg (Step.mk { c with heard := now, asked := c.asked.erase o.id, askTime := c.askTime.erase o.id, known := remember cfg.maxKnown c.known o.id }
+      (((Step.mk { c with heard := now, asked := c.asked.erase o.id, askTime := c.askTime.erase o.id, known := remember cfg.maxKnown c.known o.id }
         [] [o] [] false)), h) := by
   have hsh' : Conn.shows fam { c with heard := now } o = true := hsh
   simp [Conn.recv, Op.decode_bytes, ofOp_data hw, hw, hsh']
@@ -481,7 +478,7 @@ theorem write_offers (n : Node) (cid : Id) (c : Conn) (o : Op) (r : Id) (a : Byt
   have hs' := has_of_mem hs
   simp only [Node.addr?] at ha
   simp [Node.onWrite, store_run, Node.put, intake, write_one _ _ _ _ hn, Node.fanout, hc, Conn.filed,
-    turnH_one _ _ _ hn, hk, ho, Conn.setRooms, Conn.shows, hr, hs', finish_run, hm,
+    turnH_one _ _ _ hn, hk, ho, Conn.setRooms, Conn.shows, hr, hs', finish_run, Node.sent, sends, hm,
     holdsOf_one _ _ _ hmax, Node.addr?, ha]
 
 /-- **An offer of an op the node lacks is answered with a want,** on the
@@ -495,9 +492,9 @@ theorem hold_wants (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (r i : Id)
       p.1.2.send = [(src, plainFrame cid [(Msg.want [i]).op.bytes])] ∧ p.2 = h := by
   have hs' := has_of_mem hs
   simp [Node.onFrame, Node.onSealed, plainOpen, Codec.decode_encode, Node.conn?, Node.setAddr, hc,
-    Conn.recv, Op.decode_bytes, Conn.onHold, holdsIn, hs', hq, hn, Node.apply, finish_run, hm,
+    Conn.recv, Op.decode_bytes, Conn.onHold, holdsIn, hs', hq, hn, Node.apply, finish_run, Node.sent, sends, hm,
     admit_one _ _ _ hq hasked, remember_bounded,
-    chunks_one _ _ _ hmax, Node.addr?, Conn.setRooms, Step.limit, hasked, show ¬S.cfg.maxIds < 1 by omega]
+    chunks_one _ _ _ hmax, Node.addr?, Conn.setRooms, hasked, show ¬S.cfg.maxIds < 1 by omega]
 
 /-- **A want for a stored op the peer may see is answered with the op,**
 first in the first frame, then offers of its closure. -/
@@ -516,9 +513,8 @@ theorem want_sends (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (o : Op) (
     (by simpa [Conn.shows, Conn.setRooms, hr] using hs')
   have hrwant : (Conn.recv S.fam S.cfg n.ix { c.setRooms (S.rooms s cid) with notices := [] }
       (Msg.want [o.id]).op.bytes t : HeldM F Step).run h =
-      (Conn.finish (Step.limit S.cfg { conn := { c.setRooms (S.rooms s cid) with
-          notices := [], heard := t, known := remember S.cfg.maxKnown c.known o.id, offered := c.offered.insert o.id,
-          frontier := c.frontier ++ o.reqs }, send := [o] }), h) := by
+      (({ conn := ({ c.setRooms (S.rooms s cid) with
+          notices := [], heard := t, known := remember S.cfg.maxKnown c.known o.id } : Conn).queue S.cfg o.reqs, send := [o] }), h) := by
     simp only [Conn.recv, Op.decode_bytes, ofOp_want, HeldM.run_bind, HeldM.run_pure]
     rw [hwant]
     rfl
@@ -526,7 +522,7 @@ theorem want_sends (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (o : Op) (
     plainOpen, Codec.decode_encode, HeldM.pure_bind, Node.conn?, Node.setAddr, hc,
     List.find?_cons, decide_true, List.forIn_cons, Option.map_some, HeldM.run_bind,
     HeldM.run_pure, refresh_run, sync_fam, sync_cfg, hrwant]
-  simp [Node.apply, finish_run, hm, Node.addr?, Conn.setRooms]
+  simp [Node.apply, finish_run, Node.sent, sends, hm, Node.addr?, Conn.setRooms]
   exact ⟨[], by simp, rfl⟩
 
 /-- **A frame that brings a new op of the session's rooms stores it,**
@@ -549,7 +545,7 @@ theorem op_taken (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (o : Op) (r 
   split
   · simp only [HeldM.run_bind, HeldM.run_pure, refresh_run, recv_hold]
     apply apply_reads
-    rw [Conn.finish_take, onHold_take]
+    rw [onHold_take]
   · rfl
 
 /-- Opening a session at a node with no managed sessions: the session's
@@ -559,7 +555,13 @@ theorem connect_run (n : Node) (cid : Id) (a : ByteArray) (dialer : Bool) (now :
     let p := (n.connect (S.sync s) cid a dialer now).run h
     p.1.1.conns = (cid, (Conn.open dialer (S.rooms s cid) n.floor now).conn) :: (n.close cid).conns ∧
       p.1.1.managed = [] ∧ p.1.1.addr? cid = some a ∧ p.2 = h := by
-  simp [Node.connect, Node.open, finish_run, Node.close, Node.setAddr, Node.addr?, hm]
+  simp [Node.connect, Node.open, finish_run, Node.sent, sends, Node.close, Node.setAddr, Node.addr?, hm, Conn.open]
+  apply Eq.trans (List.map_congr_left (g := id) ?_) (List.map_id _)
+  intro p hp
+  have hn := (List.mem_filter.mp hp).2
+  simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hn
+  simp [Ne.symm hn]
+
 
 end
 
@@ -760,7 +762,7 @@ theorem stream_delivers_runs (r cid : Id) :
     (by simp [S]) (by simp [Conn.open, S, Std.HashSet.size_insert])
     (by simp [authorize, w2, w1, w0, World.connect, World.run, World.set, World.peer, Peer.empty,
       World.empty, Node.boot, Index.ofOps, Index.add, Index.items, Conn.setRooms, S, oneRoom,
-      Family.room, o, Node.connect, Node.open, finish_run, Node.close, Node.setAddr, Conn.open, Who.other])
+      Family.room, o, Node.connect, Node.open, finish_run, Node.sent, sends, Node.close, Node.setAddr, Conn.open, Who.other])
     (by simp [S])
     (Nat.le_refl _) (Nat.le_refl _) (Nat.le_refl _) (Nat.le_refl _)
   exact ⟨w, .step (.connect .a cid true (Nat.le_refl _)) (.step (.connect .b cid false (Nat.le_refl _)) hs), hw⟩
@@ -960,19 +962,19 @@ theorem holdsOf_cover (cfg : Config) (offer : List (Id × Id)) (hmax : 0 < cfg.m
   exact ⟨l, List.mem_flatMap.2 ⟨r, hr, hl⟩, hxl⟩
 
 /-- One turn of the stream's loop (`Conn.filed`) on a store. -/
-def filedStep (fam : Family F) (db : DB F) (st : List (Id × Id) × Conn) (i : Id) : List (Id × Id) × Conn :=
+def filedStep (cfg : Config) (fam : Family F) (db : DB F) (st : List (Id × Id) × Conn) (i : Id) : List (Id × Id) × Conn :=
   if (!st.2.known.contains i && !st.2.offered.contains i) = true then
     match db.ops i with
     | some o => if st.2.shows fam o = true then
-        (((fam.room o).getD .empty, i) :: st.1, { st.2 with offered := st.2.offered.insert i })
+        (((fam.room o).getD .empty, i) :: st.1, { st.2 with offered := remember cfg.maxKnown st.2.offered i })
       else (st.1, st.2)
     | none => (st.1, st.2)
   else (st.1, st.2)
 
-theorem filed_fold (fam : Family F) (db : DB F) (i : Id) (o : Op) (hget : db.ops i = some o) :
+theorem filed_fold (cfg : Config) (fam : Family F) (db : DB F) (i : Id) (o : Op) (hget : db.ops i = some o) :
     ∀ (L : List Id) (st : List (Id × Id) × Conn), (((fam.room o).getD .empty, i) ∈ st.1 ∨
       (i ∈ L ∧ i ∉ st.2.known ∧ i ∉ st.2.offered ∧ st.2.shows fam o = true)) →
-      ((fam.room o).getD .empty, i) ∈ (L.foldl (filedStep fam db) st).1 := by
+      ((fam.room o).getD .empty, i) ∈ (L.foldl (filedStep cfg fam db) st).1 := by
   intro L
   induction L with
   | nil => intro st h; rcases h with h | ⟨h, _⟩; exact h; cases h
@@ -1007,8 +1009,12 @@ theorem filed_fold (fam : Family F) (db : DB F) (i : Id) (o : Op) (hget : db.ops
         · split
           · split
             · refine ⟨hk, ?_, hs⟩
-              simp only [Std.HashSet.mem_iff_contains, Std.HashSet.contains_insert] at ho ⊢
-              simp [ho, hj]
+              change i ∉ remember cfg.maxKnown st.2.offered j
+              unfold remember
+              split
+              · simp
+              · dsimp only
+                split <;> simp [ho, hj]
             · exact ⟨hk, ho, hs⟩
           · exact ⟨hk, ho, hs⟩
         · exact ⟨hk, ho, hs⟩
@@ -1021,15 +1027,15 @@ theorem filed_offers (fam : Family F) (cfg : Config) (c : Conn) (ids : List Id) 
     (hk : i ∉ c.known) (ho : i ∉ c.offered) (hmax : 0 < cfg.maxIds) :
     ∃ l, (Msg.hold r l).op ∈ ((c.filed fam cfg ids : HeldM F Step).run h).1.send ∧ i ∈ l := by
   simp only [Conn.filed, HeldM.run_bind]
-  rw [forIn_yield ids _ (fun i st => filedStep fam h.db st i) h (fun j _ st => by
+  rw [forIn_yield ids _ (fun i st => filedStep cfg fam h.db st i) h (fun j _ st => by
     simp only [filedStep]; split
     · simp only [HeldM.run_bind, HeldM.run_getOp]
       cases h.db.ops j with
       | none => rfl
       | some p => by_cases hs : st.2.shows fam p = true <;> simp [hs]
     · rfl)]
-  simp only [HeldM.run_pure, Conn.finish_send]
-  have := filed_fold fam h.db i o hget ids ([], c) (Or.inr ⟨hi, hk, ho, hsh⟩)
+  simp only [HeldM.run_pure]
+  have := filed_fold cfg fam h.db i o hget ids ([], c) (Or.inr ⟨hi, hk, ho, hsh⟩)
   rw [hr, Option.getD_some] at this
   exact holdsOf_cover cfg _ hmax (List.mem_reverse.2 this)
 
@@ -1039,10 +1045,10 @@ variable (S : Setup F) (s : Who)
 
 /-- One turn of the fanout's loop on a store: the connection's stream. -/
 def fanoutStep (ids : List Id) (h : Held F) (p : Id × Conn)
-    (st : List (Id × Conn) × Acts × List (Id × Status)) : List (Id × Conn) × Acts × List (Id × Status) :=
+    (st : List (Id × Conn) × Acts × List (Id × Id)) : List (Id × Conn) × Acts × List (Id × Id) :=
   let f := ((({ p.2.setRooms (S.rooms s p.1) with notices := [] } : Conn).filed S.fam S.cfg ids :
     HeldM F Step).run h).1
-  ((p.1, f.conn) :: st.1, st.2.1 ++ sends p.1 f.send, st.2.2 ++ f.status.map (p.1, ·))
+  ((p.1, f.conn) :: st.1, st.2.1 ++ sends p.1 f.send, st.2.2 ++ f.given.map (p.1, ·))
 
 theorem fanout_fold (ids : List Id) (h : Held F) (x : Route × ByteArray) :
     ∀ (L : List (Id × Conn)) st, ((∃ p ∈ L, ∀ st, x ∈ (fanoutStep S s ids h p st).2.1.send) ∨ x ∈ st.2.1.send) →
@@ -1073,7 +1079,7 @@ theorem fanout_offers (n : Node) (ids : List Id) (h : Held F) (cid : Id) (c : Co
   rw [forIn_yield n.conns _ (fun p st => fanoutStep S s ids h p st) h (fun p _ st => by
     simp only [HeldM.run_bind, refresh_run, HeldM.run_pure, sync_fam, sync_cfg]
     rw [filedGive_quiet _ _ _ _ _ rfl, filed_reads _ _ _ _ h]; rfl)]
-  simp only [settle_run, HeldM.run_pure, and_true]
+  simp only [recordGiven_run, HeldM.run_pure, and_true]
   obtain ⟨l, hl, hil⟩ :=
     filed_offers S.fam S.cfg { c.setRooms (S.rooms s cid) with notices := [] } ids h i o r hi hget hr hsh hk ho
       hmax
@@ -1317,7 +1323,7 @@ theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Na
   have hr' := has_of_mem hr
   simp only [Conn.onRbsr, hr', Bool.not_true, Bool.false_eq_true, ite_false, List.flatMap_cons,
     List.flatMap_nil, List.append_nil, List.isEmpty_cons]
-  simp only [hX, Conn.snap, exchange, answer, give, get]
+  simp only [hX, Conn.snap, exchange, answer, give, get, Conn.beginRound]
   cases List.find? (fun p => Decidable.decide (p.fst = (r, k))) c.snaps with
   | none => simp
   | some p => obtain ⟨_, _⟩ := p; simp

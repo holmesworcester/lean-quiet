@@ -1,16 +1,13 @@
 /-
 What sync may send and take, as the laws a networked node relies on.
 
-- **Offer.** A node offers a peer only ops it has stored, so never a
-  write still in its outbox (a pending write travels once committed),
-  and only ops of shared kinds (`offer_shared`, `offer_stored`).
 - **Take.** A job of ops from a peer passes `intake` before it is
   received: ops of local kinds are dropped unless the job is this node's
   own (`intake_local`). So every local op a node stores is one of its own
   writes, whatever its peers send (`stored_local`): a peer can push no
   pending link, acceptance or session state into it.
 
-`offer` runs where `Store` does: on SQLite, and on the model for proofs.
+The running offer paths and their secrecy laws are in ops/sync/SecrecyLaws.lean.
 -/
 import engine.core.Run
 import engine.core.Proofs
@@ -48,58 +45,10 @@ theorem intake_local {mine : Bool} {ops : List Op} {o : Op} (h : o ∈ intake fa
     simp only [Bool.false_eq_true, ite_false, List.mem_filter, Family.shared] at h
     rw [hl] at h; cases h.2
 
-variable {m : Type → Type} [Monad m] [Store F m]
-
-/-- The stored ops among these ids that a peer may be sent. -/
-def offer : List Id → m (List Op)
-  | [] => pure []
-  | x :: t => do
-    let o ← Store.getOp (F := F) x
-    let rest ← offer t
-    pure (match o with
-      | some o => if fam.shared o then o :: rest else rest
-      | none => rest)
-
 end
 
 section
 variable {F : Type} {fam : Family F}
-
-def offerS (fam : Family F) (s : DB F) (ids : List Id) : List Op :=
-  ids.filterMap fun x => match s.ops x with
-    | some o => if fam.shared o then some o else none
-    | none => none
-
-theorem run_offer (ids : List Id) (s : DB F) :
-    (offer fam ids : Model F (List Op)).run s = (offerS fam s ids, s) := by
-  induction ids with
-  | nil => rfl
-  | cons x t ih =>
-    simp only [offer, Model.run_bind, run_getOp, ih, Model.run_pure, offerS, List.filterMap_cons]
-    cases s.ops x with
-    | none => rfl
-    | some o => by_cases h : fam.shared o = true <;> simp [h]
-
-/-- **Sync offers only stored, shared ops.** -/
-theorem offer_shared {s : DB F} {ids : List Id} {o : Op}
-    (h : o ∈ ((offer fam ids : Model F (List Op)).run s).1) :
-    (fam.room o).isSome = true ∧ ∃ x ∈ ids, s.ops x = some o := by
-  rw [run_offer] at h
-  simp only [offerS, List.mem_filterMap] at h
-  obtain ⟨x, hx, hm⟩ := h
-  split at hm
-  · rename_i p hp
-    split at hm
-    · rename_i hs; cases hm
-      exact ⟨hs, x, hx, hp⟩
-    · cases hm
-  · cases hm
-
-/-- **Nothing pending is offered:** what is offered is in the store, and
-an outbox write is not in the store until its commit. -/
-theorem offer_stored {s : DB F} {ids : List Id} {o : Op}
-    (h : o ∈ ((offer fam ids : Model F (List Op)).run s).1) : ∃ x, s.ops x = some o :=
-  let ⟨_, x, _, hx⟩ := offer_shared h; ⟨x, hx⟩
 
 /-- A node's tables after receiving jobs, each through `intake`, with
 judging and purges anywhere in between. `M` collects the ops of its own

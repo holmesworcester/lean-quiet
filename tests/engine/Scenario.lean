@@ -7,6 +7,7 @@ reach the same verdicts (order_free), equal to the model's and to the
 spec's.
 -/
 import tests.engine.Lib
+import tests.engine.Stream
 
 open Engine Community Tests
 
@@ -213,7 +214,7 @@ def main (args : List String) : IO UInt32 := do
   -- job keeps them.
   let famL : Family Fact := { fam with scope := fun o => if o.kind = 11 then .local else fam.scope o }
   let isAdmit (o : Op) := o.kind == 11
-  let offered ← run (offer famL (all.map (·.id)))
+  let offered ← streamOps famL db
   t.ok "sync offers no local op" (!offered.any isAdmit)
   t.ok "sync offers every stored shared op" (all.all fun o => isAdmit o || offered.contains o)
   let db3 ← Db.openAt (dir ++ "/c.db")

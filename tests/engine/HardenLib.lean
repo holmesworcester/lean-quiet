@@ -68,17 +68,17 @@ instance : Store Nat TM where
   lookup _ := pure []
 
 def clockChecks (t : Checks) : IO Unit := do
-  let cfg : Config := { every := 30, patience := 20, lease := 90 }
-  let c : Conn := { dialer := true, rooms := ["room".toUTF8], floor := 0, peerFloor := some 0, heard := 1 }
+  let cfg : Config := { every := 30, askTime := 20, live := 90 }
+  let c : Conn := { dialer := true, rooms := ["room".toUTF8], floor := 0, peerFloor := some 0, heard := 1000 }
   let started := c.start cfg {} 1000
-  for now in [1000:1021] do
+  for now in [1000:1091] do
     let s := ((started.conn.tick fam cfg {} now : TM Step).run {}).1
-    t.ok s!"new round survives tick {now}" (!s.drop)
-  t.ok "round drops strictly after patience" (((started.conn.tick fam cfg {} 1021 : TM Step).run {}).1.drop)
-  let responder := { c with dialer := false, heard := 1000 }
-  t.ok "unwaiting responder expires" (((responder.tick fam cfg {} 1091 : TM Step).run {}).1.drop)
-  for now in [1000:1031] do
-    t.ok s!"cadence keeps lease at {now}" (!responder.expired cfg now)
+    t.ok s!"silence boundary stays live at {now}" (!s.drop)
+  t.ok "silence drops strictly after live" (((started.conn.tick fam cfg {} 1091 : TM Step).run {}).1.drop)
+  let responder := { c with dialer := false }
+  t.ok "both roles expire on silence" (((responder.tick fam cfg {} 1091 : TM Step).run {}).1.drop)
+  let stale := { c with heard := 1 }
+  t.ok "starting a round never renews peer liveness" ((((stale.start cfg {} 1000).conn.tick fam cfg {} 1000 : TM Step).run {}).1.drop)
   let r := "room".toUTF8
   let s := responder.onRbsr cfg {} r 7 [.ids ⟨⟨0, 0⟩, none⟩ []] 1001
   t.ok "uncarried shown room is answered" (!s.send.isEmpty)
@@ -129,7 +129,7 @@ def memoryChecks (t : Checks) : IO Unit := do
   for reason in [0:3] do
     let d ← Db.openAt ":memory:"
     seed d
-    let x := setup a (reason == 0) { patience := 2, lease := 3 }
+    let x := setup a (reason == 0) { askTime := 2, live := 3 }
     let (n, _) ← ((Node.boot fam [] 0).onTick x 0).run d
     let n := if reason == 1 then { n with conns := n.conns.map fun (id,c) => (id,{c with peerFloor := some 0}) } else n
     let x := if reason == 2 then { x with hooks := { x.hooks with retired := pure [session.id] } } else x
@@ -143,7 +143,7 @@ def wanted (ops : List Op) : List Id := ops.flatMap fun o =>
 def hostileChecks (t : Checks) : IO Unit := do
   let d ← Db.openAt ":memory:"
   seed d
-  let cfg : Config := { maxKnown := 16, maxIds := 4, patience := 20, retry := 1 }
+  let cfg : Config := { maxKnown := 16, maxIds := 4, askTime := 20, retry := 1 }
   let x := setup "hostile".toUTF8 false cfg
   let (n, _) ← ((Node.boot fam [] 0).onTick x 0).run d
   let mut n := n
@@ -171,7 +171,7 @@ def hostileChecks (t : Checks) : IO Unit := do
   let (s, tr) := (c.onHold fam { maxIds := 1 } "room".toUTF8 ["x".toUTF8,"y".toUTF8] : TM Step).run {}
   t.ok "oversized hold ignored before any read" (!s.drop && tr.reads.isEmpty && s.send.isEmpty)
   let ids := (List.range 5).map fun i => s!"pending-{i}".toUTF8
-  let cfg : Config := { maxKnown := 4, maxIds := 5, patience := 20, retry := 1 }
+  let cfg : Config := { maxKnown := 4, maxIds := 5, askTime := 20, retry := 1 }
   let first := (({ c with heard := 10 }.onHold fam cfg "room".toUTF8 ids : TM Step).run {}).1
   t.ok "full asked defers missing ids without remembering them" (first.conn.asked.size == 4 && first.conn.known.size == 4 && !first.conn.known.contains ids[4]! && (wanted first.send) == ids.take 4)
   let again := (({ first.conn with heard := 20 }.onHold fam cfg "room".toUTF8 ids : TM Step).run {}).1
@@ -181,7 +181,7 @@ def hostileChecks (t : Checks) : IO Unit := do
   t.ok "tick reasks at most maxIds before expiry" ((wanted retry.send).length == 2 && retry.conn.asked.size == 4)
   t.ok "retries do not renew original ask times" (retry.conn.askTime[ids[0]!]? == some 10)
   let expired := (({ retry.conn with heard := 31 }.tick fam cfg {} 31 : TM Step).run {}).1
-  t.ok "asks expire after patience despite live peer traffic" (!expired.drop && expired.conn.asked.isEmpty && expired.conn.askTime.isEmpty && (wanted expired.send).isEmpty)
+  t.ok "asks expire after askTime despite live peer traffic" (!expired.drop && expired.conn.asked.isEmpty && expired.conn.askTime.isEmpty && (wanted expired.send).isEmpty)
   let fresh := "fresh".toUTF8
   let old := "old".toUTF8
   let hints := remember 1 (({} : Std.HashSet Id).insert old) fresh

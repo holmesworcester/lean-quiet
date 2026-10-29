@@ -105,7 +105,8 @@ def main : IO UInt32 := do
   let w := (w.connect S .a cid true 0).connect S .b cid false 0
   t.ok "round: b starts with none of it" (h.all fun o => !holds w.b o.id)
   let (w, _) := drain S w none 100000
-  IO.println s!"round: b holds {w.b.held.db.stored.length} ops, settled {(w.b.node.conn? cid).map (·.settled.length)}"
+  t.ok "round: both stores hold the same room ops"
+    (w.a.held.db.stored.all (holds w.b) && w.b.held.db.stored.all (holds w.a))
   t.ok "round: b holds the whole history" (h.all fun o => holds w.b o.id)
   t.ok "round: nothing left in flight" w.net.isEmpty
 
