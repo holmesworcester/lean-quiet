@@ -66,12 +66,16 @@ static void ASurfaceTransaction_apply(ASurfaceTransaction* t) {
   }
   assert(stub_n < 32); stub_finished[stub_n++] = *t;
 }
-static void stub_complete(void) {
+static void stub_complete_at(int index) {
+  assert(index >= 0 && index < stub_n);
+  ASurfaceTransaction t = stub_finished[index];
+  memmove(stub_finished + index, stub_finished + index + 1,
+    (size_t)(--stub_n - index) * sizeof stub_finished[0]);
   ASurfaceTransactionStats stats;
-  for (int j = 0; j < stub_n; j++)
-    for (int i = 0; i < stub_finished[j].count; i++)
-      stub_finished[j].done[i](stub_finished[j].context[i], &stats);
-  stub_n = 0;
+  for (int i = 0; i < t.count; i++) t.done[i](t.context[i], &stats);
+}
+static void stub_complete(void) {
+  while (stub_n) stub_complete_at(0);
 }
 static int ASurfaceTransactionStats_getPreviousReleaseFenceFd(ASurfaceTransactionStats* s, ASurfaceControl* c) { return -1; }
 static void ASurfaceTransaction_setVisibility(ASurfaceTransaction* t, ASurfaceControl* c, int v) {

@@ -57,6 +57,11 @@ static _Atomic float bl_yf;
 static _Atomic bool bl_has_y;
 static uint32_t bl_place[LQ_PLACEMENT_WORDS], bl_next_place[LQ_PLACEMENT_WORDS];
 static bool bl_ready, bl_published;
+// A geometry publication remains outstanding until its compositor callback,
+// not merely until vsync consumes it. Lean retains only accepted contexts.
+static bool bl_awaiting_completion;
+static uint64_t bl_transaction, bl_completed_transaction, bl_waiting_transaction;
+static uint64_t bl_generation;
 static _Atomic uint64_t bl_view;
 uint64_t bl_view_id(void) { return atomic_load(&bl_view); }
 uint32_t bl_frame_id(void) { return (uint32_t)bl_view_id(); }
@@ -68,6 +73,7 @@ static uint64_t bl_seq;
 typedef struct {
   int old[4];
   uint64_t view;
+  uint64_t transaction, generation;
 } BlDone;
 
 // A transaction that showed a new buffer completed: the one it replaced
@@ -75,17 +81,24 @@ typedef struct {
 static void bl_complete(void* ctx, ASurfaceTransactionStats* stats) {
   BlDone* d = ctx;
   pthread_mutex_lock(&bl_mu);
-  for (int k = 0; k < 4; k++) {
-    BlLayer* l = &bl_l[k];
-    if (d->old[k] >= 0 && l->sc != NULL) {
-      int fd = ASurfaceTransactionStats_getPreviousReleaseFenceFd(stats, l->sc);
-      l->bufs[d->old[k]].fence = fd;
-      l->bufs[d->old[k]].state = BL_FREE;
+  if (d->generation == bl_generation) {
+    for (int k = 0; k < 4; k++) {
+      BlLayer* l = &bl_l[k];
+      if (d->old[k] >= 0 && l->sc != NULL) {
+        int fd = ASurfaceTransactionStats_getPreviousReleaseFenceFd(stats, l->sc);
+        l->bufs[d->old[k]].fence = fd;
+        l->bufs[d->old[k]].state = BL_FREE;
+      }
     }
+    // Callbacks may arrive after later animation callbacks or window recreation.
+    // Retire every matching buffer, but never stamp an older displayed context.
+    if (d->transaction > bl_completed_transaction) {
+      atomic_store(&bl_view, d->view);
+      bl_completed_transaction = d->transaction;
+    }
+    if (bl_awaiting_completion && d->transaction == bl_waiting_transaction)
+      bl_awaiting_completion = false;
   }
-  // Touch acquisition names the presented transaction, not one still
-  // queued in SurfaceFlinger. One callback covers all four layers.
-  atomic_store(&bl_view, d->view);
   pthread_cond_broadcast(&bl_cv);
   pthread_mutex_unlock(&bl_mu);
   free(d);
@@ -144,7 +157,8 @@ static void bl_vsync(int64_t ns, void* data) {
     int32_t sample = atomic_load(&bl_has_y) ? (int32_t)lroundf(atomic_load(&bl_yf))
       : (int32_t)bl_next_place[15];
     BlDone* done = malloc(sizeof *done);
-    *done = (BlDone){{-1, -1, -1, -1}, 0};
+    *done = (BlDone){ .old = {-1, -1, -1, -1},
+      .transaction = ++bl_transaction, .generation = bl_generation };
     if (bl_ready) {
       memcpy(bl_place, bl_next_place, sizeof bl_place);
       for (int k = 0; k < 4; k++) bl_take(t, k, done);
@@ -152,6 +166,8 @@ static void bl_vsync(int64_t ns, void* data) {
         if (bl_l[k].shown >= 0) bl_show(t, &bl_l[k], bl_place + 4*k);
       bl_ready = false;
       bl_published = true;
+      bl_awaiting_completion = true;
+      bl_waiting_transaction = done->transaction;
     }
     uint32_t r[4];
     lq_slide_rect(bl_place, sample, 0, r);
@@ -243,6 +259,9 @@ void bl_attach(ANativeWindow* win) {
   static const char* names[4] = { "lean list", "lean header", "lean composer", "lean placeholder" };
   pthread_mutex_lock(&bl_mu);
   if (win != bl_win) {
+    bl_generation++;
+    bl_ready = bl_published = bl_awaiting_completion = false;
+    atomic_store(&bl_view, 0);
     for (int k = 0; k < 4; k += 1) {
       BlLayer* l = &bl_l[k];
       if (l->sc != NULL) {
@@ -286,15 +305,16 @@ static bool bl_late(const struct timespec* from, int ms) {
 }
 
 // No buffer of the next frame can enter BL_NEXT while the previous
-// publication waits for vsync. Otherwise different dirty layers could
-// arrive together with the previous frame's rectangles.
+// publication waits for vsync or its presentation callback. The latter
+// also bounds how many accepted Lean contexts can precede displayed input.
+// A timeout rejects this attempt; it does not replace the pending frame.
 bool bl_begin(void) {
   struct timespec t0;
   clock_gettime(CLOCK_REALTIME, &t0);
   pthread_mutex_lock(&bl_mu);
-  while (bl_ready && bl_l[BL_LIST].sc != NULL && !bl_late(&t0, 200))
+  while ((bl_ready || bl_awaiting_completion) && bl_l[BL_LIST].sc != NULL && !bl_late(&t0, 200))
     bl_wait_until(&t0, 200);
-  bool ok = !bl_ready && bl_l[BL_LIST].sc != NULL;
+  bool ok = !bl_ready && !bl_awaiting_completion && bl_l[BL_LIST].sc != NULL;
   pthread_mutex_unlock(&bl_mu);
   return ok;
 }
@@ -422,8 +442,9 @@ void bl_window_gone(void) {
     }
   }
   bl_win = NULL;
-  bl_ready = false;
-  bl_published = false;
+  bl_generation++;
+  bl_ready = bl_published = bl_awaiting_completion = false;
+  atomic_store(&bl_view, 0);
   pthread_cond_broadcast(&bl_cv);
   pthread_mutex_unlock(&bl_mu);
 }

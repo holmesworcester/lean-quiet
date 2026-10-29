@@ -15,7 +15,8 @@ void bl_scroll_needs(uint32_t content_h, uint32_t view_h);
 bool bl_scroll_y(float* y);
 
 // Publish after staging all buffers; the next transaction adopts both.
-// Begin waits for the previous publication before staging any new layer.
+// Begin waits for the previous publication's presentation callback before
+// staging any new layer; false is a bounded rejection, never acceptance.
 bool bl_begin(void);
 void bl_abort(void);
 void bl_geometry(const uint32_t* place);

@@ -394,10 +394,19 @@ lean_obj_res lq_scroll_to(double b) {
   return lean_io_result_mk_ok(lean_box(0));
 }
 
+// Publication metadata is separate from touch events: kind 20, accepted in
+// field 1. Drain input after any compositor wait so a rejected frame stays
+// interactive using the last accepted, actually displayed context.
+static lean_obj_res lq_frame_result(bool accepted) {
+  lq_raw(20, accepted ? 1 : 0, 0, 0, 0, 0);
+  lq_phase(0);
+  return lq_poll();
+}
+
 lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj_arg top,
   b_lean_obj_arg bot, uint8_t pin, b_lean_obj_arg placement, b_lean_obj_arg hold) {
   lq_phase(1);
-  if (!ba_has_window()) return lq_poll();
+  if (!ba_has_window()) return lq_frame_result(false);
   (void)pin;
   uint32_t place[LQ_PLACEMENT_WORDS];
   for (int i = 0; i < LQ_PLACEMENT_WORDS; i++) place[i] = lean_unbox_uint32(lean_array_get_core(placement, i));
@@ -421,6 +430,7 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
   bool any = lq.st[0].dirty || lq.st[1].dirty || lq.st[2].dirty || lq.st[3].dirty;
   int32_t sw, sh;
   lq_phase(2);
+  bool accepted = false;
   ANativeWindow* on = ba_lock(&sw, &sh);
   lq_phase(3);
   if (on != NULL) {
@@ -428,7 +438,7 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
       ba_unlock();
       lq.painted = NULL;
       lq_push(12, 0, 0, 0);
-      return lq_poll();
+      return lq_frame_result(false);
     }
     bool fresh = on != lq.painted;
     lq_paint(on, sw, sh);
@@ -453,7 +463,7 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
         complete = bl_present((BlKind)k, s->pix, s->w, s->h, s->off, 0);
       }
     }
-    if (complete) bl_geometry(place);
+    if (complete) { bl_geometry(place); accepted = true; }
     else {
       // A pending older publication is left intact. Partial new staging
       // is discarded, and every layer is retried with the next frame.
@@ -462,13 +472,7 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
     }
   }
   lq_time(t0, t1, lq_tick());
-  lq_phase(0);
-  lean_object* evs = lean_mk_empty_array_with_capacity(lean_box(lq.n * 8));
-  for (uint32_t i = 0; i < lq.n * 8; i += 1) {
-    evs = lean_array_push(evs, lean_box_uint32(lq.evs[i]));
-  }
-  lq.n = 0;
-  return lean_io_result_mk_ok(evs);
+  return lq_frame_result(accepted);
 }
 
 lean_obj_res lq_text(void) {

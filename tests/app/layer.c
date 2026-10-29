@@ -53,12 +53,21 @@ int main(void) {
   demand(stub_buffer[0]->pixels[0] == 11 && stub_buffer[2]->pixels[0] == 13 &&
     stub_source[0].top == (int32_t)p[0] && stub_destination[0].top == (int32_t)p[2] &&
     stub_destination[2].top == (int32_t)p[10] && bl_frame_id() == 1, "pixels and rectangles publish together");
+  // A previous geometry's animation callback may still be pending.
+  bl_vsync(0, NULL);
   assert(bl_begin());
   assert(stage(BL_LIST, 21));
   p[2] = 11; p[3] = 13; p[20] = 11; p[16] = 2;
   bl_geometry(p);
   demand(!bl_begin() && bl_frame_id() == 1, "pending publication blocks next frame's different dirty layer");
-  tick();
+  bl_vsync(0, NULL);
+  demand(!bl_ready && !bl_begin() && bl_frame_id() == 1,
+    "vsync consumption without completion still rejects a new publication");
+  stub_complete_at(0);
+  demand(!bl_begin() && bl_frame_id() == 1,
+    "old animation completion cannot acknowledge pending new geometry");
+  stub_complete();
+  demand(bl_begin(), "completion acknowledgment permits the next publication");
   demand(stub_buffer[0]->pixels[0] == 21 && stub_buffer[2]->pixels[0] == 13 &&
     stub_destination[0].top == 11 && bl_frame_id() == 2, "previous pending frame survives timeout");
   assert(bl_begin());
@@ -102,6 +111,31 @@ int main(void) {
   pthread_join(compositor, NULL);
   demand(stub_destination[0].top == 18 && bl_frame_id() == 3,
     "foreign compositor thread advances while Lean frame thread sleeps 50ms");
+  // Newer animation completion must not be overwritten by an older one.
+  stub_offset = 8; bl_vsync(0, NULL);
+  stub_offset = 9; bl_vsync(0, NULL);
+  stub_complete_at(1);
+  uint64_t latest = bl_view_id();
+  stub_complete_at(0);
+  demand(bl_view_id() == latest && (uint32_t)(latest >> 32) == 9,
+    "out-of-order callbacks cannot regress displayed input geometry");
+  // A callback from a destroyed surface can arrive after its replacement
+  // has accepted a frame. It must neither stamp nor unblock that frame.
+  bl_vsync(0, NULL);
+  bl_window_gone();
+  ANativeWindow replacement;
+  bl_attach(&replacement);
+  demand(bl_frame_id() == 0 && bl_begin(), "new window starts without an old displayed context");
+  assert(stage(BL_LIST, 51) && stage(BL_TOP, 52) && stage(BL_BOT, 53));
+  assert(stage_hold(67));
+  p[16] = 4;
+  bl_geometry(p); bl_vsync(0, NULL);
+  stub_complete_at(0);
+  demand(bl_frame_id() == 0 && !bl_begin(),
+    "old-window callback cannot stamp or acknowledge the replacement");
+  stub_complete();
+  demand(bl_frame_id() == 4 && bl_begin() && stub_buffer[0]->pixels[0] == 51,
+    "replacement presentation recovers after its own completion");
   bl_window_gone();
   printf("layer: %d native handoff checks passed\n", checks);
   return 0;
