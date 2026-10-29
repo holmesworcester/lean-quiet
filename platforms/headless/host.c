@@ -9,9 +9,8 @@
 //   <command>          a control command, for Platform.ctlPoll; its reply
 //                      (Platform.ctlReply) is printed on stdout
 //   !tap list|header|composer X Y
-//                      a tap; a list tap's Y is the row on screen, turned
-//                      into the content coordinate as Android's twin does
-//   !long ...          the same, as a long press
+//                      a down/up pair; Lean classifies and maps it
+//   !long ...          a down/up pair 500 ms apart
 //   !text STRING       the keyboard's text becomes STRING (cursor at its end)
 //   !send              the keyboard's send
 //   !scroll B          the list's offset becomes B
@@ -29,6 +28,7 @@
 // a command's effects are in the frames after it.
 
 #include <lean/lean.h>
+#include "../native/thread.h"
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -53,7 +53,11 @@ typedef struct {
   lean_object* list;
   lean_object* top;
   lean_object* bot;
+  lean_object* hold;
   uint32_t     b, over;
+  uint32_t     placement[LQ_PLACEMENT_WORDS];
+  uint64_t     clock;
+  bool         batch;
   // OS state
   float        off;
   uint32_t     content_h, view_h;
@@ -61,7 +65,8 @@ typedef struct {
   char*        text;
   uint32_t     pos[4];
   // events for the next frame
-  uint32_t     ev[1024];
+  uint32_t*    ev;
+  uint32_t     cap;
   uint32_t     n;
   // control commands: queued for poll, then waiting for replies
   char*        cmds[256];
@@ -71,35 +76,25 @@ typedef struct {
 } Host;
 
 static Host hs;
-static bool polled, suspended, surface = true, pinned;
+static bool polled, suspended, surface = true;
 static char* pending_link;
 
+static void raw_push(uint32_t k, uint32_t a, uint32_t b, uint32_t c, uint64_t time) {
+  if (hs.n + 8 > hs.cap) {
+    hs.cap = hs.cap ? hs.cap * 2 : 1024;
+    hs.ev = realloc(hs.ev, hs.cap * sizeof *hs.ev);
+    if (!hs.ev) abort();
+  }
+  uint32_t words[8] = {k, a, b, c, (uint32_t)time, (uint32_t)(time >> 32), hs.placement[16], lq_slide_delta(hs.placement[22], hs.placement[15], (int32_t)lroundf(hs.off))};
+  memcpy(hs.ev + hs.n, words, sizeof words);
+  hs.n += 8;
+}
 static void ev_push(uint32_t k, uint32_t a, uint32_t b, uint32_t c) {
-  if (hs.n + 4 > 1024) return;
-  hs.ev[hs.n++] = k;
-  hs.ev[hs.n++] = a;
-  hs.ev[hs.n++] = b;
-  hs.ev[hs.n++] = c;
-}
-
-static uint32_t max_off(void) {
-  uint32_t s  = hs.ime > HBOT ? hs.ime - HBOT : 0;
-  uint32_t ve = hs.view_h > s ? hs.view_h - s : 0;
-  return hs.content_h > ve ? hs.content_h - ve : 0;
-}
-
-static void clamp_off(void) {
-  if (hs.off < 0) hs.off = 0;
-  if (hs.off > (float)max_off()) hs.off = (float)max_off();
+  raw_push(k >= 9 && k <= 12 ? k + 7 : k, a, b, c, hs.clock);
 }
 
 static uint32_t rows_of(lean_object* a) {
   return a != NULL ? (uint32_t)lean_array_size(a) : 0;
-}
-
-static int32_t composer_top(void) {
-  uint32_t below = hs.ime > HBOT ? hs.ime : HBOT;
-  return (int32_t)HH - (int32_t)rows_of(hs.bot) - (int32_t)below;
 }
 
 // Codepoints in a UTF-8 string.
@@ -117,38 +112,40 @@ static void set_text(const char* s) {
   ev_push(4, 0, 0, 0);
 }
 
+// Compatibility script gestures expand to raw samples, classified only in Lean.
 static void tap(uint32_t kind, const char* region, int x, int y) {
-  if (strcmp(region, "header") == 0) {
-    ev_push(kind, 1, (uint32_t)x, (uint32_t)y);
-  } else if (strcmp(region, "composer") == 0) {
-    ev_push(kind, 2, (uint32_t)x, (uint32_t)y);
-  } else {
-    int32_t d = (int32_t)lroundf(hs.off) + composer_top() + (pinned && hs.ime > HBOT ? hs.ime - HBOT : 0) - 1 - y;
-    ev_push(kind, 0, (uint32_t)x, (uint32_t)(d < 0 ? 0 : d));
-  }
+  if (strcmp(region, "composer") == 0) y += (int)hs.placement[10];
+  raw_push(9, 0, x, y, hs.clock);
+  hs.clock += kind == 3 ? 500 : 30;
+  raw_push(11, 0, x, y, hs.clock);
 }
 
-// The screen as the compositor would show it: black, the list placed for
-// the offset (frame row r at screen row top - over - shift + r, cropped to
-// the viewport), the header at the top, the composer above the navigation
-// bar or keyboard with its last row repeated to the screen's bottom.
+// Copy the published source/destination rectangles into a screen dump.
 static void dump(const char* path) {
   uint8_t* px = calloc((size_t)HW * HH, 3);
-  uint32_t th   = rows_of(hs.top);
-  int32_t  ctop = composer_top();
-  int32_t  s    = !pinned && hs.ime > HBOT ? (int32_t)hs.ime - HBOT : 0;
+  lean_object* layers[3] = { hs.list, hs.top, hs.bot };
   for (int32_t y = 0; y < HH; y++) {
     lean_object* row = NULL;
-    if (y < (int32_t)th) {
-      row = lean_array_get_core(hs.top, (size_t)y);
-    } else if (y >= ctop && rows_of(hs.bot) > 0) {
-      uint32_t r = (uint32_t)(y - ctop);
-      if (r >= rows_of(hs.bot)) r = rows_of(hs.bot) - 1;
-      row = lean_array_get_core(hs.bot, r);
-    } else if (hs.list != NULL) {
-      int32_t r = y - ((int32_t)th - (int32_t)hs.over - s + ((int32_t)lroundf(hs.off) - (int32_t)hs.b));
-      if (r >= 0 && r < (int32_t)rows_of(hs.list)) row = lean_array_get_core(hs.list, (size_t)r);
+    if ((uint32_t)y >= hs.placement[7] && (uint32_t)y < hs.placement[10]) {
+      int32_t sample = (int32_t)lroundf(hs.off);
+      int64_t r = (int64_t)lq_slide_source(hs.placement[22], hs.placement[15],
+        hs.placement[20], hs.placement[21], sample, y);
+      if (r >= 0 && (uint64_t)r < rows_of(hs.list)) row = lean_array_get_core(hs.list, r);
+      else {
+        uint32_t r = lq_slide_fill_row(hs.placement[22], hs.placement[15],
+          hs.placement[7], hs.placement[10], sample, y);
+        if (r < rows_of(hs.hold)) row = lean_array_get_core(hs.hold, r);
+      }
     }
+    for (int k = 1; k < 3; k++) {
+      uint32_t* r = hs.placement + 4 * k;
+      if ((uint32_t)y >= r[2] && (uint32_t)y < r[3]) {
+        size_t at = r[0] + (uint32_t)y - r[2];
+        if (at < rows_of(layers[k])) row = lean_array_get_core(layers[k], at);
+      }
+    }
+    if ((uint32_t)y >= hs.placement[12] && (uint32_t)y < hs.placement[13] && rows_of(hs.bot))
+      row = lean_array_get_core(hs.bot, rows_of(hs.bot) - 1);
     if (row == NULL) continue;
     const uint8_t* p = lean_sarray_cptr(row);
     size_t         n = lean_sarray_size(row) / 4;
@@ -198,8 +195,30 @@ static void script(void) {
       if (hs.ncmd < 256) hs.cmds[hs.ncmd++] = strdup(line);
       return;
     }
-    char r[64] = { 0 };
-    int  x = 0, y = 0;
+    char a[64] = { 0 }, r[64] = { 0 };
+    int  x = 0, y = 0, phase = 0, pointer = 0;
+    unsigned long long time = 0;
+    if (sscanf(line, "!vsync %llu %d %63s", &time, &x, a) == 3) {
+      hs.clock = time; hs.off = x;
+      dump(a);
+      printf("vsync %llu %u %d %u %d %u\n", time, hs.placement[16], x,
+        hs.placement[15], (int32_t)hs.placement[20], hs.placement[21]);
+      continue;  // OS refresh, no call back into the Lean frame loop
+    }
+    if (sscanf(line, "!frame %llu %d", &time, &x) == 2) {
+      hs.clock = time; hs.off = x; return;
+    }
+    if (strcmp(line, "!begin") == 0) { hs.batch = true; continue; }
+    if (strcmp(line, "!end") == 0) { hs.batch = false; return; }
+    if (sscanf(line, "!raw %d %d %d %d %llu", &phase, &pointer, &x, &y, &time) == 5) {
+      hs.clock = time;
+      raw_push(9 + phase, pointer, x, y, time);
+      if (hs.batch) continue;
+      return;
+    }
+    if (sscanf(line, "!key %d %d", &x, &y) == 2) { ev_push(14, x, y, 0); return; }
+    if (sscanf(line, "!usb-key %d %d", &x, &y) == 2) { ev_push(15, x, y, 0); return; }
+    if (sscanf(line, "!action %d", &x) == 1) { ev_push(5, x, 0, 0); return; }
     if (strcmp(line, "!background") == 0) {
       suspended = true; ev_push(9, 0, 0, 0);
     } else if (strcmp(line, "!foreground") == 0) {
@@ -219,10 +238,10 @@ static void script(void) {
     } else if (strcmp(line, "!text") == 0) {
       set_text("");
     } else if (strcmp(line, "!send") == 0) {
-      ev_push(5, 0, 0, 0);
+      ev_push(5, 4, 0, 0);
     } else if (sscanf(line, "!scroll %d", &x) == 1) {
       hs.off = (float)x;
-      clamp_off();
+
     } else if (sscanf(line, "!ime %d", &x) == 1) {
       hs.ime = (uint32_t)(x < 0 ? 0 : x);
       ev_push(6, hs.ime, 0, 0);
@@ -237,6 +256,7 @@ static void script(void) {
       fprintf(stderr, "host: unknown line: %s\n", line);
       continue;
     }
+    if (hs.batch) continue;
     return;
   }
   if (hs.eof && !hs.closed && hs.unanswered == 0 && hs.ncmd == 0) {
@@ -255,6 +275,8 @@ static void hold(lean_object** slot, b_lean_obj_arg f) {
 // -------------
 
 lean_obj_res lq_screen(void) {
+  lq_slide_thread_init();
+  lq_slide_warm();
   uint32_t     v[5] = { HW, HH, HTOP, HBOT, HDPI };
   lean_object* a    = lean_mk_empty_array_with_capacity(lean_box(5));
   for (int i = 0; i < 5; i++) a = lean_array_push(a, lean_box_uint32(v[i]));
@@ -264,34 +286,37 @@ lean_obj_res lq_screen(void) {
 lean_obj_res lq_scroll(uint32_t content_h, uint32_t view_h) {
   hs.content_h = content_h;
   hs.view_h    = view_h;
-  clamp_off();
-  return lean_io_result_mk_ok(lean_box_uint32((uint32_t)lroundf(hs.off)));
+  return lean_io_result_mk_ok(lean_box_float(hs.off));
 }
 
 lean_obj_res lq_scroll_by(double d) {
   hs.off += (float)d;
-  clamp_off();
   return lean_io_result_mk_ok(lean_box(0));
 }
 
 lean_obj_res lq_scroll_to(double b) {
   hs.off = (float)b;
-  clamp_off();
   return lean_io_result_mk_ok(lean_box(0));
 }
 
 lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj_arg top,
-  b_lean_obj_arg bot, uint8_t pin) {
-  pinned = pin != 0;
+  b_lean_obj_arg bot, uint8_t pin, b_lean_obj_arg placement, b_lean_obj_arg holdPixels) {
+  lq_slide_thread_init();
+  lq_slide_warm();
+  (void)pin;
+  for (int i = 0; i < LQ_PLACEMENT_WORDS; i++) hs.placement[i] = lean_unbox_uint32(lean_array_get_core(placement, i));
   if (suspended || !surface) {
     fprintf(stderr, "host: frame without an active surface\n"); abort();
   }
   hold(&hs.list, list);
   hold(&hs.top, top);
   hold(&hs.bot, bot);
+  hold(&hs.hold, holdPixels);
   hs.b    = b;
   hs.over = over;
+  hs.clock += 16;
   if (!polled) script();
+  ev_push(13, 0, 0, 0);
   lean_object* evs = lean_mk_empty_array_with_capacity(lean_box(hs.n));
   for (uint32_t i = 0; i < hs.n; i++) evs = lean_array_push(evs, lean_box_uint32(hs.ev[i]));
   hs.n = 0;
@@ -402,4 +427,18 @@ lean_obj_res lq_tz_min(void) {
   struct tm tm;
   localtime_r(&t, &tm);
   return lean_io_result_mk_ok(lean_box_uint32((uint32_t)(int32_t)(tm.tm_gmtoff / 60)));
+}
+
+// Headless physics: accepted drag deltas, with no policy or draw clamp.
+lean_obj_res lq_motion(b_lean_obj_arg samples) {
+  static bool down;
+  static float last;
+  for (size_t i = 0; i + 7 < lean_array_size(samples); i += 8) {
+    uint32_t k = lean_unbox_uint32(lean_array_get_core(samples, i));
+    float y = (int32_t)lean_unbox_uint32(lean_array_get_core(samples, i + 3));
+    if (k == 9) { down = true; last = y; }
+    else if (k == 12) down = false;
+    else if (down) { hs.off += y - last; last = y; if (k == 11) down = false; }
+  }
+  return lean_io_result_mk_ok(lean_box(0));
 }

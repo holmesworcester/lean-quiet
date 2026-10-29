@@ -30,8 +30,8 @@ def start (base : App.Io) (w h : Nat) (path : String)
   let sc ← IO.mkRef #[w.toUInt32, (h - 40).toUInt32, 0, 0, 160]
   let io := { base with
     screen := sc.get
-    frame := fun fr _ o top bot _ => do
-      ls.set ⟨fr, top, bot, o.toNat⟩
+    frame := fun fr _ o top bot _ placement hold => do
+      ls.set ⟨fr, top, bot, o.toNat, placement, hold⟩
       return #[] }
   let s ← App.start io (← sc.get) path net
   -- Use the app's density-scaled font, including Noto and colour emoji.

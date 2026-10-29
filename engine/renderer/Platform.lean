@@ -1,39 +1,10 @@
 /-
-The seam between the app and the OS, the same on every platform. Each
-twin implements these externs: android/twin (NativeActivity plus a small
-Java activity for the keyboard and insets) and host/ (headless, for
-tests and CI).
-
-The OS owns three things: scrolling (its physics, its overscroll), the
-keyboard (its text, its composition, its animation), and the window's
-insets. The app owns every pixel, as three frames:
-
-- **the list**, slid by the compositor at every vsync, so motion is even
-  whether or not the app finished a frame in time;
-- **the header** (`top`), pinned to the screen's top edge;
-- **the composer** (`bot`), pinned above the navigation bar, or above the
-  keyboard while the keyboard is open, following its animation frame by
-  frame.
-
-A frame is an array of pixel rows, 4 bytes a pixel in R G B X order, each
-row exactly `w` pixels wide. A row that is the same object as a row of the
-last frame of that kind (at the place the offset change moves it to) is
-not copied again: rows are immutable, so the twin holds the last frame
-while it compares.
-
-**The list is bottom-anchored.** Its offset `b` is the distance in pixels
-from the newest content's bottom edge up to the viewport's bottom edge: 0
-is pinned to the newest message, and larger values show older content.
-Rows measured late (above the viewport) therefore never move what is on
-screen. The viewport is the screen between the header and the composer;
-`viewH` is its height with the keyboard closed. The list frame is
-`viewH + 2 * over` rows high, `over` rows beyond each end: frame row r,
-drawn for offset b, shows the content at distance
-`b + viewH + over - 1 - r` above the content's end (negative distances
-and distances past the content are background). The twin places that
-frame for the vsync's offset and shifts it up by the keyboard's height
-above the navigation bar, so the newest messages ride up with the
-keyboard.
+The OS seam. Lean computes placement (Surface), clamps signed offset
+samples, and classifies raw input (Input) through Session.present.
+Native code owns pixel copies, OS text editing and scroll physics. It
+calls the compiled Slide helpers at each vsync to move the published
+list and fill exposed rows with Lean's holdLine tile. Fresh pixels arrive
+with the next Lean frame; geometry and input policy remain Lean's.
 -/
 namespace Platform
 
@@ -42,12 +13,9 @@ pixels: the surface's size, the status bar's and navigation bar's
 heights, and the display's density in dots per inch. -/
 @[extern "lq_screen"] opaque screen : IO (Array UInt32)
 
-/-- The list's offset for the frame about to be drawn (bottom-anchored,
-see above): the latest vsync's, predicted on to when the frame will be
-shown during a fling. The scroller's range is
-`0 .. contentH - viewH'`, where viewH' is viewH less the keyboard's
-height above the navigation bar. -/
-@[extern "lq_scroll"] opaque scroll (contentH viewH : UInt32) : IO UInt32
+/-- A signed OS physics sample in physical pixels. `viewH` is the effective
+viewport with the keyboard open. Lean clamps before using the sample. -/
+@[extern "lq_scroll"] opaque scroll (contentH viewH : UInt32) : IO Float
 
 /-- Moves the offset by d pixels (positive: towards older content), as if
 the content above or below the viewport had grown, keeping a fling
@@ -59,17 +27,17 @@ the viewport's anchor, or a new message arrives while not pinned. -/
 message). -/
 @[extern "lq_scroll_to"] opaque scrollTo (b : Float) : IO Unit
 
-/-- Shows a frame: the list drawn at offset b (`list.size` must be
-`viewH + 2 * over`), the header (its height is `top.size`) and the
-composer (`bot.size`). The header is placed at the screen's top; the
-composer at `h - bot.size - max(insetBottom, keyboard)`. The viewport is
-the rows between them, so `viewH = h - top.size - bot.size - insetBottom`.
-Waits for the display's pace. `pin`: the list frame is a page, drawn from
-its top at offset 0, and is placed pinned: not slid, not lifted by the
-keyboard (Geometry.Seam.pinned; pinned_visible, pinned_tap). Answers the
-events since the last frame, four words each (`Event.decode`). -/
+/-- Publish pixel buffers and Surface's rectangles together. The final
+placement fields are a frame serial and Lean's last list tap for diagnostics.
+The hold buffer repeats the exact tile used by listFrame. Raw touches
+carry the displayed serial and translation so Lean
+uses the geometry seen at acquisition. Returns eight-word raw records
+(Input.decode). `pin` distinguishes pages, whose position is Seam.pinned. -/
 @[extern "lq_frame"] opaque frame (list : @& Array ByteArray) (b over : UInt32)
-  (top bot : @& Array ByteArray) (pin : Bool) : IO (Array UInt32)
+  (top bot : @& Array ByteArray) (pin : Bool) (placement : @& Array UInt32) (hold : @& Array ByteArray) : IO (Array UInt32)
+
+/-- List samples accepted by Lean, encoded as raw eight-word records. -/
+@[extern "lq_motion"] opaque motion (samples : @& Array UInt32) : IO Unit
 
 /-- The composer's text as the keyboard left it: the text, and
 `[selStart, selEnd, compStart, compEnd]` in characters (code points);
@@ -157,7 +125,7 @@ inductive Event where
   /-- The OS scroll started (a finger down on the list) or settled. -/
   | scrolling (on : Bool)
   /-- A finger that went down on the composer (or the sheet in its place):
-  phase 0 down, 1 move, 2 up; (x, y) within the composer. The app scrolls
+  phase 0 down, 1 move, 2 up, 3 cancel; (x, y) within the composer. The app scrolls
   what is there itself. -/
   | drag (phase x y : UInt32)
   deriving BEq, Repr

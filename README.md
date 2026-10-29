@@ -135,8 +135,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 764 rest on Lean's standard axioms
-only, and about three quarters of its theorems (559 of 744, not counting 20 negative controls) are about the code that runs; another 7 run the
+that rests on; 🥊 is supporting. All 819 rest on Lean's standard axioms
+only, and about three quarters of its theorems (619 of 799, not counting 20 negative controls) are about the code that runs; another 7 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -207,8 +207,8 @@ World); the rest are over models so far
 | ⬜ | 🥊 | **The cached Merkle tree's labels are `lbl`'s,** for O(log n) fingerprints with no change on the wire. | |
 | | | **The screen** | |
 | ✅ | 🥊🥊 | **Unmounted pages issue no new reads or writes.** The running read/write gates reject unmounted pages and old leases, including after remount. Cache pruning leaves exactly the mounted queries after each has an answer; watches are their keys. Worker retirement, bounded suspend and native callback delivery are tested, not proved by these gate laws. | [`unmount_read`], [`unmount_write`], [`old_callback`], [`unmounted_quiet`], [`old_quiet`], [`live_exact`], [`subscriptions_exact`], [`mounted_runs`] |
-| 🟡 | 🥊🥊 | **Lifecycle state survives a restart or resize.** Proven: the running checkpoint codec and application preserve page and message anchor, and resize's offset keeps the anchor's top-edge distance when it fits. Not yet: SQLite crash durability or native placement as Lean laws; the headless twin tests crashes, viewport changes, keyboard transitions and invite launch ([inventory](docs/LIFECYCLE.md)). Geometry still has the native seam described below. | [`restore_checkpoint`], [`page_round`], [`restore_page_anchor`], [`apply_page_anchor`], [`resize_anchor`], [`viewport_geometry`], [`viewport_possible`] |
-| 🟡 | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. Not yet: proven of the formulas the twins' C applies (`Seam`), and of a copy of the sheet painter's placement. | [`visible_in_viewport`], [`newest_visible`], [`pinned_visible`], [`pinned_tap`], [`hit_iff`] |
+| 🟡 | 🥊🥊 | **Lifecycle state survives a restart or resize.** Proven: the running checkpoint codec and application preserve page and message anchor, and resize's offset keeps the anchor's top-edge distance when it fits. Not yet: SQLite crash durability as a Lean law; the headless twin tests crashes, viewport changes, keyboard transitions and invite launch ([inventory](docs/LIFECYCLE.md)). Placement is supplied by the shared Lean seam below. | [`restore_checkpoint`], [`page_round`], [`restore_page_anchor`], [`apply_page_anchor`], [`resize_anchor`], [`viewport_geometry`], [`viewport_possible`] |
+| 🟡 | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. The phones and twins call the shared placement and input functions. Not yet: OS event acquisition and compositor pixel copies as Lean laws. | [`Surface.visible_in_viewport`], [`newest_visible`], [`Surface.pinned_visible`], [`pinned_tap`], [`hit_iff`] |
 | ⬜ | 🥊🥊🥊 | **Every control is big enough to tap.** Every tappable control's hit area, not just its drawn size, is at least 48 dp by 48 dp on Android and 44 pt by 44 pt on iOS, at every supported screen size and text scale. | |
 | ⬜ | 🥊🥊 | **A tap means one thing.** On every screen, no two controls' hit areas overlap, so a point selects at most one control. A tap selects the control drawn under it. Today this is proven for the emoji sheet and message rows only (`keys_disjoint`, `hit_iff`, `pinned_tap`). | |
 | ⬜ | 🥊🥊 | **Every control shown can be tapped.** A control that is drawn has its hit area on screen, and not under the header, the composer or the keyboard. | |
@@ -221,9 +221,9 @@ World); the rest are over models so far
 | ✅ | 🥊🥊 | **Back goes back.** Back after opening a page restores the state before it (only the page's one-line field is cleared). Back at a root does nothing, and after a switch no number of backs leaves the new home. No page is twice in the back stack, so fewer than 18 backs reach a root. No step changes the composer's draft, and the native field follows it. | [`back_go`], [`NavLaws.back_open`], [`NavLaws.back_root`], [`back_switch`], [`go_inv`], [`NavLaws.depth`], [`draft_back`], [`into_native`] |
 | ✅ | 🥊🥊 | **The people list is the present members,** each once: users with a live device. A removed member leaves it and its count, but keeps their name on their messages. | [`present_iff`], [`present_not_removed`], [`present_nodup`] |
 | 🟡 | 🥊🥊🥊 | **The screen is one moment.** Every frame is drawn over a single store state, the latest the app has seen. Proven over the running cache (`Live.readWith`, which the frame's and the reader's reads run), given SQLite's snapshot isolation and the journal hypothesis (Assumed): every read through it, cached or not, returns its moment's answer; and a model of the reader's pass, making its decisions (`Live.mark`, `Live.pick`), marks every want whose reads went stale before reading any. Not yet: `Reader.pass` itself as a law (TwoNodes tests it), one moment across the reader's board and the frame's own reads (each is consistent; they settle, BoardLaws' `settle`), a frame that writes spans more than one outbox moment, the outbox's notice keys derived from its ops, and `step` itself as a statement. | [`read_one_moment`], [`answer_agrees`], [`agrees_store`], [`agrees_notice`], [`agrees_keep`], [`agrees_empty`], [`eval_stable`], [`view_stable`] |
-| 🟡 | 🥊🥊🥊 | **Scrolling always shows something.** Proven of the running frame's `Cover.seen`: from the bottom padding up to the last loaded row's top, and above it while older messages are outside the window, no position is blank, and a bitmap line is shown only where its row has it. The frame reads no messages: the reader reads a window of at most 200 about an anchor and counts the rest. Not yet: the frame's own work bounded (its remaining reads through `App.read`), and that scrolling by δ shows what was δ away. | [`covered`], [`line_painted`] |
+| 🟡 | 🥊🥊🥊 | **Scrolling always shows something.** Proven of the running frame's `Cover.seen`: from the bottom padding up to the last loaded row's top, and above it while older messages are outside the window, no position is blank, and a bitmap line is shown only where its row has it. At every vsync, the compiled scalar Lean functions translate the published buffer by the offset change and fill outside it with the same `holdLine` tile. This composes with the frame's coverage law; pinned pages stay still. The reader reads a window of at most 200 about an anchor and counts the rest. Not yet: bounded frame work or an OS scheduling guarantee. | [`Cover.covered`], [`Cover.line_painted`], [`Translate.covered`], [`Translate.equivariance`], [`Translate.fill_pixel`], [`Slide.edge_eq`] |
 | ⬜ | 🥊🥊 | **An action's toast stays until the screen shows it.** A toast for an action (removing someone, a new name or avatar) stays up until every component on screen has re-read a state that holds the action's op, or until the OS's toast time passes, whichever comes first. So a toast that leaves early proves the screen has caught up. | |
-| 🟡 | 🥊🥊 | **The layout is exact.** Proven of the running code: the sheet's composition and its emoji keys (the painter places item i by `itemAt` and the sheet's lines by `lineOf`, exactly over the box the taps answer for: `lineOf_ctop`), the composer's photo chips (in order, never overlapping, an X that never reaches the next chip, and all four on screen), the invite's hints and QR, and the camera preview. Not yet: the slide, the keyboard shift and page rows (Geometry's formulas, which the shells copy). | [`placed_row`], [`newest_drawn`], [`pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`itemAt_place`], [`lineOf_ctop`], [`chips_apart`], [`x_clear`], [`chips_fit`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
+| 🟡 | 🥊🥊 | **The layout is exact.** Proven of the running code: the sheet's composition and its emoji keys (the painter places item i by `itemAt` and the sheet's lines by `lineOf`, exactly over the box the taps answer for: `lineOf_ctop`), the composer's photo chips (in order, never overlapping, an X that never reaches the next chip, and all four on screen), the invite's hints and QR, and the camera preview. The slide, keyboard shift and pinned-page placement now run through `Surface` and scalar `Slide` exports. Not yet: graphics API application and pixel copies as Lean laws. | [`Surface.placed_row`], [`Surface.newest_drawn`], [`Surface.pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`itemAt_place`], [`lineOf_ctop`], [`chips_apart`], [`x_clear`], [`chips_fit`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
 | 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** Proven: wrapping drops only spaces, keeps every other character in order, and every line fits when every character does; bidi reordering drops and invents nothing; the glyphs placed are exactly the visible characters; and every resolved European or Arabic number run, with its separators and terminators (decimals, times, percentages), stays contiguous and in logical order in either paragraph direction (#3). Tested: Unicode 16's BidiTest and BidiCharacterTest, 73,599 cases and 0 failures, in the scope the renderer implements (P2–P3, W1–W7, N1–N2, I1–I2, L1–L2, single lines without explicit embeddings, isolates or paired brackets; docs/BIDI.md names the 788,349 cases left out). Not yet: the bidi algorithm itself as a law (its rules are tested; the number runs are proven), embeddings and isolates, paired brackets (N0), mirrored glyphs (L4), marks (L3), paragraphs across soft wraps, and `layout` as one statement. | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`numbers_keep_order`], [`arabic_numbers_keep_order`] |
 | 🟡 | 🥊🥊🥊 | **Names are shown correctly.** Proven: a row's name is its author's newest valid profile's, which only a device admitted into that user can write, cut to a logical prefix; explicit bidi controls (embeddings, overrides, isolates, LRM, RLM and ALM) have no directional authority: the running bidi classes each as a neutral, though one inserted can still split a number run; a name starts next to the avatar whatever its direction (as do a message's lines, start-aligned as libquiet's); and a row is marked "⚠ Duplicate" exactly when another member's name looks alike (equal once invisible characters are dropped and spaces, and the glyphs the font draws empty, collapsed). Not covered: look-alike letters across scripts, and invisible characters in a message's body. | [`message_read`], [`profile_read`], [`profile_authorized`], [`no_renaming`], [`name_placed`], [`oneLine_prefix`], [`controls_neutral`], [`marks_invisible`], [`namesake_iff`], [`row_marked`], [`twin_shown`], [`twin_before_time`], [`hit_twin`], [`name_starts`], [`flush_shows`] |
 | 🟡 | 🥊🥊 | **Noto coverage and its cache are bounded.** Proven: Lean's reader uses checked indices, returned coverage fits its bitmap and declared overhang, coverage saturates, and cache insertion stays within a 4 MiB charge and 1,024 entries. Source.bitmap's compiled equivalence is tested, not proven. Not yet proven: pixel fidelity or native allocator/RSS bounds; the compact index and raster are checked against fontTools ([report](docs/NOTO.md)). | [`Ttf.byte_in_bounds`], [`Ttf.cmap_entry`], [`Ttf.coverage_value`], [`Ttf.raster_valid`], [`Ttf.raster_pixel`], [`Ttf.Cache.put_bound`], [`Ttf.Cache.put_payload_bound`] |
@@ -248,7 +248,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**559 of 744 laws are about running code;** another 7 run its node code in a World, and 178 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**619 of 799 laws are about running code;** another 7 run its node code in a World, and 173 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -261,8 +261,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Community | 165 | 154 |  | 11 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
-| Screen | 143 | 81 |  | 62 |
-| App | 55 | 46 |  | 9 |
+| Screen | 198 | 140 |  | 58 |
+| App | 55 | 47 |  | 8 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
@@ -272,7 +272,6 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]†, [`reads_members`], [`reads_recipients`], [`members_iff_node`]†, [`recipients_iff_node`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
 | `Scene.approval`, `Scene.K`, `Scene.S` +12 | [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`bootstrap_ideal`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`], [`allowPeer_settles`] | The bootstrap's model (ops/connection/bootstrap/): retired by `conn_runs_exchange`, `closure_delivered`, `answer_trusted` and `untrusted_silent` over the running code. |
-| `Seam.place`, `Geom.composerTop`, `Geom.viewNow` +5 | [`placed_row`]†, [`visible_in_viewport`]†, [`newest_visible`]†, [`newest_drawn`]†, [`pinned_row`]†, [`pinned_visible`]†, [`pinned_tap`]†, [`viewport_geometry`]† | The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are. |
 | `Sync.keeps` | [`buffer_bounded`]*† | The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s. |
 | `Pic.add`, `Geom.box`, `Pic.attachEdge` +4 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]† | The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code. |
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
@@ -298,7 +297,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Bidi.numberRuns` | [`run_contiguous`]* | Nothing that runs calls it; `Text.numberRuns` do. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +23 more | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +26 more | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
@@ -326,11 +325,11 @@ native shell, and the engine sits on two vetted libraries. Where they
 meet Lean is the *seam*, and there are six places it runs:
 
 - **Input in.** Touches, the keyboard's text, the screen's insets, the
-  camera's frames and the clock, through Platform.lean's 18 externs;
+  camera's frames and the clock, through Platform.lean's 19 externs;
   touches come as small fixed-size events, in the order the OS gave
   them.
 - **Pixels out.** Lean hands over finished rows of pixels for three
-  layers (the list, the header and the composer), and native code
+  layers (list, header, composer), plus a hold tile and placement; native code
   copies them into the OS's buffers.
 - **Scrolling.** The OS's own physics moves the offset, and Lean draws
   at it.
@@ -435,9 +434,9 @@ what happens if it is wrong.
 |---|---|---|---|---|
 | **The Android activity** ([`activity.c`](platforms/android/twin/activity.c), [`activity.h`](platforms/android/twin/activity.h)) | 664 | The NativeActivity's callbacks: the surface, touches, insets and the Java half's events, under one lock. It runs Lean's main on a thread of its own (256 MB of stack), sends stdout to logcat, and copies the APK's assets to the data directory. | Android hands a native app these only through NativeActivity's C callbacks. | The app does not start, or misses an event. The proofs take touches and insets as the OS gave them, in order. |
 | **The Java half** ([`LeanActivity.java`](platforms/android/twin/java/com/holmes/leanquiet/LeanActivity.java)) | 312 | The insets at every frame of the keyboard's animation. A hidden EditText holds the composer's text. Send, the clipboard, and the back camera's luma (Camera2). | These APIs are Java's. An EditText is what lets every input method work: autocorrect, dictation, composing CJK. | The composer rides the keyboard badly, or holds other text than was typed, which it then shows. The text, selection and composition Lean reads are the EditText's. |
-| **The compositor** ([`layer.c`](platforms/android/twin/layer.c), [`layer.h`](platforms/android/twin/layer.h)) | 566 | A vsync thread (AChoreographer) shows Lean's three frames as three ASurfaceControl layers, in one transaction per vsync: the list slid for the offset and lifted by the keyboard, the header, and the composer riding the keyboard. Each layer has three buffers, each reused only once the compositor releases it. | Speed: the list moves at the display's rate without waiting for Lean. The compositor's API is the NDK's C. | Rows land in the wrong place, or late. Where they should land is `Seam.place`, proven in Lean and copied here (see [Where native code still decides](#where-native-code-still-decides)). |
+| **The compositor** ([`layer.c`](platforms/android/twin/layer.c)) | | Four layers, one transaction: Lean supplies placement, painted extent and hold tile; each vsync calls scalar `Slide` exports for translation and fill. | The graphics API and fences are native. | Incorrect pixel copies or API application. `Surface.published_row`, `Translate.equivariance` and `Slide.edge_eq` connect placement to the geometry laws. |
 | **Scrolling** ([`scroll.c`](platforms/android/twin/scroll.c), [`scroll.h`](platforms/android/twin/scroll.h)) | 308 | Android's own VelocityTracker and OverScroller through JNI, with the device's ViewConfiguration. | Familiarity: a fling starts, slows and stops as every Android list's does. | A fling feels off. Nothing else: the offset is an input to every theorem, so any offset is drawn correctly. |
-| **UIKit** ([`quiet_ios.m`](platforms/ios/quiet_ios.m)) | 1,029 | All of the above on iOS: an upside-down UIScrollView, whose offset is the bottom-anchored one; IOSurface layer contents changed in one Core Animation transaction; a clear UITextField; UIKit's tap and long-press recognizers; the keyboard layout guide; AVFoundation's camera; the pasteboard; the display link. It also implements the externs, as quiet_android.c does on Android. | UIKit is Objective-C, and a real UIScrollView is iOS's scrolling, its physics, bounce and indicator, with nothing reverse-engineered. | As on Android. A layer in the flipped scroll view lands at `shown`, and a tap reports `tapped`; [`Placement.lean`](platforms/ios/Placement.lean) proves the rest from Geometry. |
+| **UIKit** ([`quiet_ios.m`](platforms/ios/quiet_ios.m)) | | IOSurface buffers; a hidden UIScrollView for physics; raw touch/key forwarding; text composition, camera and display link. The visible list uses Lean placement outside that scroll view. | UIKit supplies these OS services. | Incorrect events or pixel/point conversion. CADisplayLink calls the same scalar translation and fill as Android; [`Placement.lean`](platforms/ios/Placement.lean) audits the shared laws. |
 | **The control channel** ([`ctl.c`](platforms/android/twin/ctl.c), [`ctl_ios.c`](platforms/ios/ctl_ios.c)) | 510 | The line protocol tests and demos drive the app through; Lean's `App.command` gives each line its meaning. Only in development builds. Android: the abstract socket `@leanquiet`, answering only adb's shell or root. iOS: TCP on 127.0.0.1:7417, behind a token. | Tests drive the real app on a real device and read Lean's state back. | It can act as the device (see [Where native code still decides](#where-native-code-still-decides)); a release build has no listener. |
 | **Heap tags off** ([`notag.c`](platforms/android/leanrt/notag.c)) | 10 | Lean's runtime drops a pointer's top byte, which arm64 Android tags, so tagging is turned off before anything allocates. | It must run before Lean's runtime allocates anything. | A crash at start. |
 | **The headless twin** ([`host.c`](platforms/headless/host.c)) | 325 | Platform.lean's externs with no OS, driven by a script, with PPM dumps of the screen. | The app's own frame loop runs in tests without a phone. | Tests only; it never ships. |
@@ -481,7 +480,7 @@ Lean could do. They are under
 
 | | lines | what it does | what the proofs assume of it |
 |---|---|---|---|
-| **Platform.lean on Android** ([`quiet_android.c`](platforms/android/twin/quiet_android.c)) | 538 | The 18 externs, including lifecycle polling and OS links. Each frame's three row arrays go into the layers. Touches and the Java half's events come back as four words each, the layout `App.Event.decode` reads. The text, the camera's luma (into a ByteArray), the clipboard, and the local timezone's offset (`lq_tz_min`: `localtime_r`'s `tm_gmtoff`, also in quiet_ios.m and host.c), by which rows show a message's UTC time. A log line (`lq_log`: logcat's "lean" tag, NSLog on iOS, stderr on the host). A watchdog logs a backtrace of Lean's thread if it stalls 3 s. | The words mean what `Event.decode` reads, and the offset is the OS's. |
+| **Platform.lean on Android** ([`quiet_android.c`](platforms/android/twin/quiet_android.c)) | 538 | The 19 externs, including lifecycle polling, OS links and accepted motion samples. Each frame publishes Lean placement and four row arrays (list, header, composer, hold). Touches and lifecycle events come back as eight-word records, the layout `Input.decode` reads. The text, the camera's luma (into a ByteArray), the clipboard, and the local timezone's offset (`lq_tz_min`: `localtime_r`'s `tm_gmtoff`, also in quiet_ios.m and host.c), by which rows show a message's UTC time. A log line (`lq_log`: logcat's "lean" tag, NSLog on iOS, stderr on the host). A watchdog logs a backtrace of Lean's thread if it stalls 3 s. | The words mean what `Input.decode` reads, and the offset is the OS's. |
 | **SQLite** ([`glue.c`](engine/native/glue.c)) | 72 | Open, exec, and one statement with blob parameters, every column back as bytes. One file on every platform: the desktop, Android and iOS compile it. | Rows come back as stored. |
 | **The crypto** ([`crypto.c`](engine/native/crypto.c)) | 141 | Checks sizes, calls the Rust, and wipes secret bytes from its stack. | Its size rules are decisions of its own (below). |
 | **Text** (`ba_utf8` in activity.c, `cp` in LeanActivity.java, `lq_cp` in quiet_ios.m) | 37, 4, 11 | UTF-16 to UTF-8, and the selection and composition in code points, three ways. | The positions index the text Lean gets. |
@@ -495,7 +494,7 @@ cannot see into:
 | `Community.edKeypair`, `edSign`, `edVerify` ([`Compose.lean`](ops/community/Compose.lean)) | `le_ed25519_*` in crypto.c | Ed25519 |
 | `Engine.Crypto.x25519`, `x25519Base`, `staticOf`, `staticPubOf`, `chachaSeal`, `chachaOpen`, `xchachaSeal`, `xchachaOpen`, `randomBytes` ([`Crypto.lean`](engine/core/Crypto.lean)) | `le_*` in crypto.c | X25519, the key conversion, the two AEADs, random bytes |
 | `Engine.Db.open`, `exec` and `query`, over the opaque type `DbPointed` ([`Sqlite.lean`](engine/core/Sqlite.lean)) | `le_sql_*` in glue.c | SQLite |
-| The 14 of [`Platform.lean`](engine/renderer/Platform.lean): `screen`, `scroll`, `scrollBy`, `scrollTo`, `frame`, `text`, `ime`, `textClear`, `copy`, `ctlPoll`, `ctlReply`, `scan`, `luma`, `nowUs` | `lq_*` in each twin | the platform |
+| The 19 of [`Platform.lean`](engine/renderer/Platform.lean): `screen`, `scroll`, `scrollBy`, `scrollTo`, `frame`, `motion`, `text`, `ime`, `setText`, `copy`, `ctlPoll`, `ctlReply`, `scan`, `luma`, `nowUs`, `tzMin`, `log`, `poll`, `links` | `lq_*` in each shell | OS effects, raw events, placement and pixel publication |
 | `register`, `browse`, `poll` ([`NetProbe.lean`](platforms/ios/probe/NetProbe.lean)) | `lq_sd_*` in [`dnssd.c`](platforms/ios/probe/dnssd.c) | DNS-SD, for the iOS network probe only |
 
 - There is no `@[implemented_by]`, no `unsafe` and no `axiom`. The
@@ -510,6 +509,15 @@ cannot see into:
   be a `b_lean_obj_arg` in the C. `le_random` still declares the world
   argument that Lean 4.34 no longer passes; it is unused.
 
+Placement and touch policy now run in Lean: `Surface.make` publishes both
+`Seam.place` and `Seam.pinned`; `Input.run` classifies raw pointer sequences
+and Enter/IME actions. Native vsync callbacks call `lq_slide_edge`,
+`lq_slide_delta`, `lq_slide_source` and `lq_slide_fill_row`, exported by
+[`Slide.lean`](engine/renderer/Slide.lean). Their scalar equivalence laws,
+coverage contract with main's `Cover`, native thread audit and remaining
+trusted operations are in [SEAM.md](docs/SEAM.md). Motion and placeholders
+continue between 50 ms Lean frames; fresh data is a separate concern.
+
 ### Where native code still decides
 
 This native code does more than carry: it makes decisions, or does work
@@ -520,10 +528,7 @@ Lean could do. The proofs do not cover it, and it is first in line to
 
 | | lines | the decision | the proofs |
 |---|---|---|---|
-| **What a touch is** (`lq_pump` and `lq_release_at` in quiet_android.c, `tap` in host.c) | 68, 19, 10 | A press that stays within 8 dp is a tap, or a long press at 500 ms. A finger that goes down on the composer is also reported as a drag, the app's to scroll. The region is where the finger went down. A list tap's screen row y becomes the content distance `b + composerTop - 1 - y`, at the latest vsync's offset b (on a page, plus the keyboard's shift). | [`hit_iff`] and [`pinned_tap`] take that distance as given; `tapRow` states the formula the C must apply. On iOS UIKit decides, and Placement.lean proves the conversion from UIKit's layout. |
-| **Where the list lands** (`bl_place_list`, and the composer's top in `bl_vsync`, in layer.c; `dump` in host.c) | 14, 34 | Frame row r, drawn at offset bf, goes to screen row `top - over - shift + (bn - bf) + r` for the vsync's offset bn (a page: `top - over + r`), cropped to the viewport. The composer's top is `h - bot - max(ime, inset)`. | [`placed_row`], [`visible_in_viewport`] and [`newest_visible`] are about `Seam.place`. That the C computes the same is trusted, as Geometry.lean says. |
-| **The offset** (`bs_touch`, `bs_at`, `bs_pending` and `bs_vsync` in scroll.c; `bl_ahead` in layer.c) | 116, 27 | A drag follows the finger, resampled 5 ms before the vsync. The offset stays within 0 and the content's height less the viewport's. During a fling, Lean draws at the offset predicted for when its frame shows: at most two vsyncs ahead, and short of where the fling stops. | Nothing. |
-| **Which input counts** (`ba_push` and `ba_motion` in activity.c; the editor action in LeanActivity.java; `textFieldShouldReturn` in quiet_ios.m) | 15, 29 | Only the first finger counts. A full queue drops moves but keeps downs and ups. The keyboard's Send, or Enter, sends. | Nothing. |
+| **Scroll physics** (`scroll.c`, UIScrollView) | | Velocity, fling and platform overscroll feel. Lean clamps each new frame; intermediate signed samples translate the last publication without a clamp. | `Input.sequence_offset` bounds frame offsets. `Translate.fill_covers` covers arbitrary interim samples. |
 | **Crypto sizes** (crypto.c) | | A ChaCha20-Poly1305 key that is not 32 bytes seals under 32 zero bytes, while opening refuses it. XChaCha20-Poly1305 with a wrong-sized key or nonce seals to empty bytes. A wrong-sized Ed25519 seed gives empty bytes. | [`Suite.Good`] and `Seal.Good` say the AEAD opens what it seals for every key and nonce. The running AEADs do so only for 32-byte keys and 24-byte nonces. |
 | **The camera on iOS** (quiet_ios.m) | | The back camera at 1280 × 720, oriented 90° always. Android reads the sensor's own orientation. | [`Camera.src_in`] takes the frame's header as given. |
 | **The control channel** (ctl.c and ctl_ios.c, started by activity.c and quiet_ios.m) | | Only development builds have it: `RELEASE=1` builds compile no listener. On Android it is the abstract socket `@leanquiet`, which has no file permissions, so it closes any connection, unread, whose peer (by the kernel's `SO_PEERCRED`) is not adb's shell or root. On iOS it is TCP on 127.0.0.1:7417 (every interface only for a launch with `LEANQUIET_CTL_REMOTE=1`), and a connection's first line must be the launch's 128-bit token. Its commands include `send` (posts as this device), `invite` (the current invite link), `found` and `chaos` (both write ops), and `state` (the composer's text). | Nothing. Another process on the device is not in the model. `android:ctl-guard` and `ios:ctl-guard` test who is answered, with release builds that do not listen. |
@@ -531,10 +536,10 @@ Lean could do. The proofs do not cover it, and it is first in line to
 - **No protocol decision is native.** The handshake, framing, sync
   rounds, the trust rule and judging are Lean, and the TCP and UDP under
   them are Lean's own Std.Async.
-- **The placement formula has four copies:** Geometry.lean's (proven),
-  layer.c's (Android), host.c's (the headless twin) and
-  `platforms/headless/Sim.lean`'s (the host tests, without the slide or the
-  keyboard). iOS gets it from UIKit's layout.
+- **Placement is shared:** `Surface` calls Geometry for the frame, and
+  the native shells call scalar `Slide` exports between frames. The
+  headless raster twin uses those same functions. Graphics API application
+  remains native.
 
 **Performance work Lean could do:**
 
@@ -546,8 +551,8 @@ Lean could do. The proofs do not cover it, and it is first in line to
 No Lean version of these exists, and none was timed for this README. The
 Android twin logs its own costs every 120 frames: Lean's time per
 frame, the copy's time and rows copied, and the time handing frames over
-(`lq_time`); and missed vsyncs and rows left uncovered (`bl_stats` in
-layer.c). The app's host session (`mise run host:app`) reports Lean's
+(`lq_time`). `host:translate` checks every scripted vsync for uncovered
+rows and exact motion. The app's host session (`mise run host:app`) reports Lean's
 step time and unpainted rows on a fling. The checklist below measures
 with these.
 
@@ -617,49 +622,20 @@ Every decision that moves is one more thing the proofs can reach. Each
 item says what moves, what replaces it, how to keep it as fast, and what
 it would let us prove.
 
-Most valuable first. The first eight move decisions native code makes
-today, the ninth is glue, and the last trades the platform's scroll
-physics for a provable one.
+The first three seam changes are now implemented; the remaining items move
+more OS policy or library work into Lean.
 
-- [ ] **Decide taps and keys in Lean.**
-  - Moves: `lq_pump` and `lq_release_at` (87 lines of quiet_android.c),
-    host.c's `tap`, the first-finger rule in `ba_motion`, and "Enter
-    sends" in LeanActivity.java and quiet_ios.m.
-  - Instead: the twin hands Lean each touch as it came (finger, down,
-    move or up; x, y; time) and the latest vsync's placement (offset,
-    composer top, shift), and the keyboard's actions as they came. A
-    Lean function turns them into `App.Event`s.
-  - Speed: a few touches a frame, and the long-press timer already
-    runs on Lean's thread once a frame. The twin-demo e2e's taps check
-    it on the emulator.
-  - Then provable: [`hit_iff`] and [`pinned_tap`] from the finger's
-    screen row, not from a distance the C worked out; and the wanted "a
-    press that turns into a scroll past the slop is not a tap". iOS
-    keeps UIKit's recognizers.
-- [ ] **Call the placement; don't copy it.**
-  - Moves: the formulas in layer.c's `bl_place_list` and `bl_vsync`,
-    and host.c's `dump`.
-  - Instead: `Seam.place`, `Seam.pinned` and `Geom.composerTop`,
-    exported (`@[export]`) over fixed-width integers and called by the
-    vsync thread and by host.c. Sim.lean calls them too.
-  - Speed: the vsync thread is not Lean's. It registers with Lean's
-    runtime once (`lean_initialize_thread`, as qr's JNI does). The
-    exports take and return scalars only, so a call allocates nothing
-    and never waits on Lean. `bl_stats`'s missed vsyncs must stay 0 on
-    the same fling, before and after.
-  - Then provable: [`placed_row`], [`visible_in_viewport`] and
-    [`newest_visible`] of the placement that runs. Geometry's trusted
-    step goes.
-- [ ] **Bound the offset in Lean.**
-  - Moves: scroll.c's clamps and its rules for `scrollBy` and
-    `scrollTo` (`bs_pending`), and layer.c's prediction (`bl_ahead`).
-  - Instead: exported pure functions of the offset, the rate, the lead,
-    the fling's end and the heights. The physics stays the OS's:
-    VelocityTracker and OverScroller, and UIScrollView.
-  - Speed: as for the placement, on the vsync thread.
-  - Then provable: the offset Lean draws at is within the content's
-    range, and during a fling between the offset now and where the
-    fling stops.
+- [x] **Decide phone taps and keys in Lean.** `Input.run` consumes raw
+  pointers, timestamps, keys and IME actions; first-pointer ownership,
+  slop, long press and content mapping are shared with the twin.
+- [x] **Call the placement.** `Surface.make` publishes list, header and
+  composer rectangles. Native vsyncs call scalar `Slide` exports for
+  translation and placeholder fill. Generated C and assembly are audited
+  for objects, once-cells and calls; native threads initialize once.
+- [x] **Bound frame offsets in Lean.** `Input.sampleOffset` clamps OS
+  samples before painting. Between frames, arbitrary signed OS samples
+  translate the last buffer with complete placeholder coverage. Native
+  scroll physics remains the OS's. See [SEAM.md](docs/SEAM.md).
 - [ ] **The control channel in Lean, and off unless asked.**
   - Today: only development builds have it, and it answers only adb or
     root (Android) or the launch's token (iOS).
@@ -685,7 +661,7 @@ physics for a provable one.
     Lean knows because it painted them. The twin moves its buffer by
     the shift and copies the listed rows.
   - Speed: the same copies as today. Compare `lq_time`'s copy time and
-    rows copied, and `bl_stats`, on the same fling before and after; and
+    rows copied on the same fling before and after; compare
     host.c's dumps byte for byte.
   - Then provable: the staging buffer equals the frame Lean drew, the
     first step of the wanted "content is drawn faithfully all the way to
@@ -1012,10 +988,10 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`resize_anchor`]: ops/app/Lifecycle.lean#L104-L105
 [`viewport_geometry`]: ops/app/LifecycleLaws.lean#L54-L58
 [`viewport_possible`]: ops/app/LifecycleLaws.lean#L61-L62
-[`visible_in_viewport`]: engine/renderer/Geometry.lean#L90-L95
-[`newest_visible`]: engine/renderer/Geometry.lean#L99-L105
-[`pinned_visible`]: engine/renderer/Geometry.lean#L147-L151
-[`pinned_tap`]: engine/renderer/Geometry.lean#L154-L157
+[`Surface.visible_in_viewport`]: engine/renderer/Surface.lean#L123-L127
+[`newest_visible`]: engine/renderer/Geometry.lean#L101-L107
+[`Surface.pinned_visible`]: engine/renderer/Surface.lean#L141-L143
+[`pinned_tap`]: engine/renderer/Geometry.lean#L156-L159
 [`hit_iff`]: engine/renderer/SheetGeom.lean#L124-L126
 [`offer_split`]: ops/app/NodeOffer.lean#L37-L40
 [`offer_runs`]: ops/app/NodeOffer.lean#L73-L77
@@ -1063,11 +1039,15 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`agrees_store`]: engine/renderer/LiveLaws.lean#L92-L95
 [`agrees_keep`]: engine/renderer/LiveLaws.lean#L172-L174
 [`agrees_empty`]: engine/renderer/LiveLaws.lean#L78-L78
-[`covered`]: engine/renderer/Cover.lean#L81-L86
-[`line_painted`]: engine/renderer/Cover.lean#L122-L125
-[`placed_row`]: engine/renderer/Geometry.lean#L81-L85
-[`newest_drawn`]: engine/renderer/Geometry.lean#L108-L111
-[`pinned_row`]: engine/renderer/Geometry.lean#L141-L144
+[`Cover.covered`]: engine/renderer/Cover.lean#L81-L86
+[`Cover.line_painted`]: engine/renderer/Cover.lean#L122-L125
+[`Translate.covered`]: engine/renderer/TranslateLaws.lean#L81-L88
+[`Translate.equivariance`]: engine/renderer/TranslateLaws.lean#L12-L14
+[`Translate.fill_pixel`]: engine/renderer/TranslateLaws.lean#L143-L149
+[`Slide.edge_eq`]: engine/renderer/SlideLaws.lean#L126-L130
+[`Surface.placed_row`]: engine/renderer/Surface.lean#L119-L120
+[`Surface.newest_drawn`]: engine/renderer/Surface.lean#L146-L149
+[`Surface.pinned_row`]: engine/renderer/Surface.lean#L137-L138
 [`keys_disjoint`]: engine/renderer/SheetGeom.lean#L179-L181
 [`hit_cell`]: engine/renderer/SheetGeom.lean#L175-L177
 [`reachable`]: engine/renderer/SheetGeom.lean#L196-L199
@@ -1121,8 +1101,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L887-L891
-[`pageIn_acc`]: App.lean#L893-L896
+[`drawPage_key`]: App.lean#L883-L887
+[`pageIn_acc`]: App.lean#L889-L892
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175

@@ -4,6 +4,7 @@ control commands and replies, the last frames), the screen as the twin
 composes it, PPM screenshots, and waiting for the writer.
 -/
 import Quiet
+import engine.renderer.TranslatePaint
 
 open App Engine Community Data
 
@@ -12,6 +13,9 @@ structure Sim where
   replies : IO.Ref (Array String)
   cmds : IO.Ref (Array String)
   last : IO.Ref (Array ByteArray × Nat × Nat × Array ByteArray × Array ByteArray)
+  placement : IO.Ref (Array UInt32)
+  hold : IO.Ref (Array ByteArray)
+  raw : IO.Ref (Array UInt32)
   maxB : IO.Ref Float
   /-- What the camera shows (a luma frame), and where its preview is. -/
   camera : IO.Ref (Array UInt32 × ByteArray)
@@ -33,7 +37,7 @@ def testPorts : IO (Nat × Nat) := do
   return (p, p + 1)
 
 def Sim.new : IO Sim := do
-  return ⟨← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef (#[], 0, 0, #[], #[]), ← IO.mkRef 0,
+  return ⟨← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef (#[], 0, 0, #[], #[]), ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0,
     ← IO.mkRef (#[], .empty), ← IO.mkRef false,
     ← IO.mkRef "", ← IO.mkRef #[1080, 2400, 128, 63, 420], ← IO.mkRef false,
     ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef true, ← IO.mkRef 0⟩
@@ -45,17 +49,16 @@ def Sim.io (sm : Sim) : Io where
   scroll ch vh := do
     let mx := if ch > vh then (ch - vh).toNat.toFloat else 0
     sm.maxB.set mx
-    let b ← sm.b.get
-    let b := if b < 0 then 0 else if b > mx then mx else b
-    sm.b.set b
-    return b.toUInt32
+    sm.b.get
   scrollBy d := sm.b.modify (· + d)
   scrollTo b := sm.b.set b
-  frame fr b o top bot _ := do
+  frame fr b o top bot _ placement hold := do
     unless ← sm.visible.get do throw (IO.userError "frame without a surface")
     sm.frames.modify (· + 1)
+    sm.hold.set hold
     sm.last.set (fr, b.toNat, o.toNat, top, bot)
-    return #[]
+    sm.placement.set placement
+    sm.raw.modifyGet fun es => (es, #[])
   text := do return (← sm.native.get, #[0, 0, 0, 0])
   ime on := sm.keyboard.set on
   setText := sm.native.set
@@ -73,15 +76,10 @@ def Sim.io (sm : Sim) : Io where
 /-- The screen as the twin composes it: header, the list's viewport rows,
 the composer above the bottom inset. -/
 def screenOf (sm : Sim) (W Hs insetBot : Nat) : IO (Array ByteArray) := do
-  let (fr, _, o, top, bot) ← sm.last.get
-  let bg := Paint.solid Row.bg W
-  let mut out := Array.replicate Hs bg
-  for i in [0:top.size] do out := out.set! i top[i]!
-  let vh := Hs - top.size - bot.size - insetBot
-  for r in [0:vh] do
-    if let some row := fr[o + r]? then out := out.set! (top.size + r) row
-  for i in [0:bot.size] do out := out.set! (top.size + vh + i) bot[i]!
-  return out
+  let (fr, _, _, top, bot) ← sm.last.get
+  let _ := insetBot
+  return Translate.compose (← sm.placement.get) (← sm.b.get).toInt64.toInt32 Hs
+    (Paint.solid Row.bg W) fr top bot (← sm.hold.get)
 
 def writePpm (path : String) (W : Nat) (rows : Array ByteArray) : IO Unit := do
   let mut b := s!"P6\n{W} {rows.size}\n255\n".toUTF8

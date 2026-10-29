@@ -4,6 +4,7 @@
  * Keyboard mapping supports Latin/Unicode keysyms, not an IME or dead keys.
  */
 #include <lean/lean.h>
+#include "../native/thread.h"
 #include <xcb/xcb.h>
 #include <xcb/shm.h>
 #include <xcb/sync.h>
@@ -370,44 +371,59 @@ lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
     events(); xcb_flush(q.c);
     lean_obj_res out=words(q.events,q.n); q.n=0; return out;
 }
-lean_obj_res lq_frame(b_lean_obj_arg list,uint32_t b,uint32_t over,b_lean_obj_arg top,b_lean_obj_arg bot,uint8_t pin) {
-    init();
-    unsigned h=q.h/q.scale, th=lean_array_size(top), bh=lean_array_size(bot);
+lean_obj_res lq_frame(b_lean_obj_arg list,uint32_t b,uint32_t over,b_lean_obj_arg top,
+    b_lean_obj_arg bot,uint8_t pin,b_lean_obj_arg placement,b_lean_obj_arg hold) {
+    (void)b; (void)over; (void)pin;
+    init(); lq_slide_thread_init(); lq_slide_warm();
+    uint32_t p[LQ_PLACEMENT_WORDS];
+    for (unsigned i=0;i<LQ_PLACEMENT_WORDS;i++) p[i]=lean_unbox_uint32(lean_array_get_core(placement,i));
+    unsigned h=q.h/q.scale;
     lean_object *rows=lean_mk_empty_array_with_capacity(lean_box(h));
+    lean_object *layers[]={list,top,bot};
     for (unsigned y=0;y<h;y++) {
         lean_object *row=NULL;
-        if (y<th) row=lean_array_get_core(top,y);
-        else if (bh<=h && y>=h-bh) row=lean_array_get_core(bot,y-(h-bh));
-        else {
-            int r=(int)y-(int)th+(int)over+(pin ? 0 : (int)b-(int)q.scroll);
-            if (r>=0 && (size_t)r<lean_array_size(list)) row=lean_array_get_core(list,r);
+        if (y>=p[7] && y<p[10]) {
+            int64_t r=(int64_t)lq_slide_source(p[22],p[15],p[20],p[21],(int32_t)q.scroll,y);
+            if (r>=0 && (uint64_t)r<lean_array_size(list)) row=lean_array_get_core(list,r);
+            else {
+                uint32_t f=lq_slide_fill_row(p[22],p[15],p[7],p[10],(int32_t)q.scroll,y);
+                if (f<lean_array_size(hold)) row=lean_array_get_core(hold,f);
+            }
+        }
+        for (unsigned k=1;k<3;k++) {
+            uint32_t *r=p+4*k;
+            if (y>=r[2] && y<r[3] && r[0]+y-r[2]<lean_array_size(layers[k]))
+                row=lean_array_get_core(layers[k],r[0]+y-r[2]);
         }
         if (row) lean_inc(row); else row=lean_alloc_sarray(1,0,0);
         rows=lean_array_push(rows,row);
     }
     lean_object *result=lq_desktop_frame(rows); lean_dec(rows);
+    // The desktop loop uses desktopFrame directly. Keep its phone-frame
+    // adapter compatible too: desktop click events expand to raw samples.
     lean_object *raw=lean_io_result_get_value(result), *out=lean_mk_empty_array();
+    struct timespec ts; clock_gettime(CLOCK_MONOTONIC,&ts);
+    uint64_t now=(uint64_t)ts.tv_sec*1000+ts.tv_nsec/1000000;
     for (size_t i=0;i+3<lean_array_size(raw);i+=4) {
         uint32_t k=lean_unbox_uint32(lean_array_get_core(raw,i));
-        uint32_t v[4]={k,0,0,0};
-        if (k==2 || k==3) {
-            uint32_t x=lean_unbox_uint32(lean_array_get_core(raw,i+1));
-            uint32_t y=lean_unbox_uint32(lean_array_get_core(raw,i+2));
-            v[1]=y<th ? 1 : y>=h-bh ? 2 : 0; v[2]=x;
-            v[3]=y<th ? y : y>=h-bh ? y-(h-bh) : (pin ? 0 : (uint32_t)q.scroll)+h-bh-1-y;
-        } else if (k!=1 && k!=4 && k!=5) continue;
-        for (unsigned j=0;j<4;j++) out=lean_array_push(out,lean_box_uint32(v[j]));
+        if (k!=1 && k!=2 && k!=3 && k!=4 && k!=5) continue;
+        uint32_t x=lean_unbox_uint32(lean_array_get_core(raw,i+1));
+        uint32_t y=lean_unbox_uint32(lean_array_get_core(raw,i+2));
+        unsigned n=(k==2 || k==3) ? 2 : 1;
+        for (unsigned j=0;j<n;j++) {
+            uint64_t t=j==0 && n==2 ? now-(k==3 ? 500 : 30) : now;
+            uint32_t v[8]={n==2 ? (j==0 ? 9 : 11) : k,k==5 ? 4 : 0,
+                n==2 ? x : 0,n==2 ? y : 0,(uint32_t)t,(uint32_t)(t>>32),p[16],
+                lq_slide_delta(p[22],p[15],(int32_t)q.scroll)};
+            for (unsigned z=0;z<8;z++) out=lean_array_push(out,lean_box_uint32(v[z]));
+        }
     }
     lean_dec(result); return lean_io_result_mk_ok(out);
 }
-static void clamp_scroll(void) {
-    double max=q.content>q.view ? q.content-q.view : 0;
-    if (q.scroll<0) q.scroll=0;
-    if (q.scroll>max) q.scroll=max;
-}
-lean_obj_res lq_scroll(uint32_t ch,uint32_t vh) { q.content=ch; q.view=vh; clamp_scroll(); return lean_io_result_mk_ok(lean_box_uint32(q.scroll)); }
-lean_obj_res lq_scroll_by(double d) { q.scroll+=d; clamp_scroll(); return unit(); }
-lean_obj_res lq_scroll_to(double b) { q.scroll=b; clamp_scroll(); return unit(); }
+lean_obj_res lq_scroll(uint32_t ch,uint32_t vh) { q.content=ch; q.view=vh; return lean_io_result_mk_ok(lean_box_float(q.scroll)); }
+lean_obj_res lq_scroll_by(double d) { q.scroll+=d; return unit(); }
+lean_obj_res lq_scroll_to(double b) { q.scroll=b; return unit(); }
+lean_obj_res lq_motion(b_lean_obj_arg samples) { (void)samples; return unit(); }
 lean_obj_res lq_text(void) {
     lean_object *p=lean_alloc_ctor(0,2,0), *a=lean_mk_empty_array();
     uint32_t v[]={count(q.anchor),count(q.caret),count(q.caret),count(q.caret)};

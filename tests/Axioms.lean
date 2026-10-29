@@ -1,3 +1,6 @@
+import engine.renderer.SlideLaws
+import engine.renderer.InputLaws
+import engine.renderer.TranslateLaws
 import ops.app.LifecycleLaws
 import ops.sync.TimeLaws
 import ops.sync.RetryLaws
@@ -857,3 +860,60 @@ end cost
 #print axioms Ttf.Cache.put_bound
 #print axioms Ttf.Cache.payload_le_bytes
 #print axioms Ttf.Cache.put_payload_bound
+
+#print axioms Surface.row_place
+#print axioms Surface.row_pinned
+#print axioms Surface.placed_row
+#print axioms Surface.pinned_row
+#print axioms Surface.pinned_visible
+#print axioms Surface.newest_drawn
+#print axioms Surface.offset_bounds
+#print axioms Input.moved_not_tap
+#print axioms Input.release_tap
+#print axioms Input.sample_remembers
+#print axioms Input.release_moved
+#print axioms Input.first_pointer
+#print axioms Input.extra_down
+#print axioms Input.deterministic
+#print axioms Input.step_offset
+#print axioms Input.sequence_offset
+#print axioms Input.tap_content
+#print axioms Input.tap_page
+#print axioms Input.tap_key
+#print axioms Input.classified_at_down
+#print axioms Input.witnesses
+#print axioms Surface.crop_row
+#print axioms Surface.composer_top
+#print axioms Surface.visible_in_viewport
+#print axioms Input.other_pointer
+#print axioms Input.release_event
+#print axioms Input.classified_page
+#print axioms Input.classified_key
+#print axioms Surface.published_row
+#print axioms Surface.published_composer
+#print axioms Input.delivered_page
+#print axioms Translate.equivariance
+#print axioms Translate.pinned
+#print axioms Translate.source_iff
+#print axioms Translate.copied_row
+#print axioms Translate.fill_covers
+#print axioms Translate.fill_index
+#print axioms Translate.tile_phase
+#print axioms Translate.source_content
+#print axioms Translate.outside
+#print axioms Translate.covered
+#print axioms Translate.line_painted
+#print axioms Translate.edge_list
+#print axioms Translate.edge_fill
+#print axioms Translate.pick_source
+#print axioms Translate.hold_row
+#print axioms Translate.fill_pixel
+#print axioms Translate.delta_value
+#print axioms Translate.tap_content
+#print axioms Translate.witnesses
+#print axioms Slide.edge_eq
+#print axioms Slide.delta_eq
+#print axioms Slide.pick_eq
+#print axioms Slide.fillRow_eq
+
+#print axioms Input.revoked_release

@@ -134,7 +134,10 @@ extern_lib libsqlite pkg := do
 -- driven by a script, for tests and CI. Every host executable links it.
 target host.o pkg : FilePath := do
   let oFile := pkg.buildDir / "host" / "host.o"
-  let srcJob ← inputTextFile <| pkg.dir / "platforms" / "headless" / "host.c"
+  let source ← inputTextFile <| pkg.dir / "platforms" / "headless" / "host.c"
+  let translate ← inputTextFile <| pkg.dir / "platforms" / "native" / "translate.h"
+  let thread ← inputTextFile <| pkg.dir / "platforms" / "native" / "thread.h"
+  let srcJob := (source.zipWith (fun s _ => s) translate).zipWith (fun s _ => s) thread
   let weakArgs := #["-I", (← getLeanIncludeDir).toString]
   -- C11: in C23 mode the system's glibc headers bind sscanf to a symbol
   -- the glibc Lean links against lacks.
@@ -308,7 +311,10 @@ lean_exe bidi_host where
 -- and integer scale; it implements Platform.lean's externs.
 target linux.o pkg : FilePath := do
   let oFile := pkg.buildDir / "linux" / "shell.o"
-  let srcJob ← inputTextFile <| pkg.dir / "platforms" / "linux" / "shell.c"
+  let source ← inputTextFile <| pkg.dir / "platforms" / "linux" / "shell.c"
+  let translate ← inputTextFile <| pkg.dir / "platforms" / "native" / "translate.h"
+  let thread ← inputTextFile <| pkg.dir / "platforms" / "native" / "thread.h"
+  let srcJob := (source.zipWith (fun s _ => s) translate).zipWith (fun s _ => s) thread
   let weakArgs := #["-I", (← getLeanIncludeDir).toString]
   buildO oFile srcJob weakArgs #["-fPIC", "-O2", "-std=gnu11", "-Wall", "-Wextra", "-Werror"] "cc"
 
@@ -355,3 +361,12 @@ lean_exe font_load where
 
 lean_exe font_contract where
   root := `platforms.headless.FontContract
+
+lean_exe seam where
+  root := `platforms.headless.Seam
+
+lean_exe seam_app where
+  root := `platforms.headless.SeamApp
+
+lean_exe translate where
+  root := `platforms.headless.Translate

@@ -41,21 +41,22 @@ static int32_t         ba_w;
 static int32_t         ba_h;
 static int32_t         ba_top, ba_bottom, ba_kb;
 static int32_t         ba_density = 420;
-static int32_t         ba_vtop, ba_vbot = 1 << 30;
 static bool            ba_closing;
 static bool            ba_resumed;
 static char*           ba_links[32];
 static unsigned        ba_nlinks;
 static void ba_event(uint32_t k, uint32_t a, uint32_t b, uint32_t c);
-static BaTouch         ba_q[BA_CAP];
+static BaTouch*        ba_q;
+static uint32_t        ba_cap;
 static uint32_t        ba_n;
-static BaTouch         ba_sq[BA_CAP];
+static BaTouch*        ba_sq;
+static uint32_t        ba_scap;
 static uint32_t        ba_sn;
-static bool            ba_scrolls;  // the held finger began in the viewport
-static int32_t         ba_finger = -1;
+
 static bool            ba_started;
 static bool            ba_lead = true;
-static uint32_t        ba_ev[BA_EVS * 4];
+static uint32_t*       ba_ev;
+static uint32_t        ba_ecap;
 static uint32_t        ba_en;
 static char*           ba_txt;
 static uint32_t        ba_pos[4];
@@ -188,11 +189,10 @@ static void ba_destroy(ANativeActivity* act) {
 // -------------------------
 
 static void ba_event(uint32_t k, uint32_t a, uint32_t b, uint32_t c) {
-  if (ba_en == BA_EVS) {
-    if (k < 9) return;
-    // Lifecycle cannot be lost behind a burst of text or touch events.
-    memmove(ba_ev, ba_ev + 4, (BA_EVS - 1) * 4 * sizeof(uint32_t));
-    --ba_en;
+  if (ba_en == ba_ecap) {
+    ba_ecap = ba_ecap ? ba_ecap * 2 : BA_EVS;
+    ba_ev = realloc(ba_ev, ba_ecap * 4 * sizeof *ba_ev);
+    if (!ba_ev) abort();
   }
   uint32_t* e = ba_ev + 4 * ba_en++;
   e[0] = k;
@@ -319,9 +319,9 @@ uint8_t* ba_take_luma(size_t* n, uint32_t wh[4]) {
   return p;
 }
 
-static void JNICALL ba_n_send(JNIEnv* env, jclass cls) {
+static void JNICALL ba_n_action(JNIEnv* env, jclass cls, jint kind, jint code, jint action) {
   pthread_mutex_lock(&ba_mu);
-  ba_event(5, 0, 0, 0);
+  ba_event(kind, code, action, 0);
   pthread_mutex_unlock(&ba_mu);
 }
 
@@ -435,7 +435,7 @@ static void ba_java(ANativeActivity* act) {
     { "nInsets", "(III)V", (void*)ba_n_insets },
     { "nText", "(Ljava/lang/String;IIII)V", (void*)ba_n_text },
     { "nLink", "(Ljava/lang/String;)V", (void*)ba_n_link },
-    { "nSend", "()V", (void*)ba_n_send },
+    { "nAction", "(III)V", (void*)ba_n_action },
     { "nLuma", "(Ljava/nio/ByteBuffer;IIII)V", (void*)ba_n_luma },
   };
   if ((*env)->RegisterNatives(env, cls, ms, 5) != 0) {
@@ -461,12 +461,7 @@ static void ba_java(ANativeActivity* act) {
 // Touches
 // -------
 
-void ba_set_viewport(int32_t top, int32_t bot) {
-  pthread_mutex_lock(&ba_mu);
-  ba_vtop = top;
-  ba_vbot = bot;
-  pthread_mutex_unlock(&ba_mu);
-}
+
 
 uint32_t ba_drain(BaTouch* out, uint32_t max, bool* closed) {
   pthread_mutex_lock(&ba_mu);
@@ -479,23 +474,25 @@ uint32_t ba_drain(BaTouch* out, uint32_t max, bool* closed) {
   return n;
 }
 
-// A full queue (Lean not drawing) drops the touch, unless it is a down
-// or an up: those replace the newest move, so a press is never lost.
-// Only a finger that went down in the list's viewport feeds the scroller.
-static void ba_push(BaKind kind, float x, float y, int64_t t) {
-  if (kind == BA_DOWN) {
-    ba_scrolls = y >= (float)ba_vtop && y < (float)ba_vbot;
+// Lossless transport. Lean decides ownership, slop and scroll routing.
+static void ba_push(BaKind kind, int32_t id, float x, float y, int64_t t) {
+  if (ba_n == ba_cap) {
+    ba_cap = ba_cap ? ba_cap * 2 : BA_CAP;
+    ba_q = realloc(ba_q, ba_cap * sizeof *ba_q);
+    if (!ba_q) abort();
   }
-  if (ba_scrolls && ba_sn < BA_CAP) {
-    ba_sq[ba_sn++] = (BaTouch){ kind, x, y, t };
+  ba_q[ba_n++] = (BaTouch){ kind, x, y, t, id, bl_view_id() };
+}
+
+void ba_accept_scroll(BaTouch sample) {
+  pthread_mutex_lock(&ba_mu);
+  if (ba_sn == ba_scap) {
+    ba_scap = ba_scap ? ba_scap * 2 : BA_CAP;
+    ba_sq = realloc(ba_sq, ba_scap * sizeof *ba_sq);
+    if (!ba_sq) abort();
   }
-  if (ba_n == BA_CAP) {
-    if (kind == BA_MOVE || ba_q[ba_n - 1].kind != BA_MOVE) {
-      return;
-    }
-    ba_n -= 1;
-  }
-  ba_q[ba_n++] = (BaTouch){ kind, x, y, t };
+  ba_sq[ba_sn++] = sample;
+  pthread_mutex_unlock(&ba_mu);
 }
 
 uint32_t ba_drain_scroll(BaTouch* out, uint32_t max) {
@@ -508,44 +505,27 @@ uint32_t ba_drain_scroll(BaTouch* out, uint32_t max) {
   return n;
 }
 
-static int32_t ba_index(const AInputEvent* ev, int32_t id) {
-  size_t n = AMotionEvent_getPointerCount(ev);
-  for (size_t i = 0; i < n; i += 1) {
-    if (AMotionEvent_getPointerId(ev, i) == id) {
-      return (int32_t)i;
-    }
-  }
-  return -1;
-}
-
-// Only the first finger down counts, until it lifts; a move brings its
-// batched history too, so a drag keeps every sample.
 static void ba_motion(const AInputEvent* ev) {
-  int32_t act  = AMotionEvent_getAction(ev);
-  int32_t kind = act & AMOTION_EVENT_ACTION_MASK;
-  int32_t at   = (act & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK)
+  int32_t action = AMotionEvent_getAction(ev);
+  int32_t kind = action & AMOTION_EVENT_ACTION_MASK;
+  int32_t at = (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK)
     >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
   pthread_mutex_lock(&ba_mu);
-  int32_t i = ba_finger < 0 ? -1 : ba_index(ev, ba_finger);
-  if (kind == AMOTION_EVENT_ACTION_DOWN) {
-    ba_finger = AMotionEvent_getPointerId(ev, 0);
-    ba_push(BA_DOWN, AMotionEvent_getX(ev, 0), AMotionEvent_getY(ev, 0),
-      AMotionEvent_getEventTime(ev));
-  } else if (kind == AMOTION_EVENT_ACTION_MOVE && i >= 0) {
-    size_t n = AMotionEvent_getHistorySize(ev);
-    for (size_t h = 0; h < n; h += 1) {
-      ba_push(BA_MOVE, AMotionEvent_getHistoricalX(ev, i, h),
-        AMotionEvent_getHistoricalY(ev, i, h),
-        AMotionEvent_getHistoricalEventTime(ev, h));
+  for (size_t i = 0; i < AMotionEvent_getPointerCount(ev); i++) {
+    int32_t id = AMotionEvent_getPointerId(ev, i);
+    if (kind == AMOTION_EVENT_ACTION_MOVE) {
+      for (size_t h = 0; h < AMotionEvent_getHistorySize(ev); h++)
+        ba_push(BA_MOVE, id, AMotionEvent_getHistoricalX(ev, i, h),
+          AMotionEvent_getHistoricalY(ev, i, h), AMotionEvent_getHistoricalEventTime(ev, h));
+      ba_push(BA_MOVE, id, AMotionEvent_getX(ev, i), AMotionEvent_getY(ev, i), AMotionEvent_getEventTime(ev));
+    } else if (kind == AMOTION_EVENT_ACTION_CANCEL) {
+      ba_push(BA_CANCEL, id, AMotionEvent_getX(ev, i), AMotionEvent_getY(ev, i), AMotionEvent_getEventTime(ev));
+    } else if ((int32_t)i == at) {
+      if (kind == AMOTION_EVENT_ACTION_DOWN || kind == AMOTION_EVENT_ACTION_POINTER_DOWN)
+        ba_push(BA_DOWN, id, AMotionEvent_getX(ev, i), AMotionEvent_getY(ev, i), AMotionEvent_getEventTime(ev));
+      else if (kind == AMOTION_EVENT_ACTION_UP || kind == AMOTION_EVENT_ACTION_POINTER_UP)
+        ba_push(BA_UP, id, AMotionEvent_getX(ev, i), AMotionEvent_getY(ev, i), AMotionEvent_getEventTime(ev));
     }
-    ba_push(BA_MOVE, AMotionEvent_getX(ev, i), AMotionEvent_getY(ev, i),
-      AMotionEvent_getEventTime(ev));
-  } else if (i >= 0 && (kind == AMOTION_EVENT_ACTION_UP
-    || kind == AMOTION_EVENT_ACTION_CANCEL
-    || (kind == AMOTION_EVENT_ACTION_POINTER_UP && at == i))) {
-    ba_push(BA_UP, AMotionEvent_getX(ev, i), AMotionEvent_getY(ev, i),
-      AMotionEvent_getEventTime(ev));
-    ba_finger = -1;
   }
   pthread_mutex_unlock(&ba_mu);
 }

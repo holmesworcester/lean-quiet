@@ -1,41 +1,26 @@
-// The app's three layers on the compositor (layer.c): the list, slid at
-// every vsync for the scroller's offset, and the header and composer,
-// pinned above it, the composer riding the keyboard's animation.
+// Native buffers and vsync. Every placement rectangle is supplied by Lean.
 
 #ifndef LQ_LAYER_H
 #define LQ_LAYER_H
 
-#include <android/native_window.h>
 #include <stdbool.h>
 #include <stdint.h>
+typedef struct ANativeWindow ANativeWindow;
 
-typedef enum { BL_LIST = 0, BL_TOP = 1, BL_BOT = 2 } BlKind;
+typedef enum { BL_LIST = 0, BL_TOP = 1, BL_BOT = 2, BL_HOLD = 3 } BlKind;
 
-// Starts the vsync thread (once): it runs the scroller and places the
-// layers; predict: whether Lean draws at the predicted offset.
+// Starts vsync and the OS physics sampler. Prediction is no longer used.
 void bl_start(bool predict);
-
-// What the scroller needs (Platform.scroll): the content's height and the
-// viewport's with the keyboard closed, px.
 void bl_scroll_needs(uint32_t content_h, uint32_t view_h);
+bool bl_scroll_y(float* y);
 
-// The offset Lean should draw at: the latest vsync's, predicted on to when
-// Lean's frame will be on screen; false before the first vsync.
-bool bl_scroll_y(uint32_t* y);
-
-// The layout the vsync places by: the screen's size, the header's and the
-// composer's heights, the list frame's overscan, the navigation bar.
-void bl_layout(uint32_t w, uint32_t h, uint32_t top_h, uint32_t bot_h, uint32_t over,
-  uint32_t inset_bottom);
-
-// The latest vsync's placement, for taps: the offset (exact), the
-// composer's top on screen, the keyboard's shift of the list.
-void bl_placed(float* b, int32_t* composer_top, int32_t* shift);
-
-// Whether the list frame is a page pinned to the top (no slide, no lift
-// by the keyboard: Geometry.Seam.pinned), from the app's frame call.
-void bl_set_pin(bool pin);
-bool bl_pinned(void);
+// Publish after staging all buffers; the next transaction adopts both.
+// Begin waits for the previous publication before staging any new layer.
+bool bl_begin(void);
+void bl_abort(void);
+void bl_geometry(const uint32_t* place);
+uint32_t bl_frame_id(void);
+uint64_t bl_view_id(void);
 
 // The window's layers, made if win is new. Call with the window held
 // (activity.c's ba_lock); it never waits.

@@ -14,15 +14,17 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// A touch of the first finger down, in surface pixels: down, a move, or up
-// (a cancel is an up), at t, the sample's CLOCK_MONOTONIC time in ns.
-typedef enum { BA_DOWN, BA_MOVE, BA_UP } BaKind;
+// Every pointer sample, in surface pixels, with cancellation preserved,
+// CLOCK_MONOTONIC ns and the serial of the displayed Lean frame.
+typedef enum { BA_DOWN, BA_MOVE, BA_UP, BA_CANCEL } BaKind;
 
 typedef struct {
   BaKind  kind;
   float   x;
   float   y;
   int64_t t;
+  int32_t id;
+  uint64_t frame;
 } BaTouch;
 
 // Returns the resumed activity's current surface locked until ba_unlock.
@@ -46,16 +48,12 @@ int32_t ba_dpi(void);
 // count. *closed is set once the activity is going away.
 uint32_t ba_drain(BaTouch* out, uint32_t max, bool* closed);
 
-// The touches that began in the list's viewport, for the scroller
-// (scroll.c): its own queue.
+// Only samples Lean has accepted, for the native physics queue.
 uint32_t ba_drain_scroll(BaTouch* out, uint32_t max);
-
-// The list viewport's rows on screen, [top, bot): a touch that starts
-// there scrolls the list. Set by the twin each frame.
-void ba_set_viewport(int32_t top, int32_t bot);
+void ba_accept_scroll(BaTouch sample);
 
 // Events from the Java half since the last call (four words each, as
-// App.Event.decode reads them: 4 text, 5 send, 6 ime height).
+// Input.decode reads them: 4 text, 5 IME action, 6 height, 14 key).
 uint32_t ba_drain_events(uint32_t* out, uint32_t max_words);
 
 // The keyboard's text, as the EditText last reported it (UTF-8, owned by

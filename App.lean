@@ -441,11 +441,7 @@ def paintRow (x : Id) : M Unit := do
 /-- A placeholder line: the background with a bar where a row's text
 would be, in stripes (a row not painted yet, or older rows not loaded). -/
 def holdLine (s : St) (li : Nat) : ByteArray :=
-  if li % 48 < 12 || li % 48 ≥ 36 then s.bgRow
-  else
-    let x0 := s.dim.pad + s.dim.px 48
-    let w := max 1 (s.W * 2 / 3 - x0)
-    (solid Row.placeholder w).copySlice 0 s.bgRow (4 * x0) (4 * w)
+  Hold.holdLine ⟨s.bgRow, s.dim, s.W⟩ li
 
 /-- The rows overlapping the list frame, from the first one up: the
 first's index, and each one's height and the height of the paint it
@@ -1237,7 +1233,11 @@ def onEvent : Event → M Bool
     return true
   | .ime h => do modify fun s => { s with imeH := h.toNat }; return true
   | .scrolling _ => return true
-  | .drag ph x y => do onSheetDrag ph.toNat x.toNat y.toNat; return true
+  | .drag ph x y => do
+    if ph == 3 then
+      modify fun s => { s with sheet := s.sheet.map fun sh => { sh with drag := none, vel := 0 } }
+    else onSheetDrag ph.toNat x.toNat y.toNat
+    return true
 
 def loadSrcs : IO (Array Image.Src) := do
   let mut out := #[]
@@ -1469,6 +1469,24 @@ def withToast (s : St) (fr : Array ByteArray) (vh : Nat) : Array ByteArray := Id
       fr := fr.set! (r0 + k) (tb.rows[k]!.copySlice 0 fr[r0 + k]! (4 * x) (4 * tb.w))
   return fr
 
+/-- The same placement and raw-input boundary on every phone and twin. -/
+def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
+  let s ← get
+  let result ← Session.present s.io.frame s.io.motion (geom s) s.dim.dpi
+    ((bottoms s).2 - (geom s).viewNow) s.input fr b over s.topBmp.rows s.botBmp.rows pin
+    (Hold.plane ⟨s.bgRow, s.dim, s.W⟩ (geom s).viewNow)
+  modify fun s => { s with input := result.state }
+  return result.events
+
+/-- Lifecycle polling uses the same raw decoder, even with no surface. -/
+def pollInput : M (List Event) := do
+  let s ← get
+  let context : Input.Context := ⟨Surface.make (geom s) (s.page != .chat) over s.b s.b 0,
+    s.dim.dpi, (bottoms s).2 - (geom s).viewNow⟩
+  let result ← Session.receive s.io.motion context s.input (← s.io.poll)
+  modify fun s => { s with input := result.state }
+  return result.events
+
 /-- Root facts read for the mounted page, after any conversation rows. -/
 def pageWants (s : St) : Array Reader.Want :=
   #[Reader.Want.comms] ++ (if s.me.c.isEmpty then #[] else
@@ -1513,8 +1531,10 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   -- 4. the offset, and the rows the frame and the fetch distance need
   let s ← get
   let (bots0, ch0) := bottoms s
-  let b ← s.io.scroll ch0.toUInt32 (viewH s).toUInt32
-  let b := b.toNat
+  let sample ← s.io.scroll ch0.toUInt32 (geom s).viewNow.toUInt32
+  let input := Input.sampleOffset (ch0 - (geom s).viewNow) s.input sample.toInt64.toInt
+  modify fun s => { s with input }
+  let b := input.offset
   -- the anchor: the row at the viewport's bottom edge, and how far into it
   let mut anchor := if s.restoreAnchor then s.mark else captureAnchor { s with b }
   -- a new window: in place now; the viewport, in its offsets, is where
@@ -1723,8 +1743,7 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
     let t1 ← s.io.nowUs
     slow t1
     modify fun s => { s with b := 0, frames := s.frames + 1, times := s.times.push (t1 - t0).toNat }
-    let evs ← s.io.frame shown 0 over.toUInt32 s.topBmp.rows s.botBmp.rows true
-    return some (Event.decode evs)
+    return some (← present shown 0 true)
   -- 7. chrome and the frame
   let s ← get
   let sheetKey := match s.sheet, s.selected with
@@ -1737,20 +1756,22 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
       | _, _ => pure (composer s)
     modify fun s => { s with topBmp := header s, botBmp := bot, chromeKey := key }
   let s ← get
+  let input := Input.sampleOffset ((bottoms s).2 - (geom s).viewNow) s.input b
+  modify fun s => { s with input }
+  let b := input.offset
   let fr := withToast s (listFrame s b bots) (viewH s)
   let t1 ← s.io.nowUs
   slow t1
   let times := (if s.times.size ≥ 600 then s.times.extract 300 s.times.size else s.times).push (t1 - t0).toNat
   modify fun s => { s with b := b, frames := s.frames + 1, times := times }
-  let evs ← s.io.frame fr b.toUInt32 over.toUInt32 s.topBmp.rows s.botBmp.rows false
-  return some (Event.decode evs)
+  return some (← present fr b false)
 
 /-- One frame, in one read transaction: every read it makes, and the
 notices it takes (`takeChanges`, its first read), are of one moment of the
 store, so no part of the screen is newer than another. -/
 def step (evs : List Event) : M (Option (List Event)) := do
   let io := (← get).io
-  let incoming := evs ++ Event.decode (← io.poll) ++ (← io.links).toList.map Event.deepLink
+  let incoming := evs ++ (← pollInput) ++ (← io.links).toList.map Event.deepLink
   let lease := (← get).life.lease
   let inputPage := ((← get).page, (← get).cur)
   let mut input := []

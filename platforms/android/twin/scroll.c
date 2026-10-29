@@ -1,18 +1,11 @@
 // Native scrolling for a Lean app on Android
 // =========================================
 
-// Platform.scroll's Android answer: Android's own scroll physics, driven
-// through JNI on the vsync thread (layer.c), from the touches' own queue
-// (ba_drain_scroll: fingers that went down in the list's viewport). The
-// first finger's samples feed a VelocityTracker as MotionEvents; past the
-// touch slop the offset follows the finger 1:1; a release flings an
-// OverScroller with the tracker's velocity, and each vsync reads the
-// scroller's offset. While the finger is down the offset follows it
-// resampled to BS_LAG before the vsync (interpolated between the samples
-// around that time, or extrapolated past the newest by at most half their
-// spacing and BS_REACH), as Android's own views see touches. Every
-// constant (slop, fling velocities, overfling) is the device's
-// ViewConfiguration, so a fling feels like any Android list.
+// Android physics receives only the samples Lean accepted: first pointer,
+// list region and slop crossing are already decided. VelocityTracker and
+// OverScroller keep the platform's velocity/overfling feel. Resampling and
+// the scroller's internal range are advisory: the signed result goes to
+// Lean, whose clamp alone determines the offset actually drawn.
 //
 // The offset is bottom-anchored (Platform.lean): the distance from the
 // content's end to the viewport's bottom. A finger moving down shows
@@ -38,7 +31,7 @@ static jobject   bs_tracker;
 static jclass    bs_event;
 static jmethodID bs_obtain, bs_recycle, bs_add, bs_clear, bs_compute, bs_vy;
 static jmethodID bs_fling, bs_finish, bs_step, bs_cury, bs_finy, bs_vel;
-static float     bs_slop, bs_vmin, bs_vmax, bs_over;
+static float     bs_vmin, bs_vmax, bs_over;
 static bool      bs_ready;
 
 #define BS_LAG   5000000
@@ -82,7 +75,6 @@ static bool bs_setup(void) {
   jclass  vc = (*e)->FindClass(e, "android/view/ViewConfiguration");
   jobject c  = (*e)->CallStaticObjectMethod(e, vc, (*e)->GetStaticMethodID(e, vc,
     "get", "(Landroid/content/Context;)Landroid/view/ViewConfiguration;"), bs_ctx);
-  bs_slop = (*e)->CallIntMethod(e, c, (*e)->GetMethodID(e, vc, "getScaledTouchSlop", "()I"));
   bs_vmin = (*e)->CallIntMethod(e, c, (*e)->GetMethodID(e, vc,
     "getScaledMinimumFlingVelocity", "()I"));
   bs_vmax = (*e)->CallIntMethod(e, c, (*e)->GetMethodID(e, vc,
@@ -116,8 +108,8 @@ static bool bs_setup(void) {
     return false;
   }
   __android_log_print(ANDROID_LOG_INFO, "lean",
-    "native scroll: slop %.0f, fling %.0f..%.0f px/s, overfling %.0f",
-    bs_slop, bs_vmin, bs_vmax, bs_over);
+    "native scroll: fling %.0f..%.0f px/s, overfling %.0f",
+    bs_vmin, bs_vmax, bs_over);
   char v[PROP_VALUE_MAX] = { 0 };
   bs_resample = !(__system_property_get("debug.lean.resample", v) > 0 && v[0] == '0');
   bs_ready = true;
@@ -174,6 +166,11 @@ static void bs_fling_from(float off, float v) {
 
 static void bs_touch(BaKind kind, float y, int64_t t) {
   JNIEnv* e = bs_env;
+  if (kind == BA_CANCEL) {
+    (*e)->CallVoidMethod(e, bs_scroller, bs_finish, JNI_TRUE);
+    bs_down = bs_drag = bs_flinging = false;
+    return;
+  }
   if (kind == BA_DOWN) {
     (*e)->CallVoidMethod(e, bs_scroller, bs_finish, JNI_TRUE);
     (*e)->CallVoidMethod(e, bs_tracker, bs_clear);
@@ -193,10 +190,7 @@ static void bs_touch(BaKind kind, float y, int64_t t) {
   }
   bs_track(kind == BA_UP ? 1 : 2, y, t);
   bs_hold(y, t);
-  if (!bs_drag && fabsf(y - bs_y0) > bs_slop) {
-    bs_drag = true;
-    bs_y0   = y;
-  }
+  bs_drag = true;  // Lean forwards moves only after its slop is exceeded.
   if (kind == BA_UP) {
     if (bs_drag) {
       bs_off = bs_clamp(bs_off0 + (y - bs_y0));  // where it lifted
@@ -287,7 +281,7 @@ bool bs_vsync(uint32_t content_h, uint32_t view_h, int64_t ns, uint32_t* y, floa
   } else if (!bs_down && bs_off > bs_max) {
     bs_off = bs_max;  // the content shrank, or the keyboard opened
   }
-  *yf = bs_off < 0 ? 0 : bs_off;
+  *yf = bs_off;
   *y  = (uint32_t)lroundf(*yf);
   return true;
 }

@@ -5,6 +5,7 @@ right. Controls are painted and dispatched from Layout.controls. The
 threads surface reports the missing reply domain honestly.
 -/
 import App
+import engine.renderer.TranslatePaint
 import engine.renderer.desktop.Layout
 
 namespace Desktop
@@ -32,6 +33,8 @@ structure Layers where
   top : Array ByteArray := #[]
   bot : Array ByteArray := #[]
   over : Nat := 0
+  placement : Array UInt32 := #[]
+  hold : Array ByteArray := #[]
   deriving Inhabited
 
 def purple : Color := 0x7647C7
@@ -84,16 +87,9 @@ def scene (g : Layout) (h : Nat) (ui : Ui) (s : App.St) : List (Control Action) 
   controls g h (candidates g h ui s)
 
 /-- Compose the app's actual three layers, in their own track. -/
-def content (w h : Nat) (ls : Layers) : Bitmap := Id.run do
-  let mut b := Bitmap.blank w h (solid Row.bg w)
-  let vh := h - ls.top.size - ls.bot.size
-  for y in [0:min h ls.top.size] do b := { b with rows := b.rows.set! y ls.top[y]! }
-  for y in [0:vh] do
-    if let some row := ls.list[ls.over + y]? then
-      b := { b with rows := b.rows.set! (ls.top.size + y) row }
-  for y in [0:min h ls.bot.size] do
-    b := { b with rows := b.rows.set! (h - ls.bot.size + y) ls.bot[y]! }
-  return b
+def content (w h : Nat) (ls : Layers) : Bitmap :=
+  ⟨w, Translate.compose ls.placement (ls.placement[15]?.getD 0).toInt32 h
+    (solid Row.bg w) ls.list ls.top ls.bot ls.hold⟩
 
 /-- Painting traverses exactly `scene`, the list hit testing consumes. -/
 def paint (g : Layout) (h : Nat) (ui : Ui) (s : App.St) (ls : Layers) : Bitmap := Id.run do

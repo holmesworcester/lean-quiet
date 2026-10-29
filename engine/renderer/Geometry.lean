@@ -9,10 +9,12 @@ distance p above its end is drawn at screen row `composerTop - 1 - (p - b)`
 for offset b.
 
 The app draws the list frame for an offset `bf` (frame row r shows the
-content at `bf + view + over - 1 - r`, Seam.frameRow); the twin places that
-frame for the vsync's offset `bn`, shifted up by the keyboard, and crops it
-to the viewport (Seam.place: the formula android/twin and host/host.c
-apply). The theorems:
+content at `bf + view + over - 1 - r`, Seam.frameRow). Surface.make calls
+these functions and publishes cropped rectangles to every shell. They
+copy those numbers; Surface.published_row connects the serialized
+rectangle to the row proved here, for rows inside its clip and UInt32 bounds.
+Slide.edge_eq and Translate.equivariance extend this to native vsyncs;
+Translate.pinned states that pinned pages do not move. The theorems:
 
 - `placed_row`: frame row r lands where content `frameRow r` belongs for the
   vsync's offset: the slide and the keyboard shift are exactly right.
@@ -22,9 +24,9 @@ apply). The theorems:
   fits in the viewport is wholly visible: no row of it is under the
   composer or the header.
 
-These are about the numbers the app runs on (App reads its viewport height
-from `Geom.view`), and the twin's C applies `place`'s formula; that the C
-does so is the trusted step (to become an export the twin calls).
+These functions run through Surface.make and Session.present on every
+platform. Native buffer copying, compositor application and OS event
+acquisition remain trusted; native code no longer chooses placement.
 -/
 namespace Geometry
 

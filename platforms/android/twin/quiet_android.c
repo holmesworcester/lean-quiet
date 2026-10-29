@@ -18,6 +18,7 @@
 
 #include "activity.h"
 #include "layer.h"
+#include "../../native/translate.h"
 #include "scroll.h"
 
 #include <android/log.h>
@@ -29,7 +30,6 @@
 #include <pthread.h>
 #include <stdatomic.h>
 
-#define LQ_LONG_NS 500000000
 
 typedef struct {
   uint32_t*    pix;
@@ -41,17 +41,9 @@ typedef struct {
 } LqStage;
 
 typedef struct {
-  LqStage        st[3];
+  LqStage        st[4];
   ANativeWindow* painted;
   uint32_t       w, h, inset_top, inset_bottom;
-  // the press being followed
-  bool           down;
-  bool           moved;
-  bool           held;   // the long press was reported while down
-  bool           drag;   // went down on the composer: its drag is the app's
-  int32_t        ctop;   // the composer's top when it went down
-  float          x0, y0;
-  int64_t        t0;
   bool           active;
   uint32_t       n, cap;
   uint32_t*      evs;
@@ -67,117 +59,57 @@ static uint64_t lq_tick(void) {
   return (uint64_t)ts.tv_sec * 1000000000u + (uint64_t)ts.tv_nsec;
 }
 
-static void lq_push(uint32_t kind, uint32_t a, uint32_t b, uint32_t c) {
+static void lq_raw(uint32_t kind, uint32_t a, uint32_t b, uint32_t c, uint64_t ms, uint64_t frame) {
   if (lq.n == lq.cap) {
     lq.cap = lq.cap == 0 ? 64 : lq.cap * 2;
-    lq.evs = realloc(lq.evs, lq.cap * 16);
+    lq.evs = realloc(lq.evs, lq.cap * 32);
     if (lq.evs == NULL) {
       abort();
     }
   }
-  uint32_t* ev = lq.evs + lq.n * 4;
+  uint32_t* ev = lq.evs + lq.n * 8;
   ev[0] = kind;
   ev[1] = a;
   ev[2] = b;
   ev[3] = c;
+  ev[4] = ms; ev[5] = ms >> 32; ev[6] = frame; ev[7] = frame >> 32;
   lq.n += 1;
 }
 
-// Touches
-// -------
-
-// A press and release that never moved past the slop (8 dp) is a tap, or
-// a long press if held LQ_LONG_NS; where it went down picks the region.
-// A list tap's y is the bottom-anchored content coordinate at the latest
-// vsync: distance = b + composerTop - 1 - y.
-static void lq_release_at(int64_t t, uint32_t top_h, uint32_t bot_h) {
-  float   b;
-  int32_t ctop, shift;
-  bl_placed(&b, &ctop, &shift);
-  int32_t  y    = (int32_t)lroundf(lq.y0);
-  uint32_t x    = lq.x0 < 0 ? 0 : (uint32_t)lroundf(lq.x0);
-  uint32_t kind = t - lq.t0 >= LQ_LONG_NS ? 3 : 2;
-
-  if (y < (int32_t)top_h) {
-    lq_push(kind, 1, x, (uint32_t)(y < 0 ? 0 : y));
-  } else if (y >= ctop) {
-    int32_t r = y - ctop;
-    lq_push(kind, 2, x, (uint32_t)(r < (int32_t)bot_h ? r : (int32_t)bot_h - 1));
-  } else {
-    // a pinned page is not lifted: its rows are measured from the
-    // composer's top with the keyboard closed (Geometry.pinned_tap)
-    float d = b + (float)((bl_pinned() ? ctop + shift : ctop) - 1 - y);
-    lq_push(kind, 0, x, (uint32_t)lroundf(d < 0 ? 0 : d));
-  }
+static void lq_push(uint32_t k, uint32_t a, uint32_t b, uint32_t c) {
+  lq_raw(k >= 9 && k <= 12 ? k + 7 : k, a, b, c, lq_tick() / 1000000, bl_view_id());
 }
 
-static void lq_pump(uint32_t top_h, uint32_t bot_h) {
-  BaTouch  ts[256];
-  bool     closed = false;
+// Raw transport, including all pointers, cancellation and monotonic time.
+static void lq_pump(void) {
+  BaTouch ts[256];
+  bool closed = false;
   uint32_t n;
-  float    slop = 8.0f * (float)ba_dpi() / 160.0f;
   do {
     n = ba_drain(ts, 256, &closed);
-    for (uint32_t i = 0; i < n; i += 1) {
-      BaTouch t = ts[i];
-      if (t.kind == BA_DOWN) {
-        lq.down  = true;
-        lq.moved = false;
-        lq.held  = false;
-        lq.x0    = t.x;
-        lq.y0    = t.y;
-        lq.t0    = t.t;
-        // A finger down on the composer (or the sheet in its place) is
-        // the app's to scroll: its drag goes to the app (event 8).
-        float   b;
-        int32_t ctop, shift;
-        bl_placed(&b, &ctop, &shift);
-        lq.ctop = ctop;
-        lq.drag = (int32_t)lroundf(t.y) >= ctop;
-        if (lq.drag) {
-          lq_push(8, 0, (uint32_t)lroundf(t.x), (uint32_t)(lroundf(t.y) - ctop));
-        }
-      } else if (lq.down) {
-        if (fabsf(t.x - lq.x0) > slop || fabsf(t.y - lq.y0) > slop) {
-          lq.moved = true;
-        }
-        if (lq.drag) {
-          int32_t ly = (int32_t)lroundf(t.y) - lq.ctop;
-          lq_push(8, t.kind == BA_UP ? 2 : 1, (uint32_t)lroundf(t.x < 0 ? 0 : t.x),
-            (uint32_t)(ly < 0 ? 0 : ly));
-        }
-        if (t.kind == BA_UP) {
-          if (!lq.moved && !lq.held) {
-            lq_release_at(t.t, top_h, bot_h);
-          }
-          lq.down = false;
-        }
-      }
-    }
+    for (uint32_t i = 0; i < n; i++)
+      lq_raw(9 + ts[i].kind, ts[i].id, (int32_t)lroundf(ts[i].x),
+        (int32_t)lroundf(ts[i].y), ts[i].t / 1000000, ts[i].frame);
   } while (n == 256);
-  // A long press is reported once it has been held long enough, while the
-  // finger is still down (as Android's own long press is); its release is
-  // then no tap.
-  if (lq.down && !lq.moved && !lq.held && (int64_t)lq_tick() - lq.t0 >= LQ_LONG_NS) {
-    lq.held = true;
-    lq_release_at(lq.t0 + LQ_LONG_NS, top_h, bot_h);
-  }
   uint32_t ws[256];
   do {
     n = ba_drain_events(ws, 256);
-    for (uint32_t i = 0; i + 3 < n; i += 4) {
-      lq_push(ws[i], ws[i + 1], ws[i + 2], ws[i + 3]);
-    }
+    for (uint32_t i = 0; i + 3 < n; i += 4) lq_push(ws[i], ws[i+1], ws[i+2], ws[i+3]);
   } while (n == 256);
+  lq_push(13, 0, 0, 0);
   bool active = bs_active();
-  if (active != lq.active) {
-    lq.active = active;
-    lq_push(7, active, 0, 0);
+  if (active != lq.active) { lq.active = active; lq_push(7, active, 0, 0); }
+  if (closed && !lq.closed) { lq.closed = true; lq_push(1, 0, 0, 0); }
+}
+
+lean_obj_res lq_motion(b_lean_obj_arg samples) {
+  for (size_t i = 0; i + 7 < lean_array_size(samples); i += 8) {
+    uint32_t v[6];
+    for (int j = 0; j < 6; j++) v[j] = lean_unbox_uint32(lean_array_get_core(samples, i+j));
+    ba_accept_scroll((BaTouch){v[0]-9, (int32_t)v[2], (int32_t)v[3],
+      (int64_t)(((uint64_t)v[5] << 32) | v[4]) * 1000000, v[1]});
   }
-  if (closed && !lq.closed) {
-    lq.closed = true;
-    lq_push(1, 0, 0, 0);
-  }
+  return lean_io_result_mk_ok(lean_box(0));
 }
 
 // Frames
@@ -429,14 +361,14 @@ lean_obj_res lq_screen(void) {
 }
 
 lean_obj_res lq_scroll(uint32_t content_h, uint32_t view_h) {
-  uint32_t y = 0;
+  float y = 0;
   bl_start(ba_ahead());
   bl_scroll_needs(content_h, view_h);
-  uint32_t got;
+  float got;
   if (bl_scroll_y(&got)) {
     y = got;
   }
-  return lean_io_result_mk_ok(lean_box_uint32(y));
+  return lean_io_result_mk_ok(lean_box_float(y));
 }
 
 lean_obj_res lq_scroll_by(double d) {
@@ -450,10 +382,12 @@ lean_obj_res lq_scroll_to(double b) {
 }
 
 lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj_arg top,
-  b_lean_obj_arg bot, uint8_t pin) {
+  b_lean_obj_arg bot, uint8_t pin, b_lean_obj_arg placement, b_lean_obj_arg hold) {
   lq_phase(1);
   if (!ba_has_window()) return lq_poll();
-  bl_set_pin(pin != 0);
+  (void)pin;
+  uint32_t place[LQ_PLACEMENT_WORDS];
+  for (int i = 0; i < LQ_PLACEMENT_WORDS; i++) place[i] = lean_unbox_uint32(lean_array_get_core(placement, i));
   uint64_t t0    = lq_tick();
   uint32_t top_h = (uint32_t)lean_array_size(top);
   uint32_t bot_h = (uint32_t)lean_array_size(bot);
@@ -463,13 +397,14 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
     lq.inset_bottom = (uint32_t)ibot;
   }
   bl_start(ba_ahead());
-  bl_layout(lq.w, lq.h, top_h, bot_h, over, lq.inset_bottom);
-  lq_pump(top_h, bot_h);
+  (void)over; (void)top_h; (void)bot_h;
+  lq_pump();
   lq_stage(&lq.st[BL_LIST], list, lq.w, b, true);
   lq_stage(&lq.st[BL_TOP], top, lq.w, 0, false);
   lq_stage(&lq.st[BL_BOT], bot, lq.w, 0, false);
+  lq_stage(&lq.st[BL_HOLD], hold, lq.w, 0, false);
   uint64_t t1 = lq_tick();
-  bool any = lq.st[0].dirty || lq.st[1].dirty || lq.st[2].dirty;
+  bool any = lq.st[0].dirty || lq.st[1].dirty || lq.st[2].dirty || lq.st[3].dirty;
   int32_t sw, sh;
   lq_phase(2);
   ANativeWindow* on = ba_lock(&sw, &sh);
@@ -486,7 +421,7 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
     bl_attach(on);
     ba_unlock();
     if (fresh) {
-      for (int k = 0; k < 3; k += 1) {
+      for (int k = 0; k < 4; k += 1) {
         lq.st[k].dirty = lq.st[k].pix != NULL;
       }
       any = true;
@@ -495,22 +430,27 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
       lq_phase(4);
       bl_idle();
     }
-    for (int k = 0; k < 3; k += 1) {
+    bool begun = bl_begin();
+    bool complete = begun;
+    for (int k = 0; complete && k < 4; k += 1) {
       LqStage* s = &lq.st[k];
       if (s->dirty) {
         lq_phase(10 + k);
-        if (!bl_present((BlKind)k, s->pix, s->w, s->h, s->off,
-            k == BL_BOT ? lq.inset_bottom : 0)) {
-          // not shown: present everything again with the next frame
-          lq.painted = NULL;
-        }
+        complete = bl_present((BlKind)k, s->pix, s->w, s->h, s->off, 0);
       }
+    }
+    if (complete) bl_geometry(place);
+    else {
+      // A pending older publication is left intact. Partial new staging
+      // is discarded, and every layer is retried with the next frame.
+      if (begun) bl_abort();
+      lq.painted = NULL;
     }
   }
   lq_time(t0, t1, lq_tick());
   lq_phase(0);
-  lean_object* evs = lean_mk_empty_array_with_capacity(lean_box(lq.n * 4));
-  for (uint32_t i = 0; i < lq.n * 4; i += 1) {
+  lean_object* evs = lean_mk_empty_array_with_capacity(lean_box(lq.n * 8));
+  for (uint32_t i = 0; i < lq.n * 8; i += 1) {
     evs = lean_array_push(evs, lean_box_uint32(lq.evs[i]));
   }
   lq.n = 0;
@@ -576,13 +516,10 @@ lean_obj_res lq_now_us(void) {
 }
 
 lean_obj_res lq_poll(void) {
-  lq_pump(lq.st[BL_TOP].h, lq.st[BL_BOT].h);
+  lq_pump();
   lean_object* evs = lean_mk_empty_array();
-  for (uint32_t i = 0; i < lq.n * 4; i++) {
-    if (i % 4 == 0 && (lq.evs[i] == 9 || lq.evs[i] == 11)) {
-      lq.painted = NULL;
-      lq.down = false;
-    }
+  for (uint32_t i = 0; i < lq.n * 8; i++) {
+    if (i % 8 == 0 && (lq.evs[i] == 16 || lq.evs[i] == 18)) lq.painted = NULL;
     evs = lean_array_push(evs, lean_box_uint32(lq.evs[i]));
   }
   lq.n = 0;

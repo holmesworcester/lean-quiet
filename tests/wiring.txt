@@ -302,14 +302,6 @@ todo Net.Scene.S = Net.Scene.approval
 todo Net.sent = Net.Scene.approval
 todo Net.step = Net.Scene.approval
 todo Net.table = Net.Scene.approval
-todo Geometry.Seam.place The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are.
-todo Geometry.Seam.frameRow = Geometry.Seam.place
-todo Geometry.Seam.home = Geometry.Seam.place
-todo Geometry.Seam.pinned = Geometry.Seam.place
-todo Geometry.Seam.pageRow = Geometry.Seam.place
-todo Geometry.Seam.tapRow = Geometry.Seam.place
-todo Geometry.Geom.viewNow = Geometry.Seam.place
-todo Geometry.Geom.composerTop = Geometry.Seam.place
 bridge SheetGeom.Grid.ctop SheetGeom.lineOf_ctop
 todo Engine.Sync.keeps The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s.
 todo Pic.add The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code.
@@ -401,3 +393,28 @@ waits App.waitsOnDeadline deadline polling on an ordinary frame must be caught
 # frame hands checkpoints to the writer's thread (Data.Writer.save).
 block Lifecycle.save a commit that waits for SQLite's write lock while the frame holds its read transaction
 waits App.saveWaits the checkpoint as it was committed: on the frame's thread, while its read transaction is open
+
+# The compositor enters these generated scalar functions from native vsyncs.
+entry Slide.edge
+entry Slide.delta
+entry Slide.pick
+entry Slide.fillRow
+bridge Translate.edge Slide.edge_eq
+bridge Translate.delta Slide.delta_eq
+bridge Translate.pick Slide.pick_eq
+bridge Translate.fillRow Slide.fillRow_eq
+# Projections/specifications of the published rectangles and scalar composition.
+# The four equalities above connect the integer ABI to the shipping exports.
+spec Surface.Frame.row The content row's screen coordinate in Surface.make's published rectangle (published_row).
+spec Geometry.Seam.frameRow A published buffer row's content coordinate, related to its screen position by placed_row.
+spec Geometry.Seam.home The screen coordinate of a content position, related to running place by placed_row.
+spec Geometry.Seam.pageRow The page coordinate of a buffer row, related to running pinned by pinned_row.
+spec Geometry.Seam.tapRow The pinned content coordinate, equated to running Input.content by Input.tap_page.
+spec Translate.position The translated integer origin in the scalar ABI specification (Slide.edge_eq, Slide.pick_eq).
+spec Translate.row A buffer row at the translated origin, equated to running Seam.place or Seam.pinned.
+spec Translate.rect The integer crop inside Translate.edge, whose scalar implementation is Slide.edge_eq.
+spec Translate.source The optional source row inside Translate.pick, whose scalar implementation is Slide.pick_eq.
+spec Translate.content The content coordinate at a translated screen row, equated to Input.content by tap_content.
+spec Translate.fillOrigin The periodic plane origin inside the scalar edge and fillRow specifications.
+spec Translate.fillRect The viewport crop of that plane inside Translate.edge (Slide.edge_eq).
+spec Translate.seen The compositor's content contract: main's running Cover.seen at its selected source, else unloaded. Source selection is transferred by Slide.pick_eq; fill pixels by Slide.fillRow_eq and fill_pixel.

@@ -9,7 +9,7 @@ snapshot() {
   shift
   mkdir -p "$dest"
   cp lakefile.lean lake-manifest.json lean-toolchain "$dest/"
-  for d in "$@" engine/native/glue.c engine/native/crypto.c engine/native/listener.h tests/engine/listener_fixture.c platforms/headless/host.c third_party/sqlite; do
+  for d in "$@" engine/native/glue.c engine/native/crypto.c engine/native/listener.h tests/engine/listener_fixture.c platforms/headless/host.c platforms/native third_party/sqlite; do
     mkdir -p "$dest/$(dirname "$d")"
     cp -a "$d" "$dest/$d"
   done

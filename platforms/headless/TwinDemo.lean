@@ -12,7 +12,7 @@ twin by eye and by control commands:
 Control commands: `ping` (pong), `state` (offset, keyboard, bands, text),
 `send <text>` (as the keyboard's send), `ime on|off`, `to <b>`, `by <d>`.
 -/
-import engine.renderer.Platform
+import engine.renderer.Session
 
 open App
 
@@ -90,6 +90,7 @@ structure St where
   text : String
   pos : Array UInt32
   bg : ByteArray
+  input : Input.State := {}
 
 def St.viewH (s : St) : Nat := s.h - s.top - s.bot - s.inset
 
@@ -137,11 +138,14 @@ def St.toggle (s : St) (k : Nat) : St :=
 def reply (s : String) : IO Unit := Platform.ctlReply s
 
 partial def loop (s : St) (lastB : Nat) : IO Unit := do
-  let b := (← Platform.scroll s.contentH.toUInt32 s.viewH.toUInt32).toNat
-  let evs ← Platform.frame (s.list b) b.toUInt32 Over s.header s.composer false
-  let mut s := s
+  let g : Geometry.Geom := ⟨s.h, s.inset, s.ime, s.top, s.bot⟩
+  let sample ← Platform.scroll s.contentH.toUInt32 g.viewNow.toUInt32
+  let b := Surface.offset (s.contentH - g.viewNow) sample.toInt64.toInt
+  let result ← Session.present Platform.frame Platform.motion g 420
+    (s.contentH - g.viewNow) s.input (s.list b) b Over.toNat s.header s.composer false
+  let mut s := { s with input := result.state }
   let mut b := b
-  for e in Event.decode evs do
+  for e in result.events do
     match e with
     | .close => return
     | .tap .list _ y => if let some k := s.bandAt y.toNat then s := s.toggle k

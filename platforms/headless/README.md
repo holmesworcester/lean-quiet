@@ -31,3 +31,21 @@ and the native twin demo, plus its broken-keyboard negative control.
 `build_runtime.py` builds the phone runtime options for Linux and the
 engine suites against them (`mise run test:engine-runtime`). It rebuilds
 Init and the generated C closure too. See [the native build tests](../../docs/SHIPPED.md).
+
+
+`!raw PHASE POINTER X Y TIME` sends a raw screen-space touch (phase 0
+down, 1 move, 2 up, 3 cancel; time in monotonic milliseconds). `!begin`
+and `!end` put many records in one frame, including queue-overflow tests.
+`!key CODE ACTION` forwards an Android key, `!usb-key CODE ACTION` a USB
+key (iOS), and `!action ID` an IME action. Legacy
+`!tap`/`!long` expand to down/up samples. Classification, content mapping,
+Enter/Send policy and offset bounds all run in Lean through `Session.present`.
+Dumps copy the placement rectangles published with that frame.
+
+`mise run host:seam` builds and runs the raw-event twin and app suites.
+`mise run host:seam-negative` checks deliberate mutations and restores them.
+
+`!vsync MS OFFSET FILE.ppm` updates the OS sample and dumps the translated
+frame without returning to Lean. `!frame MS OFFSET` returns to the Lean
+frame loop at that virtual time. `host:translate` uses these to publish at
+50 ms intervals while sampling every 8 ms.

@@ -111,7 +111,7 @@ stdc() {
 # axioms only, or nothing is staged.
 proofs() {
   local out
-  out=$(cd "$root" && "$lake" build engine.renderer.Geometry >/dev/null &&
+  out=$(cd "$root" && "$lake" build engine.renderer.InputLaws engine.renderer.TranslateLaws engine.renderer.SlideLaws >/dev/null &&
     "$lake" env lean platforms/ios/Placement.lean 2>&1) ||
     { echo "$out" >&2; echo "platforms/ios/Placement.lean does not check" >&2; exit 1; }
   if echo "$out" | grep -E "depends on axioms" |
@@ -174,6 +174,7 @@ stage() {
   done
   cp -rp "$root/assets" "$st/assets"
   cp -rp "$root/platforms/ios" "$st/ios"
+  cp -rp "$root/platforms/native" "$st/native"
   rm -rf "$st/ios/LeanQuiet.xcodeproj"
 }
 

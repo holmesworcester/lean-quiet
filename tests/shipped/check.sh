@@ -12,7 +12,7 @@ mkdir -p "$art"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/shipped-nc.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 . tests/snapshot.sh
-snapshot "$tmp/base" engine/core engine/renderer/Platform.lean \
+snapshot "$tmp/base" engine/core engine/renderer \
   platforms/headless/TwinDemo.lean tests/engine/SqliteBuild.lean tests/app/host_twin_demo.sh
 
 mutate() {

@@ -486,7 +486,7 @@ def commas (ns : List Name) : String := ", ".intercalate (ns.map toString)
 probes and tests). -/
 def shipping : IO (Array String) := do
   let mut out := #[]
-  for dir in ["platforms/android/twin"] do
+  for dir in ["platforms/android/twin", "platforms/native"] do
     for f in ← System.FilePath.walkDir dir do
       if [some "c", some "h", some "java", some "kt"].contains f.extension then
         out := out.push (← IO.FS.readFile f)

@@ -173,7 +173,7 @@ def pollRetired : M Unit := do
 
 def unmountState (s : St) : St :=
   { stashDraft s with
-    mark := captureAnchor s, life := s.life.unmount,
+    mark := captureAnchor s, life := s.life.unmount, input := Input.revoke s.input,
     rows := {}, imgs := {}, imgRetry := {}, live := { reads := s.live.reads }, touched := {},
     sheet := none, selected := none, camOn := false, camView := none, decoding := none,
     pageNow := none, pageKey := none, chromeKey := "", imeH := 0, mountedPage := none,
@@ -213,6 +213,7 @@ def resumeReader : M Unit := do
 def leavePage : M Unit := do
   let s ← get
   s.io.ime false
+  if let some p := s.input.press then s.io.motion { p.first with phase := 3 }.words
   if s.camOn then s.io.scan false
   stopReader
   retirePaints s
@@ -247,6 +248,7 @@ def resize (sc : Array UInt32) : M Unit := do
   let ib := (sc[3]?.getD s.insetBot.toUInt32).toNat
   let dpi := (sc[4]?.getD s.dim.dpi.toUInt32).toNat
   if w == s.W && h == s.Hs && it == s.insetTop && ib == s.insetBot && dpi == s.dim.dpi then return
+  if let some p := s.input.press then s.io.motion { p.first with phase := 3 }.words
   retirePaints s
   let dm : Dim := ⟨dpi, s.font.cell⟩
   let mut rows := s.rows
@@ -258,7 +260,7 @@ def resize (sc : Array UInt32) : M Unit := do
       dimmed := none, dimShown := none }
     heights := heights.insert x lay.h
   modify fun s => { s with
-    W := w, Hs := h, insetTop := it, insetBot := ib, dim := dm,
+    W := w, Hs := h, insetTop := it, insetBot := ib, dim := dm, input := Input.revoke s.input,
     bgRow := solid Row.bg w, rows, heights, imgs := {}, imgRetry := {},
     picWants := #[], retryWants := {}, lastSlices := none,
     life := { s.life with generation := s.life.generation + 1 },

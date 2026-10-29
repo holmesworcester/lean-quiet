@@ -54,40 +54,25 @@ Linux box and do the Mac's part over SSH.
 - **Screen:** pixels are device pixels (the screen's scale, 3 on an iPhone
   16e: 1170 x 2532). The density is 160 per point, so Lean's dp is UIKit's
   point. The insets are the safe area's.
-- **Scrolling:** a `UIScrollView` turned upside down (scale y by -1). Its
-  content offset is then the bottom-anchored `b` itself, and content
-  measured late at the older end never moves what is on screen. UIKit
-  supplies the physics, bounce and indicator. A list frame is one layer
-  in the scroll content at the distances it was drawn for, so Core
-  Animation slides it with the finger and Lean redraws at the current
-  offset. `scrollBy` sets the offset property, which keeps a fling going;
-  `scrollTo` uses `setContentOffset:animated:NO`, which stops it.
-- **Pages (pin):** a page is drawn at offset 0 and must not slide or be
-  lifted by the keyboard (`Geometry.Seam.pinned`). The twin changes only
-  two things. The scroll view's bottom edge moves from the composer to a
-  layout guide where the composer is with the keyboard closed (the safe
-  area's bottom less the composer's height). The offset is held at 0 with
-  scrolling off. The conversation's placement and tap mapping then give
-  `Seam.pinned` and the report `pinned_tap` reads. `Placement.lean` proves
-  this from Geometry's definitions: `conversation`, `page`,
-  `closed_bottom` and `page_tap`, on standard axioms only. `ship.sh`
-  checks it before every stage, and the trusted step is UIKit's own
-  placement in a flipped scroll view.
-- **Header and composer:** two views pinned to the screen's top and to
-  the keyboard layout guide's top. The composer therefore moves inside the
-  keyboard's own animation, and the list viewport between them carries
-  the newest messages up with it. The composer's last row is repeated down
-  to the screen's bottom.
-- **Keyboard:** a `UITextField` drawn in clear holds the text (so
-  autocorrection, marked text and dictation work as in any app). Its text,
-  selection and marked range go to Lean in code points, and Return (shown
-  as Send) is the send event. The keyboard's height is read every refresh
-  from a probe view on the layout guide's presentation layer, mid-animation.
-- **Touches:** UIKit's gesture recognizers tell taps from long presses
-  (500 ms within 8 points, reported while still held). On the composer
-  they also report the finger's down, move and up as a drag (event 8).
-  The twin keeps no touch state of its own. It forwards region, x and y;
-  in the list, y is the content distance.
+- **Placement:** `Session.present` publishes `Surface.make`'s source and
+  destination rectangles. The visible layer is outside the scroll view;
+  UIKit copies the rectangles, converting pixels to points. Pages use
+  `Seam.pinned`; conversations use `Seam.place`. `Placement.lean` audits
+  these running functions, including serialization and input mapping.
+  Each CADisplayLink calls the compiled `engine.renderer.Slide` helpers to move
+  the published buffer at the current OS offset and fill exposed rows
+  with Lean's shared `holdLine` plane. Pinned pages ignore the sample.
+- **Header and composer:** their coordinates and the repeated composer
+  rows below it come from Lean. They keep their published placement until
+  Lean publishes another frame; keyboard motion follows Lean's frame rate.
+- **Keyboard:** UIKit retains text editing, composition and the keyboard
+  height probe. Raw hardware keys and IME return actions go to Lean.
+- **Touches:** a passive observer forwards down/move/up/cancel, time,
+  pointer ID, displayed frame serial and translation. `Input` chooses the
+  first pointer, applies slop and long-press time, and maps the down position. Accepted
+  list samples drive a hidden UIScrollView's native animation; its offset
+  is clamped by Lean for each new frame. Between frames the compositor
+  helpers translate and fill without clamping or waiting for App.step.
 - **Pixels:** Lean's rows are R G B X and IOSurface's are B G R A, so a row
   is swizzled as it is copied. Rows that are the same object as last
   frame's are not copied: the staging buffer shifts and only new rows are
@@ -146,9 +131,9 @@ Linux box and do the Mac's part over SSH.
 
 ### Simplified compared with Android
 
-- No predicted offset during a fling. `scroll` answers the current offset,
-  and a slide uncovers background until the next frame, as lean-chat does
-  on iOS.
+- No predicted offset during a fling. The current OS sample drives the
+  compiled Lean translation and fill helpers every refresh. See
+  [SEAM.md](../docs/SEAM.md) for the coverage interface and proof statements.
 - No hang watchdog.
 - The control channel cannot be reached on a phone.
 - `scrolling` is reported from the scroll view's tracking and decelerating

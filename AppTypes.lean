@@ -7,6 +7,7 @@ import engine.renderer.Row
 import engine.renderer.Geometry
 import engine.renderer.Nav
 import engine.renderer.Cover
+import engine.renderer.Session
 import engine.renderer.Sheet
 import ops.app.Pages
 import ops.app.Composer
@@ -24,10 +25,10 @@ open Engine Community Data Paint Font Row
 /-- The platform, as the app uses it. -/
 structure Io where
   screen : IO (Array UInt32)
-  scroll : UInt32 → UInt32 → IO UInt32
+  scroll : UInt32 → UInt32 → IO Float
   scrollBy : Float → IO Unit
   scrollTo : Float → IO Unit
-  frame : Array ByteArray → UInt32 → UInt32 → Array ByteArray → Array ByteArray → Bool → IO (Array UInt32)
+  frame : Session.Show
   text : IO (String × Array UInt32)
   ime : Bool → IO Unit
   copy : String → IO Unit
@@ -46,6 +47,7 @@ structure Io where
   setText : String → IO Unit := fun _ => pure ()
   poll : IO (Array UInt32) := pure #[]
   links : IO (Array String) := pure #[]
+  motion : Array UInt32 → IO Unit := fun _ => pure ()
 
 /-- How far beyond each end of the viewport the list frame is drawn. -/
 def over : Nat := 1024
@@ -201,6 +203,7 @@ structure St where
   selected : Option Id := none
   b : Nat := 0
   imeH : Nat := 0
+  input : Input.State := {}
   text : String := ""
   sel : Array UInt32 := #[0, 0, 0, 0]
   topBmp : Bitmap := default
@@ -304,8 +307,8 @@ removal is not announced again. -/
   retiredBoard : Option Reader.Shared := none
   paintStop : Array (Task Unit) := #[]
 
-instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure (), pure #[], pure #[]⟩⟩
+instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ _ _ => pure #[],
+  pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure (), pure #[], pure #[], fun _ => pure ()⟩⟩
 
 abbrev M := StateT St IO
 

@@ -1,60 +1,12 @@
 // The Lean app's window on iOS
-// ============================
+// Lean publishes cropped rectangles and pixels through Session.present.
+// The visible list is outside the physics scroll view, so UIKit cannot
+// move it independently. Each vsync calls the compiled Lean translation
+// and holdLine-fill helpers. Pixel/point conversion and copying are native.
+// Raw touches retain pointer identity, time, cancellation and displayed
+// frame serial; Input classifies them. Only accepted samples drive the
+// hidden UIScrollView's native animation. IME text/composition stays UIKit's.
 
-// Platform.lean's effects on UIKit, as android/twin does them on Android.
-// UIKit owns the main thread; Lean's main (Main.lean's, renamed
-// lean_app_main by build_ios.sh) runs on a thread of its own, in the
-// app's Documents directory (quiet.db is made there) with `assets` linked
-// to the bundle's assets. Its stderr shows in `simctl launch --console`
-// or `devicectl ... launch --console`.
-//
-// The OS owns the three things Platform.lean gives it:
-//
-// - **Scrolling**: a UIScrollView turned upside down (scale y by -1), so
-//   its content offset is the list's bottom-anchored offset b itself: 0
-//   is the newest end, at the viewport's bottom edge, and content
-//   measured late at the far (older) end never moves what is on screen.
-//   Its physics, bounce and indicator are UIKit's. Each list frame is
-//   the contents of one layer in the scroll view's content, placed at
-//   the distances it was drawn for (content y = distance above the
-//   content's end, the layer flipped back upright), so Core Animation
-//   slides the latest frame with the finger at the display's rate and
-//   Lean renders the current offset as fast as it can: frame row r drawn
-//   at bf lands at screen row composerTop - 1 - (bf + viewH + over - 1 -
-//   r - bn) for the offset bn now (Geometry.Seam.place's formula).
-// - **The keyboard**: a UITextField drawn in clear holds the composer's text
-//   (so every keyboard works as in any app: autocorrection, marked text
-//   of Japanese or Chinese input, dictation, emoji), mirrored to Lean as
-//   text, selection and marked range in code points.
-// - **Pages** (pin): a page is drawn at offset 0 and must not slide or be
-//   lifted (Geometry.Seam.pinned). The twin changes only the scroll view's
-//   bottom edge, to where the composer is with the keyboard closed (a
-//   layout guide on the safe area's bottom, the composer's height), and
-//   holds its offset at 0; the placement above then puts page row k at
-//   the scroll view's top + k, and a tap reports the distance pinned_tap
-//   reads (ios/Placement.lean proves both from Geometry's definitions).
-// - **The insets**: the header is pinned to the screen's top; the
-//   composer to the keyboard layout guide's top (the safe area's bottom
-//   while the keyboard is closed), so Auto Layout moves it inside the
-//   keyboard's own animation; the list's viewport is what lies between,
-//   so the newest messages ride up with the keyboard. The keyboard's
-//   height is read every refresh from a probe view on the guide (its
-//   presentation layer, mid-animation) and handed to Lean as ime events.
-//
-// Frames are arrays of pixel rows, R G B X bytes (Platform.lean); IOSurface
-// layer contents are B G R A, so a row is swizzled as it is copied. A row
-// that is the same object as a row of the last frame of that layer (at
-// the place the offset change moves it to) is not copied again: the
-// staging buffer shifts and only new rows are copied into it (the last
-// frame is held, so an object seen again is the same immutable row, never
-// a freed one's address reused). Each changed layer's staging buffer then
-// goes whole into one of its three IOSurfaces the compositor is not
-// reading, and the contents change in one Core Animation transaction with
-// the list layer's place, the chrome's heights and any offset Lean moved.
-//
-// Pixels map to points by the screen's scale (a frame pixel is a device
-// pixel), and the density Lean sizes its dp by is 160 per point.
-//
 // The control channel (ctl_ios.c) exists only in development builds
 // (LQ_CTL, set by build_ios.sh unless RELEASE=1), and every connection
 // must first send its token. From the launch's environment (SIMCTL_CHILD_x
@@ -67,6 +19,8 @@
 #import <QuartzCore/QuartzCore.h>
 #import <IOSurface/IOSurfaceRef.h>
 #include <lean/lean.h>
+#include "../native/thread.h"
+#import <UIKit/UIGestureRecognizerSubclass.h>
 #include <math.h>
 #include <pthread.h>
 #include <stdatomic.h>
@@ -80,9 +34,9 @@ void lq_ctl_start(int port, const char* token_file);
 #endif
 
 #define LQ_RING 3
-#define LQ_LONG_NS 500000000LL
 
-enum { LQ_LIST = 0, LQ_TOP = 1, LQ_BOT = 2 };
+
+enum { LQ_LIST = 0, LQ_TOP = 1, LQ_BOT = 2, LQ_HOLD = 3 };
 
 typedef struct {
   uint32_t*    pix;     // B G R A words, w x h
@@ -109,7 +63,7 @@ static uint32_t lq_w, lq_h, lq_itop, lq_ibot, lq_dpi;
 static uint32_t lq_read_w, lq_read_h;
 static double   lq_k = 3;          // px per point
 
-// Events for the next frame, four words each (under lq_mu).
+// Events for the next frame, eight words each (under lq_mu).
 static uint32_t* lq_evs;
 static uint32_t  lq_n, lq_cap;
 
@@ -124,7 +78,7 @@ static _Atomic double   lq_pend_by;    // scrollBy's not yet applied, px
 static _Atomic bool     lq_pend_to;
 static _Atomic double   lq_pend_b;
 
-static LqStage           lq_st[3];
+static LqStage           lq_st[4];
 static uint32_t          lq_over;
 static uint32_t          lq_list_bg = 0xFF000000u;
 static dispatch_semaphore_t lq_vsync;
@@ -133,17 +87,18 @@ static _Atomic bool      lq_vsync_due;
 static UIView*        lq_root;
 static UIScrollView*  lq_sv;
 static CALayer*       lq_list;
+static CALayer*       lq_hold;
+static uint32_t       lq_place[LQ_PLACEMENT_WORDS];
+static bool           lq_placed;
+static int32_t        lq_shown_shift;
 static UIView*        lq_header;
 static UIView*        lq_composer;
 static UIView*        lq_fill;     // below the composer, to the screen's bottom
 static UIView*        lq_probe;    // on the keyboard layout guide's top
 static UITextField*   lq_field;
-static NSLayoutConstraint* lq_header_h;
-static NSLayoutConstraint* lq_composer_h;
-static NSLayoutConstraint* lq_lifted;  // the scroll view's bottom on the composer
-static NSLayoutConstraint* lq_pinned;  // on the keyboard-closed composer top
 static uint32_t       lq_shown_top_h, lq_shown_bot_h;
 static bool           lq_shown_pin;
+static uint32_t       lq_shown_frame;
 static uint32_t       lq_tap[3];       // the last list tap reported: kind, x, y
 
 static uint64_t lq_tick(void) {
@@ -153,20 +108,25 @@ static uint64_t lq_tick(void) {
 }
 
 // Under lq_mu.
-static void lq_push(uint32_t kind, uint32_t a, uint32_t b, uint32_t c) {
+static void lq_raw(uint32_t kind, uint32_t a, uint32_t b, uint32_t c, uint64_t ms) {
   if (lq_n == lq_cap) {
     lq_cap = lq_cap == 0 ? 64 : lq_cap * 2;
-    lq_evs = realloc(lq_evs, (size_t)lq_cap * 16);
+    lq_evs = realloc(lq_evs, (size_t)lq_cap * 32);
     if (lq_evs == NULL) {
       abort();
     }
   }
-  uint32_t* ev = lq_evs + (size_t)lq_n * 4;
+  uint32_t* ev = lq_evs + (size_t)lq_n * 8;
   ev[0] = kind;
   ev[1] = a;
   ev[2] = b;
   ev[3] = c;
+  ev[4] = ms; ev[5] = ms >> 32; ev[6] = lq_shown_frame; ev[7] = lq_shown_shift;
   lq_n += 1;
+}
+
+static void lq_push(uint32_t kind, uint32_t a, uint32_t b, uint32_t c) {
+  lq_raw(kind >= 9 && kind <= 12 ? kind + 7 : kind, a, b, c, lq_tick() / 1000000);
 }
 
 static void lq_event(uint32_t kind, uint32_t a, uint32_t b, uint32_t c) {
@@ -345,7 +305,7 @@ lean_obj_res lq_scroll(uint32_t content_h, uint32_t view_h) {
   (void)view_h;  // the scroll view's own height is the viewport's now
   atomic_store(&lq_content_h, content_h);
   double b = atomic_load(&lq_offset);
-  return lean_io_result_mk_ok(lean_box_uint32(b <= 0 ? 0 : (uint32_t)lround(b)));
+  return lean_io_result_mk_ok(lean_box_float(b));
 }
 
 lean_obj_res lq_scroll_by(double d) {
@@ -362,9 +322,37 @@ lean_obj_res lq_scroll_to(double b) {
   return lean_io_result_mk_ok(lean_box(0));
 }
 
+// The same compiled Lean translation/fill on each display refresh.
+// UIKit only converts the resulting rectangles from pixels to points.
+static void lq_translate(void) {
+  if (!lq_placed) return;
+  lq_slide_thread_init();  // Both first publication and CADisplayLink run here.
+  int32_t sample = (int32_t)llround(atomic_load(&lq_offset));
+  CALayer* layers[2] = {lq_list, lq_hold};
+  uint32_t heights[2] = {lq_place[21], lq_place[25]};
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  for (int k = 0; k < 2; k++) {
+    uint32_t r[4]; lq_slide_rect(lq_place, sample, k, r);
+    CALayer* layer = layers[k];
+    layer.hidden = r[1] <= r[0];
+    layer.contentsRect = CGRectMake(0, heights[k] ? (double)r[0] / heights[k] : 0,
+      1, heights[k] ? (double)(r[1] - r[0]) / heights[k] : 0);
+    layer.frame = CGRectMake(0, r[2] / lq_k, lq_w / lq_k, (r[3] - r[2]) / lq_k);
+  }
+  [CATransaction commit];
+  pthread_mutex_lock(&lq_mu);
+  lq_shown_shift = (int32_t)lq_slide_delta(lq_place[22], lq_place[15], sample);
+  pthread_mutex_unlock(&lq_mu);
+}
+
 // pin: the list frame is a page, pinned (the header comment; Placement.lean).
 lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj_arg top,
-  b_lean_obj_arg bot, uint8_t pin) {
+  b_lean_obj_arg bot, uint8_t pin, b_lean_obj_arg placement, b_lean_obj_arg hold) {
+  lq_slide_warm();  // Lean thread, before dispatching the first publication.
+  uint32_t p[LQ_PLACEMENT_WORDS];
+  for (int i = 0; i < LQ_PLACEMENT_WORDS; i++) p[i] = lean_unbox_uint32(lean_array_get_core(placement, i));
+  NSData* geometry = [NSData dataWithBytes:p length:sizeof p];
   pthread_mutex_lock(&lq_mu);
   bool available = lq_foreground && lq_up;
   pthread_mutex_unlock(&lq_mu);
@@ -375,19 +363,19 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
   lq_stage(&lq_st[LQ_LIST], list, w, b, true);
   lq_stage(&lq_st[LQ_TOP], top, w, 0, false);
   lq_stage(&lq_st[LQ_BOT], bot, w, 0, false);
-  IOSurfaceRef show[3] = { NULL, NULL, NULL };
-  for (int k = 0; k < 3; k += 1) {
+  lq_stage(&lq_st[LQ_HOLD], hold, w, 0, false);
+  IOSurfaceRef show[4] = { NULL, NULL, NULL, NULL };
+  for (int k = 0; k < 4; k += 1) {
     if (lq_st[k].dirty && lq_fill_surface(&lq_st[k])) {
       show[k] = lq_st[k].shown;
     }
   }
-  IOSurfaceRef show_list = show[LQ_LIST], show_top = show[LQ_TOP], show_bot = show[LQ_BOT];
+  IOSurfaceRef show_list = show[LQ_LIST], show_top = show[LQ_TOP], show_bot = show[LQ_BOT], show_hold = show[LQ_HOLD];
   // What the layers need beside their contents: the list frame's place
   // (content px [bf - over, bf + h - over)), the chrome's heights, the
   // composer's last row (repeated down to the screen's bottom), the list's
   // background (its frame's first pixel, behind rows a slide uncovers).
   LqStage* ls     = &lq_st[LQ_LIST];
-  uint32_t lb     = ls->off;
   uint32_t lh     = ls->h;
   uint32_t top_h  = (uint32_t)lean_array_size(top);
   uint32_t bot_h  = (uint32_t)lean_array_size(bot);
@@ -418,25 +406,20 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
       lq_sv.backgroundColor = lq_color(list_bg);
       lq_root.backgroundColor   = lq_color(list_bg);
     }
-    if (top_h != lq_shown_top_h || bot_h != lq_shown_bot_h) {
-      lq_shown_top_h          = top_h;
-      lq_shown_bot_h          = bot_h;
-      lq_header_h.constant    = top_h / k;
-      lq_composer_h.constant  = bot_h / k;
-      [lq_root layoutIfNeeded];
-    }
-    if ((pin != 0) != lq_shown_pin) {
-      lq_shown_pin = pin != 0;
-      NSLayoutConstraint* was = lq_shown_pin ? lq_lifted : lq_pinned;
-      NSLayoutConstraint* now = lq_shown_pin ? lq_pinned : lq_lifted;
-      was.active = NO;  // (first: the two hold the same edge)
-      now.active = YES;
-      lq_sv.scrollEnabled = !lq_shown_pin;
-      if (lq_shown_pin) {
-        [lq_sv setContentOffset:CGPointZero animated:NO];
-      }
-      [lq_root layoutIfNeeded];
-    }
+    lq_shown_top_h = top_h;
+    lq_shown_bot_h = bot_h;
+    lq_shown_pin = pin != 0;
+    const uint32_t* r = geometry.bytes;
+    memcpy(lq_place, r, sizeof lq_place);
+    lq_placed = true;
+    lq_shown_frame = r[16];
+    // Copy Lean's classified event for the existing test diagnostic.
+    memcpy(lq_tap, r + 17, sizeof lq_tap);
+    // Only conversion from physical pixels to UIKit points lives here.
+    lq_header.frame = CGRectMake(0, r[6] / k, w / k, (r[7] - r[6]) / k);
+    lq_composer.frame = CGRectMake(0, r[10] / k, w / k, (r[11] - r[10]) / k);
+    lq_fill.frame = CGRectMake(0, r[12] / k, w / k, (r[13] - r[12]) / k);
+    lq_sv.frame = CGRectMake(0, 0, w / k, r[14] / k);
     CGFloat height = ch / k;
     if (lq_sv.contentSize.height != height) {
       lq_sv.contentSize = CGSizeMake(lq_sv.bounds.size.width, height);
@@ -451,16 +434,13 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
       p.y += by / k;
       lq_sv.contentOffset = p;
     }
-    if (show_list != NULL) {
-      // (bounds and position: the layer is flipped, so its frame is derived)
-      lq_list.contents = (__bridge id)show_list;
-      lq_list.bounds   = CGRectMake(0, 0, lq_w / k, lh / k);
-      lq_list.position = CGPointMake(lq_w / k / 2, ((double)lb - (double)lq_over + lh / 2.0) / k);
-    }
+    if (show_list != NULL) lq_list.contents = (__bridge id)show_list;
+    if (show_hold != NULL) lq_hold.contents = (__bridge id)show_hold;
+    lq_translate();
     [CATransaction commit];
   });
   if (!presented) {
-    for (int k = 0; k < 3; k++) {
+    for (int k = 0; k < 4; k++) {
       if (lq_st[k].last != NULL) lean_dec(lq_st[k].last);
       lq_st[k].last = NULL;
     }
@@ -470,8 +450,9 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
     lq_closed = true;
     lq_push(1, 0, 0, 0);
   }
-  lean_object* evs = lean_mk_empty_array_with_capacity(lean_box(lq_n * 4));
-  for (uint32_t i = 0; i < lq_n * 4; i += 1) {
+  lq_push(13, 0, 0, 0);
+  lean_object* evs = lean_mk_empty_array_with_capacity(lean_box(lq_n * 8));
+  for (uint32_t i = 0; i < lq_n * 8; i += 1) {
     evs = lean_array_push(evs, lean_box_uint32(lq_evs[i]));
   }
   lq_n = 0;
@@ -764,6 +745,7 @@ static void lq_report(void) {
 }
 
 @interface LeanField : UITextField <UITextFieldDelegate>
+@property(nonatomic) BOOL forwardingKey;
 @end
 
 @implementation LeanField
@@ -802,8 +784,20 @@ static void lq_report(void) {
   lq_report();
 }
 
+- (void)pressesBegan:(NSSet<UIPress*>*)presses withEvent:(UIPressesEvent*)event {
+  for (UIPress* press in presses) if (press.key) lq_event(15, press.key.keyCode, 0, 0);
+  self.forwardingKey = YES;
+  [super pressesBegan:presses withEvent:event];
+  self.forwardingKey = NO;
+}
+- (void)pressesEnded:(NSSet<UIPress*>*)presses withEvent:(UIPressesEvent*)event {
+  for (UIPress* press in presses) if (press.key) lq_event(15, press.key.keyCode, 1, 0);
+  [super pressesEnded:presses withEvent:event];
+}
+
 - (BOOL)textFieldShouldReturn:(UITextField*)f {
-  lq_event(5, 0, 0, 0);
+  // Hardware keys already have a raw record; this callback is the IME action.
+  if (!self.forwardingKey) lq_event(5, 4, 0, 0);
   return NO;
 }
 
@@ -812,81 +806,74 @@ static void lq_report(void) {
 // Touches
 // -------
 
-// UIKit's recognizers tell a tap from a long press (held LQ_LONG_NS within
-// 8 points, reported while still held; its release is then no tap) and
-// report a finger on the composer (or the sheet in its place) down, moved
-// and up as a drag (event 8): the app scrolls what is there itself. The
-// region is the view touched; y is the row within the header or composer,
-// and in the list the distance above the content's end (the scroll view's
-// own coordinates are content distances).
-static void lq_touch(uint32_t kind, uint32_t a, UIGestureRecognizer* g) {
-  UIView* v = g.view;
-  CGPoint p = [g locationInView:v];
-  uint32_t region = v == lq_header ? 1 : v == lq_composer ? 2 : 0;
-  uint32_t y      = region == 0 ? (uint32_t)fmax(0, floor(p.y * lq_k)) : lq_px(p.y);
-  lq_event(kind, kind == 8 ? a : region, lq_px(p.x), y);
-  if (region == 0 && kind != 8) {
-    lq_tap[0] = kind;
-    lq_tap[1] = lq_px(p.x);
-    lq_tap[2] = y;
-  }
-}
-
-@interface LeanTouches : NSObject <UIGestureRecognizerDelegate>
+// A passive raw observer: no tap/long/drag recognizers or thresholds.
+@interface LeanTouches : UIGestureRecognizer
+@property(nonatomic, strong) NSMapTable<UITouch*, NSNumber*>* ids;
+@property(nonatomic) uint32_t nextId;
 @end
-
 @implementation LeanTouches
-
-- (void)tapped:(UIGestureRecognizer*)g {
-  if (g.state == UIGestureRecognizerStateEnded) {
-    lq_touch(2, 0, g);
+- (BOOL)canPreventGestureRecognizer:(UIGestureRecognizer*)other { return NO; }
+- (BOOL)canBePreventedByGestureRecognizer:(UIGestureRecognizer*)other { return NO; }
+- (void)forward:(NSSet<UITouch*>*)touches phase:(uint32_t)phase event:(UIEvent*)event {
+  if (!self.ids) self.ids = [NSMapTable strongToStrongObjectsMapTable];
+  NSArray* ordered = [[touches allObjects] sortedArrayUsingComparator:^NSComparisonResult(UITouch* a, UITouch* b) {
+    if (a.timestamp != b.timestamp) return a.timestamp < b.timestamp ? NSOrderedAscending : NSOrderedDescending;
+    return (uintptr_t)(__bridge void*)a < (uintptr_t)(__bridge void*)b ? NSOrderedAscending : NSOrderedDescending;
+  }];
+  for (UITouch* touch in ordered) {
+    if (phase == 0) [self.ids setObject:@(++self.nextId) forKey:touch];
+    NSNumber* pointer = [self.ids objectForKey:touch];
+    if (!pointer) continue;
+    NSArray* samples = phase == 1 ? [event coalescedTouchesForTouch:touch] : nil;
+    if (!samples.count) samples = @[touch];
+    pthread_mutex_lock(&lq_mu);
+    for (UITouch* sample in samples) {
+      CGPoint pos = [sample locationInView:lq_root];
+      lq_raw(9 + phase, pointer.unsignedIntValue, (int32_t)lround(pos.x * lq_k),
+        (int32_t)lround(pos.y * lq_k), (uint64_t)llround(sample.timestamp * 1000));
+    }
+    pthread_mutex_unlock(&lq_mu);
+    if (phase >= 2) [self.ids removeObjectForKey:touch];
   }
+  if (!self.ids.count) self.state = UIGestureRecognizerStateFailed;
 }
-
-- (void)held:(UIGestureRecognizer*)g {
-  if (g.state == UIGestureRecognizerStateBegan) {
-    lq_touch(3, 0, g);
-  }
-}
-
-- (void)dragged:(UIGestureRecognizer*)g {
-  UIGestureRecognizerState st = g.state;
-  if (st == UIGestureRecognizerStateBegan || st == UIGestureRecognizerStateChanged) {
-    lq_touch(8, st == UIGestureRecognizerStateBegan ? 0 : 1, g);
-  } else if (st == UIGestureRecognizerStateEnded || st == UIGestureRecognizerStateCancelled) {
-    lq_touch(8, 2, g);
-  }
-}
-
-// The drag goes along with the tap and the long press.
-- (BOOL)gestureRecognizer:(UIGestureRecognizer*)a
-    shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer*)b {
-  return YES;
-}
-
+- (void)touchesBegan:(NSSet*)touches withEvent:(UIEvent*)event { [self forward:touches phase:0 event:event]; }
+- (void)touchesMoved:(NSSet*)touches withEvent:(UIEvent*)event { [self forward:touches phase:1 event:event]; }
+- (void)touchesEnded:(NSSet*)touches withEvent:(UIEvent*)event { [self forward:touches phase:2 event:event]; }
+- (void)touchesCancelled:(NSSet*)touches withEvent:(UIEvent*)event { [self forward:touches phase:3 event:event]; }
 @end
 
-static LeanTouches* lq_touches;
-
-// Taps and long presses on v; and, for the composer, its drag.
-static void lq_listen(UIView* v, bool drag) {
-  UILongPressGestureRecognizer* hold = [[UILongPressGestureRecognizer alloc] initWithTarget:lq_touches
-    action:@selector(held:)];
-  hold.minimumPressDuration = LQ_LONG_NS / 1e9;
-  hold.allowableMovement    = 8;
-  UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc] initWithTarget:lq_touches
-    action:@selector(tapped:)];
-  [tap requireGestureRecognizerToFail:hold];
-  [v addGestureRecognizer:hold];
-  [v addGestureRecognizer:tap];
-  if (drag) {
-    UILongPressGestureRecognizer* d = [[UILongPressGestureRecognizer alloc] initWithTarget:lq_touches
-      action:@selector(dragged:)];
-    d.minimumPressDuration = 0;
-    d.allowableMovement    = CGFLOAT_MAX;
-    d.delegate             = lq_touches;
-    [v addGestureRecognizer:d];
-  }
+// Accepted samples alone drive the native scroll animation. Its samples
+// remain advisory; Lean clamps them before painting or mapping a touch.
+lean_obj_res lq_motion(b_lean_obj_arg samples) {
+  size_t n = lean_array_size(samples);
+  uint32_t* words = malloc(n * sizeof *words);
+  for (size_t i = 0; i < n; i++) words[i] = lean_unbox_uint32(lean_array_get_core(samples, i));
+  dispatch_sync(dispatch_get_main_queue(), ^{
+    static double last, time, velocity;
+    static bool down;
+    for (size_t i = 0; i + 7 < n; i += 8) {
+      uint32_t phase = words[i] - 9;
+      double y = (int32_t)words[i+3];
+      double now = ((uint64_t)words[i+5] << 32) | words[i+4];
+      if (phase == 3) { down = false; [lq_sv setContentOffset:lq_sv.contentOffset animated:NO]; }
+      else if (phase == 0) { down = true; last = y; time = now; velocity = 0; }
+      else if (down) {
+        CGPoint pos = lq_sv.contentOffset;
+        pos.y += (y - last) / lq_k;
+        if (now > time) velocity = (y - last) / (now - time);
+        lq_sv.contentOffset = pos;
+        last = y; time = now;
+        if (phase == 2) {
+          down = false;
+          pos.y += velocity * 180 / lq_k;
+          [lq_sv setContentOffset:pos animated:YES];
+        }
+      }
+    }
+  });
+  free(words);
+  return lean_io_result_mk_ok(lean_box(0));
 }
 
 // The view
@@ -898,9 +885,8 @@ static void lq_listen(UIView* v, bool drag) {
 @implementation LeanScroll
 
 - (void)scrollViewDidScroll:(UIScrollView*)v {
-  // Upside down, the offset is the distance from the content's end to the
-  // viewport's bottom edge: Platform.scroll's b (negative in a bounce at
-  // the newest end; scroll answers 0 there).
+  // The hidden physics view supplies signed samples. Lean interprets them
+  // as distance from the content's end and clamps before painting.
   atomic_store(&lq_offset, v.contentOffset.y * lq_k);
 }
 
@@ -919,23 +905,26 @@ static void lq_listen(UIView* v, bool drag) {
 
   LeanScroll* sv = [LeanScroll new];
   sv.delegate                               = sv;
-  sv.transform                              = CGAffineTransformMakeScale(1, -1);
+  sv.userInteractionEnabled                 = NO;
+  sv.hidden                                 = YES;
   sv.alwaysBounceVertical                   = YES;
   sv.scrollsToTop                           = NO;
   sv.contentInsetAdjustmentBehavior         = UIScrollViewContentInsetAdjustmentNever;
   sv.automaticallyAdjustsScrollIndicatorInsets = NO;
-  sv.translatesAutoresizingMaskIntoConstraints = NO;
+
   lq_sv = sv;
+  lq_hold = [CALayer layer];
+  lq_hold.opaque = YES;
+  [root.layer insertSublayer:lq_hold atIndex:0];
   lq_list   = [CALayer layer];
   lq_list.opaque    = YES;
-  lq_list.transform = CATransform3DMakeScale(1, -1, 1);  // upright again
-  [sv.layer insertSublayer:lq_list atIndex:0];
+  [root.layer insertSublayer:lq_list atIndex:1];
 
   UIView* header   = [UIView new];
   UIView* composer = [UIView new];
   UIView* fill     = [UIView new];
   for (UIView* v in @[ header, composer, fill ]) {
-    v.translatesAutoresizingMaskIntoConstraints = NO;
+    v.userInteractionEnabled = NO;
   }
   UIView* probe = [UIView new];
   probe.userInteractionEnabled = NO;
@@ -950,38 +939,14 @@ static void lq_listen(UIView* v, bool drag) {
     [root addSubview:v];
   }
   [composer addSubview:field];
-  lq_touches = [LeanTouches new];
-  lq_listen(sv, false);
-  lq_listen(header, false);
-  lq_listen(composer, true);
-
+  LeanTouches* raw = [[LeanTouches alloc] initWithTarget:nil action:nil];
+  raw.cancelsTouchesInView = NO;
+  raw.delaysTouchesBegan = NO;
+  raw.delaysTouchesEnded = NO;
+  [root addGestureRecognizer:raw];
+  root.multipleTouchEnabled = YES;
   UILayoutGuide* kb = root.keyboardLayoutGuide;
-  lq_header_h   = [header.heightAnchor constraintEqualToConstant:0];
-  lq_composer_h = [composer.heightAnchor constraintEqualToConstant:0];
-  // where the composer is with the keyboard closed: a page's bottom edge
-  UILayoutGuide* closed = [UILayoutGuide new];
-  [root addLayoutGuide:closed];
-  lq_lifted = [sv.bottomAnchor constraintEqualToAnchor:composer.topAnchor];
-  lq_pinned = [sv.bottomAnchor constraintEqualToAnchor:closed.topAnchor];
   [NSLayoutConstraint activateConstraints:@[
-    [header.topAnchor constraintEqualToAnchor:root.topAnchor],
-    [header.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
-    [header.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
-    lq_header_h,
-    [composer.bottomAnchor constraintEqualToAnchor:kb.topAnchor],
-    [composer.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
-    [composer.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
-    lq_composer_h,
-    [fill.topAnchor constraintEqualToAnchor:composer.bottomAnchor],
-    [fill.bottomAnchor constraintEqualToAnchor:root.bottomAnchor],
-    [fill.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
-    [fill.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
-    [sv.topAnchor constraintEqualToAnchor:header.bottomAnchor],
-    lq_lifted,
-    [closed.bottomAnchor constraintEqualToAnchor:root.safeAreaLayoutGuide.bottomAnchor],
-    [closed.heightAnchor constraintEqualToAnchor:composer.heightAnchor],
-    [sv.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
-    [sv.trailingAnchor constraintEqualToAnchor:root.trailingAnchor],
     [probe.topAnchor constraintEqualToAnchor:kb.topAnchor],
     [probe.bottomAnchor constraintEqualToAnchor:root.bottomAnchor],
     [probe.leadingAnchor constraintEqualToAnchor:root.leadingAnchor],
@@ -1131,6 +1096,7 @@ static void* lq_run(void* arg) {
 // frame does not earn the next ones a head start), the keyboard's height
 // mid-animation, and whether the list is scrolling.
 - (void)vsync:(CADisplayLink*)l {
+  lq_translate();
   if (!lq_vsync_due) {
     lq_vsync_due = true;
     dispatch_semaphore_signal(lq_vsync);
@@ -1200,7 +1166,7 @@ lean_obj_res lq_poll(void) {
   pthread_mutex_lock(&lq_mu);
   if (lq_gone && !lq_closed) { lq_closed = true; lq_push(1, 0, 0, 0); }
   lean_object* evs = lean_mk_empty_array();
-  for (uint32_t i = 0; i < lq_n * 4; i++) evs = lean_array_push(evs, lean_box_uint32(lq_evs[i]));
+  for (uint32_t i = 0; i < lq_n * 8; i++) evs = lean_array_push(evs, lean_box_uint32(lq_evs[i]));
   lq_n = 0;
   pthread_mutex_unlock(&lq_mu);
   return lean_io_result_mk_ok(evs);

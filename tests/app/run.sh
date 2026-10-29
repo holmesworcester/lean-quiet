@@ -22,6 +22,9 @@ tests/app/bidi.sh
 tests/app/bidi_host.sh
 lake build host two_nodes net_join cross arrival attach inkless nodequeue pic_retry
 tests/app/host_twin_demo.sh
+tests/app/seam.sh
+tests/app/slide.sh
+tests/app/translate.sh
 .lake/build/bin/inkless
 tests/app/inkless_negative.sh
 .lake/build/bin/nodequeue

@@ -250,3 +250,27 @@ run = "bash tests/app/font_contract.sh"
 description = "Every painted font/fallback glyph with no ink normalizes as invisible or space, with negative controls"
 depends = ["crypto"]
 run = "lake build inkless && .lake/build/bin/inkless && tests/app/inkless_negative.sh"
+
+[tasks."host:seam"]
+description = "Raw gestures and running placement through the C twin"
+run = "tests/app/seam.sh"
+
+[tasks."host:slide"]
+description = "Scalar vsync export audit and native thread checks"
+run = "tests/app/slide.sh"
+
+[tasks."host:translate"]
+description = "Slow Lean frames with motion and placeholder coverage at every vsync"
+run = "tests/app/translate.sh"
+
+[tasks."host:seam-negative"]
+description = "Break seam laws and native behavior, require detection, restore sources"
+run = "python3 tests/app/seam_negative.py"
+
+[tasks."host:slide-negative"]
+description = "Break slide laws and native behavior, require detection, restore sources"
+run = "python3 tests/app/slide_negative.py"
+
+[tasks."host:translate-negative"]
+description = "Break translate laws and native behavior, require detection, restore sources"
+run = "python3 tests/app/translate_negative.py"

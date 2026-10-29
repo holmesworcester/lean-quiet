@@ -38,7 +38,7 @@ import java.util.List;
 public class LeanActivity extends NativeActivity {
   static native void nInsets(int top, int bottom, int ime);
   static native void nText(String text, int selStart, int selEnd, int compStart, int compEnd);
-  static native void nSend();
+  static native void nAction(int kind, int code, int action);
   static native void nLink(String url);
   /** A camera frame's Y plane, as the camera filled it (copied in native),
    * and the sensor's clockwise orientation in degrees. */
@@ -97,14 +97,14 @@ public class LeanActivity extends NativeActivity {
         | InputType.TYPE_TEXT_FLAG_AUTO_CORRECT);
     edit.setImeOptions(EditorInfo.IME_ACTION_SEND | EditorInfo.IME_FLAG_NO_EXTRACT_UI
         | EditorInfo.IME_FLAG_NO_FULLSCREEN);
+    edit.setOnKeyListener((v, code, ev) -> {
+      nAction(14, code, ev.getAction());
+      return false;  // the field still performs OS text editing
+    });
     edit.setOnEditorActionListener((v, id, ev) -> {
-      boolean enter = ev != null && ev.getKeyCode() == KeyEvent.KEYCODE_ENTER
-          && ev.getAction() == KeyEvent.ACTION_DOWN;
-      if (id == EditorInfo.IME_ACTION_SEND || enter) {
-        nSend();
-        return true;
-      }
-      return id != EditorInfo.IME_NULL;
+      if (ev == null) nAction(5, id, 0);
+      return true;
+
     });
     edit.addTextChangedListener(new TextWatcher() {
       @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}

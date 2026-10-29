@@ -1,6 +1,6 @@
 // The app in the Simulator, end to end, through its real input: XCUITest's
-// synthesized touches go through UIKit to the twin (the upside-down scroll
-// view's physics, the recognizers' taps and long press), and its typing
+// synthesized touches go through UIKit to Lean's raw-event classifier;
+// accepted scroll samples drive native physics, and typing
 // goes through the software keyboard into the twin's text field. Each step
 // is checked in Lean's own state, and the twin's placement in the twin's
 // own report (`twin`), both read over the control channel (ctl_ios.c: the
@@ -259,19 +259,17 @@
   XCTAssertTrue(field.count == 4 && cont.count == 4 && link.length > 0, @"targets not given");
   XCTAssertTrue([[self ctl:@"open paste"] containsString:@"paste"], @"Paste did not open");
 
-  // Keyboard closed: the page frame's first row at the viewport's top -
-  // over (Seam.pinned g over 0), the scroll view's bottom at top + view
-  // (Placement.closed_bottom).
+  // Lean crops the visible layer to the viewport. Its top is the header
+  // bottom; the hidden physics view has the effective viewport height.
   XCTAssertTrue([self until:10 ask:@"twin" that:^BOOL(NSString* s) { return [self num:@"pin" in:s] == 1; }],
     @"the twin did not pin the page: %@", [self twin]);
   NSString* t0 = [self settledTwin];
   long top  = [self num:@"top" in:t0];
-  long over = [self num:@"over" in:t0];
   long view = [self num:@"viewH" in:[self state]];
   long list0 = [self num:@"listY" in:t0];
   long svb0  = [self num:@"svBottom" in:t0];
-  XCTAssertEqual(list0, top - over, @"page row 0 not at the viewport's top: %@", t0);
-  XCTAssertEqual(svb0, top + view, @"the page's bottom edge is not the closed composer's top: %@", t0);
+  XCTAssertEqual(list0, top, @"page row 0 not at the viewport's top: %@", t0);
+  XCTAssertEqual(svb0, view, @"the physics viewport is not Lean's viewport: %@", t0);
   XCTAssertEqual([self num:@"ime" in:[self state]], 0, @"the keyboard is already open");
 
   // A real tap on the field (Pages.paste's box) opens the keyboard.
@@ -284,9 +282,10 @@
 
   // Keyboard open: the composer rode up, the page did not move.
   NSString* t1 = [self settledTwin];
-  XCTAssertLessThan([self num:@"composerTop" in:t1], svb0, @"the composer was not lifted: %@", t1);
+  XCTAssertLessThan([self num:@"composerTop" in:t1], [self num:@"composerTop" in:t0], @"the composer was not lifted: %@", t1);
   XCTAssertEqual([self num:@"listY" in:t1], list0, @"the page moved with the keyboard: %@", t1);
-  XCTAssertEqual([self num:@"svBottom" in:t1], svb0, @"the page's bottom edge moved: %@", t1);
+  XCTAssertEqual([self num:@"svBottom" in:t1], [self num:@"composerTop" in:t1] - top,
+    @"the physics viewport did not follow Lean's published height: %@", t1);
   NSLog(@"pinned: keyboard closed: %@", t0);
   NSLog(@"pinned: keyboard open:   %@", t1);
   [self shot:@"7-paste-keyboard"];
@@ -298,7 +297,7 @@
   }], @"the typed link is not in the field: %@", [self twin]);
   XCTAssertEqual([self num:@"listY" in:[self twin]], list0, @"the page moved while typing");
 
-  // A real tap on Continue (above the keyboard): the twin reports what
+  // A real tap on Continue (above the keyboard): Lean publishes what
   // pinned_tap reads (page row = view - 1 - report = the touch's row - top),
   // and Lean takes it as Continue: the link is accepted, the next page is
   // Choose a name.
