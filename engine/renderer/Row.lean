@@ -49,7 +49,7 @@ def Dim.px (d : Dim) (dp : Nat) : Nat := (dp * d.dpi + 80) / 160
 def Dim.pad (d : Dim) : Nat := d.px 12
 def Dim.avatar (d : Dim) : Nat := d.px 40
 def Dim.textX (d : Dim) : Nat := d.pad + d.avatar + d.px 12
-def Dim.lineH (d : Dim) : Nat := d.cell + d.cell / 8
+def Dim.lineH (d : Dim) : Nat := max (d.px 20) (d.cell + d.cell / 8)
 def Dim.topPad (d : Dim) : Nat := d.px 8
 def Dim.gap (d : Dim) : Nat := d.px 6
 def Dim.pillH (d : Dim) : Nat := d.cell + d.px 8
@@ -201,9 +201,16 @@ def flush (l : Line) : Line :=
 def twinText : String := "⚠ Duplicate"
 
 /-- The duplicate label's box, from x on the name's line, and its line. -/
-def twinPill (f : Font) (dm : Dim) (x : Nat) : Box × Line :=
-  let l := oneLine f (dm.cell * 8) twinText
+def twinPill (f : Font) (dm : Dim) (x : Nat) (width : Nat := dm.cell * 8 + dm.px 12) : Box × Line :=
+  let l := oneLine f (width - dm.px 12) twinText
   (⟨x, dm.topPad - min dm.topPad (dm.px 1), dm.px 6 + Paint.Line.width f l + dm.px 6, f.cell + dm.px 2⟩, l)
+
+/-- Space reserved for the one-line author label after the clock and badge. -/
+def nameWidth (f : Font) (dm : Dim) (W : Nat) (d : RowData) : Nat :=
+  let tw := W - dm.textX - dm.pad
+  let time := oneLine f (tw / 3) (if d.pending then "pending" else clock d.time)
+  let badgeW := if d.namesake then min (tw / 3) (dm.cell * 8 + dm.px 12) else 0
+  tw - Paint.Line.width f time - badgeW - dm.px 8 * (if d.namesake then 2 else 1)
 
 /-- The row: its name and time on the first line (each cut as `oneLine`
 cuts), its text wrapped below, then its pictures and pills. -/
@@ -211,11 +218,14 @@ def layout (f : Font) (dm : Dim) (W : Nat) (d : RowData) : Layout :=
   let tx := dm.textX
   let tw := W - tx - dm.pad
   let lh := dm.lineH
-  let name := flush (oneLine f (tw / 2) d.name)
+  -- Reserve each header field before laying out the name. Only these
+  -- single-line labels elide; the message body below always wraps.
+  let time := oneLine f (tw / 3) (if d.pending then "pending" else clock d.time)
+  let badgeW := if d.namesake then min (tw / 3) (dm.cell * 8 + dm.px 12) else 0
+  let name := flush (oneLine f (nameWidth f dm W d) d.name)
   let nx := tx + Paint.Line.width f name + dm.px 8
-  let twin := if d.namesake then some (twinPill f dm nx) else none
+  let twin := if d.namesake then some (twinPill f dm nx badgeW) else none
   let timeX := match twin with | some (bx, _) => bx.x + bx.w + dm.px 8 | none => nx
-  let time := oneLine f (dm.cell * 4) (if d.pending then "pending" else clock d.time)
   let text := if d.text.isEmpty then #[] else (Text.layout f tw d.text).map flush
   let textY := dm.topPad + lh
   let (pics, pills, h) := layoutBody f dm W d (textY + text.size * lh)

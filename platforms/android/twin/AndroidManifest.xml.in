@@ -21,7 +21,7 @@
         android:launchMode="singleTask"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:windowSoftInputMode="adjustResize|stateHidden"
-        android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|uiMode|density|smallestScreenSize">
+        android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|uiMode|fontScale|density|smallestScreenSize">
       <intent-filter>
         <action android:name="android.intent.action.VIEW" />
         <category android:name="android.intent.category.DEFAULT" />

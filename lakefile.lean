@@ -420,3 +420,6 @@ lean_exe people_reader where
 -- Actual RBSR exchange at its proved non-leaf logarithmic depth.
 lean_exe claim_tree where
   root := `tests.engine.ClaimTree
+
+lean_exe zoom where
+  root := `platforms.headless.Zoom

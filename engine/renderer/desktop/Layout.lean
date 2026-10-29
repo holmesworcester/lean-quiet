@@ -27,6 +27,16 @@ def layout (w : Nat) (opened : Bool) : Layout :=
   else if opened then ⟨w, ⟨0, 0⟩, ⟨0, 0⟩, ⟨0, w⟩⟩
   else ⟨w, ⟨0, 0⟩, ⟨0, w⟩, ⟨w, 0⟩⟩
 
+/-- Device-pixel tracks at a CSS density. Settings deliberately cover main;
+nav and main partition the viewport. This is used by the live driver. -/
+def zoomLayout (w : Nat) (opened : Bool) (dpi : Nat) : Layout :=
+  let px := fun n => (n * dpi + 80) / 160
+  if px 720 ≤ w then
+    ⟨w, ⟨0, px 220⟩, ⟨px 220, w - px 220⟩,
+      if opened then ⟨w - px 375, px 375⟩ else ⟨w, 0⟩⟩
+  else if opened then ⟨w, ⟨0, 0⟩, ⟨0, 0⟩, ⟨0, w⟩⟩
+  else ⟨w, ⟨0, 0⟩, ⟨0, w⟩, ⟨w, 0⟩⟩
+
 def Layout.track (g : Layout) : Pane → Track
   | .nav => g.nav
   | .main => g.main
@@ -49,11 +59,11 @@ def Box.has (b : Box) (x y : Nat) : Bool :=
 /-- The desktop minimum hit target, in logical pixels (not device pixels). -/
 def target : Nat := 24
 
-def Fits (g : Layout) (height : Nat) (p : Pane) (b : Box) : Prop :=
+def Fits (g : Layout) (height : Nat) (p : Pane) (b : Box) (minimum : Nat := target) : Prop :=
   (g.track p).x ≤ b.x ∧ b.x + b.w ≤ (g.track p).x + (g.track p).w ∧
-  b.y + b.h ≤ height ∧ target ≤ b.w ∧ target ≤ b.h
+  b.y + b.h ≤ height ∧ minimum ≤ b.w ∧ minimum ≤ b.h
 
-instance : Decidable (Fits g h p b) := inferInstanceAs (Decidable (_ ∧ _ ∧ _ ∧ _ ∧ _))
+instance : Decidable (Fits g h p b minimum) := inferInstanceAs (Decidable (_ ∧ _ ∧ _ ∧ _ ∧ _))
 
 structure Control (α : Type) where
   pane : Pane
@@ -64,8 +74,8 @@ structure Control (α : Type) where
 
 /-- Offscreen or undersized controls are neither painted nor clickable.
 The root paginates long lists before applying this final clipping guard. -/
-def controls (g : Layout) (h : Nat) (xs : List (Control α)) : List (Control α) :=
-  xs.filter fun c => decide (Fits g h c.pane c.box)
+def controls (g : Layout) (h : Nat) (xs : List (Control α)) (minimum : Nat := target) : List (Control α) :=
+  xs.filter fun c => decide (Fits g h c.pane c.box minimum)
 
 def hit (xs : List (Control α)) (x y : Nat) : Option (Control α) :=
   xs.find? fun c => c.box.has x y

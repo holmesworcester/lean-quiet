@@ -69,7 +69,7 @@ def main (args : List String) : IO UInt32 := do
         check s!"{name}/{pageName}: every row resized" ((fr ++ top ++ bot).all (·.size == 4 * i.w))
         let shot ← compose sm s
         if render then writePpm s!"{dir}/{name}-{pageName}.ppm" i.w shot
-        let expected := Palette.color s.dim.theme (if page == .home || page == .chat then .panel else .bg)
+        let expected := Palette.color s.dim.theme (if page == .home then .accent else if page == .chat then .panel else .bg)
         check s!"{name}/{pageName}: status ground" (r.y == 0 || getPx shot[0]! 0 == expected)
         let (tc, bc, lt, lb) ← bars.get
         check s!"{name}/{pageName}: native bar policy" (tc == expected && lt == SafeFrame.lightIcons expected && lb == SafeFrame.lightIcons bc)

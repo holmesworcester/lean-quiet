@@ -1,0 +1,162 @@
+{
+  "chat-1280-dark-150": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-1280-light-100": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-1280-light-150": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-1280-dark-150": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-1280-light-75": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "chat-390-light-100": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "chat-390-dark-100": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "chat-1280-dark-50": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-1280-dark-100": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "chat-1280-light-150": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-1280-dark-75": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-1280-light-110": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-1280-dark-110": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "chat-1280-dark-200": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "chat-1280-dark-110": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-1280-dark-50": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-1280-light-125": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "chat-1280-dark-125": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "chat-1280-dark-100": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "chat-1280-light-125": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "chat-1280-light-100": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "chat-1280-light-50": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "chat-1280-light-200": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-1280-light-50": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-1280-light-200": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-390-light-100": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-1280-dark-125": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "chat-1280-dark-75": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-390-dark-100": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "appearance-1280-dark-200": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "chat-1280-light-75": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  },
+  "chat-1280-light-110": {
+    "mae": 0.01,
+    "changed_fraction": 0.035,
+    "layout_mae": 0.006
+  }
+}

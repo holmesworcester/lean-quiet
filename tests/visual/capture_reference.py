@@ -22,7 +22,7 @@ def provenance():
     return {**SPEC, 'fixture_sha256': hashlib.sha256(FIXTURE.read_bytes()).hexdigest()}
 
 
-def capture(url, destination, chrome=None):
+def capture(url, destination, chrome=None, cases=None):
     with urllib.request.urlopen(url + '/parity-provenance.json', timeout=10) as response:
         if json.load(response) != provenance():
             raise RuntimeError('reference server source/fixture provenance does not match')
@@ -33,12 +33,18 @@ def capture(url, destination, chrome=None):
             options['executable_path'] = chrome
         browser = pw.chromium.launch(**options)
         try:
-            for line in (ROOT / 'tests/visual/cases.tsv').read_text().splitlines():
+            for line in (cases or ROOT / 'tests/visual/cases.tsv').read_text().splitlines():
                 if not line or line.startswith('#'):
                     continue
-                name, width, height, theme, scenario = line.split('\t')
-                page = browser.new_page(viewport={'width': int(width), 'height': int(height)},
-                                        device_scale_factor=SPEC['device_scale_factor'],
+                fields = line.split('\t')
+                name, width, height, theme, scenario = fields[:5]
+                zoom = int(fields[5]) / 100 if len(fields) == 6 else 1
+                import math
+                # Browser zoom is a smaller CSS viewport at a larger device
+                # scale, not a screenshot enlarged after layout. One edge may
+                # be rounded by less than one device pixel; crop that edge.
+                page = browser.new_page(viewport={'width': math.ceil(int(width)/zoom), 'height': math.ceil(int(height)/zoom)},
+                                        device_scale_factor=SPEC['device_scale_factor'] * zoom,
                                         color_scheme=theme)
                 try:
                     page.goto(f'{url}/iframe.html?id=parity-app--{scenario}&viewMode=story'
@@ -55,6 +61,10 @@ def capture(url, destination, chrome=None):
                     # Disable transient motion without hiding any content.
                     page.add_style_tag(content='*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}')
                     page.screenshot(path=str(destination / f'{name}.png'), animations='disabled')
+                    if zoom != 1:
+                        from PIL import Image
+                        with Image.open(destination / f'{name}.png') as im:
+                            im.crop((0, 0, int(width), int(height))).save(destination / f'{name}.png')
                     geometry = page.evaluate('''() => [...document.querySelectorAll('.pane-list,.pane-thread,.drawer,.drawer-body,.composer,.sidebar')].map(el => {
                       const r=el.getBoundingClientRect(); return {selector:el.className, x:r.x,y:r.y,w:r.width,h:r.height,display:getComputedStyle(el).display}
                     })''')
@@ -71,11 +81,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, default=os.environ.get('LIBQUIET', '/home/holmes/libquiet'))
     parser.add_argument('--output', type=Path, default=ROOT / 'tests/visual/reference')
+    parser.add_argument('--cases', type=Path, help='Optional zoom matrix: sixth column is browser zoom percent')
     parser.add_argument('--chrome', default=os.environ.get('CHROME'))
     parser.add_argument('--url', help='Use an already staged pinned reference server')
     args = parser.parse_args()
     if args.url:
-        capture(args.url, args.output, args.chrome)
+        capture(args.url, args.output, args.chrome, args.cases)
         return
     work = ROOT / 'out/visual/reference-source' / SPEC['commit']
     work.mkdir(parents=True, exist_ok=True)
@@ -110,7 +121,7 @@ def main():
                     if time.monotonic() > deadline:
                         raise RuntimeError('reference server timed out')
                     time.sleep(.2)
-            capture(url, args.output, args.chrome)
+            capture(url, args.output, args.chrome, args.cases)
         finally:
             server.terminate()
             try:

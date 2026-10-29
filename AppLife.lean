@@ -261,6 +261,7 @@ def resizeContent (sc : Array UInt32) : M Unit := do
   if let some p := s.input.press then s.io.motion { p.first with phase := 3 }.words
   retirePaints s
   let font ← if dpi == s.dim.dpi then pure s.font else Font.load (density := dpi)
+  let font := font.atSize (((if s.wide then 14 else 15) * dpi + 80) / 160)
   let dm : Dim := ⟨dpi, font.cell, s.dim.theme⟩
   let mut rows := s.rows
   let mut heights := if w == s.W && dpi == s.dim.dpi then s.heights else {}

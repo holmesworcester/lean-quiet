@@ -10,13 +10,14 @@ structure Bar where
   range : Nat
   deriving Repr, Inhabited
 
-def layout (right top height content offset : Nat) : Option Bar :=
-  if height == 0 || content ≤ height || right < 16 then none else
-  let thumbH := min height (max 24 (height * height / content))
+def layout (right top height content offset : Nat) (dpi : Nat := 160) : Option Bar :=
+  let px := fun n => (n * dpi + 80) / 160
+  if height == 0 || content ≤ height || right < px 16 then none else
+  let thumbH := min height (max (px 24) (height * height / content))
   let range := content - height
   let travel := height - thumbH
   let y := top + travel - min travel (min offset range * travel / range)
-  some ⟨⟨right - 16, top, 16, height⟩, ⟨right - 9, y, 6, thumbH⟩, range⟩
+  some ⟨⟨right - px 16, top, px 16, height⟩, ⟨right - px 9, y, px 6, thumbH⟩, range⟩
 
 /-- Keep the grabbed point under the pointer; clicks on the track centre
 its thumb there. Both ends clamp, including dragging outside the window. -/

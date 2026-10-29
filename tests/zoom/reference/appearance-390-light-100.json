@@ -1,0 +1,50 @@
+[
+  {
+    "selector": "pane pane-list",
+    "x": 0,
+    "y": 0,
+    "w": 390,
+    "h": 844,
+    "display": "flex"
+  },
+  {
+    "selector": "sidebar svelte-1hv280f",
+    "x": 0,
+    "y": 0,
+    "w": 390,
+    "h": 844,
+    "display": "flex"
+  },
+  {
+    "selector": "pane pane-thread",
+    "x": 0,
+    "y": 0,
+    "w": 0,
+    "h": 0,
+    "display": "none"
+  },
+  {
+    "selector": "composer svelte-jdanaw",
+    "x": 0,
+    "y": 0,
+    "w": 0,
+    "h": 0,
+    "display": "block"
+  },
+  {
+    "selector": "drawer svelte-1n36gr",
+    "x": 0,
+    "y": 0,
+    "w": 390,
+    "h": 844,
+    "display": "flex"
+  },
+  {
+    "selector": "drawer-body svelte-1n36gr",
+    "x": 0,
+    "y": 60,
+    "w": 390,
+    "h": 784,
+    "display": "block"
+  }
+]

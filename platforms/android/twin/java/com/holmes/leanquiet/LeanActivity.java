@@ -39,7 +39,7 @@ import java.util.List;
  * unhandled reach the EditText.
  */
 public class LeanActivity extends NativeActivity implements BarState.Window {
-  static native void nAppearance(boolean dark);
+  static native void nAppearance(boolean dark, int textDpi);
   static native void nInsets(int top, int bottom, int ime, int left, int right,
       int cutLeft, int cutTop, int cutRight, int cutBottom);
   static native void nText(String text, int selStart, int selEnd, int compStart, int compEnd);
@@ -53,7 +53,11 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
   private int appliedBackground = -1;
 
   private void reportAppearance(Configuration config) {
-    nAppearance((config.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES);
+    // Ask Android to convert the 15 sp body: Android 14+ uses a nonlinear
+    // curve. Grow its surrounding layout by the same ratio to avoid clipping.
+    int textDpi = Math.round(android.util.TypedValue.applyDimension(
+        android.util.TypedValue.COMPLEX_UNIT_SP, 15f, getResources().getDisplayMetrics()) * 160f / 15f);
+    nAppearance((config.uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES, textDpi);
   }
 
   @Override public void onConfigurationChanged(Configuration config) {

@@ -35,6 +35,17 @@ int main(void) {
     replace("\xf0\x80\x80\x80",4); CHECK(strlen(q.text)==len);
     replace("a\0b",3); CHECK(strlen(q.text)==len);
     q.focused=false; press('z',0); CHECK(strlen(q.text)==len);
+    /* Application zoom must work outside the native editor and must not
+       insert +/-/0 into the draft. Test all accepted keyboard forms. */
+    for (unsigned i=0;i<7;i++) {
+        uint32_t symbols[]={XK_equal,XK_plus,XK_KP_Add,XK_minus,XK_KP_Subtract,XK_0,XK_KP_0};
+        unsigned directions[]={1,1,1,2,2,0,0};
+        q.n=0; q.down=true;
+        press(symbols[i],XCB_MOD_MASK_CONTROL);
+        CHECK(q.n==4 && q.events[0]==15 && q.events[1]==directions[i]);
+        CHECK(!q.down && strlen(q.text)==len);
+    }
+    q.n=0; press(XK_minus,0); CHECK(q.n==0);
     uint8_t src[]={118,71,199,255}, dst[4]; pixel(dst,src);
     CHECK(dst[0]==199 && dst[1]==71 && dst[2]==118 && dst[3]==0);
     free(q.keys);

@@ -42,6 +42,7 @@ static int32_t         ba_h;
 static int32_t         ba_top, ba_bottom, ba_kb;
 static int32_t         ba_sides[7];
 static int32_t         ba_density = 420;
+static int32_t         ba_text_dpi;
 static bool            ba_closing;
 static bool            ba_resumed;
 static char*           ba_links[32];
@@ -140,7 +141,10 @@ void ba_safe(int32_t out[7]) {
 }
 
 int32_t ba_dpi(void) {
-  return ba_density;
+  pthread_mutex_lock(&ba_mu);
+  int32_t dpi = ba_text_dpi > 0 ? ba_text_dpi : ba_density;
+  pthread_mutex_unlock(&ba_mu);
+  return dpi;
 }
 
 static void ba_window_created(ANativeActivity* act, ANativeWindow* win) {
@@ -229,10 +233,11 @@ char* ba_text(uint32_t pos[4]) {
   return s;
 }
 
-static void JNICALL ba_n_appearance(JNIEnv* env, jclass cls, jboolean dark) {
+static void JNICALL ba_n_appearance(JNIEnv* env, jclass cls, jboolean dark, jint text_dpi) {
   (void)env; (void)cls;
   pthread_mutex_lock(&ba_mu);
   ba_system_dark = dark;
+  if (text_dpi > 0 && text_dpi <= 2560) ba_text_dpi = text_dpi;
   pthread_mutex_unlock(&ba_mu);
 }
 
@@ -484,7 +489,7 @@ static void ba_java(ANativeActivity* act) {
   JNIEnv* env = act->env;
   jclass  cls = (*env)->GetObjectClass(env, act->clazz);
   JNINativeMethod ms[] = {
-    { "nAppearance", "(Z)V", (void*)ba_n_appearance },
+    { "nAppearance", "(ZI)V", (void*)ba_n_appearance },
     { "nInsets", "(IIIIIIIII)V", (void*)ba_n_insets },
     { "nText", "(Ljava/lang/String;IIII)V", (void*)ba_n_text },
     { "nLink", "(Ljava/lang/String;)V", (void*)ba_n_link },

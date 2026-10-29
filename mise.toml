@@ -365,3 +365,11 @@ run = "tests/engine/claim_tree.sh"
 [tasks."test:people-reader"]
 description = "Bounded people header, full membership list, cached removal invalidation and controls"
 run = "tests/app/people_reader.sh"
+
+[tasks."test:zoom"]
+description = "Build and verify browser zoom, running layout proofs, arbitrary Noto raster sizes, native input/restart, and libquiet full-image parity"
+run = "tests/zoom/run.sh"
+
+[tasks."android:zoom"]
+description = "Build both Android ABIs, create/boot an owned API 36 emulator, exercise live OS text sizes and retain screenshots/logcat"
+run = "tests/zoom/android.sh"

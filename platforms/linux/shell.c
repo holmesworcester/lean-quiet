@@ -212,6 +212,12 @@ static void key(xcb_key_press_event_t *e) {
     if (caps && k >= 'a' && k <= 'z') k -= 32;
     else if (caps && k >= 'A' && k <= 'Z') k += 32;
     if (k == XK_Escape) { event(12, 0, 0, 0); return; }
+    /* Application shortcuts work even when the composer has no focus. */
+    if (e->state & XCB_MOD_MASK_CONTROL) {
+        if (k == XK_plus || k == XK_equal || k == XK_KP_Add) { q.down=false; event(15,1,0,0); return; }
+        if (k == XK_minus || k == XK_KP_Subtract) { q.down=false; event(15,2,0,0); return; }
+        if (k == XK_0 || k == XK_KP_0) { q.down=false; event(15,0,0,0); return; }
+    }
     if (!q.focused) return;
     if (e->state & XCB_MOD_MASK_CONTROL) {
         if (k >= 'A' && k <= 'Z') k += 32;
@@ -461,3 +467,8 @@ lean_obj_res lq_bars(uint32_t top, uint32_t bottom, uint8_t light_top, uint8_t l
   (void)top; (void)bottom; (void)light_top; (void)light_bottom;
   return lean_io_result_mk_ok(lean_box(0));
 }
+
+/* Linux has no photo picker yet. Keep these externs in this shell so the
+   linker never pulls the headless platform's competing externs. */
+lean_obj_res lq_pick_photo(uint32_t token) { (void)token; return lean_io_result_mk_ok(lean_box(0)); }
+lean_obj_res lq_photo_result(void) { lean_object *p=lean_alloc_ctor(0,2,0); lean_ctor_set(p,0,lean_mk_empty_array()); lean_ctor_set(p,1,lean_alloc_sarray(1,0,0)); return lean_io_result_mk_ok(p); }
