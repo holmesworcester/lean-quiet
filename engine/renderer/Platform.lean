@@ -8,9 +8,9 @@ with the next Lean frame; geometry and input policy remain Lean's.
 -/
 namespace Platform
 
-/-- Waits for the window; answers `[w, h, insetTop, insetBottom, dpi]` in
-pixels, followed by system appearance (0 light, 1 dark): the surface's size, the status bar's and navigation bar's
-heights, and the display's density in dots per inch. -/
+/-- Surface pixels: w, h, top, bottom, dpi, systemDark, left, right,
+imeBottom, cutoutLeft, cutoutTop, cutoutRight, cutoutBottom. Legacy twins
+may omit the safe-area suffix. -/
 @[extern "lq_screen"] opaque screen : IO (Array UInt32)
 
 /-- Apply Lean's effective appearance to OS bar icons and the window fill. -/
@@ -19,6 +19,11 @@ heights, and the display's density in dots per inch. -/
 /-- A signed OS physics sample in physical pixels. `viewH` is the effective
 viewport with the keyboard open. Lean clamps before using the sample. -/
 @[extern "lq_scroll"] opaque scroll (contentH viewH : UInt32) : IO Float
+
+/-- Apply Lean's per-screen colours and icon styles. True means light
+icons, independently for the top and bottom bar. No platform theme policy. -/
+@[extern "lq_bars"] opaque bars (top bottom : UInt32) (lightTop lightBottom : Bool) : IO Unit
+
 
 /-- Moves the offset by d pixels (positive: towards older content), as if
 the content above or below the viewport had grown, keeping a fling

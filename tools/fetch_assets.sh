@@ -19,16 +19,15 @@ curl --proto '=https' -fsSL -o "$tmp/unifont.hex.gz" https://ftp.gnu.org/gnu/uni
 echo "14c96e497466a82e46cf20032ce510e186bdc8658c9158e2290f452cda9bc498  $tmp/unifont.hex.gz" | sha256sum -c - >/dev/null
 python3 "$root/tools/font.py" "$tmp/unifont.hex.gz" "$root/assets/font.bin" 3
 # Colour emoji: Noto Color Emoji 2.051 (OFL) and Unicode 16's emoji data,
-# read with fontTools (pip install --target "$tmp/py" fonttools).
+# read with fontTools (pip install --target "$tmp/py" fonttools==4.68.0).
 curl --proto '=https' -fsSL -o "$tmp/noto.ttf" https://github.com/googlefonts/noto-emoji/raw/v2.051/fonts/NotoColorEmoji.ttf
 curl --proto '=https' -fsSL -o "$tmp/emoji-data.txt" https://www.unicode.org/Public/16.0.0/ucd/emoji/emoji-data.txt
 echo "f1365a5173eee18e1f98b240cdc492e84a25f1ce7e0c9d1094eb29c41a22696a  $tmp/emoji-data.txt" | sha256sum -c - >/dev/null
-python3 -m pip install -q --target "$tmp/py" fonttools
+python3 -m pip install -q --target "$tmp/py" fonttools==4.68.0
 PYTHONPATH="$tmp/py" python3 "$root/tools/emoji.py" "$tmp/noto.ttf" "$tmp/emoji-data.txt" "$root/assets/emoji.bin" 48
 # The reaction catalogue: libquiet's emoji list (app/src/emoji-data.json at
 # main 38a909706), converted by tools/picker.py.
-git -C "${LIBQUIET:-$HOME/libquiet}" show 38a909706:app/src/emoji-data.json > "$tmp/lq-emoji.json"
-python3 "$root/tools/picker.py" "$tmp/lq-emoji.json" "$root/assets/picker.txt"
+cp "$root/tools/third_party/picker.txt" "$root/assets/picker.txt"
 
 # Local Noto Core and CJK are installed after the pinned CJK inputs below.
 
@@ -43,4 +42,4 @@ while read -r hash name url; do
   else curl --proto '=https' -fsSL -o "$tmp/cjk/$name" "$url"; fi
   echo "$hash  $tmp/cjk/$name" | sha256sum -c - >/dev/null
 done < "$root/tools/cjk_fonts.tsv"
-CJK_FONTS="$tmp/cjk" "$root/tools/noto_assets.sh"
+CJK_PYTHON="$tmp/py" CJK_FONTS="$tmp/cjk" "$root/tools/noto_assets.sh"

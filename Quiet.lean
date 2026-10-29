@@ -34,3 +34,5 @@ import ops.community.attachment.ArrivalLaws
 import ops.app.LifecycleLaws
 
 import engine.renderer.Ttf.Laws
+
+import engine.renderer.SafeLaws

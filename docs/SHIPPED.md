@@ -69,10 +69,9 @@ shells; physical-device testing remains separate.
 
 ## Provisioned mobile machines
 
-These are manual or nightly jobs in `ci/workflow.yml`, which is an
-inactive workflow template. They are deliberately separate from the
-ordinary desktop gate. Activate that workflow and provision its runners
-before expecting mobile coverage. Both suites include their build step,
+These are manual or nightly jobs in `.github/workflows/ci.yml`.
+They require the provisioned runners below; ordinary PR checks run the
+deterministic headless and X11 suites through the same named Mise tasks. Both suites include their build step,
 fail on a failed build, and upload artifacts even when the run fails
 (14-day retention). They must have exclusive use of their test targets.
 

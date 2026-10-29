@@ -68,7 +68,7 @@ try:
         if fallback:
             e['QUIET_NO_SHM'] = '1'
         with (OUT / (tag + '.log')).open('w') as log:
-            proc = sp.Popen([str(APP / '.lake/build/bin/linux'), '--demo'], cwd=APP, env=e, stdout=log, stderr=log)
+            proc = sp.Popen([str(APP / '.lake/build/bin/linux'), '--demo', '--scroll-fixture'], cwd=APP, env=e, stdout=log, stderr=log)
         try:
             def lines():
                 try:
@@ -111,9 +111,30 @@ try:
                        stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=30)
             check(p.returncode == 0 and lines()[0] == '1100 760',
                   tag + ' the sync counter is set after the frame at the new size: ' + p.stdout.strip())
+            wait(lambda: any(s.startswith('scrollbar ') for s in lines()), 'visible scrollbar')
+            _, sx, sy, sw, sh, st, height, span = next(s for s in lines() if s.startswith('scrollbar ')).split()
+            sx, sy, sw, sh, st, height, span = map(int, (sx, sy, sw, sh, st, height, span))
+            image = shot('scrollbar-bottom')
+            check(image.getpixel(((sx+2)*scale, (sy+sh//2)*scale)) != image.getpixel(((sx+2)*scale, (st+4)*scale)),
+                  tag + ' scrollbar thumb is visibly distinct from track')
+            xdo('mousemove', '--window', win, (sx+2)*scale, (sy+sh//2)*scale, 'mousedown', '1',
+                'mousemove', '--window', win, (sx+2)*scale, st*scale)
+            time.sleep(.3)
+            xdo('mouseup', '1')
+            wait(lambda: int(lines()[7]) > 0, 'scrollbar drag to older messages')
+            check(True, tag + ' dragging scrollbar reveals older messages')
+            shot('scrollbar-top')
+            xdo('mousemove', '--window', win, (sx+2)*scale, (st+4)*scale, 'mousedown', '1',
+                'mousemove', '--window', win, (sx+2)*scale, (st+height+30)*scale)
+            time.sleep(.3)
+            xdo('mouseup', '1')
+            wait(lambda: int(lines()[7]) == 0, 'scrollbar drag returns to newest')
+            check(lines()[4] == '', tag + ' scrollbar dragging leaves composer unchanged')
             before = lines()[1]
             click(90, 28)
-            click(90, 116)  # second accepted community, by its drawn row
+            wait(lambda: any(s.startswith('switch ') for s in lines()), 'community menu')
+            _, _, _, cx, cy = next(s for s in lines() if s.startswith('switch ') and s.split()[2] == '0').split()
+            click(int(cx), int(cy))  # a different accepted community, by its drawn row
             wait(lambda: len(lines()) >= 2 and lines()[1] != before, 'community switch')
             check(True, tag + ' community switched by X pointer')
             click(90, 730)

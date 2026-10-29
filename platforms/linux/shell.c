@@ -456,3 +456,8 @@ lean_obj_res lq_links(void) { return lean_io_result_mk_ok(lean_mk_empty_array())
 lean_obj_res lq_appearance(uint8_t dark, uint32_t background) {
     (void)dark; (void)background; return lean_io_result_mk_ok(lean_box(0));
 }
+
+lean_obj_res lq_bars(uint32_t top, uint32_t bottom, uint8_t light_top, uint8_t light_bottom) {
+  (void)top; (void)bottom; (void)light_top; (void)light_bottom;
+  return lean_io_result_mk_ok(lean_box(0));
+}

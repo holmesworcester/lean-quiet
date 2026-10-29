@@ -1,3 +1,4 @@
+import engine.renderer.SafeLaws
 import engine.renderer.ThemeLaws
 import engine.renderer.SlideLaws
 import engine.renderer.InputLaws
@@ -940,3 +941,21 @@ end cost
 #print axioms ThemeLaws.text
 #print axioms Label.copy_exact
 #print axioms Label.line_reachable
+#print axioms Safe.content_inside
+#print axioms Safe.inside_disjoint
+#print axioms Safe.target_safe
+#print axioms Safe.target_witness
+#print axioms SafeFrame.band_colour
+#print axioms Occlusion.placed_table
+#print axioms Occlusion.placed_safe
+#print axioms Occlusion.modal_inert
+#print axioms Toast.placed_safe
+#print axioms Toast.placed_view
+#print axioms Toast.placed_size
+#print axioms Toast.expired
+#print axioms Toast.dismissed
+#print axioms Toast.raised_visible
+#print axioms Toast.placed_witness
+#print axioms App.screenChanged_size
+#print axioms App.screenChanged_insets
+#print axioms SafeFrame.target_minimum

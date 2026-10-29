@@ -259,3 +259,11 @@ at each boundary, plus drafts, selection, scroll anchors, and chip/button bounds
 including narrow/wide resizing and selecting Dark through the Appearance page.
 The preference persists locally through the checkpoint writer. Linux's current
 System input defaults to light; Android/iOS supply their system appearance.
+
+The conversation has a persistent scrollbar whenever its history exceeds
+the viewport. The thumb follows the bottom-anchored history offset; dragging
+it or clicking its track reaches older messages and returns to the newest.
+The shared mobile pixels remain the content layer beneath this desktop
+control. `host:desktop` checks visible thumb pixels, both scroll endpoints,
+short-history hiding and context-panel hiding. `linux:e2e` drives the actual
+pointer drag at 1×, 2× and without MIT-SHM, keeping composer selection separate.

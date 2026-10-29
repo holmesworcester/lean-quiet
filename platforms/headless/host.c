@@ -287,6 +287,11 @@ lean_obj_res lq_screen(void) {
   return lean_io_result_mk_ok(a);
 }
 
+lean_obj_res lq_bars(uint32_t top, uint32_t bottom, uint8_t light_top, uint8_t light_bottom) {
+  (void)top; (void)bottom; (void)light_top; (void)light_bottom;
+  return lean_io_result_mk_ok(lean_box(0));
+}
+
 lean_obj_res lq_scroll(uint32_t content_h, uint32_t view_h) {
   hs.content_h = content_h;
   hs.view_h    = view_h;

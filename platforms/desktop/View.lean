@@ -7,6 +7,7 @@ threads surface reports the missing reply domain honestly.
 import App
 import engine.renderer.TranslatePaint
 import engine.renderer.desktop.Layout
+import engine.renderer.desktop.Scrollbar
 
 namespace Desktop
 open Paint
@@ -83,6 +84,10 @@ def content (w h : Nat) (ls : Layers) (background : Color := Row.bg) : Bitmap :=
   ⟨w, Translate.compose ls.placement (ls.placement[15]?.getD 0).toInt32 h
     (solid background w) ls.list ls.top ls.bot ls.hold, #[]⟩
 
+def scrollbar (g : Layout) (s : App.St) : Option Scrollbar.Bar :=
+  if g.main.w == 0 || s.page != .chat || s.sheet.isSome then none else
+  Scrollbar.layout (g.main.x + g.main.w) (App.geom s).top (App.geom s).viewNow (App.bottoms s).2 s.b
+
 /-- Painting traverses exactly `scene`, the list hit testing consumes. -/
 def paint (g : Layout) (h : Nat) (ui : Ui) (s : App.St) (ls : Layers) : Bitmap := Id.run do
   let color := Palette.color s.dim.theme
@@ -111,6 +116,11 @@ def paint (g : Layout) (h : Nat) (ui : Ui) (s : App.St) (ls : Layers) : Bitmap :
       else if r.has ui.hover.1 ui.hover.2 then color .selected else color .panel
     b := b.fill r.x r.y (r.x + r.w) (r.y + r.h) fill
     b := label s.font b c.label (r.x + 4) (r.y + (r.h - s.font.cell) / 2) (r.w - 8) (color (if c.pane == .nav then .onAccent else .fg))
+  if let some bar := scrollbar g s then
+    let t := bar.track
+    let r := bar.thumb
+    b := b.fill (t.x + 4) t.y (t.x + t.w - 2) (t.y + t.h) (color .line)
+    b := b.fill r.x r.y (r.x + r.w) (r.y + r.h) (color .muted)
   return b
 
 end Desktop

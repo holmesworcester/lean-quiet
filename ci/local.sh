@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Local CI: every part's gate, from the repository's top, on this
-# machine (the workflow for a hosted runner is ci/workflow.yml, unused
-# for now). Each part runs its script under tests/, as its mise task
-# does; output goes to out/ci/<part>.log, and failure artifacts stay in
+# machine and in .github/workflows/ci.yml. Every gate calls its named
+# Mise task; output goes to out/ci/<part>.log, and failure artifacts stay in
 # out/. Exits non-zero if any part fails; runs them all. `check` is the
 # proof gate (every library builds; every law of tests/Axioms.lean rests
 # on standard axioms only). `readme` checks the README's theorem links
@@ -25,13 +24,13 @@ parts=("${@:-check engine mdns qr net app readme reorg}")
 read -r -a parts <<< "${parts[*]}"
 gate() {
   case $1 in
-    check) tests/check.sh ;;
-    engine) tests/engine/run.sh ;;
-    runtime) tests/engine/run.sh --phone-runtime ;;
-    mdns|qr|net) "tests/$1/check.sh" ;;
-    app) tests/app/run.sh ;;
-    readme) python3 ci/proof-links.py --check ;;
-    reorg) python3 ci/reorg-imports.py --self-test ;;
+    check) mise run check ;;
+    engine) mise run test:engine ;;
+    runtime) mise run test:engine-runtime ;;
+    mdns|qr|net) mise run "test:$1" ;;
+    app) mise run test:app ;;
+    readme) mise run readme:links ;;
+    reorg) mise run reorg:test ;;
     *) echo "no part $1" >&2; return 2 ;;
   esac
 }

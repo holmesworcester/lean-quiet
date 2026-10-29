@@ -135,8 +135,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 839 rest on Lean's standard axioms
-only, and about three quarters of its theorems (638 of 819, not counting 20 negative controls) are about the code that runs; another 7 run the
+that rests on; 🥊 is supporting. All 857 rest on Lean's standard axioms
+only, and about three quarters of its theorems (656 of 837, not counting 20 negative controls) are about the code that runs; another 7 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -248,7 +248,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**638 of 819 laws are about running code;** another 7 run its node code in a World, and 174 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**656 of 837 laws are about running code;** another 7 run its node code in a World, and 174 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -261,7 +261,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Community | 165 | 154 |  | 11 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
-| Screen | 217 | 159 |  | 58 |
+| Screen | 235 | 177 |  | 58 |
 | App | 56 | 47 |  | 9 |
 
 | Missing link | Laws | To make them real |
@@ -1102,8 +1102,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L916-L920
-[`pageIn_acc`]: App.lean#L922-L925
+[`drawPage_key`]: App.lean#L918-L922
+[`pageIn_acc`]: App.lean#L924-L927
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175

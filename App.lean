@@ -581,7 +581,9 @@ def hexShort (b : ByteArray) : String :=
     let t := String.ofList (Nat.toDigits 16 x.toNat); if t.length < 2 then "0" ++ t else t)
 
 /-- A toast, for about 3 s (libquiet's: an outcome stated, then gone). -/
-def say (t : String) : M Unit := modify fun s => { s with toast := some (t, s.frames + 180) }
+def say (t : String) : M Unit := do
+  let now := (← (← get).io.nowUs).toNat / 1000
+  modify fun s => { s with toast := Toast.raise now t }
 
 /-- Where this device is dialed: its LAN addresses at the node's port
 (Link.hints, Wi-Fi first), or loopback in a one-machine test. -/
@@ -1215,6 +1217,8 @@ def longLabel (r : Region) (x y : Nat) : M Bool := do
 
 def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   let s ← get
+  -- A transient toast never intercepts the underlying action.
+  modify fun s => { s with toast := none, noticeClock := none }
   -- a tap puts a standing notice away
   if !s.notices.isEmpty then
     modify fun s => { s with notices := s.notices.drop 1 }
@@ -1236,6 +1240,9 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   if let some sh := s.sheet then
     if r == .composer then onSheetTap sh x y; return
     if r == .header then closeSheet; return
+  if !Occlusion.active s.sheet.isSome .page then
+    closeSheet
+    return
   match r with
   | .composer =>
     match Composer.hit (composerLayout s) x y with
@@ -1272,6 +1279,20 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
           | .twin => openPage .duplicate
           | _ => pure ()
 
+/-- Shell coordinates are checked against the current safe rectangle,
+then translated to the content coordinates used by the existing handlers. -/
+def onScreenTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
+  let s ← get
+  let g := geom s
+  let sy := match r with
+    | .header => y
+    | .composer => g.composerTop + y
+    | .list => if s.page == .chat then (Int.ofNat g.composerTop - 1 - (Int.ofNat y - s.b)).toNat
+      else g.composerTop + g.shift - 1 - y
+  let i := { s.window with ime := ⟨0, 0, 0, s.imeH⟩ }
+  if (Safe.target i ⟨x, sy, 1, 1⟩).isNone then return
+  onTap r (x - (Safe.content i).x) y long
+
 def onEvent : Event → M Bool
   | .close => do suspend; return false
   | .background => do
@@ -1287,24 +1308,25 @@ def onEvent : Event → M Bool
   | .deepLink url => do
     modify fun s => { s with pendingLinks := s.pendingLinks ++ [url] }
     return true
-  | .tap r x y => do onTap r x.toNat y.toNat false; return true
-  | .long r x y => do onTap r x.toNat y.toNat true; return true
+  | .tap r x y => do onScreenTap r x.toNat y.toNat false; return true
+  | .long r x y => do onScreenTap r x.toNat y.toNat true; return true
   | .text => do
     let (t, sel) ← (← get).io.text
     modify fun s => { textInto s t sel with native := t }
     return true
   | .send => do
+    if !Occlusion.active (← get).sheet.isSome .page then return true
     if (← get).page == .create || (← get).page == .createName || (← get).page == .paste || (← get).page == .name then
       onPageAct .continue_
       return true
     sendNow
     return true
-  | .ime h => do modify fun s => { s with imeH := h.toNat }; return true
+  | .ime h => do modify fun s => { s with imeH := h.toNat, chromeKey := "", pageKey := none }; return true
   | .scrolling _ => return true
   | .drag ph x y => do
     if ph == 3 then
       modify fun s => { s with sheet := s.sheet.map fun sh => { sh with drag := none, vel := 0 } }
-    else onSheetDrag ph.toNat x.toNat y.toNat
+    else onSheetDrag ph.toNat (x.toNat - (Safe.content (← get).window).x) y.toNat
     return true
 
 def loadSrcs : IO (Array Image.Src) := do
@@ -1529,25 +1551,45 @@ def sheetBitmap (sh : SheetSt) (mine : List String) : M Bitmap := do
   let bot := Sheet.catBot s.font s.dim s.W c sh.cat sh.searching
   return { w := s.W, rows := SheetGeom.compose top.rows line g.vh sh.scroll bot.rows }
 
-/-- The toast, if one stands, over the middle of the viewport's rows of a
-list frame (new rows: the ones under it are shared and stay). -/
-def withToast (s : St) (fr : Array ByteArray) (vh : Nat) : Array ByteArray := Id.run do
-  -- a standing notice outranks a passing toast
-  let some t := s.notices.head? <|> (s.toast.bind fun (t, upto) => if s.frames > upto then none else some t)
+/-- Protect a page's input too: it is inside the list frame, unlike the
+channel's composer. Protecting an unfocused field is harmless. -/
+def focusBox (s : St) : Safe.Rect :=
+  if s.page == .chat then ⟨0, (geom s).composerTop, s.W, botH s⟩
+  else match s.pageNow.bind (fun p => p.taps.find? (·.2 == .field)) with
+    | some (b, _) => ⟨b.x, topH s + b.y, b.w, b.h⟩
+    | none => ⟨0, 0, 0, 0⟩
+
+/-- The one transient Toast layer, in the current visible viewport. The
+frame row accounts for the existing seam's keyboard lift on a channel. -/
+def withToast (s : St) (fr : Array ByteArray) (_vh : Nat) : Array ByteArray := Id.run do
+  let some t := Toast.showing s.nowMs s.noticeClock <|> Toast.showing s.nowMs s.toast
     | return fr
   let tb := Pages.toast s.font s.dim s.W t
-  let x := (s.W - tb.w) / 2
-  let r0 := over + (vh - tb.h) / 2
+  let g := geom s
+  let view : Safe.Rect := ⟨0, g.top, s.W, g.viewNow⟩
+  let focused := focusBox s
+  let input : Safe.Input := ⟨s.W, s.Hs, ⟨0, s.insetTop, 0, s.insetBot⟩, {}, ⟨0, 0, 0, s.imeH⟩⟩
+  let some placed := Toast.layout input view focused tb.w tb.h (SafeFrame.targetPx s.dim.dpi) | return fr
+  let r0 := over + (placed.rect.y - g.top) + (if s.page == .chat then g.shift else 0)
   let mut fr := fr
   for k in [0:tb.h] do
     if r0 + k < fr.size then
-      fr := fr.set! (r0 + k) (Overlay.toastRow s.dim.theme fr[r0 + k]! tb.rows[k]! x k tb.w tb.h (s.dim.px 16) (max 2 (s.dim.px 2)))
+      fr := fr.set! (r0 + k) (Overlay.toastRow s.dim.theme fr[r0 + k]! tb.rows[k]! placed.rect.x k tb.w tb.h (s.dim.px 16) (max 2 (s.dim.px 2)))
   return fr
 
 /-- The same placement and raw-input boundary on every phone and twin. -/
 def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
   let s ← get
-  let result ← Session.present s.io.frame s.io.motion (geom s) s.dim.dpi
+  let screen := if s.sheet.isSome then SafeFrame.Screen.sheet else if s.page == .chat then .channel
+    else if s.page == .home then .home else .page
+  let colours := SafeFrame.colours s.dim.theme
+  let top := (SafeFrame.band s.window screen colours .top).colour
+  let bottom := (SafeFrame.band s.window screen colours .bottom).colour
+  s.io.bars top bottom (SafeFrame.lightIcons top) (SafeFrame.lightIcons bottom)
+  let display : Session.Show := fun list b over top bot pin words hold =>
+    s.io.frame (SafeFrame.extend s.window list) b over (SafeFrame.extend s.window top)
+      (SafeFrame.extend s.window bot) pin words (SafeFrame.extend s.window hold)
+  let result ← Session.present display s.io.motion (geom s) s.dim.dpi
     ((bottoms s).2 - (geom s).viewNow) s.input fr b over s.topBmp.rows s.botBmp.rows pin
     (Hold.plane ⟨s.bgRow, s.dim, s.W⟩ (geom s).viewNow)
   modify fun s => { s with input := result.state }
@@ -1863,6 +1905,14 @@ def step (evs : List Event) : M (Option (List Event)) := do
   let sc ← io.screen
   systemTheme (Theme.ofWord (sc[5]?.getD 0))
   resize sc
+  modify fun s =>
+    if s.notices.head? != s.noticeClock.map (·.1) then
+      { s with noticeClock := s.notices.head?.map fun t => (t, s.nowMs + Toast.life) }
+    else if s.noticeClock.isSome && (Toast.showing s.nowMs s.noticeClock).isNone then
+      { s with notices := s.notices.drop 1, noticeClock := none }
+    else s
+  -- A complete snapshot outranks keyboard events queued for an older frame.
+  if sc.size ≥ 9 then input := input.filter fun e => match e with | .ime _ => false | _ => true
   mountPage
   let links := (← get).pendingLinks
   modify fun s => { s with pendingLinks := [] }
@@ -1896,8 +1946,10 @@ partial def loop (evs : List Event) : M Unit := do
 connections, this node's identity (the community founded on first run). -/
 def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat × Bool) := none) :
     IO St := do
-  let W := (screen[0]?.getD 1080).toNat
-  let Hs := (screen[1]?.getD 2400).toNat
+  let window := SafeFrame.report screen
+  let safe := Safe.content { window with ime := {} }
+  let W := safe.w
+  let Hs := window.h
   let font ← Font.load (density := (screen[4]?.getD 420).toNat)
   let rd ← openDb dbPath
   Lifecycle.init rd
@@ -1921,9 +1973,9 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
     | .ok c => pure c
     | .error e => do IO.eprintln s!"no emoji catalogue: {e}"; pure #[]
   let initial : St := {
-           io := io, theme := theme, W := W, Hs := Hs, insetTop := (screen[2]?.getD 0).toNat, catalog := catalog,
+           io := io, theme := theme, W := W, Hs := Hs, insetTop := safe.y, window, imeH := window.ime.bottom, catalog := catalog,
            dim := ⟨(screen[4]?.getD 420).toNat, font.cell, Theme.effective theme⟩,
-           insetBot := (screen[3]?.getD 0).toNat, font := font, bgRow := solid (Palette.color (Theme.effective theme) .bg) W, rd := rd,
+           insetBot := Hs - safe.bottom, font := font, bgRow := solid (Palette.color (Theme.effective theme) .bg) W, rd := rd,
            wr := wr, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
            -- a removal already in the store at launch is not announced
            goneSeen := (all.toList.filter (·.removed)).map (·.acc),

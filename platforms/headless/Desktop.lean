@@ -135,6 +135,24 @@ private def suite (args : List String) : IO UInt32 := do
     if d.app.total ≥ 41 then break
     d ← settle d
   check s!"a conversation taller than the window ({d.app.total} messages)" (d.app.total ≥ 41)
+  sm.b.set 0
+  d ← settle d
+  let some bar := scrollbar d.layout d.app | throw (IO.userError "missing scrollbar for long conversation")
+  check "scrollbar pinned to newest at bottom" (bar.thumb.y + bar.thumb.h == bar.track.y + bar.track.h)
+  let image ← picture d
+  check "scrollbar thumb is visible in the composed frame"
+    (Paint.getPx image.rows[bar.thumb.y + bar.thumb.h / 2]! (bar.thumb.x + 2) == Palette.color d.app.dim.theme .muted)
+  let grab := scrollGrab d (bar.thumb.x + 2) (bar.thumb.y + bar.thumb.h / 2)
+  check "thumb accepts pointer down; message area does not" (grab.isSome && (scrollGrab d (d.layout.main.x + 40) bar.thumb.y).isNone)
+  scrollDrag d (grab.getD 0) bar.track.y
+  d ← settle d
+  check "drag thumb to top reaches oldest history" (d.app.b > 0 && d.app.b == (App.bottoms d.app).2 - (App.geom d.app).viewNow)
+  scrollDrag d (grab.getD 0) (bar.track.y + bar.track.h + 100)
+  d ← settle d
+  check "drag beyond bottom returns to newest" (d.app.b == 0)
+  check "short conversation has no scrollbar" ((Scrollbar.layout 390 56 600 500 0).isNone)
+  let hidden := { d with ui := { d.ui with context := .settings }, width := 390 }
+  check "full-width context has no conversation scrollbar" ((scrollbar hidden.layout hidden.app).isNone)
   sm.b.set 800
   d ← settle d
   let anchor := App.captureAnchor d.app

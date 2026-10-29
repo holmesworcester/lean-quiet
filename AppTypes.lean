@@ -9,6 +9,8 @@ import engine.renderer.Nav
 import engine.renderer.Cover
 import engine.renderer.Session
 import engine.renderer.Sheet
+import engine.renderer.SafeFrame
+import engine.renderer.Toast
 import engine.renderer.Appearance
 import engine.renderer.ThemeStore
 import ops.app.Pages
@@ -51,6 +53,7 @@ structure Io where
   links : IO (Array String) := pure #[]
   motion : Array UInt32 → IO Unit := fun _ => pure ()
   appearance : Bool → UInt32 → IO Unit := fun _ _ => pure ()
+  bars : UInt32 → UInt32 → Bool → Bool → IO Unit := fun _ _ _ _ => pure ()
 
 /-- How far beyond each end of the viewport the list frame is drawn. -/
 def over : Nat := 1024
@@ -143,6 +146,9 @@ structure PageIn where
 structure St where
   io : Io
   theme : Theme.State := {}
+  window : Safe.Input := ⟨1080, 2400, {}, {}, {}⟩
+  nowMs : Nat := 0
+  noticeClock : Option (String × Nat) := none
   W : Nat
   Hs : Nat
   insetTop : Nat
@@ -312,7 +318,7 @@ removal is not announced again. -/
   paintStop : Array (Task Unit) := #[]
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure (), pure #[], pure #[], fun _ => pure (), fun _ _ => pure ()⟩⟩
+  pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure (), pure #[], pure #[], fun _ => pure (), fun _ _ => pure (), fun _ _ _ _ => pure ()⟩⟩
 
 abbrev M := StateT St IO
 

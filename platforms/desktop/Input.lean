@@ -28,4 +28,11 @@ def caret (d : Driver) (x y : Nat) : Option Nat := Id.run do
       distance := delta
   return some best
 
+def scrollGrab (d : Driver) (x y : Nat) : Option Nat :=
+  (scrollbar d.layout d.app).bind fun bar => Scrollbar.grab bar x y
+
+def scrollDrag (d : Driver) (grab y : Nat) : IO Unit := do
+  if let some bar := scrollbar d.layout d.app then
+    d.app.io.scrollTo (Scrollbar.offset bar grab y).toFloat
+
 end Desktop

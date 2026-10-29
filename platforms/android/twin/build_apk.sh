@@ -144,7 +144,7 @@ done
 # 3. The Java half, the manifest, assets; package and sign.
 mkdir -p "$work/classes" "$work/dex"
 javac --release 17 -nowarn -classpath "$jar" -d "$work/classes" \
-  $(find "$here/java" -name '*.java') 2>&1 | grep -v '^Note:' || true
+  $(find "$here/java" -name '*.java') 2>&1 | sed '/^Note:/d'
 "$bt/d8" --min-api 30 --lib "$jar" --output "$work/dex" $(find "$work/classes" -name '*.class')
 sed -e "s/@PACKAGE@/$pkg/" -e "s/@LABEL@/$label/" \
   "$here/AndroidManifest.xml.in" > "$work/AndroidManifest.xml"

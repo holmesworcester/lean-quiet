@@ -250,7 +250,7 @@ def owned (l : Lifecycle.Lease) (action : M α) : M (Option α) := do
   Lifecycle.owned (← get).life l action
 
 /-- Re-layout every mounted row and invalidate its old pixels. -/
-def resize (sc : Array UInt32) : M Unit := do
+def resizeContent (sc : Array UInt32) : M Unit := do
   let s ← get
   let w := (sc[0]?.getD s.W.toUInt32).toNat
   let h := (sc[1]?.getD s.Hs.toUInt32).toNat
@@ -260,22 +260,44 @@ def resize (sc : Array UInt32) : M Unit := do
   if w == s.W && h == s.Hs && it == s.insetTop && ib == s.insetBot && dpi == s.dim.dpi then return
   if let some p := s.input.press then s.io.motion { p.first with phase := 3 }.words
   retirePaints s
-  let dm : Dim := ⟨dpi, s.font.cell, s.dim.theme⟩
+  let font ← if dpi == s.dim.dpi then pure s.font else Font.load (density := dpi)
+  let dm : Dim := ⟨dpi, font.cell, s.dim.theme⟩
   let mut rows := s.rows
   let mut heights := if w == s.W && dpi == s.dim.dpi then s.heights else {}
   for (x, r) in s.rows.toList do
-    let lay := Row.layout s.font dm w r.data
+    let lay := Row.layout font dm w r.data
     rows := rows.insert x { r with
       lay, ver := r.ver + 1, task := none, shown := none,
       dimmed := none, dimShown := none }
     heights := heights.insert x lay.h
   modify fun s => { s with
-    W := w, Hs := h, insetTop := it, insetBot := ib, dim := dm, input := Input.revoke s.input,
+    W := w, Hs := h, insetTop := it, insetBot := ib, font, dim := dm, input := Input.revoke s.input,
     bgRow := solid (Palette.color s.dim.theme .bg) w, rows, heights, imgs := {}, imgRetry := {},
     picWants := #[], retryWants := {}, lastSlices := none,
     life := { s.life with generation := s.life.generation + 1 },
     mark := captureAnchor s, restoreAnchor := true, pageKey := none, pageNow := none,
     chromeKey := "", gridKey := "", gridRows := {} }
+
+/-- Apply the latest safe-area snapshot after resizeContent has retired and
+re-laid out mounted rows. This is the handler used by the live frame. -/
+def screenChanged (sc : Array UInt32) (now : Nat) (s : St) : St :=
+  let window := SafeFrame.report sc s.imeH
+  let safe := Safe.content { window with ime := {} }
+  let changed := window != s.window
+  { s with
+    window := window, W := safe.w, Hs := window.h, insetTop := safe.y,
+    insetBot := window.h - safe.bottom, imeH := window.ime.bottom, nowMs := now,
+    pageKey := if changed then none else s.pageKey,
+    chromeKey := if changed then "" else s.chromeKey,
+    gridRows := if changed then {} else s.gridRows }
+
+def resize (sc : Array UInt32) : M Unit := do
+  let s ← get
+  let window := SafeFrame.report sc s.imeH
+  let safe := Safe.content { window with ime := {} }
+  resizeContent #[safe.w.toUInt32, window.h.toUInt32, safe.y.toUInt32,
+    (window.h - safe.bottom).toUInt32, sc[4]?.getD s.dim.dpi.toUInt32]
+  modify (screenChanged sc ((← s.io.nowUs).toNat / 1000))
 
 /-- The native field may have changed in the same poll as background.
 Save its final text before hiding it; search text is not a composer draft. -/

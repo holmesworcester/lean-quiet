@@ -6,7 +6,7 @@ private def platform : App.Io :=
   ⟨Platform.screen, Platform.scroll, Platform.scrollBy, Platform.scrollTo, Platform.frame, Platform.text,
    Platform.ime, fun t => Platform.copy t, Platform.ctlPoll, fun s => Platform.ctlReply s, Platform.nowUs,
    do return ((← Std.Time.Timestamp.now).toSecondsSinceUnixEpoch.val.toNat / 60, (← Platform.tzMin).toInt),
-   Platform.scan, Platform.luma, Platform.log, (fun t => Platform.setText t), Platform.poll, Platform.links, Platform.motion, Platform.appearance⟩
+   Platform.scan, Platform.luma, Platform.log, (fun t => Platform.setText t), Platform.poll, Platform.links, Platform.motion, Platform.appearance, Platform.bars⟩
 
 @[extern "lq_desktop_frame"] opaque desktopFrame (rows : @& Array ByteArray) : IO (Array UInt32)
 @[extern "lq_desktop_select"] opaque desktopSelect (anchor caret : UInt32) : IO Unit
@@ -22,41 +22,51 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
       for (box, action) in pg.taps do
         if let .theme choice := action then
           controls := controls ++ s!"choice {Theme.encode choice} {d.layout.main.x + box.x + box.w/2} {App.topH d.app + box.y + box.h/2}\n"
+    for control in Desktop.scene d.layout d.height d.ui d.app do
+      if let .community i := control.action then
+        controls := controls ++ s!"switch {i} {if (d.app.comms[i]?.map (·.acc == d.app.cur)).getD false then 1 else 0} {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
+    if let some bar := Desktop.scrollbar d.layout d.app then
+      controls := controls ++ s!"scrollbar {bar.thumb.x} {bar.thumb.y} {bar.thumb.w} {bar.thumb.h} {bar.track.y} {bar.track.h} {bar.range}\n"
     IO.FS.writeFile (path ++ ".tmp") s!"{d.width} {d.height}\n{d.app.me.name}\n{repr d.ui.context}\n{repr d.app.page}\n{d.app.text}\n{d.app.total}\n{d.app.sel}\n{d.app.b}\n{controls}theme {Theme.encode d.app.theme.setting}\n"
     IO.FS.rename (path ++ ".tmp") path
 
-partial def run (d : Desktop.Driver) (anchor : Option Nat := none) : IO Desktop.Driver := do
+partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab : Option Nat := none) : IO Desktop.Driver := do
   let mut d ← Desktop.tick d
   let pic ← Desktop.picture d
   traceState d
   let ev ← desktopFrame pic.rows
   let mut anchor := anchor
+  let mut scrollGrab := scrollGrab
   for i in [0:ev.size / 4] do
     let k := ev[4*i]!
     let x := ev[4*i+1]!.toNat
     let y := ev[4*i+2]!.toNat
     let z := ev[4*i+3]!.toNat
     if k == 1 then return d
-    else if k == 2 || k == 3 then d ← Desktop.tap d x y (k == 3)
+    else if k == 2 || k == 3 then
+      if scrollGrab.isNone then d ← Desktop.tap d x y (k == 3)
     else if k == 4 || k == 5 then
       let (_, s) ← (App.onEvent (if k == 4 then .text else .send)).run d.app
       d := { d with app := s }
     else if k == 9 then
       d := { d with ui := { d.ui with hover := (x, y) } }
       if z == 1 then
+        if let some grab := scrollGrab then Desktop.scrollDrag d grab y
         if let some a := anchor then
           if let some c := Desktop.caret d x y then desktopSelect a.toUInt32 c.toUInt32
     else if k == 10 then
-      anchor := Desktop.caret d x y
+      scrollGrab := Desktop.scrollGrab d x y
+      anchor := if scrollGrab.isSome then none else Desktop.caret d x y
+      if let some grab := scrollGrab then Desktop.scrollDrag d grab y
       if let some c := anchor then desktopSelect c.toUInt32 c.toUInt32
-    else if k == 11 then anchor := none
+    else if k == 11 then anchor := none; scrollGrab := none
     else if k == 12 then d ← Desktop.act d .close
     else if k == 13 then d ← Desktop.resize d x y
     else if k == 14 then
       let g := d.layout
       if x ≥ g.main.x && x < g.main.x + g.main.w && y ≥ App.topH d.app && y < d.height - App.botH d.app && d.app.page == .chat then
         Platform.scrollBy (if z == 1 then 48 else -48)
-  run d anchor
+  run d anchor scrollGrab
 
 def main (args : List String) : IO Unit := do
   let sc ← Platform.screen
@@ -71,6 +81,10 @@ def main (args : List String) : IO Unit := do
     d ← Desktop.act d (.community (d.app.comms.findIdx? (·.name == "Quiet") |>.getD 0))
     for message in ["Welcome to Lean Quiet.", "Noto: café · Ελληνικά · שלום · 日本語 · 🙂"] do
       let (_, s) ← (App.sendText message).run d.app
+      d := { d with app := s }
+  if args.contains "--scroll-fixture" then
+    for i in [0:40] do
+      let (_, s) ← (App.sendText s!"Scroll history {i}: older messages remain reachable.").run d.app
       d := { d with app := s }
   d ← run d
   if let some r := d.app.net then r.stop

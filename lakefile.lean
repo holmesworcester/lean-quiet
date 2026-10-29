@@ -380,3 +380,6 @@ lean_exe appearance where
 
 lean_exe appearance_seam where
   root := `platforms.headless.AppearanceSeam
+
+lean_exe safe where
+  root := `platforms.headless.Safe

@@ -61,7 +61,8 @@ static bool            lq_gone;    // the app is going away
 static bool            lq_closed;  // the close event was handed over
 
 // The screen, px, as of the last layout (under lq_mu).
-static uint32_t lq_w, lq_h, lq_itop, lq_ibot, lq_dpi;
+static uint32_t lq_w, lq_h, lq_itop, lq_ibot, lq_dpi, lq_ileft, lq_iright, lq_keyboard;
+static bool lq_light_status = true;
 static uint32_t lq_read_w, lq_read_h;
 static double   lq_k = 3;          // px per point
 
@@ -293,14 +294,26 @@ lean_obj_res lq_screen(void) {
     pthread_cond_wait(&lq_cv, &lq_mu);
   }
   waited = true;
-  uint32_t v[6] = { lq_w, lq_h, lq_itop, lq_ibot, lq_dpi, lq_system_dark };
+  uint32_t v[9] = { lq_w, lq_h, lq_itop, lq_ibot, lq_dpi, lq_system_dark, lq_ileft, lq_iright, lq_keyboard };
   lq_read_w = lq_w; lq_read_h = lq_h;
   pthread_mutex_unlock(&lq_mu);
-  lean_object* a = lean_mk_empty_array_with_capacity(lean_box(6));
-  for (int i = 0; i < 6; i += 1) {
+  lean_object* a = lean_mk_empty_array_with_capacity(lean_box(9));
+  for (int i = 0; i < 9; i += 1) {
     a = lean_array_push(a, lean_box_uint32(v[i]));
   }
   return lean_io_result_mk_ok(a);
+}
+
+lean_obj_res lq_bars(uint32_t top, uint32_t bottom, uint8_t light_top, uint8_t light_bottom) {
+  (void)top; (void)light_bottom; // Top pixels are in Lean's header; iOS owns the home glyph.
+  dispatch_async(dispatch_get_main_queue(), ^{
+    lq_fill.backgroundColor = lq_color(bottom);
+    if (lq_light_status != (light_top != 0)) {
+      lq_light_status = light_top != 0;
+      [lq_root.window.rootViewController setNeedsStatusBarAppearanceUpdate];
+    }
+  });
+  return lean_io_result_mk_ok(lean_box(0));
 }
 
 lean_obj_res lq_scroll(uint32_t content_h, uint32_t view_h) {
@@ -976,6 +989,8 @@ lean_obj_res lq_motion(b_lean_obj_arg samples) {
   lq_h    = lq_px(v.bounds.size.height);
   lq_itop = lq_px(in.top);
   lq_ibot = lq_px(in.bottom);
+  lq_ileft = lq_px(in.left);
+  lq_iright = lq_px(in.right);
   lq_dpi  = (uint32_t)lround(160 * lq_k);
   lq_push(12, 0, 0, 0);
   if (!lq_up && lq_w > 0 && lq_h > 0) {
@@ -994,7 +1009,7 @@ lean_obj_res lq_motion(b_lean_obj_arg samples) {
 }
 
 - (UIStatusBarStyle)preferredStatusBarStyle {
-  return lq_effective_dark ? UIStatusBarStyleLightContent : UIStatusBarStyleDarkContent;
+  return lq_light_status ? UIStatusBarStyleLightContent : UIStatusBarStyleDarkContent;
 }
 
 @end
@@ -1115,6 +1130,9 @@ static void* lq_run(void* arg) {
   double   kbh = lq_root.bounds.size.height - pl.frame.origin.y;
   uint32_t kb  = lq_px(kbh);
   uint32_t ime = kb > lq_ibot + 1 ? kb : 0;  // closed: the guide is the safe area's bottom
+  pthread_mutex_lock(&lq_mu);
+  lq_keyboard = ime;
+  pthread_mutex_unlock(&lq_mu);
   if (ime != self.ime) {
     self.ime = ime;
     lq_event(6, ime, 0, 0);

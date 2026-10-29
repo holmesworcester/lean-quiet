@@ -23,10 +23,10 @@ tests/app/cjk.sh
 tests/app/bidi.sh
 tests/app/bidi_host.sh
 lake build host two_nodes net_join cross arrival attach inkless nodequeue pic_retry ux
-tests/app/host_twin_demo.sh
-tests/app/seam.sh
-tests/app/slide.sh
-tests/app/translate.sh
+mise run host:twin-demo
+mise run host:seam
+mise run host:slide
+mise run host:translate
 .lake/build/bin/inkless
 tests/app/inkless_negative.sh
 .lake/build/bin/nodequeue
@@ -41,8 +41,8 @@ fi
 .lake/build/bin/arrival out/arrival
 if [ "${SKIP_TCP:-0}" != 1 ]; then .lake/build/bin/attach out/attach; else echo "SKIP attach (TCP sandbox; built)"; fi
 # the desktop root without a window, then the Linux shell under Xvfb
-tests/app/desktop.sh
-if [ "${SKIP_X:-${SKIP_TCP:-0}}" != 1 ]; then platforms/linux/test.sh
+mise run host:desktop
+if [ "${SKIP_X:-${SKIP_TCP:-0}}" != 1 ]; then mise run linux:e2e
 else platforms/linux/build.sh && echo "SKIP linux e2e (no local X sockets; the shell built)"; fi
 # navigation: each mutant of a rule must fail its law (ops/app/NavLaws)
 tests/app/nav_negative.sh
@@ -59,3 +59,7 @@ tests/app/lifecycle_node_negative.sh
 mise run host:theme-restart
 mise run host:theme-live
 mise run host:theme-negative
+
+mise run host:safe
+mise run host:safe-negative
+mise run host:desktop-negative

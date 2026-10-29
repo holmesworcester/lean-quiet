@@ -38,9 +38,10 @@ import java.util.List;
  * native first (NativeActivity's input queue), and keys native leaves
  * unhandled reach the EditText.
  */
-public class LeanActivity extends NativeActivity {
+public class LeanActivity extends NativeActivity implements BarState.Window {
   static native void nAppearance(boolean dark);
-  static native void nInsets(int top, int bottom, int ime);
+  static native void nInsets(int top, int bottom, int ime, int left, int right,
+      int cutLeft, int cutTop, int cutRight, int cutBottom);
   static native void nText(String text, int selStart, int selEnd, int compStart, int compEnd);
   static native void nAction(int kind, int code, int action);
   static native void nLink(String url);
@@ -71,6 +72,35 @@ public class LeanActivity extends NativeActivity {
       getWindow().getInsetsController().setSystemBarsAppearance(dark ? 0 : mask, mask);
       getWindow().setBackgroundDrawable(new ColorDrawable(0xff000000 | background));
     });
+  }
+
+  private static final BarState bars = new BarState();
+
+  public void applyBars(int top, int bottom, boolean lightTop, boolean lightBottom) {
+    bars.set(new BarState.Choice(top, bottom, lightTop, lightBottom));
+  }
+
+  public void postBars(Runnable work) { runOnUiThread(work); }
+
+  public void paintBars(BarState.Choice choice) {
+    getWindow().setStatusBarColor(0xff000000 | choice.top());
+    getWindow().setNavigationBarColor(0xff000000 | choice.bottom());
+    android.view.WindowInsetsController c = getWindow().getInsetsController();
+    if (c != null) {
+      int status = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS;
+      int nav = android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+      c.setSystemBarsAppearance((choice.lightTop() ? 0 : status) | (choice.lightBottom() ? 0 : nav), status | nav);
+    }
+  }
+
+  @Override public void onWindowFocusChanged(boolean focused) {
+    super.onWindowFocusChanged(focused);
+    if (focused) bars.attach(this);
+  }
+
+  @Override protected void onDestroy() {
+    bars.detach(this);
+    super.onDestroy();
   }
 
   private EditText edit;
@@ -114,6 +144,11 @@ public class LeanActivity extends NativeActivity {
     getWindow().setStatusBarColor(Color.TRANSPARENT);
     getWindow().setNavigationBarColor(Color.TRANSPARENT);
     getWindow().setNavigationBarContrastEnforced(false);
+    getWindow().setStatusBarContrastEnforced(false);
+    android.view.WindowManager.LayoutParams attrs = getWindow().getAttributes();
+    attrs.layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+    getWindow().setAttributes(attrs);
+    bars.attach(this);
     imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
     edit = new Field(this);
     edit.setAlpha(0f);
@@ -147,6 +182,7 @@ public class LeanActivity extends NativeActivity {
       insets(insets);
       return v.onApplyWindowInsets(insets);
     });
+    decor.requestApplyInsets();
     decor.setWindowInsetsAnimationCallback(
         new WindowInsetsAnimation.Callback(WindowInsetsAnimation.Callback.DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
           @Override public WindowInsets onProgress(WindowInsets insets, List<WindowInsetsAnimation> running) {
@@ -159,7 +195,10 @@ public class LeanActivity extends NativeActivity {
   private static void insets(WindowInsets in) {
     Insets bars = in.getInsets(WindowInsets.Type.systemBars());
     Insets ime = in.getInsets(WindowInsets.Type.ime());
-    nInsets(bars.top, bars.bottom, ime.bottom);
+    android.view.DisplayCutout cut = in.getDisplayCutout();
+    nInsets(bars.top, bars.bottom, ime.bottom, bars.left, bars.right,
+        cut == null ? 0 : cut.getSafeInsetLeft(), cut == null ? 0 : cut.getSafeInsetTop(),
+        cut == null ? 0 : cut.getSafeInsetRight(), cut == null ? 0 : cut.getSafeInsetBottom());
   }
 
   private static int cp(CharSequence s, int i) {

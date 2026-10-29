@@ -296,3 +296,20 @@ run = "lake build appearance engine.renderer.ThemeLaws && python3 tests/app/them
 description = "Record the real Linux app resizing from desktop to mobile and changing appearance (Xvfb, xdotool, ImageMagick, ffmpeg)"
 depends = ["linux:build"]
 run = "python3 platforms/linux/demo.py"
+
+[tasks."host:safe"]
+description = "Build and exercise real App.step across safe areas, rotation, keyboard, transient overlays and native bar recreation"
+depends = ["crypto"]
+run = "tests/app/host_safe.sh"
+
+[tasks."host:safe-negative"]
+description = "Safe-area geometry, toast, bar lifecycle and hit-test mutation controls"
+run = "python3 tests/app/safe_negative.py"
+
+[tasks."host:bar-state"]
+description = "Compile and test Android bar choices across window recreation"
+run = "tests/app/bar_state.sh"
+
+[tasks."android:phone-apk"]
+description = "Build the current arm64 app for a physical phone, reusing LEANRT when provided (otherwise build the Android runtime)"
+run = "[ -f \"${LEANRT:-out/leanrt}/arm64-v8a/libInit.a\" ] || mise run android:runtime; [ -f assets/font.bin ] || tools/fetch_assets.sh; platforms/android/twin/build_apk.sh out/quiet-phone.apk com.holmes.leanquiet 'Lean Quiet' Main arm64-v8a"
