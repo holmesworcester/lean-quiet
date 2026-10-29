@@ -551,7 +551,8 @@ def paintRow (x : Id) (bottom offset viewport : Nat := 0) : M Unit := do
   if r.painted != (r.ver, ready) then modify fun s => { s with paints := s.paints + 1 }
   r := { r with
     task := if value.isSome then none else some handle,
-    painted := (r.ver, ready), shown := value.orElse fun _ => r.shown }
+    painted := (r.ver, ready), shown := value.orElse fun _ => r.shown,
+    pixels := if !s.mobile && value.isSome then some ⟨d, l, imgs, r.ver, ready⟩ else r.pixels }
   if s.selected.isSome && !selected then
     if let some bmp := r.shown then
       let key := Raster.Key.dim s.life.generation x r.ver ready s.dim.theme
@@ -630,7 +631,11 @@ def header (s : St) : Bitmap := Id.run do
     b := b.icon s.font "arrow-back" (px 16) (s.insetTop + px 18) (px 24) (color .fg)
     b := Pages.centred font b "#general" (s.insetTop + px 12) (color .fg)
     b := Pages.centred (s.font.atSize (px 12)) b s!"({s.me.name})" (s.insetTop + px 32) (color .fg)
-  b := b.icon s.font "more" (s.W - px 42) (s.insetTop + px 18) (px 24) (if s.dim.theme == .dark then 0x909090 else 0x999999)
+  let x := s.W - px (if s.wide then 52 else 46)
+  let y := s.insetTop + px (if s.wide then 16 else 14)
+  let hot := s.dim.hot x y (px 32) (px 32)
+  if hot then b := b.round x y (x + px 32) (y + px 32) (px 6) (color .selected)
+  b := b.icon s.font "more" (x + px 4) (y + px 4) (px 24) (if hot then color .fg else if s.dim.theme == .dark then 0x909090 else 0x999999)
   return b.fill 0 (h - px 1) s.W h (color .selected)
 
 /-- Header targets share the visible navigation: Back, channel settings. -/
@@ -2302,7 +2307,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
     | .error e => do IO.eprintln s!"no emoji catalogue: {e}"; pure #[]
   let initial : St := {
            io := io, theme := theme, W := W, Hs := Hs, insetTop := safe.y, window, imeH := window.ime.bottom, catalog := catalog,
-           dim := ⟨(screen[4]?.getD 420).toNat, font.cell, Theme.effective theme⟩,
+           dim := ⟨(screen[4]?.getD 420).toNat, font.cell, Theme.effective theme, none⟩,
            insetBot := Hs - safe.bottom, font := font, bgRow := solid (Palette.color (Theme.effective theme) .bg) W, rd := rd,
            wr := wr, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
            -- a removal already in the store at launch is not announced

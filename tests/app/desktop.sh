@@ -7,7 +7,7 @@ export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 test -f assets/font.bin
 tools/noto_assets.sh
 python3 platforms/linux/font.py assets/font.bin out/desktop/font.bin
-lake build desktop engine.renderer.desktop.Laws platforms.desktop.Laws
+lake build desktop engine.renderer.desktop.Laws platforms.desktop.Laws platforms.desktop.HoverLaws
 # the desktop's laws, on standard axioms only (tests/app/DesktopAxioms.lean)
 out=$(lake env lean tests/app/DesktopAxioms.lean 2>&1)
 want=$(grep -c "^#print axioms" tests/app/DesktopAxioms.lean)
@@ -18,5 +18,6 @@ bad=$(grep "depends on axioms" <<<"$out" | sed 's/.*\[\(.*\)\]/\1/' | tr ',' '\n
 [ -z "$bad" ] || { echo "non-standard axioms: $bad" >&2; exit 1; }
 echo "desktop: all $want laws rest on standard axioms only"
 .lake/build/bin/desktop out/desktop
+mise run host:hover-proofs
 # Full pixel comparison against pinned libquiet renders is visual:compare,
 # invoked by local CI. No hand-maintained CSS screenshot stand-in here.

@@ -1,0 +1,18 @@
+{
+  "target": {
+    "selector": "[data-switcher=\"desktop\"] .panel-head button"
+  },
+  "region": [
+    17,
+    56,
+    57,
+    96
+  ],
+  "pointer": [
+    [
+      37,
+      76
+    ]
+  ],
+  "cursor": "pointer"
+}

@@ -1,0 +1,19 @@
+{
+  "target": {
+    "selector": "button",
+    "text": "Edit profile"
+  },
+  "region": [
+    1097,
+    252,
+    1264,
+    296
+  ],
+  "pointer": [
+    [
+      1180,
+      274
+    ]
+  ],
+  "cursor": "pointer"
+}

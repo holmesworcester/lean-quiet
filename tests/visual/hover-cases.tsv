@@ -1,0 +1,43 @@
+# Independent DOM-targeted hover comparisons. Touch/no-pointer is the paired resting frame.
+hover-team-light	1280	760	light	sidebar@team
+hover-member-light	1280	760	light	sidebar@member
+hover-add-channel-light	1280	760	light	sidebar@add-channel
+hover-add-dm-light	1280	760	light	sidebar@add-dm
+hover-footer-light	1280	760	light	sidebar@footer
+hover-channel-light	1280	760	light	sidebar@channel
+hover-settings-row-light	1280	760	light	you@settings-row
+hover-disabled-light	1280	760	light	retention@disabled
+hover-theme-light	1280	760	light	appearance@theme
+hover-primary-light	1280	760	light	community@primary
+hover-secondary-light	1280	760	light	you@secondary
+hover-composer-light	1280	760	light	chat@composer
+hover-send-disabled-light	1280	760	light	chat@send-disabled
+hover-header-light	1280	760	light	chat@header
+hover-switch-close-light	1280	760	light	switcher@switch-close
+hover-switch-join-light	1280	760	light	switcher@switch-join
+hover-message-light	1280	760	light	conversation@message
+hover-message-react-light	1280	760	light	conversation@message-react
+hover-team-dark	1280	760	dark	sidebar@team
+hover-member-dark	1280	760	dark	sidebar@member
+hover-add-channel-dark	1280	760	dark	sidebar@add-channel
+hover-add-dm-dark	1280	760	dark	sidebar@add-dm
+hover-footer-dark	1280	760	dark	sidebar@footer
+hover-channel-dark	1280	760	dark	sidebar@channel
+hover-settings-row-dark	1280	760	dark	you@settings-row
+hover-disabled-dark	1280	760	dark	retention@disabled
+hover-theme-dark	1280	760	dark	appearance@theme
+hover-primary-dark	1280	760	dark	community@primary
+hover-secondary-dark	1280	760	dark	you@secondary
+hover-composer-dark	1280	760	dark	chat@composer
+hover-send-disabled-dark	1280	760	dark	chat@send-disabled
+hover-header-dark	1280	760	dark	chat@header
+hover-switch-close-dark	1280	760	dark	switcher@switch-close
+hover-switch-join-dark	1280	760	dark	switcher@switch-join
+hover-message-dark	1280	760	dark	conversation@message
+hover-message-react-dark	1280	760	dark	conversation@message-react
+hover-team-125	1280	760	light	sidebar@team	125
+hover-settings-row-125	1280	760	light	you@settings-row	125
+hover-composer-125	1280	760	light	chat@composer	125
+hover-message-125	1280	760	light	conversation@message	125
+hover-settings-row-narrow	390	844	light	you@settings-row
+hover-theme-narrow	390	844	light	appearance@theme

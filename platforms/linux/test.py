@@ -92,6 +92,19 @@ try:
             image = shot('chat')
             check(image.size == (1100*scale, 760*scale), tag + ' window size')
             check(image.getpixel((2*scale, 140*scale)) == (118,71,199), tag + ' Lean purple survives RGB/X11 blit')
+            # Real X11 motion/leave and cursor selection, without a click.
+            xdo('mousemove', '--window', win, 100*scale, 28*scale)
+            wait(lambda: any('pointer some (100, 28) cursor 1' in s for s in lines()), 'OS hover + hand')
+            hot = shot('hover-team')
+            check(hot.getpixel((190*scale, 30*scale)) != image.getpixel((190*scale, 30*scale)), tag + ' OS motion paints team hover')
+            xdo('windowfocus', '0')
+            wait(lambda: any('pointer none cursor 0' in s for s in lines()), 'OS focus out clears hover')
+            check(True, tag + ' OS focus loss clears hover')
+            xdo('windowfocus', '--sync', win)
+            xdo('mousemove', 2350, 1750)
+            wait(lambda: any('pointer none cursor 0' in s for s in lines()), 'OS pointer leave')
+            cold = shot('hover-leave')
+            check(cold.crop((0,0,220*scale,56*scale)).tobytes() == image.crop((0,0,220*scale,56*scale)).tobytes(), tag + ' OS leave restores team pixels')
             # A resize shows the last frame until Lean's next one (north-west
             # gravity, no background): stopped, the app cannot repaint, so a
             # shrunk window shows only what the server keeps or fills.
@@ -202,6 +215,22 @@ try:
             xdo('key', 'Return')
             wait(lambda: len(lines()) >= 6 and lines()[4] == '' and int(lines()[5]) >= 1, 'send')
             check(True, tag + ' send reaches writer')
+            # Exercise click/refocus/Return with no wait for a Lean frame.
+            # The old C pump consumed Return while its focus flag was stale.
+            for attempt in range(5):
+                click(int(ex)+20, int(ey)+4)
+                text = f'queued input {attempt}'
+                xdo('type', '--clearmodifiers', text)
+                wait(lambda: lines()[4] == text, 'queued draft')
+                click(90, 28)
+                wait(lambda: any(s.startswith('switch ') for s in lines()), 'blur queued draft')
+                xdo('key', 'Escape')
+                wait(lambda: not any(s.startswith('switch ') for s in lines()), 'close queued popup')
+                previous = int(lines()[5])
+                xdo('mousemove','--window',win,(int(ex)+20)*scale,(int(ey)+4)*scale,
+                    'mousedown','1','mouseup','1','key','Return')
+                wait(lambda: lines()[4] == '' and int(lines()[5]) > previous, 'immediate refocus and send')
+            check(True, tag + ' five immediate refocus + Return sequences preserve input order')
             # Shared mobile proportions at a phone-sized desktop window.
             xdo('windowsize', '--sync', win, 390*scale, 844*scale)
             wait(lambda: lines() and lines()[0] == '390 844', 'phone proportions')

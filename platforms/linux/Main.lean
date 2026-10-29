@@ -9,6 +9,7 @@ private def platform : App.Io :=
    Platform.scan, Platform.luma, Platform.log, (fun t => Platform.setText t), Platform.poll, Platform.links, Platform.motion, Platform.appearance, Platform.bars, (fun _ => pure false), pure (#[], .empty)⟩
 
 @[extern "lq_desktop_frame"] opaque desktopFrame (rows : @& Array ByteArray) : IO (Array UInt32)
+@[extern "lq_desktop_cursor"] opaque desktopCursor (kind : UInt32) : IO Unit
 @[extern "lq_desktop_select"] opaque desktopSelect (anchor caret : UInt32) : IO Unit
 
 private def zoomLevels : List Nat := [50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200]
@@ -39,6 +40,7 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
         controls := controls ++ s!"choice {Theme.encode choice} {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
       if control.action == .drawerAct .appearance then
         controls := controls ++ s!"appearance {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
+    controls := controls ++ s!"pointer {repr d.ui.hover} cursor {Desktop.cursor d}\n"
     controls := controls ++ s!"zoom {zoomPercent d} dpi {d.dpi} cell {d.app.font.cell}\n"
     controls := controls ++ s!"drawer {repr d.ui.drawer}\n"
     if let some bar := Desktop.scrollbar d.layout d.app then
@@ -48,6 +50,7 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
 
 partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab : Option Nat := none) : IO Desktop.Driver := do
   let mut d ← Desktop.tick d
+  desktopCursor (Desktop.cursor d).toUInt32
   let pic ← Desktop.picture d
   traceState d
   let ev ← desktopFrame pic.rows
@@ -65,11 +68,14 @@ partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab :
       let (_, s) ← (App.onEvent (if k == 4 then .text else .send)).run d.app
       d := { d with app := s }
     else if k == 9 then
-      d := { d with ui := { d.ui with hover := (x, y) } }
+      d := Desktop.pointerEvent d (.motion x y)
       if z == 1 then
         if let some grab := scrollGrab then Desktop.scrollDrag d grab y
         if let some a := anchor then
           if let some c := Desktop.caret d x y then desktopSelect a.toUInt32 c.toUInt32
+    else if k == 16 then
+      d := Desktop.pointerEvent d (if z == 1 then .blur else .leave)
+      if z == 1 then anchor := none; scrollGrab := none
     else if k == 10 then
       scrollGrab := Desktop.scrollGrab d x y
       anchor := if scrollGrab.isSome then none else Desktop.caret d x y

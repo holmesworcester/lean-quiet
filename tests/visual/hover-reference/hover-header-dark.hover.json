@@ -1,0 +1,18 @@
+{
+  "target": {
+    "selector": ".pane-thread .kebab"
+  },
+  "region": [
+    1228,
+    16,
+    1260,
+    48
+  ],
+  "pointer": [
+    [
+      1244,
+      32
+    ]
+  ],
+  "cursor": "pointer"
+}

@@ -1,0 +1,25 @@
+{
+  "target": {
+    "selector": ".said",
+    "nth": 2,
+    "message": true,
+    "action": ".said-react"
+  },
+  "region": [
+    220,
+    390,
+    1280,
+    499
+  ],
+  "pointer": [
+    [
+      750,
+      459
+    ],
+    [
+      1169,
+      455
+    ]
+  ],
+  "cursor": "auto"
+}

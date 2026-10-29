@@ -44,6 +44,11 @@ def color (theme : Theme.Value) (token : Token) : UInt32 :=
   | .black, _ => 0x000000
   | .white, _ => 0xffffff
 
+/-- Interaction tokens from the same libquiet light/dark palette. -/
+def gray03 : Theme.Value → UInt32 | .light => 0xf7f7f7 | .dark => 0x242424
+def gray30 : Theme.Value → UInt32 | .light => 0xb3b3b3 | .dark => 0x6f6f6f
+def buttonHover : Theme.Value → UInt32 | .light => 0x5c37a0 | .dark => 0x461863
+
 /-- libquiet avatar.ts: stable identity colours, shared by both themes. -/
 def avatar (id : String) : UInt32 :=
   let colors : Array UInt32 := #[0xaf3c40, 0x9f5102, 0x786900, 0x047e39,

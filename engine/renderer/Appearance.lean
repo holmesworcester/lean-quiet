@@ -32,6 +32,7 @@ def item (f : Font.Font) (dm : Dim) (b : Bitmap) (y : Nat) (a : Item) : Bitmap Ã
   let sub := if a.sub.isEmpty then #[] else Text.layoutFine small (b.w - left - right) a.sub
   let h := max (px 48) (px 25 + px 20 + sub.size * px 16)
   let mut b := b
+  if dm.hot 0 y b.w h (!a.disabled) then b := b.fill 0 y b.w (y + h) (Palette.color dm.theme .selected)
   let ink := if a.disabled then (if dm.theme == .dark then 0x888888 else 0x999999)
     else Palette.color dm.theme (if a.danger then .error else .fg)
   let ty := y + (if a.sub.isEmpty then (h - px 20) / 2 else px 12)
@@ -78,7 +79,7 @@ def page (f : Font.Font) (dm : Dim) (w h : Nat) (current : Theme.Setting) : Page
   for (choice, name) in choices do
     let (b, tap, rh) := item f dm pg.bmp y { text := name, action := .theme choice, selected := chosen current choice }
     -- A non-selected theme has no navigation chevron.
-    let b := if chosen current choice then b else b.fill (w - dm.px 36) (y + dm.px 8) (w - dm.px 12) (y + rh - dm.px 8) (Palette.color dm.theme .panel)
+    let b := if chosen current choice then b else b.fill (w - dm.px 36) (y + dm.px 8) (w - dm.px 12) (y + rh - dm.px 8) (Palette.color dm.theme (if dm.hot 0 y w rh then .selected else .panel))
     pg := { bmp := b, taps := pg.taps.push tap }
     y := y + rh
   return pg
@@ -101,9 +102,9 @@ def hero (f : Font.Font) (dm : Dim) (w h : Nat) (name id tally : String) (commun
   b := centred (f.atSize (px 12)) b tally (px 159) (gray50 dm)
   let bw := (w - px 40) / 2
   let buttonY := px 192
-  b := b.round (px 16) buttonY (px 16 + bw) (buttonY + px 44) (px 16) (color .button)
+  b := b.round (px 16) buttonY (px 16 + bw) (buttonY + px 44) (px 16) (if dm.hot (px 16) buttonY bw (px 44) then Palette.buttonHover dm.theme else color .button)
   let right := px 24 + bw
-  b := b.round right buttonY (w - px 16) (buttonY + px 44) (px 16) (color .line)
+  b := b.round right buttonY (w - px 16) (buttonY + px 44) (px 16) (if dm.hot right buttonY bw (px 44) then color .accentInk else color .line)
   b := b.round (right + px 1) (buttonY + px 1) (w - px 17) (buttonY + px 43) (px 15) (color .panel)
   let font := f.atSize (px 14)
   for (x, text, icon, ink) in [(px 16, if community then "Add members" else "Link a device", if community then "icon-person-add" else "icon-devices", color .onAccent),
@@ -134,9 +135,10 @@ def outlineButton (f : Font.Font) (dm : Dim) (b : Bitmap) (y : Nat)
     (text icon : String) (danger := false) : Bitmap := Id.run do
   let px := dm.px
   let ink := Palette.color dm.theme (if danger then .error else .fg)
+  let hot := dm.hot (px 16) y (b.w - px 32) (px 44)
   let mut b := b.round (px 16) y (b.w - px 16) (y + px 44) (px 16)
-    (if danger then ink else Palette.color dm.theme .line)
-  b := b.round (px 17) (y + px 1) (b.w - px 17) (y + px 43) (px 15) (Palette.color dm.theme .panel)
+    (if danger then ink else if hot then Palette.gray30 dm.theme else Palette.color dm.theme .line)
+  b := b.round (px 17) (y + px 1) (b.w - px 17) (y + px 43) (px 15) (if hot then Palette.gray03 dm.theme else Palette.color dm.theme .panel)
   let font := f.atSize (px 14)
   let l := Text.oneLineFine font (b.w - px 64) text
   let mark := if icon.isEmpty then 0 else px 26

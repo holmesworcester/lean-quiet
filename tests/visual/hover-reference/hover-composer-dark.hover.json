@@ -1,0 +1,19 @@
+{
+  "target": {
+    "selector": ".composer-area .attach",
+    "nth": 0
+  },
+  "region": [
+    245,
+    711,
+    277,
+    743
+  ],
+  "pointer": [
+    [
+      261,
+      727
+    ]
+  ],
+  "cursor": "pointer"
+}

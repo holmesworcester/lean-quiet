@@ -70,6 +70,15 @@ def est : Nat := 150
 def half : Nat := 100
 def bottomPad : Nat := 12
 
+/-- The already-decoded inputs of the displayed row. Desktop hover repaints
+only this component, without a reader query, decode or raster work request. -/
+structure RowPixels where
+  data : RowData
+  lay : Layout
+  images : Array (Option Bitmap)
+  version : Nat
+  ready : List Bool
+
 structure RowSt where
   data : RowData
   lay : Layout
@@ -86,6 +95,7 @@ structure RowSt where
   dimmed : Option (Work.Handle Raster.Key Bitmap) := none
   dimVer : Nat := 0
   dimShown : Option Bitmap := none
+  pixels : Option RowPixels := none
 
 abbrev ImgKey := FileImage.Key
 

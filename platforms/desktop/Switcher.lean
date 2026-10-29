@@ -54,17 +54,17 @@ def candidates (s : App.St) (m : Model) : List (Control Act) := Id.run do
 /-- Gaussian edge falloff of the CSS 0 8px 24px shadow. The rounded-box
 signed distance and a small coverage table bound work by the visible popup,
 independent of the number of communities. No screenshot is used at runtime. -/
-def shadow (b : Bitmap) (dm : Row.Dim) (box : Box) : Bitmap := Id.run do
+def shadow (b : Bitmap) (dm : Row.Dim) (box : Box) (blur := 24) (down := 8) (opacity := 0.42) (corner := 16) : Bitmap := Id.run do
   let px := dm.px
-  let sigma := max 1 (px 12)
-  let reach := px 36
-  let radius := px 16
-  let cy0 := box.y + px 8
+  let sigma := max 1 (px blur / 2)
+  let reach := px blur * 3 / 2
+  let radius := px corner
+  let cy0 := box.y + px down
   let coverage := (Array.range (2 * reach + 1)).map fun i =>
     let x := (i.toFloat - reach.toFloat) / sigma.toFloat / 1.41421356237
     let t := 1.0 / (1.0 + 0.3275911 * x.abs)
     let erf := 1.0 - (((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t) * (-x*x).exp
-    ((0.5 * (1.0 - (if x < 0 then -erf else erf)) * 0.42 * 255.0).toUInt64.toNat)
+    ((0.5 * (1.0 - (if x < 0 then -erf else erf)) * opacity * 255.0).toUInt64.toNat)
   let mut b := b
   for y in [cy0 - reach:min b.h (cy0 + box.h + reach)] do
     b := b.modify y fun row => Id.run do
@@ -83,7 +83,7 @@ def shadow (b : Bitmap) (dm : Row.Dim) (box : Box) : Bitmap := Id.run do
 
 /-- The visible window into a taller popover. Offscreen entries don't paint,
 and clipping is applied after text/icons so partially visible rows stay put. -/
-def paint (b : Bitmap) (s : App.St) (m : Model) (hover : Nat × Nat) : Bitmap := Id.run do
+def paint (b : Bitmap) (s : App.St) (m : Model) (hover : Hover.Context) : Bitmap := Id.run do
   let px := s.dim.px
   let color := Palette.color s.dim.theme
   let fg := color .fg
@@ -97,7 +97,8 @@ def paint (b : Bitmap) (s : App.St) (m : Model) (hover : Nat × Nat) : Bitmap :=
   let pad := px 64
   let localY (n : Nat) := px n + pad - m.offset
   let visible (y h : Nat) := px (y + h) > m.offset && px y < m.offset + m.box.h
-  let hot (x y w h : Nat) := (clipped m ⟨px x, px y, px w, px h⟩).has hover.1 hover.2
+  let hot (x y w h : Nat) := let b := clipped m ⟨px x, px y, px w, px h⟩
+    Hover.active hover ⟨b.x, b.y, b.w, b.h⟩
   let mut p := Bitmap.blank m.box.w (m.box.h + 2 * pad) (solid panel m.box.w)
   if visible 1 56 then
     if hot 9 9 40 40 then p := p.round (px 9) (localY 9) (px 49) (localY 49) (px 8) gray

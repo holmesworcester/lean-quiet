@@ -1,0 +1,18 @@
+{
+  "target": {
+    "selector": "button[aria-label=\"Message someone\"]"
+  },
+  "region": [
+    188,
+    165,
+    204,
+    181
+  ],
+  "pointer": [
+    [
+      196,
+      173
+    ]
+  ],
+  "cursor": "pointer"
+}

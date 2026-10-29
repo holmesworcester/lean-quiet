@@ -1,0 +1,18 @@
+{
+  "target": {
+    "selector": "button[aria-label=\"New channel\"]"
+  },
+  "region": [
+    188,
+    81,
+    204,
+    97
+  ],
+  "pointer": [
+    [
+      196,
+      89
+    ]
+  ],
+  "cursor": "pointer"
+}

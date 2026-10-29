@@ -111,6 +111,7 @@ def paintQuick (f : Font) (dm : Dim) (W : Nat) (backdrop : Color) (mine : List S
   let g := q.keys
   for i in [0:g.n] do
     let x := g.left i
+    if dm.hot x g.y0 g.key g.key then b := b.round x g.y0 (x + g.key) (g.y0 + g.key) (dm.px 8) (Palette.color dm.theme .tint)
     if i < Row.quick.size then
       let e := Row.quick[i]!
       if mine.contains e then b := ring dm b x g.y0 g.key
@@ -120,6 +121,7 @@ def paintQuick (f : Font) (dm : Dim) (W : Nat) (backdrop : Color) (mine : List S
       b := b.line f (oneLine f f.cell "☺") (x + (g.key - f.cell / 2) / 2) (g.y0 + (g.key - f.cell) / 2) (Palette.color dm.theme .fg)
       b := b.line f (oneLine f f.cell "+") (x + g.key - f.cell / 2) g.y0 (Palette.color dm.theme .fg)
   -- Copy text
+  if dm.hot 0 q.copyY W q.copyH then b := b.fill 0 q.copyY W (q.copyY + q.copyH) (Palette.color dm.theme .selected)
   b := b.fill 0 q.copyY W (q.copyY + max 1 (dm.px 1) / 2 + 1) (Palette.color dm.theme .edge)
   let ty := q.copyY + (q.copyH - f.cell) / 2
   b := b.line f (oneLine f f.cell "⧉") (dm.px 16) ty (Palette.color dm.theme .fg)
@@ -175,6 +177,7 @@ def cat (dm : Dim) (f : Font) (W Hs insetTop n : Nat) : Cat :=
 def catTop (f : Font) (dm : Dim) (W : Nat) (c : Cat) (backdrop : Color) (query : String) (searching : Bool)
     (tone category : Nat) : Bitmap := Id.run do
   let mut b := ground dm W c.grid.y0 backdrop
+  if dm.hot (c.back.left 0) c.back.y0 c.back.key c.back.key then b := b.round (c.back.left 0) c.back.y0 (c.back.left 0 + c.back.key) (c.back.y0 + c.back.key) (dm.px 8) (Palette.color dm.theme .selected)
   b := key f b "‹" (c.back.left 0) c.back.y0 c.back.key dm.theme
   let (x0, y0, x1, y1) := c.search
   b := b.round x0 y0 x1 y1 ((y1 - y0) / 2) (Palette.color dm.theme .edge)
@@ -185,6 +188,7 @@ def catTop (f : Font) (dm : Dim) (W : Nat) (c : Cat) (backdrop : Color) (query :
     (x0 + dm.px 16) ty (if query.isEmpty then (Palette.color dm.theme .muted) else (Palette.color dm.theme .fg))
   for i in [0:6] do
     let x := c.tones.left i
+    if dm.hot x c.tones.y0 c.tones.key c.tones.key then b := b.round x c.tones.y0 (x + c.tones.key) (c.tones.y0 + c.tones.key) (dm.px 8) (Palette.color dm.theme .tint)
     if i == tone then b := ring dm b x c.tones.y0 c.tones.key
     b := key f b toneEmoji[i]! x c.tones.y0 c.tones.key dm.theme
   let head := if query.isEmpty then (categories[category]?.map (·.1)).getD "" else "Search results"
@@ -200,6 +204,7 @@ def gridRow (f : Font) (dm : Dim) (W : Nat) (c : Cat) (cat : Array Item) (items 
   for j in [0:g.cols] do
     let i := g.itemAt r j
     if i < items.size then
+      if dm.hot (g.left i) 0 g.key g.key then b := b.round (g.left i) 0 (g.left i + g.key) g.key (dm.px 8) (Palette.color dm.theme .tint)
       let e := (cat[items[i]!]!).toned tone
       if mine.contains e then b := ring dm b (g.left i) 0 g.key
       b := key f b e (g.left i) 0 g.key dm.theme
@@ -213,6 +218,7 @@ def catBot (f : Font) (dm : Dim) (W : Nat) (c : Cat) (category : Nat) (searching
   let by0 := c.bar.y0 - c.grid.y0 - c.grid.vh
   for i in [0:categories.size] do
     let x := c.bar.left i
+    if dm.hot x by0 c.bar.key c.bar.key then b := b.round x by0 (x + c.bar.key) (by0 + c.bar.key) (dm.px 8) (Palette.color dm.theme .tint)
     if i == category && !searching then
       b := b.round x by0 (x + c.bar.key) (by0 + c.bar.key) (c.bar.key / 2) (Palette.color dm.theme .edge)
     b := key f b categories[i]!.2.1 x by0 c.bar.key dm.theme

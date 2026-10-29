@@ -1,0 +1,338 @@
+{
+  "hover-add-channel-dark": {
+    "mae": 0.0315751,
+    "changed_fraction": 0.154475,
+    "layout_mae": 0.020832,
+    "delta_mae": 0.0126911,
+    "recall": 0.975,
+    "precision": 0.8234848
+  },
+  "hover-add-channel-light": {
+    "mae": 0.018745,
+    "changed_fraction": 0.14635,
+    "layout_mae": 0.0133549,
+    "delta_mae": 0.0075984,
+    "recall": 0.975,
+    "precision": 0.8432171
+  },
+  "hover-add-dm-dark": {
+    "mae": 0.0315751,
+    "changed_fraction": 0.154475,
+    "layout_mae": 0.020832,
+    "delta_mae": 0.0126911,
+    "recall": 0.975,
+    "precision": 0.8234848
+  },
+  "hover-add-dm-light": {
+    "mae": 0.018745,
+    "changed_fraction": 0.14635,
+    "layout_mae": 0.0133549,
+    "delta_mae": 0.0075984,
+    "recall": 0.975,
+    "precision": 0.8432171
+  },
+  "hover-channel-dark": {
+    "mae": 0.0088515,
+    "changed_fraction": 0.0582818,
+    "layout_mae": 0.0045477,
+    "delta_mae": 0.0001,
+    "recall": 0,
+    "precision": 0
+  },
+  "hover-channel-light": {
+    "mae": 0.0043417,
+    "changed_fraction": 0.0422818,
+    "layout_mae": 0.0019462,
+    "delta_mae": 0.0001,
+    "recall": 0,
+    "precision": 0
+  },
+  "hover-composer-125": {
+    "mae": 0.0479757,
+    "changed_fraction": 0.2562,
+    "layout_mae": 0.0086375,
+    "delta_mae": 0.0172243,
+    "recall": 0.9253546,
+    "precision": 0.8804054
+  },
+  "hover-composer-dark": {
+    "mae": 0.0253021,
+    "changed_fraction": 0.1433031,
+    "layout_mae": 0.0074072,
+    "delta_mae": 0.0220083,
+    "recall": 0.975,
+    "precision": 0.802907
+  },
+  "hover-composer-light": {
+    "mae": 0.0185153,
+    "changed_fraction": 0.1443187,
+    "layout_mae": 0.0055379,
+    "delta_mae": 0.0150941,
+    "recall": 0.975,
+    "precision": 0.8122093
+  },
+  "hover-disabled-dark": {
+    "mae": 0.0016896,
+    "changed_fraction": 0.0073415,
+    "layout_mae": 0.0003808,
+    "delta_mae": 0.0001,
+    "recall": 0,
+    "precision": 0
+  },
+  "hover-disabled-light": {
+    "mae": 0.0016494,
+    "changed_fraction": 0.0075733,
+    "layout_mae": 0.0003512,
+    "delta_mae": 0.0001,
+    "recall": 0,
+    "precision": 0
+  },
+  "hover-footer-dark": {
+    "mae": 0.023878,
+    "changed_fraction": 0.068677,
+    "layout_mae": 0.0106098,
+    "delta_mae": 0.0069469,
+    "recall": 0.9684224,
+    "precision": 0.975
+  },
+  "hover-footer-light": {
+    "mae": 0.013996,
+    "changed_fraction": 0.0663264,
+    "layout_mae": 0.0058603,
+    "delta_mae": 0.004197,
+    "recall": 0.9663325,
+    "precision": 0.975
+  },
+  "hover-header-dark": {
+    "mae": 0.0010997,
+    "changed_fraction": 0.0001,
+    "layout_mae": 0.0016294,
+    "delta_mae": 0.002888,
+    "recall": 0.975,
+    "precision": 0.973008
+  },
+  "hover-header-light": {
+    "mae": 0.0011913,
+    "changed_fraction": 0.0001,
+    "layout_mae": 0.0008647,
+    "delta_mae": 0.0042979,
+    "recall": 0.975,
+    "precision": 0.975
+  },
+  "hover-member-dark": {
+    "mae": 0.012607,
+    "changed_fraction": 0.0900758,
+    "layout_mae": 0.0055715,
+    "delta_mae": 0.0007639,
+    "recall": 0.9685558,
+    "precision": 0.975
+  },
+  "hover-member-light": {
+    "mae": 0.0097527,
+    "changed_fraction": 0.0735303,
+    "layout_mae": 0.004984,
+    "delta_mae": 0.0016642,
+    "recall": 0.9655816,
+    "precision": 0.975
+  },
+  "hover-message-125": {
+    "mae": 0.0395829,
+    "changed_fraction": 0.0898664,
+    "layout_mae": 0.013448,
+    "delta_mae": 0.0028737,
+    "recall": 0.953874,
+    "precision": 0.905297
+  },
+  "hover-message-dark": {
+    "mae": 0.0238237,
+    "changed_fraction": 0.068612,
+    "layout_mae": 0.0091922,
+    "delta_mae": 0.0033315,
+    "recall": 0.9227441,
+    "precision": 0.8967133
+  },
+  "hover-message-light": {
+    "mae": 0.0245391,
+    "changed_fraction": 0.0673298,
+    "layout_mae": 0.0086183,
+    "delta_mae": 0.0029556,
+    "recall": 0.9611661,
+    "precision": 0.8946404
+  },
+  "hover-message-react-dark": {
+    "mae": 0.0280473,
+    "changed_fraction": 0.0874028,
+    "layout_mae": 0.0121729,
+    "delta_mae": 0.0060161,
+    "recall": 0.9397297,
+    "precision": 0.9051802
+  },
+  "hover-message-react-light": {
+    "mae": 0.0292028,
+    "changed_fraction": 0.0859536,
+    "layout_mae": 0.0112119,
+    "delta_mae": 0.0058354,
+    "recall": 0.9613411,
+    "precision": 0.9040299
+  },
+  "hover-primary-dark": {
+    "mae": 0.0506497,
+    "changed_fraction": 0.1324353,
+    "layout_mae": 0.0188336,
+    "delta_mae": 0.0033627,
+    "recall": 0.9639094,
+    "precision": 0.9547155
+  },
+  "hover-primary-light": {
+    "mae": 0.0452112,
+    "changed_fraction": 0.1356906,
+    "layout_mae": 0.0198804,
+    "delta_mae": 0.0080809,
+    "recall": 0.9643738,
+    "precision": 0.9582442
+  },
+  "hover-secondary-dark": {
+    "mae": 0.0595111,
+    "changed_fraction": 0.1383798,
+    "layout_mae": 0.0204514,
+    "delta_mae": 0.0074511,
+    "recall": 0.8690678,
+    "precision": 0.8844828
+  },
+  "hover-secondary-light": {
+    "mae": 0.0613512,
+    "changed_fraction": 0.1383798,
+    "layout_mae": 0.0208048,
+    "delta_mae": 0.0048598,
+    "recall": 0.8690678,
+    "precision": 0.8844828
+  },
+  "hover-send-disabled-dark": {
+    "mae": 0.070433,
+    "changed_fraction": 0.1981469,
+    "layout_mae": 0.0398647,
+    "delta_mae": 0.0001,
+    "recall": 0,
+    "precision": 0
+  },
+  "hover-send-disabled-light": {
+    "mae": 0.0716319,
+    "changed_fraction": 0.1981469,
+    "layout_mae": 0.0403745,
+    "delta_mae": 0.0001,
+    "recall": 0,
+    "precision": 0
+  },
+  "hover-settings-row-125": {
+    "mae": 0.0185845,
+    "changed_fraction": 0.0503963,
+    "layout_mae": 0.0076039,
+    "delta_mae": 0.0058481,
+    "recall": 0.9536089,
+    "precision": 0.9628898
+  },
+  "hover-settings-row-dark": {
+    "mae": 0.0118943,
+    "changed_fraction": 0.0417533,
+    "layout_mae": 0.0027303,
+    "delta_mae": 0.001029,
+    "recall": 0.971561,
+    "precision": 0.9699642
+  },
+  "hover-settings-row-light": {
+    "mae": 0.0159139,
+    "changed_fraction": 0.0485314,
+    "layout_mae": 0.0061881,
+    "delta_mae": 0.0047537,
+    "recall": 0.9728756,
+    "precision": 0.9668393
+  },
+  "hover-settings-row-narrow": {
+    "mae": 0.010791,
+    "changed_fraction": 0.0521,
+    "layout_mae": 0.0062601,
+    "delta_mae": 0.0041223,
+    "recall": 0.9733014,
+    "precision": 0.9719357
+  },
+  "hover-switch-close-dark": {
+    "mae": 0.0008392,
+    "changed_fraction": 0.0001,
+    "layout_mae": 0.0007525,
+    "delta_mae": 0.0003396,
+    "recall": 0.9703795,
+    "precision": 0.975
+  },
+  "hover-switch-close-light": {
+    "mae": 0.0008622,
+    "changed_fraction": 0.0001,
+    "layout_mae": 0.0002631,
+    "delta_mae": 0.000281,
+    "recall": 0.9736755,
+    "precision": 0.975
+  },
+  "hover-switch-join-dark": {
+    "mae": 0.0054208,
+    "changed_fraction": 0.0275468,
+    "layout_mae": 0.00245,
+    "delta_mae": 0.0004796,
+    "recall": 0.9725156,
+    "precision": 0.9715403
+  },
+  "hover-switch-join-light": {
+    "mae": 0.005682,
+    "changed_fraction": 0.0239298,
+    "layout_mae": 0.0017508,
+    "delta_mae": 0.0005216,
+    "recall": 0.9734169,
+    "precision": 0.9707895
+  },
+  "hover-team-125": {
+    "mae": 0.0444642,
+    "changed_fraction": 0.1562061,
+    "layout_mae": 0.0115468,
+    "delta_mae": 0.0040609,
+    "recall": 0.8801776,
+    "precision": 0.9404682
+  },
+  "hover-team-dark": {
+    "mae": 0.0275397,
+    "changed_fraction": 0.1362352,
+    "layout_mae": 0.0113157,
+    "delta_mae": 0.0029997,
+    "recall": 0.9038633,
+    "precision": 0.9643175
+  },
+  "hover-team-light": {
+    "mae": 0.0168459,
+    "changed_fraction": 0.1181612,
+    "layout_mae": 0.0078462,
+    "delta_mae": 0.0027231,
+    "recall": 0.9115679,
+    "precision": 0.9591301
+  },
+  "hover-theme-dark": {
+    "mae": 0.0046548,
+    "changed_fraction": 0.012092,
+    "layout_mae": 0.0014151,
+    "delta_mae": 0.0004158,
+    "recall": 0.9744303,
+    "precision": 0.9738613
+  },
+  "hover-theme-light": {
+    "mae": 0.0050438,
+    "changed_fraction": 0.0122078,
+    "layout_mae": 0.0015186,
+    "delta_mae": 0.0004737,
+    "recall": 0.974487,
+    "precision": 0.973349
+  },
+  "hover-theme-narrow": {
+    "mae": 0.0024792,
+    "changed_fraction": 0.0136,
+    "layout_mae": 0.0007656,
+    "delta_mae": 0.0002709,
+    "recall": 0.9745633,
+    "precision": 0.9746724
+  }
+}

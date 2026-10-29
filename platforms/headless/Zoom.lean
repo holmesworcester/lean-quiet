@@ -32,7 +32,7 @@ private def run : IO Unit := do
   let mut cases := 0
   for dpi in [80, 107, 120, 128, 144, 160, 176, 200, 240, 280, 320, 357, 420, 560, 640, 840, 1280] do
     let f := font.atSize (Font.pixelCell 48 dpi)
-    let dm : Dim := ⟨dpi, f.cell, .light⟩
+    let dm : Dim := ⟨dpi, f.cell, .light, none⟩
     for dp in [200, 275, 320, 390, 719, 720, 960, 1280] do
       let w := dm.px dp
       let l := Row.layout f dm w data

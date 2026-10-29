@@ -97,3 +97,25 @@ The small static UI font is checked in with its source and OFL license under
 `ui/fonts`; normal builds need no WOFF2 decoder. Explicitly regenerating it with
 `tools/ui_fonts.py --regenerate` additionally needs Brotli. No GitHub workflow
 is required or created.
+
+## Hover comparisons
+
+`mise run visual:hover` adds 42 paired resting/hovering frames in
+`hover-reference`. `hover-targets.json` selects actual libquiet DOM controls;
+their captured coordinates drive the native pointer transition. Each target is
+compared independently, including the full message toolbar, shadow and tooltip.
+`delta_mae` compares each renderer's hover-minus-rest RGB changes. `recall` and
+`precision` measure overlap of changed pixels (>0.5/255, including dark mode's
+subtle backgrounds). Missing visual hover and unexpected hover on disabled or
+cursor-only controls fail unconditionally. Reviewed per-case ceilings retain
+small antialiasing/layout differences, not a claim of exact pixel identity.
+The gate also rejects 24 mutations of real native frames. Reports, crops and
+negative-control artifacts are under `out/visual/hover-*`.
+
+Refresh these independent references explicitly:
+
+```sh
+CHROME=/path/to/chromium LIBQUIET=/path/to/libquiet mise run visual:reference -- --cases tests/visual/hover-cases.tsv --output tests/visual/hover-reference
+```
+
+The runtime proof/test boundaries are documented in `docs/HOVER.md`.

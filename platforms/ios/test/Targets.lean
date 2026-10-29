@@ -19,7 +19,7 @@ def main (args : List String) : IO Unit := do
   let W := (args[0]? >>= String.toNat?).getD 1170
   let dpi := (args[1]? >>= String.toNat?).getD 480
   let f ← Font.load
-  let dm : Row.Dim := ⟨dpi, f.cell, .light⟩
+  let dm : Row.Dim := ⟨dpi, f.cell, .light, none⟩
   let pg := Pages.paste f dm W 2000 "" true none
   for (b, a) in pg.taps do
     let name := match a with

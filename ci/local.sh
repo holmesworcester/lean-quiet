@@ -29,7 +29,7 @@ gate() {
     runtime) mise run test:engine-runtime ;;
     mdns|qr|net) mise run "test:$1" ;;
     app) mise run test:app ;;
-    visual) mise run visual:compare ;;
+    visual) mise run visual:compare && mise run visual:hover ;;
     android-photo) mise run android:photo-e2e ;;
     android-release) mise run android:release-e2e ;;
     ios-photo) mise run ios:photo-e2e ;;

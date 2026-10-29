@@ -1,0 +1,18 @@
+{
+  "target": {
+    "selector": ".sb-you"
+  },
+  "region": [
+    0,
+    712,
+    212,
+    760
+  ],
+  "pointer": [
+    [
+      106,
+      736
+    ]
+  ],
+  "cursor": "pointer"
+}

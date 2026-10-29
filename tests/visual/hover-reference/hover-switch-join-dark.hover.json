@@ -1,0 +1,19 @@
+{
+  "target": {
+    "selector": "[data-switcher=\"desktop\"] button",
+    "text": "Join a community"
+  },
+  "region": [
+    17,
+    182,
+    299,
+    234
+  ],
+  "pointer": [
+    [
+      158,
+      208
+    ]
+  ],
+  "cursor": "pointer"
+}

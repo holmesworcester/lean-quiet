@@ -1,0 +1,18 @@
+{
+  "target": {
+    "selector": ".team-switch"
+  },
+  "region": [
+    16,
+    12,
+    212,
+    44
+  ],
+  "pointer": [
+    [
+      114,
+      28
+    ]
+  ],
+  "cursor": "pointer"
+}

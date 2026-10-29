@@ -80,8 +80,12 @@ run = "cd engine/native/crypto && CARGO_TARGET_DIR=\"$PWD/target\" cargo build -
 description = "Navigation's negative controls: each mutant of Nav or of App's steps over it (back at a root, a page pushed twice, a draft cleared, a switch that keeps the stack) fails its law"
 run = "tests/app/nav_negative.sh"
 
+[tasks."host:hover-proofs"]
+description = "Compile mutations of the actual hover core in isolated directories; its unchanged Lean proofs must reject each one"
+run = "python3 tests/app/hover_proofs.py"
+
 [tasks."host:desktop"]
-description = "The desktop root without a window (platforms/headless/Desktop): boundary renders, community switching, settings scrolling and resize"
+description = "The real desktop driver: hover pixels/actions/lifetimes, proof audit and negative controls, boundary renders, switching, settings and resize"
 depends = ["crypto"]
 run = "tests/app/desktop.sh"
 
@@ -99,6 +103,10 @@ run = "platforms/native/photo_test.sh && tools/noto_assets.sh && lake build phot
 description = "Build the real Lean renderer; compare all pixels against pinned libquiet screens; retain heatmaps and overlays"
 run = "tests/visual/run.sh"
 
+[tasks."visual:hover"]
+description = "Build native hover pixels; compare paired states against real libquiet DOM targets and reject missing/incorrect hover"
+run = "tests/visual/hover.sh"
+
 [tasks."visual:reference"]
 description = "Explicitly regenerate libquiet references from a pinned git archive using its real App.svelte and bundled fonts"
 run = "tests/visual/reference.sh"
@@ -112,7 +120,7 @@ description = "The Linux shell's native editor and RGB conversion, under ASan an
 run = "platforms/linux/input_test.sh"
 
 [tasks."linux:e2e"]
-description = "The Linux desktop under Xvfb at scale 1 and 2 and without MIT-SHM: resize, switching, settings, editing, clipboard, screenshots (needs local X sockets)"
+description = "The Linux desktop under Xvfb at scale 1 and 2 and without MIT-SHM: OS hover/cursors/focus, resize, switching, editing, clipboard and screenshots (needs local X sockets)"
 run = "platforms/linux/test.sh"
 
 [tasks."host:desktop-negative"]

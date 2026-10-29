@@ -5,6 +5,7 @@ navigation, typing/sending, and resize preserving the current community.
 -/
 import platforms.desktop.Input
 import platforms.headless.Sim
+import platforms.headless.Hover
 
 open Desktop
 
@@ -139,6 +140,7 @@ private def suite (args : List String) : IO UInt32 := do
   check "native editor reaches app" (d.app.text == "A desktop message")
   d ← click d .send
   check "send stored in active community" (d.app.total == 1 && d.app.text.isEmpty)
+  HoverTest.run d
   text.set ("Keep this draft", #[4, 9, 9, 9])
   d ← tick d [.text]
   d ← settle (← resize d 770 480)

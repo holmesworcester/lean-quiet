@@ -31,7 +31,7 @@ def present (display : Show) (motion : Array UInt32 → IO Unit) (g : Geometry.G
   let state := { state with serial := serial }
   let width := ((list[0]?).getD ByteArray.empty).size / 4
   let hold := if hold.isEmpty then
-      Hold.plane ⟨Paint.solid Row.bg width, ⟨dpi, 0, .dark⟩, width⟩ g.viewNow else hold
+      Hold.plane ⟨Paint.solid Row.bg width, ⟨dpi, 0, .dark, none⟩, width⟩ g.viewNow else hold
   let high := b + g.view + over
   let words := frame.words.push serial.toUInt32 ++ state.lastTap ++
     #[frame.origin.toInt32.toUInt32, list.size.toUInt32, (if pin then 1 else 0),

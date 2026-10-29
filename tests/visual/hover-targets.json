@@ -1,0 +1,69 @@
+{
+  "team": {
+    "selector": ".team-switch"
+  },
+  "member": {
+    "selector": ".sb-row[data-kind=\"person\"]",
+    "nth": 1
+  },
+  "add-channel": {
+    "selector": "button[aria-label=\"New channel\"]"
+  },
+  "add-dm": {
+    "selector": "button[aria-label=\"Message someone\"]"
+  },
+  "footer": {
+    "selector": ".sb-you"
+  },
+  "channel": {
+    "selector": "button[aria-label=\"#general\"]"
+  },
+  "settings-row": {
+    "selector": ".set-row",
+    "text": "Appearance"
+  },
+  "disabled": {
+    "selector": ".set-row:disabled",
+    "nth": 0
+  },
+  "theme": {
+    "selector": ".set-row",
+    "text": "Light"
+  },
+  "primary": {
+    "selector": "button",
+    "text": "Add members"
+  },
+  "secondary": {
+    "selector": "button",
+    "text": "Edit profile"
+  },
+  "composer": {
+    "selector": ".composer-area .attach",
+    "nth": 0
+  },
+  "send-disabled": {
+    "selector": ".composer-area .send"
+  },
+  "header": {
+    "selector": ".pane-thread .kebab"
+  },
+  "switch-close": {
+    "selector": "[data-switcher=\"desktop\"] .panel-head button"
+  },
+  "switch-join": {
+    "selector": "[data-switcher=\"desktop\"] button",
+    "text": "Join a community"
+  },
+  "message": {
+    "selector": ".said",
+    "nth": 2,
+    "message": true
+  },
+  "message-react": {
+    "selector": ".said",
+    "nth": 2,
+    "message": true,
+    "action": ".said-react"
+  }
+}

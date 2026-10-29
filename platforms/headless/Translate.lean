@@ -14,7 +14,7 @@ def fixture (g : Geom) (b over : Nat) : Array ByteArray :=
     let p := b + g.view + over - 1 - r
     match Cover.seen 0 0 true rows p with
     | .line _ _ => pixel p
-    | .hold _ | .unloaded => Hold.holdLine ⟨Paint.solid Row.bg 1080, ⟨420, 0, .dark⟩, 1080⟩ (p % 48)
+    | .hold _ | .unloaded => Hold.holdLine ⟨Paint.solid Row.bg 1080, ⟨420, 0, .dark, none⟩, 1080⟩ (p % 48)
     | .blank => Paint.solid 0 1080
 
 def unit : IO Unit := do

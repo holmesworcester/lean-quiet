@@ -12,6 +12,7 @@ selected row also shows the reaction palette. Every part has its own
 box, and the boxes do not overlap: what one part paints, no other part
 paints over.
 -/
+import engine.renderer.Hover
 import engine.renderer.Paint
 import engine.renderer.Scrim
 import engine.renderer.Palette
@@ -43,9 +44,14 @@ structure Dim where
   dpi : Nat
   cell : Nat
   theme : Theme.Value := .dark
+  /-- Transient component-local paint input. App/query state keeps this absent. -/
+  hover : Hover.Context := none
   deriving Inhabited, BEq
 
 def Dim.px (d : Dim) (dp : Nat) : Nat := (dp * d.dpi + 80) / 160
+def Dim.hot (d : Dim) (x y w h : Nat) (enabled := true) : Bool :=
+  Hover.active d.hover ⟨x, y, w, h⟩ enabled
+
 def Dim.pad (d : Dim) : Nat := d.px 16
 def Dim.avatar (d : Dim) : Nat := d.px 36
 def Dim.textX (d : Dim) : Nat := d.px 66
@@ -262,6 +268,7 @@ decodes (a placeholder box is drawn instead). -/
 def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (d : RowData) (l : Layout)
     (av : Option Bitmap) (imgs : Array (Option Bitmap)) : Bitmap := Id.run do
   let mut b := Bitmap.blank W l.h bgRow
+  if dm.hover.isSome then b := b.fill 0 0 W l.h (Palette.gray03 dm.theme)
   if d.selected then b := b.fill 0 0 W l.h (Palette.color dm.theme .selected)
   if d.own && !d.wide then
     b := b.fill 0 0 (dm.px 2) (l.h - (if d.continued then 0 else tailH dm d))
@@ -305,7 +312,12 @@ def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (d : RowData) (l :
   let ef := f.atSize (dm.px 16)
   let cf := f.atSize (dm.px 13)
   for (bx, e, count, mine) in l.pills do
-    if mine then
+    let hot := dm.hot bx.x bx.y bx.w bx.h
+    if hot then
+      b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) pr (Palette.color dm.theme .accentInk)
+      let k := max 1 (dm.px 1)
+      b := b.round (bx.x + k) (bx.y + k) (bx.x + bx.w - k) (bx.y + bx.h - k) (pr - k) (Palette.color dm.theme .panel)
+    else if mine then
       b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) pr (Palette.color dm.theme .accentInk)
       let k := max 1 (dm.px 1)
       b := b.round (bx.x + k) (bx.y + k) (bx.x + bx.w - k) (bx.y + bx.h - k) (pr - k) (Palette.color dm.theme .tint)
@@ -313,7 +325,7 @@ def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (d : RowData) (l :
       b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) pr (Palette.color dm.theme .selected)
     let ew := Paint.Line.width ef (oneLine ef (dm.px 64) e)
     b := emojiAt ef b e (bx.x + dm.px 8 - (ew - dm.px 16) / 2) (bx.y + dm.px 6) (Palette.color dm.theme .fg)
-    b := b.line cf count (bx.x + dm.px 29) (bx.y + dm.px 7) (if mine then Palette.color dm.theme .link else Palette.color dm.theme .fg)
+    b := b.line cf count (bx.x + dm.px 29) (bx.y + dm.px 7) (if mine && !hot then Palette.color dm.theme .link else Palette.color dm.theme .fg)
   return b
 
 /-- A bitmap darkened to 40%: the rows behind the reaction tray. -/

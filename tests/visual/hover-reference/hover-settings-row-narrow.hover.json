@@ -1,0 +1,19 @@
+{
+  "target": {
+    "selector": ".set-row",
+    "text": "Appearance"
+  },
+  "region": [
+    0,
+    459,
+    390,
+    507
+  ],
+  "pointer": [
+    [
+      195,
+      483
+    ]
+  ],
+  "cursor": "pointer"
+}

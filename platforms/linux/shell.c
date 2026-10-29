@@ -9,6 +9,7 @@
 #include <xcb/shm.h>
 #include <xcb/sync.h>
 #include <X11/keysym.h>
+#include <X11/cursorfont.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <poll.h>
@@ -25,6 +26,8 @@ static struct {
     xcb_screen_t *screen;
     xcb_window_t win;
     xcb_gcontext_t gc;
+    xcb_cursor_t cursors[3];
+    unsigned cursor;
     xcb_atom_t wm_delete, protocols, clipboard, utf8, targets, property, wm_sync;
     /* _NET_WM_SYNC_REQUEST: the counter the window manager waits on, the
        value it asked for, and whether the configure it announced came */
@@ -35,7 +38,7 @@ static struct {
     uint8_t *pixels;
     size_t bytes;
     unsigned w, h, scale;
-    bool shm, focused, down, moved;
+    bool shm, focused, down, moved, handoff;
     int dx, dy;
     uint32_t events[4096];
     size_t n;
@@ -51,6 +54,10 @@ static struct {
 static void fail(const char *s) { fprintf(stderr, "quiet-linux: %s\n", s); exit(1); }
 static lean_obj_res unit(void) { return lean_io_result_mk_ok(lean_box(0)); }
 static void event(uint32_t k, uint32_t a, uint32_t b, uint32_t c) {
+    /* These commands can change focus, geometry or the editor buffer in
+       Lean. Let it apply them before interpreting the next queued key.
+       In particular click + Return may arrive in one X11 poll. */
+    if (k==2 || k==3 || k==5 || k==10 || k==12 || k==13 || k==15) q.handoff=true;
     if (q.n + 4 <= sizeof(q.events)/sizeof(*q.events)) {
         q.events[q.n++] = k; q.events[q.n++] = a;
         q.events[q.n++] = b; q.events[q.n++] = c;
@@ -122,11 +129,22 @@ static void init(void) {
        and paints nothing of its own over it until Lean's next frame. */
     uint32_t values[] = {XCB_BACK_PIXMAP_NONE, XCB_GRAVITY_NORTH_WEST, XCB_EVENT_MASK_EXPOSURE |
         XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_BUTTON_PRESS |
-        XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_FOCUS_CHANGE};
+        XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_FOCUS_CHANGE |
+        XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_LEAVE_WINDOW};
     xcb_create_window(q.c, XCB_COPY_FROM_PARENT, q.win, q.screen->root, 0, 0, q.w, q.h, 0,
         XCB_WINDOW_CLASS_INPUT_OUTPUT, q.screen->root_visual,
         XCB_CW_BACK_PIXMAP | XCB_CW_BIT_GRAVITY | XCB_CW_EVENT_MASK, values);
     xcb_create_gc(q.c, q.gc, q.win, 0, NULL);
+    xcb_font_t font = xcb_generate_id(q.c);
+    xcb_open_font(q.c, font, 6, "cursor");
+    const unsigned shapes[] = {XC_left_ptr, XC_hand2, XC_xterm};
+    for (unsigned i=0; i<3; ++i) {
+        q.cursors[i] = xcb_generate_id(q.c);
+        xcb_create_glyph_cursor(q.c, q.cursors[i], font, font, shapes[i], shapes[i]+1,
+                               0,0,0, 65535,65535,65535);
+    }
+    xcb_close_font(q.c, font);
+    q.cursor = 3;
     q.wm_delete = atom("WM_DELETE_WINDOW"); q.protocols = atom("WM_PROTOCOLS");
     q.clipboard = atom("CLIPBOARD"); q.utf8 = atom("UTF8_STRING");
     q.targets = atom("TARGETS"); q.property = atom("QUIET_PASTE");
@@ -268,6 +286,7 @@ static void selection(xcb_selection_request_event_t *e) {
 static void events(void) {
     xcb_generic_event_t *ev;
     while ((ev=xcb_poll_for_event(q.c))) {
+        q.handoff=false;
         switch (ev->response_type & 127) {
         case XCB_CLIENT_MESSAGE: {
             const uint32_t *d=((xcb_client_message_event_t *)ev)->data.data32;
@@ -295,7 +314,14 @@ static void events(void) {
         }
         case XCB_KEY_PRESS: key((void *)ev); break;
         case XCB_MAPPING_NOTIFY: keys(); break;
-        case XCB_FOCUS_OUT: q.down=false; break;
+        case XCB_FOCUS_OUT: q.down=false; event(16,0,0,1); break;
+        case XCB_LEAVE_NOTIFY: event(16,0,0,0); break;
+        case XCB_ENTER_NOTIFY: {
+            xcb_enter_notify_event_t *e=(void *)ev;
+            if (e->event_x>=0 && e->event_y>=0 && (unsigned)e->event_x<q.w && (unsigned)e->event_y<q.h)
+                event(9,e->event_x/q.scale,e->event_y/q.scale,q.down);
+            break;
+        }
         case XCB_BUTTON_PRESS: {
             xcb_button_press_event_t *e=(void *)ev;
             unsigned x=(e->event_x < 0 ? 0 : e->event_x)/q.scale, y=(e->event_y < 0 ? 0 : e->event_y)/q.scale;
@@ -308,7 +334,10 @@ static void events(void) {
             xcb_motion_notify_event_t *e=(void *)ev;
             unsigned x=(e->event_x < 0 ? 0 : e->event_x)/q.scale, y=(e->event_y < 0 ? 0 : e->event_y)/q.scale;
             if (q.down && (abs((int)x-q.dx)>3 || abs((int)y-q.dy)>3)) q.moved=true;
-            event(9,x,y,q.down); break;
+            event(9,x,y,q.down);
+            if (e->event_x<0 || e->event_y<0 || (unsigned)e->event_x>=q.w || (unsigned)e->event_y>=q.h)
+                event(16,0,0,0);
+            break;
         }
         case XCB_BUTTON_RELEASE: {
             xcb_button_release_event_t *e=(void *)ev;
@@ -331,6 +360,7 @@ static void events(void) {
         default: break;
         }
         free(ev);
+        if (q.handoff) return;
     }
     if (xcb_connection_has_error(q.c)) event(1,0,0,0);
 }
@@ -435,6 +465,15 @@ lean_obj_res lq_text(void) {
     uint32_t v[]={count(q.anchor),count(q.caret),count(q.caret),count(q.caret)};
     for (int i=0;i<4;i++) a=lean_array_push(a,lean_box_uint32(v[i]));
     lean_ctor_set(p,0,lean_mk_string(q.text)); lean_ctor_set(p,1,a); return lean_io_result_mk_ok(p);
+}
+lean_obj_res lq_desktop_cursor(uint32_t kind) {
+    init(); if (kind>2) kind=0;
+    if (q.cursor!=kind) {
+        q.cursor=kind;
+        xcb_change_window_attributes(q.c,q.win,XCB_CW_CURSOR,&q.cursors[kind]);
+        xcb_flush(q.c);
+    }
+    return unit();
 }
 lean_obj_res lq_desktop_select(uint32_t a,uint32_t b) { q.anchor=byte_at(a); q.caret=byte_at(b); q.focused=true; event(4,0,0,0); return unit(); }
 lean_obj_res lq_ime(uint8_t on) { q.focused=on; return unit(); }

@@ -1,0 +1,18 @@
+{
+  "target": {
+    "selector": "button[aria-label=\"#general\"]"
+  },
+  "region": [
+    0,
+    102,
+    220,
+    128
+  ],
+  "pointer": [
+    [
+      110,
+      115
+    ]
+  ],
+  "cursor": "pointer"
+}

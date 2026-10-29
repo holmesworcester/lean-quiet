@@ -120,7 +120,8 @@ def layout (f : Font) (dm : Dim) (W : Nat) (text : String) (chips : Nat) (wide :
     else #[Hit.addPhotos, .emoji, .mention, .voice]
   let k := min (px (if wide then 32 else 44)) ((W - 2 * gutter - px 16) / (acts.size + 1))
   let dy := y + px 8
-  let deck := acts.mapIdx fun i act => (⟨gutter + px 8 + i * k, dy, k, k⟩, act)
+  let inside := if wide then edge else 0
+  let deck := acts.mapIdx fun i act => (⟨gutter + px 8 + inside + i * k, dy, k, k⟩, act)
   let send : Box := ⟨W - gutter - px 8 - k, dy, k, k⟩
   return ⟨dy + k + px 9 + (if wide then px 8 else 0), tx, ty, tw, lines, cs, chipsY, deck, send, lineH, wide, mobile⟩
 
@@ -239,12 +240,14 @@ def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (l : Layout) (text
   for i in [0:min chips.size l.chips.size] do
     let (tb, xb) := l.chips[i]!
     b := b.image chips[i]!.thumb tb.x tb.y (dm.px 8)
-    b := b.round xb.x xb.y (xb.x + xb.w) (xb.y + xb.h) (xb.w / 2) (Palette.color dm.theme .panel)
+    b := b.round xb.x xb.y (xb.x + xb.w) (xb.y + xb.h) (xb.w / 2) (if dm.hot xb.x xb.y xb.w xb.h then Palette.color dm.theme .selected else Palette.color dm.theme .panel)
     b := b.line f (oneLine f f.cell "✕") (xb.x + (xb.w - f.cell / 2) / 2) (xb.y + (xb.h - f.cell) / 2) (Palette.color dm.theme .fg)
     let ls := Text.layout f (dm.px 76) chips[i]!.caption
     for k in [0:min 3 ls.size] do
       b := b.line f ls[k]! tb.x (tb.y + tb.h + dm.px 4 + k * dm.lineH) (Palette.color dm.theme .muted)
   for (bx, action) in l.deck do
+    if dm.hot bx.x bx.y bx.w bx.h then
+      b := b.icon f "hover-ring" bx.x bx.y bx.w (color .accentInk)
     let name := match action with
       | .addPhotos => if l.mobile then "image-plus" else "icon-clip"
       | .takePhoto => "camera" | .emoji => "emoji" | .mention => "mention" | .voice => "icon-mic" | _ => ""

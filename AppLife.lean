@@ -270,7 +270,7 @@ def resizeContent (sc : Array UInt32) : M Unit := do
   retirePaints s
   let font ← if dpi == s.dim.dpi then pure s.font else Font.load (density := dpi)
   let font := font.atSize (((if s.wide then 14 else 15) * dpi + 80) / 160)
-  let dm : Dim := ⟨dpi, font.cell, s.dim.theme⟩
+  let dm : Dim := ⟨dpi, font.cell, s.dim.theme, none⟩
   let mut rows := s.rows
   let mut heights := if w == s.W && dpi == s.dim.dpi then s.heights else {}
   for (x, r) in s.rows.toList do

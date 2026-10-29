@@ -38,6 +38,7 @@ def capture(url, destination, chrome=None, cases=None):
                     continue
                 fields = line.split('\t')
                 name, width, height, theme, scenario = fields[:5]
+                scenario, _, hover_name = scenario.partition('@')
                 zoom = int(fields[5]) / 100 if len(fields) == 6 else 1
                 import math
                 # Browser zoom is a smaller CSS viewport at a larger device
@@ -71,6 +72,40 @@ def capture(url, destination, chrome=None, cases=None):
                         if scenario == 'switcher-hover':
                             popup.get_by_role('button', name='Community settings', exact=True).hover()
                     page.wait_for_timeout(250)
+                    if hover_name:
+                        spec = json.loads((ROOT / 'tests/visual/hover-targets.json').read_text())[hover_name]
+                        target = page.locator(spec['selector'])
+                        if 'text' in spec:
+                            target = target.filter(has_text=spec['text'])
+                        target = target.nth(spec.get('nth', 0))
+                        target.wait_for(state='visible')
+                        target.scroll_into_view_if_needed()
+                        page.mouse.move(int(width)/zoom-1, 1)
+                        page.wait_for_timeout(50)
+                        (destination / 'rest').mkdir(exist_ok=True)
+                        page.screenshot(path=str(destination / 'rest' / f'{name}.png'), animations='disabled')
+                        box = target.bounding_box()
+                        points = []
+                        def point_at(el):
+                            r = el.bounding_box()
+                            x, y = r['x']+r['width']/2, r['y']+r['height']/2
+                            page.mouse.move(x, y)
+                            points.append((round(x*zoom), round(y*zoom)))
+                        point_at(target)
+                        if spec.get('action'):
+                            point_at(target.locator(spec['action']))
+                        page.wait_for_timeout(100)
+                        region = [box['x'], box['y'], box['x']+box['width'], box['y']+box['height']]
+                        if spec.get('message'):
+                            bar = target.locator('.said-actions').bounding_box()
+                            region = [min(region[0],bar['x']-20),min(region[1],bar['y']-20),max(region[2],bar['x']+bar['width']+20),max(region[3],bar['y']+bar['height']+20)]
+                            if spec.get('action'):
+                                tip = target.locator(spec['action']).locator('..').locator('.tip').bounding_box()
+                                region = [min(region[0],tip['x']),min(region[1],tip['y']),max(region[2],tip['x']+tip['width']),max(region[3],tip['y']+tip['height'])]
+                        region = [max(0,round(v*zoom)) for v in region]
+                        region[2],region[3]=min(int(width),region[2]),min(int(height),region[3])
+                        (destination / f'{name}.hover.json').write_text(json.dumps({'target':spec,'region':region,'pointer':points,'cursor':target.evaluate('(el)=>getComputedStyle(el).cursor')},indent=2)+'\n')
+                        (destination / f'{name}.hover.tsv').write_text(''.join(f'{x}\t{y}\n' for x,y in points))
                     page.screenshot(path=str(destination / f'{name}.png'), animations='disabled')
                     if zoom != 1:
                         from PIL import Image
@@ -79,7 +114,8 @@ def capture(url, destination, chrome=None, cases=None):
                     geometry = page.evaluate('''() => [...document.querySelectorAll('.pane-list,.pane-thread,.drawer,.drawer-body,.composer,.sidebar,.virtual-row,.said,.author,.text,[data-switcher=desktop],.panel-head,.panel-list,.sw-row,.sw-pick,.sw-tile,.sw-tool,.sw-label')].map(el => {
                       const r=el.getBoundingClientRect(); return {selector:el.className, x:r.x,y:r.y,w:r.width,h:r.height,scrollTop:el.scrollTop,scrollHeight:el.scrollHeight,clientHeight:el.clientHeight,scale:devicePixelRatio,display:getComputedStyle(el).display,font:getComputedStyle(el).font,padding:getComputedStyle(el).padding}
                     })''')
-                    (destination / f'{name}.json').write_text(json.dumps(geometry, indent=2) + '\n')
+                    if not hover_name:
+                        (destination / f'{name}.json').write_text(json.dumps(geometry, indent=2) + '\n')
                     print(f'reference: {name}', flush=True)
                 finally:
                     page.close()

@@ -1,0 +1,19 @@
+{
+  "target": {
+    "selector": "button",
+    "text": "Add members"
+  },
+  "region": [
+    922,
+    252,
+    1089,
+    296
+  ],
+  "pointer": [
+    [
+      1006,
+      274
+    ]
+  ],
+  "cursor": "pointer"
+}

@@ -61,7 +61,9 @@ def switcherCommunities : M Unit := do
   refreshCommsNow
   switchToAcc current
 
-def capture (dir name : String) (width height : Nat) (theme page : String) (zoom : Nat := 100) : IO Unit := do
+def capture (dir name : String) (width height : Nat) (theme scenario : String) (zoom : Nat := 100) : IO Unit := do
+  let hover := (scenario.splitOn "@").length > 1
+  let fixtureName := (scenario.splitOn "@").head!
   let db := dir ++ "/" ++ name ++ ".db"
   for suffix in ["", "-wal", "-shm"] do
     if ← System.FilePath.pathExists (db ++ suffix) then IO.FS.removeFile (db ++ suffix)
@@ -72,13 +74,13 @@ def capture (dir name : String) (width height : Nat) (theme page : String) (zoom
   d ← Desktop.zoom d zoom
   let (_, s) ← (do
     fixture
-    if page == "conversation" then conversation
-    if page == "sidebar" then sidebarPeople
-    if page == "switcher-many" || page == "switcher-end" then switcherCommunities
+    if fixtureName == "conversation" then conversation
+    if fixtureName == "sidebar" then sidebarPeople
+    if fixtureName == "switcher-many" || fixtureName == "switcher-end" then switcherCommunities
     setTheme .system
     waitIdle sm).run d.app
   d := { d with app := s }
-  let target : PageId := match page with
+  let target : PageId := match fixtureName with
     | "home" => .home
     | "chat" | "conversation" | "sidebar" | "switcher" | "switcher-many" | "switcher-end" | "switcher-hover" => .chat
     | "you" => .you
@@ -90,13 +92,13 @@ def capture (dir name : String) (width height : Nat) (theme page : String) (zoom
     | "create" => .create
     | "paste" => .paste
     | _ => .home
-  let title := match page with
+  let title := match fixtureName with
     | "retention" => "Message retention" | "disappearing" => "Disappearing messages"
     | "storage" => "Storage on this device" | "leave" => "Leave community" | "about" => "About Quiet"
     | _ => ""
   if target == .stub || target == .appearance then
-    let parent : PageId := if page == "about" || page == "appearance" then .you
-      else if page == "disappearing" then .channelSettings else .communitySettings
+    let parent : PageId := if fixtureName == "about" || fixtureName == "appearance" then .you
+      else if fixtureName == "disappearing" then .channelSettings else .communitySettings
     d ← Desktop.act d (.page parent)
     let action : Pages.Act := if target == .appearance then .appearance else .stub title
     if width ≥ 720 then d ← Desktop.act d (.drawerAct action)
@@ -113,19 +115,30 @@ def capture (dir name : String) (width height : Nat) (theme page : String) (zoom
   unless d.app.dim.theme == (if theme == "dark" then Theme.Value.dark else .light) do
     throw (IO.userError s!"{name}: wrong effective theme")
   IO.FS.writeFile (dir ++ "/identity.txt") s!"community={Pages.identity d.app.me.c}\nuser={Pages.identity d.app.me.user}\n"
-  if page == "sidebar" then
+  if fixtureName == "sidebar" then
     let names := d.app.members.toList.zip d.app.memberIds.toList
     IO.FS.writeFile (dir ++ "/sidebar-members.tsv") (String.intercalate "\n" (names.map fun ((name, _), id) =>
       s!"{name}\t{Pages.identity id}"))
-  if page.startsWith "switcher" then
+  if fixtureName.startsWith "switcher" then
     d ← Desktop.act d .switcher
-    if page == "switcher-end" then d ← Desktop.wheel d (d.app.dim.px 150) (d.app.dim.px 200) 100000
-    if page == "switcher-hover" then
-      d := { d with ui := { d.ui with hover := (d.app.dim.px 275, d.app.dim.px 139) } }
+    if fixtureName == "switcher-end" then d ← Desktop.wheel d (d.app.dim.px 150) (d.app.dim.px 200) 100000
+    if fixtureName == "switcher-hover" then
+      d := { d with ui := { d.ui with hover := some (d.app.dim.px 275, d.app.dim.px 139) } }
     let m := Desktop.Switcher.model d.app d.height d.ui.switchOffset
     IO.FS.writeFile (dir ++ "/" ++ name ++ ".popup.tsv") s!"{m.box.x}\t{m.box.y}\t{m.box.w}\t{m.box.h}\t{m.offset}\t{m.contentH}\n"
-    IO.FS.writeFile (dir ++ "/switcher-" ++ page ++ "-communities.tsv") (String.intercalate "\n" (d.app.comms.toList.map fun c => s!"{Pages.identity c.c}\t{c.name}"))
-  let bmp := Desktop.paint d.layout d.height d.ui d.app (← d.layers.get)
+    IO.FS.writeFile (dir ++ "/switcher-" ++ fixtureName ++ "-communities.tsv") (String.intercalate "\n" (d.app.comms.toList.map fun c => s!"{Pages.identity c.c}\t{c.name}"))
+  if hover then
+    let rest ← Desktop.picture d
+    IO.FS.createDirAll (dir ++ "/rest")
+    writePpm (dir ++ "/rest/" ++ name ++ ".ppm") rest.w rest.rows
+    for line in (← IO.FS.readFile ("tests/visual/hover-reference/" ++ name ++ ".hover.tsv")).splitOn "\n" do
+      if line.isEmpty then continue
+      let parts := line.splitOn "\t"
+      let some x := parts[0]?.bind String.toNat? | throw (IO.userError "invalid hover x")
+      let some y := parts[1]?.bind String.toNat? | throw (IO.userError "invalid hover y")
+      d := Desktop.pointerEvent d (.motion x y)
+      d := Desktop.hoverTime (Desktop.hoverTime d 1000) 1401
+  let bmp ← Desktop.picture d
   if bmp.w != width || bmp.h != height then
     throw (IO.userError s!"{name}: wrong dimensions {bmp.w}x{bmp.h}")
   writePpm (dir ++ "/" ++ name ++ ".ppm") bmp.w bmp.rows

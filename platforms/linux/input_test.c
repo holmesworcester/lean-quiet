@@ -46,6 +46,16 @@ int main(void) {
         CHECK(!q.down && strlen(q.text)==len);
     }
     q.n=0; press(XK_minus,0); CHECK(q.n==0);
+    /* The event-pump boundary protects focus and buffer ownership. Motion
+       and text snapshots can coalesce; UI transitions and sends cannot. */
+    const unsigned transitions[]={2,3,5,10,12,13,15};
+    for (unsigned i=0;i<sizeof(transitions)/sizeof(*transitions);i++) {
+        q.n=0; q.handoff=false; event(transitions[i],0,0,0);
+        CHECK(q.handoff && q.events[0]==transitions[i]);
+    }
+    for (unsigned i=0;i<2;i++) {
+        q.n=0; q.handoff=false; event(i==0 ? 4 : 9,0,0,0); CHECK(!q.handoff);
+    }
     uint8_t src[]={118,71,199,255}, dst[4]; pixel(dst,src);
     CHECK(dst[0]==199 && dst[1]==71 && dst[2]==118 && dst[3]==0);
     free(q.keys);

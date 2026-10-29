@@ -1,0 +1,19 @@
+{
+  "target": {
+    "selector": ".set-row:disabled",
+    "nth": 0
+  },
+  "region": [
+    906,
+    132,
+    1280,
+    180
+  ],
+  "pointer": [
+    [
+      1093,
+      156
+    ]
+  ],
+  "cursor": "default"
+}

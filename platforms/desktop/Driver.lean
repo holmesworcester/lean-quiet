@@ -12,6 +12,16 @@ import platforms.desktop.View
 
 namespace Desktop
 
+structure HoverPaintKey where
+  id : ByteArray
+  version : Nat
+  ready : List Bool
+  width : Nat
+  dpi : Nat
+  theme : Theme.Value
+  pill : Option Nat
+  deriving BEq
+
 structure Driver where
   app : App.St
   ui : Ui := {}
@@ -19,16 +29,59 @@ structure Driver where
   height : Nat
   dpi : Nat := 160
   requestedZoom : Nat := 100
+  hoverStarted : Nat := 0
+  graceStarted : Nat := 0
   layers : IO.Ref Layers
   screen : IO.Ref (Array UInt32)
+  hoverCache : IO.Ref (Option (HoverPaintKey × Paint.Bitmap))
   /-- The app's size (W, Hs) in the frame last settled. -/
   settled : Nat × Nat := (0, 0)
+
+/-- The OS updates only transient pointer state. Community/query/cache state
+is deliberately outside this transition. -/
+def pointerEvent (d : Driver) (e : Hover.Event) : Driver :=
+  let ui := { d.ui with
+    hover := Hover.update d.ui.hover e
+    grace := false
+    moreFor := if e == .blur then none else d.ui.moreFor }
+  let g := Desktop.zoomLayout d.width (ui.context != .closed) d.dpi
+  let owner := (hoveredRow g d.height ui d.app).map (·.1)
+  let carry := owner != d.ui.hoverRow && (Id.run do
+    let some id := d.ui.hoverRow | return false
+    let some origin := d.ui.hoverFrom | return false
+    let some pos := pointer g d.height ui .main | return false
+    let some bar := messageBar g d.height d.app id | return false
+    return Hover.toward origin pos ⟨bar.x, bar.y, bar.w, bar.h⟩)
+  let ui := { ui with
+    hoverRow := if carry then d.ui.hoverRow else owner
+    grace := carry
+    hoverFrom := if carry then d.ui.hoverFrom else ui.hover }
+  let target (ui : Ui) := ui.hover.bind fun (x, y) => messageAction g d.height ui d.app x y
+  let same := target ui == target d.ui && ui.hover.isSome
+  { d with
+    ui := { ui with tooltip := same && d.ui.tooltip }
+    hoverStarted := if same then d.hoverStarted else 0
+    graceStarted := if carry && d.ui.grace then d.graceStarted else 0 }
+
+/-- A monotonic clock supplied by the native event loop; motion within the
+same action retains its dwell, moving to another action starts again. -/
+def hoverTime (d : Driver) (now : Nat) : Driver :=
+  let since := if d.ui.grace && d.graceStarted == 0 then now else d.graceStarted
+  let expired := d.ui.grace && !Hover.graceLive since now
+  let ui := if expired then { d.ui with grace := false, hoverRow := none, hoverFrom := d.ui.hover } else d.ui
+  let owner := (hoveredRow (Desktop.zoomLayout d.width (ui.context != .closed) d.dpi) d.height ui d.app).map (·.1)
+  let d := { d with ui := { ui with hoverRow := owner }, graceStarted := if expired then 0 else since }
+  let active := d.ui.hover.any fun (x, y) =>
+    (messageAction (Desktop.zoomLayout d.width (d.ui.context != .closed) d.dpi) d.height d.ui d.app x y).isSome
+  let started := if active then (if d.hoverStarted == 0 then now else d.hoverStarted) else 0
+  { d with hoverStarted := started, ui := { d.ui with tooltip := active && now ≥ started + 400 } }
 
 def Driver.layout (d : Driver) : Layout := Desktop.zoomLayout d.width (d.ui.context != .closed) d.dpi
 
 def start (base : App.Io) (w h : Nat) (path : String)
     (net : Option (Nat × Bool) := none) : IO Driver := do
   let ls ← IO.mkRef ({} : Layers)
+  let hoverCache ← IO.mkRef none
   let g := Desktop.layout w false
   let sc ← IO.mkRef #[g.main.w.toUInt32, h.toUInt32, 0, 0, 160, (← base.screen)[5]?.getD 0]
   let io := { base with
@@ -41,13 +94,15 @@ def start (base : App.Io) (w h : Nat) (path : String)
   -- Replacing it with the old reduced bitmap discards the shared renderer.
   let font := s.font.atSize (if w ≥ 720 then 14 else 15)
   let s := { s with wide := w ≥ 720, mobile := false, font, dim := { s.dim with cell := font.cell } }
-  return { app := App.themed s s.theme, width := w, height := h, layers := ls, screen := sc }
+  return { app := App.themed s s.theme, width := w, height := h, layers := ls, screen := sc, hoverCache }
 
 def resize (d : Driver) (w h : Nat) : IO Driver := do
   let w := max 320 w
   let h := max 480 h
   let dpi := max 80 (min (d.requestedZoom * 160 / 100) (min (w * 160 / 320) (h * 160 / 240)))
-  let mut d := { d with width := w, height := h, dpi }
+  let moved := w != d.width || h != d.height || dpi != d.dpi
+  let ui := if moved then { d.ui with hoverRow := none, hoverFrom := none, grace := false, tooltip := false } else d.ui
+  let mut d := { d with width := w, height := h, dpi, ui }
   if w < ((720 * d.dpi + 80) / 160) && d.ui.context != .closed then
     let (_, s) ← (do
       for (parent, _) in d.ui.parents.reverse do App.openPage parent
@@ -83,6 +138,8 @@ def zoom (d : Driver) (percent : Nat) : IO Driver := do
   return d
 
 def act (d : Driver) (a : Action) : IO Driver := do
+  if a == .close && d.ui.moreFor.isSome then
+    return { d with ui := { d.ui with moreFor := none } }
   if (a == .close || a == .popup .close) && d.ui.switching then
     return { d with ui := { d.ui with switching := false, switchOffset := 0 } }
   let a := match a with
@@ -142,6 +199,23 @@ def act (d : Driver) (a : Action) : IO Driver := do
 
 def tap (d : Driver) (x y : Nat) (long := false) : IO Driver := do
   let g := d.layout
+  if !long then
+    if let some (id, action) := messageAction g d.height d.ui d.app x y then
+      let wasOpen := d.ui.moreFor == some id
+      let d := { d with ui := { d.ui with moreFor := none } }
+      match action with
+      | .more => return { d with ui := { d.ui with moreFor := if wasOpen then none else some id } }
+      | .react => return { d with app := { d.app with selected := some id, sheet := some {} } }
+      | .thread => return ← act d .threads
+      | .edit => return ← act d (.drawerAct (.stub "Edit message"))
+      | .copy =>
+        if let some row := d.app.rows[id]? then d.app.io.copy row.data.text
+        return d
+    if let some id := d.ui.moreFor then
+      if (messageMenu g d.height d.app id).any (·.has x y) then return d
+      return { d with ui := { d.ui with moreFor := none } }
+    if let some person := authorAt g d.height d.ui d.app x y then
+      return ← act d (.drawerAct (.person person))
   if let some c := hit (scene g d.height d.ui d.app) x y then
     if long then
       if let .popup (.community i) := c.action then
@@ -179,7 +253,7 @@ def wheel (d : Driver) (x y : Nat) (delta : Int) : IO Driver := do
   if x ≥ g.main.x && x < g.main.x + g.main.w && y ≥ App.topH d.app &&
       y < d.height - App.botH d.app && (d.app.page == .chat || d.app.page.drawer) then
     d.app.io.scrollBy (-delta).toFloat
-  return d
+  return { d with hoverStarted := 0, ui := { d.ui with hoverRow := none, moreFor := none, tooltip := false, grace := false, hoverFrom := none } }
 
 /-- Sidebar and drawer are independent mounted query roots. They declare
 through App.query, then join the conversation in one frame publication. -/
@@ -244,9 +318,25 @@ def settleFrame (d : Driver) : IO Driver := do
 def tick (d : Driver) (events : List App.Event := []) : IO Driver := do
   let d ← resize d d.width d.height
   let d ← stepApp d events
-  if (d.app.W, d.app.Hs) != d.settled then settleFrame d else return d
+  let d ← if (d.app.W, d.app.Hs) != d.settled then settleFrame d else pure d
+  return hoverTime d ((← d.app.io.nowUs).toNat / 1000)
 
 def picture (d : Driver) : IO Paint.Bitmap := do
-  return paint d.layout d.height d.ui d.app (← d.layers.get)
+  let mut rendered := none
+  if let some (id, x, _, ry) := hoveredRow d.layout d.height d.ui d.app then
+    if let some row := d.app.rows[id]? then
+      if let some inputs := row.pixels then
+        let pill := inputs.lay.pills.findIdx? fun (b, _, _, _) => b.has x ry
+        let key : HoverPaintKey := ⟨id, inputs.version, inputs.ready, d.app.W, d.dpi, d.app.dim.theme, pill⟩
+        match ← d.hoverCache.get with
+        | some (old, bmp) => if old == key then rendered := some bmp
+        | none => pure ()
+        if rendered.isNone then
+          let dm := { d.app.dim with hover := some (x, ry) }
+          let bmp := Row.paint d.app.font dm d.app.W d.app.bgRow inputs.data inputs.lay none inputs.images
+          d.hoverCache.set (some (key, bmp))
+          rendered := some bmp
+  if rendered.isNone then d.hoverCache.set none
+  return paint d.layout d.height d.ui d.app (← d.layers.get) rendered
 
 end Desktop

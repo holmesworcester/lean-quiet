@@ -1,0 +1,20 @@
+{
+  "target": {
+    "selector": ".said",
+    "nth": 2,
+    "message": true
+  },
+  "region": [
+    275,
+    323,
+    1280,
+    433
+  ],
+  "pointer": [
+    [
+      778,
+      383
+    ]
+  ],
+  "cursor": "auto"
+}

@@ -1,0 +1,18 @@
+{
+  "target": {
+    "selector": ".composer-area .send"
+  },
+  "region": [
+    1223,
+    711,
+    1255,
+    743
+  ],
+  "pointer": [
+    [
+      1239,
+      727
+    ]
+  ],
+  "cursor": "pointer"
+}
