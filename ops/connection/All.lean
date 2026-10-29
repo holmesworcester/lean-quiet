@@ -14,3 +14,4 @@ import ops.connection.Intents
 import ops.connection.Laws
 import ops.connection.RoomLaws
 import ops.connection.RemovalLaws
+import ops.connection.NodeLaws

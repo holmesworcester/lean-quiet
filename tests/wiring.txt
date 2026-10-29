@@ -194,6 +194,9 @@ bridge Engine.Sync.Read.trace Engine.Sync.Read.run_model
 ## Specifications
 
 spec Engine.specAt The spec's verdict on an op, which judging is proven to reach.
+spec Connection.community The node's Community part: the Community ops its store holds, with Community's own verdicts (sum_project states the node's views against it).
+spec Engine.DB.proj A store's part of one family: its ops, with that family's own verdicts over them.
+spec Engine.leftOps The ops of a store whose kinds a family owns.
 spec Engine.View.keys The keys a view reads, on the model: what a screen watches.
 spec Engine.lexCmp Byte order, which `be64` keeps.
 spec NodeOffer.run A run of the app's sends and frames' re-offers, against the node channel's answers.

@@ -38,6 +38,10 @@ crypto. What a phone does, without the phone.
   third device; its request goes bare beside the session, A approves it,
   and B is let in again (`rejoin_dials`). Negative control: the dial
   rule before the fix, run on B's database, would not dial it.
+- Before and after the removal, A's Community views, read from its
+  store of both families, answer as a Community-only store of the
+  Community ops A holds does (`sum_project_node`). Without the removal,
+  that store would let B's node in (a negative control).
 - Negative controls, each a pair of runners whose hooks are mutated: a
   rooms hook that gives no notices (B never learns its removal, and A
   keeps the session open), and sessions that do not read the rooms view
@@ -156,6 +160,31 @@ def liveOn (s : Peer) (c d : ByteArray) : IO Bool :=
 
 def stored (s : Peer) (x : Id) : IO Bool := do return (← look s (Store.getOp x : SqlM F _)).isSome
 
+/-- `sum_project_node`, run: A's trust rule for each of the node keys es,
+its members and its recipients in c, read from its store of both
+families, against the model of a Community-only node holding the
+Community ops A holds. Returns those ops. While a session is open the
+node holds Connection ops too (`mixed`); once the removal has cut it,
+its ops are purged and only Community ops are left. -/
+def projected (t : Checks) (tag : String) (s : Peer) (c : Id) (es : List ByteArray) (mixed : Bool) :
+    IO (List Op) := do
+  let (held, allowed, mem, rcp, queue) ← look s do
+    let held ← dumpOps (F := F)
+    let allowed ← es.mapM fun e => ((Community.allowPeer c e).liftL.run : SqlM F Bool)
+    let mem ← ((Community.members c).liftL.run : SqlM F (List ByteArray))
+    let rcp ← ((Community.recipients c).liftL.run : SqlM F (List ByteArray))
+    let queue ← dumpQueue (F := F)
+    return (held, allowed, mem, rcp, queue)
+  let cops := held.filter fun o => !owns o.kind
+  let m := modelRun (Community.family ed25519) cops
+  t.ok s!"{tag}: the node is at rest, and so is its Community part" (queue.isEmpty && m.queue.isEmpty)
+  if mixed then t.ok s!"{tag}: the node holds Connection ops too" (cops.length < held.length)
+  t.ok s!"{tag}: the trust rule answers as the Community part's"
+    (allowed == es.map fun e => (Community.allowPeer c e).eval m)
+  t.ok s!"{tag}: members as the Community part's" (mem == (Community.members c).eval m)
+  t.ok s!"{tag}: recipients as the Community part's" (rcp == (Community.recipients c).eval m)
+  return cops
+
 /-- Wait up to ms for p, checking every 50 ms; how long it took. -/
 def waitFor (ms : Nat) (p : IO Bool) : IO (Option Nat) := do
   let t0 ← IO.monoMsNow
@@ -254,6 +283,7 @@ def main (args : List String) : IO UInt32 := do
   a.run.write [p]
   let streamed ← waitFor 10000 (stored b p.id)
   t.ok "tcp: a later post reaches B" streamed.isSome
+  let _ ← projected t "tcp: before the removal" a c [a.key, b.key] true
   -- A removes B while their session is live and carries only Acme.
   let adms ← look a ((Community.admission.byDevice.read [c, dB.pk]).liftL.run : SqlM F (Answer Community.Fact))
   let some ((_, admB), _) := adms.rows.head? | t.ok "tcp: A holds B's admission" false; stopAll
@@ -267,6 +297,10 @@ def main (args : List String) : IO UInt32 := do
   t.ok "tcp: B's device is cut on B, and B holds Acme no more" dropped.isSome
   let closed ← waitFor 10000 do return (← ests a).isEmpty && (← ests b).isEmpty
   t.ok "tcp: the session is cut at both ends, its ops purged" closed.isSome
+  let cops ← projected t "tcp: after the removal" a c [a.key, b.key] false
+  let without := modelRun (Community.family ed25519) (cops.filter (·.id != rm.id))
+  t.ok "tcp: control: without the removal, the Community part lets B's node in"
+    ((Community.allowPeer c b.key).eval without)
   let p2 := post c c dA "k".toUTF8 "after the removal".toUTF8 2 6
   a.run.write [p2]
   -- Well past the time the earlier post took to stream.

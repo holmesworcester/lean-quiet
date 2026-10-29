@@ -19,8 +19,8 @@ connection step uses (`Node.refresh`, Engine/Sync/Node.lean).
 With `recv_send` and `recv_take`, nothing of that room then goes out on
 the connection or is taken from it. `Community.removal_cuts_off` says
 `allowPeer` refuses a removed user's devices, over the Community
-family's own store; carrying it to the composed store the node runs
-(Community and Connection) is `sum_project`, not yet proven.
+family's own store; `rooms_cut_node` (ops/connection/NodeLaws.lean)
+carries it to the composed store the node runs, by `sum_project`.
 -/
 import ops.connection.Intents
 

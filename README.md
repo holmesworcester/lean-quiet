@@ -43,8 +43,8 @@ no collisions. ³ in the symbolic model of the cryptography.
 
 **Not yet proven:**
 - that messages are secret from non-members (the seal's secrecy);
-- that a removal reaches a live session from the removal itself, which
-  needs `sum_project`;
+- that every connection step reads its rooms afresh, so that a removal
+  reaches a live session (tested, not proven);
 - the bootstrap over the running code, rather than a model;
 - that content is drawn faithfully all the way to pixels (proven up to
   each row's layout; painting is not).
@@ -135,8 +135,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 684 rest on Lean's standard axioms
-only, and about two thirds of its theorems (497 of 664, not counting 20 negative controls) are about the code that runs; another 7 run the
+that rests on; 🥊 is supporting. All 732 rest on Lean's standard axioms
+only, and about two thirds of its theorems (529 of 712, not counting 20 negative controls) are about the code that runs; another 7 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -165,7 +165,7 @@ World); the rest are over models so far
 | ✅ | 🥊🥊🥊 | **The trust rule lets in exactly the live members' nodes.** Read from the node's tables, it accepts a node key exactly when a live device is admitted under it: admitted, and none of its users removed. Nodes that hold the same ops agree on it. | [`connect_iff`], [`deviceLive_iff`], [`refuse_nonmember`], [`connect_approved`], [`connect_agree`] |
 | ✅ | 🥊🥊🥊 | **A removal cuts every device of the removed user,** wherever else the device is admitted, and for good: no later admission undoes it, and only the device's own consent ties it to a user, so nobody else can cut it. Only an admin can remove another user, and nothing undoes it. | [`removal_cuts_off`], [`cut_stays`], [`cut_consented`], [`removals_iff`], [`removal_authorized`], [`removed_stays`] |
 | ✅ | 🥊🥊🥊 | **A removed member's node stops holding the community, and can rejoin only as a new device.** Proven: a cut device's entry is not held, a join writes a fresh device from the node's key and never asks for an admitted one, and the removed user stays removed and its devices cut, whatever follows. A pending join is sent until a connection answers it, beside an open session or not, and a dropped session is dialed again. Tested on two SQLite nodes and over TCP, with a negative control. | [`mine_not_removed`], [`rejoin_fresh`], [`join_new_device`], [`removed_stays_removed`], [`rejoin_dials`], [`reconnect_dials`] |
-| 🟡 | 🥊🥊🥊 | **A removal ends a live session's sync.** Proven: a connection carries a room synced only if the trust rule takes its peer, so a refused peer gets nothing of the room by sync and nothing of it is taken from them; what it carries of the room is only its removal's notice, and a session that carries nothing is closed. Not yet: deriving the refusal from the removal itself in the running node (`sum_project`). | [`rooms_trusted`], [`rooms_cut`], [`rooms_removed`], [`rooms_complete`], [`notice_then_cut`], [`trusts_live`], [`rooms_model`], [`recv_send`], [`recv_take`], [`removal_cuts_off`] |
+| 🟡 | 🥊🥊🥊 | **A removal ends a live session's sync.** Proven: a connection carries a room synced only if the trust rule takes its peer, so a refused peer gets nothing of the room by sync and nothing of it is taken from them; what it carries of the room is only its removal's notice, and a session that carries nothing is closed. In the running node, the removal itself is enough: a node let into a community carries no sync room of it on a connection to a peer whose devices' users were removed (`sum_project`). Not yet: that every connection step reads its rooms afresh, which is in the code and tested over TCP, with a negative control. | [`rooms_cut_node`], [`rooms_trusted`], [`rooms_cut`], [`rooms_removed`], [`rooms_complete`], [`notice_then_cut`], [`trusts_live`], [`rooms_model`], [`recv_send`], [`recv_take`], [`removal_cuts_off`] |
 | 🟡 | 🥊🥊🥊 | **No packet goes to a removed member but the notice of its removal.** From the first engine turn after a node decides a removal, it sends the removed user's node only that removal and its requirement closure, once, and then closes the session. Proven, per connection step: the step after a store, and each tick that does not drop the session, gives the notice when its closure fits the walk's budget; every step sends the removed node only sync wire ops, ops of rooms it still syncs, and that closure, and takes nothing of the community; a notice is given once, a have for the community gets no reply, and once every notice owed is given the session carries nothing and is closed. A handshake gets no reply, and a replayed request gets nothing. Not proven: the entry point as a whole (that the node runs those steps, writes `given` and seals before it purges), which is tested over TCP, with negative controls. | [`notice_sent`], [`closure`], [`notice_send`], [`removed_gets_only_notice`], [`notice_once`], [`notice_no_holds`], [`notice_then_cut`], [`answer_trusted`], [`resend_trusted`] |
 | 🟡 | 🥊🥊🥊 | **No session before approval,** however hellos are lost or replayed, and sessions form only with trusted peers. Proven over the running code, step by step: a responder writes a connection, or re-sends one, only for a request whose initiator the trust rule takes. Not yet: the whole guarantee, through lost and replayed hellos, over the running handshake; it is proven over a model. | [`no_connection_before_approval`], [`sessions_trusted`] *(model)*, [`answer_trusted`], [`resend_trusted`] |
 | 🟡 | 🥊🥊🥊 | **Peers cannot push ops in** outside the rooms they are let into, nor plant a device's local state. Proven: on a session, only ops of its rooms are taken; on the bare wire, a hello yields only a join request of its community, trusted or not, so a removed member, or an outsider who knows the community, pushes nothing else in (tested over TCP, with a negative control). Not yet: that a device's local state stays its own through purges, which is proven over the modelled purge (`purgeS`) only. | [`recv_take`], [`bare_takes_only_join`], [`intake_local`], [`stored_local`], [`local_fact_mine`], [`intakeConn_conn`] |
@@ -191,7 +191,7 @@ World); the rest are over models so far
 | 🟡 | 🥊🥊🥊 | **Purge is safe.** A purged session or courier is gone, no shared op is ever deleted, and the engine settles on what remains. Not yet: proven of the purge's model (`purgeS`); the running purge is SQL, tested against it. | [`purge_gone`], [`purge_shared`], [`purge_settles`] |
 | 🟡 | 🥊🥊 | **Purge takes exactly what it must.** It takes the named conn and local ops and their stored dependents. Shared dependents are judged again. Not yet: proven of the purge's model (`purgeS`); the running purge is SQL, tested against it. | [`purge_named`], [`purge_undecides`], [`purge_inv`], [`mem_purgeSet`], [`reach_ops`] |
 | ✅ | 🥊 | **Families compose, op by op:** adding a family changes no verdict or scope of the first's ops. Strict decoding round-trips. | [`sum_left`], [`sum_scope_left`], [`Codec.decode_encode`], [`Op.decode_bytes`] |
-| ⬜ | 🥊🥊🥊 | **The Community laws hold in the running node** (`sum_project`). In the store composed with the Connection family, every Community view answers as it would in a store of the Community ops alone. This carries every law above to the node that runs. | |
+| ✅ | 🥊🥊🥊 | **The Community laws hold in the running node** (`sum_project`). The node's store holds Community and Connection ops. Its Community part is the Community ops, with Community's own verdicts. At rest, that part keeps Community's invariant, and its ops are Valid exactly where the node's are. A view that reads only Community relations answers in the node as in that part, as the trust rule, members and recipients do. So the laws above hold of the node that runs. Tested too: over TCP, the node's trust rule, members and recipients match a Community-only store of its Community ops, before and after a removal. | [`sum_project`], [`sum_project_node`], [`spec_sum_left`], [`view_proj`], [`connect_iff_node`], [`members_iff_node`], [`recipients_iff_node`], [`node_settles`] |
 | ✅ | 🥊🥊🥊 | **The honest path works.** A request with its invitation and both signatures is valid, an eligible member's approval is valid, and enough approvals admit and let the device in. The remover's intent writes only removals that stand. | [`request_valid`], [`approve_valid`], [`admit_admits`], [`connect_admitted`], [`removeMember_valid`] |
 | | | **Sync** | |
 | 🟡 | 🥊🥊🥊 | **A sync round is complete.** Each side is sent exactly what the other holds in the range and it lacks. On any path, it takes at most one answer more than the two sides hold in the range. Not yet: proven of the round's model (`exchange`); wanted of the running round (`conn_runs_exchange`). | [`exchange_complete`] |
@@ -245,16 +245,16 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**497 of 664 laws are about running code;** another 7 run its node code in a World, and 160 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**529 of 712 laws are about running code;** another 7 run its node code in a World, and 176 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 114 | 73 |  | 41 |
+| Engine | 143 | 91 |  | 52 |
 | Sync | 96 | 95 |  | 1 |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 37 | 21 | 7 | 9 |
 | Bootstrap | 11 | 0 |  | 11 |
-| Connections | 49 | 46 |  | 3 |
+| Connections | 68 | 60 |  | 8 |
 | Community | 165 | 154 |  | 11 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
@@ -264,10 +264,10 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Missing link | Laws | To make them real |
 |---|---|---|
 | `World.peer`, `Setup.sync`, `Who.other` +7 | 7 World laws; not yet: [`write_offers`], [`hold_wants`], [`want_sends`], [`op_taken`], [`write_offers_all`] | Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired. |
-| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]† +18 more | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
+| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]† +19 more | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°† | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
 | `Engine.offer` | [`offer_shared`]*†, [`offer_stored`]*† | Nothing that runs calls `offer` (a connection offers in `Conn.filed` and `Conn.tick`): restate these over `Conn`, or offer through `offer`. |
-| `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
+| `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]†, [`reads_members`], [`reads_recipients`], [`members_iff_node`]†, [`recipients_iff_node`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
 | `Scene.approval`, `Scene.K`, `Scene.S` +12 | [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`bootstrap_ideal`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`], [`allowPeer_settles`] | The bootstrap's model (ops/connection/bootstrap/): retired by `conn_runs_exchange`, `closure_delivered`, `answer_trusted` and `untrusted_silent` over the running code. |
 | `Seam.place`, `Geom.composerTop`, `Geom.viewNow` +5 | [`placed_row`]†, [`visible_in_viewport`]†, [`newest_visible`]†, [`newest_drawn`]†, [`pinned_row`]†, [`pinned_visible`]†, [`pinned_tap`]† | The twins' C applies this formula, trusted: export `Seam` for the twins to call, as `Pic` and `Qr` are. |
 | `Sync.keeps` | [`buffer_bounded`]*† | The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s. |
@@ -278,6 +278,9 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Pics.after`, `Pics.costIn` | [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`] | The picture doors as data (`PicM`), measured: the app's own doors (its decode table and frame counter) are not shown to answer as `PicM`'s. Prove they do, or state these over them. |
 | `Board.apply`, `RWorld.commit`, `RWorld.evict` +10 | [`RWorld.acts_shown`], [`seen_take`], [`World.inv_commit`], [`RWorld.inv_commit`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`], [`World.inv_pass`], [`World.inv_frame`], [`World.settle`], [`marked_pass`] +7 more | The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`. |
 | `T.sum`, `Both.bottom`, `Both.rowAt` +16 | [`start_eq`], [`find_spec`], [`set_toList`], [`push_ok`], [`findM_cost`], [`startM_cost`], [`setM_cost`], [`rows_cost`], [`start_mono`], [`start_size`], [`below_window`], [`above_window`] +8 more | The row-heights tree (engine/renderer/Heights.lean): the app keeps its rows' heights in a map (`App.heightOf`) and adds them up itself. Have its list frame place rows by `Heights`. |
+| `Engine.inlRow` | [`matching_proj`], [`eval_proj`], [`filterMap_inlRow`] | Nothing that runs calls it. |
+| `Engine.leftValid` | [`mem_proj_idx`] | Nothing that runs calls it; `Engine.DB.proj` do. |
+| `Engine.specVerdict` | [`specVerdict_eq_some`] | Nothing that runs calls it; `Engine.DB.proj` do. |
 | `AWorld.pass` | [`AWorld.passActs_comp`], [`AWorld.passActs_indep`], [`AWorld.passActs_acts`] | Nothing that runs calls it. |
 | `AWorld.type` | [`AWorld.type_only`] | Nothing that runs calls it. |
 | `RWorld.actsWorld` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.passActs` do. |
@@ -293,22 +296,22 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Bidi.numberRuns` | [`run_contiguous`]* | Nothing that runs calls it; `Text.numberRuns` do. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +16 more | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +22 more | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
 | Assumption | Laws | |
 |---|---|---|
 | [`Unforgeable`] | 2 | An Ed25519 signature that verifies under a device key was made by that key's holder. |
-| [`CollisionFree`] | 21 | SHA-256 has no collision among the ops a node received. |
+| [`CollisionFree`] | 22 | SHA-256 has no collision among the ops a node received. |
 | [`offerM`] | 2 | The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`. |
 | [`NoSecondPreimage`] | 14 | SHA-256 has no second preimage on a file's Merkle tree inputs. |
 | [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
 | [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 205 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Model.run`] | 229 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
-| [`Engine.Inv`] | 60 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
+| [`Engine.Inv`] | 82 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
 
 ## What isn't Lean, and why
@@ -871,6 +874,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`removed_stays_removed`]: ops/community/RemovalLaws.lean#L519-L529
 [`rejoin_dials`]: ops/connection/RemovalLaws.lean#L1153-L1166
 [`reconnect_dials`]: ops/connection/RemovalLaws.lean#L1178-L1188
+[`rooms_cut_node`]: ops/connection/NodeLaws.lean#L187-L199
 [`rooms_trusted`]: ops/connection/RoomLaws.lean#L100-L107
 [`rooms_cut`]: ops/connection/RoomLaws.lean#L120-L131
 [`rooms_removed`]: ops/connection/RemovalLaws.lean#L96-L101
@@ -953,6 +957,14 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`sum_scope_left`]: engine/core/Families.lean#L85-L86
 [`Codec.decode_encode`]: engine/core/Codec.lean#L737-L737
 [`Op.decode_bytes`]: engine/core/Core.lean#L94-L94
+[`sum_project`]: engine/core/Project.lean#L421-L432
+[`sum_project_node`]: ops/connection/NodeLaws.lean#L106-L117
+[`spec_sum_left`]: engine/core/Project.lean#L195-L198
+[`view_proj`]: engine/core/Project.lean#L408-L411
+[`connect_iff_node`]: ops/connection/NodeLaws.lean#L147-L152
+[`members_iff_node`]: ops/connection/NodeLaws.lean#L172-L175
+[`recipients_iff_node`]: ops/connection/NodeLaws.lean#L179-L183
+[`node_settles`]: ops/connection/NodeLaws.lean#L206-L210
 [`request_valid`]: ops/community/Laws.lean#L418-L426
 [`approve_valid`]: ops/community/Laws.lean#L434-L442
 [`admit_admits`]: ops/community/Laws.lean#L450-L461
@@ -1107,6 +1119,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`op_taken`]: engine/wire/WorldLaws.lean#L532-L539
 [`write_offers_all`]: engine/wire/WorldLaws.lean#L1207-L1218
 [`reach_drain`]: engine/core/Proofs.lean#L529-L530
+[`reads_members`]: ops/connection/NodeLaws.lean#L78-L78
+[`reads_recipients`]: ops/connection/NodeLaws.lean#L82-L82
 [`admitted_inv`]: ops/connection/bootstrap/Scene.lean#L159-L162
 [`allowedA`]: ops/connection/bootstrap/Scene.lean#L230-L230
 [`allowedB`]: ops/connection/bootstrap/Scene.lean#L244-L247
@@ -1156,6 +1170,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`start_size`]: engine/renderer/Heights.lean#L244-L245
 [`below_window`]: engine/renderer/Heights.lean#L248-L251
 [`above_window`]: engine/renderer/Heights.lean#L254-L258
+[`matching_proj`]: engine/core/Project.lean#L366-L368
+[`eval_proj`]: engine/core/Project.lean#L385-L389
+[`filterMap_inlRow`]: engine/core/Project.lean#L404-L405
+[`mem_proj_idx`]: engine/core/Project.lean#L215-L216
+[`specVerdict_eq_some`]: engine/core/Project.lean#L71-L72
 [`AWorld.passActs_comp`]: engine/renderer/ActsLaws.lean#L291-L293
 [`AWorld.passActs_indep`]: engine/renderer/ActsLaws.lean#L295-L298
 [`AWorld.passActs_acts`]: engine/renderer/ActsLaws.lean#L301-L302
