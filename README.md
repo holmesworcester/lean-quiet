@@ -135,8 +135,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 747 rest on Lean's standard axioms
-only, and about two thirds of its theorems (542 of 727, not counting 20 negative controls) are about the code that runs; another 7 run the
+that rests on; 🥊 is supporting. All 750 rest on Lean's standard axioms
+only, and about two thirds of its theorems (545 of 730, not counting 20 negative controls) are about the code that runs; another 7 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -209,6 +209,9 @@ World); the rest are over models so far
 | ✅ | 🥊🥊 | **Unmounted pages issue no new reads or writes.** The running read/write gates reject unmounted pages and old leases, including after remount. Cache pruning leaves exactly the mounted queries after each has an answer; watches are their keys. Worker retirement, bounded suspend and native callback delivery are tested, not proved by these gate laws. | [`unmount_read`], [`unmount_write`], [`old_callback`], [`unmounted_quiet`], [`old_quiet`], [`live_exact`], [`subscriptions_exact`], [`mounted_runs`] |
 | 🟡 | 🥊🥊 | **Lifecycle state survives a restart or resize.** Proven: the running checkpoint codec and application preserve page and message anchor, and resize's offset keeps the anchor's top-edge distance when it fits. Not yet: SQLite crash durability or native placement as Lean laws; the headless twin tests crashes, viewport changes, keyboard transitions and invite launch ([inventory](docs/LIFECYCLE.md)). Geometry still has the native seam described below. | [`restore_checkpoint`], [`page_round`], [`restore_page_anchor`], [`apply_page_anchor`], [`resize_anchor`], [`viewport_geometry`], [`viewport_possible`] |
 | 🟡 | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. Not yet: proven of the formulas the twins' C applies (`Seam`), and of a copy of the sheet painter's placement. | [`visible_in_viewport`], [`newest_visible`], [`pinned_visible`], [`pinned_tap`], [`hit_iff`] |
+| 🟡 | 🥊🥊 | **Arrivals don't move what is being read.** Proven of the running frame's rule: away from the newest, the conversation's window is always about a row, never "the newest", so arrivals cannot push the row being read out of it. Not yet: that the window about a row holds it (its read is the row and those older), and that the frame's shift keeps the row's pixel; the twin tests both, with pending, filed and incoming arrivals and a burst larger than the window, on both scroll seams: a shift clamped at once, and one queued to vsync ([UX-BUGS](docs/UX-BUGS.md)). | [`follow_away`] |
+| ✅ | 🥊🥊 | **Full labels are reachable.** Every wrapped line of a long name is on a page of its Full label, and Copy full text copies the source string. A long press on the header, a switcher entry or a person opens it, as the twin tests. | [`Label.line_reachable`], [`Label.copy_exact`] |
+| 🟡 | 🥊 | **Stored sessions aren't shown as presence.** The app keeps no session state, and home's avatars have no connection dots. Not proven: the twin checks the painted pixels where a dot was. | |
 | ⬜ | 🥊🥊🥊 | **Every control is big enough to tap.** Every tappable control's hit area, not just its drawn size, is at least 48 dp by 48 dp on Android and 44 pt by 44 pt on iOS, at every supported screen size and text scale. | |
 | ⬜ | 🥊🥊 | **A tap means one thing.** On every screen, no two controls' hit areas overlap, so a point selects at most one control. A tap selects the control drawn under it. Today this is proven for the emoji sheet and message rows only (`keys_disjoint`, `hit_iff`, `pinned_tap`). | |
 | ⬜ | 🥊🥊 | **Every control shown can be tapped.** A control that is drawn has its hit area on screen, and not under the header, the composer or the keyboard. | |
@@ -247,7 +250,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**542 of 727 laws are about running code;** another 7 run its node code in a World, and 178 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**545 of 730 laws are about running code;** another 7 run its node code in a World, and 178 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -260,8 +263,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Community | 165 | 154 |  | 11 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
-| Screen | 126 | 64 |  | 62 |
-| App | 55 | 46 |  | 9 |
+| Screen | 128 | 66 |  | 62 |
+| App | 56 | 47 |  | 9 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
@@ -999,8 +1002,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`old_quiet`]: ops/app/Lifecycle.lean#L70-L71
 [`live_exact`]: ops/app/Lifecycle.lean#L86-L90
 [`subscriptions_exact`]: ops/app/Lifecycle.lean#L74-L75
-[`mounted_runs`]: ops/app/Lifecycle.lean#L117-L119
-[`restore_checkpoint`]: ops/app/Lifecycle.lean#L114-L114
+[`mounted_runs`]: ops/app/Lifecycle.lean#L139-L141
+[`restore_checkpoint`]: ops/app/Lifecycle.lean#L136-L136
 [`page_round`]: AppLife.lean#L24-L24
 [`restore_page_anchor`]: ops/app/LifecycleLaws.lean#L28-L34
 [`apply_page_anchor`]: ops/app/LifecycleLaws.lean#L38-L43
@@ -1012,6 +1015,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`pinned_visible`]: engine/renderer/Geometry.lean#L147-L151
 [`pinned_tap`]: engine/renderer/Geometry.lean#L154-L157
 [`hit_iff`]: engine/renderer/SheetGeom.lean#L124-L126
+[`follow_away`]: ops/app/Lifecycle.lean#L121-L126
+[`Label.line_reachable`]: engine/renderer/Label.lean#L23-L25
+[`Label.copy_exact`]: engine/renderer/Label.lean#L21-L21
 [`offer_split`]: ops/app/NodeOffer.lean#L37-L40
 [`offer_runs`]: ops/app/NodeOffer.lean#L73-L77
 [`eval_stable`]: engine/core/View.lean#L137-L142
@@ -1104,13 +1110,13 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
 [`readable_held`]: ops/community/Intents.lean#L487-L499
 [`readable_complete`]: ops/community/Intents.lean#L527-L537
-[`switcherOrder_sound`]: ops/app/Pages.lean#L674-L676
-[`switcherOrder_complete`]: ops/app/Pages.lean#L681-L683
+[`switcherOrder_sound`]: ops/app/Pages.lean#L678-L680
+[`switcherOrder_complete`]: ops/app/Pages.lean#L685-L687
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L887-L891
-[`pageIn_acc`]: App.lean#L893-L896
+[`drawPage_key`]: App.lean#L879-L883
+[`pageIn_acc`]: App.lean#L885-L888
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L168-L175
