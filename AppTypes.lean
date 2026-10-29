@@ -151,6 +151,7 @@ structure PageIn where
   members : Array (String × Bool)
   memberIds : Array String := #[]
   backEmpty : Bool
+  drawerBack : Bool := false
   /-- Which camera frame is shown (a new frame, a new key). -/
   camFrame : Nat
   /-- The open profile: name, whether it is me, whether removed, and

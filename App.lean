@@ -1034,7 +1034,7 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
     | .appearance => Appearance.page f dm W h k.setting
     | .communitySettings => Appearance.community f dm W h me.name k.communityId k.people
     | .channelSettings => Appearance.channel f dm W h k.people
-    | .stub => Appearance.stub f dm W h k.labelText
+    | .stub => Appearance.stub f dm W h k.labelText me.name k.communityId
     | .chat => ⟨Bitmap.blank W h bg, #[]⟩
   let (t, cross) := pageTitle k.page
   -- a first launch's Get started has nowhere to go back to
@@ -1042,7 +1042,7 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
       Pages.homeBand f dm W k.insetTop me.name k.communityId k.ownName k.ownId
     else if (k.page == .getStarted && k.backEmpty && k.comms.isEmpty) || k.page == .waiting
     then Bitmap.blank W (k.insetTop + dm.px 56) bg
-    else if k.page.drawer then Appearance.header f dm W k.insetTop (if k.page == .stub then k.labelText else t)
+    else if k.page.drawer then Appearance.header f dm W k.insetTop (if k.page == .stub then Appearance.leafTitle k.labelText else t) k.drawerBack
     else Pages.bar f dm W k.insetTop t cross
   (pg, top)
 
@@ -1064,7 +1064,8 @@ def pageIn (s : St) : PageIn :=
     refusal := s.refusal, me := s.me.key, comms := s.comms.map (·.key),
     asking := (s.asking.filter fun r => !s.hidden.contains r.id).map (·.row), askingAll := s.asking.size,
     link := (s.links.find? (·.1 == s.me.acc)).map (·.2), members := s.members, memberIds := s.memberIds.map Pages.identity,
-    backEmpty := s.backStack.isEmpty, camFrame := s.camFrame, labelText := s.labelText, labelPage := s.labelPage,
+    backEmpty := s.backStack.isEmpty, drawerBack := s.backStack.head?.any PageId.drawer,
+    camFrame := s.camFrame, labelText := s.labelText, labelPage := s.labelPage,
     profile := match s.profileOf with
       | some (u, n, isMe) =>
         let present := s.memberIds.contains u

@@ -37,7 +37,7 @@ def glyphsPass (b : Bitmap) : Bool := Id.run do
   for s in b.strokes do
     for i in [0:s.n] do
       if s.alpha i > 0 && s.x+i < b.w && s.y < b.h then
-        if !(decide (Contrast.meets (textColor s.ink s.ground i) (getPx s.ground i))) then return false
+        if !s.exactInk && !(decide (Contrast.meets (textColor s.ink s.ground i) (getPx s.ground i))) then return false
         expected := expected.insert (s.x+i, s.y) (s.color i)
   return expected.toList.all fun ((x,y), color) => getPx b.rows[y]! x == color
 
@@ -89,6 +89,24 @@ def exercise (dir : String) (screen : Array UInt32) : IO Unit := do
   let testGlyph := (Bitmap.blank 160 80 (solid (Palette.color .light .bg) 160)).glyph
     s.font 65 8 8 (Palette.color .light .bg) false
   demand "real glyph corrects an invisible requested ink" (!testGlyph.strokes.isEmpty && glyphsPass testGlyph)
+  let nav := 0x916ad2
+  let ink := Paint.mixC nav 0xffffff 179
+  let label := (Bitmap.blank 160 40 (solid nav 160)).line (s.font.atSize 14)
+    (Text.oneLineFine (s.font.atSize 14) 150 "general") 2 4 ink (exactInk := true)
+  demand "explicit sidebar ink keeps its design color through actual antialiasing"
+    (!label.strokes.isEmpty && label.strokes.all (fun stroke => stroke.exactInk && stroke.ink == ink) &&
+     label.strokes.any (fun stroke => (List.range stroke.n).any fun i => stroke.alpha i == 255 && stroke.color i == ink) && glyphsPass label)
+  let font := s.font.atSize (s.dim.px 14)
+  let medium := font.medium
+  let text := "Channels Quiet"
+  let paint (f : Font.Font) := (Bitmap.blank 300 100 (solid 0xffffff 300)).line f
+    (Text.oneLineFine f 280 text) 4 4 0x222222
+  demand "medium headings use distinct real outlines" ((paint font).rows != (paint medium).rows)
+  for char in ['Γ', 'א', 'م', '世'] do
+    let a := font.noto.chars[char.val]?
+    let b := medium.noto.chars[char.val]?
+    demand "medium retains script fallback face and metrics" (a.isSome && b.isSome &&
+      a.any (fun a => b.any fun b => a.face == b.face && a.glyph == b.glyph && a.unitsAdvance == b.unitsAdvance))
 
   demand "default follows system light" (s.theme.setting == .system && s.dim.theme == .light)
   let (_, s) ← (do

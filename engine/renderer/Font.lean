@@ -22,6 +22,7 @@ structure Font where
   icons : Glyphs.Set := {}
   /-- Layout-only high precision metrics; never used to paint a glyph. -/
   fineMetrics : Bool := false
+  mediumSizes : Std.HashMap Nat Noto.Set := {}
 
 def tableEnd : Nat := 8 + 4 * 0x20000
 
@@ -47,13 +48,21 @@ def load (path : String := "assets/font.bin") (density : Nat := 420) : IO Font :
   let sizes := [11, 12, 13, 14, 15, 16, 18, 20, 21, 24, 32, 48, 56].foldl (fun out dp =>
     let px := (dp * density + 80) / 160
     out.insert px (noto.sized px)) ({} : Std.HashMap Nat Noto.Set)
-  return ⟨b, cell, emoji, noto, sourceCell, sizes, ← Glyphs.load, false⟩
+  let medium ← Noto.medium
+  let mediumSizes := [14, 16, 18].foldl (fun out dp =>
+    let px := (dp * density + 80) / 160
+    out.insert px ((sizes.getD px noto).overlay (medium.sized px))) ({} : Std.HashMap Nat Noto.Set)
+  return ⟨b, cell, emoji, noto, sourceCell, sizes, ← Glyphs.load, false, mediumSizes⟩
 
 /-- Select a prepared size without IO, font parsing or raster scaling. -/
 def Font.atSize (f : Font) (size : Nat) : Font :=
   match f.sizes[size]? with
   | some noto => { f with cell := size, noto }
   | none => f
+
+/-- Real 500-weight outlines at the prepared UI sizes, with script fallback. -/
+def Font.medium (f : Font) : Font :=
+  { f with noto := f.mediumSizes.getD f.cell f.noto }
 
 /-- A glyph: where its 32 rows start in the file, and whether it is wide. -/
 structure Glyph where

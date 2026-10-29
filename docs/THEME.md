@@ -122,7 +122,12 @@ headless shell. It produces 72 full-size page screenshots and a palette
 pixel strip under `out/appearance`. Both named tasks include their
 build and are in `ci/local.sh app`.
 
-No desktop shell has landed on this branch. No phone, emulator or Mac
+The following limitations describe the original theme-only validation run;
+the responsive desktop, Android/iOS photo-picker builds and full frontend
+pixel comparisons were added later (see `tests/visual/README.md` and
+`docs/BUILD.md`).
+
+At that point no desktop shell had landed on the branch. No phone, emulator or Mac
 was touched. Android Java and C syntax compilation uses the local SDK
 and NDK. iOS compilation and live Android/iOS OS switches remain
 unverified. This sandbox denies socket creation, so `host:cross` and
@@ -187,5 +192,10 @@ Noto coverage is retained with each monochrome stroke. Glyphs in a line
 resolve ink against the line's original ground, so overlapping Arabic or
 negative-bearing glyphs do not invert one another. Scrims restore the ground
 and replay strokes in paint order. Tests check the resolved ink's contrast
-and exact final coverage blend. Antialiased edge pixels themselves are not
-claimed to have 4.5:1 contrast; neither are photographs or color emoji.
+and exact final coverage blend. Explicit `exactInk` strokes opt out of contrast
+correction for libquiet's translucent sidebar labels and disabled controls;
+they retain normal glyph coverage and scrim compositing. Their requested ink
+and final pixels are tested, but they carry no contrast guarantee. The default
+content-text policy retains its contrast guarantees. Antialiased edge pixels
+themselves are not claimed to have 4.5:1 contrast; neither are photographs or
+color emoji.

@@ -1,213 +1,207 @@
 {
+  "about-1280-dark": {
+    "mae": 0.00276,
+    "changed_fraction": 0.009654,
+    "layout_mae": 0.001312,
+    "sidebar_mae": 0.00434,
+    "sidebar_changed_fraction": 0.024197,
+    "sidebar_layout_mae": 0.001684
+  },
+  "about-1280-light": {
+    "mae": 0.003294,
+    "changed_fraction": 0.011478,
+    "layout_mae": 0.001924,
+    "sidebar_mae": 0.002568,
+    "sidebar_changed_fraction": 0.019929,
+    "sidebar_layout_mae": 0.001002
+  },
+  "about-390-dark": {
+    "mae": 0.002563,
+    "changed_fraction": 0.009738,
+    "layout_mae": 0.001297
+  },
+  "about-390-light": {
+    "mae": 0.002802,
+    "changed_fraction": 0.009661,
+    "layout_mae": 0.001298
+  },
   "appearance-1280-dark": {
-    "mae": 0.00352,
-    "changed_fraction": 0.01223,
-    "layout_mae": 0.00199
+    "mae": 0.002513,
+    "changed_fraction": 0.009248,
+    "layout_mae": 0.001183,
+    "sidebar_mae": 0.00457,
+    "sidebar_changed_fraction": 0.0255,
+    "sidebar_layout_mae": 0.001751
   },
   "appearance-1280-light": {
-    "mae": 0.00372,
-    "changed_fraction": 0.01405,
-    "layout_mae": 0.00245
+    "mae": 0.002994,
+    "changed_fraction": 0.011005,
+    "layout_mae": 0.001777,
+    "sidebar_mae": 0.002701,
+    "sidebar_changed_fraction": 0.020998,
+    "sidebar_layout_mae": 0.001037
   },
   "appearance-390-dark": {
     "mae": 0.00167,
-    "changed_fraction": 0.00819,
-    "layout_mae": 0.00101
+    "changed_fraction": 0.006789,
+    "layout_mae": 0.000672
   },
   "appearance-390-light": {
     "mae": 0.00178,
-    "changed_fraction": 0.0081,
-    "layout_mae": 0.00098
+    "changed_fraction": 0.006723,
+    "layout_mae": 0.000668
   },
   "channel-1280-dark": {
-    "mae": 0.0058,
-    "changed_fraction": 0.01859,
-    "layout_mae": 0.00297
+    "mae": 0.004802,
+    "changed_fraction": 0.016036,
+    "layout_mae": 0.002094,
+    "sidebar_mae": 0.00457,
+    "sidebar_changed_fraction": 0.0255,
+    "sidebar_layout_mae": 0.001751
   },
   "channel-1280-light": {
-    "mae": 0.00686,
-    "changed_fraction": 0.02096,
-    "layout_mae": 0.00375
+    "mae": 0.006146,
+    "changed_fraction": 0.018324,
+    "layout_mae": 0.003059,
+    "sidebar_mae": 0.002701,
+    "sidebar_changed_fraction": 0.020998,
+    "sidebar_layout_mae": 0.001037
   },
   "channel-390-dark": {
-    "mae": 0.00879,
-    "changed_fraction": 0.0309,
-    "layout_mae": 0.00414
+    "mae": 0.006579,
+    "changed_fraction": 0.02916,
+    "layout_mae": 0.003624
   },
   "channel-390-light": {
-    "mae": 0.0116,
-    "changed_fraction": 0.03303,
-    "layout_mae": 0.00529
+    "mae": 0.009074,
+    "changed_fraction": 0.030812,
+    "layout_mae": 0.004675
   },
   "chat-1280-dark": {
-    "mae": 0.00305,
-    "changed_fraction": 0.01096,
-    "layout_mae": 0.00183
+    "mae": 0.001883,
+    "changed_fraction": 0.007636,
+    "layout_mae": 0.001008,
+    "sidebar_mae": 0.00457,
+    "sidebar_changed_fraction": 0.0255,
+    "sidebar_layout_mae": 0.001751
   },
   "chat-1280-light": {
-    "mae": 0.00259,
-    "changed_fraction": 0.01057,
-    "layout_mae": 0.00167
+    "mae": 0.001596,
+    "changed_fraction": 0.006843,
+    "layout_mae": 0.000887,
+    "sidebar_mae": 0.002701,
+    "sidebar_changed_fraction": 0.020998,
+    "sidebar_layout_mae": 0.001037
   },
   "chat-390-dark": {
     "mae": 0.00375,
-    "changed_fraction": 0.01311,
-    "layout_mae": 0.00192
+    "changed_fraction": 0.012117,
+    "layout_mae": 0.001777
   },
   "chat-390-light": {
     "mae": 0.00392,
-    "changed_fraction": 0.01295,
-    "layout_mae": 0.00196
+    "changed_fraction": 0.011939,
+    "layout_mae": 0.001821
   },
   "chat-719-dark": {
-    "mae": 0.00241,
-    "changed_fraction": 0.0088,
-    "layout_mae": 0.00133
+    "mae": 0.002343,
+    "changed_fraction": 0.007164,
+    "layout_mae": 0.001096
   },
   "chat-719-light": {
-    "mae": 0.00254,
-    "changed_fraction": 0.00875,
-    "layout_mae": 0.00135
+    "mae": 0.002492,
+    "changed_fraction": 0.007102,
+    "layout_mae": 0.001124
   },
   "chat-720-dark": {
-    "mae": 0.00493,
-    "changed_fraction": 0.01715,
-    "layout_mae": 0.00273
+    "mae": 0.003116,
+    "changed_fraction": 0.013186,
+    "layout_mae": 0.001534,
+    "sidebar_mae": 0.00457,
+    "sidebar_changed_fraction": 0.0255,
+    "sidebar_layout_mae": 0.001751
   },
   "chat-720-light": {
-    "mae": 0.0041,
-    "changed_fraction": 0.01646,
-    "layout_mae": 0.00246
+    "mae": 0.002588,
+    "changed_fraction": 0.011777,
+    "layout_mae": 0.001319,
+    "sidebar_mae": 0.002701,
+    "sidebar_changed_fraction": 0.020998,
+    "sidebar_layout_mae": 0.001037
   },
   "chat-959-dark": {
-    "mae": 0.00386,
-    "changed_fraction": 0.01363,
-    "layout_mae": 0.00223
+    "mae": 0.002414,
+    "changed_fraction": 0.010025,
+    "layout_mae": 0.001256,
+    "sidebar_mae": 0.00457,
+    "sidebar_changed_fraction": 0.0255,
+    "sidebar_layout_mae": 0.001751
   },
   "chat-959-light": {
-    "mae": 0.00324,
-    "changed_fraction": 0.01311,
-    "layout_mae": 0.00202
+    "mae": 0.002023,
+    "changed_fraction": 0.008967,
+    "layout_mae": 0.00109,
+    "sidebar_mae": 0.002701,
+    "sidebar_changed_fraction": 0.020998,
+    "sidebar_layout_mae": 0.001037
   },
   "chat-960-dark": {
-    "mae": 0.00386,
-    "changed_fraction": 0.01362,
-    "layout_mae": 0.00222
+    "mae": 0.002411,
+    "changed_fraction": 0.010015,
+    "layout_mae": 0.001233,
+    "sidebar_mae": 0.00457,
+    "sidebar_changed_fraction": 0.0255,
+    "sidebar_layout_mae": 0.001751
   },
   "chat-960-light": {
-    "mae": 0.00324,
-    "changed_fraction": 0.01309,
-    "layout_mae": 0.00201
+    "mae": 0.002021,
+    "changed_fraction": 0.008958,
+    "layout_mae": 0.001072,
+    "sidebar_mae": 0.002701,
+    "sidebar_changed_fraction": 0.020998,
+    "sidebar_layout_mae": 0.001037
   },
   "community-1280-dark": {
-    "mae": 0.00728,
-    "changed_fraction": 0.02347,
-    "layout_mae": 0.00345
+    "mae": 0.006615,
+    "changed_fraction": 0.021754,
+    "layout_mae": 0.002803,
+    "sidebar_mae": 0.00457,
+    "sidebar_changed_fraction": 0.0255,
+    "sidebar_layout_mae": 0.001751
   },
   "community-1280-light": {
-    "mae": 0.00775,
-    "changed_fraction": 0.0254,
-    "layout_mae": 0.00398
+    "mae": 0.007314,
+    "changed_fraction": 0.023708,
+    "layout_mae": 0.003401,
+    "sidebar_mae": 0.002701,
+    "sidebar_changed_fraction": 0.020998,
+    "sidebar_layout_mae": 0.001037
   },
   "community-390-dark": {
-    "mae": 0.01357,
+    "mae": 0.013252,
     "changed_fraction": 0.05046,
     "layout_mae": 0.00632
   },
   "community-390-light": {
-    "mae": 0.01475,
+    "mae": 0.013878,
     "changed_fraction": 0.05024,
-    "layout_mae": 0.0067
-  },
-  "home-1280-dark": {
-    "mae": 0.00305,
-    "changed_fraction": 0.01096,
-    "layout_mae": 0.00183
-  },
-  "home-1280-light": {
-    "mae": 0.00259,
-    "changed_fraction": 0.01057,
-    "layout_mae": 0.00167
-  },
-  "home-390-dark": {
-    "mae": 0.00542,
-    "changed_fraction": 0.01713,
-    "layout_mae": 0.00243
-  },
-  "home-390-light": {
-    "mae": 0.00531,
-    "changed_fraction": 0.01682,
-    "layout_mae": 0.00237
-  },
-  "home-719-dark": {
-    "mae": 0.00332,
-    "changed_fraction": 0.01109,
-    "layout_mae": 0.00166
-  },
-  "home-719-light": {
-    "mae": 0.00327,
-    "changed_fraction": 0.01091,
-    "layout_mae": 0.00164
-  },
-  "home-720-dark": {
-    "mae": 0.00493,
-    "changed_fraction": 0.01715,
-    "layout_mae": 0.00273
-  },
-  "home-720-light": {
-    "mae": 0.0041,
-    "changed_fraction": 0.01646,
-    "layout_mae": 0.00246
-  },
-  "home-959-dark": {
-    "mae": 0.00386,
-    "changed_fraction": 0.01363,
-    "layout_mae": 0.00223
-  },
-  "home-959-light": {
-    "mae": 0.00324,
-    "changed_fraction": 0.01311,
-    "layout_mae": 0.00202
-  },
-  "home-960-dark": {
-    "mae": 0.00386,
-    "changed_fraction": 0.01362,
-    "layout_mae": 0.00222
-  },
-  "home-960-light": {
-    "mae": 0.00324,
-    "changed_fraction": 0.01309,
-    "layout_mae": 0.00201
-  },
-  "you-1280-dark": {
-    "mae": 0.00782,
-    "changed_fraction": 0.02508,
-    "layout_mae": 0.00376
-  },
-  "you-1280-light": {
-    "mae": 0.00872,
-    "changed_fraction": 0.0271,
-    "layout_mae": 0.00472
-  },
-  "you-390-dark": {
-    "mae": 0.01493,
-    "changed_fraction": 0.05531,
-    "layout_mae": 0.00702
-  },
-  "you-390-light": {
-    "mae": 0.01739,
-    "changed_fraction": 0.05557,
-    "layout_mae": 0.00873
+    "layout_mae": 0.006098
   },
   "conversation-1280-dark": {
-    "mae": 0.010194,
+    "mae": 0.010015,
     "changed_fraction": 0.030513,
-    "layout_mae": 0.004163
+    "layout_mae": 0.003984,
+    "sidebar_mae": 0.00457,
+    "sidebar_changed_fraction": 0.0255,
+    "sidebar_layout_mae": 0.001751
   },
   "conversation-1280-light": {
     "mae": 0.010315,
     "changed_fraction": 0.029815,
-    "layout_mae": 0.004076
+    "layout_mae": 0.003942,
+    "sidebar_mae": 0.002701,
+    "sidebar_changed_fraction": 0.020998,
+    "sidebar_layout_mae": 0.001037
   },
   "conversation-390-dark": {
     "mae": 0.024619,
@@ -230,13 +224,265 @@
     "layout_mae": 0.004763
   },
   "conversation-720-dark": {
-    "mae": 0.018339,
+    "mae": 0.017939,
     "changed_fraction": 0.054909,
-    "layout_mae": 0.007717
+    "layout_mae": 0.007327,
+    "sidebar_mae": 0.00457,
+    "sidebar_changed_fraction": 0.0255,
+    "sidebar_layout_mae": 0.001751
   },
   "conversation-720-light": {
     "mae": 0.018539,
     "changed_fraction": 0.053663,
-    "layout_mae": 0.0077
+    "layout_mae": 0.007401,
+    "sidebar_mae": 0.002701,
+    "sidebar_changed_fraction": 0.020998,
+    "sidebar_layout_mae": 0.001037
+  },
+  "disappearing-1280-dark": {
+    "mae": 0.006113,
+    "changed_fraction": 0.021063,
+    "layout_mae": 0.001907,
+    "sidebar_mae": 0.00434,
+    "sidebar_changed_fraction": 0.024197,
+    "sidebar_layout_mae": 0.001684
+  },
+  "disappearing-1280-light": {
+    "mae": 0.006836,
+    "changed_fraction": 0.022868,
+    "layout_mae": 0.002464,
+    "sidebar_mae": 0.002568,
+    "sidebar_changed_fraction": 0.019929,
+    "sidebar_layout_mae": 0.001002
+  },
+  "disappearing-390-dark": {
+    "mae": 0.010462,
+    "changed_fraction": 0.054021,
+    "layout_mae": 0.003673
+  },
+  "disappearing-390-light": {
+    "mae": 0.0111,
+    "changed_fraction": 0.053382,
+    "layout_mae": 0.003274
+  },
+  "home-1280-dark": {
+    "mae": 0.001883,
+    "changed_fraction": 0.007636,
+    "layout_mae": 0.001008,
+    "sidebar_mae": 0.00457,
+    "sidebar_changed_fraction": 0.0255,
+    "sidebar_layout_mae": 0.001751
+  },
+  "home-1280-light": {
+    "mae": 0.001596,
+    "changed_fraction": 0.006843,
+    "layout_mae": 0.000887,
+    "sidebar_mae": 0.002701,
+    "sidebar_changed_fraction": 0.020998,
+    "sidebar_layout_mae": 0.001037
+  },
+  "home-390-dark": {
+    "mae": 0.00542,
+    "changed_fraction": 0.016481,
+    "layout_mae": 0.002328
+  },
+  "home-390-light": {
+    "mae": 0.00531,
+    "changed_fraction": 0.016104,
+    "layout_mae": 0.00218
+  },
+  "home-719-dark": {
+    "mae": 0.00332,
+    "changed_fraction": 0.009645,
+    "layout_mae": 0.00146
+  },
+  "home-719-light": {
+    "mae": 0.00327,
+    "changed_fraction": 0.009429,
+    "layout_mae": 0.001393
+  },
+  "home-720-dark": {
+    "mae": 0.003116,
+    "changed_fraction": 0.013186,
+    "layout_mae": 0.001534,
+    "sidebar_mae": 0.00457,
+    "sidebar_changed_fraction": 0.0255,
+    "sidebar_layout_mae": 0.001751
+  },
+  "home-720-light": {
+    "mae": 0.002588,
+    "changed_fraction": 0.011777,
+    "layout_mae": 0.001319,
+    "sidebar_mae": 0.002701,
+    "sidebar_changed_fraction": 0.020998,
+    "sidebar_layout_mae": 0.001037
+  },
+  "home-959-dark": {
+    "mae": 0.002414,
+    "changed_fraction": 0.010025,
+    "layout_mae": 0.001256,
+    "sidebar_mae": 0.00457,
+    "sidebar_changed_fraction": 0.0255,
+    "sidebar_layout_mae": 0.001751
+  },
+  "home-959-light": {
+    "mae": 0.002023,
+    "changed_fraction": 0.008967,
+    "layout_mae": 0.00109,
+    "sidebar_mae": 0.002701,
+    "sidebar_changed_fraction": 0.020998,
+    "sidebar_layout_mae": 0.001037
+  },
+  "home-960-dark": {
+    "mae": 0.002411,
+    "changed_fraction": 0.010015,
+    "layout_mae": 0.001233,
+    "sidebar_mae": 0.00457,
+    "sidebar_changed_fraction": 0.0255,
+    "sidebar_layout_mae": 0.001751
+  },
+  "home-960-light": {
+    "mae": 0.002021,
+    "changed_fraction": 0.008958,
+    "layout_mae": 0.001072,
+    "sidebar_mae": 0.002701,
+    "sidebar_changed_fraction": 0.020998,
+    "sidebar_layout_mae": 0.001037
+  },
+  "leave-1280-dark": {
+    "mae": 0.006229,
+    "changed_fraction": 0.020326,
+    "layout_mae": 0.002325,
+    "sidebar_mae": 0.00434,
+    "sidebar_changed_fraction": 0.024197,
+    "sidebar_layout_mae": 0.001684
+  },
+  "leave-1280-light": {
+    "mae": 0.007161,
+    "changed_fraction": 0.022341,
+    "layout_mae": 0.003049,
+    "sidebar_mae": 0.002568,
+    "sidebar_changed_fraction": 0.019929,
+    "sidebar_layout_mae": 0.001002
+  },
+  "leave-390-dark": {
+    "mae": 0.009614,
+    "changed_fraction": 0.043239,
+    "layout_mae": 0.004295
+  },
+  "leave-390-light": {
+    "mae": 0.010661,
+    "changed_fraction": 0.043634,
+    "layout_mae": 0.004421
+  },
+  "retention-1280-dark": {
+    "mae": 0.005818,
+    "changed_fraction": 0.019793,
+    "layout_mae": 0.001954,
+    "sidebar_mae": 0.00434,
+    "sidebar_changed_fraction": 0.024197,
+    "sidebar_layout_mae": 0.001684
+  },
+  "retention-1280-light": {
+    "mae": 0.006483,
+    "changed_fraction": 0.021611,
+    "layout_mae": 0.002556,
+    "sidebar_mae": 0.002568,
+    "sidebar_changed_fraction": 0.019929,
+    "sidebar_layout_mae": 0.001002
+  },
+  "retention-390-dark": {
+    "mae": 0.009228,
+    "changed_fraction": 0.047093,
+    "layout_mae": 0.003696
+  },
+  "retention-390-light": {
+    "mae": 0.009701,
+    "changed_fraction": 0.047184,
+    "layout_mae": 0.003513
+  },
+  "sidebar-1280-dark": {
+    "mae": 0.002293,
+    "changed_fraction": 0.010327,
+    "layout_mae": 0.001121,
+    "sidebar_mae": 0.007586,
+    "sidebar_changed_fraction": 0.042992,
+    "sidebar_layout_mae": 0.002714
+  },
+  "sidebar-1280-light": {
+    "mae": 0.001832,
+    "changed_fraction": 0.008983,
+    "layout_mae": 0.000939,
+    "sidebar_mae": 0.004728,
+    "sidebar_changed_fraction": 0.035268,
+    "sidebar_layout_mae": 0.001662
+  },
+  "sidebar-720-dark": {
+    "mae": 0.004322,
+    "changed_fraction": 0.020154,
+    "layout_mae": 0.001945,
+    "sidebar_mae": 0.008515,
+    "sidebar_changed_fraction": 0.048304,
+    "sidebar_layout_mae": 0.003028
+  },
+  "sidebar-720-light": {
+    "mae": 0.003382,
+    "changed_fraction": 0.017465,
+    "layout_mae": 0.00158,
+    "sidebar_mae": 0.005301,
+    "sidebar_changed_fraction": 0.039614,
+    "sidebar_layout_mae": 0.00185
+  },
+  "storage-1280-dark": {
+    "mae": 0.003603,
+    "changed_fraction": 0.012913,
+    "layout_mae": 0.001359,
+    "sidebar_mae": 0.00434,
+    "sidebar_changed_fraction": 0.024197,
+    "sidebar_layout_mae": 0.001684
+  },
+  "storage-1280-light": {
+    "mae": 0.00417,
+    "changed_fraction": 0.014719,
+    "layout_mae": 0.00194,
+    "sidebar_mae": 0.002568,
+    "sidebar_changed_fraction": 0.019929,
+    "sidebar_layout_mae": 0.001002
+  },
+  "storage-390-dark": {
+    "mae": 0.004502,
+    "changed_fraction": 0.023412,
+    "layout_mae": 0.001605
+  },
+  "storage-390-light": {
+    "mae": 0.004771,
+    "changed_fraction": 0.022892,
+    "layout_mae": 0.001394
+  },
+  "you-1280-dark": {
+    "mae": 0.006932,
+    "changed_fraction": 0.023378,
+    "layout_mae": 0.003036,
+    "sidebar_mae": 0.00457,
+    "sidebar_changed_fraction": 0.0255,
+    "sidebar_layout_mae": 0.001751
+  },
+  "you-1280-light": {
+    "mae": 0.008149,
+    "changed_fraction": 0.025395,
+    "layout_mae": 0.004173,
+    "sidebar_mae": 0.002701,
+    "sidebar_changed_fraction": 0.020998,
+    "sidebar_layout_mae": 0.001037
+  },
+  "you-390-dark": {
+    "mae": 0.013757,
+    "changed_fraction": 0.05531,
+    "layout_mae": 0.006819
+  },
+  "you-390-light": {
+    "mae": 0.016157,
+    "changed_fraction": 0.05557,
+    "layout_mae": 0.008553
   }
 }

@@ -17,11 +17,19 @@ def metrics(expected, actual):
     size = (max(1, expected.width // 8), max(1, expected.height // 8))
     coarse_a = np.asarray(expected.resize(size, Image.Resampling.BOX), dtype=np.float32)
     coarse_b = np.asarray(actual.resize(size, Image.Resampling.BOX), dtype=np.float32)
-    return {
+    scores = {
         'mae': float(diff.mean() / 255),
         'changed_fraction': float((diff.max(axis=2) > 16).mean()),
         'layout_mae': float(np.abs(coarse_a - coarse_b).mean() / 255),
-    }, diff
+    }
+    # A blank conversation must not dilute errors in the navigation people
+    # use constantly. Keep the full-image score and independently gate the
+    # actual 220px sidebar at desktop widths.
+    if expected.width >= 720:
+        region = (0, 0, 220, expected.height)
+        sidebar, _ = metrics(expected.crop(region), actual.crop(region))
+        scores.update({f'sidebar_{key}': value for key, value in sidebar.items()})
+    return scores, diff
 
 
 def compare(reference, actual, out, budgets=None):
@@ -46,6 +54,9 @@ def compare(reference, actual, out, budgets=None):
         heat[:, :, 0] = np.minimum(255, diff.max(axis=2) * 4).astype(np.uint8)
         Image.fromarray(heat).save(out / f'{name}-diff.png')
         Image.blend(expected, observed, .5).save(out / f'{name}-overlay.png')
+        if expected.width >= 720:
+            for kind, frame in [('reference', expected), ('actual', observed)]:
+                frame.crop((0, 0, 220, frame.height)).save(out / f'{name}-sidebar-{kind}.png')
         if budgets is not None:
             if name not in budgets:
                 failures.append(f'{name}: no reviewed budget')

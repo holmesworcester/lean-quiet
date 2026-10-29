@@ -5,6 +5,7 @@ export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 test -f assets/font.bin
+tools/noto_assets.sh
 python3 platforms/linux/font.py assets/font.bin out/desktop/font.bin
 lake build desktop engine.renderer.desktop.Laws platforms.desktop.Laws
 # the desktop's laws, on standard axioms only (tests/app/DesktopAxioms.lean)

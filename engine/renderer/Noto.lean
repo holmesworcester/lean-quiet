@@ -47,6 +47,23 @@ def Set.sized (s : Set) (cell : Nat) : Set :=
   { faces := s.faces.map (·.sized cell cell)
     chars := s.chars.map fun _ r => { r with advance := (r.unitsAdvance * cell + r.units / 2) / r.units } }
 
+/-- Overlay a small typography face while retaining the shared script fallbacks. -/
+def Set.overlay (s added : Set) : Set :=
+  { faces := s.faces ++ added.faces
+    chars := added.chars.toList.foldl (fun chars (code, r) =>
+      chars.insert code { r with face := s.faces.size + r.face }) s.chars }
+
+def medium (dir : String := "assets") : IO Set := do
+  let some index := Ttf.Index.read (← IO.FS.readBinFile (dir ++ "/noto-ui-index.bin"))
+    | throw (IO.userError "invalid UI font index")
+  let some metrics := index[0]? | throw (IO.userError "missing UI font metrics")
+  let bytes ← IO.FS.readBinFile (dir ++ "/NotoSans-UI-Medium.ttf")
+  if bytes.size != metrics.bytes then throw (IO.userError "UI font/index size mismatch")
+  let mut chars := ({} : Std.HashMap UInt32 Ref)
+  for (c, g, a) in metrics.chars do
+    if g != 0 then chars := chars.insert c.toUInt32 ⟨0, g, a, a, metrics.units⟩
+  return ⟨#[← Ttf.Memo.source bytes 1 1], chars⟩
+
 /-- Layout consumes a compact cmap/hmtx index. Face parsing and outline
 validation are deferred to first paint; file reads measured about 1 ms. -/
 def load (cell : Nat) (dir : String := "assets") : IO Set := do

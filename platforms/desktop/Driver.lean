@@ -43,12 +43,16 @@ def start (base : App.Io) (w h : Nat) (path : String)
 def resize (d : Driver) (w h : Nat) : IO Driver := do
   let mut d := { d with width := max 320 w, height := max 480 h }
   if w < 720 && d.ui.context != .closed then
-    let (_, s) ← (App.openPage d.ui.drawer).run d.app
+    let (_, s) ← (do
+      for (parent, _) in d.ui.parents.reverse do App.openPage parent
+      App.openPage d.ui.drawer).run { d.app with labelText := d.ui.stubTitle }
     d := { d with app := s, ui := { d.ui with context := .closed } }
   if w ≥ 720 && d.app.page.drawer then
     let viewPage := d.app.page
-    let (_, s) ← (do App.back; App.openPage .chat).run d.app
-    d := { d with app := s, ui := { d.ui with context := .settings, drawer := viewPage } }
+    let parents := (d.app.backStack.takeWhile App.PageId.drawer).map fun p =>
+      (p, ((d.ui.parents.find? (·.1 == p)).map (·.2)).getD "")
+    let (_, s) ← (App.openPage .chat).run d.app
+    d := { d with app := s, ui := { d.ui with context := .settings, drawer := viewPage, parents, stubTitle := d.app.labelText } }
   d := { d with app := { d.app with wide := w ≥ 720 } }
   let g := d.layout
   let aw := max 275 g.main.w
@@ -64,7 +68,7 @@ def act (d : Driver) (a : Action) : IO Driver := do
   match a with
   | .settings => return { d with ui := { d.ui with context := .settings, drawer := .you, parents := [], offset := 0 } }
   | .threads => return { d with ui := { d.ui with context := .threads, drawer := .stub, stubTitle := "Threads", parents := [], offset := 0 } }
-  | .close =>
+  | .close | .drawerAct .back =>
     match d.ui.parents with
     | (parent, title) :: rest => return { d with ui := { d.ui with drawer := parent, stubTitle := title, parents := rest, offset := 0 } }
     | [] => return { d with ui := { d.ui with context := .closed } }

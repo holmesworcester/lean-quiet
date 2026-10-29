@@ -5,8 +5,8 @@
   "face": "bundled Noto Sans",
   "device_scale_factor": 1,
   "safe_area": "excluded; native platform inset tests run separately",
-  "fixture_sha256": "a8a5de93f4ad469ca793963ac051f187f01b68a38951b808b9b00f1c1f5b6ff9",
-  "browser_version": "156.0.8078.73",
   "locale": "en-GB",
-  "timezone": "UTC"
+  "timezone": "UTC",
+  "fixture_sha256": "5e8f26e1a4652cf346afd1be3629a0f7a1c0a37781f75619d123003055af999b",
+  "browser_version": "156.0.8078.73"
 }

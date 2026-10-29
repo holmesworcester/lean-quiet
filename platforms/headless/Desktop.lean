@@ -105,6 +105,32 @@ private def suite (args : List String) : IO UInt32 := do
   d ← settle (← tap d (box.x + box.w / 2) (App.topH d.app + box.y - top + box.h / 2))
   check "phone scrolled row dispatches to the visible child" (d.app.page == .stub && d.app.labelText == "About Quiet")
   d ← settle (← resize d 1100 760)
+  check "widening preserves leaf identity and parent" (d.ui.drawer == .stub && d.ui.stubTitle == "About Quiet" && d.ui.parents.head?.any (·.1 == .you))
+  d ← settle (← resize d 390 760)
+  check "narrowing preserves the leaf and its back destination" (d.app.page == .stub && d.app.labelText == "About Quiet" && d.app.backStack.head? == some .you)
+  d ← settle (← resize d 1100 760)
+  d ← click d .close
+  check "back after both breakpoint transitions returns to You" (d.ui.drawer == .you && d.ui.context == .settings)
+  d ← click d .close
+  for (parent, title) in [(App.PageId.communitySettings, "Message retention"),
+      (.channelSettings, "Disappearing messages"), (.communitySettings, "Storage on this device"),
+      (.communitySettings, "Leave community")] do
+    d ← settle (← act d (.page parent))
+    d ← settle (← act d (.drawerAct (.stub title)))
+    let pg := (drawerPage d.layout d.height d.ui d.app).1
+    check s!"{title}: proposed settings have no write controls"
+      (pg.taps.all (·.2 == .back) && (if title == "Leave community" then pg.taps.size == 1 else pg.taps.isEmpty))
+    d ← settle (← resize d 390 760)
+    check s!"{title}: phone keeps the same leaf" (d.app.page == .stub && d.app.labelText == title)
+    let (_, s) ← App.back.run d.app
+    d ← settle { d with app := s }
+    check s!"{title}: phone back returns to its settings context" (d.app.page == parent)
+    d ← settle (← resize d 1100 760)
+    d ← click d .close
+  d ← settle (← act d (.page .communitySettings))
+  d ← settle (← act d (.drawerAct (.stub "Leave community")))
+  d ← click d (.drawerAct .back)
+  check "Stay returns to community settings and retains membership" (d.ui.drawer == .communitySettings && d.app.comms.size == 2)
   d ← click d .close
   d ← click d (.page .chat)
   text.set ("A desktop message", #[17, 17, 17, 17])

@@ -33,6 +33,21 @@ def conversation : M Unit := do
     unless ← write op do throw (IO.userError "visual message rejected")
     if root.isNone then root := some op.id
 
+/-- Dense navigation is real signed membership/profile data, including long
+names and non-Latin scripts. It exposes errors hidden by an empty sidebar. -/
+def sidebarPeople : M Unit := do
+  let s ← get
+  for name in ["Bo Andersen", "Cassie Oyelaran", "Alexandria Montgomery-Worcester", "Γιώργος", "Анна", "Søren", "Zoë"] do
+    let person := Device.named ("sidebar " ++ name)
+    let bearer := Device.named ("sidebar invite " ++ name)
+    let invitation := invite s.me.c s.me.adm s.me.dev bearer.pk false
+    let req := request s.me.c invitation.id person (cryptoSeal.pub (Chaos.bytesOf ("sidebar node " ++ name) 32)) bearer.sk
+    let approval := approve s.me.c req.id s.me.adm s.me.dev
+    let admission := admit s.me.c req.id [approval.id]
+    let profile := Community.profile s.me.c admission.id person name.toUTF8 29330000
+    unless ← writeAll ⟨[invitation, req, approval, admission, profile]⟩ do
+      throw (IO.userError "sidebar fixture rejected")
+
 def capture (dir name : String) (width height : Nat) (theme page : String) : IO Unit := do
   let db := dir ++ "/" ++ name ++ ".db"
   for suffix in ["", "-wal", "-shm"] do
@@ -44,21 +59,36 @@ def capture (dir name : String) (width height : Nat) (theme page : String) : IO 
   let (_, s) ← (do
     fixture
     if page == "conversation" then conversation
+    if page == "sidebar" then sidebarPeople
     setTheme .system
     waitIdle sm).run d.app
   d := { d with app := s }
   let target : PageId := match page with
     | "home" => .home
-    | "chat" | "conversation" => .chat
+    | "chat" | "conversation" | "sidebar" => .chat
     | "you" => .you
     | "appearance" => .appearance
     | "community" => .communitySettings
     | "channel" => .channelSettings
+    | "retention" | "disappearing" | "storage" | "leave" | "about" => .stub
     | "get-started" => .getStarted
     | "create" => .create
     | "paste" => .paste
     | _ => .home
-  d ← Desktop.act d (.page target)
+  let title := match page with
+    | "retention" => "Message retention" | "disappearing" => "Disappearing messages"
+    | "storage" => "Storage on this device" | "leave" => "Leave community" | "about" => "About Quiet"
+    | _ => ""
+  if target == .stub || target == .appearance then
+    let parent : PageId := if page == "about" || page == "appearance" then .you
+      else if page == "disappearing" then .channelSettings else .communitySettings
+    d ← Desktop.act d (.page parent)
+    let action : Pages.Act := if target == .appearance then .appearance else .stub title
+    if width ≥ 720 then d ← Desktop.act d (.drawerAct action)
+    else
+      let (_, s) ← (App.onPageAct action).run d.app
+      d := { d with app := s }
+  else d ← Desktop.act d (.page target)
   for _ in [0:30] do
     d ← Desktop.tick d
     IO.sleep 2
@@ -68,6 +98,10 @@ def capture (dir name : String) (width height : Nat) (theme page : String) : IO 
   unless d.app.dim.theme == (if theme == "dark" then Theme.Value.dark else .light) do
     throw (IO.userError s!"{name}: wrong effective theme")
   IO.FS.writeFile (dir ++ "/identity.txt") s!"community={Pages.identity d.app.me.c}\nuser={Pages.identity d.app.me.user}\n"
+  if page == "sidebar" then
+    let names := d.app.members.toList.zip d.app.memberIds.toList
+    IO.FS.writeFile (dir ++ "/sidebar-members.tsv") (String.intercalate "\n" (names.map fun ((name, _), id) =>
+      s!"{name}\t{Pages.identity id}"))
   let bmp := Desktop.paint d.layout d.height d.ui d.app (← d.layers.get)
   if bmp.w != width || bmp.h != height then
     throw (IO.userError s!"{name}: wrong dimensions {bmp.w}x{bmp.h}")

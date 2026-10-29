@@ -1,6 +1,7 @@
 /-
 The Surface scrim. Repaint glyph strokes against their shaded grounds
-after compositing the scrim, so dimming cannot make visible text illegible.
+after compositing the scrim. Default content strokes retain contrast;
+explicit design-ink strokes retain their requested color and coverage.
 The row layout must keep later pictures off text (the layout owner's law).
 -/
 import engine.renderer.Paint

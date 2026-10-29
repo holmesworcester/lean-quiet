@@ -1,0 +1,8 @@
+Noto Sans Latin variable font and OFL license from TryQuiet/libquiet:
+bd9d9a010062ab59a0ab0fc67731d827dd02fe27
+app/src/design/fonts/noto-sans-latin.woff2
+
+NotoSans-UI-Medium.ttf is its static weight-500 instance, generated with
+fontTools 4.68.0 (tools/ui_fonts.py --regenerate, with Brotli available).
+Ordinary builds verify and copy this checked-in instance, so they need no
+WOFF2 decoder. Characters outside this subset retain normal Noto fallback.

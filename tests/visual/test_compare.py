@@ -8,6 +8,18 @@ from compare import compare, metrics
 
 
 class PixelGate(unittest.TestCase):
+    def test_sidebar_error_is_not_diluted_by_empty_desktop_space(self):
+        values = []
+        for width in [720, 1280, 2400]:
+            expected = Image.new('RGB', (width, 844), 'white')
+            ImageDraw.Draw(expected).rectangle((0, 0, 219, 843), fill='#7647c7')
+            actual = expected.copy()
+            ImageDraw.Draw(actual).rectangle((16, 102, 90, 115), fill='black')
+            values.append(metrics(expected, actual)[0])
+        self.assertGreater(values[0]['mae'], values[-1]['mae'])
+        self.assertEqual(values[0]['sidebar_mae'], values[-1]['sidebar_mae'])
+        self.assertGreater(values[-1]['sidebar_mae'], 0)
+
     def test_sidebar_shift_and_border_are_visible_to_the_gate(self):
         reference = Image.new('RGB', (390, 200), 'white')
         ImageDraw.Draw(reference).rectangle((0, 0, 99, 199), fill='#7647c7')
