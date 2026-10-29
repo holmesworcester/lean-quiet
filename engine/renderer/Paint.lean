@@ -123,9 +123,10 @@ def Bitmap.icon (b : Bitmap) (f : Font) (name : String) (x y size : Nat) (c : Co
   let cx := if x < x0 + r then x0 + r else if x ≥ x1 - r then x1 - r - 1 else x
   let cy := if y < y0 + r then y0 + r else if y ≥ y1 - r then y1 - r - 1 else y
   if cx == x || cy == y then 256 else
-  -- distance from the corner's centre, in 16ths of a pixel
-  let dx := (if x > cx then x - cx else cx - x) * 16 + 8
-  let dy := (if y > cy then y - cy else cy - y) * 16 + 8
+  -- Sample the pixel centre, half a pixel toward the corner's centre.
+  -- The former +8 displaced both axes outward by one whole pixel.
+  let dx := (if x > cx then x - cx else cx - x) * 16 - 8
+  let dy := (if y > cy then y - cy else cy - y) * 16 - 8
   let d2 := dx * dx + dy * dy
   let rr := r * 16
   if d2 ≤ (rr - 8) * (rr - 8) then 256

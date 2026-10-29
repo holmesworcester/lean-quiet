@@ -49,8 +49,35 @@ def pages : Array (PageId × String) := #[
   (.home, "home"), (.profile, "profile"), (.removeConfirm, "remove"),
   (.you, "you"), (.appearance, "appearance")]
 
+/-- Independent 16×16 area sampling of an ideal circular corner. -/
+def circleArea (r x y : Nat) : Nat := Id.run do
+  let mut inside := 0
+  for sy in [0:16] do
+    for sx in [0:16] do
+      let dx := r * 32 - (x * 32 + sx * 2 + 1)
+      let dy := r * 32 - (y * 32 + sy * 2 + 1)
+      if dx * dx + dy * dy ≤ r * r * 1024 then inside := inside + 1
+  return inside
+
+def roundCorners : IO Unit := do
+  for r in [2, 4, 8, 16] do
+    let w := r * 2 + 8
+    let bmp := (Bitmap.blank w w (solid 0 w)).round 0 0 w w r 0xffffff
+    let mut accurate := true
+    let mut symmetric := true
+    for y in [0:r] do
+      for x in [0:r] do
+        let actual := (getPx bmp.rows[y]! x &&& 255).toNat
+        let expected := circleArea r x y * 255 / 256
+        accurate := accurate && actual ≤ expected + 32 && expected ≤ actual + 32
+        symmetric := symmetric && getPx bmp.rows[y]! x == getPx bmp.rows[y]! (w-1-x) &&
+          getPx bmp.rows[y]! x == getPx bmp.rows[w-1-y]! x
+    demand s!"radius {r}: rendered corner follows circular area coverage" accurate
+    demand s!"radius {r}: all four corners are symmetric" symmetric
+
 def exercise (dir : String) (screen : Array UInt32) : IO Unit := do
   cleanDb dir
+  roundCorners
   let sm ← Sim.new
   let os ← IO.mkRef (0 : UInt32)
   let bars ← IO.mkRef (false, (0 : UInt32))

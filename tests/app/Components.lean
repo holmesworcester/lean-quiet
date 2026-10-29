@@ -126,7 +126,11 @@ def children (dir : String) (ck : Checks) : IO Unit := do
     found "child queries" "Ann"
     openPage .chat
     discard <| sendText "First message"
-    discard <| sendText "Second message"
+    let me := (← get).me
+    let some key ← intentView (Community.currentKey me.c) | throw (IO.userError "fixture key missing")
+    let w ← intentView (Community.send me.c me.adm me.dev key (← newBytes 24)
+      "Second message".toUTF8 ((← nowMin) + 5))
+    discard <| writeAll w
     waitIdle sm
     let s ← get
     let msg := s.ids[0]!.2

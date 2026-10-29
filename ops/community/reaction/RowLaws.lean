@@ -84,12 +84,14 @@ theorem tally_mem (xs : List (String × Id)) (e : String) (w : Id) :
 /-- **The row's clock is the message's claimed time** (or "pending"
 while its op waits in the outbox): what layout places is `oneLine` of it. -/
 theorem time_shown (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
-    (layout f dm W d).time = Text.oneLine f (dm.cell * 4) (if d.pending then "pending" else clock d.time) := rfl
+    (layout f dm W d).time = if d.clump.isSome then #[] else
+      Text.oneLineFine (f.atSize (dm.px 14)) (dm.px 80) (if d.pending then "pending" else clock d.time) := rfl
 
 /-- **The row's name is the author's name as read**, cut as `oneLine`
 cuts (a logical prefix: Text.oneLine_prefix), flushed to the box's start. -/
 theorem name_placed (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
-    (layout f dm W d).name = flush (Text.oneLine f ((W - dm.textX - dm.pad) / 2) d.name) := by
+    (layout f dm W d).name = if d.clump.isSome then #[] else
+      flush (Text.oneLineFine (f.atSize (dm.px 16)) ((W - dm.textX - dm.pad) / 2) d.name) := by
   -- by rewriting, not `rfl`: a defeq check would unfold the bidi under
   -- `oneLine` (out of heartbeats); `simp only` reaches the field directly
   simp only [layout]
@@ -124,22 +126,28 @@ its line's leftmost glyph is at the name box's start. -/
 theorem name_starts (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData)
     (h : (layout f dm W d).name.size ≠ 0) : ∃ g ∈ (layout f dm W d).name.toList, g.x = 0 := by
   rw [name_placed] at h ⊢
-  have h' : (Text.oneLine f ((W - dm.textX - dm.pad) / 2) d.name).size ≠ 0 := by
-    unfold flush at h; split at h <;> simp_all
-  exact (flush_start _ h').1
+  split at h
+  · simp at h
+  · next hc =>
+    simp only [hc, ite_false]
+    generalize Text.oneLineFine (f.atSize (dm.px 16)) ((W - dm.textX - dm.pad) / 2) d.name = line at h ⊢
+    have h' : line.size ≠ 0 := by
+      unfold flush at h
+      split at h <;> simpa only [Array.size_map] using h
+    exact (flush_start _ h').1
 
 /-- **The row is labelled "⚠ Duplicate" exactly when its name has a
 namesake** (the row's `namesake`, read as NamesakeLaws.row_marked says),
 after the name and before the time. -/
 theorem twin_shown (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
-    (layout f dm W d).twin.map (·.2) = if d.namesake then some (Text.oneLine f (dm.cell * 8) twinText) else none := by
+    (layout f dm W d).twin.map (·.2) = if d.namesake && d.clump.isNone then some (Text.oneLine (f.atSize (dm.px 16)) (dm.cell * 8) twinText) else none := by
   simp only [layout]; split <;> rfl
 
 /-- The label sits between the name and the time: it starts after the
 name ends and ends before the time starts. -/
 theorem twin_before_time (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) {bx : Box} {l : Text.Line}
     (h : (layout f dm W d).twin = some (bx, l)) :
-    dm.textX + Paint.Line.width f (layout f dm W d).name ≤ bx.x ∧ bx.x + bx.w ≤ (layout f dm W d).timeX := by
+    dm.textX + Paint.Line.width (f.atSize (dm.px 16)) (layout f dm W d).name ≤ bx.x ∧ bx.x + bx.w ≤ (layout f dm W d).timeX := by
   simp only [layout] at h ⊢
   split at h
   · next hn =>

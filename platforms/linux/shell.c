@@ -444,6 +444,11 @@ lean_obj_res lq_ctl_poll(void) { return lean_io_result_mk_ok(lean_mk_empty_array
 lean_obj_res lq_ctl_reply(b_lean_obj_arg s) { puts(lean_string_cstr(s)); fflush(stdout); return unit(); }
 lean_obj_res lq_scan(uint8_t on) { (void)on; return unit(); }
 lean_obj_res lq_luma(void) { lean_object *p=lean_alloc_ctor(0,2,0); lean_ctor_set(p,0,lean_mk_empty_array()); lean_ctor_set(p,1,lean_alloc_sarray(1,0,0)); return lean_io_result_mk_ok(p); }
+/* Desktop reports the unsupported picker through the same platform seam.
+   Define both symbols here so linking Platform cannot pull in the entire
+   headless twin to satisfy them. */
+lean_obj_res lq_pick_photo(uint32_t token) { (void)token; return lean_io_result_mk_ok(lean_box(0)); }
+lean_obj_res lq_photo_result(void) { lean_object *p=lean_alloc_ctor(0,2,0); lean_ctor_set(p,0,lean_mk_empty_array()); lean_ctor_set(p,1,lean_alloc_sarray(1,0,0)); return lean_io_result_mk_ok(p); }
 lean_obj_res lq_now_us(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC,&ts); return lean_io_result_mk_ok(lean_box_uint64((uint64_t)ts.tv_sec*1000000+ts.tv_nsec/1000)); }
 lean_obj_res lq_tz_min(void) { time_t t=time(NULL); struct tm tm; localtime_r(&t,&tm); return lean_io_result_mk_ok(lean_box_uint32((uint32_t)(int32_t)(tm.tm_gmtoff/60))); }
 lean_obj_res lq_log(b_lean_obj_arg s) { fprintf(stderr,"%s\n",lean_string_cstr(s)); return unit(); }

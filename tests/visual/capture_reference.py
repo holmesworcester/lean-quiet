@@ -39,7 +39,7 @@ def capture(url, destination, chrome=None):
                 name, width, height, theme, scenario = line.split('\t')
                 page = browser.new_page(viewport={'width': int(width), 'height': int(height)},
                                         device_scale_factor=SPEC['device_scale_factor'],
-                                        color_scheme=theme)
+                                        color_scheme=theme, locale=SPEC['locale'], timezone_id=SPEC['timezone'])
                 try:
                     page.goto(f'{url}/iframe.html?id=parity-app--{scenario}&viewMode=story'
                               f'&globals=theme:{theme};face:bundled')
@@ -54,9 +54,13 @@ def capture(url, destination, chrome=None):
                         raise RuntimeError(f'{name}: wrong actual theme {panel}, wanted {expected_panel}')
                     # Disable transient motion without hiding any content.
                     page.add_style_tag(content='*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}')
+                    # Let query subscriptions and ResizeObserver measurements settle.
+                    if scenario == 'conversation':
+                        page.locator('.said').last.wait_for()
+                    page.wait_for_timeout(250)
                     page.screenshot(path=str(destination / f'{name}.png'), animations='disabled')
-                    geometry = page.evaluate('''() => [...document.querySelectorAll('.pane-list,.pane-thread,.drawer,.drawer-body,.composer,.sidebar')].map(el => {
-                      const r=el.getBoundingClientRect(); return {selector:el.className, x:r.x,y:r.y,w:r.width,h:r.height,display:getComputedStyle(el).display}
+                    geometry = page.evaluate('''() => [...document.querySelectorAll('.pane-list,.pane-thread,.drawer,.drawer-body,.composer,.sidebar,.virtual-row,.said,.author,.text')].map(el => {
+                      const r=el.getBoundingClientRect(); return {selector:el.className, x:r.x,y:r.y,w:r.width,h:r.height,display:getComputedStyle(el).display,font:getComputedStyle(el).font,padding:getComputedStyle(el).padding}
                     })''')
                     (destination / f'{name}.json').write_text(json.dumps(geometry, indent=2) + '\n')
                     print(f'reference: {name}', flush=True)

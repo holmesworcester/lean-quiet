@@ -38,6 +38,6 @@ def read (c me msg : Id) (attachmentProgress : Bool := true) : m (Option (Row.Ro
   let (twin, deps) ← Profile.namesake c u who.name deps
   let (pics, deps) ← File.read c msg deps attachmentProgress
   let (tallies, deps) ← React.read c msg me deps
-  return some (⟨who.name, none, text, tm, pics.toList, tallies, pending, false, twin, u, clump⟩, deps)
+  return some (⟨who.name, none, text, tm, pics.toList, tallies, pending, false, twin, u, clump, false, false, false⟩, deps)
 
 end Kinds.Message

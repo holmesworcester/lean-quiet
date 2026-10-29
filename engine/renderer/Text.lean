@@ -269,4 +269,30 @@ def oneLine (f : Font) (width : Nat) (s : String) : Line :=
   let dx := if (visual cs).2 && w < width then width - w else 0
   placed.map fun g => { g with x := g.x + dx }
 
+/-- The largest metric width whose final nearest-pixel advance fits. -/
+def metricWidth (width : Nat) : Nat := width * 64 + 31
+
+theorem metricWidth_fits (width advance : Nat) (h : advance ≤ metricWidth width) :
+    (advance + 32) / 64 ≤ width := by
+  unfold metricWidth at h
+  omega
+
+/-- Keep 1/64 pixel advances through wrapping and bidi. Round a glyph's
+final origin once, instead of rounding each advance and accumulating the
+error along a line. This font shares its metric index and never paints. -/
+def metricFont (f : Font) : Font := { f with cell := f.cell * 64, fineMetrics := true }
+
+def pixelLine (line : Line) : Line := line.map fun g => { g with x := (g.x + 32) / 64 }
+
+def layoutFine (f : Font) (width : Nat) (s : String) : Array Line :=
+  (layout (metricFont f) (metricWidth width) s).map pixelLine
+
+def oneLineFine (f : Font) (width : Nat) (s : String) : Line :=
+  pixelLine (oneLine (metricFont f) (metricWidth width) s)
+
+/-- Rounding positions preserves every shaped glyph and its visual order. -/
+theorem pixelLine_glyphs (line : Line) :
+    (pixelLine line).toList.map (·.c) = line.toList.map (·.c) := by
+  simp [pixelLine, Function.comp_def]
+
 end Text

@@ -17,6 +17,22 @@ def fixture : M Unit := do
   refreshCommsNow
   switchToAcc a
 
+def conversation : M Unit := do
+  let s ← get
+  let some key ← intentView (Community.currentKey s.me.c) | throw (IO.userError "visual key missing")
+  let lines := #["Boathouse code changed this morning. It is 4417 now.",
+    "Same one for the side gate.", "Ignore the laminated sign; nobody has replaced it.",
+    "I will bring a spare key on Saturday.",
+    "Forecast for Saturday is 14 knots gusting 22 from the south-west. I would rather take the pair out and do the long piece on Sunday when it drops to eight.",
+    "Meet at the boathouse at seven.", "See you there!"]
+  let mut root := none
+  for i in [0:lines.size] do
+    if i == 4 then root := none
+    let op := sealedPost s.me.c s.me.adm s.me.dev key (Chaos.bytesOf s!"parity message {i}" 24)
+      lines[i]!.toUTF8 (i + 1) (840 + i + (if i ≥ 4 then 6 else 0)) root
+    unless ← write op do throw (IO.userError "visual message rejected")
+    if root.isNone then root := some op.id
+
 def capture (dir name : String) (width height : Nat) (theme page : String) : IO Unit := do
   let db := dir ++ "/" ++ name ++ ".db"
   for suffix in ["", "-wal", "-shm"] do
@@ -27,12 +43,13 @@ def capture (dir name : String) (width height : Nat) (theme page : String) : IO 
   let mut d ← Desktop.start io width height db
   let (_, s) ← (do
     fixture
+    if page == "conversation" then conversation
     setTheme .system
     waitIdle sm).run d.app
   d := { d with app := s }
   let target : PageId := match page with
     | "home" => .home
-    | "chat" => .chat
+    | "chat" | "conversation" => .chat
     | "you" => .you
     | "appearance" => .appearance
     | "community" => .communitySettings

@@ -1156,3 +1156,10 @@ end cost
 #print axioms Community.Clump.within_iff
 #print axioms Community.Clump.expired
 #print axioms Community.Clump.backwards
+
+#print axioms ClumpList.cells_bounded
+#print axioms ClumpList.extent_cells
+
+#print axioms Text.pixelLine_glyphs
+
+#print axioms Text.metricWidth_fits

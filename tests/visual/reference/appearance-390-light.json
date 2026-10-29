@@ -5,7 +5,9 @@
     "y": 0,
     "w": 390,
     "h": 844,
-    "display": "flex"
+    "display": "flex",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
   },
   {
     "selector": "sidebar svelte-1hv280f",
@@ -13,7 +15,9 @@
     "y": 0,
     "w": 390,
     "h": 844,
-    "display": "flex"
+    "display": "flex",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
   },
   {
     "selector": "pane pane-thread",
@@ -21,7 +25,9 @@
     "y": 0,
     "w": 0,
     "h": 0,
-    "display": "none"
+    "display": "none",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
   },
   {
     "selector": "composer svelte-jdanaw",
@@ -29,7 +35,9 @@
     "y": 0,
     "w": 0,
     "h": 0,
-    "display": "block"
+    "display": "block",
+    "font": "15px / 20px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "12px 16px"
   },
   {
     "selector": "drawer svelte-1n36gr",
@@ -37,7 +45,9 @@
     "y": 0,
     "w": 390,
     "h": 844,
-    "display": "flex"
+    "display": "flex",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
   },
   {
     "selector": "drawer-body svelte-1n36gr",
@@ -45,6 +55,8 @@
     "y": 60,
     "w": 390,
     "h": 784,
-    "display": "block"
+    "display": "block",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px 0px 64px"
   }
 ]

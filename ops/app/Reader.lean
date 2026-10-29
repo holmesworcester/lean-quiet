@@ -47,6 +47,10 @@ inductive Want where
   Screen's `chrome`), so a message filed outside the window notifies
   this want alone; the frame reads it after the rows. -/
   | count (c : Id) (anchor : Option Pos)
+  /-- A root collection, or the children of one root. Both use the same
+  bounded window API; membership comes from signed op references. -/
+  | clumps (c : Id) (root : Option Id) (anchor : Option Pos) (above below : Nat)
+  | clumpCount (c : Id) (root : Option Id) (anchor : Option Pos)
   /-- Message m's own fact and content key (Kinds.Message.readOwn). -/
   | row (c me m : Id)
   | author (c user : Id)
@@ -246,7 +250,7 @@ def Want.need (w : Want) : Demand.Need Want :=
   { key := w, owner := match w with
       | .row c _ m => ["community".toUTF8, c, "message".toUTF8, m]
       | _ => ["page".toUTF8],
-    visible := match w with | .count .. | .people .. | .members .. => false | _ => true }
+    visible := match w with | .count .. | .clumpCount .. | .people .. | .members .. => false | _ => true }
 
 def Shared.setWants (sh : Shared) (ws : Array Want) : IO Unit := sh.setNeeds (ws.map Want.need)
 
@@ -275,27 +279,36 @@ def read (q : Q) : RM Ans := do
 
 instance : Reads RM := ⟨read⟩
 
+/-- One pagination interpreter for every community list, including nested
+collections. It watches row windows separately from counts. -/
+abbrev ListView := Option Nat → Bool → Option Pos → Option Pos → View Fact (Answer Fact)
+
+def readWindow (view : ListView) (anchor : Option Pos) (above below : Nat) : RM (Val × Array Q) := do
+  match anchor with
+  | none =>
+    let (a, deps) ← readView (view (some above) true none none) #[]
+    return (.window (a.rows.map (·.1)).toArray 0, deps)
+  | some p =>
+    let (o, deps) ← readView (view (some above) true none (some (p.1, p.2.push 0))) #[]
+    let (n, deps) ← readView (view (some below) false (some p) none) deps
+    return (.window ((n.rows.reverse ++ o.rows).map (·.1)).toArray n.rows.length, deps)
+
+def readCounts (view : ListView) (anchor : Option Pos) : RM (Val × Array Q) := do
+  let (n, deps) ← readView (view (some 0) true anchor none) #[]
+  return (match anchor with
+    | none => (.count 0 n.inRange, deps)
+    | some _ => (.count n.inRange (n.total - n.inRange), deps))
+
 /-- A want's value, and the reads it made. -/
 def eval : Want → RM (Val × Array Q)
-  -- the window's reads are rows alone: each watches its rows' window,
-  -- which holds exactly its rows (WindowRead.window_rows)
-  | .window c none above _ => do
-    let (a, deps) ← readView (Community.readable c (limit := some above)) #[]
-    return (.window (a.rows.map (·.1)).toArray 0, deps)
-  | .window c (some p) above below => do
-    -- at and older than p (one byte past its id: p itself is in), and newer
-    let (o, deps) ← readView (Community.readable c (limit := some above) (before := some (p.1, p.2.push 0))) #[]
-    let (n, deps) ← readView (Community.readable c (limit := some below) (desc := false) (after := some p)) deps
-    let ids := (n.rows.reverse ++ o.rows).map (·.1)
-    return (.window ids.toArray n.rows.length, deps)
-  -- counts (limit 0): each watches its key
-  | .count c none => do
-    let (a, deps) ← readView (Community.readable c (limit := some 0)) #[]
-    return (.count 0 a.inRange, deps)
-  | .count c (some p) => do
-    -- count_partition: newer and at-or-older are disjoint and exhaustive.
-    let (n, deps) ← readView (Community.readable c (limit := some 0) (after := some p)) #[]
-    return (.count n.inRange (n.total - n.inRange), deps)
+  | .window c anchor above below =>
+    readWindow (fun limit desc after before => Community.readable c limit desc after before) anchor above below
+  | .count c anchor =>
+    readCounts (fun limit desc after before => Community.readable c limit desc after before) anchor
+  | .clumps c root anchor above below =>
+    readWindow (fun limit desc after before => Community.readableClumps c root limit desc after before) anchor above below
+  | .clumpCount c root anchor =>
+    readCounts (fun limit desc after before => Community.readableClumps c root limit desc after before) anchor
   | .comms => do
     let (all, deps) ← Kinds.Accepted.read (← get).known
     modify fun s => { s with known := all }

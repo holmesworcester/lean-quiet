@@ -65,8 +65,14 @@ def removalFrom (b : ByteArray) : Remove.Step :=
   | some (1, u, _) => .first u | some (2, u, _) => .second u | some (3, u, _) => .sending u
   | some (4, u, why) => .failed u (String.fromUTF8! why) | _ => .idle
 
+/-- A fling can stop inside an unloaded range. Persist that collection's
+real root so cold restoration cannot submit a spacer to the query API. -/
+def checkpointAnchor (s : St) : Option (Id × Nat) :=
+  s.mark.bind fun (x, off) =>
+    if s.spacers.contains x then s.cellRoot[x]?.map (·, 0) else some (x, off)
+
 def checkpoint (s : St) : Lifecycle.Checkpoint :=
-  let s := stashDraft s
+  let s := { stashDraft s with mark := checkpointAnchor s }
   let a := s.mark.getD (.empty, 0)
   (1, s.page.code, s.cur, a.1, a.2,
     [Codec.encode (s.backStack.map PageId.code), s.field.toUTF8,
@@ -75,8 +81,9 @@ def checkpoint (s : St) : Lifecycle.Checkpoint :=
      Codec.encode (s.profileOf.toList.map fun (u, n, me) => (u, n.toUTF8, me)),
      Codec.encode (s.drafts.map fun (a, t, bs) => (a, t.toUTF8, bs)), Codec.encode s.anchor,
      Codec.encode (s.links.map fun (a, l) => (a, l.toUTF8)), Codec.encode s.queuedWrites,
-     Codec.encode (s.mark.bind fun (x, _) => s.ids.find? (·.2 == x)),
-     (Theme.encode s.theme.setting).toUTF8, Codec.encode (s.labelText.toUTF8, s.labelPage)])
+     Codec.encode (s.mark.bind fun (x, _) => (s.ids.find? (·.2 == x)).orElse fun _ => s.roots.find? (·.2 == x)),
+     (Theme.encode s.theme.setting).toUTF8, Codec.encode (s.labelText.toUTF8, s.labelPage),
+     Codec.encode (s.mark.bind fun (x, _) => s.cellRoot[x]?.bind fun r => s.roots.find? (·.2 == r))])
 
 /-- Called only by the writer thread. Both writes are idempotent when its
 checkpoint retry meets a transient SQLite lock. -/
@@ -134,7 +141,8 @@ def applyCheckpoint (s : St) (cp : Lifecycle.Checkpoint) : St := Id.run do
     removal := removalFrom (b 5), profileOf := profile, drafts,
     labelText := String.fromUTF8! label, labelPage,
     mark := if x.isEmpty then none else some (x, off), restoreAnchor := !x.isEmpty,
-    anchor := (Codec.decode (b 11) : Option (Option Pos)).getD
+    restorePos := (Codec.decode (b 11) : Option (Option Pos)).getD none,
+    anchor := (Codec.decode (b (if bs.length > 14 then 14 else 11)) : Option (Option Pos)).getD
       ((Codec.decode (b 8) : Option (Option Pos)).getD none),
     links := ((Codec.decode (b 9) : Option (List (Id × ByteArray))).getD []).map fun (a, l) => (a, String.fromUTF8! l),
     saved := some cp, mountedPage := none }
@@ -265,14 +273,16 @@ def resizeContent (sc : Array UInt32) : M Unit := do
   let mut rows := s.rows
   let mut heights := if w == s.W && dpi == s.dim.dpi then s.heights else {}
   for (x, r) in s.rows.toList do
-    let lay := Row.layout font dm w r.data
+    let data := { r.data with wide := s.wide }
+    let lay := Row.layout font dm w data
     rows := rows.insert x { r with
-      lay, ver := r.ver + 1, task := none, shown := none,
+      data, lay, ver := r.ver + 1, task := none, shown := none,
       dimmed := none, dimShown := none }
     heights := heights.insert x lay.h
   modify fun s => { s with
     W := w, Hs := h, insetTop := it, insetBot := ib, font, dim := dm, input := Input.revoke s.input,
     bgRow := solid (Palette.color s.dim.theme (if s.wide then .panel else .bg)) w, rows, heights, imgs := {}, imgWaiting := {},
+    clumpHeights := if w == s.W && dpi == s.dim.dpi then s.clumpHeights else {},
     life := { s.life with generation := s.life.generation + 1 },
     mark := captureAnchor s, restoreAnchor := true, pageKey := none, pageNow := none,
     chromeKey := "", gridKey := "", gridRows := {} }

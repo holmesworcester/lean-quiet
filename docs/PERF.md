@@ -530,3 +530,29 @@ forged/foreign/nested references, receipt ordering, codec compatibility, a
 engine CI invokes the same task. `check_child`, `child_has_root` and the sender
 policy laws are over the running code, alongside the generalized authorization,
 readability and ordering proofs.
+
+
+The chat now consumes this hierarchy directly: a bounded root collection owns
+bounded child windows; each message still mounts its own op, attachment,
+author and reaction components. Continuations have no author subscription or
+header. Unloaded child ranges are two counted spacers, and a distant clump is
+one spacer at its last measured extent. `ClumpList.cells_bounded` proves that
+projection costs at most the current page plus three cells, regardless of the
+unloaded count. Collapsed and expanded geometry use the same extent function.
+This bounds projection size, not SQL wall time or the time to decode a bitmap.
+
+A checkpoint carries both the root cursor and the individual child position.
+Resize preserves that message's top-edge offset wherever the new scroll range
+allows it; at the physical oldest edge it clamps and checkpoints the visible
+position. Restoration checks an unreadable target through its own query before
+falling back. The clump UI suite in `test:clumps` uses 340 signed children and
+checks both jumps, query retirement, bounded geometry and cold restoration.
+The component suite also retains its two-independent-headers shared-author case.
+
+The populated visual fixtures compare two sender-owned clumps at 390, 719,
+720 and 1280 pixels in both themes. Text wrapping uses 1/64 pixel metrics and
+rounds only final glyph origins; the pixel-width rounding law and glyph-order
+law cover that running conversion. Small rounded corners are checked against
+independent 16×16 area sampling of an ideal circle. Browser/Lean antialiasing
+and font weight still differ; this is a measured parity budget, not a claim
+of identical pixels or full Unicode shaping.

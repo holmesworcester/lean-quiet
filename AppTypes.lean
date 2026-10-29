@@ -22,6 +22,7 @@ import ops.community.message.View
 import ops.community.membership.RequestView
 import ops.app.Raster
 import ops.app.Components
+import ops.app.ClumpList
 import ops.app.Photo
 import Std.Data.HashMap
 
@@ -67,7 +68,7 @@ def imageOver : Nat := 1024
 def est : Nat := 150
 /-- A window's rows on each side of its anchor. -/
 def half : Nat := 100
-def bottomPad : Nat := 16
+def bottomPad : Nat := 12
 
 structure RowSt where
   data : RowData
@@ -213,6 +214,13 @@ structure St where
   take `est` each, as placeholders, until a window holds them. -/
   anchor : Option Pos := none
   ids : Array Pos := #[]
+  /-- The outer collection and its independently owned child windows. -/
+  roots : Array Pos := #[]
+  clumps : Std.HashMap Id ClumpList.Window := {}
+  clumpHeights : Std.HashMap Id Nat := {}
+  /-- Flat cells are an ephemeral geometry projection, never a data cache. -/
+  cellRoot : Std.HashMap Id Id := {}
+  spacers : Std.HashSet Id := {}
   newer : Nat := 0
   older : Nat := 0
   total : Nat := 0
@@ -322,6 +330,7 @@ removal is not announced again. -/
   `anchor` above remains the reader's window position. -/
   mark : Option (Id × Nat) := none
   restoreAnchor : Bool := false
+  restorePos : Option Pos := none
   drafts : List (Id × String × List ByteArray) := []
   saved : Option Lifecycle.Checkpoint := none
   pendingLinks : List String := []

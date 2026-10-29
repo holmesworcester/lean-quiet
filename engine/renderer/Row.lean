@@ -46,13 +46,13 @@ structure Dim where
   deriving Inhabited, BEq
 
 def Dim.px (d : Dim) (dp : Nat) : Nat := (dp * d.dpi + 80) / 160
-def Dim.pad (d : Dim) : Nat := d.px 12
-def Dim.avatar (d : Dim) : Nat := d.px 40
-def Dim.textX (d : Dim) : Nat := d.pad + d.avatar + d.px 12
+def Dim.pad (d : Dim) : Nat := d.px 16
+def Dim.avatar (d : Dim) : Nat := d.px 36
+def Dim.textX (d : Dim) : Nat := d.px 66
 def Dim.lineH (d : Dim) : Nat := d.cell + d.cell / 8
 def Dim.topPad (d : Dim) : Nat := d.px 8
 def Dim.gap (d : Dim) : Nat := d.px 6
-def Dim.pillH (d : Dim) : Nat := d.cell + d.px 8
+def Dim.pillH (d : Dim) : Nat := d.px 28
 
 /-- A picture's caption pill (Arrival): libquiet's sizes, in dp (0.35rem
 inset, 0.15rem 0.4rem padding, 0.3rem corners, a 15 ring on a 2.5
@@ -119,9 +119,20 @@ structure RowData where
   author : ByteArray := .empty
   /-- The signed root identity. None is a root, including legacy messages. -/
   clump : Option ByteArray := none
+  /-- Geometry supplied by the owning collection, never inferred from time. -/
+  continued : Bool := false
+  wide : Bool := false
+  own : Bool := false
   deriving BEq, Inhabited
 
 /-! ## Layout -/
+
+def bodySize (d : RowData) : Nat := if d.wide then 14 else 15
+def bodyHeight (dm : Dim) (d : RowData) (lines : Nat) : Nat :=
+  if d.wide then lines * dm.px 20 else (lines * dm.px 45 + 1) / 2
+def headY (dm : Dim) (d : RowData) : Nat := dm.px (if d.wide then if d.clump.isSome then 2 else 10 else 0)
+def tailH (dm : Dim) (d : RowData) : Nat := dm.px (if d.continued then if d.wide then 4 else 2 else if d.wide then 12 else 11)
+
 
 structure Box where
   x : Nat
@@ -182,13 +193,14 @@ def layoutBody (f : Font) (dm : Dim) (W : Nat) (d : RowData) (y0 : Nat) :
   let ph := dm.pillH
   if !d.tallies.isEmpty then y := y + dm.gap
   for t in d.tallies do
-    let count := oneLine f (dm.cell * 3) (toString t.n)
-    let w := dm.px 10 + dm.cell + dm.px 4 + Paint.Line.width f count + dm.px 10
+    let countFont := f.atSize (dm.px 13)
+    let count := oneLine countFont (dm.px 40) (toString t.n)
+    let w := dm.px 8 + dm.px 16 + dm.px 5 + Paint.Line.width countFont count + dm.px 11
     if x + w > W - dm.pad then x := tx; y := y + ph + dm.gap
     pills := pills.push (⟨x, y, w, ph⟩, t.emoji, count, t.mine)
     x := x + w + dm.gap
   if !d.tallies.isEmpty then y := y + ph
-  return (pics, pills, max (y + dm.px 8) (dm.topPad + dm.avatar + dm.px 8))
+  return (pics, pills, max y (if d.clump.isNone then headY dm d + dm.px 6 + dm.avatar else 0) + tailH dm d)
 
 /-- A line moved to start at its box's start edge (its leftmost glyph at
 0), in either direction: a right-to-left name or line sits next to the
@@ -212,15 +224,17 @@ cuts), its text wrapped below, then its pictures and pills. -/
 def layout (f : Font) (dm : Dim) (W : Nat) (d : RowData) : Layout :=
   let tx := dm.textX
   let tw := W - tx - dm.pad
-  let lh := dm.lineH
-  let name := flush (oneLine f (tw / 2) d.name)
-  let nx := tx + Paint.Line.width f name + dm.px 8
-  let twin := if d.namesake then some (twinPill f dm nx) else none
+  let body := f.atSize (dm.px (bodySize d))
+  let author := f.atSize (dm.px 16)
+  let stamp := f.atSize (dm.px 14)
+  let name := if d.clump.isSome then #[] else flush (oneLineFine author (tw / 2) d.name)
+  let nx := tx + Paint.Line.width author name + dm.px 8
+  let twin := if d.namesake && d.clump.isNone then some (twinPill author dm nx) else none
   let timeX := match twin with | some (bx, _) => bx.x + bx.w + dm.px 8 | none => nx
-  let time := oneLine f (dm.cell * 4) (if d.pending then "pending" else clock d.time)
-  let text := if d.text.isEmpty then #[] else (Text.layout f tw d.text).map flush
-  let textY := dm.topPad + lh
-  let (pics, pills, h) := layoutBody f dm W d (textY + text.size * lh)
+  let time := if d.clump.isSome then #[] else oneLineFine stamp (dm.px 80) (if d.pending then "pending" else clock d.time)
+  let text := if d.text.isEmpty then #[] else (Text.layoutFine body tw d.text).map flush
+  let textY := headY dm d + (if d.clump.isSome then 0 else dm.px (if d.wide then 26 else 28))
+  let (pics, pills, h) := layoutBody body dm W d (textY + bodyHeight dm d text.size)
   ⟨h, name, time, timeX, text, textY, pics, pills, #[], twin⟩
 
 /-! ## Paint -/
@@ -240,24 +254,37 @@ def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (d : RowData) (l :
     (av : Option Bitmap) (imgs : Array (Option Bitmap)) : Bitmap := Id.run do
   let mut b := Bitmap.blank W l.h bgRow
   if d.selected then b := b.fill 0 0 W l.h (Palette.color dm.theme .selected)
+  if d.own && !d.wide then
+    b := b.fill 0 0 (dm.px 2) (l.h - (if d.continued then 0 else tailH dm d))
+      (Paint.mixC (Palette.color dm.theme .bg) 0x1b6fec 102)
   let tx := dm.textX
-  let lh := dm.lineH
-  -- glyphs sit in their line: the cell, then an eighth of it below
-  let ay := dm.topPad
+  let body := f.atSize (dm.px (bodySize d))
+  let author := f.atSize (dm.px 16)
+  let stamp := f.atSize (dm.px 14)
+  let hy := headY dm d
+  let ay := hy + dm.px 6
   let a := dm.avatar
-  match av with
-  | some img => b := b.image img dm.pad ay (a / 2)
-  | none => b := b.round dm.pad ay (dm.pad + a) (ay + a) (a / 2) (Palette.color dm.theme .selected)
-  if d.selected then
-    b := b.line f (oneLine f a (Cue.caption dm.theme .selected)) dm.pad ay (Palette.color dm.theme .fg) true
-  b := b.line f l.name tx dm.topPad (Palette.color dm.theme .fg) true
-  if let some (bx, lbl) := l.twin then
-    b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) (dm.px 8) twinBg
-    b := b.line f lbl (bx.x + dm.px 6) dm.topPad (Palette.color dm.theme .fg)
-  b := b.line f l.time l.timeX dm.topPad (Palette.color dm.theme .muted)
+  if d.clump.isNone then
+    match av with
+    | some img => b := b.image img dm.pad ay (dm.px 4)
+    | none =>
+      let hex := String.ofList (d.author.data.toList.flatMap fun n =>
+        let chars := "0123456789abcdef".toList
+        [chars[n.toNat / 16]!, chars[n.toNat % 16]!])
+      b := b.round dm.pad ay (dm.pad + a) (ay + a) (dm.px 4) (Palette.avatar hex)
+      let af := f.atSize (dm.px 21)
+      let initial := oneLine af a (String.ofList [(d.name.trimAscii.toString.toList.headD '?').toUpper])
+      b := b.line af initial (dm.pad + (a - Paint.Line.width af initial) / 2) (ay + (a - af.cell) / 2 + dm.px 3) 0xffffff
+    if d.selected then
+      b := b.line stamp (oneLine stamp a (Cue.caption dm.theme .selected)) dm.pad ay (Palette.color dm.theme .fg) true
+    b := b.line author l.name tx (hy + dm.px 7) (Palette.color dm.theme .fg)
+    if let some (bx, lbl) := l.twin then
+      b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) (dm.px 8) twinBg
+      b := b.line author lbl (bx.x + dm.px 6) (hy + dm.px 5) (Palette.color dm.theme .fg)
+    b := b.line stamp l.time l.timeX (hy + dm.px 8) (Palette.color dm.theme .muted)
   let tc := if d.pending then (Palette.color dm.theme .muted) else (Palette.color dm.theme .fg)
   for i in [0:l.text.size] do
-    b := b.line f l.text[i]! tx (l.textY + i * lh) tc
+    b := b.line body l.text[i]! tx (l.textY + bodyHeight dm d i + dm.px (if d.wide then 3 else 5)) tc
   let r := dm.px 8
   for i in [0:l.pics.size] do
     let bx := l.pics[i]!
@@ -266,16 +293,18 @@ def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (d : RowData) (l :
     | none => b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) r (Palette.color dm.theme .selected)
     if let some pl := d.pics[i]? >>= arrival f dm bx then b := Arrival.paint f dm.arrival b pl
   let pr := dm.pillH / 2
-  let inset := dm.px 4
+  let ef := f.atSize (dm.px 16)
+  let cf := f.atSize (dm.px 13)
   for (bx, e, count, mine) in l.pills do
     if mine then
       b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) pr (Palette.color dm.theme .accentInk)
-      let k := max 2 (dm.px 1)
+      let k := max 1 (dm.px 1)
       b := b.round (bx.x + k) (bx.y + k) (bx.x + bx.w - k) (bx.y + bx.h - k) (pr - k) (Palette.color dm.theme .tint)
     else
       b := b.round bx.x bx.y (bx.x + bx.w) (bx.y + bx.h) pr (Palette.color dm.theme .selected)
-    b := emojiAt f b e (bx.x + dm.px 10) (bx.y + inset) (Palette.color dm.theme .warning)
-    b := b.line f count (bx.x + dm.px 10 + dm.cell + dm.px 4) (bx.y + inset) (if mine then (Palette.color dm.theme .fg) else (Palette.color dm.theme .fg))
+    let ew := Paint.Line.width ef (oneLine ef (dm.px 64) e)
+    b := emojiAt ef b e (bx.x + dm.px 8 - (ew - dm.px 16) / 2) (bx.y + dm.px 6) (Palette.color dm.theme .fg)
+    b := b.line cf count (bx.x + dm.px 29) (bx.y + dm.px 7) (if mine then Palette.color dm.theme .link else Palette.color dm.theme .fg)
   return b
 
 /-- A bitmap darkened to 40%: the rows behind the reaction tray. -/

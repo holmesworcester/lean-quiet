@@ -16,3 +16,15 @@ export const You: Story = { args: harness({ ...base, viewing: 'list', settings: 
 export const Appearance: Story = { args: harness({ ...base, viewing: 'list', settings: { context: 'you', page: 'appearance' } }) }
 export const Community: Story = { args: harness({ ...base, viewing: 'channel', settings: { context: 'community', page: null } }) }
 export const Channel: Story = { args: harness({ ...base, viewing: 'channel', settings: { context: 'channel', page: null } }) }
+
+const text = [
+  'Boathouse code changed this morning. It is 4417 now.',
+  'Same one for the side gate.', 'Ignore the laminated sign; nobody has replaced it.',
+  'I will bring a spare key on Saturday.',
+  'Forecast for Saturday is 14 knots gusting 22 from the south-west. I would rather take the pair out and do the long piece on Sunday when it drops to eight.',
+  'Meet at the boathouse at seven.', 'See you there!',
+]
+export const Conversation: Story = { args: harness({ ...base, viewing: 'channel', messages: text.map((text, i) => ({
+  opId: (i + 1).toString(16).padStart(64, '0'), author: people[0]!.device, authorUser: community,
+  text, counter: String(i + 1), createdAt: (840 + i + (i >= 4 ? 6 : 0)) * 60_000,
+})) }) }

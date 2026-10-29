@@ -131,6 +131,7 @@ def channelOrder (t : Checks) (a b : Db) (c : Id) (kA seedA seedB : ByteArray) :
   t.ok "a receipt of a message below the cap is refused"
     ((← (Store.getStatus (F := Fact) (m := SqlM Fact) lowRcpt.id).run a) == some .invalid)
 
+set_option maxRecDepth 2048 in
 def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/lifecycle"
   IO.FS.createDirAll dir
@@ -174,7 +175,7 @@ def main (args : List String) : IO UInt32 := do
   mine a wpost
   let msgs ← rows a (message.all.query [c])
   let sealed := msgs.findSome? fun (_, f) => match f with
-    | .message _ _ _ k s _ _ => if k == kid then some s else none
+    | .message _ _ _ k s _ _ _ => if k == kid then some s else none
     | _ => none
   t.ok "A's post is Valid, under the key's id" sealed.isSome
   let ct := sealed.getD .empty
@@ -264,7 +265,7 @@ def main (args : List String) : IO UInt32 := do
   let after ← rd b
   t.ok "now B's readable messages list A's post, and only it"
     (after.rows.length == 1 && after.total == 1 &&
-      after.rows.all fun (_, f) => match f with | .message _ _ _ k _ _ _ => k == kid | _ => false)
+      after.rows.all fun (_, f) => match f with | .message _ _ _ k _ _ _ _ => k == kid | _ => false)
   t.ok "A reads the same one message" ((← rd a).rows.length == 1)
   -- A message under a key nobody here holds stays hidden.
   let kX := sha256 "a key never wrapped".toUTF8
@@ -272,7 +273,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "A stores the message under the unheld key" ((← rows a (message.all.query [c])).length == 2)
   t.ok "but A's readable messages still hold only the one under its key" ((← rd a).rows.length == 1)
   let ctB := (← rows b (message.all.query [c])).findSome? fun (_, f) => match f with
-    | .message _ _ _ _ s _ _ => some s | _ => none
+    | .message _ _ _ _ s _ _ _ => some s | _ => none
   t.ok "B opens A's post" ((ctB.bind fun s => kB.bind fun k => openSealed cryptoSeal c kid s k)
     == some "hello from Ann".toUTF8)
   let wu2 ← ((unwrap c).run : SqlM Fact Write).run b
@@ -341,6 +342,9 @@ def main (args : List String) : IO UInt32 := do
     return n
   t.ok "without their attachment, no chunk is Valid: they wait" ((← countValid solo chunkOps) == 0)
   fromPeer solo [postOp, attOp]
+  t.ok "a continuation's chunks also wait for its signed clump root"
+    (postOp.reqs.contains (wpost.ops.headD default).id && (← countValid solo chunkOps) == 0)
+  fromPeer solo wpost.ops
   t.ok "with it, every chunk is Valid" ((← countValid solo chunkOps) == nc)
   -- The same file attached to a second post: its own attachment, its
   -- own chunks, none shared with the first.
@@ -377,7 +381,7 @@ def main (args : List String) : IO UInt32 := do
     let pr (db : Db) (len : Nat) : IO (Nat × Nat) :=
       ((progress c att len).run : SqlM Fact (Nat × Nat)).run db
     let dl ← fresh dir "download.db"
-    fromPeer dl [root dA keyA, postOp, attOp]
+    fromPeer dl ([root dA keyA] ++ wpost.ops ++ [postOp, attOp])
     t.ok "before any chunk, progress is 0 of the chunk count" ((← pr dl l) == (0, nc))
     let mut steps := true
     let mut k := 0

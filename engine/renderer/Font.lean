@@ -20,6 +20,8 @@ structure Font where
   sourceCell : Nat := 48
   sizes : Std.HashMap Nat Noto.Set := {}
   icons : Glyphs.Set := {}
+  /-- Layout-only high precision metrics; never used to paint a glyph. -/
+  fineMetrics : Bool := false
 
 def tableEnd : Nat := 8 + 4 * 0x20000
 
@@ -42,10 +44,10 @@ def load (path : String := "assets/font.bin") (density : Nat := 420) : IO Font :
   let sourceCell := cell
   let cell := pixelCell sourceCell density
   let noto ← Noto.load cell
-  let sizes := [11, 12, 14, 16, 18, 20, 24, 32, 48, 56].foldl (fun out dp =>
+  let sizes := [11, 12, 13, 14, 15, 16, 18, 20, 21, 24, 32, 48, 56].foldl (fun out dp =>
     let px := (dp * density + 80) / 160
     out.insert px (noto.sized px)) ({} : Std.HashMap Nat Noto.Set)
-  return ⟨b, cell, emoji, noto, sourceCell, sizes, ← Glyphs.load⟩
+  return ⟨b, cell, emoji, noto, sourceCell, sizes, ← Glyphs.load, false⟩
 
 /-- Select a prepared size without IO, font parsing or raster scaling. -/
 def Font.atSize (f : Font) (size : Nat) : Font :=
@@ -96,7 +98,7 @@ def Font.glyph (f : Font) (c : UInt32) : Glyph :=
 /-- A glyph's hmtx advance, or the fallback's half/full cell. -/
 def Font.adv (f : Font) (g : Glyph) : Nat :=
   match g.noto with
-  | some r => r.advance
+  | some r => if f.fineMetrics then (r.unitsAdvance * f.cell + r.units / 2) / r.units else r.advance
   | none => if g.wide then f.cell else f.cell / 2
 
 end Font

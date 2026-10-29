@@ -135,8 +135,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 1032 rest on Lean's standard axioms
-only, and about three quarters of its theorems (783 of 1012, not counting 20 negative controls) are about the code that runs; another 10 run the
+that rests on; 🥊 is supporting. All 1036 rest on Lean's standard axioms
+only, and about three quarters of its theorems (787 of 1016, not counting 20 negative controls) are about the code that runs; another 10 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -254,7 +254,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**783 of 1012 laws are about running code;** another 10 run its node code in a World, and 219 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**787 of 1016 laws are about running code;** another 10 run its node code in a World, and 219 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -267,8 +267,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Community | 181 | 164 |  | 17 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
-| Screen | 264 | 206 |  | 58 |
-| App | 76 | 57 |  | 19 |
+| Screen | 266 | 208 |  | 58 |
+| App | 78 | 59 |  | 19 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
@@ -1135,17 +1135,17 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`profile_read`]: ops/community/message/ViewLaws.lean#L40-L42
 [`profile_authorized`]: ops/community/Laws.lean#L356-L363
 [`no_renaming`]: ops/community/Laws.lean#L370-L381
-[`name_placed`]: ops/community/reaction/RowLaws.lean#L89-L92
+[`name_placed`]: ops/community/reaction/RowLaws.lean#L90-L94
 [`oneLine_prefix`]: engine/renderer/TextLaws.lean#L70-L71
 [`controls_neutral`]: engine/renderer/TextLaws.lean#L140-L143
 [`marks_invisible`]: engine/renderer/TextLaws.lean#L145-L145
 [`namesake_iff`]: ops/community/profile/NamesakeLaws.lean#L113-L118
 [`row_marked`]: ops/community/profile/NamesakeLaws.lean#L139-L144
-[`twin_shown`]: ops/community/reaction/RowLaws.lean#L131-L135
-[`twin_before_time`]: ops/community/reaction/RowLaws.lean#L138-L142
-[`hit_twin`]: ops/community/reaction/RowLaws.lean#L152-L154
-[`name_starts`]: ops/community/reaction/RowLaws.lean#L122-L125
-[`flush_shows`]: ops/community/reaction/RowLaws.lean#L97-L98
+[`twin_shown`]: ops/community/reaction/RowLaws.lean#L139-L143
+[`twin_before_time`]: ops/community/reaction/RowLaws.lean#L146-L150
+[`hit_twin`]: ops/community/reaction/RowLaws.lean#L160-L162
+[`name_starts`]: ops/community/reaction/RowLaws.lean#L124-L127
+[`flush_shows`]: ops/community/reaction/RowLaws.lean#L99-L100
 [`Ttf.byte_in_bounds`]: engine/renderer/Ttf/Laws.lean#L11-L12
 [`Ttf.cmap_entry`]: engine/renderer/Ttf/Laws.lean#L18-L19
 [`Ttf.coverage_value`]: engine/renderer/Ttf/Laws.lean#L43-L44
@@ -1153,7 +1153,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Ttf.raster_pixel`]: engine/renderer/Ttf/Laws.lean#L69-L73
 [`Ttf.Cache.put_bound`]: engine/renderer/Ttf/Cache.lean#L90-L93
 [`Ttf.Cache.put_payload_bound`]: engine/renderer/Ttf/Cache.lean#L112-L113
-[`time_shown`]: ops/community/reaction/RowLaws.lean#L84-L87
+[`time_shown`]: ops/community/reaction/RowLaws.lean#L84-L88
 [`projectSet_mem`]: engine/renderer/Data.lean#L390-L392
 [`projectSet_nodup`]: engine/renderer/Data.lean#L405-L407
 [`picBox_aspect`]: ops/community/reaction/RowLaws.lean#L19-L28
@@ -1165,8 +1165,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L1046-L1050
-[`pageIn_acc`]: App.lean#L1052-L1055
+[`drawPage_key`]: App.lean#L1049-L1053
+[`pageIn_acc`]: App.lean#L1055-L1058
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L217-L227
@@ -1296,8 +1296,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`passActs_nil`]: engine/renderer/ActsLaws.lean#L141-L143
 [`inv_passActs`]: engine/renderer/ActsLaws.lean#L192-L195
 [`idxok_passActs`]: engine/renderer/ActsLaws.lean#L199-L203
-[`withView_ofFrame`]: ops/app/Reader.lean#L94-L98
-[`withViewLast_moves`]: ops/app/Reader.lean#L105-L109
+[`withView_ofFrame`]: ops/app/Reader.lean#L98-L102
+[`withViewLast_moves`]: ops/app/Reader.lean#L109-L113
 [`run_contiguous`]: engine/renderer/bidi/Laws.lean#L84-L87
 [`erase_run`]: engine/core/CostErase.lean#L22-L23
 [`erase_pure`]: engine/core/CostErase.lean#L25-L25

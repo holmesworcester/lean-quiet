@@ -1,0 +1,272 @@
+[
+  {
+    "selector": "pane pane-list",
+    "x": 0,
+    "y": 0,
+    "w": 0,
+    "h": 0,
+    "display": "none",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "sidebar svelte-1hv280f",
+    "x": 0,
+    "y": 0,
+    "w": 0,
+    "h": 0,
+    "display": "flex",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "pane pane-thread",
+    "x": 0,
+    "y": 0,
+    "w": 390,
+    "h": 844,
+    "display": "flex",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "virtual-row virtual-open",
+    "x": 0,
+    "y": 364,
+    "w": 390,
+    "h": 75.78125,
+    "display": "block",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px 16px"
+  },
+  {
+    "selector": "author",
+    "x": 66,
+    "y": 364,
+    "w": 308,
+    "h": 26,
+    "display": "flex",
+    "font": "16px / 26px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "said said-open",
+    "x": 66,
+    "y": 392.390625,
+    "w": 308,
+    "h": 45,
+    "display": "flex",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "text",
+    "x": 66,
+    "y": 392.390625,
+    "w": 308,
+    "h": 45,
+    "display": "block",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "virtual-row virtual-open",
+    "x": 0,
+    "y": 439.78125,
+    "w": 390,
+    "h": 24.890625,
+    "display": "block",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px 16px"
+  },
+  {
+    "selector": "said said-cont said-open",
+    "x": 66,
+    "y": 439.78125,
+    "w": 308,
+    "h": 22.5,
+    "display": "flex",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "text",
+    "x": 66,
+    "y": 439.78125,
+    "w": 308,
+    "h": 22.5,
+    "display": "block",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "virtual-row virtual-open",
+    "x": 0,
+    "y": 464.671875,
+    "w": 390,
+    "h": 47.390625,
+    "display": "block",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px 16px"
+  },
+  {
+    "selector": "said said-cont said-open",
+    "x": 66,
+    "y": 464.671875,
+    "w": 308,
+    "h": 45,
+    "display": "flex",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "text",
+    "x": 66,
+    "y": 464.671875,
+    "w": 308,
+    "h": 45,
+    "display": "block",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "virtual-row",
+    "x": 0,
+    "y": 512.0625,
+    "w": 390,
+    "h": 33.6875,
+    "display": "block",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px 16px 11.2px"
+  },
+  {
+    "selector": "said said-cont",
+    "x": 66,
+    "y": 512.0625,
+    "w": 308,
+    "h": 22.5,
+    "display": "flex",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "text",
+    "x": 66,
+    "y": 512.0625,
+    "w": 308,
+    "h": 22.5,
+    "display": "block",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "virtual-row virtual-open",
+    "x": 0,
+    "y": 545.75,
+    "w": 390,
+    "h": 120.78125,
+    "display": "block",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px 16px"
+  },
+  {
+    "selector": "author",
+    "x": 66,
+    "y": 545.75,
+    "w": 308,
+    "h": 26,
+    "display": "flex",
+    "font": "16px / 26px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "said said-open",
+    "x": 66,
+    "y": 574.140625,
+    "w": 308,
+    "h": 90,
+    "display": "flex",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "text",
+    "x": 66,
+    "y": 574.140625,
+    "w": 308,
+    "h": 90,
+    "display": "block",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "virtual-row virtual-open",
+    "x": 0,
+    "y": 666.53125,
+    "w": 390,
+    "h": 24.890625,
+    "display": "block",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px 16px"
+  },
+  {
+    "selector": "said said-cont said-open",
+    "x": 66,
+    "y": 666.53125,
+    "w": 308,
+    "h": 22.5,
+    "display": "flex",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "text",
+    "x": 66,
+    "y": 666.53125,
+    "w": 308,
+    "h": 22.5,
+    "display": "block",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "virtual-row",
+    "x": 0,
+    "y": 691.421875,
+    "w": 390,
+    "h": 33.6875,
+    "display": "block",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px 16px 11.2px"
+  },
+  {
+    "selector": "said said-cont",
+    "x": 66,
+    "y": 691.421875,
+    "w": 308,
+    "h": 22.5,
+    "display": "flex",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "text",
+    "x": 66,
+    "y": 691.421875,
+    "w": 308,
+    "h": 22.5,
+    "display": "block",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
+    "selector": "composer svelte-jdanaw",
+    "x": 0,
+    "y": 739,
+    "w": 390,
+    "h": 44,
+    "display": "block",
+    "font": "15px / 20px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "12px 16px"
+  }
+]

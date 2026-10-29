@@ -31,17 +31,17 @@ codec; the native SQLite read/commit is tested separately. -/
 theorem restore_page_anchor (s : St) :
     (Lifecycle.restore (Codec.encode (checkpoint s))).map (fun cp =>
       (PageId.ofCode cp.2.1, cp.2.2.2.1, cp.2.2.2.2.1)) =
-    some (s.page, (s.mark.getD (.empty, 0)).1, (s.mark.getD (.empty, 0)).2) := by
+    some (s.page, ((checkpointAnchor s).getD (.empty, 0)).1, ((checkpointAnchor s).getD (.empty, 0)).2) := by
   rw [Lifecycle.restore_checkpoint]
   by_cases h : s.me.acc.isEmpty <;> simp [checkpoint, stashDraft, h, page_round]
 
 /-- The actual restore function returns the saved page and anchor. Real
 anchors are op ids, which are nonempty; no saved anchor is also allowed. -/
 theorem apply_page_anchor (s target : St)
-    (valid : ∀ x off, s.mark = some (x, off) → x.isEmpty = false) :
+    (valid : ∀ x off, checkpointAnchor s = some (x, off) → x.isEmpty = false) :
     (applyCheckpoint target (checkpoint s)).page = s.page ∧
-    (applyCheckpoint target (checkpoint s)).mark = s.mark := by
-  cases ha : s.mark with
+    (applyCheckpoint target (checkpoint s)).mark = checkpointAnchor s := by
+  cases ha : checkpointAnchor s with
   | none =>
     by_cases h : s.me.acc.isEmpty <;>
       simp [applyCheckpoint, St.withNav, Nav.go_page, checkpoint, stashDraft, useDraft, h, ha, page_round] <;> rfl

@@ -75,7 +75,15 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
       let now ← get
       ck.ok s!"{w}x{h}: simultaneous keyboard height is retained" (now.imeH == 280)
       ck.ok s!"{w}x{h}: viewport updated" (now.W == w && now.Hs == h && now.dim.dpi == dpi)
-      ck.ok s!"{w}x{h}: anchor identity and top-edge position preserved" (captureAnchor now == a)
+      let maxB := (bottoms now).2 - (geom now).viewNow
+      let desired := a.bind fun (id, off) => (rowBottom now id).map fun bot => Lifecycle.offset (bot + heightOf now id) off
+      -- Compact clumps can make a larger viewport hit the oldest edge.
+      -- Preserve the anchor exactly wherever the scroll range permits it;
+      -- otherwise the native scroll must clamp at that physical boundary.
+      ck.ok s!"{w}x{h}: anchor preserved or clamped at the content boundary"
+        (if desired.any (· > maxB) then now.b == maxB else captureAnchor now == a)
+      ck.ok s!"{w}x{h}: checkpoint follows the actual clamped viewport"
+        (now.mark == captureAnchor now)
       ck.ok s!"{w}x{h}: every mounted layout is current" (now.rows.toList.all fun (_, r) =>
         r.lay == Row.layout now.font now.dim now.W r.data)
       ck.ok s!"{w}x{h}: no old-width bitmap" (now.rows.toList.all fun (_, r) =>
@@ -166,7 +174,10 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
     sm.input.set "cold draft 🧊"
     discard <| step [.text]
     attachPhoto
-    steps 1
+    let deadline := (← IO.monoMsNow) + 5000
+    while (← get).chips.isEmpty && (← IO.monoMsNow) < deadline do
+      steps 1
+      IO.sleep 2
     ck.ok "photo draft prepared" (!(← get).chips.isEmpty)
     sm.input.set "cold draft 🧊 at pause"
     discard <| step [.text, .background]

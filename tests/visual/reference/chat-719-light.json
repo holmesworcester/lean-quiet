@@ -5,7 +5,9 @@
     "y": 0,
     "w": 0,
     "h": 0,
-    "display": "none"
+    "display": "none",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
   },
   {
     "selector": "sidebar svelte-1hv280f",
@@ -13,7 +15,9 @@
     "y": 0,
     "w": 0,
     "h": 0,
-    "display": "flex"
+    "display": "flex",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
   },
   {
     "selector": "pane pane-thread",
@@ -21,7 +25,9 @@
     "y": 0,
     "w": 719,
     "h": 800,
-    "display": "flex"
+    "display": "flex",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
   },
   {
     "selector": "composer svelte-jdanaw",
@@ -29,6 +35,8 @@
     "y": 695,
     "w": 719,
     "h": 44,
-    "display": "block"
+    "display": "block",
+    "font": "15px / 20px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "12px 16px"
   }
 ]

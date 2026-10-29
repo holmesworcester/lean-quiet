@@ -4,5 +4,7 @@
   "renderer": "Chromium, actual libquiet App.svelte through its Window story wrapper",
   "face": "bundled Noto Sans",
   "device_scale_factor": 1,
-  "safe_area": "excluded; native platform inset tests run separately"
+  "safe_area": "excluded; native platform inset tests run separately",
+  "locale": "en-GB",
+  "timezone": "UTC"
 }

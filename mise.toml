@@ -88,7 +88,7 @@ run = "tests/app/desktop.sh"
 [tasks."test:clumps"]
 description = "Build and test sender-owned clumps: real signatures, SQLite, child/root queries, arrival order and legacy index migration"
 depends = ["crypto"]
-run = "lake build clumps && .lake/build/bin/clumps out/clumps"
+run = "lake build clumps clump_lists && .lake/build/bin/clumps out/clumps && .lake/build/bin/clump_lists out/clump-lists"
 
 [tasks."host:photo"]
 description = "Build and test native photo handoff under sanitizers, then drive composer ownership, cancellation, backgrounding and signed attachment sends"

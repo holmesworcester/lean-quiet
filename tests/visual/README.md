@@ -11,11 +11,12 @@ fails the task.
 
 The reference is libquiet's actual `App.svelte`, rendered through its own
 `Window` story and harness, at the commit in `reference.json`. Both apps use the
-same viewport, identity, community name, empty conversation and theme. This is
+same viewport, identity, community name, messages and theme. This is
 a browser render of the Tauri frontend, **not a native Tauri screenshot**.
 Native title bars, keyboard and system insets are outside this comparison.
-The native suites exercise those separately. The fixture deliberately uses an
-empty conversation until sender-controlled clump scenarios are added.
+The native suites exercise those separately. The 48 cases include empty
+conversations and two sender-controlled clumps with independent child messages,
+at mobile, desktop and breakpoint widths in both themes.
 
 `mae` is mean absolute RGB error divided by 255. `changed_fraction` counts
 pixels whose largest channel error exceeds 16. `layout_mae` first pools into

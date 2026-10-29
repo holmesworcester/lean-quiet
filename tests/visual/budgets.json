@@ -198,5 +198,45 @@
     "mae": 0.01739,
     "changed_fraction": 0.05557,
     "layout_mae": 0.00873
+  },
+  "conversation-1280-dark": {
+    "mae": 0.010194,
+    "changed_fraction": 0.030513,
+    "layout_mae": 0.004163
+  },
+  "conversation-1280-light": {
+    "mae": 0.010315,
+    "changed_fraction": 0.029815,
+    "layout_mae": 0.004076
+  },
+  "conversation-390-dark": {
+    "mae": 0.024619,
+    "changed_fraction": 0.079089,
+    "layout_mae": 0.008155
+  },
+  "conversation-390-light": {
+    "mae": 0.026301,
+    "changed_fraction": 0.078136,
+    "layout_mae": 0.008404
+  },
+  "conversation-719-dark": {
+    "mae": 0.01383,
+    "changed_fraction": 0.044527,
+    "layout_mae": 0.004649
+  },
+  "conversation-719-light": {
+    "mae": 0.014813,
+    "changed_fraction": 0.044055,
+    "layout_mae": 0.004763
+  },
+  "conversation-720-dark": {
+    "mae": 0.018339,
+    "changed_fraction": 0.054909,
+    "layout_mae": 0.007717
+  },
+  "conversation-720-light": {
+    "mae": 0.018539,
+    "changed_fraction": 0.053663,
+    "layout_mae": 0.0077
   }
 }

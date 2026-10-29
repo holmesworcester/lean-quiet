@@ -429,7 +429,7 @@ def mount (bd : _root_.Live.Board Reader.Want Reader.Val) (x : Id) : M Unit := d
   let some (.row (some d), ver) := bd.get? (.row s.me.c s.me.adm x) | return
   if (s.rows[x]?.map (·.bver)) == some ver then return
   let tz := (← s.io.wall).2
-  let d := { d with time := (d.time + tz).toNat }
+  let d := { d with time := (d.time + tz).toNat, wide := s.wide, own := d.author == s.me.user }
   let measured ← match s.rows[x]? with
     | some r => pure (some (r.data.pics, r.data.tallies))
     | none => Component.measure ⟨Raster.messageOwner s.me.c x, true⟩ s.me.c x
@@ -466,7 +466,10 @@ def mountChildren (x : Id) (bottom offset viewport : Nat) : M Unit := do
   let some r := s.rows[x]? | return
   let scope : Component.Scope := ⟨Raster.messageOwner s.me.c x,
     Raster.near bottom r.lay.h offset viewport 0⟩
-  let mut d := r.data
+  let group := (s.cellRoot[x]?.bind fun root => s.clumps[root]?).getD {}
+  let continued := group.newer > 0 || group.ids.any (fun p => p.2 != x) &&
+    (group.ids[0]?.map (·.2) != some x)
+  let mut d := { r.data with continued := continued, wide := s.wide }
   let ids ← Component.attachments (scope.child "attachments" x) s.me.c x (d.pics.map (·.attachment))
   let mut pics := []
   for id in ids do
@@ -474,10 +477,10 @@ def mountChildren (x : Id) (bottom offset viewport : Nat) : M Unit := do
         (d.pics.find? (·.attachment == id)) then pics := pics ++ [p]
   d := { d with pics }
   let lay := if d == r.data then r.lay else Row.layout s.font s.dim s.W d
-  let authorBottom := bottom + lay.h - (s.dim.topPad + s.dim.lineH)
-  if Raster.near authorBottom s.dim.lineH offset viewport over then
+  let authorBottom := bottom + lay.h - (Row.headY s.dim d + s.dim.px 26)
+  if d.clump.isNone && Raster.near authorBottom (s.dim.px 26) offset viewport over then
     let authorScope := { scope.child "author" d.author with
-      visible := Raster.near authorBottom s.dim.lineH offset viewport 0 }
+      visible := Raster.near authorBottom (s.dim.px 26) offset viewport 0 }
     let (name, twin) ← Component.author authorScope s.me.c d.author (d.name, d.namesake)
     d := { d with name, namesake := twin }
   let reactionHeight := match lay.pills[0]? with
@@ -762,7 +765,7 @@ def applyComms (all : Array Chaos.Me) : M Unit := do
 stays there: Nav.back_reset), and its conversation's window empty. -/
 def switchSt (a : Id) (s : St) : St :=
   let s := { s.withNav (Nav.reset .home) with cur := a, me := (Kinds.Accepted.select s.comms a).getD s.me }
-  let s := { s with ids := #[], total := 0, people := 0, peopleAll := true, anchor := none, newer := 0, older := 0 }
+  let s := { s with ids := #[], roots := #[], clumps := {}, clumpHeights := {}, cellRoot := {}, spacers := {}, restorePos := none, total := 0, people := 0, peopleAll := true, anchor := none, newer := 0, older := 0 }
   let s := { s with heights := {}, rows := {}, selected := none, sheet := none }
   { s with asking := #[], hidden := [], chromeKey := "", pageKey := none, ownName := "…", ownDevices := 1 }
 
@@ -1537,7 +1540,7 @@ def command (line : String) : M Bool := do
   | "reader" =>
     let ws ← s.sh.wants
     let board ← s.sh.board.get
-    let window := match board.get? (.window s.me.c s.anchor half half) with
+    let window := match board.get? (.clumps s.me.c none s.anchor half half) with
       | some (.window ids _, _) => s!"ids={ids.size}"
       | _ => "missing"
     s.io.ctlReply s!"threaded {s.threaded} active {s.active} surface {s.surface} reader {s.reader.isSome} stopping {s.readerStop.isSome} rst {s.rst.isSome} wants {ws.size} generation {← s.sh.generation} window {window} anchor {s.anchor.isSome} restore {s.restoreAnchor} netStop {s.netStop.isSome}"
@@ -1808,6 +1811,72 @@ def pollInput : M (List Event) := do
   modify fun s => { s with input := result.state }
   return result.events
 
+/-- Materialize only nearby clumps into message cells. Every other clump
+is one spacer at its last measured extent. A large clump's child window
+has two counted spacers; it never becomes a whole-clump paint task. -/
+def projectClumps (offset viewport : Nat) : M Unit := do
+  let s ← get
+  let mut ids := #[]
+  let mut owners := ({} : Std.HashMap Id Id)
+  let mut spacers := ({} : Std.HashSet Id)
+  let mut heights := s.heights
+  let mut clumps := s.clumps
+  let mut spans := s.clumpHeights
+  let mut bottom := bottomPad + s.newer * est
+  for root in s.roots do
+    let old := clumps.getD root.2 {}
+    let span := if old.ready then ClumpList.extent root old (heightOf s) est
+      else spans.getD root.2 est
+    let near := Raster.near bottom span offset viewport (over + viewport)
+    let scope : Component.Scope := ⟨["community".toUTF8, s.me.c, "clump".toUTF8, root.2],
+      Raster.near bottom span offset viewport 0⟩
+    let old := if s.restoreAnchor && s.anchor.map (·.2) == some root.2 && old.anchor.isNone then
+      { old with anchor := s.restorePos.filter (fun p => p.2 != root.2) } else old
+    let group ← if near then ClumpList.observe scope s.me.c root.2 old half else pure old
+    clumps := clumps.insert root.2 group
+    let span := if group.ready then ClumpList.extent root group (heightOf s) est else span
+    spans := spans.insert root.2 span
+    let cells := if near && group.ready then ClumpList.cells root group (heightOf s) est
+      else #[((ByteArray.empty, ClumpList.gap root.2 2), span, true)]
+    for (pos, height, spacer) in cells do
+      ids := ids.push pos
+      owners := owners.insert pos.2 root.2
+      if spacer then
+        spacers := spacers.insert pos.2
+        heights := heights.insert pos.2 height
+    bottom := bottom + span
+  -- Child ids are retained only for the bounded outer window. Immutable
+  -- height hints may outlive a subscription, just like message heights.
+  let held := s.roots.foldl (fun (h : Std.HashSet Id) p => h.insert p.2) {}
+  modify fun s => { s with
+    ids := ids
+    cellRoot := owners
+    spacers := spacers
+    heights := heights
+    clumps := clumps.filter (fun id _ => held.contains id)
+    clumpHeights := spans }
+
+/-- Each visible child collection follows its own cursor. Moving through
+one large clump does not reload siblings or revive offscreen subscriptions. -/
+def followClumps (offset viewport : Nat) : M Unit := do
+  let s ← get
+  let lo := offset - (over + viewport)
+  let hi := offset + viewport + over + viewport
+  let mut groups := s.clumps
+  for root in s.roots do
+    let some group := groups[root.2]? | continue
+    let some first := group.ids[0]? | continue
+    let some last := group.ids.back? | continue
+    let some low := rowBottom s first.2 | continue
+    let some lastBottom := rowBottom s last.2 | continue
+    let high := lastBottom + heightOf s last.2
+    let near := (group.newer > 0 && lo < low) || (group.older > 0 && hi > high)
+    let cursorRow := (rowAt s offset).bind fun (x, _) => group.ids.find? (·.2 == x)
+    let edge := if offset < low then some first else some last
+    let next := Lifecycle.follow group.anchor group.newer (offset ≤ low && group.newer == 0) near cursorRow edge
+    if next != group.anchor then groups := groups.insert root.2 { group with anchor := next }
+  modify fun s => { s with clumps := groups }
+
 /-- Read and paint only the mounted conversation. -/
 def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   -- 3. the list's ids and counts
@@ -1821,22 +1890,28 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   -- the viewport is known)
   -- (the counts beside it are a want of their own, read after the rows:
   -- the placeholders are the counts less the window's rows on each side)
-  let idsW := Reader.Want.window s.me.c s.anchor half half
-  let countW := Reader.Want.count s.me.c s.anchor
+  let idsW := Reader.Want.clumps s.me.c none s.anchor half half
+  let countW := Reader.Want.clumpCount s.me.c none s.anchor
   -- (the wants as last set, unless the anchor moved: a steady frame
   -- moves no generation, Reader.Want.withView_ofFrame)
   discard <| query ⟨["community".toUTF8, s.me.c, "messages".toUTF8], true⟩ idsW
   discard <| query ⟨["community".toUTF8, s.me.c, "count".toUTF8], false⟩ countW
   discard <| query ⟨["community".toUTF8, s.me.c, "people".toUTF8], false⟩ (.people s.me.c)
+  discard <| query ⟨["community".toUTF8, s.me.c, "total".toUTF8], false⟩ (.count s.me.c none)
+  if s.restoreAnchor then
+    if let some (x, _) := s.mark then
+      discard <| query ⟨["community".toUTF8, s.me.c, "restore".toUTF8, x], true⟩ (.row s.me.c s.me.adm x)
   readerPass
   let bd ← takeBoard
+  if let some (.count _ n, _) := bd.get? (.count s.me.c none) then
+    modify fun s => { s with total := n }
   let fresh := match bd.get? idsW with
     | some (.window ids nr, _) =>
       -- until this anchor's counts are read, the last placeholders stay
       let (newer, older, total) := match bd.get? countW with
         | some (.count cn co, _) => (cn - min cn nr, co - min co (ids.size - nr), cn + co)
         | _ => (s.newer, s.older, s.total)
-      if ids != s.ids || newer != s.newer || older != s.older || total != s.total || s.restoreAnchor then some (ids, newer, older, total)
+      if ids != s.roots || newer != s.newer || older != s.older || s.restoreAnchor then some (ids, newer, older, total)
       else none
     | _ => none
   let s ← get
@@ -1857,13 +1932,17 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   -- the anchor row went (`bv`; the native offset `b` follows in 5)
   let mut b := b
   let mut bv := b
-  if let some (ids, newer, older, total) := fresh then
-    modify fun s => { s with ids, newer, older, total }
+  if let some (roots, newer, older, _) := fresh then
+    modify fun s => { s with roots, newer, older }
+  projectClumps bv (viewH (← get))
+  readerPass
+  projectClumps bv (viewH (← get))
+  if fresh.isSome || s.restoreAnchor then
     let s ← get
     if let some (x, off) := anchor then
       if let some i := s.ids.findIdx? (·.2 == x) then
         bv := Lifecycle.offset ((bottoms s).1[i]! + heightOf s x) off
-      else if s.restoreAnchor then
+      else if s.restoreAnchor && ((← takeBoard).get? (.row s.me.c s.me.adm x)).any (fun (v, _) => v == .row none) then
         anchor := none
         b := 0
         bv := 0
@@ -1880,7 +1959,7 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   for i in [0:s.ids.size] do
     let bot := bots0[i]!
     if bot > hi then break
-    if bot + heightOf s s.ids[i]!.2 ≥ lo then win := win.push s.ids[i]!.2
+    if bot + heightOf s s.ids[i]!.2 ≥ lo && !s.spacers.contains s.ids[i]!.2 then win := win.push s.ids[i]!.2
   for x in win do
     let visible := Raster.near ((s.ids.findIdx? (·.2 == x)).map (fun i => bots0[i]!) |>.getD 0)
       (heightOf s x) bv vh 0
@@ -1910,6 +1989,7 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   -- the viewport (or its nearest end); pinned to the newest, it is the
   -- newest, and away from it always about a row, so arrivals cannot push
   -- the row being read out of it (Lifecycle.follow_away)
+  projectClumps bv vh
   let s ← get
   let (bots, _) := bottoms s
   if fresh.isSome || ((← takeBoard).get? idsW).isSome then
@@ -1919,9 +1999,10 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
       | none => winLo
     let near := (s.newer > 0 && lo < winLo) || (s.older > 0 && hi > winHi)
     let next := Lifecycle.follow s.anchor s.newer (bv ≤ 4) near
-      ((rowAt s bv).bind fun (x, _) => s.ids.find? (·.2 == x))
-      (if bv < winLo then s.ids[0]? else s.ids.back?)
+      ((rowAt s bv).bind fun (x, _) => s.cellRoot[x]?.bind fun r => s.roots.find? (·.2 == r))
+      (if bv < winLo then s.roots[0]? else s.roots.back?)
     if next != s.anchor then modify fun s => { s with anchor := next }
+  followClumps bv vh
   let tMount ← (← get).io.nowUs
   -- 5. keep the anchor still (unless pinned to the newest)
   if b > 4 || s.restoreAnchor then
@@ -2100,7 +2181,11 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
   let t1 ← s.io.nowUs
   slow t1
   let times := (if s.times.size ≥ 600 then s.times.extract 300 s.times.size else s.times).push (t1 - t0).toNat
-  modify fun s => { s with b := b, frames := s.frames + 1, times := times }
+  modify fun s => { s with
+    b := b
+    frames := s.frames + 1
+    times := times
+    mark := if s.restoreAnchor then s.mark else captureAnchor { s with b } }
   return some (← present fr b false)
 
 /-- One frame, in one read transaction: every read it makes, and the
