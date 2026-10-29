@@ -85,7 +85,7 @@ def approveHere (sm : Sim) : M Bool := do
   let _ ← tapAct sm .requests
   tapAct sm (.approve 0)
 
-def main (args : List String) : IO UInt32 := do
+def cross (args : List String) : IO UInt32 := do
   let dir := args[0]?.getD "out/cross"
   fresh (dir ++ "/a"); fresh (dir ++ "/b")
   let fails ← IO.mkRef 0
@@ -177,3 +177,11 @@ def main (args : List String) : IO UInt32 := do
     if let some r := s.net then r.stop
   (← IO.getStdout).flush
   IO.Process.exit (if (← fails.get) == 0 then 0 else 1)
+
+/-- Every end exits the process, an exception's too. Returned from
+`main`, Lean's runtime first waits for every dedicated thread (the
+writers', the nodes'), which never end, before it prints an error: a
+silent hang. -/
+def main (args : List String) : IO UInt32 := do
+  let code ← try cross args catch e => do IO.eprintln s!"cross: {e}"; pure 2
+  IO.Process.exit code.toUInt8

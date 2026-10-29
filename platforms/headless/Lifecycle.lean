@@ -339,6 +339,8 @@ private def crash (mode dir : String) : IO Unit := do
       (← get).wr.paused.set true
       discard <| sendText "queued before kill"
       saveCheckpoint
+      -- the writer's thread commits it (paused for jobs, not checkpoints)
+      while !(← (← get).wr.saveDone) do IO.sleep 1
       IO.FS.writeBinFile (dir ++ "/expected.bin") (Codec.encode (checkpoint (← get)))
       IO.println "READY"
       (← IO.getStdout).flush

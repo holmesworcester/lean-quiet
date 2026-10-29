@@ -125,8 +125,10 @@ The sequence is the local ordering; op bytes are content-addressed. -/
 def init (db : Db) : IO Unit :=
   db.exec "CREATE TABLE IF NOT EXISTS app_ops (seq INTEGER PRIMARY KEY AUTOINCREMENT, id BLOB NOT NULL, bytes BLOB NOT NULL);"
 
-def save (db : Db) (s : Checkpoint) : IO Unit := do
-  let o := Op.make 239 [] (Codec.encode s)
+/-- Commit an encoded checkpoint. Only the writer's thread runs it
+(`Data.Writer.start`): the frame hands checkpoints over (`Writer.save`). -/
+def save (db : Db) (cp : ByteArray) : IO Unit := do
+  let o := Op.make 239 [] cp
   let _ ← db.query "INSERT INTO app_ops(id,bytes) VALUES (?,?)" #[o.id, o.bytes]
 
 def load (db : Db) : IO (Option Checkpoint) := do

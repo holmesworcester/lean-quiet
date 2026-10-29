@@ -303,8 +303,6 @@ removal is not announced again. -/
   readerStop : Option Reader.Worker := none
   retiredBoard : Option Reader.Shared := none
   paintStop : Array (Task Unit) := #[]
-  /-- Checkpoints have their own connection, outside the frame's read snapshot. -/
-  uiDb : Option Db := none
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ => pure #[],
   pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure (), pure #[], pure #[]⟩⟩
