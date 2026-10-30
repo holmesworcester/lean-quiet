@@ -324,7 +324,7 @@ def tick (d : Driver) (events : List App.Event := []) : IO Driver := do
   let d ← if (d.app.W, d.app.Hs) != d.settled then settleFrame d else pure d
   return hoverTime d ((← d.app.io.nowUs).toNat / 1000)
 
-def picture (d : Driver) : IO Paint.Bitmap := do
+def picture (d : Driver) (nativeScroll : Bool := false) : IO Paint.Bitmap := do
   let mut rendered := none
   if let some (id, x, _, ry) := hoveredRow d.layout d.height d.ui d.app then
     if let some row := d.app.rows[id]? then
@@ -340,6 +340,6 @@ def picture (d : Driver) : IO Paint.Bitmap := do
           d.hoverCache.set (some (key, bmp))
           rendered := some bmp
   if rendered.isNone then d.hoverCache.set none
-  return paint d.layout d.height d.ui d.app (← d.layers.get) rendered
+  return paint d.layout d.height d.ui d.app (← d.layers.get) rendered nativeScroll
 
 end Desktop

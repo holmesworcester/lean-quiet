@@ -21,6 +21,7 @@ if [ "$1" = e2e ]; then
   ssh "$mac" "python3 ~/$dir/test.py '$app' ~/$dir/out" > "$art/e2e.log" 2>&1 || { cat "$art/e2e.log"; scp -qr "$mac:$dir/out/." "$art/" || true; exit 1; }
   scp -qr "$mac:$dir/out/." "$art/"
   cat "$art/e2e.log"
+  python3 platforms/macos/check_scroll.py "$art"
 else
   ssh "$mac" "open -n '$app'"
 fi

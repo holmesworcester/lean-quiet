@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Drive the real AppKit window with OS input; preserve logs/frames on failure."""
-import os, pathlib, re, signal, struct, subprocess as sp, sys, time
+import json, os, pathlib, re, signal, struct, subprocess as sp, sys, time
 app, out = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 out.mkdir(parents=True, exist_ok=True)
 state, db, png = out/'state.txt', out/'test.db', out/'frame.png'
 for p in [state, db, pathlib.Path(str(db)+'-wal'), pathlib.Path(str(db)+'-shm'), pathlib.Path(str(db)+'.zoom')]:
     p.unlink(missing_ok=True)
-env = dict(os.environ, QUIET_DB=str(db), QUIET_STATE=str(state), QUIET_SNAPSHOT=str(png), QUIET_NATIVE_TRACE="1")
+stats=out/'native-scroll.txt'
+env = dict(os.environ, QUIET_DB=str(db), QUIET_STATE=str(state), QUIET_SNAPSHOT=str(png), QUIET_NATIVE_TRACE="1", QUIET_NATIVE_SCROLL_STATS=str(stats))
 log = (out/'app.log').open('w')
 proc = None
 checks = 0
@@ -33,9 +34,12 @@ def osa(body):
     script=f'tell application "System Events"\n tell first process whose unix id is {proc.pid}\n set frontmost to true\n {body}\n end tell\nend tell'
     return sp.check_output(['osascript','-e',script], text=True, timeout=15).strip()
 
-def launch(seed=True):
+def launch(seed=True, slow=False, legacy=False):
     global proc
-    proc=sp.Popen([str(app/'Contents/MacOS/LeanQuiet'),'--demo',*(['--chaos','120'] if seed else [])],env=env,stdout=log,stderr=log)
+    current=dict(env,QUIET_LEAN_FRAME_DELAY_MS='500' if slow else '16')
+    if legacy: current['QUIET_DISABLE_NATIVE_SCROLL']='1'
+    stats.unlink(missing_ok=True)
+    proc=sp.Popen([str(app/'Contents/MacOS/LeanQuiet'),'--demo',*(['--chaos','120'] if seed else [])],env=current,stdout=log,stderr=log)
     wait(lambda: len(lines())>8 and lines()[3]=='App.PageId.chat' and int(lines()[5])>=(122 if seed else 2), 'desktop chat ready')
 
 def stop():
@@ -44,10 +48,14 @@ def stop():
     except sp.TimeoutExpired: proc.kill();proc.wait()
 
 def shot(name):
-    png.unlink(missing_ok=True); proc.send_signal(signal.SIGUSR1)
+    png.unlink(missing_ok=True); pathlib.Path(str(png)+'.json').unlink(missing_ok=True); pathlib.Path(str(png)+'.source.png').unlink(missing_ok=True); proc.send_signal(signal.SIGUSR1)
     wait(lambda: png.exists() and png.stat().st_size>1000,'rendered window PNG')
     data=png.read_bytes(); assert data[:8]==b'\x89PNG\r\n\x1a\n'
     size=struct.unpack('>II',data[16:24]); (out/(name+'.png')).write_bytes(data)
+    wait(lambda: pathlib.Path(str(png)+'.json').exists(),'snapshot geometry sidecar')
+    (out/(name+'.json')).write_bytes(pathlib.Path(str(png)+'.json').read_bytes())
+    wait(lambda: pathlib.Path(str(png)+'.source.png').exists(),'snapshot source publication')
+    (out/(name+'-source.png')).write_bytes(pathlib.Path(str(png)+'.source.png').read_bytes())
     check(size==tuple(map(int,lines()[0].split())),name+' matches shared desktop dimensions')
 
 try:
@@ -95,6 +103,61 @@ try:
     wait(lambda: int(lines()[5])==before+1,'stored message survives process restart')
     check(True,'desktop database survives restart')
     shot('reopened')
+    stop();state.unlink(missing_ok=True)
+    def scroll_stats():
+        try:
+            m=re.match(r'presentations (\d+) scrollUpdates (\d+) offset (-?\d+) native (\d+) box (\d+) (\d+) (\d+) (\d+)',stats.read_text())
+            return tuple(map(int,m.groups())) if m else None
+        except FileNotFoundError: return None
+    def scroll_input(x,y,count=40,click=False):
+        pos=list(map(int,re.findall(r'-?\d+',osa('get {position of window 1, size of window 1}'))))
+        logical_h=int(lines()[0].split()[1])/scale
+        return sp.Popen(['xcrun','swift',str(pathlib.Path(__file__).with_name('input.swift')),
+            'scroll-click' if click else 'scroll',str(pos[0]+x),str(pos[1]+pos[3]-logical_h+y),str(count)])
+    results={}
+    for legacy in [False,True]:
+        launch(seed=False,slow=True,legacy=legacy)
+        wait(lambda: scroll_stats() is not None,'native scroll diagnostics')
+        shot('legacy-before' if legacy else 'native-before')
+        before=scroll_stats()
+        mover=scroll_input(600,350,click=not legacy)
+        samples=[]
+        captured=False
+        try:
+            end=time.monotonic()+20
+            while mover.poll() is None and time.monotonic()<end:
+                s=scroll_stats()
+                if s:
+                    samples.append(s)
+                    if not legacy and not captured and s[1]-before[1]>=3:
+                        shot('native-in-flight'); captured=True
+                time.sleep(.01)
+            assert mover.wait(timeout=5)==0
+        finally:
+            if mover.poll() is None: mover.kill();mover.wait()
+        time.sleep(.2)
+        after=scroll_stats()
+        changes={}
+        for sample in samples:
+            changes.setdefault(sample[0],set()).add(sample[1])
+        independent=max((max(v)-min(v) for v in changes.values()),default=0)
+        results['legacy' if legacy else 'native']={'before':before,'after':after,'updates_without_Lean_frame':independent,'samples':samples}
+        if legacy:
+            check(after[1]==0 and independent==0,'negative control detects wheel scrolling coupled to Lean frames')
+        else:
+            check(captured,'captured native scrolling between Lean publications')
+            check(after[3]==1 and after[1]-before[1]>=10 and independent>=3,
+                'native scroll advances repeatedly while Lean frames are delayed by 500ms')
+            check(after[2]>before[2]+100,'native OS wheel reaches older content')
+            box=after[4:]
+            check(box[0]==round(220*scale) and box[1]>0 and box[1]+box[3]<round(760*scale),
+                'native viewport excludes sidebar, header and composer/toolbar')
+            wait(lambda: int(lines()[7])>100,'Lean catches native position')
+            wait(lambda: any(s.startswith('tap 2 ') for s in lines()),'moving-message touch uses shared mobile frame/slide classifier')
+            check(int(re.search(r'rawTouches (\d+)',stats.read_text())[1])>=2,'native moving click sends mobile raw down/up with the displayed frame')
+            shot('native-scrolled')
+        stop();state.unlink(missing_ok=True)
+    (out/'scroll-comparison.json').write_text(json.dumps(results,indent=2)+'\n')
     print(f'{checks} Mac desktop checks passed',flush=True)
 finally:
     if proc and proc.poll() is None: stop()

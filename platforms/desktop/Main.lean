@@ -14,6 +14,10 @@ private def platform : App.Io :=
 @[extern "lq_desktop_cursor"] opaque desktopCursor (kind : UInt32) : IO Unit
 @[extern "lq_desktop_select"] opaque desktopSelect (anchor caret : UInt32) : IO Unit
 
+@[extern "lq_desktop_native_scroll"] opaque desktopNativeScroll : IO Bool
+@[extern "lq_desktop_layers"] opaque desktopLayers (list hold : @& Array ByteArray)
+  (placement viewport : @& Array UInt32) : IO Unit
+
 private def zoomLevels : List Nat := [50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200]
 
 private def zoomPercent (d : Desktop.Driver) : Nat := d.requestedZoom
@@ -43,6 +47,7 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
       if control.action == .drawerAct .appearance then
         controls := controls ++ s!"appearance {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
     controls := controls ++ s!"pointer {repr d.ui.hover} cursor {Desktop.cursor d}\n"
+    controls := controls ++ s!"tap {d.app.input.lastTap[0]?.getD 0} {d.app.input.lastTap[1]?.getD 0} {d.app.input.lastTap[2]?.getD 0}\n"
     controls := controls ++ s!"zoom {zoomPercent d} dpi {d.dpi} cell {d.app.font.cell}\n"
     controls := controls ++ s!"drawer {repr d.ui.drawer}\n"
     if let some bar := Desktop.scrollbar d.layout d.app then
@@ -50,10 +55,13 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
     IO.FS.writeFile (path ++ ".tmp") s!"{d.width} {d.height}\n{d.app.me.name}\n{repr d.ui.context}\n{repr d.app.page}\n{d.app.text}\n{d.app.total}\n{d.app.sel}\n{d.app.b}\n{controls}theme {Theme.encode d.app.theme.setting}\n"
     IO.FS.rename (path ++ ".tmp") path
 
-partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab : Option Nat := none) : IO Desktop.Driver := do
+partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab : Option Nat := none) (native : Bool := false) : IO Desktop.Driver := do
   let mut d ← Desktop.tick d
   desktopCursor (Desktop.cursor d).toUInt32
-  let pic ← Desktop.picture d
+  let layers ← d.layers.get
+  let viewport := Desktop.scrollViewport d.layout d.height d.ui d.app layers
+  if native then desktopLayers layers.list layers.hold layers.placement viewport
+  let pic ← Desktop.picture d (native && viewport[0]! == 1)
   traceState d
   let ev ← desktopFrame pic.rows
   let mut anchor := anchor
@@ -86,6 +94,8 @@ partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab :
     else if k == 11 then anchor := none; scrollGrab := none
     else if k == 12 then d ← Desktop.act d .close
     else if k == 13 then d ← Desktop.resize d x y
+    else if k == 19 then
+      d := { d with hoverStarted := 0, ui := { d.ui with hoverRow := none, moreFor := none, tooltip := false, grace := false } }
     else if k == 17 then
       d ← Desktop.resize { d with baseDpi := max 80 (min 1280 x), settled := (0, 0) } d.width d.height
     else if k == 14 then
@@ -97,7 +107,7 @@ partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab :
       scrollGrab := none
       let db := (← IO.getEnv "QUIET_DB").getD "quiet-linux.db"
       IO.FS.writeFile (db ++ ".zoom") (toString (zoomPercent d))
-  run d anchor scrollGrab
+  run d anchor scrollGrab native
 
 def main (args : List String) : IO Unit := do
   let sc ← Platform.screen
@@ -124,7 +134,7 @@ def main (args : List String) : IO Unit := do
     for i in [0:40] do
       let (_, s) ← (App.sendText s!"Scroll history {i}: older messages remain reachable.").run d.app
       d := { d with app := s }
-  d ← run d
+  d ← run d none none (← desktopNativeScroll)
   if let some r := d.app.net then r.stop
   -- The existing writer is a dedicated infinite task. Drain accepted
   -- writes before exiting; returning alone waits forever for that task.

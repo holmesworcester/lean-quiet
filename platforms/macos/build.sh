@@ -30,7 +30,7 @@ while IFS='|' read -r src flags; do objects+=("$obj/$(basename "${src%.c}").o");
 xcrun -sdk macosx clang -target arm64-apple-macos14.0 -fobjc-arc -O2 -I"$st/lean/include" \
   "$st/macos/shell.m" "${objects[@]}" "$st/glue/rust/macosx/liblq_crypto.a" \
   "$rt/macosx/libInit.a" "$rt/macosx/libleanrt.a" "$rt/macosx/libuv.a" \
-  -framework Cocoa -framework Security -lc++ -o "$app/Contents/MacOS/LeanQuiet"
+  -framework Cocoa -framework QuartzCore -framework Security -lc++ -o "$app/Contents/MacOS/LeanQuiet"
 rsync -a --delete "$st/assets/" "$app/Contents/Resources/assets/"
 cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

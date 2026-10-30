@@ -134,7 +134,10 @@ stage() {
   closure=$(closure "${APP_MAIN:-Main}" "${roots[@]}" "$T/src/lean")
   targets=$(echo "$closure" | awk '$1 != "core" {print "+" $2 ":c"}')
   # shellcheck disable=SC2086
-  (cd "$root" && "$lake" build $targets >/dev/null)
+  if ! (cd "$root" && "$lake" build $targets > "$root/out/native-stage-build.log" 2>&1); then
+    tail -80 "$root/out/native-stage-build.log" >&2
+    return 1
+  fi
   rm -rf "$st"
   mkdir -p "$st/ir" "$st/lean/include" "$st/lean/src" "$st/uv" "$st/glue"
   # Every copy keeps its source's time (cp -p), so the Mac rebuilds only
@@ -190,7 +193,10 @@ stage_probe() {
   closure=$(closure NetProbe "$root/platforms/ios/probe" "$root" "$T/src/lean")
   targets=$(echo "$closure" | awk '$1 == 1 {print "+" $2 ":c"}')
   # shellcheck disable=SC2086
-  (cd "$root" && "$lake" build $targets >/dev/null)
+  if ! (cd "$root" && "$lake" build $targets > "$root/out/native-stage-build.log" 2>&1); then
+    tail -80 "$root/out/native-stage-build.log" >&2
+    return 1
+  fi
   while read -r where mod; do
     case $where in
       0) c=$root/out/probe/NetProbe.c ;;

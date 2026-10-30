@@ -511,3 +511,9 @@ lean_obj_res lq_bars(uint32_t top, uint32_t bottom, uint8_t light_top, uint8_t l
   (void)top; (void)bottom; (void)light_top; (void)light_bottom;
   return lean_io_result_mk_ok(lean_box(0));
 }
+
+/* Linux keeps its existing renderer; AppKit uses the shared layer publication. */
+lean_obj_res lq_desktop_native_scroll(void) { return lean_io_result_mk_ok(lean_box(0)); }
+lean_obj_res lq_desktop_layers(b_lean_obj_arg list, b_lean_obj_arg hold, b_lean_obj_arg placement, b_lean_obj_arg viewport) {
+    (void)list; (void)hold; (void)placement; (void)viewport; return unit();
+}

@@ -58,6 +58,20 @@ private def suite (args : List String) : IO UInt32 := do
   d ← click d .switcher
   d ← click d (.community 0)
   check "switch by drawn acceptance" (d.app.cur == d.app.comms[0]!.acc && d.app.page == .chat)
+  let publication ← d.layers.get
+  let vp := scrollViewport d.layout d.height d.ui d.app publication
+  check "native viewport is the conversation below the header and above the composer"
+    (vp[0]! == 1 && vp[1]!.toNat == d.layout.main.x && vp[2]!.toNat == (App.geom d.app).top &&
+      vp[2]!.toNat + vp[4]!.toNat == (App.geom d.app).composerTop &&
+      vp[3]!.toNat == d.layout.main.w)
+  let drawerUi := { d.ui with context := .settings }
+  let drawerLayout := Desktop.zoomLayout d.width true d.dpi
+  let covered := scrollViewport drawerLayout d.height drawerUi d.app publication
+  check "native scrolling never receives events over the settings drawer"
+    (covered[0]! == 1 && covered[1]!.toNat + covered[3]!.toNat == drawerLayout.context.x &&
+      covered[3]!.toNat < vp[3]!.toNat)
+  let popup := scrollViewport d.layout d.height { d.ui with switching := true } d.app publication
+  check "community popup suspends the underlying native viewport" (popup[0]! == 0)
   let first := d.app.cur
   text.set ("Unsent in first community", #[0, 0, 0, 0])
   d ← tick d [.text]

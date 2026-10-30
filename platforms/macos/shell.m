@@ -1,6 +1,9 @@
 // AppKit supplies a window, OS text input and clipboard. The shared
 // platforms.desktop.Main loop owns layout, queries, painting and actions.
 #import <Cocoa/Cocoa.h>
+#import <QuartzCore/QuartzCore.h>
+#include "../native/thread.h"
+#include <stdatomic.h>
 #include <lean/lean.h>
 #include <pthread.h>
 #include <signal.h>
@@ -8,10 +11,36 @@
 #include <unistd.h>
 
 static NSWindow *window;
-static NSBitmapImageRep *bitmap;
 static NSImage *picture;
-static NSMutableArray<NSNumber *> *events;
-static double offset;
+static NSMutableArray<NSNumber *> *events, *rawEvents;
+static _Atomic double offset, pendingBy, pendingTo;
+static _Atomic bool pendingJump;
+static bool nativeActive, synchronizing;
+static _Atomic bool nativeSupported;
+static uint32_t scrollMeta[6], scrollPlacement[LQ_PLACEMENT_WORDS];
+// Pending planes are owned by the Lean thread; only a complete root
+// publication transfers their geometry/dimensions to the AppKit thread.
+static uint32_t nextMeta[6], nextPlacement[LQ_PLACEMENT_WORDS];
+static bool nextLayers, nextListChanged, nextHoldChanged;
+static uint32_t shownListWidth, shownPlaneHeights[2];
+static unsigned presentations, scrollUpdates, rawTouches;
+static NSView *document;
+static CALayer *listLayer, *holdLayer, *overlayLayer;
+@class ConversationScroll;
+static ConversationScroll *conversationScroll;
+static CGImageRef overlayImage, shownRootImage;
+typedef struct {
+  lean_object *rows;
+  CGImageRef image;
+  const uint8_t *pixels;
+  uint32_t w,h;
+} PixelPlane;
+static PixelPlane rootPlane, listPlane, holdPlane;
+static void createNativeScroll(void);
+static void translateNative(void);
+static void nativeScrollTo(double value, bool stop);
+static void writeScrollStats(void);
+static void saveSnapshot(void);
 static bool focused, dragging, moved, snapshot;
 static NSPoint downPoint;
 static uint32_t width=1100, height=760, cursor;
@@ -139,6 +168,174 @@ static QuietView *view;
 }
 @end
 
+// Only the list gets native scrolling. The sidebar, header, toolbar and
+// composer are siblings painted in the fixed root view.
+@interface ConversationDocument : NSView
+@property BOOL rawTouch;
+@property BOOL ignoreTouch;
+@end
+@interface ConversationScroll : NSScrollView
+@property BOOL rejectMomentum;
+- (void)boundsChanged:(NSNotification*)notification;
+@end
+@implementation ConversationDocument
+- (BOOL)isFlipped { return YES; }
+- (BOOL)acceptsFirstResponder { return NO; }
+- (void)sample:(NSEvent*)e phase:(uint32_t)phase longPress:(BOOL)held {
+  NSPoint point=[view point:e];
+  struct timespec ts; clock_gettime(CLOCK_MONOTONIC,&ts);
+  uint64_t time=(uint64_t)ts.tv_sec*1000+ts.tv_nsec/1000000;
+  if (held && phase==0) time-=600;
+  int32_t slide=(int32_t)lq_slide_delta(scrollPlacement[22],scrollPlacement[15],(int32_t)llround(atomic_load(&offset)));
+  uint32_t words[8]={9+phase,0,(uint32_t)MAX(0,point.x-scrollMeta[1]),(uint32_t)point.y,
+    (uint32_t)time,(uint32_t)(time>>32),scrollPlacement[16],(uint32_t)slide};
+  for (unsigned i=0;i<8;i++) [rawEvents addObject:@(words[i])];
+  rawTouches++;
+}
+- (void)mouseDown:(NSEvent*)e {
+  conversationScroll.rejectMomentum=YES;
+  NSPoint point=[view point:e];
+  self.ignoreTouch=(int64_t)lq_slide_source(scrollPlacement[22],scrollPlacement[15],scrollPlacement[20],
+    scrollPlacement[21],(uint32_t)(int32_t)llround(atomic_load(&offset)),point.y)<0;
+  if (self.ignoreTouch) return; // A hold tile is not an actionable message.
+  self.rawTouch=fabs(atomic_load(&offset)-scrollPlacement[15])>.5;
+  if (self.rawTouch) {
+    [window makeFirstResponder:view];
+    [self sample:e phase:0 longPress:NO];
+  } else [view mouseDown:e];
+}
+- (void)mouseDragged:(NSEvent*)e {
+  if (self.ignoreTouch) return;
+  if (self.rawTouch) [self sample:e phase:1 longPress:NO]; else [view mouseDragged:e];
+}
+- (void)mouseUp:(NSEvent*)e {
+  if (self.ignoreTouch) { self.ignoreTouch=NO; return; }
+  if (self.rawTouch) [self sample:e phase:2 longPress:NO]; else [view mouseUp:e];
+  self.rawTouch=NO;
+}
+- (void)rightMouseDown:(NSEvent*)e {
+  conversationScroll.rejectMomentum=YES;
+  if (fabs(atomic_load(&offset)-scrollPlacement[15])>.5) {
+    [self sample:e phase:0 longPress:YES]; [self sample:e phase:2 longPress:NO];
+  } else [view rightMouseDown:e];
+}
+- (void)mouseMoved:(NSEvent*)e { [view mouseMoved:e]; }
+- (void)scrollWheel:(NSEvent*)e { [conversationScroll scrollWheel:e]; }
+@end
+@implementation ConversationScroll
+- (void)scrollWheel:(NSEvent*)e {
+  if (e.momentumPhase!=NSEventPhaseNone && self.rejectMomentum) return;
+  if (e.momentumPhase==NSEventPhaseNone) self.rejectMomentum=NO;
+  // AppKit supplies trackpad precision, momentum and rubber-banding.
+  [super scrollWheel:e];
+}
+- (void)boundsChanged:(NSNotification*)notification {
+  if (!nativeActive || synchronizing) return;
+  double total=MAX(scrollMeta[4],scrollMeta[5]);
+  atomic_store(&offset,total-scrollMeta[4]-self.contentView.bounds.origin.y*backingScale);
+  scrollUpdates++;
+  if (events.count<4096) event(19,0,0,0);
+  translateNative(); writeScrollStats();
+}
+@end
+
+static void createNativeScroll(void) {
+  if (conversationScroll) return;
+  conversationScroll=[[ConversationScroll alloc] initWithFrame:NSZeroRect];
+  conversationScroll.hidden=YES; conversationScroll.wantsLayer=YES;
+  conversationScroll.borderType=NSNoBorder;
+  conversationScroll.drawsBackground=YES;
+  conversationScroll.layer.masksToBounds=YES;
+  conversationScroll.automaticallyAdjustsContentInsets=NO;
+  conversationScroll.hasVerticalScroller=YES;
+  conversationScroll.hasHorizontalScroller=NO;
+  conversationScroll.scrollerStyle=NSScrollerStyleOverlay;
+  conversationScroll.autohidesScrollers=YES;
+  conversationScroll.horizontalScrollElasticity=NSScrollElasticityNone;
+  document=[[ConversationDocument alloc] initWithFrame:NSZeroRect];
+  document.wantsLayer=YES; document.layer.geometryFlipped=YES; document.layer.masksToBounds=NO;
+  conversationScroll.documentView=document;
+  conversationScroll.contentView.postsBoundsChangedNotifications=YES;
+  [NSNotificationCenter.defaultCenter addObserver:conversationScroll selector:@selector(boundsChanged:)
+    name:NSViewBoundsDidChangeNotification object:conversationScroll.contentView];
+  holdLayer=[CALayer layer]; listLayer=[CALayer layer]; overlayLayer=[CALayer layer];
+  for (CALayer *layer in @[holdLayer,listLayer,overlayLayer]) {
+    layer.actions=@{@"contents":[NSNull null],@"position":[NSNull null],@"bounds":[NSNull null]};
+    layer.contentsScale=backingScale; layer.contentsGravity=kCAGravityResize;
+    [document.layer addSublayer:layer];
+  }
+  [view addSubview:conversationScroll];
+}
+static void nativeScrollTo(double value, bool stop) {
+  atomic_store(&offset,value);
+  if (!nativeActive) return;
+  if (stop) conversationScroll.rejectMomentum=YES;
+  bool previous=synchronizing; synchronizing=true;
+  CGFloat maximum=MAX(0,(double)MAX(scrollMeta[4],scrollMeta[5])-scrollMeta[4]);
+  CGFloat sample=MAX(0,MIN(maximum,value));
+  [conversationScroll.contentView scrollToPoint:NSMakePoint(0,(maximum-sample)/backingScale)];
+  [conversationScroll reflectScrolledClipView:conversationScroll.contentView];
+  atomic_store(&offset,sample);
+  synchronizing=previous;
+  translateNative();
+}
+static void translateNative(void) {
+  if (!nativeActive) return;
+  lq_slide_thread_init();
+  int32_t sample=(int32_t)llround(atomic_load(&offset));
+  CGFloat origin=conversationScroll.contentView.bounds.origin.y;
+  [CATransaction begin]; [CATransaction setDisableActions:YES];
+  CALayer *planes[2]={listLayer,holdLayer};
+  uint32_t heights[2]={shownPlaneHeights[0],shownPlaneHeights[1]};
+  for (int i=0;i<2;i++) {
+    uint32_t r[4]; lq_slide_rect(scrollPlacement,sample,i,r);
+    CALayer *layer=planes[i];
+    layer.hidden=r[1]<=r[0] || !heights[i];
+    layer.contentsRect=CGRectMake(0,heights[i]?(double)r[0]/heights[i]:0,1,heights[i]?(double)(r[1]-r[0])/heights[i]:0);
+    layer.frame=CGRectMake(0,origin+((double)r[2]-scrollMeta[2])/backingScale,
+      shownListWidth/backingScale,(r[3]-r[2])/backingScale);
+  }
+  // The cached full desktop crop retains hover/actions at rest. During
+  // movement the raw overscan and hold planes slide independently of Lean.
+  double shift=(double)sample-scrollPlacement[15];
+  overlayLayer.frame=CGRectMake(0,origin+shift/backingScale,scrollMeta[3]/backingScale,scrollMeta[4]/backingScale);
+  overlayLayer.hidden=fabs(shift)>.5;
+  [CATransaction commit];
+}
+static void saveSnapshot(void) {
+  const char *path=getenv("QUIET_SNAPSHOT"); if (!path) return;
+  [view displayIfNeeded]; [CATransaction flush];
+  NSBitmapImageRep *shot=[view bitmapImageRepForCachingDisplayInRect:view.bounds];
+  [view cacheDisplayInRect:view.bounds toBitmapImageRep:shot];
+  NSString *file=[NSString stringWithUTF8String:path];
+  [[shot representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:file atomically:YES];
+  // Capture the exact immutable publication used by the compositor too.
+  // Async photo decode can replace a placeholder between two frames even
+  // at the same offset; pixel checks must compare one publication epoch.
+  // Use the same AppKit colour conversion as the composited snapshot.
+  // Both captures run in one main-thread turn; no new publication can
+  // intervene, and the temporary visibility change is never presented.
+  [CATransaction begin]; [CATransaction setDisableActions:YES];
+  BOOL hidden=conversationScroll.hidden; conversationScroll.hidden=YES;
+  NSBitmapImageRep *source=[view bitmapImageRepForCachingDisplayInRect:view.bounds];
+  [view cacheDisplayInRect:view.bounds toBitmapImageRep:source];
+  conversationScroll.hidden=hidden;
+  [CATransaction commit];
+  [[source representationUsingType:NSBitmapImageFileTypePNG properties:@{}]
+    writeToFile:[file stringByAppendingString:@".source.png"] atomically:YES];
+  NSDictionary *meta=@{@"sample":@(llround(atomic_load(&offset))),@"base":@(scrollPlacement[15]),
+    @"presentations":@(presentations),@"scrollUpdates":@(scrollUpdates),
+    @"native":@(nativeActive),@"viewport":@[@(scrollMeta[1]),@(scrollMeta[2]),@(scrollMeta[3]),@(scrollMeta[4])]};
+  [[NSJSONSerialization dataWithJSONObject:meta options:0 error:NULL] writeToFile:[file stringByAppendingString:@".json"] atomically:YES];
+}
+
+static void writeScrollStats(void) {
+  const char *path=getenv("QUIET_NATIVE_SCROLL_STATS"); if (!path) return;
+  NSString *text=[NSString stringWithFormat:@"presentations %u scrollUpdates %u offset %.0f native %d box %u %u %u %u base %u rawTouches %u\n",
+    presentations,scrollUpdates,atomic_load(&offset),nativeActive,scrollMeta[1],scrollMeta[2],scrollMeta[3],scrollMeta[4],scrollPlacement[15],rawTouches];
+  [text writeToFile:[NSString stringWithUTF8String:path] atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+}
+
 @interface QuietDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
 @end
 @implementation QuietDelegate
@@ -162,7 +359,7 @@ static void *runLean(void *arg) { lean_app_main(appArgc,appArgv); return NULL; }
 int main(int argc,char **argv) {
   @autoreleasepool {
     appArgc=argc; appArgv=argv;
-    events=[NSMutableArray new];
+    events=[NSMutableArray new]; rawEvents=[NSMutableArray new];
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
     QuietDelegate *delegate=[QuietDelegate new]; NSApp.delegate=delegate;
@@ -172,11 +369,12 @@ int main(int argc,char **argv) {
     window.title=@"Lean Quiet"; window.delegate=delegate; window.contentMinSize=NSMakeSize(320,480);
     window.contentMaxSize=NSMakeSize(4096,2160);
     view=[[QuietView alloc] initWithFrame:NSMakeRect(0,0,width,height)];
+    view.wantsLayer=YES;
     view.delegate=view; view.richText=NO; view.automaticQuoteSubstitutionEnabled=NO;
     view.automaticDashSubstitutionEnabled=NO; view.automaticTextReplacementEnabled=NO;
     view.textContainerInset=NSZeroSize; view.drawsBackground=NO;
     window.contentView=view; [window makeFirstResponder:view];
-    [delegate windowDidResize:nil];
+    [delegate windowDidResize:[NSNotification notificationWithName:NSWindowDidResizeNotification object:window]];
     [window makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES];
     NSString *resources=NSBundle.mainBundle.resourcePath;
     if (resources && [[NSFileManager defaultManager] fileExistsAtPath:[resources stringByAppendingPathComponent:@"assets"]])
@@ -191,7 +389,7 @@ int main(int argc,char **argv) {
     if (getenv("QUIET_SNAPSHOT")) {
       signal(SIGUSR1,SIG_IGN);
       snapshotSource=dispatch_source_create(DISPATCH_SOURCE_TYPE_SIGNAL,SIGUSR1,0,dispatch_get_main_queue());
-      dispatch_source_set_event_handler(snapshotSource,^{ snapshot=true; });
+      dispatch_source_set_event_handler(snapshotSource,^{ if (picture) saveSnapshot(); else snapshot=true; });
       dispatch_resume(snapshotSource);
     }
     setenv("LEAN_STACK_SIZE_KB","65536",0);
@@ -207,30 +405,107 @@ lean_obj_res lq_screen(void) {
   onMain(^{ w=width; h=height; dpi=(uint32_t)lround(160*backingScale); dark=[view.effectiveAppearance.name containsString:@"Dark"]?1:0; });
   uint32_t v[]={w,h,0,0,dpi,dark}; return words(v,6);
 }
-lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
-  onMain(^{
-    NSUInteger h=lean_array_size(rows), w=h?lean_sarray_size(lean_array_get_core(rows,0))/4:0;
-    if (w && h) {
-      bitmap=[[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL pixelsWide:w pixelsHigh:h
-        bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace
-        bitmapFormat:0 bytesPerRow:w*4 bitsPerPixel:32];
-      for (NSUInteger y=0;y<h;y++) {
-        lean_object *r=lean_array_get_core(rows,y); NSUInteger n=MIN(w,lean_sarray_size(r)/4);
-        uint8_t *dst=bitmap.bitmapData+y*bitmap.bytesPerRow;
-        memcpy(dst,lean_sarray_cptr(r),n*4);
-        for (NSUInteger x=0;x<w;x++) dst[4*x+3]=255;
-      }
-      picture=[[NSImage alloc] initWithSize:NSMakeSize(w/backingScale,h/backingScale)]; [picture addRepresentation:bitmap];
-      [view setNeedsDisplay:YES];
-      if (snapshot) {
-        snapshot=false;
-        [[bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}]
-          writeToFile:[NSString stringWithUTF8String:getenv("QUIET_SNAPSHOT")] atomically:YES];
-      }
+static void freePixels(void *info, const void *data, size_t size) { free((void*)data); }
+// Copy on Lean's thread, not the AppKit event thread. Immutable CGImages
+// retain their pixels while Core Animation uses them; unchanged planes
+// keep the old image/texture instead of re-uploading the entire window.
+static bool capturePlane(PixelPlane *plane, b_lean_obj_arg rows) {
+  if (plane->rows==rows) return false;
+  size_t h=lean_array_size(rows), w=h?lean_sarray_size(lean_array_get_core(rows,0))/4:0;
+  if (!w || !h) return false;
+  bool changed=w!=plane->w || h!=plane->h;
+  if (!changed) {
+    for (size_t y=0;y<h;y++) {
+      lean_object *r=lean_array_get_core(rows,y);
+      if (lean_sarray_size(r)!=w*4 || memcmp(plane->pixels+y*w*4,lean_sarray_cptr(r),w*4)) { changed=true;break; }
     }
+  }
+  lean_inc(rows); if (plane->rows) lean_dec(plane->rows); plane->rows=rows;
+  if (!changed) return false;
+  if (h>SIZE_MAX/(w*4)) abort();
+  uint8_t *pixels=calloc(h,w*4); if (!pixels) abort();
+  for (size_t y=0;y<h;y++) {
+    lean_object *r=lean_array_get_core(rows,y);
+    memcpy(pixels+y*w*4,lean_sarray_cptr(r),MIN(w*4,lean_sarray_size(r)));
+  }
+  CGDataProviderRef provider=CGDataProviderCreateWithData(NULL,pixels,w*h*4,freePixels);
+  CGColorSpaceRef colors=CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+  CGImageRef image=CGImageCreate(w,h,8,32,w*4,colors,(CGBitmapInfo)kCGImageAlphaPremultipliedLast,provider,NULL,false,kCGRenderingIntentDefault);
+  CGColorSpaceRelease(colors); CGDataProviderRelease(provider);
+  if (!image) abort();
+  if (plane->image) CGImageRelease(plane->image);
+  plane->image=image; plane->pixels=pixels; plane->w=w; plane->h=h;
+  return true;
+}
+
+lean_obj_res lq_desktop_native_scroll(void) { bool on=getenv("QUIET_DISABLE_NATIVE_SCROLL")==NULL; atomic_store(&nativeSupported,on); return lean_io_result_mk_ok(lean_box(on)); }
+lean_obj_res lq_desktop_layers(b_lean_obj_arg list,b_lean_obj_arg hold,b_lean_obj_arg placement,b_lean_obj_arg viewport) {
+  uint32_t metaStorage[6]={0}, pStorage[LQ_PLACEMENT_WORDS]={0};
+  uint32_t *meta=metaStorage,*p=pStorage;
+  if (lean_array_size(viewport)==6) for(unsigned i=0;i<6;i++) meta[i]=lean_unbox_uint32(lean_array_get_core(viewport,i));
+  if (lean_array_size(placement)>=LQ_PLACEMENT_WORDS) for(unsigned i=0;i<LQ_PLACEMENT_WORDS;i++) p[i]=lean_unbox_uint32(lean_array_get_core(placement,i));
+  else meta[0]=0;
+  bool listChanged=false,holdChanged=false;
+  if (meta[0]) { lq_slide_warm();listChanged=capturePlane(&listPlane,list);holdChanged=capturePlane(&holdPlane,hold); }
+  memcpy(nextMeta,meta,sizeof nextMeta); memcpy(nextPlacement,p,sizeof nextPlacement);
+  nextListChanged=listChanged; nextHoldChanged=holdChanged; nextLayers=true;
+  return unit();
+}
+
+static void publishNativeLayers(void) {
+  if (!nextLayers) return;
+  nextLayers=false;
+  createNativeScroll();
+  nativeActive=nextMeta[0] && listPlane.image && holdPlane.image;
+  conversationScroll.hidden=!nativeActive;
+  memcpy(scrollMeta,nextMeta,sizeof scrollMeta); memcpy(scrollPlacement,nextPlacement,sizeof scrollPlacement);
+  bool jump=atomic_exchange(&pendingJump,false);
+  double saved=(jump?atomic_load(&pendingTo):atomic_load(&offset))+atomic_exchange(&pendingBy,0.0);
+  if (!nativeActive) { atomic_store(&offset,saved); return; }
+  synchronizing=true;
+  const uint32_t *meta=scrollMeta;
+  conversationScroll.frame=NSMakeRect(meta[1]/backingScale,meta[2]/backingScale,meta[3]/backingScale,meta[4]/backingScale);
+  document.frame=NSMakeRect(0,0,meta[3]/backingScale,MAX(meta[4],meta[5])/backingScale);
+  if (nextListChanged) listLayer.contents=(__bridge id)listPlane.image;
+  if (nextHoldChanged) holdLayer.contents=(__bridge id)holdPlane.image;
+  if (listPlane.pixels) conversationScroll.backgroundColor=[NSColor colorWithSRGBRed:listPlane.pixels[0]/255.0
+    green:listPlane.pixels[1]/255.0 blue:listPlane.pixels[2]/255.0 alpha:1];
+  shownListWidth=listPlane.w; shownPlaneHeights[0]=listPlane.h; shownPlaneHeights[1]=holdPlane.h;
+  nativeScrollTo(saved,jump);
+  synchronizing=false;
+}
+
+lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
+  bool changed=capturePlane(&rootPlane,rows);
+  onMain(^{
+    presentations++;
+    [CATransaction begin]; [CATransaction setDisableActions:YES];
+    publishNativeLayers();
+    if (changed) {
+      if (shownRootImage) CGImageRelease(shownRootImage);
+      shownRootImage=CGImageRetain(rootPlane.image);
+      picture=[[NSImage alloc] initWithCGImage:rootPlane.image size:NSMakeSize(rootPlane.w/backingScale,rootPlane.h/backingScale)];
+      [view setNeedsDisplay:YES];
+    }
+    if (nativeActive) {
+      CGRect rect=CGRectMake(scrollMeta[1],scrollMeta[2],scrollMeta[3],scrollMeta[4]);
+      if (CGRectGetMaxX(rect)<=rootPlane.w && CGRectGetMaxY(rect)<=rootPlane.h) {
+        CGImageRef crop=CGImageCreateWithImageInRect(rootPlane.image,rect);
+        if (overlayImage) CGImageRelease(overlayImage);
+        overlayImage=crop; overlayLayer.contents=(__bridge id)crop;
+      }
+      translateNative();
+    }
+    if (changed) [view displayIfNeeded];
+    [CATransaction commit];
+    if (snapshot) {
+      snapshot=false;
+      saveSnapshot();
+    }
+    writeScrollStats();
   });
-  // Lean controls the frame rate; NSApp continues pumping native events.
-  usleep(16000);
+  const char *delay=getenv("QUIET_LEAN_FRAME_DELAY_MS");
+  usleep(delay?MIN(1000,MAX(0,atoi(delay)))*1000:16000);
   __block NSArray<NSNumber*> *batch;
   onMain(^{ batch=[events copy]; [events removeAllObjects]; });
   size_t n=batch.count; uint32_t *v=malloc(n*sizeof(uint32_t));
@@ -265,9 +540,23 @@ lean_obj_res lq_copy(b_lean_obj_arg s) {
   NSString *text=[NSString stringWithUTF8String:lean_string_cstr(s)];
   onMain(^{[NSPasteboard.generalPasteboard clearContents]; [NSPasteboard.generalPasteboard setString:text forType:NSPasteboardTypeString];});return unit();
 }
-lean_obj_res lq_scroll(uint32_t content,uint32_t viewport) { return lean_io_result_mk_ok(lean_box_float(offset)); }
-lean_obj_res lq_scroll_by(double delta) { offset+=delta;return unit(); }
-lean_obj_res lq_scroll_to(double value) { offset=value;return unit(); }
+lean_obj_res lq_scroll(uint32_t content,uint32_t viewport) { return lean_io_result_mk_ok(lean_box_float(atomic_load(&offset))); }
+lean_obj_res lq_scroll_by(double delta) {
+  // Height/anchor corrections land with the new document extent, so an
+  // old NSClipView bound cannot clamp away a newly measured row's move.
+  if (!atomic_load(&nativeSupported)) {
+    double old=atomic_load(&offset);
+    while (!atomic_compare_exchange_weak(&offset,&old,old+delta)) {}
+  } else {
+    double old=atomic_load(&pendingBy);
+    while (!atomic_compare_exchange_weak(&pendingBy,&old,old+delta)) {}
+  }
+  return unit();
+}
+lean_obj_res lq_scroll_to(double value) {
+  atomic_store(&pendingTo,value); atomic_store(&pendingBy,0.0); atomic_store(&pendingJump,true);
+  onMain(^{ nativeScrollTo(value,true); }); return unit();
+}
 lean_obj_res lq_frame(b_lean_obj_arg list,uint32_t b,uint32_t over,b_lean_obj_arg top,b_lean_obj_arg bot,uint8_t pin,b_lean_obj_arg placement,b_lean_obj_arg hold) {
   // DesktopMain intercepts App's layer publications; the desktop picture
   // is the sole publication to this shell.
@@ -275,7 +564,15 @@ lean_obj_res lq_frame(b_lean_obj_arg list,uint32_t b,uint32_t over,b_lean_obj_ar
 }
 lean_obj_res lq_ctl_poll(void) { return words(NULL,0); }
 lean_obj_res lq_ctl_reply(b_lean_obj_arg s) { fprintf(stderr,"%s\n",lean_string_cstr(s));return unit(); }
-lean_obj_res lq_poll(void) { return words(NULL,0); }
+lean_obj_res lq_poll(void) {
+  // Moving-message input uses the phones' existing eight-word ABI,
+  // including displayed frame serial and the compiled Slide translation.
+  __block NSArray<NSNumber*> *batch;
+  onMain(^{ batch=[rawEvents copy]; [rawEvents removeAllObjects]; });
+  size_t n=batch.count; uint32_t *v=malloc(n*sizeof(uint32_t));
+  for(size_t i=0;i<n;i++) v[i]=batch[i].unsignedIntValue;
+  lean_obj_res result=words(v,n);free(v);return result;
+}
 lean_obj_res lq_links(void) { return words(NULL,0); }
 lean_obj_res lq_motion(b_lean_obj_arg a) { return unit(); }
 lean_obj_res lq_scan(uint8_t on) { return unit(); }

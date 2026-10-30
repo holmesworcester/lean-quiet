@@ -64,3 +64,31 @@ artifacts. `ci/local.sh zoom` also verifies the running desktop and mobile font 
 1×, 2× and 3×: glyph coverage must be freshly rasterized, not an enlarged
 low-resolution bitmap. Host/visual deterministic suites remain in the default local CI run;
 macOS is explicit because it requires a provisioned Mac and its turn.
+
+## Native scrolling
+
+Only the shared desktop's published conversation rectangle is an
+`NSScrollView`. Sidebar, channel header/toolbar and composer stay in the fixed
+root; a settings drawer clips the native viewport rather than scrolling with it.
+Popups and non-conversation pages suspend the native viewport.
+
+AppKit owns precision wheel/trackpad input, momentum and elasticity. Immutable
+overscan and hold planes move through Core Animation between Lean frames using
+the same compiled `Slide` functions as the phones. Pixels are copied on Lean's
+thread and identical planes keep their image/texture. Root chrome, planes and
+geometry are published together. Anchor/height corrections land with the new
+document extent; jumps stop momentum. Touches on moving rows use the phones'
+displayed-frame/translation ABI and input classifier; hold-only pixels ignore
+presses. Desktop author/hover actions stay on the shared desktop path at rest.
+
+The native suite adds a 500 ms Lean-frame delay and sends real OS pixel-scroll
+events. It requires repeated native updates between Lean publications and checks
+an old-path negative control (`QUIET_DISABLE_NATIVE_SCROLL=1`). It also clicks a
+moving row through the shared input classifier. `check_scroll.py` compares the
+actual AppKit in-flight snapshot with its exact cached source publication: fixed
+sidebar/header/composer/toolbar pixels must match, and translated message ink
+must retain at least 99.5% pixel identity. Matching publication epochs prevents
+an asynchronously decoded photo from being mistaken for a scroll corruption.
+Reports: `scroll-comparison.json`, `scroll-pixels.json`, plus source/composited
+snapshots in `out/macos`. The named `macos:e2e` and local CI release gates run all
+of these checks and propagate failures.

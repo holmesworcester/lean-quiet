@@ -112,6 +112,17 @@ def scrollbar (g : Layout) (s : App.St) : Option Scrollbar.Bar :=
   if g.main.w == 0 || g.context.w > 0 || s.page != .chat || s.sheet.isSome then none else
   Scrollbar.layout (g.main.x + g.main.w) (App.geom s).top (App.geom s).viewNow (App.bottoms s).2 s.b s.dim.dpi
 
+/-- Native scrolling covers only the visible conversation, never fixed chrome
+or a right-hand drawer. The shell consumes this published device-pixel box. -/
+def scrollViewport (g : Layout) (_h : Nat) (ui : Ui) (s : App.St) (ls : Layers) : Array UInt32 := Id.run do
+  let right := min (g.main.x + g.main.w) (if g.context.w > 0 then g.context.x else g.width)
+  let geom := App.geom s
+  let active := s.page == .chat && !ui.switching && s.notices.isEmpty &&
+    right > g.main.x && geom.viewNow > 0 && !ls.list.isEmpty && ls.placement.size ≥ 29 &&
+    (ls.placement[22]?.getD 1) == 0
+  return #[(if active then 1 else 0), g.main.x.toUInt32, geom.top.toUInt32,
+    (right - g.main.x).toUInt32, geom.viewNow.toUInt32, (App.bottoms s).2.toUInt32]
+
 def avatar (b : Bitmap) (f : Font.Font) (name id : String) (x y size : Nat)
     (radius := 4) (baseline := 2) : Bitmap :=
   let b := b.round x y (x + size) (y + size) radius (Palette.avatar id)
@@ -287,7 +298,7 @@ def paintMainHover (g : Layout) (h : Nat) (ui : Ui) (s : App.St) (b : Bitmap) (r
   let clipped := { bmp with rows := bmp.rows.extract (clipTop - top).toNat (clipBottom - top).toNat }
   return b.image clipped g.main.x clipTop.toNat 0
 
-def paint (g : Layout) (h : Nat) (ui : Ui) (s : App.St) (ls : Layers) (rowPaint : Option Bitmap := none) : Bitmap := Id.run do
+def paint (g : Layout) (h : Nat) (ui : Ui) (s : App.St) (ls : Layers) (rowPaint : Option Bitmap := none) (nativeScroll : Bool := false) : Bitmap := Id.run do
   let px := s.dim.px
   let color := Palette.color s.dim.theme
   let nav := color .accent
@@ -298,7 +309,7 @@ def paint (g : Layout) (h : Nat) (ui : Ui) (s : App.St) (ls : Layers) (rowPaint 
   if g.main.w > 0 then b := b.image (content g.main.w h ls (color (if s.wide then .panel else .bg))) g.main.x 0 0
   b := paintMainHover g h ui s b rowPaint
   b := paintMessageBar g h ui s b
-  if let some bar := scrollbar g s then
+  if let some bar := (if nativeScroll then none else scrollbar g s) then
     let t := bar.track
     let r := bar.thumb
     b := b.fill (t.x + px 4) t.y (t.x + t.w - px 2) (t.y + t.h) (color .line)
