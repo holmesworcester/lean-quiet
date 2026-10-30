@@ -146,3 +146,12 @@ CPU measurements, 120-frame native timing averages, and logcat under
 `out/ctl-guard`. These emulator measurements are not Pixel latency guarantees.
 This requires the Android photo suite's SDK/KVM/Java/Python prerequisites.
 The provisioned release/manual CI entry is `ci/local.sh android-release`.
+
+## macOS shared desktop
+
+Apple Silicon macOS builds use the same Lean desktop as Linux, through an
+AppKit shell. Build/setup and native OS-input tests are named Mise tasks
+(`macos:build`, `macos:run`, `macos:e2e`). The manual/release local CI gates
+`macos-ui` and `release-macos` invoke the same suite and propagate failures.
+See [platforms/macos/README.md](../platforms/macos/README.md) for runner
+prerequisites, artifact paths and data ownership.

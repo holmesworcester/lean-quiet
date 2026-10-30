@@ -329,6 +329,10 @@ lean_exe bidi_host where
 @[default_target] lean_lib DesktopRoot where
   globs := #[.submodules `platforms.desktop]
 
+-- C-only staging for the AppKit shell; Linux checks the same Lean root.
+lean_lib MacRoot where
+  globs := #[.submodules `platforms.macos]
+
 -- The Linux shell: xcb, MIT-SHM (PutImage without it), input, clipboard
 -- and integer scale; it implements Platform.lean's externs.
 target linux.o pkg : FilePath := do

@@ -71,6 +71,42 @@ private def run : IO Unit := do
       for (b, _) in c.deck do
         require (b.x + b.w ≤ c.send.x && b.y + b.h ≤ c.h) "composer actions overlap send"
       cases := cases + 1
+  -- Running app/desktop roots must rasterize at backing density, rather
+  -- than stretching a logical-size glyph after painting.
+  let dir := "out/zoom/density"
+  IO.FS.createDirAll dir
+  for scale in [1, 2, 3] do
+    let dpi := 160 * scale
+    let sm ← Sim.new
+    let db := s!"{dir}/desktop-{scale}.db"
+    let phoneDb := s!"{dir}/phone-{scale}.db"
+    for path in [db, phoneDb] do
+      for suffix in ["", "-wal", "-shm"] do
+        if ← System.FilePath.pathExists (path ++ suffix) then IO.FS.removeFile (path ++ suffix)
+    let d ← Desktop.start sm.io (1100*scale) (760*scale) db none dpi
+    require (d.baseDpi == dpi && d.dpi == dpi && d.app.font.cell == 14*scale)
+      s!"desktop backing raster {scale}"
+    require (d.layout.nav.w == 220*scale) "Retina changed apparent sidebar width"
+    let d ← Desktop.zoom d 150
+    require (d.requestedZoom == 150 && d.dpi == 240*scale && d.app.font.cell == 21*scale)
+      "zoom discarded native backing density"
+    let d ← Desktop.zoom d 100
+    require (d.dpi == dpi && d.app.font.cell == 14*scale) "reset discarded native density"
+    let phone ← App.start sm.io #[390*scale |>.toUInt32, 844*scale |>.toUInt32, 0, 0, dpi.toUInt32] phoneDb
+    require (phone.font.cell == 15*scale && phone.dim.dpi == dpi) s!"mobile backing raster {scale}"
+    if scale > 1 then
+      for (body, hiFont) in [(14, d.app.font), (15, phone.font)] do
+        let loFont := font.atSize body
+        let text := "WAVé"
+        let lo := (Bitmap.blank 160 48 (solid 0xffffff 160)).line loFont
+          (Text.oneLine loFont 160 text) 0 0 0
+        let hi := (Bitmap.blank (160*scale) (48*scale) (solid 0xffffff (160*scale))).line hiFont
+          (Text.oneLine hiFont (160*scale) text) 0 0 0
+        require ((List.range (48*scale)).any fun y =>
+          (List.range (160*scale)).any fun x =>
+            hi.rows[y]![4*x]! != lo.rows[y/scale]![4*(x/scale)]!)
+          s!"{body}px body was enlarged after rasterization at {scale}x"
+  IO.println "native density: desktop and mobile 1x/2x/3x runtime fonts, zoom and fresh high-resolution glyph coverage pass"
   IO.println s!"zoom: {cases} row/composer density-width cases; arbitrary Noto sizes and large fallback pass"
   IO.println "geometry laws: zoom_identity, zoom_partition, zoom_contained, zoom_controls_screen, zoom_drawer_preserves"
 

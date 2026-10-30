@@ -34,6 +34,7 @@ gate() {
     android-release) mise run android:release-e2e ;;
     ios-photo) mise run ios:photo-e2e ;;
     ios-ui) mise run ios:sim-e2e ;;
+    macos-ui|release-macos) mise run macos:e2e ;;
     android-ui) mise run android:twin-demo-e2e ;;
     zoom) mise run test:zoom ;;
     android-zoom) mise run android:zoom ;;

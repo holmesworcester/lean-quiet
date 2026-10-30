@@ -28,6 +28,7 @@ structure Driver where
   width : Nat
   height : Nat
   dpi : Nat := 160
+  baseDpi : Nat := 160
   requestedZoom : Nat := 100
   hoverStarted : Nat := 0
   graceStarted : Nat := 0
@@ -79,11 +80,12 @@ def hoverTime (d : Driver) (now : Nat) : Driver :=
 def Driver.layout (d : Driver) : Layout := Desktop.zoomLayout d.width (d.ui.context != .closed) d.dpi
 
 def start (base : App.Io) (w h : Nat) (path : String)
-    (net : Option (Nat × Bool) := none) : IO Driver := do
+    (net : Option (Nat × Bool) := none) (nativeDpi : Nat := 160) : IO Driver := do
   let ls ← IO.mkRef ({} : Layers)
   let hoverCache ← IO.mkRef none
-  let g := Desktop.layout w false
-  let sc ← IO.mkRef #[g.main.w.toUInt32, h.toUInt32, 0, 0, 160, (← base.screen)[5]?.getD 0]
+  let dpi := max 80 (min 1280 nativeDpi)
+  let g := Desktop.zoomLayout w false dpi
+  let sc ← IO.mkRef #[g.main.w.toUInt32, h.toUInt32, 0, 0, dpi.toUInt32, (← base.screen)[5]?.getD 0]
   let io := { base with
     screen := do return (← sc.get).set! 5 ((← base.screen)[5]?.getD 0)
     frame := fun fr _ o top bot _ placement hold => do
@@ -92,14 +94,15 @@ def start (base : App.Io) (w h : Nat) (path : String)
   let s ← App.start io (← sc.get) path net
   -- Use the app's density-scaled font, including Noto and colour emoji.
   -- Replacing it with the old reduced bitmap discards the shared renderer.
-  let font := s.font.atSize (if w ≥ 720 then 14 else 15)
-  let s := { s with wide := w ≥ 720, mobile := false, font, dim := { s.dim with cell := font.cell } }
-  return { app := App.themed s s.theme, width := w, height := h, layers := ls, screen := sc, hoverCache }
+  let wide := w ≥ ((720 * dpi + 80) / 160)
+  let font := s.font.atSize (((if wide then 14 else 15) * dpi + 80) / 160)
+  let s := { s with wide, mobile := false, font, dim := { s.dim with cell := font.cell } }
+  return { app := App.themed s s.theme, width := w, height := h, dpi, baseDpi := dpi, layers := ls, screen := sc, hoverCache }
 
 def resize (d : Driver) (w h : Nat) : IO Driver := do
   let w := max 320 w
   let h := max 480 h
-  let dpi := max 80 (min (d.requestedZoom * 160 / 100) (min (w * 160 / 320) (h * 160 / 240)))
+  let dpi := max 80 (min (d.requestedZoom * d.baseDpi / 100) (min (w * 160 / 320) (h * 160 / 240)))
   let moved := w != d.width || h != d.height || dpi != d.dpi
   let ui := if moved then { d.ui with hoverRow := none, hoverFrom := none, grace := false, tooltip := false } else d.ui
   let mut d := { d with width := w, height := h, dpi, ui }

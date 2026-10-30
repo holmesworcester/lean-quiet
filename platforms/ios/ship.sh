@@ -61,7 +61,7 @@ export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 lake=$ELAN_HOME/bin/lake
 T=$("$ELAN_HOME/bin/lean" --print-prefix)
-st=$root/out/ios-stage
+st=${NATIVE_STAGE:-$root/out/ios-stage}
 art=$root/out/ios-sim
 dx="export DEVELOPER_DIR=/Applications/Xcode-26.3.0.app/Contents/Developer IOS_MULTICAST=${IOS_MULTICAST:-0} RELEASE=${RELEASE:-}${IOS_PROFILE:+ IOS_PROFILE=$IOS_PROFILE};"
 
@@ -122,7 +122,7 @@ proofs() {
 }
 
 stage() {
-  proofs
+  if [ "${APP_MAIN:-Main}" = Main ]; then proofs; fi
   [ -f "$root/assets/font.bin" ] || "$root/tools/fetch_assets.sh"
   mkdir -p "$root/out"
   "$root/tools/noto_assets.sh"
@@ -131,7 +131,7 @@ stage() {
   # the engine's crypto: engine/native/crypto.c and the Rust crate
   engine=$root/engine
   roots=("$root")
-  closure=$(closure Main "${roots[@]}" "$T/src/lean")
+  closure=$(closure "${APP_MAIN:-Main}" "${roots[@]}" "$T/src/lean")
   targets=$(echo "$closure" | awk '$1 != "core" {print "+" $2 ":c"}')
   # shellcheck disable=SC2086
   (cd "$root" && "$lake" build $targets >/dev/null)
@@ -163,8 +163,9 @@ stage() {
   # The engine's Rust crypto, built here for the device and the
   # Simulator (pure Rust: the Mac only links it).
   local sdk rtgt
-  for sdk in iphoneos iphonesimulator; do
+  for sdk in ${APPLE_SDKS:-iphoneos iphonesimulator}; do
     case $sdk in
+      macosx) rtgt=aarch64-apple-darwin ;;
       iphoneos) rtgt=aarch64-apple-ios ;;
       iphonesimulator) rtgt=aarch64-apple-ios-sim ;;
     esac

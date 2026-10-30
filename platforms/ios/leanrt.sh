@@ -12,6 +12,7 @@ src=$st/lean/src; inc=$st/lean/include; uv=$st/uv
 case $sdk in
   iphoneos)        tgt=arm64-apple-ios17.0 ;;
   iphonesimulator) tgt=arm64-apple-ios17.0-simulator ;;
+  macosx)          tgt=arm64-apple-macos14.0 ;;
   *) echo "unknown sdk $sdk"; exit 2 ;;
 esac
 cc="xcrun -sdk $sdk clang --target=$tgt"

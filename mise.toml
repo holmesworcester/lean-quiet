@@ -405,3 +405,16 @@ run = "tests/zoom/run.sh"
 [tasks."android:zoom"]
 description = "Build both Android ABIs, create/boot an owned API 36 emulator, exercise live OS text sizes and retain screenshots/logcat"
 run = "tests/zoom/android.sh"
+
+# macOS uses the same platforms.desktop.Main loop as Linux, through AppKit.
+[tasks."macos:build"]
+description = "Build the current shared desktop for Apple Silicon on MAC via SSH (Xcode required)"
+run = "platforms/macos/ship.sh build"
+
+[tasks."macos:run"]
+description = "Build and launch the shared desktop Mac app; preserve its Application Support data"
+run = "platforms/macos/ship.sh run"
+
+[tasks."macos:e2e"]
+description = "Build/setup the Mac app, drive OS typing/send, zoom and resize, and verify restart persistence and snapshots"
+run = "platforms/macos/ship.sh e2e"

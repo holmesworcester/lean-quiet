@@ -4,7 +4,7 @@
 build entire apps with it, and prove they work as users might want?
 I think we can now!
 
-This app is written mostly in Lean. It builds for iOS and Android and implements chat with emojis and reactions. Non-Lean code is limited to things like scrolling or using the camera ([what isn't Lean, and why](#what-isnt-lean-and-why)) so in a
+This app is written mostly in Lean. It builds for iOS, Android, Linux and Apple Silicon macOS and implements chat with emojis and reactions. Non-Lean code is limited to things like scrolling or using the camera ([what isn't Lean, and why](#what-isnt-lean-and-why)) so in a
 meaningful sense Lean does everything from processing TCP packets to drawing pixels on the screen.
 This allows for proving a surprising range of user-relevant properties! See: [What is Proven](#what-is-proven).
 
