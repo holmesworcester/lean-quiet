@@ -84,8 +84,7 @@ if resizing {
         let event = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: count<0 ? -24 : 24, wheel2: 0, wheel3: 0)!
         event.location=p
         event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
-        if args.count>5 { event.postToPid(pid_t(args[5])!) }
-        else { event.post(tap: .cghidEventTap) }
+        event.post(tap: .cghidEventTap)
         usleep(16000)
         if args[1] == "scroll-click" && i == 5 {
             CGEvent(mouseEventSource:nil,mouseType:.leftMouseDown,mouseCursorPosition:p,mouseButton:.left)!.post(tap:.cghidEventTap)

@@ -105,13 +105,16 @@ a subsequent grow exposed white window background while Lean still rendered
 the smaller height. The desktop image also lives in a retained Core Animation
 layer independent of text/layout backing. During an edge drag, it keeps
 the last complete desktop visible and suspends the native conversation overlay. A viewport returns only with a
-publication matching the current backing size after the drag ends. Ending live
+publication matching the current backing size after the drag ends. Lean’s
+main-thread calls use common run-loop modes, so the tracking loop can publish
+new layouts while the edge is still held instead of waiting for release. Ending live
 resize explicitly invalidates the root backing, including when the Lean pixels
 have not changed. Consecutive pending size notifications are coalesced; backing
 density changes are sent only when the display scale actually changes.
 
 The native suite shrinks to minimum height and then grows with real mouse
-drags, compares both canvas dimensions against the OS window content area, and verifies
+drags, requires multiple layout sizes before release, compares both canvas
+dimensions against the OS window content area, and verifies
 native scrolling resumes after release. `check_resize.py` checks the sidebar,
 conversation and composer pixels both during dragging and after release. With
 `QUIET_COMPOSITOR_SNAPSHOT=1`, snapshots include the existing Core Animation

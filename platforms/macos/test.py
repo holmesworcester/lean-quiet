@@ -7,7 +7,7 @@ state, db, png = out/'state.txt', out/'test.db', out/'frame.png'
 for p in [state, db, pathlib.Path(str(db)+'-wal'), pathlib.Path(str(db)+'-shm'), pathlib.Path(str(db)+'.zoom')]:
     p.unlink(missing_ok=True)
 stats=out/'native-scroll.txt'
-env = dict(os.environ, QUIET_DB=str(db), QUIET_STATE=str(state), QUIET_SNAPSHOT=str(png), QUIET_NATIVE_TRACE="1", QUIET_COMPOSITOR_SNAPSHOT="1", QUIET_NATIVE_SCROLL_STATS=str(stats))
+env = dict(os.environ, QUIET_DB=str(db), QUIET_STATE=str(state), QUIET_SNAPSHOT=str(png), QUIET_NATIVE_TRACE="1", QUIET_TEST_WINDOW="1", QUIET_COMPOSITOR_SNAPSHOT="1", QUIET_NATIVE_SCROLL_STATS=str(stats))
 log = (out/'app.log').open('w')
 proc = None
 checks = 0
@@ -132,7 +132,13 @@ try:
             meta=json.loads((out/('resize-'+label+'-live.json')).read_text())
             check(meta['liveResize'],'snapshot taken while the mouse holds the window edge')
             check(not meta['native'],'stale native viewport hidden during live resize')
-            assert mover.wait(timeout=15)==0
+            live_sizes=set()
+            deadline=time.monotonic()+15
+            while mover.poll() is None and time.monotonic()<deadline:
+                if 'liveResize 1' in stats.read_text(): live_sizes.add(lines()[0])
+                time.sleep(.02)
+            assert mover.wait(timeout=2)==0
+            check(len(live_sizes)>=3,'layout publishes multiple sizes before the edge drag is released')
             actual=window_size()
             wait(lambda: tuple(map(int,lines()[0].split()))==(round(actual[2]*scale),round((actual[3]-chrome)*scale)),'both resized dimensions match the OS window')
             wait(lambda: re.search(r'native 1 .*liveResize 0',stats.read_text()),'native scrolling restored after resize')

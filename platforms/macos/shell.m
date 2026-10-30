@@ -52,7 +52,14 @@ int lean_app_main(int argc, char **argv);
 
 static lean_obj_res unit(void) { return lean_io_result_mk_ok(lean_box(0)); }
 static void onMain(dispatch_block_t f) {
-  if (NSThread.isMainThread) f(); else dispatch_sync(dispatch_get_main_queue(), f);
+  if (NSThread.isMainThread) { f(); return; }
+  // AppKit runs a tracking loop during edge drags. Main-queue synchronous
+  // work can wait until that loop exits; common-mode run-loop blocks do not.
+  dispatch_semaphore_t done=dispatch_semaphore_create(0);
+  CFRunLoopRef loop=CFRunLoopGetMain();
+  CFRunLoopPerformBlock(loop,kCFRunLoopCommonModes,^{ f(); dispatch_semaphore_signal(done); });
+  CFRunLoopWakeUp(loop);
+  dispatch_semaphore_wait(done,DISPATCH_TIME_FOREVER);
 }
 static void event(uint32_t kind, uint32_t x, uint32_t y, uint32_t z) {
   if (getenv("QUIET_NATIVE_TRACE") && kind!=9)
@@ -418,7 +425,7 @@ int main(int argc,char **argv) {
     window=[[NSWindow alloc] initWithContentRect:NSMakeRect(80,80,width,height)
       styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskResizable|NSWindowStyleMaskMiniaturizable
       backing:NSBackingStoreBuffered defer:NO];
-    window.title=@"Lean Quiet"; window.delegate=delegate; window.contentMinSize=NSMakeSize(320,480);
+    window.title=getenv("QUIET_TEST_WINDOW")?@"Lean Quiet — automated test (please leave untouched)":@"Lean Quiet"; window.delegate=delegate; window.contentMinSize=NSMakeSize(320,480);
     window.contentMaxSize=NSMakeSize(4096,2160);
     canvas=[[QuietCanvas alloc] initWithFrame:NSMakeRect(0,0,width,height)];
     canvas.wantsLayer=YES;
