@@ -7,7 +7,7 @@ state, db, png = out/'state.txt', out/'test.db', out/'frame.png'
 for p in [state, db, pathlib.Path(str(db)+'-wal'), pathlib.Path(str(db)+'-shm'), pathlib.Path(str(db)+'.zoom')]:
     p.unlink(missing_ok=True)
 stats=out/'native-scroll.txt'
-env = dict(os.environ, QUIET_DB=str(db), QUIET_STATE=str(state), QUIET_SNAPSHOT=str(png), QUIET_NATIVE_TRACE="1", QUIET_NATIVE_SCROLL_STATS=str(stats))
+env = dict(os.environ, QUIET_DB=str(db), QUIET_STATE=str(state), QUIET_SNAPSHOT=str(png), QUIET_NATIVE_TRACE="1", QUIET_COMPOSITOR_SNAPSHOT="1", QUIET_NATIVE_SCROLL_STATS=str(stats))
 log = (out/'app.log').open('w')
 proc = None
 checks = 0
@@ -30,9 +30,14 @@ def check(ok, label):
     assert ok, label
     checks+=1; print('ok',label,flush=True)
 
-def osa(body):
-    script=f'tell application "System Events"\n tell first process whose unix id is {proc.pid}\n set frontmost to true\n {body}\n end tell\nend tell'
-    return sp.check_output(['osascript','-e',script], text=True, timeout=15).strip()
+# Use the authorized AX/CGEvent helper directly. System Events can have
+# separate TCC permissions and silently expose zero windows over SSH.
+input_command=[str(out/'native-input')]
+sp.run(['xcrun','swiftc',str(pathlib.Path(__file__).with_name('input.swift')),'-o',input_command[0]],check=True)
+def native(*args):
+    return sp.check_output([*input_command,*map(str,args)],text=True,timeout=15).strip()
+def window_size():
+    return list(map(int,native('window',proc.pid).split()))
 
 def launch(seed=True, slow=False, legacy=False):
     global proc
@@ -47,7 +52,7 @@ def stop():
     try: proc.wait(timeout=10)
     except sp.TimeoutExpired: proc.kill();proc.wait()
 
-def shot(name):
+def shot(name, settled=True):
     png.unlink(missing_ok=True); pathlib.Path(str(png)+'.json').unlink(missing_ok=True); pathlib.Path(str(png)+'.source.png').unlink(missing_ok=True); proc.send_signal(signal.SIGUSR1)
     wait(lambda: png.exists() and png.stat().st_size>1000,'rendered window PNG')
     data=png.read_bytes(); assert data[:8]==b'\x89PNG\r\n\x1a\n'
@@ -56,7 +61,10 @@ def shot(name):
     (out/(name+'.json')).write_bytes(pathlib.Path(str(png)+'.json').read_bytes())
     wait(lambda: pathlib.Path(str(png)+'.source.png').exists(),'snapshot source publication')
     (out/(name+'-source.png')).write_bytes(pathlib.Path(str(png)+'.source.png').read_bytes())
-    check(size==tuple(map(int,lines()[0].split())),name+' matches shared desktop dimensions')
+    if settled: check(size==tuple(map(int,lines()[0].split())),name+' matches shared desktop dimensions')
+    backing=pathlib.Path(str(png)+'.backing.png')
+    wait(lambda: backing.exists(),'existing compositor backing snapshot')
+    (out/(name+'-backing.png')).write_bytes(backing.read_bytes())
 
 try:
     launch()
@@ -69,36 +77,69 @@ try:
     # AX supplies window chrome offset; desktop trace supplies the actual
     # composer's location, avoiding guesses about layout and titlebar size.
     def click_points(x,y):
-        coords=list(map(int,re.findall(r'-?\d+',osa('get {position of window 1, size of window 1}'))))
+        coords=window_size()
         logical_h=int(lines()[0].split()[1])/scale
-        sp.run(['xcrun','swift',str(pathlib.Path(__file__).with_name('input.swift')),str(coords[0]+x),str(coords[1]+coords[3]-logical_h+y)],check=True,timeout=30)
+        sp.run([*input_command,str(coords[0]+x),str(coords[1]+coords[3]-logical_h+y)],check=True,timeout=30)
     click_points(90,730)
     wait(lambda: 'Desktop.Context.settings' in lines(),'native settings click')
-    osa('key code 53')
+    native('key',proc.pid,53)
     wait(lambda: 'Desktop.Context.closed' in lines(),'native Escape closes settings')
     click_points(90,115)
     wait(lambda: lines()[3]=='App.PageId.chat','native channel click')
     check(True,'settings closes and channel/composer become reachable')
-    coords=list(map(int,re.findall(r'-?\d+',osa('get {position of window 1, size of window 1}'))))
+    coords=window_size()
     edit=next(l for l in lines() if l.startswith('editor ')).split()
     x=coords[0]+int(edit[1])/scale+6; y=coords[1]+coords[3]-760+int(edit[2])/scale+6
     print('window',coords,'editor',edit,'click',x,y,flush=True)
-    sp.run(['xcrun','swift',str(pathlib.Path(__file__).with_name('input.swift')),str(x),str(y)],check=True,timeout=30)
+    sp.run([*input_command,str(x),str(y)],check=True,timeout=30)
     time.sleep(.3)
-    osa('keystroke "Mac shared desktop test"')
+    native('text',proc.pid,'Mac shared desktop test')
     wait(lambda: lines()[4]=='Mac shared desktop test','native OS typing reaches Lean composer')
-    before=int(lines()[5]); osa('key code 36')
+    before=int(lines()[5]); native('key',proc.pid,36)
     wait(lambda: int(lines()[5])==before+1 and lines()[4]=='','native Return stores message')
     check(True,'native click, typing and Return send through actual desktop app')
-    osa('keystroke "=" using command down')
+    native('key',proc.pid,24,'command')
     wait(lambda: any(l.startswith('zoom 110 ') for l in lines()),'Command+plus zoom')
-    osa('keystroke "0" using command down')
+    native('key',proc.pid,29,'command')
     wait(lambda: any(l.startswith('zoom 100 ') for l in lines()),'Command+0 reset')
     check(True,'native zoom uses shared desktop levels')
-    osa('set size of window 1 to {640, 788}')
+    native('window',proc.pid,640,788)
     wait(lambda: lines()[0].split()[0]==str(round(640*scale)),'native narrow resize')
     shot('narrow')
     check(int(lines()[5])==before+1,'resize retains messages')
+    native('window',proc.pid,800,720)
+    wait(lambda: lines()[0].split()[0]==str(round(800*scale)),'wide layout before edge drags')
+    pos=window_size()
+    logical_h=int(lines()[0].split()[1])/scale
+    sp.run([*input_command,'scroll',str(pos[0]+600),str(pos[1]+pos[3]-logical_h+300),'160',str(proc.pid)],check=True,timeout=20)
+    wait(lambda: int(lines()[7])>2000,'older messages before resizing')
+    # Real edge drags exercise AppKit's tracking run loop and backing-store
+    # resize behavior, which an AX set-size call does not cover.
+    for label,dx,dy in [('grow',280,60),('shrink',-180,-80)]:
+        pos=window_size()
+        mover=sp.Popen([*input_command,
+            'resize',str(pos[0]+pos[2]-1),str(pos[1]+pos[3]-1),str(dx),str(dy)])
+        try:
+            wait(lambda: 'liveResize 1' in stats.read_text(),'OS edge drag starts',timeout=15)
+            shot('resize-'+label+'-live',settled=False)
+            meta=json.loads((out/('resize-'+label+'-live.json')).read_text())
+            check(meta['liveResize'],'snapshot taken while the mouse holds the window edge')
+            check(not meta['native'],'stale native viewport hidden during live resize')
+            assert mover.wait(timeout=15)==0
+            wait(lambda: lines()[0].split()[0]==str(round((pos[2]+dx)*scale)),'resized layout published')
+            wait(lambda: re.search(r'native 1 .*liveResize 0',stats.read_text()),'native scrolling restored after resize')
+            shot('resize-'+label+'-settled')
+            settled=json.loads((out/('resize-'+label+'-settled.json')).read_text())
+            check(settled['planeWidth']==settled['textureWidth'],'native scroll texture matches resized plane')
+            check(int(lines()[5])==before+1,'edge resize retains stored messages')
+        finally:
+            if mover.poll() is None: mover.kill();mover.wait()
+
+    pos=window_size()
+    logical_h=int(lines()[0].split()[1])/scale
+    sp.run([*input_command,'scroll',str(pos[0]+600),str(pos[1]+pos[3]-logical_h+300),'-400',str(proc.pid)],check=True,timeout=20)
+    wait(lambda: int(lines()[7])==0,'native scroll returns to newest messages after resize')
+    check(True,'native scrolling remains usable after grow/shrink')
     stop();state.unlink(missing_ok=True);launch(seed=False)
     wait(lambda: int(lines()[5])==before+1,'stored message survives process restart')
     check(True,'desktop database survives restart')
@@ -110,10 +151,10 @@ try:
             return tuple(map(int,m.groups())) if m else None
         except FileNotFoundError: return None
     def scroll_input(x,y,count=40,click=False):
-        pos=list(map(int,re.findall(r'-?\d+',osa('get {position of window 1, size of window 1}'))))
+        pos=window_size()
         logical_h=int(lines()[0].split()[1])/scale
-        return sp.Popen(['xcrun','swift',str(pathlib.Path(__file__).with_name('input.swift')),
-            'scroll-click' if click else 'scroll',str(pos[0]+x),str(pos[1]+pos[3]-logical_h+y),str(count)])
+        return sp.Popen([*input_command,
+            'scroll-click' if click else 'scroll',str(pos[0]+x),str(pos[1]+pos[3]-logical_h+y),str(count),str(proc.pid)])
     results={}
     for legacy in [False,True]:
         launch(seed=False,slow=True,legacy=legacy)

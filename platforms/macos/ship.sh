@@ -22,6 +22,7 @@ if [ "$1" = e2e ]; then
   scp -qr "$mac:$dir/out/." "$art/"
   cat "$art/e2e.log"
   python3 platforms/macos/check_scroll.py "$art"
+  python3 platforms/macos/check_resize.py "$art"
 else
   ssh "$mac" "open -n '$app'"
 fi

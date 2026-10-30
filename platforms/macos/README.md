@@ -55,7 +55,8 @@ the shared loop. `mise run macos:e2e` includes staging, setup and the native bui
 it uses OS clicks and keystrokes to send a message, zoom, resize to narrow mode,
 and reopen the same database. Snapshots and logs remain in `out/macos` even on
 failure; test processes are reaped. The Mac must have a logged-in desktop and
-allow System Events to send Accessibility input for this suite.
+grant the native AX/CGEvent test runner Accessibility input for this suite.
+The suite compiles that helper during setup; it does not depend on System Events permissions.
 
 Local CI invokes these same tasks: `ci/local.sh macos-ui` for manual provisioned
 runs, and `ci/local.sh release-macos` as the Mac release gate. A failed suite
@@ -92,3 +93,22 @@ an asynchronously decoded photo from being mistaken for a scroll corruption.
 Reports: `scroll-comparison.json`, `scroll-pixels.json`, plus source/composited
 snapshots in `out/macos`. The named `macos:e2e` and local CI release gates run all
 of these checks and propagate failures.
+
+## Window resizing
+
+The desktop image lives in its own retained Core Animation layer, independent
+of NSTextView’s transient text/layout backing. During an edge drag, it keeps
+the last complete desktop visible and suspends the native conversation overlay. A viewport returns only with a
+publication matching the current backing size after the drag ends. Ending live
+resize explicitly invalidates the root backing, including when the Lean pixels
+have not changed. Consecutive pending size notifications are coalesced; backing
+density changes are sent only when the display scale actually changes.
+
+The native suite performs real growing and shrinking mouse drags and verifies
+native scrolling resumes after release. `check_resize.py` checks the sidebar,
+conversation and composer pixels both during dragging and after release. With
+`QUIET_COMPOSITOR_SNAPSHOT=1`, snapshots include the existing Core Animation
+backing *before* the normal NSView snapshot can force a repaint and conceal a
+blank surface. Keep `resize-*.png`, their geometry JSON and `resize-pixels.json`
+with failure/release artifacts. These checks run in `macos:e2e` and the same CI
+gates as scrolling.

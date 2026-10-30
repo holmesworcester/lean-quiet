@@ -25,7 +25,7 @@ static bool nextLayers, nextListChanged, nextHoldChanged;
 static uint32_t shownListWidth, shownPlaneHeights[2];
 static unsigned presentations, scrollUpdates, rawTouches;
 static NSView *document;
-static CALayer *listLayer, *holdLayer, *overlayLayer;
+static CALayer *desktopLayer, *listLayer, *holdLayer, *overlayLayer;
 @class ConversationScroll;
 static ConversationScroll *conversationScroll;
 static CGImageRef overlayImage, shownRootImage;
@@ -98,6 +98,10 @@ static QuietView *view;
 - (void)drawRect:(NSRect)dirty {
   if (picture) [picture drawInRect:self.bounds fromRect:NSZeroRect
     operation:NSCompositingOperationCopy fraction:1 respectFlipped:YES hints:nil];
+}
+- (void)viewDidEndLiveResize {
+  [super viewDidEndLiveResize];
+  [self setNeedsDisplay:YES];
 }
 - (void)updateTrackingAreas {
   for (NSTrackingArea *a in self.trackingAreas) [self removeTrackingArea:a];
@@ -224,6 +228,7 @@ static QuietView *view;
 @end
 @implementation ConversationScroll
 - (void)scrollWheel:(NSEvent*)e {
+  if (getenv("QUIET_NATIVE_TRACE")) fprintf(stderr,"native wheel %.0f momentum %lu reject %d active %d sync %d\n",e.scrollingDeltaY,(unsigned long)e.momentumPhase,self.rejectMomentum,nativeActive,synchronizing);
   if (e.momentumPhase!=NSEventPhaseNone && self.rejectMomentum) return;
   if (e.momentumPhase==NSEventPhaseNone) self.rejectMomentum=NO;
   // AppKit supplies trackpad precision, momentum and rubber-banding.
@@ -304,6 +309,23 @@ static void translateNative(void) {
 }
 static void saveSnapshot(void) {
   const char *path=getenv("QUIET_SNAPSHOT"); if (!path) return;
+  // Read the existing backing layers before cacheDisplay forces drawRect.
+  // A repainting screenshot alone could conceal a blank resize backing.
+  if (getenv("QUIET_COMPOSITOR_SNAPSHOT")) {
+    size_t w=lround(view.bounds.size.width*backingScale), h=lround(view.bounds.size.height*backingScale);
+    CGColorSpaceRef colors=CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGContextRef ctx=CGBitmapContextCreate(NULL,w,h,8,w*4,colors,(CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+    CGColorSpaceRelease(colors);
+    if (ctx) {
+      CGContextTranslateCTM(ctx,0,h); CGContextScaleCTM(ctx,backingScale,-backingScale);
+      [view.layer renderInContext:ctx];
+      CGImageRef image=CGBitmapContextCreateImage(ctx);
+      NSBitmapImageRep *rep=[[NSBitmapImageRep alloc] initWithCGImage:image];
+      [[rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}]
+        writeToFile:[[NSString stringWithUTF8String:path] stringByAppendingString:@".backing.png"] atomically:YES];
+      CGImageRelease(image); CGContextRelease(ctx);
+    }
+  }
   [view displayIfNeeded]; [CATransaction flush];
   NSBitmapImageRep *shot=[view bitmapImageRepForCachingDisplayInRect:view.bounds];
   [view cacheDisplayInRect:view.bounds toBitmapImageRep:shot];
@@ -325,14 +347,14 @@ static void saveSnapshot(void) {
     writeToFile:[file stringByAppendingString:@".source.png"] atomically:YES];
   NSDictionary *meta=@{@"sample":@(llround(atomic_load(&offset))),@"base":@(scrollPlacement[15]),
     @"presentations":@(presentations),@"scrollUpdates":@(scrollUpdates),
-    @"native":@(nativeActive),@"viewport":@[@(scrollMeta[1]),@(scrollMeta[2]),@(scrollMeta[3]),@(scrollMeta[4])]};
+    @"native":@(nativeActive),@"liveResize":@(view.inLiveResize),@"planeWidth":@(shownListWidth),@"textureWidth":@(listLayer.contents?CGImageGetWidth((__bridge CGImageRef)listLayer.contents):0),@"publicationSize":@[@(CGImageGetWidth(shownRootImage)),@(CGImageGetHeight(shownRootImage))],@"viewport":@[@(scrollMeta[1]),@(scrollMeta[2]),@(scrollMeta[3]),@(scrollMeta[4])]};
   [[NSJSONSerialization dataWithJSONObject:meta options:0 error:NULL] writeToFile:[file stringByAppendingString:@".json"] atomically:YES];
 }
 
 static void writeScrollStats(void) {
   const char *path=getenv("QUIET_NATIVE_SCROLL_STATS"); if (!path) return;
-  NSString *text=[NSString stringWithFormat:@"presentations %u scrollUpdates %u offset %.0f native %d box %u %u %u %u base %u rawTouches %u\n",
-    presentations,scrollUpdates,atomic_load(&offset),nativeActive,scrollMeta[1],scrollMeta[2],scrollMeta[3],scrollMeta[4],scrollPlacement[15],rawTouches];
+  NSString *text=[NSString stringWithFormat:@"presentations %u scrollUpdates %u offset %.0f native %d box %u %u %u %u base %u rawTouches %u liveResize %d\n",
+    presentations,scrollUpdates,atomic_load(&offset),nativeActive,scrollMeta[1],scrollMeta[2],scrollMeta[3],scrollMeta[4],scrollPlacement[15],rawTouches,view.inLiveResize];
   [text writeToFile:[NSString stringWithUTF8String:path] atomically:YES encoding:NSUTF8StringEncoding error:NULL];
 }
 
@@ -345,11 +367,26 @@ static void writeScrollStats(void) {
 }
 - (BOOL)windowShouldClose:(NSWindow*)w { event(1,0,0,0); return NO; }
 - (void)windowDidResize:(NSNotification*)n {
-  backingScale=window.backingScaleFactor;
-  width=(uint32_t)lround(view.bounds.size.width*backingScale);
-  height=(uint32_t)lround(view.bounds.size.height*backingScale);
-  event(17,(uint32_t)lround(160*backingScale),0,0);
-  event(13,width,height,0);
+  CGFloat scale=window.backingScaleFactor;
+  bool densityChanged=scale!=backingScale;
+  backingScale=scale;
+  width=MAX(1,(uint32_t)lround(view.bounds.size.width*scale));
+  height=MAX(1,(uint32_t)lround(view.bounds.size.height*scale));
+  // Never cover the last complete desktop with a viewport from a different
+  // size. Keep that desktop visible until a matching publication arrives.
+  nativeActive=false; conversationScroll.hidden=YES;
+  [CATransaction begin]; [CATransaction setDisableActions:YES];
+  desktopLayer.frame=view.bounds; desktopLayer.contentsScale=scale;
+  [CATransaction commit];
+  [view setNeedsDisplay:YES];
+  if (densityChanged) event(17,(uint32_t)lround(160*scale),0,0);
+  // A drag may produce many sizes before Lean gets its next turn. Only
+  // the latest consecutive size matters; preserve intervening user input.
+  NSUInteger count=events.count;
+  if (count>=4 && events[count-4].unsignedIntValue==13) {
+    events[count-3]=@(width); events[count-2]=@(height);
+  } else event(13,width,height,0);
+  writeScrollStats();
 }
 - (void)windowDidChangeBackingProperties:(NSNotification*)n { [self windowDidResize:n]; }
 - (void)windowDidResignKey:(NSNotification*)n { event(16,0,0,1); }
@@ -370,6 +407,14 @@ int main(int argc,char **argv) {
     window.contentMaxSize=NSMakeSize(4096,2160);
     view=[[QuietView alloc] initWithFrame:NSMakeRect(0,0,width,height)];
     view.wantsLayer=YES;
+    view.layerContentsRedrawPolicy=NSViewLayerContentsRedrawDuringViewResize;
+    // NSTextView owns transient text/layout backing. Keep the actual desktop
+    // in an independent retained layer so AppKit cannot clear it on resize.
+    desktopLayer=[CALayer layer];
+    desktopLayer.actions=@{@"contents":[NSNull null],@"position":[NSNull null],@"bounds":[NSNull null]};
+    desktopLayer.contentsGravity=kCAGravityResize;
+    desktopLayer.frame=view.bounds;
+    [view.layer insertSublayer:desktopLayer atIndex:0];
     view.delegate=view; view.richText=NO; view.automaticQuoteSubstitutionEnabled=NO;
     view.automaticDashSubstitutionEnabled=NO; view.automaticTextReplacementEnabled=NO;
     view.textContainerInset=NSZeroSize; view.drawsBackground=NO;
@@ -456,18 +501,22 @@ static void publishNativeLayers(void) {
   if (!nextLayers) return;
   nextLayers=false;
   createNativeScroll();
-  nativeActive=nextMeta[0] && listPlane.image && holdPlane.image;
+  nativeActive=nextMeta[0] && listPlane.image && holdPlane.image &&
+    !view.inLiveResize && rootPlane.w==width && rootPlane.h==height;
   conversationScroll.hidden=!nativeActive;
   memcpy(scrollMeta,nextMeta,sizeof scrollMeta); memcpy(scrollPlacement,nextPlacement,sizeof scrollPlacement);
   bool jump=atomic_exchange(&pendingJump,false);
   double saved=(jump?atomic_load(&pendingTo):atomic_load(&offset))+atomic_exchange(&pendingBy,0.0);
+  // Capture changes can arrive while resize temporarily hides the viewport.
+  // Install their textures now: the next identical publication will no longer
+  // have its changed bit set, so skipping this would retain an old-size plane.
+  if (nextListChanged) listLayer.contents=(__bridge id)listPlane.image;
+  if (nextHoldChanged) holdLayer.contents=(__bridge id)holdPlane.image;
   if (!nativeActive) { atomic_store(&offset,saved); return; }
   synchronizing=true;
   const uint32_t *meta=scrollMeta;
   conversationScroll.frame=NSMakeRect(meta[1]/backingScale,meta[2]/backingScale,meta[3]/backingScale,meta[4]/backingScale);
   document.frame=NSMakeRect(0,0,meta[3]/backingScale,MAX(meta[4],meta[5])/backingScale);
-  if (nextListChanged) listLayer.contents=(__bridge id)listPlane.image;
-  if (nextHoldChanged) holdLayer.contents=(__bridge id)holdPlane.image;
   if (listPlane.pixels) conversationScroll.backgroundColor=[NSColor colorWithSRGBRed:listPlane.pixels[0]/255.0
     green:listPlane.pixels[1]/255.0 blue:listPlane.pixels[2]/255.0 alpha:1];
   shownListWidth=listPlane.w; shownPlaneHeights[0]=listPlane.h; shownPlaneHeights[1]=holdPlane.h;
@@ -484,6 +533,9 @@ lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
     if (changed) {
       if (shownRootImage) CGImageRelease(shownRootImage);
       shownRootImage=CGImageRetain(rootPlane.image);
+      desktopLayer.contents=(__bridge id)shownRootImage;
+      desktopLayer.frame=view.bounds;
+      desktopLayer.contentsScale=backingScale;
       picture=[[NSImage alloc] initWithCGImage:rootPlane.image size:NSMakeSize(rootPlane.w/backingScale,rootPlane.h/backingScale)];
       [view setNeedsDisplay:YES];
     }
