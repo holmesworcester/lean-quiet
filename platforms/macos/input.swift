@@ -5,36 +5,47 @@ import AppKit
 import ApplicationServices
 let args = CommandLine.arguments
 precondition(CGPreflightPostEventAccess(), "Grant Accessibility input to the native test runner")
+if args[1] == "ready" {
+    let front=NSWorkspace.shared.frontmostApplication
+    if front?.bundleIdentifier == "com.apple.loginwindow" || front?.localizedName == "loginwindow" {
+        fputs("Unlock the Mac desktop before running native input tests.\n",stderr)
+        exit(2)
+    }
+    exit(0)
+}
 if ["window", "key", "text"].contains(args[1]) {
     let pid=pid_t(args[2])!
     NSRunningApplication(processIdentifier:pid)?.activate(options:[])
     let target=AXUIElementCreateApplication(pid)
     precondition(AXUIElementSetAttributeValue(target,kAXFrontmostAttribute as CFString,kCFBooleanTrue) == .success)
+    // Wait for the WindowServer activation/Stage Manager transform to finish.
+    // During it, visible window bounds can be scaled to 90% of their size.
+    usleep(600000)
     if args[1] == "window" {
-        let app=AXUIElementCreateApplication(pid)
-        var value:CFTypeRef?
-        precondition(AXUIElementCopyAttributeValue(app,kAXWindowsAttribute as CFString,&value) == .success)
-        let windows=value as! [AXUIElement]
-        precondition(!windows.isEmpty,"No accessible app window")
-        let window=windows[0]
-        AXUIElementSetMessagingTimeout(window,5)
-        func read(_ attribute: String) -> CFTypeRef {
-            var result:CFTypeRef?
-            for _ in 0..<50 {
-                if AXUIElementCopyAttributeValue(window,attribute as CFString,&result) == .success, let result=result { return result }
-                usleep(100000)
-            }
-            fatalError("Window attribute unavailable: \(attribute)")
-        }
         if args.count == 5 {
+            let app=AXUIElementCreateApplication(pid)
+            var value:CFTypeRef?
+            precondition(AXUIElementCopyAttributeValue(app,kAXWindowsAttribute as CFString,&value) == .success)
+            let windows=value as! [AXUIElement]
+            precondition(!windows.isEmpty,"No accessible app window")
             var size=CGSize(width:Double(args[3])!,height:Double(args[4])!)
-            precondition(AXUIElementSetAttributeValue(window,kAXSizeAttribute as CFString,AXValueCreate(.cgSize,&size)!) == .success)
+            precondition(AXUIElementSetAttributeValue(windows[0],kAXSizeAttribute as CFString,AXValueCreate(.cgSize,&size)!) == .success)
+            usleep(100000)
         }
-        value=read(kAXPositionAttribute)
-        var point=CGPoint.zero; AXValueGetValue(value as! AXValue,.cgPoint,&point)
-        value=read(kAXSizeAttribute)
-        var size=CGSize.zero; AXValueGetValue(value as! AXValue,.cgSize,&size)
-        print("\(Int(point.x)) \(Int(point.y)) \(Int(size.width)) \(Int(size.height))")
+        // WindowServer geometry is independent of the renderer and text view.
+        // It also avoids stale AXPosition proxies during app startup.
+        var rect:CGRect?
+        for _ in 0..<50 {
+            let windows=CGWindowListCopyWindowInfo([.optionOnScreenOnly,.excludeDesktopElements],kCGNullWindowID) as! [[String:Any]]
+            if let win=windows.first(where:{ ($0[kCGWindowOwnerPID as String] as? Int)==Int(pid) && ($0[kCGWindowLayer as String] as? Int)==0 }),
+               let bounds=win[kCGWindowBounds as String] as? [String:Any] {
+                rect=CGRect(dictionaryRepresentation:bounds as CFDictionary)
+                break
+            }
+            usleep(100000)
+        }
+        guard let rect=rect else { fatalError("No WindowServer window for test app") }
+        print("\(Int(rect.origin.x)) \(Int(rect.origin.y)) \(Int(rect.width)) \(Int(rect.height))")
     } else {
         usleep(100000)
         let code=args[1] == "key" ? CGKeyCode(args[3])! : 0

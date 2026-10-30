@@ -34,6 +34,9 @@ def check(ok, label):
 # separate TCC permissions and silently expose zero windows over SSH.
 input_command=[str(out/'native-input')]
 sp.run(['xcrun','swiftc',str(pathlib.Path(__file__).with_name('input.swift')),'-o',input_command[0]],check=True)
+sp.run([*input_command,'ready'],check=True)
+# Keep the display awake only for this test process; manual locking still wins.
+sp.Popen(['caffeinate','-di','-w',str(os.getpid())],stdout=sp.DEVNULL,stderr=sp.DEVNULL)
 def native(*args):
     return sp.check_output([*input_command,*map(str,args)],text=True,timeout=15).strip()
 def window_size():
@@ -61,7 +64,10 @@ def shot(name, settled=True):
     (out/(name+'.json')).write_bytes(pathlib.Path(str(png)+'.json').read_bytes())
     wait(lambda: pathlib.Path(str(png)+'.source.png').exists(),'snapshot source publication')
     (out/(name+'-source.png')).write_bytes(pathlib.Path(str(png)+'.source.png').read_bytes())
-    if settled: check(size==tuple(map(int,lines()[0].split())),name+' matches shared desktop dimensions')
+    if settled:
+        check(size==tuple(map(int,lines()[0].split())),name+' matches shared desktop dimensions')
+        meta=json.loads((out/(name+'.json')).read_text())
+        check(size==tuple(meta['windowContentSize']),name+' canvas fills the actual OS window content area')
     backing=pathlib.Path(str(png)+'.backing.png')
     wait(lambda: backing.exists(),'existing compositor backing snapshot')
     (out/(name+'-backing.png')).write_bytes(backing.read_bytes())
@@ -70,6 +76,7 @@ try:
     launch()
     initial=tuple(map(int,lines()[0].split()))
     scale=initial[0]/1100
+    chrome=window_size()[3]-initial[1]/scale
     check(initial==(round(1100*scale),round(760*scale)) and scale>=1,'desktop uses backing pixels')
     check(any(f'dpi {round(160*scale)} cell {round(14*scale)}' in l for l in lines()),'font raster matches native density')
     shot('desktop')
@@ -115,7 +122,7 @@ try:
     wait(lambda: int(lines()[7])>2000,'older messages before resizing')
     # Real edge drags exercise AppKit's tracking run loop and backing-store
     # resize behavior, which an AX set-size call does not cover.
-    for label,dx,dy in [('grow',280,60),('shrink',-180,-80)]:
+    for label,dx,dy in [('shrink',-60,-208),('grow',280,240)]:
         pos=window_size()
         mover=sp.Popen([*input_command,
             'resize',str(pos[0]+pos[2]-1),str(pos[1]+pos[3]-1),str(dx),str(dy)])
@@ -126,7 +133,8 @@ try:
             check(meta['liveResize'],'snapshot taken while the mouse holds the window edge')
             check(not meta['native'],'stale native viewport hidden during live resize')
             assert mover.wait(timeout=15)==0
-            wait(lambda: lines()[0].split()[0]==str(round((pos[2]+dx)*scale)),'resized layout published')
+            actual=window_size()
+            wait(lambda: tuple(map(int,lines()[0].split()))==(round(actual[2]*scale),round((actual[3]-chrome)*scale)),'both resized dimensions match the OS window')
             wait(lambda: re.search(r'native 1 .*liveResize 0',stats.read_text()),'native scrolling restored after resize')
             shot('resize-'+label+'-settled')
             settled=json.loads((out/('resize-'+label+'-settled.json')).read_text())

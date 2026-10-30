@@ -86,12 +86,11 @@ static uint32_t scalars(NSString *s, NSUInteger end) {
 @interface QuietView : NSTextView <NSTextViewDelegate>
 @end
 static QuietView *view;
-@implementation QuietView
+@interface QuietCanvas : NSView
+@end
+static QuietCanvas *canvas;
+@implementation QuietCanvas
 - (BOOL)isFlipped { return YES; }
-- (BOOL)acceptsFirstResponder { return YES; }
-- (void)drawInsertionPointInRect:(NSRect)r color:(NSColor*)c turnedOn:(BOOL)on {
-  // Lean paints the composer caret at its actual desktop position.
-}
 - (void)resetCursorRects {
   [self addCursorRect:self.bounds cursor:(cursor==2?NSCursor.IBeamCursor:cursor==1?NSCursor.pointingHandCursor:NSCursor.arrowCursor)];
 }
@@ -110,8 +109,24 @@ static QuietView *view;
     owner:self userInfo:nil]];
   [super updateTrackingAreas];
 }
+- (void)mouseDown:(NSEvent*)e { [view mouseDown:e]; }
+- (void)mouseDragged:(NSEvent*)e { [view mouseDragged:e]; }
+- (void)mouseUp:(NSEvent*)e { [view mouseUp:e]; }
+- (void)rightMouseDown:(NSEvent*)e { [view rightMouseDown:e]; }
+- (void)mouseMoved:(NSEvent*)e { [view mouseMoved:e]; }
+- (void)mouseExited:(NSEvent*)e { [view mouseExited:e]; }
+- (void)scrollWheel:(NSEvent*)e { [view scrollWheel:e]; }
+@end
+
+@implementation QuietView
+- (BOOL)isFlipped { return YES; }
+- (BOOL)acceptsFirstResponder { return YES; }
+- (void)drawInsertionPointInRect:(NSRect)r color:(NSColor*)c turnedOn:(BOOL)on {
+  // Lean paints the composer caret at its actual desktop position.
+}
+- (void)drawRect:(NSRect)dirty {} // Text storage/IME only; the canvas paints.
 - (NSPoint)point:(NSEvent*)e {
-  NSPoint p=[self convertPoint:e.locationInWindow fromView:nil];
+  NSPoint p=[canvas convertPoint:e.locationInWindow fromView:nil];
   // This is a flipped view: convertPointToBacking uses a lower-left
   // backing origin. The Lean seam needs top-left device-pixel distances.
   p.x*=backingScale; p.y*=backingScale;
@@ -269,7 +284,7 @@ static void createNativeScroll(void) {
     layer.contentsScale=backingScale; layer.contentsGravity=kCAGravityResize;
     [document.layer addSublayer:layer];
   }
-  [view addSubview:conversationScroll];
+  [canvas addSubview:conversationScroll];
 }
 static void nativeScrollTo(double value, bool stop) {
   atomic_store(&offset,value);
@@ -312,13 +327,13 @@ static void saveSnapshot(void) {
   // Read the existing backing layers before cacheDisplay forces drawRect.
   // A repainting screenshot alone could conceal a blank resize backing.
   if (getenv("QUIET_COMPOSITOR_SNAPSHOT")) {
-    size_t w=lround(view.bounds.size.width*backingScale), h=lround(view.bounds.size.height*backingScale);
+    size_t w=lround(canvas.bounds.size.width*backingScale), h=lround(canvas.bounds.size.height*backingScale);
     CGColorSpaceRef colors=CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
     CGContextRef ctx=CGBitmapContextCreate(NULL,w,h,8,w*4,colors,(CGBitmapInfo)kCGImageAlphaPremultipliedLast);
     CGColorSpaceRelease(colors);
     if (ctx) {
       CGContextTranslateCTM(ctx,0,h); CGContextScaleCTM(ctx,backingScale,-backingScale);
-      [view.layer renderInContext:ctx];
+      [canvas.layer renderInContext:ctx];
       CGImageRef image=CGBitmapContextCreateImage(ctx);
       NSBitmapImageRep *rep=[[NSBitmapImageRep alloc] initWithCGImage:image];
       [[rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}]
@@ -326,9 +341,9 @@ static void saveSnapshot(void) {
       CGImageRelease(image); CGContextRelease(ctx);
     }
   }
-  [view displayIfNeeded]; [CATransaction flush];
-  NSBitmapImageRep *shot=[view bitmapImageRepForCachingDisplayInRect:view.bounds];
-  [view cacheDisplayInRect:view.bounds toBitmapImageRep:shot];
+  [canvas displayIfNeeded]; [CATransaction flush];
+  NSBitmapImageRep *shot=[canvas bitmapImageRepForCachingDisplayInRect:canvas.bounds];
+  [canvas cacheDisplayInRect:canvas.bounds toBitmapImageRep:shot];
   NSString *file=[NSString stringWithUTF8String:path];
   [[shot representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:file atomically:YES];
   // Capture the exact immutable publication used by the compositor too.
@@ -339,22 +354,22 @@ static void saveSnapshot(void) {
   // intervene, and the temporary visibility change is never presented.
   [CATransaction begin]; [CATransaction setDisableActions:YES];
   BOOL hidden=conversationScroll.hidden; conversationScroll.hidden=YES;
-  NSBitmapImageRep *source=[view bitmapImageRepForCachingDisplayInRect:view.bounds];
-  [view cacheDisplayInRect:view.bounds toBitmapImageRep:source];
+  NSBitmapImageRep *source=[canvas bitmapImageRepForCachingDisplayInRect:canvas.bounds];
+  [canvas cacheDisplayInRect:canvas.bounds toBitmapImageRep:source];
   conversationScroll.hidden=hidden;
   [CATransaction commit];
   [[source representationUsingType:NSBitmapImageFileTypePNG properties:@{}]
     writeToFile:[file stringByAppendingString:@".source.png"] atomically:YES];
   NSDictionary *meta=@{@"sample":@(llround(atomic_load(&offset))),@"base":@(scrollPlacement[15]),
     @"presentations":@(presentations),@"scrollUpdates":@(scrollUpdates),
-    @"native":@(nativeActive),@"liveResize":@(view.inLiveResize),@"planeWidth":@(shownListWidth),@"textureWidth":@(listLayer.contents?CGImageGetWidth((__bridge CGImageRef)listLayer.contents):0),@"publicationSize":@[@(CGImageGetWidth(shownRootImage)),@(CGImageGetHeight(shownRootImage))],@"viewport":@[@(scrollMeta[1]),@(scrollMeta[2]),@(scrollMeta[3]),@(scrollMeta[4])]};
+    @"native":@(nativeActive),@"liveResize":@(canvas.inLiveResize),@"planeWidth":@(shownListWidth),@"textureWidth":@(listLayer.contents?CGImageGetWidth((__bridge CGImageRef)listLayer.contents):0),@"windowContentSize":@[@(lround(window.contentLayoutRect.size.width*backingScale)),@(lround(window.contentLayoutRect.size.height*backingScale))],@"publicationSize":@[@(CGImageGetWidth(shownRootImage)),@(CGImageGetHeight(shownRootImage))],@"viewport":@[@(scrollMeta[1]),@(scrollMeta[2]),@(scrollMeta[3]),@(scrollMeta[4])]};
   [[NSJSONSerialization dataWithJSONObject:meta options:0 error:NULL] writeToFile:[file stringByAppendingString:@".json"] atomically:YES];
 }
 
 static void writeScrollStats(void) {
   const char *path=getenv("QUIET_NATIVE_SCROLL_STATS"); if (!path) return;
   NSString *text=[NSString stringWithFormat:@"presentations %u scrollUpdates %u offset %.0f native %d box %u %u %u %u base %u rawTouches %u liveResize %d\n",
-    presentations,scrollUpdates,atomic_load(&offset),nativeActive,scrollMeta[1],scrollMeta[2],scrollMeta[3],scrollMeta[4],scrollPlacement[15],rawTouches,view.inLiveResize];
+    presentations,scrollUpdates,atomic_load(&offset),nativeActive,scrollMeta[1],scrollMeta[2],scrollMeta[3],scrollMeta[4],scrollPlacement[15],rawTouches,canvas.inLiveResize];
   [text writeToFile:[NSString stringWithUTF8String:path] atomically:YES encoding:NSUTF8StringEncoding error:NULL];
 }
 
@@ -370,15 +385,15 @@ static void writeScrollStats(void) {
   CGFloat scale=window.backingScaleFactor;
   bool densityChanged=scale!=backingScale;
   backingScale=scale;
-  width=MAX(1,(uint32_t)lround(view.bounds.size.width*scale));
-  height=MAX(1,(uint32_t)lround(view.bounds.size.height*scale));
+  width=MAX(1,(uint32_t)lround(canvas.bounds.size.width*scale));
+  height=MAX(1,(uint32_t)lround(canvas.bounds.size.height*scale));
   // Never cover the last complete desktop with a viewport from a different
   // size. Keep that desktop visible until a matching publication arrives.
   nativeActive=false; conversationScroll.hidden=YES;
   [CATransaction begin]; [CATransaction setDisableActions:YES];
-  desktopLayer.frame=view.bounds; desktopLayer.contentsScale=scale;
+  desktopLayer.frame=canvas.bounds; desktopLayer.contentsScale=scale;
   [CATransaction commit];
-  [view setNeedsDisplay:YES];
+  [canvas setNeedsDisplay:YES];
   if (densityChanged) event(17,(uint32_t)lround(160*scale),0,0);
   // A drag may produce many sizes before Lean gets its next turn. Only
   // the latest consecutive size matters; preserve intervening user input.
@@ -405,20 +420,28 @@ int main(int argc,char **argv) {
       backing:NSBackingStoreBuffered defer:NO];
     window.title=@"Lean Quiet"; window.delegate=delegate; window.contentMinSize=NSMakeSize(320,480);
     window.contentMaxSize=NSMakeSize(4096,2160);
-    view=[[QuietView alloc] initWithFrame:NSMakeRect(0,0,width,height)];
-    view.wantsLayer=YES;
-    view.layerContentsRedrawPolicy=NSViewLayerContentsRedrawDuringViewResize;
+    canvas=[[QuietCanvas alloc] initWithFrame:NSMakeRect(0,0,width,height)];
+    canvas.wantsLayer=YES;
+    // NSTextView may resize itself to fit text after a shrink. It must never
+    // own the window geometry or the visible desktop surface.
+    view=[[QuietView alloc] initWithFrame:NSMakeRect(0,0,1,1)];
+    view.verticallyResizable=NO; view.horizontallyResizable=NO;
+    view.minSize=NSMakeSize(1,1); view.maxSize=NSMakeSize(1,1);
+    view.textContainer.widthTracksTextView=NO;
+    view.textContainer.containerSize=NSMakeSize(4096,4096);
+    [canvas addSubview:view];
+    canvas.layerContentsRedrawPolicy=NSViewLayerContentsRedrawDuringViewResize;
     // NSTextView owns transient text/layout backing. Keep the actual desktop
     // in an independent retained layer so AppKit cannot clear it on resize.
     desktopLayer=[CALayer layer];
     desktopLayer.actions=@{@"contents":[NSNull null],@"position":[NSNull null],@"bounds":[NSNull null]};
     desktopLayer.contentsGravity=kCAGravityResize;
-    desktopLayer.frame=view.bounds;
-    [view.layer insertSublayer:desktopLayer atIndex:0];
+    desktopLayer.frame=canvas.bounds;
+    [canvas.layer insertSublayer:desktopLayer atIndex:0];
     view.delegate=view; view.richText=NO; view.automaticQuoteSubstitutionEnabled=NO;
     view.automaticDashSubstitutionEnabled=NO; view.automaticTextReplacementEnabled=NO;
     view.textContainerInset=NSZeroSize; view.drawsBackground=NO;
-    window.contentView=view; [window makeFirstResponder:view];
+    window.contentView=canvas; [window makeFirstResponder:view];
     [delegate windowDidResize:[NSNotification notificationWithName:NSWindowDidResizeNotification object:window]];
     [window makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES];
     NSString *resources=NSBundle.mainBundle.resourcePath;
@@ -502,7 +525,7 @@ static void publishNativeLayers(void) {
   nextLayers=false;
   createNativeScroll();
   nativeActive=nextMeta[0] && listPlane.image && holdPlane.image &&
-    !view.inLiveResize && rootPlane.w==width && rootPlane.h==height;
+    !canvas.inLiveResize && rootPlane.w==width && rootPlane.h==height;
   conversationScroll.hidden=!nativeActive;
   memcpy(scrollMeta,nextMeta,sizeof scrollMeta); memcpy(scrollPlacement,nextPlacement,sizeof scrollPlacement);
   bool jump=atomic_exchange(&pendingJump,false);
@@ -534,10 +557,10 @@ lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
       if (shownRootImage) CGImageRelease(shownRootImage);
       shownRootImage=CGImageRetain(rootPlane.image);
       desktopLayer.contents=(__bridge id)shownRootImage;
-      desktopLayer.frame=view.bounds;
+      desktopLayer.frame=canvas.bounds;
       desktopLayer.contentsScale=backingScale;
       picture=[[NSImage alloc] initWithCGImage:rootPlane.image size:NSMakeSize(rootPlane.w/backingScale,rootPlane.h/backingScale)];
-      [view setNeedsDisplay:YES];
+      [canvas setNeedsDisplay:YES];
     }
     if (nativeActive) {
       CGRect rect=CGRectMake(scrollMeta[1],scrollMeta[2],scrollMeta[3],scrollMeta[4]);
@@ -548,7 +571,7 @@ lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
       }
       translateNative();
     }
-    if (changed) [view displayIfNeeded];
+    if (changed) [canvas displayIfNeeded];
     [CATransaction commit];
     if (snapshot) {
       snapshot=false;
@@ -565,7 +588,7 @@ lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
   lean_obj_res out=words(v,n); free(v); return out;
 }
 lean_obj_res lq_desktop_cursor(uint32_t kind) {
-  onMain(^{ if (cursor!=kind) { cursor=kind; [window invalidateCursorRectsForView:view]; [(kind==2?NSCursor.IBeamCursor:kind==1?NSCursor.pointingHandCursor:NSCursor.arrowCursor) set]; } });
+  onMain(^{ if (cursor!=kind) { cursor=kind; [window invalidateCursorRectsForView:canvas]; [(kind==2?NSCursor.IBeamCursor:kind==1?NSCursor.pointingHandCursor:NSCursor.arrowCursor) set]; } });
   return unit();
 }
 lean_obj_res lq_desktop_select(uint32_t a,uint32_t b) {

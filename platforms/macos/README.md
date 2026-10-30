@@ -54,7 +54,9 @@ layout/hover proofs. `mise run linux:e2e` covers the Linux shell after changes t
 the shared loop. `mise run macos:e2e` includes staging, setup and the native build;
 it uses OS clicks and keystrokes to send a message, zoom, resize to narrow mode,
 and reopen the same database. Snapshots and logs remain in `out/macos` even on
-failure; test processes are reaped. The Mac must have a logged-in desktop and
+failure; test processes are reaped. The runner rejects a locked desktop before
+launching and keeps the display awake for the test process. The Mac must have
+a logged-in, unlocked desktop and
 grant the native AX/CGEvent test runner Accessibility input for this suite.
 The suite compiles that helper during setup; it does not depend on System Events permissions.
 
@@ -96,15 +98,20 @@ of these checks and propagate failures.
 
 ## Window resizing
 
-The desktop image lives in its own retained Core Animation layer, independent
-of NSTextView’s transient text/layout backing. During an edge drag, it keeps
+A plain NSView owns the window canvas. A separate one-point NSTextView handles
+text storage and IME without participating in window sizing. Making NSTextView
+the content view let its text-layout size clamp the canvas after shrinking, so
+a subsequent grow exposed white window background while Lean still rendered
+the smaller height. The desktop image also lives in a retained Core Animation
+layer independent of text/layout backing. During an edge drag, it keeps
 the last complete desktop visible and suspends the native conversation overlay. A viewport returns only with a
 publication matching the current backing size after the drag ends. Ending live
 resize explicitly invalidates the root backing, including when the Lean pixels
 have not changed. Consecutive pending size notifications are coalesced; backing
 density changes are sent only when the display scale actually changes.
 
-The native suite performs real growing and shrinking mouse drags and verifies
+The native suite shrinks to minimum height and then grows with real mouse
+drags, compares both canvas dimensions against the OS window content area, and verifies
 native scrolling resumes after release. `check_resize.py` checks the sidebar,
 conversation and composer pixels both during dragging and after release. With
 `QUIET_COMPOSITOR_SNAPSHOT=1`, snapshots include the existing Core Animation
