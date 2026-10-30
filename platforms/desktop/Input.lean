@@ -76,6 +76,7 @@ def cursor (d : Driver) : Nat := Id.run do
   if s.sheet.isSome then return 0
   let some (id, ry) := App.rowAt s (s.b + d.height - App.botH s - 1 - y) | return 0
   let some row := s.rows[id]? | return 0
-  return if Row.hit row.lay x ry != .row then 1 else 2
+  -- Messages are read-only until transcript selection is implemented.
+  return if Row.hit row.lay x ry != .row then 1 else 0
 
 end Desktop

@@ -60,6 +60,9 @@ def run (initial : Driver) : IO Unit := do
   check "author opens the profile of the signed message author" (profile.app.profileOf.any (fun (user, _, _) => user == d.app.me.user))
   let hot := pointerEvent d (.motion x y)
   check "message under pointer owns hover" ((hoveredRow hot.layout hot.height hot.ui hot.app).any (·.1 == id))
+  let some message := d.app.rows[id]? | throw (IO.userError "missing displayed message")
+  let body := pointerEvent hot (.motion (d.layout.main.x + d.app.dim.textX + 4) (top.toNat + message.lay.textY + 8))
+  check "read-only message text uses the arrow cursor" (cursor body == 0 && (caret body (d.layout.main.x + d.app.dim.textX + 4) (top.toNat + message.lay.textY + 8)).isNone)
   let reads := d.app.queryReads
   let paints := d.app.paints
   let before ← d.app.raster.stats
@@ -75,6 +78,11 @@ def run (initial : Driver) : IO Unit := do
   let some bar := messageBar d.layout d.height d.app id | throw (IO.userError "missing message toolbar")
   let padding := pointerEvent hot (.motion (bar.x+2) (bar.y+24))
   check "toolbar padding has no enabled action or hand cursor" ((messageAction d.layout d.height padding.ui d.app (bar.x+2) (bar.y+24)).isNone && cursor padding == 0)
+  let mut toolbarTextCursor := false
+  for pointerY in [bar.y:bar.y+bar.h] do
+    for pointerX in [bar.x:bar.x+bar.w] do
+      if cursor (pointerEvent hot (.motion pointerX pointerY)) == 2 then toolbarTextCursor := true
+  check "every toolbar pixel avoids the text-selection cursor" (!toolbarTextCursor)
   let diagonal := pointerEvent hot (.motion (bar.x - 100) (top.toNat - 5))
   check "diagonal travel across another row retains toolbar owner" (diagonal.ui.hoverRow == some id && diagonal.ui.grace)
   let diagonal := hoverTime diagonal 1000

@@ -3,7 +3,9 @@
 Pointer movement is transient paint input. `Hover.Context` is `Option (Nat × Nat)`:
 `none` means no hovering pointer, including touch. Linux supplies motion, entry,
 exit and focus-loss events through X11. The app chooses native arrow, hand and
-text cursors from the same visible action geometry used for dispatch. Android
+text cursors from the same visible action geometry used for dispatch. The text
+cursor is reserved for editable fields; message text and toolbar padding use
+the arrow until transcript selection is implemented. Android
 and iOS retain the default `none`; this change does not synthesize hover from taps.
 
 `Desktop.pointer` routes through front-to-back surfaces. A switcher's clear

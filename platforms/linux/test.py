@@ -105,6 +105,9 @@ try:
             wait(lambda: any('pointer none cursor 0' in s for s in lines()), 'OS pointer leave')
             cold = shot('hover-leave')
             check(cold.crop((0,0,220*scale,56*scale)).tobytes() == image.crop((0,0,220*scale,56*scale)).tobytes(), tag + ' OS leave restores team pixels')
+            xdo('mousemove', '--window', win, 500*scale, 500*scale)
+            wait(lambda: any('pointer some (500, 500) cursor 0' in s for s in lines()), 'read-only transcript arrow cursor')
+            check(True, tag + ' read-only message text uses the OS arrow cursor')
             # A resize shows the last frame until Lean's next one (north-west
             # gravity, no background): stopped, the app cannot repaint, so a
             # shrunk window shows only what the server keeps or fills.
