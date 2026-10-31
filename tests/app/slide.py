@@ -10,7 +10,7 @@ import subprocess
 root = pathlib.Path(__file__).resolve().parents[2]
 out = root / 'out/thread'
 out.mkdir(parents=True, exist_ok=True)
-exports = ['lq_slide_edge', 'lq_slide_delta', 'lq_slide_source', 'lq_slide_fill_row']
+exports = ['lq_slide_edge', 'lq_slide_delta', 'lq_slide_source', 'lq_slide_fill_row', 'lq_slide_fill_edge_period', 'lq_slide_fill_row_period']
 # Exact leaf implementations from the pinned toolchain's lean.h.
 primitives = {
     'lean_uint32_dec_lt': 'return a1 < a2;',
@@ -52,7 +52,7 @@ assembly = asm.read_text()
 for name in exports:
     text = assembly.split(name+':\n', 1)[1].split('.size\t'+name, 1)[0]
     assert not re.search(r'\b(call\w*|lean_\w+|lp_\w+)\b', text), (name, 'non-leaf assembly')
-print('slide C: 4 exports, 10 audited scalar primitives, no object/once-cell/app calls; assembly has zero calls')
+print('slide C: 6 exports, 10 audited scalar primitives, no object/once-cell/app calls; assembly has zero calls')
 # Link just the exports, without libInit or any Lean runtime library.
 obj = out/'Slide.o'
 subprocess.run(['cc', '-O2', '-ffunction-sections', '-fdata-sections', '-I'+str(prefix/'include'),

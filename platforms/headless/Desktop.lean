@@ -249,11 +249,11 @@ private def suite (args : List String) : IO UInt32 := do
     d ← tick (← resize d w h)
     check s!"{w}x{h}: desktop resize preserves the message anchor" (App.captureAnchor d.app == anchor)
     unless framePainted d.app do unpainted := unpainted + 1
-    -- a placeholder's bar (App.holdLine): its colour from pad + 48 dp on
+    -- A message skeleton body bar starts at the shared text column.
     let pic ← picture d
-    let x0 := d.layout.main.x + d.app.dim.pad + d.app.dim.px 48
+    let x0 := d.layout.main.x + d.app.dim.textX
     let bars := (List.range (h - App.botH d.app - App.topH d.app)).filter fun k =>
-      (List.range 40).all fun i => Paint.getPx pic.rows[App.topH d.app + k]! (x0 + i) == Palette.color d.app.dim.theme .selected
+      (List.range 40).all fun i => Paint.getPx pic.rows[App.topH d.app + k]! (x0 + i) == Palette.color d.app.dim.theme .line
     unless bars.isEmpty do flashes := flashes + 1
   check s!"one frame after each of 7 resizes, no row shows a placeholder ({flashes} did)" (flashes == 0)
   check s!"one frame after each of 7 resizes, every row it shows painted ({unpainted} not)" (unpainted == 0)

@@ -22,7 +22,7 @@ def accepted (raw : Array UInt32) : Bool := Id.run do
 
 def present (display : Show) (motion : Array UInt32 → IO Unit) (g : Geometry.Geom)
     (dpi maxB : Nat) (state : Input.State) (list : Array ByteArray) (b over : Nat)
-    (top bot : Array ByteArray) (pin : Bool) (hold : Array ByteArray := #[]) : IO Input.Result := do
+    (top bot : Array ByteArray) (pin : Bool) (hold : Array ByteArray := #[]) (holdPeriod : Nat := 48) : IO Input.Result := do
   let state := Input.sampleOffset maxB state b
   let frame := Surface.make g pin over b state.offset list.size
   let context : Input.Context := ⟨frame, dpi, maxB⟩
@@ -36,7 +36,7 @@ def present (display : Show) (motion : Array UInt32 → IO Unit) (g : Geometry.G
   let words := frame.words.push serial.toUInt32 ++ state.lastTap ++
     #[frame.origin.toInt32.toUInt32, list.size.toUInt32, (if pin then 1 else 0),
       ((high : Int) - list.size).toInt32.toUInt32, high.toUInt32,
-      hold.size.toUInt32, 48, Row.placeholder, Row.bg]
+      hold.size.toUInt32, holdPeriod.toUInt32, Row.placeholder, Row.bg]
   let raw ← display list b.toUInt32 over.toUInt32 top (Surface.fill g bot) pin words hold
   let published := accepted raw
   -- Drain touches against all previously accepted contexts before pruning:

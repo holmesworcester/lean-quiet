@@ -394,6 +394,9 @@ lean_exe seam where
 lean_exe seam_app where
   root := `platforms.headless.SeamApp
 
+lean_exe skeleton where
+  root := `platforms.headless.Skeleton
+
 lean_exe translate where
   root := `platforms.headless.Translate
 

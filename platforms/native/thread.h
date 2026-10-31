@@ -22,6 +22,8 @@ static inline void lq_slide_warm(void) {
     for (uint8_t fill = 0; fill < 2; fill++)
       for (uint8_t edge = 0; edge < 4; edge++)
         sink = lq_slide_edge(fill, edge, pin, 0, 0, 1, 0, 1, 0);
+    sink = lq_slide_fill_edge_period(160, 0, pin, 0, 0, 1, 0);
+    sink = lq_slide_fill_row_period(160, pin, 0, 0, 1, 0, 0);
     sink = lq_slide_delta(pin, 0, 0);
     sink = lq_slide_source(pin, 0, 0, 1, 0, 0);
     sink = lq_slide_fill_row(pin, 0, 0, 1, 0, 0);

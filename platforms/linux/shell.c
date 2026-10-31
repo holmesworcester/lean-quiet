@@ -422,7 +422,7 @@ lean_obj_res lq_frame(b_lean_obj_arg list,uint32_t b,uint32_t over,b_lean_obj_ar
             int64_t r=(int64_t)lq_slide_source(p[22],p[15],p[20],p[21],(int32_t)q.scroll,y);
             if (r>=0 && (uint64_t)r<lean_array_size(list)) row=lean_array_get_core(list,r);
             else {
-                uint32_t f=lq_slide_fill_row(p[22],p[15],p[7],p[10],(int32_t)q.scroll,y);
+                uint32_t f=lq_slide_fill_row_period(p[26],p[22],p[15],p[7],p[10],(int32_t)q.scroll,y);
                 if (f<lean_array_size(hold)) row=lean_array_get_core(hold,f);
             }
         }

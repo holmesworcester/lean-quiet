@@ -1,6 +1,8 @@
 /- Fixed-width compositor arithmetic. Coordinates carry a 3*2^32 bias,
 so all intermediate values fit UInt64 even at either Int32 endpoint.
-SlideLaws connects these exports to Translate's integer geometry. -/
+SlideLaws connects the legacy exports to Translate's integer geometry.
+Variable-period fill exports have independent signed-oracle and leaf-code
+audits in tests/app/slide; the legacy proofs do not claim arbitrary periods. -/
 namespace Slide
 
 @[inline] def lift (x : Int32) : UInt64 :=
@@ -46,4 +48,24 @@ def pick (pin : Bool) (base : UInt32) (origin : Int32) (height : UInt32)
 def fillRow (pin : Bool) (base top bottom : UInt32) (sample : Int32) (y : UInt32) : UInt32 :=
   sub32 (12884901888 + y.toUInt64) (fillOrigin pin base top bottom sample)
 
+
+/-- Density-scaled fill tiles. Remove the coordinate bias before modulo;
+it is divisible by the legacy 48, but not by arbitrary display densities. -/
+@[inline] def fillOriginPeriod (period : UInt32) (pin : Bool) (base top bottom : UInt32)
+    (sample : Int32) : UInt64 :=
+  let n := high 1 period.toUInt64
+  let offset := if pin then 12884901888 + base.toUInt64 else lift sample
+  sub (12884901888 + top.toUInt64) n +
+    ((sub (offset + bottom.toUInt64) top.toUInt64 + n - 12884901888 % n) % n)
+
+@[export lq_slide_fill_edge_period]
+def fillEdgePeriod (period : UInt32) (which : UInt8) (pin : Bool) (base top bottom : UInt32)
+    (sample : Int32) : UInt32 :=
+  crop which (fillOriginPeriod period pin base top bottom sample)
+    (sub bottom.toUInt64 top.toUInt64 + high 1 period.toUInt64) top.toUInt64 bottom.toUInt64
+
+@[export lq_slide_fill_row_period]
+def fillRowPeriod (period : UInt32) (pin : Bool) (base top bottom : UInt32)
+    (sample : Int32) (y : UInt32) : UInt32 :=
+  sub32 (12884901888 + y.toUInt64) (fillOriginPeriod period pin base top bottom sample)
 end Slide

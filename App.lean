@@ -563,10 +563,9 @@ def paintRow (x : Id) (bottom offset viewport : Nat := 0) : M Unit := do
 
 /-! ## The frame -/
 
-/-- A placeholder line: the background with a bar where a row's text
-would be, in stripes (a row not painted yet, or older rows not loaded). -/
+/-- Shared message-shaped skeleton for rows not painted or loaded yet. -/
 def holdLine (s : St) (li : Nat) : ByteArray :=
-  Hold.holdLine ⟨s.bgRow, s.dim, s.W⟩ li
+  Hold.messageLine ⟨s.bgRow, s.dim, s.W⟩ li
 
 /-- The rows overlapping the list frame, from the first one up: the
 first's index, and each one's height and the height of the paint it
@@ -614,7 +613,7 @@ def listFrame (s : St) (b : Nat) (bots : Array Nat) : Array ByteArray := Id.run 
     fr := fr.push (match Cover.seen pad bottom more rows p with
       | .line j li => ((bmps[j]?).join.map (·.rows[li]!)).getD s.bgRow
       | .hold j => holdLine s (heightOf s (s.ids[i0 + j]?.map (·.2) |>.getD .empty) - 1 - (p - (bots[i0 + j]?.getD 0)))
-      | .unloaded => holdLine s (p % est)
+      | .unloaded => Hold.unloadedLine ⟨s.bgRow, s.dim, s.W⟩ p
       | .blank => s.bgRow)
   return fr
 
@@ -1808,7 +1807,7 @@ def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
       (SafeFrame.extend s.window bot) pin words (SafeFrame.extend s.window hold)
   let result ← Session.present display s.io.motion (geom s) s.dim.dpi
     (scrollHeight s - (geom s).viewNow) s.input fr b over s.topBmp.rows s.botBmp.rows pin
-    (Hold.plane ⟨s.bgRow, s.dim, s.W⟩ (geom s).viewNow)
+    (Hold.messagePlane ⟨s.bgRow, s.dim, s.W⟩ (geom s).viewNow) (Hold.period s.dim)
   modify fun s => { s with input := result.state }
   return result.events
 

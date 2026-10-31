@@ -155,3 +155,22 @@ AppKit shell. Build/setup and native OS-input tests are named Mise tasks
 `macos-ui` and `release-macos` invoke the same suite and propagate failures.
 See [platforms/macos/README.md](../platforms/macos/README.md) for runner
 prerequisites, artifact paths and data ownership.
+
+
+## Shared message skeletons
+
+`mise run host:skeleton` sets up fonts, builds the actual app fixture and checks
+`engine/renderer/Hold` at 1×, 2×, 2.625× and 3×, both themes, narrow clipping and
+phone/desktop widths. It exercises pending and unloaded `App.listFrame` rows
+and `App.present` with both platform modes, comparing native fill-plane pixels
+at signed offsets. PPM previews are retained in `out/skeleton`. The default
+local CI app gate invokes this named task in its components stage.
+
+Skeletons share the message avatar/text columns and use an 80 dp period,
+published in placement word 26. All native compositors consume that period.
+The legacy 48-pixel functions remain for compatibility and their existing Lean
+proofs. The variable-period scalar exports have separate independent C-oracle,
+boundary/thread and no-allocation audits in `mise run host:slide`; the legacy
+proofs do not establish arbitrary-period geometry. `host:translate` retains the
+legacy per-vsync pixel oracle. No animation or platform-specific drawing is
+needed for the new skeletons.

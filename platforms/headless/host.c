@@ -135,7 +135,7 @@ static void dump(const char* path) {
         hs.placement[20], hs.placement[21], sample, y);
       if (r >= 0 && (uint64_t)r < rows_of(hs.list)) row = lean_array_get_core(hs.list, r);
       else {
-        uint32_t r = lq_slide_fill_row(hs.placement[22], hs.placement[15],
+        uint32_t r = lq_slide_fill_row_period(hs.placement[26], hs.placement[22], hs.placement[15],
           hs.placement[7], hs.placement[10], sample, y);
         if (r < rows_of(hs.hold)) row = lean_array_get_core(hs.hold, r);
       }

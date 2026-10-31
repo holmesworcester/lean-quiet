@@ -10,7 +10,7 @@ def compose (words : Array UInt32) (sample : Int32) (height : Nat) (bg : ByteArr
   for y in [words[7]!.toNat:words[10]!.toNat] do
     let r := Slide.pick (words[22]! != 0) words[15]! words[20]!.toInt32 words[21]! sample y.toUInt32
     let pixel := if r.toInt ≥ 0 then list[r.toInt.toNat]!
-      else hold[(Slide.fillRow (words[22]! != 0) words[15]! words[7]! words[10]! sample y.toUInt32).toNat]!
+      else hold[(Slide.fillRowPeriod words[26]! (words[22]! != 0) words[15]! words[7]! words[10]! sample y.toUInt32).toNat]!
     out := out.set! y pixel
   return out
 end Translate

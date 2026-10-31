@@ -60,6 +60,22 @@ static void one(uint32_t base, uint32_t origin, uint32_t height, uint32_t top,
       for (int k = 0; k < 5; k++)
         equal(lq_slide_edge(fill, k == 4 ? 255 : k, pin, base, origin, height, top, bottom, sample), r[k < 4 ? k : 3]);
     }
+    // Independent signed oracle for every density, including negative
+    // rubber-band samples and periods that do not divide Slide's bias.
+    const uint32_t periods[] = {0, 1, 48, 80, 160, 210, 240, UINT32_MAX};
+    for (unsigned j=0;j<sizeof(periods)/sizeof(periods[0]);j++) {
+      int64_t n=periods[j] ? periods[j] : 1;
+      int64_t content=(pin ? (int64_t)base : signed32(sample)) + bottom - top;
+      int64_t pos=(int64_t)top-n+(content%n+n)%n;
+      int64_t h=high((int64_t)bottom-top,0)+n;
+      int64_t a=low(h,high((int64_t)top-pos,0));
+      int64_t z=high(a,low(h,high((int64_t)bottom-pos,0)));
+      uint32_t want[]={a,z,high(pos+a,0),high(pos+z,0)};
+      for (unsigned k=0;k<4;k++)
+        equal(lq_slide_fill_edge_period(periods[j],k,pin,base,top,bottom,sample),want[k]);
+      equal(lq_slide_fill_row_period(periods[j],pin,base,top,bottom,sample,top),
+        (uint32_t)high((int64_t)top-pos,0));
+    }
     equal(lq_slide_delta(pin, base, sample), (uint32_t)(pin ? 0 : signed32(sample) - base));
     uint32_t ys[] = {0, top, bottom, UINT32_MAX};
     for (int k = 0; k < 4; k++) {

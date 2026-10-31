@@ -415,6 +415,8 @@ entry Slide.edge
 entry Slide.delta
 entry Slide.pick
 entry Slide.fillRow
+entry Slide.fillEdgePeriod
+entry Slide.fillRowPeriod
 bridge Translate.edge Slide.edge_eq
 bridge Translate.delta Slide.delta_eq
 bridge Translate.pick Slide.pick_eq

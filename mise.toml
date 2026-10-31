@@ -418,3 +418,8 @@ run = "platforms/macos/ship.sh run"
 [tasks."macos:e2e"]
 description = "Build/setup the Mac app, drive OS typing/send, zoom and resize, and verify restart persistence and snapshots"
 run = "platforms/macos/ship.sh e2e"
+
+[tasks."host:skeleton"]
+description = "Shared message skeleton pixels, density/theme/clipping and actual app/native publication parity"
+depends = ["crypto"]
+run = "tests/app/skeleton.sh"
