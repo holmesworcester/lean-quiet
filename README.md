@@ -222,7 +222,7 @@ the relevant encountered inputs. ³ In the symbolic model of the cryptography.
 ### Towards Proofs for n Clients
 
 The sync proofs already run the real sync code, in a world of two
-devices whose network can delay, reorder or drop messages
+devices whose network can delay or reorder frames
 ([`stream_delivers`]), though with sessions opened directly and frames
 in the clear: the handshake is not in that world yet. Devices that hold the same ops agree, whatever
 order the ops arrived in (proven so far over a model of purging:
@@ -274,12 +274,14 @@ relationship to those computational assumptions is not a proved reduction:
   applicable. Their hash/key size guarantees are implementation properties.
   Finite production tests exercise these laws; the universal correctness
   hypotheses remain explicit. These contracts alone do not establish secrecy.
-- The bootstrap model's `Scene.Good` assumes signature correctness for every
-  message under its three signing keys, distinct participants/node keys and
-  distinct operations in its five-op scene. The fixed scene has not yet
-  discharged those premises. Its eventual-progress laws additionally require
-  infinitely recurring ticks and approval actions, and delivery fairness;
-  `bootstrap_ideal` also excludes drops. See the construction plan below.
+- The bootstrap model's `Scene.Good` requires five particular signature
+  verifications, distinct participants/node keys and distinct operations in
+  its five-op scene. Native certificates discharge these premises for the
+  fixed scene. Its eventual-progress laws additionally require infinitely
+  recurring ticks and approval actions, and delivery fairness;
+  `bootstrap_ideal` also excludes drops. An explicit infinite fair/ideal run
+  now satisfies these execution premises; see the
+  [bootstrap checks](#bootstrap-witnesses-and-running-app-checks).
 - **A read transaction is one moment** (`read_one_moment` and
   `agrees_notice` take it), as two hypotheses. *Snapshot:* inside one
   SQLite read transaction, every read answers as one state of the store
