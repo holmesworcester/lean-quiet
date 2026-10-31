@@ -72,6 +72,72 @@ def shot(name, settled=True):
     wait(lambda: backing.exists(),'existing compositor backing snapshot')
     (out/(name+'-backing.png')).write_bytes(backing.read_bytes())
 
+LSREGISTER='/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
+def links_suite():
+    """leanquiet:// through LaunchServices on a private database: a cold
+    `open` launches this app with the link; a warm one reaches the running
+    instance, which comes to the front, and starts no second process. A link
+    in the scheme Community.Invite.text writes must open the join page with
+    exactly that invite; until ops/community/Link.lean writes leanquiet://, a
+    leanquiet:// link must reach the app (its refusal toast)."""
+    scheme=sp.check_output(['plutil','-extract','CFBundleURLTypes.0.CFBundleURLSchemes.0','raw',str(app/'Contents/Info.plist')],text=True).strip()
+    check(scheme=='leanquiet','Info.plist claims leanquiet:// links')
+    invites=pathlib.Path(sys.argv[3]).read_text().split()
+    written=invites[0][:invites[0].index('://join/')+len('://join/')]
+    link=lambda n: 'leanquiet://join/'+invites[n][len(written):]
+    st,ldb=out/'links-state.txt',out/'links.db'
+    for p in [st,ldb,pathlib.Path(str(ldb)+'-wal'),pathlib.Path(str(ldb)+'-shm')]: p.unlink(missing_ok=True)
+    # This build under a bundle id of its own, so that LaunchServices cannot
+    # mistake it for another Lean Quiet (an installed one may be running).
+    linked=out/'links'/'LeanQuiet.app'
+    sp.run(['rm','-rf',str(linked.parent)],check=True); linked.parent.mkdir()
+    sp.run(['ditto',str(app),str(linked)],check=True)
+    sp.run(['plutil','-replace','CFBundleIdentifier','-string','local.leanquiet.desktop.e2e-links',str(linked/'Contents/Info.plist')],check=True)
+    sp.run(['codesign','--force','--sign','-',str(linked)],check=True,stdout=sp.DEVNULL,stderr=sp.DEVNULL)
+    exe=str(linked/'Contents/MacOS/LeanQuiet')
+    def running():
+        rows=[r.split(None,1) for r in sp.check_output(['ps','-axo','pid=,comm='],text=True).splitlines()]
+        return {int(r[0]) for r in rows if r[1:]==[exe]}
+    def field(key):
+        try: return next((l[len(key)+1:] for l in st.read_text().splitlines() if l.startswith(key+' ')),None)
+        except FileNotFoundError: return None
+    def due():
+        t=field('toast'); return int(t.split(' ',1)[0]) if t else 0
+    def took(url,after):
+        if url.startswith(written): return field('invite')==url and 'App.PageId.name' in st.read_text()
+        t=field('toast')
+        return bool(t) and int(t.split(' ',1)[0])>after and t.split(' ',1)[1]=="That isn't a Quiet invite link."
+    def until(fn,label,timeout=40):
+        end=time.monotonic()+timeout
+        while time.monotonic()<end:
+            if fn(): return
+            time.sleep(.1)
+        raise AssertionError('timeout: '+label)
+    assert not running(), 'this app is already running'
+    sp.run([LSREGISTER,'-f',str(linked)],check=True)
+    try:
+        sp.run(['open','--env',f'QUIET_DB={ldb}','--env',f'QUIET_STATE={st}','--env','QUIET_TEST_WINDOW=1','--stderr',str(out/'links-app.log'),link(0),'--args','--offline'],check=True,timeout=30)
+        until(lambda: running() and took(link(0),0),'cold open: the app takes the link')
+        pids=running()
+        check(len(pids)==1,'cold open: LaunchServices starts this build and it takes the leanquiet:// link'+
+              (' (join page)' if written.startswith('leanquiet') else ' (refusal toast until Link.lean writes leanquiet://)'))
+        for n,flags in [(1,[]),(2,['-g'])]:
+            native('away')
+            check(int(native('front')) not in pids,'another app is in front before the warm open')
+            after=due()
+            sp.run(['open',*flags,link(n)],check=True,timeout=30)
+            until(lambda: took(link(n),after),'warm open: the running app takes the link')
+            check(running()==pids,'warm open'+(' -g' if flags else '')+': the running app takes the link; no second process')
+            until(lambda: int(native('front')) in pids,'warm open: the app comes to the front')
+            check(True,'warm open'+(' -g (no LaunchServices activation)' if flags else '')+': the app comes to the front')
+    finally:
+        for pid in running(): os.kill(pid,signal.SIGTERM)
+        for _ in range(100):
+            if not running(): break
+            time.sleep(.2)
+        for pid in running(): os.kill(pid,signal.SIGKILL)
+        sp.run([LSREGISTER,'-u',str(linked)])
+
 try:
     launch()
     initial=tuple(map(int,lines()[0].split()))
@@ -213,6 +279,7 @@ try:
             shot('native-scrolled')
         stop();state.unlink(missing_ok=True)
     (out/'scroll-comparison.json').write_text(json.dumps(results,indent=2)+'\n')
+    links_suite()
     print(f'{checks} Mac desktop checks passed',flush=True)
 finally:
     if proc and proc.poll() is None: stop()

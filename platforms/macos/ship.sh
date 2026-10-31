@@ -17,8 +17,12 @@ app=$(tail -1 "$art/build.log")
 [[ $app = /*/LeanQuiet.app ]] || { echo 'No built app path' >&2; exit 1; }
 if [ "${1:-build}" = build ]; then echo "$app"; exit; fi
 if [ "$1" = e2e ]; then
-  scp -q platforms/macos/{test.py,input.swift} "$mac:$dir/"
-  ssh "$mac" "python3 ~/$dir/test.py '$app' ~/$dir/out" > "$art/e2e.log" 2>&1 || { cat "$art/e2e.log"; scp -qr "$mac:$dir/out/." "$art/" || true; exit 1; }
+  # Real invites (Community.Invite.text) for the leanquiet:// link checks.
+  lake=${ELAN_HOME:-/mnt/storage/elan}/bin/lake
+  "$lake" build invite_link > "$art/invites.log" 2>&1 || { tail -20 "$art/invites.log"; exit 1; }
+  for i in 0 1 2; do .lake/build/bin/invite_link "$art/invite$i" > /dev/null && cat "$art/invite$i/invite" && echo; done > "$art/invites.txt"
+  scp -q platforms/macos/{test.py,input.swift} "$art/invites.txt" "$mac:$dir/"
+  ssh "$mac" "python3 ~/$dir/test.py '$app' ~/$dir/out ~/$dir/invites.txt" > "$art/e2e.log" 2>&1 || { cat "$art/e2e.log"; scp -qr "$mac:$dir/out/." "$art/" || true; exit 1; }
   scp -qr "$mac:$dir/out/." "$art/"
   cat "$art/e2e.log"
   python3 platforms/macos/check_scroll.py "$art"

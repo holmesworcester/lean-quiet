@@ -3,6 +3,7 @@
  * Coordinates crossing the seam are logical pixels; QUIET_SCALE is 1..4.
  * Keyboard mapping supports Latin/Unicode keysyms, not an IME or dead keys.
  */
+#define _GNU_SOURCE /* accept4, struct ucred */
 #include <lean/lean.h>
 #include "../native/thread.h"
 #include <xcb/xcb.h>
@@ -10,9 +11,16 @@
 #include <xcb/sync.h>
 #include <X11/keysym.h>
 #include <X11/cursorfont.h>
+#include <sys/file.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/un.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <poll.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -28,7 +36,7 @@ static struct {
     xcb_gcontext_t gc;
     xcb_cursor_t cursors[3];
     unsigned cursor;
-    xcb_atom_t wm_delete, protocols, clipboard, utf8, targets, property, wm_sync;
+    xcb_atom_t wm_delete, protocols, clipboard, utf8, targets, property, wm_sync, active;
     /* _NET_WM_SYNC_REQUEST: the counter the window manager waits on, the
        value it asked for, and whether the configure it announced came */
     xcb_sync_counter_t counter;
@@ -112,8 +120,10 @@ static void keys(void) {
     q.keys = xcb_get_keyboard_mapping_reply(q.c,
         xcb_get_keyboard_mapping(q.c, s->min_keycode, s->max_keycode - s->min_keycode + 1), NULL);
 }
+static void links_start(void);
 static void init(void) {
     if (q.c) return;
+    links_start();
     int screen; q.c = xcb_connect(NULL, &screen);
     if (xcb_connection_has_error(q.c)) fail("cannot connect to DISPLAY");
     xcb_screen_iterator_t it = xcb_setup_roots_iterator(xcb_get_setup(q.c));
@@ -148,7 +158,7 @@ static void init(void) {
     q.wm_delete = atom("WM_DELETE_WINDOW"); q.protocols = atom("WM_PROTOCOLS");
     q.clipboard = atom("CLIPBOARD"); q.utf8 = atom("UTF8_STRING");
     q.targets = atom("TARGETS"); q.property = atom("QUIET_PASTE");
-    q.wm_sync = atom("_NET_WM_SYNC_REQUEST");
+    q.wm_sync = atom("_NET_WM_SYNC_REQUEST"); q.active = atom("_NET_ACTIVE_WINDOW");
     xcb_atom_t protocols[2] = {q.wm_delete, q.wm_sync};
     int nprotocols = 1;
     /* A window manager that resizes waits for the frame at the new size
@@ -166,6 +176,9 @@ static void init(void) {
     const char *title = "Lean Quiet";
     xcb_change_property(q.c, XCB_PROP_MODE_REPLACE, q.win, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, strlen(title), title);
     xcb_change_property(q.c, XCB_PROP_MODE_REPLACE, q.win, atom("_NET_WM_NAME"), q.utf8, 8, strlen(title), title);
+    /* Instance and class, matched by the menu entry's StartupWMClass. */
+    xcb_change_property(q.c, XCB_PROP_MODE_REPLACE, q.win, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8,
+        sizeof "lean-quiet\0lean-quiet", "lean-quiet\0lean-quiet");
     uint32_t hints[18] = {0}; hints[0] = (1u << 4) | (1u << 5);
     hints[5] = 320 * q.scale; hints[6] = 480 * q.scale;
     hints[7] = 4096 * q.scale; hints[8] = 2160 * q.scale;
@@ -500,7 +513,105 @@ lean_obj_res lq_log(b_lean_obj_arg s) { fprintf(stderr,"%s\n",lean_string_cstr(s
 
 /* Lifecycle polling shares the Linux frame's event pump. */
 lean_obj_res lq_poll(void) { return lean_io_result_mk_ok(lean_mk_empty_array()); }
-lean_obj_res lq_links(void) { return lean_io_result_mk_ok(lean_mk_empty_array()); }
+
+/* Links (leanquiet://join/…), passed through as text for Lean to parse.
+ * A cold start finds its link in argv. One instance runs per database: before
+ * its window opens (init), it locks <hash>.lock and listens on <hash>.sock in
+ * $XDG_RUNTIME_DIR/lean-quiet, the hash being of the database's resolved
+ * path. A later launch on the same database writes its links there, one per
+ * line, and exits; the instance queues them and asks the window manager to
+ * raise its window. */
+enum { LINK_MAX = 4096, LINKS_MAX = 32 };
+static struct { char *url[LINKS_MAX]; unsigned n; int fd; bool raise; char sock[sizeof ((struct sockaddr_un *)0)->sun_path]; } links = {.fd = -1};
+static void link_push(const char *s, size_t n) {
+    if (n && n < LINK_MAX && links.n < LINKS_MAX && utf8(s, n)) links.url[links.n++] = strndup(s, n);
+}
+static void links_stop(void) { unlink(links.sock); }
+/* The database DesktopMain opens (its default when QUIET_DB is unset),
+   resolved; one not yet created is named by its resolved folder. */
+static uint64_t db_hash(void) {
+    const char *db = getenv("QUIET_DB"); if (!db || !*db) db = "quiet-linux.db";
+    char path[PATH_MAX + NAME_MAX + 2], dir[PATH_MAX], *r = realpath(db, NULL);
+    if (r) snprintf(path, sizeof path, "%s", r);
+    else {
+        snprintf(dir, sizeof dir, "%s", db);
+        char *slash = strrchr(dir, '/'); const char *base = slash ? db + (slash - dir) + 1 : db;
+        if (slash) *slash = 0; else strcpy(dir, ".");
+        r = realpath(dir, NULL);
+        snprintf(path, sizeof path, "%s/%s", r ? r : dir, base);
+    }
+    free(r);
+    uint64_t h = 14695981039346656037ull;
+    for (const char *p = path; *p; p++) h = (h ^ (unsigned char)*p) * 1099511628211ull;
+    return h;
+}
+static int argc; static char **argv;
+__attribute__((constructor)) static void args(int n, char **v) { argc = n; argv = v; }
+static void links_start(void) {
+    for (int i = 1; i < argc; i++) if (strstr(argv[i], "://")) link_push(argv[i], strlen(argv[i]));
+    const char *rt = getenv("XDG_RUNTIME_DIR"); struct stat st;
+    if (!rt || *rt != '/') return; /* no per-user runtime folder: no single instance */
+    char dir[PATH_MAX], lock[PATH_MAX + 32];
+    snprintf(dir, sizeof dir, "%s/lean-quiet", rt); mkdir(dir, 0700);
+    if (lstat(dir, &st) || !S_ISDIR(st.st_mode) || st.st_uid != getuid() || (st.st_mode & 077)) return;
+    uint64_t h = db_hash();
+    struct sockaddr_un a = {.sun_family = AF_UNIX};
+    if (snprintf(a.sun_path, sizeof a.sun_path, "%s/%016llx.sock", dir, (unsigned long long)h) >= (int)sizeof a.sun_path) return;
+    snprintf(lock, sizeof lock, "%s/%016llx.lock", dir, (unsigned long long)h);
+    for (int tries = 0; tries < 100; tries++) {
+        int c = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+        if (c >= 0 && !connect(c, (struct sockaddr *)&a, sizeof a)) {
+            signal(SIGPIPE, SIG_IGN);
+            for (unsigned i = 0; i < links.n; i++) dprintf(c, "%s\n", links.url[i]);
+            close(c); exit(0);
+        }
+        if (c >= 0) close(c);
+        /* No answer. Whoever holds the lock is the instance; the lock is
+           released when its process ends, so a socket file left without
+           one is stale. */
+        int k = open(lock, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+        if (k >= 0 && !flock(k, LOCK_EX | LOCK_NB)) {
+            unlink(a.sun_path);
+            int s = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+            mode_t mask = umask(0177); /* the socket file: 0600 */
+            if (s >= 0 && !bind(s, (struct sockaddr *)&a, sizeof a) && !listen(s, 8)) {
+                links.fd = s; memcpy(links.sock, a.sun_path, sizeof a.sun_path); atexit(links_stop);
+            } else if (s >= 0) close(s);
+            umask(mask);
+            return; /* k stays open, and locked, for this process's life */
+        }
+        if (k >= 0) close(k);
+        usleep(20000); /* an instance is starting: wait for its socket */
+    }
+    fail("another instance holds this database and does not answer");
+}
+lean_obj_res lq_links(void) {
+    int c;
+    while (links.fd >= 0 && (c = accept4(links.fd, NULL, NULL, SOCK_CLOEXEC)) >= 0) {
+        struct ucred who; socklen_t n = sizeof who;
+        if (!getsockopt(c, SOL_SOCKET, SO_PEERCRED, &who, &n) && who.uid == getuid()) {
+            struct timeval wait = {0, 200000};
+            setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &wait, sizeof wait);
+            char b[4 * LINK_MAX]; size_t len = 0; ssize_t r;
+            while (len < sizeof b && (r = read(c, b + len, sizeof b - len)) > 0) len += r;
+            for (size_t i = 0, start = 0; i < len; i++)
+                if (b[i] == '\n') { link_push(b + start, i - start); start = i + 1; }
+            links.raise = true;
+        }
+        close(c);
+    }
+    if (links.raise && q.c) {
+        /* Source 2: a direct user request, which focus-stealing prevention honours. */
+        xcb_client_message_event_t e = {.response_type = XCB_CLIENT_MESSAGE, .format = 32, .window = q.win, .type = q.active};
+        e.data.data32[0] = 2; e.data.data32[1] = XCB_CURRENT_TIME;
+        xcb_send_event(q.c, 0, q.screen->root, XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY, (const char *)&e);
+        xcb_flush(q.c); links.raise = false;
+    }
+    lean_object *a = lean_mk_empty_array_with_capacity(lean_box(links.n));
+    for (unsigned i = 0; i < links.n; i++) { a = lean_array_push(a, lean_mk_string(links.url[i])); free(links.url[i]); }
+    links.n = 0;
+    return lean_io_result_mk_ok(a);
+}
 
 /* Lean owns appearance; X11 has no mobile status/navigation bars. */
 lean_obj_res lq_appearance(uint8_t dark, uint32_t background) {

@@ -50,6 +50,9 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
     controls := controls ++ s!"tap {d.app.input.lastTap[0]?.getD 0} {d.app.input.lastTap[1]?.getD 0} {d.app.input.lastTap[2]?.getD 0}\n"
     controls := controls ++ s!"zoom {zoomPercent d} dpi {d.dpi} cell {d.app.font.cell}\n"
     controls := controls ++ s!"drawer {repr d.ui.drawer}\n"
+    -- what a link did: the join it opened, or the toast that refused it
+    if let some i := d.app.invite then controls := controls ++ s!"invite {i.text}\n"
+    if let some (t, due) := d.app.toast then controls := controls ++ s!"toast {due} {t}\n"
     if let some bar := Desktop.scrollbar d.layout d.app then
       controls := controls ++ s!"scrollbar {bar.thumb.x} {bar.thumb.y} {bar.thumb.w} {bar.thumb.h} {bar.track.y} {bar.track.h} {bar.range}\n"
     IO.FS.writeFile (path ++ ".tmp") s!"{d.width} {d.height}\n{d.app.me.name}\n{repr d.ui.context}\n{repr d.app.page}\n{d.app.text}\n{d.app.total}\n{d.app.sel}\n{d.app.b}\n{controls}theme {Theme.encode d.app.theme.setting}\n"
