@@ -64,8 +64,8 @@ if stage desktop; then
 # the desktop root without a window, then the Linux shell under Xvfb
 mise run host:desktop
 mise run host:photo
-if [ "${SKIP_X:-${SKIP_TCP:-0}}" != 1 ]; then mise run linux:e2e
-else platforms/linux/build.sh && echo "SKIP linux e2e (no local X sockets; the shell built)"; fi
+if [ "${SKIP_X:-${SKIP_TCP:-0}}" != 1 ]; then mise run linux:e2e; mise run linux:links
+else platforms/linux/build.sh && echo "SKIP linux e2e and links (no local X sockets; the shell built)"; fi
 fi
 if stage navigation; then
 # navigation: each mutant of a rule must fail its law (ops/app/NavLaws)
@@ -94,6 +94,8 @@ if stage safety; then
 mise run host:safe
 mise run host:safe-negative
 mise run host:desktop-negative
+if [ "${SKIP_X:-${SKIP_TCP:-0}}" != 1 ]; then mise run linux:links-negative
+else echo "SKIP linux links negative controls (no local X sockets)"; fi
 fi
 
 if stage components; then

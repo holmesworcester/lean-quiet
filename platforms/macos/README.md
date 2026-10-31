@@ -13,6 +13,10 @@ policy. Device-pixel coordinates cross the seam. Lean rasterizes at the backing 
 while AppKit presents those pixels 1:1 on Retina displays. Native display
 density and user zoom are independent, including after monitor changes.
 Desktop camera/photo picking remains unavailable, as on Linux.
+The bundle claims the `leanquiet` URL scheme (`CFBundleURLTypes`).
+LaunchServices delivers a link to `application:openURLs:` on a cold launch
+and to the running app on a warm one; the shell queues the text for
+`lq_links`, unparsed, and brings the window to the front.
 
 ## Build and run
 
@@ -53,7 +57,13 @@ writes the latter from the app's own frame, without Screen Recording permission.
 layout/hover proofs. `mise run linux:e2e` covers the Linux shell after changes to
 the shared loop. `mise run macos:e2e` includes staging, setup and the native build;
 it uses OS clicks and keystrokes to send a message, zoom, resize to narrow mode,
-and reopen the same database. Snapshots and logs remain in `out/macos` even on
+and reopen the same database. Then it registers a copy of the build with
+`lsregister`, under a bundle id of its own so that an installed Lean Quiet
+can keep running, and runs `open leanquiet://join/…` on a private database
+(`open --env`). Cold, the build starts and takes the link. Warm (also
+`open -g`), the running process takes it and comes to the front, and no
+second process starts. The invites are real ones from `invite_link`. The copy
+is unregistered afterwards. Snapshots and logs remain in `out/macos` even on
 failure; test processes are reaped. The runner rejects a locked desktop before
 launching and keeps the display awake for the test process. The Mac must have
 a logged-in, unlocked desktop and

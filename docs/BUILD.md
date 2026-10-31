@@ -48,6 +48,9 @@ Ubuntu:
 - For `linux:e2e`: `xvfb`, `xdotool`, ImageMagick's `import` and Python's
   PIL. `tests/app/run.sh` skips it, building the shell only, under
   `SKIP_X=1` (by default whatever `SKIP_TCP` is).
+- For `linux:links` (and `install.sh`): `xdg-utils` (`xdg-open`,
+  `xdg-mime`), `desktop-file-utils` (`update-desktop-database`), `x11-utils`
+  (`xprop`), `xvfb` and `xdotool`. `SKIP_X=1` skips it too.
 
 ## Checking it again
 

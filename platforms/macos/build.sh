@@ -44,6 +44,10 @@ cat > "$app/Contents/Info.plist" <<PLIST
 <key>CFBundleVersion</key><string>${BUILD_NUMBER:-1}</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
+<key>CFBundleURLTypes</key><array><dict>
+<key>CFBundleURLName</key><string>Lean Quiet invite</string>
+<key>CFBundleURLSchemes</key><array><string>leanquiet</string></array>
+</dict></array>
 </dict></plist>
 PLIST
 codesign --force --sign - "$app"

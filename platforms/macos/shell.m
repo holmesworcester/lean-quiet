@@ -13,6 +13,8 @@
 static NSWindow *window;
 static NSImage *picture;
 static NSMutableArray<NSNumber *> *events, *rawEvents;
+// Links (leanquiet://join/…) LaunchServices delivers, cold or warm, as text.
+static NSMutableArray<NSString *> *links;
 static _Atomic double offset, pendingBy, pendingTo;
 static _Atomic bool pendingJump;
 static bool nativeActive, synchronizing;
@@ -412,13 +414,18 @@ static void writeScrollStats(void) {
 }
 - (void)windowDidChangeBackingProperties:(NSNotification*)n { [self windowDidResize:n]; }
 - (void)windowDidResignKey:(NSNotification*)n { event(16,0,0,1); }
+- (void)application:(NSApplication*)app openURLs:(NSArray<NSURL*>*)urls {
+  @synchronized(links) { for (NSURL *u in urls) if (links.count<32) [links addObject:u.absoluteString]; }
+  if (window.miniaturized) [window deminiaturize:nil];
+  [window makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES];
+}
 @end
 
 static void *runLean(void *arg) { lean_app_main(appArgc,appArgv); return NULL; }
 int main(int argc,char **argv) {
   @autoreleasepool {
     appArgc=argc; appArgv=argv;
-    events=[NSMutableArray new]; rawEvents=[NSMutableArray new];
+    events=[NSMutableArray new]; rawEvents=[NSMutableArray new]; links=[NSMutableArray new];
     [NSApplication sharedApplication];
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
     QuietDelegate *delegate=[QuietDelegate new]; NSApp.delegate=delegate;
@@ -655,7 +662,13 @@ lean_obj_res lq_poll(void) {
   for(size_t i=0;i<n;i++) v[i]=batch[i].unsignedIntValue;
   lean_obj_res result=words(v,n);free(v);return result;
 }
-lean_obj_res lq_links(void) { return words(NULL,0); }
+lean_obj_res lq_links(void) {
+  NSArray<NSString*> *batch;
+  @synchronized(links) { batch=[links copy]; [links removeAllObjects]; }
+  lean_object *a=lean_mk_empty_array();
+  @autoreleasepool { for (NSString *u in batch) a=lean_array_push(a,lean_mk_string(u.UTF8String)); }
+  return lean_io_result_mk_ok(a);
+}
 lean_obj_res lq_motion(b_lean_obj_arg a) { return unit(); }
 lean_obj_res lq_scan(uint8_t on) { return unit(); }
 static lean_obj_res emptyPair(void) {

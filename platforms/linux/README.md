@@ -52,9 +52,11 @@ are trusted; `Desktop.settled_no_hold` proves the Lean coverage implication.
 | `linux:input` | Native editor/pixel conversion with ASan and UBSan |
 | `linux:e2e` | Build/setup; real Xvfb pointer/keyboard, themes, resize, clipboard and scrollbar at scale 1/2 and without MIT-SHM |
 | `host:desktop-negative` | Reject deliberately broken layout laws, native editor, dispatch, resize and X11 presentation |
+| `linux:links` | Build/setup; install into private XDG folders; `leanquiet://` links on a cold start, by `xdg-open` and by a second launch, other databases' and stale sockets |
+| `linux:links-negative` | Reject the old empty `lq_links`, one socket for every database, and a window never raised |
 
 Local CI invokes these same tasks. Failure artifacts stay under `out/desktop`,
-`out/linux` and `out/visual`; failures propagate. Xvfb, xdotool, ImageMagick and
+`out/linux`, `out/linux-links` and `out/visual`; failures propagate. Xvfb, xdotool, ImageMagick and
 xcb development libraries are native-runner prerequisites. See `docs/BUILD.md`.
 Tests own and reap their subprocesses. No GitHub Actions workflow is used.
 
@@ -69,3 +71,40 @@ Ctrl+/− zooms the whole interface (Ctrl+= and keypad variants are accepted);
 Ctrl+0 resets. The requested level persists beside the database. See
 [zoom and phone typography](../../docs/ZOOM.md) for supported limits,
 accessibility policy, pixel comparisons, proofs and test tasks.
+
+## Installing, and invite links
+
+`install.sh` installs a built app for one user and makes it the handler of
+`leanquiet://` links. It runs from a release folder holding `lean-quiet` (the
+`linux` executable), `assets/`, `install.sh` and `lean-quiet.svg`, or from a
+repository build (`.lake/build/bin/linux` and `assets/`):
+
+```sh
+mise run linux:build
+platforms/linux/install.sh            # PREFIX=~/.local by default
+```
+
+Under `PREFIX` it writes `opt/lean-quiet/` (the program and its assets),
+`bin/lean-quiet` (a launcher that runs from the program folder, defaults
+`QUIET_DB` to `${XDG_DATA_HOME:-~/.local/share}/lean-quiet/quiet.db` and logs to
+`lean-quiet.log` there without a terminal), the icon, and
+`share/applications/lean-quiet.desktop` with
+`MimeType=x-scheme-handler/leanquiet;`. Then `xdg-mime` makes that entry the
+default handler. The entry's `Exec` is the launcher's absolute path plus `%u`,
+unquoted: xdg-utils' generic `xdg-open` cannot run a quoted `Exec` and opens
+the browser instead, so a `PREFIX` that would need quoting is refused.
+`PREFIX/share` must be on the XDG data path, as `~/.local/share` and
+`/usr/local/share` are.
+
+The shell passes a link's text to Lean unchanged (`lq_links`); the app
+parses it. A cold start takes a `://` argument. One instance runs per
+database. Before opening its window, the instance locks
+`$XDG_RUNTIME_DIR/lean-quiet/<hash>.lock` and listens on `<hash>.sock`
+(folder 0700, socket 0600), named from a hash of the database's resolved path.
+It accepts only its own uid (`SO_PEERCRED`) and reads at most 16 KiB of
+newline-separated links. It raises its window with `_NET_ACTIVE_WINDOW`.
+A later launch on the same database connects first. If the socket answers, it
+writes its links there and exits 0. If not, it takes the free lock, removes the
+stale socket and becomes the instance. Without `XDG_RUNTIME_DIR`, launches stay
+independent. The window's `WM_CLASS` is `lean-quiet`, as is the entry's
+`StartupWMClass`.

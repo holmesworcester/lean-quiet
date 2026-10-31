@@ -123,6 +123,14 @@ run = "platforms/linux/input_test.sh"
 description = "The Linux desktop under Xvfb at scale 1 and 2 and without MIT-SHM: OS hover/cursors/focus, resize, switching, editing, clipboard and screenshots (needs local X sockets)"
 run = "platforms/linux/test.sh"
 
+[tasks."linux:links"]
+description = "leanquiet:// links on the Linux desktop under Xvfb, through install.sh's launcher and menu entry in private XDG folders: a cold start's argument, warm xdg-open and second launches handed to the running instance (raised, no second process), other databases' and stale sockets (needs local X sockets, xdg-utils)"
+run = "platforms/linux/links.sh"
+
+[tasks."linux:links-negative"]
+description = "The links e2e's negative controls: the old empty lq_links, one socket for every database, a window never raised; each must fail linux:links"
+run = "python3 platforms/linux/negative_links.py"
+
 [tasks."host:desktop-negative"]
 description = "The desktop's negative controls: eight layout and control laws broken, two native functions, five UI behaviours (the resize settle among them) and two X11 resize mechanisms (gravity, the sync request); each must fail"
 run = "python3 platforms/linux/negative.py && python3 platforms/linux/negative_ui.py && python3 platforms/linux/negative_x11.py"
