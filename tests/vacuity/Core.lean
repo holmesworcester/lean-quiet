@@ -107,6 +107,7 @@ def bytes32 (n : UInt8) : ByteArray := ⟨Array.replicate 32 n⟩
 def invite : Invite := ⟨bytes32 1, bytes32 2, bytes32 3, ["127.0.0.1:7447".toUTF8], bytes32 4⟩
 theorem inviteValid : invite.Valid := by decide +kernel
 theorem inviteRound : Invite.parse invite.text = some invite := parse_text inviteValid
+theorem inviteUriRound : Invite.parse invite.uri = some invite := parse_uri inviteValid
 theorem parsedValid : invite.Valid := parse_valid inviteRound
 theorem base62Round : Base62.decode (Base62.encode [0, 1, 254, 255]) = some [0, 1, 254, 255] :=
   Base62.decode_encode _

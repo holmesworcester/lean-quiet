@@ -135,8 +135,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 1038 rest on Lean's standard axioms
-only, and about three quarters of its theorems (789 of 1018, not counting 20 negative controls) are about the code that runs; another 10 run the
+that rests on; 🥊 is supporting. All 1040 rest on Lean's standard axioms
+only, and about three quarters of its theorems (786 of 1020, not counting 20 negative controls) are about the code that runs; another 10 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -254,7 +254,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**789 of 1018 laws are about running code;** another 10 run its node code in a World, and 219 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**786 of 1020 laws are about running code;** another 10 run its node code in a World, and 224 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -264,11 +264,11 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Node and wire | 61 | 40 | 10 | 11 |
 | Bootstrap | 11 | 0 |  | 11 |
 | Connections | 68 | 60 |  | 8 |
-| Community | 181 | 164 |  | 17 |
+| Community | 182 | 160 |  | 22 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
 | Screen | 266 | 208 |  | 58 |
-| App | 80 | 61 |  | 19 |
+| App | 81 | 62 |  | 19 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
@@ -286,6 +286,9 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Board.apply`, `RWorld.commit`, `RWorld.evict` +10 | [`RWorld.acts_shown`], [`seen_take`], [`World.inv_commit`], [`RWorld.inv_commit`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`], [`World.inv_pass`], [`World.inv_frame`], [`World.settle`], [`marked_pass`] +7 more | The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`. |
 | `T.sum`, `Both.bottom`, `Both.rowAt` +16 | [`start_eq`], [`find_spec`], [`set_toList`], [`push_ok`], [`findM_cost`], [`startM_cost`], [`setM_cost`], [`rows_cost`], [`start_mono`], [`start_size`], [`below_window`], [`above_window`] +8 more | The row-heights tree (engine/renderer/Heights.lean): the app keeps its rows' heights in a map (`App.heightOf`) and adds them up itself. Have its list frame place rows by `Heights`. |
 | `PageId.all` | [`NavLaws.depth`]† | Nothing that runs calls it. |
+| `Invite.uri` | [`parse_uri`]† | Nothing that runs calls it. |
+| `Seal.maxAssociatedDataSize` | [`unbox_box`]*†, [`openBody_sealBody`]*, [`openSealed_seal`]*†, [`member_opens`]*† | Nothing that runs calls it. |
+| `Seal.maxPlaintextSize` | [`unbox_box`]*†, [`openBody_sealBody`]*, [`openSealed_seal`]*†, [`member_opens`]*† | Nothing that runs calls it. |
 | `Q.get` | [`message_own`]† | Nothing that runs calls it. |
 | `Plan.stmts` | [`plan_stmt_cost`] | Nothing that runs calls it; `Engine.readPlan` do. |
 | `SeekCost.seek` | [`plan_stmt_cost`], [`readPlan_cost`], [`readPlan_cost_le`], [`readPlan_cost_range`] | Nothing that runs calls it; `Stmt.cost` do. |
@@ -337,8 +340,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`CollisionFree`] | 22 | SHA-256 has no collision among the ops a node received. |
 | [`offerM`] | 2 | The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`. |
 | [`NoSecondPreimage`] | 14 | SHA-256 has no second preimage on a file's Merkle tree inputs. |
-| [`Suite.Good`] | 6 | X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only). |
-| [`Seal.Good`] | 4 | The seal's AEAD and key wrap open what they seal (correctness only). |
+| [`Suite.Good`] | 6 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). |
+| [`Seal.Good`] | 4 | Supported-size AEAD inputs and key wraps roundtrip; valid private keys agree and public keys/hashes have 32-byte outputs (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
 | [`Model.run`] | 294 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
 | [`Sync.popW`] | 3 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
@@ -813,7 +816,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`lbl_inj`]: ops/sync/Fp.lean#L264-L268
 [`NoSecondPreimage`]: ops/community/Merkle.lean#L146-L147
 [`assumptions_hold`]: ops/community/Merkle.lean#L543-L547
-[`Suite.Good`]: ops/connection/Noise.lean#L61-L65
+[`Suite.Good`]: ops/connection/Noise.lean#L70-L81
 [`no_impersonation`]: ops/community/Laws.lean#L338-L351
 [`admission_needs_approval`]: ops/community/Laws.lean#L518-L526
 [`admission_approved`]: ops/community/Laws.lean#L437-L447
@@ -848,24 +851,24 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`tick_send`]: ops/sync/ConnLaws.lean#L211-L213
 [`recipients_iff`]: ops/community/Connect.lean#L324-L329
 [`members_iff`]: ops/community/Connect.lean#L314-L316
-[`member_opens`]: ops/community/Laws.lean#L977-L981
-[`openSealed_seal`]: ops/community/Laws.lean#L967-L969
-[`unbox_box`]: ops/community/Keys.lean#L89-L91
+[`member_opens`]: ops/community/Laws.lean#L979-L986
+[`openSealed_seal`]: ops/community/Laws.lean#L967-L971
+[`unbox_box`]: ops/community/Keys.lean#L109-L112
 [`check_reads_shared`]: ops/community/Laws.lean#L888-L890
-[`kk_secret`]: ops/connection/NoiseSymbolic.lean#L595-L609
-[`kk_secret_init`]: ops/connection/NoiseSymbolic.lean#L547-L556
-[`kk_secret_resp`]: ops/connection/NoiseSymbolic.lean#L561-L569
-[`kk_authentic`]: ops/connection/NoiseSymbolic.lean#L806-L820
-[`kk_authentic_resp`]: ops/connection/NoiseSymbolic.lean#L872-L885
-[`kk_secret_init_tight`]: ops/connection/NoiseSymbolic.lean#L616-L625
-[`kk_runs`]: ops/connection/NoiseSymbolic.lean#L304-L312
-[`handshake_agrees`]: ops/connection/Noise.lean#L308-L320
+[`kk_secret`]: ops/connection/NoiseSymbolic.lean#L600-L614
+[`kk_secret_init`]: ops/connection/NoiseSymbolic.lean#L552-L561
+[`kk_secret_resp`]: ops/connection/NoiseSymbolic.lean#L566-L574
+[`kk_authentic`]: ops/connection/NoiseSymbolic.lean#L811-L825
+[`kk_authentic_resp`]: ops/connection/NoiseSymbolic.lean#L877-L890
+[`kk_secret_init_tight`]: ops/connection/NoiseSymbolic.lean#L621-L630
+[`kk_runs`]: ops/connection/NoiseSymbolic.lean#L309-L317
+[`handshake_agrees`]: ops/connection/Noise.lean#L356-L370
 [`close_purges`]: engine/wire/CloseLaws.lean#L34-L42
 [`close_gone`]: engine/wire/CloseLaws.lean#L21-L25
 [`drop_iff_silent`]: ops/sync/TimeLaws.lean#L22-L24
 [`keepalive_sent`]: ops/sync/TimeLaws.lean#L31-L35
 [`live_stays`]: ops/sync/TimeLaws.lean#L73-L88
-[`kk_forward_secret`]: ops/connection/NoiseSymbolic.lean#L685-L696
+[`kk_forward_secret`]: ops/connection/NoiseSymbolic.lean#L690-L701
 [`purge_named`]: engine/core/Purge.lean#L267-L271
 [`have_shown`]: ops/sync/OfferLaws.lean#L529-L541
 [`boot_cached`]: engine/wire/NodeLaws.lean#L259-L260
@@ -920,8 +923,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`local_fact_mine`]: ops/community/Laws.lean#L676-L680
 [`intakeConn_conn`]: engine/core/Sync.lean#L33-L34
 [`established_agrees`]: ops/connection/Laws.lean#L59-L73
-[`open_seal`]: ops/connection/Frame.lean#L51-L55
-[`cid_seal`]: ops/connection/Frame.lean#L79-L82
+[`open_seal`]: ops/connection/Frame.lean#L51-L58
+[`cid_seal`]: ops/connection/Frame.lean#L82-L86
 [`Codec.encode_decode`]: engine/core/Codec.lean#L743-L746
 [`Op.id_decode`]: engine/core/Core.lean#L89-L91
 [`distinct_of_collisionFree`]: engine/core/Proofs.lean#L546-L549
@@ -1160,13 +1163,13 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`message_own`]: ops/community/message/ViewLaws.lean#L97-L100
 [`readable_held`]: ops/community/Intents.lean#L518-L530
 [`readable_complete`]: ops/community/Intents.lean#L558-L568
-[`switcherOrder_sound`]: ops/app/Pages.lean#L708-L710
-[`switcherOrder_complete`]: ops/app/Pages.lean#L715-L717
+[`switcherOrder_sound`]: ops/app/Pages.lean#L723-L725
+[`switcherOrder_complete`]: ops/app/Pages.lean#L730-L732
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L1070-L1074
-[`pageIn_acc`]: App.lean#L1076-L1079
+[`drawPage_key`]: App.lean#L1077-L1081
+[`pageIn_acc`]: App.lean#L1083-L1086
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L217-L227
@@ -1254,6 +1257,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`start_size`]: engine/renderer/Heights.lean#L244-L245
 [`below_window`]: engine/renderer/Heights.lean#L248-L251
 [`above_window`]: engine/renderer/Heights.lean#L254-L258
+[`openBody_sealBody`]: ops/community/Keys.lean#L103-L107
 [`plan_stmt_cost`]: engine/core/Query.lean#L600-L603
 [`readPlan_cost`]: engine/core/Query.lean#L560-L565
 [`readPlan_cost_le`]: engine/core/Query.lean#L611-L616
@@ -1310,8 +1314,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`val_erase`]: engine/core/CostErase.lean#L55-L56
 [`cost_run`]: engine/core/CostErase.lean#L58-L60
 [`offerM`]: ops/app/NodeOffer.lean#L29-L35
-[`Seal.Good`]: ops/community/Keys.lean#L40-L43
-[`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L269
+[`Seal.Good`]: ops/community/Keys.lean#L51-L61
+[`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L272
 [`Model.run`]: engine/core/Model.lean#L103-L103
 [`Sync.popW`]: engine/wire/LaneLaws.lean#L257-L260
 [`Engine.runJ`]: engine/core/WindowLaws.lean#L148-L151
@@ -1326,19 +1330,22 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 363 kernel witnesses, 124 runtime witnesses,
-22 conditional checks, 2 failed production assumptions; 0 of 511 linked declarations still pending.**
+**Coverage: 364 kernel witnesses, 126 runtime witnesses,
+23 conditional checks, 0 failed production assumptions; 0 of 513 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 
-**Finding: the production suites do not satisfy `Seal.Good` and Noise
-`Suite.Good` as written.** Their contracts demand roundtrips for keys (and seal
-nonces) of every length; the native implementations reject invalid lengths.
-Runtime counterexamples demonstrate both contradictions. Valid-size roundtrips
-pass. Theorems requiring these contracts, including `openSealed_seal`,
-`member_opens`, `unbox_box` and the affected handshake/frame laws, need
-size-aware contracts before their assumptions apply to the production suites.
-These are specification/applicability gaps, not demonstrated breaks of
-valid-size encryption.
+**Contract failures repaired.** `Seal.Good` and Noise `Suite.Good` now require
+supported key, nonce, plaintext and associated-data sizes where applicable.
+Noise's key derivation must produce supported keys. Malformed-input rejection remains covered by
+regression tests; it no longer contradicts the roundtrip contracts. Native seal
+wrappers also propagate encryption failures instead of returning unusable bytes.
+The frame laws `open_seal` and `cid_seal` now use premises for the particular
+frame, all checked on an actual Noise session carrying a signed message.
+
+The general native crypto contracts remain **conditional**: finite roundtrips
+do not prove their universal laws. The community and general handshake results
+that rely on them are not promoted to fully witnessed proofs. The symbolic
+Noise suite still has a kernel proof of its contract, separate from native crypto.
 
 - **kernel-witness:** Lean checks a concrete fixture's premises and application
   of the named theorem. No new axioms, `sorry`, or `native_decide` are admitted.
@@ -1365,6 +1372,12 @@ returns success. The dependency/axiom gate checks evidence structure; manual
 fixture review checks that the examples actually inhabit their premises and
 that runtime certificates are asserted. Neither theorem existence nor dependency
 reachability alone establishes nonvacuity.
+
+The included `mise run test:crypto-failure` task tests the locked Rust cipher's
+counter limit without allocating oversized messages, and injects encryption
+errors into the production C wrappers. It requires a Linux/ELF linker supporting
+`--wrap`, a C compiler, and the Lean and Rust toolchains; native artifacts and
+logs are retained in `out/crypto-failure` and the CI log above.
 
 ### Checks in README order
 
@@ -1404,24 +1417,24 @@ reachability alone establishes nonvacuity.
 | [`tick_send`](ops/sync/ConnLaws.lean#L211-L213) | **kernel-witness**: [Vacuity.Network.tickWire](tests/vacuity/Network.lean). A quiet tick at 30000 ms sends an actual keepalive; apply tick_send to that output. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport. |
 | [`recipients_iff`](ops/community/Connect.lean#L324-L329) | **runtime-witness**: [Vacuity.IdentityTrust.recipientsIff](tests/vacuity/IdentityTrust.lean). Before removal Bob is a content-key recipient; after removal his node is excluded. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application. |
 | [`members_iff`](ops/community/Connect.lean#L314-L316) | **runtime-witness**: [Vacuity.IdentityTrust.membersIff](tests/vacuity/IdentityTrust.lean). Two live members before mutual removal, zero afterward; the actual list query is executed. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application. |
-| [`member_opens`](ops/community/Laws.lean#L977-L981) | **conditional**: [Vacuity.SealAudit.memberOpensConditional](tests/vacuity/SealAudit.lean). Concrete valid-sized production crypto roundtrip passes, but theorem requires cryptoSeal.Good. That universal premise is false for the actual suite: empty key or nonce yields none, contradicting dec_enc. The theorem application is recorded conditionally, not counted as fully witnessed. Requires a correctly scoped size-aware suite contract. |
-| [`openSealed_seal`](ops/community/Laws.lean#L967-L969) | **conditional**: [Vacuity.SealAudit.openSealedConditional](tests/vacuity/SealAudit.lean). Concrete valid-sized production crypto roundtrip passes, but theorem requires cryptoSeal.Good. That universal premise is false for the actual suite: empty key or nonce yields none, contradicting dec_enc. The theorem application is recorded conditionally, not counted as fully witnessed. Requires a correctly scoped size-aware suite contract. |
-| [`unbox_box`](ops/community/Keys.lean#L89-L91) | **conditional**: [Vacuity.SealAudit.unboxConditional](tests/vacuity/SealAudit.lean). Concrete valid-sized production crypto roundtrip passes, but theorem requires cryptoSeal.Good. That universal premise is false for the actual suite: empty key or nonce yields none, contradicting dec_enc. The theorem application is recorded conditionally, not counted as fully witnessed. Requires a correctly scoped size-aware suite contract. |
+| [`member_opens`](ops/community/Laws.lean#L979-L986) | **conditional**: [Vacuity.SealAudit.memberOpensConditional](tests/vacuity/SealAudit.lean). Correctly scoped theorem applied to concrete 32-byte private/content keys, 24-byte nonce and supported payload/associated-data sizes. Key/nonce/payload premises have kernel proofs; hashed key-id/associated-data sizes and real native DH, wrapping and message roundtrips pass executable checks. The universal cryptoSeal.Good premise remains conditional; former malformed-key/nonce counterexamples are outside the repaired contract. |
+| [`openSealed_seal`](ops/community/Laws.lean#L967-L971) | **conditional**: [Vacuity.SealAudit.openSealedConditional](tests/vacuity/SealAudit.lean). Correctly scoped theorem applied to concrete 32-byte private/content keys, 24-byte nonce and supported payload/associated-data sizes. Key/nonce/payload premises have kernel proofs; hashed key-id/associated-data sizes and real native DH, wrapping and message roundtrips pass executable checks. The universal cryptoSeal.Good premise remains conditional; former malformed-key/nonce counterexamples are outside the repaired contract. |
+| [`unbox_box`](ops/community/Keys.lean#L109-L112) | **conditional**: [Vacuity.SealAudit.unboxConditional](tests/vacuity/SealAudit.lean). Correctly scoped theorem applied to concrete 32-byte private/content keys, 24-byte nonce and supported payload/associated-data sizes. Key/nonce/payload premises have kernel proofs; hashed key-id/associated-data sizes and real native DH, wrapping and message roundtrips pass executable checks. The universal cryptoSeal.Good premise remains conditional; former malformed-key/nonce counterexamples are outside the repaired contract. |
 | [`check_reads_shared`](ops/community/Laws.lean#L888-L890) | **runtime-witness**: [Vacuity.CoreRuntime.sharedReads](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
-| [`kk_secret`](ops/connection/NoiseSymbolic.lean#L595-L609) | **kernel-witness**: [Vacuity.Session.secretsHeld](tests/vacuity/Session.lean). Construct a successful concrete transcript and sent1 reconstruction, then apply kk_secret. Attacker knows all other names and all public keys. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
-| [`kk_secret_init`](ops/connection/NoiseSymbolic.lean#L547-L556) | **kernel-witness**: [Vacuity.Session.secretsHeld](tests/vacuity/Session.lean). Concrete successful sent1/read2 and secret-name membership premises are discharged through kk_secret, which applies kk_secret_init. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
-| [`kk_secret_resp`](ops/connection/NoiseSymbolic.lean#L561-L569) | **kernel-witness**: [Vacuity.Session.secretsHeld](tests/vacuity/Session.lean). Concrete successful read1/write2 and both static-secret premises are discharged through kk_secret, which applies kk_secret_resp. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
-| [`kk_authentic`](ops/connection/NoiseSymbolic.lean#L806-L820) | **kernel-witness**: [Vacuity.Session.initiatorAuthenticates](tests/vacuity/Session.lean). Prove actual transcript is derivable by asking honest parties; prove attacker cleanliness/part premises and concrete secret memberships; accepted reply is an honest response to this request with matching sessions. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
-| [`kk_authentic_resp`](ops/connection/NoiseSymbolic.lean#L872-L885) | **kernel-witness**: [Vacuity.Session.responderAuthenticates](tests/vacuity/Session.lean). Prove actual first message is derivable from an honest send, attacker cleanliness and both static-secret memberships; accepted request was written by the initiator. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
-| [`kk_secret_init_tight`](ops/connection/NoiseSymbolic.lean#L616-L625) | **kernel-witness**: [Vacuity.Session.initiatorLeakBreaksSecrecy](tests/vacuity/Session.lean). Negative control on the same successful handshake: expose initiator static 11 AND ephemeral 33 while responder 22/44 stay secret; attacker derives both initiator transport keys. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
-| [`kk_runs`](ops/connection/NoiseSymbolic.lean#L304-L312) | **kernel-witness**: [Vacuity.Session.honestRun](tests/vacuity/Session.lean). Four distinct fixed exponents 11/22/33/44, nonempty prologue and payload literals; honest run exists with all four operations succeeding and matching crossed keys. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
-| [`handshake_agrees`](ops/connection/Noise.lean#L308-L320) | **kernel-witness**: [Vacuity.Session.honestRun](tests/vacuity/Session.lean). Concrete symbolic suite satisfies Good; kk_runs applies handshake_agrees after proving the four DH calls succeed for fixed parties/ephemerals. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
+| [`kk_secret`](ops/connection/NoiseSymbolic.lean#L600-L614) | **kernel-witness**: [Vacuity.Session.secretsHeld](tests/vacuity/Session.lean). Construct a successful concrete transcript and sent1 reconstruction, then apply kk_secret. Attacker knows all other names and all public keys. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
+| [`kk_secret_init`](ops/connection/NoiseSymbolic.lean#L552-L561) | **kernel-witness**: [Vacuity.Session.secretsHeld](tests/vacuity/Session.lean). Concrete successful sent1/read2 and secret-name membership premises are discharged through kk_secret, which applies kk_secret_init. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
+| [`kk_secret_resp`](ops/connection/NoiseSymbolic.lean#L566-L574) | **kernel-witness**: [Vacuity.Session.secretsHeld](tests/vacuity/Session.lean). Concrete successful read1/write2 and both static-secret premises are discharged through kk_secret, which applies kk_secret_resp. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
+| [`kk_authentic`](ops/connection/NoiseSymbolic.lean#L811-L825) | **kernel-witness**: [Vacuity.Session.initiatorAuthenticates](tests/vacuity/Session.lean). Prove actual transcript is derivable by asking honest parties; prove attacker cleanliness/part premises and concrete secret memberships; accepted reply is an honest response to this request with matching sessions. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
+| [`kk_authentic_resp`](ops/connection/NoiseSymbolic.lean#L877-L890) | **kernel-witness**: [Vacuity.Session.responderAuthenticates](tests/vacuity/Session.lean). Prove actual first message is derivable from an honest send, attacker cleanliness and both static-secret memberships; accepted request was written by the initiator. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
+| [`kk_secret_init_tight`](ops/connection/NoiseSymbolic.lean#L621-L630) | **kernel-witness**: [Vacuity.Session.initiatorLeakBreaksSecrecy](tests/vacuity/Session.lean). Negative control on the same successful handshake: expose initiator static 11 AND ephemeral 33 while responder 22/44 stay secret; attacker derives both initiator transport keys. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
+| [`kk_runs`](ops/connection/NoiseSymbolic.lean#L309-L317) | **kernel-witness**: [Vacuity.Session.honestRun](tests/vacuity/Session.lean). Four distinct fixed exponents 11/22/33/44, nonempty prologue and payload literals; honest run exists with all four operations succeeding and matching crossed keys. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
+| [`handshake_agrees`](ops/connection/Noise.lean#L356-L370) | **kernel-witness**: [Vacuity.Session.honestRun](tests/vacuity/Session.lean). Concrete symbolic suite satisfies the corrected Good contract; kk_runs supplies both payload-domain premises (True for symbolic terms) and proves the four DH calls succeed for fixed parties/ephemerals. HKDF/hash domains establish valid keys and associated data internally. Symbolic term algebra and synthetic literals; no native primitive correctness, freshness or private-payload secrecy claim. |
 | [`close_purges`](engine/wire/CloseLaws.lean#L34-L42) | **kernel-witness**: [Vacuity.WireMore.closeRunner](tests/vacuity/WireMore.lean). Nonempty drop list and closing hook naming stored local secret; SyncMore.closeErases independently proves real deletion. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`close_gone`](engine/wire/CloseLaws.lean#L21-L25) | **kernel-witness**: [Vacuity.SyncMore.closeErases](tests/vacuity/SyncMore.lean). Closing hook returns the actual stored local secret id; prove stored lookup and local scope before applying close_gone. Held-store erasure, not physical disk deletion. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`drop_iff_silent`](ops/sync/TimeLaws.lean#L22-L24) | **kernel-witness**: [Vacuity.Network.timesOut](tests/vacuity/Network.lean). Apply the exact iff at 90001 ms; independent application at 90000 ms proves still live at the strict deadline. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport. |
 | [`keepalive_sent`](ops/sync/TimeLaws.lean#L31-L35) | **kernel-witness**: [Vacuity.Network.keepalive](tests/vacuity/Network.lean). Instantiate existing keepalive_runs, which constructs quiet-work and timing premises and applies keepalive_sent; actual output is a nonempty empty-have keepalive at 30000 ms. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport. |
 | [`live_stays`](ops/sync/TimeLaws.lean#L73-L88) | **kernel-witness**: [Vacuity.Network.keepaliveHistory](tests/vacuity/Network.lean). Instantiate live_runs, whose actual receive/tick history proves both scheduler and delivery premises for live_stays. Logical time live=3; not a real network scheduling guarantee. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport. |
-| [`kk_forward_secret`](ops/connection/NoiseSymbolic.lean#L685-L696) | **kernel-witness**: [Vacuity.Session.afterStaticLeak](tests/vacuity/Session.lean). Prove concrete statics differ from both ephemerals; successful transcript remains secret after deriving both static secrets and both messages. Four transport key non-derivability conclusions. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
+| [`kk_forward_secret`](ops/connection/NoiseSymbolic.lean#L690-L701) | **kernel-witness**: [Vacuity.Session.afterStaticLeak](tests/vacuity/Session.lean). Prove concrete statics differ from both ephemerals; successful transcript remains secret after deriving both static secrets and both messages. Four transport key non-derivability conclusions. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
 | [`purge_named`](engine/core/Purge.lean#L267-L271) | **kernel-witness**: [Vacuity.SyncMore.namedSecretPurged](tests/vacuity/SyncMore.lean). Actual stored local secret is named in nonempty purge list; prove locality and storage, then derive absence and no index membership. Held-model purge only. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`have_shown`](ops/sync/OfferLaws.lean#L529-L541) | **kernel-witness**: [Vacuity.SyncCache.shownAfterFile](tests/vacuity/SyncCache.lean). Construct Inv, Cached, and snapshot premises, then apply have_shown to nonempty filed chat path. Network.filedWitness separately establishes actual advertisement. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof. |
 | [`boot_cached`](engine/wire/NodeLaws.lean#L259-L260) | **kernel-witness**: [Vacuity.SyncMore.bootCache](tests/vacuity/SyncMore.lean). Boot index from the nonempty held store that contains the chat message. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
@@ -1475,9 +1488,9 @@ reachability alone establishes nonvacuity.
 | [`stored_local`](engine/core/Sync.lean#L86-L89) | **runtime-witness**: [Vacuity.IdentityMessages.storedLocal](tests/vacuity/IdentityMessages.lean). Fed constructed from one own-write job then hostile peer job through actual intake; stored local op has actual lookup and local-scope premises. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`local_fact_mine`](ops/community/Laws.lean#L676-L680) | **runtime-witness**: [Vacuity.IdentityMessages.localFactMine](tests/vacuity/IdentityMessages.lean). Actual valid local secret after own and hostile jobs; Fed and nonempty V premises constructed, no peer secret stored. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`intakeConn_conn`](engine/core/Sync.lean#L33-L34) | **kernel-witness**: [Vacuity.WireMore.connectionScope](tests/vacuity/WireMore.lean). Mixed concrete batch contains shared greeting(kind1), local secret(kind2), connection handshake(kind3). Proves exact intake=[handshake], applies scope/membership theorem and separately proves shared/local rejection. Synthetic generic scope fixture; production Noise payload validation is outside this intake law. |
-| [`established_agrees`](ops/connection/Laws.lean#L59-L73) | **conditional**: [Vacuity.IdentityFrames.establishedAgrees](tests/vacuity/IdentityFrames.lean). Both endpoint validators succeed for actual deterministic Noise session; handshake hash/community/peer identities and crossed send/receive keys agree natively. The production theorem remains conditional on sodium.suite.Good; its universally quantified AEAD law is false for malformed key bytes (Contracts.noiseBadKey). No universal crypto assumption is discharged. |
-| [`open_seal`](ops/connection/Frame.lean#L51-L55) | **conditional**: [Vacuity.IdentityFrames.openSeal](tests/vacuity/IdentityFrames.lean). Valid 32-byte session ID/key and 24-byte nonce roundtrip actual signed message bytes natively. The theorem requires universal frame AEAD correctness/length over arbitrary key and nonce bytes; empty-key native counterexamples frameDecryptFalse/frameSizeFalse refute those unqualified premises. Finite dimensions checked; no universal crypto assumption discharged. |
-| [`cid_seal`](ops/connection/Frame.lean#L79-L82) | **conditional**: [Vacuity.IdentityFrames.cidSeal](tests/vacuity/IdentityFrames.lean). Valid 32-byte session ID/key and 24-byte nonce roundtrip actual signed message bytes natively. The theorem requires universal frame AEAD correctness/length over arbitrary key and nonce bytes; empty-key native counterexamples frameDecryptFalse/frameSizeFalse refute those unqualified premises. Finite dimensions checked; no universal crypto assumption discharged. |
+| [`established_agrees`](ops/connection/Laws.lean#L59-L73) | **conditional**: [Vacuity.IdentityFrames.establishedAgrees](tests/vacuity/IdentityFrames.lean). Both endpoint validators succeed for an actual deterministic Noise session; handshake hash/community/peer identities and crossed send/receive keys agree natively. The production theorem remains conditional on the size-aware sodium.suite.Good contract. No universal native crypto assumption is discharged. |
+| [`open_seal`](ops/connection/Frame.lean#L51-L58) | **runtime-witness**: [Vacuity.IdentityFrames.openSeal](tests/vacuity/IdentityFrames.lean). Actual Noise session with 32-byte session ID/key and 24-byte nonce, carrying signed message bytes. The theorem now needs only concrete crypto premises for this frame. Native branches check ciphertext length and AEAD roundtrip, then apply the theorem with every premise discharged. Malformed 0/31/33-byte keys cannot produce certificates; malformed 0/23/25-byte nonces and wrong receive keys are rejected. |
+| [`cid_seal`](ops/connection/Frame.lean#L82-L86) | **runtime-witness**: [Vacuity.IdentityFrames.cidSeal](tests/vacuity/IdentityFrames.lean). Actual Noise session with 32-byte session ID/key and 24-byte nonce, carrying signed message bytes. The theorem now needs only concrete crypto premises for this frame. Native branches check ciphertext length, then apply the theorem with every premise discharged. Malformed 0/31/33-byte keys cannot produce certificates; malformed 0/23/25-byte nonces and wrong receive keys are rejected. |
 | [`Codec.encode_decode`](engine/core/Codec.lean#L743-L746) | **kernel-witness**: [Vacuity.Core.canonical](tests/vacuity/Core.lean). Fixed literal wire bytes decode to a message payload and re-encode identically; trailing byte rejected. |
 | [`Op.id_decode`](engine/core/Core.lean#L89-L91) | **kernel-witness**: [Vacuity.Core.hashNamed](tests/vacuity/Core.lean). Successful concrete op decode inhabits the premise; id equals SHA(bytes), without claiming collision freedom. |
 | [`distinct_of_collisionFree`](engine/core/Proofs.lean#L546-L549) | **runtime-witness**: [Vacuity.CoreRuntime.distinctFromHash](tests/vacuity/CoreRuntime.lean). Signed community plus a local secret and hostile shared dependent. Concrete finite collision premise, queued step, purge membership and shared-scope premises checked where required; local secret disappears, shared op is requeued and ordinary message is retained. This checks the model purge, not SQLite erasure. |
@@ -1485,7 +1498,7 @@ reachability alone establishes nonvacuity.
 | [`Pic.decode_sized`](engine/renderer/pic/Laws.lean#L198-L201) | **kernel-witness**: [Vacuity.RendererImages.pictureSized](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
 | [`Image.decode_sized`](engine/renderer/ImageLaws.lean#L11-L14) | **kernel-witness**: [Vacuity.RendererImages.imageSized](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
 | [`Mdns.decode_valid`](engine/wire/mdns/Laws.lean#L540-L541) | **kernel-witness**: [Vacuity.Formats.announcementSound](tests/vacuity/Formats.lean). Successful nonempty DNS service announcement parse; malformed IPv4 length and truncated packet controls. |
-| [`Community.parse_valid`](ops/community/Link.lean#L214-L215) | **kernel-witness**: [Vacuity.Core.parsedValid](tests/vacuity/Core.lean). Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises. |
+| [`Community.parse_valid`](ops/community/Link.lean#L258-L259) | **kernel-witness**: [Vacuity.Core.parsedValid](tests/vacuity/Core.lean). Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises. |
 | [`Qr.parse_valid`](engine/renderer/qr/SegLaws.lean#L336-L338) | **kernel-witness**: [Vacuity.Formats.segmentSound](tests/vacuity/Formats.lean). Successful parse of three nonempty segments; decoder soundness applied to each segment. |
 | [`chunk_is_slice`](ops/community/Laws.lean#L722-L731) | **conditional**: [Vacuity.Attachment.sliceCertificate](tests/vacuity/Attachment.lean). 70000-byte deterministic file sealed by real XChaCha20 to70016 bytes across two chunks. Native certificate proves actual chunk validator accepts the concrete chunk/root/attachment facts. Applying chunk_is_slice still requires universal SHA256 output-size correctness and NoSecondPreimage on this ciphertext tree; checking this finite tree cannot discharge either universal premise. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash. Native negative controls flip one ciphertext byte without changing length, substitute a32-byte sibling, and use out-of-range index2; all are rejected. |
 | [`verify_sound`](ops/community/Merkle.lean#L435-L441) | **kernel-witness**: [Vacuity.Merkle.verifiedSlice](tests/vacuity/Merkle.lean). Nonempty Alice-to-Bob attachment, single chunk; output-size and universal second-preimage premises proved for an explicit three-output hash model, not SHA-256. Modified content/index rejected. |
@@ -1720,13 +1733,13 @@ reachability alone establishes nonvacuity.
 | [`message_own`](ops/community/message/ViewLaws.lean#L97-L100) | **runtime-witness**: [Vacuity.IdentityMessages.messageOwn](tests/vacuity/IdentityMessages.lean). Successful owned row read with exact plaintext/author/time and two subscriptions. Missing/different content key yields no row. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`readable_held`](ops/community/Intents.lean#L518-L530) | **runtime-witness**: [Vacuity.IdentityMessages.readableHeld](tests/vacuity/IdentityMessages.lean). A concrete nonempty readable row is present; theorem establishes its valid message and held content key. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`readable_complete`](ops/community/Intents.lean#L558-L568) | **runtime-witness**: [Vacuity.IdentityMessages.readableComplete](tests/vacuity/IdentityMessages.lean). Actual valid sealed message plus actual valid local content-key fact; both premises constructed from invariant-backed runtime status. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
-| [`switcherOrder_sound`](ops/app/Pages.lean#L708-L710) | **kernel-witness**: [Vacuity.RendererSets.switcherSound](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
-| [`switcherOrder_complete`](ops/app/Pages.lean#L715-L717) | **kernel-witness**: [Vacuity.RendererSets.switcherComplete](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
+| [`switcherOrder_sound`](ops/app/Pages.lean#L723-L725) | **kernel-witness**: [Vacuity.RendererSets.switcherSound](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
+| [`switcherOrder_complete`](ops/app/Pages.lean#L730-L732) | **kernel-witness**: [Vacuity.RendererSets.switcherComplete](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`dedupe_nodup`](ops/app/Switch.lean#L52-L53) | **kernel-witness**: [Vacuity.RendererSets.acceptanceUnique](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`dedupe_one_per_community`](ops/app/Switch.lean#L56-L58) | **kernel-witness**: [Vacuity.RendererSets.communityUnique](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`select_tapped_dedupe`](ops/app/Switch.lean#L82-L84) | **kernel-witness**: [Vacuity.RendererSets.tapped](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
-| [`drawPage_key`](App.lean#L1070-L1074) | **runtime-witness**: [Vacuity.RendererRuntime.sameKey](tests/vacuity/RendererRuntime.lean). The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency. |
-| [`pageIn_acc`](App.lean#L1076-L1079) | **runtime-witness**: [Vacuity.RendererRuntime.keyAcceptance](tests/vacuity/RendererRuntime.lean). The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency. |
+| [`drawPage_key`](App.lean#L1077-L1081) | **runtime-witness**: [Vacuity.RendererRuntime.sameKey](tests/vacuity/RendererRuntime.lean). The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency. |
+| [`pageIn_acc`](App.lean#L1083-L1086) | **runtime-witness**: [Vacuity.RendererRuntime.keyAcceptance](tests/vacuity/RendererRuntime.lean). The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency. |
 | [`msg_cmp`](ops/community/message/Order.lean#L137-L144) | **kernel-witness**: [Vacuity.IdentityMessages.messageCompare](tests/vacuity/IdentityMessages.lean). Concrete signed messages with counters 1/2 and reversed wall-clock times; actual comparator returns less-than. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`time_is_display`](ops/community/message/Order.lean#L148-L154) | **kernel-witness**: [Vacuity.IdentityMessages.timeIsDisplay](tests/vacuity/IdentityMessages.lean). Concrete distinct counters 1 and 2, inequality proven in kernel; reversed times do not reverse actual message order. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`order_total`](ops/community/message/Order.lean#L217-L227) | **runtime-witness**: [Vacuity.IdentityMessages.orderTotal](tests/vacuity/IdentityMessages.lean). Two real signed sealed messages read oldest first; exact returned IDs match increasing counters despite reversed wall-clock times. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
@@ -1743,7 +1756,8 @@ reachability alone establishes nonvacuity.
 | [`RS.correct_clean`](engine/renderer/qr/Laws.lean#L74-L76) | **kernel-witness**: [Vacuity.Formats.rsUnchanged](tests/vacuity/Formats.lean). Nonzero ABC payload and two parity symbols; actual zero syndromes proved and clean block unchanged. |
 | [`decodeFormat_correct`](engine/renderer/qr/Format.lean#L104-L105) | **kernel-witness**: [Vacuity.Formats.formatRound](tests/vacuity/Formats.lean). Level M, mask 3, exactly three flipped format bits; Hamming-distance premise proved, four-flip premise rejected. |
 | [`decodeVersion_correct`](engine/renderer/qr/Format.lean#L113-L116) | **kernel-witness**: [Vacuity.Formats.versionRound](tests/vacuity/Formats.lean). Version 7 with three flipped BCH bits; legal-version and distance premises proved. |
-| [`parse_text`](ops/community/Link.lean#L198-L199) | **kernel-witness**: [Vacuity.Core.inviteRound](tests/vacuity/Core.lean). Invite with four 32-byte fields and a network hint; all size premises proved, short seed rejected. |
+| [`parse_text`](ops/community/Link.lean#L250-L251) | **kernel-witness**: [Vacuity.Core.inviteRound](tests/vacuity/Core.lean). Invite with four 32-byte fields and a network hint; all size premises proved, short seed rejected. |
+| [`parse_uri`](ops/community/Link.lean#L254-L255) | **kernel-witness**: [Vacuity.Core.inviteUriRound](tests/vacuity/Core.lean). The same nonempty invite with four 32-byte fields and a network hint roundtrips through the application URI. All Invite.Valid premises are proved before applying parse_uri. |
 | [`Base62.decode_encode`](ops/community/Link.lean#L134-L134) | **kernel-witness**: [Vacuity.Core.base62Round](tests/vacuity/Core.lean). Binary fixture [0,1,254,255]; invalid alphabet character rejected. |
 | [`Mdns.decode_encode`](engine/wire/mdns/Laws.lean#L289-L290) | **kernel-witness**: [Vacuity.Formats.announcementRound](tests/vacuity/Formats.lean). Nonempty service query, IPv4 and SRV answers; all name, record and count premises proved. |
 | [`decode_roundtrip`](engine/wire/mdns/Laws.lean#L584-L587) | **kernel-witness**: [Vacuity.Formats.decodedRound](tests/vacuity/Formats.lean). Service discovery query and two answers survive decode/re-encode; localhost example identities, documentation IPv4 address. |
@@ -1757,7 +1771,7 @@ reachability alone establishes nonvacuity.
 | [`CollisionFree`](engine/core/Proofs.lean#L542-L544) | **runtime-witness**: [Vacuity.CoreRuntime.collisionFree](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
 | [`Distinct`](engine/core/Proofs.lean#L538-L540) | **runtime-witness**: [Vacuity.CoreRuntime.distinct](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
 | [`NoSecondPreimage`](ops/community/Merkle.lean#L146-L147) | **kernel-witness**: [Vacuity.Merkle.preimage](tests/vacuity/Merkle.lean). Closed universal premise for an explicit 32-byte-output model hash and a nonempty attachment. Unique leaf/root outputs are proved against every other input. This model is deliberately not SHA-256. |
-| [`Suite.Good`](ops/connection/Noise.lean#L61-L65) | **counterexample**: [Vacuity.Contracts.noiseBadKey](tests/vacuity/Contracts.lean). Actual production Noise suite rejects an empty key, contradicting its unrestricted dec_enc axiom. Correct 32-byte key roundtrip also checked. This invalidates applicability of the universal contract, not valid-key encryption. |
+| [`Suite.Good`](ops/connection/Noise.lean#L70-L81) | **conditional**: [Vacuity.Contracts.noiseContractCertificate](tests/vacuity/Contracts.lean). Corrected contract requires a 32-byte AEAD key, plaintext at most 64*(2^32-2) bytes (exclusive bound 274877906817) and representable associated-data length; HKDF outputs valid keys and hash outputs valid AD. Concrete key/payload/AD premises are proved and real roundtrip tested. Native boundaries test lengths 0/1/31/32/33/64: malformed private keys map to zero 32-byte public output and both DH directions reject, so total dh_comm and split_pair remain supported. Universal native crypto correctness remains an explicit assumption, not proved by finite tests. The old unrestricted roundtrip is retained only as a rejected regression control. |
 | [`write_offers`](engine/wire/WorldLaws.lean#L502-L510) | **kernel-witness**: [Vacuity.WireMore.offered](tests/vacuity/WireMore.lean). Concrete new Alice greeting, one room/session/address, initially empty held store; freshness, unseen/unoffered id and capacity proven, exact emitted offer. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`hold_wants`](engine/wire/WorldLaws.lean#L520-L527) | **kernel-witness**: [Vacuity.WireMore.wanted](tests/vacuity/WireMore.lean). Real encoded offer for missing greeting; proves all queue/room/capacity premises and exact want response. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`op_taken`](engine/wire/WorldLaws.lean#L666-L673) | **kernel-witness**: [Vacuity.WireMore.taken](tests/vacuity/WireMore.lean). Encoded greeting plus following nonempty offer in one session frame; proves new non-wire shown op and following-message decoding shape, actual store turn. Synthetic generic family/held-store fixture; not collected real-user traffic. |
@@ -1818,6 +1832,7 @@ reachability alone establishes nonvacuity.
 | [`start_size`](engine/renderer/Heights.lean#L244-L245) | **kernel-witness**: [Vacuity.RendererHeights.endOfContent](tests/vacuity/RendererHeights.lean). Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it. |
 | [`below_window`](engine/renderer/Heights.lean#L248-L251) | **kernel-witness**: [Vacuity.RendererHeights.below](tests/vacuity/RendererHeights.lean). Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it. |
 | [`above_window`](engine/renderer/Heights.lean#L254-L258) | **kernel-witness**: [Vacuity.RendererHeights.above](tests/vacuity/RendererHeights.lean). Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it. |
+| [`openBody_sealBody`](ops/community/Keys.lean#L103-L107) | **conditional**: [Vacuity.SealAudit.openSealedConditional](tests/vacuity/SealAudit.lean). The concrete sealed-body fixture applies this supporting body law through openSealed_seal. Its 32-byte key, 24-byte nonce and plaintext-size premises have kernel proofs; the actual associated-data size and native roundtrip are checked. The size-aware universal cryptoSeal.Good assumption remains conditional. |
 | [`plan_stmt_cost`](engine/core/Query.lean#L600-L603) | **kernel-witness**: [Vacuity.Query.statementCost](tests/vacuity/Query.lean). Rows statement is proved to belong to the concrete page read plan. Synthetic model fixture; no collected real-user traffic. |
 | [`readPlan_cost`](engine/core/Query.lean#L560-L565) | **kernel-witness**: [Vacuity.Query.pageCost](tests/vacuity/Query.lean). Single-key page limit 50, 100000 rows, seek=2/step=1. Proves all query-shape premises; symbolic cost model, not SQLite timing. Synthetic model fixture; no collected real-user traffic. |
 | [`readPlan_cost_le`](engine/core/Query.lean#L611-L616) | **kernel-witness**: [Vacuity.Query.overallCost](tests/vacuity/Query.lean). Concrete ranged page against 100000-row cost model. Synthetic model fixture; no collected real-user traffic. |
@@ -1874,8 +1889,8 @@ reachability alone establishes nonvacuity.
 | [`val_erase`](engine/core/CostErase.lean#L55-L56) | **kernel-witness**: [Vacuity.Core.valueErased](tests/vacuity/Core.lean). Counted action with two reads, one write and 13 copied bytes, value 42. |
 | [`cost_run`](engine/core/CostErase.lean#L58-L60) | **kernel-witness**: [Vacuity.Core.costRun](tests/vacuity/Core.lean). Counted action with two reads, one write and 13 copied bytes, value 42. |
 | [`offerM`](ops/app/NodeOffer.lean#L29-L35) | **kernel-witness**: [Vacuity.RendererFlow.offerSplit](tests/vacuity/RendererFlow.lean). This README reference is the model channel operation, not a theorem. The concrete nonempty offer_split witness uses that exact operation on accepting/refusing responses and proves taken ++ waiting preserves the original writes. Exact channel outputs and retry order are checked separately. |
-| [`Seal.Good`](ops/community/Keys.lean#L40-L43) | **counterexample**: [Vacuity.SealAudit.badKeyDisprovesGood](tests/vacuity/SealAudit.lean). Actual cryptoSeal rejects wrong-length keys/nonces: empty key with valid 24-byte nonce seals to empty and opens to none for a nonempty message. This contradicts Good.dec_enc, which quantifies over all ByteArrays without size premises. Runtime branch constructs ¬cryptoSeal.Good; independent bad-nonce counterexample also passes. |
-| [`Symbolic.sym`](ops/connection/NoiseSymbolic.lean#L259-L269) | **kernel-witness**: [Vacuity.Contracts.symbolicGood](tests/vacuity/Contracts.lean). The symbolic Noise suite satisfies its universal Good contract; separate nonempty Session fixtures instantiate its handshake and secrecy laws. This is not a proof of the native suite. |
+| [`Seal.Good`](ops/community/Keys.lean#L51-L61) | **conditional**: [Vacuity.SealAudit.goodConditional](tests/vacuity/SealAudit.lean). Contract repaired: DH uses 32-byte private keys; AEAD uses a 32-byte key, 24-byte nonce, plaintext below 274877906817 bytes and associated data below 2^64 bytes. The payload bound accounts for the stream cipher's ceiling to complete or partial blocks, beyond the outer AEAD check. Public keys and hashes supply 32-byte outputs. Concrete production equalities and malformed-input regressions pass; the universal native cryptographic contract remains an explicit unproved assumption, not a finite-test conclusion. |
+| [`Symbolic.sym`](ops/connection/NoiseSymbolic.lean#L259-L272) | **kernel-witness**: [Vacuity.Contracts.symbolicGood](tests/vacuity/Contracts.lean). Symbolic Noise satisfies the corrected Good contract: every term is a supported key/payload/AD, HKDF/hash outputs satisfy these predicates, and correctness is proved in the kernel. Concrete Session handshake/secrecy fixtures continue to apply the same generic functions; this is not a proof of native primitives. |
 | [`Model.run`](engine/core/Model.lean#L103-L103) | **kernel-witness**: [Vacuity.CoreRuntime.loop](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
 | [`Sync.popW`](engine/wire/LaneLaws.lean#L257-L260) | **kernel-witness**: [Vacuity.WireMore.popsWrite](tests/vacuity/WireMore.lean). Two local writes and queued TCP frame; exact pop returns first write and preserves remaining queues. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`Engine.runJ`](engine/core/WindowLaws.lean#L148-L151) | **kernel-witness**: [Vacuity.WireMore.runJFiles](tests/vacuity/WireMore.lean). Actual stored-op processing journal leads to newly indexed visible row, as independently proved in Query fixture. Synthetic generic family/held-store fixture; not collected real-user traffic. |

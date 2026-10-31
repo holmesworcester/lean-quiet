@@ -194,5 +194,12 @@
     "witness": "Vacuity.Core.parsedValid",
     "module": "tests.vacuity.Core",
     "detail": "Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises."
+  },
+  "parse_uri": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Community.parse_uri",
+    "witness": "Vacuity.Core.inviteUriRound",
+    "detail": "The same nonempty invite with four 32-byte fields and a network hint roundtrips through the application URI. All Invite.Valid premises are proved before applying parse_uri."
   }
 }

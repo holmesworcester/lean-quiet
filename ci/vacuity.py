@@ -86,8 +86,8 @@ supporting references follow. This is the order for the remaining work too.
 A pending or conditional entry is not counted as a passed vacuity check.
 
 **Contract failures repaired.** `Seal.Good` and Noise `Suite.Good` now require
-supported key, nonce, plaintext and associated-data sizes where applicable. Noise's key derivation
-must produce supported keys. Malformed-input rejection remains covered by
+supported key, nonce, plaintext and associated-data sizes where applicable.
+Noise's key derivation must produce supported keys. Malformed-input rejection remains covered by
 regression tests; it no longer contradicts the roundtrip contracts. Native seal
 wrappers also propagate encryption failures instead of returning unusable bytes.
 The frame laws `open_seal` and `cid_seal` now use premises for the particular
@@ -123,6 +123,12 @@ returns success. The dependency/axiom gate checks evidence structure; manual
 fixture review checks that the examples actually inhabit their premises and
 that runtime certificates are asserted. Neither theorem existence nor dependency
 reachability alone establishes nonvacuity.
+
+The included `mise run test:crypto-failure` task tests the locked Rust cipher's
+counter limit without allocating oversized messages, and injects encryption
+errors into the production C wrappers. It requires a Linux/ELF linker supporting
+`--wrap`, a C compiler, and the Lean and Rust toolchains; native artifacts and
+logs are retained in `out/crypto-failure` and the CI log above.
 
 ### Checks in README order
 

@@ -30,5 +30,13 @@
     "module": "tests.vacuity.SealAudit",
     "detail": "Correctly scoped theorem applied to concrete 32-byte private/content keys, 24-byte nonce and supported payload/associated-data sizes. Key/nonce/payload premises have kernel proofs; hashed key-id/associated-data sizes and real native DH, wrapping and message roundtrips pass executable checks. The universal cryptoSeal.Good premise remains conditional; former malformed-key/nonce counterexamples are outside the repaired contract.",
     "exercise": true
+  },
+  "openBody_sealBody": {
+    "status": "conditional",
+    "theorem": "Community.openBody_sealBody",
+    "witness": "Vacuity.SealAudit.openSealedConditional",
+    "module": "tests.vacuity.SealAudit",
+    "exercise": true,
+    "detail": "The concrete sealed-body fixture applies this supporting body law through openSealed_seal. Its 32-byte key, 24-byte nonce and plaintext-size premises have kernel proofs; the actual associated-data size and native roundtrip are checked. The size-aware universal cryptoSeal.Good assumption remains conditional."
   }
 }
