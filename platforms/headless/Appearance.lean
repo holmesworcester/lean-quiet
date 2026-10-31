@@ -181,6 +181,18 @@ def exercise (dir : String) (screen : Array UInt32) : IO Unit := do
       demand "count pill leaves its surrounding list untouched"
         (getPx pill.rows[px 7]! (px 52) == under &&
          getPx pill.rows[px 32]! (px 52) == under)
+    let waiting := Pages.waiting fresh.font fresh.dim s.W (screen[1]!.toNat - fresh.insetTop - fresh.insetBot) "038d2f7f"
+      #[("Looking for someone to hand your join to", "Nobody has taken it yet.", .now),
+        ("Waiting for a member to let you in", "Quiet asks again whenever it finds one.", .next),
+        ("Keys and history arrive", "Then the community opens.", .next)] #[]
+    let some (stop, _) := waiting.taps[0]? | throw (IO.userError "waiting has no stop control")
+    demand "waiting card has the reference's capped 24rem column and 24dp gutters"
+      (stop.w == min s.W (fresh.dim.px 384) - 2 * fresh.dim.px 24 &&
+       stop.x == (s.W - min s.W (fresh.dim.px 384)) / 2 + fresh.dim.px 24)
+    demand "waiting has its stop control fully on screen"
+      (stop.y + stop.h ≤ waiting.bmp.h)
+    demand "waiting uses the real Quiet brand asset at native density"
+      ((fresh.font.icons.coverage "quiet-mark" (fresh.dim.px 54)).isSome)
     let b := Pages.toast s.font fresh.dim s.W "Saved"
     demand s!"{repr theme} toast contrast" (glyphsPass b)
     for under in [0x000000, 0xffffff, 0x888888, 0x7647c7, 0xc7353b] do
