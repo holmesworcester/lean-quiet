@@ -19,6 +19,16 @@ run = "tests/engine/run.sh"
 description = "T-fresh: a fresh post's latency while N chunks sync (simulated time, against the old order), a peer that never reads over TCP, and the lanes' negative controls"
 run = "tests/engine/fresh.sh"
 
+[tasks."test:join-fair"]
+description = "Production TCP/Noise/SQLite join under delay, sustained writes, backpressure and reconnect; reject strict-priority starvation"
+depends = ["crypto"]
+run = "bash tests/engine/join_fair.sh"
+
+[tasks."test:fairness"]
+description = "Real encrypted runner fairness regression, production-bootstrap certificates and the explicit fair model execution"
+depends = ["test:join-fair"]
+run = "bash tests/engine/fairness.sh"
+
 [tasks.bench]
 description = "Wall times of the byte codec on a photo's paths: a 64 KiB chunk op's encode, decode and validation, 100 chunks into SQLite, a 48 KiB frame bundle"
 run = "(cd engine/native/crypto && CARGO_TARGET_DIR=\"$PWD/target\" cargo build --release --quiet) && lake build bench && mkdir -p out && .lake/build/bin/bench out/bench"

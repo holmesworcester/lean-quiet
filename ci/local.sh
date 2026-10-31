@@ -50,6 +50,7 @@ gate() {
     reorg) mise run reorg:test ;;
     vacuity) mise run test:vacuity ;;
     crypto-failure) mise run test:crypto-failure ;;
+    fairness) mise run test:fairness ;;
     *) echo "no part $1" >&2; return 2 ;;
   esac
 }

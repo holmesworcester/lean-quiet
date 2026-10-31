@@ -217,6 +217,15 @@ lean_exe window_check where
 lean_exe jointcp where
   root := `tests.engine.JoinTcp
 
+lean_exe join_fair where
+  root := `tests.engine.JoinFair
+
+lean_exe vacuity_production_bootstrap where
+  root := `tests.vacuity.ProductionBootstrapMain
+
+lean_exe vacuity_bootstrap where
+  root := `tests.vacuity.BootstrapMain
+
 lean_exe merkle_check where
   root := `tests.engine.MerkleCheck
 
