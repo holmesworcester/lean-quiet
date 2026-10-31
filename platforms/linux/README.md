@@ -39,7 +39,10 @@ keyboard focus traversal, fractional scaling and Wayland remain unsupported.
 The shell requires a 24-bit little-endian TrueColor X server.
 
 A persistent conversation scrollbar follows the bottom-anchored history
-offset. Dragging it or clicking the track reaches older messages and returns
+by message rank (the engine's counts of messages newer than the screen and
+on it), not by estimated row heights, so it does not jump as rows are
+measured (laws in engine/renderer/Scrollbar.lean, `Desktop.thumb_in_track`
+and the rest in engine/renderer/desktop/Laws.lean). Dragging it or clicking the track reaches older messages and returns
 to the newest. A resize retains the last frame while the new-width visible rows
 finish painting. The shell uses north-west bit gravity and acknowledges
 `_NET_WM_SYNC_REQUEST` after displaying that frame. The X server/window manager

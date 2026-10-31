@@ -8,6 +8,7 @@ pixels: n CSS pixels are `(n * dpi + 80) / 160`, n itself at 160 dpi
 No claim about glyph pixels or the inherited phone page controls is made here.
 -/
 import engine.renderer.desktop.Layout
+import engine.renderer.desktop.Scrollbar
 
 namespace Desktop
 
@@ -89,5 +90,103 @@ theorem hit_drawn (xs : List (Control α)) (x y : Nat) (c : Control α)
 theorem witness :
     let c : Control Nat := ⟨.context, ⟨520, 0, 24, 24⟩, 0, "Close"⟩
     c ∈ controls (zoomLayout 1080 true 240) 480 [c] := by decide
+
+/-! ## The scrollbar: placed by rank, inside its track
+
+`Scrollbar.layout` is what the desktop paints and hit-tests. Each law is
+about the bar it returns, for whatever counts the app gives it. -/
+
+section Bar
+
+/-- **The thumb lies in the track, which is the viewport's height, and is
+at least a target tall (or the whole track).** -/
+theorem thumb_in_track {right top height content n k r dpi : Nat} {bar : Scrollbar.Bar}
+    (h : Scrollbar.layout right top height content n k r dpi = some bar) :
+    bar.track.y = top ∧ bar.track.h = height ∧ top ≤ bar.thumb.y ∧
+    bar.thumb.y + bar.thumb.h ≤ top + height ∧ min ((24 * dpi + 80) / 160) height ≤ bar.thumb.h := by
+  unfold Scrollbar.layout at h
+  dsimp only at h
+  split at h
+  · simp at h
+  · simp only [Option.some.injEq] at h
+    subst h
+    have f := _root_.Scrollbar.inside height ((24 * dpi + 80) / 160) n (min k n)
+      (min r (n - min k n)) (Nat.min_le_right _ _)
+    have g := _root_.Scrollbar.size_le height ((24 * dpi + 80) / 160) n (min k n)
+    refine ⟨rfl, rfl, ?_, ?_, ?_⟩
+    · simp only; omega
+    · simp only; omega
+    · unfold _root_.Scrollbar.size
+      exact Nat.le_min.2 ⟨Nat.min_le_right _ _, Nat.le_trans (Nat.min_le_left _ _) (Nat.le_max_left _ _)⟩
+
+/-- **At the newest message the thumb rests on the track's bottom.** -/
+theorem newest_bottom {right top height content n k dpi : Nat} {bar : Scrollbar.Bar}
+    (h : Scrollbar.layout right top height content n k 0 dpi = some bar) :
+    bar.thumb.y + bar.thumb.h = bar.track.y + bar.track.h := by
+  unfold Scrollbar.layout at h
+  dsimp only at h
+  split at h
+  · simp at h
+  · simp only [Option.some.injEq] at h
+    subst h
+    have g := _root_.Scrollbar.size_le height ((24 * dpi + 80) / 160) n (min k n)
+    simp [_root_.Scrollbar.newest_bottom]
+    omega
+
+/-- **With the oldest message on screen the thumb touches the track's top.** -/
+theorem oldest_top {right top height content n k dpi : Nat} {bar : Scrollbar.Bar}
+    (hk : k < n) (h : Scrollbar.layout right top height content n k (n - k) dpi = some bar) :
+    bar.thumb.y = bar.track.y := by
+  unfold Scrollbar.layout at h
+  dsimp only at h
+  split at h
+  · simp at h
+  · simp only [Option.some.injEq] at h
+    subst h
+    have := _root_.Scrollbar.oldest_top height ((24 * dpi + 80) / 160) n k hk
+    have g := _root_.Scrollbar.size_le height ((24 * dpi + 80) / 160) n k
+    have e : min k n = k := Nat.min_eq_left (Nat.le_of_lt hk)
+    have e' : min (n - k) (n - k) = n - k := Nat.min_self _
+    simp only [e, e']
+    omega
+
+/-- **Further back in the conversation, the thumb is higher.** -/
+theorem thumb_monotone {right top height content n k r r' dpi : Nat} {bar bar' : Scrollbar.Bar}
+    (hr : r ≤ r') (h : Scrollbar.layout right top height content n k r dpi = some bar)
+    (h' : Scrollbar.layout right top height content n k r' dpi = some bar') :
+    bar'.thumb.y ≤ bar.thumb.y := by
+  unfold Scrollbar.layout at h h'
+  dsimp only at h h'
+  split at h
+  · simp at h
+  · simp only [Option.some.injEq] at h
+    split at h'
+    · simp at h'
+    · simp only [Option.some.injEq] at h'
+      subst h h'
+      have m := _root_.Scrollbar.monotone height ((24 * dpi + 80) / 160) n (min k n)
+        (r := min r (n - min k n)) (r' := min r' (n - min k n)) (by omega)
+      have f := _root_.Scrollbar.inside height ((24 * dpi + 80) / 160) n (min k n)
+        (min r (n - min k n)) (Nat.min_le_right _ _)
+      have f' := _root_.Scrollbar.inside height ((24 * dpi + 80) / 160) n (min k n)
+        (min r' (n - min k n)) (Nat.min_le_right _ _)
+      simp only
+      omega
+
+/-- **A drag never lands the thumb above the pointer**: after seeking, the
+thumb's offset from the track's bottom is at most the pointer's. -/
+theorem drag_below (b : Scrollbar.Bar) (grab y : Nat) :
+    _root_.Scrollbar.place (b.track.h - b.thumb.h) (b.n - b.k) (Scrollbar.seek b grab y) ≤
+      (b.track.h - b.thumb.h) - min (b.track.h - b.thumb.h) (y - min grab b.thumb.h - b.track.y) :=
+  _root_.Scrollbar.seek_below _ _ _
+
+/-- **Dragging higher seeks further back.** -/
+theorem drag_mono (b : Scrollbar.Bar) (grab : Nat) {y y' : Nat} (h : y ≤ y') :
+    Scrollbar.seek b grab y' ≤ Scrollbar.seek b grab y := by
+  unfold Scrollbar.seek
+  apply _root_.Scrollbar.seek_mono
+  omega
+
+end Bar
 
 end Desktop
