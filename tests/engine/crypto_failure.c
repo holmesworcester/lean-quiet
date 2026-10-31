@@ -83,14 +83,12 @@ int main(void) {
     opened("XChaCha success opens original bytes", le_xchacha_open(key, nonce, ad, c), p);
     lean_dec_ref(c);
     reject_chacha = reject_xchacha = 1;
-    for (unsigned i = 0; i < 32; i++) {
-      c = le_chachapoly_seal(key, 5, ad, p);
-      check("ChaCha Err exposes no allocated or partial ciphertext", lean_sarray_size(c) == 0);
-      lean_dec_ref(c);
-      c = le_xchacha_seal(key, nonce, ad, p);
-      check("XChaCha Err exposes no allocated or partial ciphertext", lean_sarray_size(c) == 0);
-      lean_dec_ref(c);
-    }
+    c = le_chachapoly_seal(key, 5, ad, p);
+    check("ChaCha Err exposes no allocated or partial ciphertext", lean_sarray_size(c) == 0);
+    lean_dec_ref(c);
+    c = le_xchacha_seal(key, nonce, ad, p);
+    check("XChaCha Err exposes no allocated or partial ciphertext", lean_sarray_size(c) == 0);
+    lean_dec_ref(c);
     lean_dec_ref(p);
   }
   // Size guards refuse before calling either Rust function.

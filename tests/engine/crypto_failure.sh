@@ -14,6 +14,6 @@ cc -O2 -std=gnu11 -Wall -Wextra -Werror -I"$include" -c tests/engine/crypto_fail
 cc -O2 -std=gnu11 -I"$include" -c engine/native/crypto.c -o "$output/crypto.o"
 leanc "$output/test.o" "$output/crypto.o" engine/native/crypto/target/release/liblq_crypto.a \
   -Wl,--wrap=lq_chachapoly_seal -Wl,--wrap=lq_xchacha_seal \
-  -pthread -ldl -lm -lrt -Wl,--allow-shlib-undefined /usr/lib/x86_64-linux-gnu/libc.so.6 \
+  -pthread -ldl -lm -lrt \
   -o "$output/check"
 "$output/check" 2>&1 | tee "$output/check.log"
