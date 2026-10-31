@@ -312,7 +312,7 @@ def topH (s : St) : Nat :=
   else s.insetTop + s.dim.px 56
 
 /-- The composer's layout (Composer: the painter and the taps both read it). -/
-def composerFont (s : St) : Font := s.font.atSize (s.dim.px 14)
+def composerFont (s : St) : Font := s.font.atSize (s.dim.px (if s.wide then 14 else 15))
 
 def photoLoading (s : St) : Bool := s.photoRequest.any (·.selected)
 
@@ -645,7 +645,7 @@ def headerHit (s : St) (x _y : Nat) : PageId :=
 
 def cursorAt (s : St) (i : Nat) : Nat × Nat :=
   let pre := String.ofList (s.text.toList.take i)
-  let ls := if pre.isEmpty then #[#[]] else Text.layout (composerFont s) (composerLayout s).textW pre
+  let ls := if pre.isEmpty then #[#[]] else Text.layoutFine (composerFont s) (composerLayout s).textW pre
   let last := ls.back?.getD #[]
   -- a prefix ending in a newline puts the cursor on the next line
   if pre.endsWith "\n" then (ls.size, 0) else (ls.size - 1, Paint.Line.width (composerFont s) last)

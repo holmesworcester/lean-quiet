@@ -130,8 +130,9 @@ def layout (f : Font) (dm : Dim) (W : Nat) (text : String) (chips : Nat) (wide :
   let edge := px 1
   let tx := gutter + px 16 + (if wide then edge else 0)
   let tw := W - 2 * tx
-  let lines := if text.isEmpty then #[#[]] else Text.layout f tw text
+  let lines := if text.isEmpty then #[#[]] else Text.layoutFine f tw text
   let lineH := px 20
+  -- The field's 12px padding follows the row's 1px top border.
   let ty := px 13
   let mut y := px 25 + (min 5 lines.size) * lineH
   let chipsY := y
@@ -144,11 +145,13 @@ def layout (f : Font) (dm : Dim) (W : Nat) (text : String) (chips : Nat) (wide :
   let acts := if mobile then #[Hit.addPhotos, .takePhoto, .emoji, .mention, .voice]
     else #[Hit.addPhotos, .emoji, .mention, .voice]
   let k := min (px (if wide then 32 else 44)) ((W - 2 * gutter - px 16) / (acts.size + 1))
-  let dy := y + px 8
+  -- Mobile has a 1px rule before the toolbar's 8px top padding.
+  -- Desktop uses an 8px field margin and has no internal rule.
+  let dy := y + (if wide then 0 else edge) + px 8
   let inside := if wide then edge else 0
   let deck := acts.mapIdx fun i act => (⟨gutter + px 8 + inside + i * k, dy, k, k⟩, act)
-  let send : Box := ⟨W - gutter - px 8 - k, dy, k, k⟩
-  return ⟨dy + k + px 9 + (if wide then px 8 else 0), tx, ty, tw, lines, cs, chipsY, deck, send, lineH, wide, mobile⟩
+  let send : Box := ⟨W - gutter - inside - px 8 - k, dy, k, k⟩
+  return ⟨dy + k + px 8 + inside + (if wide then px 8 else 0), tx, ty, tw, lines, cs, chipsY, deck, send, lineH, wide, mobile⟩
 
 /-- A glyph at 3/2 of the font's cell (nearest; Unifont is already
 smoothed), its top left at (x, y). -/
@@ -227,18 +230,23 @@ def icon (f : Font) (dm : Dim) (b : Bitmap) (h : Hit) (x y S : Nat) (c ground : 
   | _ => return b
 
 /-- The caret's width. -/
-def caretW (dm : Dim) : Nat := max 2 (dm.px 1) + 1
+def caretW (dm : Dim) : Nat := max 1 (dm.px 1)
 
-/-- Where the placeholder starts: past the caret at the text's start, so
-the caret covers none of its glyphs (`caret_clear`). -/
-def placeholderX (dm : Dim) (l : Layout) : Nat := l.textX + caretW dm + dm.px 2
+/-- Focusing the empty field never moves its placeholder. The empty caret
+occupies the pixel immediately before it. -/
+def placeholderX (_dm : Dim) (l : Layout) : Nat := l.textX
 
-/-- **The caret never covers the placeholder.** With no text the caret
-is at the text's start; its right edge is at or before every placeholder
-glyph's left edge. -/
-theorem caret_clear (f : Font) (dm : Dim) (l : Layout) (ph : String) {g : Text.Placed}
-    (_hg : g ∈ (oneLine f l.textW ph).toList) : l.textX + 0 + caretW dm ≤ placeholderX dm l + g.x := by
+/-- **The empty caret never covers the placeholder.** Its width clips to
+the available left padding, and its right edge meets the placeholder. -/
+theorem caret_clear (dm : Dim) (l : Layout) (g : Text.Placed) :
+    l.textX - caretW dm + min (caretW dm) l.textX ≤ placeholderX dm l + g.x := by
   unfold placeholderX; omega
+
+/-- Noto Sans has hhea ascent 1069 and descent -293 per 1000 units.
+CSS centres those metrics in the 20px line box. Our rasterizer's baseline
+is 4/5 of its cell, so compensate here without moving the field/hit boxes. -/
+def textOffset (f : Font) (l : Layout) : Nat :=
+  (l.lineH * 1000 + f.cell * 776 + 1000) / 2000 - f.cell * 4 / 5
 
 /-- The composer's pixels; `caret` is the caret's line and x, if focused. -/
 def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (l : Layout) (text : String)
@@ -249,20 +257,26 @@ def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (l : Layout) (text
   let gutter := if l.wide then dm.px 16 else 0
   let rowH := l.h - (if l.wide then dm.px 8 else 0)
   if l.wide then
-    b := b.round gutter 0 (W - gutter) rowH (dm.px 16) (color .line)
+    let edge := if caret.isSome then (if dm.theme == .dark then 0x909090 else 0x999999) else color .line
+    b := b.round gutter 0 (W - gutter) rowH (dm.px 16) edge
     b := b.round (gutter + dm.px 1) (dm.px 1) (W - gutter - dm.px 1) (rowH - dm.px 1) (dm.px 15) (color .panel)
   else
     b := b.fill 0 0 W rowH (color .panel)
-    b := b.fill 0 0 W (dm.px 1) (color .selected)
-    b := b.fill 0 (l.textY + l.lines.size * l.lineH + dm.px 11) W (l.textY + l.lines.size * l.lineH + dm.px 12) (color .bg)
+    b := b.fill 0 0 W (dm.px 1) (if caret.isSome then Palette.gray30 dm.theme else color .selected)
+    let ruleY := l.deck[0]?.map (fun p => p.1.y - dm.px 8 - dm.px 1) |>.getD l.chipsY
+    b := b.fill 0 ruleY W (ruleY + dm.px 1) (Palette.gray03 dm.theme)
+  let textY := l.textY + textOffset f l
   if text.isEmpty then
-    b := b.line f (oneLine f l.textW placeholder) (if caret.isSome then placeholderX dm l else l.textX) l.textY (Palette.color dm.theme .muted)
+    b := b.line f (Text.oneLineFine f l.textW placeholder) (placeholderX dm l) textY
+      (if dm.theme == .dark then 0xa0a0a0 else 0x7f7f7f) (exactInk := true)
   else
     for i in [0:min 5 l.lines.size] do
-      b := b.line f l.lines[i]! l.textX (l.textY + i * l.lineH) (Palette.color dm.theme .fg)
+      b := b.line f l.lines[i]! l.textX (textY + i * l.lineH) (Palette.color dm.theme .fg)
   if let some (cl, cx) := caret then
-    let cy := l.textY + (min 4 cl) * l.lineH
-    b := b.fill (l.textX + cx) cy (l.textX + cx + caretW dm) (cy + f.cell) (Palette.color dm.theme .accentInk)
+    let cy := textY + (min 4 cl) * l.lineH
+    let x := if text.isEmpty then l.textX - caretW dm else l.textX + cx
+    let width := if text.isEmpty then min (caretW dm) l.textX else caretW dm
+    b := b.fill x cy (x + width) (cy + f.cell) (color .fg)
   for i in [0:min chips.size l.chips.size] do
     let (tb, xb) := l.chips[i]!
     b := b.image chips[i]!.thumb tb.x tb.y (dm.px 8)
@@ -282,8 +296,9 @@ def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (l : Layout) (text
       (if dm.theme == .dark then 0xa0a0a0 else 0x7f7f7f)
   let full := !pending && (!text.trimAscii.isEmpty || !chips.isEmpty)
   let size := dm.px 24
-  b := b.icon f "send" (l.send.x + (l.send.w - size) / 2) (l.send.y + (l.send.h - size) / 2) size
-    (if full then color .link else if dm.theme == .dark then 0xa0a0a0 else 0x7f7f7f)
+  -- libquiet's plane is an inline SVG on the send label's baseline.
+  b := b.icon f "send" (l.send.x + (l.send.w - size) / 2) (l.send.y + (l.send.h - size) / 2 - dm.px 3) size
+    (if full then 0x1b6fec else if dm.theme == .dark then 0xa0a0a0 else 0x7f7f7f)
   return b
 
 def hit (l : Layout) (x y : Nat) : Hit := Id.run do

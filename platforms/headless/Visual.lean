@@ -80,7 +80,7 @@ def capture (dir name : String) (width height : Nat) (theme scenario : String) (
     setTheme .system
     waitIdle sm).run d.app
   d := { d with app := s }
-  let target : PageId := match fixtureName with
+  let target : PageId := if fixtureName.startsWith "composer-" then .chat else match fixtureName with
     | "home" => .home
     | "chat" | "conversation" | "sidebar" | "switcher" | "switcher-many" | "switcher-end" | "switcher-hover" => .chat
     | "you" => .you
@@ -142,6 +142,28 @@ def capture (dir name : String) (width height : Nat) (theme scenario : String) (
       let some y := parts[1]?.bind String.toNat? | throw (IO.userError "invalid hover y")
       d := Desktop.pointerEvent d (.motion x y)
       d := Desktop.hoverTime (Desktop.hoverTime d 1000) 1401
+  if fixtureName.startsWith "composer-" then
+    let text := match fixtureName with
+      | "composer-text" => "A message ready to send."
+      | "composer-lines" => "First line\nSecond line\nThird line"
+      | "composer-wrap" => String.join (List.replicate 3 "A longer message that wraps naturally as the window gets narrower. ")
+      | _ => ""
+    sm.native.set text
+    let (_, s) ← (App.onEvent .text).run d.app
+    d := { d with app := { s with editorFocused := fixtureName == "composer-focus" } }
+    for _ in [0:3] do d ← Desktop.tick d
+    let l := App.composerLayout d.app
+    let x := d.layout.main.x
+    let y := d.height - App.botH d.app
+    let px := d.app.dim.px
+    let gutter := if l.wide then px 16 else 0
+    let border := if l.wide then px 1 else 0
+    let box (b : Composer.Box) := s!"{x+b.x}\t{y+b.y}\t{b.w}\t{b.h}\n"
+    let area := box ⟨0, 0, d.app.W, l.h⟩
+    let row := box ⟨gutter, 0, d.app.W - 2*gutter, l.h - (if l.wide then px 8 else 0)⟩
+    let field := box ⟨gutter+border, px 1, d.app.W - 2*(gutter+border), px 24 + min 5 l.lines.size*l.lineH⟩
+    IO.FS.writeFile (dir ++ "/" ++ name ++ ".composer.tsv")
+      (area ++ row ++ field ++ String.join (l.deck.toList.map fun p => box p.1) ++ box l.send)
   let bmp ← Desktop.picture d
   if bmp.w != width || bmp.h != height then
     throw (IO.userError s!"{name}: wrong dimensions {bmp.w}x{bmp.h}")

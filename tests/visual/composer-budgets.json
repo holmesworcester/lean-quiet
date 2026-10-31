@@ -1,0 +1,222 @@
+{
+  "composer-empty-1280-100-dark": {
+    "composer_mae": 0.0010944,
+    "composer_changed_fraction": 0.00727105,
+    "composer_layout_mae": 0.0003662
+  },
+  "composer-empty-1280-100-light": {
+    "composer_mae": 0.00110432,
+    "composer_changed_fraction": 0.0072901,
+    "composer_layout_mae": 0.0003254
+  },
+  "composer-empty-1280-125-dark": {
+    "composer_mae": 0.00461746,
+    "composer_changed_fraction": 0.01593557,
+    "composer_layout_mae": 0.0009016
+  },
+  "composer-empty-1280-125-light": {
+    "composer_mae": 0.004581,
+    "composer_changed_fraction": 0.01595959,
+    "composer_layout_mae": 0.00142603
+  },
+  "composer-empty-390-100-dark": {
+    "composer_mae": 0.00261846,
+    "composer_changed_fraction": 0.01911023,
+    "composer_layout_mae": 0.00054627
+  },
+  "composer-empty-390-100-light": {
+    "composer_mae": 0.00265667,
+    "composer_changed_fraction": 0.01861193,
+    "composer_layout_mae": 0.00057001
+  },
+  "composer-empty-719-100-dark": {
+    "composer_mae": 0.00144319,
+    "composer_changed_fraction": 0.01038865,
+    "composer_layout_mae": 0.00033045
+  },
+  "composer-empty-719-100-light": {
+    "composer_mae": 0.00146391,
+    "composer_changed_fraction": 0.01011836,
+    "composer_layout_mae": 0.00035024
+  },
+  "composer-empty-720-100-dark": {
+    "composer_mae": 0.00226412,
+    "composer_changed_fraction": 0.01535863,
+    "composer_layout_mae": 0.00071958
+  },
+  "composer-empty-720-100-light": {
+    "composer_mae": 0.00228516,
+    "composer_changed_fraction": 0.01539902,
+    "composer_layout_mae": 0.00065624
+  },
+  "composer-focus-1280-100-dark": {
+    "composer_mae": 0.00779945,
+    "composer_changed_fraction": 0.02876273,
+    "composer_layout_mae": 0.00666728
+  },
+  "composer-focus-1280-100-light": {
+    "composer_mae": 0.00732031,
+    "composer_changed_fraction": 0.02874367,
+    "composer_layout_mae": 0.00598642
+  },
+  "composer-focus-1280-125-dark": {
+    "composer_mae": 0.01102478,
+    "composer_changed_fraction": 0.04986056,
+    "composer_layout_mae": 0.00785309
+  },
+  "composer-focus-1280-125-light": {
+    "composer_mae": 0.01060909,
+    "composer_changed_fraction": 0.04986856,
+    "composer_layout_mae": 0.0078403
+  },
+  "composer-focus-390-100-dark": {
+    "composer_mae": 0.00505723,
+    "composer_changed_fraction": 0.02882721,
+    "composer_layout_mae": 0.00303194
+  },
+  "composer-focus-390-100-light": {
+    "composer_mae": 0.00498112,
+    "composer_changed_fraction": 0.02832891,
+    "composer_layout_mae": 0.00274497
+  },
+  "composer-focus-719-100-dark": {
+    "composer_mae": 0.00388196,
+    "composer_changed_fraction": 0.02010563,
+    "composer_layout_mae": 0.00281612
+  },
+  "composer-focus-719-100-light": {
+    "composer_mae": 0.00378836,
+    "composer_changed_fraction": 0.01983534,
+    "composer_layout_mae": 0.0025252
+  },
+  "composer-focus-720-100-dark": {
+    "composer_mae": 0.00920508,
+    "composer_changed_fraction": 0.03830137,
+    "composer_layout_mae": 0.00729417
+  },
+  "composer-focus-720-100-light": {
+    "composer_mae": 0.00872154,
+    "composer_changed_fraction": 0.03826098,
+    "composer_layout_mae": 0.0066282
+  },
+  "composer-lines-1280-100-dark": {
+    "composer_mae": 0.00163228,
+    "composer_changed_fraction": 0.00899373,
+    "composer_layout_mae": 0.0006632
+  },
+  "composer-lines-1280-100-light": {
+    "composer_mae": 0.00172579,
+    "composer_changed_fraction": 0.00880213,
+    "composer_layout_mae": 0.0004952
+  },
+  "composer-lines-1280-125-dark": {
+    "composer_mae": 0.00521837,
+    "composer_changed_fraction": 0.01567072,
+    "composer_layout_mae": 0.00120889
+  },
+  "composer-lines-1280-125-light": {
+    "composer_mae": 0.00552347,
+    "composer_changed_fraction": 0.01578587,
+    "composer_layout_mae": 0.00162897
+  },
+  "composer-lines-390-100-dark": {
+    "composer_mae": 0.00443558,
+    "composer_changed_fraction": 0.02468751,
+    "composer_layout_mae": 0.00096007
+  },
+  "composer-lines-390-100-light": {
+    "composer_mae": 0.00475658,
+    "composer_changed_fraction": 0.0247056,
+    "composer_layout_mae": 0.00071697
+  },
+  "composer-lines-719-100-dark": {
+    "composer_mae": 0.00242883,
+    "composer_changed_fraction": 0.01341388,
+    "composer_layout_mae": 0.00056772
+  },
+  "composer-lines-719-100-light": {
+    "composer_mae": 0.00260294,
+    "composer_changed_fraction": 0.01342369,
+    "composer_layout_mae": 0.00042652
+  },
+  "composer-lines-720-100-dark": {
+    "composer_mae": 0.00340443,
+    "composer_changed_fraction": 0.0190107,
+    "composer_layout_mae": 0.00132742
+  },
+  "composer-lines-720-100-light": {
+    "composer_mae": 0.00360267,
+    "composer_changed_fraction": 0.01860451,
+    "composer_layout_mae": 0.00100168
+  },
+  "composer-text-1280-100-dark": {
+    "composer_mae": 0.00211668,
+    "composer_changed_fraction": 0.01028141,
+    "composer_layout_mae": 0.00071215
+  },
+  "composer-text-1280-100-light": {
+    "composer_mae": 0.00226286,
+    "composer_changed_fraction": 0.01033857,
+    "composer_layout_mae": 0.000526
+  },
+  "composer-text-1280-125-dark": {
+    "composer_mae": 0.00750008,
+    "composer_changed_fraction": 0.0202993,
+    "composer_layout_mae": 0.00192622
+  },
+  "composer-text-1280-125-light": {
+    "composer_mae": 0.00793167,
+    "composer_changed_fraction": 0.02002707,
+    "composer_layout_mae": 0.00251325
+  },
+  "composer-text-390-100-dark": {
+    "composer_mae": 0.00539015,
+    "composer_changed_fraction": 0.02830399,
+    "composer_layout_mae": 0.00123889
+  },
+  "composer-text-390-100-light": {
+    "composer_mae": 0.00580228,
+    "composer_changed_fraction": 0.02867772,
+    "composer_layout_mae": 0.00121516
+  },
+  "composer-text-719-100-dark": {
+    "composer_mae": 0.00294661,
+    "composer_changed_fraction": 0.01537553,
+    "composer_layout_mae": 0.00069818
+  },
+  "composer-text-719-100-light": {
+    "composer_mae": 0.00317015,
+    "composer_changed_fraction": 0.01557825,
+    "composer_layout_mae": 0.00069353
+  },
+  "composer-text-720-100-dark": {
+    "composer_mae": 0.00443136,
+    "composer_changed_fraction": 0.02174059,
+    "composer_layout_mae": 0.0014507
+  },
+  "composer-text-720-100-light": {
+    "composer_mae": 0.00474127,
+    "composer_changed_fraction": 0.02186176,
+    "composer_layout_mae": 0.00106523
+  },
+  "composer-wrap-1280-100-dark": {
+    "composer_mae": 0.02098872,
+    "composer_changed_fraction": 0.07530085,
+    "composer_layout_mae": 0.00641074
+  },
+  "composer-wrap-1280-100-light": {
+    "composer_mae": 0.02273763,
+    "composer_changed_fraction": 0.07409818,
+    "composer_layout_mae": 0.00584974
+  },
+  "composer-wrap-390-100-dark": {
+    "composer_mae": 0.03161763,
+    "composer_changed_fraction": 0.13356379,
+    "composer_layout_mae": 0.00727351
+  },
+  "composer-wrap-390-100-light": {
+    "composer_mae": 0.03428691,
+    "composer_changed_fraction": 0.13326561,
+    "composer_layout_mae": 0.0061759
+  }
+}

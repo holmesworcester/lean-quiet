@@ -107,6 +107,10 @@ run = "tests/visual/run.sh"
 description = "Build native hover pixels; compare paired states against real libquiet DOM targets and reject missing/incorrect hover"
 run = "tests/visual/hover.sh"
 
+[tasks."visual:composer"]
+description = "Build the actual composer; compare its field, toolbar and pixels with libquiet at mobile/desktop widths and zoom"
+run = "tests/visual/composer.sh"
+
 [tasks."visual:reference"]
 description = "Explicitly regenerate libquiet references from a pinned git archive using its real App.svelte and bundled fonts"
 run = "tests/visual/reference.sh"
