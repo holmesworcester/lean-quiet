@@ -4,6 +4,7 @@ import ops.app.LifecycleLaws
 import engine.renderer.Ttf.Laws
 import tests.vacuity.RendererImages
 import tests.vacuity.RendererLive
+import tests.vacuity.RendererSupplement
 import tests.engine.Checks
 
 /-! Runtime premise certificates for native Float rasterization and real app
@@ -96,6 +97,7 @@ def pageCodec := App.page_round .profile
 
 def main : IO UInt32 := do
   let t ← Checks.new
+  t.ok "all supplemental signed-data checks pass" ((← RendererSupplement.main) == 0)
   let dir := "out/vacuity/renderer-runtime"
   IO.FS.createDirAll dir
   -- Named deterministic assets task supplies this font; no network is used.
@@ -106,6 +108,11 @@ def main : IO UInt32 := do
   t.ok "real-font nonempty raster has an in-bounds pixel certificate" (rasterPixel face glyph).isSome
   t.ok "invalid zero-size native raster is rejected" ((Ttf.raster face glyph 0 24).isNone)
   t.ok "changed-answer journal reaches the exact cached query" noticedAgreement.isSome
+  let cache2 := Ttf.Cache.put RendererImages.initialCache ⟨0, 5, 20, 20⟩ RendererImages.glyph
+  t.ok "bounded glyph cache actually retains its first nonempty insertion"
+    ((Ttf.Cache.get? cache2 RendererImages.glyphKey).isSome)
+  t.ok "bounded glyph cache retains the second distinct glyph"
+    ((Ttf.Cache.get? cache2 ⟨0, 5, 20, 20⟩).isSome && cache2.index.size == 2)
   t.ok "concrete two-pixel attachment grows and applies add_stored" addStored.isSome
   let sm ← Sim.new
   let s ← App.start sm.io #[390, 844, 0, 0, 160] (dir ++ "/quiet.db")
