@@ -205,8 +205,15 @@
   XCTAssertTrue([self until:10 ask:@"twin" that:^BOOL(NSString* s) {
     return [self num:@"tap" in:s] == 3;
   }], @"intentional long press was lost");
+  XCTAssertTrue([self until:10 that:^BOOL(NSString* s) {
+    return [self num:@"viewH" in:s] < height;
+  }], @"Lean's long-press action must open the reaction sheet");
   [self shot:@"press-classification"];
-  [self ctl:@"back"];
+  long top = [self num:@"top" in:[self twin]];
+  [[self px:screen.width * k / 2 y:top - 20 * k] tap];
+  XCTAssertTrue([self until:10 that:^BOOL(NSString* s) {
+    return [self num:@"viewH" in:s] == height;
+  }], @"Lean's header tap must dismiss the reaction sheet");
 }
 
 - (void)testFlingContinuesAfterRelease {
@@ -218,10 +225,13 @@
   [self settledB];
   long view = [self num:@"viewH" in:[self state]];
   for (int i = 0; i < 3; i++) {
+    long nativeBefore = [self num:@"nativeFlings" in:[self twin]];
     [self.app swipeDown];
     [self settledB];
     NSString* motion = [self twin];
     NSLog(@"released fling: %@", motion);
+    XCTAssertGreaterThan([self num:@"nativeFlings" in:motion], nativeBefore,
+      @"UIKit must recognize the drag and enter its own deceleration");
     XCTAssertGreaterThan([self num:@"flingDistance" in:motion], (long)(20 * [self scale]),
       @"dragging alone is not a fling; the list must continue AFTER finger-up");
     XCTAssertEqual([self num:@"viewH" in:[self state]], view, @"fling opened a long-press sheet");
@@ -232,6 +242,15 @@
     @"reverse fling must retain negative release velocity");
   [self shot:@"released-fling"];
   [self ctl:@"bottom"];
+  long flings = [self num:@"nativeFlings" in:[self twin]];
+  [self ctl:@"open paste"];
+  XCTAssertTrue([self until:10 ask:@"twin" that:^BOOL(NSString* s) {
+    return [self num:@"pin" in:s] == 1;
+  }]);
+  [self.app swipeDown];
+  XCTAssertEqual([self num:@"nativeFlings" in:[self twin]], flings,
+    @"a pinned action page must not start native scrolling");
+  [self ctl:@"channel"];
 }
 
 - (void)testScrollTapKeyboardSend {
@@ -358,7 +377,7 @@
   XCTAssertTrue([[self ctl:@"open paste"] containsString:@"paste"], @"Paste did not open");
 
   // Lean crops the visible layer to the viewport. Its top is the header
-  // bottom; the hidden physics view has the effective viewport height.
+  // bottom; the native interactive viewport covers that exact list region.
   XCTAssertTrue([self until:10 ask:@"twin" that:^BOOL(NSString* s) { return [self num:@"pin" in:s] == 1; }],
     @"the twin did not pin the page: %@", [self twin]);
   NSString* t0 = [self settledTwin];
@@ -367,7 +386,7 @@
   long list0 = [self num:@"listY" in:t0];
   long svb0  = [self num:@"svBottom" in:t0];
   XCTAssertEqual(list0, top, @"page row 0 not at the viewport's top: %@", t0);
-  XCTAssertEqual(svb0, view, @"the physics viewport is not Lean's viewport: %@", t0);
+  XCTAssertEqual(svb0, top + view, @"the physics viewport is not Lean's viewport: %@", t0);
   XCTAssertEqual([self num:@"ime" in:[self state]], 0, @"the keyboard is already open");
 
   // A real tap on the field (Pages.paste's box) opens the keyboard.
@@ -382,7 +401,7 @@
   NSString* t1 = [self settledTwin];
   XCTAssertLessThan([self num:@"composerTop" in:t1], [self num:@"composerTop" in:t0], @"the composer was not lifted: %@", t1);
   XCTAssertEqual([self num:@"listY" in:t1], list0, @"the page moved with the keyboard: %@", t1);
-  XCTAssertEqual([self num:@"svBottom" in:t1], [self num:@"composerTop" in:t1] - top,
+  XCTAssertEqual([self num:@"svBottom" in:t1], [self num:@"composerTop" in:t1],
     @"the physics viewport did not follow Lean's published height: %@", t1);
   NSLog(@"pinned: keyboard closed: %@", t0);
   NSLog(@"pinned: keyboard open:   %@", t1);

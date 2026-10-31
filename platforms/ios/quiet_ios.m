@@ -4,8 +4,9 @@
 // move it independently. Each vsync calls the compiled Lean translation
 // and holdLine-fill helpers. Pixel/point conversion and copying are native.
 // Raw touches retain pointer identity, time, cancellation and displayed
-// frame serial; Input classifies them. Only accepted samples drive the
-// hidden UIScrollView's native animation. IME text/composition stays UIKit's.
+// frame serial; Lean classifies semantic gestures. An interactive UIScrollView
+// owns pan recognition and deceleration; Lean keeps taps and drawing.
+// IME text/composition stays UIKit's.
 
 // The control channel (ctl_ios.c) exists only in development builds
 // (LQ_CTL, set by build_ios.sh unless RELEASE=1), and every connection
@@ -20,7 +21,6 @@
 #import <IOSurface/IOSurfaceRef.h>
 #include <lean/lean.h>
 #include "../native/thread.h"
-#include "../native/fling.h"
 #import <UIKit/UIGestureRecognizerSubclass.h>
 #include <math.h>
 #include <pthread.h>
@@ -94,6 +94,7 @@ static UIScrollView*  lq_sv;
 // Main-thread diagnostics: actual travel AFTER release, not drag distance.
 static double lq_fling_start, lq_fling_distance;
 static bool lq_fling_tracking;
+static unsigned lq_native_flings;
 static CALayer*       lq_list;
 static CALayer*       lq_hold;
 static uint32_t       lq_place[LQ_PLACEMENT_WORDS];
@@ -433,7 +434,7 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
     }
     if (list_bg != lq_list_bg) {
       lq_list_bg = list_bg;
-      lq_sv.backgroundColor = lq_color(list_bg);
+      lq_sv.backgroundColor = UIColor.clearColor;
       lq_root.backgroundColor   = lq_color(list_bg);
     }
     lq_shown_top_h = top_h;
@@ -449,7 +450,11 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
     lq_header.frame = CGRectMake(0, r[6] / k, w / k, (r[7] - r[6]) / k);
     lq_composer.frame = CGRectMake(0, r[10] / k, w / k, (r[11] - r[10]) / k);
     lq_fill.frame = CGRectMake(0, r[12] / k, w / k, (r[13] - r[12]) / k);
-    lq_sv.frame = CGRectMake(0, 0, w / k, r[14] / k);
+    // UIKit's hit region is exactly the list between header and composer.
+    // The vertical transform gives its offset Lean's bottom-anchored sign.
+    lq_sv.bounds = CGRectMake(lq_sv.bounds.origin.x, lq_sv.bounds.origin.y, w / k, r[14] / k);
+    lq_sv.center = CGPointMake(w / k / 2, (r[7] + r[14] / 2.0) / k);
+    lq_sv.scrollEnabled = !pin;
     CGFloat height = ch / k;
     if (lq_sv.contentSize.height != height) {
       lq_sv.contentSize = CGSizeMake(lq_sv.bounds.size.width, height);
@@ -708,11 +713,11 @@ void lq_twin(char* out, size_t n) {
     CALayer* c  = lq_composer.layer.presentationLayer ?: lq_composer.layer;
     pthread_mutex_lock(&lq_mu);
     snprintf(out, n, "w %u dpi %u pin %d top %u over %u listY %ld svBottom %ld composerTop %ld "
-      "tap %u %u %u luma %u %u %u %u inputClock %llu uptimeClock %llu elapsedClock %llu flingDistance %ld field %s", lq_w, lq_dpi, lq_shown_pin, lq_shown_top_h, lq_over,
+      "tap %u %u %u luma %u %u %u %u inputClock %llu uptimeClock %llu elapsedClock %llu flingDistance %ld nativeFlings %u field %s", lq_w, lq_dpi, lq_shown_pin, lq_shown_top_h, lq_over,
       lround(list.origin.y * k), lround(CGRectGetMaxY(sv) * k), lround(c.frame.origin.y * k),
       lq_tap[0], lq_tap[1], lq_tap[2], lq_yhdr[0], lq_yhdr[1], lq_yhdr[2], lq_yhdr[3],
       (unsigned long long)lq_input_now(), (unsigned long long)lq_input_ms(NSProcessInfo.processInfo.systemUptime),
-      (unsigned long long)(lq_tick() / 1000000), lround(lq_fling_distance), lq_text_s ? lq_text_s : "");
+      (unsigned long long)(lq_tick() / 1000000), lround(lq_fling_distance), lq_native_flings, lq_text_s ? lq_text_s : "");
     pthread_mutex_unlock(&lq_mu);
   });
 }
@@ -874,36 +879,11 @@ static void lq_report(void) {
 - (void)touchesCancelled:(NSSet*)touches withEvent:(UIEvent*)event { [self forward:touches phase:3 event:event]; }
 @end
 
-// Accepted samples alone drive the native scroll animation. Its samples
-// remain advisory; Lean clamps them before painting or mapping a touch.
+// UIKit receives real touches and owns pan recognition, velocity tracking,
+// deceleration and interruption. Lean still receives the raw sequence for
+// semantic taps/holds; replaying its accepted motion would scroll twice.
 lean_obj_res lq_motion(b_lean_obj_arg samples) {
-  size_t n = lean_array_size(samples);
-  uint32_t* words = malloc(n * sizeof *words);
-  for (size_t i = 0; i < n; i++) words[i] = lean_unbox_uint32(lean_array_get_core(samples, i));
-  dispatch_sync(dispatch_get_main_queue(), ^{
-    static LqFling fling;
-    for (size_t i = 0; i + 7 < n; i += 8) {
-      uint32_t phase = words[i] - 9;
-      double y = (int32_t)words[i+3];
-      uint64_t now = ((uint64_t)words[i+5] << 32) | words[i+4];
-      LqFlingStep step = lq_fling_sample(&fling, phase, y, now);
-      if (step.stop) {
-        lq_fling_tracking = false;
-        [lq_sv setContentOffset:lq_sv.contentOffset animated:NO];
-      }
-      CGPoint pos = lq_sv.contentOffset;
-      pos.y += step.delta / lq_k;
-      if (step.delta != 0) lq_sv.contentOffset = pos;
-      if (step.released) {
-        lq_fling_start = pos.y * lq_k;
-        lq_fling_distance = 0;
-        lq_fling_tracking = true;
-        pos.y += step.velocity * 180 / lq_k;
-        [lq_sv setContentOffset:pos animated:YES];
-      }
-    }
-  });
-  free(words);
+  (void)samples;
   return lean_io_result_mk_ok(lean_box(0));
 }
 
@@ -914,6 +894,19 @@ lean_obj_res lq_motion(b_lean_obj_arg samples) {
 @end
 
 @implementation LeanScroll
+
+- (void)scrollViewWillBeginDragging:(UIScrollView*)v {
+  lq_fling_tracking = false;
+}
+- (void)scrollViewDidEndDragging:(UIScrollView*)v willDecelerate:(BOOL)decelerate {
+  lq_fling_start = v.contentOffset.y * lq_k;
+  lq_fling_distance = 0;
+  lq_fling_tracking = decelerate;
+  if (decelerate) lq_native_flings++;
+}
+- (void)scrollViewDidEndDecelerating:(UIScrollView*)v {
+  lq_fling_tracking = false;
+}
 
 - (void)scrollViewDidScroll:(UIScrollView*)v {
   // The hidden physics view supplies signed samples. Lean interprets them
@@ -937,8 +930,14 @@ lean_obj_res lq_motion(b_lean_obj_arg samples) {
 
   LeanScroll* sv = [LeanScroll new];
   sv.delegate                               = sv;
-  sv.userInteractionEnabled                 = NO;
-  sv.hidden                                 = YES;
+  sv.userInteractionEnabled                 = YES;
+  sv.hidden                                 = NO;
+  sv.backgroundColor                        = UIColor.clearColor;
+  sv.opaque                                 = NO;
+  sv.transform                              = CGAffineTransformMakeScale(1, -1);
+  sv.delaysContentTouches                    = NO;
+  sv.showsVerticalScrollIndicator            = NO;
+  sv.showsHorizontalScrollIndicator          = NO;
   sv.alwaysBounceVertical                   = YES;
   sv.scrollsToTop                           = NO;
   sv.contentInsetAdjustmentBehavior         = UIScrollViewContentInsetAdjustmentNever;

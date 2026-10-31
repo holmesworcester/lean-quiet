@@ -258,12 +258,13 @@ gate. Prefer a phone that has been locked/asleep since boot: the diagnostic
 clock audit records the elapsed/awake difference. The suite makes no claim
 about a hard wall-clock display deadline or verification of UIKit itself.
 
-The native input gate also checks movement **after finger-up**, in both
-scroll directions. `platforms/native/fling.h` is the velocity core called by
-`lq_motion`; `host:seam` runs its sanitizer tests and a negative control that
-restores the repeated-position release bug. UIKit can repeat the last move's
-position on release, so that sample preserves recent velocity; a pause over
-80 ms or cancellation clears it. These are executable regression tests,
-not a formal proof of UIKit animation timing. `ios:input-device-e2e` builds
-and runs the tap classification and released-fling tests; CI's
-`ios-input-device` and `release-ios-input` use that same task.
+The conversation's transparent, interactive UIScrollView owns native pan
+recognition, velocity tracking, deceleration and interruption. Its vertical
+transform maps UIKit's offset to the bottom-anchored Lean list. Lean paints
+all content and receives raw touches for semantic taps and holds; accepted
+motion is not replayed into UIKit. Pinned pages disable native scrolling.
+The native input gate checks UIKit's actual deceleration callbacks and movement
+after finger-up in both directions, alongside short-tap/long-hold classification.
+`ios:input-device-e2e` builds the app and test runner; CI's `ios-input-device`
+and `release-ios-input` invoke the same task. These are regression tests of
+the running UIKit boundary, not a proof of OS animation timing.
