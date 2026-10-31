@@ -109,9 +109,12 @@ correctness. It needs execution/attacker scoping and an explicit trace
 assumption or computational argument. SHA-256 second-preimage resistance also
 does not prove the stronger exact `NoSecondPreimage` idealization. Native
 attachment claims retain that assumption and remain conditional; the kernel
-witness for `NoSecondPreimage` is for a constructed model hash. The [bootstrap work plan](#bootstrap-witnesses-still-to-construct)
-separates finite scene certificates from a still-unconstructed infinite fair
-model execution and the later bridge to the running app.
+witness for `NoSecondPreimage` is for a constructed model hash. The
+[bootstrap evidence](#bootstrap-witnesses-and-running-app-checks) now includes
+finite native scene certificates, a kernel-proved infinite fair/ideal model
+run, and a successful production Node/hooks execution with a fair continuation.
+The running scheduler has bounded service proofs and real TCP regression tests.
+Convergence of every fair execution of the full app remains unproved.
 
 - **kernel-witness:** Lean checks a concrete fixture's premises and application
   of the named theorem. No new axioms, `sorry`, or `native_decide` are admitted.

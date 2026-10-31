@@ -93,6 +93,9 @@ wired Engine.Codec.encode_decode
 wired Engine.Op.id_decode
 wired Engine.Sync.recv_send
 wired Engine.Sync.hold_reply_local
+wired Engine.Sync.write_within
+wired Engine.Sync.event_within
+wired Engine.Sync.Tick.cofinal
 wired Connection.wire_kinds
 wired Connection.local_kinds
 ## Component demand: these laws must keep naming running decisions.
@@ -225,7 +228,8 @@ spec Engine.Sync.largestOp A reply's largest op, for its bound.
 spec Community.Merkle.treeInputs A file's Merkle tree inputs, for the no-second-preimage hypothesis.
 spec Community.Merkle.subInputs A subtree's Merkle inputs, for the no-second-preimage hypothesis.
 spec Community.Merkle.slices A file's chunks, as the tree cuts it.
-spec Engine.Sync.Inbox.iter A loop's choice made n times: `runLoop` repeats `Inbox.next`, which the laws name.
+spec Engine.Sync.Inbox.Run.selected The result of the actual Inbox.next chooser on a queue trace; every transition runs that chooser with arbitrary FIFO producer appends. Native channel linearization and completion remain assumptions.
+spec Engine.Sync.Inbox.step Interpret the actual Inbox.next with FIFO queue operations and retain its returned preference; this is a harness around the running chooser, not a second selection algorithm.
 spec Engine.Sync.urgents The urgent frames among a run of pushes, in order.
 spec Engine.Sync.serves The serve frames among a run of pushes, in order.
 spec Community.fileChunk A file's chunk at an index.
@@ -270,6 +274,9 @@ world Engine.Sync.Who.other = Engine.Sync.World.peer
 world Engine.Sync.Setup.sync = Engine.Sync.World.peer
 world Engine.Sync.plainFrame = Engine.Sync.World.peer
 world Engine.Sync.oneRoom = Engine.Sync.World.peer
+world Connection.Execution.fairRun Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these.
+world Connection.Execution.trace = Connection.Execution.fairRun
+world Connection.Execution.dequeued = Connection.Execution.fairRun
 
 ## Negative controls: mutants, each kept only to show the old shape breaks
 ## its law (a budget, or freshness). Their laws are counted apart.
@@ -303,7 +310,7 @@ todo Engine.purgeSet = Engine.purgeS
 todo Engine.Sync.exchange The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`).
 todo Community.recipients The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission.
 todo Community.members = Community.recipients
-todo Net.Scene.approval Bootstrap model: construct concrete scene premises and an infinite fair-run witness; whole-bootstrap replacement over running code is still needed. `conn_runs_exchange` and `closure_delivered` are further work; existing per-step trust checks do not prove the whole join. See the README bootstrap witness plan.
+todo Net.Scene.approval Bootstrap model now has native finite scene certificates and a kernel infinite fair/ideal run. The production Node/hooks also has a concrete successful trace with a fair continuation, plus SQLite/TCP regressions. Whole-bootstrap convergence for every fair app execution, `conn_runs_exchange` and `closure_delivered` remain unproved; an existence witness does not prove that universal result.
 todo Net.Scene.init = Net.Scene.approval
 todo Net.Scene.adm = Net.Scene.approval
 todo Net.Scene.answer = Net.Scene.approval
@@ -315,6 +322,11 @@ todo Net.Scene.link = Net.Scene.approval
 todo Net.Scene.req = Net.Scene.approval
 todo Net.Scene.r = Net.Scene.approval
 todo Net.Scene.S = Net.Scene.approval
+todo Net.Scene.rootMessage = Net.Scene.approval
+todo Net.Scene.invitationMessage = Net.Scene.approval
+todo Net.Scene.requestMessage = Net.Scene.approval
+todo Net.Scene.approvalMessage = Net.Scene.approval
+todo Net.FairExecution.run = Net.Scene.approval
 todo Net.sent = Net.Scene.approval
 todo Net.step = Net.Scene.approval
 todo Net.table = Net.Scene.approval

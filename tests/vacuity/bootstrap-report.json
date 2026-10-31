@@ -69,7 +69,7 @@
     "module": "tests.vacuity.Bootstrap",
     "detail": "Closed kernel proof for the concrete infinite run from the initial Alice/Bob bootstrap scene. The scheduler recurs through tickA, tickB, approval and FIFO-head delivery; finite-position progress proves every queued message is eventually delivered despite new arrivals, and no scheduled action drops messages. Fairness and ideality do not assume Scene.Good or any bootstrap conclusion. This run uses the noncomputable bootstrap model, not TCP."
   },
-  "FairExecution.ideal": {
+  "ideal": {
     "status": "kernel-witness",
     "theorem": "Net.FairExecution.ideal",
     "witness": "Vacuity.Bootstrap.executionIdeal",

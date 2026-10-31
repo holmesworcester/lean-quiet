@@ -611,12 +611,17 @@ engine/wire/Lanes.lean, Tcp):
   are dropped on transport failure (`Sock.stop`). Protocol retirement
   drains queued final notices before shutdown (`Sock.drain`), so removal
   messages survive the asynchronous handoff.
-- **Local writes have their own bounded channel**, read before any frame
-  (`Inbox.next`). The app offers with `writes.trySend` through `offerAll`;
+- **Local writes have their own bounded channel.** `Inbox.next` alternates
+  preference between writes and network/control events, with immediate fallback
+  when the preferred queue is empty. Either queue's head receives service within
+  two completed polls; an entry with `p` predecessors within `2 * (p + 1)` polls,
+  even while producers append more work. The app offers with `writes.trySend` through `offerAll`;
   a full queue retains the unaccepted suffix in `toNode`, in submission
   order, for later frames and across suspension. `Runner.write` is the
-  blocking interface for background callers. `write_first` and
-  `write_within` apply to the channel the actual app uses.
+  blocking interface for background callers. `write_within` and `event_within`
+  use the chooser the actual runner calls. `Tick.cofinal` proves recurring tick
+  decisions if completed iterations sample unbounded time. These are iteration
+  bounds, conditional on completion of native channel, store and I/O operations.
 - **Flow control.** The runner tells the node what each socket's lanes,
   both of them, have left of `window` (`Sync.room`, `roomOf`), and a
   step serves a session's queue only that far (and one op more). So
@@ -664,8 +669,9 @@ over the functions the node and the runner call):
   retry traffic).
 - In the world: `want_sends` (a want on an empty queue is answered in
   the same step, the pilot's 3Δ hop again), `fresh_served`.
-- The runner: `write_first` and `write_within` (a local write waiting
-  is the loop's next event, whatever frames are queued), `urgent_ahead`
+- The runner: `write_first` (a write on a write-preferred turn),
+  `write_within` and `event_within` (both queues receive bounded service despite
+  continuing arrivals), `Tick.cofinal` (ticks recur under advancing sampled time), `urgent_ahead`
   and `ahead_bytes` (an urgent frame goes out in its socket's next
   native write, after only the urgent frames before it, ahead of every
   serve frame queued since the last write began; the write under way and

@@ -24,6 +24,8 @@ import engine.core.Engine
 import engine.core.IdemLaws
 import ops.community.Community
 import ops.connection.All
+import ops.connection.ExecutionLaws
+import ops.connection.bootstrap.FairExecution
 import engine.renderer.Geometry
 import engine.renderer.Cover
 import engine.renderer.ImageLaws
@@ -348,6 +350,13 @@ open Engine Community
 #print axioms Engine.Sync.asks_expire
 #print axioms Engine.Sync.write_first
 #print axioms Engine.Sync.write_within
+#print axioms Engine.Sync.event_within
+#print axioms Engine.Sync.Tick.cofinal
+#print axioms Net.FIFO.eventually_delivered
+#print axioms Net.FairExecution.fair
+#print axioms Net.FairExecution.ideal
+#print axioms Connection.Execution.fairRun_fair
+#print axioms Connection.Execution.successful_fair_extension
 #print axioms Engine.Sync.frame_next
 #print axioms Engine.Sync.urgent_ahead
 #print axioms Engine.Sync.ahead_bytes
