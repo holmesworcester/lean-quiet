@@ -56,7 +56,9 @@ assert all("ime 0" in line for line in states), states
 # through both suspensions also proves poll works without calling frame.
 print("lifecycle C twin: 3 state checks, 2 suspensions, 2 resizes passed")
 
-link = next(line for line in result.stdout.splitlines() if line.startswith("quiet://join/"))
+link = next(line for line in result.stdout.splitlines() if line.startswith("https://holmesworcester.github.io/lean-quiet/join#"))
+# the OS hands the app the URI the join page opens, not the page link
+uri = "leanquiet://join/" + link.split("#", 1)[1]
 link_dir = out / "link"
 link_dir.mkdir(exist_ok=True)
 if not (link_dir / "assets").exists():
@@ -64,9 +66,9 @@ if not (link_dir / "assets").exists():
 for suffix in ["", "-wal", "-shm"]:
     (link_dir / ("quiet.db" + suffix)).unlink(missing_ok=True)
 link_script = link_dir / "events.txt"
-link_script.write_text("invite\n!link " + link + "\n!frames 1\ninvite\n")
+link_script.write_text("invite\n!link " + uri + "\n!frames 1\ninvite\n")
 result = subprocess.run([str(root / ".lake/build/bin/quiet_host")], cwd=link_dir,
-    env=dict(os.environ, QUIET_SCRIPT=str(link_script), QUIET_LINK=link),
+    env=dict(os.environ, QUIET_SCRIPT=str(link_script), QUIET_LINK=uri),
     text=True, capture_output=True, timeout=30)
 (link_dir / "stdout.log").write_text(result.stdout)
 (link_dir / "stderr.log").write_text(result.stderr)

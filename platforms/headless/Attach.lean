@@ -116,7 +116,7 @@ def main (args : List String) : IO UInt32 := do
     sa.cmds.modify (·.push "link")
     steps 3
     return (← sa.replies.get).back?.getD "").run a0
-  check s!"A's `link` is its invite ({link.take 24}…)" (link.startsWith "quiet://join/")
+  check s!"A's `link` is its invite ({link.take 24}…)" (link.startsWith "https://holmesworcester.github.io/lean-quiet/join#")
   let ((), b1) ← (show M Unit from do
     steps 2
     for c in ["open paste", s!"field {link}", "act continue", "field Bea", "act continue", "act agree"] do

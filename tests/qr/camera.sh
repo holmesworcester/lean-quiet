@@ -10,12 +10,12 @@ out=out/camera
 rm -rf "$out"; mkdir -p "$out/frames"
 python3 -c 'import numpy, PIL' 2>/dev/null || {
   echo "camera suite: needs python3 with numpy and Pillow (pip install numpy pillow)"; exit 1; }
-# a realistic invite: quiet://join/ and 187 base62 characters (200 bytes)
+# a realistic invite: the join page link and 206 base62 characters (256 bytes)
 python3 -c "
 import random
 r = random.Random(1)
 a = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-open('$out/invite', 'w').write('quiet://join/' + ''.join(r.choice(a) for _ in range(187)))"
+open('$out/invite', 'w').write('https://holmesworcester.github.io/lean-quiet/join#' + ''.join(r.choice(a) for _ in range(206)))"
 hex=$(python3 -c "print(open('$out/invite','rb').read().hex())")
 syms=()
 for e in L M Q H; do

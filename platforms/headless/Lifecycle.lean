@@ -228,7 +228,8 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
   let linkPath := dir ++ "/link.db"
   freshDb linkPath
   let linkSim ← Sim.new
-  linkSim.urls.set #[invite.text]
+  -- Cold: the URI the join page opens, as the OS hands it to the app.
+  linkSim.urls.set #[invite.uri]
   let linkStart ← App.start linkSim.io (← linkSim.viewport.get) linkPath
   let (_, joining) ← (show M Unit from do
     steps 1
@@ -257,7 +258,7 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
     steps 1
     ck.ok "warm link selects the held acceptance without a second join" ((← get).cur == pending.cur && (← get).comms.size == 1)
     let old := (← get).cur
-    linkSim.urls.set #["quiet://join/not-valid"]
+    linkSim.urls.set #["leanquiet://join/not-valid"]
     steps 1
     ck.ok "malformed link preserves selection" ((← get).cur == old && (← get).comms.size == 1)
     discard <| step [.background]).run pending

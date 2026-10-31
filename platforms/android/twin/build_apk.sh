@@ -18,9 +18,14 @@
 #   abi: arm64-v8a (default) and/or x86_64 (the emulator)
 # env: RELEASE=1 (non-debuggable, release DEX, no control channel);
 #   ANDROID_SDK (default ~/android-sdk); LEANRT, the built runtime
-#   (default out/leanrt; android/leanrt/build.sh makes one)
+#   (default out/leanrt; android/leanrt/build.sh makes one);
+#   VERSION_CODE, VERSION_NAME (default 1, 0.1);
+#   KEYSTORE, KEYSTORE_PASS_FILE, KEY_ALIAS: the signing key (default
+#   this machine's debug.keystore; tools/release/android.sh passes the
+#   release key, which must sign every release: Android installs an update
+#   only under the key that signed the installed app)
 set -euo pipefail
-[ $# -ge 4 ] || { sed -n 2,21p "$0"; exit 2; }
+[ $# -ge 4 ] || { sed -n 2,26p "$0"; exit 2; }
 out=$(realpath -m "$1"); pkg=$2; label=$3; main=$4; shift 4
 abis=("${@:-arm64-v8a}")
 here=$(cd "$(dirname "$0")" && pwd)
@@ -153,7 +158,9 @@ fi
 javac --release 17 -nowarn -classpath "$jar" -d "$work/classes" \
   $(find "$here/java" -name '*.java') 2>&1 | sed '/^Note:/d'
 "$bt/d8" "$dex_mode" --min-api 30 --lib "$jar" --output "$work/dex" $(find "$work/classes" -name '*.class')
-sed -e "s/@PACKAGE@/$pkg/" -e "s/@LABEL@/$label/" \
+vcode=${VERSION_CODE:-1}; vname=${VERSION_NAME:-0.1}
+[[ $vcode =~ ^[1-9][0-9]{0,8}$ && $vname =~ ^[0-9A-Za-z.+-]+$ ]] || { echo "bad VERSION_CODE/VERSION_NAME" >&2; exit 2; }
+sed -e "s/@PACKAGE@/$pkg/" -e "s/@LABEL@/$label/" -e "s/@VERSION_CODE@/$vcode/" -e "s/@VERSION_NAME@/$vname/" \
   "$here/AndroidManifest.xml.in" > "$work/AndroidManifest.xml"
 "$root/tools/noto_assets.sh"
 mkdir -p "$work/assets/assets"
@@ -165,10 +172,16 @@ fi
 cp "$work/dex/classes.dex" "$work/apk/"
 (cd "$work/apk" && zip -qr "$work/base.apk" lib classes.dex)
 "$bt/zipalign" -P 16 -f 4 "$work/base.apk" "$work/aligned.apk"
-ks=$here/debug.keystore
-[ -f "$ks" ] || keytool -genkeypair -keystore "$ks" -storepass android \
-  -keypass android -alias lean -keyalg RSA -keysize 2048 -validity 10000 \
-  -dname "CN=Lean debug" >/dev/null 2>&1
-"$bt/apksigner" sign --ks "$ks" --ks-pass pass:android --ks-key-alias lean \
-  --out "$out" "$work/aligned.apk"
+if [ -n "${KEYSTORE:-}" ]; then
+  [ -f "$KEYSTORE" ] && [ -f "${KEYSTORE_PASS_FILE:-}" ] || { echo "KEYSTORE needs KEYSTORE_PASS_FILE" >&2; exit 2; }
+  "$bt/apksigner" sign --ks "$KEYSTORE" --ks-pass "file:$KEYSTORE_PASS_FILE" \
+    --ks-key-alias "${KEY_ALIAS:-lean-quiet}" --out "$out" "$work/aligned.apk"
+else
+  ks=$here/debug.keystore
+  [ -f "$ks" ] || keytool -genkeypair -keystore "$ks" -storepass android \
+    -keypass android -alias lean -keyalg RSA -keysize 2048 -validity 10000 \
+    -dname "CN=Lean debug" >/dev/null 2>&1
+  "$bt/apksigner" sign --ks "$ks" --ks-pass pass:android --ks-key-alias lean \
+    --out "$out" "$work/aligned.apk"
+fi
 echo "built $out (${abis[*]})"

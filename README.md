@@ -239,7 +239,7 @@ World); the rest are over models so far
 | ⬜ | 🥊🥊 | **The screen keeps up.** Wanted: input first, no blank rows past a latency bound, within a frame budget, with bounded reads. | |
 | ✅ | 🥊🥊 | **Display order.** A channel sorts by a counter its devices share, then the time, then the id, with no ties, so devices with the same ops order it alike. Past the counter's cap, each device's own arrival order shows instead, and that exception is itself a law. | [`msg_cmp`], [`time_is_display`], [`order_total`], [`Pos.cmp_eq_iff`], [`Pos.cmp_lt_trans`], [`send_after`], [`arrival_order`], [`receipt_once`], [`order_local`], [`display_agrees`], [`readable_held`], [`readable_complete`] |
 | | | **Codes, pictures and discovery** | |
-| ✅ | 🥊🥊 | **What the encoders write reads back.** This holds for QR segments and codewords, invite links and mDNS packets. QR error correction is sound, and format and version readings tolerate their designed bit errors. | [`parse_segsBits`], [`parse_dataStream`], [`RS.correct_sound`], [`RS.correct_clean`], [`decodeFormat_correct`], [`decodeVersion_correct`], [`parse_text`], [`Base62.decode_encode`], [`Mdns.decode_encode`], [`decode_roundtrip`] |
+| ✅ | 🥊🥊 | **What the encoders write reads back.** This holds for QR segments and codewords, invite links and mDNS packets. QR error correction is sound, and format and version readings tolerate their designed bit errors. | [`parse_segsBits`], [`parse_dataStream`], [`RS.correct_sound`], [`RS.correct_clean`], [`decodeFormat_correct`], [`decodeVersion_correct`], [`parse_text`], [`parse_uri`], [`Base62.decode_encode`], [`Mdns.decode_encode`], [`decode_roundtrip`] |
 | 🟡 | 🥊 | **Pictures render whole:** scaled and composited pictures are well-formed and opaque, and the tray's layout fits. Not yet: proven of `Pic`, which only qr's Android harness runs; the app draws its own. | [`render_wellFormed`], [`render_opaque`], [`scale_wellFormed`], [`fit_round`], [`Pic.layout_inside`], [`Pic.layout_apart`] |
 
 The theorems not listed here are lemmas. The axiom audit,
@@ -929,7 +929,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Pic.decode_sized`]: engine/renderer/pic/Laws.lean#L198-L201
 [`Image.decode_sized`]: engine/renderer/ImageLaws.lean#L11-L14
 [`Mdns.decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
-[`Community.parse_valid`]: ops/community/Link.lean#L214-L215
+[`Community.parse_valid`]: ops/community/Link.lean#L258-L259
 [`Qr.parse_valid`]: engine/renderer/qr/SegLaws.lean#L336-L338
 [`chunk_is_slice`]: ops/community/Laws.lean#L722-L731
 [`verify_sound`]: ops/community/Merkle.lean#L435-L441
@@ -1183,7 +1183,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`RS.correct_clean`]: engine/renderer/qr/Laws.lean#L74-L76
 [`decodeFormat_correct`]: engine/renderer/qr/Format.lean#L104-L105
 [`decodeVersion_correct`]: engine/renderer/qr/Format.lean#L113-L116
-[`parse_text`]: ops/community/Link.lean#L198-L199
+[`parse_text`]: ops/community/Link.lean#L250-L251
+[`parse_uri`]: ops/community/Link.lean#L254-L255
 [`Base62.decode_encode`]: ops/community/Link.lean#L134-L134
 [`Mdns.decode_encode`]: engine/wire/mdns/Laws.lean#L289-L290
 [`decode_roundtrip`]: engine/wire/mdns/Laws.lean#L584-L587

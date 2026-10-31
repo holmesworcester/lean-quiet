@@ -93,8 +93,12 @@ or pending join a node holds is its own write, whatever peers send).
 
 ### The invite link (`Link.lean`)
 
-`quiet://join/` and the fields in base62: community, invitation, the
-inviter's node key, dial hints, the bearer seed. `parse_text`, and
+The join page `https://holmesworcester.github.io/lean-quiet/join#` and
+the fields in base62: community, invitation, the inviter's node key,
+dial hints, the bearer seed. The fields ride after `#`, which a browser
+never sends to the server; the page (site/join.html) opens
+`leanquiet://join/` and the same fields, which the OS hands to the app.
+`parse_text`, `parse_uri` (both forms parse back to the invite), and
 `parse_valid` (whatever parses is valid).
 
 ### Sync scope (`Sync.lean`)

@@ -435,3 +435,33 @@ run = "bash tests/vacuity/check.sh"
 [tasks."ios:input-device-e2e"]
 description = "Build/sign app and XCUITest runner; verify short vs long presses on a seeded physical iPhone; retain xcresult and screenshots"
 run = "APPLE_SDKS=iphoneos IOS_BUILD_ACTION=build-for-testing platforms/ios/ship.sh input-device"
+
+[tasks."site:build"]
+description = "The join page (site/join.html) built into out/site: its policy's script and style hashes filled in"
+run = "python3 site/build.py out/site"
+
+[tasks."site:test"]
+description = "The join page in headless Chromium: a real invite from the app links leanquiet://join/ with exactly its fields; anything else after # is broken and links nowhere; no external loads; a wrong-hash negative control. Needs Chromium's headless shell (CHROME or Playwright's)"
+run = "lake build linkcheck && python3 site/test.py"
+
+[tasks."site:publish"]
+description = "Publishes the join page to the gh-pages branch (GitHub Pages: holmesworcester.github.io/lean-quiet/join); pass --mac-url / --testflight-url once they exist"
+depends = ["site:test"]
+run = "site/publish.sh"
+
+[tasks."android:links-e2e"]
+description = "Invite links on a suite-owned AVD: leanquiet://join/ cold and warm into the development APK, malformed links ignored, quiet:// not claimed; RELEASE_APK=out/release/lean-quiet-android.apk adds the release APK"
+depends = ["android:runtime"]
+run = "bash platforms/android/test/links_e2e.sh"
+
+[tasks."release:android"]
+description = "The Android release APK (tools/release/android.sh VERSION), signed with the release key in ~/.config/lean-quiet/release, then checked on an AVD (android:links-e2e with RELEASE_APK)"
+run = "tools/release/android.sh ${VERSION:?set VERSION=X.Y.Z} && RELEASE_APK=out/release/lean-quiet-android.apk bash platforms/android/test/links_e2e.sh"
+
+[tasks."release:linux"]
+description = "The Linux release tarball (tools/release/linux.sh VERSION), then the installed-links e2e"
+run = "tools/release/linux.sh ${VERSION:?set VERSION=X.Y.Z}"
+
+[tasks."release:publish"]
+description = "GitHub release vVERSION of out/release/* with SHA256SUMS (tools/release/publish.sh)"
+run = "tools/release/publish.sh ${VERSION:?set VERSION=X.Y.Z} ${NOTES:-}"

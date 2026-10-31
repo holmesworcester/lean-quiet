@@ -10,7 +10,9 @@
 # them.
 # `reorg` checks the reorg's import rewriter for branches begun on the old
 # layout (ci/reorg-imports.py --self-test).
-#   ci/local.sh [part...]   (default: check engine mdns qr net app visual zoom readme reorg vacuity)
+#   ci/local.sh [part...]   (default: check engine mdns qr net app visual zoom site readme reorg vacuity)
+# `site` needs Chromium's headless shell (CHROME, or Playwright's); `android-links`
+# needs the Android SDK and an emulator image (it starts its own AVD).
 # SKIP_TCP=1 builds the TCP suites but omits their runs in a socket sandbox.
 # `runtime` is an additional gate on machines with Lean/libuv sources.
 set -uo pipefail
@@ -20,7 +22,7 @@ export PATH="$ELAN_HOME/bin:$PATH"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 logs=$top/out/ci
 mkdir -p "$logs"
-parts=("${@:-check engine mdns qr net app visual zoom readme reorg vacuity}")
+parts=("${@:-check engine mdns qr net app visual zoom site readme reorg vacuity}")
 read -r -a parts <<< "${parts[*]}"
 gate() {
   case $1 in
@@ -32,6 +34,8 @@ gate() {
     visual) mise run visual:compare && mise run visual:hover ;;
     android-photo) mise run android:photo-e2e ;;
     android-release) mise run android:release-e2e ;;
+    android-links) mise run android:links-e2e ;;
+    site) mise run site:test ;;
     ios-photo) mise run ios:photo-e2e ;;
     ios-ui) mise run ios:sim-e2e ;;
     ios-input-device|release-ios-input) mise run ios:input-device-e2e ;;
