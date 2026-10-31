@@ -14,6 +14,8 @@ audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
 checks = audit.load_checks()
 RUNNERS = {
+    'tests.vacuity.Bootstrap': 'vacuity_bootstrap',
+    'tests.vacuity.ProductionBootstrap': 'vacuity_production_bootstrap',
     'tests.vacuity.Identity': 'vacuity_identity',
     'tests.vacuity.IdentityTrust': 'vacuity_identity_trust',
     'tests.vacuity.IdentityPeople': 'vacuity_identity_people',

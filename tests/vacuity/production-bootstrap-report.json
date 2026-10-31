@@ -1,0 +1,16 @@
+{
+  "Execution.fairRun_fair": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Execution.fairRun_fair",
+    "witness": "Vacuity.ProductionBootstrap.infiniteScheduler",
+    "module": "tests.vacuity.ProductionBootstrap",
+    "detail": "An explicit infinite execution repeatedly calls the production Node with Connection.hooks and native crypto, with Held store semantics and an entropy tape. Kernel proof: both nodes tick cofinally, simulated time advances without bound, and FIFO service eventually dequeues every queued frame. A known destination receives the actual onFrame call. No scene validity, bootstrap success or crypto correctness is assumed for scheduler fairness; SQLite, OS and TCP are separate runtime boundaries. This infinite interpreter may record later unhandled socket-close effects; fairness does not prove they never occur or identify the continuation with TCP."
+  },
+  "successful_fair_extension": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.successful_fair_extension",
+    "witness": "Vacuity.ProductionBootstrap.certificate",
+    "module": "tests.vacuity.ProductionBootstrap",
+    "detail": "Native evaluation of actual Node/Connection.hooks with real signatures, Noise and AEAD checks mutual admission, a shared session and exact bytes of a newly written sealed post sent after disconnect/retry. The recovery post was absent before the disconnect, so this checks the replacement session's data path rather than only retained data. A cumulative effect counter additionally proves this finite prefix ignores no implicit socket-close requests; explicit close actions clear the transport and notify both peers. Withheld approval, an unsent message and an injected unhandled-close effect reject success. The checked trace is extended without state reset by a kernel-proved infinite fair node-interpreter suffix. The goal and zero-unhandled-effect check hold at the prefix endpoint; persistence, convergence of every fair run, handling all future transport effects and refinement from Held to SQLite/TCP remain unproved."
+  }
+}
