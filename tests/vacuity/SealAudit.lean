@@ -27,9 +27,9 @@ theorem textFits : text.size < Seal.maxPlaintextSize := by decide +kernel
 theorem keyFits : key.size < Seal.maxPlaintextSize := by decide +kernel
 theorem adFits : ad.size < Seal.maxAssociatedDataSize := by decide +kernel
 
--- The strict bound is precisely the native counter check, including its
--- endpoint. This proves the boundary arithmetically without a 256 GiB buffer.
-theorem counterBound (n : Nat) : n < Seal.maxPlaintextSize ↔ n / 64 < 2^32 - 1 := by
+-- The strict bound matches the stream cipher's remaining-block check,
+-- including its ceiling for a partial block. No 256 GiB buffer is needed.
+theorem counterBound (n : Nat) : n < Seal.maxPlaintextSize ↔ (n + 63) / 64 ≤ 2^32 - 2 := by
   unfold Seal.maxPlaintextSize
   omega
 
@@ -120,11 +120,16 @@ def main : IO UInt32 := do
     t.ok s!"valid private key {fill} gives shared secret and commutes"
       ((cryptoSeal.dh k (cryptoSeal.pub rsk)).size == 32 &&
        cryptoSeal.dh k (cryptoSeal.pub rsk) == cryptoSeal.dh rsk (cryptoSeal.pub k))
-  t.ok "counter bound excludes native rejection point"
-    (decide (Seal.maxPlaintextSize - 1 < Seal.maxPlaintextSize) &&
+  t.ok "counter bound excludes native partial-block rejection point"
+    (Seal.maxPlaintextSize == 274877906817 &&
+     decide (Seal.maxPlaintextSize - 1 < Seal.maxPlaintextSize) &&
      decide (¬ (Seal.maxPlaintextSize < Seal.maxPlaintextSize)) &&
-     decide ((Seal.maxPlaintextSize - 1) / 64 < 2^32 - 1) &&
-     decide (¬ (Seal.maxPlaintextSize / 64 < 2^32 - 1)))
+     decide ((Seal.maxPlaintextSize - 1 + 63) / 64 ≤ 2^32 - 2) &&
+     decide (¬ ((Seal.maxPlaintextSize + 63) / 64 ≤ 2^32 - 2)))
+  t.ok "all 63 lengths missed by outer AEAD check are excluded"
+    ((List.range 63).all fun offset =>
+      decide (¬ (Seal.maxPlaintextSize + offset < Seal.maxPlaintextSize)) &&
+      decide (¬ ((Seal.maxPlaintextSize + offset + 63) / 64 ≤ 2^32 - 2)))
   t.ok "associated-data bound excludes unrepresentable length"
     (decide (Seal.maxAssociatedDataSize - 1 < Seal.maxAssociatedDataSize) &&
      decide (¬ (Seal.maxAssociatedDataSize < Seal.maxAssociatedDataSize)))

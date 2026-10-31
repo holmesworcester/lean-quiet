@@ -37,9 +37,11 @@ structure Seal where
   dec : B → B → B → B → Option B
   hash : B → B
 
-/-- Exclusive plaintext limit in RustCrypto ChaCha20Poly1305's counter
-check: `len / 64 < u32::MAX`, shared by its XChaCha variant. -/
-def Seal.maxPlaintextSize : Nat := 64 * (2^32 - 1)
+/-- Exclusive plaintext limit after RustCrypto's AEAD reserves block zero
+for Poly1305. The stream cipher then permits at most `u32::MAX - 1`
+complete or partial blocks: `ceil(len / 64) <= 2^32 - 2`. This is stricter
+than the outer AEAD's floor-division check and applies to XChaCha too. -/
+def Seal.maxPlaintextSize : Nat := 64 * (2^32 - 2) + 1
 
 /-- AEAD authenticates the associated-data length as an unsigned 64-bit
 integer. Native arrays on supported hosts fit; the logical contract also
