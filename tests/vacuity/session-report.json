@@ -1,0 +1,65 @@
+{
+  "kk_runs": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Noise.Symbolic.kk_runs",
+    "witness": "Vacuity.Session.honestRun",
+    "module": "tests.vacuity.Session",
+    "detail": "Four distinct fixed exponents 11/22/33/44, nonempty prologue and payload literals; honest run exists with all four operations succeeding and matching crossed keys. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+  },
+  "handshake_agrees": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Noise.handshake_agrees",
+    "witness": "Vacuity.Session.honestRun",
+    "module": "tests.vacuity.Session",
+    "detail": "Concrete symbolic suite satisfies Good; kk_runs applies handshake_agrees after proving the four DH calls succeed for fixed parties/ephemerals. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+  },
+  "kk_secret": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Noise.Symbolic.kk_secret",
+    "witness": "Vacuity.Session.secretsHeld",
+    "module": "tests.vacuity.Session",
+    "detail": "Construct a successful concrete transcript and sent1 reconstruction, then apply kk_secret. Attacker knows all other names and all public keys. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+  },
+  "kk_secret_init": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Noise.Symbolic.kk_secret_init",
+    "witness": "Vacuity.Session.secretsHeld",
+    "module": "tests.vacuity.Session",
+    "detail": "Concrete successful sent1/read2 and secret-name membership premises are discharged through kk_secret, which applies kk_secret_init. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+  },
+  "kk_secret_resp": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Noise.Symbolic.kk_secret_resp",
+    "witness": "Vacuity.Session.secretsHeld",
+    "module": "tests.vacuity.Session",
+    "detail": "Concrete successful read1/write2 and both static-secret premises are discharged through kk_secret, which applies kk_secret_resp. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+  },
+  "kk_secret_init_tight": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Noise.Symbolic.kk_secret_init_tight",
+    "witness": "Vacuity.Session.initiatorLeakBreaksSecrecy",
+    "module": "tests.vacuity.Session",
+    "detail": "Negative control on the same successful handshake: expose initiator static 11 AND ephemeral 33 while responder 22/44 stay secret; attacker derives both initiator transport keys. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+  },
+  "kk_forward_secret": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Noise.Symbolic.kk_forward_secret",
+    "witness": "Vacuity.Session.afterStaticLeak",
+    "module": "tests.vacuity.Session",
+    "detail": "Prove concrete statics differ from both ephemerals; successful transcript remains secret after deriving both static secrets and both messages. Four transport key non-derivability conclusions. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+  },
+  "kk_authentic": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Noise.Symbolic.kk_authentic",
+    "witness": "Vacuity.Session.initiatorAuthenticates",
+    "module": "tests.vacuity.Session",
+    "detail": "Prove actual transcript is derivable by asking honest parties; prove attacker cleanliness/part premises and concrete secret memberships; accepted reply is an honest response to this request with matching sessions. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+  },
+  "kk_authentic_resp": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Noise.Symbolic.kk_authentic_resp",
+    "witness": "Vacuity.Session.responderAuthenticates",
+    "module": "tests.vacuity.Session",
+    "detail": "Prove actual first message is derivable from an honest send, attacker cleanliness and both static-secret memberships; accepted request was written by the initiator. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+  }
+}
