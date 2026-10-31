@@ -20,33 +20,198 @@ There is something exhilarating about adding a proof where one would usually add
 
 <p align="center"><em>The status bar and keyboard are Android's, the rest is Lean. Scrolling is better in person.</em></p>
 
+# How it works
+
+A Lean Quiet node's state is ops: messages, joins and approvals, and
+also dials and sessions. An op names the ops it requires, so the ops
+form a DAG, and one engine turns them into validated state. What is
+proven below is about these ops and this engine.
+
+## Peers, and no server
+
+Each device runs a node, and nodes talk to each other directly. A node
+dials the member who invited it, so here Bob's and Carol's ops reach
+each other through Alice.
+
+```mermaid
+flowchart TB
+  alice["<b>Alice</b><br/><small>[person]</small><br/>founded the community"]:::person
+  bob["<b>Bob</b><br/><small>[person]</small><br/>has Alice's invite link"]:::person
+  carol["<b>Carol</b><br/><small>[person]</small><br/>joined last week"]:::person
+
+  an["<b>Alice's phone</b><br/><small>[Lean Quiet node]</small><br/>her ops, the engine, the UI"]:::system
+  bn["<b>Bob's laptop</b><br/><small>[Lean Quiet node]</small><br/>his ops, the engine, the UI"]:::system
+  cn["<b>Carol's phone</b><br/><small>[Lean Quiet node]</small><br/>her ops, the engine, the UI"]:::system
+
+  alice -- "invite link or QR<br/><small>[out of band]</small>" --> bob
+  alice -- "taps, reads" --> an
+  bob -- "taps, reads" --> bn
+  carol -- "taps, reads" --> cn
+  bn -- "dials the link's address;<br/>his join request rides the handshake<br/><small>[TCP · Noise KK]</small>" --> an
+  an <-- "sync ops both ways<br/><small>[TCP · Noise KK · sealed frames]</small>" --> cn
+
+  classDef person fill:#08427b,stroke:#052e56,color:#fff
+  classDef system fill:#1168bd,stroke:#0b4884,color:#fff
+```
+
+## The op DAG: found, join, post, and the connection that carries them
+
+A solid arrow points from an op to an op it requires. An op is Valid
+once everything it requires is Valid and its validator accepts their
+facts. A dashed arrow points from an op to a fact a view read before
+writing it. Time runs downward. Not drawn: every community op also
+requires the root, and an author's op requires the op that admitted
+them (Alice's is the root).
+
+Shared ops sync to members and are never deleted. Connection ops are
+one node's own, or travel bare between two nodes; they never sync, and
+closing a session purges them.
+
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 500}}}%%
+flowchart BT
+  subgraph shared ["shared ops"]
+    direction BT
+    root["<b>root</b> · Alice<br/>⇒ community C,<br/>Alice admitted"]
+    invite["<b>invite</b> · Alice<br/>⇒ an invitation"]
+    jreq["<b>request</b> · Bob<br/>signed by his device<br/>and the link's key"]
+    approve["<b>approve</b> · Alice"]
+    admit["<b>admit</b> · anyone<br/>tallies approvals<br/>⇒ Bob admitted"]
+    post["<b>post</b> · Bob<br/>'hi!' (sealed)"]
+    react["<b>react</b> · Alice<br/>❤"]
+    invite --> root
+    jreq --> invite
+    approve --> jreq
+    admit --> approve
+    admit --> jreq
+    post --> admit
+    react --> post
+  end
+
+  subgraph conn ["connection ops"]
+    direction BT
+    joining["<b>joining</b> · Bob<br/>C, Alice's key,<br/>the link's address"]
+    creq["<b>request</b> · Bob → Alice<br/>Noise message 1"]
+    opened["<b>opened</b> · Alice"]
+    connection["<b>connection</b> · Alice → Bob<br/>Noise message 2"]
+    est["<b>established</b><br/>each side<br/>⇒ the session's keys"]
+    opened --> creq
+    connection --> creq
+    est --> connection
+  end
+
+  creq -. "dial<br/>(each tick)" .-> joining
+  creq -. "its hello<br/>carries" .-> jreq
+  connection -. "react (after each write):<br/>Alice answers once<br/>Bob is admitted here" .-> admit
+
+  classDef op fill:#85bbf0,stroke:#5d82a8,color:#000
+  classDef local fill:#dde8f3,stroke:#8aa,color:#000
+  class root,invite,jreq,approve,admit,post,react op
+  class joining,creq,opened,connection,est local
+```
+
+## One node: ops in, validated state out
+
+A tap, a peer's bytes, the clock and the engine's own writes all turn
+into ops. The engine is the same code for every op type: an op type
+brings its validator and the keys its facts are filed under.
+
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 500}}}%%
+flowchart TB
+  subgraph sources ["where ops come from"]
+    tap(["a tap: send 'hi'"]) --> intent["<b>send</b> intent<br/>writes a <b>post</b>"]
+    bytes(["bytes from a peer"]) --> frames["the peer's ops,<br/>and a <b>recv</b> for each"]
+    clock(["each tick"]) --> dial["<b>dial</b>: for each pending join,<br/>a Noise <b>request</b> and a <b>send</b> courier,<br/>re-sent each tick until answered"]
+    write(["each write"]) --> react["<b>react</b>: opens requests, answers<br/>trusted peers with a <b>connection</b>,<br/>writes <b>established</b>; repeats<br/>until it writes nothing"]
+  end
+
+  subgraph engine ["the engine"]
+    ingest["ingest:<br/>store + queue"] --> judge{"judge<br/>one op"}
+    judge -- "a requirement<br/>is Invalid" --> inv["Invalid"]
+    judge -- "a requirement<br/>is undecided" --> wait["waits"]
+    judge -- "all Valid: its validator<br/>reads their facts" --> ok["Valid, with its fact<br/>filed under its keys"]
+    ok -. "wakes what waited" .-> judge
+  end
+
+  subgraph state ["validated state"]
+    db[("SQLite")] --> lists["lists: the Valid facts<br/>under a key"]
+  end
+
+  subgraph reads ["what reads it"]
+    ui["components → pixels"]
+    sync["sync: offers and wants"]
+    sessions["a session per Valid<br/><b>established</b> fact"]
+    couriers["each <b>send</b> courier →<br/>bytes to an address"]
+  end
+
+  intent & frames & dial & react --> ingest
+  ok --> db
+  lists --> ui & sync & sessions & couriers
+  lists -. "each decides what to write<br/>by reading Valid facts" .-> sources
+
+  classDef c4 fill:#438dd5,stroke:#2e6295,color:#fff
+  classDef c4l fill:#85bbf0,stroke:#5d82a8,color:#000
+  class ingest,judge,ok,inv,wait c4
+  class intent,frames,dial,react,ui,sync,sessions,couriers,lists c4l
+```
+
+The engine and the community are in [docs/ENGINE.md](docs/ENGINE.md),
+and sync in [docs/SYNC.md](docs/SYNC.md).
+
 ## What is proven
 
 Lean checks the theorem statements under their stated hypotheses. The tables
 below distinguish running code from models and unfinished connections to the
 app. Cryptographic authenticity and progress also depend on the assumptions
-below; the vacuity report records which concrete premises have been checked:
+below; the [vacuity report](#vacuity-check-reports) records which concrete premises have been checked:
 
 - **accepted posts have signatures that verify under an admitted device key;** ¹
 - **nobody joins without an invitation and members' approval;** ¹
 - **only admins remove others, and no removal can be undone;** ¹
+- **a removal cuts off every device of the removed user, for good,** and
+  its node can rejoin only as a new device;
 - **no peer can alter or rename an op:** its id is the hash of its
   bytes, and it has one parse; ²
 - **non-members get none of a community's ops;**
 - **sync does not offer or send local secret ops;**
+- **a sealed frame is authenticated before any of it is parsed;**
 - **a node's trust rule lets in exactly the live members;** ¹
 - **honest nodes that hold the same ops agree;** ² *(model)*
 - **only a session's two nodes can derive its keys, even if both
-  nodes' long-term keys later leak.** ³
+  nodes' long-term keys later leak,** once the session's ephemeral keys
+  are deleted. ³
+
+And of what a user sees and does:
+
+- **devices with the same ops show a channel in the same order** (past
+  a counter's cap, each device's own arrival order, itself a law);
+- **wrapping drops only spaces, and bidi reordering drops and invents
+  nothing;**
+- **removing someone takes two confirmations,** and cancelling writes
+  nothing;
+- **back restores the state before a page opened** (clearing only that
+  page's one-line field);
+- **a screen need re-read only what changed:** a list's answer changes
+  only when a row is filed under a key it read.
 
 ¹ Interpreting verification as the owner actually signing needs the Ed25519
 assumptions and signing-history scoping fix below. ² Assuming no collision among
 the relevant encountered inputs. ³ In the symbolic model of the cryptography.
 
 **Not yet proven:**
-- that messages are secret from non-members (the seal's secrecy);
+- that messages are secret from non-members: the seal's secrecy, and
+  that content keys are wrapped only to members (today an approval
+  below its threshold already wraps the key to the requester);
+- that a removed member cannot read new messages: removal cuts their
+  sync, but content keys are not rotated yet;
+- that a closed session's ephemeral keys are gone: that closing purges
+  every one (`close_forgets`), and that deleted bytes leave the disk
+  (assumed, and doubtful on journaling filesystems and flash);
 - that every connection step reads its rooms afresh, so that a removal
   reaches a live session (tested, not proven);
+- that every member eventually gets every op: proven so far for two
+  nodes, over a model ([towards n clients](#towards-proofs-for-n-clients));
 - bootstrap convergence for every fair execution of the running app. Concrete
   infinite witnesses and production-runner checks are now implemented
   ([evidence and remaining boundary](#bootstrap-witnesses-and-running-app-checks));
@@ -58,7 +223,8 @@ the relevant encountered inputs. ³ In the symbolic model of the cryptography.
 
 The sync proofs already run the real sync code, in a world of two
 devices whose network can delay, reorder or drop messages
-([`stream_delivers`]). Devices that hold the same ops agree, whatever
+([`stream_delivers`]), though with sessions opened directly and frames
+in the clear: the handshake is not in that world yet. Devices that hold the same ops agree, whatever
 order the ops arrived in (proven so far over a model of purging:
 [`same_ops_same_verdicts`]). So for n devices, it comes down to proving
 that every op reaches every member: the running round under any
@@ -202,11 +368,11 @@ World); the rest are over models so far
 | 🟡 | 🥊🥊🥊 | **No packet goes to a removed member but the notice of its removal.** From the first engine turn after a node decides a removal, it sends the removed user's node only that removal and its requirement closure, once, and then closes the session. Proven, per connection step: the step after a store, and each tick that does not drop the session, gives the notice when its closure fits the walk's budget; every step sends the removed node only sync wire ops, ops of rooms it still syncs, and that closure, and takes nothing of the community; a notice is given once, a have for the community gets no reply, and once every notice owed is given the session carries nothing and is closed. A handshake gets no reply, and a replayed request gets nothing. Not proven: the entry point as a whole (that the node runs those steps, writes `given` and seals before it purges), which is tested over TCP, with negative controls. | [`notice_sent`], [`closure`], [`notice_send`], [`removed_gets_only_notice`], [`notice_once`], [`notice_no_holds`], [`notice_then_cut`], [`answer_trusted`], [`resend_trusted`] |
 | 🟡 | 🥊🥊🥊 | **No session before approval,** however hellos are lost or replayed, and sessions form only with trusted peers. Proven over the running code, step by step: a responder writes a connection, or re-sends one, only for a request whose initiator the trust rule takes. Not yet: the whole guarantee, through lost and replayed hellos, over the running handshake; it is proven over a model. | [`no_connection_before_approval`], [`sessions_trusted`] *(model)*, [`answer_trusted`], [`resend_trusted`] |
 | 🟡 | 🥊🥊🥊 | **Peers cannot push ops in** outside the rooms they are let into, nor plant a device's local state. Proven: on a session, only ops of its rooms are taken; on the bare wire, a hello yields only a join request of its community, trusted or not, so a removed member, or an outsider who knows the community, pushes nothing else in (tested over TCP, with a negative control). Not yet: that a device's local state stays its own through purges, which is proven over the modelled purge (`purgeS`) only. | [`recv_take`], [`bare_takes_only_join`], [`intake_local`], [`stored_local`], [`local_fact_mine`], [`intakeConn_conn`] |
-| ✅ | 🥊🥊 | **Both ends hold one session.** Two ends that complete a handshake hold the same hash, each names the other, and each one's send key is the other's receive key. A frame opens to what was sealed, for the connection it names. | [`established_agrees`], [`open_seal`], [`cid_seal`] |
+| ✅ | 🥊🥊 | **Both ends hold one session.** Two ends that complete a handshake hold the same hash, each names the other, and each one's send key is the other's receive key. A frame opens to what was sealed, for the connection it names. Assumes the native crypto contract (`Suite.Good`), which tests exercise but do not prove. | [`established_agrees`], [`open_seal`], [`cid_seal`] |
 | | | **Hostile input** | |
 | ✅ | 🥊🥊🥊 | **One parse per op.** A decoded op re-encodes to exactly the bytes received, its id is their SHA-256, and a Valid op is exactly its body's encoding under its own type: no parser differential, no malleability, no renamed or re-typed op. | [`Codec.encode_decode`], [`Op.id_decode`], [`distinct_of_collisionFree`], [`op_of_valid`] |
-| ✅ | 🥊🥊🥊 | **Hostile bytes decode to a well-formed value or to nothing.** A QOI picture comes out at 1–2048 px a side, with exactly its pixels' bytes, so at most 16 MiB whatever it claims; the app decodes with this decoder. An mDNS packet keeps its RFC limits, and its pointer chains end by construction. Invite links and QR segments are valid. | [`Pic.decode_sized`], [`Image.decode_sized`], [`Mdns.decode_valid`], [`Community.parse_valid`], [`Qr.parse_valid`] |
-| ✅ | 🥊🥊🥊 | **Attachments authenticate themselves.** Any peer may relay a file's chunks, but a chunk is Valid only if it is its file's own slice. One op stands for each index, progress counts exactly the chunks held, and the chunks put together are the file. Assumes SHA-256 has no second preimage on the tree's inputs. | [`chunk_is_slice`], [`verify_sound`], [`complete_assembles`], [`chunk_unique`], [`progress_exact`], [`assumptions_hold`], [`no_injective_hash`] |
+| ✅ | 🥊🥊🥊 | **Hostile bytes decode to a well-formed value or to nothing.** A QOI picture comes out at 1–2048 px a side, with exactly its pixels' bytes, so at most 16 MiB whatever it claims; the app decodes with this decoder. Invite links and QR segments are valid. An mDNS packet keeps its RFC limits, and its pointer chains end by construction, though the app does not run mDNS yet. | [`Pic.decode_sized`], [`Image.decode_sized`], [`Mdns.decode_valid`], [`Community.parse_valid`], [`Qr.parse_valid`] |
+| ✅ | 🥊🥊🥊 | **Attachments authenticate themselves.** Any peer may relay a file's chunks, but a chunk is Valid only if it is its file's own slice. One op stands for each index, progress counts exactly the chunks held, and the chunks put together are the file. Assumes a hash with no second preimage at all on the tree's inputs (`NoSecondPreimage`), an idealization stronger than SHA-256's computational resistance ([What is Assumed](#what-is-assumed)). | [`chunk_is_slice`], [`verify_sound`], [`complete_assembles`], [`chunk_unique`], [`progress_exact`], [`assumptions_hold`], [`no_injective_hash`] |
 | 🟡 | 🥊🥊🥊 | **Judging cannot be hung.** From any state, judging empties its queue within a budget read off the tables. Not yet of the running node: proven of states whose purges are `purgeS`, a model of the SQL purge. | [`drain_bounded`], [`drain_terminates`], [`step_budget`] |
 | ✅ | 🥊🥊🥊 | **Authenticate before parsing:** a sealed frame's payload is decoded only after its AEAD check passes, under the receive key of the session the frame names. A frame that fails leaves the node and its store as they were, and sends nothing. | [`sealed_auth`], [`openFrame_auth`], [`onFrame_sealed`], [`sealed_unopened`] |
 | 🟡 | 🥊🥊 | **Bounded buffering:** inbound frames wait in a bounded queue, each at most 1 MiB, with one partial frame per socket, whatever the peer's length fields say; a full queue blocks its producer, and sockets are capped globally and per address. Proven of a model of the reader's loop (`keeps`); wiring it to the running reader is a todo. Tested: the queue's backpressure and socket admission. | [`buffer_bounded`], [`frames_kept`], [`frames_tooBig`], [`admit_bounded`] |
@@ -227,7 +393,7 @@ World); the rest are over models so far
 | 🟡 | 🥊🥊🥊 | **Purge is safe.** A purged session or courier is gone, no shared op is ever deleted, and the engine settles on what remains. Not yet: proven of the purge's model (`purgeS`); the running purge is SQL, tested against it. | [`purge_gone`], [`purge_shared`], [`purge_settles`] |
 | 🟡 | 🥊🥊 | **Purge takes exactly what it must.** It takes the named conn and local ops and their stored dependents. Shared dependents are judged again. Not yet: proven of the purge's model (`purgeS`); the running purge is SQL, tested against it. | [`purge_named`], [`purge_undecides`], [`purge_inv`], [`mem_purgeSet`], [`reach_ops`] |
 | ✅ | 🥊 | **Families compose, op by op:** adding a family changes no verdict or scope of the first's ops. Strict decoding round-trips. | [`sum_left`], [`sum_scope_left`], [`Codec.decode_encode`], [`Op.decode_bytes`] |
-| ✅ | 🥊🥊🥊 | **The Community laws hold in the running node** (`sum_project`). The node's store holds Community and Connection ops. Its Community part is the Community ops, with Community's own verdicts. At rest, that part keeps Community's invariant, and its ops are Valid exactly where the node's are. A view that reads only Community relations answers in the node as in that part, as the trust rule, members and recipients do. So the laws above hold of the node that runs. Tested too: over TCP, the node's trust rule, members and recipients match a Community-only store of its Community ops, before and after a removal. | [`sum_project`], [`sum_project_node`], [`spec_sum_left`], [`view_proj`], [`connect_iff_node`], [`members_iff_node`], [`recipients_iff_node`], [`node_settles`] |
+| ✅ | 🥊🥊🥊 | **The Community laws hold in the running node** (`sum_project`). The node's store holds Community and Connection ops. Its Community part is the Community ops, with Community's own verdicts. At rest, that part keeps Community's invariant, and its ops are Valid exactly where the node's are. A view that reads only Community relations answers in the node as in that part, as the trust rule, members and recipients do (though nothing running reads members or recipients yet: see **Messages are sealed to members only**). So the laws above hold of the node that runs. Tested too: over TCP, the node's trust rule, members and recipients match a Community-only store of its Community ops, before and after a removal. | [`sum_project`], [`sum_project_node`], [`spec_sum_left`], [`view_proj`], [`connect_iff_node`], [`members_iff_node`], [`recipients_iff_node`], [`node_settles`] |
 | ✅ | 🥊🥊🥊 | **The honest path works.** A request with its invitation and both signatures is valid, an eligible member's approval is valid, and enough approvals admit and let the device in. The remover's intent writes only removals that stand. | [`request_valid`], [`approve_valid`], [`admit_admits`], [`connect_admitted`], [`removeMember_valid`] |
 | | | **Sync** | |
 | 🟡 | 🥊🥊🥊 | **A sync round is complete.** Each side is sent exactly what the other holds in the range and it lacks. On any path, it takes at most one answer more than the two sides hold in the range. Not yet: proven of the round's model (`exchange`); wanted of the running round (`conn_runs_exchange`). | [`exchange_complete`] |
@@ -245,7 +411,7 @@ World); the rest are over models so far
 | ⬜ | 🥊 | **The cached Merkle tree's labels are `lbl`'s,** for O(log n) fingerprints with no change on the wire. | |
 | | | **The screen** | |
 | ✅ | 🥊🥊🥊 | **Component work has revocable ownership.** The reader and raster worker use the same demand plan: a key is held iff some component declares it, revoked completions are rejected, visible queued work takes priority, and reconciliation keeps retained pending order. These are laws of their running decision functions; thread scheduling and millisecond latency are measured/tested, not proved. Message attachment children already own their queries and render work independently. See [the hierarchy, tests and remaining migration](docs/PERF.md#component-demand-the-running-starting-point). | [`Demand.owned_iff`], [`Demand.complete_retired`], [`Demand.next_visible`], [`Demand.retained_prefix`], [`Demand.retained_ticket`], [`Demand.remount_rejects`] |
-| ✅ | 🥊🥊 | **Unmounted pages issue no new reads or writes.** The running read/write gates reject unmounted pages and old leases, including after remount. Cache pruning leaves exactly the mounted queries after each has an answer; watches are their keys. Worker retirement, bounded suspend and native callback delivery are tested, not proved by these gate laws. | [`unmount_read`], [`unmount_write`], [`old_callback`], [`unmounted_quiet`], [`old_quiet`], [`live_exact`], [`subscriptions_exact`], [`mounted_runs`] |
+| ✅ | 🥊🥊 | **Unmounted pages issue no new reads or writes.** The running read/write gates reject unmounted pages and old leases, including after remount. Watches are the mounted queries' keys. Pruning the cache to exactly the mounted queries is proven of `Lifecycle.prune`, which the running cache does not call yet. Worker retirement, bounded suspend and native callback delivery are tested, not proved by these gate laws. | [`unmount_read`], [`unmount_write`], [`old_callback`], [`unmounted_quiet`], [`old_quiet`], [`live_exact`], [`subscriptions_exact`], [`mounted_runs`] |
 | 🟡 | 🥊🥊 | **Lifecycle state survives a restart or resize.** Proven: the running checkpoint codec and application preserve page and message anchor, and resize's offset keeps the anchor's top-edge distance when it fits. Not yet: SQLite crash durability as a Lean law; the headless twin tests crashes, viewport changes, keyboard transitions and invite launch ([inventory](docs/LIFECYCLE.md)). Placement is supplied by the shared Lean seam below. | [`restore_checkpoint`], [`page_round`], [`restore_page_anchor`], [`apply_page_anchor`], [`resize_anchor`], [`viewport_geometry`], [`viewport_possible`] |
 | 🟡 | 🥊🥊🥊 | **Nothing on screen is covered or mis-tapped.** Content in the viewport is drawn below the header, and above the composer and keyboard. Pinned to the bottom, the newest message is wholly visible. A tap lands on the row, or emoji key, drawn under it. The phones and twins call the shared placement and input functions. Not yet: OS event acquisition and compositor pixel copies as Lean laws. | [`Surface.visible_in_viewport`], [`newest_visible`], [`Surface.pinned_visible`], [`pinned_tap`], [`hit_iff`] |
 | ⬜ | 🥊🥊🥊 | **Every control is big enough to tap.** Every tappable control's hit area, not just its drawn size, is at least 48 dp by 48 dp on Android and 44 pt by 44 pt on iOS, at every supported screen size and text scale. | |
@@ -254,7 +420,7 @@ World); the rest are over models so far
 | 🟡 | 🥊🥊🥊 | **Typing and sending never wait on sync.** A frame never waits on the node, however full its inbound channel. Proven of the running offer (`offerList`, which `submit` and each frame's re-offer run with the channel's `trySend`), whatever the channel answers: what it took, then what waits, is every write submitted, in order, over any run of sends and frames (none lost, none twice, none overtaken; and one taken twice would be harmless anyway, `ingestAll_again`). Tested: `nodequeue`, over a real full channel (the offer returns at once; the control, the blocking send, waits). Checked at build: no frame path, short of the threads it starts, reaches `Engine.Sync.enqueue` (so not `Runner.write`), a channel's waiting `send`, `IO.wait`, or a store commit (`Lifecycle.save`: a node's purge holds SQLite's write lock until the frame's read ends, so the frame hands its checkpoint to the writer's thread) (tests/Wiring.lean's `block`, whose negative controls, `submit` and the checkpoint as they were, are caught; `lifecycle_node`'s purge test runs a real purge checkpoint inside a frame). Not yet: a `Task.get` of a task not yet finished is not checked, and `trySend` returning without waiting is assumed, as the platform's other primitives are. | [`offer_split`], [`offer_runs`] |
 | ⬜ | 🥊🥊 | **A tap acts once.** A second tap on a control while its action is in flight starts nothing new (Send sends once). A press that turns into a scroll past the slop is not a tap. | |
 | ⬜ | 🥊🥊 | **Destructive actions are guarded.** Every action that cannot be undone asks for a second confirmation, as removal does (`writes_only_after_two`). Its control keeps a clear gap from the controls around it. | |
-| ✅ | 🥊🥊🥊 | **A screen re-reads only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
+| ✅ | 🥊🥊🥊 | **A screen need re-read only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
 | 🟡 | 🥊🥊🥊 | **Notices are exact.** A screen watches windows: a list's rows between two positions. Proven: after any batch of commits and purges, the journal's rows, netted and matched against an index of windows, notify a subscriber exactly when one of its windows changed, never for a row outside them or one filed and purged within the batch, given one op per id; a read's window, cut at its last row, changes exactly when its rows do, and holds exactly them; a read's watch misses nothing its reader uses; matching a filing costs a hash and ⌊log₂ 2S⌋+2 comparisons; the frame's wants (`Screen.Frame.wants`) are exactly its page's reads, the near rows' hull per list key and the near rows' reads. Notices by key, and an unnetted journal, are shown imprecise. The app's cache watches each read's window, takes its notices from the journal netted, and unwatches a component's reads when it unmounts (`agrees_notice`, `agrees_unmount`, `watched_held`); the conversation is a window of rows about an anchor, watched by exactly its rows, and the counts beside it are a read of the page's own. Not yet: the window holds up to 100 rows past each end of the near rows (`past_hull_le`), and the frame does not want by `Frame.wants`; a union read (the conversation) is precise per key, not for the union's own cut; reads of an op's bytes are outside. SQLite's triggers are tested against the model (`window_check`), not proven. | [`notice_iff`], [`read_notice_iff`], [`read_rows_iff`], [`Engine.window_rows`], [`watch_stable`], [`run_exact`], [`fact_stable`], [`find_costs`], [`notify_cost`], [`screen_subs`], [`hull_near`], [`past_hull_le`], [`key_notice_imprecise`], [`unnetted_imprecise`], [`keep_scrolled_off`], [`agrees_notice`], [`agrees_unmount`], [`watched_held`] |
 | ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
 | ✅ | 🥊🥊 | **Back goes back.** Back after opening a page restores the state before it (only the page's one-line field is cleared). Back at a root does nothing, and after a switch no number of backs leaves the new home. No page is twice in the back stack, so fewer than 19 backs reach a root. No step changes the composer's draft, and the native field follows it. | [`back_go`], [`NavLaws.back_open`], [`NavLaws.back_root`], [`back_switch`], [`go_inv`], [`NavLaws.depth`], [`draft_back`], [`into_native`] |
@@ -272,7 +438,7 @@ World); the rest are over models so far
 | ⬜ | 🥊🥊 | **The screen keeps up.** Wanted: input first, no blank rows past a latency bound, within a frame budget, with bounded reads. | |
 | ✅ | 🥊🥊 | **Display order.** A channel sorts by a counter its devices share, then the time, then the id, with no ties, so devices with the same ops order it alike. Past the counter's cap, each device's own arrival order shows instead, and that exception is itself a law. | [`msg_cmp`], [`time_is_display`], [`order_total`], [`Pos.cmp_eq_iff`], [`Pos.cmp_lt_trans`], [`send_after`], [`arrival_order`], [`receipt_once`], [`order_local`], [`display_agrees`], [`readable_held`], [`readable_complete`] |
 | | | **Codes, pictures and discovery** | |
-| ✅ | 🥊🥊 | **What the encoders write reads back.** This holds for QR segments and codewords, invite links and mDNS packets. QR error correction is sound, and format and version readings tolerate their designed bit errors. | [`parse_segsBits`], [`parse_dataStream`], [`RS.correct_sound`], [`RS.correct_clean`], [`decodeFormat_correct`], [`decodeVersion_correct`], [`parse_text`], [`parse_uri`], [`Base62.decode_encode`], [`Mdns.decode_encode`], [`decode_roundtrip`] |
+| ✅ | 🥊🥊 | **What the encoders write reads back.** This holds for QR segments and codewords, invite links and mDNS packets, though nothing running writes mDNS packets or the `leanquiet://` form of a link yet. QR error correction is sound, and format and version readings tolerate their designed bit errors. | [`parse_segsBits`], [`parse_dataStream`], [`RS.correct_sound`], [`RS.correct_clean`], [`decodeFormat_correct`], [`decodeVersion_correct`], [`parse_text`], [`parse_uri`], [`Base62.decode_encode`], [`Mdns.decode_encode`], [`decode_roundtrip`] |
 | 🟡 | 🥊 | **Pictures render whole:** scaled and composited pictures are well-formed and opaque, and the tray's layout fits. Not yet: proven of `Pic`, which only qr's Android harness runs; the app draws its own. | [`render_wellFormed`], [`render_opaque`], [`scale_wellFormed`], [`fit_round`], [`Pic.layout_inside`], [`Pic.layout_apart`] |
 
 The theorems not listed here are lemmas. The axiom audit,
