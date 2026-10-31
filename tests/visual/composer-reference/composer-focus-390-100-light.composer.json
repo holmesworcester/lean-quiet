@@ -1,0 +1,103 @@
+{
+  "scale": 1,
+  "area": [
+    0,
+    694,
+    390,
+    106
+  ],
+  "row": [
+    0,
+    694,
+    390,
+    106
+  ],
+  "field": [
+    0,
+    695,
+    390,
+    44
+  ],
+  "buttons": [
+    {
+      "label": "Attach a file",
+      "box": [
+        8,
+        748,
+        44,
+        44
+      ],
+      "glyph": [
+        20,
+        760,
+        20,
+        20
+      ]
+    },
+    {
+      "label": "Choose emoji",
+      "box": [
+        52,
+        748,
+        44,
+        44
+      ],
+      "glyph": [
+        64,
+        760,
+        20,
+        20
+      ]
+    },
+    {
+      "label": "Mention someone",
+      "box": [
+        96,
+        748,
+        44,
+        44
+      ],
+      "glyph": [
+        108,
+        760,
+        20,
+        20
+      ]
+    },
+    {
+      "label": "Record a voice message",
+      "box": [
+        140,
+        748,
+        44,
+        44
+      ],
+      "glyph": [
+        152,
+        760,
+        20,
+        20
+      ]
+    },
+    {
+      "label": "Send",
+      "box": [
+        338,
+        748,
+        44,
+        44
+      ],
+      "glyph": [
+        348,
+        755.25,
+        24,
+        24
+      ]
+    }
+  ],
+  "font": "15px / 20px \"Quiet Noto Sans\", system-ui, sans-serif",
+  "border": "rgb(179, 179, 179)",
+  "divider": true,
+  "dividerColor": "rgb(247, 247, 247)",
+  "placeholder": "rgb(127, 127, 127)"
+}

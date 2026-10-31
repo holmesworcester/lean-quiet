@@ -42,14 +42,16 @@ def build():
     data = bind(cairo, 'cairo_image_surface_get_data', [C.c_void_p], C.c_void_p)
     context_new = bind(cairo, 'cairo_create', [C.c_void_p], C.c_void_p)
     context_drop = bind(cairo, 'cairo_destroy', [C.c_void_p], None)
-    out = bytearray(b'QICO' + struct.pack('<I', len(SOURCES) * 89))
+    def sizes(path):
+        return range(8, 217 if path.stem == 'quiet-mark' else 97)
+    out = bytearray(b'QICO' + struct.pack('<I', sum(len(sizes(p)) for p in SOURCES)))
     for path in SOURCES:
         raw = path.read_bytes().replace(b'currentColor', b'#ffffff')
         handle = load(raw, len(raw), None)
         if not handle:
             raise RuntimeError(f'invalid SVG: {path}')
         try:
-            for size in range(8, 97):
+            for size in sizes(path):
                 surface = surface_new(0, size, size)  # CAIRO_FORMAT_ARGB32
                 context = context_new(surface)
                 try:

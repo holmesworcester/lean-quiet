@@ -470,7 +470,13 @@ def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (db : Db
     | .v6 a => a.port
   let stopped ← IO.mkRef false
   let listening ← IO.asTask (prio := .dedicated) (acceptor ch srv stopped slots cfg)
-  let done ← IO.asTask (prio := .dedicated) (runLoop x ch notify cfg writes { db, node, slots })
+  let done ← IO.asTask (prio := .dedicated) do
+    try runLoop x ch notify cfg writes { db, node, slots }
+    catch e =>
+      -- The native shells retain stderr (iOS lean.log / Android logcat).
+      -- A background IO failure must not disappear into an unread Task.
+      IO.eprintln s!"network runner stopped: {e}"
+      throw e
   let closing ← Std.Mutex.new false
   return { events := ch, writes, port := bound, done, stopped, listening, slots, listener := srv.native, closing }
 

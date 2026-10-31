@@ -1,0 +1,30 @@
+{
+  "Suite.Good": {
+    "status": "counterexample",
+    "theorem": "Connection.Noise.Suite.Good",
+    "witness": "Vacuity.Contracts.noiseBadKey",
+    "module": "tests.vacuity.Contracts",
+    "detail": "Actual production Noise suite rejects an empty key, contradicting its unrestricted dec_enc axiom. Correct 32-byte key roundtrip also checked. This invalidates applicability of the universal contract, not valid-key encryption."
+  },
+  "Symbolic.sym": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Noise.Symbolic.sym",
+    "witness": "Vacuity.Contracts.symbolicGood",
+    "module": "tests.vacuity.Contracts",
+    "detail": "The symbolic Noise suite satisfies its universal Good contract; separate nonempty Session fixtures instantiate its handshake and secrecy laws. This is not a proof of the native suite."
+  },
+  "Unforgeable": {
+    "status": "conditional",
+    "theorem": "Community.Unforgeable",
+    "witness": "Vacuity.Identity.noImpersonation",
+    "module": "tests.vacuity.Identity",
+    "detail": "Real signed-message validity is checked, but universal unforgeability relative to an independent signing history remains open. Neither Signed=True nor a verifier-defined signing history is substituted."
+  },
+  "NoSecondPreimage": {
+    "status": "kernel-witness",
+    "theorem": "Community.Merkle.NoSecondPreimage",
+    "witness": "Vacuity.Merkle.preimage",
+    "module": "tests.vacuity.Merkle",
+    "detail": "Closed universal premise for an explicit 32-byte-output model hash and a nonempty attachment. Unique leaf/root outputs are proved against every other input. This model is deliberately not SHA-256."
+  }
+}

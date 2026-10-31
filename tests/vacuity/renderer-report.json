@@ -550,14 +550,14 @@
     "theorem": "Ttf.Cache.put_bound",
     "witness": "Vacuity.RendererImages.cacheBound",
     "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. The native executable additionally checks two distinct nonempty glyphs are both retained and index.size = 2, ruling out an always-empty cache."
   },
   "Ttf.Cache.put_payload_bound": {
     "status": "kernel-witness",
     "theorem": "Ttf.Cache.put_payload_bound",
     "witness": "Vacuity.RendererImages.cachePayload",
     "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. The native executable additionally checks two distinct nonempty glyphs are both retained and index.size = 2, ruling out an always-empty cache."
   },
   "agrees_empty": {
     "status": "kernel-witness",
@@ -1055,5 +1055,103 @@
     "witness": "Vacuity.RendererFlow.offerSplit",
     "module": "tests.vacuity.RendererFlow",
     "detail": "This README reference is the model channel operation, not a theorem. The concrete nonempty offer_split witness uses that exact operation on accepting/refusing responses and proves taken ++ waiting preserves the original writes. Exact channel outputs and retry order are checked separately."
+  },
+  "Link.hints_fit": {
+    "status": "kernel-witness",
+    "theorem": "Link.hints_fit",
+    "witness": "Vacuity.RendererSupplement.hints",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "Four synthetic interfaces include private wired/Wi-Fi, public IPv4 and loopback. The theorem bounds every emitted hint; the executable separately checks exactly the two private hints survive with Wi-Fi first, preventing an empty-output implementation from passing unnoticed."
+  },
+  "Link.qr_fits": {
+    "status": "kernel-witness",
+    "theorem": "Link.qr_fits",
+    "witness": "Vacuity.RendererSupplement.qr",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "A concrete 41-module QR symbol fits a 256px square including its 4-module quiet zone on every side: Lean proves the fitting premise and exact scale5, and rejects a too-small side40."
+  },
+  "eval_stable": {
+    "status": "kernel-witness",
+    "theorem": "Engine.eval_stable",
+    "witness": "Vacuity.RendererSupplement.stableList",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "The nonempty signed/decrypted IdentityMessages DB supplies the invariant. A genuinely new pending signed op gives a proper Later.ingest transition whose index preservation is proved by the production ingest definition; the actual two-message query and people view stay stable. Runtime checks the original query has two rows and the new op is queued; no reflexive state transition is substituted."
+  },
+  "view_stable": {
+    "status": "kernel-witness",
+    "theorem": "Engine.view_stable",
+    "witness": "Vacuity.RendererSupplement.stableView",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "The nonempty signed/decrypted IdentityMessages DB supplies the invariant. A genuinely new pending signed op gives a proper Later.ingest transition whose index preservation is proved by the production ingest definition; the actual two-message query and people view stay stable. Runtime checks the original query has two rows and the new op is queued; no reflexive state transition is substituted."
+  },
+  "matching_nodup": {
+    "status": "kernel-witness",
+    "theorem": "Engine.matching_nodup",
+    "witness": "Vacuity.RendererSupplement.uniqueRows",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "The nonempty signed/decrypted IdentityMessages DB supplies the invariant. A genuinely new pending signed op gives a proper Later.ingest transition whose index preservation is proved by the production ingest definition; the actual two-message query and people view stay stable. Runtime checks the original query has two rows and the new op is queued; no reflexive state transition is substituted."
+  },
+  "mem_keysOf": {
+    "status": "kernel-witness",
+    "theorem": "Engine.mem_keysOf",
+    "witness": "Vacuity.RendererSupplement.namedKeys",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "The nonempty signed/decrypted IdentityMessages DB supplies the invariant. A genuinely new pending signed op gives a proper Later.ingest transition whose index preservation is proved by the production ingest definition; the actual two-message query and people view stay stable. Runtime checks the original query has two rows and the new op is queued; no reflexive state transition is substituted."
+  },
+  "filed_rel": {
+    "status": "runtime-witness",
+    "theorem": "Engine.filed_rel",
+    "witness": "Vacuity.RendererSupplement.filedRelation",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "On the actual nonempty signed two-message DB, runtime checks the queue is empty and supplies relation membership/name-length and invariant proofs before applying filed_rel to the real sealed message. This checks the full indexed-validity equivalence, not an empty relation."
+  },
+  "namesake_iff": {
+    "status": "runtime-witness",
+    "theorem": "ViewLaws.namesake_iff",
+    "witness": "Vacuity.RendererSupplement.namesake",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "Two actually admitted Ed25519 identities choose the same Bob label. Runtime validates the nonempty signed community and empty queue, then applies namesake_iff. The actual namesake is true after the second profile and false before it, so an always-unmarked implementation fails."
+  },
+  "row_marked": {
+    "status": "runtime-witness",
+    "theorem": "ViewLaws.row_marked",
+    "witness": "Vacuity.RendererSupplement.marked",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "The same signed duplicate-name community opens an actual sealed Bob message using its local content key. A successful Message.read match supplies the precise row premise; its complete row_marked conclusion is returned in a dependent certificate, and execution checks the actual row carries the Duplicate flag."
+  },
+  "receipt_once": {
+    "status": "runtime-witness",
+    "theorem": "Community.receipt_once",
+    "witness": "Vacuity.RendererSupplement.receiptOnce",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted."
+  },
+  "arrival_order": {
+    "status": "runtime-witness",
+    "theorem": "Community.arrival_order",
+    "witness": "Vacuity.RendererSupplement.arrival",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted."
+  },
+  "send_after": {
+    "status": "runtime-witness",
+    "theorem": "Community.send_after",
+    "witness": "Vacuity.RendererSupplement.sendAfter",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted."
+  },
+  "order_local": {
+    "status": "runtime-witness",
+    "theorem": "Community.order_local",
+    "witness": "Vacuity.RendererSupplement.localOrder",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted."
+  },
+  "display_agrees": {
+    "status": "runtime-witness",
+    "theorem": "Community.display_agrees",
+    "witness": "Vacuity.RendererSupplement.displayAgreement",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted."
   }
 }

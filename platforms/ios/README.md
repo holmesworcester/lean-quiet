@@ -52,7 +52,8 @@ Linux box and do the Mac's part over SSH.
 ## How the twin maps the seam
 
 Photo selection reserves a cancellable loading tile in the shared composer as
-soon as the picker request is accepted. Its spinner continues through native
+soon as the picker reports an image selection, before loading its bytes. Opening
+or cancelling the picker without a selection creates no attachment tile. Its spinner continues through native
 provider loading and background image encoding; the finished thumbnail replaces
 that slot. `mise run host:photo` checks the first published pixels, animation,
 an unresolved encoding task, cancellation, and a real signed attachment send at
@@ -256,3 +257,14 @@ above. The release/manual CI entry is `ci/local.sh release-ios-input` (alias
 gate. Prefer a phone that has been locked/asleep since boot: the diagnostic
 clock audit records the elapsed/awake difference. The suite makes no claim
 about a hard wall-clock display deadline or verification of UIKit itself.
+
+The conversation's transparent, interactive UIScrollView owns native pan
+recognition, velocity tracking, deceleration and interruption. Its vertical
+transform maps UIKit's offset to the bottom-anchored Lean list. Lean paints
+all content and receives raw touches for semantic taps and holds; accepted
+motion is not replayed into UIKit. Pinned pages disable native scrolling.
+The native input gate checks UIKit's actual deceleration callbacks and movement
+after finger-up in both directions, alongside short-tap/long-hold classification.
+`ios:input-device-e2e` builds the app and test runner; CI's `ios-input-device`
+and `release-ios-input` invoke the same task. These are regression tests of
+the running UIKit boundary, not a proof of OS animation timing.

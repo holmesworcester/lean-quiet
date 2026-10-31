@@ -89,6 +89,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
       return;
     }
     final android.net.Uri uri = data.getData();
+    nPhoto(token, 4, 0, 0, null); // selection precedes provider loading/decode
     photoWorker.execute(() -> {
       android.graphics.Bitmap bitmap = null;
       try {

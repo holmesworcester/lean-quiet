@@ -1,0 +1,198 @@
+{
+  "Codec.decode_encode": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.Codec.decode_encode",
+    "witness": "Vacuity.Core.decoded",
+    "detail": "Nonempty message payload with two requirement ids roundtrips."
+  },
+  "Codec.encode_decode": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.Codec.encode_decode",
+    "witness": "Vacuity.Core.canonical",
+    "detail": "Fixed literal wire bytes decode to a message payload and re-encode identically; trailing byte rejected."
+  },
+  "Op.decode_bytes": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.Op.decode_bytes",
+    "witness": "Vacuity.Core.opDecodes",
+    "detail": "Concrete nonempty op decodes; its SHA value remains symbolic."
+  },
+  "Op.id_decode": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.Op.id_decode",
+    "witness": "Vacuity.Core.hashNamed",
+    "detail": "Successful concrete op decode inhabits the premise; id equals SHA(bytes), without claiming collision freedom."
+  },
+  "Pos.cmp_eq_iff": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.Pos.cmp_eq_iff",
+    "witness": "Vacuity.Core.positionEquality",
+    "detail": "Position equality on actual nonempty byte keys; distinct-key and transitivity controls alongside."
+  },
+  "Pos.cmp_lt_trans": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.Pos.cmp_lt_trans",
+    "witness": "Vacuity.Core.transitive",
+    "detail": "Three distinct nonempty byte positions: both strict-order premises computed; reverse order rejected."
+  },
+  "sortPos_sorted": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.sortPos_sorted",
+    "witness": "Vacuity.Core.sorted",
+    "detail": "Three messages supplied out of order; exact expected order checked."
+  },
+  "perm_sortPos": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.perm_sortPos",
+    "witness": "Vacuity.Core.permutation",
+    "detail": "Nonempty out-of-order message rows retained by sorting."
+  },
+  "mergeRuns_eq_sortPos": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.mergeRuns_eq_sortPos",
+    "witness": "Vacuity.Core.merge",
+    "detail": "Two interleaved ordered message lists merge to exact three-row order; reversed input violates premise."
+  },
+  "insertBy_merge": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.insertBy_merge",
+    "witness": "Vacuity.Core.insertMerge",
+    "detail": "Insert early message into two nonempty sorted lists with explicit head-order premise."
+  },
+  "foldr_insertBy": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.foldr_insertBy",
+    "witness": "Vacuity.Core.foldMerge",
+    "detail": "Two ordered messages inserted into another nonempty list."
+  },
+  "union_rows": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.union_rows",
+    "witness": "Vacuity.Core.union",
+    "detail": "Two query answers, three messages, limit two; ordered-input premise computed and first two rows checked."
+  },
+  "erase_run": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.CostT.erase_run",
+    "witness": "Vacuity.Core.eraseRun",
+    "detail": "Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3."
+  },
+  "erase_pure": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.CostT.erase_pure",
+    "witness": "Vacuity.Core.erasePure",
+    "detail": "Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3."
+  },
+  "erase_bind": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.CostT.erase_bind",
+    "witness": "Vacuity.Core.eraseBind",
+    "detail": "Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3."
+  },
+  "erase_charged": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.CostT.erase_charged",
+    "witness": "Vacuity.Core.eraseCharged",
+    "detail": "Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3."
+  },
+  "erase_chargedBy": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.CostT.erase_chargedBy",
+    "witness": "Vacuity.Core.eraseChargedBy",
+    "detail": "Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3."
+  },
+  "erase_lift": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.CostT.erase_lift",
+    "witness": "Vacuity.Core.eraseLift",
+    "detail": "Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3."
+  },
+  "erase_tick": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.CostT.erase_tick",
+    "witness": "Vacuity.Core.eraseTick",
+    "detail": "Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3."
+  },
+  "val_erase": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.Counted.val_erase",
+    "witness": "Vacuity.Core.valueErased",
+    "detail": "Counted action with two reads, one write and 13 copied bytes, value 42."
+  },
+  "cost_run": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Engine.Counted.cost_run",
+    "witness": "Vacuity.Core.costRun",
+    "detail": "Counted action with two reads, one write and 13 copied bytes, value 42."
+  },
+  "parse_text": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Community.parse_text",
+    "witness": "Vacuity.Core.inviteRound",
+    "detail": "Invite with four 32-byte fields and a network hint; all size premises proved, short seed rejected."
+  },
+  "Base62.decode_encode": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Community.Base62.decode_encode",
+    "witness": "Vacuity.Core.base62Round",
+    "detail": "Binary fixture [0,1,254,255]; invalid alphabet character rejected."
+  },
+  "Op.decode_exact": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Op.decode_exact",
+    "witness": "Vacuity.Core.exactBytes",
+    "module": "tests.vacuity.Core",
+    "detail": "Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises."
+  },
+  "Op.decode_parts": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Op.decode_parts",
+    "witness": "Vacuity.Core.partsSmaller",
+    "module": "tests.vacuity.Core",
+    "detail": "Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises."
+  },
+  "decode_sum": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Codec.decode_sum",
+    "witness": "Vacuity.Core.bundleSmaller",
+    "module": "tests.vacuity.Core",
+    "detail": "Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises."
+  },
+  "sortPos_eq_fast": {
+    "status": "kernel-witness",
+    "theorem": "Engine.sortPos_eq_fast",
+    "witness": "Vacuity.Core.fastSort",
+    "module": "tests.vacuity.Core",
+    "detail": "Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises."
+  },
+  "Community.parse_valid": {
+    "status": "kernel-witness",
+    "theorem": "Community.parse_valid",
+    "witness": "Vacuity.Core.parsedValid",
+    "module": "tests.vacuity.Core",
+    "detail": "Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises."
+  }
+}

@@ -401,7 +401,8 @@ input_device() {
     -project LeanQuiet.xcodeproj -scheme LeanQuiet -configuration Release \
     -destination 'platform=iOS,id=$IOS_UDID' -derivedDataPath ~/$dir/build/dd \
     -resultBundlePath ~/$dir/out/input.xcresult \
-    -only-testing:LeanQuietUITests/LeanQuietUITests/testShortPressIsNotLong" > "$dest/e2e.log" 2>&1 || ok=$?
+    -only-testing:LeanQuietUITests/LeanQuietUITests/testShortPressIsNotLong \
+    -only-testing:LeanQuietUITests/LeanQuietUITests/testFlingContinuesAfterRelease" > "$dest/e2e.log" 2>&1 || ok=$?
   scp -q -r "$mac:$dir/out/input.xcresult" "$dest/" || true
   scp -q -r "$mac:$dir/out/shots" "$dest/" || true
   tail -20 "$dest/e2e.log"

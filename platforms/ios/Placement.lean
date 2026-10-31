@@ -1,5 +1,6 @@
 /- The iOS shell now copies Surface's rectangles like the other shells.
-There is no flipped-scroll-view placement model. Audit the running
+The scroll view reverses only the native offset axis; content placement
+remains Surface's. Audit the running
 placement, crop and input mapping at the iOS build boundary as well. -/
 import engine.renderer.SlideLaws
 import engine.renderer.InputLaws

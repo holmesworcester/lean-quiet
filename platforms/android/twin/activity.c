@@ -335,6 +335,7 @@ static void JNICALL ba_n_text(JNIEnv* env, jclass cls, jstring text, jint ss, ji
 static void JNICALL ba_n_photo(JNIEnv* env, jclass cls, jint token, jint status,
     jint w, jint h, jbyteArray rgba) {
   (void)cls;
+  if (status == 4) { lq_photo_selected(&ba_photo, (uint32_t)token); return; }
   jsize n = rgba ? (*env)->GetArrayLength(env, rgba) : 0;
   if (status == 1 && (w <= 0 || h <= 0 || w > 2048 || h > 2048 || n != (int64_t)w*h*4)) return;
   jbyte* bytes = rgba ? (*env)->GetByteArrayElements(env, rgba, NULL) : NULL;

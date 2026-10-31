@@ -62,10 +62,8 @@ example : grid.hit 160 50 148 = none := by decide -- gap between keys
 example : grid.hit 160 20 220 = none := by decide -- below visible grid
 example : ¬ grid.inBox 160 31 20 148 := by unfold SheetGeom.Grid.inBox; decide -- adjacent key cannot own tap
 
-theorem disjoint : (30 : Nat) = 30 :=
-  SheetGeom.keys_disjoint grid gridOk 160 30 30 20 148 (by decide) (by decide) inKey inKey
--- The useful negative consequence: the same tap cannot hit a distinct key.
-example : ∀ i, i < grid.n → grid.inBox 160 i 20 148 → i = 30 := by
+-- The same concrete tap cannot belong to any distinct valid key.
+theorem disjoint : ∀ i, i < grid.n → grid.inBox 160 i 20 148 → i = 30 := by
   intro i hi hbox
   exact SheetGeom.keys_disjoint grid gridOk 160 i 30 20 148 hi (by decide) hbox inKey
 

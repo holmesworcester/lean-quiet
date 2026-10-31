@@ -1,0 +1,105 @@
+import tests.vacuity.IdentityTrust
+
+/-! Real SHA-256/Ed25519/XChaCha20 attachment fixture. Finite validation and
+progress checks run natively. The three README theorem applications retain
+universal SHA output-size and file-specific second-preimage assumptions:
+these tests do not prove cryptographic collision resistance. -/
+namespace Vacuity.Attachment
+open Engine Community Codec Tests Vacuity.Identity Vacuity.IdentityTrust
+set_option linter.defProp false
+
+def contentKey : ByteArray := sha256 "vacuity/attachment/content-key".toUTF8
+def file : NewFile := {
+  info := { name := "meeting-notes.bin".toUTF8, kind := "application/octet-stream".toUTF8, w := 0, h := 0, preview := .empty }
+  bytes := ⟨((List.range 70000).map fun i => (i % 251).toUInt8).toArray⟩
+  key := sha256 "vacuity/attachment/file-key".toUTF8
+  nonce := ⟨Array.replicate 24 7⟩
+  metaNonce := ⟨Array.replicate 24 9⟩ }
+
+def cipher := fileCipher file
+def rootHash := Merkle.fileRoot sha256 cipher
+def composed := attach c admission.id message.id bob contentKey file
+def attachment := composed.1
+def kid := kidOf cryptoSeal contentKey
+def sealedMeta : ByteArray := match (decode attachment.body : Option Body) with
+  | some (.attach _ _ _ sealed _) => sealed
+  | _ => .empty
+
+def attachmentFact : Fact := .attachment c message.id requestB.id rootHash cipher.size kid sealedMeta
+def chunkBody (i : Nat) : Body :=
+  .chunk rootHash cipher.size i (Merkle.slice cipher i) (Merkle.proof sha256 cipher i)
+def chunk0 := fileChunk c attachment.id cipher 0
+def chunk1 := fileChunk c attachment.id cipher 1
+-- Another relay independently constructs the canonical bytes for index0.
+def relayed0 := mkOp [c, attachment.id] (chunkBody 0)
+def chunkFact (i : Nat) : Fact := .chunk c attachment.id rootHash cipher.size i
+
+def full := before ++ [attachment, chunk0, chunk1]
+def incomplete := before ++ [attachment, chunk1]
+def duplicated := before ++ [attachment, chunk1, chunk1]
+
+def sliceCertificate :=
+  if hv : check ed25519 chunk0 (chunkBody 0) [rootFact, attachmentFact] = some (chunkFact 0) then
+    some (PLift.up (fun (hs : ∀ x, (sha256 x).size = 32)
+      (hp : Merkle.NoSecondPreimage sha256 (Merkle.treeInputs sha256 cipher)) =>
+      chunk_is_slice hs hp hv))
+  else none
+
+def uniqueCertificate := do
+  let ⟨hx⟩ ← certify full chunk0 (chunkFact 0)
+  let ⟨hy⟩ ← certify full relayed0 (chunkFact 0)
+  return PLift.up (fun (hs : ∀ x, (sha256 x).size = 32)
+    (hp : Merkle.NoSecondPreimage sha256 (Merkle.treeInputs sha256 cipher)) =>
+    chunk_unique (keyed full) hs hp hx hy)
+
+def progressCertificate := do
+  let ⟨ha⟩ ← certifyDB incomplete attachment attachmentFact
+  if hq : (run incomplete).queue = [] then
+    return PLift.up (fun (hs : ∀ x, (sha256 x).size = 32)
+      (hp : Merkle.NoSecondPreimage sha256 (Merkle.treeInputs sha256 cipher)) =>
+      progress_exact hs hp (runInv incomplete) hq ha)
+  else none
+
+def tamperedSlice : ByteArray :=
+  let s := Merkle.slice cipher 1
+  s.set! 0 (s.get! 0 ^^^ 1)
+def tampered : Op := mkOp [c, attachment.id]
+  (.chunk rootHash cipher.size 1 tamperedSlice (Merkle.proof sha256 cipher 1))
+def wrongIndex : Op := mkOp [c, attachment.id]
+  (.chunk rootHash cipher.size 2 (Merkle.slice cipher 1) (Merkle.proof sha256 cipher 1))
+def wrongSibling : Op := mkOp [c, attachment.id]
+  (.chunk rootHash cipher.size 1 (Merkle.slice cipher 1) [sha256 "wrong sibling".toUTF8])
+
+def main : IO UInt32 := do
+  let t ← Checks.new
+  t.ok "nonempty encrypted attachment spans exactly two chunks"
+    (file.bytes.size == 70000 && cipher.size == 70016 && Merkle.nChunks cipher.size == 2)
+  t.ok "real signed attachment is Valid" (certify full attachment attachmentFact).isSome
+  t.ok "both actual chunk validity premises" ((certify full chunk0 (chunkFact 0)).isSome &&
+    (certify full chunk1 (chunkFact 1)).isSome)
+  t.ok "chunk_is_slice finite validator premise; hash assumptions retained" sliceCertificate.isSome
+  t.ok "chunk_unique two relay validity premises; hash assumptions retained" uniqueCertificate.isSome
+  t.ok "progress_exact invariant settled attachment premises; hash assumptions retained" progressCertificate.isSome
+  t.ok "attachment composer emits the canonical chunk ops" (composed.2 == [chunk0, chunk1])
+  t.ok "independent relay reconstructs identical canonical op" (relayed0 == chunk0)
+  t.ok "incomplete store actually holds chunk index1" (certifyDB incomplete chunk1 (chunkFact 1)).isSome
+  t.ok "out-of-order one-chunk progress is exactly 1 of 2" ((progress c attachment.id cipher.size).eval (run incomplete) == (1,2))
+  t.ok "duplicate relay cannot increase progress" ((progress c attachment.id cipher.size).eval (run duplicated) == (1,2))
+  t.ok "complete progress is exactly 2 of 2" ((progress c attachment.id cipher.size).eval (run full) == (2,2))
+  t.ok "actual Merkle tree inputs each hash to32 bytes"
+    ((Merkle.treeInputs sha256 cipher).all fun x => (sha256 x).size == 32)
+  t.ok "valid chunks verify under actual SHA256"
+    ((List.range 2).all fun i => Merkle.verify sha256 rootHash cipher.size i
+      (Merkle.slice cipher i) (Merkle.proof sha256 cipher i))
+  t.ok "tampering preserves length but changes payload"
+    (tamperedSlice.size == (Merkle.slice cipher 1).size && tamperedSlice != Merkle.slice cipher 1)
+  t.ok "tampered slice is rejected" ((run (incomplete ++ [tampered])).status tampered.id == some .invalid)
+  t.ok "out-of-range index is rejected" ((run (incomplete ++ [wrongIndex])).status wrongIndex.id == some .invalid)
+  t.ok "wrong sibling is rejected" ((run (incomplete ++ [wrongSibling])).status wrongSibling.id == some .invalid)
+  t.ok "missing attachment leaves chunk unresolved"
+    ((run (before ++ [chunk0])).status chunk0.id == none)
+  t.ok "tamper cannot increase progress"
+    ((progress c attachment.id cipher.size).eval (run (incomplete ++ [tampered, wrongIndex, wrongSibling])) == (1,2))
+  t.finish "attachment vacuity (real crypto; universal hash premises remain conditional)"
+
+end Vacuity.Attachment

@@ -13,15 +13,27 @@ typedef struct {
   uint32_t token, status, width, height;
   unsigned char *bytes;
   size_t size;
+  bool selected;
 } LqPhoto;
-#define LQ_PHOTO_INIT {PTHREAD_MUTEX_INITIALIZER, 0, 0, 0, 0, NULL, 0}
+#define LQ_PHOTO_INIT {PTHREAD_MUTEX_INITIALIZER, 0, 0, 0, 0, NULL, 0, false}
 
 static void lq_photo_begin(LqPhoto *p, uint32_t token) {
   pthread_mutex_lock(&p->mutex);
   free(p->bytes);
   p->bytes = NULL; p->size = 0; p->status = 0;
   p->width = p->height = 0; p->token = token;
+  p->selected = false;
   pthread_mutex_unlock(&p->mutex);
+}
+
+/* A nonterminal selection notice, before provider loading/decode starts.
+ * A ready result may supersede it; consuming it must retain token ownership. */
+static bool lq_photo_selected(LqPhoto *p, uint32_t token) {
+  pthread_mutex_lock(&p->mutex);
+  bool current = token && p->token == token && !p->status;
+  if (current) p->selected = true;
+  pthread_mutex_unlock(&p->mutex);
+  return current;
 }
 
 static bool lq_photo_current(LqPhoto *p, uint32_t token) {
@@ -51,12 +63,16 @@ static bool lq_photo_publish(LqPhoto *p, uint32_t token, uint32_t status,
 /* Transfers ownership, including zero-byte cancel/error completions. */
 static bool lq_photo_take(LqPhoto *p, uint32_t header[4], unsigned char **bytes, size_t *size) {
   pthread_mutex_lock(&p->mutex);
-  bool ready = p->status != 0;
+  bool ready = p->status != 0 || p->selected;
   *bytes = NULL; *size = 0;
-  if (ready) {
+  if (!p->status && p->selected) {
+    header[0] = p->token; header[1] = 4; header[2] = header[3] = 0;
+    p->selected = false;
+  } else if (ready) {
     header[0] = p->token; header[1] = p->status; header[2] = p->width; header[3] = p->height;
     *bytes = p->bytes; *size = p->size;
     p->bytes = NULL; p->size = 0; p->status = 0; p->token = 0;
+    p->selected = false;
   }
   pthread_mutex_unlock(&p->mutex);
   return ready;
