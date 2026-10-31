@@ -705,13 +705,16 @@ def listenHints : M (List ByteArray) := do
 The page and the back stack change only by Nav's steps (its laws in
 engine/renderer/Nav.lean, the app's in ops/app/NavLaws.lean). -/
 
-/-- Open p (Nav.go); the page's refusal is cleared. -/
+/-- Open p (Nav.go); the page's refusal is cleared. Opening the switcher
+composes its backdrop from the last frame shown; opening any other page
+keeps it, so back to the switcher draws the backdrop it opened over
+(NavLaws.back_open). -/
 def openSt (p : PageId) (s : St) : St :=
   let backdrop := if p == .switcher then
     match s.lastDisplay with
     | some (words, rows, top, bot) => Surface.compose words s.Hs s.bgRow rows top bot
     | none => #[]
-    else #[]
+    else s.switcherBackdrop
   { s.withNav (Nav.go p s.nav) with
     refusal := none, pageKey := none, pageScrollStarted := false, switcherBackdrop := backdrop }
 

@@ -1,0 +1,82 @@
+# What the proofs caught
+
+Bugs a law found: a proof that stopped checking on a change, or a law
+whose statement turned out false of the code. Each entry says what
+broke, how the law noticed, the fix, and what keeps it caught (a
+negative control, a test). When a law catches something, add it here
+and keep the code as it was as a `control` in tests/wiring.txt.
+
+Bugs found some other way and pinned by a law afterwards are listed
+apart, at the end: there the law came second.
+
+## Caught by a law
+
+### Back to the switcher lost its backdrop (566e566, 2026-10-31)
+
+- **Bug.** 566e566 ("Match the shared mobile community switcher to
+  Quiet design") made `App.openSt` compose the switcher's backdrop when
+  the switcher opens, and set it to `#[]` when any other page opens.
+  The switcher's gear (community settings), Join a community, Create a
+  community and Add members all open a page over the switcher. So
+  switcher → gear → back drew the switcher over the plain background,
+  without the dimmed screen behind it (App.lean's `shade` falls back to
+  `bgRow` when the backdrop is empty).
+- **How the law noticed.** `NavLaws.back_open` (**Back goes back**:
+  back after opening a page gives the state before, but for what back
+  clears) stopped proving. Its `rfl` timed out (`whnf`, 200000
+  heartbeats) trying to equate the composed backdrop with the old one,
+  and the statement was in fact false: `shipped_back_open_fails`
+  proves it fails from every state that holds a backdrop. Because
+  tests/Axioms.lean imports NavLaws, the whole axiom audit failed at
+  566e566, and `lake build` with it. The commit had been pushed to main
+  without running `mise run check`. An audit of the proofs, rerunning
+  tests/check.sh at the head, found it.
+- **Then the law was loosened instead.** Before this fix landed,
+  55f00be got the build green again by excepting `switcherBackdrop`
+  from `back_open`'s statement, and kept the code. The law then held of
+  a bug: main still drew the switcher over the plain background after
+  gear → back. A failing law is a finding about the code until shown
+  otherwise; changing its statement needs the same review as changing
+  what users are promised.
+- **Fix.** `openSt` keeps the backdrop when it opens any page but the
+  switcher (`open_keeps_backdrop`). `back_open` now holds exactly for
+  every page but the switcher, and `back_open_all` covers the switcher
+  too: back from it keeps the backdrop it composed, which only the
+  switcher draws.
+- **Kept caught by.** `NavLaws.openStShipped`, `openSt` as 566e566
+  shipped it, is a `control` in tests/wiring.txt, and
+  `shipped_back_open_fails` proves it breaks `back_open`. The headless
+  `mobile_switcher` test (tests/app/mobile_switcher.sh) taps the gear
+  and then back through `App.onTap`, and checks the backdrop survives.
+  Run against the shipped `openSt`, it fails.
+- **Lesson.** The law states the whole state after back
+  (`backSt (openSt p s) = { s with … }`), not a few fields. So a field
+  added later, which nobody thought of as navigation, still falls under
+  it. That is why the law caught this.
+
+### A replayed handshake retired a live session (found 2026-10-28; fix not on main)
+
+- **Bug.** Replaying a request whose session had been closed and purged
+  makes its responder answer afresh. `kept` (ops/connection/Intents.lean)
+  keeps one session per peer, the newest, so the replay retires the
+  live session for one no other node holds. So anyone who recorded an
+  earlier handshake on the network could retire a live session.
+- **How the law noticed.** Stating the pair laws over the running
+  two-node world (fd/pair-secrecy, 8a4d220): the replay law was false,
+  and tests/engine/PairWorld.lean on that branch pins it as a finding.
+- **Fix.** 63a2c8f on fd/pair-secrecy: a session that has heard its
+  peer is retired only for another that has (`kept_heard`,
+  `kept_unheard`), with a `mutantKept` negative control.
+- **Status at 566e566.** Not merged. Main's `kept` is still
+  newest-wins.
+
+## Found otherwise, pinned by a law afterwards
+
+- **The switcher selected the wrong community** when two had the same
+  name (seen on an iPhone). A tapped row was matched back to
+  its entry by short id and name, so twins always landed on the first.
+  Fixed in 03d33a9: rows carry their index, and `switcherOrder_sound`,
+  `switcherOrder_complete` and `dedupe_nodup` now hold.
+- **A photo's decode ran on every frame**, stalling the Pixel for
+  seconds. The cost law `imageV_over_budget` keeps the shipped `image`
+  (`Pics.imageV`) as a negative control over the frame's budget.

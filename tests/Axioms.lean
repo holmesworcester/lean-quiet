@@ -473,6 +473,9 @@ section app
 #print axioms Nav.swap_inv
 #print axioms Nav.depth
 #print axioms NavLaws.back_open
+#print axioms NavLaws.back_open_all
+#print axioms NavLaws.open_keeps_backdrop
+#print axioms NavLaws.shipped_back_open_fails
 #print axioms NavLaws.back_root
 #print axioms NavLaws.back_switch
 #print axioms NavLaws.draft_open

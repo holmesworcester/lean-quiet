@@ -220,6 +220,9 @@ the relevant encountered inputs. ³ In the symbolic model of the cryptography.
 - that content is drawn faithfully all the way to pixels (proven up to
   each row's layout; painting is not).
 
+The laws have already caught bugs, in code that had shipped and in
+code being written: [what the proofs caught](docs/CAUGHT.md).
+
 ### Towards Proofs for n Clients
 
 The sync proofs already run the real sync code, in a world of two
@@ -339,7 +342,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1151 rest on Lean's standard axioms only, and about two thirds of its theorems (834 of 1131, not counting 20 negative controls) are about the code that runs; another 12 run the
+hypotheses. All 1154 rest on Lean's standard axioms only, and about two thirds of its theorems (836 of 1133, not counting 21 negative controls) are about the code that runs; another 12 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -457,7 +460,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**834 of 1131 laws are about running code;** another 12 run its node code in a World, and 285 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**836 of 1133 laws are about running code;** another 12 run its node code in a World, and 285 are not yet. Stated only: none. 21 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -471,7 +474,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
 | Screen | 266 | 208 |  | 58 |
-| App | 81 | 62 |  | 19 |
+| App | 83 | 64 |  | 19 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
@@ -1366,12 +1369,12 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`no_replace`]: ops/app/Remove.lean#L74-L76
 [`offered_only`]: ops/app/Remove.lean#L83-L86
 [`back_go`]: engine/renderer/Nav.lean#L94-L96
-[`NavLaws.back_open`]: ops/app/NavLaws.lean#L30-L32
-[`NavLaws.back_root`]: ops/app/NavLaws.lean#L38-L40
-[`back_switch`]: ops/app/NavLaws.lean#L55-L58
+[`NavLaws.back_open`]: ops/app/NavLaws.lean#L61-L63
+[`NavLaws.back_root`]: ops/app/NavLaws.lean#L66-L68
+[`back_switch`]: ops/app/NavLaws.lean#L83-L86
 [`go_inv`]: engine/renderer/Nav.lean#L107-L107
-[`NavLaws.depth`]: ops/app/NavLaws.lean#L83-L85
-[`draft_back`]: ops/app/NavLaws.lean#L66-L68
+[`NavLaws.depth`]: ops/app/NavLaws.lean#L111-L113
+[`draft_back`]: ops/app/NavLaws.lean#L94-L96
 [`into_native`]: App.lean#L128-L131
 [`present_iff`]: ops/app/PeopleLaws.lean#L28-L31
 [`present_not_removed`]: ops/app/PeopleLaws.lean#L38-L41
@@ -1443,8 +1446,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L1077-L1081
-[`pageIn_acc`]: App.lean#L1083-L1086
+[`drawPage_key`]: App.lean#L1080-L1084
+[`pageIn_acc`]: App.lean#L1086-L1089
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L217-L227
@@ -2000,12 +2003,12 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`no_replace`](ops/app/Remove.lean#L74-L76) | **kernel-witness**: [Vacuity.RendererFlow.noReplace](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
 | [`offered_only`](ops/app/Remove.lean#L83-L86) | **kernel-witness**: [Vacuity.RendererFlow.offered](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
 | [`back_go`](engine/renderer/Nav.lean#L94-L96) | **kernel-witness**: [Vacuity.RendererFlow.back](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
-| [`NavLaws.back_open`](ops/app/NavLaws.lean#L30-L32) | **runtime-witness**: [Vacuity.RendererRuntime.backOpen](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
-| [`NavLaws.back_root`](ops/app/NavLaws.lean#L38-L40) | **runtime-witness**: [Vacuity.RendererRuntime.backRoot](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
-| [`back_switch`](ops/app/NavLaws.lean#L55-L58) | **runtime-witness**: [Vacuity.RendererRuntime.switchBack](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
+| [`NavLaws.back_open`](ops/app/NavLaws.lean#L61-L63) | **runtime-witness**: [Vacuity.RendererRuntime.backOpen](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
+| [`NavLaws.back_root`](ops/app/NavLaws.lean#L66-L68) | **runtime-witness**: [Vacuity.RendererRuntime.backRoot](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
+| [`back_switch`](ops/app/NavLaws.lean#L83-L86) | **runtime-witness**: [Vacuity.RendererRuntime.switchBack](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
 | [`go_inv`](engine/renderer/Nav.lean#L107-L107) | **kernel-witness**: [Vacuity.RendererFlow.noDuplicates](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
-| [`NavLaws.depth`](ops/app/NavLaws.lean#L83-L85) | **runtime-witness**: [Vacuity.RendererRuntime.stackDepth](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
-| [`draft_back`](ops/app/NavLaws.lean#L66-L68) | **runtime-witness**: [Vacuity.RendererRuntime.draftBack](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
+| [`NavLaws.depth`](ops/app/NavLaws.lean#L111-L113) | **runtime-witness**: [Vacuity.RendererRuntime.stackDepth](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
+| [`draft_back`](ops/app/NavLaws.lean#L94-L96) | **runtime-witness**: [Vacuity.RendererRuntime.draftBack](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
 | [`into_native`](App.lean#L128-L131) | **runtime-witness**: [Vacuity.RendererRuntime.nativeInput](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
 | [`present_iff`](ops/app/PeopleLaws.lean#L28-L31) | **runtime-witness**: [Vacuity.IdentityPeople.presentIff](tests/vacuity/IdentityPeople.lean). Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count. |
 | [`present_not_removed`](ops/app/PeopleLaws.lean#L38-L41) | **runtime-witness**: [Vacuity.IdentityPeople.presentNotRemoved](tests/vacuity/IdentityPeople.lean). Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count. |
@@ -2077,8 +2080,8 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`dedupe_nodup`](ops/app/Switch.lean#L52-L53) | **kernel-witness**: [Vacuity.RendererSets.acceptanceUnique](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`dedupe_one_per_community`](ops/app/Switch.lean#L56-L58) | **kernel-witness**: [Vacuity.RendererSets.communityUnique](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`select_tapped_dedupe`](ops/app/Switch.lean#L82-L84) | **kernel-witness**: [Vacuity.RendererSets.tapped](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
-| [`drawPage_key`](App.lean#L1077-L1081) | **runtime-witness**: [Vacuity.RendererRuntime.sameKey](tests/vacuity/RendererRuntime.lean). The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency. |
-| [`pageIn_acc`](App.lean#L1083-L1086) | **runtime-witness**: [Vacuity.RendererRuntime.keyAcceptance](tests/vacuity/RendererRuntime.lean). The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency. |
+| [`drawPage_key`](App.lean#L1080-L1084) | **runtime-witness**: [Vacuity.RendererRuntime.sameKey](tests/vacuity/RendererRuntime.lean). The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency. |
+| [`pageIn_acc`](App.lean#L1086-L1089) | **runtime-witness**: [Vacuity.RendererRuntime.keyAcceptance](tests/vacuity/RendererRuntime.lean). The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency. |
 | [`msg_cmp`](ops/community/message/Order.lean#L137-L144) | **kernel-witness**: [Vacuity.IdentityMessages.messageCompare](tests/vacuity/IdentityMessages.lean). Concrete signed messages with counters 1/2 and reversed wall-clock times; actual comparator returns less-than. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`time_is_display`](ops/community/message/Order.lean#L148-L154) | **kernel-witness**: [Vacuity.IdentityMessages.timeIsDisplay](tests/vacuity/IdentityMessages.lean). Concrete distinct counters 1 and 2, inequality proven in kernel; reversed times do not reverse actual message order. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`order_total`](ops/community/message/Order.lean#L217-L227) | **runtime-witness**: [Vacuity.IdentityMessages.orderTotal](tests/vacuity/IdentityMessages.lean). Two real signed sealed messages read oldest first; exact returned IDs match increasing counters despite reversed wall-clock times. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
