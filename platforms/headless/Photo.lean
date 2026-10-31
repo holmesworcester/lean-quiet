@@ -23,17 +23,18 @@ def press : M UInt32 := do
   onTap .composer (box.x + box.w / 2) (box.y + box.h / 2) false
   return (← get).photoSerial
 
-def run (dir : String) (ck : Checks) : IO Unit := do
+def run (dir : String) (ck : Checks) (viewport : Array UInt32) (mobile : Bool) : IO Unit := do
   IO.FS.createDirAll dir
   for suffix in ["", "-wal", "-shm"] do
     let p := dir ++ "/quiet.db" ++ suffix
     if ← System.FilePath.pathExists p then IO.FS.removeFile p
   let sm ← Sim.new
-  sm.viewport.set #[390, 844, 0, 0, 160]
+  sm.viewport.set viewport
   let calls ← IO.mkRef (#[] : Array UInt32)
   let io := { sm.io with pickPhoto := fun token => do calls.modify (·.push token); pure true }
   let initial ← App.start io (← sm.viewport.get) (dir ++ "/quiet.db")
   let (_, final) ← (show M Unit from do
+    modify fun s => { s with mobile, wide := !mobile }
     found "Photos" "Ann"
     waitIdle sm
     openPage .chat
@@ -41,12 +42,58 @@ def run (dir : String) (ck : Checks) : IO Unit := do
     let a ← press
     ck.ok "drawn photo button starts a native request, without a sample chip"
       (a != 0 && (← get).photoRequest.isSome && (← get).chips.isEmpty && (← calls.get).back? == some a)
+    let frames ← sm.frames.get
+    steps 1
+    let pending ← get
+    let some (tile, _) := (composerLayout pending).chips[0]?
+      | throw (IO.userError "pending photo has no visible slot")
+    let (_, _, _, _, first) ← sm.last.get
+    writePpm (dir ++ "/pending.ppm") pending.W first
+    ck.ok "first published frame contains a placeholder before any native result"
+      ((← sm.frames.get) == frames + 1 && pending.chips.isEmpty &&
+       Paint.getPx first[tile.y + pending.dim.px 10]! (tile.x + pending.dim.px 10) ==
+         Palette.color pending.dim.theme .selected)
+    steps 4
+    let (_, _, _, _, animated) ← sm.last.get
+    writePpm (dir ++ "/spinner.ppm") pending.W animated
+    let sx := tile.x + pending.dim.px 31
+    let sy := tile.y + pending.dim.px 17
+    ck.ok "loading spinner advances while the native provider is still pending"
+      (Paint.getPx animated[sy]! sx != Paint.getPx first[sy]! sx &&
+        (← get).photoRequest.isSome && (← get).chips.isEmpty)
     sm.photo.set (#[a - 1, 1, 2, 2], rgba)
     steps 3
     ck.ok "superseded completion cannot attach" ((← get).chips.isEmpty && (← get).photoRequest.isSome)
     sm.photo.set (#[a, 2, 0, 0], .empty)
     steps 2
     ck.ok "OS cancellation leaves the composer unchanged" ((← get).photoRequest.isNone && (← get).chips.isEmpty)
+    ck.ok "cancelled placeholder releases its layout slot" ((composerLayout (← get)).chips.isEmpty)
+    let cancelled ← press
+    steps 1
+    let (_, close) := (composerLayout (← get)).chips[0]!
+    onTap .composer (close.x + close.w / 2) (close.y + close.h / 2) false
+    sm.photo.set (#[cancelled, 1, 2, 2], rgba)
+    steps 2
+    ck.ok "visible placeholder close cancels ownership and ignores late image"
+      ((← get).photoRequest.isNone && (← get).chips.isEmpty && (← calls.get).back? == some 0)
+    -- An unresolved task exercises the actual frame loop's unfinished-worker
+    -- branch. It cannot complete until AFTER these frames have been published.
+    discard <| press
+    let gate ← IO.Promise.new
+    modify fun s => { s with photoWork := some gate.result? }
+    let beforeWorker ← sm.frames.get
+    steps 8
+    ck.ok "encoding cannot block feedback or frame publication"
+      ((← sm.frames.get) == beforeWorker + 8 && (← get).photoRequest.isSome &&
+        (composerLayout (← get)).chips.size == 1 && !(← gate.isResolved))
+    let some src := Photo.pixels #[1, 1, 2, 2] rgba
+      | throw (IO.userError "invalid fixture")
+    gate.resolve (preparePhoto (← get).dim src)
+    finish
+    ck.ok "ready image replaces the pending slot without adding another slot"
+      ((← get).chips.size == 1 && (composerLayout (← get)).chips.size == 1)
+    let (_, readyClose) := (composerLayout (← get)).chips[0]!
+    onTap .composer (readyClose.x + readyClose.w / 2) (readyClose.y + readyClose.h / 2) false
     let b ← press
     sm.photo.set (#[b, 1, 2049, 2], rgba)
     finish
@@ -106,7 +153,10 @@ end PhotoTest
 
 def main (args : List String) : IO Unit := do
   let ck ← Checks.new
-  PhotoTest.run (args[0]?.getD "out/photo/app") ck
+  let dir := args[0]?.getD "out/photo/app"
+  PhotoTest.run (dir ++ "/mobile") ck #[390, 844, 0, 0, 160] true
+  PhotoTest.run (dir ++ "/mobile-3x") ck #[1170, 2532, 0, 0, 480] true
+  PhotoTest.run (dir ++ "/desktop") ck #[1280, 800, 0, 0, 160] false
   let code ← ck.finish "photo lifecycle"
   (← IO.getStdout).flush
   IO.Process.exit code.toUInt8

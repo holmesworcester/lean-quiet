@@ -20,6 +20,31 @@ structure Chip where
   caption : String
   deriving Inhabited
 
+/-- A real composer tile while the selected image is loading. Eight fading
+marks rotate without depending on image decoding or attachment encoding. -/
+def loading (dm : Dim) (phase : Nat) : Chip := Id.run do
+  let px := dm.px
+  let color := Palette.color dm.theme
+  let mut b := Bitmap.blank (px 64) (px 64) (solid (color .selected) (px 64))
+  let points := #[(30, 16), (40, 20), (44, 30), (40, 40), (30, 44), (20, 40), (16, 30), (20, 20)]
+  for i in [0:8] do
+    let (x, y) := points[i]!
+    let alpha := 48 + ((i + 8 - phase % 8) % 8) * 29
+    let ink := blendText (color .muted) (color .selected) alpha
+    b := b.round (px x) (px y) (px (x + 4)) (px (y + 4)) (px 2) ink
+  return ⟨b, "Loading…"⟩
+
+/-- Both layout and paint reserve the same pending slot. It is presentation
+only: it never enters the array of encoded attachments that send consumes. -/
+def visibleCount (ready : Nat) (pending : Bool) : Nat := ready + if pending then 1 else 0
+
+def withPending (dm : Dim) (ready : Array Chip) (pending : Bool) (phase : Nat) : Array Chip :=
+  if pending then ready.push (loading dm phase) else ready
+
+theorem pending_slot (dm : Dim) (ready : Array Chip) (phase : Nat) :
+    (withPending dm ready true phase).size = visibleCount ready.size true := by
+  simp [withPending, visibleCount]
+
 inductive Hit where
   | text | addPhotos | takePhoto | emoji | mention | voice | send | removeChip (i : Nat) | none
   deriving BEq, Repr, Inhabited
@@ -217,7 +242,8 @@ theorem caret_clear (f : Font) (dm : Dim) (l : Layout) (ph : String) {g : Text.P
 
 /-- The composer's pixels; `caret` is the caret's line and x, if focused. -/
 def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (l : Layout) (text : String)
-    (placeholder : String) (chips : Array Chip) (caret : Option (Nat × Nat)) : Bitmap := Id.run do
+    (placeholder : String) (chips : Array Chip) (caret : Option (Nat × Nat))
+    (pending : Bool := false) : Bitmap := Id.run do
   let mut b := Bitmap.blank W l.h bgRow
   let color := Palette.color dm.theme
   let gutter := if l.wide then dm.px 16 else 0
@@ -254,7 +280,7 @@ def paint (f : Font) (dm : Dim) (W : Nat) (bgRow : ByteArray) (l : Layout) (text
     let size := dm.px 20
     b := b.icon f name (bx.x + (bx.w - size) / 2) (bx.y + (bx.h - size) / 2) size
       (if dm.theme == .dark then 0xa0a0a0 else 0x7f7f7f)
-  let full := !text.trimAscii.isEmpty || !chips.isEmpty
+  let full := !pending && (!text.trimAscii.isEmpty || !chips.isEmpty)
   let size := dm.px 24
   b := b.icon f "send" (l.send.x + (l.send.w - size) / 2) (l.send.y + (l.send.h - size) / 2) size
     (if full then color .link else if dm.theme == .dark then 0xa0a0a0 else 0x7f7f7f)

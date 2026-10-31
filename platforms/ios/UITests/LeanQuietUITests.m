@@ -288,12 +288,15 @@
   [self ctl:@"post"];
   XCTAssertTrue([[self ctl:@"photo-status"] hasPrefix:@"photos 0 pending false"]);
   [self ctl:@"pick-photo"];
+  XCTAssertTrue([self until:10 ask:@"photo-status" that:^BOOL(NSString* value) {
+    return [value hasPrefix:@"photos 0 pending true"] && [value containsString:@"slots 1"];
+  }], @"the composer must reserve feedback before the provider returns an image");
   XCUIElement* cancel = self.app.buttons[@"Cancel"];
   if (![cancel waitForExistenceWithTimeout:10]) cancel = self.app.buttons[@"Close"];
   XCTAssertTrue([cancel waitForExistenceWithTimeout:10], @"native photo picker: %@", self.app.debugDescription);
   [cancel tap];
   XCTAssertTrue([self until:15 ask:@"photo-status" that:^BOOL(NSString* value) {
-    return [value hasPrefix:@"photos 0 pending false"];
+    return [value hasPrefix:@"photos 0 pending false"] && [value containsString:@"slots 0"];
   }]);
   [self ctl:@"pick-photo"];
   XCUIElement* cell = [self.app.images matchingPredicate:[NSPredicate predicateWithFormat:@"label BEGINSWITH %@", @"Photo,"]].firstMatch;
@@ -307,7 +310,8 @@
   XCUIElement* add = self.app.buttons[@"Add"];
   if ([add waitForExistenceWithTimeout:2]) [add tap];
   XCTAssertTrue([self until:120 ask:@"photo-status" that:^BOOL(NSString* value) {
-    return [value hasPrefix:@"photos 1 pending false"] && [value containsString:@"(1024, 2048)"];
+    return [value hasPrefix:@"photos 1 pending false"] && [value containsString:@"(1024, 2048)"] &&
+      [value containsString:@"slots 1"];
   }], @"the native selection must be oriented and bounded: %@", [self ctl:@"photo-status"]);
   [self shot:@"system-photo-chip"];
   [self ctl:@"post Native iOS picker photo"];

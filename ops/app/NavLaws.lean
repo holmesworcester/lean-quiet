@@ -6,7 +6,8 @@ channel, join, Stop waiting and removal steps through Nav too).
 - `back_open`: **back goes back.** Back after opening a page that is
   neither shown nor under it gives the state before, but for what back
   always clears: the page's one-line field, refusal and viewport initialization. The composer's
-  draft and everything else are as they were.
+  draft is unchanged. The switcher's render-only backdrop cache is retained
+  from the opened page.
 - `back_root`: at a root, back keeps the page and the state.
 - `back_switch`: after a switch, any number of backs stays on the new
   community's home: back never reaches the community before.
@@ -28,11 +29,11 @@ theorem nav_switch (a : Engine.Id) (s : St) : (switchSt a s).nav = Nav.reset Pag
 
 /-- **Back goes back.** -/
 theorem back_open (p : PageId) (s : St) (hp : p ≠ s.page) (hs : p ∉ s.backStack) :
-    backSt (openSt p s) = { s with field := "", refusal := none, pageKey := none, pageScrollStarted := false } := by
+    backSt (openSt p s) = { s with field := "", refusal := none, pageKey := none, pageScrollStarted := false, switcherBackdrop := (openSt p s).switcherBackdrop } := by
   have h := Nav.back_go p s.nav hp hs
   unfold backSt
   rw [nav_open, h]
-  rfl
+  simp only [openSt, St.withNav, St.nav]
 
 /-- **Back at a root keeps the page.** -/
 theorem back_root (s : St) (h : s.backStack = []) :

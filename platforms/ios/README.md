@@ -51,6 +51,24 @@ Linux box and do the Mac's part over SSH.
 
 ## How the twin maps the seam
 
+Photo selection reserves a cancellable loading tile in the shared composer as
+soon as the picker request is accepted. Its spinner continues through native
+provider loading and background image encoding; the finished thumbnail replaces
+that slot. `mise run host:photo` checks the first published pixels, animation,
+an unresolved encoding task, cancellation, and a real signed attachment send at
+mobile, 3× mobile, and desktop sizes. `mise run ios:photo-e2e` checks native picker
+cancellation and replacement, and is invoked by `ci/local.sh ios-photo` on a Mac
+with the prerequisites above; logs, screenshots and xcresult remain in
+`out/ios-sim/`.
+
+`App.composer_pending_feedback` proves that the running composer's chip projection
+contains the pending slot. The frame tests cover publication without waiting for
+the provider or worker. Neither establishes a universal interaction latency
+bound: proving next-frame feedback for every action also requires each handler
+to update visible state before asynchronous work, plus native adapter tests.
+Wall-clock input-to-display deadlines additionally depend on OS scheduling and
+must be measured on devices.
+
 - **Screen:** pixels are device pixels (the screen's scale, 3 on an iPhone
   16e: 1170 x 2532). The density is 160 per point, so Lean's dp is UIKit's
   point. The insets are the safe area's.

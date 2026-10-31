@@ -482,6 +482,8 @@ section app
 #print axioms RowLaws.flush_start
 #print axioms RowLaws.name_starts
 #print axioms Composer.caret_clear
+#print axioms Composer.pending_slot
+#print axioms App.composer_pending_feedback
 #print axioms ViewLaws.profile_read
 #print axioms ViewLaws.others_iff
 #print axioms ViewLaws.namesake_iff
