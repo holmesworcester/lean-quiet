@@ -37,10 +37,26 @@ structure Seal where
   dec : B → B → B → B → Option B
   hash : B → B
 
+/-- Exclusive plaintext limit in RustCrypto ChaCha20Poly1305's counter
+check: `len / 64 < u32::MAX`, shared by its XChaCha variant. -/
+def Seal.maxPlaintextSize : Nat := 64 * (2^32 - 1)
+
+/-- AEAD authenticates the associated-data length as an unsigned 64-bit
+integer. Native arrays on supported hosts fit; the logical contract also
+states the bound for its unrestricted `ByteArray` quantifier. -/
+def Seal.maxAssociatedDataSize : Nat := 2^64
+
+/-- Correctness on the native primitives' supported inputs. Key agreement
+uses 32-byte private keys; XChaCha uses a 32-byte key and 24-byte nonce.
+Its plaintext must fit the counter range. Hash output size supplies the
+AEAD key-size premise for wrapping. -/
 structure Seal.Good (S : Seal) : Prop where
-  dh_comm : ∀ a b, S.dh a (S.pub b) = S.dh b (S.pub a)
-  dec_enc : ∀ k n ad p, S.dec k n ad (S.enc k n ad p) = some p
+  dh_comm : ∀ a b, a.size = 32 → b.size = 32 → S.dh a (S.pub b) = S.dh b (S.pub a)
+  dec_enc : ∀ k n ad p, k.size = 32 → n.size = 24 → p.size < Seal.maxPlaintextSize →
+    ad.size < Seal.maxAssociatedDataSize →
+    S.dec k n ad (S.enc k n ad p) = some p
   pub_size : ∀ a, (S.pub a).size = 32
+  hash_size : ∀ a, (S.hash a).size = 32
 
 section
 variable (S : Seal)
@@ -83,11 +99,14 @@ section
 variable {S : Seal}
 
 /-- **Whoever holds the key opens the body.** -/
-theorem openBody_sealBody (G : S.Good) (k n c kid p : B) :
-    openBody S k n c kid (sealBody S k n c kid p) = some p := G.dec_enc _ _ _ _
+theorem openBody_sealBody (G : S.Good) (k n c kid p : B)
+    (hk : k.size = 32) (hn : n.size = 24) (hp : p.size < Seal.maxPlaintextSize)
+    (ha : (bodyAd c kid).size < Seal.maxAssociatedDataSize) :
+    openBody S k n c kid (sealBody S k n c kid p) = some p := G.dec_enc _ _ _ _ hk hn hp ha
 
 /-- **A device opens a key wrapped to it.** -/
-theorem unbox_box (G : S.Good) (rsk esk kid k : B) :
+theorem unbox_box (G : S.Good) (rsk esk kid k : B) (hr : rsk.size = 32) (he : esk.size = 32)
+    (hk : k.size < Seal.maxPlaintextSize) (hi : kid.size < Seal.maxAssociatedDataSize) :
     unbox S rsk kid (box S esk (S.pub rsk) kid k) = some k := by
   have hp := G.pub_size esk
   have hs : ¬ (S.pub esk ++ S.enc (boxKey S (S.dh esk (S.pub rsk)) (S.pub esk) (S.pub rsk)) zeros24 kid k).size
@@ -96,7 +115,8 @@ theorem unbox_box (G : S.Good) (rsk esk kid k : B) :
   simp only [hs, ↓reduceIte]
   rw [ByteArray.extract_append_eq_left hp.symm,
     ByteArray.extract_append_eq_right hp.symm (by rw [ByteArray.size_append, hp]),
-    G.dh_comm rsk esk, G.dec_enc]
+    G.dh_comm rsk esk hr he]
+  exact G.dec_enc _ zeros24 kid k (G.hash_size _) (by decide) hk hi
 
 end
 

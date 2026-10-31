@@ -1,30 +1,34 @@
 {
   "Seal.Good": {
-    "status": "counterexample",
+    "status": "conditional",
     "theorem": "Community.Seal.Good",
-    "witness": "Vacuity.SealAudit.badKeyDisprovesGood",
+    "witness": "Vacuity.SealAudit.goodConditional",
     "module": "tests.vacuity.SealAudit",
-    "detail": "Actual cryptoSeal rejects wrong-length keys/nonces: empty key with valid 24-byte nonce seals to empty and opens to none for a nonempty message. This contradicts Good.dec_enc, which quantifies over all ByteArrays without size premises. Runtime branch constructs \u00accryptoSeal.Good; independent bad-nonce counterexample also passes."
+    "detail": "Contract repaired: DH uses 32-byte private keys; AEAD uses a 32-byte key, 24-byte nonce, plaintext below 274877906880 bytes and associated data below 2^64 bytes. Public keys and hashes supply 32-byte outputs. Concrete production equalities and malformed-input regressions pass; the universal native cryptographic contract remains an explicit unproved assumption, not a finite-test conclusion.",
+    "exercise": true
   },
   "openSealed_seal": {
     "status": "conditional",
     "theorem": "Community.openSealed_seal",
     "witness": "Vacuity.SealAudit.openSealedConditional",
     "module": "tests.vacuity.SealAudit",
-    "detail": "Concrete valid-sized production crypto roundtrip passes, but theorem requires cryptoSeal.Good. That universal premise is false for the actual suite: empty key or nonce yields none, contradicting dec_enc. The theorem application is recorded conditionally, not counted as fully witnessed. Requires a correctly scoped size-aware suite contract."
+    "detail": "Correctly scoped theorem applied to concrete 32-byte private/content keys, 24-byte nonce and supported payload/associated-data sizes. Key/nonce/payload premises have kernel proofs; hashed key-id/associated-data sizes and real native DH, wrapping and message roundtrips pass executable checks. The universal cryptoSeal.Good premise remains conditional; former malformed-key/nonce counterexamples are outside the repaired contract.",
+    "exercise": true
   },
   "member_opens": {
     "status": "conditional",
     "theorem": "Community.member_opens",
     "witness": "Vacuity.SealAudit.memberOpensConditional",
     "module": "tests.vacuity.SealAudit",
-    "detail": "Concrete valid-sized production crypto roundtrip passes, but theorem requires cryptoSeal.Good. That universal premise is false for the actual suite: empty key or nonce yields none, contradicting dec_enc. The theorem application is recorded conditionally, not counted as fully witnessed. Requires a correctly scoped size-aware suite contract."
+    "detail": "Correctly scoped theorem applied to concrete 32-byte private/content keys, 24-byte nonce and supported payload/associated-data sizes. Key/nonce/payload premises have kernel proofs; hashed key-id/associated-data sizes and real native DH, wrapping and message roundtrips pass executable checks. The universal cryptoSeal.Good premise remains conditional; former malformed-key/nonce counterexamples are outside the repaired contract.",
+    "exercise": true
   },
   "unbox_box": {
     "status": "conditional",
     "theorem": "Community.unbox_box",
     "witness": "Vacuity.SealAudit.unboxConditional",
     "module": "tests.vacuity.SealAudit",
-    "detail": "Concrete valid-sized production crypto roundtrip passes, but theorem requires cryptoSeal.Good. That universal premise is false for the actual suite: empty key or nonce yields none, contradicting dec_enc. The theorem application is recorded conditionally, not counted as fully witnessed. Requires a correctly scoped size-aware suite contract."
+    "detail": "Correctly scoped theorem applied to concrete 32-byte private/content keys, 24-byte nonce and supported payload/associated-data sizes. Key/nonce/payload premises have kernel proofs; hashed key-id/associated-data sizes and real native DH, wrapping and message roundtrips pass executable checks. The universal cryptoSeal.Good premise remains conditional; former malformed-key/nonce counterexamples are outside the repaired contract.",
+    "exercise": true
   }
 }
