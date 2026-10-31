@@ -23,8 +23,36 @@ def references(text):
     return dict(re.findall(r'^\[`([^`]+)`\]: (\S+)', text, re.M))
 
 
+def ordered_references(text):
+    """Follow the proof tables, then retain every supporting reference.
+
+    Earlier prose and assumptions must not move ahead of the promises being
+    checked. A declaration repeated in several guarantees keeps its first
+    position; the generated report never becomes an ordering source itself.
+    """
+    source = text.split(BEGIN, 1)[0]
+    refs = references(source)
+    ordered = {}
+    in_proofs = False
+    for line in source.splitlines():
+        if line.startswith('#'):
+            in_proofs = line.strip() in {'### Security proofs', '### Quality proofs'}
+        if not in_proofs or not line.startswith('|'):
+            continue
+        # The theorem column is last. References in a guarantee's explanatory
+        # prose do not determine this ordering.
+        theorem_cell = line.rstrip().rsplit('|', 2)[-2]
+        for name in re.findall(r'\[`([^`]+)`\](?![(\[])', theorem_cell):
+            if name not in refs:
+                raise ValueError(f'proof table reference has no definition: {name}')
+            ordered.setdefault(name, refs[name])
+    for name, target in refs.items():
+        ordered.setdefault(name, target)
+    return ordered
+
+
 def report(text):
-    refs = references(text.split(BEGIN)[0])
+    refs = ordered_references(text)
     missing = CHECKS.keys() - refs.keys()
     if missing:
         raise ValueError(f'checked references disappeared: {sorted(missing)}')

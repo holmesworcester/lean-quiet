@@ -32,5 +32,69 @@ class InventoryTest(unittest.TestCase):
         self.assertEqual(vacuity.report(self.readme), vacuity.report((ROOT / 'README.md').read_text()))
 
 
+class OrderingTest(unittest.TestCase):
+    def setUp(self):
+        # Definitions deliberately disagree with table order; assumptions and
+        # prose cite later declarations before the theorem tables do.
+        self.source = '''## What is proven
+[`assumption`] and [`quality`] appear in prose first.
+### What is Assumed
+[`assumption`]
+### Security proofs
+| | | Guarantee | Theorems |
+|---|---|---|---|
+| | | **Identity and membership** | |
+| yes | high | First guarantee mentions [`support`]. | [`first`], [`second`] |
+| yes | high | Repeated support. | [`second`], [`third`] |
+### Quality proofs
+| | | Guarantee | Theorems |
+|---|---|---|---|
+| yes | high | Quality promise. | [`quality`], [`first`] |
+### Not yet about running code (todo)
+| model | [`support`] |
+[`assumption`]: assumptions.lean#L1
+[`quality`]: quality.lean#L1
+[`support`]: support.lean#L1
+[`third`]: third.lean#L1
+[`first`]: first.lean#L1
+[`second`]: second.lean#L1
+'''
+
+    def test_table_order_precedes_prose_and_definitions(self):
+        self.assertEqual(list(vacuity.ordered_references(self.source)),
+                         ['first', 'second', 'third', 'quality', 'assumption', 'support'])
+
+    def test_reordering_guarantees_changes_inventory_order(self):
+        changed = self.source.replace('[`first`], [`second`]', '[`third`], [`first`]')
+        self.assertEqual(list(vacuity.ordered_references(changed))[:4],
+                         ['third', 'first', 'second', 'quality'])
+
+    def test_repeated_declarations_have_one_entry_and_keep_targets(self):
+        ordered = vacuity.ordered_references(self.source)
+        self.assertEqual(len(ordered), len(vacuity.references(self.source)))
+        self.assertEqual(ordered['first'], 'first.lean#L1')
+
+    def test_unlisted_declarations_remain_at_end(self):
+        changed = self.source + '[`new_support`]: support.lean#L2\n'
+        self.assertEqual(list(vacuity.ordered_references(changed))[-1], 'new_support')
+
+    def test_generated_report_cannot_reorder_or_add_entries(self):
+        changed = self.source + vacuity.BEGIN + '\n### Security proofs\n| [`invented`] |\n'
+        self.assertEqual(vacuity.ordered_references(changed),
+                         vacuity.ordered_references(self.source))
+
+    def test_undefined_table_reference_fails(self):
+        changed = self.source.replace('[`first`], [`second`]', '[`undefined`]')
+        with self.assertRaisesRegex(ValueError, 'proof table reference has no definition: undefined'):
+            vacuity.ordered_references(changed)
+
+    def test_readme_begins_with_identity_membership_theorems(self):
+        source = (ROOT / 'README.md').read_text()
+        expected = ['no_impersonation', 'admission_needs_approval', 'admission_approved',
+                    'request_invited', 'removal_authorized', 'admin_granted',
+                    'removed_stays', 'valid_stays']
+        self.assertEqual(list(vacuity.ordered_references(source))[:len(expected)], expected)
+
+
 if __name__ == '__main__':
     unittest.main()
