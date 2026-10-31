@@ -378,9 +378,11 @@ end
 export Engine.Crypto (x25519 x25519Base chachaSeal chachaOpen staticOf staticPubOf xchachaSeal
   xchachaOpen randomBytes)
 
-/-- RustCrypto's ChaChaPoly implementation rejects `len / 64 >= u32::MAX`.
-The strict bound excludes its error branch as well as counter exhaustion. -/
-def maxPlaintextSize : Nat := 64 * (2 ^ 32 - 1)
+/-- Exclusive payload limit of the native ChaCha stream after the AEAD's
+initial seek to byte64. `check_remaining` rounds up to blocks and permits
+at most `u32::MAX - 1` blocks, so the last safe byte count is
+`64 * (2^32 - 2)`. The AEAD's own floor-division check is weaker. -/
+def maxPlaintextSize : Nat := 64 * (2 ^ 32 - 2) + 1
 
 /-- X25519, ChaCha20-Poly1305 and SHA-256, on bytes. A message is its
 32-byte public key, then the rest; a shorter one does not split. -/

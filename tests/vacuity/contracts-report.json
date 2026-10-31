@@ -4,7 +4,7 @@
     "theorem": "Connection.Noise.Suite.Good",
     "witness": "Vacuity.Contracts.noiseContractCertificate",
     "module": "tests.vacuity.Contracts",
-    "detail": "Corrected contract requires a 32-byte AEAD key, plaintext below 64*(2^32-1) bytes and representable associated-data length; HKDF outputs valid keys and hash outputs valid AD. Concrete key/payload/AD premises are proved and real roundtrip tested. Native boundaries test lengths 0/1/31/32/33/64: malformed private keys map to zero 32-byte public output and both DH directions reject, so total dh_comm and split_pair remain supported. Universal native crypto correctness remains an explicit assumption, not proved by finite tests. The old unrestricted roundtrip is retained only as a rejected regression control.",
+    "detail": "Corrected contract requires a 32-byte AEAD key, plaintext at most 64*(2^32-2) bytes (exclusive bound 274877906817) and representable associated-data length; HKDF outputs valid keys and hash outputs valid AD. Concrete key/payload/AD premises are proved and real roundtrip tested. Native boundaries test lengths 0/1/31/32/33/64: malformed private keys map to zero 32-byte public output and both DH directions reject, so total dh_comm and split_pair remain supported. Universal native crypto correctness remains an explicit assumption, not proved by finite tests. The old unrestricted roundtrip is retained only as a rejected regression control.",
     "exercise": true
   },
   "Symbolic.sym": {

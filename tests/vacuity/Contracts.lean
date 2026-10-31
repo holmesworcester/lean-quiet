@@ -35,6 +35,12 @@ def noiseContractCertificate : Option (PLift
     some (PLift.up ⟨h, noiseContract⟩)
   else none
 
+-- Exact relation to the native stream's rounded-up block count after
+-- ChaChaPoly has consumed the first block for its authenticator key.
+theorem counterBound (n : Nat) : n < maxPlaintextSize ↔ (n + 63) / 64 ≤ 2^32 - 2 := by
+  unfold maxPlaintextSize
+  omega
+
 -- A regression against reintroducing the old unrestricted AEAD contract.
 -- This is NOT a counterexample to the corrected Suite.Good.
 def UnrestrictedRoundtrip : Prop := ∀ k n a p,
@@ -61,9 +67,9 @@ def main : IO UInt32 := do
     (suite.dec key 0 ad (suite.enc key 0 ad payload) == some payload)
   t.ok "unrestricted old roundtrip contract remains rejected" rejectsUnrestricted.isSome
   -- No enormous allocation: check the exact boundary used by the contract.
-  t.ok "plaintext bound matches native u32 block rejection"
-    (maxPlaintextSize == 274877906880 && (maxPlaintextSize - 1) / 64 < 4294967295 &&
-      !(maxPlaintextSize / 64 < 4294967295))
+  t.ok "plaintext bound matches native remaining-block check"
+    (maxPlaintextSize == 274877906817 && (maxPlaintextSize - 1 + 63) / 64 ≤ 4294967294 &&
+      !((maxPlaintextSize + 63) / 64 ≤ 4294967294))
   for n in lengths do
     let sk := sized n
     t.ok s!"key validity classifies size {n}" (Decidable.decide (suite.ValidKey sk) == (n == 32))
