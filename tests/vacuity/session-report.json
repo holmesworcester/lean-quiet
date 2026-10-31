@@ -11,7 +11,7 @@
     "theorem": "Connection.Noise.handshake_agrees",
     "witness": "Vacuity.Session.honestRun",
     "module": "tests.vacuity.Session",
-    "detail": "Concrete symbolic suite satisfies Good; kk_runs applies handshake_agrees after proving the four DH calls succeed for fixed parties/ephemerals. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+    "detail": "Concrete symbolic suite satisfies the corrected Good contract; kk_runs supplies both payload-domain premises (True for symbolic terms) and proves the four DH calls succeed for fixed parties/ephemerals. HKDF/hash domains establish valid keys and associated data internally. Symbolic term algebra and synthetic literals; no native primitive correctness, freshness or private-payload secrecy claim."
   },
   "kk_secret": {
     "status": "kernel-witness",

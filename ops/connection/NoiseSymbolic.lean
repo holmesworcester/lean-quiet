@@ -260,6 +260,9 @@ def unpair : T → Option (T × T)
 def sym : Suite T where
   dh := dh
   pub := .pub
+  ValidKey _ := True
+  ValidPayload _ := True
+  ValidAD _ := True
   enc := .aead
   dec := dec
   hash := .hash
@@ -298,7 +301,9 @@ Noise.lean holds over terms too. -/
 theorem good : sym.Good where
   dh_comm a b := by
     cases a <;> cases b <;> simp [sym, dh, Nat.min_comm, Nat.max_comm]
-  dec_enc k n ad p := by simp [sym, dec]
+  hkdf_keys _ _ := ⟨trivial, trivial⟩
+  hash_ad _ := trivial
+  dec_enc k _ n ad p _ _ := by simp [sym, dec]
   split_pair _ _ := rfl
 
 /-- **The honest symbolic run completes**: for any names and payloads,
@@ -310,7 +315,7 @@ theorem kk_runs (pro : T) (sI sR e f : Nat) (p1 p2 : T) :
       ∃ sr m2, write2 sym st (.atom f) (.pub (.atom sI)) (.pub (.atom e)) p2 = some (sr, m2) ∧
         ∃ si, read2 sym st (.atom sI) (.atom e) m2 = some (si, p2) ∧
           si.h = sr.h ∧ si.send = sr.recv ∧ si.recv = sr.send :=
-  handshake_agrees good pro _ _ _ _ p1 p2 (dh_atom _ _) (dh_atom _ _) (dh_atom _ _) (dh_atom _ _)
+  handshake_agrees good pro _ _ _ _ p1 p2 trivial trivial (dh_atom _ _) (dh_atom _ _) (dh_atom _ _) (dh_atom _ _)
 
 /-! ## The attacker -/
 
@@ -905,7 +910,7 @@ theorem kk_authentic_resp (hK : ∀ t, K t → Clean S t)
       obtain ⟨⟨⟨⟨-, rfl⟩, rfl⟩, rfl⟩, hre⟩ := hh
       have hmm : m = m1 := by rw [h, hm, hc, ← hx, hre]
       rw [hmm] at hw
-      obtain ⟨rfl, -, -⟩ := sent1_read1 good (sent1_write1 good hw) h1
+      obtain ⟨rfl, -, -⟩ := sent1_read1 good (sent1_write1 good trivial hw) h1
       exact ⟨e', hre.symm, hw⟩
   | answer s' f' hr' hw' =>
     obtain ⟨_, _, hM, -⟩ := write2_keys hw'

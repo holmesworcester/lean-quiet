@@ -1,17 +1,18 @@
 {
   "Suite.Good": {
-    "status": "counterexample",
+    "status": "conditional",
     "theorem": "Connection.Noise.Suite.Good",
-    "witness": "Vacuity.Contracts.noiseBadKey",
+    "witness": "Vacuity.Contracts.noiseContractCertificate",
     "module": "tests.vacuity.Contracts",
-    "detail": "Actual production Noise suite rejects an empty key, contradicting its unrestricted dec_enc axiom. Correct 32-byte key roundtrip also checked. This invalidates applicability of the universal contract, not valid-key encryption."
+    "detail": "Corrected contract requires a 32-byte AEAD key, plaintext below 64*(2^32-1) bytes and representable associated-data length; HKDF outputs valid keys and hash outputs valid AD. Concrete key/payload/AD premises are proved and real roundtrip tested. Native boundaries test lengths 0/1/31/32/33/64: malformed private keys map to zero 32-byte public output and both DH directions reject, so total dh_comm and split_pair remain supported. Universal native crypto correctness remains an explicit assumption, not proved by finite tests. The old unrestricted roundtrip is retained only as a rejected regression control.",
+    "exercise": true
   },
   "Symbolic.sym": {
     "status": "kernel-witness",
     "theorem": "Connection.Noise.Symbolic.sym",
     "witness": "Vacuity.Contracts.symbolicGood",
     "module": "tests.vacuity.Contracts",
-    "detail": "The symbolic Noise suite satisfies its universal Good contract; separate nonempty Session fixtures instantiate its handshake and secrecy laws. This is not a proof of the native suite."
+    "detail": "Symbolic Noise satisfies the corrected Good contract: every term is a supported key/payload/AD, HKDF/hash outputs satisfy these predicates, and correctness is proved in the kernel. Concrete Session handshake/secrecy fixtures continue to apply the same generic functions; this is not a proof of native primitives."
   },
   "Unforgeable": {
     "status": "conditional",

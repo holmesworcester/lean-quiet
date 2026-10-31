@@ -22,13 +22,15 @@ local `eph` ops, and a close purges them.
 
 These are pure functions over a `Suite α`, generic in the carrier `α`.
 The family's validators call them at `α := ByteArray` with `suite`,
-libsodium's (native/noise.c), which cacophony's test vectors check
+the native RustCrypto wrapper (engine/native/crypto.c), which cacophony's test vectors check
 (Tests/NoiseCheck.lean). Connection/NoiseSymbolic.lean calls the same
 functions at symbolic terms to prove the session keys secret.
 
-Law: `handshake_agrees`. For any suite whose DH commutes, whose AEAD
-opens what it seals, and whose messages split back into the public key
-and the rest, an honest run whose four DHs succeed succeeds. The
+Law: `handshake_agrees`. For any suite whose DH commutes, whose AEAD opens supported payloads
+under supported keys and associated data, whose HKDF/hash outputs meet
+those domains, and whose messages split back into the public key and
+the rest, an honest run with supported payloads and four successful DHs
+succeeds. The
 responder reads the initiator's payload, the initiator reads the
 responder's, both ends hold the same handshake hash, and each end's
 sending key is the other's receiving key.
@@ -44,6 +46,13 @@ structure Suite (α : Type) where
   dh : α → α → Option α
   /-- A secret key's public key. -/
   pub : α → α
+  /-- Which values are supported AEAD keys. No runtime operation uses this
+  predicate; correctness laws require it before promising a roundtrip. -/
+  ValidKey : α → Prop
+  /-- Plaintexts supported by the AEAD implementation. -/
+  ValidPayload : α → Prop
+  /-- Associated data representable by the native authentication length field. -/
+  ValidAD : α → Prop
   /-- AEAD: key, nonce, associated data, plaintext to ciphertext. -/
   enc : α → Nat → α → α → α
   /-- AEAD: key, nonce, associated data, ciphertext to plaintext; none if forged. -/
@@ -58,10 +67,17 @@ structure Suite (α : Type) where
   /-- A constant: the protocol name, an empty payload. -/
   lit : ByteArray → α
 
-/-- What the laws assume of a suite. -/
+/-- Correctness on supported AEAD keys, payloads and associated data. DH commutation and public-key
+framing remain total: the native wrapper maps a malformed private key to
+32 zero bytes, and DH rejects that public point on either side. -/
 structure Suite.Good {α : Type} (S : Suite α) : Prop where
   dh_comm : ∀ a b, S.dh a (S.pub b) = S.dh b (S.pub a)
-  dec_enc : ∀ k n ad p, S.dec k n ad (S.enc k n ad p) = some p
+  /-- HKDF always returns supported keys, including the transport split. -/
+  hkdf_keys : ∀ ck ikm, S.ValidKey (S.hkdf ck ikm).1 ∧ S.ValidKey (S.hkdf ck ikm).2
+  /-- Handshake associated data is a hash, including immediately after mixHash. -/
+  hash_ad : ∀ x, S.ValidAD (S.hash x)
+  dec_enc : ∀ k, S.ValidKey k → ∀ n ad p, S.ValidAD ad → S.ValidPayload p →
+    S.dec k n ad (S.enc k n ad p) = some p
   split_pair : ∀ a c, S.split (S.pair (S.pub a) c) = some (S.pub a, c)
 
 /-! ## Keys from a chaining key, in bytes -/
@@ -205,25 +221,47 @@ end
 section
 variable {α : Type} {S : Suite α}
 
-theorem decHash_encHash (G : S.Good) (st : Sym α) (p : α) :
+/-- Every mixed key comes from HKDF, so it satisfies the AEAD precondition. -/
+theorem mixKey_valid (G : S.Good) (st : Sym α) (ikm : α) :
+    S.ValidKey (st.mixKey S ikm).k := (G.hkdf_keys st.ck ikm).2
+
+theorem one_valid (G : S.Good) (prologue si sr epub es ss : α) :
+    S.ValidKey (Sym.one S prologue si sr epub es ss).k := mixKey_valid G _ _
+
+theorem two_valid (G : S.Good) (st : Sym α) (fpub ee se : α) :
+    S.ValidKey (Sym.two S st fpub ee se).k := mixKey_valid G _ _
+
+theorem one_ad (G : S.Good) (prologue si sr epub es ss : α) :
+    S.ValidAD (Sym.one S prologue si sr epub es ss).h := G.hash_ad _
+
+theorem two_ad (G : S.Good) (st : Sym α) (fpub ee se : α) :
+    S.ValidAD (Sym.two S st fpub ee se).h := G.hash_ad _
+
+/-- Both transport keys are HKDF outputs too. -/
+theorem split_valid (G : S.Good) (st : Sym α) :
+    S.ValidKey (st.split S).1.k ∧ S.ValidKey (st.split S).2.k :=
+  G.hkdf_keys st.ck (S.lit .empty)
+
+theorem decHash_encHash (G : S.Good) (st : Sym α) (p : α) (hk : S.ValidKey st.k)
+    (had : S.ValidAD st.h) (hp : S.ValidPayload p) :
     st.decHash S (st.encHash S p).2 = some ((st.encHash S p).1, p) := by
-  simp [Sym.decHash, Sym.encHash, G.dec_enc]
+  simp [Sym.decHash, Sym.encHash, G.dec_enc st.k hk _ _ _ had hp]
 
 /-- The responder reads what the initiator wrote, and holds its state. -/
 theorem read1_write1 (G : S.Good) {prologue sI sR e p es ss : α}
-    (hes : S.dh e (S.pub sR) = some es) (hss : S.dh sI (S.pub sR) = some ss) :
+    (hp : S.ValidPayload p) (hes : S.dh e (S.pub sR) = some es) (hss : S.dh sI (S.pub sR) = some ss) :
     ∃ st m, write1 S prologue sI e (S.pub sR) p = some (st, m) ∧
       read1 S prologue sR (S.pub sI) m = some (st, S.pub e, p) := by
   have hes' : S.dh sR (S.pub e) = some es := by rw [← G.dh_comm]; exact hes
   have hss' : S.dh sR (S.pub sI) = some ss := by rw [← G.dh_comm]; exact hss
   let r := (Sym.one S prologue (S.pub sI) (S.pub sR) (S.pub e) es ss).encHash S p
   refine ⟨r.1, S.pair (S.pub e) r.2, by simp [write1, hes, hss, r], ?_⟩
-  simp [read1, G.split_pair, hes', hss', r, decHash_encHash G]
+  simp [read1, G.split_pair, hes', hss', r, decHash_encHash G, one_valid G, one_ad G, hp]
 
 /-- The initiator recovers, from its own message 1, the state and
 payload it wrote. -/
 theorem sent1_write1 [DecidableEq α] (G : S.Good) {prologue sI e rs p : α} {st : Sym α} {m : α}
-    (h : write1 S prologue sI e rs p = some (st, m)) : sent1 S prologue sI e rs m = some (st, p) := by
+    (hp : S.ValidPayload p) (h : write1 S prologue sI e rs p = some (st, m)) : sent1 S prologue sI e rs m = some (st, p) := by
   simp only [write1] at h
   cases hes : S.dh e rs with
   | none => simp [hes] at h
@@ -234,11 +272,11 @@ theorem sent1_write1 [DecidableEq α] (G : S.Good) {prologue sI e rs p : α} {st
       simp only [hes, hss, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
         Option.some.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
-      simp [sent1, G.split_pair, hes, hss, decHash_encHash G]
+      simp [sent1, G.split_pair, hes, hss, decHash_encHash G, one_valid G, one_ad G, hp]
 
 /-- The initiator reads what the responder wrote, and the sessions match. -/
 theorem read2_write2 (G : S.Good) (st : Sym α) {sI e f p ee se : α}
-    (hee : S.dh f (S.pub e) = some ee) (hse : S.dh f (S.pub sI) = some se) :
+    (hp : S.ValidPayload p) (hee : S.dh f (S.pub e) = some ee) (hse : S.dh f (S.pub sI) = some se) :
     ∃ sr m, write2 S st f (S.pub sI) (S.pub e) p = some (sr, m) ∧
       ∃ si, read2 S st sI e m = some (si, p) ∧
         si.h = sr.h ∧ si.send = sr.recv ∧ si.recv = sr.send := by
@@ -248,7 +286,7 @@ theorem read2_write2 (G : S.Good) (st : Sym α) {sI e f p ee se : α}
   let ks := r.1.split S
   refine ⟨⟨r.1.h, ks.2, ks.1⟩, S.pair (S.pub f) r.2, by simp [write2, hee, hse, r, ks],
     ⟨r.1.h, ks.1, ks.2⟩, ?_, rfl, rfl, rfl⟩
-  simp [read2, G.split_pair, hee', hse', r, ks, decHash_encHash G]
+  simp [read2, G.split_pair, hee', hse', r, ks, decHash_encHash G, two_valid G, two_ad G, hp]
 
 /-- The initiator's state recovered from its message 1 is the
 responder's after reading it, and the responder reads the initiator's
@@ -300,17 +338,29 @@ theorem read2_write2' (G : S.Good) {st : Sym α} {f sI e pl m2 : α} {sr si : Se
       have h2' : S.dh sI (S.pub f) = some se := by rw [G.dh_comm]; exact h2
       simp only [h1, h2, Option.bind_some, Option.some.injEq, Prod.mk.injEq] at hw
       obtain ⟨rfl, rfl⟩ := hw
+      -- Agreement uses the successful read, not a claim that every
+      -- plaintext can be encrypted: both states hash the same ciphertext.
       simp only [read2, G.split_pair, h1', h2', Option.bind_eq_bind,
-        Option.bind_some, decHash_encHash G, Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hr
-      obtain ⟨rfl, rfl⟩ := hr
-      exact ⟨rfl, rfl, rfl⟩
+        Option.bind_some, Sym.decHash, Sym.encHash] at hr
+      let st2 := Sym.two S st (S.pub f) ee se
+      cases hd : S.dec st2.k st2.n st2.h (S.enc st2.k st2.n st2.h pl) with
+      | none =>
+        dsimp only [st2] at hd
+        simp only [hd, Option.map_none, Option.bind_none, reduceCtorEq] at hr
+      | some q =>
+        dsimp only [st2] at hd
+        simp only [hd, Option.map_some, Option.bind_some, Option.pure_def, Option.some.injEq, Prod.mk.injEq] at hr
+        obtain ⟨rfl, rfl⟩ := hr
+        exact ⟨rfl, rfl, rfl⟩
 
-/-- **An honest handshake agrees.** If its four DHs succeed: the
+/-- **An honest handshake agrees.** If its payloads are supported and its
+four DHs succeed: the
 initiator's message 1 succeeds and the responder reads its payload and
 ephemeral; the responder's message 2 succeeds and the initiator reads
 its payload; both hold the same handshake hash; each one's sending key
 is the other's receiving key. -/
 theorem handshake_agrees (G : S.Good) (prologue sI sR e f p1 p2 : α)
+    (hp1 : S.ValidPayload p1) (hp2 : S.ValidPayload p2)
     {es ss ee se : α} (hes : S.dh e (S.pub sR) = some es) (hss : S.dh sI (S.pub sR) = some ss)
     (hee : S.dh f (S.pub e) = some ee) (hse : S.dh f (S.pub sI) = some se) :
     ∃ st m1, write1 S prologue sI e (S.pub sR) p1 = some (st, m1) ∧
@@ -318,21 +368,28 @@ theorem handshake_agrees (G : S.Good) (prologue sI sR e f p1 p2 : α)
       ∃ sr m2, write2 S st f (S.pub sI) (S.pub e) p2 = some (sr, m2) ∧
         ∃ si, read2 S st sI e m2 = some (si, p2) ∧
           si.h = sr.h ∧ si.send = sr.recv ∧ si.recv = sr.send := by
-  obtain ⟨st, m1, h1, h1'⟩ := read1_write1 (p := p1) G hes hss
-  exact ⟨st, m1, h1, h1', read2_write2 (p := p2) G st hee hse⟩
+  obtain ⟨st, m1, h1, h1'⟩ := read1_write1 (p := p1) G hp1 hes hss
+  exact ⟨st, m1, h1, h1', read2_write2 (p := p2) G st hp2 hee hse⟩
 
 end
 
-/-! ## libsodium's suite -/
+/-! ## The native suite -/
 
 export Engine.Crypto (x25519 x25519Base chachaSeal chachaOpen staticOf staticPubOf xchachaSeal
   xchachaOpen randomBytes)
+
+/-- RustCrypto's ChaChaPoly implementation rejects `len / 64 >= u32::MAX`.
+The strict bound excludes its error branch as well as counter exhaustion. -/
+def maxPlaintextSize : Nat := 64 * (2 ^ 32 - 1)
 
 /-- X25519, ChaCha20-Poly1305 and SHA-256, on bytes. A message is its
 32-byte public key, then the rest; a shorter one does not split. -/
 def suite : Suite ByteArray where
   dh a b := let r := x25519 a b; if r.size = 32 then some r else none
   pub := x25519Base
+  ValidKey k := k.size = 32
+  ValidPayload p := p.size < maxPlaintextSize
+  ValidAD ad := ad.size < 2 ^ 64
   enc k n := chachaSeal k n.toUInt64
   dec k n := chachaOpen k n.toUInt64
   hash := Engine.sha256

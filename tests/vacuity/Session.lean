@@ -33,7 +33,7 @@ theorem secretsHeld : ∃ st m1 sr m2 si, Transcript st m1 sr m2 si ∧
     ¬ Derivable (Exposed secretNames) sr.recv.k := by
   obtain ⟨st, m1, sr, m2, si, ht, _⟩ := honestRun
   exact ⟨st, m1, sr, m2, si, ht,
-    kk_secret (sent1_write1 good ht.1) ht.2.2.2 ht.2.1 ht.2.2.1⟩
+    kk_secret (sent1_write1 good trivial ht.1) ht.2.2.2 ht.2.1 ht.2.2.1⟩
 
 -- The premise boundaries are not assumed: all four concrete names differ.
 theorem distinctRoles : (11 : Nat) ≠ 33 ∧ 11 ≠ 44 ∧ 22 ≠ 33 ∧ 22 ≠ 44 := by decide
@@ -54,7 +54,7 @@ theorem initiatorLeakBreaksSecrecy : ∃ st m1 sr m2 si, Transcript st m1 sr m2 
     Derivable (Exposed (fun i => i = 22 ∨ i = 44)) si.recv.k := by
   obtain ⟨st, m1, sr, m2, si, ht, _⟩ := honestRun
   exact ⟨st, m1, sr, m2, si, ht,
-    kk_secret_init_tight (by decide) (by decide) (sent1_write1 good ht.1) ht.2.2.2⟩
+    kk_secret_init_tight (by decide) (by decide) (sent1_write1 good trivial ht.1) ht.2.2.2⟩
 
 /-- The transcript is actually available to the attacker, by asking the
 honest parties to send it; this discharges authentication's derivability
@@ -77,7 +77,7 @@ theorem initiatorAuthenticates : ∃ st m1 sr m2 si, Transcript st m1 sr m2 si �
   obtain ⟨st, m1, sr, m2, si, ht, _⟩ := honestRun
   refine ⟨st, m1, sr, m2, si, ht, ?_⟩
   exact kk_authentic (S := secretNames) (fun _ => exposed_clean) (fun _ h => exposed_parts h)
-    (by simp [secretNames, secrets]) (Or.inl (by simp [secretNames, secrets])) (sent1_write1 good ht.1) ht.2.2.2 (transcriptPublic ht).2
+    (by simp [secretNames, secrets]) (Or.inl (by simp [secretNames, secrets])) (sent1_write1 good trivial ht.1) ht.2.2.2 (transcriptPublic ht).2
 
 theorem responderAuthenticates : ∃ st m1 sr m2 si, Transcript st m1 sr m2 si ∧
     ∃ e, (.pub (.atom 33) : T) = .pub (.atom e) ∧
