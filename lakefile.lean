@@ -442,3 +442,7 @@ lean_exe zoom where
 
 lean_exe mobile_switcher where
   root := `platforms.headless.MobileSwitcher
+
+-- Windows C is staged on the host and linked with the pinned Windows runtime.
+lean_lib Windows where
+  globs := #[.submodules `platforms.windows]

@@ -435,3 +435,19 @@ run = "bash tests/vacuity/check.sh"
 [tasks."ios:input-device-e2e"]
 description = "Build/sign app and XCUITest runner; verify short vs long presses on a seeded physical iPhone; retain xcresult and screenshots"
 run = "APPLE_SDKS=iphoneos IOS_BUILD_ACTION=build-for-testing platforms/ios/ship.sh input-device"
+
+[tasks."windows:input"]
+description = "Deterministic Windows Unicode/editor boundary tests with sanitizers"
+run = "platforms/windows/input_test.sh"
+
+[tasks."windows:build"]
+description = "Stage shared Lean code and build the native Windows app in the VM"
+run = "platforms/windows/ship.sh build"
+
+[tasks."windows:e2e"]
+description = "Build/setup, real Windows UI, persistence and encrypted TCP lifecycle tests"
+run = "platforms/windows/ship.sh e2e"
+
+[tasks."windows:run"]
+description = "Build, install a desktop shortcut and launch Lean Quiet in Windows"
+run = "platforms/windows/ship.sh run"
