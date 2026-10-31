@@ -526,7 +526,9 @@ def badge (f : Font) (dm : Dim) (b : Bitmap) (n : Nat) (xr y : Nat) : Bitmap :=
   let l := oneLine f (4 * f.cell) (if n > 99 then "99+" else toString n)
   let w := max (dm.px 24) (Paint.Line.width f l + dm.px 12)
   let h := dm.px 24
-  let b := Overlay.badge dm.theme b (xr-w) y w h (h/2) (max 2 (dm.px 2))
+  -- Count pills are a flat fill in libquiet; the adaptive toast edge
+  -- adds a conspicuous white halo on a dark list.
+  let b := b.round (xr-w) y xr (y+h) (h/2) (Palette.color dm.theme .badge)
   b.line f l (xr - w + (w - Paint.Line.width f l) / 2) (y + (h - f.cell) / 2) (Palette.color dm.theme .onAccent)
 
 /-- The home band (the header layer): the community's avatar and name,

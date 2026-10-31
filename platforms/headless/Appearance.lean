@@ -169,6 +169,18 @@ def exercise (dir : String) (screen : Array UInt32) : IO Unit := do
     let some (_, row) := s.rows.toList.head? | throw (IO.userError "no row")
     let selected := Row.paint s.font fresh.dim s.W fresh.bgRow { row.data with selected := true } row.lay none #[]
     demand s!"{repr theme} selected row has shape cue" (selected.strokes.size > (Row.paint s.font fresh.dim s.W fresh.bgRow { row.data with selected := false } row.lay none #[]).strokes.size)
+    -- Inspect the badge itself, not a whole-frame average that can hide a halo.
+    for under in [0x222222, 0xffffff, 0x7647c7] do
+      let px := fresh.dim.px
+      let host := Bitmap.blank (px 80) (px 48) (solid under (px 80))
+      let pill := Pages.badge fresh.font fresh.dim host 1 (px 64) (px 8)
+      let red := Palette.color theme .badge
+      demand s!"{repr theme}: count pill has red top and bottom, no contrast ring"
+        (getPx pill.rows[px 8]! (px 52) == red &&
+         getPx pill.rows[px 32 - 1]! (px 52) == red)
+      demand "count pill leaves its surrounding list untouched"
+        (getPx pill.rows[px 7]! (px 52) == under &&
+         getPx pill.rows[px 32]! (px 52) == under)
     let b := Pages.toast s.font fresh.dim s.W "Saved"
     demand s!"{repr theme} toast contrast" (glyphsPass b)
     for under in [0x000000, 0xffffff, 0x888888, 0x7647c7, 0xc7353b] do
