@@ -4,7 +4,7 @@ member invitation that needs one approval; B pastes the link. The ops
 are the real ones, composed by lean-engine's `Community.Compose` (op
 ids are SHA-256, signatures Ed25519 through `edSign`), and judged by
 the real validators. What is assumed is stated in `Good`: the
-signature scheme verifies what the three key pairs sign, A and B are
+five signatures on this scene verify, A and B are
 different devices, and the five ops' ids are distinct (SHA-256 does not
 collide on them).
 
@@ -61,14 +61,33 @@ the approval and composes the admission. -/
 def approval (n : Node) : Node :=
   if n.ops.any (fun o => decide (o = x.req)) then { n with ops := add n.ops [x.appr, x.adm] } else n
 
-/-- The assumptions. -/
+/-- The four signed payloads in this five-op scene. The request has two
+signatures; the final admission is unsigned and checked by its dependencies. -/
+def rootMessage : ByteArray := toSign [] (.root x.A.pk x.kA .empty)
+def invitationMessage : ByteArray := toSign [x.c,x.c] (.invite x.K.pk false 1 .empty)
+def requestMessage : ByteArray := toSign [x.c,x.inv.id] (.request x.B.pk x.kB .empty .empty)
+def approvalMessage : ByteArray := toSign [x.c,x.req.id,x.c] (.approve .empty)
+
+/-- Exactly the finite cryptographic premises used by this scene's proofs.
+No correctness claim about signatures on other messages is required. -/
 structure Good (C : Crypto) : Prop where
-  sigA : ∀ m, C.verify x.A.pk m (edSign x.A.sk m) = true
-  sigB : ∀ m, C.verify x.B.pk m (edSign x.B.sk m) = true
-  sigK : ∀ m, C.verify x.K.pk m (edSign x.K.sk m) = true
+  rootSig : C.verify x.A.pk x.rootMessage (edSign x.A.sk x.rootMessage) = true
+  invitationSig : C.verify x.A.pk x.invitationMessage (edSign x.A.sk x.invitationMessage) = true
+  requestSig : C.verify x.B.pk x.requestMessage (edSign x.B.sk x.requestMessage) = true
+  bearerSig : C.verify x.K.pk x.requestMessage (edSign x.K.sk x.requestMessage) = true
+  approvalSig : C.verify x.A.pk x.approvalMessage (edSign x.A.sk x.approvalMessage) = true
   AB : x.A.pk ≠ x.B.pk
   kAB : x.kA ≠ x.kB
   distinct : Distinct x.S
+
+/-- Compatibility constructor for callers that already have the stronger,
+universal signing-correctness premises of the former scene contract. -/
+theorem Good.ofSigning {C : Crypto}
+    (sigA : ∀ m, C.verify x.A.pk m (edSign x.A.sk m) = true)
+    (sigB : ∀ m, C.verify x.B.pk m (edSign x.B.sk m) = true)
+    (sigK : ∀ m, C.verify x.K.pk m (edSign x.K.sk m) = true)
+    (AB : x.A.pk ≠ x.B.pk) (kAB : x.kA ≠ x.kB) (distinct : Distinct x.S) : x.Good C :=
+  ⟨sigA _,sigA _,sigB _,sigK _,sigA _,AB,kAB,distinct⟩
 
 end Scene
 
@@ -117,7 +136,7 @@ theorem v_root (h : x.r ∈ L) : V C (table L) x.c (.admission x.c x.c x.A.pk x.
   simp only [Body.tag, Op.make_kind, ↓reduceIte, check]
   rw [if_pos]
   · rfl
-  · exact g.sigA _
+  · exact g.rootSig
 
 theorem v_inv (h1 : x.r ∈ L) (h2 : x.inv ∈ L) :
     V C (table L) x.inv.id (.invitation x.c x.c x.K.pk false 1) := by
@@ -129,19 +148,19 @@ theorem v_inv (h1 : x.r ∈ L) (h2 : x.inv ∈ L) :
     rw [show x.inv = invite x.c x.c x.A x.K.pk false 1 from rfl, invite, body_mk]
     simp only [mkOp, Body.tag, Op.make_kind, ↓reduceIte, check]
     rw [if_pos]
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> first | trivial | rfl | exact g.sigA _ | simp
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> first | trivial | rfl | exact g.invitationSig | simp
 
 theorem v_req (h1 : x.r ∈ L) (h2 : x.inv ∈ L) (h3 : x.req ∈ L) :
     V C (table L) x.req.id (.request x.c x.req.id x.B.pk x.kB false 1) := by
   have := request_valid (C := C) (table_keyed L) (table_of (hd g hL) h3)
-    (body_mk _ _) rfl rfl (v_root g hL h1) (v_inv g hL h1 h2) (g.sigB _) (g.sigK _)
+    (body_mk _ _) rfl rfl (v_root g hL h1) (v_inv g hL h1 h2) g.requestSig g.bearerSig
   have e : x.inviteLink.community = x.c := rfl
   simpa [e] using this
 
 theorem v_appr (h1 : x.r ∈ L) (h2 : x.inv ∈ L) (h3 : x.req ∈ L) (h4 : x.appr ∈ L) :
     V C (table L) x.appr.id (.approval x.c x.req.id x.c) :=
   approve_valid (table_of (hd g hL) h4) (body_mk _ _) rfl rfl (v_root g hL h1)
-    (v_req g hL h1 h2 h3) (v_root g hL h1) (fun h => absurd h (by simp)) g.AB (g.sigA _)
+    (v_req g hL h1 h2 h3) (v_root g hL h1) (fun h => absurd h (by simp)) g.AB g.approvalSig
 
 theorem v_adm (h : ∀ o ∈ x.S, o ∈ L) :
     V C (table L) x.adm.id (.admission x.c x.req.id x.B.pk x.kB) := by

@@ -1,65 +1,65 @@
 {
   "no_connection_before_approval": {
-    "status": "conditional",
+    "status": "runtime-witness",
     "theorem": "Net.Scene.no_connection_before_approval",
     "witness": "Vacuity.Bootstrap.noBefore",
     "module": "tests.vacuity.Bootstrap",
-    "detail": "Concrete after-first-tick state is reachable; non-admission premise follows from distinct scene op shapes. Universal Good remains unproved, so does not establish real runtime safety. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+    "detail": "Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the named model theorem at the reachable first tick or the enabled completed bootstrap path; no universal signing-correctness or unproved scene premise remains in the runtime certificate. This is evidence about the bootstrap model, not whole-app execution."
   },
   "sessions_trusted": {
-    "status": "conditional",
+    "status": "runtime-witness",
     "theorem": "Net.Scene.sessions_trusted",
     "witness": "Vacuity.Bootstrap.trustedOutcome",
     "module": "tests.vacuity.Bootstrap",
-    "detail": "Applies to the nonempty sessions of bootstrap_possible endpoint, with path reachability derived. Endpoint existence and trusted classifications remain conditional on Good. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+    "detail": "Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the named model theorem at the reachable first tick or the enabled completed bootstrap path; no universal signing-correctness or unproved scene premise remains in the runtime certificate. This is evidence about the bootstrap model, not whole-app execution."
   },
   "reachable_inv": {
-    "status": "conditional",
+    "status": "runtime-witness",
     "theorem": "Net.Scene.reachable_inv",
     "witness": "Vacuity.Bootstrap.completedInvariant",
     "module": "tests.vacuity.Bootstrap",
-    "detail": "Applies to the successful bootstrap endpoint, deriving reachability from its enabled finite path. Good remains unproved. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+    "detail": "Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the named model theorem at the reachable first tick or the enabled completed bootstrap path; no universal signing-correctness or unproved scene premise remains in the runtime certificate. This is evidence about the bootstrap model, not whole-app execution."
   },
   "bootstrap_possible": {
-    "status": "conditional",
+    "status": "runtime-witness",
     "theorem": "Net.Scene.bootstrap_possible",
     "witness": "Vacuity.Bootstrap.possible",
     "module": "tests.vacuity.Bootstrap",
-    "detail": "Fixed seeded Alice/Bob and invitation; applies nine-action enabled-path existence theorem. Good requires universal signature correctness, distinct devices/node keys and collision-free five-op scene; finite signatures cannot discharge universal correctness. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+    "detail": "Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the actual nine-action bootstrap_possible theorem with every Scene.Good premise certified. The enabled finite path and completed goal are model conclusions, not native execution of the noncomputable step."
   },
   "admitted_inv": {
-    "status": "conditional",
+    "status": "runtime-witness",
     "theorem": "Net.Scene.admitted_inv",
     "witness": "Vacuity.Bootstrap.admissionClassified",
     "module": "tests.vacuity.Bootstrap",
-    "detail": "At full five-op scene, derives actual Bob admission through v_adm before classifying it. Universal Good and five-op distinctness unresolved; admission is not merely assumed. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+    "detail": "Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the named model theorem at the reachable first tick or the enabled completed bootstrap path; no universal signing-correctness or unproved scene premise remains in the runtime certificate. This is evidence about the bootstrap model, not whole-app execution."
   },
   "allowedA": {
-    "status": "conditional",
+    "status": "runtime-witness",
     "theorem": "Net.Scene.allowedA",
     "witness": "Vacuity.Bootstrap.founderAllowed",
     "module": "tests.vacuity.Bootstrap",
-    "detail": "Full five-op scene contains founder root; concrete membership premise proved. Crypto Good remains unresolved. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+    "detail": "Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the named model theorem at the reachable first tick or the enabled completed bootstrap path; no universal signing-correctness or unproved scene premise remains in the runtime certificate. This is evidence about the bootstrap model, not whole-app execution."
   },
   "allowedB": {
-    "status": "conditional",
+    "status": "runtime-witness",
     "theorem": "Net.Scene.allowedB",
     "witness": "Vacuity.Bootstrap.joinerAllowed",
     "module": "tests.vacuity.Bootstrap",
-    "detail": "Full five-op scene contains Bob admission and all dependencies; closure/list membership premises proved. Crypto Good remains unresolved. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+    "detail": "Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the named model theorem at the reachable first tick or the enabled completed bootstrap path; no universal signing-correctness or unproved scene premise remains in the runtime certificate. This is evidence about the bootstrap model, not whole-app execution."
   },
   "bootstrap": {
-    "status": "conditional",
+    "status": "runtime-witness",
     "theorem": "Net.Scene.bootstrap",
     "witness": "Vacuity.Bootstrap.eventuallyBootstrap",
     "module": "tests.vacuity.Bootstrap",
-    "detail": "Fixed scene, but universal Good and an actual infinite fair scheduler/delivery run are still required. No constructed fair-run witness; finite successful path does not prove this premise. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms. Planned witness: recursively cycle tickA, tickB, approval and FIFO head delivery; prove enabled steps and finite-prefix queue progress to establish Fair and Ideal. This remains future model-proof work, separate from the running app."
+    "detail": "Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. An explicit Nat-indexed run starts at init and cycles ticks, approval and FIFO-head delivery. Kernel proofs establish Enabled, recurring ticks/approval, eventual delivery of every queued message, exact Run.Fair and no-drop Run.Ideal without using bootstrap. This cert applies bootstrap to that run. The infinite execution is the noncomputable bootstrap model, not an execution of the app or TCP."
   },
   "bootstrap_ideal": {
-    "status": "conditional",
+    "status": "runtime-witness",
     "theorem": "Net.Scene.bootstrap_ideal",
     "witness": "Vacuity.Bootstrap.eventuallyIdeal",
     "module": "tests.vacuity.Bootstrap",
-    "detail": "Fixed scene application leaves Good, concrete infinite Fair run, and no-drop Ideal premises explicit. Ideal finite path alone cannot establish infinite scheduling fairness. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms. Planned witness: recursively cycle tickA, tickB, approval and FIFO head delivery; prove enabled steps and finite-prefix queue progress to establish Fair and Ideal. This remains future model-proof work, separate from the running app."
+    "detail": "Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. An explicit Nat-indexed run starts at init and cycles ticks, approval and FIFO-head delivery. Kernel proofs establish Enabled, recurring ticks/approval, eventual delivery of every queued message, exact Run.Fair and no-drop Run.Ideal without using bootstrap. This cert applies bootstrap_ideal to that run. The infinite execution is the noncomputable bootstrap model, not an execution of the app or TCP."
   }
 }
