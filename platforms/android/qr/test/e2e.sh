@@ -35,7 +35,7 @@ python3 -c "
 import random, time
 r = random.Random(time.time_ns())
 a = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-open('$out/invite', 'w').write('quiet://join/' + ''.join(r.choice(a) for _ in range(187)))"
+open('$out/invite', 'w').write('https://holmesworcester.github.io/lean-quiet/join#' + ''.join(r.choice(a) for _ in range(206)))"
 invite=$(cat "$out/invite")
 "$root/.lake/build/bin/qr_tool" render "$out/poster.pgm" M 1 4 1 auto "$out/invite" > "$out/poster.txt"
 # whole pixels a module, centred on a white 1024x1024 RGBA poster (the

@@ -1,7 +1,8 @@
 /-
 The invite link, as it is used: an inviter issues an invitation and its
-link; the text is pasted (whole, broken across lines, without the
-scheme) or garbled; the joiner's request composed from the parsed link
+link; the text (the join page link) or the URI the page opens is
+pasted (whole, broken across lines, without the page or the scheme)
+or garbled; the joiner's request composed from the parsed link
 is judged by the engine with real Ed25519, and is approved and admitted.
 Every truncation, garbage text and 20,000 mutated links either parse to
 a valid invite or are refused.
@@ -10,7 +11,9 @@ import tests.engine.Lib
 
 open Engine Community Tests
 
-def main : IO UInt32 := do
+/-- `--print`: two invites' links and URIs only (site/test.py and the
+Android link e2e use them). -/
+def main (args : List String) : IO UInt32 := do
   let t ← Checks.new
   let f := Device.named "founder"
   let j := Device.named "joiner"
@@ -19,14 +22,24 @@ def main : IO UInt32 := do
   let secret := sha256 "bearer seed".toUTF8
   let (inv, link) := issue c c f (keyOf f) secret ["192.168.4.77:7001".toUTF8]
   let text := link.text
+  if args == ["--print"] then
+    -- two invitations of the community: their links, then their URIs
+    let (_, other) := issue c c f (keyOf f) (sha256 "second seed".toUTF8) ["192.168.4.77:7001".toUTF8]
+    IO.println text; IO.println other.text; IO.println link.uri; IO.println other.uri; return 0
   IO.println s!"link: {text.length} characters"
   t.ok "the link is valid" (decide link.Valid)
-  t.ok "it reads as quiet://join/…" (text.startsWith "quiet://join/")
+  t.ok "it reads as the join page, the fields after #"
+    (text.startsWith "https://holmesworcester.github.io/lean-quiet/join#")
   t.ok "it parses back" (Invite.parse text == some link)
+  let uri := link.uri
+  t.ok "the page opens leanquiet://join/ and the same fields"
+    (uri.startsWith "leanquiet://join/" && uri.drop 17 == text.drop 50)
+  t.ok "the URI parses back" (Invite.parse uri == some link)
   let broken := String.ofList ((text.toList.zipIdx.flatMap fun (ch, k) =>
     if k % 37 == 36 then ['\n', ' ', ch] else [ch]))
   t.ok "broken across lines, it still parses" (Invite.parse broken == some link)
-  t.ok "without the scheme, it parses" (Invite.parse (String.ofList (text.toList.drop 13)) == some link)
+  t.ok "without the page, it parses" (Invite.parse (String.ofList (text.toList.drop 50)) == some link)
+  t.ok "the URI broken across lines parses" (Invite.parse (uri.replace "/join/" "/join/\n") == some link)
   t.ok "with spaces around, it parses" (Invite.parse ("  " ++ text ++ "\n") == some link)
   -- Truncations and garbage: refused, or (never seen) another valid invite.
   let mut odd := 0
@@ -35,8 +48,13 @@ def main : IO UInt32 := do
     | some i => if i == link || !decide i.Valid then odd := odd + 1
     | none => pure ()
   t.ok "no truncation parses to the link or to anything invalid" (odd == 0)
-  for g in ["", "quiet://join/", "quiet://join/!!!", "hello", "quiet://join/0", String.ofList (List.replicate 5000 'z')] do
-    t.ok s!"garbage refused: {g.take 20}" (Invite.parse g == none)
+  -- The old scheme, another site's page and a query instead of a fragment are not links.
+  let code := text.drop 50
+  for g in ["", "leanquiet://join/", "leanquiet://join/!!!", "hello", "leanquiet://join/0",
+      "https://holmesworcester.github.io/lean-quiet/join#", "quiet://join/" ++ code,
+      "https://example.com/join#" ++ code, "https://holmesworcester.github.io/lean-quiet/join?" ++ code,
+      String.ofList (List.replicate 5000 'z')] do
+    t.ok s!"garbage refused: {g.take 52}" (Invite.parse g == none)
   -- Mutations: whatever parses is valid (parse_valid, on the compiled code).
   let mut g := Rng.mk 99
   let mut accepted := 0

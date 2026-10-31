@@ -127,6 +127,14 @@ run = "platforms/linux/input_test.sh"
 description = "The Linux desktop under Xvfb at scale 1 and 2 and without MIT-SHM: OS hover/cursors/focus, resize, switching, editing, clipboard and screenshots (needs local X sockets)"
 run = "platforms/linux/test.sh"
 
+[tasks."linux:links"]
+description = "leanquiet:// links on the Linux desktop under Xvfb, through install.sh's launcher and menu entry in private XDG folders: a cold start's argument, warm xdg-open and second launches handed to the running instance (raised, no second process), other databases' and stale sockets (needs local X sockets, xdg-utils)"
+run = "platforms/linux/links.sh"
+
+[tasks."linux:links-negative"]
+description = "The links e2e's negative controls: the old empty lq_links, one socket for every database, a window never raised; each must fail linux:links"
+run = "python3 platforms/linux/negative_links.py"
+
 [tasks."host:desktop-negative"]
 description = "The desktop's negative controls: eight layout and control laws broken, two native functions, five UI behaviours (the resize settle among them) and two X11 resize mechanisms (gravity, the sync request); each must fail"
 run = "python3 platforms/linux/negative.py && python3 platforms/linux/negative_ui.py && python3 platforms/linux/negative_x11.py"
@@ -445,3 +453,49 @@ run = "APPLE_SDKS=iphoneos IOS_BUILD_ACTION=build-for-testing platforms/ios/ship
 description = "Build production Lean crypto wrappers and test native seal failure handling, real Rust success bytes and malformed input guards"
 depends = ["crypto"]
 run = "bash tests/engine/crypto_failure.sh"
+
+[tasks."site:build"]
+description = "The join page (site/join.html) built into out/site: its policy's script and style hashes filled in"
+run = "python3 site/build.py out/site"
+
+[tasks."site:test"]
+description = "The join page in headless Chromium: a real invite from the app links leanquiet://join/ with exactly its fields; anything else after # is broken and links nowhere; no external loads; a wrong-hash negative control. Needs Chromium's headless shell (CHROME or Playwright's)"
+run = "lake build linkcheck && python3 site/test.py"
+
+[tasks."site:publish"]
+description = "Publishes the join page to the gh-pages branch (GitHub Pages: holmesworcester.github.io/lean-quiet/join); pass --mac-url / --testflight-url once they exist"
+depends = ["site:test"]
+run = "site/publish.sh"
+
+[tasks."android:links-e2e"]
+description = "Invite links on a suite-owned AVD: leanquiet://join/ cold and warm into the development APK, malformed links ignored, quiet:// not claimed; RELEASE_APK=out/release/lean-quiet-android.apk adds the release APK"
+depends = ["android:runtime"]
+run = "bash platforms/android/test/links_e2e.sh"
+
+[tasks."release:android"]
+description = "The Android release APK (tools/release/android.sh VERSION), signed with the release key in ~/.config/lean-quiet/release, then checked on an AVD (android:links-e2e with RELEASE_APK)"
+run = "tools/release/android.sh ${VERSION:?set VERSION=X.Y.Z} && RELEASE_APK=out/release/lean-quiet-android.apk bash platforms/android/test/links_e2e.sh"
+
+[tasks."release:linux"]
+description = "The Linux release tarball (tools/release/linux.sh VERSION), then the installed-links e2e"
+run = "tools/release/linux.sh ${VERSION:?set VERSION=X.Y.Z}"
+
+[tasks."release:publish"]
+description = "GitHub release vVERSION of out/release/* with SHA256SUMS (tools/release/publish.sh)"
+run = "tools/release/publish.sh ${VERSION:?set VERSION=X.Y.Z} ${NOTES:-}"
+
+[tasks."windows:input"]
+description = "Deterministic Windows Unicode/editor boundary tests with sanitizers"
+run = "platforms/windows/input_test.sh"
+
+[tasks."windows:build"]
+description = "Stage shared Lean code and build the native Windows app in the VM"
+run = "platforms/windows/ship.sh build"
+
+[tasks."windows:e2e"]
+description = "Build/setup, real Windows UI, persistence and encrypted TCP lifecycle tests"
+run = "platforms/windows/ship.sh e2e"
+
+[tasks."windows:run"]
+description = "Build, install a desktop shortcut and launch Lean Quiet in Windows"
+run = "platforms/windows/ship.sh run"

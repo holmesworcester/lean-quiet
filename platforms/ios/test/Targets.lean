@@ -7,7 +7,7 @@ own, for a screen W pixels wide at a density. Printed one per line:
     composer H TEXTROWS   the empty composer's height, and its text rows
                           (Composer.layout: a tap above TEXTROWS opens the
                           keyboard)
-    link quiet://join/…   a valid invite link (Community.Invite.text)
+    link https://…/join#…   a valid invite link (Community.Invite.text)
 
     lake env lean --run ios/test/Targets.lean W DPI
 -/

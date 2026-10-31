@@ -106,7 +106,7 @@ def cross (args : List String) : IO UInt32 := do
   let (lb, b1) ← (show M String from do
     sb.cmds.modify (·.push "found club|Ann"); steps 3; waitIdle sb; steps 3
     linkHere sb).run b0
-  check "both clubs give links" (la.startsWith "quiet://join/" && lb.startsWith "quiet://join/" && la != lb)
+  check "both clubs give links" (la.startsWith "https://holmesworcester.github.io/lean-quiet/join#" && lb.startsWith "https://holmesworcester.github.io/lean-quiet/join#" && la != lb)
   -- each joins the other's, as "Ann"
   let ((), a2) ← (joinBy sa lb "Ann").run a1
   let ((), b2) ← (joinBy sb la "Ann").run b1

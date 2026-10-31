@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- The invite rides after "#": a browser never sends that part to the
+     server. This page loads nothing from anywhere (the policy below
+     forbids it), sends the invite nowhere and stores nothing: it only
+     hands the invite to the app as a leanquiet://join/ link. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-@SCRIPT_HASH@'; style-src 'sha256-@STYLE_HASH@'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<title>Join on Lean Quiet</title>
+<style>
+:root { color-scheme: light dark; --bg: #fff; --fg: #1b1b1f; --muted: #5d5d66; --line: #e3e3e8; --accent: #521c74; --on-accent: #fff; --warn: #8a1c1c; }
+@media (prefers-color-scheme: dark) { :root { --bg: #151518; --fg: #ececf1; --muted: #a2a2ad; --line: #2e2e35; --accent: #b98ce0; --on-accent: #151518; --warn: #f0a0a0; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 34rem; margin: 0 auto; padding: 3rem 1rem 4rem; }
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 .5rem; }
+h2 { font-size: 1rem; margin: 2.5rem 0 .5rem; }
+p { margin: .5rem 0; }
+.muted { color: var(--muted); font-size: .9rem; }
+.warn { color: var(--warn); }
+.button { display: block; text-align: center; padding: .85rem 1rem; border-radius: .6rem; background: var(--accent); color: var(--on-accent); font-weight: 600; text-decoration: none; margin: 1.25rem 0 .5rem; border: 0; font-size: 1rem; width: 100%; cursor: pointer; }
+.button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); font-weight: 500; margin-top: .5rem; }
+ul { list-style: none; padding: 0; margin: .5rem 0; border-top: 1px solid var(--line); }
+li { display: flex; justify-content: space-between; gap: 1rem; padding: .7rem 0; border-bottom: 1px solid var(--line); }
+li a { color: var(--accent); font-weight: 600; text-decoration: none; }
+li .soon { color: var(--muted); }
+li.mine { font-weight: 600; }
+code { font: .85rem ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <section id="invite" hidden>
+    <h1>You're invited to join a community on Lean Quiet.</h1>
+    <a id="open" class="button" href="#">Open in Lean Quiet</a>
+    <button id="copy" class="button secondary" type="button">Copy invite link</button>
+    <p class="muted" id="copied" hidden>Copied. Paste it in Lean Quiet: Join a community, then Paste a link.</p>
+    <p class="muted">Nothing happens? Install Lean Quiet below, then come back to this page and press Open again.</p>
+  </section>
+  <section id="broken" hidden>
+    <h1>This invite link looks broken.</h1>
+    <p class="warn">Ask whoever sent it for a new one, and copy all of it.</p>
+  </section>
+  <section id="none">
+    <h1>Lean Quiet</h1>
+    <p>Local-first, end-to-end encrypted, peer-to-peer chat, written mostly in Lean, with proofs about the code that runs.</p>
+  </section>
+
+  <h2>Get Lean Quiet</h2>
+  <ul id="downloads">
+    <li data-os="android"><span>Android</span><a href="https://github.com/holmesworcester/lean-quiet/releases/latest/download/lean-quiet-android.apk">Download APK</a></li>
+    <li data-os="linux"><span>Linux (x86-64)</span><span><a href="https://github.com/holmesworcester/lean-quiet/releases/latest/download/lean-quiet-linux-amd64.deb">.deb</a> · <a href="https://github.com/holmesworcester/lean-quiet/releases/latest/download/lean-quiet-linux-x86_64.tar.gz">.tar.gz</a></span></li>
+    <li data-os="windows"><span>Windows 11 (x64)</span><span class="soon" data-url="">Coming soon</span></li>
+    <li data-os="mac"><span>macOS (Apple silicon)</span><span class="soon" data-url="">Coming soon</span></li>
+    <li data-os="ios"><span>iPhone</span><span class="soon" data-url="">Coming soon (TestFlight)</span></li>
+  </ul>
+  <p class="muted" id="linux-help" hidden>Linux: <code>sudo apt install ./lean-quiet-linux-amd64.deb</code> on Debian or Ubuntu; elsewhere <code>tar xzf lean-quiet-linux-x86_64.tar.gz &amp;&amp; lean-quiet/install.sh</code>. Either lets your browser open invite links in Lean Quiet.</p>
+  <p class="muted">The invite is the part of this page's address after <code>#</code>. Browsers never send that part to a server, and this page sends it nowhere: it only hands it to the app. <a href="https://github.com/holmesworcester/lean-quiet">Source</a></p>
+</main>
+<script>
+(function () {
+  'use strict';
+  // The invite: base62 after "#" (Community.Invite.text in the app).
+  var code = window.location.hash.slice(1);
+  var valid = /^[0-9A-Za-z]{40,2000}$/.test(code);
+  var show = function (id, on) { document.getElementById(id).hidden = !on; };
+  show('none', code === '');
+  show('invite', valid);
+  show('broken', code !== '' && !valid);
+  if (valid) {
+    // Only base62 reaches the URI, so nothing else can be smuggled in.
+    document.getElementById('open').href = 'leanquiet://join/' + code;
+    document.getElementById('copy').addEventListener('click', function () {
+      var done = function () { show('copied', true); };
+      if (navigator.clipboard) navigator.clipboard.writeText(window.location.href).then(done, function () {});
+    });
+  }
+  // Release links filled in later (data-url) replace "Coming soon".
+  var items = document.querySelectorAll('#downloads [data-url]');
+  for (var i = 0; i < items.length; i++) {
+    var url = items[i].getAttribute('data-url');
+    if (/^https:\/\//.test(url)) {
+      var a = document.createElement('a');
+      a.href = url;
+      a.textContent = items[i].parentNode.getAttribute('data-os') === 'ios' ? 'TestFlight' : 'Download';
+      items[i].parentNode.replaceChild(a, items[i]);
+    }
+  }
+  // This device's row first.
+  var ua = navigator.userAgent;
+  // An iPad's Safari says "Macintosh" but has a touch screen.
+  var ipad = /Macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
+  var os = /Android/i.test(ua) ? 'android' : (/iPhone|iPad|iPod/i.test(ua) || ipad) ? 'ios'
+    : /Macintosh|Mac OS X/i.test(ua) ? 'mac' : /Windows/i.test(ua) ? 'windows' : /Linux/i.test(ua) ? 'linux' : '';
+  var mine = os && document.querySelector('#downloads [data-os="' + os + '"]');
+  if (mine) { mine.className = 'mine'; mine.parentNode.insertBefore(mine, mine.parentNode.firstChild); }
+  show('linux-help', os === 'linux' || os === '');
+})();
+</script>
+</body>
+</html>

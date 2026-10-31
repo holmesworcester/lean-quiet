@@ -59,7 +59,7 @@ def Tally.check (t : Tally) (ok : Bool) (what : String) : Tally :=
 
 def invite (r : Rng) (n : Nat) : String × Rng := Id.run do
   let abc := "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".toList
-  let mut s := "quiet://join/"
+  let mut s := "https://holmesworcester.github.io/lean-quiet/join#"
   let mut r := r
   for _ in [0:n] do
     let (i, r') := r.below 62

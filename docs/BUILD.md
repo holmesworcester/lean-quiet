@@ -48,6 +48,9 @@ Ubuntu:
 - For `linux:e2e`: `xvfb`, `xdotool`, ImageMagick's `import` and Python's
   PIL. `tests/app/run.sh` skips it, building the shell only, under
   `SKIP_X=1` (by default whatever `SKIP_TCP` is).
+- For `linux:links` (and `install.sh`): `xdg-utils` (`xdg-open`,
+  `xdg-mime`), `desktop-file-utils` (`update-desktop-database`), `x11-utils`
+  (`xprop`), `xvfb` and `xdotool`. `SKIP_X=1` skips it too.
 
 ## Checking it again
 
@@ -174,3 +177,10 @@ boundary/thread and no-allocation audits in `mise run host:slide`; the legacy
 proofs do not establish arbitrary-period geometry. `host:translate` retains the
 legacy per-vsync pixel oracle. No animation or platform-specific drawing is
 needed for the new skeletons.
+
+## Windows desktop
+
+`mise run windows:build` stages the shared Lean desktop and builds the Windows
+executable in the local VM. `mise run windows:e2e` includes setup and exercises
+real Windows input, persistence, encrypted TCP and listener restart.
+See [Windows prerequisites, launch and release gates](../platforms/windows/README.md).

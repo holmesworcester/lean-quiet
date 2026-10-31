@@ -39,7 +39,7 @@ def to_pgm(png, pgm):
 
 def payloads(rng):
     abc = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-    invite = 'quiet://join/' + ''.join(rng.choice(abc) for _ in range(187))
+    invite = 'https://holmesworcester.github.io/lean-quiet/join#' + ''.join(rng.choice(abc) for _ in range(206))
     mixed = 'HELLO WORLD 0123456789012345 ' * 3 + 'lower case text 42 ' + '31415926535897932384'
     return [('invite', invite.encode()), ('mixed', mixed.encode()),
             ('binary', bytes(rng.randrange(256) for _ in range(120)))]
@@ -126,7 +126,7 @@ def main():
         sys.path.insert(0, o.segno)
         import segno
         agree = total = 0
-        texts = ['Grüße aus Lean, ünïcödé', 'quiet://join/ÄÖÜ-' + 'x' * 60, '日本語のテキストもバイトで',
+        texts = ['Grüße aus Lean, ünïcödé', 'leanquiet://join/ÄÖÜ-' + 'x' * 60, '日本語のテキストもバイトで',
                  'ECI test 0123456789 ABCDEF']
         for i, t in enumerate(texts):
             for lvl in 'lmqh':

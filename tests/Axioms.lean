@@ -155,6 +155,7 @@ open Engine Community
 #print axioms Engine.Sync.offer_stored
 #print axioms Engine.stored_local
 #print axioms Community.parse_text
+#print axioms Community.parse_uri
 #print axioms Community.parse_valid
 #print axioms Community.Base62.decode_encode
 #print axioms Community.secret_derives

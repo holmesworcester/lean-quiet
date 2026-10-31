@@ -71,7 +71,7 @@ def main (args : List String) : IO UInt32 := do
     let scanned := (Qr.decodeLuma 1080 2400 1080 luma).bind fun (b, _) => String.fromUTF8? b
     return (((s.links.find? (·.1 == s.me.acc)).map (·.2)).getD "", scanned, luma)).run a0
   let (link, scanned, aLuma) := link
-  check s!"A's Add members shows a link ({link.take 24}…)" (link.startsWith "quiet://join/")
+  check s!"A's Add members shows a link ({link.take 24}…)" (link.startsWith "https://holmesworcester.github.io/lean-quiet/join#")
   check "and its QR code on screen scans back to that link" (scanned == some link)
   let hs := ((Community.Invite.parse link).map fun i => i.hints.map fun h => (String.fromUTF8? h).getD "?").getD []
   check s!"the link dials A on its LAN ({hs})" (hs.all (·.endsWith s!":{Link.port}"))

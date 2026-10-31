@@ -267,7 +267,7 @@ def paste (f : Font) (dm : Dim) (W h : Nat) (text : String) (focused : Bool) (re
   let mut b := blank W h dm.theme
   let (b1, hh) := heading f dm b "Paste a link to join" (dm.px 24)
   let fy := dm.px 24 + hh + dm.px 40
-  let (b2, ft, fh) := field f dm b1 fy text "quiet://join/…" focused refusal.isSome
+  let (b2, ft, fh) := field f dm b1 fy text "Invite link" focused refusal.isSome
   b := b2
   let mut y := fy + fh + dm.px 8
   if let some r := refusal then

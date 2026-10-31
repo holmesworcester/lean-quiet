@@ -13,6 +13,19 @@ if args[1] == "ready" {
     }
     exit(0)
 }
+if args[1] == "front" {
+    print(NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0)
+    exit(0)
+}
+if args[1] == "away" {
+    // Finder to the front, so that a later activation is the app's own.
+    let finder=NSRunningApplication.runningApplications(withBundleIdentifier:"com.apple.finder")[0]
+    finder.activate(options:[])
+    precondition(AXUIElementSetAttributeValue(AXUIElementCreateApplication(finder.processIdentifier),
+        kAXFrontmostAttribute as CFString,kCFBooleanTrue) == .success)
+    usleep(600000)
+    exit(0)
+}
 if ["window", "key", "text"].contains(args[1]) {
     let pid=pid_t(args[2])!
     NSRunningApplication(processIdentifier:pid)?.activate(options:[])

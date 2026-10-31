@@ -37,6 +37,7 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
     let mut controls := s!"editor {x} {y} {x + (App.cursorAt d.app 5).2}\n"
     if let some pg := d.app.pageNow then
       for (box, action) in pg.taps do
+        controls := controls ++ s!"action {repr action} {d.layout.main.x + box.x + box.w/2} {App.topH d.app + box.y + box.h/2}\n"
         if let .theme choice := action then
           controls := controls ++ s!"choice {Theme.encode choice} {d.layout.main.x + box.x + box.w/2} {App.topH d.app + box.y + box.h/2}\n"
     for control in Desktop.scene d.layout d.height d.ui d.app do
@@ -46,10 +47,14 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
         controls := controls ++ s!"choice {Theme.encode choice} {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
       if control.action == .drawerAct .appearance then
         controls := controls ++ s!"appearance {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
+    controls := controls ++ s!"field {d.app.field}\n"
     controls := controls ++ s!"pointer {repr d.ui.hover} cursor {Desktop.cursor d}\n"
     controls := controls ++ s!"tap {d.app.input.lastTap[0]?.getD 0} {d.app.input.lastTap[1]?.getD 0} {d.app.input.lastTap[2]?.getD 0}\n"
     controls := controls ++ s!"zoom {zoomPercent d} dpi {d.dpi} cell {d.app.font.cell}\n"
     controls := controls ++ s!"drawer {repr d.ui.drawer}\n"
+    -- what a link did: the join it opened, or the toast that refused it
+    if let some i := d.app.invite then controls := controls ++ s!"invite {i.text}\n"
+    if let some (t, due) := d.app.toast then controls := controls ++ s!"toast {due} {t}\n"
     if let some bar := Desktop.scrollbar d.layout d.app then
       controls := controls ++ s!"scrollbar {bar.thumb.x} {bar.thumb.y} {bar.thumb.w} {bar.thumb.h} {bar.track.y} {bar.track.h} {bar.range}\n"
     IO.FS.writeFile (path ++ ".tmp") s!"{d.width} {d.height}\n{d.app.me.name}\n{repr d.ui.context}\n{repr d.app.page}\n{d.app.text}\n{d.app.total}\n{d.app.sel}\n{d.app.b}\n{controls}theme {Theme.encode d.app.theme.setting}\n"

@@ -188,12 +188,13 @@ Lean's runtime and nothing else.
   - fuzzing: 1,500 matrices with 0–29% of modules flipped and 300 frames
     with 0–24% of pixels replaced: 218 decoded right, 1,582 gave nothing,
     0 decoded to a wrong payload
-- the camera suite (tests/qr/camera.sh, tools/distort): the invite link
-  `quiet://join/` + 187 base62 characters (200 bytes; versions 9, 10, 12,
-  15 at L, M, Q, H), encoded by Lean and put into 640×480 frames with a
+- the camera suite (tests/qr/camera.sh, tools/distort): the invite link,
+  the join page `https://holmesworcester.github.io/lean-quiet/join#` + 206
+  base62 characters (256 bytes; versions 10, 12, 14, 17 at L, M, Q, H; the
+  app shows M), encoded by Lean and put into 640×480 frames with a
   perspective view, rotation, scale, blur, noise, uneven lighting, low
   contrast, partial occlusion and mirror images: 254 frames, 254 decoded,
-  37 ms a frame on average (69 ms the slowest) on this machine. The sweeps:
+  44 ms a frame on average (80 ms the slowest) on this machine. The sweeps:
   rotation 0–345°, perspective (the far edge shrunk 10–30%, five
   directions), 3–8 pixels a module, Gaussian blur σ 0.8–1.6 px, noise σ
   8–28, lighting gradients down to 15% brightness, contrast 25–40%, a
@@ -272,7 +273,8 @@ and a description, which Java shows on screen and logs under the tag
 Result on qr-harness-20261027 (API 36, x86_64, swiftshader, KVM): the
 camera delivers 1280×720 YUV frames; the virtual camera ends looking at
 the poster obliquely, with the dining table and a chair in front of its
-lower corner; Lean decodes the 200-byte invite (version 10, level M)
+lower corner; Lean decodes the 200-byte invite (version 10, level M; measured
+with the earlier `quiet://join/` link, before the join page made it 256 bytes)
 within a few seconds of the camera arriving, correcting 28 to 58
 codewords a frame (of 13 per block, 65 in all) in three runs. Decoding takes 260–450 ms
 a 1280×720 frame on the emulator (no downscaling). The log line:

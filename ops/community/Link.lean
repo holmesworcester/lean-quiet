@@ -169,16 +169,34 @@ def linkVersion : Nat := 1
 def Invite.bytes (i : Invite) : ByteArray :=
   encode (linkVersion, i.community, i.invitation, i.inviter, i.hints, i.secret)
 
-def scheme : List Char := "quiet://join/".toList
+/-- The join page (site/join in this repo). The fields ride after `#`,
+which a browser never sends to the server; the page hands them to the
+app as a `scheme` URI. -/
+def web : List Char := "https://holmesworcester.github.io/lean-quiet/join#".toList
 
-/-- The link's text: the scheme and the fields in base62. -/
-def Invite.text (i : Invite) : String := String.ofList (scheme ++ Base62.encode i.bytes.data.toList)
+/-- The app's own URI scheme: what the join page opens and the OS hands
+the app. -/
+def scheme : List Char := "leanquiet://join/".toList
+
+/-- The fields in base62. -/
+def Invite.code (i : Invite) : List Char := Base62.encode i.bytes.data.toList
+
+/-- The link's text, shared and shown as a QR code: the join page, with
+the fields after `#`. -/
+def Invite.text (i : Invite) : String := String.ofList (web ++ i.code)
+
+/-- The URI the join page opens: the scheme and the fields. -/
+def Invite.uri (i : Invite) : String := String.ofList (scheme ++ i.code)
+
+/-- The join page or the scheme in front, dropped; either is optional. -/
+def unprefix (cs : List Char) : List Char :=
+  if web.isPrefixOf cs then cs.drop web.length
+  else if scheme.isPrefixOf cs then cs.drop scheme.length else cs
 
 /-- An invite from text: whitespace anywhere is ignored (a link broken
-across lines still reads), the scheme is optional. -/
+across lines still reads); the join page or the scheme is optional. -/
 def Invite.parse (s : String) : Option Invite :=
-  let cs := s.toList.filter fun c => !c.isWhitespace
-  let cs := if scheme.isPrefixOf cs then cs.drop scheme.length else cs
+  let cs := unprefix (s.toList.filter fun c => !c.isWhitespace)
   match Base62.decode cs with
   | none => none
   | some bs =>
@@ -188,6 +206,8 @@ def Invite.parse (s : String) : Option Invite :=
       if v = linkVersion ∧ i.Valid then some i else none
     | none => none
 
+theorem web_not_ws : ∀ c ∈ web, c.isWhitespace = false := by decide
+
 theorem scheme_not_ws : ∀ c ∈ scheme, c.isWhitespace = false := by decide
 
 theorem isPrefixOf_self_append (l x : List Char) : l.isPrefixOf (l ++ x) = true := by
@@ -195,21 +215,45 @@ theorem isPrefixOf_self_append (l x : List Char) : l.isPrefixOf (l ++ x) = true 
   | nil => rfl
   | cons a t ih => simp [List.isPrefixOf, ih]
 
-/-- **A valid invite's text parses back to it.** -/
-theorem parse_text {i : Invite} (hv : i.Valid) : Invite.parse i.text = some i := by
-  unfold Invite.parse Invite.text
+/-- The page and the scheme differ in their first character, so a
+scheme URI is never read as the page. -/
+theorem web_not_prefix_scheme (x : List Char) : web.isPrefixOf (scheme ++ x) = false := by
+  rw [show web = 'h' :: web.tail by decide, show scheme = 'l' :: scheme.tail by decide]
+  rfl
+
+theorem unprefix_web (x : List Char) : unprefix (web ++ x) = x := by
+  simp [unprefix, isPrefixOf_self_append]
+
+theorem unprefix_scheme (x : List Char) : unprefix (scheme ++ x) = x := by
+  simp [unprefix, web_not_prefix_scheme, isPrefixOf_self_append]
+
+/-- A prefix with no whitespace that `unprefix` drops: the fields behind
+it parse back to the invite. -/
+theorem parse_code {i : Invite} (hv : i.Valid) (p : List Char)
+    (hp : ∀ c ∈ p, c.isWhitespace = false) (hu : unprefix (p ++ i.code) = i.code) :
+    Invite.parse (String.ofList (p ++ i.code)) = some i := by
+  unfold Invite.parse
   rw [String.toList_ofList]
-  have hf : (scheme ++ Base62.encode i.bytes.data.toList).filter (fun c => !c.isWhitespace) =
-      scheme ++ Base62.encode i.bytes.data.toList := by
+  have hf : (p ++ i.code).filter (fun c => !c.isWhitespace) = p ++ i.code := by
     refine List.filter_eq_self.2 fun c hc => ?_
     rcases List.mem_append.1 hc with hc | hc
-    · simp [scheme_not_ws c hc]
+    · simp [hp c hc]
     · simp [Base62.encode_not_ws _ c hc]
-  simp only [hf, isPrefixOf_self_append, ite_true, List.drop_left, Base62.decode_encode]
+  simp only [hf, hu]
+  unfold Invite.code
+  simp only [Base62.decode_encode]
   rw [show (⟨i.bytes.data.toList.toArray⟩ : ByteArray) = i.bytes from rfl, Invite.bytes,
     Codec.decode_encode]
   simp only
   rw [if_pos (by first | exact ⟨rfl, hv⟩ | exact ⟨trivial, hv⟩ | exact hv)]
+
+/-- **A valid invite's text (the join page link) parses back to it.** -/
+theorem parse_text {i : Invite} (hv : i.Valid) : Invite.parse i.text = some i :=
+  parse_code hv web web_not_ws (unprefix_web _)
+
+/-- **The URI the join page opens parses back to the same invite.** -/
+theorem parse_uri {i : Invite} (hv : i.Valid) : Invite.parse i.uri = some i :=
+  parse_code hv scheme scheme_not_ws (unprefix_scheme _)
 
 /-- **Whatever parses is valid.** -/
 theorem parse_valid {s : String} {i : Invite} (h : Invite.parse s = some i) : i.Valid := by
