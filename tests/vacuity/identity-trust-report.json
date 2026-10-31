@@ -1,0 +1,128 @@
+{
+  "connect_iff": {
+    "status": "runtime-witness",
+    "theorem": "Community.connect_iff",
+    "witness": "Vacuity.IdentityTrust.connectIff",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Reach-built nonempty signed store; all invariant fields proved, queue emptiness checked; Bob connects before removal and is refused afterward. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "deviceLive_iff": {
+    "status": "runtime-witness",
+    "theorem": "Community.deviceLive_iff",
+    "witness": "Vacuity.IdentityTrust.deviceLiveIff",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Admitted Bob is live before removal; removed Bob is not live afterward, including after another device joins his node. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "refuse_nonmember": {
+    "status": "runtime-witness",
+    "theorem": "Community.refuse_nonmember",
+    "witness": "Vacuity.IdentityTrust.refuseNonmember",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Actually admitted then removed Bob, not an empty outsider: singleton byKey rows prove every device at his node is cut. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "connect_approved": {
+    "status": "runtime-witness",
+    "theorem": "Community.connect_approved",
+    "witness": "Vacuity.IdentityTrust.connectApproved",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "The accepted key belongs to non-founder Bob, with actual invitation/approval/admission ancestry. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "connect_agree": {
+    "status": "runtime-witness",
+    "theorem": "Community.connect_agree",
+    "witness": "Vacuity.IdentityTrust.connectAgree",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Two real model stores ingest the signed ops in opposite orders; finite lookup checks plus reach_stored prove equality of their entire ops maps; both queues settle. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "removal_cuts_off": {
+    "status": "runtime-witness",
+    "theorem": "Community.removal_cuts_off",
+    "witness": "Vacuity.IdentityTrust.removalCutsOff",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Actual removal and admission facts; singleton byKey query proves the universally quantified node ownership premise. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "cut_stays": {
+    "status": "runtime-witness",
+    "theorem": "Community.cut_stays",
+    "witness": "Vacuity.IdentityTrust.cutStays",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Actual cut device plus a genuinely new op arrival. The ingestion extension is proved for arbitrary stores; fixture newness is checked. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "cut_consented": {
+    "status": "runtime-witness",
+    "theorem": "Community.cut_consented",
+    "witness": "Vacuity.IdentityTrust.cutConsented",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Actual removed Bob admission and removal construct Cut; theorem extracts his signed request binding. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "removals_iff": {
+    "status": "runtime-witness",
+    "theorem": "Community.removals_iff",
+    "witness": "Vacuity.IdentityTrust.removalsIff",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Actual removal of Bob in a nonempty settled store, alongside before/after live-members checks. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "recipients_iff": {
+    "status": "runtime-witness",
+    "theorem": "Community.recipients_iff",
+    "witness": "Vacuity.IdentityTrust.recipientsIff",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Before removal Bob is a content-key recipient; after removal his node is excluded. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "members_iff": {
+    "status": "runtime-witness",
+    "theorem": "Community.members_iff",
+    "witness": "Vacuity.IdentityTrust.membersIff",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Two live members before mutual removal, zero afterward; the actual list query is executed. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "connect_admitted": {
+    "status": "runtime-witness",
+    "theorem": "Community.connect_admitted",
+    "witness": "Vacuity.IdentityTrust.connectAdmitted",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Actual root/request/approval premises, a singleton distinct-approver proof, and deviceLive-derived unremoved premise accept Bob. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "endpoint_signed": {
+    "status": "runtime-witness",
+    "theorem": "Community.endpoint_signed",
+    "witness": "Vacuity.IdentityTrust.endpointSigned",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Actual non-founder admission of Bob binds his distinct node key under his request signature. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "endpoint_derives": {
+    "status": "runtime-witness",
+    "theorem": "Community.endpoint_derives",
+    "witness": "Vacuity.IdentityTrust.endpointDerives",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Production SHA-256 creates a deterministic 32-byte test seed; the actual X25519 endpoint fact derives its public key. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "profile_authorized": {
+    "status": "runtime-witness",
+    "theorem": "Community.profile_authorized",
+    "witness": "Vacuity.IdentityTrust.profileAuthorized",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Bob signs a nonempty profile; Mallory signing a profile while citing Bob is rejected. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "new_device_trusted": {
+    "status": "runtime-witness",
+    "theorem": "Community.new_device_trusted",
+    "witness": "Vacuity.IdentityTrust.newDeviceTrusted",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Carol is a new device/user admitted under removed Bob's node key; Carol becomes live while Bob stays cut. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "mine_not_removed": {
+    "status": "runtime-witness",
+    "theorem": "Community.mine_not_removed",
+    "witness": "Vacuity.IdentityTrust.mineNotRemoved",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Actual local acceptance plus device secret selects Bob before removal; missing secret and removed Bob both return no held entry. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "no_renaming": {
+    "status": "conditional",
+    "theorem": "Community.no_renaming",
+    "witness": "Vacuity.IdentityTrust.noRenaming",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Actual valid signed profile premise witnessed; global Unforgeable ed25519 Signed remains unresolved by finite data. Wrong-device profile is rejected. No artificial signing-history predicate substitutes for the crypto assumption."
+  }
+}
