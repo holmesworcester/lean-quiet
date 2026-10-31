@@ -1,0 +1,37 @@
+{
+  "fit_small": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Pictures",
+    "theorem": "Pic.fit_small",
+    "witness": "Vacuity.Pictures.small",
+    "detail": "640 × 480 photo fits edge 2048 and remains unchanged."
+  },
+  "fit_le": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Pictures",
+    "theorem": "Pic.fit_le",
+    "witness": "Vacuity.Pictures.bounded",
+    "detail": "4032 × 3024 photo fits within 2048; exact result 2048 × 1536."
+  },
+  "fit_pos": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Pictures",
+    "theorem": "Pic.fit_pos",
+    "witness": "Vacuity.Pictures.positive",
+    "detail": "Positive photo dimensions produce positive scaled dimensions."
+  },
+  "fit_long": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Pictures",
+    "theorem": "Pic.fit_long",
+    "witness": "Vacuity.Pictures.longSide",
+    "detail": "4032 × 3024 exceeds edge 2048; longer result side is exactly 2048."
+  },
+  "fit_round": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Pictures",
+    "theorem": "Pic.fit_round",
+    "witness": "Vacuity.Pictures.rounding",
+    "detail": "Portrait 3024 × 4032 satisfies scaling premise; shorter result side 1536."
+  }
+}

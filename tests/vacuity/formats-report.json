@@ -1,0 +1,79 @@
+{
+  "parse_segsBits": {
+    "status": "kernel-witness",
+    "theorem": "Qr.parse_segsBits",
+    "witness": "Vacuity.Formats.segmentRound",
+    "module": "tests.vacuity.Formats",
+    "detail": "Version 1, numeric 123, alphanumeric QUIET and binary 00 FE FF segments with terminator; every segment validity premise proved."
+  },
+  "Qr.parse_valid": {
+    "status": "kernel-witness",
+    "theorem": "Qr.parse_valid",
+    "witness": "Vacuity.Formats.segmentSound",
+    "module": "tests.vacuity.Formats",
+    "detail": "Successful parse of three nonempty segments; decoder soundness applied to each segment."
+  },
+  "parse_dataStream": {
+    "status": "kernel-witness",
+    "theorem": "Qr.parse_dataStream",
+    "witness": "Vacuity.Formats.streamRound",
+    "module": "tests.vacuity.Formats",
+    "detail": "Three nonempty segments fit 19 data codewords and roundtrip; one-byte capacity is rejected."
+  },
+  "decodeFormat_correct": {
+    "status": "kernel-witness",
+    "theorem": "Qr.decodeFormat_correct",
+    "witness": "Vacuity.Formats.formatRound",
+    "module": "tests.vacuity.Formats",
+    "detail": "Level M, mask 3, exactly three flipped format bits; Hamming-distance premise proved, four-flip premise rejected."
+  },
+  "decodeVersion_correct": {
+    "status": "kernel-witness",
+    "theorem": "Qr.decodeVersion_correct",
+    "witness": "Vacuity.Formats.versionRound",
+    "module": "tests.vacuity.Formats",
+    "detail": "Version 7 with three flipped BCH bits; legal-version and distance premises proved."
+  },
+  "RS.correct_clean": {
+    "status": "kernel-witness",
+    "theorem": "Qr.RS.correct_clean",
+    "witness": "Vacuity.Formats.rsUnchanged",
+    "module": "tests.vacuity.Formats",
+    "detail": "Nonzero ABC payload and two parity symbols; actual zero syndromes proved and clean block unchanged."
+  },
+  "RS.correct_sound": {
+    "status": "kernel-witness",
+    "theorem": "Qr.RS.correct_sound",
+    "witness": "Vacuity.Formats.rsSound",
+    "module": "tests.vacuity.Formats",
+    "detail": "One symbol corrupted in ABC plus two parity symbols; successful correction premise proved and soundness theorem applied."
+  },
+  "Mdns.decode_encode": {
+    "status": "kernel-witness",
+    "theorem": "Mdns.decode_encode",
+    "witness": "Vacuity.Formats.announcementRound",
+    "module": "tests.vacuity.Formats",
+    "detail": "Nonempty service query, IPv4 and SRV answers; all name, record and count premises proved."
+  },
+  "Mdns.decode_valid": {
+    "status": "kernel-witness",
+    "theorem": "Mdns.decode_valid",
+    "witness": "Vacuity.Formats.announcementSound",
+    "module": "tests.vacuity.Formats",
+    "detail": "Successful nonempty DNS service announcement parse; malformed IPv4 length and truncated packet controls."
+  },
+  "decode_valid": {
+    "status": "kernel-witness",
+    "theorem": "Mdns.decode_valid",
+    "witness": "Vacuity.Formats.announcementSound",
+    "module": "tests.vacuity.Formats",
+    "detail": "Same DNS soundness theorem under a second README reference label."
+  },
+  "decode_roundtrip": {
+    "status": "kernel-witness",
+    "theorem": "Mdns.decode_roundtrip",
+    "witness": "Vacuity.Formats.decodedRound",
+    "module": "tests.vacuity.Formats",
+    "detail": "Service discovery query and two answers survive decode/re-encode; localhost example identities, documentation IPv4 address."
+  }
+}

@@ -14,63 +14,63 @@
     "detail": "Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count."
   },
   "present_nodup": {
-    "status": "runtime-witness",
+    "status": "kernel-witness",
     "theorem": "PeopleLaws.present_nodup",
     "witness": "Vacuity.IdentityPeople.presentNodup",
     "module": "tests.vacuity.IdentityPeople",
     "detail": "Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count."
   },
   "unremoved_lists": {
-    "status": "runtime-witness",
+    "status": "kernel-witness",
     "theorem": "PeopleLaws.unremoved_lists",
     "witness": "Vacuity.IdentityPeople.unremovedLists",
     "module": "tests.vacuity.IdentityPeople",
     "detail": "Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count."
   },
   "deviceLive_lists": {
-    "status": "runtime-witness",
+    "status": "kernel-witness",
     "theorem": "PeopleLaws.deviceLive_lists",
     "witness": "Vacuity.IdentityPeople.deviceLiveLists",
     "module": "tests.vacuity.IdentityPeople",
     "detail": "Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count."
   },
   "live_lists_ge": {
-    "status": "runtime-witness",
+    "status": "kernel-witness",
     "theorem": "PeopleLaws.live_lists_ge",
     "witness": "Vacuity.IdentityPeople.liveListsGe",
     "module": "tests.vacuity.IdentityPeople",
     "detail": "Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count."
   },
   "live_lists_le": {
-    "status": "runtime-witness",
+    "status": "kernel-witness",
     "theorem": "PeopleLaws.live_lists_le",
     "witness": "Vacuity.IdentityPeople.liveListsLe",
     "module": "tests.vacuity.IdentityPeople",
     "detail": "Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count."
   },
   "presentW_lists_eq": {
-    "status": "runtime-witness",
+    "status": "kernel-witness",
     "theorem": "PeopleLaws.presentW_lists_eq",
     "witness": "Vacuity.IdentityPeople.presentWListsEq",
     "module": "tests.vacuity.IdentityPeople",
     "detail": "Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count."
   },
   "present_lists_eq": {
-    "status": "runtime-witness",
+    "status": "kernel-witness",
     "theorem": "PeopleLaws.present_lists_eq",
     "witness": "Vacuity.IdentityPeople.presentListsEq",
     "module": "tests.vacuity.IdentityPeople",
     "detail": "Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count."
   },
   "present_scans": {
-    "status": "runtime-witness",
+    "status": "kernel-witness",
     "theorem": "PeopleLaws.present_scans",
     "witness": "Vacuity.IdentityPeople.presentScans",
     "module": "tests.vacuity.IdentityPeople",
     "detail": "Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count."
   },
   "presentW_lists": {
-    "status": "runtime-witness",
+    "status": "kernel-witness",
     "theorem": "PeopleLaws.presentW_lists",
     "witness": "Vacuity.IdentityPeople.presentWLists",
     "module": "tests.vacuity.IdentityPeople",

@@ -429,6 +429,7 @@ description = "Shared phone switcher: native densities, identity, real tap dispa
 run = "tests/app/mobile_switcher.sh"
 
 [tasks."test:vacuity"]
+depends = ["crypto"]
 description = "Build production laws, kernel-check concrete premise witnesses, reject broken fixtures and check the complete README inventory"
 run = "bash tests/vacuity/check.sh"
 

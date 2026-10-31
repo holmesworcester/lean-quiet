@@ -14,7 +14,7 @@
     "detail": "Successful owned row read with exact plaintext/author/time and two subscriptions. Missing/different content key yields no row. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution."
   },
   "profile_read": {
-    "status": "runtime-witness",
+    "status": "kernel-witness",
     "theorem": "ViewLaws.profile_read",
     "witness": "Vacuity.IdentityMessages.profileRead",
     "module": "tests.vacuity.IdentityMessages",
@@ -42,14 +42,14 @@
     "detail": "Two real signed sealed messages read oldest first; exact returned IDs match increasing counters despite reversed wall-clock times. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution."
   },
   "msg_cmp": {
-    "status": "runtime-witness",
+    "status": "kernel-witness",
     "theorem": "Community.msg_cmp",
     "witness": "Vacuity.IdentityMessages.messageCompare",
     "module": "tests.vacuity.IdentityMessages",
     "detail": "Concrete signed messages with counters 1/2 and reversed wall-clock times; actual comparator returns less-than. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution."
   },
   "time_is_display": {
-    "status": "runtime-witness",
+    "status": "kernel-witness",
     "theorem": "Community.time_is_display",
     "witness": "Vacuity.IdentityMessages.timeIsDisplay",
     "module": "tests.vacuity.IdentityMessages",
