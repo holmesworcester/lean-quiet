@@ -32,7 +32,7 @@ def adminRemoval : Option (PLift (V ed25519 (table after) removeB.id (.removal c
 -- The same request approved before removal is admitted after both admins leave.
 def removedApprover : Option (PLift (V ed25519 (table after) admission.id bobFact)) := do
   let ⟨hc⟩ ← certify after r rootFact
-  let ⟨hr⟩ ← certify after requestB (.request c requestB.id bob.pk (keyOf bob) false 1)
+  let ⟨hr⟩ ← certify after requestB (.request c requestB.id bob.pk (keyOf bob) false)
   let ⟨ha⟩ ← certify after approval (.approval c requestB.id c)
   let ⟨hm⟩ ← certify after removeA (.removal c c requestB.id)
   if hy : table after admission.id = some admission then
@@ -40,9 +40,9 @@ def removedApprover : Option (PLift (V ed25519 (table after) admission.id bobFac
   else none
 
 def requestValid : Option (PLift (V ed25519 (table after) requestB.id
-    (.request c requestB.id bob.pk (keyOf bob) false 1))) := do
+    (.request c requestB.id bob.pk (keyOf bob) false))) := do
   let ⟨hc⟩ ← certify after r rootFact
-  let ⟨hi⟩ ← certify after invitation (.invitation c c bearer.pk false 1)
+  let ⟨hi⟩ ← certify after invitation (.invitation c c bearer.pk false)
   let cs := sig bob.sk [c, invitation.id] (.request bob.pk (keyOf bob) .empty .empty)
   let bs := sig bearer.sk [c, invitation.id] (.request bob.pk (keyOf bob) .empty .empty)
   if hx : table after requestB.id = some requestB then
@@ -54,7 +54,7 @@ def requestValid : Option (PLift (V ed25519 (table after) requestB.id
 
 def approveValid : Option (PLift (V ed25519 (table after) approval.id (.approval c requestB.id c))) := do
   let ⟨hc⟩ ← certify after r rootFact
-  let ⟨hr⟩ ← certify after requestB (.request c requestB.id bob.pk (keyOf bob) false 1)
+  let ⟨hr⟩ ← certify after requestB (.request c requestB.id bob.pk (keyOf bob) false)
   let sg := sig alice.sk [c, requestB.id, c] (.approve .empty)
   if hx : table after approval.id = some approval then
     if hs : ed25519.verify alice.pk (signed approval (.approve sg)) sg = true ∧ alice.pk ≠ bob.pk then
@@ -64,11 +64,10 @@ def approveValid : Option (PLift (V ed25519 (table after) approval.id (.approval
 
 def admitAdmits : Option (PLift (V ed25519 (table after) admission.id bobFact)) := do
   let ⟨hc⟩ ← certify after r rootFact
-  let ⟨hr⟩ ← certify after requestB (.request c requestB.id bob.pk (keyOf bob) false 1)
+  let ⟨hr⟩ ← certify after requestB (.request c requestB.id bob.pk (keyOf bob) false)
   let ⟨ha⟩ ← certify after approval (.approval c requestB.id c)
   if hx : table after admission.id = some admission then
-    return ⟨admit_admits (us := [c]) hx (decode_encode _) rfl rfl hc hr
-      (.cons ha .nil) (by simp) rfl⟩
+    return ⟨admit_admits hx (decode_encode _) rfl rfl hc hr ha⟩
   else none
 
 -- Named certificates make the README's evidence traceable one law at a time.
@@ -82,7 +81,7 @@ def admissionNeedsApproval := applyLaw (certify after admission bobFact)
 def admissionApproved := applyLaw (certify after admission bobFact)
   (admission_approved (keyed after))
 def requestInvited := applyLaw
-  (certify after requestB (.request c requestB.id bob.pk (keyOf bob) false 1))
+  (certify after requestB (.request c requestB.id bob.pk (keyOf bob) false))
   (request_invited (keyed after))
 def removalAuthorized := applyLaw
   (certify after removeB (.removal c requestB.id c)) removal_authorized
@@ -90,7 +89,7 @@ def adminGranted := applyLaw (certify after grantB (.admin c requestB.id)) admin
 def approvalSigned := applyLaw
   (certify after approval (.approval c requestB.id c)) approval_signed
 def invitationIssued := applyLaw
-  (certify after invitation (.invitation c c bearer.pk false 1)) invitation_issued
+  (certify after invitation (.invitation c c bearer.pk false)) invitation_issued
 def admissionConsented := applyLaw (certify after admission bobFact) admission_consented
 def namedByAdmin := applyLaw
   (certify after renamed (.named c c "Vacuity test community".toUTF8 1)) named_by_admin
@@ -128,16 +127,16 @@ def main : IO UInt32 := do
   t.ok "removed_approver_admits: removed Alice's approval still admits Bob" removedApprover.isSome
   t.ok "request_valid: invitation and two checked signatures" requestValid.isSome
   t.ok "approve_valid: distinct member signs approval" approveValid.isSome
-  t.ok "admit_admits: exact threshold of distinct approvals" admitAdmits.isSome
+  t.ok "admit_admits: one approval" admitAdmits.isSome
   -- Independently observed outcomes and failures: these are executed, not erased proofs.
   t.ok "non-founder and distinct devices" (requestB.id != c && alice.pk != bob.pk)
   t.ok "removals do not erase Bob's history" (certify after message messageFact).isSome
   t.ok "actual extension has a new op" (table after laterMessage.id == none)
   t.ok "real content and counter" (!message.body.isEmpty && messageFact != rootFact)
   let forged := post c admission.id mallory "content-key-1".toUTF8 "I am Bob".toUTF8 2 29880001
-  let bare := admit c requestB.id []
+  let bare := mkOp [c, requestB.id] .admit
   let selfApproval := approve c requestB.id admission.id bob
-  let duplicateAdmission := admit c requestB.id [approval.id, approval.id]
+  let duplicateAdmission := mkOp [c, requestB.id, approval.id, approval.id] .admit
   let noBearer := request c invitation.id mallory (keyOf mallory) mallory.sk
   let forgedRemoval := remove c admission.id admission.id c bob
   for (label,o) in [("forged post",forged),("missing approval",bare),

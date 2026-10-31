@@ -46,12 +46,10 @@ theorem signed_eq (o : Op) (b : Body) : signed o b = toSign o.reqs b := rfl
 def root (d : Device) (key : Key) : Op :=
   mkOp [] (.root d.pk key (sig d.sk [] (.root d.pk key .empty)))
 
-/-- An invitation needing `threshold` approvals (one by default; a link
-invitation needs exactly one). -/
-def invite (c issuerAdm : Id) (by_ : Device) (bearer : Key) (link : Bool)
-    (threshold : Nat := 1) : Op :=
+/-- An invitation: a request it carries is admitted by one approval. -/
+def invite (c issuerAdm : Id) (by_ : Device) (bearer : Key) (link : Bool) : Op :=
   let reqs := [c, issuerAdm]
-  mkOp reqs (.invite bearer link threshold (sig by_.sk reqs (.invite bearer link threshold .empty)))
+  mkOp reqs (.invite bearer link (sig by_.sk reqs (.invite bearer link .empty)))
 
 /-- Device d's request to join through invitation inv, from the node with
 key `key`: d signs both keys, and so does the bearer key. -/
@@ -65,8 +63,8 @@ def approve (c req adm : Id) (by_ : Device) : Op :=
   let reqs := [c, req, adm]
   mkOp reqs (.approve (sig by_.sk reqs (.approve .empty)))
 
-/-- The admission of request req by these approvals. -/
-def admit (c req : Id) (approvals : List Id := []) : Op := mkOp (c :: req :: approvals) .admit
+/-- The admission of request req by its approval `ok`. -/
+def admit (c req ok : Id) : Op := mkOp [c, req, ok] .admit
 
 def grant (c granterAdm auth targetAdm : Id) (by_ : Device) : Op :=
   let reqs := [c, granterAdm, auth, targetAdm]

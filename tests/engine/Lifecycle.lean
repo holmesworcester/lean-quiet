@@ -229,10 +229,12 @@ def main (args : List String) : IO UInt32 := do
   t.ok "none of B's local ops land on A" (!held.any fun o => wj.ops.any fun l => l.id == o.id && l.id != req.id)
   t.ok "A sees the request pending" ((← rows a (request.all.query [c])).length == 1)
 
-  -- A approves: its approval completes the tally, so it admits B.
+  -- A approves: one approval admits, so its write admits B.
   let wa ← ((approveReq c req.id c dA (sha256 "esk 2".toUTF8)).run : SqlM Fact Write).run a
   t.ok "approving composes the approval, the admission and the key's wrap to B"
     (wa.ops.length == 3)
+  t.ok "the admission cites the request and exactly that approval"
+    ((wa.ops[1]?.map (·.reqs)) == some [c, req.id, (wa.ops[0]?.map (·.id)).getD .empty])
   mine a wa
   t.ok "A now lets B's node in" (← ((allowPeer c keyB).run : SqlM Fact Bool).run a)
 

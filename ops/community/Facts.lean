@@ -4,13 +4,14 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
 
 - The root founds the community; its fact is the founder's admission,
   and the founder's user is the community id. The founder is admin.
-- An invite is issued by an admitted device, with a threshold: how
-  many members must approve a request it carries, at least one (the
-  user's decision, 2026-10-27: approvals are always needed; they are
-  where key-material wraps to the new device will hang). A link
-  invitation (another device for the issuer's user) needs exactly one
-  approval, by the issuer's user, as libquiet's unbound device links
-  do. There is no open link: the bearer key alone admits nobody.
+- An invite is issued by an admitted device. A request it carries is
+  admitted by one approval (the user's decisions: 2026-10-27,
+  approvals are always needed, and they are where key-material wraps to
+  the new device hang; 2026-10-31, no thresholds, since one member can
+  mint the distinct users any threshold would count). A link invitation
+  (another device for the issuer's user) is approved by the issuer's
+  user only, as libquiet's unbound device links are. There is no open
+  link: the bearer key alone admits nobody.
 - A request redeems an invitation: the requesting device consents
   (signs), and so does the invitation's bearer key from the link. A
   request admits nobody. It is libquiet's Join before its vouches.
@@ -18,13 +19,12 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   than the requester's; a link request is approved by the issuer's user
   only. It cites the request, so approvals come after the request
   without the engine needing forward needs.
-- An admission of a request is a tally: it cites the request and
-  exactly `threshold` approvals of it, by distinct users. It is
-  unsigned (anyone holding the approvals may compose it), and its fact
-  is the admission: into a new user named by the request for a member
-  invitation, into the issuer's user for a link invitation. Several
-  admits of one request (other sets of approvals) all give that same
-  admission fact.
+- An admission of a request cites the request and exactly one
+  approval of it. It is unsigned (anyone holding the approval may
+  compose it), and its fact is the admission: into a new user named by
+  the request for a member invitation, into the issuer's user for a link
+  invitation. Several admits of one request (citing other approvals) all
+  give that same admission fact.
 - A request is body tag 12; tag 2 (the old join, of the same shape) no
   longer decodes, so an old op is refused rather than misread.
 - An admin grants admin to another user. Admin cannot be revoked.
@@ -109,7 +109,7 @@ structure Crypto where
 
 inductive Fact where
   | admission (c u : Id) (device enc : Key)
-  | invitation (c issuer : Id) (bearer : Key) (link : Bool) (threshold : Nat)
+  | invitation (c issuer : Id) (bearer : Key) (link : Bool)
   | admin (c u : Id)
   | removal (c u by_ : Id)
   | message (c u : Id) (device ckey text : ByteArray) (n time : Nat) (clump : Option Id := none)
@@ -117,7 +117,7 @@ inductive Fact where
   | profile (c u : Id) (name : ByteArray) (time : Nat)
   | attachment (c msg u root : Id) (len : Nat) (kid sealed : ByteArray)
   | react (c u target : Id) (emoji : ByteArray) (time : Nat)
-  | request (c u : Id) (device enc : Key) (link : Bool) (threshold : Nat)
+  | request (c u : Id) (device enc : Key) (link : Bool)
   | approval (c req u : Id)
   | secret (pk seed : ByteArray)
   | accepted (c : Id) (device : Key)
@@ -133,7 +133,7 @@ inductive Fact where
 
 inductive Body where
   | root (device enc sig : ByteArray)
-  | invite (bearer : Key) (link : Bool) (threshold : Nat) (sig : ByteArray)
+  | invite (bearer : Key) (link : Bool) (sig : ByteArray)
   | request (device enc consent bearerSig : ByteArray)
   | grant (sig : ByteArray)
   | remove (sig : ByteArray)
@@ -169,7 +169,7 @@ theorem decAs_enc {α β} [Codec α] (f : α → β) (a : α) (rest : List UInt8
 
 def Body.enc : Body → List UInt8
   | .root d e s => 0 :: Codec.enc (d, e, s)
-  | .invite k l t s => 1 :: Codec.enc (k, l, t, s)
+  | .invite k l s => 1 :: Codec.enc (k, l, s)
   | .request d e c b => 12 :: Codec.enc (d, e, c, b)
   | .grant s => 3 :: Codec.enc s
   | .remove s => 4 :: Codec.enc s
@@ -192,7 +192,7 @@ def Body.enc : Body → List UInt8
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B) => Body.root p.1 p.2.1 p.2.2) r
-  | 1 :: r => decAs (fun (p : B × Bool × Nat × B) => Body.invite p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 1 :: r => decAs (fun (p : B × Bool × B) => Body.invite p.1 p.2.1 p.2.2) r
   | 3 :: r => decAs (fun (p : B) => Body.grant p) r
   | 4 :: r => decAs (fun (p : B) => Body.remove p) r
   | 6 :: r => decAs (fun (p : B × B × B) => Body.wrap p.1 p.2.1 p.2.2) r
@@ -221,7 +221,7 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
 /-- `Body.enc`, as it runs: appended to a buffer (`Engine.Codec`). -/
 def Body.encInto (buf : ByteArray) : Body → ByteArray
   | .root d e s => Codec.encInto (buf.push 0) (d, e, s)
-  | .invite k l t s => Codec.encInto (buf.push 1) (k, l, t, s)
+  | .invite k l s => Codec.encInto (buf.push 1) (k, l, s)
   | .request d e c b => Codec.encInto (buf.push 12) (d, e, c, b)
   | .grant s => Codec.encInto (buf.push 3) s
   | .remove s => Codec.encInto (buf.push 4) s
@@ -246,7 +246,7 @@ def Body.encInto (buf : ByteArray) : Body → ByteArray
 def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
   match b[i]? with
   | some 0 => decFromAs (fun (p : B × B × B) => Body.root p.1 p.2.1 p.2.2) b (i + 1)
-  | some 1 => decFromAs (fun (p : B × Bool × Nat × B) => Body.invite p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
+  | some 1 => decFromAs (fun (p : B × Bool × B) => Body.invite p.1 p.2.1 p.2.2) b (i + 1)
   | some 3 => decFromAs (fun (p : B) => Body.grant p) b (i + 1)
   | some 4 => decFromAs (fun (p : B) => Body.remove p) b (i + 1)
   | some 6 => decFromAs (fun (p : B × B × B) => Body.wrap p.1 p.2.1 p.2.2) b (i + 1)
@@ -288,7 +288,7 @@ instance : Codec Body where
 
 def Fact.enc : Fact → List UInt8
   | .admission c u d e => 0 :: Codec.enc (c, u, d, e)
-  | .invitation c i k l t => 1 :: Codec.enc (c, i, k, l, t)
+  | .invitation c i k l => 1 :: Codec.enc (c, i, k, l)
   | .admin c u => 2 :: Codec.enc (c, u)
   | .removal c u b => 3 :: Codec.enc (c, u, b)
   | .message c u d k t n tm none => 21 :: Codec.enc (c, u, d, k, t, n, tm)
@@ -297,7 +297,7 @@ def Fact.enc : Fact → List UInt8
   | .profile c u n tm => 6 :: Codec.enc (c, u, n, tm)
   | .attachment c m u r l k x => 7 :: Codec.enc (c, m, u, r, l, k, x)
   | .react c u t e tm => 8 :: Codec.enc (c, u, t, e, tm)
-  | .request c u d e l t => 9 :: Codec.enc (c, u, d, e, l, t)
+  | .request c u d e l => 9 :: Codec.enc (c, u, d, e, l)
   | .approval c r u => 10 :: Codec.enc (c, r, u)
   | .secret pk seed => 11 :: Codec.enc (pk, seed)
   | .accepted c d => 12 :: Codec.enc (c, d)
@@ -312,8 +312,8 @@ def Fact.enc : Fact → List UInt8
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B × B) => Fact.admission p.1 p.2.1 p.2.2.1 p.2.2.2) r
-  | 1 :: r => decAs (fun (p : B × B × B × Bool × Nat) =>
-      Fact.invitation p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
+  | 1 :: r => decAs (fun (p : B × B × B × Bool) =>
+      Fact.invitation p.1 p.2.1 p.2.2.1 p.2.2.2) r
   | 2 :: r => decAs (fun (p : B × B) => Fact.admin p.1 p.2) r
   | 3 :: r => decAs (fun (p : B × B × B) => Fact.removal p.1 p.2.1 p.2.2) r
   | 5 :: r => decAs (fun (p : B × B × B × B) => Fact.wrap p.1 p.2.1 p.2.2.1 p.2.2.2) r
@@ -321,8 +321,8 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 7 :: r => decAs (fun (p : B × B × B × B × Nat × B × B) =>
       Fact.attachment p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) r
   | 8 :: r => decAs (fun (p : B × B × B × B × Nat) => Fact.react p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
-  | 9 :: r => decAs (fun (p : B × B × B × B × Bool × Nat) =>
-      Fact.request p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2) r
+  | 9 :: r => decAs (fun (p : B × B × B × B × Bool) =>
+      Fact.request p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 10 :: r => decAs (fun (p : B × B × B) => Fact.approval p.1 p.2.1 p.2.2) r
   | 11 :: r => decAs (fun (p : B × B) => Fact.secret p.1 p.2) r
   | 12 :: r => decAs (fun (p : B × B) => Fact.accepted p.1 p.2) r
@@ -344,7 +344,7 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
 /-- `Fact.enc`, as it runs: appended to a buffer (`Engine.Codec`). -/
 def Fact.encInto (buf : ByteArray) : Fact → ByteArray
   | .admission c u d e => Codec.encInto (buf.push 0) (c, u, d, e)
-  | .invitation c i k l t => Codec.encInto (buf.push 1) (c, i, k, l, t)
+  | .invitation c i k l => Codec.encInto (buf.push 1) (c, i, k, l)
   | .admin c u => Codec.encInto (buf.push 2) (c, u)
   | .removal c u b => Codec.encInto (buf.push 3) (c, u, b)
   | .message c u d k t n tm none => Codec.encInto (buf.push 21) (c, u, d, k, t, n, tm)
@@ -353,7 +353,7 @@ def Fact.encInto (buf : ByteArray) : Fact → ByteArray
   | .profile c u n tm => Codec.encInto (buf.push 6) (c, u, n, tm)
   | .attachment c m u r l k x => Codec.encInto (buf.push 7) (c, m, u, r, l, k, x)
   | .react c u t e tm => Codec.encInto (buf.push 8) (c, u, t, e, tm)
-  | .request c u d e l t => Codec.encInto (buf.push 9) (c, u, d, e, l, t)
+  | .request c u d e l => Codec.encInto (buf.push 9) (c, u, d, e, l)
   | .approval c r u => Codec.encInto (buf.push 10) (c, r, u)
   | .secret pk seed => Codec.encInto (buf.push 11) (pk, seed)
   | .accepted c d => Codec.encInto (buf.push 12) (c, d)
@@ -370,8 +370,8 @@ def Fact.encInto (buf : ByteArray) : Fact → ByteArray
 def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
   match b[i]? with
   | some 0 => decFromAs (fun (p : B × B × B × B) => Fact.admission p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
-  | some 1 => decFromAs (fun (p : B × B × B × Bool × Nat) =>
-      Fact.invitation p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
+  | some 1 => decFromAs (fun (p : B × B × B × Bool) =>
+      Fact.invitation p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
   | some 2 => decFromAs (fun (p : B × B) => Fact.admin p.1 p.2) b (i + 1)
   | some 3 => decFromAs (fun (p : B × B × B) => Fact.removal p.1 p.2.1 p.2.2) b (i + 1)
   | some 5 => decFromAs (fun (p : B × B × B × B) => Fact.wrap p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
@@ -379,8 +379,8 @@ def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
   | some 7 => decFromAs (fun (p : B × B × B × B × Nat × B × B) =>
       Fact.attachment p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2) b (i + 1)
   | some 8 => decFromAs (fun (p : B × B × B × B × Nat) => Fact.react p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
-  | some 9 => decFromAs (fun (p : B × B × B × B × Bool × Nat) =>
-      Fact.request p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2) b (i + 1)
+  | some 9 => decFromAs (fun (p : B × B × B × B × Bool) =>
+      Fact.request p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
   | some 10 => decFromAs (fun (p : B × B × B) => Fact.approval p.1 p.2.1 p.2.2) b (i + 1)
   | some 11 => decFromAs (fun (p : B × B) => Fact.secret p.1 p.2) b (i + 1)
   | some 12 => decFromAs (fun (p : B × B) => Fact.accepted p.1 p.2) b (i + 1)
@@ -417,7 +417,7 @@ instance : Codec Fact where
 /-- The body with its signatures blanked: what the signatures cover. -/
 def Body.unsigned : Body → Body
   | .root d e _ => .root d e .empty
-  | .invite k l t _ => .invite k l t .empty
+  | .invite k l _ => .invite k l .empty
   | .request d e _ _ => .request d e .empty .empty
   | .grant _ => .grant .empty
   | .remove _ => .remove .empty
@@ -461,13 +461,6 @@ ordered by this device's receipt of it (`received`). Below 2^64, so a
 counter and the cap fit the 8 bytes a sort key gives them. -/
 def countCap : Nat := 2 ^ 63
 
-/-- The users of these facts, if every one approves request r of c. -/
-def approvers (c r : Id) : List Fact → Option (List Id)
-  | [] => some []
-  | .approval c' r' u :: rest =>
-    if c' = c ∧ r' = r then (approvers c r rest).map (u :: ·) else none
-  | _ :: _ => none
-
 /-- The highest counter of these names of c (0 for none), if every fact
 is one. -/
 def prevMax (c : Id) : List Fact → Option Nat
@@ -481,35 +474,29 @@ def counterOk (c : Id) (n : Nat) (fs : List Fact) : Bool :=
   | some m => decide (n = m + 1)
   | none => false
 
-/-- Whether these facts are exactly t approvals of request r of c, by
-t distinct users. -/
-def tally (c r : Id) (t : Nat) (fs : List Fact) : Bool :=
-  match approvers c r fs with
-  | some us => decide (us.Nodup ∧ us.length = t)
-  | none => false
-
 /-- An op's validator, by its body, over the facts its requirements
 produced (slot order). Slot 0 is the community's root, whose fact is
 the founder's admission with the community's id. -/
 def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
   | .root d e s, [] =>
     if C.verify d (signed o (.root d e s)) s then some (.admission o.id o.id d e) else none
-  | .invite k l t s, [.admission c u0 _ _, .admission c' u d _] =>
-    if o.reqs.head? = some c ∧ u0 = c ∧ c' = c ∧ 1 ≤ t ∧ (l = true → t = 1) ∧
-      C.verify d (signed o (.invite k l t s)) s
-    then some (.invitation c u k l t) else none
-  | .request d e cs bs, [.admission c u0 _ _, .invitation c' issuer k l t] =>
+  | .invite k l s, [.admission c u0 _ _, .admission c' u d _] =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ c' = c ∧ C.verify d (signed o (.invite k l s)) s
+    then some (.invitation c u k l) else none
+  | .request d e cs bs, [.admission c u0 _ _, .invitation c' issuer k l] =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c' = c ∧ C.verify d (signed o (.request d e cs bs)) cs ∧
       C.verify k (signed o (.request d e cs bs)) bs
-    then some (.request c (if l then issuer else o.id) d e l t) else none
+    then some (.request c (if l then issuer else o.id) d e l) else none
   -- The pattern forces exactly three requirements, so slot 1 is the
   -- request the approval names.
-  | .approve s, [.admission c u0 _ _, .request c1 u d _ l _, .admission c2 a da _] =>
+  | .approve s, [.admission c u0 _ _, .request c1 u d _ l, .admission c2 a da _] =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ (l = true → a = u) ∧ da ≠ d ∧
       C.verify da (signed o (.approve s)) s
     then some (.approval c (o.reqs.getD 1 .empty) a) else none
-  | .admit, .admission c u0 _ _ :: .request c1 u d e _ t :: aps =>
-    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ tally c (o.reqs.getD 1 .empty) t aps = true
+  -- Exactly one approval, of the request in slot 1: the pattern forces
+  -- three requirements, and the approval names the request it cites.
+  | .admit, [.admission c u0 _ _, .request c1 u d e _, .approval c2 r _] =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ r = o.reqs.getD 1 .empty
     then some (.admission c u d e) else none
   | .grant s, [.admission c u0 _ _, .admission c1 u d _, auth, .admission c2 t _ _] =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ isAdmin c u auth ∧

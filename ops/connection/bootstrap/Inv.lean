@@ -217,7 +217,7 @@ theorem hello_A (hI : x.Inv s) :
     · exact mem_add1_of (hI.acov h o ho)
     · exact absurd h x.adm_ne.2.2
   have hi : IntroOk C s.a x.c x.req :=
-    ⟨x.ofC_S x.mem_S.2.2.1, _, _, _, _, _,
+    ⟨x.ofC_S x.mem_S.2.2.1, _, _, _, _,
       v_req g hS' (mem_add1_of hI.ar) (mem_add1_of hI.ai) hreq⟩
   have hadm : x.adm ∈ add1 s.a.ops x.req ↔ x.adm ∈ s.a.ops :=
     ⟨fun h => (mem_add1 h).resolve_right x.adm_ne.2.2, mem_add1_of⟩

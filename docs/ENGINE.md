@@ -82,7 +82,7 @@ seed derives to the key: `secret_derives`), the communities it is in
 name is a shared admin register (`named.current`, newest counter first:
 `named_by_admin`). An intent is a user action as the ops of one writer
 job, after reading lists: `found`, `inviteTo`, `join` (with the name to introduce itself by), `approveReq`
-(the approval, and the admission when it completes the tally),
+(the approval and the admission it gives: one approval admits),
 `introduce` (the first profile, once admitted), `stopWaiting` (a local
 `abandon` of a pending join; an approval still admits), `rename`, `send`
 (blobs and the post), `reactTo`. Laws: `join_travels`
@@ -174,21 +174,24 @@ watches are the keys of the lists it read: nothing is recorded.
 
 ## The community (`ops/community/`)
 
-Root (founder, admin), invite (with an approval threshold), request,
-approve, admit (member or linked device), admin grant, removal, post,
-wrap — after libquiet's DESIGN.md and its removal stack (#778, #98,
-#1088). A request is libquiet's Join before its vouches: it carries the
-bearer key's and the device's signatures and admits nobody. Approvals
-are signed ops that cite it (so the engine needs no forward needs), and
-an unsigned admit op tallies exactly the invitation's threshold of them,
-by distinct users, into the admission. A link invitation needs one
-approval, by the issuer's user; nobody approves their own request. Validity reads only cited facts, so every
-admin-issued removal stands: of other admins, mutually, and by an admin
-who has since been removed, and an approval by a user removed since
-still counts. In practice that last kind may not spread,
-since peers who know of the remover's removal refuse its devices; but
-wherever it arrives, it is Valid. Removal never invalidates an op; it
-changes who counts. A device may be admitted into several users: it is
+Root (founder, admin), invite, request, approve, admit (member or linked
+device), admin grant, removal, post, wrap — after libquiet's DESIGN.md
+and its removal stack (#778, #98, #1088). A request is libquiet's Join
+before its vouches: it carries the bearer key's and the device's
+signatures and admits nobody. Approvals are signed ops that cite it (so
+the engine needs no forward needs), and an unsigned admit op cites the
+request and exactly one approval of it: one approval admits. There are
+no thresholds (the user's decision, 2026-10-31): any member can invite
+and approve, so it could mint the distinct users a threshold counts. A
+link request is approved by the issuer's user only; nobody approves
+their own request. Validity reads only cited facts, so a removed
+member's ops stand, made before or after its removal: an admin's
+removals (of other admins, mutually, and by an admin who has since been
+removed), and its invitations and approvals. In practice they may not
+spread, since peers who know of the removal refuse the removed member's
+nodes; but wherever they arrive, they are Valid. Removal never
+invalidates an op; it changes who counts, and whom the network lets in
+(docs/REMOVAL.md). A device may be admitted into several users: it is
 live while none of them is removed, and removing any of them cuts it
 (`Live`, `Cut`; docs/REMOVAL.md). A node's key (local `endpoint`) is
 what its devices' roots and requests name as their X25519 key, under
@@ -200,8 +203,8 @@ Laws (`Laws.lean`, `Connect.lean`):
 |---|---|
 | Are all messages by admitted users? | `message_authorized` |
 | Is impersonation impossible? | `no_impersonation` (given unforgeable signatures), `admission_consented` |
-| Can outsiders join? | `admission_needs_approval` (every admission but the founder's cites a member's approval), `admission_approved`, `request_invited`, `approval_signed`, `invitation_issued` |
-| Are requests with their approvals admitted? | `request_valid`, `approve_valid`, `admit_admits`; `removed_approver_admits` (a removed member's approval still counts) |
+| Can outsiders join? | `admission_needs_approval` (every admission but the founder's cites exactly one approval, by a member's device other than the requester's), `admission_approved`, `request_invited`, `approval_signed`, `invitation_issued` |
+| Are requests with an approval admitted? | `request_valid`, `approve_valid`, `admit_admits`; `removed_approver_admits` (a removed member's approval counts, whenever made) |
 | Who may remove whom? | `removal_authorized`, `admin_removal_stands`, `mutual_removal`, `admin_granted` |
 | Can a removal be undone, or rewrite history? | `removed_stays`, `valid_stays` |
 | Which nodes do we connect to? | `connect_iff` (a node key, while a live device is admitted under it), `deviceLive_iff`, `refuse_nonmember` |

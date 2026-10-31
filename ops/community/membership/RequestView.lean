@@ -1,7 +1,7 @@
 /-
-A request to join: the device asking, the approvals it has (decided ones
-count toward its threshold; an admission may cite only decided facts),
-and whether an admission answers it.
+A request to join: the device asking, the approvals it has (one admits
+it; an admission may cite only decided facts), and whether an admission
+answers it.
 
 Reads: `approval.byRequest [c, r]` and `admission.byDevice [c, d]` (a
 count). The Join requests page lists `request.all [c]` and makes one of
@@ -16,7 +16,6 @@ open Engine Community Data
 structure Data where
   id : Id
   device : Key
-  threshold : Nat
   /-- Decided approvals' ids (what an admission may cite). -/
   approvals : List Id
   pending : Nat
@@ -26,11 +25,11 @@ structure Data where
 variable {m : Type → Type} [Monad m] [Reads m]
 
 def read (c r : Id) (f : Fact) (deps : Array Q) : m (Option Data × Array Q) := do
-  let .request _ _ d _ _ t := f | return (none, deps)
+  let .request _ _ d _ _ := f | return (none, deps)
   let (aps, pend, deps) ← readList (approval.byRequest.query [c, r]) deps
   let ids := aps.rows.map (·.1.2)
   let (adm, _, deps) ← readList (admission.byDevice.query [c, d] (limit := some 0)) deps
-  return (some ⟨r, d, t, ids.filter (!pend.contains ·), (ids.filter pend.contains).length, adm.total > 0⟩, deps)
+  return (some ⟨r, d, ids.filter (!pend.contains ·), (ids.filter pend.contains).length, adm.total > 0⟩, deps)
 
 /-- The requests to c no admission answers yet. -/
 def waiting (c : Id) : m (Array Data × Array Q) := do
@@ -44,8 +43,11 @@ def waiting (c : Id) : m (Array Data × Array Q) := do
       if !r.admitted then out := out.push r
   return (out, deps)
 
-/-- Whether its decided approvals complete its threshold. -/
-def Data.ready (r : Data) : Bool := r.threshold > 0 && r.approvals.length ≥ r.threshold
+/-- Whether an approval of it is decided: one admits it. -/
+def Data.ready (r : Data) : Bool := !r.approvals.isEmpty
+
+/-- Whether its admission is on its way: an approval is pending or decided. -/
+def Data.going (r : Data) : Bool := r.pending > 0 || r.ready
 
 def hexShort (b : ByteArray) : String :=
   String.join (b.toList.take 4 |>.map fun x =>
@@ -53,7 +55,7 @@ def hexShort (b : ByteArray) : String :=
 
 /-- Its row on the Join requests page. -/
 def Data.row (r : Data) : Pages.Asking :=
-  { device := s!"Device {hexShort r.device}", when := s!"{r.approvals.length} of {r.threshold} approvals",
-    going := r.pending > 0 || r.ready }
+  { device := s!"Device {hexShort r.device}", when := if r.going then "approved" else "waiting",
+    going := r.going }
 
 end Kinds.Request

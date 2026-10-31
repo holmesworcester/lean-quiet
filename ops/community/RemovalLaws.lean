@@ -50,7 +50,7 @@ theorem endpoint_signed {ops : Id → Option Op} {y c u : Id} {d e : Key}
       (Codec.decode o.body : Option Body) = some b ∧
       (b = .root d e sg ∨ ∃ bs, b = .request d e sg bs) ∧ C.verify d (signed o b) sg = true := by
   obtain ⟨o, b, fs, hx, hb, hr, hc⟩ := valid_inv hv
-  rcases check_admission hc with ⟨sg, rfl, _, _, _, hs⟩ | ⟨d0, e0, l, t, aps, rfl, rfl, _, _⟩
+  rcases check_admission hc with ⟨sg, rfl, _, _, _, hs⟩ | ⟨d0, e0, l, a, rfl, rfl, _⟩
   · exact ⟨y, o, _, sg, Or.inl rfl, hx, hb, Or.inl rfl, hs⟩
   · obtain ⟨_, r, _, hreq, _, hrv, _⟩ := all2_cons2 hr
     obtain ⟨or, br, fsr, hor, hbr, _, hvr⟩ := valid_inv hrv

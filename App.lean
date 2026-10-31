@@ -991,8 +991,8 @@ def approveReq (r : Id) : M Unit := do
   -- requester's device
   let esk ← newBytes 32
   let s ← get
-  -- the intent reads the request and its approvals: with mine, is the
-  -- tally complete? then the admission goes in the same write
+  -- the intent reads the request: my approval admits it, so the
+  -- admission goes in the same write
   let w ← intentView (Community.approveReq s.me.c r s.me.adm s.me.dev esk)
   let _ ← writeAll w
 

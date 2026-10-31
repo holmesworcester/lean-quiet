@@ -192,16 +192,16 @@ def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n top now : Na
   let mut g : Rng := ⟨seed.toUInt64 * 7919 + 17⟩
   let mut jobs : Array Job := #[]
   let mut batch : Array Op := #[]
-  -- people: invited by the founder, who approves each request (threshold 1)
+  -- people: invited by the founder, who approves each request (one approval admits)
   let nUsers := max 6 (min names.size (n / 20))
   let mut people : Array (Id × Device) := #[(me.adm, f)]
   for i in [0:nUsers] do
     let d := Device.named s!"chaos-{seed}-{i}"
     let bearer := Device.named s!"chaos-bearer-{seed}-{i}"
-    let inv := invite c me.adm f bearer.pk false 1
+    let inv := invite c me.adm f bearer.pk false
     let rq := request c inv.id d (cryptoSeal.pub (sha256 s!"chaos-node-{seed}-{i}".toUTF8)) bearer.sk
     let ap := approve c rq.id me.adm f
-    let j := admit c rq.id [ap.id]
+    let j := admit c rq.id ap.id
     let p := profile c j.id d names[i % names.size]!.toUTF8 start
     batch := batch ++ #[inv, rq, ap, j, p]
     people := people.push (j.id, d)

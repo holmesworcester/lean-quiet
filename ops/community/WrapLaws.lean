@@ -10,6 +10,9 @@ can use).
 - `approveReq_ops`: an approval writes at most three ops, the approval,
   the admission, and one wrap of the community's key to the new member's
   node key (the request's `enc`): O(1), not O(members).
+- `approveReq_wrap_admits`: whatever an approval writes past itself
+  comes after the admission citing exactly it, so the key is wrapped to
+  a requester only in the write that admits it.
 - The mutant control, `approveWrapAll`, wraps the key to every member
   (`recipients`) as a rotation would: three members make four ops
   (`wrapAll_over`).
@@ -66,16 +69,33 @@ namespace Community
 open Engine Engine.View
 
 /-- **An approval writes at most three ops**: the approval, the
-admission when it completes the tally, and one wrap of the key to the
-new member's node key, whatever the community holds. -/
+admission it gives, and one wrap of the key to the new member's node
+key, whatever the community holds. -/
 theorem approveReq_ops (c req myAdm : Id) (d : Device) (esk : ByteArray) :
     Always (fun w : Write => w.ops.length ≤ 3) (approveReq c req myAdm d esk) := by
   unfold approveReq
-  refine always_bind fun _ => always_bind fun _ => always_bind fun _ => always_bind fun ks => ?_
+  refine always_bind fun _ => always_bind fun _ => always_bind fun ks => ?_
   dsimp only
   repeat' split
   all_goals (try simp only [Always, pure_eq])
   all_goals (repeat' split)
+  all_goals simp
+
+/-- **An approval wraps the key only beside its admission.** Whatever
+the store holds, an approval's write is the approval alone, or the
+approval, then the admission citing exactly it (`admit_admits`: Valid
+when the approval is), then the rest (at most one wrap: `approveReq_ops`).
+So no approval wraps the key to a requester the same write does not
+admit. -/
+theorem approveReq_wrap_admits (c req myAdm : Id) (d : Device) (esk : ByteArray) :
+    Always (fun w : Write => w.ops = [approve c req myAdm d] ∨
+      ∃ rest, w.ops = approve c req myAdm d :: admit c req (approve c req myAdm d).id :: rest)
+      (approveReq c req myAdm d esk) := by
+  unfold approveReq
+  refine always_bind fun _ => always_bind fun _ => always_bind fun ks => ?_
+  dsimp only
+  repeat' split
+  all_goals (try simp only [Always, pure_eq])
   all_goals simp
 
 /-- The mutant: an approval that wraps the key to every member. -/

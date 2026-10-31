@@ -43,7 +43,7 @@ mutant "no link clause: the joiner trusts only by its ops" ops/connection/bootst
   "      (n.Anchored c p ∧ ¬ Known C n.ops c p ∧ ¬ Allowed C n.ops c n.me))" "      False)"
 # bootstrap is false: A never holds the request, so nothing can approve it.
 mutant "the bare door shut: a request is never read from a hello" ops/connection/bootstrap/Node.lean \
-  "  ofC c q = true ∧ ∃ u d e l t," "  False ∧ ∃ u d e l t,"
+  "  ofC c q = true ∧ ∃ u d e l," "  False ∧ ∃ u d e l,"
 # bootstrap is false: the joiner's hello is never re-sent once lost.
 mutant "no retry: a pending link sends no hello" ops/connection/bootstrap/Node.lean \
   "  (n.links.filter fun l => !n.sessions.any fun s => decide (s = (l.c, l.dial))).map" \

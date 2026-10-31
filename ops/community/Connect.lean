@@ -273,33 +273,31 @@ theorem refuse_nonmember (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (e 
   · obtain ⟨u, d, ha, hl⟩ := (connect_iff h hq c e).1 hb
     exact absurd hl (cut_not_live (hd u d ha))
 
-/-- **Approved devices' nodes are let in.** A request tallied by an admit
-op with its invitation's threshold of approvals by distinct users lets
-in the key it names, unless one of its device's users is removed. -/
-theorem connect_admitted (h : Inv (family C) s) (hq : s.queue = []) {y c r : Id} {o : Op}
-    {aps us : List Id} {d0 e0 : Key} {u : Id} {d e : Key} {l : Bool} {t : Nat}
+/-- **Approved devices' nodes are let in.** A request admitted by an
+admit op citing one approval of it lets in the key it names, unless one
+of its device's users is removed. -/
+theorem connect_admitted (h : Inv (family C) s) (hq : s.queue = []) {y c r x : Id} {o : Op}
+    {d0 e0 : Key} {u a : Id} {d e : Key} {l : Bool}
     (hy : s.ops y = some o) (hb : (Codec.decode o.body : Option Body) = some .admit)
-    (hkd : o.kind = Body.tag .admit) (hreq : o.reqs = c :: r :: aps) (hc : V C s.ops c (.admission c c d0 e0))
-    (hr : V C s.ops r (.request c u d e l t))
-    (hap : All2 (fun a v => V C s.ops a (.approval c r v)) aps us) (hn : us.Nodup)
-    (ht : us.length = t) (hnr : ∀ u' e', Admitted C s.ops c u' d e' → ¬ Removed C s.ops c u') :
+    (hkd : o.kind = Body.tag .admit) (hreq : o.reqs = [c, r, x]) (hc : V C s.ops c (.admission c c d0 e0))
+    (hr : V C s.ops r (.request c u d e l)) (hx : V C s.ops x (.approval c r a))
+    (hnr : ∀ u' e', Admitted C s.ops c u' d e' → ¬ Removed C s.ops c u') :
     (allowPeer c e).eval s = true :=
-  have ha : Admitted C s.ops c u d e := ⟨y, admit_admits hy hb hkd hreq hc hr hap hn ht⟩
+  have ha : Admitted C s.ops c u d e := ⟨y, admit_admits hy hb hkd hreq hc hr hx⟩
   (connect_iff h hq c e).2 ⟨u, d, ha, ⟨u, e, ha⟩, hnr⟩
 
 /-- **Only the founder's and approved devices' nodes are let in.** At
 rest, a key `allowPeer` accepts has a live device admitted under it, by
-the root (the founder) or by an admit op tallying exactly the threshold
-of approvals, by distinct users, of a Valid request naming that device
-and key. A request alone never connects: requests sit under keys of
-their own. -/
+the root (the founder) or by an admit op citing exactly a Valid request
+naming that device and key and one Valid approval of it. A request
+alone never connects: requests sit under keys of their own. -/
 theorem connect_approved (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (e : Key)
     (ha : (allowPeer c e).eval s = true) :
     ∃ u d y, V C s.ops y (.admission c u d e) ∧ Live C s.ops c d ∧
       ((y = c ∧ u = c) ∨
-        ∃ o r aps l t us, s.ops y = some o ∧ (Codec.decode o.body : Option Body) = some .admit ∧
-          o.reqs = c :: r :: aps ∧ V C s.ops r (.request c u d e l t) ∧
-          All2 (fun a v => V C s.ops a (.approval c r v)) aps us ∧ us.Nodup ∧ us.length = t) := by
+        ∃ o r x a l, s.ops y = some o ∧ (Codec.decode o.body : Option Body) = some .admit ∧
+          o.reqs = [c, r, x] ∧ V C s.ops r (.request c u d e l) ∧
+          V C s.ops x (.approval c r a)) := by
   obtain ⟨u, d, ⟨y, hy⟩, hl⟩ := (connect_iff h hq c e).1 ha
   exact ⟨u, d, y, hy, hl, admission_approved h.key hy⟩
 

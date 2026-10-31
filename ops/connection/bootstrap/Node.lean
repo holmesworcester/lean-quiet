@@ -120,7 +120,7 @@ def Trusts (n : Node) (c : Id) (p : Key) : Prop :=
 
 /-- The one op read from a peer not trusted: a Valid request of c. -/
 def IntroOk (n : Node) (c : Id) (q : Op) : Prop :=
-  ofC c q = true ∧ ∃ u d e l t, V C (table (add1 n.ops q)) q.id (.request c u d e l t)
+  ofC c q = true ∧ ∃ u d e l, V C (table (add1 n.ops q)) q.id (.request c u d e l)
 
 /-- A hello from i for c: store its introduction if it is a Valid
 request; answer, and open the session, only if i is trusted. -/

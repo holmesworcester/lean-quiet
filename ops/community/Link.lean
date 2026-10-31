@@ -281,8 +281,8 @@ def Invite.request (i : Invite) (d : Device) (key : Key) : Op :=
 node with key `key`, and its link: the bearer key pair from `secret`,
 dial hints for the joiner. -/
 def issue (c issuerAdm : Id) (by_ : Device) (key : Key) (secret : ByteArray)
-    (hints : List ByteArray) (threshold : Nat := 1) : Op × Invite :=
-  let inv := invite c issuerAdm by_ (Device.ofSeed secret).pk false threshold
+    (hints : List ByteArray) : Op × Invite :=
+  let inv := invite c issuerAdm by_ (Device.ofSeed secret).pk false
   (inv, ⟨c, inv.id, key, hints, secret⟩)
 
 /-- This device's pending join (local): the link's community, its

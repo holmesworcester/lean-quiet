@@ -45,7 +45,7 @@ def K : Device := x.inviteLink.bearer
 (`parse_text`: the text parses back to `inviteLink`). -/
 def req : Op := x.inviteLink.request x.B x.kB
 def appr : Op := approve x.c x.req.id x.c x.A
-def adm : Op := admit x.c x.req.id [x.appr.id]
+def adm : Op := admit x.c x.req.id x.appr.id
 def S : List Op := [x.r, x.inv, x.req, x.appr, x.adm]
 
 /-- B's link: community, A's node key to dial, B's request. -/
@@ -64,7 +64,7 @@ def approval (n : Node) : Node :=
 /-- The four signed payloads in this five-op scene. The request has two
 signatures; the final admission is unsigned and checked by its dependencies. -/
 def rootMessage : ByteArray := toSign [] (.root x.A.pk x.kA .empty)
-def invitationMessage : ByteArray := toSign [x.c,x.c] (.invite x.K.pk false 1 .empty)
+def invitationMessage : ByteArray := toSign [x.c,x.c] (.invite x.K.pk false .empty)
 def requestMessage : ByteArray := toSign [x.c,x.inv.id] (.request x.B.pk x.kB .empty .empty)
 def approvalMessage : ByteArray := toSign [x.c,x.req.id,x.c] (.approve .empty)
 
@@ -139,19 +139,19 @@ theorem v_root (h : x.r ∈ L) : V C (table L) x.c (.admission x.c x.c x.A.pk x.
   · exact g.rootSig
 
 theorem v_inv (h1 : x.r ∈ L) (h2 : x.inv ∈ L) :
-    V C (table L) x.inv.id (.invitation x.c x.c x.K.pk false 1) := by
+    V C (table L) x.inv.id (.invitation x.c x.c x.K.pk false) := by
   refine spec_valid_of (table_of (hd g hL) h2)
     (fs := [.admission x.c x.c x.A.pk x.kA, .admission x.c x.c x.A.pk x.kA]) ?_ ?_
   · exact .cons (v_root g hL h1) (.cons (v_root g hL h1) .nil)
   · show validate C x.inv _ = _
     unfold validate
-    rw [show x.inv = invite x.c x.c x.A x.K.pk false 1 from rfl, invite, body_mk]
+    rw [show x.inv = invite x.c x.c x.A x.K.pk false from rfl, invite, body_mk]
     simp only [mkOp, Body.tag, Op.make_kind, ↓reduceIte, check]
     rw [if_pos]
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> first | trivial | rfl | exact g.invitationSig | simp
+    refine ⟨?_, ?_, ?_, ?_⟩ <;> first | trivial | rfl | exact g.invitationSig | simp
 
 theorem v_req (h1 : x.r ∈ L) (h2 : x.inv ∈ L) (h3 : x.req ∈ L) :
-    V C (table L) x.req.id (.request x.c x.req.id x.B.pk x.kB false 1) := by
+    V C (table L) x.req.id (.request x.c x.req.id x.B.pk x.kB false) := by
   have := request_valid (C := C) (table_keyed L) (table_of (hd g hL) h3)
     (body_mk _ _) rfl rfl (v_root g hL h1) (v_inv g hL h1 h2) g.requestSig g.bearerSig
   have e : x.inviteLink.community = x.c := rfl
@@ -167,8 +167,8 @@ theorem v_adm (h : ∀ o ∈ x.S, o ∈ L) :
   have h1 := h x.r (by simp [S]); have h2 := h x.inv (by simp [S])
   have h3 := h x.req (by simp [S]); have h4 := h x.appr (by simp [S])
   have h5 := h x.adm (by simp [S])
-  exact admit_admits (us := [x.c]) (table_of (hd g hL) h5) (body_mk _ _) rfl rfl (v_root g hL h1)
-    (v_req g hL h1 h2 h3) (.cons (v_appr g hL h1 h2 h3 h4) .nil) (by simp) rfl
+  exact admit_admits (table_of (hd g hL) h5) (body_mk _ _) rfl rfl (v_root g hL h1)
+    (v_req g hL h1 h2 h3) (v_appr g hL h1 h2 h3 h4)
 
 omit g in
 /-- The op stored under an id among these is that one of the scene's. -/
@@ -186,20 +186,20 @@ theorem admitted_inv {c' u : Id} {d e : Key} (h : Admitted C (table L) c' u d e)
   rcases hS with rfl | rfl | rfl | rfl | rfl
   · rw [show x.r = root x.A x.kA from rfl, root, body_mk] at hb
     cases hb
-    rcases check_admission hv with ⟨s, hb, _⟩ | ⟨_, _, _, _, _, hb, _⟩
+    rcases check_admission hv with ⟨s, hb, _⟩ | ⟨_, _, _, _, hb, _⟩
     · cases hb; exact Or.inl ⟨rfl, rfl, hoL⟩
     · cases hb
-  · rw [show x.inv = invite x.c x.c x.A x.K.pk false 1 from rfl, invite, body_mk] at hb
+  · rw [show x.inv = invite x.c x.c x.A x.K.pk false from rfl, invite, body_mk] at hb
     cases hb
-    rcases check_admission hv with ⟨s, hb, _⟩ | ⟨_, _, _, _, _, hb, _⟩ <;> cases hb
+    rcases check_admission hv with ⟨s, hb, _⟩ | ⟨_, _, _, _, hb, _⟩ <;> cases hb
   · rw [show x.req = request x.c x.inv.id x.B x.kB x.K.sk from rfl, request, body_mk] at hb
     cases hb
-    rcases check_admission hv with ⟨s, hb, _⟩ | ⟨_, _, _, _, _, hb, _⟩ <;> cases hb
+    rcases check_admission hv with ⟨s, hb, _⟩ | ⟨_, _, _, _, hb, _⟩ <;> cases hb
   · rw [show x.appr = approve x.c x.req.id x.c x.A from rfl, approve, body_mk] at hb
     cases hb
-    rcases check_admission hv with ⟨s, hb, _⟩ | ⟨_, _, _, _, _, hb, _⟩ <;> cases hb
-  · rcases check_admission hv with ⟨s, hb', _⟩ | ⟨d0, e0, l, t, aps, _, rfl, _⟩
-    · rw [show x.adm = admit x.c x.req.id [x.appr.id] from rfl, admit, body_mk] at hb
+    rcases check_admission hv with ⟨s, hb, _⟩ | ⟨_, _, _, _, hb, _⟩ <;> cases hb
+  · rcases check_admission hv with ⟨s, hb', _⟩ | ⟨d0, e0, l, a, _, rfl, _⟩
+    · rw [show x.adm = admit x.c x.req.id x.appr.id from rfl, admit, body_mk] at hb
       rw [hb'] at hb; cases hb
     · obtain ⟨_, ri, _, hreq, _, hri, _⟩ := all2_cons2 hr
       have hri' : ri = x.req.id := by
@@ -227,10 +227,10 @@ theorem not_removed {c' u : Id} : ¬ Removed C (table L) c' u := by
   simp only [S, List.mem_cons, List.mem_nil_iff, or_false] at hS
   rcases hS with rfl | rfl | rfl | rfl | rfl
   · rw [show x.r = root x.A x.kA from rfl, root, body_mk] at hb; cases hb
-  · rw [show x.inv = invite x.c x.c x.A x.K.pk false 1 from rfl, invite, body_mk] at hb; cases hb
+  · rw [show x.inv = invite x.c x.c x.A x.K.pk false from rfl, invite, body_mk] at hb; cases hb
   · rw [show x.req = request x.c x.inv.id x.B x.kB x.K.sk from rfl, request, body_mk] at hb; cases hb
   · rw [show x.appr = approve x.c x.req.id x.c x.A from rfl, approve, body_mk] at hb; cases hb
-  · rw [show x.adm = admit x.c x.req.id [x.appr.id] from rfl, admit, body_mk] at hb; cases hb
+  · rw [show x.adm = admit x.c x.req.id x.appr.id from rfl, admit, body_mk] at hb; cases hb
 
 omit g in
 /-- Every admitted device is live: nobody is removed. -/

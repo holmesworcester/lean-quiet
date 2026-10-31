@@ -129,7 +129,7 @@
     "theorem": "Community.admit_admits",
     "status": "runtime-witness",
     "witness": "Vacuity.Identity.admitAdmits",
-    "detail": "Actual root/request/approval facts plus singleton distinct approver and threshold proofs construct a valid admission.",
+    "detail": "Actual root, request and approval facts construct a valid admission citing exactly one approval.",
     "module": "tests.vacuity.Identity"
   }
 }

@@ -115,13 +115,13 @@ def connectAgree :=
 
 def connectAdmitted := do
   let ⟨hc⟩ ← certifyDB before r rootFact
-  let ⟨hr⟩ ← certifyDB before requestB (.request c requestB.id bob.pk (keyOf bob) false 1)
+  let ⟨hr⟩ ← certifyDB before requestB (.request c requestB.id bob.pk (keyOf bob) false)
   let ⟨ha⟩ ← certifyDB before approval (.approval c requestB.id c)
   if hq : (run before).queue = [] then
     if hy : (run before).ops admission.id = some admission then
       if hl : (deviceLive c bob.pk).eval (run before) = true then
-        return PLift.up (connect_admitted (runInv before) hq (us := [c]) hy
-          (decode_encode _) rfl rfl hc hr (.cons ha .nil) (by simp) rfl
+        return PLift.up (connect_admitted (runInv before) hq hy
+          (decode_encode _) rfl rfl hc hr ha
           ((deviceLive_iff (runInv before) hq c bob.pk).1 hl).2)
       else none
     else none
@@ -160,7 +160,7 @@ def noRenaming (Signed : Key → ByteArray → Prop) := applyLaw
 
 def requestC := request c invitation.id carol (keyOf bob) bearer.sk
 def approvalC := approve c requestC.id c alice
-def admissionC := admit c requestC.id [approvalC.id]
+def admissionC := admit c requestC.id approvalC.id
 def rejoined := after ++ [requestC,approvalC,admissionC]
 
 def newDeviceTrusted := do
