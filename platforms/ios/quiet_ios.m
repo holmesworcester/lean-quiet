@@ -20,6 +20,7 @@
 #import <IOSurface/IOSurfaceRef.h>
 #include <lean/lean.h>
 #include "../native/thread.h"
+#include "../native/fling.h"
 #import <UIKit/UIGestureRecognizerSubclass.h>
 #include <math.h>
 #include <pthread.h>
@@ -90,6 +91,9 @@ static _Atomic bool      lq_vsync_due;
 static UIView*        lq_root;
 #include "photo_ios.h"
 static UIScrollView*  lq_sv;
+// Main-thread diagnostics: actual travel AFTER release, not drag distance.
+static double lq_fling_start, lq_fling_distance;
+static bool lq_fling_tracking;
 static CALayer*       lq_list;
 static CALayer*       lq_hold;
 static uint32_t       lq_place[LQ_PLACEMENT_WORDS];
@@ -704,11 +708,11 @@ void lq_twin(char* out, size_t n) {
     CALayer* c  = lq_composer.layer.presentationLayer ?: lq_composer.layer;
     pthread_mutex_lock(&lq_mu);
     snprintf(out, n, "w %u dpi %u pin %d top %u over %u listY %ld svBottom %ld composerTop %ld "
-      "tap %u %u %u luma %u %u %u %u inputClock %llu uptimeClock %llu elapsedClock %llu field %s", lq_w, lq_dpi, lq_shown_pin, lq_shown_top_h, lq_over,
+      "tap %u %u %u luma %u %u %u %u inputClock %llu uptimeClock %llu elapsedClock %llu flingDistance %ld field %s", lq_w, lq_dpi, lq_shown_pin, lq_shown_top_h, lq_over,
       lround(list.origin.y * k), lround(CGRectGetMaxY(sv) * k), lround(c.frame.origin.y * k),
       lq_tap[0], lq_tap[1], lq_tap[2], lq_yhdr[0], lq_yhdr[1], lq_yhdr[2], lq_yhdr[3],
       (unsigned long long)lq_input_now(), (unsigned long long)lq_input_ms(NSProcessInfo.processInfo.systemUptime),
-      (unsigned long long)(lq_tick() / 1000000), lq_text_s ? lq_text_s : "");
+      (unsigned long long)(lq_tick() / 1000000), lround(lq_fling_distance), lq_text_s ? lq_text_s : "");
     pthread_mutex_unlock(&lq_mu);
   });
 }
@@ -877,25 +881,25 @@ lean_obj_res lq_motion(b_lean_obj_arg samples) {
   uint32_t* words = malloc(n * sizeof *words);
   for (size_t i = 0; i < n; i++) words[i] = lean_unbox_uint32(lean_array_get_core(samples, i));
   dispatch_sync(dispatch_get_main_queue(), ^{
-    static double last, time, velocity;
-    static bool down;
+    static LqFling fling;
     for (size_t i = 0; i + 7 < n; i += 8) {
       uint32_t phase = words[i] - 9;
       double y = (int32_t)words[i+3];
-      double now = ((uint64_t)words[i+5] << 32) | words[i+4];
-      if (phase == 3) { down = false; [lq_sv setContentOffset:lq_sv.contentOffset animated:NO]; }
-      else if (phase == 0) { down = true; last = y; time = now; velocity = 0; }
-      else if (down) {
-        CGPoint pos = lq_sv.contentOffset;
-        pos.y += (y - last) / lq_k;
-        if (now > time) velocity = (y - last) / (now - time);
-        lq_sv.contentOffset = pos;
-        last = y; time = now;
-        if (phase == 2) {
-          down = false;
-          pos.y += velocity * 180 / lq_k;
-          [lq_sv setContentOffset:pos animated:YES];
-        }
+      uint64_t now = ((uint64_t)words[i+5] << 32) | words[i+4];
+      LqFlingStep step = lq_fling_sample(&fling, phase, y, now);
+      if (step.stop) {
+        lq_fling_tracking = false;
+        [lq_sv setContentOffset:lq_sv.contentOffset animated:NO];
+      }
+      CGPoint pos = lq_sv.contentOffset;
+      pos.y += step.delta / lq_k;
+      if (step.delta != 0) lq_sv.contentOffset = pos;
+      if (step.released) {
+        lq_fling_start = pos.y * lq_k;
+        lq_fling_distance = 0;
+        lq_fling_tracking = true;
+        pos.y += step.velocity * 180 / lq_k;
+        [lq_sv setContentOffset:pos animated:YES];
       }
     }
   });
@@ -915,6 +919,7 @@ lean_obj_res lq_motion(b_lean_obj_arg samples) {
   // The hidden physics view supplies signed samples. Lean interprets them
   // as distance from the content's end and clamps before painting.
   atomic_store(&lq_offset, v.contentOffset.y * lq_k);
+  if (lq_fling_tracking) lq_fling_distance = v.contentOffset.y * lq_k - lq_fling_start;
 }
 
 @end

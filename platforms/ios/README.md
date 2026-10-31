@@ -257,3 +257,13 @@ above. The release/manual CI entry is `ci/local.sh release-ios-input` (alias
 gate. Prefer a phone that has been locked/asleep since boot: the diagnostic
 clock audit records the elapsed/awake difference. The suite makes no claim
 about a hard wall-clock display deadline or verification of UIKit itself.
+
+The native input gate also checks movement **after finger-up**, in both
+scroll directions. `platforms/native/fling.h` is the velocity core called by
+`lq_motion`; `host:seam` runs its sanitizer tests and a negative control that
+restores the repeated-position release bug. UIKit can repeat the last move's
+position on release, so that sample preserves recent velocity; a pause over
+80 ms or cancellation clears it. These are executable regression tests,
+not a formal proof of UIKit animation timing. `ios:input-device-e2e` builds
+and runs the tap classification and released-fling tests; CI's
+`ios-input-device` and `release-ios-input` use that same task.

@@ -209,6 +209,31 @@
   [self ctl:@"back"];
 }
 
+- (void)testFlingContinuesAfterRelease {
+  [self ctl:@"channel"];
+  XCTAssertTrue([self until:60 that:^BOOL(NSString* s) {
+    return [self num:@"total" in:s] >= 100 && [self num:@"mounted" in:s] > 0;
+  }]);
+  [self ctl:@"bottom"];
+  [self settledB];
+  long view = [self num:@"viewH" in:[self state]];
+  for (int i = 0; i < 3; i++) {
+    [self.app swipeDown];
+    [self settledB];
+    NSString* motion = [self twin];
+    NSLog(@"released fling: %@", motion);
+    XCTAssertGreaterThan([self num:@"flingDistance" in:motion], (long)(20 * [self scale]),
+      @"dragging alone is not a fling; the list must continue AFTER finger-up");
+    XCTAssertEqual([self num:@"viewH" in:[self state]], view, @"fling opened a long-press sheet");
+  }
+  [self.app swipeUp];
+  [self settledB];
+  XCTAssertLessThan([self num:@"flingDistance" in:[self twin]], (long)(-20 * [self scale]),
+    @"reverse fling must retain negative release velocity");
+  [self shot:@"released-fling"];
+  [self ctl:@"bottom"];
+}
+
 - (void)testScrollTapKeyboardSend {
   // The community's conversation, on the seeded data: its rows are read
   // and painted.
@@ -289,8 +314,8 @@
   XCTAssertTrue([[self ctl:@"photo-status"] hasPrefix:@"photos 0 pending false"]);
   [self ctl:@"pick-photo"];
   XCTAssertTrue([self until:10 ask:@"photo-status" that:^BOOL(NSString* value) {
-    return [value hasPrefix:@"photos 0 pending true"] && [value containsString:@"slots 1"];
-  }], @"the composer must reserve feedback before the provider returns an image");
+    return [value hasPrefix:@"photos 0 pending true"] && [value containsString:@"slots 0"];
+  }], @"opening the picker must not show an attachment before selection");
   XCUIElement* cancel = self.app.buttons[@"Cancel"];
   if (![cancel waitForExistenceWithTimeout:10]) cancel = self.app.buttons[@"Close"];
   XCTAssertTrue([cancel waitForExistenceWithTimeout:10], @"native photo picker: %@", self.app.debugDescription);
