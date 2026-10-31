@@ -85,15 +85,18 @@ supporting references follow. This is the order for the remaining work too.
 {counts['conditional']} conditional checks, {counts['counterexample']} failed production assumptions; {len(refs) - len(CHECKS)} of {len(refs)} linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 
-**Finding: the production suites do not satisfy `Seal.Good` and Noise
-`Suite.Good` as written.** Their contracts demand roundtrips for keys (and seal
-nonces) of every length; the native implementations reject invalid lengths.
-Runtime counterexamples demonstrate both contradictions. Valid-size roundtrips
-pass. Theorems requiring these contracts, including `openSealed_seal`,
-`member_opens`, `unbox_box` and the affected handshake/frame laws, need
-size-aware contracts before their assumptions apply to the production suites.
-These are specification/applicability gaps, not demonstrated breaks of
-valid-size encryption.
+**Contract failures repaired.** `Seal.Good` and Noise `Suite.Good` now require
+supported key, nonce, plaintext and associated-data sizes where applicable. Noise's key derivation
+must produce supported keys. Malformed-input rejection remains covered by
+regression tests; it no longer contradicts the roundtrip contracts. Native seal
+wrappers also propagate encryption failures instead of returning unusable bytes.
+The frame laws `open_seal` and `cid_seal` now use premises for the particular
+frame, all checked on an actual Noise session carrying a signed message.
+
+The general native crypto contracts remain **conditional**: finite roundtrips
+do not prove their universal laws. The community and general handshake results
+that rely on them are not promoted to fully witnessed proofs. The symbolic
+Noise suite still has a kernel proof of its contract, separate from native crypto.
 
 - **kernel-witness:** Lean checks a concrete fixture's premises and application
   of the named theorem. No new axioms, `sorry`, or `native_decide` are admitted.

@@ -48,10 +48,13 @@ theorem seal_parts (cid sk n p : B) :
     Frame.seal K cid sk n p = ⟨#[Frame.version]⟩ ++ (cid ++ (n ++ K.fenc sk n (Frame.ad cid) p)) := by
   simp [Frame.seal, ByteArray.append_assoc]
 
-/-- **A frame opens to what was sealed, under the matching key.** -/
-theorem open_seal (hd : ∀ k n ad p, K.fdec k n ad (K.fenc k n ad p) = some p)
-    (he : ∀ k n ad p, (K.fenc k n ad p).size = p.size + 16)
-    {cid sk n p : B} (hc : cid.size = 32) (hn : n.size = 24) :
+/-- **A frame opens to what was sealed, under the matching key.** The
+crypto premises concern this frame's inputs, so callers can check them
+without assuming that malformed keys and nonces encrypt successfully. -/
+theorem open_seal {cid sk n p : B}
+    (hd : K.fdec sk n (Frame.ad cid) (K.fenc sk n (Frame.ad cid) p) = some p)
+    (he : (K.fenc sk n (Frame.ad cid) p).size = p.size + 16)
+    (hc : cid.size = 32) (hn : n.size = 24) :
     Frame.open K sk (Frame.seal K cid sk n p) = some (cid, p) := by
   have h1 : (⟨#[Frame.version]⟩ : B).size = 1 := rfl
   have hs : (Frame.seal K cid sk n p).size = 73 + p.size := by
@@ -77,8 +80,9 @@ theorem open_seal (hd : ∀ k n ad p, K.fdec k n ad (K.fenc k n ad p) = some p)
   simp [hd, hs]
 
 /-- **A frame's header names the connection it was sealed for.** -/
-theorem cid_seal (he : ∀ k n ad p, (K.fenc k n ad p).size = p.size + 16)
-    {cid sk n p : B} (hc : cid.size = 32) (hn : n.size = 24) :
+theorem cid_seal {cid sk n p : B}
+    (he : (K.fenc sk n (Frame.ad cid) p).size = p.size + 16)
+    (hc : cid.size = 32) (hn : n.size = 24) :
     Frame.cid (Frame.seal K cid sk n p) = some cid := by
   have h1 : (⟨#[Frame.version]⟩ : B).size = 1 := rfl
   have hs : (Frame.seal K cid sk n p).size = 73 + p.size := by

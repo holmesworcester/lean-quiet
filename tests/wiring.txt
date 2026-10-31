@@ -149,8 +149,8 @@ assume Engine.Distinct = Engine.CollisionFree
 assume NodeOffer.offerM The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`.
 assume NodeOffer.Chan = NodeOffer.offerM
 assume Community.Merkle.NoSecondPreimage SHA-256 has no second preimage on a file's Merkle tree inputs.
-assume Connection.Noise.Suite.Good X25519 agrees, the AEAD opens what it seals, and public keys are 32 bytes (correctness only).
-assume Community.Seal.Good The seal's AEAD and key wrap open what they seal (correctness only).
+assume Connection.Noise.Suite.Good X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only).
+assume Community.Seal.Good Supported-size AEAD inputs and key wraps roundtrip; valid private keys agree and public keys/hashes have 32-byte outputs (correctness only).
 assume Connection.Noise.Symbolic.sym The symbolic model of the cryptography, over which the running handshake runs.
 assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model.
 assume Engine.Model = Engine.Model.run

@@ -5,23 +5,21 @@
     "witness": "Vacuity.IdentityFrames.establishedAgrees",
     "module": "tests.vacuity.IdentityFrames",
     "exercise": true,
-    "detail": "Both endpoint validators succeed for actual deterministic Noise session; handshake hash/community/peer identities and crossed send/receive keys agree natively. The production theorem remains conditional on sodium.suite.Good; its universally quantified AEAD law is false for malformed key bytes (Contracts.noiseBadKey). No universal crypto assumption is discharged."
+    "detail": "Both endpoint validators succeed for an actual deterministic Noise session; handshake hash/community/peer identities and crossed send/receive keys agree natively. The production theorem remains conditional on the size-aware sodium.suite.Good contract. No universal native crypto assumption is discharged."
   },
   "open_seal": {
-    "status": "conditional",
+    "status": "runtime-witness",
     "theorem": "Connection.open_seal",
     "witness": "Vacuity.IdentityFrames.openSeal",
     "module": "tests.vacuity.IdentityFrames",
-    "exercise": true,
-    "detail": "Valid 32-byte session ID/key and 24-byte nonce roundtrip actual signed message bytes natively. The theorem requires universal frame AEAD correctness/length over arbitrary key and nonce bytes; empty-key native counterexamples frameDecryptFalse/frameSizeFalse refute those unqualified premises. Finite dimensions checked; no universal crypto assumption discharged."
+    "detail": "Actual Noise session with 32-byte session ID/key and 24-byte nonce, carrying signed message bytes. The theorem now needs only concrete crypto premises for this frame. Native branches check ciphertext length and AEAD roundtrip, then apply the theorem with every premise discharged. Malformed 0/31/33-byte keys cannot produce certificates; malformed 0/23/25-byte nonces and wrong receive keys are rejected."
   },
   "cid_seal": {
-    "status": "conditional",
+    "status": "runtime-witness",
     "theorem": "Connection.cid_seal",
     "witness": "Vacuity.IdentityFrames.cidSeal",
     "module": "tests.vacuity.IdentityFrames",
-    "exercise": true,
-    "detail": "Valid 32-byte session ID/key and 24-byte nonce roundtrip actual signed message bytes natively. The theorem requires universal frame AEAD correctness/length over arbitrary key and nonce bytes; empty-key native counterexamples frameDecryptFalse/frameSizeFalse refute those unqualified premises. Finite dimensions checked; no universal crypto assumption discharged."
+    "detail": "Actual Noise session with 32-byte session ID/key and 24-byte nonce, carrying signed message bytes. The theorem now needs only concrete crypto premises for this frame. Native branches check ciphertext length, then apply the theorem with every premise discharged. Malformed 0/31/33-byte keys cannot produce certificates; malformed 0/23/25-byte nonces and wrong receive keys are rejected."
   },
   "openFrame_auth": {
     "status": "runtime-witness",

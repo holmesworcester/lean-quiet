@@ -16,8 +16,8 @@ def nodeState (s : IdentityConnection.Session) := Node.boot fam (activeOps s) 0
 
 def initiatorEstablished (s : IdentityConnection.Session) := Established.op s.reply.id s.req.id (Eph.op eB s.req.id).id endpointB.id
 
--- The finite validation premises can be checked, but the theorem's suite.Good
--- assumption cannot: its unqualified AEAD law is false for malformed keys.
+-- The endpoint validation premises are checked here. The size-aware suite.Good
+-- contract remains a universal native-crypto assumption, not a finite test result.
 def establishedAgrees (s : IdentityConnection.Session) :=
   if hn : pkA ≠ pkB then
     if hr : Established.check sodium (established s)
@@ -33,32 +33,28 @@ def establishedAgrees (s : IdentityConnection.Session) :=
     else none
   else none
 
-def frameDecrypts := ∀ k n ad p, sodium.fdec k n ad (sodium.fenc k n ad p) = some p
-def frameSize := ∀ k n ad p, (sodium.fenc k n ad p).size = p.size + 16
-
+-- Each premise is checked for the actual session key, nonce, signed payload and
+-- associated session ID, then the production theorem is applied without any
+-- remaining universal crypto premise.
 def openSeal (s : IdentityConnection.Session) :=
   if hc : s.reply.id.size = 32 then
     if hn : nonce.size = 24 then
-      some (PLift.up (fun hd : frameDecrypts => fun he : frameSize =>
-        open_seal (K := sodium) (sk := s.recvKey) (p := payload) hd he hc hn))
+      if hd : sodium.fdec s.recvKey nonce (Frame.ad s.reply.id)
+          (sodium.fenc s.recvKey nonce (Frame.ad s.reply.id) payload) = some payload then
+        if he : (sodium.fenc s.recvKey nonce (Frame.ad s.reply.id) payload).size = payload.size + 16 then
+          some (PLift.up (open_seal hd he hc hn))
+        else none
+      else none
     else none
   else none
 
 def cidSeal (s : IdentityConnection.Session) :=
   if hc : s.reply.id.size = 32 then
     if hn : nonce.size = 24 then
-      some (PLift.up (fun he : frameSize => cid_seal (K := sodium) (sk := s.recvKey) (p := payload) he hc hn))
+      if he : (sodium.fenc s.recvKey nonce (Frame.ad s.reply.id) payload).size = payload.size + 16 then
+        some (PLift.up (cid_seal he hc hn))
+      else none
     else none
-  else none
-
-def frameDecryptFalse : Option (PLift (¬ frameDecrypts)) :=
-  if h : sodium.fdec .empty nonce .empty (sodium.fenc .empty nonce .empty payload) ≠ some payload then
-    some ⟨fun hg => h (hg .empty nonce .empty payload)⟩
-  else none
-
-def frameSizeFalse : Option (PLift (¬ frameSize)) :=
-  if h : (sodium.fenc .empty nonce .empty payload).size ≠ payload.size + 16 then
-    some ⟨fun hg => h (hg .empty nonce .empty payload)⟩
   else none
 
 def openFrameAuth (s : IdentityConnection.Session) :=
@@ -84,10 +80,20 @@ def main : IO UInt32 := do
   let t ← Checks.new
   let some s := session | IO.eprintln "Could not construct real Noise session"; return 1
   t.ok "both real endpoint validations (Good assumption remains)" (establishedAgrees s).isSome
-  t.ok "open_seal finite dimensional premises (universal AEAD assumptions remain)" (openSeal s).isSome
-  t.ok "cid_seal finite dimensional premises (universal AEAD size remains)" (cidSeal s).isSome
-  t.ok "empty key refutes universal frame decrypt premise" frameDecryptFalse.isSome
-  t.ok "empty key refutes universal frame size premise" frameSizeFalse.isSome
+  t.ok "open_seal checks every premise for the real session" (openSeal s).isSome
+  t.ok "cid_seal checks every premise for the real session" (cidSeal s).isSome
+  for len in [0, 31, 33] do
+    let badKey : ByteArray := ⟨Array.replicate len 7⟩
+    t.ok s!"{len}-byte frame key cannot discharge open_seal premises"
+      (!(openSeal {s with recvKey := badKey}).isSome)
+    t.ok s!"{len}-byte frame key cannot discharge cid_seal premise"
+      (!(cidSeal {s with recvKey := badKey}).isSome)
+    t.ok s!"{len}-byte receive key rejects valid frame"
+      (Frame.open sodium badKey (incoming s) == none)
+  for len in [0, 23, 25] do
+    let badNonce : ByteArray := ⟨Array.replicate len 9⟩
+    t.ok s!"{len}-byte nonce produces rejected frame"
+      (Frame.open sodium s.recvKey (Frame.seal sodium s.reply.id s.recvKey badNonce payload) == none)
   t.ok "real authenticated frame applies openFrame_auth" (openFrameAuth s).isSome
   t.ok "damaged real frame applies sealed_auth" (sealedAuth s).isSome
   t.ok "valid sized frame roundtrips actual signed message bytes"
