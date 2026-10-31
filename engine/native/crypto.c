@@ -24,6 +24,13 @@ int lq_xchacha_open(uint8_t* p, const uint8_t* k, const uint8_t* n, const uint8_
     const uint8_t* c, size_t clen);
 int lq_random(uint8_t* out, size_t n);
 
+// RustCrypto 0.11 starts payloads at counter 1. The locked chacha20 0.10.2
+// permits u32::MAX - 1 further blocks and rounds partial blocks up. Check
+// before allocation or Rust entry, including room for the 16-byte tag.
+int lq_aead_plaintext_size_supported(size_t size) {
+  return (uint64_t)size <= UINT64_C(274877906816) && size <= SIZE_MAX - 16;
+}
+
 static lean_obj_res bytes(const void* p, size_t n) {
   lean_object* b = lean_alloc_sarray(1, n, n);
   if (n) memcpy(lean_sarray_cptr(b), p, n);
@@ -107,6 +114,7 @@ LEAN_EXPORT lean_obj_res le_chachapoly_seal(b_lean_obj_arg k, uint64_t n, b_lean
     b_lean_obj_arg p) {
   if (lean_sarray_size(k) != 32) return bytes(NULL, 0);
   size_t m = lean_sarray_size(p);
+  if (!lq_aead_plaintext_size_supported(m)) return bytes(NULL, 0);
   lean_object* r = lean_alloc_sarray(1, m + 16, m + 16);
   if (lq_chachapoly_seal(lean_sarray_cptr(r), ptr(k), n, ptr(ad), lean_sarray_size(ad), ptr(p), m) != 0) {
     lean_dec_ref(r);
@@ -118,7 +126,8 @@ LEAN_EXPORT lean_obj_res le_chachapoly_seal(b_lean_obj_arg k, uint64_t n, b_lean
 LEAN_EXPORT lean_obj_res le_chachapoly_open(b_lean_obj_arg k, uint64_t n, b_lean_obj_arg ad,
     b_lean_obj_arg c) {
   size_t m = lean_sarray_size(c);
-  if (m < 16 || lean_sarray_size(k) != 32) return lean_box(0);
+  if (m < 16 || !lq_aead_plaintext_size_supported(m - 16) ||
+      lean_sarray_size(k) != 32) return lean_box(0);
   lean_object* r = lean_alloc_sarray(1, m - 16, m - 16);
   if (lq_chachapoly_open(lean_sarray_cptr(r), ptr(k), n, ptr(ad), lean_sarray_size(ad), ptr(c), m) != 0) {
     lean_dec_ref(r);
@@ -133,6 +142,7 @@ LEAN_EXPORT lean_obj_res le_xchacha_seal(b_lean_obj_arg k, b_lean_obj_arg n, b_l
     b_lean_obj_arg p) {
   if (lean_sarray_size(k) != 32 || lean_sarray_size(n) != 24) return bytes(NULL, 0);
   size_t m = lean_sarray_size(p);
+  if (!lq_aead_plaintext_size_supported(m)) return bytes(NULL, 0);
   lean_object* r = lean_alloc_sarray(1, m + 16, m + 16);
   if (lq_xchacha_seal(lean_sarray_cptr(r), ptr(k), ptr(n), ptr(ad), lean_sarray_size(ad), ptr(p), m) != 0) {
     lean_dec_ref(r);
@@ -144,7 +154,8 @@ LEAN_EXPORT lean_obj_res le_xchacha_seal(b_lean_obj_arg k, b_lean_obj_arg n, b_l
 LEAN_EXPORT lean_obj_res le_xchacha_open(b_lean_obj_arg k, b_lean_obj_arg n, b_lean_obj_arg ad,
     b_lean_obj_arg c) {
   size_t m = lean_sarray_size(c);
-  if (m < 16 || lean_sarray_size(k) != 32 || lean_sarray_size(n) != 24) return lean_box(0);
+  if (m < 16 || !lq_aead_plaintext_size_supported(m - 16) ||
+      lean_sarray_size(k) != 32 || lean_sarray_size(n) != 24) return lean_box(0);
   lean_object* r = lean_alloc_sarray(1, m - 16, m - 16);
   if (lq_xchacha_open(lean_sarray_cptr(r), ptr(k), ptr(n), ptr(ad), lean_sarray_size(ad), ptr(c), m) != 0) {
     lean_dec_ref(r);

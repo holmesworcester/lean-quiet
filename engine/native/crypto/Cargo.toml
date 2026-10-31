@@ -20,6 +20,11 @@ sha2 = "=0.10.9"
 getrandom = "=0.3.4"
 zeroize = "1.8"
 
+[dev-dependencies]
+# Test the same stream-cipher limit that the locked AEAD calls, without
+# allocating a counter-sized (256 GiB) plaintext.
+chacha20 = { version = "=0.10.2", default-features = false }
+
 [profile.release]
 panic = "abort"
 lto = true

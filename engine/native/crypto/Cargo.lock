@@ -274,6 +274,7 @@ checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
 name = "lq_crypto"
 version = "0.1.0"
 dependencies = [
+ "chacha20",
  "chacha20poly1305",
  "curve25519-dalek",
  "ed25519-dalek",

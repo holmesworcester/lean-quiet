@@ -13,6 +13,36 @@ use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use sha2::{Digest, Sha256, Sha512};
 use zeroize::Zeroize;
 
+#[cfg(test)]
+mod tests {
+    use chacha20::{ChaCha20, XChaCha20};
+    use chacha20::cipher::{KeyIvInit, StreamCipher, StreamCipherSeek};
+
+    // Match the AEAD's counter-1 start using the actual locked cipher API.
+    // check_remaining takes a length, not a slice: no huge allocation occurs.
+    fn counter_limit(mut cipher: impl StreamCipher + StreamCipherSeek) {
+        cipher.seek(64u64);
+        let largest = 64 * (u64::from(u32::MAX) - 1);
+        for size in [0, 1, 63, 64, largest - 1, largest, largest + 1,
+            64 * u64::from(u32::MAX) - 1, 64 * u64::from(u32::MAX)] {
+            if let Ok(size) = usize::try_from(size) {
+                assert_eq!(cipher.check_remaining(size).is_ok(), size as u64 <= largest,
+                    "cipher counter limit at payload length {size}");
+            }
+        }
+    }
+
+    #[test]
+    fn chachapoly_payload_counter_limit() {
+        counter_limit(ChaCha20::new(&[7; 32].into(), &[9; 12].into()));
+    }
+
+    #[test]
+    fn xchacha_payload_counter_limit() {
+        counter_limit(XChaCha20::new(&[7; 32].into(), &[9; 24].into()));
+    }
+}
+
 unsafe fn slice<'a>(p: *const u8, n: usize) -> &'a [u8] {
     if n == 0 { &[] } else { std::slice::from_raw_parts(p, n) }
 }

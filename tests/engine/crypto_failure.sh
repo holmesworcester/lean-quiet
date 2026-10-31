@@ -10,6 +10,10 @@ export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 output=out/crypto-failure
 mkdir -p "$output"
 include=$(lean --print-prefix)/include
+# These two Rust tests query the actual locked cipher's remaining-block API.
+# The boundary is measured without allocating the 256 GiB input it describes.
+CARGO_TARGET_DIR="$PWD/engine/native/crypto/target" cargo test --release --locked \
+  --manifest-path engine/native/crypto/Cargo.toml
 cc -O2 -std=gnu11 -Wall -Wextra -Werror -I"$include" -c tests/engine/crypto_failure.c -o "$output/test.o"
 cc -O2 -std=gnu11 -I"$include" -c engine/native/crypto.c -o "$output/crypto.o"
 leanc "$output/test.o" "$output/crypto.o" engine/native/crypto/target/release/liblq_crypto.a \

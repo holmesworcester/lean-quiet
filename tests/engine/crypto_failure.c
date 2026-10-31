@@ -8,6 +8,7 @@
 #include <string.h>
 
 void lean_initialize_runtime_module(void);
+int lq_aead_plaintext_size_supported(size_t size);
 lean_obj_res le_chachapoly_seal(b_lean_obj_arg k, uint64_t n,
     b_lean_obj_arg ad, b_lean_obj_arg p);
 lean_obj_res le_chachapoly_open(b_lean_obj_arg k, uint64_t n,
@@ -61,6 +62,16 @@ static void opened(const char* label, lean_object* result, lean_object* p) {
 
 int main(void) {
   lean_initialize_runtime_module();
+  check("empty plaintext is supported", lq_aead_plaintext_size_supported(0));
+  check("ciphertext tag cannot overflow size_t", !lq_aead_plaintext_size_supported(SIZE_MAX));
+#if SIZE_MAX > UINT32_MAX
+  check("last full cipher payload is supported",
+    lq_aead_plaintext_size_supported(UINT64_C(274877906816)));
+  check("first unsupported partial block is rejected",
+    !lq_aead_plaintext_size_supported(UINT64_C(274877906817)));
+  check("old floor-division bound would admit an unsupported partial block",
+    !lq_aead_plaintext_size_supported(UINT64_C(274877906879)));
+#endif
   lean_object* key = repeated(32, 7);
   lean_object* nonce = repeated(24, 9);
   lean_object* ad = repeated(11, 13);
