@@ -69,6 +69,12 @@ def main (args : List String) : IO UInt32 := do
   check s!"A's node runs ({a1.net.map (·.port)})" (a1.net.map (·.port.toNat) == some pa)
   let hints := ((Invite.parse link).map (·.hints.map fun h => (String.fromUTF8? h).getD "?")).getD []
   check s!"A's link dials A's node ({hints})" (hints == [s!"127.0.0.1:{pa}"])
+  -- The UI/reader may retain a WAL snapshot while the joining node sends
+  -- its first courier. Sending public handshake bytes must not wait for
+  -- that reader or kill the networking task at SQLite's busy timeout.
+  let pinned ← Db.openAt (dir ++ "/b/quiet.db")
+  pinned.exec "BEGIN"
+  discard <| pinned.query "SELECT count(*) FROM ops" #[]
   -- B pastes it, names itself, agrees
   let ((), b1) ← (show M Unit from do
     steps 2
@@ -85,6 +91,23 @@ def main (args : List String) : IO UInt32 := do
     waitIdle sb
     steps 3).run b0
   check "B waits to join" (b1.page == .waiting && b1.me.waiting)
+  let (a1, b1, _) ← both a1 b1 6500 fun _ _ => false
+  check "request reaches inviter while the joiner's WAL snapshot remains open" (a1.asking.size == 1)
+  pinned.exec "COMMIT"
+  let alive ← match b1.net with
+    | none => pure false
+    | some r => do
+      if !(← IO.hasFinished r.done) then pure true
+      else
+        match r.done.get with
+        | .error e => IO.println s!"join runner failed: {e}"
+        | .ok _ => IO.println "join runner stopped unexpectedly"
+        pure false
+  check "join networking survives a concurrent WAL reader" alive
+  unless alive do
+    if let some r := a1.net then r.stop
+    if let some r := b1.net then r.stop
+    IO.Process.exit 1
   check s!"B's Waiting says where its request goes ({b1.me.dialing})" (b1.me.dialing == s!"127.0.0.1:{pa}")
   -- B's node dials A with the request: it shows under Waiting to join
   let (a2, b2, asked) ← both a1 b1 20000 fun a _ => a.asking.size == 1

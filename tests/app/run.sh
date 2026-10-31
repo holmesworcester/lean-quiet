@@ -52,7 +52,7 @@ tests/app/inkless_negative.sh
 .lake/build/bin/host "${MESSAGES:-500}" out/host
 .lake/build/bin/two_nodes out/two
 if [ "${SKIP_TCP:-0}" != 1 ]; then
-  .lake/build/bin/net_join out/net
+  mise run host:net-join
   .lake/build/bin/cross out/cross
 else
   echo "SKIP net_join cross (TCP sandbox; both built)"

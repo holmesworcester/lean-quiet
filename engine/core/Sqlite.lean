@@ -254,7 +254,7 @@ def checkpointSql : SqlM F Unit := do
     throw (IO.userError "purge: a reader blocked the WAL checkpoint; the purged bytes stay in the WAL until the next one")
 
 /-- **Purge `ids`** (Engine/Purge.lean): one transaction; then, with
-`scrub` (the default), `VACUUM`; then the checkpoint.
+`scrub` (the default), `VACUUM` and a truncating checkpoint.
 
 `secure_delete` zeroes the cells a delete frees, but not the copies a
 b-tree leaves behind when it moves cells between pages: a page rebuilt
@@ -262,13 +262,18 @@ by a split keeps its old cells in the gap between its pointers and its
 content, and `Tests/Purge.lean` finds a purged secret there. `VACUUM`
 rebuilds the file from its live rows, so no copy survives; it costs a
 rewrite of the database. A purge of ops that hold nothing secret (a
-shipped courier) can pass `scrub := false`. Purging again is harmless,
+shipped courier) passes `scrub := false` and does not wait for readers
+or truncate the WAL. Purging again is harmless,
 so a blocked checkpoint can be retried by purging again. -/
 def purgeSql [Codec F] [SortKey F] (fam : Family F) (ids : List Id) (scrub : Bool := true) :
     SqlM F Unit := do
   transact (purgeTx fam ids)
-  if scrub then (← getDb).exec "VACUUM"
-  checkpointSql
+  if scrub then
+    (← getDb).exec "VACUUM"
+    checkpointSql
+  -- Public handshake couriers carry no secret. Requiring a truncating
+  -- checkpoint here blocks behind UI snapshots and can kill the network
+  -- task after the courier is deleted but before its bytes are sent.
 
 /-! ## Reading the whole database back, for tests -/
 
