@@ -509,3 +509,47 @@ run = "platforms/windows/ship.sh e2e"
 [tasks."windows:run"]
 description = "Build, install a desktop shortcut and launch Lean Quiet in Windows"
 run = "platforms/windows/ship.sh run"
+
+# The development workspace (tools/workspace): the op tree planned from
+# main's sources, live component previews, and Lean compiled to WASM.
+[tasks."workspace:setup"]
+description = "Install the workspace's locked npm dependencies"
+run = "npm ci --prefix tools/workspace"
+
+[tasks."workspace:layout"]
+description = "Regenerate docs/OP_TREE.txt: the op tree planned from main's sources (tools/workspace/layout/tree.json)"
+run = "python3 tools/workspace/tools/plan.py --write-tree docs/OP_TREE.txt"
+
+[tasks."workspace:build"]
+description = "Plan the op tree (rejects a stale docs/OP_TREE.txt), check the kernel's Lean proofs, compile it to WASM, and bundle the page"
+depends = ["workspace:setup"]
+run = "python3 tools/workspace/tools/build.py"
+
+[tasks."workspace:test"]
+description = "The plan loses no line of main and places every law where it sees what it names; WASM matches native Lean"
+depends = ["workspace:build"]
+run = "npm test --prefix tools/workspace"
+
+[tasks."workspace:browser-setup"]
+description = "Install Playwright's Chromium unless PLAYWRIGHT_CHROMIUM_EXECUTABLE or CHROME names one"
+depends = ["workspace:setup"]
+run = "if [ -z \"${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-${CHROME:-}}\" ]; then cd tools/workspace && npx playwright install chromium; fi"
+
+[tasks."workspace:e2e"]
+description = "Every folder and file of the tree opens; links, shared preview state, network delivery and phone layout in headless Chromium"
+depends = ["workspace:test", "workspace:browser-setup"]
+run = "cd tools/workspace && PLAYWRIGHT_CHROMIUM_EXECUTABLE=${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-${CHROME:-}} WORKSPACE_PORT=${WORKSPACE_PORT:-4175} npx playwright test"
+
+[tasks."workspace:runtime"]
+description = "Provision the optional browser Lean runtime with pinned checksums (~310 MiB)"
+run = "python3 tools/workspace/tools/runtime.py"
+
+[tasks."workspace:prover"]
+description = "Real in-browser proof acceptance and rejection (needs workspace:runtime)"
+depends = ["workspace:build", "workspace:browser-setup", "workspace:runtime"]
+run = "cd tools/workspace && PLAYWRIGHT_CHROMIUM_EXECUTABLE=${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-${CHROME:-}} QUIET_TEST_PROVER=1 npx playwright test tests/browser/prover.spec.js"
+
+[tasks."workspace:serve"]
+description = "Build and serve the workspace on 127.0.0.1:4173 with browser isolation headers"
+depends = ["workspace:build"]
+run = "python3 tools/workspace/tools/serve.py"

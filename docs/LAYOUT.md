@@ -146,5 +146,9 @@ Connection families; `ops/community/membership/RemovedLaws` imports
      components that read only their own fact;
    - sync's rounds turned into ephemeral ops;
    - the ephemeral log added to the engine.
+   - next, one folder per op: the [op tree](OP_TREE.txt), drawn in the
+     workspace (`mise run workspace:serve`) from main's sources, with the
+     rules in [OP_WORKSPACE_REQUIREMENTS.md](OP_WORKSPACE_REQUIREMENTS.md)
+     (LAYOUT01–06).
 4. **Before the first push to the public repository,** scan every
    history for keys and tokens.
