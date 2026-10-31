@@ -42,6 +42,10 @@ def run (dir : String) (ck : Checks) (viewport : Array UInt32) (mobile : Bool) :
     let a ← press
     ck.ok "drawn photo button starts a native request, without a sample chip"
       (a != 0 && (← get).photoRequest.isSome && (← get).chips.isEmpty && (← calls.get).back? == some a)
+    steps 1
+    ck.ok "opening the picker does not show an attachment placeholder"
+      ((composerLayout (← get)).chips.isEmpty && !photoLoading (← get))
+    sm.photo.set (#[a, 4, 0, 0], .empty)
     let frames ← sm.frames.get
     steps 1
     let pending ← get
@@ -49,7 +53,7 @@ def run (dir : String) (ck : Checks) (viewport : Array UInt32) (mobile : Bool) :
       | throw (IO.userError "pending photo has no visible slot")
     let (_, _, _, _, first) ← sm.last.get
     writePpm (dir ++ "/pending.ppm") pending.W first
-    ck.ok "first published frame contains a placeholder before any native result"
+    ck.ok "first published frame after selection contains a placeholder before decoded pixels"
       ((← sm.frames.get) == frames + 1 && pending.chips.isEmpty &&
        Paint.getPx first[tile.y + pending.dim.px 10]! (tile.x + pending.dim.px 10) ==
          Palette.color pending.dim.theme .selected)
@@ -69,6 +73,7 @@ def run (dir : String) (ck : Checks) (viewport : Array UInt32) (mobile : Bool) :
     ck.ok "OS cancellation leaves the composer unchanged" ((← get).photoRequest.isNone && (← get).chips.isEmpty)
     ck.ok "cancelled placeholder releases its layout slot" ((composerLayout (← get)).chips.isEmpty)
     let cancelled ← press
+    sm.photo.set (#[cancelled, 4, 0, 0], .empty)
     steps 1
     let (_, close) := (composerLayout (← get)).chips[0]!
     onTap .composer (close.x + close.w / 2) (close.y + close.h / 2) false
@@ -78,7 +83,9 @@ def run (dir : String) (ck : Checks) (viewport : Array UInt32) (mobile : Bool) :
       ((← get).photoRequest.isNone && (← get).chips.isEmpty && (← calls.get).back? == some 0)
     -- An unresolved task exercises the actual frame loop's unfinished-worker
     -- branch. It cannot complete until AFTER these frames have been published.
-    discard <| press
+    let held ← press
+    sm.photo.set (#[held, 4, 0, 0], .empty)
+    steps 1
     let gate ← IO.Promise.new
     modify fun s => { s with photoWork := some gate.result? }
     let beforeWorker ← sm.frames.get

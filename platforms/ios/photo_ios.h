@@ -55,6 +55,7 @@ static void lq_photo_file(uint32_t token, NSURL* url) {
 - (void)picker:(PHPickerViewController*)picker didFinishPicking:(NSArray<PHPickerResult*>*)results {
   uint32_t token = self.token;
   NSItemProvider* provider = results.firstObject.itemProvider;
+  if (provider) lq_photo_selected(&lq_photo, token);
   // Completion means the composer can open another picker immediately.
   // Publishing cancellation before dismissal completes races a quick retry.
   [picker dismissViewControllerAnimated:YES completion:^{

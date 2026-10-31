@@ -8,6 +8,7 @@ namespace Photo
 structure Request where
   token : UInt32
   owner : Engine.Id
+  selected : Bool := false
   deriving Inhabited, BEq
 
 def Request.accepts (r : Request) (token : UInt32) (owner : Engine.Id) (composer : Bool) : Bool :=

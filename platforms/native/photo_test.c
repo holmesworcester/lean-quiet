@@ -14,6 +14,11 @@ int main(void) {
   uint32_t h[4]; unsigned char* b; size_t n;
   assert(!lq_photo_take(&slot, h, &b, &n) && !b && !n);
   lq_photo_begin(&slot, 10);
+  assert(!lq_photo_take(&slot, h, &b, &n)); // opening is not selecting
+  assert(lq_photo_selected(&slot, 10));
+  assert(lq_photo_take(&slot, h, &b, &n) && h[0] == 10 && h[1] == 4 && !b && !n);
+  assert(lq_photo_current(&slot, 10)); // selection is NOT a terminal completion
+  assert(!lq_photo_take(&slot, h, &b, &n));
   assert(!lq_photo_publish(&slot, 10, 1, 0, 1, rgba, 0));
   assert(!lq_photo_publish(&slot, 10, 1, 2049, 1, rgba, sizeof rgba));
   assert(!lq_photo_publish(&slot, 10, 1, 2, 1, rgba, 7));
@@ -22,8 +27,11 @@ int main(void) {
   pthread_t worker;
   assert(pthread_create(&worker, NULL, late, NULL) == 0);
   assert(lq_photo_current(&slot, 11));
+  assert(!lq_photo_selected(&slot, 10));
+  assert(lq_photo_selected(&slot, 11)); // fast decode supersedes unconsumed notice
   assert(lq_photo_publish(&slot, 11, 1, 2, 1, rgba, sizeof rgba));
   assert(!lq_photo_publish(&slot, 11, 2, 0, 0, NULL, 0));
+  assert(!lq_photo_selected(&slot, 11));
   assert(lq_photo_take(&slot, h, &b, &n));
   assert(h[0] == 11 && h[1] == 1 && h[2] == 2 && h[3] == 1);
   assert(n == sizeof rgba && !memcmp(b, rgba, n)); free(b);

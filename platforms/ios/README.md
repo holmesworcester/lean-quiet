@@ -52,7 +52,8 @@ Linux box and do the Mac's part over SSH.
 ## How the twin maps the seam
 
 Photo selection reserves a cancellable loading tile in the shared composer as
-soon as the picker request is accepted. Its spinner continues through native
+soon as the picker reports an image selection, before loading its bytes. Opening
+or cancelling the picker without a selection creates no attachment tile. Its spinner continues through native
 provider loading and background image encoding; the finished thumbnail replaces
 that slot. `mise run host:photo` checks the first published pixels, animation,
 an unresolved encoding task, cancellation, and a real signed attachment send at

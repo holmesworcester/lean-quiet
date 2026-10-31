@@ -314,8 +314,10 @@ def topH (s : St) : Nat :=
 /-- The composer's layout (Composer: the painter and the taps both read it). -/
 def composerFont (s : St) : Font := s.font.atSize (s.dim.px 14)
 
+def photoLoading (s : St) : Bool := s.photoRequest.any (·.selected)
+
 def composerLayout (s : St) : Composer.Layout :=
-  Composer.layout (composerFont s) s.dim s.W s.text (Composer.visibleCount s.chips.size s.photoRequest.isSome) s.wide s.mobile
+  Composer.layout (composerFont s) s.dim s.W s.text (Composer.visibleCount s.chips.size (photoLoading s)) s.wide s.mobile
 
 def sheetItems (s : St) (sh : SheetSt) : Array Nat := Sheet.shown s.catalog sh.cat sh.query
 
@@ -649,12 +651,17 @@ def cursorAt (s : St) (i : Nat) : Nat × Nat :=
   if pre.endsWith "\n" then (ls.size, 0) else (ls.size - 1, Paint.Line.width (composerFont s) last)
 
 def composerChips (s : St) : Array Composer.Chip :=
-  Composer.withPending s.dim (s.chips.map (·.2.2.2)) s.photoRequest.isSome (s.frames / 4)
+  Composer.withPending s.dim (s.chips.map (·.2.2.2)) (photoLoading s) (s.frames / 4)
 
 /-- The actual painter receives a pending tile immediately, independent of
 whether the OS provider or the encoding worker has completed. -/
-theorem composer_pending_feedback (s : St) (h : s.photoRequest.isSome = true) :
+theorem composer_pending_feedback (s : St) (h : photoLoading s = true) :
     (composerChips s).size = s.chips.size + 1 := by
+  simp [composerChips, Composer.withPending, h]
+
+/-- Opening the picker alone does not invent an attachment. -/
+theorem composer_no_selection (s : St) (h : photoLoading s = false) :
+    (composerChips s).size = s.chips.size := by
   simp [composerChips, Composer.withPending, h]
 
 def composer (s : St) : Bitmap :=
@@ -1293,7 +1300,7 @@ def attachPhoto : M Unit := do
   modify fun s => { s with photoSerial := token }
   s.io.ime false
   if ← s.io.pickPhoto token then
-    modify fun s => { s with photoRequest := some ⟨token, s.cur⟩, photoWork := none, chromeKey := "" }
+    modify fun s => { s with photoRequest := some ⟨token, s.cur, false⟩, photoWork := none, chromeKey := "" }
   else say "Photo selection is not available on this platform yet."
 
 def photoStep : M Unit := do
@@ -1314,7 +1321,9 @@ def photoStep : M Unit := do
   if header.isEmpty then return
   unless request.accepts (header[0]?.getD 0) s.cur (s.page == .chat) do return
   let status := header[1]?.getD 3
-  if status == 2 then
+  if status == 4 then
+    modify fun s => { s with photoRequest := some { request with selected := true } }
+  else if status == 2 then
     modify fun s => { s with photoRequest := none }
   else if status != 1 then
     modify fun s => { s with photoRequest := none }
@@ -1323,7 +1332,7 @@ def photoStep : M Unit := do
     let dm := s.dim
     let task ← BaseIO.asTask (prio := .dedicated) do
       return (Photo.pixels header bytes).map (preparePhoto dm)
-    modify fun s => { s with photoWork := some task }
+    modify fun s => { s with photoWork := some task, photoRequest := some { request with selected := true } }
 
 def mineOn (s : St) (m : Id) : List String :=
   ((s.rows[m]?.map (·.data.tallies)).getD []).filter (·.mine) |>.map (·.emoji)
@@ -2225,7 +2234,7 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
   let sheetKey := match s.sheet, s.selected with
     | some sh, some m => s!"{sh.catalog}|{sh.cat}|{sh.tone}|{sh.query}|{sh.searching}|{sh.scroll}|{mineOn s m}"
     | _, _ => ""
-  let key := s!"{s.W}|{s.insetTop}|{s.total}|{s.people}|{s.peopleAll}|{s.text}|{s.sel}|{sheetKey}|{s.me.name}|{s.asking.size}|{s.chips.size}|{s.photoRequest.isSome}|{if s.photoRequest.isSome then s.frames / 4 % 8 else 0}"
+  let key := s!"{s.W}|{s.insetTop}|{s.total}|{s.people}|{s.peopleAll}|{s.text}|{s.sel}|{sheetKey}|{s.me.name}|{s.asking.size}|{s.chips.size}|{s.photoRequest.isSome}|{photoLoading s}|{if photoLoading s then s.frames / 4 % 8 else 0}"
   if key != s.chromeKey then
     let bot ← match s.sheet, s.selected with
       | some sh, some m => sheetBitmap sh (mineOn s m)
