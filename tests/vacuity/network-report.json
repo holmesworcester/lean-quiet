@@ -1,0 +1,170 @@
+{
+  "recv_send": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.recv_send",
+    "witness": "Vacuity.Network.receiveSendable",
+    "module": "tests.vacuity.Network",
+    "detail": "A responder receives encoded hello bytes and sends a nonempty hello reply; apply recv_send to that actual output. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "recv_take": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.recv_take",
+    "witness": "Vacuity.Network.receiveTakeable",
+    "module": "tests.vacuity.Network",
+    "detail": "A nonempty Alice: hello Bob op is decoded and taken by the running Conn.recv in a permitted room; apply recv_take to that exact op. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "hold_reply_local": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.hold_reply_local",
+    "witness": "Vacuity.Network.hiddenProbe",
+    "module": "tests.vacuity.Network",
+    "detail": "Probe the actual id of a local secret with a nonempty have; one store contains the secret and the other lacks it. Prove RoomsAgree and both decode premises, then apply the theorem. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "hold_reply_local_premises": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.hold_reply_local_premises",
+    "witness": "Vacuity.Network.havePremises",
+    "module": "tests.vacuity.Network",
+    "detail": "A nonempty encoded have naming the synthetic chat op proves both decode premises. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "offer_shared": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.offer_shared",
+    "witness": "Vacuity.Network.shared",
+    "module": "tests.vacuity.Network",
+    "detail": "Store Alice: hello Bob with a real write turn, prove a nonempty filed advertisement and id membership, then apply offer_shared. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "offer_stored": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.offer_stored",
+    "witness": "Vacuity.Network.storedOffer",
+    "module": "tests.vacuity.Network",
+    "detail": "Same stored chat and nonempty advertisement; apply offer_stored to its actual id. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "filed_send": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.filed_send",
+    "witness": "Vacuity.Network.filedWire",
+    "module": "tests.vacuity.Network",
+    "detail": "Bridge held/model execution for the concrete filed write; apply filed_send to a produced nonempty advertisement. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "tick_send": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.tick_send",
+    "witness": "Vacuity.Network.tickWire",
+    "module": "tests.vacuity.Network",
+    "detail": "A quiet tick at 30000 ms sends an actual keepalive; apply tick_send to that output. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "onWant_authorized": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.onWant_authorized",
+    "witness": "Vacuity.Network.wantAuthorized",
+    "module": "tests.vacuity.Network",
+    "detail": "A request for the stored chat id is indexed in the permitted room and actually joins the queue; apply onWant_authorized. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "onWant_all": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.onWant_all",
+    "witness": "Vacuity.Network.wantQueued",
+    "module": "tests.vacuity.Network",
+    "detail": "Prove maxIds/queue capacity and index authorization for a single chat op, then apply onWant_all. A control with no permitted room queues nothing. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "onWant_order": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.onWant_order",
+    "witness": "Vacuity.Network.wantOrder",
+    "module": "tests.vacuity.Network",
+    "detail": "Apply onWant_order to the nonempty authorized chat request. wantQueued separately establishes the added queue is nonempty. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "serveOwed_shown": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.serveOwed_shown",
+    "witness": "Vacuity.Network.servedShown",
+    "module": "tests.vacuity.Network",
+    "detail": "Apply serveOwed_shown to a chat op actually served from a nonempty wanted queue. Revoking the room suppresses service. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "serveOwed_hot": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.serveOwed_hot",
+    "witness": "Vacuity.Network.servesFresh",
+    "module": "tests.vacuity.Network",
+    "detail": "A stored shown op in both the wanted and fresh-write sets is sent urgently even with zero bulk budget. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "serveOwed_head": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.serveOwed_head",
+    "witness": "Vacuity.Network.servesHead",
+    "module": "tests.vacuity.Network",
+    "detail": "Prove positive byte budget, concrete nonempty queue, stored op and shown room, then apply serveOwed_head. Zero bulk budget serves nothing. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "serveOwed_fifo": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.serveOwed_fifo",
+    "witness": "Vacuity.Network.fifo",
+    "module": "tests.vacuity.Network",
+    "detail": "Apply serveOwed_fifo to the nonempty chat queue; servesHead separately establishes actual output. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "owed_within": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.owed_within",
+    "witness": "Vacuity.Network.drains",
+    "module": "tests.vacuity.Network",
+    "detail": "Apply owed_within with a positive 1024-byte budget to drain the nonempty queue. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "drop_iff_silent": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.drop_iff_silent",
+    "witness": "Vacuity.Network.timesOut",
+    "module": "tests.vacuity.Network",
+    "detail": "Apply the exact iff at 90001 ms; independent application at 90000 ms proves still live at the strict deadline. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "keepalive_sent": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.keepalive_sent",
+    "witness": "Vacuity.Network.keepalive",
+    "module": "tests.vacuity.Network",
+    "detail": "Instantiate existing keepalive_runs, which constructs quiet-work and timing premises and applies keepalive_sent; actual output is a nonempty empty-have keepalive at 30000 ms. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "live_stays": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.live_stays",
+    "witness": "Vacuity.Network.keepaliveHistory",
+    "module": "tests.vacuity.Network",
+    "detail": "Instantiate live_runs, whose actual receive/tick history proves both scheduler and delivery premises for live_stays. Logical time live=3; not a real network scheduling guarantee. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "stream_delivers": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.stream_delivers",
+    "witness": "Vacuity.Network.streamDelivery",
+    "module": "tests.vacuity.Network",
+    "detail": "Instantiate the existing non-vacuity witness: two nodes open sessions, write an op, exchange have/want/op, and the receiver stores it. One-room Unit family, plain frames, empty payload op; no crypto or membership claim. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "stream_delivers_steps": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.stream_delivers_steps",
+    "witness": "Vacuity.Network.streamDelivery",
+    "module": "tests.vacuity.Network",
+    "detail": "Existing concrete two-node witness applies stream_delivers_steps after proving session, capacity, room, missing-op and time premises; receiver stores the op. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "stream_delivers_runs": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.stream_delivers_runs",
+    "witness": "Vacuity.Network.streamDelivery",
+    "module": "tests.vacuity.Network",
+    "detail": "Instantiate this existing executable two-node non-vacuity witness with named synthetic room and session identifiers. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "stream_offered": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.stream_offered",
+    "witness": "Vacuity.Network.streamOffer",
+    "module": "tests.vacuity.Network",
+    "detail": "Existing witness opens two sessions and writes an op, then applies stream_offered with concrete satisfied premises to obtain an actual in-flight advertisement. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  },
+  "stream_offered_runs": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.stream_offered_runs",
+    "witness": "Vacuity.Network.streamOffer",
+    "module": "tests.vacuity.Network",
+    "detail": "Instantiate existing two-node witness with named synthetic room/session; output includes an in-flight frame and offered op id. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+  }
+}
