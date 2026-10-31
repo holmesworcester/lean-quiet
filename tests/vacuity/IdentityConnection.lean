@@ -191,7 +191,7 @@ def bareJoin (s : Session) :=
     else none
   else none
 
-def invite : Community.Invite := ⟨c, pkA, (sha256 "vacuity-invitation".toUTF8), ["127.0.0.1:7447".toUTF8], .empty⟩
+def invite : Community.Invite := ⟨c, invitation.id, pkA, ["127.0.0.1:7447".toUTF8], (sha256 "vacuity-invitation".toUTF8)⟩
 def joinTravels := Community.joinOps_travels ed25519 invite (sha256 "vacuity-carol".toUTF8) "Carol".toUTF8 pkB
 def stopLocal := Community.stopWaiting_local ed25519 requestB.id
 def foundTravels := Community.found_travels ed25519 (DB.empty : DB Community.Fact)
@@ -218,6 +218,7 @@ def main : IO UInt32 := do
   t.ok "node refuses Bob after removal" (!((Community.allowPeer c pkB).liftL : View F Bool).eval (run (cutOps s)))
   t.ok "different node/device keys" (pkA != alice.pk && pkB != bob.pk)
   let joining := (Community.joinOps invite (sha256 "vacuity-carol".toUTF8) "Carol".toUTF8 pkB).ops
+  t.ok "concrete invite has valid field sizes" (decide invite.Valid)
   t.ok "join sends exactly one op and retains local ops" ((joining.filter (Community.family ed25519).shared).length == 1 && joining.length > 1)
   t.ok "unapproved request gets no connection reply"
     (!(((react fam sodium : Model F (List Op)).run (run (unapprovedOps s))).1.any (fun o => o.kind == 35)))
