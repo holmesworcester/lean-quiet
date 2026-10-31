@@ -53,13 +53,13 @@
     "theorem": "Net.Scene.bootstrap",
     "witness": "Vacuity.Bootstrap.eventuallyBootstrap",
     "module": "tests.vacuity.Bootstrap",
-    "detail": "Fixed scene, but universal Good and an actual infinite fair scheduler/delivery run are still required. No constructed fair-run witness; finite successful path does not prove this premise. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+    "detail": "Fixed scene, but universal Good and an actual infinite fair scheduler/delivery run are still required. No constructed fair-run witness; finite successful path does not prove this premise. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms. Planned witness: recursively cycle tickA, tickB, approval and FIFO head delivery; prove enabled steps and finite-prefix queue progress to establish Fair and Ideal. This remains future model-proof work, separate from the running app."
   },
   "bootstrap_ideal": {
     "status": "conditional",
     "theorem": "Net.Scene.bootstrap_ideal",
     "witness": "Vacuity.Bootstrap.eventuallyIdeal",
     "module": "tests.vacuity.Bootstrap",
-    "detail": "Fixed scene application leaves Good, concrete infinite Fair run, and no-drop Ideal premises explicit. Ideal finite path alone cannot establish infinite scheduling fairness. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+    "detail": "Fixed scene application leaves Good, concrete infinite Fair run, and no-drop Ideal premises explicit. Ideal finite path alone cannot establish infinite scheduling fairness. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms. Planned witness: recursively cycle tickA, tickB, approval and FIFO head delivery; prove enabled steps and finite-prefix queue progress to establish Fair and Ideal. This remains future model-proof work, separate from the running app."
   }
 }

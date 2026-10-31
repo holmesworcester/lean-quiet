@@ -19,7 +19,7 @@
     "theorem": "Community.Unforgeable",
     "witness": "Vacuity.Identity.noImpersonation",
     "module": "tests.vacuity.Identity",
-    "detail": "Real signed-message validity is checked, but universal unforgeability relative to an independent signing history remains open. Neither Signed=True nor a verifier-defined signing history is substituted."
+    "detail": "Intended security relies on exclusive control of honest signing keys and secure, correctly implemented Ed25519. The current predicate quantifies all mathematically possible accepted signatures, so it cannot hold for a finite independent signing history under ordinary signature correctness. Execution/attacker scoping and a trace assumption or computational argument are still needed; native signature checks do not close this formulation gap."
   },
   "NoSecondPreimage": {
     "status": "kernel-witness",

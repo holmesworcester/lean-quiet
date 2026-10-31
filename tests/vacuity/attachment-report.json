@@ -5,7 +5,7 @@
     "witness": "Vacuity.Attachment.sliceCertificate",
     "module": "tests.vacuity.Attachment",
     "exercise": true,
-    "detail": "70000-byte deterministic file sealed by real XChaCha20 to70016 bytes across two chunks. Native certificate proves actual chunk validator accepts the concrete chunk/root/attachment facts. Applying chunk_is_slice still requires universal SHA256 output-size correctness and NoSecondPreimage on this ciphertext tree; checking this finite tree cannot discharge either universal premise. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash. Native negative controls flip one ciphertext byte without changing length, substitute a32-byte sibling, and use out-of-range index2; all are rejected."
+    "detail": "70000-byte deterministic file sealed by real XChaCha20 to70016 bytes across two chunks. Native certificate proves actual chunk validator accepts the concrete chunk/root/attachment facts. Applying chunk_is_slice still requires universal SHA256 output-size correctness and NoSecondPreimage on this ciphertext tree; checking this finite tree cannot discharge either universal premise. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash. Native negative controls flip one ciphertext byte without changing length, substitute a32-byte sibling, and use out-of-range index2; all are rejected. NoSecondPreimage is an exact all-alternative-input idealization; standard computational resistance and finite examples do not establish it."
   },
   "chunk_unique": {
     "status": "conditional",
@@ -13,7 +13,7 @@
     "witness": "Vacuity.Attachment.uniqueCertificate",
     "module": "tests.vacuity.Attachment",
     "exercise": true,
-    "detail": "Real signed attachment and two independently constructed relay copies at index0 have kernel-checked runtime V certificates in a structurally keyed store. The theorem application retains SHA size and file-tree NoSecondPreimage. Native controls prove canonical bytes/ids agree and duplicate arrival does not increase progress; no arbitrary-hash collision claim. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash."
+    "detail": "Real signed attachment and two independently constructed relay copies at index0 have kernel-checked runtime V certificates in a structurally keyed store. The theorem application retains SHA size and file-tree NoSecondPreimage. Native controls prove canonical bytes/ids agree and duplicate arrival does not increase progress; no arbitrary-hash collision claim. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash. NoSecondPreimage is an exact all-alternative-input idealization; standard computational resistance and finite examples do not establish it."
   },
   "progress_exact": {
     "status": "conditional",
@@ -21,6 +21,6 @@
     "witness": "Vacuity.Attachment.progressCertificate",
     "module": "tests.vacuity.Attachment",
     "exercise": true,
-    "detail": "Nonempty signed attachment store actually contains only index1 of two chunks. Inv follows from real ingest/drain preservation; runtime certifies settled queue and valid attachment. Native progress is exactly1/2, duplicate still1/2, full file2/2. The theorem application retains universal SHA size and file-specific NoSecondPreimage; missing attachment and malformed chunks are negative controls. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash."
+    "detail": "Nonempty signed attachment store actually contains only index1 of two chunks. Inv follows from real ingest/drain preservation; runtime certifies settled queue and valid attachment. Native progress is exactly1/2, duplicate still1/2, full file2/2. The theorem application retains universal SHA size and file-specific NoSecondPreimage; missing attachment and malformed chunks are negative controls. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash. NoSecondPreimage is an exact all-alternative-input idealization; standard computational resistance and finite examples do not establish it."
   }
 }

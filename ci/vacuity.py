@@ -82,8 +82,10 @@ in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
 **Coverage: {counts['kernel-witness']} kernel witnesses, {counts['runtime-witness']} runtime witnesses,
-{counts['conditional']} conditional checks, {counts['counterexample']} failed production assumptions; {len(refs) - len(CHECKS)} of {len(refs)} linked declarations still pending.**
+{counts['conditional']} conditional checks, {counts['counterexample']} recorded runtime counterexamples; {len(refs) - len(CHECKS)} of {len(refs)} linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
+Zero recorded runtime counterexamples does not establish that every remaining
+hypothesis is applicable; formulation gaps are described in conditional entries.
 
 **Contract failures repaired.** `Seal.Good` and Noise `Suite.Good` now require
 supported key, nonce, plaintext and associated-data sizes where applicable.
@@ -97,6 +99,19 @@ The general native crypto contracts remain **conditional**: finite roundtrips
 do not prove their universal laws. The community and general handshake results
 that rely on them are not promoted to fully witnessed proofs. The symbolic
 Noise suite still has a kernel proof of its contract, separate from native crypto.
+
+
+**Remaining assumption work.** The [explicit assumptions](#what-is-assumed)
+distinguish standard computational security from the exact Lean predicates.
+`Unforgeable` currently quantifies all possible accepted signatures, so it
+cannot describe a finite independent signing history under ordinary signature
+correctness. It needs execution/attacker scoping and an explicit trace
+assumption or computational argument. SHA-256 second-preimage resistance also
+does not prove the stronger exact `NoSecondPreimage` idealization. Native
+attachment claims retain that assumption and remain conditional; the kernel
+witness for `NoSecondPreimage` is for a constructed model hash. The [bootstrap work plan](#bootstrap-witnesses-still-to-construct)
+separates finite scene certificates from a still-unconstructed infinite fair
+model execution and the later bridge to the running app.
 
 - **kernel-witness:** Lean checks a concrete fixture's premises and application
   of the named theorem. No new axioms, `sorry`, or `native_decide` are admitted.

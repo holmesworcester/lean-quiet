@@ -8,7 +8,7 @@ This app is written mostly in Lean. It builds for iOS, Android, Linux, Apple Sil
 meaningful sense Lean does everything from processing TCP packets to drawing pixels on the screen.
 This allows for proving a surprising range of user-relevant properties! See: [What is Proven](#what-is-proven).
 
-Like [Quiet](https://github.com/TryQuiet/quiet), Lean Quiet is also local-first, end-to-end encrypted, and peer-to-peer, so many properties that would normally depend on a server operator (such as privacy, access control, or uptime) are provided by the code itself. This means they are provable over all possible deployments, assuming user device integrity! See: [Towards Proofs for n Clients](#towards-proofs-for-n-clients).
+Like [Quiet](https://github.com/TryQuiet/quiet), Lean Quiet is also local-first, end-to-end encrypted, and peer-to-peer, so many properties that would normally depend on a server operator (such as privacy, access control, or uptime) are provided by the code itself. Proofs can establish specified properties across executions satisfying their hypotheses, including device integrity, cryptographic and native-code trust, and the scheduling/delivery conditions needed for progress. See: [Towards Proofs for n Clients](#towards-proofs-for-n-clients).
 
 Can we also prove the absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size or RTL language, or a lack of responsiveness under load, or an accessibility gap? This seems tantalizingly possible too, and we show many such proofs here.
 
@@ -22,30 +22,34 @@ There is something exhilarating about adding a proof where one would usually add
 
 ## What is proven
 
-Lean checks these theorems about the code that runs, except the one
-marked *(model)*, which is over a model so far. Whatever any peer or
-anyone on the network does:
+Lean checks the theorem statements under their stated hypotheses. The tables
+below distinguish running code from models and unfinished connections to the
+app. Cryptographic authenticity and progress also depend on the assumptions
+below; the vacuity report records which concrete premises have been checked:
 
-- **nobody can post as another member;** ¹
+- **accepted posts have signatures that verify under an admitted device key;** ¹
 - **nobody joins without an invitation and members' approval;** ¹
 - **only admins remove others, and no removal can be undone;** ¹
 - **no peer can alter or rename an op:** its id is the hash of its
   bytes, and it has one parse; ²
 - **non-members get none of a community's ops;**
-- **no device's secrets leave it;**
+- **sync does not offer or send local secret ops;**
 - **a node's trust rule lets in exactly the live members;** ¹
 - **honest nodes that hold the same ops agree;** ² *(model)*
 - **only a session's two nodes can derive its keys, even if both
   nodes' long-term keys later leak.** ³
 
-¹ assuming Ed25519 signatures cannot be forged. ² assuming SHA-256 has
-no collisions. ³ in the symbolic model of the cryptography.
+¹ Interpreting verification as the owner actually signing needs the Ed25519
+assumptions and signing-history scoping fix below. ² Assuming no collision among
+the relevant encountered inputs. ³ In the symbolic model of the cryptography.
 
 **Not yet proven:**
 - that messages are secret from non-members (the seal's secrecy);
 - that every connection step reads its rooms afresh, so that a removal
   reaches a live session (tested, not proven);
-- the bootstrap over the running code, rather than a model;
+- the bootstrap over the running code, and a concrete infinite fair-run witness
+  even for the existing bootstrap model ([construction plan](#bootstrap-witnesses-still-to-construct));
+- a signing-history assumption scoped to verification attempts in an execution;
 - that content is drawn faithfully all the way to pixels (proven up to
   each row's layout; painting is not).
 
@@ -62,27 +66,53 @@ delivery order (`conn_runs_exchange`) and the closure it delivers
 
 ### What is Assumed
 
-**Hypotheses.** These are named in the theorems that take them, and
-nothing else is assumed:
-- [`Unforgeable`]: a signature that verifies under a device key was made
-  by that key's holder (Ed25519).
-  - The membership theorems say "signed by d" to mean "the signature
-    verifies under d".
-  - `no_impersonation` takes `Unforgeable` to conclude that d's holder
-    signed.
-  - Reading any of them as "an attacker cannot" rests on it.
-- [`CollisionFree`]: SHA-256 has no collision among the ops a node
-  received.
-  - It gives [`Distinct`]: no two ops share an id.
-  - The engine's agreement and budget theorems take `Distinct`.
-  - Sync's Merkle labels take the same of what they hash (in
-    [`lbl_inj`]).
-- [`NoSecondPreimage`]: SHA-256 has no second preimage on a file's
-  Merkle tree inputs, for the attachment laws. [`assumptions_hold`]
-  shows that it can hold.
-- [`Suite.Good`]: X25519 agrees (`dh a (pub b) = dh b (pub a)`), the
-  AEAD opens what it seals, and public keys are 32 bytes. These are
-  correctness only, and say nothing about secrecy.
+**Cryptographic trust assumptions.** For the intended security interpretation:
+
+- Honest devices keep their private signing keys under their owners' control;
+  attackers cannot extract those keys or make the devices sign unauthorized
+  operations. SHA-256 itself has no secret key.
+- Ed25519 key generation, signing and verification are implemented correctly,
+  and feasible attackers cannot forge a signature on a new message except with
+  negligible probability. This concerns digital signatures; encryption alone
+  does not establish who signed. See [Ed25519's specification](https://www.rfc-editor.org/rfc/rfc8032.html)
+  and the [standard unforgeability definition](https://securitybook.eecs.berkeley.edu/chapters/lec05.html#definitions).
+- SHA-256 resists finding two different inputs with the same hash (**collision
+  resistance**) and finding a different input matching a specified input's hash
+  (**second-preimage resistance**). These are computational assumptions, not a
+  claim that collisions do not exist. [NIST describes both properties and SHA-256's security strengths](https://csrc.nist.gov/Projects/Hash-Functions).
+
+**Exact Lean hypotheses.** The proofs use the following predicates; their
+relationship to those computational assumptions is not a proved reduction:
+
+- [`Unforgeable`] currently says that *every mathematically possible* accepted
+  key/message/signature triple implies `Signed key message`, an independent
+  signing history. This is too broad for a finite history: a valid signature
+  exists for every message under a legitimate key, including messages nobody
+  has signed. Secret keys and secure signatures alone do not establish this
+  literal predicate. **Not yet:** restrict it to verification attempts reachable
+  in an execution and connect `Signed` to actual signing events under an explicit no-forgery
+  trace assumption, or supply a probabilistic security argument. Until then,
+  `no_impersonation` and `no_renaming` retain this applicability gap. The
+  validator laws do establish that the required signatures verify.
+- [`CollisionFree`] requires no SHA-256 collision among the ops in the given
+  received list. This finite property gives [`Distinct`] and can be checked
+  on a concrete list. Sync's label law [`lbl_inj`] has its own hash premise.
+- [`NoSecondPreimage`] assumes no alternative byte string anywhere has the same
+  hash as a given file-tree input. This exact idealization is stronger than
+  computational second-preimage resistance. [`assumptions_hold`] supplies a
+  constructed model hash for an empty-file example, not a proof about SHA-256.
+- [`Suite.Good`] and [`Seal.Good`] require DH/key-derivation correctness and AEAD
+  roundtrips on supported inputs: 32-byte keys, 24-byte XChaCha nonces, plaintext
+  at most 274877906816 bytes and representable associated-data lengths, where
+  applicable. Their hash/key size guarantees are implementation properties.
+  Finite production tests exercise these laws; the universal correctness
+  hypotheses remain explicit. These contracts alone do not establish secrecy.
+- The bootstrap model's `Scene.Good` assumes signature correctness for every
+  message under its three signing keys, distinct participants/node keys and
+  distinct operations in its five-op scene. The fixed scene has not yet
+  discharged those premises. Its eventual-progress laws additionally require
+  infinitely recurring ticks and approval actions, and delivery fairness;
+  `bootstrap_ideal` also excludes drops. See the construction plan below.
 - **A read transaction is one moment** (`read_one_moment` and
   `agrees_notice` take it), as two hypotheses. *Snapshot:* inside one
   SQLite read transaction, every read answers as one state of the store
@@ -102,13 +132,15 @@ nothing else is assumed:
   Ed25519-to-X25519 conversion. Their agreement is non-injective: a
   replayed handshake is accepted again.
 
-**Trusted, not proven.** Each item is tested instead, as noted:
+**Trusted implementation boundaries.** Tests provide evidence for the exercised
+behavior; they do not prove all of these assumptions:
 - **Lean** (its kernel, compiler and runtime), and the OS's randomness
   for keys and nonces.
-- **The crypto libraries meet those hypotheses:** ed25519-dalek,
+- **The crypto implementations behave as specified:** ed25519-dalek,
   curve25519-dalek, chacha20poly1305 and sha2, the Rust crates libquiet
-  uses. They are tested byte-identical to libsodium, and the handshake
-  is tested against the Noise test vectors.
+  uses. Compatibility tests compare their outputs with libsodium, and the
+  handshake is tested against Noise vectors. These checks do not establish
+  unforgeability, second-preimage resistance or a signing-history bridge.
 - **SQLite behaves like the engine's own store.** This is tested row for
   row against the model, and with kill -9 crash tests. A frame's reads in one
   transaction see one committed state (SQLite's snapshot isolation): the
@@ -135,8 +167,8 @@ nothing else is assumed:
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
-that rests on; 🥊 is supporting. All 1040 rest on Lean's standard axioms
-only, and about three quarters of its theorems (786 of 1020, not counting 20 negative controls) are about the code that runs; another 10 run the
+that rests on; 🥊 is supporting. Theorem statements still require their listed
+hypotheses. All 1040 rest on Lean's standard axioms only, and about three quarters of its theorems (786 of 1020, not counting 20 negative controls) are about the code that runs; another 10 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -144,11 +176,11 @@ World); the rest are over models so far
 | | | Guarantee | Theorems |
 |---|---|---|---|
 | | | **Identity and membership** | |
-| ✅ | 🥊🥊🥊 | **No impersonation.** A message attributed to user u's device d was signed, as that exact op, by d's key. That key also signed d's admission into u. | [`no_impersonation`] |
-| ✅ | 🥊🥊🥊 | **No joining unapproved.** Every member is the founder, or redeemed an invitation and was approved by its threshold of distinct members. The request was signed by both the link's key and the device. | [`admission_needs_approval`], [`admission_approved`], [`request_invited`] |
+| 🟡 | 🥊🥊🥊 | **No impersonation.** The validator requires signatures verifying under the admitted device key for the message and its admission. The theorem connects these to signing events under `Unforgeable`. Not yet: scope that predicate to an execution and establish its link to an independent signing history. | [`no_impersonation`] |
+| ✅ | 🥊🥊🥊 | **No joining unapproved.** Every member is the founder, or redeemed an invitation and was approved by its threshold of distinct members. The request carries signatures that verify under both the link's key and the device key. | [`admission_needs_approval`], [`admission_approved`], [`request_invited`] |
 | ✅ | 🥊🥊🥊 | **Only admins remove others,** and only admins make admins. | [`removal_authorized`], [`admin_granted`] |
 | ✅ | 🥊🥊🥊 | **Removal sticks, and history stays.** No replay, delay or reordering restores a removed member, or invalidates a valid op. | [`removed_stays`], [`valid_stays`] |
-| ✅ | 🥊🥊 | **Every op is signed by whom it must be.** A message is signed by an admitted device of its author, and an approval by a member other than the requester. An invitation is signed by its issuer, and a community's name by an admin. Each admission was consented to by its device. | [`message_authorized`], [`approval_signed`], [`invitation_issued`], [`named_by_admin`], [`admission_consented`] |
+| ✅ | 🥊🥊 | **Every op verifies under the required keys.** A message verifies under an admitted device of its author, and an approval under a member other than the requester. An invitation verifies under its issuer, and a community name under an admin. Admission requires a verifying device signature; interpreting it as consent uses the signing-history assumption. | [`message_authorized`], [`approval_signed`], [`invitation_issued`], [`named_by_admin`], [`admission_consented`] |
 | ✅ | 🥊🥊 | **Admins' removals stand,** even of each other, and a removed member's earlier approvals still count. | [`admin_removal_stands`], [`mutual_removal`], [`removed_approver_admits`] |
 | | | **Confidentiality** | |
 | ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A session sends only sync messages and ops of the rooms its peer is let into. A have for a room the peer may not see is ignored, so a peer cannot ask whether this node holds an op of another community, or a local op. Wants authorize ids against the shown rooms' index before any blob read. | [`recv_send`], [`hold_reply_local`], [`heldIn_index`], [`hold_reply_local_premises`], [`onWant_authorized`], [`serveOwed_blind`], [`serveOwed_shown`] |
@@ -200,7 +232,7 @@ World); the rest are over models so far
 | 🟡 | 🥊🥊🥊 | **A sync round is complete.** Each side is sent exactly what the other holds in the range and it lacks. On any path, it takes at most one answer more than the two sides hold in the range. Not yet: proven of the round's model (`exchange`); wanted of the running round (`conn_runs_exchange`). | [`exchange_complete`] |
 | ✅ | 🥊🥊 | **Fingerprints are honest.** Equal Merkle labels mean equal sets, and a side opens a round with an honest claim. | [`lbl_inj`], [`opening_honest`], [`num_inj`] |
 | 🟡 | 🥊🥊🥊 | **Partial sync is safe.** A node that holds an op's requirement closure judges it as its peer does. Not yet: proven of the spec, which running judging reaches only on states whose purges are modelled. | [`spec_local`] |
-| 🟡 | 🥊🥊🥊 | **A joiner connects, and both sides converge,** over a socket that loses, duplicates and reorders. Proven over a model only. Wanted: the same of the running code (`conn_runs_exchange`, `closure_delivered`). | [`bootstrap`], [`bootstrap_ideal`], [`bootstrap_possible`], [`reachable_inv`] *(model)* |
+| 🟡 | 🥊🥊🥊 | **A joiner connects, and both sides converge,** in every fair run of the bootstrap model under `Scene.Good`. Fairness includes recurring ticks, approval actions and delivery of infinitely resent messages. Not yet: a concrete infinite fair-run witness with the scene premises discharged, and the corresponding whole-bootstrap result over running code (`conn_runs_exchange`, `closure_delivered`). | [`bootstrap`], [`bootstrap_ideal`], [`bootstrap_possible`], [`reachable_inv`] *(model)* |
 | 🟡 | 🥊🥊🥊 | **The running connection does all this.** Proven: a connection answers a claim that lists ids exactly as `exchange` does, from the round's snapshot. Not yet: the whole round under any delivery order (`conn_runs_exchange`), and each op's requirement closure (`closure_delivered`). | [`conn_answers_ids`] |
 | 🟡 | 🥊🥊🥊 | **New ops reach connected members.** In a world of two nodes running the sync code on held stores, with fixed rooms, frames in the clear and no handshake: an op written while a member's session is up is offered at once, and the member holds it after one exchange (the offer, a want, the op), when both sides' rooms include its room, neither held it, and the receiver has a free ask slot and a response budget. Not yet of the runner, with TCP, sealed frames, the trust rule's rooms and the handshake. | [`stream_offered`], [`stream_delivers`], [`stream_delivers_steps`], [`stream_offered_runs`], [`stream_delivers_runs`] |
 | ✅ | 🥊🥊🥊 | **Every want is served in full, and in order.** A want's authorized ids join the session's queue behind what it already owes, each id once, and each step serves the queue from its front within the room its socket has, so the id at position p is served within p + 1 steps (in the same step, on an empty queue). Nothing is truncated or retried; an ask whose op the peer has since purged expires. | [`onWant_all`], [`onWant_order`], [`serveOwed_head`], [`serveOwed_fifo`], [`owed_within`], [`want_sends`], [`asks_expire`] |
@@ -231,7 +263,7 @@ World); the rest are over models so far
 | ⬜ | 🥊🥊 | **An action's toast stays until the screen shows it.** A toast for an action (removing someone, a new name or avatar) stays up until every component on screen has re-read a state that holds the action's op, or until the OS's toast time passes, whichever comes first. So a toast that leaves early proves the screen has caught up. | |
 | 🟡 | 🥊🥊 | **The layout is exact.** Proven of the running code: the sheet's composition and its emoji keys (the painter places item i by `itemAt` and the sheet's lines by `lineOf`, exactly over the box the taps answer for: `lineOf_ctop`), the composer's photo chips (in order, never overlapping, an X that never reaches the next chip, and all four on screen), the invite's hints and QR, and the camera preview. The slide, keyboard shift and pinned-page placement now run through `Surface` and scalar `Slide` exports. Not yet: graphics API application and pixel copies as Lean laws. | [`Surface.placed_row`], [`Surface.newest_drawn`], [`Surface.pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`itemAt_place`], [`lineOf_ctop`], [`chips_apart`], [`x_clear`], [`chips_fit`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
 | 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** Proven: wrapping drops only spaces, keeps every other character in order, and every line fits when every character does; bidi reordering drops and invents nothing; the glyphs placed are exactly the visible characters; and every resolved European or Arabic number run, with its separators and terminators (decimals, times, percentages), stays contiguous and in logical order in either paragraph direction (#3). Tested: Unicode 16's BidiTest and BidiCharacterTest, 73,599 cases and 0 failures, in the scope the renderer implements (P2–P3, W1–W7, N1–N2, I1–I2, L1–L2, single lines without explicit embeddings, isolates or paired brackets; docs/BIDI.md names the 788,349 cases left out). Not yet: the bidi algorithm itself as a law (its rules are tested; the number runs are proven), embeddings and isolates, paired brackets (N0), mirrored glyphs (L4), marks (L3), paragraphs across soft wraps, and `layout` as one statement. | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`numbers_keep_order`], [`arabic_numbers_keep_order`] |
-| 🟡 | 🥊🥊🥊 | **Names are shown correctly.** Proven: an author component reads its author's newest valid profile, which only a device admitted into that user can write, cut to a logical prefix; explicit bidi controls (embeddings, overrides, isolates, LRM, RLM and ALM) have no directional authority: the running bidi classes each as a neutral, though one inserted can still split a number run; a name starts next to the avatar whatever its direction (as do a message's lines, start-aligned as libquiet's); and a row is marked "⚠ Duplicate" exactly when another member's name looks alike (equal once invisible characters are dropped and spaces, and the glyphs the font draws empty, collapsed). Not covered: look-alike letters across scripts, and invisible characters in a message's body. | [`profile_read`], [`profile_authorized`], [`no_renaming`], [`name_placed`], [`oneLine_prefix`], [`controls_neutral`], [`marks_invisible`], [`namesake_iff`], [`row_marked`], [`twin_shown`], [`twin_before_time`], [`hit_twin`], [`name_starts`], [`flush_shows`] |
+| 🟡 | 🥊🥊🥊 | **Names are shown correctly.** Proven: an author component reads its author's newest valid profile, whose signature verifies under a device admitted into that user, cut to a logical prefix; explicit bidi controls (embeddings, overrides, isolates, LRM, RLM and ALM) have no directional authority: the running bidi classes each as a neutral, though one inserted can still split a number run; a name starts next to the avatar whatever its direction (as do a message's lines, start-aligned as libquiet's); and a row is marked "⚠ Duplicate" exactly when another member's name looks alike (equal once invisible characters are dropped and spaces, and the glyphs the font draws empty, collapsed). Not covered: look-alike letters across scripts, and invisible characters in a message's body; attributing the signature to an actual signing event also retains the `Unforgeable` scoping gap. | [`profile_read`], [`profile_authorized`], [`no_renaming`], [`name_placed`], [`oneLine_prefix`], [`controls_neutral`], [`marks_invisible`], [`namesake_iff`], [`row_marked`], [`twin_shown`], [`twin_before_time`], [`hit_twin`], [`name_starts`], [`flush_shows`] |
 | 🟡 | 🥊🥊 | **Noto coverage and its cache are bounded.** Proven: Lean's reader uses checked indices, returned coverage fits its bitmap and declared overhang, coverage saturates, and cache insertion stays within a 4 MiB charge and 1,024 entries. Source.bitmap's compiled equivalence is tested, not proven. Not yet proven: pixel fidelity or native allocator/RSS bounds; the compact index and raster are checked against fontTools ([report](docs/NOTO.md)). | [`Ttf.byte_in_bounds`], [`Ttf.cmap_entry`], [`Ttf.coverage_value`], [`Ttf.raster_valid`], [`Ttf.raster_pixel`], [`Ttf.Cache.put_bound`], [`Ttf.Cache.put_payload_bound`] |
 | ✅ | 🥊🥊 | **Times, reactions and pictures are shown as held:** the claimed time's clock, each reaction's count of distinct reactors, and each picture at its aspect inside its box. The running set projection keeps exactly the distinct returned values; signed-op tests cover one pill per emoji and distinct-person counts; a picture's box has one side at its bound and the other scaled by its aspect. | [`time_shown`], [`projectSet_mem`], [`projectSet_nodup`], [`picBox_aspect`] |
 | 🟡 | 🥊🥊🥊 | **What you see is what was sent.** Proven over a model where every list read is the engine's: a shown message is a valid fact of the store, its own query returns its author identity, claimed time and body opened with a key the store holds, and the conversation is exactly the messages under keys this device holds. Not yet: from the row's layout to its pixels. | [`message_own`], [`readable_held`], [`readable_complete`], [`eval_stable`] |
@@ -276,7 +308,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]† +21 more | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°†, [`exchange_ids_stable`], [`exchange_log`], [`exchange_stable`] | The round's model: prove the running round (`Conn.onRbsr`) performs it under any delivery order (`conn_runs_exchange`). |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]†, [`reads_members`], [`reads_recipients`], [`members_iff_node`]†, [`recipients_iff_node`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
-| `Scene.approval`, `Scene.K`, `Scene.S` +12 | [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`bootstrap_ideal`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`], [`allowPeer_settles`] | The bootstrap's model (ops/connection/bootstrap/): retired by `conn_runs_exchange`, `closure_delivered`, `answer_trusted` and `untrusted_silent` over the running code. |
+| `Scene.approval`, `Scene.K`, `Scene.S` +12 | [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`bootstrap_ideal`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`], [`allowPeer_settles`] | Bootstrap model: construct concrete scene premises and an infinite fair-run witness; whole-bootstrap replacement over running code is still needed. `conn_runs_exchange` and `closure_delivered` are further work; existing per-step trust checks do not prove the whole join. See the README bootstrap witness plan. |
 | `Sync.keeps` | [`buffer_bounded`]*† | The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s. |
 | `Pic.add`, `Geom.box`, `Pic.attachEdge` +4 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]† | The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code. |
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
@@ -336,10 +368,10 @@ with `tests/wiring.txt` for what the code cannot say, and
 
 | Assumption | Laws | |
 |---|---|---|
-| [`Unforgeable`] | 2 | An Ed25519 signature that verifies under a device key was made by that key's holder. |
+| [`Unforgeable`] | 2 | Current global verification-to-history predicate is too broad for a finite independent signing history. Needs execution/attacker scoping; secure Ed25519 and secret keys alone do not discharge it. |
 | [`CollisionFree`] | 22 | SHA-256 has no collision among the ops a node received. |
 | [`offerM`] | 2 | The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`. |
-| [`NoSecondPreimage`] | 14 | SHA-256 has no second preimage on a file's Merkle tree inputs. |
+| [`NoSecondPreimage`] | 14 | Exact no-second-preimage idealization for a file's tree inputs, stronger than computational SHA-256 resistance. Model-hash witnesses are not SHA-256 proofs. |
 | [`Suite.Good`] | 6 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). |
 | [`Seal.Good`] | 4 | Supported-size AEAD inputs and key wraps roundtrip; valid private keys agree and public keys/hashes have 32-byte outputs (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
@@ -349,6 +381,48 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
 | [`Engine.Inv`] | 86 | The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean). |
 <!-- wiring:end -->
+
+
+#### Bootstrap witnesses still to construct
+
+The seven conditional bootstrap setup/safety checks and two eventual-progress
+checks share unfinished premises. The existing nine-action `bootstrap_possible`
+path is conditional on `Scene.Good`; it does not provide an infinite fair run.
+The following is a tractable model-proof task, not a completed result:
+
+1. **Certify the concrete scene.** Prove the literal node keys differ and check
+   the generated device keys and five operation IDs are distinct. Replace the
+   scene's three universal signing-correctness assumptions with the five
+   verifications actually used: A's root, invitation and approval, B's request
+   signature, and the invitation bearer's request signature. Check those with
+   production crypto and retain their runtime certificates. Finite checks
+   cannot establish the current universal `Scene.Good` signature fields.
+2. **Define a run for every natural-number step.** Recursively set the next
+   state using the existing model `step`. Repeat four phases: `tickA`, `tickB`,
+   `approve`, then deliver the current queue head; when the queue is empty, use
+   an always-enabled tick instead. This construction starts directly at `init`
+   and needs neither `Scene.Good` nor a successful bootstrap result.
+3. **Prove the scheduler's obligations.** Every chosen action is enabled, and
+   no action drops a message. Ticks and approval recur after every bound `N`.
+   For delivery, use the finite prefix ahead of a queued message: new sends
+   append at the back, and each head delivery shortens that prefix. Thus every
+   queued message value is eventually delivered; if it is sent infinitely
+   often, it is delivered infinitely often. This establishes the exact
+   `Run.Fair` predicate, including its approval requirement, and `Run.Ideal`.
+4. **Instantiate the existing progress theorems.** Combine this run with the
+   scene certificates and adapted signature premises, then apply `bootstrap`
+   and `bootstrap_ideal`. Add the witness and its premise checks to the named
+   vacuity gate. The first witness may use no drops: that already inhabits
+   both predicates. A deliberately lossy fair witness is separate coverage.
+
+An infinite witness is a function `Nat → Sys` plus proofs, not an infinitely
+long test. The model's `step` is currently `noncomputable`, so this would prove
+existence and fairness in Lean's model; it would not execute a production TCP
+session. It shows that the fairness hypothesis can be met. Proving that the
+running node, network and user actions meet corresponding assumptions is
+separate further work, as is the whole-bootstrap bridge to the running code.
+Fairness supplies recurring approval actions; it cannot guarantee that a real
+user will choose to approve a request.
 
 ## What isn't Lean, and why
 
@@ -400,16 +474,12 @@ UITextField on iOS hold the composer's text, so every input method,
 autocorrect, dictation and composition works as people expect, and Lean
 draws the result.
 
-**Why this is not a big deal for safety.** The app's safety properties
-(who can post, join, read and remove; what sync discloses; whom the
-trust rule lets in; that no op can be forged or altered) are decided in
-Lean, over the bytes that come off the network. The shells never parse
-an op, hold a key or name a member. So when native code is wrong, it
-fails in ways orthogonal to those properties: a list drawn a few rows
-off, a dropped touch, a fling that stutters, a crash. Those failures are
-visible and immediate, the kind testing on devices finds, and none of
-them forges a message, leaks a key or lets a stranger in. The few places
-where native code does touch them are named:
+**Where native code remains trusted.** Lean decides the authorization and
+validation rules over received bytes. Ordinary UI failures, such as a misplaced
+row or dropped touch, do not themselves change those rules. Native memory
+safety and correct FFI behavior still matter: these proofs do not establish
+that every native bug preserves keys or authorization. Direct dependencies
+include:
 - **The crypto and SQLite** are on the safety path. That is why what the
   theorems need of them is stated as hypotheses ([What is Assumed](#what-is-assumed)),
   and why they are tested byte for byte against libsodium and the Noise
@@ -817,6 +887,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`NoSecondPreimage`]: ops/community/Merkle.lean#L146-L147
 [`assumptions_hold`]: ops/community/Merkle.lean#L543-L547
 [`Suite.Good`]: ops/connection/Noise.lean#L70-L81
+[`Seal.Good`]: ops/community/Keys.lean#L51-L61
 [`no_impersonation`]: ops/community/Laws.lean#L338-L351
 [`admission_needs_approval`]: ops/community/Laws.lean#L518-L526
 [`admission_approved`]: ops/community/Laws.lean#L437-L447
@@ -1314,7 +1385,6 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`val_erase`]: engine/core/CostErase.lean#L55-L56
 [`cost_run`]: engine/core/CostErase.lean#L58-L60
 [`offerM`]: ops/app/NodeOffer.lean#L29-L35
-[`Seal.Good`]: ops/community/Keys.lean#L51-L61
 [`Symbolic.sym`]: ops/connection/NoiseSymbolic.lean#L259-L272
 [`Model.run`]: engine/core/Model.lean#L103-L103
 [`Sync.popW`]: engine/wire/LaneLaws.lean#L257-L260
@@ -1331,8 +1401,10 @@ in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
 **Coverage: 364 kernel witnesses, 126 runtime witnesses,
-23 conditional checks, 0 failed production assumptions; 0 of 513 linked declarations still pending.**
+23 conditional checks, 0 recorded runtime counterexamples; 0 of 513 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
+Zero recorded runtime counterexamples does not establish that every remaining
+hypothesis is applicable; formulation gaps are described in conditional entries.
 
 **Contract failures repaired.** `Seal.Good` and Noise `Suite.Good` now require
 supported key, nonce, plaintext and associated-data sizes where applicable.
@@ -1346,6 +1418,19 @@ The general native crypto contracts remain **conditional**: finite roundtrips
 do not prove their universal laws. The community and general handshake results
 that rely on them are not promoted to fully witnessed proofs. The symbolic
 Noise suite still has a kernel proof of its contract, separate from native crypto.
+
+
+**Remaining assumption work.** The [explicit assumptions](#what-is-assumed)
+distinguish standard computational security from the exact Lean predicates.
+`Unforgeable` currently quantifies all possible accepted signatures, so it
+cannot describe a finite independent signing history under ordinary signature
+correctness. It needs execution/attacker scoping and an explicit trace
+assumption or computational argument. SHA-256 second-preimage resistance also
+does not prove the stronger exact `NoSecondPreimage` idealization. Native
+attachment claims retain that assumption and remain conditional; the kernel
+witness for `NoSecondPreimage` is for a constructed model hash. The [bootstrap work plan](#bootstrap-witnesses-still-to-construct)
+separates finite scene certificates from a still-unconstructed infinite fair
+model execution and the later bridge to the running app.
 
 - **kernel-witness:** Lean checks a concrete fixture's premises and application
   of the named theorem. No new axioms, `sorry`, or `native_decide` are admitted.
@@ -1383,7 +1468,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 
 | Declaration | Evidence / remaining work |
 |---|---|
-| [`no_impersonation`](ops/community/Laws.lean#L338-L351) | **conditional**: [Vacuity.Identity.noImpersonation](tests/vacuity/Identity.lean). Real signed-message validity is witnessed, but the universal Unforgeable ed25519 Signed premise remains an explicit assumption. Finite data cannot discharge it; no Signed=True or verifier-defined signing history is substituted. |
+| [`no_impersonation`](ops/community/Laws.lean#L338-L351) | **conditional**: [Vacuity.Identity.noImpersonation](tests/vacuity/Identity.lean). Real signed-message validity is witnessed, including signatures under the admitted device key. Attribution to actual signing events still requires Unforgeable ed25519 Signed. Its global quantification is too broad for a finite independent signing history; secure signatures and private keys alone do not establish it. Needs execution/attacker scoping and an explicit no-forgery trace assumption or computational argument. |
 | [`admission_needs_approval`](ops/community/Laws.lean#L518-L526) | **runtime-witness**: [Vacuity.Identity.admissionNeedsApproval](tests/vacuity/Identity.lean). Non-founder Bob is admitted by Alice's approval; keyed store proved structurally; missing approval is rejected. |
 | [`admission_approved`](ops/community/Laws.lean#L437-L447) | **runtime-witness**: [Vacuity.Identity.admissionApproved](tests/vacuity/Identity.lean). Bob's non-founder admission uses exactly one distinct approver; repeated approval IDs are rejected. |
 | [`request_invited`](ops/community/Laws.lean#L401-L411) | **runtime-witness**: [Vacuity.Identity.requestInvited](tests/vacuity/Identity.lean). Bob's request redeems Alice's invitation and has both device and bearer signatures; wrong bearer is rejected. |
@@ -1500,11 +1585,11 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`Mdns.decode_valid`](engine/wire/mdns/Laws.lean#L540-L541) | **kernel-witness**: [Vacuity.Formats.announcementSound](tests/vacuity/Formats.lean). Successful nonempty DNS service announcement parse; malformed IPv4 length and truncated packet controls. |
 | [`Community.parse_valid`](ops/community/Link.lean#L258-L259) | **kernel-witness**: [Vacuity.Core.parsedValid](tests/vacuity/Core.lean). Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises. |
 | [`Qr.parse_valid`](engine/renderer/qr/SegLaws.lean#L336-L338) | **kernel-witness**: [Vacuity.Formats.segmentSound](tests/vacuity/Formats.lean). Successful parse of three nonempty segments; decoder soundness applied to each segment. |
-| [`chunk_is_slice`](ops/community/Laws.lean#L722-L731) | **conditional**: [Vacuity.Attachment.sliceCertificate](tests/vacuity/Attachment.lean). 70000-byte deterministic file sealed by real XChaCha20 to70016 bytes across two chunks. Native certificate proves actual chunk validator accepts the concrete chunk/root/attachment facts. Applying chunk_is_slice still requires universal SHA256 output-size correctness and NoSecondPreimage on this ciphertext tree; checking this finite tree cannot discharge either universal premise. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash. Native negative controls flip one ciphertext byte without changing length, substitute a32-byte sibling, and use out-of-range index2; all are rejected. |
+| [`chunk_is_slice`](ops/community/Laws.lean#L722-L731) | **conditional**: [Vacuity.Attachment.sliceCertificate](tests/vacuity/Attachment.lean). 70000-byte deterministic file sealed by real XChaCha20 to70016 bytes across two chunks. Native certificate proves actual chunk validator accepts the concrete chunk/root/attachment facts. Applying chunk_is_slice still requires universal SHA256 output-size correctness and NoSecondPreimage on this ciphertext tree; checking this finite tree cannot discharge either universal premise. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash. Native negative controls flip one ciphertext byte without changing length, substitute a32-byte sibling, and use out-of-range index2; all are rejected. NoSecondPreimage is an exact all-alternative-input idealization; standard computational resistance and finite examples do not establish it. |
 | [`verify_sound`](ops/community/Merkle.lean#L435-L441) | **kernel-witness**: [Vacuity.Merkle.verifiedSlice](tests/vacuity/Merkle.lean). Nonempty Alice-to-Bob attachment, single chunk; output-size and universal second-preimage premises proved for an explicit three-output hash model, not SHA-256. Modified content/index rejected. |
 | [`complete_assembles`](ops/community/Merkle.lean#L482-L488) | **kernel-witness**: [Vacuity.Merkle.assembled](tests/vacuity/Merkle.lean). Nonempty one-chunk file with every verification premise proved; reconstructed bytes equal the original. Explicit hash model, not SHA-256. |
-| [`chunk_unique`](ops/community/Laws.lean#L812-L818) | **conditional**: [Vacuity.Attachment.uniqueCertificate](tests/vacuity/Attachment.lean). Real signed attachment and two independently constructed relay copies at index0 have kernel-checked runtime V certificates in a structurally keyed store. The theorem application retains SHA size and file-tree NoSecondPreimage. Native controls prove canonical bytes/ids agree and duplicate arrival does not increase progress; no arbitrary-hash collision claim. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash. |
-| [`progress_exact`](ops/community/Intents.lean#L729-L738) | **conditional**: [Vacuity.Attachment.progressCertificate](tests/vacuity/Attachment.lean). Nonempty signed attachment store actually contains only index1 of two chunks. Inv follows from real ingest/drain preservation; runtime certifies settled queue and valid attachment. Native progress is exactly1/2, duplicate still1/2, full file2/2. The theorem application retains universal SHA size and file-specific NoSecondPreimage; missing attachment and malformed chunks are negative controls. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash. |
+| [`chunk_unique`](ops/community/Laws.lean#L812-L818) | **conditional**: [Vacuity.Attachment.uniqueCertificate](tests/vacuity/Attachment.lean). Real signed attachment and two independently constructed relay copies at index0 have kernel-checked runtime V certificates in a structurally keyed store. The theorem application retains SHA size and file-tree NoSecondPreimage. Native controls prove canonical bytes/ids agree and duplicate arrival does not increase progress; no arbitrary-hash collision claim. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash. NoSecondPreimage is an exact all-alternative-input idealization; standard computational resistance and finite examples do not establish it. |
+| [`progress_exact`](ops/community/Intents.lean#L729-L738) | **conditional**: [Vacuity.Attachment.progressCertificate](tests/vacuity/Attachment.lean). Nonempty signed attachment store actually contains only index1 of two chunks. Inv follows from real ingest/drain preservation; runtime certifies settled queue and valid attachment. Native progress is exactly1/2, duplicate still1/2, full file2/2. The theorem application retains universal SHA size and file-specific NoSecondPreimage; missing attachment and malformed chunks are negative controls. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash. NoSecondPreimage is an exact all-alternative-input idealization; standard computational resistance and finite examples do not establish it. |
 | [`assumptions_hold`](ops/community/Merkle.lean#L543-L547) | **kernel-witness**: [Vacuity.Merkle.assumptions](tests/vacuity/Merkle.lean). Applies existing empty-file satisfiability theorem and proves a nonempty-file extension. Explicit model hash; no production SHA guarantee. |
 | [`no_injective_hash`](ops/community/Merkle.lean#L245-L247) | **kernel-witness**: [Vacuity.Merkle.notInjective](tests/vacuity/Merkle.lean). Concrete 32-byte-output hash proves size premise; global injectivity is impossible even though this file has no second preimage. |
 | [`drain_bounded`](engine/core/Budget.lean#L163-L168) | **runtime-witness**: [Vacuity.CoreRuntime.bounded](tests/vacuity/CoreRuntime.lean). Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior. |
@@ -1577,8 +1662,8 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`opening_honest`](ops/sync/RoundLaws.lean#L323-L325) | **kernel-witness**: [Vacuity.SyncMore.openingHonest](tests/vacuity/SyncMore.lean). Two nonempty snapshots [1,2] and [2,3], all-range query, injectively encoded identifiers and identity hash; generated claim is honest. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`num_inj`](ops/sync/Fp.lean#L37-L37) | **kernel-witness**: [Vacuity.WireMore.numberDecode](tests/vacuity/WireMore.lean). Nonempty byte identifier [65,0,255] reconstructed across concatenation; separate control proves [1] and [1,0] encode differently. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`spec_local`](engine/core/Locality.lean#L54-L58) | **runtime-witness**: [Vacuity.CoreRuntime.closureVerdict](tests/vacuity/CoreRuntime.lean). Real signed Bob post delivered with its six-operation requirement closure (root, invite, request, approval, admission, post). Receiver omits the unrelated grant and rename. An inductive reach proof uses runtime-checked closure and lookup-agreement premises; native checks independently validate the post on the partial receiver. |
-| [`bootstrap`](ops/connection/bootstrap/Laws.lean#L401-L405) | **conditional**: [Vacuity.Bootstrap.eventuallyBootstrap](tests/vacuity/Bootstrap.lean). Fixed scene, but universal Good and an actual infinite fair scheduler/delivery run are still required. No constructed fair-run witness; finite successful path does not prove this premise. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms. |
-| [`bootstrap_ideal`](ops/connection/bootstrap/Laws.lean#L423-L424) | **conditional**: [Vacuity.Bootstrap.eventuallyIdeal](tests/vacuity/Bootstrap.lean). Fixed scene application leaves Good, concrete infinite Fair run, and no-drop Ideal premises explicit. Ideal finite path alone cannot establish infinite scheduling fairness. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms. |
+| [`bootstrap`](ops/connection/bootstrap/Laws.lean#L401-L405) | **conditional**: [Vacuity.Bootstrap.eventuallyBootstrap](tests/vacuity/Bootstrap.lean). Fixed scene, but universal Good and an actual infinite fair scheduler/delivery run are still required. No constructed fair-run witness; finite successful path does not prove this premise. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms. Planned witness: recursively cycle tickA, tickB, approval and FIFO head delivery; prove enabled steps and finite-prefix queue progress to establish Fair and Ideal. This remains future model-proof work, separate from the running app. |
+| [`bootstrap_ideal`](ops/connection/bootstrap/Laws.lean#L423-L424) | **conditional**: [Vacuity.Bootstrap.eventuallyIdeal](tests/vacuity/Bootstrap.lean). Fixed scene application leaves Good, concrete infinite Fair run, and no-drop Ideal premises explicit. Ideal finite path alone cannot establish infinite scheduling fairness. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms. Planned witness: recursively cycle tickA, tickB, approval and FIFO head delivery; prove enabled steps and finite-prefix queue progress to establish Fair and Ideal. This remains future model-proof work, separate from the running app. |
 | [`bootstrap_possible`](ops/connection/bootstrap/Laws.lean#L208-L218) | **conditional**: [Vacuity.Bootstrap.possible](tests/vacuity/Bootstrap.lean). Fixed seeded Alice/Bob and invitation; applies nine-action enabled-path existence theorem. Good requires universal signature correctness, distinct devices/node keys and collision-free five-op scene; finite signatures cannot discharge universal correctness. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms. |
 | [`reachable_inv`](ops/connection/bootstrap/Steps.lean#L222-L223) | **conditional**: [Vacuity.Bootstrap.completedInvariant](tests/vacuity/Bootstrap.lean). Applies to the successful bootstrap endpoint, deriving reachability from its enabled finite path. Good remains unproved. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms. |
 | [`conn_answers_ids`](engine/wire/WorldLaws.lean#L1492-L1514) | **kernel-witness**: [Vacuity.SyncCache.answersIds](tests/vacuity/SyncCache.lean). Actual shown-room index containing chat plus remote singleton item; prove allowed-room and snapshot fallback premises, then instantiate exact exchange/connection response theorem. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof. |
@@ -1707,7 +1792,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`arabic_numbers_keep_order`](engine/renderer/TextLaws.lean#L91-L94) | **kernel-witness**: [Vacuity.RendererText.arabicOrder](tests/vacuity/RendererText.lean). Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture. |
 | [`profile_read`](ops/community/message/ViewLaws.lean#L40-L42) | **kernel-witness**: [Vacuity.IdentityMessages.profileRead](tests/vacuity/IdentityMessages.lean). Actual signed Bob profile is read and displays Bob, in a nonempty settled community. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`profile_authorized`](ops/community/Laws.lean#L356-L363) | **runtime-witness**: [Vacuity.IdentityTrust.profileAuthorized](tests/vacuity/IdentityTrust.lean). Bob signs a nonempty profile; Mallory signing a profile while citing Bob is rejected. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application. |
-| [`no_renaming`](ops/community/Laws.lean#L370-L381) | **conditional**: [Vacuity.IdentityTrust.noRenaming](tests/vacuity/IdentityTrust.lean). Actual valid signed profile premise witnessed; global Unforgeable ed25519 Signed remains unresolved by finite data. Wrong-device profile is rejected. No artificial signing-history predicate substitutes for the crypto assumption. |
+| [`no_renaming`](ops/community/Laws.lean#L370-L381) | **conditional**: [Vacuity.IdentityTrust.noRenaming](tests/vacuity/IdentityTrust.lean). Actual valid signed profile premise is witnessed and a wrong-device profile is rejected. Attributing verification to an actual signing event still requires Unforgeable ed25519 Signed, whose global quantification is too broad for a finite independent signing history. Execution/attacker scoping and an explicit trace assumption or computational argument remain unfinished. |
 | [`name_placed`](ops/community/reaction/RowLaws.lean#L90-L94) | **kernel-witness**: [Vacuity.ChatPresentation.authorName](tests/vacuity/ChatPresentation.lean). Synthetic Alice message at 12:45, 4032×3024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280×210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets. |
 | [`oneLine_prefix`](engine/renderer/TextLaws.lean#L70-L71) | **kernel-witness**: [Vacuity.RendererText.ellipsis](tests/vacuity/RendererText.lean). Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture. |
 | [`controls_neutral`](engine/renderer/TextLaws.lean#L140-L143) | **kernel-witness**: [Vacuity.RendererText.controls](tests/vacuity/RendererText.lean). Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture. |
@@ -1767,11 +1852,12 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`fit_round`](engine/renderer/pic/Laws.lean#L87-L90) | **kernel-witness**: [Vacuity.Pictures.rounding](tests/vacuity/Pictures.lean). Portrait 3024 × 4032 satisfies scaling premise; shorter result side 1536. |
 | [`Pic.layout_inside`](engine/renderer/pic/Laws.lean#L170-L172) | **kernel-witness**: [Vacuity.RendererImages.inside](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
 | [`Pic.layout_apart`](engine/renderer/pic/Laws.lean#L147-L148) | **kernel-witness**: [Vacuity.RendererImages.separated](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
-| [`Unforgeable`](ops/community/Laws.lean#L319-L321) | **conditional**: [Vacuity.Identity.noImpersonation](tests/vacuity/Identity.lean). Real signed-message validity is checked, but universal unforgeability relative to an independent signing history remains open. Neither Signed=True nor a verifier-defined signing history is substituted. |
+| [`Unforgeable`](ops/community/Laws.lean#L319-L321) | **conditional**: [Vacuity.Identity.noImpersonation](tests/vacuity/Identity.lean). Intended security relies on exclusive control of honest signing keys and secure, correctly implemented Ed25519. The current predicate quantifies all mathematically possible accepted signatures, so it cannot hold for a finite independent signing history under ordinary signature correctness. Execution/attacker scoping and a trace assumption or computational argument are still needed; native signature checks do not close this formulation gap. |
 | [`CollisionFree`](engine/core/Proofs.lean#L542-L544) | **runtime-witness**: [Vacuity.CoreRuntime.collisionFree](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
 | [`Distinct`](engine/core/Proofs.lean#L538-L540) | **runtime-witness**: [Vacuity.CoreRuntime.distinct](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
 | [`NoSecondPreimage`](ops/community/Merkle.lean#L146-L147) | **kernel-witness**: [Vacuity.Merkle.preimage](tests/vacuity/Merkle.lean). Closed universal premise for an explicit 32-byte-output model hash and a nonempty attachment. Unique leaf/root outputs are proved against every other input. This model is deliberately not SHA-256. |
 | [`Suite.Good`](ops/connection/Noise.lean#L70-L81) | **conditional**: [Vacuity.Contracts.noiseContractCertificate](tests/vacuity/Contracts.lean). Corrected contract requires a 32-byte AEAD key, plaintext at most 64*(2^32-2) bytes (exclusive bound 274877906817) and representable associated-data length; HKDF outputs valid keys and hash outputs valid AD. Concrete key/payload/AD premises are proved and real roundtrip tested. Native boundaries test lengths 0/1/31/32/33/64: malformed private keys map to zero 32-byte public output and both DH directions reject, so total dh_comm and split_pair remain supported. Universal native crypto correctness remains an explicit assumption, not proved by finite tests. The old unrestricted roundtrip is retained only as a rejected regression control. |
+| [`Seal.Good`](ops/community/Keys.lean#L51-L61) | **conditional**: [Vacuity.SealAudit.goodConditional](tests/vacuity/SealAudit.lean). Contract repaired: DH uses 32-byte private keys; AEAD uses a 32-byte key, 24-byte nonce, plaintext below 274877906817 bytes and associated data below 2^64 bytes. The payload bound accounts for the stream cipher's ceiling to complete or partial blocks, beyond the outer AEAD check. Public keys and hashes supply 32-byte outputs. Concrete production equalities and malformed-input regressions pass; the universal native cryptographic contract remains an explicit unproved assumption, not a finite-test conclusion. |
 | [`write_offers`](engine/wire/WorldLaws.lean#L502-L510) | **kernel-witness**: [Vacuity.WireMore.offered](tests/vacuity/WireMore.lean). Concrete new Alice greeting, one room/session/address, initially empty held store; freshness, unseen/unoffered id and capacity proven, exact emitted offer. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`hold_wants`](engine/wire/WorldLaws.lean#L520-L527) | **kernel-witness**: [Vacuity.WireMore.wanted](tests/vacuity/WireMore.lean). Real encoded offer for missing greeting; proves all queue/room/capacity premises and exact want response. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`op_taken`](engine/wire/WorldLaws.lean#L666-L673) | **kernel-witness**: [Vacuity.WireMore.taken](tests/vacuity/WireMore.lean). Encoded greeting plus following nonempty offer in one session frame; proves new non-wire shown op and following-message decoding shape, actual store turn. Synthetic generic family/held-store fixture; not collected real-user traffic. |
@@ -1889,7 +1975,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`val_erase`](engine/core/CostErase.lean#L55-L56) | **kernel-witness**: [Vacuity.Core.valueErased](tests/vacuity/Core.lean). Counted action with two reads, one write and 13 copied bytes, value 42. |
 | [`cost_run`](engine/core/CostErase.lean#L58-L60) | **kernel-witness**: [Vacuity.Core.costRun](tests/vacuity/Core.lean). Counted action with two reads, one write and 13 copied bytes, value 42. |
 | [`offerM`](ops/app/NodeOffer.lean#L29-L35) | **kernel-witness**: [Vacuity.RendererFlow.offerSplit](tests/vacuity/RendererFlow.lean). This README reference is the model channel operation, not a theorem. The concrete nonempty offer_split witness uses that exact operation on accepting/refusing responses and proves taken ++ waiting preserves the original writes. Exact channel outputs and retry order are checked separately. |
-| [`Seal.Good`](ops/community/Keys.lean#L51-L61) | **conditional**: [Vacuity.SealAudit.goodConditional](tests/vacuity/SealAudit.lean). Contract repaired: DH uses 32-byte private keys; AEAD uses a 32-byte key, 24-byte nonce, plaintext below 274877906817 bytes and associated data below 2^64 bytes. The payload bound accounts for the stream cipher's ceiling to complete or partial blocks, beyond the outer AEAD check. Public keys and hashes supply 32-byte outputs. Concrete production equalities and malformed-input regressions pass; the universal native cryptographic contract remains an explicit unproved assumption, not a finite-test conclusion. |
 | [`Symbolic.sym`](ops/connection/NoiseSymbolic.lean#L259-L272) | **kernel-witness**: [Vacuity.Contracts.symbolicGood](tests/vacuity/Contracts.lean). Symbolic Noise satisfies the corrected Good contract: every term is a supported key/payload/AD, HKDF/hash outputs satisfy these predicates, and correctness is proved in the kernel. Concrete Session handshake/secrecy fixtures continue to apply the same generic functions; this is not a proof of native primitives. |
 | [`Model.run`](engine/core/Model.lean#L103-L103) | **kernel-witness**: [Vacuity.CoreRuntime.loop](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
 | [`Sync.popW`](engine/wire/LaneLaws.lean#L257-L260) | **kernel-witness**: [Vacuity.WireMore.popsWrite](tests/vacuity/WireMore.lean). Two local writes and queued TCP frame; exact pop returns first write and preserves remaining queues. Synthetic generic family/held-store fixture; not collected real-user traffic. |

@@ -3,7 +3,7 @@
     "theorem": "Community.no_impersonation",
     "status": "conditional",
     "witness": "Vacuity.Identity.noImpersonation",
-    "detail": "Real signed-message validity is witnessed, but the universal Unforgeable ed25519 Signed premise remains an explicit assumption. Finite data cannot discharge it; no Signed=True or verifier-defined signing history is substituted.",
+    "detail": "Real signed-message validity is witnessed, including signatures under the admitted device key. Attribution to actual signing events still requires Unforgeable ed25519 Signed. Its global quantification is too broad for a finite independent signing history; secure signatures and private keys alone do not establish it. Needs execution/attacker scoping and an explicit no-forgery trace assumption or computational argument.",
     "module": "tests.vacuity.Identity"
   },
   "admission_needs_approval": {
