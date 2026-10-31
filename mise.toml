@@ -423,3 +423,7 @@ run = "platforms/macos/ship.sh e2e"
 description = "Shared message skeleton pixels, density/theme/clipping and actual app/native publication parity"
 depends = ["crypto"]
 run = "tests/app/skeleton.sh"
+
+[tasks."host:mobile-switcher"]
+description = "Shared phone switcher: native densities, identity, real tap dispatch and scroll extent"
+run = "tests/app/mobile_switcher.sh"

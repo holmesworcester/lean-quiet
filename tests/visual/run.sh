@@ -15,3 +15,6 @@ python3 tests/visual/compare.py tests/visual/reference out/visual/actual out/vis
 .lake/build/bin/visual out/visual/switcher-actual tests/visual/switcher-cases.tsv
 python3 tests/visual/compare.py tests/visual/switcher-reference out/visual/switcher-actual out/visual/switcher-report --budgets tests/visual/switcher-budgets.json
 python3 tests/visual/check_switcher_gate.py
+.lake/build/bin/visual out/visual/mobile-switcher-actual tests/visual/mobile-switcher-cases.tsv
+python3 tests/visual/compare.py tests/visual/mobile-switcher-reference out/visual/mobile-switcher-actual out/visual/mobile-switcher-report --budgets tests/visual/mobile-switcher-budgets.json
+python3 tests/visual/check_mobile_switcher_gate.py

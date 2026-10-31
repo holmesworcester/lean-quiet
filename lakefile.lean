@@ -439,3 +439,6 @@ lean_exe clump_lists where
 
 lean_exe zoom where
   root := `platforms.headless.Zoom
+
+lean_exe mobile_switcher where
+  root := `platforms.headless.MobileSwitcher

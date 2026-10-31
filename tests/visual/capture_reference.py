@@ -65,7 +65,7 @@ def capture(url, destination, chrome=None, cases=None):
                     if scenario == 'conversation':
                         page.locator('.said').last.wait_for()
                     if scenario.startswith('switcher'):
-                        popup = page.locator('[data-switcher="desktop"]')
+                        popup = page.locator('[data-switcher="desktop"]' if int(width)/zoom >= 720 else '[data-switcher="phone"]')
                         popup.wait_for()
                         if scenario == 'switcher-end':
                             popup.evaluate('(el) => {el.scrollTop = el.scrollHeight}')
@@ -111,7 +111,7 @@ def capture(url, destination, chrome=None, cases=None):
                         from PIL import Image
                         with Image.open(destination / f'{name}.png') as im:
                             im.crop((0, 0, int(width), int(height))).save(destination / f'{name}.png')
-                    geometry = page.evaluate('''() => [...document.querySelectorAll('.pane-list,.pane-thread,.drawer,.drawer-body,.composer,.sidebar,.virtual-row,.said,.author,.text,[data-switcher=desktop],.panel-head,.panel-list,.sw-row,.sw-pick,.sw-tile,.sw-tool,.sw-label')].map(el => {
+                    geometry = page.evaluate('''() => [...document.querySelectorAll('.pane-list,.pane-thread,.drawer,.drawer-body,.composer,.sidebar,.virtual-row,.said,.author,.text,[data-switcher],.panel-head,.panel-list,.sw-row,.sw-pick,.sw-tile,.sw-tool,.sw-label')].map(el => {
                       const r=el.getBoundingClientRect(); return {selector:el.className, x:r.x,y:r.y,w:r.width,h:r.height,scrollTop:el.scrollTop,scrollHeight:el.scrollHeight,clientHeight:el.clientHeight,scale:devicePixelRatio,display:getComputedStyle(el).display,font:getComputedStyle(el).font,padding:getComputedStyle(el).padding}
                     })''')
                     if not hover_name:

@@ -121,11 +121,15 @@ def capture (dir name : String) (width height : Nat) (theme scenario : String) (
       s!"{name}\t{Pages.identity id}"))
   if fixtureName.startsWith "switcher" then
     d ← Desktop.act d .switcher
+    if width < 720 then
+      for _ in [0:3] do d ← Desktop.tick d
     if fixtureName == "switcher-end" then d ← Desktop.wheel d (d.app.dim.px 150) (d.app.dim.px 200) 100000
     if fixtureName == "switcher-hover" then
       d := { d with ui := { d.ui with hover := some (d.app.dim.px 275, d.app.dim.px 139) } }
     let m := Desktop.Switcher.model d.app d.height d.ui.switchOffset
-    IO.FS.writeFile (dir ++ "/" ++ name ++ ".popup.tsv") s!"{m.box.x}\t{m.box.y}\t{m.box.w}\t{m.box.h}\t{m.offset}\t{m.contentH}\n"
+    let geometry := if width < 720 then s!"0\t0\t{Pages.switcherWidth d.app.dim width}\t{height}\t0\t{height}\n"
+      else s!"{m.box.x}\t{m.box.y}\t{m.box.w}\t{m.box.h}\t{m.offset}\t{m.contentH}\n"
+    IO.FS.writeFile (dir ++ "/" ++ name ++ ".popup.tsv") geometry
     IO.FS.writeFile (dir ++ "/switcher-" ++ fixtureName ++ "-communities.tsv") (String.intercalate "\n" (d.app.comms.toList.map fun c => s!"{Pages.identity c.c}\t{c.name}"))
   if hover then
     let rest ← Desktop.picture d

@@ -98,6 +98,7 @@ fi
 
 if stage components; then
 mise run host:skeleton
+mise run host:mobile-switcher
 mise run test:people-reader
 mise run host:component-demand
 mise run host:component-demand-negative

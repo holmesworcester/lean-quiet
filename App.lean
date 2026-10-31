@@ -308,7 +308,7 @@ def reactTo (m : Id) (e : String) : M Bool := do
 def topH (s : St) : Nat :=
   if s.page == .chat then s.insetTop + s.dim.px (if s.wide then 64 else 60)
   else if s.page == .home then s.insetTop + s.dim.px 64
-  else if s.page.drawer then s.insetTop + s.dim.px 60
+  else if s.page.scrolls then s.insetTop + s.dim.px 60
   else s.insetTop + s.dim.px 56
 
 /-- The composer's layout (Composer: the painter and the taps both read it). -/
@@ -690,7 +690,14 @@ The page and the back stack change only by Nav's steps (its laws in
 engine/renderer/Nav.lean, the app's in ops/app/NavLaws.lean). -/
 
 /-- Open p (Nav.go); the page's refusal is cleared. -/
-def openSt (p : PageId) (s : St) : St := { s.withNav (Nav.go p s.nav) with refusal := none, pageKey := none, pageScrollStarted := false }
+def openSt (p : PageId) (s : St) : St :=
+  let backdrop := if p == .switcher then
+    match s.lastDisplay with
+    | some (words, rows, top, bot) => Surface.compose words s.Hs s.bgRow rows top bot
+    | none => #[]
+    else #[]
+  { s.withNav (Nav.go p s.nav) with
+    refusal := none, pageKey := none, pageScrollStarted := false, switcherBackdrop := backdrop }
 
 /-- Back (Nav.back); the page's one-line field and refusal are cleared
 (the native field's text with them), never the composer's draft. -/
@@ -1027,7 +1034,7 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
     | .requests => Pages.requests f dm W h k.asking
     | .invite => Pages.invite f dm W h (k.link.bind fun l => Link.qr l (Pages.qrSide dm W h)) (k.link.getD "…")
     | .switcher => Pages.switcher f dm W h (k.comms.map fun m =>
-        ({ name := m.name, id8 := Kinds.Request.hexShort m.c, unread := 0, current := m.acc == me.acc, waiting := m.waiting } : Pages.Entry))
+        ({ name := m.name, id8 := Pages.identity m.c, unread := 0, current := m.acc == me.acc, waiting := m.waiting } : Pages.Entry))
         k.askingAll (!me.waiting && !me.c.isEmpty)
     | .home => Pages.home f dm W h (if me.waiting then 0 else k.askingAll) #["general"] k.members k.memberIds
     | .label => Pages.label f dm W h k.labelText k.labelPage
@@ -1046,6 +1053,7 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
       Pages.homeBand f dm W k.insetTop me.name k.communityId k.ownName k.ownId
     else if (k.page == .getStarted && k.backEmpty && k.comms.isEmpty) || k.page == .waiting
     then Bitmap.blank W (k.insetTop + dm.px 56) bg
+    else if k.page == .switcher then Pages.switcherBar f dm W k.insetTop
     else if k.page.drawer then Appearance.header f dm W k.insetTop (if k.page == .stub then Appearance.leafTitle k.labelText else t) k.drawerBack
     else Pages.bar f dm W k.insetTop t cross
   (pg, top)
@@ -1414,11 +1422,13 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
     match r with
     | .header =>
       if s.page == .home then openPage (if x ≥ s.W - s.dim.px 60 then .you else .switcher)
+      else if s.page == .switcher then
+        if x < s.dim.px 50 || x ≥ Pages.switcherWidth s.dim s.W then back
       else if (Pages.barBack s.dim s.insetTop).has x y then back
     | .list =>
       let vh := viewH s
       let pg := (s.pageNow).getD (drawPage s.font s.bgRow s.camView (pageIn s)).1
-      let height := if s.page.drawer then pg.bmp.h else vh
+      let height := if s.page.scrolls then pg.bmp.h else vh
       if y < height then onPageAct (pg.hit x (height - 1 - y))
     | .composer => pure ()
     return
@@ -1472,7 +1482,7 @@ def onScreenTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   let sy := match r with
     | .header => y
     | .composer => g.composerTop + y
-    | .list => if s.page == .chat || s.page.drawer then (Int.ofNat g.composerTop - 1 - (Int.ofNat y - s.b)).toNat
+    | .list => if s.page == .chat || s.page.scrolls then (Int.ofNat g.composerTop - 1 - (Int.ofNat y - s.b)).toNat
       else g.composerTop + g.shift - 1 - y
   let i := { s.window with ime := ⟨0, 0, 0, s.imeH⟩ }
   if (Safe.target i ⟨x, sy, 1, 1⟩).isNone then return
@@ -1784,7 +1794,7 @@ def withToast (s : St) (fr : Array ByteArray) (_vh : Nat) : Array ByteArray := I
 /-- Settings and conversations share the native scrolling seam. -/
 def scrollHeight (s : St) : Nat :=
   if s.page == .chat then (bottoms s).2
-  else if s.page.drawer then max (viewH s) (s.pageNow.map (·.bmp.h) |>.getD 0)
+  else if s.page.scrolls then max (viewH s) (s.pageNow.map (·.bmp.h) |>.getD 0)
   else viewH s
 
 /-- The same placement and raw-input boundary on every phone and twin. -/
@@ -1802,19 +1812,40 @@ def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
   let top := (SafeFrame.band s.window screen colours .top).colour
   let bottom := (SafeFrame.band s.window screen colours .bottom).colour
   s.io.bars top bottom (SafeFrame.lightIcons top) (SafeFrame.lightIcons bottom)
-  let display : Session.Show := fun list b over top bot pin words hold =>
+  -- Retain references to the last unobscured frame, not a copied screenshot.
+  let pw := Pages.switcherWidth s.dim s.W
+  let shadeAlpha := if s.page != .switcher then #[] else (Array.range (s.W - pw)).map fun distance =>
+    let shadow := 0.42 * (-(distance.toFloat * distance.toFloat) / (2.0 * (s.dim.px 12).toFloat ^ 2)).exp
+    (107.0 + 148.0 * shadow).toUInt64.toNat
+  let saved ← IO.mkRef s.lastDisplay
+  let display : Session.Show := fun list b over top bot pin words hold => do
+    if s.page != .switcher then saved.set (some (words, list, top, bot))
+    let shade (rows : Array ByteArray) (start : Int) := if s.page != .switcher then rows else
+      rows.mapIdx fun i row => Id.run do
+        let y := start + i
+        let bg := s.switcherBackdrop[y.toNat]?.getD s.bgRow
+        let mut row := row
+        for x in [pw - s.dim.px 16:s.W] do
+          if x ≥ pw || Paint.getPx row x == Palette.color s.dim.theme .scrim then
+            -- CSS mask alpha .42 plus the sheet's soft edge shadow.
+            let alpha := if x ≥ pw then shadeAlpha[x - pw]! else 107
+            row := Paint.setPx row x (Paint.blendText 0 (Paint.getPx bg x) alpha)
+        return row
+    let list := shade list (Int.ofNat (geom s).top - Int.ofNat over.toNat)
+    let top := shade top 0
     s.io.frame (SafeFrame.extend s.window list) b over (SafeFrame.extend s.window top)
       (SafeFrame.extend s.window bot) pin words (SafeFrame.extend s.window hold)
   let result ← Session.present display s.io.motion (geom s) s.dim.dpi
     (scrollHeight s - (geom s).viewNow) s.input fr b over s.topBmp.rows s.botBmp.rows pin
     (Hold.messagePlane ⟨s.bgRow, s.dim, s.W⟩ (geom s).viewNow) (Hold.period s.dim)
-  modify fun s => { s with input := result.state }
+  let lastDisplay ← saved.get
+  modify fun s => { s with input := result.state, lastDisplay }
   return result.events
 
 /-- Lifecycle polling uses the same raw decoder, even with no surface. -/
 def pollInput : M (List Event) := do
   let s ← get
-  let context : Input.Context := ⟨Surface.make (geom s) (s.page != .chat && !s.page.drawer) over s.b s.b 0,
+  let context : Input.Context := ⟨Surface.make (geom s) (s.page != .chat && !s.page.scrolls) over s.b s.b 0,
     s.dim.dpi, scrollHeight s - (geom s).viewNow⟩
   let result ← Session.receive s.io.motion context s.input (← s.io.poll)
   modify fun s => { s with input := result.state }
@@ -2158,14 +2189,14 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
     let vh := viewH s
     let height := scrollHeight s
     let maxB := height - vh
-    if s.page.drawer && !s.pageScrollStarted then
+    if s.page.scrolls && !s.pageScrollStarted then
       -- Publish the extent before moving: native scrollTo clamps to it.
       discard <| s.io.scroll height.toUInt32 vh.toUInt32
       s.io.scrollTo maxB.toFloat
       modify fun s => { s with pageScrollStarted := true }
     let sample ← s.io.scroll height.toUInt32 vh.toUInt32
     let input := Input.sampleOffset maxB s.input sample.toInt64.toInt
-    let b := if s.page.drawer then input.offset else 0
+    let b := if s.page.scrolls then input.offset else 0
     let top := height - vh - b
     let mut fr := Array.replicate (vh + 2 * over) s.bgRow
     if let some pg := s.pageNow then
@@ -2177,7 +2208,7 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
     let t1 ← s.io.nowUs
     slow t1
     modify fun s => { s with b, frames := s.frames + 1, times := s.times.push (t1 - t0).toNat }
-    return some (← present shown b (!s.page.drawer))
+    return some (← present shown b (!s.page.scrolls))
   -- 7. chrome and the frame
   let s ← get
   let sheetKey := match s.sheet, s.selected with

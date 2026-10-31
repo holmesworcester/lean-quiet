@@ -53,8 +53,7 @@ rejects missing content, a moved popup, a heavy border and incorrect native
 geometry in both themes, retaining those negative-control reports.
 `host:desktop` also exercises dismissal, draft isolation, hit containment,
 actual community switching with identical names, scrolling, popup actions,
-and both directions across the mobile breakpoint. Mobile still uses its
-existing page implementation; these new cases assert **desktop** parity.
+and both directions across the mobile breakpoint. Those 22 cases assert desktop parity.
 Linked devices opens an explanatory placeholder until linking is implemented.
 
 To refresh only these additional references, using an existing Chromium:
@@ -119,3 +118,30 @@ CHROME=/path/to/chromium LIBQUIET=/path/to/libquiet mise run visual:reference --
 ```
 
 The runtime proof/test boundaries are documented in `docs/HOVER.md`.
+
+## Mobile community switcher
+
+The six `mobile-switcher-cases.tsv` captures compare the real mobile sheet at
+320, 390 and 430 CSS pixels in both themes. References use the same pinned
+actual `App.svelte`; `CommunitySwitcher.svelte` is unchanged between that pin
+and libquiet main `ab3d244cfb9937c05dc53736046127150c3e0bb9`.
+`visual:compare` runs these alongside the desktop cases in local CI. Entire
+frames and the independently measured sheet rectangle are gated, with 3%
+headroom plus 0.00005 over reviewed metrics. No image regions are masked.
+Negative controls remove the current community, erase action glyphs or move
+the sheet; all must fail in both themes at all three widths. Reference refresh
+is explicit, using `visual:reference -- --cases tests/visual/mobile-switcher-cases.tsv
+--output tests/visual/mobile-switcher-reference`.
+
+`host:mobile-switcher`, also run by local CI's component stage, builds the actual
+shared page and input dispatcher. Its 24 cases cover 160/320/420/480 dpi,
+light/dark, three widths, full-identity avatar colors, duplicate community names,
+pending joins, invite/settings/dismissal targets, and native scroll extent and
+bottom-anchored input to actions below 24 communities. It needs the same fonts
+and Lean toolchain as `host:skeleton`. Failure logs and reference comparison
+artifacts remain under `out/mobile-switcher*` and `out/visual/mobile-switcher-*`.
+
+This checks the mobile switcher, not every mobile screen. Browser/native text
+rasterization and the sheet shadow still differ slightly; native safe areas
+are exercised by the separate platform suites. The phone header remains fixed
+while its community list scrolls.

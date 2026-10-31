@@ -727,69 +727,78 @@ theorem switcherOrder_complete (es : Array Entry) (i : Nat) (hi : i < es.size) :
     · exact Or.inr ⟨hm, by simp [hc, hw]⟩
     · exact Or.inl (Or.inr ⟨hm, by simp [hc, hw]⟩)
 
-/-- The community switcher, libquiet's left panel: the current community
-first, outlined, with Add members; the others; pending joins as muted
-rows (their id, "Waiting for a member to let you in.", a "joining"
-chip); then Join a community and Create a community. -/
-def switcher (f : Font) (dm : Dim) (W h : Nat) (es : Array Entry) (asking : Nat) (canInvite : Bool) : Page := Id.run do
-  let pw := min W (dm.px 320)
-  let mut b := blank W h dm.theme
-  -- the conversation behind the panel is dimmed
-  b := b.fill pw 0 W h (Palette.color dm.theme .scrim)
+/-- Quiet's mobile side sheet leaves a 56dp dismissal strip even on small phones. -/
+def switcherWidth (dm : Dim) (W : Nat) : Nat := min (dm.px 320) (W - dm.px 56)
+
+/-- Mobile title bar, including the sheet's rounded upper-right corner. -/
+def switcherBar (f : Font) (dm : Dim) (W inset : Nat) : Bitmap := Id.run do
+  let px := dm.px
+  let pw := switcherWidth dm W
+  let color := Palette.color dm.theme
+  let mut b := Bitmap.blank W (inset + px 60) (solid (color .scrim) W)
+  b := b.round 0 inset pw (inset + px 76) (px 16) (color .panel)
+  b := b.fill 0 inset (px 16) b.h (color .panel)
+  b := b.icon f "close" (px 14) (inset + px 16) (px 28) (color .fg)
+  let title := (f.atSize (px 16)).medium
+  let line := Text.oneLineFine title (pw - px 102) "Communities"
+  b := b.line title line ((pw - px 2 - Paint.Line.width title line) / 2) (inset + px 23) (color .fg) (exactInk := true)
+  return b.fill 0 (b.h - px 1) pw b.h (color .selected)
+
+/-- The mobile body uses the same Quiet glyph atlas and identity palette as
+its desktop sibling. Its 58dp rows and 36dp tiles follow the phone design;
+all row actions retain the actual account index, including duplicate names. -/
+def switcher (f : Font) (dm : Dim) (W h : Nat) (es : Array Entry) (_asking : Nat) (canInvite : Bool) : Page := Id.run do
+  let px := dm.px
+  let pw := switcherWidth dm W
+  let color := Palette.color dm.theme
+  let rows := switcherOrder es
+  let height := max h (px (8 + rows.length * 58 + 16 + 3 * 58 + 8))
+  let mut b := Bitmap.blank W height (solid (color .scrim) W)
+  b := b.round 0 0 pw height (px 16) (color .panel)
+  b := b.fill 0 0 pw (height - px 16) (color .panel)
+  b := b.fill 0 0 (px 16) height (color .panel)
+  let font := f.atSize (px 16)
   let mut taps := #[]
-  let rh := dm.px 76
-  let d := dm.px 48
-  let mut y := dm.px 8
-  for (idx, e) in switcherOrder es do
-    let ax := dm.px 24
-    let ay := y + (rh - d) / 2
-    if dm.hot 0 y pw rh (!e.waiting) then b := b.fill 0 y pw (y + rh) (Palette.color dm.theme .selected)
+  let mut y := px 8
+  for (idx, e) in rows do
+    let ay := y + px 11
     if e.current then
-      b := b.round (ax - 3) (ay - 3) (ax + d + 3) (ay + d + 3) (dm.px 6) (Palette.color dm.theme .accentInk)
-    b := b.round ax ay (ax + d) (ay + d) (dm.px 4) (avatarColor e.id8)
-    let initial := if e.waiting then String.ofList (e.id8.toList.take 2) else String.ofList [(e.name.toList.headD '?').toUpper]
-    let iw := Paint.Line.width f (oneLine f f.cell initial)
-    b := b.line f (oneLine f f.cell initial) (ax + (d - iw) / 2) (ay + (d - f.cell) / 2) (Palette.color dm.theme .onAccent)
-    let tx := ax + d + dm.px 16
-    let right := if e.current && canInvite then dm.px 56 else if e.waiting then dm.px 88 else dm.px 16
+      b := b.round (px 16) (ay - px 3) (px 58) (ay + px 39) (px 7)
+        (if dm.theme == .dark then 0xdbbcf0 else 0x9c00ff)
+      b := b.round (px 18) (ay - px 1) (px 56) (ay + px 37) (px 5) (color .panel)
+    b := b.round (px 19) ay (px 55) (ay + px 36) (px 4) (Palette.avatar e.id8)
+    let af := f.atSize (px (if e.waiting then 15 else 21))
+    let initial := if e.waiting then String.ofList (e.id8.toList.take 2)
+      else String.ofList [(e.name.trimAscii.toString.toList.headD '?').toUpper]
+    let mark := Text.oneLineFine af (px 36) initial
+    b := b.line af mark (px 19 + (px 36 - Paint.Line.width af mark) / 2) (ay + px 9) 0xffffff (exactInk := true)
+    let right := if e.current then px 88 else px 16
+    let label := if e.waiting then s!"<{String.ofList (e.id8.toList.take 8)}>" else e.name
+    b := b.line font (Text.oneLineFine font (pw - px 70 - right) label) (px 70)
+      (y + px (if e.waiting then 13 else 23)) (color (if e.waiting then .muted else .fg)) (exactInk := true)
     if e.waiting then
-      b := b.line f (oneLine f (pw - tx - right) s!"<{e.id8}>") tx (y + dm.px 14) (Palette.color dm.theme .muted)
-      b := b.line f (oneLine f (pw - tx - right) "Waiting for a member to let you in.") tx (y + dm.px 14 + f.cell) (Palette.color dm.theme .muted)
-      let cl := oneLine f (dm.px 80) "joining"
-      let cw := Paint.Line.width f cl + dm.px 16
-      let cx := pw - dm.px 12 - cw
-      let cy := y + (rh - dm.px 28) / 2
-      b := b.round cx cy (cx + cw) (cy + dm.px 28) (dm.px 14) (Palette.color dm.theme .edge)
-      b := b.round (cx + 2) (cy + 2) (cx + cw - 2) (cy + dm.px 28 - 2) (dm.px 14 - 2) (Palette.color dm.theme .bg)
-      b := b.line f cl (cx + dm.px 8) (cy + (dm.px 28 - f.cell) / 2) (Palette.color dm.theme .muted)
+      let small := f.atSize (px 12)
+      b := b.line small (Text.oneLineFine small (pw - px 86) "Waiting for a member to let you in.")
+        (px 70) (y + px 33) (color .muted) (exactInk := true)
     else
-      b := b.line f (oneLine f (pw - tx - right) ((if e.current then Cue.caption dm.theme .selected ++ " " else "") ++
-        (if e.unread > 0 then s!"{Cue.caption dm.theme .unread} {e.unread} · " else "") ++ e.name)) tx (y + (rh - f.cell) / 2) (Palette.color dm.theme .fg)
-    if e.current && canInvite then
-      let gx := pw - dm.px 48
-      b := b.line f (oneLine f f.cell "☺+") gx (y + (rh - f.cell) / 2) (Palette.color dm.theme .fg)
-      taps := taps.push (⟨gx - dm.px 8, y, dm.px 56, rh⟩, .addMembers)
-    if e.unread > 0 then
-      b := Overlay.badge dm.theme b (ax + d - dm.px 10) (ay - dm.px 8) (dm.px 24) (dm.px 20) (dm.px 10) (max 2 (dm.px 2))
-    taps := taps.push (⟨0, y, pw - (if e.current && canInvite then dm.px 56 else 0), rh⟩, .switchTo idx)
-    y := y + rh
-  y := y + dm.px 16
-  -- the rows after: icon squares, as libquiet draws them
-  let extra : Array (String × String × Act) :=
-    (if canInvite && asking > 0 then #[("⏳", s!"Waiting to join · {asking}", Act.requests)] else #[]) ++
-    #[("☺+", "Join a community", Act.joinCommunity), ("+", "Create a community", Act.createCommunity)]
-  for (icon, label, act) in extra do
-    if dm.hot 0 y pw (dm.px 64) then b := b.fill 0 y pw (y + dm.px 64) (Palette.color dm.theme .selected)
-    let ax := dm.px 24
-    let ay := y + (dm.px 64 - d) / 2
-    b := b.round ax ay (ax + d) (ay + d) (dm.px 6) (Palette.color dm.theme .panel)
-    let iw := Paint.Line.width f (oneLine f (2 * f.cell) icon)
-    b := b.line f (oneLine f (2 * f.cell) icon) (ax + (d - iw) / 2) (ay + (d - f.cell) / 2) (Palette.color dm.theme .fg)
-    b := b.line f (oneLine f (pw - ax - d - dm.px 32) label) (ax + d + dm.px 16) (y + (dm.px 64 - f.cell) / 2) (Palette.color dm.theme .fg)
-    taps := taps.push (⟨0, y, pw, dm.px 64⟩, act)
-    y := y + dm.px 64
-  -- a tap on the dimmed conversation closes the panel
-  taps := taps.push (⟨pw, 0, W - pw, h⟩, .back)
+      taps := taps.push (⟨px 8, y, pw - px 16 - (if e.current then px 80 else 0), px 58⟩, .switchTo idx)
+      if e.current then
+        for (rightEdge, icon, action) in [(88, "add-person", Act.addMembers), (48, "gear", Act.communitySettings)] do
+          let x := pw - px rightEdge
+          b := b.icon f icon (x + px 8) (y + px 17) (px 24) (color .fg)
+          if action != .addMembers || canInvite then
+            taps := taps.push (⟨x, y + px 7, px 40, px 44⟩, action)
+    y := y + px 58
+  y := y + px 16
+  for (icon, label, action) in [("add-person", "Join a community", Act.joinCommunity),
+      ("add", "Create a community", Act.createCommunity),
+      ("linked-devices", "Linked devices", Act.stub "Linked devices")] do
+    b := b.round (px 19) (y + px 11) (px 55) (y + px 47) (px 4) (color .selected)
+    b := b.icon f icon (px 29) (y + px 21) (px 16) (color .fg)
+    b := b.line font (Text.oneLineFine font (pw - px 86) label) (px 70) (y + px 23) (color .fg) (exactInk := true)
+    taps := taps.push (⟨px 8, y, pw - px 16, px 58⟩, action)
+    y := y + px 58
+  taps := taps.push (⟨pw, 0, W - pw, height⟩, .back)
   return ⟨b, taps⟩
 
 /-- Read a compact label in full, page by page, or copy it verbatim. -/

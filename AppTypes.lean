@@ -116,6 +116,9 @@ def PageId.drawer : PageId → Bool
   | .you | .appearance | .communitySettings | .channelSettings | .stub => true
   | _ => false
 
+/-- Pages whose bodies use the native scroll view. -/
+def PageId.scrolls (p : PageId) : Bool := p.drawer || p == .switcher
+
 /-- The reaction sheet's state: quick or the catalogue, its category,
 tone, search, and the grid's scroll (with a drag or fling in progress). -/
 structure SheetSt where
@@ -253,6 +256,9 @@ structure St where
   input : Input.State := {}
   text : String := ""
   sel : Array UInt32 := #[0, 0, 0, 0]
+  /-- Last published layers are retained by reference; compose only when opening a sheet. -/
+  lastDisplay : Option (Array UInt32 × Array ByteArray × Array ByteArray × Array ByteArray) := none
+  switcherBackdrop : Array ByteArray := #[]
   topBmp : Bitmap := default
   botBmp : Bitmap := default
   chromeKey : String := ""

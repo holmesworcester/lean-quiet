@@ -1,0 +1,50 @@
+{
+  "mobile-switcher-320-dark": {
+    "mae": 0.005311755376122892,
+    "changed_fraction": 0.022073291015625003,
+    "layout_mae": 0.0025307517067529265,
+    "popup_mae": 0.00488855620957911,
+    "popup_changed_fraction": 0.025568347537878792,
+    "popup_layout_mae": 0.001842146977968514
+  },
+  "mobile-switcher-320-light": {
+    "mae": 0.012621880994364619,
+    "changed_fraction": 0.08055395507812499,
+    "layout_mae": 0.009271193296834826,
+    "popup_mae": 0.005399402688443661,
+    "popup_changed_fraction": 0.02606822916666667,
+    "popup_layout_mae": 0.001693736397381872
+  },
+  "mobile-switcher-390-dark": {
+    "mae": 0.00369056667778641,
+    "changed_fraction": 0.01379960505529226,
+    "layout_mae": 0.002183144084364176,
+    "popup_mae": 0.003077043645270169,
+    "popup_changed_fraction": 0.016006457345971566,
+    "popup_layout_mae": 0.001185147901950404
+  },
+  "mobile-switcher-390-light": {
+    "mae": 0.009457857097685337,
+    "changed_fraction": 0.06169792198323004,
+    "layout_mae": 0.0074648463597521185,
+    "popup_mae": 0.003400259866565466,
+    "popup_changed_fraction": 0.016303924763033176,
+    "popup_layout_mae": 0.0010899377660360187
+  },
+  "mobile-switcher-430-dark": {
+    "mae": 0.003511873386986554,
+    "changed_fraction": 0.011445897794191038,
+    "layout_mae": 0.002197941184230149,
+    "popup_mae": 0.002791228579543531,
+    "popup_changed_fraction": 0.014499839055793991,
+    "popup_layout_mae": 0.00107866523549892
+  },
+  "mobile-switcher-430-light": {
+    "mae": 0.008366870871931314,
+    "changed_fraction": 0.05485517017666434,
+    "layout_mae": 0.00659806706123054,
+    "popup_mae": 0.003083926112111658,
+    "popup_changed_fraction": 0.014769219420600858,
+    "popup_layout_mae": 0.000991032791743055
+  }
+}

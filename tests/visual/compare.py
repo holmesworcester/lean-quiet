@@ -48,11 +48,11 @@ def compare(reference, actual, out, budgets=None):
         observed = Image.open(actual_file).convert('RGB')
         scores, diff = metrics(expected, observed)
         geometry = expected_file.with_suffix('.json')
-        if name.startswith('switcher-'):
+        if name.startswith(('switcher-', 'mobile-switcher-')):
             if not geometry.exists():
                 raise ValueError(f'{name}: missing independent popup geometry')
             popup = next((r for r in json.loads(geometry.read_text())
-                          if r['selector'].startswith('panel only-wide') and r['w'] > 0), None)
+                          if r['selector'].startswith('panel sw-phone' if name.startswith('mobile-') else 'panel only-wide') and r['w'] > 0), None)
             if popup is None:
                 raise ValueError(f'{name}: reference popup is not visible')
             scale = popup['scale']
@@ -88,7 +88,7 @@ def compare(reference, actual, out, budgets=None):
                 for metric, limit in budgets[name].items():
                     if scores[metric] > limit:
                         failures.append(f'{name}: {metric} {scores[metric]:.5f} > {limit:.5f}')
-        crops = (''.join(f'<figure><figcaption>popup {kind}</figcaption><img src="{name}-popup-{kind}.png"></figure>' for kind in ['reference', 'actual']) if name.startswith('switcher-') else '')
+        crops = (''.join(f'<figure><figcaption>popup {kind}</figcaption><img src="{name}-popup-{kind}.png"></figure>' for kind in ['reference', 'actual']) if name.startswith(('switcher-', 'mobile-switcher-')) else '')
         cards.append(f'<article><h2>{html.escape(name)}</h2><p>{html.escape(json.dumps(scores))}</p>'
                      + ''.join(f'<figure><figcaption>{kind}</figcaption><img src="{name}-{kind}.png"></figure>'
                                for kind in ['reference', 'actual', 'diff', 'overlay']) + crops + '</article>')
