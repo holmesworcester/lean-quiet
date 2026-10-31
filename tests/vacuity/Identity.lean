@@ -149,4 +149,3 @@ def main : IO UInt32 := do
   t.finish "identity vacuity (runtime premises; no_impersonation conditional)"
 
 end Vacuity.Identity
-

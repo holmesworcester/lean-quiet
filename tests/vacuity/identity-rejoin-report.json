@@ -1,0 +1,23 @@
+{
+  "rejoin_fresh": {
+    "status": "runtime-witness",
+    "theorem": "Community.rejoin_fresh",
+    "witness": "Vacuity.IdentityRejoin.rejoinFresh",
+    "module": "tests.vacuity.IdentityRejoin",
+    "detail": "Bob was admitted, accepted locally with secret/node key and pending join, then actually removed. Exhaustive acceptance/join query rows establish the universal cut/admission premises; a zero fresh-device admission count establishes newness. Carol rejoin emits an actual signed request from the same node key; passing Bob seed emits no request. After real Alice approval and Carol admission, a finite stored-op extension check proves permanent Bob removal while Carol and the shared node become live."
+  },
+  "join_new_device": {
+    "status": "runtime-witness",
+    "theorem": "Community.join_new_device",
+    "witness": "Vacuity.IdentityRejoin.joinNewDevice",
+    "module": "tests.vacuity.IdentityRejoin",
+    "detail": "Bob was admitted, accepted locally with secret/node key and pending join, then actually removed. Exhaustive acceptance/join query rows establish the universal cut/admission premises; a zero fresh-device admission count establishes newness. Carol rejoin emits an actual signed request from the same node key; passing Bob seed emits no request. After real Alice approval and Carol admission, a finite stored-op extension check proves permanent Bob removal while Carol and the shared node become live."
+  },
+  "removed_stays_removed": {
+    "status": "runtime-witness",
+    "theorem": "Community.removed_stays_removed",
+    "witness": "Vacuity.IdentityRejoin.removedStaysRemoved",
+    "module": "tests.vacuity.IdentityRejoin",
+    "detail": "Bob was admitted, accepted locally with secret/node key and pending join, then actually removed. Exhaustive acceptance/join query rows establish the universal cut/admission premises; a zero fresh-device admission count establishes newness. Carol rejoin emits an actual signed request from the same node key; passing Bob seed emits no request. After real Alice approval and Carol admission, a finite stored-op extension check proves permanent Bob removal while Carol and the shared node become live."
+  }
+}

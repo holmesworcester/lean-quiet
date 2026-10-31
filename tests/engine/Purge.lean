@@ -300,7 +300,12 @@ def session {F} [Codec F] [SortKey F] (fam : Family F) (path : String) (secure :
   let before ← leaks path secrets
   match mode with
   | .full => (purgeSql fam [target]).run db
-  | .noScrub => (purgeSql fam [target] (scrub := false)).run db
+  | .noScrub =>
+    -- This negative control omits ONLY VACUUM. The public-courier path
+    -- now also omits checkpointing, so request the checkpoint explicitly
+    -- to keep testing stale copies in the database's rebuilt pages.
+    (purgeSql fam [target] (scrub := false)).run db
+    (checkpointSql (F := F)).run db
   | .noCheckpoint => (transact (purgeTx fam [target])).run db
   let stored := (← (Store.getOp (F := F) target : SqlM F _).run db).isSome
   let opened ← leaks path secrets

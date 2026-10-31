@@ -1,0 +1,86 @@
+{
+  "sum_left": {
+    "status": "kernel-witness",
+    "theorem": "Engine.sum_left",
+    "witness": "Vacuity.Projection.validatesLeft",
+    "module": "tests.vacuity.Projection",
+    "detail": "Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim."
+  },
+  "sum_scope_left": {
+    "status": "kernel-witness",
+    "theorem": "Engine.sum_scope_left",
+    "witness": "Vacuity.Projection.scopeLeft",
+    "module": "tests.vacuity.Projection",
+    "detail": "Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim."
+  },
+  "spec_sum_left": {
+    "status": "kernel-witness",
+    "theorem": "Engine.spec_sum_left",
+    "witness": "Vacuity.Projection.specLeft",
+    "module": "tests.vacuity.Projection",
+    "detail": "Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim."
+  },
+  "mem_proj_idx": {
+    "status": "kernel-witness",
+    "theorem": "Engine.mem_proj_idx",
+    "witness": "Vacuity.Projection.projectedIndex",
+    "module": "tests.vacuity.Projection",
+    "detail": "Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim."
+  },
+  "matching_proj": {
+    "status": "kernel-witness",
+    "theorem": "Engine.matching_proj",
+    "witness": "Vacuity.Projection.matchingRows",
+    "module": "tests.vacuity.Projection",
+    "detail": "Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim."
+  },
+  "eval_proj": {
+    "status": "kernel-witness",
+    "theorem": "Engine.eval_proj",
+    "witness": "Vacuity.Projection.evalRows",
+    "module": "tests.vacuity.Projection",
+    "detail": "Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim."
+  },
+  "view_proj": {
+    "status": "kernel-witness",
+    "theorem": "Engine.view_proj",
+    "witness": "Vacuity.Projection.viewRows",
+    "module": "tests.vacuity.Projection",
+    "detail": "Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim."
+  },
+  "sum_project": {
+    "status": "kernel-witness",
+    "theorem": "Engine.sum_project",
+    "witness": "Vacuity.Projection.wholeProjection",
+    "module": "tests.vacuity.Projection",
+    "detail": "Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim."
+  },
+  "specVerdict_eq_some": {
+    "status": "kernel-witness",
+    "theorem": "Engine.specVerdict_eq_some",
+    "witness": "Vacuity.Projection.specVerdictPresent",
+    "module": "tests.vacuity.Projection",
+    "detail": "Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim."
+  },
+  "insertBy_map": {
+    "status": "kernel-witness",
+    "theorem": "Engine.insertBy_map",
+    "witness": "Vacuity.Projection.insertionMap",
+    "module": "tests.vacuity.Projection",
+    "detail": "Two concrete rows with sort bytes0/1 and distinct message identifiers; map into left sum constructor and preserve positions, order/insertion, or filter back. Synthetic generic row algebra, not collected user data."
+  },
+  "sortPos_map": {
+    "status": "kernel-witness",
+    "theorem": "Engine.sortPos_map",
+    "witness": "Vacuity.Projection.sortingMap",
+    "module": "tests.vacuity.Projection",
+    "detail": "Two concrete rows with sort bytes0/1 and distinct message identifiers; map into left sum constructor and preserve positions, order/insertion, or filter back. Synthetic generic row algebra, not collected user data."
+  },
+  "filterMap_inlRow": {
+    "status": "kernel-witness",
+    "theorem": "Engine.filterMap_inlRow",
+    "witness": "Vacuity.Projection.filteringMap",
+    "module": "tests.vacuity.Projection",
+    "detail": "Two concrete rows with sort bytes0/1 and distinct message identifiers; map into left sum constructor and preserve positions, order/insertion, or filter back. Synthetic generic row algebra, not collected user data."
+  }
+}

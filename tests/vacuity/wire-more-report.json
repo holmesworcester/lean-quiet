@@ -1,0 +1,156 @@
+{
+  "onFrame_sealed": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.onFrame_sealed",
+    "witness": "Vacuity.WireMore.sealedDispatch",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Actual 5-byte sealed-tag input on nonempty node/store; dispatch uses openFrame hook. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "sealed_unopened": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.sealed_unopened",
+    "witness": "Vacuity.WireMore.sealedRejected",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Same bytes with concrete rejecting hook; proves hook result and unchanged node/store/effects. Models authentication rejection, does not test AEAD itself. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "close_purges": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.close_purges",
+    "witness": "Vacuity.WireMore.closeRunner",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Nonempty drop list and closing hook naming stored local secret; SyncMore.closeErases independently proves real deletion. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "purges_notified": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.purges_notified",
+    "witness": "Vacuity.WireMore.purgeReported",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Nonempty purge root secret.id with scrub=true; uses held-store lawful state monad. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "flush_notifies": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.flush_notifies",
+    "witness": "Vacuity.WireMore.courierNotified",
+    "module": "tests.vacuity.WireMore",
+    "detail": "One actual courier tuple with stored local secret id, address and sealed bytes; proves exact outbox hook premise and retained purge id. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "serveOwed_blind": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.serveOwed_blind",
+    "witness": "Vacuity.WireMore.servingBlind",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Stored and owed message plus priority id; two held states differ in processing queue and agree on requested bytes. Does not claim independently different hidden op sets. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "have_shown_premises": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.have_shown_premises",
+    "witness": "Vacuity.WireMore.openPremises",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Opened connection carries concrete nonempty room at time100; theorem deliberately establishes initial empty-store invariant/cache/snaps. Nonempty cache/filing covered separately by SyncCache. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "secrecy_runs": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.secrecy_runs",
+    "witness": "Vacuity.WireMore.secrecyRun",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Instantiates actual stored-leaf advertisement witness in concrete Alice/Bob room; nonempty advertised ids, not an empty send implication. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "ahead_bytes": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.ahead_bytes",
+    "witness": "Vacuity.WireMore.ahead",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Nonempty socket with urgent hello and two bulk chunks; proves reachable admission under cap64, burst12, then pre/post pushes and fresh urgent frame within cap. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "Sync.popW": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.popW",
+    "witness": "Vacuity.WireMore.popsWrite",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Two local writes and queued TCP frame; exact pop returns first write and preserves remaining queues. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "Engine.runJ": {
+    "status": "kernel-witness",
+    "theorem": "Engine.runJ",
+    "witness": "Vacuity.WireMore.runJFiles",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Actual stored-op processing journal leads to newly indexed visible row, as independently proved in Query fixture. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "lbl_inj": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.lbl_inj",
+    "witness": "Vacuity.WireMore.labelsInject",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Two-item tree [1,2] vs [2,1]; proves key/id uniqueness, equal labels and collision freedom of identity digest. No fixed-length SHA injectivity claim. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "num_inj": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.num_inj",
+    "witness": "Vacuity.WireMore.numberDecode",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Nonempty byte identifier [65,0,255] reconstructed across concatenation; separate control proves [1] and [1,0] encode differently. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "fold_congr": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Tree.fold_congr",
+    "witness": "Vacuity.WireMore.foldsAgree",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Nonempty claim/hold/want output sequence; two handlers agree on actual ids claim and differ on fingerprint claims, proving only necessary premise. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "write_offers": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.write_offers",
+    "witness": "Vacuity.WireMore.offered",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Concrete new Alice greeting, one room/session/address, initially empty held store; freshness, unseen/unoffered id and capacity proven, exact emitted offer. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "hold_wants": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.hold_wants",
+    "witness": "Vacuity.WireMore.wanted",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Real encoded offer for missing greeting; proves all queue/room/capacity premises and exact want response. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "want_sends": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.want_sends",
+    "witness": "Vacuity.WireMore.wantAnswered",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Stored greeting and authorized nonempty room index; proves authorization/queue/capacity premises, responds with actual op frame. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "op_taken": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.op_taken",
+    "witness": "Vacuity.WireMore.taken",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Encoded greeting plus following nonempty offer in one session frame; proves new non-wire shown op and following-message decoding shape, actual store turn. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "fresh_served": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.fresh_served",
+    "witness": "Vacuity.WireMore.freshServed",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Greeting stored and owed, locally hot at100, served at200 within hotMs; all premises proven and exact urgent sends result. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "write_offers_all": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.write_offers_all",
+    "witness": "Vacuity.WireMore.offeredEverywhere",
+    "module": "tests.vacuity.WireMore",
+    "detail": "One new op and one eligible concrete session; nonempty offer in emitted frame with uniqueness/room/address/known/offered premises proved. Does not yet exercise multiple simultaneous sessions. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "write_hot": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.write_hot",
+    "witness": "Vacuity.WireMore.writtenHot",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Actually writes greeting into empty node/store, independently proves returned stored=[msg.id], then proves that id recorded hot at time100. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "intakeConn_conn": {
+    "status": "kernel-witness",
+    "theorem": "Engine.intakeConn_conn",
+    "witness": "Vacuity.WireMore.connectionScope",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Mixed concrete batch contains shared greeting(kind1), local secret(kind2), connection handshake(kind3). Proves exact intake=[handshake], applies scope/membership theorem and separately proves shared/local rejection. Synthetic generic scope fixture; production Noise payload validation is outside this intake law."
+  }
+}

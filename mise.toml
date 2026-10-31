@@ -107,6 +107,10 @@ run = "tests/visual/run.sh"
 description = "Build native hover pixels; compare paired states against real libquiet DOM targets and reject missing/incorrect hover"
 run = "tests/visual/hover.sh"
 
+[tasks."visual:composer"]
+description = "Build the actual composer; compare its field, toolbar and pixels with libquiet at mobile/desktop widths and zoom"
+run = "tests/visual/composer.sh"
+
 [tasks."visual:reference"]
 description = "Explicitly regenerate libquiet references from a pinned git archive using its real App.svelte and bundled fonts"
 run = "tests/visual/reference.sh"
@@ -437,6 +441,7 @@ description = "Shared phone switcher: native densities, identity, real tap dispa
 run = "tests/app/mobile_switcher.sh"
 
 [tasks."test:vacuity"]
+depends = ["crypto"]
 description = "Build production laws, kernel-check concrete premise witnesses, reject broken fixtures and check the complete README inventory"
 run = "bash tests/vacuity/check.sh"
 
@@ -473,3 +478,19 @@ run = "tools/release/linux.sh ${VERSION:?set VERSION=X.Y.Z}"
 [tasks."release:publish"]
 description = "GitHub release vVERSION of out/release/* with SHA256SUMS (tools/release/publish.sh)"
 run = "tools/release/publish.sh ${VERSION:?set VERSION=X.Y.Z} ${NOTES:-}"
+
+[tasks."windows:input"]
+description = "Deterministic Windows Unicode/editor boundary tests with sanitizers"
+run = "platforms/windows/input_test.sh"
+
+[tasks."windows:build"]
+description = "Stage shared Lean code and build the native Windows app in the VM"
+run = "platforms/windows/ship.sh build"
+
+[tasks."windows:e2e"]
+description = "Build/setup, real Windows UI, persistence and encrypted TCP lifecycle tests"
+run = "platforms/windows/ship.sh e2e"
+
+[tasks."windows:run"]
+description = "Build, install a desktop shortcut and launch Lean Quiet in Windows"
+run = "platforms/windows/ship.sh run"

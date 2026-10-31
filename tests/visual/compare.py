@@ -47,6 +47,28 @@ def compare(reference, actual, out, budgets=None):
         expected = Image.open(expected_file).convert('RGB')
         observed = Image.open(actual_file).convert('RGB')
         scores, diff = metrics(expected, observed)
+        if name.startswith('composer-'):
+            oracle = json.loads(expected_file.with_suffix('.composer.json').read_text())
+            native = [[int(v) for v in line.split()] for line in actual_file.with_suffix('.composer.tsv').read_text().splitlines()]
+            boxes = [oracle['area'], oracle['row'], oracle['field']] + [b['box'] for b in oracle['buttons']]
+            scale = oracle['scale']
+            if len(native) != len(boxes) or any(len(box) != 4 for box in native) or any(abs(a-b*scale) > max(1, scale) for actual_box, box in zip(native, boxes) for a,b in zip(actual_box,box)):
+                failures.append(f'{name}: native composer geometry {native} differs from DOM {boxes} at {scale}x')
+            x, y, w, h = oracle['area']
+            region = tuple(round(v*scale) for v in (x,y,x+w,y+h))
+            for kind, frame in [('reference',expected), ('actual',observed)]:
+                frame.crop(region).save(out / f'{name}-composer-{kind}.png')
+            local, _ = metrics(expected.crop(region), observed.crop(region), sidebar=False)
+            scores.update({f'composer_{key}': value for key,value in local.items()})
+            # Blank interior rows are exact design tokens: neither rounding
+            # nor font antialiasing excuses a missing/extra toolbar divider.
+            row_x,row_y,row_w,_ = oracle['row']
+            button_y = oracle['buttons'][0]['box'][1]
+            field_x,field_y,field_w,field_h = oracle['field']
+            gap = (round((row_x+20)*scale), round((field_y+field_h)*scale),
+                   round((row_x+row_w-20)*scale), round(button_y*scale))
+            if expected.crop(gap).tobytes() != observed.crop(gap).tobytes():
+                failures.append(f'{name}: field/toolbar gap or divider differs')
         geometry = expected_file.with_suffix('.json')
         if name.startswith(('switcher-', 'mobile-switcher-')):
             if not geometry.exists():
@@ -88,7 +110,8 @@ def compare(reference, actual, out, budgets=None):
                 for metric, limit in budgets[name].items():
                     if scores[metric] > limit:
                         failures.append(f'{name}: {metric} {scores[metric]:.5f} > {limit:.5f}')
-        crops = (''.join(f'<figure><figcaption>popup {kind}</figcaption><img src="{name}-popup-{kind}.png"></figure>' for kind in ['reference', 'actual']) if name.startswith(('switcher-', 'mobile-switcher-')) else '')
+        component = 'composer' if name.startswith('composer-') else 'popup' if name.startswith(('switcher-', 'mobile-switcher-')) else None
+        crops = (''.join(f'<figure><figcaption>{component} {kind}</figcaption><img src="{name}-{component}-{kind}.png"></figure>' for kind in ['reference', 'actual']) if component else '')
         cards.append(f'<article><h2>{html.escape(name)}</h2><p>{html.escape(json.dumps(scores))}</p>'
                      + ''.join(f'<figure><figcaption>{kind}</figcaption><img src="{name}-{kind}.png"></figure>'
                                for kind in ['reference', 'actual', 'diff', 'overlay']) + crops + '</article>')

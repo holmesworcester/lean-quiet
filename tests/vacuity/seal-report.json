@@ -1,0 +1,30 @@
+{
+  "Seal.Good": {
+    "status": "counterexample",
+    "theorem": "Community.Seal.Good",
+    "witness": "Vacuity.SealAudit.badKeyDisprovesGood",
+    "module": "tests.vacuity.SealAudit",
+    "detail": "Actual cryptoSeal rejects wrong-length keys/nonces: empty key with valid 24-byte nonce seals to empty and opens to none for a nonempty message. This contradicts Good.dec_enc, which quantifies over all ByteArrays without size premises. Runtime branch constructs \u00accryptoSeal.Good; independent bad-nonce counterexample also passes."
+  },
+  "openSealed_seal": {
+    "status": "conditional",
+    "theorem": "Community.openSealed_seal",
+    "witness": "Vacuity.SealAudit.openSealedConditional",
+    "module": "tests.vacuity.SealAudit",
+    "detail": "Concrete valid-sized production crypto roundtrip passes, but theorem requires cryptoSeal.Good. That universal premise is false for the actual suite: empty key or nonce yields none, contradicting dec_enc. The theorem application is recorded conditionally, not counted as fully witnessed. Requires a correctly scoped size-aware suite contract."
+  },
+  "member_opens": {
+    "status": "conditional",
+    "theorem": "Community.member_opens",
+    "witness": "Vacuity.SealAudit.memberOpensConditional",
+    "module": "tests.vacuity.SealAudit",
+    "detail": "Concrete valid-sized production crypto roundtrip passes, but theorem requires cryptoSeal.Good. That universal premise is false for the actual suite: empty key or nonce yields none, contradicting dec_enc. The theorem application is recorded conditionally, not counted as fully witnessed. Requires a correctly scoped size-aware suite contract."
+  },
+  "unbox_box": {
+    "status": "conditional",
+    "theorem": "Community.unbox_box",
+    "witness": "Vacuity.SealAudit.unboxConditional",
+    "module": "tests.vacuity.SealAudit",
+    "detail": "Concrete valid-sized production crypto roundtrip passes, but theorem requires cryptoSeal.Good. That universal premise is false for the actual suite: empty key or nonce yields none, contradicting dec_enc. The theorem application is recorded conditionally, not counted as fully witnessed. Requires a correctly scoped size-aware suite contract."
+  }
+}

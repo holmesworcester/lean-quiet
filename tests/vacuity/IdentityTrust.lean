@@ -1,4 +1,5 @@
 import tests.vacuity.IdentityFixture
+import ops.connection.bootstrap.Bridge
 
 namespace Vacuity.IdentityTrust
 open Engine Community Codec Tests Vacuity.Identity
@@ -185,8 +186,27 @@ def mineNotRemoved :=
     else none
   else none
 
+def distinctBefore : Option (PLift (Distinct before)) :=
+  if hd : before.all (fun a => before.all fun b => decide (a.id = b.id → a = b)) = true then
+    some ⟨by
+      intro a ha b hb he
+      exact of_decide_eq_true ((List.all_eq_true.1 ((List.all_eq_true.1 hd) a ha)) b hb) he⟩
+  else none
+
+def netAllowPeer := do
+  let ⟨hd⟩ ← distinctBefore
+  if hq : (run before).queue = [] then
+    pure (PLift.up (Net.allowPeer_iff (runReach before) hd hq c (keyOf bob)))
+  else none
+
+def netAllowSettles := do
+  let ⟨hd⟩ ← distinctBefore
+  pure (PLift.up (Net.allowPeer_settles (loadReach before) hd))
+
 def main : IO UInt32 := do
   let t ← Checks.new
+  t.ok "Net.allowPeer_iff on real signed community" netAllowPeer.isSome
+  t.ok "Net.allowPeer_settles from actual loaded ops" netAllowSettles.isSome
   t.ok "connect_iff with admitted Bob" connectIff.isSome
   t.ok "deviceLive_iff with admitted Bob" deviceLiveIff.isSome
   t.ok "members_iff with admitted Bob" membersIff.isSome

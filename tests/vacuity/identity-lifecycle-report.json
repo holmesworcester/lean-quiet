@@ -1,0 +1,37 @@
+{
+  "notice_then_cut": {
+    "status": "runtime-witness",
+    "theorem": "Connection.notice_then_cut",
+    "witness": "Vacuity.IdentityLifecycle.noticeThenCut",
+    "module": "tests.vacuity.IdentityLifecycle",
+    "detail": "Actual signed Alice/Bob community and Noise session. Native branches prove all finite premises; universal community and node-device premises follow from exhaustive singleton acceptance/stored-verdict checks and Inv.sound. Bob removal sends its real requirement closure and excludes his chat message; given notice empties rooms and retires the actual session. Pending and admitted Bob both retry the actual stored Noise request to the invite address."
+  },
+  "rooms_cut_node": {
+    "status": "runtime-witness",
+    "theorem": "Connection.rooms_cut_node",
+    "witness": "Vacuity.IdentityLifecycle.roomsCutNode",
+    "module": "tests.vacuity.IdentityLifecycle",
+    "detail": "Actual signed Alice/Bob community and Noise session. Native branches prove all finite premises; universal community and node-device premises follow from exhaustive singleton acceptance/stored-verdict checks and Inv.sound. Bob removal sends its real requirement closure and excludes his chat message; given notice empties rooms and retires the actual session. Pending and admitted Bob both retry the actual stored Noise request to the invite address."
+  },
+  "rejoin_dials": {
+    "status": "runtime-witness",
+    "theorem": "Connection.rejoin_dials",
+    "witness": "Vacuity.IdentityLifecycle.rejoinDials",
+    "module": "tests.vacuity.IdentityLifecycle",
+    "detail": "Actual signed Alice/Bob community and Noise session. Native branches prove all finite premises; universal community and node-device premises follow from exhaustive singleton acceptance/stored-verdict checks and Inv.sound. Bob removal sends its real requirement closure and excludes his chat message; given notice empties rooms and retires the actual session. Pending and admitted Bob both retry the actual stored Noise request to the invite address."
+  },
+  "reconnect_dials": {
+    "status": "runtime-witness",
+    "theorem": "Connection.reconnect_dials",
+    "witness": "Vacuity.IdentityLifecycle.reconnectDials",
+    "module": "tests.vacuity.IdentityLifecycle",
+    "detail": "Actual signed Alice/Bob community and Noise session. Native branches prove all finite premises; universal community and node-device premises follow from exhaustive singleton acceptance/stored-verdict checks and Inv.sound. Bob removal sends its real requirement closure and excludes his chat message; given notice empties rooms and retires the actual session. Pending and admitted Bob both retry the actual stored Noise request to the invite address."
+  },
+  "removed_gets_only_notice": {
+    "status": "runtime-witness",
+    "theorem": "Connection.removed_gets_only_notice",
+    "witness": "Vacuity.IdentityLifecycle.removedGetsOnlyNotice",
+    "module": "tests.vacuity.IdentityLifecycle",
+    "detail": "Actual signed Alice/Bob community and Noise session. Native branches prove all finite premises; universal community and node-device premises follow from exhaustive singleton acceptance/stored-verdict checks and Inv.sound. Bob removal sends its real requirement closure and excludes his chat message; given notice empties rooms and retires the actual session. Pending and admitted Bob both retry the actual stored Noise request to the invite address."
+  }
+}

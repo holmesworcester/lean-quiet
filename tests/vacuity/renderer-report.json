@@ -1,0 +1,1157 @@
+{
+  "Demand.owned_iff": {
+    "status": "kernel-witness",
+    "theorem": "Demand.owned_iff",
+    "witness": "Vacuity.RendererDemand.ownership",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture."
+  },
+  "Demand.next_visible": {
+    "status": "kernel-witness",
+    "theorem": "Demand.next_visible",
+    "witness": "Vacuity.RendererDemand.visiblePriority",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture."
+  },
+  "Demand.retained_prefix": {
+    "status": "kernel-witness",
+    "theorem": "Demand.retained_prefix",
+    "witness": "Vacuity.RendererDemand.fifo",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture."
+  },
+  "Demand.complete_retired": {
+    "status": "kernel-witness",
+    "theorem": "Demand.complete_retired",
+    "witness": "Vacuity.RendererDemand.retired",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture."
+  },
+  "Demand.retained_ticket": {
+    "status": "kernel-witness",
+    "theorem": "Demand.retained_ticket",
+    "witness": "Vacuity.RendererDemand.retained",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture."
+  },
+  "Demand.remount_rejects": {
+    "status": "kernel-witness",
+    "theorem": "Demand.remount_rejects",
+    "witness": "Vacuity.RendererDemand.remount",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture."
+  },
+  "Surface.placed_row": {
+    "status": "kernel-witness",
+    "theorem": "Surface.placed_row",
+    "witness": "Vacuity.RendererGeometry.placed",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Surface.visible_in_viewport": {
+    "status": "kernel-witness",
+    "theorem": "Surface.visible_in_viewport",
+    "witness": "Vacuity.RendererGeometry.visible",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "newest_visible": {
+    "status": "kernel-witness",
+    "theorem": "Geometry.newest_visible",
+    "witness": "Vacuity.RendererGeometry.newest",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Surface.newest_drawn": {
+    "status": "kernel-witness",
+    "theorem": "Surface.newest_drawn",
+    "witness": "Vacuity.RendererGeometry.newestDrawn",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Surface.pinned_row": {
+    "status": "kernel-witness",
+    "theorem": "Surface.pinned_row",
+    "witness": "Vacuity.RendererGeometry.pinnedRow",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Surface.pinned_visible": {
+    "status": "kernel-witness",
+    "theorem": "Surface.pinned_visible",
+    "witness": "Vacuity.RendererGeometry.pinnedVisible",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "pinned_tap": {
+    "status": "kernel-witness",
+    "theorem": "Geometry.pinned_tap",
+    "witness": "Vacuity.RendererGeometry.pageTap",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "hit_iff": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.hit_iff",
+    "witness": "Vacuity.RendererGeometry.hit",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "hit_cell": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.hit_cell",
+    "witness": "Vacuity.RendererGeometry.hitCell",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "keys_disjoint": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.keys_disjoint",
+    "witness": "Vacuity.RendererGeometry.disjoint",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "reachable": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.reachable",
+    "witness": "Vacuity.RendererGeometry.reachable",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "itemAt_place": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.itemAt_place",
+    "witness": "Vacuity.RendererGeometry.item",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "lineOf_ctop": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.lineOf_ctop",
+    "witness": "Vacuity.RendererGeometry.line",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "compose_row": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.compose_row",
+    "witness": "Vacuity.RendererGeometry.composeRow",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "compose_top": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.compose_top",
+    "witness": "Vacuity.RendererGeometry.composeTop",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Camera.src_in": {
+    "status": "kernel-witness",
+    "theorem": "Camera.src_in",
+    "witness": "Vacuity.RendererGeometry.cameraBounds",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Cover.covered": {
+    "status": "kernel-witness",
+    "theorem": "Cover.covered",
+    "witness": "Vacuity.RendererGeometry.coverage",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Cover.line_painted": {
+    "status": "kernel-witness",
+    "theorem": "Cover.line_painted",
+    "witness": "Vacuity.RendererGeometry.painted",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Translate.equivariance": {
+    "status": "kernel-witness",
+    "theorem": "Translate.equivariance",
+    "witness": "Vacuity.RendererGeometry.translation",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Slide.edge_eq": {
+    "status": "kernel-witness",
+    "theorem": "Slide.edge_eq",
+    "witness": "Vacuity.RendererGeometry.slide",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Translate.covered": {
+    "status": "kernel-witness",
+    "theorem": "Translate.covered",
+    "witness": "Vacuity.RendererGeometry.translatedCoverage",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Translate.fill_pixel": {
+    "status": "kernel-witness",
+    "theorem": "Translate.fill_pixel",
+    "witness": "Vacuity.RendererGeometry.fillPixel",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "writes_only_after_two": {
+    "status": "kernel-witness",
+    "theorem": "Remove.writes_only_after_two",
+    "witness": "Vacuity.RendererFlow.secondYes",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "cancel_writes_nothing": {
+    "status": "kernel-witness",
+    "theorem": "Remove.cancel_writes_nothing",
+    "witness": "Vacuity.RendererFlow.cancellation",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "open_fresh": {
+    "status": "kernel-witness",
+    "theorem": "Remove.open_fresh",
+    "witness": "Vacuity.RendererFlow.freshAttempt",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "no_replace": {
+    "status": "kernel-witness",
+    "theorem": "Remove.no_replace",
+    "witness": "Vacuity.RendererFlow.noReplace",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "offered_only": {
+    "status": "kernel-witness",
+    "theorem": "Remove.offered_only",
+    "witness": "Vacuity.RendererFlow.offered",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "back_go": {
+    "status": "kernel-witness",
+    "theorem": "Nav.back_go",
+    "witness": "Vacuity.RendererFlow.back",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "go_inv": {
+    "status": "kernel-witness",
+    "theorem": "Nav.go_inv",
+    "witness": "Vacuity.RendererFlow.noDuplicates",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "offer_split": {
+    "status": "kernel-witness",
+    "theorem": "NodeOffer.offer_split",
+    "witness": "Vacuity.RendererFlow.offerSplit",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "offer_runs": {
+    "status": "kernel-witness",
+    "theorem": "NodeOffer.offer_runs",
+    "witness": "Vacuity.RendererFlow.offers",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "unmounted_quiet": {
+    "status": "kernel-witness",
+    "theorem": "Lifecycle.unmounted_quiet",
+    "witness": "Vacuity.RendererFlow.unmounted",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "old_quiet": {
+    "status": "kernel-witness",
+    "theorem": "Lifecycle.old_quiet",
+    "witness": "Vacuity.RendererFlow.oldCallback",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "mounted_runs": {
+    "status": "kernel-witness",
+    "theorem": "Lifecycle.mounted_runs",
+    "witness": "Vacuity.RendererFlow.mountedWork",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "subscriptions_exact": {
+    "status": "kernel-witness",
+    "theorem": "Lifecycle.subscriptions_exact",
+    "witness": "Vacuity.RendererFlow.subscriptions",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "live_exact": {
+    "status": "kernel-witness",
+    "theorem": "Lifecycle.live_exact",
+    "witness": "Vacuity.RendererFlow.liveExact",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "resize_anchor": {
+    "status": "kernel-witness",
+    "theorem": "Lifecycle.resize_anchor",
+    "witness": "Vacuity.RendererFlow.resize",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "restore_checkpoint": {
+    "status": "kernel-witness",
+    "theorem": "Lifecycle.restore_checkpoint",
+    "witness": "Vacuity.RendererFlow.restore",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "visual_perm": {
+    "status": "kernel-witness",
+    "theorem": "Text.visual_perm",
+    "witness": "Vacuity.RendererText.permutation",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "place_shows": {
+    "status": "kernel-witness",
+    "theorem": "Text.place_shows",
+    "witness": "Vacuity.RendererText.visibleGlyphs",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "place_starts": {
+    "status": "kernel-witness",
+    "theorem": "Text.place_starts",
+    "witness": "Vacuity.RendererText.starts",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "numbers_keep_order": {
+    "status": "kernel-witness",
+    "theorem": "Text.numbers_keep_order",
+    "witness": "Vacuity.RendererText.europeanOrder",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "arabic_numbers_keep_order": {
+    "status": "kernel-witness",
+    "theorem": "Text.arabic_numbers_keep_order",
+    "witness": "Vacuity.RendererText.arabicOrder",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "controls_neutral": {
+    "status": "kernel-witness",
+    "theorem": "Text.controls_neutral",
+    "witness": "Vacuity.RendererText.controls",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "marks_invisible": {
+    "status": "kernel-witness",
+    "theorem": "Text.marks_invisible",
+    "witness": "Vacuity.RendererText.invisibles",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "oneLine_prefix": {
+    "status": "kernel-witness",
+    "theorem": "Text.oneLine_prefix",
+    "witness": "Vacuity.RendererText.ellipsis",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "wrap_keeps": {
+    "status": "kernel-witness",
+    "theorem": "Text.wrap_keeps",
+    "witness": "Vacuity.RendererText.wrapping",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "wrap_fits": {
+    "status": "kernel-witness",
+    "theorem": "Text.wrap_fits",
+    "witness": "Vacuity.RendererText.wrappedWidth",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "start_eq": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.start_eq",
+    "witness": "Vacuity.RendererHeights.rowStart",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "find_spec": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.find_spec",
+    "witness": "Vacuity.RendererHeights.findRow",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "set_toList": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.set_toList",
+    "witness": "Vacuity.RendererHeights.update",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "start_mono": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.start_mono",
+    "witness": "Vacuity.RendererHeights.monotone",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "start_size": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.start_size",
+    "witness": "Vacuity.RendererHeights.endOfContent",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "below_window": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.below_window",
+    "witness": "Vacuity.RendererHeights.below",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "above_window": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.above_window",
+    "witness": "Vacuity.RendererHeights.above",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "findM_cost": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.findM_cost",
+    "witness": "Vacuity.RendererHeights.findCost",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "startM_cost": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.startM_cost",
+    "witness": "Vacuity.RendererHeights.startCost",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "setM_cost": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.setM_cost",
+    "witness": "Vacuity.RendererHeights.updateCost",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "push_ok": {
+    "status": "kernel-witness",
+    "theorem": "Heights.Rows.push_ok",
+    "witness": "Vacuity.RendererHeights.pushed",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "rows_cost": {
+    "status": "kernel-witness",
+    "theorem": "Heights.rows_cost",
+    "witness": "Vacuity.RendererHeights.rowCosts",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "Pic.decode_sized": {
+    "status": "kernel-witness",
+    "theorem": "Pic.decode_sized",
+    "witness": "Vacuity.RendererImages.pictureSized",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "Image.decode_sized": {
+    "status": "kernel-witness",
+    "theorem": "Image.decode_sized",
+    "witness": "Vacuity.RendererImages.imageSized",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "layout_sizes": {
+    "status": "kernel-witness",
+    "theorem": "Pic.layout_sizes",
+    "witness": "Vacuity.RendererImages.layoutSizes",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "Pic.layout_apart": {
+    "status": "kernel-witness",
+    "theorem": "Pic.layout_apart",
+    "witness": "Vacuity.RendererImages.separated",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "layout_apart": {
+    "status": "kernel-witness",
+    "theorem": "Pic.layout_apart",
+    "witness": "Vacuity.RendererImages.separated",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "Pic.layout_inside": {
+    "status": "kernel-witness",
+    "theorem": "Pic.layout_inside",
+    "witness": "Vacuity.RendererImages.inside",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "render_wellFormed": {
+    "status": "kernel-witness",
+    "theorem": "Pic.render_wellFormed",
+    "witness": "Vacuity.RendererImages.renderSized",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "render_opaque": {
+    "status": "kernel-witness",
+    "theorem": "Pic.render_opaque",
+    "witness": "Vacuity.RendererImages.opacity",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "scale_wellFormed": {
+    "status": "kernel-witness",
+    "theorem": "Pic.scale_wellFormed",
+    "witness": "Vacuity.RendererImages.scaled",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "Ttf.byte_in_bounds": {
+    "status": "kernel-witness",
+    "theorem": "Ttf.byte_in_bounds",
+    "witness": "Vacuity.RendererImages.byteBound",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "Ttf.cmap_entry": {
+    "status": "kernel-witness",
+    "theorem": "Ttf.cmap_entry",
+    "witness": "Vacuity.RendererImages.character",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "Ttf.coverage_value": {
+    "status": "kernel-witness",
+    "theorem": "Ttf.coverage_value",
+    "witness": "Vacuity.RendererImages.saturated",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "Ttf.Cache.put_bound": {
+    "status": "kernel-witness",
+    "theorem": "Ttf.Cache.put_bound",
+    "witness": "Vacuity.RendererImages.cacheBound",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. The native executable additionally checks two distinct nonempty glyphs are both retained and index.size = 2, ruling out an always-empty cache."
+  },
+  "Ttf.Cache.put_payload_bound": {
+    "status": "kernel-witness",
+    "theorem": "Ttf.Cache.put_payload_bound",
+    "witness": "Vacuity.RendererImages.cachePayload",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. The native executable additionally checks two distinct nonempty glyphs are both retained and index.size = 2, ruling out an always-empty cache."
+  },
+  "agrees_empty": {
+    "status": "kernel-witness",
+    "theorem": "LiveLaws.agrees_empty",
+    "witness": "Vacuity.RendererLive.empty",
+    "module": "tests.vacuity.RendererLive",
+    "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
+  },
+  "agrees_store": {
+    "status": "kernel-witness",
+    "theorem": "LiveLaws.agrees_store",
+    "witness": "Vacuity.RendererLive.store",
+    "module": "tests.vacuity.RendererLive",
+    "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
+  },
+  "answer_agrees": {
+    "status": "kernel-witness",
+    "theorem": "LiveLaws.answer_agrees",
+    "witness": "Vacuity.RendererLive.cachedAnswer",
+    "module": "tests.vacuity.RendererLive",
+    "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
+  },
+  "read_one_moment": {
+    "status": "kernel-witness",
+    "theorem": "LiveLaws.read_one_moment",
+    "witness": "Vacuity.RendererLive.oneMoment",
+    "module": "tests.vacuity.RendererLive",
+    "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
+  },
+  "agrees_keep": {
+    "status": "kernel-witness",
+    "theorem": "LiveLaws.agrees_keep",
+    "witness": "Vacuity.RendererLive.keep",
+    "module": "tests.vacuity.RendererLive",
+    "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
+  },
+  "agrees_unmount": {
+    "status": "kernel-witness",
+    "theorem": "LiveLaws.agrees_unmount",
+    "witness": "Vacuity.RendererLive.unmount",
+    "module": "tests.vacuity.RendererLive",
+    "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
+  },
+  "watched_held": {
+    "status": "kernel-witness",
+    "theorem": "LiveLaws.watched_held",
+    "witness": "Vacuity.RendererLive.watchedHeld",
+    "module": "tests.vacuity.RendererLive",
+    "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
+  },
+  "screen_subs": {
+    "status": "kernel-witness",
+    "theorem": "Screen.screen_subs",
+    "witness": "Vacuity.RendererModels.screenSubscriptions",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "hull_near": {
+    "status": "kernel-witness",
+    "theorem": "Screen.hull_near",
+    "witness": "Vacuity.RendererModels.nearHull",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "past_hull_le": {
+    "status": "kernel-witness",
+    "theorem": "Screen.past_hull_le",
+    "witness": "Vacuity.RendererModels.hullBound",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "screen_index": {
+    "status": "kernel-witness",
+    "theorem": "Screen.screen_index",
+    "witness": "Vacuity.RendererModels.frameIndex",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "keep_scrolled_off": {
+    "status": "kernel-witness",
+    "theorem": "Screen.keep_scrolled_off",
+    "witness": "Vacuity.RendererModels.scrolledOff",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "World.inv_commit": {
+    "status": "kernel-witness",
+    "theorem": "Live.World.inv_commit",
+    "witness": "Vacuity.RendererModels.worldCommit",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "World.inv_pass": {
+    "status": "kernel-witness",
+    "theorem": "Live.World.inv_pass",
+    "witness": "Vacuity.RendererModels.worldPass",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "World.inv_frame": {
+    "status": "kernel-witness",
+    "theorem": "Live.World.inv_frame",
+    "witness": "Vacuity.RendererModels.worldFrame",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "World.settle": {
+    "status": "kernel-witness",
+    "theorem": "Live.World.settle",
+    "witness": "Vacuity.RendererModels.worldSettles",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "seen_take": {
+    "status": "kernel-witness",
+    "theorem": "Live.Board.seen_take",
+    "witness": "Vacuity.RendererModels.boardSeen",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "marked_pass": {
+    "status": "kernel-witness",
+    "theorem": "Live.World.marked_pass",
+    "witness": "Vacuity.RendererModels.stillMarked",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "RWorld.inv_commit": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.inv_commit",
+    "witness": "Vacuity.RendererModels.readerCommit",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "RWorld.inv_pass": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.inv_pass",
+    "witness": "Vacuity.RendererModels.readerPass",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "RWorld.inv_frame": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.inv_frame",
+    "witness": "Vacuity.RendererModels.readerFrame",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "inv_evict": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.inv_evict",
+    "witness": "Vacuity.RendererModels.readerEvict",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "RWorld.settle": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.settle",
+    "witness": "Vacuity.RendererModels.readerSettles",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "RWorld.acts_shown": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.acts_shown",
+    "witness": "Vacuity.RendererModels.actsShown",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "inv_passActs": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.inv_passActs",
+    "witness": "Vacuity.RendererModels.actionsInvariant",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "idxok_passActs": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.idxok_passActs",
+    "witness": "Vacuity.RendererModels.actionIndex",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "passActs_picks": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.passActs_picks",
+    "witness": "Vacuity.RendererModels.actionPicks",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "passActs_nil": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.passActs_nil",
+    "witness": "Vacuity.RendererModels.noActions",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "AWorld.passActs_comp": {
+    "status": "kernel-witness",
+    "theorem": "Live.AWorld.passActs_comp",
+    "witness": "Vacuity.RendererModels.composerKept",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "AWorld.passActs_indep": {
+    "status": "kernel-witness",
+    "theorem": "Live.AWorld.passActs_indep",
+    "witness": "Vacuity.RendererModels.composerIndependent",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "AWorld.passActs_acts": {
+    "status": "kernel-witness",
+    "theorem": "Live.AWorld.passActs_acts",
+    "witness": "Vacuity.RendererModels.actionsTaken",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "AWorld.type_only": {
+    "status": "kernel-witness",
+    "theorem": "Live.AWorld.type_only",
+    "witness": "Vacuity.RendererModels.typing",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "withView_ofFrame": {
+    "status": "kernel-witness",
+    "theorem": "Reader.Want.withView_ofFrame",
+    "witness": "Vacuity.RendererModels.viewSteady",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "withViewLast_moves": {
+    "status": "kernel-witness",
+    "theorem": "Reader.Want.withViewLast_moves",
+    "witness": "Vacuity.RendererModels.viewMutant",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "projectSet_mem": {
+    "status": "kernel-witness",
+    "theorem": "Data.projectSet_mem",
+    "witness": "Vacuity.RendererSets.setMembers",
+    "module": "tests.vacuity.RendererSets",
+    "detail": "Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed."
+  },
+  "projectSet_nodup": {
+    "status": "kernel-witness",
+    "theorem": "Data.projectSet_nodup",
+    "witness": "Vacuity.RendererSets.setUnique",
+    "module": "tests.vacuity.RendererSets",
+    "detail": "Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed."
+  },
+  "dedupe_nodup": {
+    "status": "kernel-witness",
+    "theorem": "Switch.dedupe_nodup",
+    "witness": "Vacuity.RendererSets.acceptanceUnique",
+    "module": "tests.vacuity.RendererSets",
+    "detail": "Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed."
+  },
+  "dedupe_one_per_community": {
+    "status": "kernel-witness",
+    "theorem": "Switch.dedupe_one_per_community",
+    "witness": "Vacuity.RendererSets.communityUnique",
+    "module": "tests.vacuity.RendererSets",
+    "detail": "Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed."
+  },
+  "select_tapped_dedupe": {
+    "status": "kernel-witness",
+    "theorem": "Switch.select_tapped_dedupe",
+    "witness": "Vacuity.RendererSets.tapped",
+    "module": "tests.vacuity.RendererSets",
+    "detail": "Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed."
+  },
+  "switcherOrder_sound": {
+    "status": "kernel-witness",
+    "theorem": "Pages.switcherOrder_sound",
+    "witness": "Vacuity.RendererSets.switcherSound",
+    "module": "tests.vacuity.RendererSets",
+    "detail": "Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed."
+  },
+  "switcherOrder_complete": {
+    "status": "kernel-witness",
+    "theorem": "Pages.switcherOrder_complete",
+    "witness": "Vacuity.RendererSets.switcherComplete",
+    "module": "tests.vacuity.RendererSets",
+    "detail": "Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed."
+  },
+  "chips_apart": {
+    "status": "kernel-witness",
+    "theorem": "Composer.chips_apart",
+    "witness": "Vacuity.RendererSets.chipsApart",
+    "module": "tests.vacuity.RendererSets",
+    "detail": "Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed."
+  },
+  "x_clear": {
+    "status": "kernel-witness",
+    "theorem": "Composer.x_clear",
+    "witness": "Vacuity.RendererSets.closeClear",
+    "module": "tests.vacuity.RendererSets",
+    "detail": "Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed."
+  },
+  "chips_fit": {
+    "status": "kernel-witness",
+    "theorem": "Composer.chips_fit",
+    "witness": "Vacuity.RendererSets.chipsFit",
+    "module": "tests.vacuity.RendererSets",
+    "detail": "Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed."
+  },
+  "run_contiguous": {
+    "status": "kernel-witness",
+    "theorem": "Text.Bidi.run_contiguous",
+    "witness": "Vacuity.RendererSets.numberRun",
+    "module": "tests.vacuity.RendererSets",
+    "detail": "Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed."
+  },
+  "decoded_started": {
+    "status": "kernel-witness",
+    "theorem": "Pics.decoded_started",
+    "witness": "Vacuity.RendererPics.started",
+    "module": "tests.vacuity.RendererPics",
+    "detail": "Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline."
+  },
+  "image_steady": {
+    "status": "kernel-witness",
+    "theorem": "Pics.image_steady",
+    "witness": "Vacuity.RendererPics.noWork",
+    "module": "tests.vacuity.RendererPics",
+    "detail": "Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline."
+  },
+  "image_settles": {
+    "status": "kernel-witness",
+    "theorem": "Pics.image_settles",
+    "witness": "Vacuity.RendererPics.settles",
+    "module": "tests.vacuity.RendererPics",
+    "detail": "Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline."
+  },
+  "image_twice": {
+    "status": "kernel-witness",
+    "theorem": "Pics.image_twice",
+    "witness": "Vacuity.RendererPics.twice",
+    "module": "tests.vacuity.RendererPics",
+    "detail": "Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline."
+  },
+  "NavLaws.back_open": {
+    "status": "runtime-witness",
+    "theorem": "NavLaws.back_open",
+    "witness": "Vacuity.RendererRuntime.backOpen",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+  },
+  "NavLaws.back_root": {
+    "status": "runtime-witness",
+    "theorem": "NavLaws.back_root",
+    "witness": "Vacuity.RendererRuntime.backRoot",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+  },
+  "back_switch": {
+    "status": "runtime-witness",
+    "theorem": "NavLaws.back_switch",
+    "witness": "Vacuity.RendererRuntime.switchBack",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+  },
+  "draft_back": {
+    "status": "runtime-witness",
+    "theorem": "NavLaws.draft_back",
+    "witness": "Vacuity.RendererRuntime.draftBack",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+  },
+  "NavLaws.depth": {
+    "status": "runtime-witness",
+    "theorem": "NavLaws.depth",
+    "witness": "Vacuity.RendererRuntime.stackDepth",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+  },
+  "into_native": {
+    "status": "runtime-witness",
+    "theorem": "App.into_native",
+    "witness": "Vacuity.RendererRuntime.nativeInput",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+  },
+  "restore_page_anchor": {
+    "status": "runtime-witness",
+    "theorem": "LifecycleLaws.restore_page_anchor",
+    "witness": "Vacuity.RendererRuntime.savedAnchor",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+  },
+  "apply_page_anchor": {
+    "status": "runtime-witness",
+    "theorem": "LifecycleLaws.apply_page_anchor",
+    "witness": "Vacuity.RendererRuntime.restoredAnchor",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+  },
+  "unmount_read": {
+    "status": "runtime-witness",
+    "theorem": "LifecycleLaws.unmount_read",
+    "witness": "Vacuity.RendererRuntime.unmountedRead",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+  },
+  "unmount_write": {
+    "status": "runtime-witness",
+    "theorem": "LifecycleLaws.unmount_write",
+    "witness": "Vacuity.RendererRuntime.unmountedWrite",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+  },
+  "old_callback": {
+    "status": "runtime-witness",
+    "theorem": "LifecycleLaws.old_callback",
+    "witness": "Vacuity.RendererRuntime.oldCallback",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+  },
+  "drawPage_key": {
+    "status": "runtime-witness",
+    "theorem": "App.drawPage_key",
+    "witness": "Vacuity.RendererRuntime.sameKey",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency."
+  },
+  "pageIn_acc": {
+    "status": "runtime-witness",
+    "theorem": "App.pageIn_acc",
+    "witness": "Vacuity.RendererRuntime.keyAcceptance",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency."
+  },
+  "Ttf.raster_valid": {
+    "status": "runtime-witness",
+    "theorem": "Ttf.raster_valid",
+    "witness": "Vacuity.RendererRuntime.rasterValid",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "The deterministic runtime executable reads the actual NotoSans-Regular.ttf asset, finds glyph A, executes native Float rasterization, and constructs the raster-success and nonempty-bitmap premises in successful match/if branches. A zero-size raster is rejected. This is a runtime premise certificate, not kernel reduction of native floating-point operations."
+  },
+  "Ttf.raster_pixel": {
+    "status": "runtime-witness",
+    "theorem": "Ttf.raster_pixel",
+    "witness": "Vacuity.RendererRuntime.rasterPixel",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "The deterministic runtime executable reads the actual NotoSans-Regular.ttf asset, finds glyph A, executes native Float rasterization, and constructs the raster-success and nonempty-bitmap premises in successful match/if branches. A zero-size raster is rejected. This is a runtime premise certificate, not kernel reduction of native floating-point operations."
+  },
+  "add_stored": {
+    "status": "runtime-witness",
+    "theorem": "Pic.add_stored",
+    "witness": "Vacuity.RendererRuntime.addStored",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "The production Pic.add accepts the synthetic two-pixel RGBA fixture; runtime evaluation proves the result grew, then applies add_stored to the actual result. Invalid buffers are rejected separately in the image fixtures. Native execution, including encoder equality checks, is trusted."
+  },
+  "agrees_notice": {
+    "status": "runtime-witness",
+    "theorem": "LiveLaws.agrees_notice",
+    "witness": "Vacuity.RendererRuntime.noticedAgreement",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "Two cached queries share a synthetic snapshot; only query A changes. Runtime checks the concrete verdict journal reaches A, then constructs the universal unchanged-outside-hit premise by case split and applies agrees_notice. Native SQLite trigger completeness is outside this synthetic journal fixture."
+  },
+  "viewport_geometry": {
+    "status": "kernel-witness",
+    "theorem": "LifecycleLaws.viewport_geometry",
+    "witness": "Vacuity.RendererRuntime.viewport",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "Concrete 1280px portrait geometry with visible 300px keyboard and nonzero offsets, plus the profile-page checkpoint code. Every fitting premise is kernel-computed; these are production app geometry/codec theorem applications, without native event-acquisition claims."
+  },
+  "viewport_possible": {
+    "status": "kernel-witness",
+    "theorem": "LifecycleLaws.viewport_possible",
+    "witness": "Vacuity.RendererRuntime.viewportExists",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "Concrete 1280px portrait geometry with visible 300px keyboard and nonzero offsets, plus the profile-page checkpoint code. Every fitting premise is kernel-computed; these are production app geometry/codec theorem applications, without native event-acquisition claims."
+  },
+  "page_round": {
+    "status": "kernel-witness",
+    "theorem": "App.page_round",
+    "witness": "Vacuity.RendererRuntime.pageCodec",
+    "module": "tests.vacuity.RendererRuntime",
+    "detail": "Concrete 1280px portrait geometry with visible 300px keyboard and nonzero offsets, plus the profile-page checkpoint code. Every fitting premise is kernel-computed; these are production app geometry/codec theorem applications, without native event-acquisition claims."
+  },
+  "BeforeNext": {
+    "status": "kernel-witness",
+    "theorem": "Demand.Plan.BeforeNext",
+    "witness": "Vacuity.RendererDemand.beforeNext",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "This README reference is an invariant definition, not a theorem: the concrete nonempty two-key demand plan satisfies BeforeNext. Its serial bound is constructed from empty_before_next and reconcile_before_next; remount also checks serial reuse is rejected."
+  },
+  "offerM": {
+    "status": "kernel-witness",
+    "theorem": "NodeOffer.offerM",
+    "witness": "Vacuity.RendererFlow.offerSplit",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "This README reference is the model channel operation, not a theorem. The concrete nonempty offer_split witness uses that exact operation on accepting/refusing responses and proves taken ++ waiting preserves the original writes. Exact channel outputs and retry order are checked separately."
+  },
+  "Link.hints_fit": {
+    "status": "kernel-witness",
+    "theorem": "Link.hints_fit",
+    "witness": "Vacuity.RendererSupplement.hints",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "Four synthetic interfaces include private wired/Wi-Fi, public IPv4 and loopback. The theorem bounds every emitted hint; the executable separately checks exactly the two private hints survive with Wi-Fi first, preventing an empty-output implementation from passing unnoticed."
+  },
+  "Link.qr_fits": {
+    "status": "kernel-witness",
+    "theorem": "Link.qr_fits",
+    "witness": "Vacuity.RendererSupplement.qr",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "A concrete 41-module QR symbol fits a 256px square including its 4-module quiet zone on every side: Lean proves the fitting premise and exact scale5, and rejects a too-small side40."
+  },
+  "eval_stable": {
+    "status": "kernel-witness",
+    "theorem": "Engine.eval_stable",
+    "witness": "Vacuity.RendererSupplement.stableList",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "The nonempty signed/decrypted IdentityMessages DB supplies the invariant. A genuinely new pending signed op gives a proper Later.ingest transition whose index preservation is proved by the production ingest definition; the actual two-message query and people view stay stable. Runtime checks the original query has two rows and the new op is queued; no reflexive state transition is substituted."
+  },
+  "view_stable": {
+    "status": "kernel-witness",
+    "theorem": "Engine.view_stable",
+    "witness": "Vacuity.RendererSupplement.stableView",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "The nonempty signed/decrypted IdentityMessages DB supplies the invariant. A genuinely new pending signed op gives a proper Later.ingest transition whose index preservation is proved by the production ingest definition; the actual two-message query and people view stay stable. Runtime checks the original query has two rows and the new op is queued; no reflexive state transition is substituted."
+  },
+  "matching_nodup": {
+    "status": "kernel-witness",
+    "theorem": "Engine.matching_nodup",
+    "witness": "Vacuity.RendererSupplement.uniqueRows",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "The nonempty signed/decrypted IdentityMessages DB supplies the invariant. A genuinely new pending signed op gives a proper Later.ingest transition whose index preservation is proved by the production ingest definition; the actual two-message query and people view stay stable. Runtime checks the original query has two rows and the new op is queued; no reflexive state transition is substituted."
+  },
+  "mem_keysOf": {
+    "status": "kernel-witness",
+    "theorem": "Engine.mem_keysOf",
+    "witness": "Vacuity.RendererSupplement.namedKeys",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "The nonempty signed/decrypted IdentityMessages DB supplies the invariant. A genuinely new pending signed op gives a proper Later.ingest transition whose index preservation is proved by the production ingest definition; the actual two-message query and people view stay stable. Runtime checks the original query has two rows and the new op is queued; no reflexive state transition is substituted."
+  },
+  "filed_rel": {
+    "status": "runtime-witness",
+    "theorem": "Engine.filed_rel",
+    "witness": "Vacuity.RendererSupplement.filedRelation",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "On the actual nonempty signed two-message DB, runtime checks the queue is empty and supplies relation membership/name-length and invariant proofs before applying filed_rel to the real sealed message. This checks the full indexed-validity equivalence, not an empty relation."
+  },
+  "namesake_iff": {
+    "status": "runtime-witness",
+    "theorem": "ViewLaws.namesake_iff",
+    "witness": "Vacuity.RendererSupplement.namesake",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "Two actually admitted Ed25519 identities choose the same Bob label. Runtime validates the nonempty signed community and empty queue, then applies namesake_iff. The actual namesake is true after the second profile and false before it, so an always-unmarked implementation fails."
+  },
+  "row_marked": {
+    "status": "runtime-witness",
+    "theorem": "ViewLaws.row_marked",
+    "witness": "Vacuity.RendererSupplement.marked",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "The same signed duplicate-name community opens an actual sealed Bob message using its local content key. A successful Message.read match supplies the precise row premise; its complete row_marked conclusion is returned in a dependent certificate, and execution checks the actual row carries the Duplicate flag."
+  },
+  "receipt_once": {
+    "status": "runtime-witness",
+    "theorem": "Community.receipt_once",
+    "witness": "Vacuity.RendererSupplement.receiptOnce",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted."
+  },
+  "arrival_order": {
+    "status": "runtime-witness",
+    "theorem": "Community.arrival_order",
+    "witness": "Vacuity.RendererSupplement.arrival",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted."
+  },
+  "send_after": {
+    "status": "runtime-witness",
+    "theorem": "Community.send_after",
+    "witness": "Vacuity.RendererSupplement.sendAfter",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted."
+  },
+  "order_local": {
+    "status": "runtime-witness",
+    "theorem": "Community.order_local",
+    "witness": "Vacuity.RendererSupplement.localOrder",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted."
+  },
+  "display_agrees": {
+    "status": "runtime-witness",
+    "theorem": "Community.display_agrees",
+    "witness": "Vacuity.RendererSupplement.displayAgreement",
+    "module": "tests.vacuity.RendererSupplement",
+    "detail": "Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted."
+  }
+}

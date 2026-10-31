@@ -442,3 +442,52 @@ lean_exe zoom where
 
 lean_exe mobile_switcher where
   root := `platforms.headless.MobileSwitcher
+
+-- Windows C is staged on the host and linked with the pinned Windows runtime.
+lean_lib Windows where
+  globs := #[.submodules `platforms.windows]
+
+lean_exe vacuity_identity where
+  root := `tests.vacuity.IdentityMain
+
+lean_lib Vacuity where
+  globs := #[.submodules `tests.vacuity]
+
+lean_exe vacuity_identity_trust where
+  root := `tests.vacuity.IdentityTrustMain
+
+lean_exe vacuity_core where
+  root := `tests.vacuity.CoreRuntimeMain
+
+lean_exe vacuity_seal_audit where
+  root := `tests.vacuity.SealAuditMain
+
+lean_exe vacuity_identity_people where
+  root := `tests.vacuity.IdentityPeopleMain
+
+lean_exe vacuity_renderer_runtime where
+  root := `tests.vacuity.RendererRuntimeMain
+
+lean_exe vacuity_identity_messages where
+  root := `tests.vacuity.IdentityMessagesMain
+
+lean_exe vacuity_identity_connection where
+  root := `tests.vacuity.IdentityConnectionMain
+
+lean_exe vacuity_chat_presentation where
+  root := `tests.vacuity.ChatPresentationMain
+
+lean_exe vacuity_contracts where
+  root := `tests.vacuity.ContractsMain
+
+lean_exe vacuity_identity_lifecycle where
+  root := `tests.vacuity.IdentityLifecycleMain
+
+lean_exe vacuity_attachment where
+  root := `tests.vacuity.AttachmentMain
+
+lean_exe vacuity_identity_frames where
+  root := `tests.vacuity.IdentityFramesMain
+
+lean_exe vacuity_identity_rejoin where
+  root := `tests.vacuity.IdentityRejoinMain

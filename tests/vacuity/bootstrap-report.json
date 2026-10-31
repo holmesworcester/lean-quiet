@@ -1,0 +1,65 @@
+{
+  "no_connection_before_approval": {
+    "status": "conditional",
+    "theorem": "Net.Scene.no_connection_before_approval",
+    "witness": "Vacuity.Bootstrap.noBefore",
+    "module": "tests.vacuity.Bootstrap",
+    "detail": "Concrete after-first-tick state is reachable; non-admission premise follows from distinct scene op shapes. Universal Good remains unproved, so does not establish real runtime safety. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+  },
+  "sessions_trusted": {
+    "status": "conditional",
+    "theorem": "Net.Scene.sessions_trusted",
+    "witness": "Vacuity.Bootstrap.trustedOutcome",
+    "module": "tests.vacuity.Bootstrap",
+    "detail": "Applies to the nonempty sessions of bootstrap_possible endpoint, with path reachability derived. Endpoint existence and trusted classifications remain conditional on Good. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+  },
+  "reachable_inv": {
+    "status": "conditional",
+    "theorem": "Net.Scene.reachable_inv",
+    "witness": "Vacuity.Bootstrap.completedInvariant",
+    "module": "tests.vacuity.Bootstrap",
+    "detail": "Applies to the successful bootstrap endpoint, deriving reachability from its enabled finite path. Good remains unproved. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+  },
+  "bootstrap_possible": {
+    "status": "conditional",
+    "theorem": "Net.Scene.bootstrap_possible",
+    "witness": "Vacuity.Bootstrap.possible",
+    "module": "tests.vacuity.Bootstrap",
+    "detail": "Fixed seeded Alice/Bob and invitation; applies nine-action enabled-path existence theorem. Good requires universal signature correctness, distinct devices/node keys and collision-free five-op scene; finite signatures cannot discharge universal correctness. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+  },
+  "admitted_inv": {
+    "status": "conditional",
+    "theorem": "Net.Scene.admitted_inv",
+    "witness": "Vacuity.Bootstrap.admissionClassified",
+    "module": "tests.vacuity.Bootstrap",
+    "detail": "At full five-op scene, derives actual Bob admission through v_adm before classifying it. Universal Good and five-op distinctness unresolved; admission is not merely assumed. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+  },
+  "allowedA": {
+    "status": "conditional",
+    "theorem": "Net.Scene.allowedA",
+    "witness": "Vacuity.Bootstrap.founderAllowed",
+    "module": "tests.vacuity.Bootstrap",
+    "detail": "Full five-op scene contains founder root; concrete membership premise proved. Crypto Good remains unresolved. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+  },
+  "allowedB": {
+    "status": "conditional",
+    "theorem": "Net.Scene.allowedB",
+    "witness": "Vacuity.Bootstrap.joinerAllowed",
+    "module": "tests.vacuity.Bootstrap",
+    "detail": "Full five-op scene contains Bob admission and all dependencies; closure/list membership premises proved. Crypto Good remains unresolved. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+  },
+  "bootstrap": {
+    "status": "conditional",
+    "theorem": "Net.Scene.bootstrap",
+    "witness": "Vacuity.Bootstrap.eventuallyBootstrap",
+    "module": "tests.vacuity.Bootstrap",
+    "detail": "Fixed scene, but universal Good and an actual infinite fair scheduler/delivery run are still required. No constructed fair-run witness; finite successful path does not prove this premise. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+  },
+  "bootstrap_ideal": {
+    "status": "conditional",
+    "theorem": "Net.Scene.bootstrap_ideal",
+    "witness": "Vacuity.Bootstrap.eventuallyIdeal",
+    "module": "tests.vacuity.Bootstrap",
+    "detail": "Fixed scene application leaves Good, concrete infinite Fair run, and no-drop Ideal premises explicit. Ideal finite path alone cannot establish infinite scheduling fairness. Scene uses deterministic synthetic keys and production opaque Ed25519/SHA functions; no invented real users, no replacement Crypto, no new axioms."
+  }
+}

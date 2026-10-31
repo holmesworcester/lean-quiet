@@ -1,164 +1,135 @@
 {
-  "provenance": "Deterministic synthetic community, real production Ed25519/SHA-256, synthetic Alice/Bob/Mallory and one nonempty message. Not captured human-user data.",
-  "method": "Successful runtime branches construct V premises from specAt equality and package production theorem conclusions in PLift. Lean checks these bridges; crypto implementations remain opaque externs and are trusted at runtime. These are runtime witnesses, not closed kernel crypto proofs.",
-  "validation": {
-    "command": "lake build vacuity_identity && .lake/build/bin/vacuity_identity",
-    "passed": 28,
-    "failed": 0,
-    "log": "out/vacuity-identity-build.log"
+  "no_impersonation": {
+    "theorem": "Community.no_impersonation",
+    "status": "conditional",
+    "witness": "Vacuity.Identity.noImpersonation",
+    "detail": "Real signed-message validity is witnessed, but the universal Unforgeable ed25519 Signed premise remains an explicit assumption. Finite data cannot discharge it; no Signed=True or verifier-defined signing history is substituted.",
+    "module": "tests.vacuity.Identity"
   },
-  "entries": [
-    {
-      "reference": "no_impersonation",
-      "theorem": "Community.no_impersonation",
-      "status": "conditional",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.noImpersonation",
-      "detail": "Real signed-message validity is witnessed, but the universal Unforgeable ed25519 Signed premise remains an explicit assumption. Finite data cannot discharge it; no Signed=True or verifier-defined signing history is substituted."
-    },
-    {
-      "reference": "admission_needs_approval",
-      "theorem": "Community.admission_needs_approval",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.admissionNeedsApproval",
-      "detail": "Non-founder Bob is admitted by Alice's approval; keyed store proved structurally; missing approval is rejected."
-    },
-    {
-      "reference": "admission_approved",
-      "theorem": "Community.admission_approved",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.admissionApproved",
-      "detail": "Bob's non-founder admission uses exactly one distinct approver; repeated approval IDs are rejected."
-    },
-    {
-      "reference": "request_invited",
-      "theorem": "Community.request_invited",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.requestInvited",
-      "detail": "Bob's request redeems Alice's invitation and has both device and bearer signatures; wrong bearer is rejected."
-    },
-    {
-      "reference": "removal_authorized",
-      "theorem": "Community.removal_authorized",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.removalAuthorized",
-      "detail": "Alice removes distinct user Bob using founder authority; Bob's removal without admin evidence is rejected."
-    },
-    {
-      "reference": "admin_granted",
-      "theorem": "Community.admin_granted",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.adminGranted",
-      "detail": "Alice grants admin to admitted Bob; the actual valid grant premise is executed."
-    },
-    {
-      "reference": "removed_stays",
-      "theorem": "Community.removed_stays",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.removedStays",
-      "detail": "Bob is already removed; a genuinely new signed op extends the keyed table. Extension is proved structurally and newness checked at runtime."
-    },
-    {
-      "reference": "valid_stays",
-      "theorem": "Community.valid_stays",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.validStays",
-      "detail": "Bob's valid message precedes two removals; append extension is proved and the message remains valid afterward."
-    },
-    {
-      "reference": "message_authorized",
-      "theorem": "Community.message_authorized",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.messageAuthorized",
-      "detail": "Bob's signed nonempty message references his admitted device; a post signed by Mallory while citing Bob is rejected."
-    },
-    {
-      "reference": "approval_signed",
-      "theorem": "Community.approval_signed",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.approvalSigned",
-      "detail": "Alice's signed approval is for Bob, a distinct device; Bob's attempted self approval is rejected."
-    },
-    {
-      "reference": "invitation_issued",
-      "theorem": "Community.invitation_issued",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.invitationIssued",
-      "detail": "Alice issues a signed invitation requiring one approval."
-    },
-    {
-      "reference": "named_by_admin",
-      "theorem": "Community.named_by_admin",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.namedByAdmin",
-      "detail": "Alice's signed community name change cites her founder admin evidence."
-    },
-    {
-      "reference": "admission_consented",
-      "theorem": "Community.admission_consented",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.admissionConsented",
-      "detail": "Bob's non-founder admission points back to the request signed by his own device."
-    },
-    {
-      "reference": "admin_removal_stands",
-      "theorem": "Community.admin_removal_stands",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.adminRemoval",
-      "detail": "Explicit lookup, decode, root, admin, target admission and signature premises are constructed for Alice's removal of Bob."
-    },
-    {
-      "reference": "mutual_removal",
-      "theorem": "Community.mutual_removal",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.mutualRemoval",
-      "detail": "Alice and granted admin Bob each validly remove the other; both actual removal premises are checked."
-    },
-    {
-      "reference": "removed_approver_admits",
-      "theorem": "Community.removed_approver_admits",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.removedApprover",
-      "detail": "Alice is removed, her approval remains valid, and it still admits Bob; the removal premise is explicitly inhabited."
-    },
-    {
-      "reference": "request_valid",
-      "theorem": "Community.request_valid",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.requestValid",
-      "detail": "Actual invitation, root, keyed lookup, body decode and two Ed25519 signatures are checked before applying the theorem."
-    },
-    {
-      "reference": "approve_valid",
-      "theorem": "Community.approve_valid",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.approveValid",
-      "detail": "Actual root/request/admission facts, distinct devices and approval signature are checked before applying the theorem."
-    },
-    {
-      "reference": "admit_admits",
-      "theorem": "Community.admit_admits",
-      "status": "runtime-witness",
-      "file": "tests/vacuity/Identity.lean",
-      "witness": "Vacuity.Identity.admitAdmits",
-      "detail": "Actual root/request/approval facts plus singleton distinct approver and threshold proofs construct a valid admission."
-    }
-  ]
+  "admission_needs_approval": {
+    "theorem": "Community.admission_needs_approval",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.admissionNeedsApproval",
+    "detail": "Non-founder Bob is admitted by Alice's approval; keyed store proved structurally; missing approval is rejected.",
+    "module": "tests.vacuity.Identity"
+  },
+  "admission_approved": {
+    "theorem": "Community.admission_approved",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.admissionApproved",
+    "detail": "Bob's non-founder admission uses exactly one distinct approver; repeated approval IDs are rejected.",
+    "module": "tests.vacuity.Identity"
+  },
+  "request_invited": {
+    "theorem": "Community.request_invited",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.requestInvited",
+    "detail": "Bob's request redeems Alice's invitation and has both device and bearer signatures; wrong bearer is rejected.",
+    "module": "tests.vacuity.Identity"
+  },
+  "removal_authorized": {
+    "theorem": "Community.removal_authorized",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.removalAuthorized",
+    "detail": "Alice removes distinct user Bob using founder authority; Bob's removal without admin evidence is rejected.",
+    "module": "tests.vacuity.Identity"
+  },
+  "admin_granted": {
+    "theorem": "Community.admin_granted",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.adminGranted",
+    "detail": "Alice grants admin to admitted Bob; the actual valid grant premise is executed.",
+    "module": "tests.vacuity.Identity"
+  },
+  "removed_stays": {
+    "theorem": "Community.removed_stays",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.removedStays",
+    "detail": "Bob is already removed; a genuinely new signed op extends the keyed table. Extension is proved structurally and newness checked at runtime.",
+    "module": "tests.vacuity.Identity"
+  },
+  "valid_stays": {
+    "theorem": "Community.valid_stays",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.validStays",
+    "detail": "Bob's valid message precedes two removals; append extension is proved and the message remains valid afterward.",
+    "module": "tests.vacuity.Identity"
+  },
+  "message_authorized": {
+    "theorem": "Community.message_authorized",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.messageAuthorized",
+    "detail": "Bob's signed nonempty message references his admitted device; a post signed by Mallory while citing Bob is rejected.",
+    "module": "tests.vacuity.Identity"
+  },
+  "approval_signed": {
+    "theorem": "Community.approval_signed",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.approvalSigned",
+    "detail": "Alice's signed approval is for Bob, a distinct device; Bob's attempted self approval is rejected.",
+    "module": "tests.vacuity.Identity"
+  },
+  "invitation_issued": {
+    "theorem": "Community.invitation_issued",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.invitationIssued",
+    "detail": "Alice issues a signed invitation requiring one approval.",
+    "module": "tests.vacuity.Identity"
+  },
+  "named_by_admin": {
+    "theorem": "Community.named_by_admin",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.namedByAdmin",
+    "detail": "Alice's signed community name change cites her founder admin evidence.",
+    "module": "tests.vacuity.Identity"
+  },
+  "admission_consented": {
+    "theorem": "Community.admission_consented",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.admissionConsented",
+    "detail": "Bob's non-founder admission points back to the request signed by his own device.",
+    "module": "tests.vacuity.Identity"
+  },
+  "admin_removal_stands": {
+    "theorem": "Community.admin_removal_stands",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.adminRemoval",
+    "detail": "Explicit lookup, decode, root, admin, target admission and signature premises are constructed for Alice's removal of Bob.",
+    "module": "tests.vacuity.Identity"
+  },
+  "mutual_removal": {
+    "theorem": "Community.mutual_removal",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.mutualRemoval",
+    "detail": "Alice and granted admin Bob each validly remove the other; both actual removal premises are checked.",
+    "module": "tests.vacuity.Identity"
+  },
+  "removed_approver_admits": {
+    "theorem": "Community.removed_approver_admits",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.removedApprover",
+    "detail": "Alice is removed, her approval remains valid, and it still admits Bob; the removal premise is explicitly inhabited.",
+    "module": "tests.vacuity.Identity"
+  },
+  "request_valid": {
+    "theorem": "Community.request_valid",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.requestValid",
+    "detail": "Actual invitation, root, keyed lookup, body decode and two Ed25519 signatures are checked before applying the theorem.",
+    "module": "tests.vacuity.Identity"
+  },
+  "approve_valid": {
+    "theorem": "Community.approve_valid",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.approveValid",
+    "detail": "Actual root/request/admission facts, distinct devices and approval signature are checked before applying the theorem.",
+    "module": "tests.vacuity.Identity"
+  },
+  "admit_admits": {
+    "theorem": "Community.admit_admits",
+    "status": "runtime-witness",
+    "witness": "Vacuity.Identity.admitAdmits",
+    "detail": "Actual root/request/approval facts plus singleton distinct approver and threshold proofs construct a valid admission.",
+    "module": "tests.vacuity.Identity"
+  }
 }

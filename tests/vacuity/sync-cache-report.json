@@ -1,0 +1,114 @@
+{
+  "cached_items": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.cached_items",
+    "witness": "Vacuity.SyncCache.messageIndexed",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "Prove Inv by ingest/drain on an actual stored chat; boot cache then apply cached_items to establish this exact message in its room index. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "heldIn_index": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.heldIn_index",
+    "witness": "Vacuity.SyncCache.indexAnswers",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "Same nonempty invariant store and boot cache; instantiate lookup/index equivalence at the actual stored chat id. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "have_shown": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.have_shown",
+    "witness": "Vacuity.SyncCache.shownAfterFile",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "Construct Inv, Cached, and snapshot premises, then apply have_shown to nonempty filed chat path. Network.filedWitness separately establishes actual advertisement. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "write_cached": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.write_cached",
+    "witness": "Vacuity.SyncCache.writeCache",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "Boot empty node/store, prove both initial invariants, then apply write_cached to a nonempty first chat write. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "purge_cached": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.purge_cached",
+    "witness": "Vacuity.SyncCache.purgeCache",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "Nonempty stored chat and correct cache; purge names the shared chat. Shared ops are retained, so room cache remains valid. This complements separate local-secret deletion fixture. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "write_snaps": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.write_snaps",
+    "witness": "Vacuity.SyncCache.snapshotKept",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "A nonempty snapshot contains the actual indexed chat; prove SnapsIn from cached_items, then apply write_snaps through repeated chat write. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "notice_sent": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.notice_sent",
+    "witness": "Vacuity.SyncCache.noticesSent",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "Connection carries one actual stored leaf as a notice and no sync rooms. Construct nonempty notice, not-yet-given, unique room, keyed store and finite closure premises; actualNotice proves real output. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "notice_send": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.notice_send",
+    "witness": "Vacuity.SyncCache.onlyNotice",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "Apply notice_send to an actual stored op emitted by the notice path, using actualNotice membership proof. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "notice_once": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.notice_once",
+    "witness": "Vacuity.SyncCache.noticeOnce",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "Same nonempty notice is now recorded as given; prove every carried notice was given and apply notice_once to both handlers. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "notice_no_holds": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.notice_no_holds",
+    "witness": "Vacuity.SyncCache.noticesNoProbe",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "Receive nonempty encoded have on a connection carrying a notice only; prove decode and no sync-room premises, then get no send/take/store mutation. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "closure": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.closure",
+    "witness": "Vacuity.SyncCache.noticeClosure",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "Finite nonempty stored leaf closure fits budget; apply closure completeness at the actual stored leaf to prove it is emitted. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "room_independent": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.room_independent",
+    "witness": "Vacuity.SyncCache.startsRoom",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "Known peer floor, a shown nonempty room index, and no existing snapshot; prove all premises and get actual round message in send. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "unshown_room_answered": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.unshown_room_answered",
+    "witness": "Vacuity.SyncCache.refusesRound",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "A nonempty id claim for an unshown room returns an empty round-end message and unchanged connection. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "uncarried_room_answered": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.uncarried_room_answered",
+    "witness": "Vacuity.SyncCache.acceptsNewRound",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "Shown room receives a nonempty id claim with no existing snapshot; prove all premises and derive actual response head. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "conn_answers_ids": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.conn_answers_ids",
+    "witness": "Vacuity.SyncCache.answersIds",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "Actual shown-room index containing chat plus remote singleton item; prove allowed-room and snapshot fallback premises, then instantiate exact exchange/connection response theorem. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "work_retry_bounded": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.work_retry_bounded",
+    "witness": "Vacuity.SyncCache.retryBound",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "Connection has a real outstanding message id and retry due at 1500 ms; instantiate bound over the actual work handler. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  }
+}

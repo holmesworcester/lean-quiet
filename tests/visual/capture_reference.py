@@ -48,7 +48,8 @@ def capture(url, destination, chrome=None, cases=None):
                                         device_scale_factor=SPEC['device_scale_factor'] * zoom,
                                         color_scheme=theme, locale=SPEC['locale'], timezone_id=SPEC['timezone'])
                 try:
-                    page.goto(f'{url}/iframe.html?id=parity-app--{scenario}&viewMode=story'
+                    story = 'chat' if scenario.startswith('composer-') else scenario
+                    page.goto(f'{url}/iframe.html?id=parity-app--{story}&viewMode=story'
                               f'&globals=theme:{theme};face:bundled')
                     page.locator('.shell').wait_for(timeout=60_000)
                     page.evaluate('document.fonts.ready')
@@ -72,6 +73,32 @@ def capture(url, destination, chrome=None, cases=None):
                         if scenario == 'switcher-hover':
                             popup.get_by_role('button', name='Community settings', exact=True).hover()
                     page.wait_for_timeout(250)
+                    if scenario.startswith('composer-'):
+                        field = page.locator('textarea.composer')
+                        text = {'composer-text': 'A message ready to send.',
+                                'composer-lines': 'First line\nSecond line\nThird line',
+                                'composer-wrap': 'A longer message that wraps naturally as the window gets narrower. ' * 3}.get(scenario, '')
+                        if text:
+                            field.fill(text)
+                        if scenario == 'composer-focus':
+                            field.focus()
+                        else:
+                            field.blur()
+                        page.mouse.move(1, 1)
+                        page.wait_for_timeout(100)
+                        geometry = page.evaluate('''() => {
+                          const rect = el => { const r=el.getBoundingClientRect(); return [r.x,r.y,r.width,r.height]; };
+                          const row = document.querySelector('.composer-row');
+                          const field = document.querySelector('textarea.composer');
+                          const css = getComputedStyle(row), rule = getComputedStyle(row,'::before');
+                          return {scale:devicePixelRatio, area:rect(document.querySelector('.composer-area')),
+                            row:rect(row), field:rect(field),
+                            buttons:[...row.querySelectorAll('button.attach,button.send')].map(el => ({label:el.ariaLabel,box:rect(el),glyph:rect(el.querySelector('svg'))})),
+                            font:getComputedStyle(field).font, border:css.borderTopColor,
+                            divider:rule.content !== 'none', dividerColor:rule.backgroundColor,
+                            placeholder:getComputedStyle(field,'::placeholder').color};
+                        }''')
+                        (destination / f'{name}.composer.json').write_text(json.dumps(geometry, indent=2)+'\n')
                     if hover_name:
                         spec = json.loads((ROOT / 'tests/visual/hover-targets.json').read_text())[hover_name]
                         target = page.locator(spec['selector'])
@@ -114,7 +141,7 @@ def capture(url, destination, chrome=None, cases=None):
                     geometry = page.evaluate('''() => [...document.querySelectorAll('.pane-list,.pane-thread,.drawer,.drawer-body,.composer,.sidebar,.virtual-row,.said,.author,.text,[data-switcher],.panel-head,.panel-list,.sw-row,.sw-pick,.sw-tile,.sw-tool,.sw-label')].map(el => {
                       const r=el.getBoundingClientRect(); return {selector:el.className, x:r.x,y:r.y,w:r.width,h:r.height,scrollTop:el.scrollTop,scrollHeight:el.scrollHeight,clientHeight:el.clientHeight,scale:devicePixelRatio,display:getComputedStyle(el).display,font:getComputedStyle(el).font,padding:getComputedStyle(el).padding}
                     })''')
-                    if not hover_name:
+                    if not hover_name and not scenario.startswith('composer-'):
                         (destination / f'{name}.json').write_text(json.dumps(geometry, indent=2) + '\n')
                     print(f'reference: {name}', flush=True)
                 finally:

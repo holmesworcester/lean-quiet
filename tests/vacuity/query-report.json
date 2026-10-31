@@ -1,0 +1,156 @@
+{
+  "readPlan_cost": {
+    "status": "kernel-witness",
+    "theorem": "Engine.readPlan_cost",
+    "witness": "Vacuity.Query.pageCost",
+    "module": "tests.vacuity.Query",
+    "detail": "Single-key page limit 50, 100000 rows, seek=2/step=1. Proves all query-shape premises; symbolic cost model, not SQLite timing. Synthetic model fixture; no collected real-user traffic."
+  },
+  "readPlan_cost_range": {
+    "status": "kernel-witness",
+    "theorem": "Engine.readPlan_cost_range",
+    "witness": "Vacuity.Query.rangeCost",
+    "module": "tests.vacuity.Query",
+    "detail": "Same page with a concrete after-position and range cap 200; proves nonempty bound premise. Synthetic model fixture; no collected real-user traffic."
+  },
+  "readPlan_cost_le": {
+    "status": "kernel-witness",
+    "theorem": "Engine.readPlan_cost_le",
+    "witness": "Vacuity.Query.overallCost",
+    "module": "tests.vacuity.Query",
+    "detail": "Concrete ranged page against 100000-row cost model. Synthetic model fixture; no collected real-user traffic."
+  },
+  "plan_stmt_cost": {
+    "status": "kernel-witness",
+    "theorem": "Engine.plan_stmt_cost",
+    "witness": "Vacuity.Query.statementCost",
+    "module": "tests.vacuity.Query",
+    "detail": "Rows statement is proved to belong to the concrete page read plan. Synthetic model fixture; no collected real-user traffic."
+  },
+  "walks_le": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Stmt.walks_le",
+    "witness": "Vacuity.Query.rowsWalkBound",
+    "module": "tests.vacuity.Query",
+    "detail": "50-row limit within 100000 rows; independent expectation proves exactly 50 walks. Synthetic model fixture; no collected real-user traffic."
+  },
+  "sideCount_run": {
+    "status": "kernel-witness",
+    "theorem": "Engine.sideCount_run",
+    "witness": "Vacuity.Query.sideCounter",
+    "module": "tests.vacuity.Query",
+    "detail": "Sides 31 and 100000; cap 16; checks counter increments from (2,5) to (3,21). Synthetic model fixture; no collected real-user traffic."
+  },
+  "splitWalk_exact": {
+    "status": "kernel-witness",
+    "theorem": "Engine.splitWalk_exact",
+    "witness": "Vacuity.Query.splitExact",
+    "module": "tests.vacuity.Query",
+    "detail": "Sides 31 and 100000, fuel10/base4; exact smaller-side count 31. Synthetic model fixture; no collected real-user traffic."
+  },
+  "splitWalk_steps": {
+    "status": "kernel-witness",
+    "theorem": "Engine.splitWalk_steps",
+    "witness": "Vacuity.Query.splitSteps",
+    "module": "tests.vacuity.Query",
+    "detail": "Doubling threshold index3 proved sufficient; index2 proved insufficient. Execution independently equals (31,(7,87)). Synthetic model fixture; no collected real-user traffic."
+  },
+  "splitWalk_cost": {
+    "status": "kernel-witness",
+    "theorem": "Engine.splitWalk_cost",
+    "witness": "Vacuity.Query.splitCost",
+    "module": "tests.vacuity.Query",
+    "detail": "Same asymmetric split; positivity and doubling-bound premises kernel proved. Synthetic model fixture; no collected real-user traffic."
+  },
+  "has_ofList": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Subs.has_ofList",
+    "witness": "Vacuity.Query.indexHas",
+    "module": "tests.vacuity.Query",
+    "detail": "Two subscriptions: bounded message-1..message-2 and whole community list; proves subscription7 present. Synthetic model fixture; no collected real-user traffic."
+  },
+  "ofList_wf": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Subs.ofList_wf",
+    "witness": "Vacuity.Query.indexWF",
+    "module": "tests.vacuity.Query",
+    "detail": "Builds actual two-window subscription index and establishes its invariant. Synthetic model fixture; no collected real-user traffic."
+  },
+  "find_costs": {
+    "status": "kernel-witness",
+    "theorem": "Engine.find_costs",
+    "witness": "Vacuity.Query.findCost",
+    "module": "tests.vacuity.Query",
+    "detail": "Search at message-1 in proved well-formed nonempty subscription index. Synthetic model fixture; no collected real-user traffic."
+  },
+  "notify_cost": {
+    "status": "kernel-witness",
+    "theorem": "Engine.notify_cost",
+    "witness": "Vacuity.Query.notifyCost",
+    "module": "tests.vacuity.Query",
+    "detail": "Two distinct filing positions against two actual windows. Synthetic model fixture; no collected real-user traffic."
+  },
+  "key_notice_imprecise": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Mutants.key_notice_imprecise",
+    "witness": "Vacuity.Query.keyOnlyFails",
+    "module": "tests.vacuity.Query",
+    "detail": "Existing concrete stored-op fixture files a sort0 row below sort5 window; key-only notice incorrectly fires. Synthetic model fixture; no collected real-user traffic."
+  },
+  "unnetted_imprecise": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Mutants.unnetted_imprecise",
+    "witness": "Vacuity.Query.unnettedFails",
+    "module": "tests.vacuity.Query",
+    "detail": "Actual step then purge cancels row; raw journal matcher incorrectly fires. Synthetic model fixture; no collected real-user traffic."
+  },
+  "notice_iff": {
+    "status": "kernel-witness",
+    "theorem": "Engine.notice_iff",
+    "witness": "Vacuity.Query.noticeExact",
+    "module": "tests.vacuity.Query",
+    "detail": "Stored operation is validated/filed and a real window changes. Invariant, one-op-per-id and index invariant proven; separately proves subscriber7 notified. Synthetic model fixture; no collected real-user traffic."
+  },
+  "read_rows_iff": {
+    "status": "kernel-witness",
+    "theorem": "Engine.read_rows_iff",
+    "witness": "Vacuity.Query.readRowsChange",
+    "module": "tests.vacuity.Query",
+    "detail": "Nonempty stored-op step produces actual visible Unit row; both state invariants and one-key/unlimited query premises proved. Synthetic model fixture; no collected real-user traffic."
+  },
+  "Engine.window_rows": {
+    "status": "kernel-witness",
+    "theorem": "Engine.window_rows",
+    "witness": "Vacuity.Query.loadedRow",
+    "module": "tests.vacuity.Query",
+    "detail": "Concrete filed row is independently proved present and then read through window_rows. Synthetic model fixture; no collected real-user traffic."
+  },
+  "read_notice_iff": {
+    "status": "kernel-witness",
+    "theorem": "Engine.read_notice_iff",
+    "witness": "Vacuity.Query.readNoticeExact",
+    "module": "tests.vacuity.Query",
+    "detail": "Exact whole-list subscription7 and actual new filed row; all one-key, no-zero-limit, invariant and matching-window premises proven. Synthetic model fixture; no collected real-user traffic."
+  },
+  "run_exact": {
+    "status": "kernel-witness",
+    "theorem": "Engine.run_exact",
+    "witness": "Vacuity.Query.journalExact",
+    "module": "tests.vacuity.Query",
+    "detail": "Actual stored-op step journals a filing; compares initial/after filed bit for that row. Synthetic model fixture; no collected real-user traffic."
+  },
+  "watch_stable": {
+    "status": "kernel-witness",
+    "theorem": "Engine.watch_stable",
+    "witness": "Vacuity.Query.watchStable",
+    "module": "tests.vacuity.Query",
+    "detail": "Step then purge executes a nonempty cancellation journal; proves watched rows equal and applies read stability. Synthetic model fixture; no collected real-user traffic."
+  },
+  "fact_stable": {
+    "status": "kernel-witness",
+    "theorem": "Engine.fact_stable",
+    "witness": "Vacuity.Query.factStable",
+    "module": "tests.vacuity.Query",
+    "detail": "Nonempty valid store followed by a settled duplicate step. Both invariants, shared naming and actual valid statuses proved; states equal after no-op, not a cross-replica fixture. Synthetic model fixture; no collected real-user traffic."
+  }
+}

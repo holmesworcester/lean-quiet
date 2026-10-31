@@ -1,0 +1,227 @@
+{
+  "ingestS_known": {
+    "status": "runtime-witness",
+    "theorem": "Engine.ingestS_known",
+    "witness": "Vacuity.CoreRuntime.alreadyKnown",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior."
+  },
+  "ingestS_twice": {
+    "status": "kernel-witness",
+    "theorem": "Engine.ingestS_twice",
+    "witness": "Vacuity.CoreRuntime.twice",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior."
+  },
+  "ingest_twice": {
+    "status": "kernel-witness",
+    "theorem": "Engine.ingest_twice",
+    "witness": "Vacuity.CoreRuntime.runningTwice",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior."
+  },
+  "run_ingestEach": {
+    "status": "kernel-witness",
+    "theorem": "Engine.run_ingestEach",
+    "witness": "Vacuity.CoreRuntime.loop",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior."
+  },
+  "ingestAll_again": {
+    "status": "kernel-witness",
+    "theorem": "Engine.ingestAll_again",
+    "witness": "Vacuity.CoreRuntime.again",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior."
+  },
+  "inv_ingest": {
+    "status": "kernel-witness",
+    "theorem": "Engine.inv_ingest",
+    "witness": "Vacuity.CoreRuntime.invariantIngest",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior."
+  },
+  "inv_step": {
+    "status": "kernel-witness",
+    "theorem": "Engine.inv_step",
+    "witness": "Vacuity.CoreRuntime.invariantStep",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior."
+  },
+  "reach_drain": {
+    "status": "kernel-witness",
+    "theorem": "Engine.reach_drain",
+    "witness": "Vacuity.CoreRuntime.reachableDrain",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior."
+  },
+  "status_iff_spec": {
+    "status": "runtime-witness",
+    "theorem": "Engine.status_iff_spec",
+    "witness": "Vacuity.CoreRuntime.verdictMatches",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior."
+  },
+  "drain_settles": {
+    "status": "runtime-witness",
+    "theorem": "Engine.drain_settles",
+    "witness": "Vacuity.CoreRuntime.terminate",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior."
+  },
+  "drain_bounded": {
+    "status": "runtime-witness",
+    "theorem": "Engine.drain_bounded",
+    "witness": "Vacuity.CoreRuntime.bounded",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior."
+  },
+  "reach_ops": {
+    "status": "runtime-witness",
+    "theorem": "Engine.reach_ops",
+    "witness": "Vacuity.CoreRuntime.opsExact",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior."
+  },
+  "order_free": {
+    "status": "runtime-witness",
+    "theorem": "Engine.order_free",
+    "witness": "Vacuity.CoreRuntime.ordersAgree",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior."
+  },
+  "same_ops_same_verdicts": {
+    "status": "runtime-witness",
+    "theorem": "Engine.same_ops_same_verdicts",
+    "witness": "Vacuity.CoreRuntime.eventuallyAgree",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior."
+  },
+  "distinct_of_collisionFree": {
+    "status": "runtime-witness",
+    "theorem": "Engine.distinct_of_collisionFree",
+    "witness": "Vacuity.CoreRuntime.distinctFromHash",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Signed community plus a local secret and hostile shared dependent. Concrete finite collision premise, queued step, purge membership and shared-scope premises checked where required; local secret disappears, shared op is requeued and ordinary message is retained. This checks the model purge, not SQLite erasure."
+  },
+  "drain_terminates": {
+    "status": "runtime-witness",
+    "theorem": "Engine.drain_terminates",
+    "witness": "Vacuity.CoreRuntime.terminates",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Signed community plus a local secret and hostile shared dependent. Concrete finite collision premise, queued step, purge membership and shared-scope premises checked where required; local secret disappears, shared op is requeued and ordinary message is retained. This checks the model purge, not SQLite erasure."
+  },
+  "step_budget": {
+    "status": "runtime-witness",
+    "theorem": "Engine.step_budget",
+    "witness": "Vacuity.CoreRuntime.budgetDecreases",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Signed community plus a local secret and hostile shared dependent. Concrete finite collision premise, queued step, purge membership and shared-scope premises checked where required; local secret disappears, shared op is requeued and ordinary message is retained. This checks the model purge, not SQLite erasure."
+  },
+  "purge_gone": {
+    "status": "runtime-witness",
+    "theorem": "Engine.purge_gone",
+    "witness": "Vacuity.CoreRuntime.purgeGone",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Signed community plus a local secret and hostile shared dependent. Concrete finite collision premise, queued step, purge membership and shared-scope premises checked where required; local secret disappears, shared op is requeued and ordinary message is retained. This checks the model purge, not SQLite erasure."
+  },
+  "purge_shared": {
+    "status": "runtime-witness",
+    "theorem": "Engine.purge_shared",
+    "witness": "Vacuity.CoreRuntime.purgeShared",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Signed community plus a local secret and hostile shared dependent. Concrete finite collision premise, queued step, purge membership and shared-scope premises checked where required; local secret disappears, shared op is requeued and ordinary message is retained. This checks the model purge, not SQLite erasure."
+  },
+  "purge_settles": {
+    "status": "runtime-witness",
+    "theorem": "Engine.purge_settles",
+    "witness": "Vacuity.CoreRuntime.purgeSettles",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Signed community plus a local secret and hostile shared dependent. Concrete finite collision premise, queued step, purge membership and shared-scope premises checked where required; local secret disappears, shared op is requeued and ordinary message is retained. This checks the model purge, not SQLite erasure."
+  },
+  "purge_undecides": {
+    "status": "runtime-witness",
+    "theorem": "Engine.purge_undecides",
+    "witness": "Vacuity.CoreRuntime.purgeUndecides",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Signed community plus a local secret and hostile shared dependent. Concrete finite collision premise, queued step, purge membership and shared-scope premises checked where required; local secret disappears, shared op is requeued and ordinary message is retained. This checks the model purge, not SQLite erasure."
+  },
+  "purge_inv": {
+    "status": "kernel-witness",
+    "theorem": "Engine.purge_inv",
+    "witness": "Vacuity.CoreRuntime.purgeInvariant",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Signed community plus a local secret and hostile shared dependent. Concrete finite collision premise, queued step, purge membership and shared-scope premises checked where required; local secret disappears, shared op is requeued and ordinary message is retained. This checks the model purge, not SQLite erasure."
+  },
+  "mem_purgeSet": {
+    "status": "kernel-witness",
+    "theorem": "Engine.mem_purgeSet",
+    "witness": "Vacuity.CoreRuntime.purgeMembership",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Signed community plus a local secret and hostile shared dependent. Concrete finite collision premise, queued step, purge membership and shared-scope premises checked where required; local secret disappears, shared op is requeued and ordinary message is retained. This checks the model purge, not SQLite erasure."
+  },
+  "op_of_valid": {
+    "status": "runtime-witness",
+    "theorem": "Community.op_of_valid",
+    "witness": "Vacuity.CoreRuntime.validEncoding",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws."
+  },
+  "spec_extends": {
+    "status": "runtime-witness",
+    "theorem": "Engine.spec_extends",
+    "witness": "Vacuity.CoreRuntime.extendedVerdict",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws."
+  },
+  "spec_local": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.spec_local",
+    "witness": "Vacuity.CoreRuntime.closureVerdict",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Real signed Bob post delivered with its six-operation requirement closure (root, invite, request, approval, admission, post). Receiver omits the unrelated grant and rename. An inductive reach proof uses runtime-checked closure and lookup-agreement premises; native checks independently validate the post on the partial receiver."
+  },
+  "Engine.Inv": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Inv",
+    "witness": "Vacuity.CoreRuntime.actualInvariant",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws."
+  },
+  "CollisionFree": {
+    "status": "runtime-witness",
+    "theorem": "Engine.CollisionFree",
+    "witness": "Vacuity.CoreRuntime.collisionFree",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws."
+  },
+  "Distinct": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Distinct",
+    "witness": "Vacuity.CoreRuntime.distinct",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws."
+  },
+  "Model.run": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Model.run",
+    "witness": "Vacuity.CoreRuntime.loop",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws."
+  },
+  "check_reads_shared": {
+    "status": "runtime-witness",
+    "theorem": "Community.check_reads_shared",
+    "witness": "Vacuity.CoreRuntime.sharedReads",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws."
+  },
+  "removeMember_valid": {
+    "status": "conditional",
+    "theorem": "Community.removeMember_valid",
+    "witness": "Vacuity.CoreRuntime.intentRemoval",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "Actual removeMember intent emits one valid Alice-removes-Bob operation; nonempty membership, settled DB, extension and stored-op premises checked at runtime. Self-removal and already-removed controls emit nothing. Universal correctness of Ed25519 signatures for every message remains open; the named theorem is applied conditionally on it.",
+    "exercise": true
+  }
+}

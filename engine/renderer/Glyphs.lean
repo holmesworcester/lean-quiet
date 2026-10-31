@@ -21,7 +21,7 @@ def parse (bytes : ByteArray) : Option Set := do
         if len == 0 || len > 64 || pos + 2 + len > bytes.size then return ← none
         let name ← String.fromUTF8? (bytes.extract (pos + 1) (pos + 1 + len))
         let size := bytes[pos + 1 + len]!.toNat
-        if size < 8 || size > 96 then return ← none
+        if size < 8 || size > (if name == "quiet-mark" then 216 else 96) then return ← none
         pos := pos + len + 2
         if pos + size * size > bytes.size || entries.contains (name, size) then return ← none
         entries := entries.insert (name, size) pos

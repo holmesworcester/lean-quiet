@@ -3,19 +3,26 @@
 Run --write to refresh the report, otherwise reject a stale report.
 """
 import argparse
+import json
 import re
 from pathlib import Path
 
 TOP = Path(__file__).resolve().parents[1]
 BEGIN = '<!-- vacuity:begin -->'
 END = '<!-- vacuity:end -->'
-CHECKS = {
-    'fit_small': ('small', '640 × 480, edge 2048; max ≤ edge; unchanged output'),
-    'fit_le': ('bounded', '4032 × 3024, edge 2048; edge ≥ 1; output 2048 × 1536'),
-    'fit_pos': ('positive', '4032 × 3024; both dimensions ≥ 1; output dimensions positive'),
-    'fit_long': ('longSide', '4032 × 3024; edge ≥ 1 and edge < max; longer output side 2048'),
-    'fit_round': ('rounding', '3024 × 4032, edge 2048; edge < max; shorter output side 1536'),
-}
+def load_checks(directory=TOP / 'tests/vacuity'):
+    checks = {}
+    for path in sorted(directory.glob('*-report.json')):
+        for name, entry in json.loads(path.read_text()).items():
+            if name in checks:
+                raise ValueError(f'duplicate vacuity evidence: {name}')
+            if entry['status'] not in {'kernel-witness', 'runtime-witness', 'conditional', 'counterexample'}:
+                raise ValueError(f'unknown evidence status: {name}')
+            checks[name] = entry
+    return checks
+
+
+CHECKS = load_checks()
 
 
 def references(text):
@@ -56,60 +63,92 @@ def report(text):
     missing = CHECKS.keys() - refs.keys()
     if missing:
         raise ValueError(f'checked references disappeared: {sorted(missing)}')
+    counts = {status: sum(e['status'] == status for e in CHECKS.values())
+              for status in ['kernel-witness', 'runtime-witness', 'conditional', 'counterexample']}
     rows = []
     for name, target in refs.items():
         if name in CHECKS:
-            witness, detail = CHECKS[name]
-            status = f'[Premises + application](tests/vacuity/Pictures.lean) (`{witness}`); {detail}'
+            e = CHECKS[name]
+            path = e['module'].replace('.', '/') + '.lean'
+            status = f"**{e['status']}**: [{e['witness']}]({path}). {e['detail']}"
         else:
             status = 'Pending: no concrete premise witness audited yet'
         rows.append(f'| [`{name}`]({target}) | {status} |')
-    return f'''{BEGIN}
+    return f"""{BEGIN}
 ## Vacuity check reports
 
-This audit is in progress: **{len(CHECKS)} of {len(refs)} README-linked declarations
-have concrete premise witnesses checked**. Pending entries are not failures and
-are not claimed checked. The inventory includes definitions/assumptions linked
-by the README, which still need classification, as well as theorems.
+Work follows the theorem columns in **Security proofs**, then **Quality proofs**,
+in their README order. Repeated declarations appear once; assumptions and other
+supporting references follow. This is the order for the remaining work too.
 
-Run `mise run test:vacuity`. CI runs that same task via `ci/local.sh`.
-The task builds the imported production laws, checks the witness file with
-Lean's kernel, checks its axioms, checks deliberately broken fixtures are
-rejected, and rejects a stale inventory. No external services are needed.
-Logs from CI stay in `out/ci/vacuity.log`.
+**Coverage: {counts['kernel-witness']} kernel witnesses, {counts['runtime-witness']} runtime witnesses,
+{counts['conditional']} conditional checks, {counts['counterexample']} failed production assumptions; {len(refs) - len(CHECKS)} of {len(refs)} linked declarations still pending.**
+A pending or conditional entry is not counted as a passed vacuity check.
 
-### Batch 1 — photo sizing (2026-10-31)
+**Finding: the production suites do not satisfy `Seal.Good` and Noise
+`Suite.Good` as written.** Their contracts demand roundtrips for keys (and seal
+nonces) of every length; the native implementations reject invalid lengths.
+Runtime counterexamples demonstrate both contradictions. Valid-size roundtrips
+pass. Theorems requiring these contracts, including `openSealed_seal`,
+`member_opens`, `unbox_box` and the affected handshake/frame laws, need
+size-aware contracts before their assumptions apply to the production suites.
+These are specification/applicability gaps, not demonstrated breaks of
+valid-size encryption.
 
-**Provenance:** synthetic camera dimensions, not actual user data. No captured
-community dataset was found or used in this batch. These functions take sizes,
-so message contents, identities and signatures are irrelevant to these checks.
+- **kernel-witness:** Lean checks a concrete fixture's premises and application
+  of the named theorem. No new axioms, `sorry`, or `native_decide` are admitted.
+- **runtime-witness:** native crypto or rendering code executes; a successful decidable
+  branch constructs the premise and applies the theorem. The executable checks
+  success. This trusts Lean's compiler and native functions, beyond the kernel.
+- **counterexample:** a concrete production input contradicts the named assumption.
+- **conditional:** a required assumption remains open and is named explicitly.
+  A finite set of good signatures cannot prove Ed25519 unforgeability.
 
-**How the check works:** for `fit_long`, instantiate width 4032, height 3024,
-edge 2048; Lean proves `1 ≤ 2048` and `2048 < max 4032 3024` by computation;
-apply the production theorem to conclude the longer output side is 2048.
-Separately compute the complete output, `(2048, 1536)`, so a correct long
-side alone cannot conceal an incorrect short side. The other four checks
-follow this same premise/application/output pattern. They use the production
-`Pic.fit`, imported from the renderer's sizing implementation.
+**Provenance:** all current fixtures are synthetic. The identity fixture uses
+actual Ed25519 signatures and the production validators. Sync fixtures use
+nonempty chat payloads on a generic held store, with their limits stated per row.
+No real-user community transcript has been captured or claimed as checked.
 
-**Controls:** oversized input fails the unchanged-size premise; zero edge
-fails the bound's premise and produces a side above that edge; zero width
-fails positivity and remains zero when already small; an already-small photo
-fails the scaling premise. Portrait, landscape, thumbnail, rounding and
-one-pixel-clamp cases have exact expected outputs. Deliberately false output
-and premise variants must fail Lean checking.
+Run `mise run test:vacuity`; local CI invokes the same task through
+`ci/local.sh vacuity` and retains its log at `out/ci/vacuity.log`. It builds the
+fixture dependencies, checks kernel witnesses and their theorem dependencies,
+runs the native fixtures, checks negative controls, and verifies this ordered
+inventory. The task requires the repository's native crypto/build prerequisites
+and font assets (asset scripts prepare missing fonts); logs are retained under
+`out/vacuity`. Native panics or timeouts fail the run even if the process otherwise
+returns success. The dependency/axiom gate checks evidence structure; manual
+fixture review checks that the examples actually inhabit their premises and
+that runtime certificates are asserted. Neither theorem existence nor dependency
+reachability alone establishes nonvacuity.
 
-**Interpretation:** these five theorem premises are inhabited by realistic
-sizes and their conclusions constrain useful behavior. This establishes neither
-native camera correctness nor end-to-end rendering. The remaining declarations
-need their own fixtures, premise checks, conclusion review and runtime linkage;
-a generic `#check` or a passing unrelated suite does not complete an entry.
-
-### Complete README reference inventory
+### Checks in README order
 
 | Declaration | Evidence / remaining work |
 |---|---|
-''' + '\n'.join(rows) + f'\n{END}\n'
+""" + '\n'.join(rows) + f"""
+
+### How to read the evidence
+
+For image sizing, the 4032 × 3024 photo and edge 2048 satisfy `fit_long`'s two
+premises by computation. Applying that theorem gives longer output side 2048;
+a separate exact-result check requires `(2048, 1536)`. Portrait, thumbnail,
+rounding and one-pixel-clamp cases exercise other branches; false premises and
+incorrect output variants are rejected.
+
+For identity, the fixture creates Alice and Bob, an invitation, a signed join
+request, approval, admission, messages, an admin grant and opposing removals.
+Successful runtime validity checks construct the corresponding theorem premises.
+Forgery and invalid approval controls must fail. This does not discharge the
+universal `Unforgeable` hypothesis of `no_impersonation`.
+
+For encoding and ordering, fixed nonempty wire bytes, malformed trailing bytes,
+three interleaved message rows and a two-row query limit check concrete behavior.
+The op hash remains symbolic in kernel proofs; no collision-freedom claim is made.
+
+These are evidence of inhabited premises and meaningful consequences at the
+stated boundary, not proofs of every native adapter or full user session.
+{END}
+"""
 
 
 def main():
@@ -129,7 +168,7 @@ def main():
         path.write_text(updated)
     elif text != updated:
         raise SystemExit('Vacuity report stale: run python3 ci/vacuity.py --write')
-    print(f'vacuity inventory: {len(CHECKS)} witnessed / {len(references(text))} linked declarations')
+    print(f'vacuity inventory: {len(CHECKS)} evidence entries / {len(references(text))} linked declarations')
 
 
 if __name__ == '__main__':

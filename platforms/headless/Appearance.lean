@@ -169,6 +169,30 @@ def exercise (dir : String) (screen : Array UInt32) : IO Unit := do
     let some (_, row) := s.rows.toList.head? | throw (IO.userError "no row")
     let selected := Row.paint s.font fresh.dim s.W fresh.bgRow { row.data with selected := true } row.lay none #[]
     demand s!"{repr theme} selected row has shape cue" (selected.strokes.size > (Row.paint s.font fresh.dim s.W fresh.bgRow { row.data with selected := false } row.lay none #[]).strokes.size)
+    -- Inspect the badge itself, not a whole-frame average that can hide a halo.
+    for under in [0x222222, 0xffffff, 0x7647c7] do
+      let px := fresh.dim.px
+      let host := Bitmap.blank (px 80) (px 48) (solid under (px 80))
+      let pill := Pages.badge fresh.font fresh.dim host 1 (px 64) (px 8)
+      let red := Palette.color theme .badge
+      demand s!"{repr theme}: count pill has red top and bottom, no contrast ring"
+        (getPx pill.rows[px 8]! (px 52) == red &&
+         getPx pill.rows[px 32 - 1]! (px 52) == red)
+      demand "count pill leaves its surrounding list untouched"
+        (getPx pill.rows[px 7]! (px 52) == under &&
+         getPx pill.rows[px 32]! (px 52) == under)
+    let waiting := Pages.waiting fresh.font fresh.dim s.W (screen[1]!.toNat - fresh.insetTop - fresh.insetBot) "038d2f7f"
+      #[("Looking for someone to hand your join to", "Nobody has taken it yet.", .now),
+        ("Waiting for a member to let you in", "Quiet asks again whenever it finds one.", .next),
+        ("Keys and history arrive", "Then the community opens.", .next)] #[]
+    let some (stop, _) := waiting.taps[0]? | throw (IO.userError "waiting has no stop control")
+    demand "waiting card has the reference's capped 24rem column and 24dp gutters"
+      (stop.w == min s.W (fresh.dim.px 384) - 2 * fresh.dim.px 24 &&
+       stop.x == (s.W - min s.W (fresh.dim.px 384)) / 2 + fresh.dim.px 24)
+    demand "waiting has its stop control fully on screen"
+      (stop.y + stop.h ≤ waiting.bmp.h)
+    demand "waiting uses the real Quiet brand asset at native density"
+      ((fresh.font.icons.coverage "quiet-mark" (fresh.dim.px 54)).isSome)
     let b := Pages.toast s.font fresh.dim s.W "Saved"
     demand s!"{repr theme} toast contrast" (glyphsPass b)
     for under in [0x000000, 0xffffff, 0x888888, 0x7647c7, 0xc7353b] do

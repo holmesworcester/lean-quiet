@@ -97,6 +97,38 @@ The small static UI font is checked in with its source and OFL license under
 `tools/ui_fonts.py --regenerate` additionally needs Brotli. No GitHub workflow
 is required or created.
 
+## Composer comparisons
+
+`mise run visual:composer` builds the actual app renderer, feeds drafts through
+its native text event, and compares 44 cases against libquiet's real composer:
+empty, focused, typed, three-line and wrapping drafts; light/dark; 390, 719,
+720 and 1280px windows; and 125% desktop zoom. Local CI's `visual` stage invokes
+this task. References use the same pinned App story as the other pixel gates;
+the relevant composer CSS is also unchanged in libquiet `23f9f4e08`.
+
+The browser capture records the composer area, bordered row, textarea and every
+button independently. The native boxes must match within one CSS pixel. The
+field/toolbar gap is compared exactly: the mobile divider must be Gray 03 at
+the correct row, and desktop must have no internal divider. Pixel metrics gate
+the entire composer separately, so an empty message list cannot hide a shifted
+baseline or button. The reviewed ceilings allow 3% plus 0.00005 for each
+composer metric; they account for remaining font rasterization and fractional
+zoom differences, and are not a claim of identical text pixels. Sixteen negative
+controls deliberately change the divider, button spacing, text baseline or field
+height and must fail. Reports, crops, heatmaps and negative-control artifacts
+remain under `out/visual/composer-report` and `out/visual/composer-negative`.
+
+These cases cover the shared narrow/wide composer without attachments, native
+keyboard insets or OS chrome; the native input and photo suites cover those
+boundaries separately. They do not assert parity for libquiet's longer desktop
+text-scrolling cap or attachment metadata layout.
+
+Refresh this matrix explicitly with the same host prerequisites described above:
+
+```sh
+CHROME=/path/to/chromium LIBQUIET=/path/to/libquiet mise run visual:reference -- --cases tests/visual/composer-cases.tsv --output tests/visual/composer-reference
+```
+
 ## Hover comparisons
 
 `mise run visual:hover` adds 42 paired resting/hovering frames in

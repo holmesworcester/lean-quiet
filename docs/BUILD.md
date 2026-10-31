@@ -177,3 +177,10 @@ boundary/thread and no-allocation audits in `mise run host:slide`; the legacy
 proofs do not establish arbitrary-period geometry. `host:translate` retains the
 legacy per-vsync pixel oracle. No animation or platform-specific drawing is
 needed for the new skeletons.
+
+## Windows desktop
+
+`mise run windows:build` stages the shared Lean desktop and builds the Windows
+executable in the local VM. `mise run windows:e2e` includes setup and exercises
+real Windows input, persistence, encrypted TCP and listener restart.
+See [Windows prerequisites, launch and release gates](../platforms/windows/README.md).

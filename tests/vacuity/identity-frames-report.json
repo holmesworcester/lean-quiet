@@ -1,0 +1,40 @@
+{
+  "established_agrees": {
+    "status": "conditional",
+    "theorem": "Connection.established_agrees",
+    "witness": "Vacuity.IdentityFrames.establishedAgrees",
+    "module": "tests.vacuity.IdentityFrames",
+    "exercise": true,
+    "detail": "Both endpoint validators succeed for actual deterministic Noise session; handshake hash/community/peer identities and crossed send/receive keys agree natively. The production theorem remains conditional on sodium.suite.Good; its universally quantified AEAD law is false for malformed key bytes (Contracts.noiseBadKey). No universal crypto assumption is discharged."
+  },
+  "open_seal": {
+    "status": "conditional",
+    "theorem": "Connection.open_seal",
+    "witness": "Vacuity.IdentityFrames.openSeal",
+    "module": "tests.vacuity.IdentityFrames",
+    "exercise": true,
+    "detail": "Valid 32-byte session ID/key and 24-byte nonce roundtrip actual signed message bytes natively. The theorem requires universal frame AEAD correctness/length over arbitrary key and nonce bytes; empty-key native counterexamples frameDecryptFalse/frameSizeFalse refute those unqualified premises. Finite dimensions checked; no universal crypto assumption discharged."
+  },
+  "cid_seal": {
+    "status": "conditional",
+    "theorem": "Connection.cid_seal",
+    "witness": "Vacuity.IdentityFrames.cidSeal",
+    "module": "tests.vacuity.IdentityFrames",
+    "exercise": true,
+    "detail": "Valid 32-byte session ID/key and 24-byte nonce roundtrip actual signed message bytes natively. The theorem requires universal frame AEAD correctness/length over arbitrary key and nonce bytes; empty-key native counterexamples frameDecryptFalse/frameSizeFalse refute those unqualified premises. Finite dimensions checked; no universal crypto assumption discharged."
+  },
+  "openFrame_auth": {
+    "status": "runtime-witness",
+    "theorem": "Connection.openFrame_auth",
+    "witness": "Vacuity.IdentityFrames.openFrameAuth",
+    "module": "tests.vacuity.IdentityFrames",
+    "detail": "Actual real-crypto Noise session and XChaCha frame carrying signed Bob message bytes. Successful open is certified against held session receive key. One-byte ciphertext corruption proves the universal rejection premise by exact header/key lookup equalities and failed decryption, then applies sealed_auth. Wrong directional key and modified session header also reject; damaged frame emits no sends/drops/stores and preserves held database/log."
+  },
+  "sealed_auth": {
+    "status": "runtime-witness",
+    "theorem": "Connection.sealed_auth",
+    "witness": "Vacuity.IdentityFrames.sealedAuth",
+    "module": "tests.vacuity.IdentityFrames",
+    "detail": "Actual real-crypto Noise session and XChaCha frame carrying signed Bob message bytes. Successful open is certified against held session receive key. One-byte ciphertext corruption proves the universal rejection premise by exact header/key lookup equalities and failed decryption, then applies sealed_auth. Wrong directional key and modified session header also reject; damaged frame emits no sends/drops/stores and preserves held database/log."
+  }
+}

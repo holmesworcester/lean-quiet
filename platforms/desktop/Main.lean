@@ -37,6 +37,7 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
     let mut controls := s!"editor {x} {y} {x + (App.cursorAt d.app 5).2}\n"
     if let some pg := d.app.pageNow then
       for (box, action) in pg.taps do
+        controls := controls ++ s!"action {repr action} {d.layout.main.x + box.x + box.w/2} {App.topH d.app + box.y + box.h/2}\n"
         if let .theme choice := action then
           controls := controls ++ s!"choice {Theme.encode choice} {d.layout.main.x + box.x + box.w/2} {App.topH d.app + box.y + box.h/2}\n"
     for control in Desktop.scene d.layout d.height d.ui d.app do
@@ -46,6 +47,7 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
         controls := controls ++ s!"choice {Theme.encode choice} {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
       if control.action == .drawerAct .appearance then
         controls := controls ++ s!"appearance {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
+    controls := controls ++ s!"field {d.app.field}\n"
     controls := controls ++ s!"pointer {repr d.ui.hover} cursor {Desktop.cursor d}\n"
     controls := controls ++ s!"tap {d.app.input.lastTap[0]?.getD 0} {d.app.input.lastTap[1]?.getD 0} {d.app.input.lastTap[2]?.getD 0}\n"
     controls := controls ++ s!"zoom {zoomPercent d} dpi {d.dpi} cell {d.app.font.cell}\n"

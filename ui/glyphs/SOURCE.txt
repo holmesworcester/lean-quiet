@@ -4,3 +4,6 @@ Rendered by tools/glyph_assets.py as monochrome coverage; runtime recolors it.
 
 hover-ring.svg is the CSS 32px circular button border, rendered by the same
 coverage path to preserve fractional stroke widths at desktop zoom.
+
+quiet-mark.svg is the unmodified mark path and viewBox from
+app/src/brand/quiet.json at ab3d244cfb9937c05dc53736046127150c3e0bb9.
