@@ -6,7 +6,7 @@ the runner's lanes and under the old order.
 Two real nodes (SQLite in memory, the Community family, real 64 KiB
 chunk ops of real attachments) share one session (plain sealing). Each
 is run by a simulated runner that calls the runner's own pure parts:
-- **lanes** (Tcp.lean today): local writes first (`Inbox.next`); a
+- **lanes** (Tcp.lean today): alternating writes/events (`Inbox.next`); a
   step's frames pushed onto the socket's `Lanes` (`laned`,
   `framesFor`, `Lanes.pushAll`) and drained by its writer one
   `Lanes.take` at a time, whenever the kernel has room; each session's
@@ -82,6 +82,7 @@ structure Box where
   lanes : Lanes := {}
   free : Nat := 0
   lastTick : Nat := 0
+  writeFirst : Bool := true
 
 def Box.frames (b : Box) : Nat := (b.inbox.filter fun | .frame _ => true | _ => false).length
 
@@ -179,9 +180,9 @@ def Box.loop (b : Box) (peer : ByteArray) (now : Nat) : IO (Box × List Id) := d
   let mut stored : List Id := []
   let next : Option Ev ← match order with
     | .lanes =>
-      let r := (Inbox.next popW popE).run (b.writes, b.inbox.filterMap fun | .frame f => some f | _ => none)
-      b := { b with writes := r.2.1, inbox := r.2.2.map .frame }
-      pure (r.1.map fun | .inl w => .write w | .inr f => .frame f)
+      let r := (Inbox.next b.writeFirst popW popE).run (b.writes, b.inbox.filterMap fun | .frame f => some f | _ => none)
+      b := { b with writes := r.2.1, inbox := r.2.2.map .frame, writeFirst := r.1.2 }
+      pure (r.1.1.map fun | .inl w => .write w | .inr f => .frame f)
     | .old =>
       match b.inbox with
       | e :: rest => b := { b with inbox := rest }; pure (some e)

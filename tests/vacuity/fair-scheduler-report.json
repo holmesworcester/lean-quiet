@@ -1,0 +1,16 @@
+{
+  "event_within": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.event_within",
+    "witness": "Vacuity.FairScheduler.eventDeadline",
+    "module": "tests.vacuity.FairScheduler",
+    "detail": "An explicit infinite execution starts with two writes and two incoming frames; both producers append work every iteration forever. The second original frame is selected before iteration 4. Exact-prefix and fallback checks reject the old write-starvation behavior. Bound counts completed chooser iterations; native thread/channel operation and I/O completion remain outside this theorem."
+  },
+  "Tick.cofinal": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Tick.cofinal",
+    "witness": "Vacuity.FairScheduler.timerForever",
+    "module": "tests.vacuity.FairScheduler",
+    "detail": "Positive 200ms period with the explicit infinite sampled clock now(i)=200*i and last(i)=200*(i-1). The fixture proves the exact runtime Tick.next update and unbounded sampled time, then applies the cofinal-ticks theorem. Checks cover just-before and exactly-at deadline. This does not prove OS scheduling or native I/O termination."
+  }
+}

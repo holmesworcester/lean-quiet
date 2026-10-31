@@ -1,3 +1,4 @@
+import tests.vacuity.FairScheduler
 import tests.vacuity.Network
 import ops.sync.RetryLaws
 import ops.sync.StateLaws
@@ -35,14 +36,13 @@ theorem pushBound : lanes.pushAll pushes = lanes.pushAll pushes ∧ (lanes.pushA
 
 example : lanes.admit 20 pushes = none := by decide
 
-theorem firstWrite : (Inbox.next popW popE).run (["send Alice", "send Bob"], ["frame1", "frame2"]) =
-    (some (.inl "send Alice"), (["send Bob"], ["frame1", "frame2"])) :=
+theorem firstWrite : (Inbox.next true popW popE).run (["send Alice", "send Bob"], ["frame1", "frame2"]) =
+    ((some (.inl "send Alice"), false), (["send Bob"], ["frame1", "frame2"])) :=
   write_first "send Alice" ["send Bob"] ["frame1", "frame2"]
 
-theorem writeDeadline : ((Inbox.iter (Inbox.next popW popE) 2).run
-    (["send Alice", "send Bob"], ["frame1", "frame2"])).1 =
-    (["send Alice", "send Bob"].take 2).map (some ∘ .inl) :=
-  write_within ["send Alice", "send Bob"] ["frame1", "frame2"] 1 (by decide)
+theorem writeDeadline : ∃ j, 0 ≤ j ∧ j < 4 ∧
+    Vacuity.FairScheduler.queues.selected j = some (.inl "send Bob") :=
+  write_within Vacuity.FairScheduler.queues 0 ["send Alice"] [] "send Bob" rfl
 
 theorem socketAdmission : ("10.0.0.2" :: ["10.0.0.1"]).length ≤ ({} : RunConfig).maxSocks ∧
     (("10.0.0.2" :: ["10.0.0.1"]).filter (· == "10.0.0.2")).length ≤ ({} : RunConfig).perAddr :=

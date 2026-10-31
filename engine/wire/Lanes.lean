@@ -20,8 +20,8 @@ from waiting behind a backlog on its way out. Pure, so the laws
 - `shut`: whether the loop closes a socket: silent too long, or its
   writer's write under way not done in `stallMs` (its peer takes
   nothing).
-- `Inbox.next`: the run loop's next event, a local write before any
-  frame.
+- `Inbox.next`: alternate the first choice between local writes and
+  network events, immediately trying the other queue when one is empty.
 -/
 namespace Engine.Sync
 
@@ -109,12 +109,25 @@ at `since`, not done in `stallMs`. -/
 def shut (idle stallMs now heard : Nat) (since : Option Nat) : Bool :=
   heard + idle < now || since.any (· + stallMs ≤ now)
 
-/-- The run loop's next event: a local write waiting, else the next
-event from the sockets and the listener. -/
-def Inbox.next {m : Type → Type} [Monad m] {W E : Type} (writes : m (Option W)) (events : m (Option E)) :
-    m (Option (W ⊕ E)) := do
-  match ← writes with
-  | some w => return some (.inl w)
-  | none => return (← events).map .inr
+/-- One completed inbox poll. Alternate which queue gets first choice; if
+that queue is empty, try the other immediately. The returned preference
+belongs to the next poll, including when both queues are empty. Thus a
+continuously replenished write queue cannot suppress network events. -/
+def Inbox.next {m : Type → Type} [Monad m] {W E : Type} (writeFirst : Bool)
+    (writes : m (Option W)) (events : m (Option E)) : m (Option (W ⊕ E) × Bool) := do
+  let selected ← if writeFirst then do
+    match ← writes with
+    | some w => pure (some (.inl w))
+    | none => pure ((← events).map .inr)
+  else do
+    match ← events with
+    | some e => pure (some (.inr e))
+    | none => pure ((← writes).map .inl)
+  return (selected, !writeFirst)
+
+/-- The timer decision used after each completed inbox turn. A due tick
+records the sampled time; otherwise its previous time is retained. -/
+def Tick.next (period last now : Nat) : Bool × Nat :=
+  if last + period ≤ now then (true, now) else (false, last)
 
 end Engine.Sync

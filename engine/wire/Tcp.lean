@@ -14,7 +14,8 @@ neither carries socket code.
   approval is resent every tick, and sessions exchange rounds, so a
   live one is never idle that long.
 - The app's writes come in through `Runner.write`, on a channel of
-  their own that the loop reads before any frame (`Inbox.next`); every
+  their own; the loop alternates first choice between writes and events
+  (`Inbox.next`), falling back immediately when one is empty. Every
   id the node stores goes to the app's `notify`.
 - Each socket has a writer on its own thread, which owns its sends: the
   loop only pushes frames onto the socket's lanes (docs/SYNC.md,
@@ -397,14 +398,17 @@ def RunState.handle (cfg : RunConfig) (st : RunState) (ev : Event) (now : Nat) :
         return some (← st.closeApply x ch notify cfg sid now)
     return some st
 
-/-- The loop: the app's writes first, then events as they come
-(`Inbox.next`), and the clock every `tickMs`. -/
+/-- The loop: bounded-fair choice between local writes and network events
+(`Inbox.next`), followed by the clock when `tickMs` has elapsed. -/
 def runLoop (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (List Op)) (st : RunState) : IO Unit := do
   let mut st := st
+  let mut writeFirst := true
   repeat
     let now ← IO.monoMsNow
     let mut busy := false
-    match ← Inbox.next writes.tryRecv ch.tryRecv with
+    let (selected, nextPreference) ← Inbox.next writeFirst writes.tryRecv ch.tryRecv
+    writeFirst := nextPreference
+    match selected with
     | some (.inl ops) =>
       busy := true
       let (st', e) ← st.node? fun n => n.onWrite x ops now
@@ -428,9 +432,11 @@ def runLoop (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (List Op)) (st
             IO.sleep 5
         return
     | none => pure ()
-    if now ≥ st.lastTick + cfg.tickMs then
+    let (tickNow, nextTick) := Tick.next cfg.tickMs st.lastTick now
+    st := { st with lastTick := nextTick }
+    if tickNow then
       let x' := { x with room := ← rooms cfg st.socks }
-      let (st', e) ← ({ st with lastTick := now }).node? fun n => n.onTick x' now
+      let (st', e) ← st.node? fun n => n.onTick x' now
       st ← st'.apply x ch notify cfg e now
       for s in st.socks do
         if shut cfg.idle cfg.stallMs now s.heard (← s.since) then
@@ -442,7 +448,7 @@ end
 /-- A running node. -/
 structure Runner where
   events : Std.CloseableChannel.Sync Event
-  /-- Local writes have their own bounded channel, consumed before frames.
+  /-- Local writes have their own bounded channel, serviced alternately with network events.
   App offers are nonblocking; a full queue leaves writes parked in App. -/
   writes : Std.CloseableChannel.Sync (List Op)
   port : UInt16
@@ -487,7 +493,7 @@ def Runner.lanes (r : Runner) : IO (List (ByteArray × Nat)) := do
   unless ← enqueue r.events (.lanes p) do return []
   return (← IO.wait p.result?).getD []
 
-/-- Queue local writes before network frames. Background callers may wait
+/-- Queue local writes for bounded-fair service. Background callers may wait
 for space; the app uses `writes.trySend` and keeps unaccepted writes. -/
 def Runner.write (r : Runner) (ops : List Op) : IO Unit := discard <| (r.writes.send ops).toBaseIO
 

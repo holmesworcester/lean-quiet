@@ -25,14 +25,14 @@
     "theorem": "Engine.Sync.write_first",
     "witness": "Vacuity.SyncMore.firstWrite",
     "module": "tests.vacuity.SyncMore",
-    "detail": "Two local sends compete with two queued frames; actual first event is the first local send. Synthetic fixtures; claims limited to the imported running functions/model and stated premises."
+    "detail": "Two queued writes and two frames: the initial write-preferred turn selects Alice and switches preference to events. This first-turn law does not claim permanent write priority."
   },
   "write_within": {
     "status": "kernel-witness",
     "theorem": "Engine.Sync.write_within",
     "witness": "Vacuity.SyncMore.writeDeadline",
     "module": "tests.vacuity.SyncMore",
-    "detail": "Prove index 1 is in a two-write queue; both writes are selected within two iterations despite queued frames. Synthetic fixtures; claims limited to the imported running functions/model and stated premises."
+    "detail": "An explicit infinite run starts with two writes and two frames, with both producers appending on every iteration forever. The second original write is selected before iteration 4 by the actual alternating chooser; a separate exact-prefix check requires write/frame/write/frame. The bound counts completed iterations, not elapsed time."
   },
   "admit_bounded": {
     "status": "kernel-witness",
