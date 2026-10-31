@@ -440,3 +440,8 @@ run = "bash tests/vacuity/check.sh"
 [tasks."ios:input-device-e2e"]
 description = "Build/sign app and XCUITest runner; verify short vs long presses on a seeded physical iPhone; retain xcresult and screenshots"
 run = "APPLE_SDKS=iphoneos IOS_BUILD_ACTION=build-for-testing platforms/ios/ship.sh input-device"
+
+[tasks."test:crypto-failure"]
+description = "Build production Lean crypto wrappers and test native seal failure handling, real Rust success bytes and malformed input guards"
+depends = ["crypto"]
+run = "bash tests/engine/crypto_failure.sh"

@@ -51,6 +51,7 @@ else
   echo "SKIP tcppair jointcp (TCP sandbox; both built)"
 fi
 tests/engine/crypto_compat.sh
+mise run test:crypto-failure
 "$bin"/noise_check
 "$bin"/connection_check
 "$bin"/purge "$out"/purge "${SEEDS:-12}"

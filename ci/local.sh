@@ -44,6 +44,7 @@ gate() {
     readme) mise run readme:links ;;
     reorg) mise run reorg:test ;;
     vacuity) mise run test:vacuity ;;
+    crypto-failure) mise run test:crypto-failure ;;
     *) echo "no part $1" >&2; return 2 ;;
   esac
 }
