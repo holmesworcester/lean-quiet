@@ -20,6 +20,145 @@ There is something exhilarating about adding a proof where one would usually add
 
 <p align="center"><em>The status bar and keyboard are Android's, the rest is Lean. Scrolling is better in person.</em></p>
 
+# How it works
+
+A Lean Quiet node's state is ops: messages, joins and approvals, and
+also dials and sessions. An op names the ops it requires, so the ops
+form a DAG, and one engine turns them into validated state. What is
+proven below is about these ops and this engine.
+
+## Peers, and no server
+
+Each device runs a node, and nodes talk to each other directly. A node
+dials the member who invited it, so here Bob's and Carol's ops reach
+each other through Alice.
+
+```mermaid
+flowchart TB
+  alice["<b>Alice</b><br/><small>[person]</small><br/>founded the community"]:::person
+  bob["<b>Bob</b><br/><small>[person]</small><br/>has Alice's invite link"]:::person
+  carol["<b>Carol</b><br/><small>[person]</small><br/>joined last week"]:::person
+
+  an["<b>Alice's phone</b><br/><small>[Lean Quiet node]</small><br/>her ops, the engine, the UI"]:::system
+  bn["<b>Bob's laptop</b><br/><small>[Lean Quiet node]</small><br/>his ops, the engine, the UI"]:::system
+  cn["<b>Carol's phone</b><br/><small>[Lean Quiet node]</small><br/>her ops, the engine, the UI"]:::system
+
+  alice -- "invite link or QR<br/><small>[out of band]</small>" --> bob
+  alice -- "taps, reads" --> an
+  bob -- "taps, reads" --> bn
+  carol -- "taps, reads" --> cn
+  bn -- "dials the link's address;<br/>his join request rides the handshake<br/><small>[TCP · Noise KK]</small>" --> an
+  an <-- "sync ops both ways<br/><small>[TCP · Noise KK · sealed frames]</small>" --> cn
+
+  classDef person fill:#08427b,stroke:#052e56,color:#fff
+  classDef system fill:#1168bd,stroke:#0b4884,color:#fff
+```
+
+## The op DAG: found, join, post, and the connection that carries them
+
+A solid arrow points from an op to an op it requires. An op is Valid
+once everything it requires is Valid and its validator accepts their
+facts. A dashed arrow points from an op to a fact a view read before
+writing it. Time runs downward. Not drawn: every community op also
+requires the root, and an author's op requires the op that admitted
+them (Alice's is the root).
+
+Shared ops sync to members and are never deleted. Connection ops are
+one node's own, or travel bare between two nodes; they never sync, and
+closing a session purges them.
+
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 500}}}%%
+flowchart BT
+  subgraph shared ["shared ops"]
+    direction BT
+    root["<b>root</b> · Alice<br/>⇒ community C,<br/>Alice admitted"]
+    invite["<b>invite</b> · Alice<br/>⇒ an invitation"]
+    jreq["<b>request</b> · Bob<br/>signed by his device<br/>and the link's key"]
+    approve["<b>approve</b> · Alice"]
+    admit["<b>admit</b> · anyone<br/>tallies approvals<br/>⇒ Bob admitted"]
+    post["<b>post</b> · Bob<br/>'hi!' (sealed)"]
+    react["<b>react</b> · Alice<br/>❤"]
+    invite --> root
+    jreq --> invite
+    approve --> jreq
+    admit --> approve
+    admit --> jreq
+    post --> admit
+    react --> post
+  end
+
+  subgraph conn ["connection ops"]
+    direction BT
+    joining["<b>joining</b> · Bob<br/>C, Alice's key,<br/>the link's address"]
+    creq["<b>request</b> · Bob → Alice<br/>Noise message 1"]
+    opened["<b>opened</b> · Alice"]
+    connection["<b>connection</b> · Alice → Bob<br/>Noise message 2"]
+    est["<b>established</b><br/>each side<br/>⇒ the session's keys"]
+    opened --> creq
+    connection --> creq
+    est --> connection
+  end
+
+  creq -. "dial<br/>(each tick)" .-> joining
+  creq -. "its hello<br/>carries" .-> jreq
+  connection -. "react (after each write):<br/>Alice answers once<br/>Bob is admitted here" .-> admit
+
+  classDef op fill:#85bbf0,stroke:#5d82a8,color:#000
+  classDef local fill:#dde8f3,stroke:#8aa,color:#000
+  class root,invite,jreq,approve,admit,post,react op
+  class joining,creq,opened,connection,est local
+```
+
+## One node: ops in, validated state out
+
+A tap, a peer's bytes, the clock and the engine's own writes all turn
+into ops. The engine is the same code for every op type: an op type
+brings its validator and the keys its facts are filed under.
+
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 500}}}%%
+flowchart TB
+  subgraph sources ["where ops come from"]
+    tap(["a tap: send 'hi'"]) --> intent["<b>send</b> intent<br/>writes a <b>post</b>"]
+    bytes(["bytes from a peer"]) --> frames["the peer's ops,<br/>and a <b>recv</b> for each"]
+    clock(["each tick"]) --> dial["<b>dial</b>: for each pending join,<br/>a Noise <b>request</b> and a <b>send</b> courier,<br/>re-sent each tick until answered"]
+    write(["each write"]) --> react["<b>react</b>: opens requests, answers<br/>trusted peers with a <b>connection</b>,<br/>writes <b>established</b>; repeats<br/>until it writes nothing"]
+  end
+
+  subgraph engine ["the engine"]
+    ingest["ingest:<br/>store + queue"] --> judge{"judge<br/>one op"}
+    judge -- "a requirement<br/>is Invalid" --> inv["Invalid"]
+    judge -- "a requirement<br/>is undecided" --> wait["waits"]
+    judge -- "all Valid: its validator<br/>reads their facts" --> ok["Valid, with its fact<br/>filed under its keys"]
+    ok -. "wakes what waited" .-> judge
+  end
+
+  subgraph state ["validated state"]
+    db[("SQLite")] --> lists["lists: the Valid facts<br/>under a key"]
+  end
+
+  subgraph reads ["what reads it"]
+    ui["components → pixels"]
+    sync["sync: offers and wants"]
+    sessions["a session per Valid<br/><b>established</b> fact"]
+    couriers["each <b>send</b> courier →<br/>bytes to an address"]
+  end
+
+  intent & frames & dial & react --> ingest
+  ok --> db
+  lists --> ui & sync & sessions & couriers
+  lists -. "each decides what to write<br/>by reading Valid facts" .-> sources
+
+  classDef c4 fill:#438dd5,stroke:#2e6295,color:#fff
+  classDef c4l fill:#85bbf0,stroke:#5d82a8,color:#000
+  class ingest,judge,ok,inv,wait c4
+  class intent,frames,dial,react,ui,sync,sessions,couriers,lists c4l
+```
+
+The engine and the community are in [docs/ENGINE.md](docs/ENGINE.md),
+and sync in [docs/SYNC.md](docs/SYNC.md).
+
 ## What is proven
 
 Lean checks the theorem statements under their stated hypotheses. The tables
