@@ -3,7 +3,6 @@ Kernel proofs must be closed Prop terms using only standard axioms. Runtime
 certificates and conditional bridges are recorded separately, never promoted.
 """
 import importlib.util
-import os
 from pathlib import Path
 import re
 import subprocess
@@ -99,7 +98,7 @@ for e in checks.values():
     if e['status'] in {'runtime-witness', 'counterexample'} or e.get('exercise'):
         runner = e['witness'].rsplit('.', 1)[0] + '.main'
         code += f'#eval show MetaM Unit from do\n  unless reaches (← getEnv) ``{runner} ``{e["witness"]} do throwError "runtime certificate is not exercised: {e["witness"]}"\n'
-probe = out / 'Audit.lean' 
+probe = out / 'Audit.lean'
 probe.write_text(code)
 r = subprocess.run(['lake', 'env', 'lean', str(probe)], cwd=ROOT, text=True, capture_output=True)
 (out / 'audit.log').write_text(r.stdout + r.stderr)
