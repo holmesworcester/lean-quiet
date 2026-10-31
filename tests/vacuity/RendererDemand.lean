@@ -35,7 +35,7 @@ theorem retained :
     (mounted.reconcile [⟨rowB, 101, true⟩]).ticket 101 = some ⟨101, 0⟩ :=
   Demand.retained_ticket mounted [⟨rowB, 101, true⟩] 101 ⟨101, 0⟩ (by decide) (by decide)
 
-private theorem beforeNext : mounted.BeforeNext :=
+theorem beforeNext : mounted.BeforeNext :=
   Demand.reconcile_before_next {} needs Demand.empty_before_next
 
 theorem remount : ((mounted.reconcile []).reconcile needs).current ⟨101, 0⟩ = false :=
