@@ -1,0 +1,611 @@
+{
+  "Demand.owned_iff": {
+    "status": "kernel-witness",
+    "theorem": "Demand.owned_iff",
+    "witness": "Vacuity.RendererDemand.ownership",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture."
+  },
+  "Demand.next_visible": {
+    "status": "kernel-witness",
+    "theorem": "Demand.next_visible",
+    "witness": "Vacuity.RendererDemand.visiblePriority",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture."
+  },
+  "Demand.retained_prefix": {
+    "status": "kernel-witness",
+    "theorem": "Demand.retained_prefix",
+    "witness": "Vacuity.RendererDemand.fifo",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture."
+  },
+  "Demand.complete_retired": {
+    "status": "kernel-witness",
+    "theorem": "Demand.complete_retired",
+    "witness": "Vacuity.RendererDemand.retired",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture."
+  },
+  "Demand.retained_ticket": {
+    "status": "kernel-witness",
+    "theorem": "Demand.retained_ticket",
+    "witness": "Vacuity.RendererDemand.retained",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture."
+  },
+  "Demand.remount_rejects": {
+    "status": "kernel-witness",
+    "theorem": "Demand.remount_rejects",
+    "witness": "Vacuity.RendererDemand.remount",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture."
+  },
+  "Surface.placed_row": {
+    "status": "kernel-witness",
+    "theorem": "Surface.placed_row",
+    "witness": "Vacuity.RendererGeometry.placed",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Surface.visible_in_viewport": {
+    "status": "kernel-witness",
+    "theorem": "Surface.visible_in_viewport",
+    "witness": "Vacuity.RendererGeometry.visible",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "newest_visible": {
+    "status": "kernel-witness",
+    "theorem": "Geometry.newest_visible",
+    "witness": "Vacuity.RendererGeometry.newest",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Surface.newest_drawn": {
+    "status": "kernel-witness",
+    "theorem": "Surface.newest_drawn",
+    "witness": "Vacuity.RendererGeometry.newestDrawn",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Surface.pinned_row": {
+    "status": "kernel-witness",
+    "theorem": "Surface.pinned_row",
+    "witness": "Vacuity.RendererGeometry.pinnedRow",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Surface.pinned_visible": {
+    "status": "kernel-witness",
+    "theorem": "Surface.pinned_visible",
+    "witness": "Vacuity.RendererGeometry.pinnedVisible",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "pinned_tap": {
+    "status": "kernel-witness",
+    "theorem": "Geometry.pinned_tap",
+    "witness": "Vacuity.RendererGeometry.pageTap",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "hit_iff": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.hit_iff",
+    "witness": "Vacuity.RendererGeometry.hit",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "hit_cell": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.hit_cell",
+    "witness": "Vacuity.RendererGeometry.hitCell",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "keys_disjoint": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.keys_disjoint",
+    "witness": "Vacuity.RendererGeometry.disjoint",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "reachable": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.reachable",
+    "witness": "Vacuity.RendererGeometry.reachable",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "itemAt_place": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.itemAt_place",
+    "witness": "Vacuity.RendererGeometry.item",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "lineOf_ctop": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.lineOf_ctop",
+    "witness": "Vacuity.RendererGeometry.line",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "compose_row": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.compose_row",
+    "witness": "Vacuity.RendererGeometry.composeRow",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "compose_top": {
+    "status": "kernel-witness",
+    "theorem": "SheetGeom.compose_top",
+    "witness": "Vacuity.RendererGeometry.composeTop",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Camera.src_in": {
+    "status": "kernel-witness",
+    "theorem": "Camera.src_in",
+    "witness": "Vacuity.RendererGeometry.cameraBounds",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Cover.covered": {
+    "status": "kernel-witness",
+    "theorem": "Cover.covered",
+    "witness": "Vacuity.RendererGeometry.coverage",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Cover.line_painted": {
+    "status": "kernel-witness",
+    "theorem": "Cover.line_painted",
+    "witness": "Vacuity.RendererGeometry.painted",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Translate.equivariance": {
+    "status": "kernel-witness",
+    "theorem": "Translate.equivariance",
+    "witness": "Vacuity.RendererGeometry.translation",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Slide.edge_eq": {
+    "status": "kernel-witness",
+    "theorem": "Slide.edge_eq",
+    "witness": "Vacuity.RendererGeometry.slide",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Translate.covered": {
+    "status": "kernel-witness",
+    "theorem": "Translate.covered",
+    "witness": "Vacuity.RendererGeometry.translatedCoverage",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "Translate.fill_pixel": {
+    "status": "kernel-witness",
+    "theorem": "Translate.fill_pixel",
+    "witness": "Vacuity.RendererGeometry.fillPixel",
+    "module": "tests.vacuity.RendererGeometry",
+    "detail": "Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture."
+  },
+  "writes_only_after_two": {
+    "status": "kernel-witness",
+    "theorem": "Remove.writes_only_after_two",
+    "witness": "Vacuity.RendererFlow.secondYes",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "cancel_writes_nothing": {
+    "status": "kernel-witness",
+    "theorem": "Remove.cancel_writes_nothing",
+    "witness": "Vacuity.RendererFlow.cancellation",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "open_fresh": {
+    "status": "kernel-witness",
+    "theorem": "Remove.open_fresh",
+    "witness": "Vacuity.RendererFlow.freshAttempt",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "no_replace": {
+    "status": "kernel-witness",
+    "theorem": "Remove.no_replace",
+    "witness": "Vacuity.RendererFlow.noReplace",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "offered_only": {
+    "status": "kernel-witness",
+    "theorem": "Remove.offered_only",
+    "witness": "Vacuity.RendererFlow.offered",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "back_go": {
+    "status": "kernel-witness",
+    "theorem": "Nav.back_go",
+    "witness": "Vacuity.RendererFlow.back",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "go_inv": {
+    "status": "kernel-witness",
+    "theorem": "Nav.go_inv",
+    "witness": "Vacuity.RendererFlow.noDuplicates",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "offer_split": {
+    "status": "kernel-witness",
+    "theorem": "NodeOffer.offer_split",
+    "witness": "Vacuity.RendererFlow.offerSplit",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "offer_runs": {
+    "status": "kernel-witness",
+    "theorem": "NodeOffer.offer_runs",
+    "witness": "Vacuity.RendererFlow.offers",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "unmounted_quiet": {
+    "status": "kernel-witness",
+    "theorem": "Lifecycle.unmounted_quiet",
+    "witness": "Vacuity.RendererFlow.unmounted",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "old_quiet": {
+    "status": "kernel-witness",
+    "theorem": "Lifecycle.old_quiet",
+    "witness": "Vacuity.RendererFlow.oldCallback",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "mounted_runs": {
+    "status": "kernel-witness",
+    "theorem": "Lifecycle.mounted_runs",
+    "witness": "Vacuity.RendererFlow.mountedWork",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "subscriptions_exact": {
+    "status": "kernel-witness",
+    "theorem": "Lifecycle.subscriptions_exact",
+    "witness": "Vacuity.RendererFlow.subscriptions",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "live_exact": {
+    "status": "kernel-witness",
+    "theorem": "Lifecycle.live_exact",
+    "witness": "Vacuity.RendererFlow.liveExact",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "resize_anchor": {
+    "status": "kernel-witness",
+    "theorem": "Lifecycle.resize_anchor",
+    "witness": "Vacuity.RendererFlow.resize",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "restore_checkpoint": {
+    "status": "kernel-witness",
+    "theorem": "Lifecycle.restore_checkpoint",
+    "witness": "Vacuity.RendererFlow.restore",
+    "module": "tests.vacuity.RendererFlow",
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+  },
+  "visual_perm": {
+    "status": "kernel-witness",
+    "theorem": "Text.visual_perm",
+    "witness": "Vacuity.RendererText.permutation",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "place_shows": {
+    "status": "kernel-witness",
+    "theorem": "Text.place_shows",
+    "witness": "Vacuity.RendererText.visibleGlyphs",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "place_starts": {
+    "status": "kernel-witness",
+    "theorem": "Text.place_starts",
+    "witness": "Vacuity.RendererText.starts",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "numbers_keep_order": {
+    "status": "kernel-witness",
+    "theorem": "Text.numbers_keep_order",
+    "witness": "Vacuity.RendererText.europeanOrder",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "arabic_numbers_keep_order": {
+    "status": "kernel-witness",
+    "theorem": "Text.arabic_numbers_keep_order",
+    "witness": "Vacuity.RendererText.arabicOrder",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "controls_neutral": {
+    "status": "kernel-witness",
+    "theorem": "Text.controls_neutral",
+    "witness": "Vacuity.RendererText.controls",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "marks_invisible": {
+    "status": "kernel-witness",
+    "theorem": "Text.marks_invisible",
+    "witness": "Vacuity.RendererText.invisibles",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "oneLine_prefix": {
+    "status": "kernel-witness",
+    "theorem": "Text.oneLine_prefix",
+    "witness": "Vacuity.RendererText.ellipsis",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "wrap_keeps": {
+    "status": "kernel-witness",
+    "theorem": "Text.wrap_keeps",
+    "witness": "Vacuity.RendererText.wrapping",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "wrap_fits": {
+    "status": "kernel-witness",
+    "theorem": "Text.wrap_fits",
+    "witness": "Vacuity.RendererText.wrappedWidth",
+    "module": "tests.vacuity.RendererText",
+    "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
+  },
+  "start_eq": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.start_eq",
+    "witness": "Vacuity.RendererHeights.rowStart",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "find_spec": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.find_spec",
+    "witness": "Vacuity.RendererHeights.findRow",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "set_toList": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.set_toList",
+    "witness": "Vacuity.RendererHeights.update",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "start_mono": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.start_mono",
+    "witness": "Vacuity.RendererHeights.monotone",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "start_size": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.start_size",
+    "witness": "Vacuity.RendererHeights.endOfContent",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "below_window": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.below_window",
+    "witness": "Vacuity.RendererHeights.below",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "above_window": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.above_window",
+    "witness": "Vacuity.RendererHeights.above",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "findM_cost": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.findM_cost",
+    "witness": "Vacuity.RendererHeights.findCost",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "startM_cost": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.startM_cost",
+    "witness": "Vacuity.RendererHeights.startCost",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "setM_cost": {
+    "status": "kernel-witness",
+    "theorem": "Heights.T.setM_cost",
+    "witness": "Vacuity.RendererHeights.updateCost",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "push_ok": {
+    "status": "kernel-witness",
+    "theorem": "Heights.Rows.push_ok",
+    "witness": "Vacuity.RendererHeights.pushed",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "rows_cost": {
+    "status": "kernel-witness",
+    "theorem": "Heights.rows_cost",
+    "witness": "Vacuity.RendererHeights.rowCosts",
+    "module": "tests.vacuity.RendererHeights",
+    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
+  },
+  "Pic.decode_sized": {
+    "status": "kernel-witness",
+    "theorem": "Pic.decode_sized",
+    "witness": "Vacuity.RendererImages.pictureSized",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "Image.decode_sized": {
+    "status": "kernel-witness",
+    "theorem": "Image.decode_sized",
+    "witness": "Vacuity.RendererImages.imageSized",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "layout_sizes": {
+    "status": "kernel-witness",
+    "theorem": "Pic.layout_sizes",
+    "witness": "Vacuity.RendererImages.layoutSizes",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "Pic.layout_apart": {
+    "status": "kernel-witness",
+    "theorem": "Pic.layout_apart",
+    "witness": "Vacuity.RendererImages.separated",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "layout_apart": {
+    "status": "kernel-witness",
+    "theorem": "Pic.layout_apart",
+    "witness": "Vacuity.RendererImages.separated",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "Pic.layout_inside": {
+    "status": "kernel-witness",
+    "theorem": "Pic.layout_inside",
+    "witness": "Vacuity.RendererImages.inside",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "render_wellFormed": {
+    "status": "kernel-witness",
+    "theorem": "Pic.render_wellFormed",
+    "witness": "Vacuity.RendererImages.renderSized",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "render_opaque": {
+    "status": "kernel-witness",
+    "theorem": "Pic.render_opaque",
+    "witness": "Vacuity.RendererImages.opacity",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "scale_wellFormed": {
+    "status": "kernel-witness",
+    "theorem": "Pic.scale_wellFormed",
+    "witness": "Vacuity.RendererImages.scaled",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "Ttf.byte_in_bounds": {
+    "status": "kernel-witness",
+    "theorem": "Ttf.byte_in_bounds",
+    "witness": "Vacuity.RendererImages.byteBound",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "Ttf.cmap_entry": {
+    "status": "kernel-witness",
+    "theorem": "Ttf.cmap_entry",
+    "witness": "Vacuity.RendererImages.character",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "Ttf.coverage_value": {
+    "status": "kernel-witness",
+    "theorem": "Ttf.coverage_value",
+    "witness": "Vacuity.RendererImages.saturated",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "Ttf.Cache.put_bound": {
+    "status": "kernel-witness",
+    "theorem": "Ttf.Cache.put_bound",
+    "witness": "Vacuity.RendererImages.cacheBound",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "Ttf.Cache.put_payload_bound": {
+    "status": "kernel-witness",
+    "theorem": "Ttf.Cache.put_payload_bound",
+    "witness": "Vacuity.RendererImages.cachePayload",
+    "module": "tests.vacuity.RendererImages",
+    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
+  },
+  "agrees_empty": {
+    "status": "kernel-witness",
+    "theorem": "LiveLaws.agrees_empty",
+    "witness": "Vacuity.RendererLive.empty",
+    "module": "tests.vacuity.RendererLive",
+    "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
+  },
+  "agrees_store": {
+    "status": "kernel-witness",
+    "theorem": "LiveLaws.agrees_store",
+    "witness": "Vacuity.RendererLive.store",
+    "module": "tests.vacuity.RendererLive",
+    "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
+  },
+  "answer_agrees": {
+    "status": "kernel-witness",
+    "theorem": "LiveLaws.answer_agrees",
+    "witness": "Vacuity.RendererLive.cachedAnswer",
+    "module": "tests.vacuity.RendererLive",
+    "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
+  },
+  "read_one_moment": {
+    "status": "kernel-witness",
+    "theorem": "LiveLaws.read_one_moment",
+    "witness": "Vacuity.RendererLive.oneMoment",
+    "module": "tests.vacuity.RendererLive",
+    "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
+  },
+  "agrees_keep": {
+    "status": "kernel-witness",
+    "theorem": "LiveLaws.agrees_keep",
+    "witness": "Vacuity.RendererLive.keep",
+    "module": "tests.vacuity.RendererLive",
+    "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
+  },
+  "agrees_unmount": {
+    "status": "kernel-witness",
+    "theorem": "LiveLaws.agrees_unmount",
+    "witness": "Vacuity.RendererLive.unmount",
+    "module": "tests.vacuity.RendererLive",
+    "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
+  },
+  "watched_held": {
+    "status": "kernel-witness",
+    "theorem": "LiveLaws.watched_held",
+    "witness": "Vacuity.RendererLive.watchedHeld",
+    "module": "tests.vacuity.RendererLive",
+    "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
+  }
+}
