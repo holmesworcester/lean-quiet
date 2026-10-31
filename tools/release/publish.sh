@@ -13,8 +13,8 @@ notes=${2:-}
 repo=holmesworcester/lean-quiet
 gh=${GH:-gh-personal}
 cd out/release
-files=(lean-quiet-android.apk lean-quiet-linux-x86_64.tar.gz)
-[ -f LeanQuiet-macos.zip ] && files+=(LeanQuiet-macos.zip)
+files=(lean-quiet-android.apk lean-quiet-linux-amd64.deb lean-quiet-linux-x86_64.tar.gz)
+for f in LeanQuiet-macos.zip LeanQuiet-windows-x64.zip; do [ -f "$f" ] && files+=("$f"); done
 for f in "${files[@]}"; do [ -f "$f" ] || { echo "missing out/release/$f" >&2; exit 1; }; done
 sha256sum "${files[@]}" > SHA256SUMS
 commit=$(git rev-parse HEAD)

@@ -72,9 +72,13 @@ links = []
 for i in range(6):
     sp.run([str(BIN / 'invite_link'), str(OUT / f'invite{i}')], check=True, stdout=sp.DEVNULL)
     links.append((OUT / f'invite{i}/invite').read_text().strip())
-native = links[0][:links[0].index('://join/') + len('://join/')]
-payload = [t[len(native):] for t in links]
-print('Community.Invite.text writes', native, flush=True)
+# The app shares the join page link; the page opens leanquiet://join/ and the
+# same fields, which is what the desktop hands the app.
+web = 'https://holmesworcester.github.io/lean-quiet/join#'
+assert all(t.startswith(web) for t in links), links[0]
+native = 'leanquiet://join/'
+payload = [t[len(web):] for t in links]
+print('Community.Invite.text writes', web, '; the page opens', native, flush=True)
 
 
 def link(scheme, n):
@@ -84,7 +88,7 @@ def link(scheme, n):
 def took(state, url, after):
     """The app's state shows it took url, later than the toast deadline `after`."""
     if url.startswith(native):
-        return field(state, 'invite') == url and 'App.PageId.name' in lines(state)
+        return field(state, 'invite') == web + url[len(native):] and 'App.PageId.name' in lines(state)
     toast = field(state, 'toast')
     if toast:
         due, text = toast.split(' ', 1)

@@ -89,8 +89,9 @@ for name, frag in [("quote", "#" + code[:60] + '"onmouseover="x'), ("tag", "#" +
 
 d = dom(site, "", name="none")
 ok("no invite: downloads only", shown(d, "none") and not shown(d, "invite") and not shown(d, "broken"))
-ok("Android and Linux download from the latest release",
-   "releases/latest/download/lean-quiet-android.apk" in d and "releases/latest/download/lean-quiet-linux-x86_64.tar.gz" in d)
+ok("Android and Linux (.deb, .tar.gz) download from the latest release",
+   all(f"releases/latest/download/{n}" in d for n in
+       ["lean-quiet-android.apk", "lean-quiet-linux-amd64.deb", "lean-quiet-linux-x86_64.tar.gz"]))
 
 android = "Mozilla/5.0 (Linux; Android 15; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36"
 d = dom(site, "#" + code, ua=android, name="android")
@@ -98,9 +99,11 @@ first = re.search(r'<ul id="downloads">\s*<li[^>]*data-os="(\w+)"', d)
 ok("Android sees Android first", bool(first) and first.group(1) == "android")
 
 later = root / "out" / "site-later"
-build(later, "--mac-url", "https://example.org/LeanQuiet.zip", "--testflight-url", "https://testflight.apple.com/join/abcd1234")
+build(later, "--mac-url", "https://example.org/LeanQuiet.zip", "--windows-url", "https://example.org/LeanQuiet-windows-x64.zip",
+      "--testflight-url", "https://testflight.apple.com/join/abcd1234")
 d = dom(later, "", name="later")
-ok("given URLs become links", 'href="https://example.org/LeanQuiet.zip"' in d and 'href="https://testflight.apple.com/join/abcd1234">TestFlight' in d)
+ok("given URLs become links", 'href="https://example.org/LeanQuiet.zip"' in d and 'href="https://example.org/LeanQuiet-windows-x64.zip"' in d
+   and 'href="https://testflight.apple.com/join/abcd1234">TestFlight' in d)
 
 # Negative control: with a wrong script hash the policy blocks the script,
 # and the page must not link the app. The checks above would fail.

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Builds the join page site into OUT (default out/site).
 
-usage: site/build.py [OUT] [--mac-url URL] [--testflight-url URL] [--bad-hash]
+usage: site/build.py [OUT] [--mac-url URL] [--windows-url URL] [--testflight-url URL] [--bad-hash]
 
 - join.html: site/join.html with its Content-Security-Policy hashes filled
   in (the one inline script and style are the only code the page may run),
-  and the macOS and TestFlight links, when given, in their data-url slots;
+  and the macOS, Windows and TestFlight links, when given, in their
+  data-url slots;
 - index.html: sends visitors to join (no invite there: the downloads);
 - .nojekyll: GitHub Pages serves the files as they are.
 
@@ -25,12 +26,12 @@ def opt(name):
         return v
     return ""
 
-mac, testflight = opt("--mac-url"), opt("--testflight-url")
+mac, windows, testflight = opt("--mac-url"), opt("--windows-url"), opt("--testflight-url")
 bad = "--bad-hash" in args
 if bad:
     args.remove("--bad-hash")
 out = Path(args[0] if args else here.parent / "out" / "site")
-for url in (mac, testflight):
+for url in (mac, windows, testflight):
     if url and not re.fullmatch(r"https://[^\s\"'<>]+", url):
         sys.exit(f"not an https URL: {url}")
 
@@ -38,6 +39,9 @@ page = (here / "join.html").read_text()
 if mac:
     page = page.replace('<li data-os="mac"><span>macOS (Apple silicon)</span><span class="soon" data-url="">',
                         f'<li data-os="mac"><span>macOS (Apple silicon)</span><span class="soon" data-url="{mac}">')
+if windows:
+    page = page.replace('<li data-os="windows"><span>Windows 11 (x64)</span><span class="soon" data-url="">',
+                        f'<li data-os="windows"><span>Windows 11 (x64)</span><span class="soon" data-url="{windows}">')
 if testflight:
     page = page.replace('<li data-os="ios"><span>iPhone</span><span class="soon" data-url="">',
                         f'<li data-os="ios"><span>iPhone</span><span class="soon" data-url="{testflight}">')

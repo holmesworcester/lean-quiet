@@ -37,10 +37,10 @@ cat > "$app/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleExecutable</key><string>LeanQuiet</string>
-<key>CFBundleIdentifier</key><string>local.leanquiet.desktop</string>
+<key>CFBundleIdentifier</key><string>${BUNDLE_ID:-local.leanquiet.desktop}</string>
 <key>CFBundleName</key><string>Lean Quiet</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>CFBundleShortVersionString</key><string>${VERSION:-0.1.0}</string>
 <key>CFBundleVersion</key><string>${BUILD_NUMBER:-1}</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
@@ -50,5 +50,12 @@ cat > "$app/Contents/Info.plist" <<PLIST
 </dict></array>
 </dict></plist>
 PLIST
-codesign --force --sign - "$app"
+# Development builds are ad-hoc signed. A release passes SIGN_IDENTITY (a
+# Developer ID Application identity, in SIGN_KEYCHAIN for SSH sessions):
+# hardened runtime and a secure timestamp, as notarization requires.
+if [ -n "${SIGN_IDENTITY:-}" ]; then
+  codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" ${SIGN_KEYCHAIN:+--keychain "$SIGN_KEYCHAIN"} "$app"
+else
+  codesign --force --sign - "$app"
+fi
 echo "$app"

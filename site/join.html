@@ -54,11 +54,12 @@ code { font: .85rem ui-monospace, SFMono-Regular, Menlo, monospace; word-break: 
   <h2>Get Lean Quiet</h2>
   <ul id="downloads">
     <li data-os="android"><span>Android</span><a href="https://github.com/holmesworcester/lean-quiet/releases/latest/download/lean-quiet-android.apk">Download APK</a></li>
-    <li data-os="linux"><span>Linux (x86-64)</span><a href="https://github.com/holmesworcester/lean-quiet/releases/latest/download/lean-quiet-linux-x86_64.tar.gz">Download</a></li>
+    <li data-os="linux"><span>Linux (x86-64)</span><span><a href="https://github.com/holmesworcester/lean-quiet/releases/latest/download/lean-quiet-linux-amd64.deb">.deb</a> · <a href="https://github.com/holmesworcester/lean-quiet/releases/latest/download/lean-quiet-linux-x86_64.tar.gz">.tar.gz</a></span></li>
+    <li data-os="windows"><span>Windows 11 (x64)</span><span class="soon" data-url="">Coming soon</span></li>
     <li data-os="mac"><span>macOS (Apple silicon)</span><span class="soon" data-url="">Coming soon</span></li>
     <li data-os="ios"><span>iPhone</span><span class="soon" data-url="">Coming soon (TestFlight)</span></li>
   </ul>
-  <p class="muted" id="linux-help" hidden>Linux: <code>tar xzf lean-quiet-linux-x86_64.tar.gz &amp;&amp; lean-quiet/install.sh</code> installs it for you and lets your browser open invite links.</p>
+  <p class="muted" id="linux-help" hidden>Linux: <code>sudo apt install ./lean-quiet-linux-amd64.deb</code> on Debian or Ubuntu; elsewhere <code>tar xzf lean-quiet-linux-x86_64.tar.gz &amp;&amp; lean-quiet/install.sh</code>. Either lets your browser open invite links in Lean Quiet.</p>
   <p class="muted">The invite is the part of this page's address after <code>#</code>. Browsers never send that part to a server, and this page sends it nowhere: it only hands it to the app. <a href="https://github.com/holmesworcester/lean-quiet">Source</a></p>
 </main>
 <script>
@@ -95,7 +96,7 @@ code { font: .85rem ui-monospace, SFMono-Regular, Menlo, monospace; word-break: 
   // An iPad's Safari says "Macintosh" but has a touch screen.
   var ipad = /Macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
   var os = /Android/i.test(ua) ? 'android' : (/iPhone|iPad|iPod/i.test(ua) || ipad) ? 'ios'
-    : /Macintosh|Mac OS X/i.test(ua) ? 'mac' : /Linux/i.test(ua) ? 'linux' : '';
+    : /Macintosh|Mac OS X/i.test(ua) ? 'mac' : /Windows/i.test(ua) ? 'windows' : /Linux/i.test(ua) ? 'linux' : '';
   var mine = os && document.querySelector('#downloads [data-os="' + os + '"]');
   if (mine) { mine.className = 'mine'; mine.parentNode.insertBefore(mine, mine.parentNode.firstChild); }
   show('linux-help', os === 'linux' || os === '');

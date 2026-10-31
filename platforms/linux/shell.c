@@ -78,8 +78,11 @@ static xcb_atom_t atom(const char *s) {
 }
 static unsigned setting(const char *s, unsigned fallback, unsigned lo, unsigned hi) {
     const char *v = getenv(s); if (!v) return fallback;
-    char *end; unsigned long n = strtoul(v, &end, 10);
-    if (*end || n < lo || n > hi) fail("invalid window size/scale");
+    /* Digits by hand: under _GNU_SOURCE, glibc 2.38's headers turn strtoul
+       into __isoc23_strtoul, and the release must run on glibc 2.34. */
+    unsigned long n = 0; const char *p = v;
+    for (; *p >= '0' && *p <= '9' && n <= hi; p++) n = n * 10 + (unsigned long)(*p - '0');
+    if (p == v || *p || n < lo || n > hi) fail("invalid window size/scale");
     return n;
 }
 static void buffer_free(void) {
