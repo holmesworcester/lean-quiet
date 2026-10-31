@@ -1,0 +1,170 @@
+{
+  "sum_project_node": {
+    "status": "runtime-witness",
+    "theorem": "Connection.sum_project_node",
+    "witness": "Vacuity.IdentityConnection.projection",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "connect_iff_node": {
+    "status": "runtime-witness",
+    "theorem": "Connection.connect_iff_node",
+    "witness": "Vacuity.IdentityConnection.nodeConnect",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "members_iff_node": {
+    "status": "runtime-witness",
+    "theorem": "Connection.members_iff_node",
+    "witness": "Vacuity.IdentityConnection.nodeMembers",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "recipients_iff_node": {
+    "status": "runtime-witness",
+    "theorem": "Connection.recipients_iff_node",
+    "witness": "Vacuity.IdentityConnection.nodeRecipients",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "node_settles": {
+    "status": "runtime-witness",
+    "theorem": "Connection.node_settles",
+    "witness": "Vacuity.IdentityConnection.nodeSettles",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "wire_kinds": {
+    "status": "runtime-witness",
+    "theorem": "Connection.wire_kinds",
+    "witness": "Vacuity.IdentityConnection.wireKinds",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "local_kinds": {
+    "status": "runtime-witness",
+    "theorem": "Connection.local_kinds",
+    "witness": "Vacuity.IdentityConnection.localKinds",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "meV_node": {
+    "status": "runtime-witness",
+    "theorem": "Connection.meV_node",
+    "witness": "Vacuity.IdentityConnection.meNode",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "trusts_live": {
+    "status": "runtime-witness",
+    "theorem": "Connection.trusts_live",
+    "witness": "Vacuity.IdentityConnection.trustsLive",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "rooms_model": {
+    "status": "runtime-witness",
+    "theorem": "Connection.rooms_model",
+    "witness": "Vacuity.IdentityConnection.roomsModel",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "rooms_trusted": {
+    "status": "runtime-witness",
+    "theorem": "Connection.rooms_trusted",
+    "witness": "Vacuity.IdentityConnection.roomsTrusted",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "rooms_complete": {
+    "status": "runtime-witness",
+    "theorem": "Connection.rooms_complete",
+    "witness": "Vacuity.IdentityConnection.roomsComplete",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "rooms_cut": {
+    "status": "runtime-witness",
+    "theorem": "Connection.rooms_cut",
+    "witness": "Vacuity.IdentityConnection.roomsCut",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "rooms_removed": {
+    "status": "runtime-witness",
+    "theorem": "Connection.rooms_removed",
+    "witness": "Vacuity.IdentityConnection.roomsRemoved",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "opened_endpoint": {
+    "status": "runtime-witness",
+    "theorem": "Connection.opened_endpoint",
+    "witness": "Vacuity.IdentityConnection.openedEndpoint",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "established_endpoint": {
+    "status": "runtime-witness",
+    "theorem": "Connection.established_endpoint",
+    "witness": "Vacuity.IdentityConnection.establishedEndpoint",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "answer_trusted": {
+    "status": "runtime-witness",
+    "theorem": "Connection.answer_trusted",
+    "witness": "Vacuity.IdentityConnection.answerTrusted",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "resend_trusted": {
+    "status": "runtime-witness",
+    "theorem": "Connection.resend_trusted",
+    "witness": "Vacuity.IdentityConnection.resendTrusted",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "bare_takes_only_join": {
+    "status": "runtime-witness",
+    "theorem": "Connection.bare_takes_only_join",
+    "witness": "Vacuity.IdentityConnection.bareJoin",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply."
+  },
+  "reads_members": {
+    "status": "kernel-witness",
+    "theorem": "Community.reads_members",
+    "witness": "Vacuity.IdentityConnection.readsMembers",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Closed theorem application to deterministic concrete community/invitation/node-seed data; opaque crypto values remain symbolic in the kernel. Native fixture also executes actual join and proves only its request travels."
+  },
+  "reads_recipients": {
+    "status": "kernel-witness",
+    "theorem": "Community.reads_recipients",
+    "witness": "Vacuity.IdentityConnection.readsRecipients",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Closed theorem application to deterministic concrete community/invitation/node-seed data; opaque crypto values remain symbolic in the kernel. Native fixture also executes actual join and proves only its request travels."
+  },
+  "joinOps_travels": {
+    "status": "kernel-witness",
+    "theorem": "Community.joinOps_travels",
+    "witness": "Vacuity.IdentityConnection.joinTravels",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Closed theorem application to deterministic concrete community/invitation/node-seed data; opaque crypto values remain symbolic in the kernel. Native fixture also executes actual join and proves only its request travels."
+  },
+  "found_travels": {
+    "status": "kernel-witness",
+    "theorem": "Community.found_travels",
+    "witness": "Vacuity.IdentityConnection.foundTravels",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Closed theorem application to deterministic concrete community/invitation/node-seed data; opaque crypto values remain symbolic in the kernel. Native fixture also executes actual join and proves only its request travels."
+  },
+  "stopWaiting_local": {
+    "status": "kernel-witness",
+    "theorem": "Community.stopWaiting_local",
+    "witness": "Vacuity.IdentityConnection.stopLocal",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Closed theorem application to deterministic concrete community/invitation/node-seed data; opaque crypto values remain symbolic in the kernel. Native fixture also executes actual join and proves only its request travels."
+  }
+}
