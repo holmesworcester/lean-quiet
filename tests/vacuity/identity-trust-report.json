@@ -124,5 +124,19 @@
     "witness": "Vacuity.IdentityTrust.noRenaming",
     "module": "tests.vacuity.IdentityTrust",
     "detail": "Actual valid signed profile premise witnessed; global Unforgeable ed25519 Signed remains unresolved by finite data. Wrong-device profile is rejected. No artificial signing-history predicate substitutes for the crypto assumption."
+  },
+  "allowPeer_iff": {
+    "status": "runtime-witness",
+    "theorem": "Net.allowPeer_iff",
+    "witness": "Vacuity.IdentityTrust.netAllowPeer",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Actual signed eight-op Alice/Bob community. Reach is constructed by ingestion; native finite checks establish distinct operation IDs and an empty processing queue. The real trust query accepts Bob and rejects Mallory, and rejects Bob after removal."
+  },
+  "allowPeer_settles": {
+    "status": "runtime-witness",
+    "theorem": "Net.allowPeer_settles",
+    "witness": "Vacuity.IdentityTrust.netAllowSettles",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Actual signed eight-op Alice/Bob community. Reach is constructed by ingestion; native finite checks establish distinct operation IDs and an empty processing queue. The real trust query accepts Bob and rejects Mallory, and rejects Bob after removal."
   }
 }
