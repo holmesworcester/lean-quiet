@@ -179,6 +179,36 @@
     @"the app does not answer on the control channel");
 }
 
+// Explicitly classify short presses, including timer ticks while the finger
+// remains down. UI actions alone are insufficient: some accept both gestures.
+- (void)testShortPressIsNotLong {
+  [self ctl:@"channel"];
+  XCTAssertTrue([self until:60 that:^BOOL(NSString* s) {
+    return [self num:@"total" in:s] >= 100 && [self num:@"mounted" in:s] > 0;
+  }]);
+  [NSThread sleepForTimeInterval:2];
+  NSString* clocks = [self twin];
+  NSLog(@"input clock audit: %@", clocks);
+  XCTAssertLessThan(labs([self num:@"inputClock" in:clocks] - [self num:@"uptimeClock" in:clocks]), 50L,
+                    @"The timer must use UIKit's uptime clock, including after device sleep");
+  CGSize screen = self.app.frame.size;
+  double k = [self scale];
+  long height = [self num:@"viewH" in:[self state]];
+  for (NSNumber* duration in @[@0.08, @0.15, @0.3]) {
+    [[self px:screen.width * k / 2 y:screen.height * k * 0.6] pressForDuration:duration.doubleValue];
+    XCTAssertTrue([self until:10 ask:@"twin" that:^BOOL(NSString* s) {
+      return [self num:@"tap" in:s] == 2;
+    }], @"short press became a long press: %@", [self twin]);
+    XCTAssertEqual([self num:@"viewH" in:[self state]], height, @"short press opened the reaction sheet");
+  }
+  [[self px:screen.width * k / 2 y:screen.height * k * 0.6] pressForDuration:0.8];
+  XCTAssertTrue([self until:10 ask:@"twin" that:^BOOL(NSString* s) {
+    return [self num:@"tap" in:s] == 3;
+  }], @"intentional long press was lost");
+  [self shot:@"press-classification"];
+  [self ctl:@"back"];
+}
+
 - (void)testScrollTapKeyboardSend {
   // The community's conversation, on the seeded data: its rows are read
   // and painted.

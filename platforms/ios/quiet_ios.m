@@ -105,6 +105,16 @@ static bool           lq_shown_pin;
 static uint32_t       lq_shown_frame;
 static uint32_t       lq_tap[3];       // the last list tap reported: kind, x, y
 
+// UITouch.timestamp is measured in systemUptime, not CLOCK_MONOTONIC.
+// A device that has slept can have a large offset between those clocks.
+// Use the same clock and millisecond rounding for timer and touch records.
+static uint64_t lq_input_ms(NSTimeInterval uptime) {
+  return (uint64_t)llround(uptime * 1000);
+}
+static uint64_t lq_input_now(void) {
+  return lq_input_ms(NSProcessInfo.processInfo.systemUptime);
+}
+
 static uint64_t lq_tick(void) {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -130,7 +140,7 @@ static void lq_raw(uint32_t kind, uint32_t a, uint32_t b, uint32_t c, uint64_t m
 }
 
 static void lq_push(uint32_t kind, uint32_t a, uint32_t b, uint32_t c) {
-  lq_raw(kind >= 9 && kind <= 12 ? kind + 7 : kind, a, b, c, lq_tick() / 1000000);
+  lq_raw(kind >= 9 && kind <= 12 ? kind + 7 : kind, a, b, c, lq_input_now());
 }
 
 static void lq_event(uint32_t kind, uint32_t a, uint32_t b, uint32_t c) {
@@ -694,10 +704,11 @@ void lq_twin(char* out, size_t n) {
     CALayer* c  = lq_composer.layer.presentationLayer ?: lq_composer.layer;
     pthread_mutex_lock(&lq_mu);
     snprintf(out, n, "w %u dpi %u pin %d top %u over %u listY %ld svBottom %ld composerTop %ld "
-      "tap %u %u %u luma %u %u %u %u field %s", lq_w, lq_dpi, lq_shown_pin, lq_shown_top_h, lq_over,
+      "tap %u %u %u luma %u %u %u %u inputClock %llu uptimeClock %llu elapsedClock %llu field %s", lq_w, lq_dpi, lq_shown_pin, lq_shown_top_h, lq_over,
       lround(list.origin.y * k), lround(CGRectGetMaxY(sv) * k), lround(c.frame.origin.y * k),
       lq_tap[0], lq_tap[1], lq_tap[2], lq_yhdr[0], lq_yhdr[1], lq_yhdr[2], lq_yhdr[3],
-      lq_text_s ? lq_text_s : "");
+      (unsigned long long)lq_input_now(), (unsigned long long)lq_input_ms(NSProcessInfo.processInfo.systemUptime),
+      (unsigned long long)(lq_tick() / 1000000), lq_text_s ? lq_text_s : "");
     pthread_mutex_unlock(&lq_mu);
   });
 }
@@ -846,7 +857,7 @@ static void lq_report(void) {
     for (UITouch* sample in samples) {
       CGPoint pos = [sample locationInView:lq_root];
       lq_raw(9 + phase, pointer.unsignedIntValue, (int32_t)lround(pos.x * lq_k),
-        (int32_t)lround(pos.y * lq_k), (uint64_t)llround(sample.timestamp * 1000));
+        (int32_t)lround(pos.y * lq_k), lq_input_ms(sample.timestamp));
     }
     pthread_mutex_unlock(&lq_mu);
     if (phase >= 2) [self.ids removeObjectForKey:touch];

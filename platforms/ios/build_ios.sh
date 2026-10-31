@@ -90,6 +90,6 @@ case $kind in
       -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$dd" \
       CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Apple Development" \
       PROVISIONING_PROFILE_SPECIFIER="${IOS_PROFILE:-ce2632b9-021a-472c-96ab-67dba7d10036}" \
-      "$ctl" -quiet build
+      "$ctl" -quiet "${IOS_BUILD_ACTION:-build}"
     echo "$dd/Build/Products/Release-iphoneos/LeanQuiet.app" ;;
 esac

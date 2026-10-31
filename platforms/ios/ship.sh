@@ -63,7 +63,7 @@ lake=$ELAN_HOME/bin/lake
 T=$("$ELAN_HOME/bin/lean" --print-prefix)
 st=${NATIVE_STAGE:-$root/out/ios-stage}
 art=$root/out/ios-sim
-dx="export DEVELOPER_DIR=/Applications/Xcode-26.3.0.app/Contents/Developer IOS_MULTICAST=${IOS_MULTICAST:-0} RELEASE=${RELEASE:-}${IOS_PROFILE:+ IOS_PROFILE=$IOS_PROFILE};"
+dx="export IOS_BUILD_ACTION=${IOS_BUILD_ACTION:-build} DEVELOPER_DIR=/Applications/Xcode-26.3.0.app/Contents/Developer IOS_MULTICAST=${IOS_MULTICAST:-0} RELEASE=${RELEASE:-}${IOS_PROFILE:+ IOS_PROFILE=$IOS_PROFILE};"
 
 # The modules main imports, followed through `import` lines over the
 # roots given (the last is the toolchain's sources), one "<i> <module>" a
@@ -388,6 +388,27 @@ e2e_device() {
   [ "$ok" = 0 ] && tail -1 "$root/out/ios-device/e2e.txt" | grep -q PASS
 }
 
+# Physical-device input gate. XCUITest and the app share the phone's loopback;
+# no Wi-Fi control listener or destructive data reset is needed.
+input_device() {
+  : "${IOS_UDID:?set IOS_UDID to the physical iPhone UDID}"
+  local dest="$root/out/ios-input-device" ok=0
+  mkdir -p "$dest"
+  device
+  on_mac "mkdir -p ~/$dir/out/shots; rm -rf ~/$dir/out/input.xcresult"
+  on_mac "cd ~/$dir/stage/ios && TEST_RUNNER_LEANQUIET_CTL_PORT=$port TEST_RUNNER_LEANQUIET_CTL_TOKEN=$(token) \
+    TEST_RUNNER_LEANQUIET_SHOTS=\$HOME/$dir/out/shots xcodebuild test-without-building \
+    -project LeanQuiet.xcodeproj -scheme LeanQuiet -configuration Release \
+    -destination 'platform=iOS,id=$IOS_UDID' -derivedDataPath ~/$dir/build/dd \
+    -resultBundlePath ~/$dir/out/input.xcresult \
+    -only-testing:LeanQuietUITests/LeanQuietUITests/testShortPressIsNotLong" > "$dest/e2e.log" 2>&1 || ok=$?
+  scp -q -r "$mac:$dir/out/input.xcresult" "$dest/" || true
+  scp -q -r "$mac:$dir/out/shots" "$dest/" || true
+  tail -20 "$dest/e2e.log"
+  grep -Eq '\*\* TEST (EXECUTE )?SUCCEEDED \*\*' "$dest/e2e.log" || ok=1
+  return "$ok"
+}
+
 case $what in
   stage) stage ;;
   sim) sim ;;
@@ -397,6 +418,7 @@ case $what in
   ctl) shift; ctl "$@" ;;
   shot) shot "${2:?file}" ;;
   device) device ;;
+  input-device) input_device ;;
   e2e-device) e2e_device ;;
   ctl-guard) ctl_guard ;;
   run)

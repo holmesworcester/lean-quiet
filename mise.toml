@@ -431,3 +431,7 @@ run = "tests/app/mobile_switcher.sh"
 [tasks."test:vacuity"]
 description = "Build production laws, kernel-check concrete premise witnesses, reject broken fixtures and check the complete README inventory"
 run = "bash tests/vacuity/check.sh"
+
+[tasks."ios:input-device-e2e"]
+description = "Build/sign app and XCUITest runner; verify short vs long presses on a seeded physical iPhone; retain xcresult and screenshots"
+run = "APPLE_SDKS=iphoneos IOS_BUILD_ACTION=build-for-testing platforms/ios/ship.sh input-device"

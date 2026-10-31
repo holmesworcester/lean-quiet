@@ -35,6 +35,17 @@ theorem other_pointer (c : Context) (s : State) (p : Press) (t : Touch)
     (touch c s t).state.press = s.press ∧ (touch c s t).events = [] ∧
       (touch c s t).motion = [] := by simp [touch, hd, hp, follow, hi]
 
+/-- An early tick cannot mark a press held or emit a long press. The clock
+premise is an adapter obligation: a different epoch can violate it even when
+only one physical frame elapsed. This proves the runtime `advance` branch. -/
+theorem early_tick (c : Context) (s : State) (p : Press) (time : Nat)
+    (hp : s.press = some p) (ht : time - p.first.time < 500) :
+    advance c s (.tick time) = ⟨s, [], []⟩ := by
+  by_cases h : p.travel > p.context.slop ∨ p.held
+  · simp [advance, hp, classify, h]
+  · simp [advance, hp, classify, h, ht]
+    rfl
+
 /-- The event the app receives contains the mapped DOWN coordinates. -/
 theorem release_event (s : State) (p : Press) (t : Touch)
     (hi : t.id = p.first.id) (hu : t.phase = 2)

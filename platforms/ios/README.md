@@ -208,3 +208,33 @@ These findings come from `ios:mdns` (Simulator) and `ios:mdns-device`
       RESULT TCP to the Mac (out) and from it (in): PASS
 
   In the Simulator all three pass.
+
+## Touch clock contract and regression gate
+
+`UITouch.timestamp` uses `NSProcessInfo.systemUptime` (Apple's
+[timestamp contract](https://developer.apple.com/documentation/uikit/uitouch/timestamp)).
+Both the shell's timer events and touch records use that clock and the same
+millisecond conversion. `CLOCK_MONOTONIC` remains a profiling clock; it must
+not be compared with UIKit touch timestamps. Sleep can separate their epochs,
+turning the first timer tick after DOWN into an apparent long press.
+
+`Input.early_tick` proves the running classifier does not change a press or
+emit an event before 500ms **provided the timestamp difference is below 500ms**.
+It does not prove UIKit or the native clock adapter meets that premise.
+`host:seam` exercises interleaved ticks at large uptimes and retains the
+mixed-clock false-long counterexample. Native XCUITest explicitly checks short
+80/150/300ms presses remain taps and an 800ms hold remains a long press, rather
+than inferring gesture type from controls which accept either gesture.
+
+The simulator runs this in `ios:sim-e2e`. For a physical phone containing at
+least 100 demo messages, hold the Mac lease, enable Developer Mode/unlock it,
+and run `MAC=user@mac MAC_DIR=private-dir IOS_UDID=physical-udid
+mise run ios:input-device-e2e`. The task builds and signs the app and test runner,
+uses on-device loopback for test control, preserves the database and retains
+`out/ios-input-device/e2e.log`, screenshots and `input.xcresult` on failure.
+It needs the normal device signing keychain and wildcard profile described
+above. The release/manual CI entry is `ci/local.sh release-ios-input` (alias
+`ios-input-device`); deterministic raw-input tests remain in the default app
+gate. Prefer a phone that has been locked/asleep since boot: the diagnostic
+clock audit records the elapsed/awake difference. The suite makes no claim
+about a hard wall-clock display deadline or verification of UIKit itself.

@@ -41,6 +41,15 @@ def unit : IO Unit := do
     ("IME Search", [.imeAction 3], [])]
   for (name, es, expected) in cases do
     check name ((Input.run c {} es).events == expected)
+  -- A phone that has slept has different elapsed and awake clocks. The
+  -- classifier cannot infer their epochs: explicitly retain the failing
+  -- mixed-clock counterexample alongside the valid interleaved trace.
+  for uptime in [1000, 4294967296 + 1000, 10000000000] do
+    let short := [t 0 uptime 100 120, .tick (uptime + 16), .tick (uptime + 100),
+      t 2 (uptime + 150) 100 120]
+    check "interleaved short press at long device uptime" ((Input.run c {} short).events == [.tap .list 100 329])
+    let mixed := [t 0 uptime 100 120, .tick (uptime + 3600016), t 2 (uptime + 150) 100 120]
+    check "mixed epochs reproduce the iPhone false long press" ((Input.run c {} mixed).events == [.long .list 100 329])
   let other := { c with frame := Surface.make { g with ime := 0 } false 32 10 10 704 }
   let stamped := Input.run other { frames := [(1, c), (2, other)] }
     [.touchOn 1 ⟨0, 1, ⟨100, 120⟩, 1000⟩, .touchOn 2 ⟨2, 1, ⟨100, 120⟩, 1100⟩]

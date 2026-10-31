@@ -9,6 +9,7 @@ import engine.renderer.InputLaws
 #print axioms Surface.visible_in_viewport
 #print axioms Surface.pinned_visible
 #print axioms Surface.newest_drawn
+#print axioms Input.early_tick
 #print axioms Input.tap_page
 #print axioms Input.tap_content
 
