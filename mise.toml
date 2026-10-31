@@ -427,3 +427,7 @@ run = "tests/app/skeleton.sh"
 [tasks."host:mobile-switcher"]
 description = "Shared phone switcher: native densities, identity, real tap dispatch and scroll extent"
 run = "tests/app/mobile_switcher.sh"
+
+[tasks."test:vacuity"]
+description = "Build production laws, kernel-check concrete premise witnesses, reject broken fixtures and check the complete README inventory"
+run = "bash tests/vacuity/check.sh"

@@ -10,7 +10,7 @@
 # them.
 # `reorg` checks the reorg's import rewriter for branches begun on the old
 # layout (ci/reorg-imports.py --self-test).
-#   ci/local.sh [part...]   (default: check engine mdns qr net app visual zoom readme reorg)
+#   ci/local.sh [part...]   (default: check engine mdns qr net app visual zoom readme reorg vacuity)
 # SKIP_TCP=1 builds the TCP suites but omits their runs in a socket sandbox.
 # `runtime` is an additional gate on machines with Lean/libuv sources.
 set -uo pipefail
@@ -20,7 +20,7 @@ export PATH="$ELAN_HOME/bin:$PATH"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 logs=$top/out/ci
 mkdir -p "$logs"
-parts=("${@:-check engine mdns qr net app visual zoom readme reorg}")
+parts=("${@:-check engine mdns qr net app visual zoom readme reorg vacuity}")
 read -r -a parts <<< "${parts[*]}"
 gate() {
   case $1 in
@@ -42,6 +42,7 @@ gate() {
     pixel-scroll) mise run android:scroll-measure ;;
     readme) mise run readme:links ;;
     reorg) mise run reorg:test ;;
+    vacuity) mise run test:vacuity ;;
     *) echo "no part $1" >&2; return 2 ;;
   esac
 }
