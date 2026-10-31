@@ -145,5 +145,12 @@
     "witness": "Vacuity.WireMore.writtenHot",
     "module": "tests.vacuity.WireMore",
     "detail": "Actually writes greeting into empty node/store, independently proves returned stored=[msg.id], then proves that id recorded hot at time100. Synthetic generic family/held-store fixture; not collected real-user traffic."
+  },
+  "intakeConn_conn": {
+    "status": "kernel-witness",
+    "theorem": "Engine.intakeConn_conn",
+    "witness": "Vacuity.WireMore.connectionScope",
+    "module": "tests.vacuity.WireMore",
+    "detail": "Mixed concrete batch contains shared greeting(kind1), local secret(kind2), connection handshake(kind3). Proves exact intake=[handshake], applies scope/membership theorem and separately proves shared/local rejection. Synthetic generic scope fixture; production Noise payload validation is outside this intake law."
   }
 }

@@ -139,4 +139,29 @@ theorem writtenHot : (msg.id, 100) ∈ ((blankNode.onWrite (setup.sync .a) [msg]
   write_hot setup .a blankNode [msg] 100 ({} : Held Unit) rfl
     (by rw [writtenIds]; decide) msg.id (by rw [writtenIds]; simp)
 
+-- Mixed incoming bare-wire batch: shared message and local secret are
+-- rejected, while the connection handshake is admitted.
+def handshake : Op := Op.make 3 [] "synthetic handshake payload".toUTF8
+def wireFamily : Family Unit :=
+  { fam with scope := fun o => if o.kind = 1 then Scope.shared room else if o.kind = 3 then Scope.conn else Scope.local }
+def mixedInput : List Op := [msg, secret, handshake]
+theorem connectionOnly : intakeConn wireFamily mixedInput = [handshake] := rfl
+
+theorem connectionScope : wireFamily.scope handshake = .conn ∧ handshake ∈ mixedInput :=
+  intakeConn_conn wireFamily (by rw [connectionOnly]; simp)
+
+theorem localRejected : secret ∉ intakeConn wireFamily mixedInput := by
+  rw [connectionOnly]
+  intro h
+  have hk := congrArg Op.kind (List.mem_singleton.mp h)
+  change (2 : UInt8) = 3 at hk
+  cases hk
+
+theorem sharedRejected : msg ∉ intakeConn wireFamily mixedInput := by
+  rw [connectionOnly]
+  intro h
+  have hk := congrArg Op.kind (List.mem_singleton.mp h)
+  change (1 : UInt8) = 3 at hk
+  cases hk
+
 end Vacuity.WireMore
