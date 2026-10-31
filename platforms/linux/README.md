@@ -52,7 +52,7 @@ are trusted; `Desktop.settled_no_hold` proves the Lean coverage implication.
 | `linux:input` | Native editor/pixel conversion with ASan and UBSan |
 | `linux:e2e` | Build/setup; real Xvfb pointer/keyboard, themes, resize, clipboard and scrollbar at scale 1/2 and without MIT-SHM |
 | `host:desktop-negative` | Reject deliberately broken layout laws, native editor, dispatch, resize and X11 presentation |
-| `linux:links` | Build/setup; install into private XDG folders; `leanquiet://` links on a cold start, by `xdg-open` and by a second launch, other databases' and stale sockets |
+| `linux:links` | Build/setup; install into private XDG folders; `leanquiet://` links on a cold start, by `xdg-open` (generic, XFCE's `exo-open`, GNOME's `gio`) and by a second launch, other databases' and stale sockets |
 | `linux:links-negative` | Reject the old empty `lq_links`, one socket for every database, and a window never raised |
 
 Local CI invokes these same tasks. Failure artifacts stay under `out/desktop`,

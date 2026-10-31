@@ -148,6 +148,19 @@ try:
     check(p.returncode == 0 and (OUT / 'prefix/opt/lean-quiet/lean-quiet').read_bytes() == exe.read_bytes() and
           f'Exec={OUT}/prefix/bin/lean-quiet %u' in (OUT / 'prefix/share/applications/lean-quiet.desktop').read_text(),
           'install.sh installs a release folder (lean-quiet, assets/, install.sh, icon) into a PREFIX')
+    # The desktops' own openers find the entry too: exo-open on XFCE, gio on
+    # GNOME. A launcher that records its arguments stands in for the app.
+    opened = OUT / 'opened'
+    (OUT / 'prefix/bin/lean-quiet').write_text(f'#!/bin/sh\necho "$@" > {opened}\n')
+    for de, opener in [('XFCE', 'exo-open'), ('GNOME', 'gio')]:
+        if not shutil.which(opener):
+            print(f'SKIP {de}: no {opener}', flush=True)
+            continue
+        opened.unlink(missing_ok=True)
+        p = sp.run(['xdg-open', link('leanquiet', 0)], env=dict(env, XDG_DATA_HOME=str(OUT / 'prefix/share'),
+                   XDG_CURRENT_DESKTOP=de), stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=30)
+        check(p.returncode == 0 and opened.exists() and opened.read_text().strip() == link('leanquiet', 0),
+              f'xdg-open on {de} ({opener}) runs the entry with the link')
     p = sp.run(['sh', str(release / 'install.sh')], env=dict(env, PREFIX=str(OUT / 'with space')),
                stdout=sp.PIPE, stderr=sp.STDOUT, text=True)
     check(p.returncode != 0 and 'an unquoted Exec cannot hold' in p.stdout and not (OUT / 'with space').exists(),
