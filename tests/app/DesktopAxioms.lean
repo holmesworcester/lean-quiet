@@ -39,6 +39,9 @@ example : (Desktop.zoomLayout 720 false 80).nav.w = 110 ∧ (Desktop.layout 720 
 #print axioms Scrollbar.exact
 #print axioms Scrollbar.seek_below
 #print axioms Scrollbar.seek_mono
+#print axioms Scrollbar.rank_mono
+#print axioms Scrollbar.rank_le
+#print axioms Scrollbar.rank_zero
 #print axioms Scrollbar.ranks_fit
 #print axioms Scrollbar.ranks_mono
 #print axioms Scrollbar.ranks_newest

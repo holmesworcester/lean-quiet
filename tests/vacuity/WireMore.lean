@@ -173,8 +173,10 @@ def offeredEverywhere := write_offers_all setup .a peerNode [msg] 100 ({} : Held
 
 def blankNode : Node := { ix := {}, floor := 0 }
 theorem writtenIds : ((blankNode.onWrite (setup.sync .a) [msg] 100).run ({} : Held Unit)).1.2.stored = [msg.id] := by
+  have hd : (setup.sync .a).fam.durable msg = true := durable_of_room _ (rfl : setup.fam.room msg = some room)
   simp only [Node.onWrite, HeldM.run_bind, store_run, Node.put,
-    intake_mine (setup.sync .a).fam (ops := [msg]) (fun y hy => by rw [List.mem_singleton.mp hy]; decide)]
+    intake_mine (setup.sync .a).fam (ops := [msg]) (fun y hy => by rw [List.mem_singleton.mp hy]; exact hd)
+      (fun y hy => by rw [List.mem_singleton.mp hy]; decide)]
   rw [write_one (setup.sync .a) blankNode msg ({} : Held Unit) rfl]
   simp [Node.fanout, blankNode, -bind_pure_comp, map_eq_pure_bind, HeldM.run_bind, HeldM.run_pure, finish_run, Node.heat]
 

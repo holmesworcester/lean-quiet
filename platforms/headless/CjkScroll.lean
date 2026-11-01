@@ -73,8 +73,6 @@ private def suite (args : List String) : IO Unit := do
       throw (IO.userError "CJK scroll did not finish with painted content")
     unless p95 < 16667 do throw (IO.userError "CJK scroll exceeds 60 Hz step budget")
     pure ()).run s
-  let (hits, misses, bytes, peak, entries) ← Ttf.Memo.stats
-  IO.println s!"CJK cache: {hits} hits, {misses} misses, {bytes} charged bytes, peak {peak}, {entries} entries"
   (← IO.getStdout).flush
   IO.Process.exit 0
 

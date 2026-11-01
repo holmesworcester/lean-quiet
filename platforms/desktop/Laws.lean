@@ -34,18 +34,19 @@ theorem settled_no_hold (s : App.St) (h : framePainted s = true) (hc : s.page = 
   simpa using this
 
 /-- **Pinned to the newest message, the thumb rests on the track's bottom**:
-the bar `Desktop.scrollbar` returns for the running app. -/
+the bar `Desktop.scrollbar` returns for the running app (with no seek
+pending: while one is, the thumb is where the drag put it). -/
 theorem pinned_bottom (g : Layout) (s : App.St) (bar : Scrollbar.Bar) (hb : s.b = 0)
-    (h : scrollbar g s = some bar) :
+    (hs : s.seek = none) (h : scrollbar g s = some bar) :
     bar.thumb.y + bar.thumb.h = bar.track.y + bar.track.h := by
   unfold scrollbar at h
   split at h
   · simp at h
-  · have hr := _root_.Scrollbar.ranks_newest (column s) (App.geom s).viewNow (by show 0 < 12; decide)
+  · have hr := _root_.Scrollbar.ranks_newest (column s) (App.geom s).viewNow
     rcases hq : _root_.Scrollbar.ranks (column s) s.b (App.geom s).viewNow with ⟨n, k, r⟩
     rw [hb] at hq h
     rw [hq] at hr h
-    simp only at hr
+    simp only [hs] at hr h
     subst hr
     exact newest_bottom h
 

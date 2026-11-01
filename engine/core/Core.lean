@@ -147,11 +147,15 @@ takes, in their room (a community). Conn ops cross the bare wire to one
 peer during a connection's handshake and are never synced. Local ops
 are a node's own bookkeeping (its accepted communities, pending links,
 secrets), judged and stored like any op, but never offered to a peer
-and never taken from one (Engine.Sync). -/
+and never taken from one (Engine.Sync). Ephemeral ops are the app's
+working state (where a window is, unsent text): judged and read like
+any op, but only in an in-memory log (`Held`), never stored in SQLite
+(`intake` drops them, `stored_durable`), never offered and never taken. -/
 inductive Scope where
   | shared (room : Id)
   | conn
   | «local»
+  | ephemeral
   deriving DecidableEq, Inhabited
 
 /-- What an application supplies: each op type's validator, the index
