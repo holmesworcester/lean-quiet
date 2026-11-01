@@ -22,13 +22,11 @@
     },
     {
       "path": "app/settings",
-      "planned": "family",
       "summary": "This device's preferences, each a local op."
     },
     {
       "path": "app/settings/appearance",
-      "planned": "local",
-      "summary": "System, light or dark. Today a side table (engine/renderer/ThemeStore.lean).",
+      "summary": "System, light or dark: the newest wins.",
       "preview": "settings.appearance"
     },
     {

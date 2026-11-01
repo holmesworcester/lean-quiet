@@ -86,6 +86,10 @@ private def run : IO Unit := do
     let d ← Desktop.start sm.io (1100*scale) (760*scale) db none dpi
     require (d.baseDpi == dpi && d.dpi == dpi && d.app.font.cell == 14*scale)
       s!"desktop backing raster {scale}"
+    -- No community: no shell. In one, the sidebar keeps its CSS width.
+    require (d.layout.nav.w == 0) "a sidebar without a community"
+    let (_, s) ← (App.found "Zoom" "Alex").run d.app
+    let d ← Desktop.tick { d with app := s }
     require (d.layout.nav.w == 220*scale) "Retina changed apparent sidebar width"
     let d ← Desktop.zoom d 150
     require (d.requestedZoom == 150 && d.dpi == 240*scale && d.app.font.cell == 21*scale)

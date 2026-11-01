@@ -212,7 +212,7 @@ def joinTravels := Community.joinOps_travels ed25519 invite (sha256 "vacuity-car
 def stopLocal := Community.stopWaiting_local ed25519 requestB.id
 def foundTravels := Community.found_travels ed25519 (DB.empty : DB Community.Fact)
   (sha256 "vacuity-founder".toUTF8) "New test community".toUTF8 "Founder".toUTF8 1
-  (sha256 "vacuity-content".toUTF8) eA staticA
+  (Bytes.digest "vacuity-content".toUTF8) (Bytes.fit 32 eA) (Bytes.fit 32 staticA)
 
 /-! ## A session's end forgets its keys (`Connection.close_forgets` and the purge laws)
 

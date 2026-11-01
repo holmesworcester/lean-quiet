@@ -7,7 +7,7 @@ namespace ContentKey
 
 /-- Local: a 32-byte key, filed under its id. -/
 def check : Body → Option Fact
-  | ⟨c, k⟩ => if k.size = 32 then some ⟨c, kidOf cryptoSeal k, k⟩ else none
+  | ⟨c, k⟩ => if h : k.size = 32 then some ⟨c, kidOf cryptoSeal ⟨k, h⟩, k⟩ else none
 
 end ContentKey
 

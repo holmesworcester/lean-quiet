@@ -4,7 +4,7 @@
     "theorem": "Community.Seal.Good",
     "witness": "Vacuity.SealAudit.goodConditional",
     "module": "tests.vacuity.SealAudit",
-    "detail": "Contract repaired: DH uses 32-byte private keys; AEAD uses a 32-byte key, 24-byte nonce, plaintext below 274877906817 bytes and associated data below 2^64 bytes. The payload bound accounts for the stream cipher's ceiling to complete or partial blocks, beyond the outer AEAD check. Public keys and hashes supply 32-byte outputs. Concrete production equalities and malformed-input regressions pass; the universal native cryptographic contract remains an explicit unproved assumption, not a finite-test conclusion.",
+    "detail": "Key and nonce sizes are in the types (Key32, Nonce24), so the contract has no size premise. The running suite cryptoSeal has it given the crypto trust file (engine/core/Trust.lean, Trust.NativeCrypto: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes) (cryptoSeal_good); the bridge is exercised and the executable checks native roundtrips across 64-byte block boundaries. Conditional on the trust file, which finite roundtrips cannot prove.",
     "exercise": true
   },
   "openSealed_seal": {
@@ -12,7 +12,7 @@
     "theorem": "Community.openSealed_seal",
     "witness": "Vacuity.SealAudit.openSealedConditional",
     "module": "tests.vacuity.SealAudit",
-    "detail": "Correctly scoped theorem applied to concrete 32-byte private/content keys, 24-byte nonce and supported payload/associated-data sizes. Key/nonce/payload premises have kernel proofs; hashed key-id/associated-data sizes and real native DH, wrapping and message roundtrips pass executable checks. The universal cryptoSeal.Good premise remains conditional; former malformed-key/nonce counterexamples are outside the repaired contract.",
+    "detail": "Applied at the running suite to a concrete 32-byte key and 24-byte nonce (sizes by construction) and a 46-byte text; the plaintext bound is a kernel proof, the associated-data bound is decided. Conditional only on the trust file; the executable opens the app's own sealedPost output through openStored. Mutation control: openSealed taking its nonce from the end fails the proof.",
     "exercise": true
   },
   "member_opens": {
@@ -20,7 +20,7 @@
     "theorem": "Community.member_opens",
     "witness": "Vacuity.SealAudit.memberOpensConditional",
     "module": "tests.vacuity.SealAudit",
-    "detail": "Correctly scoped theorem applied to concrete 32-byte private/content keys, 24-byte nonce and supported payload/associated-data sizes. Key/nonce/payload premises have kernel proofs; hashed key-id/associated-data sizes and real native DH, wrapping and message roundtrips pass executable checks. The universal cryptoSeal.Good premise remains conditional; former malformed-key/nonce counterexamples are outside the repaired contract.",
+    "detail": "Applied at the running suite to concrete sized keys and nonce; conditional only on the trust file. Native wrap/unbox/open roundtrips pass. Mutation control: a key id that carries the key fails the proof.",
     "exercise": true
   },
   "unbox_box": {
@@ -28,7 +28,7 @@
     "theorem": "Community.unbox_box",
     "witness": "Vacuity.SealAudit.unboxConditional",
     "module": "tests.vacuity.SealAudit",
-    "detail": "Correctly scoped theorem applied to concrete 32-byte private/content keys, 24-byte nonce and supported payload/associated-data sizes. Key/nonce/payload premises have kernel proofs; hashed key-id/associated-data sizes and real native DH, wrapping and message roundtrips pass executable checks. The universal cryptoSeal.Good premise remains conditional; former malformed-key/nonce counterexamples are outside the repaired contract.",
+    "detail": "Applied at the running suite to concrete sized secrets and content key; conditional only on the trust file. Mutation controls: unbox reading the ephemeral key one byte late, and box leaving it out, fail the proof.",
     "exercise": true
   },
   "openBody_sealBody": {
@@ -37,6 +37,38 @@
     "witness": "Vacuity.SealAudit.openSealedConditional",
     "module": "tests.vacuity.SealAudit",
     "exercise": true,
-    "detail": "The concrete sealed-body fixture applies this supporting body law through openSealed_seal. Its 32-byte key, 24-byte nonce and plaintext-size premises have kernel proofs; the actual associated-data size and native roundtrip are checked. The size-aware universal cryptoSeal.Good assumption remains conditional."
+    "detail": "Applied through openSealed_seal at the running suite with sized key and nonce; conditional only on the trust file."
+  },
+  "cryptoSeal_good": {
+    "status": "conditional",
+    "theorem": "Community.cryptoSeal_good",
+    "witness": "Vacuity.SealAudit.goodConditional",
+    "module": "tests.vacuity.SealAudit",
+    "exercise": true,
+    "detail": "The running suite is good given the crypto trust file (engine/core/Trust.lean, Trust.NativeCrypto: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes). tests/vacuity/CryptoTrust.lean checks each part on the native crates and fails a broken model of each in the kernel. Mutation control: cryptoSeal opening under the zero nonce fails the proof."
+  },
+  "sealedPost_opens": {
+    "status": "conditional",
+    "theorem": "Community.sealedPost_opens",
+    "witness": "Vacuity.SealAudit.postOpensConditional",
+    "module": "tests.vacuity.SealAudit",
+    "exercise": true,
+    "detail": "The app's sealedPost, for a 32-byte community id, sized key and nonce and a 46-byte text: every premise is discharged but the trust file. The executable decodes the actual op and opens it through openStored to the text; another key, another community, a same-size tampered body and stored keys of 0/1/31/33/64 bytes open nothing. Mutation control: a post bound to another community fails the proof."
+  },
+  "wrapKey_opens": {
+    "status": "conditional",
+    "theorem": "Community.wrapKey_opens",
+    "witness": "Vacuity.SealAudit.wrapOpensConditional",
+    "module": "tests.vacuity.SealAudit",
+    "exercise": true,
+    "detail": "The app's wrapKey to a node key, opened by unbox with its secret: conditional only on the trust file. The executable unboxes the actual wrap op to the content key; another secret unboxes nothing. Mutation control: a wrap to the approver's own key fails the proof."
+  },
+  "member_reads": {
+    "status": "conditional",
+    "theorem": "Community.member_reads",
+    "witness": "Vacuity.SealAudit.memberReadsConditional",
+    "module": "tests.vacuity.SealAudit",
+    "exercise": true,
+    "detail": "wrapKey, unbox, sealedPost and openStored together: conditional only on the trust file. The executable runs the whole path on the actual ops and recovers the text."
   }
 }
