@@ -38,7 +38,7 @@ Run `mise run android:lifecycle-e2e`, or `ci/local.sh android-lifecycle`.
 `ci/local.sh android-ui` invokes both the existing twin UI suite and this task.
 The lifecycle task builds the actual TwinDemo APK, a separate instrumentation
 APK, and the test IME; creates its own `lean-quiet-lifecycle` AVD; then runs the
-baseline, six independently compiled production mutations, and the restored
+baseline, eight independently compiled runtime mutations, and the restored
 baseline. The default owned emulator port is 5646 (`LIFECYCLE_PORT` overrides it).
 It refuses to replace an occupied emulator and tears down its own process.
 
@@ -57,7 +57,7 @@ showed an empty actual PID paired with the old run's PID. Replaying the same
 saved APKs after tagging observations reached the intended stale-callback
 assertion; no production code or assertion deadline changed for this repair.
 
-The six controls separately restore configuration-close behavior, permit stale
+The first six controls separately restore configuration-close behavior, permit stale
 callbacks, restore `exit`, drop unfocused show, ignore pending hide, and retain
 user-dismissed show. Each mutant must compile and fail its exact unchanged UI
 assertion. Build failure, host exception, signal, native crash, and Java crash
@@ -155,3 +155,29 @@ Host CPU affinity was not exclusive. Aggregate native handoff time was
 58.9 ms versus 56 ms before, so these results establish neither a timing
 improvement nor a universal elapsed-time bound. The theorem target remains
 each pipeline stage's completed steps; native timing is a separate measurement.
+
+The owned-editor boundary adds a seventh control for the explicit legacy
+TwinDemo client. Activity recreation retains its running Lean main, so opting
+into legacy editing only once leaves a new Field disabled. TwinDemo reasserts
+that capability on an actual available-surface event; Main continues to use
+semantic owner installation. Removing that branch must fail the original
+first-composer-tap-after-recreation assertion at its unchanged 1.2-second limit.
+The preceding six-control results remain historical evidence for their stated
+source. The combined follow-up below records the extended gate separately.
+
+The eighth control removes the Activity startup correction that restores the
+manifest's `stateHidden|adjustResize` policy after `NativeActivity.onCreate`
+overrides it with `STATE_UNSPECIFIED|ADJUST_RESIZE`. Enabling the replacement
+editor exposed automatic keyboard showing before any composer tap. The cold
+launch check observes the actual window mode and hidden IME, then tests an
+explicit first tap and Back at the original 1.2-second limits. The policy does
+not clear pending explicit focus requests or hide the keyboard on each editor
+installation. The combined follow-up passes 43 baseline assertions, all eight
+strict compiling controls, and 43 restored assertions. The original twin UI
+task passes all 17 checks, with seven completed composer positions against
+the unchanged minimum of six. Both Android ABIs build successfully. This run
+uses integrated commit `8bd282c7beb064e43260522b83ff897a752083e3` plus the
+tracked compatibility follow-up; hashes and artifacts are retained in
+`/mnt/storage/holmes-tmp/lean-quiet-owned-input/out/owned-input-integrated-8bd282c`.
+The earlier cold-start failure and its actual window/IME trace remain separate
+in `out/e2e-twin-initial-owned-input-failed` and `out/twin-owned-start-trace`.

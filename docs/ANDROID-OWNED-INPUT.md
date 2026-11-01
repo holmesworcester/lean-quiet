@@ -85,6 +85,26 @@ still-running target process. Compiler errors, crashes, unrelated failures and
 timeouts are gate failures. Test-only gates delay original callbacks or force
 particular allocation failures; they are never compiled into shipping sources.
 
+The short-touch race uses real Android Down and Up events with their actual
+uptime timestamps. The API36 instrumentation settles window animations before
+taking the Down timestamp, then injects both touchscreen events through the
+same OS route. The synchronous Up call finishes its native callback before
+later typing changes the draft. The test requires an interval below 500 ms;
+long-press checks keep their real longer interval and use no drain hold.
+
+A test-only barrier splits the real native queue under its mutex immediately
+after Down. It retains every following record, including the atomic owned
+prefix and Up, without changing bytes or timestamps. This lets physical Up
+occur while App service is delayed. It suppresses the synthetic pump Tick that
+would otherwise be inserted by the test between those already ordered events.
+Before typing B, a read-only observer requires the actual queued Up timestamp,
+nonzero ticket and captured `touch_A` bytes. After observing the App's real
+press state, it checks that the same Up remains queued, then releases it.
+The final unchanged five-second SQLite oracle requires exactly A, with B still
+the draft. Fixture cleanup releases the hold; failure artifacts include the
+gesture interval and ticket. These barriers are scheduling controls, not a
+proof or claim of bounded native queue capacity or processing latency.
+
 Private diagnostics can explicitly reuse a verified existing AVD with
 `OWNED_INPUT_REUSE_AVD=1` and previously compiled exact local IR with
 `OWNED_INPUT_PRIVATE_REUSE_IR=1`. The manifest records IR reuse. These settings
@@ -138,3 +158,38 @@ The failed compilation and passing rerun are retained in
 `out/ci/owned-input-integrated.log` and
 `out/ci/owned-input-integrated-fixed.log`. The default integrated Android and
 full app compatibility runs remain outstanding at this milestone.
+
+## Integrated Android follow-up
+
+The default named Android gate now passes on integrated commit
+`8bd282c7beb064e43260522b83ff897a752083e3` plus the narrow compatibility
+follow-up. It compiles the actual local sources without private IR reuse:
+209 baseline assertions, fourteen strict compiling controls, and 209 restored
+assertions. The native queue barrier described above is included, with both
+actual pending-Up ticket reads.
+
+The same shipping source passes the original twin UI task (17 checks and seven
+completed composer positions against the original minimum of six), lifecycle
+(43 baseline, eight controls, 43 restored), photo lifetime (27 baseline, four
+controls, 27 restored), the original real picker/cancellation/orientation/send
+flow, and all seven cold/warm/malformed invitation checks. Normal Main and
+TwinDemo builds include both x86_64 and arm64-v8a. The compatibility changes
+reinstall TwinDemo's explicit legacy editor on a new surface and restore the
+manifest's intended hidden keyboard policy after NativeActivity startup.
+
+All 1,714 tracked baseline files were checked; the source manifest identifies
+the eleven changed follow-up files. Named logs, exact APK hashes, SQLite copies
+and the complete source manifest are retained under
+`/mnt/storage/holmes-tmp/lean-quiet-owned-input/out/owned-input-integrated-8bd282c`
+and the corresponding `out/owned-input-android`, `out/lifecycle`,
+`out/photo-lifecycle`, `out/photo/android`, `out/android-links` and `out/e2e-twin` paths.
+Earlier failures remain separate, including invalid short-gesture setup,
+startup auto-show, legacy surface reinstallation, and rejected diagnostic
+injection experiments. They are not counted as successful mutation controls.
+
+These are native/JNI/JVM/SQLite runtime results, not kernel proofs of the
+foreign implementations or a uniform native timing bound. The unchanged
+five-second commit and existing keyboard/photo/invitation limits remain
+finite regression observations. The theorem target counts each pipeline
+stage's completed service steps; broader queue/drain caps and external native
+completion progress remain separate.

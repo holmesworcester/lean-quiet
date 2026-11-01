@@ -288,7 +288,7 @@ description = "Build the runtime and APK, then test a provisioned x86_64 emulato
 run = "tests/app/mobile.sh android"
 
 [tasks."android:lifecycle-e2e"]
-description = "Build/setup an owned API36 emulator; actual Activity recreation, stale JNI callbacks, IME focus/hide and clean process finish, with six compiling controls"
+description = "Build/setup an owned API36 emulator; actual Activity recreation, stale JNI callbacks, IME startup/focus/hide and clean process finish, with eight compiling controls"
 run = "bash platforms/android/test/lifecycle/run.sh"
 
 [tasks."android:runtime"]

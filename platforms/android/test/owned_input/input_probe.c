@@ -7,6 +7,9 @@ static uint64_t (*get_blocked)(void);
 static void (*set_view)(bool);
 static void (*set_copy_failure)(int);
 static uint64_t (*copy_failures)(int);
+static void (*watch_touch)(void);
+static bool (*touch_seen)(void);
+static uint64_t (*pending_touch)(uint64_t);
 JNIEXPORT void JNICALL Java_com_holmes_ownedinput_OwnedInputProbe_attach(JNIEnv *env,jclass cls,jstring path) {
   (void)cls;
   const char *name=(*env)->GetStringUTFChars(env,path,0);
@@ -14,7 +17,9 @@ JNIEXPORT void JNICALL Java_com_holmes_ownedinput_OwnedInputProbe_attach(JNIEnv 
   (*env)->ReleaseStringUTFChars(env,path,name);
   if(h) {set_hold=dlsym(h,"lq_input_probe_gate");get_blocked=dlsym(h,"lq_input_probe_blocked");
     set_view=dlsym(h,"lq_input_probe_view");set_copy_failure=dlsym(h,"lq_input_probe_fail_copy");
-    copy_failures=dlsym(h,"lq_input_probe_copy_failures");}
+    copy_failures=dlsym(h,"lq_input_probe_copy_failures");
+    watch_touch=dlsym(h,"lq_input_probe_watch_touch");touch_seen=dlsym(h,"lq_input_probe_touch_seen");
+    pending_touch=dlsym(h,"lq_input_probe_pending_touch");}
   if(!h||!set_hold||!get_blocked) {
     jclass ex=(*env)->FindClass(env,"java/lang/IllegalStateException");
     (*env)->ThrowNew(env,ex,"already-loaded real app gate symbols unavailable");
@@ -40,4 +45,21 @@ JNIEXPORT jlong JNICALL Java_com_holmes_ownedinput_OwnedInputProbe_failedCopies(
   (void)cls;
   if(!copy_failures){(*env)->ThrowNew(env,(*env)->FindClass(env,"java/lang/IllegalStateException"),"allocation count unavailable");return 0;}
   return copy_failures(site);
+}
+
+JNIEXPORT void JNICALL Java_com_holmes_ownedinput_OwnedInputProbe_watchTouch(JNIEnv *env,jclass cls) {
+  (void)cls;
+  if(!watch_touch){(*env)->ThrowNew(env,(*env)->FindClass(env,"java/lang/IllegalStateException"),"actual input reply observer unavailable");return;}
+  watch_touch();
+}
+JNIEXPORT jboolean JNICALL Java_com_holmes_ownedinput_OwnedInputProbe_touchSeen(JNIEnv *env,jclass cls) {
+  (void)cls;
+  if(!touch_seen){(*env)->ThrowNew(env,(*env)->FindClass(env,"java/lang/IllegalStateException"),"actual input reply observer unavailable");return false;}
+  return touch_seen();
+}
+
+JNIEXPORT jlong JNICALL Java_com_holmes_ownedinput_OwnedInputProbe_pendingTouch(JNIEnv *env,jclass cls,jlong up) {
+  (void)cls;
+  if(!pending_touch){(*env)->ThrowNew(env,(*env)->FindClass(env,"java/lang/IllegalStateException"),"actual pending Up observer unavailable");return 0;}
+  return (jlong)pending_touch((uint64_t)up);
 }

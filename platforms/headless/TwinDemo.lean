@@ -148,6 +148,7 @@ partial def loop (s : St) (lastB : Nat) : IO Unit := do
   for e in result.events do
     match e with
     | .close => return
+    | .surface true => discard <| Platform.editor 4 0 0 ""
     | .tap .list _ y => if let some k := s.bandAt y.toNat then s := s.toggle k
     | .tap .composer _ _ => Platform.ime true
     | .tap .header _ _ => Platform.ime false

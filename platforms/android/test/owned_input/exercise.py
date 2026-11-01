@@ -77,10 +77,19 @@ try:
     for name in ['hardware','busy','lateclear','touch']:
         ctl('wait',60);command(name)
         if name=='touch':
-            ok('real native Down reaches actual App press before holding Up',until(3,lambda:phase()=='touch-down' and 'press true' in ctl('input')))
-            command('touch-up')
+            def observed_down():
+                reply=ctl('input')
+                (OUT/'touch-down-input.txt').write_text(reply+'\n')
+                return 'press true' in reply
+            ok('real native Down reaches actual App press before holding Up',until(3,observed_down))
         queued=name+('-released' if name=='lateclear' else '-queued')
-        ok(name+' actual producer phase completes',until(4,lambda:phase()==queued))
+        produced=until(4,lambda:phase()==queued)
+        if name=='touch' and produced:
+            gesture=run('shell','run-as',PKG,'cat','files/touch-gesture.txt')
+            (OUT/'touch-gesture.txt').write_text(gesture+'\n')
+            values=dict(line.split('=',1) for line in gesture.splitlines())
+            produced=values.get('observed')=='true' and int(values['pending-ticket'])>0 and 0<=int(values['elapsed'])<500
+        ok(name+' actual producer phase completes',produced)
         if name!='lateclear':
             command('release-'+name);ok(name+' actual pump resumes',until(2,lambda:phase()=='release-'+name))
         ok(name+' captured A commits within unchanged five-second observation bound',until(5,lambda:committed(name+'_A')))

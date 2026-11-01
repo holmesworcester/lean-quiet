@@ -25,6 +25,9 @@ public final class OwnedInputProbe extends Instrumentation {
   private static native void holdView(boolean value);
   private static native void failCopy(int site);
   private static native long failedCopies(int site);
+  private static native void watchTouch();
+  private static native boolean touchSeen();
+  private static native long pendingTouch(long up);
   private volatile Activity current;
   private volatile boolean resumed;
   private File command, state;
@@ -129,18 +132,51 @@ public final class OwnedInputProbe extends Instrumentation {
       p[0]=b.width()-32*dpi/160;p[1]=b.height()-in.bottom-32*dpi/160;
     });return p;
   }
+  // API36 instrumentation only. Instrumentation.sendPointerSync waits for
+  // animations BEFORE injecting Down, after its caller has timestamped it.
+  // Establish geometry first, then inject a real Down without that wait.
+  private void settleWindows() {
+    try { android.app.UiAutomation.class.getMethod("syncInputTransactions").invoke(getUiAutomation()); }
+    catch(Exception e){throw new IllegalStateException("API36 input synchronization unavailable",e);}
+  }
+  private void injectPointer(float[] p,long down,long when,boolean up) {
+    MotionEvent event=MotionEvent.obtain(down,when,up?MotionEvent.ACTION_UP:MotionEvent.ACTION_DOWN,p[0],p[1],0);
+    event.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN);
+    try {
+      var method=android.app.UiAutomation.class.getMethod("injectInputEvent",
+          android.view.InputEvent.class,boolean.class,boolean.class);
+      if(!Boolean.TRUE.equals(method.invoke(getUiAutomation(),event,up,false)))
+        throw new AssertionError("actual pointer injection was refused");
+    }catch(ReflectiveOperationException e){throw new IllegalStateException("API36 asynchronous input injection unavailable",e);}
+    finally { event.recycle(); }
+  }
   private void pointer(float[] p,boolean longPress) {
-    long down=SystemClock.uptimeMillis();
-    sendPointerSync(MotionEvent.obtain(down,down,MotionEvent.ACTION_DOWN,p[0],p[1],0));
+    settleWindows();long down=SystemClock.uptimeMillis();injectPointer(p,down,down,false);
     SystemClock.sleep(longPress?750:70);
-    sendPointerSync(MotionEvent.obtain(down,SystemClock.uptimeMillis(),MotionEvent.ACTION_UP,p[0],p[1],0));
+    long up=SystemClock.uptimeMillis();
+    if(!longPress&&up-down>=500)throw new AssertionError("short pointer precondition exceeded 500ms");
+    android.util.Log.i("OwnedInputProbe","real pointer long="+longPress+" elapsed="+(up-down));
+    // The framework's Up synchronization is AFTER injection; typing resumes
+    // only after the actual native callback has captured this event.
+    injectPointer(p,down,up,true);
   }
   private float[] pendingPoint;
   private long pendingDown;
   private void touchUp() {
-    gate();sendPointerSync(MotionEvent.obtain(pendingDown,SystemClock.uptimeMillis(),MotionEvent.ACTION_UP,pendingPoint[0],pendingPoint[1],0));
+    long up=SystemClock.uptimeMillis();
+    if(up-pendingDown>=500)throw new AssertionError("short touch fixture did not establish the actual under-500ms gesture: elapsed="+(up-pendingDown));
+    injectPointer(pendingPoint,pendingDown,up,true);
+    long ticket=pendingTouch(up);
+    if(ticket==0)throw new AssertionError("real native Up and captured A are not retained before typing B");
     onUi(() -> {try{EditText e=editor();e.setText("touch_B");e.setSelection(e.length());}
       catch(Exception e){throw new RuntimeException(e);}});
+    long end=SystemClock.elapsedRealtime()+2500;
+    while(!touchSeen()&&SystemClock.elapsedRealtime()<end)SystemClock.sleep(2);
+    if(!touchSeen())throw new AssertionError("actual App did not observe retained Down");
+    if(pendingTouch(up)!=ticket)throw new AssertionError("actual queued Up changed before the App Down barrier");
+    try {Files.write(new File(getTargetContext().getFilesDir(),"touch-gesture.txt").toPath(),
+      ("observed=true\npending-ticket="+ticket+"\ndown="+pendingDown+"\nup="+up+"\nelapsed="+(up-pendingDown)+"\n").getBytes(StandardCharsets.UTF_8));}
+    catch(Exception e){throw new RuntimeException(e);}
     capture("touch-queued");
   }
   private void touch(String name,boolean longPress) {
@@ -151,8 +187,11 @@ public final class OwnedInputProbe extends Instrumentation {
     SystemClock.sleep(350);
     if(longPress){pointer(sendPoint(),true);capture(name+"-queued");}
     else {
-      pendingPoint=sendPoint();pendingDown=SystemClock.uptimeMillis();
-      sendPointerSync(MotionEvent.obtain(pendingDown,pendingDown,MotionEvent.ACTION_DOWN,pendingPoint[0],pendingPoint[1],0));
+      settleWindows();pendingPoint=sendPoint();watchTouch();pendingDown=SystemClock.uptimeMillis();
+      injectPointer(pendingPoint,pendingDown,pendingDown,false);
+      // Physical Up is independent of App service. The native drain retains
+      // it behind Down; only after capture and typing B do we wait for App.
+      SystemClock.sleep(70);touchUp();
     }
   }
   private void gateField(String name,boolean value) throws Exception {
@@ -291,8 +330,7 @@ public final class OwnedInputProbe extends Instrumentation {
           else if(next.equals("geometry")) {submit("geometry",false,false,false);holdView(true);state("geometry-queued");}
           else if(next.equals("stale")) {submit("stale",false,false,false);state("stale-queued");}
           else if(next.equals("lateclear")) {delayedClear("lateclear");state("lateclear-released");}
-          else if(next.equals("touch")) {touch("touch",false);state("touch-down");}
-          else if(next.equals("touch-up")) {touchUp();state("touch-queued");}
+          else if(next.equals("touch")) {touch("touch",false);state("touch-queued");}
           else if(next.equals("long")) {touch("long",true);state("long-queued");}
           else if(next.startsWith("holdclear")) {holdClear(next);state(next+"-held");}
           else if(next.startsWith("type-")) {type(next.substring(5));state(next);}

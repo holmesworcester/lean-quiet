@@ -353,6 +353,11 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
 
   @Override protected void onCreate(Bundle saved) {
     super.onCreate(saved);
+    // NativeActivity overrides the manifest with STATE_UNSPECIFIED. Restore
+    // its declared hidden-on-navigation policy before enabling the editor;
+    // explicit composer taps still call showIme and retain imeWanted.
+    getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN
+        | android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     active = this;
     deliverLink(getIntent());
     reportAppearance(getResources().getConfiguration());

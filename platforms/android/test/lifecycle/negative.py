@@ -10,6 +10,7 @@ from crashes import crash_lines
 ROOT=Path(__file__).resolve().parents[4]
 C='platforms/android/twin/activity.c'
 J='platforms/android/twin/java/com/holmes/leanquiet/LeanActivity.java'
+D='platforms/headless/TwinDemo.lean'
 CASES=[
  ('configuration-closes',C,'if (!recreate) ba_closing = true;','ba_closing = true;',
   'recreation retains the same live native process'),
@@ -25,6 +26,11 @@ CASES=[
  ('forget-user-hide',J,'    if (imeWasVisible && !visible) imeWanted = false;',
   '    if (imeWasVisible && !visible) { /* broken: retain dismissed request */ }',
   'user Back stays hidden across later window focus'),
+ ('automatic-editor-show',J,
+  '    getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN\n        | android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);\n', '',
+  'cold launch keeps IME hidden until an explicit composer tap'),
+ ('forget-legacy-reinstall',D,'    | .surface true => discard <| Platform.editor 4 0 0 ""\n','',
+  'first composer tap after recreation opens the IME within 1.2s'),
 ]
 
 
@@ -55,7 +61,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--serial',required=True)
     parser.add_argument('--out',type=Path,default=ROOT/'out/lifecycle')
-    parser.add_argument('--cases',help='comma separated diagnostic subset; CI runs all six')
+    parser.add_argument('--cases',help='comma separated diagnostic subset; CI runs all eight')
     args=parser.parse_args();out=args.out.resolve();out.mkdir(parents=True,exist_ok=True)
     cases={c[0] for c in CASES} if not args.cases else set(args.cases.split(','))
     assert cases and cases<={c[0] for c in CASES}
@@ -76,7 +82,7 @@ def main():
         (scratch/'out').mkdir()
         for name in ['leanrt','cache','stdc']:
             subprocess.run(['cp','-a','--reflink=auto',str(ROOT/'out'/name),str(scratch/'out')],check=True)
-        originals={f:(scratch/f).read_text() for f in [C,J]}
+        originals={f:(scratch/f).read_text() for f in [C,J,D]}
         for name,file,old,new,expected in CASES:
             if name not in cases:continue
             for path,source in originals.items():(scratch/path).write_text(source)
