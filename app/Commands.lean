@@ -7,6 +7,8 @@ import app.connection.Family
 import app.Family
 import app.settings.appearance.View
 import app.settings.appearance.Commands
+import app.nav.View
+import app.nav.Commands
 import app.connection.connection.Commands
 import app.connection.eph.Commands
 import app.connection.established.Commands
@@ -698,10 +700,21 @@ def Pending.filings (ps : List Pending) : Array Filing :=
 def status (db : Db) (x : Id) : IO (Option (Verdict SF)) :=
   (Store.getStatus (F := SF) (m := SqlM SF) x).run db
 
+/-- This window's place, from the app's ephemeral log: the newest nav op
+(`Nav.current`) and its id; none before any. -/
+def navOf (h : Engine.Sync.Held SF) : Option (Id × Nav.Fact) :=
+  (((Nav.current.liftR.liftR : View SF _).run : Engine.Sync.HeldM SF _).run h).1
+
+/-- The app's ephemeral log with this window placed at `page` over
+`stack`: the nav op at generation `gen` in place of the log's nav ops,
+the log rebuilt from its live ops (`Held.ofOps`). -/
+def placeIn (h : Engine.Sync.Held SF) (gen page : Nat) (stack : List Nat) : Engine.Sync.Held SF :=
+  Engine.Sync.Held.ofOps fam (h.log.filter (fun o => !Nav.owns o.kind) ++ [Nav.place gen page stack])
+
 /-- This device's appearance and its revision, from the store: the
 newest appearance op (`Settings.Appearance.current`), System before any. -/
 def appearance (db : Db) : IO (Theme.Setting × Nat) :=
-  (((Settings.Appearance.current.liftR : View SF _).run : SqlM SF _).run db)
+  (((Settings.Appearance.current.liftL.liftR : View SF _).run : SqlM SF _).run db)
 
 /-- The store's answer to q on the read connection, with the outbox. -/
 def Q.run (db : Db) (out : Array Pending) : Q → IO Ans

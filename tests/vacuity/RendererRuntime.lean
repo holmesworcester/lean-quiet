@@ -43,7 +43,9 @@ def savedAnchor (s : St) : Bool :=
   have := LifecycleLaws.restore_page_anchor s
   (Lifecycle.restore (Codec.encode (checkpoint s))).map (fun cp =>
       (PageId.ofCode cp.2.1, cp.2.2.2.1, cp.2.2.2.2.1)) ==
-    some (s.page, ((checkpointAnchor s).getD (.empty, 0)).1, ((checkpointAnchor s).getD (.empty, 0)).2)
+    some (PageId.ofCode s.logNav.1, ((checkpointAnchor s).getD (.empty, 0)).1, ((checkpointAnchor s).getD (.empty, 0)).2) &&
+  -- the page the log names is the page shown (App.withNav_cache)
+  PageId.ofCode s.logNav.1 == s.page
 def restoredAnchor (s target : St) :=
   match ha : checkpointAnchor s with
   | none => some (PLift.up (LifecycleLaws.apply_page_anchor s target (by
@@ -139,7 +141,7 @@ def main : IO UInt32 := do
     ((Ttf.Cache.get? cache2 ⟨0, 5, 20, 20⟩).isSome && cache2.index.size == 2)
   let sm ← Sim.new
   let s ← App.start sm.io #[390, 844, 0, 0, 160] (dir ++ "/quiet.db")
-  let s := { s with page := .chat, backStack := [.home], text := "Draft message", field := "Name", mark := none }
+  let s := { s.withNav ⟨.chat, [.home]⟩ with text := "Draft message", field := "Name", mark := none }
   t.ok "opening profile satisfies the navigation premises" (backOpen s).isSome
   t.ok "root state satisfies the no-back-stack premise" (backRoot { s with backStack := [] }).isSome
   t.ok "a distinct finite page stack satisfies the navigation invariant" (stackDepth s).isSome
