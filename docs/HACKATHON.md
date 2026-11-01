@@ -236,6 +236,14 @@ file has changed since the commit that the block names.
    The headline laws and how to check them are in `docs/HEADLINE.md`
    when `comparator.json` is there.
 
+9. **README claims made exact, and SQLite's part written down.** The
+   README's headline claims were checked against the wiring check and
+   corrected where they said more or less than the laws prove. A new
+   section, "What the proofs assume of SQLite", lists what the proofs
+   take of the database and how each part is met, and the store now
+   commits with `synchronous=FULL`, so a committed turn survives power
+   loss. A test and a negative control check that setting.
+
 **Also on main.** The op tree: each op type is a folder with its
 validator, and [ci/layout.py](../ci/layout.py) checks the layout
 ([`930b39f3`][930b39f3], [`04322c45`][04322c45], [`db9eaf6f`][db9eaf6f]).
@@ -274,8 +282,6 @@ branch.
 
 - `vibecheck/mac`: `make install && make run` on macOS.
 - `vibecheck/demo`: a two-window demo.
-- `vibecheck/claims`: fixes to README claims, the SQLite contract, and
-  SQLite's `synchronous=FULL`.
 - `a3/no-models` (pushed to origin): a ratchet against laws over models.
   `tests/wiring-models.txt` lists the laws that the check counts as over a
   model. The wiring check fails on any other model law, and the list can
