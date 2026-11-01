@@ -19,8 +19,11 @@ equation or iff that proves the model equal to running code.
 
 The wiring check enforces this (`tests/Wiring.lean`, run by
 `ci/proof-links.py --check`, the `readme` gate of `ci/local.sh`). It
-classes every law as wired, World, control or model, and fails on a model
-law that `tests/wiring-models.txt` does not list. That list holds the
+classes every law as wired, World, control, step or model, and fails on a
+model law that `tests/wiring-models.txt` does not list. A step is a lemma
+that would be a model, but that a law about running code uses in its
+proof; the check finds the use, and a README row that cites a step must
+cite that law too. That list holds the
 model laws there were when the rule was made (2026-11-01). It only
 shrinks: the check fails while it names a law that is no longer a model
 (delete the line: `ci/proof-links.py --prune`), and on a line the merge

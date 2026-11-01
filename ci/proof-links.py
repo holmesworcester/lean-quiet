@@ -76,7 +76,7 @@ AREAS = [("engine.core", "Engine"), ("engine.sync", "Sync"), ("engine.world", "T
 WANTED = re.compile(r"wanted|not yet|not proven|not covered|todo", re.I)
 # The lead's count, and the share "nearly every" needs.
 LEAD = re.compile(r"about\s+([a-z]+(?:\s+[a-z]+)?)\s+of\s+its\s+theorems\s+\((\d+)\s+of\s+(\d+)"
-                  r"(,\s+not\s+counting\s+\d+\s+negative\s+controls)?\)")
+                  r"(,\s+not\s+counting\s+[^)]+)?\)")
 # The lead's World clause: the laws that run the node's code in a World,
 # counted apart from those about running code.
 WORLDLEAD = re.compile(r"another\s+(\d+)\s+run\s+the\s+phone's\s+node\s+code")
@@ -218,10 +218,12 @@ def resolver(decls):
     return resolve
 
 
-def disagree(tables, wired, resolve):
+def disagree(tables, wired, resolve, steps=None):
     """The proofs rows that disagree with the classification: a ✅ row that
     cites no law about running code, a 🟡 row whose own cell does not say
-    what is missing."""
+    what is missing, and a row that cites a proof step (`steps`: a step to
+    the wired laws that use it) without one of them."""
+    steps = steps or {}
     bad = []
     for line in tables.split("\n"):
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
@@ -233,6 +235,11 @@ def disagree(tables, wired, resolve):
             bad.append(f"✅ \"{title}\" cites no law about running code: make it 🟡, saying what is missing")
         if cells[0] == "🟡" and not WANTED.search(cells[2]):
             bad.append(f"🟡 \"{title}\" does not say what is missing (Wanted, Not yet, not proven, Not covered, todo)")
+        for l in laws:
+            if l in steps and not set(steps[l]) & set(laws):
+                users = sorted(steps[l])
+                bad.append(f"\"{title}\" cites {l}, a proof step, without a law about running code that "
+                           f"uses it ({', '.join(users[:3])}{' …' if len(users) > 3 else ''})")
     return bad
 
 
@@ -241,10 +248,10 @@ def fraction(w, t):
     return next((word for f, word in FRACTIONS if w >= f * t), "less than half")
 
 
-def lead(pre, w, t, k=None, c=0):
+def lead(pre, w, t, k=None, c=0, st=0):
     """The lead's problems against the count w of t (and k World laws), and
-    the lead written from it. Negative controls (c) are out of t, and the
-    lead says so."""
+    the lead written from it. Proof steps (st) and negative controls (c)
+    are out of t, and the lead says so."""
     m = LEAD.search(pre)
     if not m:
         return ['no "about <fraction> of its theorems (N of M)" in the README\'s lead'], pre
@@ -264,12 +271,18 @@ def lead(pre, w, t, k=None, c=0):
         problems.append(f'the lead says "{said}"; {w} of {t} ({100 * w // t}%) gives "{word}"')
     if (int(m.group(2)), int(m.group(3))) != (w, t):
         problems.append(f"the lead says {m.group(2)} of {m.group(3)}; the count is {w} of {t}")
-    note = f", not counting {c} negative controls" if c else ""
+    parts = ([f"{st} proof steps"] if st else []) + ([f"{c} negative controls"] if c else [])
+    note = f", not counting {' and '.join(parts)}" if parts else ""
     if (m.group(4) or "") != note and " ".join((m.group(4) or "").split()) != note:
-        problems.append(f"the lead's count should say{note or ' nothing of negative controls'}")
+        problems.append(f"the lead's count should say{note or ' nothing of proof steps or negative controls'}")
     new = (pre[:m.start(1)] + word + pre[m.end(1):m.start(2)] + str(w) + pre[m.end(2):m.start(3)] + str(t)
            + note + pre[m.end(4) if m.group(4) else m.end(3):])
     return problems, new
+
+
+def stepsOf(rows):
+    """The proof steps: each with the wired laws that use it."""
+    return {f[1]: split(f[8]) for f in rows if f[0] == "law" and f[2] == "step" and len(f) > 8}
 
 
 def controls(rows, resolve):
@@ -317,21 +330,32 @@ def controls(rows, resolve):
     if len(disagree(rows_, wired, lambda l: l)) != 2:
         problems.append("negative control: a ✅ row citing only a model law, or a 🟡 row "
                         "saying nothing missing, was not caught")
+    # a proof step cited alone fails; with a wired law that uses it, not
+    steps = stepsOf(rows)
+    step = sorted(steps)[0] if steps else None
+    if step:
+        user = sorted(steps[step])[0]
+        alone = f"| 🟡 | 🥊 | **Control.** Not yet. | [`{step}`] |\n"
+        both = f"| ✅ | 🥊 | **Control.** | [`{step}`], [`{user}`] |\n"
+        if not disagree(alone, wired, lambda l: l, steps) or disagree(both, wired, lambda l: l, steps):
+            problems.append(f"negative control: {step}, a proof step cited without {user}, was misjudged")
     c = sum(1 for f in rows if f[0] == "law" and f[2] == "control")
-    w, t = len(wired), sum(1 for f in rows if f[0] == "law") - c
+    st = len(steps)
+    w, t = len(wired), sum(1 for f in rows if f[0] == "law") - c - st
     k = sum(1 for f in rows if f[0] == "law" and f[2] == "world")
     words = [word for _, word in FRACTIONS]
     right = fraction(w, t)
     above = words[max(words.index(right) - 1, 0)] if right in words else "half"
-    if not lead(f"about {above} of its theorems ({w} of {t}); another {k} run the phone's node code", w, t, k, c)[0]:
+    if not lead(f"about {above} of its theorems ({w} of {t}); another {k} run the phone's node code", w, t, k, c, st)[0]:
         problems.append(f'negative control: "{above}" for {w} of {t} was not caught')
-    if not lead(f"about {right} of its theorems ({w} of {t}); another {k + 1} run the phone's node code", w, t, k, c)[0]:
+    if not lead(f"about {right} of its theorems ({w} of {t}); another {k + 1} run the phone's node code", w, t, k, c, st)[0]:
         problems.append(f"negative control: another {k + 1} for {k} World laws was not caught")
     if twice([a_wired, model, a_wired]) != [a_wired]:
         problems.append(f"negative control: {a_wired}, audited twice, was not caught")
     if not problems:
         print(f"proof-links: negative controls: {model} and {world} marked wired, {model} left out of "
-              f"the model list, {a_wired} kept in it, {model} added since the merge base, a ✅ row "
+              f"the model list, {a_wired} kept in it, {model} added since the merge base, {step} cited "
+              f"without a wired law that uses it, a ✅ row "
               f'citing only a model law, a 🟡 row saying nothing missing, "{above}" for {w} of {t}, '
               f"another {k + 1} for {k} World laws, and {a_wired} audited twice, all caught")
     return problems
@@ -438,7 +462,8 @@ def section(rows, decls, cited):
     def area(mod):
         return next((a for p, a in AREAS if mod == p or mod.startswith(p + ".")), "Other")
     controls = [n for n, st, *_ in laws if st == "control"]
-    laws = [l for l in laws if l[1] != "control"]  # out of the count
+    steps = [n for n, st, *_ in laws if st == "step"]
+    laws = [l for l in laws if l[1] not in ("control", "step")]  # out of the count
     per = {}
     for name, status, _, _, mod, _ in laws:
         c = per.setdefault(area(mod), [0, 0, 0])
@@ -452,8 +477,10 @@ def section(rows, decls, cited):
            f"run its node code in a World, and {count['model']} are not yet: `tests/wiring-models.txt` lists "
            "them, CI fails on any other law over a model, and the list only shrinks. Stated only: "
            + (", ".join(f"{k} in `{m}`" for m, k in stated.items()) if stated else "none") + ". "
-           f"{len(controls)} laws are negative controls: each proves a mutant breaks its law "
-           "(they are not counted here, nor in the lead).", "",
+           f"{len(steps)} are proof steps: lemmas that would be models, but that a law about running "
+           "code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law "
+           f"too). {len(controls)} laws are negative controls: each proves a mutant breaks its law "
+           "(neither is counted here, nor in the lead).", "",
            "| Area | Laws | About running code | In a World | Not yet |", "|---|---|---|---|---|"]
     for a in order:
         if a in per:
@@ -494,6 +521,20 @@ def section(rows, decls, cited):
     if general:
         out.append(f"| (none) | {links({n: '' for n in general})} | Nothing to wire: each is about "
                    "a specification or an assumption. |")
+    # the proof steps, by module: each, and the laws about running code
+    # that use them
+    users = {f[1]: split(f[8]) for f in rows if f[0] == "law" and f[2] == "step" and len(f) > 8}
+    mods = {}
+    for f in rows:
+        if f[0] == "law" and f[2] == "step":
+            mods.setdefault(f[6], []).append(f[1])
+    if mods:
+        out += ["", "| Proof steps in | Steps | Used by (about running code) |", "|---|---|---|"]
+        for mod in sorted(mods):
+            us = sorted({u for n in mods[mod] for u in users.get(n, [])})
+            more = f" +{len(us) - 4} more" if len(us) > 4 else ""
+            out.append(f"| `{mod}` | {links({n: '' for n in sorted(mods[mod])}, cap=50)} | "
+                       + ", ".join(f"`{short(u, decls, 1)}`" for u in us[:4]) + more + " |")
     out += ["", "\\* only a premise names it. ° about running code, but names it beside. "
             "† a guarantee above cites it.", "",
             "| Assumption | Laws | |", "|---|---|---|"]
@@ -537,14 +578,16 @@ def main():
     tables = pre.split("## What is proven")[-1]
     wired = {f[1] for f in rows if f[0] == "law" and f[2] == "wired"}
     total = sum(1 for f in rows if f[0] == "law")
-    problems += disagree(tables, wired, resolve)
+    problems += disagree(tables, wired, resolve, stepsOf(rows))
     # the lead's fraction and count, and "nearly every" only at the threshold
     ncontrol = sum(1 for f in rows if f[0] == "law" and f[2] == "control")
-    stale, pre_new = lead(pre, len(wired), total - ncontrol,
-                          sum(1 for f in rows if f[0] == "law" and f[2] == "world"), ncontrol)
+    nstep = len(stepsOf(rows))
+    stale, pre_new = lead(pre, len(wired), total - ncontrol - nstep,
+                          sum(1 for f in rows if f[0] == "law" and f[2] == "world"), ncontrol, nstep)
     if check or not LEAD.search(pre):
         problems += stale
     pre = pre_new
+    total -= ncontrol + nstep  # the lead's M
     if total and NEARLY.search(pre) and len(wired) < THRESHOLD * total:
         problems.append(f'the README says "{NEARLY.search(pre).group(0)}", but {len(wired)} of {total} '
                         f"({100 * len(wired) // total}%) is under {int(THRESHOLD * 100)}%")
