@@ -91,6 +91,8 @@ app/             the op tree: one folder per op, nested by what it cites
                  is over the community's facts too)
   settings/      this device's preferences, each a local op: appearance/
                  (the family on top of the node's, app/Family.lean)
+  nav/           where this window is: an ephemeral op, in the app's
+                 in-memory log (App.St.eph), the page its cache
 platforms/
   android/  ios/  macos/  windows/  linux/  desktop/
   headless/      the scripted twin the tests drive
@@ -133,9 +135,8 @@ unchanged, except the Merkle tree's (`Merkle`, was `Community.Merkle`).
 - `app/community/Proofs.lean` imports the whole community subtree, and
   `app/connection/Proofs.lean` the connection one: what imported a
   family's umbrella imports these.
-- The bootstrap model (lean-net's) names only community ops: it is a
-  section of `app/community/Proofs.lean`, retired once its laws are
-  re-proven over the two-node world.
+- The bootstrap model (lean-net's) was a section of
+  `app/community/Proofs.lean`; it is retired (docs/NET.md).
 - The app's live data (the store on SQLite, its writer, live answers,
   the outbox) names the node's family: it is in `app/Commands.lean`.
 - `Main.lean` runs the app on a platform; `Quiet.lean` imports every
@@ -160,7 +161,10 @@ families, only connection to community (`ci/layout.py`).
    - the views (each domain's `View.lean`, once `Kinds/*`) turned into
      components that read only their own fact;
    - sync's rounds turned into ephemeral ops;
-   - the ephemeral log added to the engine.
+   - the ephemeral log added to the engine: *done (2026-11-01)*,
+     `Scope.ephemeral`, never stored (`intake` drops it,
+     `stored_durable`), a held store rebuilt from its live ops
+     (`Held.ofOps`, engine/sync/Ephemeral.lean); nav is its first op.
    - one folder per op: *done (2026-10-31)*, the [op tree](OP_TREE.txt),
      drawn in the workspace (`mise run workspace:serve`), with the rules
      in [OP_WORKSPACE_REQUIREMENTS.md](OP_WORKSPACE_REQUIREMENTS.md)

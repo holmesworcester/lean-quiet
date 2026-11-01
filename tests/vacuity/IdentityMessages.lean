@@ -88,9 +88,18 @@ def fedStore : DB Fact := (intake (family ed25519) false [peerSecret,post1]).fol
 theorem fed : Fed (family ed25519) [mySecret] fedStore :=
   Fed.job false [peerSecret,post1] (Fed.job true [mySecret] Fed.empty)
 
+/-- A Community op is never ephemeral, so this node's own job keeps it. -/
+theorem mySecretDurable : (family ed25519).durable mySecret = true := by
+  unfold Family.durable
+  simp only [Community.family]
+  unfold Community.scopeOf
+  split
+  · split <;> rfl
+  · rfl
+
 def intakeLocal := if hl : (family ed25519).room mySecret = none then
   some (PLift.up (intake_local (family ed25519) (mine := true) (ops := [mySecret])
-    (by simp [intake]) hl)) else none
+    (List.mem_filter.2 ⟨List.mem_singleton.2 rfl, mySecretDurable⟩) hl)) else none
 
 def storedLocal := if hx : fedStore.ops mySecret.id = some mySecret then
   if hl : (family ed25519).room mySecret = none then

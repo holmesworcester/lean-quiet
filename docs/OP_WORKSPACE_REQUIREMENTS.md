@@ -59,13 +59,13 @@ The tree is on disk: [OP_TREE.txt](OP_TREE.txt) lists every folder and file, wit
 app/            the root: the node's registry (Family.lean), the node's hooks and the app's live data (Commands.lean), the app (Screen.lean), laws over both (Proofs.lean)
   community/    the root op and its family; under it name/, profile/, key/wrap/, device/, member/, channel/message/
   connection/   the handshake and sessions: eph, request, opened, connection, established, send, recv, given
-  nav/          planned: navigation as an ephemeral op
+  nav/          where this window is: an ephemeral op in the app's in-memory log
   settings/     this device's preferences, each a local op: appearance/
 engine/         what holds for every op type, sync and the Merkle tree among it
 platforms/      the shells and the headless twin
 ```
 
-Planned ops (`channel`, `draft`, `emoji`, `nav`) are marked as planned in the tree and in the workspace. Existing ops keep their tags and codecs: the wire golden test (`tests/engine/WireGolden.lean`) pins every op type's bytes, ids and verdicts to main's before the cutover.
+Planned ops (`channel`, `draft`, `emoji`) are marked as planned in the tree and in the workspace. Existing ops keep their tags and codecs: the wire golden test (`tests/engine/WireGolden.lean`) pins every op type's bytes, ids and verdicts to main's before the cutover.
 
 ### Recorded exceptions
 
@@ -78,7 +78,7 @@ Where the tree departs from these requirements or from the planned tree, and why
 - **The connection family is flat.** Established cites the reply, the request and the ephemeral key, which do not nest in one chain; each validator imports the `Op.lean` of the ops it cites (ARCH04), and connection's family is over the community's facts too.
 - **Admit nests under approve** (`member/invite/request/approve/admit`): an admission cites the approvals it tallies. Authority as dependencies (an admin action citing its grant, no tally) is [issue #6](https://github.com/holmesworcester/lean-quiet/issues/6).
 - **Views hold their laws.** A `View.lean` or `Screen.lean` keeps the laws about its component beside it ([LAYOUT.md](LAYOUT.md)): the laws' modules are above the live data and the renderer, which the family's `Proofs.lean` is below.
-- **The root's `Screen.lean` is the whole app shell** (the former `App`, `AppTypes`, `AppLife` and the reader, pages and lifecycle), and the bootstrap model is a section of `community/Proofs.lean`: each source file is a section of its new file, with its own opens and variables.
+- **The root's `Screen.lean` is the whole app shell** (the former `App`, `AppTypes`, `AppLife` and the reader, pages and lifecycle) (the bootstrap model that was a section of `community/Proofs.lean` is retired: docs/NET.md): each source file is a section of its new file, with its own opens and variables.
 
 ## State components settings and emoji
 
