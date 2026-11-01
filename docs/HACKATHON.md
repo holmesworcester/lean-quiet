@@ -27,7 +27,7 @@ line. [ci/proof-links.py](../ci/proof-links.py) writes that line from
 the code (`mise run readme:links`).
 
 <!-- hackathon:begin -->
-Computed by `ci/hackathon.py` from git alone, at [`fdb5661da12e`](https://github.com/holmesworcester/lean-quiet/commit/fdb5661da12e891402e99d5cbd61f45b4ecc0ad9) (committed 2026-11-01 15:30 -0800), against the base [`89914bea346d`](https://github.com/holmesworcester/lean-quiet/commit/89914bea346ddf93d9a065a2e8bef0c79ed47797) (main at the start, 2026-10-31 10:00 PDT).
+Computed by `ci/hackathon.py` from git alone, at [`e3f444ae9d72`](https://github.com/holmesworcester/lean-quiet/commit/e3f444ae9d727d6e3416e692baeb0704c8bbf3a2) (committed 2026-11-01 15:30 -0800), against the base [`89914bea346d`](https://github.com/holmesworcester/lean-quiet/commit/89914bea346ddf93d9a065a2e8bef0c79ed47797) (main at the start, 2026-10-31 10:00 PDT).
 
 | | Base | Head | Change |
 |---|--:|--:|--:|
@@ -41,7 +41,7 @@ Computed by `ci/hackathon.py` from git alone, at [`fdb5661da12e`](https://github
 | README promises wanted, not proven (⬜) | 14 | 13 | -1 |
 | `theorem` declarations in .lean files | 2,399 | 4,258 | +1,859 |
 | .lean files | 362 | 650 | +288 |
-| Lines of Lean | 77,516 | 116,272 | +38,756 |
+| Lines of Lean | 77,516 | 116,348 | +38,832 |
 
 - **Promises that changed mark** (same title at the base and the head): ✅ → 🟡: "A removed member's node stops holding the community, and can rejoin only as a new device"; 🟡 → ✅: "A removal ends a live session's sync", "Peers cannot push ops in", "Judging cannot be hung", "Honest nodes agree", "Purge is safe", "Purge takes exactly what it must"; ⬜ → 🟡: "Everyone converges". 16 promises at the head have a title the base does not have (new or reworded).
 - **Vacuity** at the base: no report (README.md has no "Vacuity check reports").
@@ -50,9 +50,9 @@ Computed by `ci/hackathon.py` from git alone, at [`fdb5661da12e`](https://github
 - **docs/CAUGHT.md** at the head: "Caught by a law": 3 (Back to the switcher lost its backdrop (566e566, 2026-10-31); A replayed handshake retired a live session (found 2026-10-28; fix not on main); A crash kept a session's keys in the store for good (found 2026-10-31)). "Found otherwise, pinned by a law afterwards": 6, of which 3 say they are pinned by a test, not yet a law.
 - **Lean toolchain** (lean-toolchain): base v4.34.0; head v4.35.0.
 - **Build and judging files** at the base: no Makefile; no comparator.json; no LICENSE file.
-- **Build and judging files** at the head: a Makefile with targets `help`, `install`, `run`, `online`, `check`, `assets`, `verify`; comparator.json with 17 theorems, permitted axioms `propext`, `Quot.sound`, `Classical.choice`; a LICENSE file.
-- **Commits** since the base: 400, of which 84 are merges. 6 were authored before the start (on 2026-10-28): `63f5317a`, `dbb0ff53`, `df760433`, `a0e735dd`, `d9c6eaaa`, `aa2fb401` (merged in `94e900da`).
-- **Files changed** since the base: 1,195 (+106,150 lines, -20,994 lines).
+- **Build and judging files** at the head: a Makefile with targets `help`, `install`, `run`, `online`, `demo`, `check`, `assets`, `verify`; comparator.json with 17 theorems, permitted axioms `propext`, `Quot.sound`, `Classical.choice`; a LICENSE file.
+- **Commits** since the base: 415, of which 86 are merges. 6 were authored before the start (on 2026-10-28): `63f5317a`, `dbb0ff53`, `df760433`, `a0e735dd`, `d9c6eaaa`, `aa2fb401` (merged in `94e900da`).
+- **Files changed** since the base: 1,198 (+107,121 lines, -21,014 lines).
 <!-- hackathon:end -->
 
 - A law is **about running code** when every definition its statement
