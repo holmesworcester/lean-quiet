@@ -226,6 +226,15 @@ lean_exe vacuity_production_bootstrap where
 lean_exe vacuity_bootstrap where
   root := `tests.vacuity.BootstrapMain
 
+lean_exe vacuity_connection_progress where
+  root := `tests.vacuity.ConnectionProgressMain
+
+lean_exe vacuity_closure_delivery where
+  root := `tests.vacuity.ClosureDeliveryMain
+
+lean_exe vacuity_round_exchange where
+  root := `tests.vacuity.RoundExchangeMain
+
 lean_exe merkle_check where
   root := `tests.engine.MerkleCheck
 

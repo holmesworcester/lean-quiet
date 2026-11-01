@@ -120,6 +120,23 @@ def tapeReady (s : IdentityConnection.Session) (cursor : Nat) :=
     else none
   else none
 
+def tapeReads (s : IdentityConnection.Session) :=
+  let mem := memory s 3
+  if h : (Engine.eval mem.held.db (request.byTo.query [pkA] (limit := some 0))).total = 1 ∧
+      mem.held.db.ops s.req.id = some s.req ∧
+      ((trusts c pkA pkB).liftL : View F Bool).eval mem.held.db = true ∧
+      ((arrivedFrom s.req.id : Model F (Option B)).run mem.held.db).1 = some address then
+    let hc : (count request.byTo [pkA] : Execution.M Nat) mem = (1, mem) := by
+      rw [ProgressTape.run_count, h.1]
+    let hg : (Store.getOp s.req.id : Execution.M (Option Op)) mem = (some s.req, mem) := by
+      rw [ProgressTape.run_get, h.2.1]
+    let hv : (((trusts c pkA pkB).liftL : View F Bool).run : Execution.M Bool) mem = (true, mem) := by
+      rw [ProgressTape.run_view, h.2.2.1]
+    let ha : (arrivedFrom s.req.id : Execution.M (Option B)) mem = (some address, mem) := by
+      rw [ProgressTape.run_arrivedFrom, h.2.2.2]
+    some (PLift.up (And.intro hc (And.intro hg (And.intro hv ha))))
+  else none
+
 def main : IO UInt32 := do
   let t ← Checks.new
   let some x := exchange | IO.eprintln "Native handshake construction failed"; return 1
@@ -150,6 +167,7 @@ def main : IO UInt32 := do
     ((replyAccepts { x with message2 := .empty }).isNone)
   t.ok "answer consumes the current entropy-tape draw" ((tapeReady s 3).isSome)
   t.ok "answer theorem applies after earlier draws" ((tapeReady s 4).isSome)
+  t.ok "entropy interpreter reads actual stored request, trust and arrival" ((tapeReads s).isSome)
   let first := (answerOne sodium [(pkA, staticA, endpointA.id)] s.req.id c pkB : Execution.M (List Op))
   let (a, next) := first (memory s 3)
   let (b, last) := first next

@@ -25,9 +25,13 @@ depends = ["crypto"]
 run = "bash tests/engine/join_fair.sh"
 
 [tasks."test:fairness"]
-description = "Real encrypted runner fairness regression, production-bootstrap certificates and the explicit fair model execution"
+description = "Real encrypted runner fairness regression and native handshake, round, closure and fair-execution certificates"
 depends = ["test:join-fair"]
 run = "bash tests/engine/fairness.sh"
+
+[tasks."test:bootstrap-progress"]
+description = "Bootstrap progress PR gate: native certificates, TCP retry/fairness and sync epoch/claim-tree mutation controls"
+run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree"
 
 [tasks.bench]
 description = "Wall times of the byte codec on a photo's paths: a 64 KiB chunk op's encode, decode and validation, 100 chunks into SQLite, a 48 KiB frame bundle"

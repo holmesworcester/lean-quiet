@@ -1,0 +1,37 @@
+{
+  "run_count": {
+    "status": "runtime-witness",
+    "theorem": "Connection.ProgressTape.run_count",
+    "module": "tests.vacuity.ConnectionProgress",
+    "witness": "Vacuity.ConnectionProgress.tapeReads",
+    "detail": "Native signed approved-join fixture checks one stored request, its exact bytes, positive trust and arrival address. The entropy-tape interpreter reads those values without changing its memory; the certificate applies all four read equations. Store/OS refinement remains separate."
+  },
+  "run_get": {
+    "status": "runtime-witness",
+    "theorem": "Connection.ProgressTape.run_get",
+    "module": "tests.vacuity.ConnectionProgress",
+    "witness": "Vacuity.ConnectionProgress.tapeReads",
+    "detail": "Native signed approved-join fixture checks one stored request, its exact bytes, positive trust and arrival address. The entropy-tape interpreter reads those values without changing its memory; the certificate applies all four read equations. Store/OS refinement remains separate."
+  },
+  "run_view": {
+    "status": "runtime-witness",
+    "theorem": "Connection.ProgressTape.run_view",
+    "module": "tests.vacuity.ConnectionProgress",
+    "witness": "Vacuity.ConnectionProgress.tapeReads",
+    "detail": "Native signed approved-join fixture checks one stored request, its exact bytes, positive trust and arrival address. The entropy-tape interpreter reads those values without changing its memory; the certificate applies all four read equations. Store/OS refinement remains separate."
+  },
+  "run_arrivedFrom": {
+    "status": "runtime-witness",
+    "theorem": "Connection.ProgressTape.run_arrivedFrom",
+    "module": "tests.vacuity.ConnectionProgress",
+    "witness": "Vacuity.ConnectionProgress.tapeReads",
+    "detail": "Native signed approved-join fixture checks one stored request, its exact bytes, positive trust and arrival address. The entropy-tape interpreter reads those values without changing its memory; the certificate applies all four read equations. Store/OS refinement remains separate."
+  },
+  "ProgressTape.answer_ready": {
+    "status": "runtime-witness",
+    "theorem": "Connection.ProgressTape.answer_ready",
+    "module": "tests.vacuity.ConnectionProgress",
+    "witness": "Vacuity.ConnectionProgress.tapeReady",
+    "detail": "Native finite store and Noise premises construct the actual four-operation answer at entropy cursors 3 and 4. Successive handler calls advance to 4 and 5 and produce distinct connection IDs. This checks one handler with advancing entropy, not full reaction-loop or native RNG refinement."
+  }
+}

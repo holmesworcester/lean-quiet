@@ -7,5 +7,5 @@ export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 mkdir -p out/fairness
-lake build vacuity_production_bootstrap vacuity_bootstrap >out/fairness/build.log 2>&1
+lake build vacuity_production_bootstrap vacuity_bootstrap vacuity_connection_progress vacuity_closure_delivery vacuity_round_exchange >out/fairness/build.log 2>&1
 python3 tests/engine/fairness.py

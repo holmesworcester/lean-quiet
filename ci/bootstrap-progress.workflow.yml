@@ -1,0 +1,69 @@
+name: Bootstrap progress
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bootstrap-progress-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proofs-and-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      SKIP_TCP: "0"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
+        with:
+          install: false
+      - name: Install native test and asset prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-core librsvg2-2 libcairo2 python3-pip unzip
+      - name: Install the repository's Lean toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ELAN_HOME="$RUNNER_TEMP/elan"
+          export TMPDIR="$RUNNER_TEMP/quiet-tmp"
+          export CJK_PYTHON="$RUNNER_TEMP/quiet-fonttools"
+          echo "ELAN_HOME=$ELAN_HOME" >> "$GITHUB_ENV"
+          echo "TMPDIR=$TMPDIR" >> "$GITHUB_ENV"
+          echo "CJK_PYTHON=$CJK_PYTHON" >> "$GITHUB_ENV"
+          mkdir -p "$TMPDIR"
+          python3 -m pip install --target "$CJK_PYTHON" fonttools==4.68.0
+          curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/leanprover/elan/9605b24b08cf68b78dce0014b6fa01be1f8e2cee/elan-init.sh -o "$TMPDIR/elan-init.sh"
+          sh "$TMPDIR/elan-init.sh" -y --default-toolchain none
+          echo "$ELAN_HOME/bin" >> "$GITHUB_PATH"
+          "$ELAN_HOME/bin/elan" toolchain install "$(cat lean-toolchain)"
+          mise trust
+          rustc --version
+          cc --version
+      - name: Run the same proof, runtime and README gates as local CI
+        run: ci/local.sh check bootstrap-progress vacuity readme
+      - name: Exercise the actual invite, approval and message UI over TCP
+        run: mise run host:net-join
+      - name: Retain failure logs, databases and relay diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bootstrap-progress-${{ github.run_id }}
+          path: |
+            out/ci
+            out/fairness
+            out/join-fair
+            out/simplify-negative
+            out/tree-negative
+            out/vacuity
+            out/proof-links
+            out/net
+          if-no-files-found: warn
+          retention-days: 14
