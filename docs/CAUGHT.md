@@ -9,6 +9,12 @@ and keep the code as it was as a `control` in tests/wiring.txt.
 Bugs found some other way and pinned by a law afterwards are listed
 apart, at the end: there the law came second.
 
+The gate (`ci/local.sh`) is the proofs and a few fast, deterministic
+tests; the rest (`ci/local.sh --full`) runs nightly and before a release.
+A bug the full run, dogfooding or a user finds that the gate missed is an
+escape. It goes at the end with the law that now catches it, so the gate
+catches it next time. The aim is no escapes.
+
 ## Caught by a law
 
 ### Back to the switcher lost its backdrop (566e566, 2026-10-31)
@@ -118,3 +124,18 @@ apart, at the end: there the law came second.
 - **A photo's decode ran on every frame**, stalling the Pixel for
   seconds. The cost law `imageV_over_budget` keeps the shipped `image`
   (`Pics.imageV`) as a negative control over the frame's budget.
+- **Members were told "You've been removed" when no one removed them**
+  (found by the gate's pixel test, 2026-11-01; an escape until then: the
+  same frame had passed as a flake). Opening the switcher over sixteen
+  new communities showed "You've been removed from Community 16" in
+  about one run in six under load. `Accepted.read` marked an entry
+  removed when its admission was read but a second read, of whether its
+  device was live, found none; the two reads need not see the same store.
+  A wrongly removed entry also forgot its composer text, invite link and
+  profile, and was remembered as told, so a real removal later would go
+  untold. Fixed: removed now needs a removal read (`deviceCut`), and
+  `deviceCut_removal` proves it holds only with a removal in the store
+  it read, whatever an earlier read saw. The shipped
+  mark is kept as `PeopleLaws.removedShipped`, a `control` in
+  tests/wiring.txt, and `shipped_removed_without_removal` proves it marks
+  an entry removed with no removal read.
