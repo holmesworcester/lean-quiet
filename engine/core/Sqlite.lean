@@ -87,9 +87,13 @@ END;
 "
 
 /-- The three counts a write turn's budget reads (`budgetSql`), set from
-the tables themselves each time a connection opens the database, so an
-old or wiped database starts exact; the `tally` triggers keep them exact
-from then on, so a turn reads three rows, not three scans of the store. -/
+the tables themselves when a database has no tally rows yet (new,
+wiped, or older than the tally); the `tally` triggers keep them exact
+from then on, so a turn reads three rows, not three scans of the store.
+An open that finds the rows only reads them: the app reopens its store
+often (the reader about once a second), and seeding on every open took
+the write lock and scanned the store each time (tests/app/headless.sh:
+writes slowed past its timeouts). -/
 def tallySeed : String := "
 BEGIN IMMEDIATE;
 INSERT OR REPLACE INTO tally (k, n) VALUES
@@ -117,7 +121,8 @@ def Db.openAt (path : String) : IO Db := do
   db.exec schemaCore
   let version ← db.query "SELECT version FROM catalog_version WHERE version = 1" #[]
   if version.isEmpty then db.exec catalogMigration
-  db.exec tallySeed
+  let tally ← db.query "SELECT k FROM tally" #[]
+  if tally.size != 3 then db.exec tallySeed
   return db
 
 /-- Store F on a database: one connection, read by every statement. -/

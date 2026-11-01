@@ -99,14 +99,17 @@ def main (args : List String) : IO UInt32 := do
       let m := runModel fam acts
       sameTables t s!"seed {seed} run {run} at rest" db m ids0
       tallyChecks t s!"seed {seed} run {run} at rest" db m
-      -- The tally drifted on purpose, then the database opened again:
-      -- opening seeds it from the tables.
-      db.exec "UPDATE tally SET n = n + 7"
-      let drift ← (tallyRows (F := Fact)).run db
-      t.ok s!"seed {seed} run {run}: a drifted tally is off (the reopen's control)"
-        (drift != (← (budgetScan (F := Fact)).run db))
+      -- A database from before the tally (its rows gone), opened again:
+      -- opening seeds them from the tables.
+      db.exec "DELETE FROM tally"
+      let gone ← (tallyRows (F := Fact)).run db
+      t.ok s!"seed {seed} run {run}: without its rows the tally is off (the reopen's control)"
+        (gone != (← (budgetScan (F := Fact)).run db))
       let db2 ← Db.openAt path
       tallyChecks t s!"seed {seed} run {run} reopened" db2 m
+      -- and an open that finds them leaves them as the triggers kept them
+      let db3 ← Db.openAt path
+      tallyChecks t s!"seed {seed} run {run} reopened again" db3 m
       t.ok s!"seed {seed} run {run}: queue empty at rest" m.queue.isEmpty
       t.ok s!"seed {seed} run {run}: verdicts equal the spec's"
         (ids0.all fun x => m.status x == specOf fam m.ops ops.length x)
