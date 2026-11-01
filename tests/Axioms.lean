@@ -10,6 +10,8 @@ import engine.wire.IngressLaws
 import engine.wire.IngressPriorityLaws
 import engine.wire.IngressChurnLaws
 import app.Proofs
+import app.settings.appearance.Proofs
+import app.settings.appearance.Commands
 import engine.renderer.Demand
 
 
@@ -841,6 +843,35 @@ section cost
 #print axioms Engine.waitOn_costs
 #print axioms Engine.decide_costs
 #print axioms Engine.step_costs
+#print axioms Engine.cr_erase
+#print axioms Engine.within_at
+#print axioms Engine.decide_reads
+#print axioms Engine.step_reads_le
+#print axioms Engine.intake_reqs
+#print axioms Engine.intakeConn_reqs
+#print axioms Engine.intake_sub
+#print axioms Engine.mem_intake_shared
+#print axioms Engine.intake_mine
+#print axioms Engine.stored_capped
+#print axioms Engine.step_capped
+#print axioms Engine.fed_reqs
+#print axioms Engine.step_reads_fed
+#print axioms Connection.wire_not_conn
+#print axioms Connection.intakeConn_wire
+#print axioms Community.post_reqs_le
+#print axioms Community.attach_reqs
+#print axioms Community.nodeKeyOr_authored
+#print axioms Community.found_authored
+#print axioms Community.joinOps_authored
+#print axioms Community.inviteTo_authored
+#print axioms Community.join_authored
+#print axioms Community.introduce_authored
+#print axioms Community.removeMember_authored
+#print axioms Community.approveReq_authored
+#print axioms Community.stopWaiting_authored
+#print axioms Community.react_reqs_le
+#print axioms Community.receiptFor_authored
+#print axioms Community.send_authored
 #print axioms Engine.list_costs
 #print axioms Engine.model_fits
 #print axioms Engine.View.view_lists
@@ -960,6 +991,13 @@ end cost
 #print axioms Connection.removed_node
 #print axioms Connection.connect_iff_node
 #print axioms Connection.refuse_nonmember_node
+-- The app's own ops on top of the node's (app/Family.lean, engine/core/Left.lean).
+#print axioms Engine.left_list
+#print axioms Engine.left_status
+#print axioms Engine.rightKey_of
+#print axioms Engine.top_right
+#print axioms Quiet.node_app
+#print axioms Quiet.node_left
 #print axioms Connection.removal_cuts_off_node
 #print axioms Connection.members_iff_node
 #print axioms Connection.recipients_iff_node
@@ -1063,6 +1101,10 @@ end cost
 #print axioms Theme.follows
 #print axioms Theme.forced
 #print axioms Theme.roundtrip
+#print axioms Settings.Appearance.choose_valid
+#print axioms Settings.Appearance.choose_local
+#print axioms Settings.Appearance.query_right
+#print axioms Settings.Appearance.current_newest
 #print axioms Appearance.selected_check
 #print axioms Contrast.channel_bounds
 #print axioms Contrast.ink_meets

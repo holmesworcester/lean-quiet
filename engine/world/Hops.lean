@@ -231,12 +231,19 @@ theorem store_conns (n : Node) (ops : List Op) (mine : Bool) (h : Held F) :
   · unfold Node.put; rw [write_conns]
   · rw [fanout_conns]; unfold Node.put; rw [write_conns]
 
-/-- A put of one shared op the store holds already changes nothing. -/
+/-- A put of one shared op the store holds already, or of one over the
+intake cap, changes nothing. -/
 theorem put_held (x : Sync F (HeldM F)) (n : Node) (o : Op) (h : Held F) (hsh : x.fam.shared o = true)
-    (hh : (h.db.ops o.id).isSome = true) : (n.put x [o] false).run h = ((n, []), h) := by
+    (hh : (h.db.ops o.id).isSome = true ∨ o.capped = false) : (n.put x [o] false).run h = ((n, []), h) := by
   unfold Node.put
-  simp only [intake, Bool.false_eq_true, ↓reduceIte, List.filter_cons, hsh, List.filter_nil]
-  exact write_held x n [o] h (fun o' ho' => by rw [List.mem_singleton.1 ho']; exact hh)
+  rcases hh with hh | hcp
+  · cases hcp : o.capped
+    · simp only [intake, Bool.false_eq_true, ↓reduceIte, List.filter_cons, hsh, hcp, List.filter_nil]
+      exact write_nil x n h
+    · simp only [intake, Bool.false_eq_true, ↓reduceIte, List.filter_cons, hsh, hcp, List.filter_nil]
+      exact write_held x n [o] h (fun o' ho' => by rw [List.mem_singleton.1 ho']; exact hh)
+  · simp only [intake, Bool.false_eq_true, ↓reduceIte, List.filter_cons, hsh, hcp, List.filter_nil]
+    exact write_nil x n h
 
 /-- **What applying a payload's step does:** the session stays open, and
 the store is as it was, or gains exactly the step's op, which it
@@ -261,9 +268,13 @@ theorem apply_store (n : Node) (cid : Id) (st : Step) (now : Nat) (h : Held F) (
   · rw [ht]
     refine ⟨by rw [store_conns], ?_⟩
     by_cases hn : h.db.ops o.id = none
-    · exact Or.inr ⟨o, rfl, hn, store_one S s _ o false h hn (by simp [intake, hsh])⟩
+    · cases hcp : o.capped
+      · left
+        rw [store_run, put_held _ _ o h hsh (Or.inr hcp)]
+        rfl
+      · exact Or.inr ⟨o, rfl, hn, store_one S s _ o false h hn (by simp [intake, hsh, hcp])⟩
     · left
-      rw [store_run, put_held _ _ o h hsh (by revert hn; cases h.db.ops o.id <;> simp)]
+      rw [store_run, put_held _ _ o h hsh (Or.inl (by revert hn; cases h.db.ops o.id <;> simp))]
       rfl
 
 /-- Applying a step that takes one shared op the store holds already
@@ -303,7 +314,8 @@ theorem payload_run (n : Node) (cid : Id) (c : Conn) (b : ByteArray) (now : Nat)
 after it the store holds that op, or held an op under its id already and
 is unchanged. -/
 theorem payload_takes (n : Node) (cid : Id) (c : Conn) (o : Op) (r : Id) (now : Nat) (h : Held F)
-    (hw : isWire o.kind = false) (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid) :
+    (hw : isWire o.kind = false) (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid)
+    (hcp : o.capped = true) :
     let st := ((Conn.recv S.fam S.cfg n.ix { c.setRooms (S.rooms s cid) with notices := [] } o.bytes now :
       HeldM F Step).run h).1
     ((n.apply (S.sync s) cid st now).run h).2.db.ops o.id = some o ∨
@@ -315,7 +327,7 @@ theorem payload_takes (n : Node) (cid : Id) (c : Conn) (o : Op) (r : Id) (now : 
   have hshared : S.fam.shared o = true := by simp [Family.shared, hr]
   by_cases hn : h.db.ops o.id = none
   · left
-    rw [apply_takes S s _ _ _ _ o h rfl rfl hn hshared, turnH_one _ _ _ hn]
+    rw [apply_takes S s _ _ _ _ o h rfl rfl hn hshared hcp, turnH_one _ _ _ hn]
   · right
     have hh : (h.db.ops o.id).isSome = true := by revert hn; cases h.db.ops o.id <;> simp
     exact ⟨hh, apply_one_held S s n cid _ now h o rfl rfl hshared hn⟩
@@ -330,6 +342,7 @@ the frame or the store bears o's id (no hash collision). -/
 theorem onSealed_takes (n : Node) (src : ByteArray) (cid : Id) (inner : List ByteArray) (o : Op) (r : Id)
     (now : Nat) (h : Held F) (hc : (n.conn? cid).isSome = true) (ho : o.bytes ∈ inner)
     (hw : isWire o.kind = false) (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid)
+    (hcp : o.capped = true)
     (hpre : ∀ o', h.db.ops o.id = some o' → o' = o)
     (hfr : ∀ b ∈ inner, ∀ o', Op.decode b = some o' → o'.id = o.id → o' = o) :
     ((n.onSealed (S.sync s) src (some (cid, Codec.encode inner)) now).run h).2.db.ops o.id = some o := by
@@ -378,7 +391,7 @@ theorem onSealed_takes (n : Node) (src : ByteArray) (cid : Id) (inner : List Byt
       · rename_i c hcs
         simp only [HeldM.run_bind, refresh_run, sync_fam, sync_cfg, HeldM.run_pure, ForInStep.value]
         rw [recv_reads]
-        rcases payload_takes S s st.1 cid c o r now h' hw hr hs with e | ⟨hh, e⟩
+        rcases payload_takes S s st.1 cid c o r now h' hw hr hs hcp with e | ⟨hh, e⟩
         · exact e
         · rw [e]
           obtain ⟨o', ho'⟩ := Option.isSome_iff_exists.1 hh
@@ -396,6 +409,7 @@ plain node receives. -/
 theorem onFrame_takes (n : Node) (src : ByteArray) (cid : Id) (inner : List ByteArray) (o : Op) (r : Id)
     (now : Nat) (h : Held F) (hc : (n.conn? cid).isSome = true) (ho : o.bytes ∈ inner)
     (hw : isWire o.kind = false) (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid)
+    (hcp : o.capped = true)
     (hpre : ∀ o', h.db.ops o.id = some o' → o' = o)
     (hfr : ∀ b ∈ inner, ∀ o', Op.decode b = some o' → o'.id = o.id → o' = o) :
     ((n.onFrame (S.sync s) src (plainFrame cid inner) now).run h).2.db.ops o.id = some o := by
@@ -404,7 +418,7 @@ theorem onFrame_takes (n : Node) (src : ByteArray) (cid : Id) (inner : List Byte
     simp only [Node.onFrame, plainFrame_head, plainFrame_body, sync_openFrame, plainOpen, Codec.decode_encode,
       HeldM.pure_bind]
   rw [e]
-  exact onSealed_takes S s n src cid inner o r now h hc ho hw hr hs hpre hfr
+  exact onSealed_takes S s n src cid inner o r now h hc ho hw hr hs hcp hpre hfr
 
 end
 

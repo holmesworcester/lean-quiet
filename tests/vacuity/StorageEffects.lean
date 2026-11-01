@@ -41,10 +41,12 @@ def freshWriteCertificate (p : Peer) (o : Op) (now : Nat)
     (hi : Inv Connection.Execution.family p.memory.held.db) :=
   if hn : p.memory.held.db.ops o.id = none then
     if hs : (Connection.Execution.family.room o).isSome then
-      some (PLift.up (production_write_receives setup .b p.node p.memory
-        [o] now hi (o := o) (List.mem_singleton_self _) hs
-        (by intro q hq _; exact List.mem_singleton.mp hq)
-        (by intro q hq; rw [hn] at hq; cases hq)))
+      if hc : o.capped = true then
+        some (PLift.up (production_write_receives setup .b p.node p.memory
+          [o] now hi (o := o) (List.mem_singleton_self _) hs hc
+          (by intro q hq _; exact List.mem_singleton.mp hq)
+          (by intro q hq; rw [hn] at hq; cases hq)))
+      else none
     else none
   else none
 

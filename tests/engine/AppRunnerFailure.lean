@@ -62,7 +62,7 @@ unsafe def run (dir : String) (t : Checks) (mode : Nat) : IO Unit := do
   let entered ← IO.Promise.new
   let release ← IO.Promise.new
   let armed ← IO.mkRef true
-  let hooks := Connection.hooks fam Connection.sodium .empty
+  let hooks := Data.hooks .empty
   let x : Sync SF (SqlM SF) := { fam, hooks := { hooks with react := do
     if ← armed.modifyGet (fun value => (value, false)) then
       entered.resolve ()
