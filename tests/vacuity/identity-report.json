@@ -104,13 +104,6 @@
     "detail": "Founder Alice and granted admin Bob each sign a removal of the other. The law derives both removals' validity from the two signed ops, both admins' admin facts and both admissions; neither removal is an input. Signatures and the cited facts are checked with the production SHA-256/Ed25519 at run time.",
     "module": "tests.vacuity.Identity"
   },
-  "removed_approver_admits": {
-    "theorem": "Community.removed_approver_admits",
-    "status": "runtime-witness",
-    "witness": "Vacuity.Identity.removedApprover",
-    "detail": "Alice is removed, her approval remains valid, and it still admits Bob; the removal premise is explicitly inhabited.",
-    "module": "tests.vacuity.Identity"
-  },
   "request_valid": {
     "theorem": "Community.request_valid",
     "status": "runtime-witness",
@@ -129,7 +122,7 @@
     "theorem": "Community.admit_admits",
     "status": "runtime-witness",
     "witness": "Vacuity.Identity.admitAdmits",
-    "detail": "Actual root, request and approval facts construct a valid admission citing exactly one approval.",
+    "detail": "Actual root, request and approval facts construct a valid admission citing exactly one approval. Also removedApprover: with Alice's removal Valid in the same store, her approval still admits Bob.",
     "module": "tests.vacuity.Identity"
   }
 }

@@ -4,7 +4,7 @@
     "theorem": "Community.connect_iff",
     "witness": "Vacuity.IdentityTrust.connectIff",
     "module": "tests.vacuity.IdentityTrust",
-    "detail": "Reach-built nonempty signed store; all invariant fields proved, queue emptiness checked; Bob connects before removal and is refused afterward. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+    "detail": "Reach-built nonempty signed store; all invariant fields proved, queue emptiness checked; Bob connects before removal and is refused afterward. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application. Also newDeviceTrusted: Carol, a new device admitted under removed Bob's node key, is let in while Bob's device stays admitted and removed in the same store."
   },
   "deviceLive_iff": {
     "status": "runtime-witness",
@@ -103,13 +103,6 @@
     "witness": "Vacuity.IdentityTrust.profileAuthorized",
     "module": "tests.vacuity.IdentityTrust",
     "detail": "Bob signs a nonempty profile; Mallory signing a profile while citing Bob is rejected. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
-  },
-  "new_device_trusted": {
-    "status": "runtime-witness",
-    "theorem": "Community.new_device_trusted",
-    "witness": "Vacuity.IdentityTrust.newDeviceTrusted",
-    "module": "tests.vacuity.IdentityTrust",
-    "detail": "Carol is a new device/user admitted under removed Bob's node key; Carol becomes live while Bob stays cut. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
   },
   "mine_not_removed": {
     "status": "runtime-witness",

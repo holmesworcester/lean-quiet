@@ -29,14 +29,16 @@ def adminRemoval : Option (PLift (V ed25519 (table after) removeB.id (.removal c
     else none
   else none
 
--- The same request approved before removal is admitted after both admins leave.
+-- The same request approved before removal is admitted after both admins
+-- leave: Alice's removal is Valid in the store, and `admit_admits` takes no
+-- removal premise.
 def removedApprover : Option (PLift (V ed25519 (table after) admission.id bobFact)) := do
   let ⟨hc⟩ ← certify after r rootFact
   let ⟨hr⟩ ← certify after requestB (.request c requestB.id bob.pk (keyOf bob) false)
   let ⟨ha⟩ ← certify after approval (.approval c requestB.id c)
-  let ⟨hm⟩ ← certify after removeA (.removal c c requestB.id)
+  let ⟨_⟩ ← certify after removeA (.removal c c requestB.id)
   if hy : table after admission.id = some admission then
-    return ⟨removed_approver_admits hy (decode_encode _) rfl rfl hc hr ha ⟨removeA.id, requestB.id, hm⟩⟩
+    return ⟨admit_admits hy (decode_encode _) rfl rfl hc hr ha⟩
   else none
 
 def requestValid : Option (PLift (V ed25519 (table after) requestB.id
@@ -139,7 +141,7 @@ def main : IO UInt32 := do
   t.ok "admission_consented: Bob's admission" admissionConsented.isSome
   t.ok "admin_removal_stands: explicit premises" adminRemoval.isSome
   t.ok "mutual_removal: two different admins" mutualRemoval.isSome
-  t.ok "removed_approver_admits: removed Alice's approval still admits Bob" removedApprover.isSome
+  t.ok "admit_admits: removed Alice's approval still admits Bob" removedApprover.isSome
   t.ok "request_valid: invitation and two checked signatures" requestValid.isSome
   t.ok "approve_valid: distinct member signs approval" approveValid.isSome
   t.ok "admit_admits: one approval" admitAdmits.isSome

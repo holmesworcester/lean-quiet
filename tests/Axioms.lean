@@ -164,7 +164,6 @@ open Engine Community
 #print axioms Community.approve_valid
 #print axioms Community.admit_admits
 #print axioms Community.admission_needs_approval
-#print axioms Community.removed_approver_admits
 #print axioms Community.removal_authorized
 #print axioms Community.admin_removal_stands
 #print axioms Community.mutual_removal
@@ -706,7 +705,6 @@ end net
 #print axioms Community.cut_consented
 #print axioms Community.signed_eq
 #print axioms Community.endpoint_derives
-#print axioms Community.new_device_trusted
 #print axioms Community.removals_at
 #print axioms Community.mine_not_removed
 #print axioms Community.rejoin_fresh
