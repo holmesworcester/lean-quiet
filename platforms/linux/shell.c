@@ -649,3 +649,5 @@ lean_obj_res lq_desktop_native_scroll(void) { return lean_io_result_mk_ok(lean_b
 lean_obj_res lq_desktop_layers(b_lean_obj_arg list, b_lean_obj_arg hold, b_lean_obj_arg placement, b_lean_obj_arg viewport) {
     (void)list; (void)hold; (void)placement; (void)viewport; return unit();
 }
+
+#include "../native/editor_legacy.h"

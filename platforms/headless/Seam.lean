@@ -14,7 +14,7 @@ def check (label : String) (ok : Bool) : IO Unit := do
 def unit : IO Unit := do
   let g : Geometry.Geom := ⟨800, 20, 300, 80, 60⟩
   let f := Surface.make g false 32 10 10 704
-  let c : Context := ⟨f, 160, 100⟩
+  let c : Context := ⟨f, 160, 100, 0⟩
   let t (phase time x y : Nat) (id : Nat := 1) : Raw := .touch ⟨phase, id, ⟨x, y⟩, time⟩
   let cases : List (String × List Raw × List Event) := [
     ("tap", [t 0 0 100 120, t 2 100 100 120], [.tap .list 100 329]),

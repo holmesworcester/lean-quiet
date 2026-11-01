@@ -460,3 +460,5 @@ lean_obj_res lq_appearance(uint8_t dark, uint32_t background) {
 
 lean_obj_res lq_pick_photo(uint32_t token) { (void)token; return lean_io_result_mk_ok(lean_box(0)); }
 lean_obj_res lq_photo_result(void) { lean_object* p = lean_alloc_ctor(0,2,0); lean_ctor_set(p,0,lean_mk_empty_array()); lean_ctor_set(p,1,lean_alloc_sarray(1,0,0)); return lean_io_result_mk_ok(p); }
+
+#include "../native/editor_legacy.h"

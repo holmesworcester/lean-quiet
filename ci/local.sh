@@ -33,7 +33,7 @@ gate() {
     engine) mise run test:engine ;;
     runtime) mise run test:engine-runtime ;;
     mdns|qr|net) mise run "test:$1" ;;
-    app) mise run test:app && mise run windows:input ;;
+    app) mise run test:app && mise run windows:input && mise run test:owned-input ;;
     visual) mise run visual:compare && mise run visual:hover && mise run visual:composer ;;
     android-release) mise run android:release-e2e ;;
     android-links) mise run android:links-e2e ;;
@@ -45,6 +45,8 @@ gate() {
     windows-ui|release-windows) mise run windows:e2e ;;
     macos-ui|release-macos) mise run macos:e2e ;;
     android-ui) mise run android:twin-demo-e2e && mise run android:lifecycle-e2e ;;
+    owned-input) mise run test:owned-input ;;
+    android-owned-input) mise run android:owned-input-e2e ;;
     android-lifecycle) mise run android:lifecycle-e2e ;;
     android-photo) mise run android:photo-e2e && mise run android:photo-lifecycle-e2e ;;
     zoom) mise run test:zoom ;;

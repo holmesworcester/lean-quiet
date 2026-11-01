@@ -32,7 +32,7 @@ mutants = [
     ("wrong-placement", "engine/renderer/Geometry.lean", "(g.top : Int) - over + r + ((bn : Int) - bf) - g.shift", "(g.top : Int) - over + r + ((bn : Int) - bf) - g.shift + 1", None),
     ("no-fitting-viewport", "engine/renderer/Geometry.lean", "def Geom.Fits (g : Geom) : Prop := g.top + g.bot + max g.insetBot g.ime ≤ g.h", "def Geom.Fits (g : Geom) : Prop := False", None),
     ("keep-old-layout", "app/Screen.lean", "let lay := Row.layout s.font dm w r.data", "let lay := r.lay", "suite"),
-    ("draw-without-surface", "app/Screen.lean", "if !s.active || !s.surface || s.netStop.isSome then\n    IO.sleep 16", "if false then\n    IO.sleep 16", "suite"),
+    ("draw-without-surface", "app/Screen.lean", "if !s.active || !s.surface || s.netStop.isSome then\n      IO.sleep 16", "if false then\n      IO.sleep 16", "suite"),
     ("lose-camera-teardown", "app/Screen.lean", "if s.camOn then s.io.scan false", "if false then s.io.scan false", "suite"),
     ("lose-write-journal", "app/Screen.lean", "queuedWrites := s.queuedWrites ++ j.ops.map Op.bytes", "queuedWrites := s.queuedWrites", "crash"),
     ("lose-native-draft", "app/Screen.lean", 's.io.setText t', 's.io.setText ""', "suite"),

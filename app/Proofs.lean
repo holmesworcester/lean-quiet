@@ -1201,9 +1201,9 @@ theorem nav_back (s : St) : (backSt s).nav = Nav.back s.nav := rfl
 
 theorem nav_switch (a : Engine.Id) (s : St) : (switchSt a s).nav = Nav.reset PageId.home := rfl
 
-/-- **Back goes back.** -/
+/-- **Back goes back.** Both navigation calls revoke the old editor epoch. -/
 theorem back_open (p : PageId) (s : St) (hp : p ≠ s.page) (hs : p ∉ s.backStack) :
-    backSt (openSt p s) = { s with field := "", refusal := none, pageKey := none, pageScrollStarted := false, switcherBackdrop := (openSt p s).switcherBackdrop, ownSends := {}, presenting := none } := by
+    backSt (openSt p s) = { s with editorEpoch := s.editorEpoch + 1 + 1, field := "", refusal := none, pageKey := none, pageScrollStarted := false, switcherBackdrop := (openSt p s).switcherBackdrop, ownSends := {}, presenting := none } := by
   have h := Nav.back_go p s.nav hp hs
   unfold backSt
   rw [nav_open, h]
@@ -1213,10 +1213,10 @@ theorem back_open (p : PageId) (s : St) (hp : p ≠ s.page) (hs : p ∉ s.backSt
     simp [hc, hn]
   · simp [hc]
 
-/-- **Back at a root keeps the page.** -/
+/-- **Back at a root keeps the page**, while revoking the old editor epoch. -/
 theorem back_root (s : St) (h : s.backStack = []) :
     backSt s = { s with
-      field := "", refusal := none, pageKey := none, pageScrollStarted := false,
+      editorEpoch := s.editorEpoch + 1, field := "", refusal := none, pageKey := none, pageScrollStarted := false,
       ownSends := if s.page == .chat then s.ownSends else {},
       presenting := if s.page == .chat then s.presenting else none } := by
   have hb := Nav.back_root s.nav h

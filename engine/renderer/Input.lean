@@ -24,6 +24,7 @@ structure Context where
   frame : Surface.Frame
   dpi : Nat := 160
   maxB : Nat := 0
+  editor : UInt64 := 0
   deriving BEq, Repr, Inhabited
 
 def Context.slop (c : Context) : Nat := 8 * c.dpi / 160
@@ -68,7 +69,7 @@ def deliver (f : Surface.Frame) : Gesture → Event
 /-- Diagnostic copy of the list event delivered to the app, never a native
 reclassification. Published with the next frame for shell UI tests. -/
 def trace (last : Array UInt32) (events : List Event) : Array UInt32 :=
-  events.foldl (fun last e => match e with
+  (events.flatMap fun e => match e with | .action _ _ _ es => es | _ => [e]).foldl (fun last e => match e with
     | .tap .list x y => #[2, x, y]
     | .long .list x y => #[3, x, y]
     | _ => last) last
@@ -127,6 +128,7 @@ def touch (c : Context) (s : State) (t : Touch) : Result :=
     { r with state := { r.state with pointers :=
         if t.phase ≥ 2 then s.pointers.filter (· != t.id) else s.pointers } }
 inductive Raw where
+  | owned (ticket owner : UInt64) (refusal : UInt32) (raw : Raw)
   | touch (t : Touch)
   | touchOn (frame : Nat) (t : Touch)
   | touchAt (frame : Nat) (slide : Int) (t : Touch)
@@ -141,6 +143,12 @@ inductive Raw where
 def sendKey (enter code action : Nat) : Bool := code == enter && action == 0
 
 def advance (c : Context) (s : State) : Raw → Result
+  | .owned ticket admitted refusal raw =>
+    let owner := match raw with
+      | .touch _ | .touchOn _ _ | .touchAt _ _ _ => (s.press.map (·.context.editor)).getD 0
+      | _ => admitted
+    let result := advance c s raw
+    { result with events := [.action ticket owner (if owner != admitted then 2 else refusal) result.events] }
   | .touch t => touch c s t
   | .touchOn serial t =>
     match s.frames.lookup serial with
@@ -175,31 +183,60 @@ def run (c : Context) (s : State) (es : List Raw) : Result :=
     { next with events := r.events ++ next.events, motion := r.motion ++ next.motion })
     ⟨{ s with offset := Surface.offset c.maxB s.offset }, [], []⟩
 
+/-- A prefix may own only a terminal candidate, never a lifecycle record. -/
+def Raw.terminal : Raw → Bool
+  | .touchAt _ _ t | .touchOn _ t | .touch t => t.phase == 2
+  | .key code action => sendKey 66 code action
+  | .usbKey code action => sendKey 40 code action
+  | .imeAction action => action == 4
+  | _ => false
+
 /-- Eight words: kind, pointer/code, signed x/action, signed y, time low,
 time high, displayed frame serial, signed translation. Native queues retain every sample. -/
 def decode (ws : Array UInt32) : List Raw := Id.run do
   let mut out := #[]
+  let mut pending : Option (UInt64 × UInt64 × UInt32) := none
   for i in [0:ws.size / 8] do
     let k := ws[8*i]!.toNat
     let a := ws[8*i+1]!.toNat
     let b := ws[8*i+2]!
     let d := ws[8*i+3]!
     let time := ws[8*i+4]!.toNat + ws[8*i+5]!.toNat * 4294967296
-    if 9 ≤ k && k ≤ 12 then
-      out := out.push (.touchAt ws[8*i+6]!.toNat ws[8*i+7]!.toInt32.toInt ⟨k - 9, a, ⟨b.toInt32.toInt, d.toInt32.toInt⟩, time⟩)
-    else if k == 13 then out := out.push (.tick time)
-    else if k == 14 then out := out.push (.key a b.toNat)
-    else if k == 15 then out := out.push (.usbKey a b.toNat)
-    else if k == 5 then out := out.push (.imeAction a)
-    else if k == 1 then out := out.push (.event .close)
-    else if k == 4 then out := out.push (.event .text)
-    else if k == 6 then out := out.push (.event (.ime a.toUInt32))
-    else if k == 7 then out := out.push (.event (.scrolling (a != 0)))
-    else if k == 16 then out := out.push (.event .background)
-    else if k == 17 then out := out.push (.event .foreground)
-    else if k == 18 then out := out.push (.event (.surface (a != 0)))
-    else if k == 19 then out := out.push (.event .resize)
+    if k == 22 then
+      if let some (t, o, _) := pending then out := out.push (.event (.action t o 2 []))
+      pending := some (ws[8*i+1]!.toUInt64 ||| (b.toUInt64 <<< 32),
+        ws[8*i+4]!.toUInt64 ||| (ws[8*i+5]!.toUInt64 <<< 32), d)
+      continue
+    let raw := if 9 ≤ k && k ≤ 12 then
+        some (.touchAt ws[8*i+6]!.toNat ws[8*i+7]!.toInt32.toInt
+          ⟨k - 9, a, ⟨b.toInt32.toInt, d.toInt32.toInt⟩, time⟩)
+      else if k == 13 then some (.tick time)
+      else if k == 14 then some (.key a b.toNat)
+      else if k == 15 then some (.usbKey a b.toNat)
+      else if k == 5 then some (.imeAction a)
+      else if k == 1 then some (.event .close)
+      else if k == 4 then some (.event .text)
+      else if k == 6 then some (.event (.ime a.toUInt32))
+      else if k == 7 then some (.event (.scrolling (a != 0)))
+      else if k == 16 then some (.event .background)
+      else if k == 17 then some (.event .foreground)
+      else if k == 18 then some (.event (.surface (a != 0)))
+      else if k == 19 then some (.event .resize)
+      else none
+    match pending, raw with
+    | some (t, o, r), some e =>
+      if e.terminal then out := out.push (.owned t o r e)
+      else out := (out.push (.event (.action t o 2 []))).push e
+    | some (t, o, _), none => out := out.push (.event (.action t o 2 []))
+    | none, some e => out := out.push e
+    | none, none => pure ()
+    pending := none
+  if let some (t, o, _) := pending then out := out.push (.event (.action t o 2 []))
   return out.toList
+
+/-- Even an empty terminal classification retains its exact cleanup token. -/
+def actionTickets (events : List Event) : List UInt64 :=
+  events.filterMap fun e => match e with | .action t _ _ _ => if t == 0 then none else some t | _ => none
 
 def Touch.words (t : Touch) : Array UInt32 :=
   #[(t.phase + 9).toUInt32, t.id.toUInt32, t.pos.x.toInt32.toUInt32, t.pos.y.toInt32.toUInt32,

@@ -632,3 +632,11 @@ run = "python3 ci/local-test.py"
 [tasks."test:demand-rank"]
 description = "Actual Reader/Work selector rank, nonempty infinite arrivals, real worker counters and strict compiling controls"
 run = "python3 tests/renderer/rank.py"
+
+[tasks."test:owned-input"]
+description = "Actual immutable-action C core and Lean input decoder, with exact compiling failure controls"
+run = "bash tests/engine/owned_input.sh"
+
+[tasks."android:owned-input-e2e"]
+description = "Build/setup actual Main JNI action ownership, touch/Enter/Continue, lifecycle/drafts/photos/SQLite and strict compiling APK controls"
+run = "bash platforms/android/test/owned_input/run.sh"
