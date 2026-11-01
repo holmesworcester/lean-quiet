@@ -57,7 +57,7 @@ native cleanup still needs progress outside this slot protocol. Counts refer
 to completed service stages; measured native milliseconds are regression
 observations, not an OS scheduling or whole-pipeline latency bound.
 
-On the merged source (origin/main `149943e` plus the stop-UI, frame-time
+On the merged source (origin/main `eadcee3` plus the stop-UI, frame-time
 and Reader ownership repairs), all 1,435 audited laws pass the standard-axiom
 audit and the evidence inventory passes (732 entries; the 16 declarations
 main leaves pending are unchanged). This suite passes 52

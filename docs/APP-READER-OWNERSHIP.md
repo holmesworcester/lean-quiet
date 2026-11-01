@@ -23,7 +23,9 @@ views refreshed by `syncReader`. The worker thread is created and registered
 in one `BaseIO` claim under the owner's mutex; no database action, join or
 user callback runs under it. Unmount revokes the original worker before
 installing a fresh board, and a repeated unmount keeps the same retiring task
-and board. A completed worker is reaped into shared ownership, so a later frame
+and board. Acts not yet run move to that replacement board (on a repeated
+unmount, back onto the same board) ahead of any appended since, as main's
+unmanaged path carries them to its fresh board. A completed worker is reaped into shared ownership, so a later frame
 error cannot discard its connection. Synchronous twins never register a board,
 so `syncReader` leaves their local Reader state alone. `query`, `writeAll`,
 `act` and `readerPass` keep their mounted/lease checks first; they refresh the
