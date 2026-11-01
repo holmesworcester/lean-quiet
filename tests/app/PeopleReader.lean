@@ -12,7 +12,7 @@ namespace PeopleReader
 def bytes (s : String) : ByteArray := s.toUTF8
 
 def file (db : Db) (id : String) (f : Fact) : IO Unit := do
-  let sf : SF := .inl f
+  let sf : SF := .inl (.inl f)
   (show SqlM SF Unit from do
     Store.setStatus (bytes id) (.valid sf)
     for k in fam.keys sf do Store.index k (bytes id)).run db

@@ -12,7 +12,7 @@ def writer : IO Writer :=
     ← IO.mkRef 0, ← IO.mkRef 0, ← IO.mkRef (0, none), ← IO.mkRef 0⟩
 
 def member (db : Db) (w : Writer) (c : Id) (i : Nat) : IO Unit := do
-  let f : SF := .inl (.admission c s!"user-{i}".toUTF8 s!"device-{i}".toUTF8 s!"node-{i}".toUTF8 .empty)
+  let f : SF := .inl (.inl (.admission c s!"user-{i}".toUTF8 s!"device-{i}".toUTF8 s!"node-{i}".toUTF8 .empty))
   db.exec "BEGIN"
   (show SqlM SF Unit from do
     Store.setStatus s!"admission-{i}".toUTF8 (.valid f)

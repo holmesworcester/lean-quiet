@@ -148,8 +148,11 @@ def capture (a0 b0 : Peer) (c adm : Id) (name : String) (minSlot : Nat := 1) : I
         b ← tick b
         break
       unless (← pending b).isEmpty do b ← tick b
-    if ← has b target then pure ()
-    else throw (IO.userError "target did not enter native mailbox")
+    unless ← has b target do throw (IO.userError "target did not enter native mailbox")
+    -- One extra receiver turn before the next attempt. Steady traffic moves
+    -- the phase by the same count every attempt, so without this shift the
+    -- attempts could cycle through the same network-preferred phases.
+    b ← tick b
   throw (IO.userError "no local-preferred target capture")
 
 end EpochIngress

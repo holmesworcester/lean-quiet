@@ -109,15 +109,40 @@ def steps (n : Nat) : M Unit := do
   for _ in [0:n] do
     let _ ← step []
 
+/-- Step until `cond` holds, at most `max` frames a millisecond apart:
+what a check waits for, counted in frames, not a fixed few (a loaded box
+draws a page some frames later). -/
+def stepsUntil (cond : M Bool) (max : Nat := 5000) : M Bool := do
+  for _ in [0:max] do
+    if ← cond then return true
+    let _ ← step []
+    IO.sleep 1
+  cond
+
+/-- Whether the reader has caught up: it has taken every journal row the
+writers committed, and holds no act, note or queued want (or none runs). -/
+def readerCaughtUp : M Bool := do
+  let s ← get
+  -- no reader (stopped, suspended): nothing to catch up
+  if s.reader.isNone then return true
+  let rows ← s.rd.query "SELECT CAST(coalesce(max(seq), 0) AS TEXT) FROM filings" #[]
+  let top := ((rows[0]? >>= (·[0]?)) >>= (String.fromUTF8? ·) >>= String.toNat?).getD 0
+  return (← s.sh.seen.get) ≥ top && (← s.sh.queue.get).isEmpty &&
+    (← s.sh.acts.get).isEmpty && (← s.sh.notes.get).isEmpty
+
+/-- Settle: the writer idle (a new idle reply to `wait`), then the reader
+caught up with what it committed, each counted in frames, not time (a
+starved reader thread runs some frames later), then frames to paint. -/
 def waitIdle (sm : Sim) : M Unit := do
   -- wait for a new idle reply: earlier ones are still in the replies
   let before := ((← sm.replies.get).filter (·.startsWith "idle")).size
   sm.cmds.modify (·.push "wait")
   let mut k := 0
-  while ((← sm.replies.get).filter (·.startsWith "idle")).size == before && k < 20000 do
+  while ((← sm.replies.get).filter (·.startsWith "idle")).size == before && k < 60000 do
     let _ ← step []
     IO.sleep 1
     k := k + 1
+  let _ ← stepsUntil readerCaughtUp 60000
   -- let paints finish
   for _ in [0:30] do
     let _ ← step []

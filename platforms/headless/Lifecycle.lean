@@ -111,7 +111,7 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
     ck.ok "old callback performs no reads, paints or writes"
       (before.queryReads == after.queryReads && before.paints == after.paints && before.out.size == after.out.size)
     -- An actual committed incoming message's notices reach the root only.
-    let k := (← ((Community.currentKey after.me.c).liftL.run : SqlM SF _).run after.rd).getD (Bytes.zeros 32)
+    let k := (← (((Community.currentKey after.me.c).liftL.liftL : View SF _).run : SqlM SF _).run after.rd).getD (Bytes.zeros 32)
     let op := sealedPost after.me.c after.me.adm after.me.dev k (← App.newSized 24)
       "arrived after unmount".toUTF8 100 (← nowMin)
     after.wr.submit ⟨[op], false⟩
@@ -223,7 +223,7 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
     discard <| step [.background]).run removal
   -- Cold and warm links use the same production parser, without a session.
   let bearer ← Chaos.freshSeed "link"
-  let some (_, invite) ← ((Community.inviteTo switched.me.c switched.me.adm switched.me.dev bearer []).liftL.run : SqlM SF _).run switched.rd
+  let some (_, invite) ← (((Community.inviteTo switched.me.c switched.me.adm switched.me.dev bearer []).liftL.liftL : View SF _).run : SqlM SF _).run switched.rd
     | throw (IO.userError "fixture has no node key")
   let linkPath := dir ++ "/link.db"
   freshDb linkPath

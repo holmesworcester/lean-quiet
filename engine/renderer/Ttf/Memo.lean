@@ -1,89 +1,134 @@
 /-
-The runtime memoization boundary beneath pure Paint. A private Source
-gets a fresh identity at load, so keys distinguish font instances/sizes.
-Source.bitmap is the single unsafe memoization seam. Its contract is exact
-equality with Source.uncached, for every field and byte, independent of
-cache state, call order and concurrent callers. The source/size are immutable.
-Only lookup/put run under the mutex; parsing and raster work run outside it.
-The miss path calls the ordinary raster and proved Cache.put. See NOTO.md
-and the README seam: compiled memo/spec equivalence is tested, not proved.
+The glyph memo beneath pure Paint, in plain Lean. A Source's `bitmap` is
+its raster (`uncached`); the compiler runs `bitmapFast` instead, which
+reads the Source's own table of thunks, and `bitmap_eq_fast` (`@[csimp]`)
+proves the two equal. Lean's runtime evaluates a thunk once and keeps
+the value, so each glyph is rastered at most once per Source. No global
+state, no `unsafe`, no `implemented_by`.
+
+A table is lazy: a Source that is never painted costs a few objects,
+and a glyph's page of thunks is made when one of its glyphs is first
+read. What a table keeps it keeps for the Source's life; the app drops
+its Sources, and so their glyphs, when it rebuilds its font
+(`Font.Font.fresh`, on suspend; `Font.load`, on a density change).
 -/
-import engine.renderer.Ttf.Cache
-import Std.Sync.Mutex
+import engine.renderer.Ttf.Raster
 
 namespace Ttf.Memo
 
+/-- Keys on one page of a table. -/
+abbrev page : Nat := 64
+
+/-- The values of `f`, each kept once read: pages of thunks, made when a
+key on them is first read. `exact` says entry `j` of page `i` is `f` at
+key `i * page + j`. -/
+structure Table {α : Type} (f : Nat → α) where
+  pages : Thunk (Array (Thunk (Array (Thunk α))))
+  exact : ∀ i (hi : i < pages.get.size) j (hj : j < (pages.get[i]'hi).get.size),
+    ((pages.get[i]'hi).get[j]'hj).get = f (i * page + j)
+
+/-- A table for the keys below `count ()`; nothing is made until it is read. -/
+def Table.new {α : Type} (f : Nat → α) (count : Unit → Nat) : Table f where
+  pages := Thunk.mk fun _ => Array.ofFn (n := (count () + page - 1) / page) fun i =>
+    Thunk.mk fun _ => Array.ofFn (n := page) fun j => Thunk.mk fun _ => f (i.1 * page + j.1)
+  exact := by
+    intro i hi j hj
+    simp [Thunk.get, Array.getElem_ofFn]
+
+/-- `f` at `k`: the kept value, or `f k` for a key past the table. -/
+@[inline] def Table.get {α : Type} {f : Nat → α} (t : Table f) (k : Nat) : α :=
+  if hi : k / page < t.pages.get.size then
+    if hj : k % page < (t.pages.get[k / page]'hi).get.size then
+      ((t.pages.get[k / page]'hi).get[k % page]'hj).get
+    else f k
+  else f k
+
+/-- **A table answers as its function.** -/
+theorem Table.get_eq {α : Type} {f : Nat → α} (t : Table f) (k : Nat) : t.get k = f k := by
+  unfold Table.get
+  split
+  · split
+    · rw [t.exact]
+      exact congrArg f (Nat.div_add_mod' k page)
+    · rfl
+  · rfl
+
+/-- A copy of a bitmap's coverage at its exact size: `copySlice` into an
+empty array allocates exactly the length, so a kept bitmap holds none of
+the raster builder's spare capacity. -/
+def compact (b : Bitmap) : Bitmap := { b with pixels := b.pixels.extract 0 b.pixels.size }
+
+theorem compact_eq (b : Bitmap) : compact b = b := by
+  simp [compact, ByteArray.extract_zero_size]
+
+/-- A face at one size: its parsed font (shared by its sizes), the size
+and cell it rasters at, and its table of glyphs. -/
 structure Source where
   private mk ::
-  private uid : Nat
   private font : Thunk (Option Face)
   private size : Nat
   private cell : Nat
-  deriving Inhabited
+  private glyphs : Table fun glyph => (font.get >>= fun face => raster face glyph size cell).map compact
 
-private structure State where
-  cache : Cache.Store := Cache.empty
-  hits : Nat := 0
-  misses : Nat := 0
-  peak : Nat := 0
-  deriving Inhabited
+/-- One table key per glyph the face has (its `loca` offsets); none for a
+font that does not parse. -/
+private def glyphCount (font : Thunk (Option Face)) : Nat :=
+  match font.get with
+  | some face => face.offsets.size
+  | none => 0
 
-private initialize shared : Std.Mutex State ← Std.Mutex.new {}
-private initialize serial : Std.Mutex Nat ← Std.Mutex.new 1
+private def make (font : Thunk (Option Face)) (size cell : Nat) : Source :=
+  ⟨font, size, cell, Table.new _ fun _ => glyphCount font⟩
 
 /-- Parsing is pure and deferred until a glyph is actually painted. readHeader
 checks tables/metrics; raster checks each requested outline, including cycles. -/
-def source (bytes : ByteArray) (size cell : Nat) : BaseIO Source := do
-  let uid ← serial.atomically do
-    let n ← get
-    set (n + 1)
-    return n
-  return ⟨uid, Thunk.mk fun _ => readHeader bytes, size, cell⟩
+def source (bytes : ByteArray) (size cell : Nat) : Source :=
+  make (Thunk.mk fun _ => readHeader bytes) size cell
+
+instance : Inhabited Source := ⟨source .empty 1 1⟩
 
 def Source.uncached (f : Source) (glyph : Nat) : Option Bitmap :=
   f.font.get >>= fun font => raster font glyph f.size f.cell
 
-/-- Sizes share immutable font bytes and parsing. The memo key already
-includes size/cell, so differently sized glyphs cannot alias. -/
+/-- Sizes share the immutable font bytes and parsing; each size has its
+own table. -/
 def Source.sized (f : Source) (size cell : Nat) : Source :=
-  { f with size, cell }
+  make f.font size cell
 
-/-- Give the cache an exact-capacity coverage buffer, independent of the
-raster builder's spare allocation capacity. -/
-private def compact (b : Bitmap) : Bitmap := Id.run do
-  let mut pixels := ByteArray.emptyWithCapacity b.pixels.size
-  for v in b.pixels do pixels := pixels.push v
-  return { b with pixels }
+/-- The same face and size with an empty table. -/
+def Source.fresh (f : Source) : Source :=
+  make f.font f.size f.cell
 
-private def bitmapIO (f : Source) (glyph : Nat) : BaseIO (Option Bitmap) := do
-  let key : Cache.Key := ⟨f.uid, glyph, f.size, f.cell⟩
-  let found ← shared.atomically do
-    let s ← get
-    let found := Cache.get? s.cache key
-    set { s with hits := s.hits + (if found.isSome then 1 else 0),
-                 misses := s.misses + (if found.isNone then 1 else 0) }
-    return found
-  if found.isSome then return found
-  let result := (f.uncached glyph).map compact
-  if let some bitmap := result then
-    shared.atomically do
-      let s ← get
-      let cache := Cache.put s.cache key bitmap
-      set { s with cache, peak := max s.peak (Cache.bytes cache) }
-  return result
-
-private unsafe def bitmapImpl (f : Source) (glyph : Nat) : Option Bitmap :=
-  unsafeBaseIO (bitmapIO f glyph)
-
-@[implemented_by bitmapImpl] def Source.bitmap (f : Source) (glyph : Nat) : Option Bitmap :=
+/-- A glyph's bitmap: its raster. What runs is `bitmapFast`. -/
+def Source.bitmap (f : Source) (glyph : Nat) : Option Bitmap :=
   f.uncached glyph
 
-/-- Diagnostics do not retain a cache snapshot (and thus cannot retain
-all the evicted pixels). -/
-def stats : BaseIO (Nat × Nat × Nat × Nat × Nat) := shared.atomically do
-  let s ← get
-  return (s.hits, s.misses, Cache.bytes s.cache, s.peak, s.cache.index.size)
+/-- A glyph's bitmap, from the Source's table. -/
+def Source.bitmapFast (f : Source) (glyph : Nat) : Option Bitmap :=
+  f.glyphs.get glyph
 
-def clear : BaseIO Unit := shared.atomically (set ({} : State))
+/-- **The memo is the raster.** The compiler runs `bitmapFast` for
+`bitmap`: every field and byte is the raster's, whatever was read before. -/
+@[csimp] theorem bitmap_eq_fast : @Source.bitmap = @Source.bitmapFast := by
+  funext f glyph
+  have : compact = id := funext compact_eq
+  simp only [Source.bitmap, Source.bitmapFast, Table.get_eq, Source.uncached, this, Option.map_id,
+    id]
+
+/-! ## Negative control -/
+
+/-- Control: a table one key off, page `i` holding `id` at `i * page + j + 1`;
+never run. -/
+def shifted : Thunk (Array (Thunk (Array (Thunk Nat)))) :=
+  Thunk.mk fun _ => #[Thunk.mk fun _ => Array.ofFn (n := page) fun j => Thunk.mk fun _ => j.1 + 1]
+
+/-- The table's law rejects it: no `Table id` has these pages. -/
+theorem shifted_not_exact : ¬ ∀ i (hi : i < shifted.get.size) j (hj : j < (shifted.get[i]'hi).get.size),
+    ((shifted.get[i]'hi).get[j]'hj).get = id (i * page + j) := by
+  intro h
+  have := h 0 (by simp [shifted, Thunk.get]) 0 (by simp [shifted, Thunk.get])
+  simp [shifted, Thunk.get] at this
+
+example : (Table.new (fun k => k * k) fun _ => 200).get 130 = 16900 := Table.get_eq _ _
 
 end Ttf.Memo

@@ -1,19 +1,42 @@
 /-
-The scene the laws are about, run on the real engine: the five ops
+A joiner's scene, run on the real engine: the five ops
 composed with real Ed25519 and SHA-256, received into SQLite in every
 subset and in shuffled orders, and the running `allowPeer` and verdicts
-checked against what the laws use (Net.Scene): the founder's node key
+checked: the founder's node key
 is let in exactly when the root is held, the joiner's exactly when all
 five are,
 and the request, approval and admission are Valid exactly when what
-they cite is held. This also checks the scene's assumptions (`Good`)
-for real keys: distinct ids, distinct devices and node keys, and
+they cite is held: distinct ids, distinct devices and node keys, and
 signatures that verify (else the ops would be Invalid).
 -/
 import app.community.Proofs
 import tests.engine.Lib
 
-open Engine Community Net Tests
+open Engine Community Tests
+
+/-- A founder A on node kA invites, a joiner B on node kB requests, A
+approves and admits: the five ops, composed by the functions the app runs. -/
+structure Scene where
+  A : Device
+  B : Device
+  kA : Key
+  kB : Key
+  /-- The bearer seed the invitation's key pair derives from. -/
+  secret : ByteArray
+
+namespace Scene
+variable (x : Scene)
+def r : Op := root x.A x.kA .empty  -- the scene posts nothing: no content key id
+def c : Id := x.r.id
+def issued : Op × Invite := issue x.c x.c x.A x.kA x.secret []
+def inv : Op := x.issued.1
+def inviteLink : Invite := x.issued.2
+def K : Device := x.inviteLink.bearer
+def req : Op := x.inviteLink.request x.B x.kB
+def appr : Op := approve x.c x.req.id x.c x.A
+def adm : Op := admit x.c x.req.id x.appr.id
+def S : List Op := [x.r, x.inv, x.req, x.appr, x.adm]
+end Scene
 
 def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/scene"

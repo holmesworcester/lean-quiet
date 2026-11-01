@@ -343,8 +343,9 @@ namespace `Connection.Noise.Symbolic`). `write1`, `read1`, `sent1`,
 algebra `T` instead of bytes. Cryptography is perfect (free hashes,
 HKDF, AEAD and pairs), private exponents are names, and the only DH
 equation is DH(i, j) = DH(j, i) for names i and j. The attacker
-(`Derivable`) is Dolev-Yao and active: it hands honest parties anything
-it derives and learns what they send and what they read. Honest parties
+(`Derivable O K`) is Dolev-Yao and active: it hands honest parties
+anything it derives and learns what they read, and what they send in
+the calls `O` allows (`AllCalls` for every call). Honest parties
 may be any names, in any number of runs, and take their payloads from
 the attacker, as Quiet's are public. Proof: what the attacker derives
 stays `Clean` (no secret name, no DH value of two secret names), and the
@@ -357,7 +358,8 @@ session keys are not clean.
   so is the initiator's static or ephemeral. `kk_secret_resp`: a
   responder's keys after `read1` on any message 1 and `write2` are not
   derivable, if both statics are secret. `kk_secret`: both, against an
-  attacker that knows every other name and every public key.
+  attacker that knows every other name and every public key. All three
+  hold for every `O`.
   `kk_secret_init_tight`: an attacker that knows the initiator's static
   and ephemeral does derive its keys, so the model's attacker can break
   the handshake when it should.
@@ -366,17 +368,27 @@ session keys are not clean.
   honest run, an attacker that knows both statics and both messages
   derives neither side's keys. With `closing` purging the `eph` ops,
   this is the session's forward secrecy.
-- `kk_authentic`: an initiator accepts a derivable message 2 only if it
-  is exactly what the honest responder wrote answering this initiator's
-  message 1, and then both hold one session. `kk_authentic_resp`: a
-  responder accepts a derivable message 1 as from a device only if that
-  device wrote it to this responder (both statics secret; message 1
-  alone is open to key-compromise impersonation, as Noise says of KK).
-  Agreement is on content, not freshness: a replayed message is
-  accepted again.
+- Authentication is stated over `O`, the calls honest parties made: a
+  symbolic term does not record who computed it, so with the
+  responder's static known the attacker writes the very message 2 the
+  responder would have, and only `O` tells them apart. `kk_authentic`:
+  unless the responder `sR` answered this message 1 in a call in `O`,
+  the initiator that sent it accepts no message 2 the attacker can
+  derive (`sR` secret, and the initiator's static or ephemeral).
+  `kk_agree`: a derivable message 2 the initiator accepts is exactly
+  such an answer, and both hold one session. `kk_authentic_resp`:
+  unless the initiator `sI` wrote `sR` a message 1 with this payload in
+  a call in `O`, `sR` accepts no derivable message 1 as from `sI` with
+  it (both statics secret; message 1 alone is open to key-compromise
+  impersonation, as Noise says of KK). `kk_agree_resp`: one it accepts
+  is exactly that request. `kk_authentic_tight`,
+  `kk_authentic_resp_tight`: with the needed statics known, the
+  attacker forges an accepted message under any `O`, even one with no
+  honest calls. Agreement is on content, not freshness: a call in `O`
+  can be replayed.
 - `derivable_clean`, `derivable_sealed` (every ciphertext under a secret
-  key that the attacker can take apart was sealed by an honest party),
-  `exposed_parts`.
+  key that the attacker can take apart was sealed by an honest party,
+  in a call `O` allows).
 
 What the symbolic model does not cover: computational security (no
 reduction to X25519's gap-DH, ChaCha20-Poly1305's IND-CPA and INT-CTXT,

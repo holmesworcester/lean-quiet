@@ -4,6 +4,13 @@ import app.community.member.invite.request.Commands
 import app.community.member.join.joining.Commands
 import app.connection.Commands
 import app.connection.Family
+import app.Family
+import app.settings.appearance.View
+import app.settings.appearance.Commands
+import app.nav.View
+import app.nav.Commands
+import app.community.channel.message.draft.Commands
+import app.community.channel.message.draft.View
 import app.connection.connection.Commands
 import app.connection.eph.Commands
 import app.connection.established.Commands
@@ -368,12 +375,26 @@ open Engine Community Codec
 
 def C := ed25519
 
-/-- What the store holds: the community's facts and the connection
-family's (Connection.F); the app reads and draws the community's. -/
-abbrev SF := Connection.F
+/-- What the store holds: the community's facts, the connection
+family's, and the app's own (Quiet.F, app/Family.lean); the app reads
+and draws the community's, and reads its settings. -/
+abbrev SF := Quiet.F
 
-/-- The node's one family: Community's and Connection's, composed. -/
-def fam : Family SF := Connection.node C Connection.sodium
+/-- The node's one family: every family of the app, composed. -/
+def fam : Family SF := Quiet.node C Connection.sodium
+
+/-- Community's and Connection's families, as the node's hooks read them. -/
+def nodeFam : Family Connection.F := Connection.node C Connection.sodium
+
+/-- The node's hooks on the store: Community's and Connection's
+(`Connection.hooks`), each reading the store as theirs (`Hooks.left`). -/
+def hooks (listen : ByteArray) : Engine.Sync.Hooks SF (SqlM SF) :=
+  Engine.Sync.Hooks.left (B := Quiet.AppFact) (Connection.hooks nodeFam Connection.sodium listen)
+
+/-- An answer's community rows (a community list's rows are all
+community facts: its key is theirs). -/
+def communityRows (a : Answer SF) : List (Pos × Fact) :=
+  a.rows.filterMap fun | (p, .inl (.inl f)) => some (p, f) | _ => none
 
 /-- Microseconds of the monotonic clock. -/
 def nowUs : IO UInt64 := do return (← IO.monoNanosNow).toUInt64 / 1000
@@ -383,8 +404,8 @@ def nowUs : IO UInt64 := do return (← IO.monoNanosNow).toUInt64 / 1000
 def openDb (path : String) : IO Db := do
   let db ← Db.openAt path
   discard <| (reindexOnce (F := SF) "community-clumps-v1" (fun
-    | .inl f => keysOf [message.rootsByKey, message.childrenByKey, received.rootsByKey, received.childrenByKey] f
-    | .inr _ => []) (some fam)).run db
+    | .inl (.inl f) => keysOf [message.rootsByKey, message.childrenByKey, received.rootsByKey, received.childrenByKey] f
+    | _ => []) (some fam)).run db
   return db
 
 /-! ## The writer -/
@@ -680,12 +701,50 @@ def Pending.filings (ps : List Pending) : Array Filing :=
 def status (db : Db) (x : Id) : IO (Option (Verdict SF)) :=
   (Store.getStatus (F := SF) (m := SqlM SF) x).run db
 
+/-- This window's place, from the app's ephemeral log: the newest nav op
+(`Nav.current`) and its id; none before any. -/
+def navOf (h : Engine.Sync.Held SF) : Option (Id × Nav.Fact) :=
+  (((Nav.current.liftR.liftR : View SF _).run : Engine.Sync.HeldM SF _).run h).1
+
+/-- The app's ephemeral log with this window placed at `page` over
+`stack`: the nav op at generation `gen` in place of the log's nav ops,
+the log rebuilt from its live ops (`Held.ofOps`). -/
+def placeIn (h : Engine.Sync.Held SF) (gen page : Nat) (stack : List Nat) : Engine.Sync.Held SF :=
+  Engine.Sync.Held.ofOps fam (h.log.filter (fun o => !Nav.owns o.kind) ++ [Nav.place gen page stack])
+
+/-- Entry `acc`'s draft, from the app's ephemeral log: the newest draft
+op for it (`Draft.current`) and its id; none before any. -/
+def draftOf (h : Engine.Sync.Held SF) (acc : Id) : Option (Id × Draft.Fact) :=
+  ((((Draft.current acc).liftL.liftL : View SF _).run : Engine.Sync.HeldM SF _).run h).1
+
+/-- The ops the log is rebuilt from when entry `acc`'s draft is written:
+the log's ops but that entry's drafts, then the new one if it holds
+anything (an empty composer leaves no draft). -/
+def drafted (h : Engine.Sync.Held SF) (acc : Id) (gen : Nat) (text : ByteArray) (pics : List ByteArray) : List Op :=
+  h.log.filter (fun o => !Draft.isFor acc o) ++
+    (if text.isEmpty && pics.isEmpty then [] else [Draft.write acc gen text pics])
+
+/-- The app's ephemeral log with entry `acc`'s draft written, the log
+rebuilt from its live ops (`Held.ofOps`). -/
+def draftIn (h : Engine.Sync.Held SF) (acc : Id) (gen : Nat) (text : ByteArray) (pics : List ByteArray) :
+    Engine.Sync.Held SF :=
+  Engine.Sync.Held.ofOps fam (drafted h acc gen text pics)
+
+/-- Every draft in the log: its entry, text and photos (the checkpoint's). -/
+def draftsIn (h : Engine.Sync.Held SF) : List (Id × ByteArray × List ByteArray) :=
+  (h.log.filterMap Draft.of).map fun b => (b.acc, b.text, b.pics)
+
+/-- This device's appearance and its revision, from the store: the
+newest appearance op (`Settings.Appearance.current`), System before any. -/
+def appearance (db : Db) : IO (Theme.Setting × Nat) :=
+  (((Settings.Appearance.current.liftL.liftR : View SF _).run : SqlM SF _).run db)
+
 /-- The store's answer to q on the read connection, with the outbox. -/
 def Q.run (db : Db) (out : Array Pending) : Q → IO Ans
   | .list q => do
     let a ← (listSql (F := SF) q).run db
     -- a community list's rows are all community facts (its key is theirs)
-    let a : Answer Fact := ⟨a.lefts, a.inRange, a.total⟩
+    let a : Answer Fact := ⟨communityRows a, a.inRange, a.total⟩
     -- each pending op the store already holds decided is counted by the
     -- store, not again by the outbox (between a commit and the frame
     -- taking its notice, an op is in both)

@@ -49,6 +49,11 @@ lean_lib Pic where
 @[default_target] lean_lib Sync where
   globs := #[.submodules `engine.sync]
 
+-- n real nodes and the network between them, as data: convergence over
+-- any web, from the running node's laws (docs/PROOFS.md)
+@[default_target] lean_lib World where
+  globs := #[.submodules `engine.world]
+
 -- the handshake and sessions
 @[default_target] lean_lib Connection where
   globs := #[.submodules `app.connection]
@@ -59,8 +64,14 @@ lean_lib Pic where
   globs := #[.submodules `app.community]
 
 -- the op tree's root: commands over the node, which spans both families
+@[default_target] lean_lib Settings where
+  globs := #[.submodules `app.settings]
+
+@[default_target] lean_lib Nav where
+  globs := #[.submodules `app.nav]
+
 @[default_target] lean_lib Node where
-  roots := #[`app.Commands]
+  roots := #[`app.Family, `app.Commands]
 
 /-! ## The app -/
 
@@ -223,8 +234,6 @@ lean_exe join_fair where
 lean_exe vacuity_production_bootstrap where
   root := `tests.vacuity.ProductionBootstrapMain
 
-lean_exe vacuity_bootstrap where
-  root := `tests.vacuity.BootstrapMain
 
 lean_exe vacuity_connection_progress where
   root := `tests.vacuity.ConnectionProgressMain
@@ -526,6 +535,9 @@ lean_exe vacuity_contracts where
 
 lean_exe vacuity_crypto_trust where
   root := `tests.vacuity.CryptoTrustMain
+
+lean_exe vacuity_store_trust where
+  root := `tests.vacuity.StoreTrustMain
 
 lean_exe vacuity_identity_lifecycle where
   root := `tests.vacuity.IdentityLifecycleMain

@@ -49,6 +49,7 @@ Not yet here: the world as a pure step relation to prove laws over
 import tests.engine.Lib
 import app.connection.Proofs
 import app.Commands
+import engine.core.Exit
 
 open Engine Engine.Sync Community Tests Connection
 
@@ -279,7 +280,7 @@ def crashedDial (shipped : Bool) : IO (Bool × Bool) := do
     (← cnt w.b eph.byOf [r]) > 0
   return (unplaced, !keyed)
 
-def main : IO UInt32 := do
+def mainBody : IO UInt32 := do
   let t ← Checks.new
   let (w, c, req) ← setup 0
   let dA := Device.ofSeed w.a.seed
@@ -480,3 +481,7 @@ def main : IO UInt32 := do
   let (_, goneShipped) ← crashedDial true
   t.ok "negative control: with retired as shipped, its transport keys and ephemeral stay" (!goneShipped)
   t.finish "connection_check"
+
+/-- Leaves by `IO.Process.exit` (Engine.exitAfter): returning from
+`main` with a runner's threads alive would wait for them for good. -/
+def main : IO UInt32 := Engine.exitAfter mainBody

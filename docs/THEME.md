@@ -3,9 +3,10 @@
 `Quiet/Theme.lean` owns the device's setting (`system`, `light`, `dark`),
 OS value and effective value. `Quiet/Palette.lean` exposes
 `Palette.color : Theme.Value → Palette.Token → UInt32` (RGB).
-The default setting is System. `ThemeStore` stores its spelling in one
-SQLite row, outside the synchronised op tables. This is a temporary
-local-settings seam pending the repository's planned state-as-ops cutover.
+The default setting is System. The setting is an op: `settings.appearance`
+(app/settings/appearance), local, with a revision; the preference is the
+newest one stored (`Settings.Appearance.current_newest`). Choosing writes
+the next revision through the app's ordinary write path.
 
 The source palette is libquiet's local `origin/main`, commit
 `ab3d244cfb9937c05dc53736046127150c3e0bb9`. Pinned copies of its
@@ -183,10 +184,11 @@ environment allowing local sockets; and verify live appearance changes
 and recreation on the native platforms. This commit does not claim
 those remaining checks or the whole-screen theorem are complete.
 
-Integration with the current app (October 2026): appearance is part of the
-lifecycle checkpoint and committed on its existing retrying writer. The UI
-never calls Theme.save. A held SQLite write-lock regression sends a real
-`theme dark` command through App.step and checks eventual durability.
+Integration with the current app (November 2026): a choice is a local op,
+journaled with the app's queued writes and committed by the writer (or the
+node, once it runs). The UI never writes SQLite. A held SQLite write-lock
+regression sends a real `theme dark` command through App.step and checks
+eventual durability by reading the newest appearance op back.
 
 Noto coverage is retained with each monochrome stroke. Glyphs in a line
 resolve ink against the line's original ground, so overlapping Arabic or
