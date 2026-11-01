@@ -77,6 +77,7 @@ import engine.core.CostErase
 import engine.renderer.ActsLaws
 import engine.core.Project
 import ops.connection.NodeLaws
+import ops.connection.HooksRead
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -182,6 +183,9 @@ open Engine Community
 #print axioms Engine.sum_scope_left
 #print axioms Connection.open_seal
 #print axioms Connection.cid_seal
+#print axioms Connection.view_held
+#print axioms Connection.rooms_held
+#print axioms Connection.hooks_reads
 #print axioms Connection.established_agrees
 #print axioms Connection.Noise.sent1_read1
 #print axioms Connection.Noise.read2_write2'
