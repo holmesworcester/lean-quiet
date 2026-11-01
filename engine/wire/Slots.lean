@@ -30,7 +30,7 @@ structure RunConfig where
   sockCap : Nat := 16777216
   /-- Independent frame-count cap in each normal/control socket queue. -/
   sockFrames : Nat := 4096
-  /-- Native writer deadline. Supported POSIX sockets abort on timeout;
+  /-- Native writer and outbound-connect deadline. Supported POSIX sockets abort on timeout;
   the lease is released only after the original SDK callback completes.
   Unsupported targets retain the old wait without a cancellation claim. -/
   stallMs : Nat := 30000

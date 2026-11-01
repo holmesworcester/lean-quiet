@@ -27,7 +27,7 @@ jobs:
       - name: Install native test and asset prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y fonts-noto-core librsvg2-2 libcairo2 python3-pip unzip
+          sudo apt-get install -y fonts-noto-core librsvg2-2 libcairo2 python3-pip unzip gdb
       - name: Install the repository's Lean toolchain
         shell: bash
         run: |
@@ -63,6 +63,7 @@ jobs:
             out/catalog-retry
             out/reserved-retry
             out/ingress
+            out/native-lifetime
             out/simplify-negative
             out/tree-negative
             out/vacuity

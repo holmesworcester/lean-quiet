@@ -75,9 +75,9 @@ The bounded selector does not prove fair admission among producers competing
 for the control channel or local-write queue. Public waits observe stop,
 closure and runner failure; a live overloaded producer may still be overtaken.
 Native OS scheduling, connect/teardown completion, failed capability capture,
-and Windows cancellation need separate treatment. The current socket lease
-can be released before its dedicated reader task exits; reader-task lifetime
-ownership is a separate follow-up, not a proved resource bound here. Whole
+and Windows cancellation need separate treatment. The [native-lifetime follow-up](NATIVE-LIFETIMES.md) now retains a socket lease
+until its original reader task finishes. Final OS-thread teardown and native
+callback scheduling remain outside the selector proof. Whole
 operation tables, engine drain/index work, caches, operation sizes and some
 counters remain unbounded. Full-app UI paint latency and per-operation
 convergence for every fair-lossy execution do not follow from these selector

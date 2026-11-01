@@ -126,10 +126,10 @@ def writerDeadline (immediate : Bool) : IO Bool := do
     try
       result.set (some (← SocketAbort.awaitSend (some cap) (if immediate then 5000 else 150)
         stopped.get (pure original)))
-    finally leased.set false
+    finally leased.modify (fun _ => false)
   IO.sleep 50
   let reallyPending := !(← IO.hasFinished done) && (← leased.get)
-  if immediate then stopped.set true
+  if immediate then stopped.modify (fun _ => true)
   let finished ← waitUntil 1500 (IO.hasFinished done)
   let elapsed := (← IO.monoMsNow) - began
   let originalResolved ← original.isResolved

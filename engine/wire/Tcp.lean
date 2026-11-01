@@ -50,6 +50,7 @@ import Std.Async.TCP
 import Std.Sync.Channel
 import engine.wire.Listener
 import engine.wire.SocketAbort
+import engine.wire.StopFlag
 import engine.wire.Reserved
 import engine.wire.IngressIO
 
@@ -140,12 +141,13 @@ structure Sock where
   client : TCP.Socket.Client
   addr : ByteArray
   heard : Nat
-  stopped : IO.Ref Bool
+  stopped : StopFlag
   out : Std.Mutex Outbox
   wake : Std.Condvar
-  /-- The writer: done once it has shut the socket down, or its write
-  failed. -/
+  /-- The writer: done after native send cleanup and its original reader
+  task have completed. Native quota is retained until both jobs finish. -/
   done : Task (Except IO.Error Unit)
+  readerDone : Task (Except IO.Error Unit) := Task.pure (.ok ())
   aborter : Option SocketAbort := none
   input : Option Ingress.Source := none
 
@@ -227,7 +229,7 @@ def closeSocket (c : TCP.Socket.Client) : IO Unit := do
 
 /-- A cancellable read, including a close racing the start of recv.
 The promise is polled on this dedicated reader, never on the task pool. -/
-def readSocket (c : TCP.Socket.Client) (stopped : IO.Ref Bool) (need : Nat) : IO (Option ByteArray) := do
+def readSocket (c : TCP.Socket.Client) (stopped : StopFlag) (need : Nat) : IO (Option ByteArray) := do
   if ← stopped.get then return none
   let .ok p ← (c.native.recv? need.toUInt64).toBaseIO | return none
   repeat
@@ -244,7 +246,7 @@ def readSocket (c : TCP.Socket.Client) (stopped : IO.Ref Bool) (need : Nat) : IO
 read goes through `frames`, so what is kept between reads is less than
 one maximal frame and its length (`buffer_bounded`). -/
 def reader (hub : Ingress.Hub Event) (input : Ingress.Source) (sid : Nat)
-    (c : TCP.Socket.Client) (stopped : IO.Ref Bool) : IO Unit := do
+    (c : TCP.Socket.Client) (stopped : StopFlag) : IO Unit := do
   let mut buf := ByteArray.empty
   repeat
     let need := if buf.size < 4 then 4 - buf.size
@@ -253,19 +255,19 @@ def reader (hub : Ingress.Hub Event) (input : Ingress.Source) (sid : Nat)
     | some chunk =>
       let (ps, kept) := frames (buf ++ chunk)
       for p in ps do
-        unless ← hub.send input (.frame sid p) do return
+        unless ← hub.send input (.frame sid p) stopped.get do return
       match kept with
       | some rest => buf := rest
       | none =>
-        discard <| hub.send input (.closed sid)
+        discard <| hub.send input (.closed sid) stopped.get
         return
     | _ =>
-      discard <| hub.send input (.closed sid)
+      discard <| hub.send input (.closed sid) stopped.get
       return
 
 /-- Accept connections into the channel until stopped; then return, so
 the listener is released and its port is free again. -/
-def acceptor (ch : Std.CloseableChannel.Sync Event) (srv : TCP.Socket.Server) (stopped : IO.Ref Bool) (slots : Slots) (cfg : RunConfig) : IO Unit := do
+def acceptor (ch : Std.CloseableChannel.Sync Event) (srv : TCP.Socket.Server) (stopped : StopFlag) (slots : Slots) (cfg : RunConfig) : IO Unit := do
   repeat
     if ← stopped.get then return
     match ← srv.tryAccept.toBaseIO with
@@ -281,22 +283,36 @@ def acceptor (ch : Std.CloseableChannel.Sync Event) (srv : TCP.Socket.Server) (s
     | .ok none => IO.sleep 20
     | .error _ => IO.sleep 100
 
-/-- Dial an address; the outcome goes into the channel. -/
-def dialOut (ch : Std.CloseableChannel.Sync Event) (slots : Slots) (addr : ByteArray) : IO Unit := do
+/-- Dial an address; ownership of its reserved slot transfers with the
+completion event. Supported POSIX sockets keep their original connect promise
+until deadline/stop abort has completed its callback. Other targets retain
+the ordinary wait. Refusing a completion releases the still-owned slot. -/
+def dialOut (ch : Std.CloseableChannel.Sync Event) (slots : Slots) (addr : ByteArray)
+    (cancel : IO Bool := pure false) (timeout : Nat := 30000) : IO Unit := do
+  let failed : IO Unit := do
+    unless ← enqueue ch (.dialed addr none) cancel do slots.release addr
   match String.fromUTF8? addr >>= parseAddr with
-  | none => discard <| enqueue ch (.dialed addr none)
+  | none => failed
   | some sa =>
     match ← TCP.Socket.Client.mk.toBaseIO with
-    | .error _ => discard <| enqueue ch (.dialed addr none)
+    | .error _ => failed
     | .ok c =>
-      match ← awaitUv (c.native.connect sa) with
-      | .ok _ =>
-        unless ← enqueue ch (.dialed addr (some c)) do
+      let connected ← (do
+        -- Binding creates the descriptor while the client is idle, so
+        -- capture never races uv_fileno against an in-flight connect.
+        c.bind (match sa with
+          | .v4 _ => .v4 ⟨IPv4Addr.ofParts 0 0 0 0, 0⟩
+          | .v6 _ => .v6 ⟨IPv6Addr.ofParts 0 0 0 0 0 0 0 0, 0⟩)
+        let aborter ← SocketAbort.capture c
+        SocketAbort.awaitSend aborter timeout cancel (c.native.connect sa)).toBaseIO
+      match connected with
+      | .ok true =>
+        unless ← enqueue ch (.dialed addr (some c)) cancel do
           SocketAbort.closeIdle c
           slots.release addr
-      | .error _ =>
+      | _ =>
         SocketAbort.closeIdle c
-        discard <| enqueue ch (.dialed addr none)
+        failed
 
 def sendOn (c : TCP.Socket.Client) (payload : ByteArray) : IO Bool := do
   match ← awaitUv (c.native.send #[frame payload]) with
@@ -309,13 +325,25 @@ def sendMany (c : TCP.Socket.Client) (payloads : List ByteArray) : IO Bool := do
   | .ok _ => return true
   | .error _ => return false
 
+/-- Stop the original reader, including a full-mailbox retry or a recv
+registration racing cancellation, then wait for that task to finish. SDK
+cancelRecv drops its promise rather than resolving it: wait on the reader
+task, never on that canceled recv promise. No socket/source mutex is held.
+The main close/reap path retains ownership of the ingress source. -/
+def finishReader (stopped : StopFlag) (client : TCP.Socket.Client)
+    (job : Task (Except IO.Error Unit)) : IO Unit := do
+  stopped.request
+  discard <| client.native.cancelRecv.toBaseIO
+  discard <| IO.wait job
+
 /-- A socket's writer, on its own thread: each native write is the next
 `Outbox.take` batch, marked with when it began, until it is
 stopped (then it shuts the socket down) or a write fails (then the loop
 hears the socket closed). Its end releases the socket's slot. -/
 def writer (ch : Std.CloseableChannel.Sync Event) (slots : Slots) (sid : Nat) (c : TCP.Socket.Client)
     (addr : ByteArray) (out : Std.Mutex Outbox) (wake : Std.Condvar) (burst : Nat)
-    (aborter : Option SocketAbort := none) (stallMs : Nat := 30000) : IO Unit := do
+    (aborter : Option SocketAbort := none) (stallMs : Nat := 30000)
+    (cleanupReader : IO Unit := pure ()) : IO Unit := do
   try
     repeat
       let batch ← out.atomicallyOnce wake (do let o ← getThe Outbox; return o.stopped || o.draining || o.ready) do
@@ -342,7 +370,9 @@ def writer (ch : Std.CloseableChannel.Sync Event) (slots : Slots) (sid : Nat) (c
         out.atomically (modify fun o => { o with
           since := none
           retry := if usedRetry then o.retry.sent true else o.retry })
-  finally slots.release addr
+  finally
+    cleanupReader
+    slots.release addr
 
 section
 variable {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (ch : Std.CloseableChannel.Sync Event)
@@ -359,7 +389,7 @@ def RunState.startPending (cfg : RunConfig) (st : RunState) : IO RunState := do
   let chosen ← st.slots.atomically do
     modifyGetThe (List String) fun occupied => DialQueue.reserve cfg occupied st.waiting
   for addr in chosen do
-    let _ ← IO.asTask (prio := .dedicated) (dialOut ch st.slots addr)
+    let _ ← IO.asTask (prio := .dedicated) (dialOut ch st.slots addr st.ingress.stopped cfg.stallMs)
   return { st with waiting := st.waiting.filter (!chosen.contains ·) }
 
 def RunState.addSock (cfg : RunConfig) (st : RunState) (c : TCP.Socket.Client) (addr : ByteArray) (now : Nat) :
@@ -369,13 +399,17 @@ def RunState.addSock (cfg : RunConfig) (st : RunState) (c : TCP.Socket.Client) (
     st.slots.release addr
     return (st, none)
   let sid := st.next
-  let stopped ← IO.mkRef false
+  let stopped ← StopFlag.new
   let out ← Std.Mutex.new {}
   let wake ← Std.Condvar.new
   let aborter ← SocketAbort.capture c
-  let _ ← IO.asTask (prio := .dedicated) (reader st.ingress input sid c stopped)
-  let done ← IO.asTask (prio := .dedicated) (writer ch st.slots sid c addr out wake cfg.burst aborter cfg.stallMs)
-  let s : Sock := { id := sid, client := c, addr, heard := now, stopped, out := out, wake := wake, done, aborter, input := some input }
+  let readerDone ← IO.asTask (prio := .dedicated) (reader st.ingress input sid c stopped)
+  let done ← IO.asTask (prio := .dedicated)
+    (writer ch st.slots sid c addr out wake cfg.burst aborter cfg.stallMs
+      (finishReader stopped c readerDone))
+  let s : Sock := {
+    id := sid, client := c, addr, heard := now, stopped, out := out, wake := wake
+    done, readerDone, aborter, input := some input }
   return ({ st with socks := s :: st.socks, next := sid + 1 }, some sid)
 
 /-- Every socket end notifies the node, then stops the socket's reader
@@ -385,7 +419,7 @@ def RunState.close (st : RunState) (sid now : Nat) (drain : Bool := false) : IO 
   | none => return (st, {})
   | some s =>
     let (node, e) ← (st.node.step x (.close s.addr) now).run st.db
-    s.stopped.set true
+    s.stopped.request
     if let some input := s.input then st.ingress.retire input
     if drain then s.drain else s.stop
     return ({ st.drop sid with node }, e)
@@ -607,7 +641,7 @@ structure Runner where
   writes : Std.CloseableChannel.Sync (List Op)
   port : UInt16
   done : Task (Except IO.Error Unit)
-  stopped : IO.Ref Bool
+  stopped : StopFlag
   listening : Task (Except IO.Error Unit)
   slots : Slots
   listener : Std.Internal.UV.TCP.Socket
@@ -615,7 +649,7 @@ structure Runner where
   turnCounters : IO.Ref TurnCounters
   ingress : Ingress.Hub Event
 
-/-- A nonblocking snapshot of fixed-size runner telemetry. `started` advances
+/-- A snapshot of fixed-size runner telemetry. `started` advances
 before polling, so a notification emitted inside that turn can identify it. -/
 def Runner.counters (r : Runner) : IO TurnCounters := r.turnCounters.get
 
@@ -636,7 +670,7 @@ def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (db : Db
   let bound := match ← srv.getSockName with
     | .v4 a => a.port
     | .v6 a => a.port
-  let stopped ← IO.mkRef false
+  let stopped ← StopFlag.new
   let listening ← IO.asTask (prio := .dedicated) (acceptor ch srv stopped slots cfg)
   let turnCounters ← IO.mkRef ({} : TurnCounters)
   let done ← IO.asTask (prio := .dedicated) do
@@ -676,7 +710,7 @@ released (its port free for the next start), and both are waited for. -/
 def Runner.stop (r : Runner) : IO Unit := r.closing.atomically do
   if ← getThe Bool then return
   set true
-  r.stopped.set true
+  r.stopped.request
   r.ingress.stop
   discard <| IO.wait r.done
   discard <| IO.wait r.listening
@@ -687,6 +721,7 @@ def Runner.stop (r : Runner) : IO Unit := r.closing.atomically do
       -- These clients never reached addSock, so no reader/writer started.
       SocketAbort.closeIdle c
       r.slots.release addr
+    | .dialed addr none => r.slots.release addr
     | _ => pure ()
 
 end Engine.Sync

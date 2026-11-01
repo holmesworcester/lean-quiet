@@ -88,21 +88,24 @@ def fairness (t : Checks) : IO Unit := do
       discard <| IO.wait release.result?
     if let some run ← runner.get then
       if ids.contains (post 500).id then
-        localAt.set (some ((← run.counters).started.toNat, ← IO.monoMsNow))
-      if ids.contains (post 600).id then markerAt.set (some (← run.counters).started.toNat)
+        let stamp := ((← run.counters).started.toNat, ← IO.monoMsNow)
+        localAt.modify (fun _ => some stamp)
+      if ids.contains (post 600).id then
+        let stamp := (← run.counters).started.toNat
+        markerAt.modify (fun _ => some stamp)
       if ids.any (← own.get).contains then
         commits.modify (· + 1)
         if ← active.get then
           let n ← next.modifyGet fun n => (n, n + 1)
           let op := post n
-          own.set [op.id]
+          own.modify (fun _ => [op.id])
           unless ← run.writes.trySend [op] do throw (IO.userError "self-refilling local source lost admission")
           IO.sleep 1
   let cfg : RunConfig := {
     maxSocks := 4, perAddr := 4, queue := 64, tickMs := 20
     stallMs := 3000, stopMs := 500, idle := 1000000000 }
   let run ← Runner.start (setup established) db 0 0 notify cfg
-  runner.set (some run)
+  runner.modify (fun _ => some run)
   let mut peers : List Peer := []
   for i in [:4] do
     let peer ← connect run.port i
@@ -111,11 +114,11 @@ def fairness (t : Checks) : IO Unit := do
   let admitted := (← livePeers run.ingress) == 4
   t.ok "four real TCP peers own distinct bounded ingress sources" admitted
   unless admitted do
-    active.set false
+    active.modify (fun _ => false)
     for peer in peers do closePeer peer
     run.stop
     return
-  established.set (peers.map fun peer => (peer.cid, peer.address, false))
+  established.modify (fun _ => peers.map fun peer => (peer.cid, peer.address, false))
   -- The actual write handler follows all configured sessions, then pauses
   -- inside its normal notification after the commit. No selector is mocked.
   run.write [post 400]
@@ -165,7 +168,7 @@ def fairness (t : Checks) : IO Unit := do
   IO.println s!"ingress TCP: local={localTurns} turns/{committedAt.2-started}ms, peer={peerTurns}/{4*(cfg.maxSocks+1)} turns, local commits={← commits.get}, flood frames={← sent.get}"
   t.ok "actual runner still has a full peer mailbox when shutdown begins"
     (← waitFor 300 do return (← readyPeers run.ingress) > 0)
-  active.set false
+  active.modify (fun _ => false)
   for peer in peers do closePeer peer
   run.stop
   for task in flooding do
@@ -260,7 +263,7 @@ def readerCancellation (t : Checks) (global : Bool) : IO Unit := do
   let (client, peer) ← SocketAbortTest.pair
   let aborter ← SocketAbort.capture client
   let peerCap ← SocketAbort.capture peer
-  let stopped ← IO.mkRef false
+  let stopped ← StopFlag.new
   let out ← Std.Mutex.new ({} : Outbox)
   let wake ← Std.Condvar.new
   let address := "blocked-reader".toUTF8
@@ -291,8 +294,8 @@ def readerCancellation (t : Checks) (global : Bool) : IO Unit := do
     ((← waitFor 500 (IO.hasFinished writing)) && (← slots.atomically get).isEmpty)
   -- Only after the deadline may a broken closed-send mutation be rescued.
   if !done then
-    source.closed.set false
     hub.registry.atomically do
+      source.closed.set false
       if h : source.index < hub.peers + 1 then
         modify fun r => { r with
           closed := false

@@ -113,7 +113,7 @@ all reader lifetimes, or Windows cancellation.
 | Obligation | Concrete remaining issue |
 |---|---|
 | Per-peer service | Fixed peer mailboxes remove competition for the shared network queue, and the admitted-source deadline survives peer churn. Competing local/control producers still lack a fair admission bound; completion of a loop turn remains separate. |
-| Wait cancellation | Supported POSIX sends now abort and retain ownership through callback completion. Reader-task ownership, cross-thread stop-token semantics, connect deadlines, native callback progress and Windows cancellation remain to be closed. |
+| Wait cancellation | Supported POSIX sends/connects now abort; socket reservations include original reader completion, and synchronized stop requests survive overlapping reads. Native callback/worker progress, final OS-thread teardown, handler-exception cleanup and Windows cancellation remain open. |
 | Bounded iteration work | Store draining has a finite history-dependent budget, not a fixed configuration bound. Connection hooks can traverse all matching rows. |
 | Bounded memory | The sync index, snapshots, retired-session routing/tombstone history and some app recovery queues grow with history. |
 | Fair-loss progress | Reserved output now survives ordinary/hot pressure. Raw wire fair-loss still permits every frame to arrive after its session key has been discarded; multiplexed sessions also need fair retry admission. See the concrete execution in [RETRY-RESERVATION.md](RETRY-RESERVATION.md). |
@@ -185,3 +185,13 @@ other-peer churn. They cover admitted values; fairness among competing
 producers, completion of each turn and end-to-end display remain separate.
 See [INGRESS-FAIRNESS.md](INGRESS-FAIRNESS.md) for the 65 native checks, eight
 controls and nonempty infinite selector witnesses.
+
+## Native lifetime milestone
+
+The running TCP code now retains reader task ownership, cancels supported
+pending connects on deadline/stop and uses synchronized one-way stop flags.
+The app reader publishes cancellation with atomic `modify`; direct `set` can
+be lost to an overlapping getter in the pinned SDK. The named native gate
+checks 24 runtime assertions and 11 compiling controls, including this exact
+SDK interleaving. These repairs establish regression coverage, not universal
+OS progress. [NATIVE-LIFETIMES.md](NATIVE-LIFETIMES.md) records precise limits.

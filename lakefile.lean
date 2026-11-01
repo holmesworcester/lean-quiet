@@ -524,3 +524,19 @@ lean_exe vacuity_identity_frames where
 
 lean_exe vacuity_identity_rejoin where
   root := `tests.vacuity.IdentityRejoinMain
+
+target stop_probe.o pkg : FilePath := do
+  let src ← inputTextFile <| pkg.dir / "tests" / "engine" / "stop_probe.c"
+  buildO (pkg.buildDir / "native" / "stop_probe.o") src
+    #["-I", (← getLeanIncludeDir).toString] #["-fPIC", "-O2", "-g"] "cc"
+
+lean_exe stop_flag where
+  root := `tests.engine.StopFlag
+  moreLinkObjs := #[stop_probe.o]
+
+lean_exe native_lifetime where
+  root := `tests.engine.NativeLifetime
+
+lean_exe reader_stop where
+  root := `tests.engine.ReaderStop
+  moreLinkObjs := #[stop_probe.o]

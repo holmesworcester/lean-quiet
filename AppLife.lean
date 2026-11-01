@@ -204,7 +204,7 @@ def unmountState (s : St) : St :=
 on the old refs, but no subsequent query or publication is authorized. -/
 def stopReader : M Unit := do
   let s ← get
-  if let some w := s.reader then w.stopped.set true
+  if let some w := s.reader then w.requestStop
   parkDone s.sh
   let out ← s.sh.out.get
   s.sh.acts.set #[]

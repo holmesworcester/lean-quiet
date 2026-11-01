@@ -31,12 +31,17 @@ run = "bash tests/engine/fairness.sh"
 
 [tasks."test:bootstrap-progress"]
 description = "Bootstrap progress PR gate: native certificates, TCP retry/fairness and sync epoch/claim-tree mutation controls"
-run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree && mise run test:catalog-retry && mise run test:reserved-retry && mise run test:ingress"
+run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree && mise run test:catalog-retry && mise run test:reserved-retry && mise run test:ingress && mise run test:native-lifetimes"
 
 [tasks."test:catalog-retry"]
 description = "Actual Node/SQLite durable retry under dropped control/data traffic and continuing writes, including a no-retry mutation"
 depends = ["crypto"]
 run = "bash tests/engine/catalog_retry.sh"
+
+[tasks."test:native-lifetimes"]
+description = "Real connect/reader lifetime checks and deterministic SDK stop race; eleven compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/native_lifetime.sh"
 
 [tasks."test:ingress"]
 description = "Real per-peer TCP mailbox bounds, UI priority, quota reuse and cancellation; reject eight compiling mutations"

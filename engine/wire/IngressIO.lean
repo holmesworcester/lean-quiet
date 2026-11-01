@@ -92,8 +92,10 @@ def Hub.poll {α : Type} (hub : Hub α) (control : IO (Option α)) : IO (Option 
 
 /-- One value remains on this dedicated producer's stack during backpressure.
 Retirement/shutdown ends that wait without depending on channel.close. -/
-def Hub.send {α : Type} (hub : Hub α) (source : Source) (value : α) : IO Bool := do
+def Hub.send {α : Type} (hub : Hub α) (source : Source) (value : α)
+    (cancel : IO Bool := pure false) : IO Bool := do
   repeat
+    if ← cancel then return false
     match ← hub.offer source value with
     | .accepted => return true
     | .closed => return false

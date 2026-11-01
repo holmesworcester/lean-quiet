@@ -90,7 +90,7 @@ def runnerChecks (t : Checks) : IO Unit := do
   let remote := (addrText (← srv.getSockName)).toUTF8
   let hotReady ← IO.mkRef false
   let lastId := large.getLast!.id
-  let notify := fun ids : List Id => if ids.contains lastId then hotReady.set true else pure ()
+  let notify := fun ids : List Id => if ids.contains lastId then hotReady.modify (fun _ => true) else pure ()
   -- No ordinary serving window. Each wanted hot payload also exceeds the
   -- normal queue cap, so recovery must use its independent reservation.
   let cfg : RunConfig := {
@@ -101,7 +101,7 @@ def runnerChecks (t : Checks) : IO Unit := do
   let aborter ← SocketAbort.capture client
   run.write large
   t.ok "actual runner commits the large hot batch" (← waitFor 5000 hotReady.get)
-  let peerStop ← IO.mkRef false
+  let peerStop ← StopFlag.new
   let posting ← IO.mkRef true
   let readTarget ← IO.mkRef false
   let copies ← IO.mkRef 0
@@ -118,7 +118,7 @@ def runnerChecks (t : Checks) : IO Unit := do
     while ← posting.get do
       if ← run.writes.trySend [message (1000 + i)] then
         i := i + 1
-        posted.set i
+        posted.modify (fun _ => i)
       IO.sleep 40
   let received ← IO.asTask (prio := .dedicated) do
     let y := setup "source".toUTF8 false
@@ -139,7 +139,7 @@ def runnerChecks (t : Checks) : IO Unit := do
           let (next, _) ← (node.onFrame y "source".toUTF8 payload (← IO.monoMsNow)).run receiver
           node := next
           if (← (Store.getOp target.id : SqlM Fact _).run receiver) == some target then
-            readTarget.set true
+            readTarget.modify (fun _ => true)
   let began ← IO.monoMsNow
   let arrived ← waitFor 20000 readTarget.get
   let elapsed := (← IO.monoMsNow) - began
@@ -150,8 +150,8 @@ def runnerChecks (t : Checks) : IO Unit := do
     ((← wanted.get) ≥ 20 && (← posted.get) ≥ 10 && !(← IO.hasFinished flood) && !(← IO.hasFinished producer))
   t.ok "actual loop services flooded peer frames during retry recovery"
     ((← run.counters).events.toNat ≥ 20)
-  posting.set false
-  peerStop.set true
+  posting.modify (fun _ => false)
+  peerStop.request
   if let some cap := aborter then discard <| cap.abort
   for task in [producer, flood, received] do
     if let .error e ← IO.wait task then throw e

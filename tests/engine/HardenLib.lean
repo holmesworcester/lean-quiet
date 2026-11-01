@@ -300,7 +300,7 @@ def sharedSocketChecks (t : Checks) : IO Unit := do
   let slots : Slots ← Std.Mutex.new []
   let ch ← eventChannel { queue := 4 }
   let c ← Std.Async.TCP.Socket.Client.mk
-  let stopped ← IO.mkRef false
+  let stopped ← StopFlag.new
   let out ← Std.Mutex.new {}
   let wake ← Std.Condvar.new
   let (ingress, _) ← Ingress.Hub.new ({} : RunConfig).maxSocks

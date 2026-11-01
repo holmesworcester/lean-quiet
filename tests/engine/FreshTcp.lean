@@ -81,7 +81,7 @@ def retiredDrain (t : Checks) (full : Bool := false) : IO Unit := do
   let backlog : List ByteArray := if full then [⟨Array.replicate cfg.sockCap 98⟩] else []
   let out ← Std.Mutex.new ({ lanes := { serve := backlog } } : Outbox)
   let wake ← Std.Condvar.new
-  let stopped ← IO.mkRef false
+  let stopped ← StopFlag.new
   let aborter ← SocketAbort.capture client
   let sock : Sock := { id := 0, client, addr, heard := 0, stopped, out, wake, done := Task.pure (.ok ()), aborter, input := some input }
   let st : RunState := { db, slots, ingress, node := { ix := {}, floor := 0, addrs := [(cid, addr)] }, socks := [sock] }
@@ -92,12 +92,12 @@ def retiredDrain (t : Checks) (full : Bool := false) : IO Unit := do
   t.ok s!"retirement retains final notice with ordinary backlog full={full}"
     (queued.urgent == [payload] && queued.serve == backlog)
   let done ← IO.asTask (prio := .dedicated) (writer ch slots 0 client addr out wake 131072 aborter 1500)
-  let stop ← IO.mkRef false
+  let stop ← StopFlag.new
   let timer ← IO.asTask (prio := .dedicated) do
     for _ in [0:500] do
       if ← IO.hasFinished done then return
       IO.sleep 10
-    stop.set true
+    stop.request
   let mut received := ByteArray.empty
   repeat
     match ← readSocket peer stop 65536 with
@@ -165,7 +165,7 @@ def neverReader (t : Checks) (closed retired : Bool) : IO Unit := do
   let block : ByteArray := ⟨Array.replicate 524288 97⟩
   let out ← Std.Mutex.new ({ lanes := { urgent := List.replicate 32 block } } : Outbox)
   let wake ← Std.Condvar.new
-  let stopped ← IO.mkRef false
+  let stopped ← StopFlag.new
   let sock : Sock := {
     id := 0
     client := client
@@ -215,8 +215,8 @@ def neverReader (t : Checks) (closed retired : Bool) : IO Unit := do
   out.atomically (modify fun o => { o with stopped := true, lanes := {} })
   wake.notifyAll
   if !finished then
-    let stopRead ← IO.mkRef false
-    let timer ← IO.asTask (prio := .dedicated) do IO.sleep 2000; stopRead.set true
+    let stopRead ← StopFlag.new
+    let timer ← IO.asTask (prio := .dedicated) do IO.sleep 2000; stopRead.request
     repeat
       match ← readSocket peer stopRead 65536 with
       | some _ => pure ()
@@ -262,7 +262,7 @@ def main : IO UInt32 := do
   | .error e => throw e
   | .ok _ => pure ()
   let sAddr := addrText (← s.getSockName)
-  estR.set [(sS.id, sAddr.toUTF8, false)]
+  estR.modify (fun _ => [(sS.id, sAddr.toUTF8, false)])
   -- Sample S's lanes at R: the most they held, and when they went.
   let peak ← IO.mkRef 0
   let seen ← IO.mkRef false
@@ -272,10 +272,12 @@ def main : IO UInt32 := do
     while ← sampling.get do
       match (← rr.lanes).find? (·.1 == sAddr.toUTF8) with
       | some (_, b) =>
-        seen.set true
+        seen.modify (fun _ => true)
         peak.modify (max · b)
       | none =>
-        if (← seen.get) && (← gone.get).isNone then gone.set (some (← IO.monoMsNow))
+        if (← seen.get) && (← gone.get).isNone then do
+          let when ← IO.monoMsNow
+          gone.modify (fun _ => some when)
       IO.sleep 20
   IO.sleep 600
   let ids := blobs.map (·.id)
@@ -289,8 +291,8 @@ def main : IO UInt32 := do
   let asked ← IO.monoMsNow
   IO.sleep 1000
   -- P syncs from R while R's writer for S waits forever.
-  estR.set [(sS.id, sAddr.toUTF8, false), (sP.id, s!"127.0.0.1:{rp.port}".toUTF8, false)]
-  estP.set [(sP.id, s!"127.0.0.1:{rr.port}".toUTF8, true)]
+  estR.modify (fun _ => [(sS.id, sAddr.toUTF8, false), (sP.id, s!"127.0.0.1:{rp.port}".toUTF8, false)])
+  estP.modify (fun _ => [(sP.id, s!"127.0.0.1:{rr.port}".toUTF8, true)])
   let count : IO Nat := do return ((← got.get).filter fun p => ids.contains p.1).length
   for _ in [0:300] do
     if (← count) ≥ 8 then break
@@ -331,10 +333,10 @@ def main : IO UInt32 := do
     let releasedUnread ← waitFor 3000 do return (← rr.slots.atomically get).isEmpty
     t.ok "S cannot retain its native slot while permanently refusing to read" releasedUnread
   let held := (← rr.slots.atomically get).length
-  let stopRead ← IO.mkRef false
+  let stopRead ← StopFlag.new
   let _ ← IO.asTask (prio := .dedicated) do
     IO.sleep 10000
-    stopRead.set true
+    stopRead.request
   let mut drained := 0
   repeat
     match ← readSocket s stopRead 65536 with
@@ -353,7 +355,7 @@ def main : IO UInt32 := do
     t.ok "Windows legacy writer releases its slot after the peer drains" released
   else
     t.ok "reading after cancellation leaves the native quota empty" (← rr.slots.atomically do return (← get).isEmpty)
-  sampling.set false
+  sampling.modify (fun _ => false)
   discard <| IO.wait sampler
   -- A loop stuck on S's socket (the old blocking send) would never stop.
   if (← t.failed.get) == 0 then

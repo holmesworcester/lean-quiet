@@ -77,8 +77,8 @@ cases = [
      "fresh_tcp", "FAIL: S is closed within stallMs", True),
     # The slot is released at close, while the writer still waits.
     ("slot-at-close", "engine/wire/Tcp.lean",
-     ("  finally slots.release addr", "    if drain then s.drain else s.stop\n    return ({ st.drop sid with node }, e)"),
-     ("  finally pure ()", "    if drain then s.drain else s.stop\n    st.slots.release s.addr\n    return ({ st.drop sid with node }, e)"),
+     ("  finally\n    cleanupReader\n    slots.release addr", "    if drain then s.drain else s.stop\n    return ({ st.drop sid with node }, e)"),
+     ("  finally\n    cleanupReader\n    pure ()", "    if drain then s.drain else s.stop\n    st.slots.release s.addr\n    return ({ st.drop sid with node }, e)"),
      "fresh_tcp", "FAIL: actual native writer holds its lease before deadline (closed=false, retired=true)", True),
 ]
 if sys.platform != "win32":
