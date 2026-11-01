@@ -24,6 +24,7 @@ Everything the platform does goes through `Io`, so tests drive the same
 code without a window (QTests).
 -/
 import AppLife
+import ops.app.WriteAdmission
 
 namespace App
 open Engine Community Data Paint Font Row
@@ -209,6 +210,10 @@ of this node's own (`submit`). -/
 def writeAll (w : Community.Write) : M Bool := do
   let s ← get
   if !s.life.allows s.life.lease then return false
+  if let some reason := WriteAdmission.refusal {} s.queuedWrites w.ops then
+    let now ← IO.monoMsNow
+    modify fun s => { s with toast := Toast.raise now reason }
+    return false
   let mut mine : Std.HashMap Id (Verdict SF) := {}
   let mut pend := #[]
   for o in w.ops do

@@ -31,6 +31,21 @@ Eight branch/order checks run in `test:join-fair`, alongside the production
 TCP tests and mutations that restore strict write priority or lose deferred
 dials. This extraction changes code ownership, not scheduling policy.
 
+[StorageEffects](../ops/connection/StorageEffects.lean) proves that every
+actual `Node.step`, with production hooks and advancing entropy, preserves
+shared bytes, reachability and settlement. This includes reaction writes and
+both courier and session purges. The native lifecycle fixture has 14 checks.
+The [stronger drain law](../ops/sync/StoreEvolution.lean) no longer needs
+collision-free history to prove termination; its budget still grows with
+history, so it is not a fixed per-turn bound.
+
+[WriteAdmission](../ops/app/WriteAdmission.lean), called by `App.writeAll`,
+limits new admitted pending work to 8,192 ops and 128 MiB and requires each op
+to fit the standard encrypted frame alone. Refusal precedes optimistic
+display and queueing, preserves Send's draft and reports a reason. Three
+kernel bounds, ten real-app/SQLite checks and three mutation controls cover
+this path. Other submission/recovery paths remain in the capacity audit.
+
 ## Obstructions found by the stronger target
 
 | Obligation | Concrete remaining issue |

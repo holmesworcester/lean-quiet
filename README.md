@@ -621,8 +621,10 @@ exist; their composition across timeouts, capped windows, session retirement
 and native store/transport behavior remains open. Timely connectivity,
 completed I/O, adequate capacity and continuing authorization must be explicit.
 See [the remaining obligations and repaired runtime failures](docs/BOOTSTRAP-LIVENESS.md).
-The tests also expose accepted posts exceeding TCP's frame limit; the app
-still needs a message-size policy.
+`App.writeAll` now rejects writes that cannot fit a standard encrypted frame,
+and refuses new writes when its pending count or byte budget is exhausted,
+preserving the draft and showing a reason. Historical/imported data and other
+submission paths still need their own bounds.
 
 ## What isn't Lean, and why
 
@@ -2310,6 +2312,8 @@ necessary statement boundaries and the remaining code changes.
 | Milestone | Change and reason | Checked boundary |
 |---|---|---|
 | Actual loop relation | TCP now calls the shared `Loop.turn` and `Node.step`, so a proof can use the running selector, dispatch, timer and engine entrypoints. | Kernel dispatch/timer laws; eight branch/order checks; TCP baseline 34/0 and ordered-hint scenario 22/0; old strict-priority, first-hint and lost-deferred-hint controls still fail as intended. Native I/O termination is separate. |
+| Full node storage effects | Every actual node entrypoint, including reactions, courier purges and session closure, preserves retained shared bytes and reachable, settled stores. The proof allows advancing entropy and arbitrary subsequent events. | Kernel laws plus 14 native lifecycle checks. Settling has a finite history-dependent budget, not a fixed per-iteration work bound; native SQLite refinement remains separate. |
+| App write admission | `App.writeAll` rejects individually unframable ops and new batches exceeding 8,192 pending ops or 128 MiB of encoded pending data, before optimistic display or queueing. Send preserves the draft and reports refusal. | Three kernel admission bounds, 10 actual Send/SQLite checks and three mutation controls. This bounds admission through this function; it does not bound all app queues, recovery paths or old stored data. |
 
 UI-first service with a bounded sync reservation is the next scheduling
 change; the current extraction retains the earlier 1:1 selector. Selection

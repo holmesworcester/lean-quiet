@@ -173,6 +173,11 @@ description = "Two apps, each its own database and node (the engine's Runner wit
 depends = ["crypto"]
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build net_join && .lake/build/bin/net_join out/net"
 
+[tasks."host:write-admission"]
+description = "Actual app Send rejects unframable posts and exhausted pending queues, preserves drafts, and commits after capacity clears"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build write_admission && .lake/build/bin/write_admission out/write-admission && python3 tests/app/write_admission_negative.py"
+
 [tasks."host:cross"]
 description = "Two apps over real TCP, two communities both named club, each app in both, everyone named Ann: every entry reachable by a tap, each home right, a second join to one community and Stop waiting on it"
 depends = ["crypto"]

@@ -288,6 +288,12 @@ lean_exe invite_link where
 lean_exe net_join where
   root := `platforms.headless.NetJoin
 
+lean_exe write_admission where
+  root := `platforms.headless.WriteAdmission
+
+lean_exe vacuity_storage_effects where
+  root := `tests.vacuity.StorageEffectsMain
+
 -- Two phones, two communities, each in both, everything named alike.
 lean_exe cross where
   root := `platforms.headless.Cross
