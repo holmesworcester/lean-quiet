@@ -46,6 +46,7 @@ gate() {
     macos-ui|release-macos) mise run macos:e2e ;;
     android-ui) mise run android:twin-demo-e2e && mise run android:lifecycle-e2e ;;
     android-lifecycle) mise run android:lifecycle-e2e ;;
+    android-photo) mise run android:photo-e2e && mise run android:photo-lifecycle-e2e ;;
     zoom) mise run test:zoom ;;
     android-zoom) mise run android:zoom ;;
     release-zoom) mise run test:zoom && mise run android:zoom ;;

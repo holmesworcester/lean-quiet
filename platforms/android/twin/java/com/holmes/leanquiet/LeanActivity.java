@@ -186,7 +186,11 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
     if (active == this) active = null;
     imeWanted = false;
     bars.detach(this);
+    // The native run survives configuration replacement. Finish its exact
+    // outstanding request before NativeActivity releases this Java owner.
+    int cancelledPhoto = photoToken;
     photoToken = 0;
+    if (cancelledPhoto != 0) nPhoto(cancelledPhoto, 2, 0, 0, null);
     photoWorker.shutdownNow();
     super.onDestroy();
   }
