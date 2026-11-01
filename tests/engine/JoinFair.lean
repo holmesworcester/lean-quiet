@@ -7,6 +7,7 @@ import tests.engine.Lib
 import tests.engine.LoopChecks
 import app.connection.Proofs
 import app.Commands
+import engine.core.Exit
 
 namespace JoinFair
 open Engine Engine.Sync Community Tests Connection
@@ -148,7 +149,7 @@ def frameLimitChecks (t : Checks) (a : Peer) (c cid : Id) : IO Unit := do
       Frame.open sodium sk smallSealed == some (cid, smallPayload))
   IO.println s!"frame-limit: draft={text.utf8ByteSize}, op={op.bytes.size}, bundle={payload.size}, encrypted frame={packet.size}, limit={maxFrame}"
 
-def main (args : List String) : IO UInt32 := do
+def mainBody (args : List String) : IO UInt32 := do
   let dir := args.headD "out/join-fair"
   let relayPort := (args[1]?.getD "0").toNat!
   let aPort := (args[2]?.getD "0").toNat!
@@ -322,4 +323,7 @@ def main (args : List String) : IO UInt32 := do
 
 end JoinFair
 
-def main := JoinFair.main
+
+/-- Leaves by `IO.Process.exit` (Engine.exitAfter): returning from
+`main` with a runner's threads alive would wait for them for good. -/
+def main (args : List String) : IO UInt32 := Engine.exitAfter (JoinFair.mainBody args)
