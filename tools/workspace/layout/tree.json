@@ -1,120 +1,59 @@
 {
-  "root": "app",
   "roles": {
-    "Op.lean": "The op: its body, its fact, their codecs, the lists the fact is filed in, scope and claimed time.",
+    "Op.lean": "The op: its body, its fact, their codecs, the relations its fact is filed in, scope and claimed time.",
     "Validate.lean": "The validator: what the op requires, and the fact it produces from them.",
     "View.lean": "The component for this op's fact. It reads only its own fact.",
-    "Commands.lean": "Intents and responders, in the deepest folder that contains every op they write or read.",
-    "Screen.lean": "Components that compose several ops, in the deepest folder that contains all of them.",
-    "Proofs.lean": "Laws, in the deepest folder that contains every op they mention.",
+    "Commands.lean": "Intents and responders.",
+    "Screen.lean": "Components that compose several ops.",
+    "Proofs.lean": "Laws.",
     "Tests.lean": "Tests of the ops in this folder.",
     "Family.lean": "The registry: this folder's op, then each child folder's registry, as plain functions."
-  },
-  "families": {
-    "community": {
-      "types": "ops/community/Facts.lean",
-      "check": "check"
-    },
-    "connection": {
-      "types": "ops/connection/Types.lean",
-      "check": "check"
-    }
   },
   "nodes": [
     {
       "path": "app",
-      "summary": "The app: the node's one family and the root screen.",
+      "summary": "The app: the node's hooks and live data, the app shell, and laws over the node and the whole app.",
       "preview": "app"
-    },
-    {
-      "path": "app/device",
-      "summary": "This device's own keys. Local, never sent."
-    },
-    {
-      "path": "app/device/secret",
-      "op": {
-        "family": "community",
-        "body": "secret",
-        "facts": [
-          "secret"
-        ],
-        "rels": [
-          "secret"
-        ]
-      },
-      "summary": "A signing key pair, from a 32-byte seed."
-    },
-    {
-      "path": "app/device/endpoint",
-      "op": {
-        "family": "community",
-        "body": "endpoint",
-        "facts": [
-          "endpoint"
-        ],
-        "rels": [
-          "endpoint"
-        ]
-      },
-      "summary": "The node's X25519 key, one per node."
     },
     {
       "path": "app/nav",
       "planned": "ephemeral",
-      "summary": "Where this window is: the page, its subject and the way back.",
-      "view": false
+      "summary": "Where this window is: the page, its subject and the way back."
     },
     {
       "path": "app/settings",
+      "planned": "family",
       "summary": "This device's preferences, each a local op."
     },
     {
       "path": "app/settings/appearance",
       "planned": "local",
-      "summary": "System, light or dark. Today a side table.",
+      "summary": "System, light or dark. Today a side table (engine/renderer/ThemeStore.lean).",
       "preview": "settings.appearance"
     },
     {
       "path": "app/community",
-      "op": {
-        "family": "community",
-        "body": "root",
-        "facts": [
-          "admission"
-        ],
-        "rels": [
-          "admission"
-        ]
-      },
       "summary": "A community, founded by its root. The root's fact is the founder's admission.",
       "screen": true
     },
     {
+      "path": "app/community/device",
+      "summary": "This device's own keys. Local, never sent."
+    },
+    {
+      "path": "app/community/device/secret",
+      "summary": "A signing key pair, from a 32-byte seed."
+    },
+    {
+      "path": "app/community/device/endpoint",
+      "summary": "The node's X25519 key, one per node."
+    },
+    {
       "path": "app/community/name",
-      "op": {
-        "family": "community",
-        "body": "name",
-        "facts": [
-          "named"
-        ],
-        "rels": [
-          "named"
-        ]
-      },
       "summary": "The community's name, set by an admin. Counted, so the newest wins."
     },
     {
       "path": "app/community/profile",
-      "op": {
-        "family": "community",
-        "body": "profile",
-        "facts": [
-          "profile"
-        ],
-        "rels": [
-          "profile"
-        ]
-      },
       "summary": "A member's name: a register, newest by time.",
       "preview": "profile"
     },
@@ -127,30 +66,10 @@
     },
     {
       "path": "app/community/key",
-      "op": {
-        "family": "community",
-        "body": "key",
-        "facts": [
-          "key"
-        ],
-        "rels": [
-          "key"
-        ]
-      },
       "summary": "This node's copy of a content key. Local."
     },
     {
       "path": "app/community/key/wrap",
-      "op": {
-        "family": "community",
-        "body": "wrap",
-        "facts": [
-          "wrap"
-        ],
-        "rels": [
-          "wrap"
-        ]
-      },
       "summary": "A content key sealed to one node's X25519 key."
     },
     {
@@ -159,82 +78,26 @@
     },
     {
       "path": "app/community/member/invite",
-      "op": {
-        "family": "community",
-        "body": "invite",
-        "facts": [
-          "invitation"
-        ],
-        "rels": []
-      },
       "summary": "An invitation, with how many approvals a request needs."
     },
     {
       "path": "app/community/member/invite/request",
-      "op": {
-        "family": "community",
-        "body": "request",
-        "facts": [
-          "request"
-        ],
-        "rels": [
-          "request"
-        ]
-      },
       "summary": "A device redeems an invitation. It admits nobody."
     },
     {
       "path": "app/community/member/invite/request/approve",
-      "op": {
-        "family": "community",
-        "body": "approve",
-        "facts": [
-          "approval"
-        ],
-        "rels": [
-          "approval"
-        ]
-      },
       "summary": "A member's signed yes to a request."
     },
     {
-      "path": "app/community/member/invite/request/admit",
-      "op": {
-        "family": "community",
-        "body": "admit",
-        "facts": [
-          "admission"
-        ],
-        "rels": []
-      },
+      "path": "app/community/member/invite/request/approve/admit",
       "summary": "A tally of exactly enough approvals, by distinct users. Unsigned."
     },
     {
       "path": "app/community/member/admin",
-      "op": {
-        "family": "community",
-        "body": "grant",
-        "facts": [
-          "admin"
-        ],
-        "rels": [
-          "admin"
-        ]
-      },
       "summary": "An admin grants admin. Never revoked."
     },
     {
       "path": "app/community/member/remove",
-      "op": {
-        "family": "community",
-        "body": "remove",
-        "facts": [
-          "removal"
-        ],
-        "rels": [
-          "removal"
-        ]
-      },
       "summary": "A removal, by an admin or of oneself. It never invalidates an op."
     },
     {
@@ -243,128 +106,48 @@
     },
     {
       "path": "app/community/member/join/joining",
-      "op": {
-        "family": "community",
-        "body": "joining",
-        "facts": [
-          "joining"
-        ],
-        "rels": [
-          "joining"
-        ]
-      },
       "summary": "A join in progress: the invite, the request and the name chosen."
     },
     {
       "path": "app/community/member/join/joining/abandon",
-      "op": {
-        "family": "community",
-        "body": "abandon",
-        "facts": [
-          "abandoned"
-        ],
-        "rels": [
-          "abandoned"
-        ]
-      },
       "summary": "Stop waiting on a join."
     },
     {
       "path": "app/community/member/join/accept",
-      "op": {
-        "family": "community",
-        "body": "accept",
-        "facts": [
-          "accepted"
-        ],
-        "rels": [
-          "accepted"
-        ]
-      },
       "summary": "This device is in a community."
     },
     {
       "path": "app/community/channel",
       "planned": "shared",
-      "summary": "A channel. On main every community has one, unnamed.",
+      "summary": "A channel. Today every community has one, unnamed, and this folder holds its messages.",
       "screen": true
     },
     {
       "path": "app/community/channel/message",
-      "op": {
-        "family": "community",
-        "body": "post",
-        "facts": [
-          "message"
-        ],
-        "rels": [
-          "message"
-        ]
-      },
       "summary": "A post. Its header is clear and its body sealed. It claims a counter and a time.",
       "preview": "message"
     },
     {
       "path": "app/community/channel/message/reaction",
-      "op": {
-        "family": "community",
-        "body": "react",
-        "facts": [
-          "react"
-        ],
-        "rels": [
-          "react"
-        ]
-      },
       "summary": "An emoji on a message, by an admitted device.",
       "preview": "message.reaction"
     },
     {
       "path": "app/community/channel/message/attachment",
-      "op": {
-        "family": "community",
-        "body": "attach",
-        "facts": [
-          "attachment"
-        ],
-        "rels": [
-          "attachment"
-        ]
-      },
       "summary": "A file on a message: its Merkle root and length in clear, the rest sealed."
     },
     {
       "path": "app/community/channel/message/attachment/chunk",
-      "op": {
-        "family": "community",
-        "body": "chunk",
-        "facts": [
-          "chunk"
-        ],
-        "rels": [
-          "chunk"
-        ]
-      },
       "summary": "One 64 KiB slice of a file's ciphertext, with its Merkle path."
     },
     {
       "path": "app/community/channel/message/receipt",
-      "op": {
-        "family": "community",
-        "body": "receive",
-        "facts": [
-          "received"
-        ],
-        "rels": [
-          "received"
-        ]
-      },
       "summary": "This device's receipt of a saturated post, which orders it. Local."
     },
     {
       "path": "app/community/channel/message/draft",
       "planned": "ephemeral",
-      "summary": "Unsent text for one conversation.",
+      "summary": "Unsent text for one conversation. Today the composer.",
       "preview": "message.draft",
       "view": true
     },
@@ -374,276 +157,48 @@
     },
     {
       "path": "app/connection/eph",
-      "op": {
-        "family": "connection",
-        "body": "eph",
-        "facts": [
-          "eph"
-        ],
-        "rels": [
-          "eph"
-        ]
-      },
       "summary": "One ephemeral X25519 secret for one handshake. Local."
     },
     {
       "path": "app/connection/request",
-      "op": {
-        "family": "connection",
-        "body": "request",
-        "facts": [
-          "request"
-        ],
-        "rels": [
-          "request"
-        ]
-      },
       "summary": "Noise message 1, on the bare wire to one peer."
     },
     {
       "path": "app/connection/opened",
-      "op": {
-        "family": "connection",
-        "body": "opened",
-        "facts": [
-          "opened"
-        ],
-        "rels": [
-          "opened"
-        ]
-      },
       "summary": "The responder's record of a request it read. Local."
     },
     {
       "path": "app/connection/connection",
-      "op": {
-        "family": "connection",
-        "body": "connection",
-        "facts": [
-          "connection"
-        ],
-        "rels": [
-          "connection"
-        ]
-      },
       "summary": "Noise message 2, on the bare wire."
     },
     {
       "path": "app/connection/established",
-      "op": {
-        "family": "connection",
-        "body": "established",
-        "facts": [
-          "established"
-        ],
-        "rels": [
-          "established"
-        ]
-      },
       "summary": "This side's session keys. Local."
     },
     {
       "path": "app/connection/send",
-      "op": {
-        "family": "connection",
-        "body": "send",
-        "facts": [
-          "send"
-        ],
-        "rels": [
-          "send"
-        ]
-      },
       "summary": "A courier: the one way out for handshake bytes. Local."
     },
     {
       "path": "app/connection/recv",
-      "op": {
-        "family": "connection",
-        "body": "recv",
-        "facts": [
-          "recv"
-        ],
-        "rels": [
-          "recv"
-        ]
-      },
       "summary": "When and how an op arrived. Local."
     },
     {
       "path": "app/connection/given",
-      "op": {
-        "family": "connection",
-        "body": "given",
-        "facts": [
-          "given"
-        ],
-        "rels": [
-          "given"
-        ]
-      },
       "summary": "A removal notice given on a connection. Local."
     },
     {
-      "path": "app/sync",
-      "summary": "Range-based set reconciliation, as three wire ops that are never stored.",
+      "path": "engine",
+      "summary": "What holds for every op type. It names no kind."
+    },
+    {
+      "path": "engine/sync",
+      "summary": "Range-based set reconciliation for every op type: three wire messages that are never stored. rbsr (240) carries one room's claims for one round, or with no room the hello; have (241) lists ids the sender holds, and is also the live stream; want (242) asks for ids, answered with their bytes.",
       "preview": "sync"
     },
     {
-      "path": "app/sync/rbsr",
-      "op": {
-        "family": "sync",
-        "kind": 240
-      },
-      "summary": "One room's claims for one round. With no room, the hello."
-    },
-    {
-      "path": "app/sync/have",
-      "op": {
-        "family": "sync",
-        "kind": 241
-      },
-      "summary": "Ids the sender holds in a room. Also the live stream."
-    },
-    {
-      "path": "app/sync/want",
-      "op": {
-        "family": "sync",
-        "kind": 242
-      },
-      "summary": "Ids the sender asks for, answered with their bytes."
+      "path": "platforms",
+      "summary": "The shells, and the headless twin the tests drive."
     }
-  ],
-  "sources": {
-    "App.lean": "app/Screen.lean",
-    "AppTypes.lean": "app/Screen.lean",
-    "AppLife.lean": "app/Screen.lean",
-    "ops/app/Pages.lean": "app/Screen.lean",
-    "ops/app/Components.lean": "app/Screen.lean",
-    "ops/app/Lifecycle.lean": "app/Screen.lean",
-    "ops/app/NodeOffer.lean": "app/Screen.lean",
-    "ops/app/Wait.lean": "app/Screen.lean",
-    "ops/app/Photo.lean": "app/Screen.lean",
-    "ops/app/LifecycleLaws.lean": "app/Proofs.lean",
-    "ops/connection/NodeLaws.lean": "app/Proofs.lean",
-    "ops/app/Chaos.lean": "app/Tests.lean",
-    "ops/app/NavLaws.lean": "app/nav/Proofs.lean",
-    "engine/renderer/ThemeStore.lean": "app/settings/appearance/Op.lean",
-    "ops/community/Facts.lean": {
-      "split": "community",
-      "rest": "app/community/Family.lean"
-    },
-    "ops/community/Community.lean": "app/community/Family.lean",
-    "ops/community/Compose.lean": {
-      "place": "Commands.lean",
-      "rest": "app/community/Commands.lean"
-    },
-    "ops/community/Query.lean": "app/community/Commands.lean",
-    "ops/community/Intents.lean": {
-      "place": "Commands.lean",
-      "rest": "app/community/Commands.lean"
-    },
-    "ops/community/Laws.lean": {
-      "place": "Proofs.lean",
-      "rest": "app/community/Proofs.lean"
-    },
-    "ops/community/Connect.lean": {
-      "place": "Proofs.lean",
-      "rest": "app/community/Proofs.lean"
-    },
-    "ops/community/RemovalLaws.lean": {
-      "place": "Proofs.lean",
-      "rest": "app/community/member/remove/Proofs.lean"
-    },
-    "ops/community/WrapLaws.lean": {
-      "place": "Proofs.lean",
-      "rest": "app/community/key/wrap/Proofs.lean"
-    },
-    "ops/community/Keys.lean": "app/community/key/Op.lean",
-    "ops/community/Link.lean": "app/community/member/invite/Commands.lean",
-    "ops/community/link/View.lean": "app/community/member/invite/View.lean",
-    "ops/community/membership/RequestView.lean": "app/community/member/invite/request/View.lean",
-    "ops/community/membership/AcceptedView.lean": "app/community/member/join/accept/View.lean",
-    "ops/app/Switch.lean": "app/community/member/join/accept/Proofs.lean",
-    "ops/community/membership/RemovedLaws.lean": "app/community/member/remove/Proofs.lean",
-    "ops/app/Remove.lean": "app/community/member/remove/View.lean",
-    "ops/app/PeopleLaws.lean": "app/community/member/Proofs.lean",
-    "ops/community/profile/View.lean": "app/community/profile/View.lean",
-    "ops/community/profile/NamesakeLaws.lean": "app/community/profile/Proofs.lean",
-    "ops/app/Reader.lean": "app/community/channel/Screen.lean",
-    "ops/app/ReaderLife.lean": "app/community/channel/Screen.lean",
-    "ops/app/ClumpList.lean": "app/community/channel/Screen.lean",
-    "ops/community/message/View.lean": "app/community/channel/message/View.lean",
-    "ops/community/message/ViewLaws.lean": "app/community/channel/message/Proofs.lean",
-    "ops/community/message/Order.lean": "app/community/channel/message/Proofs.lean",
-    "ops/community/message/Clump.lean": "app/community/channel/message/Commands.lean",
-    "ops/app/Composer.lean": "app/community/channel/message/draft/View.lean",
-    "ops/community/reaction/View.lean": "app/community/channel/message/reaction/View.lean",
-    "ops/community/reaction/RowLaws.lean": "app/community/channel/message/reaction/Proofs.lean",
-    "ops/community/attachment/View.lean": "app/community/channel/message/attachment/View.lean",
-    "ops/community/attachment/Image.lean": "app/community/channel/message/attachment/View.lean",
-    "ops/app/Raster.lean": "app/community/channel/message/attachment/View.lean",
-    "ops/community/attachment/ArrivalLaws.lean": "app/community/channel/message/attachment/Proofs.lean",
-    "ops/app/Pics.lean": "app/community/channel/message/attachment/Proofs.lean",
-    "engine/core/Merkle.lean": "engine/core/Merkle.lean",
-    "engine/core/MerkleCost.lean": "engine/core/MerkleCost.lean",
-    "ops/connection/Types.lean": {
-      "split": "connection",
-      "rest": "app/connection/Family.lean"
-    },
-    "ops/connection/Family.lean": "app/connection/Family.lean",
-    "ops/connection/All.lean": "app/connection/Family.lean",
-    "ops/connection/Eph.lean": "app/connection/eph/Validate.lean",
-    "ops/connection/Request.lean": "app/connection/request/Validate.lean",
-    "ops/connection/Opened.lean": "app/connection/opened/Validate.lean",
-    "ops/connection/Connection.lean": "app/connection/connection/Validate.lean",
-    "ops/connection/Established.lean": "app/connection/established/Validate.lean",
-    "ops/connection/Send.lean": "app/connection/send/Validate.lean",
-    "ops/connection/Recv.lean": "app/connection/recv/Validate.lean",
-    "ops/connection/Given.lean": "app/connection/given/Validate.lean",
-    "ops/connection/Intents.lean": {
-      "place": "Commands.lean",
-      "rest": "app/connection/Commands.lean"
-    },
-    "ops/connection/Noise.lean": "app/connection/Commands.lean",
-    "ops/connection/Frame.lean": "app/connection/Commands.lean",
-    "ops/connection/Laws.lean": {
-      "place": "Proofs.lean",
-      "rest": "app/connection/Proofs.lean"
-    },
-    "ops/connection/RemovalLaws.lean": {
-      "place": "Proofs.lean",
-      "rest": "app/connection/Proofs.lean"
-    },
-    "ops/connection/RoomLaws.lean": "app/connection/Proofs.lean",
-    "ops/connection/NoiseSymbolic.lean": "app/connection/Proofs.lean",
-    "ops/sync/Wire.lean": "app/sync/Family.lean",
-    "ops/sync/Conn.lean": "app/sync/Commands.lean",
-    "ops/sync/Session.lean": "app/sync/Commands.lean",
-    "ops/sync/Serve.lean": "app/sync/want/Commands.lean",
-    "ops/sync/Closure.lean": "app/sync/Commands.lean",
-    "ops/sync/Memory.lean": "app/sync/Commands.lean",
-    "ops/sync/Notice.lean": "app/sync/Commands.lean",
-    "ops/sync/NoticeState.lean": "app/sync/Commands.lean",
-    "ops/sync/Fp.lean": "app/sync/rbsr/Commands.lean",
-    "ops/sync/Round.lean": "app/sync/rbsr/Commands.lean",
-    "ops/sync/RoundLaws.lean": "app/sync/rbsr/Proofs.lean",
-    "ops/sync/TreeLaws.lean": "app/sync/rbsr/Proofs.lean",
-    "ops/sync/ServeLaws.lean": "app/sync/want/Proofs.lean",
-    "ops/sync/OfferLaws.lean": "app/sync/have/Proofs.lean",
-    "ops/sync/BoundsLaws.lean": "app/sync/Proofs.lean",
-    "ops/sync/ClosureComplete.lean": "app/sync/Proofs.lean",
-    "ops/sync/ClosureLaws.lean": "app/sync/Proofs.lean",
-    "ops/sync/ConnLaws.lean": "app/sync/Proofs.lean",
-    "ops/sync/NoticeLaws.lean": "app/sync/Proofs.lean",
-    "ops/sync/RetryLaws.lean": "app/sync/Proofs.lean",
-    "ops/sync/SecrecyLaws.lean": "app/sync/Proofs.lean",
-    "ops/sync/SessionLaws.lean": "app/sync/Proofs.lean",
-    "ops/sync/StateLaws.lean": "app/sync/Proofs.lean",
-    "ops/sync/TimeLaws.lean": "app/sync/Proofs.lean",
-    "ops/sync/Witnesses.lean": "app/sync/Tests.lean",
-    "ops/connection/bootstrap/": "app/connection/Proofs.lean",
-    "ops/connection/Execution.lean": "app/connection/Proofs.lean",
-    "ops/connection/ExecutionLaws.lean": "app/connection/Proofs.lean"
-  }
+  ]
 }

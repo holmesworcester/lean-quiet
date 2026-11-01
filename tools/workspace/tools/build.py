@@ -7,7 +7,7 @@ BUILD, DIST = ROOT / 'build', ROOT / 'dist'
 BUILD.mkdir(exist_ok=True)
 DIST.mkdir(exist_ok=True)
 repo = ROOT.parents[1]
-# The op tree, planned from main's sources. The checked-in tree must match it.
+# The op tree on disk, with what is planned. The checked-in tree must match it.
 subprocess.run(['python3', str(ROOT / 'tools/plan.py'), '--out', str(DIST / 'plan.json'),
                 '--check-tree', str(repo / 'docs/OP_TREE.txt')], check=True)
 shutil.copyfile(repo / 'docs/OP_TREE.txt', DIST / 'op-tree.txt')
@@ -80,11 +80,11 @@ for line in catalog_path.read_text().splitlines():
     if len(parts) == 5:
         group, emoji, skins, label, tags = parts
         catalog.append({'group': int(group), 'emoji': emoji, 'skins': skins.split(), 'label': label, 'tags': tags})
-# Main's Lean sources, one file each, fetched when a page shows them.
+# The Lean sources outside app/ (the plan carries app/), one file each, fetched when a page shows them.
 tracked = subprocess.check_output(['git', 'ls-files', '*.lean'], cwd=repo, text=True).split()
 shutil.rmtree(DIST / 'src', ignore_errors=True)
 for path in tracked:
-    if path.split('/')[0] in ('engine', 'ops', 'platforms', 'tests') or path in ('App.lean', 'AppTypes.lean', 'AppLife.lean', 'Main.lean', 'Quiet.lean'):
+    if path.split('/')[0] in ('engine', 'platforms', 'tests') or path in ('Main.lean', 'Quiet.lean'):
         out = DIST / 'src' / path
         out.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(repo / path, out)

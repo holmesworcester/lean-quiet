@@ -45,7 +45,7 @@ Every op folder MUST have `Op.lean`, `Validate.lean`, `Proofs.lean` and `Tests.l
 
 **LAYOUT03 — Placement by what a declaration names.** A law, command or screen MUST live in the common ancestor of the deepest ops it names. A folder sees its own subtree and the ops it cites (its ancestors); siblings meet at their common ancestor. So `message_authorized` (a message and its author's admission) lives in `message/`, `check_request` in `request/`, and a law over reactions and attachments in `message/`. This refines [LAYOUT.md](LAYOUT.md)'s rule, "a law that spans domains lives in the smallest module that imports everything it mentions", to one folder per op.
 
-**LAYOUT04 — The tree is a plan over main.** [`layout/tree.json`](../tools/workspace/layout/tree.json) names the folders and where each of today's files goes. [`plan.py`](../tools/workspace/tools/plan.py) cuts main's sources into the target files: `Facts.lean` and `Types.lean` by constructor (each op's `Fact` and `Body` cases, codec cases, relations and validator case), and `Intents`, `Compose`, `Laws`, `Connect`, `RemovalLaws` and `WrapLaws` by declaration under LAYOUT03. It writes the [op tree](OP_TREE.txt). Its tests MUST check that every line of a cut file lands exactly once, every Lean file of the app and its families has a destination, every `Body` constructor has exactly one folder, and every placed declaration can see each op it names. The workspace sidebar MUST be this tree, beside `engine/` and `platforms/`.
+**LAYOUT04 — The workspace draws the tree on disk.** [`plan.py`](../tools/workspace/tools/plan.py) reads every tracked file under `app/` and [`layout/tree.json`](../tools/workspace/layout/tree.json), which gives each folder its summary and preview and names the planned ops and families; it names no code. A file LAYOUT02 requires that is not on disk is planned. It writes the [op tree](OP_TREE.txt). Its tests MUST check that every file under `app/` appears exactly once with its contents, every folder is on disk or planned, every planned file is absent and required by LAYOUT02, and every file has one of the eight names. The workspace sidebar MUST be this tree, beside `engine/` and `platforms/`.
 
 **LAYOUT05 — Stable identities.** Canonical names MUST match registry identity, source location, workspace address and diagnostic labels. Wire tags, codec bytes, persisted IDs and public URLs MUST be explicitly defined. Moving source files MUST NOT change them.
 
@@ -329,11 +329,11 @@ The initial dashboard MUST distinguish these source-present candidates from the 
 
 ## Source extraction and compatibility requirements
 
-The source baseline is Lean Quiet `main` at `6d7bf2c00d71`. The workspace shows, for every target file, the lines of main that move there.
+The cutover's baseline was Lean Quiet `main` at `e727b5e`, with main merged in up to `f325982`; [`ci/optree-map.tsv`](../ci/optree-map.tsv) records, for every file it removed, the files its declarations are in now.
 
 **MIGRATE01 — Preserve existing behavior during extraction.** Reorganization MUST first retain current op bytes, IDs, validator decisions, query ordering, local/shared scope, and app behavior. New navigation, draft, seed, and custom emoji semantics MUST be explicit additions. Canonical naming MUST not accidentally renumber codecs.
 
-**MIGRATE02 — Extract real ownership.** The global op bodies, facts, codecs, validators, indexes, constructors, and laws in `app/community/Facts.lean`, `app/community/Compose.lean`, `app/community/Intents.lean` and `app/community/Laws.lean` MUST move into their owning families. A new directory containing wrappers around the unchanged global implementation does not complete ownership extraction. Aggregate dispatch may remain only as composition of owned definitions.
+**MIGRATE02 — Extract real ownership.** The global op bodies, facts, codecs, validators, indexes, constructors, and laws in main's `ops/community/Facts.lean`, `Compose.lean`, `Intents.lean` and `Laws.lean` MUST move into their owning families. *Done:* each op's `Op.lean` and `Validate.lean` hold its types and validator; the family's `Family.lean` sums them and dispatches to them. A new directory containing wrappers around the unchanged global implementation does not complete ownership extraction. Aggregate dispatch may remain only as composition of owned definitions.
 
 The workspace's root page lists where every file of main goes ("Where main's files go"), from the same plan.
 
