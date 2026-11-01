@@ -532,7 +532,7 @@ description = "Shared phone switcher: native densities, identity, real tap dispa
 run = "tests/app/mobile_switcher.sh"
 
 [tasks."test:headline"]
-description = "The headline laws (docs/HEADLINE.md): axioms and spec surfaces (tests/Headline.lean), the Comparator challenge states each law word for word (lake comparator from v4.35), and four controls"
+description = "The headline laws (docs/HEADLINE.md): axioms and spec surfaces (tests/Headline.lean), the Comparator challenge states each law word for word (lake comparator from v4.35, with its control), and four more controls"
 run = "tests/headline.sh"
 
 [tasks."test:vacuity"]

@@ -5,7 +5,8 @@
 # elaborates with one `sorry` per theorem and nothing else, the solution
 # is up to date, proves every theorem on standard axioms, and states each
 # law word for word (`#same_statement`); from Lean v4.35, run
-# `lake comparator` on them. Then the controls:
+# `lake comparator` on them, and on a weakened challenge, which it must
+# reject. Then the controls:
 # a weakened restatement, a changed `match`, and a law resting on `sorry`
 # must each be caught.
 set -euo pipefail

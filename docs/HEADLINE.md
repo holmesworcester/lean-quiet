@@ -580,13 +580,26 @@ sorryAx").
 - [tests/comparator/comparator.json](../tests/comparator/comparator.json):
   the config. On v4.35, run
   `lake comparator --config tests/comparator/comparator.json`.
+- [tests/comparator/Weak.lean](../tests/comparator/Weak.lean) and
+  comparator-weak.json: the control. The challenge with
+  `removal_authorized` weakened to `t = u ∨ True`, which Comparator must
+  reject.
 
-The three modules are the `Comparator` library, which is never a
-default target, so `lake build` and `lake check` never see a `sorry`.
-tests/headline.sh checks them on every toolchain, runs Comparator from
-v4.35 on, and has three controls: a weakened restatement and a changed
-`match` must fail `#same_statement`, and `#headline` must fail on a law
-that rests on `sorry`.
+**Result on v4.35** (this branch merged onto vibecheck/toolchain,
+2026-11-01): `lake comparator` accepts all seventeen ("Lean default
+kernel accepts the solution", "Your solution is okay!"), and rejects the
+control ("Challenge and solution theorem statement do not match:
+'Headline.removal_authorized'"). After that merge, regenerate this page
+(`python3 ci/headline.py`): on v4.35, `visual_perm` also uses
+`Classical.choice`.
+
+The modules are the `Comparator` library, which is never a default
+target, so `lake build` and `lake check` never see a `sorry`.
+tests/headline.sh checks them on every toolchain and, from v4.35 on,
+runs Comparator on the real pair and on the control. Its other controls:
+a weakened restatement and a changed `match` must fail
+`#same_statement`, and `#headline` must fail on a law that rests on
+`sorry`.
 
 Comparator does not check the runtime examples, which run native code.
 Kernel examples, with a toy `Crypto` as in tests/vacuity/Contracts.lean,
