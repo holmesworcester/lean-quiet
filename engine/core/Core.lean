@@ -339,13 +339,15 @@ def judgeJob (fam : Family F) : List Id → m (List Id)
     pure (ws ++ rest)
 
 /-- The urgent closure: judge these ops, and the ops each decision wakes,
-ahead of the queue, as long as they are urgent; at most n attempts. -/
-def urgentClose (fam : Family F) : Nat → List Id → m Unit
-  | 0, _ => pure ()
-  | _, [] => pure ()
+ahead of the queue, as long as they are urgent; at most n attempts. The
+attempts it made (engine/core/TurnCost.lean bounds them). -/
+def urgentClose (fam : Family F) : Nat → List Id → m Nat
+  | 0, _ => pure 0
+  | _, [] => pure 0
   | n + 1, x :: xs => do
     let ws ← judgeAhead fam true x
-    urgentClose fam n (ws ++ xs)
+    let k ← urgentClose fam n (ws ++ xs)
+    pure (k + 1)
 
 /-- The queued ops a write turn judges at most (beside the job and its
 urgent closure, which it judges first). -/
@@ -354,13 +356,15 @@ urgent closure, which it judges first). -/
 /-- **A write turn**, capped: take in the job, judge each of its ops ahead
 once, then the urgent ops their decisions wake, transitively (enough
 attempts for every one of them: `urgentClose`'s fuel), then at most `cap`
-queued ops. What is still queued waits for the next turn. -/
-def turnCapped (fam : Family F) (cap : Nat) (ops : List Op) : m Unit := do
+queued ops. What is still queued waits for the next turn. The urgent
+closure's attempts (TurnCost.lean: `run_work_capped`). -/
+def turnCapped (fam : Family F) (cap : Nat) (ops : List Op) : m Nat := do
   for o in ops do ingest (F := F) o
   let woken ← judgeJob fam (ops.map (·.id))
   let n ← countOps (F := F)
-  urgentClose fam (woken.length + n * (n + 1)) woken
+  let k ← urgentClose fam (woken.length + n * (n + 1)) woken
   drain fam cap
+  pure k
 
 /-! ## Purging (engine/core/Purge.lean) -/
 
