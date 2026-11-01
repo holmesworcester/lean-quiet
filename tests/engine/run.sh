@@ -50,6 +50,8 @@ if [ "${SKIP_TCP:-0}" != 1 ]; then "$bin"/poolstarve; else echo "SKIP poolstarve
 if [ "${SKIP_TCP:-0}" != 1 ]; then
   "$bin"/tcppair "$out"/tcppair
   "$bin"/jointcp "$out"/jointcp
+  # and with its ports already taken, as under parallel CI
+  [ "$bin" = "$PWD/.lake/build/bin" ] && tests/engine/jointcp_busy.sh
 else
   echo "SKIP tcppair jointcp (TCP sandbox; both built)"
 fi
@@ -62,22 +64,12 @@ mise run test:crypto-failure
 "$bin"/window_check "$out"/windows "${SEEDS:-12}"
 "$bin"/costcheck
 ENGINE_BIN="$bin" tests/engine/crash.sh "${CRASH_ROUNDS:-10}" "$out"/crash
-if [ "${1:-}" != --phone-runtime ]; then
-  tests/engine/harden.sh
-  tests/engine/stateless.sh
-  tests/engine/simplify.sh
-  tests/engine/fresh.sh
-  mise run test:clumps
-  mise run test:read-plan
-  mise run test:claim-tree
-  mise run test:fairness
-  mise run test:catalog-retry
-  mise run test:reserved-retry
-  mise run test:ingress
-  mise run test:native-lifetimes
-  mise run test:ref-publications
-  mise run test:writer-fairness
-  mise run test:expiry-grace
-  tests/engine/restart.sh
-  tests/shipped/check.sh engine
+# The negative controls (tests/engine/controls.txt), unless --suites or
+# --phone-runtime: ci/local.sh runs them as parts of their own, in parallel.
+if [ "${1:-}" != --phone-runtime ] && [ "${1:-}" != --suites ]; then
+  grep -v '^#' tests/engine/controls.txt | while IFS=$'\t' read -r name cmd; do
+    [ -n "$name" ] || continue
+    echo "engine control: $name"
+    bash -c "$cmd" </dev/null
+  done
 fi

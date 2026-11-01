@@ -21,7 +21,20 @@ case "$start" in fonts|input|network|desktop|navigation|lifecycle|appearance|saf
   *) echo "unknown APP_TEST_FROM stage: $start" >&2; exit 2 ;;
 esac
 active=false
+# APP_TEST_ONLY="fonts input …" runs just those stages: ci/local.sh runs
+# the stages in groups, each group in its own copy of the tree, at once.
+only=${APP_TEST_ONLY:-}
+for s in $only; do
+  case "$s" in fonts|input|network|desktop|navigation|lifecycle|appearance|safety|components) ;;
+    *) echo "unknown APP_TEST_ONLY stage: $s" >&2; exit 2 ;;
+  esac
+done
 stage() {
+  if [ -n "$only" ]; then
+    case " $only " in *" $1 "*) echo "app stage: $1"; return 0 ;; esac
+    echo "SKIP app stage: $1 (APP_TEST_ONLY=$only)"
+    return 1
+  fi
   if [ "$1" = "$start" ]; then active=true; fi
   if "$active"; then echo "app stage: $1"; return 0; fi
   echo "SKIP previously tested app stage: $1 (APP_TEST_FROM=$start)"

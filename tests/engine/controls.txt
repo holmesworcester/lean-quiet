@@ -1,0 +1,21 @@
+# The engine's negative controls: name, then the command (from the top).
+# Each works in a scratch snapshot (tests/snapshot.sh), so any number run
+# at once. tests/engine/run.sh runs them in order after the suites;
+# ci/local.sh runs each as a part of its own (engine:<name>), in parallel.
+harden	tests/engine/harden.sh
+stateless	tests/engine/stateless.sh
+simplify	tests/engine/simplify.sh
+fresh	tests/engine/fresh.sh
+clumps	mise run test:clumps
+read-plan	mise run test:read-plan
+claim-tree	mise run test:claim-tree
+fairness	mise run test:fairness
+catalog-retry	mise run test:catalog-retry
+reserved-retry	mise run test:reserved-retry
+ingress	mise run test:ingress
+native-lifetimes	mise run test:native-lifetimes
+ref-publications	mise run test:ref-publications
+writer-fairness	mise run test:writer-fairness
+expiry-grace	mise run test:expiry-grace
+restart	tests/engine/restart.sh
+shipped	tests/shipped/check.sh engine

@@ -120,7 +120,7 @@ description = "The reorg's import rewriter (ci/reorg-imports.py) on a copy of ev
 run = "python3 ci/reorg-imports.py --self-test"
 
 [tasks.ci]
-description = "Local CI: every gate, logs in out/ci (ci/local.sh)"
+description = "Local CI: the proofs, then every test part in parallel, each isolated; logs in out/ci (ci/local.sh)"
 run = "ci/local.sh"
 
 [tasks.crypto]

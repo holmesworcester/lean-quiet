@@ -1100,9 +1100,13 @@ The gates are mise tasks (`mise tasks` lists every task):
 - `mise run readme:links`: the README's theorem links match the code.
 
 CI runs locally for now:
-- `ci/local.sh` runs every gate, or `ci/local.sh check app` for some
-  (its parts: check, engine, mdns, qr, net, app, readme, reorg). Logs
-  go to `out/ci/`. `mise run ci` runs it.
+- `ci/local.sh` runs the proofs first (build, check, layout, readme,
+  reorg; the first failure stops it), then every test part in parallel
+  (`-j N`, 6 by default), each isolated: the engine's suites and each of
+  its negative controls (`tests/engine/controls.txt`) are parts of their
+  own, and the app's stages run in three groups, each in its own copy of
+  the built tree. `ci/local.sh check app` runs just those gates. Logs go
+  to `out/ci/`. `mise run ci` runs it.
 - `ci/workflow.yml` is the same for a hosted runner, and is not in use.
 
 Sync's design is [docs/SYNC.md](docs/SYNC.md).
