@@ -167,6 +167,7 @@ open Engine Community
 #print axioms Community.admission_needs_approval
 #print axioms Community.removed_approver_admits
 #print axioms Community.removal_authorized
+#print axioms Community.removal_anchored
 #print axioms Community.admin_removal_stands
 #print axioms Community.mutual_removal
 #print axioms Community.admin_granted

@@ -221,7 +221,8 @@ theorem check_reads_shared {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f 
       · rfl
       · rfl
       · rcases hc.2.2.2.2.1 with ⟨_, hh⟩ | hh
-        · simpa using hh
+        · obtain ⟨rfl, -⟩ := by simpa using hh
+          rfl
         · exact isAdmin_shared hh
       · rfl
     · cases hf'
