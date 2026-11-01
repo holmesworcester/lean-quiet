@@ -11,6 +11,6 @@
     "theorem": "Engine.Sync.ServiceRun.eventually_emitted",
     "witness": "Vacuity.ClosureDelivery.certificate",
     "module": "tests.vacuity.ClosureDelivery",
-    "detail": "The closure certificate applies actual serveOwed FIFO progress with an occupied queue, unbounded tail requests, zero-capacity stalls and kernel-proved recurring positive capacity. Source storage and room authorization are discharged by finite native checks plus preserved rooms. Arbitrarily many later tail arrivals cannot increase an existing request's first position. This theorem covers ordinary FIFO calls with first=[], under explicit service capacity and retention; it does not assert OS or TCP fairness."
+    "detail": "The closure certificate applies actual serveOwed progress with an occupied queue, unbounded tail requests, continuously serviced hot requests, zero-capacity stalls and kernel-proved recurring positive ordinary capacity. Source storage and room authorization are discharged by finite native checks plus preserved rooms. Arbitrarily many later tail arrivals cannot increase an existing request's first position. Hot targets emit immediately; hot filtering cannot move remaining targets backward, so ongoing urgent work does not starve ordinary FIFO requests. The theorem permits arbitrary changing hot prefixes; it does not assert OS or TCP fairness."
   }
 }

@@ -56,23 +56,79 @@ theorem serve_pending (shows : Op → Bool) (get : Id → Option Op)
         obtain ⟨hm, hle, _⟩ := ih budget hit hn
         refine ⟨hm, ?_, ?_⟩ <;> simp [List.idxOf_cons, hxi] <;> omega
 
+/-- Removing other ids cannot increase a retained id's queue position. -/
+theorem filter_idxOf_le (p : Id → Bool) (ids : List Id) (i : Id)
+    (hi : i ∈ ids) (hp : p i = true) : (ids.filter p).idxOf i ≤ ids.idxOf i := by
+  induction ids with
+  | nil => cases hi
+  | cons x xs ih =>
+    by_cases hx : x = i
+    · subst x
+      simp [hp]
+    · have hit := (List.mem_cons.mp hi).resolve_left (Ne.symm hx)
+      have hle := ih hit
+      by_cases hpx : p x = true
+      · simpa [hpx, List.idxOf_cons, hx] using hle
+      · simp [hpx, List.idxOf_cons, hx]
+        omega
+
+/-- Hot writes cannot starve the ordinary queue: a hot target is emitted
+immediately; every other target survives hot filtering and advances under
+the ordinary byte budget. This covers the actual `first` argument that
+`Node.serveOwed` supplies, even when hot writes continue forever. -/
+theorem serveOwed_pending {F : Type} (fam : Family F) (cfg : Config)
+    (c : Conn) (h : Held F) (budget : Nat) (first : List Id) (i : Id) (o : Op)
+    (hi : i ∈ c.owed) (hg : h.db.ops i = some o) (hs : c.shows fam o = true)
+    (hn : o ∉ ((c.serveOwed fam cfg budget first : HeldM F _) h).1.2.1 ++
+      ((c.serveOwed fam cfg budget first : HeldM F _) h).1.2.2) :
+    i ∈ ((c.serveOwed fam cfg budget first : HeldM F _) h).1.1.owed ∧
+    (((c.serveOwed fam cfg budget first : HeldM F _) h).1.1.owed).idxOf i ≤ c.owed.idxOf i ∧
+    (0 < budget → (((c.serveOwed fam cfg budget first : HeldM F _) h).1.1.owed).idxOf i < c.owed.idxOf i) := by
+  have run := serveOwed_run fam cfg c budget first h
+  have hhot : i ∉ c.hotOf first := by
+    intro hh
+    have sent := fetch_all (c.shows fam) h.db.ops (c.hotOf first) i o hh hg hs
+    apply hn
+    rw [run.1]
+    exact List.mem_append_left _ sent
+  have hm : i ∈ c.owedAfter first := by
+    unfold Conn.owedAfter
+    split
+    · exact hi
+    · simp [hi, hhot]
+  have hidx : (c.owedAfter first).idxOf i ≤ c.owed.idxOf i := by
+    unfold Conn.owedAfter
+    split
+    · exact Nat.le_refl _
+    · exact filter_idxOf_le _ _ i hi (by simpa using hhot)
+  have hno : o ∉ ((serve (c.shows fam) budget (c.owedAfter first)).trace h.db.ops).1.1 := by
+    intro ho
+    apply hn
+    rw [run.1]
+    exact List.mem_append_right _ ho
+  obtain ⟨hmem, hle, hlt⟩ := serve_pending _ _ _ _ i o hm hg hs hno
+  rw [run.2.1]
+  exact ⟨hmem, Nat.le_trans hle hidx, fun hb => Nat.lt_of_lt_of_le (hlt hb) hidx⟩
+
 /-- A sequence of actual `serveOwed` calls. Between calls, fresh wants may
 join at the tail. Source reads, connection rooms, and budgets may change;
-the per-operation theorem states exactly the stability it needs. `first=[]`
-selects the ordinary FIFO service lane; hot writes are handled separately. -/
+the per-operation theorem states exactly the stability it needs. Hot-write
+priorities may change arbitrarily without starving older ordinary requests. -/
 structure ServiceRun {F : Type} (fam : Family F) (cfg : Config) where
   store : Nat → Held F
   conn : Nat → Conn
   room : Nat → Nat
+  first : Nat → List Id := fun _ => []
   added : Nat → List Id
   next : ∀ n, (conn (n + 1)).owed =
-    (((conn n).serveOwed fam cfg (room n) [] : HeldM F _) (store n)).1.1.owed ++ added n
+    (((conn n).serveOwed fam cfg (room n) (first n) : HeldM F _) (store n)).1.1.owed ++ added n
 
 namespace ServiceRun
 variable {F : Type} {fam : Family F} {cfg : Config} (r : ServiceRun fam cfg)
 
 def emitted (n : Nat) : List Op :=
-  (((r.conn n).serveOwed fam cfg (r.room n) [] : HeldM F _) (r.store n)).1.2.2
+  let sent := (((r.conn n).serveOwed fam cfg (r.room n) (r.first n) : HeldM F _) (r.store n)).1.2
+  sent.1 ++ sent.2
 
 theorem pending {n : Nat} {i : Id} {o : Op}
     (hi : i ∈ (r.conn n).owed) (hg : (r.store n).db.ops i = some o)
@@ -80,14 +136,9 @@ theorem pending {n : Nat} {i : Id} {o : Op}
     i ∈ (r.conn (n + 1)).owed ∧
     (r.conn (n + 1)).owed.idxOf i ≤ (r.conn n).owed.idxOf i ∧
     (0 < r.room n → (r.conn (n + 1)).owed.idxOf i < (r.conn n).owed.idxOf i) := by
-  have run := serveOwed_run fam cfg (r.conn n) (r.room n) [] (r.store n)
-  simp only [Conn.owedAfter, Conn.hotOf, List.filter_nil, List.eraseDups_nil,
-    List.isEmpty_nil, ite_true] at run
-  have hn' : o ∉ ((serve ((r.conn n).shows fam) (r.room n) (r.conn n).owed).trace
-      (r.store n).db.ops).1.1 := by
-    simpa only [emitted, run.1] using hn
-  obtain ⟨hm, hle, hlt⟩ := serve_pending _ _ _ _ i o hi hg hs hn'
-  rw [r.next n, run.2.1]
+  obtain ⟨hm, hle, hlt⟩ := serveOwed_pending fam cfg (r.conn n) (r.store n)
+    (r.room n) (r.first n) i o hi hg hs hn
+  rw [r.next n]
   refine ⟨List.mem_append_left _ hm, ?_, ?_⟩
   · simpa [List.idxOf_append, hm] using hle
   · simpa [List.idxOf_append, hm] using hlt

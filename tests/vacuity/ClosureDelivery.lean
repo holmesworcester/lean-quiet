@@ -33,24 +33,27 @@ theorem want_rooms (conn : Conn) (ids : List Id) :
 
 /-- Every third service poll has no room. New requests join forever. -/
 def room (n : Nat) : Nat := if n % 3 = 0 then 0 else 1
+def priorities : List Id := [renamed.id]
+def moreWants : List Id := [r.id, renamed.id]
 def sender : Nat → Conn
   | 0 => initial
   | n + 1 =>
-    let out := (((sender n).serveOwed fam cfg (room n) [] : HeldM Fact _) source).1.1
-    (out.onWant cfg index [r.id]).conn
+    let out := (((sender n).serveOwed fam cfg (room n) priorities : HeldM Fact _) source).1.1
+    (out.onWant cfg index moreWants).conn
 
 def service : ServiceRun fam cfg := {
   store := fun _ => source
   conn := sender
   room := room
+  first := fun _ => priorities
   added := fun n =>
-    let out := (((sender n).serveOwed fam cfg (room n) [] : HeldM Fact _) source).1.1
-    (out.onWant cfg index [r.id]).conn.owed.drop out.owed.length
+    let out := (((sender n).serveOwed fam cfg (room n) priorities : HeldM Fact _) source).1.1
+    (out.onWant cfg index moreWants).conn.owed.drop out.owed.length
   next := fun n => by
-    let out := (((sender n).serveOwed fam cfg (room n) [] : HeldM Fact _) source).1.1
-    obtain ⟨added, he⟩ := onWant_order cfg index out [r.id]
-    change (out.onWant cfg index [r.id]).conn.owed =
-      out.owed ++ (out.onWant cfg index [r.id]).conn.owed.drop out.owed.length
+    let out := (((sender n).serveOwed fam cfg (room n) priorities : HeldM Fact _) source).1.1
+    obtain ⟨added, he⟩ := onWant_order cfg index out moreWants
+    change (out.onWant cfg index moreWants).conn.owed =
+      out.owed ++ (out.onWant cfg index moreWants).conn.owed.drop out.owed.length
     rw [he]
     simp }
 
@@ -77,7 +80,8 @@ def receiver : Nat → Node × Held Fact
 theorem incoming_source (n : Nat) : incoming n ⊆ before := by
   intro o ho
   have he : o ∈ service.emitted n := by simpa [incoming] using ho
-  obtain ⟨_, i, _, hi⟩ := serveOwed_shown fam cfg (sender n) (room n) [] source o (Or.inr he)
+  obtain ⟨_, i, _, hi⟩ := serveOwed_shown fam cfg (sender n) (room n) priorities source o
+    (List.mem_append.mp he)
   exact (reach_stored (runReach before) i o hi).1
 
 theorem receiver_log (n : Nat) : (receiver n).2.log ⊆ before := by
@@ -141,7 +145,14 @@ def certificate : Option (PLift Result) :=
 def main : IO UInt32 := do
   let t ← Checks.new
   t.ok "finite signed premises instantiate infinite closure convergence" certificate.isSome
-  t.ok "three-zero budget polls emit no payload" (([0, 3, 6].map service.emitted).all List.isEmpty)
+  t.ok "zero ordinary capacity still sends hot requests"
+    ([0, 3, 6].all fun n =>
+      let sent := (((sender n).serveOwed fam cfg (room n) priorities : HeldM Fact _) source).1.2
+      !sent.1.isEmpty && sent.2.isEmpty)
+  t.ok "positive ordinary capacity serves both lanes under continuous hot requests"
+    ([1, 2, 4].all fun n =>
+      let sent := (((sender n).serveOwed fam cfg (room n) priorities : HeldM Fact _) source).1.2
+      !sent.1.isEmpty && !sent.2.isEmpty)
   let out := receiver 24
   t.ok "all signed closure operations arrive despite stalls and tail requests"
     (before.all fun o => out.2.db.ops o.id == some o)
