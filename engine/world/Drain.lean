@@ -239,7 +239,8 @@ theorem onSealed_waits (n : Node) (src : ByteArray) (opened : Option (Id × Byte
     (hw : ∀ c, n.conn? cid = some c → Waits x p c) (hg : h.db.ops x = some o) (hr : S.fam.room o = some r)
     (hs : r ∈ S.rooms s cid) (hb : 0 < S.cfg.burst) :
     (∀ c', ((n.onSealed (S.sync s) src opened now).run h).1.1.conn? cid = some c' → Waits x p c') ∨
-      ∃ g, o.bytes ∈ g ∧ (src, plainFrame cid g) ∈ ((n.onSealed (S.sync s) src opened now).run h).1.2.send := by
+      ∃ g, o.bytes ∈ g ∧ (src, plainFrame cid g) ∈ ((n.onSealed (S.sync s) src opened now).run h).1.2.send ∧
+        ∃ bundle, opened = some (cid, bundle) := by
   unfold Node.onSealed
   split
   · left; intro c' hc'; exact hw c' hc'
@@ -312,8 +313,9 @@ theorem onSealed_waits (n : Node) (src : ByteArray) (opened : Option (Id × Byte
           rcases hp with hp | hp
           · exact Or.inl (List.mem_append_right _ hp)
           · exact Or.inr (List.mem_append_right _ hp)
-        exact finish_sends S s B.1.1 (R.1.2 ++ B.1.2) now B.2 (by rw [s2, k1])
+        obtain ⟨g, hg', hf⟩ := finish_sends S s B.1.1 (R.1.2 ++ B.1.2) now B.2 (by rw [s2, k1])
           (by simp [Acts.append_def, k2, s1]) cid _ src hp' (by rw [addr_of_addrs s3]; exact k4)
+        exact ⟨g, hg', hf, bundle, rfl⟩
     · left; intro c' hc'; exact hw c' hc'
 
 /-- What the tick's turns keep: no managed sessions, no retries, the op,
@@ -639,7 +641,8 @@ theorem onFrame_waits (n : Node) (src bytes : ByteArray) (now : Nat) (h : Held F
     (p : Nat) (hm : n.managed = []) (hw : ∀ c, n.conn? cid = some c → Waits x p c) (hg : h.db.ops x = some o)
     (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid) (hb : 0 < S.cfg.burst) :
     (∀ c', ((n.onFrame (S.sync s) src bytes now).run h).1.1.conn? cid = some c' → Waits x p c') ∨
-      ∃ g, o.bytes ∈ g ∧ (src, plainFrame cid g) ∈ ((n.onFrame (S.sync s) src bytes now).run h).1.2.send := by
+      ∃ g, o.bytes ∈ g ∧ (src, plainFrame cid g) ∈ ((n.onFrame (S.sync s) src bytes now).run h).1.2.send ∧
+        bytes[0]? = some 1 ∧ ∃ bundle, (Codec.decode (bytes.extract 1 bytes.size) : Option (Id × ByteArray)) = some (cid, bundle) := by
   unfold Node.onFrame
   split
   · dsimp only
@@ -654,10 +657,146 @@ theorem onFrame_waits (n : Node) (src bytes : ByteArray) (now : Nat) (h : Held F
         simp only [Node.conn?] at hc2
         rw [write_conns] at hc2
         exact (hw c2 hc2).same (e1.trans e2)
-  · simp only [HeldM.run_bind, sync_openFrame, plainOpen, HeldM.run_pure]
-    exact onSealed_waits S s n src _ now h cid x o r p hm hw hg hr hs hb
+  · rename_i htag
+    simp only [HeldM.run_bind, sync_openFrame, plainOpen, HeldM.run_pure]
+    rcases onSealed_waits S s n src _ now h cid x o r p hm hw hg hr hs hb with e | ⟨g, hg', hf, bundle, hb'⟩
+    · exact Or.inl e
+    · exact Or.inr ⟨g, hg', hf, htag, bundle, hb'⟩
   · exact Or.inl hw
 
 end
+
+namespace Plain
+variable {Q : Plain F}
+
+/-- **The session's frames come from its peer:** every frame on session
+cid delivered to a from step k on says it comes from b. (The harness
+opens cid only between a and b; a node seals frames on a session only
+for its own connection.) -/
+def FromPeer (E : Q.Run) (a b : Fin Q.n) (cid : Id) (k : Nat) : Prop :=
+  ∀ m idx t p, k ≤ m → E.act m = .deliver idx t → (E.world m).flight[idx]? = some p → Q.setup.at? p.dst = some a →
+    p.bytes[0]? = some 1 →
+    (∃ bundle, (Codec.decode (p.bytes.extract 1 p.bytes.size) : Option (Id × ByteArray)) = some (cid, bundle)) →
+    p.origin = Q.addr b
+
+/-- An entry point at another node leaves node a as it was. -/
+theorem enter_other (w : World (Held F) Q.n) (i a : Fin Q.n) (t : Nat) (f : Node → HeldM F (Node × Effects))
+    (hne : a ≠ i) : (w.enter Q.setup i t f).node a = w.node a := by
+  simp only [World.enter]; exact upd_other _ _ hne
+
+theorem enter_self_node (w : World (Held F) Q.n) (i : Fin Q.n) (t : Nat) (f : Node → HeldM F (Node × Effects)) :
+    (w.enter Q.setup i t f).node i = ((f (w.node i)).run (w.box i)).1.1 := by
+  simp only [World.enter, upd_same]
+
+/-- **One step keeps a waiting id where it was, or sends its op to the
+peer**, whatever the act, in an execution with no attacker: x waits in
+a's queue for session cid, a holds x's op in a room the session shows,
+and no step reopens cid at a. -/
+theorem step_waits (E : Q.Run) (k : Nat) (a b : Fin Q.n) (cid x : Id) (o : Op) (r : Id) (p : Nat)
+    (hm : ((E.world k).node a).managed = []) (hw : ∀ c, ((E.world k).node a).conn? cid = some c → Waits x p c)
+    (hg : ((E.world k).box a).db.ops x = some o) (hr : Q.fam.room o = some r) (hs : r ∈ Q.rooms a cid)
+    (hb : 0 < Q.cfg.burst) (hnc : ∀ j dl t, E.act k ≠ .connect a j cid dl t) (hfp : FromPeer E a b cid k)
+    (ha : ((E.world k).node a).addr? cid = some (Q.addr b)) (hcs : (((E.world k).node a).conn? cid).isSome = true) :
+    (∀ c', ((E.world (k + 1)).node a).conn? cid = some c' → Waits x p c') ∨
+      ∃ sr g, o.bytes ∈ g ∧
+        (⟨sr, some a, Q.addr a, Q.addr b, plainFrame cid g, (E.world (k + 1)).now⟩ : Packet Q.n) ∈
+          (E.world (k + 1)).flight := by
+  have hlegal := E.legal k
+  rw [Exec.world_succ]
+  cases hact : E.act k with
+  | deliver idx t =>
+    rw [hact] at hlegal
+    cases hp : (E.world k).flight[idx]? with
+    | none =>
+      left; intro c' hc'
+      simp only [World.step, hp] at hc'
+      exact hw c' hc'
+    | some q =>
+      cases hj : Q.setup.at? q.dst with
+      | none =>
+        left; intro c' hc'
+        simp only [World.step, hp, hj] at hc'
+        exact hw c' hc'
+      | some j =>
+        by_cases e : a = j
+        · subst e
+          rcases onFrame_waits (Q.two a) .a ((E.world k).node a) q.origin q.bytes t ((E.world k).box a) cid x o r p
+              hm hw hg hr hs hb with e1 | ⟨g, hg', hf, htag, hdec⟩
+          · left; intro c' hc'
+            rw [deliver_node _ idx t q a hp hj] at hc'
+            exact e1 c' hc'
+          · right
+            have hor : q.origin = Q.addr b := hfp k idx t q (Nat.le_refl _) hact hp hj htag hdec
+            obtain ⟨sr, hsr⟩ := deliver_sends (E.world k) idx t q a hp hj _ _ hf
+            rw [hor] at hsr
+            exact ⟨sr, g, hg', by rw [deliver_now _ idx t q a hp hj]; exact hsr⟩
+        · left; intro c' hc'
+          simp only [World.step, hp, hj] at hc'
+          rw [enter_other _ j a t _ e] at hc'
+          exact hw c' hc'
+  | dup idx =>
+    left; intro c' hc'
+    simp only [World.step] at hc'
+    cases hp : (E.world k).flight[idx]? with
+    | none => rw [hp] at hc'; exact hw c' hc'
+    | some q => rw [hp] at hc'; exact hw c' hc'
+  | drop idx => left; intro c' hc'; simp only [World.step] at hc'; exact hw c' hc'
+  | tick i t =>
+    by_cases e : a = i
+    · subst e
+      cases hc : ((E.world k).node a).conn? cid with
+      | none => rw [hc] at hcs; cases hcs
+      | some c =>
+        rcases onTick_moves (Q.two a) .a ((E.world k).node a) t ((E.world k).box a) cid x o r c (Q.addr b) hc
+            (hw c hc).1 hm ha hg hr hs hb with e1 | ⟨c', hc', hxc, hlt⟩ | ⟨g, hg', hf⟩
+        · left; intro c' hc'
+          simp only [World.step] at hc'; rw [enter_self_node] at hc'
+          rw [e1] at hc'; cases hc'
+        · left; intro c'' hc''
+          simp only [World.step] at hc''; rw [enter_self_node] at hc''
+          rw [hc'] at hc''; cases hc''
+          exact ⟨hxc, Nat.le_trans (Nat.le_of_lt hlt) (hw c hc).2⟩
+        · right
+          obtain ⟨sr, hsr⟩ := enter_sends (E.world k) a t (fun nd => nd.onTick ((Q.two a).sync .a) t) _ _ hf
+          refine ⟨sr, g, hg', ?_⟩
+          simp only [World.step]
+          simp only [World.enter] at hsr ⊢
+          exact hsr
+    · left; intro c' hc'
+      simp only [World.step] at hc'; rw [enter_other _ i a t _ e] at hc'; exact hw c' hc'
+  | write i ops t =>
+    by_cases e : a = i
+    · subst e; left; intro c' hc'
+      simp only [World.step] at hc'; rw [enter_self_node] at hc'
+      exact onWrite_waits (Q.two a) .a _ ops t _ cid x p hm hw c' hc'
+    · left; intro c' hc'
+      simp only [World.step] at hc'; rw [enter_other _ i a t _ e] at hc'; exact hw c' hc'
+  | restart i t =>
+    left; intro c' hc'
+    simp only [World.step] at hc'
+    by_cases e : a = i
+    · subst e; rw [upd_same] at hc'; simp [Node.boot, Node.conn?] at hc'
+    · rw [upd_other _ _ e] at hc'; exact hw c' hc'
+  | close i ad t =>
+    by_cases e : a = i
+    · subst e; left; intro c' hc'
+      simp only [World.step] at hc'; rw [enter_self_node] at hc'
+      exact onClose_waits (Q.two a) .a _ ad t _ cid x p hm hw c' hc'
+    · left; intro c' hc'
+      simp only [World.step] at hc'; rw [enter_other _ i a t _ e] at hc'; exact hw c' hc'
+  | connect i j cid' dl t =>
+    by_cases e : a = i
+    · subst e
+      have hne : cid ≠ cid' := fun e' => hnc j dl t (by rw [hact, e'])
+      left; intro c' hc'
+      simp only [World.step] at hc'; rw [enter_self_node] at hc'
+      exact connect_waits (Q.two a) .a _ cid' _ dl t _ cid x p hne hm hw c' hc'
+    · left; intro c' hc'
+      simp only [World.step] at hc'; rw [enter_other _ i a t _ e] at hc'; exact hw c' hc'
+  | inject i o' b' t =>
+    rw [hact] at hlegal
+    exact absurd hlegal.1 (by simp [noAdv])
+
+end Plain
 
 end Engine.World
