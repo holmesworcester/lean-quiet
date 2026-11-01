@@ -1,0 +1,44 @@
+{
+  "Priority.write_within": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Inbox.Priority.write_within",
+    "witness": "Vacuity.Priority.writeDeadline",
+    "module": "tests.vacuity.Priority",
+    "detail": "The production 3:1 selector begins with two accepted writes and two network frames. Both producers append on every iteration forever; the second original write is selected before turn4. Exact eight-turn prefix and opposing-priority controls are kernel checked. This is a completed-chooser-turn bound; native scheduling, I/O duration and per-peer ingress admission are separate obligations."
+  },
+  "Priority.event_within": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Inbox.Priority.event_within",
+    "witness": "Vacuity.Priority.eventDeadline",
+    "module": "tests.vacuity.Priority",
+    "detail": "Both producers append forever. The second original queued network frame is selected before turn8 by the actual production selector. The exact prefix shows three local choices then one network choice twice. This covers already-enqueued FIFO inputs, not competing native producers waiting for admission."
+  },
+  "Priority.local_share": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Inbox.Priority.local_share",
+    "witness": "Vacuity.Priority.localShare",
+    "module": "tests.vacuity.Priority",
+    "detail": "The concrete initial finite phase prefers local work in three of four completed turns. Empty preferred queues still fall back in the same turn. This is the runtime selection policy, not a wall-clock or full UI-pipeline bound."
+  },
+  "Priority.phase_cycle": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Inbox.Priority.phase_cycle",
+    "witness": "Vacuity.Priority.phaseCycle",
+    "module": "tests.vacuity.Priority",
+    "detail": "The production initial phase returns after four actual phase advances; Fin4 prevents an out-of-range producer-controlled budget."
+  },
+  "Loop.turn_records": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Loop.turn_records",
+    "witness": "Vacuity.Priority.turnRecords",
+    "module": "tests.vacuity.Priority",
+    "detail": "The shared monadic turn runs with both queues nonempty and sampled time20. The concrete recording backend proves the phase advance and sampled-time observation; a checked call trace is clock,write-poll,write,tick,expiry. Native TCP calls this dispatcher but its backend semantics and completion are not assumed proven by this StateM fixture."
+  },
+  "Loop.turn_timer": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Loop.turn_timer",
+    "witness": "Vacuity.Priority.turnTimer",
+    "module": "tests.vacuity.Priority",
+    "detail": "With lastTick10, period10, sampled time20 and two ready queues, the actual shared turn processes a local write then emits the due tick and expiry check. The non-stopping premise is kernel-decided for this fixture before applying the theorem. Native I/O termination is outside this completed-turn claim."
+  }
+}

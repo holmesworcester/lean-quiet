@@ -49,28 +49,44 @@ theorem dial_reads (K : Keys) (listen : B) (wall mono now : Nat) :
 
 theorem readOnly (fam : Family F) (K : Keys) (listen : B) (wall mono : Nat) (cfg : Config) :
     NodeTape.ReadOnly (Discovery.sync fam K listen wall mono cfg : Sync F M) := by
-  obtain ⟨h1,h2,h3,h4,h5,h6,_,h8,h9,h10⟩ :=
+  obtain ⟨h1,h2,h3,h4,h5,h6,_,h8,h9,h10,h11⟩ :=
     hooks_reads ReadsHeld.fresh fam K listen
-  exact ⟨h1,h2,h3,h4,h5,h6,dial_reads K listen wall mono,h8,h9,h10⟩
+  refine ⟨h1,h2,h3,h4,h5,h6,dial_reads K listen wall mono,h8,h9,h10,?_,h11,?_⟩
+  · intro cat h; cases h
+  · intro store h; cases h
+
+/-- Keep the existing interpreter's catalog and durable per-peer retry store,
+just as Runner.start installs the native SQL implementations. -/
+def setup (listen : B) (wall mono : Nat) (cfg : Config) : Sync F M :=
+  { (Execution.Setup.sync { addr := fun _ => listen, cfg } .a) with
+    hooks := Discovery.hooks Execution.family sodium listen wall mono }
+
+theorem setup_readOnly (listen : B) (wall mono : Nat) (cfg : Config) :
+    NodeTape.ReadOnly (setup listen wall mono cfg) := by
+  have base := NodeTape.production_readOnly { addr := fun _ => listen, cfg } .a
+  obtain ⟨h1,h2,h3,h4,h5,h6,_,h8,h9,h10,h11⟩ :=
+    hooks_reads ReadsHeld.fresh Execution.family sodium listen
+  exact ⟨h1,h2,h3,h4,h5,h6,dial_reads sodium listen wall mono,h8,h9,h10,
+    base.catalog,h11,base.retryStore⟩
 
 /-- Every actual event with discovery enabled obeys the same primitive store
 transition relation as Astra's existing full-node theorem. -/
 theorem step_moves (listen : B) (wall mono : Nat) (cfg : Config)
     (n : Engine.Sync.Node) (input : Node.Input) (now : Nat) (s : Memory) :
     Moves Execution.family s.held
-      ((n.step (Discovery.sync (m := M) Execution.family sodium listen wall mono cfg) input now) s).2.held :=
-  NodeTape.step_goes _ (readOnly Execution.family sodium listen wall mono cfg) n input now s
+      ((n.step (setup listen wall mono cfg) input now) s).2.held :=
+  NodeTape.step_goes _ (setup_readOnly listen wall mono cfg) n input now s
 
 theorem step_retains (listen : B) (wall mono : Nat) (cfg : Config)
     (n : Engine.Sync.Node) (input : Node.Input) (now : Nat) (s : Memory) {i : Id} {o : Op}
     (ho : s.held.db.ops i = some o) (hs : (Execution.family.room o).isSome) :
-    ((n.step (Discovery.sync (m := M) Execution.family sodium listen wall mono cfg) input now) s).2.held.db.ops i = some o :=
+    ((n.step (setup listen wall mono cfg) input now) s).2.held.db.ops i = some o :=
   (step_moves listen wall mono cfg n input now s).shared_retained ho hs
 
 theorem step_settled (listen : B) (wall mono : Nat) (cfg : Config)
     (n : Engine.Sync.Node) (input : Node.Input) (now : Nat) (s : Memory)
     (hr : s.held.Reachable Execution.family) (hq : s.held.db.queue = []) :
-    ((n.step (Discovery.sync (m := M) Execution.family sodium listen wall mono cfg) input now) s).2.held.db.queue = [] :=
+    ((n.step (setup listen wall mono cfg) input now) s).2.held.db.queue = [] :=
   (step_moves listen wall mono cfg n input now s).store_settled hr hq
 
 end Connection.DiscoveryStorage

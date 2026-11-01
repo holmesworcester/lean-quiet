@@ -15,8 +15,8 @@ drop_when_full = """        if ← st.slots.take cfg addr then
           st := { st with pending := st.pending ++ [(addr, [b])] }
           let _ ← IO.asTask (prio := .dedicated) (dialOut ch st.slots addr)"""
 cases = [
-    ("strict-priority", loop_source, "Inbox.next state.writeFirst backend.writes backend.events",
-     "Inbox.next true backend.writes backend.events", "--expect-starvation"),
+    ("strict-priority", loop_source, "Inbox.Priority.next state.slot backend.writes backend.events",
+     "Inbox.Priority.next Inbox.Priority.first backend.writes backend.events", "--expect-starvation"),
     ("drop-deferred-hint", tcp_source, old_pending, drop_when_full, "--expect-hint-starvation"),
 ]
 for name, source, old, new, expected in cases:
@@ -35,3 +35,24 @@ for name, source, old, new, expected in cases:
         "--binary", str(scratch / ".lake/build/bin/join_fair"),
         "--out", str(output / name), expected] +
         (["--ordered-hints", "--join-only"] if name == "drop-deferred-hint" else []), check=True)
+
+# A busy network must not take away local work's preferred slots either.
+# Mutate the actual application turn, then require its unchanged phase law
+# to reject that runtime implementation. A failed unrelated dependency is
+# not accepted as this control's success.
+for path, original in originals.items():
+    path.write_text(original)
+old = "Inbox.Priority.next state.slot backend.writes backend.events"
+assert originals[loop_source].count(old) == 1
+loop_source.write_text(originals[loop_source].replace(old,
+    "Inbox.Priority.next ⟨0, by decide⟩ backend.writes backend.events"))
+(output / "network-first-Loop.lean").write_text(loop_source.read_text())
+log_path = output / "network-first-law-rejection.log"
+with log_path.open("w") as log:
+    result = subprocess.run(["lake", "build", "+engine.wire.LoopLaws"], cwd=scratch,
+                            stdout=log, stderr=subprocess.STDOUT, timeout=300)
+log = log_path.read_text()
+if result.returncode == 0 or not all(marker in log for marker in
+        ["error: engine/wire/LoopLaws.lean", "type mismatch"]):
+    raise SystemExit(f"network-first mutation must be rejected by actual turn laws; see {log_path}")
+print("network-first runtime mutation rejected by the unchanged turn laws")

@@ -131,10 +131,10 @@ def main : IO Unit := do
     accept c (dev "A").pk, selfDiscovery, report]
   let ownMemory := memory ownOps
   require "discovery Node tick has inhabited storage-preservation premises"
-    (storageCertificate (Discovery.sync fam sodium lan 1000 1000 {})
-      (DiscoveryStorage.readOnly fam sodium lan 1000 1000 {}) rfl ownMemory (memory_reachable ownOps) (Engine.Sync.Node.boot fam [] 0) rootOp)
+    (storageCertificate (DiscoveryStorage.setup lan 1000 1000 {})
+      (DiscoveryStorage.setup_readOnly lan 1000 1000 {}) rfl ownMemory (memory_reachable ownOps) (Engine.Sync.Node.boot fam [] 0) rootOp)
   let node := Engine.Sync.Node.boot fam [] 0
-  let result := (node.step (Discovery.sync (m := Execution.M) fam sodium lan 1000 1000 {}) .tick 1000) ownMemory
+  let result := (node.step (DiscoveryStorage.setup lan 1000 1000 {}) .tick 1000) ownMemory
   require "storage witness tick actually stores discovery actions" (result.2.held.log.length > ownMemory.held.log.length)
   require "discovery tick retains shared root and finishes validation"
     (result.2.held.db.ops c == some rootOp && result.2.held.db.queue.isEmpty)

@@ -2,6 +2,7 @@
 """Two actual Lean runner processes. Retain all logs and databases on failure."""
 import pathlib, re, socket, subprocess, sys, time
 mode = sys.argv[1] if len(sys.argv) > 1 else 'lan'
+duration = next((a.split('=', 1)[1] for a in sys.argv if a.startswith('--deadline=')), '55')
 out = pathlib.Path('out/endpoints') / (mode + '-' + str(time.time_ns()))
 out.mkdir(parents=True)
 # Reserve two presently unused TCP ports; the test processes bind immediately.
@@ -17,7 +18,7 @@ try:
     for i, name in enumerate(('A', 'B')):
         log = (out / (name + '.log')).open('w'); logs.append(log)
         args = ['.lake/build/bin/endpoint_network', name, str(out / (name + '.db')), str(ports[i]),
-                mode, f'{host}:{ports[i]}', '55', f'{host}:{ports[1-i]}', str(barrier),
+                mode, f'{host}:{ports[i]}', duration, f'{host}:{ports[1-i]}', str(barrier),
                 '1000' if i == 1 and '--late' in sys.argv else '0',
                 'late' if '--late' in sys.argv else '']
         p = subprocess.Popen(args, stdout=log, stderr=subprocess.STDOUT); processes.append(p)

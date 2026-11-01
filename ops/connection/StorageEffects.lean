@@ -68,12 +68,33 @@ structure ReadOnly (x : Sync F M) : Prop where
   established : ReadsHeld x.hooks.established
   sealFor : ∀ cid b, ReadsHeld (x.hooks.sealFor cid b)
   openFrame : ∀ b, ReadsHeld (x.hooks.openFrame b)
+  catalog : ∀ cat, x.catalog = some cat → ReadsHeld cat.ceiling ∧ ∀ i, ReadsHeld (cat.read i)
+  retryKey : ∀ cid, ReadsHeld (x.hooks.retryKey cid)
+  retryStore : ∀ store, x.retryStore = some store →
+    (∀ peer, ReadsHeld (store.load peer)) ∧ (∀ peer cursor, ReadsHeld (store.save peer cursor))
 
 /-- Discharges every hook premise for the actual advancing-tape interpreter. -/
 theorem production_readOnly (S : Setup) (side : Side) : ReadOnly (S.sync side) := by
-  obtain ⟨h1,h2,h3,h4,h5,h6,h7,h8,h9,h10⟩ :=
+  obtain ⟨h1,h2,h3,h4,h5,h6,h7,h8,h9,h10,h11⟩ :=
     hooks_reads ReadsHeld.fresh family sodium (S.addr side)
-  exact ⟨h1,h2,h3,h4,h5,h6,h7,h8,h9,h10⟩
+  refine ⟨h1,h2,h3,h4,h5,h6,h7,h8,h9,h10, ?_, h11, ?_⟩
+  · intro cat hcat
+    cases hcat
+    exact ⟨fun _ => rfl, fun _ _ => rfl⟩
+  · intro store hstore
+    cases hstore
+    exact ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩
+
+theorem ReadOnly.afterActs {x : Sync F M} (hr : ReadOnly x) (n : Engine.Sync.Node) (out : Acts) :
+    ReadOnly (n.afterActs x out) :=
+  ⟨hr.rooms, hr.recv, hr.outbox, hr.closing, hr.retired, hr.react, hr.dial,
+    hr.established, hr.sealFor, hr.openFrame, hr.catalog, hr.retryKey, hr.retryStore⟩
+
+theorem sweep_reads (cat : Catalog M) (hc : ReadsHeld cat.ceiling)
+    (hr : ∀ i, ReadsHeld (cat.read i)) (cursor : Sweep) (shows : Op → Bool) (room : Nat) :
+    ReadsHeld (Sweep.run (F := F) cat cursor shows room) := by
+  unfold Sweep.run
+  readsHeld [hc, hr]
 
 theorem read_program {α} (p : Read α) : ReadsHeld (p.run (Store.getOp (F := F)) : M α) := by
   induction p with
@@ -185,6 +206,33 @@ theorem serve_goes (n : Engine.Sync.Node) (cid : Id) (now : Nat) : GoesM x.fam (
   unfold Node.serveOwed
   goesTape [fun cid c => (refresh_reads x hr cid c).goes,
     fun c budget first => (serveOwed_reads x.fam x.cfg c budget first).goes]
+theorem sweep_goes (n : Engine.Sync.Node) (cid : Id) : GoesM x.fam (n.sweep x cid) := by
+  cases hcat : x.catalog with
+  | none => simp only [Node.sweep, hcat]; exact GoesM.pure' x.fam _
+  | some cat =>
+    obtain ⟨hc, hrd⟩ := hr.catalog cat hcat
+    cases hs : x.retryStore with
+    | none =>
+      simp only [Node.sweep, hcat, hs]
+      goesTape [fun cid c => (refresh_reads x hr cid c).goes,
+        fun cid => (hr.retryKey cid).goes,
+        fun cursor shows room => (sweep_reads cat hc hrd cursor shows room).goes]
+    | some store =>
+      obtain ⟨hl, hsave⟩ := hr.retryStore store hs
+      simp only [Node.sweep, hcat, hs]
+      goesTape [fun cid c => (refresh_reads x hr cid c).goes,
+        fun cid => (hr.retryKey cid).goes, fun peer => (hl peer).goes,
+        fun peer cursor => (hsave peer cursor).goes,
+        fun cursor shows room => (sweep_reads cat hc hrd cursor shows room).goes]
+
+theorem sweep_afterActs_goes (n : Engine.Sync.Node) (out : Acts) (cid : Id) :
+    GoesM x.fam (n.sweep (n.afterActs x out) cid) :=
+  sweep_goes (n.afterActs x out) (hr.afterActs n out) n cid
+
+theorem serve_afterActs_goes (n : Engine.Sync.Node) (out : Acts) (cid : Id) (now : Nat) :
+    GoesM x.fam (n.serveOwed (n.afterActs x out) cid now) :=
+  serve_goes (n.afterActs x out) (hr.afterActs n out) n cid now
+
 theorem onSealed_goes (n : Engine.Sync.Node) (addr : ByteArray) (opened : Option (Id × ByteArray)) (now : Nat) :
     GoesM x.fam (n.onSealed x addr opened now) := by
   unfold Node.onSealed
@@ -201,7 +249,10 @@ theorem onTick_goes (n : Engine.Sync.Node) (now : Nat) : GoesM x.fam (n.onTick x
   goesTape [fun t => (hr.dial t).goes, store_goes x hr,
     fun cid c => (refresh_reads x hr cid c).goes,
     fun ix c now => (tickGive_reads x.fam x.cfg ix c now).goes,
-    apply_goes x hr, serve_goes x hr, finish_goes x hr]
+    apply_goes x hr,
+    sweep_afterActs_goes x hr,
+    serve_afterActs_goes x hr,
+    finish_goes x hr]
 theorem onWrite_goes (n : Engine.Sync.Node) (ops : List Op) (now : Nat) : GoesM x.fam (n.onWrite x ops now) := by
   unfold Node.onWrite; goesTape [store_goes x hr, finish_goes x hr]
 
@@ -285,10 +336,10 @@ theorem world_step_moves (S : Setup) (w : World) (a : Action) (target : Side) :
     | nil => simpa only [World.deliver, hnet] using (Moves.refl (fam := family) (w.peer target).memory.held)
     | cons p rest =>
       by_cases ha : p.dst = S.addr .a
-      · simpa only [World.deliver, hnet, if_pos ha, Node.step] using hp w .a rest (.frame p.src p.bytes) false
+      · simpa only [World.deliver, hnet, ite_eq_left ha, Node.step] using hp w .a rest (.frame p.src p.bytes) false
       · by_cases hb : p.dst = S.addr .b
-        · simpa only [World.deliver, hnet, if_neg ha, if_pos hb, Node.step] using hp w .b rest (.frame p.src p.bytes) false
-        · simp only [World.deliver, hnet, if_neg ha, if_neg hb]
+        · simpa only [World.deliver, hnet, ite_eq_right ha, ite_eq_left hb, Node.step] using hp w .b rest (.frame p.src p.bytes) false
+        · simp only [World.deliver, hnet, ite_eq_right ha, ite_eq_right hb]
           cases target <;> exact .refl _
 
 theorem world_trace_moves (S : Setup) (w : World) (actions : List Action) (target : Side) :

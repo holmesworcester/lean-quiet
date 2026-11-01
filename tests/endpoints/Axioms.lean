@@ -24,3 +24,5 @@ import ops.connection.DiscoveryProgress
 #print axioms Connection.DiscoveryStorage.step_moves
 #print axioms Connection.DiscoveryStorage.step_retains
 #print axioms Connection.DiscoveryStorage.step_settled
+
+#print axioms Connection.DiscoveryStorage.setup_readOnly

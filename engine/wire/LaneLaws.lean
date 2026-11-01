@@ -275,8 +275,9 @@ theorem frame_next {W E : Type} (ws : List W) (e : E) (es : List E) :
 
 namespace Inbox
 
-/-- The observable queues and the preference retained by the actual runner.
-`step` interprets the runner's `next` with FIFO queue operations. -/
+/-- The alternating inbox component used by the in-memory sync harness.
+`step` interprets `Inbox.next` with FIFO queue operations. The application
+runner uses the local-priority phase proved in `PriorityLaws`. -/
 structure State (W E : Type) where
   writes : List W
   events : List E
@@ -380,8 +381,8 @@ theorem waiting_step {W E : Type} {s : State W E} {x : W ⊕ E} {n : Nat}
           change ((p :: pre) ++ e :: post) ++ es = (p :: pre) ++ e :: (post ++ es)
           simp [List.append_assoc]
 
-/-- An execution of the same chooser as the TCP runner. The only producer
-condition is FIFO append; arrivals need not stop or have a bounded total. -/
+/-- An execution of the alternating chooser. The only producer condition is
+FIFO append; arrivals need not stop or have a bounded total. -/
 structure Run (W E : Type) where
   state : Nat → State W E
   writes : Nat → List W

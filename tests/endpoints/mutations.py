@@ -47,4 +47,24 @@ for name, file, before, after in mutants:
         raise RuntimeError(f'Mutant {name} did not break its intended law file')
     print('REJECTED', name, flush=True)
     shutil.rmtree(scratch)
+# Socket retirement is a native boundary: require the late losing attempt to
+# release its actual socket reservation, not merely disappear from `sessions`.
+scratch = pathlib.Path(tempfile.mkdtemp(prefix='unrouted_loser-', dir=out))
+for item in ['engine', 'ops', 'tests', '.lake', 'lakefile.lean', 'lake-manifest.json', 'lean-toolchain', 'third_party']:
+    subprocess.run(['cp', '-a', '--reflink=auto', str(root/item), str(scratch/item)], check=True)
+p = scratch/'ops/connection/Intents.lean'
+data = p.read_text()
+assert data.count('  established := routedSessions') == 1
+p.write_text(data.replace('  established := routedSessions', '  established := sessions'))
+with (out/'unrouted_loser-build.log').open('w') as log:
+    subprocess.run(['lake', 'build', 'endpoint_network'], cwd=scratch, stdout=log, stderr=subprocess.STDOUT, check=True)
+with (out/'unrouted_loser.log').open('w') as log:
+    result = subprocess.run(['python3', 'tests/endpoints/network.py', 'simultaneous', '--late', '--deadline=12'],
+                            cwd=scratch, stdout=log, stderr=subprocess.STDOUT, timeout=45)
+logtext = (out/'unrouted_loser.log').read_text()
+if result.returncode == 0 or '2 native sockets' not in logtext:
+    raise RuntimeError(f'Socket-retirement mutation not rejected for the intended reason: {scratch}')
+print('REJECTED unrouted_loser (real TCP socket count)', flush=True)
+# Keep its network logs/databases as evidence, including the intentionally failed run.
+print('Native retirement mutation artifacts:', scratch, flush=True)
 print('PASS all endpoint mutation controls')

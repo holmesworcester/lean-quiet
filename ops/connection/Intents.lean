@@ -494,6 +494,15 @@ def onArrival (via : Option Id) (addr : B) (o : Op) (at_ : Nat) : m (List Op) :=
   let more ← resendConns addr (← rows connection.byRequest [o.id])
   return first ++ more
 
+/-- Durable retry identity comes only from this session's authenticated
+established fact. Session ids change on reconnect; the peer key does not.
+An absent established fact disables catalog sends. -/
+def retryKey (cid : Id) : m (Option Id) := do
+  let fs ← rows established.byConn [cid]
+  return fs.findSome? fun (_, f) => match f with
+    | .established _ _ peer .. => some peer
+    | _ => none
+
 /-- What the node driver calls. -/
 def hooks (fam : Family F) (K : Keys) (listen : B) : Hooks F m where
   rooms := rooms
@@ -507,6 +516,7 @@ def hooks (fam : Family F) (K : Keys) (listen : B) : Hooks F m where
   retired := retired
   sealFor := sealFor K
   openFrame := openFrame K
+  retryKey := retryKey
 
 end
 
