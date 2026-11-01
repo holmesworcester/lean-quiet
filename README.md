@@ -120,6 +120,16 @@ the kernel, standard axioms only) and `lake comparator` (the theorems in
 4.35, and on an older toolchain it stops and says so. The Makefile
 doesn't support macOS yet. Details: [docs/BUILD.md](docs/BUILD.md#make-install-and-make-run-linux).
 
+To see two devices talk to each other, run `make demo`. It opens two
+windows side by side: Alice's laptop and Bob's. Each is its own app with
+its own database, and they connect over TCP on this computer, with no
+server. Alice has a community and shows its invite, and Bob's window has
+opened her invite link. In Bob's window, type a name and click Agree &
+Join. In Alice's window, click Waiting to join, then the purple ✓. Bob is
+in: Alice's messages appear in his window, and what either of you types
+appears in the other's. `make demo ARGS=--auto` does the join for you
+(it needs `xdotool`). [docs/BUILD.md](docs/BUILD.md#make-demo) says more.
+
 # What it looks like
 
 <p align="center"><img src="docs/media/android-demo.webp" width="300" alt="Lean Quiet on Android: a message, Hebrew, Arabic and mixed scripts, a heart reaction, a photo, then flings through 1,000 messages"></p>

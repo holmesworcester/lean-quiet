@@ -234,8 +234,18 @@ description = "make verify: refused with its reason on this repository while it 
 run = "tests/make/verify_test.sh"
 
 [tasks."make:clean-room"]
-description = "make install && make run from a git clone of HEAD in fresh ubuntu:24.04, ubuntu:22.04 and debian:12 containers, as a user with sudo: missing packages, elan, rustup, the pinned assets tarball (packed here, served by file://), the cold build (timed), a second install that redoes nothing, and screenshots of make run and make online under Xvfb (an empty screen must fail). Needs Docker and network; see tests/make/clean_room.sh"
+description = "make install && make run from a git clone of HEAD in fresh ubuntu:24.04, ubuntu:22.04 and debian:12 containers, as a user with sudo: missing packages, elan, rustup, the pinned assets tarball (packed here, served by file://), the cold build (timed), a second install that redoes nothing, and screenshots of make run and make online under Xvfb (an empty screen must fail), then make demo's e2e from the clone (tests/make/demo_e2e.py). Needs Docker and network; see tests/make/clean_room.sh"
 run = "tests/make/clean_room.sh"
+
+[tasks."make:demo-e2e"]
+description = "make demo under Xvfb (1920x1080), as a judge runs it: Alice's laptop and Bob's side by side, the join done by X input (Bob's name, Agree & Join; Waiting to join and Approve in Alice's window), Alice's message on Bob's screen (his QUIET_STATE, and his conversation's pixels against Alice's), Bob's reply on Alice's, both windows closed and make demo exiting 0; then make demo ARGS=--auto. Needs Xvfb, xdotool, ImageMagick, PIL; screenshots in out/make/demo-e2e"
+depends = ["linux:build"]
+run = "python3 tests/make/demo_e2e.py"
+
+[tasks."make:demo-negative"]
+description = "The make demo e2e's negative control: once Bob is in, his app restarts with --offline; Alice's message must then fail both checks that it reached him (state and screen), and nothing before them"
+depends = ["linux:build"]
+run = "tests/make/demo_negative.sh"
 
 [tasks."host:desktop-negative"]
 description = "The desktop's negative controls: eight layout and control laws broken, two native functions, five UI behaviours (the resize settle among them), two X11 resize mechanisms (gravity, the sync request) and five Get started/shell mutants; each must fail"
