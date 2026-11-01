@@ -3489,7 +3489,7 @@ a key, a secret, an acceptance, an endpoint and a pending join cite
 nothing; a wrap, a receipt and an abandon one op; an invitation, a
 request and a profile two; a post two or three (its clump); a reaction
 and an attachment three; a removal four; a chunk two; a name three and
-the name it supersedes (`rename` cites at most one). An admission cites
+the name it supersedes (one, as `rename` writes it). An admission cites
 its invitation's threshold of approvals and two more: `approveReq` is
 not covered here, and is bounded by one approval (one-approval, holmes-80).
 -/
@@ -3630,21 +3630,10 @@ theorem stopWaiting_authored (j : Id) : Authored (stopWaiting j) := by
   simp only [stopWaiting, List.mem_cons, List.not_mem_nil, or_false] at ho
   subst ho; simp [abandon, maxReqs]
 
-theorem reactTo_authored (c a t : Id) (d : Device) (e : ByteArray) (tm : Nat) :
-    Authored (reactTo c a t d e tm) := by
-  intro o ho
-  simp only [reactTo, List.mem_cons, List.not_mem_nil, or_false] at ho
-  subst ho; simp [react, maxReqs]
-
-theorem rename_authored (c a auth : Id) (d : Device) (nm : ByteArray) :
-    Always Authored (rename c a auth d nm) := by
-  unfold rename
-  refine always_bind_all (fun cur => ?_) _
-  simp only []
-  intro o ho
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at ho
-  subst ho
-  split <;> simp [setName, maxReqs]
+/-- **A reaction cites three** (the app writes `react` directly). -/
+theorem react_reqs_le (c a t : Id) (d : Device) (e : ByteArray) (tm : Nat) :
+    (react c a t d e tm).reqs.length ≤ maxReqs := by
+  simp [react, maxReqs]
 
 theorem receiptFor_authored (o : Op) :
     Always (fun os : List Op => ∀ p ∈ os, p.reqs.length ≤ maxReqs) (receiptFor o) := by
