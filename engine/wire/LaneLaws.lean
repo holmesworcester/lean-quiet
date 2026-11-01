@@ -124,9 +124,9 @@ theorem pushAll_bytes (q : Lanes) (ps : List (Lane × ByteArray)) :
   simp only [Lanes.bytes, hu, hs, bytesOf_append]
   omega
 
-/-- **A push keeps a socket's lanes within its cap**, or is refused (and
-the runner closes the socket): what `Sock.push` does with every step's
-frames, whatever the peer sent. -/
+/-- **An admitted component push stays within its cap.** `Outbox.push`
+uses this byte admission for both normal and protected-control queues,
+then adds a frame-count check and the appropriate refusal policy. -/
 theorem push_capped (cap : Nat) (q q' : Lanes) (ps : List (Lane × ByteArray)) (h : q.admit cap ps = some q') :
     q' = q.pushAll ps ∧ q'.bytes ≤ cap := by
   simp only [Lanes.admit] at h

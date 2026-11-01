@@ -51,3 +51,112 @@ lean_obj_res lq_listener_close(b_lean_obj_arg socket) {
   }
   return lean_io_result_mk_ok(lean_box(0));
 }
+
+/* Socket abort capability: captures before client tasks begin. */
+/* Isolated POSIX prototype. Not installed in the application's runtime.
+ * ABI seam: Lean4.34.0's TCP native state begins with uv_tcp_t *m_uv_tcp.
+ * Capture happens on an idle client after an SDK UV-mutex barrier, before
+ * reader/writer tasks start. Failed connects may still own a descriptor.
+ * uv_fileno is not called concurrently with operations on this handle.
+ * The returned capability retains the native socket: its descriptor cannot
+ * be finalized/reused before a capability borrow has finished. No descriptor,
+ * handle, request or SDK promise is freed or completed by this adapter.
+ */
+#include <lean/lean.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+#if LEAN_VERSION_MAJOR != 4 || LEAN_VERSION_MINOR != 34 || LEAN_VERSION_PATCH != 0
+#error "Review the TCP native-state ABI before using another Lean version"
+#endif
+
+#ifndef _WIN32
+#include <errno.h>
+#include <pthread.h>
+#include <sys/socket.h>
+
+/* uv_os_fd_t is int on all supported POSIX targets. Deliberately avoid the
+ * platform-specific libuv struct layout; only the SDK's first pointer field
+ * is read, while the socket is idle. uv_fileno is exported by Lean's SDK. */
+struct uv_handle_s;
+extern int uv_fileno(const struct uv_handle_s *handle, int *fd);
+extern lean_obj_res lean_uv_tcp_getsockname(b_lean_obj_arg socket);
+
+typedef struct {
+  lean_object *socket;
+  int fd;
+} abort_capability;
+
+static lean_external_class *abort_class;
+static pthread_once_t abort_once = PTHREAD_ONCE_INIT;
+
+static void abort_finalize(void *ptr) {
+  abort_capability *cap = ptr;
+  lean_dec(cap->socket);
+  free(cap);
+}
+
+static void abort_foreach(void *ptr, b_lean_obj_arg f) {
+  abort_capability *cap = ptr;
+  lean_inc(f);
+  /* The visitor consumes its argument (mark_mt_fn decrements it). */
+  lean_inc(cap->socket);
+  lean_apply_1(f, cap->socket);
+}
+
+static void abort_init(void) {
+  abort_class = lean_register_external_class(abort_finalize, abort_foreach);
+}
+
+lean_obj_res lq_socket_abort_capture(b_lean_obj_arg socket) {
+  void *handle;
+  memcpy(&handle, lean_get_external_data(socket), sizeof(handle));
+  int fd;
+  if (uv_fileno((const struct uv_handle_s *)handle, &fd) != 0)
+    return lean_io_result_mk_ok(lean_box(0));
+  abort_capability *cap = malloc(sizeof(*cap));
+  if (!cap) return lean_io_result_mk_ok(lean_box(0));
+  cap->fd = fd;
+  cap->socket = socket;
+  lean_inc(socket);
+  pthread_once(&abort_once, abort_init);
+  lean_object *object = lean_alloc_external(abort_class, cap);
+  lean_mark_mt(object);
+  lean_object *some = lean_alloc_ctor(1, 1, 0);
+  lean_ctor_set(some, 0, object);
+  return lean_io_result_mk_ok(some);
+}
+
+lean_obj_res lq_socket_abort(b_lean_obj_arg capability) {
+  abort_capability *cap = lean_get_external_data(capability);
+  int result = shutdown(cap->fd, SHUT_RDWR);
+  /* Repeated shutdown and a peer that has already disconnected are benign.
+   * EBADF is deliberately not accepted: that would violate ownership. */
+  return lean_io_result_mk_ok(lean_box(result == 0 || errno == ENOTCONN));
+}
+
+lean_obj_res lq_socket_abort_barrier(b_lean_obj_arg capability) {
+  abort_capability *cap = lean_get_external_data(capability);
+  /* SDK getSockName takes/releases the same mutex held across uv_run and
+   * its send callback. The address/error result is immaterial; discard it.
+   * Cap ownership pins the original socket while callback refs disappear. */
+  lean_object *result = lean_uv_tcp_getsockname(cap->socket);
+  lean_dec(result);
+  return lean_io_result_mk_ok(lean_box(0));
+}
+#else
+/* No claim that SD_BOTH cancels pending Windows overlapped writes. */
+lean_obj_res lq_socket_abort_capture(b_lean_obj_arg socket) {
+  (void)socket;
+  return lean_io_result_mk_ok(lean_box(0));
+}
+lean_obj_res lq_socket_abort(b_lean_obj_arg capability) {
+  (void)capability;
+  return lean_io_result_mk_ok(lean_box(0));
+}
+lean_obj_res lq_socket_abort_barrier(b_lean_obj_arg capability) {
+  (void)capability;
+  return lean_io_result_mk_ok(lean_box(0));
+}
+#endif

@@ -31,12 +31,17 @@ run = "bash tests/engine/fairness.sh"
 
 [tasks."test:bootstrap-progress"]
 description = "Bootstrap progress PR gate: native certificates, TCP retry/fairness and sync epoch/claim-tree mutation controls"
-run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree && mise run test:catalog-retry"
+run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree && mise run test:catalog-retry && mise run test:reserved-retry"
 
 [tasks."test:catalog-retry"]
 description = "Actual Node/SQLite durable retry under dropped control/data traffic and continuing writes, including a no-retry mutation"
 depends = ["crypto"]
 run = "bash tests/engine/catalog_retry.sh"
+
+[tasks."test:reserved-retry"]
+description = "Real Runner/TCP retry under zero ordinary window, oversized hot batches and continuing posts; delayed cursor and transport mutations"
+depends = ["crypto"]
+run = "bash tests/engine/reserved_retry.sh"
 
 [tasks.bench]
 description = "Wall times of the byte codec on a photo's paths: a 64 KiB chunk op's encode, decode and validation, 100 chunks into SQLite, a 48 KiB frame bundle"

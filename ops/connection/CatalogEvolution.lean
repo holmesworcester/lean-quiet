@@ -137,11 +137,15 @@ theorem flush_history (n : Engine.Sync.Node) (out : Acts) : HistoryM x.fam (n.fl
   unfold Node.flush; historyTape [hr.outbox.history, effectsPurge_history]
 theorem seal_history (n : Engine.Sync.Node) (out : Acts) : HistoryM x.fam (n.seal x out) := by
   unfold Node.seal; historyTape [fun cid b => (hr.sealFor cid b).history]
+theorem sealRetries_history (n : Engine.Sync.Node) (retries : List RetryOffer) :
+    HistoryM x.fam (n.sealRetries x retries) := by
+  unfold Node.sealRetries; historyTape [seal_history x hr]
 theorem endSession_history (cid : Id) : HistoryM x.fam (Node.endSession x cid) := by
   unfold Node.endSession; historyTape [fun cid => (hr.closing cid).history, effectsPurge_history]
 theorem finish_history (n : Engine.Sync.Node) (out : Acts) (now : Nat) : HistoryM x.fam (n.finish x out now) := by
   unfold Node.finish
-  historyTape [follow_history x hr, flush_history x hr, hr.retired.history, seal_history x hr, endSession_history x hr]
+  historyTape [follow_history x hr, flush_history x hr, hr.retired.history, seal_history x hr,
+    sealRetries_history x hr, endSession_history x hr]
 theorem onClose_history (n : Engine.Sync.Node) (addr : ByteArray) (now : Nat) : HistoryM x.fam (n.onClose x addr now) := by
   unfold Node.onClose; historyTape [finish_history x hr]
 theorem apply_history (n : Engine.Sync.Node) (cid : Id) (st : Step) (now : Nat) :

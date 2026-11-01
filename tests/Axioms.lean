@@ -24,6 +24,7 @@ import engine.wire.CloseLaws
 import engine.wire.LaneLaws
 import engine.wire.LoopLaws
 import engine.wire.PriorityLaws
+import engine.wire.OutboxLaws
 import ops.connection.StorageEffects
 import ops.connection.WriteProgress
 import ops.connection.CatalogEvolution
@@ -1363,3 +1364,16 @@ end cost
 #print axioms Connection.Execution.world_trace_history
 #print axioms Connection.Execution.empty_trace_history
 #print axioms Connection.Execution.Run.history
+
+-- Exact admitted socket queues and native writer batches, including retries.
+#print axioms Engine.Sync.Reserved.push_bounded
+#print axioms Engine.Sync.Reserved.offer_bounded
+#print axioms Engine.Sync.Reserved.take_bounded
+#print axioms Engine.Sync.Reserved.normal_flood_does_not_starve_retry
+#print axioms Engine.Sync.Outbox.push_bounded
+#print axioms Engine.Sync.Outbox.take_bounded
+#print axioms Engine.Sync.Outbox.native_batch_bounded
+#print axioms Engine.Sync.Outbox.push_preserves_reserved
+#print axioms Engine.Sync.Outbox.urgent_then_retry
+#print axioms Engine.Sync.Outbox.retry_next_batch
+#print axioms Engine.Sync.serveOwed_hot_count

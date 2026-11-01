@@ -463,3 +463,6 @@ spec Connection.Progress.Exchange.connection The expected connection op, equated
 spec Engine.Sync.ServiceRun.emitted Urgent and ordinary outputs of actual Conn.serveOwed calls; ServiceRun.next constrains the intervening queue updates.
 world Connection.Execution.lift Explicit Held store adapter inside the production-node entropy-tape interpreter. Native SQLite and entropy refinement remains external; answer_ready proves one actual handler call consumes its next tape value.
 todo Engine.Sync.absentStep Proof decomposition of Node.write's actual deduplication/read loop, related by write_store. Public write_takes and write_preserves_op name Node.write directly.
+
+# Byte count of the retained production retry payload, used only in specifications.
+spec Engine.Sync.RetrySlot.bytes The retained retry payload size in the actual Outbox state.

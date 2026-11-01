@@ -61,6 +61,7 @@ jobs:
             out/fairness
             out/join-fair
             out/catalog-retry
+            out/reserved-retry
             out/simplify-negative
             out/tree-negative
             out/vacuity

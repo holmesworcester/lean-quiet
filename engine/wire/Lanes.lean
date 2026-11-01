@@ -7,12 +7,13 @@ from waiting behind a backlog on its way out. Pure, so the laws
   this node just wrote) or serve (answers to a peer's wants and long
   offers: uiprio's `serve` class on the sending side). `wireLane` and
   `Node.serveOwed` decide which.
-- `Lanes`: a socket's frames waiting for its writer, a queue per lane.
-  Each native write (`take`) is every urgent frame, then serve frames up
-  to `burst` bytes, at least one, so a frame longer than `burst` still
-  goes.
-- `admit`: a push that keeps a socket's lanes, both of them, within its
-  cap (`RunConfig.sockCap`); past it the runner closes the socket.
+- `Lanes`: a component queue per lane. `take` selects every urgent frame,
+  then serve frames up to `burst` bytes, at least one. The production
+  `Outbox` adds a protected-control queue and an independent retry slot;
+  `Reserved.take` combines them in the actual native write.
+- `admit`: a push that keeps this pair of lanes within its byte cap
+  (`RunConfig.sockCap`). Outbox adds the frame-count check and chooses
+  ordinary-drop or protected-control-close behavior on refusal.
 - `roomOf`: what a session may have served now (`Sync.room`): the
   window less what its socket's lanes hold.
 - `framesFor`: a step's frames for one socket, those to its address, in
@@ -20,8 +21,8 @@ from waiting behind a backlog on its way out. Pure, so the laws
 - `shut`: whether the loop closes a socket: silent too long, or its
   writer's write under way not done in `stallMs` (its peer takes
   nothing).
-- `Inbox.next`: alternate the first choice between local writes and
-  network events, immediately trying the other queue when one is empty.
+- `Inbox.next`: legacy alternating source helper. The production runner
+  uses the bounded, local-preferred `Priority` selector.
 -/
 namespace Engine.Sync
 

@@ -191,11 +191,15 @@ theorem flush_goes (n : Engine.Sync.Node) (out : Acts) : GoesM x.fam (n.flush x 
   unfold Node.flush; goesTape [hr.outbox.goes, effectsPurge_goes]
 theorem seal_goes (n : Engine.Sync.Node) (out : Acts) : GoesM x.fam (n.seal x out) := by
   unfold Node.seal; goesTape [fun cid b => (hr.sealFor cid b).goes]
+theorem sealRetries_goes (n : Engine.Sync.Node) (retries : List RetryOffer) :
+    GoesM x.fam (n.sealRetries x retries) := by
+  unfold Node.sealRetries; goesTape [seal_goes x hr]
 theorem endSession_goes (cid : Id) : GoesM x.fam (Node.endSession x cid) := by
   unfold Node.endSession; goesTape [fun cid => (hr.closing cid).goes, effectsPurge_goes]
 theorem finish_goes (n : Engine.Sync.Node) (out : Acts) (now : Nat) : GoesM x.fam (n.finish x out now) := by
   unfold Node.finish
-  goesTape [follow_goes x hr, flush_goes x hr, hr.retired.goes, seal_goes x hr, endSession_goes x hr]
+  goesTape [follow_goes x hr, flush_goes x hr, hr.retired.goes, seal_goes x hr,
+    sealRetries_goes x hr, endSession_goes x hr]
 theorem onClose_goes (n : Engine.Sync.Node) (addr : ByteArray) (now : Nat) : GoesM x.fam (n.onClose x addr now) := by
   unfold Node.onClose; goesTape [finish_goes x hr]
 theorem apply_goes (n : Engine.Sync.Node) (cid : Id) (st : Step) (now : Nat) :

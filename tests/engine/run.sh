@@ -69,6 +69,7 @@ if [ "${1:-}" != --phone-runtime ]; then
   mise run test:claim-tree
   mise run test:fairness
   mise run test:catalog-retry
+  mise run test:reserved-retry
   tests/engine/restart.sh
   tests/shipped/check.sh engine
 fi

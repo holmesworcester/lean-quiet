@@ -18,22 +18,19 @@ neither carries socket code.
   network service (`Inbox.Priority.next`), falling back immediately when
   the preferred queue is empty. Every
   id the node stores goes to the app's `notify`.
-- Each socket has a writer on its own thread, which owns its sends: the
-  loop only pushes frames onto the socket's lanes (docs/SYNC.md,
-  "Lanes"), so no send blocks the loop, and a slow socket holds up only
-  its own writer. Each native write is every urgent frame, then serve
-  frames up to `burst` bytes (`Lanes.take`). Flow control: a session's
-  queue of wanted ops is served only into what its socket's lanes have
-  left of `window` bytes (`Sync.room`, `roomOf`), so serving passes the
-  window by at most one op. A push that would take a socket's lanes
-  past `sockCap` bytes closes the socket instead (`Lanes.admit`), so no
-  peer, whatever it sends, holds more than that here.
-- A writer whose write under way is not done in `stallMs` (its peer
-  takes nothing) has its socket closed by the loop's clock (`shut`).
-  There is no cancelling a native write: the writer stays on it until
-  the peer takes it or the connection dies, and only then releases its
-  slot, so at most `maxSocks` such writers exist. Closing a socket drops
-  the frames still in its lanes.
+- Each socket has a dedicated writer. Its actual `Outbox.take` calls the
+  proved reservation core: local urgent frames first, protected controls,
+  one catalog retry, then an ordinary serve burst. Normal and control
+  queues each have byte/frame-count caps; the retry has one maxFrame slot.
+  Ordinary overflow preserves the socket and its reserved work. Protected
+  control overflow remains an explicit transport failure.
+- On supported POSIX targets, the writer owns its native-send deadline,
+  aborts both socket directions safely, and waits for the original SDK
+  promise/callback to finish before releasing its slot. This also applies
+  after retirement removes it from the loop's socket list. Windows retains
+  the existing graceful wait without a claimed cancellation bound.
+- Retry cursor progress is durable only after the actual writer completes
+  the send. Queueing output alone cannot skip a catalog position.
 
 One task owns the node and its SQLite connection; the listener and one
 reader per socket feed it events through a channel.
@@ -52,6 +49,8 @@ import engine.wire.Loop
 import Std.Async.TCP
 import Std.Sync.Channel
 import engine.wire.Listener
+import engine.wire.SocketAbort
+import engine.wire.Reserved
 
 namespace Engine.Sync
 open Std Std.Async Std.Net
@@ -99,11 +98,41 @@ def awaitUv {α : Type} (op : IO (IO.Promise (Except IO.Error α))) : IO (Except
 /-- What a socket's writer takes from: its lanes, and whether to stop. -/
 structure Outbox where
   lanes : Lanes := {}
+  /-- Bare handshakes and removal notices do not compete with ordinary data. -/
+  control : Lanes := {}
+  retry : RetrySlot RetryTicket := .vacant
+  dropped : UInt64 := 0
   stopped : Bool := false
   /-- Finish queued frames before closing a retired session. -/
   draining : Bool := false
   /-- When the writer's write under way began; none between writes. -/
   since : Option Nat := none
+
+/-- The writer's proved queue core: local urgent traffic stays first,
+critical control follows, then one reserved retry and the normal burst. -/
+def Outbox.queued (o : Outbox) : Reserved RetryTicket :=
+  { ordinary := {
+      urgent := o.lanes.urgent ++ o.control.urgent ++ o.control.serve
+      serve := o.lanes.serve }, retry := o.retry }
+
+def Outbox.ready (o : Outbox) : Bool := o.queued.ready
+
+def Outbox.take (burst : Nat) (o : Outbox) : List ByteArray × Bool × Outbox :=
+  let (frames, usedRetry, q) := o.queued.take burst
+  (frames, usedRetry, { o with lanes := q.ordinary, control := {}, retry := q.retry })
+
+/-- Ordinary overflow loses only repairable sync optimization traffic.
+Protected-control overflow remains an explicit transport failure. -/
+def Outbox.push (cfg : RunConfig) (critical : Bool) (o : Outbox)
+    (ps : List (Lane × ByteArray)) : Bool × Outbox :=
+  let q : Reserved RetryTicket := {
+    ordinary := if critical then o.control else o.lanes
+    retry := o.retry }
+  let (ok, q') := q.push cfg.sockCap cfg.sockFrames ps
+  if critical then
+    (ok, { o with control := q'.ordinary })
+  else
+    (true, { o with lanes := q'.ordinary, dropped := if ok then o.dropped else o.dropped + 1 })
 
 structure Sock where
   id : Nat
@@ -116,19 +145,27 @@ structure Sock where
   /-- The writer: done once it has shut the socket down, or its write
   failed. -/
   done : Task (Except IO.Error Unit)
+  aborter : Option SocketAbort := none
 
-/-- Push frames onto a socket's lanes and wake its writer; false, with
-nothing pushed, if the lanes would then pass `sockCap` (`Lanes.admit`):
-the socket is to be closed. -/
-def Sock.push (cfg : RunConfig) (s : Sock) (ps : List (Lane × ByteArray)) : IO Bool := do
-  let ok ← s.out.atomically (modifyGetThe Outbox fun o =>
-    match o.lanes.admit cfg.sockCap ps with
-    | some q => (true, { o with lanes := q })
-    | none => (false, o))
+/-- Push frames and wake the writer. Ordinary overflow is repairable loss;
+only protected-control refusal returns false and requests transport close.
+Neither path can overwrite a reserved retry. -/
+def Sock.push (cfg : RunConfig) (s : Sock) (ps : List (Lane × ByteArray))
+    (critical : Bool := false) : IO Bool := do
+  let ok ← s.out.atomically (modifyGetThe Outbox fun o => o.push cfg critical ps)
   s.wake.notifyAll
   return ok
 
-def Sock.lanes (s : Sock) : IO Lanes := s.out.atomically do return (← getThe Outbox).lanes
+def Sock.lanes (s : Sock) : IO Lanes := s.out.atomically do
+  let o ← getThe Outbox
+  return { o.queued.ordinary with serve := o.retry.take.1.toList ++ o.lanes.serve }
+
+def Sock.offerRetry (s : Sock) (ticket : RetryTicket) (payload : ByteArray) : IO Bool := do
+  let ok ← s.out.atomically (modifyGetThe Outbox fun o =>
+    let (ok, retry) := o.retry.offer maxFrame ticket payload
+    (ok, { o with retry }))
+  s.wake.notifyAll
+  return ok
 
 def Sock.since (s : Sock) : IO (Option Nat) := s.out.atomically do return (← getThe Outbox).since
 
@@ -138,10 +175,19 @@ def rooms (cfg : RunConfig) (socks : List Sock) : IO (ByteArray → Option Nat) 
   let qs ← socks.mapM fun s => do return (s.addr, ← s.lanes)
   return roomOf cfg.window qs
 
+def retryRooms (socks : List Sock) : IO (ByteArray → Option Nat) := do
+  let qs ← socks.mapM fun s => do
+    let room ← s.out.atomically do
+      match (← getThe Outbox).retry with
+      | .vacant => return maxFrame
+      | _ => return 0
+    return (s.addr, room)
+  return fun a => some (((qs.find? (·.1 == a)).map Prod.snd).getD 0)
+
 /-- Stop a socket's writer, and drop what its lanes hold: it shuts the
 socket down once its write under way is done. -/
 def Sock.stop (s : Sock) : IO Unit := do
-  s.out.atomically (modify fun o => { o with stopped := true, lanes := {} })
+  s.out.atomically (modify fun o => { o with stopped := true, lanes := {}, control := {}, retry := .vacant })
   s.wake.notifyAll
 
 /-- A protocol retirement sends its final notice before closing. Transport
@@ -161,7 +207,8 @@ structure RunState where
   waiting : List ByteArray := []
   slots : Slots
 
-/-- Block on a full event queue. Closing it releases stopped producers. -/
+/-- Block on a full event queue. The SDK does not release waiting producers
+on close; producer cancellation is a separate outstanding obligation. -/
 def enqueue (ch : Std.CloseableChannel.Sync Event) (ev : Event) : IO Bool := do
   return (← (ch.send ev).toBaseIO).isOk
 
@@ -220,9 +267,9 @@ def acceptor (ch : Std.CloseableChannel.Sync Event) (srv : TCP.Socket.Server) (s
         | .error _ => "?"
       if ← slots.take cfg peer.toUTF8 then
         unless ← enqueue ch (.accepted c peer.toUTF8) do
-          closeSocket c
+          SocketAbort.closeIdle c
           slots.release peer.toUTF8
-      else closeSocket c
+      else SocketAbort.closeIdle c
     | .ok none => IO.sleep 20
     | .error _ => IO.sleep 100
 
@@ -237,10 +284,10 @@ def dialOut (ch : Std.CloseableChannel.Sync Event) (slots : Slots) (addr : ByteA
       match ← awaitUv (c.native.connect sa) with
       | .ok _ =>
         unless ← enqueue ch (.dialed addr (some c)) do
-          closeSocket c
+          SocketAbort.closeIdle c
           slots.release addr
       | .error _ =>
-        closeSocket c
+        SocketAbort.closeIdle c
         discard <| enqueue ch (.dialed addr none)
 
 def sendOn (c : TCP.Socket.Client) (payload : ByteArray) : IO Bool := do
@@ -255,28 +302,38 @@ def sendMany (c : TCP.Socket.Client) (payloads : List ByteArray) : IO Bool := do
   | .error _ => return false
 
 /-- A socket's writer, on its own thread: each native write is the next
-`Lanes.take` of its lanes, marked with when it began, until it is
+`Outbox.take` batch, marked with when it began, until it is
 stopped (then it shuts the socket down) or a write fails (then the loop
 hears the socket closed). Its end releases the socket's slot. -/
 def writer (ch : Std.CloseableChannel.Sync Event) (slots : Slots) (sid : Nat) (c : TCP.Socket.Client)
-    (addr : ByteArray) (out : Std.Mutex Outbox) (wake : Std.Condvar) (burst : Nat) : IO Unit := do
+    (addr : ByteArray) (out : Std.Mutex Outbox) (wake : Std.Condvar) (burst : Nat)
+    (aborter : Option SocketAbort := none) (stallMs : Nat := 30000) : IO Unit := do
   try
     repeat
-      let batch ← out.atomicallyOnce wake (do let o ← getThe Outbox; return o.stopped || o.draining || !o.lanes.isEmpty) do
+      let batch ← out.atomicallyOnce wake (do let o ← getThe Outbox; return o.stopped || o.draining || o.ready) do
         let now ← IO.monoMsNow
         modifyGetThe Outbox fun o =>
-          if o.stopped || (o.draining && o.lanes.isEmpty) then (none, o) else
-          let (b, q) := o.lanes.take burst
-          (some b, { o with lanes := q, since := some now })
+          if o.stopped || (o.draining && !o.ready) then (none, o) else
+          let (b, usedRetry, o') := o.take burst
+          (some (b, usedRetry), { o' with since := some now })
       match batch with
       | none =>
-        closeSocket c
+        match aborter with
+        | some cap =>
+          discard <| c.native.cancelRecv.toBaseIO
+          discard <| cap.abort
+        | none => closeSocket c
         return
-      | some b =>
-        unless ← sendMany c b do
-          discard <| enqueue ch (.closed sid)
+      | some (b, usedRetry) =>
+        let stopped := out.atomically do return (← getThe Outbox).stopped
+        unless ← SocketAbort.awaitSend aborter stallMs stopped (c.native.send (b.map frame).toArray) do
+          -- The loop also observes done; a saturated event channel cannot
+          -- retain a writer's native lease after its send has completed.
+          discard <| ch.trySend (.closed sid)
           return
-        out.atomically (modify fun o => { o with since := none })
+        out.atomically (modify fun o => { o with
+          since := none
+          retry := if usedRetry then o.retry.sent true else o.retry })
   finally slots.release addr
 
 section
@@ -303,9 +360,10 @@ def RunState.addSock (cfg : RunConfig) (st : RunState) (c : TCP.Socket.Client) (
   let stopped ← IO.mkRef false
   let out ← Std.Mutex.new {}
   let wake ← Std.Condvar.new
+  let aborter ← SocketAbort.capture c
   let _ ← IO.asTask (prio := .dedicated) (reader ch sid c stopped)
-  let done ← IO.asTask (prio := .dedicated) (writer ch st.slots sid c addr out wake cfg.burst)
-  let s : Sock := { id := sid, client := c, addr, heard := now, stopped, out := out, wake := wake, done }
+  let done ← IO.asTask (prio := .dedicated) (writer ch st.slots sid c addr out wake cfg.burst aborter cfg.stallMs)
+  let s : Sock := { id := sid, client := c, addr, heard := now, stopped, out := out, wake := wake, done, aborter }
   return ({ st with socks := s :: st.socks, next := sid + 1 }, sid)
 
 /-- Every socket end notifies the node, then stops the socket's reader
@@ -321,7 +379,8 @@ def RunState.close (st : RunState) (sid now : Nat) (drain : Bool := false) : IO 
 
 /-- Carry out what the node asked for: push each frame onto the lanes of
 the socket at its address (`framesFor`), dialing if no socket has it.
-A socket whose lanes would pass `sockCap` is closed. -/
+Normal overflow is dropped; protected-control overflow closes the socket.
+Reserved retry admission is independent of both queues. -/
 partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now : Nat) : IO RunState := do
   let close (st : RunState) (sid : Nat) : IO RunState := do
     let (st, more) ← st.close x sid now
@@ -330,13 +389,22 @@ partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now 
     let (st, more) ← st.close x sid now true
     st.apply cfg more now
   let mut st := st
-  let frames := laned e.send e.serve
+  let retryCount := e.retry.length
+  let frames := laned (e.send.take (e.send.length - retryCount)) (e.serve - retryCount)
+  let reserved := (e.send.drop (e.send.length - retryCount)).zip e.retry
+  let criticalAddrs := e.critical ++ e.drop.filterMap st.node.addr?
   let sockOf (st : RunState) (a : ByteArray) := (st.sockOf fun s => s.addr == a).map (·.id)
   let mut over : List Nat := []
   for s in st.socks do
     let ps := framesFor (sockOf st) s.id frames
     unless ps.isEmpty do
-      unless ← s.push cfg ps do over := s.id :: over
+      let critical := ps.filter fun p => criticalAddrs.contains s.addr || p.2[0]? == some bareTag
+      let ordinary := ps.filter fun p => !(criticalAddrs.contains s.addr || p.2[0]? == some bareTag)
+      unless critical.isEmpty do
+        unless ← s.push cfg critical true do over := s.id :: over
+      unless ordinary.isEmpty do discard <| s.push cfg ordinary
+    for ((a, payload), ticket) in reserved do
+      if sockOf st a == some s.id then discard <| s.offerRetry ticket payload
   for (addr, _, b) in frames do
     match st.sockOf (fun s => s.addr == addr) with
     | some _ => pure ()
@@ -380,6 +448,14 @@ def RunState.finishClose (cfg : RunConfig) (r : RunState × Effects) (now : Nat)
 def RunState.closeApply (cfg : RunConfig) (st : RunState) (sid now : Nat) : IO RunState := do
   RunState.finishClose x ch notify cfg (← st.close x sid now) now
 
+/-- A native writer's completion is authoritative even if its nonblocking
+closed notification found the event queue full. Never wait for the task. -/
+def RunState.reap (cfg : RunConfig) (st : RunState) (now : Nat) : IO RunState := do
+  let mut st := st
+  for s in st.socks do
+    if ← IO.hasFinished s.done then st ← st.closeApply x ch notify cfg s.id now
+  return st
+
 /-- Handle one event; none to stop. -/
 def RunState.handle (cfg : RunConfig) (st : RunState) (ev : Event) (now : Nat) : IO (Option RunState) := do
   match ev with
@@ -407,7 +483,7 @@ def RunState.handle (cfg : RunConfig) (st : RunState) (ev : Event) (now : Nat) :
     let st := { st with pending := st.pending.filter (·.1 != addr), waiting := st.waiting.filter (· != addr) }
     -- A new address's first frames are the session's opening: urgent.
     if let some s := st.sockOf (·.id == sid) then
-      unless ← s.push cfg (frames.map (.urgent, ·)) do
+      unless ← s.push cfg (frames.map (.urgent, ·)) true do
         return some (← st.closeApply x ch notify cfg sid now)
     return some st
 
@@ -429,6 +505,17 @@ def RunState.shutdown (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (Lis
       IO.sleep 5
   return st
 
+/-- Native writer completion is harvested before opening the next retry
+slot. Metadata is written outside the socket mutex, by the loop alone. -/
+def RunState.ackRetries (st : RunState) : IO Unit := do
+  let some store := x.retryStore | return
+  for s in st.socks do
+    let done ← s.out.atomically do return (← getThe Outbox).retry.completed?
+    if let some ticket := done then
+      (store.commit ticket).run st.db
+      s.out.atomically (modify fun o =>
+        if o.retry.completed? = some ticket then { o with retry := o.retry.acknowledged } else o)
+
 /-- Native adapters for the shared turn. Every node invocation uses
 `Node.step`; frames, effects, socket expiry and shutdown retain their actual
 SQLite and TCP implementations. -/
@@ -442,11 +529,12 @@ def RunState.loopBackend (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (
     st.apply x ch notify cfg e now
   event := fun st ev now => st.handle x ch notify cfg ev now
   tick := fun st now => do
-    let x' := { x with room := ← rooms cfg st.socks }
+    st.ackRetries x
+    let x' := { x with room := ← rooms cfg st.socks, retryRoom := ← retryRooms st.socks }
     let (st, e) ← st.node? fun n => n.step x' .tick now
     st.apply x ch notify cfg e now
   expire := fun st now => do
-    let mut st := st
+    let mut st ← st.reap x ch notify cfg now
     for s in st.socks do
       if shut cfg.idle cfg.stallMs now s.heard (← s.since) then
         st ← st.closeApply x ch notify cfg s.id now
@@ -512,7 +600,7 @@ what is from `floor` on (0: everything). -/
 def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (db : Db) (floor : Nat)
     (port : UInt16) (notify : List Id → IO Unit := fun _ => pure ()) (cfg : RunConfig := {}) :
     IO Runner := do
-  let x := { x with catalog := some (Catalog.sql (F := F)), retryStore := some (RetryStore.sql (F := F)) }
+  let x := { x with catalog := some (Catalog.sql (F := F)), retryStore := some (RetryStore.sql (F := F)), deferredRetries := true }
   let node := Node.boot x.fam (← (dumpOps (F := F)).run db) floor
   let ch ← eventChannel cfg
   let writes ← Std.CloseableChannel.Sync.new (some cfg.queue)
@@ -560,7 +648,8 @@ def Runner.stop (r : Runner) : IO Unit := r.closing.atomically do
   while let some ev ← r.events.tryRecv do
     match ev with
     | .accepted c addr | .dialed addr (some c) =>
-      closeSocket c
+      -- These clients never reached addSock, so no reader/writer started.
+      SocketAbort.closeIdle c
       r.slots.release addr
     | _ => pure ()
 

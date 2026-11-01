@@ -86,21 +86,37 @@ exposes the exact runtime cursor inputs. [CatalogEvolution](../ops/connection/Ca
 derives stable Held catalog positions through every actual handler and
 arbitrary execution suffix, including local-secret purge.
 
-`test:catalog-retry` passes 14 checks with signed ops and SQLite: all round
+`test:catalog-retry` passes 18 checks with signed ops and SQLite: all round
 controls lost, the first two target payloads lost, a new post on every tick,
 and 86 replacement sessions. The target still arrives and validates. The
 disabled-retry mutant compiles and fails delivery; restored code passes.
-This closes those concrete failures, not the internal reservation obligation.
+Opening an initialized database first checks its migration version without a
+writer transaction; concurrent first opens retain an in-transaction version
+guard. The suite also opens a reader while another connection holds the writer
+lock, and rejects restoring unconditional migration.
+
+[Reserved output](RETRY-RESERVATION.md) now gives ordinary data, protected
+controls and the catalog retry independent capacity. Local urgent frames remain
+first. The actual writer batch has a checked byte bound; ordinary overflow
+cannot erase a reserved retry. Preparing a retry does not advance its durable
+cursor: the original native send must complete before acknowledgment. One hot
+op per service call bounds that formerly unbounded urgent batch. The actual
+TCP/SQLite fixture passes 12 checks and five controls with continued posting,
+seventeen roughly 1 MB hot ops, zero ordinary window and two lost target copies.
+Supported POSIX sends use a retained abort capability and await the original
+callback plus its tail before releasing native ownership; Fresh passes 51
+checks and 18 controls. These finite results do not prove OS/worker progress,
+all reader lifetimes, or Windows cancellation.
 
 ## Obstructions found by the stronger target
 
 | Obligation | Concrete remaining issue |
 |---|---|
 | Per-peer service | Readers compete to enqueue into one shared event channel. A bound for an already admitted event does not bound admission by each peer. |
-| Wait cancellation | A writer blocked in native send cannot observe its stop flag. The slot remains occupied until native send returns; the stall clock alone does not prove cancellation. |
+| Wait cancellation | Supported POSIX sends now abort and retain ownership through callback completion. Reader-task ownership, cross-thread stop-token semantics, connect deadlines, native callback progress and Windows cancellation remain to be closed. |
 | Bounded iteration work | Store draining has a finite history-dependent budget, not a fixed configuration bound. Connection hooks can traverse all matching rows. |
 | Bounded memory | The sync index, snapshots, retired-session routing/tombstone history and some app recovery queues grow with history. |
-| Fair-loss progress | Ordinary traffic can refill the socket before every tick, leaving zero retry room forever. A separate output reservation still needs implementation and proof. Seventeen fitting ~1 MB hot responses can also overflow the 16 MiB socket cap and discard a queued retry. |
+| Fair-loss progress | Reserved output now survives ordinary/hot pressure. Raw wire fair-loss still permits every frame to arrive after its session key has been discarded; multiplexed sessions also need fair retry admission. See the concrete execution in [RETRY-RESERVATION.md](RETRY-RESERVATION.md). |
 | Write-to-display bound | Ancillary paint-ticket churn and frame-pause starvation are repaired. Selection, commit, reader refresh and presentation still need composition; fresh posts can remove the own row from view before presentation. Reaction collections/layout and native worker delays also lack a uniform bound. |
 | User-action outcomes | Joining can remain pending while approval is withheld. A completion-or-failure theorem needs an explicit cancellation/deadline policy as well as bounded service of the action. |
 

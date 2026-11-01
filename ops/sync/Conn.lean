@@ -361,9 +361,9 @@ def Conn.onWant (ix : Index) (c : Conn) (ids : List Id) : Step :=
   let add := ((authorize ix c ids).filter fun i => !c.owing.contains i).eraseDups.take (cfg.maxKnown - c.owed.length)
   { conn := { c with owed := c.owed ++ add, owing := add.foldl (·.insert ·) c.owing } }
 
-/-- The queued ids a step serves first: those of `first` (this node's
-fresh writes) the peer wants. -/
-def Conn.hotOf (c : Conn) (first : List Id) : List Id := (first.filter c.owing.contains).eraseDups
+/-- At most one urgent id per service: the first requested id from this
+node's fresh writes. All unselected ids remain in the ordinary FIFO. -/
+def Conn.hotOf (c : Conn) (first : List Id) : List Id := (first.filter c.owing.contains).eraseDups.take 1
 
 /-- The rest of the queue, served in order. -/
 def Conn.owedAfter (c : Conn) (first : List Id) : List Id :=
@@ -379,7 +379,8 @@ def Conn.served (c : Conn) (gone rest : List Id) (sent : List Op) : Conn :=
     known := sent.foldl (fun (k : HashSet Id) (o : Op) => remember cfg.maxKnown k o.id) c.known } |>.queue cfg (sent.flatMap Op.reqs)
 
 /-- Serve the queue (docs/SYNC.md, "Lanes"): first the queued ids in
-`first` (this node's fresh writes), whatever the budget; then from the
+`first` (this node's fresh writes), at most one, whatever the budget;
+then from the
 front, until `budget` bytes are out (the op that reaches it goes
 whole). An id not stored, or not in a room the session shows now,
 leaves the queue unanswered: the peer's ask for it expires. The urgent
