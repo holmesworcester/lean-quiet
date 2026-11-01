@@ -76,6 +76,7 @@ engine/          what holds for every op type; it imports nothing under app/
   renderer/      the component tree, layout, text, images, QR decoding,
                  paint, and the API the platform shells implement
 app/             the op tree: one folder per op, nested by what it cites
+  Family.lean    the node's registry: every family below, composed in one store
   Commands.lean  the node's hooks over both families; the app's live data
   Screen.lean    the root component: the app
   Proofs.lean    laws over the node and the whole app
@@ -88,6 +89,8 @@ app/             the op tree: one folder per op, nested by what it cites
   connection/    the handshake and sessions: eph, request, opened,
                  connection, established, send, recv, given (its Family
                  is over the community's facts too)
+  settings/      this device's preferences, each a local op: appearance/
+                 (the family on top of the node's, app/Family.lean)
 platforms/
   android/  ios/  macos/  windows/  linux/  desktop/
   headless/      the scripted twin the tests drive
