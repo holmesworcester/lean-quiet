@@ -105,9 +105,9 @@ def main (args : List String) : IO UInt32 := do
     let some k := k? | check "the community has a content key" false
     let file : NewFile := { info := { name := "photo.qoi".toUTF8, kind := "image/qoi".toUTF8, w := src.w,
                                       h := src.h, preview := Chaos.preview bytes },
-                            bytes, key := ← Engine.Crypto.randomBytes 32, nonce := ← Engine.Crypto.randomBytes 24,
-                            metaNonce := ← Engine.Crypto.randomBytes 24 }
-    let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k (← Engine.Crypto.randomBytes 24)
+                            bytes, key := ← App.newSized 32, nonce := ← App.newSized 24,
+                            metaNonce := ← App.newSized 24 }
+    let (w, _) ← readView (Community.send s.me.c s.me.adm s.me.dev k (← App.newSized 24)
       "A photo, arriving".toUTF8 (← nowMin) [file]) #[]
     let post :: att :: chunks := w.ops | check "the send makes a post, an attachment and chunks" false
     let n := chunks.length

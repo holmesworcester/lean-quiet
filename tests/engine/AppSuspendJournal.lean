@@ -36,7 +36,7 @@ def run (dir : String) (t : Checks) (fail : Bool) (holdStop : Bool := false) : I
   let entered ← IO.Promise.new
   let release ← IO.Promise.new
   let armed ← IO.mkRef true
-  let hooks := Connection.hooks fam Connection.sodium .empty
+  let hooks := Data.hooks .empty
   let x : Sync SF (SqlM SF) := { fam, hooks := { hooks with react := do
     let ready ← (Store.getStatus first.id : SqlM SF _)
     if ready.isSome && (← armed.modifyGet fun value => (value, false)) then

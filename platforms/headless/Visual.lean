@@ -10,8 +10,8 @@ namespace Visual
 def fixture : M Unit := do
   let w ← intentView (Community.found (Chaos.bytesOf "parity identity" 32)
     "Rowing club".toUTF8 "Alice Nakamura".toUTF8 29330000
-    (Chaos.bytesOf "parity community" 32) (Chaos.bytesOf "parity key" 32)
-    (Chaos.bytesOf "parity node" 32))
+    (Chaos.sizedOf "parity community" 32) (Chaos.sizedOf "parity key" 32)
+    (Chaos.sizedOf "parity node" 32))
   unless ← writeAll w do throw (IO.userError "visual fixture rejected")
   let some a := acceptOf w | throw (IO.userError "fixture acceptance missing")
   refreshCommsNow
@@ -28,7 +28,7 @@ def conversation : M Unit := do
   let mut root := none
   for i in [0:lines.size] do
     if i == 4 then root := none
-    let op := sealedPost s.me.c s.me.adm s.me.dev key (Chaos.bytesOf s!"parity message {i}" 24)
+    let op := sealedPost s.me.c s.me.adm s.me.dev key (Chaos.sizedOf s!"parity message {i}" 24)
       lines[i]!.toUTF8 (i + 1) (840 + i + (if i ≥ 4 then 6 else 0)) root
     unless ← write op do throw (IO.userError "visual message rejected")
     if root.isNone then root := some op.id
@@ -41,7 +41,7 @@ def sidebarPeople : M Unit := do
     let person := Device.named ("sidebar " ++ name)
     let bearer := Device.named ("sidebar invite " ++ name)
     let invitation := invite s.me.c s.me.adm s.me.dev bearer.pk false
-    let req := request s.me.c invitation.id person (cryptoSeal.pub (Chaos.bytesOf ("sidebar node " ++ name) 32)) bearer.sk
+    let req := request s.me.c invitation.id person (cryptoSeal.pub (Chaos.sizedOf ("sidebar node " ++ name) 32)) bearer.sk
     let approval := approve s.me.c req.id s.me.adm s.me.dev
     let admission := admit s.me.c req.id approval.id
     let profile := Community.profile s.me.c admission.id person name.toUTF8 29330000
@@ -55,8 +55,8 @@ def switcherCommunities : M Unit := do
     let name := if i == 0 then "Alexandria's community with a long name" else if i == 1 then "Zoë & Søren" else s!"Community {i + 1}"
     let w ← intentView (Community.found (Chaos.bytesOf s!"switcher identity {i}" 32)
       name.toUTF8 "Alice Nakamura".toUTF8 29330000
-      (Chaos.bytesOf s!"switcher community {i}" 32) (Chaos.bytesOf s!"switcher key {i}" 32)
-      (Chaos.bytesOf s!"switcher node {i}" 32))
+      (Chaos.sizedOf s!"switcher community {i}" 32) (Chaos.sizedOf s!"switcher key {i}" 32)
+      (Chaos.sizedOf s!"switcher node {i}" 32))
     unless ← writeAll w do throw (IO.userError "switcher fixture rejected")
   refreshCommsNow
   switchToAcc current
@@ -72,8 +72,10 @@ def capture (dir name : String) (width height : Nat) (theme scenario : String) (
   let io := { sm.io with wall := pure (29330000, 0) }
   let mut d ← Desktop.start io width height db
   d ← Desktop.zoom d zoom
+  -- Get started is what a node in no community opens on: no fixture.
+  let blank := fixtureName == "get-started"
   let (_, s) ← (do
-    fixture
+    unless blank do fixture
     if fixtureName == "conversation" then conversation
     if fixtureName == "sidebar" then sidebarPeople
     if fixtureName == "switcher-many" || fixtureName == "switcher-end" then switcherCommunities
@@ -105,11 +107,14 @@ def capture (dir name : String) (width height : Nat) (theme scenario : String) (
     else
       let (_, s) ← (App.onPageAct action).run d.app
       d := { d with app := s }
-  else d ← Desktop.act d (.page target)
+  else unless blank do d ← Desktop.act d (.page target)
   for _ in [0:30] do
     d ← Desktop.tick d
     IO.sleep 2
-  unless d.app.me.name == "Rowing club" &&
+  if blank then
+    unless d.app.comms.isEmpty && d.app.page == .getStarted do
+      throw (IO.userError s!"{name}: a new install did not open on Get started")
+  else unless d.app.me.name == "Rowing club" &&
       (!(width ≥ 720 || target == .home || target == .you) || d.app.ownName == "Alice Nakamura") do
     throw (IO.userError s!"{name}: component query fixture did not settle: {d.app.ownName}, {d.app.people}")
   unless d.app.dim.theme == (if theme == "dark" then Theme.Value.dark else .light) do

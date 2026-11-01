@@ -26,7 +26,7 @@ unsafe def run (dir : String) (checks : Checks) : IO Unit := do
     waitIdle sm).run initial
   checks.ok "fixture has a real signed conversation row and published pixels"
     (initial.total == 1 && initial.rows.size > 0 && (← sm.frames.get) > 0)
-  let x : Sync SF (SqlM SF) := { fam, hooks := Connection.hooks fam Connection.sodium .empty }
+  let x : Sync SF (SqlM SF) := { fam, hooks := Data.hooks .empty }
   let runner ← Runner.start x (← openDb path) 0 0
   let mut state := (← (App.attachNetwork none (some runner)).run initial).2
   let held ← IO.Promise.new

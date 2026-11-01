@@ -14,7 +14,7 @@ namespace LifecycleNode
 instead of sockets. No substitute for Node.onWrite or its SQLite writes. -/
 def node (path : String) (consume : IO.Ref Bool) : IO Runner := do
   let db ← openDb path
-  let x : Sync SF (SqlM SF) := { fam, cfg := {}, hooks := Connection.hooks fam Connection.sodium .empty }
+  let x : Sync SF (SqlM SF) := { fam, cfg := {}, hooks := Data.hooks .empty }
   let node := Node.boot fam (← (dumpOps (F := SF)).run db) 0
   let cfg : RunConfig := { queue := 1 }
   let ch ← eventChannel cfg

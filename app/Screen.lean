@@ -31,7 +31,6 @@ import engine.renderer.Cover
 import engine.renderer.Session
 import engine.renderer.HoldCache
 import engine.renderer.Toast
-import engine.renderer.ThemeStore
 import app.community.channel.message.draft.View
 import app.community.member.invite.View
 import engine.renderer.Camera
@@ -621,6 +620,9 @@ def preview (bytes : ByteArray) : ByteArray :=
 anything real). -/
 def bytesOf (tag : String) (n : Nat) : ByteArray := (sha256 tag.toUTF8).extract 0 n
 
+/-- `bytesOf`, sized: zero-padded should the hash be short (it is not). -/
+def sizedOf (tag : String) (n : Nat) : Bytes n := Bytes.fit n (bytesOf tag n)
+
 /-! ## The community -/
 
 /-- This device in one community (Kinds.Accepted). -/
@@ -637,7 +639,7 @@ def epoch : Nat := 29330000
 /-- The jobs that make a community of about n messages, their bodies
 sealed under the community's content key k; a few carry photos, each an
 attachment with its chunks (at most `maxFiles` files in all). -/
-def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n top now : Nat) : Array Job := Id.run do
+def make (me : Me) (k : Key32) (srcs : Array Image.Src) (seed n top now : Nat) : Array Job := Id.run do
   -- times rise with uneven gaps and end by `now` (wall-clock minutes);
   -- counters follow the channel's newest, `top`, so chaos goes at the end
   let start := now - min now (12 * n)
@@ -653,7 +655,7 @@ def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n top now : Na
     let d := Device.named s!"chaos-{seed}-{i}"
     let bearer := Device.named s!"chaos-bearer-{seed}-{i}"
     let inv := invite c me.adm f bearer.pk false
-    let rq := request c inv.id d (cryptoSeal.pub (sha256 s!"chaos-node-{seed}-{i}".toUTF8)) bearer.sk
+    let rq := request c inv.id d (cryptoSeal.pub (sizedOf s!"chaos-node-{seed}-{i}" 32)) bearer.sk
     let ap := approve c rq.id me.adm f
     let j := admit c rq.id ap.id
     let p := profile c j.id d names[i % names.size]!.toUTF8 start
@@ -679,7 +681,7 @@ def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n top now : Na
     let text := if more == 0 then texts[ti]! ++ " " ++ texts[ti2]! else
       if more == 1 then texts[ti]! ++ "\n\n" ++ texts[ti2]! else texts[ti]!
     let tag := s!"chaos {seed} {i}"
-    let o := sealedPost c u d k (bytesOf (tag ++ " nonce") 24) text.toUTF8 (top + i + 1) t
+    let o := sealedPost c u d k (sizedOf (tag ++ " nonce") 24) text.toUTF8 (top + i + 1) t
     pending := pending.push o
     if att < 12 && !srcs.isEmpty && files < maxFiles then
       let ((w, h, bytes), g7) := photo srcs g
@@ -687,8 +689,8 @@ def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n top now : Na
       files := files + 1
       let nf : NewFile := { info := { name := s!"photo-{i}.qoi".toUTF8, kind := "image/qoi".toUTF8, w, h,
                                       preview := preview bytes },
-                            bytes, key := bytesOf (tag ++ " file key") 32, nonce := bytesOf (tag ++ " file nonce") 24,
-                            metaNonce := bytesOf (tag ++ " meta nonce") 24 }
+                            bytes, key := sizedOf (tag ++ " file key") 32, nonce := sizedOf (tag ++ " file nonce") 24,
+                            metaNonce := sizedOf (tag ++ " meta nonce") 24 }
       let (a, cs) := attach c u o.id d k nf
       pending := pending ++ #[a] ++ cs.toArray
     -- reactions on this message, arriving with it
@@ -1174,11 +1176,11 @@ def judgeWrite (rd : Db) (out : Array Pending) (w : Community.Write) : IO (Optio
       sts := sts ++ [← match mine[r]? with
         | some v => pure (some v)
         | none => match out.find? (·.op.id == r) with
-          | some p => pure (some (.valid (.inl p.fact)))
+          | some p => pure (some (.valid (.inl (.inl p.fact))))
           | none => Data.status rd r]
     match judge fam o sts with
-    | some (.valid (.inl f)) =>
-      mine := mine.insert o.id (.valid (.inl f))
+    | some (.valid (.inl (.inl f))) =>
+      mine := mine.insert o.id (.valid (.inl (.inl f)))
       pend := pend.push (⟨o, f, opKey o.id :: keys f⟩ : Pending)
     | some (.valid v) => mine := mine.insert o.id (.valid v)
     | none => pure ()
@@ -2026,6 +2028,13 @@ def PageId.drawer : PageId → Bool
   | .you | .appearance | .communitySettings | .channelSettings | .stub => true
   | _ => false
 
+/-- libquiet's full-window stages (`Onboarding.svelte`, `Waiting.svelte`,
+the scan overlay): the ways into a community, drawn without the shell. -/
+def PageId.stage : PageId → Bool
+  | .getStarted | .create | .createName | .joinChoice | .openInvite | .paste | .scan | .name | .agree
+  | .waiting => true
+  | _ => false
+
 /-- Pages whose bodies use the native scroll view. -/
 def PageId.scrolls (p : PageId) : Bool := p.drawer || p == .switcher
 
@@ -2058,6 +2067,9 @@ structure PageIn where
   people : Nat := 0
   W : Nat
   h : Nat
+  /-- The window's height below the status bar and above the navigation
+  bar: what libquiet's full-window stages centre in. -/
+  stage : Nat := 0
   insetTop : Nat
   dim : Dim
   field : String
@@ -2148,6 +2160,9 @@ def NetworkOwner.attach (owner : NetworkOwner)
 structure St where
   io : Io
   theme : Theme.State := {}
+  /-- The newest appearance's revision this device holds (the store's,
+  or the last chosen here): a choice writes the next one. -/
+  themeRev : Nat := 0
   wide : Bool := false
   mobile : Bool := true
   editorFocused : Bool := false
@@ -2425,6 +2440,14 @@ def St.nav (s : St) : Nav.Nav PageId := ⟨s.page, s.backStack⟩
 /-- The page and the back stack, set to a Nav step's. -/
 def St.withNav (s : St) (n : Nav.Nav PageId) : St := { s with editorEpoch := s.editorEpoch + 1, page := n.page, backStack := n.stack, ownSends := if n.page == .chat then s.ownSends else {}, presenting := if n.page == .chat then s.presenting else none }
 
+/-- In at least one community: some acceptance that is not a join still
+waiting to be let in. -/
+def St.member (s : St) : Bool := s.comms.any (!·.waiting)
+
+/-- Whether libquiet's shell (sidebar, panes, drawer) is drawn: only for a
+member, and never over a stage (`App.svelte`'s `screen`). -/
+def St.shell (s : St) : Bool := s.member && !s.page.stage
+
 
 end App
 
@@ -2686,14 +2709,12 @@ def checkpoint (s : St) : Lifecycle.Checkpoint :=
      Codec.encode (s.drafts.map fun (a, t, bs) => (a, t.toUTF8, bs)), Codec.encode s.anchor,
      Codec.encode (s.links.map fun (a, l) => (a, l.toUTF8)), Codec.encode s.queuedWrites,
      Codec.encode (s.mark.bind fun (x, _) => (s.ids.find? (·.2 == x)).orElse fun _ => s.roots.find? (·.2 == x)),
-     (Theme.encode s.theme.setting).toUTF8, Codec.encode (s.labelText.toUTF8, s.labelPage),
+     Codec.encode (s.labelText.toUTF8, s.labelPage),
      Codec.encode (s.mark.bind fun (x, _) => s.cellRoot[x]?.bind fun r => s.roots.find? (·.2 == r))])
 
-/-- Called only by the writer thread. Both writes are idempotent when its
+/-- Called only by the writer thread. The write is idempotent when its
 checkpoint retry meets a transient SQLite lock. -/
-def commitCheckpoint (db : Db) (bytes : ByteArray) : IO Unit := do
-  if let some (_, _, _, _, _, bs) := (Codec.decode bytes : Option Lifecycle.Checkpoint) then
-    if let some value := bs[12]? then Theme.save db (Theme.decode (String.fromUTF8! value))
+def commitCheckpoint (db : Db) (bytes : ByteArray) : IO Unit :=
   Lifecycle.save db bytes
 
 /-- A changed checkpoint, handed to the writer's thread, which commits
@@ -2736,7 +2757,7 @@ def applyCheckpoint (s : St) (cp : Lifecycle.Checkpoint) : St := Id.run do
   let profile := ((Codec.decode (b 6) : Option (List (Id × ByteArray × Bool))).getD []).head?.map
     fun (u, n, me) => (u, String.fromUTF8! n, me)
   let stack := ((Codec.decode (b 0) : Option (List Nat)).getD []).map PageId.ofCode
-  let (label, labelPage) := (Codec.decode (b 13) : Option (ByteArray × Nat)).getD (.empty, 0)
+  let (label, labelPage) := (Codec.decode (b 12) : Option (ByteArray × Nat)).getD (.empty, 0)
   let nav := match stack.reverse with
     | [] => Nav.reset (PageId.ofCode p)
     | x :: xs => xs.foldl (fun n p => Nav.go p n) (Nav.reset x)
@@ -2746,7 +2767,7 @@ def applyCheckpoint (s : St) (cp : Lifecycle.Checkpoint) : St := Id.run do
     labelText := String.fromUTF8! label, labelPage,
     mark := if x.isEmpty then none else some (x, off), restoreAnchor := !x.isEmpty,
     restorePos := (Codec.decode (b 11) : Option (Option Pos)).getD none,
-    anchor := (Codec.decode (b (if bs.length > 14 then 14 else 11)) : Option (Option Pos)).getD
+    anchor := (Codec.decode (b (if bs.length > 13 then 13 else 11)) : Option (Option Pos)).getD
       ((Codec.decode (b 8) : Option (Option Pos)).getD none),
     links := ((Codec.decode (b 9) : Option (List (Id × ByteArray))).getD []).map fun (a, l) => (a, String.fromUTF8! l),
     saved := some cp, mountedPage := none }
@@ -3128,13 +3149,6 @@ def themed (s : St) (theme : Theme.State) : St :=
       (bytes, w, h, { chip with thumb }),
     topBmp := default, botBmp := default, chromeKey := "", pageNow := none, pageKey := none }
 
-def setTheme (setting : Theme.Setting) : M Unit := do
-  let s ← get
-  set (themed s { s.theme with setting })
-  saveCheckpoint
-  let s ← get
-  s.io.appearance (Theme.effective s.theme == .dark) (Palette.color s.dim.theme .bg)
-
 def systemTheme (system : Theme.Value) : M Unit := do
   let s ← get
   let theme := { s.theme with system }
@@ -3152,7 +3166,19 @@ interpreter once. These are transaction reads, never UI subscriptions. -/
 
 def transaction (action : Reader.RM α) : M α := do
   let s ← get
-  let (a, r) ← action.run { rd := s.rd, out := s.out, known := s.comms }
+  -- One snapshot, whoever calls: a savepoint opens a read transaction on
+  -- the frame's connection when none is open (a command run outside a
+  -- frame), and nests in the frame's when one is. Without it, each read
+  -- outside a frame saw the store as of that read, and the writer commits
+  -- between them: Accepted.read once found its own admission in one list
+  -- and not in the next, and told a founder "You're in."
+  s.rd.exec "SAVEPOINT one_shot"
+  let (a, r) ← try action.run { rd := s.rd, out := s.out, known := s.comms }
+    catch e => do
+      s.rd.exec "ROLLBACK TO one_shot"
+      s.rd.exec "RELEASE one_shot"
+      throw e
+  s.rd.exec "RELEASE one_shot"
   modify fun s => { s with intentReads := s.intentReads + r.live.reads }
   return a
 
@@ -3225,6 +3251,17 @@ def submit (j : Job) : M Unit := do
     modify fun s => { s with toNode := s.toNode.push j.ops }
     flushNode
   else s.wr.submit j
+
+/-- Choosing an appearance writes it, a local op one revision past the
+newest (`Settings.Appearance.choose`), and shows it at once: the store's
+newest is the preference from its commit on (`Data.appearance`). -/
+def setTheme (setting : Theme.Setting) : M Unit := do
+  let s ← get
+  let rev := s.themeRev + 1
+  set { themed s { s.theme with setting } with themeRev := rev }
+  submit ⟨[Settings.Appearance.choose rev setting], true⟩
+  let s ← get
+  s.io.appearance (Theme.effective s.theme == .dark) (Palette.color s.dim.theme .bg)
 
 /-- The negative control of the frame's no-wait rule (`block` and
 `waits` in tests/wiring.txt): `submit` to the node as it was, through
@@ -3321,6 +3358,9 @@ engine/native/crypto): the one door every secret, key and nonce the app
 makes goes through. Nothing derives one from the clock. -/
 def newBytes (n : UInt32) : IO ByteArray := Engine.Crypto.randomBytes n
 
+/-- `n` new random bytes, sized: a key or a nonce. -/
+def newSized (n : Nat) : IO (Bytes n) := do Bytes.expect n (← newBytes n.toUInt32)
+
 /-- A new secret seed: a device's, or an invitation's bearer secret. -/
 def newSeed : IO ByteArray := newBytes 32
 
@@ -3353,7 +3393,7 @@ def sendText (text : String) : M Bool := do
   -- sealed under the community's current key, as the composer's send is
   let k? ← intentView (Community.currentKey s.me.c)
   let some k := k? | return false
-  let w ← intentView (Community.send s.me.c s.me.adm s.me.dev k (← newBytes 24) t.toUTF8
+  let w ← intentView (Community.send s.me.c s.me.adm s.me.dev k (← newSized 24) t.toUTF8
     (← nowMin))
   writeAll w
 
@@ -3364,7 +3404,7 @@ def sendTextAct (text : String) : M (Option Id) := do
   let t := text.trimAscii.toString
   if t.isEmpty then return none
   let (c, adm, dev) := (s.me.c, s.me.adm, s.me.dev)
-  let nonce ← newBytes 24
+  let nonce ← newSized 24
   let now ← nowMin
   some <$> act do
     let (k?, _) ← readView (Community.currentKey c) #[]
@@ -3992,7 +4032,7 @@ def found (n myName : String) : M Unit := do
   let seed ← newSeed
   -- the last fresh bytes are this node's key, if it has none yet
   let w ← intentView (Community.found seed n.toUTF8 myName.toUTF8 (← nowMin)
-    (← newBytes 32) (← newBytes 32) (← newBytes 32))
+    (← newSized 32) (← newSized 32) (← newSized 32))
   if ← writeAll w then
     if let some a := acceptOf w then
       refreshCommsNow
@@ -4026,7 +4066,7 @@ def netStep : M Unit := do
   let listen := ((← listenHints).head?).getD s!"127.0.0.1:{port}".toUTF8
   let x : Engine.Sync.Sync SF (SqlM SF) :=
     { fam, cfg := { every := 30000, askTime := 20000 },
-      hooks := Connection.hooks fam Connection.sodium listen }
+      hooks := Data.hooks listen }
   let path := s.dbPath
   let sh := s.sh
   let writer := s.wr
@@ -4177,7 +4217,7 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
   let h := k.h
   let me := k.me
   let pg : Pages.Page := match k.page with
-    | .getStarted => Pages.getStarted Pages.Act.joinCommunity Pages.Act.createCommunity f dm W h
+    | .getStarted => Pages.getStarted Pages.Act.joinCommunity Pages.Act.createCommunity (Pages.Act.stub "Linked devices") f dm W h k.stage
     | .create => Pages.create Pages.Act.continue_ Pages.Act.field f dm W h k.field true
     | .joinChoice => Pages.joinChoice Pages.Act.inviteLink Pages.Act.qrCode f dm W h none
     | .openInvite => Pages.openInvite Pages.Act.pasteLink f dm W h
@@ -4213,8 +4253,9 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
   -- a first launch's Get started has nowhere to go back to
   let top := if k.page == .home then
       Pages.homeBand f dm W k.insetTop me.name k.communityId k.ownName k.ownId
-    else if (k.page == .getStarted && k.backEmpty && k.comms.isEmpty) || k.page == .waiting
-    then Bitmap.blank W (k.insetTop + dm.px 56) bg
+    else if k.page == .getStarted && k.backEmpty && k.comms.isEmpty
+    then Bitmap.blank W (k.insetTop + dm.px 56) (solid (Palette.color dm.theme .panel) W)
+    else if k.page == .waiting then Bitmap.blank W (k.insetTop + dm.px 56) bg
     else if k.page == .switcher then Pages.switcherBar f dm W k.insetTop
     else if k.page.drawer then Appearance.header f dm W k.insetTop (if k.page == .stub then Appearance.leafTitle k.labelText else t) k.drawerBack
     else Pages.bar f dm W k.insetTop t cross
@@ -4233,7 +4274,8 @@ theorem pageIn_acc {k k' : PageIn} (h : k = k') : k.me.acc = k'.me.acc := by rw 
 
 /-- The current state's page key. -/
 def pageIn (s : St) : PageIn :=
-  { page := s.page, setting := s.theme.setting, W := s.W, h := viewH s, insetTop := s.insetTop, dim := s.dim, field := s.field,
+  { page := s.page, setting := s.theme.setting, W := s.W, h := viewH s, stage := s.Hs - s.insetTop - s.insetBot,
+    insetTop := s.insetTop, dim := s.dim, field := s.field,
     ownName := s.ownName, ownId := Pages.identity s.me.user, communityId := Pages.identity s.me.c, devices := s.ownDevices, people := s.people,
     refusal := s.refusal, me := s.me.key, comms := s.comms.map (·.key),
     asking := (s.asking.filter fun r => !s.hidden.contains r.id).map (·.row), askingAll := s.asking.size,
@@ -4352,7 +4394,7 @@ def onPageAct (a : Pages.Act) (submission : Option Editor.Snapshot := none) (ref
       let seed ← newSeed
       -- the engine's join: nothing for a held community, the same request
       -- again for a stopped one, else a fresh join
-      let w ← intentView (Community.join i seed s.joinName.toUTF8 (← newBytes 32))
+      let w ← intentView (Community.join i seed s.joinName.toUTF8 (← newSized 32))
       if ← writeAll w then
         modify fun s => { s.withNav (Nav.reset s.page) with invite := none, field := "" }
         refreshCommsNow
@@ -4446,9 +4488,9 @@ def sendNow (submission : Option Editor.Snapshot := none) (refusal : Option UInt
     for (bytes, w, h, _) in s.chips.toList do
       files := files ++ [({ info := { name := "photo.qoi".toUTF8, kind := "image/qoi".toUTF8, w, h,
                                       preview := Chaos.preview bytes },
-                            bytes, key := ← newBytes 32, nonce := ← newBytes 24,
-                            metaNonce := ← newBytes 24 } : Community.NewFile)]
-    let nonce ← newBytes 24
+                            bytes, key := ← newSized 32, nonce := ← newSized 24,
+                            metaNonce := ← newSized 24 } : Community.NewFile)]
+    let nonce ← newSized 24
     let w ← intentView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files)
     if ← writeAll w (present := true) then
       if let some action := submission then
@@ -4843,7 +4885,7 @@ def command (line : String) : M Bool := do
     modify fun s => { s with srcs := some srcs, seed := s.seed + 1 }
     let me := s.me
     let k? ← intentView (Community.currentKey me.c)
-    let k := k?.getD .empty
+    let some k := k? | s.io.ctlReply "chaos: this community's key hasn't arrived yet"; return true
     let seed := s.seed
     let top ← intentView (Community.topCount me.c)
     let now ← nowMin
@@ -5652,7 +5694,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
     let queued := (Codec.decode (bs[10]?.getD .empty) : Option (List ByteArray)).getD []
     let ops := queued.filterMap Op.decode
     if !ops.isEmpty then (receive fam (intake fam true ops)).run rd
-  let setting ← Theme.load rd
+  let (setting, themeRev) ← Data.appearance rd
   let wr ← Writer.start dbPath commitCheckpoint
   let netOwner ← NetworkOwner.new
   let readerOwner ← Reader.Owner.new
@@ -5669,7 +5711,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
     | .ok c => pure c
     | .error e => do IO.eprintln s!"no emoji catalogue: {e}"; pure #[]
   let initial : St := {
-           io := io, theme := theme, W := W, Hs := Hs, insetTop := safe.y, window, imeH := window.ime.bottom, catalog := catalog,
+           io := io, theme := theme, themeRev, W := W, Hs := Hs, insetTop := safe.y, window, imeH := window.ime.bottom, catalog := catalog,
            dim := ⟨(screen[4]?.getD 420).toNat, font.cell, Theme.effective theme, none⟩,
            insetBot := Hs - safe.bottom, font := font, bgRow := solid (Palette.color (Theme.effective theme) .bg) W, rd := rd,
            wr := wr, netOwner, readerOwner, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,

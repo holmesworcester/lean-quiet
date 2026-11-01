@@ -10,8 +10,8 @@ namespace ReaderClaimRollback
 
 def founding : Reader.RM Community.Write := do
   return (← readView (Community.found (sha256 "claim device".toUTF8)
-    "Claim rollback".toUTF8 "Ann".toUTF8 1 (sha256 "claim key".toUTF8)
-    (sha256 "claim wrap".toUTF8) (sha256 "claim node".toUTF8)) #[]).1
+    "Claim rollback".toUTF8 "Ann".toUTF8 1 (Bytes.digest "claim key".toUTF8)
+    (Bytes.digest "claim wrap".toUTF8) (Bytes.digest "claim node".toUTF8)) #[]).1
 
 def exercise (ck : Checks) (fault : Bool) : IO Unit := do
   let tag := if fault then "fault" else "healthy"

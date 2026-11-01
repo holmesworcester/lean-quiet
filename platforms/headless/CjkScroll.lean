@@ -41,7 +41,7 @@ private def suite (args : List String) : IO Unit := do
     let (key?, _) ← readView (Community.currentKey s.me.c) #[]
     let some key := key? | throw (IO.userError "no content key")
     let ops := messages.zipIdx |>.map fun (text, i) =>
-      sealedPost s.me.c s.me.adm s.me.dev key (Chaos.bytesOf s!"cjk {i}" 24) text.toUTF8 (i+1) (1000+i)
+      sealedPost s.me.c s.me.adm s.me.dev key (Chaos.sizedOf s!"cjk {i}" 24) text.toUTF8 (i+1) (1000+i)
     s.wr.submit ⟨ops, false⟩
     waitIdle sm
     unless (← get).total == messages.length do throw (IO.userError "CJK messages not listed")

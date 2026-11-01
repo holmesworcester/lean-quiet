@@ -111,8 +111,8 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
     ck.ok "old callback performs no reads, paints or writes"
       (before.queryReads == after.queryReads && before.paints == after.paints && before.out.size == after.out.size)
     -- An actual committed incoming message's notices reach the root only.
-    let k := (← ((Community.currentKey after.me.c).liftL.run : SqlM SF _).run after.rd).getD .empty
-    let op := sealedPost after.me.c after.me.adm after.me.dev k (← Engine.Crypto.randomBytes 24)
+    let k := (← (((Community.currentKey after.me.c).liftL.liftL : View SF _).run : SqlM SF _).run after.rd).getD (Bytes.zeros 32)
+    let op := sealedPost after.me.c after.me.adm after.me.dev k (← App.newSized 24)
       "arrived after unmount".toUTF8 100 (← nowMin)
     after.wr.submit ⟨[op], false⟩
     waitIdle sm
@@ -131,7 +131,7 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
     ck.ok "scan mount owns a camera" (← sm.on.get)
     let n ← sm.frames.get
     let r := (← get).queryReads
-    let parked := sealedPost s.me.c s.me.adm s.me.dev k (← Engine.Crypto.randomBytes 24)
+    let parked := sealedPost s.me.c s.me.adm s.me.dev k (← App.newSized 24)
       "queued while suspended".toUTF8 101 (← nowMin)
     sm.visible.set false
     discard <| step [.background, .surface false, .ime 600, .send]
@@ -223,7 +223,7 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
     discard <| step [.background]).run removal
   -- Cold and warm links use the same production parser, without a session.
   let bearer ← Chaos.freshSeed "link"
-  let some (_, invite) ← ((Community.inviteTo switched.me.c switched.me.adm switched.me.dev bearer []).liftL.run : SqlM SF _).run switched.rd
+  let some (_, invite) ← (((Community.inviteTo switched.me.c switched.me.adm switched.me.dev bearer []).liftL.liftL : View SF _).run : SqlM SF _).run switched.rd
     | throw (IO.userError "fixture has no node key")
   let linkPath := dir ++ "/link.db"
   freshDb linkPath
@@ -286,8 +286,8 @@ private def readerRequest (dir : String) (ck : Tests.Checks) : IO Unit := do
   db.filings
   let d := Device.named "reader request snapshot"
   let r := root d (Tests.keyOf d)
-  let k := sha256 "reader request key".toUTF8
-  let msg := sealedPost r.id r.id d k (ByteArray.mk (Array.replicate 24 7))
+  let k := Bytes.digest "reader request key".toUTF8
+  let msg := sealedPost r.id r.id d k ⟨ByteArray.mk (Array.replicate 24 7), rfl⟩
     "a committed message before navigation".toUTF8 1 1234
   (receive fam (intake fam true [r, contentKey r.id k, msg])).run db
   let commits ← IO.mkRef 1
