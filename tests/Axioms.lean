@@ -764,6 +764,7 @@ end windows
 #print axioms Engine.Sync.walk_rounds
 #print axioms Engine.Sync.extra_ask
 #print axioms Engine.Sync.extra_onAsk
+#print axioms Engine.Sync.noteRoom_short
 #print axioms Engine.Sync.full_round_stateless
 #print axioms Engine.Sync.closure_capped
 #print axioms Engine.Sync.closure_complete_under_cap

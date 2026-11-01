@@ -134,12 +134,12 @@ theorem unshown_room_answered (ix : Index) (c : Conn) (r : Id) (k now : Nat) (cs
 /-- Any shown room that is due starts, whatever other rooms' rounds are
 doing: the premise names room r only. -/
 theorem room_independent (ix : Index) (c : Conn) (r : Id) (now pf : Nat)
-    (hp : c.peerFloor = some pf) (hr : r ∈ c.rooms) (due : c.due cfg r now = true) :
+    (hp : c.peerFloor = some pf) (hr : r ∈ c.rooms) (due : (c.due cfg r now || c.retake cfg r) = true) :
     (Msg.rbsr r (c.round + 1)
       ((window (max c.floor pf)).map (opening Prod.fst Prod.snd sha256 cfg.params (ix.items r)))).op ∈
       (c.start cfg ix now).send := by
-  have hm : r ∈ c.rooms.filter fun r => c.due cfg r now := List.mem_filter.mpr ⟨hr, due⟩
-  have hne : (c.rooms.filter fun r => c.due cfg r now).isEmpty = false :=
+  have hm : r ∈ c.rooms.filter fun r => c.due cfg r now || c.retake cfg r := List.mem_filter.mpr ⟨hr, due⟩
+  have hne : (c.rooms.filter fun r => c.due cfg r now || c.retake cfg r).isEmpty = false :=
     List.isEmpty_eq_false_iff.mpr (List.ne_nil_of_mem hm)
   simp only [Conn.start, hp, hne, Bool.false_eq_true, ite_false, List.mem_map, Index.opening_fun]
   exact ⟨r, hm, rfl⟩

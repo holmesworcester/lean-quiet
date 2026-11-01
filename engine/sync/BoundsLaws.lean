@@ -43,10 +43,10 @@ theorem remembers_bounded {α : Type} (cap : Nat) (key : α → Id) (ids : List 
 
 theorem start_bounded (ix : Index) (c : Conn) (now : Nat) (hb : c.Bounded cfg) :
     (c.start cfg ix now).conn.Bounded cfg := by
-  rcases Conn.start_conn cfg ix c now with e | ⟨k, a, rs, es, e⟩ <;> rw [e] <;> exact hb
+  rcases Conn.start_conn cfg ix c now with e | ⟨k, a, rs, ss, es, e⟩ <;> rw [e] <;> exact hb
 
-theorem ask_bounded (c : Conn) (now : Nat) (hb : c.Bounded cfg) : (c.ask now).conn.Bounded cfg := by
-  obtain ⟨rs, e⟩ := Conn.ask_conn c now; rw [e]; exact hb
+theorem ask_bounded (c : Conn) (now : Nat) (hb : c.Bounded cfg) : (c.ask cfg now).conn.Bounded cfg := by
+  obtain ⟨rs, ss, e⟩ := Conn.ask_conn cfg c now; rw [e]; exact hb
 
 theorem onAsk_bounded (c : Conn) (r : Id) (hb : c.Bounded cfg) : (c.onAsk r).Bounded cfg := by
   obtain ⟨rs, e⟩ := Conn.onAsk_eq c r; rw [e]; exact hb

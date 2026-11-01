@@ -52,7 +52,7 @@ theorem start_send (ix : Index) (c : Conn) (now : Nat) :
       exact msg_wire _
 
 theorem ask_send (c : Conn) (now : Nat) :
-    (∀ o ∈ (c.ask now).send, isWire o.kind = true) ∧ (c.ask now).take = [] := by
+    (∀ o ∈ (c.ask cfg now).send, isWire o.kind = true) ∧ (c.ask cfg now).take = [] := by
   unfold Conn.ask
   split
   · simp
@@ -67,11 +67,11 @@ theorem ask_send (c : Conn) (now : Nat) :
 
 /-- The clock's rounds: the dialer's due rounds, or the responder's asks. -/
 theorem due_send (ix : Index) (c : Conn) (now : Nat) :
-    (∀ o ∈ (if c.dialer then c.start cfg ix now else c.ask now).send, isWire o.kind = true) ∧
-      (if c.dialer then c.start cfg ix now else c.ask now).take = [] := by
+    (∀ o ∈ (if c.dialer then c.start cfg ix now else c.ask cfg now).send, isWire o.kind = true) ∧
+      (if c.dialer then c.start cfg ix now else c.ask cfg now).take = [] := by
   split
   · exact start_send cfg ix c now
-  · exact ask_send c now
+  · exact ask_send cfg c now
 
 theorem onRbsr_send (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (now : Nat) :
     (∀ o ∈ (c.onRbsr cfg ix r k cs now).send, isWire o.kind = true) ∧

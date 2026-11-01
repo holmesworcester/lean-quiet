@@ -9,10 +9,10 @@ variable {F : Type} (fam : Family F) (cfg : Config)
 
 theorem start_session (ix : Index) (c : Conn) (now : Nat) :
     (c.start cfg ix now).conn.session = c.session := by
-  rcases Conn.start_conn cfg ix c now with e | ⟨k, a, rs, es, e⟩ <;> rw [e]; rfl
+  rcases Conn.start_conn cfg ix c now with e | ⟨k, a, rs, ss, es, e⟩ <;> rw [e]; rfl
 
-theorem ask_session (c : Conn) (now : Nat) : (c.ask now).conn.session = c.session := by
-  obtain ⟨rs, e⟩ := Conn.ask_conn c now; rw [e]
+theorem ask_session (c : Conn) (now : Nat) : (c.ask cfg now).conn.session = c.session := by
+  obtain ⟨rs, ss, e⟩ := Conn.ask_conn cfg c now; rw [e]
 
 theorem round_session (ix : Index) (c : Conn) (r : Id) (k now : Nat) (cs : List Claim) :
     (c.onRbsr cfg ix r k cs now).conn.session = c.session := by

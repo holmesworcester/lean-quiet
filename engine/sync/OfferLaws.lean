@@ -177,8 +177,8 @@ theorem start_keeps (cfg : Config) {ix : Index} {s : DB F} (hx : IxShown fam ix 
     exact shown_item fam hx (List.mem_filter.mp hr').1 ha
 
 /-- The responder's asks name rooms and offer no id. -/
-theorem ask_keeps {s : DB F} (c : Conn) (now : Nat) :
-    (c.ask now).conn.rooms = c.rooms ∧ ∀ o ∈ (c.ask now).send, Discloses fam s c o := by
+theorem ask_keeps (cfg : Config) {s : DB F} (c : Conn) (now : Nat) :
+    (c.ask cfg now).conn.rooms = c.rooms ∧ ∀ o ∈ (c.ask cfg now).send, Discloses fam s c o := by
   unfold Conn.ask
   split
   · exact ⟨rfl, by simp⟩
@@ -335,7 +335,9 @@ theorem onHold_apply (cfg : Config) (c : Conn) (r : Id) (ids : List Id) (h : Hel
           conn := { c with
             known := (ids.filter fun i => !missing.contains i || want.contains i).foldl (remember cfg.maxKnown) c.known
             asked := want.foldl (·.insert ·) c.asked
-            askTime := want.foldl (fun ts i => ts.insert i c.heard) c.askTime },
+            askTime := want.foldl (fun ts i => ts.insert i c.heard) c.askTime
+            short := if deferred cfg.maxKnown c.asked missing.reverse then noteRoom c.rooms.length c.short r
+              else c.short },
           send := chunks cfg want .want }, h) := by
   unfold Conn.onHold
   by_cases h0 : (!has c.rooms r) = true
@@ -484,7 +486,7 @@ theorem work_keeps (cfg : Config) {ix : Index} {h : Held F} (hx : IxShown fam ix
     rcases List.mem_append.1 hm with hm | hm
     · exact discloses_rooms fam w2 (d o hm)
     · exact htail o hm
-  · obtain ⟨a, d⟩ := ask_keeps fam (s := h.db) d now
+  · obtain ⟨a, d⟩ := ask_keeps fam cfg (s := h.db) d now
     refine ⟨rfl, a.trans w2, fun o hm => ?_⟩
     rcases List.mem_append.1 hm with hm | hm
     · exact discloses_rooms fam w2 (d o hm)

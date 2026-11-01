@@ -16,7 +16,10 @@ closes the connection when `step.drop`.
   shown, or the responder asked), and every `cfg.safety` ms in each
   room. The responder asks for a round in a room it starts showing
   mid-session with an empty have naming it (`ask`). A newer round in a
-  room supersedes the one in flight there.
+  room supersedes the one in flight there. A room whose wants did not
+  all fit in `asked` (`short`) is due again, once the asks are at most
+  half full and its round has ended: the next round finds what the last
+  could not ask for.
 - **Live answers.** Each side answers each claim from the live index as
   it is at that instant (`ix.items r`); a connection keeps no copy of a
   room, only which rounds are in flight (`active`). A matching
@@ -175,6 +178,9 @@ structure Conn where
   /-- The rounds in flight here: room and epoch, at most one per room.
   No items: every claim is answered from the live index. -/
   active : List (Id × Nat) := []
+  /-- Rooms where a round or a have found more ids missing than `asked`
+  had room for: each is due another round once the asks drain. -/
+  short : List Id := []
   /-- Latest epoch seen in each room, retained after its round ends.
   Delayed terminal markers and replayed claims cannot rewind another round. -/
   epochs : List (Id × Nat) := []
@@ -254,6 +260,14 @@ def Conn.open (dialer : Bool) (rooms : List Id) (floor : Nat) (now : Nat) : Step
 def noteEpoch (limit : Nat) (epochs : List (Id × Nat)) (r : Id) (k : Nat) : List (Id × Nat) :=
   ((r, k) :: epochs.filter (fun p => !Decidable.decide (p.1 = r))).take limit
 
+/-- Remember a room, once. -/
+def noteRoom (limit : Nat) (rs : List Id) (r : Id) : List Id :=
+  (r :: rs.filter (fun x => !Decidable.decide (x = r))).take limit
+
+/-- Wanting these would ask for more ids than `asked` has room for. -/
+def deferred (cap : Nat) (asked : HashSet Id) (ids : List Id) : Bool :=
+  Decidable.decide (cap - asked.size < ((ids.filter fun i => !asked.contains i).eraseDups).length)
+
 /-- When room r's last round opened here (or, at the responder, when it
 last saw or asked for one), if any did on this session. -/
 def Conn.roundedAt (c : Conn) (r : Id) : Option Nat :=
@@ -293,6 +307,13 @@ def Conn.due (c : Conn) (r : Id) (now : Nat) : Bool :=
   | none => true
   | some t => Decidable.decide (t + cfg.safety ≤ now)
 
+/-- Room r is due again for what its last round could not ask for: it is
+`short`, no round of it is in flight here, and the asks are at most half
+full (and have room). -/
+def Conn.retake (c : Conn) (r : Id) : Bool :=
+  has c.short r && !c.active.any (fun p => Decidable.decide (p.1 = r)) &&
+    Decidable.decide (2 * c.asked.size ≤ cfg.maxKnown) && Decidable.decide (c.asked.size < cfg.maxKnown)
+
 /-- The dialer opens a round in every shown room that is due, all with
 the next epoch; a room's newer round supersedes the one in flight there.
 With no room due it does nothing. -/
@@ -300,7 +321,7 @@ def Conn.start (ix : Index) (c : Conn) (now : Nat) : Step :=
   match c.peerFloor with
   | none => { conn := c }
   | some pf =>
-    let ready := c.rooms.filter fun r => c.due cfg r now
+    let ready := c.rooms.filter fun r => c.due cfg r now || c.retake cfg r
     if ready.isEmpty then { conn := c } else
     let k := c.round + 1
     let w := window (max c.floor pf)
@@ -309,17 +330,21 @@ def Conn.start (ix : Index) (c : Conn) (now : Nat) : Step :=
     { conn := { c.beginRound k with
         active := (ready.map (·, k) ++ c.active.filter fun p => !has ready p.1).take c.rooms.length
         rounded := ready.foldl (fun rs r => noteEpoch c.rooms.length rs r now) c.rounded
+        short := c.short.filter fun r => !has ready r
         epochs := ready.foldl (fun es r => noteEpoch c.rooms.length es r k) c.epochs }, send }
 
 /-- The responder asks for a round in each shown room it has neither seen
-a round in nor asked about on this session: an empty have naming it. -/
+a round in nor asked about on this session, and in each it is `short`
+in (`retake`): an empty have naming it. -/
 def Conn.ask (c : Conn) (now : Nat) : Step :=
   match c.peerFloor with
   | none => { conn := c }
   | some _ =>
-    let fresh := c.rooms.filter fun r => (c.roundedAt r).isNone
+    let fresh := c.rooms.filter fun r => (c.roundedAt r).isNone || c.retake cfg r
     if fresh.isEmpty then { conn := c } else
-    { conn := { c with rounded := fresh.foldl (fun rs r => noteEpoch c.rooms.length rs r now) c.rounded }
+    { conn := { c with
+        rounded := fresh.foldl (fun rs r => noteEpoch c.rooms.length rs r now) c.rounded
+        short := c.short.filter fun r => !has fresh r }
       send := fresh.map fun r => (Msg.hold r []).op }
 
 @[simp] theorem Conn.start_drop (ix : Index) (c : Conn) (now : Nat) : (c.start cfg ix now).drop = false := by
@@ -340,18 +365,18 @@ def Conn.ask (c : Conn) (now : Nat) : Step :=
     · exact ⟨rfl, rfl⟩
     · exact ⟨rfl, rfl⟩
 
-@[simp] theorem Conn.ask_drop (c : Conn) (now : Nat) : (c.ask now).drop = false := by
+@[simp] theorem Conn.ask_drop (c : Conn) (now : Nat) : (c.ask cfg now).drop = false := by
   unfold Conn.ask; split
   · rfl
   · dsimp only; split <;> rfl
 
-@[simp] theorem Conn.ask_take (c : Conn) (now : Nat) : (c.ask now).take = [] := by
+@[simp] theorem Conn.ask_take (c : Conn) (now : Nat) : (c.ask cfg now).take = [] := by
   unfold Conn.ask; split
   · rfl
   · dsimp only; split <;> rfl
 
 @[simp] theorem Conn.ask_given (c : Conn) (now : Nat) :
-    (c.ask now).conn.given = c.given ∧ (c.ask now).given = [] := by
+    (c.ask cfg now).conn.given = c.given ∧ (c.ask cfg now).given = [] := by
   unfold Conn.ask; split
   · exact ⟨rfl, rfl⟩
   · dsimp only; split
@@ -369,21 +394,23 @@ def Conn.onAsk (c : Conn) (r : Id) : Conn :=
 counter and closure capture, the rounds in flight, when each room's
 round opened, the epochs). -/
 theorem Conn.start_conn (ix : Index) (c : Conn) (now : Nat) :
-    (c.start cfg ix now).conn = c ∨ ∃ k a rs es,
-      (c.start cfg ix now).conn = { c.beginRound k with active := a, rounded := rs, epochs := es } := by
+    (c.start cfg ix now).conn = c ∨ ∃ k a rs ss es,
+      (c.start cfg ix now).conn = { c.beginRound k with active := a, rounded := rs, short := ss, epochs := es } := by
   unfold Conn.start; split
   · exact Or.inl rfl
   · dsimp only; split
     · exact Or.inl rfl
-    · exact Or.inr ⟨_, _, _, _, rfl⟩
+    · exact Or.inr ⟨_, _, _, _, _, rfl⟩
 
-/-- What `ask` changes: when each room's round was asked for, only. -/
-theorem Conn.ask_conn (c : Conn) (now : Nat) : ∃ rs, (c.ask now).conn = { c with rounded := rs } := by
+/-- What `ask` changes: when each room's round was asked for, and which
+rooms are short, only. -/
+theorem Conn.ask_conn (c : Conn) (now : Nat) :
+    ∃ rs ss, (c.ask cfg now).conn = { c with rounded := rs, short := ss } := by
   unfold Conn.ask; split
-  · exact ⟨c.rounded, rfl⟩
+  · exact ⟨c.rounded, c.short, rfl⟩
   · dsimp only; split
-    · exact ⟨c.rounded, rfl⟩
-    · exact ⟨_, rfl⟩
+    · exact ⟨c.rounded, c.short, rfl⟩
+    · exact ⟨_, _, rfl⟩
 
 /-- What `onAsk` changes: when each room's round opened, only. -/
 theorem Conn.onAsk_eq (c : Conn) (r : Id) : ∃ rs, c.onAsk r = { c with rounded := rs } := by
@@ -421,10 +448,12 @@ def Conn.onRbsr (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (no
   let holds := outs.flatMap fun | .hold xs => xs | _ => []
   let wants := outs.flatMap fun | .want xs => xs | _ => []
   let c := if claims.isEmpty then ended c else { c with active := ((r, k) :: others).take c.rooms.length }
+  let cut := deferred cfg.maxKnown c.asked wants
   let wants := admitAsks cfg.maxKnown c.asked wants
   let c := { c with
     askTime := wants.foldl (fun ts i => ts.insert i now) c.askTime
-    asked := wants.foldl (·.insert ·) c.asked }
+    asked := wants.foldl (·.insert ·) c.asked
+    short := if cut then noteRoom c.rooms.length c.short r else c.short }
   { conn := c, send := (Msg.rbsr r k claims).op :: (chunks cfg holds (.hold r) ++ chunks cfg wants .want) }
 
 /-- Offers, each with its op's room, as haves: per room, in the order
@@ -451,12 +480,14 @@ def Conn.onHold (c : Conn) (r : Id) (ids : List Id) : m Step := do
     if !c.asked.contains i then
       if !(← holdsIn fam r i) then want := i :: want
   let missing := want
+  let cut := deferred cfg.maxKnown c.asked want.reverse
   let accepted := admitAsks cfg.maxKnown c.asked want.reverse
   let kept := ids.filter fun i => !missing.contains i || accepted.contains i
   let c := { c with
     known := kept.foldl (remember cfg.maxKnown) c.known
     asked := accepted.foldl (·.insert ·) c.asked
-    askTime := accepted.foldl (fun ts i => ts.insert i c.heard) c.askTime }
+    askTime := accepted.foldl (fun ts i => ts.insert i c.heard) c.askTime
+    short := if cut then noteRoom c.rooms.length c.short r else c.short }
   return { conn := c, send := chunks cfg accepted .want }
 
 /-- At most `budget` steps of the walk, with what it has offered so far
@@ -587,7 +618,7 @@ def Conn.retryIds (cfg : Config) (c : Conn) (now : Nat) : List Id :=
 def Conn.work (ix : Index) (c : Conn) (now : Nat) : m Step := do
   let (c, offer) ← c.walk fam cfg
   let c := c.expireAsks cfg now
-  let s := if c.dialer then c.start cfg ix now else c.ask now
+  let s := if c.dialer then c.start cfg ix now else c.ask cfg now
   let due := c.lastAsk + cfg.retry ≤ now
   return { s with
     conn := { s.conn with lastAsk := if due then now else c.lastAsk }
@@ -605,6 +636,7 @@ def Conn.setRooms (c : Conn) (rooms : List Id) : Conn :=
     rooms
     active := (c.active.filter fun p => has rooms p.1).take rooms.length
     rounded := (c.rounded.filter fun p => has rooms p.1).take rooms.length
+    short := (c.short.filter fun r => has rooms r).take rooms.length
     epochs := (c.epochs.filter fun p => has rooms p.1).take rooms.length }
 
 end

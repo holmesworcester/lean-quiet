@@ -155,7 +155,7 @@ theorem retried_start (ix : Index) (c : Conn) (now : Nat) :
       intros
       simp [Msg.ofOp, Msg.op, kRbsr, kHave, kWant, Codec.decode_encode]
 
-theorem retried_ask (c : Conn) (now : Nat) : retried (c.ask now).send = [] := by
+theorem retried_ask (c : Conn) (now : Nat) : retried (c.ask cfg now).send = [] := by
   unfold Conn.ask; split
   · rfl
   · dsimp only; split
