@@ -21,7 +21,7 @@ st = root / 'out/windows/stage'
 for m in order:
     shutil.copy2(root / '.lake/build/ir' / (m.replace('.', '/') + '.c'), st/'ir'/f'{m}.c')
 (st/(os.environ.get('WINDOWS_SOURCES', 'sources.txt'))).write_text('\n'.join(f'ir/{m}.c' for m in order)+'\n')
-for folder in ('assets', 'platforms/windows', 'engine/native', 'third_party/sqlite'):
-    dest = st / {'platforms/windows':'windows','engine/native':'glue','third_party/sqlite':'sqlite'}.get(folder,folder)
+for folder in ('assets', 'platforms/windows', 'platforms/native', 'engine/native', 'third_party/sqlite'):
+    dest = st / {'platforms/windows':'windows','platforms/native':'native','engine/native':'glue','third_party/sqlite':'sqlite'}.get(folder,folder)
     shutil.copytree(root/folder, dest, dirs_exist_ok=True, ignore=shutil.ignore_patterns('target', '.git'))
 print(st)

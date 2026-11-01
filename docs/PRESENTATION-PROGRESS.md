@@ -62,10 +62,11 @@ Activity-recreation checks remain required after integration of that repair.
 
 ## Still open
 
-Desktop's driver currently stages app layers before `DesktopMain.desktopFrame`;
-its empty result is interpreted as synchronous completion. The desktop suite
-above establishes compatibility, not correct native completion. A separate
-follow-up must acknowledge the actual composed desktop publication.
+The subsequent [desktop publication repair](DESKTOP-PRESENTATION.md) removes
+the premature staging acknowledgement. It validates final composed pixels and
+actual native completion, including hover/photo content. Its Linux runtime
+checks and Windows cross-compile are separate from still-outstanding Mac and
+Windows native runtime validation.
 
 Selector service bounds do not give a fixed end-to-end display deadline.
 Native workers and compositor callbacks can be delayed for arbitrarily many

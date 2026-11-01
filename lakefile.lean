@@ -155,7 +155,8 @@ target host.o pkg : FilePath := do
   let source ← inputTextFile <| pkg.dir / "platforms" / "headless" / "host.c"
   let translate ← inputTextFile <| pkg.dir / "platforms" / "native" / "translate.h"
   let thread ← inputTextFile <| pkg.dir / "platforms" / "native" / "thread.h"
-  let srcJob := (source.zipWith (fun s _ => s) translate).zipWith (fun s _ => s) thread
+  let publication ← inputTextFile <| pkg.dir / "platforms" / "native" / "desktop_publication.h"
+  let srcJob := ((source.zipWith (fun s _ => s) translate).zipWith (fun s _ => s) thread).zipWith (fun s _ => s) publication
   let weakArgs := #["-I", (← getLeanIncludeDir).toString]
   -- C11: in C23 mode the system's glibc headers bind sscanf to a symbol
   -- the glibc Lean links against lacks.
@@ -373,7 +374,8 @@ target linux.o pkg : FilePath := do
   let source ← inputTextFile <| pkg.dir / "platforms" / "linux" / "shell.c"
   let translate ← inputTextFile <| pkg.dir / "platforms" / "native" / "translate.h"
   let thread ← inputTextFile <| pkg.dir / "platforms" / "native" / "thread.h"
-  let srcJob := (source.zipWith (fun s _ => s) translate).zipWith (fun s _ => s) thread
+  let publication ← inputTextFile <| pkg.dir / "platforms" / "native" / "desktop_publication.h"
+  let srcJob := ((source.zipWith (fun s _ => s) translate).zipWith (fun s _ => s) thread).zipWith (fun s _ => s) publication
   let weakArgs := #["-I", (← getLeanIncludeDir).toString]
   buildO oFile srcJob weakArgs #["-fPIC", "-O2", "-std=gnu11", "-Wall", "-Wextra", "-Werror"] "cc"
 
@@ -555,3 +557,21 @@ lean_exe prune_ack where
 
 lean_exe writer_fairness where
   root := `tests.engine.WriterFairness
+
+lean_exe desktop_presentation where
+  root := `tests.app.DesktopPresentationMain
+
+target desktop_presentation_native.o pkg : FilePath := do
+  let src ← inputTextFile <| pkg.dir / "tests" / "app" / "desktop_presentation_native.c"
+  let shell ← inputTextFile <| pkg.dir / "platforms" / "linux" / "shell.c"
+  let metadata ← inputTextFile <| pkg.dir / "platforms" / "native" / "desktop_publication.h"
+  let thread ← inputTextFile <| pkg.dir / "platforms" / "native" / "thread.h"
+  let translate ← inputTextFile <| pkg.dir / "platforms" / "native" / "translate.h"
+  let job := (((src.zipWith (fun s _ => s) shell).zipWith (fun s _ => s) metadata).zipWith (fun s _ => s) thread).zipWith (fun s _ => s) translate
+  buildO (pkg.buildDir / "native" / "desktop_presentation_native.o") job
+    #["-I", (← getLeanIncludeDir).toString] #["-O2", "-fPIC", "-std=gnu11", "-Wall", "-Wextra", "-Werror"] "cc"
+
+lean_exe desktop_native_presentation where
+  root := `tests.app.DesktopNativePresentation
+  moreLinkObjs := #[desktop_presentation_native.o]
+  moreLinkArgs := #["/usr/lib/x86_64-linux-gnu/libxcb.so.1", "/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0", "/usr/lib/x86_64-linux-gnu/libxcb-sync.so.1"]

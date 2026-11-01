@@ -118,7 +118,7 @@ all reader lifetimes, or Windows cancellation.
 | Bounded iteration work | Store draining and connection hooks can traverse history. App/Reader journal reads and action batches run before the reader budget check; a query is nonpreemptive. Reaction layout traverses all reactions, and pending-write cleanup reads every pending op each frame. |
 | Bounded memory | The sync index, snapshots, retired-session routing/tombstone history and some app recovery queues grow with history. Android native event/touch arrays still grow by reallocation. |
 | Fair-loss progress | Reserved output survives ordinary/hot pressure. The projection from real encrypted attempts and session teardown to semantic delivery is unproved; distinct sessions also need fair retry admission. The earlier closed-socket delay example was not a demonstrated TCP execution and is corrected in [RETRY-RESERVATION.md](RETRY-RESERVATION.md). |
-| Write-to-display bound | A bounded composer FIFO pins root/child positions against newer posts and uses exact native completion identity on Android/iOS. Desktop still acknowledges staging before native publication. Full composition, reaction/layout work, worker/callback delays and serial exhaustion prevent a universal bound. |
+| Write-to-display bound | A bounded composer FIFO pins root/child positions against newer posts and uses exact native completion identity on Android/iOS. Desktop now acknowledges the actual composed native publication. Full composition, reaction/layout work, worker/callback delays and serial exhaustion prevent a universal bound. |
 | User-action outcomes | Joining can remain pending while approval is withheld. A permanently failing checkpoint retries before writer jobs indefinitely, and failed writes need explicit user-visible outcomes. Completion-or-failure requires cancellation/deadline policies and bounded service. |
 
 The current work addresses these in the running code. A successful finite
@@ -203,6 +203,6 @@ The actual Send path admits at most eight pending presentation obligations and
 pins the oldest root/child position against new peer posts. The Android/iOS
 bridge distinguishes accepted publication from its matching native completion;
 a staged, optimistic, blank or shifted image cannot satisfy the receipt.
-The finite TCP regression keeps its 64-frame/1,500 ms limit. Desktop staging
-acknowledgement remains a separate repair, and the iOS wrapper has source review
-only in this Linux environment. See [PRESENTATION-PROGRESS.md](PRESENTATION-PROGRESS.md).
+The finite TCP regression keeps its 64-frame/1,500 ms limit. The subsequent desktop repair acknowledges actual composed native publication;
+Mac/Windows runtime validation remains outstanding, and the iOS wrapper has
+source review only in this Linux environment. See [PRESENTATION-PROGRESS.md](PRESENTATION-PROGRESS.md).

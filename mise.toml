@@ -556,3 +556,13 @@ run = "platforms/windows/ship.sh e2e"
 [tasks."windows:run"]
 description = "Build, install a desktop shortcut and launch Lean Quiet in Windows"
 run = "platforms/windows/ship.sh run"
+
+[tasks."host:desktop-presentation"]
+description = "Build the actual desktop publication step; delay/reject native completion through real composer/SQLite frames, then reject nine compiled controls"
+depends = ["crypto"]
+run = "tests/app/desktop_presentation.sh"
+
+[tasks."linux:presentation"]
+description = "Build and run actual desktop publication under private Xvfb with MIT-SHM and PutImage; exact receipts, hidden/resize/input-pressure controls and real composer"
+depends = ["crypto"]
+run = "tests/app/desktop_presentation_native.sh"
