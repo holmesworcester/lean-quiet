@@ -20,7 +20,7 @@ selected() { index=$((index + 1)); (( index > start )); }
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/ux-nc.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 . tests/snapshot.sh
-snapshot "$tmp/base" engine/core engine/wire engine/renderer app platforms/headless Quiet.lean assets
+snapshot "$tmp/base" engine/core engine/wire engine/sync engine/renderer app platforms/headless Quiet.lean assets
 build() {  # build ux in $tmp/w; 0 when it builds
   local code=0
   (cd "$tmp/w" && lake build ux >"$tmp/build.log" 2>&1) || code=$?

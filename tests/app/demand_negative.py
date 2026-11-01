@@ -51,7 +51,7 @@ cases = [
 
 with tempfile.TemporaryDirectory(prefix="demand-negative-", dir=os.environ["TMPDIR"]) as tmp:
     base, work = Path(tmp) / "base", Path(tmp) / "work"
-    snapshot = run(["bash", "-c", '. tests/snapshot.sh\nsnapshot "$1" engine/core engine/wire engine/renderer app platforms/headless tests/app tests/engine Quiet.lean assets', "snapshot", str(base)], ROOT, "snapshot")
+    snapshot = run(["bash", "-c", '. tests/snapshot.sh\nsnapshot "$1" engine/core engine/wire engine/sync engine/renderer app platforms/headless tests/app tests/engine Quiet.lean assets', "snapshot", str(base)], ROOT, "snapshot")
     assert snapshot.returncode == 0, "snapshot failed"
     assert run(["lake", "build", "component_demand", "op_components"], base, "baseline-build").returncode == 0, "baseline build failed"
     for exe in ["component_demand", "op_components"]:

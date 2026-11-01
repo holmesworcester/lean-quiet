@@ -8,7 +8,7 @@ export PATH="$ELAN_HOME/bin:$PATH"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/inkless-nc.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 . tests/snapshot.sh
-snapshot "$tmp/base" engine/core engine/wire engine/renderer app platforms/headless assets
+snapshot "$tmp/base" engine/core engine/wire engine/sync engine/renderer app platforms/headless assets
 logs="$PWD/out/inkless-negative"
 mkdir -p "$logs"
 run() {

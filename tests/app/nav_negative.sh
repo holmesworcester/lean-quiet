@@ -10,7 +10,7 @@ export PATH="$ELAN_HOME/bin:$PATH"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/nav-nc.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 . tests/snapshot.sh
-snapshot "$tmp/base" engine/core engine/wire engine/renderer app
+snapshot "$tmp/base" engine/core engine/wire engine/sync engine/renderer app
 cp -a "$tmp/base" "$tmp/w"
 (cd "$tmp/w" && lake build app.Proofs >/dev/null 2>&1) || { echo "FAIL: the unmutated copy does not build"; exit 1; }
 
