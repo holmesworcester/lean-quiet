@@ -89,7 +89,7 @@ partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab :
       if z == 1 then
         if let some grab := scrollGrab then
           d := Desktop.cancelPresentation d
-          Desktop.scrollDrag d grab y
+          d ← Desktop.scrollDrag d grab y
         if let some a := anchor then
           if let some c := Desktop.caret d x y then desktopSelect a.toUInt32 c.toUInt32
     else if k == 16 then
@@ -100,7 +100,7 @@ partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab :
       anchor := if scrollGrab.isSome then none else Desktop.caret d x y
       if let some grab := scrollGrab then
         d := Desktop.cancelPresentation d
-        Desktop.scrollDrag d grab y
+        d ← Desktop.scrollDrag d grab y
       if let some c := anchor then desktopSelect c.toUInt32 c.toUInt32
     else if k == 11 then anchor := none; scrollGrab := none
     else if k == 12 then d ← Desktop.act d .close

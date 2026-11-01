@@ -182,6 +182,17 @@ def main (args : List String) : IO UInt32 := do
     steps 5
     let shown ← stepsUntil (return (← get).me.name == "general" && (← get).total > 0)
     check s!"switching back shows the first community's {(← get).total} messages" shown
+    -- the page is an op: the ephemeral log's newest nav op names the page
+    -- and the back stack shown (App.withNav_cache), the log holds only it,
+    -- and the store holds no nav op (Engine.stored_durable)
+    let s ← get
+    let navOk := match Data.navOf s.eph with
+      | some (_, f) => PageId.ofCode f.page == s.page && f.stack.map PageId.ofCode == s.backStack
+      | none => false
+    check s!"the page shown is the log's newest nav op ({repr s.page}; {s.eph.log.length} op in the log)"
+      (navOk && s.eph.log.length == 1)
+    let stored ← (dumpOps (F := SF)).run s.rd
+    check "the store holds no nav op" (!stored.any fun o => Nav.owns o.kind)
     modify fun s => { s with text := "half a thought" }
     sm.cmds.modify (·.push "open switcher")
     steps 3
