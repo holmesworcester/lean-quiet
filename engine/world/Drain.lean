@@ -9,7 +9,14 @@ node's own calls). So it is sent within its queue position in ticks.
   (`recv_appends`); the clock leaves it as it is (`tickGive_q`).
 - At a node: applying another session's step, the stream, storing and
   the end of an entry point leave a session's queue as it was; serving it
-  sends the op or moves it forward (`node_serve_waits`).
+  sends the op or moves it forward (`serve_moves`).
+- In the World: one step keeps x waiting or sends its op to the peer
+  (`step_waits`); a frame on the session sets the holder's address for it
+  to the frame's sender, so while that address stays the peer's, the
+  session's frames come from the peer and so does what answers them; the
+  holder's tick moves x (`tick_moves_world`); so x goes out within
+  (p + 1) · τ (`drain`), and a want gets its op across within
+  3Δ + maxKnown · τ (`want_delivers`).
 -/
 import engine.world.Chain
 import engine.world.InvIx
@@ -240,7 +247,8 @@ theorem onSealed_waits (n : Node) (src : ByteArray) (opened : Option (Id × Byte
     (hs : r ∈ S.rooms s cid) (hb : 0 < S.cfg.burst) :
     (∀ c', ((n.onSealed (S.sync s) src opened now).run h).1.1.conn? cid = some c' → Waits x p c') ∨
       ∃ g, o.bytes ∈ g ∧ (src, plainFrame cid g) ∈ ((n.onSealed (S.sync s) src opened now).run h).1.2.send ∧
-        ∃ bundle, opened = some (cid, bundle) := by
+        (∃ bundle, opened = some (cid, bundle)) ∧
+        ((n.onSealed (S.sync s) src opened now).run h).1.1.addr? cid = some src := by
   unfold Node.onSealed
   split
   · left; intro c' hc'; exact hw c' hc'
@@ -315,7 +323,10 @@ theorem onSealed_waits (n : Node) (src : ByteArray) (opened : Option (Id × Byte
           · exact Or.inr (List.mem_append_right _ hp)
         obtain ⟨g, hg', hf⟩ := finish_sends S s B.1.1 (R.1.2 ++ B.1.2) now B.2 (by rw [s2, k1])
           (by simp [Acts.append_def, k2, s1]) cid _ src hp' (by rw [addr_of_addrs s3]; exact k4)
-        exact ⟨g, hg', hf, bundle, rfl⟩
+        refine ⟨g, hg', hf, ⟨bundle, rfl⟩, ?_⟩
+        rw [finish_run S s B.1.1 _ now B.2 (by rw [s2, k1])]
+        simp only [Node.addr?, Node.sent] at k4 s3 ⊢
+        rw [s3]; exact k4
     · left; intro c' hc'; exact hw c' hc'
 
 /-- What the tick's turns keep: no managed sessions, no retries, the op,
@@ -642,7 +653,7 @@ theorem onFrame_waits (n : Node) (src bytes : ByteArray) (now : Nat) (h : Held F
     (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid) (hb : 0 < S.cfg.burst) :
     (∀ c', ((n.onFrame (S.sync s) src bytes now).run h).1.1.conn? cid = some c' → Waits x p c') ∨
       ∃ g, o.bytes ∈ g ∧ (src, plainFrame cid g) ∈ ((n.onFrame (S.sync s) src bytes now).run h).1.2.send ∧
-        bytes[0]? = some 1 ∧ ∃ bundle, (Codec.decode (bytes.extract 1 bytes.size) : Option (Id × ByteArray)) = some (cid, bundle) := by
+        ((n.onFrame (S.sync s) src bytes now).run h).1.1.addr? cid = some src := by
   unfold Node.onFrame
   split
   · dsimp only
@@ -657,27 +668,16 @@ theorem onFrame_waits (n : Node) (src bytes : ByteArray) (now : Nat) (h : Held F
         simp only [Node.conn?] at hc2
         rw [write_conns] at hc2
         exact (hw c2 hc2).same (e1.trans e2)
-  · rename_i htag
-    simp only [HeldM.run_bind, sync_openFrame, plainOpen, HeldM.run_pure]
-    rcases onSealed_waits S s n src _ now h cid x o r p hm hw hg hr hs hb with e | ⟨g, hg', hf, bundle, hb'⟩
+  · simp only [HeldM.run_bind, sync_openFrame, plainOpen, HeldM.run_pure]
+    rcases onSealed_waits S s n src _ now h cid x o r p hm hw hg hr hs hb with e | ⟨g, hg', hf, -, ha'⟩
     · exact Or.inl e
-    · exact Or.inr ⟨g, hg', hf, htag, bundle, hb'⟩
+    · exact Or.inr ⟨g, hg', hf, ha'⟩
   · exact Or.inl hw
 
 end
 
 namespace Plain
 variable {Q : Plain F}
-
-/-- **The session's frames come from its peer:** every frame on session
-cid delivered to a from step k on says it comes from b. (The harness
-opens cid only between a and b; a node seals frames on a session only
-for its own connection.) -/
-def FromPeer (E : Q.Run) (a b : Fin Q.n) (cid : Id) (k : Nat) : Prop :=
-  ∀ m idx t p, k ≤ m → E.act m = .deliver idx t → (E.world m).flight[idx]? = some p → Q.setup.at? p.dst = some a →
-    p.bytes[0]? = some 1 →
-    (∃ bundle, (Codec.decode (p.bytes.extract 1 p.bytes.size) : Option (Id × ByteArray)) = some (cid, bundle)) →
-    p.origin = Q.addr b
 
 /-- An entry point at another node leaves node a as it was. -/
 theorem enter_other (w : World (Held F) Q.n) (i a : Fin Q.n) (t : Nat) (f : Node → HeldM F (Node × Effects))
@@ -695,8 +695,9 @@ and no step reopens cid at a. -/
 theorem step_waits (E : Q.Run) (k : Nat) (a b : Fin Q.n) (cid x : Id) (o : Op) (r : Id) (p : Nat)
     (hm : ((E.world k).node a).managed = []) (hw : ∀ c, ((E.world k).node a).conn? cid = some c → Waits x p c)
     (hg : ((E.world k).box a).db.ops x = some o) (hr : Q.fam.room o = some r) (hs : r ∈ Q.rooms a cid)
-    (hb : 0 < Q.cfg.burst) (hnc : ∀ j dl t, E.act k ≠ .connect a j cid dl t) (hfp : FromPeer E a b cid k)
-    (ha : ((E.world k).node a).addr? cid = some (Q.addr b)) (hcs : (((E.world k).node a).conn? cid).isSome = true) :
+    (hb : 0 < Q.cfg.burst) (hnc : ∀ j dl t, E.act k ≠ .connect a j cid dl t)
+    (ha : ((E.world k).node a).addr? cid = some (Q.addr b))
+    (ha' : ((E.world (k + 1)).node a).addr? cid = some (Q.addr b)) (hcs : (((E.world k).node a).conn? cid).isSome = true) :
     (∀ c', ((E.world (k + 1)).node a).conn? cid = some c' → Waits x p c') ∨
       ∃ sr g, o.bytes ∈ g ∧
         (⟨sr, some a, Q.addr a, Q.addr b, plainFrame cid g, (E.world (k + 1)).now⟩ : Packet Q.n) ∈
@@ -721,12 +722,14 @@ theorem step_waits (E : Q.Run) (k : Nat) (a b : Fin Q.n) (cid x : Id) (o : Op) (
         by_cases e : a = j
         · subst e
           rcases onFrame_waits (Q.two a) .a ((E.world k).node a) q.origin q.bytes t ((E.world k).box a) cid x o r p
-              hm hw hg hr hs hb with e1 | ⟨g, hg', hf, htag, hdec⟩
+              hm hw hg hr hs hb with e1 | ⟨g, hg', hf, hsa⟩
           · left; intro c' hc'
             rw [deliver_node _ idx t q a hp hj] at hc'
             exact e1 c' hc'
           · right
-            have hor : q.origin = Q.addr b := hfp k idx t q (Nat.le_refl _) hact hp hj htag hdec
+            have hor : q.origin = Q.addr b := by
+              rw [Exec.world_succ, hact, deliver_node _ idx t q a hp hj] at ha'
+              rw [hsa] at ha'; exact Option.some.inj ha'
             obtain ⟨sr, hsr⟩ := deliver_sends (E.world k) idx t q a hp hj _ _ hf
             rw [hor] at hsr
             exact ⟨sr, g, hg', by rw [deliver_now _ idx t q a hp hj]; exact hsr⟩
@@ -830,7 +833,7 @@ theorem drain (E : Q.Run) {N : Net Q.n} (hN : N.Admits E) {a b : Fin Q.n} {cid r
     (hJ : ∀ m, k ≤ m → (((E.world m).node a).conn? cid).isSome = true)
     (haddr : ∀ m, k ≤ m → ((E.world m).node a).addr? cid = some (Q.addr b))
     (hm : ∀ m, ((E.world m).node a).managed = [])
-    (hnc : ∀ m j dl t, k ≤ m → E.act m ≠ .connect a j cid dl t) (hfp : FromPeer E a b cid k)
+    (hnc : ∀ m j dl t, k ≤ m → E.act m ≠ .connect a j cid dl t)
     (hx : ∀ m, k ≤ m → ((E.world m).box a).db.ops x = some o) (hr : Q.fam.room o = some r)
     (hs : r ∈ Q.rooms a cid) (hb : 0 < Q.cfg.burst) (hgst : N.gst ≤ (E.world k).now) (hup : N.Up a (E.world k).now T) :
     ∀ (p : Nat), (∀ c, ((E.world k).node a).conn? cid = some c → Waits x p c) →
@@ -870,7 +873,7 @@ theorem drain (E : Q.Run) {N : Net Q.n} (hN : N.Admits E) {a b : Fin Q.n} {cid r
       rcases ihd (by omega) with hwd | ⟨m, sr, g, h1, h2, hg2, hf2⟩
       · rcases step_waits E (k' + d) a b cid x o r p (hm _) hwd (hx _ (by omega)) hr hs hb
             (fun j dl t => hnc _ j dl t (by omega))
-            (fun m idx t q hmq => hfp m idx t q (by omega)) (haddr _ (by omega)) (hJ _ (by omega)) with
+            (haddr _ (by omega)) (haddr _ (by omega)) (hJ _ (by omega)) with
           e | ⟨sr, g, hg2, hf2⟩
         · left; rw [show k' + (d + 1) = k' + d + 1 by omega]; exact e
         · exact Or.inr ⟨k' + d, sr, g, by omega, by omega, hg2, hf2⟩
@@ -910,8 +913,8 @@ theorem drain (E : Q.Run) {N : Net Q.n} (hN : N.Admits E) {a b : Fin Q.n} {cid r
 /-- **A link of the plain World, from step k until time T:** distinct
 addresses, an admitted network, the knows-graph edge both ways, session
 cid open at both ends with a's address for it being b's, both ends
-showing room r, no managed sessions, nobody reopening cid at a, the
-session's frames reaching a from b, gst passed, the edge live until T,
+showing room r, no managed sessions, nobody reopening cid at a, gst
+passed, the edge live until T,
 and a positive serve budget. a's queue for the session owes nothing
 outside it and holds at most `maxKnown` ids. -/
 structure Link (E : Q.Run) (N : Net Q.n) (a b : Fin Q.n) (cid r : Id) (k T : Nat) : Prop where
@@ -926,7 +929,6 @@ structure Link (E : Q.Run) (N : Net Q.n) (a b : Fin Q.n) (cid r : Id) (k T : Nat
   rooms_b : r ∈ Q.rooms b cid
   managed : ∀ m l, ((E.world m).node l).managed = []
   noreopen : ∀ m j dl t, k ≤ m → E.act m ≠ .connect a j cid dl t
-  frompeer : FromPeer E a b cid k
   gst : N.gst ≤ (E.world k).now
   live : N.Live a b (E.world k).now T
   burst : 0 < Q.cfg.burst
@@ -972,7 +974,7 @@ theorem want_delivers (E : Q.Run) {N : Net Q.n} {a b : Fin Q.n} {cid r x : Id} {
       (fun m hm => L.conn_b m (by omega) |> fun _ => by
         obtain ⟨c, hc, -⟩ := L.conn_a m (by omega); rw [hc]; rfl)
       (fun m hm => L.addr_a m (by omega)) (fun m => L.managed m a) (fun m j dl t hm => L.noreopen m j dl t (by omega))
-      (fun m idx t q hm => L.frompeer m idx t q (by omega)) (fun m hm => (hx m (by omega)).1) hr L.rooms_a L.burst
+      (fun m hm => (hx m (by omega)).1) hr L.rooms_a L.burst
       (Nat.le_trans hgst hk1t) (fun t h1 h2 => (hlive t (by omega) h2).1)
       (c1.owed.idxOf x) (fun c hc => by rw [hc1] at hc; cases hc; exact ⟨hxc1, Nat.le_refl _⟩) (by omega)
     have hmt : p.sent ≤ (E.world (m + 1)).now := Nat.le_trans hk1t (Exec.now_mono E (by omega))
