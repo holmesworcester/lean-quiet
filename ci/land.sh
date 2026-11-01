@@ -17,8 +17,19 @@
 # 3. The gate (ci/local.sh). A failure stops here, nothing pushed.
 # 4. Push HEAD to main, fast-forward only: LAND_PUSH (default
 #    `git push origin HEAD:main`; set it to push with your credentials).
+#    Then save the build for the next landing to start from.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+# The merge below may change this very file while bash reads it (bash reads
+# a script as it runs): run from a copy of it that nothing changes.
+if [ -z "${LAND_ROOT:-}" ]; then
+  LAND_ROOT=$(cd "$(dirname "$0")/.." && pwd)
+  export LAND_ROOT
+  copy=$(mktemp "${TMPDIR:-/mnt/storage/holmes-tmp}/land.XXXXXX")
+  cp "$0" "$copy"
+  exec bash "$copy" "$@"
+fi
+trap 'rm -f -- "$0"' EXIT
+cd "$LAND_ROOT"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
@@ -31,7 +42,18 @@ if ! flock -n 9; then
   flock 9
 fi
 echo "land: $(git rev-parse --short HEAD) holds the lock"
-git fetch -q origin
+# Fetch main alone, again on failure: the worktrees share one repository's
+# remote refs, and another worktree fetching at the same moment makes a
+# whole-remote fetch fail (holmes-71).
+fetch_main() {
+  local i
+  for i in 1 2 3 4 5; do
+    git fetch -q origin +refs/heads/main:refs/remotes/origin/main && return 0
+    sleep "$i"
+  done
+  echo "land: could not fetch main" >&2; return 1
+}
+fetch_main
 if ! git merge-base --is-ancestor origin/main HEAD; then
   if ! git merge --no-edit origin/main; then
     # README's generated lines (links, table rows) conflict on most merges:
@@ -48,6 +70,16 @@ if ! git merge-base --is-ancestor origin/main HEAD; then
     fi
   fi
 fi
+# Start from the build of main's last landing ($TMPDIR/lean-quiet-main-build,
+# saved below): Lake rebuilds by content hash, so only what this branch
+# changes is built again, not everything main moved since this tree last
+# built (a landing's merge rebuild took 50 minutes under load without it).
+# --update keeps this tree's own newer outputs.
+cache=$TMPDIR/lean-quiet-main-build
+if [ -d "$cache/build" ]; then
+  echo "land: starting from the build of main at $(cat "$cache/commit" 2>/dev/null)"
+  rsync -a --update "$cache/build/" .lake/build/
+fi
 ci/local.sh build
 # laws main's side ported since this branch began leave the model list
 # (it only shrinks; a new model law still fails the gate)
@@ -57,8 +89,12 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   git commit -qam "README links and vacuity inventory after merging main"
 fi
 ci/local.sh
-git fetch -q origin
+fetch_main
 git merge-base --is-ancestor origin/main HEAD ||
   { echo "land: main moved without the lock; run ci/land.sh again" >&2; exit 1; }
 bash -c "${LAND_PUSH:-git push origin HEAD:main}"
 echo "land: main is $(git rev-parse --short HEAD)"
+# the next landing starts from this build (still under the lock)
+mkdir -p "$cache"
+rsync -a --delete .lake/build/ "$cache/build/" && git rev-parse --short HEAD > "$cache/commit"
+echo "land: saved this build for the next landing"
