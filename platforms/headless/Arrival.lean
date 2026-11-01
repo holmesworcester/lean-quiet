@@ -28,7 +28,8 @@ def rowOf (x : Id) : M (Option RowSt) := do return (← get).rows[x]?
 
 /-- Step until row x's paint is current (or give up). -/
 def settle (x : Id) : M Unit := do
-  for _ in [0:400] do
+  -- returns as soon as the row has settled; the cap only catches a hang
+  for _ in [0:20000] do
     let _ ← step []
     match (← get).rows[x]? with
     | some r => if r.task.isNone && r.painted.1 == r.ver && r.shown.isSome then return
@@ -131,6 +132,12 @@ def main (args : List String) : IO UInt32 := do
     IO.println s!"picture box {bx.w}x{bx.h} px; the pill needs {2 * dm.arrival.inset + dm.arrival.height font} px of height, and of width {need "99%"} px with the percent alone, {need s!"99% of {Arrival.humanBytes len}"} px with the caption"
     -- deliver the chunks one at a time: the even indices, then the odd, descending
     let order := ((List.range n).filter (· % 2 == 0)).reverse ++ ((List.range n).filter (· % 2 == 1)).reverse
+    -- the preview decodes off the frame: wait for it before the first step
+    -- (holmes-15: at load 70-90 the first step found it not yet drawn)
+    let _ ← stepsUntil do
+      let some r ← rowOf x | return false
+      let some p := r.data.pics[0]? | return false
+      return (← image p bx.w bx.h).1.isSome
     let mut lits : Array Nat := #[]
     let mut stepsOk := true
     for kk in [0:n + 1] do

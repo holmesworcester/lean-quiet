@@ -8,9 +8,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 rounds=${1:-10}
-out=${2:-out/crash}
+# a directory of this run's own: two runs in one tree (say a gate beside a
+# run by hand) must not delete each other's databases mid-round
+mkdir -p "${2:-out/crash}"
+out=$(mktemp -d "${2:-out/crash}/run.XXXXXX")
 bin=${ENGINE_BIN:-.lake/build/bin}/crash
-mkdir -p "$out"
 mid=0
 for i in $(seq 1 "$rounds"); do
   db="$out/c$i.db"

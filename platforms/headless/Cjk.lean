@@ -1,14 +1,28 @@
 /-
 CJK Regular-instance glyphs against fontTools, locale routing, and the
-real bounded cache under overflow, eviction, reloads and concurrent paint.
+running glyph memo: kept, equal to the raster, emptied by `fresh`, kept
+per size across `atSize`, and under concurrent paint.
 -/
 import platforms.headless.Sim
-import engine.renderer.Ttf.Cache
 
 private def check (ok : Bool) (label : String) : IO Unit :=
   unless ok do throw (IO.userError label)
 
 private def numbers (s : String) : Array Nat := (s.splitOn " ").toArray.filterMap String.toNat?
+
+private def same : Option Ttf.Bitmap → Option Ttf.Bitmap → Bool
+  | none, none => true
+  | some a, some b =>
+    a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h &&
+    a.advance == b.advance && a.cell == b.cell && a.left == b.left &&
+    a.right == b.right && a.top == b.top && a.bottom == b.bottom && a.pixels == b.pixels
+  | _, _ => false
+
+/-- Whether two reads of a glyph with ink gave one object: a kept glyph is
+the same object at every read; a raster is a new one. -/
+private unsafe def kept : Option Ttf.Bitmap → Option Ttf.Bitmap → Bool
+  | some a, some b => a.pixels.size > 0 && ptrEq a.pixels b.pixels
+  | _, _ => false
 
 unsafe def main (args : List String) : IO Unit := do
   let dir := args.headD "out/cjk"
@@ -38,26 +52,42 @@ unsafe def main (args : List String) : IO Unit := do
     check ((font.glyph c.val).noto.map (·.face) == some i) s!"locale {c}"
   check ((font.glyph '龘'.val).noto.isNone && (font.bitmapGlyph? '龘'.val).isSome) "rare Han keeps Unifont"
   let some r := (font.glyph '中'.val).noto | throw (IO.userError "no Han")
-  let some b := font.noto.bitmap r | throw (IO.userError "no Han bitmap")
-  let mut cache := Ttf.Cache.empty
-  for i in [0:2200] do
-    cache := Ttf.Cache.put cache ⟨1,i,48,48⟩ b
-    check (decide (Ttf.Cache.Valid cache)) "cache budget"
-    check ((Ttf.Cache.get? cache ⟨1,i,48,48⟩).isSome) "insertion survives eviction"
-  check ((Ttf.Cache.get? cache ⟨1,0,48,48⟩).isNone) "oldest glyph evicted"
-  check ((Ttf.Cache.get? cache ⟨1,2199,48,48⟩).isSome) "newest glyph retained"
-  for (key,i) in cache.index.toList do
-    check ((cache.slots[i]?.getD none).any (·.key == key)) "index follows eviction"
-  let huge := { b with pixels := ⟨Array.replicate Ttf.Cache.budget 0⟩ }
-  check ((Ttf.Cache.get? (Ttf.Cache.put cache ⟨1,2200,48,48⟩ huge) ⟨1,2200,48,48⟩).isNone) "oversized glyph not retained"
-  Ttf.Memo.clear
+  check ((font.noto.bitmap r).isSome) "no Han bitmap"
+  -- Glyph numbers come through a ref, so no two reads are one expression.
+  let key ← IO.mkRef r.glyph
+  let read (s : Noto.Set) : IO (Option Ttf.Bitmap) := do
+    return s.bitmap { r with glyph := ← key.get }
   let requests := font.noto.chars.toList.filter (fun (_,r) => r.face ≥ 9)
-  for (_,r) in requests.take 1800 do
-    check ((font.noto.bitmap r).isSome) "runtime cache fill"
-  let (hits, misses, bytes, peak, count) ← Ttf.Memo.stats
-  check (bytes ≤ Ttf.Cache.budget && peak ≤ Ttf.Cache.budget && count ≤ Ttf.Cache.capacity && misses ≥ 1800) "runtime cache bounded and used"
-  -- A cache miss after eviction must reproduce the same glyph exactly.
-  check ((font.noto.bitmap r).map (·.pixels) == some b.pixels) "evicted glyph raster matches"
+  let mut reads := 0
+  for (_,q) in requests.take 1800 do
+    key.set q.glyph
+    let f := font.noto.faces[q.face]!
+    let a := f.bitmap (← key.get)
+    let b := f.bitmap (← key.get)
+    check (a.isSome && same a (f.uncached q.glyph)) "memo agrees with the raster"
+    if a.any (·.pixels.size > 0) then
+      check (kept a b) "second read is the kept glyph"
+      reads := reads + 1
+  check (reads > 1500) "the kept-glyph check is non-vacuous"
+  key.set r.glyph
+  let face := font.noto.faces[r.face]!
+  let u1 := face.uncached (← key.get)
+  let u2 := face.uncached (← key.get)
+  check (same u1 u2 && u1.any (·.pixels.size > 0) && !kept u1 u2)
+    "control: a raster is a new object each time"
+  -- `fresh` lets go of kept glyphs: the same bytes, new objects, kept again.
+  let before ← read font.noto
+  let fresh := font.fresh
+  let after ← read fresh.noto
+  check (same before after && !kept before after) "fresh empties the memo"
+  check (kept after (← read fresh.noto)) "fresh memo keeps again"
+  check (kept before (← read font.noto)) "the old font keeps its own"
+  -- A size the app never prepared keeps its glyphs across atSize calls.
+  let a ← read (font.atSize 23).noto
+  let b ← read (font.atSize 23).noto
+  check (a.isSome && kept a b) "atSize keeps an unprepared size"
+  check (same a ((font.atSize 23).noto.faces[r.face]!.uncached r.glyph)) "sized memo agrees"
+  check (!same a before) "sizes do not alias"
   let mut tasks := #[]
   for _ in [0:8] do
     tasks := tasks.push (← IO.asTask do
@@ -82,6 +112,6 @@ unsafe def main (args : List String) : IO Unit := do
       layout := layout ++ s!"{allNames[r.face]!} {r.glyph} {font.cell} {g.x+20} {20+i*90}\n"
   IO.FS.writeFile s!"{dir}/scripts.layout" layout
   writePpm s!"{dir}/scripts.ppm" 1500 bmp.rows
-  IO.println s!"CJK: {maps} mappings/metrics; {rasters} bitmaps; 2200 cache insertions; runtime hits {hits}, misses {misses}, bytes {bytes}, peak {peak}, entries {count}; 8 concurrent workers pass"
+  IO.println s!"CJK: {maps} mappings/metrics; {rasters} bitmaps; {reads} kept glyphs equal their raster; fresh and atSize memos pass; 8 concurrent workers pass"
   (← IO.getStdout).flush
   IO.Process.exit 0

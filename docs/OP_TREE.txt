@@ -221,11 +221,14 @@ app/
 │   ├── Commands.lean
 │   ├── Proofs.lean
 │   └── Family.lean
-├── nav/   (planned op)
-│   ├── Op.lean   (planned)
-│   ├── Validate.lean   (planned)
-│   ├── Proofs.lean   (planned)
-│   └── Tests.lean   (planned)
+├── nav/
+│   ├── Op.lean
+│   ├── Validate.lean
+│   ├── View.lean
+│   ├── Commands.lean
+│   ├── Proofs.lean
+│   ├── Tests.lean   (planned)
+│   └── Family.lean
 ├── settings/
 │   ├── appearance/
 │   │   ├── Op.lean
