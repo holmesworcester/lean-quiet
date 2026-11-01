@@ -43,14 +43,118 @@ builds, and the toolchain's own build.
 links xcb from the system, and its tests drive a real X server. On
 Ubuntu:
 
-- To build: `libxcb1-dev`, `libxcb-shm0-dev` and `libxcb-sync-dev` (the
-  window manager's `_NET_WM_SYNC_REQUEST` on resize).
+- To build: `libxcb1-dev`, `libxcb-shm0-dev`, `libxcb-sync-dev` (the
+  window manager's `_NET_WM_SYNC_REQUEST` on resize) and `libx11-dev`
+  (`shell.c` takes the cursor and key names from X11's headers).
 - For `linux:e2e`: `xvfb`, `xdotool`, ImageMagick's `import` and Python's
   PIL. `tests/app/run.sh` skips it, building the shell only, under
   `SKIP_X=1` (by default whatever `SKIP_TCP` is).
 - For `linux:links` (and `install.sh`): `xdg-utils` (`xdg-open`,
   `xdg-mime`), `desktop-file-utils` (`update-desktop-database`), `x11-utils`
   (`xprop`), `xvfb` and `xdotool`. `SKIP_X=1` skips it too.
+
+## make install and make run (Linux)
+
+The top-level `Makefile` is the hackathon's entry point: on a fresh
+clone, `make install && make run` builds the Linux desktop and opens it.
+It dispatches on `uname`: Linux runs `tools/make/linux.sh`; macOS runs
+`tools/make/macos.sh`, which says it is not yet supported; other systems
+say they are not supported.
+
+`make install`, in order (run again, it redoes nothing that is done):
+
+1. System packages: `gcc`, `libc6-dev`, `curl`, `ca-certificates`,
+   `python3` and the four X packages above. It lists the missing ones,
+   says it will install them, and runs `apt-get update` and
+   `apt-get install` (with `sudo` unless root). Without apt it names what
+   is missing and stops. The lakefile links xcb and libc from
+   `/usr/lib/x86_64-linux-gnu`, so only Debian-style x86-64 systems build.
+   `make check` lists what is missing and installs nothing.
+2. Lean: elan into `ELAN_HOME` (default `~/.elan`), by its official
+   script, then the toolchain `lean-toolchain` names. Rust: rustup's
+   stable toolchain into `CARGO_HOME` and `RUSTUP_HOME` (defaults
+   `~/.cargo`, `~/.rustup`), unless rustc 1.88 or newer (the newest
+   `rust-version` among the crypto's locked crates) is already on `PATH`.
+3. Assets (`tools/make/assets.sh`): one tarball of `assets/`, a GitHub
+   release asset named by `tools/make/assets.pin`. Its sha256 is checked
+   before it is opened, and each file against `tools/make/assets.sha256`
+   after. `LQ_ASSETS_URL` downloads it from elsewhere (`https://` or
+   `file://`). If it can't be had, `tools/fetch_assets.sh` builds the
+   assets from their sources instead; that needs pip, unzip, librsvg,
+   Cairo and the Noto fonts it pins (`fonts-noto-core` 20201225).
+4. `cargo fetch --locked` for the crypto's crates (the build itself runs
+   offline), then `platforms/linux/build.sh`.
+
+`make run` opens `.lake/build/bin/linux --demo` from the repository's
+top, with `QUIET_DB=out/make/demo.db`. A judge has no second device, so
+the demo seeds two communities on the first run, opens no sockets, and
+shows the same screen every time; what they type is kept in that
+database. `make online` runs the app with networking (the phone TCP
+runner) and its own `out/make/quiet.db`. `ARGS` passes more arguments
+to the app.
+
+`make verify` runs `tools/make/verify.sh`: `lake check` (builds the
+default targets, replays them through the kernel, and fails on any axiom
+outside the standard ones) and then `lake comparator` (the root
+`comparator.json`: each named theorem of the solution proves the
+challenge's statement with only the permitted axioms). It runs both and
+fails if either fails. Both need Lean 4.35 or newer and run the project in
+a bubblewrap sandbox (Linux; `bubblewrap`, with unprivileged user
+namespaces allowed). With an older `lean-toolchain`, or without
+`comparator.json` or `bwrap`, it stops before checking anything and says
+which.
+
+Updating the assets tarball: `tools/make/assets.py check` fails when a
+change to the tree makes the published tarball stale (the Noto and CJK
+hashes in `tools/*.sha256`, the glyph and UI font stamps, or the scripts
+that make `font.bin`, `emoji.bin` and the photos). Then rebuild `assets/`
+(`tools/fetch_assets.sh`), run `tools/make/assets.py pack`, which writes
+the tarball to `out/make/` and rewrites the pin and the list, publish the
+tarball under the pinned tag with `tools/make/publish_assets.sh`, and
+commit the pin and the list. The script never marks the release latest
+(the join page links `releases/latest/download/...`) and checks the
+sha256 of the tarball it downloads back. Then
+`CLEAN_ROOM_ASSETS=published mise run make:clean-room` tests what a judge
+downloads.
+
+Packing is deterministic: sorted names, time 0, owner 0, mode 0644, and
+no name or time in the gzip header, so the same `assets/` gives the same
+bytes with the same zlib.
+
+| Task | Validation |
+| --- | --- |
+| `make:assets-test` | The assets step on made-up tarballs (no network): download, sha256 and per-file checks, repair, deterministic packing. Controls: a flipped bit, files that don't match the list, plain http, an unreachable URL, a stale pin and changed asset scripts must each fail |
+| `make:verify-test` | `make verify` on this repository: while it builds with Lean below 4.35, refused with that reason. On a small Lean 4.35 project made by the test: passes; a solution proving a different statement, one resting on a new axiom, and a missing `comparator.json` must each fail |
+| `make:clean-room` | `make install && make run` from a git clone of `HEAD` in fresh `ubuntu:24.04`, `ubuntu:22.04` and `debian:12` containers, as a user with sudo: `make check` fails and names the packages; a timed cold `make install`; a second one that redoes nothing; under Xvfb, `make run` and then `make online` must each paint a window (a screenshot of the empty screen must fail that check), keep running, and stop on SIGTERM |
+
+The gate (`ci/local.sh`, before every push) runs `make:assets` (part
+`make:assets`, about 15 seconds): a change that makes the published tarball
+stale fails it until the tarball is packed and published again.
+`ci/local.sh --full` also runs `make:clean-room` and `make:verify-test`
+(part `make:verify`, which needs the Lean 4.35.0 toolchain and
+bubblewrap). The clean room needs Docker and network access, and
+about 10 GB under Docker's root per image while it runs; each container
+gets 8 CPUs and 24 GB without swap (`CLEAN_ROOM_CPUS`,
+`CLEAN_ROOM_MEMORY`). It packs the tarball from `assets/` here, fails
+unless that has the pinned sha256, and serves it to the container by
+`file://`; `CLEAN_ROOM_ASSETS=published` downloads the GitHub release
+instead. Logs, `result.txt` (timings, peak memory) and screenshots stay
+in `out/make/clean-room/<image>/`.
+
+Measured 2026-11-01 at f98f125, the three containers at once on the
+shared 32-core box (load around 70), 8 CPUs and 24 GB each:
+
+| Image | Cold `make install` | Its build step | Second install | First paint (run, online) | Peak memory |
+| --- | --- | --- | --- | --- | --- |
+| `ubuntu:24.04` | 10m 29s | 6m 25s | 8 s | 3 s, 3 s | 3.9 GB |
+| `ubuntu:22.04` | 10m 23s | 6m 29s | 13 s | 4 s, 3 s | 4.4 GB |
+| `debian:12` | 9m 13s | 7m 18s | 9 s | 4 s, 3 s | 4.7 GB |
+
+The rest of the cold install is apt (45 s to 1m 42s), elan, Lean and
+rustup (1m 09s to 2m 27s) and the assets (2 s from `file://`). An earlier
+run alone on `ubuntu:24.04` peaked at 6.2 GB. That run found the missing
+`libx11-dev`: the three xcb packages alone leave `shell.c` without
+`X11/cursorfont.h`.
 
 ## Checking it again
 

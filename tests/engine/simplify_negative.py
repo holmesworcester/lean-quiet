@@ -1,15 +1,18 @@
-"""Mutate actual handlers in a scratch snapshot; require failure and restoration."""
+"""Mutate actual handlers, each mutant in a copy of its own of a scratch
+snapshot (tests/mutants.py); require each to fail."""
 import pathlib
 import subprocess
 import sys
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import mutants
 
 root, logs = map(pathlib.Path, sys.argv[1:])
 logs.mkdir(parents=True, exist_ok=True)
 
 
-def run(args, name):
+def run(args, name, cwd=root):
     with (logs / (name + ".log")).open("w") as out:
-        return subprocess.run(args, cwd=root, stdout=out, stderr=subprocess.STDOUT, timeout=300).returncode
+        return subprocess.run(args, cwd=cwd, stdout=out, stderr=subprocess.STDOUT, timeout=600).returncode
 
 
 assert run(["lake", "build", "simplify", "live_rounds", "syncpair", "connection_check", "Sync", "Wire"], "baseline-build") == 0
@@ -52,27 +55,24 @@ cases = [
     ("closure-absent", "engine/sync/Conn.lean", "| none => c.walkN offer budget", "| none => c.walkN ((c.rooms.headD .empty, x) :: offer) budget", "engine.sync.SecrecyLaws", None),
     ("completion", "engine/sync/Conn.lean", "take := [o]", "take := []", "engine.wire.WorldLaws", None),
 ]
-for name, source, old, mutant, target, expected in cases:
-    path = root / source
+def control(case, work):
+    name, source, old, mutant, target, expected = case
+    path = work / source
     original = path.read_text()
     assert original.count(old) == 1, (name, "mutation target missing")
-    try:
-        path.write_text(original.replace(old, mutant))
-        code = run(["lake", "build", target], name + "-build")
-        if expected:
-            assert code == 0, (name, "runtime mutant must compile")
-            exe = "connection_check" if name == "given-persist" else ("live_rounds" if target == "live_rounds" else "simplify")
-            code = run([".lake/build/bin/" + exe], name)
-            result = (logs / (name + ".log")).read_text()
-        else:
-            result = (logs / (name + "-build.log")).read_text()
-            expected = "error:"
-        assert code != 0 and expected in result, (name, "survived or failed elsewhere")
-        print("refused:", name, flush=True)
-    finally:
-        path.write_text(original)
-    assert run(["lake", "build", target], name + "-restored") == 0, (name, "restoration")
-assert run(["lake", "build", "simplify", "live_rounds", "Sync", "Wire"], "restored-build") == 0
-assert run([".lake/build/bin/simplify"], "restored-run") == 0
-assert run([".lake/build/bin/live_rounds"], "restored-live-run") == 0
-print(f"simplify negative controls: {len(cases)} refused; restored suite passes")
+    path.write_text(original.replace(old, mutant))
+    code = run(["lake", "build", target], name + "-build", work)
+    if expected:
+        assert code == 0, (name, "runtime mutant must compile")
+        exe = "connection_check" if name == "given-persist" else ("live_rounds" if target == "live_rounds" else "simplify")
+        code = run([str(work / ".lake/build/bin" / exe)], name, work)
+        result = (logs / (name + ".log")).read_text()
+    else:
+        result = (logs / (name + "-build.log")).read_text()
+        expected = "error:"
+    assert code != 0 and expected in result, (name, "survived or failed elsewhere")
+    return "refused: " + name
+
+
+mutants.each(root, cases, control)
+print(f"simplify negative controls: {len(cases)} refused, each in its own copy")

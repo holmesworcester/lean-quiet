@@ -13,11 +13,11 @@ subprocess.run(['python3', str(ROOT / 'tools/plan.py'), '--out', str(DIST / 'pla
 shutil.copyfile(repo / 'docs/OP_TREE.txt', DIST / 'op-tree.txt')
 lean = os.environ.get('LEAN') or shutil.which('lean')
 if not lean:
-    candidate = Path('/mnt/storage/elan/toolchains/leanprover--lean4---v4.34.0/bin/lean')
+    candidate = Path('/mnt/storage/elan/toolchains/leanprover--lean4---v4.35.0/bin/lean')
     if candidate.exists(): lean = str(candidate)
-if not lean: raise SystemExit('Lean 4.34.0 is required; set LEAN or put lean on PATH.')
+if not lean: raise SystemExit('Lean 4.35.0 is required; set LEAN or put lean on PATH.')
 version = subprocess.check_output([lean, '--version'], text=True).strip()
-if '4.34.0' not in version: raise SystemExit(f'Expected Lean 4.34.0, got {version}')
+if '4.35.0' not in version: raise SystemExit(f'Expected Lean 4.35.0, got {version}')
 prefix = Path(subprocess.check_output([lean, '--print-prefix'], text=True).strip())
 include = BUILD / 'include' / 'lean'
 include.mkdir(parents=True, exist_ok=True)
