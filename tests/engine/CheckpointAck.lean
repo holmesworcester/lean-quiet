@@ -1,7 +1,7 @@
 /- Force the actual Writer.commitSave acknowledgement to overlap a reader.
 The callback commits a real lifecycle checkpoint first, then gates only its
 return. GDB pauses the actual saved-ref getter while commitSave publishes. -/
-import ops.app.Lifecycle
+import app.Screen
 
 open Engine Data
 

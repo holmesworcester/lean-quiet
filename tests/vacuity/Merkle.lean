@@ -1,7 +1,7 @@
-import ops.community.Merkle
+import engine.core.Merkle
 
 namespace Vacuity.Merkle
-open Community.Merkle
+open _root_.Merkle
 set_option maxRecDepth 4096
 set_option maxHeartbeats 1000000
 set_option linter.defProp false

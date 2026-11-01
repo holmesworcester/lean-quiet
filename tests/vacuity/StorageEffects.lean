@@ -1,4 +1,4 @@
-import ops.connection.CatalogEvolution
+import app.Proofs
 import tests.vacuity.ProductionBootstrap
 
 /- Synthetic Alice/Bob identities and messages; native signatures, Noise,

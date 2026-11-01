@@ -67,11 +67,11 @@ with tempfile.TemporaryDirectory(prefix="reserved-retry-", dir=os.environ["TMPDI
     scratch = Path(temp)
     subprocess.run(
         ["bash", "-c", '. tests/snapshot.sh; snapshot "$1" engine/core engine/wire '
-         'engine/renderer ops/sync ops/community ops/connection ops/app tests/engine',
+         'engine/renderer engine/sync app tests/engine',
          "reserved-snapshot", str(scratch)], cwd=ROOT, check=True)
     node = scratch / "engine/wire/Node.lean"
     tcp = scratch / "engine/wire/Tcp.lean"
-    conn = scratch / "ops/sync/Conn.lean"
+    conn = scratch / "engine/sync/Conn.lean"
     originals = {p: p.read_text() for p in (node, tcp, conn)}
 
     def restore():
@@ -104,9 +104,9 @@ with tempfile.TemporaryDirectory(prefix="reserved-retry-", dir=os.environ["TMPDI
 
     edit(conn, "(first.filter c.owing.contains).eraseDups.take 1",
          "(first.filter c.owing.contains).eraseDups")
-    build(scratch, "unbounded-hot", target="ops.sync.ServeLaws", succeeds=False)
+    build(scratch, "unbounded-hot", target="engine.sync.ServeLaws", succeeds=False)
     log = (OUT / "unbounded-hot-build.log").read_text()
-    assert "ops/sync/ServeLaws.lean:" in log and "error:" in log
+    assert "engine/sync/ServeLaws.lean:" in log and "error:" in log
     print("refused: unbounded-hot (unchanged hot-count proof)", flush=True)
     restore()
 

@@ -1,5 +1,4 @@
-import ops.connection.bootstrap.FairExecution
-import ops.connection.bootstrap.Bridge
+import app.community.Proofs
 import tests.engine.Lib
 
 /-! Five actual signature verifications and finite key/ID checks certify

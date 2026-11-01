@@ -1,5 +1,5 @@
 import tests.vacuity.IdentityConnection
-import ops.connection.EgressLaws
+import app.Proofs
 
 namespace Vacuity.IdentityLifecycle
 open Engine Codec Tests Connection Vacuity.Identity Vacuity.IdentityConnection

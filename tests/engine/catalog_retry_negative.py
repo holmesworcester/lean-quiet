@@ -27,7 +27,7 @@ with tempfile.TemporaryDirectory(prefix="catalog-retry-", dir=os.environ["TMPDIR
     scratch = Path(temp)
     subprocess.run(
         ["bash", "-c", '. tests/snapshot.sh; snapshot "$1" engine/core engine/wire '
-         'engine/renderer ops/sync ops/community ops/connection ops/app tests/engine',
+         'engine/renderer engine/sync app tests/engine',
          "catalog-snapshot", str(scratch)], cwd=ROOT, check=True)
     cases = [
         ("disabled-sweep", "engine/wire/Node.lean",

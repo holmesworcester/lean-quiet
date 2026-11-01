@@ -1,9 +1,9 @@
 /- Real worker/reader races with barriers, not timing-dependent sleeps.
 The pool executes the same queue, ticket and publication code as App. -/
+import app.community.channel.message.attachment.Screen
+import app.Screen
 import platforms.headless.Sim
 import tests.app.Presentation
-import ops.app.RowPaint
-import ops.app.ReaderLife
 import tests.engine.Checks
 
 open Engine Community Data Tests

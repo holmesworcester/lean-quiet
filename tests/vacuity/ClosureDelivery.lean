@@ -1,4 +1,4 @@
-import ops.sync.ClosureDelivery
+import engine.sync.ClosureDelivery
 import tests.vacuity.IdentityTrust
 
 /- Synthetic signed Alice/Bob community, not captured private user data.
@@ -98,7 +98,7 @@ def receiving (hd : Distinct before) : ReceiverRun sync := {
   node := fun n => (receiver n).1
   store := fun n => (receiver n).2
   input := incoming
-  next := fun _ => rfl
+  next := fun n => by simp only [receiver]
   initial := held_empty_reachable fam
   initialQueue := rfl
   distinct := fun n a ha b hb he =>
@@ -113,7 +113,7 @@ theorem convergence (hd : Distinct before)
     (available : ∀ o ∈ before, source.db.ops o.id = some o ∧ initial.shows fam o = true)
     (queued : ∀ o ∈ before, o.id ∈ initial.owed)
     (spec : Spec fam source.db.ops message.id (.valid messageFact)) : Result := by
-  obtain ⟨k, _, hk⟩ := closure_delivered service (receiving hd) before source.db.ops message.id
+  obtain ⟨k, _, hk⟩ := closure_delivered (x := sync) (cfg := cfg) service (receiving hd) before source.db.ops message.id
     (.valid messageFact) 0 spec
     (fun i o _ ho => reach_stored (runReach before) i o ho)
     room_recurs
@@ -121,7 +121,9 @@ theorem convergence (hd : Distinct before)
       have e : (sender j).rooms = initial.rooms := (sender_rooms j).trans (want_rooms base _).symm
       exact (shows_rooms fam e o).trans (available o ho).2⟩)
     (fun o ho => Or.inr ⟨0, Nat.le_refl _, queued o ho⟩)
-    (fun j _ o ho => ⟨j, Nat.le_refl _, List.mem_append_right _ ho⟩)
+    (fun j _ o ho => ⟨j, Nat.le_refl _, by
+      change o ∈ (service.emitted j).reverse ++ service.emitted j
+      exact List.mem_append_right _ ho⟩)
   exact ⟨k, hk⟩
 
 instance : Decidable (Distinct before) := by unfold Distinct; infer_instance

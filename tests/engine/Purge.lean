@@ -32,7 +32,7 @@ Purge on SQLite, against the model and on the file itself.
   make the walk outrun its bound: the purge aborts and changes nothing.
 -/
 import tests.engine.Lib
-import ops.app.Lifecycle
+import app.Screen
 
 open Engine Tests
 

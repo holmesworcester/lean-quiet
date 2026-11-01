@@ -3,7 +3,8 @@ use actual Connection hooks, signed membership, Noise/AEAD, SQLite, TCP reader,
 writer and Loop.turn/RunState.loopBackend. Pausing between turns is explicit;
 there is no claimed infinite execution theorem here. -/
 import tests.engine.Lib
-import ops.connection.All
+import app.connection.Proofs
+import app.Commands
 
 namespace JoinFair
 open Engine Engine.Sync Community Connection Tests

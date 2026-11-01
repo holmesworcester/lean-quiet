@@ -78,7 +78,7 @@ def links_suite():
     `open` launches this app with the link; a warm one reaches the running
     instance, which comes to the front, and starts no second process. A link
     in the scheme Community.Invite.text writes must open the join page with
-    exactly that invite; until ops/community/Link.lean writes leanquiet://, a
+    exactly that invite; until app/community/member/invite/Commands.lean writes leanquiet://, a
     leanquiet:// link must reach the app (its refusal toast)."""
     scheme=sp.check_output(['plutil','-extract','CFBundleURLTypes.0.CFBundleURLSchemes.0','raw',str(app/'Contents/Info.plist')],text=True).strip()
     check(scheme=='leanquiet','Info.plist claims leanquiet:// links')
@@ -120,7 +120,7 @@ def links_suite():
         until(lambda: running() and took(link(0),0),'cold open: the app takes the link')
         pids=running()
         check(len(pids)==1,'cold open: LaunchServices starts this build and it takes the leanquiet:// link'+
-              (' (join page)' if written.startswith('leanquiet') else ' (refusal toast until Link.lean writes leanquiet://)'))
+              (' (join page)' if written.startswith('leanquiet') else ' (refusal toast until the invite link (member/invite/Commands) writes leanquiet://)'))
         for n,flags in [(1,[]),(2,['-g'])]:
             native('away')
             check(int(native('front')) not in pids,'another app is in front before the warm open')

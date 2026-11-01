@@ -1,5 +1,5 @@
 import engine.renderer.WriteQueueLaws
-import ops.community.Compose
+import app.community.Commands
 
 namespace Vacuity.WriterFairness
 open Engine Data Engine.Sync.Inbox

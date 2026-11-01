@@ -76,7 +76,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="ingress-negative-", dir=os.environ["TMPDIR"]) as temp:
         scratch = Path(temp)
         subprocess.run(["bash", "-c", '. tests/snapshot.sh; snapshot "$1" engine/core engine/wire '
-                        'engine/renderer ops/sync ops/community ops/connection ops/app tests/engine',
+                        'engine/renderer engine/sync app tests/engine',
                         "ingress-snapshot", str(scratch)], cwd=ROOT, check=True)
 
         def build(name):

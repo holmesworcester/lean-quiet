@@ -53,12 +53,12 @@ WBEGIN = "<!-- wiring:begin -->"
 WEND = "<!-- wiring:end -->"
 # The areas of the per-area counts: the first module prefix a law's
 # module has.
-AREAS = [("engine.core", "Engine"), ("ops.sync", "Sync"), ("engine.world", "The n-node World"),
+AREAS = [("engine.core", "Engine"), ("engine.sync", "Sync"), ("engine.world", "The n-node World"),
          ("engine.wire.mdns", "mDNS"),
-         ("engine.wire", "Node and wire"), ("ops.connection.bootstrap", "Bootstrap"),
-         ("ops.connection", "Connections"), ("ops.community", "Community"),
+         ("engine.wire", "Node and wire"),
+         ("app.connection", "Connections"), ("app.community", "Community"),
          ("engine.renderer.qr", "QR codes"), ("engine.renderer.pic", "Pictures"),
-         ("engine.renderer", "Screen"), ("ops.app", "App"), ("App", "App"), ("AppLife", "App"), ("AppTypes", "App")]
+         ("engine.renderer", "Screen"), ("app.Screen", "App"), ("app.Proofs", "App"), ("app.Commands", "Node")]
 # What a 🟡 row says to name what is missing.
 WANTED = re.compile(r"wanted|not yet|not proven|not covered|todo", re.I)
 # The lead's count, and the share "nearly every" needs.

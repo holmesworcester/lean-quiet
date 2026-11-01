@@ -168,7 +168,7 @@ name (`roomsV`):
   session (`conn.given`);
 - otherwise nothing.
 
-**Giving a notice** (ops/sync/Notice.lean). `Hooks.rooms` gives the
+**Giving a notice** (engine/sync/Notice.lean). `Hooks.rooms` gives the
 connection its typed rooms, and `Node.refresh` carries them: the synced
 rooms as before, and the notices. A connection has its own `given`
 field and `Status.given`. `notify` gives each notice not given yet: it
@@ -338,8 +338,8 @@ Found on the way, in Conn (a3's):
 - **engine/wire/Tcp.lean**: the runner sends a step's frames, then
   closes the sockets of the sessions the step dropped, and a socket only
   once no session is left on it.
-- **ops/sync/Conn.lean**: `notices` and `given` fields, `Status.given`.
-  `filed` and `tick` are unchanged; ops/sync/Notice.lean holds `Room`,
+- **engine/sync/Conn.lean**: `notices` and `given` fields, `Status.given`.
+  `filed` and `tick` are unchanged; engine/sync/Notice.lean holds `Room`,
   `carry`, `closureOps`, `give`, `notify`, `filedGive`, `tickGive`. In
   ConnLaws, `filed_send`, `tick_send`, `recv_send` and `recv_take`
   stand, and OfferLaws' `have_shown` and `hold_reply_local` stand.
@@ -349,9 +349,9 @@ Found on the way, in Conn (a3's):
   notice code.
 - **tests/engine SyncPair, TcpPair, HardenLib**: `rooms` hooks give
   `.sync` rooms.
-- **ops/connection/RoomLaws.lean**: `rooms_trusted`, `rooms_cut` are
+- **app/Proofs.lean**: `rooms_trusted`, `rooms_cut` are
   restated over `sync c`; `rooms_model` over typed rooms.
-- **ops/community/Query.lean and Connect.lean**: `live` counts an admission
+- **app/community/Commands.lean and Proofs.lean**: `live` counts an admission
   only if its device is live, so `allowPeer` (now by key), `members` and
   `recipients` follow the rule. `connect_iff`, `refuse_nonmember`,
   `removal_cuts_off`, `connect_admitted`, `members_iff` and
@@ -360,8 +360,8 @@ Found on the way, in Conn (a3's):
 
 ## Laws
 
-In ops/sync/NoticeLaws.lean, ops/connection/RemovalLaws.lean,
-ops/community/RemovalLaws.lean and ops/community/Connect.lean, all over
+In engine/sync/NoticeLaws.lean, app/connection/Proofs.lean,
+app/community/Proofs.lean and app/community/Proofs.lean, all over
 the code that runs: Conn's steps on the model, the views, the
 validators and the intents. All are theorems in the axiom audit.
 
@@ -397,9 +397,9 @@ only read, each entry point changes the store only by write turns and
 purges. Every frame it sends is a bare op or a bundle sealed for one
 session, each payload an op a connection step sent at a store on the
 way, on the connection as `Node.refresh` gave it there. The family's
-hooks only read (`hooks_reads`, ops/connection/HooksRead.lean), and each
-step on held data answers as on the model (ops/sync/SimLaws.lean). So
-`removal_reaches_session` (ops/connection/EgressLaws.lean) gives the
+hooks only read (`hooks_reads`, app/Proofs.lean), and each
+step on held data answers as on the model (engine/sync/SimLaws.lean). So
+`removal_reaches_session` (app/Proofs.lean) gives the
 per-step law at that store: once a removal is stored, every later step
 reads it, and of c the session gets only sync messages and the notice.
 Its runtime witness runs Alice's whole tick on the actual removal

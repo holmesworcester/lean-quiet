@@ -1,4 +1,4 @@
-import ops.app.WriteAdmission
+import app.Screen
 
 namespace Vacuity.WriteAdmission
 open Engine App.WriteAdmission

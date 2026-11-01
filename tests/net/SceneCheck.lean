@@ -10,7 +10,7 @@ they cite is held. This also checks the scene's assumptions (`Good`)
 for real keys: distinct ids, distinct devices and node keys, and
 signatures that verify (else the ops would be Invalid).
 -/
-import ops.connection.bootstrap.Net
+import app.community.Proofs
 import tests.engine.Lib
 
 open Engine Community Net Tests

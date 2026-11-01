@@ -14,19 +14,19 @@ OUT = ROOT / 'out/ref-publications'
 OUT.mkdir(parents=True, exist_ok=True)
 CAP = ['systemd-run', '--user', '--scope', '-p', 'MemoryMax=48G', '-p', 'MemorySwapMax=0']
 CASES = [
-    ('checkpoint', 'checkpoint_ack', [], 'engine/renderer/Data.lean',
+    ('checkpoint', 'checkpoint_ack', [], 'app/Commands.lean',
      'w.saved.modify (fun _ => n)', 'w.saved.set n',
      'committed checkpoint remains acknowledged after the overlapping old read',
      'checkpoint-ack: actual SQLite checkpoint and completion survive SDK overlap; later checkpoint passes'),
-    ('resume', 'writer_resume', [], 'engine/renderer/Data.lean',
+    ('resume', 'writer_resume', [], 'app/Commands.lean',
      'w.paused.modify (fun _ => paused)', 'w.paused.set paused',
      'actual writer resumes and commits its queued valid op after the overlapping pause read',
      'writer-resume: actual writer commits valid queued ops after SDK overlap; deliberate pause remains effective'),
-    ('prune', 'prune_ack', [], 'engine/renderer/Data.lean',
+    ('prune', 'prune_ack', [], 'app/Commands.lean',
      'w.read.modify (fun _ => seq)', 'w.read.set seq',
      'actual prune step retains a concurrently published journal acknowledgement',
      'prune-ack: actual production prune step observes the published progress after SDK overlap'),
-    ('reader-seen', 'prune_ack', ['--reader'], 'ops/app/Reader.lean',
+    ('reader-seen', 'prune_ack', ['--reader'], 'app/Screen.lean',
      'sh.seen.modify (fun _ => top)', 'sh.seen.set top',
      'actual reader pass publishes journal progress despite the overlapping old read',
      'reader-seen: actual reader pass publication survives SDK overlap and idle pass; real journal is pruned'),
@@ -75,7 +75,7 @@ for case in CASES:
 with tempfile.TemporaryDirectory(prefix='ref-publications-', dir=os.environ['TMPDIR']) as temp:
     scratch = Path(temp)
     sp.run(['bash', '-c', '. tests/snapshot.sh; snapshot "$1" engine/core engine/wire '
-        'engine/renderer ops/sync ops/community ops/connection ops/app tests/engine',
+        'engine/renderer engine/sync app tests/engine',
         'publication-snapshot', str(scratch)], cwd=ROOT, check=True)
     for case in CASES:
         name, target, _, source, old, new, _, _ = case

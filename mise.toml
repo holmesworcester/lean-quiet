@@ -111,6 +111,10 @@ run = "tests/net/check.sh"
 description = "The README's theorem links, and its laws not yet about running code (tests/Wiring.lean), match the code (ci/proof-links.py; needs the tree built)"
 run = "python3 ci/proof-links.py --check"
 
+[tasks."layout:check"]
+description = "The op tree's layout (ci/layout.py): eight file names under app/, an op is a folder with its validator, each family registers its ops, imports go down the tree (or to cited op types), and the engine imports no app module; then its negative controls"
+run = "python3 ci/layout.py --self-test"
+
 [tasks."reorg:test"]
 description = "The reorg's import rewriter (ci/reorg-imports.py) on a copy of every Lean file of f1bfd62: each gets its new path's imports"
 run = "python3 ci/reorg-imports.py --self-test"
@@ -423,7 +427,7 @@ run = "tests/app/appearance.sh live"
 
 [tasks."host:theme-negative"]
 description = "Reject faults in appearance persistence, contrast and cache invalidation"
-run = "lake build appearance engine.renderer.ThemeLaws && python3 tests/app/theme-negative.py && python3 tests/app/theme-paint-negative.py"
+run = "lake build appearance app.Proofs && python3 tests/app/theme-negative.py && python3 tests/app/theme-paint-negative.py"
 
 [tasks."linux:demo-video"]
 description = "Record the real Linux app resizing from desktop to mobile and changing appearance (Xvfb, xdotool, ImageMagick, ffmpeg)"
@@ -561,6 +565,50 @@ run = "platforms/windows/ship.sh e2e"
 [tasks."windows:run"]
 description = "Build, install a desktop shortcut and launch Lean Quiet in Windows"
 run = "platforms/windows/ship.sh run"
+
+# The development workspace (tools/workspace): the op tree on disk with its
+# planned entries, live component previews, and Lean compiled to WASM.
+[tasks."workspace:setup"]
+description = "Install the workspace's locked npm dependencies"
+run = "npm ci --prefix tools/workspace"
+
+[tasks."workspace:layout"]
+description = "Regenerate docs/OP_TREE.txt: the op tree on disk under app/, with the planned entries of tools/workspace/layout/tree.json and LAYOUT02"
+run = "python3 tools/workspace/tools/plan.py --write-tree docs/OP_TREE.txt"
+
+[tasks."workspace:build"]
+description = "Read the op tree on disk (rejects a stale docs/OP_TREE.txt), check the kernel's Lean proofs, compile it to WASM, and bundle the page"
+depends = ["workspace:setup"]
+run = "python3 tools/workspace/tools/build.py"
+
+[tasks."workspace:test"]
+description = "The tree is the files on disk under app/, each once with its contents, and every planned entry is absent and required; WASM matches native Lean"
+depends = ["workspace:build"]
+run = "npm test --prefix tools/workspace"
+
+[tasks."workspace:browser-setup"]
+description = "Install Playwright's Chromium unless PLAYWRIGHT_CHROMIUM_EXECUTABLE or CHROME names one"
+depends = ["workspace:setup"]
+run = "if [ -z \"${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-${CHROME:-}}\" ]; then cd tools/workspace && npx playwright install chromium; fi"
+
+[tasks."workspace:e2e"]
+description = "Every folder and file of the tree opens to its real contents; links, shared preview state, network delivery and phone layout in headless Chromium"
+depends = ["workspace:test", "workspace:browser-setup"]
+run = "cd tools/workspace && PLAYWRIGHT_CHROMIUM_EXECUTABLE=${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-${CHROME:-}} WORKSPACE_PORT=${WORKSPACE_PORT:-4175} npx playwright test"
+
+[tasks."workspace:runtime"]
+description = "Provision the optional browser Lean runtime with pinned checksums (~310 MiB)"
+run = "python3 tools/workspace/tools/runtime.py"
+
+[tasks."workspace:prover"]
+description = "Real in-browser proof acceptance and rejection (needs workspace:runtime)"
+depends = ["workspace:build", "workspace:browser-setup", "workspace:runtime"]
+run = "cd tools/workspace && PLAYWRIGHT_CHROMIUM_EXECUTABLE=${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-${CHROME:-}} QUIET_TEST_PROVER=1 npx playwright test tests/browser/prover.spec.js"
+
+[tasks."workspace:serve"]
+description = "Build and serve the workspace on 127.0.0.1:4173 with browser isolation headers"
+depends = ["workspace:build"]
+run = "python3 tools/workspace/tools/serve.py"
 
 [tasks."host:desktop-presentation"]
 description = "Build the actual desktop publication step; delay/reject native completion through real composer/SQLite frames, then reject nine compiled controls"

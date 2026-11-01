@@ -1,7 +1,7 @@
 /- The actual app reader cancellation helper under a forced SDK Ref.get
 interleaving. The unused done task avoids introducing a second reader loop;
 GDB pauses this program's actual getter while requestStop tries to publish. -/
-import ops.app.ReaderLife
+import app.Screen
 
 @[extern "lq_stop_probe_arm_ref"] opaque armRef (ref : @& IO.Ref Bool) : IO Unit
 @[extern "lq_stop_probe_wait"] opaque waitRelease : IO Unit

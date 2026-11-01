@@ -2,7 +2,7 @@
 SQLite test transfers through the connection's filed advertisements and
 authorized want handler. No separate model of what may leave a node.
 -/
-import ops.sync.Conn
+import engine.sync.Conn
 import engine.core.Sqlite
 
 namespace Tests

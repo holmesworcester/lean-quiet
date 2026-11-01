@@ -2,7 +2,7 @@
 are seeded as already-decided rows to isolate the read path; signature,
 admission, and removal validation are covered by the community suites.
 The cache case runs Reader.pass and real filing triggers across commits. -/
-import ops.app.Reader
+import app.Screen
 import tests.engine.Checks
 
 open Engine Community Data Tests

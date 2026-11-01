@@ -57,7 +57,7 @@ apart, at the end: there the law came second.
 ### A replayed handshake retired a live session (found 2026-10-28; fix not on main)
 
 - **Bug.** Replaying a request whose session had been closed and purged
-  makes its responder answer afresh. `kept` (ops/connection/Intents.lean)
+  makes its responder answer afresh. `kept` (app/connection/Commands.lean)
   keeps one session per peer, the newest, so the replay retires the
   live session for one no other node holds. So anyone who recorded an
   earlier handshake on the network could retire a live session.
@@ -73,7 +73,7 @@ apart, at the end: there the law came second.
 ### A crash kept a session's keys in the store for good (found 2026-10-31)
 
 - **Bug.** `onFrame` stores a dialer's connection, then its arrival
-  record, in two writes. `retired` (ops/connection/Intents.lean) read
+  record, in two writes. `retired` (app/Commands.lean) read
   the sessions through `allSessions`, which places a session by that
   arrival record. A dialer that crashed between the two writes booted
   holding a session that was neither open nor retired. Nothing ever

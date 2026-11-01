@@ -45,49 +45,53 @@ cases = [
          "published, publication raw serial.toUInt64, some (publication raw serial.toUInt64, 0)"),
     ], "FAIL: accepted asynchronous staging records one candidate without releasing an obligation"),
     ("presentation-ignores-native-shift", "component_demand", [
-        ("App.lean", "(result.completed.filter fun receipt => receipt.2 == 0).map Prod.fst", "result.completed.map Prod.fst"),
+        ("app/Screen.lean", "(result.completed.filter fun receipt => receipt.2 == 0).map Prod.fst", "result.completed.map Prod.fst"),
     ], "FAIL: a matching native completion shifted off the recorded viewport does not release"),
 
     ("presentation-blank-band", "component_demand", [
-        ("App.lean", "findPresentationBand s { r with data := flight.data, lay := flight.lay }",
+        ("app/Screen.lean", "findPresentationBand s { r with data := flight.data, lay := flight.lay }",
          "some (flight.lay.textY, max 1 s.dim.lineH)"),
     ], "FAIL: a tall inkless prefix is skipped and actual committed glyph pixels become visible"),
     ("presentation-admits-inkless", "component_demand", [
-        ("App.lean", "if s.chips.isEmpty && !composerHasInk s t then", "if false then"),
+        ("app/Screen.lean", "if s.chips.isEmpty && !composerHasInk s t then", "if false then"),
     ], "FAIL: a wholly inkless composer draft is refused before outbox or presentation admission"),
     ("presentation-no-root-pin", "net_join", [
-        ("App.lean", "    modify fun s => { s with anchor := some e.root }", "    modify fun s => { s with anchor := none }"),
+        ("app/Screen.lean", "    modify fun s => { s with anchor := some e.root }", "    modify fun s => { s with anchor := none }"),
         ("platforms/headless/NetJoin.lean", "UiFair.run a8 b5 sb\n", "UiFair.run a8 b5 sb (evict := true)\n"),
     ], "FAIL: write 0 painted as committed within 64 app frames"),
     ("presentation-not-visible", "component_demand", [
-        ("App.lean", "if visible && committed && drawn then", "if committed then"),
+        ("app/Screen.lean", "if visible && committed && drawn then", "if committed then"),
     ], "FAIL: a real native frame containing blank pixels does not acknowledge the message"),
     ("presentation-rejected", "component_demand", [
-        ("App.lean", "if published && s.page == .chat && s.sheet.isNone then", "if s.page == .chat && s.sheet.isNone then"),
+        ("app/Screen.lean", "let published := result.accepted", "let published := true"),
     ], "FAIL: a native rejected publication cannot acknowledge otherwise visible body pixels"),
+    ("presentation-receipt-needs-new-frame", "component_demand", [
+        ("app/Screen.lean", "if s.page == .chat && s.sheet.isNone then\n    if let some e := s.ownSends.head then",
+         "if published && s.page == .chat && s.sheet.isNone then\n    if let some e := s.ownSends.head then"),
+    ], "FAIL: a refused new publication consumes the exact prior native completion in one presentation step"),
     ("presentation-loses-ancestors", "component_demand", [
-        ("App.lean", "Reader.judgeWrite s.rd s.out w", "Reader.judgeWrite s.rd #[] w"),
+        ("app/Screen.lean", "Reader.judgeWrite s.rd s.out w", "Reader.judgeWrite s.rd #[] w"),
     ], "FAIL: eight sequential signed sends enter a bounded FIFO while their first ancestor is uncommitted"),
     ("presentation-replaces-full", "component_demand", [
-        ("App.lean", "if present && s.ownSends.entries.length ≥ Presentation.capacity then return ← presentationRefusal", "if present && s.ownSends.entries.length ≥ Presentation.capacity then modify fun s => { s with ownSends := s.ownSends.pop }"),
-        ("App.lean", "let mut ownSends := s.ownSends", "let mut ownSends := (← get).ownSends"),
-        ("App.lean", "if ownSends.entries.length == s.ownSends.entries.length then return ← presentationRefusal", "if false then return ← presentationRefusal"),
+        ("app/Screen.lean", "if present && s.ownSends.entries.length ≥ Presentation.capacity then return ← presentationRefusal", "if present && s.ownSends.entries.length ≥ Presentation.capacity then modify fun s => { s with ownSends := s.ownSends.pop }"),
+        ("app/Screen.lean", "let mut ownSends := s.ownSends", "let mut ownSends := (← get).ownSends"),
+        ("app/Screen.lean", "if ownSends.entries.length == s.ownSends.entries.length then return ← presentationRefusal", "if false then return ← presentationRefusal"),
     ], "FAIL: full presentation capacity refuses the ninth send without replacing an obligation or draft"),
 
     ("frame-pauses-worker", "component_demand", [
-        ("App.lean", "  stepCore evs\n", "  (← get).raster.pause true\n  try stepCore evs finally (← get).raster.pause false\n"),
+        ("app/Screen.lean", "  stepCore evs\n", "  (← get).raster.pause true\n  try stepCore evs finally (← get).raster.pause false\n"),
     ], "FAIL: actual App.step permits retained raster progress during frame assembly"),
     ("replace-first-paint", "component_demand", [
-        ("ops/app/RowPaint.lean", "(first || old.version == version)", "old.version == version"),
+        ("app/community/channel/message/attachment/Screen.lean", "(first || old.version == version)", "old.version == version"),
     ], "FAIL: reaction churn preserves the original admitted ticket and queue position"),
     ("adopt-churning-layout", "component_demand", [
-        ("App.lean", "if d != r.data && !deferRowPaint s x r d then", "if d != r.data then"),
+        ("app/Screen.lean", "if d != r.data && !deferRowPaint s x r d then", "if d != r.data then"),
     ], "FAIL: alternating reaction-row geometry cannot replace the committed snapshot"),
     ("optimistic-counts-as-committed", "component_demand", [
-        ("App.lean", "r.shownCommitted || (value.isSome && !flight.data.pending)", "r.shownCommitted || value.isSome"),
+        ("app/Screen.lean", "r.shownCommitted || (value.isSome && !flight.data.pending)", "r.shownCommitted || value.isSome"),
     ], "FAIL: real paused writer produces an already shown optimistic bitmap"),
     ("missed-remount", "component_demand", [
-        ("ops/app/Reader.lean", "!s.wantSet.contains w || (board.get? w).isNone", "!s.wantSet.contains w"),
+        ("app/Screen.lean", "!s.wantSet.contains w || (board.get? w).isNone", "!s.wantSet.contains w"),
     ], "FAIL: unmount and remount between passes refills the revoked board answer"),
     ("obsolete-work", "component_demand", [
         ("engine/renderer/Work.lean", "jobs := s.jobs.filter (fun j => plan.current j.ticket)", "jobs := s.jobs"),
@@ -97,13 +101,13 @@ cases = [
         ("engine/renderer/Work.lean", "Demand.next (fun t => s.plan.visible t.key)", "Demand.next (fun _ => false)"),
     ], "FAIL: visible work runs before earlier prefetch"),
     ("reader-continues", "component_demand", [
-        ("ops/app/Reader.lean", "if !(← s.enabled) then return default", "if false then return default"),
+        ("app/Screen.lean", "if !(← s.enabled) then return default", "if false then return default"),
     ], "FAIL: superseded reader stops at the next query boundary"),
     ("child-never-unmounts", "op_components", [
-        ("App.lean", "if Raster.near childBottom bx.h offset viewport imageOver then", "if true then"),
+        ("app/Screen.lean", "if Raster.near childBottom bx.h offset viewport imageOver then", "if true then"),
     ], "FAIL: offscreen attachment children release every chunk query"),
     ("pending-outside-window", "op_components", [
-        ("engine/renderer/Data.lean", "let pending := mine.filter (fun p => rows.any (·.1.2 == p.op.id))", "let pending := mine"),
+        ("app/Commands.lean", "let pending := mine.filter (fun p => rows.any (·.1.2 == p.op.id))", "let pending := mine"),
     ], "FAIL: an out-of-window pending row cannot change a bounded answer's pending flags"),
 
 ]
@@ -115,7 +119,7 @@ if sys.argv[1:]:
 
 with tempfile.TemporaryDirectory(prefix="demand-negative-", dir=os.environ["TMPDIR"]) as tmp:
     base, work = Path(tmp) / "base", Path(tmp) / "work"
-    snapshot = run(["bash", "-c", '. tests/snapshot.sh\nsnapshot "$1" engine/core engine/wire engine/renderer ops platforms/headless tests/app tests/engine App.lean AppTypes.lean AppLife.lean Quiet.lean assets', "snapshot", str(base)], ROOT, "snapshot")
+    snapshot = run(["bash", "-c", '. tests/snapshot.sh\nsnapshot "$1" engine/core engine/wire engine/sync engine/renderer app platforms/headless tests/app tests/engine Quiet.lean assets', "snapshot", str(base)], ROOT, "snapshot")
     assert snapshot.returncode == 0, "snapshot failed"
     assert run(["lake", "build", "component_demand", "op_components", "net_join"], base, "baseline-build").returncode == 0, "baseline build failed"
     for exe in ["component_demand", "op_components", "net_join"]:

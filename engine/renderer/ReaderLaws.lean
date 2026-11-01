@@ -1,5 +1,5 @@
 /-
-The reader's pass as it runs (ops/app/Reader.lean, holmes-1e's): its
+The reader's pass as it runs (app/app/Reader.lean, holmes-1e's): its
 cache's stale reads, each held want's reads, its dirty wants, and the
 board. `RWorld` is the world of engine/renderer/BoardLaws.lean with the
 reader's own state in place of an abstract `touch`: a commit stales the

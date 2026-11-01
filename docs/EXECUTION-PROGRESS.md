@@ -15,6 +15,14 @@ service theorem counts completed turns. It does not prove that an arbitrary
 SQLite/native call completes, or that a separately scheduled display worker
 runs within a fixed number of networking turns.
 
+The UI target counts **each pipeline stage's completed steps**, as clarified
+by the user. Native timings in milliseconds and global app-frame counts are
+reported separately as measurements. A stage counter must include attempted
+selections that skip stale work; it cannot discard completed attempts to make
+a bound hold. Native waits need an explicit completion or cancellation contract,
+followed by a bound on consuming the result. No fixed wall-clock deadline is
+claimed by a completed-step theorem.
+
 ## Completed runtime connection
 
 [Loop.turn](../engine/wire/Loop.lean) is now the polling, dispatch and timer core
@@ -36,22 +44,22 @@ remain after every completed turn. Native branch/order checks and the old
 write-starvation and deferred-dial controls run in `test:join-fair`; an
 always-network-first mutation must also fail the unchanged loop laws.
 
-[StorageEffects](../ops/connection/StorageEffects.lean) proves that every
+[StorageEffects](../app/Proofs.lean) proves that every
 actual `Node.step`, with production hooks and advancing entropy, preserves
 shared bytes, reachability and settlement. This includes reaction writes and
 both courier and session purges. The native storage fixture has 24 checks.
-The [stronger drain law](../ops/sync/StoreEvolution.lean) no longer needs
+The [stronger drain law](../engine/sync/StoreEvolution.lean) no longer needs
 collision-free history to prove termination; its budget still grows with
 history, so it is not a fixed per-turn bound.
 
-[WriteAdmission](../ops/app/WriteAdmission.lean), called by `App.writeAll`,
+[WriteAdmission](../app/Screen.lean) (`App.WriteAdmission`), called by `App.writeAll`,
 limits new admitted pending work to 8,192 ops and 128 MiB and requires each op
 to fit the standard encrypted frame alone. Refusal precedes optimistic
 display and queueing, preserves Send's draft and reports a reason. Three
 kernel bounds, ten real-app/SQLite checks and three mutation controls cover
 this path. Other submission/recovery paths remain in the capacity audit.
 
-[WriteProgress](../ops/connection/WriteProgress.lean) proves that the complete
+[WriteProgress](../app/Proofs.lean) proves that the complete
 local-write handler commits compatible shared input bytes before returning,
 including all subsequent reactions and purges. This is an exact readable
 store result, with same-ID representation compatibility stated explicitly;
@@ -75,15 +83,15 @@ composer FIFO below addresses that eviction. Finite completed frame work remains
 a boundary: reaction collection/layout is not capped against unbounded distinct
 emojis.
 
-[Sweep](../ops/sync/Sweep.lean) adds one indexed catalog read per session tick,
+[Sweep](../engine/sync/Sweep.lean) adds one indexed catalog read per session tick,
 with a fixed high-water mark during each pass. Its cursor persists under an
 authenticated peer key, so replacing a session does not restart progress.
-[SweepLaws](../ops/sync/SweepLaws.lean) proves repeated emission of a retained,
+[SweepLaws](../engine/sync/SweepLaws.lean) proves repeated emission of a retained,
 authorized, fitting row under recurring output reservation, despite arbitrary
 later inserts and intervening zero-room stalls. `Sweep.FairLoss` names the
 external semantic-payload delivery contract; fresh encryption nonces need
-not reproduce identical ciphertext. [SweepRun](../ops/sync/SweepRun.lean)
-exposes the exact runtime cursor inputs. [CatalogEvolution](../ops/connection/CatalogEvolution.lean)
+not reproduce identical ciphertext. [SweepRun](../engine/sync/SweepRun.lean)
+exposes the exact runtime cursor inputs. [CatalogEvolution](../app/Proofs.lean)
 derives stable Held catalog positions through every actual handler and
 arbitrary execution suffix, including local-secret purge.
 
@@ -118,7 +126,7 @@ all reader lifetimes, or Windows cancellation.
 | Bounded iteration work | Store draining and connection hooks can traverse history. App/Reader journal reads and action batches run before the reader budget check; a query is nonpreemptive. Reaction layout traverses all reactions, and pending-write cleanup reads every pending op each frame. |
 | Bounded memory | The sync index, snapshots, retired-session routing/tombstone history and some app recovery queues grow with history. Android native event/touch arrays still grow by reallocation. |
 | Fair-loss progress | Reserved output survives ordinary/hot pressure. The projection from real encrypted attempts and session teardown to semantic delivery is unproved; distinct sessions also need fair retry admission. The earlier closed-socket delay example was not a demonstrated TCP execution and is corrected in [RETRY-RESERVATION.md](RETRY-RESERVATION.md). |
-| Write-to-display bound | A bounded composer FIFO pins root/child positions against newer posts and uses exact native completion identity on Android/iOS. Desktop now acknowledges the actual composed native publication. Full composition, reaction/layout work, worker/callback delays and serial exhaustion prevent a universal bound. |
+| Write-to-display bound | The target is a bound in each stage's completed steps. A bounded composer FIFO pins root/child positions, and mobile/desktop receipts identify actual completion. Reader/raster service ranks, configured backlog-independent bounds, retained-paint invariants and their composition remain unproved. Native waits and exhaustion need explicit progress/failure outcomes; timings are reported separately. |
 | User-action outcomes | Joining can remain pending while approval is withheld. A permanently failing checkpoint retries before writer jobs indefinitely, and failed writes need explicit user-visible outcomes. Completion-or-failure requires cancellation/deadline policies and bounded service. |
 
 The current work addresses these in the running code. A successful finite

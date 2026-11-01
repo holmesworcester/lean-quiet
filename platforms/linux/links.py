@@ -10,7 +10,7 @@ menu entry in private HOME/XDG folders, on a private X display:
 Which link the app took is read from QUIET_STATE: `invite <text>` once it
 opens the join page, `toast <due> <text>` when it refuses the link. A link in
 the scheme Community.Invite.text writes (read from a real invite) must open
-the join page with exactly that invite; until ops/community/Link.lean writes
+the join page with exactly that invite; until app/community/member/invite/Commands.lean writes
 leanquiet://, a leanquiet:// link must at least reach the app (its refusal
 toast). Every process started here is reaped; nothing outside out/ and a
 private runtime folder is written."""
@@ -233,7 +233,7 @@ try:
     a_win = window_of(shown, 'the instance maps its window')
     wait(lambda: took(a_state, link('leanquiet', 0), 0), 'cold start: the app takes the link in its arguments')
     check(True, 'cold start: the app takes the leanquiet:// link in its arguments' +
-          (' (join page)' if native.startswith('leanquiet') else ' (refusal toast until Link.lean writes leanquiet://)'))
+          (' (join page)' if native.startswith('leanquiet') else ' (refusal toast until the invite link (member/invite/Commands) writes leanquiet://)'))
     wm_class = sp.check_output(['xprop', '-id', a_win, 'WM_CLASS'], env=env, text=True).strip()
     check(wm_class == 'WM_CLASS(STRING) = "lean-quiet", "lean-quiet"' and 'StartupWMClass=lean-quiet' in entry,
           'the window\'s WM_CLASS matches the menu entry\'s StartupWMClass')
@@ -262,14 +262,14 @@ try:
         check(True, f'warm {how}: the instance asks the window manager to raise its window')
     check(not (OUT / 'browser-called').exists(), 'xdg-open never fell back to the browser')
     # The old scheme passes through the same socket untouched: the join page
-    # with exactly this invite while Link.lean still writes quiet://.
+    # with exactly this invite while the invite link still writes quiet://.
     url = link('quiet', 3)
     after = toast_due(a_state)
     p = sp.run([str(launcher), url], env=env, timeout=60)
     check(p.returncode == 0, 'warm: a quiet:// link is handed over too')
     wait(lambda: took(a_state, url, after), 'warm: the instance takes the quiet:// link')
     check(True, 'warm: the link text reaches Lean unchanged (' +
-          ('join page with this invite' if url.startswith(native) else 'refusal toast once Link.lean writes leanquiet://') + ')')
+          ('join page with this invite' if url.startswith(native) else 'refusal toast once the invite link writes leanquiet://') + ')')
     activations(); heard.clear()
     p = sp.run([str(launcher)], env=env, timeout=60)
     check(p.returncode == 0, 'a plain second launch exits 0')
