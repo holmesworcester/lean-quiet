@@ -1,6 +1,6 @@
 import tests.vacuity.IdentityTrust
 import ops.community.message.ViewLaws
-import ops.community.message.Order
+import ops.community.Community
 
 namespace Vacuity.IdentityMessages
 open Engine Community Codec Tests Kinds Vacuity.Identity Vacuity.IdentityTrust

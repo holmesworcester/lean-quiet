@@ -15,7 +15,7 @@ read in ViewLaws' model, where a list read is the engine's `eval`):
   "⚠ Duplicate" exactly then).
 -/
 import ops.community.message.ViewLaws
-import ops.community.Intents
+import ops.community.Community
 
 namespace ViewLaws
 open Engine Community Data Kinds

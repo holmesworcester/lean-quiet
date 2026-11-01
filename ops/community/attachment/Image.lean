@@ -2,7 +2,7 @@
 contain encoded chunk ops; opening and decoding run on the Work worker. -/
 import engine.renderer.Row
 import engine.renderer.Image
-import ops.community.Compose
+import ops.community.Community
 
 namespace FileImage
 open Engine

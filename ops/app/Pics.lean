@@ -36,7 +36,7 @@ is `start` run before the lookup. It costs a spawn in every steady world
 import engine.renderer.Row
 import engine.renderer.Image
 import engine.renderer.Arrival
-import ops.community.Compose
+import ops.community.Community
 import engine.core.Cost
 
 namespace Pics

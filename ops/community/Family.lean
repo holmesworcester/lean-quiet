@@ -1,3 +1,4 @@
+import engine.core.Order
 import ops.community.Op
 import ops.community.Validate
 import ops.community.channel.message.Op
@@ -1067,4 +1068,490 @@ def orderOf (o : Op) : Nat :=
 def family (C : Crypto) : Family Fact :=
   { validate := validate C, keys, scope := scopeOf, order := orderOf }
 
+end Community
+
+/-! ## What the family's laws and intents stand on: what Valid means, the
+root's facts, and helpers that name no op type -/
+
+namespace Community
+open Engine Codec
+
+theorem all2_two {α β} {R : α → β → Prop} {l : List α} {a b : β} (h : All2 R l [a, b]) :
+    ∃ x y, l = [x, y] ∧ R x a ∧ R y b := by
+  cases h with | cons h1 h2 => cases h2 with | cons h3 h4 => cases h4; exact ⟨_, _, rfl, h1, h3⟩
+
+theorem all2_cons2 {α β} {R : α → β → Prop} {l : List α} {a b : β} {rest : List β}
+    (h : All2 R l (a :: b :: rest)) :
+    ∃ x y t, l = x :: y :: t ∧ R x a ∧ R y b ∧ All2 R t rest := by
+  cases h with | cons h1 h2 => cases h2 with | cons h3 h4 => exact ⟨_, _, _, rfl, h1, h3, h4⟩
+
+theorem all2_four {α β} {R : α → β → Prop} {l : List α} {a b c d : β} (h : All2 R l [a, b, c, d]) :
+    ∃ x y z w, l = [x, y, z, w] ∧ R x a ∧ R y b ∧ R z c ∧ R w d := by
+  cases h with | cons h1 h2 => cases h2 with | cons h3 h4 => cases h4 with
+  | cons h5 h6 => cases h6 with | cons h7 h8 => cases h8; exact ⟨_, _, _, _, rfl, h1, h3, h5, h7⟩
+
+theorem all2_three {α β} {R : α → β → Prop} {l : List α} {a b c : β} (h : All2 R l [a, b, c]) :
+    ∃ x y z, l = [x, y, z] ∧ R x a ∧ R y b ∧ R z c := by
+  cases h with | cons h1 h2 => cases h2 with | cons h3 h4 => cases h4 with
+  | cons h5 h6 => cases h6; exact ⟨_, _, _, rfl, h1, h3, h5⟩
+
+theorem All2.comp {α β γ} {R : α → β → Prop} {S : β → γ → Prop} {l : List α} {m : List β}
+    {n : List γ} (h1 : All2 R l m) (h2 : All2 S m n) : All2 (fun a c => ∃ b, R a b ∧ S b c) l n := by
+  induction h1 generalizing n with
+  | nil => cases h2; exact .nil
+  | cons ha _ ih => cases h2 with | cons hb hr => exact .cons ⟨_, ha, hb⟩ (ih hr)
+end Community
+namespace Community
+open Engine Codec
+section
+variable (C : Crypto) (ops : Id → Option Op)
+
+/-- x is Valid with fact f. -/
+def V (x : Id) (f : Fact) : Prop := Spec (family C) ops x (.valid f)
+
+/-- Device d is admitted into user u of community c, with key e. -/
+def Admitted (c u : Id) (d e : Key) : Prop := ∃ x, V C ops x (.admission c u d e)
+end
+end Community
+namespace Community
+open Engine Codec
+variable {C : Crypto} {ops : Id → Option Op}
+
+theorem valid_inv {x : Id} {f : Fact} (h : V C ops x f) :
+    ∃ o b fs, ops x = some o ∧ (decode o.body : Option Body) = some b ∧
+      All2 (fun r g => V C ops r g) o.reqs fs ∧ check C o b fs = some f := by
+  obtain ⟨o, fs, hx, hr, hv⟩ := spec_valid_inv h
+  unfold family validate at hv; simp only at hv
+  cases hb : (decode o.body : Option Body) with
+  | none => rw [hb] at hv; simp at hv
+  | some b =>
+    rw [hb] at hv; simp only at hv
+    split at hv
+    · exact ⟨o, b, fs, hx, hb, hr, hv⟩
+    · cases hv
+
+/-- **A Valid op is the op its requirements and body make**: its type is
+its body's type and its body bytes are its body's encoding. So nobody
+makes a second op of a Valid fact by re-sending it under another type. -/
+theorem op_of_valid {x : Id} {f : Fact} (h : V C ops x f) :
+    ∃ o b, ops x = some o ∧ o = Op.make b.tag o.reqs (encode b) ∧
+      (decode o.body : Option Body) = some b := by
+  obtain ⟨o, fs, hx, _, hv⟩ := spec_valid_inv h
+  unfold family validate at hv; simp only at hv
+  cases hb : (decode o.body : Option Body) with
+  | none => rw [hb] at hv; simp at hv
+  | some b =>
+    rw [hb] at hv; simp only at hv
+    split at hv
+    · rename_i hkd
+      exact ⟨o, b, hx, Op.ext' hkd rfl (Codec.encode_decode hb).symm, hb⟩
+    · cases hv
+
+/-- What a device key has signed. -/
+def Unforgeable (C : Crypto) (Signed : Key → ByteArray → Prop) : Prop :=
+  ∀ pk m s, C.verify pk m s = true → Signed pk m
+
+/-- Ops are stored under their own ids (Engine.Inv.key). -/
+def Keyed (ops : Id → Option Op) : Prop := ∀ x o, ops x = some o → o.id = x
+
+/-- **Removal does not rewrite history.** Every Valid fact stays Valid
+as ops arrive, removals included: a removed user's messages, admissions
+and attributions remain. -/
+theorem valid_stays {ops' : Id → Option Op} (he : Extends ops ops') {x : Id} {f : Fact}
+    (h : V C ops x f) : V C ops' x f := spec_extends he h
+
+/-- The facts only a device's own local ops produce. -/
+
+theorem check_local {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
+    (h : check C o b fs = some f) (hl : f.isLocal = true) : b.isLocal = true := by
+  unfold check at h
+  split at h <;> (try (simp at h; done)) <;> first
+    | rfl
+    | (obtain ⟨f', -, rfl⟩ := Option.map_eq_some_iff.1 h; simp [Fact.isLocal] at hl)
+
+/-- **A device's own state is its own.** In a node fed by its own writes
+and by peers' jobs through `intake`, every op behind a Valid secret,
+acceptance or pending join is one of its own writes. -/
+theorem local_fact_mine {M : List Op} {s : DB Fact} (hf : Fed (family C) M s) {x : Id} {f : Fact}
+    (hv : V C s.ops x f) (hl : f.isLocal = true) : ∃ o ∈ M, s.ops x = some o := by
+  obtain ⟨o, b, fs, hx, hb, _, hc⟩ := valid_inv hv
+  refine ⟨o, stored_local hf hx ?_, hx⟩
+  show (family C).room o = none
+  simp [Family.room, family, scopeOf, hb, check_local hc hl]
+end Community
+namespace Community
+open Engine
+
+/-- What an intent writes: ops. Everything is ops, file bytes included
+(an attachment's chunks). -/
+structure Write where
+  ops : List Op
+end Community
+namespace Community
+open Engine Codec
+
+/-- The op with these requirements and body, named by its bytes' hash. -/
+def mkOp (reqs : List Id) (b : Body) : Op := Op.make b.tag reqs (encode b)
+
+/-- A device: its Ed25519 signing key pair. Its X25519 key is its
+node's (`endpoint`), named in the root or request that admits it. -/
+structure Device where
+  pk : Key
+  sk : ByteArray
+  deriving Inhabited
+
+@[extern "le_ed25519_keypair"] opaque edKeypair (seed : @& ByteArray) : ByteArray
+
+/-- A device from a 32-byte seed (tests derive seeds from names). -/
+def Device.ofSeed (seed : ByteArray) : Device :=
+  let kp := edKeypair seed
+  ⟨kp.extract 0 32, kp.extract 32 96⟩
+
+@[extern "le_ed25519_sign"] opaque edSign (sk msg : @& ByteArray) : ByteArray
+
+/-- What a signer signs for an op with these requirements and body. -/
+def toSign (reqs : List Id) (b : Body) : ByteArray :=
+  encode ("quiet/attest/v1".toUTF8, reqs, b.unsigned)
+
+def sig (sk : ByteArray) (reqs : List Id) (b : Body) : ByteArray := edSign sk (toSign reqs b)
+
+structure Invite where
+  community : Id
+  invitation : Id
+  inviter : Key
+  hints : List ByteArray
+  secret : ByteArray
+  deriving DecidableEq, Inhabited
+
+/-- The invitation's bearer key pair, from the link's seed. -/
+def Invite.bearer (i : Invite) : Device := Device.ofSeed i.secret
+end Community
+namespace Community
+open Engine
+
+/-- Byte order on ids. -/
+def idLt (a b : Id) : Bool := decide (a.toList < b.toList)
+
+/-- The better of two held acceptances: the admitted one, else the least
+acceptance id. -/
+def better (a b : Key × Id × Bool) : Key × Id × Bool :=
+  if (a.2.2 && !b.2.2) || (a.2.2 == b.2.2 && idLt a.2.1 b.2.1) then a else b
+end Community
+namespace Community
+open Engine Codec
+
+/-- What a file's attachment says of it, sealed under the content key. -/
+structure FileMeta where
+  name : ByteArray
+  kind : ByteArray
+  w : Nat
+  h : Nat
+  preview : ByteArray
+  deriving Inhabited, BEq
+
+/-- A file to attach, with the fresh random bytes it needs: its own key
+(32), the nonce it is sealed with (24), and the nonce its sealed info
+is sealed with (24). -/
+structure NewFile where
+  info : FileMeta
+  bytes : ByteArray
+  key : ByteArray
+  nonce : ByteArray
+  metaNonce : ByteArray
+
+/-- What the file's own seal is bound to. -/
+def fileAd : ByteArray := "quiet/file/v1".toUTF8
+
+/-- The file sealed under its own key: what the Merkle tree is over. -/
+def fileCipher (f : NewFile) : ByteArray := cryptoSeal.enc f.key f.nonce fileAd f.bytes
+end Community
+namespace Community
+open Engine
+
+/-- The message a receipt's sort key names: its bytes past the two
+counters (`recKey`). -/
+def recMsg (sk : ByteArray) : ByteArray := ⟨(sk.data.toList.drop 16).toArray⟩
+
+/-- A receipt list's bound for the rows past a, as `readable` names them
+(by their messages, `asMsg`): a receipt row is past a when its sort key
+is, or is a's and names a message past a's. The sort key decides, so
+the bound is a key and the least id (`afterRec`, `beforeRec` and a
+position's successor partition every list: `count_partition`). -/
+def afterRec (a : Pos) : Pos :=
+  (if bcmp (recMsg a.1) a.2 == .gt then a.1 else a.1.push 0, .empty)
+
+/-- A receipt list's bound for the rows before b, as `readable` names
+them: its sort key before b's, or b's and naming a message before b's
+(so before a row's successor, the row itself is in: `anchor_read`). -/
+def beforeRec (b : Pos) : Pos :=
+  (if bcmp (recMsg b.1) b.2 == .lt then b.1.push 0 else b.1, ByteArray.empty.push 0)
+
+theorem body_mkOp (reqs : List Id) (b : Body) : (Codec.decode (mkOp reqs b).body : Option Body) = some b :=
+  Codec.decode_encode b
+
+theorem shared_mkOp (C : Crypto) (reqs : List Id) (b : Body) :
+    (family C).shared (mkOp reqs b) = !b.isLocal := by
+  cases hs : b.isLocal <;> simp [Family.shared, Family.room, family, scopeOf, body_mkOp, hs]
+end Community
+namespace Community
+open Engine
+section
+variable {s : DB Fact} {C : Crypto}
+
+theorem matching_also_nil (q : ListQ) (h : q.also = []) :
+    matching s q = matching s { key := q.key, limit := q.limit } := by
+  unfold matching; simp [h]
+
+theorem mem_eval_matching {q : ListQ} {pf : Pos × Fact} (h : pf ∈ (Engine.eval s q).rows) :
+    pf ∈ matching s q := by
+  unfold Engine.eval at h
+  simp only at h
+  have h1 : pf ∈ (if q.desc then ((matching s q).filter fun p => q.inside p.1).reverse
+      else (matching s q).filter fun p => q.inside p.1) := by
+    unfold ListQ.cut at h; split at h
+    · exact h
+    · exact List.mem_of_mem_take h
+  have h2 : pf ∈ (matching s q).filter fun p => q.inside p.1 := by
+    split at h1
+    · exact List.mem_reverse.1 h1
+    · exact h1
+  exact (List.mem_filter.1 h2).1
+
+theorem mem_eval_all {q : ListQ} (ha : q.after = none) (hb : q.before = none) (hl : q.limit = none)
+    {pf : Pos × Fact} : pf ∈ (Engine.eval s q).rows ↔ pf ∈ matching s q := by
+  unfold Engine.eval ListQ.cut ListQ.inside
+  simp only [ha, hb, hl, Bool.and_self]
+  split <;> simp
+end
+end Community
+namespace Community
+open Engine
+
+theorem rels_distinct : Rel.Distinct rels := by unfold Rel.Distinct; decide
+
+theorem rels_short : ∀ r ∈ rels, r.kind.toUTF8.size < 128 := by decide
+end Community
+namespace Community
+open Engine
+variable {s : DB Fact} {C : Crypto}
+
+/-- At rest, the Valid facts filed under a community relation. -/
+theorem filed {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : s.queue = [])
+    (as : List ByteArray) (y : Id) (f : Fact) :
+    (y ∈ s.idx (r.key as) ∧ s.status y = some (.valid f)) ↔ V C s.ops y f ∧ r.args f = some as := by
+  exact filed_rel (fam := family C) rfl rels_distinct hr (rels_short r hr) h hq as y f
+end Community
+namespace Community
+open Engine
+section
+variable {s : DB Fact} {C : Crypto}
+
+/-- A row of a relation's list, read with any range, order and limit, is
+a Valid fact filed in it, at its sort key and id. -/
+theorem row_at {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : s.queue = [])
+    {as : List ByteArray} {lim : Option Nat} {desc : Bool} {after before : Option Pos} {pf : Pos × Fact}
+    (hp : pf ∈ (Engine.eval s (r.query as lim desc after before)).rows) :
+    pf = ((SortKey.sortOf pf.2, pf.1.2), pf.2) ∧ V C s.ops pf.1.2 pf.2 ∧ r.args pf.2 = some as := by
+  have hm := mem_eval_matching hp
+  rw [matching_also_nil (s := s) _ rfl] at hm
+  obtain ⟨y, f, rfl, hy, hf⟩ := (mem_matching _ _).1 hm
+  exact ⟨rfl, (filed (C := C) hr h hq as y f).1 ⟨hy, hf⟩⟩
+
+/-- A Valid fact filed in a relation is a row of its whole list. -/
+theorem at_row {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : s.queue = [])
+    {as : List ByteArray} {desc : Bool} {y : Id} {f : Fact} (hv : V C s.ops y f) (ha : r.args f = some as) :
+    ((SortKey.sortOf f, y), f) ∈ (Engine.eval s (r.query as none desc)).rows := by
+  have hf := (filed (C := C) hr h hq as y f).2 ⟨hv, ha⟩
+  rw [mem_eval_all rfl rfl rfl, matching_also_nil _ rfl, mem_matching]
+  exact ⟨y, _, rfl, hf.1, hf.2⟩
+
+theorem admission_byUser_args {c u : Id} {f : Fact} :
+    admission.byUser.args f = some [c, u] ↔ ∃ d e, f = .admission c u d e := by
+  cases f <;> (try (rename_i x; cases x)) <;> simp [admission.byUser, eq_comm]
+
+/-- A row of a list read at rest is a Valid fact filed under it. -/
+theorem row_filed {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : s.queue = [])
+    {as : List ByteArray} {lim : Option Nat} {p : Pos} {f : Fact}
+    (hp : (p, f) ∈ (Engine.eval s (r.query as lim)).rows) : V C s.ops p.2 f ∧ r.args f = some as := by
+  have hm := mem_eval_matching hp
+  rw [matching_also_nil (s := s) (r.query as lim) rfl] at hm
+  obtain ⟨y', f', he, hy, hf⟩ := (mem_matching _ _).1 hm
+  simp only [Prod.mk.injEq] at he
+  obtain ⟨rfl, rfl⟩ := he
+  exact (filed (C := C) hr h hq as _ _).1 ⟨hy, hf⟩
+end
+end Community
+namespace Community
+open Engine
+variable {s : DB Fact} {C : Crypto}
+
+theorem byDevice_args {c d : Id} {f : Fact} :
+    admission.byDevice.args f = some [c, d] ↔ ∃ u e, f = .admission c u d e := by
+  cases f <;> (try (rename_i x; cases x)) <;> simp [admission.byDevice, Root.byDevice, Rel.comap, Fact.admission?, eq_comm]
+end Community
+namespace Community
+open Engine
+section
+variable {s : DB Fact} {C : Crypto}
+
+/-- A list of distinct elements of M is no longer than M. -/
+theorem nodup_sub_length_le : ∀ {l M : List Nat}, l.Nodup → (∀ y ∈ l, y ∈ M) → l.length ≤ M.length
+  | [], _, _, _ => Nat.zero_le _
+  | a :: t, M, hn, hs => by
+    rw [List.nodup_cons] at hn
+    have ha : a ∈ M := hs a (by simp)
+    have ih := nodup_sub_length_le (M := M.erase a) hn.2 fun y hy => by
+      have hne : y ≠ a := fun e => hn.1 (e ▸ hy)
+      exact (List.mem_erase_of_ne hne).2 (hs y (List.mem_cons_of_mem _ hy))
+    rw [List.length_erase_of_mem ha] at ih
+    have : 0 < M.length := List.length_pos_of_mem ha
+    simp only [List.length_cons]; omega
+
+/-- Distinct numbers below n: n of them exactly when all of them. -/
+theorem nodup_full {l : List Nat} {n : Nat} (hn : l.Nodup) (hb : ∀ i ∈ l, i < n) :
+    l.length = n ↔ ∀ i < n, i ∈ l := by
+  constructor
+  · intro hl i hi
+    by_cases hni : i ∈ l
+    · exact hni
+    · have := nodup_sub_length_le (M := (List.range n).erase i) hn fun y hy => by
+        have hne : y ≠ i := fun e => hni (e ▸ hy)
+        exact (List.mem_erase_of_ne hne).2 (List.mem_range.2 (hb y hy))
+      rw [List.length_erase_of_mem (List.mem_range.2 hi), List.length_range] at this
+      omega
+  · intro hall
+    have h1 := nodup_sub_length_le hn fun y hy => List.mem_range.2 (hb y hy)
+    have h2 := nodup_sub_length_le (l := List.range n) List.nodup_range
+      fun y hy => hall y (List.mem_range.1 hy)
+    rw [List.length_range] at h1 h2; omega
+end
+end Community
+namespace Community
+open Engine
+variable {s : DB Fact} {C : Crypto}
+
+theorem byKey_args {c e : Id} {f : Fact} :
+    admission.byKey.args f = some [c, e] ↔ ∃ u d, f = .admission c u d e := by
+  cases f <;> (try (rename_i x; cases x)) <;> simp [admission.byKey, Root.byKey, Rel.comap, Fact.admission?, eq_comm]
+end Community
+namespace Community
+open Engine
+variable {C : Crypto}
+section
+variable {s : DB Fact}
+
+/-- At rest, a row of a community relation's list, read whole, is
+exactly a Valid fact filed in it, at its own id. -/
+theorem mem_rows (h : Inv (family C) s) (hq : s.queue = []) {r : Rel Fact} (hr : r ∈ rels)
+    (as : List ByteArray) {pf : Pos × Fact} :
+    pf ∈ (Engine.eval s (r.query as)).rows ↔
+      ∃ y f, pf = ((SortKey.sortOf f, y), f) ∧ V C s.ops y f ∧ r.args f = some as :=
+  mem_rows_rel (fam := family C) rfl rels_distinct hr (rels_short r hr) h hq as
+
+theorem eval_list {α : Type} (q : ListQ) (k : Answer Fact → View Fact α) :
+    (View.list q k).eval s = (k (Engine.eval s q)).eval s := rfl
+
+theorem better_cases (a b : Key × Id × Bool) : better a b = a ∨ better a b = b := by
+  unfold better; split <;> simp
+end
+end Community
+namespace Community
+open Engine Codec
+
+/-- The bytes `be64` lays out for n: digit i (base 256) for each i in is. -/
+def digits (n : Nat) (is : List Nat) : List UInt8 := is.map fun i => (n >>> (8 * i)).toUInt8
+
+theorem digit_toNat (n i : Nat) : ((n >>> (8 * i)).toUInt8).toNat = n / 256 ^ i % 256 := by
+  simp [Nat.shiftRight_eq_div_pow, Nat.pow_mul]
+
+/-- x + P·d against y + P·e, for x and y below P: by d and e, then x
+and y. -/
+theorem compare_place {x y d e P : Nat} (hx : x < P) (hy : y < P) :
+    compare (x + P * d) (y + P * e) = (compare d e).then (compare x y) := by
+  rcases Nat.lt_trichotomy d e with h | rfl | h
+  · have : P * (d + 1) ≤ P * e := Nat.mul_le_mul_left P h
+    rw [Nat.mul_succ] at this
+    rw [Nat.compare_eq_lt.2 h, Nat.compare_eq_lt.2 (by omega)]; rfl
+  · rw [Nat.compare_eq_eq.2 rfl]
+    simp only [Ordering.then]
+    rcases Nat.lt_trichotomy x y with h | rfl | h
+    · rw [Nat.compare_eq_lt.2 h, Nat.compare_eq_lt.2 (by omega)]
+    · simp
+    · rw [Nat.compare_eq_gt.2 h, Nat.compare_eq_gt.2 (by omega)]
+  · have : P * (e + 1) ≤ P * d := Nat.mul_le_mul_left P h
+    rw [Nat.mul_succ] at this
+    rw [Nat.compare_eq_gt.2 h, Nat.compare_eq_gt.2 (by omega)]; rfl
+
+/-- k digits, most significant first, compare as the numbers mod 256^k. -/
+theorem lexCmp_digits (a b : Nat) : ∀ k, lexCmp (digits a (List.range k).reverse) (digits b (List.range k).reverse) =
+    compare (a % 256 ^ k) (b % 256 ^ k)
+  | 0 => by simp [digits, lexCmp, Nat.mod_one]
+  | k + 1 => by
+    rw [List.range_succ, List.reverse_append]
+    simp only [List.reverse_cons, List.reverse_nil, List.nil_append, List.cons_append, digits, List.map_cons]
+    have ih := lexCmp_digits a b k
+    simp only [digits] at ih
+    simp only [lexCmp]
+    have hp : 0 < 256 ^ k := Nat.pow_pos_iff.2 (.inl (by decide))
+    rw [Nat.pow_succ, Nat.mod_mul, Nat.mod_mul, compare_place (Nat.mod_lt _ hp) (Nat.mod_lt _ hp)]
+    have e1 : (a >>> (8 * k)).toUInt8 < (b >>> (8 * k)).toUInt8 ↔ a / 256 ^ k % 256 < b / 256 ^ k % 256 := by
+      rw [UInt8.lt_iff_toNat_lt, digit_toNat, digit_toNat]
+    have e2 : (b >>> (8 * k)).toUInt8 < (a >>> (8 * k)).toUInt8 ↔ b / 256 ^ k % 256 < a / 256 ^ k % 256 := by
+      rw [UInt8.lt_iff_toNat_lt, digit_toNat, digit_toNat]
+    rcases Nat.lt_trichotomy (a / 256 ^ k % 256) (b / 256 ^ k % 256) with h | h | h
+    · simp only [e1.2 h, ite_true, Nat.compare_eq_lt.2 h]; rfl
+    · have n1 : ¬ (a >>> (8 * k)).toUInt8 < (b >>> (8 * k)).toUInt8 := fun x => by have := e1.1 x; omega
+      have n2 : ¬ (b >>> (8 * k)).toUInt8 < (a >>> (8 * k)).toUInt8 := fun x => by have := e2.1 x; omega
+      simp only [n1, n2, ite_false, h, Nat.compare_eq_eq.2 rfl, ih]; rfl
+    · have n1 : ¬ (a >>> (8 * k)).toUInt8 < (b >>> (8 * k)).toUInt8 := fun x => by have := e1.1 x; omega
+      simp only [n1, e2.2 h, ite_false, ite_true, Nat.compare_eq_gt.2 h]; rfl
+
+theorem be64_toList (n : Nat) : (be64 n).data.toList = digits n (List.range 8).reverse := rfl
+
+theorem be64_length (n : Nat) : (be64 n).data.toList.length = 8 := by
+  rw [be64_toList]; simp [digits]
+
+theorem be64_len_eq (a b : Nat) : (be64 a).data.toList.length = (be64 b).data.toList.length := by
+  rw [be64_length, be64_length]
+
+/-- **Eight bytes, most significant first, order numbers below 2^64.** -/
+theorem lexCmp_be64 {a b : Nat} (ha : a < 2 ^ 64) (hb : b < 2 ^ 64) :
+    lexCmp (be64 a).data.toList (be64 b).data.toList = compare a b := by
+  rw [be64_toList, be64_toList, lexCmp_digits, show (256 : Nat) ^ 8 = 2 ^ 64 by rfl,
+    Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb]
+
+theorem toList_append (a b : ByteArray) : (a ++ b).data.toList = a.data.toList ++ b.data.toList := by
+  rw [ByteArray.data_append, Array.toList_append]
+
+theorem countCap_lt : countCap < 2 ^ 64 := Nat.pow_lt_pow_right (by decide) (by decide)
+
+theorem min_lt {n cap : Nat} (h : cap < 2 ^ 64) : min n cap < 2 ^ 64 :=
+  Nat.lt_of_le_of_lt (Nat.min_le_right _ _) h
+
+theorem orient_map {α β} (f : α → β) (desc : Bool) (l : List α) :
+    orient desc (l.map f) = (orient desc l).map f := by
+  cases desc <;> simp [orient, List.map_reverse]
+end Community
+namespace Community
+open Engine Codec
+section
+variable {s : DB Fact} {C : Crypto}
+
+/-- The first row of a relation's list, read newest first with limit 1,
+is at or after every fact filed in it. -/
+theorem first_after {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : s.queue = [])
+    {as : List ByteArray} {y : Id} {f : Fact} (hv : V C s.ops y f) (ha : r.args f = some as) :
+    ∃ y' f', (Engine.eval s (r.query as (some 1))).rows.head? = some ((sortOf f', y'), f') ∧
+      V C s.ops y' f' ∧ r.args f' = some as ∧ Pos.cmp (sortOf f, y) (sortOf f', y') ≠ .gt := by
+  have hm : ((sortOf f, y), f) ∈ matching s (r.query as (some 1)) := by
+    rw [matching_also_nil _ rfl, mem_matching]
+    have hf := (filed (C := C) hr h hq as y f).2 ⟨hv, ha⟩
+    exact ⟨y, _, rfl, hf.1, hf.2⟩
+  obtain ⟨t, ht, htm, hle⟩ := top_max rfl rfl rfl (by simp [Rel.query]) hm
+  rw [matching_also_nil _ rfl, mem_matching] at htm
+  obtain ⟨y', f', rfl, hy', hf'⟩ := htm
+  obtain ⟨hv', ha'⟩ := (filed (C := C) hr h hq as y' f').1 ⟨hy', hf'⟩
+  exact ⟨y', f', ht, hv', ha', hle⟩
+
+end
 end Community

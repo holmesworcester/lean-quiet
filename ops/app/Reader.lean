@@ -26,7 +26,7 @@ import engine.renderer.Demand
 import Std.Sync.Mutex
 import ops.app.Lifecycle
 import ops.community.message.View
-import ops.community.Intents
+import ops.community.Community
 import ops.community.membership.AcceptedView
 import ops.community.membership.RequestView
 import ops.connection.Intents
