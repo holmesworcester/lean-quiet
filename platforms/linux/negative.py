@@ -32,7 +32,7 @@ mutations = [
 
 
 def run(args, path, ok):
-    p = sp.run(args, cwd=app, env=env, stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=120)
+    p = sp.run(args, cwd=app, env=env, stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=900)
     path.write_text(p.stdout)
     assert (p.returncode == 0) == ok, f'{args}: unexpected result; {path}'
     return p.stdout

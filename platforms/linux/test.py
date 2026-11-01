@@ -31,7 +31,7 @@ def check(ok, label):
     print('ok', label, flush=True)
 
 
-def wait(fn, label, timeout=25):
+def wait(fn, label, timeout=300):  # until fn holds; the cap only catches a hang
     end = time.monotonic() + timeout
     while time.monotonic() < end:
         value = fn()

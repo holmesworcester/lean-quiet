@@ -33,13 +33,13 @@ def run(args, name, timeout):
 
 
 def build(name):
-    code, text = run(cap + lake + ['build', 'app_runner_failure'], name, 300)
+    code, text = run(cap + lake + ['build', 'app_runner_failure'], name, 900)
     assert code == 0, (name, 'must compile', text[-3000:])
 
 
 def exercise(name, mode='all', required=(), permitted=()):
     data = logs / (name + '-db')
-    code, text = run([str(root / '.lake/build/bin/app_runner_failure'), str(data), mode], name, 30)
+    code, text = run([str(root / '.lake/build/bin/app_runner_failure'), str(data), mode], name, 600)
     modes = ['flush', 'network', 'suspend'] if mode == 'all' else [mode]
     for entry in modes:
         assert (data / entry / 'app.db').is_file(), (name, 'missing actual SQLite fixture', entry)

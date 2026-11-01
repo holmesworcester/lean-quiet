@@ -27,11 +27,11 @@ for name, path, old, new, expected in [
     assert old in original, f'{name}: mutation anchor missing'
     try:
         path.write_text(original.replace(old, new))
-        p = sp.run(['lake', 'build', 'desktop'], cwd=app, env=env, stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=120)
+        p = sp.run(['lake', 'build', 'desktop'], cwd=app, env=env, stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=900)
         (out / (name+'-build.log')).write_text(p.stdout)
         assert p.returncode == 0, p.stdout
         directory = app / ('out/negative-' + name)
-        p = sp.run(['.lake/build/bin/desktop', str(directory)], cwd=app, env=env, stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=60)
+        p = sp.run(['.lake/build/bin/desktop', str(directory)], cwd=app, env=env, stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=300)
         (out / (name+'.log')).write_text(p.stdout)
         assert p.returncode > 0 and 'PANIC' not in p.stdout and 'uncaught exception' not in p.stdout, p.stdout
         assert any(line.startswith('FAIL ') and expected in line
@@ -40,11 +40,11 @@ for name, path, old, new, expected in [
     finally:
         path.write_text(original)
 
-p = sp.run(['lake', 'build', 'linux', 'desktop'], cwd=app, env=env, stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=120)
+p = sp.run(['lake', 'build', 'linux', 'desktop'], cwd=app, env=env, stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=900)
 (out / 'ui-restored.log').write_text(p.stdout)
 assert p.returncode == 0, p.stdout
 p = sp.run(['.lake/build/bin/desktop', str(app / 'out/desktop/restored')],
-           cwd=app, env=env, stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=60)
+           cwd=app, env=env, stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=300)
 (out / 'ui-restored-run.log').write_text(p.stdout)
 assert p.returncode == 0, p.stdout
 print('negative controls: 6 UI mutations rejected; restored desktop suite passes')

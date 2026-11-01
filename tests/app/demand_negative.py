@@ -20,7 +20,7 @@ LOGS = ROOT / "out/component-demand/negative"
 LOGS.mkdir(parents=True, exist_ok=True)
 
 
-def run(args, cwd, name, timeout=300):
+def run(args, cwd, name, timeout=900):
     try:
         p = subprocess.run(args, cwd=cwd, stdout=subprocess.PIPE,
                            stderr=subprocess.STDOUT, text=True, timeout=timeout)

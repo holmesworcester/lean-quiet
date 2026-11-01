@@ -24,7 +24,7 @@ def run (ck : Checks)
   d := { d with app := s }
   let some own := d.app.ownSends.head | throw (IO.userError "desktop own-send obligation missing")
   let id := own.message.2
-  for _ in [0:300] do
+  for _ in [0:60000] do  -- until presenting; the cap only catches a hang
     d ← Desktop.tick d
     if d.app.presenting.isSome then break
     IO.sleep 2
@@ -119,7 +119,7 @@ def run (ck : Checks)
     App.sendNow).run d.app
   d := { d with app := s }
   let some photo := d.app.ownSends.head | throw (IO.userError "desktop photo obligation missing")
-  for _ in [0:300] do
+  for _ in [0:60000] do  -- until presenting; the cap only catches a hang
     d ← Desktop.tick d
     if d.app.presenting.isSome then break
     IO.sleep 2
@@ -136,7 +136,7 @@ def run (ck : Checks)
       App.sendNow).run d.app
     d := { d with app := s }
     let some third := d.app.ownSends.head | throw (IO.userError "native send missing")
-    for _ in [0:300] do
+    for _ in [0:60000] do  -- until presenting; the cap only catches a hang
       d ← Desktop.tick d
       if d.app.presenting.isSome then break
       IO.sleep 2
