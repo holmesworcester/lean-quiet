@@ -49,6 +49,11 @@ lean_lib Pic where
 @[default_target] lean_lib Sync where
   globs := #[.submodules `engine.sync]
 
+-- n real nodes and the network between them, as data: convergence over
+-- any web, from the running node's laws (docs/PROOFS.md)
+@[default_target] lean_lib World where
+  globs := #[.submodules `engine.world]
+
 -- the handshake and sessions
 @[default_target] lean_lib Connection where
   globs := #[.submodules `app.connection]

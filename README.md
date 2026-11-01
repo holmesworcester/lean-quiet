@@ -368,7 +368,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1369 rest on Lean's standard axioms only, and about three quarters of its theorems (1018 of 1346, not counting 23 negative controls) are about the code that runs; another 22 run the
+hypotheses. All 1385 rest on Lean's standard axioms only, and about two thirds of its theorems (1021 of 1362, not counting 23 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -452,7 +452,7 @@ a new device on its own node (the 🟡 row under Connections).
 | 🟡 | 🥊🥊🥊 | **New ops reach connected members.** With two nodes running the sync code, fixed rooms and no handshake, an op written during a session is offered at once and held after one exchange (offer, want, op), given ask slots and budget. Not yet of the runner, with TCP, sealed frames and the handshake. | [`stream_offered`], [`stream_delivers`], [`stream_delivers_steps`], [`stream_offered_runs`], [`stream_delivers_runs`], [`write_offers`], [`write_offers_all`], [`hold_wants`], [`op_taken`] |
 | ✅ | 🥊🥊🥊 | **Wants retain their order.** Authorized IDs queue once when capacity permits. With positive service budgets, an ID with p predecessors is served within p + 1 steps; unavailable asks expire. | [`onWant_all`], [`onWant_order`], [`serveOwed_head`], [`serveOwed_fifo`], [`owed_within`], [`want_sends`], [`asks_expire`] |
 | 🟡 | 🥊🥊🥊 | **UI-first service without starving sync.** Three of four polls prefer local writes. A local head is selected within two completed turns; an admitted peer frame is served or retired within `4 * (maxSocks + 1)`. A local write's shared ops are committed before `onWrite` returns. Not yet proved: commit-to-display and neighbour-delivery bounds. | [`Prioritized.write_within`], [`source_or_cancelled_within`], [`write_within_churn`], [`Priority.write_within`], [`Priority.event_within`], [`Priority.local_share`], [`Priority.phase_cycle`], [`Loop.turn_records`], [`Loop.turn_timer`], [`Tick.cofinal`], [`urgent_ahead`], [`ahead_bytes`], [`cut_bytes`], [`push_capped`], [`serveOwed_hot`], [`hot_ids`], [`lane_control`], [`fresh_served`], [`write_hot`], [`onWrite_receives`] |
-| ⬜ | 🥊🥊🥊 | **Everyone converges.** Wanted: under fair delivery, members linked by any chain of connections eventually hold every op of their community, and so the same verdicts. Proven so far for two nodes, over a model. | |
+| 🟡 | 🥊🥊🥊 | **Everyone converges.** With n nodes running the sync code (fixed rooms, no handshake), against any network and attacker: shared stores only grow, and an op crosses a session in three hops of the running node, over frames of any payloads at a node with any sessions: a have of an unasked op is answered with a want, a want of a held op queues it or sends it, and an op of a shown room is stored, given ask and queue room (finding 7); every node's index covers its store and owes nothing outside its queue. Given an op crossing each live edge within B, every member holds it within d · B over a web of diameter d, and a node back from offline catches up. Not yet: that each live edge carries every op within B (chaining the hops over time, the queue's drain, the reconnect round), nor with TCP, sealed sessions and the handshake. | [`converge`], [`offline`], [`grows`], [`managed_nil`], [`owes_queued_start`], [`ix_covers_start`], [`deliver_wants`], [`deliver_queues`], [`deliver_takes`], [`onSealed_wants`], [`onSealed_queues`], [`onSealed_takes`], [`onHold_wants`], [`recv_asked`], [`recv_owed`], [`node_serve`] |
 | ⬜ | 🥊🥊 | **Staleness is never hidden.** Wanted: "up to date as of T" means a round this device opened at T ended with it holding everything the peer held in that room, and a sync that stalls is shown within a stated bound. | |
 | ⬜ | 🥊🥊🥊 | **A synced page is complete:** after syncing a page, a device shows every row its peer shows for it (`page_sync`). | |
 | ⬜ | 🥊🥊 | **Sync is efficient.** Each op is sent at most once per connection, and a round needs at most fan·Δ·⌈log n⌉ claims. | |
@@ -503,12 +503,13 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1018 of 1346 laws are about running code;** another 22 run its node code in a World, and 306 are not yet. Stated only: none. 23 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1021 of 1362 laws are about running code;** another 35 run its node code in a World, and 306 are not yet. Stated only: none. 23 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 196 | 141 |  | 55 |
 | Sync | 243 | 188 |  | 55 |
+| The n-node World | 16 | 3 | 13 |  |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 205 | 139 | 16 | 50 |
 | Connections | 30 | 26 |  | 4 |
@@ -523,7 +524,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 |---|---|---|
 | `Execution.fairRun`, `Execution.dequeued`, `Execution.trace` | 2 World laws; not yet: [`world_trace_moves`], [`empty_trace_store`], [`world_trace_history`], [`empty_trace_history`], [`world_trace_unique`], [`empty_trace_unique`] | Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these. |
 | `Execution.lift` | 4 World laws; not yet: [`run_count`]*, [`run_get`], [`run_view`]*, [`run_arrivedFrom`]*, [`ProgressTape.answer_ready`]*, [`production_step_moves`], [`production_step_retains`], [`production_step_reachable`], [`production_step_settled`], [`write_store_tape`], [`production_write_receives`], [`production_step_history`] +1 more | Explicit Held store adapter inside the production-node entropy-tape interpreter. Native SQLite and entropy refinement remains external; answer_ready proves one actual handler call consumes its next tape value. |
-| `Sync.World.peer`, `Sync.Setup.sync`, `Who.other` +7 | 16 World laws; not yet: [`secrecy_runs`] | Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired. |
+| `Sync.World.peer`, `Sync.Setup.sync`, `Who.other` +7 | 23 World laws; not yet: [`secrecy_runs`] | Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired. |
+| `World.step`, `Exec.world`, `Plain.setup` +2 | 9 World laws | Real: n nodes, each the running `Engine.Sync.Node` with a3's `Setup.sync` (fixed rooms), its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any packet (from gst, `Net.Admits`'s timely delivery across live edges), sessions open by the harness's `connect`, frames in the clear, and a transport close drops only that address's sessions (S1: no loss without a close). Wanted: the n-node World with the app's own Sync (the Connection family, sealed sessions, the handshake; holmes-71's session forms), which makes these laws wired. |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°†, [`exchange_ids_stable`], [`exchange_log`], [`exchange_stable`], [`conn_runs_exchange`]† | conn_runs_exchange now connects exchange's missing IDs to exact alternating onRbsr batches and proves termination under snapshot/fingerprint/capacity premises. Still needed: embedding uninterrupted rounds and directed announcements in the full Node/TCP execution across timeouts and capped windows. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]†, [`reads_members`], [`reads_recipients`], [`members_iff_node`]†, [`recipients_iff_node`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
 | `Sync.keeps` | [`buffer_bounded`]*† | The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s. |
@@ -638,7 +640,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 8 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.NativeCrypto` (`suite_good`). |
 | [`Seal.Good`] | 6 | AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.NativeCrypto` (`cryptoSeal_good`). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 400 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
+| [`Model.run`] | 416 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
 | [`Sync.popW`] | 4 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
@@ -1458,6 +1460,22 @@ opportunities and full native delivery remain open.
 [`fresh_served`]: engine/wire/WorldLaws.lean#L631-L638
 [`write_hot`]: engine/wire/WorldLaws.lean#L1442-L1447
 [`onWrite_receives`]: app/Proofs.lean#L3185-L3193
+[`converge`]: engine/world/Plain.lean#L198-L208
+[`offline`]: engine/world/Plain.lean#L211-L219
+[`grows`]: engine/world/Plain.lean#L189-L194
+[`managed_nil`]: engine/world/Inv.lean#L148-L151
+[`owes_queued_start`]: engine/world/InvIx.lean#L723-L725
+[`ix_covers_start`]: engine/world/InvIx.lean#L716-L718
+[`deliver_wants`]: engine/world/Link.lean#L94-L107
+[`deliver_queues`]: engine/world/Link.lean#L116-L130
+[`deliver_takes`]: engine/world/Link.lean#L81-L90
+[`onSealed_wants`]: engine/world/Asks.lean#L582-L596
+[`onSealed_queues`]: engine/world/Owed.lean#L220-L236
+[`onSealed_takes`]: engine/world/Hops.lean#L325-L335
+[`onHold_wants`]: engine/world/Asks.lean#L170-L176
+[`recv_asked`]: engine/world/Asks.lean#L256-L262
+[`recv_owed`]: engine/world/Owed.lean#L54-L61
+[`node_serve`]: engine/world/Owed.lean#L153-L162
 [`Demand.owned_iff`]: engine/renderer/Demand.lean#L143-L146
 [`Demand.complete_retired`]: engine/renderer/Demand.lean#L96-L97
 [`Demand.next_visible`]: engine/renderer/Demand.lean#L149-L151
@@ -1914,7 +1932,7 @@ in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
 **Coverage: 500 kernel witnesses, 183 runtime witnesses,
-23 conditional checks, 0 recorded runtime counterexamples; 0 of 706 linked declarations still pending.**
+23 conditional checks, 0 recorded runtime counterexamples; 16 of 722 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2236,6 +2254,22 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`fresh_served`](engine/wire/WorldLaws.lean#L631-L638) | **kernel-witness**: [Vacuity.WireMore.freshServed](tests/vacuity/WireMore.lean). Greeting stored and owed, locally hot at100, served at200 within hotMs; all premises proven and exact urgent sends result. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`write_hot`](engine/wire/WorldLaws.lean#L1442-L1447) | **kernel-witness**: [Vacuity.WireMore.writtenHot](tests/vacuity/WireMore.lean). Actually writes greeting into empty node/store, independently proves returned stored=[msg.id], then proves that id recorded hot at time100. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`onWrite_receives`](app/Proofs.lean#L3185-L3193) | **runtime-witness**: [Vacuity.StorageEffects.writeCertificate](tests/vacuity/StorageEffects.lean). A new signed recovery post is natively proved absent and shared in the already populated receiver. The singleton input proves representation compatibility; absence discharges the existing-store compatibility premise. The certificate applies the complete write-handler receipt chain, including write_store_tape, then the runner checks exact bytes and a valid message verdict after the actual handler. Replacing the fresh post with the already stored message rejects the fresh-write certificate. The theorem guarantees byte commitment, not automatic validity of inputs with absent prerequisites. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
+| [`converge`](engine/world/Plain.lean#L198-L208) | Pending: no concrete premise witness audited yet |
+| [`offline`](engine/world/Plain.lean#L211-L219) | Pending: no concrete premise witness audited yet |
+| [`grows`](engine/world/Plain.lean#L189-L194) | Pending: no concrete premise witness audited yet |
+| [`managed_nil`](engine/world/Inv.lean#L148-L151) | Pending: no concrete premise witness audited yet |
+| [`owes_queued_start`](engine/world/InvIx.lean#L723-L725) | Pending: no concrete premise witness audited yet |
+| [`ix_covers_start`](engine/world/InvIx.lean#L716-L718) | Pending: no concrete premise witness audited yet |
+| [`deliver_wants`](engine/world/Link.lean#L94-L107) | Pending: no concrete premise witness audited yet |
+| [`deliver_queues`](engine/world/Link.lean#L116-L130) | Pending: no concrete premise witness audited yet |
+| [`deliver_takes`](engine/world/Link.lean#L81-L90) | Pending: no concrete premise witness audited yet |
+| [`onSealed_wants`](engine/world/Asks.lean#L582-L596) | Pending: no concrete premise witness audited yet |
+| [`onSealed_queues`](engine/world/Owed.lean#L220-L236) | Pending: no concrete premise witness audited yet |
+| [`onSealed_takes`](engine/world/Hops.lean#L325-L335) | Pending: no concrete premise witness audited yet |
+| [`onHold_wants`](engine/world/Asks.lean#L170-L176) | Pending: no concrete premise witness audited yet |
+| [`recv_asked`](engine/world/Asks.lean#L256-L262) | Pending: no concrete premise witness audited yet |
+| [`recv_owed`](engine/world/Owed.lean#L54-L61) | Pending: no concrete premise witness audited yet |
+| [`node_serve`](engine/world/Owed.lean#L153-L162) | Pending: no concrete premise witness audited yet |
 | [`Demand.owned_iff`](engine/renderer/Demand.lean#L143-L146) | **kernel-witness**: [Vacuity.RendererDemand.ownership](tests/vacuity/RendererDemand.lean). Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture. |
 | [`Demand.complete_retired`](engine/renderer/Demand.lean#L96-L97) | **kernel-witness**: [Vacuity.RendererDemand.retired](tests/vacuity/RendererDemand.lean). Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture. |
 | [`Demand.next_visible`](engine/renderer/Demand.lean#L149-L151) | **kernel-witness**: [Vacuity.RendererDemand.visiblePriority](tests/vacuity/RendererDemand.lean). Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture. |
