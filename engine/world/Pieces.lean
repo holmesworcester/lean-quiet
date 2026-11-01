@@ -276,6 +276,131 @@ theorem onFrame_keeps (L : Lawful P.run) (Pc : Pieces P i Φ) (n : Node) (addr b
       onSealed_keeps L Pc n addr opened now s1 h1
   · exact Ok.pure L hn
 
+/-! ### The clock -/
+
+/-- What a loop pass that carries a node and acts keeps: its next node. -/
+def Next (P : Setup F M S) (Φ : Node → Held F → Prop) {σ : Type} (get : σ → Node) (r : ForInStep σ × S) : Prop :=
+  Φ (get r.1.value) (P.held r.2)
+
+theorem Next.bind (L : Lawful P.run) {σ α : Type} {get : σ → Node} {p : M (Node × α)}
+    {k : Node × α → M (ForInStep σ)} {s : S} (hp : Ok P Φ (P.run p s))
+    (hk : ∀ r s', Φ r.1 (P.held s') → Next P Φ get (P.run (k r) s')) : Next P Φ get (P.run (p >>= k) s) := by
+  rw [L.bind]; exact hk _ _ hp
+
+theorem Next.call (L : Lawful P.run) {σ α : Type} {get : σ → Node} {p : M α} {n : Node}
+    {k : α → M (ForInStep σ)} {s : S} (hp : Φ n (P.held (P.run p s).2))
+    (hk : ∀ a s', Φ n (P.held s') → Next P Φ get (P.run (k a) s')) : Next P Φ get (P.run (p >>= k) s) := by
+  rw [L.bind]; exact hk _ _ hp
+
+theorem Next.pure (L : Lawful P.run) {σ : Type} {get : σ → Node} {st : ForInStep σ} {s : S}
+    (h : Φ (get st.value) (P.held s)) : Next P Φ get (P.run (Pure.pure st : M (ForInStep σ)) s) := by
+  unfold Next; rw [L.pure]; exact h
+
+/-- A sweep under the node's setting or under its `afterActs`. -/
+theorem sweep_ok (Pc : Pieces P i Φ) (b : Bool) (n m : Node) (out : Acts) (cid : Id) (s : S)
+    (hn : Φ n (P.held s)) :
+    Ok P Φ (P.run (n.sweep (if b = true then P.sync i else m.afterActs (P.sync i) out) cid) s) := by
+  split
+  · exact Pc.sweep (P.sync i).room (P.sync i).retryRoom n cid s hn
+  · exact Pc.sweep _ _ n cid s hn
+
+/-- Serving under `afterActs`: the node's family and hooks. -/
+theorem serve_after (Pc : Pieces P i Φ) (m : Node) (out : Acts) (n : Node) (cid : Id) (now : Nat) (s : S)
+    (hn : Φ n (P.held s)) : Ok P Φ (P.run (n.serveOwed (m.afterActs (P.sync i) out) cid now) s) :=
+  Pc.serve (m.afterActs (P.sync i) out) rfl rfl n cid now s hn
+
+theorem Next.ite {σ : Type} {get : σ → Node} {c : Prop} [Decidable c] {p q : M (ForInStep σ)} {s : S}
+    (hp : Next P Φ get (P.run p s)) (hq : Next P Φ get (P.run q s)) :
+    Next P Φ get (P.run (if c then p else q) s) := by
+  split <;> assumption
+
+theorem ite_ok {c : Prop} [Decidable c] {a b : Node} {h : Held F} (ha : Φ a h) (hb : Φ b h) :
+    Φ (if c then a else b) h := by
+  split <;> assumption
+
+theorem onTickDirect_keeps (L : Lawful P.run) (Pc : Pieces P i Φ) (n : Node) (now : Nat) (s : S)
+    (hn : Φ n (P.held s)) : Ok P Φ (P.run (n.onTickDirect (P.sync i) now) s) := by
+  unfold Node.onTickDirect
+  refine Ok.call L (Pc.calls _ (.dial now) n s hn) fun ops s1 h1 => ?_
+  refine Ok.bind L (Pc.store n ops true s1 h1) fun ⟨n2, o2⟩ s2 h2 => ?_
+  refine Ok.bind L ?_ fun ⟨n3, o3⟩ s3 h3 => finish_keeps L Pc n3 o3 now s3 h3
+  refine L.forIn_inv _ _ _ s2 (fun (st : Node × Acts) s => Φ st.1 (P.held s)) h2 ?_
+  intro ⟨cid, _⟩ _ st s hs
+  try dsimp only
+  split
+  · rw [L.pure]; exact hs
+  · rename_i c hc
+    rw [refresh_bind L]
+    split
+    · rw [L.pure]; exact Pc.calls _ (.rooms cid) _ s hs
+    · have g := tick_ok L Pc hc now s hs
+      rw [L.bind] at g
+      rw [L.bind]
+      refine Next.bind (get := Prod.fst) L g fun ⟨n1, o1⟩ s1 h1 => ?_
+      refine Next.bind L (Pc.sweep _ _ n1 _ s1 h1) fun ⟨n2, r2⟩ s2 h2 => ?_
+      refine Next.bind L (serve_after Pc _ _ n2 _ now s2 h2) fun ⟨n3, o3⟩ s3 h3 => ?_
+      exact Next.pure L h3
+
+/-- Catalog retries, in their admission order, under the node's setting
+or its `afterActs`; rejected candidates keep their cursors. -/
+theorem sweepAll_keeps (L : Lawful P.run) (Pc : Pieces P i Φ) (n : Node) (ready : List Id) (out : Acts) (s : S)
+    (hn : Φ n (P.held s)) : Ok P Φ (P.run (n.sweepAll (P.sync i) ready out) s) := by
+  unfold Node.sweepAll
+  refine Ok.bind L ?_ fun ⟨n1, o1⟩ s1 h1 => Ok.pure L (Pc.retries n1 _ _ _ h1)
+  refine L.forIn_inv _ _ _ s (fun (st : Node × Acts × List Id × List ByteArray) s => Φ st.1 (P.held s)) hn ?_
+  intro cid _ st s hs
+  try dsimp only
+  split
+  · rw [L.pure]; exact hs
+  · refine Next.bind (get := Prod.fst) L (sweep_ok Pc _ st.1 st.1 st.2.1 cid s hs) fun ⟨n2, r2⟩ s2 h2 => ?_
+    refine Next.ite ?_ ?_ <;> exact Next.pure L (ite_ok (Pc.retries n2 _ _ _ h2) h2)
+
+theorem onTickReserved_keeps (L : Lawful P.run) (Pc : Pieces P i Φ) (n : Node) (now : Nat) (s : S)
+    (hn : Φ n (P.held s)) : Ok P Φ (P.run (n.onTickReserved (P.sync i) now) s) := by
+  unfold Node.onTickReserved
+  refine Ok.call L (Pc.calls _ (.dial now) n s hn) fun ops s1 h1 => ?_
+  refine Ok.bind L (Pc.store n ops true s1 h1) fun ⟨n2, o2⟩ s2 h2 => ?_
+  refine Ok.bind L ?_ fun ⟨n3, o3, _⟩ s3 h3 =>
+    Ok.bind L (sweepAll_keeps L Pc n3 _ o3 s3 h3) fun ⟨n4, o4⟩ s4 h4 => finish_keeps L Pc n4 o4 now s4 h4
+  refine L.forIn_inv _ _ _ s2 (fun (st : Node × Acts × List Id) s => Φ st.1 (P.held s)) h2 ?_
+  intro ⟨cid, _⟩ _ st s hs
+  try dsimp only
+  split
+  · rw [L.pure]; exact hs
+  · rename_i c hc
+    rw [refresh_bind L]
+    split
+    · rw [L.pure]; exact Pc.calls _ (.rooms cid) _ s hs
+    · have g := tick_ok L Pc hc now s hs
+      rw [L.bind] at g
+      rw [L.bind]
+      refine Next.bind (get := Prod.fst) L g fun ⟨n1, o1⟩ s1 h1 => ?_
+      refine Next.bind L (serve_after Pc _ _ n1 _ now s1 h1) fun ⟨n3, o3⟩ s3 h3 => ?_
+      exact Next.pure L h3
+
+/-- **The clock keeps the invariant**, with deferred retries or without. -/
+theorem onTick_keeps (L : Lawful P.run) (Pc : Pieces P i Φ) (n : Node) (now : Nat) (s : S)
+    (hn : Φ n (P.held s)) : Ok P Φ (P.run (n.onTick (P.sync i) now) s) := by
+  unfold Node.onTick
+  split
+  · exact onTickReserved_keeps L Pc n now s hn
+  · exact onTickDirect_keeps L Pc n now s hn
+
 end
+
+/-- **A node invariant every piece keeps, and a restart restores, is kept
+by everything the World runs** (`Local`): every entry point at every node,
+under any hooks, for a setup whose run is a run. -/
+theorem Pieces.local {P : Setup F M S} (L : Lawful P.run) {Φ : Fin P.n → Node → Held F → Prop} (Pc : ∀ i, Pieces P i (Φ i))
+    (boot : ∀ i n s, Φ i n (P.held s) → Φ i (P.reboot i s) (P.held (P.crash s))) :
+    Local P (fun i n s => Φ i n (P.held s)) (fun i n s => Φ i n (P.held s)) where
+  runs i f hf nd s hn := by
+    cases hf with
+    | frame addr bytes t => exact onFrame_keeps L (Pc i) nd addr bytes t s hn
+    | tick t => exact onTick_keeps L (Pc i) nd t s hn
+    | write ops t _ => exact onWrite_keeps L (Pc i) nd ops t s hn
+    | close addr t => exact onClose_keeps L (Pc i) nd addr t s hn
+    | connect j cid dialer t _ => exact connect_keeps L (Pc i) nd cid _ dialer t s hn
+  boot := boot
 
 end Engine.World
