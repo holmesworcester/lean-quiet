@@ -21,6 +21,7 @@ What a connection offers, proven of `Conn`'s code run on held data
   alike. With the cache law, that is the room's index (`heldIn_index`).
 -/
 import ops.sync.ServeLaws
+import ops.sync.RoundLaws
 
 namespace Engine.Sync
 

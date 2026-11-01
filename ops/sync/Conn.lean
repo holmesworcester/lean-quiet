@@ -41,7 +41,6 @@ import ops.sync.Wire
 import ops.sync.Session
 import ops.sync.Serve
 import ops.sync.Closure
-import ops.sync.RoundLaws
 import engine.core.Sync
 import Std.Data.HashSet
 

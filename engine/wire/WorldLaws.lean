@@ -18,6 +18,7 @@ managed by it and none is purged; `stream_delivers` assumes so of both
 nodes (`managed = []`), as `Node.connect` leaves them.
 -/
 import engine.wire.World
+import ops.sync.RoundLaws
 import engine.wire.LaneLaws
 import ops.sync.ServeLaws
 import Std.Data.HashSet.Lemmas
