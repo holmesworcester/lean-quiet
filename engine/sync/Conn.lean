@@ -38,10 +38,13 @@ closes the connection when `step.drop`.
   this side holds an op of any other room.
 - **Stream.** Ops stored after the round are offered as they are filed
   (`filed`), unless the peer is known to hold them.
-- **Closure.** Full rounds keep no sender bookkeeping. Only windowed
-  rounds queue requirements, with distinct pending plus visited ids
-  capped by `closureCap`; overflow sets `closureCut`. Ticks drain the
-  admitted prefix. The stream's `offered` is a separate bounded hint.
+- **Closure.** A windowed round reconciles S: its window and every
+  stored op of the room within `params.depth` requirement steps of it,
+  each sorted by its own time (`Index.over`). Both sides read S from
+  their live index, so what the windowed side lacks of the closure
+  arrives in the round itself, and no round keeps sender bookkeeping
+  (docs/SYNC.md, "Windows and order"). The stream's `offered` is a
+  bounded hint.
 - **Liveness.** Both sides drop only after `cfg.live` ms of silence.
   A quiet tick sends an empty have every `live/3`; asks expire separately
   after `askTime`. Node records every outgoing payload's time.
@@ -55,6 +58,7 @@ import engine.sync.Wire
 import engine.sync.Session
 import engine.sync.Serve
 import engine.sync.Closure
+import engine.sync.Walk
 import engine.core.Sync
 import Std.Data.HashSet
 
@@ -79,9 +83,12 @@ def ins (a : Item) : List Item → List Item
 
 /-- Each room's items in key order: what sync reconciles, kept in
 memory. Built from the stored ops once (`ofOps`), then grown by each op
-stored after (`add`), from the writer's notices. -/
+stored after (`add`), from the writer's notices. `byId` is each stored
+shared op's room and requirements, by id: what a windowed round's
+closure reads (`over`). -/
 structure Index where
   rooms : List (Id × List Item) := []
+  byId : Std.HashMap Id (Id × List Id) := {}
   deriving Inhabited
 
 def Index.items (ix : Index) (c : Id) : List Item :=
@@ -95,33 +102,87 @@ def Index.add (ix : Index) (o : Op) : Index :=
   | none => ix
   | some c =>
     let a := (keyOf fam o, o.id)
+    let byId := ix.byId.insert o.id (c, o.reqs)
     if ix.rooms.any (fun p => Decidable.decide (p.1 = c)) then
-      ⟨ix.rooms.map fun p => if p.1 = c then (p.1, ins a p.2) else p⟩
-    else ⟨(c, [a]) :: ix.rooms⟩
+      ⟨ix.rooms.map (fun p => if p.1 = c then (p.1, ins a p.2) else p), byId⟩
+    else ⟨(c, [a]) :: ix.rooms, byId⟩
 
 def Index.ofOps (ops : List Op) : Index := ops.foldl (Index.add fam) {}
 
 /-- The index without a purged op. -/
 def Index.remove (ix : Index) (x : Id) : Index :=
-  ⟨ix.rooms.map fun p => (p.1, p.2.filter fun a => !Decidable.decide (a.2 = x))⟩
+  ⟨ix.rooms.map (fun p => (p.1, p.2.filter fun a => !Decidable.decide (a.2 = x))), ix.byId.erase x⟩
 
-/-- How this side opens a round over w in room r, from its items there. -/
-def Index.opening (P : Params) (ix : Index) (r : Id) (w : Range) : Claim :=
-  Engine.Sync.opening Prod.fst Prod.snd sha256 P (ix.items r) w
-/-- What this side answers to claim c in room r. -/
-def Index.answer (P : Params) (ix : Index) (r : Id) (c : Claim) : List Out :=
-  Engine.Sync.answer Prod.fst Prod.snd sha256 P (ix.items r) c
-theorem Index.opening_eq (P : Params) (ix : Index) (r : Id) (w : Range) :
-    ix.opening P r w = Engine.Sync.opening Prod.fst Prod.snd sha256 P (ix.items r) w := rfl
-theorem Index.answer_eq (P : Params) (ix : Index) (r : Id) (c : Claim) :
-    ix.answer P r c = Engine.Sync.answer Prod.fst Prod.snd sha256 P (ix.items r) c := rfl
+/-- Whether x is a stored op of room r. -/
+def Index.inRoom (ix : Index) (r x : Id) : Bool :=
+  match ix.byId[x]? with
+  | some (r', _) => r' == r
+  | none => false
+
+/-- The requirements of x that are stored ops of room r: one step of a
+window's closure. -/
+def Index.next (ix : Index) (r x : Id) : List Id :=
+  match ix.byId[x]? with
+  | some (_, rs) => rs.filter (ix.inRoom r)
+  | none => []
+
+/-- The lookups expanding x makes: its own, and one per requirement. -/
+def Index.cost (ix : Index) (x : Id) : Nat :=
+  1 + match ix.byId[x]? with
+  | some (_, rs) => rs.length
+  | none => 0
+
+/-- Whether a key is in the window from floor f: no claimed time, or at
+f or later. -/
+def inWindow (f : Nat) (k : Key) : Bool := k.t == 0 || Decidable.decide (f ≤ k.t)
+
+/-- The ids of room r's window from floor f. -/
+def Index.windowIds (ix : Index) (r : Id) (f : Nat) : List Id :=
+  ((ix.items r).filter fun a => inWindow f a.1).map (·.2)
+
+/-- The window's closure: every stored op of room r within k requirement
+steps of the window from floor f (`walk_from`), and the lookups made
+(`walk_cost`). -/
+def Index.closure (ix : Index) (k : Nat) (r : Id) (f : Nat) : Std.HashSet Id × Nat :=
+  walk (ix.next r) ix.cost k (ix.windowIds r f) (Std.HashSet.ofList (ix.windowIds r f))
+
+/-- S, what a round in room r at floor f reconciles, in key order: the
+room's items when the round is full (`f ≤ 1`); otherwise the window and
+its requirements within k steps, each sorted by its own time
+(`over_mem`). Both sides compute it from their own stores. -/
+def Index.over (k : Nat) (ix : Index) (r : Id) (f : Nat) : List Item :=
+  if f ≤ 1 then ix.items r else
+  let seen := (ix.closure k r f).1
+  (ix.items r).filter fun a => seen.contains a.2
+
+/-- How this side opens a round over w in room r at floor f, from S. -/
+def Index.opening (P : Params) (ix : Index) (r : Id) (f : Nat) (w : Range) : Claim :=
+  Engine.Sync.opening Prod.fst Prod.snd sha256 P (ix.over P.depth r f) w
+/-- What this side answers to claim c in room r at floor f, from S. -/
+def Index.answer (P : Params) (ix : Index) (r : Id) (f : Nat) (c : Claim) : List Out :=
+  Engine.Sync.answer Prod.fst Prod.snd sha256 P (ix.over P.depth r f) c
+theorem Index.opening_eq (P : Params) (ix : Index) (r : Id) (f : Nat) (w : Range) :
+    ix.opening P r f w = Engine.Sync.opening Prod.fst Prod.snd sha256 P (ix.over P.depth r f) w := rfl
+theorem Index.answer_eq (P : Params) (ix : Index) (r : Id) (f : Nat) (c : Claim) :
+    ix.answer P r f c = Engine.Sync.answer Prod.fst Prod.snd sha256 P (ix.over P.depth r f) c := rfl
 /-- The two as functions, for rewriting under `map` and `flatMap`. -/
-theorem Index.opening_fun (P : Params) (ix : Index) (r : Id) :
-    ix.opening P r = Engine.Sync.opening Prod.fst Prod.snd sha256 P (ix.items r) :=
-  funext (Index.opening_eq P ix r)
-theorem Index.answer_fun (P : Params) (ix : Index) (r : Id) :
-    ix.answer P r = Engine.Sync.answer Prod.fst Prod.snd sha256 P (ix.items r) :=
-  funext (Index.answer_eq P ix r)
+theorem Index.opening_fun (P : Params) (ix : Index) (r : Id) (f : Nat) :
+    ix.opening P r f = Engine.Sync.opening Prod.fst Prod.snd sha256 P (ix.over P.depth r f) :=
+  funext (Index.opening_eq P ix r f)
+theorem Index.answer_fun (P : Params) (ix : Index) (r : Id) (f : Nat) :
+    ix.answer P r f = Engine.Sync.answer Prod.fst Prod.snd sha256 P (ix.over P.depth r f) :=
+  funext (Index.answer_eq P ix r f)
+/-- S is a subset of the room's items. -/
+theorem Index.over_sub (k : Nat) (ix : Index) (r : Id) (f : Nat) {a : Item} (h : a ∈ ix.over k r f) :
+    a ∈ ix.items r := by
+  unfold Index.over at h
+  split at h
+  · exact h
+  · exact (List.mem_filter.1 h).1
+
+/-- A full round's set is the room's items. -/
+@[simp] theorem Index.over_full (k : Nat) (ix : Index) (r : Id) (f : Nat) (h : f ≤ 1) :
+    ix.over k r f = ix.items r := by simp [Index.over, h]
 
 end
 
@@ -140,6 +201,8 @@ structure Config where
   round in it. Otherwise rounds open only when a session starts showing
   a room, or the responder asks for one. -/
   safety : Nat := 600000
+  /-- ops a notice's requirement closure visits per call (Notice.lean). -/
+  walk : Nat := 100000
   /-- ms before an unserved ask expires, independently of session liveness. -/
   askTime : Nat := 20000
   /-- ms between retries of wanted ids (less than askTime by default). -/
@@ -150,10 +213,6 @@ structure Config where
   maxKnown : Nat := 65536
   /-- ids per have or want op; a want for more is ignored. -/
   maxIds : Nat := 4096
-  /-- Distinct requirement ids retained by a windowed round. -/
-  closureCap : Nat := 4096
-  /-- ops the closure walk visits per call. -/
-  walk : Nat := 100000
   /-- bytes of payloads sealed together in one frame. -/
   bundle : Nat := 49152
   /-- Serve-lane bytes released per step, plus at most one whole op. -/
@@ -189,12 +248,9 @@ structure Conn where
   epochs : List (Id × Nat) := []
   /-- Captured overlap floor, retained after the round ends for delayed wants. -/
   roundFloor : Nat := 0
-  /-- A window closure ran out of slots in this round. -/
-  closureCut : Bool := false
-  /-- Peer possession hints; stream offer hints; visited closure ids. -/
+  /-- Peer possession hints; stream offer hints. -/
   known : HashSet Id := {}
   offered : HashSet Id := {}
-  closed : HashSet Id := {}
   /-- Ids wanted from the peer after it said it holds them. -/
   asked : HashSet Id := {}
   /-- Original ask times; retries and repeat offers do not renew them. -/
@@ -206,8 +262,6 @@ structure Conn where
   heard : Nat := 0
   /-- Last outgoing payload, recorded by Node when it hands out sends. -/
   sent : Nat := 0
-  /-- Requirement closure still to walk. -/
-  frontier : List Id := []
 
 /-- What a call does. -/
 structure Step where
@@ -285,22 +339,13 @@ def Conn.oldRound (c : Conn) (r : Id) (k : Nat) : Bool :=
     | none => false
     | some (_, seen) => Decidable.decide (k < seen) || (Decidable.decide (k = seen) && !active)
 
-/-- Capture a newer round's overlap, including on the responder. Replies
-for a room still on an earlier epoch do not rewind the global counter or
-clear the newer round's closure work. -/
+/-- Capture a newer round's overlap (the floor its set S is read at),
+including on the responder. Replies for a room still on an earlier epoch
+do not rewind the global counter. -/
 def Conn.beginRound (c : Conn) (k : Nat) : Conn :=
   { c with
     round := max c.round k
-    roundFloor := if c.round < k then max c.floor (c.peerFloor.getD c.floor) else c.roundFloor,
-    closed := if c.round < k then {} else c.closed,
-    frontier := if c.round < k then [] else c.frontier,
-    closureCut := if c.round < k then false else c.closureCut }
-
-/-- Queue requirements only for a captured windowed round. -/
-def Conn.queue (c : Conn) (ids : List Id) : Conn :=
-  let (frontier, cut) := if c.roundFloor ≤ 1 then (c.frontier, false)
-    else queueClosure cfg.closureCap c.closed c.frontier ids
-  { c with frontier, closureCut := c.closureCut || cut }
+    roundFloor := if c.round < k then max c.floor (c.peerFloor.getD c.floor) else c.roundFloor }
 
 /-- Room r is due a round at `now`: none has opened in it on this session
 (it is newly shown, or the responder asked), or the last opened
@@ -327,9 +372,9 @@ def Conn.start (ix : Index) (c : Conn) (now : Nat) : Step :=
     let ready := c.rooms.filter fun r => c.due cfg r now || c.retake cfg r
     if ready.isEmpty then { conn := c } else
     let k := c.round + 1
-    let w := window (max c.floor pf)
+    let f := max c.floor pf
     let send := ready.map fun r =>
-      (Msg.rbsr r k (w.map (ix.opening cfg.params r))).op
+      (Msg.rbsr r k ((window 0).map (ix.opening cfg.params r f))).op
     { conn := { c.beginRound k with
         active := (ready.map (·, k) ++ c.active.filter fun p => !has ready p.1).take c.rooms.length
         rounded := ready.foldl (fun rs r => noteEpoch c.rooms.length rs r now) c.rounded
@@ -446,7 +491,7 @@ def Conn.onRbsr (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (no
   let ended (c : Conn) : Conn :=
     { c with active := others }
   if cs.isEmpty then { conn := ended c } else
-  let outs := cs.flatMap (ix.answer cfg.params r)
+  let outs := cs.flatMap (ix.answer cfg.params r c.roundFloor)
   let claims := claimsOf outs
   let holds := outs.flatMap holdIds
   let wants := outs.flatMap fun | .want xs => xs | _ => []
@@ -493,30 +538,6 @@ def Conn.onHold (c : Conn) (r : Id) (ids : List Id) : m Step := do
     short := if cut then noteRoom c.rooms.length c.short r else c.short }
   return { conn := c, send := chunks cfg accepted .want }
 
-/-- At most `budget` steps of the walk, with what it has offered so far
-(newest first), each with its room. -/
-def Conn.walkN (c : Conn) (offer : List (Id × Id)) : Nat → m (Conn × List (Id × Id))
-  | 0 => return (c, offer.reverse)
-  | budget + 1 => do
-    match c.frontier with
-    | [] => return (c, offer.reverse)
-    | x :: rest =>
-      let c := { c with frontier := rest }
-      if c.closed.contains x then return ← c.walkN offer budget
-      -- Transferring one pending slot to visited never needs another slot.
-      let c := { c with closed := c.closed.insert x }
-      match ← Store.getOp (F := F) x with
-      | none => c.walkN offer budget
-      | some o =>
-        if c.shows fam o then
-          let offer := if !c.known.contains x && !c.offered.contains x then
-            ((fam.room o).getD .empty, x) :: offer else offer
-          (c.queue cfg o.reqs).walkN offer budget
-        else c.walkN offer budget
-
-/-- Walk the admitted requirement prefix. Visited ids include missing and
-invalid ops: their bytes cannot change, and the next round retries them. -/
-def Conn.walk (c : Conn) : m (Conn × List (Id × Id)) := c.walkN fam cfg [] cfg.walk
 
 /-- Authorize ids using only the shown rooms' index, before any blob read. -/
 def authorize (ix : Index) (c : Conn) (ids : List Id) : List Id :=
@@ -540,13 +561,12 @@ def Conn.owedAfter (c : Conn) (first : List Id) : List Id :=
   if (c.hotOf first).isEmpty then c.owed else c.owed.filter fun i => !(c.hotOf first).contains i
 
 /-- The queue after a step: `gone` left it, `rest` is what remains, and
-the ops `sent` the peer now holds (their requirement closure is offered
-on later ticks). -/
+the ops `sent` the peer now holds. -/
 def Conn.served (c : Conn) (gone rest : List Id) (sent : List Op) : Conn :=
   { c with
     owed := rest
     owing := gone.foldl (·.erase ·) c.owing
-    known := sent.foldl (fun (k : HashSet Id) (o : Op) => remember cfg.maxKnown k o.id) c.known } |>.queue cfg (sent.flatMap Op.reqs)
+    known := sent.foldl (fun (k : HashSet Id) (o : Op) => remember cfg.maxKnown k o.id) c.known }
 
 /-- Serve the queue (docs/SYNC.md, "Lanes"): first the queued ids in
 `first` (this node's fresh writes), at most one, whatever the budget;
@@ -617,15 +637,16 @@ def Conn.retryIds (cfg : Config) (c : Conn) (now : Nat) : List Id :=
   if c.lastAsk + cfg.retry ≤ now then c.asked.toList.take cfg.maxIds else []
 
 /-- Work due on a live session: the rounds due (the dialer) or asked for
-(the responder), closure and retries. -/
-def Conn.work (ix : Index) (c : Conn) (now : Nat) : m Step := do
-  let (c, offer) ← c.walk fam cfg
+(the responder), and retries. It reads no op: a windowed round reads its
+closure in the round (S), with no walk left for ticks; the family stays
+a parameter, as for every connection step. -/
+def Conn.work (_fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (now : Nat) : m Step := do
   let c := c.expireAsks cfg now
   let s := if c.dialer then c.start cfg ix now else c.ask cfg now
   let due := c.lastAsk + cfg.retry ≤ now
   return { s with
     conn := { s.conn with lastAsk := if due then now else c.lastAsk }
-    send := s.send ++ (holdsOf cfg offer ++ chunks cfg (c.retryIds cfg now) .want) }
+    send := s.send ++ chunks cfg (c.retryIds cfg now) .want }
 
 /-- The clock has one drop rule, independent of rooms and outstanding work. -/
 def Conn.tick (ix : Index) (c : Conn) (now : Nat) : m Step := do

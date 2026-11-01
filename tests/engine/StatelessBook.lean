@@ -8,26 +8,18 @@ def bookChecks (t : Checks) : IO Unit := do
   let room := "room".toUTF8
   let o := Op.make 1 [room] "snapshot".toUTF8
   let ix := Index.ofOps fam [o]
-  let cfg : Config := { maxKnown := 4, closureCap := 2 }
+  let cfg : Config := { maxKnown := 4 }
   let c : Conn := { dialer := false, rooms := [room], floor := 0, peerFloor := some 0 }
   let full := { c.beginRound 1 with peerFloor := some 86400 }
   let queued := (full.onWant cfg ix [o.id]).conn
   let ((served, _, bulk), _) := (queued.serveOwed fam cfg 1000 [] : TM _).run { ops := [o] }
-  t.ok "full captured range survives a later hello" (bulk == [o] && served.frontier.isEmpty && served.offered.isEmpty)
+  t.ok "full captured range survives a later hello" (bulk == [o] && served.offered.isEmpty)
   let window := ({ c with peerFloor := some 86400 } : Conn).beginRound 1
   let ended := (window.onRbsr cfg ix room 1 [] 1).conn
   let queued := ({ ended with peerFloor := some 0 }.onWant cfg ix [o.id]).conn
-  let ((served, _, _), _) := (queued.serveOwed fam cfg 1000 [] : TM _).run { ops := [o] }
-  t.ok "window captured range survives its end and later hello" (served.frontier == [room])
-  let queued := window.queue cfg [room, room, room]
-  t.ok "duplicate requirements use one slot" (queued.frontier == [room] && !queued.closureCut)
-  let zero := window.queue { cfg with closureCap := 0 } [room]
-  t.ok "zero closure cap cuts explicitly without keeping ids" (zero.frontier.isEmpty && zero.closed.isEmpty && zero.closureCut)
-  let cut := window.queue cfg [room, "a".toUTF8, "b".toUTF8]
-  let more := cut.queue cfg ["c".toUTF8]
-  t.ok "a cut never admits more ids that round" (cut.closureCut && more.closureCut && more.frontier == cut.frontier)
-  let fresh := more.beginRound 2
-  t.ok "new round resets the closure budget and cut" (fresh.frontier.isEmpty && fresh.closed.isEmpty && !fresh.closureCut)
+  let ((served, _, bulk), _) := (queued.serveOwed fam cfg 1000 [] : TM _).run { ops := [o] }
+  t.ok "a windowed round serves its want and keeps nothing for it (its closure is in its set S)"
+    (bulk == [o] && served.roundFloor == 86400 && served.offered.isEmpty && served.owed.isEmpty)
   let ops := (List.range 40).map fun i => Op.make 1 [room] s!"stream-{i}".toUTF8
   let mut c := c
   let mut bounded := true

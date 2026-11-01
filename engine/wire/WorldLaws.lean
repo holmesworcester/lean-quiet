@@ -1515,8 +1515,9 @@ theorem stream_offered_runs (r cid : Id) :
 /-! ## The round, at one connection -/
 
 /-- An accepted id-claim batch is the base case of the connection's
-round exchange. It answers from the room as the live index X holds it
-then (`ix.items r`), offers exactly the first side of `exchange`, and
+round exchange. It answers from the round's set as the live index X holds
+it then (`ix.over`: the room, or for a windowed round its window and
+closure), offers exactly the first side of `exchange`, and
 requests the admitted part of the second. Deferred wants require later
 service or another round. The epoch premise excludes stale or unstarted
 replies. Runs whose index changes between batches are in
@@ -1525,7 +1526,7 @@ does not assume arbitrary delivery order preserves a complete round. -/
 theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (rg : Range)
     (X Y : List Item) (now : Nat) (hr : r ∈ c.rooms)
     (fresh : c.oldRound r k = false)
-    (hX : X = ix.items r) :
+    (hX : X = ix.over cfg.params.depth r (c.beginRound k).roundFloor) :
     ∃ A B, (A, B) = exchange Prod.fst Prod.snd sha256 cfg.params 1 X Y
         (.ids rg ((within Prod.fst rg Y).map Prod.snd).reverse) ∧
       (c.onRbsr cfg ix r k [.ids rg ((within Prod.fst rg Y).map Prod.snd).reverse] now).send =

@@ -34,7 +34,14 @@ theorem named : Named Prod.fst Prod.snd (xs ++ ys) := by
   simp [Named, xs, ys]
   decide
 
-theorem itemsAt (n : Nat) : (states n).items room = if n % 2 = 0 then xs else ys := by
+-- Both ends are full (floor 0): every step's set is the room's items.
+theorem full (t : Nat) : Full (states t).receiving ∧ Full (states t).waiting :=
+  exec_full cfg room 1 times ixs states runs
+    (by simp [states, execute, first, initial, Full, Conn.start, Conn.due, Conn.roundedAt, Conn.retake,
+      Conn.beginRound]) t
+
+theorem itemsAt (n : Nat) : (states n).items cfg room 1 = if n % 2 = 0 then xs else ys := by
+  rw [items_full _ _ _ _ (full n).1]
   cases n with
   | zero => rfl
   | succ n =>
@@ -42,13 +49,13 @@ theorem itemsAt (n : Nat) : (states n).items room = if n % 2 = 0 then xs else ys
     unfold ixs
     split <;> rfl
 
-theorem itemsX (t : Nat) : (states (2 * t)).items room = xs := by
+theorem itemsX (t : Nat) : (states (2 * t)).items cfg room 1 = xs := by
   rw [itemsAt, if_pos (by omega)]
-theorem itemsY (t : Nat) : (states (2 * t + 1)).items room = ys := by
+theorem itemsY (t : Nat) : (states (2 * t + 1)).items cfg room 1 = ys := by
   rw [itemsAt, if_neg (by omega)]
 
-theorem items0 : (states 0).items room = xs := by simpa using itemsX 0
-theorem items1 : (states 1).items room = ys := by simpa using itemsY 0
+theorem items0 : (states 0).items cfg room 1 = xs := by simpa using itemsX 0
+theorem items1 : (states 1).items cfg room 1 = ys := by simpa using itemsY 0
 
 -- The messages claim times; the structure range (time 0) is empty on both sides.
 theorem withinX : within Prod.fst timedRange xs = xs := by decide
@@ -85,7 +92,7 @@ theorem bounded (t : Nat) : (states t).receiving.Bounded cfg ∧ (states t).wait
     (by simp [states, execute, first, initial, Conn.start, Conn.due, Conn.roundedAt, Conn.beginRound,
       Conn.Bounded, cfg]) t
 
-theorem capacity (t : Nat) : Capacity cfg room (states t) := by
+theorem capacity (t : Nat) : Capacity cfg room 1 (states t) := by
   cases t with
   | zero =>
     rw [Capacity, items0]
@@ -106,7 +113,7 @@ theorem capacity (t : Nat) : Capacity cfg room (states t) := by
     | succ n =>
       have empty := laterEmpty n
       change (states (n + 2)).receiving.asked.size +
-        (roundWants (outputs cfg ((states (n + 2)).items room) (states (n + 2)).pending)).length ≤ cfg.maxKnown
+        (roundWants (outputs cfg ((states (n + 2)).items cfg room 1) (states (n + 2)).pending)).length ≤ cfg.maxKnown
       simp only [empty, outputs, List.flatMap_nil, roundWants, List.length_nil, Nat.add_zero]
       exact (bounded (n + 2)).1.2
 
@@ -120,12 +127,12 @@ theorem emptyAsks : (states 0).receiving.asked = ∅ ∧ (states 0).waiting.aske
   initial_asks ..
 
 theorem terminates : ∃ j, j ≤ 8 ∧ (states j).pending = [] := by
-  have sub : ∀ t, ∀ a ∈ (states t).items room, a ∈ xs ++ ys := by
+  have sub : ∀ t, ∀ a ∈ (states t).items cfg room 1, a ∈ xs ++ ys := by
     intro t a ha; rw [itemsAt] at ha
     split at ha
     · exact List.mem_append_left _ ha
     · exact List.mem_append_right _ ha
-  have sorted : ∀ t, Sorted Prod.fst ((states t).items room) := by
+  have sorted : ∀ t, Sorted Prod.fst ((states t).items cfg room 1) := by
     intro t; rw [itemsAt]; split
     · exact sortedX
     · exact sortedY

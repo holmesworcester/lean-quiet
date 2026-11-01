@@ -21,7 +21,8 @@ import engine.renderer.TranslateLaws
 import engine.sync.TreeLaws
 import engine.sync.NewestLaws
 import engine.sync.StateLaws
-import engine.sync.ClosureComplete
+import engine.sync.OfferLaws
+import engine.sync.ServeLaws
 import engine.sync.TimeLaws
 import engine.sync.SessionLaws
 import engine.sync.SecrecyLaws
@@ -814,11 +815,6 @@ end windows
 #print axioms Engine.Sync.extra_ask
 #print axioms Engine.Sync.extra_onAsk
 #print axioms Engine.Sync.noteRoom_short
-#print axioms Engine.Sync.full_round_stateless
-#print axioms Engine.Sync.closure_capped
-#print axioms Engine.Sync.closure_complete_under_cap
-#print axioms Engine.Sync.full_round_runs
-#print axioms Engine.Sync.closure_under_cap_runs
 
 section cost
 -- Budgets over the code that runs (docs/PERF.md), and the negative

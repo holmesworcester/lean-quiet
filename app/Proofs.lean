@@ -2755,16 +2755,10 @@ theorem give_reads : ∀ (l : List (Id × Id)) (c : Conn), ReadsHeld (c.give fam
         ReadsHeld.bind' (give_reads rest _) fun _ => ReadsHeld.pure' _
 theorem filedGive_reads (c : Conn) (ids : List Id) : ReadsHeld (c.filedGive fam cfg ids : M Step) := by
   unfold Conn.filedGive Conn.notify; readsHeld [give_reads, filed_reads]
-theorem walkN_reads : ∀ budget (c : Conn) offer,
-    ReadsHeld (c.walkN fam cfg offer budget : M (Conn × List (Id × Id)))
-  | 0, _, _ => ReadsHeld.pure' _
-  | budget + 1, c, offer => by
-    unfold Conn.walkN
-    readsHeld [walkN_reads budget]
 theorem tickGive_reads (ix : Index) (c : Conn) (now : Nat) :
     ReadsHeld (c.tickGive fam cfg ix now : M Step) := by
-  unfold Conn.tickGive Conn.notify Conn.tick Conn.work Conn.walk
-  readsHeld [give_reads, walkN_reads]
+  unfold Conn.tickGive Conn.notify Conn.tick Conn.work
+  readsHeld [give_reads]
 theorem recv_reads (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) :
     ReadsHeld (Conn.recv fam cfg ix c bytes now : M Step) := by
   unfold Conn.recv; readsHeld [onHold_reads]
