@@ -13,6 +13,7 @@ supported platform:
 ```sh
 make install   # about 10 minutes cold: Lean and Rust in your home folder, pinned assets, the build
 make run       # the desktop app with a demo community, networking off
+make demo      # two devices side by side on this machine: join one from the other, then chat
 make verify    # lake check and lake comparator, on Lean 4.35 (about 15 minutes)
 ```
 
