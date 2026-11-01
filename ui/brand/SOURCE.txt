@@ -1,0 +1,10 @@
+quiet.json is TryQuiet/libquiet app/src/brand/quiet.json, unmodified, at
+commit bd9d9a010062ab59a0ab0fc67731d827dd02fe27 (last changed in ff1298a27;
+identical at ab3d244cfb9937c05dc53736046127150c3e0bb9).
+
+quiet-lockup.svg is that lockup as app/src/Wordmark.svelte draws it: the
+lockup viewBox, the mark path filled even-odd, then each letter path, with
+the path data copied verbatim. engine/renderer/Brand.lean reads it with
+include_str; tests/visual/check_brand_source.py checks it against
+quiet.json. Lake does not track include_str, so touch Brand.lean after
+changing it.

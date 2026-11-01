@@ -1,0 +1,12 @@
+{
+  "repository": "TryQuiet/libquiet",
+  "commit": "bd9d9a010062ab59a0ab0fc67731d827dd02fe27",
+  "renderer": "Chromium, actual libquiet App.svelte through its Window story wrapper",
+  "face": "bundled Noto Sans",
+  "device_scale_factor": 1,
+  "safe_area": "excluded; native platform inset tests run separately",
+  "locale": "en-GB",
+  "timezone": "UTC",
+  "fixture_sha256": "f3d4f7a2afa84c130c1a1467156266fe6d78b7d7273a0e8cad0d6a88d8d4720a",
+  "browser_version": "156.0.8078.73"
+}

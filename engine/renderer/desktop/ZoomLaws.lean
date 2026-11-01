@@ -18,6 +18,18 @@ theorem zoom_partition (w dpi : Nat) (opened : Bool) :
     exact Nat.div_le_div_right (by omega)
   by_cases hw : (720 * dpi + 80) / 160 ≤ w <;> cases opened <;> simp [zoomLayout, hw] <;> omega
 
+/-- **No shell, one pane.** Without the shell the whole window is the
+main pane, at any width, density or drawer state: no sidebar, no drawer. -/
+theorem zoom_stage_full (w dpi : Nat) (opened : Bool) :
+    zoomLayout w opened dpi false = ⟨w, ⟨0, 0⟩, ⟨0, w⟩, ⟨w, 0⟩⟩ := by
+  simp [zoomLayout]
+
+/-- **The shell has its sidebar** from 45rem: 220 CSS pixels at the
+density, left of the conversation. -/
+theorem zoom_shell_sidebar (w dpi : Nat) (opened : Bool) (hw : (720 * dpi + 80) / 160 ≤ w) :
+    (zoomLayout w opened dpi true).nav = ⟨0, (220 * dpi + 80) / 160⟩ := by
+  cases opened <;> simp [zoomLayout, hw]
+
 /-- Every track is contained even at fractional zoom levels. -/
 theorem zoom_contained (w dpi : Nat) (opened : Bool) (p : Pane) :
     ((zoomLayout w opened dpi).track p).x + ((zoomLayout w opened dpi).track p).w ≤ w := by

@@ -47,11 +47,11 @@ def load (path : String := "assets/font.bin") (density : Nat := 420) : IO Font :
   let sourceCell := cell
   let cell := pixelCell sourceCell density
   let noto ← Noto.load cell
-  let sizes := [11, 12, 13, 14, 15, 16, 18, 20, 21, 24, 32, 48, 56].foldl (fun out dp =>
+  let sizes := [11, 12, 13, 14, 15, 16, 18, 20, 21, 24, 28, 32, 48, 56].foldl (fun out dp =>
     let px := max 1 (min 256 ((dp * density + 80) / 160))
     out.insert px (noto.sized px)) ({} : Std.HashMap Nat Noto.Set)
   let medium ← Noto.medium
-  let mediumSizes := [14, 16, 18].foldl (fun out dp =>
+  let mediumSizes := [14, 16, 18, 28].foldl (fun out dp =>
     let px := max 1 (min 256 ((dp * density + 80) / 160))
     out.insert px ((sizes.getD px noto).overlay (medium.sized px))) ({} : Std.HashMap Nat Noto.Set)
   return ⟨b, cell, emoji, noto, sourceCell, sizes, ← Glyphs.load, false, mediumSizes⟩

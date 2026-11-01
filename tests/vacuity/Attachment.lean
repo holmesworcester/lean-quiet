@@ -9,13 +9,13 @@ namespace Vacuity.Attachment
 open Engine Community Codec Tests Vacuity.Identity Vacuity.IdentityTrust
 set_option linter.defProp false
 
-def contentKey : ByteArray := sha256 "vacuity/attachment/content-key".toUTF8
+def contentKey : Key32 := Bytes.digest "vacuity/attachment/content-key".toUTF8
 def file : NewFile := {
   info := { name := "meeting-notes.bin".toUTF8, kind := "application/octet-stream".toUTF8, w := 0, h := 0, preview := .empty }
   bytes := ⟨((List.range 70000).map fun i => (i % 251).toUInt8).toArray⟩
-  key := sha256 "vacuity/attachment/file-key".toUTF8
-  nonce := ⟨Array.replicate 24 7⟩
-  metaNonce := ⟨Array.replicate 24 9⟩ }
+  key := Bytes.digest "vacuity/attachment/file-key".toUTF8
+  nonce := ⟨⟨Array.replicate 24 7⟩, rfl⟩
+  metaNonce := ⟨⟨Array.replicate 24 9⟩, rfl⟩ }
 
 def cipher := fileCipher file
 def rootHash := Merkle.fileRoot sha256 cipher

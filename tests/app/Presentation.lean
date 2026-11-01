@@ -193,7 +193,7 @@ def run (ck : Checks) : IO Unit := do
     let some key ← intentView (Community.currentKey s.me.c) | throw (IO.userError "fixture key missing")
     let bearer := Device.named "invalid presentation parent"
     let invitation := invite s.me.c s.me.adm s.me.dev bearer.pk false
-    let bad := sealedPost s.me.c invitation.id s.me.dev key (← newBytes 24)
+    let bad := sealedPost s.me.c invitation.id s.me.dev key (← App.newSized 24)
       "Invalid child must not display".toUTF8 1 1
     let validParent ← Reader.judgeWrite s.rd s.out ⟨[invitation]⟩
     let invalid ← Reader.judgeWrite s.rd s.out ⟨[invitation, bad]⟩
@@ -237,7 +237,7 @@ def run (ck : Checks) : IO Unit := do
     -- saturated root's receipt when the next local write is its child.
     waitIdle sm
     let s ← get
-    let predecessor := sealedPost s.me.c s.me.adm s.me.dev key (← newBytes 24)
+    let predecessor := sealedPost s.me.c s.me.adm s.me.dev key (← App.newSized 24)
       "Counter predecessor".toUTF8 (countCap - 1) 0
     unless ← writeAll ⟨[predecessor]⟩ do throw (IO.userError "saturation predecessor refused")
     waitIdle sm

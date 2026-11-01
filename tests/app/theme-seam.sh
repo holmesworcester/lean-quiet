@@ -29,7 +29,8 @@ p=Path(sys.argv[1]); replies=(p/'replies').read_text()
 assert 'theme system effective Theme.Value.dark' in replies
 assert 'theme system effective Theme.Value.light' in replies
 assert 'theme dark effective Theme.Value.dark' in replies
-for name,want in [('light',bytes.fromhex('f7f7f7')),('dark',bytes.fromhex('242424')),('forced',bytes.fromhex('242424'))]:
+# A fresh app is on Get started, libquiet's Stage, drawn on --panel.
+for name,want in [('light',bytes.fromhex('ffffff')),('dark',bytes.fromhex('222222')),('forced',bytes.fromhex('222222'))]:
     data=(p/(name+'.ppm')).read_bytes().split(b'\n',3)[3]
     assert data[:3] == want, (name,data[:3])
 print('native headless seam: 3 OS/setting replies and 3 frame pixel checks pass')
