@@ -136,7 +136,7 @@ theorem answer_offers {key : Item → Key} {P : Params} {mine : List Item} {cl :
     · cases ho
     · split at ho
       · simp only [List.mem_singleton] at ho; subst ho
-        simp only [Out.offers, Claim.offers, List.mem_map] at hi
+        simp only [Out.offers, Claim.offers, List.mem_reverse, List.mem_map] at hi
         obtain ⟨a, ha, rfl⟩ := hi
         exact ⟨a, (mem_within.1 ha).1, rfl⟩
       · simp only [List.mem_map] at ho
@@ -145,7 +145,7 @@ theorem answer_offers {key : Item → Key} {P : Params} {mine : List Item} {cl :
   | ids r xs =>
     simp only [answer, List.mem_cons, List.not_mem_nil, or_false] at ho
     rcases ho with rfl | rfl
-    · simp only [Out.offers, List.mem_map, List.mem_filter] at hi
+    · simp only [Out.offers, List.mem_reverse, List.mem_map, List.mem_filter] at hi
       obtain ⟨a, ⟨ha, _⟩, rfl⟩ := hi
       exact ⟨a, (mem_within.1 ha).1, rfl⟩
     · simp [Out.offers] at hi
@@ -156,7 +156,7 @@ theorem opening_offers {key : Item → Key} {P : Params} {mine : List Item} {r :
   unfold opening at hi
   dsimp only at hi
   split at hi
-  · simp only [Claim.offers, List.mem_map] at hi
+  · simp only [Claim.offers, List.mem_reverse, List.mem_map] at hi
     obtain ⟨a, ha, rfl⟩ := hi
     exact ⟨a, (mem_within.1 ha).1, rfl⟩
   · simp [Claim.offers] at hi

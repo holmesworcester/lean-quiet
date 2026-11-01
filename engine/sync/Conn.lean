@@ -8,7 +8,8 @@ closes the connection when `step.drop`.
 - **Hello.** Each side opens by saying its window floor. A window is
   every op with no claimed time (roots, admissions, removals, ...) and
   every op claimed at or after the floor; a round runs over the overlap
-  of the two windows (`window`).
+  of the two windows (`window`), structure first, then newest first
+  (`newest_first`).
 - **Rounds.** The dialer opens a round per room once it knows the
   peer's floor, and again every `cfg.every` ms for each idle room.
   Each side answers a round's claims from a snapshot of the room taken
@@ -95,10 +96,12 @@ end
 
 /-! ## Connections -/
 
-/-- The window from floor f: every op with no claimed time, and every op
-claimed at f or later. -/
+/-- The window from floor f: every op with no claimed time (the
+structure range, first: everything else needs it), then every op claimed
+at f or later (at 1 or later for a full window, `f ≤ 1`). Answers go
+newest first within each (`newest_first`). -/
 def window (f : Nat) : List Range :=
-  if f ≤ 1 then [⟨⟨0, 0⟩, none⟩] else [⟨⟨0, 0⟩, some ⟨1, 0⟩⟩, ⟨⟨f, 0⟩, none⟩]
+  [⟨⟨0, 0⟩, some ⟨1, 0⟩⟩, ⟨⟨max f 1, 0⟩, none⟩]
 
 structure Config where
   params : Params := {}

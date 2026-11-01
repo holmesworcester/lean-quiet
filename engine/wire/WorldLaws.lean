@@ -1519,8 +1519,8 @@ theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Na
     (fresh : c.oldRound r k = false)
     (hX : X = ((c.snaps.find? fun p => Decidable.decide (p.1 = (r, k))).map (·.2)).getD (ix.items r)) :
     ∃ A B, (A, B) = exchange Prod.fst Prod.snd sha256 cfg.params 1 X Y
-        (.ids rg ((within Prod.fst rg Y).map Prod.snd)) ∧
-      (c.onRbsr cfg ix r k [.ids rg ((within Prod.fst rg Y).map Prod.snd)] now).send =
+        (.ids rg ((within Prod.fst rg Y).map Prod.snd).reverse) ∧
+      (c.onRbsr cfg ix r k [.ids rg ((within Prod.fst rg Y).map Prod.snd).reverse] now).send =
         (Msg.rbsr r k []).op :: (chunks cfg A (.hold r) ++ chunks cfg (admitAsks cfg.maxKnown c.asked B) .want) ∧
       ∀ i, (i ∈ A ↔ named Prod.snd (within Prod.fst rg X) i = true ∧
           named Prod.snd (within Prod.fst rg Y) i = false) ∧

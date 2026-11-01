@@ -170,6 +170,7 @@ theorem answer_rank (cfg : Config) (X Y : List Item) (sx : Sorted Prod.fst X)
       · rename_i hf hl
         obtain ⟨piece, hp, he⟩ := List.mem_map.mp hc
         cases he
+        have hp := List.mem_reverse.mp hp
         have shrunk := pieces_shrink (P := cfg.params) sx (Nat.lt_of_not_ge hl) piece hp
         have peer := filter_len_le (l := Y) (fun a ha => shrunk.2 (Prod.fst a) ha)
         refine ⟨⟨piece, rfl, rfl⟩, ?_⟩
@@ -340,7 +341,7 @@ theorem discovers (cfg : Config) (r : Id) (k : Nat) (times : Nat → Nat) (state
     · obtain ⟨ids, ho, hi, _⟩ := want
       exact ⟨t, Nat.le_refl _, by omega,
         wants_seen cfg r k (times t) X Y _ ready hne hmax (capacity t) cl member ids i ho hi⟩
-    · exact next (.ids q ((within Prod.fst q X).map Prod.snd)) q ids.2 ⟨rfl, rfl⟩
+    · exact next (.ids q ((within Prod.fst q X).map Prod.snd).reverse) q ids.2 ⟨rfl, rfl⟩
         (Or.symm diff)
     · obtain ⟨_, piece, hc, _, hd, _⟩ := fp
       exact next _ piece hc ⟨rfl, rfl⟩ (Or.symm hd)
@@ -520,10 +521,15 @@ theorem initial_ready (cfg : Config) (r : Id) (ix iy : Index) (now : Nat) :
     Ready r 1 (ix.items r) (iy.items r) (initial cfg r ix iy now) := by
   simp [Ready, initial, Conn.start, Conn.beginRound, Conn.snap, Conn.oldRound, noteEpoch]
 
+/-- The structure range and the claimed times: a full window (`window 0`). -/
+def structureRange : Range := ⟨⟨0, 0⟩, some ⟨1, 0⟩⟩
+def timedRange : Range := ⟨⟨1, 0⟩, none⟩
+
 theorem initial_claim (cfg : Config) (r : Id) (ix iy : Index) (now : Nat) :
     (initial cfg r ix iy now).pending =
-      [opening Prod.fst Prod.snd sha256 cfg.params (iy.items r) fullRange] := by
-  simp [initial, Conn.start, window, returnedClaims, fullRange]
+      [opening Prod.fst Prod.snd sha256 cfg.params (iy.items r) structureRange,
+       opening Prod.fst Prod.snd sha256 cfg.params (iy.items r) timedRange] := by
+  simp [initial, Conn.start, window, returnedClaims, structureRange, timedRange]
 
 /-- All initialized asks are empty; the causality proof can therefore
 trace every later pending ask to a real want on this round's wire. -/
