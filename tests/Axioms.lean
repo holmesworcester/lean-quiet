@@ -1421,6 +1421,15 @@ end cost
 #print axioms Connection.Execution.world_trace_moves
 #print axioms Connection.Execution.empty_trace_store
 #print axioms Connection.Execution.Run.shared_retained
+#print axioms Connection.Execution.trace_good
+#print axioms Connection.Execution.connect_iff_trace
+#print axioms Connection.Execution.removal_cuts_off_trace
+#print axioms Connection.Execution.refuse_nonmember_trace
+#print axioms Connection.Execution.admitted_trace
+#print axioms Connection.Execution.removed_trace
+#print axioms Connection.Execution.rooms_cut_trace
+#print axioms Connection.Execution.Run.state_trace
+#print axioms Connection.Execution.Run.good
 #print axioms Engine.Sync.Sweep.offer_sent
 #print axioms Engine.Sync.Sweep.next_sent
 #print axioms Engine.Sync.Sweep.step_progress

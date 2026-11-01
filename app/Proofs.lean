@@ -3005,7 +3005,9 @@ covered: more than two peers, reordering, restarts, an attacker on the
 wire, and SQLite (the Held store stands in for it). -/
 
 section
+open Community (Admitted Removed Live allowPeer ed25519)
 variable (S : Setup) (ea eb : Nat → ByteArray) (actions : List Action) (side : Side)
+set_option hygiene false in
 local notation "store" => ((trace S (empty ea eb) actions).peer side).memory.held.db
 
 /-- **Every production trace leaves each peer's store good:** the engine's
@@ -3017,7 +3019,7 @@ facts), so this becomes "urgent facts settled", and the corollaries rest
 on that through engine/core/Locality.lean: a membership op's verdict
 depends only on the ops it cites, and those are all urgent. Only this law
 changes then. -/
-theorem trace_good : Inv family store ∧ store.queue = [] := by
+theorem trace_good : Inv family store ∧ (store).queue = [] := by
   obtain ⟨⟨_, hr, _⟩, hq⟩ := empty_trace_store S ea eb actions side
   exact ⟨reach_inv hr, hq⟩
 
@@ -3050,14 +3052,14 @@ theorem refuse_nonmember_trace (c : Id) (e : Community.Key)
 admission among the peer's own verdicts. -/
 theorem admitted_trace {c u : Id} {d e : Community.Key} :
     Admitted ed25519 (community ed25519 store).ops c u d e ↔
-      ∃ x, store.status x = some (.valid (.inl (.admission c u d e))) :=
+      ∃ x, (store).status x = some (.valid (.inl (.admission c u d e))) :=
   admitted_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2
 
 /-- Removed, at every peer after every production trace: by a Valid
 removal among the peer's own verdicts. -/
 theorem removed_trace {c u : Id} :
     Removed ed25519 (community ed25519 store).ops c u ↔
-      ∃ x r, store.status x = some (.valid (.inl (.removal c u r))) :=
+      ∃ x r, (store).status x = some (.valid (.inl (.removal c u r))) :=
   removed_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2
 
 /-- **A removal ends a session's sync,** at every peer after every
