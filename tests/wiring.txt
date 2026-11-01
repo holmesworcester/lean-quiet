@@ -380,12 +380,10 @@ todo Net.step = Net.Scene.approval
 todo Net.table = Net.Scene.approval
 bridge SheetGeom.Grid.ctop SheetGeom.lineOf_ctop
 todo Engine.Sync.keeps The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s.
-todo Pic.add The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code.
-todo Pic.fit = Pic.add
+todo Pic.add The composer's tray runs only in qr's Android harness: the app sizes a photo by `Pic.fit` but draws its own chips; use `Pic`'s tray in the app, or prove these of its chips.
 todo Pic.layout = Pic.add
 todo Pic.render = Pic.add
 todo Pic.scale = Pic.add
-todo Pic.attachEdge = Pic.add
 todo Pic.Geom.box = Pic.add
 spec Pic.Rgba.wellFormed A picture's pixels are 4 bytes for each of its w × h.
 todo Mdns.decode Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it.

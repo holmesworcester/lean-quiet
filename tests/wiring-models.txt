@@ -176,11 +176,6 @@ Screen.screen_subs
 
 # engine.renderer.pic.Laws
 Pic.add_stored
-Pic.fit_le
-Pic.fit_long
-Pic.fit_pos
-Pic.fit_round
-Pic.fit_small
 Pic.layout_apart
 Pic.layout_inside
 Pic.layout_sizes

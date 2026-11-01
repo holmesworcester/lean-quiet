@@ -6,6 +6,7 @@ import engine.renderer.Label
 import app.Commands
 import Std.Data.HashMap.Lemmas
 import engine.renderer.Image
+import engine.renderer.pic.Fit
 import engine.core.Core
 import app.community.Screen
 import app.community.member.join.accept.View
@@ -4178,10 +4179,12 @@ def sendNow (submission : Option Editor.Snapshot := none) (refusal : Option UInt
   finally
     if let some action := submission then discard <| (← get).io.editorIo.action action.ticket 2
 
-/-- A photo prepared for sending: at most 2048 px a side, as QOI, with its
+/-- A photo prepared for sending: at most `Pic.attachEdge` (2048) px a
+side, sized by `Pic.fit` (kept if it fits; else its longer side exactly
+the edge, the other to the nearest pixel: Pic.fit_*), as QOI, with its
 chip (a 64 dp square crop) and how much smaller than its raw pixels it is. -/
 def preparePhoto (dm : Dim) (src : Image.Src) : ByteArray × Nat × Nat × Composer.Chip :=
-  let (w, h) := if src.w ≤ 2048 && src.h ≤ 2048 then (src.w, src.h) else Image.fit src 2048 2048
+  let (w, h) := Pic.fit src.w src.h Pic.attachEdge
   let px := Chaos.cropPx src 0 0 src.w src.h w h
   let bytes := Image.encode w h px
   let raw := w * h * 4
