@@ -92,7 +92,7 @@ def history (members posts : Nat) : List Op × Id := Id.run do
     let inv := invite c c f b.pk false
     let req := request c inv.id d (keyOf d) b.sk
     let ok := approve c req.id c f
-    let adm := admit c req.id [ok.id]
+    let adm := admit c req.id ok.id
     ops := ops ++ #[inv, req, ok, adm]
     adms := adms.push (adm.id, d)
   for i in [0:posts] do

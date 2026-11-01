@@ -1,9 +1,10 @@
 import app.community.Op
 
 /-
-An admission of a request: a tally. It cites the request and exactly
-`threshold` approvals of it, by distinct users. Unsigned: anyone holding
-the approvals may compose it. Its fact is the admission (`Root.Fact`).
+An admission of a request: it cites the request and exactly one
+approval of it. Unsigned: anyone holding the approval may compose it.
+Several admits of one request (citing other approvals) all give the
+same admission. Its fact is the admission (`Root.Fact`).
 -/
 
 namespace Community

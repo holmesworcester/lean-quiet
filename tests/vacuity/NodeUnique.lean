@@ -1,5 +1,5 @@
 import engine.wire.NodeUniqueLaws
-import app.connection.NodeUnique
+import app.Proofs
 import engine.sync.Witnesses
 
 /- Synthetic Unit-family session labels make kernel computation possible.

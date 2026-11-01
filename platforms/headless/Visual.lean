@@ -43,7 +43,7 @@ def sidebarPeople : M Unit := do
     let invitation := invite s.me.c s.me.adm s.me.dev bearer.pk false
     let req := request s.me.c invitation.id person (cryptoSeal.pub (Chaos.bytesOf ("sidebar node " ++ name) 32)) bearer.sk
     let approval := approve s.me.c req.id s.me.adm s.me.dev
-    let admission := admit s.me.c req.id [approval.id]
+    let admission := admit s.me.c req.id approval.id
     let profile := Community.profile s.me.c admission.id person name.toUTF8 29330000
     unless ← writeAll ⟨[invitation, req, approval, admission, profile]⟩ do
       throw (IO.userError "sidebar fixture rejected")

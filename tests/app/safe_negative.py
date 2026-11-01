@@ -44,7 +44,7 @@ def run(cmd, log):
 assert run(["lake", "build", "app.Proofs"], "baseline").returncode == 0
 try:
     for name, module, before, after in cases:
-        path = ROOT / ("app/Screen.lean" if module in ("App", "SafeFrame") else "engine/renderer/" + module + ".lean")
+        path = ROOT / ("app/Screen.lean" if module == "App" else "engine/renderer/" + module + ".lean")
         original = path.read_text()
         assert before in original, (name, "mutation anchor missing")
         try:
@@ -97,7 +97,7 @@ try:
             print("rejected", name, flush=True)
         finally:
             path.write_text(original)
-    path = ROOT / "app/Screen.lean"
+    path = ROOT / "engine/renderer/SafeFrame.lean"
     original = path.read_text()
     try:
         before = "1.05 / (l + 0.05) ≥ (l + 0.05) / 0.05"

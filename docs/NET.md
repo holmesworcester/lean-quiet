@@ -16,9 +16,8 @@ session) and libquiet's request/vouch/admission:
 - **A request is an op.** The joiner composes it once, when it pastes the
   link. It is signed by the link's bearer key and by the joining device,
   and it admits nobody. Members approve it with signed approval ops that
-  cite it. An unsigned admit op tallies exactly the invitation's
-  threshold of approvals, by distinct users, into the admission
-  (lean-engine `Community`).
+  cite it. An unsigned admit op cites the request and exactly one
+  approval of it: one approval admits (lean-engine `Community`).
 - **Delivered, not connected.** The joiner's hello carries the request.
   The inviter stores it if it is a Valid request (the only op it reads
   from a peer it does not trust) and answers only if it now trusts the
@@ -76,9 +75,9 @@ finite number of times. Bootstrapped means `Scene.Goal`.
 - The node functions decide on Props, through `Classical`. The running
   code is to call `allowPeer`, which `Net.Bridge` proves gives the same
   answers at rest.
-- The scene is two nodes, one invitation with threshold 1, and a founder
-  who invites and approves. These are not exercised here:
-  - k-of-n approvals across members (lean-engine proves those);
+- The scene is two nodes, one invitation, and a founder who invites and
+  approves. These are not exercised here:
+  - approvals by other members (lean-engine proves those);
   - members redialing members;
   - removal of the inviter mid-bootstrap (the `¬ Known` clause);
   - answers from strangers.

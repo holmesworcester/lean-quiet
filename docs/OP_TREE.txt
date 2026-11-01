@@ -107,12 +107,14 @@ app/
 │   │   │   │   ├── Op.lean
 │   │   │   │   ├── Validate.lean
 │   │   │   │   ├── Commands.lean
+│   │   │   │   ├── Screen.lean
 │   │   │   │   ├── Proofs.lean
 │   │   │   │   └── Tests.lean   (planned)
 │   │   │   ├── Op.lean
 │   │   │   ├── Validate.lean
 │   │   │   ├── View.lean
 │   │   │   ├── Commands.lean
+│   │   │   ├── Screen.lean
 │   │   │   ├── Proofs.lean
 │   │   │   └── Tests.lean   (planned)
 │   │   ├── join/
@@ -123,23 +125,26 @@ app/
 │   │   │   │   ├── Commands.lean
 │   │   │   │   ├── Proofs.lean   (planned)
 │   │   │   │   └── Tests.lean   (planned)
-│   │   │   └── joining/
-│   │   │       ├── abandon/
-│   │   │       │   ├── Op.lean
-│   │   │       │   ├── Validate.lean
-│   │   │       │   ├── Commands.lean
-│   │   │       │   ├── Proofs.lean
-│   │   │       │   └── Tests.lean   (planned)
-│   │   │       ├── Op.lean
-│   │   │       ├── Validate.lean
-│   │   │       ├── Commands.lean
-│   │   │       ├── Proofs.lean
-│   │   │       └── Tests.lean   (planned)
+│   │   │   ├── joining/
+│   │   │   │   ├── abandon/
+│   │   │   │   │   ├── Op.lean
+│   │   │   │   │   ├── Validate.lean
+│   │   │   │   │   ├── Commands.lean
+│   │   │   │   │   ├── Proofs.lean
+│   │   │   │   │   └── Tests.lean   (planned)
+│   │   │   │   ├── Op.lean
+│   │   │   │   ├── Validate.lean
+│   │   │   │   ├── Commands.lean
+│   │   │   │   ├── Screen.lean
+│   │   │   │   ├── Proofs.lean
+│   │   │   │   └── Tests.lean   (planned)
+│   │   │   └── Screen.lean
 │   │   ├── remove/
 │   │   │   ├── Op.lean
 │   │   │   ├── Validate.lean
 │   │   │   ├── View.lean
 │   │   │   ├── Commands.lean
+│   │   │   ├── Screen.lean
 │   │   │   ├── Proofs.lean
 │   │   │   └── Tests.lean   (planned)
 │   │   └── Proofs.lean
@@ -154,6 +159,7 @@ app/
 │   │   ├── Validate.lean
 │   │   ├── View.lean
 │   │   ├── Commands.lean
+│   │   ├── Screen.lean
 │   │   ├── Proofs.lean
 │   │   └── Tests.lean   (planned)
 │   ├── Op.lean

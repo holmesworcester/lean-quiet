@@ -164,7 +164,7 @@ def children (dir : String) (ck : Checks) : IO Unit := do
     let inv := invite s.me.c s.me.adm s.me.dev bearer.pk false
     let req := request s.me.c inv.id bob (Tests.keyOf bob) bearer.sk
     let approval := approve s.me.c req.id s.me.adm s.me.dev
-    let adm := admit s.me.c req.id [approval.id]
+    let adm := admit s.me.c req.id approval.id
     let now ← nowMin
     let reaction := react s.me.c adm.id msg bob "❤️".toUTF8 (now + 1)
     s.wr.setPaused true

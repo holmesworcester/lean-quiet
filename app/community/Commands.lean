@@ -44,10 +44,10 @@ def found (seed name myName : ByteArray) (time : Nat) (k esk fresh : ByteArray) 
 and its link, naming this node's key, with the bearer seed and dial
 hints given. None on a node with no key (a node that founded or joined
 nothing). -/
-def inviteTo (c myAdm : Id) (d : Device) (bearerSeed : ByteArray) (hints : List ByteArray)
-    (threshold : Nat := 1) : View Fact (Option (Write × Invite)) := do
+def inviteTo (c myAdm : Id) (d : Device) (bearerSeed : ByteArray) (hints : List ByteArray) :
+    View Fact (Option (Write × Invite)) := do
   let some (key, _) ← nodeKey | pure none
-  let p := issue c myAdm d key bearerSeed hints threshold
+  let p := issue c myAdm d key bearerSeed hints
   pure (some (⟨[p.1]⟩, p.2))
 
 /-- Join from a link, from the node with key `key`, to be known as
@@ -112,6 +112,14 @@ def deviceLive (c : Id) (d : Key) : View Fact Bool := do
   let a ← admission.byDevice.read [c, d]
   if a.rows.isEmpty then pure false else unremoved c a.rows
 
+/-- Whether device d is cut from c: admitted, and one of the users it is
+admitted into removed. Only a removal read makes it so: a read that
+finds no admission (not yet written, or not yet seen) says not cut, so a
+member is never told of a removal no one made (`deviceCut_removal`). -/
+def deviceCut (c : Id) (d : Key) : View Fact Bool := do
+  let a ← admission.byDevice.read [c, d]
+  if a.rows.isEmpty then pure false else return !(← unremoved c a.rows)
+
 /-- The acceptance of c this store held until its device was cut (the
 first such, with the device's secret held), when `mine` holds none:
 not held, so not answered or dialed as, but what a removed member's app
@@ -125,7 +133,7 @@ def cutEntry (c : Id) : View Fact (Option (Key × Id)) := do
     if sec.total = 0 then continue
     let adm ← admission.byDevice.read [c, d] (limit := some 0)
     if adm.total = 0 then continue
-    if !(← deviceLive c d) then return some (d, aid)
+    if ← deviceCut c d then return some (d, aid)
   return none
 
 /-- Join from a link, to be known as `name`, unless this store already
@@ -165,19 +173,16 @@ def introduce (c : Id) (d : Device) (time : Nat) : View Fact Write := do
     | none => pure ⟨[]⟩
   | _ => pure ⟨[]⟩
 
-/-- The first approval of each user, in order. -/
-def firstPerUser (l : List (Id × Id)) : List (Id × Id) :=
-  l.foldl (fun acc p => if acc.any (fun q => decide (q.2 = p.2)) then acc else acc ++ [p]) []
-
 /-- Approve request req of c as device d (admitted as `myAdm`): my
-approval, and the admission too when mine completes the tally. Reads the
-request, my admission and the approvals so far. -/
+approval and the admission it gives (one approval admits), with the
+community's key wrapped to the requester's node; only the approval if
+it does not hold the request or my admission. Reads the request, my
+admission and this device's content key. -/
 def approveReq (c req myAdm : Id) (d : Device) (esk : ByteArray := .empty) :
     View Fact Write := do
   let ok := approve c req myAdm d
   let rq ← View.read { key := opKey req, limit := some 1 }
   let me ← View.read { key := opKey myAdm, limit := some 1 }
-  let aps ← approval.byRequest.read [c, req]
   -- The requester's device gets this device's content key for c,
   -- wrapped to its encryption key: the approval is where key material
   -- hangs (the user's decision, 2026-10-27).
@@ -186,13 +191,7 @@ def approveReq (c req myAdm : Id) (d : Device) (esk : ByteArray := .empty) :
     | some (_, .key _ _ k) => if esk.size = 32 then [wrapKey c k esk e] else []
     | _ => []
   match rq.rows.head?, me.rows.head? with
-  | some (_, .request _ _ _ e _ t), some (_, .admission _ u _ _) =>
-    let others := firstPerUser (aps.rows.filterMap fun (p, f) => match f with
-      | .approval _ _ v => if v = u then none else some (p.2, v)
-      | _ => none)
-    let chosen := ok.id :: others.map (·.1)
-    pure (if t ≤ chosen.length then ⟨[ok, admit c req (chosen.take t)] ++ wrapTo e⟩
-      else ⟨[ok] ++ wrapTo e⟩)
+  | some (_, .request _ _ _ e _), some (_, .admission ..) => pure ⟨[ok, admit c req ok.id] ++ wrapTo e⟩
   | _, _ => pure ⟨[ok]⟩
 
 /-- The ids of the content keys of c this device holds. -/
