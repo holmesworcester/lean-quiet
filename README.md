@@ -14,6 +14,30 @@ Can we also prove the absence of the *qualitative* bugs that only show up in cer
 
 There is something exhilarating about adding a proof where one would usually add an end-to-end test. Sci fi. 🪐 
 
+# Try it
+
+On Linux (x86-64, Debian or Ubuntu, X11 or XWayland):
+
+```sh
+make install && make run
+```
+
+`make install` builds the desktop app in this folder. It installs Lean
+(elan) and Rust (rustup) in your home folder if they are missing, and
+downloads the app's fonts and photos, checked by sha256. If system
+packages are missing (a C compiler, Python, curl and the X headers),
+it lists them and installs them with `sudo apt-get install`; to do that
+yourself, run `make check` first, which only lists them. A cold build
+took about 10 minutes on 8 cores and under 7 GB of memory, downloads
+included. `make run` opens the app with a demo: two communities, seeded
+on the first run, with networking off, so it works without a second
+device. `make online` runs it with networking on. `make verify` checks
+the proofs with Lean's own checkers, `lake check` (every theorem through
+the kernel, standard axioms only) and `lake comparator` (the theorems in
+`comparator.json` prove exactly the reviewed statements); both need Lean
+4.35, and on an older toolchain it stops and says so. The Makefile
+doesn't support macOS yet. Details: [docs/BUILD.md](docs/BUILD.md#make-install-and-make-run-linux).
+
 # What it looks like
 
 <p align="center"><img src="docs/media/android-demo.webp" width="300" alt="Lean Quiet on Android: a message, Hebrew, Arabic and mixed scripts, a heart reaction, a photo, then flings through 1,000 messages"></p>

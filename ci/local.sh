@@ -29,19 +29,26 @@
 #                   (tests/app/headless.sh)
 #    engine:suites  the engine's suites (SQLite, codec, wire, sync, purge,
 #                   Merkle, notices, costs, kill -9), without TCP
+#    make:assets    make install's assets step and its controls, and the
+#                   pinned assets tarball against this tree (stale: pack
+#                   and publish it again, docs/BUILD.md)
 # 3. --full: every other part, longest first. The negative controls'
 #    mutants (engine:<name>, tests/engine/controls.txt; the app's, among
 #    its stages), real TCP (engine:tcp, net, mdns), X and the desktop
-#    shell, qr, zoom, site, the workspace. A mutant works in a snapshot
-#    (tests/snapshot.sh); the app's stages edit sources in place, so they
-#    run in three groups (app:1, app:2, app:3), each in its own copy of
+#    shell, qr, zoom, site, the workspace, and `make install && make run`
+#    from a fresh clone in Docker (make:clean-room), make verify on a
+#    Lean 4.35 project and its controls (make:verify). A mutant works in a
+#    snapshot (tests/snapshot.sh); the app's stages edit sources in place,
+#    so they run in three groups (app:1, app:2, app:3), each in its own copy of
 #    the built tree ($TMPDIR/ci-app-*, deleted after; its out/ copied back).
 #
 # Each part has PART_TIMEOUT seconds (5400 by default): a part that hangs
 # fails, its processes killed, and the others go on.
 # Logs: out/ci/<part>.log. Exits non-zero if any part fails.
 # `site` and `workspace` need Chromium's headless shell (CHROME, or
-# Playwright's); `android-links` needs the Android SDK and an emulator image.
+# Playwright's); `android-links` needs the Android SDK and an emulator image;
+# `make:clean-room` needs Docker and network access (tests/make/clean_room.sh);
+# `make:verify` needs the Lean 4.35.0 toolchain and bubblewrap.
 # SKIP_TCP=1 builds the TCP suites but omits their runs in a socket sandbox.
 set -uo pipefail
 top=$(cd "$(dirname "$0")/.." && pwd)
@@ -60,13 +67,13 @@ while [ $# -gt 0 ]; do
 done
 
 proofs=(driver build check layout readme reorg headline)
-fast=(engine:suites visual headless vacuity)
+fast=(engine:suites visual headless vacuity make:assets)
 # longest first (minutes, measured on the shared box: app:2 and app:3
 # 40–55, qr 24, app:1 17, engine:harden 14, the rest under 10)
-rest=(app:3 app:2 qr app:1 engine:harden engine:ref-publications engine:catalog-retry engine:fresh
+rest=(make:clean-room app:3 app:2 qr app:1 engine:harden engine:ref-publications engine:catalog-retry engine:fresh
   $(grep -v '^#' "$top/tests/engine/controls.txt" 2>/dev/null | cut -f1 |
     grep -vx 'harden\|ref-publications\|catalog-retry\|fresh' | sed 's/^/engine:/')
-  engine:tcp mdns net zoom owned-input site workspace)
+  engine:tcp mdns net zoom owned-input site workspace make:verify)
 # the app's stages, in three groups, each run in its own copy of the tree
 declare -A app_group=([app:1]="fonts input network" [app:2]="desktop navigation lifecycle"
   [app:3]="appearance safety components")
@@ -115,6 +122,9 @@ gate() {
     android-zoom) mise run android:zoom ;;
     release-zoom) mise run test:zoom && mise run android:zoom ;;
     pixel-scroll) mise run android:scroll-measure ;;
+    make:assets) mise run make:assets-test ;;
+    make:clean-room) mise run make:clean-room ;;
+    make:verify) mise run make:verify-test ;;
     readme) mise run readme:links ;;
     layout) mise run layout:check && python3 ci/exits.py --self-test && python3 ci/exits.py ;;
     reorg) mise run reorg:test ;;

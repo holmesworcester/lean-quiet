@@ -1,0 +1,146 @@
+Lean Quiet's app data (assets/): where each file comes from
+============================================================
+
+tools/fetch_assets.sh (online) and tools/noto_assets.sh (offline) make
+assets/ from the sources below; make install downloads the same files as
+one tarball (tools/make/assets.pin). Each licence text named here is in
+a LICENSE-*.txt file beside this one, copied unchanged from the source at
+the version given. tools/noto_assets.sh copies this NOTICE.txt and the
+licence files into assets/, so every build and release carries them.
+
+
+font.bin
+  The bitmap font. tools/font.py builds it from GNU Unifont 18.0.01:
+  https://ftp.gnu.org/gnu/unifont/unifont-18.0.01/unifont_all-18.0.01.hex.gz
+  (sha256 14c96e497466a82e46cf20032ce510e186bdc8658c9158e2290f452cda9bc498).
+  Licence: Unifont's glyphs are dual-licensed under the SIL Open Font
+  License 1.1 and the GNU GPL version 2 or later with the GNU font
+  embedding exception; its jiskan16 glyphs are in the public domain.
+  LICENSE-Unifont-COPYING.txt and LICENSE-Unifont-OFL-1.1.txt are COPYING
+  and OFL-1.1.txt from unifont-18.0.01.tar.gz (same folder; sha256
+  eab60847aac34c8768765cecc7821faf50de2636187b452b9b5fa50a12b00bc3).
+  font.bin is distributed under the SIL Open Font License 1.1.
+
+emoji.bin
+  The colour emoji. tools/emoji.py (fontTools 4.68.0) draws it from
+  Noto Color Emoji 2.051:
+  https://github.com/googlefonts/noto-emoji/raw/v2.051/fonts/NotoColorEmoji.ttf
+  (sha256 72a635cb3d2f3524c51620cdde406b217204e8a6a06c6a096ff8ed4b5fd6e27b;
+  "Copyright 2022 Google Inc."), for the emoji Unicode 16.0.0 lists in
+  https://www.unicode.org/Public/16.0.0/ucd/emoji/emoji-data.txt
+  (sha256 f1365a5173eee18e1f98b240cdc492e84a25f1ce7e0c9d1094eb29c41a22696a).
+  Licence: the font, SIL Open Font License 1.1 (LICENSE-NotoColorEmoji-OFL.txt,
+  fonts/LICENSE at tag v2.051); emoji-data.txt, the Unicode License v3
+  (LICENSE-Unicode-v3.txt, https://www.unicode.org/license.txt, which
+  https://www.unicode.org/terms_of_use.html applies to Unicode Data Files).
+
+picker.txt
+  The reaction picker's catalogue. tools/picker.py converts
+  app/src/emoji-data.json of TryQuiet/libquiet at commit 38a909706
+  (pinned as tools/third_party/picker.txt). libquiet's
+  app/scripts/emoji.mjs writes that file from emojibase-data 17.0.0
+  (en/data.json; Emoji 17, CLDR 48), keeping emoji up to Emoji 14 and
+  dropping components; the labels, tags and groups are emojibase's.
+  Licence: emojibase-data, the MIT License, Copyright (c) 2017-2019
+  Miles Johnson (LICENSE-emojibase-data-MIT.txt, the LICENSE of the npm
+  package emojibase-data 17.0.0); its labels and tags are Unicode CLDR 48
+  annotations, under the Unicode License v3 (LICENSE-Unicode-v3.txt).
+
+NotoSans-Regular.ttf, NotoSansArabic-Regular.ttf, NotoSansArmenian-Regular.ttf,
+NotoSansCanadianAboriginal-Regular.ttf, NotoSansCherokee-Regular.ttf,
+NotoSansEthiopic-Regular.ttf, NotoSansGeorgian-Regular.ttf,
+NotoSansHebrew-Regular.ttf, NotoSansThai-Regular.ttf
+  Unchanged copies of the Noto fonts in Ubuntu's fonts-noto-core
+  20201225-2build1 (/usr/share/fonts/truetype/noto; Noto as of
+  2020-12-25, https://github.com/googlefonts/noto-fonts), pinned by
+  sha256 in tools/noto.sha256.
+  Licence: SIL Open Font License 1.1, Copyright 2010,2012-2020 Google Inc.;
+  2015-2020 Google LLC (NOTO-LICENSE.txt; LICENSE-fonts-noto-core-copyright.txt
+  is the package's copyright file).
+
+NotoSans-UI-Medium.ttf
+  The interface face: Noto Sans 2.015's weight-500 instance, made by
+  tools/ui_fonts.py --regenerate (fontTools 4.68.0) from the variable
+  noto-sans-latin.woff2 that TryQuiet/libquiet bundles
+  (app/src/design/fonts/ at commit bd9d9a01), which is Fontsource 5.3.0's
+  @fontsource-variable/noto-sans; checked in as
+  ui/fonts/NotoSans-UI-Medium.ttf.
+  Licence: SIL Open Font License 1.1, Copyright 2022 The Noto Project
+  Authors (LICENSE-NotoSans-Fontsource-OFL.txt, the LICENSE of the npm
+  package @fontsource-variable/noto-sans 5.3.0).
+
+NotoSansSC-Common.ttf, NotoSansTC-Common.ttf, NotoSansJP-Common.ttf,
+NotoSansKR-Common.ttf
+  Chinese, Japanese and Korean: tools/cjk_subset.py (fontTools 4.68.0)
+  instances Regular (400) and keeps the common characters of
+  NotoSans{SC,TC,JP,KR}[wght].ttf from Google Fonts, github.com/google/fonts
+  at commit 9b59ea9f333c5b8a99fa44e2a698496d6cde5b8e (URLs and sha256 in
+  tools/cjk_fonts.tsv; upstream https://github.com/notofonts/noto-cjk).
+  Licence: SIL Open Font License 1.1, Copyright 2014-2021 Adobe, with
+  Reserved Font Name 'Source' (LICENSE-NotoSansCJK-OFL.txt, ofl/notosanssc/OFL.txt
+  at that commit; the four fonts' OFL.txt files are identical).
+
+noto-index.bin, noto-ui-index.bin
+  Character and width indexes of the fonts above, made by
+  tools/noto_index.py and tools/ui_fonts.py; under those fonts' licences.
+
+ui-glyphs.bin
+  The interface icons, rendered by tools/glyph_assets.py (librsvg, Cairo)
+  from ui/glyphs/*.svg: TryQuiet/libquiet's icon paths (app/src/icons.ts
+  and app/src/Glyph.svelte at commit bd9d9a010062ab59a0ab0fc67731d827dd02fe27)
+  and the Quiet mark (app/src/brand/quiet.json at ab3d244cfb99), see
+  ui/glyphs/SOURCE.txt. The Quiet name and mark are TryQuiet's.
+  Licence: LIBQUIET_LICENCE_PENDING
+
+ui-glyphs.sha256, noto-ui.sha256
+  Build stamps: digests of the scripts and sources that made ui-glyphs.bin
+  and noto-ui-index.bin. No content of their own.
+
+0.qoi to 5.qoi
+  The sample photos the demo and the chaos generator send. tools/photos.py
+  (Pillow 12.1.1) scales each original, pinned by sha256 in
+  tools/photos.tsv, to fit the box given there and writes it as QOI.
+  0.qoi  "Young tabby cat keeping watch", by W.carter.
+         Page: https://commons.wikimedia.org/wiki/File:Young_tabby_cat_keeping_watch.jpg
+         File: https://upload.wikimedia.org/wikipedia/commons/9/95/Young_tabby_cat_keeping_watch.jpg
+         sha256 39512ca0b6dc81ed04a7900f8ea1bf3ce40004f276b75df301fb89ea60b240c6
+         Licence: CC0 1.0, the author's own work (LICENSE-CC0-1.0.txt).
+  1.qoi  "Under the Wave off Kanagawa (The Great Wave)", Katsushika Hokusai,
+         ca. 1830-32; The Metropolitan Museum of Art, JP1847, H. O. Havemeyer
+         Collection, Bequest of Mrs. H. O. Havemeyer, 1929.
+         Page: https://www.metmuseum.org/art/collection/search/45434
+         File: https://images.metmuseum.org/CRDImages/as/original/DP130155.jpg
+         sha256 cbb9988f2f18b9180a1cc0cf5dbb0e3bbf8f2e85d17930cf6ca9ab36fac36303
+         Licence: public domain; The Met's Open Access image, CC0 1.0
+         (the Met's collection API marks the work isPublicDomain).
+  2.qoi  "Ara ararauna portrait Rhodes" (a blue-and-yellow macaw), by Jebulon.
+         Page: https://commons.wikimedia.org/wiki/File:Ara_ararauna_portrait_Rhodes.jpg
+         File: https://upload.wikimedia.org/wikipedia/commons/4/45/Ara_ararauna_portrait_Rhodes.jpg
+         sha256 9b6ed98b5e40378373b9297ab80cec8a8365a78171ef2e769dfb31c5d6c73367
+         Licence: CC0 1.0, the author's own work (LICENSE-CC0-1.0.txt).
+  3.qoi  "Sunflowers", Vincent van Gogh, 1887; The Metropolitan Museum of
+         Art, 49.41, Rogers Fund, 1949.
+         Page: https://www.metmuseum.org/art/collection/search/436524
+         File: https://images.metmuseum.org/CRDImages/ep/original/DP-41223-001.jpg
+         sha256 ba7160774025633fab2891c33840d8316af28e5c1eba8f79a48115a065391f3c
+         Licence: public domain; The Met's Open Access image, CC0 1.0
+         (the Met's collection API marks the work isPublicDomain).
+  4.qoi  "View of the Earth seen by the Apollo 17 crew traveling toward the
+         moon" (The Blue Marble), NASA, Apollo 17 crew, 1972-12-07; AS17-148-22727.
+         Page: https://images.nasa.gov/details/as17-148-22727
+         File: https://images-assets.nasa.gov/image/as17-148-22727/as17-148-22727~orig.jpg
+         sha256 cb4c3d2da98ee72130ebfd2ea472fc84ede6726002c2a8c9cabd86e4deea9f0f
+         Licence: public domain. NASA's Images and Media Usage Guidelines
+         (https://www.nasa.gov/nasa-brand-center/images-and-media/): NASA
+         images "generally are not subject to copyright in the United
+         States". Wikimedia Commons tags it PD-USGov-NASA
+         (https://commons.wikimedia.org/wiki/File:The_Earth_seen_from_Apollo_17.jpg).
+  5.qoi  "Chania lighthouse Crete Greece", by Jebulon.
+         Page: https://commons.wikimedia.org/wiki/File:Chania_lighthouse_Crete_Greece.jpg
+         File: https://upload.wikimedia.org/wikipedia/commons/4/4e/Chania_lighthouse_Crete_Greece.jpg
+         sha256 a5a4f69b1180c2d25ee33b66b6a9237e6aa314ff70743ab962aeb6864cacc9eb
+         Licence: CC0 1.0, the author's own work (LICENSE-CC0-1.0.txt).
+
+NOTO-LICENSE.txt, NOTICE.txt, LICENSE-*.txt
+  This notice and the licence texts, copied from tools/ and
+  tools/third_party/licenses/.
