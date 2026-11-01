@@ -120,7 +120,6 @@ def noticedAgreement :=
 -- Fitting viewport with a visible keyboard, including the app law's pair.
 def viewport := LifecycleLaws.viewport_geometry (Geometry.Geom.mk 1280 24 300 80 100)
   (by unfold Geometry.Geom.Fits; decide) 8 100 124 600 200
-def viewportExists := LifecycleLaws.viewport_possible
 
 def pageCodec := App.page_round .profile
 

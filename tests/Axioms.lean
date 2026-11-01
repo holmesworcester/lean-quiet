@@ -938,7 +938,6 @@ end cost
 #print axioms LifecycleLaws.old_callback
 #print axioms LifecycleLaws.restore_page_anchor
 #print axioms LifecycleLaws.viewport_geometry
-#print axioms LifecycleLaws.viewport_possible
 #print axioms LifecycleLaws.apply_page_anchor
 #print axioms Lifecycle.live_exact
 

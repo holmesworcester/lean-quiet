@@ -1007,13 +1007,6 @@
     "module": "tests.vacuity.RendererRuntime",
     "detail": "Concrete 1280px portrait geometry with visible 300px keyboard and nonzero offsets, plus the profile-page checkpoint code. Every fitting premise is kernel-computed; these are production app geometry/codec theorem applications, without native event-acquisition claims."
   },
-  "viewport_possible": {
-    "status": "kernel-witness",
-    "theorem": "LifecycleLaws.viewport_possible",
-    "witness": "Vacuity.RendererRuntime.viewportExists",
-    "module": "tests.vacuity.RendererRuntime",
-    "detail": "Concrete 1280px portrait geometry with visible 300px keyboard and nonzero offsets, plus the profile-page checkpoint code. Every fitting premise is kernel-computed; these are production app geometry/codec theorem applications, without native event-acquisition claims."
-  },
   "page_round": {
     "status": "kernel-witness",
     "theorem": "App.page_round",

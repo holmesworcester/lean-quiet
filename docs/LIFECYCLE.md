@@ -174,12 +174,11 @@ LifecycleLaws.viewport_geometry (g : Geometry.Geom) (fits : g.Fits)
   Geometry.Seam.place g over bf bn r =
     Geometry.Seam.home g bn (Geometry.Seam.frameRow g over bf r) ∧
   Geometry.Seam.tapRow g y = (y : Int) - g.top
-
-LifecycleLaws.viewport_possible :
-  (Geometry.Geom.mk 1280 24 300 80 100).Fits
 ```
 
-`mounted_runs` and `viewport_possible` are formal non-vacuity witnesses.
+`mounted_runs` is a formal non-vacuity witness; that a fitting viewport
+with a visible keyboard exists is viewport_geometry's vacuity witness
+(`Vacuity.RendererRuntime.viewport`), no longer a law of its own.
 The runtime suite also checks a real, nonempty message anchor and a nonempty
 mounted cache satisfying `live_exact`'s completeness premise.
 

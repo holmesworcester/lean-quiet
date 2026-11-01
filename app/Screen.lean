@@ -3922,11 +3922,6 @@ cache relies on to keep a page drawn earlier. -/
 theorem drawPage_key (f : Font) (bg : ByteArray) (cam : Option Bitmap) {k k' : PageIn} (h : k = k') :
     drawPage f bg cam k = drawPage f bg cam k' := by rw [h]
 
-/-- **The current entry is in the key.** Two states on different entries
-(acceptances) have different keys, whatever their names: a switch always
-redraws. -/
-theorem pageIn_acc {k k' : PageIn} (h : k = k') : k.me.acc = k'.me.acc := by rw [h]
-
 /-- The current state's page key. -/
 def pageIn (s : St) : PageIn :=
   { page := s.page, setting := s.theme.setting, W := s.W, h := viewH s, insetTop := s.insetTop, dim := s.dim, field := s.field,
@@ -3944,6 +3939,13 @@ def pageIn (s : St) : PageIn :=
     removeStage := match s.removal with
       | .first _ => 1 | .second _ => 2 | .sending _ => 3 | .failed _ _ => 4 | .idle => 0,
     removeWhy := match s.removal with | .failed _ why => why | _ => "" }
+
+/-- **The current entry is in the key.** Two states with the same page
+key (`pageIn`, what the frame draws a page from) are on the same entry
+(acceptance), whatever else they share: a switch always redraws. -/
+theorem pageIn_acc {s s' : St} (h : pageIn s = pageIn s') : s.me.acc = s'.me.acc := by
+  have := congrArg (fun k : PageIn => k.me.acc) h
+  simpa [pageIn, Kinds.Accepted.Me.key] using this
 
 /-- Write the removal of user u (the engine's intent). -/
 def removeWrite (u : Id) : M Bool := do

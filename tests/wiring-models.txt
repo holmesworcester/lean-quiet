@@ -46,11 +46,8 @@ Connection.ProgressTape.run_count
 Connection.ProgressTape.run_fresh
 Connection.ProgressTape.run_get
 Connection.ProgressTape.run_view
-LifecycleLaws.viewport_possible
-NavLaws.depth
 
 # app.Screen
-App.pageIn_acc
 NodeOffer.offer_runs
 
 # app.community.Op
@@ -196,9 +193,6 @@ Heights.rebuild_cost
 Heights.rebuild_ok
 Heights.rows_cost
 Heights.window_rows
-
-# engine.renderer.HoldCacheLaws
-Hold.cachedMessagePlane_exact
 
 # engine.renderer.ReaderLaws
 Live.RWorld.inv_commit

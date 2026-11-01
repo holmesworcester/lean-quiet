@@ -1215,10 +1215,6 @@ theorem viewport_geometry (g : Geometry.Geom) (fits : g.Fits) (over bf bn r y : 
     Geometry.Seam.tapRow g y = (y : Int) - g.top :=
   ⟨Geometry.placed_row g fits over bf bn r, Geometry.pinned_tap g fits y⟩
 
-/-- A fitting viewport with a visible keyboard exists. -/
-theorem viewport_possible : (Geometry.Geom.mk 1280 24 300 80 100).Fits := by
-  unfold Geometry.Geom.Fits; decide
-
 end LifecycleLaws
 
 
