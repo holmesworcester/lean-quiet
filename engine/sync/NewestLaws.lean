@@ -32,20 +32,6 @@ def Range.Above (q q' : Range) : Prop := ∀ k k', q.has k = true → q'.has k' 
 /-- A range of one class: only structure, or only claimed times. -/
 def Range.Plain (q : Range) : Prop := ∀ k k', q.has k = true → q.has k' = true → (k.t = 0 ↔ k'.t = 0)
 
-/-- The ids of a have, or none. -/
-def holdIds : Out → List ByteArray
-  | .hold xs => xs
-  | _ => []
-
-/-- The range a claim is about. -/
-def Claim.range : Claim → Range
-  | .fp r _ _ => r
-  | .ids r _ => r
-
-/-- The ranges of the claims among outputs, in order. -/
-def claimRanges (os : List Out) : List Range :=
-  os.filterMap fun | .claim d => some d.range | _ => none
-
 section
 variable {α : Type} {key : α → Key} {ident : α → ByteArray} {h : ByteArray → ByteArray} {P : Params}
 
@@ -84,11 +70,11 @@ theorem pieces_rise : ∀ (cs : List Key) (r : Range), cs.Pairwise (· < ·) →
       · rw [← e]; exact hkc
       · exact Key.lt_trans hkc e
 
-theorem claimRanges_fp (l : List Range) (a : Range → Nat) (b : Range → ByteArray) :
-    claimRanges (l.map fun q => Out.claim (.fp q (a q) (b q))) = l := by
+theorem claimsOf_fp (l : List Range) (a : Range → Nat) (b : Range → ByteArray) :
+    (claimsOf (l.map fun q => Out.claim (.fp q (a q) (b q)))).map Claim.range = l := by
   induction l with
   | nil => rfl
-  | cons q t ih => simp only [claimRanges, List.map_cons, List.filterMap_cons, Claim.range] at ih ⊢; rw [ih]
+  | cons q t ih => simp only [claimsOf, List.map_cons, List.filterMap_cons, Claim.range] at ih ⊢; rw [ih]
 
 /-- A sorted list's items in r, newest first. -/
 theorem desc_within {X : List α} (sX : Sorted key X) (r : Range) (p : α → Bool) :
@@ -100,13 +86,13 @@ theorem desc_within {X : List α} (sX : Sorted key X) (r : Range) (p : α → Bo
 claims go over its pieces newest first, and every list of ids it sends,
 a have or an ids claim, is its items in the claim's range, newest first. -/
 theorem answer_newest_first (X : List α) (sX : Sorted key X) (c : Claim) :
-    (claimRanges (answer key ident h P X c)).Pairwise Range.Above ∧
+    ((claimsOf (answer key ident h P X c)).map Claim.range).Pairwise Range.Above ∧
     ∀ xs, (Out.hold xs ∈ answer key ident h P X c ∨ ∃ r', Out.claim (.ids r' xs) ∈ answer key ident h P X c) →
       ∃ l : List α, xs = l.map ident ∧ l.Pairwise (fun a b => key b < key a) ∧
         ∀ a ∈ l, a ∈ X ∧ c.range.has (key a) = true := by
   cases c with
   | ids r ys =>
-    refine ⟨by simp [answer, claimRanges], fun xs hx => ?_⟩
+    refine ⟨by simp [answer, claimsOf], fun xs hx => ?_⟩
     simp only [answer, List.mem_cons, List.not_mem_nil, or_false, reduceCtorEq, false_or,
       exists_false, Out.hold.injEq] at hx
     subst hx
@@ -117,16 +103,16 @@ theorem answer_newest_first (X : List α) (sX : Sorted key X) (c : Claim) :
   | fp r n l =>
     simp only [answer]
     split
-    · simp [claimRanges]
+    · simp [claimsOf]
     · split
-      · refine ⟨by simp [claimRanges], fun xs hx => ?_⟩
+      · refine ⟨by simp [claimsOf, Claim.range], fun xs hx => ?_⟩
         simp only [List.mem_singleton, reduceCtorEq, false_or, Out.claim.injEq, Claim.ids.injEq] at hx
         obtain ⟨_, _, rfl⟩ := hx
         refine ⟨(within key r X).reverse, by rw [List.map_reverse], ?_, ?_⟩
         · rw [List.pairwise_reverse]; exact sX.filter _
         · intro a ha; exact mem_within.1 (List.mem_reverse.1 ha)
       · refine ⟨?_, fun xs hx => ?_⟩
-        · rw [claimRanges_fp _ (fun q => (fp key ident h (within key q X)).1)
+        · rw [claimsOf_fp _ (fun q => (fp key ident h (within key q X)).1)
             (fun q => (fp key ident h (within key q X)).2), List.pairwise_reverse]
           apply pieces_rise _ _ (cuts_sorted (sX.filter _))
           intro c hc

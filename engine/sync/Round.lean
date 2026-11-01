@@ -177,6 +177,21 @@ def answer (mine : List α) : Claim → List Out
     [.hold ((x.filter fun a => !xs.any fun i => Decidable.decide (ident a = i)).map ident).reverse,
      .want (xs.filter fun i => !named ident x i)]
 
+/-- The ids a have among outputs offers, or none: a message's haves are
+its outputs' (`Conn.onRbsr`). -/
+def holdIds : Out → List ByteArray
+  | .hold xs => xs
+  | _ => []
+
+/-- The claims among outputs, in order: a message's next claims. -/
+def claimsOf (os : List Out) : List Claim :=
+  os.filterMap fun | .claim x => some x | _ => none
+
+/-- The range a claim is about. -/
+def Claim.range : Claim → Range
+  | .fp r _ _ => r
+  | .ids r _ => r
+
 /-- How a side opens a round over r: its ids newest first. -/
 def opening (mine : List α) (r : Range) : Claim :=
   let x := within key r mine

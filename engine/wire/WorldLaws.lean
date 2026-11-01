@@ -1530,9 +1530,9 @@ theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Na
   have hr' := has_of_mem hr
   simp only [Conn.onRbsr, fresh, hr', Bool.not_true, Bool.false_eq_true, ite_false, List.flatMap_cons,
     List.flatMap_nil, List.append_nil, List.isEmpty_cons]
-  simp only [hX, Conn.snap, exchange, answer, give, get, Conn.beginRound]
+  simp only [hX, Conn.snap, exchange, answer, give, get, Conn.beginRound, claimsOf]
   cases List.find? (fun p => Decidable.decide (p.fst = (r, k))) c.snaps with
-  | none => simp
-  | some p => obtain ⟨_, _⟩ := p; simp
+  | none => simp [holdIds]
+  | some p => obtain ⟨_, _⟩ := p; simp [holdIds]
 
 end Engine.Sync

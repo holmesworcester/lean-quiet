@@ -368,7 +368,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1415 rest on Lean's standard axioms only, and about two thirds of its theorems (1035 of 1392, not counting 23 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1415 rest on Lean's standard axioms only, and about two thirds of its theorems (1038 of 1392, not counting 23 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -505,12 +505,12 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1035 of 1392 laws are about running code;** another 35 run its node code in a World, and 322 are not yet. Stated only: none. 23 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1038 of 1392 laws are about running code;** another 35 run its node code in a World, and 319 are not yet. Stated only: none. 23 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 201 | 145 |  | 56 |
-| Sync | 247 | 189 |  | 58 |
+| Sync | 247 | 192 |  | 55 |
 | The n-node World | 16 | 3 | 13 |  |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 205 | 139 | 16 | 50 |
@@ -556,7 +556,6 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Stmt.walks` | [`walks_le`] | Nothing that runs calls it; `Stmt.cost` do. |
 | `Catalog.held` | [`held_run_observed`], [`catalog_read`], [`ceiling_mono`] | Nothing that runs calls it; `Execution.Setup.sync` do. |
 | `Catalog.shared` | [`shared_log_turn`], [`shared_log_purge`], [`catalog_read`], [`ceiling_mono`], [`production_step_history`], [`world_step_history`], [`world_trace_history`], [`history`] | Nothing that runs calls it; `Catalog.held` do. |
-| `Claim.range` | [`answer_newest_first`]†, [`newest_first`]† | Nothing that runs calls it; `Sync.claimRanges` do. |
 | `ExpiryGrace.consumed` | [`consumed_left`], [`budget_exhausted`], [`source_before_exhaustion`] | Nothing that runs calls it. |
 | `Priority.Run.selected` | [`Priority.served`], [`Priority.write_within`]†, [`Priority.event_within`]† | Nothing that runs calls it. |
 | `State.append` | [`waiting_step`], [`push_local`], [`push_background`] | Nothing that runs calls it. |
@@ -589,10 +588,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Sweep.observedCeiling` | [`run_observed`], [`held_run_observed`] | Nothing that runs calls it; `Sweep.observedInput` do. |
 | `Sweep.observedInput` | [`run_observed`], [`held_run_observed`] | Nothing that runs calls it. |
 | `Sweep.rank` | [`Sweep.step_progress`], [`step_nonincrease`] | Nothing that runs calls it. |
-| `Sync.claimRanges` | [`answer_newest_first`]† | Nothing that runs calls it. |
 | `Sync.get` | [`fold_congr`] | Nothing that runs calls it. |
 | `Sync.give` | [`fold_congr`] | Nothing that runs calls it. |
-| `Sync.holdIds` | [`newest_first`]†, [`opening_newest_first`]† | Nothing that runs calls it. |
 | `Sync.nextClaims` | [`conn_answers_claims`], [`conn_round_continues`]*, [`conn_returns_claims`], [`successor`], [`next_mem`] | Nothing that runs calls it. |
 | `Sync.plainOpen` | [`write_store_tape`] | Nothing that runs calls it; `Sync.Setup.sync` do. |
 | `Sync.plainSeal` | [`write_store_tape`] | Nothing that runs calls it; `Sync.Setup.sync` do. |
@@ -1389,10 +1386,10 @@ opportunities and full native delivery remain open.
 [`work_retry_bounded`]: engine/sync/RetryLaws.lean#L172-L173
 [`serveOwed_budget`]: engine/sync/ServeLaws.lean#L463-L465
 [`asks_expire`]: engine/sync/RetryLaws.lean#L129-L131
-[`opening_newest_first`]: engine/sync/NewestLaws.lean#L230-L237
-[`answer_newest_first`]: engine/sync/NewestLaws.lean#L99-L106
-[`newest_first`]: engine/sync/NewestLaws.lean#L204-L210
-[`window_first`]: engine/sync/NewestLaws.lean#L142-L145
+[`opening_newest_first`]: engine/sync/NewestLaws.lean#L216-L223
+[`answer_newest_first`]: engine/sync/NewestLaws.lean#L85-L92
+[`newest_first`]: engine/sync/NewestLaws.lean#L190-L196
+[`window_first`]: engine/sync/NewestLaws.lean#L128-L131
 [`room_independent`]: engine/sync/TimeLaws.lean#L136-L142
 [`unshown_room_answered`]: engine/sync/TimeLaws.lean#L130-L133
 [`uncarried_room_answered`]: engine/sync/TimeLaws.lean#L147-L154
@@ -2202,10 +2199,10 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`work_retry_bounded`](engine/sync/RetryLaws.lean#L172-L173) | **kernel-witness**: [Vacuity.SyncCache.retryBound](tests/vacuity/SyncCache.lean). Connection has a real outstanding message id and retry due at 1500 ms; instantiate bound over the actual work handler. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof. |
 | [`serveOwed_budget`](engine/sync/ServeLaws.lean#L463-L465) | **kernel-witness**: [Vacuity.SyncMore.serviceBytes](tests/vacuity/SyncMore.lean). Nonempty stored shown message served from wanted queue under 1024-byte budget; Network.servesHead establishes actual output. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`asks_expire`](engine/sync/RetryLaws.lean#L129-L131) | **kernel-witness**: [Vacuity.SyncMore.askExpired](tests/vacuity/SyncMore.lean). An actual outstanding message ask expires at 20001 ms. Separate example proves the id was in asked before expiration. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
-| [`opening_newest_first`](engine/sync/NewestLaws.lean#L230-L237) | **kernel-witness**: [Vacuity.RoundExchange.openingNewest](tests/vacuity/RoundExchange.lean). Applied to Bob answering Alice's opening over the full window (floor 0); its only premise, Bob's items in key order, is the fixture's sortedY. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides. |
-| [`answer_newest_first`](engine/sync/NewestLaws.lean#L99-L106) | **kernel-witness**: [Vacuity.RoundExchange.newestAnswer](tests/vacuity/RoundExchange.lean). Applied to Bob's sorted items answering Alice's actual ids claim over the timed range; a native check confirms the haves are [bob2, bob1], newest first. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides. |
-| [`newest_first`](engine/sync/NewestLaws.lean#L204-L210) | **kernel-witness**: [Vacuity.RoundExchange.newestHaves](tests/vacuity/RoundExchange.lean). Both premises (claims in sync's order, each of one class) are discharged for Alice's actual opening claims over the full window, via window_first and opening_range; Bob answers. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides. |
-| [`window_first`](engine/sync/NewestLaws.lean#L142-L145) | **kernel-witness**: [Vacuity.RoundExchange.windowFirst](tests/vacuity/RoundExchange.lean). Applied at floor 100; the theorem has no premise beyond the floor. The fixture's opening is checked natively to claim the structure range first. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides. |
+| [`opening_newest_first`](engine/sync/NewestLaws.lean#L216-L223) | **kernel-witness**: [Vacuity.RoundExchange.openingNewest](tests/vacuity/RoundExchange.lean). Applied to Bob answering Alice's opening over the full window (floor 0); its only premise, Bob's items in key order, is the fixture's sortedY. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides. |
+| [`answer_newest_first`](engine/sync/NewestLaws.lean#L85-L92) | **kernel-witness**: [Vacuity.RoundExchange.newestAnswer](tests/vacuity/RoundExchange.lean). Applied to Bob's sorted items answering Alice's actual ids claim over the timed range; a native check confirms the haves are [bob2, bob1], newest first. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides. |
+| [`newest_first`](engine/sync/NewestLaws.lean#L190-L196) | **kernel-witness**: [Vacuity.RoundExchange.newestHaves](tests/vacuity/RoundExchange.lean). Both premises (claims in sync's order, each of one class) are discharged for Alice's actual opening claims over the full window, via window_first and opening_range; Bob answers. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides. |
+| [`window_first`](engine/sync/NewestLaws.lean#L128-L131) | **kernel-witness**: [Vacuity.RoundExchange.windowFirst](tests/vacuity/RoundExchange.lean). Applied at floor 100; the theorem has no premise beyond the floor. The fixture's opening is checked natively to claim the structure range first. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides. |
 | [`room_independent`](engine/sync/TimeLaws.lean#L136-L142) | **kernel-witness**: [Vacuity.SyncCache.startsRoom](tests/vacuity/SyncCache.lean). Known peer floor, a shown nonempty room index, and no existing snapshot; prove all premises and get actual round message in send. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof. |
 | [`unshown_room_answered`](engine/sync/TimeLaws.lean#L130-L133) | **kernel-witness**: [Vacuity.SyncCache.refusesRound](tests/vacuity/SyncCache.lean). A nonempty id claim for an unshown room returns an empty round-end message and unchanged connection. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof. |
 | [`uncarried_room_answered`](engine/sync/TimeLaws.lean#L147-L154) | **kernel-witness**: [Vacuity.SyncCache.acceptsNewRound](tests/vacuity/SyncCache.lean). Shown room receives a nonempty id claim with no existing snapshot; prove shown-room, nonempty-claim, missing-snapshot, and accepted-epoch premises and derive actual response head. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof. |

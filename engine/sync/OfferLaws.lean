@@ -240,7 +240,7 @@ theorem onRbsr_keeps (cfg : Config) {ix : Index} {s : DB F} (hx : IxShown fam ix
   · intro o hm
     rcases List.mem_cons.1 hm with rfl | hm
     · refine Or.inl ⟨_, rfl, fun i hi => ?_⟩
-      simp only [Msg.offers, List.mem_flatMap, List.mem_filterMap] at hi
+      simp only [Msg.offers, claimsOf, List.mem_flatMap, List.mem_filterMap] at hi
       obtain ⟨cl, ⟨out, hout', e⟩, hi⟩ := hi
       cases out with
       | claim x =>

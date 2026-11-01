@@ -284,8 +284,8 @@ def Conn.onRbsr (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (no
     { c with snaps := others }
   if cs.isEmpty then { conn := ended c } else
   let outs := cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params snap)
-  let claims := outs.filterMap fun | .claim x => some x | _ => none
-  let holds := outs.flatMap fun | .hold xs => xs | _ => []
+  let claims := claimsOf outs
+  let holds := outs.flatMap holdIds
   let wants := outs.flatMap fun | .want xs => xs | _ => []
   let c := if claims.isEmpty then ended c else { c with snaps := (((r, k), snap) :: others).take c.rooms.length }
   let wants := admitAsks cfg.maxKnown c.asked wants
