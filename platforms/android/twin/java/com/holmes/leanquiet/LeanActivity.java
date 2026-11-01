@@ -360,6 +360,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
         | android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     active = this;
     deliverLink(getIntent());
+    Notifications.start(this);
     // Notifications (Android 13+ asks; libquiet asks the same way)
     if (android.os.Build.VERSION.SDK_INT >= 33
         && checkSelfPermission("android.permission.POST_NOTIFICATIONS")

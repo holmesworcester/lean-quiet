@@ -90,7 +90,7 @@ assert only <= names, "unknown mutation"
 
 with tempfile.TemporaryDirectory(prefix="notify-negative-", dir=os.environ["TMPDIR"]) as tmp:
     base, work = Path(tmp) / "base", Path(tmp) / "work"
-    snap = run(["bash", "-c", '. tests/snapshot.sh\nsnapshot "$1" engine app platforms/headless tests/app tests/engine Quiet.lean assets',
+    snap = run(["bash", "-c", '. tests/snapshot.sh\nsnapshot "$1" engine/core engine/wire engine/sync engine/renderer app platforms/headless tests/app tests/engine Quiet.lean assets',
                 "snapshot", str(base)], ROOT, "snapshot")
     assert snap.returncode == 0, "snapshot failed"
     assert run(["lake", "build", "notify", "app.Proofs"], base, "baseline-build").returncode == 0, "baseline build failed"

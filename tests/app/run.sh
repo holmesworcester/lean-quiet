@@ -43,7 +43,7 @@ stage() {
 (cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
 [ -f assets/font.bin ] || tools/fetch_assets.sh
 tools/noto_assets.sh
-lake build host two_nodes net_join cross arrival attach inkless nodequeue pic_retry ux
+lake build host two_nodes net_join cross arrival attach inkless nodequeue pic_retry ux notify
 if stage fonts; then
 tests/app/noto.sh
 bash tests/app/font_contract.sh
@@ -65,6 +65,8 @@ tests/app/inkless_negative.sh
 .lake/build/bin/nodequeue
 .lake/build/bin/host "${MESSAGES:-500}" out/host
 .lake/build/bin/two_nodes out/two
+mise run host:notify
+mise run host:notify-negative
 if [ "${SKIP_TCP:-0}" != 1 ]; then
   mise run host:net-join
   .lake/build/bin/cross out/cross

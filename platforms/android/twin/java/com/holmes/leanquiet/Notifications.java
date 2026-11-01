@@ -42,6 +42,23 @@ public final class Notifications {
     return handler;
   }
 
+  private static boolean started;
+
+  /** Once per process, before Lean posts: message cards standing from a
+   *  process that died are withdrawn. Lean's tracker is per process, so
+   *  it could not withdraw them when their messages are read. */
+  static synchronized void start(Context context) {
+    if (started) return;
+    started = true;
+    final Context c = context.getApplicationContext();
+    handler().post(() -> {
+      NotificationManager nm = c.getSystemService(NotificationManager.class);
+      for (android.service.notification.StatusBarNotification n : nm.getActiveNotifications()) {
+        if (CHANNEL.equals(n.getNotification().getChannelId())) nm.cancel(n.getTag(), n.getId());
+      }
+    });
+  }
+
   /** From Lean's thread: queue one packet and return. */
   static void post(Context context, String json) {
     final Context c = context.getApplicationContext();
