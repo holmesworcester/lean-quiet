@@ -311,6 +311,8 @@ spec Engine.World.wantsOf The ids a payload can queue (a want's ids): what the q
 world Connection.Execution.fairRun Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these.
 world Connection.Execution.trace = Connection.Execution.fairRun
 world Connection.Execution.dequeued = Connection.Execution.fairRun
+world Connection.Execution.World.peer = Connection.Execution.fairRun
+world Connection.Execution.empty = Connection.Execution.fairRun
 
 ## Negative controls: mutants, each kept only to show the old shape breaks
 ## its law (a budget, or freshness). Their laws are counted apart.

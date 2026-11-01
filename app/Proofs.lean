@@ -3012,14 +3012,15 @@ local notation "store" => ((trace S (empty ea eb) actions).peer side).memory.hel
 
 /-- **Every production trace leaves each peer's store good:** the engine's
 invariant holds and the validation queue is empty, the two premises of
-every node-level community law. This is the join's single point of truth;
+every node-level community law, stated over the running family
+(`family` is its alias here). This is the join's single point of truth;
 the `…_trace` laws rest on it alone. Under drain-cap (holmes-0f), a turn
 settles only urgent facts (removals, admissions, connection and session
 facts), so this becomes "urgent facts settled", and the corollaries rest
 on that through engine/core/Locality.lean: a membership op's verdict
 depends only on the ops it cites, and those are all urgent. Only this law
 changes then. -/
-theorem trace_good : Inv family store ∧ (store).queue = [] := by
+theorem trace_good : Inv (Connection.node ed25519 sodium) store ∧ (store).queue = [] := by
   obtain ⟨⟨_, hr, _⟩, hq⟩ := empty_trace_store S ea eb actions side
   exact ⟨reach_inv hr, hq⟩
 
@@ -3092,7 +3093,7 @@ theorem Run.state_trace {S initial} (r : Run S initial) (n : Nat) :
 
 /-- `trace_good` at every state of every run from `empty`, fair or not. -/
 theorem Run.good {S ea eb} (r : Run S (empty ea eb)) (n : Nat) (side : Side) :
-    Inv family ((r.state n).peer side).memory.held.db ∧
+    Inv (Connection.node Community.ed25519 sodium) ((r.state n).peer side).memory.held.db ∧
       ((r.state n).peer side).memory.held.db.queue = [] := by
   rw [r.state_trace]
   exact trace_good S ea eb _ side
