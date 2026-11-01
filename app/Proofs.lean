@@ -571,7 +571,10 @@ theorem cut_notifies (s : DB F) {cid c peer x : B} (hm : (meV c).eval s = none)
     Room.notice c x ∈ (roomsV cid).eval s := by
   simp only [roomsV, View.eval_bind, View.eval_read, eval_roomsOf, List.mem_flatMap]
   refine ⟨(c, peer), ⟨peer, hp, List.mem_map.2 ⟨c, hh, rfl⟩⟩, ?_⟩
-  rw [eval_roomFor, hm]
+  -- read from `roomFor`'s own code, not through `eval_roomFor`: a cut
+  -- node's branch is what this law is about
+  unfold roomFor
+  rw [View.eval_bind, hm]
   exact notice_mem_noticesFor s hx hg (Or.inr hc)
 
 /-- **The shipped room selection syncs with a link's peer
