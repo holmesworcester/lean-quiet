@@ -122,7 +122,7 @@ theorem owned {st : DB Connection.F} (hi : Inv Connection.Execution.family st)
   have hs : x ∈ st.stored := (hi.stored x).2 (by rw [ho]; rfl)
   have hh := (List.all_eq_true.1 hb) x hs
   simp only [ownedBy, hx] at hh
-  exact of_decide_eq_true hh ⟨rfl, rfl⟩
+  exact of_decide_eq_true hh (by simp)
 
 /-- The op's own verdict at the peer is a Valid removal of user u from c. -/
 def removedIn (st : DB Connection.F) (o : Op) (u : Id) :
@@ -139,12 +139,25 @@ def admittedCertificateFor (acts : List Action) :=
     some (PLift.up ((connect_iff_trace setup (entropy "alice") (entropy "bob") acts .a c keyB).1 h))
   else none
 
+/-- x's verdict at the peer is a Valid admission of Bob's device and node
+key, for user u. -/
+def admits (st : DB Connection.F) (u x : Id) : Bool :=
+  match st.status x with
+  | some (.valid (.inl (.admission c' u' d e))) => decide (c' = c ∧ u' = u ∧ d = bob.pk ∧ e = keyB)
+  | _ => false
+
+theorem admits_status {st : DB Connection.F} {u x : Id} (h : admits st u x = true) :
+    st.status x = some (.valid (.inl (.admission c u bob.pk keyB))) := by
+  unfold admits at h
+  split at h
+  next _ _ _ _ hx => obtain ⟨rfl, rfl, rfl, rfl⟩ := of_decide_eq_true h; exact hx
+  next => cases h
+
 /-- Bob's admission is a stored Valid verdict at Alice, so `Admitted`. -/
 def admissionCertificateFor (acts : List Action) (u : Id) :=
-  if h : ∃ x ∈ (storeAfter acts .a).stored,
-      (storeAfter acts .a).status x = some (.valid (.inl (.admission c u bob.pk keyB))) then
+  if h : (storeAfter acts .a).stored.any (admits (storeAfter acts .a) u) = true then
     some (PLift.up ((admitted_trace setup (entropy "alice") (entropy "bob") acts .a).2
-      (let ⟨x, _, hx⟩ := h; ⟨x, hx⟩)))
+      (let ⟨x, _, hx⟩ := List.any_eq_true.1 h; ⟨x, admits_status hx⟩)))
   else none
 
 /-- A removal stored and the removed key refused: Alice holds a Valid
@@ -176,6 +189,9 @@ def refuseCertificateFor (acts : List Action) (o : Op) (u : Id) :=
           subst hu
           exact ⟨u', keyB, had, (removed_trace setup (entropy "alice") (entropy "bob") acts .a).2 hr⟩))
     else none
+
+def syncs (rs : List Engine.Sync.Room) : Bool :=
+  rs.any fun | .sync r => decide (r = c) | _ => false
 
 def peersAt (acts : List Action) (cid : Id) : List Community.Key :=
   Connection.peersOf (Engine.eval (storeAfter acts .a) (Connection.established.byConn.query [cid]))
@@ -309,14 +325,13 @@ def main : IO UInt32 := do
   let acts := removedActions scene
   let some (acid, _) := w.a.node.conns.head? |
     t.ok "Alice holds a production session" false; t.finish "storage-effects"
-  let sync := Engine.Sync.Room.sync c
   t.ok "admitted member: the trace law takes Bob's node at Alice"
     (admittedCertificateFor scene.completed).isSome
   t.ok "admitted member: Bob's admission is a Valid verdict at Alice"
     (admissionCertificateFor scene.completed bobUser).isSome
   t.ok "before removal: the session names Bob's node and carries c's sync"
     ((peersAt scene.completed acid).contains keyB &&
-      ((Connection.roomsV acid).eval (storeAfter scene.completed .a)).contains sync)
+      syncs ((Connection.roomsV acid).eval (storeAfter scene.completed .a)))
   t.ok "removal stored: Alice holds a Valid removal of Bob's user"
     (removedIn (storeAfter acts .a) rm bobUser).isSome
   t.ok "removal stored: the trace law refuses Bob's node"
@@ -330,7 +345,7 @@ def main : IO UInt32 := do
   t.ok "removal stored: the trace law cuts the live session's sync"
     (roomsCutCertificateFor acts acid rm bobUser).isSome
   t.ok "removal stored: the session natively carries no sync room of c"
-    (!((Connection.roomsV acid).eval (storeAfter acts .a)).contains sync)
+    (!syncs ((Connection.roomsV acid).eval (storeAfter acts .a)))
   t.ok "a run from empty through the removal: Run.good applies, and its state holds the removal"
     ((runGoodCertificate scene).isSome &&
       decide ((walk acts acts.length).a.memory.held.db.ops rm.id = some rm))
