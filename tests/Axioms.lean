@@ -41,6 +41,7 @@ import engine.sync.SweepRun
 import engine.sync.SharedLog
 import engine.world.Link
 import engine.world.InvIx
+import engine.world.Send
 import engine.wire.Slots
 import engine.wire.DialQueue
 import engine.core.Engine
@@ -382,6 +383,17 @@ open Engine Community
 #print axioms Engine.World.Plain.deliver_queues
 #print axioms Engine.World.Plain.owes_queued_start
 #print axioms Engine.World.Plain.ix_covers_start
+#print axioms Engine.World.Plain.want_reaches
+#print axioms Engine.World.Plain.drain
+#print axioms Engine.World.Plain.want_to_op
+#print axioms Engine.World.Plain.op_hop
+#print axioms Engine.World.Plain.write_hop
+#print axioms Engine.World.Plain.step_waits
+#print axioms Engine.World.Plain.owed_bounded_start
+#print axioms Engine.World.onTick_moves
+#print axioms Engine.World.onSealed_waits
+#print axioms Engine.World.serve_moves
+#print axioms Engine.World.recv_appends
 #print axioms Engine.Sync.write_offers_all
 #print axioms Engine.Sync.filed_offers
 #print axioms Engine.Sync.fanout_offers
