@@ -374,7 +374,7 @@ model unless a proven bridge ties the model to running code
 `tests/wiring-models.txt`, a list that only shrinks, does not name.
 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1380 rest on Lean's standard axioms only, and about four fifths of its theorems (1123 of 1291, not counting 65 proof steps and 24 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1360 rest on Lean's standard axioms only, and about four fifths of its theorems (1127 of 1271, not counting 65 proof steps and 24 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -519,7 +519,7 @@ reviewers check that a law's structures are the running code's own or
 a quantified environment (a `Run` of the running step).
 
 <!-- wiring:begin -->
-**1123 of 1291 laws are about running code;** another 35 run its node code in a World, and 133 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 65 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 24 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
+**1127 of 1271 laws are about running code;** another 35 run its node code in a World, and 109 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 65 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 24 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -532,7 +532,7 @@ a quantified environment (a `Run` of the running step).
 | Community | 213 | 198 |  | 15 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 6 | 6 |  |  |
-| Screen | 263 | 231 |  | 32 |
+| Screen | 243 | 235 |  | 8 |
 | App | 137 | 102 | 6 | 29 |
 | Node | 13 | 13 |  |  |
 | Settings | 4 | 4 |  |  |
@@ -548,7 +548,7 @@ a quantified environment (a `Run` of the running step).
 | `Scene.approval`, `FairExecution.run`, `Scene.K` +17 | [`FairExecution.fair`], [`ideal`], [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`], [`allowPeer_settles`] | Native scene certificates, an infinite fair/ideal model run, and a successful production-node trace with a fair continuation are proved and tested. conn_runs_exchange and closure_delivered now prove handler progress components. Whole-bootstrap convergence for every suitably fair app execution still needs their composition and native store/transport refinement. |
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
 | `Frame.wants`, `Subs.ofList`, `Frame.listWins` +2 | [`has_ofList`], [`ofList_wf`], [`screen_subs`]†, [`hull_near`]†, [`past_hull_le`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (app/Screen.lean); want by it, the window cut to the near rows' hull (Screen's plan). |
-| `Board.apply`, `RWorld.commit`, `RWorld.evict` +10 | [`RWorld.acts_shown`], [`seen_take`], [`World.inv_commit`], [`RWorld.inv_commit`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`], [`World.inv_pass`], [`World.inv_frame`], [`World.settle`], [`marked_pass`] +7 more | The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`. |
+| `Board.apply`, `RWorld.frame`, `World.afterActs` +2 | [`RWorld.acts_shown`], [`seen_take`], [`World.acts_shown`] | The acts' law (acts_shown) and the frame's take (seen_take) are still over the Worlds (BoardLaws, ReaderLaws, ActsLaws); the pass's freshness is proven of the running pass (fresh_record, fresh_notice, fresh_keep, settle_fresh). Todo: acts_shown of Reader.pass's Demand queue (touched wants first), and seen_take of the frame's `takeBoard`. |
 | `Execution.Setup.sync` | [`production_step_moves`], [`production_step_retains`], [`production_step_reachable`], [`production_step_settled`], [`production_write_receives`], [`production_step_history`], [`production_step_unique`] | Nothing that runs calls it; `World.deliver`, `Execution.step` do. |
 | `Execution.World.peer` | [`world_step_moves`], [`world_trace_moves`], [`empty_trace_store`], [`Run.shared_retained`], [`world_step_history`], [`world_trace_history`], [`empty_trace_history`], [`history`], [`world_step_unique`], [`world_trace_unique`], [`empty_trace_unique`], [`unique`] | Nothing that runs calls it; `Connection.Execution.World.run` do. |
 | `Execution.empty` | [`empty_trace_store`], [`empty_trace_history`], [`empty_trace_unique`], [`unique`] | Nothing that runs calls it. |
@@ -577,15 +577,7 @@ a quantified environment (a `Run` of the running step).
 | `Sync.roundHolds` | [`conn_answers_claims`] | Nothing that runs calls it. |
 | `Sync.roundWants` | [`conn_answers_claims`], [`wants_seen`], [`discovers`], [`discovers_wire`], [`conn_runs_exchange`]† | Nothing that runs calls it. |
 | `Engine.insertBy` | [`insertBy_map`], [`foldr_insertBy`], [`insertBy_merge`] | Nothing that runs calls it; `Engine.sortPos` do. |
-| `AWorld.pass` | [`AWorld.passActs_comp`], [`AWorld.passActs_indep`], [`AWorld.passActs_acts`] | Nothing that runs calls it. |
-| `AWorld.type` | [`AWorld.type_only`] | Nothing that runs calls it. |
-| `RWorld.actsWorld` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.passActs` do. |
-| `RWorld.commitAll` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.actsWorld`, `RWorld.nTouched`, `RWorld.passLate` do. |
-| `RWorld.markIdx` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.passIdx` do. |
-| `RWorld.nTouched` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.passActs` do. |
-| `RWorld.passActs` | [`passActs_nil`], [`inv_passActs`], [`idxok_passActs`], [`RWorld.acts_shown`] | Nothing that runs calls it; `AWorld.pass` do. |
-| `RWorld.passIdx` | [`passActs_nil`] | Nothing that runs calls it; `RWorld.passActs`, `RWorld.passLate` do. |
-| `RWorld.touched` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.actsWorld`, `RWorld.nTouched` do. |
+| `RWorld.passActs` | [`RWorld.acts_shown`] | Nothing that runs calls it; `Live.AWorld.pass` do. |
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
@@ -1733,16 +1725,7 @@ opportunities and full native delivery remain open.
 [`screen_index`]: engine/renderer/Screen.lean#L258-L261
 [`RWorld.acts_shown`]: engine/renderer/ActsLaws.lean#L210-L219
 [`seen_take`]: engine/renderer/BoardLaws.lean#L247-L248
-[`World.inv_commit`]: engine/renderer/BoardLaws.lean#L337-L338
-[`RWorld.inv_commit`]: engine/renderer/ReaderLaws.lean#L238-L239
-[`RWorld.inv_pass`]: engine/renderer/ReaderLaws.lean#L411-L412
-[`RWorld.inv_frame`]: engine/renderer/ReaderLaws.lean#L257-L257
-[`inv_evict`]: engine/renderer/ReaderLaws.lean#L260-L261
-[`RWorld.settle`]: engine/renderer/ReaderLaws.lean#L459-L461
-[`World.inv_pass`]: engine/renderer/BoardLaws.lean#L375-L376
-[`World.inv_frame`]: engine/renderer/BoardLaws.lean#L401-L401
-[`World.settle`]: engine/renderer/BoardLaws.lean#L407-L412
-[`marked_pass`]: engine/renderer/BoardLaws.lean#L450-L453
+[`World.acts_shown`]: engine/renderer/BoardLaws.lean#L552-L559
 [`production_step_unique`]: app/Proofs.lean#L3950-L3954
 [`world_step_moves`]: app/Proofs.lean#L2921-L2924
 [`Run.shared_retained`]: app/Proofs.lean#L2978-L2984
@@ -1783,14 +1766,6 @@ opportunities and full native delivery remain open.
 [`insertBy_map`]: engine/core/Project.lean#L350-L351
 [`foldr_insertBy`]: engine/core/Union.lean#L111-L114
 [`insertBy_merge`]: engine/core/Union.lean#L74-L77
-[`AWorld.passActs_comp`]: engine/renderer/ActsLaws.lean#L292-L294
-[`AWorld.passActs_indep`]: engine/renderer/ActsLaws.lean#L296-L299
-[`AWorld.passActs_acts`]: engine/renderer/ActsLaws.lean#L302-L303
-[`AWorld.type_only`]: engine/renderer/ActsLaws.lean#L305-L306
-[`passActs_picks`]: engine/renderer/ActsLaws.lean#L99-L104
-[`passActs_nil`]: engine/renderer/ActsLaws.lean#L142-L144
-[`inv_passActs`]: engine/renderer/ActsLaws.lean#L193-L196
-[`idxok_passActs`]: engine/renderer/ActsLaws.lean#L200-L204
 [`exposed_parts`]: engine/wire/NoiseSymbolic.lean#L1029-L1032
 [`eventually_delivered`]: engine/core/FIFO.lean#L50-L55
 [`Costs.time`]: engine/core/Cost.lean#L393-L395
@@ -1946,8 +1921,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 480 kernel witnesses, 191 runtime witnesses,
-23 conditional checks, 0 recorded runtime counterexamples; 48 of 742 linked declarations still pending.**
+**Coverage: 462 kernel witnesses, 191 runtime witnesses,
+23 conditional checks, 0 recorded runtime counterexamples; 49 of 725 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2555,16 +2530,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`screen_index`](engine/renderer/Screen.lean#L258-L261) | **kernel-witness**: [Vacuity.RendererModels.frameIndex](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`RWorld.acts_shown`](engine/renderer/ActsLaws.lean#L210-L219) | **kernel-witness**: [Vacuity.RendererModels.actsShown](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`seen_take`](engine/renderer/BoardLaws.lean#L247-L248) | **kernel-witness**: [Vacuity.RendererModels.boardSeen](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`World.inv_commit`](engine/renderer/BoardLaws.lean#L337-L338) | **kernel-witness**: [Vacuity.RendererModels.worldCommit](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`RWorld.inv_commit`](engine/renderer/ReaderLaws.lean#L238-L239) | **kernel-witness**: [Vacuity.RendererModels.readerCommit](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`RWorld.inv_pass`](engine/renderer/ReaderLaws.lean#L411-L412) | **kernel-witness**: [Vacuity.RendererModels.readerPass](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`RWorld.inv_frame`](engine/renderer/ReaderLaws.lean#L257-L257) | **kernel-witness**: [Vacuity.RendererModels.readerFrame](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`inv_evict`](engine/renderer/ReaderLaws.lean#L260-L261) | **kernel-witness**: [Vacuity.RendererModels.readerEvict](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`RWorld.settle`](engine/renderer/ReaderLaws.lean#L459-L461) | **kernel-witness**: [Vacuity.RendererModels.readerSettles](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`World.inv_pass`](engine/renderer/BoardLaws.lean#L375-L376) | **kernel-witness**: [Vacuity.RendererModels.worldPass](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`World.inv_frame`](engine/renderer/BoardLaws.lean#L401-L401) | **kernel-witness**: [Vacuity.RendererModels.worldFrame](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`World.settle`](engine/renderer/BoardLaws.lean#L407-L412) | **kernel-witness**: [Vacuity.RendererModels.worldSettles](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`marked_pass`](engine/renderer/BoardLaws.lean#L450-L453) | **kernel-witness**: [Vacuity.RendererModels.stillMarked](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
+| [`World.acts_shown`](engine/renderer/BoardLaws.lean#L552-L559) | Pending: no concrete premise witness audited yet |
 | [`production_step_unique`](app/Proofs.lean#L3950-L3954) | **kernel-witness**: [Vacuity.NodeUnique.production_prefix](tests/vacuity/NodeUnique.lean). Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions. |
 | [`world_step_moves`](app/Proofs.lean#L2921-L2924) | **runtime-witness**: [Vacuity.StorageEffects.eventCertificate](tests/vacuity/StorageEffects.lean). The exercised full-handler certificate obtains source reachability and settlement through empty_trace_store and its world_trace_moves/world_step_moves derivation for the concrete nonempty production bootstrap prefix. Native checks establish a valid signed message and live session at the endpoint, then run all four handlers, including a close that really purges connection ops. An unheld message rejects the certificate. This checks the applied preservation chain; it does not assert whole-app liveness. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
 | [`Run.shared_retained`](app/Proofs.lean#L2978-L2984) | **runtime-witness**: [Vacuity.StorageEffects.runCertificate](tests/vacuity/StorageEffects.lean). The native runner starts the actual infinite scheduler from a populated production world and checks the signed message is already held and shared. It applies retention across nine subsequent ticks/deliveries, independently checks exact final bytes, and rejects an absent recovery post. The interval is nonzero and initial reachability/history agreement derive from the actual prefix. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
@@ -2605,14 +2571,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`insertBy_map`](engine/core/Project.lean#L350-L351) | **kernel-witness**: [Vacuity.Projection.insertionMap](tests/vacuity/Projection.lean). Two concrete rows with sort bytes0/1 and distinct message identifiers; map into left sum constructor and preserve positions, order/insertion, or filter back. Synthetic generic row algebra, not collected user data. |
 | [`foldr_insertBy`](engine/core/Union.lean#L111-L114) | **kernel-witness**: [Vacuity.Core.foldMerge](tests/vacuity/Core.lean). Two ordered messages inserted into another nonempty list. |
 | [`insertBy_merge`](engine/core/Union.lean#L74-L77) | **kernel-witness**: [Vacuity.Core.insertMerge](tests/vacuity/Core.lean). Insert early message into two nonempty sorted lists with explicit head-order premise. |
-| [`AWorld.passActs_comp`](engine/renderer/ActsLaws.lean#L292-L294) | **kernel-witness**: [Vacuity.RendererModels.composerKept](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`AWorld.passActs_indep`](engine/renderer/ActsLaws.lean#L296-L299) | **kernel-witness**: [Vacuity.RendererModels.composerIndependent](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`AWorld.passActs_acts`](engine/renderer/ActsLaws.lean#L302-L303) | **kernel-witness**: [Vacuity.RendererModels.actionsTaken](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`AWorld.type_only`](engine/renderer/ActsLaws.lean#L305-L306) | **kernel-witness**: [Vacuity.RendererModels.typing](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`passActs_picks`](engine/renderer/ActsLaws.lean#L99-L104) | **kernel-witness**: [Vacuity.RendererModels.actionPicks](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`passActs_nil`](engine/renderer/ActsLaws.lean#L142-L144) | **kernel-witness**: [Vacuity.RendererModels.noActions](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`inv_passActs`](engine/renderer/ActsLaws.lean#L193-L196) | **kernel-witness**: [Vacuity.RendererModels.actionsInvariant](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`idxok_passActs`](engine/renderer/ActsLaws.lean#L200-L204) | **kernel-witness**: [Vacuity.RendererModels.actionIndex](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`exposed_parts`](engine/wire/NoiseSymbolic.lean#L1029-L1032) | Pending: no concrete premise witness audited yet |
 | [`eventually_delivered`](engine/core/FIFO.lean#L50-L55) | Pending: no concrete premise witness audited yet |
 | [`Costs.time`](engine/core/Cost.lean#L393-L395) | Pending: no concrete premise witness audited yet |

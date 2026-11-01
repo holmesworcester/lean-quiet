@@ -1232,7 +1232,7 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
     -- inv_passActs, and with no act RestLaws', are about this pass
     let s ← get
     let rev := fun q => (s.rev.getD q #[]).toList
-    let marked := (_root_.Live.markHit rev s.dirty hit).filter s.wantSet.contains
+    let marked := (_root_.Live.Index.notice ⟨s.deps, s.dirty, s.rev⟩ s.wantSet hit).dirty
     let touched := (_root_.Live.markHit rev {} hitActs).filter s.wantSet.contains
     let ready := _root_.Live.pickActs wants.toList touched marked wants.size
     sh.queue.modify (Demand.reconcile ready)

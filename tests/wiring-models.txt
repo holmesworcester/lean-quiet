@@ -101,37 +101,11 @@ Engine.Subs.has_ofList
 Engine.Subs.ofList_wf
 
 # engine.renderer.ActsLaws
-Live.AWorld.passActs_acts
-Live.AWorld.passActs_comp
-Live.AWorld.passActs_indep
-Live.AWorld.type_only
 Live.RWorld.acts_shown
-Live.RWorld.idxok_passActs
-Live.RWorld.inv_passActs
-Live.RWorld.passActs_nil
-Live.RWorld.passActs_picks
 
 # engine.renderer.BoardLaws
 Live.Board.seen_take
 Live.World.acts_shown
-Live.World.fold_commits
-Live.World.inv_commit
-Live.World.inv_frame
-Live.World.inv_pass
-Live.World.marked_pass
-Live.World.passActs_acts
-Live.World.passActs_comp
-Live.World.passActs_indep
-Live.World.settle
-Live.World.settle_passes
-Live.World.type_only
-
-# engine.renderer.ReaderLaws
-Live.RWorld.inv_commit
-Live.RWorld.inv_evict
-Live.RWorld.inv_frame
-Live.RWorld.inv_pass
-Live.RWorld.settle
 
 # engine.renderer.Screen
 Screen.hull_near

@@ -175,4 +175,11 @@ def Index.record {W Q : Type} [BEq W] [Hashable W] [BEq Q] [Hashable Q] (i : Ind
   { deps := i.deps.insert w log, dirty := i.dirty.erase w,
     rev := reindex i.rev w (i.deps.getD w #[]) log }
 
+/-- **A pass's notice** (what Reader.pass does with the reads its notices
+hit): the dirty it still wants, and every wanted want the index names for
+a hit read, marked dirty. -/
+def Index.notice {W Q : Type} [BEq W] [Hashable W] [BEq Q] [Hashable Q] (i : Index W Q)
+    (wanted : Std.HashSet W) (hit : List Q) : Index W Q :=
+  { i with dirty := (markHit (fun q => (i.rev.getD q #[]).toList) i.dirty hit).filter wanted.contains }
+
 end Live

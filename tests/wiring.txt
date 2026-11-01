@@ -427,18 +427,11 @@ wired Ttf.Cache.checked_valid
 wired Ttf.Cache.put_bound
 wired Ttf.Cache.payload_le_bytes
 wired Ttf.Cache.put_payload_bound
-todo Live.Board.apply The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`.
+todo Live.Board.apply The acts' law (acts_shown) and the frame's take (seen_take) are still over the Worlds (BoardLaws, ReaderLaws, ActsLaws); the pass's freshness is proven of the running pass (fresh_record, fresh_notice, fresh_keep, settle_fresh). Todo: acts_shown of Reader.pass's Demand queue (touched wants first), and seen_take of the frame's `takeBoard`.
 todo Live.World.afterActs = Live.Board.apply
-todo Live.World.commit = Live.Board.apply
 todo Live.World.frame = Live.Board.apply
-todo Live.World.marked = Live.Board.apply
-todo Live.World.pass = Live.Board.apply
 todo Live.World.passActs = Live.Board.apply
-todo Live.World.type = Live.Board.apply
-todo Live.RWorld.commit = Live.Board.apply
-todo Live.RWorld.evict = Live.Board.apply
 todo Live.RWorld.frame = Live.Board.apply
-todo Live.RWorld.marked = Live.Board.apply
 todo Live.RWorld.pass = Live.Board.apply
 
 

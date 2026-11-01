@@ -503,34 +503,6 @@
     "module": "tests.vacuity.RendererModels",
     "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
   },
-  "World.inv_commit": {
-    "status": "kernel-witness",
-    "theorem": "Live.World.inv_commit",
-    "witness": "Vacuity.RendererModels.worldCommit",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "World.inv_pass": {
-    "status": "kernel-witness",
-    "theorem": "Live.World.inv_pass",
-    "witness": "Vacuity.RendererModels.worldPass",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "World.inv_frame": {
-    "status": "kernel-witness",
-    "theorem": "Live.World.inv_frame",
-    "witness": "Vacuity.RendererModels.worldFrame",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "World.settle": {
-    "status": "kernel-witness",
-    "theorem": "Live.World.settle",
-    "witness": "Vacuity.RendererModels.worldSettles",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
   "seen_take": {
     "status": "kernel-witness",
     "theorem": "Live.Board.seen_take",
@@ -538,108 +510,10 @@
     "module": "tests.vacuity.RendererModels",
     "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
   },
-  "marked_pass": {
-    "status": "kernel-witness",
-    "theorem": "Live.World.marked_pass",
-    "witness": "Vacuity.RendererModels.stillMarked",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "RWorld.inv_commit": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.inv_commit",
-    "witness": "Vacuity.RendererModels.readerCommit",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "RWorld.inv_pass": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.inv_pass",
-    "witness": "Vacuity.RendererModels.readerPass",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "RWorld.inv_frame": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.inv_frame",
-    "witness": "Vacuity.RendererModels.readerFrame",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "inv_evict": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.inv_evict",
-    "witness": "Vacuity.RendererModels.readerEvict",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "RWorld.settle": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.settle",
-    "witness": "Vacuity.RendererModels.readerSettles",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
   "RWorld.acts_shown": {
     "status": "kernel-witness",
     "theorem": "Live.RWorld.acts_shown",
     "witness": "Vacuity.RendererModels.actsShown",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "inv_passActs": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.inv_passActs",
-    "witness": "Vacuity.RendererModels.actionsInvariant",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "idxok_passActs": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.idxok_passActs",
-    "witness": "Vacuity.RendererModels.actionIndex",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "passActs_picks": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.passActs_picks",
-    "witness": "Vacuity.RendererModels.actionPicks",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "passActs_nil": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.passActs_nil",
-    "witness": "Vacuity.RendererModels.noActions",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "AWorld.passActs_comp": {
-    "status": "kernel-witness",
-    "theorem": "Live.AWorld.passActs_comp",
-    "witness": "Vacuity.RendererModels.composerKept",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "AWorld.passActs_indep": {
-    "status": "kernel-witness",
-    "theorem": "Live.AWorld.passActs_indep",
-    "witness": "Vacuity.RendererModels.composerIndependent",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "AWorld.passActs_acts": {
-    "status": "kernel-witness",
-    "theorem": "Live.AWorld.passActs_acts",
-    "witness": "Vacuity.RendererModels.actionsTaken",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "AWorld.type_only": {
-    "status": "kernel-witness",
-    "theorem": "Live.AWorld.type_only",
-    "witness": "Vacuity.RendererModels.typing",
     "module": "tests.vacuity.RendererModels",
     "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
   },

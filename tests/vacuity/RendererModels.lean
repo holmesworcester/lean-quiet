@@ -36,28 +36,7 @@ private def baseInv := World.inv_start (C := Nat) (K := String) Gated.touch Gate
 private def loadedInv := World.inv_frame Gated.touch Gated.eval
   (World.inv_pass Gated.touch Gated.eval baseInv [()])
 
-def worldCommit := World.inv_commit Gated.apply Gated.touch Gated.eval loadedInv 1 (Gated.stable 1 0)
-def worldPass := World.inv_pass Gated.touch Gated.eval loadedInv [()]
-def worldFrame := World.inv_frame Gated.touch Gated.eval
-  (World.inv_pass Gated.touch Gated.eval loadedInv [()])
-def worldSettles := World.settle Gated.touch Gated.eval loadedInv (pick := [()])
-  (by intro x hx; cases x; simp) (x := ()) (by simp [loaded, base, World.frame, World.pass])
 def boardSeen := Board.seen_take loadedInv.2
-
--- Leave a deliberately dirty want unrefilled; it must stay marked.
-def dirty : Live.World Nat Nat Unit Nat String := { store := 1, wants := [()], dirty := [()] }
-def stillMarked := World.marked_pass Gated.touch Gated.eval (w := dirty) (pick := []) (x := ())
-  (by simp [World.marked, World.pass, dirty])
-
--- Reader has two loaded answers, then a commit changes their shared read.
-def readerCommit := RWorld.inv_commit Eager.apply Eager.hits Eager.eval Eager.reads
-  Eager.w1_inv 2 (Eager.stable 2 1)
-def readerPass := RWorld.inv_pass Eager.hits Eager.eval Eager.reads Eager.w1_inv 2
-def readerFrame := RWorld.inv_frame Eager.hits Eager.eval Eager.reads readerPass
-def readerEvict := RWorld.inv_evict Eager.hits Eager.eval Eager.reads Eager.w1_inv (fun _ => false)
-def readerSettles := RWorld.settle Eager.hits Eager.eval Eager.reads Eager.w1_inv (cap := 2)
-  (by exact Nat.le_trans (List.length_filter_le _ _) (by decide))
-  (x := true) (by simp [Eager.w1])
 
 -- The source's nonempty indexed model; a user's own act wins over backlog.
 private def actsStable : RWorld.ActsStable Eager.apply Eager.hits Eager.eval Eager.reads Eager.w0.store [1] :=
@@ -65,20 +44,5 @@ private def actsStable : RWorld.ActsStable Eager.apply Eager.hits Eager.eval Eag
 def actsShown := RWorld.acts_shown Eager.apply Eager.hits Eager.eval Eager.reads Eager.hitQs
   Eager.exact Eager.w0_inv Eager.w0_idx actsStable 0
   (x := true) (by simp [Eager.w0]) (q := ()) (by simp [Eager.hitQs]) (qs := [()]) rfl (by simp)
-def actionsInvariant := RWorld.inv_passActs Eager.apply Eager.hits Eager.eval Eager.reads Eager.hitQs
-  Eager.exact Eager.w0_inv Eager.w0_idx actsStable 0
-
-def actionIndex := RWorld.idxok_passActs Eager.apply Eager.hits Eager.eval Eager.reads Eager.hitQs
-  Eager.exact (by intro s x; simp [Eager.reads]) Eager.w0_idx [1] 0
-
-def actionPicks := RWorld.passActs_picks Eager.apply Eager.hitQs [1] 0 Eager.w0
-
-def noActions := RWorld.passActs_nil Eager.apply Eager.hits Eager.eval Eager.reads Eager.hitQs 2 Eager.w0
-
-def app : Live.AWorld Nat Nat Bool Nat Unit String := ⟨Eager.w0, [1, 2], some "Keep my draft"⟩
-def composerKept := AWorld.passActs_comp Eager.apply Eager.hits Eager.eval Eager.reads Eager.hitQs 1 app
-def composerIndependent := AWorld.passActs_indep Eager.apply Eager.hits Eager.eval Eager.reads Eager.hitQs 1 app (some "Edited")
-def actionsTaken := AWorld.passActs_acts Eager.apply Eager.hits Eager.eval Eager.reads Eager.hitQs 1 app
-def typing := AWorld.type_only (fun _ => some "Typed") app
 
 end Vacuity.RendererModels
