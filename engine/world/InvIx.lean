@@ -515,4 +515,50 @@ theorem ix_covers {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : Worl
 
 end Plain
 
+/-! ## Negative control: a hook that stores without indexing
+
+The `calls` piece has teeth: a dial hook that stores an op with a write
+turn of its own, bypassing `Node.write` (so the node's index never lists
+it), breaks the index's cover, and no `Pieces` for `IxInv` exists for a
+node with that hook. -/
+
+/-- **A mutant dial hook**: it stores op o directly, never indexing it.
+Meant never to run. -/
+def dialStores (fam : Family F) (o : Op) : Nat → HeldM F (List Op) := fun _ => do
+  Turn.turn fam [o]
+  pure []
+
+/-- One node on the one-room family whose dial hook is the mutant. -/
+def dialMutant (r : Id) (o : Op) : Setup Unit (HeldM Unit) (Held Unit) where
+  n := 1
+  sync _ := { fam := oneRoom r,
+              hooks := { rooms := fun _ => pure [], sealFor := plainSeal, openFrame := plainOpen,
+                         dial := dialStores (oneRoom r) o } }
+  addr _ := ByteArray.empty
+  run m h := m.run h
+  held h := h
+
+/-- **The mutant breaks the index's cover, so its `Pieces` cannot be
+proven**: from an empty store and a fresh node, the dial stores o, an op
+of room r, which the node's index does not list. -/
+theorem dial_mutant_unindexed (r : Id) (o : Op) : ¬ Pieces (dialMutant r o) ⟨0, Nat.zero_lt_one⟩ (IxInv (oneRoom r)) := by
+  intro Pc
+  have h0 : IxInv (oneRoom r) (Node.boot (oneRoom r) [] 0) ({} : Held Unit) :=
+    ⟨(fun _ _ _ hx => by cases hx),
+     (fun _ _ ha => by simp [Node.boot, Index.ofOps, Index.items] at ha),
+     (fun _ _ hx => by cases hx)⟩
+  have h1 := Pc.calls _ (.dial 0) _ {} h0
+  have hs : ((dialStores (oneRoom r) o 0).run ({} : Held Unit)).2.db.ops o.id = some o := by
+    obtain ⟨o', ho'⟩ := Option.isSome_iff_exists.1
+      (foldl_ingestS_isSome [o] (DB.empty : DB Unit) (o := o) (List.mem_singleton_self o))
+    rcases foldl_ingestS_ops [o] DB.empty ho' with h | ⟨hm, -⟩
+    · cases h
+    · rw [List.mem_singleton] at hm
+      subst hm
+      show (drainS _ _ _).ops o'.id = some o'
+      rw [drainS_ops]
+      exact ho'
+  obtain ⟨a, ha, -⟩ := h1.1 r o.id o hs rfl
+  simp [Node.boot, Index.ofOps, Index.items] at ha
+
 end Engine.World

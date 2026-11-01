@@ -28,6 +28,7 @@ import engine.sync.SimLaws
 import engine.wire.Loop
 import engine.wire.EgressLaws
 import engine.sync.SharedLog
+import engine.world.Pieces
 import engine.wire.CloseLaws
 import engine.wire.NodeUniqueLaws
 
@@ -2167,6 +2168,25 @@ instance : ReadsOnly F M where
 instance : ListsRead M := ⟨fun _ _ => rfl⟩
 
 theorem fresh_reads : Reads (Fresh.fresh : M ByteArray) := fun _ => rfl
+
+/-- The production interpreter's run is a run (engine/world/Pieces.lean's
+`Lawful`): `M` is state passing over `Memory`, the entropy tape included. -/
+theorem lawful : Engine.World.Lawful (fun {α} (m : M α) (s : Memory) => m s) :=
+  ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩
+
+/-- A step that reads only is `MetaOnly` over the held store: it may move
+the entropy cursor or the retry cursors, never the store. -/
+theorem reads_meta {α : Type} {p : M α} (hp : Reads p) :
+    Engine.World.MetaOnly (fun {α} (m : M α) (s : Memory) => m s) Memory.held p := hp
+
+/-- **The production retry store's save moves only its cursor**:
+`retryStore.save` writes `Memory.retries`, never the held store. -/
+theorem save_meta (S : Setup) (side : Side) (store : RetryStore M) (hs : (S.sync side).retryStore = some store)
+    (peer : Id) (cursor : Sweep) :
+    Engine.World.MetaOnly (fun {α} (m : M α) (s : Memory) => m s) Memory.held (store.save peer cursor) := by
+  simp only [Setup.sync, Option.some.injEq] at hs
+  subst hs
+  intro _; rfl
 
 end Connection.Execution
 

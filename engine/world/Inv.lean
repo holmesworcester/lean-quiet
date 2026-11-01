@@ -65,6 +65,10 @@ variable {Q : Plain F}
 /-- The plain setup's run is a run. -/
 theorem lawful : Lawful Q.setup.run := ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩
 
+/-- A step that reads only is `MetaOnly` in the plain setup: the held
+store is the whole box. -/
+theorem reads_meta {α : Type} {p : HeldM F α} (hp : Reads p) : MetaOnly Q.setup.run Q.setup.held p := hp
+
 /-- The plain hooks' calls, sealing and ending a session read only: no
 secrets, no couriers to purge. -/
 theorem calls_keep {i : Fin Q.n} {α : Type} {p : HeldM F α} (hp : Call (Q.setup.sync i) p) (h : Held F) :
