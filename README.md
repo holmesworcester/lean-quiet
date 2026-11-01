@@ -909,7 +909,7 @@ cannot see into:
   are `IO`.
 - **Nothing checks the signatures.** Each borrowed argument (`@&`) must
   be a `b_lean_obj_arg` in the C. `le_random` still declares the world
-  argument that Lean 4.34 no longer passes; it is unused.
+  argument that Lean (since 4.34) no longer passes; it is unused.
 
 Placement and touch policy now run in Lean: `Surface.make` publishes both
 `Seam.place` and `Seam.pinned`; `Input.run` classifies raw pointer sequences
