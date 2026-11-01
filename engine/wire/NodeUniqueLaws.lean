@@ -477,6 +477,7 @@ theorem onTickDirect_valid (n : Node) (now : Nat) (h : Valid n) :
 theorem onTick_valid (n : Node) (now : Nat) (h : Valid n) :
     Ensures (n.onTick x now) (fun r => Valid r.1) := by
   unfold Node.onTick
+  refine Ensures.bind_any _ fun _ => ?_
   split
   · exact onTickReserved_valid x n now h
   · exact onTickDirect_valid x n now h

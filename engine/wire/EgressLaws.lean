@@ -674,6 +674,16 @@ def FramesBy (x : Sync F (HeldM F)) (P : Held F → Id → Op → Prop) (h0 h1 :
 /-- Each payload a fresh step's send (`Sent`). -/
 abbrev FramesOk (x : Sync F (HeldM F)) : Held F → Held F → Effects → Prop := FramesBy x (Sent x)
 
+/-- Store moves before an entry point's run keep what it sends allowed. -/
+theorem FramesBy.pre {P : Held F → Id → Op → Prop} {h h0 h1 : Held F} {e : Effects}
+    (m : Moves x.fam h h0) (hp : FramesBy x P h0 h1 e) : FramesBy x P h h1 e := by
+  intro a p hap
+  rcases hp a p hap with hb | ⟨cid, g, f, h', e1, m0, m1, hf, hq⟩
+  · exact Or.inl hb
+  · refine Or.inr ⟨cid, g, f, h', e1, m.trans m0, m1, hf, fun q hq' => ?_⟩
+    obtain ⟨o, h'', e2, m2, m3, ho⟩ := hq q hq'
+    exact ⟨o, h'', e2, m.trans m2, m3, ho⟩
+
 /-- What holds of every fresh step's send holds of every payload. -/
 theorem FramesBy.mono {P Q : Held F → Id → Op → Prop} {h0 h1 : Held F} {e : Effects}
     (hPQ : ∀ h cid o, P h cid o → Q h cid o) (hp : FramesBy x P h0 h1 e) : FramesBy x Q h0 h1 e := by
@@ -884,9 +894,14 @@ theorem onTick_fresh (hr : ReadOnly x) (n : Node) (now : Nat) (h : Held F) :
     Moves x.fam h ((n.onTick x now).run h).2 ∧
       FramesOk x h ((n.onTick x now).run h).2 ((n.onTick x now).run h).1.2 := by
   unfold Node.onTick
+  simp only [HeldM.run_bind]
+  have m0 : Moves x.fam h ((Turn.turn x.fam [] : HeldM F Unit).run h).2 := .single (.turn [] h)
+  generalize ((Turn.turn x.fam [] : HeldM F Unit).run h).2 = h' at m0 ⊢
   split
-  · exact onTickReserved_fresh hr n now h
-  · exact onTickDirect_fresh hr n now h
+  · obtain ⟨m1, ok⟩ := onTickReserved_fresh hr n now h'
+    exact ⟨m0.trans m1, ok.pre m0⟩
+  · obtain ⟨m1, ok⟩ := onTickDirect_fresh hr n now h'
+    exact ⟨m0.trans m1, ok.pre m0⟩
 
 /-- **A sealed frame, as `openFrame` gave it.** -/
 theorem onSealed_fresh (hr : ReadOnly x) (n : Node) (addr : ByteArray) (opened : Option (Id × ByteArray))

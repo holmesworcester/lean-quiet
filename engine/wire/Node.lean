@@ -619,8 +619,12 @@ def Node.onTickDirect (n : Node) (now : Nat) : m (Node × Effects) := do
   n.finish x out now
 
 /-- Production deferred transport uses stable retry admission. The direct
-interpreter's previous output budget/order is preserved exactly. -/
-def Node.onTick (n : Node) (now : Nat) : m (Node × Effects) :=
+interpreter's previous output budget/order is preserved exactly. Every
+tick first runs an idle write turn (`Turn.turn` of no ops), which carries
+what a capped turn left queued (engine/core/CarryLaws.lean); with nothing
+queued it changes nothing, and SQLite's takes no write lock. -/
+def Node.onTick (n : Node) (now : Nat) : m (Node × Effects) := do
+  Turn.turn x.fam []
   if x.deferredRetries then n.onTickReserved x now else n.onTickDirect x now
 
 /-- A local write: this device's own ops, hot from now on. -/

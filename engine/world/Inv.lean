@@ -113,6 +113,8 @@ theorem onTick_managed (n : Node) (now : Nat) (h : Held F) (hm : n.managed = [])
     ((n.onTick (S.sync s) now).run h).1.1.managed = [] := by
   have hd : (S.sync s).deferredRetries = false := rfl
   unfold Node.onTick
+  simp only [HeldM.run_bind]
+  generalize ((Turn.turn (S.sync s).fam [] : HeldM F Unit).run h).2 = h
   rw [hd]
   unfold Node.onTickDirect
   simp only [Bool.false_eq_true, ↓reduceIte, HeldM.run_bind]

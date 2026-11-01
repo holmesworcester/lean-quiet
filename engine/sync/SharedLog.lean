@@ -39,6 +39,16 @@ theorem shared_log_purge (fam : Family F) (h : Held F) (ids : List Id) (scrub : 
     simp [hs, hb]
   · simp [hs]
 
+/-- An idle turn (a tick's, of no ops) keeps log/store agreement: it adds
+no log entry, and judging leaves the ops. -/
+theorem idle_log_agrees (fam : Family F) (h : Held F) (ha : h.LogAgrees) :
+    (((Turn.turn fam [] : HeldM F Unit) h).2).LogAgrees := by
+  intro o ho
+  rw [turn_apply] at ho ⊢
+  show (turnCappedS _ _ _ _).ops o.id = some o
+  rw [turnCappedS_ops]
+  exact ha o (by simpa using ho)
+
 theorem purge_log_agrees (fam : Family F) (h : Held F) (ids : List Id) (scrub : Bool)
     (ha : h.LogAgrees) : (((Turn.purge fam ids scrub : HeldM F Unit) h).2).LogAgrees := by
   intro o ho

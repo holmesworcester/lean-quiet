@@ -60,6 +60,8 @@ structure Pieces (S : Engine.Sync.Setup F) (s : Who) (Φ : Node → Held F → P
   drop : ∀ n cid h, Φ n h → Φ (n.drop cid) h
   opens : ∀ n cid a dialer now h, Φ n h →
     Φ ((n.open (S.sync s) cid a dialer now).run h).1.1 ((n.open (S.sync s) cid a dialer now).run h).2
+  /-- A tick's idle turn (`Node.onTick`: a write turn of no ops). -/
+  idle : ∀ n h, Φ n h → Φ n ((Turn.turn (S.sync s).fam [] : HeldM F Unit).run h).2
 
 section
 variable (S : Engine.Sync.Setup F) (s : Who)
@@ -137,6 +139,10 @@ theorem onTick_keeps (P : Pieces S s Φ) (n : Node) (now : Nat) (h : Held F) (hn
     Φ ((n.onTick (S.sync s) now).run h).1.1 ((n.onTick (S.sync s) now).run h).2 := by
   have hd : (S.sync s).deferredRetries = false := rfl
   unfold Node.onTick
+  simp only [HeldM.run_bind]
+  have h0 := P.idle n h hn
+  generalize ((Turn.turn (S.sync s).fam [] : HeldM F Unit).run h).2 = h at h0 ⊢
+  replace hn := h0
   rw [hd]
   unfold Node.onTickDirect
   simp only [Bool.false_eq_true, ↓reduceIte, HeldM.run_bind]
@@ -438,6 +444,7 @@ theorem oq_pieces : Pieces S s (fun n _ => NodeOQ n) where
       now h) (hn cid c hc)) hn)
   serve y _ _ n cid now h hn := serve_oq y n cid now h hn
   finish n out now h hn := finish_oq S s n out now h hn
+  idle _ _ hn := hn
   setAddr n cid a h hn := oq_conns rfl hn
   heat n ids now h hn := oq_conns rfl hn
   drop n cid h hn := oq_drop n cid hn
@@ -620,6 +627,19 @@ theorem serveOwed_ix (y : Sync F (HeldM F)) (hh : y.hooks = (S.sync s).hooks) (n
       · exact (serveOwed_run y.fam y.cfg _ _ _ h).2.2
       · first | rfl | trivial
 
+/-- A tick's idle turn keeps the index covering the store: it adds no op
+and no log entry. -/
+theorem idle_ixinv (fam : Family F) (n : Node) (h : Held F) (hi : IxInv fam n h) :
+    IxInv fam n ((Turn.turn fam [] : HeldM F Unit).run h).2 := by
+  obtain ⟨hc, hk, hl⟩ := hi
+  have e : (((Turn.turn fam [] : HeldM F Unit).run h).2).db.ops = h.db.ops := by
+    show (turnCappedS fam drainCap [] h.db).ops = _
+    rw [turnCappedS_ops]; rfl
+  have el : (((Turn.turn fam [] : HeldM F Unit).run h).2).log = h.log := by
+    show h.log ++ [] = _; simp
+  refine ⟨fun r x o ho hr => hc r x o (by rw [← e]; exact ho) hr, hk, fun x o ho => ?_⟩
+  rw [el]; exact hl x o (by rw [← e]; exact ho)
+
 /-- **Every piece of a plain node keeps its index covering its store.** -/
 theorem ix_pieces : Pieces S s (IxInv S.fam) where
   write n ops h hi := write_ixinv (S.sync s) n ops h hi
@@ -638,6 +658,7 @@ theorem ix_pieces : Pieces S s (IxInv S.fam) where
   setAddr n cid a h hi := ixinv_of_ix rfl hi
   heat n ids now h hi := ixinv_of_ix rfl hi
   drop n cid h hi := ixinv_of_ix rfl hi
+  idle n h hi := idle_ixinv _ n h hi
   opens n cid a dialer now h hi := ixinv_of_ix rfl hi
 
 end

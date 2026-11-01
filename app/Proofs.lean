@@ -3298,6 +3298,12 @@ namespace HistoryM
      [], by
        change Catalog.shared fam ((Turn.purge fam ids scrub : HeldM F Unit) s.held).2 = _
        simpa using shared_log_purge fam s.held ids scrub ha⟩
+ /-- A tick's idle turn adds nothing to the history. -/
+ theorem idle' (fam : Family F) : HistoryM fam (Turn.turn fam [] : M Unit) := by
+   intro s hr ha
+   exact ⟨turn_reachable fam [] s.held hr, idle_log_agrees fam s.held ha, [], by
+     change Catalog.shared fam ((Turn.turn fam [] : HeldM F Unit) s.held).2 = _
+     simp [shared_log_turn]⟩
 end HistoryM
 
 syntax "historyTape" "[" term,* "]" : tactic
@@ -3416,7 +3422,7 @@ theorem onFrame_history (n : Engine.Sync.Node) (addr bytes : ByteArray) (now : N
     finish_history x hr, fun b => (hr.openFrame b).history, onSealed_history x hr]
 theorem onTick_history (n : Engine.Sync.Node) (now : Nat) : HistoryM x.fam (n.onTick x now) := by
   unfold Node.onTick Node.onTickReserved Node.onTickDirect Node.sweepAll
-  historyTape [fun t => (hr.dial t).history, store_history x hr,
+  historyTape [HistoryM.idle' x.fam, fun t => (hr.dial t).history, store_history x hr,
     fun cid c => (refresh_reads x hr cid c).history,
     fun ix c now => (NodeTape.tickGive_reads x.fam x.cfg ix c now).history,
     apply_history x hr,
