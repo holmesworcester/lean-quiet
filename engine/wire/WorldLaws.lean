@@ -401,9 +401,9 @@ theorem store_one (n : Node) (o : Op) (mine : Bool) (h : Held F) (hn : h.db.ops 
 /-- A connection step that takes one shared op the store lacks stores it. -/
 theorem apply_takes (n : Node) (cid : Id) (st : Step) (now : Nat) (o : Op) (h : Held F)
     (hd : st.drop = false) (ht : st.take = [o]) (hn : h.db.ops o.id = none)
-    (hsh : S.fam.shared o = true) :
+    (hsh : S.fam.shared o = true) (hcp : o.capped = true) :
     ((n.apply (S.sync s) cid st now).run h).2 = turnH S.fam [o] h := by
-  have hi : intake S.fam false [o] = [o] := by simp [intake, hsh]
+  have hi : intake S.fam false [o] = [o] := by simp [intake, hsh, hcp]
   simp [Node.apply, hd, ht, store_one S s _ o false h hn hi]
 
 end
@@ -490,12 +490,17 @@ theorem has_of_mem {l : List Id} {x : Id} (h : x ∈ l) : has l x = true := (Eng
 
 /-! ## What a connection does with each message -/
 
+/-- A have: with ids, answered by `onHold`; with none, a request for a
+round (`onAsk`). Either way the store is only read. -/
 theorem recv_hold (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (r : Id) (l : List Id) (now : Nat)
     (h : Held F) :
     (Conn.recv fam cfg ix c (Msg.hold r l).op.bytes now : HeldM F Step).run h =
-      ((({ c with heard := now }.onHold fam cfg r l : HeldM F Step).run h).1, h) := by
+      ((if l.isEmpty then { conn := ({ c with heard := now } : Conn).onAsk r }
+        else (({ c with heard := now }.onHold fam cfg r l : HeldM F Step).run h).1), h) := by
   simp only [Conn.recv, Op.decode_bytes, ofOp_hold]
-  exact Prod.ext rfl (onHold_reads _ _ _ _ _ h)
+  split
+  · rfl
+  · exact Prod.ext rfl (onHold_reads _ _ _ _ _ h)
 
 theorem onHold_take (fam : Family F) (c : Conn) (cfg : Config) (r : Id) (l : List Id) (h : Held F) :
     ((c.onHold fam cfg r l : HeldM F Step).run h).1.take = [] := by
@@ -524,14 +529,14 @@ and sends exactly one frame, to the session's address, offering o. -/
 theorem write_offers (n : Node) (cid : Id) (c : Conn) (o : Op) (r : Id) (a : ByteArray) (h : Held F)
     (t : Nat) (hc : n.conns = [(cid, c)]) (hm : n.managed = []) (ha : n.addr? cid = some a)
     (hn : h.db.ops o.id = none) (hk : o.id ∉ c.known) (ho : o.id ∉ c.offered)
-    (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid) (hmax : 0 < S.cfg.maxIds) :
+    (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid) (hmax : 0 < S.cfg.maxIds) (hcp : o.capped = true) :
     let p := (n.onWrite (S.sync s) [o] t).run h
     (∃ c', p.1.1.conns = [(cid, c')] ∧ c'.known = c.known ∧ c'.asked = c.asked ∧ c'.owed = c.owed ∧ c'.owing = c.owing) ∧
       p.1.1.managed = [] ∧ p.1.1.addrs = n.addrs ∧
       p.1.2.send = [(a, plainFrame cid [(Msg.hold r [o.id]).op.bytes])] ∧ p.2 = turnH S.fam [o] h ∧ p.1.1.ix = n.ix.add S.fam o := by
   have hs' := has_of_mem hs
   simp only [Node.addr?] at ha
-  simp [Node.onWrite, store_run, Node.put, intake, write_one _ _ _ _ hn, Node.fanout, hc, Conn.filed,
+  simp [Node.onWrite, store_run, Node.put, intake, hcp, write_one _ _ _ _ hn, Node.fanout, hc, Conn.filed,
     turnH_one _ _ _ hn, hk, ho, Conn.setRooms, Conn.shows, hr, hs', finish_run, hm, Node.heat, Node.sent, sends,
     holdsOf_one _ _ _ hmax, Node.addr?, ha]
 
@@ -686,7 +691,7 @@ whatever offers follow it in the frame. -/
 theorem op_taken (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (o : Op) (r : Id)
     (more : List ByteArray) (h : Held F) (t : Nat)
     (hc : n.conns = [(cid, c)]) (hn : h.db.ops o.id = none) (hw : isWire o.kind = false)
-    (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid)
+    (hcp : o.capped = true) (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid)
     (hmore : ∀ b ∈ more, ∃ r l, b = (Msg.hold r l).op.bytes) :
     ((n.onFrame (S.sync s) src (plainFrame cid (o.bytes :: more)) t).run h).2 = turnH S.fam [o] h := by
   have hs' := has_of_mem hs
@@ -695,13 +700,15 @@ theorem op_taken (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (o : Op) (r 
     List.forIn_cons, Option.map_some, HeldM.run_bind, HeldM.run_pure, refresh_run, sync_fam, sync_cfg]
   rw [finish_reads, serveOwed_reads, recv_data _ _ _ _ _ _ _ hw (by simp [Conn.shows, Conn.setRooms, hr, hs'])]
   dsimp only
-  rw [forIn_keeps more _ _ ?_, apply_takes S s _ _ _ _ o h (by simp) (by simp) hn (by simp [Family.shared, hr])]
+  rw [forIn_keeps more _ _ ?_, apply_takes S s _ _ _ _ o h (by simp) (by simp) hn (by simp [Family.shared, hr]) hcp]
   intro b hb st
   obtain ⟨r', l, rfl⟩ := hmore b hb
   split
   · simp only [HeldM.run_bind, HeldM.run_pure, refresh_run, recv_hold]
     apply apply_reads
-    rw [onHold_take]
+    split
+    · rfl
+    · rw [onHold_take]
   · rfl
 
 /-- Opening a session at a node with no managed sessions: the session's
@@ -751,7 +758,7 @@ theorem stream_frames (S : Setup F) (w : World F) (s : Who) (cid : Id) (ca cb : 
     (hma : (w.peer s).node.managed = []) (hmb : (w.peer s.other).node.managed = [])
     (haddr : (w.peer s).node.addr? cid = some (w.peer s.other).addr)
     (hr : S.fam.room o = some r) (hra : r ∈ S.rooms s cid) (hrb : r ∈ S.rooms s.other cid)
-    (hw : isWire o.kind = false)
+    (hw : isWire o.kind = false) (hcp : o.capped = true)
     (hna : (w.peer s).held.db.ops o.id = none) (hnb : (w.peer s.other).held.db.ops o.id = none)
     (hk : o.id ∉ ca.known) (ho : o.id ∉ ca.offered) (hq : o.id ∉ cb.asked)
     (hqa : ca.owed = []) (hwa : ca.owing = {}) (hqb : cb.owed = []) (hb : 0 < S.cfg.burst) (hkn : 0 < S.cfg.maxKnown)
@@ -773,7 +780,7 @@ theorem stream_frames (S : Setup F) (w : World F) (s : Who) (cid : Id) (ca cb : 
   intro A B f1 f2 w1 w2 w3
   -- s writes o, and offers it on the session.
   obtain ⟨⟨ca1, hca1, hka1, hqa1, hoa1, hwa1⟩, hma1, -, hs1, hh1, hix1⟩ :=
-    write_offers S s _ cid ca o r B _ t1 hca hma haddr hna hk ho hr hra hmax
+    write_offers S s _ cid ca o r B _ t1 hca hma haddr hna hk ho hr hra hmax hcp
   have e1 : w1.net = w.net ++ [f1] := by simp [w1, World.write, inFlight, hs1, f1]
   -- The other node wants it.
   obtain ⟨⟨cb1, hcb1, hkb1, hqb1⟩, -, hs2, hh2⟩ :=
@@ -797,7 +804,7 @@ theorem stream_frames (S : Setup F) (w : World F) (s : Who) (cid : Id) (ca cb : 
         (plainFrame cid [(Msg.hold r [o.id]).op.bytes]) t2).run (w.peer s.other).held).1.1 ∧
         (w2.peer s.other).held = (w.peer s.other).held := by
       simp [w2, World.deliver, hh2, A, f1, w1, World.write]
-    have := op_taken S s.other _ cid cb1 (w3.peer s).addr o r g (w.peer s.other).held t4 hcb1 hnb hw hr
+    have := op_taken S s.other _ cid cb1 (w3.peer s).addr o r g (w.peer s.other).held t4 hcb1 hnb hw hcp hr
       hrb (fun b hb => hholds b (hgm b hb))
     simp only [World.deliver, World.run_peer_self, hb3, hb2.1, hb2.2, Who.other_other]
     rw [this]
@@ -820,7 +827,7 @@ theorem stream_delivers (S : Setup F) (w : World F) (s : Who) (cid : Id) (ca cb 
     (hma : (w.peer s).node.managed = []) (hmb : (w.peer s.other).node.managed = [])
     (haddr : (w.peer s).node.addr? cid = some (w.peer s.other).addr)
     (hr : S.fam.room o = some r) (hra : r ∈ S.rooms s cid) (hrb : r ∈ S.rooms s.other cid)
-    (hw : isWire o.kind = false)
+    (hw : isWire o.kind = false) (hcp : o.capped = true)
     (hna : (w.peer s).held.db.ops o.id = none) (hnb : (w.peer s.other).held.db.ops o.id = none)
     (hk : o.id ∉ ca.known) (ho : o.id ∉ ca.offered) (hq : o.id ∉ cb.asked)
     (hqa : ca.owed = []) (hwa : ca.owing = {}) (hqb : cb.owed = []) (hb : 0 < S.cfg.burst) (hkn : 0 < S.cfg.maxKnown)
@@ -838,7 +845,7 @@ theorem stream_delivers (S : Setup F) (w : World F) (s : Who) (cid : Id) (ca cb 
       w4 = w3.deliver S s.other w.net rest ⟨(w.peer s.other).addr, plainFrame cid (o.bytes :: more)⟩ t4 ∧
       (w4.peer s.other).held.db.ops o.id = some o := by
   obtain ⟨e1, e2, more, rest, e3, hb⟩ :=
-    stream_frames S w s cid ca cb o r t1 t2 t3 t4 hca hcb hma hmb haddr hr hra hrb hw hna hnb hk ho hq hqa hwa hqb hb hkn hcap hix hmax
+    stream_frames S w s cid ca cb o r t1 t2 t3 t4 hca hcb hma hmb haddr hr hra hrb hw hcp hna hnb hk ho hq hqa hwa hqb hb hkn hcap hix hmax
   exact ⟨_, _, _, _, more, rest, rfl, e1, rfl, e2, rfl, e3, rfl, hb⟩
 
 /-- The exchange of `stream_delivers` is a run of the world: a write,
@@ -850,7 +857,7 @@ theorem stream_delivers_steps (S : Setup F) (w : World F) (s : Who) (cid : Id) (
     (hma : (w.peer s).node.managed = []) (hmb : (w.peer s.other).node.managed = [])
     (haddr : (w.peer s).node.addr? cid = some (w.peer s.other).addr)
     (hr : S.fam.room o = some r) (hra : r ∈ S.rooms s cid) (hrb : r ∈ S.rooms s.other cid)
-    (hw : isWire o.kind = false)
+    (hw : isWire o.kind = false) (hcp : o.capped = true)
     (hna : (w.peer s).held.db.ops o.id = none) (hnb : (w.peer s.other).held.db.ops o.id = none)
     (hk : o.id ∉ ca.known) (ho : o.id ∉ ca.offered) (hq : o.id ∉ cb.asked)
     (hqa : ca.owed = []) (hwa : ca.owing = {}) (hqb : cb.owed = []) (hb : 0 < S.cfg.burst) (hkn : 0 < S.cfg.maxKnown)
@@ -860,7 +867,7 @@ theorem stream_delivers_steps (S : Setup F) (w : World F) (s : Who) (cid : Id) (
     (hmax : 0 < S.cfg.maxIds) (h1 : w.now ≤ t1) (h2 : t1 ≤ t2) (h3 : t2 ≤ t3) (h4 : t3 ≤ t4) :
     ∃ w', World.Steps S w w' ∧ (w'.peer s.other).held.db.ops o.id = some o := by
   obtain ⟨_, _, _, _, more, rest, rfl, e1, rfl, e2, rfl, e3, rfl, hb⟩ :=
-    stream_delivers S w s cid ca cb o r t1 t2 t3 t4 hca hcb hma hmb haddr hr hra hrb hw hna hnb hk ho hq hqa hwa hqb hb hkn hcap hix hmax
+    stream_delivers S w s cid ca cb o r t1 t2 t3 t4 hca hcb hma hmb haddr hr hra hrb hw hcp hna hnb hk ho hq hqa hwa hqb hb hkn hcap hix hmax
   refine ⟨_, .step (.write s [o] h1) (.step (.deliver s.other (e1.trans (by simp)) ?_ (by simpa [World.write]))
     (.step (.deliver s (e2.trans (by simp)) ?_ (by simpa [World.deliver]))
       (.step (.deliver s.other e3 ?_ (by simpa [World.deliver])) (.refl _)))), hb⟩
@@ -914,12 +921,13 @@ theorem stream_delivers_runs (r cid : Id) :
   have hna : (w2.peer .a).held.db.ops o.id = none := by rw [ea, hha]; rfl
   have hnb : (w2.peer .b).held.db.ops o.id = none := by rw [hhb, eb]; rfl
   obtain ⟨w, hs, hw⟩ := stream_delivers_steps S w2 .a cid _ _ o r 0 0 0 0 hca' hcb' hma' hmb haa'
-    rfl (by simp [S]) (by simp [S]) (by decide) hna hnb
+    rfl (by simp [S]) (by simp [S]) (by decide) (by decide) hna hnb
     (by simp [Conn.open]) (by simp [Conn.open]) (by simp [Conn.open])
     rfl rfl rfl (by simp [S]) (by simp [S])
     (by simp [Conn.open, S, Std.HashSet.size_insert])
     (by simp [authorize, w2, w1, w0, World.connect, World.run, World.set, World.peer, Peer.empty,
-      World.empty, Node.boot, Index.ofOps, Index.add, Index.items, Conn.setRooms, S, oneRoom,
+      World.empty, Node.boot, Index.ofOps, Index.add, Index.items, Index.room?, RoomTree.items_add,
+      RoomTree.default_items, ins, Conn.setRooms, S, oneRoom,
       Family.room, o, Node.connect, Node.open, finish_run, Node.close, Node.setAddr, Conn.open, Who.other, Room.syncs, Node.sent])
     (by simp [S])
     (Nat.le_refl _) (Nat.le_refl _) (Nat.le_refl _) (Nat.le_refl _)
@@ -1374,6 +1382,7 @@ its id) goes out in an offer, in a frame to the session's address, on
 every session whose rooms include its room and whose connection has
 neither offered it nor heard that the peer holds it. -/
 theorem write_offers_all (n : Node) (ops : List Op) (t : Nat) (h : Held F) (hm : n.managed = [])
+    (hcp : ∀ y ∈ ops, y.capped = true)
     (o : Op) (ho : o ∈ ops) (hn : h.db.ops o.id = none) (hu : ∀ y ∈ ops, y.id = o.id → y = o)
     (cid : Id) (c : Conn) (hc : (cid, c) ∈ n.conns) (r : Id) (hr : S.fam.room o = some r)
     (hs : r ∈ S.rooms s cid) (hk : o.id ∉ c.known) (hof : o.id ∉ c.offered) (a : ByteArray)
@@ -1389,7 +1398,8 @@ theorem write_offers_all (n : Node) (ops : List Op) (t : Nat) (h : Held F) (hm :
     cases hx : ((n.write (S.sync s) ops).run h).1.2 with
     | nil => rw [hx] at hid; cases hid
     | cons _ _ => rfl
-  simp only [Node.onWrite, HeldM.run_bind, store_run, Node.put, intake, ite_true, hne, Bool.false_eq_true,
+  have hf : ops.filter Op.capped = ops := List.filter_eq_self.2 hcp
+  simp only [Node.onWrite, HeldM.run_bind, store_run, Node.put, intake, ite_true, hf, hne, Bool.false_eq_true,
     ite_false]
   rw [finish_run _ _ _ _ _ _ (by rw [heat_managed, hmn', hmn, hm]), seal_heat]
   have ha' : (((n.write (S.sync s) ops).run h).1.1.fanout (S.sync s)
@@ -1460,14 +1470,14 @@ room, and whose connection has neither offered o nor heard that the
 peer holds it, a frame to the session's address is in flight that
 carries an offer naming o. -/
 theorem stream_offered (S : Setup F) (w : World F) (s : Who) (ops : List Op) (t : Nat)
-    (hm : (w.peer s).node.managed = []) (o : Op) (ho : o ∈ ops) (hn : (w.peer s).held.db.ops o.id = none)
+    (hm : (w.peer s).node.managed = []) (hcp : ∀ y ∈ ops, y.capped = true) (o : Op) (ho : o ∈ ops) (hn : (w.peer s).held.db.ops o.id = none)
     (hu : ∀ y ∈ ops, y.id = o.id → y = o) (cid : Id) (c : Conn) (hc : (cid, c) ∈ (w.peer s).node.conns)
     (r : Id) (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid) (hk : o.id ∉ c.known)
     (hof : o.id ∉ c.offered) (a : ByteArray) (ha : (w.peer s).node.addr? cid = some a)
     (hmax : 0 < S.cfg.maxIds) :
     ∃ ps l, ⟨a, plainFrame cid ps⟩ ∈ (w.write S s ops t).net ∧ (Msg.hold r l).op.bytes ∈ ps ∧ o.id ∈ l := by
   obtain ⟨ps, l, hf, hps, hol⟩ :=
-    write_offers_all S s _ ops t _ hm o ho hn hu cid c hc r hr hs hk hof a ha hmax
+    write_offers_all S s _ ops t _ hm hcp o ho hn hu cid c hc r hr hs hk hof a ha hmax
   refine ⟨ps, l, ?_, hps, hol⟩
   simp only [World.write, World.run_net, inFlight, List.mem_append, List.mem_map]
   exact Or.inr ⟨_, hf, rfl⟩
@@ -1496,7 +1506,8 @@ theorem stream_offered_runs (r cid : Id) :
   have hma' : (w2.peer .a).node.managed = [] := by rw [ea]; exact hma
   have haa' : (w2.peer .a).node.addr? cid = some (w2.peer .b).addr := by rw [ea, haa, hb2]; rfl
   have hna : (w2.peer .a).held.db.ops o.id = none := by rw [ea, hha]; rfl
-  obtain ⟨ps, l, hf, hps, hol⟩ := stream_offered S w2 .a [o] 0 hma' o (List.mem_singleton_self _) hna
+  obtain ⟨ps, l, hf, hps, hol⟩ := stream_offered S w2 .a [o] 0 hma'
+    (fun y hy => by rw [List.mem_singleton.1 hy]; decide) o (List.mem_singleton_self _) hna
     (fun y hy _ => List.mem_singleton.1 hy) cid _ hc r rfl (by simp [S]) (by simp [Conn.open])
     (by simp [Conn.open]) _ haa' (by simp [S])
   refine ⟨w2.write S .a [o] 0, ps, l, .step (.connect .a cid true (t := 0) (Nat.le_refl 0))
@@ -1508,19 +1519,20 @@ theorem stream_offered_runs (r cid : Id) :
 /-! ## The round, at one connection -/
 
 /-- An accepted id-claim batch is the base case of the connection's
-round exchange. It answers from the captured snapshot X, offers exactly
-the first side of `exchange`, and requests the admitted part of the
-second. Deferred wants require later service or another round. The
-epoch premise excludes stale or unstarted replies. General finite batch
-execution is proved in `engine.sync.RoundRun`; this pointwise statement does
-not assume arbitrary delivery order preserves a complete round. -/
+round exchange. It answers from the room as the live index X holds it
+then (`ix.items r`), offers exactly the first side of `exchange`, and
+requests the admitted part of the second. Deferred wants require later
+service or another round. The epoch premise excludes stale or unstarted
+replies. Runs whose index changes between batches are in
+`engine.sync.RoundRun` (`live_round_complete`); this pointwise statement
+does not assume arbitrary delivery order preserves a complete round. -/
 theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (rg : Range)
     (X Y : List Item) (now : Nat) (hr : r ∈ c.rooms)
     (fresh : c.oldRound r k = false)
-    (hX : X = ((c.snaps.find? fun p => Decidable.decide (p.1 = (r, k))).map (·.2)).getD (ix.items r)) :
+    (hX : X = ix.items r) :
     ∃ A B, (A, B) = exchange Prod.fst Prod.snd sha256 cfg.params 1 X Y
-        (.ids rg ((within Prod.fst rg Y).map Prod.snd)) ∧
-      (c.onRbsr cfg ix r k [.ids rg ((within Prod.fst rg Y).map Prod.snd)] now).send =
+        (.ids rg ((within Prod.fst rg Y).map Prod.snd).reverse) ∧
+      (c.onRbsr cfg ix r k [.ids rg ((within Prod.fst rg Y).map Prod.snd).reverse] now).send =
         (Msg.rbsr r k []).op :: (chunks cfg A (.hold r) ++ chunks cfg (admitAsks cfg.maxKnown c.asked B) .want) ∧
       ∀ i, (i ∈ A ↔ named Prod.snd (within Prod.fst rg X) i = true ∧
           named Prod.snd (within Prod.fst rg Y) i = false) ∧
@@ -1528,11 +1540,9 @@ theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Na
           named Prod.snd (within Prod.fst rg X) i = false) := by
   refine ⟨_, _, rfl, ?_, exchange_ids (P := cfg.params) 0 X Y rg _ rfl⟩
   have hr' := has_of_mem hr
+  subst hX
   simp only [Conn.onRbsr, fresh, hr', Bool.not_true, Bool.false_eq_true, ite_false, List.flatMap_cons,
     List.flatMap_nil, List.append_nil, List.isEmpty_cons]
-  simp only [hX, Conn.snap, exchange, answer, give, get, Conn.beginRound]
-  cases List.find? (fun p => Decidable.decide (p.fst = (r, k))) c.snaps with
-  | none => simp
-  | some p => obtain ⟨_, _⟩ := p; simp
+  simp [Index.answer_fun, exchange, answer, give, get, Conn.beginRound, claimsOf, holdIds]
 
 end Engine.Sync

@@ -22,6 +22,11 @@ The capability keeps the descriptor's native socket alive throughout the call. -
 @[extern "lq_socket_abort"]
 opaque SocketAbort.abort (capability : @& SocketAbort) : IO Bool
 
+/-- Shuts down only the sending direction: a FIN after every byte already
+written. Reading stays open, so a peer still writing meets no reset. -/
+@[extern "lq_socket_finish_write"]
+opaque SocketAbort.finishWrite (capability : @& SocketAbort) : IO Bool
+
 /-- Wait for the SDK callback's tail after its promise was published. This
 uses the SDK's UV mutex from the dedicated writer task, not from a UV callback. -/
 @[extern "lq_socket_abort_barrier"]

@@ -22,7 +22,7 @@ def what (o : Op) : String :=
   | some (.react _ t _) => s!"react t={t}" | some (.approve ..) => "approve" | some .admit => "admit"
   | some (.accept ..) => "accept(local)" | some (.joining ..) => "joining(local)"
   | some (.secret ..) => "secret(local)" | some (.name ..) => "name" | some .abandon => "abandon(local)"
-  | some (.key ..) => "key(local)" | some (.chunk _ _ i _ _) => s!"chunk i={i}"
+  | some (.key ..) => "key(local)" | some (.chunk _ _ t i _ _) => s!"chunk t={t} i={i}"
   | some (.endpoint ..) => "endpoint(local)" | some (.receive ..) => "receive"
   | some (.notice ..) => "notice(local)" | some (.caughtUp ..) => "caughtUp(local)"
   | none => s!"other type {o.kind}"

@@ -40,7 +40,7 @@ if [ "${1:-}" = --phone-runtime ]; then
   bin=$PWD/out/phone-runtime/bin
   out=out/phone-runtime/tests
 else
-  lake build sqlite_build codecdiff wiregolden poolstarve scenario differential crash querydiff linkcheck lifecycle wire syncpair syncworld tcppair noise_check connection_check purge jointcp merkle_check costcheck window_check
+  lake build sqlite_build codecdiff wiregolden poolstarve scenario differential crash querydiff linkcheck lifecycle wire syncpair syncworld tcppair noise_check connection_check purge jointcp merkle_check costcheck window_check newest
   bin=$PWD/.lake/build/bin
   out=out
 fi
@@ -58,6 +58,7 @@ if [ "${SKIP_TCP:-0}" != 1 ]; then "$bin"/poolstarve; else echo "SKIP poolstarve
 "$bin"/wire "$out"/wire
 "$bin"/syncpair
 "$bin"/syncworld
+"$bin"/newest
 if [ "${SKIP_TCP:-0}" != 1 ]; then
   "$bin"/tcppair "$out"/tcppair
   "$bin"/jointcp "$out"/jointcp

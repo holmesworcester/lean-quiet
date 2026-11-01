@@ -521,7 +521,7 @@ number of distinct indices i at which this device holds a Valid chunk
 of the attachment, each below the chunk count; the total is the chunk
 count. -/
 theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x)) :
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x)) :
     ∃ is : List Nat, is.Nodup ∧
       (∀ i, i ∈ is ↔ ∃ y, V C s.ops y (.chunk c att (Merkle.fileRoot sha256 ct) len i)) ∧
       (∀ i ∈ is, i < Merkle.nChunks len) ∧
@@ -536,10 +536,10 @@ theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) {c att m u : I
     obtain ⟨hv, hargs⟩ := (filed (C := C) (r := chunk.byAttachment) (by simp [rels]) h hq _ y f).1 ⟨hy, hf⟩
     cases f <;> (try (rename_i x; cases x)) <;> simp [chunk.byAttachment] at hargs
     obtain ⟨rfl, rfl⟩ := hargs
-    obtain ⟨_, _, _, _, _, _, _, hav⟩ := chunk_of_attachment hv
+    obtain ⟨_, _, _, _, _, _, _, _, _, hav⟩ := chunk_of_attachment hv
     have := spec_det hav ha
     simp only [Verdict.valid.injEq, Fact.attachment.injEq] at this
-    obtain ⟨_, _, _, rfl, rfl, _, _⟩ := this
+    obtain ⟨_, _, _, rfl, rfl, _, _, _⟩ := this
     exact ⟨y, _, rfl, hv⟩
   have hheld : ∀ i, (∃ p ∈ M, ix p = i) ↔ ∃ y, V C s.ops y (.chunk c att root len i) := by
     intro i; constructor
@@ -556,16 +556,16 @@ theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) {c att m u : I
     have hn' : List.Pairwise (fun a b : Pos × Fact => a.1.2 ≠ b.1.2) M := by
       have := matching_nodup h { key := chunkKey c att }
       unfold List.Nodup at this; rwa [List.pairwise_map] at this
-    refine hn'.imp_of_mem fun ha hb hne heq => hne ?_
-    obtain ⟨y1, i1, rfl, hv1⟩ := hrow _ ha
-    obtain ⟨y2, i2, rfl, hv2⟩ := hrow _ hb
+    refine hn'.imp_of_mem fun hpa hpb hne heq => hne ?_
+    obtain ⟨y1, i1, rfl, hv1⟩ := hrow _ hpa
+    obtain ⟨y2, i2, rfl, hv2⟩ := hrow _ hpb
     simp only [ix] at heq; subst heq
-    exact chunk_unique h.key hsize hspr hv1 hv2
+    exact chunk_unique h.key hsize hspr ha hv1 hv2
   · intro i; rw [List.mem_map]; exact hheld i
   · intro i hi
     obtain ⟨y, hv⟩ := (hheld i).1 (List.mem_map.1 hi)
     obtain ⟨o, b, fs, _, _, _, hc⟩ := valid_inv hv
-    obtain ⟨_, _, _, _, _, hver, _⟩ := check_chunk hc
+    obtain ⟨_, _, _, _, _, _, hver, _⟩ := check_chunk hc
     exact (Merkle.index_bound hver).1
   · unfold progress
     simp only [View.eval_bind, View.eval_pure, List.length_map]
@@ -576,7 +576,7 @@ theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) {c att m u : I
 
 /-- **Progress never passes the total.** -/
 theorem progress_le (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x)) :
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x)) :
     ((progress c att len).eval s).1 ≤ ((progress c att len).eval s).2 := by
   obtain ⟨is, hnd, _, hb, he⟩ := progress_exact hsize hspr h hq ha
   rw [he]
@@ -585,7 +585,7 @@ theorem progress_le (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} 
 
 /-- **Progress is full exactly when every chunk is here.** -/
 theorem progress_full (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x)) :
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x)) :
     ((progress c att len).eval s).1 = ((progress c att len).eval s).2 ↔
       ∀ i < Merkle.nChunks len, ∃ y, V C s.ops y (.chunk c att (Merkle.fileRoot sha256 ct) len i) := by
   obtain ⟨is, hnd, hmem, hb, he⟩ := progress_exact hsize hspr h hq ha
@@ -599,17 +599,17 @@ total, the attachment's length is the file's and the store holds each
 of the attachment's chunk ops (`fileChunk`), whose slices are the file
 (`Merkle.assemble_slices`). -/
 theorem progress_done (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x))
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x))
     (hd : ((progress c att len).eval s).1 = ((progress c att len).eval s).2) :
     len = ct.size ∧ ∀ i < Merkle.nChunks ct.size,
-      V C s.ops (fileChunk c att ct i).id (.chunk c att (Merkle.fileRoot sha256 ct) ct.size i) := by
+      V C s.ops (fileChunk c att tm ct i).id (.chunk c att (Merkle.fileRoot sha256 ct) ct.size i) := by
   have hall := (progress_full hsize hspr h hq ha).1 hd
   obtain ⟨y0, h0⟩ := hall 0 (Merkle.one_le_nChunks len)
   obtain ⟨o, b, fs, ho, hb, _, hc⟩ := valid_inv h0
-  obtain ⟨_, _, rfl, _⟩ := chunk_is_slice hsize (hspr y0 o b ho hb) hc
+  obtain ⟨_, _, _, rfl, _⟩ := chunk_is_slice hsize (hspr y0 o b ho hb) hc
   refine ⟨rfl, fun i hi => ?_⟩
   obtain ⟨y, hy⟩ := hall i hi
-  rw [← chunk_id h.key hsize hspr hy]
+  rw [← chunk_id h.key hsize hspr hy ha]
   exact hy
 end
 end
@@ -1631,7 +1631,7 @@ theorem send_after (h : Inv (family C) s) (hq : s.queue = []) (c myAdm : Id) (d 
   let p := sealedPost c myAdm d k nonce text n now group
   have hw : (send c myAdm d k nonce text now files).eval s =
       ⟨p :: (receiptFor p).eval s ++ files.flatMap (fun f =>
-        let (a, cs) := attach c myAdm p.id d k f; a :: cs)⟩ := by
+        let (a, cs) := attach c myAdm p.id now d k f; a :: cs)⟩ := by
     simp only [send, View.eval_bind, View.eval_pure]; rfl
   refine ⟨n, by rw [hw]; rfl, fun hnew => ?_⟩
   -- every message of c the device lists is at most T
@@ -3594,5 +3594,202 @@ theorem target_roundtrip {t : Target} (hv : t.Valid) : Target.parse t.uri = some
     = encode (linkVersion, t.community, t.conversation, t.message, t.root) from rfl, Codec.decode_encode]
   simp only
   rw [if_pos (by first | exact ⟨rfl, hv⟩ | exact ⟨trivial, hv⟩ | exact hv)]
+
+end Community
+
+/-! ## Every op this node's intents write is within the intake cap
+
+The intake cap (engine/core/Sync.lean, `maxReqs` = 64) refuses an op
+citing more requirements, from a peer or from this node. These laws say
+it refuses no honest write: every op the Community family's intents
+write cites a constant number, none growing with the community. A root,
+a key, a secret, an acceptance, an endpoint and a pending join cite
+nothing; a wrap, a receipt and an abandon one op; an invitation, a
+request and a profile two; a post two or three (its clump); a reaction
+and an attachment three; a removal four; a chunk two; a name three and
+the name it supersedes (one, as `rename` writes it); an admission three
+(one approval admits).
+-/
+
+namespace Community
+open Engine Engine.View
+
+/-- Every op of a write cites at most `maxReqs` requirements. -/
+def Authored (w : Write) : Prop := ∀ o ∈ w.ops, o.reqs.length ≤ maxReqs
+
+@[simp] theorem mkOp_reqs (reqs : List Id) (b : Body) : (mkOp reqs b).reqs = reqs := rfl
+
+theorem maxReqs_eq : maxReqs = 64 := rfl
+
+theorem post_reqs_le (c adm : Id) (d : Device) (k t : ByteArray) (n tm : Nat) (cl : Option Id) :
+    (post c adm d k t n tm cl).reqs.length ≤ 3 := by
+  cases cl <;> simp [post]
+
+theorem attach_reqs (c adm msg : Id) (time : Nat) (d : Device) (k : Key32) (f : NewFile) :
+    (attach c adm msg time d k f).1.reqs.length = 3 ∧ ∀ o ∈ (attach c adm msg time d k f).2, o.reqs.length = 2 := by
+  refine ⟨rfl, fun o ho => ?_⟩
+  simp only [attach, List.mem_map] at ho
+  obtain ⟨_, _, rfl⟩ := ho
+  rfl
+
+/-- Whatever the first view answers. -/
+theorem always_bind_all {α β : Type} {P : β → Prop} {f : α → View Fact β} (h : ∀ a, Always P (f a)) :
+    ∀ v : View Fact α, Always P (v.bind f)
+  | .pure a => h a
+  | .list _ k => fun a => always_bind_all h (k a)
+
+/-- What the first view answers, with what it always has. -/
+theorem always_bindV {α β : Type} {P : β → Prop} {Q : α → Prop} {f : α → View Fact β}
+    (h : ∀ a, Q a → Always P (f a)) : ∀ {v : View Fact α}, Always Q v → Always P (v.bind f)
+  | .pure a, hv => h a hv
+  | .list _ k, hv => fun a => always_bindV h (v := k a) (hv a)
+
+@[simp] theorem always_pure {α : Type} {P : α → Prop} (a : α) : Always P (Pure.pure a : View Fact α) ↔ P a :=
+  Iff.rfl
+
+@[simp] theorem always_list {α : Type} {P : α → Prop} (q : ListQ) (k : Answer Fact → View Fact α) :
+    Always P (View.list q k) ↔ ∀ a, Always P (k a) := Iff.rfl
+
+theorem always_bindM {α β : Type} {P : β → Prop} {f : α → View Fact β} (h : ∀ a, Always P (f a))
+    (v : View Fact α) : Always P (v >>= f) := always_bind_all h v
+
+/-- Close a goal that a write of these ops is authored. -/
+macro "authored" : tactic => `(tactic| (
+  simp only [always_pure, Always, Authored]
+  intro o ho
+  simp only [List.mem_cons, List.not_mem_nil, or_false, List.mem_singleton, List.mem_ite_nil_left,
+    List.mem_ite_nil_right, List.not_mem_nil] at ho
+  try subst ho
+  try simp_all [maxReqs, profile, remove, setName, react, abandon, receipt, approve, admit, wrapKey, wrap]))
+
+theorem nodeKeyOr_authored (fresh : Key32) :
+    Always (fun p : Key × List Op => ∀ o ∈ p.2, o.reqs.length ≤ maxReqs) (nodeKeyOr fresh) := by
+  unfold nodeKeyOr
+  refine always_bind_all (fun k => ?_) _
+  cases k with
+  | some p => simp [Always]
+  | none => simp [Always, endpoint, maxReqs]
+
+theorem found_authored (seed nm my : ByteArray) (tm : Nat) (k esk fresh : Key32) :
+    Always Authored (found seed nm my tm k esk fresh) := by
+  unfold found
+  refine always_bindV (fun p hp => ?_) (nodeKeyOr_authored fresh)
+  simp only []
+  intro o ho
+  simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at ho
+  rcases ho with ho | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  · exact hp o ho
+  all_goals simp [secret, root, accept, setName, profile, contentKey, wrapKey, wrap, maxReqs]
+
+theorem joinOps_authored (i : Invite) (seed nm : ByteArray) (key : Key) : Authored (joinOps i seed nm key) := by
+  intro o ho
+  simp only [joinOps, List.mem_cons, List.not_mem_nil, or_false] at ho
+  rcases ho with rfl | rfl | rfl | rfl <;>
+    simp [secret, accept, joining, Invite.request, request, maxReqs]
+
+theorem inviteTo_authored (c a : Id) (d : Device) (b : ByteArray) (hs : List ByteArray) :
+    Always (fun r : Option (Write × Invite) => ∀ p, r = some p → Authored p.1) (inviteTo c a d b hs) := by
+  unfold inviteTo
+  refine always_bind_all (fun k => ?_) _
+  cases k with
+  | none => simp
+  | some p =>
+    intro q hq
+    cases hq
+    intro o ho
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ho
+    subst ho; simp [issue, invite, maxReqs]
+
+theorem join_authored (i : Invite) (seed nm : ByteArray) (fresh : Key32) : Always Authored (join i seed nm fresh) := by
+  unfold join
+  refine always_bind_all (fun held => ?_) _
+  split
+  · simp [Always, Authored]
+  · intro joins
+    refine always_bind_all (fun d => ?_) _
+    cases d with
+    | some p =>
+      obtain ⟨k, hs, r, nm', d, n⟩ := p
+      simp [Always, Authored, maxReqs]
+    | none =>
+      intro adm
+      dsimp only
+      split
+      · authored
+      · refine always_bindV (fun p hp => ?_) (nodeKeyOr_authored fresh)
+        intro o ho
+        simp only [List.mem_append] at ho
+        rcases ho with ho | ho
+        · exact hp o ho
+        · exact joinOps_authored i seed nm p.1 o ho
+
+theorem introduce_authored (c : Id) (d : Device) (tm : Nat) : Always Authored (introduce c d tm) := by
+  unfold introduce
+  refine always_bind_all (fun adms => ?_) _
+  split
+  · refine always_bind_all (fun _ => always_bind_all (fun _ => ?_) _) _
+    dsimp only
+    repeat' split
+    all_goals authored
+  · authored
+
+theorem removeMember_authored (c t : Id) (d : Device) : Always Authored (removeMember c t d) := by
+  unfold removeMember
+  refine always_bind_all (fun _ => always_bind_all (fun _ => always_bind_all (fun _ => ?_) _) _) _
+  repeat' split
+  all_goals first
+    | authored
+    | (refine always_bind_all (fun _ => ?_) _; dsimp only; repeat' split
+       all_goals authored)
+
+theorem approveReq_authored (c req myAdm : Id) (d : Device) (esk : ByteArray) :
+    Always Authored (approveReq c req myAdm d esk) := by
+  unfold approveReq
+  refine always_bind_all (fun _ => always_bind_all (fun _ => always_bind_all (fun _ => ?_) _) _) _
+  dsimp only
+  repeat' split
+  all_goals simp [Authored, approve, admit, wrapKey, wrap, maxReqs]
+
+theorem stopWaiting_authored (j : Id) : Authored (stopWaiting j) := by
+  intro o ho
+  simp only [stopWaiting, List.mem_cons, List.not_mem_nil, or_false] at ho
+  subst ho; simp [abandon, maxReqs]
+
+/-- **A reaction cites three** (the app writes `react` directly). -/
+theorem react_reqs_le (c a t : Id) (d : Device) (e : ByteArray) (tm : Nat) :
+    (react c a t d e tm).reqs.length ≤ maxReqs := by
+  simp [react, maxReqs]
+
+theorem receiptFor_authored (o : Op) :
+    Always (fun os : List Op => ∀ p ∈ os, p.reqs.length ≤ maxReqs) (receiptFor o) := by
+  unfold receiptFor
+  split
+  · simp
+  · split
+    · split
+      · simp
+      · refine always_bind_all (fun _ => ?_) _
+        split
+        · simp
+        · refine always_bind_all (fun _ => ?_) _
+          simp [receipt, maxReqs]
+    · simp
+
+theorem send_authored (c a : Id) (d : Device) (k : Key32) (nonce : Nonce24) (t : ByteArray) (now : Nat) (files : List NewFile) :
+    Always Authored (send c a d k nonce t now files) := by
+  unfold send
+  refine always_bind_all (fun cl => always_bind_all (fun n => ?_) _) _
+  refine always_bindV (fun r hr => ?_) (receiptFor_authored _)
+  intro o ho
+  simp only [List.mem_cons, List.mem_append, List.mem_flatMap] at ho
+  rcases ho with (rfl | ho) | ⟨f, _, ho⟩
+  · have := post_reqs_le c a d (kidOf cryptoSeal k) (nonce.1 ++ sealBody cryptoSeal k nonce c (kidOf cryptoSeal k) t)
+      (min (n + 1) countCap) now cl
+    simp only [sealedPost]; rw [maxReqs_eq]; omega
+  · exact hr o ho
+  · have h := attach_reqs c a (sealedPost c a d k nonce t (min (n + 1) countCap) now cl).id now d k f
+    rcases ho with rfl | ho
+    · rw [h.1, maxReqs_eq]; decide
+    · rw [h.2 o ho, maxReqs_eq]; decide
 
 end Community

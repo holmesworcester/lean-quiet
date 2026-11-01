@@ -68,7 +68,7 @@ theorem offer_shared (c : Conn) (news : List Id) (h : Held F) (r i : Id) (ids : 
     · obtain ⟨pairs, he, hp⟩ := filed_origin fam cfg c news h
       rw [he] at hm
       exact holdsOf_shown fam cfg hp hm hi
-    · exact holdsOf_shown fam cfg (walk_keeps fam cfg h c).2.2.2 hm hi
+    · exact holdsOf_shown fam cfg (walk_keeps fam cfg h c).2.2 hm hi
   obtain ⟨o, ho, hs⟩ := shown
   unfold Conn.shows at hs
   cases hr : fam.room o with
