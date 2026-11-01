@@ -171,25 +171,25 @@ below; the [vacuity report](#vacuity-check-reports) records which concrete premi
   admitted;** ¹
 - **only admins remove others, and no removal can be undone;** ¹
 - **a removal cuts off every device of the removed user, for good,** and
-  its node can rejoin only as a new device. The removed user is not yet
-  kept out: they can still approve that new device themselves (below);
+  its node can rejoin only as a new device. ⁴ The removed user is not
+  yet kept out: they can still approve that new device themselves (below);
 - **a removal reaches every live session:** each connection step reads
   its rooms afresh, so once the removal is stored, every frame sealed
-  for the removed member carries, of that community, only its notice.
+  for the removed member carries, of that community, only its notice. ⁴
   That bare handshake replies go only to trusted peers is proven for
   each step, not yet for the whole node;
 - **no peer can alter or rename an op:** its id is the hash of its
   bytes, and it has one parse; ²
-- **non-members get none of a community's ops,** even by asking by id.
+- **non-members get none of a community's ops,** even by asking by id. ⁴
   This says which ops sync sends, not who can read them: that only
   members can open a message is not yet proven (below);
-- **sync does not offer or send local secret ops;**
-- **a sealed frame is authenticated before any of it is parsed;**
-- **a node's trust rule lets in exactly the live members;** ¹
+- **sync does not offer or send local secret ops;** ⁴
+- **a sealed frame is authenticated before any of it is parsed;** ⁴
+- **a node's trust rule lets in exactly the live members;** ¹ ⁴
 - **honest nodes that hold the same ops agree;** ² ⁴
 - **only a session's two nodes can derive its keys, even if both
   nodes' long-term keys leak after it closes:** every session end
-  purges its keys from the store. ³ This assumes that deleted bytes
+  purges its keys from the store. ³ ⁴ This assumes that deleted bytes
   leave the disk (below). A phone backup taken while the session was
   open is not covered.
 
@@ -204,7 +204,7 @@ And of what a user sees and does:
 - **back restores the state before a page opened** (clearing only that
   page's one-line field);
 - **a screen need re-read only what changed:** a list's answer changes
-  only when a row is filed under a key it read.
+  only when a row is filed under a key it read. ⁴
 
 ¹ Interpreting verification as the owner actually signing needs the Ed25519
 assumptions and signing-history scoping fix below. ² Assuming no collision among
@@ -1272,8 +1272,10 @@ and [`NodeUnique.sql_step_valid`]. Its existing interpreter consequences are
 opportunities and full native delivery remain open.
 
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
-[`stream_delivers`]: engine/wire/WorldLaws.lean#L807-L840
 [`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
+[`stream_delivers`]: engine/wire/WorldLaws.lean#L807-L840
+[`converge`]: engine/world/Plain.lean#L198-L208
+[`offline`]: engine/world/Plain.lean#L211-L219
 [`Unforgeable`]: app/community/Family.lean#L1257-L1272
 [`unscoped_signs_all`]: app/community/Proofs.lean#L90-L95
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
@@ -1286,6 +1288,7 @@ opportunities and full native delivery remain open.
 [`cryptoSeal_good`]: app/community/Op.lean#L147-L149
 [`suite_good`]: engine/wire/Noise.lean#L425-L430
 [`NativeCrypto`]: engine/core/Trust.lean#L62-L67
+[`Model.run`]: engine/core/Model.lean#L117-L117
 [`no_impersonation`]: app/community/Proofs.lean#L114-L127
 [`admission_needs_approval`]: app/community/member/invite/Proofs.lean#L38-L49
 [`admission_approved`]: app/community/member/invite/request/approve/Proofs.lean#L46-L54
@@ -1555,8 +1558,6 @@ opportunities and full native delivery remain open.
 [`fresh_served`]: engine/wire/WorldLaws.lean#L632-L639
 [`write_hot`]: engine/wire/WorldLaws.lean#L1446-L1451
 [`onWrite_receives`]: app/Proofs.lean#L3204-L3212
-[`converge`]: engine/world/Plain.lean#L198-L208
-[`offline`]: engine/world/Plain.lean#L211-L219
 [`grows`]: engine/world/Plain.lean#L189-L194
 [`managed_nil`]: engine/world/Inv.lean#L148-L151
 [`owes_queued_start`]: engine/world/InvIx.lean#L723-L725
@@ -1946,7 +1947,6 @@ opportunities and full native delivery remain open.
 [`cost_run`]: engine/core/CostErase.lean#L58-L60
 [`offerM`]: app/Screen.lean#L380-L386
 [`Symbolic.sym`]: engine/wire/NoiseSymbolic.lean#L276-L289
-[`Model.run`]: engine/core/Model.lean#L117-L117
 [`Sync.popW`]: engine/wire/Lanes.lean#L132-L135
 [`Engine.runJ`]: engine/core/WindowLaws.lean#L148-L151
 [`BeforeNext`]: engine/renderer/Demand.lean#L224-L226
