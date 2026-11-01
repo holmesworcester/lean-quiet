@@ -370,7 +370,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1413 rest on Lean's standard axioms only, and about two thirds of its theorems (1035 of 1389, not counting 24 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1431 rest on Lean's standard axioms only, and about three quarters of its theorems (1060 of 1407, not counting 24 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -509,7 +509,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1035 of 1389 laws are about running code;** another 35 run its node code in a World, and 319 are not yet. Stated only: none. 24 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1060 of 1407 laws are about running code;** another 35 run its node code in a World, and 312 are not yet. Stated only: none. 24 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -646,7 +646,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 8 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.NativeCrypto` (`suite_good`). |
 | [`Seal.Good`] | 6 | AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.NativeCrypto` (`cryptoSeal_good`). |
 | [`Symbolic.sym`] | 17 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 424 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
+| [`Model.run`] | 431 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
 | [`Sync.popW`] | 4 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
@@ -1280,10 +1280,10 @@ opportunities and full native delivery remain open.
 [`kk_agree_resp`]: engine/wire/NoiseSymbolic.lean#L948-L962
 [`kk_authentic_tight`]: engine/wire/NoiseSymbolic.lean#L1035-L1047
 [`kk_authentic_resp_tight`]: engine/wire/NoiseSymbolic.lean#L1070-L1082
-[`close_forgets`]: app/Proofs.lean#L3850-L3862
-[`purge_forgets`]: app/Proofs.lean#L3825-L3829
-[`retired_complete`]: app/Proofs.lean#L3876-L3882
-[`forget_stays`]: app/Proofs.lean#L3832-L3836
+[`close_forgets`]: app/Proofs.lean#L3869-L3881
+[`purge_forgets`]: app/Proofs.lean#L3844-L3848
+[`retired_complete`]: app/Proofs.lean#L3895-L3901
+[`forget_stays`]: app/Proofs.lean#L3851-L3855
 [`close_purges`]: engine/wire/CloseLaws.lean#L34-L42
 [`close_gone`]: engine/wire/CloseLaws.lean#L21-L25
 [`drop_iff_silent`]: engine/sync/TimeLaws.lean#L22-L24
@@ -1660,8 +1660,8 @@ opportunities and full native delivery remain open.
 [`dedupe_nodup`]: app/community/Screen.lean#L779-L780
 [`dedupe_one_per_community`]: app/community/Screen.lean#L783-L785
 [`select_tapped_dedupe`]: app/community/Screen.lean#L809-L811
-[`drawPage_key`]: app/Screen.lean#L4019-L4023
-[`pageIn_acc`]: app/Screen.lean#L4025-L4028
+[`drawPage_key`]: app/Screen.lean#L4034-L4038
+[`pageIn_acc`]: app/Screen.lean#L4040-L4043
 [`msg_cmp`]: app/community/channel/message/Proofs.lean#L108-L115
 [`time_is_display`]: app/community/channel/message/Proofs.lean#L119-L125
 [`order_total`]: app/community/Proofs.lean#L1419-L1429
@@ -1968,8 +1968,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 511 kernel witnesses, 193 runtime witnesses,
-23 conditional checks, 0 recorded runtime counterexamples; 16 of 743 linked declarations still pending.**
+**Coverage: 515 kernel witnesses, 193 runtime witnesses,
+24 conditional checks, 0 recorded runtime counterexamples; 16 of 748 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2095,10 +2095,10 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`kk_agree_resp`](engine/wire/NoiseSymbolic.lean#L948-L962) | **kernel-witness**: [Vacuity.Session.responderAgrees](tests/vacuity/Session.lean). Concrete transcript; O is exactly the run's two logged calls. Message 1 is derived through 11's logged request and accepted, and kk_agree_resp returns that logged call with ephemeral 33 and the written state. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
 | [`kk_authentic_tight`](engine/wire/NoiseSymbolic.lean#L1035-L1047) | **kernel-witness**: [Vacuity.Session.forgedReply](tests/vacuity/Session.lean). Negative control on the same successful handshake: responder static 22 leaked (11/33/44 secret), O barred from every answer by 22. The attacker has 11 send message 1, picks its own name 55 and writes a message 2 that this initiator accepts, so kk_authentic fails when its responder-secrecy premise does. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
 | [`kk_authentic_resp_tight`](engine/wire/NoiseSymbolic.lean#L1070-L1082) | **kernel-witness**: [Vacuity.Session.forgedRequest](tests/vacuity/Session.lean). Negative control (key-compromise impersonation): responder static 22 leaked, O barred from every request by 11. The attacker writes, with its own ephemeral 55, a message 1 that 22 accepts as from 11 with payload1, so kk_authentic_resp fails when its responder-secrecy premise does. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
-| [`close_forgets`](app/Proofs.lean#L3850-L3862) | **runtime-witness**: [Vacuity.IdentityConnection.closeForgets](tests/vacuity/IdentityConnection.lean). The node driver built from the family's own hooks (Connection.hooks), so its closing is the running one; Node.endSession on the session's connection. The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
-| [`purge_forgets`](app/Proofs.lean#L3825-L3829) | **runtime-witness**: [Vacuity.IdentityConnection.purgeForgets](tests/vacuity/IdentityConnection.lean). Applied to the purge of the session's closing ids (the connection and the request it answers) and judging. The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
-| [`retired_complete`](app/Proofs.lean#L3876-L3882) | **runtime-witness**: [Vacuity.IdentityConnection.retiredComplete](tests/vacuity/IdentityConnection.lean). The established row of the live session, found among the store's established rows at runtime; it is kept open (sessions lists it). The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
-| [`forget_stays`](app/Proofs.lean#L3832-L3836) | **runtime-witness**: [Vacuity.IdentityConnection.forgetStays](tests/vacuity/IdentityConnection.lean). Uncited from the first purge (purge_uncited), then a later purge of a community message. The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
+| [`close_forgets`](app/Proofs.lean#L3869-L3881) | **runtime-witness**: [Vacuity.IdentityConnection.closeForgets](tests/vacuity/IdentityConnection.lean). The node driver built from the family's own hooks (Connection.hooks), so its closing is the running one; Node.endSession on the session's connection. The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
+| [`purge_forgets`](app/Proofs.lean#L3844-L3848) | **runtime-witness**: [Vacuity.IdentityConnection.purgeForgets](tests/vacuity/IdentityConnection.lean). Applied to the purge of the session's closing ids (the connection and the request it answers) and judging. The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
+| [`retired_complete`](app/Proofs.lean#L3895-L3901) | **runtime-witness**: [Vacuity.IdentityConnection.retiredComplete](tests/vacuity/IdentityConnection.lean). The established row of the live session, found among the store's established rows at runtime; it is kept open (sessions lists it). The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
+| [`forget_stays`](app/Proofs.lean#L3851-L3855) | **runtime-witness**: [Vacuity.IdentityConnection.forgetStays](tests/vacuity/IdentityConnection.lean). Uncited from the first purge (purge_uncited), then a later purge of a community message. The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
 | [`close_purges`](engine/wire/CloseLaws.lean#L34-L42) | **kernel-witness**: [Vacuity.WireMore.closeRunner](tests/vacuity/WireMore.lean). Nonempty drop list and closing hook naming stored local secret; SyncMore.closeErases independently proves real deletion. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`close_gone`](engine/wire/CloseLaws.lean#L21-L25) | **kernel-witness**: [Vacuity.SyncMore.closeErases](tests/vacuity/SyncMore.lean). Closing hook returns the actual stored local secret id; prove stored lookup and local scope before applying close_gone. Held-store erasure, not physical disk deletion. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`drop_iff_silent`](engine/sync/TimeLaws.lean#L22-L24) | **kernel-witness**: [Vacuity.Network.timesOut](tests/vacuity/Network.lean). Apply the exact iff at 90001 ms; independent application at 90000 ms proves still live at the strict deadline. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport. |
@@ -2480,8 +2480,8 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`dedupe_nodup`](app/community/Screen.lean#L779-L780) | **kernel-witness**: [Vacuity.RendererSets.acceptanceUnique](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`dedupe_one_per_community`](app/community/Screen.lean#L783-L785) | **kernel-witness**: [Vacuity.RendererSets.communityUnique](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`select_tapped_dedupe`](app/community/Screen.lean#L809-L811) | **kernel-witness**: [Vacuity.RendererSets.tapped](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
-| [`drawPage_key`](app/Screen.lean#L4019-L4023) | **kernel-witness**: [Vacuity.RendererRuntime.sameKey](tests/vacuity/RendererRuntime.lean). For every app state, the state a minute later has the same page key (the clock is not on a page), so the two different states draw the same page: the key equality is between distinct states, not one key and itself. It does not establish pixel fidelity or that the key contains every rendering dependency. |
-| [`pageIn_acc`](app/Screen.lean#L4025-L4028) | **kernel-witness**: [Vacuity.RendererRuntime.keyAcceptance](tests/vacuity/RendererRuntime.lean). For every app state and every other acceptance id, the state on that acceptance has a different page key: the law's contrapositive, which a switch's redraw relies on. It does not establish pixel fidelity or that the key contains every rendering dependency. |
+| [`drawPage_key`](app/Screen.lean#L4034-L4038) | **kernel-witness**: [Vacuity.RendererRuntime.sameKey](tests/vacuity/RendererRuntime.lean). For every app state, the state a minute later has the same page key (the clock is not on a page), so the two different states draw the same page: the key equality is between distinct states, not one key and itself. It does not establish pixel fidelity or that the key contains every rendering dependency. |
+| [`pageIn_acc`](app/Screen.lean#L4040-L4043) | **kernel-witness**: [Vacuity.RendererRuntime.keyAcceptance](tests/vacuity/RendererRuntime.lean). For every app state and every other acceptance id, the state on that acceptance has a different page key: the law's contrapositive, which a switch's redraw relies on. It does not establish pixel fidelity or that the key contains every rendering dependency. |
 | [`msg_cmp`](app/community/channel/message/Proofs.lean#L108-L115) | **kernel-witness**: [Vacuity.IdentityMessages.messageCompare](tests/vacuity/IdentityMessages.lean). Concrete signed messages with counters 1/2 and reversed wall-clock times; actual comparator returns less-than. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`time_is_display`](app/community/channel/message/Proofs.lean#L119-L125) | **kernel-witness**: [Vacuity.IdentityMessages.timeIsDisplay](tests/vacuity/IdentityMessages.lean). Concrete distinct counters 1 and 2, inequality proven in kernel; reversed times do not reverse actual message order. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`order_total`](app/community/Proofs.lean#L1419-L1429) | **runtime-witness**: [Vacuity.IdentityMessages.orderTotal](tests/vacuity/IdentityMessages.lean). Two real signed sealed messages read oldest first; exact returned IDs match increasing counters despite reversed wall-clock times. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
