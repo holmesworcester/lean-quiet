@@ -1,0 +1,9 @@
+# The app's data (assets/: fonts, emoji, glyphs, photos) as one tarball,
+# a GitHub release asset. Written by tools/make/assets.py pack; read by
+# tools/make/assets.sh (make install), which checks the download against
+# LQ_ASSETS_SHA256 before opening it and each file against assets.sha256.
+LQ_ASSETS_REPO=holmesworcester/lean-quiet
+LQ_ASSETS_TAG=assets-b5f1b63cf1d8
+LQ_ASSETS_NAME=lean-quiet-assets-b5f1b63cf1d8.tar.gz
+LQ_ASSETS_SHA256=b5f1b63cf1d8921951f19f7ec2d7662beebc93fbae8dad53a805d880bfbc0dad
+LQ_ASSETS_MAKERS=9a5ec9adca00f9baf62fb401c5800c0f8934d74e87205cd89deaf8a97a98d3cd
