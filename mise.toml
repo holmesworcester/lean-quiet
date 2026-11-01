@@ -93,7 +93,7 @@ description = "Wall times of the byte codec on a photo's paths: a 64 KiB chunk o
 run = "(cd engine/native/crypto && CARGO_TARGET_DIR=\"$PWD/target\" cargo build --release --quiet) && lake build bench && mkdir -p out && .lake/build/bin/bench out/bench"
 
 [tasks."test:engine-runtime"]
-description = "Build Lean/Init/Std from source with phone options for x86_64 Linux, then run the engine suites; needs local LEAN_SRC 4.34.0 and UV_SRC 1.51.0"
+description = "Build Lean/Init/Std from source with phone options for x86_64 Linux, then run the engine suites; needs local LEAN_SRC 4.35.0 and UV_SRC 1.51.0"
 run = "tests/engine/run.sh --phone-runtime"
 
 [tasks."test:app"]
@@ -292,8 +292,8 @@ description = "Build/setup an owned API36 emulator; actual Activity recreation, 
 run = "bash platforms/android/test/lifecycle/run.sh"
 
 [tasks."android:runtime"]
-description = "Lean's runtime, Init and libuv cross-built for Android into out/leanrt (needs LEAN_SRC at v4.34.0 and UV_SRC at v1.51.0)"
-run = "platforms/android/leanrt/build.sh \"${LEAN_SRC:-/mnt/storage/holmes-wt/lean-src/lean4}\" \"${UV_SRC:-/mnt/storage/holmes-wt/lean-src/libuv}\" \"$PWD/out/leanrt\" x86_64 arm64-v8a"
+description = "Lean's runtime, Init and libuv cross-built for Android into out/leanrt (needs LEAN_SRC at v4.35.0 and UV_SRC at v1.51.0)"
+run = "platforms/android/leanrt/build.sh \"${LEAN_SRC:-/mnt/storage/holmes-wt/lean-src-435/lean4}\" \"${UV_SRC:-/mnt/storage/holmes-wt/lean-src-435/libuv}\" \"$PWD/out/leanrt\" x86_64 arm64-v8a"
 
 [tasks."android:qr-apk"]
 description = "The QR camera harness's APK (x86_64 for the emulator, arm64-v8a for phones)"
