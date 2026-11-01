@@ -508,9 +508,14 @@ def proofUses (env : Environment) (roots : List Name) (extra : Name → List Nam
   while h : todo.size > 0 do
     let n := todo.back
     todo := todo.pop
+    let step (c : Name) : Bool := match env.find? c with
+      | some (.thmInfo _) => true
+      | some (.defnInfo _) => c.isInternal
+      | _ => false
     let uses := match env.find? n with
-      | some (.thmInfo t) => t.value.getUsedConstants.toList.filter fun c =>
-          match env.find? c with | some (.thmInfo _) => true | _ => false
+      | some (.thmInfo t) => t.value.getUsedConstants.toList.filter step
+      -- a proof's compiled auxiliaries (a recursion's body) are more of it
+      | some (.defnInfo d) => if n.isInternal then d.value.getUsedConstants.toList.filter step else []
       | _ => []
     for c in uses ++ extra n do
       parents := parents.insert c ((parents.getD c #[]).push n)

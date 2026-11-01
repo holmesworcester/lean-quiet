@@ -85,16 +85,9 @@ Engine.model_fits
 # engine.core.Merkle
 Merkle.no_injective_hash
 
-# engine.core.Project
-Engine.insertBy_map
-
 # engine.core.Query
 Engine.id_bind
 Engine.sideCount_run
-
-# engine.core.Union
-Engine.foldr_insertBy
-Engine.insertBy_merge
 
 # engine.renderer.BoardLaws
 Live.Board.seen_take

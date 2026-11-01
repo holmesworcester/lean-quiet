@@ -374,7 +374,7 @@ model unless a proven bridge ties the model to running code
 `tests/wiring-models.txt`, a list that only shrinks, does not name.
 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1368 rest on Lean's standard axioms only, and about four fifths of its theorems (1132 of 1278, not counting 65 proof steps and 25 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1368 rest on Lean's standard axioms only, and about four fifths of its theorems (1132 of 1275, not counting 68 proof steps and 25 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -519,11 +519,11 @@ reviewers check that a law's structures are the running code's own or
 a quantified environment (a `Run` of the running step).
 
 <!-- wiring:begin -->
-**1132 of 1278 laws are about running code;** another 35 run its node code in a World, and 111 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 65 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 25 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
+**1132 of 1275 laws are about running code;** another 35 run its node code in a World, and 108 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 68 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 25 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 167 | 155 |  | 12 |
+| Engine | 164 | 155 |  | 9 |
 | Sync | 225 | 189 |  | 36 |
 | The n-node World | 16 | 3 | 13 |  |
 | mDNS | 3 | 0 |  | 3 |
@@ -576,7 +576,6 @@ a quantified environment (a `Run` of the running step).
 | `Sync.returnedClaims` | [`conn_returns_claims`] | Nothing that runs calls it; `State.advance`, `RoundRun.initial` do. |
 | `Sync.roundHolds` | [`conn_answers_claims`] | Nothing that runs calls it. |
 | `Sync.roundWants` | [`conn_answers_claims`], [`wants_seen`], [`discovers`], [`discovers_wire`], [`conn_runs_exchange`]† | Nothing that runs calls it. |
-| `Engine.insertBy` | [`insertBy_map`], [`foldr_insertBy`], [`insertBy_merge`] | Nothing that runs calls it; `Engine.sortPos` do. |
 | `RWorld.actsWorld` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.passActs` do. |
 | `RWorld.commit` | [`RWorld.inv_commit`] | Nothing that runs calls it; `RWorld.commitAll` do. |
 | `RWorld.commitAll` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.actsWorld`, `RWorld.nTouched`, `RWorld.passLate` do. |
@@ -595,14 +594,14 @@ a quantified environment (a `Run` of the running step).
 | `app.community.Family` | [`nodup_full`] | `complete_iff_held`, `file_whole`, `pic_complete_iff_held`, `progress_done` +1 more |
 | `app.community.Proofs` | [`admission_consented`]† | `no_impersonation`, `no_renaming` |
 | `app.community.channel.message.Proofs` | [`sum_map_add`] | `count_partition` |
-| `engine.core.Cost` | [`Costs.mono`], [`costs_bind`], [`costs_bindP`], [`within_bind`], [`within_bindP`] | `decide_costs`, `find_costs`, `ingest_costs`, `rank_costs` +1 more |
+| `engine.core.Cost` | [`Costs.mono`], [`costs_bind`], [`costs_bindP`], [`within_bind`], [`within_bindP`] | `view_lists`, `decide_costs`, `find_costs`, `ingest_costs` +5 more |
 | `engine.core.CostErase` | [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_pure`], [`erase_run`], [`erase_tick`], [`cost_run`], [`val_erase`] | `cost_decBytesFromM_at`, `val_decBytesFromM`, `val_decNatFromM`, `work_decBytesFromM` +10 more |
 | `engine.core.Decl` | [`perm_sortPos`] | `complete_iff_held`, `file_whole`, `pic_complete_iff_held`, `anchor_read` +46 more |
 | `engine.core.Order` | [`eval_partition`], [`lexCmp_append_zero`], [`sortPos_sorted`] | `anchor_read`, `arrival_order`, `count_partition`, `rec_succ` +14 more |
-| `engine.core.Project` | [`of_map`], [`to_map`], [`Reads.mono`], [`eval_proj`], [`filterMap_inlRow`], [`leftOps_eq_some`], [`leftOps_isSome`], [`matching_proj`], [`mem_proj_idx`], [`sortPos_map`], [`specVerdict_eq_some`] | `admitted_node`, `community_inv`, `connect_iff_node`, `refuse_nonmember_node` +15 more |
+| `engine.core.Project` | [`of_map`], [`to_map`], [`Reads.mono`], [`eval_proj`], [`filterMap_inlRow`], [`insertBy_map`], [`leftOps_eq_some`], [`leftOps_isSome`], [`matching_proj`], [`mem_proj_idx`], [`sortPos_map`], [`specVerdict_eq_some`] | `admitted_node`, `community_inv`, `connect_iff_node`, `refuse_nonmember_node` +15 more |
 | `engine.core.Proofs` | [`distinct_of_collisionFree`]† | `oneOpPerId_of` |
 | `engine.core.Query` | [`walks_le`], [`sortPos_eq_fast`] | `asMsg_sorted`, `order_total`, `eval_oriented`, `eval_strict` +3 more |
-| `engine.core.Union` | [`mergeRuns_eq_sortPos`], [`union_rows`] | `order_total`, `union_sorted` |
+| `engine.core.Union` | [`foldr_insertBy`], [`insertBy_merge`], [`mergeRuns_eq_sortPos`], [`union_rows`] | `order_total`, `union_sorted` |
 | `engine.renderer.DemandRank` | [`Demand.filter_rank`]† | `selected_or_retired`, `selected_within`, `take_changes`, `take_progress` |
 | `engine.renderer.TranslateLaws` | [`fill_index`], [`source_iff`], [`tile_phase`] | `pick_eq`, `copied_row`, `fill_pixel`, `pick_source` +1 more |
 | `engine.renderer.bidi.Laws` | [`run_contiguous`] | `arabic_numbers_keep_order`, `numbers_keep_order` |
@@ -1780,9 +1779,6 @@ opportunities and full native delivery remain open.
 [`conn_answers_claims`]: engine/sync/RoundRun.lean#L21-L27
 [`conn_round_continues`]: engine/sync/RoundRun.lean#L56-L63
 [`conn_returns_claims`]: engine/sync/RoundRun.lean#L87-L91
-[`insertBy_map`]: engine/core/Project.lean#L350-L351
-[`foldr_insertBy`]: engine/core/Union.lean#L111-L114
-[`insertBy_merge`]: engine/core/Union.lean#L74-L77
 [`passActs_picks`]: engine/renderer/ActsLaws.lean#L99-L104
 [`RWorld.inv_commit`]: engine/renderer/ReaderLaws.lean#L238-L239
 [`World.inv_commit`]: engine/renderer/BoardLaws.lean#L337-L338
@@ -1821,6 +1817,7 @@ opportunities and full native delivery remain open.
 [`Reads.mono`]: engine/core/Project.lean#L289-L289
 [`eval_proj`]: engine/core/Project.lean#L385-L389
 [`filterMap_inlRow`]: engine/core/Project.lean#L404-L405
+[`insertBy_map`]: engine/core/Project.lean#L350-L351
 [`leftOps_eq_some`]: engine/core/Project.lean#L41-L42
 [`leftOps_isSome`]: engine/core/Project.lean#L56-L57
 [`matching_proj`]: engine/core/Project.lean#L366-L368
@@ -1829,6 +1826,8 @@ opportunities and full native delivery remain open.
 [`specVerdict_eq_some`]: engine/core/Project.lean#L71-L72
 [`walks_le`]: engine/core/Query.lean#L586-L586
 [`sortPos_eq_fast`]: engine/core/Query.lean#L278-L279
+[`foldr_insertBy`]: engine/core/Union.lean#L111-L114
+[`insertBy_merge`]: engine/core/Union.lean#L74-L77
 [`mergeRuns_eq_sortPos`]: engine/core/Union.lean#L120-L123
 [`union_rows`]: engine/core/Union.lean#L164-L170
 [`fill_index`]: engine/renderer/TranslateLaws.lean#L48-L51
@@ -2599,9 +2598,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`conn_answers_claims`](engine/sync/RoundRun.lean#L21-L27) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The arbitrary-batch theorem is applied along the fingerprint and ID handler steps, with exact wire chunks. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
 | [`conn_round_continues`](engine/sync/RoundRun.lean#L56-L63) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). A nonterminal actual response pins its original snapshot and retains an accepted active epoch. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
 | [`conn_returns_claims`](engine/sync/RoundRun.lean#L87-L91) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The successor claim is decoded from the actual encoded output, rather than supplied as a model response. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`insertBy_map`](engine/core/Project.lean#L350-L351) | **kernel-witness**: [Vacuity.Projection.insertionMap](tests/vacuity/Projection.lean). Two concrete rows with sort bytes0/1 and distinct message identifiers; map into left sum constructor and preserve positions, order/insertion, or filter back. Synthetic generic row algebra, not collected user data. |
-| [`foldr_insertBy`](engine/core/Union.lean#L111-L114) | **kernel-witness**: [Vacuity.Core.foldMerge](tests/vacuity/Core.lean). Two ordered messages inserted into another nonempty list. |
-| [`insertBy_merge`](engine/core/Union.lean#L74-L77) | **kernel-witness**: [Vacuity.Core.insertMerge](tests/vacuity/Core.lean). Insert early message into two nonempty sorted lists with explicit head-order premise. |
 | [`passActs_picks`](engine/renderer/ActsLaws.lean#L99-L104) | **kernel-witness**: [Vacuity.RendererModels.actionPicks](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`RWorld.inv_commit`](engine/renderer/ReaderLaws.lean#L238-L239) | **kernel-witness**: [Vacuity.RendererModels.readerCommit](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`World.inv_commit`](engine/renderer/BoardLaws.lean#L337-L338) | **kernel-witness**: [Vacuity.RendererModels.worldCommit](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
@@ -2640,6 +2636,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`Reads.mono`](engine/core/Project.lean#L289-L289) | Pending: no concrete premise witness audited yet |
 | [`eval_proj`](engine/core/Project.lean#L385-L389) | **kernel-witness**: [Vacuity.Projection.evalRows](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
 | [`filterMap_inlRow`](engine/core/Project.lean#L404-L405) | **kernel-witness**: [Vacuity.Projection.filteringMap](tests/vacuity/Projection.lean). Two concrete rows with sort bytes0/1 and distinct message identifiers; map into left sum constructor and preserve positions, order/insertion, or filter back. Synthetic generic row algebra, not collected user data. |
+| [`insertBy_map`](engine/core/Project.lean#L350-L351) | **kernel-witness**: [Vacuity.Projection.insertionMap](tests/vacuity/Projection.lean). Two concrete rows with sort bytes0/1 and distinct message identifiers; map into left sum constructor and preserve positions, order/insertion, or filter back. Synthetic generic row algebra, not collected user data. |
 | [`leftOps_eq_some`](engine/core/Project.lean#L41-L42) | Pending: no concrete premise witness audited yet |
 | [`leftOps_isSome`](engine/core/Project.lean#L56-L57) | Pending: no concrete premise witness audited yet |
 | [`matching_proj`](engine/core/Project.lean#L366-L368) | **kernel-witness**: [Vacuity.Projection.matchingRows](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
@@ -2648,6 +2645,8 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`specVerdict_eq_some`](engine/core/Project.lean#L71-L72) | **kernel-witness**: [Vacuity.Projection.specVerdictPresent](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
 | [`walks_le`](engine/core/Query.lean#L586-L586) | **kernel-witness**: [Vacuity.Query.rowsWalkBound](tests/vacuity/Query.lean). 50-row limit within 100000 rows; independent expectation proves exactly 50 walks. Synthetic model fixture; no collected real-user traffic. |
 | [`sortPos_eq_fast`](engine/core/Query.lean#L278-L279) | **kernel-witness**: [Vacuity.Core.fastSort](tests/vacuity/Core.lean). Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises. |
+| [`foldr_insertBy`](engine/core/Union.lean#L111-L114) | **kernel-witness**: [Vacuity.Core.foldMerge](tests/vacuity/Core.lean). Two ordered messages inserted into another nonempty list. |
+| [`insertBy_merge`](engine/core/Union.lean#L74-L77) | **kernel-witness**: [Vacuity.Core.insertMerge](tests/vacuity/Core.lean). Insert early message into two nonempty sorted lists with explicit head-order premise. |
 | [`mergeRuns_eq_sortPos`](engine/core/Union.lean#L120-L123) | **kernel-witness**: [Vacuity.Core.merge](tests/vacuity/Core.lean). Two interleaved ordered message lists merge to exact three-row order; reversed input violates premise. |
 | [`union_rows`](engine/core/Union.lean#L164-L170) | **kernel-witness**: [Vacuity.Core.union](tests/vacuity/Core.lean). Two query answers, three messages, limit two; ordered-input premise computed and first two rows checked. |
 | [`fill_index`](engine/renderer/TranslateLaws.lean#L48-L51) | Pending: no concrete premise witness audited yet |
