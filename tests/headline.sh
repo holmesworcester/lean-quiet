@@ -25,6 +25,15 @@ got=$(grep -c '^  at ' <<<"$out" || true)
 [ "$got" -eq "$want" ] || { echo "$out"; echo "expected $want headline reports, got $got" >&2; exit 1; }
 grep -E '^(headline|  at|  axioms|  surface|  review)' <<<"$out"
 echo "headline: $got laws, each on standard axioms only"
+# docs/HEADLINE.md's generated section states these numbers.
+printf '%s\n' "$out" >"$tmp/headline.out"
+python3 ci/headline.py --check "$tmp/headline.out"
+# Its control: a changed surface count (318 read as 1318) must make it stale.
+sed '0,/^  surface: \([0-9]*\)/s//  surface: 1\1/' "$tmp/headline.out" >"$tmp/stale.out"
+if python3 ci/headline.py --check "$tmp/stale.out" 2>/dev/null; then
+  echo "control not caught: a stale surface count in docs/HEADLINE.md" >&2; exit 1
+fi
+echo "control caught: a stale surface count in docs/HEADLINE.md"
 
 # The DRAFT challenge: it elaborates, and its only warnings are its sorrys.
 python3 tests/comparator/solution.py --check
