@@ -230,7 +230,8 @@ def main():
         raise SystemExit(f"native/runtime failure; see {log_path}")
     if args.expect_starvation or args.expect_hint_starvation:
         expected = (["FAIL: released bare join reaches founder"] if args.expect_hint_starvation else [
-            "FAIL: shared turn persists preference while writes remain continuously available",
+            "FAIL: shared turn prioritizes local work while advancing its bounded phase",
+            "FAIL: shared turn guarantees the reserved network slot despite ready local work",
             "FAIL: stop dispatch cleans up once and bypasses an otherwise due timer",
             "FAIL: empty preferred event queue immediately falls back to a local write",
             "FAIL: peer message progresses while write queue stays nonempty",

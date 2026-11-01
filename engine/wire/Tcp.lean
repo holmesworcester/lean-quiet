@@ -14,8 +14,9 @@ neither carries socket code.
   approval is resent every tick, and sessions exchange rounds, so a
   live one is never idle that long.
 - The app's writes come in through `Runner.write`, on a channel of
-  their own; the loop alternates first choice between writes and events
-  (`Inbox.next`), falling back immediately when one is empty. Every
+  their own; three turns prefer local writes, then one turn guarantees
+  network service (`Inbox.Priority.next`), falling back immediately when
+  the preferred queue is empty. Every
   id the node stores goes to the app's `notify`.
 - Each socket has a writer on its own thread, which owns its sends: the
   loop only pushes frames onto the socket's lanes (docs/SYNC.md,
@@ -453,14 +454,35 @@ def RunState.loopBackend (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (
   stop := fun st now => st.shutdown x ch cfg writes now
   idle := IO.sleep 5
 
-/-- Repeatedly execute the shared production turn. The result exposes the
-selected primary input and timer decision to proof interpreters and tests;
-the native loop needs only the next state and stopping flag. -/
-def runLoop (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (List Op)) (st : RunState) : IO Unit := do
+/-- Fixed-width counters, rather than an ever-growing trace. -/
+structure TurnCounters where
+  started : UInt64 := 0
+  completed : UInt64 := 0
+  writes : UInt64 := 0
+  events : UInt64 := 0
+  ticks : UInt64 := 0
+  deriving BEq, Repr
+
+/-- Fixed-size telemetry written by the runner itself. No external observer
+callback or growing history can block a turn. Counters wrap modulo 2^64. -/
+def TurnCounters.record {W E : Type} (c : TurnCounters) (selected : Option (W ⊕ E))
+    (ticked : Bool) : TurnCounters :=
+  { c with
+    completed := c.completed + 1
+    writes := c.writes + (if selected.any (fun s => match s with | .inl _ => true | _ => false) then 1 else 0)
+    events := c.events + (if selected.any (fun s => match s with | .inr _ => true | _ => false) then 1 else 0)
+    ticks := c.ticks + (if ticked then 1 else 0) }
+
+/-- Repeatedly execute the shared production turn, retaining its bounded
+phase and recording completed work without an observer callback. -/
+def runLoop (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (List Op)) (st : RunState)
+    (turns : IO.Ref TurnCounters) : IO Unit := do
   let backend := RunState.loopBackend x ch notify cfg writes
   let mut state : Loop.State RunState := { value := st }
   repeat
+    turns.modify fun c => { c with started := c.started + 1 }
     let result ← Loop.turn backend cfg.tickMs state
+    turns.modify fun c => c.record result.observed.selected result.ticked
     if result.stopped then return
     state := result.state
 
@@ -469,7 +491,7 @@ end
 /-- A running node. -/
 structure Runner where
   events : Std.CloseableChannel.Sync Event
-  /-- Local writes have their own bounded channel, serviced alternately with network events.
+  /-- Local writes have their own bounded channel and three preferred slots in four.
   App offers are nonblocking; a full queue leaves writes parked in App. -/
   writes : Std.CloseableChannel.Sync (List Op)
   port : UInt16
@@ -479,12 +501,18 @@ structure Runner where
   slots : Slots
   listener : Std.Internal.UV.TCP.Socket
   closing : Std.Mutex Bool
+  turnCounters : IO.Ref TurnCounters
+
+/-- A nonblocking snapshot of fixed-size runner telemetry. `started` advances
+before polling, so a notification emitted inside that turn can identify it. -/
+def Runner.counters (r : Runner) : IO TurnCounters := r.turnCounters.get
 
 /-- Listen on `port` (0: any) and run a node on this store, keeping
 what is from `floor` on (0: everything). -/
 def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (db : Db) (floor : Nat)
     (port : UInt16) (notify : List Id → IO Unit := fun _ => pure ()) (cfg : RunConfig := {}) :
     IO Runner := do
+  let x := { x with catalog := some (Catalog.sql (F := F)), retryStore := some (RetryStore.sql (F := F)) }
   let node := Node.boot x.fam (← (dumpOps (F := F)).run db) floor
   let ch ← eventChannel cfg
   let writes ← Std.CloseableChannel.Sync.new (some cfg.queue)
@@ -497,15 +525,16 @@ def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (db : Db
     | .v6 a => a.port
   let stopped ← IO.mkRef false
   let listening ← IO.asTask (prio := .dedicated) (acceptor ch srv stopped slots cfg)
+  let turnCounters ← IO.mkRef ({} : TurnCounters)
   let done ← IO.asTask (prio := .dedicated) do
-    try runLoop x ch notify cfg writes { db, node, slots }
+    try runLoop x ch notify cfg writes { db, node, slots } turnCounters
     catch e =>
       -- The native shells retain stderr (iOS lean.log / Android logcat).
       -- A background IO failure must not disappear into an unread Task.
       IO.eprintln s!"network runner stopped: {e}"
       throw e
   let closing ← Std.Mutex.new false
-  return { events := ch, writes, port := bound, done, stopped, listening, slots, listener := srv.native, closing }
+  return { events := ch, writes, port := bound, done, stopped, listening, slots, listener := srv.native, closing, turnCounters }
 
 /-- Each socket's address and the bytes its lanes hold now, in the
 loop's turn; empty once it has stopped. -/

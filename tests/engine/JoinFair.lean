@@ -198,6 +198,11 @@ def main (args : List String) : IO UInt32 := do
     a.run.write (← viewOn a (found (seed "A") "Fair join".toUTF8 "Alice".toUTF8 1 key
       (sha256 "join-fair/esk".toUTF8) (nk "A"))).ops
     t.ok "founder commits through the real runner" (← waitFor 5000 (stored a c))
+    t.ok "native runner counts its actual completed local-write turns"
+      (← waitFor 1000 do
+        let counters ← a.run.counters
+        return counters.writes > 0 && counters.completed > 0 &&
+          counters.started - counters.completed ≤ 1)
     let hint := s!"127.0.0.1:{relayPort}".toUTF8
     let some (inv, link) ← viewOn a (inviteTo c c (device "A")
         (sha256 "join-fair/bearer".toUTF8) (deadHints ++ [hint]))
@@ -248,14 +253,20 @@ def main (args : List String) : IO UInt32 := do
     a.run.write [initial]
     t.ok "self-replenishing write source is live" (← waitFor 2000 do return (← committed.get) ≥ 20)
     let before ← committed.get
+    let beforeTurns ← a.run.counters
     let marker := postAt c admB "B" 1 "peer event during sustained writes".toUTF8
     b.run.write [marker]
     let delivered ← waitFor 3000 (readable a marker.id "peer event during sustained writes".toUTF8)
     let after ← committed.get
+    let afterTurns ← a.run.counters
+    let sourceTurns ← b.run.counters
+    t.ok "peer marker commits at its actual source while local writes continue"
+      (← readable b marker.id "peer event during sustained writes".toUTF8)
     t.ok "peer message progresses while write queue stays nonempty" delivered
     t.ok "writes continue while peer message progresses" (after > before && (← active.get))
     t.ok "write-source continuation never loses its queued refill" ((← rejected.get) == 0)
     IO.println s!"join-fair: peer marker={delivered}; local refill before={before}, after={after}, rejected={← rejected.get}"
+    IO.println s!"join-fair: marker turns source={repr sourceTurns}; destination before={repr beforeTurns}, after={repr afterTurns}"
     -- Stop the producer before cleanup, including on the strict-priority
     -- mutant. Thus rejection must be the marker assertion, not a timeout.
     active.set false

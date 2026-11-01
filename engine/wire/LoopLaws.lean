@@ -34,12 +34,12 @@ private theorem run_pure {μ α : Type} (a : α) (s : μ) :
     (pure a : StateM μ α).run s = (a, s) := rfl
 
 /-- Every return from dispatch preserves the observed input and the inbox
-preference. Arbitrary backend callbacks can change their own state, not the
+phase. Arbitrary backend callbacks can change their own state, not the
 scheduler's state or the recorded input. -/
 theorem dispatch_records {σ W E μ : Type} (backend : Backend (StateM μ) σ W E)
     (period : Nat) (state : State σ) (observed : Observation W E) (memory : μ) :
     let result := ((dispatch backend period state observed).run memory).1
-    result.observed = observed ∧ result.state.writeFirst = state.writeFirst := by
+    result.observed = observed ∧ result.state.slot = state.slot := by
   cases hs : observed.selected with
   | none =>
     simp only [dispatch, hs, run_bind, run_map, run_pure]
@@ -79,26 +79,23 @@ theorem dispatch_timer {σ W E μ : Type} (backend : Backend (StateM μ) σ W E)
         | exact fun h => Bool.noConfusion h
         | split <;> exact fun _ => Prod.ext (by simp_all <;> rfl) rfl
 
-private theorem inbox_preference {W E μ : Type} (writeFirst : Bool)
+private theorem inbox_phase {W E μ : Type} (slot : Inbox.Priority.Slot)
     (writes : StateM μ (Option W)) (events : StateM μ (Option E)) (memory : μ) :
-    ((Inbox.next writeFirst writes events).run memory).1.2 = !writeFirst := by
-  cases writeFirst <;>
-    simp only [Inbox.next, Bool.false_eq_true, ite_false, ite_true, run_bind, run_map, run_pure] <;>
-    split <;> rfl
+    ((Inbox.Priority.next slot writes events).run memory).1.2 = Inbox.Priority.advance slot := rfl
 
-/-- The actual turn, including its poll, toggles preference once and records
+/-- The actual turn, including its poll, advances its bounded phase once and records
 the time sampled before polling. This is a property of completed calls; it
 does not assume that a blocked native callback completes. -/
 theorem turn_records {σ W E μ : Type} (backend : Backend (StateM μ) σ W E)
     (period : Nat) (state : State σ) (memory : μ) :
     let result := ((turn backend period state).run memory).1
-    result.state.writeFirst = !state.writeFirst ∧
+    result.state.slot = Inbox.Priority.advance state.slot ∧
       result.observed.now = (backend.clock.run memory).1 := by
   let sampled := backend.clock.run memory
-  let polled := (Inbox.next state.writeFirst backend.writes backend.events).run sampled.2
-  have h := dispatch_records backend period { state with writeFirst := polled.1.2 }
+  let polled := (Inbox.Priority.next state.slot backend.writes backend.events).run sampled.2
+  have h := dispatch_records backend period { state with slot := polled.1.2 }
     { now := sampled.1, selected := polled.1.1 } polled.2
-  exact ⟨h.2.trans (inbox_preference state.writeFirst backend.writes backend.events sampled.2),
+  exact ⟨h.2.trans (inbox_phase state.slot backend.writes backend.events sampled.2),
     congrArg Observation.now h.1⟩
 
 /-- The timer trace of actual turns is the timer trace used in the cofinal
@@ -109,10 +106,10 @@ theorem turn_timer {σ W E μ : Type} (backend : Backend (StateM μ) σ W E)
     result.stopped = false →
       (result.ticked, result.state.lastTick) = Tick.next period state.lastTick result.observed.now := by
   let sampled := backend.clock.run memory
-  let polled := (Inbox.next state.writeFirst backend.writes backend.events).run sampled.2
-  have h := dispatch_timer backend period { state with writeFirst := polled.1.2 }
+  let polled := (Inbox.Priority.next state.slot backend.writes backend.events).run sampled.2
+  have h := dispatch_timer backend period { state with slot := polled.1.2 }
     { now := sampled.1, selected := polled.1.1 } polled.2
-  have recorded := dispatch_records backend period { state with writeFirst := polled.1.2 }
+  have recorded := dispatch_records backend period { state with slot := polled.1.2 }
     { now := sampled.1, selected := polled.1.1 } polled.2
   dsimp only
   intro running

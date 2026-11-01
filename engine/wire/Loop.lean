@@ -5,7 +5,7 @@ live here. Proof interpreters use this same function with explicit backend
 state, rather than choosing an independent sequence of node entry points.
 -/
 import engine.wire.Node
-import engine.wire.Lanes
+import engine.wire.Priority
 
 namespace Engine.Sync
 
@@ -33,7 +33,7 @@ namespace Loop
 /-- Scheduler state has one owner; native socket state is the backend's value. -/
 structure State (σ : Type) where
   value : σ
-  writeFirst : Bool := true
+  slot : Inbox.Priority.Slot := Inbox.Priority.first
   lastTick : Nat := 0
 
 /-- Inputs observed by one completed poll. `turn` samples the clock before
@@ -67,8 +67,8 @@ structure Result (σ W E : Type) where
   ticked : Bool
   stopped : Bool
 
-/-- Dispatch one observed input. `state.writeFirst` is the preference already
-returned by the completed inbox poll; dispatch leaves it unchanged. -/
+/-- Dispatch one observed input. `state.slot` is the phase already returned
+by the completed inbox poll; dispatch leaves it unchanged. -/
 def dispatch {m : Type → Type} [Monad m] {σ W E : Type}
     (backend : Backend m σ W E) (period : Nat) (state : State σ)
     (observed : Observation W E) : m (Result σ W E) := do
@@ -94,8 +94,8 @@ particular, ongoing writes cannot bypass the timer or reset inbox preference. -/
 def turn {m : Type → Type} [Monad m] {σ W E : Type}
     (backend : Backend m σ W E) (period : Nat) (state : State σ) : m (Result σ W E) := do
   let now ← backend.clock
-  let (selected, nextPreference) ← Inbox.next state.writeFirst backend.writes backend.events
-  dispatch backend period { state with writeFirst := nextPreference } { now, selected }
+  let (selected, nextSlot) ← Inbox.Priority.next state.slot backend.writes backend.events
+  dispatch backend period { state with slot := nextSlot } { now, selected }
 
 /-- The transition relation for an explicit state interpreter of the *same*
 turn. Environment steps between turns, and the correspondence of this
