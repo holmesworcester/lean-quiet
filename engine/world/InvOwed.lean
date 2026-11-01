@@ -1,6 +1,7 @@
 /-
 **Every session's queue holds at most `maxKnown` ids**, at every plain
-node in every execution against any attacker (`Plain.owed_bounded`):
+node in every execution against any attacker (`bounded_pieces`; from
+empty stores, `owed_bounded_start`, a conjunct of `Plain.good_always`):
 a want joins the queue only while it has room (main's
 `onWant_bounded_owed`), serving leaves a suffix, a new session's queue is
 empty, and nothing else touches it. Over the `Pieces` of every entry
@@ -164,18 +165,5 @@ theorem bounded_pieces : Pieces S s (fun n _ => NodeBounded S.cfg.maxKnown n) wh
     · exact hn cid' c (close_conn n cid cid' c hc)
 
 end
-
-namespace Plain
-variable {Q : Plain F}
-
-/-- **Every session's queue holds at most `maxKnown` ids**, at every node
-in every execution from empty stores, against any attacker. -/
-theorem owed_bounded_start {adv : World (Held F) Q.n → ByteArray → Prop} (E : Exec Q.setup adv Q.start) :
-    ∀ k i cid c, ((E.world k).node i).conn? cid = some c → c.owed.length ≤ Q.cfg.maxKnown :=
-  always E (fun n _ => NodeBounded Q.cfg.maxKnown n) (fun i => bounded_pieces (Q.two i) .a)
-    (fun _ _ _ cid c hc => by simp [Node.boot, Node.conn?] at hc)
-    (fun _ _ _ hc => by simp [Plain.start, World.init, Node.boot, Node.conn?] at hc)
-
-end Plain
 
 end Engine.World

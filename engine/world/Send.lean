@@ -4,7 +4,7 @@ discharged by the running node (docs/PROOFS.md, "What a send costs"):
 what is left are the session's facts, the network's, the queue's room and
 the crypto assumption.
 -/
-import engine.world.InvOwed
+import engine.world.PlainGood
 
 namespace Engine.World
 open Engine Engine.Sync

@@ -7,6 +7,7 @@ node: what the per-link laws take of a node's state at a step.
   `Node.follow` never adds one and every entry point ends with none.
 -/
 import engine.world.Owed
+import engine.world.Good
 
 namespace Engine.World
 open Engine Engine.Sync
@@ -145,53 +146,23 @@ end
 namespace Plain
 variable {Q : Plain F}
 
+/-- **Everything the World runs at a plain node keeps it managing no
+session**: every entry point, and a restart, which boots with none. -/
+theorem managed_local : Local Q.setup (fun _ n _ => n.managed = []) (fun _ n _ => n.managed = []) where
+  runs i f hf nd h hm := by
+    cases hf with
+    | frame addr bytes t => exact onFrame_managed (Q.two i) .a nd addr bytes t h hm
+    | tick t => exact onTick_managed (Q.two i) .a nd t h hm
+    | write ops t _ => exact onWrite_managed (Q.two i) .a nd ops t h hm
+    | close addr t => exact onClose_managed (Q.two i) .a nd addr t h hm
+    | connect j cid dialer t _ => exact connect_managed (Q.two i) .a nd cid _ dialer t h hm
+  boot _ _ _ _ := rfl
+
 /-- **No plain node ever manages a session**, in any execution against
 any attacker, from nodes that manage none. -/
 theorem managed_nil {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : World (Held F) Q.n}
-    (E : Exec Q.setup adv w₀) (h0 : ∀ i, (w₀.node i).managed = []) : ∀ k i, ((E.world k).node i).managed = [] := by
-  intro k
-  induction k with
-  | zero => exact h0
-  | succ k ih =>
-    intro l
-    rw [Exec.world_succ]
-    have enter : ∀ (w : World (Held F) Q.n) (i : Fin Q.n) (t : Nat) (f : Node → HeldM F (Node × Effects)),
-        (∀ j, (w.node j).managed = []) → (∀ nd h, nd.managed = [] → ((f nd).run h).1.1.managed = []) →
-        ((w.enter Q.setup i t f).node l).managed = [] := by
-      intro w i t f hw hf
-      simp only [World.enter]
-      by_cases e : l = i
-      · subst e; simp only [upd_same]; exact hf _ _ (hw l)
-      · rw [upd_other _ _ e]; exact hw l
-    cases hact : E.act k with
-    | deliver k' t =>
-      simp only [World.step]
-      cases hp : (E.world k).flight[k']? with
-      | none => exact ih l
-      | some p =>
-        dsimp only
-        cases hj : Q.setup.at? p.dst with
-        | none => exact ih l
-        | some j =>
-          dsimp only
-          exact enter _ j t _ ih (fun nd h hm => onFrame_managed (Q.two j) .a nd _ _ t h hm)
-    | dup k' => simp only [World.step]; cases (E.world k).flight[k']? <;> exact ih l
-    | drop k' => exact ih l
-    | tick i t => simp only [World.step]; exact enter _ i t _ ih (fun nd h hm => onTick_managed (Q.two i) .a nd t h hm)
-    | write i ops t =>
-      simp only [World.step]; exact enter _ i t _ ih (fun nd h hm => onWrite_managed (Q.two i) .a nd ops t h hm)
-    | restart i t =>
-      simp only [World.step]
-      by_cases e : l = i
-      · subst e; simp only [upd_same]; rfl
-      · rw [upd_other _ _ e]; exact ih l
-    | close i a t =>
-      simp only [World.step]; exact enter _ i t _ ih (fun nd h hm => onClose_managed (Q.two i) .a nd a t h hm)
-    | connect i j cid dl t =>
-      simp only [World.step]
-      exact enter _ i t _ ih (fun nd h hm => connect_managed (Q.two i) .a nd cid _ dl t h hm)
-    | inject i o b t =>
-      simp only [World.step]; exact enter _ i t _ ih (fun nd h hm => onFrame_managed (Q.two i) .a nd o b t h hm)
+    (E : Exec Q.setup adv w₀) (h0 : ∀ i, (w₀.node i).managed = []) : ∀ k i, ((E.world k).node i).managed = [] :=
+  managed_local.keeps.always h0 E
 
 end Plain
 

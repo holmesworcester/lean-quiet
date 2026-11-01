@@ -21,8 +21,9 @@ the running node (engine/world/Inv.lean has the first, `managed_nil`).
 Both are proven once per piece of the node (`oq_pieces`, `ix_pieces`:
 the pieces of `Pieces`), then over every entry point as Inv.lean does
 (`onFrame_keeps`, `onTick_keeps`, ...), then over every execution
-(`Plain.always`). From empty stores neither needs a premise
-(`owes_queued_start`, `ix_covers_start`).
+(`Plain.always`, through `Local` of engine/world/Good.lean). From
+empty stores they are conjuncts of `Plain.good_always`
+(engine/world/PlainGood.lean: `owes_queued_start`, `ix_covers_start`).
 -/
 import engine.world.Inv
 
@@ -642,56 +643,28 @@ end
 namespace Plain
 variable {Q : Plain F}
 
+/-- **A node invariant every piece of a plain node keeps, and a restart
+restores from the store, is kept by everything the World runs there**
+(`Local`, engine/world/Good.lean). -/
+theorem pieces_local (Φ : Node → Held F → Prop) (P : ∀ i, Pieces (Q.two i) .a Φ)
+    (hboot : ∀ n h, Φ n h → Φ (Node.boot Q.fam h.log 0) h) : Local Q.setup (fun _ => Φ) (fun _ => Φ) where
+  runs i f hf nd h hn := by
+    cases hf with
+    | frame addr bytes t => exact onFrame_keeps (P i) nd addr bytes t h hn
+    | tick t => exact onTick_keeps (P i) nd t h hn
+    | write ops t _ => exact onWrite_keeps (P i) nd ops t h hn
+    | close addr t => exact onClose_keeps (P i) nd addr t h hn
+    | connect j cid dialer t _ => exact connect_keeps (P i) nd cid _ dialer t h hn
+  boot _ n h hn := hboot n h hn
+
 /-- **A node invariant that every piece of a plain node keeps, and that
 a restart restores from the store, holds of every node in every
 execution**, against any attacker. -/
 theorem always {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : World (Held F) Q.n}
     (E : Exec Q.setup adv w₀) (Φ : Node → Held F → Prop) (P : ∀ i, Pieces (Q.two i) .a Φ)
     (hboot : ∀ n h, Φ n h → Φ (Node.boot Q.fam h.log 0) h)
-    (h0 : ∀ i, Φ (w₀.node i) (w₀.box i)) : ∀ k i, Φ ((E.world k).node i) ((E.world k).box i) := by
-  intro k
-  induction k with
-  | zero => exact h0
-  | succ k ih =>
-    intro l
-    rw [Exec.world_succ]
-    have enter : ∀ (w : World (Held F) Q.n) (i : Fin Q.n) (t : Nat) (f : Node → HeldM F (Node × Effects)),
-        (∀ j, Φ (w.node j) (w.box j)) → (∀ nd h, Φ nd h → Φ ((f nd).run h).1.1 ((f nd).run h).2) →
-        Φ ((w.enter Q.setup i t f).node l) ((w.enter Q.setup i t f).box l) := by
-      intro w i t f hw hf
-      simp only [World.enter]
-      by_cases e : l = i
-      · subst e; simp only [upd_same]; exact hf _ _ (hw l)
-      · rw [upd_other _ _ e, upd_other _ _ e]; exact hw l
-    cases hact : E.act k with
-    | deliver k' t =>
-      simp only [World.step]
-      cases hp : (E.world k).flight[k']? with
-      | none => exact ih l
-      | some p =>
-        dsimp only
-        cases hj : Q.setup.at? p.dst with
-        | none => exact ih l
-        | some j =>
-          dsimp only
-          exact enter _ j t _ ih (fun nd h hn => onFrame_keeps (P j) nd _ _ t h hn)
-    | dup k' => simp only [World.step]; cases (E.world k).flight[k']? <;> exact ih l
-    | drop k' => exact ih l
-    | tick i t => simp only [World.step]; exact enter _ i t _ ih (fun nd h hn => onTick_keeps (P i) nd t h hn)
-    | write i ops t =>
-      simp only [World.step]; exact enter _ i t _ ih (fun nd h hn => onWrite_keeps (P i) nd ops t h hn)
-    | restart i t =>
-      simp only [World.step]
-      by_cases e : l = i
-      · subst e; simp only [upd_same]; exact hboot _ _ (ih l)
-      · rw [upd_other _ _ e, upd_other _ _ e]; exact ih l
-    | close i a t =>
-      simp only [World.step]; exact enter _ i t _ ih (fun nd h hn => onClose_keeps (P i) nd a t h hn)
-    | connect i j cid dl t =>
-      simp only [World.step]
-      exact enter _ i t _ ih (fun nd h hn => connect_keeps (P i) nd cid _ dl t h hn)
-    | inject i o b t =>
-      simp only [World.step]; exact enter _ i t _ ih (fun nd h hn => onFrame_keeps (P i) nd o b t h hn)
+    (h0 : ∀ i, Φ (w₀.node i) (w₀.box i)) : ∀ k i, Φ ((E.world k).node i) ((E.world k).box i) :=
+  (pieces_local Φ P hboot).keeps.always h0 E
 
 /-- **Every session owes only ids in its queue**, at every node in every
 execution against any attacker, from sessions that did. -/
@@ -712,18 +685,6 @@ theorem ix_covers {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : Worl
     ∀ k i, IxCovers Q.fam ((E.world k).node i) ((E.world k).box i) := fun k i =>
   (always E (IxInv Q.fam) (fun i => ix_pieces (Q.two i) .a) (fun _ h hi => boot_ixinv Q.fam h 0 hi.2.2)
     (fun i => ⟨h0 i, hk i, hl i⟩) k i).1
-
-/-- `ix_covers` from empty stores: no premise. -/
-theorem ix_covers_start {adv : World (Held F) Q.n → ByteArray → Prop} (E : Exec Q.setup adv Q.start) :
-    ∀ k i, IxCovers Q.fam ((E.world k).node i) ((E.world k).box i) :=
-  ix_covers E (fun _ _ _ _ hx => by cases hx)
-    (fun _ _ _ ha => by simp [Plain.start, World.init, Node.boot, Index.ofOps, Index.items] at ha)
-    (fun _ _ _ hx => by cases hx)
-
-/-- `owes_queued` from empty stores: no premise. -/
-theorem owes_queued_start {adv : World (Held F) Q.n → ByteArray → Prop} (E : Exec Q.setup adv Q.start) :
-    ∀ k i cid c, ((E.world k).node i).conn? cid = some c → OwesQueued c :=
-  owes_queued E (fun _ _ _ hc => by simp [Plain.start, World.init, Node.boot, Node.conn?] at hc)
 
 end Plain
 
