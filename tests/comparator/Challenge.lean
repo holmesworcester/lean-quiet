@@ -28,9 +28,11 @@ import app.community.member.invite.Proofs
 import app.community.member.remove.Proofs
 import app.community.member.remove.View
 import app.connection.Proofs
-import engine.core.Core
+import app.community.Screen
+import app.community.channel.message.Proofs
+import engine.core.IngestCost
 import engine.core.Termination
-import engine.renderer.WrapLaws
+import engine.renderer.Cover
 import engine.sync.ConnLaws
 import engine.wire.NoiseSymbolic
 
@@ -142,13 +144,6 @@ theorem sealed_auth (x : Sync Connection.F (HeldM Connection.F)) {K : Connection
 
 end
 
--- law Engine.Op.id_decode
-/-- **No peer can rename an op.** An op read from bytes has the SHA-256
-of those bytes as its id. -/
-theorem id_decode {b : ByteArray} {o : Engine.Op} (h : Engine.Op.decode b = some o) :
-    o.id = Engine.sha256 b := by
-  sorry
-
 /-! ## Sessions (in the symbolic model of the cryptography) -/
 
 section
@@ -199,21 +194,40 @@ theorem same_ops_same_verdicts {F : Type} {fam : Engine.Family F} {L M : List En
       (Engine.drainS fam n s).status = (Engine.drainS fam m t).status := by
   sorry
 
+section
+open Engine Community
+
+-- law Community.display_agrees
+/-- **Every device shows a channel in the same order.** Two devices that
+hold the same two messages of channel c list them in the same order,
+unless both messages claim the counter's cap (2^63) or more. -/
+theorem display_agrees {C : Community.Crypto} {ops ops' : Id → Option Op} {c x y : Id}
+    {sx sy sx' sy' : ByteArray}
+    (hx : ops x = ops' x) (hy : ops y = ops' y)
+    (lx : Listed C ops c x sx) (ly : Listed C ops c y sy) (lx' : Listed C ops' c x sx')
+    (ly' : Listed C ops' c y sy')
+    (hsat : (∃ n tm, Posted ops x n tm ∧ n < countCap) ∨ ∃ n tm, Posted ops y n tm ∧ n < countCap) :
+    Pos.cmp (sx, x) (sy, y) = Pos.cmp (sx', x) (sy', y) := by
+  sorry
+
+end
+
 /-! ## What the user sees and does -/
 
--- law Remove.writes_only_after_two
-/-- **Removing someone takes two confirmations.** The removal dialog
-writes a removal only on the second yes (or a retry after a refusal that
-had both), and only of the member asked about. -/
-theorem writes_only_after_two (s : Remove.Step) (e : Remove.Ev) (u : Engine.Id)
-    (h : (Remove.step s e).2 = some u) :
-    (s = .second u ∨ ∃ why, s = .failed u why) ∧ (match e with | .yes => True | _ => False) := by
+-- law Cover.covered
+/-- **Scrolling never shows a blank.** Every position in the content,
+from the bottom padding up to the last loaded row, and above it while
+older messages are still to load, shows a line of a message or a
+placeholder. -/
+theorem covered (pad bottom : Nat) (more : Bool) (rows : List (Nat × Option Nat)) (p : Nat)
+    (lo : pad ≤ p) (hi : p < bottom + (rows.map (·.1)).sum ∨ more = true) :
+    Cover.seen pad bottom more rows p ≠ .blank := by
   sorry
 
 -- law NavLaws.back_open
 /-- **Back goes back.** Back after opening a page restores the app's
-state from before it, except for a few fields of the page left (its
-one-line field, its key, its scroll mark). -/
+state from before it, except for a few fields that belong to the page
+that closed, and an editor counter. -/
 theorem back_open (p : App.PageId) (s : App.St) (hp : p ≠ s.page) (hs : p ∉ s.backStack)
     (hw : p ≠ .switcher) :
     App.backSt (App.openSt p s) = { s with
@@ -221,12 +235,33 @@ theorem back_open (p : App.PageId) (s : App.St) (hp : p ≠ s.page) (hs : p ∉ 
       pageScrollStarted := false, ownSends := {}, presenting := none } := by
   sorry
 
--- law Text.wrap_keeps
-/-- **Wrapping loses nothing but spaces.** The wrapped lines, joined,
-keep every character of the paragraph but spaces, in order. -/
-theorem wrap_keeps (f : Font.Font) (width : Nat) (cs : List UInt32) :
-    (Text.wrapL f width cs).flatten.filter Text.ns = cs.filter Text.ns ∧
-      (Text.wrapL f width cs).flatten.Sublist cs := by
+-- law Switch.select_tapped_dedupe
+/-- **A tap on a community opens that community.** Selecting the
+switcher entry at row i, by its account, gives back exactly that entry,
+even when two communities share a name. -/
+theorem select_tapped_dedupe (ms : Array Kinds.Accepted.Me) (i : Nat)
+    (hi : i < (Kinds.Accepted.dedupe ms).size) :
+    Kinds.Accepted.select (Kinds.Accepted.dedupe ms) (Kinds.Accepted.dedupe ms)[i].acc =
+      some (Kinds.Accepted.dedupe ms)[i] := by
+  sorry
+
+/-! ## What it costs -/
+
+-- law Community.approveReq_ops
+/-- **Letting someone in costs at most three ops, whatever the community
+holds:** the approval, the admission, and one wrap of the content key,
+to the new member's node. -/
+theorem approveReq_ops (c req myAdm : Engine.Id) (d : Community.Device) (esk : ByteArray) :
+    Engine.View.Always (fun w : Community.Write => w.ops.length ≤ 3)
+      (Community.approveReq c req myAdm d esk) := by
+  sorry
+
+-- law Engine.ingest_costs
+/-- **Storing an op that arrives costs one read and at most two writes**,
+whatever the store holds, on any store the app's code runs on. -/
+theorem ingest_costs {F : Type} {m : Type → Type} [Monad m] [LawfulMonad m] [Engine.Store F m]
+    (o : Engine.Op) :
+    Engine.Costs { reads := 1, writes := 2, seeks := 3 } (Engine.ingest (F := F) (m := Engine.CostT m) o) := by
   sorry
 
 end Headline

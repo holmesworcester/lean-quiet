@@ -24,19 +24,21 @@ import sys
 TOP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOC = os.path.join(TOP, "docs", "HEADLINE.md")
 SURFACES = os.path.join(TOP, "docs", "HEADLINE-SURFACES.md")
-APPENDIX = """# Headline laws: the app's part of each surface
+APPENDIX = """# Headline laws: the surfaces in full
 
 Written by ci/headline.py from tests/Headline.lean's output; do not
 edit. For each recommended law of [HEADLINE.md](HEADLINE.md), the
 definitions of its spec surface that are the app's own code: what the
-law is about, which runs in the app. The spec-only and assumed parts,
-which a reviewer must read, are in HEADLINE.md.
+law is about, which runs in the app (its spec-only and assumed parts,
+which a reviewer must read, are in HEADLINE.md). Then, for each law also
+considered and each law not yet about running code, what its statement
+names and its spec-only, assumed and bridged parts.
 """
 BEGIN = "<!-- surface:begin: written by ci/headline.py; do not edit -->"
 END = "<!-- surface:end -->"
 # The three groups of tests/Headline.lean, in its order: a group ends at
 # its union report ("headline all N laws"), the last at the end.
-GROUPS = ["Recommended", "Also considered", "For contrast: a World law"]
+GROUPS = ["Recommended", "Also considered", "Not about running code yet"]
 
 
 def parse(text):
@@ -80,6 +82,7 @@ def render(blocks):
     law's surface, listed whole."""
     out = []
     appendix = [APPENDIX]
+    details = []
     groups, group = [], []
     for b in blocks:
         if b["union"]:
@@ -91,18 +94,23 @@ def render(blocks):
         groups.append((group, None))
     if len(groups) != len(GROUPS):
         raise SystemExit(f"expected {len(GROUPS)} groups of laws, got {len(groups)}")
+    # a law's short name, or its last two parts where two laws share one
+    lasts = [b["name"].split(".")[-1] for b in blocks if not b["union"]]
+    short_of = lambda n: (".".join(n.split(".")[-2:]) if lasts.count(n.split(".")[-1]) > 1
+                          else n.split(".")[-1])
     for title, (laws, union) in zip(GROUPS, groups):
         out += [f"### {title}", "",
                 "| Law | Where | Axioms | Surface | Of the app | Spec-only | Assumed | Bridged |",
                 "|---|---|---|---:|---:|---:|---:|---:|"]
         for b in laws:
             path, line = b["at"].rsplit(":", 1)
-            short = b["name"].split(".")[-1]
+            short = short_of(b["name"])
             ax = b["axioms"].replace(" (standard)", "")
             review = re.match(r"(\d+) of the app, (\d+) spec-only, (\d+) assumed, (\d+) bridged", b["review"])
             app, spec, assumed, bridged = review.groups()
             total = b["surface"].split()[0]
-            out.append(f"| [`{short}`](#{anchor(b['name'])}) | [{path}:{line}](../{path}#L{line}) | {ax} "
+            where = "" if title == GROUPS[0] else "HEADLINE-SURFACES.md"
+            out.append(f"| [`{short}`]({where}#{anchor(b['name'])}) | [{path}:{line}](../{path}#L{line}) | {ax} "
                        f"| {total} | {app} | {spec} | {assumed} | {bridged} |")
         out.append("")
         if union:
@@ -119,28 +127,30 @@ def render(blocks):
             out.append(f"- assumed: {code(names(assumed[1]) if len(assumed) > 1 else [])}")
             out += ["", "</details>", ""]
         for b in laws:
-            out.append(f"#### {b['name']}")
-            out.append("")
-            out.append(f"Named in the statement: {code(names(b['named']))}.")
-            out.append("")
             spec = kinds(b["spec-only"])
-            out.append("Spec-only, to review: " +
-                       ("; ".join(f"{label}: {code(ns)}" for label, ns in spec) if spec else "none") + ".")
-            out.append("")
-            out.append(f"Assumed: {code(names(b['assumed']))}. Bridged: {fmt_bridged(b['bridged'])}.")
-            out.append("")
+            text = [f"#### {b['name']}", "",
+                    f"Named in the statement: {code(names(b['named']))}.", "",
+                    "Spec-only, to review: " +
+                    ("; ".join(f"{label}: {code(ns)}" for label, ns in spec) if spec else "none") + ".", "",
+                    f"Assumed: {code(names(b['assumed']))}. Bridged: {fmt_bridged(b['bridged'])}.", ""]
+            if title == GROUPS[0]:
+                out += text
+            else:
+                details += text
             if title == GROUPS[0]:
                 app = names(b["of the app"])
                 appendix += [f"## {b['name']}", "",
                              f"<details><summary>Of the app: {len(app)} definitions</summary>", "",
                              code(app), "", "</details>", ""]
+    appendix += ["## The other laws' surfaces", ""] + details
     return "\n".join(out).rstrip("\n") + "\n", "\n".join(appendix).rstrip("\n") + "\n"
 
 
 def fmt_bridged(s):
     """'M (L1, L2), N (L3)' as '`M` (by `L1`, `L2`), `N` (by `L3`)'."""
     items = re.findall(r"(\S+) \(([^)]*)\)", s)
-    return ", ".join(f"`{m}` (by {code(names(ls))})" for m, ls in items) if items else "none"
+    return ", ".join(f"`{m}` (the cost meter)" if ls == "the meter" else f"`{m}` (by {code(names(ls))})"
+                     for m, ls in items) if items else "none"
 
 
 def anchor(name):

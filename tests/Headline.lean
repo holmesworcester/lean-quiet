@@ -11,7 +11,9 @@ The proposal, ranked; the user decides which laws are headline laws.
 -/
 import tests.SpecSurface
 import Main
+import app.Commands
 import app.Proofs
+import app.Screen
 import app.community.Family
 import app.community.Proofs
 import app.community.Screen
@@ -26,17 +28,34 @@ import engine.core.Budget
 import engine.core.Codec
 import engine.core.Core
 import engine.core.IdemLaws
+import engine.core.IngestCost
+import engine.core.ListCost
 import engine.core.Proofs
 import engine.core.Purge
 import engine.core.Termination
+import engine.core.View
+import engine.core.WindowLaws
+import engine.core.WindowRead
+import engine.renderer.BoardLaws
+import engine.renderer.Cover
+import engine.renderer.Demand
+import engine.renderer.DemandRank
+import engine.renderer.Geometry
+import engine.renderer.Heights
 import engine.renderer.ImageLaws
+import engine.renderer.SheetGeom
+import engine.renderer.Surface
 import engine.renderer.TextLaws
+import engine.renderer.TranslateLaws
 import engine.renderer.WrapLaws
 import engine.sync.ConnLaws
 import engine.sync.SecrecyLaws
+import engine.sync.ServeLaws
 import engine.wire.EgressLaws
+import engine.wire.IngressPriorityLaws
 import engine.wire.NodeLaws
 import engine.wire.NoiseSymbolic
+import engine.wire.PriorityLaws
 import engine.world.Plain
 
 /-! ## The recommended headline laws, ranked -/
@@ -50,17 +69,22 @@ import engine.world.Plain
   Connection.removal_reaches_session
   Engine.Sync.recv_send
   Connection.sealed_auth
-  Engine.Op.id_decode
   Connection.Noise.Symbolic.kk_secret
   Connection.Noise.Symbolic.kk_authentic
   Engine.same_ops_same_verdicts
-  Remove.writes_only_after_two
+  Community.display_agrees
+  Cover.covered
   NavLaws.back_open
-  Text.wrap_keeps
+  Switch.select_tapped_dedupe
+  Community.approveReq_ops
+  Engine.ingest_costs
 
-/-! ## Also considered: strong, but left out of the top fifteen -/
+/-! ## Also considered: about running code, but left out of the top list -/
 
 #headline
+  Engine.Op.id_decode
+  Remove.writes_only_after_two
+  Text.wrap_keeps
   Community.message_authorized
   Community.removal_cuts_off
   Community.valid_stays
@@ -74,17 +98,51 @@ import engine.world.Plain
   Engine.ingest_twice
   Engine.purge_shared
   Engine.status_iff_spec
-  Community.display_agrees
-  PeopleLaws.present_iff
-  Text.visual_perm
-  Image.decode_sized
   Community.chunk_is_slice
   Connection.bare_takes_only_join
+  Community.order_total
+  PeopleLaws.present_iff
+  PeopleLaws.deviceCut_removal
+  ViewLaws.namesake_iff
+  Translate.covered
+  Cover.line_painted
+  Geometry.newest_visible
+  Surface.pinned_visible
+  Geometry.pinned_tap
+  SheetGeom.hit_iff
+  Pages.switcherOrder_complete
+  Pages.switcherOrder_sound
+  Text.visual_perm
+  Image.decode_sized
+  Engine.notice_iff
+  Engine.read_notice_iff
+  Engine.view_stable
+  Engine.eval_stable
+  LiveLaws.read_one_moment
+  NodeOffer.offer_split
+  Demand.next_visible
+  Demand.selected_within
+  Engine.window_rows
+  Engine.step_costs
+  Engine.Sync.owed_within
 
 /-! ## Not about running code yet: for contrast
 
-`converge` runs the node's code in a World (n nodes, a modelled network,
-plain frames, sessions opened by the harness), so tests/Wiring.lean
-counts it apart from the wired laws. -/
+tests/Wiring.lean counts these apart from the wired laws. `converge`
+runs the node's code in a World (a modelled network, plain frames,
+sessions the harness opens). The rest are models: what they are about
+does not run yet (the rows' heights tree, the board's passes, the
+schedulers' `Run.selected`, the message read), or their subject is a
+specification (`offer_runs`, `list_costs`). -/
 
-#headline Engine.World.Plain.converge
+#headline
+  Engine.World.Plain.converge
+  Heights.anchor_stable
+  Heights.T.find_spec
+  Heights.rows_cost
+  Live.World.settle_passes
+  ViewLaws.row_marked
+  NodeOffer.offer_runs
+  Engine.list_costs
+  Engine.Sync.Ingress.Prioritized.write_within
+  Engine.Sync.Inbox.Priority.write_within

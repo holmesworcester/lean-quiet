@@ -32,7 +32,8 @@ that file is the authority on which laws are about running code, and this
 one only shows a reader which parts of a surface are the app's. A
 definition is of the app if it runs, a type is if the app's code names it,
 and a predicate never is. Of the rest, a mirror that a `bridge` note's law
-proves equal to running code is *bridged*, and an `assume` note's name (the
+proves equal to running code is *bridged* (so is the cost meter, an
+`instrument` that an audited equation erases), and an `assume` note's name (the
 store model, a crypto contract) is *assumed*. What is left is spec-only:
 it exists to state laws (predicates, specifications). The spec-only and
 assumed parts are what a reviewer must read; the app's part is what the
@@ -269,7 +270,9 @@ unless standard), and its surface. The surface's size is
 `#spec_surface`'s. What to review is walked again, stopping at bridged
 mirrors (their bodies equal running code, by a law) and at assumptions
 (each is read once, in the README's "What is Assumed"); of it, the app's
-part is listed apart from the spec-only part. -/
+part is listed apart from the spec-only part. The cost meter (tests/wiring.txt's
+`instrument`s, which audited equations erase to the plain run) counts as
+bridged. -/
 elab "#headline " ids:ident+ : command => do
   let env ← getEnv
   let ents ← entries
@@ -278,7 +281,16 @@ elab "#headline " ids:ident+ : command => do
   let run := running env ents
   let app := appNames env run
   -- a mirror a bridge law proves equal to running code; an assumption
-  let bridges := (← notes "bridge").map fun (m, l) => (m, l.toName)
+  -- and the cost meter (an `instrument`, erased to the plain run by its
+  -- law), with its types (`Engine.CostT`) and their instances
+  let instruments := (← notes "instrument").map fun (m, l) => (m, l.toName)
+  let meterTypes : NameSet := instruments.foldl (fun s (m, _) =>
+    if env.contains m.getPrefix then s.insert m.getPrefix else s) {}
+  let isMeter := fun (c : Name) => meterTypes.contains c ||
+    (Meta.isInstanceCore env c && match env.find? c with
+      | some ci => ci.type.getUsedConstants.any meterTypes.contains
+      | none => false)
+  let bridges := (← notes "bridge").map (fun (m, l) => (m, l.toName)) ++ instruments
   let bridgedNames : NameSet := bridges.foldl (fun s (m, _) => s.insert m) {}
   let assumed : NameSet := (← notes "assume").foldl (fun s (n, _) => s.insert n) {}
   -- an instance of an assumed type (the store model's monad) is assumed too
@@ -286,7 +298,8 @@ elab "#headline " ids:ident+ : command => do
     (Meta.isInstanceCore env c && match env.find? c with
       | some ci => ci.type.getUsedConstants.any assumed.contains
       | none => false)
-  let stop := bridgedNames.foldl (·.insert ·) assumed
+  let isBridged := fun (c : Name) => bridgedNames.contains c || isMeter c
+  let stop := meterTypes.foldl (·.insert ·) (bridgedNames.foldl (·.insert ·) assumed)
   let mut allOff : NameSet := {}
   let mut allAssumed : NameSet := {}
   for id in ids do
@@ -303,11 +316,12 @@ elab "#headline " ids:ident+ : command => do
     let walk := ownSurface env thm stop
     let mine := walk.filter (ofApp env run app ·)
     let rest := walk.filter (!ofApp env run app ·)
-    let bridged := rest.filter bridgedNames.contains
-    let assumes := rest.filter fun c => isAssumed c && !bridgedNames.contains c
-    let off := rest.filter fun c => !bridgedNames.contains c && !isAssumed c
+    let bridged := rest.filter isBridged
+    let assumes := rest.filter fun c => isAssumed c && !isBridged c
+    let off := rest.filter fun c => !isBridged c && !isAssumed c
     let via := bridged.map fun c =>
-      s!"{nameStr c} ({", ".intercalate ((bridges.filter (·.1 == c)).map (nameStr ·.2))})"
+      let laws := (bridges.filter (·.1 == c)).map (nameStr ·.2)
+      s!"{nameStr c} ({if laws.isEmpty then "the meter" else ", ".intercalate laws})"
     let msg := s!"headline {thm}\n  at {file}:{line}\n" ++
       s!"  axioms: {showAll axs}{if bad.isEmpty then " (standard)" else ""}\n" ++
       s!"  surface: {full.size} definitions\n" ++
