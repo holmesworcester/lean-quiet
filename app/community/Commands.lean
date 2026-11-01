@@ -281,8 +281,6 @@ end Community
 namespace Community
 open Engine Codec
 
-@[extern "le_ed25519_verify"] opaque edVerify (pk msg sig : @& ByteArray) : Bool
-
 def ed25519 : Crypto := ⟨fun pk m s => edVerify pk m s, fun seed => (edKeypair seed).extract 0 32⟩
 
 def Device.named (name : String) : Device := Device.ofSeed (sha256 name.toUTF8)

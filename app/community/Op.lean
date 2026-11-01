@@ -152,6 +152,9 @@ open Engine Codec
 
 abbrev Key := ByteArray
 
+-- Signatures are the engine's Ed25519 (`Engine.Crypto`).
+export Engine.Crypto (edKeypair edSign edVerify)
+
 structure Crypto where
   verify : Key → ByteArray → ByteArray → Bool
   /-- The public key a 32-byte seed's key pair has. -/

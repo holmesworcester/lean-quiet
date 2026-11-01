@@ -49,25 +49,36 @@ Every op folder MUST have `Op.lean`, `Validate.lean`, `Proofs.lean` and `Tests.l
 
 **LAYOUT05 — Stable identities.** Canonical names MUST match registry identity, source location, workspace address and diagnostic labels. Wire tags, codec bytes, persisted IDs and public URLs MUST be explicitly defined. Moving source files MUST NOT change them.
 
-**LAYOUT06 — Enforced layout, after the move.** A named CI task MUST reject unknown file names under `app/`, an op without its folder, duplicate registrations, imports that break LAYOUT03, and a missing `Family.lean`. Code that names a kind MUST NOT stay in `engine/`; the workspace marks every engine file that imports `app/` or the app.
+**LAYOUT06 — Enforced layout.** A named CI task MUST reject unknown file names under `app/`, an op without its folder, duplicate registrations, imports that break LAYOUT03, and a missing `Family.lean`. Code that names a kind MUST NOT stay in `engine/`. `ci/layout.py` (`mise run layout:check`, `ci/local.sh layout`) does: eight names, an op folder with its validator, each family's `Family.lean` registering every op below it, imports down the tree or up to ancestors (a validator also to the `Op.lean` of each op it cites), across families only connection to community, and no engine module importing `app/`; one negative control per rule.
 
 ## Ownership map
 
-The full tree, with every file and whether it is planned or moves from main, is [OP_TREE.txt](OP_TREE.txt), generated from main `6d7bf2c00d71`. Its top level:
+The tree is on disk: [OP_TREE.txt](OP_TREE.txt) lists every folder and file, with planned ones marked. Its top level:
 
 ```text
-app/            the node's one family (Family.lean) and the root screen (Screen.lean: today App.lean)
-  community/    the root op; under it name/, profile/, key/wrap/, member/, channel/message/, emoji/
+app/            the root: the node's hooks and the app's live data (Commands.lean), the app (Screen.lean), laws over both (Proofs.lean)
+  community/    the root op and its family; under it name/, profile/, key/wrap/, device/, member/, channel/message/
   connection/   the handshake and sessions: eph, request, opened, connection, established, send, recv, given
-  device/       this device's keys: secret, endpoint
-  sync/         rbsr, have, want: wire ops that are never stored
   nav/          planned: navigation as an ephemeral op
   settings/     planned: appearance as a local op (today a side table, ThemeStore)
-engine/         what holds for every op type; Merkle.lean and MerkleCost.lean arrive from app/community
+engine/         what holds for every op type, sync and the Merkle tree among it
 platforms/      the shells and the headless twin
 ```
 
-Planned ops (`channel`, `draft`, `emoji`, `nav`, `appearance`) are marked as planned in the tree and in the workspace. Existing ops keep their tags and codecs.
+Planned ops (`channel`, `draft`, `emoji`, `nav`, `appearance`) are marked as planned in the tree and in the workspace. Existing ops keep their tags and codecs: the wire golden test (`tests/engine/WireGolden.lean`) pins every op type's bytes, ids and verdicts to main's before the cutover.
+
+### Recorded exceptions
+
+Where the tree departs from these requirements or from the planned tree, and why:
+
+- **`Family.lean` only at a family's root** (`community/`, `connection/`), not at every folder with children (LAYOUT02). A family's registry is one closed Lean sum of its ops' facts and bodies, with the codec and validator dispatch; an intermediate folder (`member/`, `channel/message/`) adds no op to it.
+- **`Tests.lean` planned.** Each op's tests are still the parts' suites in `tests/` (LAYOUT02); the tree marks every op's `Tests.lean` planned.
+- **Sync is in the engine** (`engine/sync/`), not `app/sync/`: hello, round, have and want hold for every op type and name no kind (LAYOUT.md's rule).
+- **A device's keys are community ops** (`community/device/secret`, `community/device/endpoint`), not a top-level `device/` family: their bodies are Community body constructors, cited by community ops.
+- **The connection family is flat.** Established cites the reply, the request and the ephemeral key, which do not nest in one chain; each validator imports the `Op.lean` of the ops it cites (ARCH04), and connection's family is over the community's facts too.
+- **Admit nests under approve** (`member/invite/request/approve/admit`): an admission cites the approvals it tallies. Authority as dependencies (an admin action citing its grant, no tally) is [issue #6](https://github.com/holmesworcester/lean-quiet/issues/6).
+- **Views hold their laws.** A `View.lean` or `Screen.lean` keeps the laws about its component beside it ([LAYOUT.md](LAYOUT.md)): the laws' modules are above the live data and the renderer, which the family's `Proofs.lean` is below.
+- **The root's `Screen.lean` is the whole app shell** (the former `App`, `AppTypes`, `AppLife` and the reader, pages and lifecycle), and the bootstrap model is a section of `community/Proofs.lean`: each source file is a section of its new file, with its own opens and variables.
 
 ## State components settings and emoji
 

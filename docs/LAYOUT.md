@@ -68,68 +68,79 @@ Everything else is an op.
 ## Tree
 
 ```
-engine/
-  core/        op, codec, ids, judging, store (SQLite and held), lists,
-               the ephemeral log, react (responders run to a fixpoint)
-  wire/        frames, couriers, the TCP runner, mDNS discovery
-  renderer/    the component tree, layout, text, images, QR decoding,
-               paint, and the API the platform shells implement
-ops/
-  sync/        hello, round, have, want: ephemeral ops and their
-               responders; RBSR's answer and fingerprints; the Merkle
-               cache
-  connection/  the handshake and sessions (eph, request, connection,
-               established, …)
-  community/
-    Community.lean   the family: the sum of its domains, laws across them
-    membership/  message/  reaction/  profile/  name/  blob/  link/  …
-  app/         ephemeral UI state: navigation, drafts, selection
-App.lean       the root component
+engine/          what holds for every op type; it imports nothing under app/
+  core/          op, codec, ids, judging, store (SQLite and held), lists,
+                 the ephemeral log, react; the Merkle tree; FIFO fairness
+  wire/          frames, couriers, the node and its TCP runner, Noise, mDNS
+  sync/          hello, round, have, want; RBSR's answer and fingerprints
+  renderer/      the component tree, layout, text, images, QR decoding,
+                 paint, and the API the platform shells implement
+app/             the op tree: one folder per op, nested by what it cites
+  Commands.lean  the node's hooks over both families; the app's live data
+  Screen.lean    the root component: the app
+  Proofs.lean    laws over the node and the whole app
+  community/     the root op (Op, Validate), its family (Family) and the
+                 laws, intents and screens across its ops; under it name/,
+                 profile/, key/wrap/, device/{secret,endpoint}/,
+                 member/{invite/request/approve/admit, admin, remove,
+                 join/{joining/abandon, accept}}/,
+                 channel/message/{reaction, receipt, attachment/chunk, draft}/
+  connection/    the handshake and sessions: eph, request, opened,
+                 connection, established, send, recv, given (its Family
+                 is over the community's facts too)
 platforms/
-  android/     the Android shell (activity, surface, IME, camera)
-  ios/         the iOS shell (UIKit, IOSurface ring, camera)
-  headless/    the scripted twin the tests drive
-  quietd/      the daemon: no screen, the runner and a store
+  android/  ios/  macos/  windows/  linux/  desktop/
+  headless/      the scripted twin the tests drive
+tests/           the axiom audit, the wiring audit, each part's suites
 docs/
 ```
 
-Each domain is two modules. `Message.lean` holds its fields, op types,
-relations, intents and validator laws. `Message/View.lean` holds its
-component, the component's laws and the end-to-end theorem. A daemon or
-a cloud node imports every op module and no view.
+**Eight file names.** Nothing else lives under `app/` (`ci/layout.py`):
+
+| File | What it holds |
+|---|---|
+| `Op.lean` | the op: its body, its fact, their codecs, the relations its fact is filed in, scope and claimed time |
+| `Validate.lean` | its validator: the facts it cites, typed, and the fact it produces |
+| `View.lean` | the component for the op's fact, and its laws |
+| `Commands.lean` | intents and responders over the ops in this folder and below |
+| `Screen.lean` | components that compose several ops, and their laws |
+| `Proofs.lean` | laws over the ops in this folder and below |
+| `Tests.lean` | tests of the ops in this folder (planned: today in `tests/`) |
+| `Family.lean` | the registry: the family's closed sum of its ops, the dispatch of codecs and validators to each op type, and what its laws and intents stand on |
+
+**Placement by what a declaration names.** A law, command or screen
+lives in the deepest folder that holds every op it names; a folder sees
+its own subtree and its ancestors, a validator the `Op.lean` of each op
+it cites. Siblings meet at their common ancestor: `message_authorized`
+(a message and its author's admission) is in `channel/message/`,
+`removal_cuts_off` at `community/`, the node's room laws at the root.
+A daemon or a cloud node imports `app/Commands.lean` and no screen.
 
 ## Where things are now
 
-Step 2 moved every file of the five repositories' packages into this
-tree with `git mv` (`git log --follow` follows each);
-`ci/reorg-map.tsv` lists where each went. A module's name is its path
-from the top (`engine/core/Codec.lean` is `engine.core.Codec`); the
-namespaces inside are unchanged.
+Step 2 moved every file of the five repositories' packages into the
+tree with `git mv`; `ci/reorg-map.tsv` lists where each went. The op
+tree's cutover (2026-10-31) split and merged them into one folder per op;
+`ci/optree-map.tsv` lists, for each file it removed, the files its
+declarations are in now. A module's name is its path from the top
+(`app/community/member/remove/Proofs.lean` is
+`app.community.member.remove.Proofs`); the namespaces inside are
+unchanged, except the Merkle tree's (`Merkle`, was `Community.Merkle`).
 
-| in the tree | what is there now |
-|---|---|
-| `engine/core/` | lean-engine's `Engine/` (op, codec, judging, the SQLite store, lists, purge; `Engine.lean` imports all of the engine and sync), and from `Engine/Sync/`: `Sync.lean` (the intake), `Held.lean` (the held store) and `Locality.lean` (a verdict depends only on the op's requirement closure; core's purge laws are proven from it) |
-| `engine/wire/` | lean-engine's `Engine/Sync/{Frame, Node, Tcp, Pair}`: frames, the node and its TCP runner; `mdns/`: lean-mdns |
-| `engine/renderer/` | lean-quiet's `Quiet/{Data, Row, Text, Font, Paint, Image, Qoi, Emoji, Geometry, Sheet, SheetGeom, Platform, Camera, Arrival}` and the laws about them only (`TextLaws`, `WrapLaws`); `qr/` and `pic/`: lean-qr |
-| `engine/sync/` | lean-engine's `Engine/Sync/{Fp, Round, RoundLaws, Wire, Conn, ConnLaws}`: rounds as functions, not yet ephemeral ops |
-| `app/connection/` | lean-engine's `Connection/` (`All.lean` imports all of it: `Connection.lean` is the connection op type); `bootstrap/`: lean-net's model, retired once its laws are re-proven over the two-node world |
-| `app/community/` | lean-engine's `Community/` as it was (`Facts.lean` not yet split by domain); lean-quiet's `Quiet/Kinds/*`, each its domain's view: `message/View.lean`, `profile/View.lean`, `reaction/View.lean`, `attachment/View.lean` (File), `membership/{Accepted,Request}View.lean`, and `link/View.lean` (the invite sheet, `Quiet/Link`); each view's laws beside it (`message/ViewLaws`, `reaction/RowLaws`, `attachment/ArrivalLaws`, `membership/RemovedLaws`) |
-| `app/app/` | lean-quiet's `Quiet/{Pages, Composer, Switch, Remove, PeopleLaws, Chaos}` (`Chaos` holds `Me`, the device's member in a community, besides the chaos generator) |
-| `App.lean` | lean-quiet's `Quiet/App`; beside it `Main.lean`, the app over the platform seam (every shell's main), and `Quiet.lean`, which imports every module of the app |
-| `platforms/android/`, `platforms/ios/` | lean-quiet's shells; `android/qr/`: lean-qr's camera harness |
-| `platforms/headless/` | lean-quiet's `host/` twin and its programs (`QTests/`) |
-| `platforms/quietd/` | not yet: lean-quiet's branch `daemon` |
-| `tests/` | `Axioms.lean`, the one axiom audit (every part's laws), and `check.sh`, its gate; each part's suites, fixtures and negative controls in `tests/<part>/` |
-| `docs/` | this file, `SYNC.md`, the parts' READMEs (`ENGINE.md`, `QR.md`, `MDNS.md`, `NET.md`) and `BUILD.md` |
-| `tools/`, `third_party/`, `assets/` | lean-quiet's and lean-qr's tools; the vendored SQLite; the app's fetched data (not committed) |
+- `app/community/Proofs.lean` imports the whole community subtree, and
+  `app/connection/Proofs.lean` the connection one: what imported a
+  family's umbrella imports these.
+- The bootstrap model (lean-net's) names only community ops: it is a
+  section of `app/community/Proofs.lean`, retired once its laws are
+  re-proven over the two-node world.
+- The app's live data (the store on SQLite, its writer, live answers,
+  the outbox) names the node's family: it is in `app/Commands.lean`.
+- `Main.lean` runs the app on a platform; `Quiet.lean` imports every
+  module of the app.
 
-lean-chat is not imported (archived as is).
-
-Imports that still cross the rule, for step 3: `engine/core/Engine.lean`
-imports `engine/sync`; `engine/wire/Node` imports `engine/sync/Conn`;
-`engine/renderer/Data` (the app's live data) imports the Community and
-Connection families; `app/community/membership/RemovedLaws` imports
-`App`.
+No engine module imports `app/`, and every import under `app/` goes down
+the tree, up to an ancestor, or to a cited op's `Op.lean`; across the
+families, only connection to community (`ci/layout.py`).
 
 ## Steps
 
@@ -141,14 +152,15 @@ Connection families; `app/community/membership/RemovedLaws` imports
    part, one CI. Module names are paths, so nothing collides (`Tests`
    is `tests.engine`, `tests.qr`, …).
 3. **Refactors, by their owners, after the join demo:**
-   - Community's `Facts.lean` split into domains;
+   - Community's `Facts.lean` split into domains (*done: each op's
+     `Op.lean` and `Validate.lean`*);
    - the views (each domain's `View.lean`, once `Kinds/*`) turned into
      components that read only their own fact;
    - sync's rounds turned into ephemeral ops;
    - the ephemeral log added to the engine.
-   - next, one folder per op: the [op tree](OP_TREE.txt), drawn in the
-     workspace (`mise run workspace:serve`) from main's sources, with the
-     rules in [OP_WORKSPACE_REQUIREMENTS.md](OP_WORKSPACE_REQUIREMENTS.md)
-     (LAYOUT01–06).
+   - one folder per op: *done (2026-10-31)*, the [op tree](OP_TREE.txt),
+     drawn in the workspace (`mise run workspace:serve`), with the rules
+     in [OP_WORKSPACE_REQUIREMENTS.md](OP_WORKSPACE_REQUIREMENTS.md)
+     (LAYOUT01–06) and `ci/layout.py` enforcing them.
 4. **Before the first push to the public repository,** scan every
    history for keys and tokens.

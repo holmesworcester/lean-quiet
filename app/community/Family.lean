@@ -1317,14 +1317,10 @@ structure Device where
   sk : ByteArray
   deriving Inhabited
 
-@[extern "le_ed25519_keypair"] opaque edKeypair (seed : @& ByteArray) : ByteArray
-
 /-- A device from a 32-byte seed (tests derive seeds from names). -/
 def Device.ofSeed (seed : ByteArray) : Device :=
   let kp := edKeypair seed
   ⟨kp.extract 0 32, kp.extract 32 96⟩
-
-@[extern "le_ed25519_sign"] opaque edSign (sk msg : @& ByteArray) : ByteArray
 
 /-- What a signer signs for an op with these requirements and body. -/
 def toSign (reqs : List Id) (b : Body) : ByteArray :=

@@ -349,9 +349,9 @@ Found on the way, in Conn (a3's):
   notice code.
 - **tests/engine SyncPair, TcpPair, HardenLib**: `rooms` hooks give
   `.sync` rooms.
-- **app/connection/RoomLaws.lean**: `rooms_trusted`, `rooms_cut` are
+- **app/Proofs.lean**: `rooms_trusted`, `rooms_cut` are
   restated over `sync c`; `rooms_model` over typed rooms.
-- **app/community/Query.lean and Connect.lean**: `live` counts an admission
+- **app/community/Commands.lean and Proofs.lean**: `live` counts an admission
   only if its device is live, so `allowPeer` (now by key), `members` and
   `recipients` follow the rule. `connect_iff`, `refuse_nonmember`,
   `removal_cuts_off`, `connect_admitted`, `members_iff` and
@@ -360,8 +360,8 @@ Found on the way, in Conn (a3's):
 
 ## Laws
 
-In engine/sync/NoticeLaws.lean, app/connection/RemovalLaws.lean,
-app/community/RemovalLaws.lean and app/community/Connect.lean, all over
+In engine/sync/NoticeLaws.lean, app/connection/Proofs.lean,
+app/community/Proofs.lean and app/community/Proofs.lean, all over
 the code that runs: Conn's steps on the model, the views, the
 validators and the intents. All are theorems in the axiom audit.
 
