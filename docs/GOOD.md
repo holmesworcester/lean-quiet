@@ -120,82 +120,63 @@ premises (`Net.Admits`); `Good` gives only the invariants they consume
 (`managed`, `owes`, `bounded`, `ix`, through the `_start` projections),
 and `want_reaches` can take them in one go as `good_node E m a`.
 
-## The serial gate: `Pieces` beyond `Plain`
+## The serial gate: `Pieces` for any setup (built)
 
-Today `Pieces` (engine/world/InvIx.lean) is fixed to a3's
-`Engine.Sync.Setup` (fixed rooms, plain frames) on `HeldM`, and the
-`onX_keeps` proofs unfold `HeldM.run`. The production node runs on
-`Connection.Execution.M` (`Memory → α × Memory`) with `Connection.hooks`,
-a catalog and a retry store. The next serial step generalizes `Pieces`
-to any `Setup` whose `run` is lawful, so the same `onX_keeps` proofs
-serve both, and the 49 duplicated `*_reads` lemmas (audit) go.
+engine/world/Pieces.lean proves a node invariant over every entry point
+once, for any World setup whose run is a run, under the node's own hooks,
+whatever they are. The plain World is its first instance; the production
+World on `Connection.hooks` is the next.
 
-The sketch, with a8's and 71's review folded in:
+- **`Lawful run`**: `run` is a monad morphism into state passing
+  (`run (pure a) s = (a, s)`, `run (x >>= f) s = run (f (run x s).1) (run x s).2`).
+  Instances: `Plain.lawful` (HeldM) and `Connection.Execution.lawful`
+  (`M`, the entropy tape included), both `rfl`.
+- **`MetaOnly run held p`**: p leaves the held store as it is
+  (`∀ s, held (run p s).2 = held s`); it may move only what a node
+  invariant ignores. A node invariant is `Φ : Node → Held F → Prop`,
+  read at `P.held s`, so it ignores the entropy cursor and
+  `Memory.retries` by construction. Bridges: `Plain.reads_meta` and
+  `Execution.reads_meta` (every `Reads` step is `MetaOnly`), and
+  `Execution.save_meta` (the production `retryStore.save`).
+- **`Pieces P i Φ`**: what Φ must survive at node i, each piece stated
+  over its whole run result (`Ok`), so a relation between a piece's start
+  and its result (`Steps`) can reuse the skeletons:
 
-```lean
-/-- `run` is a monad morphism into state passing. -/
-structure Setup.Lawful (P : Setup F M S) : Prop where
-  pure : ∀ (a : α) s, P.run (pure a) s = (a, s)
-  bind : ∀ (x : M α) (f : α → M β) s, P.run (x >>= f) s = P.run (f (P.run x s).1) (P.run x s).2
+  | Field | The piece |
+  |---|---|
+  | `write`, `store` | a write turn; storing (put, fanout, the react loop) |
+  | `recv`, `tick` | a payload or the clock on a session, on its connection with any rooms the hook gave (`c.carry rs`), then `apply` |
+  | `serve` | serving a queue, under any setting with the node's family and hooks (the tick serves on `afterActs`) |
+  | `sweep` | a catalog sweep, under the node's setting with any transport room |
+  | `opens`, `follow`, `flush` | opening a session; following the established (open, drop); handing out the outbox |
+  | `calls` | steps that leave the node as it is (`Call`): the hooks `rooms`, `openFrame`, `recv none`, `dial`, `retired`; sealing; `endSession`, the close-purge path. They may move the store; Φ must survive |
+  | `setAddr`, `heat`, `drop`, `sent`, `clear`, `retries` | pure node updates |
 
-/-- What a node invariant must survive, piece by piece, at node i of P. -/
-structure Pieces (P : Setup F M S) (i : Fin P.n) (Φ : Node → S → Prop) : Prop where
-  -- as today, with P.run for HeldM.run and (P.sync i) for S.sync s:
-  write : ∀ n ops s, Φ n s → Φ' (P.run (n.write (P.sync i) ops) s)
-  store : ∀ n ops mine s, Φ n s → Φ' (P.run (n.store (P.sync i) ops mine) s)
-  recv  : ∀ n cid c b now s, n.conn? cid = some c → Φ n s →
-            Φ' (P.run (do let rs ← (P.sync i).hooks.rooms cid
-                          let st ← Conn.recv … (c.setRooms rs) b now
-                          n.apply (P.sync i) cid st now) s)
-  tick  : …  -- the same with Conn.tickGive
-  -- the tick serves on `n.afterActs (P.sync i) out`, a different Sync
-  -- (room, retryRoom changed): keep today's form, any y with P's fam and hooks
-  serve : ∀ (y : Sync F M), y.fam = (P.sync i).fam → y.hooks = (P.sync i).hooks →
-            ∀ n cid now s, Φ n s → Φ' (P.run (n.serveOwed y cid now) s)
-  finish, setAddr, heat, drop, opens   -- as today
-  -- new: what production hooks do that the plain ones do not; names follow
-  -- the real split of Node.onTick / finish / onClose
-  follow  : ∀ n now s, Φ n s → Φ' (P.run (n.follow (P.sync i) now) s)    -- established → managed
-  react   : ∀ n s, Φ n s → Φ' (P.run (n.react (P.sync i)) s)             -- hooks' writes
-  dial    : ∀ n now s, Φ n s → Φ' (P.run (n.dialStore (P.sync i) now) s) -- dialed ops stored
-  sweep   : ∀ n cid s, Φ n s → Φ' (P.run (n.sweep (P.sync i) cid) s)     -- the catalog
-  retire  : ∀ n s, Φ n s → Φ' (P.run (n.retire (P.sync i)) s)            -- purge retired
-  closing : ∀ n addr s, Φ n s → Φ' (P.run (n.closePurge (P.sync i) addr) s) -- onClose's purge path
+- **The entry points, once** (`finish_keeps`, `onClose_keeps`,
+  `connect_keeps`, `onWrite_keeps`, `onSealed_keeps`, `onFrame_keeps`,
+  `onTickDirect_keeps`, `onTickReserved_keeps` with `sweepAll_keeps`,
+  `onTick_keeps`), and **`Pieces.local`**: `Lawful` + every node's
+  pieces + boot give `Local P Φ Φ` (engine/world/Good.lean).
+- **The plain instance**: `Plain.pieces` builds a plain node's `Pieces`
+  from the few its hooks reach (following, the outbox, the calls and the
+  sweep are the plain hooks': nothing established, no outbox, calls that
+  only read, no catalog). `managed_pieces`, `oq_pieces`, `ix_pieces` and
+  `bounded_pieces` are its instances; `Plain.always`, `managed_nil` and
+  `Plain.good_always` rest on `Pieces.local`.
+- **Teeth** (`dial_mutant_unindexed`, a negative control): a dial hook
+  that stores an op with a write turn of its own, never indexing it, has
+  no `Pieces` for the index's cover.
 
-/-- Effects that need no field, each by its own small law:
-- Reads (lane reads): rooms, sealFor (which may return none after a
-  size check), openFrame, retryKey, and Fresh's entropy draws.
-- MetaOnly (new, 71): the held store and index are unchanged, only
-  per-peer metadata moves: the catalog sweep's durable cursor
-  (`retryStore.save`, kept in `Memory.retries`).
-Φ must ignore the entropy cursor and `retries`. -/
-
-theorem Pieces.local (hP : P.Lawful) (h : ∀ i, Pieces P i (Φ i)) (boot : …) : Local P Φ Φ
-
-/-- The relational sibling (a8): progress facts are two-state relations,
-not invariants ("x waits no further back, or its op went out", the drain).
-R is reflexive and transitive; the fields are Pieces' with "R before after". -/
-structure Steps (P : Setup F M S) (i : Fin P.n) (R : Node × S → Node × S → Prop) : Prop where
-  refl : ∀ x, R x x
-  trans : ∀ x y z, R x y → R y z → R x z
-  write, store, recv, tick, serve, finish, setAddr, heat, drop, opens, …
-
-theorem Steps.local (hP : P.Lawful) (h : ∀ i, Steps P i (R i)) : Boxes P … R
-```
-
-(`Φ' (n, s)` abbreviates `Φ n.1.1 n.2` on a run's result.) With
-`Steps`, the drain (`step_waits`, `onTick_moves`, `onSealed_waits`)
-comes from per-piece facts in the production World too; a8 owns it when
-the gate opens.
-
-Order: lane reads' generic `Reads` and a `MetaOnly` sibling first; then
-`Setup.Lawful` with instances for `HeldM` and `Execution.M` (both `rfl`:
-pure state passing, the entropy tape included); then `Pieces` and `Steps`
-with the `onX` skeletons over `P.run`, replacing today's; then the
-production `Setup` (the n-node World on `Connection.hooks`, with crash
-recovery in `restart`), whose `Good` adds the production conjuncts
-above. 71 sequences it after its landings and sig-model phase 2. This
-lane does not start it: it gets its own brief.
+**Next:**
+1. The production `Pieces` instances for `Connection.hooks` on
+   `Execution.M` (holmes-71), from the `Reads`/`MetaOnly` hook laws and
+   the store's `Moves` for the purges (`endSession`, crash recovery).
+2. `Steps P i R`, the relational sibling over the same fields and
+   skeletons, so the drain comes from per-piece facts (holmes-a8).
+3. The production n-node `Setup`, with crash recovery in `restart`
+   (holmes-a8 and holmes-71).
+4. Drain-cap's idle turn at the start of `onTick`: a `carry` piece
+   (holmes-0f, on drain-cap's landing).
 
 ## Drain-cap: what "settled" means
 
