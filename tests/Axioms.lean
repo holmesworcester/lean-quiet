@@ -12,6 +12,9 @@ import engine.wire.IngressChurnLaws
 import app.Proofs
 import app.settings.appearance.Proofs
 import app.settings.appearance.Commands
+import app.nav.Commands
+import app.nav.View
+import app.nav.Proofs
 import engine.renderer.Demand
 
 
@@ -967,7 +970,25 @@ end cost
 #print axioms Engine.left_status
 #print axioms Engine.rightKey_of
 #print axioms Engine.top_right
-#print axioms Quiet.node_app
+#print axioms Quiet.node_settings
+#print axioms Quiet.node_nav
+#print axioms Quiet.node_nav_ephemeral
+#print axioms Engine.intake_durable
+#print axioms Engine.durable_of_room
+#print axioms Engine.stored_durable
+#print axioms Settings.Appearance.query_only
+#print axioms Nav.place_valid
+#print axioms Quiet.node_nav_kind
+#print axioms Nav.query_only
+#print axioms Data.placeIn_newest
+#print axioms App.withNav_cache
+#print axioms Engine.Sync.run_eval
+#print axioms Engine.Sync.ofOps_reach
+#print axioms Engine.Sync.ofOps_rest
+#print axioms Engine.Sync.ofOps_inv
+#print axioms Engine.Sync.ofOps_ops
+#print axioms Engine.Sync.ofOps_valid
+#print axioms Engine.Sync.ofOps_from
 #print axioms Quiet.node_left
 #print axioms Connection.removal_cuts_off_node
 #print axioms Connection.members_iff_node

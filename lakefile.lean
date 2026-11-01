@@ -67,6 +67,9 @@ lean_lib Pic where
 @[default_target] lean_lib Settings where
   globs := #[.submodules `app.settings]
 
+@[default_target] lean_lib Nav where
+  globs := #[.submodules `app.nav]
+
 @[default_target] lean_lib Node where
   roots := #[`app.Family, `app.Commands]
 

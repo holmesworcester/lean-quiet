@@ -215,14 +215,10 @@ instrument Engine.Counted.cost Engine.Counted.cost_run
 
 ## Bridges: a mirror, and the law that proves running code equal to it
 
-bridge Engine.stepS Engine.run_step
-bridge Engine.drainS Engine.run_drain
-bridge Engine.ingestS Engine.run_ingest
 bridge Engine.ingestAll Engine.run_ingestEach
-# The purge: the running `purge` on the model's tables is `purgeS`, and
-# what it returns, the ops it deleted, is `purgeSet`.
-bridge Engine.purgeS Engine.run_purge
-bridge Engine.purgeSet Engine.run_purge
+# The model's step, drain, ingest and purge (stepS, drainS, ingestS,
+# purgeS, purgeSet) run themselves since the app's ephemeral log
+# (Held.ofOps) does: no bridge needed for them.
 bridge Engine.View.eval Engine.View.run_model
 bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
 # A want reply's read program: the running interpreter's answer is the
