@@ -13,6 +13,11 @@
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
   <!-- Join with QR code -->
   <uses-permission android:name="android.permission.CAMERA" />
+  <!-- Notifications (Notifications.java), and sync in the background
+       (SyncService.java: a dataSync foreground service, as libquiet's) -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
   <uses-feature android:name="android.hardware.camera.any" android:required="false" />
   <application android:label="@LABEL@" android:hasCode="true"
       android:extractNativeLibs="true"
@@ -29,11 +34,22 @@
         <category android:name="android.intent.category.BROWSABLE" />
         <data android:scheme="leanquiet" android:host="join" />
       </intent-filter>
+      <!-- Messages: a notification's tap opens leanquiet://open/… -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:scheme="leanquiet" android:host="open" />
+      </intent-filter>
       <meta-data android:name="android.app.lib_name" android:value="leanapp" />
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.LAUNCHER" />
       </intent-filter>
     </activity>
+    <service android:name="com.holmes.leanquiet.SyncService" android:exported="false"
+        android:foregroundServiceType="dataSync" android:stopWithTask="false" />
+    <provider android:name="com.holmes.leanquiet.NotificationImages"
+        android:authorities="@PACKAGE@.notifications" android:exported="false"
+        android:grantUriPermissions="true" />
   </application>
 </manifest>

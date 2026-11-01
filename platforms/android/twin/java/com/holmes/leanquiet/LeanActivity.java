@@ -360,6 +360,12 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
         | android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     active = this;
     deliverLink(getIntent());
+    // Notifications (Android 13+ asks; libquiet asks the same way)
+    if (android.os.Build.VERSION.SDK_INT >= 33
+        && checkSelfPermission("android.permission.POST_NOTIFICATIONS")
+            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+      requestPermissions(new String[] {"android.permission.POST_NOTIFICATIONS"}, 8);
+    }
     reportAppearance(getResources().getConfiguration());
     getWindow().setDecorFitsSystemWindows(false);
     getWindow().setStatusBarColor(Color.TRANSPARENT);
@@ -519,6 +525,19 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
       edit.setText(t);
       edit.setSelection(t.length());
     });
+  }
+
+  /** From native (Lean's thread): one notification card packet, queued
+   * for Notifications' own thread. */
+  public void notifyPacket(byte[] json) {
+    Notifications.post(this, new String(json, java.nio.charset.StandardCharsets.UTF_8));
+  }
+
+  /** From native: sync in the background on or off (SyncService); this
+   * device has it. */
+  public boolean setSync(boolean on) {
+    SyncService.set(this, on);
+    return true;
   }
 
   /** From native (any thread): puts text on the clipboard. */

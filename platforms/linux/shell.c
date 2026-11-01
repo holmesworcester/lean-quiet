@@ -606,6 +606,11 @@ static void links_start(void) {
     }
     fail("another instance holds this database and does not answer");
 }
+// Notifications and background sync are Android's (docs/NOTIFICATIONS.md):
+// this shell has neither.
+lean_obj_res lq_notify(b_lean_obj_arg json) { (void)json; return lean_io_result_mk_ok(lean_box(0)); }
+lean_obj_res lq_service(uint8_t on) { (void)on; return lean_io_result_mk_ok(lean_box(0)); }
+
 lean_obj_res lq_links(void) {
     int c;
     while (links.fd >= 0 && (c = accept4(links.fd, NULL, NULL, SOCK_CLOEXEC)) >= 0) {
