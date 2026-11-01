@@ -61,6 +61,9 @@ def main : IO UInt32 := do
       ("frame", frameInput), ("tick", .tick), ("close", .close (setup.addr .a))] do
     t.ok s!"{label}: native premises apply full handler retention and settling"
       (eventCertificate scene input).isSome
+  t.ok "actual tick visits catalog and emits a bounded retry frame"
+    (((Connection.retryKey cid : M _) p.memory).1.any (fun peer => (ticked.2.retries peer).isSome) &&
+      ticked.1.2.serve > 0)
   t.ok "actual write stores and validates new shared message"
     (written.2.held.db.ops scene.recoveryMessage.id == some scene.recoveryMessage &&
       isValid written.2 scene.recoveryMessage)

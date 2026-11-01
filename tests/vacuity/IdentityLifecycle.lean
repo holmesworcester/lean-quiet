@@ -171,7 +171,18 @@ instance heldFresh : Fresh (Sync.HeldM F) := ⟨fun h => (sha256 "vacuity-frame-
 theorem heldFreshReads : Sync.Reads (Fresh.fresh : Sync.HeldM F ByteArray) := fun _ => rfl
 
 def bobAddr := "127.0.0.1:7448".toUTF8
-def syncA : Sync.Sync F (Sync.HeldM F) := { fam, cfg := {}, hooks := hooks fam sodium addr }
+def syncA : Sync.Sync F (Sync.HeldM F) :=
+  { fam, cfg := {}, hooks := hooks fam sodium addr, catalog := some (Sync.Catalog.held fam) }
+theorem catalogReads : ∀ cat, syncA.catalog = some cat →
+    Sync.Reads cat.ceiling ∧ ∀ i, Sync.Reads (cat.read i) := by
+  intro cat hc
+  cases hc
+  exact ⟨fun _ => rfl, fun _ _ => rfl⟩
+theorem retryStoreReads : ∀ store, syncA.retryStore = some store →
+    (∀ peer, Sync.Reads (store.load peer)) ∧ (∀ peer cursor, Sync.Reads (store.save peer cursor)) := by
+  intro store hs
+  cases hs
+
 def heldCut (s : Session) : Sync.Held F := { log := cutOps s, db := run (cutOps s) }
 def nodeA (s : Session) : Sync.Node :=
   { Sync.Node.boot fam (cutOps s) 0 with
@@ -193,10 +204,10 @@ def removalReachesSession (s : Session) := do
   let ⟨hl⟩ ← liveIn s
   let ⟨hr⟩ ← refused s
   pure (PLift.up (And.intro (And.intro hl hr)
-    (removal_reaches_session heldFreshReads syncA sodium addr rfl (.tick 100) (nodeA s) (heldCut s))))
+    (removal_reaches_session heldFreshReads syncA sodium addr rfl catalogReads retryStoreReads (.tick 100) (nodeA s) (heldCut s))))
 
 def entryFresh (s : Session) :=
-  PLift.up (Sync.entry_fresh (hooks_readOnly heldFreshReads syncA sodium addr rfl) (.tick 100) (nodeA s) (heldCut s))
+  PLift.up (Sync.entry_fresh (hooks_readOnly heldFreshReads syncA sodium addr rfl catalogReads retryStoreReads) (.tick 100) (nodeA s) (heldCut s))
 
 def noticeStep (s : Session) :=
   (((Sync.Conn.open false [c] 0 0).conn.carry ((roomsV s.reply.id).eval (run (cutOps s)))).filedGive
@@ -205,6 +216,10 @@ def noticeStep (s : Session) :=
 def main : IO UInt32 := do
   let t ← Checks.new
   let some s := session | IO.eprintln "Could not construct real Noise session"; return 1
+  t.ok "durable retry identity is the authenticated peer key"
+    (((Connection.retryKey s.reply.id : Sync.HeldM F _).run (heldCut s)).1 == some pkB)
+  t.ok "unknown session has no durable retry identity"
+    (((Connection.retryKey "unknown-session".toUTF8 : Sync.HeldM F _).run (heldCut s)).1.isNone)
   t.ok "rooms cut at combined node" (roomsCutNode s).isSome
   t.ok "removed peer only receives notice" (removedGetsOnlyNotice s).isSome
   t.ok "whole tick: trust rule refuses Bob where it starts" (removalReachesSession s).isSome
@@ -213,6 +228,13 @@ def main : IO UInt32 := do
     ((tickA s).1.2.send.any fun (a, p) => a == bobAddr && p[0]? == some Sync.sealedTag)
   t.ok "whole tick's frame carries the removal" ((tickPayloads s).any (·.id == removeB.id))
   t.ok "whole tick's frame excludes Bob's message" (!(tickPayloads s).any (·.id == message.id))
+  let entries := Sync.Catalog.shared fam (heldCut s)
+  let atMessage : Sync.Sweep := { after := entries.idxOf message, high := entries.length, active := true }
+  let retryNode := { nodeA s with sweeps := [(s.reply.id, atMessage)] }
+  let retry := (retryNode.sweep syncA s.reply.id).run (heldCut s)
+  t.ok "catalog retry rechecks removal before emitting an otherwise retained message"
+    (entries.contains message && retry.1.2.send.isEmpty && retry.1.2.serve.isEmpty &&
+      retry.1.1.sweeps.any (fun p => p.1 == s.reply.id && p.2.after == atMessage.after + 1))
   t.ok "notice then cut" (noticeThenCut s).isSome
   t.ok "pending join dials" (rejoinDials s).isSome
   t.ok "admitted node reconnects" (reconnectDials s).isSome
