@@ -81,7 +81,14 @@ theorem recv_bounded (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b 
         simp only [HeldM.run_pure]
         rw [(onRbsr_owed cfg ix _ r k cs now).1]; exact hb
       | hold r ids =>
-        simp only [HeldM.run_bind, HeldM.run_pure]
+        dsimp only
+        split
+        · -- an empty have asks for a round (`Conn.onAsk`): the queue is unchanged
+          simp only [HeldM.run_pure]
+          obtain ⟨rs, e⟩ := Conn.onAsk_eq ({ c with heard := now } : Conn) r
+          rw [e]
+          exact hb
+        try simp only [HeldM.run_bind, HeldM.run_pure]
         simp only [show ∀ m : HeldM F Step, m.run h = m h from fun _ => rfl]
         rw [onHold_apply]
         split

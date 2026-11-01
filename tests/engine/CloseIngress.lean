@@ -55,12 +55,17 @@ def notice (dir : String) : IO (Peer × Peer × Id × Op × Sock) := do
   let removal ← view a0 (removeMember c user (JoinFair.device "A"))
   let some op := removal.ops.head? | throw (IO.userError "missing signed removal")
   submit a0 removal.ops
+  let some source := a0.state.value.socks.head? | throw (IO.userError "missing sending socket")
   let mut a := a0
   for _ in [0:8] do
     a ← tick a
     if a.state.value.node.conns.isEmpty then break
   unless a.state.value.node.conns.isEmpty do throw (IO.userError "source did not retire")
   unless ← captureOnly b (frameIs b op) do throw (IO.userError "signed removal did not enter actual mailbox")
+  -- Then the source's transport fails outright, as when its process dies:
+  -- its retirement alone ends gracefully (`Tcp.linger`) and resets nothing.
+  let some cap := source.aborter | throw (IO.userError "sending socket lacks abort")
+  unless ← cap.abort do throw (IO.userError "sending socket abort failed")
   return (a, b, c, op, sock)
 
 def freezeHub (t : Checks) : IO Unit := do
@@ -259,14 +264,24 @@ def handlerFailure (t : Checks) (dir : String) (database : Bool) : IO Unit := do
 
 end CloseIngress
 
+/-- Exit directly, never by returning: a case that throws leaves its peers'
+socket writers waiting, and the runtime waits for every task before an
+ordinary return, so a thrown fixture error hung instead of failing. -/
 def main (args : List String) : IO UInt32 := do
-  let dir := args.headD "out/close-ingress/manual"
-  let t ← Tests.Checks.new
-  CloseIngress.freezeHub t
-  CloseIngress.retained t (dir ++ "/closed") false
-  CloseIngress.retained t (dir ++ "/reap") true
-  CloseIngress.invalid t (dir ++ "/invalid")
-  CloseIngress.localRemoval t (dir ++ "/local-removal")
-  CloseIngress.handlerFailure t (dir ++ "/sqlite-error") true
-  CloseIngress.handlerFailure t (dir ++ "/notification-error") false
-  t.finish "close-ingress"
+  try
+    let dir := args.headD "out/close-ingress/manual"
+    let t ← Tests.Checks.new
+    CloseIngress.freezeHub t
+    CloseIngress.retained t (dir ++ "/closed") false
+    CloseIngress.retained t (dir ++ "/reap") true
+    CloseIngress.invalid t (dir ++ "/invalid")
+    CloseIngress.localRemoval t (dir ++ "/local-removal")
+    CloseIngress.handlerFailure t (dir ++ "/sqlite-error") true
+    CloseIngress.handlerFailure t (dir ++ "/notification-error") false
+    let result ← t.finish "close-ingress"
+    (← IO.getStdout).flush
+    IO.Process.exit result.toUInt8
+  catch e =>
+    IO.eprintln s!"close-ingress fixture threw: {e}"
+    (← IO.getStderr).flush
+    IO.Process.exit 2

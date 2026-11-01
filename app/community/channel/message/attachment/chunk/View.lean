@@ -35,7 +35,7 @@ def slices (raw : List ByteArray) : Option (List ByteArray) :=
   raw.mapM fun b => do
     let o ← Op.decode b
     match (Codec.decode o.body : Option Community.Body) with
-    | some (.chunk _ _ _ slice _) => some slice
+    | some (.chunk _ _ _ _ slice _) => some slice
     | _ => none
 
 def source (p : Row.Pic) (raw : List ByteArray) : Option Image.Src :=

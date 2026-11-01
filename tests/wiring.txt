@@ -106,6 +106,20 @@ wired Nav.depth
 wired NavLaws.backs_nav
 wired Engine.Sync.top_perm
 wired Engine.Sync.lbl_perm
+spec Engine.Sync.lows The items below a key: what a split's left half holds.
+spec Engine.Sync.within The items of a range: what `answer` and `opening` read, which the running `Index.answer`/`Index.opening` equal on the room's treap (`Index.answer_eq`, `Index.opening_eq`).
+spec Engine.Sync.fp A range's fingerprint, its count and label: the room treap's size and label of the range (`rangeT_canon`, `label_canon`).
+spec Engine.Sync.lbl The Merkle label of a set's canonical treap: what the running treap's nodes carry (`label_canon`).
+spec Engine.Sync.pres The byte strings a label hashes, for stating collision freedom.
+spec Engine.Sync.cutsOf Where `answer` cuts a range: what the running answer reads by rank (`cutsT_canon`).
+spec Engine.Sync.pick Every s-th item of a list: `cutsOf`'s, as ranks (`pick_steps`).
+spec Engine.Sync.Range.has Whether a key is in a range: the filter `within` names.
+spec Engine.Sync.ins A sorted list with an item, once: the room's items after an insert (`RoomTree.items_add`).
+spec Engine.Sync.highs The items at or above a key: what a split's right half holds.
+spec Engine.Sync.tally The claims a round answers within n answers on any path, counted over `answer`, the running `Index.answer`'s (`Index.answer_eq`).
+spec Engine.Sync.delta The items on one side only.
+spec Engine.Sync.Treap.height A tree's height: the measure its cost bounds are in.
+spec Engine.Sync.height The height of a list's canonical treap: the measure the depth hypothesis is about (tests/scale measures it).
 ## Component demand: these laws must keep naming running decisions.
 bridge Demand.Plan.held Demand.heldIndex_agrees
 wired Demand.heldIndex_agrees
@@ -123,6 +137,8 @@ wired Community.connect_iff
 wired Community.removal_cuts_off
 wired Connection.Noise.Symbolic.kk_secret
 wired Connection.Noise.Symbolic.kk_forward_secret
+wired Connection.Noise.Symbolic.kk_authentic
+wired Connection.Noise.Symbolic.kk_authentic_resp
 
 # Removal (docs/REMOVAL.md): the node's key, the cut, the notice over the
 # running Node and Conn step, and the rejoin
@@ -216,19 +232,24 @@ instrument Engine.cr Engine.cr_erase
 
 ## Bridges: a mirror, and the law that proves running code equal to it
 
-bridge Engine.stepS Engine.run_step
-bridge Engine.drainS Engine.run_drain
-bridge Engine.ingestS Engine.run_ingest
 bridge Engine.ingestAll Engine.run_ingestEach
-# The purge: the running `purge` on the model's tables is `purgeS`, and
-# what it returns, the ops it deleted, is `purgeSet`.
-bridge Engine.purgeS Engine.run_purge
-bridge Engine.purgeSet Engine.run_purge
+# The model's step, drain, ingest and purge (stepS, drainS, ingestS,
+# purgeS, purgeSet) run themselves since the app's ephemeral log
+# (Held.ofOps) does: no bridge needed for them.
 bridge Engine.View.eval Engine.View.run_model
 bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
+bridge Engine.Sync.answer Engine.Sync.Index.answer_eq
+bridge Engine.Sync.opening Engine.Sync.Index.opening_eq
+bridge Engine.Sync.answerT Engine.Sync.val_answerTM
+bridge Engine.Sync.openingT Engine.Sync.val_openingTM
+bridge Engine.Sync.rangeT Engine.Sync.val_rangeTM
+bridge Engine.Sync.Treap.insert Engine.Sync.val_insertM
+bridge Engine.Sync.Treap.split Engine.Sync.val_splitM
 # A want reply's read program: the running interpreter's answer is the
 # trace's (the trace's read list follows the same program, read by read).
 bridge Engine.Sync.Read.trace Engine.Sync.Read.run_model
+bridge Engine.Sync.RoundRun.State.result Engine.Sync.RoundRun.result_eq
+bridge Engine.Sync.RoundRun.State.items Engine.Sync.RoundRun.items_eq
 # The bytes a validator checks a signature over (each op type's
 # `signedBy o b.unsigned`, the family's `signed` by `signedBy_ofX`) are the
 # bytes the writer signs (`toSign`, in `sig`).
@@ -237,6 +258,7 @@ bridge Community.signed Community.signed_eq
 ## Specifications
 
 spec Engine.specAt The spec's verdict on an op, which judging is proven to reach.
+spec Engine.Sync.Claim.range The range a claim is about: the newest-first laws state the order of a message's claims (claimsOf, which onRbsr sends) against it.
 spec Connection.community The node's Community part: the Community ops its store holds, with Community's own verdicts (sum_project states the node's views against it).
 spec Engine.DB.proj A store's part of one family: its ops, with that family's own verdicts over them.
 spec Engine.leftOps The ops of a store whose kinds a family owns.
@@ -247,6 +269,12 @@ spec NodeOffer.run A run of the app's sends and frames' re-offers, against the n
 spec NodeOffer.submitted The writes a run submits, in order.
 spec Engine.Sync.pres The byte strings a label hashes, for the no-collision hypothesis.
 spec Engine.Sync.Msg.offers The ids a sync message offers.
+spec Engine.Sync.returnedClaims The claims a round message carries, read off a step's actual sends.
+spec Engine.Sync.nextClaims The claims among a batch's answers.
+spec Engine.Sync.roundWants The ids a batch's answers want.
+spec Engine.Sync.roundHolds The ids a batch's answers offer.
+spec Engine.Sync.RoundRun.outputs A batch's answers, as `answer` gives them over a list of items.
+spec Engine.Sync.RoundRun.rankIn A claim's rank over a bounding list of items, for a round's bound.
 spec Engine.Sync.replyBytes A reply's payload bytes, for its bound.
 spec Engine.Sync.largestOp A reply's largest op, for its bound.
 spec Merkle.treeInputs A file's Merkle tree inputs, for the no-collision hypothesis.
@@ -285,7 +313,7 @@ spec Engine.Win.has Whether a window holds a row filed under a key at a position
 ## Subjects the heuristic takes too much of
 
 # The running round's answer to a claim, stated against the round's model.
-subject Engine.Sync.conn_answers_ids Engine.Sync.Conn.onRbsr Engine.Sync.within Engine.Sync.named Engine.Sync.chunks
+subject Engine.Sync.conn_answers_ids Engine.Sync.Conn.onRbsr Engine.Sync.named Engine.Sync.chunks
 
 ## The World: the running node's code, two nodes (engine/wire/World.lean),
 ## over a modelled network and plain transport
@@ -315,6 +343,7 @@ world Connection.Execution.dequeued = Connection.Execution.fairRun
 ## Negative controls: mutants, each kept only to show the old shape breaks
 ## its law (a budget, or freshness). Their laws are counted apart.
 
+control Engine.Sync.Conn.workShipped `Conn.work` as main shipped it until event rounds (b4d103a): the dialer rounds only on its connection-wide timer, the responder never asks; it breaks `responder_asks` and `round_due` (`shipped_responder_silent`, `shipped_dialer_waits`).
 control Merkle.rootAndProofsSlowM Every proof rebuilding its siblings, as before the levels: over `rootAndProofs_hashes`' budget (`slow_over_budget`).
 control Engine.Codec.digitsSlowM A number's digits a byte at a time, as before the halves: over the digits' budget (`slow_digits_over_budget`).
 control Engine.Codec.decBytesListM A byte string the list codec's way: over the bytes' budget (`slow_bytes_over_budget`).
@@ -322,6 +351,7 @@ control Engine.Codec.readAllM = Engine.Codec.decBytesListM
 control Pics.imageV `image` with the old `decoded`, as it shipped: over the frame's budget (`imageV_over_budget`).
 control PeopleLaws.removedShipped An entry's removed mark as 59fa463 shipped it, from two reads that need not agree: removed with no removal read (`shipped_removed_without_removal`).
 control Community.approveWrapAll An approval that wraps the key to every member: wraps to a non-member (`wrapAll_over`).
+control Ttf.Memo.shifted A glyph table one key off: no table of its function has its pages (`shifted_not_exact`).
 control Live.Gated.quiet A frame gated on notices: stale for ever (`gated_stale`); its example world (`w5`) shows the ungated frame fresh.
 control Live.Gated.w5 = Live.Gated.quiet
 control Connection.retiredShipped `retired` as shipped until fs-erase, reading `allSessions`: a dialer that crashed between `onFrame`'s two writes held a session neither open nor retired, its keys kept for good (`shipped_retired_misses`); tests/engine/ConnectionCheck.lean reproduces it on SQLite.
@@ -339,32 +369,13 @@ control Engine.Mutants.w5 = Engine.Mutants.σ
 control Engine.Mutants.wk = Engine.Mutants.σ
 control Engine.Mutants.keyNotified = Engine.Mutants.σ
 control Engine.Mutants.rawNotified = Engine.Mutants.σ
+control Connection.Noise.Symbolic.read1Slip `read1` with `ss` from the initiator's ephemeral instead of its static, a one-letter slip: with both statics secret and no honest calls, the attacker writes a message 1 it accepts as from the initiator (`read1Slip_forged`), where `read1` accepts none (`kk_authentic_resp`).
 
 ## What would make each model real, most valuable first (the README's order)
 
 todo Engine.Sync.exchange conn_runs_exchange now connects exchange's missing IDs to exact alternating onRbsr batches and proves termination under snapshot/fingerprint/capacity premises. Still needed: embedding uninterrupted rounds and directed announcements in the full Node/TCP execution across timeouts and capped windows.
 todo Community.recipients The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission.
 todo Community.members = Community.recipients
-todo Net.Scene.approval Native scene certificates, an infinite fair/ideal model run, and a successful production-node trace with a fair continuation are proved and tested. conn_runs_exchange and closure_delivered now prove handler progress components. Whole-bootstrap convergence for every suitably fair app execution still needs their composition and native store/transport refinement.
-todo Net.Scene.init = Net.Scene.approval
-todo Net.Scene.adm = Net.Scene.approval
-todo Net.Scene.answer = Net.Scene.approval
-todo Net.Scene.c = Net.Scene.approval
-todo Net.Scene.hello = Net.Scene.approval
-todo Net.Scene.inv = Net.Scene.approval
-todo Net.Scene.K = Net.Scene.approval
-todo Net.Scene.link = Net.Scene.approval
-todo Net.Scene.req = Net.Scene.approval
-todo Net.Scene.r = Net.Scene.approval
-todo Net.Scene.S = Net.Scene.approval
-todo Net.Scene.rootMessage = Net.Scene.approval
-todo Net.Scene.invitationMessage = Net.Scene.approval
-todo Net.Scene.requestMessage = Net.Scene.approval
-todo Net.Scene.approvalMessage = Net.Scene.approval
-todo Net.FairExecution.run = Net.Scene.approval
-todo Net.sent = Net.Scene.approval
-todo Net.step = Net.Scene.approval
-todo Net.table = Net.Scene.approval
 bridge SheetGeom.Grid.ctop SheetGeom.lineOf_ctop
 todo Engine.Sync.keeps The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s.
 todo Pic.add The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code.
@@ -386,8 +397,7 @@ todo Engine.Subs.ofList = Screen.Frame.wants
 todo Pics.after Legacy picture-door model (`PicM`); the app now uses owned Reader wants and Work.Pool continuations. Restate these cost/settling laws over that running path, including decode-unit bounds.
 todo Pics.costIn = Pics.after
 
-# Noto: measured payload is a specification of the retained running cache.
-spec Ttf.Cache.payload The sum of retained bitmap bytes, measured on the running cache for its payload bound.
+# Noto.
 wired Ttf.byte_in_bounds
 wired Ttf.cmap_entry
 wired Ttf.lookup_singleton
@@ -400,11 +410,9 @@ wired Ttf.checked_valid
 wired Ttf.raster_valid
 wired Ttf.ink_witness
 wired Ttf.raster_pixel
-wired Ttf.Cache.empty_valid
-wired Ttf.Cache.checked_valid
-wired Ttf.Cache.put_bound
-wired Ttf.Cache.payload_le_bytes
-wired Ttf.Cache.put_payload_bound
+wired Ttf.Memo.Table.get_eq
+wired Ttf.Memo.compact_eq
+wired Ttf.Memo.bitmap_eq_fast
 todo Live.Board.apply The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`.
 todo Live.World.afterActs = Live.Board.apply
 todo Live.World.commit = Live.Board.apply

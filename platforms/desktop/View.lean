@@ -109,21 +109,21 @@ def content (w h : Nat) (ls : Layers) (background : Color := Row.bg) : Bitmap :=
   ⟨w, Translate.compose ls.placement (ls.placement[15]?.getD 0).toInt32 h
     (solid background w) ls.list ls.top ls.bot ls.hold, #[]⟩
 
-/-- The conversation as App lays it out, for the scrollbar's ranks. -/
+/-- The conversation as App lays it out, for the scrollbar's ranks: the
+window's roots' heights (each root's cells, as `bottoms` has them), beneath
+the roots not loaded. -/
 def column (s : App.St) : _root_.Scrollbar.Col :=
-  ⟨App.bottomPad, App.est, s.newer, s.older, s.ids.map (App.heightOf s ·.2)⟩
-
-/-- The scroll offset a rank is dragged to: the end of that many messages
-from the newest, or the oldest end once the screen would show it all. -/
-def seekOffset (s : App.St) (q : Nat) : Nat :=
-  let c := column s
-  let (n, k, _) := _root_.Scrollbar.ranks c s.b (App.geom s).viewNow
-  let top := (App.bottoms s).2 - (App.geom s).viewNow
-  if q + k ≥ n then top else min top (_root_.Scrollbar.offsetOf c q)
+  let (hs, _) := s.ids.foldl (init := (#[], (none : Option ByteArray))) fun (hs, last) (_, x) =>
+    let root := s.cellRoot.getD x x
+    if last == some root && !hs.isEmpty then (hs.modify (hs.size - 1) (· + App.heightOf s x), last)
+    else (hs.push (App.heightOf s x), some root)
+  ⟨App.bottomPad, App.est, s.newer, s.older, hs⟩
 
 def scrollbar (g : Layout) (s : App.St) : Option Scrollbar.Bar :=
   if g.main.w == 0 || g.context.w > 0 || s.page != .chat || s.sheet.isSome then none else
   let (n, k, r) := _root_.Scrollbar.ranks (column s) s.b (App.geom s).viewNow
+  -- while a seek is pending the thumb is where the drag put it
+  let r := match s.seek with | some (q, _) => q | none => r
   Scrollbar.layout (g.main.x + g.main.w) (App.geom s).top (App.geom s).viewNow (App.bottoms s).2 n k r s.dim.dpi
 
 /-- Native scrolling covers only the visible conversation, never fixed chrome

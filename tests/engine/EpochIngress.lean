@@ -132,6 +132,15 @@ def removalCase (t : Checks) (dir : String) : IO Unit := do
       !(← view a (allowPeer c (JoinFair.nodeKey "B"))))
   t.ok "retirement cancels the old admitted target without applying unauthorized traffic"
     (!(← has a target) && (← pending a).isEmpty)
+  -- The peer is still writing (replies to frames it has not yet handled),
+  -- as when it lost the notice: a reset would fail its writer, and a failed
+  -- writer stops the reader that has not yet read the notice.
+  let some sockB := b.state.value.socks.head? | throw (IO.userError "missing peer socket")
+  for _ in [0:20] do
+    discard <| sockB.push b.cfg [(.serve, "peer still writing".toUTF8)]
+    IO.sleep 5
+  t.ok "retirement resets none of the peer's writes before the peer reads its notice"
+    (!(← IO.hasFinished sockB.done))
   let mut b := b
   -- Admit native output before resuming this receiver. An in-flight notice
   -- with an empty mailbox is outside the one-shot admitted-input guarantee.
@@ -149,14 +158,22 @@ def removalCase (t : Checks) (dir : String) : IO Unit := do
 
 end EpochIngress
 
+/-- Exit directly, never by returning: a fixture that throws leaves its
+peers' socket writers waiting, and the runtime waits for every task before an
+ordinary return, so a thrown error hung instead of failing. -/
 def main (args : List String) : IO UInt32 := do
-  let dir := args.headD "out/epoch-ingress"
-  let t ← Tests.Checks.new
-  EpochIngress.runCase t (dir ++ "/local") true
-  EpochIngress.runCase t (dir ++ "/peer") false
-  EpochIngress.runCase t (dir ++ "/socket-idle") true true
-  EpochIngress.junkCase t (dir ++ "/junk")
-  EpochIngress.removalCase t (dir ++ "/removal")
-  let result ← t.finish "epoch-ingress"
-  (← IO.getStdout).flush
-  IO.Process.exit result.toUInt8
+  try
+    let dir := args.headD "out/epoch-ingress"
+    let t ← Tests.Checks.new
+    EpochIngress.runCase t (dir ++ "/local") true
+    EpochIngress.runCase t (dir ++ "/peer") false
+    EpochIngress.runCase t (dir ++ "/socket-idle") true true
+    EpochIngress.junkCase t (dir ++ "/junk")
+    EpochIngress.removalCase t (dir ++ "/removal")
+    let result ← t.finish "epoch-ingress"
+    (← IO.getStdout).flush
+    IO.Process.exit result.toUInt8
+  catch e =>
+    IO.eprintln s!"epoch-ingress fixture threw: {e}"
+    (← IO.getStderr).flush
+    IO.Process.exit 2

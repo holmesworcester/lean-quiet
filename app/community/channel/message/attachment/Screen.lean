@@ -32,7 +32,7 @@ include hsize hspr
 attachment's progress (as `pic_progress` reads them) is complete exactly
 when the store holds a Valid chunk of that attachment at every index. -/
 theorem complete_iff_held (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x))
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x))
     {p : Pic} (hp : (p.got, p.total) = (progress c att len).eval s) :
     p.complete = true ↔
       ∀ i < Merkle.nChunks len, ∃ y, V C s.ops y (.chunk c att (Merkle.fileRoot sha256 ct) len i) := by
@@ -50,11 +50,11 @@ theorem complete_iff_held (h : Inv (family C) s) (hq : s.queue = []) {c att m u 
 attachment's length is the file's and the store holds each of the
 file's chunk ops, whose slices are the file. -/
 theorem file_whole (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x))
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x))
     {p : Pic} (hp : (p.got, p.total) = (progress c att len).eval s)
     {α : Type} (pre full : Option α) (hs : (p.shown pre full).2 = true) :
     len = ct.size ∧ ∀ i < Merkle.nChunks ct.size,
-      V C s.ops (fileChunk c att ct i).id (.chunk c att (Merkle.fileRoot sha256 ct) ct.size i) := by
+      V C s.ops (fileChunk c att tm ct i).id (.chunk c att (Merkle.fileRoot sha256 ct) ct.size i) := by
   have hc := ((shown_file p pre full).1 hs).1
   have hle := progress_le hsize hspr h hq ha
   refine progress_done hsize hspr h hq ha ?_
@@ -66,7 +66,7 @@ theorem file_whole (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {
 /-- **The picture the app reads is complete exactly when its file is
 held**: `Kinds.File.pic` over the store, composed with `complete_iff_held`. -/
 theorem pic_complete_iff_held (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x))
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x))
     (info : FileMeta) (fk fn : ByteArray) (deps : Array Q) :
     ((Kinds.File.pic (m := Model) c att (Merkle.fileRoot sha256 ct) len info fk fn deps).run s).1.complete = true ↔
       ∀ i < Merkle.nChunks len, ∃ y, V C s.ops y (.chunk c att (Merkle.fileRoot sha256 ct) len i) :=
@@ -263,7 +263,7 @@ def slicesFromOps (raw : List ByteArray) : Option (List ByteArray) :=
   raw.mapM fun b => do
     let o ← Engine.Op.decode b
     match (Codec.decode o.body : Option Community.Body) with
-    | some (.chunk _ _ _ slice _) => some slice
+    | some (.chunk _ _ _ _ slice _) => some slice
     | _ => none
 
 /-- An attachment's file from its chunk ops' bytes: opened with the

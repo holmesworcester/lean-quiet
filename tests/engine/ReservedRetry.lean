@@ -4,6 +4,7 @@ copies, but feeds delivered data through the actual receiver Node. Plain
 session sealing isolates transport admission; JoinFair retains Noise coverage. -/
 import tests.engine.Lib
 import engine.wire.Tcp
+import engine.core.Exit
 
 namespace ReservedRetry
 open Engine Engine.Sync Community Tests Std.Async Std.Net
@@ -17,7 +18,7 @@ def cid := sha256 "reserved-retry-session".toUTF8
 def peerKey := "reserved-authenticated-peer".toUTF8
 
 def setup (address : ByteArray) (established : Bool) : Sync Fact (SqlM Fact) :=
-  { fam, cfg := { live := 1000000000, every := 1 },
+  { fam, cfg := { live := 1000000000, safety := 1000000000 },
     hooks := {
       rooms := fun _ => pure [.sync rootOp.id]
       sealFor := plainSeal
@@ -168,8 +169,12 @@ def runnerChecks (t : Checks) : IO Unit := do
 
 end ReservedRetry
 
-def main : IO UInt32 := do
+def mainBody : IO UInt32 := do
   let t ← Tests.Checks.new
   ReservedRetry.ticketChecks t
   ReservedRetry.runnerChecks t
   t.finish "reserved-retry"
+
+/-- Leaves by `IO.Process.exit` (Engine.exitAfter): returning from
+`main` with a runner's threads alive would wait for them for good. -/
+def main : IO UInt32 := Engine.exitAfter mainBody

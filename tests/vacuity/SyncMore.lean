@@ -61,7 +61,9 @@ theorem knownAskedBounds : afterWant.known.size ≤ cfg.maxKnown ∧ afterWant.a
 
 theorem stateBounds : afterWant.known.size ≤ cfg.maxKnown ∧ afterWant.asked.size ≤ cfg.maxKnown ∧
     afterWant.offered.size ≤ cfg.maxKnown ∧ afterWant.closed.size + afterWant.frontier.length ≤ cfg.closureCap ∧
-    afterWant.snaps.length ≤ afterWant.rooms.length := conn_state_bounded fam cfg afterWantReachable
+    afterWant.active.length ≤ afterWant.rooms.length ∧ afterWant.rounded.length ≤ afterWant.rooms.length ∧
+    afterWant.epochs.length ≤ afterWant.rooms.length ∧ afterWant.short.length ≤ afterWant.rooms.length :=
+  conn_state_bounded fam cfg afterWantReachable
 
 theorem holdBounds : ((conn.onHold fam cfg room [msg.id] : HeldM Unit Step) {}).1.conn.Bounded cfg :=
   hold_bounded fam cfg conn room [msg.id] {} (by simp [Conn.Bounded, conn, Conn.open, cfg])

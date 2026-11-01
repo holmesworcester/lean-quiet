@@ -3,11 +3,12 @@ import app.community.Family
 namespace Community
 open Engine Codec
 
-/-- An attachment of file f to message `msg` of c, by `by_` (admitted
-as `adm`), its meta sealed under content key k; and the file's chunks
-(`attach_chunks`: chunk i is `fileChunk`). The root and every proof
-come from one pass over the file (`Merkle.rootAndProofs`). -/
-def attach (c adm msg : Id) (by_ : Device) (k : Key32) (f : NewFile) : Op × List Op :=
+/-- An attachment of file f to message `msg` of c, claimed at `time` (the
+message's), by `by_` (admitted as `adm`), its meta sealed under content
+key k; and the file's chunks at that time too (`attach_chunks`: chunk i
+is `fileChunk`). The root and every proof come from one pass over the
+file (`Merkle.rootAndProofs`). -/
+def attach (c adm msg : Id) (time : Nat) (by_ : Device) (k : Key32) (f : NewFile) : Op × List Op :=
   let ct := fileCipher f
   let tree := Merkle.rootAndProofs sha256 ct
   let root := tree.1
@@ -15,9 +16,9 @@ def attach (c adm msg : Id) (by_ : Device) (k : Key32) (f : NewFile) : Op × Lis
   let m := encode (f.info.name, f.info.kind, f.info.w, f.info.h, f.info.preview, f.key.1, f.nonce.1)
   let sealed := f.metaNonce ++ sealBody cryptoSeal k f.metaNonce c kid m
   let reqs := [c, adm, msg]
-  let a := mkOp reqs (.attach root ct.size kid sealed (sig by_.sk reqs (.attach root ct.size kid sealed .empty)))
+  let a := mkOp reqs (.attach root ct.size time kid sealed (sig by_.sk reqs (.attach root ct.size time kid sealed .empty)))
   let chunks := (List.range (Merkle.nChunks ct.size)).map fun i =>
-    mkOp [c, a.id] (.chunk root ct.size i (Merkle.slice ct i) (tree.2.getD i []))
+    mkOp [c, a.id] (.chunk root ct.size time i (Merkle.slice ct i) (tree.2.getD i []))
   (a, chunks)
 open Engine
 section
