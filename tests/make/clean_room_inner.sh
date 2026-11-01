@@ -7,9 +7,10 @@
 #   3. make check must fail and name the missing packages, installing none.
 #   4. make install, timed (cold: no Lean, Rust, crates or packages), then
 #      make install again, which must redo nothing.
-#   5. make run under Xvfb (1600x1000, 24-bit TrueColor); a screenshot of
-#      the empty screen must fail the content check (the control), and one
-#      of the app's window must pass it while the app is still running.
+#   5. make run, then make online, under Xvfb (1600x1000, 24-bit
+#      TrueColor); a screenshot of the empty screen must fail the content
+#      check (the control), and one of each window must pass it while the
+#      app is still running.
 # Writes /out: logs, shots and result.txt (key=value). Needs ASSETS_URL
 # (empty: the URL the pin names) and HOST_UID/HOST_GID for /out's owner.
 set -uo pipefail
@@ -74,23 +75,35 @@ min_colors=64
 shot "$out/shot-empty.png"
 [ "$(colors "$out/shot-empty.png")" -lt "$min_colors" ] || die "the content check passed an empty screen"
 echo "empty_colors=$(colors "$out/shot-empty.png")" >> "$res"
-setsid su - judge -c 'cd ~/lean-quiet && DISPLAY=:99 exec make run' > "$out/run.log" 2>&1 &
-run_pid=$!
-t0=$(date +%s) n=0 painted=0
-while [ $(($(date +%s) - t0)) -lt 180 ]; do
-  sleep 3
-  kill -0 "$run_pid" 2>/dev/null || die "make run exited early (run.log)"
-  shot "$out/shot.png" || continue
-  n=$(colors "$out/shot.png")
-  [ "$n" -ge "$min_colors" ] && { painted=1; break; }
-done
-echo "shot_colors=$n" >> "$res"
-echo "first_paint_seconds=$(($(date +%s) - t0))" >> "$res"
-[ "$painted" = 1 ] || die "the window never painted: $n colours after 180 s (shot.png)"
-# a few seconds more: the demo's seeding settles, and the app stays up
-sleep 5
-shot "$out/shot.png"
-echo "shot_colors=$(colors "$out/shot.png")" >> "$res"
-pgrep -u judge -x linux > /dev/null || die "the app exited after painting (run.log)"
-kill -TERM -- -"$run_pid" 2>/dev/null
+# Open the app with `make <target>`; the window must paint within 180 s
+# and the app still run 5 s later. Screenshot: shot-<target>.png.
+open_app() {
+  local target=$1 t0 n=0 painted=0 pid
+  setsid su - judge -c "cd ~/lean-quiet && DISPLAY=:99 exec make $target" > "$out/$target.log" 2>&1 &
+  pid=$!
+  t0=$(date +%s)
+  while [ $(($(date +%s) - t0)) -lt 180 ]; do
+    sleep 3
+    kill -0 "$pid" 2>/dev/null || die "make $target exited early ($target.log)"
+    shot "$out/shot-$target.png" || continue
+    n=$(colors "$out/shot-$target.png")
+    [ "$n" -ge "$min_colors" ] && { painted=1; break; }
+  done
+  echo "${target}_first_paint_seconds=$(($(date +%s) - t0))" >> "$res"
+  [ "$painted" = 1 ] || die "make $target: the window never painted, $n colours after 180 s (shot-$target.png)"
+  # a few seconds more: the demo's seeding settles, and the app stays up
+  sleep 5
+  shot "$out/shot-$target.png"
+  echo "${target}_colors=$(colors "$out/shot-$target.png")" >> "$res"
+  app=$(pgrep -u judge -x linux) || die "make $target: the app exited after painting ($target.log)"
+  # su -c runs make in a session of its own: stop the app by its pid
+  kill -TERM $app
+  for _ in $(seq 50); do pgrep -u judge -x linux > /dev/null || break; sleep 0.2; done
+  ! pgrep -u judge -x linux > /dev/null || die "make $target: the app did not stop on SIGTERM"
+  kill -TERM -- -"$pid" 2>/dev/null
+  wait "$pid" 2>/dev/null
+}
+open_app run
+step online
+open_app online
 step pass

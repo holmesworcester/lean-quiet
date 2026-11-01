@@ -113,7 +113,7 @@ bytes with the same zlib.
 | Task | Validation |
 | --- | --- |
 | `make:assets-test` | The assets step on made-up tarballs (no network): download, sha256 and per-file checks, repair, deterministic packing. Controls: a flipped bit, files that don't match the list, plain http, an unreachable URL, a stale pin and changed asset scripts must each fail |
-| `make:clean-room` | `make install && make run` from a git clone of `HEAD` in fresh `ubuntu:24.04`, `ubuntu:22.04` and `debian:12` containers, as a user with sudo: `make check` fails and names the packages; a timed cold `make install`; a second one that redoes nothing; under Xvfb, a screenshot of the window must show it painted, while one of the empty screen must fail |
+| `make:clean-room` | `make install && make run` from a git clone of `HEAD` in fresh `ubuntu:24.04`, `ubuntu:22.04` and `debian:12` containers, as a user with sudo: `make check` fails and names the packages; a timed cold `make install`; a second one that redoes nothing; under Xvfb, `make run` and then `make online` must each paint a window (a screenshot of the empty screen must fail that check), keep running, and stop on SIGTERM |
 
 The gate (`ci/local.sh`, before every push) runs `make:assets` (part
 `make:assets`, about a second): a change that makes the published tarball

@@ -79,7 +79,7 @@ one() {
   [ -z "$(find "$dir" ! -user "$(id -u)" -print -quit)" ] ||
     docker run --rm -v "$dir:/out" "$image" chown -R "$(id -u):$(id -g)" /out
   if [ "$code" = 0 ] && grep -qx 'step=pass' "$dir/result.txt"; then
-    echo "ok   $image: $(grep '^install_summary=' "$dir/result.txt" | cut -d= -f2-); screenshot $dir/shot.png"
+    echo "ok   $image: $(grep "^install_summary=" "$dir/result.txt" | cut -d= -f2-); screenshots $dir/shot-run.png, shot-online.png"
   else
     echo "FAIL $image (exit $code): $(grep '^fail=' "$dir/result.txt" 2>/dev/null | cut -d= -f2-) - see $dir"
     return 1
