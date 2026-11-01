@@ -21,13 +21,6 @@ import engine.core.Locality
 namespace Engine
 variable {F : Type} (fam : Family F)
 
-/-- Whether o is judged ahead: the family's urgent kinds, and every op not
-shared. -/
-def urgentOf (o : Op) : Bool :=
-  fam.urgent o || match fam.scope o with
-    | .shared _ => false
-    | _ => true
-
 /-- Every stored op in x's requirement closure (x included) is urgent. -/
 def UrgentClosed (s : DB F) (x : Id) : Prop :=
   ∀ y o, Sync.Reach s.ops x y → s.ops y = some o → urgentOf fam o = true

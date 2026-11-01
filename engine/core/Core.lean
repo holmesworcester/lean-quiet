@@ -173,6 +173,13 @@ structure Family (F : Type) where
   connection's and a node's own local ops). engine/core/Urgent.lean. -/
   urgent : Op → Bool := fun _ => false
 
+/-- Whether o is judged ahead of a backlog: the family's urgent kinds, and
+every op not shared (a connection's, and a node's own local ops). -/
+def urgentOf {F} (fam : Family F) (o : Op) : Bool :=
+  fam.urgent o || match fam.scope o with
+    | .shared _ => false
+    | _ => true
+
 /-- The room an op is synced in; none unless it is shared. -/
 def Family.room {F} (fam : Family F) (o : Op) : Option Id :=
   match fam.scope o with
@@ -299,6 +306,61 @@ def step (fam : Family F) : m Bool := do
 def drain (fam : Family F) : Nat → m Unit
   | 0 => pure ()
   | n + 1 => do if ← step fam then drain fam n
+
+/-! ## Judging ahead: the urgent closure (engine/core/Urgent.lean) -/
+
+/-- Op x judged now, ahead of the queue, if it is undecided and stored
+(and, when `onlyUrgent`, urgent): what a step does with x at the queue's
+head. Its waiters, if it was decided: the ops to judge next. -/
+def judgeAhead (fam : Family F) (onlyUrgent : Bool) (x : Id) : m (List Id) := do
+  match ← getStatus (F := F) x with
+  | some _ => pure []
+  | none =>
+    match ← getOp (F := F) x with
+    | none => pure []
+    | some o =>
+      if onlyUrgent && !urgentOf fam o then pure [] else
+      match judge fam o (← statuses o.reqs) with
+      | some v => do
+        let ws ← waiters (F := F) x
+        decide fam x v
+        pure ws
+      | none => do
+        waitOn (F := F) x o.reqs
+        pure []
+
+/-- Each op of a job judged ahead once; the waiters their decisions
+woke. -/
+def judgeJob (fam : Family F) : List Id → m (List Id)
+  | [] => pure []
+  | x :: xs => do
+    let ws ← judgeAhead fam false x
+    let rest ← judgeJob fam xs
+    pure (ws ++ rest)
+
+/-- The urgent closure: judge these ops, and the ops each decision wakes,
+ahead of the queue, as long as they are urgent; at most n attempts. -/
+def urgentClose (fam : Family F) : Nat → List Id → m Unit
+  | 0, _ => pure ()
+  | _, [] => pure ()
+  | n + 1, x :: xs => do
+    let ws ← judgeAhead fam true x
+    urgentClose fam n (ws ++ xs)
+
+/-- The queued ops a write turn judges at most (beside the job and its
+urgent closure, which it judges first). -/
+@[irreducible] def drainCap : Nat := 1024
+
+/-- **A write turn**, capped: take in the job, judge each of its ops ahead
+once, then the urgent ops their decisions wake, transitively (enough
+attempts for every one of them: `urgentClose`'s fuel), then at most `cap`
+queued ops. What is still queued waits for the next turn. -/
+def turnCapped (fam : Family F) (cap : Nat) (ops : List Op) : m Unit := do
+  for o in ops do ingest (F := F) o
+  let woken ← judgeJob fam (ops.map (·.id))
+  let n ← countOps (F := F)
+  urgentClose fam (woken.length + n * (n + 1)) woken
+  drain fam cap
 
 /-! ## Purging (engine/core/Purge.lean) -/
 
