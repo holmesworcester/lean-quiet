@@ -40,6 +40,18 @@ external volume attachment: an actual push failed at22:42:20.617 with
 The helper waits on a real bounded write probe before seeding; it does not change
 any app action or UI deadline. Both photo tasks call this helper.
 
+The combined production revision `425979e` built both ABIs and passed 27 checks,
+all four compiled controls and the restored 27-check run with an additional
+setup barrier. A navigation command can reply before its cold first chat frame:
+the original immediate status request took 0.790 seconds against its 0.5-second
+limit; after that frame, the same request took 0.042 seconds. Those failure logs
+are retained. Setup now requires a new, retained chat publication serial within
+its existing 30-second navigation budget before starting photo measurements.
+This is publication acceptance, not native display completion. All subsequent
+0.5-second status and 3/15-second action deadlines are unchanged. Validation used
+the same recorded baseline and four compiled mutant APK hashes; the additional
+check does not turn a setup timeout into an accepted mutation failure.
+
 Runner requirements are the provisioned Android/KVM prerequisites in
 [ANDROID-LIFECYCLE.md](ANDROID-LIFECYCLE.md), plus Pillow for the fixture image.
 The owned four-vCPU AVD defaults to emulator5650 (`PHOTO_LIFECYCLE_PORT`), and
