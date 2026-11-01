@@ -29,6 +29,73 @@ private def click (d : Driver) (a : Action) : IO Driver := do
   settle (← tap d (d.layout.main.x + box.x + box.w / 2)
     (d.height - App.botH d.app + box.y + box.h / 2))
 
+/-- A window with no shell: one full-window pane, no sidebar or drawer. -/
+private def bare (d : Driver) : Bool := d.layout.nav.w == 0 && d.layout.context.w == 0 &&
+  d.layout.main.x == 0 && d.layout.main.w == d.width && d.app.W == d.width
+
+/-- Get started, in no community: libquiet's App.svelte draws no shell
+until the node is in one, so the stage is the whole window, and each of
+its rows does what it draws. -/
+private def startStage (d : Driver) (check : String → Bool → IO Unit) : IO Driver := do
+  let mut d := d
+  d ← settle d
+  check "a new install opens on Get started, in no community" (d.app.page == .getStarted && d.app.comms.isEmpty)
+  check "no community: one full-window pane, no sidebar or drawer" (bare d)
+  check "no community: no sidebar control can be hit" ((scene d.layout d.height d.ui d.app).all (·.pane != .nav))
+  let frame ← picture d
+  let navInk := Palette.color d.app.dim.theme .accent
+  check "no community: no sidebar is painted"
+    (frame.rows.all fun row => (List.range (d.app.dim.px 220)).all fun x => Paint.getPx row x != navInk)
+  let (g, _) := Pages.startOf d.app.font d.app.dim d.app.W (App.pageIn d.app).stage
+  let rowAt (i : Nat) : Nat × Nat :=
+    let r := Pages.startRow d.app.dim g i
+    (r.x + r.w / 2, App.topH d.app + r.y + r.h / 2)
+  -- each row's tap lands on what that row draws
+  let (jx, jy) := rowAt 0
+  let rest ← picture d
+  let hovered ← picture (pointerEvent d (.motion jx jy))
+  let r0 := Pages.startRow d.app.dim g 0
+  let r1 := Pages.startRow d.app.dim g 1
+  check "hovering a row fills that row in Gray 06 and leaves the next row alone"
+    (Paint.getPx hovered.rows[jy]! (r0.x + r0.w - d.app.dim.px 60) == Palette.color d.app.dim.theme .selected &&
+     hovered.rows.extract (App.topH d.app + r1.y) (App.topH d.app + r1.y + r1.h) ==
+       rest.rows.extract (App.topH d.app + r1.y) (App.topH d.app + r1.y + r1.h))
+  d ← settle (← tap d jx jy)
+  check "Join a community opens the join door, full-window" (d.app.page == .joinChoice && bare d)
+  let (_, s) ← App.back.run d.app
+  d ← settle { d with app := s }
+  let (cx, cy) := rowAt 1
+  d ← settle (← tap d cx cy)
+  check "Create a new community opens the create door, full-window" (d.app.page == .create && bare d)
+  let (_, s) ← App.back.run d.app
+  d ← settle { d with app := s }
+  let (lx, ly) := rowAt 2
+  d ← settle (← tap d lx ly)
+  check "Link devices opens its explanatory page full-window, not a drawer"
+    (d.app.page == .stub && d.app.labelText == "Linked devices" && d.ui.context == .closed && bare d)
+  let (_, s) ← App.back.run d.app
+  d ← settle { d with app := s }
+  check "back returns to Get started" (d.app.page == .getStarted && bare d)
+  d ← resize d 600 760
+  d ← settle d
+  check "narrow Get started is the same full-window stage" (d.app.page == .getStarted && bare d)
+  d ← resize d 1100 760
+  d ← settle d
+  return d
+
+/-- A member has the shell back, and walking a door hides it again. -/
+private def memberShell (d : Driver) (check : String → Bool → IO Unit) : IO Driver := do
+  let mut d := d
+  check "a community brings the shell: the 220 px sidebar beside the conversation"
+    (d.app.member && d.layout.nav.w == d.app.dim.px 220 && d.app.W == d.width - d.app.dim.px 220)
+  let (_, s) ← (App.openPage .create).run d.app
+  d ← settle { d with app := s }
+  check "a member walking the create door gets the full-window stage" (bare d)
+  let (_, s) ← App.back.run d.app
+  d ← settle { d with app := s }
+  check "back from the door restores the shell" (d.layout.nav.w == d.app.dim.px 220 && d.app.page == .chat)
+  return d
+
 private def suite (args : List String) : IO UInt32 := do
   let dir := args[0]?.getD "out/desktop"
   IO.FS.createDirAll dir
@@ -51,10 +118,12 @@ private def suite (args : List String) : IO UInt32 := do
       (Text.oneLine font 320 "Quiet שלום 日本語 🙂") 0 0 Row.nameInk
   check "desktop paints the same Noto and emoji as the mobile renderer at logical density"
     (!d.app.font.noto.chars.isEmpty && (fontSample d.app.font).rows == (fontSample mobileFont).rows)
+  d ← startStage d check
   for name in ["Quiet", "Garden"] do
     let (_, s) ← (App.found name "Alex").run d.app
     d ← settle { d with app := s }
   check "two actual accepted communities" (d.app.comms.size == 2)
+  d ← memberShell d check
   d ← click d .switcher
   d ← click d (.community 0)
   check "switch by drawn acceptance" (d.app.cur == d.app.comms[0]!.acc && d.app.page == .chat)

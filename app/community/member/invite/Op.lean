@@ -1,9 +1,11 @@
 import app.community.Op
 
 /-
-An invitation, issued by an admitted device, with how many approvals a
-request it carries needs: at least one. A link invitation (another device
-for the issuer's user) needs exactly one, by the issuer's user.
+An invitation, issued by an admitted device. A request it carries is
+admitted by one approval (the user's call, 2026-10-31: no thresholds,
+since one member can mint the distinct users any threshold would count).
+A link invitation (another device for the issuer's user) is approved by
+the issuer's user only.
 -/
 
 namespace Community
@@ -15,13 +17,12 @@ namespace Invitation
 structure Body where
   bearer : Key
   link : Bool
-  threshold : Nat
   sig : ByteArray
   deriving DecidableEq, Inhabited
 
-instance : Codec Body := Codec.tagged 1 (fun x => (x.bearer, x.link, x.threshold, x.sig)) (fun (p : B × Bool × Nat × B) => ⟨p.1, p.2.1, p.2.2.1, p.2.2.2⟩) (fun _ => rfl)
+instance : Codec Body := Codec.tagged 1 (fun x => (x.bearer, x.link, x.sig)) (fun (p : B × Bool × B) => ⟨p.1, p.2.1, p.2.2⟩) (fun _ => rfl)
 
-@[simp] theorem Body.enc_tag (x : Body) : Codec.enc x = 1 :: Codec.enc (x.bearer, x.link, x.threshold, x.sig) := rfl
+@[simp] theorem Body.enc_tag (x : Body) : Codec.enc x = 1 :: Codec.enc (x.bearer, x.link, x.sig) := rfl
 
 /-- The body with its signatures blanked: what the signatures cover. -/
 def Body.unsigned (b : Body) : Body := { b with sig := .empty }
@@ -33,12 +34,11 @@ structure Fact where
   issuer : Id
   bearer : Key
   link : Bool
-  threshold : Nat
   deriving DecidableEq, Inhabited
 
-instance : Codec Fact := Codec.tagged 1 (fun x => (x.c, x.issuer, x.bearer, x.link, x.threshold)) (fun (p : B × B × B × Bool × Nat) => ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1, p.2.2.2.2⟩) (fun _ => rfl)
+instance : Codec Fact := Codec.tagged 1 (fun x => (x.c, x.issuer, x.bearer, x.link)) (fun (p : B × B × B × Bool) => ⟨p.1, p.2.1, p.2.2.1, p.2.2.2⟩) (fun _ => rfl)
 
-@[simp] theorem Fact.enc_tag (x : Fact) : Codec.enc x = 1 :: Codec.enc (x.c, x.issuer, x.bearer, x.link, x.threshold) := rfl
+@[simp] theorem Fact.enc_tag (x : Fact) : Codec.enc x = 1 :: Codec.enc (x.c, x.issuer, x.bearer, x.link) := rfl
 
 end Invitation
 

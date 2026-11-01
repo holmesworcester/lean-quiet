@@ -133,7 +133,7 @@ def children (dir : String) (ck : Checks) : IO Unit := do
     discard <| sendText "First message"
     let me := (← get).me
     let some key ← intentView (Community.currentKey me.c) | throw (IO.userError "fixture key missing")
-    let w ← intentView (Community.send me.c me.adm me.dev key (← newBytes 24)
+    let w ← intentView (Community.send me.c me.adm me.dev key (← App.newSized 24)
       "Second message".toUTF8 ((← nowMin) + 5))
     discard <| writeAll w
     waitIdle sm
@@ -164,7 +164,7 @@ def children (dir : String) (ck : Checks) : IO Unit := do
     let inv := invite s.me.c s.me.adm s.me.dev bearer.pk false
     let req := request s.me.c inv.id bob (Tests.keyOf bob) bearer.sk
     let approval := approve s.me.c req.id s.me.adm s.me.dev
-    let adm := admit s.me.c req.id [approval.id]
+    let adm := admit s.me.c req.id approval.id
     let now ← nowMin
     let reaction := react s.me.c adm.id msg bob "❤️".toUTF8 (now + 1)
     s.wr.setPaused true
@@ -204,7 +204,7 @@ def children (dir : String) (ck : Checks) : IO Unit := do
     s.wr.setPaused true
     let some key ← intentView (Community.currentKey s.me.c)
       | throw (IO.userError "fixture key missing")
-    let old := Community.sealedPost s.me.c s.me.adm s.me.dev key (← newBytes 24)
+    let old := Community.sealedPost s.me.c s.me.adm s.me.dev key (← App.newSized 24)
       "An old backfill outside the window".toUTF8 0 now
     ck.ok "signed old backfill is accepted while the writer is paused" (← write old)
     let pending ← q.run s.rd (← get).out

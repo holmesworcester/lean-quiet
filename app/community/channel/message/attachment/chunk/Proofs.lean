@@ -117,7 +117,7 @@ variable {s : DB Fact} {C : Crypto}
 /-- **What an attachment writes are its file's chunk ops**: chunk i of
 `attach` is `fileChunk` of the file at i, for every i below the chunk
 count, so the progress laws count the ops `send` writes. -/
-theorem attach_chunks (c adm msg : Id) (d : Device) (k : ByteArray) (f : NewFile) :
+theorem attach_chunks (c adm msg : Id) (d : Device) (k : Key32) (f : NewFile) :
     (attach c adm msg d k f).2 = (List.range (Merkle.nChunks (fileCipher f).size)).map
       (fileChunk c (attach c adm msg d k f).1.id (fileCipher f)) := by
   apply List.map_congr_left

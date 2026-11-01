@@ -12,14 +12,14 @@ namespace JoinFair
 open Engine Engine.Sync Community Tests Connection
 
 def fam : Family F := node ed25519 sodium
-def key := sha256 "join-fair/content-key".toUTF8
+def key := Bytes.digest "join-fair/content-key".toUTF8
 def seed (name : String) := sha256 s!"join-fair/device/{name}".toUTF8
-def nk (name : String) := sha256 s!"join-fair/node/{name}".toUTF8
+def nk (name : String) := Bytes.digest s!"join-fair/node/{name}".toUTF8
 def device (name : String) := Device.ofSeed (seed name)
 def nodeKey (name : String) := cryptoSeal.pub (nk name)
 
 def postAt (c adm : Id) (name : String) (i : Nat) (text : ByteArray) : Op :=
-  let nonce := (sha256 s!"join-fair/nonce/{name}/{i}".toUTF8).extract 0 24
+  let nonce := (Bytes.fit 24 (sha256 s!"join-fair/nonce/{name}/{i}".toUTF8))
   sealedPost c adm (device name) key nonce text i (1000 + i)
 
 /-- A targeted fixture for quota ordering. Couriers are read in descending
@@ -123,7 +123,7 @@ def frameLimitChecks (t : Checks) (a : Peer) (c cid : Id) : IO Unit := do
   let some (sk, _) ← look a (sessionKeys cid : SqlM F _) |
     t.ok "frame-boundary fixture has actual session keys" false; return
   let text := String.fromUTF8! (⟨Array.replicate (maxFrame + 1) 120⟩ : ByteArray)
-  let nonce := (sha256 "frame-limit/large-nonce".toUTF8).extract 0 24
+  let nonce := (Bytes.fit 24 (sha256 "frame-limit/large-nonce".toUTF8))
   let write ← viewOn a (Community.send c c (device "A") key nonce text.trimAscii.toString.toUTF8 9000)
   let some op := write.ops.head? | t.ok "App send intent returns a post" false; return
   let statuses ← look a (op.reqs.mapM fun id => (Store.getStatus id : SqlM F _))
@@ -140,7 +140,7 @@ def frameLimitChecks (t : Checks) (a : Peer) (c cid : Id) : IO Unit := do
   let parsed := frames (frame packet)
   t.ok "actual TCP reader rejects oversized encrypted post despite valid signature"
     (packet.size == 74 + payload.size && packet.size > maxFrame && parsed.1.isEmpty && parsed.2.isNone)
-  let smallNonce := (sha256 "frame-limit/small-nonce".toUTF8).extract 0 24
+  let smallNonce := (Bytes.fit 24 (sha256 "frame-limit/small-nonce".toUTF8))
   let small ← viewOn a (Community.send c c (device "A") key smallNonce "small accepted draft".toUTF8 9001)
   let smallPayload := Codec.encode [small.ops.head!.bytes]
   let smallSealed := Frame.seal sodium cid sk smallNonce smallPayload
@@ -200,7 +200,7 @@ def main (args : List String) : IO UInt32 := do
   try
     let c := (root (device "A") (nodeKey "A")).id
     a.run.write (← viewOn a (found (seed "A") "Fair join".toUTF8 "Alice".toUTF8 1 key
-      (sha256 "join-fair/esk".toUTF8) (nk "A"))).ops
+      (Bytes.digest "join-fair/esk".toUTF8) (nk "A"))).ops
     t.ok "founder commits through the real runner" (← waitFor 60000 (stored a c))
     t.ok "native runner counts its actual completed local-write turns"
       (← waitFor 60000 do

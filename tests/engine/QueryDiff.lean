@@ -35,14 +35,14 @@ def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Arr
     let inv := invite c c f b.pk false
     let rq := request c inv.id d (keyOf d) b.sk
     let ok := approve c rq.id c f
-    let j := admit c rq.id [ok.id]
+    let j := admit c rq.id ok.id
     ops := ops.push inv |>.push rq |>.push ok |>.push j
     users := users.push (j.id, rq.id, d)
   -- Two content keys held here (local key ops), a third not: `readable`
   -- lists the posts under the first two.
-  let keys := [sha256 s!"key-{seed}-0".toUTF8, sha256 s!"key-{seed}-1".toUTF8]
+  let keys := [Bytes.digest s!"key-{seed}-0".toUTF8, Bytes.digest s!"key-{seed}-1".toUTF8]
   let kids := keys.map (kidOf cryptoSeal) ++ ["unheld".toUTF8]
-  ops := ops ++ (keys.map (contentKey c)).toArray
+  ops := ops ++ (keys.map (contentKey c ·.1)).toArray
   let mut g : Rng := ⟨seed.toUInt64⟩
   let mut posts : Array Id := #[]
   let mut rcpts := 0

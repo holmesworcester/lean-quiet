@@ -141,7 +141,11 @@ def main (args : List String) : IO UInt32 := do
     writePpm (dir ++ "/switcher.ppm") W (← screenOf sm W Hs 63)
     -- Add a community → Get started → Create a new community, by taps on
     -- the pages' own boxes
+    -- (the page's boxes come with its frame: wait for the page to offer it)
     let tapAct (a : Pages.Act) : M Bool := do
+      let offered : M Bool := do
+        return ((← get).pageNow.map fun pg => pg.taps.any (·.2 == a)).getD false
+      let _ ← stepsUntil offered
       let s ← get
       let some pg := s.pageNow | return false
       match pg.taps.find? (·.2 == a) with
@@ -151,17 +155,21 @@ def main (args : List String) : IO UInt32 := do
         return true
       | none => return false
     check "the switcher offers Create a community" (← tapAct .createCommunity)
-    check "Create shows its name field" ((← get).page == .create)
+    check "Create shows its name field" (← stepsUntil (return (← get).page == .create))
     modify fun s => { s with field := "design team" }
     steps 2
     writePpm (dir ++ "/create.ppm") W (← screenOf sm W Hs 63)
-    check "Continue asks the founder's name" ((← tapAct .continue_) && (← get).page == .createName)
+    check "Continue asks the founder's name"
+      ((← tapAct .continue_) && (← stepsUntil (return (← get).page == .createName)))
     modify fun s => { s with field := "Dee" }
     steps 1
     check "Continue founds it" (← tapAct .continue_)
     waitIdle sm
+    let founded ← stepsUntil do
+      let s ← get
+      return s.comms.size == 2 && s.me.name == "design team" && s.page == .home
     let s ← get
-    check s!"two communities, the new one current, on its home: {s.comms.map (·.name)}" (s.comms.size == 2 && s.me.name == "design team" && s.page == .home)
+    check s!"two communities, the new one current, on its home: {s.comms.map (·.name)}" founded
     sm.cmds.modify (·.push "switch general")
     steps 3
     -- navigation (app/app/NavLaws): a switch is a root, back goes back,
@@ -172,7 +180,8 @@ def main (args : List String) : IO UInt32 := do
       ((← get).page == .home && (← get).backStack.isEmpty)
     sm.cmds.modify (·.push "channel")
     steps 5
-    check s!"switching back shows the first community's {(← get).total} messages" ((← get).me.name == "general" && (← get).total > 0)
+    let shown ← stepsUntil (return (← get).me.name == "general" && (← get).total > 0)
+    check s!"switching back shows the first community's {(← get).total} messages" shown
     modify fun s => { s with text := "half a thought" }
     sm.cmds.modify (·.push "open switcher")
     steps 3
@@ -195,8 +204,8 @@ def main (args : List String) : IO UInt32 := do
     let s ← get
     let joiner := Device.named "joiner-test"
     let bearer := Device.named "joiner-bearer"
-    let inv := Community.invite s.me.c s.me.adm s.me.dev bearer.pk false 1
-    let rq := Community.request s.me.c inv.id joiner (Community.cryptoSeal.pub (sha256 "joiner's node".toUTF8)) bearer.sk
+    let inv := Community.invite s.me.c s.me.adm s.me.dev bearer.pk false
+    let rq := Community.request s.me.c inv.id joiner (Community.cryptoSeal.pub (Bytes.digest "joiner's node".toUTF8)) bearer.sk
     s.wr.submit ⟨[inv, rq], false⟩
     waitIdle sm
     steps 3
@@ -333,18 +342,17 @@ def main (args : List String) : IO UInt32 := do
     let s ← get
     check s!"an act's send shows in the frame its pass serves ({s.total - total0} new, row {(rowOf s).isSome}, pending {((rowOf s).map (·.2.data.pending)).getD false})"
       (queued.isSome && s.total == total0 + 1 && ((rowOf s).map (·.2.data.pending)).getD false)
-    let mut ka := 0
-    while ka < 3000 && ((rowOf (← get)).map (·.2.data.pending)).getD true do
-      let _ ← step []
-      IO.sleep 1
-      ka := ka + 1
-    check s!"and is stored, its row no longer pending ({ka} frames)" (((rowOf (← get)).map (·.2.data.pending)) == some false)
+    -- stored when the writer has run: counted in frames up to a cap that
+    -- only catches a hang (a starved writer thread runs frames later)
+    let stored ← stepsUntil (return ((rowOf (← get)).map (·.2.data.pending)) == some false) 60000
+    check "and is stored, its row no longer pending" stored
     sm.cmds.modify (·.push "react 0 🎉")
     let _ ← step []
     steps 3
-    let s ← get
-    let t := (s.rows[s.ids[0]!.2]?.map (·.data.tallies)).getD []
-    check "a reaction shows at once, mine" (t.any fun t => t.emoji == "🎉" && t.mine)
+    let mine : M Bool := do
+      let s ← get
+      return ((s.rows[s.ids[0]!.2]?.map (·.data.tallies)).getD []).any fun t => t.emoji == "🎉" && t.mine
+    check "a reaction shows, mine" (← stepsUntil mine)
     waitIdle sm
     writePpm (dir ++ "/sent.ppm") W (← screenOf sm W Hs 63)
     -- the reaction sheet on a message, the rest dimmed

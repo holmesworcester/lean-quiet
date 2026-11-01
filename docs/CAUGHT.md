@@ -106,6 +106,22 @@ catches it next time. The aim is no escapes.
 
 ## Found otherwise, pinned by a law afterwards
 
+- **A removed member could miss its removal notice** (found as a gate
+  "flake", 2026-11-01: expiry-grace's "actual retirement writer drains
+  the signed removal notice to its peer" failed about one run in six
+  under load, on main too). The retiring side wrote the notice, then
+  shut its socket in both directions (`SocketAbort.abort`). The removed
+  peer, still replying to earlier frames, wrote again; Linux answers a
+  segment to a read-shut socket with a reset, the peer's writer failed,
+  and a failed writer stops its reader: the notice it had not yet read
+  was dropped (a socket trace showed the reader cut off mid-frame).
+  Now a retirement ends with a FIN and reads until the peer's own end,
+  within `stallMs` (`Tcp.linger`). Pinned by a test, not yet a law:
+  tests/engine/EpochIngress.lean keeps the peer writing after the
+  retirement and checks its writer survives; the shipped close, its
+  control in tests/engine/expiry_grace_negative.py, fails it and the
+  notice check every run.
+
 - **Every checkpoint the app ever saved stayed on disk** (found by an
   audit hunting promises narrower than they read, 2026-10-31).
   `Lifecycle.save` only inserted into `app_ops`. Each row holds invite
@@ -139,3 +155,18 @@ catches it next time. The aim is no escapes.
   mark is kept as `PeopleLaws.removedShipped`, a `control` in
   tests/wiring.txt, and `shipped_removed_without_removal` proves it marks
   an entry removed with no removal read.
+- **A command's "authoritative snapshot" was a read at a time** (found
+  by the gate's pixel test under load, 2026-11-01, by several sessions:
+  "You're in." over a founder's pages, "visual key missing", cases whose
+  pixels changed run to run). `transaction`, the one-shot reader every
+  command uses (`intentView`, `refreshCommsNow`), ran its reads on the
+  frame's connection without a transaction of its own: inside a frame
+  they shared the frame's snapshot, but a command run outside one (a
+  fixture, a lifecycle handler) read the store as of each read, with
+  the writer committing between them. `Accepted.read` then found the
+  founder's admission in one list and not in the next, so its entry
+  looked waiting and the frame said "You're in." when it was read again.
+  Fixed: `transaction` opens a savepoint, a read transaction of its own
+  when none is open and nested in the frame's when one is. All 72 pixel
+  cases, 24 runs at once: 4 cases changed run to run and 3 runs lost the
+  key before the fix; none after. Pinned by a test, not yet a law.

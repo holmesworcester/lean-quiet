@@ -67,7 +67,7 @@ weak Chaos.freshSeed a seed from the microsecond clock, guessable by anyone who 
 # nonce it makes), and the node's connection family on SQLite (the
 # handshake's ephemerals, `Fresh`).
 door Engine.Crypto.randomBytes App.newBytes
-door Engine.Crypto.randomBytes Connection.instFreshSqlMFOfCodecOfSortKey
+door Engine.Crypto.randomBytes Connection.freshSql
 # The frame never waits on sync: what App.step reaches, short of the
 # threads it starts, makes no blocking send to a bounded channel (the
 # local-write queue can be full while sync is busy), and waits on no other thread's task. The frame offers
@@ -123,6 +123,8 @@ wired Community.connect_iff
 wired Community.removal_cuts_off
 wired Connection.Noise.Symbolic.kk_secret
 wired Connection.Noise.Symbolic.kk_forward_secret
+wired Connection.Noise.Symbolic.kk_authentic
+wired Connection.Noise.Symbolic.kk_authentic_resp
 
 # Removal (docs/REMOVAL.md): the node's key, the cut, the notice over the
 # running Node and Conn step, and the rejoin
@@ -162,8 +164,11 @@ assume NodeOffer.Chan = NodeOffer.offerM
 assume Merkle.NoCollision No SHA-256 collision between what a file's root hashes and what checking the chunks at hand hashed: finite bytes, decided on real SHA-256 in tests/vacuity/Attachment.lean.
 assume Community.ChunkSound = Merkle.NoCollision
 assume Community.ChunksSound = Merkle.NoCollision
-assume Connection.Noise.Suite.Good X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only).
-assume Community.Seal.Good Supported-size AEAD inputs and key wraps roundtrip; valid private keys agree and public keys/hashes have 32-byte outputs (correctness only).
+assume Trust.NativeCrypto The crypto trust file (engine/core/Trust.lean), all of it: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, a SHA-256 digest is 32 bytes (correctness of the crates, not security). Keys and nonces are sized types, so no size is assumed. Each part is satisfied by the native crates and failed by a broken model (tests/vacuity/CryptoTrust.lean).
+assume Trust.X25519 = Trust.NativeCrypto
+assume Trust.Sha256Size = Trust.NativeCrypto
+assume Connection.Noise.Suite.Good X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.NativeCrypto` (`suite_good`).
+assume Community.Seal.Good AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.NativeCrypto` (`cryptoSeal_good`).
 assume Connection.Noise.Symbolic.sym The symbolic model of the cryptography, over which the running handshake runs.
 assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean).
 assume Engine.Model = Engine.Model.run
@@ -296,6 +301,13 @@ world Engine.Sync.Who.other = Engine.Sync.World.peer
 world Engine.Sync.Setup.sync = Engine.Sync.World.peer
 world Engine.Sync.plainFrame = Engine.Sync.World.peer
 world Engine.Sync.oneRoom = Engine.Sync.World.peer
+world Engine.World.World.step Real: n nodes, each the running `Engine.Sync.Node` with a3's `Setup.sync` (fixed rooms), its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any packet (from gst, `Net.Admits`'s timely delivery across live edges), sessions open by the harness's `connect`, frames in the clear, and a transport close drops only that address's sessions (S1: no loss without a close). Wanted: the n-node World with the app's own Sync (the Connection family, sealed sessions, the handshake; holmes-71's session forms), which makes these laws wired.
+world Engine.World.Exec.world = Engine.World.World.step
+world Engine.World.Plain.setup = Engine.World.World.step
+world Engine.World.Setup.at? = Engine.World.World.step
+world Engine.World.Plain.start = Engine.World.World.step
+spec Engine.World.asksOf The ids a payload can make a session ask (a have's ids, a round message's claim ids): what the asks-room premise counts (finding 7, for a whole frame).
+spec Engine.World.wantsOf The ids a payload can queue (a want's ids): what the queue-room premise counts.
 world Connection.Execution.fairRun Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these.
 world Connection.Execution.trace = Connection.Execution.fairRun
 world Connection.Execution.dequeued = Connection.Execution.fairRun
@@ -327,6 +339,7 @@ control Engine.Mutants.w5 = Engine.Mutants.σ
 control Engine.Mutants.wk = Engine.Mutants.σ
 control Engine.Mutants.keyNotified = Engine.Mutants.σ
 control Engine.Mutants.rawNotified = Engine.Mutants.σ
+control Connection.Noise.Symbolic.read1Slip `read1` with `ss` from the initiator's ephemeral instead of its static, a one-letter slip: with both statics secret and no honest calls, the attacker writes a message 1 it accepts as from the initiator (`read1Slip_forged`), where `read1` accepts none (`kk_authentic_resp`).
 
 ## What would make each model real, most valuable first (the README's order)
 
@@ -472,7 +485,6 @@ spec Translate.fillOrigin The periodic plane origin inside the scalar edge and f
 spec Translate.fillRect The viewport crop of that plane inside Translate.edge (Slide.edge_eq).
 spec Translate.seen The compositor's content contract: main's running Cover.seen at its selected source, else unloaded. Source selection is transferred by Slide.pick_eq; fill pixels by Slide.fillRow_eq and fill_pixel.
 
-block Theme.save a device appearance write must run on the checkpoint writer, never the UI thread
 
 wired Engine.Sync.offer_shared
 wired Engine.Sync.offer_stored

@@ -82,7 +82,7 @@ seed derives to the key: `secret_derives`), the communities it is in
 name is a shared admin register (`named.current`, newest counter first:
 `named_by_admin`). An intent is a user action as the ops of one writer
 job, after reading lists: `found`, `inviteTo`, `join` (with the name to introduce itself by), `approveReq`
-(the approval, and the admission when it completes the tally),
+(the approval and the admission it gives: one approval admits),
 `introduce` (the first profile, once admitted), `stopWaiting` (a local
 `abandon` of a pending join; an approval still admits), `rename`, `send`
 (blobs and the post), `reactTo`. Laws: `join_travels`
@@ -180,21 +180,24 @@ watches are the keys of the lists it read: nothing is recorded.
 
 ## The community (`app/community/`)
 
-Root (founder, admin), invite (with an approval threshold), request,
-approve, admit (member or linked device), admin grant, removal, post,
-wrap — after libquiet's DESIGN.md and its removal stack (#778, #98,
-#1088). A request is libquiet's Join before its vouches: it carries the
-bearer key's and the device's signatures and admits nobody. Approvals
-are signed ops that cite it (so the engine needs no forward needs), and
-an unsigned admit op tallies exactly the invitation's threshold of them,
-by distinct users, into the admission. A link invitation needs one
-approval, by the issuer's user; nobody approves their own request. Validity reads only cited facts, so every
-admin-issued removal stands: of other admins, mutually, and by an admin
-who has since been removed, and an approval by a user removed since
-still counts. In practice that last kind may not spread,
-since peers who know of the remover's removal refuse its devices; but
-wherever it arrives, it is Valid. Removal never invalidates an op; it
-changes who counts. A device may be admitted into several users: it is
+Root (founder, admin), invite, request, approve, admit (member or linked
+device), admin grant, removal, post, wrap — after libquiet's DESIGN.md
+and its removal stack (#778, #98, #1088). A request is libquiet's Join
+before its vouches: it carries the bearer key's and the device's
+signatures and admits nobody. Approvals are signed ops that cite it (so
+the engine needs no forward needs), and an unsigned admit op cites the
+request and exactly one approval of it: one approval admits. There are
+no thresholds (the user's decision, 2026-10-31): any member can invite
+and approve, so it could mint the distinct users a threshold counts. A
+link request is approved by the issuer's user only; nobody approves
+their own request. Validity reads only cited facts, so a removed
+member's ops stand, made before or after its removal: an admin's
+removals (of other admins, mutually, and by an admin who has since been
+removed), and its invitations and approvals. In practice they may not
+spread, since peers who know of the removal refuse the removed member's
+nodes; but wherever they arrive, they are Valid. Removal never
+invalidates an op; it changes who counts, and whom the network lets in
+(docs/REMOVAL.md). A device may be admitted into several users: it is
 live while none of them is removed, and removing any of them cuts it
 (`Live`, `Cut`; docs/REMOVAL.md). A node's key (local `endpoint`) is
 what its devices' roots and requests name as their X25519 key, under
@@ -206,8 +209,8 @@ Laws (each in the folder of the deepest ops it names: `channel/message/Proofs.le
 |---|---|
 | Are all messages by admitted users? | `message_authorized` |
 | Is impersonation impossible? | `no_impersonation` (given unforgeable signatures), `admission_consented` |
-| Can outsiders join? | `admission_needs_approval` (every admission but the founder's cites a member's approval), `admission_approved`, `request_invited`, `approval_signed`, `invitation_issued` |
-| Are requests with their approvals admitted? | `request_valid`, `approve_valid`, `admit_admits`; `removed_approver_admits` (a removed member's approval still counts) |
+| Can outsiders join? | `admission_needs_approval` (every admission but the founder's cites exactly one approval, by a member's device other than the requester's), `admission_approved`, `request_invited`, `approval_signed`, `invitation_issued` |
+| Are requests with an approval admitted? | `request_valid`, `approve_valid`, `admit_admits`; `removed_approver_admits` (a removed member's approval counts, whenever made) |
 | Who may remove whom? | `removal_authorized`, `admin_removal_stands`, `mutual_removal`, `admin_granted` |
 | Can a removal be undone, or rewrite history? | `removed_stays`, `valid_stays` |
 | Which nodes do we connect to? | `connect_iff` (a node key, while a live device is admitted under it), `deviceLive_iff`, `refuse_nonmember` |
@@ -340,8 +343,9 @@ namespace `Connection.Noise.Symbolic`). `write1`, `read1`, `sent1`,
 algebra `T` instead of bytes. Cryptography is perfect (free hashes,
 HKDF, AEAD and pairs), private exponents are names, and the only DH
 equation is DH(i, j) = DH(j, i) for names i and j. The attacker
-(`Derivable`) is Dolev-Yao and active: it hands honest parties anything
-it derives and learns what they send and what they read. Honest parties
+(`Derivable O K`) is Dolev-Yao and active: it hands honest parties
+anything it derives and learns what they read, and what they send in
+the calls `O` allows (`AllCalls` for every call). Honest parties
 may be any names, in any number of runs, and take their payloads from
 the attacker, as Quiet's are public. Proof: what the attacker derives
 stays `Clean` (no secret name, no DH value of two secret names), and the
@@ -354,7 +358,8 @@ session keys are not clean.
   so is the initiator's static or ephemeral. `kk_secret_resp`: a
   responder's keys after `read1` on any message 1 and `write2` are not
   derivable, if both statics are secret. `kk_secret`: both, against an
-  attacker that knows every other name and every public key.
+  attacker that knows every other name and every public key. All three
+  hold for every `O`.
   `kk_secret_init_tight`: an attacker that knows the initiator's static
   and ephemeral does derive its keys, so the model's attacker can break
   the handshake when it should.
@@ -363,17 +368,27 @@ session keys are not clean.
   honest run, an attacker that knows both statics and both messages
   derives neither side's keys. With `closing` purging the `eph` ops,
   this is the session's forward secrecy.
-- `kk_authentic`: an initiator accepts a derivable message 2 only if it
-  is exactly what the honest responder wrote answering this initiator's
-  message 1, and then both hold one session. `kk_authentic_resp`: a
-  responder accepts a derivable message 1 as from a device only if that
-  device wrote it to this responder (both statics secret; message 1
-  alone is open to key-compromise impersonation, as Noise says of KK).
-  Agreement is on content, not freshness: a replayed message is
-  accepted again.
+- Authentication is stated over `O`, the calls honest parties made: a
+  symbolic term does not record who computed it, so with the
+  responder's static known the attacker writes the very message 2 the
+  responder would have, and only `O` tells them apart. `kk_authentic`:
+  unless the responder `sR` answered this message 1 in a call in `O`,
+  the initiator that sent it accepts no message 2 the attacker can
+  derive (`sR` secret, and the initiator's static or ephemeral).
+  `kk_agree`: a derivable message 2 the initiator accepts is exactly
+  such an answer, and both hold one session. `kk_authentic_resp`:
+  unless the initiator `sI` wrote `sR` a message 1 with this payload in
+  a call in `O`, `sR` accepts no derivable message 1 as from `sI` with
+  it (both statics secret; message 1 alone is open to key-compromise
+  impersonation, as Noise says of KK). `kk_agree_resp`: one it accepts
+  is exactly that request. `kk_authentic_tight`,
+  `kk_authentic_resp_tight`: with the needed statics known, the
+  attacker forges an accepted message under any `O`, even one with no
+  honest calls. Agreement is on content, not freshness: a call in `O`
+  can be replayed.
 - `derivable_clean`, `derivable_sealed` (every ciphertext under a secret
-  key that the attacker can take apart was sealed by an honest party),
-  `exposed_parts`.
+  key that the attacker can take apart was sealed by an honest party,
+  in a call `O` allows), `exposed_parts`.
 
 What the symbolic model does not cover: computational security (no
 reduction to X25519's gap-DH, ChaCha20-Poly1305's IND-CPA and INT-CTXT,
