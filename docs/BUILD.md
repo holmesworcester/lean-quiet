@@ -127,20 +127,20 @@ unless that has the pinned sha256, and serves it to the container by
 instead. Logs, `result.txt` (timings, peak memory) and screenshots stay
 in `out/make/clean-room/<image>/`.
 
-Measured 2026-11-01 at fa9a954, the three containers at once on the
+Measured 2026-11-01 at f98f125, the three containers at once on the
 shared 32-core box (load around 70), 8 CPUs and 24 GB each:
 
-| Image | Cold `make install` | Its build step | Second install | First paint | Peak memory |
+| Image | Cold `make install` | Its build step | Second install | First paint (run, online) | Peak memory |
 | --- | --- | --- | --- | --- | --- |
-| `ubuntu:24.04` | 10m 15s | 5m 53s | 5 s | 4 s | 4.5 GB |
-| `ubuntu:22.04` | 10m 01s | 6m 45s | 6 s | 7 s | 4.2 GB |
-| `debian:12` | 8m 55s | 6m 46s | 9 s | 3 s | 4.6 GB |
+| `ubuntu:24.04` | 10m 29s | 6m 25s | 8 s | 3 s, 3 s | 3.9 GB |
+| `ubuntu:22.04` | 10m 23s | 6m 29s | 13 s | 4 s, 3 s | 4.4 GB |
+| `debian:12` | 9m 13s | 7m 18s | 9 s | 4 s, 3 s | 4.7 GB |
 
-The rest of the cold install is apt (40 s to 2m 43s), elan, Lean and
-rustup (1m 21s to 1m 38s) and the assets (under 10 s from `file://`). An
-earlier run alone on `ubuntu:24.04` peaked at 6.2 GB. That run found the
-missing `libx11-dev`: the three xcb packages alone leave `shell.c`
-without `X11/cursorfont.h`.
+The rest of the cold install is apt (45 s to 1m 42s), elan, Lean and
+rustup (1m 09s to 2m 27s) and the assets (2 s from `file://`). An earlier
+run alone on `ubuntu:24.04` peaked at 6.2 GB. That run found the missing
+`libx11-dev`: the three xcb packages alone leave `shell.c` without
+`X11/cursorfont.h`.
 
 ## Checking it again
 
