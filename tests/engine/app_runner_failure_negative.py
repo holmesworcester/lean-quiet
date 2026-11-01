@@ -69,7 +69,7 @@ entry = 'entry stage detects the finished runner even with an empty parked queue
 replay = 'replay reaches real queue admission off the App thread'
 admission = 'new action parks without a second actual writer admission'
 parked = 'later local action remains parked until replay submission is observed'
-ui = 'failed teardown does not use the flag that suppresses active App frames'
+ui = 'failed teardown does not use the normal-stop slot that parks later writes'
 stopped = 'the retained recovery task actually stops its failed runner'
 unfinished = 'failed teardown retains its actual unfinished task'
 
@@ -91,7 +91,7 @@ controls = [
         's.netStop.isSome || s.toNode.isEmpty'),
         's.netBoot.isSome || s.netStop.isSome || s.netReplay.isSome then',
         's.netBoot.isSome || s.netStop.isSome then'), [admission, parked], []),
-    ('failed-stop-suppresses-ui', 'flush', lambda s: once(s,
+    ('failed-stop-parks-writes', 'flush', lambda s: once(s,
         'stopping := if failed then n.stopping else some stopping',
         'stopping := some stopping'), [ui], []),
     ('omit-actual-failed-stop', 'flush', lambda s: once(s,

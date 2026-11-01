@@ -118,7 +118,7 @@ unsafe def run (dir : String) (t : Checks) (mode : Nat) : IO Unit := do
     unless detected do return
     t.ok "App reports an actual sync failure notice"
       (state.notices.any (·.startsWith "Sync stopped"))
-    t.ok "failed teardown does not use the flag that suppresses active App frames"
+    t.ok "failed teardown does not use the normal-stop slot that parks later writes"
       (state.netStop.isNone && !(← IO.hasFinished stopOwner))
     unless state.netStop.isNone do return
     t.ok "failed teardown retains its actual unfinished task"
