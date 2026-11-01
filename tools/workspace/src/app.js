@@ -1,12 +1,12 @@
 // The Quiet workspace: the project's file tree is the only navigation.
-// Folders under app/ are ops and their families; each file shows the code
-// from main that moves there (tools/plan.py), with where it is today.
+// Folders under app/ are ops and their families as they are on disk
+// (tools/plan.py); each file shows its code, and a planned one says so.
 import { initialState, act, verdict, scenarios } from "./state.js";
 import { proofs, threats } from "./data.js";
 import { previews as previewDocs } from "./documents.js";
 import { definitionRange, replaceDefinition } from "./source-tools.js";
 import { highlightingReady, highlightedLines, languageFor } from "./highlight.js";
-import { index, href, sourceHref, canonical, ROOTS } from "./tree.js";
+import { index, href, sourceHref, canonical, laws, ROOTS } from "./tree.js";
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
@@ -32,7 +32,11 @@ function dispatch(action, redraw = true) { state = act(state, action, kernel); p
 // ---- Routes ----------------------------------------------------------------
 function parseRoute() {
   const parts = location.hash.replace(/^#\/?/, "").split("/");
-  if (parts[0] === "tree") return {section: "tree", path: parts.slice(1).map(decodeURIComponent).join("/").replace(/\/$/, "") || "app"};
+  if (parts[0] === "tree") {
+    const segs = parts.slice(1).map(decodeURIComponent).filter(Boolean);
+    const line = /^\d+$/.test(segs.at(-1) || "") && segs.at(-2)?.endsWith(".lean") ? Number(segs.pop()) : 0;
+    return {section: "tree", path: segs.join("/") || "app", line};
+  }
   if (parts[0] === "network") return {section: "network"};
   if (parts[0] === "ops") return {section: "tree", path: tree.previews[decodeURIComponent(parts[1] || "")] || "app"};
   if (parts[0] === "source") return {section: "source", path: decodeURIComponent(parts[1] || ""), line: Number(parts[2] || 1)};
@@ -54,21 +58,21 @@ function refreshEditor(editor) {
   pre.firstElementChild.innerHTML = highlightedLines(editor.value, "lean", state.shellDark).join("\n") + "\n";
   pre.scrollTop = editor.scrollTop; pre.scrollLeft = editor.scrollLeft;
 }
-const span = fr => fr.start === fr.end ? `${fr.start}` : `${fr.start}–${fr.end}`;
-const origin = fr => `<a class="source-origin" href="${sourceHref(fr.from, fr.start)}">${esc(fr.from)}:${span(fr)}</a>`;
-// A fragment of main's code: short ones inline, long ones folded and filled on open.
-function fragment(target, fr, i, {open = false, title} = {}) {
-  const lines = fr.end - fr.start + 1;
-  const crosses = fr.crosses?.length ? `<p class="crosses">Imports ${fr.crosses.map(c => `<code>${esc(c.module)}</code> → <a href="${href(c.lands)}">${esc(c.lands)}</a>`).join(", ")}</p>` : "";
-  if (lines <= 24 && !title) return `<div class="fragment">${origin(fr)}${codeBlock(fr.text)}${crosses}</div>`;
-  const key = `${target}#${i}`;
-  return `<details class="fragment" data-detail="${esc(key)}" data-fragment="${esc(key)}" ${open ? "open" : ""}><summary>${title ? `<code>${esc(title)}</code>` : `<code>${esc(fr.from)}</code>`}<span class="lines">${fr.label === "file" ? lines + " lines" : esc(fr.from) + ":" + span(fr)}</span></summary><div class="fragment-code"></div>${crosses}</details>`;
+const trim = text => text.replace(/\n$/, "");
+// A file under app/: short ones inline, long ones folded and filled on open.
+function fileCode(path, file) {
+  if (file.lines <= 40) return `<div class="file-code">${codeBlock(trim(file.text))}</div>`;
+  const count = path.endsWith("/Proofs.lean") ? ` · ${laws(file.text).length} laws` : "";
+  return `<details class="file-code" data-detail="${esc(path)}" data-file="${esc(path)}"><summary><code>${esc(path.split("/").at(-1))}</code><span class="lines">${file.lines} lines${count}</span></summary><div class="file-code-body"></div></details>`;
 }
-function fillFragment(el) {
-  const [target, i] = el.dataset.fragment.split("#");
-  const fr = plan.fragments[target]?.[Number(i)];
-  const box = el.querySelector(".fragment-code");
-  if (fr && box && !box.innerHTML) box.innerHTML = origin(fr) + codeBlock(fr.text);
+function fillFile(el) {
+  const box = el.querySelector(".file-code-body");
+  if (box && !box.innerHTML) box.innerHTML = codeBlock(trim(plan.files[el.dataset.file].text));
+}
+// A whole file, numbered; each line links to itself.
+function sourceLines(path, text, line = 0) {
+  const at = n => route.section === "source" ? sourceHref(path, n) : href(path, n);
+  return `<div class="source-document syntax">${highlightedLines(trim(text), languageFor(path), state.shellDark).map((l, i) => `<div class="source-line ${line === i + 1 ? "selected-line" : ""}" id="line-${i + 1}"><a class="line-number" href="${at(i + 1)}" aria-label="Line ${i + 1}">${i + 1}</a><code>${l || " "}</code></div>`).join("")}</div>`;
 }
 
 // ---- Sidebar -----------------------------------------------------------------
@@ -174,17 +178,11 @@ function kernelDetails(id) {
 
 // ---- Op documents --------------------------------------------------------------
 function identityLine(node) {
-  const op = node.op, bits = [];
-  if (node.planned) bits.push(`planned · ${esc(node.planned)}`);
-  else if (op?.family === "sync") bits.push(`kind ${op.kind}`, "never stored");
-  else if (op) {
-    const tag = (plan.fragments[`${node.path}/Op.lean`] || []).find(f => f.label === "Body.enc")?.text.match(/=>\s*\[?(\d+)/)?.[1];
-    if (tag) bits.push(`tag ${tag}`);
-    bits.push(`<code>Body.${esc(op.body)}</code> → <code>Fact.${esc(op.facts[0])}</code>`);
-  }
-  const from = [...new Set(node.files.flatMap(f => (plan.fragments[`${node.path}/${f}`] || []).map(fr => fr.from)))];
-  if (from.length) bits.push(`<span class="from">from ${from.slice(0, 3).map(f => `<a href="${sourceHref(f)}">${esc(f)}</a>`).join(", ")}${from.length > 3 ? ` +${from.length - 3}` : ""}</span>`);
-  return bits.length ? `<div class="operation-identity">${bits.join("<span>·</span>")}</div>` : "";
+  if (node.path === "app") return "";
+  const bits = [node.planned ? `planned ${node.kind}` : node.kind];
+  if (node.planned && node.planned !== "family") bits.push(esc(node.planned));
+  if (node.tag !== undefined) bits.push(`tag ${node.tag}`);
+  return `<div class="operation-identity">${bits.join("<span>·</span>")}</div>`;
 }
 function opIndex(node) {
   const kids = tree.children(node.path).filter(e => e.kind === "dir");
@@ -195,32 +193,11 @@ function opIndex(node) {
   };
   return `<section class="document-section operation-index"><h2>${node.path === "app" ? "Ops" : "Nested ops"}</h2><ul>${kids.map(k => row(k)).join("")}</ul></section>`;
 }
-function requiresTable(node) {
-  const slots = (node.requires || []).filter(s => s.length);
-  return slots.map(slot => `<table class="op-table requirements-table"><thead><tr><th>Slot</th><th>Fact</th><th>Produced by</th></tr></thead><tbody>${slot.map((r, i) => `<tr><th>${i}</th><td><code>${esc(r.fact)}</code></td><td>${r.producers.map(p => `<a href="${href(p)}"><code>${esc(canonical(p))}</code></a>`).join("<br>")}</td></tr>`).join("")}</tbody></table>`).join("");
-}
-const withIndex = (frs, keep) => frs.map((fr, i) => ({fr, i})).filter(({fr}) => keep(fr));
-function fileBody(node, role, prefix = "") {
-  const target = `${node.path}/${role}`, frs = plan.fragments[target] || [];
-  const frag = (fr, i, o) => fragment(prefix + target, fr, i, o);
-  if (role === "Tests.lean" && !frs.length) {
-    const tests = node.tests || [];
-    return `<p class="planned-note">Planned.${tests.length ? " On main, these exercise it:" : ""}</p>${tests.length ? `<div class="component-links">${tests.map(t => `<a href="${sourceHref(t)}"><code>${esc(t)}</code></a>`).join("")}</div>` : ""}`;
-  }
-  if (!frs.length) return `<p class="planned-note">Planned.</p>`;
-  if (role === "Proofs.lean") {
-    const laws = withIndex(frs, fr => fr.label !== "rest" && fr.label !== "file"), whole = withIndex(frs, fr => fr.label === "file"), rest = withIndex(frs, fr => fr.label === "rest");
-    return `<div class="proof-group"><div class="assumptions"><h4>Assumed:</h4><p><a href="#/about/assumptions">Standard assumptions</a>, and each law's own hypotheses.</p></div><div class="proven"><h4>Proven:</h4><div class="check-list">${laws.map(({fr, i}) => frag(fr, i, {title: fr.label})).join("")}${whole.map(({fr, i}) => frag(fr, i, {title: fr.from})).join("")}</div>${rest.length ? `<details class="fragment-rest" data-detail="${esc(prefix + target)}/rest"><summary>${rest.length} more from shared files</summary>${rest.map(({fr, i}) => frag(fr, i)).join("")}</details>` : ""}</div></div>`;
-  }
-  return (role === "Validate.lean" ? requiresTable(node) : "") + assembled(prefix + target, frs);
-}
-// Small pieces read as the file they will be: one block, each piece under a comment naming its origin.
-// Whole files and long pieces fold.
-function assembled(target, frs) {
-  const small = withIndex(frs, fr => fr.label !== "file" && fr.end - fr.start < 40), large = withIndex(frs, fr => !small.some(s => s.fr === fr));
-  const sources = [...new Map(small.map(({fr}) => [fr.from, fr])).values()];
-  const text = small.map(({fr}) => `-- ${fr.from.split("/").at(-1)}:${span(fr)}${fr.label === "rest" ? "" : " · " + fr.label}\n${fr.text}`).join("\n\n");
-  return `${small.length ? `<div class="fragment assembled"><div class="source-origin">${sources.map(fr => `<a href="${sourceHref(fr.from, fr.start)}">${esc(fr.from)}</a>`).join(" · ")}</div>${codeBlock(text)}</div>` : ""}${large.map(({fr, i}) => fragment(target, fr, i)).join("")}`;
+function fileBody(node, role) {
+  const path = `${node.path}/${role}`, file = plan.files[path];
+  if (file) return fileCode(path, file);
+  const tests = role === "Tests.lean" ? node.tests : [];
+  return `<p class="planned-note">Planned.${tests.length ? " Today these import this folder:" : ""}</p>${tests.length ? `<div class="component-links">${tests.map(t => `<a href="${sourceHref(t)}"><code>${esc(t)}</code></a>`).join("")}</div>` : ""}`;
 }
 function fileSection(node, role) {
   return `<section class="document-section file-section" id="file-${role.replace(".", "-")}"><div class="section-heading"><h2><a href="${href(`${node.path}/${role}`)}">${role}</a></h2></div>${fileBody(node, role)}</section>`;
@@ -228,37 +205,36 @@ function fileSection(node, role) {
 function folderPage(node) {
   const id = previewOf(node.path), isRoot = node.path === "app";
   const sections = node.files.map(f => fileSection(node, f)).join("");
-  return `<div class="heading op-heading"><h1>${canonical(node.path).split(".").map(esc).join(".<wbr>")}</h1>${isRoot ? `<div class="root-actions"><a href="#/network">network</a></div>` : ""}</div>` +
+  return `<div class="heading op-heading"><h1>${canonical(node.path).split(".").map(esc).join(".<wbr>")}</h1>${isRoot ? `<div class="root-actions"><a href="#/network">network</a><a href="/op-tree.txt" download>op-tree.txt</a></div>` : ""}</div>` +
     `<div class="op-document">${identityLine(node)}<p class="doc-summary">${esc(node.summary || "")}</p>${id ? previewSection(id) : ""}` +
-    `${node.kind === "op" ? sections + opIndex(node) : opIndex(node) + sections}${isRoot ? movesTable() : ""}</div>`;
+    `${node.kind === "op" ? sections + opIndex(node) : opIndex(node) + sections}</div>`;
 }
+// A file page: what the file holds, then the file. Proofs.lean lists its laws first.
 function filePage(entry) {
-  const node = entry.node, id = previewOf(node.path);
+  const node = entry.node, id = previewOf(node.path), file = entry.file;
+  const list = file && entry.name === "Proofs.lean" ? laws(file.text) : [];
+  const lawIndex = list.length ? `<details class="document-section law-list" data-detail="laws:${esc(entry.path)}"><summary>${list.length} laws</summary><div class="component-links">${list.map(l => `<a href="${href(entry.path, l.line)}"><code>${esc(l.name)}</code></a>`).join("")}</div></details>` : "";
   return `<div class="heading op-heading"><h1>${esc(entry.name)}</h1><a href="${href(node.path)}">${esc(canonical(node.path))} →</a></div>` +
-    `<div class="op-document"><p class="doc-summary">${esc(plan.roles[entry.name])}</p>${entry.name === "View.lean" && id ? previewSection(id) : ""}${fileBody(node, entry.name, "file:")}</div>`;
-}
-function movesTable() {
-  const rows = Object.entries(plan.moves).sort(([a], [b]) => a.localeCompare(b));
-  return `<details class="document-section moves" data-detail="moves"><summary>Where main's files go</summary><table class="op-table"><tbody>${rows.map(([s, ts]) => `<tr><th><a href="${sourceHref(s)}"><code>${esc(s)}</code></a></th><td>${(ts || []).map(t => `<a href="${href(t)}"><code>${esc(t)}</code></a>`).join("<br>")}</td></tr>`).join("")}</tbody></table><p class="layout-provenance">main <code>${plan.base.slice(0, 12)}</code> · <a href="/op-tree.txt" download>op-tree.txt</a></p></details>`;
+    `<div class="op-document"><p class="doc-summary">${esc(plan.roles[entry.name])}</p>${entry.name === "View.lean" && id ? previewSection(id) : ""}` +
+    `${file ? lawIndex + sourceLines(entry.path, file.text, route.line) : fileBody(node, entry.name)}</div>`;
 }
 // engine/ and platforms/: folders list their files; a file shows its source.
+// An engine file that imports the app is marked (LAYOUT06).
+const importsApp = info => info.path.startsWith("engine/") && info.importsApp.length ? info.importsApp : [];
 function outsideFolderPage(entry) {
-  const notes = {engine: "What holds for every op type. It names no kind.", platforms: "The shells, and the headless twin the tests drive."};
-  return `<div class="heading op-heading"><h1>${esc(entry.path)}/</h1></div><div class="op-document"><p class="doc-summary">${notes[entry.path] || ""}</p><div class="directory-list">${tree.children(entry.path).map(k => `<a href="${href(k.path)}"><code>${esc(k.name)}${k.kind === "dir" ? "/" : ""}</code><span>${k.info ? [`${k.info.lines || ""}${k.info.lines ? " lines" : ""}`, k.info.arrives ? `arrives from ${esc(k.info.arrives)}` : "", k.info.namesKinds?.length ? `names kinds: ${k.info.namesKinds.map(esc).join(", ")}` : "", k.info.leaves ? `moves to ${esc(k.info.leaves)}` : ""].filter(Boolean).join(" · ") : ""}</span></a>`).join("")}</div></div>`;
+  const note = tree.nodes.get(entry.path), id = note?.preview;
+  const row = k => `<a href="${href(k.path)}"><code>${esc(k.name)}${k.kind === "dir" ? "/" : ""}</code><span>${k.info ? [`${k.info.lines} lines`, importsApp(k.info).length ? `imports the app: ${importsApp(k.info).map(esc).join(", ")}` : ""].filter(Boolean).join(" · ") : ""}</span></a>`;
+  return `<div class="heading op-heading"><h1>${esc(entry.path)}/</h1></div><div class="op-document"><p class="doc-summary">${esc(note?.summary || "")}</p>${id ? previewSection(id) : ""}<div class="directory-list">${tree.children(entry.path).map(row).join("")}</div></div>`;
 }
 function outsideFilePage(entry) {
-  const info = entry.info;
-  if (info.arrives) return `<div class="heading op-heading"><h1>${esc(entry.name)}</h1></div><div class="op-document"><p class="doc-summary">Arrives from <a href="${sourceHref(info.arrives)}"><code>${esc(info.arrives)}</code></a>. It names no kind.</p>${(plan.fragments[entry.path] || []).map((fr, i) => fragment(entry.path, fr, i, {open: true})).join("")}</div>`;
-  const note = `${info.namesKinds?.length ? `<p class="crosses">Names kinds: ${info.namesKinds.map(m => `<code>${esc(m)}</code>`).join(", ")}</p>` : ""}${info.leaves ? `<p class="crosses">Moves to <a href="${href(info.leaves)}"><code>${esc(info.leaves)}</code></a></p>` : ""}`;
-  return sourcePage(entry.path, 0, note);
+  const m = importsApp(entry.info);
+  return sourcePage(entry.path, route.line, m.length ? `<p class="imports-app">Imports the app: ${m.map(x => `<code>${esc(x)}</code>`).join(", ")}</p>` : "");
 }
 function sourcePage(path, line, note = "") {
-  const text = sourceIndex.files[path]?.text ?? sourceCache.get(path);
+  const text = plan.files[path]?.text ?? sourceIndex.files[path]?.text ?? sourceCache.get(path);
   if (text === undefined) { loadSource(path); return `<div class="heading op-heading"><h1>${esc(path)}</h1></div><p class="layout-note">Loading…</p>`; }
   if (text === null) return `<div class="heading op-heading"><h1>${esc(path)}</h1></div><p>Source unavailable.</p>`;
-  const targets = plan.moves[path] || [];
-  const lines = highlightedLines(text, languageFor(path), state.shellDark);
-  return `<div class="heading op-heading"><h1>${esc(path)}</h1></div>${note}${targets.length ? `<div class="component-links">${targets.map(t => `<a href="${href(t)}">→ ${esc(t)}</a>`).join("")}</div>` : ""}<div class="source-document syntax">${lines.map((l, i) => `<div class="source-line ${line === i + 1 ? "selected-line" : ""}" id="line-${i + 1}"><a class="line-number" href="${sourceHref(path, i + 1)}" aria-label="Line ${i + 1}">${i + 1}</a><code>${l || " "}</code></div>`).join("")}</div>`;
+  return `<div class="heading op-heading"><h1>${esc(path)}</h1></div>${note}${sourceLines(path, text, line)}`;
 }
 async function loadSource(path) {
   if (sourceCache.has(path)) return;
@@ -309,8 +285,8 @@ function render() {
   const focus = document.activeElement, focusId = focus?.id, caret = focus?.selectionStart, scroll = window.scrollY;
   const draftFocus = focus?.dataset?.draft !== undefined ? [focus.dataset.draft, [...document.querySelectorAll(`[data-draft="${focus.dataset.draft}"]`)].indexOf(focus)] : null;
   document.querySelectorAll("details[data-detail]").forEach(e => { if (e.open) expandedDetails.add(e.dataset.detail); else expandedDetails.delete(e.dataset.detail); });
-  $("#app").innerHTML = `${sidebar()}<main class="main" id="main">${breadcrumbs()}${content}</main><footer class="statusbar"><a href="#/about/assumptions">Lean WASM</a>${isNetwork() ? `<span>${state.queue.length} queued</span>` : ""}<span class="right">main ${plan.base.slice(0, 9)}</span></footer>`;
-  document.querySelectorAll("details[data-detail]").forEach(e => { if (expandedDetails.has(e.dataset.detail)) e.open = true; if (e.open && e.dataset.fragment) fillFragment(e); });
+  $("#app").innerHTML = `${sidebar()}<main class="main" id="main">${breadcrumbs()}${content}</main><footer class="statusbar"><a href="#/about/assumptions">Lean WASM</a>${isNetwork() ? `<span>${state.queue.length} queued</span>` : ""}<span class="right">${plan.revision.slice(0, 9)}</span></footer>`;
+  document.querySelectorAll("details[data-detail]").forEach(e => { if (expandedDetails.has(e.dataset.detail)) e.open = true; if (e.open && e.dataset.file) fillFile(e); });
   paint(); bind();
   if (navigationChanged) document.querySelector(".file-tree [aria-current]")?.scrollIntoView({block: "nearest"});
   if (focusId && document.getElementById(focusId)) { const e = document.getElementById(focusId); e.focus({preventScroll: true}); if (caret != null && e.setSelectionRange) try { e.setSelectionRange(caret, caret); } catch {} }
@@ -350,7 +326,7 @@ function bind() {
     $("#source-output").textContent = proofSession.output;
   });
   $("#proof-editor")?.addEventListener("input", e => { state.proofDrafts[route.id] = e.target.value; proofSession.output = "Draft changed."; if ($("#proof-output")) $("#proof-output").textContent = proofSession.output; persist(); });
-  document.querySelectorAll("details[data-fragment]").forEach(d => d.addEventListener("toggle", () => { if (d.open) fillFragment(d); }));
+  document.querySelectorAll("details[data-file]").forEach(d => d.addEventListener("toggle", () => { if (d.open) fillFile(d); }));
 }
 async function handle(action, data) {
   switch (action) {
@@ -412,7 +388,7 @@ function routeChanged() {
   render(); scrollToSection();
 }
 function scrollToSection() {
-  const target = route.section === "source" ? document.getElementById("line-" + route.line) : null;
+  const target = route.line ? document.getElementById("line-" + route.line) : null;
   if (target) target.scrollIntoView({block: "center"}); else window.scrollTo(0, 0);
 }
 window.addEventListener("hashchange", routeChanged);

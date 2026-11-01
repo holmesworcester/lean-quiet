@@ -383,7 +383,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .tree-toggle, .tree-indent { display: inline-flex; justify-content: center; align-items: center; width: 18px; min-width: 18px; height: 28px; padding: 0; font-size: 12px; }
 .file-tree .nav-item { padding: 3px 5px; min-height: 28px; font-size: 11px; line-height: 22px; border-left: 0; white-space: nowrap; }
 .file-tree .nav-item.active { text-decoration: underline; text-underline-offset: 4px; }
-.layout-provenance { overflow-wrap: anywhere; font-size: 12px; margin: -4px 0 20px; }
 .layout-document .doc-summary { margin: 0 0 20px; }
 .directory-list { margin: 20px 0; }
 .directory-list > a { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
@@ -411,11 +410,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .contract-source pre { max-height: 480px; overflow: auto; white-space: pre; padding: 14px; background: #0d1117; color: #e6edf3; }
 .contract-source pre code { white-space: pre; }
 .contract-scope { font-size: 12px; margin: 18px 0; }
-.requirements-table a { text-decoration: underline; text-underline-offset: 3px; }
-.operation-contract .requirements-table { table-layout: fixed; }
-.operation-contract .requirements-table th:nth-child(1) { width: 21%; }
-.operation-contract .requirements-table th:nth-child(2) { width: 29%; }
-.operation-contract .requirements-table th:nth-child(3) { width: 50%; }
 .inherited-fixture > p { margin: 16px 0; font-size: 12px; }
 .threat-reference { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 10px 0; }
 .threat-reference p { font-size: 12px; }
@@ -423,17 +417,9 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
   .operation-index ul ul { padding-left: 10px; }
   .operation-row { grid-template-columns: minmax(85px,1fr) minmax(0,1fr); gap: 8px; }
   .operation-row code, .operation-row span { font-size: 11px; }
-  .requirements-table th, .requirements-table td { padding: 8px 4px; }
-  .requirements-table th { width: auto; }
   .operation-identity { gap: 8px 14px; }
 }
 @media (max-width: 500px) {
-  .requirements-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .requirements-table tbody { display: block; }
-  .requirements-table tbody tr { display: grid; grid-template-columns: 80px minmax(0,1fr); padding: 10px 0; border-bottom: 1px solid var(--border); }
-  .operation-contract .requirements-table tbody th:nth-child(1) { width: auto; }
-  .requirements-table tbody th, .requirements-table tbody td { border: 0; padding: 3px 0; }
-  .requirements-table tbody td:nth-child(3) { grid-column: 1 / -1; }
 }
 .layout-document .document-section > p { margin: 0 0 16px; }
 .layout-document table th { width: auto; }
@@ -522,31 +508,27 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
   .sidebar.open { width: min(290px, 100vw); }
 }
 
-/* The op tree: ops are folders, planned things are italic, fragments of main's code fold. */
+/* The op tree: ops are folders, planned things are italic, long files fold. */
 .file-tree .nav-item.op { font-weight: 600; }
 .file-tree .nav-item.planned, .operation-row.planned a, .operation-row.planned span { font-style: italic; font-weight: 400; }
 .operation-identity span { opacity: 1; }
 .file-section .section-heading h2 a { color: var(--ink); }
-.fragment { margin: 0 0 14px; }
-.fragment > .source-origin, .fragment-code > .source-origin { display: block; font: 11px/1.6 var(--mono); margin-bottom: 4px; }
-.fragment pre, .fragment-code pre { margin: 0; padding: 0 0 6px; border: 0; overflow-x: auto; white-space: pre; font-size: 12px; line-height: 1.55; }
-.fragment pre code { white-space: pre; }
-details.fragment > summary, .fragment-rest > summary, .state-details > summary, .kernel-details > summary, .moves > summary {
+.file-code { margin: 0 0 14px; }
+.file-code pre { margin: 0; padding: 0 0 6px; border: 0; overflow-x: auto; white-space: pre; font-size: 12px; line-height: 1.55; }
+.file-code pre code { white-space: pre; }
+details.file-code > summary, .law-list > summary, .state-details > summary, .kernel-details > summary {
   cursor: pointer; font: 13px/1.8 var(--mono); display: list-item; overflow-wrap: anywhere; }
-details.fragment > summary .lines { margin-left: 12px; font-size: 11px; }
-details.fragment[open] { padding-bottom: 8px; }
-.fragment-code { padding: 6px 0 0 16px; }
-.fragment-rest { margin-top: 10px; }
-.crosses { font: 11px/1.6 var(--mono); margin: 2px 0 10px; }
-.crosses::before { content: "↑ "; }
+details.file-code > summary .lines { margin-left: 12px; font-size: 11px; }
+details.file-code[open] { padding-bottom: 8px; }
+.file-code-body { padding: 6px 0 0 16px; }
+.law-list .component-links { margin-top: 10px; }
+.imports-app { font: 11px/1.6 var(--mono); margin: 2px 0 10px; }
+.imports-app::before { content: "↑ "; }
 .planned-note { font-style: italic; }
 .state-details, .kernel-details { margin-top: 14px; }
 .state-details > table, .kernel-details > * { margin-top: 10px; }
 .proof-group .proven h4, .proof-group .assumptions h4 { font: 600 13px var(--mono); margin: 10px 0 6px; }
 .proof-group .proven .check-list { display: block; }
-.requirements-table { margin-bottom: 14px; }
-.moves table th { font-weight: 400; }
-.requirements-table tr > :first-child { width: 56px; }
 .operation-index ul ul { margin: 0; padding: 0; }
 .operation-index .operation-row a { padding-left: calc(var(--depth, 0) * 18px); }
 .operation-index .operation-row a { font-weight: 400; }
