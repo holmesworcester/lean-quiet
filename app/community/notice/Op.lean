@@ -55,6 +55,48 @@ instance : Codec Fact := Codec.tagged 18 (fun x => (x.c, x.u, x.recipient, x.box
 def byRecipient : Rel Fact := ⟨"notice", "byRecipient", fun f => some [f.c, f.recipient]⟩
 @[simp] theorem byRecipient_args (f : Fact) : byRecipient.args f = (some [f.c, f.recipient]) := rfl
 
+/-! ## The sealed payload (the app's; validators never open it) -/
+
+/-- A notification level (libquiet's): every message, only mentions and
+direct messages, or none. -/
+inductive Level where
+  | all | mentions | off
+  deriving BEq, DecidableEq, Inhabited, Repr
+
+/-- A level's code in a payload; 0 is "inherit". -/
+def Level.code : Option Level → Nat
+  | none => 0 | some .all => 1 | some .mentions => 2 | some .off => 3
+
+def Level.ofCode : Nat → Option Level
+  | 1 => some .all | 2 => some .mentions | 3 => some .off | _ => none
+
+theorem Level.ofCode_code (l : Option Level) : Level.ofCode (Level.code l) = l := by
+  cases l with
+  | none => rfl
+  | some l => cases l <;> rfl
+
+/-- A user's notification settings: the community's level, a
+conversation's (it outranks the community's, even Off), and whether
+thread replies notify (conversation, then community). -/
+structure Settings where
+  community : Option Level := none
+  conversation : Option Level := none
+  replies : Option Bool := none
+  communityReplies : Option Bool := none
+  deriving BEq, DecidableEq, Inhabited, Repr
+
+/-- What a notice seals: the exact messages newly read; the writer's
+current levels (community, conversation; 0 inherits); and the revision
+those levels were set at. Every notice carries the settings it knew, so
+the newest few notices hold the newest settings, and a read written
+concurrently with a settings change cannot undo it (the higher settings
+revision wins). -/
+abbrev Payload := List Id × Nat × Nat × Nat
+
+/-- The associated data a payload is sealed under: it binds the box to
+its community and its user, so a box cannot be moved to another. -/
+def binding (c u : Id) : ByteArray := Codec.encode ("quiet/notify/v1".toUTF8, c, u)
+
 end Notice
 
 end Community

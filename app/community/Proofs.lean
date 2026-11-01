@@ -3480,3 +3480,22 @@ end Net.Scene
 
 end
 
+namespace Community
+open Engine Codec
+
+theorem openScheme_prefix (x : List Char) : openScheme.isPrefixOf (openScheme ++ x) = true := by
+  simp [List.isPrefixOf_iff_prefix]
+
+/-- **A message link parses back to exactly its message**: the
+community, the conversation, the message and any thread root it names. -/
+theorem target_roundtrip {t : Target} (hv : t.Valid) : Target.parse t.uri = some t := by
+  unfold Target.parse Target.uri Target.code
+  rw [String.toList_ofList]
+  simp only [openScheme_prefix, Bool.not_true, Bool.false_eq_true, ↓reduceIte, List.drop_left',
+    Base62.decode_encode]
+  rw [show (⟨(encode (linkVersion, t.community, t.conversation, t.message, t.root)).data.toList.toArray⟩ : ByteArray)
+    = encode (linkVersion, t.community, t.conversation, t.message, t.root) from rfl, Codec.decode_encode]
+  simp only
+  rw [if_pos (by first | exact ⟨rfl, hv⟩ | exact ⟨trivial, hv⟩ | exact hv)]
+
+end Community
