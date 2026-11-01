@@ -84,7 +84,8 @@ mutant "a list that reads in the wrong direction" engine.core.Union engine/core/
 # (its unfolding, eval_readable, restated to match, as a change would)
 mutant "readable reads its receipts in the other direction" app.community.Proofs app/community/Proofs.lean:order_total app/community/Commands.lean,app/community/Proofs.lean \
   "received.byKey.query [c, kid] limit desc (after.map" "received.byKey.query [c, kid] limit (!desc) (after.map" \
-  "(received.byKey.query [c, kid] lim desc (after.map" "(received.byKey.query [c, kid] lim (!desc) (after.map"
+  "          let a := Engine.eval s (received.byKey.query [c, kid] lim desc (after.map" \
+  "          let a := Engine.eval s (received.byKey.query [c, kid] lim (!desc) (after.map"
 # anchor_read (and count_partition) is false: a receipt list is bounded
 # as it was, by sort key against the least id (before) and the greatest
 # (after), so a window anchored on a saturated message drops the anchor.
