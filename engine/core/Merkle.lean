@@ -45,7 +45,7 @@ and every byte of the file once, is in MerkleCost.lean.
 import engine.core.Core
 import engine.core.Cost
 
-namespace Community.Merkle
+namespace Merkle
 open Engine
 
 abbrev B := ByteArray
@@ -775,4 +775,4 @@ theorem look_sub (ct : B) : ∀ k m, k ≤ depthOf (nChunks ct.size) →
 
 end
 
-end Community.Merkle
+end Merkle

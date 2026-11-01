@@ -49,15 +49,12 @@ lean_lib Pic where
 @[default_target] lean_lib Sync where
   globs := #[.submodules `engine.sync]
 
--- the handshake and sessions, and the bootstrap's model
+-- the handshake and sessions
 @[default_target] lean_lib Connection where
   globs := #[.submodules `ops.connection]
 
--- the bootstrap model and its laws
-lean_lib Net where
-  globs := #[.submodules `ops.connection.bootstrap]
-
--- the Community family, and each domain's view
+-- the Community family, each domain's view, and the bootstrap's model
+-- (in community/Proofs: it names only community ops)
 @[default_target] lean_lib Community where
   globs := #[.submodules `ops.community]
 

@@ -11,7 +11,7 @@ import ops.community.member.join.accept.View
 import engine.renderer.Board
 import engine.renderer.Demand
 import Std.Sync.Mutex
-import ops.community.Community
+import ops.community.Proofs
 import ops.Commands
 import ops.community.member.invite.request.Commands
 import ops.community.member.join.joining.Commands

@@ -1,4 +1,4 @@
-import ops.connection.NoiseSymbolic
+import engine.wire.NoiseSymbolic
 
 /-! Non-vacuity for the *symbolic* handshake the README explicitly labels.
 Four distinct fixed exponents: initiator static 11, responder static 22,

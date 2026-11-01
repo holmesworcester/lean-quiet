@@ -34,8 +34,8 @@ The app's data: the engine on SQLite, read and written from two threads.
 -/
 import engine.core.Engine
 import engine.core.Window
-import ops.community.Community
-import ops.connection.All
+import ops.community.Proofs
+import ops.connection.Proofs
 import engine.renderer.Platform
 import Std.Data.HashMap
 

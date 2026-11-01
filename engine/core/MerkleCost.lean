@@ -18,9 +18,9 @@ rebuilds every sibling's subtree, through the same door.
 2n² for n chunks. `slow_over_budget` shows that it breaks the budget for
 every file of two chunks or more.
 -/
-import ops.community.Merkle
+import engine.core.Merkle
 
-namespace Community.Merkle
+namespace Merkle
 open Engine Engine.Counted
 
 section
@@ -363,4 +363,4 @@ theorem slow_over_budget (ct : B) (h : 2 ≤ nChunks ct.size) :
 
 end
 
-end Community.Merkle
+end Merkle

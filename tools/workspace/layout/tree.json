@@ -585,8 +585,8 @@
     "ops/app/Raster.lean": "app/community/channel/message/attachment/View.lean",
     "ops/community/attachment/ArrivalLaws.lean": "app/community/channel/message/attachment/Proofs.lean",
     "ops/app/Pics.lean": "app/community/channel/message/attachment/Proofs.lean",
-    "ops/community/Merkle.lean": "engine/core/Merkle.lean",
-    "ops/community/MerkleCost.lean": "engine/core/MerkleCost.lean",
+    "engine/core/Merkle.lean": "engine/core/Merkle.lean",
+    "engine/core/MerkleCost.lean": "engine/core/MerkleCost.lean",
     "ops/connection/Types.lean": {
       "split": "connection",
       "rest": "app/connection/Family.lean"

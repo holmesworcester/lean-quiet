@@ -1,6 +1,6 @@
 import ops.community.channel.message.attachment.chunk.Op
 import ops.community.channel.message.attachment.Op
-import ops.community.Merkle
+import engine.core.Merkle
 
 /-!
 `community.channel.message.attachment.chunk`'s validator: the fact it produces from the facts it

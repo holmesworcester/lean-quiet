@@ -1,4 +1,4 @@
-import ops.connection.ExecutionLaws
+import ops.Proofs
 import tests.engine.Checks
 
 /-! Synthetic identities and text, real crypto and the production Node/hooks.

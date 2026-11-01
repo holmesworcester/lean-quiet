@@ -27,7 +27,8 @@ some mutant the specification refuses, so the mutants reach the checks
 that make `decodeFast` strict.
 -/
 import tests.engine.Lib
-import ops.connection.All
+import ops.connection.Proofs
+import ops.Commands
 
 open Engine Engine.Sync Tests Codec
 

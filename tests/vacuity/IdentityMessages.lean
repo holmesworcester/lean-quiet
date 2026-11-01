@@ -3,7 +3,7 @@ import ops.community.Screen
 import ops.community.channel.message.View
 import ops.community.key.View
 import ops.community.profile.View
-import ops.community.Community
+import ops.community.Proofs
 
 namespace Vacuity.IdentityMessages
 open Engine Community Codec Tests Kinds Vacuity.Identity Vacuity.IdentityTrust

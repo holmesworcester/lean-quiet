@@ -55,7 +55,7 @@ WEND = "<!-- wiring:end -->"
 # module has.
 AREAS = [("engine.core", "Engine"), ("engine.sync", "Sync"), ("engine.world", "The n-node World"),
          ("engine.wire.mdns", "mDNS"),
-         ("engine.wire", "Node and wire"), ("ops.connection.bootstrap", "Bootstrap"),
+         ("engine.wire", "Node and wire"),
          ("ops.connection", "Connections"), ("ops.community", "Community"),
          ("engine.renderer.qr", "QR codes"), ("engine.renderer.pic", "Pictures"),
          ("engine.renderer", "Screen"), ("ops.Screen", "App"), ("ops.Proofs", "App"), ("ops.Commands", "Node")]

@@ -1,7 +1,7 @@
 import engine.core.Families
 import engine.core.Project
 import engine.wire.Node
-import ops.community.Community
+import ops.community.Proofs
 import ops.connection.connection.Op
 import ops.connection.connection.Validate
 import ops.connection.eph.Op
@@ -88,45 +88,87 @@ inductive Fact where
 theorem Fact.eph.injEq (of : B) (pk : B) (sk : B) (of' : B) (pk' : B) (sk' : B) :
     (Fact.eph of pk sk = Fact.eph of' pk' sk') = (of = of' ∧ pk = pk' ∧ sk = sk') := by
   simp [Fact.eph]
+theorem Fact.eph.inj {of : B} {pk : B} {sk : B} {of' : B} {pk' : B} {sk' : B}
+    (hinj : Fact.eph of pk sk = Fact.eph of' pk' sk') : of = of' ∧ pk = pk' ∧ sk = sk' := by
+  rw [Fact.eph.injEq] at hinj; exact hinj
 theorem Fact.request.injEq (to : B) (frm : B) (m1 : B) (to' : B) (frm' : B) (m1' : B) :
     (Fact.request to frm m1 = Fact.request to' frm' m1') = (to = to' ∧ frm = frm' ∧ m1 = m1') := by
   simp [Fact.request]
+theorem Fact.request.inj {to : B} {frm : B} {m1 : B} {to' : B} {frm' : B} {m1' : B}
+    (hinj : Fact.request to frm m1 = Fact.request to' frm' m1') : to = to' ∧ frm = frm' ∧ m1 = m1' := by
+  rw [Fact.request.injEq] at hinj; exact hinj
 theorem Fact.opened.injEq (req : B) (c : B) (frm : B) (addr : B) (ops : List B) (req' : B) (c' : B) (frm' : B) (addr' : B) (ops' : List B) :
     (Fact.opened req c frm addr ops = Fact.opened req' c' frm' addr' ops') = (req = req' ∧ c = c' ∧ frm = frm' ∧ addr = addr' ∧ ops = ops') := by
   simp [Fact.opened]
+theorem Fact.opened.inj {req : B} {c : B} {frm : B} {addr : B} {ops : List B} {req' : B} {c' : B} {frm' : B} {addr' : B} {ops' : List B}
+    (hinj : Fact.opened req c frm addr ops = Fact.opened req' c' frm' addr' ops') : req = req' ∧ c = c' ∧ frm = frm' ∧ addr = addr' ∧ ops = ops' := by
+  rw [Fact.opened.injEq] at hinj; exact hinj
 theorem Fact.connection.injEq (req : B) (m2 : B) (req' : B) (m2' : B) :
     (Fact.connection req m2 = Fact.connection req' m2') = (req = req' ∧ m2 = m2') := by
   simp [Fact.connection]
+theorem Fact.connection.inj {req : B} {m2 : B} {req' : B} {m2' : B}
+    (hinj : Fact.connection req m2 = Fact.connection req' m2') : req = req' ∧ m2 = m2' := by
+  rw [Fact.connection.injEq] at hinj; exact hinj
 theorem Fact.established.injEq (cid : B) (c : B) (peer : B) (h : B) (sendKey : B) (recvKey : B) (dialer : Bool) (cid' : B) (c' : B) (peer' : B) (h' : B) (sendKey' : B) (recvKey' : B) (dialer' : Bool) :
     (Fact.established cid c peer h sendKey recvKey dialer = Fact.established cid' c' peer' h' sendKey' recvKey' dialer') = (cid = cid' ∧ c = c' ∧ peer = peer' ∧ h = h' ∧ sendKey = sendKey' ∧ recvKey = recvKey' ∧ dialer = dialer') := by
   simp [Fact.established]
+theorem Fact.established.inj {cid : B} {c : B} {peer : B} {h : B} {sendKey : B} {recvKey : B} {dialer : Bool} {cid' : B} {c' : B} {peer' : B} {h' : B} {sendKey' : B} {recvKey' : B} {dialer' : Bool}
+    (hinj : Fact.established cid c peer h sendKey recvKey dialer = Fact.established cid' c' peer' h' sendKey' recvKey' dialer') : cid = cid' ∧ c = c' ∧ peer = peer' ∧ h = h' ∧ sendKey = sendKey' ∧ recvKey = recvKey' ∧ dialer = dialer' := by
+  rw [Fact.established.injEq] at hinj; exact hinj
 theorem Fact.send.injEq (op : B) (addr : B) (op' : B) (addr' : B) :
     (Fact.send op addr = Fact.send op' addr') = (op = op' ∧ addr = addr') := by
   simp [Fact.send]
+theorem Fact.send.inj {op : B} {addr : B} {op' : B} {addr' : B}
+    (hinj : Fact.send op addr = Fact.send op' addr') : op = op' ∧ addr = addr' := by
+  rw [Fact.send.injEq] at hinj; exact hinj
 theorem Fact.recv.injEq (op : B) (onConn : Bool) (via : B) (addr : B) (at_ : Nat) (op' : B) (onConn' : Bool) (via' : B) (addr' : B) (at_' : Nat) :
     (Fact.recv op onConn via addr at_ = Fact.recv op' onConn' via' addr' at_') = (op = op' ∧ onConn = onConn' ∧ via = via' ∧ addr = addr' ∧ at_ = at_') := by
   simp [Fact.recv]
+theorem Fact.recv.inj {op : B} {onConn : Bool} {via : B} {addr : B} {at_ : Nat} {op' : B} {onConn' : Bool} {via' : B} {addr' : B} {at_' : Nat}
+    (hinj : Fact.recv op onConn via addr at_ = Fact.recv op' onConn' via' addr' at_') : op = op' ∧ onConn = onConn' ∧ via = via' ∧ addr = addr' ∧ at_ = at_' := by
+  rw [Fact.recv.injEq] at hinj; exact hinj
 theorem Fact.given.injEq (conn : B) (x : B) (conn' : B) (x' : B) :
     (Fact.given conn x = Fact.given conn' x') = (conn = conn' ∧ x = x') := by
   simp [Fact.given]
+theorem Fact.given.inj {conn : B} {x : B} {conn' : B} {x' : B}
+    (hinj : Fact.given conn x = Fact.given conn' x') : conn = conn' ∧ x = x' := by
+  rw [Fact.given.injEq] at hinj; exact hinj
 theorem Body.eph.injEq (sk : B) (sk' : B) :
     (Body.eph sk = Body.eph sk') = (sk = sk') := by
   simp [Body.eph]
+theorem Body.eph.inj {sk : B} {sk' : B}
+    (h : Body.eph sk = Body.eph sk') : sk = sk' := by
+  rw [Body.eph.injEq] at h; exact h
 theorem Body.request.injEq (to : B) (frm : B) (m1 : B) (to' : B) (frm' : B) (m1' : B) :
     (Body.request to frm m1 = Body.request to' frm' m1') = (to = to' ∧ frm = frm' ∧ m1 = m1') := by
   simp [Body.request]
+theorem Body.request.inj {to : B} {frm : B} {m1 : B} {to' : B} {frm' : B} {m1' : B}
+    (h : Body.request to frm m1 = Body.request to' frm' m1') : to = to' ∧ frm = frm' ∧ m1 = m1' := by
+  rw [Body.request.injEq] at h; exact h
 theorem Body.connection.injEq (m2 : B) (m2' : B) :
     (Body.connection m2 = Body.connection m2') = (m2 = m2') := by
   simp [Body.connection]
+theorem Body.connection.inj {m2 : B} {m2' : B}
+    (h : Body.connection m2 = Body.connection m2') : m2 = m2' := by
+  rw [Body.connection.injEq] at h; exact h
 theorem Body.send.injEq (addr : B) (addr' : B) :
     (Body.send addr = Body.send addr') = (addr = addr') := by
   simp [Body.send]
+theorem Body.send.inj {addr : B} {addr' : B}
+    (h : Body.send addr = Body.send addr') : addr = addr' := by
+  rw [Body.send.injEq] at h; exact h
 theorem Body.recv.injEq (onConn : Bool) (via : B) (addr : B) (at_ : Nat) (onConn' : Bool) (via' : B) (addr' : B) (at_' : Nat) :
     (Body.recv onConn via addr at_ = Body.recv onConn' via' addr' at_') = (onConn = onConn' ∧ via = via' ∧ addr = addr' ∧ at_ = at_') := by
   simp [Body.recv]
+theorem Body.recv.inj {onConn : Bool} {via : B} {addr : B} {at_ : Nat} {onConn' : Bool} {via' : B} {addr' : B} {at_' : Nat}
+    (h : Body.recv onConn via addr at_ = Body.recv onConn' via' addr' at_') : onConn = onConn' ∧ via = via' ∧ addr = addr' ∧ at_ = at_' := by
+  rw [Body.recv.injEq] at h; exact h
 theorem Body.given.injEq (x : B) (x' : B) :
     (Body.given x = Body.given x') = (x = x') := by
   simp [Body.given]
+theorem Body.given.inj {x : B} {x' : B}
+    (h : Body.given x = Body.given x') : x = x' := by
+  rw [Body.given.injEq] at h; exact h
 
 @[simp] def Fact.eph? : Fact → Option Eph.Fact
   | .ofEph x => some x

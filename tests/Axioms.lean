@@ -20,10 +20,8 @@ import engine.wire.LaneLaws
 import engine.wire.Slots
 import engine.core.Engine
 import engine.core.IdemLaws
-import ops.community.Community
-import ops.connection.All
-import ops.connection.ExecutionLaws
-import ops.connection.bootstrap.FairExecution
+import ops.community.Proofs
+import ops.connection.Proofs
 import engine.renderer.Geometry
 import engine.renderer.Cover
 import engine.renderer.ImageLaws
@@ -49,13 +47,12 @@ import ops.community.channel.message.attachment.View
 import engine.renderer.qr.Qr
 import engine.renderer.pic.Pic
 import engine.wire.mdns.Mdns
-import ops.connection.bootstrap.Net
 import engine.core.WindowRead
 import engine.core.WindowCost
 import engine.core.WindowMutants
 import engine.renderer.Screen
 import engine.core.CodecCost
-import ops.community.MerkleCost
+import engine.core.MerkleCost
 import engine.core.IngestCost
 import engine.core.ListCost
 import engine.renderer.BoardLaws
@@ -65,7 +62,6 @@ import engine.core.CostErase
 import engine.renderer.ActsLaws
 import engine.core.Project
 import ops.connection.Family
-import ops.connection.Proofs
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -213,18 +209,18 @@ open Engine Community
 #print axioms Community.send_after
 #print axioms Community.order_local
 #print axioms Community.display_agrees
-#print axioms Community.Merkle.encode_verify
-#print axioms Community.Merkle.verify_sound
-#print axioms Community.Merkle.index_bound
-#print axioms Community.Merkle.complete_assembles
-#print axioms Community.Merkle.assemble_slices
-#print axioms Community.Merkle.climb_path
-#print axioms Community.Merkle.climb_sub
-#print axioms Community.Merkle.no_injective_hash
-#print axioms Community.Merkle.assumptions_hold
-#print axioms Community.Merkle.fileRoot_eq_fast
-#print axioms Community.Merkle.proof_eq_fast
-#print axioms Community.Merkle.rootAndProofs_eq_fast
+#print axioms Merkle.encode_verify
+#print axioms Merkle.verify_sound
+#print axioms Merkle.index_bound
+#print axioms Merkle.complete_assembles
+#print axioms Merkle.assemble_slices
+#print axioms Merkle.climb_path
+#print axioms Merkle.climb_sub
+#print axioms Merkle.no_injective_hash
+#print axioms Merkle.assumptions_hold
+#print axioms Merkle.fileRoot_eq_fast
+#print axioms Merkle.proof_eq_fast
+#print axioms Merkle.rootAndProofs_eq_fast
 #print axioms Community.op_of_valid
 #print axioms Community.chunk_id
 #print axioms Community.chunk_unique
@@ -710,14 +706,14 @@ end windows
 section cost
 -- Budgets over the code that runs (docs/PERF.md), and the negative
 -- controls they catch.
-#print axioms Community.Merkle.val_rootAndProofsM
-#print axioms Community.Merkle.rootAndProofs_hashes
-#print axioms Community.Merkle.rootAndProofs_hashes_lt
-#print axioms Community.Merkle.rootAndProofs_hashed
-#print axioms Community.Merkle.rootAndProofs_hashed_lt
-#print axioms Community.Merkle.val_rootAndProofsSlowM
-#print axioms Community.Merkle.slow_hashes
-#print axioms Community.Merkle.slow_over_budget
+#print axioms Merkle.val_rootAndProofsM
+#print axioms Merkle.rootAndProofs_hashes
+#print axioms Merkle.rootAndProofs_hashes_lt
+#print axioms Merkle.rootAndProofs_hashed
+#print axioms Merkle.rootAndProofs_hashed_lt
+#print axioms Merkle.val_rootAndProofsSlowM
+#print axioms Merkle.slow_hashes
+#print axioms Merkle.slow_over_budget
 #print axioms Engine.Codec.val_decNatFromM
 #print axioms Engine.Codec.work_digitsM
 #print axioms Engine.Codec.work_decNatFromM

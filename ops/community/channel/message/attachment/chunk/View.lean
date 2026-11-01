@@ -1,7 +1,7 @@
 import engine.renderer.Data
 import engine.renderer.Image
 import engine.renderer.Row
-import ops.community.Community
+import ops.community.Proofs
 
 /-!
 `community.channel.message.attachment.chunk`: its component, which reads its own facts, and the component's laws.

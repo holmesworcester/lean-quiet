@@ -116,7 +116,7 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
 - An attachment is a child of a message, by the message's author, as
   libquiet's op graph has it: a message has any number of children, and
   components list them (`attachment.byMessage`). Its header is the
-  file's Merkle root and length (`Community.Merkle`); its body, sealed
+  file's Merkle root and length (`Merkle`); its body, sealed
   under the content key, is the name, kind, size, a preview, and the
   file's own key. The file is sealed once under that key, and the tree is
   over the ciphertext.
@@ -242,120 +242,237 @@ inductive Body where
 theorem Fact.admission.injEq (c : Id) (u : Id) (device : Key) (enc : Key) (c' : Id) (u' : Id) (device' : Key) (enc' : Key) :
     (Fact.admission c u device enc = Fact.admission c' u' device' enc') = (c = c' ∧ u = u' ∧ device = device' ∧ enc = enc') := by
   simp [Fact.admission]
+theorem Fact.admission.inj {c : Id} {u : Id} {device : Key} {enc : Key} {c' : Id} {u' : Id} {device' : Key} {enc' : Key}
+    (hinj : Fact.admission c u device enc = Fact.admission c' u' device' enc') : c = c' ∧ u = u' ∧ device = device' ∧ enc = enc' := by
+  rw [Fact.admission.injEq] at hinj; exact hinj
 theorem Fact.invitation.injEq (c : Id) (issuer : Id) (bearer : Key) (link : Bool) (threshold : Nat) (c' : Id) (issuer' : Id) (bearer' : Key) (link' : Bool) (threshold' : Nat) :
     (Fact.invitation c issuer bearer link threshold = Fact.invitation c' issuer' bearer' link' threshold') = (c = c' ∧ issuer = issuer' ∧ bearer = bearer' ∧ link = link' ∧ threshold = threshold') := by
   simp [Fact.invitation]
+theorem Fact.invitation.inj {c : Id} {issuer : Id} {bearer : Key} {link : Bool} {threshold : Nat} {c' : Id} {issuer' : Id} {bearer' : Key} {link' : Bool} {threshold' : Nat}
+    (hinj : Fact.invitation c issuer bearer link threshold = Fact.invitation c' issuer' bearer' link' threshold') : c = c' ∧ issuer = issuer' ∧ bearer = bearer' ∧ link = link' ∧ threshold = threshold' := by
+  rw [Fact.invitation.injEq] at hinj; exact hinj
 theorem Fact.admin.injEq (c : Id) (u : Id) (c' : Id) (u' : Id) :
     (Fact.admin c u = Fact.admin c' u') = (c = c' ∧ u = u') := by
   simp [Fact.admin]
+theorem Fact.admin.inj {c : Id} {u : Id} {c' : Id} {u' : Id}
+    (hinj : Fact.admin c u = Fact.admin c' u') : c = c' ∧ u = u' := by
+  rw [Fact.admin.injEq] at hinj; exact hinj
 theorem Fact.removal.injEq (c : Id) (u : Id) (by_ : Id) (c' : Id) (u' : Id) (by_' : Id) :
     (Fact.removal c u by_ = Fact.removal c' u' by_') = (c = c' ∧ u = u' ∧ by_ = by_') := by
   simp [Fact.removal]
+theorem Fact.removal.inj {c : Id} {u : Id} {by_ : Id} {c' : Id} {u' : Id} {by_' : Id}
+    (hinj : Fact.removal c u by_ = Fact.removal c' u' by_') : c = c' ∧ u = u' ∧ by_ = by_' := by
+  rw [Fact.removal.injEq] at hinj; exact hinj
 theorem Fact.message.injEq (c : Id) (u : Id) (device : ByteArray) (ckey : ByteArray) (text : ByteArray) (n : Nat) (time : Nat) (clump : Option Id) (c' : Id) (u' : Id) (device' : ByteArray) (ckey' : ByteArray) (text' : ByteArray) (n' : Nat) (time' : Nat) (clump' : Option Id) :
     (Fact.message c u device ckey text n time clump = Fact.message c' u' device' ckey' text' n' time' clump') = (c = c' ∧ u = u' ∧ device = device' ∧ ckey = ckey' ∧ text = text' ∧ n = n' ∧ time = time' ∧ clump = clump') := by
   simp [Fact.message]
+theorem Fact.message.inj {c : Id} {u : Id} {device : ByteArray} {ckey : ByteArray} {text : ByteArray} {n : Nat} {time : Nat} {clump : Option Id} {c' : Id} {u' : Id} {device' : ByteArray} {ckey' : ByteArray} {text' : ByteArray} {n' : Nat} {time' : Nat} {clump' : Option Id}
+    (hinj : Fact.message c u device ckey text n time clump = Fact.message c' u' device' ckey' text' n' time' clump') : c = c' ∧ u = u' ∧ device = device' ∧ ckey = ckey' ∧ text = text' ∧ n = n' ∧ time = time' ∧ clump = clump' := by
+  rw [Fact.message.injEq] at hinj; exact hinj
 theorem Fact.wrap.injEq (c : Id) (ckey : ByteArray) (recipient : ByteArray) (box : ByteArray) (c' : Id) (ckey' : ByteArray) (recipient' : ByteArray) (box' : ByteArray) :
     (Fact.wrap c ckey recipient box = Fact.wrap c' ckey' recipient' box') = (c = c' ∧ ckey = ckey' ∧ recipient = recipient' ∧ box = box') := by
   simp [Fact.wrap]
+theorem Fact.wrap.inj {c : Id} {ckey : ByteArray} {recipient : ByteArray} {box : ByteArray} {c' : Id} {ckey' : ByteArray} {recipient' : ByteArray} {box' : ByteArray}
+    (hinj : Fact.wrap c ckey recipient box = Fact.wrap c' ckey' recipient' box') : c = c' ∧ ckey = ckey' ∧ recipient = recipient' ∧ box = box' := by
+  rw [Fact.wrap.injEq] at hinj; exact hinj
 theorem Fact.profile.injEq (c : Id) (u : Id) (name : ByteArray) (time : Nat) (c' : Id) (u' : Id) (name' : ByteArray) (time' : Nat) :
     (Fact.profile c u name time = Fact.profile c' u' name' time') = (c = c' ∧ u = u' ∧ name = name' ∧ time = time') := by
   simp [Fact.profile]
+theorem Fact.profile.inj {c : Id} {u : Id} {name : ByteArray} {time : Nat} {c' : Id} {u' : Id} {name' : ByteArray} {time' : Nat}
+    (hinj : Fact.profile c u name time = Fact.profile c' u' name' time') : c = c' ∧ u = u' ∧ name = name' ∧ time = time' := by
+  rw [Fact.profile.injEq] at hinj; exact hinj
 theorem Fact.attachment.injEq (c : Id) (msg : Id) (u : Id) (root : Id) (len : Nat) (kid : ByteArray) (sealed : ByteArray) (c' : Id) (msg' : Id) (u' : Id) (root' : Id) (len' : Nat) (kid' : ByteArray) (sealed' : ByteArray) :
     (Fact.attachment c msg u root len kid sealed = Fact.attachment c' msg' u' root' len' kid' sealed') = (c = c' ∧ msg = msg' ∧ u = u' ∧ root = root' ∧ len = len' ∧ kid = kid' ∧ sealed = sealed') := by
   simp [Fact.attachment]
+theorem Fact.attachment.inj {c : Id} {msg : Id} {u : Id} {root : Id} {len : Nat} {kid : ByteArray} {sealed : ByteArray} {c' : Id} {msg' : Id} {u' : Id} {root' : Id} {len' : Nat} {kid' : ByteArray} {sealed' : ByteArray}
+    (hinj : Fact.attachment c msg u root len kid sealed = Fact.attachment c' msg' u' root' len' kid' sealed') : c = c' ∧ msg = msg' ∧ u = u' ∧ root = root' ∧ len = len' ∧ kid = kid' ∧ sealed = sealed' := by
+  rw [Fact.attachment.injEq] at hinj; exact hinj
 theorem Fact.react.injEq (c : Id) (u : Id) (target : Id) (emoji : ByteArray) (time : Nat) (c' : Id) (u' : Id) (target' : Id) (emoji' : ByteArray) (time' : Nat) :
     (Fact.react c u target emoji time = Fact.react c' u' target' emoji' time') = (c = c' ∧ u = u' ∧ target = target' ∧ emoji = emoji' ∧ time = time') := by
   simp [Fact.react]
+theorem Fact.react.inj {c : Id} {u : Id} {target : Id} {emoji : ByteArray} {time : Nat} {c' : Id} {u' : Id} {target' : Id} {emoji' : ByteArray} {time' : Nat}
+    (hinj : Fact.react c u target emoji time = Fact.react c' u' target' emoji' time') : c = c' ∧ u = u' ∧ target = target' ∧ emoji = emoji' ∧ time = time' := by
+  rw [Fact.react.injEq] at hinj; exact hinj
 theorem Fact.request.injEq (c : Id) (u : Id) (device : Key) (enc : Key) (link : Bool) (threshold : Nat) (c' : Id) (u' : Id) (device' : Key) (enc' : Key) (link' : Bool) (threshold' : Nat) :
     (Fact.request c u device enc link threshold = Fact.request c' u' device' enc' link' threshold') = (c = c' ∧ u = u' ∧ device = device' ∧ enc = enc' ∧ link = link' ∧ threshold = threshold') := by
   simp [Fact.request]
+theorem Fact.request.inj {c : Id} {u : Id} {device : Key} {enc : Key} {link : Bool} {threshold : Nat} {c' : Id} {u' : Id} {device' : Key} {enc' : Key} {link' : Bool} {threshold' : Nat}
+    (hinj : Fact.request c u device enc link threshold = Fact.request c' u' device' enc' link' threshold') : c = c' ∧ u = u' ∧ device = device' ∧ enc = enc' ∧ link = link' ∧ threshold = threshold' := by
+  rw [Fact.request.injEq] at hinj; exact hinj
 theorem Fact.approval.injEq (c : Id) (req : Id) (u : Id) (c' : Id) (req' : Id) (u' : Id) :
     (Fact.approval c req u = Fact.approval c' req' u') = (c = c' ∧ req = req' ∧ u = u') := by
   simp [Fact.approval]
+theorem Fact.approval.inj {c : Id} {req : Id} {u : Id} {c' : Id} {req' : Id} {u' : Id}
+    (hinj : Fact.approval c req u = Fact.approval c' req' u') : c = c' ∧ req = req' ∧ u = u' := by
+  rw [Fact.approval.injEq] at hinj; exact hinj
 theorem Fact.secret.injEq (pk : ByteArray) (seed : ByteArray) (pk' : ByteArray) (seed' : ByteArray) :
     (Fact.secret pk seed = Fact.secret pk' seed') = (pk = pk' ∧ seed = seed') := by
   simp [Fact.secret]
+theorem Fact.secret.inj {pk : ByteArray} {seed : ByteArray} {pk' : ByteArray} {seed' : ByteArray}
+    (hinj : Fact.secret pk seed = Fact.secret pk' seed') : pk = pk' ∧ seed = seed' := by
+  rw [Fact.secret.injEq] at hinj; exact hinj
 theorem Fact.accepted.injEq (c : Id) (device : Key) (c' : Id) (device' : Key) :
     (Fact.accepted c device = Fact.accepted c' device') = (c = c' ∧ device = device') := by
   simp [Fact.accepted]
+theorem Fact.accepted.inj {c : Id} {device : Key} {c' : Id} {device' : Key}
+    (hinj : Fact.accepted c device = Fact.accepted c' device') : c = c' ∧ device = device' := by
+  rw [Fact.accepted.injEq] at hinj; exact hinj
 theorem Fact.joining.injEq (c : Id) (inviter : Key) (hints : List ByteArray) (req : Id) (name : ByteArray) (device : Key) (epoch : Nat) (c' : Id) (inviter' : Key) (hints' : List ByteArray) (req' : Id) (name' : ByteArray) (device' : Key) (epoch' : Nat) :
     (Fact.joining c inviter hints req name device epoch = Fact.joining c' inviter' hints' req' name' device' epoch') = (c = c' ∧ inviter = inviter' ∧ hints = hints' ∧ req = req' ∧ name = name' ∧ device = device' ∧ epoch = epoch') := by
   simp [Fact.joining]
+theorem Fact.joining.inj {c : Id} {inviter : Key} {hints : List ByteArray} {req : Id} {name : ByteArray} {device : Key} {epoch : Nat} {c' : Id} {inviter' : Key} {hints' : List ByteArray} {req' : Id} {name' : ByteArray} {device' : Key} {epoch' : Nat}
+    (hinj : Fact.joining c inviter hints req name device epoch = Fact.joining c' inviter' hints' req' name' device' epoch') : c = c' ∧ inviter = inviter' ∧ hints = hints' ∧ req = req' ∧ name = name' ∧ device = device' ∧ epoch = epoch' := by
+  rw [Fact.joining.injEq] at hinj; exact hinj
 theorem Fact.named.injEq (c : Id) (u : Id) (name : ByteArray) (n : Nat) (c' : Id) (u' : Id) (name' : ByteArray) (n' : Nat) :
     (Fact.named c u name n = Fact.named c' u' name' n') = (c = c' ∧ u = u' ∧ name = name' ∧ n = n') := by
   simp [Fact.named]
+theorem Fact.named.inj {c : Id} {u : Id} {name : ByteArray} {n : Nat} {c' : Id} {u' : Id} {name' : ByteArray} {n' : Nat}
+    (hinj : Fact.named c u name n = Fact.named c' u' name' n') : c = c' ∧ u = u' ∧ name = name' ∧ n = n' := by
+  rw [Fact.named.injEq] at hinj; exact hinj
 theorem Fact.abandoned.injEq (c : Id) (req : Id) (join : Id) (c' : Id) (req' : Id) (join' : Id) :
     (Fact.abandoned c req join = Fact.abandoned c' req' join') = (c = c' ∧ req = req' ∧ join = join') := by
   simp [Fact.abandoned]
+theorem Fact.abandoned.inj {c : Id} {req : Id} {join : Id} {c' : Id} {req' : Id} {join' : Id}
+    (hinj : Fact.abandoned c req join = Fact.abandoned c' req' join') : c = c' ∧ req = req' ∧ join = join' := by
+  rw [Fact.abandoned.injEq] at hinj; exact hinj
 theorem Fact.key.injEq (c : ByteArray) (kid : ByteArray) (k : ByteArray) (c' : ByteArray) (kid' : ByteArray) (k' : ByteArray) :
     (Fact.key c kid k = Fact.key c' kid' k') = (c = c' ∧ kid = kid' ∧ k = k') := by
   simp [Fact.key]
+theorem Fact.key.inj {c : ByteArray} {kid : ByteArray} {k : ByteArray} {c' : ByteArray} {kid' : ByteArray} {k' : ByteArray}
+    (hinj : Fact.key c kid k = Fact.key c' kid' k') : c = c' ∧ kid = kid' ∧ k = k' := by
+  rw [Fact.key.injEq] at hinj; exact hinj
 theorem Fact.chunk.injEq (c : Id) (att : Id) (root : Id) (len : Nat) (index : Nat) (c' : Id) (att' : Id) (root' : Id) (len' : Nat) (index' : Nat) :
     (Fact.chunk c att root len index = Fact.chunk c' att' root' len' index') = (c = c' ∧ att = att' ∧ root = root' ∧ len = len' ∧ index = index') := by
   simp [Fact.chunk]
+theorem Fact.chunk.inj {c : Id} {att : Id} {root : Id} {len : Nat} {index : Nat} {c' : Id} {att' : Id} {root' : Id} {len' : Nat} {index' : Nat}
+    (hinj : Fact.chunk c att root len index = Fact.chunk c' att' root' len' index') : c = c' ∧ att = att' ∧ root = root' ∧ len = len' ∧ index = index' := by
+  rw [Fact.chunk.injEq] at hinj; exact hinj
 theorem Fact.endpoint.injEq (pk : ByteArray) (sk : ByteArray) (pk' : ByteArray) (sk' : ByteArray) :
     (Fact.endpoint pk sk = Fact.endpoint pk' sk') = (pk = pk' ∧ sk = sk') := by
   simp [Fact.endpoint]
+theorem Fact.endpoint.inj {pk : ByteArray} {sk : ByteArray} {pk' : ByteArray} {sk' : ByteArray}
+    (hinj : Fact.endpoint pk sk = Fact.endpoint pk' sk') : pk = pk' ∧ sk = sk' := by
+  rw [Fact.endpoint.injEq] at hinj; exact hinj
 theorem Fact.received.injEq (c : Id) (kid : Id) (msg : Id) (k : Nat) (clump : Option Id) (c' : Id) (kid' : Id) (msg' : Id) (k' : Nat) (clump' : Option Id) :
     (Fact.received c kid msg k clump = Fact.received c' kid' msg' k' clump') = (c = c' ∧ kid = kid' ∧ msg = msg' ∧ k = k' ∧ clump = clump') := by
   simp [Fact.received]
+theorem Fact.received.inj {c : Id} {kid : Id} {msg : Id} {k : Nat} {clump : Option Id} {c' : Id} {kid' : Id} {msg' : Id} {k' : Nat} {clump' : Option Id}
+    (hinj : Fact.received c kid msg k clump = Fact.received c' kid' msg' k' clump') : c = c' ∧ kid = kid' ∧ msg = msg' ∧ k = k' ∧ clump = clump' := by
+  rw [Fact.received.injEq] at hinj; exact hinj
 theorem Body.root.injEq (device : ByteArray) (enc : ByteArray) (sig : ByteArray) (device' : ByteArray) (enc' : ByteArray) (sig' : ByteArray) :
     (Body.root device enc sig = Body.root device' enc' sig') = (device = device' ∧ enc = enc' ∧ sig = sig') := by
   simp [Body.root]
+theorem Body.root.inj {device : ByteArray} {enc : ByteArray} {sig : ByteArray} {device' : ByteArray} {enc' : ByteArray} {sig' : ByteArray}
+    (h : Body.root device enc sig = Body.root device' enc' sig') : device = device' ∧ enc = enc' ∧ sig = sig' := by
+  rw [Body.root.injEq] at h; exact h
 theorem Body.invite.injEq (bearer : Key) (link : Bool) (threshold : Nat) (sig : ByteArray) (bearer' : Key) (link' : Bool) (threshold' : Nat) (sig' : ByteArray) :
     (Body.invite bearer link threshold sig = Body.invite bearer' link' threshold' sig') = (bearer = bearer' ∧ link = link' ∧ threshold = threshold' ∧ sig = sig') := by
   simp [Body.invite]
+theorem Body.invite.inj {bearer : Key} {link : Bool} {threshold : Nat} {sig : ByteArray} {bearer' : Key} {link' : Bool} {threshold' : Nat} {sig' : ByteArray}
+    (h : Body.invite bearer link threshold sig = Body.invite bearer' link' threshold' sig') : bearer = bearer' ∧ link = link' ∧ threshold = threshold' ∧ sig = sig' := by
+  rw [Body.invite.injEq] at h; exact h
 theorem Body.request.injEq (device : ByteArray) (enc : ByteArray) (consent : ByteArray) (bearerSig : ByteArray) (device' : ByteArray) (enc' : ByteArray) (consent' : ByteArray) (bearerSig' : ByteArray) :
     (Body.request device enc consent bearerSig = Body.request device' enc' consent' bearerSig') = (device = device' ∧ enc = enc' ∧ consent = consent' ∧ bearerSig = bearerSig') := by
   simp [Body.request]
+theorem Body.request.inj {device : ByteArray} {enc : ByteArray} {consent : ByteArray} {bearerSig : ByteArray} {device' : ByteArray} {enc' : ByteArray} {consent' : ByteArray} {bearerSig' : ByteArray}
+    (h : Body.request device enc consent bearerSig = Body.request device' enc' consent' bearerSig') : device = device' ∧ enc = enc' ∧ consent = consent' ∧ bearerSig = bearerSig' := by
+  rw [Body.request.injEq] at h; exact h
 theorem Body.grant.injEq (sig : ByteArray) (sig' : ByteArray) :
     (Body.grant sig = Body.grant sig') = (sig = sig') := by
   simp [Body.grant]
+theorem Body.grant.inj {sig : ByteArray} {sig' : ByteArray}
+    (h : Body.grant sig = Body.grant sig') : sig = sig' := by
+  rw [Body.grant.injEq] at h; exact h
 theorem Body.remove.injEq (sig : ByteArray) (sig' : ByteArray) :
     (Body.remove sig = Body.remove sig') = (sig = sig') := by
   simp [Body.remove]
+theorem Body.remove.inj {sig : ByteArray} {sig' : ByteArray}
+    (h : Body.remove sig = Body.remove sig') : sig = sig' := by
+  rw [Body.remove.injEq] at h; exact h
 theorem Body.post.injEq (ckey : ByteArray) (text : ByteArray) (n : Nat) (time : Nat) (sig : ByteArray) (ckey' : ByteArray) (text' : ByteArray) (n' : Nat) (time' : Nat) (sig' : ByteArray) :
     (Body.post ckey text n time sig = Body.post ckey' text' n' time' sig') = (ckey = ckey' ∧ text = text' ∧ n = n' ∧ time = time' ∧ sig = sig') := by
   simp [Body.post]
+theorem Body.post.inj {ckey : ByteArray} {text : ByteArray} {n : Nat} {time : Nat} {sig : ByteArray} {ckey' : ByteArray} {text' : ByteArray} {n' : Nat} {time' : Nat} {sig' : ByteArray}
+    (h : Body.post ckey text n time sig = Body.post ckey' text' n' time' sig') : ckey = ckey' ∧ text = text' ∧ n = n' ∧ time = time' ∧ sig = sig' := by
+  rw [Body.post.injEq] at h; exact h
 theorem Body.wrap.injEq (ckey : ByteArray) (recipient : ByteArray) (box : ByteArray) (ckey' : ByteArray) (recipient' : ByteArray) (box' : ByteArray) :
     (Body.wrap ckey recipient box = Body.wrap ckey' recipient' box') = (ckey = ckey' ∧ recipient = recipient' ∧ box = box') := by
   simp [Body.wrap]
+theorem Body.wrap.inj {ckey : ByteArray} {recipient : ByteArray} {box : ByteArray} {ckey' : ByteArray} {recipient' : ByteArray} {box' : ByteArray}
+    (h : Body.wrap ckey recipient box = Body.wrap ckey' recipient' box') : ckey = ckey' ∧ recipient = recipient' ∧ box = box' := by
+  rw [Body.wrap.injEq] at h; exact h
 theorem Body.profile.injEq (name : ByteArray) (time : Nat) (sig : ByteArray) (name' : ByteArray) (time' : Nat) (sig' : ByteArray) :
     (Body.profile name time sig = Body.profile name' time' sig') = (name = name' ∧ time = time' ∧ sig = sig') := by
   simp [Body.profile]
+theorem Body.profile.inj {name : ByteArray} {time : Nat} {sig : ByteArray} {name' : ByteArray} {time' : Nat} {sig' : ByteArray}
+    (h : Body.profile name time sig = Body.profile name' time' sig') : name = name' ∧ time = time' ∧ sig = sig' := by
+  rw [Body.profile.injEq] at h; exact h
 theorem Body.attach.injEq (root : ByteArray) (len : Nat) (kid : ByteArray) (sealed : ByteArray) (sig : ByteArray) (root' : ByteArray) (len' : Nat) (kid' : ByteArray) (sealed' : ByteArray) (sig' : ByteArray) :
     (Body.attach root len kid sealed sig = Body.attach root' len' kid' sealed' sig') = (root = root' ∧ len = len' ∧ kid = kid' ∧ sealed = sealed' ∧ sig = sig') := by
   simp [Body.attach]
+theorem Body.attach.inj {root : ByteArray} {len : Nat} {kid : ByteArray} {sealed : ByteArray} {sig : ByteArray} {root' : ByteArray} {len' : Nat} {kid' : ByteArray} {sealed' : ByteArray} {sig' : ByteArray}
+    (h : Body.attach root len kid sealed sig = Body.attach root' len' kid' sealed' sig') : root = root' ∧ len = len' ∧ kid = kid' ∧ sealed = sealed' ∧ sig = sig' := by
+  rw [Body.attach.injEq] at h; exact h
 theorem Body.react.injEq (emoji : ByteArray) (time : Nat) (sig : ByteArray) (emoji' : ByteArray) (time' : Nat) (sig' : ByteArray) :
     (Body.react emoji time sig = Body.react emoji' time' sig') = (emoji = emoji' ∧ time = time' ∧ sig = sig') := by
   simp [Body.react]
+theorem Body.react.inj {emoji : ByteArray} {time : Nat} {sig : ByteArray} {emoji' : ByteArray} {time' : Nat} {sig' : ByteArray}
+    (h : Body.react emoji time sig = Body.react emoji' time' sig') : emoji = emoji' ∧ time = time' ∧ sig = sig' := by
+  rw [Body.react.injEq] at h; exact h
 theorem Body.approve.injEq (sig : ByteArray) (sig' : ByteArray) :
     (Body.approve sig = Body.approve sig') = (sig = sig') := by
   simp [Body.approve]
+theorem Body.approve.inj {sig : ByteArray} {sig' : ByteArray}
+    (h : Body.approve sig = Body.approve sig') : sig = sig' := by
+  rw [Body.approve.injEq] at h; exact h
 theorem Body.accept.injEq (c : Id) (device : Key) (c' : Id) (device' : Key) :
     (Body.accept c device = Body.accept c' device') = (c = c' ∧ device = device') := by
   simp [Body.accept]
+theorem Body.accept.inj {c : Id} {device : Key} {c' : Id} {device' : Key}
+    (h : Body.accept c device = Body.accept c' device') : c = c' ∧ device = device' := by
+  rw [Body.accept.injEq] at h; exact h
 theorem Body.joining.injEq (c : Id) (inviter : Key) (hints : List ByteArray) (req : Id) (name : ByteArray) (device : Key) (epoch : Nat) (c' : Id) (inviter' : Key) (hints' : List ByteArray) (req' : Id) (name' : ByteArray) (device' : Key) (epoch' : Nat) :
     (Body.joining c inviter hints req name device epoch = Body.joining c' inviter' hints' req' name' device' epoch') = (c = c' ∧ inviter = inviter' ∧ hints = hints' ∧ req = req' ∧ name = name' ∧ device = device' ∧ epoch = epoch') := by
   simp [Body.joining]
+theorem Body.joining.inj {c : Id} {inviter : Key} {hints : List ByteArray} {req : Id} {name : ByteArray} {device : Key} {epoch : Nat} {c' : Id} {inviter' : Key} {hints' : List ByteArray} {req' : Id} {name' : ByteArray} {device' : Key} {epoch' : Nat}
+    (h : Body.joining c inviter hints req name device epoch = Body.joining c' inviter' hints' req' name' device' epoch') : c = c' ∧ inviter = inviter' ∧ hints = hints' ∧ req = req' ∧ name = name' ∧ device = device' ∧ epoch = epoch' := by
+  rw [Body.joining.injEq] at h; exact h
 theorem Body.secret.injEq (pk : ByteArray) (seed : ByteArray) (pk' : ByteArray) (seed' : ByteArray) :
     (Body.secret pk seed = Body.secret pk' seed') = (pk = pk' ∧ seed = seed') := by
   simp [Body.secret]
+theorem Body.secret.inj {pk : ByteArray} {seed : ByteArray} {pk' : ByteArray} {seed' : ByteArray}
+    (h : Body.secret pk seed = Body.secret pk' seed') : pk = pk' ∧ seed = seed' := by
+  rw [Body.secret.injEq] at h; exact h
 theorem Body.name.injEq (n : Nat) (name : ByteArray) (sig : ByteArray) (n' : Nat) (name' : ByteArray) (sig' : ByteArray) :
     (Body.name n name sig = Body.name n' name' sig') = (n = n' ∧ name = name' ∧ sig = sig') := by
   simp [Body.name]
+theorem Body.name.inj {n : Nat} {name : ByteArray} {sig : ByteArray} {n' : Nat} {name' : ByteArray} {sig' : ByteArray}
+    (h : Body.name n name sig = Body.name n' name' sig') : n = n' ∧ name = name' ∧ sig = sig' := by
+  rw [Body.name.injEq] at h; exact h
 theorem Body.key.injEq (c : ByteArray) (k : ByteArray) (c' : ByteArray) (k' : ByteArray) :
     (Body.key c k = Body.key c' k') = (c = c' ∧ k = k') := by
   simp [Body.key]
+theorem Body.key.inj {c : ByteArray} {k : ByteArray} {c' : ByteArray} {k' : ByteArray}
+    (h : Body.key c k = Body.key c' k') : c = c' ∧ k = k' := by
+  rw [Body.key.injEq] at h; exact h
 theorem Body.chunk.injEq (root : ByteArray) (len : Nat) (index : Nat) (slice : ByteArray) (sibs : List ByteArray) (root' : ByteArray) (len' : Nat) (index' : Nat) (slice' : ByteArray) (sibs' : List ByteArray) :
     (Body.chunk root len index slice sibs = Body.chunk root' len' index' slice' sibs') = (root = root' ∧ len = len' ∧ index = index' ∧ slice = slice' ∧ sibs = sibs') := by
   simp [Body.chunk]
+theorem Body.chunk.inj {root : ByteArray} {len : Nat} {index : Nat} {slice : ByteArray} {sibs : List ByteArray} {root' : ByteArray} {len' : Nat} {index' : Nat} {slice' : ByteArray} {sibs' : List ByteArray}
+    (h : Body.chunk root len index slice sibs = Body.chunk root' len' index' slice' sibs') : root = root' ∧ len = len' ∧ index = index' ∧ slice = slice' ∧ sibs = sibs' := by
+  rw [Body.chunk.injEq] at h; exact h
 theorem Body.endpoint.injEq (sk : ByteArray) (sk' : ByteArray) :
     (Body.endpoint sk = Body.endpoint sk') = (sk = sk') := by
   simp [Body.endpoint]
+theorem Body.endpoint.inj {sk : ByteArray} {sk' : ByteArray}
+    (h : Body.endpoint sk = Body.endpoint sk') : sk = sk' := by
+  rw [Body.endpoint.injEq] at h; exact h
 theorem Body.receive.injEq (k : Nat) (k' : Nat) :
     (Body.receive k = Body.receive k') = (k = k') := by
   simp [Body.receive]
+theorem Body.receive.inj {k : Nat} {k' : Nat}
+    (h : Body.receive k = Body.receive k') : k = k' := by
+  rw [Body.receive.injEq] at h; exact h
 
 /-- Each op type's fact, if a fact is one. -/
 @[simp] def Fact.admission? : Fact → Option Root.Fact

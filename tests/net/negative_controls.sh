@@ -16,7 +16,7 @@ trap 'rm -rf -- "$tmp"' EXIT
 snapshot "$tmp/base" engine/core engine/wire engine/sync ops/community ops/connection engine/renderer/Chars.lean
 # the copy itself must build, or every mutant would look refused
 cp -a "$tmp/base" "$tmp/w"
-(cd "$tmp/w" && lake build Net >/dev/null 2>&1) || { echo "FAIL: the unmutated copy does not build"; exit 1; }
+(cd "$tmp/w" && lake build +ops.community.Proofs >/dev/null 2>&1) || { echo "FAIL: the unmutated copy does not build"; exit 1; }
 
 mutant() {  # what file old new
   local what=$1 file=$2 old=$3 new=$4
@@ -29,23 +29,23 @@ s = open(p).read()
 assert s.count(old) == 1, f"mutant target not found once: {old!r}"
 open(p, 'w').write(s.replace(old, new))
 PY
-  if (cd "$tmp/w" && lake build Net >/dev/null 2>&1); then
+  if (cd "$tmp/w" && lake build +ops.community.Proofs >/dev/null 2>&1); then
     echo "FAIL: mutant survived: $what"; exit 1
   fi
   echo "refused by the proofs: $what"
 }
 
 # no_connection_before_approval is false: the first hello is answered.
-mutant "the responder answers whether or not it trusts the sender" ops/connection/bootstrap/Node.lean \
+mutant "the responder answers whether or not it trusts the sender" ops/community/Proofs.lean \
   "    if Trusts C n1 c i then" "    if True then"
 # bootstrap is false: B trusts A only by ops it can only get over a session.
-mutant "no link clause: the joiner trusts only by its ops" ops/connection/bootstrap/Node.lean \
+mutant "no link clause: the joiner trusts only by its ops" ops/community/Proofs.lean \
   "      (n.Anchored c p ∧ ¬ Known C n.ops c p ∧ ¬ Allowed C n.ops c n.me))" "      False)"
 # bootstrap is false: A never holds the request, so nothing can approve it.
-mutant "the bare door shut: a request is never read from a hello" ops/connection/bootstrap/Node.lean \
+mutant "the bare door shut: a request is never read from a hello" ops/community/Proofs.lean \
   "  ofC c q = true ∧ ∃ u d e l t," "  False ∧ ∃ u d e l t,"
 # bootstrap is false: the joiner's hello is never re-sent once lost.
-mutant "no retry: a pending link sends no hello" ops/connection/bootstrap/Node.lean \
+mutant "no retry: a pending link sends no hello" ops/community/Proofs.lean \
   "  (n.links.filter fun l => !n.sessions.any fun s => decide (s = (l.c, l.dial))).map" \
   "  (([] : List Link).filter fun l => !n.sessions.any fun s => decide (s = (l.c, l.dial))).map"
 echo "all mutants refused"

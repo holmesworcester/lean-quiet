@@ -13,7 +13,7 @@ own, for a screen W pixels wide at a density. Printed one per line:
 -/
 import ops.Screen
 import ops.community.channel.message.draft.View
-import ops.community.Community
+import ops.community.Proofs
 
 def main (args : List String) : IO Unit := do
   let W := (args[0]? >>= String.toNat?).getD 1170

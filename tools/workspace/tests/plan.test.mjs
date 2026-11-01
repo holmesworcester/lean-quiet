@@ -102,5 +102,5 @@ test('files that name a kind do not stay in the engine unnoticed', () => {
   assert.ok(data.namesKinds.includes('ops.community.Community'));
   const theme = plan.engine.find(e => e.path === 'engine/renderer/ThemeStore.lean');
   assert.equal(theme.leaves, 'app/settings/appearance/Op.lean');
-  assert.ok(plan.engine.some(e => e.path === 'engine/core/Merkle.lean' && e.arrives === 'ops/community/Merkle.lean'));
+  assert.ok(plan.engine.some(e => e.path === 'engine/core/Merkle.lean' && e.arrives === 'engine/core/Merkle.lean'));
 });

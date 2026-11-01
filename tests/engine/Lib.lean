@@ -2,7 +2,7 @@
 Test helpers: checks that count failures, a seeded generator, and
 running a list of ops on the model.
 -/
-import ops.community.Community
+import ops.community.Proofs
 import tests.engine.Checks
 
 namespace Tests

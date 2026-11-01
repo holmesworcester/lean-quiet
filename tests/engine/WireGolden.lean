@@ -8,7 +8,7 @@ op folders (e727b5e); the split must print exactly the same: no byte, id
 or verdict moved. Signatures are a parameter: a scheme that accepts every
 signature, and one that accepts none.
 -/
-import ops.community.Community
+import ops.community.Proofs
 import ops.connection.Family
 
 open Engine Codec Community

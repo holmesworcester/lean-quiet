@@ -2,7 +2,7 @@ import ops.community.Op
 
 /-
 An attachment: a child of a message, by the message's author. Its header
-is the file's Merkle root and length (`Community.Merkle`); its body,
+is the file's Merkle root and length (`Merkle`); its body,
 sealed under the content key, is the name, kind, size, a preview, and the
 file's own key. The file is sealed once under that key, and the tree is
 over the ciphertext.

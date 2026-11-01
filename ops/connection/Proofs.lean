@@ -10,6 +10,29 @@ import ops.connection.opened.Proofs
 import ops.connection.recv.Commands
 import ops.connection.request.Commands
 import engine.sync.NoticeLaws
+import ops.connection.connection.Commands
+import ops.connection.connection.Op
+import ops.connection.connection.Proofs
+import ops.connection.connection.Validate
+import ops.connection.eph.Op
+import ops.connection.eph.Validate
+import ops.connection.established.Op
+import ops.connection.established.Validate
+import ops.connection.given.Commands
+import ops.connection.given.Op
+import ops.connection.given.Validate
+import ops.connection.opened.Op
+import ops.connection.opened.Validate
+import ops.connection.recv.Op
+import ops.connection.recv.Validate
+import ops.connection.request.Op
+import ops.connection.request.Validate
+import ops.connection.send.Commands
+import ops.connection.send.Op
+import ops.connection.send.Proofs
+import ops.connection.send.Validate
+import engine.wire.Noise
+import engine.wire.NoiseSymbolic
 
 /-!
 `connection`: laws about the op types in this folder and below.
@@ -522,3 +545,4 @@ theorem cid_seal {cid sk n p : B}
 
 end
 end Connection
+

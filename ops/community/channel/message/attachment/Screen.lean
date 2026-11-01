@@ -1,6 +1,6 @@
 import engine.renderer.Data
 import engine.renderer.Row
-import ops.community.Community
+import ops.community.Proofs
 import ops.community.channel.message.attachment.View
 import ops.community.channel.message.attachment.chunk.View
 import engine.renderer.Work

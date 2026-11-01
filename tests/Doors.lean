@@ -27,7 +27,7 @@ Run by tests/check.sh: `lake env lean tests/Doors.lean`.
 -/
 import Lean
 import ops.community.channel.message.attachment.Screen
-import ops.community.MerkleCost
+import engine.core.MerkleCost
 import engine.core.CodecCost
 import engine.renderer.Heights
 import engine.renderer.Board
@@ -46,7 +46,7 @@ code hashes only through `hashM`. (The decode a picture's task runs
 hashes op bytes and opens the file; that is the task's work, off the
 frame.) -/
 def counted : List (Name × List Name) :=
-  [(``Pics.image, []), (``Pics.decoded, []), (``Community.Merkle.rootAndProofsM, [``Engine.sha256]),
+  [(``Pics.image, []), (``Pics.decoded, []), (``Merkle.rootAndProofsM, [``Engine.sha256]),
    (``Engine.Codec.decNatFromM, []), (``Engine.Codec.decBytesFromM, []),
    (``Live.Board.put, []), (``Live.Board.take, []), (``Live.Board.keep, []),
    (``Heights.T.findM, []), (``Heights.T.startM, []), (``Heights.T.setM, []), (``Heights.Rows.push, [])]

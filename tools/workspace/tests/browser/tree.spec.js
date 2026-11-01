@@ -71,7 +71,7 @@ test("engine and platforms are browsable, and code that names a kind is marked",
   await expect(page.locator(".directory-list a", {hasText: "ThemeStore.lean"})).toContainText("moves to app/settings/appearance/Op.lean");
   await expect(page.locator(".directory-list a", {hasText: "Data.lean"})).toContainText("names kinds");
   await page.goto("/#/tree/engine/core/Merkle.lean");
-  await expect(page.locator(".doc-summary")).toContainText("ops/community/Merkle.lean");
+  await expect(page.locator(".doc-summary")).toContainText("engine/core/Merkle.lean");
   await page.goto("/#/tree/engine/core/Codec.lean");
   await expect(page.locator(".source-document")).toContainText("namespace Engine");
 });

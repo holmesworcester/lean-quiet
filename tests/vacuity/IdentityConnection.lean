@@ -1,5 +1,5 @@
 import tests.vacuity.IdentityFixture
-import ops.connection.All
+import ops.Proofs
 
 namespace Vacuity.IdentityConnection
 open Engine Engine.Sync Codec Tests
@@ -8,6 +8,22 @@ open Vacuity.Identity
 open Connection
 set_option linter.defProp false
 
+deriving instance DecidableEq for Connection.Eph.Fact
+deriving instance DecidableEq for Connection.Eph.Body
+deriving instance DecidableEq for Connection.Request.Fact
+deriving instance DecidableEq for Connection.Request.Body
+deriving instance DecidableEq for Connection.Opened.Fact
+deriving instance DecidableEq for Connection.Opened.Body
+deriving instance DecidableEq for Connection.Reply.Fact
+deriving instance DecidableEq for Connection.Reply.Body
+deriving instance DecidableEq for Connection.Established.Fact
+deriving instance DecidableEq for Connection.Established.Body
+deriving instance DecidableEq for Connection.Send.Fact
+deriving instance DecidableEq for Connection.Send.Body
+deriving instance DecidableEq for Connection.Recv.Fact
+deriving instance DecidableEq for Connection.Recv.Body
+deriving instance DecidableEq for Connection.Given.Fact
+deriving instance DecidableEq for Connection.Given.Body
 deriving instance DecidableEq for Connection.Fact
 deriving instance DecidableEq for Connection.Body
 deriving instance DecidableEq, BEq for Engine.Sync.Room

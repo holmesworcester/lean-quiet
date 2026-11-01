@@ -459,17 +459,16 @@ with `tests/wiring.txt` for what the code cannot say, and
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 174 | 103 |  | 71 |
+| Engine | 192 | 119 |  | 73 |
 | Sync | 151 | 142 |  | 9 |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 81 | 58 | 10 | 13 |
-| Bootstrap | 14 | 0 |  | 14 |
-| Connections | 28 | 20 | 2 | 6 |
-| Community | 217 | 183 |  | 34 |
+| Connections | 26 | 20 |  | 6 |
+| Community | 213 | 167 |  | 46 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
 | Screen | 257 | 199 |  | 58 |
-| App | 80 | 73 |  | 7 |
+| App | 82 | 73 | 2 | 7 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
@@ -1058,27 +1057,27 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
 [`stream_delivers`]: engine/wire/WorldLaws.lean#L788-L821
 [`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
-[`Unforgeable`]: ops/community/Family.lean#L1150-L1152
+[`Unforgeable`]: ops/community/Family.lean#L1267-L1269
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
 [`Distinct`]: engine/core/Proofs.lean#L538-L540
 [`lbl_inj`]: engine/sync/Fp.lean#L264-L268
-[`NoSecondPreimage`]: ops/community/Merkle.lean#L146-L147
-[`assumptions_hold`]: ops/community/Merkle.lean#L543-L547
+[`NoSecondPreimage`]: engine/core/Merkle.lean#L146-L147
+[`assumptions_hold`]: engine/core/Merkle.lean#L543-L547
 [`Suite.Good`]: engine/wire/Noise.lean#L70-L81
-[`Seal.Good`]: ops/community/Keys.lean#L51-L61
-[`no_impersonation`]: ops/community/Proofs.lean#L58-L71
+[`Seal.Good`]: ops/community/Op.lean#L56-L66
+[`no_impersonation`]: ops/community/Proofs.lean#L108-L121
 [`admission_needs_approval`]: ops/community/member/invite/Proofs.lean#L45-L53
 [`admission_approved`]: ops/community/member/invite/request/approve/Proofs.lean#L92-L102
 [`request_invited`]: ops/community/member/invite/request/Proofs.lean#L33-L43
 [`removal_authorized`]: ops/community/member/Proofs.lean#L51-L54
 [`admin_granted`]: ops/community/member/admin/Proofs.lean#L51-L52
 [`removed_stays`]: ops/community/member/remove/Proofs.lean#L38-L41
-[`valid_stays`]: ops/community/Family.lean#L1157-L1161
+[`valid_stays`]: ops/community/Family.lean#L1274-L1278
 [`message_authorized`]: ops/community/channel/message/Proofs.lean#L67-L73
 [`approval_signed`]: ops/community/member/invite/request/approve/Proofs.lean#L75-L85
 [`invitation_issued`]: ops/community/member/invite/Proofs.lean#L33-L39
-[`named_by_admin`]: ops/community/Proofs.lean#L124-L126
-[`admission_consented`]: ops/community/Proofs.lean#L43-L49
+[`named_by_admin`]: ops/community/Proofs.lean#L174-L176
+[`admission_consented`]: ops/community/Proofs.lean#L93-L99
 [`admin_removal_stands`]: ops/community/member/Proofs.lean#L62-L75
 [`mutual_removal`]: ops/community/member/remove/Proofs.lean#L31-L35
 [`removed_approver_admits`]: ops/community/member/Proofs.lean#L37-L48
@@ -1090,20 +1089,20 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`serveOwed_blind`]: engine/sync/ServeLaws.lean#L469-L473
 [`serveOwed_shown`]: engine/sync/ServeLaws.lean#L451-L457
 [`offer_shared`]: engine/sync/SecrecyLaws.lean#L60-L64
-[`wire_kinds`]: ops/connection/Proofs.lean#L20-L21
-[`local_kinds`]: ops/connection/Proofs.lean#L27-L28
-[`joinOps_travels`]: ops/community/Proofs.lean#L222-L226
-[`found_travels`]: ops/community/Proofs.lean#L229-L235
+[`wire_kinds`]: ops/connection/Proofs.lean#L43-L44
+[`local_kinds`]: ops/connection/Proofs.lean#L50-L51
+[`joinOps_travels`]: ops/community/Proofs.lean#L272-L276
+[`found_travels`]: ops/community/Proofs.lean#L279-L285
 [`stopWaiting_local`]: ops/community/member/join/joining/abandon/Proofs.lean#L10-L11
 [`filed_send`]: engine/sync/ConnLaws.lean#L185-L188
 [`offer_stored`]: engine/sync/SecrecyLaws.lean#L78-L82
 [`tick_send`]: engine/sync/ConnLaws.lean#L211-L213
-[`recipients_iff`]: ops/community/Proofs.lean#L791-L796
-[`members_iff`]: ops/community/Proofs.lean#L781-L783
-[`member_opens`]: ops/community/Proofs.lean#L204-L211
-[`openSealed_seal`]: ops/community/Proofs.lean#L192-L196
-[`unbox_box`]: ops/community/Keys.lean#L109-L112
-[`check_reads_shared`]: ops/community/Proofs.lean#L133-L135
+[`recipients_iff`]: ops/community/Proofs.lean#L841-L846
+[`members_iff`]: ops/community/Proofs.lean#L831-L833
+[`member_opens`]: ops/community/Proofs.lean#L254-L261
+[`openSealed_seal`]: ops/community/Proofs.lean#L242-L246
+[`unbox_box`]: ops/community/Op.lean#L114-L117
+[`check_reads_shared`]: ops/community/Proofs.lean#L183-L185
 [`kk_secret`]: engine/wire/NoiseSymbolic.lean#L600-L614
 [`kk_secret_init`]: engine/wire/NoiseSymbolic.lean#L552-L561
 [`kk_secret_resp`]: engine/wire/NoiseSymbolic.lean#L566-L574
@@ -1126,74 +1125,74 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`cached_items`]: engine/wire/NodeLaws.lean#L271-L274
 [`write_snaps`]: engine/sync/OfferLaws.lean#L585-L588
 [`have_shown_premises`]: engine/sync/OfferLaws.lean#L676-L680
-[`opened_endpoint`]: ops/Proofs.lean#L318-L326
-[`established_endpoint`]: ops/Proofs.lean#L345-L358
+[`opened_endpoint`]: ops/Proofs.lean#L321-L329
+[`established_endpoint`]: ops/Proofs.lean#L348-L361
 [`endpoint_signed`]: ops/community/member/invite/request/Proofs.lean#L72-L79
 [`endpoint_derives`]: ops/community/device/endpoint/Proofs.lean#L35-L37
-[`meV_node`]: ops/connection/Proofs.lean#L207-L212
-[`new_device_trusted`]: ops/community/Proofs.lean#L835-L841
-[`connect_iff`]: ops/community/Proofs.lean#L719-L723
-[`deviceLive_iff`]: ops/community/Proofs.lean#L609-L613
-[`refuse_nonmember`]: ops/community/Proofs.lean#L734-L737
-[`connect_approved`]: ops/community/Proofs.lean#L757-L769
-[`connect_agree`]: ops/community/Proofs.lean#L802-L805
-[`removal_cuts_off`]: ops/community/Proofs.lean#L817-L824
+[`meV_node`]: ops/connection/Proofs.lean#L230-L235
+[`new_device_trusted`]: ops/community/Proofs.lean#L885-L891
+[`connect_iff`]: ops/community/Proofs.lean#L769-L773
+[`deviceLive_iff`]: ops/community/Proofs.lean#L659-L663
+[`refuse_nonmember`]: ops/community/Proofs.lean#L784-L787
+[`connect_approved`]: ops/community/Proofs.lean#L807-L819
+[`connect_agree`]: ops/community/Proofs.lean#L852-L855
+[`removal_cuts_off`]: ops/community/Proofs.lean#L867-L874
 [`cut_stays`]: ops/community/member/remove/Proofs.lean#L63-L66
 [`cut_consented`]: ops/community/member/Proofs.lean#L87-L94
-[`removals_iff`]: ops/community/Proofs.lean#L526-L527
-[`mine_not_removed`]: ops/community/Proofs.lean#L1108-L1112
-[`rejoin_fresh`]: ops/community/Proofs.lean#L1127-L1140
-[`join_new_device`]: ops/community/Proofs.lean#L1167-L1174
-[`removed_stays_removed`]: ops/community/Proofs.lean#L1214-L1224
-[`rejoin_dials`]: ops/Proofs.lean#L916-L929
-[`reconnect_dials`]: ops/Proofs.lean#L941-L951
-[`rooms_cut_node`]: ops/Proofs.lean#L1027-L1039
-[`rooms_trusted`]: ops/Proofs.lean#L985-L992
-[`rooms_cut`]: ops/Proofs.lean#L1005-L1016
-[`rooms_removed`]: ops/Proofs.lean#L146-L151
-[`rooms_complete`]: ops/Proofs.lean#L171-L177
-[`notice_then_cut`]: ops/Proofs.lean#L280-L293
-[`trusts_live`]: ops/Proofs.lean#L88-L94
-[`rooms_model`]: ops/Proofs.lean#L1047-L1050
+[`removals_iff`]: ops/community/Proofs.lean#L576-L577
+[`mine_not_removed`]: ops/community/Proofs.lean#L1158-L1162
+[`rejoin_fresh`]: ops/community/Proofs.lean#L1177-L1190
+[`join_new_device`]: ops/community/Proofs.lean#L1217-L1224
+[`removed_stays_removed`]: ops/community/Proofs.lean#L1264-L1274
+[`rejoin_dials`]: ops/Proofs.lean#L919-L932
+[`reconnect_dials`]: ops/Proofs.lean#L944-L954
+[`rooms_cut_node`]: ops/Proofs.lean#L1030-L1042
+[`rooms_trusted`]: ops/Proofs.lean#L988-L995
+[`rooms_cut`]: ops/Proofs.lean#L1008-L1019
+[`rooms_removed`]: ops/Proofs.lean#L149-L154
+[`rooms_complete`]: ops/Proofs.lean#L174-L180
+[`notice_then_cut`]: ops/Proofs.lean#L283-L296
+[`trusts_live`]: ops/Proofs.lean#L91-L97
+[`rooms_model`]: ops/Proofs.lean#L1050-L1053
 [`recv_take`]: engine/sync/ConnLaws.lean#L125-L127
 [`notice_sent`]: engine/sync/NoticeLaws.lean#L576-L587
 [`closure`]: engine/sync/NoticeLaws.lean#L281-L289
 [`notice_send`]: engine/sync/NoticeLaws.lean#L609-L616
-[`removed_gets_only_notice`]: ops/Proofs.lean#L183-L194
+[`removed_gets_only_notice`]: ops/Proofs.lean#L186-L197
 [`notice_once`]: engine/sync/NoticeLaws.lean#L641-L647
 [`notice_no_holds`]: engine/sync/NoticeLaws.lean#L436-L447
-[`answer_trusted`]: ops/Proofs.lean#L671-L684
-[`resend_trusted`]: ops/Proofs.lean#L719-L730
-[`no_connection_before_approval`]: ops/connection/bootstrap/Laws.lean#L39-L46
-[`sessions_trusted`]: ops/connection/bootstrap/Laws.lean#L63-L68
-[`bare_takes_only_join`]: ops/Proofs.lean#L535-L547
+[`answer_trusted`]: ops/Proofs.lean#L674-L687
+[`resend_trusted`]: ops/Proofs.lean#L722-L733
+[`no_connection_before_approval`]: ops/community/Proofs.lean#L2890-L2897
+[`sessions_trusted`]: ops/community/Proofs.lean#L2914-L2919
+[`bare_takes_only_join`]: ops/Proofs.lean#L538-L550
 [`intake_local`]: engine/core/Sync.lean#L38-L40
 [`stored_local`]: engine/core/Sync.lean#L86-L89
-[`local_fact_mine`]: ops/community/Family.lean#L1172-L1176
+[`local_fact_mine`]: ops/community/Family.lean#L1289-L1293
 [`intakeConn_conn`]: engine/core/Sync.lean#L33-L34
-[`established_agrees`]: ops/Proofs.lean#L29-L43
-[`open_seal`]: ops/connection/Proofs.lean#L475-L482
-[`cid_seal`]: ops/connection/Proofs.lean#L506-L510
+[`established_agrees`]: ops/Proofs.lean#L32-L46
+[`open_seal`]: ops/connection/Proofs.lean#L498-L505
+[`cid_seal`]: ops/connection/Proofs.lean#L529-L533
 [`Codec.encode_decode`]: engine/core/Codec.lean#L773-L776
 [`Op.id_decode`]: engine/core/Core.lean#L89-L91
 [`distinct_of_collisionFree`]: engine/core/Proofs.lean#L546-L549
-[`op_of_valid`]: ops/community/Family.lean#L1133-L1138
+[`op_of_valid`]: ops/community/Family.lean#L1250-L1255
 [`Pic.decode_sized`]: engine/renderer/pic/Laws.lean#L198-L201
 [`Image.decode_sized`]: engine/renderer/ImageLaws.lean#L11-L14
 [`Mdns.decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
 [`Community.parse_valid`]: ops/community/member/invite/Proofs.lean#L195-L196
 [`Qr.parse_valid`]: engine/renderer/qr/SegLaws.lean#L336-L338
 [`chunk_is_slice`]: ops/community/channel/message/attachment/chunk/Proofs.lean#L32-L41
-[`verify_sound`]: ops/community/Merkle.lean#L435-L441
-[`complete_assembles`]: ops/community/Merkle.lean#L482-L488
+[`verify_sound`]: engine/core/Merkle.lean#L435-L441
+[`complete_assembles`]: engine/core/Merkle.lean#L482-L488
 [`chunk_unique`]: ops/community/channel/message/attachment/chunk/Proofs.lean#L84-L90
-[`progress_exact`]: ops/community/Proofs.lean#L415-L424
-[`no_injective_hash`]: ops/community/Merkle.lean#L245-L247
+[`progress_exact`]: ops/community/Proofs.lean#L465-L474
+[`no_injective_hash`]: engine/core/Merkle.lean#L245-L247
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
 [`step_budget`]: engine/core/Budget.lean#L124-L126
-[`sealed_auth`]: ops/connection/Proofs.lean#L108-L119
-[`openFrame_auth`]: ops/connection/Proofs.lean#L60-L67
+[`sealed_auth`]: ops/connection/Proofs.lean#L131-L142
+[`openFrame_auth`]: ops/connection/Proofs.lean#L83-L90
 [`onFrame_sealed`]: engine/wire/NodeLaws.lean#L52-L58
 [`sealed_unopened`]: engine/wire/NodeLaws.lean#L67-L73
 [`buffer_bounded`]: engine/wire/Frame.lean#L213-L218
@@ -1241,26 +1240,26 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Codec.decode_encode`]: engine/core/Codec.lean#L767-L767
 [`Op.decode_bytes`]: engine/core/Core.lean#L94-L94
 [`sum_project`]: engine/core/Project.lean#L421-L432
-[`sum_project_node`]: ops/connection/Family.lean#L557-L568
+[`sum_project_node`]: ops/connection/Family.lean#L599-L610
 [`spec_sum_left`]: engine/core/Project.lean#L195-L198
 [`view_proj`]: engine/core/Project.lean#L408-L411
-[`connect_iff_node`]: ops/connection/Family.lean#L587-L592
-[`members_iff_node`]: ops/connection/Proofs.lean#L434-L437
-[`recipients_iff_node`]: ops/connection/Proofs.lean#L441-L445
-[`node_settles`]: ops/connection/Proofs.lean#L449-L453
+[`connect_iff_node`]: ops/connection/Family.lean#L629-L634
+[`members_iff_node`]: ops/connection/Proofs.lean#L457-L460
+[`recipients_iff_node`]: ops/connection/Proofs.lean#L464-L468
+[`node_settles`]: ops/connection/Proofs.lean#L472-L476
 [`request_valid`]: ops/community/member/invite/request/Proofs.lean#L52-L60
 [`approve_valid`]: ops/community/member/invite/request/approve/Proofs.lean#L113-L121
 [`admit_admits`]: ops/community/member/invite/request/approve/Proofs.lean#L129-L140
-[`connect_admitted`]: ops/community/Proofs.lean#L743-L753
-[`removeMember_valid`]: ops/community/Proofs.lean#L345-L352
+[`connect_admitted`]: ops/community/Proofs.lean#L793-L803
+[`removeMember_valid`]: ops/community/Proofs.lean#L395-L402
 [`exchange_complete`]: engine/sync/RoundLaws.lean#L232-L241
 [`opening_honest`]: engine/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: engine/sync/Fp.lean#L37-L37
 [`spec_local`]: engine/core/Locality.lean#L54-L58
-[`bootstrap`]: ops/connection/bootstrap/Laws.lean#L401-L405
-[`bootstrap_ideal`]: ops/connection/bootstrap/Laws.lean#L423-L424
-[`bootstrap_possible`]: ops/connection/bootstrap/Laws.lean#L208-L218
-[`reachable_inv`]: ops/connection/bootstrap/Steps.lean#L222-L223
+[`bootstrap`]: ops/community/Proofs.lean#L3252-L3256
+[`bootstrap_ideal`]: ops/community/Proofs.lean#L3274-L3275
+[`bootstrap_possible`]: ops/community/Proofs.lean#L3059-L3069
+[`reachable_inv`]: ops/community/Proofs.lean#L2836-L2837
 [`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1492-L1514
 [`stream_offered`]: engine/wire/WorldLaws.lean#L1438-L1450
 [`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L826-L843
@@ -1291,9 +1290,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Demand.retained_prefix`]: engine/renderer/Demand.lean#L151-L153
 [`Demand.retained_ticket`]: engine/renderer/Demand.lean#L195-L197
 [`Demand.remount_rejects`]: engine/renderer/Demand.lean#L247-L251
-[`unmount_read`]: ops/Proofs.lean#L1069-L1071
-[`unmount_write`]: ops/Proofs.lean#L1073-L1075
-[`old_callback`]: ops/Proofs.lean#L1077-L1079
+[`unmount_read`]: ops/Proofs.lean#L1072-L1074
+[`unmount_write`]: ops/Proofs.lean#L1076-L1078
+[`old_callback`]: ops/Proofs.lean#L1080-L1082
 [`unmounted_quiet`]: ops/Screen.lean#L936-L937
 [`old_quiet`]: ops/Screen.lean#L940-L941
 [`live_exact`]: ops/Screen.lean#L956-L960
@@ -1301,11 +1300,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`mounted_runs`]: ops/Screen.lean#L1009-L1011
 [`restore_checkpoint`]: ops/Screen.lean#L1006-L1006
 [`page_round`]: ops/Screen.lean#L3072-L3072
-[`restore_page_anchor`]: ops/Proofs.lean#L1085-L1091
-[`apply_page_anchor`]: ops/Proofs.lean#L1095-L1100
+[`restore_page_anchor`]: ops/Proofs.lean#L1088-L1094
+[`apply_page_anchor`]: ops/Proofs.lean#L1098-L1103
 [`resize_anchor`]: ops/Screen.lean#L974-L975
-[`viewport_geometry`]: ops/Proofs.lean#L1111-L1115
-[`viewport_possible`]: ops/Proofs.lean#L1118-L1119
+[`viewport_geometry`]: ops/Proofs.lean#L1114-L1118
+[`viewport_possible`]: ops/Proofs.lean#L1121-L1122
 [`Surface.visible_in_viewport`]: engine/renderer/Surface.lean#L123-L127
 [`newest_visible`]: engine/renderer/Geometry.lean#L101-L107
 [`Surface.pinned_visible`]: engine/renderer/Surface.lean#L141-L143
@@ -1342,12 +1341,12 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`no_replace`]: ops/community/member/remove/View.lean#L78-L80
 [`offered_only`]: ops/community/member/remove/View.lean#L87-L90
 [`back_go`]: engine/renderer/Nav.lean#L94-L96
-[`NavLaws.back_open`]: ops/Proofs.lean#L1157-L1159
-[`NavLaws.back_root`]: ops/Proofs.lean#L1165-L1167
-[`back_switch`]: ops/Proofs.lean#L1182-L1185
+[`NavLaws.back_open`]: ops/Proofs.lean#L1160-L1162
+[`NavLaws.back_root`]: ops/Proofs.lean#L1168-L1170
+[`back_switch`]: ops/Proofs.lean#L1185-L1188
 [`go_inv`]: engine/renderer/Nav.lean#L107-L107
-[`NavLaws.depth`]: ops/Proofs.lean#L1210-L1212
-[`draft_back`]: ops/Proofs.lean#L1193-L1195
+[`NavLaws.depth`]: ops/Proofs.lean#L1213-L1215
+[`draft_back`]: ops/Proofs.lean#L1196-L1198
 [`into_native`]: ops/Screen.lean#L3546-L3549
 [`present_iff`]: ops/community/Screen.lean#L411-L414
 [`present_not_removed`]: ops/community/Screen.lean#L421-L424
@@ -1388,7 +1387,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`arabic_numbers_keep_order`]: engine/renderer/TextLaws.lean#L91-L94
 [`profile_read`]: ops/community/Screen.lean#L78-L80
 [`profile_authorized`]: ops/community/profile/Proofs.lean#L31-L38
-[`no_renaming`]: ops/community/Proofs.lean#L76-L87
+[`no_renaming`]: ops/community/Proofs.lean#L126-L137
 [`name_placed`]: ops/community/channel/message/reaction/View.lean#L117-L121
 [`oneLine_prefix`]: engine/renderer/TextLaws.lean#L70-L71
 [`controls_neutral`]: engine/renderer/TextLaws.lean#L140-L143
@@ -1412,8 +1411,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`projectSet_nodup`]: engine/renderer/Data.lean#L405-L407
 [`picBox_aspect`]: ops/community/channel/message/reaction/View.lean#L47-L56
 [`message_own`]: ops/community/Screen.lean#L122-L125
-[`readable_held`]: ops/community/Proofs.lean#L283-L295
-[`readable_complete`]: ops/community/Proofs.lean#L323-L333
+[`readable_held`]: ops/community/Proofs.lean#L333-L345
+[`readable_complete`]: ops/community/Proofs.lean#L373-L383
 [`switcherOrder_sound`]: ops/Screen.lean#L762-L764
 [`switcherOrder_complete`]: ops/Screen.lean#L769-L771
 [`dedupe_nodup`]: ops/community/Screen.lean#L685-L686
@@ -1423,12 +1422,12 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`pageIn_acc`]: ops/Screen.lean#L4501-L4504
 [`msg_cmp`]: ops/community/channel/message/Proofs.lean#L115-L122
 [`time_is_display`]: ops/community/channel/message/Proofs.lean#L126-L132
-[`order_total`]: ops/community/Proofs.lean#L1311-L1321
+[`order_total`]: ops/community/Proofs.lean#L1361-L1371
 [`Pos.cmp_eq_iff`]: engine/core/Order.lean#L44-L46
 [`Pos.cmp_lt_trans`]: engine/core/Order.lean#L57-L59
-[`send_after`]: ops/community/Proofs.lean#L1497-L1507
-[`arrival_order`]: ops/community/Proofs.lean#L1468-L1480
-[`receipt_once`]: ops/community/Proofs.lean#L1425-L1428
+[`send_after`]: ops/community/Proofs.lean#L1547-L1557
+[`arrival_order`]: ops/community/Proofs.lean#L1518-L1530
+[`receipt_once`]: ops/community/Proofs.lean#L1475-L1478
 [`order_local`]: ops/community/channel/message/Proofs.lean#L154-L166
 [`display_agrees`]: ops/community/channel/message/Proofs.lean#L196-L206
 [`parse_segsBits`]: engine/renderer/qr/SegLaws.lean#L157-L161
@@ -1457,14 +1456,14 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`exchange_ids_stable`]: engine/sync/TreeLaws.lean#L163-L165
 [`exchange_log`]: engine/sync/TreeLaws.lean#L210-L221
 [`exchange_stable`]: engine/sync/TreeLaws.lean#L171-L179
-[`reads_members`]: ops/connection/Family.lean#L533-L533
-[`reads_recipients`]: ops/connection/Family.lean#L537-L537
-[`FairExecution.fair`]: ops/connection/bootstrap/FairExecution.lean#L121-L123
-[`ideal`]: ops/connection/bootstrap/FairExecution.lean#L139-L139
-[`admitted_inv`]: ops/connection/bootstrap/Scene.lean#L179-L182
-[`allowedA`]: ops/connection/bootstrap/Scene.lean#L250-L250
-[`allowedB`]: ops/connection/bootstrap/Scene.lean#L264-L267
-[`allowPeer_iff`]: ops/connection/bootstrap/Bridge.lean#L29-L32
+[`reads_members`]: ops/connection/Family.lean#L575-L575
+[`reads_recipients`]: ops/connection/Family.lean#L579-L579
+[`FairExecution.fair`]: ops/community/Proofs.lean#L3455-L3457
+[`ideal`]: ops/community/Proofs.lean#L3473-L3473
+[`admitted_inv`]: ops/community/Proofs.lean#L2148-L2151
+[`allowedA`]: ops/community/Proofs.lean#L2219-L2219
+[`allowedB`]: ops/community/Proofs.lean#L2233-L2236
+[`allowPeer_iff`]: ops/community/Proofs.lean#L3316-L3319
 [`fit_small`]: engine/renderer/pic/Laws.lean#L37-L37
 [`fit_le`]: engine/renderer/pic/Laws.lean#L50-L50
 [`fit_pos`]: engine/renderer/pic/Laws.lean#L59-L59
@@ -1509,7 +1508,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`start_size`]: engine/renderer/Heights.lean#L244-L245
 [`below_window`]: engine/renderer/Heights.lean#L248-L251
 [`above_window`]: engine/renderer/Heights.lean#L254-L258
-[`openBody_sealBody`]: ops/community/Keys.lean#L103-L107
+[`openBody_sealBody`]: ops/community/Op.lean#L108-L112
 [`plan_stmt_cost`]: engine/core/Query.lean#L600-L603
 [`readPlan_cost`]: engine/core/Query.lean#L560-L565
 [`readPlan_cost_le`]: engine/core/Query.lean#L611-L616
@@ -1572,9 +1571,9 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`Engine.runJ`]: engine/core/WindowLaws.lean#L148-L151
 [`BeforeNext`]: engine/renderer/Demand.lean#L211-L213
 [`Engine.Inv`]: engine/core/Proofs.lean#L202-L219
-[`allowPeer_settles`]: ops/connection/bootstrap/Bridge.lean#L35-L39
-[`Execution.fairRun_fair`]: ops/connection/ExecutionLaws.lean#L46-L46
-[`successful_fair_extension`]: ops/connection/ExecutionLaws.lean#L111-L122
+[`allowPeer_settles`]: ops/community/Proofs.lean#L3322-L3326
+[`Execution.fairRun_fair`]: ops/Proofs.lean#L1615-L1615
+[`successful_fair_extension`]: ops/Proofs.lean#L1680-L1691
 <!-- /proof-links -->
 
 <!-- vacuity:begin -->
@@ -1773,12 +1772,12 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`Community.parse_valid`](ops/community/Link.lean#L258-L259) | **kernel-witness**: [Vacuity.Core.parsedValid](tests/vacuity/Core.lean). Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises. |
 | [`Qr.parse_valid`](engine/renderer/qr/SegLaws.lean#L336-L338) | **kernel-witness**: [Vacuity.Formats.segmentSound](tests/vacuity/Formats.lean). Successful parse of three nonempty segments; decoder soundness applied to each segment. |
 | [`chunk_is_slice`](ops/community/Laws.lean#L722-L731) | **conditional**: [Vacuity.Attachment.sliceCertificate](tests/vacuity/Attachment.lean). 70000-byte deterministic file sealed by real XChaCha20 to70016 bytes across two chunks. Native certificate proves actual chunk validator accepts the concrete chunk/root/attachment facts. Applying chunk_is_slice still requires universal SHA256 output-size correctness and NoSecondPreimage on this ciphertext tree; checking this finite tree cannot discharge either universal premise. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash. Native negative controls flip one ciphertext byte without changing length, substitute a32-byte sibling, and use out-of-range index2; all are rejected. NoSecondPreimage is an exact all-alternative-input idealization; standard computational resistance and finite examples do not establish it. |
-| [`verify_sound`](ops/community/Merkle.lean#L435-L441) | **kernel-witness**: [Vacuity.Merkle.verifiedSlice](tests/vacuity/Merkle.lean). Nonempty Alice-to-Bob attachment, single chunk; output-size and universal second-preimage premises proved for an explicit three-output hash model, not SHA-256. Modified content/index rejected. |
-| [`complete_assembles`](ops/community/Merkle.lean#L482-L488) | **kernel-witness**: [Vacuity.Merkle.assembled](tests/vacuity/Merkle.lean). Nonempty one-chunk file with every verification premise proved; reconstructed bytes equal the original. Explicit hash model, not SHA-256. |
+| [`verify_sound`](engine/core/Merkle.lean#L435-L441) | **kernel-witness**: [Vacuity.Merkle.verifiedSlice](tests/vacuity/Merkle.lean). Nonempty Alice-to-Bob attachment, single chunk; output-size and universal second-preimage premises proved for an explicit three-output hash model, not SHA-256. Modified content/index rejected. |
+| [`complete_assembles`](engine/core/Merkle.lean#L482-L488) | **kernel-witness**: [Vacuity.Merkle.assembled](tests/vacuity/Merkle.lean). Nonempty one-chunk file with every verification premise proved; reconstructed bytes equal the original. Explicit hash model, not SHA-256. |
 | [`chunk_unique`](ops/community/Laws.lean#L812-L818) | **conditional**: [Vacuity.Attachment.uniqueCertificate](tests/vacuity/Attachment.lean). Real signed attachment and two independently constructed relay copies at index0 have kernel-checked runtime V certificates in a structurally keyed store. The theorem application retains SHA size and file-tree NoSecondPreimage. Native controls prove canonical bytes/ids agree and duplicate arrival does not increase progress; no arbitrary-hash collision claim. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash. NoSecondPreimage is an exact all-alternative-input idealization; standard computational resistance and finite examples do not establish it. |
 | [`progress_exact`](ops/community/Intents.lean#L729-L738) | **conditional**: [Vacuity.Attachment.progressCertificate](tests/vacuity/Attachment.lean). Nonempty signed attachment store actually contains only index1 of two chunks. Inv follows from real ingest/drain preservation; runtime certifies settled queue and valid attachment. Native progress is exactly1/2, duplicate still1/2, full file2/2. The theorem application retains universal SHA size and file-specific NoSecondPreimage; missing attachment and malformed chunks are negative controls. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash. NoSecondPreimage is an exact all-alternative-input idealization; standard computational resistance and finite examples do not establish it. |
-| [`assumptions_hold`](ops/community/Merkle.lean#L543-L547) | **kernel-witness**: [Vacuity.Merkle.assumptions](tests/vacuity/Merkle.lean). Applies existing empty-file satisfiability theorem and proves a nonempty-file extension. Explicit model hash; no production SHA guarantee. |
-| [`no_injective_hash`](ops/community/Merkle.lean#L245-L247) | **kernel-witness**: [Vacuity.Merkle.notInjective](tests/vacuity/Merkle.lean). Concrete 32-byte-output hash proves size premise; global injectivity is impossible even though this file has no second preimage. |
+| [`assumptions_hold`](engine/core/Merkle.lean#L543-L547) | **kernel-witness**: [Vacuity.Merkle.assumptions](tests/vacuity/Merkle.lean). Applies existing empty-file satisfiability theorem and proves a nonempty-file extension. Explicit model hash; no production SHA guarantee. |
+| [`no_injective_hash`](engine/core/Merkle.lean#L245-L247) | **kernel-witness**: [Vacuity.Merkle.notInjective](tests/vacuity/Merkle.lean). Concrete 32-byte-output hash proves size premise; global injectivity is impossible even though this file has no second preimage. |
 | [`drain_bounded`](engine/core/Budget.lean#L163-L168) | **runtime-witness**: [Vacuity.CoreRuntime.bounded](tests/vacuity/CoreRuntime.lean). Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior. |
 | [`drain_terminates`](engine/core/Termination.lean#L84-L87) | **runtime-witness**: [Vacuity.CoreRuntime.terminates](tests/vacuity/CoreRuntime.lean). Signed community plus a local secret and hostile shared dependent. Concrete finite collision premise, queued step, purge membership and shared-scope premises checked where required; local secret disappears, shared op is requeued and ordinary message is retained. This checks the model purge, not SQLite erasure. |
 | [`step_budget`](engine/core/Budget.lean#L124-L126) | **runtime-witness**: [Vacuity.CoreRuntime.budgetDecreases](tests/vacuity/CoreRuntime.lean). Signed community plus a local secret and hostile shared dependent. Concrete finite collision premise, queued step, purge membership and shared-scope premises checked where required; local secret disappears, shared op is requeued and ordinary message is retained. This checks the model purge, not SQLite erasure. |
@@ -2044,7 +2043,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`Unforgeable`](ops/community/Laws.lean#L319-L321) | **conditional**: [Vacuity.Identity.noImpersonation](tests/vacuity/Identity.lean). Intended security relies on exclusive control of honest signing keys and secure, correctly implemented Ed25519. The current predicate quantifies all mathematically possible accepted signatures, so it cannot hold for a finite independent signing history under ordinary signature correctness. Execution/attacker scoping and a trace assumption or computational argument are still needed; native signature checks do not close this formulation gap. |
 | [`CollisionFree`](engine/core/Proofs.lean#L542-L544) | **runtime-witness**: [Vacuity.CoreRuntime.collisionFree](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
 | [`Distinct`](engine/core/Proofs.lean#L538-L540) | **runtime-witness**: [Vacuity.CoreRuntime.distinct](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
-| [`NoSecondPreimage`](ops/community/Merkle.lean#L146-L147) | **kernel-witness**: [Vacuity.Merkle.preimage](tests/vacuity/Merkle.lean). Closed universal premise for an explicit 32-byte-output model hash and a nonempty attachment. Unique leaf/root outputs are proved against every other input. This model is deliberately not SHA-256. |
+| [`NoSecondPreimage`](engine/core/Merkle.lean#L146-L147) | **kernel-witness**: [Vacuity.Merkle.preimage](tests/vacuity/Merkle.lean). Closed universal premise for an explicit 32-byte-output model hash and a nonempty attachment. Unique leaf/root outputs are proved against every other input. This model is deliberately not SHA-256. |
 | [`Suite.Good`](ops/connection/Noise.lean#L70-L81) | **conditional**: [Vacuity.Contracts.noiseContractCertificate](tests/vacuity/Contracts.lean). Corrected contract requires a 32-byte AEAD key, plaintext at most 64*(2^32-2) bytes (exclusive bound 274877906817) and representable associated-data length; HKDF outputs valid keys and hash outputs valid AD. Concrete key/payload/AD premises are proved and real roundtrip tested. Native boundaries test lengths 0/1/31/32/33/64: malformed private keys map to zero 32-byte public output and both DH directions reject, so total dh_comm and split_pair remain supported. Universal native crypto correctness remains an explicit assumption, not proved by finite tests. The old unrestricted roundtrip is retained only as a rejected regression control. |
 | [`Seal.Good`](ops/community/Keys.lean#L51-L61) | **conditional**: [Vacuity.SealAudit.goodConditional](tests/vacuity/SealAudit.lean). Contract repaired: DH uses 32-byte private keys; AEAD uses a 32-byte key, 24-byte nonce, plaintext below 274877906817 bytes and associated data below 2^64 bytes. The payload bound accounts for the stream cipher's ceiling to complete or partial blocks, beyond the outer AEAD check. Public keys and hashes supply 32-byte outputs. Concrete production equalities and malformed-input regressions pass; the universal native cryptographic contract remains an explicit unproved assumption, not a finite-test conclusion. |
 | [`write_offers`](engine/wire/WorldLaws.lean#L502-L510) | **kernel-witness**: [Vacuity.WireMore.offered](tests/vacuity/WireMore.lean). Concrete new Alice greeting, one room/session/address, initially empty held store; freshness, unseen/unoffered id and capacity proven, exact emitted offer. Synthetic generic family/held-store fixture; not collected real-user traffic. |
