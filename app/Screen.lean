@@ -5289,9 +5289,10 @@ def notifyStep : M Unit := do
   let s ← get
   let mut ins : List Notify.Input := []
   for m in s.comms do
-    if m.waiting || m.c.isEmpty then continue
+    if m.c.isEmpty then continue
+    -- a community being joined is read too: its first mark is written then
     if let some (.notify snap) ← query ⟨["session".toUTF8, m.acc, "notify".toUTF8], false⟩ (.notify m.c m.user) then
-      let i : Notify.Input := { c := m.c, title := "#general (" ++ m.name ++ ")", device := m.dev.pk, user := m.user, live := !m.removed, snap := snap }
+      let i : Notify.Input := { c := m.c, title := "#general (" ++ m.name ++ ")", device := m.dev.pk, user := m.user, live := !m.waiting && !m.removed, snap := snap }
       ins := ins ++ [i]
   let present := (s.comms.toList.filter (!·.waiting)).map (·.c)
   let v := viewing s

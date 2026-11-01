@@ -34,6 +34,10 @@ structure Sim where
   frames : IO.Ref Nat
   photo : IO.Ref (Array UInt32 × ByteArray)
   nextPhoto : IO.Ref Nat
+  /-- The notification card packets the app posted, in order, and each
+  background-service switch (Io.notify, Io.service). -/
+  notes : IO.Ref (Array String)
+  service : IO.Ref (Array Bool)
 
 /-- Two loopback ports for a test's two nodes, from its process id: tests
 running at once (in other worktrees too) get different ports, below
@@ -46,7 +50,8 @@ def Sim.new : IO Sim := do
   return ⟨← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef (#[], 0, 0, #[], #[]), ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0,
     ← IO.mkRef (#[], .empty), ← IO.mkRef false,
     ← IO.mkRef "", ← IO.mkRef #[1080, 2400, 128, 63, 420], ← IO.mkRef false,
-    ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef true, ← IO.mkRef 0, ← IO.mkRef (#[], .empty), ← IO.mkRef 0⟩
+    ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef true, ← IO.mkRef 0, ← IO.mkRef (#[], .empty), ← IO.mkRef 0,
+    ← IO.mkRef #[], ← IO.mkRef #[]⟩
 
 def Sim.input (sm : Sim) : IO.Ref String := sm.native
 
@@ -86,6 +91,8 @@ def Sim.io (sm : Sim) : Io where
     sm.photo.set (#[token, 1, src.w.toUInt32, src.h.toUInt32], rgba)
     return true
   photoResult := sm.photo.modifyGet fun p => (p, (#[], .empty))
+  notify p := sm.notes.modify (·.push p)
+  service on := do sm.service.modify (·.push on); return true
   luma := do
     if !(← sm.on.get) then return (#[], .empty)
     sm.camera.get

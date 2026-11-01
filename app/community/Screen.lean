@@ -1273,16 +1273,17 @@ def step (s : State) (present : List Id) (viewing : Option Id) (reads : List Id)
   let r := reconcile a.1 (gone present ins viewing reads)
   (r.1, a.2 ++ r.2)
 
-/-- The marks to write: a community's first (now, at first membership:
-history that syncs in later is older), or one past its newest post
-considered, capped at now so a post claiming a future time cannot
+/-- The marks to write: a community's first (now: the app reads a
+community first when this device starts joining it, so posts written
+before the join are history, and posts after it are news), or its newest
+post considered, capped at now so a post claiming a future time cannot
 silence later ones. -/
 def marks (now : Nat) (ins : List Input) : List (Id × Nat) :=
   ins.filterMap fun i =>
-    if !i.live then none else
     match i.snap.mark with
     | none => some (i.c, now)
     | some m =>
+      if !i.live then none else
       let top := min now (i.snap.rows.foldl (fun t r => max t r.time) 0)
       if m < top then some (i.c, top) else none
 
@@ -1441,9 +1442,9 @@ theorem marks_le (now : Nat) (ins : List Input) (p : Id × Nat) (h : p ∈ marks
   simp only [marks, List.mem_filterMap] at h
   obtain ⟨i, _, hi⟩ := h
   split at hi
-  · cases hi
+  · cases hi; exact Nat.le_refl _
   · split at hi
-    · cases hi; exact Nat.le_refl _
+    · cases hi
     · split at hi
       · cases hi; exact Nat.min_le_left _ _
       · cases hi

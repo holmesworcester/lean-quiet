@@ -284,6 +284,11 @@ lean_exe pic_retry where
 lean_exe two_nodes where
   root := `platforms.headless.TwoNodes
 
+-- Notifications: two apps joined by link; cards, quiet, levels, links,
+-- Sync in the background, removal.
+lean_exe notify where
+  root := `platforms.headless.Notify
+
 -- A real invite and its QR code (the camera e2e's poster).
 lean_exe invite_link where
   root := `platforms.headless.InviteLink
