@@ -40,6 +40,17 @@ def Near (w : List α) : Nat → α → Prop
   | 0, x => x ∈ w
   | j + 1, x => Near w j x ∨ ∃ y, Near w j y ∧ x ∈ next y
 
+/-- Within j steps is within j + m. -/
+theorem Near.mono {w : List α} {x : α} : ∀ {j : Nat} (m : Nat), Near next w j x → Near next w (j + m) x
+  | _, 0, h => h
+  | j, m + 1, h => Or.inl (Near.mono m h)
+
+/-- With nothing to follow, what is near the window is the window. -/
+theorem Near.of_none {w : List α} (hn : ∀ y, next y = []) : ∀ {j : Nat} {x : α}, Near next w j x → x ∈ w
+  | 0, _, h => h
+  | _ + 1, _, .inl h => Near.of_none hn h
+  | _ + 1, _, .inr ⟨y, _, hy⟩ => by rw [hn y] at hy; cases hy
+
 /-- The ids first reached at level j. -/
 def Fresh (w : List α) : Nat → α → Prop
   | 0, x => Near next w 0 x

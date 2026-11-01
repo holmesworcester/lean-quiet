@@ -1,4 +1,5 @@
 import tests.vacuity.IdentityTrust
+import engine.sync.WindowLaws
 
 /-! Real SHA-256/Ed25519/XChaCha20 attachment fixture. Finite validation and
 progress checks run natively. The laws' no-collision premise (`ChunkSound`,
@@ -72,6 +73,33 @@ def uniqueCertificate := do
       chunk_unique (keyed full) hs (sound_of_list (fun _ _ h => List.mem_of_find?_eq_some h) hp) ha hx hy)
   else none
 
+/-- The fixture's stored ops give a round the same set S in either order
+(`window_set_canonical`), at a floor below its message. -/
+def canonicalCertificate :=
+  if hu : ∀ o ∈ full, ∀ p ∈ full, o.id = p.id → o = p then
+    some (PLift.up (fun a : Engine.Sync.Item =>
+      Engine.Sync.window_set_canonical (family ed25519) full full.reverse (fun _ => List.mem_reverse.symm) hu
+        4 c (msgTime + 1) a))
+  else none
+
+/-- A real timed chain from a Valid chunk: chunk 0 cites its attachment,
+which claims its message's time; it is within four steps (`timed_chain_le`). -/
+def chainCertificate := do
+  let ⟨hv⟩ ← certify full chunk0 (chunkFact 0)
+  if h1 : table full chunk0.id = some chunk0 then
+    if h2 : chunk0.reqs.any (fun i => decide (i = attachment.id)) = true then
+      have h2' : attachment.id ∈ chunk0.reqs := by
+        obtain ⟨i, hi, e⟩ := List.any_eq_true.1 h2
+        simp only [decide_eq_true_eq] at e
+        exact e ▸ hi
+      if h3 : table full attachment.id = some attachment then
+        if h4 : orderOf attachment ≠ 0 then
+          return PLift.up (timed_chain_le hv (TimedChain.cons h1 h2' h3 h4 (TimedChain.nil _)))
+        else none
+      else none
+    else none
+  else none
+
 /-- The real Valid chunk 0 sorts with its message (`chunks_in_window`). -/
 def windowCertificate := do
   let ⟨hx⟩ ← certify full chunk0 (chunkFact 0)
@@ -136,6 +164,8 @@ def main : IO UInt32 := do
   t.ok "an attachment at another time than its message is rejected"
     ((run (before ++ [attachedAtZero])).status attachedAtZero.id == some .invalid)
   t.ok "chunks_in_window applies to a real Valid chunk" windowCertificate.isSome
+  t.ok "window_set_canonical applies to the fixture's ops in either order" canonicalCertificate.isSome
+  t.ok "timed_chain_le applies to a real chunk's chain to its attachment" chainCertificate.isSome
   t.ok "the attachment and its chunks sort at the message's time (chunks_in_window)"
     (orderOf message == msgTime && orderOf attachment == msgTime && orderOf chunk0 == msgTime &&
       orderOf chunk1 == msgTime)

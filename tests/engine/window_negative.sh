@@ -13,7 +13,7 @@ mkdir -p "$artifacts"
 trap 'rm -rf -- "$tmp"' EXIT
 . tests/snapshot.sh
 snapshot "$tmp/base" engine/core engine/wire engine/renderer engine/sync app tests/engine
-targets=(app.community.channel.message.attachment.Proofs engine.sync.NewestLaws)
+targets=(app.community.channel.message.attachment.Proofs engine.sync.NewestLaws engine.sync.WindowLaws app.community.Proofs)
 cp -a "$tmp/base" "$tmp/w"
 (cd "$tmp/w" && lake build "${targets[@]}" >/dev/null 2>&1) || { echo "FAIL: the unmutated copy does not build"; exit 1; }
 
@@ -126,5 +126,38 @@ mutant "a window with the structure range last" engine.sync.NewestLaws engine/sy
 caught "rounds oldest first" newest engine/sync/Round.lean \
   "    [.hold ((x.filter fun a => !xs.any fun i => Decidable.decide (ident a = i)).map ident).reverse," \
   "    [.hold ((x.filter fun a => !xs.any fun i => Decidable.decide (ident a = i)).map ident),"
+
+## The window's set S (window_set_canonical, over_mem, timed_chain_le)
+
+# visit_fold (so walk_from, over_mem and window_set_canonical) is false: a
+# non-canonical bound, each level of the walk capped at two new ids in the
+# order it meets them, so what S holds depends on how the walk ran.
+mutant "a bound by count in walk order" engine.sync.WindowLaws engine/sync/Walk.lean:visit_fold \
+  engine/sync/Walk.lean \
+  "  if acc.2.contains q then acc else (q :: acc.1, acc.2.insert q)" \
+  "  if acc.2.contains q || 2 ≤ acc.1.length then acc else (q :: acc.1, acc.2.insert q)"
+# over_mem is false: S read without the closure, the window alone.
+mutant "a window without its closure" engine.sync.WindowLaws engine/sync/WindowLaws.lean:over_mem \
+  engine/sync/Conn.lean \
+  "  let seen := (ix.closure k r f).1" "  let seen := Std.HashSet.ofList (ix.windowIds r f)"
+# window_covers (so closure_delivered_under_bound) is false: rounds open
+# over the window's own range, so a closure op older than the floor is in
+# no range the round reconciles.
+mutant "rounds over the window's ranges, not S's" engine.sync.WindowLaws engine/sync/WindowLaws.lean:window_covers \
+  engine/sync/Conn.lean \
+  "  [⟨⟨0, 0⟩, some ⟨1, 0⟩⟩, ⟨⟨max f 1, 0⟩, none⟩]" "  [⟨⟨0, 0⟩, some ⟨1, 0⟩⟩, ⟨⟨max f 2, 0⟩, none⟩]"
+# The suite: S without its closure (the window alone), so the reaction's
+# old message never arrives, and `window_sync` fails.
+caught "a window without its closure" window_sync engine/sync/Conn.lean \
+  "  let seen := (ix.closure k r f).1" "  let seen := Std.HashSet.ofList (ix.windowIds r f)"
+# check_child is false, and with it the rule timed_chain_le rests on
+# (post_child: a clump's root is a root): a child post may cite a child as
+# its clump root, so messages could chain without bound below a window.
+mutant "a clump root that is itself a child" app.community.Proofs \
+  app/community/channel/message/Proofs.lean:check_child app/community/channel/message/Validate.lean \
+  "  | ⟨k, txt, n, tm, s⟩, ⟨c, u0, _, _⟩, ⟨c1, u, d, _⟩, some ⟨c2, u2, _, _, _, _, _, none⟩ =>" \
+  "  | ⟨k, txt, n, tm, s⟩, ⟨c, u0, _, _⟩, ⟨c1, u, d, _⟩, some ⟨c2, u2, _, _, _, _, _, _⟩ =>" \
+  "  | _, _, _, some _ => none
+" ""
 
 echo "window negative controls: every mutant refused by its law or caught by its suite"

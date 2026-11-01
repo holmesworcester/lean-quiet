@@ -131,5 +131,33 @@
     "witness": "Vacuity.RoundExchange.openingNewest",
     "module": "tests.vacuity.RoundExchange",
     "detail": "Applied to Bob answering Alice's opening over the full window (floor 0); its only premise, Bob's items in key order, is the fixture's sortedY. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides."
+  },
+  "window_round_complete": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.window_round_complete",
+    "witness": "Vacuity.RoundExchange.windowRoundCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "The actual two-party execution of the handler: both ends are full (floor 0), so each step's set S is its side's room (items_full, exec_full); every premise (bounding list, sortedness, alternating claimant sets, names, and Sound from the native SHA check over every filtered subset) is derived from the fixture, and the theorem gives the round's end within the bound. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times."
+  },
+  "closure_delivered_under_bound": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.closure_delivered_under_bound",
+    "witness": "Vacuity.RoundExchange.closureCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "The same execution, with the dialer's side (odd steps, index iy) as B read at floor 2: Bob's two messages are its window, nothing below them to follow, so its whole closure fits the bound (Near.of_none, Near.mono); Bob's first message is then found in the round. Inclusion of B's set in its steps' items is derived from over_sub. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times."
+  },
+  "over_mem": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.over_mem",
+    "witness": "Vacuity.RoundExchange.overMem",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Applied to the dialer's index at floor 2 and Bob's first message; its only premise is a windowed floor. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times."
+  },
+  "over_cost": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.over_cost",
+    "witness": "Vacuity.RoundExchange.overCost",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Applied to the dialer's index at floor 2 with M = 1: its entries are empty, so expanding any id is one lookup (proved from Index.cost). Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times."
   }
 }

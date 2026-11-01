@@ -3548,3 +3548,129 @@ end Net.Scene
 
 end
 
+/-! ## How deep a Valid op's timed requirements go (`timed_chain_le`)
+
+A windowed round brings its window's requirements within
+`Params.depth` steps (engine/sync/WindowLaws). For this family that
+reaches all of them: past the structure range (time 0, in every window),
+a Valid op's requirements that claim a time chain at most four steps. -/
+
+namespace Community
+open Engine Codec
+section
+variable {C : Crypto} {ops : Id → Option Op}
+
+/-- A fact whose op claims a time (`orderOf`): a message, a profile, a
+reaction, an attachment or a chunk. -/
+def Fact.timed : Fact → Bool
+  | .ofMessage _ | .ofProfile _ | .ofReact _ | .ofAttachment _ | .ofChunk _ => true
+  | _ => false
+
+/-- How many requirement steps through timed ops can follow a timed
+fact's op: a chunk's attachment, its message, the message's clump root. -/
+def Fact.depth : Fact → Nat
+  | .ofChunk _ => 3
+  | .ofAttachment _ => 2
+  | .ofReact _ => 2
+  | .ofMessage m => if m.clump.isSome then 1 else 0
+  | _ => 0
+
+theorem Fact.depth_le (f : Fact) : f.depth ≤ 3 := by
+  cases f <;> simp only [Fact.depth] <;> (try split) <;> omega
+
+/-- A path of n requirement steps from x through stored ops that each
+claim a time. -/
+inductive TimedChain (ops : Id → Option Op) : Id → Nat → Prop
+  | nil (x : Id) : TimedChain ops x 0
+  | cons {x y : Id} {n : Nat} {o p : Op} : ops x = some o → y ∈ o.reqs → ops y = some p →
+      orderOf p ≠ 0 → TimedChain ops y n → TimedChain ops x (n + 1)
+
+theorem all2_mem {α β} {R : α → β → Prop} :
+    ∀ {l : List α} {gs : List β}, All2 R l gs → ∀ {a}, a ∈ l → ∃ b ∈ gs, R a b
+  | _, _, .nil, _, h => by cases h
+  | _, _, .cons hr t, _, h => by
+    rcases List.mem_cons.1 h with rfl | h
+    · exact ⟨_, List.mem_cons_self .., hr⟩
+    · obtain ⟨b, hb, r⟩ := all2_mem t h
+      exact ⟨b, List.mem_cons_of_mem _ hb, r⟩
+
+/-- A body whose op claims a time (`orderOf`). -/
+def Body.timed : Body → Bool
+  | .ofPost _ | .ofProfile _ | .ofReact _ | .ofAttach _ | .ofChunk _ => true
+  | _ => false
+
+/-- A body's fact is timed exactly when the body is. -/
+theorem check_timed {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {g : Fact}
+    (h : check C o b fs = some g) : g.timed = b.timed := by
+  unfold check at h
+  split at h <;> simp only [Option.map_eq_some_iff, reduceCtorEq] at h <;>
+    (obtain ⟨_, _, rfl⟩ := h) <;> rfl
+
+/-- An op that claims a time is Valid only as a timed fact. -/
+theorem timed_of_order {y : Id} {g : Fact} {p : Op} (hv : V C ops y g) (hp : ops y = some p)
+    (ho : orderOf p ≠ 0) : g.timed = true := by
+  obtain ⟨o, b, fs, hy, hb, _, hc⟩ := valid_inv hv
+  rw [hp] at hy; cases hy
+  rw [check_timed hc]
+  unfold orderOf at ho; rw [hb] at ho
+  cases b <;> simp_all [Body.timed]
+
+/-- A child post's clump root is a root: no clump of its own. -/
+theorem post_child {C : Crypto} {o : Op} {b : Post.Body} {r a : Root.Fact} {p x : Post.Fact}
+    (h : Post.check C o b r a (some p) = some x) : p.clump = none ∧ x.clump.isSome = true := by
+  rcases b with ⟨_, _, _, _, _⟩; rcases r with ⟨_, _, _, _⟩; rcases a with ⟨_, _, _, _⟩
+  rcases p with ⟨_, _, _, _, _, _, _, _ | _⟩
+  · simp only [Post.check] at h
+    split at h
+    · simp only [Option.some.injEq] at h; subst h; simp
+    · simp at h
+  · simp [Post.check] at h
+
+/-- A timed fact's timed requirements are shallower than it. -/
+theorem depth_step {o : Op} {b : Body} {fs : List Fact} {f g : Fact} (hc : check C o b fs = some f)
+    (hg : g ∈ fs) (ht : g.timed = true) (hf : f.timed = true) : g.depth < f.depth := by
+  unfold check at hc
+  split at hc <;> simp only [Option.map_eq_some_iff, reduceCtorEq] at hc <;>
+    obtain ⟨x, hx, rfl⟩ := hc <;> simp only [Fact.timed, Bool.false_eq_true] at hf <;>
+    simp only [List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hg
+  all_goals first
+    | (rcases hg with rfl | rfl <;> simp [Fact.timed, Fact.depth] at ht ⊢ <;> done)
+    | (rcases hg with rfl | rfl | rfl <;> simp [Fact.timed] at ht
+       all_goals first
+         | (have := post_child hx; simp [Fact.depth, this.1, this.2])
+         | (simp only [Fact.depth]; split <;> omega))
+
+/-- From a timed Valid op, a timed chain is at most its fact's depth. -/
+theorem timed_chain_depth {x : Id} {f : Fact} {n : Nat} (hv : V C ops x f) (ht : f.timed = true)
+    (hc : TimedChain ops x n) : n ≤ f.depth := by
+  induction hc generalizing f with
+  | nil => exact Nat.zero_le _
+  | cons hx hy hp hord _ ih =>
+    obtain ⟨o', b, fs, hx', _, hr, hck⟩ := valid_inv hv
+    rw [hx] at hx'; cases hx'
+    obtain ⟨g, hg, hvg⟩ := all2_mem hr hy
+    have hgt := timed_of_order hvg hp hord
+    have := ih hvg hgt
+    have := depth_step hck hg hgt ht
+    omega
+
+/-- **A Valid op's timed requirements lie within four steps**: one step
+from any op (a structure op may cite a timed op) into a timed op, then
+at most three (a chunk's attachment, its message, the message's clump
+root). So a windowed round with `Config.depth` 4 brings every Valid op
+of its window with everything it needs, whatever the window. -/
+theorem timed_chain_le {x : Id} {f : Fact} {n : Nat} (hv : V C ops x f)
+    (hc : TimedChain ops x n) : n ≤ 4 := by
+  cases hc with
+  | nil => omega
+  | cons hx hy hp hord hc' =>
+    obtain ⟨o', b, fs, hx', _, hr, _⟩ := valid_inv hv
+    rw [hx] at hx'; cases hx'
+    obtain ⟨g, _, hvg⟩ := all2_mem hr hy
+    have := timed_chain_depth hvg (timed_of_order hvg hp hord) hc'
+    have := g.depth_le
+    omega
+
+end
+
+end Community
