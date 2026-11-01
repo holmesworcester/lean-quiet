@@ -155,7 +155,7 @@ assume Community.Merkle.NoSecondPreimage Exact no-second-preimage idealization f
 assume Connection.Noise.Suite.Good X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only).
 assume Community.Seal.Good Supported-size AEAD inputs and key wraps roundtrip; valid private keys agree and public keys/hashes have 32-byte outputs (correctness only).
 assume Connection.Noise.Symbolic.sym The symbolic model of the cryptography, over which the running handshake runs.
-assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model.
+assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean).
 assume Engine.Model = Engine.Model.run
 assume Engine.DB = Engine.Model.run
 assume Engine.Sync.HeldM = Engine.Model.run
@@ -183,7 +183,9 @@ assume Engine.Sync.popE = Engine.Sync.popW
 assume Engine.Sync.Queues = Engine.Sync.popW
 assume Engine.runJ The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean).
 
-holds Engine.Inv The tables' invariant. Purges keep it only by `purge_inv`, over the model `purgeS`, and the purge test (tests/engine/Purge.lean).
+assume Engine.DB.dependents = Engine.Model.run
+assume Engine.DB.undecide = Engine.Model.run
+assume Engine.DB.deleteOp = Engine.Model.run
 
 ## Instruments: what the code under test runs in to be measured, each
 ## with the audited law that erases it (engine/core/CostErase.lean)
@@ -204,6 +206,10 @@ bridge Engine.stepS Engine.run_step
 bridge Engine.drainS Engine.run_drain
 bridge Engine.ingestS Engine.run_ingest
 bridge Engine.ingestAll Engine.run_ingestEach
+# The purge: the running `purge` on the model's tables is `purgeS`, and
+# what it returns, the ops it deleted, is `purgeSet`.
+bridge Engine.purgeS Engine.run_purge
+bridge Engine.purgeSet Engine.run_purge
 bridge Engine.View.eval Engine.View.run_model
 bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
 # A want reply's read program: the running interpreter's answer is the
@@ -306,8 +312,6 @@ control Engine.Mutants.rawNotified = Engine.Mutants.σ
 
 ## What would make each model real, most valuable first (the README's order)
 
-todo Engine.purgeS The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`).
-todo Engine.purgeSet = Engine.purgeS
 todo Engine.Sync.exchange conn_runs_exchange now connects exchange's missing IDs to exact alternating onRbsr batches and proves termination under snapshot/fingerprint/capacity premises. Still needed: embedding uninterrupted rounds and directed announcements in the full Node/TCP execution across timeouts and capped windows.
 todo Community.recipients The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission.
 todo Community.members = Community.recipients

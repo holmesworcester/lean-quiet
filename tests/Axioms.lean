@@ -197,6 +197,7 @@ open Engine Community
 #print axioms Engine.purge_undecides
 #print axioms Engine.mem_purgeSet
 #print axioms Engine.purge_inv
+#print axioms Engine.run_purge
 #print axioms Engine.perm_sortPos
 #print axioms Engine.sortPos_eq_fast
 #print axioms Engine.matching_nodup

@@ -43,6 +43,10 @@ instance : Store F M where
   pop := lift Store.pop
   index k x := lift (Store.index k x)
   lookup k := lift (Store.lookup k)
+  dependents x := lift (Store.dependents x)
+  undecide x := lift (Store.undecide x)
+  deleteOp x := lift (Store.deleteOp x)
+  countOps := lift Store.countOps
 
 instance : Lists F M where
   list q := lift (Lists.list q)

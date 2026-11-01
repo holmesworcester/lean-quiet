@@ -90,6 +90,20 @@ def clearWaiters (r : Id) (s : DB F) : DB F := { s with waits := fun i => if i =
 def push (x : Id) (s : DB F) : DB F := { s with queue := s.queue ++ [x] }
 def index (k : ByteArray) (x : Id) (s : DB F) : DB F :=
   { s with idx := fun i => if i = k then ins (s.idx k) x else s.idx i }
+/-- The stored ops that require x, each once, in byte order: SQLite's
+`reqs` rows for x. -/
+def dependents (s : DB F) (x : Id) : List Id :=
+  sortIds (s.stored.filter fun y => match s.ops y with
+    | some o => has o.reqs x
+    | none => false)
+def undecide (x : Id) (s : DB F) : DB F :=
+  { s with status := fun i => if i = x then none else s.status i
+           queue := s.queue.filter fun y => !has [x] y
+           idx := fun k => (s.idx k).filter fun y => !has [x] y }
+def deleteOp (x : Id) (s : DB F) : DB F :=
+  { s with ops := fun i => if i = x then none else s.ops i
+           stored := s.stored.filter fun y => !has [x] y
+           waits := fun r => if r = x then [] else (s.waits r).filter fun y => !has [x] y }
 
 end DB
 
@@ -119,5 +133,9 @@ instance modelStore {F} : Store F (Model F) where
   pop := Model.pop
   index k x := fun s => ((), s.index k x)
   lookup k := fun s => (s.idx k, s)
+  dependents x := fun s => (s.dependents x, s)
+  undecide x := fun s => ((), s.undecide x)
+  deleteOp x := fun s => ((), s.deleteOp x)
+  countOps := fun s => (s.stored.length, s)
 
 end Engine
