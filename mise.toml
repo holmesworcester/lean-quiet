@@ -128,8 +128,8 @@ description = "The bootstrap model: its laws built, the scene on the real engine
 run = "tests/net/check.sh"
 
 [tasks."readme:links"]
-description = "The README's theorem links, and its laws not yet about running code (tests/Wiring.lean), match the code (ci/proof-links.py; needs the tree built)"
-run = "python3 ci/proof-links.py --check"
+description = "The README's theorem links, and its laws not yet about running code (tests/Wiring.lean), match the code (ci/proof-links.py; needs the tree built); the proof tree (docs/PROOF-TREE.md) is drawn from that run's graph (ci/proof-tree.py, its tests first)"
+run = "python3 tests/proof_tree_test.py && python3 ci/proof-links.py --check && python3 ci/proof-tree.py --check --graph out/proof-graph.json"
 
 [tasks."layout:check"]
 description = "The op tree's layout (ci/layout.py): eight file names under app/, an op is a folder with its validator, each family registers its ops, imports go down the tree (or to cited op types), and the engine imports no app module; then its negative controls"

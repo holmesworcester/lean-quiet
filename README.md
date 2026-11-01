@@ -230,6 +230,9 @@ the relevant encountered inputs. ³ In the symbolic model of the cryptography.
 The laws have already caught bugs, in code that had shipped and in
 code being written: [what the proofs caught](docs/CAUGHT.md).
 
+How the laws compose, each guarantee below opening to the laws its proof
+uses, with the uncited laws left over: [the proof tree](docs/PROOF-TREE.md).
+
 ### Towards Proofs for n Clients
 
 The sync proofs already run the real sync code, in a world of two

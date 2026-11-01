@@ -15,7 +15,8 @@
 #    check   every law of tests/Axioms.lean rests on standard axioms only
 #    layout  the op tree's layout, and its negative controls (ci/layout.py)
 #    readme  the README's theorem links and the laws not yet about running
-#            code, against tests/Wiring.lean (ci/proof-links.py)
+#            code, against tests/Wiring.lean (ci/proof-links.py); the proof
+#            tree, from that run's graph (docs/PROOF-TREE.md, ci/proof-tree.py)
 #    reorg   the reorg's import rewriter (ci/reorg-imports.py --self-test)
 # 2. The gate's tests, at once. Each is deterministic and runs in this
 #    tree in one process at a time: no TCP, no X, no clock it must beat,
