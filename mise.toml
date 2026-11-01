@@ -240,6 +240,10 @@ description = "Build/setup a private Android emulator; drive system photo picker
 depends = ["android:apk"]
 run = "platforms/android/test/photo_e2e.sh"
 
+[tasks."android:photo-lifecycle-e2e"]
+description = "Build/setup owned Android; actual picker/decoder recreation cancellation and stale owner controls against Main and SQLite"
+run = "bash platforms/android/test/photo_lifecycle/run.sh"
+
 [tasks."android:scan-e2e"]
 description = "Join with QR code on this suite's own emulator (lean-quiet-scan, emulator-5590): a real invite's code on the virtual scene's wall, scanned by the app's camera; it must land on Choose a name with exactly that link"
 depends = ["android:apk"]

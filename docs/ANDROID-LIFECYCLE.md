@@ -98,11 +98,11 @@ OS scheduling, IME services, or compositor callbacks terminate. They do not add
 an all-app memory or wall-clock bound. The JNI ownership change covers callbacks
 including photo results, but this fixture exercises text callback rejection;
 photo, scanner, and complete app checks remain their existing separate suites.
-Recreation during a pending photo selection/decode still needs a terminal
-cancellation result: Java currently clears its token and stops its worker,
-while `App.photoStep` waits for a result until user cancellation/navigation.
-That action-liveness case remains open and is not covered by the text-callback
-check here.
+The subsequent [photo lifetime repair](ANDROID-PHOTO-LIFETIME.md) adds the
+terminal cancellation result for recreation during pending selection/decode.
+Its actual photo fixture is separate from this text-callback check. A blocked
+content provider can still retain an old decoder thread; a global worker
+bound remains open.
 Windows is unchanged. No iOS runtime was available for this milestone; the
 separate presentation work's C seam checks are not an iOS device test.
 
@@ -110,3 +110,7 @@ References: [Activity lifecycle](https://developer.android.com/guide/components/
 [Activity.isChangingConfigurations](https://developer.android.com/reference/android/app/Activity#isChangingConfigurations()),
 [native callbacks](https://developer.android.com/ndk/reference/struct/a-native-activity-callbacks),
 and [keyboard visibility](https://developer.android.com/develop/ui/views/touch-and-input/keyboard-input/visibility).
+
+The integrated photo-request follow-up is described in
+[ANDROID-PHOTO-LIFETIME.md](ANDROID-PHOTO-LIFETIME.md). Native input ownership
+and total event/worker bounds remain separate open work.

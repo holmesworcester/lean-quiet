@@ -40,7 +40,6 @@ name=$("${adb[@]}" emu avd name | head -1 | tr -d '\r')
 "${adb[@]}" uninstall com.holmes.leanquiet >/dev/null 2>&1 || true
 "${adb[@]}" install out/quiet.apk >/dev/null
 "${adb[@]}" shell pm clear com.holmes.leanquiet >/dev/null
-"${adb[@]}" push "$out/quiet-photo-fixture.jpg" /sdcard/Pictures/quiet-photo-fixture.jpg >/dev/null
-"${adb[@]}" shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Pictures/quiet-photo-fixture.jpg >/dev/null
+platforms/android/test/seed_photo.sh "$serial" "$out/quiet-photo-fixture.jpg" "$out"
 "${adb[@]}" shell am start -n com.holmes.leanquiet/.LeanActivity >/dev/null
 python3 platforms/android/test/photo_e2e.py "$serial" "$out"
