@@ -294,6 +294,9 @@ lean_exe write_admission where
 lean_exe vacuity_storage_effects where
   root := `tests.vacuity.StorageEffectsMain
 
+lean_exe catalog_retry where
+  root := `tests.engine.CatalogRetry
+
 -- Two phones, two communities, each in both, everything named alike.
 lean_exe cross where
   root := `platforms.headless.Cross

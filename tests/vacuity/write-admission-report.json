@@ -1,0 +1,23 @@
+{
+  "WriteAdmission.admitted_frames": {
+    "status": "kernel-witness",
+    "theorem": "App.WriteAdmission.admitted_frames",
+    "witness": "Vacuity.WriteAdmission.frameFits",
+    "module": "tests.vacuity.WriteAdmission",
+    "detail": "A nonempty synthetic op and an already occupied pending queue satisfy the actual app admission predicate. The kernel applies the singleton encrypted-frame bound. Separate host:write-admission checks actual signed Send against SQLite, preserves rejected drafts and commits after capacity clears; this kernel fixture does not claim a signed community op."
+  },
+  "WriteAdmission.admitted_count": {
+    "status": "kernel-witness",
+    "theorem": "App.WriteAdmission.admitted_count",
+    "witness": "Vacuity.WriteAdmission.countFits",
+    "module": "tests.vacuity.WriteAdmission",
+    "detail": "A nonempty op is admitted with one queued entry at the exact two-entry cap. The theorem gives the pending-count bound; a one-entry-cap control rejects the same input. This is admission through App.writeAll, not a bound on every app queue or recovery path."
+  },
+  "WriteAdmission.admitted_bytes": {
+    "status": "kernel-witness",
+    "theorem": "App.WriteAdmission.admitted_bytes",
+    "witness": "Vacuity.WriteAdmission.bytesFit",
+    "module": "tests.vacuity.WriteAdmission",
+    "detail": "The real admission predicate accepts a nonempty encoded op plus existing queued bytes within a finite byte cap; the theorem applies to that result. A one-byte cap rejects. Actual Send/SQLite boundary and exhausted-budget checks, plus three mutations, run in host:write-admission."
+  }
+}

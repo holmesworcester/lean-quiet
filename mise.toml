@@ -31,7 +31,12 @@ run = "bash tests/engine/fairness.sh"
 
 [tasks."test:bootstrap-progress"]
 description = "Bootstrap progress PR gate: native certificates, TCP retry/fairness and sync epoch/claim-tree mutation controls"
-run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree"
+run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree && mise run test:catalog-retry"
+
+[tasks."test:catalog-retry"]
+description = "Actual Node/SQLite durable retry under dropped control/data traffic and continuing writes, including a no-retry mutation"
+depends = ["crypto"]
+run = "bash tests/engine/catalog_retry.sh"
 
 [tasks.bench]
 description = "Wall times of the byte codec on a photo's paths: a 64 KiB chunk op's encode, decode and validation, 100 chunks into SQLite, a 48 KiB frame bundle"
@@ -169,7 +174,7 @@ depends = ["crypto"]
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build two_nodes && .lake/build/bin/two_nodes out/two"
 
 [tasks."host:net-join"]
-description = "Two apps, each its own database and node (the engine's Runner with the Connection family), joined over real TCP on loopback by their own pages: invite, paste, agree, the request over TCP, approve, admission by sync, a post back"
+description = "Two actual apps join through their pages over TCP, then commit, read back and paint local writes during sustained incoming sync"
 depends = ["crypto"]
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build net_join && .lake/build/bin/net_join out/net"
 
