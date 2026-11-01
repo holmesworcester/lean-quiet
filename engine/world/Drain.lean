@@ -942,7 +942,8 @@ room both ends show and a's index lists, with queue room for the want's
 frame and no hash clash on x. -/
 theorem want_delivers (E : Q.Run) {N : Net Q.n} {a b : Fin Q.n} {cid r x : Id} {o : Op} {k T : Nat}
     (L : Link E N a b cid r k T) (hs0 : ∀ p ∈ Q.start.flight, p.sent ≤ Q.start.now)
-    (hr : Q.fam.room o = some r) (hw : isWire o.kind = false) (hox : o.id = x) (hcl : NoClash E o)
+    (hr : Q.fam.room o = some r) (hw : isWire o.kind = false) (hcp : o.capped = true) (hox : o.id = x)
+    (hcl : NoClash E o)
     (hx : ∀ m, k ≤ m → ((E.world m).box a).db.ops x = some o ∧ ∃ it ∈ ((E.world m).node a).ix.items r, it.2 = x)
     {p : Packet Q.n} (hp : p ∈ (E.world k).flight) (hsrc : p.src = some b) (hdst : p.dst = Q.addr a)
     {g : List ByteArray} (hb : p.bytes = plainFrame cid g) {Lw : List Id} (hwL : (Msg.want Lw).op.bytes ∈ g)
@@ -959,7 +960,7 @@ theorem want_delivers (E : Q.Run) {N : Net Q.n} {a b : Fin Q.n} {cid r x : Id} {
   have hmk := Nat.zero_le (Q.cfg.maxKnown * N.τ)
   obtain ⟨k1, hk1, ht1, h1⟩ := want_to_op E L.admits L.inj hs0
     (fun m hm => let ⟨c, hc, hq, _⟩ := L.conn_a m hm; ⟨c, hc, hq⟩) L.conn_b (fun m => L.managed m a)
-    L.Gab L.Gba L.rooms_a L.rooms_b hr hw hox hcl hx hp hsrc hdst hor hb hwL hxL hL hroom hgst
+    L.Gab L.Gba L.rooms_a L.rooms_b hr hw hcp hox hcl hx hp hsrc hdst hor hb hwL hxL hL hroom hgst
     (hlive.mono (Nat.le_refl _) (by omega))
   rcases h1 with hb1 | ⟨c1, hc1, hxc1⟩
   · exact ⟨k1, hk1, by omega, hb1⟩
@@ -979,7 +980,7 @@ theorem want_delivers (E : Q.Run) {N : Net Q.n} {a b : Fin Q.n} {cid r x : Id} {
       (c1.owed.idxOf x) (fun c hc => by rw [hc1] at hc; cases hc; exact ⟨hxc1, Nat.le_refl _⟩) (by omega)
     have hmt : p.sent ≤ (E.world (m + 1)).now := Nat.le_trans hk1t (Exec.now_mono E (by omega))
     obtain ⟨k2, hk2, ht2, h2⟩ := op_hop E L.admits L.inj (a := a) (b := b) (cid := cid) (r := r) (k := m + 1)
-      (fun m' hm' => L.conn_b m' (by omega)) L.Gab L.rooms_b hf rfl rfl rfl hg' hw hr
+      (fun m' hm' => L.conn_b m' (by omega)) L.Gab L.rooms_b hf rfl rfl rfl hg' hw hr hcp
       (by simp only; omega) (hlive.mono (by simp only; omega) (by simp only; omega))
       (fun m' o' h => hcl.1 m' b o' h) (hcl.2 (m + 1) _ hf cid g' rfl)
     refine ⟨k2, by omega, by simp only at ht2; omega, ?_⟩

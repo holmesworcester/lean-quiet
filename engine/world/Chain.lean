@@ -117,7 +117,8 @@ theorem op_hop {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : World (
     (hG : N.G a b) (hs : r ∈ Q.rooms b cid)
     {p : Packet Q.n} (hp : p ∈ (E.world k).flight) (hsrc : p.src = some a) (hdst : p.dst = Q.addr b)
     {g : List ByteArray} (hb : p.bytes = plainFrame cid g) {o : Op} (ho : o.bytes ∈ g) (hw : isWire o.kind = false)
-    (hr : Q.fam.room o = some r) (hgst : N.gst ≤ p.sent) (hlive : N.Live a b p.sent (p.sent + N.Δ))
+    (hr : Q.fam.room o = some r) (hcp : o.capped = true) (hgst : N.gst ≤ p.sent)
+    (hlive : N.Live a b p.sent (p.sent + N.Δ))
     (hpre : ∀ m o', ((E.world m).box b).db.ops o.id = some o' → o' = o)
     (hfr : ∀ c ∈ g, ∀ o', Op.decode c = some o' → o'.id = o.id → o' = o) :
     ∃ k', k < k' ∧ (E.world k').now ≤ p.sent + N.Δ ∧ ((E.world k').box b).db.ops o.id = some o := by
@@ -126,7 +127,7 @@ theorem op_hop {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : World (
   refine ⟨k' + 1, by omega, ?_, ?_⟩
   · rw [Exec.world_succ, ha, deliver_now _ idx t p b hp' hj]; exact ht
   · rw [Exec.world_succ, ha]
-    exact deliver_takes (E.world k') idx t p b cid g o r hp' hj hb ho (hJ k' hk') hw hr hs (hpre k') hfr
+    exact deliver_takes (E.world k') idx t p b cid g o r hp' hj hb ho (hJ k' hk') hw hr hs hcp (hpre k') hfr
 
 /-- **H2 over time.** A want naming x in flight from b to a, x an op a
 holds from then on in a room the session shows and a's index lists, on a
@@ -184,13 +185,13 @@ write's time. -/
 theorem write_hop {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : World (Held F) Q.n}
     (E : Exec Q.setup adv w₀) {i : Fin Q.n} {cid r : Id} {k : Nat} {ops : List Op} {t : Nat} {o : Op}
     (ha : E.act k = .write i ops t) (hm : ((E.world k).node i).managed = [])
-    (ho : o ∈ ops) (hn : ((E.world k).box i).db.ops o.id = none) (hu : ∀ y ∈ ops, y.id = o.id → y = o)
+    (hcps : ∀ y ∈ ops, y.capped = true) (ho : o ∈ ops) (hn : ((E.world k).box i).db.ops o.id = none) (hu : ∀ y ∈ ops, y.id = o.id → y = o)
     {c : Conn} (hc : ((E.world k).node i).conn? cid = some c) (hr : Q.fam.room o = some r) (hs : r ∈ Q.rooms i cid)
     (hk : o.id ∉ c.known) (hof : o.id ∉ c.offered) {dst : ByteArray} (hd : ((E.world k).node i).addr? cid = some dst)
     (hmax : 0 < Q.cfg.maxIds) :
     ∃ sr ps l, (⟨sr, some i, Q.addr i, dst, plainFrame cid ps, t⟩ : Packet Q.n) ∈ (E.world (k + 1)).flight ∧
       (Msg.hold r l).op.bytes ∈ ps ∧ o.id ∈ l := by
-  obtain ⟨ps, l, hf, hps, hol⟩ := write_offers_all (Q.two i) .a ((E.world k).node i) ops t ((E.world k).box i) hm o ho hn hu
+  obtain ⟨ps, l, hf, hps, hol⟩ := write_offers_all (Q.two i) .a ((E.world k).node i) ops t ((E.world k).box i) hm hcps o ho hn hu
     cid c (conn_mem hc) r hr hs hk hof dst hd hmax
   obtain ⟨sr, hsr⟩ := enter_sends (E.world k) i t (fun nd => nd.onWrite ((Q.two i).sync .a) ops t) dst _ hf
   refine ⟨sr, ps, l, ?_, hps, hol⟩
@@ -283,7 +284,8 @@ theorem want_to_op {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : Wor
     (hJb : ∀ m, k ≤ m → (((E.world m).node b).conn? cid).isSome = true)
     (hm : ∀ m, ((E.world m).node a).managed = [])
     (hGab : N.G a b) (hGba : N.G b a) (hsa : r ∈ Q.rooms a cid) (hsb : r ∈ Q.rooms b cid)
-    (hr : Q.fam.room o = some r) (hw : isWire o.kind = false) (hox : o.id = x) (hcl : NoClash E o)
+    (hr : Q.fam.room o = some r) (hw : isWire o.kind = false) (hcp : o.capped = true) (hox : o.id = x)
+    (hcl : NoClash E o)
     (hx : ∀ m, k ≤ m → ((E.world m).box a).db.ops x = some o ∧ ∃ it ∈ ((E.world m).node a).ix.items r, it.2 = x)
     {p : Packet Q.n} (hp : p ∈ (E.world k).flight) (hsrc : p.src = some b) (hdst : p.dst = Q.addr a)
     (hor : p.origin = Q.addr b) {g : List ByteArray} (hb : p.bytes = plainFrame cid g) {L : List Id}
@@ -300,7 +302,7 @@ theorem want_to_op {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : Wor
   · have hk1t : p.sent ≤ (E.world k1).now :=
       Nat.le_trans (sent_le_now E hs0 k p hp) (Exec.now_mono E (Nat.le_of_lt hk1))
     obtain ⟨k2, hk2, ht2, h2⟩ := op_hop E hN hinj (a := a) (b := b) (cid := cid) (r := r) (k := k1)
-      (fun m hm' => hJb m (by omega)) hGab hsb hf rfl rfl rfl ho hw hr (by simp only; omega)
+      (fun m hm' => hJb m (by omega)) hGab hsb hf rfl rfl rfl ho hw hr hcp (by simp only; omega)
       (hlive.mono (by simp only; omega) (by simp only; omega)) (fun m o' h => hcl.1 m b o' h)
       (hcl.2 k1 _ hf cid g' rfl)
     refine ⟨k2, by omega, by simp only at ht2; omega, Or.inl ?_⟩

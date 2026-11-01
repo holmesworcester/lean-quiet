@@ -45,8 +45,8 @@ theorem want_reaches (E : Q.Run) {N : Net Q.n} (hN : N.Admits E) (hinj : ∀ i j
     (haddr : ∀ m, k ≤ m → ((E.world m).node a).addr? cid = some (Q.addr b))
     (hGab : N.G a b) (hGba : N.G b a) (hra : r ∈ Q.rooms a cid) (hrb : r ∈ Q.rooms b cid)
     (hno : ∀ m j dl t, k ≤ m → E.act m ≠ .connect a j cid dl t) (hburst : 0 < Q.cfg.burst)
-    (hr : Q.fam.room o = some r) (hw : isWire o.kind = false) (hox : o.id = x) (hcl : NoClash E o)
-    (hg : ((E.world k).box a).db.ops x = some o)
+    (hr : Q.fam.room o = some r) (hw : isWire o.kind = false) (hcp : o.capped = true) (hox : o.id = x)
+    (hcl : NoClash E o) (hg : ((E.world k).box a).db.ops x = some o)
     {p : Packet Q.n} (hp : p ∈ (E.world k).flight) (hsrc : p.src = some b) (hdst : p.dst = Q.addr a)
     {g : List ByteArray} (hb : p.bytes = plainFrame cid g) {Lw : List Id} (hwL : (Msg.want Lw).op.bytes ∈ g)
     (hxL : x ∈ Lw) (hL : Lw.length ≤ Q.cfg.maxIds)
@@ -68,7 +68,7 @@ theorem want_reaches (E : Q.Run) {N : Net Q.n} (hN : N.Admits E) (hinj : ∀ i j
       gst := Nat.le_trans hgst hsent
       live := hlive.mono hsent (Nat.le_refl _)
       burst := hburst }
-  refine want_delivers E L hs0 hr hw hox hcl (fun m hm' => ⟨keeps_op E hg hr m hm', ?_⟩) hp hsrc hdst hb hwL hxL hL
+  refine want_delivers E L hs0 hr hw hcp hox hcl (fun m hm' => ⟨keeps_op E hg hr m hm', ?_⟩) hp hsrc hdst hb hwL hxL hL
     hroom hgst hlive hT
   obtain ⟨it, hit, e⟩ := ix_covers_start E m a r x o (keeps_op E hg hr m hm') hr
   exact ⟨it, hit, e⟩
