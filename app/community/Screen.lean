@@ -46,7 +46,7 @@ def readOwn (msg : Id) : m (Option (Row.RowData × Array Q)) := do
   let some (.message c u _ kid sealed _ tm clump) := f | return none
   let (ks, _, deps) ← readList (key.byId.query [kid] (limit := some 1)) deps
   let some text := (match ks.rows.head? with
-    | some (_, .key _ _ k) => (openSealed cryptoSeal c kid sealed k).map Profile.bytesStr
+    | some (_, .key _ _ k) => (openStored cryptoSeal c kid sealed k).map Profile.bytesStr
     | _ => none) | return none
   return some ({ name := "…", avatar := none, text, time := tm, pics := [], tallies := [],
                  pending, selected := false, author := u, clump }, deps)
@@ -87,7 +87,7 @@ def read (c me msg : Id) (attachmentProgress : Bool := true) : m (Option (Row.Ro
   -- no key here yet, or a body it does not open: not shown (the list
   -- leaves such messages out; this is the row's own check)
   let some text := (match ks.rows.head? with
-    | some (_, .key _ _ k) => (openSealed cryptoSeal c kid sealed k).map Profile.bytesStr
+    | some (_, .key _ _ k) => (openStored cryptoSeal c kid sealed k).map Profile.bytesStr
     | _ => none) | return none
   let (who, deps) ← Profile.read c u deps
   let (twin, deps) ← Profile.namesake c u who.name deps
@@ -121,7 +121,7 @@ theorem message_read (db : DB Fact) (c me msg : Id) (d : Row.RowData) (deps : Ar
       d.name = nameIn db c u ∧ d.time = tm ∧
       (∃ deps', d.namesake = ((Profile.namesake (m := Model) c u d.name deps').run db).1) ∧
       ∃ x y k, keyIn db kid = some (.key x y k) ∧
-        (openSealed cryptoSeal c kid sealed k).map Profile.bytesStr = some d.text := by
+        (openStored cryptoSeal c kid sealed k).map Profile.bytesStr = some d.text := by
   simp only [Message.read, readFact, readList, ReaderT.run, bind, ReaderT.bind, pure, ReaderT.pure,
     Reads.read] at h
   generalize hf : Option.map (fun x => x.snd) (eval db { key := opKey msg, limit := some 1 }).rows.head? = fo at h
@@ -138,7 +138,7 @@ theorem message_read (db : DB Fact) (c me msg : Id) (d : Row.RowData) (deps : Ar
   all_goals dsimp only at h
   all_goals try (exact absurd h (pure_none_ne _ _))
   rename_i x y k
-  generalize ht : Option.map Profile.bytesStr (openSealed cryptoSeal c kid sealed k) = tx at h
+  generalize ht : Option.map Profile.bytesStr (openStored cryptoSeal c kid sealed k) = tx at h
   rcases tx with _ | text
   · dsimp only at h; exact absurd h (pure_none_ne _ _)
   simp only [ReaderT.bind, ReaderT.pure, id_bind, Option.some.injEq, Prod.mk.injEq] at h
@@ -155,7 +155,7 @@ theorem message_own (db : DB Fact) (msg : Id) (d : Row.RowData) (deps : Array Q)
       d.author = u ∧ d.time = tm ∧
       deps = #[Q.get msg, .list (key.byId.query [kid] (limit := some 1))] ∧
       ∃ x y k, keyIn db kid = some (.key x y k) ∧
-        (openSealed cryptoSeal c kid sealed k).map Profile.bytesStr = some d.text := by
+        (openStored cryptoSeal c kid sealed k).map Profile.bytesStr = some d.text := by
   simp only [Message.readOwn, readFact, readList, ReaderT.run, bind, ReaderT.bind,
     pure, ReaderT.pure, Reads.read] at h
   generalize hf : Option.map (fun x => x.snd)
@@ -173,7 +173,7 @@ theorem message_own (db : DB Fact) (msg : Id) (d : Row.RowData) (deps : Array Q)
   all_goals dsimp only at h
   all_goals try (exact absurd h (pure_none_ne _ _))
   rename_i x y k
-  generalize ht : Option.map Profile.bytesStr (openSealed cryptoSeal c kid sealed k) = tx at h
+  generalize ht : Option.map Profile.bytesStr (openStored cryptoSeal c kid sealed k) = tx at h
   rcases tx with _ | text
   · dsimp only at h; exact absurd h (pure_none_ne _ _)
   simp only [ReaderT.bind, ReaderT.pure, id_bind, Option.some.injEq, Prod.mk.injEq] at h

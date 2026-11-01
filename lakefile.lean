@@ -49,6 +49,11 @@ lean_lib Pic where
 @[default_target] lean_lib Sync where
   globs := #[.submodules `engine.sync]
 
+-- n real nodes and the network between them, as data: convergence over
+-- any web, from the running node's laws (docs/PROOFS.md)
+@[default_target] lean_lib World where
+  globs := #[.submodules `engine.world]
+
 -- the handshake and sessions
 @[default_target] lean_lib Connection where
   globs := #[.submodules `app.connection]
@@ -520,6 +525,9 @@ lean_exe vacuity_chat_presentation where
 
 lean_exe vacuity_contracts where
   root := `tests.vacuity.ContractsMain
+
+lean_exe vacuity_crypto_trust where
+  root := `tests.vacuity.CryptoTrustMain
 
 lean_exe vacuity_identity_lifecycle where
   root := `tests.vacuity.IdentityLifecycleMain

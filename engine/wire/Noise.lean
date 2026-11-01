@@ -36,6 +36,7 @@ responder's, both ends hold the same handshake hash, and each end's
 sending key is the other's receiving key.
 -/
 import engine.core.Crypto
+import engine.core.Trust
 
 namespace Connection.Noise
 
@@ -378,20 +379,25 @@ end
 export Engine.Crypto (x25519 x25519Base chachaSeal chachaOpen staticOf staticPubOf xchachaSeal
   xchachaOpen randomBytes)
 
-/-- Exclusive payload limit of the native ChaCha stream after the AEAD's
-initial seek to byte64. `check_remaining` rounds up to blocks and permits
-at most `u32::MAX - 1` blocks, so the last safe byte count is
-`64 * (2^32 - 2)`. The AEAD's own floor-division check is weaker. -/
-def maxPlaintextSize : Nat := 64 * (2 ^ 32 - 2) + 1
+open Engine
 
 /-- X25519, ChaCha20-Poly1305 and SHA-256, on bytes. A message is its
-32-byte public key, then the rest; a shorter one does not split. -/
+32-byte public key, then the rest; a shorter one does not split.
+Secrets are checked for 32 bytes here, in Lean, not left to the native
+code: a malformed secret has no shared secret and the all-zero point as
+its public key, which no DH accepts. So DH agreement needs only X25519's
+own law on 32-byte secrets (`suite_good`). -/
 def suite : Suite ByteArray where
-  dh a b := let r := x25519 a b; if r.size = 32 then some r else none
-  pub := x25519Base
+  dh a b := match Bytes.of? (n := 32) a with
+    | some k => if b = (Bytes.zeros 32).1 then none else
+      let r := x25519 k.1 b; if r.size = 32 then some r else none
+    | none => none
+  pub a := match Bytes.of? (n := 32) a with
+    | some k => x25519Base k.1
+    | none => (Bytes.zeros 32).1
   ValidKey k := k.size = 32
-  ValidPayload p := p.size < maxPlaintextSize
-  ValidAD ad := ad.size < 2 ^ 64
+  ValidPayload p := p.size < Crypto.maxPlaintext
+  ValidAD ad := ad.size < Crypto.maxAD
   enc k n := chachaSeal k n.toUInt64
   dec k n := chachaOpen k n.toUInt64
   hash := Engine.sha256
@@ -399,6 +405,40 @@ def suite : Suite ByteArray where
   pair a b := a ++ b
   split m := if m.size < 32 then none else some (m.extract 0 32, m.extract 32 m.size)
   lit b := b
+
+theorem suite_pub_size (t : Trust.X25519) (a : ByteArray) : (suite.pub a).size = 32 := by
+  show (match Bytes.of? (n := 32) a with | some k => x25519Base k.1 | none => (Bytes.zeros 32).1).size = 32
+  split
+  · exact (t.1 _).1
+  · exact (Bytes.zeros 32).2
+
+theorem suite_dh_comm (t : Trust.X25519) (a b : ByteArray) :
+    suite.dh a (suite.pub b) = suite.dh b (suite.pub a) := by
+  simp only [suite]
+  cases ha : Bytes.of? (n := 32) a <;> cases hb : Bytes.of? (n := 32) b <;>
+    simp [(t.1 _).2, t.2]
+
+theorem hkdf_size (t : Trust.Sha256Size) (ck ikm : ByteArray) :
+    (hkdf Engine.sha256 ck ikm).1.size = 32 ∧ (hkdf Engine.sha256 ck ikm).2.size = 32 :=
+  ⟨t _, t _⟩
+
+/-- **The running suite is good**, given the crates' correctness (the
+crypto trust file): DH agreement from X25519's on 32-byte secrets, HKDF
+keys and handshake associated data from SHA-256's digest size, the
+handshake AEAD from ChaCha20-Poly1305's roundtrip, and framing from the
+public key's 32 bytes. -/
+theorem suite_good (t : Trust.NativeCrypto) : suite.Good where
+  dh_comm := suite_dh_comm t.x25519
+  hkdf_keys ck ikm := hkdf_size t.sha256 ck ikm
+  hash_ad x := by show (Engine.sha256 x).size < Crypto.maxAD; rw [t.sha256]; decide
+  dec_enc k hk n ad p had hp := (t.chacha ⟨k, hk⟩ n.toUInt64 ad p (show p.size < Crypto.maxPlaintext from hp)
+    (show ad.size < Crypto.maxAD from had)).1
+  split_pair a c := by
+    have hp := suite_pub_size t.x25519 a
+    show (if (suite.pub a ++ c).size < 32 then none
+      else some ((suite.pub a ++ c).extract 0 32, (suite.pub a ++ c).extract 32 (suite.pub a ++ c).size)) = _
+    rw [if_neg (by rw [ByteArray.size_append, hp]; omega), ByteArray.extract_append_eq_left hp.symm,
+      ByteArray.extract_append_eq_right hp.symm (by rw [ByteArray.size_append, hp])]
 
 end Connection.Noise
 
@@ -415,11 +455,6 @@ structure Keys where
   associated data, plaintext. -/
   fenc : B → B → B → B → B
   fdec : B → B → B → B → Option B
-
-/-- What the laws assume: a good suite, and an AEAD that opens what it
-seals. -/
-def Keys.Good (K : Keys) : Prop :=
-  K.suite.Good ∧ ∀ k n ad p, K.fdec k n ad (K.fenc k n ad p) = some p
 
 /-- libsodium's (the Rust crates'). -/
 def sodium : Keys where

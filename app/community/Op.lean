@@ -1,4 +1,5 @@
 import engine.core.Crypto
+import engine.core.Trust
 import engine.core.Engine
 
 section
@@ -18,12 +19,18 @@ structural: an op's body says which fields are sealed.
   zero because the key is used once. The device opens it with its X25519
   secret.
 
+Keys and nonces are sized (`Key32`, `Nonce24`): the native code takes no
+other size, and code that reads one from storage or the wire checks it
+once (`Bytes.of?`), so the laws carry no size premise.
+
 Validators never open anything: they see key ids, nonces and
 ciphertexts, and the signatures over them.
 
 Laws, for any suite whose DH commutes and whose AEAD opens what it
 seals: `unbox_box` (a device opens a key wrapped to it) and
-`openBody_sealBody` (whoever holds the key opens the body).
+`openBody_sealBody` (whoever holds the key opens the body). The running
+suite `cryptoSeal` is one (`cryptoSeal_good`), given the crates'
+correctness (engine/core/Trust.lean).
 -/
 
 namespace Community
@@ -31,35 +38,22 @@ open Engine
 
 abbrev B := ByteArray
 
-/-- What sealing is built from. -/
+/-- What sealing is built from. Secrets, AEAD keys and nonces are sized. -/
 structure Seal where
   /-- X25519: a secret key and a public key to their shared secret. -/
-  dh : B → B → B
-  pub : B → B
-  /-- AEAD: key, 24-byte nonce, associated data, plaintext. -/
-  enc : B → B → B → B → B
-  dec : B → B → B → B → Option B
+  dh : Key32 → B → B
+  pub : Key32 → B
+  /-- AEAD: key, nonce, associated data, plaintext. -/
+  enc : Key32 → Nonce24 → B → B → B
+  dec : Key32 → Nonce24 → B → B → Option B
   hash : B → B
 
-/-- Exclusive plaintext limit after RustCrypto's AEAD reserves block zero
-for Poly1305. The stream cipher then permits at most `u32::MAX - 1`
-complete or partial blocks: `ceil(len / 64) <= 2^32 - 2`. This is stricter
-than the outer AEAD's floor-division check and applies to XChaCha too. -/
-def Seal.maxPlaintextSize : Nat := 64 * (2^32 - 2) + 1
-
-/-- AEAD authenticates the associated-data length as an unsigned 64-bit
-integer. Native arrays on supported hosts fit; the logical contract also
-states the bound for its unrestricted `ByteArray` quantifier. -/
-def Seal.maxAssociatedDataSize : Nat := 2^64
-
-/-- Correctness on the native primitives' supported inputs. Key agreement
-uses 32-byte private keys; XChaCha uses a 32-byte key and 24-byte nonce.
-Its plaintext must fit the counter range. Hash output size supplies the
-AEAD key-size premise for wrapping. -/
+/-- Correctness: key agreement, an AEAD that opens what it seals within
+the crate's plaintext and associated-data limits, and 32-byte public keys
+and hashes. Key and nonce sizes are in the types. -/
 structure Seal.Good (S : Seal) : Prop where
-  dh_comm : ∀ a b, a.size = 32 → b.size = 32 → S.dh a (S.pub b) = S.dh b (S.pub a)
-  dec_enc : ∀ k n ad p, k.size = 32 → n.size = 24 → p.size < Seal.maxPlaintextSize →
-    ad.size < Seal.maxAssociatedDataSize →
+  dh_comm : ∀ a b : Key32, S.dh a (S.pub b) = S.dh b (S.pub a)
+  dec_enc : ∀ (k : Key32) (n : Nonce24) ad p, p.size < Crypto.maxPlaintext → ad.size < Crypto.maxAD →
     S.dec k n ad (S.enc k n ad p) = some p
   pub_size : ∀ a, (S.pub a).size = 32
   hash_size : ∀ a, (S.hash a).size = 32
@@ -68,36 +62,46 @@ section
 variable (S : Seal)
 
 /-- A content key's id. -/
-def kidOf (k : B) : B := S.hash ("quiet/content-key/v1".toUTF8 ++ k)
+def kidOf (k : Key32) : B := S.hash ("quiet/content-key/v1".toUTF8 ++ k.1)
 
 /-- What a sealed body is bound to. -/
 def bodyAd (c kid : B) : B := Codec.encode (c, kid)
 
-def sealBody (k n c kid p : B) : B := S.enc k n (bodyAd c kid) p
+def sealBody (k : Key32) (n : Nonce24) (c kid p : B) : B := S.enc k n (bodyAd c kid) p
 
-def openBody (k n c kid x : B) : Option B := S.dec k n (bodyAd c kid) x
+def openBody (k : Key32) (n : Nonce24) (c kid x : B) : Option B := S.dec k n (bodyAd c kid) x
 
 /-- A sealed body as it travels (the nonce, then the ciphertext), opened
 with key k; none without the right key. -/
-def openSealed (c kid sealed k : B) : Option B :=
-  if sealed.size < 24 then none
-  else openBody S k (sealed.extract 0 24) c kid (sealed.extract 24 sealed.size)
+def openSealed (c kid sealed : B) (k : Key32) : Option B :=
+  if h : sealed.size < 24 then none
+  else openBody S k (Bytes.front sealed (by omega)) c kid (sealed.extract 24 sealed.size)
 
-def zeros24 : B := ⟨Array.replicate 24 0⟩
+/-- A sealed body opened with a key as it is stored: none unless the key
+is 32 bytes. -/
+def openStored (c kid sealed k : B) : Option B := (Bytes.of? k).bind (openSealed S c kid sealed)
+
+def zeros24 : Nonce24 := Bytes.zeros 24
 
 def boxKey (s epk rpk : B) : B := S.hash ("quiet/wrap/v1".toUTF8 ++ s ++ epk ++ rpk)
 
 /-- Key k (id kid) wrapped to the device whose X25519 key is rpk, with
-ephemeral secret esk. -/
-def box (esk rpk kid k : B) : B :=
+ephemeral secret esk. Empty if the one-time key is not 32 bytes (a
+32-byte hash always is). -/
+def box (esk : Key32) (rpk kid : B) (k : Key32) : B :=
   let epk := S.pub esk
-  epk ++ S.enc (boxKey S (S.dh esk rpk) epk rpk) zeros24 kid k
+  match Bytes.of? (boxKey S (S.dh esk rpk) epk rpk) with
+  | some bk => epk ++ S.enc bk zeros24 kid k.1
+  | none => .empty
 
-/-- A wrap opened with the device's X25519 secret rsk. -/
-def unbox (rsk kid b : B) : Option B :=
+/-- A wrap opened with the device's X25519 secret rsk: the 32-byte key it
+holds, or none. -/
+def unbox (rsk : Key32) (kid b : B) : Option Key32 :=
   if b.size < 32 then none else
   let epk := b.extract 0 32
-  S.dec (boxKey S (S.dh rsk epk) epk (S.pub rsk)) zeros24 kid (b.extract 32 b.size)
+  match Bytes.of? (boxKey S (S.dh rsk epk) epk (S.pub rsk)) with
+  | some bk => (S.dec bk zeros24 kid (b.extract 32 b.size)).bind Bytes.of?
+  | none => none
 
 end
 
@@ -105,34 +109,48 @@ section
 variable {S : Seal}
 
 /-- **Whoever holds the key opens the body.** -/
-theorem openBody_sealBody (G : S.Good) (k n c kid p : B)
-    (hk : k.size = 32) (hn : n.size = 24) (hp : p.size < Seal.maxPlaintextSize)
-    (ha : (bodyAd c kid).size < Seal.maxAssociatedDataSize) :
-    openBody S k n c kid (sealBody S k n c kid p) = some p := G.dec_enc _ _ _ _ hk hn hp ha
+theorem openBody_sealBody (G : S.Good) (k : Key32) (n : Nonce24) (c kid p : B)
+    (hp : p.size < Crypto.maxPlaintext) (ha : (bodyAd c kid).size < Crypto.maxAD) :
+    openBody S k n c kid (sealBody S k n c kid p) = some p := G.dec_enc _ _ _ _ hp ha
+
+theorem boxKey_of (G : S.Good) (s epk rpk : B) :
+    Bytes.of? (boxKey S s epk rpk) = some ⟨boxKey S s epk rpk, G.hash_size _⟩ :=
+  Bytes.of?_val ⟨_, G.hash_size _⟩
 
 /-- **A device opens a key wrapped to it.** -/
-theorem unbox_box (G : S.Good) (rsk esk kid k : B) (hr : rsk.size = 32) (he : esk.size = 32)
-    (hk : k.size < Seal.maxPlaintextSize) (hi : kid.size < Seal.maxAssociatedDataSize) :
+theorem unbox_box (G : S.Good) (rsk esk k : Key32) (kid : B) (hi : kid.size < Crypto.maxAD) :
     unbox S rsk kid (box S esk (S.pub rsk) kid k) = some k := by
   have hp := G.pub_size esk
-  have hs : ¬ (S.pub esk ++ S.enc (boxKey S (S.dh esk (S.pub rsk)) (S.pub esk) (S.pub rsk)) zeros24 kid k).size
-      < 32 := by rw [ByteArray.size_append, hp]; omega
-  unfold unbox box
+  have hb : box S esk (S.pub rsk) kid k = S.pub esk ++
+      S.enc ⟨boxKey S (S.dh esk (S.pub rsk)) (S.pub esk) (S.pub rsk), G.hash_size _⟩ zeros24 kid k.1 := by
+    simp only [box, boxKey_of G]
+  have hs : ¬ (box S esk (S.pub rsk) kid k).size < 32 := by rw [hb, ByteArray.size_append, hp]; omega
+  have hk : k.1.size < Crypto.maxPlaintext := by rw [k.2]; decide
+  unfold unbox
   simp only [hs, ↓reduceIte]
-  rw [ByteArray.extract_append_eq_left hp.symm,
+  rw [hb, ByteArray.extract_append_eq_left hp.symm,
     ByteArray.extract_append_eq_right hp.symm (by rw [ByteArray.size_append, hp]),
-    G.dh_comm rsk esk hr he]
-  exact G.dec_enc _ zeros24 kid k (G.hash_size _) (by decide) hk hi
+    G.dh_comm rsk esk, boxKey_of G]
+  simp only [G.dec_enc _ zeros24 kid k.1 hk hi, Option.bind_some]
+  exact Bytes.of?_val k
 
 end
 
 /-- The engine's: X25519, XChaCha20-Poly1305, SHA-256. -/
 def cryptoSeal : Seal where
-  dh := Crypto.x25519
-  pub := Crypto.x25519Base
-  enc := Crypto.xchachaSeal
-  dec := Crypto.xchachaOpen
+  dh a b := Crypto.x25519 a.1 b
+  pub a := Crypto.x25519Base a.1
+  enc k n := Crypto.xchachaSeal k.1 n.1
+  dec k n := Crypto.xchachaOpen k.1 n.1
   hash := Engine.sha256
+
+/-- **The running suite is good**, given the crates' correctness: the
+crypto trust file's assumptions, on sized inputs. -/
+theorem cryptoSeal_good (t : Trust.NativeCrypto) : cryptoSeal.Good where
+  dh_comm a b := t.x25519.2 a b
+  dec_enc k n ad p hp ha := (t.xchacha k n ad p hp ha).1
+  pub_size a := (t.x25519.1 a).1
+  hash_size := t.sha256
 
 end Community
 

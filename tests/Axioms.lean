@@ -37,6 +37,8 @@ import engine.wire.OutboxLaws
 import engine.sync.SweepLaws
 import engine.sync.SweepRun
 import engine.sync.SharedLog
+import engine.world.Link
+import engine.world.InvIx
 import engine.wire.Slots
 import engine.wire.DialQueue
 import engine.core.Engine
@@ -206,10 +208,19 @@ open Engine Community
 #print axioms Engine.sum_scope_left
 #print axioms Connection.open_seal
 #print axioms Connection.cid_seal
+#print axioms Connection.ad_fits
+#print axioms Connection.open_seal_sodium
+#print axioms Connection.cid_seal_sodium
+#print axioms Connection.sealFor_opens
+#print axioms Connection.Noise.suite_pub_size
+#print axioms Connection.Noise.suite_dh_comm
+#print axioms Connection.Noise.hkdf_size
+#print axioms Connection.Noise.suite_good
 #print axioms Connection.view_held
 #print axioms Connection.rooms_held
 #print axioms Connection.hooks_reads
 #print axioms Connection.established_agrees
+#print axioms Connection.established_agrees_sodium
 #print axioms Connection.Noise.sent1_read1
 #print axioms Connection.Noise.read2_write2'
 #print axioms Engine.purge_gone
@@ -229,6 +240,15 @@ open Engine Community
 #print axioms Community.check_reads_shared
 #print axioms Community.openSealed_seal
 #print axioms Community.member_opens
+#print axioms Community.boxKey_of
+#print axioms Community.cryptoSeal_good
+#print axioms Community.bodyAd_size
+#print axioms Community.sealedPost_opens
+#print axioms Community.wrapKey_opens
+#print axioms Community.member_reads
+#print axioms Engine.Bytes.of?_val
+#print axioms Engine.Bytes.of?_eq_some
+#print axioms Engine.Bytes.of?_none
 #print axioms Community.check_attach
 #print axioms Community.check_chunk
 #print axioms Community.chunk_is_slice
@@ -344,6 +364,22 @@ open Engine Community
 #print axioms Engine.Sync.op_taken
 #print axioms Engine.Sync.stream_offered
 #print axioms Engine.Sync.stream_offered_runs
+#print axioms Engine.World.Plain.grows
+#print axioms Engine.World.Plain.managed_nil
+#print axioms Engine.World.Plain.converge
+#print axioms Engine.World.Plain.offline
+#print axioms Engine.World.onSealed_takes
+#print axioms Engine.World.onSealed_wants
+#print axioms Engine.World.onSealed_queues
+#print axioms Engine.World.onHold_wants
+#print axioms Engine.World.recv_asked
+#print axioms Engine.World.recv_owed
+#print axioms Engine.World.node_serve
+#print axioms Engine.World.Plain.deliver_takes
+#print axioms Engine.World.Plain.deliver_wants
+#print axioms Engine.World.Plain.deliver_queues
+#print axioms Engine.World.Plain.owes_queued_start
+#print axioms Engine.World.Plain.ix_covers_start
 #print axioms Engine.Sync.write_offers_all
 #print axioms Engine.Sync.filed_offers
 #print axioms Engine.Sync.fanout_offers
