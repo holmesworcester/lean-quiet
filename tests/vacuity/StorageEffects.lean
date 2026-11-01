@@ -176,18 +176,22 @@ def removalCertificateFor (acts : List Action) (o : Op) (u : Id) :=
           exact ⟨keyB, had⟩))
     else none
 
-/-- The same premises, as every admission of Bob's node key being cut. -/
+/-- The same premises, as every admission of Bob's node key being cut.
+The certificate carries that premise too, so its proof is not the removal
+certificate's (whose conclusion it shares). -/
 def refuseCertificateFor (acts : List Action) (o : Op) (u : Id) :=
   match removedIn (storeAfter acts .a) o u with
   | none => none
   | some ⟨hr⟩ =>
     if hb : (storeAfter acts .a).stored.all (ownedBy (storeAfter acts .a) keyB u) = true then
-      some (PLift.up (refuse_nonmember_trace setup (entropy "alice") (entropy "bob") acts .a c keyB
+      let hd : ∀ u' d, Admitted ed25519 (Connection.community ed25519 (storeAfter acts .a)).ops c u' d keyB →
+          Community.Cut ed25519 (Connection.community ed25519 (storeAfter acts .a)).ops c d :=
         fun u' d had => by
           obtain ⟨x, hx⟩ := (admitted_trace setup (entropy "alice") (entropy "bob") acts .a).1 had
           have hu := owned (trace_good setup (entropy "alice") (entropy "bob") acts .a).1 hb hx
           subst hu
-          exact ⟨u', keyB, had, (removed_trace setup (entropy "alice") (entropy "bob") acts .a).2 hr⟩))
+          exact ⟨u', keyB, had, (removed_trace setup (entropy "alice") (entropy "bob") acts .a).2 hr⟩
+      some (PLift.up (And.intro hd (refuse_nonmember_trace setup (entropy "alice") (entropy "bob") acts .a c keyB hd)))
     else none
 
 def syncs (rs : List Engine.Sync.Room) : Bool :=
