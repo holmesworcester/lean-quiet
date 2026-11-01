@@ -30,6 +30,7 @@ import app.community.member.remove.Commands
 import app.community.member.remove.Proofs
 import app.community.name.Commands
 import app.community.name.Proofs
+import app.community.notice.Proofs
 import app.community.profile.Commands
 import app.community.profile.Proofs
 import app.community.Op

@@ -41,6 +41,10 @@ import app.community.name.Op
 import app.community.name.Validate
 import app.community.profile.Op
 import app.community.profile.Validate
+import app.community.notice.Op
+import app.community.notice.Validate
+import app.community.caughtUp.Op
+import app.community.caughtUp.Validate
 
 /-
 A community, after libquiet's DESIGN.md ("A user is its origin op",
@@ -167,6 +171,8 @@ inductive Fact where
   | ofChunk (f : Chunk.Fact)
   | ofEndpoint (f : Endpoint.Fact)
   | ofReceived (f : Receive.Fact)
+  | ofNotice (f : Notice.Fact)
+  | ofCaughtUp (f : CaughtUp.Fact)
   deriving DecidableEq, Inhabited
 
 /-- An op of the community family: one op type's body. -/
@@ -192,6 +198,8 @@ inductive Body where
   | ofChunk (b : Chunk.Body)
   | ofEndpoint (b : Endpoint.Body)
   | ofReceive (b : Receive.Body)
+  | ofNotice (b : Notice.Body)
+  | ofCaughtUp (b : CaughtUp.Body)
   deriving DecidableEq, Inhabited
 
 /-! ## Each op type's fact and body by its fields, as laws and views match them -/
@@ -216,6 +224,8 @@ inductive Body where
 @[match_pattern] abbrev Fact.chunk (c : Id) (att : Id) (root : Id) (len : Nat) (index : Nat) : Fact := .ofChunk ⟨c, att, root, len, index⟩
 @[match_pattern] abbrev Fact.endpoint (pk : ByteArray) (sk : ByteArray) : Fact := .ofEndpoint ⟨pk, sk⟩
 @[match_pattern] abbrev Fact.received (c : Id) (kid : Id) (msg : Id) (k : Nat) (clump : Option Id := none) : Fact := .ofReceived ⟨c, kid, msg, k, clump⟩
+@[match_pattern] abbrev Fact.notice (c : Id) (u : Id) (recipient : ByteArray) (box : ByteArray) (time : Nat) : Fact := .ofNotice ⟨c, u, recipient, box, time⟩
+@[match_pattern] abbrev Fact.caughtUp (c : Id) (mark : Nat) : Fact := .ofCaughtUp ⟨c, mark⟩
 
 @[match_pattern] abbrev Body.root (device : ByteArray) (enc : ByteArray) (sig : ByteArray) : Body := .ofRoot ⟨device, enc, sig⟩
 @[match_pattern] abbrev Body.invite (bearer : Key) (link : Bool) (threshold : Nat) (sig : ByteArray) : Body := .ofInvite ⟨bearer, link, threshold, sig⟩
@@ -238,6 +248,8 @@ inductive Body where
 @[match_pattern] abbrev Body.chunk (root : ByteArray) (len : Nat) (index : Nat) (slice : ByteArray) (sibs : List ByteArray) : Body := .ofChunk ⟨root, len, index, slice, sibs⟩
 @[match_pattern] abbrev Body.endpoint (sk : ByteArray) : Body := .ofEndpoint ⟨sk⟩
 @[match_pattern] abbrev Body.receive (k : Nat) : Body := .ofReceive ⟨k⟩
+@[match_pattern] abbrev Body.notice (recipient : ByteArray) (box : ByteArray) (time : Nat) (sig : ByteArray) : Body := .ofNotice ⟨recipient, box, time, sig⟩
+@[match_pattern] abbrev Body.caughtUp (c : Id) (mark : Nat) : Body := .ofCaughtUp ⟨c, mark⟩
 
 theorem Fact.admission.injEq (c : Id) (u : Id) (device : Key) (enc : Key) (c' : Id) (u' : Id) (device' : Key) (enc' : Key) :
     (Fact.admission c u device enc = Fact.admission c' u' device' enc') = (c = c' ∧ u = u' ∧ device = device' ∧ enc = enc') := by
@@ -359,6 +371,12 @@ theorem Fact.received.injEq (c : Id) (kid : Id) (msg : Id) (k : Nat) (clump : Op
 theorem Fact.received.inj {c : Id} {kid : Id} {msg : Id} {k : Nat} {clump : Option Id} {c' : Id} {kid' : Id} {msg' : Id} {k' : Nat} {clump' : Option Id}
     (hinj : Fact.received c kid msg k clump = Fact.received c' kid' msg' k' clump') : c = c' ∧ kid = kid' ∧ msg = msg' ∧ k = k' ∧ clump = clump' := by
   rw [Fact.received.injEq] at hinj; exact hinj
+theorem Fact.notice.injEq (c : Id) (u : Id) (recipient : ByteArray) (box : ByteArray) (time : Nat) (c' : Id) (u' : Id) (recipient' : ByteArray) (box' : ByteArray) (time' : Nat) :
+    (Fact.notice c u recipient box time = Fact.notice c' u' recipient' box' time') = (c = c' ∧ u = u' ∧ recipient = recipient' ∧ box = box' ∧ time = time') := by
+  simp [Fact.notice]
+theorem Fact.caughtUp.injEq (c : Id) (mark : Nat) (c' : Id) (mark' : Nat) :
+    (Fact.caughtUp c mark = Fact.caughtUp c' mark') = (c = c' ∧ mark = mark') := by
+  simp [Fact.caughtUp]
 theorem Body.root.injEq (device : ByteArray) (enc : ByteArray) (sig : ByteArray) (device' : ByteArray) (enc' : ByteArray) (sig' : ByteArray) :
     (Body.root device enc sig = Body.root device' enc' sig') = (device = device' ∧ enc = enc' ∧ sig = sig') := by
   simp [Body.root]
@@ -473,6 +491,12 @@ theorem Body.receive.injEq (k : Nat) (k' : Nat) :
 theorem Body.receive.inj {k : Nat} {k' : Nat}
     (h : Body.receive k = Body.receive k') : k = k' := by
   rw [Body.receive.injEq] at h; exact h
+theorem Body.notice.injEq (recipient : ByteArray) (box : ByteArray) (time : Nat) (sig : ByteArray) (recipient' : ByteArray) (box' : ByteArray) (time' : Nat) (sig' : ByteArray) :
+    (Body.notice recipient box time sig = Body.notice recipient' box' time' sig') = (recipient = recipient' ∧ box = box' ∧ time = time' ∧ sig = sig') := by
+  simp [Body.notice]
+theorem Body.caughtUp.injEq (c : Id) (mark : Nat) (c' : Id) (mark' : Nat) :
+    (Body.caughtUp c mark = Body.caughtUp c' mark') = (c = c' ∧ mark = mark') := by
+  simp [Body.caughtUp]
 
 /-- Each op type's fact, if a fact is one. -/
 @[simp] def Fact.admission? : Fact → Option Root.Fact
@@ -535,6 +559,12 @@ theorem Body.receive.inj {k : Nat} {k' : Nat}
 @[simp] def Fact.received? : Fact → Option Receive.Fact
   | .ofReceived x => some x
   | _ => none
+@[simp] def Fact.notice? : Fact → Option Notice.Fact
+  | .ofNotice x => some x
+  | _ => none
+@[simp] def Fact.caughtUp? : Fact → Option CaughtUp.Fact
+  | .ofCaughtUp x => some x
+  | _ => none
 
 /-! ## Bytes: each op type writes its own, tag first -/
 
@@ -564,6 +594,8 @@ def Body.enc : Body → List UInt8
   | .ofChunk a => Codec.enc a
   | .ofEndpoint a => Codec.enc a
   | .ofReceive a => Codec.enc a
+  | .ofNotice a => Codec.enc a
+  | .ofCaughtUp a => Codec.enc a
 
 def Body.dec (bs : List UInt8) : Option (Body × List UInt8) :=
   match bs.head? with
@@ -588,6 +620,8 @@ def Body.dec (bs : List UInt8) : Option (Body × List UInt8) :=
   | some 19 => decWith Body.ofChunk bs
   | some 22 => decWith Body.ofEndpoint bs
   | some 24 => decWith Body.ofReceive bs
+  | some 20 => decWith Body.ofNotice bs
+  | some 21 => decWith Body.ofCaughtUp bs
   | _ => none
 
 def Body.encInto (buf : ByteArray) : Body → ByteArray
@@ -612,6 +646,8 @@ def Body.encInto (buf : ByteArray) : Body → ByteArray
   | .ofChunk a => Codec.encInto buf a
   | .ofEndpoint a => Codec.encInto buf a
   | .ofReceive a => Codec.encInto buf a
+  | .ofNotice a => Codec.encInto buf a
+  | .ofCaughtUp a => Codec.encInto buf a
 
 def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
   match b[i]? with
@@ -636,6 +672,8 @@ def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
   | some 19 => decFromAs Body.ofChunk b i
   | some 22 => decFromAs Body.ofEndpoint b i
   | some 24 => decFromAs Body.ofReceive b i
+  | some 20 => decFromAs Body.ofNotice b i
+  | some 21 => decFromAs Body.ofCaughtUp b i
   | _ => none
 
 theorem Body.dec_of {α} [Codec α] {t : UInt8} (f : α → Body) (a : α) (rest : List UInt8)
@@ -683,6 +721,8 @@ instance : Codec Body where
     | ofChunk a => exact Body.dec_of (t := 19) _ _ _ rfl (fun bs h => by simp only [Body.dec, h])
     | ofEndpoint a => exact Body.dec_of (t := 22) _ _ _ rfl (fun bs h => by simp only [Body.dec, h])
     | ofReceive a => exact Body.dec_of (t := 24) _ _ _ rfl (fun bs h => by simp only [Body.dec, h])
+    | ofNotice a => exact Body.dec_of (t := 20) _ _ _ rfl (fun bs h => by simp only [Body.dec, h])
+    | ofCaughtUp a => exact Body.dec_of (t := 21) _ _ _ rfl (fun bs h => by simp only [Body.dec, h])
   encInto := Body.encInto
   encInto_eq buf x := by cases x <;> exact Codec.encInto_eq _ _
   decFrom := Body.decFrom
@@ -709,6 +749,8 @@ instance : Codec Body where
     | ofChunk a => exact Body.decFrom_of (t := 19) _ _ rfl (fun b i h => by simp only [Body.decFrom, h]) h
     | ofEndpoint a => exact Body.decFrom_of (t := 22) _ _ rfl (fun b i h => by simp only [Body.decFrom, h]) h
     | ofReceive a => exact Body.decFrom_of (t := 24) _ _ rfl (fun b i h => by simp only [Body.decFrom, h]) h
+    | ofNotice a => exact Body.decFrom_of (t := 20) _ _ rfl (fun b i h => by simp only [Body.decFrom, h]) h
+    | ofCaughtUp a => exact Body.decFrom_of (t := 21) _ _ rfl (fun b i h => by simp only [Body.decFrom, h]) h
 
 def Fact.enc : Fact → List UInt8
   | .ofAdmission a => Codec.enc a
@@ -731,6 +773,8 @@ def Fact.enc : Fact → List UInt8
   | .ofChunk a => Codec.enc a
   | .ofEndpoint a => Codec.enc a
   | .ofReceived a => Codec.enc a
+  | .ofNotice a => Codec.enc a
+  | .ofCaughtUp a => Codec.enc a
 
 def Fact.dec (bs : List UInt8) : Option (Fact × List UInt8) :=
   match bs.head? with
@@ -756,6 +800,8 @@ def Fact.dec (bs : List UInt8) : Option (Fact × List UInt8) :=
   | some 20 => decWith Fact.ofEndpoint bs
   | some 22 => decWith Fact.ofReceived bs
   | some 24 => decWith Fact.ofReceived bs
+  | some 18 => decWith Fact.ofNotice bs
+  | some 19 => decWith Fact.ofCaughtUp bs
   | _ => none
 
 def Fact.encInto (buf : ByteArray) : Fact → ByteArray
@@ -779,6 +825,8 @@ def Fact.encInto (buf : ByteArray) : Fact → ByteArray
   | .ofChunk a => Codec.encInto buf a
   | .ofEndpoint a => Codec.encInto buf a
   | .ofReceived a => Codec.encInto buf a
+  | .ofNotice a => Codec.encInto buf a
+  | .ofCaughtUp a => Codec.encInto buf a
 
 def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
   match b[i]? with
@@ -804,6 +852,8 @@ def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
   | some 20 => decFromAs Fact.ofEndpoint b i
   | some 22 => decFromAs Fact.ofReceived b i
   | some 24 => decFromAs Fact.ofReceived b i
+  | some 18 => decFromAs Fact.ofNotice b i
+  | some 19 => decFromAs Fact.ofCaughtUp b i
   | _ => none
 
 theorem Fact.dec_of {α} [Codec α] {t : UInt8} (f : α → Fact) (a : α) (rest : List UInt8)
@@ -856,6 +906,8 @@ instance : Codec Fact where
       rcases a with ⟨c, kid, msg, k, _ | root⟩
       · exact Fact.dec_of (t := 22) _ _ _ rfl (fun bs h => by simp only [Fact.dec, h])
       · exact Fact.dec_of (t := 24) _ _ _ rfl (fun bs h => by simp only [Fact.dec, h])
+    | ofNotice a => exact Fact.dec_of (t := 18) _ _ _ rfl (fun bs h => by simp only [Fact.dec, h])
+    | ofCaughtUp a => exact Fact.dec_of (t := 19) _ _ _ rfl (fun bs h => by simp only [Fact.dec, h])
   encInto := Fact.encInto
   encInto_eq buf x := by cases x <;> exact Codec.encInto_eq _ _
   decFrom := Fact.decFrom
@@ -887,6 +939,8 @@ instance : Codec Fact where
       rcases a with ⟨c, kid, msg, k, _ | root⟩
       · exact Fact.decFrom_of (t := 22) _ _ rfl (fun b i h => by simp only [Fact.decFrom, h]) h
       · exact Fact.decFrom_of (t := 24) _ _ rfl (fun b i h => by simp only [Fact.decFrom, h]) h
+    | ofNotice a => exact Fact.decFrom_of (t := 18) _ _ rfl (fun b i h => by simp only [Fact.decFrom, h]) h
+    | ofCaughtUp a => exact Fact.decFrom_of (t := 19) _ _ rfl (fun b i h => by simp only [Fact.decFrom, h]) h
 
 /-! ## Signing -/
 
@@ -913,6 +967,8 @@ def Body.unsigned : Body → Body
   | .ofChunk b => .ofChunk b.unsigned
   | .ofEndpoint b => .ofEndpoint b.unsigned
   | .ofReceive b => .ofReceive b.unsigned
+  | .ofNotice b => .ofNotice b.unsigned
+  | .ofCaughtUp b => .ofCaughtUp b.unsigned
 
 /-- The bytes a signature on an op covers: its op type's (`signedBy`). -/
 def signed (o : Op) (b : Body) : ByteArray :=
@@ -931,13 +987,15 @@ def signed (o : Op) (b : Body) : ByteArray :=
 @[simp] theorem signedBy_ofReact (o : Op) (b : React.Body) : signedBy o b.unsigned = signed o (.ofReact b) := rfl
 @[simp] theorem signedBy_ofApprove (o : Op) (b : Approve.Body) : signedBy o b.unsigned = signed o (.ofApprove b) := rfl
 @[simp] theorem signedBy_ofName (o : Op) (b : Rename.Body) : signedBy o b.unsigned = signed o (.ofName b) := rfl
+@[simp] theorem signedBy_ofNotice (o : Op) (b : Notice.Body) : signedBy o b.unsigned = signed o (.ofNotice b) := rfl
 
 /-! ## Validity -/
 
 /-- Whether a fact is this device's own: local ops' facts, never
 shared, never read by a shared op's validator (`check_reads_shared`). -/
 def Fact.isLocal : Fact → Bool
-  | .ofSecret _ | .ofAccepted _ | .ofJoining _ | .ofAbandoned _ | .ofKey _ | .ofEndpoint _ | .ofReceived _ => true
+  | .ofSecret _ | .ofAccepted _ | .ofJoining _ | .ofAbandoned _ | .ofKey _ | .ofEndpoint _ | .ofReceived _
+  | .ofCaughtUp _ => true
   | _ => false
 
 /-- Whether a fact shows that user u of community c is admin: the
@@ -1003,6 +1061,8 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
   | .ofJoining b, [] => (Joining.check b).map .ofJoining
   | .ofAbandon b, [.ofJoining j] => (Abandon.check o b j).map .ofAbandoned
   | .ofReceive b, [.ofMessage m] => (Receive.check o b m).map .ofReceived
+  | .ofNotice b, [.ofAdmission r, .ofAdmission a] => (Notice.check C o b r a).map .ofNotice
+  | .ofCaughtUp b, [] => (CaughtUp.check b).map .ofCaughtUp
   | .ofName b, .ofAdmission r :: .ofAdmission a :: auth :: prev =>
     (Rename.check C o b r a (isAdmin r.c a.u auth) (counterOk r.c b.n prev)).map .ofNamed
   | _, _ => none
@@ -1015,6 +1075,7 @@ def Body.tag : Body → UInt8
   | .ofApprove _ => 10 | .ofAdmit _ => 11
   | .ofAccept _ => 13 | .ofJoining _ => 14 | .ofSecret _ => 15 | .ofName _ => 16 | .ofAbandon _ => 17
   | .ofKey _ => 18 | .ofChunk _ => 19 | .ofEndpoint _ => 22 | .ofPost _ => 23 | .ofReceive _ => 24
+  | .ofNotice _ => 20 | .ofCaughtUp _ => 21
 
 /-- An op's verdict: its body's, if its type is its body's. The type is
 in the bytes its id hashes, so an op re-sent under another type would be
@@ -1056,6 +1117,14 @@ def byMsg : Rel Fact := Receive.byMsg.comap Fact.received?
 def rootsByKey : Rel Fact := Receive.rootsByKey.comap Fact.received?
 def childrenByKey : Rel Fact := Receive.childrenByKey.comap Fact.received?
 end received
+
+namespace notice
+def byRecipient : Rel Fact := Notice.byRecipient.comap Fact.notice?
+end notice
+
+namespace caughtUp
+def byCommunity : Rel Fact := CaughtUp.byCommunity.comap Fact.caughtUp?
+end caughtUp
 
 namespace wrap
 def byContentKey : Rel Fact := Wrap.byContentKey.comap Fact.wrap?
@@ -1129,7 +1198,8 @@ def rels : List (Rel Fact) :=
    wrap.byContentKey, profile.byUser, profile.all, profile.byLook, react.byMessage, react.byMessageEmoji,
    request.all, approval.byRequest, secret.byKey, secret.all, accepted.all, joining.all, named.current,
    abandoned.byRequest, abandoned.byJoining, wrap.byRecipient, key.byCommunity, key.byId, attachment.byMessage,
-   chunk.byAttachment, endpoint.all, message.rootsByKey, message.childrenByKey, received.rootsByKey, received.childrenByKey]
+   chunk.byAttachment, endpoint.all, message.rootsByKey, message.childrenByKey, received.rootsByKey, received.childrenByKey,
+   notice.byRecipient, caughtUp.byCommunity]
 
 /-- The keys a fact is filed under: its relations'. -/
 def keys : Fact → List ByteArray := keysOf rels
@@ -1140,6 +1210,8 @@ by id), or nowhere in particular. -/
 def sortOf : Fact → ByteArray
   | .ofMessage f => Post.sortKey f
   | .ofReceived f => Receive.sortKey f
+  | .ofNotice f => Notice.sortKey f
+  | .ofCaughtUp f => CaughtUp.sortKey f
   | .ofProfile f => Profile.sortKey f
   | .ofChunk f => Chunk.sortKey f
   | .ofReact f => React.sortKey f
@@ -1152,7 +1224,8 @@ instance : SortKey Fact := ⟨sortOf⟩
 acceptances and its joins are, never sent or taken; everything else is
 shared in its community. -/
 def Body.isLocal : Body → Bool
-  | .ofSecret _ | .ofAccept _ | .ofJoining _ | .ofAbandon _ | .ofKey _ | .ofEndpoint _ | .ofReceive _ => true
+  | .ofSecret _ | .ofAccept _ | .ofJoining _ | .ofAbandon _ | .ofKey _ | .ofEndpoint _ | .ofReceive _
+  | .ofCaughtUp _ => true
   | _ => false
 
 /-- The community an op is about: a root founds its own; every other op
@@ -1265,7 +1338,7 @@ request's two (its device's consent and the invitation bearer's), one
 for every other signed op, none for unsigned ones. -/
 def Body.sigs : Body → List ByteArray
   | .root _ _ s | .invite _ _ _ s | .grant s | .remove s | .post _ _ _ _ s
-  | .profile _ _ s | .attach _ _ _ _ s | .react _ _ s | .approve s | .name _ _ s => [s]
+  | .profile _ _ s | .attach _ _ _ _ s | .react _ _ s | .approve s | .name _ _ s | .notice _ _ _ s => [s]
   | .request _ _ c b => [c, b]
   | _ => []
 
