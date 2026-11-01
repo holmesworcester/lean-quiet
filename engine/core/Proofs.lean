@@ -647,15 +647,11 @@ theorem reach_ops {L : List Op} {s : DB F} (h : Reach fam L s) (hd : Distinct L)
   have := reach_stored h _ p hp
   rw [hp, hd p this.1 o ho this.2]
 
-/-- **Order does not matter.** Two nodes that received the same ops, in
-any orders and with any interleaving of judging, hold the same verdicts
-once both queues are empty. -/
-theorem order_free {L M : List Op} {s t : DB F} (hs : Reach fam L s) (ht : Reach fam M t)
-    (hd : Distinct (L ++ M)) (hsame : ∀ o, o ∈ L ↔ o ∈ M)
-    (qs : s.queue = []) (qt : t.queue = []) : s.status = t.status := by
+/-- Two stores reached from the same ops hold the same ops. -/
+theorem ops_eq_of_same {L M : List Op} {s t : DB F} (hs : Reach fam L s) (ht : Reach fam M t)
+    (hd : Distinct (L ++ M)) (hsame : ∀ o, o ∈ L ↔ o ∈ M) : s.ops = t.ops := by
   have dL : Distinct L := fun a ha b hb => hd a (List.mem_append_left _ ha) b (List.mem_append_left _ hb)
   have dM : Distinct M := fun a ha b hb => hd a (List.mem_append_right _ ha) b (List.mem_append_right _ hb)
-  refine status_eq_of_ops (reach_inv hs) (reach_inv ht) qs qt ?_
   funext i
   cases h1 : s.ops i with
   | none =>
@@ -668,5 +664,13 @@ theorem order_free {L M : List Op} {s t : DB F} (hs : Reach fam L s) (ht : Reach
   | some o =>
     have := (reach_ops hs dL i o).1 h1
     exact ((reach_ops ht dM i o).2 ⟨(hsame o).1 this.1, this.2⟩).symm
+
+/-- **Order does not matter.** Two nodes that received the same ops, in
+any orders and with any interleaving of judging, hold the same verdicts
+once both queues are empty. -/
+theorem order_free {L M : List Op} {s t : DB F} (hs : Reach fam L s) (ht : Reach fam M t)
+    (hd : Distinct (L ++ M)) (hsame : ∀ o, o ∈ L ↔ o ∈ M)
+    (qs : s.queue = []) (qt : t.queue = []) : s.status = t.status :=
+  status_eq_of_ops (reach_inv hs) (reach_inv ht) qs qt (ops_eq_of_same hs ht hd hsame)
 
 end Engine

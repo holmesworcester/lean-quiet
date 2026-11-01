@@ -11,6 +11,7 @@ and what it keeps.
 -/
 import engine.core.Urgent
 import engine.core.Budget
+import engine.core.IdemLaws
 
 namespace Engine
 variable {F : Type} (fam : Family F)
@@ -82,6 +83,13 @@ theorem run_urgentClose : ∀ (n : Nat) (xs : List Id) (s : DB F),
   | n + 1, x :: xs, s => by
     simp only [urgentClose, urgentCloseS, Model.run_bind, run_judgeAhead]
     exact run_urgentClose n _ _
+
+/-- **What runs is the turn on the tables.** -/
+theorem run_turnCapped (cap : Nat) (ops : List Op) (s : DB F) :
+    ((turnCapped (m := Model F) fam cap ops).run s).2 = turnCappedS fam cap ops s := by
+  unfold turnCapped turnCappedS
+  simp only [Model.run_bind, run_ingestEach, run_judgeJob, run_countOps]
+  rw [run_urgentClose, run_drain]; rfl
 
 /-- What an op judged ahead does to the tables: nothing, or a step with
 it at the queue's head. -/
@@ -452,5 +460,105 @@ theorem turn_waiting {L : List Op} {s : DB F} (hr : Reach fam L s) (h : UrgentWa
 
 theorem waiting_empty : UrgentWaiting fam (DB.empty : DB F) := by
   intro x o ho; cases ho
+
+/-! ## Carrying what a turn left queued
+
+An idle turn (`turnCapped` of no ops: a tick's) is `drainCap` more queue
+steps; `carry_bounded`: enough of them empty the queue, as one drain with
+the budget would (`drain_bounded`). -/
+
+theorem urgentCloseS_nil (k : Nat) (s : DB F) : urgentCloseS fam k [] s = s := by
+  cases k <;> rfl
+
+theorem turnCappedS_nil (cap : Nat) (s : DB F) : turnCappedS fam cap [] s = drainS fam cap s := by
+  simp only [turnCappedS, List.foldl_nil, List.map_nil]
+  show drainS fam cap (urgentCloseS fam _ [] s) = _
+  rw [urgentCloseS_nil]
+
+theorem drainS_empty {s : DB F} (h : s.queue = []) : ∀ n, drainS fam n s = s
+  | 0 => rfl
+  | n + 1 => by
+    have hs : stepS fam s = s := by unfold stepS; rw [h]
+    simp [drainS, h, hs]
+
+theorem drainS_add : ∀ (a b : Nat) (s : DB F), drainS fam (a + b) s = drainS fam b (drainS fam a s)
+  | 0, b, s => by simp [drainS]
+  | a + 1, b, s => by
+    rw [Nat.add_right_comm]
+    by_cases h : s.queue = []
+    · have hs : stepS fam s = s := by unfold stepS; rw [h]
+      simp only [drainS, h, List.isEmpty_nil, ite_true, hs]
+      exact (drainS_empty h b).symm
+    · have he : s.queue.isEmpty = false := by cases hq : s.queue <;> simp_all
+      simp only [drainS, he, Bool.false_eq_true, ite_false]
+      exact drainS_add a b _
+
+variable (fam) in
+/-- k idle turns, one after another. -/
+def carries (cap : Nat) : Nat → DB F → DB F
+  | 0, s => s
+  | k + 1, s => carries cap k (turnCappedS fam cap [] s)
+
+/-- k idle turns are k·cap queue steps. -/
+theorem carries_eq (cap : Nat) : ∀ (k : Nat) (s : DB F),
+    carries fam cap k s = drainS fam (k * cap) s
+  | 0, s => by simp [carries, drainS]
+  | k + 1, s => by
+    rw [carries, turnCappedS_nil, carries_eq cap k, Nat.succ_mul, Nat.add_comm (k * cap) cap, drainS_add]
+
+/-- **Idle turns carry what a turn left queued**: from a reachable state,
+k of them with k·cap at least the budget empty the queue. -/
+theorem carry_bounded {L : List Op} (hd : Distinct L) {s : DB F} (hr : Reach fam L s) {cap k : Nat}
+    (hk : budget L s ≤ k * cap) : (carries fam cap k s).queue = [] := by
+  rw [carries_eq]
+  exact drain_bounded hd _ s hr hk
+
+theorem judgeAheadS_ops (onlyUrgent : Bool) (x : Id) (s : DB F) :
+    (judgeAheadS fam onlyUrgent x s).2.ops = s.ops := by
+  rcases judgeAheadS_eq onlyUrgent x s with e | e <;> rw [e]
+  exact stepS_ops _
+
+theorem judgeJobS_ops : ∀ (xs : List Id) (s : DB F), (judgeJobS fam xs s).2.ops = s.ops
+  | [], _ => rfl
+  | x :: xs, s => by
+    show (judgeJobS fam xs (judgeAheadS fam false x s).2).2.ops = _
+    rw [judgeJobS_ops xs, judgeAheadS_ops]
+
+theorem urgentCloseS_ops : ∀ (n : Nat) (xs : List Id) (s : DB F), (urgentCloseS fam n xs s).ops = s.ops
+  | 0, _, _ => rfl
+  | _ + 1, [], _ => rfl
+  | n + 1, x :: xs, s => by
+    show (urgentCloseS fam n _ (judgeAheadS fam true x s).2).ops = _
+    rw [urgentCloseS_ops n, judgeAheadS_ops]
+
+/-- **Judging leaves the ops**: a turn's ops are its intake's. -/
+theorem turnCappedS_ops (cap : Nat) (ops : List Op) (s : DB F) :
+    (turnCappedS fam cap ops s).ops = (ops.foldl (fun s o => ingestS o s) s).ops := by
+  simp only [turnCappedS, drainS_ops, urgentCloseS_ops, judgeJobS_ops]
+
+theorem drainCap_pos : 0 < drainCap := by unfold drainCap; decide
+
+/-! ## Urgent verdicts agree
+
+`order_free` for a store with work still queued: two stores reached from
+the same ops, each with its urgent work settled, give an op whose closure
+is all urgent the same verdict. -/
+
+theorem urgent_agree {L M : List Op} {s t : DB F} (hs : Reach fam L s) (ht : Reach fam M t)
+    (hd : Distinct (L ++ M)) (hsame : ∀ o, o ∈ L ↔ o ∈ M)
+    (us : UrgentSettled fam s) (ut : UrgentSettled fam t) {x : Id} (hc : UrgentClosed fam s x) :
+    s.status x = t.status x := by
+  have hops := ops_eq_of_same hs ht hd hsame
+  have hct : UrgentClosed fam t x := by unfold UrgentClosed; rw [← hops]; exact hc
+  have es := fun v => urgent_spec (reach_inv hs) us hc v
+  have et := fun v => urgent_spec (reach_inv ht) ut hct v
+  cases h1 : s.status x with
+  | some v => exact ((et v).2 (hops ▸ (es v).1 h1)).symm
+  | none =>
+    cases h2 : t.status x with
+    | none => rfl
+    | some w =>
+      have := (es w).2 (hops ▸ (et w).1 h2)
+      rw [h1] at this; cases this
 
 end Engine
