@@ -23,6 +23,17 @@ cd "$(dirname "$0")/../.."
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
 (cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
+# --tcp: only the suites over localhost TCP (ci/local.sh's engine:tcp; its
+# gate runs the rest with SKIP_TCP=1).
+if [ "${1:-}" = --tcp ]; then
+  lake build poolstarve tcppair jointcp
+  mkdir -p out
+  .lake/build/bin/poolstarve
+  .lake/build/bin/tcppair out/tcppair
+  .lake/build/bin/jointcp out/jointcp
+  tests/engine/jointcp_busy.sh
+  exit 0
+fi
 if [ "${1:-}" = --phone-runtime ]; then
   python3 platforms/headless/build_runtime.py
   python3 tests/shipped/runtime.py | tee out/phone-runtime/runtime-check.log
@@ -50,6 +61,8 @@ if [ "${SKIP_TCP:-0}" != 1 ]; then "$bin"/poolstarve; else echo "SKIP poolstarve
 if [ "${SKIP_TCP:-0}" != 1 ]; then
   "$bin"/tcppair "$out"/tcppair
   "$bin"/jointcp "$out"/jointcp
+  # and with its ports already taken, as under parallel CI
+  [ "$bin" = "$PWD/.lake/build/bin" ] && tests/engine/jointcp_busy.sh
 else
   echo "SKIP tcppair jointcp (TCP sandbox; both built)"
 fi
@@ -62,38 +75,12 @@ mise run test:crypto-failure
 "$bin"/window_check "$out"/windows "${SEEDS:-12}"
 "$bin"/costcheck
 ENGINE_BIN="$bin" tests/engine/crash.sh "${CRASH_ROUNDS:-10}" "$out"/crash
-if [ "${1:-}" != --phone-runtime ]; then
-  tests/engine/harden.sh
-  tests/engine/stateless.sh
-  tests/engine/simplify.sh
-  tests/engine/fresh.sh
-  mise run test:clumps
-  mise run test:read-plan
-  mise run test:claim-tree
-  mise run test:fairness
-  mise run test:catalog-retry
-  mise run test:reserved-retry
-  mise run test:retry-admission
-  mise run test:node-uniqueness
-  mise run test:ingress
-  mise run test:native-lifetimes
-  mise run test:ref-publications
-  mise run test:reader-prune
-  mise run test:reader-claim
-  mise run test:writer-fairness
-  mise run test:writer-checkpoint
-  mise run test:writer-job-retry
-  mise run test:app-runner-failure
-  mise run test:app-suspend-journal
-  mise run test:app-boot-admission
-  mise run test:app-network-ownership
-  mise run test:app-stop-ui
-  mise run test:app-frame-times
-  mise run test:app-reader-ownership
-  mise run test:expiry-grace
-  mise run test:close-ingress
-  mise run test:runner-ownership
-  mise run test:demand-rank
-  tests/engine/restart.sh
-  tests/shipped/check.sh engine
+# The negative controls (tests/engine/controls.txt), unless --suites or
+# --phone-runtime: ci/local.sh runs them as parts of their own, in parallel.
+if [ "${1:-}" != --phone-runtime ] && [ "${1:-}" != --suites ]; then
+  grep -v '^#' tests/engine/controls.txt | while IFS=$'\t' read -r name cmd; do
+    [ -n "$name" ] || continue
+    echo "engine control: $name"
+    bash -c "$cmd" </dev/null
+  done
 fi

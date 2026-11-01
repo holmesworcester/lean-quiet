@@ -34,7 +34,7 @@ def scrollGrab (d : Driver) (x y : Nat) : Option Nat :=
 
 def scrollDrag (d : Driver) (grab y : Nat) : IO Unit := do
   if let some bar := scrollbar d.layout d.app then
-    d.app.io.scrollTo (Scrollbar.offset bar grab y).toFloat
+    d.app.io.scrollTo (seekOffset d.app (Scrollbar.seek bar grab y)).toFloat
 
 /-- Native cursor choice follows the same topmost hit geometry as actions.
 No pointer is synthesized from a touch or from a window's initial (0,0). -/

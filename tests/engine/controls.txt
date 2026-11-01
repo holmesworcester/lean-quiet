@@ -1,0 +1,37 @@
+# The engine's negative controls: name, then the command (from the top).
+# Each works in a scratch snapshot (tests/snapshot.sh), so any number run
+# at once. tests/engine/run.sh runs them in order after the suites;
+# ci/local.sh runs each as a part of its own (engine:<name>), in parallel.
+harden	tests/engine/harden.sh
+stateless	tests/engine/stateless.sh
+simplify	tests/engine/simplify.sh
+fresh	tests/engine/fresh.sh
+clumps	mise run test:clumps
+read-plan	mise run test:read-plan
+claim-tree	mise run test:claim-tree
+fairness	mise run test:fairness
+catalog-retry	mise run test:catalog-retry
+reserved-retry	mise run test:reserved-retry
+retry-admission	mise run test:retry-admission
+node-uniqueness	mise run test:node-uniqueness
+ingress	mise run test:ingress
+native-lifetimes	mise run test:native-lifetimes
+ref-publications	mise run test:ref-publications
+reader-prune	mise run test:reader-prune
+reader-claim	mise run test:reader-claim
+writer-fairness	mise run test:writer-fairness
+writer-checkpoint	mise run test:writer-checkpoint
+writer-job-retry	mise run test:writer-job-retry
+app-runner-failure	mise run test:app-runner-failure
+app-suspend-journal	mise run test:app-suspend-journal
+app-boot-admission	mise run test:app-boot-admission
+app-network-ownership	mise run test:app-network-ownership
+app-stop-ui	mise run test:app-stop-ui
+app-frame-times	mise run test:app-frame-times
+app-reader-ownership	mise run test:app-reader-ownership
+expiry-grace	mise run test:expiry-grace
+close-ingress	mise run test:close-ingress
+runner-ownership	mise run test:runner-ownership
+demand-rank	mise run test:demand-rank
+restart	tests/engine/restart.sh
+shipped	tests/shipped/check.sh engine

@@ -8,6 +8,6 @@ export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 tools/noto_assets.sh
 mise run crypto
 lake build visual
-.lake/build/bin/visual out/visual/composer-actual tests/visual/composer-cases.tsv
+tests/visual/capture.sh out/visual/composer-actual tests/visual/composer-cases.tsv
 python3 tests/visual/compare.py tests/visual/composer-reference out/visual/composer-actual out/visual/composer-report --budgets tests/visual/composer-budgets.json
 python3 tests/visual/check_composer_gate.py

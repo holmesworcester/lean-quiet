@@ -308,6 +308,7 @@ control Engine.Codec.digitsSlowM A number's digits a byte at a time, as before t
 control Engine.Codec.decBytesListM A byte string the list codec's way: over the bytes' budget (`slow_bytes_over_budget`).
 control Engine.Codec.readAllM = Engine.Codec.decBytesListM
 control Pics.imageV `image` with the old `decoded`, as it shipped: over the frame's budget (`imageV_over_budget`).
+control PeopleLaws.removedShipped An entry's removed mark as 59fa463 shipped it, from two reads that need not agree: removed with no removal read (`shipped_removed_without_removal`).
 control Community.approveWrapAll An approval that wraps the key to every member: wraps to a non-member (`wrapAll_over`).
 control Live.Gated.quiet A frame gated on notices: stale for ever (`gated_stale`); its example world (`w5`) shows the ungated frame fresh.
 control Live.Gated.w5 = Live.Gated.quiet

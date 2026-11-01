@@ -1,4 +1,3 @@
-import engine.wire.NodeUniqueLaws
 import engine.core.Project
 import engine.wire.NodeLaws
 import app.Commands
@@ -30,6 +29,7 @@ import engine.wire.Loop
 import engine.wire.EgressLaws
 import engine.sync.SharedLog
 import engine.wire.CloseLaws
+import engine.wire.NodeUniqueLaws
 
 namespace Connection
 open Engine Codec
@@ -3927,11 +3927,9 @@ end Connection
 
 end
 
-/-! ## Node ID uniqueness over the production World
-
-The actual Node's live connection IDs and retry order stay unique along
-every World step, finite trace and infinite run (engine/wire/NodeUniqueLaws). -/
-
+/-! ## Node IDs stay unique in every production execution
+(engine/wire/NodeUniqueLaws.lean, over the World interpreter). -/
+section
 namespace Connection.Execution
 open Engine Engine.Sync
 open Engine.Sync.NodeUnique
@@ -4027,3 +4025,5 @@ theorem Run.unique {S : Setup} {ea eb : Nat → ByteArray}
     exact world_step_unique S (r.state i) (r.action i) (fun side => ih side) target
 
 end Connection.Execution
+
+end

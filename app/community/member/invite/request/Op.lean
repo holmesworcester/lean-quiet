@@ -34,12 +34,11 @@ structure Fact where
   device : Key
   enc : Key
   link : Bool
-  threshold : Nat
   deriving DecidableEq, Inhabited
 
-instance : Codec Fact := Codec.tagged 9 (fun x => (x.c, x.u, x.device, x.enc, x.link, x.threshold)) (fun (p : B × B × B × B × Bool × Nat) => ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1, p.2.2.2.2.1, p.2.2.2.2.2⟩) (fun _ => rfl)
+instance : Codec Fact := Codec.tagged 9 (fun x => (x.c, x.u, x.device, x.enc, x.link)) (fun (p : B × B × B × B × Bool) => ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1, p.2.2.2.2⟩) (fun _ => rfl)
 
-@[simp] theorem Fact.enc_tag (x : Fact) : Codec.enc x = 9 :: Codec.enc (x.c, x.u, x.device, x.enc, x.link, x.threshold) := rfl
+@[simp] theorem Fact.enc_tag (x : Fact) : Codec.enc x = 9 :: Codec.enc (x.c, x.u, x.device, x.enc, x.link) := rfl
 
 /-! ## The lists its fact is filed in (`request.*`) -/
 /-- A community's pending requests: what approvers are asked about. Never
