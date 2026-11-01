@@ -37,6 +37,7 @@ import engine.wire.OutboxLaws
 import engine.sync.SweepLaws
 import engine.sync.SweepRun
 import engine.sync.SharedLog
+import engine.world.Link
 import engine.wire.Slots
 import engine.wire.DialQueue
 import engine.core.Engine
@@ -344,6 +345,20 @@ open Engine Community
 #print axioms Engine.Sync.op_taken
 #print axioms Engine.Sync.stream_offered
 #print axioms Engine.Sync.stream_offered_runs
+#print axioms Engine.World.Plain.grows
+#print axioms Engine.World.Plain.managed_nil
+#print axioms Engine.World.Plain.converge
+#print axioms Engine.World.Plain.offline
+#print axioms Engine.World.onSealed_takes
+#print axioms Engine.World.onSealed_wants
+#print axioms Engine.World.onSealed_queues
+#print axioms Engine.World.onHold_wants
+#print axioms Engine.World.recv_asked
+#print axioms Engine.World.recv_owed
+#print axioms Engine.World.node_serve
+#print axioms Engine.World.Plain.deliver_takes
+#print axioms Engine.World.Plain.deliver_wants
+#print axioms Engine.World.Plain.deliver_queues
 #print axioms Engine.Sync.write_offers_all
 #print axioms Engine.Sync.filed_offers
 #print axioms Engine.Sync.fanout_offers

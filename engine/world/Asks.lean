@@ -170,7 +170,7 @@ theorem wantStep_fold (fam : Family F) (db : DB F) (c : Conn) (r : Id) : ∀ (L 
 /-- **H4 at a connection:** a have in a room the connection shows, of an
 op it neither holds there nor has asked for, is answered with a want of
 it, when its asks have room for the have's ids. -/
-theorem hold_wants (fam : Family F) (cfg : Config) (c : Conn) (r : Id) (ids : List Id) (h : Held F) {x : Id}
+theorem onHold_wants (fam : Family F) (cfg : Config) (c : Conn) (r : Id) (ids : List Id) (h : Held F) {x : Id}
     (hr : r ∈ c.rooms) (hl : ids.length ≤ cfg.maxIds) (hx : x ∈ ids) (hq : x ∉ c.asked)
     (hh : heldIn fam h.db r x = false) (hroom : c.asked.size + ids.length ≤ cfg.maxKnown) :
     WantIn ((c.onHold fam cfg r ids : HeldM F Step) h).1.send x := by
@@ -668,7 +668,7 @@ theorem onSealed_wants (n : Node) (src : ByteArray) (cid : Id) (inner : List Byt
           by_cases hxa : x ∈ c.asked
           · exact (hk1 hxa).append_left _
           · simp only [List.map_cons, List.sum_cons, asksOf_hold] at hk2
-            obtain ⟨L, hxL, hL⟩ := hold_wants S.fam S.cfg
+            obtain ⟨L, hxL, hL⟩ := onHold_wants S.fam S.cfg
               ({ ({ c.setRooms (S.rooms s cid) with notices := [] } : Conn) with heard := now } : Conn) r l h'
               (by simp [Conn.setRooms, hs]) hl hx hxa (by simpa using hh) (by simp [Conn.setRooms]; omega)
             rcases f4 _ hL with hq' | hq'

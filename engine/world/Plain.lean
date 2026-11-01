@@ -195,6 +195,30 @@ theorem grows {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : World (H
   intro k i x ⟨o, ho, hr⟩
   exact ⟨o, step_keeps (E.world k) (E.act k) i x o r ho hr, hr⟩
 
+/-- **Every member converges, from per-edge progress**, in every
+execution of the plain World: over a knows-graph of diameter d, an op of
+room r any node holds, every node holds from some step on, within d · B,
+and keeps (`converge_of_edge` with `grows` discharged by the running
+node). -/
+theorem converge {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : World (Held F) Q.n}
+    (E : Exec Q.setup adv w₀) {N : Net Q.n} {r : Id} {k₀ B d : Nat} (hE : Edge E N r k₀ B) (hd : Diam N.G d) :
+    ∀ k i j x, k₀ ≤ k → N.gst ≤ (E.world k).now → N.Calm (E.world k).now ((E.world k).now + d * B) →
+      Engine.World.Holds Q.setup (E.world k) i r x →
+      ∃ k', k ≤ k' ∧ (E.world k').now ≤ (E.world k).now + d * B ∧
+        ∀ k'', k' ≤ k'' → Engine.World.Holds Q.setup (E.world k'') j r x :=
+  converge_of_edge E hE (grows E r) hd
+
+/-- **Offline catch-up and the outbox**, in every execution of the plain
+World: a node back from offline (or a restart, or a partition) gets
+everything any node holds, and everyone gets what it wrote away, all at
+one step within d · B (`offline_of` with `grows` discharged). -/
+theorem offline {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : World (Held F) Q.n}
+    (E : Exec Q.setup adv w₀) {N : Net Q.n} {r : Id} {k₀ B d : Nat} (hE : Edge E N r k₀ B) (hd : Diam N.G d) :
+    ∀ k, k₀ ≤ k → N.gst ≤ (E.world k).now → N.Calm (E.world k).now ((E.world k).now + d * B) →
+      ∀ j x, Engine.World.Holds Q.setup (E.world k) j r x →
+        ∃ k', k ≤ k' ∧ (E.world k').now ≤ (E.world k).now + d * B ∧ ∀ l, Engine.World.Holds Q.setup (E.world k') l r x :=
+  offline_of E hE (grows E r) hd
+
 end Plain
 
 end Engine.World
