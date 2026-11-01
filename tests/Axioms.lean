@@ -19,6 +19,7 @@ import ops.sync.Witnesses
 import ops.sync.RetryLaws
 import ops.sync.BoundsLaws
 import ops.sync.ServeLaws
+import ops.sync.SimLaws
 import engine.wire.CloseLaws
 import engine.wire.LaneLaws
 import engine.wire.Slots
@@ -399,6 +400,10 @@ open Engine Community
 #print axioms Engine.Sync.serveOwed_budget
 #print axioms Engine.Sync.serveOwed_shown
 #print axioms Engine.Sync.serveOwed_blind
+#print axioms Engine.Sync.recv_sim
+#print axioms Engine.Sync.filedGive_sim
+#print axioms Engine.Sync.tickGive_sim
+#print axioms Engine.Sync.serveOwed_sim
 #print axioms Engine.Sync.serveOwed_bounded
 #print axioms Engine.Sync.serveOwed_send
 #print axioms Engine.Sync.hot_ids
