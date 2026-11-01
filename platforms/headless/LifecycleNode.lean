@@ -18,15 +18,16 @@ def node (path : String) (consume : IO.Ref Bool) : IO Runner := do
   let node := Node.boot fam (← (dumpOps (F := SF)).run db) 0
   let cfg : RunConfig := { queue := 1 }
   let ch ← eventChannel cfg
+  let (ingress, _) ← Ingress.Hub.new cfg.maxSocks
   let writes ← Std.CloseableChannel.Sync.new (some cfg.queue)
   let slots ← Std.Mutex.new []
   let turnCounters ← IO.mkRef ({} : TurnCounters)
   let done ← IO.asTask (prio := .dedicated) do
     while !(← consume.get) do IO.sleep 1
-    runLoop x ch (fun _ => pure ()) cfg writes { db, node, slots } turnCounters
+    runLoop x ch (fun _ => pure ()) cfg writes { db, node, slots, ingress } turnCounters
   return {
-    events := ch, writes, port := 0, done, slots, turnCounters
-    stopped := ← IO.mkRef false, listening := Task.pure (.ok ()),
+    events := ch, writes, port := 0, done, slots, turnCounters, ingress
+    stopped := ← StopFlag.new, listening := Task.pure (.ok ()),
     listener := ← listener, closing := ← Std.Mutex.new false }
 
 def stored (s : St) : IO Nat := do
@@ -69,11 +70,11 @@ def run (dir : String) (ck : Checks) : IO Unit := do
     ck.ok "chaos parks while netBoot is pending" parked
     let issued := (← get).toNode.toList.flatten
     ck.ok "pending boot has not written chaos to the store" ((← stored (← get)) == 1)
-    boot.set true
+    boot.modify (fun _ => true)
     discard <| advance 5000 fun s => pure s.net.isSome
     discard <| reactTo message "👋"
     ck.ok "full node channel retains unoffered writes" (!(← get).toNode.isEmpty)
-    consume.set true
+    consume.modify (fun _ => true)
     let delivered ← advance 5000 fun s => return (← stored s) == 31 && s.toNode.isEmpty
     ck.ok "chaos reaches the actual node store after boot and backpressure" delivered
     let mut allStored := !issued.isEmpty
@@ -108,7 +109,7 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
     let old ← node path consume
     discard <| old.writes.trySend []
     modify fun s => { s with net := some old }
-    let release ← IO.asTask (prio := .dedicated) do IO.sleep 400; consume.set true
+    let release ← IO.asTask (prio := .dedicated) do IO.sleep 400; consume.modify (fun _ => true)
     let begin ← IO.monoMsNow
     suspend 150
     ck.ok "suspend returns within its deadline with a full stop channel" ((← IO.monoMsNow) ≤ begin + 150)

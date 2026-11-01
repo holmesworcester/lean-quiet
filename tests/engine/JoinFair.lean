@@ -273,16 +273,24 @@ def main (args : List String) : IO UInt32 := do
     active.set false
     unless delivered do return ← finish
     IO.sleep 150
-    control "backpressure"
+    control "backpressure-fill"
     payloadSize.set 16384
     active.set true
-    -- Announce a real 4 MiB signed/encrypted backlog. The relay throttles
-    -- A→B while allowing B's wants through, so this exercises actual data
-    -- backpressure, rather than merely queuing small offer advertisements.
+    -- Announce a real 4 MiB signed/encrypted backlog. One-hot serving can
+    -- stay below the relay's steady drain rate. Establish real backpressure
+    -- first: the bounded relay stops A→B writes but continues B's wants.
+    -- Only its actual read-pause signal and a real runner backlog release
+    -- this setup; the original throttled sampling interval stays 2.5 s.
     let large : ByteArray := ⟨Array.replicate 131072 97⟩
     let backlog := (List.range 32).map fun i => postAt c c "A" (100000 + i) large
     pending.modify ((backlog.head!).id :: ·)
     a.run.write backlog
+    let filled ← waitFor 10000 do
+      let queued := (← a.run.lanes).map (·.2) |>.foldl max 0
+      return queued > 0 && (← System.FilePath.pathExists s!"{dir}/backpressure-ready")
+    t.ok "finite setup reaches actual relay read pause and runner backlog" filled
+    unless filled do return ← finish
+    control "backpressure"
     let mut peak := 0
     let began ← IO.monoMsNow
     while (← IO.monoMsNow) < began + 2500 do

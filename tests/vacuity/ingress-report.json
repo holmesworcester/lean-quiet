@@ -1,0 +1,198 @@
+{
+  "Ingress.source_within": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "witness": "Vacuity.Ingress.peerDeadline",
+    "theorem": "Engine.Sync.Ingress.source_within",
+    "detail": "Three occupied peer/control positions with continued refill: the initial third frame is selected within three network polls. Nonempty synthetic infinite selector execution; both local and peer offers continue forever. Premises apply to the exact production selector functions, interpreted with explicit queues. Bounds count completed chooser turns; this does not prove native IO/queue refinement, bounded memory for the growing witness or end-to-end display latency."
+  },
+  "Prioritized.source_within": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "witness": "Vacuity.Ingress.combinedPeerDeadline",
+    "theorem": "Engine.Sync.Ingress.Prioritized.source_within",
+    "detail": "The nested UI-first selector begins with two local writes and three occupied mailboxes; the target in slot1 is selected at turn7, within12turns. Nonempty synthetic infinite selector execution; both local and peer offers continue forever. Premises apply to the exact production selector functions, interpreted with explicit queues. Bounds count completed chooser turns; this does not prove native IO/queue refinement, bounded memory for the growing witness or end-to-end display latency."
+  },
+  "Prioritized.write_within": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "witness": "Vacuity.Ingress.combinedWriteDeadline",
+    "theorem": "Engine.Sync.Ingress.Prioritized.write_within",
+    "detail": "The second original local write is selected at turn1, before its four-turn deadline, despite three continuously occupied network sources. Nonempty synthetic infinite selector execution; both local and peer offers continue forever. Premises apply to the exact production selector functions, interpreted with explicit queues. Bounds count completed chooser turns; this does not prove native IO/queue refinement, bounded memory for the growing witness or end-to-end display latency."
+  },
+  "source_or_cancelled_within": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "witness": "Vacuity.Ingress.churnPeerDeadline",
+    "theorem": "Engine.Sync.Ingress.Prioritized.source_or_cancelled_within",
+    "detail": "A different source is retired and immediately reused on every turn. The target incarnation remains occupied and is selected at turn7, within12turns; its cancellation alternative is ruled out by the concrete trace. Nonempty synthetic infinite selector execution; both local and peer offers continue forever. Premises apply to the exact production selector functions, interpreted with explicit queues. Bounds count completed chooser turns; this does not prove native IO/queue refinement, bounded memory for the growing witness or end-to-end display latency."
+  },
+  "write_within_churn": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "witness": "Vacuity.Ingress.churnWriteDeadline",
+    "theorem": "Engine.Sync.Ingress.Prioritized.write_within_churn",
+    "detail": "The original local head is selected at turn0, within two turns, while the third source is retired/refilled every turn and the others flood. Nonempty synthetic infinite selector execution; both local and peer offers continue forever. Premises apply to the exact production selector functions, interpreted with explicit queues. Bounds count completed chooser turns; this does not prove native IO/queue refinement, bounded memory for the growing witness or end-to-end display latency."
+  },
+  "distance_lt": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.distance_lt",
+    "witness": "Vacuity.Ingress.distanceBound",
+    "detail": "Concrete positions in a three-slot registry check the finite distance and wrap progress used by the consumer. The unequal-position premise for advancement is kernel-decided. This is a supporting rank law, not a native completion theorem."
+  },
+  "distance_zero": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.distance_zero",
+    "witness": "Vacuity.Ingress.distanceIdentity",
+    "detail": "Concrete positions in a three-slot registry check the finite distance and wrap progress used by the consumer. The unequal-position premise for advancement is kernel-decided. This is a supporting rank law, not a native completion theorem."
+  },
+  "advance_distance": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.advance_distance",
+    "witness": "Vacuity.Ingress.distanceAdvance",
+    "detail": "Concrete positions in a three-slot registry check the finite distance and wrap progress used by the consumer. The unequal-position premise for advancement is kernel-decided. This is a supporting rank law, not a native completion theorem."
+  },
+  "scan_ready": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.scan_ready",
+    "witness": "Vacuity.Ingress.scanReady",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "poll_progress": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.poll_progress",
+    "witness": "Vacuity.Ingress.pollProgress",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "arrivals_preserve": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.arrivals_preserve",
+    "witness": "Vacuity.Ingress.arrivalPreserves",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "cancelAll_preserves": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.cancelAll_preserves",
+    "witness": "Vacuity.Ingress.cancelPreserves",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "changes_preserve": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.Prioritized.changes_preserve",
+    "witness": "Vacuity.Ingress.changesPreserve",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "Prioritized.step_write": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.Prioritized.step_write",
+    "witness": "Vacuity.Ingress.localBranch",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "step_event": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.Prioritized.step_event",
+    "witness": "Vacuity.Ingress.networkBranch",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "step_only_event": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.Prioritized.step_only_event",
+    "witness": "Vacuity.Ingress.onlyNetworkBranch",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "step_empty_event": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.Prioritized.step_empty_event",
+    "witness": "Vacuity.Ingress.emptyNetworkBranch",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "Prioritized.step_progress": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.Prioritized.step_progress",
+    "witness": "Vacuity.Ingress.combinedPeerDeadline",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "Prioritized.served": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.Prioritized.served",
+    "witness": "Vacuity.Ingress.combinedPeerDeadline",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "Ingress.served": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.served",
+    "witness": "Vacuity.Ingress.peerDeadline",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "write_progress": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.Prioritized.write_progress",
+    "witness": "Vacuity.Ingress.combinedWriteDeadline",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "write_served": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.Prioritized.write_served",
+    "witness": "Vacuity.Ingress.combinedWriteDeadline",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "served_or_cancelled": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.Prioritized.served_or_cancelled",
+    "witness": "Vacuity.Ingress.churnPeerDeadline",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "write_served_churn": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.Prioritized.write_served_churn",
+    "witness": "Vacuity.Ingress.churnWriteDeadline",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "churnFlood_source": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.Prioritized.churnFlood_source",
+    "witness": "Vacuity.Ingress.churnPeerDeadline",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "churnFlood_write": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.Prioritized.churnFlood_write",
+    "witness": "Vacuity.Ingress.churnWriteDeadline",
+    "detail": "Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate."
+  },
+  "churnFlood_exact": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.Prioritized.churnFlood_exact",
+    "witness": "Vacuity.Ingress.churnPrefix",
+    "detail": "Exact nonempty prefix of the constructed infinite selector run: all sources continue offering, and the churn run repeatedly retires/reuses a different slot. This is a component execution; its growing local queue is not a bounded whole-app execution witness."
+  },
+  "flooded_prefix": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Ingress",
+    "theorem": "Engine.Sync.Ingress.flooded_prefix",
+    "witness": "Vacuity.Ingress.networkPrefix",
+    "detail": "Exact nonempty prefix of the constructed infinite selector run: all sources continue offering, and the churn run repeatedly retires/reuses a different slot. This is a component execution; its growing local queue is not a bounded whole-app execution witness."
+  }
+}

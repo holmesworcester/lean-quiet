@@ -110,7 +110,7 @@ def main : IO UInt32 := do
     if (← seen2.get) > 0 then break
     IO.sleep 10
   t.ok "two sessions share one socket" ((← seen2.get) > 0)
-  retire.set true
+  retire.modify (fun _ => true)
   for _ in [0:300] do
     if ← keysGone da2 then break
     IO.sleep 10

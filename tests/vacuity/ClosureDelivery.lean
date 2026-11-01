@@ -94,16 +94,21 @@ theorem receiver_log (n : Nat) : (receiver n).2.log ⊆ before := by
     · exact ih h
     · exact incoming_source n (List.mem_filter.mp h).1
 
+theorem emitted_incoming (j : Nat) (o : Op) (ho : o ∈ service.emitted j) : o ∈ incoming j :=
+  List.mem_append_right _ ho
+
 def receiving (hd : Distinct before) : ReceiverRun sync := {
   node := fun n => (receiver n).1
   store := fun n => (receiver n).2
   input := incoming
-  next := fun _ => rfl
+  next := fun n => by simp only [receiver]
   initial := held_empty_reachable fam
   initialQueue := rfl
   distinct := fun n a ha b hb he =>
     hd a (List.mem_append.mp ha |>.elim (fun h => receiver_log n h) (fun h => incoming_source n h))
       b (List.mem_append.mp hb |>.elim (fun h => receiver_log n h) (fun h => incoming_source n h)) he }
+
+theorem receiving_input (hd : Distinct before) : (receiving hd).input = incoming := rfl
 
 def Result : Prop := ∃ k, ∀ j ≥ k,
   (∀ o ∈ before, (receiver j).2.db.ops o.id = some o) ∧
@@ -121,7 +126,7 @@ theorem convergence (hd : Distinct before)
       have e : (sender j).rooms = initial.rooms := (sender_rooms j).trans (want_rooms base _).symm
       exact (shows_rooms fam e o).trans (available o ho).2⟩)
     (fun o ho => Or.inr ⟨0, Nat.le_refl _, queued o ho⟩)
-    (fun j _ o ho => ⟨j, Nat.le_refl _, List.mem_append_right _ ho⟩)
+    (fun j _ o ho => ⟨j, Nat.le_refl _, by rw [receiving_input]; exact emitted_incoming j o ho⟩)
   exact ⟨k, hk⟩
 
 instance : Decidable (Distinct before) := by unfold Distinct; infer_instance

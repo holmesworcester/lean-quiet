@@ -10,13 +10,27 @@ structure Sweep where
   after : Nat := 0
   high : Nat := 0
   active : Bool := false
-  deriving DecidableEq, Repr
+  deriving DecidableEq, Repr, Inhabited
+
+/-- An offered row advances durably only after the socket writer completes
+its actual native attempt. The previous value rejects stale completions. -/
+structure RetryTicket where
+  peer : Id
+  before : Sweep
+  after : Sweep
+  deriving DecidableEq, Inhabited
 
 /-- Durable progress belongs to an authenticated peer, not one disposable
 session. Only one cursor is loaded at a time; the table is persistent history. -/
 structure RetryStore (m : Type → Type) where
   load : Id → m Sweep
   save : Id → Sweep → m Unit
+
+/-- The event loop owns retry metadata writes. A completion from a replaced
+socket cannot overwrite a cursor which has since changed. -/
+def RetryStore.commit {m : Type → Type} [Monad m] (store : RetryStore m)
+    (ticket : RetryTicket) : m Unit := do
+  if (← store.load ticket.peer) = ticket.before then store.save ticket.peer ticket.after
 
 def RetryStore.sql {F : Type} : RetryStore (SqlM F) where
   load peer := do

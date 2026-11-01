@@ -254,6 +254,18 @@ theorem fetch_blind (a b : Id → Option Op) (ids : List Id) (agree : ∀ i ∈ 
   | cons x xs ih =>
     rw [fetch_cons, fetch_cons, agree x (List.mem_cons_self ..), ih fun i hi => agree i (List.mem_cons_of_mem _ hi)]
 
+theorem fetch_count (get : Id → Option Op) (ids : List Id) :
+    ((fetch shows ids).trace get).1.length ≤ ids.length := by
+  induction ids with
+  | nil => simp [fetch, Read.trace]
+  | cons i ids ih =>
+    rw [fetch_cons]
+    cases get i with
+    | none => simpa using Nat.le_succ_of_le ih
+    | some o =>
+      dsimp only
+      split <;> simp_all only [List.length_cons] <;> omega
+
 end
 
 local instance : LawfulBEq ByteArray where
@@ -371,13 +383,23 @@ theorem serveOwed_run (c : Conn) (budget : Nat) (first : List Id) (h : Held F) :
   rw [serveOwed_eq]
   exact ⟨rfl, rfl, rfl⟩
 
-/-- **A fresh write the peer wants is served urgent,** whatever the
-budget: every id of `first` in the queue whose op is stored and shown. -/
+/-- **The selected hot write is served urgent**, whatever the ordinary
+budget. Selection is the first requested id of `first`; later hot ids
+remain in the ordinary FIFO rather than creating an unbounded hot batch. -/
 theorem serveOwed_hot (c : Conn) (budget : Nat) (first : List Id) (h : Held F) (i : Id) (o : Op)
-    (hi : i ∈ first) (hq : c.owing.contains i = true) (hg : h.db.ops i = some o) (hs : c.shows fam o = true) :
+    (hi : i ∈ c.hotOf first) (hg : h.db.ops i = some o) (hs : c.shows fam o = true) :
     o ∈ ((c.serveOwed fam cfg budget first : HeldM F _) h).1.2.1 := by
   rw [(serveOwed_run fam cfg c budget first h).1]
-  exact fetch_all _ _ _ i o (List.mem_eraseDups.2 (List.mem_filter.2 ⟨hi, hq⟩)) hg hs
+  exact fetch_all _ _ _ i o hi hg hs
+
+/-- A peer cannot turn one wanted hot batch into arbitrarily many urgent
+blob loads and outputs. One selected hot op precedes the ordinary FIFO. -/
+theorem serveOwed_hot_count (c : Conn) (budget : Nat) (first : List Id) (h : Held F) :
+    ((c.serveOwed fam cfg budget first : HeldM F _) h).1.2.1.length ≤ 1 := by
+  rw [(serveOwed_run fam cfg c budget first h).1]
+  exact Nat.le_trans (fetch_count _ _ _) (by
+    simp only [Conn.hotOf, List.length_take]
+    exact Nat.min_le_left _ _)
 
 /-- **The queue is served in order, and in full:** with a budget, the
 head of the queue (when no fresh write is served first) is sent if its
@@ -386,19 +408,19 @@ theorem serveOwed_head (c : Conn) (budget : Nat) (h : Held F) (i : Id) (rest : L
     (hb : 0 < budget) (hq : c.owed = i :: rest) (hg : h.db.ops i = some o) (hs : c.shows fam o = true) :
     o ∈ ((c.serveOwed fam cfg budget [] : HeldM F _) h).1.2.2 := by
   rw [(serveOwed_run fam cfg c budget [] h).1]
-  simp only [Conn.owedAfter, Conn.hotOf, List.filter_nil, List.eraseDups_nil, List.isEmpty_nil, ite_true, hq]
+  simp only [Conn.owedAfter, Conn.hotOf, List.filter_nil, List.eraseDups_nil, List.take_nil, List.isEmpty_nil, ite_true, hq]
   exact serve_head _ _ _ _ _ hb o hg hs
 
 theorem serveOwed_fifo (c : Conn) (budget : Nat) (h : Held F) :
     ∃ pre, c.owed = pre ++ ((c.serveOwed fam cfg budget [] : HeldM F _) h).1.1.owed := by
   rw [(serveOwed_run fam cfg c budget [] h).2.1]
-  simp only [Conn.owedAfter, Conn.hotOf, List.filter_nil, List.eraseDups_nil, List.isEmpty_nil, ite_true]
+  simp only [Conn.owedAfter, Conn.hotOf, List.filter_nil, List.eraseDups_nil, List.take_nil, List.isEmpty_nil, ite_true]
   exact serve_rest _ _ _ _
 
 theorem serveOwed_shrinks (c : Conn) (budget : Nat) (h : Held F) (hb : 0 < budget) (hne : c.owed ≠ []) :
     ((c.serveOwed fam cfg budget [] : HeldM F _) h).1.1.owed.length < c.owed.length := by
   rw [(serveOwed_run fam cfg c budget [] h).2.1]
-  simp only [Conn.owedAfter, Conn.hotOf, List.filter_nil, List.eraseDups_nil, List.isEmpty_nil, ite_true]
+  simp only [Conn.owedAfter, Conn.hotOf, List.filter_nil, List.eraseDups_nil, List.take_nil, List.isEmpty_nil, ite_true]
   obtain ⟨i, rest, hq⟩ : ∃ i rest, c.owed = i :: rest := by
     cases e : c.owed with
     | nil => exact absurd e hne
@@ -458,7 +480,7 @@ theorem serveOwed_shown (c : Conn) (budget : Nat) (first : List Id) (h : Held F)
   rw [(serveOwed_run fam cfg c budget first h).1] at ho
   rcases ho with ho | ho
   · obtain ⟨hs, i, hi, e⟩ := fetch_shown _ _ _ o ho
-    exact ⟨hs, i, Or.inr (List.mem_filter.1 (List.mem_eraseDups.1 hi)), e⟩
+    exact ⟨hs, i, Or.inr (List.mem_filter.1 (List.mem_eraseDups.1 (List.mem_of_mem_take hi))), e⟩
   · obtain ⟨hs, i, hi, e⟩ := serve_shown _ _ _ _ o ho
     refine ⟨hs, i, Or.inl ?_, e⟩
     unfold Conn.owedAfter at hi
@@ -473,7 +495,7 @@ theorem serveOwed_blind (c : Conn) (budget : Nat) (first : List Id) (a b : Held 
     ((c.serveOwed fam cfg budget first : HeldM F _) a).1 = ((c.serveOwed fam cfg budget first : HeldM F _) b).1 := by
   rw [serveOwed_eq, serveOwed_eq]
   have hf : (fetch (c.shows fam) (c.hotOf first)).trace a.db.ops = (fetch (c.shows fam) (c.hotOf first)).trace b.db.ops :=
-    fetch_blind _ _ _ _ fun i hi => agree i (Or.inr (List.mem_filter.1 (List.mem_eraseDups.1 hi)).1)
+    fetch_blind _ _ _ _ fun i hi => agree i (Or.inr (List.mem_filter.1 (List.mem_eraseDups.1 (List.mem_of_mem_take hi))).1)
   have hs : (serve (c.shows fam) budget (c.owedAfter first)).trace a.db.ops =
       (serve (c.shows fam) budget (c.owedAfter first)).trace b.db.ops :=
     serve_blind _ _ _ _ _ fun i hi => by

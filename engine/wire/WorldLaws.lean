@@ -82,7 +82,9 @@ theorem turnH_one (fam : Family F) (o : Op) (h : Held F) (hn : h.db.ops o.id = n
     (turnH fam [o] h).db.ops o.id = some o := by
   simp [turnH, drainS_ops, ingestS, hn, DB.putOp, DB.push]
 
-theorem Acts.append_def (a b : Acts) : a ++ b = ⟨a.send ++ b.send, a.drop ++ b.drop, a.serve ++ b.serve⟩ := rfl
+theorem Acts.append_def (a b : Acts) : a ++ b =
+    ⟨a.send ++ b.send, a.drop ++ b.drop, a.serve ++ b.serve,
+      a.retry ++ b.retry, a.critical ++ b.critical⟩ := rfl
 @[simp] theorem Acts.empty_append (a : Acts) : ({} : Acts) ++ a = a := rfl
 @[simp] theorem Acts.append_empty (a : Acts) : a ++ ({} : Acts) = a := by
   cases a; simp [Acts.append_def]
@@ -311,11 +313,18 @@ theorem seal_one (n : Node) (cid : Id) (ps : List ByteArray) (h : Held F) :
 theorem seal_reads (n : Node) (out : Acts) : Reads (n.seal (S.sync s) out) := by
   simp only [Node.seal, sync_sealFor, HeldM.pure_bind]; keeps []
 
+theorem sealRetries_reads (n : Node) (offers : List RetryOffer) :
+    Reads (n.sealRetries (S.sync s) offers) := by
+  unfold Node.sealRetries; keeps [seal_reads]
+
+@[simp] theorem sealRetries_nil (n : Node) (h : Held F) :
+    (n.sealRetries (S.sync s) []).run h = (([], []), h) := rfl
+
 theorem finish_reads (n : Node) (out : Acts) (now : Nat) : Reads (n.finish (S.sync s) out now) := by
   simp only [Node.finish, Node.sent, Node.endSession, Effects.purge, List.foldl_nil, Node.follow, Node.flush, sync_established, sync_outbox, sync_retired,
     sync_closing, HeldM.pure_bind, List.isEmpty_nil, ite_true, List.forIn_nil, List.append_nil,
     Bool.not_true, Bool.false_eq_true, ite_false]
-  keeps [seal_reads]
+  keeps [seal_reads, sealRetries_reads]
 
 /-- Sealing nothing sends nothing. -/
 @[simp] theorem seal_nil (n : Node) (h : Held F) :
@@ -325,7 +334,7 @@ theorem finish_reads (n : Node) (out : Acts) (now : Nat) : Reads (n.finish (S.sy
 /-- Sealing reads only what is to be sent. -/
 theorem seal_empty (n : Node) (out : Acts) (h : Held F) (h0 : out.send = []) :
     (n.seal (S.sync s) out).run h = ([], h) := by
-  obtain ⟨sd, dr, sv⟩ := out
+  obtain ⟨sd, dr, sv, retry, critical⟩ := out
   simp only at h0
   subst h0
   simp [Node.seal]
@@ -333,17 +342,25 @@ theorem seal_empty (n : Node) (out : Acts) (h : Held F) (h0 : out.send = []) :
 /-- An entry point's end, with no managed sessions: seal each lane, and
 report. -/
 theorem finish_run (n : Node) (out : Acts) (now : Nat) (h : Held F) (hm : n.managed = []) :
+    let retries := out.retry.filter fun r => out.serve.contains (.conn r.cid, r.payload)
+    let ordinary := out.serve.filter fun p => !retries.any fun r => p == (.conn r.cid, r.payload)
+    let reserved := ((n.sealRetries (S.sync s) retries).run h).1
     (n.finish (S.sync s) out now).run h =
       (({ n.sent { out with send := out.send ++ out.serve } now with fresh := [], purged := [] },
-        { send := ((n.seal (S.sync s) out).run h).1 ++ ((n.seal (S.sync s) { send := out.serve }).run h).1, drop := out.drop, stored := n.fresh, purged := n.purged,
-          serve := ((n.seal (S.sync s) { send := out.serve }).run h).1.length }), h) := by
+        { send := ((n.seal (S.sync s) out).run h).1 ++
+            ((n.seal (S.sync s) { send := ordinary }).run h).1 ++ reserved.1,
+          drop := out.drop, stored := n.fresh, purged := n.purged,
+          serve := ((n.seal (S.sync s) { send := ordinary }).run h).1.length + reserved.1.length,
+          retry := reserved.2, critical := out.critical.filterMap n.addr? }), h) := by
+  dsimp only
   have hk := finish_reads S s n out now h
   simp only [Node.finish, Node.sent, Node.endSession, Effects.purge, List.foldl_nil, Node.follow, Node.flush, hm, sync_established, sync_outbox, sync_retired,
     sync_closing, HeldM.pure_bind, List.isEmpty_nil, ite_true, List.forIn_nil, List.append_nil,
     Bool.not_true, Bool.false_eq_true, ite_false, HeldM.run_bind, HeldM.run_pure,
     Acts.append_empty] at hk ⊢
   rw [forIn_fixed _ _ _ _ (by intros; rfl)] at hk ⊢
-  rw [hk, seal_reads S s n out h]
+  rw [hk, seal_reads S s n out h, seal_reads]
+  rfl
 
 theorem fanout_reads (n : Node) (ids : List Id) : Reads (n.fanout (S.sync s) ids) := by
   have h1 := filedGive_reads (F := F) S.fam S.cfg
@@ -577,7 +594,7 @@ theorem serveOwed_one (n : Node) (cid : Id) (c : Conn) (o : Op) (h : Held F) (no
   rw [serveOwed_eq_run]
   simp only [Conn.hotOf, Conn.owedAfter, Conn.setRooms, hw, hq, hot_single, sync_cfg, sync_fam, budget_world]
   by_cases hh : o.id ∈ n.hotIds (S.sync s) now
-  · simp only [hh, ite_true, List.isEmpty_cons, Bool.false_eq_true, ite_false]
+  · simp only [hh, ite_true, List.take_succ_cons, List.take_zero, List.isEmpty_cons, Bool.false_eq_true, ite_false]
     refine ⟨_, Prod.ext (Prod.ext rfl ?_) rfl, rfl, rfl⟩
     have h1 : (fetch (({ c.setRooms (S.rooms s cid) with notices := [] } : Conn).shows S.fam) [o.id]).trace h.db.ops = ([o], [o.id]) := by
       rw [fetch_cons]; simp [hg, show (({ c.setRooms (S.rooms s cid) with notices := [] } : Conn).shows S.fam o) = true from hsh', fetch, Read.trace]
@@ -586,7 +603,7 @@ theorem serveOwed_one (n : Node) (cid : Id) (c : Conn) (o : Op) (h : Held F) (no
     simp only [Conn.shows]
     simp only [h1, h2, serve_nil, sends, List.append_nil]
     rfl
-  · simp only [hh, ite_false, List.isEmpty_nil, ite_true]
+  · simp only [hh, ite_false, List.take_nil, List.isEmpty_nil, ite_true]
     refine ⟨_, Prod.ext (Prod.ext rfl ?_) rfl, rfl, rfl⟩
     have h1 : (serve (({ c.setRooms (S.rooms s cid) with notices := [] } : Conn).shows S.fam) S.cfg.burst [o.id]).trace h.db.ops = (([o], []), [o.id]) := by
       rw [serve_cons _ _ _ _ _ hb]; simp only [hg, show (({ c.setRooms (S.rooms s cid) with notices := [] } : Conn).shows S.fam o) = true from hsh', ite_true]; split <;> rfl
@@ -1379,7 +1396,7 @@ theorem write_offers_all (n : Node) (ops : List Op) (t : Nat) (h : Held F) (hm :
       ((n.write (S.sync s) ops).run h).1.2).run ((n.write (S.sync s) ops).run h).2 |>.1.1.addr? cid = some a := by
     simp only [Node.addr?] at ha ⊢; rw [han', han]; exact ha
   obtain ⟨g, hpg, hg⟩ := seal_mem S s _ _ _ cid _ a hl ha'
-  exact ⟨g, l, List.mem_append_left _ hg, hpg, hol⟩
+  exact ⟨g, l, List.mem_append_left _ (List.mem_append_left _ hg), hpg, hol⟩
 
 end
 

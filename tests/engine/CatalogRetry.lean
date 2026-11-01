@@ -3,6 +3,7 @@ transport drops every control frame and the first two copies of one target;
 new signed posts arrive on every tick. This isolates durable data retries
 from the RBSR/asked/owed optimizations. TCP/handshake coverage is JoinFair. -/
 import tests.engine.Lib
+import tests.engine.SqliteOpen
 import engine.wire.Node
 
 open Engine Engine.Sync Community Tests
@@ -146,5 +147,6 @@ end CatalogRetry
 def main : IO UInt32 := do
   let ck ← Checks.new
   CatalogRetry.schemaChecks ck
+  SqliteOpen.run ck
   CatalogRetry.retryChecks ck
   ck.finish "catalog-retry"
