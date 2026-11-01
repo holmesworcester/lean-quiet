@@ -136,6 +136,14 @@ lean_obj_res lq_socket_abort(b_lean_obj_arg capability) {
   return lean_io_result_mk_ok(lean_box(result == 0 || errno == ENOTCONN));
 }
 
+/* A FIN after every byte already written; the receiving direction stays
+ * open, so a peer still writing meets no reset (lq_socket_abort's SHUT_RD
+ * makes the kernel answer its next segment with one). */
+lean_obj_res lq_socket_finish_write(b_lean_obj_arg capability) {
+  abort_capability *cap = lean_get_external_data(capability);
+  return lean_io_result_mk_ok(lean_box(shutdown(cap->fd, SHUT_WR) == 0));
+}
+
 lean_obj_res lq_socket_abort_barrier(b_lean_obj_arg capability) {
   abort_capability *cap = lean_get_external_data(capability);
   /* SDK getSockName takes/releases the same mutex held across uv_run and
@@ -152,6 +160,10 @@ lean_obj_res lq_socket_abort_capture(b_lean_obj_arg socket) {
   return lean_io_result_mk_ok(lean_box(0));
 }
 lean_obj_res lq_socket_abort(b_lean_obj_arg capability) {
+  (void)capability;
+  return lean_io_result_mk_ok(lean_box(0));
+}
+lean_obj_res lq_socket_finish_write(b_lean_obj_arg capability) {
   (void)capability;
   return lean_io_result_mk_ok(lean_box(0));
 }
