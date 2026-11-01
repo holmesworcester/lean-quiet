@@ -28,7 +28,7 @@
 #                   (tests/app/headless.sh)
 #    engine:suites  the engine's suites (SQLite, codec, wire, sync, purge,
 #                   Merkle, notices, costs, kill -9), without TCP
-# 3. --full: every other part, 8 at once, longest first (by each part's
+# 3. --full: every other part, 4 at once (the box is shared), longest first (by each part's
 #    time on the last run, out/ci/times.tsv). The negative controls'
 #    mutants (engine:<name>, tests/engine/controls.txt), real TCP
 #    (engine:tcp, net, mdns), X and the desktop shell, qr, zoom, site, the
@@ -61,7 +61,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-[ -n "$jobs" ] || jobs=$([ "$full" = 1 ] && echo 8 || echo 6)
+[ -n "$jobs" ] || jobs=$([ "$full" = 1 ] && echo 4 || echo 6)
 
 proofs=(driver build check layout readme reorg)
 fast=(engine:suites visual headless vacuity)
