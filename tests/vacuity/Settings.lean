@@ -17,7 +17,7 @@ section
 variable (C : Community.Crypto) (K : Connection.Keys)
 
 def op : Op := Settings.Appearance.choose 1 .dark
-def fact : Quiet.F := .inr (.ofAppearance ⟨1, .dark⟩)
+def fact : Quiet.F := .inr (.inl (.ofAppearance ⟨1, .dark⟩))
 def pending : DB Quiet.F := ingestS op DB.empty
 def settled : DB Quiet.F := stepS (Quiet.node C K) pending
 
@@ -26,10 +26,10 @@ theorem owned : Settings.owns op.kind = true := by decide
 theorem op_reqs : op.reqs = [] := rfl
 
 theorem judged : (Quiet.node C K).validate op [] = some fact := by
-  have := Quiet.node_app (C := C) (K := K) owned []
+  have := Quiet.node_settings (C := C) (K := K) owned []
   simp only [List.map_nil] at this
   rw [this]
-  show Option.map Sum.inr (Settings.validate (Settings.Appearance.choose 1 .dark) []) = _
+  show Option.map (Sum.inr ∘ Sum.inl) (Settings.validate (Settings.Appearance.choose 1 .dark) []) = _
   rw [Settings.Appearance.choose_valid]; rfl
 
 theorem pendingInv : Inv (Quiet.node C K) pending := inv_ingest inv_empty op
@@ -52,8 +52,8 @@ theorem valid : (settled C K).status op.id = some (.valid fact) := by
 
 /-- The preference read on that store is a stored appearance's, at or
 after the one written. -/
-theorem newest : ∃ y' f', (Settings.Appearance.current.liftR : View Quiet.F _).eval (settled C K) = (f'.setting, f'.rev) ∧
-    (settled C K).status y' = some (.valid (.inr (.ofAppearance f'))) ∧
+theorem newest : ∃ y' f', (Settings.Appearance.current.liftL.liftR : View Quiet.F _).eval (settled C K) = (f'.setting, f'.rev) ∧
+    (settled C K).status y' = some (.valid (.inr (.inl (.ofAppearance f')))) ∧
     Pos.cmp (Settings.Appearance.sortKey ⟨1, .dark⟩, op.id) (Settings.Appearance.sortKey f', y') ≠ .gt :=
   Settings.Appearance.current_newest (settledInv C K) (valid C K)
 
@@ -62,8 +62,8 @@ theorem rightKey : RightKey (settled C K) Settings.Appearance.query.key :=
 
 theorem stays : (Quiet.node C K).scope op = .local := Settings.Appearance.choose_local 1 .dark
 
-theorem appVerdict : (Quiet.node C K).validate op (([] : List Quiet.AppFact).map .inr) =
-    (Settings.validate op []).map .inr := Quiet.node_app owned []
+theorem appVerdict : (Quiet.node C K).validate op (([] : List Settings.Fact).map (.inr ∘ .inl)) =
+    (Settings.validate op []).map (.inr ∘ .inl) := Quiet.node_settings owned []
 
 /-- A community op (the projection fixture's, kind 1) keeps its verdict. -/
 theorem nodeVerdict : (Quiet.node C K).validate Vacuity.Projection.op (([] : List Connection.F).map .inl) =

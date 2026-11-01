@@ -217,14 +217,10 @@ instrument Engine.Counted.cost Engine.Counted.cost_run
 
 ## Bridges: a mirror, and the law that proves running code equal to it
 
-bridge Engine.stepS Engine.run_step
-bridge Engine.drainS Engine.run_drain
-bridge Engine.ingestS Engine.run_ingest
 bridge Engine.ingestAll Engine.run_ingestEach
-# The purge: the running `purge` on the model's tables is `purgeS`, and
-# what it returns, the ops it deleted, is `purgeSet`.
-bridge Engine.purgeS Engine.run_purge
-bridge Engine.purgeSet Engine.run_purge
+# The model's step, drain, ingest and purge (stepS, drainS, ingestS,
+# purgeS, purgeSet) run themselves since the app's ephemeral log
+# (Held.ofOps) does: no bridge needed for them.
 bridge Engine.View.eval Engine.View.run_model
 bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
 # A want reply's read program: the running interpreter's answer is the
@@ -346,26 +342,6 @@ control Connection.Noise.Symbolic.read1Slip `read1` with `ss` from the initiator
 todo Engine.Sync.exchange conn_runs_exchange now connects exchange's missing IDs to exact alternating onRbsr batches and proves termination under snapshot/fingerprint/capacity premises. Still needed: embedding uninterrupted rounds and directed announcements in the full Node/TCP execution across timeouts and capped windows.
 todo Community.recipients The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission.
 todo Community.members = Community.recipients
-todo Net.Scene.approval Native scene certificates, an infinite fair/ideal model run, and a successful production-node trace with a fair continuation are proved and tested. conn_runs_exchange and closure_delivered now prove handler progress components. Whole-bootstrap convergence for every suitably fair app execution still needs their composition and native store/transport refinement.
-todo Net.Scene.init = Net.Scene.approval
-todo Net.Scene.adm = Net.Scene.approval
-todo Net.Scene.answer = Net.Scene.approval
-todo Net.Scene.c = Net.Scene.approval
-todo Net.Scene.hello = Net.Scene.approval
-todo Net.Scene.inv = Net.Scene.approval
-todo Net.Scene.K = Net.Scene.approval
-todo Net.Scene.link = Net.Scene.approval
-todo Net.Scene.req = Net.Scene.approval
-todo Net.Scene.r = Net.Scene.approval
-todo Net.Scene.S = Net.Scene.approval
-todo Net.Scene.rootMessage = Net.Scene.approval
-todo Net.Scene.invitationMessage = Net.Scene.approval
-todo Net.Scene.requestMessage = Net.Scene.approval
-todo Net.Scene.approvalMessage = Net.Scene.approval
-todo Net.FairExecution.run = Net.Scene.approval
-todo Net.sent = Net.Scene.approval
-todo Net.step = Net.Scene.approval
-todo Net.table = Net.Scene.approval
 bridge SheetGeom.Grid.ctop SheetGeom.lineOf_ctop
 todo Engine.Sync.keeps The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s.
 todo Pic.add The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code.
