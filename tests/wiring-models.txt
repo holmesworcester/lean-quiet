@@ -249,11 +249,6 @@ Engine.Sync.Tree.fold_congr
 # engine.sync.Witnesses
 Engine.Sync.secrecy_runs
 
-# engine.wire.ExpiryGraceLaws
-Engine.Sync.ExpiryGrace.budget_exhausted
-Engine.Sync.ExpiryGrace.consumed_left
-Engine.Sync.ExpiryGrace.source_before_exhaustion
-
 # engine.wire.Frame
 Engine.Sync.buffer_bounded
 

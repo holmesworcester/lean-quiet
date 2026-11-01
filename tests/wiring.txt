@@ -255,6 +255,7 @@ spec Engine.Sync.Inbox.step Interpret the actual Inbox.next with FIFO queue oper
 spec Engine.Sync.Inbox.Priority.Run.selected The running Priority.step's choice at a poll of a run: every transition of a run runs that step, with arbitrary FIFO producer appends (the loop's channels as queues: Sync.popW).
 spec Engine.Sync.Inbox.Priority.State.append The producers' FIFO appends a run allows: any writes and events after each poll.
 spec Engine.Sync.Inbox.Priority.phaseAfter The phase after n polls: the running `advance`, n times.
+spec Engine.Sync.ExpiryGrace.consumed The grace after n selections: the running `consume` (Tcp's per-turn grace update), n times.
 spec Engine.Sync.Ingress.Run.selected The running State.poll's choice (Hub.poll's core) at a poll of a run: every transition runs poll, then any producers' offers.
 spec Engine.Sync.Ingress.State.arrivals Producers' offers between polls, each the running State.offer (Hub.offer's core); any number, to any source.
 spec Engine.Sync.Ingress.distance How many slots the cursor is from a source: the progress measure of the running scan.

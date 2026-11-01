@@ -362,7 +362,7 @@ model unless a proven bridge ties the model to running code
 `tests/wiring-models.txt`, a list that only shrinks, does not name.
 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1338 rest on Lean's standard axioms only, and about four fifths of its theorems (1047 of 1256, not counting 59 proof steps and 23 negative controls) are about the code that runs; another 22 run the
+hypotheses. All 1338 rest on Lean's standard axioms only, and about four fifths of its theorems (1050 of 1256, not counting 59 proof steps and 23 negative controls) are about the code that runs; another 22 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -497,14 +497,14 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1047 of 1256 laws are about running code;** another 22 run its node code in a World, and 187 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 59 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 23 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
+**1050 of 1256 laws are about running code;** another 22 run its node code in a World, and 184 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 59 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 23 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 168 | 141 |  | 27 |
 | Sync | 225 | 188 |  | 37 |
 | mDNS | 3 | 0 |  | 3 |
-| Node and wire | 194 | 167 | 16 | 11 |
+| Node and wire | 194 | 170 | 16 | 8 |
 | Connections | 26 | 22 |  | 4 |
 | Community | 212 | 180 |  | 32 |
 | QR codes | 10 | 10 |  |  |
@@ -541,7 +541,6 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Stmt.walks` | [`walks_le`] | Nothing that runs calls it; `Stmt.cost` do. |
 | `Catalog.held` | [`held_run_observed`], [`catalog_read`], [`ceiling_mono`] | Nothing that runs calls it; `Execution.Setup.sync` do. |
 | `Catalog.shared` | [`shared_log_turn`], [`shared_log_purge`], [`catalog_read`], [`ceiling_mono`], [`production_step_history`], [`world_step_history`], [`world_trace_history`], [`history`] | Nothing that runs calls it; `Catalog.held` do. |
-| `ExpiryGrace.consumed` | [`consumed_left`], [`budget_exhausted`], [`source_before_exhaustion`] | Nothing that runs calls it. |
 | `Lanes.take` | [`urgent_ahead`]†, [`ahead_bytes`]†, [`lanes_bounded`]* | Nothing that runs calls it. |
 | `Reserved.offer` | [`offer_bounded`] | Nothing that runs calls it. |
 | `State.advance` | [`successor`], [`ready_next`], [`terminates`]*, [`discovers`], [`pending_source`], [`discovers_wire`], [`execute_runs`], [`advance_empty`], [`run_empty`]*, [`run_bounded`]*, [`conn_runs_exchange`]† | Nothing that runs calls it. |
@@ -610,7 +609,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `engine.sync.Session` | [`Session.closed_terminal`] | `Sync.closed_terminal` |
 | `engine.sync.SweepLaws` | [`step_nonincrease`], [`Sweep.step_progress`] | `retried`, `retried_fair` |
 | `engine.wire.IngressChurnLaws` | [`same_inputs`] | `churnFlood_write`, `write_served_churn`, `write_within_churn` |
-| `engine.wire.IngressLaws` | [`distance_lt`] | `churnFlood_source`, `poll_exists`, `Prioritized.served`, `served_or_cancelled` +6 more |
+| `engine.wire.IngressLaws` | [`distance_lt`] | `source_before_exhaustion`, `churnFlood_source`, `poll_exists`, `Prioritized.served` +7 more |
 | `engine.wire.LaneLaws` | [`take_append`], [`take_bytes`] | `native_batch_bounded`, `Outbox.take_bounded`, `Reserved.take_bounded` |
 | `engine.wire.NoiseSymbolic` | [`Symbolic.good`] | `kk_authentic`, `kk_authentic_resp`, `kk_runs` |
 | `engine.wire.RetryOrderLaws` | [`eligible_spec`], [`RetryOrder.filter_rank`] | `offered_or_retired`, `offered_rank`, `reconcile_rank`, `scan_progress` +1 more |
@@ -1726,9 +1725,6 @@ opportunities and full native delivery remain open.
 [`ceiling_mono`]: app/Proofs.lean#L3226-L3228
 [`shared_log_turn`]: engine/sync/SharedLog.lean#L15-L17
 [`shared_log_purge`]: engine/sync/SharedLog.lean#L20-L25
-[`consumed_left`]: engine/wire/ExpiryGraceLaws.lean#L39-L39
-[`budget_exhausted`]: engine/wire/ExpiryGraceLaws.lean#L44-L45
-[`source_before_exhaustion`]: engine/wire/ExpiryGraceLaws.lean#L48-L58
 [`lanes_bounded`]: engine/wire/LaneLaws.lean#L162-L164
 [`offer_bounded`]: engine/wire/Reserved.lean#L147-L149
 [`successor`]: engine/sync/RoundRun.lean#L127-L129
@@ -1896,6 +1892,9 @@ opportunities and full native delivery remain open.
 [`ExpiryGrace.consume_keeps_generation`]: engine/wire/ExpiryGraceLaws.lean#L27-L27
 [`ExpiryGrace.consume_decreases`]: engine/wire/ExpiryGraceLaws.lean#L29-L29
 [`ExpiryGrace.consume_saturates`]: engine/wire/ExpiryGraceLaws.lean#L33-L33
+[`consumed_left`]: engine/wire/ExpiryGraceLaws.lean#L39-L39
+[`budget_exhausted`]: engine/wire/ExpiryGraceLaws.lean#L44-L45
+[`source_before_exhaustion`]: engine/wire/ExpiryGraceLaws.lean#L48-L58
 [`RetryOrder.offered_or_retired`]: engine/wire/RetryOrderLaws.lean#L256-L262
 [`Registry.freeze_input`]: engine/wire/IngressFreezeLaws.lean#L6-L7
 [`Registry.freeze_preserves_state`]: engine/wire/IngressFreezeLaws.lean#L9-L10
@@ -2533,9 +2532,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`ceiling_mono`](app/Proofs.lean#L3226-L3228) | **runtime-witness**: [Vacuity.StorageEffects.historyCertificate](tests/vacuity/StorageEffects.lean). A concrete existing catalog position points to the retained signed message. The runner checks its positive index and captured-ceiling bound before applying the law to write, authenticated frame, tick and real session close; reachability and log/store agreement are kernel-derived from the actual prefix. Native checks verify the old point lookup after append/purge, while index zero and an index above the captured ceiling reject the certificate. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
 | [`shared_log_turn`](engine/sync/SharedLog.lean#L15-L17) | **runtime-witness**: [Vacuity.StorageEffects.historyCertificate](tests/vacuity/StorageEffects.lean). The actual-handler history certificate uses the turn append law through the deduplicating Node.write proof. The populated signed community receives a fresh shared recovery post through both local write and a real encrypted frame; native checks verify exact new bytes and unchanged position of the older message. Source reachability/log agreement are derived from the actual prefix, and invalid catalog positions reject the certificate. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
 | [`shared_log_purge`](engine/sync/SharedLog.lean#L20-L25) | **runtime-witness**: [Vacuity.StorageEffects.historyCertificate](tests/vacuity/StorageEffects.lean). The history certificate uses the purge-order lemma through the actual full-handler history proof. Starting log/store agreement is derived from empty through production writes, not assumed. A native close really purges session operations while the signed message catalog position remains unchanged; separately, explicitly naming the shared message in a purge retains and revalidates it. The checked positive position and zero/out-of-range controls make the point-stability application nonempty. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
-| [`consumed_left`](engine/wire/ExpiryGraceLaws.lean#L39-L39) | **kernel-witness**: [Vacuity.ExpiryGrace.afterSeven](tests/vacuity/ExpiryGrace.lean). Seven successive consumes leave five units of the twelve-selection budget. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim. |
-| [`budget_exhausted`](engine/wire/ExpiryGraceLaws.lean#L44-L45) | **kernel-witness**: [Vacuity.ExpiryGrace.afterTwelve](tests/vacuity/ExpiryGrace.lean). Twelve consumes exhaust the maxSocks2 budget. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim. |
-| [`source_before_exhaustion`](engine/wire/ExpiryGraceLaws.lean#L48-L58) | **kernel-witness**: [Vacuity.ExpiryGrace.sourceOpportunity](tests/vacuity/ExpiryGrace.lean). The existing nonempty infinite churn fixture selects the owed source at turn7, before its twelve-selection opportunity expires, despite continuous local/peer arrivals and reuse of a different source. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim. |
 | [`lanes_bounded`](engine/wire/LaneLaws.lean#L162-L164) | **kernel-witness**: [Vacuity.RetryReservation.laneBound](tests/vacuity/RetryReservation.lean). Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence. |
 | [`offer_bounded`](engine/wire/Reserved.lean#L147-L149) | **kernel-witness**: [Vacuity.RetryReservation.offerBound](tests/vacuity/RetryReservation.lean). Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence. |
 | [`successor`](engine/sync/RoundRun.lean#L127-L129) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Actual emitted fingerprint response is decoded into the next claim batch in the three-item fixture. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
@@ -2703,6 +2699,9 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`ExpiryGrace.consume_keeps_generation`](engine/wire/ExpiryGraceLaws.lean#L27-L27) | **kernel-witness**: [Vacuity.ExpiryGrace.generationRetained](tests/vacuity/ExpiryGrace.lean). One actual consume retains the heard100 episode token. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim. |
 | [`ExpiryGrace.consume_decreases`](engine/wire/ExpiryGraceLaws.lean#L29-L29) | **kernel-witness**: [Vacuity.ExpiryGrace.selectionDecreases](tests/vacuity/ExpiryGrace.lean). One actual consume reduces the positive twelve-selection budget. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim. |
 | [`ExpiryGrace.consume_saturates`](engine/wire/ExpiryGraceLaws.lean#L33-L33) | **kernel-witness**: [Vacuity.ExpiryGrace.zeroSaturates](tests/vacuity/ExpiryGrace.lean). An exhausted episode stays at zero after consumption. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim. |
+| [`consumed_left`](engine/wire/ExpiryGraceLaws.lean#L39-L39) | **kernel-witness**: [Vacuity.ExpiryGrace.afterSeven](tests/vacuity/ExpiryGrace.lean). Seven successive consumes leave five units of the twelve-selection budget. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim. |
+| [`budget_exhausted`](engine/wire/ExpiryGraceLaws.lean#L44-L45) | **kernel-witness**: [Vacuity.ExpiryGrace.afterTwelve](tests/vacuity/ExpiryGrace.lean). Twelve consumes exhaust the maxSocks2 budget. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim. |
+| [`source_before_exhaustion`](engine/wire/ExpiryGraceLaws.lean#L48-L58) | **kernel-witness**: [Vacuity.ExpiryGrace.sourceOpportunity](tests/vacuity/ExpiryGrace.lean). The existing nonempty infinite churn fixture selects the owed source at turn7, before its twelve-selection opportunity expires, despite continuous local/peer arrivals and reuse of a different source. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim. |
 | [`RetryOrder.offered_or_retired`](engine/wire/RetryOrderLaws.lean#L256-L262) | **kernel-witness**: [Vacuity.RetryOrder.target_served](tests/vacuity/RetryOrder.lean). A nonempty infinite execution of the runtime retry core adds a new session on every step while three old sessions remain live. Actual scan/reconcile steps preserve uniqueness and supply unbounded eligible vacant-reservation opportunities; the third original session is served in the first three opportunities. A second kernel instance uses actual ByteArray session/address types with proved lawful equality. This is not a full Node/native execution or proof that those opportunities recur there. |
 | [`Registry.freeze_input`](engine/wire/IngressFreezeLaws.lean#L6-L7) | **kernel-witness**: [Vacuity.IngressFreeze.captured](tests/vacuity/IngressFreeze.lean). Concrete live source 1 holds value 42 in a two-slot registry. The kernel applies the actual freeze/offer laws, proves the value remains selectable, and refuses replacement99. No fairness, delivery or quiescence premise occurs. These helper laws do not prove native callback progress or full transport refinement. |
 | [`Registry.freeze_preserves_state`](engine/wire/IngressFreezeLaws.lean#L9-L10) | **kernel-witness**: [Vacuity.IngressFreeze.retained](tests/vacuity/IngressFreeze.lean). Concrete live source 1 holds value 42 in a two-slot registry. The kernel applies the actual freeze/offer laws, proves the value remains selectable, and refuses replacement99. No fairness, delivery or quiescence premise occurs. These helper laws do not prove native callback progress or full transport refinement. |
