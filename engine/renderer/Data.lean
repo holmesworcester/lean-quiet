@@ -92,6 +92,14 @@ structure Writer where
   /-- The number of the last checkpoint committed. -/
   saved : IO.Ref Nat
 
+/-- Publish pause/resume without losing it to the writer's concurrent snapshot. -/
+def Writer.setPaused (w : Writer) (paused : Bool) : IO Unit :=
+  w.paused.modify (fun _ => paused)
+
+/-- Publish the joint reader acknowledgement before journal pruning. -/
+def Writer.noticed (w : Writer) (seq : Nat) : IO Unit :=
+  w.read.modify (fun _ => seq)
+
 def Writer.submit (w : Writer) (j : Job) : IO Unit := do
   w.busy.modify (· + 1)
   w.jobs.modify fun js => if j.mine then #[j] ++ js else js.push j
@@ -111,7 +119,7 @@ partial def Writer.commitSave (w : Writer) (db : Db) (save : Db → ByteArray �
   let (n, some b) ← w.saving.get | return
   try
     save db b
-    w.saved.set n
+    w.saved.modify (fun _ => n)
     w.saving.modify fun (m, x) => (m, if m == n then none else x)
   catch e =>
     IO.eprintln s!"writer: checkpoint: {e}"
@@ -142,12 +150,15 @@ partial def Writer.loop (w : Writer) (db : Db) (save : Db → ByteArray → IO U
     w.busy.modify (· - 1)
     w.loop db save
 
-/-- Every few seconds, on a connection of its own, delete the journal's
-rows the frames have taken (whoever's commits filed them: this writer's
-or the node's). -/
+/-- One actual prune pass, shared by the periodic writer and native tests. -/
+def Writer.pruneOnce (w : Writer) (db : Db) : IO Unit := do
+  db.pruneFilings (← w.read.get)
+
+/-- Every few seconds, on a connection of its own, delete journal rows
+acknowledged by both readers, regardless of which writer committed them. -/
 partial def Writer.prune (w : Writer) (db : Db) : IO Unit := do
   IO.sleep 5000
-  try db.pruneFilings (← w.read.get)
+  try w.pruneOnce db
   catch e => IO.eprintln s!"journal prune: {e}"
   w.prune db
 

@@ -358,7 +358,7 @@ def appPaintChurn (ck : Checks) : IO Unit := do
     App.openPage .chat
     waitIdle sm
     let writer := (← get).wr
-    writer.paused.set true
+    writer.setPaused true
     discard <| App.sendText "My committed body survives reaction churn"
     let mut optimistic : Option (Id × App.RowSt) := none
     for _ in [0:400] do
@@ -381,7 +381,7 @@ def appPaintChurn (ck : Checks) : IO Unit := do
       await "finite app paint barrier" release.get
       return pending.shown
     await "app paint barrier entered" entered.get
-    writer.paused.set false
+    writer.setPaused false
     let mut committedFound : Option App.RowSt := none
     for _ in [0:400] do
       steps 1

@@ -1003,7 +1003,7 @@ def takeChanges : M (Array Filing × Array (Id × Bool)) := do
   let (fs, vs, top) ← s.rd.filingsSince s.seen
   modify fun s => { s with seen := top }
   -- taken by the frame and the reader: the writer may delete them
-  s.wr.read.set (min top (← s.sh.seen.get))
+  s.wr.noticed (min top (← s.sh.seen.get))
   return (fs, vs)
 
 /-- Join with QR code: the camera on while the page shows; each new
@@ -1812,8 +1812,8 @@ def command (line : String) : M Bool := do
     let st ← get
     s.io.ctlReply (String.intercalate " | " (st.comms.toList.map fun m => s!"{m.name}{if m.c == st.me.c then "*" else ""}"))
   | "asking" => s.io.ctlReply s!"asking {(← get).asking.size}"
-  | "pause" => s.wr.paused.set true; s.io.ctlReply "writer paused"
-  | "resume" => s.wr.paused.set false; s.io.ctlReply "writer resumed"
+  | "pause" => s.wr.setPaused true; s.io.ctlReply "writer paused"
+  | "resume" => s.wr.setPaused false; s.io.ctlReply "writer resumed"
   | "bottom" => s.io.scrollTo 0; s.io.ctlReply "ok"
   | "scroll" =>
     s.io.scrollTo ((ws[1]? >>= String.toNat?).getD 0).toFloat; s.io.ctlReply "ok"

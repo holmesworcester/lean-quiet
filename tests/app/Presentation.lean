@@ -52,7 +52,7 @@ def run (ck : Checks) : IO Unit := do
     openPage .chat
     waitIdle sm
     let writer := (← get).wr
-    writer.paused.set true
+    writer.setPaused true
     for i in [0:Presentation.capacity] do
       modify fun s => { s with text := s!"Accepted own message {i}" }
       sendNow
@@ -91,7 +91,7 @@ def run (ck : Checks) : IO Unit := do
         await "presentation worker release" release.get
         return some default
     await "presentation worker entered" entered.get
-    writer.paused.set false
+    writer.setPaused false
     let mut committedFlight : Option Raster.RowPaint.Flight := none
     for _ in [0:300] do
       steps 1
@@ -218,7 +218,7 @@ def run (ck : Checks) : IO Unit := do
       "Counter predecessor".toUTF8 (countCap - 1) 0
     unless ← writeAll ⟨[predecessor]⟩ do throw (IO.userError "saturation predecessor refused")
     waitIdle sm
-    writer.paused.set true
+    writer.setPaused true
     modify fun s => { s with text := "Saturated root" }
     sendNow
     modify fun s => { s with text := "Saturated child" }
@@ -233,7 +233,7 @@ def run (ck : Checks) : IO Unit := do
         root.root == root.message && receiptPos root.message.2 == some root.message &&
         entries[1]?.any (fun child => child.root == root.message &&
           child.message != root.message && receiptPos child.message.2 == some child.message)))
-    writer.paused.set false
+    writer.setPaused false
     for _ in [0:300] do
       steps 1
       if (← get).ownSends.entries.isEmpty then break

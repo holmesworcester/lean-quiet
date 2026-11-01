@@ -54,13 +54,13 @@ def main (args : List String) : IO UInt32 := do
     ((WriteAdmission.refusal ⟨w.ops.length, size⟩ [] w.ops).isNone)
   t.ok "one byte below the signed batch refuses"
     ((WriteAdmission.refusal ⟨w.ops.length, size - 1⟩ [] w.ops).isSome)
-  s.wr.paused.set true
+  s.wr.setPaused true
   let (_, accepted) ← sendNow.run { s with text := "accepted after pressure clears" }
   t.ok "successful Send clears draft and queues a fitting op"
     (accepted.text.isEmpty && accepted.out.size > s.out.size &&
       accepted.queuedWrites.length > s.queuedWrites.length &&
       (accepted.out.toList.map (·.op)).all WriteAdmission.fits)
-  accepted.wr.paused.set false
+  accepted.wr.setPaused false
   let (_, saved) ← (show M Unit from do waitIdle sm; steps 4).run accepted
   t.ok "accepted post commits and the queue releases capacity"
     (saved.total == s.total + 1 && saved.queuedWrites.isEmpty &&

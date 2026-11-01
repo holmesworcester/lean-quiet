@@ -496,7 +496,7 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
     let hitActs := (s.live.hit actNotes #[]).toList
     modify fun s => { s with seen := top, live := (s.live.notice fs (vs.map (·.1))).notice notes,
                              passes := s.passes + 1 }
-    sh.seen.set top
+    sh.seen.modify (fun _ => top)
     -- mark the dirty and the wanted wants those reads name, through the
     -- index; read every want the acts' rows touched, then the first `cap`
     -- other marked in the frame's order: the model's decisions

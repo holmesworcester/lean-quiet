@@ -64,6 +64,7 @@ jobs:
             out/reserved-retry
             out/ingress
             out/native-lifetime
+            out/ref-publications
             out/simplify-negative
             out/tree-negative
             out/vacuity

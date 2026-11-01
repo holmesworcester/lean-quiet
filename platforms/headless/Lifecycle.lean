@@ -420,7 +420,7 @@ private def crash (mode dir : String) : IO Unit := do
         throw (IO.userError "crash fixture must have a nonempty scrolled anchor")
       sm.input.set "durable before kill"
       discard <| step [.text]
-      (← get).wr.paused.set true
+      (← get).wr.setPaused true
       discard <| sendText "queued before kill"
       saveCheckpoint
       -- the writer's thread commits it (paused for jobs, not checkpoints)

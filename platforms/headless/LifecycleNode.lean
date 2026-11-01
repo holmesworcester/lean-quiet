@@ -330,7 +330,7 @@ def writerRetry (dir : String) (ck : Checks) : IO Unit := do
     attempts.modify (· + 1)
     db.exec "PRAGMA busy_timeout=1"
     Lifecycle.save db bytes
-  w.paused.set true
+  w.setPaused true
   let lock ← openDb path
   lock.exec "BEGIN IMMEDIATE"
   let cp : Lifecycle.Checkpoint := (1, 0, .empty, .empty, 0, [])
@@ -338,7 +338,7 @@ def writerRetry (dir : String) (ck : Checks) : IO Unit := do
   try
     w.save (Codec.encode cp)
     w.submit ⟨[op], true⟩
-    w.paused.set false
+    w.setPaused false
     let deadline := (← IO.monoMsNow) + 3000
     while (← attempts.get) < 3 && (← IO.monoMsNow) < deadline do IO.sleep 2
     ck.ok "the held SQLite write lock forces checkpoint retries" ((← attempts.get) ≥ 3)
