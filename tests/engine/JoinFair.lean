@@ -4,6 +4,7 @@ channel from Runner.notify before the next poll, so starvation cannot be hidden
 by draining a finite initial queue. This is finite runtime evidence, not a proof
 of an infinite fair execution or of native cryptographic security. -/
 import tests.engine.Lib
+import tests.engine.LoopChecks
 import ops.connection.All
 
 namespace JoinFair
@@ -156,6 +157,7 @@ def main (args : List String) : IO UInt32 := do
     p.toNat?.map fun n => s!"127.0.0.1:{n}".toUTF8
   IO.FS.createDirAll dir
   let t ← Checks.new
+  LoopChecks.run t
   dialQueueChecks t
   let active ← IO.mkRef false
   let context ← IO.mkRef (none : Option Flood)

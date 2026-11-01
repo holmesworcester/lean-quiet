@@ -229,10 +229,14 @@ def main():
     if any(marker in text for marker in ["PANIC", "panic", "network runner stopped:", "join-fair exception:"]):
         raise SystemExit(f"native/runtime failure; see {log_path}")
     if args.expect_starvation or args.expect_hint_starvation:
-        expected = ("FAIL: released bare join reaches founder" if args.expect_hint_starvation else
-                    "FAIL: peer message progresses while write queue stays nonempty")
+        expected = (["FAIL: released bare join reaches founder"] if args.expect_hint_starvation else [
+            "FAIL: shared turn persists preference while writes remain continuously available",
+            "FAIL: stop dispatch cleans up once and bypasses an otherwise due timer",
+            "FAIL: empty preferred event queue immediately falls back to a local write",
+            "FAIL: peer message progresses while write queue stays nonempty",
+        ])
         failures = [line for line in text.splitlines() if line.startswith("FAIL:")]
-        if result.returncode == 0 or failures != [expected]:
+        if result.returncode == 0 or failures != expected:
             raise SystemExit(f"runtime control survived or failed for another reason; see {log_path}")
         print("runtime negative control rejected by its specific progress assertion")
     elif result.returncode != 0:
