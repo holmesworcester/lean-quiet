@@ -48,7 +48,16 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
         controls := controls ++ s!"choice {Theme.encode choice} {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
       if control.action == .drawerAct .appearance then
         controls := controls ++ s!"appearance {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
+      -- the sidebar's pages: general (chat) and Waiting to join (requests)
+      if let .page p := control.action then
+        controls := controls ++ s!"goto {repr p} {control.box.x + control.box.w/2} {control.box.y + control.box.h/2}\n"
     controls := controls ++ s!"field {d.app.field}\n"
+    -- requests to join this community, and whether this device still waits
+    controls := controls ++ s!"asking {d.app.asking.size} waiting {if d.app.me.waiting && !d.app.me.c.isEmpty then 1 else 0}\n"
+    -- the newest mounted messages, newest first: author and text, quoted
+    for (_, x) in d.app.ids.toList.take 12 do
+      if let some r := d.app.rows[x]? then
+        controls := controls ++ s!"row {repr r.data.name} {repr r.data.text}{if r.data.pending then " pending" else ""}\n"
     controls := controls ++ s!"pointer {repr d.ui.hover} cursor {Desktop.cursor d}\n"
     controls := controls ++ s!"tap {d.app.input.lastTap[0]?.getD 0} {d.app.input.lastTap[1]?.getD 0} {d.app.input.lastTap[2]?.getD 0}\n"
     controls := controls ++ s!"zoom {zoomPercent d} dpi {d.dpi} cell {d.app.font.cell}\n"
@@ -121,17 +130,44 @@ partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab :
       IO.FS.writeFile (db ++ ".zoom") (toString (zoomPercent d))
   run d anchor scrollGrab native
 
+/-- The argument after `flag`, if any (`--port 47101` gives "47101"). -/
+def valueOf (args : List String) (flag : String) : Option String :=
+  ((args.dropWhile (· != flag)).drop 1).head?
+
+/-- The node, from the arguments: none (no sockets) with `--offline` or
+`--demo`; else its port and whether its invites dial loopback. `--port N`
+(1 to 65535; Link.port by default) lets two apps run on one machine, and
+`--loopback` makes the links they issue dial 127.0.0.1, not this machine's
+LAN addresses. -/
+def netOf (args : List String) : Except String (Option (Nat × Bool)) :=
+  let loop := args.contains "--loopback"
+  if args.contains "--offline" || args.contains "--demo" then .ok none
+  else if !args.contains "--port" then .ok (some (Link.port, loop))
+  else match valueOf args "--port" >>= String.toNat? with
+    | some n => if 0 < n && n < 65536 then .ok (some (n, loop)) else .error s!"--port {n}: a port is 1 to 65535"
+    | none => .error s!"--port {(valueOf args "--port").getD ""}: a port is 1 to 65535"
+
+#guard (netOf []).toOption == some (some (Link.port, false))
+#guard (netOf ["--demo", "--port", "47101"]).toOption == some none
+#guard (netOf ["--offline", "--loopback"]).toOption == some none
+#guard (netOf ["--port", "47101", "--loopback"]).toOption == some (some (47101, true))
+#guard (netOf ["--loopback", "--port", "65535"]).toOption == some (some (65535, true))
+#guard (netOf ["--port", "0"]).toOption == none
+#guard (netOf ["--port", "65536"]).toOption == none
+#guard (netOf ["--port", "x"]).toOption == none
+#guard (netOf ["--port"]).toOption == none
+
 def main (args : List String) : IO Unit := do
+  let net ← IO.ofExcept (netOf args)
   let sc ← Platform.screen
   let db := (← IO.getEnv "QUIET_DB").getD "quiet-linux.db"
-  let net := if args.contains "--offline" || args.contains "--demo" then none else some (Link.port, false)
   let mut d ← Desktop.start platform sc[0]!.toNat sc[1]!.toNat db net (sc[4]?.getD 160).toNat
   if ← System.FilePath.pathExists (db ++ ".zoom") then
     if let some percent := (← IO.FS.readFile (db ++ ".zoom")).trimAscii.toString.toNat? then
       d ← Desktop.zoom d percent
-  if args.contains "--demo" && d.app.comms.isEmpty then
+  if (args.contains "--demo" || args.contains "--seed") && d.app.comms.isEmpty then
     for name in ["Quiet", "Garden"] do
-      let (_, s) ← (App.found name "Alex").run d.app
+      let (_, s) ← (App.found name ((valueOf args "--name").getD "Alex")).run d.app
       d := { d with app := s }
       for _ in [0:50] do d ← Desktop.tick d; IO.sleep 2
     d ← Desktop.act d (.community (d.app.comms.findIdx? (·.name == "Quiet") |>.getD 0))
@@ -146,6 +182,14 @@ def main (args : List String) : IO Unit := do
     for i in [0:40] do
       let (_, s) ← (App.sendText s!"Scroll history {i}: older messages remain reachable.").run d.app
       d := { d with app := s }
+  -- Add members, opened as its button opens it: it issues the current
+  -- community's link (once a session), which goes to the file as well
+  if let some file := valueOf args "--invite" then
+    d ← Desktop.act d (.drawerAct .addMembers)
+    let some (_, link) := d.app.links.find? (·.1 == d.app.me.acc)
+      | throw (IO.userError "--invite: no community to invite to (found or join one first)")
+    IO.FS.writeFile (file ++ ".tmp") (link ++ "\n")
+    IO.FS.rename (file ++ ".tmp") file
   d ← run d none none (← desktopNativeScroll)
   if let some r := d.app.net then r.stop
   -- The existing writer is a dedicated infinite task. Drain accepted
