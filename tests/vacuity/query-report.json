@@ -62,20 +62,6 @@
     "module": "tests.vacuity.Query",
     "detail": "Same asymmetric split; positivity and doubling-bound premises kernel proved. Synthetic model fixture; no collected real-user traffic."
   },
-  "has_ofList": {
-    "status": "kernel-witness",
-    "theorem": "Engine.Subs.has_ofList",
-    "witness": "Vacuity.Query.indexHas",
-    "module": "tests.vacuity.Query",
-    "detail": "Two subscriptions: bounded message-1..message-2 and whole community list; proves subscription7 present. Synthetic model fixture; no collected real-user traffic."
-  },
-  "ofList_wf": {
-    "status": "kernel-witness",
-    "theorem": "Engine.Subs.ofList_wf",
-    "witness": "Vacuity.Query.indexWF",
-    "module": "tests.vacuity.Query",
-    "detail": "Builds actual two-window subscription index and establishes its invariant. Synthetic model fixture; no collected real-user traffic."
-  },
   "find_costs": {
     "status": "kernel-witness",
     "theorem": "Engine.find_costs",

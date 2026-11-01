@@ -74,7 +74,6 @@ import engine.wire.mdns.Mdns
 import engine.core.WindowRead
 import engine.core.WindowCost
 import engine.core.WindowMutants
-import engine.renderer.Screen
 import engine.core.CodecCost
 import engine.core.MerkleCost
 import engine.core.IngestCost
@@ -764,12 +763,10 @@ open Engine
 #print axioms Engine.find_build
 #print axioms Engine.Subs.find_iff
 #print axioms Engine.Subs.mem_notifyM
-#print axioms Engine.Subs.has_ofList
 #print axioms Engine.Subs.has_add
 #print axioms Engine.Subs.has_keep
 #print axioms Engine.Subs.add_wf
 #print axioms Engine.Subs.keep_wf
-#print axioms Engine.Subs.ofList_wf
 #print axioms Engine.mem_net
 #print axioms Engine.read_rows_iff
 #print axioms Engine.read_notice_iff
@@ -781,11 +778,6 @@ open Engine
 #print axioms Engine.Mutants.key_notice_imprecise
 #print axioms Engine.Mutants.exact_silent
 #print axioms Engine.Mutants.unnetted_imprecise
-#print axioms Screen.screen_subs
-#print axioms Screen.hull_near
-#print axioms Screen.past_hull_le
-#print axioms Screen.screen_index
-#print axioms Screen.keep_scrolled_off
 end windows
 
 #print axioms Engine.Sync.conn_state_bounded

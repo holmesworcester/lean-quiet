@@ -96,19 +96,8 @@ Engine.sideCount_run
 Engine.foldr_insertBy
 Engine.insertBy_merge
 
-# engine.core.WindowIndex
-Engine.Subs.has_ofList
-Engine.Subs.ofList_wf
-
 # engine.renderer.BoardLaws
 Live.Board.seen_take
-
-# engine.renderer.Screen
-Screen.hull_near
-Screen.keep_scrolled_off
-Screen.past_hull_le
-Screen.screen_index
-Screen.screen_subs
 
 # engine.sync.RoundLaws
 Engine.Sync.exchange_complete

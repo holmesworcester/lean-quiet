@@ -564,3 +564,59 @@ law cover that running conversion. Small rounded corners are checked against
 independent 16×16 area sampling of an ideal circle. Browser/Lean antialiasing
 and font weight still differ; this is a measured parity budget, not a claim
 of identical pixels or full Unicode shaping.
+
+## The hull want: what the frame should watch (a plan, not built)
+
+The frame today watches the conversation's whole window (at most `half`
+rows each side of the anchor), wider than the rows near the viewport;
+the README's "Notices are exact" row says so. The plan below was a Lean
+model with laws (engine/renderer/Screen.lean: screen_subs, hull_near,
+past_hull_le, screen_index, keep_scrolled_off); its laws were about the
+model, not the running frame, and went on 2026-11-01 (no proofs over
+models; git keeps them). Build it, with laws over the running frame,
+before claiming exact windows.
+
+What the screen subscribes to: exactly what it shows (law 2).
+
+A list on screen is its rows, newest first, stacked up from the list's
+bottom (each row's bottom edge and height), the viewport (offset b from
+the bottom, height vh) and a margin kept mounted around it. A row is
+near when it meets [b − margin, b + vh + margin]. The frame wants
+(`Frame.wants`):
+- the page's own reads (`chrome`: header, composer, counts);
+- the list's windows (`listWins`): per key, the positions from the
+  oldest near row to the newest, open above when the newest row of all
+  is near (a new message lands on screen);
+- each near row's own windows (`deps`: its fact, its author, its
+  reactions, its pictures).
+
+`screen_subs`:
+- **coverage**: every near row's position is in every list window, and
+  its own windows are wanted;
+- **minimality**: every wanted window is the page's, a list window, or a
+  near row's; a list window's range is the near rows' hull, so no loaded
+  row it covers is far (`hull_near`): a row filed inside it lands among
+  near rows.
+
+The subscriptions built from the wants (`Subs.ofList`) hold exactly them
+(`Subs.has_ofList`).
+
+**What runs today** (App, Reader): the conversation is a window of rows
+about an anchor, at most `half` at or older than it and `half` newer
+(`Reader.Want.window`), watched by its rows' windows, which hold exactly
+its rows (`WindowRead.window_rows`); the counts beside it, which size
+the scroll extent, are a want of their own (`Reader.Want.count`), read
+after the rows, and are among the page's reads (`chrome`). So (i) and
+coverage hold as stated, and minimality holds weakened to
+`past_hull_le`: with the anchor near, at most `half` loaded rows lie
+past each end of the near rows' hull.
+
+**The plan for the hull** (after the reader's want model settles): the
+window becomes a buffer that is read but not watched, and a hull want
+reads the near rows' range, watching exactly `listWins`; laws
+`buffer_unwatched` (no window of the buffer is registered) and
+`near_fresh` (a row comes near only through the hull want, read before
+it is shown). The mutant `keep_scrolled_off` (the app's keep
+before this: list reads kept for good, rows' reads kept every 30 frames
+within 4 screens) wants a far row's windows and a list window covering
+a far row.

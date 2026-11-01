@@ -1201,7 +1201,8 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
       return false
     -- the wants moved: the new ones are marked, the gone ones forgotten,
     -- and the reads none of them holds stop being watched (RestLaws.wantIdx;
-    -- Screen.screen_subs: what is watched is what the wants read)
+    -- Lifecycle.live_exact and watched_held: what is watched is what the
+    -- wants hold)
     let moved := gen != s.gen
     if moved then
       let want : Std.HashSet Want := wants.foldl (·.insert ·) {}

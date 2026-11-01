@@ -990,7 +990,7 @@ theorem agrees_unmount {l : Live} {ans : Q → Ans} (h : Agrees l ans) (qs : Std
 
 /-- **What the cache watches, it keeps:** after forgetting the instances
 nobody wants, no window of one is watched (so no notice reaches a read
-the frame dropped: Screen.screen_subs on the cache). -/
+the frame dropped). -/
 theorem watched_held {l : Live} (want : Q → Bool) {q : Q} {w : Win} (hw : (l.keep want).subs.Has q w) :
     want q = true := ((Subs.has_keep _ _ _).1 hw).2
 

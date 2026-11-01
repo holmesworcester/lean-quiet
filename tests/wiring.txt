@@ -403,11 +403,6 @@ bridge SheetGeom.Grid.ctop SheetGeom.lineOf_ctop
 spec Pic.Rgba.wellFormed A picture's pixels are 4 bytes for each of its w × h.
 todo Mdns.decode Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it.
 todo Mdns.encode = Mdns.decode
-todo Screen.Frame.wants Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (app/Screen.lean); want by it, the window cut to the near rows' hull (Screen's plan).
-todo Screen.Frame.listWins = Screen.Frame.wants
-todo Screen.Frame.near = Screen.Frame.wants
-todo Screen.Frame.shown = Screen.Frame.wants
-todo Engine.Subs.ofList = Screen.Frame.wants
 
 # Noto: measured payload is a specification of the retained running cache.
 spec Ttf.Cache.payload The sum of retained bitmap bytes, measured on the running cache for its payload bound.
