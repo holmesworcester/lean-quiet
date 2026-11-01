@@ -1,4 +1,5 @@
 import tests.vacuity.IdentityConnection
+import ops.connection.EgressLaws
 
 namespace Vacuity.IdentityLifecycle
 open Engine Codec Tests Connection Vacuity.Identity Vacuity.IdentityConnection
@@ -156,6 +157,47 @@ def removedGetsOnlyNotice (s : Session) := do
   pure (PLift.up (removed_gets_only_notice fam {} {} (run (cutOps s)) s.reply.id c
     (Sync.Conn.open false [c] 0 0).conn message.bytes [removeB.id] 100 0 false hl hr))
 
+/-! ## A removal reaches a live session, over a whole entry point
+
+Alice's node, on held data with the family's own hooks, runs one tick
+(`Node.onTick`) from the store where Bob is removed and their session is
+open. The trust rule refuses Bob there, so `removal_reaches_session`
+says every payload sealed for the session may go: the tick's frame for
+Bob, opened with the session's key, carries the removal and not Bob's
+message. -/
+
+/-- Fresh bytes on held data from a fixed tape: they leave the store as it is. -/
+instance heldFresh : Fresh (Sync.HeldM F) := ⟨fun h => (sha256 "vacuity-frame-nonce".toUTF8, h)⟩
+theorem heldFreshReads : Sync.Reads (Fresh.fresh : Sync.HeldM F ByteArray) := fun _ => rfl
+
+def bobAddr := "127.0.0.1:7448".toUTF8
+def syncA : Sync.Sync F (Sync.HeldM F) := { fam, cfg := {}, hooks := hooks fam sodium addr }
+def heldCut (s : Session) : Sync.Held F := { log := cutOps s, db := run (cutOps s) }
+def nodeA (s : Session) : Sync.Node :=
+  { Sync.Node.boot fam (cutOps s) 0 with
+    conns := [(s.reply.id, (Sync.Conn.open false [c] 0 0).conn)]
+    addrs := [(s.reply.id, bobAddr)]
+    managed := [s.reply.id] }
+def tickA (s : Session) := ((nodeA s).onTick syncA 100).run (heldCut s)
+
+/-- The tick's frames to Bob, opened with the session's key: the ops they carry. -/
+def tickPayloads (s : Session) : List Op :=
+  (tickA s).1.2.send.flatMap fun (a, p) =>
+    if a == bobAddr && p[0]? == some Sync.sealedTag then
+      match Frame.open sodium s.sendKey (p.extract 1 p.size) with
+      | some (_, b) => ((decode b : Option (List ByteArray)).getD []).filterMap Op.decode
+      | none => []
+    else []
+
+def removalReachesSession (s : Session) := do
+  let ⟨hl⟩ ← liveIn s
+  let ⟨hr⟩ ← refused s
+  pure (PLift.up (And.intro (And.intro hl hr)
+    (removal_reaches_session heldFreshReads syncA sodium addr rfl (.tick 100) (nodeA s) (heldCut s))))
+
+def entryFresh (s : Session) :=
+  PLift.up (Sync.entry_fresh (hooks_readOnly heldFreshReads syncA sodium addr rfl) (.tick 100) (nodeA s) (heldCut s))
+
 def noticeStep (s : Session) :=
   (((Sync.Conn.open false [c] 0 0).conn.carry ((roomsV s.reply.id).eval (run (cutOps s)))).filedGive
     fam {} [removeB.id] : Model F Sync.Step).run (run (cutOps s))
@@ -165,6 +207,12 @@ def main : IO UInt32 := do
   let some s := session | IO.eprintln "Could not construct real Noise session"; return 1
   t.ok "rooms cut at combined node" (roomsCutNode s).isSome
   t.ok "removed peer only receives notice" (removedGetsOnlyNotice s).isSome
+  t.ok "whole tick: trust rule refuses Bob where it starts" (removalReachesSession s).isSome
+  have _ := entryFresh s
+  t.ok "whole tick seals a frame for Bob's session"
+    ((tickA s).1.2.send.any fun (a, p) => a == bobAddr && p[0]? == some Sync.sealedTag)
+  t.ok "whole tick's frame carries the removal" ((tickPayloads s).any (·.id == removeB.id))
+  t.ok "whole tick's frame excludes Bob's message" (!(tickPayloads s).any (·.id == message.id))
   t.ok "notice then cut" (noticeThenCut s).isSome
   t.ok "pending join dials" (rejoinDials s).isSome
   t.ok "admitted node reconnects" (reconnectDials s).isSome

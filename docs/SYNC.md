@@ -506,10 +506,13 @@ Still to prove:
    fingerprint claims, whose answers are claims of their own, and
    delivery in any order. Each side keeps the round's snapshot until
    the round ends, so the claim tree does not depend on the order.
-2. **The node chains the steps.** `have_shown` and the cache law are
-   proven for each connection step, write turn and purge; that every
-   entry point (`onFrame`, `onTick`, `onWrite`) keeps the cache law and
-   the snapshots between them is read from the code.
+2. **The node chains the steps.** Every connection step an entry point
+   runs reads its rooms afresh (`entry_fresh`, engine/wire/EgressLaws.lean):
+   each payload sealed for a session is a step's send at a store on the
+   way, on the connection as `Node.refresh` gave it. `have_shown` and the
+   cache law are proven for each connection step, write turn and purge;
+   that every entry point keeps the cache law and the snapshots between
+   them is read from the code.
 3. **`closure_delivered`.** After a send and its offers are answered,
    the peer holds the op's closure when it fits the cap, given the invariant that `known` is
    a subset of the peer's store. With `spec_local` this gives "every op a
