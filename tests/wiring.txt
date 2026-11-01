@@ -123,6 +123,8 @@ wired Community.connect_iff
 wired Community.removal_cuts_off
 wired Connection.Noise.Symbolic.kk_secret
 wired Connection.Noise.Symbolic.kk_forward_secret
+wired Connection.Noise.Symbolic.kk_authentic
+wired Connection.Noise.Symbolic.kk_authentic_resp
 
 # Removal (docs/REMOVAL.md): the node's key, the cut, the notice over the
 # running Node and Conn step, and the rejoin
@@ -337,6 +339,7 @@ control Engine.Mutants.w5 = Engine.Mutants.σ
 control Engine.Mutants.wk = Engine.Mutants.σ
 control Engine.Mutants.keyNotified = Engine.Mutants.σ
 control Engine.Mutants.rawNotified = Engine.Mutants.σ
+control Connection.Noise.Symbolic.read1Slip `read1` with `ss` from the initiator's ephemeral instead of its static, a one-letter slip: with both statics secret and no honest calls, the attacker writes a message 1 it accepts as from the initiator (`read1Slip_forged`), where `read1` accepts none (`kk_authentic_resp`).
 
 ## What would make each model real, most valuable first (the README's order)
 
