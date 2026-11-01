@@ -31,6 +31,15 @@ Logs are retained under `out/ci/reader-rollback-*` and
 after correcting a driver target name; the named tasks and their assertions
 were unchanged.
 
+The subsequent op-tree merge preserves this repair in `app/Screen.lean`.
+The combined tree passes the full 1,287-law audit, layout checks, all 663
+vacuity entries with their registered runtime certificates and controls, the
+82/34 component suites, four related runtime controls, two kernel controls and
+39 lifecycle checks. Its separate scrolling sample has one temporary
+placeholder frame out of 180, a 13.833 ms median and one-frame settling.
+The original logs, stale-link report and ambiguous mutation-anchor failure
+are retained; regenerated links and a transaction-specific anchor pass.
+
 This repairs scheduling rollback, not every reader failure outcome. Transaction
 opening/completion, shared journal acknowledgements and claimed action/notice
 batches require their own failure invariants. Native query completion, queue

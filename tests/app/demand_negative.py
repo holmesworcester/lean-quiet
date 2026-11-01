@@ -104,10 +104,10 @@ cases = [
         ("app/Screen.lean", "if !(← s.enabled) then return default", "if false then return default"),
     ], "FAIL: superseded reader stops at the next query boundary"),
     ("reader-restores-failed-position", "component_demand", [
-        ("app/Screen.lean", '  let rd := (← get).rd\n  rd.exec "BEGIN"',
-         '  let rd := (← get).rd\n  let priorQueue ← sh.queue.get\n  rd.exec "BEGIN"'),
-        ("app/Screen.lean", '  catch e =>\n    rd.exec "ROLLBACK"\n    throw e',
-         '  catch e =>\n    sh.queue.modify (fun _ => priorQueue)\n    rd.exec "ROLLBACK"\n    throw e'),
+        ("app/Screen.lean", '  modify fun s => { s with seenC := c, readAt := now, opens := s.opens + 1 }\n  let rd := (← get).rd\n  rd.exec "BEGIN"',
+         '  modify fun s => { s with seenC := c, readAt := now, opens := s.opens + 1 }\n  let rd := (← get).rd\n  let priorQueue ← sh.queue.get\n  rd.exec "BEGIN"'),
+        ("app/Screen.lean", '    return published > 0 || moved || !fs.isEmpty || !vs.isEmpty || !acts.isEmpty\n  catch e =>\n    rd.exec "ROLLBACK"\n    throw e',
+         '    return published > 0 || moved || !fs.isEmpty || !vs.isEmpty || !acts.isEmpty\n  catch e =>\n    sh.queue.modify (fun _ => priorQueue)\n    rd.exec "ROLLBACK"\n    throw e'),
     ], "FAIL: repeatable read failure cannot starve a retained later query across transaction rollback"),
     ("child-never-unmounts", "op_components", [
         ("app/Screen.lean", "if Raster.near childBottom bx.h offset viewport imageOver then", "if true then"),

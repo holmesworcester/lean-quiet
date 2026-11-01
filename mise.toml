@@ -535,7 +535,7 @@ run = "site/publish.sh"
 
 [tasks."android:links-e2e"]
 description = "Invite links on a suite-owned AVD: leanquiet://join/ cold and warm into the development APK, malformed links ignored, quiet:// not claimed; RELEASE_APK=out/release/lean-quiet-android.apk adds the release APK"
-depends = ["android:runtime"]
+depends = ["android:runtime", "crypto"]
 run = "bash platforms/android/test/links_e2e.sh"
 
 [tasks."release:android"]
