@@ -461,7 +461,7 @@ a new device on its own node (the 🟡 row under Connections).
 | ⬜ | 🥊🥊 | **Staleness is never hidden.** Wanted: "up to date as of T" means a round this device opened at T ended with it holding everything the peer held in that room, and a sync that stalls is shown within a stated bound. | |
 | ⬜ | 🥊🥊🥊 | **A synced page is complete:** after syncing a page, a device shows every row its peer shows for it (`page_sync`). | |
 | ⬜ | 🥊🥊 | **Sync is efficient.** Each op is sent at most once per connection, and a round needs at most fan·Δ·⌈log n⌉ claims. | |
-| ⬜ | 🥊 | **The cached Merkle tree's labels are `lbl`'s,** for O(log n) fingerprints with no change on the wire. | |
+| ✅ | 🥊 | **A room's fingerprints and answers come from its canonical Merkle treap, in O(height) hashes, with no change on the wire.** The running opening and answer are `opening`'s and `answer`'s over the room's items, so the round laws above are about them; an opening costs at most 2·height hashes and an answer 2·(fan + 1)·height, whatever the room holds; an insert height + 1. Not proven: the height itself, O(log n) only in expectation over hash ids (tests/scale measures 22, 31 and 39 at 1k, 10k and 100k items); a member can grind ids for a deeper treap. | [`Index.answer_eq`], [`Index.opening_eq`], [`answerT_canon`], [`answerTM_hashes`], [`openingTM_hashes`], [`insert_hashes`], [`label_canon`] |
 | | | **The screen** | |
 | ✅ | 🥊🥊🥊 | **Component work has revocable ownership.** In the reader's and raster worker's shared demand plan, a key is held iff some component declares it, revoked completions are rejected, and visible work goes first. End-to-end latency remains unproved ([details](docs/PERF.md#component-demand-the-running-starting-point)). | [`Demand.owned_iff`], [`Demand.complete_retired`], [`Demand.next_visible`], [`Demand.retained_prefix`], [`Demand.retained_ticket`], [`Demand.remount_rejects`] |
 | 🟡 | 🥊🥊🥊 | **Visible work retains its turn.** The actual reader/raster chooser selects or retires a continuously visible queued item within `p + 1` attempts, with `p` preceding entries. Not yet: whole-worker progress and queue capacity. | [`Demand.next_map`], [`Demand.takeBy_map`], [`Demand.filter_rank`], [`Demand.take_progress`], [`Demand.take_changes`], [`Demand.selected_or_retired`], [`Demand.selected_within`] |
@@ -1504,6 +1504,13 @@ opportunities and full native delivery remain open.
 [`recv_asked`]: engine/world/Asks.lean#L257-L263
 [`recv_owed`]: engine/world/Owed.lean#L54-L61
 [`node_serve`]: engine/world/Owed.lean#L160-L169
+[`Index.answer_eq`]: engine/sync/Conn.lean#L305-L307
+[`Index.opening_eq`]: engine/sync/Conn.lean#L300-L302
+[`answerT_canon`]: engine/sync/TreapAnswer.lean#L410-L412
+[`answerTM_hashes`]: engine/sync/TreapAnswer.lean#L590-L593
+[`openingTM_hashes`]: engine/sync/TreapAnswer.lean#L622-L623
+[`insert_hashes`]: engine/sync/Treap.lean#L474-L477
+[`label_canon`]: engine/sync/Treap.lean#L113-L114
 [`Demand.owned_iff`]: engine/renderer/Demand.lean#L143-L146
 [`Demand.complete_retired`]: engine/renderer/Demand.lean#L96-L97
 [`Demand.next_visible`]: engine/renderer/Demand.lean#L149-L151
@@ -1956,8 +1963,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 517 kernel witnesses, 184 runtime witnesses,
-23 conditional checks, 0 recorded runtime counterexamples; 19 of 743 linked declarations still pending.**
+**Coverage: 524 kernel witnesses, 184 runtime witnesses,
+23 conditional checks, 0 recorded runtime counterexamples; 19 of 750 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2319,6 +2326,13 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`recv_asked`](engine/world/Asks.lean#L257-L263) | Pending: no concrete premise witness audited yet |
 | [`recv_owed`](engine/world/Owed.lean#L54-L61) | Pending: no concrete premise witness audited yet |
 | [`node_serve`](engine/world/Owed.lean#L160-L169) | Pending: no concrete premise witness audited yet |
+| [`Index.answer_eq`](engine/sync/Conn.lean#L305-L307) | **kernel-witness**: [Vacuity.Treap.answerAgrees](tests/vacuity/Treap.lean). A room of three items inserted out of key order (two at time 0, one at time 5); a fingerprint claim it disagrees with. Synthetic ids; SHA-256 symbolic. |
+| [`Index.opening_eq`](engine/sync/Conn.lean#L300-L302) | **kernel-witness**: [Vacuity.Treap.openingAgrees](tests/vacuity/Treap.lean). The same room, opened over every key. Synthetic ids; SHA-256 symbolic. |
+| [`answerT_canon`](engine/sync/TreapAnswer.lean#L410-L412) | **kernel-witness**: [Vacuity.Treap.treapAnswers](tests/vacuity/Treap.lean). Three sorted items (sortedness decided), a claim of count 1 against 3 with leaf 1 and fan 2, so the answer cuts into pieces. |
+| [`answerTM_hashes`](engine/sync/TreapAnswer.lean#L590-L593) | **kernel-witness**: [Vacuity.Treap.answerCost](tests/vacuity/Treap.lean). The three items' canonical treap and the cutting claim; no premise. |
+| [`openingTM_hashes`](engine/sync/TreapAnswer.lean#L622-L623) | **kernel-witness**: [Vacuity.Treap.openingCost](tests/vacuity/Treap.lean). The three items' canonical treap opened over every key; no premise. |
+| [`insert_hashes`](engine/sync/Treap.lean#L474-L477) | **kernel-witness**: [Vacuity.Treap.insertCost](tests/vacuity/Treap.lean). An item inserted into a two-item canonical treap; no premise. |
+| [`label_canon`](engine/sync/Treap.lean#L113-L114) | **kernel-witness**: [Vacuity.Treap.labels](tests/vacuity/Treap.lean). Three items with keys apart; the length premise at its own length. |
 | [`Demand.owned_iff`](engine/renderer/Demand.lean#L143-L146) | **kernel-witness**: [Vacuity.RendererDemand.ownership](tests/vacuity/RendererDemand.lean). Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture. |
 | [`Demand.complete_retired`](engine/renderer/Demand.lean#L96-L97) | **kernel-witness**: [Vacuity.RendererDemand.retired](tests/vacuity/RendererDemand.lean). Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture. |
 | [`Demand.next_visible`](engine/renderer/Demand.lean#L149-L151) | **kernel-witness**: [Vacuity.RendererDemand.visiblePriority](tests/vacuity/RendererDemand.lean). Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture. |
