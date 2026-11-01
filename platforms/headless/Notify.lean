@@ -73,6 +73,26 @@ def policyFixture : IO (Nat × Bool) := do
                       i := i + 1
   return (i, ok && i == expected.size)
 
+/-- Whether the notification turn has considered a post with this text
+(it is in a snapshot the last turn ran over). -/
+def holds (s : St) (text : String) : Bool :=
+  s.notesKey.any fun (_, _, xs) => xs.any fun (_, sn) => sn.rows.any (·.text == text)
+
+/-- How many readable posts the store holds in the current community:
+read through the store, not the frame (it runs in the background too). -/
+def heldTotal : M Nat := do
+  let (a, _) ← readView (Community.readable (← get).me.c (limit := some 0)) #[]
+  return a.total
+
+/-- Steps until the store holds more than `n` posts (the carried ones
+are committed), at most `k` steps. -/
+def untilHeld (n k : Nat) (evs : List Event := []) : M Bool := do
+  for _ in [0:k] do
+    if (← heldTotal) > n then return true
+    discard <| step evs
+    IO.sleep 5
+  return (← heldTotal) > n
+
 /-- Steps until the packets since `from` satisfy `ok`, at most `n`. -/
 def stepsUntil (sm : Sim) (from_ n : Nat) (ok : Array String → Bool) (evs : List Event := []) : M Bool := do
   for _ in [0:n] do
@@ -134,12 +154,12 @@ def main (args : List String) : IO UInt32 := do
     let s ← get
     check s!"B is in, on its home (page {repr s.page})" (!s.me.waiting && s.page == .home)
     check "and nothing alerted for the community's history" ((← sb.notes.get).all (!alerts ·))).run b1
-  -- A posts: A's own post never alerts A
+  -- A posts from its home (not the conversation, which is quiet anyway):
+  -- A's own post never alerts A
   let ((), a3) ← (show M Unit from do
     sa.cmds.modify (·.push "switch club")
     steps 2
-    sa.cmds.modify (·.push "channel")
-    steps 2
+    check s!"A is on its home (page {repr (← get).page})" ((← get).page == .home)
     sa.cmds.modify (·.push "send hello there")
     steps 2
     waitIdle sa
@@ -181,12 +201,7 @@ def main (args : List String) : IO UInt32 := do
     let n1 := (← sb.notes.get).size
     let quiet ← stepsUntil sb n1 50 (·.any fun p => field p "action" == "cancel")
     check "opening the conversation withdraws its card" quiet
-    check "and leaves none standing" (!(← get).notes.active.any (·.community == (← get).me.c))
-    sb.cmds.modify (·.push "send from B")
-    steps 2
-    waitIdle sb
-    steps 5
-    check "B's own post does not alert B" (((← sb.notes.get).extract n1 (← sb.notes.get).size).all (!alerts ·))).run b3
+    check "and leaves none standing" (!(← get).notes.active.any (·.community == (← get).me.c))).run b3
   -- while B reads the conversation, A's post does not alert
   let ((), a5) ← (show M Unit from do
     sa.cmds.modify (·.push "send while reading")
@@ -195,16 +210,26 @@ def main (args : List String) : IO UInt32 := do
   let _ ← carry a5 b4
   let ((), b5) ← (show M Unit from do
     let n0 := (← sb.notes.get).size
-    let seen0 := (← get).notes.seen.length
     for _ in [0:200] do
-      if (← get).notes.seen.length > seen0 then break
+      if holds (← get) "while reading" then break
       discard <| step []
-    check "the post reaches B while it reads, and is considered" ((← get).notes.seen.length > seen0)
+    check "the post reaches B while it reads, and is considered" (holds (← get) "while reading")
     steps 10
     check "the conversation on screen is quiet" (((← sb.notes.get).extract n0 (← sb.notes.get).size).all (!alerts ·))
-    -- Off: B leaves the conversation, turns notifications off
+    -- B leaves the conversation; its own post, from its home, never alerts it
     sb.cmds.modify (·.push "back")
     steps 3
+    check s!"B is on its home (page {repr (← get).page})" ((← get).page == .home)
+    let n1 := (← sb.notes.get).size
+    sb.cmds.modify (·.push "send from B")
+    steps 2
+    waitIdle sb
+    for _ in [0:200] do
+      if holds (← get) "from B" then break
+      discard <| step []
+    check "B's own post, considered on its home, does not alert B"
+      (holds (← get) "from B" && ((← sb.notes.get).extract n1 (← sb.notes.get).size).all (!alerts ·))
+    -- Off
     sb.cmds.modify (·.push "notify off")
     steps 2
     waitIdle sb
@@ -224,11 +249,12 @@ def main (args : List String) : IO UInt32 := do
   let _ ← carry a6 b5
   let ((), b6) ← (show M Unit from do
     let n0 := (← sb.notes.get).size
-    let seen0 := (← get).notes.seen.length
-    for _ in [0:200] do
-      if (← get).notes.seen.length > seen0 then break
+    -- "muted" and the 120 posts after it arrive together: the newest is
+    -- the last of them
+    for _ in [0:400] do
+      if holds (← get) "history 119" then break
       discard <| step []
-    check "the post reaches B and is considered" ((← get).notes.seen.length > seen0)
+    check "the posts reach B and are considered" (holds (← get) "history 119")
     steps 10
     check "Off silences" (((← sb.notes.get).extract n0 (← sb.notes.get).size).all (!alerts ·))
     sb.cmds.modify (·.push "notify all")
@@ -270,7 +296,7 @@ def main (args : List String) : IO UInt32 := do
     steps 2
     waitIdle sa).run a6
   let _ ← carry a7 b6
-  let ((), b7) ← (show M Unit from do
+  let (held, b7) ← (show M Nat from do
     let n0 := (← sb.notes.get).size
     let f0 ← sb.frames.get
     let got ← stepsUntil sb n0 100 (·.any fun p => alerts p && field p "body" == "while away")
@@ -282,7 +308,9 @@ def main (args : List String) : IO UInt32 := do
     sb.cmds.modify (·.push "keep off")
     steps 2
     check "off turns the service off" (!(← get).keepSync && (← sb.service.get).back? == some false)
-    discard <| step [.background]).run b6
+    let held ← heldTotal
+    discard <| step [.background]
+    return held).run b6
   let ((), a8) ← (show M Unit from do
     sa.cmds.modify (·.push "send unheard")
     steps 2
@@ -290,6 +318,9 @@ def main (args : List String) : IO UInt32 := do
   let _ ← carry a8 b7
   let ((), b8) ← (show M Unit from do
     let n0 := (← sb.notes.get).size
+    -- the post is in B's store (its writer runs in the background), yet
+    -- nothing of B's turns runs there
+    check "the post is stored while B is in the background" (← untilHeld held 4000)
     let got ← stepsUntil sb n0 60 (·.any alerts)
     check "with it off, nothing alerts while in the background" (!got)
     let got ← stepsUntil sb n0 200 (·.any fun p => alerts p && field p "body" == "unheard") [.foreground]
@@ -311,6 +342,7 @@ def main (args : List String) : IO UInt32 := do
     let got ← stepsUntil sb n0 200 (·.any fun p => field p "action" == "cancel")
     check "B's removal withdraws its standing card" got
     check "and no card stands" (← get).notes.active.isEmpty).run b8
+  check "over the whole run, A's own posts never alerted A" ((← sa.notes.get).all (!alerts ·))
   IO.FS.writeFile (dir ++ "/b-notes.jsonl") (String.intercalate "\n" (← sb.notes.get).toList)
   let n ← fails.get
   IO.println (if n == 0 then "notify: all pass" else s!"notify: {n} failed")

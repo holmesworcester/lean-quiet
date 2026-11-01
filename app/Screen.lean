@@ -2251,6 +2251,9 @@ removal is not announced again. -/
   handed to the writer (each written once). -/
   notes : Notify.State := {}
   marksSent : List (Id × Nat) := []
+  /-- The last turn's inputs: a turn whose inputs are the same does
+  nothing, so a steady frame costs no tracker work. -/
+  notesKey : Option (Option Id × List Id × List (Id × Kinds.Notify.Snap)) := none
   /-- The current community's notification level, as its notices say. -/
   notifyLevel : Nat := 1
   queuedWrites : List ByteArray := []
@@ -5298,8 +5301,17 @@ def notifyStep : M Unit := do
       ins := ins ++ [i]
   let present := (s.comms.toList.filter (!·.waiting)).map (·.c)
   let v := viewing s
+  let key := some (v, present, ins.map fun i => (i.c, i.snap))
+  if key == s.notesKey then return
   let (notes, effects) := Notify.step s.notes present v [] ins
-  modify fun s => { s with notes }
+  -- what a turn considered stays considered while it can come back: the
+  -- seen ids are kept to the current windows once every community has
+  -- one (a post leaves its window only for newer ones), so the tracker's
+  -- work is bounded by the windows, not by every post ever seen
+  let all := s.comms.all fun m => m.c.isEmpty || ins.any (·.c == m.c)
+  let kept := notes.seen.filter fun x => ins.any fun i => i.snap.rows.any (·.id == x)
+  let notes := if all then { notes with seen := kept } else notes
+  modify fun s => { s with notes, notesKey := key }
   for p in Notify.packets notes.active effects do s.io.notify p
   -- marks: each written once (the snap shows it once it is filed)
   let now ← nowMin
