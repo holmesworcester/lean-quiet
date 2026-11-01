@@ -10,6 +10,8 @@ import engine.wire.IngressLaws
 import engine.wire.IngressPriorityLaws
 import engine.wire.IngressChurnLaws
 import app.Proofs
+import app.settings.appearance.Proofs
+import app.settings.appearance.Commands
 import engine.renderer.Demand
 
 
@@ -933,6 +935,13 @@ end cost
 #print axioms Connection.removed_node
 #print axioms Connection.connect_iff_node
 #print axioms Connection.refuse_nonmember_node
+-- The app's own ops on top of the node's (app/Family.lean, engine/core/Left.lean).
+#print axioms Engine.left_list
+#print axioms Engine.left_status
+#print axioms Engine.rightKey_of
+#print axioms Engine.top_right
+#print axioms Quiet.node_app
+#print axioms Quiet.node_left
 #print axioms Connection.removal_cuts_off_node
 #print axioms Connection.members_iff_node
 #print axioms Connection.recipients_iff_node
@@ -1036,6 +1045,10 @@ end cost
 #print axioms Theme.follows
 #print axioms Theme.forced
 #print axioms Theme.roundtrip
+#print axioms Settings.Appearance.choose_valid
+#print axioms Settings.Appearance.choose_local
+#print axioms Settings.Appearance.query_right
+#print axioms Settings.Appearance.current_newest
 #print axioms Appearance.selected_check
 #print axioms Contrast.channel_bounds
 #print axioms Contrast.ink_meets

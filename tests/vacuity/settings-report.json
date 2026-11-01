@@ -1,0 +1,37 @@
+{
+  "current_newest": {
+    "status": "kernel-witness",
+    "theorem": "Settings.Appearance.current_newest",
+    "witness": "Vacuity.Settings.newest",
+    "module": "tests.vacuity.Settings",
+    "detail": "The node's running family (Quiet.node, for any cryptography and keys) takes one real appearance op, Dark at revision 1, built by the intent the app runs (Settings.Appearance.choose), into an empty store and judges it. The store keeps the engine's invariant and holds the op Valid as an app fact; the law then names the preference the app reads on it. One appearance op only; SQLite durability is tested by the headless appearance suite, not here."
+  },
+  "choose_valid": {
+    "status": "kernel-witness",
+    "theorem": "Settings.Appearance.choose_valid",
+    "witness": "Vacuity.Settings.honest",
+    "module": "tests.vacuity.Settings",
+    "detail": "Applied to Dark at revision 1: the op the app writes for that choice is Valid, with that setting. No hypotheses."
+  },
+  "choose_local": {
+    "status": "kernel-witness",
+    "theorem": "Settings.Appearance.choose_local",
+    "witness": "Vacuity.Settings.stays",
+    "module": "tests.vacuity.Settings",
+    "detail": "Applied to Dark at revision 1 in the node's running family: the op is local, so sync never offers it and never takes one from a peer. No hypotheses."
+  },
+  "node_left": {
+    "status": "kernel-witness",
+    "theorem": "Quiet.node_left",
+    "witness": "Vacuity.Settings.nodeVerdict",
+    "module": "tests.vacuity.Settings",
+    "detail": "A kind-1 op (the projection fixture's, not one of the app's kinds) is judged in the node's running family exactly as in Community's and Connection's alone. Ownership is decided on the concrete kind."
+  },
+  "left_list": {
+    "status": "kernel-witness",
+    "theorem": "Engine.left_list",
+    "witness": "Vacuity.Settings.hooksRead",
+    "module": "tests.vacuity.Settings",
+    "detail": "On the projection fixture's composed store at rest (one settled left-family op, an actual indexed row under a left-only key), a list read through LeftM answers as the store's left part. The fixture's families are Unit families, not Community's."
+  }
+}
