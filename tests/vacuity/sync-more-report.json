@@ -27,13 +27,6 @@
     "module": "tests.vacuity.SyncMore",
     "detail": "Two queued writes and two frames: the initial write-preferred turn selects Alice and switches preference to events. This first-turn law does not claim permanent write priority."
   },
-  "Sync.write_within": {
-    "status": "kernel-witness",
-    "theorem": "Engine.Sync.write_within",
-    "witness": "Vacuity.SyncMore.writeDeadline",
-    "module": "tests.vacuity.SyncMore",
-    "detail": "An explicit infinite run starts with two writes and two frames, with both producers appending on every iteration forever. The second original write is selected before iteration 4 by the actual alternating chooser; a separate exact-prefix check requires write/frame/write/frame. The bound counts completed iterations, not elapsed time."
-  },
   "admit_bounded": {
     "status": "kernel-witness",
     "theorem": "Engine.Sync.admit_bounded",

@@ -127,9 +127,6 @@ Engine.Sync.Tree.fold_congr
 # engine.sync.Witnesses
 Engine.Sync.secrecy_runs
 
-# engine.wire.RetryOrderLaws
-Engine.Sync.RetryOrder.Run.nodup
-
 # engine.wire.mdns.Laws
 Mdns.decode_encode
 Mdns.decode_roundtrip

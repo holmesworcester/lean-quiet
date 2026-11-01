@@ -375,7 +375,7 @@ model unless a proven bridge ties the model to running code
 `tests/wiring-models.txt`, a list that only shrinks, does not name.
 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1372 rest on Lean's standard axioms only, and about four fifths of its theorems (1159 of 1288, not counting 59 proof steps and 25 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1370 rest on Lean's standard axioms only, and about nine tenths of its theorems (1162 of 1290, not counting 55 proof steps and 25 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -514,23 +514,23 @@ code that does. `tests/Wiring.lean` classifies every law from the code,
 with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
-🟡 What the check cannot see yet: a model made only of structures. A
-law about a structure whose fields stand for a world (a `World` record,
-say) names no definition that fails to run, so it can pass as about
-running code. Not yet: a rule that finds such models; until then,
-reviewers check that a law's structures are the running code's own or
-a quantified environment (a `Run` of the running step).
+A structure the running code never names (a `World` record, a `Run` of
+steps) is seen through like a proposition: what its fields name must run
+too. A `Run` whose `next` field steps a harness is a model, even when the
+law's statement names only the record. A negative control in
+`tests/Wiring.lean` keeps it so: it takes away a harness step's `spec`
+note and checks that the law turns to a model only because of the field.
 
 <!-- wiring:begin -->
-**1159 of 1288 laws are about running code;** another 35 run its node code in a World, and 94 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 59 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 25 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
+**1162 of 1290 laws are about running code;** another 35 run its node code in a World, and 93 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 55 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 25 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 175 | 167 |  | 8 |
-| Sync | 232 | 196 |  | 36 |
+| Sync | 236 | 200 |  | 36 |
 | The n-node World | 16 | 3 | 13 |  |
 | mDNS | 3 | 0 |  | 3 |
-| Node and wire | 203 | 186 | 16 | 1 |
+| Node and wire | 201 | 185 | 16 |  |
 | Connections | 30 | 26 |  | 4 |
 | Community | 201 | 198 |  | 3 |
 | QR codes | 10 | 10 |  |  |
@@ -542,10 +542,10 @@ a quantified environment (a `Run` of the running step).
 
 | Missing link | Laws | To make them real |
 |---|---|---|
-| `Execution.fairRun`, `Execution.dequeued`, `Execution.trace` | 2 World laws; not yet: [`world_trace_moves`], [`empty_trace_store`], [`world_trace_history`], [`empty_trace_history`], [`world_trace_unique`], [`empty_trace_unique`] | Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these. |
+| `Execution.fairRun`, `Execution.dequeued`, `Execution.step` +1 | 2 World laws; not yet: [`world_step_moves`], [`world_trace_moves`], [`empty_trace_store`], [`Run.shared_retained`], [`world_step_history`], [`world_trace_history`], [`empty_trace_history`], [`history`], [`world_step_unique`], [`world_trace_unique`], [`empty_trace_unique`], [`unique`] | Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these. |
 | `Execution.lift` | 4 World laws; not yet: [`run_count`]*, [`run_get`], [`run_view`]*, [`run_arrivedFrom`]*, [`ProgressTape.answer_ready`]*, [`production_step_moves`], [`production_step_retains`], [`production_step_reachable`], [`production_step_settled`], [`write_store_tape`], [`production_write_receives`], [`production_step_history`] +1 more | Explicit Held store adapter inside the production-node entropy-tape interpreter. Native SQLite and entropy refinement remains external; answer_ready proves one actual handler call consumes its next tape value. |
 | `Sync.World.peer`, `Sync.Setup.sync`, `Who.other` +7 | 23 World laws; not yet: [`secrecy_runs`] | Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired. |
-| `World.step`, `Exec.world`, `Plain.setup` +2 | 9 World laws | Real: n nodes, each the running `Engine.Sync.Node` with a3's `Setup.sync` (fixed rooms), its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any packet (from gst, `Net.Admits`'s timely delivery across live edges), sessions open by the harness's `connect`, frames in the clear, and a transport close drops only that address's sessions (S1: no loss without a close). Wanted: the n-node World with the app's own Sync (the Connection family, sealed sessions, the handshake; holmes-71's session forms), which makes these laws wired. |
+| `World.step`, `Exec.world`, `Plain.setup` +3 | 9 World laws | Real: n nodes, each the running `Engine.Sync.Node` with a3's `Setup.sync` (fixed rooms), its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any packet (from gst, `Net.Admits`'s timely delivery across live edges), sessions open by the harness's `connect`, frames in the clear, and a transport close drops only that address's sessions (S1: no loss without a close). Wanted: the n-node World with the app's own Sync (the Connection family, sealed sessions, the handshake; holmes-71's session forms), which makes these laws wired. |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°†, [`exchange_ids_stable`], [`exchange_log`], [`exchange_stable`], [`conn_runs_exchange`]† | conn_runs_exchange now connects exchange's missing IDs to exact alternating onRbsr batches and proves termination under snapshot/fingerprint/capacity premises. Still needed: embedding uninterrupted rounds and directed announcements in the full Node/TCP execution across timeouts and capped windows. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]†, [`reads_members`], [`reads_recipients`], [`members_iff_node`]†, [`recipients_iff_node`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
@@ -554,7 +554,6 @@ a quantified environment (a `Run` of the running step).
 | `Execution.World.peer` | [`world_step_moves`], [`world_trace_moves`], [`empty_trace_store`], [`Run.shared_retained`], [`world_step_history`], [`world_trace_history`], [`empty_trace_history`], [`history`], [`world_step_unique`], [`world_trace_unique`], [`empty_trace_unique`], [`unique`] | Nothing that runs calls it; `Connection.Execution.World.run` do. |
 | `Execution.empty` | [`empty_trace_store`], [`empty_trace_history`], [`empty_trace_unique`], [`unique`] | Nothing that runs calls it. |
 | `Execution.family` | [`production_step_moves`], [`production_step_retains`], [`production_step_reachable`], [`production_step_settled`], [`world_step_moves`], [`world_trace_moves`], [`empty_trace_store`], [`Run.shared_retained`], [`production_write_receives`], [`production_step_history`], [`world_step_history`], [`world_trace_history`] +2 more | Nothing that runs calls it; `Execution.Setup.sync`, `Execution.empty` do. |
-| `Execution.step` | [`world_step_moves`], [`world_step_history`], [`world_step_unique`] | Nothing that runs calls it; `Connection.Execution.Run.cons` do. |
 | `Subs.ofList` | [`has_ofList`], [`ofList_wf`] | Nothing that runs calls it. |
 | `Catalog.held` | [`held_run_observed`], [`catalog_read`], [`ceiling_mono`] | Nothing that runs calls it; `Execution.Setup.sync` do. |
 | `Catalog.shared` | [`shared_log_turn`], [`shared_log_purge`], [`catalog_read`], [`ceiling_mono`], [`production_step_history`], [`world_step_history`], [`world_trace_history`], [`history`] | Nothing that runs calls it; `Catalog.held` do. |
@@ -589,7 +588,7 @@ a quantified environment (a `Run` of the running step).
 | `World.commit` | [`World.inv_commit`] | Nothing that runs calls it; `Live.Gated.w4`, `Live.World.runActs` do. |
 | `World.marked` | [`World.settle`] | Nothing that runs calls it; `World.pass` do. |
 | `World.pass` | [`inv_pass`], [`World.settle`] | Nothing that runs calls it; `Live.Gated.w4`, `Gated.w5`, `Live.World.passActs` do. |
-| (none) | [`unscoped_signs_all`]†, [`no_injective_hash`]†, [`Costs.time`], [`list_costs`], [`model_fits`], [`id_bind`], [`sideCount_run`]†, [`run_bind`], [`run_fresh`], [`fair_loss_delivered`], [`empty_log_agrees`], [`nodup`] | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`unscoped_signs_all`]†, [`no_injective_hash`]†, [`Costs.time`], [`list_costs`], [`model_fits`], [`id_bind`], [`sideCount_run`]†, [`run_bind`], [`run_fresh`], [`fair_loss_delivered`], [`empty_log_agrees`] | Nothing to wire: each is about a specification or an assumption. |
 
 | Proof steps in | Steps | Used by (about running code) |
 |---|---|---|
@@ -606,8 +605,8 @@ a quantified environment (a `Run` of the running step).
 | `engine.renderer.TranslateLaws` | [`fill_index`], [`source_iff`], [`tile_phase`] | `pick_eq`, `copied_row`, `fill_pixel`, `pick_source` +1 more |
 | `engine.renderer.bidi.Laws` | [`run_contiguous`] | `arabic_numbers_keep_order`, `numbers_keep_order` |
 | `engine.sync.BoundsLaws` | [`inserts_size`] | `admitAsks_bounded`, `conn_bounded`, `conn_state_bounded`, `hold_bounded` +2 more |
-| `engine.sync.ClosureDelivery` | [`filter_idxOf_le`], [`finite_eventually_held`] | `eventually_emitted`, `pending`, `pending_until`, `closure_delivered` +1 more |
-| `engine.sync.ClosureStore` | [`keeps`], [`retains`], [`settled`], [`absentFold_covers`], [`absentFold_keeps`], [`absentFold_source`], [`absentStep_keeps`], [`absentStep_source`], [`budget_same_ops`], [`dedup_nodup`], [`write_store`] | `withNav_cache`, `placeIn_newest`, `store_settled`, `invariant` +14 more |
+| `engine.sync.ClosureDelivery` | [`filter_idxOf_le`] | `eventually_emitted`, `pending`, `pending_until`, `closure_delivered` +1 more |
+| `engine.sync.ClosureStore` | [`absentFold_covers`], [`absentFold_keeps`], [`absentFold_source`], [`absentStep_keeps`], [`absentStep_source`], [`budget_same_ops`], [`dedup_nodup`], [`write_store`] | `withNav_cache`, `placeIn_newest`, `store_settled`, `invariant` +18 more |
 | `engine.sync.RoundRun` | [`mem_inserts`] | `asks_have_source` |
 | `engine.sync.Session` | [`Session.closed_terminal`] | `Sync.closed_terminal` |
 | `engine.sync.SweepLaws` | [`step_nonincrease`], [`Sweep.step_progress`] | `retried`, `retried_fair` |
@@ -621,16 +620,16 @@ a quantified environment (a `Run` of the running step).
 | Assumption | Laws | |
 |---|---|---|
 | [`Unforgeable`] | 2 | Ed25519 unforgeability over the signatures one store holds (no forgery in the store): a computational assumption, not provable in Lean. |
-| [`CollisionFree`] | 18 | SHA-256 has no collision among the ops a node received. |
+| [`CollisionFree`] | 26 | SHA-256 has no collision among the ops a node received. |
 | [`offerM`] | 2 | The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`. |
 | [`NoCollision`] | 14 | No SHA-256 collision between what a file's root hashes and what checking the chunks at hand hashed: finite bytes, decided on real SHA-256 in tests/vacuity/Attachment.lean. |
 | [`NativeCrypto`] | 12 | The crypto trust file (engine/core/Trust.lean), all of it: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, a SHA-256 digest is 32 bytes (correctness of the crates, not security). Keys and nonces are sized types, so no size is assumed. Each part is satisfied by the native crates and failed by a broken model (tests/vacuity/CryptoTrust.lean). |
 | [`Suite.Good`] | 7 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.NativeCrypto` (`suite_good`). |
 | [`Seal.Good`] | 6 | AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.NativeCrypto` (`cryptoSeal_good`). |
 | [`Symbolic.sym`] | 16 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 413 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
+| [`Model.run`] | 430 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
 | [`SeekCost.seek`] | 8 | SQLite's cost (docs/PERF.md, `levels`): a seek costs at most c·(log₂ N + 1) for N rows, each next row in index order at most `step`, and an ordered read with a LIMIT and nothing else filtering walks no row past its limit (each statement's plan checked by tests/engine/QueryDiff.lean, not proven). |
-| [`Sync.popW`] | 4 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
+| [`Sync.popW`] | 2 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
 <!-- wiring:end -->
@@ -1162,9 +1161,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 
 Supporting report laws include [`WriteAdmission.admitted_frames`],
 [`WriteAdmission.admitted_count`] and [`WriteAdmission.admitted_bytes`].
-The earlier alternating selector's [`write_first`], [`Sync.write_within`] and
-[`Sync.event_within`] remain checked component laws; the running selector uses
-the prioritized `Priority` laws above. Reserved output is checked by
+[`write_first`] remains a checked component law of the running `Inbox.next`;
+the running selector's bounds are the prioritized `Priority` laws above. Reserved output is checked by
 [`Outbox.native_batch_bounded`], [`Outbox.retry_next_batch`] and
 [`Outbox.push_preserves_reserved`]. Supporting bounds are
 [`Reserved.push_bounded`], [`Reserved.take_bounded`], [`Outbox.push_bounded`],
@@ -1469,7 +1467,7 @@ opportunities and full native delivery remain open.
 [`Priority.phase_cycle`]: engine/wire/PriorityLaws.lean#L21-L22
 [`Loop.turn_records`]: engine/wire/LoopLaws.lean#L86-L91
 [`Loop.turn_timer`]: engine/wire/LoopLaws.lean#L101-L105
-[`Tick.cofinal`]: engine/wire/LaneLaws.lean#L443-L447
+[`Tick.cofinal`]: engine/wire/LaneLaws.lean#L280-L284
 [`urgent_ahead`]: engine/wire/LaneLaws.lean#L101-L110
 [`ahead_bytes`]: engine/wire/LaneLaws.lean#L170-L185
 [`take_vacant`]: engine/wire/Reserved.lean#L119-L124
@@ -1480,8 +1478,8 @@ opportunities and full native delivery remain open.
 [`cut_bytes`]: engine/wire/LaneLaws.lean#L60-L62
 [`push_capped`]: engine/wire/LaneLaws.lean#L127-L131
 [`serveOwed_hot`]: engine/sync/ServeLaws.lean#L386-L391
-[`hot_ids`]: engine/wire/LaneLaws.lean#L498-L501
-[`lane_control`]: engine/wire/LaneLaws.lean#L487-L490
+[`hot_ids`]: engine/wire/LaneLaws.lean#L335-L338
+[`lane_control`]: engine/wire/LaneLaws.lean#L324-L327
 [`fresh_served`]: engine/wire/WorldLaws.lean#L632-L639
 [`write_hot`]: engine/wire/WorldLaws.lean#L1446-L1451
 [`onWrite_receives`]: app/Proofs.lean#L3200-L3208
@@ -1714,12 +1712,18 @@ opportunities and full native delivery remain open.
 [`fit_le`]: engine/renderer/pic/Laws.lean#L41-L41
 [`fit_pos`]: engine/renderer/pic/Laws.lean#L50-L50
 [`fit_round`]: engine/renderer/pic/Laws.lean#L78-L81
+[`world_step_moves`]: app/Proofs.lean#L2937-L2940
 [`world_trace_moves`]: app/Proofs.lean#L2975-L2977
 [`empty_trace_store`]: app/Proofs.lean#L2982-L2986
+[`Run.shared_retained`]: app/Proofs.lean#L2994-L3000
+[`world_step_history`]: app/Proofs.lean#L3466-L3469
 [`world_trace_history`]: app/Proofs.lean#L3504-L3506
 [`empty_trace_history`]: app/Proofs.lean#L3512-L3516
+[`history`]: app/Proofs.lean#L3524-L3529
+[`world_step_unique`]: app/Proofs.lean#L3988-L3992
 [`world_trace_unique`]: app/Proofs.lean#L4031-L4033
 [`empty_trace_unique`]: app/Proofs.lean#L4038-L4042
+[`unique`]: app/Proofs.lean#L4046-L4050
 [`run_count`]: app/Proofs.lean#L2584-L2585
 [`run_get`]: app/Proofs.lean#L2587-L2588
 [`run_view`]: app/Proofs.lean#L2590-L2591
@@ -1746,12 +1750,6 @@ opportunities and full native delivery remain open.
 [`World.settle`]: engine/renderer/BoardLaws.lean#L407-L412
 [`seen_take`]: engine/renderer/BoardLaws.lean#L247-L248
 [`production_step_unique`]: app/Proofs.lean#L3969-L3973
-[`world_step_moves`]: app/Proofs.lean#L2937-L2940
-[`Run.shared_retained`]: app/Proofs.lean#L2994-L3000
-[`world_step_history`]: app/Proofs.lean#L3466-L3469
-[`history`]: app/Proofs.lean#L3524-L3529
-[`world_step_unique`]: app/Proofs.lean#L3988-L3992
-[`unique`]: app/Proofs.lean#L4046-L4050
 [`has_ofList`]: engine/core/WindowIndex.lean#L452-L453
 [`ofList_wf`]: engine/core/WindowIndex.lean#L445-L445
 [`held_run_observed`]: engine/sync/SweepRun.lean#L51-L55
@@ -1796,7 +1794,6 @@ opportunities and full native delivery remain open.
 [`run_fresh`]: app/Proofs.lean#L2600-L2601
 [`fair_loss_delivered`]: engine/sync/SweepLaws.lean#L214-L218
 [`empty_log_agrees`]: engine/sync/SharedLog.lean#L11-L11
-[`nodup`]: engine/wire/RetryOrderLaws.lean#L214-L215
 [`nodup_full`]: app/community/Family.lean#L1504-L1506
 [`sum_map_add`]: app/community/channel/message/Proofs.lean#L223-L224
 [`Costs.mono`]: engine/core/Cost.lean#L397-L397
@@ -1832,10 +1829,6 @@ opportunities and full native delivery remain open.
 [`run_contiguous`]: engine/renderer/bidi/Laws.lean#L84-L87
 [`inserts_size`]: engine/sync/BoundsLaws.lean#L20-L21
 [`filter_idxOf_le`]: engine/sync/ClosureDelivery.lean#L59-L61
-[`finite_eventually_held`]: engine/sync/ClosureDelivery.lean#L198-L204
-[`keeps`]: engine/sync/ClosureStore.lean#L276-L277
-[`retains`]: engine/sync/ClosureStore.lean#L281-L282
-[`settled`]: engine/sync/ClosureStore.lean#L263-L263
 [`absentFold_covers`]: engine/sync/ClosureStore.lean#L85-L89
 [`absentFold_keeps`]: engine/sync/ClosureStore.lean#L68-L69
 [`absentFold_source`]: engine/sync/ClosureStore.lean#L74-L75
@@ -1865,8 +1858,6 @@ opportunities and full native delivery remain open.
 [`WriteAdmission.admitted_count`]: engine/wire/WriteAdmission.lean#L45-L47
 [`WriteAdmission.admitted_bytes`]: engine/wire/WriteAdmission.lean#L57-L59
 [`write_first`]: engine/wire/LaneLaws.lean#L255-L257
-[`Sync.write_within`]: engine/wire/LaneLaws.lean#L408-L412
-[`Sync.event_within`]: engine/wire/LaneLaws.lean#L417-L421
 [`Outbox.native_batch_bounded`]: engine/wire/OutboxLaws.lean#L64-L68
 [`Outbox.retry_next_batch`]: engine/wire/OutboxLaws.lean#L77-L78
 [`Outbox.push_preserves_reserved`]: engine/wire/OutboxLaws.lean#L45-L49
@@ -1935,8 +1926,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 476 kernel witnesses, 181 runtime witnesses,
-24 conditional checks, 0 recorded runtime counterexamples; 51 of 732 linked declarations still pending.**
+**Coverage: 474 kernel witnesses, 181 runtime witnesses,
+24 conditional checks, 0 recorded runtime counterexamples; 46 of 725 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2272,7 +2263,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`Priority.phase_cycle`](engine/wire/PriorityLaws.lean#L21-L22) | **kernel-witness**: [Vacuity.Priority.phaseCycle](tests/vacuity/Priority.lean). The production initial phase returns after four actual phase advances; Fin4 prevents an out-of-range producer-controlled budget. |
 | [`Loop.turn_records`](engine/wire/LoopLaws.lean#L86-L91) | **kernel-witness**: [Vacuity.Priority.turnRecords](tests/vacuity/Priority.lean). The shared monadic turn runs with both queues nonempty and sampled time20. The concrete recording backend proves the phase advance and sampled-time observation; a checked call trace is clock,write-poll,write,tick,expiry. Native TCP calls this dispatcher but its backend semantics and completion are not assumed proven by this StateM fixture. |
 | [`Loop.turn_timer`](engine/wire/LoopLaws.lean#L101-L105) | **kernel-witness**: [Vacuity.Priority.turnTimer](tests/vacuity/Priority.lean). With lastTick10, period10, sampled time20 and two ready queues, the actual shared turn processes a local write then emits the due tick and expiry check. The non-stopping premise is kernel-decided for this fixture before applying the theorem. Native I/O termination is outside this completed-turn claim. |
-| [`Tick.cofinal`](engine/wire/LaneLaws.lean#L443-L447) | **kernel-witness**: [Vacuity.FairScheduler.timerForever](tests/vacuity/FairScheduler.lean). Positive 200ms period with the explicit infinite sampled clock now(i)=200*i and last(i)=200*(i-1). The fixture proves the exact runtime Tick.next update and unbounded sampled time, then applies the cofinal-ticks theorem. Checks cover just-before and exactly-at deadline. This does not prove OS scheduling or native I/O termination. |
+| [`Tick.cofinal`](engine/wire/LaneLaws.lean#L280-L284) | **kernel-witness**: [Vacuity.FairScheduler.timerForever](tests/vacuity/FairScheduler.lean). Positive 200ms period with the explicit infinite sampled clock now(i)=200*i and last(i)=200*(i-1). The fixture proves the exact runtime Tick.next update and unbounded sampled time, then applies the cofinal-ticks theorem. Checks cover just-before and exactly-at deadline. This does not prove OS scheduling or native I/O termination. |
 | [`urgent_ahead`](engine/wire/LaneLaws.lean#L101-L110) | **kernel-witness**: [Vacuity.SyncMore.urgentFirst](tests/vacuity/SyncMore.lean). Occupied urgent and bulk queues, followed by both urgent and bulk pushes. Independent exact output check puts all three urgent frames before one bulk frame. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`ahead_bytes`](engine/wire/LaneLaws.lean#L170-L185) | **kernel-witness**: [Vacuity.WireMore.ahead](tests/vacuity/WireMore.lean). Nonempty socket with urgent hello and two bulk chunks; proves reachable admission under cap64, burst12, then pre/post pushes and fresh urgent frame within cap. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`take_vacant`](engine/wire/Reserved.lean#L119-L124) | Pending: no concrete premise witness audited yet |
@@ -2283,8 +2274,8 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`cut_bytes`](engine/wire/LaneLaws.lean#L60-L62) | **kernel-witness**: [Vacuity.SyncMore.burstBound](tests/vacuity/SyncMore.lean). Two ten-byte bulk frames, a twelve-byte burst; theorem bounds bytes of the actual cut. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`push_capped`](engine/wire/LaneLaws.lean#L127-L131) | **kernel-witness**: [Vacuity.SyncMore.pushBound](tests/vacuity/SyncMore.lean). A nonempty mixed-lane push is admitted under 64 bytes, and the law fixes whatever admission returns: the lanes with both pushes, within the cap (not a value compared with itself). Negative control at cap 20 rejects it. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`serveOwed_hot`](engine/sync/ServeLaws.lean#L386-L391) | **kernel-witness**: [Vacuity.Network.servesFresh](tests/vacuity/Network.lean). A stored shown op is the one selected hot id from the wanted and fresh-write sets, so it is sent urgently even with zero bulk budget. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport. |
-| [`hot_ids`](engine/wire/LaneLaws.lean#L498-L501) | **kernel-witness**: [Vacuity.SyncMore.freshHot](tests/vacuity/SyncMore.lean). A node actually records the chat op at time 100; prove time 200 is inside hot interval and derive hot membership. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
-| [`lane_control`](engine/wire/LaneLaws.lean#L487-L490) | **kernel-witness**: [Vacuity.SyncMore.controlUrgent](tests/vacuity/SyncMore.lean). A wanted message id produces a real one-id control op; prove request count fits urgent threshold. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
+| [`hot_ids`](engine/wire/LaneLaws.lean#L335-L338) | **kernel-witness**: [Vacuity.SyncMore.freshHot](tests/vacuity/SyncMore.lean). A node actually records the chat op at time 100; prove time 200 is inside hot interval and derive hot membership. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
+| [`lane_control`](engine/wire/LaneLaws.lean#L324-L327) | **kernel-witness**: [Vacuity.SyncMore.controlUrgent](tests/vacuity/SyncMore.lean). A wanted message id produces a real one-id control op; prove request count fits urgent threshold. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`fresh_served`](engine/wire/WorldLaws.lean#L632-L639) | **kernel-witness**: [Vacuity.WireMore.freshServed](tests/vacuity/WireMore.lean). Greeting stored and owed, locally hot at100, served at200 within hotMs; all premises proven and exact urgent sends result. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`write_hot`](engine/wire/WorldLaws.lean#L1446-L1451) | **kernel-witness**: [Vacuity.WireMore.writtenHot](tests/vacuity/WireMore.lean). Actually writes greeting into empty node/store, independently proves returned stored=[msg.id], then proves that id recorded hot at time100. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`onWrite_receives`](app/Proofs.lean#L3200-L3208) | **runtime-witness**: [Vacuity.StorageEffects.writeCertificate](tests/vacuity/StorageEffects.lean). A new signed recovery post is natively proved absent and shared in the already populated receiver. The singleton input proves representation compatibility; absence discharges the existing-store compatibility premise. The certificate applies the complete write-handler receipt chain, including write_store_tape, then the runner checks exact bytes and a valid message verdict after the actual handler. Replacing the fresh post with the already stored message rejects the fresh-write certificate. The theorem guarantees byte commitment, not automatic validity of inputs with absent prerequisites. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
@@ -2526,12 +2517,18 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`Suite.Good`](engine/wire/Noise.lean#L71-L82) | **conditional**: [Vacuity.Contracts.noiseContractCertificate](tests/vacuity/Contracts.lean). Valid keys come only from HKDF, whose outputs are SHA-256 digests; the running suite decides a malformed secret in Lean. The running suite has the contract given the crypto trust file (engine/core/Trust.lean, Trust.NativeCrypto: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes) (suite_good). The executable checks native roundtrips, DH symmetry for every pair of 0/1/31/32/33/64-byte secrets, and HKDF key validity. Conditional on the trust file. |
 | [`Seal.Good`](app/community/Op.lean#L51-L59) | **conditional**: [Vacuity.SealAudit.goodConditional](tests/vacuity/SealAudit.lean). Key and nonce sizes are in the types (Key32, Nonce24), so the contract has no size premise. The running suite cryptoSeal has it given the crypto trust file (engine/core/Trust.lean, Trust.NativeCrypto: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes) (cryptoSeal_good); the bridge is exercised and the executable checks native roundtrips across 64-byte block boundaries. Conditional on the trust file, which finite roundtrips cannot prove. |
 | [`NativeCrypto`](engine/core/Trust.lean#L62-L67) | **conditional**: [Vacuity.CryptoTrust.nativeConditional](tests/vacuity/CryptoTrust.lean). The crypto trust file, bridged to both running suites. Each part tested from both sides: the native crates satisfy it on real inputs (5 keys, 3 nonces, 3 associated data, plaintexts 0-70001 bytes; X25519 for every key pair; SHA-256 at 7 lengths), toy implementations satisfy each shape in the kernel (toyRoundtrip, toyAgree, toyDigest), and broken ones fail it in the kernel (lossyRefused, taglessRefused, ownRefused, zeroPubRefused, idHashRefused). The crates refuse every other key and nonce size. A named premise, never an axiom. |
+| [`world_step_moves`](app/Proofs.lean#L2937-L2940) | **runtime-witness**: [Vacuity.StorageEffects.eventCertificate](tests/vacuity/StorageEffects.lean). The exercised full-handler certificate obtains source reachability and settlement through empty_trace_store and its world_trace_moves/world_step_moves derivation for the concrete nonempty production bootstrap prefix. Native checks establish a valid signed message and live session at the endpoint, then run all four handlers, including a close that really purges connection ops. An unheld message rejects the certificate. This checks the applied preservation chain; it does not assert whole-app liveness. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
 | [`world_trace_moves`](app/Proofs.lean#L2975-L2977) | **runtime-witness**: [Vacuity.StorageEffects.eventCertificate](tests/vacuity/StorageEffects.lean). The exercised full-handler certificate obtains source reachability and settlement through empty_trace_store and its world_trace_moves/world_step_moves derivation for the concrete nonempty production bootstrap prefix. Native checks establish a valid signed message and live session at the endpoint, then run all four handlers, including a close that really purges connection ops. An unheld message rejects the certificate. This checks the applied preservation chain; it does not assert whole-app liveness. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
 | [`empty_trace_store`](app/Proofs.lean#L2982-L2986) | **runtime-witness**: [Vacuity.StorageEffects.eventCertificate](tests/vacuity/StorageEffects.lean). The exercised full-handler certificate obtains source reachability and settlement through empty_trace_store and its world_trace_moves/world_step_moves derivation for the concrete nonempty production bootstrap prefix. Native checks establish a valid signed message and live session at the endpoint, then run all four handlers, including a close that really purges connection ops. An unheld message rejects the certificate. This checks the applied preservation chain; it does not assert whole-app liveness. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
+| [`Run.shared_retained`](app/Proofs.lean#L2994-L3000) | **runtime-witness**: [Vacuity.StorageEffects.runCertificate](tests/vacuity/StorageEffects.lean). The native runner starts the actual infinite scheduler from a populated production world and checks the signed message is already held and shared. It applies retention across nine subsequent ticks/deliveries, independently checks exact final bytes, and rejects an absent recovery post. The interval is nonzero and initial reachability/history agreement derive from the actual prefix. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
+| [`world_step_history`](app/Proofs.lean#L3466-L3469) | **runtime-witness**: [Vacuity.StorageEffects.historyCertificate](tests/vacuity/StorageEffects.lean). The certificate derives log/store agreement from empty_trace_history over the concrete production prefix, using the actual world-step/trace history laws, and applies production_step_history at a checked nonempty catalog position. Real write/frame/tick/close calls preserve that point; explicit session purge and fresh shared append exercise both history changes. Zero/out-of-range positions are rejected. Shared history order is derived through the actual deduplicating writer, not assumed from an arbitrary raw ingest history. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
 | [`world_trace_history`](app/Proofs.lean#L3504-L3506) | **runtime-witness**: [Vacuity.StorageEffects.historyCertificate](tests/vacuity/StorageEffects.lean). The certificate derives log/store agreement from empty_trace_history over the concrete production prefix, using the actual world-step/trace history laws, and applies production_step_history at a checked nonempty catalog position. Real write/frame/tick/close calls preserve that point; explicit session purge and fresh shared append exercise both history changes. Zero/out-of-range positions are rejected. Shared history order is derived through the actual deduplicating writer, not assumed from an arbitrary raw ingest history. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
 | [`empty_trace_history`](app/Proofs.lean#L3512-L3516) | **runtime-witness**: [Vacuity.StorageEffects.historyCertificate](tests/vacuity/StorageEffects.lean). The certificate derives log/store agreement from empty_trace_history over the concrete production prefix, using the actual world-step/trace history laws, and applies production_step_history at a checked nonempty catalog position. Real write/frame/tick/close calls preserve that point; explicit session purge and fresh shared append exercise both history changes. Zero/out-of-range positions are rejected. Shared history order is derived through the actual deduplicating writer, not assumed from an arbitrary raw ingest history. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
+| [`history`](app/Proofs.lean#L3524-L3529) | **runtime-witness**: [Vacuity.StorageEffects.runCertificate](tests/vacuity/StorageEffects.lean). A nonempty signed community continues through nine actual scheduled events. The certificate applies Run.history and discharges its starting reachability and log/store agreement from the exact production prefix, obtaining an appended shared-history suffix. The runner checks retained bytes and rejects an absent-message control; no quiescence or fairness premise is needed for this preservation law. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
+| [`world_step_unique`](app/Proofs.lean#L3988-L3992) | **kernel-witness**: [Vacuity.NodeUnique.production_prefix](tests/vacuity/NodeUnique.lean). Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions. |
 | [`world_trace_unique`](app/Proofs.lean#L4031-L4033) | **kernel-witness**: [Vacuity.NodeUnique.production_prefix](tests/vacuity/NodeUnique.lean). Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions. |
 | [`empty_trace_unique`](app/Proofs.lean#L4038-L4042) | **kernel-witness**: [Vacuity.NodeUnique.production_prefix](tests/vacuity/NodeUnique.lean). Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions. |
+| [`unique`](app/Proofs.lean#L4046-L4050) | **kernel-witness**: [Vacuity.NodeUnique.production_run](tests/vacuity/NodeUnique.lean). Generated wiring-table alias for the same theorem. The existing production-hook infinite Run gets uniqueness at every position from boot and actual World.step, without a fairness assumption. This kernel instance does not claim an empty schedule establishes a session; separate nonempty actual-handler and signed native witnesses cover that boundary. |
 | [`run_count`](app/Proofs.lean#L2584-L2585) | **runtime-witness**: [Vacuity.ConnectionProgress.tapeReads](tests/vacuity/ConnectionProgress.lean). Native signed approved-join fixture checks one stored request, its exact bytes, positive trust and arrival address. The entropy-tape interpreter reads those values without changing its memory; the certificate applies all four read equations. Store/OS refinement remains separate. |
 | [`run_get`](app/Proofs.lean#L2587-L2588) | **runtime-witness**: [Vacuity.ConnectionProgress.tapeReads](tests/vacuity/ConnectionProgress.lean). Native signed approved-join fixture checks one stored request, its exact bytes, positive trust and arrival address. The entropy-tape interpreter reads those values without changing its memory; the certificate applies all four read equations. Store/OS refinement remains separate. |
 | [`run_view`](app/Proofs.lean#L2590-L2591) | **runtime-witness**: [Vacuity.ConnectionProgress.tapeReads](tests/vacuity/ConnectionProgress.lean). Native signed approved-join fixture checks one stored request, its exact bytes, positive trust and arrival address. The entropy-tape interpreter reads those values without changing its memory; the certificate applies all four read equations. Store/OS refinement remains separate. |
@@ -2558,12 +2555,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`World.settle`](engine/renderer/BoardLaws.lean#L407-L412) | **kernel-witness**: [Vacuity.RendererModels.worldSettles](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`seen_take`](engine/renderer/BoardLaws.lean#L247-L248) | **kernel-witness**: [Vacuity.RendererModels.boardSeen](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`production_step_unique`](app/Proofs.lean#L3969-L3973) | **kernel-witness**: [Vacuity.NodeUnique.production_prefix](tests/vacuity/NodeUnique.lean). Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions. |
-| [`world_step_moves`](app/Proofs.lean#L2937-L2940) | **runtime-witness**: [Vacuity.StorageEffects.eventCertificate](tests/vacuity/StorageEffects.lean). The exercised full-handler certificate obtains source reachability and settlement through empty_trace_store and its world_trace_moves/world_step_moves derivation for the concrete nonempty production bootstrap prefix. Native checks establish a valid signed message and live session at the endpoint, then run all four handlers, including a close that really purges connection ops. An unheld message rejects the certificate. This checks the applied preservation chain; it does not assert whole-app liveness. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
-| [`Run.shared_retained`](app/Proofs.lean#L2994-L3000) | **runtime-witness**: [Vacuity.StorageEffects.runCertificate](tests/vacuity/StorageEffects.lean). The native runner starts the actual infinite scheduler from a populated production world and checks the signed message is already held and shared. It applies retention across nine subsequent ticks/deliveries, independently checks exact final bytes, and rejects an absent recovery post. The interval is nonzero and initial reachability/history agreement derive from the actual prefix. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
-| [`world_step_history`](app/Proofs.lean#L3466-L3469) | **runtime-witness**: [Vacuity.StorageEffects.historyCertificate](tests/vacuity/StorageEffects.lean). The certificate derives log/store agreement from empty_trace_history over the concrete production prefix, using the actual world-step/trace history laws, and applies production_step_history at a checked nonempty catalog position. Real write/frame/tick/close calls preserve that point; explicit session purge and fresh shared append exercise both history changes. Zero/out-of-range positions are rejected. Shared history order is derived through the actual deduplicating writer, not assumed from an arbitrary raw ingest history. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
-| [`history`](app/Proofs.lean#L3524-L3529) | **runtime-witness**: [Vacuity.StorageEffects.runCertificate](tests/vacuity/StorageEffects.lean). A nonempty signed community continues through nine actual scheduled events. The certificate applies Run.history and discharges its starting reachability and log/store agreement from the exact production prefix, obtaining an appended shared-history suffix. The runner checks retained bytes and rejects an absent-message control; no quiescence or fairness premise is needed for this preservation law. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
-| [`world_step_unique`](app/Proofs.lean#L3988-L3992) | **kernel-witness**: [Vacuity.NodeUnique.production_prefix](tests/vacuity/NodeUnique.lean). Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions. |
-| [`unique`](app/Proofs.lean#L4046-L4050) | **kernel-witness**: [Vacuity.NodeUnique.production_run](tests/vacuity/NodeUnique.lean). Generated wiring-table alias for the same theorem. The existing production-hook infinite Run gets uniqueness at every position from boot and actual World.step, without a fairness assumption. This kernel instance does not claim an empty schedule establishes a session; separate nonempty actual-handler and signed native witnesses cover that boundary. |
 | [`has_ofList`](engine/core/WindowIndex.lean#L452-L453) | **kernel-witness**: [Vacuity.Query.indexHas](tests/vacuity/Query.lean). Two subscriptions: bounded message-1..message-2 and whole community list; proves subscription7 present. Synthetic model fixture; no collected real-user traffic. |
 | [`ofList_wf`](engine/core/WindowIndex.lean#L445-L445) | **kernel-witness**: [Vacuity.Query.indexWF](tests/vacuity/Query.lean). Builds actual two-window subscription index and establishes its invariant. Synthetic model fixture; no collected real-user traffic. |
 | [`held_run_observed`](engine/sync/SweepRun.lean#L51-L55) | **kernel-witness**: [Vacuity.Sweep.heldRun](tests/vacuity/Sweep.lean). The concrete one-row Held catalog has an independently checked existing row and returns the actual nonempty synthetic message. The named theorem identifies the running Sweep.run call with its pure input observation. Native SQL refinement and socket admission remain separate. |
@@ -2608,7 +2599,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`run_fresh`](app/Proofs.lean#L2600-L2601) | Pending: no concrete premise witness audited yet |
 | [`fair_loss_delivered`](engine/sync/SweepLaws.lean#L214-L218) | Pending: no concrete premise witness audited yet |
 | [`empty_log_agrees`](engine/sync/SharedLog.lean#L11-L11) | Pending: no concrete premise witness audited yet |
-| [`nodup`](engine/wire/RetryOrderLaws.lean#L214-L215) | Pending: no concrete premise witness audited yet |
 | [`nodup_full`](app/community/Family.lean#L1504-L1506) | Pending: no concrete premise witness audited yet |
 | [`sum_map_add`](app/community/channel/message/Proofs.lean#L223-L224) | Pending: no concrete premise witness audited yet |
 | [`Costs.mono`](engine/core/Cost.lean#L397-L397) | Pending: no concrete premise witness audited yet |
@@ -2644,10 +2634,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`run_contiguous`](engine/renderer/bidi/Laws.lean#L84-L87) | **kernel-witness**: [Vacuity.RendererSets.numberRun](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`inserts_size`](engine/sync/BoundsLaws.lean#L20-L21) | Pending: no concrete premise witness audited yet |
 | [`filter_idxOf_le`](engine/sync/ClosureDelivery.lean#L59-L61) | Pending: no concrete premise witness audited yet |
-| [`finite_eventually_held`](engine/sync/ClosureDelivery.lean#L198-L204) | Pending: no concrete premise witness audited yet |
-| [`keeps`](engine/sync/ClosureStore.lean#L276-L277) | Pending: no concrete premise witness audited yet |
-| [`retains`](engine/sync/ClosureStore.lean#L281-L282) | Pending: no concrete premise witness audited yet |
-| [`settled`](engine/sync/ClosureStore.lean#L263-L263) | Pending: no concrete premise witness audited yet |
 | [`absentFold_covers`](engine/sync/ClosureStore.lean#L85-L89) | **runtime-witness**: [Vacuity.ClosureDelivery.absentFoldCoversWitness](tests/vacuity/ClosureDelivery.lean). Native store lookup proves the fresh signed message is absent from the populated community; its occurrence in a four-operation batch is proved in the kernel. The theorem then witnesses preservation of its id through the actual absent fold despite retransmission and already stored inputs. The required absence premise is checked on this fixture; this id-coverage theorem requires no collision assumption. |
 | [`absentFold_keeps`](engine/sync/ClosureStore.lean#L68-L69) | **kernel-witness**: [Vacuity.ClosureDelivery.absentFoldKeepsWitness](tests/vacuity/ClosureDelivery.lean). A closed kernel proof discharges membership of the signed message in the initial nonempty accumulator and applies retention through four actual absentStep iterations containing a stored root, a fresh signed message, a stored message, and a retransmission. Native checks confirm the exact two-operation deduplicated result. |
 | [`absentFold_source`](engine/sync/ClosureStore.lean#L74-L75) | **runtime-witness**: [Vacuity.ClosureDelivery.absentFoldSourceWitness](tests/vacuity/ClosureDelivery.lean). Native evaluation establishes that the fresh signed message appears after the nonempty mixed/repeated input fold, then applies the actual provenance theorem. The runner checks the exact result and rejects an unrelated removal absent from both the accumulator and input batch. |
@@ -2677,8 +2663,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`WriteAdmission.admitted_count`](engine/wire/WriteAdmission.lean#L45-L47) | **kernel-witness**: [Vacuity.WriteAdmission.countFits](tests/vacuity/WriteAdmission.lean). A nonempty op is admitted with one queued entry at the exact two-entry cap. The theorem gives the pending-count bound; a one-entry-cap control rejects the same input. This is admission through App.writeAll, not a bound on every app queue or recovery path. |
 | [`WriteAdmission.admitted_bytes`](engine/wire/WriteAdmission.lean#L57-L59) | **kernel-witness**: [Vacuity.WriteAdmission.bytesFit](tests/vacuity/WriteAdmission.lean). The real admission predicate accepts a nonempty encoded op plus existing queued bytes within a finite byte cap; the theorem applies to that result. A one-byte cap rejects. Actual Send/SQLite boundary and exhausted-budget checks, plus three mutations, run in host:write-admission. |
 | [`write_first`](engine/wire/LaneLaws.lean#L255-L257) | **kernel-witness**: [Vacuity.SyncMore.firstWrite](tests/vacuity/SyncMore.lean). Two queued writes and two frames: the initial write-preferred turn selects Alice and switches preference to events. This first-turn law does not claim permanent write priority. |
-| [`Sync.write_within`](engine/wire/LaneLaws.lean#L408-L412) | **kernel-witness**: [Vacuity.SyncMore.writeDeadline](tests/vacuity/SyncMore.lean). An explicit infinite run starts with two writes and two frames, with both producers appending on every iteration forever. The second original write is selected before iteration 4 by the actual alternating chooser; a separate exact-prefix check requires write/frame/write/frame. The bound counts completed iterations, not elapsed time. |
-| [`Sync.event_within`](engine/wire/LaneLaws.lean#L417-L421) | **kernel-witness**: [Vacuity.FairScheduler.eventDeadline](tests/vacuity/FairScheduler.lean). An explicit infinite execution starts with two writes and two incoming frames; both producers append work every iteration forever. The second original frame is selected before iteration 4. Exact-prefix and fallback checks reject the old write-starvation behavior. Bound counts completed chooser iterations; native thread/channel operation and I/O completion remain outside this theorem. |
 | [`Outbox.native_batch_bounded`](engine/wire/OutboxLaws.lean#L64-L68) | **kernel-witness**: [Vacuity.RetryReservation.nativeBatch](tests/vacuity/RetryReservation.lean). The nonempty outbox satisfies both byte/frame caps and the retry size bound. Applying the production batch theorem bounds the length-prefixed native payload by 2*sockCap+maxFrame+4*(2*sockFrames+1). A one-byte cap is explicitly rejected. Closed kernel fixture uses the actual Outbox operations with a local urgent frame, protected handshake, ordinary backlog and reserved retry. Native transport and per-session admission are separate; this is not a whole-app delivery theorem. |
 | [`Outbox.retry_next_batch`](engine/wire/OutboxLaws.lean#L77-L78) | **kernel-witness**: [Vacuity.RetryReservation.retryNext](tests/vacuity/RetryReservation.lean). The admitted retry is in the very next batch while local urgent output remains first and ordinary sync is present. No quiet period or ordinary-queue capacity is assumed. Closed kernel fixture uses the actual Outbox operations with a local urgent frame, protected handshake, ordinary backlog and reserved retry. Native transport and per-session admission are separate; this is not a whole-app delivery theorem. |
 | [`Outbox.push_preserves_reserved`](engine/wire/OutboxLaws.lean#L45-L49) | **kernel-witness**: [Vacuity.RetryReservation.normalOverflowKept](tests/vacuity/RetryReservation.lean). A normal batch overflowing a zero-byte ordinary cap cannot erase the already queued retry or protected control; the actual push returns without closing this transport. Closed kernel fixture uses the actual Outbox operations with a local urgent frame, protected handshake, ordinary backlog and reserved retry. Native transport and per-session admission are separate; this is not a whole-app delivery theorem. |
@@ -2838,9 +2822,8 @@ The transport freeze laws are [`Registry.freeze_input`],
 
 The app admission laws are [`WriteAdmission.admitted_frames`],
 [`WriteAdmission.admitted_count`] and [`WriteAdmission.admitted_bytes`].
-The previous alternating selector's [`write_first`], [`Sync.write_within`] and
-[`Sync.event_within`] remain checked component laws; the running policy now uses
-the `Priority` laws above. A local entry with `p` predecessors is selected
+[`write_first`] remains a checked component law of the running `Inbox.next`;
+the running policy's bounds are the `Priority` laws above. A local entry with `p` predecessors is selected
 within `2 * (p + 1)` completed turns. With the nested peer mailboxes, an
 admitted peer frame is served or explicitly retired within
 `4 * (maxSocks + 1)` turns. These bounds allow indefinitely continuing

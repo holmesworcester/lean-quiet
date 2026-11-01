@@ -426,8 +426,6 @@ open Engine Community
 #print axioms Engine.Sync.honest_no_drop_runs
 #print axioms Engine.Sync.asks_expire
 #print axioms Engine.Sync.write_first
-#print axioms Engine.Sync.write_within
-#print axioms Engine.Sync.event_within
 #print axioms Engine.Sync.Tick.cofinal
 #print axioms Connection.Execution.fairRun_fair
 #print axioms Connection.Execution.successful_fair_extension
