@@ -128,7 +128,7 @@ bytes with the same zlib.
 | `make:clean-room` | `make install && make run` from a git clone of `HEAD` in fresh `ubuntu:24.04`, `ubuntu:22.04` and `debian:12` containers, as a user with sudo: `make check` fails and names the packages; a timed cold `make install`; a second one that redoes nothing; under Xvfb, `make run` and then `make online` must each paint a window (a screenshot of the empty screen must fail that check), keep running, and stop on SIGTERM |
 
 The gate (`ci/local.sh`, before every push) runs `make:assets` (part
-`make:assets`, about a second): a change that makes the published tarball
+`make:assets`, about 15 seconds): a change that makes the published tarball
 stale fails it until the tarball is packed and published again.
 `ci/local.sh --full` also runs `make:clean-room` and `make:verify-test`
 (part `make:verify`, which needs the Lean 4.35.0 toolchain and

@@ -105,6 +105,24 @@ fi
 grep -q 'changed since the tarball was packed' "$logs/pin-makers.log" || fail "the changed scripts were not named"
 ok "control: changed asset scripts fail the pin check"
 
+# Packing a real assets/ whose NOTICE is older than tools/third_party's is
+# refused; the same copy, current, packs.
+if [ -f "$top/assets/NOTICE.txt" ] && (cd "$top/assets" && sha256sum -c --status "$top/tools/make/assets.sha256"); then
+  cp -R "$top/assets" "$w/real-copy"
+  python3 "$top/tools/make/assets.py" pack --assets "$w/real-copy" --out "$w/out-real" \
+    --manifest "$w/real-list" --pin "$w/real-pin" > "$logs/pack-current.log" 2>&1 || fail "a current assets/ copy was refused"
+  echo 'an older notice' > "$w/real-copy/NOTICE.txt"
+  if python3 "$top/tools/make/assets.py" pack --assets "$w/real-copy" --out "$w/out-real" \
+    --manifest "$w/real-list" --pin "$w/real-pin" > "$logs/pack-stale.log" 2>&1; then
+    fail "an assets/ with a stale NOTICE.txt was packed"
+  fi
+  grep -q '^stale: NOTICE.txt' "$logs/pack-stale.log" || fail "the stale NOTICE.txt was not named"
+  rm -rf "$w/real-copy" "$w/out-real"
+  ok "control: packing an assets/ whose NOTICE is stale is refused (a current one packs)"
+else
+  echo "skip the stale-copy control: assets/ is not this tree's (tools/fetch_assets.sh)"
+fi
+
 . "$top/tools/make/assets.pin"
 if [ -f "$top/out/make/$LQ_ASSETS_NAME" ]; then
   rm -rf "$w/real"

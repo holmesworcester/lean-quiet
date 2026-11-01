@@ -107,6 +107,13 @@ def pack(src: Path, out_dir: Path, against_pin: bool, manifest: Path = MANIFEST,
         f'LQ_ASSETS_SHA256={digest}\n'
         f'LQ_ASSETS_MAKERS={makers_digest()}\n')
     print(f'wrote {manifest} and {pin}')
+    # A copy in assets/ older than its source (a NOTICE edited since the
+    # last build) would be published stale: refuse it. (Made-up folders,
+    # without a NOTICE, are the tests'.)
+    if (src / 'NOTICE.txt').exists() and check(manifest, pin):
+        print('assets.py: the packed files are not this tree\'s; run tools/noto_assets.sh '
+              '(or tools/fetch_assets.sh) and pack again', file=sys.stderr)
+        return 1
     return 0
 
 
