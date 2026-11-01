@@ -184,6 +184,131 @@ theorem hold_wants (fam : Family F) (cfg : Config) (c : Conn) (r : Id) (ids : Li
   have hmax : 0 < cfg.maxIds := Nat.lt_of_lt_of_le (List.length_pos_of_mem hx) hl
   exact chunks_want cfg _ hmax (admitAsks_mem _ _ _ hm hq (by simp at hlen ⊢; omega))
 
+/-- A round's answers want only ids its claims list. Stated for any
+reading `f` of an answer's wants (the node's own lambda among them). -/
+theorem answer_wants_le {α : Type} (key : α → Key) (ident : α → ByteArray) (hh : ByteArray → ByteArray)
+    (P : Params) (mine : List α) (f : Out → List Id) (fw : ∀ xs, f (.want xs) = xs)
+    (fh : ∀ xs, f (.hold xs) = []) (fc : ∀ c, f (.claim c) = []) (cs : List Claim) :
+    ((cs.flatMap (answer key ident hh P mine)).flatMap f).length ≤ (claimIds cs).length := by
+  have hcl : ∀ (L : List Range) (g : Range → Claim), ((L.map fun q => Out.claim (g q)).flatMap f) = [] := by
+    intro L g; induction L with
+    | nil => rfl
+    | cons _ _ ih => simp [fc, ih]
+  induction cs with
+  | nil => simp [claimIds]
+  | cons c t ih =>
+    have e : claimIds (c :: t) = claimIds [c] ++ claimIds t := by simp [claimIds]
+    rw [e, List.flatMap_cons, List.flatMap_append, List.length_append, List.length_append]
+    have : ((answer key ident hh P mine c).flatMap f).length ≤ (claimIds [c]).length := by
+      cases c with
+      | fp r n l =>
+        simp only [answer]
+        split
+        · simp
+        · split
+          · simp [fc]
+          · rw [hcl]; simp
+      | ids r xs =>
+        simp only [answer, List.flatMap_cons, List.flatMap_nil, fh, fw, List.nil_append, List.append_nil]
+        simp only [claimIds, List.flatMap_cons, List.flatMap_nil, List.append_nil]
+        exact List.length_filter_le _ _
+    omega
+
+/-- Admitting asks into a step that sends their wants: the new asks are
+the old ones or wanted in the step, and they grow by at most the ids
+offered. -/
+theorem admit_goal (cfg : Config) (A : Std.HashSet Id) (raw : List Id) (q : Op) (B : List Op) (n : Nat)
+    (hmax : 0 < cfg.maxIds) (hn : raw.length ≤ n) :
+    (∀ x, x ∈ (admitAsks cfg.maxKnown A raw).foldl (·.insert ·) A →
+        x ∈ A ∨ WantIn (q :: (B ++ chunks cfg (admitAsks cfg.maxKnown A raw) .want)) x) ∧
+      ((admitAsks cfg.maxKnown A raw).foldl (·.insert ·) A).size ≤ A.size + n := by
+  refine ⟨fun x hx => ?_, ?_⟩
+  · rcases (foldl_insert_mem _ _).1 hx with hx | hx
+    · exact Or.inl hx
+    · obtain ⟨L, hxL, hL⟩ := chunks_want cfg _ hmax hx
+      exact Or.inr ⟨L, hxL, List.mem_cons_of_mem _ (List.mem_append_right _ hL)⟩
+  · have h1 := foldl_insert_size (admitAsks cfg.maxKnown A raw) A
+    have h2 := admitAsks_length cfg.maxKnown A raw
+    omega
+
+/-- **What a round message makes a connection ask**, it wants on the wire
+in the same step; and its asks grow by at most the ids the claims list. -/
+theorem rbsr_asked (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (now : Nat)
+    (hmax : 0 < cfg.maxIds) :
+    (∀ x, x ∈ (c.onRbsr cfg ix r k cs now).conn.asked → x ∈ c.asked ∨ WantIn (c.onRbsr cfg ix r k cs now).send x) ∧
+      (c.onRbsr cfg ix r k cs now).conn.asked.size ≤ c.asked.size + (claimIds cs).length := by
+  unfold Conn.onRbsr
+  split
+  · exact ⟨fun x hx => Or.inl hx, Nat.le_add_right _ _⟩
+  · split
+    · exact ⟨fun x hx => Or.inl hx, Nat.le_add_right _ _⟩
+    · dsimp only
+      split
+      · exact ⟨fun x hx => Or.inl hx, Nat.le_add_right _ _⟩
+      · have e : (c.beginRound k).asked = c.asked := rfl
+        split
+        all_goals
+          dsimp only
+          simp only [e]
+          refine admit_goal cfg _ _ _ _ (claimIds cs).length hmax ?_
+          apply answer_wants_le <;> intro _ <;> rfl
+
+/-- **What a payload's step asks**, it asked before or wants on the wire
+in the same step; and its asks grow by at most the payload's `asksOf`. -/
+theorem recv_asked (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b : ByteArray) (now : Nat)
+    (h : Held F) (hmax : 0 < cfg.maxIds) :
+    (∀ x, x ∈ ((Conn.recv fam cfg ix c b now : HeldM F Step).run h).1.conn.asked →
+        x ∈ c.asked ∨ WantIn ((Conn.recv fam cfg ix c b now : HeldM F Step).run h).1.send x) ∧
+      ((Conn.recv fam cfg ix c b now : HeldM F Step).run h).1.conn.asked.size ≤ c.asked.size + asksOf b := by
+  unfold Conn.recv asksOf
+  cases hd : Op.decode b with
+  | none => exact ⟨fun x hx => Or.inl hx, by simp⟩
+  | some o =>
+    simp only
+    cases hm : Msg.ofOp o with
+    | some m =>
+      cases m with
+      | hello f =>
+        simp only [HeldM.run_pure]
+        split
+        · unfold Conn.start; split
+          · exact ⟨fun x hx => Or.inl hx, by simp⟩
+          · exact ⟨fun x hx => Or.inl hx, by simp [Conn.beginRound]⟩
+        · exact ⟨fun x hx => Or.inl hx, by simp⟩
+      | rbsr r k cs =>
+        simp only [HeldM.run_pure]
+        exact rbsr_asked cfg ix { c with heard := now } r k cs now hmax
+      | hold r ids =>
+        simp only [HeldM.run_bind, HeldM.run_pure]
+        simp only [show ∀ m : HeldM F Step, m.run h = m h from fun _ => rfl]
+        rw [onHold_apply]
+        generalize hc' : ({ c with heard := now } : Conn) = c'
+        have hca : c'.asked = c.asked := by rw [← hc']
+        split
+        · exact ⟨fun x hx => Or.inl (hca ▸ hx), by rw [hca]; exact Nat.le_add_right _ _⟩
+        · split
+          · exact ⟨fun x hx => Or.inl (hca ▸ hx), by rw [hca]; exact Nat.le_add_right _ _⟩
+          · obtain ⟨hlen, _⟩ := wantStep_fold fam h.db c' r ids []
+            refine ⟨fun x hx => ?_, ?_⟩
+            · rcases (foldl_insert_mem _ _).1 hx with hx | hx
+              · exact Or.inl (hca ▸ hx)
+              · exact Or.inr (chunks_want cfg _ hmax hx)
+            · have h1 := foldl_insert_size (admitAsks cfg.maxKnown c'.asked
+                (ids.foldl (wantStep fam h.db c' r) []).reverse) c'.asked
+              have h2 := admitAsks_length cfg.maxKnown c'.asked (ids.foldl (wantStep fam h.db c' r) []).reverse
+              simp only [List.length_reverse, List.length_nil, Nat.zero_add] at h2 hlen
+              simp only [hca] at h1 h2 ⊢
+              omega
+      | want ids =>
+        simp only [HeldM.run_pure, Conn.onWant]
+        split <;> exact ⟨fun x hx => Or.inl hx, by simp⟩
+    | none =>
+      simp only
+      split
+      · exact ⟨fun x hx => Or.inl hx, by simp⟩
+      · refine ⟨fun x hx => Or.inl (Std.HashSet.mem_of_mem_erase hx), ?_⟩
+        exact Nat.le_trans (Std.HashSet.size_erase_le (m := c.asked) (k := o.id)) (Nat.le_add_right _ _)
+
 /-! ## The stream keeps a connection's asks -/
 
 theorem filedStep_asked (cfg : Config) (fam : Family F) (db : DB F) (st : List (Id × Id) × Conn) (i : Id) :
