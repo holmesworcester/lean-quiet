@@ -435,8 +435,9 @@ the node or a socket thread into the pool:
   The runner handles one event per turn and checks the clock every
   turn, so the clock is never starved by events, and events are handled
   in order.
-- **Picture freshness.** A picture's decode is spawned once
-  (`Pics.image_twice`); with at most `inflight` decodes on the pool,
+- **Picture freshness.** A picture's decode is started once per ticket:
+  the pool's second request reuses the first's job (`Work.request_again`,
+  over the running `Pool.request`); with at most `inflight` decodes on the pool,
   nearest the viewport first, a picture waits at most
   ⌈inflight / P⌉ + 1 decodes of at most one `slice` each. Today the
   number in flight is not capped (❌, a3's row).

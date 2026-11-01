@@ -769,34 +769,6 @@
     "module": "tests.vacuity.RendererSets",
     "detail": "Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed."
   },
-  "decoded_started": {
-    "status": "kernel-witness",
-    "theorem": "Pics.decoded_started",
-    "witness": "Vacuity.RendererPics.started",
-    "module": "tests.vacuity.RendererPics",
-    "detail": "Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline."
-  },
-  "image_steady": {
-    "status": "kernel-witness",
-    "theorem": "Pics.image_steady",
-    "witness": "Vacuity.RendererPics.noWork",
-    "module": "tests.vacuity.RendererPics",
-    "detail": "Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline."
-  },
-  "image_settles": {
-    "status": "kernel-witness",
-    "theorem": "Pics.image_settles",
-    "witness": "Vacuity.RendererPics.settles",
-    "module": "tests.vacuity.RendererPics",
-    "detail": "Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline."
-  },
-  "image_twice": {
-    "status": "kernel-witness",
-    "theorem": "Pics.image_twice",
-    "witness": "Vacuity.RendererPics.twice",
-    "module": "tests.vacuity.RendererPics",
-    "detail": "Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline."
-  },
   "NavLaws.back_open": {
     "status": "runtime-witness",
     "theorem": "NavLaws.back_open",

@@ -372,7 +372,7 @@ model unless a proven bridge ties the model to running code
 `tests/wiring-models.txt`, a list that only shrinks, does not name.
 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1382 rest on Lean's standard axioms only, and about four fifths of its theorems (1105 of 1293, not counting 66 proof steps and 23 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1378 rest on Lean's standard axioms only, and about four fifths of its theorems (1105 of 1289, not counting 66 proof steps and 23 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -463,7 +463,7 @@ a new device on its own node (the 🟡 row under Connections).
 | ⬜ | 🥊🥊 | **Sync is efficient.** Each op is sent at most once per connection, and a round needs at most fan·Δ·⌈log n⌉ claims. | |
 | ⬜ | 🥊 | **The cached Merkle tree's labels are `lbl`'s,** for O(log n) fingerprints with no change on the wire. | |
 | | | **The screen** | |
-| ✅ | 🥊🥊🥊 | **Component work has revocable ownership.** In the reader's and raster worker's shared demand plan, a key is held iff some component declares it, revoked completions are rejected, and visible work goes first. End-to-end latency remains unproved ([details](docs/PERF.md#component-demand-the-running-starting-point)). | [`Demand.owned_iff`], [`Demand.complete_retired`], [`Demand.next_visible`], [`Demand.retained_prefix`], [`Demand.retained_ticket`], [`Demand.remount_rejects`] |
+| ✅ | 🥊🥊🥊 | **Component work has revocable ownership.** In the reader's and raster worker's shared demand plan, a key is held iff some component declares it, revoked completions are rejected, visible work goes first, and a request again reuses the job the first started (one decode per ticket). End-to-end latency remains unproved ([details](docs/PERF.md#component-demand-the-running-starting-point)). | [`Demand.owned_iff`], [`Demand.complete_retired`], [`Demand.next_visible`], [`Demand.retained_prefix`], [`Demand.retained_ticket`], [`Demand.remount_rejects`], [`request_again`] |
 | 🟡 | 🥊🥊🥊 | **Visible work retains its turn.** The actual reader/raster chooser selects or retires a continuously visible queued item within `p + 1` attempts, with `p` preceding entries. Not yet: whole-worker progress and queue capacity. | [`Demand.next_map`], [`Demand.takeBy_map`], [`Demand.filter_rank`], [`Demand.take_progress`], [`Demand.take_changes`], [`Demand.selected_or_retired`], [`Demand.selected_within`] |
 | ✅ | 🥊🥊 | **Unmounted pages issue no new reads or writes.** The running read and write gates reject unmounted pages and old leases, even after a remount, and the reader's live cache keeps exactly the reads its current wants hold (`Live.keep`, as the reader prunes). | [`unmount_read`], [`unmount_write`], [`old_callback`], [`unmounted_quiet`], [`old_quiet`], [`live_exact`], [`mounted_runs`] |
 | 🟡 | 🥊🥊 | **Lifecycle state survives a restart or resize.** The running checkpoint keeps the page and the message anchor, and a resize keeps the anchor's distance from the top when it fits. Not yet: crash durability as a law; crashes are tested ([inventory](docs/LIFECYCLE.md)). | [`restore_checkpoint`], [`page_round`], [`restore_page_anchor`], [`apply_page_anchor`], [`resize_anchor`], [`viewport_geometry`] |
@@ -509,7 +509,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1105 of 1293 laws are about running code;** another 35 run its node code in a World, and 153 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 66 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 23 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
+**1105 of 1289 laws are about running code;** another 35 run its node code in a World, and 149 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 66 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 23 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -519,10 +519,10 @@ with `tests/wiring.txt` for what the code cannot say, and
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 198 | 174 | 16 | 8 |
 | Connections | 30 | 26 |  | 4 |
-| Community | 218 | 198 |  | 20 |
+| Community | 213 | 197 |  | 16 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 6 |  | 7 |
-| Screen | 258 | 226 |  | 32 |
+| Screen | 259 | 227 |  | 32 |
 | App | 137 | 102 | 6 | 29 |
 | Node | 13 | 13 |  |  |
 | Settings | 4 | 4 |  |  |
@@ -540,7 +540,6 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Pic.add`, `Geom.box`, `Pic.layout` +2 | [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`]*, [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]† | The composer's tray runs only in qr's Android harness: the app sizes a photo by `Pic.fit` but draws its own chips; use `Pic`'s tray in the app, or prove these of its chips. |
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
 | `Frame.wants`, `Subs.ofList`, `Frame.listWins` +2 | [`has_ofList`], [`ofList_wf`], [`screen_subs`]†, [`hull_near`]†, [`past_hull_le`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (app/Screen.lean); want by it, the window cut to the near rows' hull (Screen's plan). |
-| `Pics.after`, `Pics.costIn` | [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`] | Legacy picture-door model (`PicM`); the app now uses owned Reader wants and Work.Pool continuations. Restate these cost/settling laws over that running path, including decode-unit bounds. |
 | `Board.apply`, `RWorld.commit`, `RWorld.evict` +10 | [`RWorld.acts_shown`], [`seen_take`], [`World.inv_commit`], [`RWorld.inv_commit`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`], [`World.inv_pass`], [`World.inv_frame`], [`World.settle`], [`marked_pass`] +7 more | The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`. |
 | `Invite.uri` | [`parse_uri`]† | Nothing that runs calls it. |
 | `Execution.Setup.sync` | [`production_step_moves`], [`production_step_retains`], [`production_step_reachable`], [`production_step_settled`], [`production_write_receives`], [`production_step_history`], [`production_step_unique`] | Nothing that runs calls it; `World.deliver`, `Execution.step` do. |
@@ -583,8 +582,6 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `RWorld.passActs` | [`passActs_nil`], [`inv_passActs`], [`idxok_passActs`], [`RWorld.acts_shown`] | Nothing that runs calls it; `AWorld.pass` do. |
 | `RWorld.passIdx` | [`passActs_nil`] | Nothing that runs calls it; `RWorld.passActs`, `RWorld.passLate` do. |
 | `RWorld.touched` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.actsWorld`, `RWorld.nTouched` do. |
-| `Pics.decoded` | [`decoded_started`] | Nothing that runs calls it; `Pics.image`, `Pics.imageV` do. |
-| `Pics.image` | [`image_steady`], [`image_settles`], [`image_twice`] | Nothing that runs calls it. |
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
@@ -1497,6 +1494,7 @@ opportunities and full native delivery remain open.
 [`Demand.retained_prefix`]: engine/renderer/Demand.lean#L164-L166
 [`Demand.retained_ticket`]: engine/renderer/Demand.lean#L208-L210
 [`Demand.remount_rejects`]: engine/renderer/Demand.lean#L260-L264
+[`request_again`]: engine/renderer/Work.lean#L154-L163
 [`Demand.next_map`]: engine/renderer/DemandRank.lean#L7-L11
 [`Demand.takeBy_map`]: engine/renderer/DemandRank.lean#L17-L21
 [`Demand.filter_rank`]: engine/renderer/DemandRank.lean#L28-L31
@@ -1730,10 +1728,6 @@ opportunities and full native delivery remain open.
 [`has_ofList`]: engine/core/WindowIndex.lean#L452-L453
 [`ofList_wf`]: engine/core/WindowIndex.lean#L445-L445
 [`screen_index`]: engine/renderer/Screen.lean#L258-L261
-[`decoded_started`]: app/community/channel/message/attachment/Screen.lean#L444-L448
-[`image_steady`]: app/community/channel/message/attachment/Screen.lean#L539-L542
-[`image_settles`]: app/community/channel/message/attachment/Screen.lean#L601-L603
-[`image_twice`]: app/community/channel/message/attachment/Screen.lean#L614-L618
 [`RWorld.acts_shown`]: engine/renderer/ActsLaws.lean#L210-L219
 [`seen_take`]: engine/renderer/BoardLaws.lean#L247-L248
 [`World.inv_commit`]: engine/renderer/BoardLaws.lean#L337-L338
@@ -1952,8 +1946,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 488 kernel witnesses, 192 runtime witnesses,
-23 conditional checks, 0 recorded runtime counterexamples; 45 of 748 linked declarations still pending.**
+**Coverage: 484 kernel witnesses, 192 runtime witnesses,
+23 conditional checks, 0 recorded runtime counterexamples; 46 of 745 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2317,6 +2311,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`Demand.retained_prefix`](engine/renderer/Demand.lean#L164-L166) | **kernel-witness**: [Vacuity.RendererDemand.fifo](tests/vacuity/RendererDemand.lean). Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture. |
 | [`Demand.retained_ticket`](engine/renderer/Demand.lean#L208-L210) | **kernel-witness**: [Vacuity.RendererDemand.retained](tests/vacuity/RendererDemand.lean). Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture. |
 | [`Demand.remount_rejects`](engine/renderer/Demand.lean#L260-L264) | **kernel-witness**: [Vacuity.RendererDemand.remount](tests/vacuity/RendererDemand.lean). Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture. |
+| [`request_again`](engine/renderer/Work.lean#L154-L163) | Pending: no concrete premise witness audited yet |
 | [`Demand.next_map`](engine/renderer/DemandRank.lean#L7-L11) | **kernel-witness**: [Vacuity.DemandRank.mapped_choice](tests/vacuity/DemandRank.lean). Universal helper-transition traces over actual Demand.take/takeBy selection used by Work and Reader; not a whole-IO refinement theorem. The nonempty execution keeps admitting fresh entries forever, promotes an earlier background entry, and retires another predecessor; the target remains visible and owned. Rank counts all preceding entries. The bound is on attempted selections, not wall time, query success, queue capacity, or whole Reader liveness. Reader exception rollback and native completion remain separate boundaries. |
 | [`Demand.takeBy_map`](engine/renderer/DemandRank.lean#L17-L21) | **kernel-witness**: [Vacuity.DemandRank.mapped_take](tests/vacuity/DemandRank.lean). Universal helper-transition traces over actual Demand.take/takeBy selection used by Work and Reader; not a whole-IO refinement theorem. The nonempty execution keeps admitting fresh entries forever, promotes an earlier background entry, and retires another predecessor; the target remains visible and owned. Rank counts all preceding entries. The bound is on attempted selections, not wall time, query success, queue capacity, or whole Reader liveness. Reader exception rollback and native completion remain separate boundaries. |
 | [`Demand.filter_rank`](engine/renderer/DemandRank.lean#L28-L31) | **kernel-witness**: [Vacuity.DemandRank.filter_preserves_rank](tests/vacuity/DemandRank.lean). Universal helper-transition traces over actual Demand.take/takeBy selection used by Work and Reader; not a whole-IO refinement theorem. The nonempty execution keeps admitting fresh entries forever, promotes an earlier background entry, and retires another predecessor; the target remains visible and owned. Rank counts all preceding entries. The bound is on attempted selections, not wall time, query success, queue capacity, or whole Reader liveness. Reader exception rollback and native completion remain separate boundaries. |
@@ -2558,10 +2553,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`has_ofList`](engine/core/WindowIndex.lean#L452-L453) | **kernel-witness**: [Vacuity.Query.indexHas](tests/vacuity/Query.lean). Two subscriptions: bounded message-1..message-2 and whole community list; proves subscription7 present. Synthetic model fixture; no collected real-user traffic. |
 | [`ofList_wf`](engine/core/WindowIndex.lean#L445-L445) | **kernel-witness**: [Vacuity.Query.indexWF](tests/vacuity/Query.lean). Builds actual two-window subscription index and establishes its invariant. Synthetic model fixture; no collected real-user traffic. |
 | [`screen_index`](engine/renderer/Screen.lean#L258-L261) | **kernel-witness**: [Vacuity.RendererModels.frameIndex](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`decoded_started`](app/community/channel/message/attachment/Screen.lean#L444-L448) | **kernel-witness**: [Vacuity.RendererPics.started](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
-| [`image_steady`](app/community/channel/message/attachment/Screen.lean#L539-L542) | **kernel-witness**: [Vacuity.RendererPics.noWork](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
-| [`image_settles`](app/community/channel/message/attachment/Screen.lean#L601-L603) | **kernel-witness**: [Vacuity.RendererPics.settles](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
-| [`image_twice`](app/community/channel/message/attachment/Screen.lean#L614-L618) | **kernel-witness**: [Vacuity.RendererPics.twice](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
 | [`RWorld.acts_shown`](engine/renderer/ActsLaws.lean#L210-L219) | **kernel-witness**: [Vacuity.RendererModels.actsShown](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`seen_take`](engine/renderer/BoardLaws.lean#L247-L248) | **kernel-witness**: [Vacuity.RendererModels.boardSeen](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`World.inv_commit`](engine/renderer/BoardLaws.lean#L337-L338) | **kernel-witness**: [Vacuity.RendererModels.worldCommit](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |

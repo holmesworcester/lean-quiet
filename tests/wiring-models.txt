@@ -64,12 +64,6 @@ Net.Scene.sessions_trusted
 Net.allowPeer_iff
 Net.allowPeer_settles
 
-# app.community.channel.message.attachment.Screen
-Pics.decoded_started
-Pics.image_settles
-Pics.image_steady
-Pics.image_twice
-
 # app.community.member.invite.Proofs
 Community.parse_uri
 

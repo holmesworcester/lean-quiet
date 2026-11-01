@@ -820,11 +820,6 @@ section cost
 #print axioms Engine.Codec.slow_digits_over_budget
 #print axioms Engine.Codec.readAllM_eq
 #print axioms Engine.Codec.slow_bytes_over_budget
-#print axioms Pics.decoded_started
-#print axioms Pics.image_steady
-#print axioms Pics.image_settles
-#print axioms Pics.image_twice
-#print axioms Pics.steady_later
 #print axioms Pics.imageV_over_budget
 #print axioms Engine.within_bind
 #print axioms Engine.within_bindP
@@ -1234,6 +1229,7 @@ end cost
 
 #print axioms Raster.key_eq
 #print axioms Demand.remount_rejects
+#print axioms Work.request_again
 
 #print axioms Data.projectSet_mem
 #print axioms Data.projectSet_nodup

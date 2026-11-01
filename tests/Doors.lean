@@ -45,7 +45,7 @@ code hashes only through `hashM`. (The decode a picture's task runs
 hashes op bytes and opens the file; that is the task's work, off the
 frame.) -/
 def counted : List (Name × List Name) :=
-  [(``Pics.image, []), (``Pics.decoded, []), (``Merkle.rootAndProofsM, [``Engine.sha256]),
+  [(``Pics.decoded, []), (``Merkle.rootAndProofsM, [``Engine.sha256]),
    (``Engine.Codec.decNatFromM, []), (``Engine.Codec.decBytesFromM, []),
    (``Live.Board.put, []), (``Live.Board.take, []), (``Live.Board.keep, [])]
 
