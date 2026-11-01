@@ -88,9 +88,9 @@ def sendsNothing (l : Link) := do
   pure (PLift.up (preadmit_sends_nothing fam {} (ix l) (db l) (cid l) c conn0
     (Sync.Msg.want ((history l).map Op.id)).op.bytes ((history l).map Op.id) 100 0 true hk))
 
-def linkOnlyUnlive (l : Link) := do
+def linkOnlyRooms (l : Link) := do
   let ⟨hk⟩ ← linkOnly l
-  pure (PLift.up (linkOnly_unlive (x := removeB.id) hk))
+  pure (PLift.up (linkOnly_rooms hk))
 
 def refusedOnlyNotice (l : Link) := do
   let ⟨hk⟩ ← linkOnly l
@@ -317,6 +317,75 @@ def honestTake (l : Link) :=
   ((Sync.Conn.recv fam {} (Sync.Index.ofOps fam []) k admissionBob.bytes 100 : Model F Sync.Step).run
     (honestDb l)).1
 
+/-! ## The sibling: a cut node tells the device its user linked
+
+Bob's node (its request names its own key) links a second device, Bob2,
+on another node; Alice removes Bob's user, which cuts both. Bob's node
+holds the removal and is no longer in c; on its session with Bob2's
+node it carries the removal's notice and nothing else, so Bob2 learns
+of its removal even if Bob's node is all it reaches. On a stranger's
+session the same cut node carries nothing. -/
+
+def bobReqK := Community.request c invitation.id bob pkB bearer.sk
+def bobApprovalK := Community.approve c bobReqK.id c alice
+def bobAdmissionK := Community.admit c bobReqK.id bobApprovalK.id
+def linkBearer := Community.Device.named "vacuity-bob-link"
+def bobLinkInv := Community.invite c bobAdmissionK.id bob linkBearer.pk true
+def bob2 := Community.Device.named "vacuity-bob-second"
+def staticB2 := sha256 "vacuity-bob2-node".toUTF8
+def pkB2 := sodium.suite.pub staticB2
+def eB2 := sha256 "vacuity-bob2-ephemeral".toUTF8
+def b2Req := Community.request c bobLinkInv.id bob2 pkB2 linkBearer.sk
+def b2Approval := Community.approve c b2Req.id bobAdmissionK.id bob
+def b2Admission := Community.admit c b2Req.id b2Approval.id
+def removeBea := Community.remove c c c bobAdmissionK.id alice
+def siblingHistory := [r, invitation, bobReqK, bobApprovalK, bobAdmissionK, renamed, bobLinkInv, b2Req,
+  b2Approval, b2Admission, removeBea]
+def bobLocal := [Community.secret (sha256 "vacuity-bob".toUTF8), Community.accept c bob.pk, endpointB]
+
+def siblingLink : Option Link := do
+  let req ← Request.op sodium staticB pkB2 eBob (hello c bobAddr [])
+  let some (.request _ _ m1) := (decode req.body : Option Connection.Body) | none
+  let reply ← Reply.op sodium req.id staticB2 pkB m1 eB2
+  pure ⟨req, reply⟩
+def sibOps (l : Link) := siblingHistory ++ bobLocal ++ [l.req, bobEph l, l.reply, bobEst l]
+def sibDb (l : Link) := run (sibOps l)
+def sibCarried (l : Link) := conn0.carry ((roomsV (cid l)).eval (sibDb l))
+def sibFiled (l : Link) :=
+  (((sibCarried l).filedGive fam {} [removeBea.id] : Model F Sync.Step).run (sibDb l)).1
+
+def unliveShared (l : Link) :=
+  if hmn : (meV c).eval (sibDb l) = none then
+    if hp : peersOf (eval (sibDb l) (Connection.established.byConn.query [cid l])) = [pkB2] then
+      if hr : ((Community.allowPeer c pkB2).liftL : View F Bool).eval (sibDb l) = false then
+        some (PLift.up (unlive_gets_only_shared_notice fam {} (Sync.Index.ofOps fam []) (sibDb l) (cid l) c
+          conn0 .empty [removeBea.id] 100 0 true
+          (fun ⟨me, hme, _⟩ => by rw [hmn] at hme; cases hme)
+          (by intro peer he; rw [hp, List.mem_singleton] at he; subst peer; exact hr)))
+      else none
+    else none
+  else none
+
+def cutNotifies (l : Link) :=
+  if hmn : (meV c).eval (sibDb l) = none then
+    if hp : peersOf (eval (sibDb l) (Connection.established.byConn.query [cid l])) = [pkB2] then
+      if hh : (heldV.eval (sibDb l)).any (fun r => decide (r = c)) = true then
+        if hx : ((Community.removalsAt c pkB2).liftL : View F (List Id)).eval (sibDb l) = [removeBea.id] then
+          if hc : ((Community.cutBy c).liftL : View F (List Id)).eval (sibDb l) = [removeBea.id] then
+            if hg : has ((givenOn (cid l)).eval (sibDb l)) removeBea.id = false then
+              some (PLift.up (cut_notifies (sibDb l) hmn (by rw [hp]; exact List.mem_singleton_self _)
+                (by obtain ⟨r, hr, he⟩ := List.any_eq_true.1 hh; exact (of_decide_eq_true he) ▸ hr)
+                (by rw [hx]; exact List.mem_singleton_self _) (by rw [hc]; exact List.mem_singleton_self _) hg))
+            else none
+          else none
+        else none
+      else none
+    else none
+  else none
+
+/-- The same cut node, on a session with Mallory's key and no pending join. -/
+def strangerCutOps (l : Link) := siblingHistory ++ bobLocal ++ [l.req, bobEph l, l.reply, bobEst l]
+
 def main : IO UInt32 := do
   let t ← Checks.new
   let some l := link | IO.eprintln "Could not construct the Noise session with Mallory"; return 1
@@ -329,7 +398,7 @@ def main : IO UInt32 := do
   t.ok "link only" (linkOnly l).isSome
   t.ok "preadmit_sends_nothing applies" (sendsNothing l).isSome
   t.ok "refused_gets_only_notice applies" (refusedOnlyNotice l).isSome
-  t.ok "linkOnly_unlive applies" (linkOnlyUnlive l).isSome
+  t.ok "linkOnly_rooms applies" (linkOnlyRooms l).isSome
   t.ok "linked_unlive applies" (linkedUnlive l).isSome
   t.ok "rooms_take applies" (roomsTake l).isSome
   t.ok "roomFor_law applies" (roomForLaw l).isSome
@@ -371,6 +440,20 @@ def main : IO UInt32 := do
   t.ok "honest rejoin: once Bob holds Dave's ops, c is synced"
     ((roomsV (cid d)).eval (admittedDb d) == [Sync.Room.sync c])
   t.ok "honest rejoin: Bob is live again" (((Community.allowPeer c pkB).liftL : View F Bool).eval (admittedDb d))
-  t.finish "pre-admission sessions (removed node, stranger's link, honest rejoin)"
+  let some sl := siblingLink | IO.eprintln "Could not construct the Noise session with Bob2"; return 1
+  t.ok "sibling: Bob's chain and the link validate" ([bobAdmissionK, bobLinkInv, b2Admission, removeBea].all fun o =>
+    match (sibDb sl).status o.id with | some (.valid _) => true | _ => false)
+  t.ok "sibling: Bob's node is cut, no longer in c" ((meV c).eval (sibDb sl) == none &&
+    (((Community.cutEntry c).liftL : View F _).eval (sibDb sl)).isSome)
+  t.ok "sibling: the removal cuts Bob2 too" (((Community.removalsAt c pkB2).liftL : View F (List Id)).eval (sibDb sl) == [removeBea.id] &&
+    ((Community.cutBy c).liftL : View F (List Id)).eval (sibDb sl) == [removeBea.id])
+  t.ok "sibling: the session carries the removal's notice only"
+    ((roomsV (cid sl)).eval (sibDb sl) == [Sync.Room.notice c removeBea.id])
+  t.ok "sibling: the removal goes to Bob2" ((sibFiled sl).send.any (·.id == removeBea.id))
+  t.ok "sibling: nothing else of c but its closure (no name op)" (!(sibFiled sl).send.any (·.id == renamed.id))
+  t.ok "unlive_gets_only_shared_notice applies" (unliveShared sl).isSome
+  t.ok "cut_notifies applies" (cutNotifies sl).isSome
+  t.ok "a cut node gives a stranger's key nothing" ((roomsV (cid l)).eval (run (strangerCutOps l)) == [])
+  t.finish "pre-admission sessions (removed node, stranger's link, honest rejoin, sibling notice)"
 
 end Vacuity.IdentityPreadmit

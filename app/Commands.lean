@@ -64,27 +64,34 @@ def heldV : View F (List B) := do
     | .accepted c _ => some c
     | _ => none).eraseDups
 
-/-- What a connection carries of community c for peer key `peer`, where
-this node is a device of c: the room, synced, if a live device of c is
+/-- The notices a connection owes peer key `peer` in community c: each
+removal that cuts a device under the peer's key
+(`Community.removalsAt`) and is not yet given on it (`given`); where
+this node is not live in c, only those that cut this node too
+(`Community.cutBy`: its sibling devices' nodes learn of their removal
+from it, and nobody else learns anything). -/
+def noticesFor (given : List Id) (c peer : B) (live : Bool) : View F (List Room) := do
+  let xs ← ((Community.removalsAt c peer).liftL : View F (List Id))
+  let cut ← if live then pure xs else ((Community.cutBy c).liftL : View F (List Id))
+  return (xs.filter fun x => has cut x && !has given x).map (Room.notice c)
+
+/-- What a connection carries of community c for peer key `peer`: where
+this node is a device of c, the room, synced, if a live device of c is
 admitted under the peer's key (`allowPeer`); taken, if the trust rule
 takes the peer only by its link clause (`linked`: this node not yet let
 in, the peer the inviter its pending join names), so the joiner learns
 of its admission and sends none of c, its request having gone in the
-hello (docs/TAKE-ROOM.md); else, if this node is live in c, a notice of
-each removal that cuts a device under the peer's key
-(`Community.removalsAt`) and is not yet given on it (`given`). Nothing
-where this node is no device of c, and nothing of c but synced to a live
-member's node where it is not live: a removed member's node tells no one
-of removals, the live members do. -/
+hello (docs/TAKE-ROOM.md); else the notices owed to the peer
+(`noticesFor`). Where it is no device of c, the notices of removals that
+cut both it and the peer only: a node not live in c sends nothing else
+of c. -/
 def roomFor (given : List Id) (c peer : B) : View F (List Room) := do
   match ← meV c with
   | some me =>
     if ← ((Community.allowPeer c peer).liftL : View F Bool) then return [Room.sync c]
     if ← ((linked c me peer).liftL : View F Bool) then return [Room.take c]
-    if !(← ((Community.allowPeer c me).liftL : View F Bool)) then return []
-    let xs ← ((Community.removalsAt c peer).liftL : View F (List Id))
-    return (xs.filter fun x => !has given x).map (Room.notice c)
-  | none => return []
+    noticesFor given c peer (← ((Community.allowPeer c me).liftL : View F Bool))
+  | none => noticesFor given c peer false
 
 /-- `roomFor` as shipped until preadmit: the room synced wherever the
 trust rule takes the peer, its link clause included, so a node not yet

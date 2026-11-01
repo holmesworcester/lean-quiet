@@ -29,26 +29,27 @@ theorem onlyCommunity (db : DB F)
 
 def noticeThenCut (s : Session) :=
   let db := run (givenOps s)
-  if ha : (eval db (Community.accepted.all.query [])).lefts = acceptanceRows then
+  if _ha : (eval db (Community.accepted.all.query [])).lefts = acceptanceRows then
     if hm : (meV c).eval db = some pkA then
       if hl : ((Community.allowPeer c pkA).liftL : View F Bool).eval db = true then
         if hp : peersOf (eval db (Connection.established.byConn.query [s.reply.id])) = [pkB] then
           if hr : ((Community.allowPeer c pkB).liftL : View F Bool).eval db = false then
             if ho : ((Community.removalsAt c pkB).liftL : View F (List Id)).eval db = [removeB.id] then
               if hg : (givenOn s.reply.id).eval db = [removeB.id] then
+                if hh : heldV.eval db = [c] then
                 some (PLift.up (notice_then_cut db (cid := s.reply.id) (by
-                  intro c' me he
-                  obtain ⟨d,a,hma⟩ := (meV_node db he).2
-                  have hc := onlyCommunity db ha hma
+                  intro c' hc'
+                  rw [hh, List.mem_singleton] at hc'
                   subst c'
                   refine ⟨?_,?_,?_⟩
-                  · intro me' he'; rw [hm] at he'; cases he'; exact hl
                   · intro peer he'; rw [hp,List.mem_singleton] at he'; subst peer; exact hr
+                  · intro me' he'; rw [hm] at he'; cases he'; exact hl
                   · intro x hx
                     obtain ⟨peer,hp',hx⟩ := hx
                     rw [hp,List.mem_singleton] at hp'; subst peer
                     rw [ho,List.mem_singleton] at hx; subst x
                     rw [hg]; exact List.mem_singleton_self _)))
+                else none
               else none
             else none
           else none

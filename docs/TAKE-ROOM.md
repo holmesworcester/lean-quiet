@@ -30,13 +30,17 @@ stores it through `deliverAll`/`joinsOf`).
 | `allowPeer c peer` | `Room.sync c` |
 | only the link clause (`linked c me peer`) | `Room.take c` |
 | neither, this node live in c | a notice of each removal owed to the peer's key, not yet given |
-| neither, this node not live in c | nothing |
+| neither, this node not live in c (or no longer in it) | those notices, only of removals that cut this node too (`Community.cutBy`) |
 
 The handshake's trust rule is unchanged: the session opens; what it
-carries changed. A node not live in c gives no removal notices either:
-the live members do, so no honest flow needs it, and the law is
-unconditional: a node not live in c sends no op of c on a link-trusted
-session.
+carries changed. A node not live in c gives only the notices of
+removals that cut both it and the peer (`noticesFor`): a removed
+member's node tells the devices its user linked, which may reach only
+it (holmes-7d's sibling case), and the live members tell everyone else.
+A stranger's key is cut by no removal this node knows of, so the law
+is: a node not live in c sends, of c, only the notices of removals that
+cut both it and its peer, and on a link-trusted session nothing; its
+join request travels only in the hello.
 
 ## The take room (engine/sync)
 
@@ -97,14 +101,17 @@ App (app/Proofs.lean):
   where this node is live.
 - `rooms_take`: a take room means this node is not live in c
   (`linked_unlive`) and a peer only the link lets in.
+- `unlive_gets_only_shared_notice`: a node not live in c, on a session
+  whose peers `allowPeer` refuses, sends of c only the closures of
+  removals owed to the peer that cut it too; `cut_notifies`: a cut node
+  does carry those notices to its sibling's node.
 - `rooms_removed`, `rooms_cut`, `rooms_cut_node`, `refused_gets_only_notice`:
   where `allowPeer` refuses cid's peers, whatever this node's standing,
   no synced c, and of c only wire ops and owed notices go out. `MayGo`
   no longer needs this node live, so `removal_reaches_session` holds of
   every node.
-- `linkOnly_unlive`: a node a link-trusted session is open on is not
-  live, so it gives that peer no notice (`NoticeOnly`'s notices need the
-  node live).
+- `linkOnly_rooms`: a link-trusted session carries c taken only, no
+  synced room and no notice of c.
 - **`preadmit_sends_nothing`**, per step, and
   **`preadmit_reaches_session`**, over every entry point: on a session
   whose peers only the link lets in, no op of c goes out.
@@ -126,9 +133,13 @@ Dave's ops are held c is synced and Bob is live.
 `mise run test:preadmit` (tests/engine/controls.txt): the witness, then
 the mutants (tests/engine/preadmit_negative.py), each rejected inside
 the named law: `roomFor`'s link branch syncing c (`roomFor_law`);
-notices given by a node not live in c (`roomFor_law`); a take room
-opening from the live index (`Conn.view_items`); a take room answering
-id claims with blind wants (`Conn.answer_blank`).
+notices of any removal given by a node not live in c (`mem_noticesFor`);
+a cut node silent to its sibling, as shipped (`cut_notifies`); a take
+room opening from the live index (`Conn.view_items`); a take room
+answering id claims with blind wants (`Conn.answer_blank`). The
+runtime witness also runs the sibling: Bob links Bob2, Alice removes
+Bob's user, and Bob's cut node carries Bob2 the removal's notice, and a
+stranger nothing.
 
 ## Not covered
 

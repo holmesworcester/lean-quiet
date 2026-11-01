@@ -350,6 +350,16 @@ def removalsAt (c e : Key) : View Fact (List Id) := do
   let a ← admission.byKey.read [c, e]
   deviceRemovals c a.rows
 
+/-- The removals that cut this node in c: every removal of a user its cut
+device (`cutEntry`) is admitted into; none where no device of this node
+is cut in c. Of these, a node not live in c still tells a peer cut by
+the same removal (its sibling device's node), and nothing else
+(`Connection.roomFor`). -/
+def cutBy (c : Key) : View Fact (List Id) := do
+  let some (d, _) ← cutEntry c | return []
+  let a ← admission.byDevice.read [c, d]
+  removalsOf c a.rows
+
 end Community
 
 namespace Connection

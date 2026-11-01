@@ -153,12 +153,19 @@ open Engine Engine.Sync Codec
 def LiveIn (s : DB F) (c : B) : Prop :=
   ∀ me, (meV c).eval s = some me → ((Community.allowPeer c me).liftL : View F Bool).eval s = true
 
+/-- This node holds c as a live device: `meV` names its key, and
+`allowPeer` takes it. -/
+def LiveAs (s : DB F) (c : B) : Prop :=
+  ∃ me, (meV c).eval s = some me ∧ ((Community.allowPeer c me).liftL : View F Bool).eval s = true
+
 /-- What may go out of community c on cid: a sync wire op, an op of
-another room, or, where this node is live in c, an op in the
-requirement closure, in c, of a removal owed to the peer. -/
+another room, or an op in the requirement closure, in c, of a removal
+owed to the peer, where this node is live in c or the removal cuts this
+node too (`Community.cutBy`: a sibling device's node). -/
 def NoticeOnly (fam : Family F) (s : DB F) (cid c : B) (o : Op) : Prop :=
   isWire o.kind = true ∨ fam.room o ≠ some c ∨
-    LiveIn s c ∧ ∃ x, Owed s cid c x ∧ ∃ y, s.ops y = some o ∧ ReachIn fam s.ops c x y
+    ∃ x, Owed s cid c x ∧ (LiveAs s c ∨ x ∈ ((Community.cutBy c).liftL : View F (List Id)).eval s) ∧
+      ∃ y, s.ops y = some o ∧ ReachIn fam s.ops c x y
 
 theorem run_rows (r : Rel Fact) (args : List B) (s : DB F) :
     ((rows r args : Model F _).run s) =

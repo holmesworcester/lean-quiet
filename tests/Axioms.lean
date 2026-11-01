@@ -774,7 +774,9 @@ end net
 #print axioms Connection.rooms_take
 #print axioms Connection.rooms_complete_take
 #print axioms Connection.linked_unlive
-#print axioms Connection.linkOnly_unlive
+#print axioms Connection.linkOnly_rooms
+#print axioms Connection.unlive_gets_only_shared_notice
+#print axioms Connection.cut_notifies
 #print axioms Connection.refused_gets_only_notice
 #print axioms Connection.shipped_roomFor_shows
 #print axioms Engine.Sync.take_unshown
