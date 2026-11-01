@@ -234,87 +234,87 @@ whose session cid has x waiting at position p or nearer, holding x's op
 in a room the session shows, takes a frame on any session from src.
 After the frame x still waits at position p or nearer, or (the frame
 being on cid) its op is in a frame back to src. -/
-theorem onSealed_waits (n : Node) (src : ByteArray) (cid' : Id) (inner : List ByteArray) (now : Nat) (h : Held F)
+theorem onSealed_waits (n : Node) (src : ByteArray) (opened : Option (Id × ByteArray)) (now : Nat) (h : Held F)
     (cid x : Id) (o : Op) (r : Id) (p : Nat) (hm : n.managed = [])
     (hw : ∀ c, n.conn? cid = some c → Waits x p c) (hg : h.db.ops x = some o) (hr : S.fam.room o = some r)
     (hs : r ∈ S.rooms s cid) (hb : 0 < S.cfg.burst) :
-    (∀ c', ((n.onSealed (S.sync s) src (some (cid', Codec.encode inner)) now).run h).1.1.conn? cid = some c' →
-        Waits x p c') ∨
-      ∃ g, o.bytes ∈ g ∧
-        (src, plainFrame cid g) ∈ ((n.onSealed (S.sync s) src (some (cid', Codec.encode inner)) now).run h).1.2.send := by
+    (∀ c', ((n.onSealed (S.sync s) src opened now).run h).1.1.conn? cid = some c' → Waits x p c') ∨
+      ∃ g, o.bytes ∈ g ∧ (src, plainFrame cid g) ∈ ((n.onSealed (S.sync s) src opened now).run h).1.2.send := by
   unfold Node.onSealed
-  simp only [Codec.decode_encode]
   split
-  · rename_i c0 hc0
-    simp only [HeldM.run_bind]
-    generalize hR : HeldM.run (forIn (m := HeldM F) (_ : List ByteArray)
-      ((n.setAddr cid' src, {}) : Node × Acts) _) h = R
-    have pR := forIn_inv hR (fun h' (st : Node × Acts) => st.1.managed = [] ∧ st.2.retry = [] ∧
-        h'.db.ops x = some o ∧ st.1.addr? cid' = some src ∧ ∀ c, st.1.conn? cid = some c → Waits x p c)
-      ⟨hm, rfl, hg, setAddr_addr n cid' src, fun c hc => hw c hc⟩ (fun b _ st h' ⟨hm', hr', hx', ha', hw'⟩ => by
-        split
-        · rename_i c hcs
-          simp only [HeldM.run_bind, refresh_run, sync_fam, sync_cfg, HeldM.run_pure, ForInStep.value]
-          rw [recv_reads]
-          obtain ⟨-, hd, -⟩ := recv_cases S.fam S.cfg st.1.ix { c.setRooms (S.rooms s cid') with notices := [] } b now h'
-          have hcs' : (st.1.conn? cid').isSome = true := by rw [hcs]; rfl
-          obtain ⟨f1, f2, f3, -, f5⟩ := apply_facts S s st.1 cid' _ now h' hd hcs'
-          refine ⟨by rw [f2]; exact hm', by simp [Acts.append_def, hr', f1], ?_, by rw [addr_of_addrs f3]; exact ha', ?_⟩
-          · rcases (payload_run S s st.1 cid' c b now h' hcs).2 with e | ⟨o', _, _, e⟩
-            · rw [e]; exact hx'
-            · rw [e]; exact turnH_some _ _ _ hx'
-          · intro c' hc'
-            by_cases e : cid = cid'
-            · subst e
-              obtain ⟨-, e2, -⟩ := f5 c' hc'
-              obtain ⟨add, eadd⟩ := recv_appends S.fam S.cfg st.1.ix
-                { c.setRooms (S.rooms s cid) with notices := [] } b now h'
-              exact (hw' c hcs).append add (by rw [e2, eadd]; rfl)
-            · obtain ⟨c1, hc1, e1⟩ := apply_other_owed S s st.1 cid cid' _ now h' e c' hc'
-              exact (hw' c1 hc1).same e1
-        · exact ⟨hm', hr', hx', ha', hw'⟩)
-    obtain ⟨k1, k2, k3, k4, k5⟩ := pR
-    obtain ⟨s1, s2, s3⟩ := serveOwed_facts S s R.1.1 cid' now R.2
-    have hS := serveOwed_reads S s R.1.1 cid' now R.2
-    have hsv : (∀ c', ((R.1.1.serveOwed (S.sync s) cid' now).run R.2).1.1.conn? cid = some c' → Waits x p c') ∨
-        (cid = cid' ∧ ((Route.conn cid, o.bytes) ∈ ((R.1.1.serveOwed (S.sync s) cid' now).run R.2).1.2.send ∨
-          (Route.conn cid, o.bytes) ∈ ((R.1.1.serveOwed (S.sync s) cid' now).run R.2).1.2.serve)) := by
-      by_cases e : cid = cid'
-      · subst e
-        cases hc1 : R.1.1.conn? cid with
-        | none =>
-          left; intro c' hc'
-          rw [show ((R.1.1.serveOwed (S.sync s) cid now).run R.2).1.1.conn? cid = none by
-            unfold Node.serveOwed; rw [hc1]; exact hc1] at hc'
-          cases hc'
-        | some c1 =>
-          have hw1 := k5 c1 hc1
-          rcases serve_moves S s (S.sync s) rfl rfl rfl R.1.1 cid now R.2 c1 hc1 x o r hw1.1 k3 hr hs
-            (by cases R.1.1.addr? cid <;> exact hb) with ⟨c', hc', hm', hlt⟩ | e | e
-          · left; intro c'' hc''
-            rw [hc'] at hc''; cases hc''
-            exact ⟨hm', Nat.le_trans (Nat.le_of_lt hlt) hw1.2⟩
-          · exact Or.inr ⟨rfl, Or.inl e⟩
-          · exact Or.inr ⟨rfl, Or.inr e⟩
-      · left; intro c' hc'
-        rw [serve_other (S.sync s) R.1.1 cid cid' now R.2 e] at hc'
-        exact k5 c' hc'
-    generalize HeldM.run (Node.serveOwed (S.sync s) R.1.1 cid' now) R.2 = B at hS s1 s2 s3 hsv ⊢
-    rcases hsv with hw2 | ⟨rfl, hp⟩
-    · left; intro c' hc'
-      rw [finish_run S s B.1.1 _ now B.2 (by rw [s2, k1])] at hc'
-      simp only [Node.conn?, Node.sent] at hc'
-      obtain ⟨c1, hc1, e1⟩ := find_map_back B.1.1.conns _ cid c' (fun q => by cases q; rfl)
-        (fun q => by cases q; dsimp only; split <;> rfl) hc'
-      exact (hw2 c1 hc1).same e1
-    · right
-      have hp' : (Route.conn cid, o.bytes) ∈ (R.1.2 ++ B.1.2).send ∨ (Route.conn cid, o.bytes) ∈ (R.1.2 ++ B.1.2).serve := by
-        rcases hp with hp | hp
-        · exact Or.inl (List.mem_append_right _ hp)
-        · exact Or.inr (List.mem_append_right _ hp)
-      exact finish_sends S s B.1.1 (R.1.2 ++ B.1.2) now B.2 (by rw [s2, k1])
-        (by simp [Acts.append_def, k2, s1]) cid _ src hp' (by rw [addr_of_addrs s3]; exact k4)
   · left; intro c' hc'; exact hw c' hc'
+  · rename_i cid' bundle
+    split
+    · rename_i c0 inner hc0 hdec
+      simp only [HeldM.run_bind]
+      generalize hR : HeldM.run (forIn (m := HeldM F) (_ : List ByteArray)
+        ((n.setAddr cid' src, {}) : Node × Acts) _) h = R
+      have pR := forIn_inv hR (fun h' (st : Node × Acts) => st.1.managed = [] ∧ st.2.retry = [] ∧
+          h'.db.ops x = some o ∧ st.1.addr? cid' = some src ∧ ∀ c, st.1.conn? cid = some c → Waits x p c)
+        ⟨hm, rfl, hg, setAddr_addr n cid' src, fun c hc => hw c hc⟩ (fun b _ st h' ⟨hm', hr', hx', ha', hw'⟩ => by
+          split
+          · rename_i c hcs
+            simp only [HeldM.run_bind, refresh_run, sync_fam, sync_cfg, HeldM.run_pure, ForInStep.value]
+            rw [recv_reads]
+            obtain ⟨-, hd, -⟩ := recv_cases S.fam S.cfg st.1.ix { c.setRooms (S.rooms s cid') with notices := [] } b now h'
+            have hcs' : (st.1.conn? cid').isSome = true := by rw [hcs]; rfl
+            obtain ⟨f1, f2, f3, -, f5⟩ := apply_facts S s st.1 cid' _ now h' hd hcs'
+            refine ⟨by rw [f2]; exact hm', by simp [Acts.append_def, hr', f1], ?_, by rw [addr_of_addrs f3]; exact ha', ?_⟩
+            · rcases (payload_run S s st.1 cid' c b now h' hcs).2 with e | ⟨o', _, _, e⟩
+              · rw [e]; exact hx'
+              · rw [e]; exact turnH_some _ _ _ hx'
+            · intro c' hc'
+              by_cases e : cid = cid'
+              · subst e
+                obtain ⟨-, e2, -⟩ := f5 c' hc'
+                obtain ⟨add, eadd⟩ := recv_appends S.fam S.cfg st.1.ix
+                  { c.setRooms (S.rooms s cid) with notices := [] } b now h'
+                exact (hw' c hcs).append add (by rw [e2, eadd]; rfl)
+              · obtain ⟨c1, hc1, e1⟩ := apply_other_owed S s st.1 cid cid' _ now h' e c' hc'
+                exact (hw' c1 hc1).same e1
+          · exact ⟨hm', hr', hx', ha', hw'⟩)
+      obtain ⟨k1, k2, k3, k4, k5⟩ := pR
+      obtain ⟨s1, s2, s3⟩ := serveOwed_facts S s R.1.1 cid' now R.2
+      have hS := serveOwed_reads S s R.1.1 cid' now R.2
+      have hsv : (∀ c', ((R.1.1.serveOwed (S.sync s) cid' now).run R.2).1.1.conn? cid = some c' → Waits x p c') ∨
+          (cid = cid' ∧ ((Route.conn cid, o.bytes) ∈ ((R.1.1.serveOwed (S.sync s) cid' now).run R.2).1.2.send ∨
+            (Route.conn cid, o.bytes) ∈ ((R.1.1.serveOwed (S.sync s) cid' now).run R.2).1.2.serve)) := by
+        by_cases e : cid = cid'
+        · subst e
+          cases hc1 : R.1.1.conn? cid with
+          | none =>
+            left; intro c' hc'
+            rw [show ((R.1.1.serveOwed (S.sync s) cid now).run R.2).1.1.conn? cid = none by
+              unfold Node.serveOwed; rw [hc1]; exact hc1] at hc'
+            cases hc'
+          | some c1 =>
+            have hw1 := k5 c1 hc1
+            rcases serve_moves S s (S.sync s) rfl rfl rfl R.1.1 cid now R.2 c1 hc1 x o r hw1.1 k3 hr hs
+              (by cases R.1.1.addr? cid <;> exact hb) with ⟨c', hc', hm', hlt⟩ | e | e
+            · left; intro c'' hc''
+              rw [hc'] at hc''; cases hc''
+              exact ⟨hm', Nat.le_trans (Nat.le_of_lt hlt) hw1.2⟩
+            · exact Or.inr ⟨rfl, Or.inl e⟩
+            · exact Or.inr ⟨rfl, Or.inr e⟩
+        · left; intro c' hc'
+          rw [serve_other (S.sync s) R.1.1 cid cid' now R.2 e] at hc'
+          exact k5 c' hc'
+      generalize HeldM.run (Node.serveOwed (S.sync s) R.1.1 cid' now) R.2 = B at hS s1 s2 s3 hsv ⊢
+      rcases hsv with hw2 | ⟨rfl, hp⟩
+      · left; intro c' hc'
+        rw [finish_run S s B.1.1 _ now B.2 (by rw [s2, k1])] at hc'
+        simp only [Node.conn?, Node.sent] at hc'
+        obtain ⟨c1, hc1, e1⟩ := find_map_back B.1.1.conns _ cid c' (fun q => by cases q; rfl)
+          (fun q => by cases q; dsimp only; split <;> rfl) hc'
+        exact (hw2 c1 hc1).same e1
+      · right
+        have hp' : (Route.conn cid, o.bytes) ∈ (R.1.2 ++ B.1.2).send ∨ (Route.conn cid, o.bytes) ∈ (R.1.2 ++ B.1.2).serve := by
+          rcases hp with hp | hp
+          · exact Or.inl (List.mem_append_right _ hp)
+          · exact Or.inr (List.mem_append_right _ hp)
+        exact finish_sends S s B.1.1 (R.1.2 ++ B.1.2) now B.2 (by rw [s2, k1])
+          (by simp [Acts.append_def, k2, s1]) cid _ src hp' (by rw [addr_of_addrs s3]; exact k4)
+    · left; intro c' hc'; exact hw c' hc'
 
 /-- What the tick's turns keep: no managed sessions, no retries, the op,
 the session's address. -/
@@ -572,6 +572,91 @@ theorem onTick_moves (n : Node) (now : Nat) (h : Held F) (cid x : Id) (o : Op) (
     exact ⟨c'', hc'', by rw [e]; exact hxc, by rw [e]; exact hlt⟩
   · right; right
     exact finish_sends S s R.1.1 R.1.2 now R.2 k1 k2 cid _ a e k4
+
+/-- The end of an entry point: a session after it was a session before,
+with the same queue. -/
+theorem finish_back (n : Node) (out : Acts) (now : Nat) (h : Held F) (hm : n.managed = []) (cid : Id) (c' : Conn)
+    (hc' : ((n.finish (S.sync s) out now).run h).1.1.conn? cid = some c') :
+    ∃ c, n.conn? cid = some c ∧ c'.owed = c.owed := by
+  rw [finish_run S s n out now h hm] at hc'
+  simp only [Node.conn?, Node.sent] at hc'
+  exact find_map_back n.conns _ cid c' (fun q => by cases q; rfl) (fun q => by cases q; dsimp only; split <;> rfl) hc'
+
+theorem store_back (n : Node) (ops : List Op) (mine : Bool) (h : Held F) (cid : Id) (c' : Conn)
+    (hc' : ((n.store (S.sync s) ops mine).run h).1.1.conn? cid = some c') :
+    ∃ c, n.conn? cid = some c ∧ c'.owed = c.owed := by
+  obtain ⟨c, hc, -, e, -⟩ := (store_facts S s n ops mine h).2.2.2 cid c' hc'
+  exact ⟨c, hc, e⟩
+
+/-- **A local write keeps a waiting id where it was.** -/
+theorem onWrite_waits (n : Node) (ops : List Op) (now : Nat) (h : Held F) (cid x : Id) (p : Nat) (hm : n.managed = [])
+    (hw : ∀ c, n.conn? cid = some c → Waits x p c) :
+    ∀ c', ((n.onWrite (S.sync s) ops now).run h).1.1.conn? cid = some c' → Waits x p c' := by
+  intro c' hc'
+  unfold Node.onWrite at hc'
+  simp only [HeldM.run_bind] at hc'
+  obtain ⟨c1, hc1, e1⟩ := finish_back S s _ _ now _ (by rw [heat_managed, store_keeps]; exact hm) cid c' hc'
+  obtain ⟨c2, hc2, e2⟩ := store_back S s n ops true h cid c1 hc1
+  exact (hw c2 hc2).same (e1.trans e2)
+
+/-- **A transport close keeps a waiting id where it was, or ends its
+session.** -/
+theorem onClose_waits (n : Node) (addr : ByteArray) (now : Nat) (h : Held F) (cid x : Id) (p : Nat)
+    (hm : n.managed = []) (hw : ∀ c, n.conn? cid = some c → Waits x p c) :
+    ∀ c', ((n.onClose (S.sync s) addr now).run h).1.1.conn? cid = some c' → Waits x p c' := by
+  intro c' hc'
+  unfold Node.onClose at hc'
+  have hdm : ∀ (L : List Id) (m : Node), m.managed = [] → (L.foldl Node.drop m).managed = [] := by
+    intro L
+    induction L with
+    | nil => intro m h; exact h
+    | cons a t ih => intro m h; exact ih _ (drop_managed m a h)
+  obtain ⟨c1, hc1, e1⟩ := finish_back S s _ _ now _ (hdm _ n hm) cid c' hc'
+  have back : ∀ (L : List Id) (m : Node) (c : Conn), (L.foldl Node.drop m).conn? cid = some c → m.conn? cid = some c := by
+    intro L
+    induction L with
+    | nil => intro m c h; exact h
+    | cons a t ih =>
+      intro m c h; rw [List.foldl_cons] at h
+      have h2 : (m.drop a).conn? cid = some c := ih _ c h
+      exact close_conn m a cid c h2
+  exact (hw c1 (back _ n c1 hc1)).same e1
+
+/-- **Opening another session keeps a waiting id where it was.** -/
+theorem connect_waits (n : Node) (cid' : Id) (a : ByteArray) (dialer : Bool) (now : Nat) (h : Held F) (cid x : Id)
+    (p : Nat) (hne : cid ≠ cid') (hm : n.managed = []) (hw : ∀ c, n.conn? cid = some c → Waits x p c) :
+    ∀ c', ((n.connect (S.sync s) cid' a dialer now).run h).1.1.conn? cid = some c' → Waits x p c' := by
+  intro c' hc'
+  unfold Node.connect Node.open at hc'
+  simp only [HeldM.run_bind, sync_rooms, HeldM.run_pure] at hc'
+  obtain ⟨c1, hc1, e1⟩ := finish_back S s _ _ now _ (by simp [Node.close, Node.setAddr, hm]) cid c' hc'
+  have hne' : ¬ cid' = cid := fun e => hne e.symm
+  simp only [Node.conn?, Node.setAddr, List.find?_cons, hne', decide_false] at hc1
+  exact (hw c1 (close_conn n cid' cid c1 hc1)).same e1
+
+/-- **A frame keeps a waiting id where it was, or sends its op back.** -/
+theorem onFrame_waits (n : Node) (src bytes : ByteArray) (now : Nat) (h : Held F) (cid x : Id) (o : Op) (r : Id)
+    (p : Nat) (hm : n.managed = []) (hw : ∀ c, n.conn? cid = some c → Waits x p c) (hg : h.db.ops x = some o)
+    (hr : S.fam.room o = some r) (hs : r ∈ S.rooms s cid) (hb : 0 < S.cfg.burst) :
+    (∀ c', ((n.onFrame (S.sync s) src bytes now).run h).1.1.conn? cid = some c' → Waits x p c') ∨
+      ∃ g, o.bytes ∈ g ∧ (src, plainFrame cid g) ∈ ((n.onFrame (S.sync s) src bytes now).run h).1.2.send := by
+  unfold Node.onFrame
+  split
+  · dsimp only
+    split
+    · exact Or.inl hw
+    · split
+      · exact Or.inl hw
+      · left; intro c' hc'
+        simp only [HeldM.run_bind] at hc'
+        obtain ⟨c1, hc1, e1⟩ := finish_back S s _ _ now _ (by rw [store_keeps, write_keeps]; exact hm) cid c' hc'
+        obtain ⟨c2, hc2, e2⟩ := store_back S s _ _ true _ cid c1 hc1
+        simp only [Node.conn?] at hc2
+        rw [write_conns] at hc2
+        exact (hw c2 hc2).same (e1.trans e2)
+  · simp only [HeldM.run_bind, sync_openFrame, plainOpen, HeldM.run_pure]
+    exact onSealed_waits S s n src _ now h cid x o r p hm hw hg hr hs hb
+  · exact Or.inl hw
 
 end
 
