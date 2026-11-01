@@ -23,6 +23,25 @@ a bound hold. Native waits need an explicit completion or cancellation contract,
 followed by a bound on consuming the result. No fixed wall-clock deadline is
 claimed by a completed-step theorem.
 
+## What a step bound currently counts
+
+These are theorems about executable selection cores called by the stages.
+They do not establish a refinement theorem for whole asynchronous workers.
+
+| Stage | Proved service bound | What remains outside that bound |
+|---|---|---|
+| TCP local-write selector | An admitted entry with `p` FIFO predecessors is selected within `2 * (p + 1)` completed turns. | Native handler completion and downstream reading/display. |
+| TCP peer ingress | An admitted source is selected or retired within `4 * (maxSocks + 1)` completed turns, despite other-peer churn. | Admission before the mailbox, retaining payloads through every close path, and eventual peer delivery. |
+| Local Writer selector | Local work within `2 * (p + 1)` completed unpaused selections; background work within `4 * (p + 1)`. | Successful checkpoint/job IO, job size, queue capacity and terminal action outcomes. |
+| Reader/raster demand selector | A continuously owned visible target is selected or retired within `p + 1` attempts, counting every preceding entry. | A configured upper bound on `p`, asynchronous worker refinement and a usable query/paint result. |
+| Display completion | Exact publication receipts are checked; no fixed stage-service bound is yet proved. | Native completion and bounded consumption of that completion. |
+
+These are different counters, not a common app clock. Skipped, stale and
+cancelled selections still count. Adding the numbers would not establish an
+end-to-end theorem: the handoff, retention and completion obligations between
+each pair of stages must also be proved on their actual callers. The selectors'
+internal fairness is a proved policy, not a proposed environmental assumption.
+
 ## Completed runtime connection
 
 [Loop.turn](../engine/wire/Loop.lean) is now the polling, dispatch and timer core
@@ -127,7 +146,7 @@ all reader lifetimes, or Windows cancellation.
 | Bounded memory | The sync index, snapshots, retired-session routing/tombstone history and some app recovery queues grow with history. Android native event/touch arrays still grow by reallocation. |
 | Fair-loss progress | Reserved output survives ordinary/hot pressure. The projection from real encrypted attempts and session teardown to semantic delivery is unproved; distinct sessions also need fair retry admission. The earlier closed-socket delay example was not a demonstrated TCP execution and is corrected in [RETRY-RESERVATION.md](RETRY-RESERVATION.md). |
 | Write-to-display bound | The target is a bound in each stage's completed steps. A bounded composer FIFO pins root/child positions, and mobile/desktop receipts identify actual completion. The actual reader/raster chooser now has the backlog-dependent `p + 1` visible-service rank law. Its asynchronous IO refinement, configured backlog-independent bounds, retained-paint invariants and their composition remain unproved. Native waits and exhaustion need explicit progress/failure outcomes; timings are reported separately. |
-| User-action outcomes | Joining can remain pending while approval is withheld. A permanently failing checkpoint retries before writer jobs indefinitely. A real journal-read fault test also shows a queued founding action and notices lost before execution, with no terminal result after recovery; earlier claim ownership remains open. Failed writes need explicit user-visible outcomes. Completion-or-failure requires cancellation/deadline policies and bounded service. |
+| User-action outcomes | Joining can remain pending while approval is withheld. A permanently failing checkpoint retries before writer jobs indefinitely. Reader batches now survive transaction-start and journal-query failures; actions are claimed only after the journal snapshot opens, and notices are acknowledged after commit. Partial action/outbox effects after claim remain open. Failed writes need explicit user-visible outcomes. Completion-or-failure requires cancellation/deadline policies and bounded service. |
 
 The current work addresses these in the running code. A successful finite
 test or a new component lemma does not close the corresponding whole-app row.

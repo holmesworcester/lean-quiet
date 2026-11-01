@@ -1943,15 +1943,20 @@ def judgeWrite (rd : Db) (out : Array Pending) (w : Community.Write) : IO (Optio
 
 /-- One pass, in one read transaction; whether it put anything or took
 any change. `afterSnapshot` is a deterministic scheduling seam: a test
-may publish another request after this pass has captured its whole pair. -/
+may publish another request after this pass has captured its whole pair.
+`afterJournal` schedules a producer/teardown after the SQL snapshot opens. -/
 def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
-    (budgetMs : Nat := 0) : RM Bool := do
+    (budgetMs : Nat := 0) (afterJournal : IO Unit := pure ()) : RM Bool := do
   if !(← (← get).enabled) then return false
   let (gen, wants) ← sh.request.get
   let plan ← sh.plan.get
   afterSnapshot
-  let notes ← sh.notes.modifyGet fun a => (a, #[])
-  let acts ← sh.acts.modifyGet fun a => (a, #[])
+  -- Observe the admission cutoff without taking ownership before SQL can
+  -- fail. Only this reader consumes an active Shared; producers append, and
+  -- teardown detaches it permanently before starting a replacement reader.
+  let notes ← sh.notes.get
+  let noteCount := notes.size
+  let acts ← sh.acts.get
   -- at rest (the writers' counter unmoved, no note, the same wants,
   -- nothing dirty) a pass reads nothing, not even the journal
   -- (RestLaws.start_rest); once a second it reads it anyway, for commits
@@ -1971,6 +1976,13 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
     let s ← get
     -- the journal, read first: the commits this pass's reads see
     let (fs, vs, top) ← rd.filingsSince s.seen
+    afterJournal
+    if !(← (← get).enabled) then
+      rd.exec "COMMIT"
+      return false
+    -- Claim only the captured prefix: arrivals after the cutoff belong to
+    -- the next database snapshot. Per-act revocation checks remain below.
+    sh.acts.modify fun a => a.extract acts.size a.size
     -- the outbox is the pass's: the ops the store has decided leave it
     -- (their rows move from pending to stored, a notice too)
     let judged : Std.HashSet Id := vs.foldl (fun a (x, _) => a.insert x) {}
@@ -2005,6 +2017,7 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
     -- does nothing (RestLaws.rest_idle)
     if fs.isEmpty && vs.isEmpty && notes.isEmpty && gen == s.gen && s.dirty.isEmpty then
       rd.exec "COMMIT"
+      sh.notes.modify fun a => a.extract noteCount a.size
       return false
     -- the wants moved: the new ones are marked, the gone ones forgotten,
     -- and the reads none of them holds stop being watched (RestLaws.wantIdx;
@@ -2068,6 +2081,9 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
       sh.publish ticket v
       published := published + 1
     rd.exec "COMMIT"
+    -- Notes remain retryable through query/COMMIT failure. Later appended
+    -- notes still belong to the next pass, even when this pass produced acts.
+    sh.notes.modify fun a => a.extract noteCount a.size
     -- This is the last effect before returning the successful reader state.
     -- A failed query/COMMIT must leave its notices available to the retry.
     sh.seen.modify (fun _ => top)
