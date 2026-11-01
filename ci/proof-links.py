@@ -32,6 +32,13 @@ say "nearly every" only while the share is 90% or more.
   ci/proof-links.py --prune   delete tests/wiring-models.txt's lines that
                               name no model law (ported, bridged, gone);
                               it never adds one
+  ci/proof-links.py --merge-models
+                              resolve a merge conflict in
+                              tests/wiring-models.txt: a law stays only if
+                              both sides list it (each side only deletes),
+                              and a rename (`NEW  # was OLD`) from either
+                              side stays (ci/land.sh runs it; no build
+                              needed)
   ci/proof-links.py --check   fail if either is stale, a reference
                               names no audited theorem, the README's
                               "All N rest on" count is not the audit's,
@@ -394,6 +401,31 @@ def merge_base_models():
     return git("show", f"{base.strip()}:tests/wiring-models.txt") if base else None
 
 
+def merge_models():
+    """tests/wiring-models.txt after a conflicted merge: our lines, less the
+    laws the other side deleted, plus the other side's renames."""
+    def side(n):
+        r = subprocess.run(["git", "show", f":{n}:tests/wiring-models.txt"], cwd=TOP,
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            sys.exit(f"proof-links: no stage {n} of tests/wiring-models.txt to merge")
+        return r.stdout
+    ours, theirs = side(2), side(3)
+    keep, _ = listed(theirs)
+    out = []
+    for line in ours.split("\n"):
+        code = line.split("#")[0].strip()
+        if code and code.split()[0] not in keep and "# was" not in line:
+            continue
+        out.append(line)
+    mine, _ = listed(ours)
+    for line in theirs.split("\n"):
+        code = line.split("#")[0].strip()
+        if code and "# was" in line and code.split()[0] not in mine:
+            out.append(line)
+    open(MODELS, "w").write("\n".join(out))
+
+
 def prune(rows):
     """Delete tests/wiring-models.txt's lines that name no model law, and
     module headers left with none; never add one."""
@@ -549,6 +581,10 @@ def section(rows, decls, cited):
 
 
 def main():
+    if "--merge-models" in sys.argv[1:]:
+        merge_models()
+        print("proof-links: merged tests/wiring-models.txt")
+        sys.exit(0)
     check = "--check" in sys.argv[1:]
     decls = ranges()
     resolve = resolver(decls)

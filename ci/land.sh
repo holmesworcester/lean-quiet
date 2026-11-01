@@ -9,9 +9,11 @@
 # 1. Wait for the lock ($TMPDIR/lean-quiet-land.lock; flock frees it if
 #    the holder dies).
 # 2. Merge origin/main into HEAD (a conflict stops here, but for README's
-#    generated lines, ci/readme-merge.py: resolve, commit, run it again),
-#    build, and refresh the README's links and the vacuity inventory if
-#    the merge moved them (a commit of their own).
+#    generated lines, ci/readme-merge.py, and the model-law list,
+#    ci/proof-links.py --merge-models: resolve, commit, run it again),
+#    build, prune the model-law list of laws no longer models, and refresh
+#    the README's links and the vacuity inventory if the merge moved them
+#    (a commit of their own).
 # 3. The gate (ci/local.sh). A failure stops here, nothing pushed.
 # 4. Push HEAD to main, fast-forward only: LAND_PUSH (default
 #    `git push origin HEAD:main`; set it to push with your credentials).
@@ -33,15 +35,23 @@ git fetch -q origin
 if ! git merge-base --is-ancestor origin/main HEAD; then
   if ! git merge --no-edit origin/main; then
     # README's generated lines (links, table rows) conflict on most merges:
-    # main's are taken, and written again below; anything else stops here
-    if [ "$(git diff --name-only --diff-filter=U)" = README.md ] && python3 ci/readme-merge.py; then
-      git add README.md && git commit -q --no-edit
+    # main's are taken, and written again below; the model-law list
+    # (tests/wiring-models.txt) only shrinks, so a law stays only if both
+    # sides kept it; anything else stops here
+    conflicted=$(git diff --name-only --diff-filter=U)
+    if [ -z "$(grep -vx -e README.md -e tests/wiring-models.txt <<<"$conflicted")" ] &&
+       { ! grep -qx README.md <<<"$conflicted" || python3 ci/readme-merge.py; } &&
+       { ! grep -qx tests/wiring-models.txt <<<"$conflicted" || python3 ci/proof-links.py --merge-models; }; then
+      git add README.md tests/wiring-models.txt && git commit -q --no-edit
     else
       echo "land: the merge conflicts: resolve, commit, and run ci/land.sh again" >&2; exit 1
     fi
   fi
 fi
 ci/local.sh build
+# laws main's side ported since this branch began leave the model list
+# (it only shrinks; a new model law still fails the gate)
+python3 ci/proof-links.py --prune >/dev/null
 python3 ci/proof-links.py >/dev/null && python3 ci/vacuity.py --write >/dev/null
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   git commit -qam "README links and vacuity inventory after merging main"
