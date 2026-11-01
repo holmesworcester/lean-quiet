@@ -131,6 +131,18 @@ run = "tests/net/check.sh"
 description = "The README's theorem links, and its laws not yet about running code (tests/Wiring.lean), match the code (ci/proof-links.py; needs the tree built)"
 run = "python3 ci/proof-links.py --check"
 
+[tasks."hackathon:refresh"]
+description = "Just before the Vibecheck submission, at main's head: write docs/HACKATHON.md's generated numbers from git (ci/hackathon.py), commit that file alone, then run the self-test and the check"
+run = "python3 ci/hackathon.py --refresh"
+
+[tasks."hackathon:check"]
+description = "ci/hackathon.py's self-test (the base reads 787 of 1016 laws and 20 controls; malformed lead lines, a stale block and an edited number are refused), then docs/HACKATHON.md's block is current for HEAD: nothing but that file changed since the commit it names. Not in the per-push gate: every landing makes the block stale"
+run = "python3 ci/hackathon.py --self-test && python3 ci/hackathon.py --check"
+
+[tasks."hackathon:test"]
+description = "ci/hackathon.py's self-test alone: git only, a few seconds"
+run = "python3 ci/hackathon.py --self-test"
+
 [tasks."layout:check"]
 description = "The op tree's layout (ci/layout.py): eight file names under app/, an op is a folder with its validator, each family registers its ops, imports go down the tree (or to cited op types), and the engine imports no app module; then its negative controls"
 run = "python3 ci/layout.py --self-test"
