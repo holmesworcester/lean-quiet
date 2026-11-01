@@ -23,6 +23,21 @@ theorem runInv (ops : List Op) : Inv (family ed25519) (run ops) := reach_inv (ru
 def certifyDB (ops : List Op) (o : Op) (f : Fact) : Option (PLift (V ed25519 (run ops).ops o.id f)) :=
   if h : (run ops).status o.id = some (.valid f) then some ⟨(runInv ops).sound _ _ h⟩ else none
 
+/-- The store before Alice approves: her community, the invitation and
+Bob's request. -/
+def pending : List Op := [r, invitation, requestB]
+
+/-- Alice's approval write over a store, as the intent runs it. -/
+def approvalWrite (ops : List Op) : Write := (approveReq c requestB.id c alice).eval (run ops)
+
+/-- `approveReq_wrap_admits` applied to Alice's actual approval of Bob's
+request over the real store: unless her write is the bare approval, it
+is her approval, then the admission citing exactly it, then the rest. -/
+def wrapAdmits (ops : List Op) : Option (PLift (∃ rest, (approvalWrite ops).ops =
+    approve c requestB.id c alice :: admit c requestB.id (approve c requestB.id c alice).id :: rest)) :=
+  if h : (approvalWrite ops).ops = [approve c requestB.id c alice] then none
+  else some ⟨(Engine.View.always_eval (run ops) (approveReq_wrap_admits c requestB.id c alice .empty)).resolve_left h⟩
+
 def connectIff := if hq : (run before).queue = [] then
   some (PLift.up (connect_iff (runInv before) hq c (keyOf bob))) else none
 
@@ -115,13 +130,13 @@ def connectAgree :=
 
 def connectAdmitted := do
   let ⟨hc⟩ ← certifyDB before r rootFact
-  let ⟨hr⟩ ← certifyDB before requestB (.request c requestB.id bob.pk (keyOf bob) false 1)
+  let ⟨hr⟩ ← certifyDB before requestB (.request c requestB.id bob.pk (keyOf bob) false)
   let ⟨ha⟩ ← certifyDB before approval (.approval c requestB.id c)
   if hq : (run before).queue = [] then
     if hy : (run before).ops admission.id = some admission then
       if hl : (deviceLive c bob.pk).eval (run before) = true then
-        return PLift.up (connect_admitted (runInv before) hq (us := [c]) hy
-          (decode_encode _) rfl rfl hc hr (.cons ha .nil) (by simp) rfl
+        return PLift.up (connect_admitted (runInv before) hq hy
+          (decode_encode _) rfl rfl hc hr ha
           ((deviceLive_iff (runInv before) hq c bob.pk).1 hl).2)
       else none
     else none
@@ -160,7 +175,7 @@ def noRenaming (Signed : Key → ByteArray → Prop) := applyLaw
 
 def requestC := request c invitation.id carol (keyOf bob) bearer.sk
 def approvalC := approve c requestC.id c alice
-def admissionC := admit c requestC.id [approvalC.id]
+def admissionC := admit c requestC.id approvalC.id
 def rejoined := after ++ [requestC,approvalC,admissionC]
 
 def newDeviceTrusted := do
@@ -208,6 +223,10 @@ def main : IO UInt32 := do
   t.ok "Net.allowPeer_iff on real signed community" netAllowPeer.isSome
   t.ok "Net.allowPeer_settles from actual loaded ops" netAllowSettles.isSome
   t.ok "connect_iff with admitted Bob" connectIff.isSome
+  t.ok "approveReq_wrap_admits: Alice's approval of Bob's pending request writes the admission citing it"
+    (wrapAdmits pending).isSome
+  t.ok "approveReq_wrap_admits control: without the request the write is the bare approval"
+    (decide ((approvalWrite [r, invitation]).ops = [approve c requestB.id c alice]))
   t.ok "deviceLive_iff with admitted Bob" deviceLiveIff.isSome
   t.ok "members_iff with admitted Bob" membersIff.isSome
   t.ok "recipients_iff with admitted Bob" recipientsIff.isSome

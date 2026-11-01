@@ -648,16 +648,16 @@ def make (me : Me) (k : Key32) (srcs : Array Image.Src) (seed n top now : Nat) :
   let mut g : Rng := ⟨seed.toUInt64 * 7919 + 17⟩
   let mut jobs : Array Job := #[]
   let mut batch : Array Op := #[]
-  -- people: invited by the founder, who approves each request (threshold 1)
+  -- people: invited by the founder, who approves each request (one approval admits)
   let nUsers := max 6 (min names.size (n / 20))
   let mut people : Array (Id × Device) := #[(me.adm, f)]
   for i in [0:nUsers] do
     let d := Device.named s!"chaos-{seed}-{i}"
     let bearer := Device.named s!"chaos-bearer-{seed}-{i}"
-    let inv := invite c me.adm f bearer.pk false 1
+    let inv := invite c me.adm f bearer.pk false
     let rq := request c inv.id d (cryptoSeal.pub (sizedOf s!"chaos-node-{seed}-{i}" 32)) bearer.sk
     let ap := approve c rq.id me.adm f
-    let j := admit c rq.id [ap.id]
+    let j := admit c rq.id ap.id
     let p := profile c j.id d names[i % names.size]!.toUTF8 start
     batch := batch ++ #[inv, rq, ap, j, p]
     people := people.push (j.id, d)
@@ -723,9 +723,9 @@ end
 section
 
 /-
-A request to join: the device asking, the approvals it has (decided ones
-count toward its threshold; an admission may cite only decided facts),
-and whether an admission answers it.
+A request to join: the device asking, the approvals it has (one admits
+it; an admission may cite only decided facts), and whether an admission
+answers it.
 
 Reads: `approval.byRequest [c, r]` and `admission.byDevice [c, d]` (a
 count). The Join requests page lists `request.all [c]` and makes one of
@@ -738,7 +738,6 @@ open Engine Community Data
 structure Data where
   id : Id
   device : Key
-  threshold : Nat
   /-- Decided approvals' ids (what an admission may cite). -/
   approvals : List Id
   pending : Nat
@@ -748,11 +747,11 @@ structure Data where
 variable {m : Type → Type} [Monad m] [Reads m]
 
 def read (c r : Id) (f : Fact) (deps : Array Q) : m (Option Data × Array Q) := do
-  let .request _ _ d _ _ t := f | return (none, deps)
+  let .request _ _ d _ _ := f | return (none, deps)
   let (aps, pend, deps) ← readList (approval.byRequest.query [c, r]) deps
   let ids := aps.rows.map (·.1.2)
   let (adm, _, deps) ← readList (admission.byDevice.query [c, d] (limit := some 0)) deps
-  return (some ⟨r, d, t, ids.filter (!pend.contains ·), (ids.filter pend.contains).length, adm.total > 0⟩, deps)
+  return (some ⟨r, d, ids.filter (!pend.contains ·), (ids.filter pend.contains).length, adm.total > 0⟩, deps)
 
 /-- The requests to c no admission answers yet. -/
 def waiting (c : Id) : m (Array Data × Array Q) := do
@@ -766,8 +765,11 @@ def waiting (c : Id) : m (Array Data × Array Q) := do
       if !r.admitted then out := out.push r
   return (out, deps)
 
-/-- Whether its decided approvals complete its threshold. -/
-def Data.ready (r : Data) : Bool := r.threshold > 0 && r.approvals.length ≥ r.threshold
+/-- Whether an approval of it is decided: one admits it. -/
+def Data.ready (r : Data) : Bool := !r.approvals.isEmpty
+
+/-- Whether its admission is on its way: an approval is pending or decided. -/
+def Data.going (r : Data) : Bool := r.pending > 0 || r.ready
 
 def hexShort (b : ByteArray) : String :=
   String.join (b.toList.take 4 |>.map fun x =>
@@ -775,8 +777,8 @@ def hexShort (b : ByteArray) : String :=
 
 /-- Its row on the Join requests page. -/
 def Data.row (r : Data) : Pages.Asking :=
-  { device := s!"Device {hexShort r.device}", when := s!"{r.approvals.length} of {r.threshold} approvals",
-    going := r.pending > 0 || r.ready }
+  { device := s!"Device {hexShort r.device}", when := if r.going then "approved" else "waiting",
+    going := r.going }
 
 end Kinds.Request
 
@@ -3893,8 +3895,8 @@ def approveReq (r : Id) : M Unit := do
   -- requester's device
   let esk ← newBytes 32
   let s ← get
-  -- the intent reads the request and its approvals: with mine, is the
-  -- tally complete? then the admission goes in the same write
+  -- the intent reads the request: my approval admits it, so the
+  -- admission goes in the same write
   let w ← intentView (Community.approveReq s.me.c r s.me.adm s.me.dev esk)
   let _ ← writeAll w
 

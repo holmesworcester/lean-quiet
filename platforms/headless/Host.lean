@@ -195,7 +195,7 @@ def main (args : List String) : IO UInt32 := do
     let s ← get
     let joiner := Device.named "joiner-test"
     let bearer := Device.named "joiner-bearer"
-    let inv := Community.invite s.me.c s.me.adm s.me.dev bearer.pk false 1
+    let inv := Community.invite s.me.c s.me.adm s.me.dev bearer.pk false
     let rq := Community.request s.me.c inv.id joiner (Community.cryptoSeal.pub (Bytes.digest "joiner's node".toUTF8)) bearer.sk
     s.wr.submit ⟨[inv, rq], false⟩
     waitIdle sm

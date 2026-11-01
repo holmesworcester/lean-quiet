@@ -14,7 +14,7 @@ def unusedFresh := Bytes.digest "unused-node-seed".toUTF8
 def freshRequest := pendingInvite.request (Device.ofSeed freshSeed) pkB
 def freshOps := (joinOps pendingInvite freshSeed freshName pkB).ops
 def freshApproval := approve c freshRequest.id c alice
-def freshAdmission := admit c freshRequest.id [freshApproval.id]
+def freshAdmission := admit c freshRequest.id freshApproval.id
 def extendedOps := oldOps ++ freshOps ++ [freshApproval,freshAdmission]
 def acceptedRows := [((sortOf (.accepted c bob.pk),(accept c bob.pk).id),Fact.accepted c bob.pk)]
 def joiningRows := [((sortOf (.joining c Vacuity.IdentityConnection.pkA [Vacuity.IdentityLifecycle.addr]
@@ -97,7 +97,7 @@ def main : IO UInt32 := do
   t.ok "old Bob is removed and not held" ((mine c).eval (run oldOps) == none && !(deviceLive c bob.pk).eval (run oldOps))
   t.ok "fresh rejoin emits precisely fresh join ops" (((join pendingInvite freshSeed freshName unusedFresh).eval (run oldOps)).ops == freshOps)
   t.ok "old seed cannot request cut Bob again" (((join pendingInvite (sha256 "vacuity-bob".toUTF8) "Bob".toUTF8 unusedFresh).eval (run oldOps)).ops.isEmpty)
-  t.ok "new signed request validates under invitation" ((run extendedOps).status freshRequest.id == some (.valid (.request c freshRequest.id carol.pk pkB false 1)))
+  t.ok "new signed request validates under invitation" ((run extendedOps).status freshRequest.id == some (.valid (.request c freshRequest.id carol.pk pkB false)))
   t.ok "new admission actually validates" ((run extendedOps).status freshAdmission.id == some (.valid (.admission c freshRequest.id carol.pk pkB)))
   t.ok "old Bob remains cut after same node rejoins" (!(deviceLive c bob.pk).eval (run extendedOps))
   t.ok "new Carol is live on same node key" ((deviceLive c carol.pk).eval (run extendedOps) && (allowPeer c pkB).eval (run extendedOps))
