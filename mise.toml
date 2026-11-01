@@ -208,6 +208,14 @@ run = "platforms/linux/links.sh"
 description = "The links e2e's negative controls: the old empty lq_links, one socket for every database, a window never raised; each must fail linux:links"
 run = "python3 platforms/linux/negative_links.py"
 
+[tasks."make:assets-test"]
+description = "make install's assets step on made-up tarballs (file://): download, sha256 and per-file checks, repair, deterministic packing; controls: a flipped bit, files not matching the list, plain http, an unreachable URL, a stale pin and changed asset scripts must each fail. No network"
+run = "tests/make/assets_test.sh"
+
+[tasks."make:clean-room"]
+description = "make install && make run from a git clone of HEAD in fresh ubuntu:24.04 and debian:12 containers, as a user with sudo: missing packages, elan, rustup, the pinned assets tarball (packed here, served by file://), the cold build (timed), a second install that redoes nothing, and a screenshot of the window under Xvfb (an empty screen must fail). Needs Docker and network; see tests/make/clean_room.sh"
+run = "tests/make/clean_room.sh"
+
 [tasks."host:desktop-negative"]
 description = "The desktop's negative controls: eight layout and control laws broken, two native functions, five UI behaviours (the resize settle among them), two X11 resize mechanisms (gravity, the sync request) and five Get started/shell mutants; each must fail"
 run = "python3 platforms/linux/negative.py && python3 platforms/linux/negative_ui.py && python3 platforms/linux/negative_x11.py && python3 tests/app/start_negative.py"

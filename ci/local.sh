@@ -30,7 +30,9 @@
 # 3. --full: every other part, longest first. The negative controls'
 #    mutants (engine:<name>, tests/engine/controls.txt; the app's, among
 #    its stages), real TCP (engine:tcp, net, mdns), X and the desktop
-#    shell, qr, zoom, site, the workspace. A mutant works in a snapshot
+#    shell, qr, zoom, site, the workspace, and `make install && make run`
+#    from a fresh clone in Docker (make:clean-room) with its assets step's
+#    controls (make:assets). A mutant works in a snapshot
 #    (tests/snapshot.sh); the app's stages edit sources in place, so they
 #    run in three groups (app:1, app:2, app:3), each in its own copy of
 #    the built tree ($TMPDIR/ci-app-*, deleted after; its out/ copied back).
@@ -39,7 +41,8 @@
 # fails, its processes killed, and the others go on.
 # Logs: out/ci/<part>.log. Exits non-zero if any part fails.
 # `site` and `workspace` need Chromium's headless shell (CHROME, or
-# Playwright's); `android-links` needs the Android SDK and an emulator image.
+# Playwright's); `android-links` needs the Android SDK and an emulator image;
+# `make:clean-room` needs Docker and network access (tests/make/clean_room.sh).
 # SKIP_TCP=1 builds the TCP suites but omits their runs in a socket sandbox.
 set -uo pipefail
 top=$(cd "$(dirname "$0")/.." && pwd)
@@ -61,10 +64,10 @@ proofs=(driver build check layout readme reorg)
 fast=(engine:suites visual headless vacuity)
 # longest first (minutes, measured on the shared box: app:2 and app:3
 # 40–55, qr 24, app:1 17, engine:harden 14, the rest under 10)
-rest=(app:3 app:2 qr app:1 engine:harden engine:ref-publications engine:catalog-retry engine:fresh
+rest=(make:clean-room app:3 app:2 qr app:1 engine:harden engine:ref-publications engine:catalog-retry engine:fresh
   $(grep -v '^#' "$top/tests/engine/controls.txt" 2>/dev/null | cut -f1 |
     grep -vx 'harden\|ref-publications\|catalog-retry\|fresh' | sed 's/^/engine:/')
-  engine:tcp mdns net zoom owned-input site workspace)
+  engine:tcp mdns net zoom owned-input site workspace make:assets)
 # the app's stages, in three groups, each run in its own copy of the tree
 declare -A app_group=([app:1]="fonts input network" [app:2]="desktop navigation lifecycle"
   [app:3]="appearance safety components")
@@ -113,6 +116,8 @@ gate() {
     android-zoom) mise run android:zoom ;;
     release-zoom) mise run test:zoom && mise run android:zoom ;;
     pixel-scroll) mise run android:scroll-measure ;;
+    make:assets) mise run make:assets-test ;;
+    make:clean-room) mise run make:clean-room ;;
     readme) mise run readme:links ;;
     layout) mise run layout:check ;;
     reorg) mise run reorg:test ;;

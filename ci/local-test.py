@@ -31,6 +31,10 @@ with tempfile.TemporaryDirectory(prefix="quiet-ci-driver-", dir=os.environ.get("
         ("app-fails", "app", "test:app", ["run test:app"], 1),
         ("windows-fails", "app", "windows:input", ["run test:app", "run windows:input"], 1),
         ("app-owned-fails", "app", "test:owned-input", ["run test:app", "run windows:input", "run test:owned-input"], 1),
+        ("clean-room", "make:clean-room", "", ["run make:clean-room"], 0),
+        ("clean-room-fails", "make:clean-room", "make:clean-room", ["run make:clean-room"], 1),
+        ("make-assets", "make:assets", "", ["run make:assets-test"], 0),
+        ("make-assets-fails", "make:assets", "make:assets-test", ["run make:assets-test"], 1),
     ]
     for name, part, fail, expected, code in cases:
         calls = work / (name + ".calls")
