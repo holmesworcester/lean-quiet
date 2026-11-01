@@ -667,33 +667,33 @@ recommended law, and the details of every other law above, are in
 
 | Law | Where | Axioms | Surface | Of the app | Spec-only | Assumed | Bridged |
 |---|---|---|---:|---:|---:|---:|---:|
-| [`no_impersonation`](#communityno_impersonation) | [app/community/Proofs.lean:120](../app/community/Proofs.lean#L120) | propext, Classical.choice, Quot.sound | 318 | 298 | 6 | 1 | 1 |
-| [`admission_needs_approval`](#communityadmission_needs_approval) | [app/community/member/invite/Proofs.lean:44](../app/community/member/invite/Proofs.lean#L44) | propext, Classical.choice, Quot.sound | 305 | 297 | 8 | 0 | 0 |
-| [`removal_authorized`](#communityremoval_authorized) | [app/community/member/Proofs.lean:50](../app/community/member/Proofs.lean#L50) | propext, Classical.choice, Quot.sound | 305 | 297 | 8 | 0 | 0 |
-| [`removed_stays`](#communityremoved_stays) | [app/community/member/remove/Proofs.lean:28](../app/community/member/remove/Proofs.lean#L28) | propext, Classical.choice, Quot.sound | 304 | 297 | 7 | 0 | 0 |
-| [`connect_iff`](#communityconnect_iff) | [app/community/Proofs.lean:821](../app/community/Proofs.lean#L821) | propext, Classical.choice, Quot.sound | 349 | 326 | 10 | 1 | 1 |
-| [`removal_reaches_session`](#connectionremoval_reaches_session) | [app/Proofs.lean:3088](../app/Proofs.lean#L3088) | propext, Classical.choice, Quot.sound | 613 | 542 | 13 | 24 | 5 |
-| [`recv_send`](#enginesyncrecv_send) | [engine/sync/ConnLaws.lean:158](../engine/sync/ConnLaws.lean#L158) | propext, Classical.choice, Quot.sound | 123 | 103 | 3 | 15 | 0 |
-| [`sealed_auth`](#connectionsealed_auth) | [app/connection/Proofs.lean:134](../app/connection/Proofs.lean#L134) | propext, Classical.choice, Quot.sound | 318 | 260 | 2 | 23 | 4 |
-| [`kk_secret`](#connectionnoisesymbolickk_secret) | [engine/wire/NoiseSymbolic.lean:633](../engine/wire/NoiseSymbolic.lean#L633) | propext, Quot.sound | 29 | 18 | 7 | 1 | 0 |
-| [`kk_authentic`](#connectionnoisesymbolickk_authentic) | [engine/wire/NoiseSymbolic.lean:934](../engine/wire/NoiseSymbolic.lean#L934) | propext, Quot.sound | 30 | 18 | 8 | 1 | 0 |
-| [`same_ops_same_verdicts`](#enginesame_ops_same_verdicts) | [engine/core/Termination.lean:122](../engine/core/Termination.lean#L122) | propext, Classical.choice, Quot.sound | 68 | 33 | 2 | 3 | 5 |
-| [`display_agrees`](#communitydisplay_agrees) | [app/community/channel/message/Proofs.lean:193](../app/community/channel/message/Proofs.lean#L193) | propext, Classical.choice, Quot.sound | 314 | 306 | 8 | 0 | 0 |
+| [`no_impersonation`](#communityno_impersonation) | [app/community/Proofs.lean:120](../app/community/Proofs.lean#L120) | propext, Classical.choice, Quot.sound | 327 | 306 | 6 | 1 | 1 |
+| [`admission_needs_approval`](#communityadmission_needs_approval) | [app/community/member/invite/Proofs.lean:44](../app/community/member/invite/Proofs.lean#L44) | propext, Classical.choice, Quot.sound | 313 | 305 | 8 | 0 | 0 |
+| [`removal_authorized`](#communityremoval_authorized) | [app/community/member/Proofs.lean:50](../app/community/member/Proofs.lean#L50) | propext, Classical.choice, Quot.sound | 313 | 305 | 8 | 0 | 0 |
+| [`removed_stays`](#communityremoved_stays) | [app/community/member/remove/Proofs.lean:28](../app/community/member/remove/Proofs.lean#L28) | propext, Classical.choice, Quot.sound | 312 | 305 | 7 | 0 | 0 |
+| [`connect_iff`](#communityconnect_iff) | [app/community/Proofs.lean:821](../app/community/Proofs.lean#L821) | propext, Classical.choice, Quot.sound | 358 | 336 | 10 | 0 | 1 |
+| [`removal_reaches_session`](#connectionremoval_reaches_session) | [app/Proofs.lean:3104](../app/Proofs.lean#L3104) | propext, Classical.choice, Quot.sound | 649 | 615 | 15 | 5 | 1 |
+| [`recv_send`](#enginesyncrecv_send) | [engine/sync/ConnLaws.lean:191](../engine/sync/ConnLaws.lean#L191) | propext, Classical.choice, Quot.sound | 148 | 136 | 5 | 5 | 0 |
+| [`sealed_auth`](#connectionsealed_auth) | [app/connection/Proofs.lean:160](../app/connection/Proofs.lean#L160) | propext, Classical.choice, Quot.sound | 352 | 330 | 4 | 5 | 0 |
+| [`kk_secret`](#connectionnoisesymbolickk_secret) | [engine/wire/NoiseSymbolic.lean:631](../engine/wire/NoiseSymbolic.lean#L631) | propext, Quot.sound | 29 | 18 | 7 | 1 | 0 |
+| [`kk_authentic`](#connectionnoisesymbolickk_authentic) | [engine/wire/NoiseSymbolic.lean:932](../engine/wire/NoiseSymbolic.lean#L932) | propext, Quot.sound | 30 | 18 | 8 | 1 | 0 |
+| [`same_ops_same_verdicts`](#enginesame_ops_same_verdicts) | [engine/core/Termination.lean:122](../engine/core/Termination.lean#L122) | propext, Classical.choice, Quot.sound | 68 | 63 | 2 | 1 | 0 |
+| [`display_agrees`](#communitydisplay_agrees) | [app/community/channel/message/Proofs.lean:202](../app/community/channel/message/Proofs.lean#L202) | propext, Classical.choice, Quot.sound | 322 | 314 | 8 | 0 | 0 |
 | [`Cover.covered`](#covercovered) | [engine/renderer/Cover.lean:84](../engine/renderer/Cover.lean#L84) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
-| [`back_open`](#navlawsback_open) | [app/Proofs.lean:1311](../app/Proofs.lean#L1311) | propext, Classical.choice, Quot.sound | 224 | 223 | 1 | 0 | 0 |
+| [`back_open`](#navlawsback_open) | [app/Proofs.lean:1319](../app/Proofs.lean#L1319) | propext, Classical.choice, Quot.sound | 709 | 703 | 2 | 0 | 0 |
 | [`select_tapped_dedupe`](#switchselect_tapped_dedupe) | [app/community/Screen.lean:810](../app/community/Screen.lean#L810) | propext, Quot.sound | 9 | 9 | 0 | 0 | 0 |
-| [`approveReq_ops`](#communityapprovereq_ops) | [app/community/Proofs.lean:1327](../app/community/Proofs.lean#L1327) | propext, Classical.choice, Quot.sound | 183 | 181 | 2 | 0 | 0 |
-| [`ingest_costs`](#engineingest_costs) | [engine/core/IngestCost.lean:42](../engine/core/IngestCost.lean#L42) | propext, Classical.choice, Quot.sound | 46 | 32 | 6 | 0 | 8 |
+| [`approveReq_ops`](#communityapprovereq_ops) | [app/community/Proofs.lean:1327](../app/community/Proofs.lean#L1327) | propext, Classical.choice, Quot.sound | 187 | 185 | 2 | 0 | 0 |
+| [`ingest_costs`](#engineingest_costs) | [engine/core/IngestCost.lean:49](../engine/core/IngestCost.lean#L49) | propext, Classical.choice, Quot.sound | 46 | 32 | 6 | 0 | 8 |
 
-**Together** these laws name 50 spec-only definitions, and 30 names of the assumptions they take.
+**Together** these laws name 53 spec-only definitions, and 9 names of the assumptions they take.
 
 <details><summary>The spec-only definitions, together</summary>
 
-- predicates: `Community.Admitted`, `Community.IsAdmin`, `Community.Keyed`, `Community.Listed`, `Community.Live`, `Community.Posted`, `Community.Removed`, `Community.V`, `Connection.LiveIn`, `Connection.MayGo`, `Connection.Noise.Symbolic.Answers`, `Connection.Noise.Symbolic.Clean`, `Connection.Noise.Symbolic.Derivable`, `Connection.Noise.Symbolic.Exposed`, `Connection.Noise.Symbolic.Part`, `Connection.Noise.Symbolic.Reveals`, `Connection.Noise.Symbolic.Sends`, `Connection.Noise.Symbolic.secrets`, `Connection.NoticeOnly`, `Connection.Owed`, `Connection.Refused`, `Engine.Codec.At`, `Engine.Costs`, `Engine.Extends`, `Engine.Field`, `Engine.Inv`, `Engine.Reach`, `Engine.Spec`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.Key.lt`, `Engine.Sync.Move`, `Engine.Sync.Moves`, `Engine.Sync.ReachIn`, `Engine.Sync.Reads`, `Engine.Sync.Sendable`, `Engine.View.Always`, `Engine.Within`
+- predicates: `Community.Admitted`, `Community.IsAdmin`, `Community.Keyed`, `Community.Listed`, `Community.Live`, `Community.Posted`, `Community.Removed`, `Community.V`, `Connection.LiveIn`, `Connection.MayGo`, `Connection.Noise.Symbolic.Answers`, `Connection.Noise.Symbolic.Clean`, `Connection.Noise.Symbolic.Derivable`, `Connection.Noise.Symbolic.Exposed`, `Connection.Noise.Symbolic.Part`, `Connection.Noise.Symbolic.Reveals`, `Connection.Noise.Symbolic.Sends`, `Connection.Noise.Symbolic.secrets`, `Connection.NoticeOnly`, `Connection.Owed`, `Connection.Refused`, `Engine.Codec.At`, `Engine.Costs`, `Engine.Extends`, `Engine.Field`, `Engine.Inv`, `Engine.Reach`, `Engine.Spec`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.Key.lt`, `Engine.Sync.Key.plt`, `Engine.Sync.Move`, `Engine.Sync.Moves`, `Engine.Sync.ReachIn`, `Engine.Sync.Reads`, `Engine.Sync.Sendable`, `Engine.Sync.Sorted`, `Engine.View.Always`, `Engine.Within`, `Ttf.Bitmap.Valid`
 - types: `Connection.Noise.Symbolic.T`
 - definitions: `Community.Fact.admin`, `Community.Fact.admission`, `Community.Fact.approval`, `Community.Fact.message`, `Community.Fact.received`, `Community.Fact.removal`, `Community.Fact.request`, `Engine.specAt`
 - instances: `Connection.Noise.Symbolic.instDecidableEqT`, `Engine.Meter.instAdd`, `Engine.Meter.instOfNatOfNatNat`
-- assumed: `Community.Unforgeable`, `Connection.Noise.Symbolic.sym`, `Engine.DB`, `Engine.DB.addWait`, `Engine.DB.clearWaiters`, `Engine.DB.deleteOp`, `Engine.DB.dependents`, `Engine.DB.empty`, `Engine.DB.index`, `Engine.DB.push`, `Engine.DB.putOp`, `Engine.DB.setStatus`, `Engine.DB.undecide`, `Engine.Distinct`, `Engine.Model`, `Engine.Model.pop`, `Engine.Model.run`, `Engine.Sync.Held`, `Engine.Sync.HeldM`, `Engine.Sync.HeldM.run`, `Engine.Sync.instListsHeldMOfSortKey`, `Engine.Sync.instMonadHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.Sync.instTurnHeldM`, `Engine.Sync.lift`, `Engine.budget`, `Engine.eval`, `Engine.instListsModelOfSortKey`, `Engine.instMonadModel`, `Engine.modelStore`
+- assumed: `Community.Unforgeable`, `Connection.Noise.Symbolic.sym`, `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Distinct`, `Engine.Model.pop`, `Engine.Sync.instStoreHeldM`, `Engine.instMonadModel`, `Engine.modelStore`
 
 </details>
 
@@ -735,31 +735,31 @@ Named in the statement: `Community.Admitted`, `Community.Crypto`, `Community.Fac
 
 Spec-only, to review: predicates: `Community.Admitted`, `Community.Live`, `Community.Removed`, `Community.V`, `Engine.Codec.At`, `Engine.Inv`, `Engine.Spec`; definitions: `Community.Fact.admission`, `Community.Fact.removal`, `Engine.specAt`.
 
-Assumed: `Engine.DB`. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
+Assumed: none. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
 
 #### Connection.removal_reaches_session
 
 Named in the statement: `Community.Fact`, `Community.instSortKeyFact`, `Connection.B`, `Connection.F`, `Connection.Fact`, `Connection.Keys`, `Connection.MayGo`, `Connection.hooks`, `Connection.instSortKeyFact`, `Engine.Fresh`, `Engine.Id`, `Engine.Op`, `Engine.Sync.Catalog`, `Engine.Sync.Effects`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.Held`, `Engine.Sync.HeldM`, `Engine.Sync.HeldM.run`, `Engine.Sync.Hooks`, `Engine.Sync.Moves`, `Engine.Sync.Node`, `Engine.Sync.Reads`, `Engine.Sync.RetryStore`, `Engine.Sync.Sweep`, `Engine.Sync.Sync`, `Engine.Sync.instListsHeldMOfSortKey`, `Engine.Sync.instMonadHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.instSortKeySum`.
 
-Spec-only, to review: predicates: `Connection.LiveIn`, `Connection.MayGo`, `Connection.NoticeOnly`, `Connection.Owed`, `Connection.Refused`, `Engine.Codec.At`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.Key.lt`, `Engine.Sync.Move`, `Engine.Sync.Moves`, `Engine.Sync.ReachIn`, `Engine.Sync.Reads`.
+Spec-only, to review: predicates: `Connection.LiveIn`, `Connection.MayGo`, `Connection.NoticeOnly`, `Connection.Owed`, `Connection.Refused`, `Engine.Codec.At`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.Key.lt`, `Engine.Sync.Key.plt`, `Engine.Sync.Move`, `Engine.Sync.Moves`, `Engine.Sync.ReachIn`, `Engine.Sync.Reads`, `Engine.Sync.Sorted`.
 
-Assumed: `Engine.DB`, `Engine.DB.addWait`, `Engine.DB.clearWaiters`, `Engine.DB.deleteOp`, `Engine.DB.dependents`, `Engine.DB.index`, `Engine.DB.push`, `Engine.DB.putOp`, `Engine.DB.setStatus`, `Engine.DB.undecide`, `Engine.Model`, `Engine.Model.pop`, `Engine.Sync.Held`, `Engine.Sync.HeldM`, `Engine.Sync.HeldM.run`, `Engine.Sync.instListsHeldMOfSortKey`, `Engine.Sync.instMonadHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.Sync.instTurnHeldM`, `Engine.Sync.lift`, `Engine.budget`, `Engine.eval`, `Engine.instListsModelOfSortKey`, `Engine.modelStore`. Bridged: `Engine.View.eval` (by `Engine.View.run_model`), `Engine.drainS` (by `Engine.run_drain`), `Engine.ingestS` (by `Engine.run_ingest`), `Engine.purgeS` (by `Engine.run_purge`), `Engine.purgeSet` (by `Engine.run_purge`).
+Assumed: `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Model.pop`, `Engine.Sync.instStoreHeldM`, `Engine.modelStore`. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
 
 #### Engine.Sync.recv_send
 
 Named in the statement: `Engine.DB`, `Engine.Family`, `Engine.Model`, `Engine.Model.run`, `Engine.Op`, `Engine.Sync.Config`, `Engine.Sync.Conn`, `Engine.Sync.Conn.recv`, `Engine.Sync.Index`, `Engine.Sync.Sendable`, `Engine.Sync.Step`, `Engine.instMonadModel`, `Engine.modelStore`.
 
-Spec-only, to review: predicates: `Engine.Codec.At`, `Engine.Sync.Key.lt`, `Engine.Sync.Sendable`.
+Spec-only, to review: predicates: `Engine.Codec.At`, `Engine.Sync.Key.lt`, `Engine.Sync.Key.plt`, `Engine.Sync.Sendable`, `Engine.Sync.Sorted`.
 
-Assumed: `Engine.DB`, `Engine.DB.addWait`, `Engine.DB.clearWaiters`, `Engine.DB.deleteOp`, `Engine.DB.dependents`, `Engine.DB.index`, `Engine.DB.push`, `Engine.DB.putOp`, `Engine.DB.setStatus`, `Engine.DB.undecide`, `Engine.Model`, `Engine.Model.pop`, `Engine.Model.run`, `Engine.instMonadModel`, `Engine.modelStore`. Bridged: none.
+Assumed: `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Model.pop`, `Engine.instMonadModel`, `Engine.modelStore`. Bridged: none.
 
 #### Connection.sealed_auth
 
 Named in the statement: `Community.Fact`, `Community.instSortKeyFact`, `Connection.B`, `Connection.F`, `Connection.Fact`, `Connection.Frame.ad`, `Connection.Frame.cid`, `Connection.Keys`, `Connection.instSortKeyFact`, `Connection.openFrame`, `Connection.sessionKeys`, `Engine.Id`, `Engine.Sync.Effects`, `Engine.Sync.Held`, `Engine.Sync.HeldM`, `Engine.Sync.Node`, `Engine.Sync.Node.onFrame`, `Engine.Sync.RetryTicket`, `Engine.Sync.Sync`, `Engine.Sync.instListsHeldMOfSortKey`, `Engine.Sync.instMonadHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.Sync.instTurnHeldM`, `Engine.Sync.sealedTag`, `Engine.Sync.tagged`, `Engine.instSortKeySum`.
 
-Spec-only, to review: predicates: `Engine.Codec.At`, `Engine.Sync.Key.lt`.
+Spec-only, to review: predicates: `Engine.Codec.At`, `Engine.Sync.Key.lt`, `Engine.Sync.Key.plt`, `Engine.Sync.Sorted`.
 
-Assumed: `Engine.DB`, `Engine.DB.addWait`, `Engine.DB.clearWaiters`, `Engine.DB.deleteOp`, `Engine.DB.dependents`, `Engine.DB.index`, `Engine.DB.push`, `Engine.DB.putOp`, `Engine.DB.setStatus`, `Engine.DB.undecide`, `Engine.Model`, `Engine.Model.pop`, `Engine.Sync.Held`, `Engine.Sync.HeldM`, `Engine.Sync.instListsHeldMOfSortKey`, `Engine.Sync.instMonadHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.Sync.instTurnHeldM`, `Engine.Sync.lift`, `Engine.budget`, `Engine.eval`, `Engine.instListsModelOfSortKey`, `Engine.modelStore`. Bridged: `Engine.drainS` (by `Engine.run_drain`), `Engine.ingestS` (by `Engine.run_ingest`), `Engine.purgeS` (by `Engine.run_purge`), `Engine.purgeSet` (by `Engine.run_purge`).
+Assumed: `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Model.pop`, `Engine.Sync.instStoreHeldM`, `Engine.modelStore`. Bridged: none.
 
 #### Connection.Noise.Symbolic.kk_secret
 
@@ -783,7 +783,7 @@ Named in the statement: `Engine.DB`, `Engine.Distinct`, `Engine.Family`, `Engine
 
 Spec-only, to review: predicates: `Engine.Codec.At`, `Engine.Reach`.
 
-Assumed: `Engine.DB`, `Engine.DB.empty`, `Engine.Distinct`. Bridged: `Engine.drainS` (by `Engine.run_drain`), `Engine.ingestS` (by `Engine.run_ingest`), `Engine.purgeS` (by `Engine.run_purge`), `Engine.purgeSet` (by `Engine.run_purge`), `Engine.stepS` (by `Engine.run_step`).
+Assumed: `Engine.Distinct`. Bridged: none.
 
 #### Community.display_agrees
 
@@ -803,9 +803,9 @@ Assumed: none. Bridged: none.
 
 #### NavLaws.back_open
 
-Named in the statement: `App.PageId`, `App.PageIn`, `App.Presentation.Entry`, `App.Presentation.capacity`, `App.PresentationCandidate`, `App.St`, `App.backSt`, `App.openSt`.
+Named in the statement: `App.PageId`, `App.PageId.code`, `App.PageIn`, `App.Presentation.Entry`, `App.Presentation.capacity`, `App.PresentationCandidate`, `App.St`, `App.St.nav`, `App.backSt`, `App.instDecidableEqPageId`, `App.openSt`, `Data.placeIn`, `Nav.go`.
 
-Spec-only, to review: predicates: `Engine.Codec.At`.
+Spec-only, to review: predicates: `Engine.Codec.At`, `Ttf.Bitmap.Valid`.
 
 Assumed: none. Bridged: none.
 
@@ -837,28 +837,28 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 
 | Law | Where | Axioms | Surface | Of the app | Spec-only | Assumed | Bridged |
 |---|---|---|---:|---:|---:|---:|---:|
-| [`id_decode`](HEADLINE-SURFACES.md#engineopid_decode) | [engine/core/Core.lean:93](../engine/core/Core.lean#L93) | propext, Classical.choice, Quot.sound | 35 | 34 | 1 | 0 | 0 |
+| [`id_decode`](HEADLINE-SURFACES.md#engineopid_decode) | [engine/core/Core.lean:94](../engine/core/Core.lean#L94) | propext, Classical.choice, Quot.sound | 35 | 34 | 1 | 0 | 0 |
 | [`writes_only_after_two`](HEADLINE-SURFACES.md#removewrites_only_after_two) | [app/community/member/remove/View.lean:61](../app/community/member/remove/View.lean#L61) | propext, Quot.sound | 4 | 4 | 0 | 0 | 0 |
-| [`wrap_keeps`](HEADLINE-SURFACES.md#textwrap_keeps) | [engine/renderer/WrapLaws.lean:134](../engine/renderer/WrapLaws.lean#L134) | propext, Classical.choice, Quot.sound | 37 | 36 | 1 | 0 | 0 |
-| [`message_authorized`](HEADLINE-SURFACES.md#communitymessage_authorized) | [app/community/channel/message/Proofs.lean:64](../app/community/channel/message/Proofs.lean#L64) | propext, Classical.choice, Quot.sound | 316 | 298 | 6 | 0 | 1 |
-| [`removal_cuts_off`](HEADLINE-SURFACES.md#communityremoval_cuts_off) | [app/community/Proofs.lean:918](../app/community/Proofs.lean#L918) | propext, Classical.choice, Quot.sound | 348 | 326 | 9 | 1 | 1 |
-| [`valid_stays`](HEADLINE-SURFACES.md#communityvalid_stays) | [app/community/Family.lean:1280](../app/community/Family.lean#L1280) | propext, Classical.choice, Quot.sound | 302 | 297 | 5 | 0 | 0 |
-| [`removed_gets_only_notice`](HEADLINE-SURFACES.md#connectionremoved_gets_only_notice) | [app/Proofs.lean:210](../app/Proofs.lean#L210) | propext, Classical.choice, Quot.sound | 286 | 252 | 7 | 16 | 1 |
-| [`entry_fresh`](HEADLINE-SURFACES.md#enginesyncentry_fresh) | [engine/wire/EgressLaws.lean:964](../engine/wire/EgressLaws.lean#L964) | propext, Classical.choice, Quot.sound | 275 | 220 | 10 | 21 | 4 |
-| [`offer_shared`](HEADLINE-SURFACES.md#enginesyncoffer_shared) | [engine/sync/SecrecyLaws.lean:62](../engine/sync/SecrecyLaws.lean#L62) | propext, Classical.choice, Quot.sound | 95 | 74 | 1 | 18 | 0 |
-| [`recv_take`](HEADLINE-SURFACES.md#enginesyncrecv_take) | [engine/sync/ConnLaws.lean:129](../engine/sync/ConnLaws.lean#L129) | propext, Classical.choice, Quot.sound | 123 | 103 | 3 | 15 | 0 |
-| [`sealed_unopened`](HEADLINE-SURFACES.md#enginesyncsealed_unopened) | [engine/wire/NodeLaws.lean:70](../engine/wire/NodeLaws.lean#L70) | propext, Classical.choice, Quot.sound | 234 | 188 | 2 | 20 | 4 |
+| [`wrap_keeps`](HEADLINE-SURFACES.md#textwrap_keeps) | [engine/renderer/WrapLaws.lean:134](../engine/renderer/WrapLaws.lean#L134) | propext, Classical.choice, Quot.sound | 69 | 67 | 2 | 0 | 0 |
+| [`message_authorized`](HEADLINE-SURFACES.md#communitymessage_authorized) | [app/community/channel/message/Proofs.lean:73](../app/community/channel/message/Proofs.lean#L73) | propext, Classical.choice, Quot.sound | 325 | 306 | 6 | 0 | 1 |
+| [`removal_cuts_off`](HEADLINE-SURFACES.md#communityremoval_cuts_off) | [app/community/Proofs.lean:918](../app/community/Proofs.lean#L918) | propext, Classical.choice, Quot.sound | 357 | 336 | 9 | 0 | 1 |
+| [`valid_stays`](HEADLINE-SURFACES.md#communityvalid_stays) | [app/community/Family.lean:1321](../app/community/Family.lean#L1321) | propext, Classical.choice, Quot.sound | 310 | 305 | 5 | 0 | 0 |
+| [`removed_gets_only_notice`](HEADLINE-SURFACES.md#connectionremoved_gets_only_notice) | [app/Proofs.lean:210](../app/Proofs.lean#L210) | propext, Classical.choice, Quot.sound | 314 | 289 | 9 | 5 | 1 |
+| [`entry_fresh`](HEADLINE-SURFACES.md#enginesyncentry_fresh) | [engine/wire/EgressLaws.lean:964](../engine/wire/EgressLaws.lean#L964) | propext, Classical.choice, Quot.sound | 307 | 286 | 12 | 5 | 0 |
+| [`offer_shared`](HEADLINE-SURFACES.md#enginesyncoffer_shared) | [engine/sync/SecrecyLaws.lean:62](../engine/sync/SecrecyLaws.lean#L62) | propext, Classical.choice, Quot.sound | 94 | 86 | 1 | 5 | 0 |
+| [`recv_take`](HEADLINE-SURFACES.md#enginesyncrecv_take) | [engine/sync/ConnLaws.lean:158](../engine/sync/ConnLaws.lean#L158) | propext, Classical.choice, Quot.sound | 148 | 136 | 5 | 5 | 0 |
+| [`sealed_unopened`](HEADLINE-SURFACES.md#enginesyncsealed_unopened) | [engine/wire/NodeLaws.lean:70](../engine/wire/NodeLaws.lean#L70) | propext, Classical.choice, Quot.sound | 265 | 252 | 4 | 5 | 0 |
 | [`encode_decode`](HEADLINE-SURFACES.md#enginecodecencode_decode) | [engine/core/Codec.lean:775](../engine/core/Codec.lean#L775) | propext | 4 | 3 | 1 | 0 | 0 |
-| [`drain_bounded`](HEADLINE-SURFACES.md#enginedrain_bounded) | [engine/core/Budget.lean:167](../engine/core/Budget.lean#L167) | propext, Classical.choice, Quot.sound | 71 | 32 | 2 | 4 | 5 |
-| [`ingest_twice`](HEADLINE-SURFACES.md#engineingest_twice) | [engine/core/IdemLaws.lean:50](../engine/core/IdemLaws.lean#L50) | propext, Classical.choice, Quot.sound | 51 | 32 | 1 | 15 | 0 |
-| [`purge_shared`](HEADLINE-SURFACES.md#enginepurge_shared) | [engine/core/Purge.lean:578](../engine/core/Purge.lean#L578) | propext, Classical.choice, Quot.sound | 47 | 32 | 1 | 1 | 1 |
-| [`status_iff_spec`](HEADLINE-SURFACES.md#enginestatus_iff_spec) | [engine/core/Proofs.lean:484](../engine/core/Proofs.lean#L484) | propext, Classical.choice, Quot.sound | 42 | 37 | 4 | 1 | 0 |
-| [`chunk_is_slice`](HEADLINE-SURFACES.md#communitychunk_is_slice) | [app/community/channel/message/attachment/chunk/Proofs.lean:51](../app/community/channel/message/attachment/chunk/Proofs.lean#L51) | propext, Classical.choice, Quot.sound | 181 | 171 | 3 | 1 | 0 |
-| [`bare_takes_only_join`](HEADLINE-SURFACES.md#connectionbare_takes_only_join) | [app/Proofs.lean:610](../app/Proofs.lean#L610) | propext, Classical.choice, Quot.sound | 500 | 469 | 2 | 17 | 0 |
-| [`order_total`](HEADLINE-SURFACES.md#communityorder_total) | [app/community/Proofs.lean:1427](../app/community/Proofs.lean#L1427) | propext, Classical.choice, Quot.sound | 350 | 335 | 5 | 1 | 1 |
-| [`present_iff`](HEADLINE-SURFACES.md#peoplelawspresent_iff) | [app/community/Screen.lean:439](../app/community/Screen.lean#L439) | propext, Classical.choice, Quot.sound | 351 | 328 | 10 | 1 | 1 |
-| [`deviceCut_removal`](HEADLINE-SURFACES.md#peoplelawsdevicecut_removal) | [app/community/Screen.lean:604](../app/community/Screen.lean#L604) | propext, Classical.choice, Quot.sound | 102 | 83 | 2 | 2 | 1 |
-| [`namesake_iff`](HEADLINE-SURFACES.md#viewlawsnamesake_iff) | [app/community/Screen.lean:286](../app/community/Screen.lean#L286) | propext, Classical.choice, Quot.sound | 346 | 325 | 9 | 2 | 0 |
+| [`drain_bounded`](HEADLINE-SURFACES.md#enginedrain_bounded) | [engine/core/Budget.lean:167](../engine/core/Budget.lean#L167) | propext, Classical.choice, Quot.sound | 71 | 64 | 2 | 1 | 0 |
+| [`ingest_twice`](HEADLINE-SURFACES.md#engineingest_twice) | [engine/core/IdemLaws.lean:50](../engine/core/IdemLaws.lean#L50) | propext, Classical.choice, Quot.sound | 51 | 42 | 1 | 5 | 0 |
+| [`purge_shared`](HEADLINE-SURFACES.md#enginepurge_shared) | [engine/core/Purge.lean:578](../engine/core/Purge.lean#L578) | propext, Classical.choice, Quot.sound | 47 | 44 | 1 | 0 | 0 |
+| [`status_iff_spec`](HEADLINE-SURFACES.md#enginestatus_iff_spec) | [engine/core/Proofs.lean:484](../engine/core/Proofs.lean#L484) | propext, Classical.choice, Quot.sound | 42 | 38 | 4 | 0 | 0 |
+| [`chunk_is_slice`](HEADLINE-SURFACES.md#communitychunk_is_slice) | [app/community/channel/message/attachment/chunk/Proofs.lean:51](../app/community/channel/message/attachment/chunk/Proofs.lean#L51) | propext, Classical.choice, Quot.sound | 184 | 174 | 3 | 1 | 0 |
+| [`bare_takes_only_join`](HEADLINE-SURFACES.md#connectionbare_takes_only_join) | [app/Proofs.lean:610](../app/Proofs.lean#L610) | propext, Classical.choice, Quot.sound | 509 | 490 | 2 | 5 | 0 |
+| [`order_total`](HEADLINE-SURFACES.md#communityorder_total) | [app/community/Proofs.lean:1427](../app/community/Proofs.lean#L1427) | propext, Classical.choice, Quot.sound | 359 | 345 | 5 | 0 | 1 |
+| [`present_iff`](HEADLINE-SURFACES.md#peoplelawspresent_iff) | [app/community/Screen.lean:439](../app/community/Screen.lean#L439) | propext, Classical.choice, Quot.sound | 360 | 338 | 10 | 0 | 1 |
+| [`deviceCut_removal`](HEADLINE-SURFACES.md#peoplelawsdevicecut_removal) | [app/community/Screen.lean:604](../app/community/Screen.lean#L604) | propext, Classical.choice, Quot.sound | 105 | 88 | 2 | 0 | 1 |
+| [`namesake_iff`](HEADLINE-SURFACES.md#viewlawsnamesake_iff) | [app/community/Screen.lean:286](../app/community/Screen.lean#L286) | propext, Classical.choice, Quot.sound | 355 | 336 | 9 | 0 | 0 |
 | [`Translate.covered`](HEADLINE-SURFACES.md#translatecovered) | [engine/renderer/TranslateLaws.lean:83](../engine/renderer/TranslateLaws.lean#L83) | propext, Quot.sound | 9 | 6 | 3 | 0 | 0 |
 | [`line_painted`](HEADLINE-SURFACES.md#coverline_painted) | [engine/renderer/Cover.lean:124](../engine/renderer/Cover.lean#L124) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
 | [`newest_visible`](HEADLINE-SURFACES.md#geometrynewest_visible) | [engine/renderer/Geometry.lean:105](../engine/renderer/Geometry.lean#L105) | propext, Classical.choice, Quot.sound | 5 | 3 | 2 | 0 | 0 |
@@ -869,27 +869,27 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 | [`switcherOrder_sound`](HEADLINE-SURFACES.md#pagesswitcherorder_sound) | [app/community/Screen.lean:1089](../app/community/Screen.lean#L1089) | propext, Quot.sound | 2 | 2 | 0 | 0 | 0 |
 | [`visual_perm`](HEADLINE-SURFACES.md#textvisual_perm) | [engine/renderer/TextLaws.lean:21](../engine/renderer/TextLaws.lean#L21) | propext, Classical.choice, Quot.sound | 55 | 55 | 0 | 0 | 0 |
 | [`decode_sized`](HEADLINE-SURFACES.md#imagedecode_sized) | [engine/renderer/ImageLaws.lean:13](../engine/renderer/ImageLaws.lean#L13) | propext, Classical.choice, Quot.sound | 17 | 17 | 0 | 0 | 0 |
-| [`notice_iff`](HEADLINE-SURFACES.md#enginenotice_iff) | [engine/core/WindowLaws.lean:705](../engine/core/WindowLaws.lean#L705) | propext, Classical.choice, Quot.sound | 114 | 67 | 11 | 3 | 0 |
-| [`read_notice_iff`](HEADLINE-SURFACES.md#engineread_notice_iff) | [engine/core/WindowRead.lean:417](../engine/core/WindowRead.lean#L417) | propext, Classical.choice, Quot.sound | 119 | 69 | 10 | 3 | 0 |
-| [`view_stable`](HEADLINE-SURFACES.md#engineview_stable) | [engine/core/View.lean:164](../engine/core/View.lean#L164) | propext, Classical.choice, Quot.sound | 74 | 42 | 6 | 2 | 3 |
-| [`eval_stable`](HEADLINE-SURFACES.md#engineeval_stable) | [engine/core/View.lean:141](../engine/core/View.lean#L141) | propext, Classical.choice, Quot.sound | 71 | 41 | 5 | 2 | 2 |
-| [`read_one_moment`](HEADLINE-SURFACES.md#livelawsread_one_moment) | [app/Commands.lean:1000](../app/Commands.lean#L1000) | propext, Classical.choice, Quot.sound | 70 | 67 | 3 | 0 | 0 |
-| [`offer_split`](HEADLINE-SURFACES.md#nodeofferoffer_split) | [app/Screen.lean:389](../app/Screen.lean#L389) | propext | 3 | 1 | 0 | 2 | 0 |
+| [`notice_iff`](HEADLINE-SURFACES.md#enginenotice_iff) | [engine/core/WindowLaws.lean:705](../engine/core/WindowLaws.lean#L705) | propext, Classical.choice, Quot.sound | 114 | 69 | 11 | 1 | 0 |
+| [`read_notice_iff`](HEADLINE-SURFACES.md#engineread_notice_iff) | [engine/core/WindowRead.lean:417](../engine/core/WindowRead.lean#L417) | propext, Classical.choice, Quot.sound | 119 | 71 | 10 | 1 | 0 |
+| [`view_stable`](HEADLINE-SURFACES.md#engineview_stable) | [engine/core/View.lean:164](../engine/core/View.lean#L164) | propext, Classical.choice, Quot.sound | 74 | 56 | 6 | 0 | 1 |
+| [`eval_stable`](HEADLINE-SURFACES.md#engineeval_stable) | [engine/core/View.lean:141](../engine/core/View.lean#L141) | propext, Classical.choice, Quot.sound | 71 | 55 | 5 | 0 | 0 |
+| [`read_one_moment`](HEADLINE-SURFACES.md#livelawsread_one_moment) | [app/Commands.lean:1037](../app/Commands.lean#L1037) | propext, Classical.choice, Quot.sound | 72 | 69 | 3 | 0 | 0 |
+| [`offer_split`](HEADLINE-SURFACES.md#nodeofferoffer_split) | [app/Screen.lean:390](../app/Screen.lean#L390) | propext | 3 | 1 | 0 | 2 | 0 |
 | [`next_visible`](HEADLINE-SURFACES.md#demandnext_visible) | [engine/renderer/Demand.lean:149](../engine/renderer/Demand.lean#L149) | propext, Quot.sound | 1 | 1 | 0 | 0 | 0 |
 | [`selected_within`](HEADLINE-SURFACES.md#demandselected_within) | [engine/renderer/DemandRank.lean:138](../engine/renderer/DemandRank.lean#L138) | propext, Classical.choice, Quot.sound | 4 | 3 | 1 | 0 | 0 |
-| [`window_rows`](HEADLINE-SURFACES.md#enginewindow_rows) | [engine/core/WindowRead.lean:360](../engine/core/WindowRead.lean#L360) | propext, Classical.choice, Quot.sound | 63 | 49 | 5 | 3 | 0 |
-| [`step_costs`](HEADLINE-SURFACES.md#enginestep_costs) | [engine/core/IngestCost.lean:119](../engine/core/IngestCost.lean#L119) | propext, Classical.choice, Quot.sound | 61 | 44 | 9 | 0 | 8 |
-| [`owed_within`](HEADLINE-SURFACES.md#enginesyncowed_within) | [engine/sync/ServeLaws.lean:459](../engine/sync/ServeLaws.lean#L459) | propext, Classical.choice, Quot.sound | 81 | 59 | 1 | 18 | 0 |
+| [`window_rows`](HEADLINE-SURFACES.md#enginewindow_rows) | [engine/core/WindowRead.lean:360](../engine/core/WindowRead.lean#L360) | propext, Classical.choice, Quot.sound | 63 | 52 | 5 | 0 | 0 |
+| [`step_costs`](HEADLINE-SURFACES.md#enginestep_costs) | [engine/core/IngestCost.lean:126](../engine/core/IngestCost.lean#L126) | propext, Classical.choice, Quot.sound | 61 | 44 | 9 | 0 | 8 |
+| [`owed_within`](HEADLINE-SURFACES.md#enginesyncowed_within) | [engine/sync/ServeLaws.lean:459](../engine/sync/ServeLaws.lean#L459) | propext, Classical.choice, Quot.sound | 79 | 70 | 1 | 5 | 0 |
 
-**Together** these laws name 64 spec-only definitions, and 32 names of the assumptions they take.
+**Together** these laws name 67 spec-only definitions, and 11 names of the assumptions they take.
 
 <details><summary>The spec-only definitions, together</summary>
 
-- predicates: `Community.Admitted`, `Community.InOrder`, `Community.Live`, `Community.Removed`, `Community.V`, `Connection.LiveIn`, `Connection.NoticeOnly`, `Connection.Owed`, `Connection.Refused`, `Engine.Codec.At`, `Engine.Costs`, `Engine.Extends`, `Engine.Field`, `Engine.Inv`, `Engine.Later`, `Engine.OneOpPerId`, `Engine.Reach`, `Engine.ReqsLe`, `Engine.Sat`, `Engine.Spec`, `Engine.Subs.Has`, `Engine.Subs.WF`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.FramesOk`, `Engine.Sync.Key.lt`, `Engine.Sync.Move`, `Engine.Sync.Moves`, `Engine.Sync.ReachIn`, `Engine.Sync.ReadOnly`, `Engine.Sync.Reads`, `Engine.Sync.Sent`, `Engine.Sync.Takeable`, `Engine.WaitersLe`, `Engine.Within`, `Geometry.Geom.Fits`, `LiveLaws.Agrees`, `SheetGeom.Grid.Ok`, `SheetGeom.Grid.inBox`
+- predicates: `Community.Admitted`, `Community.InOrder`, `Community.Live`, `Community.Removed`, `Community.V`, `Connection.LiveIn`, `Connection.NoticeOnly`, `Connection.Owed`, `Connection.Refused`, `Engine.Codec.At`, `Engine.Costs`, `Engine.Extends`, `Engine.Field`, `Engine.Inv`, `Engine.Later`, `Engine.OneOpPerId`, `Engine.Reach`, `Engine.ReqsLe`, `Engine.Sat`, `Engine.Spec`, `Engine.Subs.Has`, `Engine.Subs.WF`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.FramesOk`, `Engine.Sync.Key.lt`, `Engine.Sync.Key.plt`, `Engine.Sync.Move`, `Engine.Sync.Moves`, `Engine.Sync.ReachIn`, `Engine.Sync.ReadOnly`, `Engine.Sync.Reads`, `Engine.Sync.Sent`, `Engine.Sync.Sorted`, `Engine.Sync.Takeable`, `Engine.WaitersLe`, `Engine.Within`, `Geometry.Geom.Fits`, `LiveLaws.Agrees`, `SheetGeom.Grid.Ok`, `SheetGeom.Grid.inBox`, `Ttf.Bitmap.Valid`
 - types: `Demand.SelectionRun`, `Engine.Change`, `ViewLaws.Model`
 - definitions: `Community.Fact.admission`, `Community.Fact.chunk`, `Community.Fact.message`, `Community.Fact.profile`, `Community.Fact.removal`, `Connection.Fact.opened`, `Engine.Change.ingests`, `Engine.View.keys`, `Engine.specAt`, `Engine.window`, `Geometry.Seam.home`, `Geometry.Seam.tapRow`, `Merkle.slices`, `Surface.Frame.row`, `Text.ns`, `Translate.position`, `Translate.seen`, `Translate.source`, `ViewLaws.nameIn`
 - instances: `Engine.Meter.instAdd`, `Engine.Meter.instOfNatOfNatNat`, `ViewLaws.instReadsModel`
-- assumed: `Community.ChunkSound`, `Engine.DB`, `Engine.DB.addWait`, `Engine.DB.clearWaiters`, `Engine.DB.deleteOp`, `Engine.DB.dependents`, `Engine.DB.empty`, `Engine.DB.index`, `Engine.DB.push`, `Engine.DB.putOp`, `Engine.DB.setStatus`, `Engine.DB.undecide`, `Engine.Distinct`, `Engine.Model`, `Engine.Model.pop`, `Engine.Model.run`, `Engine.Sync.Held`, `Engine.Sync.HeldM`, `Engine.Sync.HeldM.run`, `Engine.Sync.instMonadHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.Sync.instTurnHeldM`, `Engine.Sync.lift`, `Engine.budget`, `Engine.eval`, `Engine.instListsModelOfSortKey`, `Engine.instMonadModel`, `Engine.matching`, `Engine.modelStore`, `Engine.runJ`, `NodeOffer.Chan`, `NodeOffer.offerM`
+- assumed: `Community.ChunkSound`, `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Distinct`, `Engine.Model.pop`, `Engine.Sync.instStoreHeldM`, `Engine.instMonadModel`, `Engine.modelStore`, `Engine.runJ`, `NodeOffer.Chan`, `NodeOffer.offerM`
 
 </details>
 
@@ -897,26 +897,26 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 
 | Law | Where | Axioms | Surface | Of the app | Spec-only | Assumed | Bridged |
 |---|---|---|---:|---:|---:|---:|---:|
-| [`converge`](HEADLINE-SURFACES.md#engineworldplainconverge) | [engine/world/Plain.lean:203](../engine/world/Plain.lean#L203) | propext, Classical.choice, Quot.sound | 300 | 222 | 33 | 21 | 4 |
+| [`converge`](HEADLINE-SURFACES.md#engineworldplainconverge) | [engine/world/Plain.lean:203](../engine/world/Plain.lean#L203) | propext, Classical.choice, Quot.sound | 332 | 288 | 35 | 5 | 0 |
 | [`anchor_stable`](HEADLINE-SURFACES.md#heightsanchor_stable) | [engine/renderer/Heights.lean:502](../engine/renderer/Heights.lean#L502) | propext, Quot.sound | 10 | 4 | 6 | 0 | 0 |
 | [`find_spec`](HEADLINE-SURFACES.md#heightstfind_spec) | [engine/renderer/Heights.lean:175](../engine/renderer/Heights.lean#L175) | propext, Classical.choice, Quot.sound | 12 | 4 | 8 | 0 | 0 |
 | [`rows_cost`](HEADLINE-SURFACES.md#heightsrows_cost) | [engine/renderer/Heights.lean:631](../engine/renderer/Heights.lean#L631) | propext, Classical.choice, Quot.sound | 25 | 2 | 13 | 0 | 7 |
 | [`settle_passes`](HEADLINE-SURFACES.md#liveworldsettle_passes) | [engine/renderer/BoardLaws.lean:481](../engine/renderer/BoardLaws.lean#L481) | propext, Classical.choice, Quot.sound | 13 | 6 | 7 | 0 | 0 |
-| [`row_marked`](HEADLINE-SURFACES.md#viewlawsrow_marked) | [app/community/Screen.lean:312](../app/community/Screen.lean#L312) | propext, Classical.choice, Quot.sound | 376 | 349 | 15 | 2 | 0 |
-| [`offer_runs`](HEADLINE-SURFACES.md#nodeofferoffer_runs) | [app/Screen.lean:426](../app/Screen.lean#L426) | propext | 5 | 1 | 2 | 2 | 0 |
+| [`row_marked`](HEADLINE-SURFACES.md#viewlawsrow_marked) | [app/community/Screen.lean:312](../app/community/Screen.lean#L312) | propext, Classical.choice, Quot.sound | 385 | 360 | 15 | 0 | 0 |
+| [`offer_runs`](HEADLINE-SURFACES.md#nodeofferoffer_runs) | [app/Screen.lean:427](../app/Screen.lean#L427) | propext | 5 | 1 | 2 | 2 | 0 |
 | [`list_costs`](HEADLINE-SURFACES.md#enginelist_costs) | [engine/core/ListCost.lean:34](../engine/core/ListCost.lean#L34) | propext, Classical.choice, Quot.sound | 21 | 8 | 9 | 0 | 4 |
 | [`Prioritized.write_within`](HEADLINE-SURFACES.md#enginesyncingressprioritizedwrite_within) | [engine/wire/IngressPriorityLaws.lean:220](../engine/wire/IngressPriorityLaws.lean#L220) | propext, Quot.sound | 19 | 11 | 8 | 0 | 0 |
 | [`Priority.write_within`](HEADLINE-SURFACES.md#enginesyncinboxprioritywrite_within) | [engine/wire/PriorityLaws.lean:167](../engine/wire/PriorityLaws.lean#L167) | propext, Quot.sound | 14 | 11 | 3 | 0 | 0 |
 
-**Together** these laws name 92 spec-only definitions, and 24 names of the assumptions they take.
+**Together** these laws name 94 spec-only definitions, and 7 names of the assumptions they take.
 
 <details><summary>The spec-only definitions, together</summary>
 
-- predicates: `Community.V`, `Engine.Codec.At`, `Engine.Costs`, `Engine.Field`, `Engine.Fits`, `Engine.Inv`, `Engine.Sat`, `Engine.Spec`, `Engine.Sync.Key.lt`, `Engine.Within`, `Engine.World.Diam`, `Engine.World.Edge`, `Engine.World.Holds`, `Engine.World.Legal`, `Engine.World.Net.Calm`, `Engine.World.Net.Live`, `Engine.World.Net.Up`, `Engine.World.Path`, `Heights.Rows.Ok`, `Heights.T.Perfect`, `Heights.T.WF`, `Live.Board.Seen`, `Live.World.Inv`
+- predicates: `Community.V`, `Engine.Codec.At`, `Engine.Costs`, `Engine.Field`, `Engine.Fits`, `Engine.Inv`, `Engine.Sat`, `Engine.Spec`, `Engine.Sync.Key.lt`, `Engine.Sync.Key.plt`, `Engine.Sync.Sorted`, `Engine.Within`, `Engine.World.Diam`, `Engine.World.Edge`, `Engine.World.Holds`, `Engine.World.Legal`, `Engine.World.Net.Calm`, `Engine.World.Net.Live`, `Engine.World.Net.Up`, `Engine.World.Path`, `Heights.Rows.Ok`, `Heights.T.Perfect`, `Heights.T.WF`, `Live.Board.Seen`, `Live.World.Inv`
 - types: `Engine.Sync.Inbox.Priority.Run`, `Engine.Sync.Ingress.Prioritized.Run`, `Engine.Sync.Ingress.Prioritized.State`, `Engine.Sync.Setup`, `Engine.Sync.Who`, `Engine.World.Act`, `Engine.World.Exec`, `Engine.World.Net`, `Engine.World.Packet`, `Engine.World.Plain`, `Engine.World.Setup`, `Engine.World.World`, `Heights.Rows`, `Heights.T`, `Live.World`, `ViewLaws.Model`
 - definitions: `Community.Fact.message`, `Community.Fact.profile`, `Engine.Sync.Inbox.Priority.Run.selected`, `Engine.Sync.Inbox.Priority.State.append`, `Engine.Sync.Ingress.Prioritized.Run.selected`, `Engine.Sync.Ingress.Prioritized.State.arrivals`, `Engine.Sync.Ingress.Prioritized.popEvent`, `Engine.Sync.Ingress.Prioritized.popWrite`, `Engine.Sync.Ingress.Prioritized.step`, `Engine.Sync.Ingress.State.arrivals`, `Engine.Sync.Node.connect`, `Engine.Sync.Setup.sync`, `Engine.Sync.plainOpen`, `Engine.Sync.plainSeal`, `Engine.World.Exec.world`, `Engine.World.Plain.setup`, `Engine.World.Plain.two`, `Engine.World.Setup.at?`, `Engine.World.World.enter`, `Engine.World.World.step`, `Engine.World.packets`, `Engine.World.plainPeek`, `Engine.World.upd`, `Engine.World.worlds`, `Engine.countCost`, `Engine.listCost`, `Engine.specAt`, `Heights.T.find`, `Heights.T.findM`, `Heights.T.mk`, `Heights.T.setM`, `Heights.T.size`, `Heights.T.start`, `Heights.T.startM`, `Heights.T.sum`, `Heights.T.toList`, `Heights.screenY`, `Kinds.File.read`, `Kinds.Message.read`, `Kinds.React.read`, `Kinds.React.tally`, `Live.Board.apply`, `Live.World.frame`, `Live.World.marked`, `Live.World.pass`, `NodeOffer.run`, `NodeOffer.submitted`, `ViewLaws.factIn`, `ViewLaws.nameIn`
 - instances: `Engine.Meter.instAdd`, `Engine.Meter.instLE`, `Engine.Meter.instOfNatOfNatNat`, `ViewLaws.instReadsModel`
-- assumed: `Engine.DB`, `Engine.DB.addWait`, `Engine.DB.clearWaiters`, `Engine.DB.deleteOp`, `Engine.DB.dependents`, `Engine.DB.index`, `Engine.DB.push`, `Engine.DB.putOp`, `Engine.DB.setStatus`, `Engine.DB.undecide`, `Engine.Model`, `Engine.Model.pop`, `Engine.Sync.Held`, `Engine.Sync.HeldM`, `Engine.Sync.HeldM.run`, `Engine.Sync.instMonadHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.Sync.instTurnHeldM`, `Engine.Sync.lift`, `Engine.budget`, `Engine.eval`, `Engine.modelStore`, `NodeOffer.Chan`, `NodeOffer.offerM`
+- assumed: `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Model.pop`, `Engine.Sync.instStoreHeldM`, `Engine.modelStore`, `NodeOffer.Chan`, `NodeOffer.offerM`
 
 </details>
 
