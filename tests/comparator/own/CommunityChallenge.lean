@@ -5,25 +5,24 @@ the statements of Challenge.lean, each under the name of its law, with
 `sorry`. It imports only modules that define what they name, none that
 holds or imports one of these laws.
 -/
+import app.community.Commands
 import app.community.Family
 import app.community.Op
+import app.community.channel.message.receipt.Proofs
+import app.community.key.wrap.Proofs
+import app.community.member.admin.Proofs
+import app.community.member.remove.Commands
 import engine.core.Codec
 import engine.core.Core
-import app.community.member.admin.Proofs
-import app.community.Commands
-import app.community.member.remove.Proofs
+import engine.core.Decl
 import engine.core.Model
 import engine.core.Proofs
+import engine.core.Query
+import engine.core.SpecLemmas
 import engine.core.View
-import app.connection.Commands
-import app.connection.Family
-import engine.core.Families
-import engine.core.Held
-import engine.sync.Sweep
-import engine.wire.Node
+import engine.renderer.CoverSeen
 import engine.wire.Noise
-import app.community.member.join.accept.View
-import app.community.key.wrap.Proofs
+import engine.wire.NoiseModel
 
 -- law Community.no_impersonation
 open Engine Engine.Codec Community in
@@ -64,6 +63,13 @@ theorem Community.removal_authorized {C : Community.Crypto} {ops : Id → Option
     (h : V C ops x (.removal c t u)) : t = u ∨ IsAdmin C ops c u := by
   sorry
 
+-- law Community.removed_stays
+open Engine Engine.Codec Community in
+/-- **A removal cannot be undone.** More ops never restore a removed user. -/
+theorem Community.removed_stays {C : Community.Crypto} {ops ops' : Id → Option Op}
+    (he : Extends ops ops') {c u : Id} (h : Removed C ops c u) : Removed C ops' c u := by
+  sorry
+
 -- law Community.connect_iff
 open Engine Engine.Codec Community in
 /-- **The node connects to exactly the live members.** At rest, the trust
@@ -74,28 +80,60 @@ theorem Community.connect_iff {s : DB Community.Fact} {C : Community.Crypto} (h 
     (allowPeer c e).eval s = true ↔ ∃ u d, Admitted C s.ops c u d e ∧ Live C s.ops c d := by
   sorry
 
--- law Connection.sealed_auth
-open Engine Engine.Sync in
-/-- **Authenticate before parsing.** A sealed frame that does not pass
-its AEAD check, under the receive key of the session it names, leaves the
-node and its store as they were, and sends nothing. -/
-theorem Connection.sealed_auth (x : Sync Connection.F (HeldM Connection.F)) {K : Connection.Keys}
-    (hx : x.hooks.openFrame = Connection.openFrame K)
-    (n : Engine.Sync.Node) (addr f : Connection.B) (now : Nat) (h : Held Connection.F)
-    (hbad : ∀ cid sk rk, Connection.Frame.cid f = some cid →
-      ((Connection.sessionKeys cid : HeldM Connection.F _) h).1 = some (sk, rk) →
-      K.fdec rk (f.extract 33 57) (Connection.Frame.ad cid) (f.extract 57 f.size) = none) :
-    n.onFrame x addr (tagged sealedTag f) now h = ((n, {}), h) := by
+-- law Connection.Noise.Symbolic.kk_secret
+open Connection.Noise Connection.Noise.Symbolic in
+/-- **Session keys are secret.** An active attacker that knows every
+name but a session's four secrets (both static keys, both ephemerals)
+derives neither side's keys, whatever honest calls it makes. -/
+theorem Connection.Noise.Symbolic.kk_secret {O : T → T → Prop} {sI sR e f : Nat} {pro pro' m1 m2 m1' m2' re p1 p2 q1 q2 : T}
+    {st st' : Sym T} {si sr : Session T}
+    (h1 : sent1 sym pro (.atom sI) (.atom e) (.pub (.atom sR)) m1 = some (st, p1))
+    (h2 : read2 sym st (.atom sI) (.atom e) m2 = some (si, p2))
+    (h3 : read1 sym pro' (.atom sR) (.pub (.atom sI)) m1' = some (st', re, q1))
+    (h4 : write2 sym st' (.atom f) (.pub (.atom sI)) re q2 = some (sr, m2')) :
+    ¬ Derivable O (Exposed (secrets sI sR e f)) si.send.k ∧
+      ¬ Derivable O (Exposed (secrets sI sR e f)) si.recv.k ∧
+      ¬ Derivable O (Exposed (secrets sI sR e f)) sr.send.k ∧
+      ¬ Derivable O (Exposed (secrets sI sR e f)) sr.recv.k := by
   sorry
 
--- law Switch.select_tapped_dedupe
-/-- **A tap on a community opens that community.** Selecting the
-switcher entry at row i, by its account, gives back exactly that entry,
-even when two communities share a name. -/
-theorem Switch.select_tapped_dedupe (ms : Array Kinds.Accepted.Me) (i : Nat)
-    (hi : i < (Kinds.Accepted.dedupe ms).size) :
-    Kinds.Accepted.select (Kinds.Accepted.dedupe ms) (Kinds.Accepted.dedupe ms)[i].acc =
-      some (Kinds.Accepted.dedupe ms)[i] := by
+-- law Connection.Noise.Symbolic.kk_authentic
+open Connection.Noise Connection.Noise.Symbolic in
+/-- **The dialer authenticates the peer it dialed.** Unless that peer
+answered this request, the dialer accepts no reply the attacker can
+make. -/
+theorem Connection.Noise.Symbolic.kk_authentic {S : Nat → Prop} {O : T → T → Prop} {K : T → Prop}
+    (hK : ∀ t, K t → Clean S t)
+    (hK2 : ∀ t, K t → ∀ {k n ad p}, Part (.aead k n ad p) t → Clean S k)
+    {sI sR e : Nat} (hR : S sR) (hIe : S sI ∨ S e) {pro m1 m2 p1 : T} {st : Sym T}
+    (no_answer : ∀ q m, O q m → ¬ Answers sR m1 q m)
+    (h1 : sent1 sym pro (.atom sI) (.atom e) (.pub (.atom sR)) m1 = some (st, p1))
+    (hm2 : Derivable O K m2) :
+    read2 sym st (.atom sI) (.atom e) m2 = none := by
+  sorry
+
+-- law Community.display_agrees
+open Engine Community in
+/-- **Every device shows a channel in the same order.** Two devices that
+hold the same two messages of channel c list them in the same order,
+unless both messages claim the counter's cap (2^63) or more. -/
+theorem Community.display_agrees {C : Community.Crypto} {ops ops' : Id → Option Op} {c x y : Id}
+    {sx sy sx' sy' : ByteArray}
+    (hx : ops x = ops' x) (hy : ops y = ops' y)
+    (lx : Listed C ops c x sx) (ly : Listed C ops c y sy) (lx' : Listed C ops' c x sx')
+    (ly' : Listed C ops' c y sy')
+    (hsat : (∃ n tm, Posted ops x n tm ∧ n < countCap) ∨ ∃ n tm, Posted ops y n tm ∧ n < countCap) :
+    Pos.cmp (sx, x) (sy, y) = Pos.cmp (sx', x) (sy', y) := by
+  sorry
+
+-- law Cover.covered
+/-- **Scrolling never shows a blank.** Every position in the content,
+from the bottom padding up to the last loaded row, and above it while
+older messages are still to load, shows a line of a message or a
+placeholder. -/
+theorem Cover.covered (pad bottom : Nat) (more : Bool) (rows : List (Nat × Option Nat)) (p : Nat)
+    (lo : pad ≤ p) (hi : p < bottom + (rows.map (·.1)).sum ∨ more = true) :
+    Cover.seen pad bottom more rows p ≠ .blank := by
   sorry
 
 -- law Community.approveReq_ops
@@ -105,4 +143,15 @@ to the new member's node. -/
 theorem Community.approveReq_ops (c req myAdm : Engine.Id) (d : Community.Device) (esk : ByteArray) :
     Engine.View.Always (fun w : Community.Write => w.ops.length ≤ 3)
       (Community.approveReq c req myAdm d esk) := by
+  sorry
+
+-- law PeopleLaws.deviceCut_removal
+open Engine Community in
+/-- **"You've been removed" comes only from a removal.** When the app
+marks this device cut from c, the store holds one of the device's
+admissions into c and a removal of that admission's user. -/
+theorem PeopleLaws.deviceCut_removal (s : DB Fact) (c : Id) (d : Key)
+    (h : (deviceCut c d).eval s = true) :
+    ∃ p u d' e, (p, Fact.admission c u d' e) ∈ ((admission.byDevice.read [c, d]).eval s).rows ∧
+      (Engine.eval s (removals c u)).total ≠ 0 := by
   sorry

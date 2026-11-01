@@ -17,12 +17,16 @@
 #    readme  the README's theorem links and the laws not yet about running
 #            code, against tests/Wiring.lean (ci/proof-links.py)
 #    reorg   the reorg's import rewriter (ci/reorg-imports.py --self-test)
-#    headline  the headline laws' axioms and spec surfaces, docs/HEADLINE.md
-#            against them, and the Comparator files (tests/headline.sh)
 # 2. The gate's tests, at once. Each is deterministic and runs in this
 #    tree in one process at a time: no TCP, no X, no clock it must beat,
 #    no source edited (the tree is checked unchanged after them):
 #    vacuity        every law's hypotheses can hold together
+#    headline       the headline laws' axioms and spec surfaces,
+#                   docs/HEADLINE.md against them, and `lake comparator`
+#                   on the headline challenge and its weakened control
+#                   (tests/headline.sh). Comparator's sandboxed build
+#                   writes only .lake, and finds every module the build
+#                   part built, as the other parts' builds do.
 #    visual         real ops, store, queries and renderer, drawn to pixels
 #                   and compared with pinned libquiet screens
 #    headless       the app's programs on the headless twin
@@ -59,14 +63,14 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-proofs=(driver build check layout readme reorg headline)
-fast=(engine:suites visual headless vacuity)
+proofs=(driver build check layout readme reorg)
+fast=(engine:suites visual headless vacuity headline)
 # longest first (minutes, measured on the shared box: app:2 and app:3
 # 40–55, qr 24, app:1 17, engine:harden 14, the rest under 10)
 rest=(app:3 app:2 qr app:1 engine:harden engine:ref-publications engine:catalog-retry engine:fresh
   $(grep -v '^#' "$top/tests/engine/controls.txt" 2>/dev/null | cut -f1 |
     grep -vx 'harden\|ref-publications\|catalog-retry\|fresh' | sed 's/^/engine:/')
-  engine:tcp mdns net zoom owned-input site workspace)
+  engine:tcp mdns net zoom owned-input site workspace headline:own)
 # the app's stages, in three groups, each run in its own copy of the tree
 declare -A app_group=([app:1]="fonts input network" [app:2]="desktop navigation lifecycle"
   [app:3]="appearance safety components")
@@ -119,6 +123,7 @@ gate() {
     layout) mise run layout:check ;;
     reorg) mise run reorg:test ;;
     headline) mise run test:headline ;;
+    headline:own) mise run test:headline-own ;;
     vacuity) mise run test:vacuity ;;
     crypto-failure) mise run test:crypto-failure ;;
     fairness) mise run test:fairness ;;

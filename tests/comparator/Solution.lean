@@ -248,4 +248,21 @@ theorem ingest_costs {F : Type} {m : Type → Type} [Monad m] [LawfulMonad m] [E
     Engine.Costs { reads := 1, writes := 2, seeks := 3 } (Engine.ingest (F := F) (m := Engine.CostT m) o) := by
   apply Engine.ingest_costs <;> assumption
 
+/-! ## What the app tells the user -/
+
+section
+open Engine Community
+
+-- law PeopleLaws.deviceCut_removal
+/-- **"You've been removed" comes only from a removal.** When the app
+marks this device cut from c, the store holds one of the device's
+admissions into c and a removal of that admission's user. -/
+theorem deviceCut_removal (s : DB Fact) (c : Id) (d : Key)
+    (h : (deviceCut c d).eval s = true) :
+    ∃ p u d' e, (p, Fact.admission c u d' e) ∈ ((admission.byDevice.read [c, d]).eval s).rows ∧
+      (Engine.eval s (removals c u)).total ≠ 0 := by
+  apply PeopleLaws.deviceCut_removal <;> assumption
+
+end
+
 end Headline

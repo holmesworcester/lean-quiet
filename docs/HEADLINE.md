@@ -1,10 +1,9 @@
 # Headline laws: a proposal
 
-**Status: a proposal. The user decides which laws are headline laws.**
-Nothing here changes a law. An agent drafted this list on 2026-11-01
-for the Vibecheck judges' questions ([rules](VIBECHECK-RULES.md)): are
-the laws important, are they about the code itself, and do they pass
-Comparator?
+**Status: approved by the user (2026-11-01).** No law's statement was
+changed. An agent drafted this list on 2026-11-01 for the Vibecheck
+judges' questions ([rules](VIBECHECK-RULES.md)): are the laws
+important, are they about the code itself, and do they pass Comparator?
 
 **Second pass (2026-11-01).** The user dropped `Op.id_decode` and
 `Remove.writes_only_after_two` from the top list, and asked for strong
@@ -12,7 +11,14 @@ laws about the screen and about cost. Five such laws are now in the top
 list (12, 13, 15, 16, 17), beside `back_open` (14). `wrap_keeps` moved
 to "Also considered": the new screen laws promise more.
 
-The app has about 1,400 audited laws. This page picks seventeen that a
+**Third pass (2026-11-01).** The user approved the seventeen, and
+`deviceCut_removal` as the eighteenth once it had a concrete example
+(it has one now, in tests/vacuity/IdentityPeople.lean). The user also
+approved moving the definitions that kept seven laws from being judged
+under their own names; that is done, and all eighteen pass Comparator
+both ways (see [Comparator](#comparator)).
+
+The app has about 1,400 audited laws. This page picks eighteen that a
 judge should read first. For each one it gives:
 
 - the law in plain words;
@@ -60,27 +66,28 @@ repository's definitions. It then sorts them:
 `#spec_surface` defines it. "Review" is the spec-only part plus the
 assumptions.
 
-## The recommended seventeen, ranked
+## The eighteen, ranked
 
 | # | The law, in plain words | Lean name | Class | Review | Example | Control |
 |---|---|---|---|---|---|---|
 | 1 | Nobody can post as another user. | [`no_impersonation`](../app/community/Proofs.lean#L120) | wired | 6 + `Unforgeable` | conditional | forged post rejected |
 | 2 | Nobody joins without a member's approval. | [`admission_needs_approval`](../app/community/member/invite/Proofs.lean#L44) | wired | 8 | runtime | 4 bad joins rejected |
 | 3 | Only admins remove other members. | [`removal_authorized`](../app/community/member/Proofs.lean#L50) | wired | 8 | runtime | unauthorized removal rejected |
-| 4 | A removal cannot be undone. | [`removed_stays`](../app/community/member/remove/Proofs.lean#L28) | wired | 7 | runtime | none |
+| 4 | A removal cannot be undone. | [`removed_stays`](../app/community/member/remove/Proofs.lean#L10) | wired | 7 | runtime | none |
 | 5 | The node connects only to live members. | [`connect_iff`](../app/community/Proofs.lean#L821) | wired | 10 + store model | runtime | refused after removal |
-| 6 | After a removal, the removed member gets only the notice. | [`removal_reaches_session`](../app/Proofs.lean#L3088) | wired | 13 + store model | runtime | message withheld |
-| 7 | A session sends only what its peer may see. | [`recv_send`](../engine/sync/ConnLaws.lean#L158) | wired | 3 + store model | kernel | none yet |
+| 6 | After a removal, the removed member gets only the notice. | [`removal_reaches_session`](../app/Proofs.lean#L3081) | wired | 13 + store model | runtime | message withheld |
+| 7 | A session sends only what its peer may see. | [`recv_send`](../engine/sync/ConnLaws.lean#L152) | wired | 3 + store model | kernel | none yet |
 | 8 | The node checks a frame before it reads it. | [`sealed_auth`](../app/connection/Proofs.lean#L134) | wired | 2 + store model | runtime | 3 damaged frames rejected |
-| 9 | Session keys stay secret. | [`kk_secret`](../engine/wire/NoiseSymbolic.lean#L633) | wired, symbolic | 7 + `sym` | kernel | tight: a leak breaks it |
-| 10 | The dialer knows who answered. | [`kk_authentic`](../engine/wire/NoiseSymbolic.lean#L934) | wired, symbolic | 8 + `sym` | kernel | mutant `read1Slip` |
+| 9 | Session keys stay secret. | [`kk_secret`](../engine/wire/NoiseSymbolic.lean#L515) | wired, symbolic | 7 + `sym` | kernel | tight: a leak breaks it |
+| 10 | The dialer knows who answered. | [`kk_authentic`](../engine/wire/NoiseSymbolic.lean#L803) | wired, symbolic | 8 + `sym` | kernel | mutant `read1Slip` |
 | 11 | Devices that hold the same ops agree. | [`same_ops_same_verdicts`](../engine/core/Termination.lean#L122) | wired, bridged | 2 + `Distinct` | runtime | reversed order, replay |
-| 12 | Every phone shows a channel's messages in the same order. | [`display_agrees`](../app/community/channel/message/Proofs.lean#L193) | wired | 8 | runtime | reversed arrival order |
-| 13 | Scrolling never shows a blank. | [`Cover.covered`](../engine/renderer/Cover.lean#L84) | wired | 0 | kernel | blanks exist outside it |
+| 12 | Every phone shows a channel's messages in the same order. | [`display_agrees`](../app/community/channel/message/Proofs.lean#L189) | wired | 8 | runtime | reversed arrival order |
+| 13 | Scrolling never shows a blank. | [`Cover.covered`](../engine/renderer/Cover.lean#L53) | wired | 0 | kernel | blanks exist outside it |
 | 14 | Back goes back. | [`back_open`](../app/Proofs.lean#L1311) | wired | 1 | runtime | shipped bug, a mutant |
 | 15 | Tapping a community opens that community, even when two share a name. | [`select_tapped_dedupe`](../app/community/Screen.lean#L810) | wired | 0 | kernel | pinned iPhone bug |
 | 16 | Letting someone in costs at most three ops, however big the community. | [`approveReq_ops`](../app/community/Proofs.lean#L1327) | wired | 2 | no premises | mutant `approveWrapAll` |
 | 17 | Storing an arriving op costs a fixed number of store operations, however big the community. | [`ingest_costs`](../engine/core/IngestCost.lean#L42) | wired, metered | 6 | no premises | none yet |
+| 18 | The app says "You've been removed" only when the store holds a removal of you. | [`deviceCut_removal`](../app/community/Screen.lean#L604) | wired | 2 + store model | runtime | mutant from a real bug |
 
 "Review" counts the spec-only definitions, then names the assumptions;
 the counts come from the generated section at the end of this page.
@@ -88,12 +95,13 @@ the counts come from the generated section at the end of this page.
 example runs native code (real Ed25519, SQLite, rendering) and then
 applies the law, so it trusts Lean's compiler too; "conditional" means
 one hypothesis stays an assumption; "no premises" means the law has no
-hypothesis to meet. All seventeen use only Lean's standard axioms
+hypothesis to meet. All eighteen use only Lean's standard axioms
 (`propext`, `Classical.choice`, `Quot.sound`).
 
 The order puts first what a user is promised about other people
 (1–6), then what leaves the device (7–8), then the sessions (9–10),
-then agreement (11–12), then the screen (13–15), then cost (16–17).
+then agreement (11–12), then the screen (13–15), then cost (16–17),
+then what the app tells the user about a removal (18).
 Among the screen and cost laws, the order is by how much the law
 promises and how easily a person who does not program sees it in a
 demo.
@@ -186,7 +194,7 @@ messages and the removal with the ops that the removal needs.
   removed Bob.
 - **Control:** the frame for Bob, opened with the real session key,
   carries the removal and not Bob's message.
-- **Note:** its surface is the largest of the seventeen. See
+- **Note:** its surface is the largest of the eighteen. See
   [surfaces too big](#surfaces-too-big-to-review).
 
 ### 7. A session sends only what its peer may see
@@ -229,7 +237,7 @@ with the cryptography as symbols (Dolev-Yao).
 - **Example:** kernel. `Vacuity.Session.secretsHeld`
   ([tests/vacuity/Session.lean:29](../tests/vacuity/Session.lean#L29)).
 - **Control:** `kk_secret_init_tight`
-  ([engine/wire/NoiseSymbolic.lean:654](../engine/wire/NoiseSymbolic.lean#L654)):
+  ([engine/wire/NoiseSymbolic.lean:536](../engine/wire/NoiseSymbolic.lean#L536)):
   an attacker that knows the initiator's static and ephemeral keys does
   get the keys. So the hypothesis is needed, and the attacker model is
   strong enough to break a weak handshake.
@@ -245,7 +253,7 @@ key must be secret, and the dialer's static or ephemeral key.
   ([tests/vacuity/Session.lean:110](../tests/vacuity/Session.lean#L110)).
 - **Control:** `read1Slip`, a one-letter slip in the responder's code,
   lets the attacker forge a request (`read1Slip_forged`,
-  [engine/wire/NoiseSymbolic.lean:1115](../engine/wire/NoiseSymbolic.lean#L1115),
+  [engine/wire/NoiseSymbolic.lean:984](../engine/wire/NoiseSymbolic.lean#L984),
   a negative control in tests/wiring.txt). `kk_authentic_tight`: with
   the responder's static key leaked, the attacker forges a reply.
 - **Not covered:** replay. An old answer can be accepted again.
@@ -373,15 +381,39 @@ code, on any store the code runs on.
   grows with N"). So the promise is about storing, not about the whole
   of receiving.
 
-## What the seventeen rest on, together
+### 18. The app says "You've been removed" only when the store holds a removal of you
 
-To trust all seventeen, a reviewer reads **50 spec-only definitions**
+When the app marks this device cut from a community (`deviceCut`, which
+`Accepted.read` uses to tell the member "You've been removed"), the
+store holds one of the device's admissions into the community and a
+removal of that admission's user. An admission not yet read, or a stale
+read of one, never makes the mark.
+
+- **Demo:** remove a member; only then does that member's phone say so.
+- **Example:** runtime. `Vacuity.IdentityPeople.deviceCutRemoval`
+  ([tests/vacuity/IdentityPeople.lean](../tests/vacuity/IdentityPeople.lean)):
+  after Alice removes Bob, in a real signed community, the running
+  `deviceCut` marks Bob's device, and the law applies. The same fixture
+  checks that Bob's device is not marked before his removal.
+- **Bug:** the gate's pixel test found members told "You've been
+  removed" when no one had removed them: the shipped mark used two reads
+  that need not agree. The shipped code is kept as a mutant
+  (`removedShipped`), and `shipped_removed_without_removal` proves that
+  it marks a member removed with no removal read
+  ([what the proofs caught](CAUGHT.md)).
+- **Not covered:** the law is about what the store's lists hold. That
+  they list only valid ops is the engine's invariant (`Inv`), not a
+  premise here; laws 3 and 4 say which removals are valid.
+
+## What the eighteen rest on, together
+
+To trust all eighteen, a reviewer reads **50 spec-only definitions**
 (38 of them predicates) and **4 assumptions**:
 
 - the **store model** (`Engine.Model.run`, with `DB`, `HeldM` and their
   operations): SQLite's reads and writes answer as the model's tables.
   Tested row for row (tests/engine/Differential.lean), not proven. Laws
-  5–8 and 11 depend on it.
+  5–8, 11 and 18 depend on it.
 - **`Unforgeable`**: Ed25519 unforgeability over one store's
   signatures. Law 1.
 - **`Distinct`** (from `CollisionFree`): no SHA-256 collision among the
@@ -423,7 +455,6 @@ marks a law whose README row says what is still missing.
 
 | Law, in plain words | Lean name | Example | Control | Why not in the top list |
 |---|---|---|---|---|
-| The app says "You've been removed" only when the store holds a removal of you. | `deviceCut_removal` | none yet | mutant from an escape | **First runner-up.** The shipped mark (`removedShipped`) told members they were removed when nobody had removed them; the pixel gate found it, and `shipped_removed_without_removal` proves the shipped code breaks the law. No example of its premise is recorded yet; with one, it belongs in the top list. |
 | With the conversation at the bottom, the newest message is wholly visible, above the composer or keyboard and below the header. | `Geometry.newest_visible` | kernel | a screen that does not fit fails its premise | 🟡 Strong demo (open the keyboard). It is stated over `Seam.home`, a spec that `placed_row` ties to the running `place`: two laws to read. |
 | On the emoji sheet, a tap selects exactly the key drawn there. | `SheetGeom.hit_iff` | kernel | a tap in a gap, or on the next key, is rejected | One sheet only. A good alternative to 15. |
 | A tap lands on the row drawn under it. | `Geometry.pinned_tap` | kernel | — | 🟡 Stated over `tapRow`, a spec that `Input.tap_page` ties to the running code. |
@@ -431,7 +462,7 @@ marks a law whose README row says what is still missing.
 | Each vsync's shift of the drawn buffer shows no blank. | `Translate.covered` | kernel | — | 🟡 Completes 13 for the shifted buffer, but its hypothesis is long. |
 | Each painted position shows the right line of the right row. | `Cover.line_painted` | — | — | The companion of 13; less visible. |
 | A name is marked "⚠ Duplicate" exactly when another member's name looks the same. | `ViewLaws.namesake_iff` | runtime | the mark is false before the twin, true after | 🟡 The running read is proven; the drawn mark (`row_marked`) is not wired (the message read it uses does not run). Look-alike letters across scripts are not covered. |
-| The people list is exactly the present members. | `present_iff` | runtime | — | Less visible than `deviceCut_removal`, whose mutant is about the same lists. |
+| The people list is exactly the present members. | `present_iff` | runtime | — | Less visible than `deviceCut_removal` (18), whose mutant is about the same lists. |
 | A channel's list is in a strict order, with no ties. | `order_total` | runtime | — | Folded into 12. |
 | Every community has exactly one row in the switcher. | `switcherOrder_complete`, `switcherOrder_sound` | kernel | pinned iPhone bug | Folded into 15. |
 | Bidi reordering drops and invents no character. | `visual_perm` | kernel | — | 🟡 Surface 55, none spec-only. |
@@ -518,7 +549,7 @@ has gone stale. This stream did not edit the README.
 8. **The store model in general.** 424 laws take `Model.run`: they are
    about the app's code run on a model of SQLite, not on SQLite. The
    README says so under "What is Assumed", but not in the bold list.
-   Five of the seventeen depend on it.
+   Six of the eighteen depend on it.
 
 ## Surfaces too big to review
 
@@ -565,10 +596,15 @@ pair is accepted, a weakened statement is rejected ("statement do not
 match"), and a `sorry` in the solution is rejected ("Illegal axiom
 sorryAx").
 
+Two ways to judge the eighteen, both run on v4.35:
+
+**As `Headline.<law>` (the root config, per push).** A plain
+`lake comparator` at the repository's root reads
+[comparator.json](../comparator.json):
+
 - [tests/comparator/Challenge.lean](../tests/comparator/Challenge.lean):
-  the seventeen statements, word for word, as `Headline.<law>`, each with
-  `sorry`. This is the file a judge trusts, with the definitions that
-  it names. It imports the modules that hold the laws; the judged names
+  the eighteen statements, word for word, as `Headline.<law>`, each with
+  `sorry`. It imports the modules that hold the laws; the judged names
   are new, so nothing is declared twice.
 - [tests/comparator/Solution.lean](../tests/comparator/Solution.lean):
   the same statements, copied by tests/comparator/solution.py, each
@@ -576,83 +612,84 @@ sorryAx").
 - [tests/comparator/Check.lean](../tests/comparator/Check.lean): checks
   that each statement is the law's own (`#same_statement`, which also
   pairs the matcher that a `match` in a statement makes), so Comparator's
-  match with the challenge is a match with the law. It prints the axioms.
-- [tests/comparator/comparator.json](../tests/comparator/comparator.json):
-  the config. On v4.35, run
-  `lake comparator --config tests/comparator/comparator.json`.
+  match with the challenge is a match with the law, and the kernel checks
+  the law's own proof. It prints the axioms.
 - [tests/comparator/Weak.lean](../tests/comparator/Weak.lean) and
-  comparator-weak.json: the control. The challenge with
+  comparator-weak.json: the control, the challenge with
   `removal_authorized` weakened to `t = u ∨ True`, which Comparator must
   reject.
 
-**Result on v4.35** (this branch, with vibecheck/toolchain merged in):
-`lake comparator` accepts all seventeen ("Lean default kernel accepts
-the solution", "Your solution is okay!"), and rejects the control
-("Challenge and solution theorem statement do not match:
+**Under the laws' own names (nightly).** Each challenge in
+tests/comparator/own/ states its laws under their own names and imports
+only modules that define what the statements name: none holds or imports
+one of its laws. To make that possible for every law, these definitions
+moved (approved by the user; no theorem moved and no statement changed;
+modules that import a law's module still get them):
+
+| Law | Definitions moved | From | To |
+|---|---|---|---|
+| `removed_stays` | `Removed`, `Member`, `Live`, `Cut` | app/community/member/remove/Proofs.lean | app/community/Family.lean, beside `V` and `Admitted` |
+| `removal_reaches_session` | `MayGo` | app/Proofs.lean | app/connection/Proofs.lean, beside `LiveIn` and `NoticeOnly` |
+| `recv_send` | `Sendable`, `Takeable` | engine/sync/ConnLaws.lean | engine/sync/Conn.lean, beside `Conn.shows` |
+| `kk_secret`, `kk_authentic` | the symbolic model: `T`, `dh`, `dec`, `unpair`, `sym`, `Sends`, `Reveals`, `Derivable`, `Clean`, `Exposed`, `secrets`, `Part`, `Answers` | engine/wire/NoiseSymbolic.lean | engine/wire/NoiseModel.lean (new) |
+| `display_agrees` | `Posted` | app/community/channel/message/Proofs.lean | app/community/channel/message/receipt/Proofs.lean, beside `Listed` |
+| `Cover.covered` | `Px`, `find`, `seen` | engine/renderer/Cover.lean | engine/renderer/CoverSeen.lean (new) |
+
+After the moves, ci/layout.py passes, tests/Wiring.lean classifies all
+1,413 laws exactly as before (same class, subject and missing links for
+each), the README's wiring block is unchanged, its links are regenerated
+(`Symbolic.sym` now points into NoiseModel.lean), and `lake check`
+passes. `#challenge_imports` (tests/SpecSurface.lean; run by
+tests/comparator/Feasible.lean) finds all eighteen free, and groups them,
+first fit, into five challenges whose imports reach none of their own
+laws:
+
+| Config | Laws, under their own names |
+|---|---|
+| tests/comparator/own-community.json | `no_impersonation`, `admission_needs_approval`, `removal_authorized`, `removed_stays`, `connect_iff`, `kk_secret`, `kk_authentic`, `display_agrees`, `Cover.covered`, `approveReq_ops`, `deviceCut_removal` |
+| tests/comparator/own-app.json | `removal_reaches_session`, `back_open` |
+| tests/comparator/own-engine.json | `recv_send`, `same_ops_same_verdicts` |
+| tests/comparator/own-connection.json | `sealed_auth`, `select_tapped_dedupe` |
+| tests/comparator/own-cost.json | `ingest_costs` |
+
+Fewer would need import changes: `app.community.Op` imports the
+`engine.core.Engine` umbrella, which imports the laws of
+`same_ops_same_verdicts` and `ingest_costs`; `engine.core.CostStore`
+imports Termination through `engine.core.Held` and Budget; and
+`app.connection.Family` reaches member/remove/Proofs.lean. `back_open`
+needs `app.Screen`, which imports most of the app.
+
+**Results on v4.35:** see the [gate](#in-the-gate) below for when each
+runs. `lake comparator` accepts the root config ("Your solution is
+okay!") and every own-name config, and rejects the control ("Challenge
+and solution theorem statement do not match:
 'Headline.removal_authorized'").
 
-The modules are the `Comparator` library, which is never a default
-target, so `lake build` and `lake check` never see a `sorry`.
-tests/headline.sh checks them on every toolchain and, from v4.35 on,
-runs every Comparator config below. Its other controls: a weakened
-restatement and a changed `match` must fail `#same_statement`, and
-`#headline` must fail on a law that rests on `sorry`.
-
+The comparator modules are the `Comparator` library, which is never a
+default target, so `lake build` and `lake check` never see a `sorry`.
 Comparator does not check the runtime examples, which run native code.
 Kernel examples, with a toy `Crypto` as in tests/vacuity/Contracts.lean,
-would let laws 2–6, 8, 11, 12 and 14 show satisfiable hypotheses in the
-kernel.
+would let laws 2–6, 8, 11, 12, 14 and 18 show satisfiable hypotheses in
+the kernel.
 
-### Under the laws' own names
+### In the gate
 
-The seventeen above are judged under new names (`Headline.<law>`), each
-proved by its law. Comparator's check is as strong: the challenge
-statement must equal the solution's, which `#same_statement` proves
-equal to the law's, and the kernel checks the law's own proof. But a
-judge may want the law judged under its own name. A challenge can do
-that only if it imports the definitions its statements name without the
-module that holds the law (or one that imports it), since the name
-would be declared twice. `#challenge_imports` (tests/SpecSurface.lean;
-run by tests/comparator/Feasible.lean) finds which laws allow it.
+- **Per push** (ci/local.sh's parallel phase, part `headline`,
+  `mise run test:headline`): tests/Headline.lean, this page's generated
+  section, the challenge, solution and checks, `lake comparator` on the
+  root config, and its weakened control. Its other controls: a weakened
+  restatement and a changed `match` must fail `#same_statement`, and
+  `#headline` must fail on a law that rests on `sorry`.
+- **Nightly** (`ci/local.sh --full`, part `headline:own`,
+  `mise run test:headline-own`): every law can be stated with
+  definitions only, and `lake comparator` accepts the five own-name
+  configs.
 
-**Ten allow it today, and pass.** One challenge cannot hold all ten,
-because each group's imports would reach another group's laws (for
-example, `app.Screen`, which `back_open` needs, imports
-`app.community.Proofs`). So there are four configs, all accepted on
-v4.35:
-
-| Config | Laws, under their own names | Its challenge imports |
-|---|---|---|
-| tests/comparator/own-community.json | `no_impersonation`, `admission_needs_approval`, `removal_authorized`, `connect_iff`, `sealed_auth`, `select_tapped_dedupe`, `approveReq_ops` | 19 definition modules (Family, Op, Commands, …) |
-| tests/comparator/own-agree.json | `same_ops_same_verdicts` | engine.core.{Core, Model, Proofs, Run} |
-| tests/comparator/own-cost.json | `ingest_costs` | engine.core.{Core, Cost, CostStore} |
-| tests/comparator/own-back.json | `back_open` | app.Screen, engine.renderer.Presentation |
-
-**Seven need a split first.** Each is blocked by definitions that live
-in the law's own module. The smallest split moves those definitions out,
-into a module the law's module already imports or a new one it imports.
-No theorem moves, no statement changes, and no importer changes, since
-importing the law's module still brings the definitions. This is a
-proposal; these files are other streams' too, so the user decides.
-
-| Law | Blocked by (in the law's module) | Proposed move |
-|---|---|---|
-| `removed_stays` | `Community.Removed` (app/community/member/remove/Proofs.lean:9) | Move `Removed`, with `Member`, `Live` and `Cut` (lines 9–21, four predicates over `V` and `Admitted`) to app/community/Family.lean, beside `V` and `Admitted`. Moving `Live` too lets it share a challenge with `connect_iff`, which names `Live`. |
-| `removal_reaches_session` | `Connection.MayGo` (app/Proofs.lean:3044) | Move `MayGo` (one predicate) to app/connection/Proofs.lean, beside `LiveIn` and `NoticeOnly`; that file already imports `Refused`'s. Its challenge then imports app.connection.Proofs, which holds `sealed_auth`, so it needs a config of its own. |
-| `recv_send` | `Engine.Sync.Sendable` (engine/sync/ConnLaws.lean:33) | Move `Sendable` (and `Takeable`, for `recv_take`) to engine/sync/Conn.lean, beside `Conn.shows`. |
-| `kk_secret`, `kk_authentic` | the symbolic model: `T`, `sym`, `Derivable`, `Clean`, `Part`, `Answers`, `Exposed`, `secrets`, … (engine/wire/NoiseSymbolic.lean) | Move the model's 14 definitions (`T` and its `DecidableEq`, `dh`, `dec`, `unpair`, `sym`, `Sends`, `Reveals`, `Derivable`, `Clean`, `Exposed`, `secrets`, `Part`, `Answers`; lines 251–766, between theorems) to a new engine/wire module, imported by NoiseSymbolic.lean. None of them needs a theorem. engine/ has no file-name rule. |
-| `display_agrees` | `Community.Posted` (app/community/channel/message/Proofs.lean:165) | Move `Posted` (one predicate) to app/community/channel/message/receipt/Proofs.lean, beside `Listed`, which message/Proofs.lean already imports. |
-| `Cover.covered` | `Cover.Px`, `Cover.find`, `Cover.seen` (engine/renderer/Cover.lean:21–53: the running code itself) | Move the three definitions to a new engine/renderer module, imported by Cover.lean, which keeps only the laws. Their names stay, so the wiring check still finds `seen` running. |
-
-Under ci/layout.py every file under app/ must have one of eight names;
-each move above stays within those (Family.lean, Proofs.lean), and the
-two new modules are under engine/. To put more laws in one challenge,
-`app.community.Op` would have to import the engine's definitions rather
-than the `engine.core.Engine` umbrella (which imports
-`engine.core.Termination` and `engine.core.IngestCost`), and
-`engine.core.Held` would need `budget` from a module other than
-engine.core.Budget; `back_open` stays apart, since `App.St` lives in
-app/Screen.lean, which imports most of the app.
+The `headline` part runs beside the other fast parts. Comparator builds
+the two modules in its sandbox with `lake build`, which may write only
+the checkout's `.lake`; after the gate's build part every module is
+built, so that build only reads, as the other fast parts' `lake build`s
+do (Lake takes no lock on builds).
 
 ## Surfaces (generated)
 
@@ -670,20 +707,21 @@ recommended law, and the details of every other law above, are in
 | [`no_impersonation`](#communityno_impersonation) | [app/community/Proofs.lean:120](../app/community/Proofs.lean#L120) | propext, Classical.choice, Quot.sound | 318 | 298 | 6 | 1 | 1 |
 | [`admission_needs_approval`](#communityadmission_needs_approval) | [app/community/member/invite/Proofs.lean:44](../app/community/member/invite/Proofs.lean#L44) | propext, Classical.choice, Quot.sound | 305 | 297 | 8 | 0 | 0 |
 | [`removal_authorized`](#communityremoval_authorized) | [app/community/member/Proofs.lean:50](../app/community/member/Proofs.lean#L50) | propext, Classical.choice, Quot.sound | 305 | 297 | 8 | 0 | 0 |
-| [`removed_stays`](#communityremoved_stays) | [app/community/member/remove/Proofs.lean:28](../app/community/member/remove/Proofs.lean#L28) | propext, Classical.choice, Quot.sound | 304 | 297 | 7 | 0 | 0 |
+| [`removed_stays`](#communityremoved_stays) | [app/community/member/remove/Proofs.lean:10](../app/community/member/remove/Proofs.lean#L10) | propext, Classical.choice, Quot.sound | 304 | 297 | 7 | 0 | 0 |
 | [`connect_iff`](#communityconnect_iff) | [app/community/Proofs.lean:821](../app/community/Proofs.lean#L821) | propext, Classical.choice, Quot.sound | 349 | 326 | 10 | 1 | 1 |
-| [`removal_reaches_session`](#connectionremoval_reaches_session) | [app/Proofs.lean:3088](../app/Proofs.lean#L3088) | propext, Classical.choice, Quot.sound | 613 | 542 | 13 | 24 | 5 |
-| [`recv_send`](#enginesyncrecv_send) | [engine/sync/ConnLaws.lean:158](../engine/sync/ConnLaws.lean#L158) | propext, Classical.choice, Quot.sound | 123 | 103 | 3 | 15 | 0 |
+| [`removal_reaches_session`](#connectionremoval_reaches_session) | [app/Proofs.lean:3081](../app/Proofs.lean#L3081) | propext, Classical.choice, Quot.sound | 613 | 542 | 13 | 24 | 5 |
+| [`recv_send`](#enginesyncrecv_send) | [engine/sync/ConnLaws.lean:152](../engine/sync/ConnLaws.lean#L152) | propext, Classical.choice, Quot.sound | 123 | 103 | 3 | 15 | 0 |
 | [`sealed_auth`](#connectionsealed_auth) | [app/connection/Proofs.lean:134](../app/connection/Proofs.lean#L134) | propext, Classical.choice, Quot.sound | 318 | 260 | 2 | 23 | 4 |
-| [`kk_secret`](#connectionnoisesymbolickk_secret) | [engine/wire/NoiseSymbolic.lean:633](../engine/wire/NoiseSymbolic.lean#L633) | propext, Quot.sound | 29 | 18 | 7 | 1 | 0 |
-| [`kk_authentic`](#connectionnoisesymbolickk_authentic) | [engine/wire/NoiseSymbolic.lean:934](../engine/wire/NoiseSymbolic.lean#L934) | propext, Quot.sound | 30 | 18 | 8 | 1 | 0 |
+| [`kk_secret`](#connectionnoisesymbolickk_secret) | [engine/wire/NoiseSymbolic.lean:515](../engine/wire/NoiseSymbolic.lean#L515) | propext, Quot.sound | 29 | 18 | 7 | 1 | 0 |
+| [`kk_authentic`](#connectionnoisesymbolickk_authentic) | [engine/wire/NoiseSymbolic.lean:803](../engine/wire/NoiseSymbolic.lean#L803) | propext, Quot.sound | 30 | 18 | 8 | 1 | 0 |
 | [`same_ops_same_verdicts`](#enginesame_ops_same_verdicts) | [engine/core/Termination.lean:122](../engine/core/Termination.lean#L122) | propext, Classical.choice, Quot.sound | 68 | 33 | 2 | 3 | 5 |
-| [`display_agrees`](#communitydisplay_agrees) | [app/community/channel/message/Proofs.lean:193](../app/community/channel/message/Proofs.lean#L193) | propext, Classical.choice, Quot.sound | 314 | 306 | 8 | 0 | 0 |
-| [`Cover.covered`](#covercovered) | [engine/renderer/Cover.lean:84](../engine/renderer/Cover.lean#L84) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
+| [`display_agrees`](#communitydisplay_agrees) | [app/community/channel/message/Proofs.lean:189](../app/community/channel/message/Proofs.lean#L189) | propext, Classical.choice, Quot.sound | 314 | 306 | 8 | 0 | 0 |
+| [`Cover.covered`](#covercovered) | [engine/renderer/Cover.lean:53](../engine/renderer/Cover.lean#L53) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
 | [`back_open`](#navlawsback_open) | [app/Proofs.lean:1311](../app/Proofs.lean#L1311) | propext, Classical.choice, Quot.sound | 224 | 223 | 1 | 0 | 0 |
 | [`select_tapped_dedupe`](#switchselect_tapped_dedupe) | [app/community/Screen.lean:810](../app/community/Screen.lean#L810) | propext, Quot.sound | 9 | 9 | 0 | 0 | 0 |
 | [`approveReq_ops`](#communityapprovereq_ops) | [app/community/Proofs.lean:1327](../app/community/Proofs.lean#L1327) | propext, Classical.choice, Quot.sound | 183 | 181 | 2 | 0 | 0 |
 | [`ingest_costs`](#engineingest_costs) | [engine/core/IngestCost.lean:42](../engine/core/IngestCost.lean#L42) | propext, Classical.choice, Quot.sound | 46 | 32 | 6 | 0 | 8 |
+| [`deviceCut_removal`](#peoplelawsdevicecut_removal) | [app/community/Screen.lean:604](../app/community/Screen.lean#L604) | propext, Classical.choice, Quot.sound | 102 | 83 | 2 | 2 | 1 |
 
 **Together** these laws name 50 spec-only definitions, and 30 names of the assumptions they take.
 
@@ -833,6 +871,14 @@ Spec-only, to review: predicates: `Engine.Codec.At`, `Engine.Costs`, `Engine.Fie
 
 Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by `Engine.CostT.erase_bind`), `Engine.CostT.charged` (by `Engine.CostT.erase_charged`), `Engine.CostT.chargedBy` (by `Engine.CostT.erase_chargedBy`), `Engine.CostT.instMonad` (the cost meter), `Engine.CostT.pure` (by `Engine.CostT.erase_pure`), `Engine.CostT.run` (by `Engine.CostT.erase_run`), `Engine.instStoreCostT` (the cost meter).
 
+#### PeopleLaws.deviceCut_removal
+
+Named in the statement: `Community.Fact`, `Community.Fact.admission`, `Community.Key`, `Community.admission.byDevice`, `Community.deviceCut`, `Community.instSortKeyFact`, `Community.removals`, `Engine.Answer`, `Engine.DB`, `Engine.Id`, `Engine.Pos`, `Engine.Rel.read`, `Engine.View.eval`, `Engine.eval`.
+
+Spec-only, to review: predicates: `Engine.Codec.At`; definitions: `Community.Fact.admission`.
+
+Assumed: `Engine.DB`, `Engine.eval`. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
+
 ### Also considered
 
 | Law | Where | Axioms | Surface | Of the app | Spec-only | Assumed | Bridged |
@@ -842,11 +888,11 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 | [`wrap_keeps`](HEADLINE-SURFACES.md#textwrap_keeps) | [engine/renderer/WrapLaws.lean:134](../engine/renderer/WrapLaws.lean#L134) | propext, Classical.choice, Quot.sound | 37 | 36 | 1 | 0 | 0 |
 | [`message_authorized`](HEADLINE-SURFACES.md#communitymessage_authorized) | [app/community/channel/message/Proofs.lean:64](../app/community/channel/message/Proofs.lean#L64) | propext, Classical.choice, Quot.sound | 316 | 298 | 6 | 0 | 1 |
 | [`removal_cuts_off`](HEADLINE-SURFACES.md#communityremoval_cuts_off) | [app/community/Proofs.lean:918](../app/community/Proofs.lean#L918) | propext, Classical.choice, Quot.sound | 348 | 326 | 9 | 1 | 1 |
-| [`valid_stays`](HEADLINE-SURFACES.md#communityvalid_stays) | [app/community/Family.lean:1280](../app/community/Family.lean#L1280) | propext, Classical.choice, Quot.sound | 302 | 297 | 5 | 0 | 0 |
+| [`valid_stays`](HEADLINE-SURFACES.md#communityvalid_stays) | [app/community/Family.lean:1295](../app/community/Family.lean#L1295) | propext, Classical.choice, Quot.sound | 302 | 297 | 5 | 0 | 0 |
 | [`removed_gets_only_notice`](HEADLINE-SURFACES.md#connectionremoved_gets_only_notice) | [app/Proofs.lean:210](../app/Proofs.lean#L210) | propext, Classical.choice, Quot.sound | 286 | 252 | 7 | 16 | 1 |
 | [`entry_fresh`](HEADLINE-SURFACES.md#enginesyncentry_fresh) | [engine/wire/EgressLaws.lean:964](../engine/wire/EgressLaws.lean#L964) | propext, Classical.choice, Quot.sound | 275 | 220 | 10 | 21 | 4 |
 | [`offer_shared`](HEADLINE-SURFACES.md#enginesyncoffer_shared) | [engine/sync/SecrecyLaws.lean:62](../engine/sync/SecrecyLaws.lean#L62) | propext, Classical.choice, Quot.sound | 95 | 74 | 1 | 18 | 0 |
-| [`recv_take`](HEADLINE-SURFACES.md#enginesyncrecv_take) | [engine/sync/ConnLaws.lean:129](../engine/sync/ConnLaws.lean#L129) | propext, Classical.choice, Quot.sound | 123 | 103 | 3 | 15 | 0 |
+| [`recv_take`](HEADLINE-SURFACES.md#enginesyncrecv_take) | [engine/sync/ConnLaws.lean:123](../engine/sync/ConnLaws.lean#L123) | propext, Classical.choice, Quot.sound | 123 | 103 | 3 | 15 | 0 |
 | [`sealed_unopened`](HEADLINE-SURFACES.md#enginesyncsealed_unopened) | [engine/wire/NodeLaws.lean:70](../engine/wire/NodeLaws.lean#L70) | propext, Classical.choice, Quot.sound | 234 | 188 | 2 | 20 | 4 |
 | [`encode_decode`](HEADLINE-SURFACES.md#enginecodecencode_decode) | [engine/core/Codec.lean:775](../engine/core/Codec.lean#L775) | propext | 4 | 3 | 1 | 0 | 0 |
 | [`drain_bounded`](HEADLINE-SURFACES.md#enginedrain_bounded) | [engine/core/Budget.lean:167](../engine/core/Budget.lean#L167) | propext, Classical.choice, Quot.sound | 71 | 32 | 2 | 4 | 5 |
@@ -857,10 +903,9 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 | [`bare_takes_only_join`](HEADLINE-SURFACES.md#connectionbare_takes_only_join) | [app/Proofs.lean:610](../app/Proofs.lean#L610) | propext, Classical.choice, Quot.sound | 500 | 469 | 2 | 17 | 0 |
 | [`order_total`](HEADLINE-SURFACES.md#communityorder_total) | [app/community/Proofs.lean:1427](../app/community/Proofs.lean#L1427) | propext, Classical.choice, Quot.sound | 350 | 335 | 5 | 1 | 1 |
 | [`present_iff`](HEADLINE-SURFACES.md#peoplelawspresent_iff) | [app/community/Screen.lean:439](../app/community/Screen.lean#L439) | propext, Classical.choice, Quot.sound | 351 | 328 | 10 | 1 | 1 |
-| [`deviceCut_removal`](HEADLINE-SURFACES.md#peoplelawsdevicecut_removal) | [app/community/Screen.lean:604](../app/community/Screen.lean#L604) | propext, Classical.choice, Quot.sound | 102 | 83 | 2 | 2 | 1 |
 | [`namesake_iff`](HEADLINE-SURFACES.md#viewlawsnamesake_iff) | [app/community/Screen.lean:286](../app/community/Screen.lean#L286) | propext, Classical.choice, Quot.sound | 346 | 325 | 9 | 2 | 0 |
 | [`Translate.covered`](HEADLINE-SURFACES.md#translatecovered) | [engine/renderer/TranslateLaws.lean:83](../engine/renderer/TranslateLaws.lean#L83) | propext, Quot.sound | 9 | 6 | 3 | 0 | 0 |
-| [`line_painted`](HEADLINE-SURFACES.md#coverline_painted) | [engine/renderer/Cover.lean:124](../engine/renderer/Cover.lean#L124) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
+| [`line_painted`](HEADLINE-SURFACES.md#coverline_painted) | [engine/renderer/Cover.lean:93](../engine/renderer/Cover.lean#L93) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
 | [`newest_visible`](HEADLINE-SURFACES.md#geometrynewest_visible) | [engine/renderer/Geometry.lean:105](../engine/renderer/Geometry.lean#L105) | propext, Classical.choice, Quot.sound | 5 | 3 | 2 | 0 | 0 |
 | [`pinned_visible`](HEADLINE-SURFACES.md#surfacepinned_visible) | [engine/renderer/Surface.lean:141](../engine/renderer/Surface.lean#L141) | propext, Classical.choice, Quot.sound | 11 | 10 | 1 | 0 | 0 |
 | [`pinned_tap`](HEADLINE-SURFACES.md#geometrypinned_tap) | [engine/renderer/Geometry.lean:158](../engine/renderer/Geometry.lean#L158) | propext, Quot.sound | 6 | 4 | 2 | 0 | 0 |

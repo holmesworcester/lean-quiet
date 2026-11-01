@@ -24,6 +24,7 @@ import tests.comparator.Solution
 #same_statement Headline.select_tapped_dedupe Switch.select_tapped_dedupe
 #same_statement Headline.approveReq_ops Community.approveReq_ops
 #same_statement Headline.ingest_costs Engine.ingest_costs
+#same_statement Headline.deviceCut_removal PeopleLaws.deviceCut_removal
 #audit_axioms Headline.no_impersonation
 #audit_axioms Headline.admission_needs_approval
 #audit_axioms Headline.removal_authorized
@@ -41,3 +42,4 @@ import tests.comparator.Solution
 #audit_axioms Headline.select_tapped_dedupe
 #audit_axioms Headline.approveReq_ops
 #audit_axioms Headline.ingest_costs
+#audit_axioms Headline.deviceCut_removal
