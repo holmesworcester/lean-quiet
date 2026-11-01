@@ -115,8 +115,10 @@ bytes with the same zlib.
 | `make:assets-test` | The assets step on made-up tarballs (no network): download, sha256 and per-file checks, repair, deterministic packing. Controls: a flipped bit, files that don't match the list, plain http, an unreachable URL, a stale pin and changed asset scripts must each fail |
 | `make:clean-room` | `make install && make run` from a git clone of `HEAD` in fresh `ubuntu:24.04` and `debian:12` containers, as a user with sudo: `make check` fails and names the packages; a timed cold `make install`; a second one that redoes nothing; under Xvfb, a screenshot of the window must show it painted, while one of the empty screen must fail |
 
-`ci/local.sh --full` runs both (parts `make:assets` and
-`make:clean-room`). The clean room needs Docker and network access, and
+The gate (`ci/local.sh`, before every push) runs `make:assets` (part
+`make:assets`, about a second): a change that makes the published tarball
+stale fails it until the tarball is packed and published again.
+`ci/local.sh --full` also runs `make:clean-room`. The clean room needs Docker and network access, and
 about 10 GB under Docker's root per image while it runs; each container
 gets 8 CPUs and 24 GB without swap (`CLEAN_ROOM_CPUS`,
 `CLEAN_ROOM_MEMORY`). It packs the tarball from `assets/` here, fails
