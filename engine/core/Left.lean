@@ -143,7 +143,8 @@ theorem top_right [SortKey A] [SortKey B] {s : DB (A ⊕ B)} {k : ByteArray} {li
     (hk : RightKey s k) (hl : lim ≠ some 0) {x : Id} {g : B} (hx : x ∈ s.idx k)
     (hg : s.status x = some (.valid (.inr g))) :
     ∃ y g', (eval s { key := k, limit := lim }).rows.head? = some ((SortKey.sortOf g', y), .inr g') ∧
-      s.status y = some (.valid (.inr g')) ∧ Pos.cmp (SortKey.sortOf g, x) (SortKey.sortOf g', y) ≠ .gt := by
+      y ∈ s.idx k ∧ s.status y = some (.valid (.inr g')) ∧
+      Pos.cmp (SortKey.sortOf g, x) (SortKey.sortOf g', y) ≠ .gt := by
   have hm : ((SortKey.sortOf (Sum.inr g : A ⊕ B), x), (Sum.inr g : A ⊕ B)) ∈ matching s { key := k, limit := lim } :=
     (mem_matching k lim).2 ⟨x, _, rfl, hx, hg⟩
   obtain ⟨t, ht, htm, hle⟩ := top_max rfl rfl rfl hl hm
@@ -151,7 +152,7 @@ theorem top_right [SortKey A] [SortKey B] {s : DB (A ⊕ B)} {k : ByteArray} {li
   obtain ⟨g', hg'⟩ := hk y hy
   rw [hf] at hg'
   cases hg'
-  exact ⟨y, g', ht, hf, hle⟩
+  exact ⟨y, g', ht, hy, hf, hle⟩
 
 /-- A view of B, run lifted on the store, reads each list's B rows. -/
 theorem eval_liftR_list {s : DB (A ⊕ B)} {α : Type} [SortKey A] [SortKey B] (q : ListQ)

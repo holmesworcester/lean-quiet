@@ -26,6 +26,12 @@ theorem honestRun : ∃ st m1 sr m2 si, Transcript st m1 sr m2 si ∧
 
 def secretNames : Nat → Prop := secrets 11 22 33 44
 
+/-- This fixture's attacker, which starts from names and public keys,
+holds no ciphertext: the authentication laws' `hK2` premise. -/
+theorem exposed_parts {S : Nat → Prop} {t : T} (h : Exposed S t) {k ad p : T} {n : Nat}
+    (hp : Part (.aead k n ad p) t) : Clean S k := by
+  rcases h with ⟨i, rfl, -⟩ | ⟨x, rfl⟩ <;> cases hp
+
 theorem secretsHeld : ∃ st m1 sr m2 si, Transcript st m1 sr m2 si ∧
     ¬ Derivable AllCalls (Exposed secretNames) si.send.k ∧
     ¬ Derivable AllCalls (Exposed secretNames) si.recv.k ∧
