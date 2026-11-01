@@ -161,10 +161,6 @@ theorem order_local {M : List Op} (hf : Fed (family C) M s) {c x : Id} {sk : Byt
   · obtain ⟨o, hm, hx⟩ := local_fact_mine hf hz rfl
     exact .inr ⟨z, o, kid, k, clump, hm, hx, hz, rfl⟩
 
-/-- Post x claims counter n and time tm: its op's body says so. -/
-def Posted (ops : Id → Option Op) (x : Id) (n tm : Nat) : Prop :=
-  ∃ o kid sealed sig, ops x = some o ∧ (decode o.body : Option Body) = some (.post kid sealed n tm sig)
-
 theorem posted_unique {ops : Id → Option Op} {x : Id} {n tm n' tm' : Nat} (h : Posted ops x n tm)
     (h' : Posted ops x n' tm') : n = n' ∧ tm = tm' := by
   obtain ⟨o, _, _, _, hx, hb⟩ := h

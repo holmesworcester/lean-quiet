@@ -4,7 +4,8 @@ from the list's bottom): a line of a row's painted bitmap, the
 placeholder of a row not painted yet, the placeholder of messages outside
 the loaded window (newer, below it, from `pad` up; older, above it), or
 blank padding. The app's frame is built from `seen`, so the law is about
-what runs.
+what runs. `seen` and `Px` are in engine/renderer/CoverSeen.lean, apart
+from these laws, so that a Comparator challenge can import them alone.
 
 - `covered`: no position from `pad` up to the rows' top, nor above them
   while older messages are outside the window, is blank. A slow read or
@@ -16,41 +17,9 @@ what runs.
   position shows a row's placeholder. A frame shown once its rows are
   painted (the desktop's, after a resize) has none to flash.
 -/
+import engine.renderer.CoverSeen
+
 namespace Cover
-
-inductive Px where
-  /-- Row i's bitmap line li (top down). -/
-  | line (i li : Nat)
-  /-- Row i, not painted yet (or painted at another height). -/
-  | hold (i : Nat)
-  /-- A message outside the loaded window: below it (newer) or above it
-  (older). -/
-  | unloaded
-  /-- Padding below the first row, or above the last with nothing older. -/
-  | blank
-  deriving DecidableEq, Repr
-
-/-- The row covering p, from row i whose bottom is y up; each row is its
-height and its painted bitmap's height, if painted. -/
-def find (p : Nat) : Nat → Nat → List (Nat × Option Nat) → Option Px
-  | _, _, [] => none
-  | i, y, (h, pt) :: t =>
-    if p < y + h then
-      let li := y + h - 1 - p
-      some (match pt with
-        | some bh => if li < bh then .line i li else .hold i
-        | none => .hold i)
-    else find p (i + 1) (y + h) t
-
-/-- What content position p shows: newer messages from `pad` to
-`bottom`, the rows from `bottom` up, older messages above them if
-`more`. -/
-def seen (pad bottom : Nat) (more : Bool) (rows : List (Nat × Option Nat)) (p : Nat) : Px :=
-  if p < pad then .blank
-  else if p < bottom then .unloaded
-  else match find p 0 bottom rows with
-    | some x => x
-    | none => if more then .unloaded else .blank
 
 theorem find_some (p : Nat) : ∀ (rows : List (Nat × Option Nat)) (i y : Nat),
     y ≤ p → p < y + (rows.map (·.1)).sum → ∃ x, find p i y rows = some x ∧ x ≠ .blank
