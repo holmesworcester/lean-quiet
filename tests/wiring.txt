@@ -407,25 +407,6 @@ todo Live.RWorld.evict = Live.Board.apply
 todo Live.RWorld.frame = Live.Board.apply
 todo Live.RWorld.marked = Live.Board.apply
 todo Live.RWorld.pass = Live.Board.apply
-todo Heights.T.sum The row-heights tree (engine/renderer/Heights.lean): the app keeps its rows' heights in a map (`App.heightOf`) and adds them up itself. Have its list frame place rows by `Heights`.
-todo Heights.Both.bottom = Heights.T.sum
-todo Heights.Both.rowAt = Heights.T.sum
-todo Heights.Both.top = Heights.T.sum
-todo Heights.Rows.push = Heights.T.sum
-todo Heights.T.build = Heights.T.sum
-todo Heights.T.buildM = Heights.T.sum
-todo Heights.T.depth = Heights.T.sum
-todo Heights.T.find = Heights.T.sum
-todo Heights.T.findM = Heights.T.sum
-todo Heights.T.set = Heights.T.sum
-todo Heights.T.setM = Heights.T.sum
-todo Heights.T.size = Heights.T.sum
-todo Heights.T.start = Heights.T.sum
-todo Heights.T.startM = Heights.T.sum
-todo Heights.T.toList = Heights.T.sum
-todo Heights.clog = Heights.T.sum
-todo Heights.rebuild = Heights.T.sum
-todo Heights.screenY = Heights.T.sum
 
 
 # Same block walk as ca4d713. Only the lifecycle barrier may poll a deadline;

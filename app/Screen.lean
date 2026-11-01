@@ -3131,14 +3131,18 @@ def heightOf (s : St) (x : Id) : Nat := s.heights.getD x est
 
 /-- The window's rows' bottoms (bottom-anchored), newest first, and the
 content's height: the messages newer and older than the window at `est`
-each, below and above it. -/
-def bottoms (s : St) : Array Nat × Nat := Id.run do
-  let mut out := Array.mkEmpty s.ids.size
-  let mut y := bottomPad + s.newer * est
-  for (_, x) in s.ids do
-    out := out.push y
-    y := y + heightOf s x
-  return (out, y + s.older * est + 16)
+each, below and above it. Each row's bottom is the heights below it
+(PlaceLaws.bottoms_eq). -/
+def bottoms (s : St) : Array Nat × Nat :=
+  let (out, y) := s.ids.foldl (fun (acc : Array Nat × Nat) (p : Pos) => (acc.1.push acc.2, acc.2 + heightOf s p.2))
+    (Array.mkEmpty s.ids.size, bottomPad + s.newer * est)
+  (out, y + s.older * est + 16)
+
+/-- The row whose span, stacked up from y (newest first), holds offset
+p, and p's distance below that row's top. -/
+def rowFrom (h : Id → Nat) (p : Nat) : Nat → List Pos → Option (Id × Nat)
+  | _, [] => none
+  | y, (_, x) :: t => if y ≤ p && p < y + h x then some (x, y + h x - 1 - p) else rowFrom h p (y + h x) t
 
 /-! ## Mounting, measuring, painting -/
 
@@ -3523,15 +3527,11 @@ def composer (s : St) : Bitmap :=
 
 /-! ## Events and commands -/
 
-/-- The row at content position p, and p's row within it (top down). -/
-def rowAt (s : St) (p : Nat) : Option (Id × Nat) := Id.run do
-  let (bots, _) := bottoms s
-  for i in [0:s.ids.size] do
-    let bot := bots[i]!
-    let x := s.ids[i]!.2
-    let h := heightOf s x
-    if bot ≤ p && p < bot + h then return some (x, bot + h - 1 - p)
-  return none
+/-- The row at content position p, and p's row within it (top down):
+the row whose span (from its bottom in `bottoms`) holds p
+(PlaceLaws.rowAt_iff). -/
+def rowAt (s : St) (p : Nat) : Option (Id × Nat) :=
+  rowFrom (heightOf s) p (bottomPad + s.newer * est) s.ids.toList
 
 /-! ## Pages and communities -/
 

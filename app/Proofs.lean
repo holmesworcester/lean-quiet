@@ -4122,4 +4122,144 @@ theorem startTaps_rows {α : Type} (dm : Dim) (g : Start) (rows : Array (String 
 
 end Pages
 
+/-! ## Where the conversation's rows are placed
+
+The frame places the window's rows by `bottoms` (each row's bottom) and
+finds the row at an offset by `rowAt`; the window is at most `half` rows
+each side of the anchor, the rest estimated at `est`, so both walk the
+window only. -/
+namespace PlaceLaws
+open App Engine
+
+/-- The bottoms a stack of heights gets, from y up: y, y + h₀, … -/
+def bots (y : Nat) : List Nat → List Nat
+  | [] => []
+  | h :: t => y :: bots (y + h) t
+
+theorem foldl_bots {α : Type} (f : α → Nat) : ∀ (l : List α) (out : Array Nat) (y : Nat),
+    (l.foldl (fun (acc : Array Nat × Nat) a => (acc.1.push acc.2, acc.2 + f a)) (out, y)).1.toList =
+      out.toList ++ bots y (l.map f) ∧
+    (l.foldl (fun (acc : Array Nat × Nat) a => (acc.1.push acc.2, acc.2 + f a)) (out, y)).2 =
+      y + (l.map f).sum
+  | [], out, y => by simp [bots]
+  | a :: t, out, y => by
+    obtain ⟨h1, h2⟩ := foldl_bots f t (out.push y) (y + f a)
+    simp only [List.foldl_cons, List.map_cons, bots, List.sum_cons]
+    refine ⟨?_, ?_⟩
+    · rw [h1]; simp
+    · rw [h2]; omega
+
+theorem bots_get : ∀ (y : Nat) (hs : List Nat) (i : Nat), i < hs.length →
+    (bots y hs)[i]? = some (y + (hs.take i).sum)
+  | _, [], _, h => by simp at h
+  | y, h :: t, 0, _ => by simp [bots]
+  | y, h :: t, i + 1, hi => by
+    simp only [bots, List.getElem?_cons_succ, List.take_succ_cons, List.sum_cons]
+    rw [bots_get (y + h) t i (by simpa using hi)]
+    congr 1; omega
+
+theorem bots_length : ∀ (y : Nat) (hs : List Nat), (bots y hs).length = hs.length
+  | _, [] => rfl
+  | y, _ :: t => by simp [bots, bots_length (y + _) t]
+
+/-- **Each row's bottom is the heights below it.** Row i of the window
+(newest first) sits at the bottom pad, the newer messages at `est`
+each, and the heights of rows 0 … i-1; the content's height adds every
+row's and the older messages at `est`. -/
+theorem bottoms_eq (s : St) :
+    (bottoms s).1.size = s.ids.size ∧
+    (∀ i, i < s.ids.size → (bottoms s).1[i]? =
+      some (bottomPad + s.newer * est + ((s.ids.toList.map fun p => heightOf s p.2).take i).sum)) ∧
+    (bottoms s).2 = bottomPad + s.newer * est + (s.ids.toList.map fun p => heightOf s p.2).sum +
+      s.older * est + 16 := by
+  have := foldl_bots (fun p : Pos => heightOf s p.2) s.ids.toList (Array.mkEmpty s.ids.size)
+    (bottomPad + s.newer * est)
+  simp only [bottoms, ← Array.foldl_toList]
+  obtain ⟨h1, h2⟩ := this
+  refine ⟨?_, ?_, ?_⟩
+  · rw [← Array.length_toList, h1]; simp [bots_length]
+  · intro i hi
+    rw [← Array.getElem?_toList, h1]
+    have e : (Array.mkEmpty s.ids.size : Array Nat).toList = [] := rfl
+    rw [e, List.nil_append]
+    exact bots_get _ _ i (by simpa using hi)
+  · rw [h2]
+
+/-- `rowFrom` finds exactly the row whose span holds p: row i (newest
+first) stacked from y spans from y and the heights below it. -/
+theorem rowFrom_iff (h : Id → Nat) (p : Nat) : ∀ (l : List Pos) (y : Nat) (x : Id) (o : Nat),
+    rowFrom h p y l = some (x, o) ↔
+      ∃ i q, l[i]? = some (q, x) ∧ y + ((l.take i).map fun r => h r.2).sum ≤ p ∧
+        p < y + ((l.take i).map fun r => h r.2).sum + h x ∧
+        o = y + ((l.take i).map fun r => h r.2).sum + h x - 1 - p
+  | [], y, x, o => by simp [rowFrom]
+  | (q0, x0) :: t, y, x, o => by
+    have ih := rowFrom_iff h p t (y + h x0) x o
+    simp only [rowFrom]
+    by_cases hc : y ≤ p ∧ p < y + h x0
+    · have hb : (decide (y ≤ p) && decide (p < y + h x0)) = true := by simp [hc.1, hc.2]
+      simp only [hb, ↓reduceIte]
+      constructor
+      · intro e
+        simp only [Option.some.injEq, Prod.mk.injEq] at e
+        obtain ⟨rfl, rfl⟩ := e
+        exact ⟨0, q0, by simp, by simpa using hc.1, by simpa using hc.2, by simp⟩
+      · rintro ⟨i, q, hi, h1, h2, h3⟩
+        cases i with
+        | zero =>
+          simp only [List.getElem?_cons_zero, Option.some.injEq, Prod.mk.injEq] at hi
+          obtain ⟨-, rfl⟩ := hi
+          simp only [List.take_zero, List.map_nil, List.sum_nil, Nat.add_zero] at h3
+          simp [h3]
+        | succ j =>
+          simp only [List.take_succ_cons, List.map_cons, List.sum_cons] at h1
+          omega
+    · have hb : (decide (y ≤ p) && decide (p < y + h x0)) = false := by
+        simpa using fun h1 => Nat.not_lt.1 fun h2 => hc ⟨h1, h2⟩
+      simp only [hb, Bool.false_eq_true, ↓reduceIte]
+      rw [ih]
+      constructor
+      · rintro ⟨j, q, hj, h1, h2, h3⟩
+        refine ⟨j + 1, q, by simpa using hj, ?_, ?_, ?_⟩ <;>
+          simp only [List.take_succ_cons, List.map_cons, List.sum_cons] <;> omega
+      · rintro ⟨i, q, hi, h1, h2, h3⟩
+        cases i with
+        | zero =>
+          simp only [List.getElem?_cons_zero, Option.some.injEq, Prod.mk.injEq] at hi
+          obtain ⟨-, rfl⟩ := hi
+          simp only [List.take_zero, List.map_nil, List.sum_nil, Nat.add_zero] at h1 h2
+          exact absurd ⟨h1, h2⟩ hc
+        | succ j =>
+          simp only [List.take_succ_cons, List.map_cons, List.sum_cons] at h1 h2 h3
+          exact ⟨j, q, by simpa using hi, by omega, by omega, by omega⟩
+
+/-- **The row at an offset is the one whose span holds it.** `rowAt s p`
+is row x, p's distance o below its top, exactly when x is a row of the
+window whose bottom in `bottoms` is at or below p and whose top is above
+it. -/
+theorem rowAt_iff (s : St) (p : Nat) (x : Id) (o : Nat) :
+    rowAt s p = some (x, o) ↔
+      ∃ (i : Nat) (q : ByteArray) (b : Nat), s.ids[i]? = some (q, x) ∧ (bottoms s).1[i]? = some b ∧
+        b ≤ p ∧ p < b + heightOf s x ∧ o = b + heightOf s x - 1 - p := by
+  obtain ⟨-, hb, -⟩ := bottoms_eq s
+  simp only [rowAt]
+  rw [rowFrom_iff]
+  have ht : ∀ i, ((s.ids.toList.take i).map fun r => heightOf s r.2) =
+      (s.ids.toList.map fun p => heightOf s p.2).take i := by
+    intro i; simp [List.map_take]
+  constructor
+  · rintro ⟨i, q, hi, h1, h2, h3⟩
+    have hlt : i < s.ids.size := by
+      have := List.getElem?_eq_some_iff.1 hi; simpa using this.1
+    refine ⟨i, q, bottomPad + s.newer * est + ((s.ids.toList.map fun p => heightOf s p.2).take i).sum,
+      by simpa using hi, hb i hlt, ?_, ?_, ?_⟩ <;> simp only [ht] at h1 h2 h3 ⊢ <;> omega
+  · rintro ⟨i, q, b, hi, hbi, h1, h2, h3⟩
+    have hlt : i < s.ids.size := by
+      have := Array.getElem?_eq_some_iff.1 hi; exact this.1
+    rw [hb i hlt, Option.some.injEq] at hbi
+    subst hbi
+    refine ⟨i, q, by simpa using hi, ?_, ?_, ?_⟩ <;> simp only [ht] at h1 h2 h3 ⊢ <;> omega
+
+end PlaceLaws
+
 end

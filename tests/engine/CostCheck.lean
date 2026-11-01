@@ -32,13 +32,6 @@ teeth.
   facts under one key: limit 10, count capped at 50, within 60 rows and
   13 seeks; the same list uncapped (the negative control) steps over
   all 300 in range.
-- The rows' heights (engine/renderer/Heights.lean): 5,000 rows pushed
-  one at a time; where each row starts, from the tree, equals the walk
-  over the rows below it, and the row found at each offset holds it.
-  Finding the row 4,981 rows back costs 13 steps (the tree's depth);
-  the walk (`bottomM`, the negative control, as `bottoms` does) costs
-  4,981. A 201-row window with a row landing mid-window is rebuilt in
-  at most 4·201 + 1 steps, its starts the walk's.
 -/
 import tests.engine.Lib
 import engine.core.MerkleCost
@@ -46,7 +39,6 @@ import engine.core.CodecCost
 import app.community.channel.message.attachment.Screen
 import engine.core.IngestCost
 import engine.core.ListCost
-import engine.renderer.Heights
 
 open Engine Engine.Counted Tests
 
@@ -277,50 +269,6 @@ def listCheck (t : Checks) : IO Unit := do
 
 end ListRead
 
-section HeightsCheck
-open Heights
-
-def heightsCheck (t : Checks) : IO Unit := do
-  let n := 5000
-  let hs : Array Nat := (Array.range n).map fun i => 40 + (i * 7919) % 260
-  let mut r : Rows := {}
-  for h in hs do r := r.push h
-  t.ok s!"heights: {n} rows, depth {r.d}" (r.n == n && r.d == 13 && r.t.toList.take n == hs.toList)
-  -- where each row starts: the tree against the walk
-  let mut bad := 0
-  let mut acc := 0
-  for i in [0:n] do
-    if r.t.start i != acc then bad := bad + 1
-    acc := acc + hs[i]!
-  t.ok "heights: where every row starts, from the tree, is the walk's" (bad == 0)
-  -- the row at each offset holds it
-  let mut badFind := 0
-  for b in [0:acc:97] do
-    let i := r.t.find b
-    if !(r.t.start i ≤ b && b < r.t.start (i + 1)) then badFind := badFind + 1
-  t.ok "heights: the row found at an offset holds it" (badFind == 0)
-  -- what it costs, 4,981 rows back
-  let back := 4981
-  let b := r.t.start back + 1
-  let cf := Counted.cost (T.findM (m := Counted) r.t b)
-  let cs := Counted.cost (T.startM (m := Counted) r.t back)
-  let cw := Counted.cost (bottomM (m := Counted) hs.toList back)
-  t.ok s!"heights: the row {back} back found in {cf.work} steps, its start in {cs.work}"
-    (Counted.val (T.findM (m := Counted) r.t b) == back && cf.work ≤ r.d && cs.work ≤ r.d)
-  t.ok s!"heights: the walk to it (the negative control) takes {cw.work} steps"
-    (Counted.val (bottomM (m := Counted) hs.toList back) == r.t.start back && cw.work == back)
-  IO.println s!"heights: {n} rows, depth {r.d}: the row {back} back in {cf.work} steps; walking to it {cw.work}"
-  -- a window of 200 rows with a late message landing mid-window: rebuilt
-  let win := (hs.extract 1000 1200).toList
-  let win' := win.take 87 ++ [123] ++ win.drop 87
-  let rb := rebuild win'
-  let cb := Counted.cost (T.buildM (m := Counted) (fun i => win'.toArray.getD i 0) 0 (clog win'.length))
-  t.ok s!"heights: a 201-row window rebuilt with a row mid-window, {cb.work} steps (≤ 4·201 + 1)"
-    (rb.t.toList.take win'.length == win' && rb.n == 201 && cb.work ≤ 4 * 201 + 1)
-  t.ok "heights: the rebuilt window's starts are the walk's"
-    ((List.range 201).all fun i => rb.t.start i == (win'.take i).foldl (· + ·) 0)
-
-end HeightsCheck
 
 def main : IO UInt32 := do
   let t ← Checks.new
@@ -329,5 +277,4 @@ def main : IO UInt32 := do
   pics t
   judgeCheck t
   listCheck t
-  heightsCheck t
   t.finish "costcheck"

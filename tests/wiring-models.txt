@@ -168,29 +168,6 @@ Live.World.settle
 Live.World.settle_passes
 Live.World.type_only
 
-# engine.renderer.Heights
-Heights.Both.rowAt_spec
-Heights.Rows.push_ok
-Heights.T.above_window
-Heights.T.below_window
-Heights.T.buildM_cost
-Heights.T.build_ok
-Heights.T.findM_cost
-Heights.T.find_spec
-Heights.T.setM_cost
-Heights.T.set_toList
-Heights.T.startM_cost
-Heights.T.start_eq
-Heights.T.start_mono
-Heights.T.start_size
-Heights.anchor_stable
-Heights.clog_least
-Heights.le_pow_clog
-Heights.rebuild_cost
-Heights.rebuild_ok
-Heights.rows_cost
-Heights.window_rows
-
 # engine.renderer.ReaderLaws
 Live.RWorld.inv_commit
 Live.RWorld.inv_evict

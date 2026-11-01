@@ -76,7 +76,6 @@ import engine.core.MerkleCost
 import engine.core.IngestCost
 import engine.core.ListCost
 import engine.renderer.BoardLaws
-import engine.renderer.Heights
 import engine.renderer.ReaderLaws
 import engine.core.CostErase
 import engine.renderer.ActsLaws
@@ -832,27 +831,6 @@ section cost
 #print axioms Live.World.passActs_comp
 #print axioms Live.World.passActs_indep
 #print axioms Live.World.type_only
-#print axioms Heights.T.start_eq
-#print axioms Heights.T.find_spec
-#print axioms Heights.T.set_toList
-#print axioms Heights.Rows.push_ok
-#print axioms Heights.T.findM_cost
-#print axioms Heights.T.startM_cost
-#print axioms Heights.T.setM_cost
-#print axioms Heights.rows_cost
-#print axioms Heights.T.start_mono
-#print axioms Heights.T.start_size
-#print axioms Heights.T.below_window
-#print axioms Heights.T.above_window
-#print axioms Heights.Both.rowAt_spec
-#print axioms Heights.le_pow_clog
-#print axioms Heights.clog_least
-#print axioms Heights.T.build_ok
-#print axioms Heights.T.buildM_cost
-#print axioms Heights.rebuild_ok
-#print axioms Heights.rebuild_cost
-#print axioms Heights.window_rows
-#print axioms Heights.anchor_stable
 #print axioms Engine.View.always_eval
 #print axioms Engine.View.always_run
 #print axioms Community.approveReq_ops
@@ -938,6 +916,8 @@ end cost
 #print axioms LifecycleLaws.old_callback
 #print axioms LifecycleLaws.restore_page_anchor
 #print axioms LifecycleLaws.viewport_geometry
+#print axioms PlaceLaws.bottoms_eq
+#print axioms PlaceLaws.rowAt_iff
 #print axioms LifecycleLaws.apply_page_anchor
 #print axioms Lifecycle.live_exact
 
