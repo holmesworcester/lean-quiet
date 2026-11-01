@@ -161,6 +161,11 @@ installed app). The judge sees:
 4. Bob is in: Alice's messages arrive in his window. From then on, a
    message typed in either window shows in the other.
 
+The windows are 940 by 820 at most, side by side from the left. They
+are never narrower than 720, the desktop layout's width (with the
+sidebar), so on a screen under about 1500 pixels wide Bob's window covers
+the right edge of Alice's; click a window to bring it forward.
+
 The terminal says what to do at each step. Close both windows, or press
 Ctrl-C there, to stop. Each run starts afresh in `out/make/demo/`
 (`alice/` and `bob/`: a database, a log and a state file each).

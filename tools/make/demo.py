@@ -148,13 +148,14 @@ def screen_size():
 
 
 def layout(width, height):
-    """Two windows side by side, left-aligned: each at most 940 x 820, the
-    desktop layout (with its sidebar) from 720 wide."""
+    """Two windows side by side from the left, each at most 940 x 820. Each
+    is at least 720 wide, the desktop layout's (its sidebar has Waiting to
+    join): on a screen under 1500 wide, Bob's covers Alice's right edge."""
     gap = 20
-    w = max(320, min(940, (width - 3 * gap) // 2))
+    w = max(720, min(940, (width - 3 * gap) // 2))
     h = max(480, min(820, height - 180))
     y = max(0, min(60, height - h - 60))
-    return [(gap, y, w, h), (min(2 * gap + w, max(0, width - w)), y, w, h)]
+    return [(gap, y, w, h), (max(0, min(2 * gap + w, width - w - gap)), y, w, h)]
 
 
 def free_ports(n, first=47101, last=47199):
@@ -261,11 +262,18 @@ class X:
 
     def click(self, device, key, timeout=30):
         x, y = wait(lambda: device.control(key), f"{device.name}: {key}", timeout, [device])
+        self.focus(device)
         self.run('mousemove', '--window', self.window(device), x, y, 'click', '1')
 
     def focus(self, device):
+        """Bring the window forward (on a narrow screen the two overlap) and
+        give it the keyboard."""
         win = self.window(device)
-        self.run('windowactivate', '--sync', win) if self.wm() else self.run('windowfocus', '--sync', win)
+        if self.wm():
+            self.run('windowactivate', '--sync', win)
+        else:
+            self.run('windowraise', win)
+            self.run('windowfocus', '--sync', win)
 
     def wm(self):
         p = sp.run(['xdotool', 'getactivewindow'], env=self.env, capture_output=True)
@@ -318,17 +326,18 @@ def joined(bob):
 
 def guide(alice, bob):
     """Say what to do, and what happened, until both windows are closed."""
-    say("Left: Alice's laptop. Right: Bob's laptop, a second device on this computer.")
-    say("In Bob's window: type a name, press Enter, then Agree & Join.")
+    say("Left: Alice's laptop, showing her community's invite. Right: Bob's laptop, which has opened")
+    say("her invite link, as if she had sent it to him.")
+    say("1. In Bob's window: type a name, press Enter, then click Agree & Join.")
     asked = admitted = False
     while any([alice.alive(), bob.alive()]):  # polls (reaps) both
         if not asked and alice.asking() > 0:
             asked = True
-            say("Bob's request reached Alice's laptop. In Alice's window: click Waiting to join, then the purple ✓.")
+            say("2. Bob's request reached Alice's laptop. In Alice's window: click Waiting to join, then the purple ✓.")
         if not admitted and bob.community() == 'Quiet' and not bob.waiting():
             admitted = True
-            say("Bob is in: Alice's history is on his screen. Type in either window and it shows in the other.")
-            say('Point at a message to react to it: the reaction shows in the other window too.')
+            say("3. Bob is in: Alice's messages are on his screen. Type in either window and it shows in the other.")
+            say('   Point at a message to react to it: the reaction shows in the other window too.')
             say('Close both windows (or press Ctrl-C) to stop.')
         time.sleep(.2)
 
@@ -347,7 +356,8 @@ def main(argv):
         return 1
     devices = [alice, bob]
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
-    say(f'Two devices, each its own database and node: Alice on port {pa}, Bob on port {pb} ({OUT})')
+    say('Two devices on this computer, each its own app, database and node, talking over TCP with no server')
+    say(f'(Alice on port {pa}, Bob on port {pb}; their files are in {OUT})')
     try:
         if auto:
             say('Joining Bob to Alice\'s community, as you would: his name, Agree & Join, then Approve')
