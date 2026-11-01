@@ -252,20 +252,20 @@ structure ReceiverRun (x : Sync F (HeldM F)) where
 namespace ReceiverRun
 variable {x : Sync F (HeldM F)} (r : ReceiverRun x)
 
-theorem reachable (n : Nat) : (r.store n).Reachable x.fam := by
+theorem store_reachable (n : Nat) : (r.store n).Reachable x.fam := by
   induction n with
   | zero => exact r.initial
   | succ n ih => rw [r.next]; exact write_reachable x _ _ _ ih
 
 theorem invariant (n : Nat) : Inv x.fam (r.store n).db :=
-  let ⟨_, hr, _⟩ := r.reachable n; reach_inv hr
+  let ⟨_, hr, _⟩ := r.store_reachable n; reach_inv hr
 
 theorem settled (n : Nat) : (r.store n).db.queue = [] := by
   induction n with
   | zero => exact r.initialQueue
   | succ n ih =>
     rw [r.next]
-    apply write_settles x _ _ _ (r.reachable n) ih
+    apply write_settles x _ _ _ (r.store_reachable n) ih
     intro a ha b hb he
     have sub : intake x.fam false (r.input n) ⊆ r.input n := by
       intro o ho
@@ -295,7 +295,7 @@ theorem receives {n : Nat} {o : Op} (ho : o ∈ r.input n) (hs : x.fam.shared o 
     exact r.distinct n p (List.mem_append_right _ (List.mem_filter.mp hp).1)
       o (List.mem_append_right _ ho) he
   · intro p hp
-    obtain ⟨history, hr, same⟩ := r.reachable n
+    obtain ⟨history, hr, same⟩ := r.store_reachable n
     obtain ⟨hmem, hid⟩ := reach_stored hr _ p hp
     exact r.distinct n p (List.mem_append_left _ ((same p).mp hmem))
       o (List.mem_append_right _ ho) hid

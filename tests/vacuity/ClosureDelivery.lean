@@ -142,8 +142,66 @@ def certificate : Option (PLift Result) :=
     else none
   else none
 
+/-- The helper checks use the already populated signed community and a
+new signed message, with old operations and retransmissions mixed in. -/
+def extra := post c admission.id bob "content-key-1".toUTF8
+  "The closure is complete; this message is new.".toUTF8 2 29880001
+def extraFact := Fact.message c requestB.id bob.pk "content-key-1".toUTF8
+  "The closure is complete; this message is new.".toUTF8 2 29880001
+def jobs := [r, extra, message, extra]
+def staged := [message]
+def writer := Node.boot fam before 0
+
+-- Closed kernel instances: their actual premises are list membership, not
+-- successful opaque crypto calculations. Native checks below also exercise
+-- the fresh write and deduplication branches on the same signed values.
+theorem writeStoreWitness :
+    (writer.write sync jobs source).2 =
+      let absent := jobs.foldl (absentStep source.db) []
+      if absent.isEmpty then source else
+        ((Turn.turn fam absent.reverse : HeldM Fact Unit) source).2 :=
+  write_store sync writer source jobs
+
+theorem absentStepKeepsWitness : message ∈ absentStep source.db staged extra :=
+  absentStep_keeps source.db staged message extra (by simp [staged])
+
+theorem absentFoldKeepsWitness : message ∈ jobs.foldl (absentStep source.db) staged :=
+  absentFold_keeps source.db jobs staged (by simp [staged])
+
+-- The source witnesses deliberately select the newly added operation,
+-- rather than an operation that was present in the initial accumulator.
+def absentStepSourceWitness :=
+  if h : extra ∈ absentStep source.db staged extra then
+    some (PLift.up (absentStep_source source.db staged extra extra h))
+  else none
+
+def absentFoldSourceWitness :=
+  if h : extra ∈ jobs.foldl (absentStep source.db) staged then
+    some (PLift.up (absentFold_source source.db jobs staged h))
+  else none
+
+def absentFoldCoversWitness :=
+  if h : source.db.ops extra.id = none then
+    some (PLift.up (absentFold_covers source.db jobs staged (o := extra)
+      (by simp [jobs]) h))
+  else none
+
 def main : IO UInt32 := do
   let t ← Checks.new
+  t.ok "new signed message satisfies absent-step source premise" absentStepSourceWitness.isSome
+  t.ok "mixed repeated input satisfies absent-fold source premise" absentFoldSourceWitness.isSome
+  t.ok "new signed message satisfies absent-fold coverage premise" absentFoldCoversWitness.isSome
+  t.ok "absent-step keeps existing queue and adds the new message"
+    ((absentStep source.db staged extra).contains message &&
+      (absentStep source.db staged extra).contains extra)
+  t.ok "deduplication keeps original queue and admits one new message"
+    (jobs.foldl (absentStep source.db) staged == [extra, message])
+  t.ok "deduplication never invents an unrelated signed removal"
+    (!(jobs.foldl (absentStep source.db) staged).contains removeB)
+  let written := (writer.write sync jobs source).2
+  t.ok "actual write stores and validates new message while retaining old history"
+    (written.db.ops message.id == some message && written.db.ops extra.id == some extra &&
+      written.db.status extra.id == some (.valid extraFact) && written.db.queue.isEmpty)
   t.ok "finite signed premises instantiate infinite closure convergence" certificate.isSome
   t.ok "zero ordinary capacity still sends hot requests"
     ([0, 3, 6].all fun n =>
