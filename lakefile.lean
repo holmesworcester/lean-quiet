@@ -596,3 +596,30 @@ lean_exe epoch_ingress where
 
 lean_exe close_ingress where
   root := `tests.engine.CloseIngress
+
+lean_exe app_runner_failure where
+  root := `tests.engine.AppRunnerFailure
+
+lean_exe app_suspend_journal where
+  root := `tests.engine.AppSuspendJournal
+
+lean_exe app_boot_admission where
+  root := `tests.engine.AppBootAdmission
+
+lean_exe empty_jobs where
+  root := `tests.engine.EmptyJobs
+
+lean_exe writer_job_retry where
+  root := `tests.engine.WriterJobRetry
+
+lean_exe writer_checkpoint where
+  root := `tests.engine.WriterCheckpoint
+
+lean_exe writer_diagnostics where
+  root := `tests.engine.WriterDiagnostics
+
+lean_exe runner_ownership where
+  root := `tests.engine.RunnerOwnership
+
+lean_exe node_uniqueness where
+  root := `tests.engine.NodeUnique

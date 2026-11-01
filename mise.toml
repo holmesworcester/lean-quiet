@@ -31,7 +31,7 @@ run = "bash tests/engine/fairness.sh"
 
 [tasks."test:bootstrap-progress"]
 description = "Bootstrap progress PR gate: native certificates, TCP retry/fairness and sync epoch/claim-tree mutation controls"
-run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree && mise run test:catalog-retry && mise run test:reserved-retry && mise run test:retry-admission && mise run test:ingress && mise run test:native-lifetimes && mise run test:ref-publications && mise run test:writer-fairness && mise run test:expiry-grace && mise run test:close-ingress && mise run test:demand-rank"
+run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree && mise run test:catalog-retry && mise run test:reserved-retry && mise run test:retry-admission && mise run test:ingress && mise run test:native-lifetimes && mise run test:ref-publications && mise run test:writer-fairness && mise run test:expiry-grace && mise run test:close-ingress && mise run test:runner-ownership && mise run test:demand-rank"
 
 [tasks."test:catalog-retry"]
 description = "Actual Node/SQLite durable retry under dropped control/data traffic and continuing writes, including a no-retry mutation"
@@ -660,3 +660,38 @@ run = "bash tests/engine/owned_input.sh"
 [tasks."android:owned-input-e2e"]
 description = "Build/setup actual Main JNI action ownership, touch/Enter/Continue, lifecycle/drafts/photos/SQLite and strict compiling APK controls"
 run = "bash platforms/android/test/owned_input/run.sh"
+
+[tasks."test:app-runner-failure"]
+description = "Actual failed Runner recovery, ordered local replay, and strict controls"
+depends = ["crypto"]
+run = "bash tests/engine/app_runner_failure.sh"
+
+[tasks."test:app-suspend-journal"]
+description = "Actual App normal suspend preserves channel-admitted signed writes through loop completion and journal replay; three compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/app_suspend_journal.sh"
+
+[tasks."test:app-boot-admission"]
+description = "Actual retained network boot isolates earlier Writer work from continuing App submissions; two compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/app_boot_admission.sh"
+
+[tasks."test:writer-checkpoint"]
+description = "One real checkpoint attempt per writer turn, selected signed write service, and recursive control"
+depends = ["crypto"]
+run = "bash tests/engine/writer_checkpoint.sh"
+
+[tasks."test:writer-job-retry"]
+description = "Real SQLite retry ownership, empty maintenance admission and OS diagnostic errors; nine compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/writer_job_retry.sh"
+
+[tasks."test:runner-ownership"]
+description = "Actual Runner exception ownership, retained native handoff and notices, ten compiling controls and kernel witness"
+depends = ["crypto"]
+run = "bash tests/engine/runner_ownership.sh"
+
+[tasks."test:node-uniqueness"]
+description = "Actual Node ID/retry invariants, kernel witnesses and native mutation controls"
+depends = ["crypto"]
+run = "tests/engine/node_uniqueness.sh"

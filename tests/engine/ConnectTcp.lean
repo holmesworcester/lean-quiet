@@ -85,10 +85,14 @@ def deadline (t : Checks) : IO Unit := do
     IO.sleep 1
   t.ok "a subsequent real same-host destination connects after deadline" (queued && peer.isSome)
   if let some accepted := peer then SocketAbort.closeIdle accepted
-  run.stop
+  let stopping ← IO.asTask (prio := .dedicated) run.stop
   t.ok "runner deadline fixture releases native leases after stop"
-    (← RunnerWaits.waitFor 2000 do return (← occupied run) == 0)
+    (← RunnerWaits.waitFor 2000 do return (← IO.hasFinished stopping) && (← occupied run) == 0)
+  -- Only after the original deadline assertions may the fixture release a
+  -- deliberately broken connect. Stop now owns/join this original task.
   blocked.cleanup (do return (← occupied run) == 0)
+  unless ← RunnerWaits.waitFor 2000 (IO.hasFinished stopping) do
+    throw (IO.userError "deadline fixture cleanup did not finish")
 
 /-- Stop cancels the connect independently of its long configured timeout. -/
 def stopped (t : Checks) : IO Unit := do
@@ -104,10 +108,12 @@ def stopped (t : Checks) : IO Unit := do
   IO.sleep 50
   t.ok "stop fixture has a pending actual dial before its long deadline"
     (reserved && (← occupied run) == 1)
-  run.stop
+  let stopping ← IO.asTask (prio := .dedicated) run.stop
   t.ok "Runner.stop cancels native connect and releases quota without waiting 30 seconds"
-    (← RunnerWaits.waitFor 2000 do return (← occupied run) == 0)
+    (← RunnerWaits.waitFor 2000 do return (← IO.hasFinished stopping) && (← occupied run) == 0)
   blocked.cleanup (do return (← occupied run) == 0)
+  unless ← RunnerWaits.waitFor 2000 (IO.hasFinished stopping) do
+    throw (IO.userError "stop fixture cleanup did not finish")
   -- Also lets a disabled-abort negative control finish its cleanup.
   discard <| RunnerWaits.waitFor 3000 do return (← occupied run) == 0
 

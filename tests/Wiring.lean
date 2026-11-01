@@ -58,7 +58,9 @@ output, and local CI fails when it goes stale.
 - **Block:** what the frame must never wait on (a blocking send to the
   node's bounded channel): walked from `App.step`, but not into a
   `thread` it starts (the node's runner, the reader, which wait on
-  their own), no `block` definition is reached. The sole `bounded`
+  their own), or an action passed to a saturated SDK task constructor.
+  Direct worker calls remain visible. No `block` definition is reached.
+  The sole `bounded`
   exception is `App.suspend`: its separate walk permits `App.waitFor`
   but still rejects other blocking calls outside those threads.
   Each `waits` mutant (a
@@ -141,27 +143,46 @@ def ours (env : Environment) (n : Name) : Bool :=
   | some m => roots.contains m.getRoot
   | none => false
 
+/-- The action argument of a saturated task constructor. The other
+arguments (and a partial application) remain on the calling thread. -/
+def taskAction (e : Expr) : Option Nat :=
+  match e.getAppFn with
+  | .const n _ =>
+    if (n == `IO.asTask || n == `BaseIO.asTask) && e.getAppNumArgs >= 3 then some 1
+    else if n == `EIO.asTask && e.getAppNumArgs >= 4 then some 2
+    else none
+  | _ => none
+
 /-- The constants code names: a value without its types (binder types,
-foralls) and structure names of projections. -/
-partial def code (e : Expr) (acc : NameSet) : NameSet :=
-  match e with
+foralls) and structure names of projections. For blocking checks only,
+exclude an action passed to an actual task constructor. This is an edge
+boundary, not a whitelist of worker names: calling that action directly
+still traverses its body. The full wiring graph includes both threads. -/
+partial def code (e : Expr) (acc : NameSet) (sameThread : Bool := false) : NameSet := Id.run do
+  if sameThread then
+    if let some action := taskAction e then
+      let mut out := code e.getAppFn acc sameThread
+      for i in [:e.getAppNumArgs] do
+        if i != action then out := code e.getAppArgs[i]! out sameThread
+      return out
+  return match e with
   | .const c _ => acc.insert c
-  | .app f a => code a (code f acc)
-  | .lam _ _ b _ => code b acc
-  | .letE _ _ v b _ => code b (code v acc)
-  | .mdata _ b => code b acc
-  | .proj _ _ b => code b acc
+  | .app f a => code a (code f acc sameThread) sameThread
+  | .lam _ _ b _ => code b acc sameThread
+  | .letE _ _ v b _ => code b (code v acc sameThread) sameThread
+  | .mdata _ b => code b acc sameThread
+  | .proj _ _ b => code b acc sameThread
   | _ => acc
 
 /-- What a definition runs: its value's code, and what the compiler runs
 for it as well; an `implemented_by` definition runs its implementation
 only. -/
-def runs (env : Environment) (n : Name) : NameSet := Id.run do
+def runs (env : Environment) (n : Name) (sameThread : Bool := false) : NameSet := Id.run do
   if let some impl := Compiler.getImplementedBy? env n then return ({} : NameSet).insert impl
   let mut out : NameSet := {}
   match env.find? n with
-  | some (.defnInfo d) => out := code d.value out
-  | some (.opaqueInfo o) => out := code o.value out
+  | some (.defnInfo d) => out := code d.value out sameThread
+  | some (.opaqueInfo o) => out := code o.value out sameThread
   | _ => pure ()
   let csimp := (Compiler.CSimp.ext.getState env).map.find? n
   for x in [Name.str n "_unsafe_rec"] ++ (getInitFnNameFor? env n).toList ++
@@ -171,8 +192,8 @@ def runs (env : Environment) (n : Name) : NameSet := Id.run do
 
 /-- A path the walk takes from an entry point to `target`, if it reaches
 it: each definition, then one it runs. -/
-def pathTo (env : Environment) (entry : List Name) (target : Name) (stop : NameSet := {}) :
-    Option (List Name) := Id.run do
+def pathTo (env : Environment) (entry : List Name) (target : Name) (stop : NameSet := {})
+    (sameThread : Bool := false) : Option (List Name) := Id.run do
   let mut parent : NameMap Name := {}
   let mut seen : NameSet := entry.foldl (·.insert ·) {}
   let mut todo : Array Name := entry.toArray
@@ -188,7 +209,7 @@ def pathTo (env : Environment) (entry : List Name) (target : Name) (stop : NameS
         c := p
       return some path
     if stop.contains n then continue
-    for c in runs env n do
+    for c in runs env n sameThread do
       if !seen.contains c then
         seen := seen.insert c
         parent := parent.insert c n
@@ -197,7 +218,8 @@ def pathTo (env : Environment) (entry : List Name) (target : Name) (stop : NameS
 
 /-- Every definition the entry points reach, less those `implemented_by`
 replaces; a `stop` is reached but not entered. -/
-def running (env : Environment) (entry : List Name) (stop : NameSet := {}) : NameSet := Id.run do
+def running (env : Environment) (entry : List Name) (stop : NameSet := {})
+    (sameThread : Bool := false) : NameSet := Id.run do
   let mut seen : NameSet := {}
   let mut todo : Array Name := entry.toArray
   while h : todo.size > 0 do
@@ -206,7 +228,7 @@ def running (env : Environment) (entry : List Name) (stop : NameSet := {}) : Nam
     if seen.contains n then continue
     seen := seen.insert n
     if stop.contains n then continue
-    for c in runs env n do
+    for c in runs env n sameThread do
       if !seen.contains c then todo := todo.push c
   return seen.toList.foldl (fun s n => if (Compiler.getImplementedBy? env n).isSome then s.erase n else s) seen
 
@@ -548,22 +570,22 @@ unsafe def main : IO UInt32 := do
   let threads : NameSet := ns.thread.foldl (·.insert ·) {}
   let barriers := ns.bounded.foldl (fun acc n _ => acc.insert n) threads
   for (n, why) in ns.bounded do
-    if n != `App.suspend || why.isEmpty || !(running env [`App.step] threads).contains n then
+    if n != `App.suspend || why.isEmpty || !(running env [`App.step] threads true).contains n then
       problems := problems.push s!"bounded: only the reached App.suspend may be exempted, with its deadline contract ({n})"
-    let inside := running env [n] threads
+    let inside := running env [n] threads true
     for (b, _) in ns.block do
       if b != `App.waitFor && inside.contains b then
         problems := problems.push s!"bounded: {n} reaches unbounded {b}; every wait must use waitFor"
-  let frame := running env [`App.step] barriers
+  let frame := running env [`App.step] barriers true
   for (n, why) in ns.block do
     if frame.contains n then
-      let path := (pathTo env [`App.step] n barriers).getD [n]
+      let path := (pathTo env [`App.step] n barriers true).getD [n]
       problems := problems.push s!"block: the frame waits on {n} ({why}): {" → ".intercalate (path.map toString)}"
   for n in ns.thread do
     if !run.contains n then problems := problems.push s!"tests/wiring.txt: thread {n} does not run; drop it"
   for (m, _) in ns.waits do
     if run.contains m then problems := problems.push s!"tests/wiring.txt: waits {m}, a mutant, runs"
-    let reach := running env [m] threads
+    let reach := running env [m] threads true
     if !ns.block.toList.any (fun (n, _) => reach.contains n) then
       problems := problems.push s!"negative control: {m}, which waits, was not caught by a block note"
   -- what calls each definition, among this repository's

@@ -494,3 +494,5 @@ spec Engine.Sync.RetryOrder.rank Number of all predecessors in the actual retain
 spec Engine.Sync.RetryOrder.eligible Pending candidate and initially vacant address in the actual scan inputs; deriving these inputs along arbitrary Node/Sweep traces is a separate obligation.
 spec Engine.Sync.RetryOrder.Run.sent Projection of the actual RetryOrder.scan results at each post-reconcile selection boundary; not a native send or transport receipt.
 spec Engine.Sync.RetryOrder.Run.opportunities Count of pending-eligible initially vacant scan opportunities, excluding busy ticks; their eventual occurrence is not proved by the rank theorem.
+
+spec Engine.Sync.NodeUnique.Shape Logical projection of the actual Node connection IDs and retry order, used only to state returned-value invariants.

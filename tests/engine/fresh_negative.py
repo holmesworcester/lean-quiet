@@ -19,12 +19,12 @@ tcp = root / "engine/wire/Tcp.lean"
 fixture = root / "tests/engine/FreshTcp.lean"
 tcp_before, fixture_before = tcp.read_text(), fixture.read_text()
 startup_changes = [
-    ("(cfg : RunConfig) : IO Unit := do\n  repeat\n    if ← stopped.get then return",
-     "(cfg : RunConfig) (beforeAdmit : IO Unit := pure ()) : IO Unit := do\n  repeat\n    if ← stopped.get then return"),
-    ("      if ← slots.take cfg peer.toUTF8 then\n        unless ← enqueue ch (.accepted c peer.toUTF8) stopped.get do",
-     "      if ← slots.take cfg peer.toUTF8 then\n        beforeAdmit\n        unless ← enqueue ch (.accepted c peer.toUTF8) stopped.get do"),
-    ("  let listening ← IO.asTask (prio := .dedicated) (acceptor ch srv stopped slots cfg)\n  let turnCounters ← IO.mkRef ({} : TurnCounters)",
-     "  let turnCounters ← IO.mkRef ({} : TurnCounters)\n  let beforeAdmit : IO Unit := do\n    let before := (← turnCounters.get).ticks.toNat\n    while (← turnCounters.get).ticks.toNat < before + 2 && !(← stopped.get) do IO.sleep 1\n  let listening ← IO.asTask (prio := .dedicated) (acceptor ch srv stopped slots cfg beforeAdmit)"),
+    ("    (cancel : IO Bool := pure false) : IO Unit := do\n  let canceled := do return (← stopped.get) || (← cancel)",
+     "    (cancel : IO Bool := pure false) (beforeAdmit : IO Unit := pure ()) : IO Unit := do\n  let canceled := do return (← stopped.get) || (← cancel)"),
+    ("      if ← slots.take cfg peer.toUTF8 then\n        unless ← enqueue ch (.accepted c peer.toUTF8) canceled do",
+     "      if ← slots.take cfg peer.toUTF8 then\n        beforeAdmit\n        unless ← enqueue ch (.accepted c peer.toUTF8) canceled do"),
+    ("  let listening ← IO.asTask (prio := .dedicated) (acceptor ch srv stopped slots cfg ingress.stopped)\n  let turnCounters ← IO.mkRef ({} : TurnCounters)",
+     "  let turnCounters ← IO.mkRef ({} : TurnCounters)\n  let beforeAdmit : IO Unit := do\n    let before := (← turnCounters.get).ticks.toNat\n    while (← turnCounters.get).ticks.toNat < before + 2 && !(← stopped.get) do IO.sleep 1\n  let listening ← IO.asTask (prio := .dedicated) (acceptor ch srv stopped slots cfg ingress.stopped beforeAdmit)"),
 ]
 try:
     gated = tcp_before

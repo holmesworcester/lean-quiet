@@ -419,6 +419,7 @@ def Writer.noticed (w : Writer) (seq : Nat) : IO Unit :=
   w.read.modify (fun _ => seq)
 
 def Writer.submit (w : Writer) (j : Job) : IO Unit := do
+  if j.ops.isEmpty then return
   w.busy.modify (· + 1)
   w.jobs.modify (·.push j)
 
@@ -430,19 +431,18 @@ def Writer.save (w : Writer) (b : ByteArray) : IO Unit :=
 def Writer.saveDone (w : Writer) : IO Bool :=
   return (← w.saved.get) == (← w.saving.get).1
 
-/-- Commit the newest checkpoint, if one waits. On an error retry before
-returning to the job: one handed over meanwhile replaces it. Only the
-writer's thread waits; the frame and suspend's deadline never do. -/
-partial def Writer.commitSave (w : Writer) (db : Db) (save : Db → ByteArray → IO Unit) : IO Unit := do
+/-- Attempt the newest checkpoint once before the selected job. An error
+retains it for a later turn; a newer generation may replace it meanwhile.
+The existing 50 ms error backoff waits only on the writer's thread. -/
+def Writer.commitSave (w : Writer) (db : Db) (save : Db → ByteArray → IO Unit) : IO Unit := do
   let (n, some b) ← w.saving.get | return
   try
     save db b
     w.saved.modify (fun _ => n)
     w.saving.modify fun (m, x) => (m, if m == n then none else x)
   catch e =>
-    IO.eprintln s!"writer: checkpoint: {e}"
+    discard <| (IO.eprintln s!"writer: checkpoint: {e}").toBaseIO
     IO.sleep 50
-    w.commitSave db save
 
 def Writer.run1 (w : Writer) (db : Db) (j : Job) : IO Unit := do
   let t0 ← nowUs
@@ -455,8 +455,9 @@ def Writer.run1 (w : Writer) (db : Db) (j : Job) : IO Unit := do
     (j.ops.length, (t1 - t0).toNat)
 
 /-- One actual writer service turn. Selection, both FIFO queues and phase
-move atomically. Checkpoint-before-selected-job and error accounting retain
-the existing behavior. Bounds concern completed selections, not DB time. -/
+move atomically. A failed job retains its busy ownership and rejoins its
+class FIFO; only successful service discharges it. Bounds concern completed
+selections, not DB time or eventual success of a particular write. -/
 def Writer.turn (w : Writer) (db : Db) (save : Db → ByteArray → IO Unit) : IO (Option Job) := do
   let next ← if ← w.paused.get then pure none else
     w.jobs.modifyGet WriterQueue.take
@@ -464,9 +465,15 @@ def Writer.turn (w : Writer) (db : Db) (save : Db → ByteArray → IO Unit) : I
   match next with
   | none => IO.sleep 2
   | some j =>
-    try w.run1 db j
-    catch e => IO.eprintln s!"writer: {e}"
-    w.busy.modify (· - 1)
+    try
+      w.run1 db j
+      w.busy.modify (· - 1)
+    catch e =>
+      -- Keep the accepted job owned before any fallible diagnostics. Retry
+      -- behind its class's retained work, without counting a new admission.
+      w.jobs.modify (·.push j)
+      discard <| (IO.eprintln s!"writer: {e}").toBaseIO
+      IO.sleep 50
   return next
 
 partial def Writer.loop (w : Writer) (db : Db) (save : Db → ByteArray → IO Unit) : IO Unit := do

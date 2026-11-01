@@ -3167,6 +3167,12 @@ removal is not announced again. -/
   /-- Teardown may outlive its deadline; these handles stay owned until
   finished. Foreground never starts another node before netStop finishes. -/
   netStop : Option (Task (Except IO.Error Unit)) := none
+  /-- A failed runner's journal is decoded and submitted off the frame.
+  Later local writes park until this submission has completed. -/
+  netReplay : Option (Task (Except IO.Error Unit)) := none
+  /-- Failed-runner teardown stays owned separately: it does not suppress
+  active UI frames or local writing. Recovery never starts another runner. -/
+  failedNetStop : Option (Task (Except IO.Error Unit)) := none
   readerStop : Option Reader.Worker := none
   retiredBoard : Option Reader.Shared := none
   paintStop : Array (Task Unit) := #[]
@@ -3557,9 +3563,54 @@ def parkDone (sh : Reader.Shared) : M Unit := do
     toNode := s.toNode ++ writes, queuedWrites := s.queuedWrites ++ writes.toList.flatten.map Op.bytes }
   saveCheckpoint
 
+/-- Replay accepted local bytes through the ordinary writer. The journal
+can still contain operations already committed before the runner failed;
+the store identifies those by the same operation ID. -/
+def replayNodeWrites (writer : Writer) (bytes : List ByteArray) : IO Unit := do
+  let ops := bytes.filterMap Op.decode
+  unless ops.isEmpty do writer.submit ⟨ops, true⟩
+
+/-- The loop's completion releases its SQLite ownership. Native socket
+teardown remains separately owned by `netStop`; a delayed OS callback must
+not delay the journal's handoff to the ordinary writer. A late boot is
+included because suspend may begin before the Runner handle is returned. -/
+def replayStoppedNodeWrites (boot : Option (Task (Except IO.Error Engine.Sync.Runner)))
+    (net : Option Engine.Sync.Runner) (writer : Writer) (bytes : List ByteArray) : IO Unit := do
+  if let some r := net then discard <| IO.wait r.done
+  if let some task := boot then
+    if let .ok r ← IO.wait task then discard <| IO.wait r.done
+  replayNodeWrites writer bytes
+
+/-- Observe a finished installed runner before offering any further work.
+The journal covers channel-admitted writes as well as parked ones. A failure
+racing a later offer is recovered at the next observation. No check-and-offer
+atomicity or exactly-once IO across an outer StateT rollback is claimed. -/
+def recoverNode : M Unit := do
+  let s ← get
+  let some r := s.net | return
+  unless ← IO.hasFinished r.done do return
+  let replay ← IO.asTask (prio := .dedicated) (replayNodeWrites s.wr s.queuedWrites)
+  let stopping ← IO.asTask (prio := .dedicated) (stopNodes none (some r))
+  modify fun s => { s with
+    net := none, netBoot := none, netCfg := none, toNode := #[],
+    netReplay := some replay, failedNetStop := some stopping,
+    notices := s.notices ++ ["Sync stopped. Changes will retry locally. Restart Quiet to reconnect."] }
+
 /-- A single nonblocking poll. A result is taken only after completion. -/
 def pollRetired : M Unit := do
   let s ← get
+  if let some t := s.netReplay then
+    if ← IO.hasFinished t then
+      modify fun s => { s with netReplay := none }
+      if let .error _ := t.get then
+        modify fun s => { s with notices := s.notices ++
+          ["Local recovery failed. Restart Quiet to retry queued changes."] }
+  if let some t := s.failedNetStop then
+    if ← IO.hasFinished t then
+      modify fun s => { s with failedNetStop := none }
+      if let .error _ := t.get then
+        modify fun s => { s with notices := s.notices ++
+          ["Sync could not finish stopping. Restart Quiet before reconnecting."] }
   if let some t := s.netStop then
     if ← IO.hasFinished t then
       match t.get with
@@ -3742,11 +3793,16 @@ def reap : M Unit := do
 and every parked write remain owned. Resume only polls; it never joins. -/
 def suspend (budget : Nat := 250) : M Unit := do
   let deadline := (← IO.monoMsNow) + budget
+  recoverNode
   captureInput
   let s ← get
   if s.net.isSome || s.netBoot.isSome then
     let stopping ← IO.asTask (prio := .dedicated) (stopNodes s.netBoot s.net)
-    modify fun s => { s with netStop := some stopping }
+    let replay ← IO.asTask (prio := .dedicated)
+      (replayStoppedNodeWrites s.netBoot s.net s.wr s.queuedWrites)
+    -- The journal includes both channel-admitted and parked operations.
+    -- Later submissions park afresh until this handoff has completed.
+    modify fun s => { s with netStop := some stopping, netReplay := some replay, toNode := #[] }
   modify fun s => { s with net := none, netBoot := none, restoreAnchor := s.mark.isSome }
   s.wr.setPaused false
   leavePage
@@ -3754,7 +3810,8 @@ def suspend (budget : Nat := 250) : M Unit := do
   discard <| waitFor deadline do
     reap
     let s ← get
-    return s.netStop.isNone && s.readerStop.isNone && s.paintStop.isEmpty &&
+    return s.netStop.isNone && s.netReplay.isNone && s.failedNetStop.isNone &&
+      s.readerStop.isNone && s.paintStop.isEmpty &&
       s.chaos.isNone && (← s.wr.busy.get) == 0 && (← s.wr.saveDone)
 
 end App
@@ -3954,8 +4011,9 @@ def offerAll (ch : Std.CloseableChannel.Sync (List Op)) (q : Array (List Op)) : 
 
 /-- Re-offer parked writes in submission order, only after teardown. -/
 def flushNode : M Unit := do
+  recoverNode
   let s ← get
-  if !s.active || !s.surface || s.netStop.isSome || s.toNode.isEmpty then return
+  if !s.active || !s.surface || s.netStop.isSome || s.netReplay.isSome || s.toNode.isEmpty then return
   let some r := s.net | do
     if s.netCfg.isNone && s.netBoot.isNone then
       for ops in s.toNode do s.wr.submit ⟨ops, true⟩
@@ -3966,10 +4024,11 @@ def flushNode : M Unit := do
 
 /-- Store-owned writes survive unmount and are journaled before offering. -/
 def submit (j : Job) : M Unit := do
+  if j.ops.isEmpty then return
   let s ← get
   modify fun s => { s with queuedWrites := s.queuedWrites ++ j.ops.map Op.bytes }
   saveCheckpoint
-  if !s.active || !s.surface || s.net.isSome || s.netBoot.isSome || s.netStop.isSome then
+  if !s.active || !s.surface || s.net.isSome || s.netBoot.isSome || s.netStop.isSome || s.netReplay.isSome then
     modify fun s => { s with toNode := s.toNode.push j.ops }
     flushNode
   else s.wr.submit j
@@ -4741,11 +4800,12 @@ def found (n myName : String) : M Unit := do
 
 /-- The node: started at launch, once (it speaks for every device whose
 secret this store holds: Connection.hooks reads them all, and picks the
-device for each community from its acceptance). Its first frame waits
-for the local writer to be idle, so it boots from everything written. -/
+device for each community from its acceptance). The retained boot task waits
+for earlier local writer work; later App writes park behind that task. -/
 def netStep : M Unit := do
+  recoverNode
   let s ← get
-  if !s.active || !s.surface || s.netStop.isSome then return
+  if !s.active || !s.surface || s.netStop.isSome || s.netReplay.isSome then return
   let some (port, _) := s.netCfg | return
   if s.net.isSome then return
   -- started: taken once it is up (the frame never waits on it)
@@ -4764,14 +4824,17 @@ def netStep : M Unit := do
       modify fun s => { s with toNode := #[] }
       if !pending.isEmpty then for ops in pending do s.wr.submit ⟨ops, true⟩
     return
-  if (← s.wr.busy.get) > 0 then return
   let listen := ((← listenHints).head?).getD s!"127.0.0.1:{port}".toUTF8
   let x : Engine.Sync.Sync SF (SqlM SF) :=
     { fam, cfg := { every := 30000, askTime := 20000 },
       hooks := Connection.hooks fam Connection.sodium listen }
   let path := s.dbPath
   let sh := s.sh
+  let writer := s.wr
   let t ← IO.asTask (prio := .dedicated) do
+    -- Installing netBoot makes later App submissions park. Only the
+    -- previously admitted writer work remains ahead of this store open.
+    while (← writer.busy.get) > 0 do IO.sleep 2
     let db ← Db.openAt path
     -- the node's commits move the reader's counter (Reader.Shared.commits)
     Engine.Sync.Runner.start x db 0 port.toUInt16 (notify := fun _ => sh.commits.modify (· + 1))

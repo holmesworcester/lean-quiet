@@ -16,7 +16,8 @@ concurrency:
 jobs:
   proofs-and-runtime:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    # Native mutation gates rebuild the actual app; keep their per-case deadlines.
+    timeout-minutes: 120
     env:
       SKIP_TCP: "0"
     steps:
@@ -57,6 +58,18 @@ jobs:
         run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 mise run test:reader-claim
       - name: Check cached placeholder pixels and actual App reuse
         run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 mise run test:hold-cache
+      - name: Recover accepted local writes after the network runner fails
+        run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 mise run test:app-runner-failure
+      - name: Replay channel-admitted writes across normal App suspend
+        run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 mise run test:app-suspend-journal
+      - name: Keep network boot ahead of later App write arrivals
+        run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 mise run test:app-boot-admission
+      - name: Retain accepted writer jobs through SQLite and diagnostic failures
+        run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 bash -c 'mise run test:writer-checkpoint && mise run test:writer-job-retry'
+      - name: Preserve lifecycle outcomes and reject synchronous UI waits
+        run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 bash -c 'mise run host:lifecycle-node && mise run host:lifecycle-node-negative'
+      - name: Check actual Node ID and retry-order uniqueness
+        run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 mise run test:node-uniqueness
       - name: Retain failure logs, databases and relay diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -70,15 +83,23 @@ jobs:
             out/catalog-retry
             out/reserved-retry
             out/retry-admission
+            out/node-uniqueness
             out/ingress
             out/native-lifetime
             out/ref-publications
             out/reader-prune
+            out/lifecycle-node
+            out/app-suspend-journal
+            out/app-boot-admission
+            out/app-runner-failure
             out/reader-claim
             out/hold-cache
             out/writer-fairness
+            out/writer-checkpoint
+            out/writer-job-retry
             out/expiry-grace
             out/close-ingress
+            out/runner-ownership
             out/demand-rank
             out/simplify-negative
             out/tree-negative
