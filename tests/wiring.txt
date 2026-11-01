@@ -209,6 +209,7 @@ instrument Engine.CostT.chargedBy Engine.CostT.erase_chargedBy
 instrument Engine.CostT.lift Engine.CostT.erase_lift
 instrument Engine.Counted.val Engine.Counted.val_erase
 instrument Engine.Counted.cost Engine.Counted.cost_run
+instrument Engine.cr Engine.cr_erase
 
 ## Bridges: a mirror, and the law that proves running code equal to it
 

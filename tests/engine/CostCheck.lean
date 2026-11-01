@@ -239,6 +239,10 @@ def judgeCheck (t : Checks) : IO Unit := do
   t.ok s!"judge: the root's step wakes the forty that waited (rows {c.rows}, writes {c.writes})"
     (c.rows == 40 && c ≤ stepBudget 0 1 40)
   t.ok "judge: and is over the budget of a step that wakes fewer" (!(c ≤ stepBudget 0 1 39 : Bool))
+  -- step_reads_le: the store's ops cite at most one requirement, so the
+  -- step reads at most 4 + 2·1 rows, though it wakes forty
+  t.ok s!"judge: the root's step reads {c.reads} rows, within 4 + 2·1 (step_reads_le), waking forty"
+    (c.reads ≤ 4 + 2 * 1 && c.rows == 40)
   -- the negative control
   let mut slowOver := 0
   for n in [1:7] do
