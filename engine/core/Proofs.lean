@@ -516,14 +516,28 @@ inductive Reach (fam : Family F) : List Op → DB F → Prop
   | empty : Reach fam [] DB.empty
   | ingest {L s} (o : Op) : Reach fam L s → Reach fam (o :: L) (ingestS o s)
   | step {L s} : Reach fam L s → Reach fam L (stepS fam s)
+  /-- An op judged ahead of the queue (a write turn's urgent closure): as
+  if it were at the queue's head and stepped. -/
+  | judge {L s} (x : Id) : Reach fam L s → Reach fam L (stepS fam { s with queue := x :: s.queue })
   | purge {L s} (ids : List Id) : Reach fam L s →
       Reach fam (L.filter fun o => !has (purgeSet fam s ids) o.id) (purgeS fam ids s)
+
+/-- Putting an op at the queue's head keeps the invariant: the queue
+only grows. -/
+theorem inv_front {s : DB F} (h : Inv fam s) (x : Id) : Inv fam { s with queue := x :: s.queue } where
+  key := h.key
+  sound := h.sound
+  wait := fun y o ho hy => (h.wait y o ho hy).imp (List.mem_cons_of_mem _) id
+  idx := h.idx
+  nodup := h.nodup
+  stored := h.stored
 
 theorem reach_inv {L : List Op} {s : DB F} (h : Reach fam L s) : Inv fam s := by
   induction h with
   | empty => exact inv_empty
   | ingest o _ ih => exact inv_ingest ih o
   | step _ ih => exact inv_step ih
+  | judge x _ ih => exact inv_step (inv_front ih x)
   | purge ids _ ih => exact purge_inv ih ids
 
 theorem reach_drain {L : List Op} {s : DB F} (h : Reach fam L s) (n : Nat) :
@@ -586,6 +600,7 @@ theorem reach_stored {L : List Op} {s : DB F} (h : Reach fam L s) :
       · simp only [hi, ite_false] at hp
         have := ih i p hp; exact ⟨List.mem_cons_of_mem _ this.1, this.2⟩
   | step _ ih => intro i o h; rw [stepS_ops] at h; exact ih i o h
+  | judge _ _ ih => intro i o h; rw [stepS_ops] at h; exact ih i o h
   | @purge L s ids _ ih =>
     intro i o h
     by_cases hp : i ∈ purgeSet fam s ids
@@ -615,6 +630,7 @@ theorem reach_held {L : List Op} {s : DB F} (h : Reach fam L s) :
         · exact absurd rfl hi
         · exact ih p hp
   | step _ ih => intro o ho; rw [stepS_ops]; exact ih o ho
+  | judge _ _ ih => intro o ho; rw [stepS_ops]; exact ih o ho
   | @purge L s ids _ ih =>
     intro o ho
     obtain ⟨ho, hn⟩ := List.mem_filter.1 ho

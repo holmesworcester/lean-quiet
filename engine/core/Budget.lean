@@ -45,6 +45,33 @@ theorem waitsOk_waitOnS {s : DB F} (h : WaitsOk s) {x : Id} (hx : (s.ops x).isSo
       · exact h i
     · exact ih h hx
 
+/-- A step keeps the waits table's shape. -/
+theorem waitsOk_stepS {s : DB F} (ih : WaitsOk s) : WaitsOk (stepS fam s) := by
+  unfold stepS
+  cases hq : s.queue with
+  | nil => exact ih
+  | cons x q =>
+    have ih' : WaitsOk ({ s with queue := q } : DB F) := ih
+    simp only
+    cases hs : s.status x with
+    | some _ => exact ih'
+    | none =>
+      simp only
+      cases ho : s.ops x with
+      | none => exact ih'
+      | some o =>
+        simp only
+        cases hj : judge fam o (o.reqs.map s.status) with
+        | some v =>
+          simp only
+          obtain ⟨h1, _, _, h4, _⟩ := decideS_fields (fam := fam) x v { s with queue := q }
+          intro r
+          rw [h4 r, h1]
+          split
+          · exact ⟨List.nodup_nil, by simp⟩
+          · exact ih' r
+        | none => exact waitsOk_waitOnS ih' (by simp [ho]) _
+
 theorem waitsOk_reach {L : List Op} {s : DB F} (hr : Reach fam L s) : WaitsOk s := by
   induction hr with
   | empty => intro r; simp [DB.empty]
@@ -58,31 +85,8 @@ theorem waitsOk_reach {L : List Op} {s : DB F} (hr : Reach fam L s) : WaitsOk s 
       split
       · rfl
       · exact (ih r).2 y hy
-  | @step L s _ ih =>
-    unfold stepS
-    cases hq : s.queue with
-    | nil => exact ih
-    | cons x q =>
-      have ih' : WaitsOk ({ s with queue := q } : DB F) := ih
-      simp only
-      cases hs : s.status x with
-      | some _ => exact ih'
-      | none =>
-        simp only
-        cases ho : s.ops x with
-        | none => exact ih'
-        | some o =>
-          simp only
-          cases hj : judge fam o (o.reqs.map s.status) with
-          | some v =>
-            simp only
-            obtain ⟨h1, _, _, h4, _⟩ := decideS_fields (fam := fam) x v { s with queue := q }
-            intro r
-            rw [h4 r, h1]
-            split
-            · exact ⟨List.nodup_nil, by simp⟩
-            · exact ih' r
-          | none => exact waitsOk_waitOnS ih' (by simp [ho]) _
+  | step _ ih => exact waitsOk_stepS ih
+  | @judge L s x _ ih => exact waitsOk_stepS (s := { s with queue := x :: s.queue }) ih
   | @purge L s ids _ ih =>
     intro r
     refine ⟨?_, fun y hy => ?_⟩
