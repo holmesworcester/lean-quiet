@@ -81,7 +81,7 @@ say they are not supported.
    after. `LQ_ASSETS_URL` downloads it from elsewhere (`https://` or
    `file://`). If it can't be had, `tools/fetch_assets.sh` builds the
    assets from their sources instead; that needs pip, unzip, librsvg,
-   Cairo and the Noto fonts it pins (Ubuntu 24.04's `fonts-noto-core`).
+   Cairo and the Noto fonts it pins (`fonts-noto-core` 20201225).
 4. `cargo fetch --locked` for the crypto's crates (the build itself runs
    offline), then `platforms/linux/build.sh`.
 

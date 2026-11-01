@@ -57,7 +57,7 @@ if [ "${LQ_ASSETS_FALLBACK:-1}" = 0 ] || [ "$dest" != "$top/assets" ]; then exit
 say "assets: building them from their sources instead (tools/fetch_assets.sh)"
 if ! "$top/tools/fetch_assets.sh"; then
   warn "tools/fetch_assets.sh failed. It needs network access, unzip, python3 with pip,"
-  warn "librsvg and Cairo, and the system Noto fonts it pins (Ubuntu 24.04's fonts-noto-core)."
+  warn "librsvg and Cairo, and the system Noto fonts it pins (fonts-noto-core 20201225)."
   exit 1
 fi
 complete "$dest" || warn "the built files differ from $manifest; the build checks them again"
