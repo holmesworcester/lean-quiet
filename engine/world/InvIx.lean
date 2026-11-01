@@ -293,8 +293,7 @@ theorem start_q (cfg : Config) (ix : Index) (c : Conn) (now : Nat) : SameQ c (c.
   rcases Conn.start_conn cfg ix c now with e | ⟨k, a, rs, ss, es, e⟩ <;> rw [e] <;> exact ⟨rfl, rfl⟩
 
 theorem ask_q (cfg : Config) (c : Conn) (now : Nat) : SameQ c (c.ask cfg now).conn := by
-  obtain ⟨rs, ss, e⟩ := Conn.ask_conn cfg c now
-  rw [e]; exact ⟨rfl, rfl⟩
+  obtain ⟨rs, ss, e⟩ := Conn.ask_conn cfg c now; rw [e]; exact ⟨rfl, rfl⟩
 
 theorem tick_q (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (now : Nat) (h : Held F) :
     SameQ c ((c.tick fam cfg ix now : HeldM F Step) h).1.conn := by

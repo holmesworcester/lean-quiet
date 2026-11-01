@@ -271,11 +271,6 @@ theorem rbsr_asked (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs
           refine admit_goal cfg _ _ _ _ (claimIds cs).length hmax ?_
           apply conn_answer_wants_le <;> intro _ <;> rfl
 
-/-- The dialer's rounds change no ask. -/
-theorem start_asked (cfg : Config) (ix : Index) (c : Conn) (now : Nat) :
-    (c.start cfg ix now).conn.asked = c.asked := by
-  rcases Conn.start_conn cfg ix c now with e | ⟨k, a, rs, ss, es, e⟩ <;> rw [e]; rfl
-
 /-- **What a payload's step asks**, it asked before or wants on the wire
 in the same step; and its asks grow by at most the payload's `asksOf`. -/
 theorem recv_asked (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b : ByteArray) (now : Nat)
@@ -294,19 +289,22 @@ theorem recv_asked (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b : 
       | hello f =>
         simp only [HeldM.run_pure]
         split
-        · refine ⟨fun x hx => Or.inl ?_, ?_⟩
-          · rw [start_asked] at hx; exact hx
-          · rw [start_asked]; exact Nat.le_add_right _ _
+        · rcases Conn.start_conn cfg ix ({ c with heard := now, peerFloor := some f, session := c.session.hearHello } : Conn) now with e | ⟨k, a, rs, ss, es, e⟩ <;> rw [e]
+          · exact ⟨fun x hx => Or.inl hx, by simp⟩
+          · exact ⟨fun x hx => Or.inl hx, by simp [Conn.beginRound]⟩
         · exact ⟨fun x hx => Or.inl hx, by simp⟩
       | rbsr r k cs =>
         simp only [HeldM.run_pure]
         exact rbsr_asked cfg ix { c with heard := now } r k cs now hmax
       | hold r ids =>
-        simp only [HeldM.run_bind, HeldM.run_pure]
+        dsimp only
         split
-        · obtain ⟨rs, e⟩ := Conn.onAsk_eq ({ c with heard := now } : Conn) r
-          simp only [HeldM.run_pure, e]
+        · -- an empty have asks for a round (`Conn.onAsk`): no ask
+          simp only [HeldM.run_pure]
+          obtain ⟨rs, e⟩ := Conn.onAsk_eq ({ c with heard := now } : Conn) r
+          rw [e]
           exact ⟨fun x hx => Or.inl hx, Nat.le_add_right _ _⟩
+        try simp only [HeldM.run_bind, HeldM.run_pure]
         simp only [show ∀ m : HeldM F Step, m.run h = m h from fun _ => rfl]
         rw [onHold_apply]
         generalize hc' : ({ c with heard := now } : Conn) = c'
@@ -685,7 +683,7 @@ theorem onSealed_wants (n : Node) (src : ByteArray) (cid : Id) (inner : List Byt
           (Msg.hold r l).op.bytes now h'
         rw [recv_hold] at hd ⊢
         have hne : l.isEmpty = false := List.isEmpty_eq_false_iff.mpr (List.ne_nil_of_mem hx)
-        simp only [hne, Bool.false_eq_true, ↓reduceIte] at hd ⊢
+        simp only [hne, Bool.false_eq_true, ite_false] at hd ⊢
         obtain ⟨f1, f2, f3, f4, -⟩ := apply_facts S s st.1 cid _ now h' hd hc'
         refine ⟨by rw [f2]; exact hm', by rw [addr_of_addrs f3]; exact ha', by simp [Acts.append_def, hr', f1], ?_⟩
         obtain ⟨hk1, hk2⟩ := hk c hcs
