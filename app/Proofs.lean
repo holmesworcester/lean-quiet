@@ -1925,6 +1925,16 @@ the store as it is (`hfr`), as the OS's random bytes do on SQLite, and
 as the production interpreter's entropy tape does
 (`Execution.fresh_reads`).
 
+**A new reads law.** For a hook function generic in its monad, state
+it once, below the `variable` line, over the section's `m`:
+`theorem f_reads … : Reads (f … : m _) := by unfold f; keeps [g_reads, …]`.
+List the reads laws of the calls `f` makes. `keeps` already handles
+pure, bind, `for`, `getOp`, `getStatus` and lists. If `f` draws fresh
+bytes, add `[Fresh m] (hfr : Reads (Fresh.fresh : m ByteArray))` and
+pass `hfr` to `keeps`. The law then holds on the held store and at
+`Execution.M` as stated. A new store monad needs only a `ReadsOnly`
+instance, plus `ListsRead` if its lists read only.
+
 `view_held`: a view run on held data is its evaluation over the tables;
 so `rooms` gives `roomsV` (`rooms_held`).
 -/
@@ -2095,7 +2105,7 @@ theorem sealFor_reads [Fresh m] (hfr : Reads (Fresh.fresh : m ByteArray)) (K : K
   unfold sealFor; keeps [keys_reads, hfr]
 
 /-- `openFrame_reads` (app/connection/Proofs.lean) on held data, in any monad. -/
-private theorem frame_reads (K : Keys) (b : B) : Reads (openFrame K b : m _) := by
+private theorem frameOpen_reads (K : Keys) (b : B) : Reads (openFrame K b : m _) := by
   unfold openFrame; keeps [keys_reads]
 
 theorem outbox_reads : Reads (outbox : m (List (Id × B × B))) := by
@@ -2124,7 +2134,7 @@ theorem hooks_reads [Fresh m] (hfr : Reads (Fresh.fresh : m ByteArray))
     (∀ cid, Reads (k.closing cid)) ∧ Reads k.retired ∧ Reads k.react ∧ (∀ t, Reads (k.dial t)) ∧
     Reads k.established ∧ (∀ cid b, Reads (k.sealFor cid b)) ∧ (∀ b, Reads (k.openFrame b)) ∧ (∀ cid, Reads (k.retryKey cid)) :=
   ⟨rooms_reads, onArrival_reads, outbox_reads, closing_reads, retired_reads, react_reads hfr fam K,
-    dial_reads hfr K listen, sessions_reads, sealFor_reads hfr K, frame_reads K, retryKey_reads⟩
+    dial_reads hfr K listen, sessions_reads, sealFor_reads hfr K, frameOpen_reads K, retryKey_reads⟩
 
 end Connection
 
