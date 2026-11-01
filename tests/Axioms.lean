@@ -310,6 +310,11 @@ open Engine Community
 #print axioms Connection.Noise.Symbolic.kk_forward_secret
 #print axioms Connection.Noise.Symbolic.kk_authentic
 #print axioms Connection.Noise.Symbolic.kk_authentic_resp
+#print axioms Connection.Noise.Symbolic.kk_agree
+#print axioms Connection.Noise.Symbolic.kk_agree_resp
+#print axioms Connection.Noise.Symbolic.kk_authentic_tight
+#print axioms Connection.Noise.Symbolic.kk_authentic_resp_tight
+#print axioms Connection.Noise.Symbolic.read1Slip_forged
 #print axioms Connection.Noise.Symbolic.exposed_parts
 #print axioms Connection.Noise.Symbolic.kk_secret_init_tight
 #print axioms Community.root_of_admission
