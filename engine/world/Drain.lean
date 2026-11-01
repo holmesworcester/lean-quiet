@@ -907,6 +907,82 @@ theorem drain (E : Q.Run) {N : Net Q.n} (hN : N.Admits E) {a b : Fin Q.n} {cid r
     have := Nat.le_mul_of_pos_left N.τ (show 0 < p + 1 by omega)
     omega
 
+/-- **A link of the plain World, from step k until time T:** distinct
+addresses, an admitted network, the knows-graph edge both ways, session
+cid open at both ends with a's address for it being b's, both ends
+showing room r, no managed sessions, nobody reopening cid at a, the
+session's frames reaching a from b, gst passed, the edge live until T,
+and a positive serve budget. a's queue for the session owes nothing
+outside it and holds at most `maxKnown` ids. -/
+structure Link (E : Q.Run) (N : Net Q.n) (a b : Fin Q.n) (cid r : Id) (k T : Nat) : Prop where
+  inj : ∀ i j, Q.addr i = Q.addr j → i = j
+  admits : N.Admits E
+  Gab : N.G a b
+  Gba : N.G b a
+  conn_a : ∀ m, k ≤ m → ∃ c, ((E.world m).node a).conn? cid = some c ∧ OwesQueued c ∧ c.owed.length ≤ Q.cfg.maxKnown
+  conn_b : ∀ m, k ≤ m → (((E.world m).node b).conn? cid).isSome = true
+  addr_a : ∀ m, k ≤ m → ((E.world m).node a).addr? cid = some (Q.addr b)
+  rooms_a : r ∈ Q.rooms a cid
+  rooms_b : r ∈ Q.rooms b cid
+  managed : ∀ m l, ((E.world m).node l).managed = []
+  noreopen : ∀ m j dl t, k ≤ m → E.act m ≠ .connect a j cid dl t
+  frompeer : FromPeer E a b cid k
+  gst : N.gst ≤ (E.world k).now
+  live : N.Live a b (E.world k).now T
+  burst : 0 < Q.cfg.burst
+
+theorem idxOf_lt_length {x : Id} {l : List Id} (h : x ∈ l) : l.idxOf x < l.length := List.idxOf_lt_length_of_mem h
+
+/-- **A want in flight gets its op across**, within 3Δ plus the time the
+holder's queue takes to drain (`maxKnown` ticks at most): a want naming
+x in flight from b to a on the link, x an op a holds from then on in a
+room both ends show and a's index lists, with queue room for the want's
+frame and no hash clash on x. -/
+theorem want_delivers (E : Q.Run) {N : Net Q.n} {a b : Fin Q.n} {cid r x : Id} {o : Op} {k T : Nat}
+    (L : Link E N a b cid r k T) (hs0 : ∀ p ∈ Q.start.flight, p.sent ≤ Q.start.now)
+    (hr : Q.fam.room o = some r) (hw : isWire o.kind = false) (hox : o.id = x) (hcl : NoClash E o)
+    (hx : ∀ m, k ≤ m → ((E.world m).box a).db.ops x = some o ∧ ∃ it ∈ ((E.world m).node a).ix.items r, it.2 = x)
+    {p : Packet Q.n} (hp : p ∈ (E.world k).flight) (hsrc : p.src = some b) (hdst : p.dst = Q.addr a)
+    {g : List ByteArray} (hb : p.bytes = plainFrame cid g) {Lw : List Id} (hwL : (Msg.want Lw).op.bytes ∈ g)
+    (hxL : x ∈ Lw) (hL : Lw.length ≤ Q.cfg.maxIds)
+    (hroom : ∀ m c, k ≤ m → ((E.world m).node a).conn? cid = some c →
+      c.owed.length + (g.map wantsOf).sum ≤ Q.cfg.maxKnown)
+    (hgst : N.gst ≤ p.sent) (hlive : N.Live a b p.sent T) (hT : p.sent + 3 * N.Δ + Q.cfg.maxKnown * N.τ ≤ T) :
+    ∃ k', k < k' ∧ (E.world k').now ≤ p.sent + 3 * N.Δ + Q.cfg.maxKnown * N.τ ∧
+      ((E.world k').box b).db.ops x = some o := by
+  have hor : p.origin = Q.addr b :=
+    origin_src E (fun q hq => by simp [Plain.start, World.init] at hq) k p hp b hsrc
+  have hs0 : ∀ q ∈ Q.start.flight, q.sent ≤ Q.start.now := fun q hq => by simp [Plain.start, World.init] at hq
+  have hsent : p.sent ≤ (E.world k).now := sent_le_now E hs0 k p hp
+  have hmk := Nat.zero_le (Q.cfg.maxKnown * N.τ)
+  obtain ⟨k1, hk1, ht1, h1⟩ := want_to_op E L.admits L.inj hs0
+    (fun m hm => let ⟨c, hc, hq, _⟩ := L.conn_a m hm; ⟨c, hc, hq⟩) L.conn_b (fun m => L.managed m a)
+    L.Gab L.Gba L.rooms_a L.rooms_b hr hw hox hcl hx hp hsrc hdst hor hb hwL hxL hL hroom hgst
+    (hlive.mono (Nat.le_refl _) (by omega))
+  rcases h1 with hb1 | ⟨c1, hc1, hxc1⟩
+  · exact ⟨k1, hk1, by omega, hb1⟩
+  · have hk1t : p.sent ≤ (E.world k1).now := Nat.le_trans hsent (Exec.now_mono E (Nat.le_of_lt hk1))
+    obtain ⟨c2, hc2, -, hlen⟩ := L.conn_a k1 (by omega)
+    rw [hc1] at hc2; cases hc2
+    have hpos : c1.owed.idxOf x + 1 ≤ Q.cfg.maxKnown := by
+      have := idxOf_lt_length hxc1; omega
+    have hpt : (c1.owed.idxOf x + 1) * N.τ ≤ Q.cfg.maxKnown * N.τ := Nat.mul_le_mul_right _ hpos
+    obtain ⟨m, sr, g', hkm, htm, hg', hf⟩ := drain E L.admits (a := a) (b := b) (cid := cid) (r := r) (x := x) (o := o)
+      (k := k1) (T := T)
+      (fun m hm => L.conn_b m (by omega) |> fun _ => by
+        obtain ⟨c, hc, -⟩ := L.conn_a m (by omega); rw [hc]; rfl)
+      (fun m hm => L.addr_a m (by omega)) (fun m => L.managed m a) (fun m j dl t hm => L.noreopen m j dl t (by omega))
+      (fun m idx t q hm => L.frompeer m idx t q (by omega)) (fun m hm => (hx m (by omega)).1) hr L.rooms_a L.burst
+      (Nat.le_trans hgst hk1t) (fun t h1 h2 => (hlive t (by omega) h2).1)
+      (c1.owed.idxOf x) (fun c hc => by rw [hc1] at hc; cases hc; exact ⟨hxc1, Nat.le_refl _⟩) (by omega)
+    have hmt : p.sent ≤ (E.world (m + 1)).now := Nat.le_trans hk1t (Exec.now_mono E (by omega))
+    obtain ⟨k2, hk2, ht2, h2⟩ := op_hop E L.admits L.inj (a := a) (b := b) (cid := cid) (r := r) (k := m + 1)
+      (fun m' hm' => L.conn_b m' (by omega)) L.Gab L.rooms_b hf rfl rfl rfl hg' hw hr
+      (by simp only; omega) (hlive.mono (by simp only; omega) (by simp only; omega))
+      (fun m' o' h => hcl.1 m' b o' h) (hcl.2 (m + 1) _ hf cid g' rfl)
+    refine ⟨k2, by omega, by simp only at ht2; omega, ?_⟩
+    rw [← hox]; exact h2
+
 end Plain
 
 end Engine.World
