@@ -598,6 +598,17 @@ section app
 #print axioms Live.fresh_notice
 #print axioms Live.fresh_keep
 #print axioms Live.settle_fresh
+#print axioms Engine.Subs.has_ofList
+#print axioms Engine.Subs.ofList_wf
+#print axioms Live.RWorld.acts_shown
+#print axioms Live.RWorld.inv_commit
+#print axioms Live.RWorld.inv_frame
+#print axioms Live.RWorld.passActs_picks
+#print axioms Live.RWorld.settle
+#print axioms Live.World.inv_commit
+#print axioms Live.World.inv_frame
+#print axioms Live.World.inv_pass
+#print axioms Live.World.settle
 #print axioms Live.Eager.acts_fresh
 #print axioms Live.Eager.late_stale
 #print axioms Remove.writes_only_after_two

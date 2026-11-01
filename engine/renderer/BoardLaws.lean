@@ -447,53 +447,6 @@ theorem settle {w : World σ C W V K} (h : Inv touch eval w) {pick : List W}
   · simp at m
   · exact s
 
-/-- A pass leaves dirty only what it marked and did not refill, and
-nothing else is marked after it until a commit or a new want. -/
-theorem marked_pass {w : World σ C W V K} {pick : List W} {x : W}
-    (hx : x ∈ (w.pass touch eval pick).marked touch) : x ∈ w.marked touch ∧ x ∉ pick := by
-  unfold marked at hx
-  rw [List.mem_filter, List.mem_append, List.mem_append] at hx
-  obtain ⟨(hd | ht) | hm, hw⟩ := hx
-  · simp only [pass, List.mem_filter] at hd
-    exact ⟨hd.1, by simpa using hd.2⟩
-  · simp [pass] at ht
-  · have hw' : w.wants.contains x = true := hw
-    simp only [pass, List.mem_filter] at hm
-    obtain ⟨hxw, hnot⟩ := hm
-    rw [Std.HashMap.contains_eq_isSome_getElem?] at hnot
-    by_cases hp : x ∈ pick
-    · exfalso
-      obtain ⟨u, k, hu, _⟩ := (foldl_put (eval w.store) pick (w.board.keep (w.wants.contains ·)) x).1 hp
-      rw [hu] at hnot
-      simp at hnot
-    · refine ⟨?_, hp⟩
-      rw [(foldl_put (eval w.store) pick _ x).2 hp, Board.keep_vals, ite_eq_left hw'] at hnot
-      unfold marked
-      rw [List.mem_filter, List.mem_append]
-      refine ⟨Or.inr (List.mem_filter.2 ⟨hxw, ?_⟩), hw'⟩
-      rw [Std.HashMap.contains_eq_isSome_getElem?]
-      exact hnot
-
-/-- **Settling in passes**: with no commit and no new want meanwhile,
-passes whose refills together cover what the first marks, then one
-frame, show every want's value in the store. A pass refills at most
-`refill` wants, so ⌈marked / refill⌉ passes suffice. -/
-theorem settle_passes : ∀ (ps : List (List W)) (p : List W) {w : World σ C W V K}, Inv touch eval w →
-    (∀ x ∈ w.marked touch, x ∈ p ∨ ∃ q ∈ ps, x ∈ q) → ∀ x ∈ w.wants,
-    (((ps.foldl (fun w q => w.pass touch eval q) w).pass touch eval p).frame).shown x =
-      some (eval w.store x)
-  | [], p, w, h, hp, x, hx => settle touch eval h (fun y m => by simpa using hp y m) hx
-  | q :: rest, p, w, h, hp, x, hx => by
-    simp only [List.foldl_cons]
-    exact settle_passes rest p (inv_pass touch eval h q) (fun y m => by
-      obtain ⟨m0, nq⟩ := marked_pass touch eval m
-      rcases hp y m0 with a | ⟨q', hq', b⟩
-      · exact Or.inl a
-      · simp only [List.mem_cons] at hq'
-        rcases hq' with e | e
-        · subst e; exact absurd b nq
-        · exact Or.inr ⟨q', e, b⟩) x hx
-
 /-! ## The user's actions: first in a pass, shown one frame after it
 
 holmes-1e's three conditions on moving actions to the reader:
@@ -537,89 +490,8 @@ def ActsStable : σ → List C → Prop
   | _, [] => True
   | s, c :: cs => StableAt apply touch eval c s ∧ ActsStable (apply c s) cs
 
-theorem fold_commits : ∀ (cs : List C) (w : World σ C W V K), Inv touch eval w →
-    ActsStable apply touch eval w.store cs →
-    Inv touch eval (cs.foldl (fun w c => w.commit apply c) w) ∧
-      (cs.foldl (fun w c => w.commit apply c) w).store = cs.foldl (fun s c => apply c s) w.store ∧
-      (cs.foldl (fun w c => w.commit apply c) w).wants = w.wants ∧
-      (cs.foldl (fun w c => w.commit apply c) w).comp = w.comp ∧
-      (cs.foldl (fun w c => w.commit apply c) w).acts = w.acts
-  | [], _, h, _ => ⟨h, rfl, rfl, rfl, rfl⟩
-  | c :: cs, w, h, ⟨hc, hs⟩ => by
-    simp only [List.foldl_cons]
-    exact fold_commits cs (w.commit apply c) (inv_commit apply touch eval h c hc) hs
-
-/-- **A queued action reaches the board within one pass, and its write
-shows one frame later**: after a pass with actions, whatever it picks
-and however long the backlog, and one frame, every want an action
-touched shows its value in the store the actions left: its pending op,
-or its refusal. -/
-theorem acts_shown {w : World σ C W V K} (h : Inv touch eval w) (hs : ActsStable apply touch eval w.store w.acts)
-    (pick : List W) {x : W} (hx : x ∈ w.wants) (ht : w.acts.any (touch · x) = true) :
-    ((w.passActs apply touch eval pick).frame).shown x = some (eval (w.afterActs apply) x) := by
-  obtain ⟨h1, hst, _, _, _⟩ := fold_commits apply touch eval w.acts { w with acts := [] } h hs
-  have hp : x ∈ w.wants.filter (fun x => w.acts.any (touch · x)) ++ pick :=
-    List.mem_append_left _ (List.mem_filter.2 ⟨hx, ht⟩)
-  obtain ⟨u, n, hu, e⟩ := (foldl_put (eval (w.runActs apply).store) _
-    ((w.runActs apply).board.keep ((w.runActs apply).wants.contains ·)) x).1 hp
-  have hs' := (inv_frame touch eval (inv_pass touch eval h1 (w.wants.filter (fun x => w.acts.any (touch · x)) ++ pick))).2 x u n
-  simp only [frame, Board.take] at hs'
-  have hu' : ((w.runActs apply).pass touch eval
-      (w.wants.filter (fun x => w.acts.any (touch · x)) ++ pick)).board.vals[x]? = some (u, n) := hu
-  have eu : u = eval (w.afterActs apply) x := by
-    have : (w.runActs apply).store = w.afterActs apply := hst
-    rcases e with e | e
-    · rw [e, this]
-    · rw [beq_iff_eq.1 e, this]
-  rcases hs' hu' with m | s
-  · simp at m
-  · rw [← eu]; exact s
-
-/-- (a) No queued action is left after a pass. -/
-theorem passActs_acts (pick : List W) (w : World σ C W V K) : (w.passActs apply touch eval pick).acts = [] := by
-  show (w.acts.foldl (fun (w : World σ C W V K) c => w.commit apply c) { w with acts := [] }).acts = []
-  suffices ∀ (cs : List C) (v : World σ C W V K),
-      (cs.foldl (fun (w : World σ C W V K) c => w.commit apply c) v).acts = v.acts from
-    this _ _
-  intro cs
-  induction cs with
-  | nil => intro _; rfl
-  | cons c cs ih => intro v; exact ih _
-
 /-- (b) The reader's steps leave the composer. -/
 theorem pass_comp (pick : List W) (w : World σ C W V K) : (w.pass touch eval pick).comp = w.comp := rfl
-
-theorem passActs_comp (pick : List W) (w : World σ C W V K) :
-    (w.passActs apply touch eval pick).comp = w.comp := by
-  show (w.acts.foldl (fun (w : World σ C W V K) c => w.commit apply c) { w with acts := [] }).comp = w.comp
-  suffices ∀ (cs : List C) (v : World σ C W V K),
-      (cs.foldl (fun (w : World σ C W V K) c => w.commit apply c) v).comp = v.comp from
-    this _ _
-  intro cs
-  induction cs with
-  | nil => intro _; rfl
-  | cons c cs ih => intro v; exact ih _
-
-/-- (b) And do not depend on it: a pass from any composer is the same
-pass, the composer aside. -/
-theorem passActs_indep (pick : List W) (w : World σ C W V K) (k : Option K) :
-    ({ w with comp := k } : World σ C W V K).passActs apply touch eval pick =
-      { w.passActs apply touch eval pick with comp := k } := by
-  have fold : ∀ (cs : List C) (v : World σ C W V K),
-      cs.foldl (fun (w : World σ C W V K) c => w.commit apply c) { v with comp := k } =
-        { cs.foldl (fun (w : World σ C W V K) c => w.commit apply c) v with comp := k } := by
-    intro cs
-    induction cs with
-    | nil => intro _; rfl
-    | cons c cs ih => intro v; exact ih (v.commit apply c)
-  simp only [passActs, runActs]
-  rw [show ({ ({ w with comp := k } : World σ C W V K) with acts := [] } : World σ C W V K) =
-    { ({ w with acts := [] } : World σ C W V K) with comp := k } from rfl, fold]
-  rfl
-
-/-- (b) Typing changes the composer and nothing else. -/
-theorem type_only (f : Option K → Option K) (w : World σ C W V K) :
-    { w.type f with comp := w.comp } = w := rfl
 
 end World
 

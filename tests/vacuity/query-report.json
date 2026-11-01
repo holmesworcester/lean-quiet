@@ -138,5 +138,19 @@
     "witness": "Vacuity.Query.factStable",
     "module": "tests.vacuity.Query",
     "detail": "Facts that carry something (an op's body size, 3) in two different stores: one with the op Valid, and the same store with the op queued once more, as a second requirement's wake-up leaves it. Both invariants are proved (inv_ingest, inv_step, and by hand for the requeue), the stores are proved distinct, and the law fixes the second store's fact to the first's: whatever it holds is 3. Synthetic model fixture; no collected real-user traffic."
+  },
+  "has_ofList": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Subs.has_ofList",
+    "witness": "Vacuity.Query.indexHas",
+    "module": "tests.vacuity.Query",
+    "detail": "Two subscriptions: bounded message-1..message-2 and whole community list; proves subscription7 present. Synthetic model fixture; no collected real-user traffic."
+  },
+  "ofList_wf": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Subs.ofList_wf",
+    "witness": "Vacuity.Query.indexWF",
+    "module": "tests.vacuity.Query",
+    "detail": "Builds actual two-window subscription index and establishes its invariant. Synthetic model fixture; no collected real-user traffic."
   }
 }

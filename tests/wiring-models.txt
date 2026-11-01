@@ -159,3 +159,16 @@ Engine.Sync.RetryOrder.Run.nodup
 Mdns.decode_encode
 Mdns.decode_roundtrip
 Mdns.decode_valid
+
+# restored 2026-11-01: the reader's and window mutants' controls use them (never un-audit a theorem)
+Engine.Subs.has_ofList
+Engine.Subs.ofList_wf
+Live.RWorld.acts_shown
+Live.RWorld.inv_commit
+Live.RWorld.inv_frame
+Live.RWorld.passActs_picks
+Live.RWorld.settle
+Live.World.inv_commit
+Live.World.inv_frame
+Live.World.inv_pass
+Live.World.settle

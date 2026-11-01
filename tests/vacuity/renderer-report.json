@@ -789,5 +789,131 @@
     "witness": "Vacuity.RendererSupplement.displayAgreement",
     "module": "tests.vacuity.RendererSupplement",
     "detail": "Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted."
+  },
+  "World.inv_commit": {
+    "status": "kernel-witness",
+    "theorem": "Live.World.inv_commit",
+    "witness": "Vacuity.RendererModels.worldCommit",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "World.inv_frame": {
+    "status": "kernel-witness",
+    "theorem": "Live.World.inv_frame",
+    "witness": "Vacuity.RendererModels.worldFrame",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "World.settle": {
+    "status": "kernel-witness",
+    "theorem": "Live.World.settle",
+    "witness": "Vacuity.RendererModels.worldSettles",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "RWorld.inv_commit": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.inv_commit",
+    "witness": "Vacuity.RendererModels.readerCommit",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "RWorld.inv_frame": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.inv_frame",
+    "witness": "Vacuity.RendererModels.readerFrame",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "RWorld.settle": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.settle",
+    "witness": "Vacuity.RendererModels.readerSettles",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "passActs_picks": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.passActs_picks",
+    "witness": "Vacuity.RendererModels.actionPicks",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "record_indexed": {
+    "status": "kernel-witness",
+    "theorem": "Live.record_indexed",
+    "witness": "Vacuity.RendererModels.idx1Ok",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "marked_complete": {
+    "status": "kernel-witness",
+    "theorem": "Live.marked_complete",
+    "witness": "Vacuity.RendererModels.noticed",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "dirty_marked": {
+    "status": "kernel-witness",
+    "theorem": "Live.dirty_marked",
+    "witness": "Vacuity.RendererModels.stillDirty",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "record_dirty": {
+    "status": "kernel-witness",
+    "theorem": "Live.record_dirty",
+    "witness": "Vacuity.RendererModels.cleaned",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "fresh_record": {
+    "status": "kernel-witness",
+    "theorem": "Live.fresh_record",
+    "witness": "Vacuity.RendererModels.freshRead",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "fresh_notice": {
+    "status": "kernel-witness",
+    "theorem": "Live.fresh_notice",
+    "witness": "Vacuity.RendererModels.freshNoticed",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "fresh_keep": {
+    "status": "kernel-witness",
+    "theorem": "Live.fresh_keep",
+    "witness": "Vacuity.RendererModels.freshKept",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "settle_fresh": {
+    "status": "kernel-witness",
+    "theorem": "Live.settle_fresh",
+    "witness": "Vacuity.RendererModels.settled",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "take_first": {
+    "status": "kernel-witness",
+    "theorem": "Demand.take_first",
+    "witness": "Vacuity.RendererDemand.actFirst",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "A user's act touched want 202 while want 101, visible, was queued in an earlier pass: reconcileFirst puts 202 first, the pass's take returns it and leaves the queue act-first; the shipped reconcile returns 101 first (checked)."
+  },
+  "take_sorted": {
+    "status": "kernel-witness",
+    "theorem": "Demand.take_sorted",
+    "witness": "Vacuity.RendererDemand.actRest",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "A user's act touched want 202 while want 101, visible, was queued in an earlier pass: reconcileFirst puts 202 first, the pass's take returns it and leaves the queue act-first; the shipped reconcile returns 101 first (checked)."
+  },
+  "reconcileFirst_sorted": {
+    "status": "kernel-witness",
+    "theorem": "Demand.reconcileFirst_sorted",
+    "witness": "Vacuity.RendererDemand.actSorted",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "A user's act touched want 202 while want 101, visible, was queued in an earlier pass: reconcileFirst puts 202 first, the pass's take returns it and leaves the queue act-first; the shipped reconcile returns 101 first (checked)."
   }
 }
