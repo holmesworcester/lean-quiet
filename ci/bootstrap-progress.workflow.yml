@@ -58,6 +58,7 @@ jobs:
           name: bootstrap-progress-${{ github.run_id }}
           path: |
             out/ci
+            out/ci-driver
             out/fairness
             out/join-fair
             out/catalog-retry
@@ -67,6 +68,7 @@ jobs:
             out/ref-publications
             out/writer-fairness
             out/expiry-grace
+            out/demand-rank
             out/simplify-negative
             out/tree-negative
             out/vacuity

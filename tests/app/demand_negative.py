@@ -98,7 +98,7 @@ cases = [
         ("engine/renderer/Work.lean", "let current ← p.state.atomically do return (← get).plan.current job.ticket", "let current := true"),
     ], "FAIL: fast viewport changes discard every obsolete queued action"),
     ("prefetch-first", "component_demand", [
-        ("engine/renderer/Work.lean", "Demand.next (fun t => s.plan.visible t.key)", "Demand.next (fun _ => false)"),
+        ("engine/renderer/Work.lean", "(fun t => s.plan.visible t.key) true s.jobs", "(fun _ => false) true s.jobs"),
     ], "FAIL: visible work runs before earlier prefetch"),
     ("reader-continues", "component_demand", [
         ("app/Screen.lean", "if !(← s.enabled) then return default", "if false then return default"),

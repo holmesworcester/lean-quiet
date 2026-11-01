@@ -2048,9 +2048,8 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
     let mut published := 0
     for i in [0:cap] do
       if i > 0 && budgetMs > 0 && (← IO.monoMsNow) - start ≥ budgetMs then break
-      let choice ← sh.queue.modifyGet fun queue =>
-        let next := Demand.next (fun w => touched.contains w || plan.visible w) true queue
-        (next, match next with | some w => queue.filter (· != w) | none => queue)
+      let choice ← sh.queue.modifyGet
+        (Demand.take (fun w => touched.contains w || plan.visible w) true)
       let some w := choice | break
       let some ticket := plan.ticket w | continue
       unless ← sh.current ticket do

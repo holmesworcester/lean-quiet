@@ -78,6 +78,7 @@ if [ "${1:-}" != --phone-runtime ]; then
   mise run test:ref-publications
   mise run test:writer-fairness
   mise run test:expiry-grace
+  mise run test:demand-rank
   tests/engine/restart.sh
   tests/shipped/check.sh engine
 fi

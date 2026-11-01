@@ -137,8 +137,17 @@ On the private pre-reorganization candidate, both Android ABIs built, the
 original device suite passed 17/0 with six positions, and all 13 native
 controls were rejected; its host suite passed 42 checks. The integrated host
 suite passes 44 checks, including the later refused-staging receipt tests.
-The full integrated seam controls and combined device validation are recorded
-separately as they finish. Original failures and diagnostics are retained in
+All 40 integrated seam controls are rejected, including the 13 native controls;
+the restored host suites pass. The original named `android:twin-demo-e2e`
+then passes on exact integrated commit `ce76360`: 17/0, seven completed
+positions against the unchanged minimum six, and both x86_64/arm64-v8a
+ABIs built. All 1,682 tracked source hashes match before and after; no
+source/test overlay is present. Three separate 120-frame aggregates measured
+Lean 0.4–0.5 ms, copying 0.6–0.8 ms and native show/wait 40.9–44.5 ms per
+frame. These are not controlled timing comparisons or theorem bounds. Exact
+APK/source hashes, logs and screenshots are retained in
+`/mnt/storage/holmes-tmp/android-combined-ce76360`. Newer semantic-input work
+is separate. Original failures and diagnostics are retained in
 `/mnt/storage/holmes-tmp/android-final-425979e`; main host logs are in
 `out/ci/native-idle-main.log`.
 
