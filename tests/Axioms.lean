@@ -1330,7 +1330,6 @@ end cost
 #print axioms Engine.Sync.RoundRun.discovers
 #print axioms Engine.Sync.RoundRun.has_of_diff
 #print axioms Engine.Sync.RoundRun.diff_of
-#print axioms Engine.Sync.RoundRun.exec_runs
 #print axioms Engine.Sync.RoundRun.exec_current
 #print axioms Engine.Sync.RoundRun.mem_inserts
 #print axioms Engine.Sync.RoundRun.asks_have_source
@@ -1346,7 +1345,6 @@ end cost
 #print axioms Engine.Sync.RoundRun.initial_claim
 #print axioms Engine.Sync.RoundRun.initial_asks
 #print axioms Engine.Sync.RoundRun.items_par
-#print axioms Engine.Sync.RoundRun.par_alt
 #print axioms Engine.Sync.conn_runs_exchange
 #print axioms Engine.Sync.live_round_complete
 #print axioms Engine.Sync.walkN_frame

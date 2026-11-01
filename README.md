@@ -358,7 +358,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1413 rest on Lean's standard axioms only, and about three quarters of its theorems (1051 of 1387, not counting 26 negative controls) are about the code that runs; another 22 run the
+hypotheses. All 1411 rest on Lean's standard axioms only, and about three quarters of its theorems (1051 of 1385, not counting 26 negative controls) are about the code that runs; another 22 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -494,12 +494,12 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1051 of 1387 laws are about running code;** another 22 run its node code in a World, and 314 are not yet. Stated only: none. 26 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1051 of 1385 laws are about running code;** another 22 run its node code in a World, and 312 are not yet. Stated only: none. 26 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 194 | 138 |  | 56 |
-| Sync | 289 | 243 |  | 46 |
+| Sync | 287 | 243 |  | 44 |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 201 | 135 | 16 | 50 |
 | Connections | 26 | 22 |  | 4 |
@@ -562,7 +562,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Ingress.flooded` | [`flooded_prefix`] | Nothing that runs calls it. |
 | `Lanes.take` | [`urgent_ahead`]†, [`ahead_bytes`]†, [`take_append`], [`take_bytes`], [`lanes_bounded`]* | Nothing that runs calls it. |
 | `Reserved.offer` | [`offer_bounded`] | Nothing that runs calls it. |
-| `State.advance` | [`exec_runs`]*, [`exec_current`]*, [`pending_source`]*, [`execute_runs`], [`advance_empty`], [`run_empty`]*, [`run_bounded`]*, [`conn_runs_exchange`]† | Nothing that runs calls it. |
+| `State.advance` | [`exec_current`]*, [`pending_source`]*, [`execute_runs`], [`advance_empty`], [`run_empty`]*, [`run_bounded`]*, [`conn_runs_exchange`]† | Nothing that runs calls it. |
 | `RoundRun.collisionCheck` | [`collisionCheck_sound`]*, [`sound_of_check`]* | Nothing that runs calls it. |
 | `RoundRun.execute` | [`execute_runs`] | Nothing that runs calls it. |
 | `RoundRun.fullRange` | [`initial_claim`] | Nothing that runs calls it. |
@@ -611,7 +611,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Bidi.numberRuns` | [`run_contiguous`]* | Nothing that runs calls it; `Text.numberRuns` do. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +51 more | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +50 more | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
@@ -1763,7 +1763,6 @@ opportunities and full native delivery remain open.
 [`take_bytes`]: engine/wire/LaneLaws.lean#L144-L146
 [`lanes_bounded`]: engine/wire/LaneLaws.lean#L162-L164
 [`offer_bounded`]: engine/wire/Reserved.lean#L147-L149
-[`exec_runs`]: engine/sync/RoundRun.lean#L452-L453
 [`exec_current`]: engine/sync/RoundRun.lean#L467-L471
 [`pending_source`]: engine/sync/RoundRun.lean#L527-L534
 [`execute_runs`]: engine/sync/RoundRun.lean#L556-L557
@@ -1905,8 +1904,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 507 kernel witnesses, 185 runtime witnesses,
-13 conditional checks, 0 recorded runtime counterexamples; 4 of 709 linked declarations still pending.**
+**Coverage: 508 kernel witnesses, 184 runtime witnesses,
+13 conditional checks, 0 recorded runtime counterexamples; 3 of 708 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2175,7 +2174,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`admit_admits`](app/community/member/invite/request/approve/Proofs.lean#L79-L88) | **runtime-witness**: [Vacuity.Identity.admitAdmits](tests/vacuity/Identity.lean). Actual root, request and approval facts construct a valid admission citing exactly one approval. |
 | [`connect_admitted`](app/community/Proofs.lean#L781-L790) | **runtime-witness**: [Vacuity.IdentityTrust.connectAdmitted](tests/vacuity/IdentityTrust.lean). Actual root/request/approval premises, a singleton distinct-approver proof, and deviceLive-derived unremoved premise accept Bob. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application. |
 | [`removeMember_valid`](app/community/Proofs.lean#L389-L396) | **conditional**: [Vacuity.CoreRuntime.intentRemoval](tests/vacuity/CoreRuntime.lean). Actual removeMember intent emits one valid Alice-removes-Bob operation; nonempty membership, settled DB, extension and stored-op premises checked at runtime. Self-removal and already-removed controls emit nothing. Universal correctness of Ed25519 signatures for every message remains open; the named theorem is applied conditionally on it. |
-| [`RoundRun.terminates`](engine/sync/RoundRun.lean#L238-L248) | **runtime-witness**: [Vacuity.RoundExchange.terminates](tests/vacuity/RoundExchange.lean). The same actual two-party execution: every index the run reads is one of the two fixtures, so their union bounds it; RoundRun.terminates ends the round within 8 batches, with the run and its currency derived from the actual handlers. |
+| [`RoundRun.terminates`](engine/sync/RoundRun.lean#L238-L248) | **kernel-witness**: [Vacuity.RoundExchange.terminates](tests/vacuity/RoundExchange.lean). The same actual two-party execution: every index the run reads is one of the two fixtures, so their union bounds it; RoundRun.terminates ends the round within 8 batches, with the run and its currency derived from the actual handlers. |
 | [`RoundRun.discovers`](engine/sync/RoundRun.lean#L365-L390) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The same actual two-party execution and native SHA certificate: conn_runs_exchange applies live_round_complete, so discovers, with the run, its currency, the bounding list and each step's claimant items derived from the fixture's fixed indices; every missing id reaches the actual wire. |
 | [`live_round_complete`](engine/sync/RoundRun.lean#L670-L704) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The same actual two-party execution and native SHA certificate: conn_runs_exchange's proof instantiates live_round_complete with the run, its currency, the bounding list xs ++ ys and each step's claimant items, all derived from the fixture's indices; the conclusions are applied for all three missing ids. |
 | [`exchange_complete`](engine/sync/RoundLaws.lean#L232-L241) | **kernel-witness**: [Vacuity.SyncMore.roundComplete](tests/vacuity/SyncMore.lean). Two nonempty overlapping snapshots [1,2] and [2,3]; prove sortedness, naming, honest opening, fuel and collision-freedom. sendsMissing demonstrates actual item 1 transfer. Uses identity hash to inhabit Sound, not a SHA-256 claim. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
@@ -2552,7 +2551,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`take_bytes`](engine/wire/LaneLaws.lean#L144-L146) | **kernel-witness**: [Vacuity.RetryReservation.laneBytes](tests/vacuity/RetryReservation.lean). Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence. |
 | [`lanes_bounded`](engine/wire/LaneLaws.lean#L162-L164) | **kernel-witness**: [Vacuity.RetryReservation.laneBound](tests/vacuity/RetryReservation.lean). Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence. |
 | [`offer_bounded`](engine/wire/Reserved.lean#L147-L149) | **kernel-witness**: [Vacuity.RetryReservation.offerBound](tests/vacuity/RetryReservation.lean). Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence. |
-| [`exec_runs`](engine/sync/RoundRun.lean#L452-L453) | Pending: no concrete premise witness audited yet |
 | [`exec_current`](engine/sync/RoundRun.lean#L467-L471) | Pending: no concrete premise witness audited yet |
 | [`pending_source`](engine/sync/RoundRun.lean#L527-L534) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). A checked nonempty Alice ask at step 2 yields an actual earlier want emitted by the handler. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
 | [`execute_runs`](engine/sync/RoundRun.lean#L556-L557) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The executable fixture starts with actual Conn.start and recursively calls the actual onRbsr handler. Synthetic isolated-round fixture; full Node/TCP composition is separate. |

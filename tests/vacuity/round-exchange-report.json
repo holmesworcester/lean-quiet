@@ -84,7 +84,7 @@
     "detail": "Every possible range filter of the three concrete entries is among the enumerated subsets. Synthetic isolated-round fixture; full Node/TCP composition is separate."
   },
   "RoundRun.terminates": {
-    "status": "runtime-witness",
+    "status": "kernel-witness",
     "theorem": "Engine.Sync.RoundRun.terminates",
     "witness": "Vacuity.RoundExchange.terminates",
     "module": "tests.vacuity.RoundExchange",
