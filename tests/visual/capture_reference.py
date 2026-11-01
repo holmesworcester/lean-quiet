@@ -51,7 +51,8 @@ def capture(url, destination, chrome=None, cases=None):
                     story = 'chat' if scenario.startswith('composer-') else scenario
                     page.goto(f'{url}/iframe.html?id=parity-app--{story}&viewMode=story'
                               f'&globals=theme:{theme};face:bundled')
-                    page.locator('.shell').wait_for(timeout=60_000)
+                    # Get started is the whole window: there is no shell until a community.
+                    page.locator('.stage' if scenario == 'get-started' else '.shell').wait_for(timeout=60_000)
                     page.evaluate('document.fonts.ready')
                     # The fixture intentionally selects System. App owns the
                     # theme attribute, so the Storybook toolbar alone cannot

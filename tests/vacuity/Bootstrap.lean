@@ -14,8 +14,8 @@ set_option linter.defProp false
 def scene : Scene := {
   A := Device.named "vacuity/bootstrap/alice"
   B := Device.named "vacuity/bootstrap/bob"
-  kA := cryptoSeal.pub (sha256 "vacuity/node/alice".toUTF8)
-  kB := cryptoSeal.pub (sha256 "vacuity/node/bob".toUTF8)
+  kA := cryptoSeal.pub (Bytes.digest "vacuity/node/alice".toUTF8)
+  kB := cryptoSeal.pub (Bytes.digest "vacuity/node/bob".toUTF8)
   secret := sha256 "vacuity/bootstrap/invite".toUTF8 }
 
 noncomputable def afterTick : Sys := step ed25519 scene.approval scene.init .tickB

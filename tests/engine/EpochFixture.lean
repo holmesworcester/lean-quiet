@@ -9,13 +9,13 @@ import app.Commands
 namespace JoinFair
 open Engine Engine.Sync Community Connection Tests
 def fam : Family F := node ed25519 sodium
-def key := sha256 "join-fair/content-key".toUTF8
+def key := Bytes.digest "join-fair/content-key".toUTF8
 def seed (name : String) := sha256 s!"join-fair/device/{name}".toUTF8
-def nk (name : String) := sha256 s!"join-fair/node/{name}".toUTF8
+def nk (name : String) := Bytes.digest s!"join-fair/node/{name}".toUTF8
 def device (name : String) := Device.ofSeed (seed name)
 def nodeKey (name : String) := cryptoSeal.pub (nk name)
 def postAt (c adm : Id) (name : String) (i : Nat) (text : ByteArray) : Op :=
-  let nonce := (sha256 s!"join-fair/nonce/{name}/{i}".toUTF8).extract 0 24
+  let nonce := (Bytes.fit 24 (sha256 s!"join-fair/nonce/{name}/{i}".toUTF8))
   sealedPost c adm (device name) key nonce text i (1000 + i)
 end JoinFair
 
@@ -105,7 +105,7 @@ def setup (dir : String) (live : Nat := silenceMs) (idle : Nat := 600000) : IO (
   let mut b ← attach (← make dir "B" remote live idle) client address
   let c := (root (JoinFair.device "A") (JoinFair.nodeKey "A")).id
   submit a (← view a (found (JoinFair.seed "A") "Epoch probe".toUTF8 "Alice".toUTF8 1 JoinFair.key
-    (sha256 "epoch-wrap".toUTF8) (JoinFair.nk "A"))).ops
+    (Bytes.digest "epoch-wrap".toUTF8) (JoinFair.nk "A"))).ops
   a ← tick a
   let some (inv, link) ← view a (inviteTo c c (JoinFair.device "A")
     (sha256 "epoch-bearer".toUTF8) [address]) | throw (IO.userError "diagnostic invitation")

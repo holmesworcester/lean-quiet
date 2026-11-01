@@ -28,10 +28,14 @@ def layout (w : Nat) (opened : Bool) : Layout :=
   else ⟨w, ⟨0, 0⟩, ⟨0, w⟩, ⟨w, 0⟩⟩
 
 /-- Device-pixel tracks at a CSS density. Settings deliberately cover main;
-nav and main partition the viewport. This is used by the live driver. -/
-def zoomLayout (w : Nat) (opened : Bool) (dpi : Nat) : Layout :=
+nav and main partition the viewport. This is used by the live driver.
+Without the shell (libquiet's `App.svelte` draws none until the node is in
+a community, nor over a stage) the window is one pane: no sidebar, no
+drawer. -/
+def zoomLayout (w : Nat) (opened : Bool) (dpi : Nat) (shell : Bool := true) : Layout :=
   let px := fun n => (n * dpi + 80) / 160
-  if px 720 ≤ w then
+  if !shell then ⟨w, ⟨0, 0⟩, ⟨0, w⟩, ⟨w, 0⟩⟩
+  else if px 720 ≤ w then
     ⟨w, ⟨0, px 220⟩, ⟨px 220, w - px 220⟩,
       if opened then ⟨w - px 375, px 375⟩ else ⟨w, 0⟩⟩
   else if opened then ⟨w, ⟨0, 0⟩, ⟨0, 0⟩, ⟨0, w⟩⟩

@@ -8,6 +8,7 @@ import engine.renderer.desktop.Laws
 import platforms.desktop.Laws
 import engine.renderer.Scrollbar
 import platforms.desktop.HoverLaws
+import app.Proofs
 -- The layout laws are stated over zoomLayout, the tracks the Driver
 -- paints, because the 160-dpi `layout` is not what runs at any other
 -- density: at 50% the navigation is 110 device pixels, not 220.
@@ -41,6 +42,12 @@ example : (Desktop.zoomLayout 720 false 80).nav.w = 110 ∧ (Desktop.layout 720 
 #print axioms Scrollbar.ranks_fit
 #print axioms Scrollbar.ranks_mono
 #print axioms Scrollbar.ranks_newest
+#print axioms Desktop.zoom_stage_full
+#print axioms Desktop.zoom_shell_sidebar
+#print axioms Desktop.no_sidebar_outside_community
+#print axioms Desktop.stage_full_window
+#print axioms Desktop.no_sidebar_controls
+#print axioms Desktop.member_sidebar
 #print axioms Hover.disabled
 #print axioms Hover.absent
 #print axioms Hover.leave_clears
@@ -64,3 +71,11 @@ example : (Desktop.zoomLayout 720 false 80).nav.w = 110 ∧ (Desktop.layout 720 
 #print axioms Desktop.popup_blocks_main
 #print axioms Hover.grace_expires
 #print axioms Hover.menu_reachable
+#print axioms Pages.start_phone
+#print axioms Pages.start_below_bar
+#print axioms Pages.start_centred
+#print axioms Pages.start_column_inside
+#print axioms Pages.start_rows_in_card
+#print axioms Pages.start_rows_apart
+#print axioms Pages.getStarted_taps
+#print axioms Pages.startTaps_rows

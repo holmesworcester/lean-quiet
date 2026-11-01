@@ -526,6 +526,9 @@ lean_exe vacuity_chat_presentation where
 lean_exe vacuity_contracts where
   root := `tests.vacuity.ContractsMain
 
+lean_exe vacuity_crypto_trust where
+  root := `tests.vacuity.CryptoTrustMain
+
 lean_exe vacuity_identity_lifecycle where
   root := `tests.vacuity.IdentityLifecycleMain
 
