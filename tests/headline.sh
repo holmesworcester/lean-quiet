@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # The headline laws (docs/HEADLINE.md): run tests/Headline.lean, which
 # prints each law's axioms and spec surface and fails on a non-standard
-# axiom; check the DRAFT Comparator files (tests/comparator): the
-# challenge elaborates with one `sorry` per theorem and nothing else, the
-# solution is up to date, proves every theorem on standard axioms, and
-# states each law word for word (`#same_statement`). Then the controls:
+# axiom; check the Comparator files (tests/comparator): the challenge
+# elaborates with one `sorry` per theorem and nothing else, the solution
+# is up to date, proves every theorem on standard axioms, and states each
+# law word for word (`#same_statement`); from Lean v4.35, run
+# `lake comparator` on them. Then the controls:
 # a weakened restatement, a changed `match`, and a law resting on `sorry`
 # must each be caught.
 set -euo pipefail
@@ -35,7 +36,8 @@ if python3 ci/headline.py --check "$tmp/stale.out" 2>/dev/null; then
 fi
 echo "control caught: a stale surface count in docs/HEADLINE.md"
 
-# The DRAFT challenge: it elaborates, and its only warnings are its sorrys.
+# The Comparator files (tests/comparator): up to date; the challenge
+# elaborates, and its only warnings are its sorrys.
 python3 tests/comparator/solution.py --check
 n=$(grep -c '^theorem ' tests/comparator/Challenge.lean)
 out=$(lake env lean tests/comparator/Challenge.lean 2>&1) || { echo "$out"; echo "Challenge.lean failed" >&2; exit 1; }
@@ -43,16 +45,30 @@ other=$(grep -E 'warning|error' <<<"$out" | grep -v "declaration uses .sorry." |
 s=$(grep -c "declaration uses .sorry." <<<"$out" || true)
 [ -z "$other" ] && [ "$s" -eq "$n" ] || { echo "$out"; echo "Challenge.lean: expected $n sorry warnings and nothing else" >&2; exit 1; }
 
-# The DRAFT solution: every statement is its law's, on standard axioms.
+# The solution builds with no warning; each statement is its law's
+# (Check.lean), on standard axioms.
+out=$(lake build tests.comparator.Solution 2>&1) || { echo "$out"; echo "Solution.lean failed" >&2; exit 1; }
 out=$(lake env lean tests/comparator/Solution.lean 2>&1) || { echo "$out"; echo "Solution.lean failed" >&2; exit 1; }
 if grep -qE 'warning|error' <<<"$out"; then echo "$out"; echo "Solution.lean: a warning or an error" >&2; exit 1; fi
+out=$(lake env lean tests/comparator/Check.lean 2>&1) || { echo "$out"; echo "Check.lean failed" >&2; exit 1; }
 st=$(grep -c ' states ' <<<"$out" || true)
-[ "$st" -eq "$n" ] || { echo "$out"; echo "Solution.lean: $st of $n statements checked" >&2; exit 1; }
+[ "$st" -eq "$n" ] || { echo "$out"; echo "Check.lean: $st of $n statements checked" >&2; exit 1; }
 bad=$(grep -E '^Headline\.[A-Za-z_]+: \[' <<<"$out" | sed 's/.*\[\(.*\)\]/\1/' | tr ',' '\n' | tr -d ' ' |
   grep -v -x -e propext -e Classical.choice -e Quot.sound -e '' || true)
 ax=$(grep -cE '^Headline\.[A-Za-z_]+: \[' <<<"$out" || true)
-[ "$ax" -eq "$n" ] && [ -z "$bad" ] || { echo "$out"; echo "Solution.lean: axioms $bad ($ax of $n audited)" >&2; exit 1; }
-echo "comparator draft: $n statements, each its law's, proved on standard axioms only"
+[ "$ax" -eq "$n" ] && [ -z "$bad" ] || { echo "$out"; echo "Check.lean: axioms $bad ($ax of $n audited)" >&2; exit 1; }
+echo "comparator files: $n statements, each its law's, proved on standard axioms only"
+
+# Comparator itself, from Lean v4.35 (lake comparator; it needs bwrap).
+# Before that toolchain it does not exist: say so, and go on.
+tc=$(sed 's/.*:v//' lean-toolchain)
+if [ "$(printf '%s\n4.35.0\n' "$tc" | sort -V | head -1)" = 4.35.0 ]; then
+  lake comparator --config tests/comparator/comparator.json ||
+    { echo "lake comparator rejected the headline solution" >&2; exit 1; }
+  echo "lake comparator: accepted"
+else
+  echo "lake comparator: skipped, Lean $tc has none (it comes in v4.35)"
+fi
 
 # Controls: each must be caught.
 caught() { # file, what

@@ -30,7 +30,7 @@ judge should read first. For each one it gives:
 To check every number on this page, run `mise run test:headline`
 (tests/headline.sh). It builds the tree, runs tests/Headline.lean,
 checks that this page's generated section is current
-(ci/headline.py), and checks the draft Comparator files.
+(ci/headline.py), and checks the Comparator files.
 
 ## How to read a surface
 
@@ -553,34 +553,45 @@ changed.
 - **`bare_takes_only_join`** (500; 2 spec-only, 17 assumed): small to
   review, but a large part of the node.
 
-## Comparator (DRAFT)
+## Comparator
 
-Lean v4.35's `lake comparator` checks a solution against a trusted file
-of statements. Another stream is checking its exact format, so these
-files are drafts:
+Lean v4.35's `lake comparator` builds a challenge module (trusted
+statements) and a solution module in a sandbox, exports both, and
+accepts only if each named theorem has the same statement in both,
+every constant those statements name is the same in both, and the
+solution's proofs use only the permitted axioms. The vibecheck/toolchain
+stream confirmed this shape on 4.35 with the app's own laws: an honest
+pair is accepted, a weakened statement is rejected ("statement do not
+match"), and a `sorry` in the solution is rejected ("Illegal axiom
+sorryAx").
 
 - [tests/comparator/Challenge.lean](../tests/comparator/Challenge.lean):
   the seventeen statements, word for word, as `Headline.<law>`, each with
   `sorry`. This is the file a judge trusts, with the definitions that
-  it names.
+  it names. It imports the modules that hold the laws; the judged names
+  are new, so nothing is declared twice.
 - [tests/comparator/Solution.lean](../tests/comparator/Solution.lean):
-  generated from the challenge by tests/comparator/solution.py. It
-  proves each statement with the law, checks that each statement is the
-  law's own (`#same_statement`, which also pairs the matcher that a
-  `match` in a statement makes), and prints the axioms.
+  the same statements, copied by tests/comparator/solution.py, each
+  proved by its law.
+- [tests/comparator/Check.lean](../tests/comparator/Check.lean): checks
+  that each statement is the law's own (`#same_statement`, which also
+  pairs the matcher that a `match` in a statement makes), so Comparator's
+  match with the challenge is a match with the law. It prints the axioms.
+- [tests/comparator/comparator.json](../tests/comparator/comparator.json):
+  the config. On v4.35, run
+  `lake comparator --config tests/comparator/comparator.json`.
 
-Neither file is in a lakefile library, so `lake build` never sees a
-`sorry`. tests/headline.sh checks both on v4.34, and three controls:
-a weakened restatement and a changed `match` must fail
-`#same_statement`, and `#headline` must fail on a law that rests on
-`sorry`.
+The three modules are the `Comparator` library, which is never a
+default target, so `lake build` and `lake check` never see a `sorry`.
+tests/headline.sh checks them on every toolchain, runs Comparator from
+v4.35 on, and has three controls: a weakened restatement and a changed
+`match` must fail `#same_statement`, and `#headline` must fail on a law
+that rests on `sorry`.
 
-Open questions for the format check: whether the two files must be
-library modules; whether the challenge may import modules that also
-hold the original laws; where the configuration goes. Also: the runtime
-examples run native code, which Comparator does not check. Kernel
-examples, with a toy `Crypto` as in tests/vacuity/Contracts.lean, would
-let laws 2–6, 8, 11, 12 and 14 show satisfiable hypotheses in the kernel.
+Comparator does not check the runtime examples, which run native code.
+Kernel examples, with a toy `Crypto` as in tests/vacuity/Contracts.lean,
+would let laws 2–6, 8, 11, 12 and 14 show satisfiable hypotheses in the
+kernel.
 
 ## Surfaces (generated)
 

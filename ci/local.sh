@@ -18,7 +18,7 @@
 #            code, against tests/Wiring.lean (ci/proof-links.py)
 #    reorg   the reorg's import rewriter (ci/reorg-imports.py --self-test)
 #    headline  the headline laws' axioms and spec surfaces, docs/HEADLINE.md
-#            against them, and the draft Comparator files (tests/headline.sh)
+#            against them, and the Comparator files (tests/headline.sh)
 # 2. The gate's tests, at once. Each is deterministic and runs in this
 #    tree in one process at a time: no TCP, no X, no clock it must beat,
 #    no source edited (the tree is checked unchanged after them):

@@ -1,21 +1,20 @@
 /-
-DRAFT, pending the check of `lake comparator`'s format on Lean v4.35
-(another stream is verifying it). Nothing here is final: the user
-decides which laws are headline laws (docs/HEADLINE.md).
+The trusted statements of the proposed headline laws, for Comparator
+(Lean v4.35's `lake comparator`): the challenge. Nothing here is final:
+the user decides which laws are headline laws (docs/HEADLINE.md).
 
-The trusted statements of the proposed headline laws, for Comparator: a
-challenge file. Each theorem restates one law of the app, word for word,
-under the name `Headline.<law>`, with `sorry` for its proof.
-tests/comparator/Solution.lean states the same theorems and proves each
-with the law itself; it also checks (`#same_statement`) that each
-statement here is the law's own, not a weaker one.
+Each theorem restates one law of the app, word for word, under the name
+`Headline.<law>`, with `sorry` for its proof; the `-- law` line above it
+names the law. tests/comparator/solution.py writes from this file:
+Solution.lean (the same statements, each proved by its law), Check.lean
+(each statement is its law's own, `#same_statement`) and comparator.json.
+Run, on Lean v4.35:
 
-This file is in no lakefile library, so `lake build` never sees its
-`sorry`s. Check that it elaborates with
+  lake comparator --config tests/comparator/comparator.json
 
-  lake env lean tests/comparator/Challenge.lean
-
-(after `lake build`; it warns once per `sorry`, and must not error).
+These modules are the `Comparator` library, never a default target, so
+`lake build` and `lake check` never see the `sorry`s. tests/headline.sh
+checks them on every toolchain, and runs Comparator from v4.35 on.
 
 A reviewer reads this file, and each definition the statements name
 (docs/HEADLINE.md lists them: the spec-only and assumed parts).
