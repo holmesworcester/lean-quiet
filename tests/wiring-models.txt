@@ -196,16 +196,8 @@ Engine.Sync.secrecy_runs
 # engine.wire.Frame
 Engine.Sync.buffer_bounded
 
-# engine.wire.LaneLaws
-Engine.Sync.ahead_bytes
-Engine.Sync.lanes_bounded
-Engine.Sync.urgent_ahead
-
 # engine.wire.NoiseSymbolic
 Connection.Noise.Symbolic.exposed_parts
-
-# engine.wire.Reserved
-Engine.Sync.Reserved.offer_bounded
 
 # engine.wire.RetryOrderLaws
 Engine.Sync.RetryOrder.Run.nodup

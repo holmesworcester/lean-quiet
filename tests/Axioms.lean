@@ -1415,6 +1415,7 @@ end cost
 -- Exact admitted socket queues and native writer batches, including retries.
 #print axioms Engine.Sync.Reserved.push_bounded
 #print axioms Engine.Sync.Reserved.offer_bounded
+#print axioms Engine.Sync.Reserved.take_vacant
 #print axioms Engine.Sync.Reserved.take_bounded
 #print axioms Engine.Sync.Reserved.normal_flood_does_not_starve_retry
 #print axioms Engine.Sync.Outbox.push_bounded

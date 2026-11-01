@@ -170,9 +170,10 @@ def Sock.lanes (s : Sock) : IO Lanes := s.out.atomically do
   return { o.queued.ordinary with serve := o.retry.take.1.toList ++ o.lanes.serve }
 
 def Sock.offerRetry (s : Sock) (ticket : RetryTicket) (payload : ByteArray) : IO Bool := do
+  -- the reserved retry slot's offer (Reserved.offer: offer_bounded)
   let ok ← s.out.atomically (modifyGetThe Outbox fun o =>
-    let (ok, retry) := o.retry.offer maxFrame ticket payload
-    (ok, { o with retry }))
+    let (ok, q) := o.queued.offer maxFrame ticket payload
+    (ok, { o with retry := q.retry }))
   s.wake.notifyAll
   return ok
 

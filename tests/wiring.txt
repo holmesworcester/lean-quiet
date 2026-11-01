@@ -225,6 +225,7 @@ instrument Engine.CostT.instTick Engine.CostT.erase_tick
 
 bridge Engine.stepS Engine.run_step
 bridge Engine.drainS Engine.run_drain
+bridge Engine.Sync.Lanes.take Engine.Sync.Reserved.take_vacant
 bridge Engine.ingestS Engine.run_ingest
 bridge Engine.ingestAll Engine.run_ingestEach
 # The purge: the running `purge` on the model's tables is `purgeS`, and
