@@ -22,5 +22,13 @@
     "module": "tests.vacuity.StoreTrust",
     "exercise": true,
     "detail": "Applied to the app's family under the store's trust file (sqliteConditional). The executable purges a stored op on SQLite and on the model and checks that the rows show the model's tables."
+  },
+  "receive_refused": {
+    "status": "conditional",
+    "theorem": "Trust.receive_refused",
+    "witness": "Vacuity.StoreTrust.refusedConditional",
+    "module": "tests.vacuity.StoreTrust",
+    "exercise": true,
+    "detail": "Applied to the app's family under the store's trust file (refusedConditional). The executable runs a write turn that fails after writing on a real SQLite file and checks that its rows still show the tables before."
   }
 }

@@ -64,6 +64,11 @@ def sqliteConditional := some (PLift.up
   (fun (holds : Db → Void IO.RealWorld → DB Fact → Prop) (t : SqliteStore Fact holds) =>
     And.intro (receive_as_model t (family ed25519) []) (purge_as_model t (family ed25519) [] false)))
 
+/-- The contract, bridged to the refused-turn law. -/
+def refusedConditional := some (PLift.up
+  (fun (holds : Db → Void IO.RealWorld → DB Fact → Prop) (t : SqliteStore Fact holds) =>
+    @receive_refused Fact _ holds _ t (family ed25519) []))
+
 /-! ## Satisfied by the running code -/
 
 /-- `Rows.Show` on finite tables: every id and key the workload names. -/
@@ -87,6 +92,7 @@ def keysOf (fam : Family Fact) (s : DB Fact) (ids : List Id) : List ByteArray :=
 def main : IO UInt32 := do
   let t ← Checks.new
   t.ok "the contract is what the running write turn and purge need" sqliteConditional.isSome
+  t.ok "the contract is what the refused-turn law needs" refusedConditional.isSome
   let dir := "out/vacuity"
   IO.FS.createDirAll dir
   let path := s!"{dir}/store-trust.db"
