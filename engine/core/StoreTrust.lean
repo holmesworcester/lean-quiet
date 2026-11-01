@@ -31,8 +31,12 @@ holds tables shows them in its rows, and the operations keep it.
 It is about correctness, not progress. SQLite may refuse an operation (a
 full disk, a lock). The contract promises nothing about a refused
 operation, except that a refused write turn (`transact`) changes no row.
-And it is about a file only this code has written: a file someone else
-edited is out of scope.
+
+It is meant for a file only this code has written, but that scope is not
+in the formal statement: `opens` covers every file `Db.openAt` opens, so
+the Prop is false of a corrupted or edited file. That files are not
+corrupted or edited is an assumption about the environment, stated here
+in prose only.
 -/
 import engine.core.Query
 

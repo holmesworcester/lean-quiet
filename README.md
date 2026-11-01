@@ -353,7 +353,10 @@ behavior; they do not prove all of these assumptions:
   ([`receive_refused`]). The other store laws are still about the code run
   on the model. It is tested row for row against the model, operation by
   operation (tests/vacuity/StoreTrust.lean), and with kill -9 crash tests.
-  A frame's reads in one transaction see one committed state (SQLite's
+  The premise is not limited to files only this code wrote: it covers
+  every file the app opens, so it is false of a corrupted or edited file.
+  That no one corrupts or edits the file is an assumption about the
+  environment, stated in prose only. A frame's reads in one transaction see one committed state (SQLite's
   snapshot isolation): the snapshot hypothesis above, which the screen's
   laws take.
 - **Every C function Lean calls has a stated contract.** Each `@[extern]`
