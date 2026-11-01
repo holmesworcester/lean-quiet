@@ -385,19 +385,19 @@ def answerT (root : Treap α) : Claim → List Out
   | .fp r n l =>
     let t := rangeT key ident h r root
     if (t.size, t.label h) = (n, l) then []
-    else if t.size ≤ P.leaf then [.claim (.ids r (t.toList.map ident))]
-    else (pieces r (cutsT key P t)).map fun q =>
+    else if t.size ≤ P.leaf then [.claim (.ids r (t.toList.map ident).reverse)]
+    else (pieces r (cutsT key P t)).reverse.map fun q =>
       let u := rangeT key ident h q root
       .claim (.fp q u.size (u.label h))
   | .ids r xs =>
     let x := (rangeT key ident h r root).toList
-    [.hold ((x.filter fun a => !xs.any fun i => Decidable.decide (ident a = i)).map ident),
+    [.hold ((x.filter fun a => !xs.any fun i => Decidable.decide (ident a = i)).map ident).reverse,
      .want (xs.filter fun i => !named ident x i)]
 
 /-- How this side opens a round over r, from its room's tree. -/
 def openingT (root : Treap α) (r : Range) : Claim :=
   let t := rangeT key ident h r root
-  if t.size ≤ P.leaf then .ids r (t.toList.map ident) else .fp r t.size (t.label h)
+  if t.size ≤ P.leaf then .ids r (t.toList.map ident).reverse else .fp r t.size (t.label h)
 
 theorem fp_canon {l : List α} (hs : Sorted key l) (r : Range) :
     ((rangeT key ident h r (canon key ident h l)).size, (rangeT key ident h r (canon key ident h l)).label h) =
@@ -468,18 +468,18 @@ def answerTM (root : Treap α) : Claim → m (List Out)
   | .fp r n l => do
     let t ← rangeTM key ident h r root
     if (t.size, t.label h) = (n, l) then pure []
-    else if t.size ≤ P.leaf then pure [.claim (.ids r (t.toList.map ident))]
-    else piecesTM key ident h root (pieces r (cutsT key P t))
+    else if t.size ≤ P.leaf then pure [.claim (.ids r (t.toList.map ident).reverse)]
+    else piecesTM key ident h root (pieces r (cutsT key P t)).reverse
   | .ids r xs => do
     let t ← rangeTM key ident h r root
     let x := t.toList
-    pure [.hold ((x.filter fun a => !xs.any fun i => Decidable.decide (ident a = i)).map ident),
+    pure [.hold ((x.filter fun a => !xs.any fun i => Decidable.decide (ident a = i)).map ident).reverse,
       .want (xs.filter fun i => !named ident x i)]
 
 /-- `openingT`, as it runs. -/
 def openingTM (root : Treap α) (r : Range) : m Claim := do
   let t ← rangeTM key ident h r root
-  pure (if t.size ≤ P.leaf then .ids r (t.toList.map ident) else .fp r t.size (t.label h))
+  pure (if t.size ≤ P.leaf then .ids r (t.toList.map ident).reverse else .fp r t.size (t.label h))
 
 end
 
@@ -604,7 +604,8 @@ theorem answerTM_hashes (root : Treap α) (c : Claim) :
     · split
       · simp only [cost_pure, Meter.hashes_add, Meter.hashes_zero]; omega
       · have hp := piecesTM_hashes key ident h root
-          (pieces r (cutsT key P (Counted.val (rangeTM (m := Counted) key ident h r root))))
+          (pieces r (cutsT key P (Counted.val (rangeTM (m := Counted) key ident h r root)))).reverse
+        rw [List.length_reverse] at hp
         have hc := cutsT_pieces key P r (Counted.val (rangeTM (m := Counted) key ident h r root))
         simp only [Meter.hashes_add]
         have : (pieces r (cutsT key P (Counted.val (rangeTM (m := Counted) key ident h r root)))).length *

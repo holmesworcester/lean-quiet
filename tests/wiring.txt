@@ -116,7 +116,6 @@ spec Engine.Sync.pick Every s-th item of a list: `cutsOf`'s, as ranks (`pick_ste
 spec Engine.Sync.Range.has Whether a key is in a range: the filter `within` names.
 spec Engine.Sync.ins A sorted list with an item, once: the room's items after an insert (`RoomTree.items_add`).
 spec Engine.Sync.highs The items at or above a key: what a split's right half holds.
-spec Engine.Sync.Claim.range The range a claim is about, to state a path's length.
 spec Engine.Sync.tally The claims a round answers within n answers on any path, counted over `answer`, the running `Index.answer`'s (`Index.answer_eq`).
 spec Engine.Sync.delta The items on one side only.
 spec Engine.Sync.Treap.height A tree's height: the measure its cost bounds are in.

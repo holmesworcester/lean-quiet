@@ -3576,8 +3576,8 @@ theorem post_reqs_le (c adm : Id) (d : Device) (k t : ByteArray) (n tm : Nat) (c
     (post c adm d k t n tm cl).reqs.length ≤ 3 := by
   cases cl <;> simp [post]
 
-theorem attach_reqs (c adm msg : Id) (d : Device) (k : Key32) (f : NewFile) :
-    (attach c adm msg d k f).1.reqs.length = 3 ∧ ∀ o ∈ (attach c adm msg d k f).2, o.reqs.length = 2 := by
+theorem attach_reqs (c adm msg : Id) (time : Nat) (d : Device) (k : Key32) (f : NewFile) :
+    (attach c adm msg time d k f).1.reqs.length = 3 ∧ ∀ o ∈ (attach c adm msg time d k f).2, o.reqs.length = 2 := by
   refine ⟨rfl, fun o ho => ?_⟩
   simp only [attach, List.mem_map] at ho
   obtain ⟨_, _, rfl⟩ := ho
@@ -3738,7 +3738,7 @@ theorem send_authored (c a : Id) (d : Device) (k : Key32) (nonce : Nonce24) (t :
       (min (n + 1) countCap) now cl
     simp only [sealedPost]; rw [maxReqs_eq]; omega
   · exact hr o ho
-  · have h := attach_reqs c a (sealedPost c a d k nonce t (min (n + 1) countCap) now cl).id d k f
+  · have h := attach_reqs c a (sealedPost c a d k nonce t (min (n + 1) countCap) now cl).id now d k f
     rcases ho with rfl | ho
     · rw [h.1, maxReqs_eq]; decide
     · rw [h.2 o ho, maxReqs_eq]; decide

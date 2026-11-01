@@ -162,14 +162,14 @@ theorem pieces_delta (D : List α) : ∀ (cs : List Key) (r : Range), cs.Pairwis
           exact hc.1 (e ▸ hlt)
     omega
 
-theorem pick_sublist (s : Nat) : ∀ (k : Nat) (l : List α), (pick s k l).Sublist l
+theorem picks_sublist (s : Nat) : ∀ (k : Nat) (l : List α), (pick s k l).Sublist l
   | _, [] => by simp [pick]
-  | 0, a :: t => by simp only [pick]; exact (pick_sublist s _ t).cons_cons a
-  | k + 1, _ :: t => by simp only [pick]; exact (pick_sublist s k t).cons _
+  | 0, a :: t => by simp only [pick]; exact (picks_sublist s _ t).cons_cons a
+  | k + 1, _ :: t => by simp only [pick]; exact (picks_sublist s k t).cons _
 
 theorem cuts_sorted {x : List α} (sx : Sorted key x) : (cutsOf key P x).Pairwise (· < ·) := by
   unfold cutsOf
-  exact List.pairwise_map.2 (List.Pairwise.sublist (pick_sublist _ _ _) sx)
+  exact List.pairwise_map.2 (List.Pairwise.sublist (picks_sublist _ _ _) sx)
 
 /-! ## Claims -/
 
@@ -228,10 +228,10 @@ theorem tally_le : ∀ (n : Nat) (X Y : List α) (r : Range) (c : Claim),
         · simp only [tally, answer, hf, hl, ↓reduceIte, List.map_cons, List.map_nil, List.sum_cons,
             List.sum_nil]
           have := tally_ids (key := key) (ident := ident) (h := h) (P := P) n Y X r'
-            ((within key r' X).map ident)
+            ((within key r' X).map ident).reverse
           omega
         · have hl' : P.leaf < (within key r' X).length := by omega
-          simp only [tally, answer, hf, hl, ↓reduceIte, List.map_map]
+          simp only [tally, answer, hf, hl, ↓reduceIte, List.map_map, List.map_reverse, List.sum_reverse]
           have hcut : ∀ c' ∈ cutsOf key P (within key r' X), r'.has c' = true := by
             intro c' hc'
             simp only [cutsOf, List.mem_map] at hc'

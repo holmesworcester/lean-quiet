@@ -19,11 +19,6 @@ import engine.sync.RoundLaws
 
 namespace Engine.Sync
 
-/-- The range a claim is about. -/
-def Claim.range : Claim → Range
-  | .fp r _ _ => r
-  | .ids r _ => r
-
 section
 variable {α : Type} (key : α → Key) (ident : α → ByteArray) (h : ByteArray → ByteArray) (P : Params)
 
@@ -238,8 +233,8 @@ theorem ends_log : ∀ (k : Nat) (X Y : List α) (c : Claim), Sorted key X → S
           cases e
           -- Y answers piece q of X's cut
           have hqX : (within key q X).length ≤ P.leaf * P.fan ^ k :=
-            Nat.le_trans (piece_size sX hx' q hq) (runLen_fan_le hX)
-          have hqr := (pieces_shrink sX hx' q hq).2
+            Nat.le_trans (piece_size sX hx' q (List.mem_reverse.1 hq)) (runLen_fan_le hX)
+          have hqr := (pieces_shrink sX hx' q (List.mem_reverse.1 hq)).2
           have hqY : (within key q Y).length ≤ P.leaf * P.fan ^ (k + 1) :=
             Nat.le_trans (filter_len_le fun a ha => hqr _ ha) hY
           intro c'' hc''
@@ -256,8 +251,8 @@ theorem ends_log : ∀ (k : Nat) (X Y : List α) (c : Claim), Sorted key X → S
               obtain ⟨q', hq', e⟩ := List.mem_map.1 hc''
               cases e
               have hq'Y : (within key q' Y).length ≤ P.leaf * P.fan ^ k :=
-                Nat.le_trans (piece_size sY hy' q' hq') (runLen_fan_le hqY)
-              have hq'r := (pieces_shrink sY hy' q' hq').2
+                Nat.le_trans (piece_size sY hy' q' (List.mem_reverse.1 hq')) (runLen_fan_le hqY)
+              have hq'r := (pieces_shrink sY hy' q' (List.mem_reverse.1 hq')).2
               have hq'X : (within key q' X).length ≤ P.leaf * P.fan ^ k :=
                 Nat.le_trans (filter_len_le fun a ha => hq'r _ ha) hqX
               exact ih X Y _ sX sY hq'X hq'Y

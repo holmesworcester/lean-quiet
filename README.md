@@ -370,7 +370,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1462 rest on Lean's standard axioms only, and about three quarters of its theorems (1093 of 1436, not counting 26 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1528 rest on Lean's standard axioms only, and about three quarters of its theorems (1154 of 1501, not counting 27 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -509,17 +509,17 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1093 of 1436 laws are about running code;** another 35 run its node code in a World, and 308 are not yet. Stated only: none. 26 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1154 of 1501 laws are about running code;** another 35 run its node code in a World, and 312 are not yet. Stated only: none. 27 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 201 | 145 |  | 56 |
-| Sync | 291 | 247 |  | 44 |
+| Engine | 214 | 156 |  | 58 |
+| Sync | 323 | 277 |  | 46 |
 | The n-node World | 16 | 3 | 13 |  |
 | mDNS | 3 | 0 |  | 3 |
-| Node and wire | 205 | 139 | 16 | 50 |
-| Connections | 30 | 26 |  | 4 |
-| Community | 227 | 186 |  | 41 |
+| Node and wire | 209 | 143 | 16 | 50 |
+| Connections | 32 | 28 |  | 4 |
+| Community | 241 | 200 |  | 41 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
 | Screen | 284 | 222 |  | 62 |
@@ -1336,10 +1336,10 @@ opportunities and full native delivery remain open.
 [`no_connection_before_approval`]: app/community/Proofs.lean#L2945-L2952
 [`sessions_trusted`]: app/community/Proofs.lean#L2969-L2974
 [`bare_takes_only_join`]: app/Proofs.lean#L604-L616
-[`intake_local`]: engine/core/Sync.lean#L38-L40
-[`stored_local`]: engine/core/Sync.lean#L86-L89
+[`intake_local`]: engine/core/Sync.lean#L54-L56
+[`stored_local`]: engine/core/Sync.lean#L135-L138
 [`local_fact_mine`]: app/community/Family.lean#L1296-L1300
-[`intakeConn_conn`]: engine/core/Sync.lean#L33-L34
+[`intakeConn_conn`]: engine/core/Sync.lean#L49-L50
 [`established_agrees_sodium`]: app/Proofs.lean#L94-L106
 [`established_agrees`]: app/Proofs.lean#L37-L51
 [`sealFor_opens`]: app/connection/Proofs.lean#L579-L587
@@ -1511,11 +1511,11 @@ opportunities and full native delivery remain open.
 [`recv_asked`]: engine/world/Asks.lean#L257-L263
 [`recv_owed`]: engine/world/Owed.lean#L54-L61
 [`node_serve`]: engine/world/Owed.lean#L160-L169
-[`Index.answer_eq`]: engine/sync/Conn.lean#L305-L307
-[`Index.opening_eq`]: engine/sync/Conn.lean#L300-L302
+[`Index.answer_eq`]: engine/sync/Conn.lean#L306-L308
+[`Index.opening_eq`]: engine/sync/Conn.lean#L301-L303
 [`answerT_canon`]: engine/sync/TreapAnswer.lean#L410-L412
 [`answerTM_hashes`]: engine/sync/TreapAnswer.lean#L590-L593
-[`openingTM_hashes`]: engine/sync/TreapAnswer.lean#L622-L623
+[`openingTM_hashes`]: engine/sync/TreapAnswer.lean#L623-L624
 [`insert_hashes`]: engine/sync/Treap.lean#L474-L477
 [`label_canon`]: engine/sync/Treap.lean#L113-L114
 [`Demand.owned_iff`]: engine/renderer/Demand.lean#L143-L146
@@ -1970,8 +1970,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 517 kernel witnesses, 185 runtime witnesses,
-23 conditional checks, 0 recorded runtime counterexamples; 19 of 744 linked declarations still pending.**
+**Coverage: 528 kernel witnesses, 185 runtime witnesses,
+23 conditional checks, 0 recorded runtime counterexamples; 19 of 755 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2158,10 +2158,10 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`no_connection_before_approval`](app/community/Proofs.lean#L2945-L2952) | **runtime-witness**: [Vacuity.Bootstrap.noBefore](tests/vacuity/Bootstrap.lean). Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the named model theorem at the reachable first tick or the enabled completed bootstrap path; no universal signing-correctness or unproved scene premise remains in the runtime certificate. This is evidence about the bootstrap model, not whole-app execution. |
 | [`sessions_trusted`](app/community/Proofs.lean#L2969-L2974) | **runtime-witness**: [Vacuity.Bootstrap.trustedOutcome](tests/vacuity/Bootstrap.lean). Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the named model theorem at the reachable first tick or the enabled completed bootstrap path; no universal signing-correctness or unproved scene premise remains in the runtime certificate. This is evidence about the bootstrap model, not whole-app execution. |
 | [`bare_takes_only_join`](app/Proofs.lean#L604-L616) | **runtime-witness**: [Vacuity.IdentityConnection.bareJoin](tests/vacuity/IdentityConnection.lean). Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply. |
-| [`intake_local`](engine/core/Sync.lean#L38-L40) | **runtime-witness**: [Vacuity.IdentityMessages.intakeLocal](tests/vacuity/IdentityMessages.lean). Actual own local secret accepted. Hostile peer secret is dropped while a shared signed message in the same job is received. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
-| [`stored_local`](engine/core/Sync.lean#L86-L89) | **runtime-witness**: [Vacuity.IdentityMessages.storedLocal](tests/vacuity/IdentityMessages.lean). Fed constructed from one own-write job then hostile peer job through actual intake; stored local op has actual lookup and local-scope premises. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
+| [`intake_local`](engine/core/Sync.lean#L54-L56) | **runtime-witness**: [Vacuity.IdentityMessages.intakeLocal](tests/vacuity/IdentityMessages.lean). Actual own local secret accepted. Hostile peer secret is dropped while a shared signed message in the same job is received. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
+| [`stored_local`](engine/core/Sync.lean#L135-L138) | **runtime-witness**: [Vacuity.IdentityMessages.storedLocal](tests/vacuity/IdentityMessages.lean). Fed constructed from one own-write job then hostile peer job through actual intake; stored local op has actual lookup and local-scope premises. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`local_fact_mine`](app/community/Family.lean#L1296-L1300) | **runtime-witness**: [Vacuity.IdentityMessages.localFactMine](tests/vacuity/IdentityMessages.lean). Actual valid local secret after own and hostile jobs; Fed and nonempty V premises constructed, no peer secret stored. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
-| [`intakeConn_conn`](engine/core/Sync.lean#L33-L34) | **kernel-witness**: [Vacuity.WireMore.connectionScope](tests/vacuity/WireMore.lean). Mixed concrete batch contains shared greeting(kind1), local secret(kind2), connection handshake(kind3). Proves exact intake=[handshake], applies scope/membership theorem and separately proves shared/local rejection. Synthetic generic scope fixture; production Noise payload validation is outside this intake law. |
+| [`intakeConn_conn`](engine/core/Sync.lean#L49-L50) | **kernel-witness**: [Vacuity.WireMore.connectionScope](tests/vacuity/WireMore.lean). Mixed concrete batch contains shared greeting(kind1), local secret(kind2), connection handshake(kind3). Proves exact intake=[handshake], applies scope/membership theorem and separately proves shared/local rejection. Synthetic generic scope fixture; production Noise payload validation is outside this intake law. |
 | [`established_agrees_sodium`](app/Proofs.lean#L94-L106) | **conditional**: [Vacuity.IdentityFrames.establishedAgreesSodium](tests/vacuity/IdentityFrames.lean). The same actual Noise session; every premise is discharged but the crypto trust file (suite_good). |
 | [`established_agrees`](app/Proofs.lean#L37-L51) | **conditional**: [Vacuity.IdentityFrames.establishedAgrees](tests/vacuity/IdentityFrames.lean). Both endpoint validators succeed for an actual deterministic Noise session; handshake hash/community/peer identities and crossed send/receive keys agree natively. Generic in the suite; its instance at the running keys is established_agrees_sodium, conditional only on the trust file. |
 | [`sealFor_opens`](app/connection/Proofs.lean#L579-L587) | **conditional**: [Vacuity.IdentityFrames.sealForOpens](tests/vacuity/IdentityFrames.lean). The running sealFor on the actual session's held keys seals; conditional only on the trust file, the frame opens under the session's send key to the payload, which the executable checks natively, along with the other direction's key refusing it and a session with no keys sealing nothing. Mutation control: the old unsized sealFor fails the proof. |
@@ -2338,11 +2338,11 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`recv_asked`](engine/world/Asks.lean#L257-L263) | Pending: no concrete premise witness audited yet |
 | [`recv_owed`](engine/world/Owed.lean#L54-L61) | Pending: no concrete premise witness audited yet |
 | [`node_serve`](engine/world/Owed.lean#L160-L169) | Pending: no concrete premise witness audited yet |
-| [`Index.answer_eq`](engine/sync/Conn.lean#L305-L307) | **kernel-witness**: [Vacuity.Treap.answerAgrees](tests/vacuity/Treap.lean). A room of three items inserted out of key order (two at time 0, one at time 5); a fingerprint claim it disagrees with. Synthetic ids; SHA-256 symbolic. |
-| [`Index.opening_eq`](engine/sync/Conn.lean#L300-L302) | **kernel-witness**: [Vacuity.Treap.openingAgrees](tests/vacuity/Treap.lean). The same room, opened over every key. Synthetic ids; SHA-256 symbolic. |
+| [`Index.answer_eq`](engine/sync/Conn.lean#L306-L308) | **kernel-witness**: [Vacuity.Treap.answerAgrees](tests/vacuity/Treap.lean). A room of three items inserted out of key order (two at time 0, one at time 5); a fingerprint claim it disagrees with. Synthetic ids; SHA-256 symbolic. |
+| [`Index.opening_eq`](engine/sync/Conn.lean#L301-L303) | **kernel-witness**: [Vacuity.Treap.openingAgrees](tests/vacuity/Treap.lean). The same room, opened over every key. Synthetic ids; SHA-256 symbolic. |
 | [`answerT_canon`](engine/sync/TreapAnswer.lean#L410-L412) | **kernel-witness**: [Vacuity.Treap.treapAnswers](tests/vacuity/Treap.lean). Three sorted items (sortedness decided), a claim of count 1 against 3 with leaf 1 and fan 2, so the answer cuts into pieces. |
 | [`answerTM_hashes`](engine/sync/TreapAnswer.lean#L590-L593) | **kernel-witness**: [Vacuity.Treap.answerCost](tests/vacuity/Treap.lean). The three items' canonical treap and the cutting claim; no premise. |
-| [`openingTM_hashes`](engine/sync/TreapAnswer.lean#L622-L623) | **kernel-witness**: [Vacuity.Treap.openingCost](tests/vacuity/Treap.lean). The three items' canonical treap opened over every key; no premise. |
+| [`openingTM_hashes`](engine/sync/TreapAnswer.lean#L623-L624) | **kernel-witness**: [Vacuity.Treap.openingCost](tests/vacuity/Treap.lean). The three items' canonical treap opened over every key; no premise. |
 | [`insert_hashes`](engine/sync/Treap.lean#L474-L477) | **kernel-witness**: [Vacuity.Treap.insertCost](tests/vacuity/Treap.lean). An item inserted into a two-item canonical treap; no premise. |
 | [`label_canon`](engine/sync/Treap.lean#L113-L114) | **kernel-witness**: [Vacuity.Treap.labels](tests/vacuity/Treap.lean). Three items with keys apart; the length premise at its own length. |
 | [`Demand.owned_iff`](engine/renderer/Demand.lean#L143-L146) | **kernel-witness**: [Vacuity.RendererDemand.ownership](tests/vacuity/RendererDemand.lean). Synthetic row owners share query 101, visible query 202 overtakes background work, FIFO retains pending keys, and remount replaces serial 0 with 2. Premises are constructed; stale/absent requests and exact outputs are checked. Scheduling latency is outside this fixture. |
