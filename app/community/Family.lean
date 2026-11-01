@@ -1171,14 +1171,24 @@ def orderOf (o : Op) : Nat :=
   | some (.ofChunk b) => b.time
   | _ => 0
 
+/-- The membership op types. -/
+def Body.urgent : Body → Bool
+  | .ofRoot _ | .ofInvite _ | .ofRequest _ | .ofGrant _ | .ofRemove _ | .ofApprove _ | .ofAdmit _ => true
+  | _ => false
+
+/-- The facts membership ops make (`check_membership`). -/
+def Fact.membership : Fact → Bool
+  | .ofAdmission _ | .ofInvitation _ | .ofAdmin _ | .ofRemoval _ | .ofRequest _ | .ofApproval _ => true
+  | _ => false
+
 /-- Membership ops, judged ahead of a backlog in the turn they can be
 decided: who is in and who is out counts at once (engine/core/Urgent.lean).
-Each cites only membership ops (`urgent_cites`). -/
+Each Valid one cites only membership facts (`validate_cites`), but a
+self-removal's authority slot, which takes any shared fact. -/
 def urgentKind (o : Op) : Bool :=
   match (decode o.body : Option Body) with
-  | some (.ofRoot _) | some (.ofInvite _) | some (.ofRequest _) | some (.ofGrant _)
-  | some (.ofRemove _) | some (.ofApprove _) | some (.ofAdmit _) => true
-  | _ => false
+  | some b => b.urgent
+  | none => false
 
 def family (C : Crypto) : Family Fact :=
   { validate := validate C, keys, scope := scopeOf, order := orderOf, urgent := urgentKind }

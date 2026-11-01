@@ -3743,4 +3743,80 @@ theorem send_authored (c a : Id) (d : Device) (k : Key32) (nonce : Nonce24) (t :
     · rw [h.1, maxReqs_eq]; decide
     · rw [h.2 o ho, maxReqs_eq]; decide
 
+
+/-! ## Membership ops cite only membership facts
+
+drain-cap's job closure judges membership ops ahead of the backlog
+(`Family.urgent`), so they must not wait on anything behind it
+(engine/core/Urgent.lean `UrgentCites`): only membership ops make
+membership facts (`validate_urgent`), and a Valid one cites only them
+(`validate_cites`), but a self-removal's authority slot. -/
+
+open Codec
+
+/-- A fact is a membership fact exactly when its op type is a membership one. -/
+theorem check_membership {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
+    (h : check C o b fs = some f) : f.membership = b.urgent := by
+  unfold check at h
+  split at h
+  all_goals first
+    | (simp at h; done)
+    | (obtain ⟨_, _, rfl⟩ := Option.map_eq_some_iff.1 h; rfl)
+
+theorem isAdmin_membership {c u : Id} {g : Fact} (h : isAdmin c u g = true) : g.membership = true := by
+  unfold isAdmin at h; split at h <;> first | rfl | (simp at h)
+
+theorem grant_admin {C : Crypto} {o : Op} {b : Grant.Body} {r a t : Root.Fact} {admin : Bool} {x : Grant.Fact}
+    (h : Grant.check C o b r a admin t = some x) : admin = true := by
+  unfold Grant.check at h
+  split at h
+  · split at h
+    · rename_i hc; exact hc.2.2.2.2.1
+    · cases h
+
+/-- A Valid membership op, but a removal, cites only membership facts. -/
+theorem check_cites {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
+    (hb : b.urgent = true) (hself : ∀ r, b ≠ .ofRemove r) (h : check C o b fs = some f) :
+    ∀ g ∈ fs, g.membership = true := by
+  intro g hg
+  unfold check at h
+  split at h
+  all_goals first
+    | (simp at hg; done)
+    | (simp at h; done)
+    | (simp [Body.urgent] at hb; done)
+    | (exact absurd rfl (hself _))
+    | (simp only [List.mem_cons, List.not_mem_nil, or_false] at hg
+       rcases hg with rfl | rfl | rfl | rfl <;> rfl)
+    | (simp only [List.mem_cons, List.not_mem_nil, or_false] at hg
+       obtain ⟨_, h', _⟩ := Option.map_eq_some_iff.1 h
+       rcases hg with rfl | rfl | rfl | rfl
+       · rfl
+       · rfl
+       · exact isAdmin_membership (grant_admin h')
+       · rfl)
+
+theorem validate_urgent {C : Crypto} {o : Op} {fs : List Fact} {f : Fact}
+    (h : validate C o fs = some f) (hm : f.membership = true) : urgentKind o = true := by
+  unfold validate at h; unfold urgentKind
+  cases hb : (decode o.body : Option Body) with
+  | none => rw [hb] at h; cases h
+  | some b =>
+    simp only [hb] at h ⊢
+    split at h
+    · rw [← check_membership h, hm]
+    · cases h
+
+theorem validate_cites {C : Crypto} {o : Op} {fs : List Fact} {f : Fact}
+    (hu : urgentKind o = true) (hself : ∀ b r, (decode o.body : Option Body) = some b → b ≠ .ofRemove r)
+    (h : validate C o fs = some f) : ∀ g ∈ fs, g.membership = true := by
+  unfold validate at h; unfold urgentKind at hu
+  cases hb : (decode o.body : Option Body) with
+  | none => rw [hb] at h; cases h
+  | some b =>
+    simp only [hb] at h hu
+    split at h
+    · exact check_cites hu (fun r => hself b r hb) h
+    · cases h
+
 end Community

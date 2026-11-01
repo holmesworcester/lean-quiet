@@ -82,4 +82,93 @@ theorem urgent_valid_iff {s : DB F} (hi : Inv fam s) (hu : UrgentSettled fam s) 
     s.status x = some (.valid f) ↔ Spec fam s.ops x (.valid f) :=
   urgent_spec hi hu hc (.valid f)
 
+/-! ## Urgent ops cite only urgent ops
+
+A family declares which facts urgent ops make (`uf`): only urgent ops
+make them, and an urgent op is Valid only citing them. Then a Valid
+urgent op's whole closure is urgent (`urgent_valid_closed`), so its Valid
+status is the spec's whatever is queued, with no premise on its closure
+(`urgent_valid_spec`). -/
+
+variable (fam) in
+/-- The family's declaration: urgent ops cite only urgent ops' facts. -/
+structure UrgentCites where
+  uf : F → Bool
+  fact : ∀ o fs f, fam.validate o fs = some f → uf f = true → fam.urgent o = true
+  cites : ∀ o fs f, fam.urgent o = true → fam.validate o fs = some f → ∀ g ∈ fs, uf g = true
+
+/-- judge's Valid verdict is validate's, over the requirements' Valid facts. -/
+theorem judge_valid {o : Op} {sts : List (Option (Verdict F))} {f : F}
+    (h : judge fam o sts = some (.valid f)) : ∃ fs, allValid sts = some fs ∧ fam.validate o fs = some f := by
+  unfold judge at h
+  split at h
+  · cases h
+  · cases ha : allValid sts with
+    | none => rw [ha] at h; cases h
+    | some fs =>
+      rw [ha] at h
+      refine ⟨fs, rfl, ?_⟩
+      cases hv : fam.validate o fs with
+      | none => simp [hv] at h
+      | some g => simp [hv] at h; simp [h]
+
+theorem All2.mem_right {α β : Type} {R : α → β → Prop} : ∀ {l : List α} {fs : List β}, All2 R l fs →
+    ∀ a ∈ l, ∃ b ∈ fs, R a b
+  | _, _, .nil, _, h => by cases h
+  | _, _, .cons hr t, a, h => by
+    rcases List.mem_cons.1 h with rfl | h
+    · exact ⟨_, List.mem_cons_self .., hr⟩
+    · obtain ⟨b, hb, hab⟩ := All2.mem_right t a h
+      exact ⟨b, List.mem_cons_of_mem _ hb, hab⟩
+
+/-- What x reaches is x, or reached from one of its requirements. -/
+theorem Sync.Reach.head {ops : Id → Option Op} {x z : Id} (h : Sync.Reach ops x z) :
+    z = x ∨ ∃ o r, ops x = some o ∧ r ∈ o.reqs ∧ Sync.Reach ops r z := by
+  induction h with
+  | refl => exact Or.inl rfl
+  | step _ hy hr ih =>
+    rcases ih with rfl | ⟨o, r', hx, hr', hreach⟩
+    · exact Or.inr ⟨_, _, hy, hr, .refl⟩
+    · exact Or.inr ⟨o, r', hx, hr', .step hreach hy hr⟩
+
+/-- **A Valid urgent op's closure is all urgent.** -/
+theorem urgent_valid_closed (hc : UrgentCites fam) {ops : Id → Option Op} :
+    ∀ (n : Nat) (x : Id) (o : Op) (f : F), ops x = some o → fam.urgent o = true →
+      specAt fam ops n x = some (.valid f) → ∀ y p, Sync.Reach ops x y → ops y = some p → fam.urgent p = true := by
+  intro n
+  induction n with
+  | zero => intro x o f _ _ h; cases h
+  | succ n ih =>
+    intro x o f ho hu hs y p hy hp
+    unfold specAt at hs
+    rw [ho] at hs
+    obtain ⟨fs, hfs, hv⟩ := judge_valid hs
+    rcases hy.head with rfl | ⟨o', r, ho', hr, hry⟩
+    · rw [ho] at hp; cases hp; exact hu
+    · rw [ho] at ho'; cases ho'
+      obtain ⟨w, hw, hrw⟩ := All2.mem_right (allValid_forall2 hfs) r hr
+      have huw := hc.cites o fs f hu hv w hw
+      cases n with
+      | zero => cases hrw
+      | succ m =>
+        have hrw' := hrw
+        unfold specAt at hrw'
+        cases hor : ops r with
+        | none => rw [hor] at hrw'; cases hrw'
+        | some q =>
+          rw [hor] at hrw'
+          obtain ⟨fs', -, hv'⟩ := judge_valid hrw'
+          exact ih r q w hor (hc.fact q fs' w hv' huw) hrw y p hry hp
+
+/-- **An urgent op's Valid status is the spec's**, whatever is queued:
+no premise on what it cites. -/
+theorem urgent_valid_spec (hc : UrgentCites fam) {s : DB F} (hi : Inv fam s) (hu : UrgentSettled fam s)
+    {x : Id} {o : Op} (ho : s.ops x = some o) (hx : fam.urgent o = true) (f : F) :
+    s.status x = some (.valid f) ↔ Spec fam s.ops x (.valid f) := by
+  refine ⟨hi.sound x _, fun hv => ?_⟩
+  obtain ⟨n, hn⟩ := hv
+  have hcl : UrgentClosed fam s x := fun y p hy hp => by
+    simp [urgentOf, urgent_valid_closed hc n x o f ho hx hn y p hy hp]
+  exact (urgent_valid_iff hi hu hcl f).2 ⟨n, hn⟩
+
 end Engine
