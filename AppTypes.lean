@@ -21,6 +21,7 @@ import ops.app.Remove
 import ops.community.message.View
 import ops.community.membership.RequestView
 import ops.app.Raster
+import ops.app.RowPaint
 import ops.app.Components
 import ops.app.ClumpList
 import ops.app.Photo
@@ -96,6 +97,10 @@ structure RowSt where
   dimVer : Nat := 0
   dimShown : Option Bitmap := none
   pixels : Option RowPixels := none
+  /-- Captured inputs of the admitted paint, distinct from latest row data. -/
+  paintFlight : Option Raster.RowPaint.Flight := none
+  /-- An optimistic bitmap does not discharge the first committed paint. -/
+  shownCommitted : Bool := false
 
 abbrev ImgKey := FileImage.Key
 

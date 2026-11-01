@@ -21,10 +21,13 @@ published pixels without another Lean frame.
 
 There are only two work classes for now: visible work and prefetch. Native
 editing/motion and the Lean frame do not wait for these workers. Frame
-assembly pauses admission to the raster worker; it resumes before native
-presentation waits. Work already executing may finish its current unit.
-This is a practical first policy, not an end-to-end latency guarantee or
-a new sync scheduler.
+assembly keeps raster work enabled: toggling a pause around every busy frame
+could prevent the worker from ever observing an available interval. Current
+ownership and publication checks still reject revoked work. An own message's
+first committed paint also retains its data, layout and ticket through
+ancillary reaction/name updates; later data is adopted after that snapshot
+publishes. Access, body and incompatible display changes still revoke it.
+These are runtime progress fixes, not a universal end-to-end latency bound.
 
 | Layer | Contract | Evidence and boundary |
 |---|---|---|
