@@ -20,5 +20,5 @@ python3 tests/engine/join_fair.py --out out/join-fair/first-hint-only \
 scratch=$(mktemp -d "$TMPDIR/join-fair-negative.XXXXXX")
 trap 'rm -rf -- "$scratch"' EXIT
 . tests/snapshot.sh
-snapshot "$scratch" engine/core engine/wire engine/renderer ops/sync ops/community ops/connection tests/engine
+snapshot "$scratch" engine/core engine/wire engine/renderer engine/sync app tests/engine
 python3 tests/engine/join_fair_negative.py "$scratch" "$PWD/out/join-fair" "$PWD"

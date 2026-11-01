@@ -9,5 +9,5 @@ export CARGO_NET_OFFLINE=true
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/harden-nc.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 . tests/snapshot.sh
-snapshot "$tmp" engine/core engine/wire ops/sync tests/engine
+snapshot "$tmp" engine/core engine/wire engine/sync tests/engine
 python3 tests/engine/harden_negative.py "$tmp" "$PWD/out/harden-negative"

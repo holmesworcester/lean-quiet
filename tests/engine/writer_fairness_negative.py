@@ -71,7 +71,7 @@ check(ROOT, 'baseline')
 with tempfile.TemporaryDirectory(prefix='writer-fairness-', dir=os.environ['TMPDIR']) as temp:
     scratch = Path(temp)
     sp.run(['bash', '-c', '. tests/snapshot.sh; snapshot "$1" engine/core engine/wire '
-        'engine/renderer ops/sync ops/community ops/connection ops/app tests/engine',
+        'engine/renderer engine/sync app tests/engine',
         'writer-fairness-snapshot', str(scratch)], cwd=ROOT, check=True)
     source = scratch / 'engine/renderer/WriteQueue.lean'
     original = source.read_text()

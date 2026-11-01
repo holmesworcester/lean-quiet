@@ -5,7 +5,7 @@ open Lake DSL System
 from here (`engine/core/Codec.lean` is `engine.core.Codec`), and each
 library is a directory of the tree. A library inside another's directory
 (mdns in engine/wire, qr in engine/renderer, the bootstrap in
-ops/connection) is the outer one's too: `lake build Wire` builds mdns.
+app/connection) is the outer one's too: `lake build Wire` builds mdns.
 `lake build` builds every library but the tests'. -/
 package quiet where
   -- Native C uses the host's headers. Lean's bundled older glibc linker
@@ -43,31 +43,30 @@ lean_lib Pic where
 
 /-! ## Ops: everything that names a kind -/
 
--- rounds, fingerprints, the connection's sync messages
+-- sync, generic over op types: rounds, fingerprints, the connection's
+-- sync messages (engine/sync; the op tree has no sync folder until its
+-- rounds are ephemeral ops)
 @[default_target] lean_lib Sync where
-  globs := #[.submodules `ops.sync]
+  globs := #[.submodules `engine.sync]
 
--- the handshake and sessions, and the bootstrap's model
+-- the handshake and sessions
 @[default_target] lean_lib Connection where
-  globs := #[.submodules `ops.connection]
+  globs := #[.submodules `app.connection]
 
--- the bootstrap model and its laws
-lean_lib Net where
-  globs := #[.submodules `ops.connection.bootstrap]
-
--- the Community family, and each domain's view
+-- the Community family, each domain's view, and the bootstrap's model
+-- (in community/Proofs: it names only community ops)
 @[default_target] lean_lib Community where
-  globs := #[.submodules `ops.community]
+  globs := #[.submodules `app.community]
 
--- the app's own state: pages, composer, switcher, removal
-@[default_target] lean_lib AppState where
-  globs := #[.submodules `ops.app]
+-- the op tree's root: commands over the node, which spans both families
+@[default_target] lean_lib Node where
+  roots := #[`app.Commands]
 
 /-! ## The app -/
 
--- the root component
+-- the root screen, and the laws about the whole app
 @[default_target] lean_lib App where
-  roots := #[`App, `AppTypes, `AppLife]
+  roots := #[`app.Screen, `app.Proofs]
 
 -- every module of the app, for its executables
 @[default_target] lean_lib Quiet
@@ -245,6 +244,10 @@ lean_exe costcheck where
 
 lean_exe codecdiff where
   root := `tests.engine.CodecDiff
+
+-- the community family's bytes, ids and verdicts against main's before the op split
+lean_exe wiregolden where
+  root := `tests.engine.WireGolden
 
 lean_exe bench where
   root := `tests.engine.Bench

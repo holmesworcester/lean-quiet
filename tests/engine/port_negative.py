@@ -6,21 +6,21 @@ group = sys.argv[3]
 logs.mkdir(parents=True, exist_ok=True)
 cases = {
     "people": [
-        ("unbounded-admissions", "ops/community/profile/View.lean",
+        ("unbounded-admissions", "app/community/Screen.lean",
          "  let a ← admission.all.read [c] (limit := some m)",
          "  let a ← admission.all.read [c]",
          "header asks for only the newest 1024 admissions"),
-        ("false-exact-count", "ops/app/Reader.lean",
+        ("false-exact-count", "app/Screen.lean",
          "    return (.people n (all && n < 999), deps)",
          "    return (.people n true, deps)",
          "incomplete scan is marked even when the visible unique count is small"),
     ],
     "tree": [
-        ("no-range-cuts", "ops/sync/Round.lean",
+        ("no-range-cuts", "engine/sync/Round.lean",
          "def runLen (n : Nat) : Nat := (n + P.fan - 1) / P.fan",
          "def runLen (n : Nat) : Nat := n + 0 * P.fan",
          "non-leaf 64: logarithmic depth gives exactly the missing ids"),
-        ("drop-wants", "ops/sync/Round.lean",
+        ("drop-wants", "engine/sync/Round.lean",
          "     .want (xs.filter fun i => !named ident x i)]",
          "     .want []]",
          "non-leaf 64: logarithmic depth gives exactly the missing ids"),

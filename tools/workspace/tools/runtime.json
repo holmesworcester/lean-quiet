@@ -1,0 +1,9 @@
+{
+  "baseUrl": "https://lean4-wasm.timqian.com/v0.0.0/",
+  "source": "https://github.com/timqian/lean4.js",
+  "assets": {
+    "lean.js": "0baaafd5d088d288ec44ff57d5ced4146e95ff6ba975c19787fcfcd26f89f87d",
+    "lean.wasm": "7ba15bd90d4ab6d8344a9662d6fd190f8326c9b6a79bbd935ef26c4063dbba02",
+    "lean-lib.tar.gz": "b8e0434fe207e25b2c9d3af280bfbaf8a6db0451d381c52196553262ede18453"
+  }
+}

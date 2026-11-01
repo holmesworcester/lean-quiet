@@ -44,22 +44,22 @@ remain after every completed turn. Native branch/order checks and the old
 write-starvation and deferred-dial controls run in `test:join-fair`; an
 always-network-first mutation must also fail the unchanged loop laws.
 
-[StorageEffects](../ops/connection/StorageEffects.lean) proves that every
+[StorageEffects](../app/Proofs.lean) proves that every
 actual `Node.step`, with production hooks and advancing entropy, preserves
 shared bytes, reachability and settlement. This includes reaction writes and
 both courier and session purges. The native storage fixture has 24 checks.
-The [stronger drain law](../ops/sync/StoreEvolution.lean) no longer needs
+The [stronger drain law](../engine/sync/StoreEvolution.lean) no longer needs
 collision-free history to prove termination; its budget still grows with
 history, so it is not a fixed per-turn bound.
 
-[WriteAdmission](../ops/app/WriteAdmission.lean), called by `App.writeAll`,
+[WriteAdmission](../app/Screen.lean) (`App.WriteAdmission`), called by `App.writeAll`,
 limits new admitted pending work to 8,192 ops and 128 MiB and requires each op
 to fit the standard encrypted frame alone. Refusal precedes optimistic
 display and queueing, preserves Send's draft and reports a reason. Three
 kernel bounds, ten real-app/SQLite checks and three mutation controls cover
 this path. Other submission/recovery paths remain in the capacity audit.
 
-[WriteProgress](../ops/connection/WriteProgress.lean) proves that the complete
+[WriteProgress](../app/Proofs.lean) proves that the complete
 local-write handler commits compatible shared input bytes before returning,
 including all subsequent reactions and purges. This is an exact readable
 store result, with same-ID representation compatibility stated explicitly;
@@ -83,15 +83,15 @@ composer FIFO below addresses that eviction. Finite completed frame work remains
 a boundary: reaction collection/layout is not capped against unbounded distinct
 emojis.
 
-[Sweep](../ops/sync/Sweep.lean) adds one indexed catalog read per session tick,
+[Sweep](../engine/sync/Sweep.lean) adds one indexed catalog read per session tick,
 with a fixed high-water mark during each pass. Its cursor persists under an
 authenticated peer key, so replacing a session does not restart progress.
-[SweepLaws](../ops/sync/SweepLaws.lean) proves repeated emission of a retained,
+[SweepLaws](../engine/sync/SweepLaws.lean) proves repeated emission of a retained,
 authorized, fitting row under recurring output reservation, despite arbitrary
 later inserts and intervening zero-room stalls. `Sweep.FairLoss` names the
 external semantic-payload delivery contract; fresh encryption nonces need
-not reproduce identical ciphertext. [SweepRun](../ops/sync/SweepRun.lean)
-exposes the exact runtime cursor inputs. [CatalogEvolution](../ops/connection/CatalogEvolution.lean)
+not reproduce identical ciphertext. [SweepRun](../engine/sync/SweepRun.lean)
+exposes the exact runtime cursor inputs. [CatalogEvolution](../app/Proofs.lean)
 derives stable Held catalog positions through every actual handler and
 arbitrary execution suffix, including local-secret purge.
 

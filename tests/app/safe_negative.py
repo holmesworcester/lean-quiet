@@ -41,15 +41,15 @@ def run(cmd, log):
     (OUT / (log + ".log")).write_text(p.stdout)
     return p
 
-assert run(["lake", "build", "engine.renderer.SafeLaws"], "baseline").returncode == 0
+assert run(["lake", "build", "app.Proofs"], "baseline").returncode == 0
 try:
     for name, module, before, after in cases:
-        path = ROOT / ("AppLife.lean" if module == "App" else "engine/renderer/" + module + ".lean")
+        path = ROOT / ("app/Screen.lean" if module in ("App", "SafeFrame") else "engine/renderer/" + module + ".lean")
         original = path.read_text()
         assert before in original, (name, "mutation anchor missing")
         try:
             path.write_text(original.replace(before, after))
-            cmd = (["lake", "build", "engine.renderer.SafeLaws"] if module == "App" else
+            cmd = (["lake", "build", "app.Proofs"] if module == "App" else
                    ["lake", "env", "lean", str(path)])
             result = run(cmd, name)
             assert result.returncode != 0 and "error:" in result.stdout, (name, "mutation survived")
@@ -71,7 +71,7 @@ try:
             print("rejected", name, flush=True)
         finally:
             path.write_text(original)
-    path = ROOT / "App.lean"
+    path = ROOT / "app/Screen.lean"
     original = path.read_text()
     for name, before, after in [
         ("reserved-touch-path", "if (Safe.target i ⟨x, sy, 1, 1⟩).isNone then return", "if (Safe.target i ⟨x, sy, 1, 1⟩).isNone && false then return"),
@@ -88,7 +88,7 @@ try:
             print("rejected", name, flush=True)
         finally:
             path.write_text(original)
-    path = ROOT / "engine/renderer/SafeFrame.lean"
+    path = ROOT / "app/Screen.lean"
     original = path.read_text()
     try:
         before = "1.05 / (l + 0.05) ≥ (l + 0.05) / 0.05"

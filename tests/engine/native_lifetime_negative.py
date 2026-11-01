@@ -71,7 +71,7 @@ stopped(ROOT, 'reader-stop-baseline', reader=True)
 with tempfile.TemporaryDirectory(prefix='native-lifetime-', dir=os.environ['TMPDIR']) as temp:
     scratch = Path(temp)
     sp.run(['bash', '-c', '. tests/snapshot.sh; snapshot "$1" engine/core engine/wire '
-            'engine/renderer ops/sync ops/community ops/connection ops/app tests/engine',
+            'engine/renderer engine/sync app tests/engine',
             'native-lifetime-snapshot', str(scratch)], cwd=ROOT, check=True)
     stop = scratch / 'engine/wire/StopFlag.lean'
     original = stop.read_text()
@@ -93,7 +93,7 @@ with tempfile.TemporaryDirectory(prefix='native-lifetime-', dir=os.environ['TMPD
             stop.write_text(original)
     build(scratch, 'stop-restored', 'stop_flag')
     stopped(scratch, 'stop-restored')
-    reader = scratch / 'ops/app/ReaderLife.lean'
+    reader = scratch / 'app/Screen.lean'
     original_reader = reader.read_text()
     old = 'w.stopped.modify (fun _ => true)'
     assert original_reader.count(old) == 1, 'reader stop helper anchor changed'

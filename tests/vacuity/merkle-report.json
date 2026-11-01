@@ -1,28 +1,28 @@
 {
   "verify_sound": {
     "status": "kernel-witness",
-    "theorem": "Community.Merkle.verify_sound",
+    "theorem": "Merkle.verify_sound",
     "witness": "Vacuity.Merkle.verifiedSlice",
     "module": "tests.vacuity.Merkle",
     "detail": "Nonempty Alice-to-Bob attachment, single chunk; output-size and universal second-preimage premises proved for an explicit three-output hash model, not SHA-256. Modified content/index rejected."
   },
   "complete_assembles": {
     "status": "kernel-witness",
-    "theorem": "Community.Merkle.complete_assembles",
+    "theorem": "Merkle.complete_assembles",
     "witness": "Vacuity.Merkle.assembled",
     "module": "tests.vacuity.Merkle",
     "detail": "Nonempty one-chunk file with every verification premise proved; reconstructed bytes equal the original. Explicit hash model, not SHA-256."
   },
   "no_injective_hash": {
     "status": "kernel-witness",
-    "theorem": "Community.Merkle.no_injective_hash",
+    "theorem": "Merkle.no_injective_hash",
     "witness": "Vacuity.Merkle.notInjective",
     "module": "tests.vacuity.Merkle",
     "detail": "Concrete 32-byte-output hash proves size premise; global injectivity is impossible even though this file has no second preimage."
   },
   "assumptions_hold": {
     "status": "kernel-witness",
-    "theorem": "Community.Merkle.assumptions_hold",
+    "theorem": "Merkle.assumptions_hold",
     "witness": "Vacuity.Merkle.assumptions",
     "module": "tests.vacuity.Merkle",
     "detail": "Applies existing empty-file satisfiability theorem and proves a nonempty-file extension. Explicit model hash; no production SHA guarantee."

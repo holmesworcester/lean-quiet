@@ -3,7 +3,7 @@ actual current Lanes/roomOf/Sweep.step functions and the production Reserved
 core. It is not a native runner test, does not send on a socket, and does
 not identify an emitted effect with a wire attempt. -/
 import engine.wire.OutboxLaws
-import ops.sync.SweepLaws
+import engine.sync.SweepLaws
 
 namespace Engine.Sync.ReservationCounterexample
 

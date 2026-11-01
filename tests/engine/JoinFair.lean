@@ -5,7 +5,8 @@ by draining a finite initial queue. This is finite runtime evidence, not a proof
 of an infinite fair execution or of native cryptographic security. -/
 import tests.engine.Lib
 import tests.engine.LoopChecks
-import ops.connection.All
+import app.connection.Proofs
+import app.Commands
 
 namespace JoinFair
 open Engine Engine.Sync Community Tests Connection

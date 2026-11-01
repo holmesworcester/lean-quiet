@@ -1,4 +1,4 @@
-import ops.sync.ClosureDelivery
+import engine.sync.ClosureDelivery
 import tests.vacuity.IdentityTrust
 
 /- Synthetic signed Alice/Bob community, not captured private user data.

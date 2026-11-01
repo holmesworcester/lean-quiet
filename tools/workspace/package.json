@@ -1,0 +1,19 @@
+{
+  "name": "quiet-workspace-prototype",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "python3 tools/build.py",
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "playwright test",
+    "serve": "python3 tools/serve.py"
+  },
+  "dependencies": {
+    "lean4.js": "0.0.2",
+    "shiki": "4.5.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "esbuild": "0.27.4"
+  }
+}

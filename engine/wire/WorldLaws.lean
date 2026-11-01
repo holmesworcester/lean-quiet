@@ -18,9 +18,9 @@ managed by it and none is purged; `stream_delivers` assumes so of both
 nodes (`managed = []`), as `Node.connect` leaves them.
 -/
 import engine.wire.World
-import ops.sync.RoundLaws
+import engine.sync.RoundLaws
 import engine.wire.LaneLaws
-import ops.sync.ServeLaws
+import engine.sync.ServeLaws
 import Std.Data.HashSet.Lemmas
 
 namespace Engine.Sync
@@ -1512,7 +1512,7 @@ round exchange. It answers from the captured snapshot X, offers exactly
 the first side of `exchange`, and requests the admitted part of the
 second. Deferred wants require later service or another round. The
 epoch premise excludes stale or unstarted replies. General finite batch
-execution is proved in `ops.sync.RoundRun`; this pointwise statement does
+execution is proved in `engine.sync.RoundRun`; this pointwise statement does
 not assume arbitrary delivery order preserves a complete round. -/
 theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (rg : Range)
     (X Y : List Item) (now : Nat) (hr : r ∈ c.rooms)

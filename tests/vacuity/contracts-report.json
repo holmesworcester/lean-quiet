@@ -23,7 +23,7 @@
   },
   "NoSecondPreimage": {
     "status": "kernel-witness",
-    "theorem": "Community.Merkle.NoSecondPreimage",
+    "theorem": "Merkle.NoSecondPreimage",
     "witness": "Vacuity.Merkle.preimage",
     "module": "tests.vacuity.Merkle",
     "detail": "Closed universal premise for an explicit 32-byte-output model hash and a nonempty attachment. Unique leaf/root outputs are proved against every other input. This model is deliberately not SHA-256."

@@ -1,5 +1,5 @@
 import tests.vacuity.IdentityFixture
-import ops.connection.All
+import app.Proofs
 
 namespace Vacuity.IdentityConnection
 open Engine Engine.Sync Codec Tests
@@ -8,6 +8,22 @@ open Vacuity.Identity
 open Connection
 set_option linter.defProp false
 
+deriving instance DecidableEq for Connection.Eph.Fact
+deriving instance DecidableEq for Connection.Eph.Body
+deriving instance DecidableEq for Connection.Request.Fact
+deriving instance DecidableEq for Connection.Request.Body
+deriving instance DecidableEq for Connection.Opened.Fact
+deriving instance DecidableEq for Connection.Opened.Body
+deriving instance DecidableEq for Connection.Reply.Fact
+deriving instance DecidableEq for Connection.Reply.Body
+deriving instance DecidableEq for Connection.Established.Fact
+deriving instance DecidableEq for Connection.Established.Body
+deriving instance DecidableEq for Connection.Send.Fact
+deriving instance DecidableEq for Connection.Send.Body
+deriving instance DecidableEq for Connection.Recv.Fact
+deriving instance DecidableEq for Connection.Recv.Body
+deriving instance DecidableEq for Connection.Given.Fact
+deriving instance DecidableEq for Connection.Given.Body
 deriving instance DecidableEq for Connection.Fact
 deriving instance DecidableEq for Connection.Body
 deriving instance DecidableEq, BEq for Engine.Sync.Room
@@ -143,13 +159,13 @@ def roomsRemoved (s : Session) := do
   pure (PLift.up (rooms_removed (run (cutOps s)) hl hr))
 
 def openedEndpoint (s : Session) :=
-  if h : Opened.check sodium (opened s) [.inr (.request pkA pkB s.m1), .inl (.endpoint pkA staticA)] =
+  if h : check sodium (opened s) .opened [.inr (.request pkA pkB s.m1), .inl (.endpoint pkA staticA)] =
       some (.opened s.req.id c pkB "127.0.0.1:7447".toUTF8 [requestB.bytes]) then
     some (PLift.up (opened_endpoint sodium h))
   else none
 
 def establishedEndpoint (s : Session) :=
-  if h : Established.check sodium (established s)
+  if h : check sodium (established s) .established
       [.inr (.connection s.req.id s.m2), .inr (.request pkA pkB s.m1),
        .inr (.eph s.reply.id (sodium.suite.pub eA) eA), .inl (.endpoint pkA staticA)] =
       some (.established s.reply.id c pkB s.hash s.sendKey s.recvKey false) then

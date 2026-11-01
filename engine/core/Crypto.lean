@@ -28,5 +28,11 @@ namespace Engine.Crypto
 @[extern "le_xchacha_open"] opaque xchachaOpen (k n ad c : @& ByteArray) : Option ByteArray
 /-- Random bytes from the OS. -/
 @[extern "le_random"] opaque randomBytes (n : UInt32) : IO ByteArray
+/-- Ed25519: a 64-byte key pair (public, then secret) from a 32-byte seed. -/
+@[extern "le_ed25519_keypair"] opaque edKeypair (seed : @& ByteArray) : ByteArray
+/-- Ed25519: the signature of a message under a secret key. -/
+@[extern "le_ed25519_sign"] opaque edSign (sk msg : @& ByteArray) : ByteArray
+/-- Ed25519: whether a signature verifies under a public key. -/
+@[extern "le_ed25519_verify"] opaque edVerify (pk msg sig : @& ByteArray) : Bool
 
 end Engine.Crypto

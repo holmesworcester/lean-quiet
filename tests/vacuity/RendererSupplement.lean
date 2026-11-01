@@ -1,6 +1,7 @@
 import tests.vacuity.IdentityMessages
-import ops.community.profile.NamesakeLaws
-import ops.community.link.View
+import app.community.Screen
+import app.community.profile.View
+import app.community.member.invite.View
 import engine.core.View
 
 set_option linter.defProp false

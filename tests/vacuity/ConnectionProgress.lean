@@ -1,6 +1,5 @@
 import tests.vacuity.IdentityConnection
-import ops.connection.Progress
-import ops.connection.ProgressTape
+import app.Proofs
 
 /- Native sodium computations discharge each finite premise before applying
 the positive validator laws. These are generated test users and messages,

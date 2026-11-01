@@ -17,11 +17,11 @@ sends is a bare op, or a bundle of such sends sealed for that session
 
 So a law of one connection step, read at the store the step ran at, is
 a law of everything the node sends: a removal stored before a step
-reaches that step (ops/connection/EgressLaws.lean).
+reaches that step (app/Proofs.lean).
 -/
 import engine.wire.WorldLaws
-import ops.sync.OfferLaws
-import ops.sync.SweepLaws
+import engine.sync.OfferLaws
+import engine.sync.SweepLaws
 
 namespace Engine.Sync
 

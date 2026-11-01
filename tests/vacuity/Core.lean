@@ -2,7 +2,7 @@ import engine.core.Core
 import engine.core.Order
 import engine.core.Union
 import engine.core.CostErase
-import ops.community.Link
+import app.community.Proofs
 
 /-! Nonempty synthetic wire payload, invite and interleaved list fixtures.
 The opaque SHA is retained symbolically; no digest value or collision claim is

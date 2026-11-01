@@ -7,7 +7,7 @@ What sync may send and take, as the laws a networked node relies on.
   writes, whatever its peers send (`stored_local`): a peer can push no
   pending link, acceptance or session state into it.
 
-The running offer paths and their secrecy laws are in ops/sync/SecrecyLaws.lean.
+The running offer paths and their secrecy laws are in engine/sync/SecrecyLaws.lean.
 -/
 import engine.core.Run
 import engine.core.Proofs

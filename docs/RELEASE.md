@@ -8,7 +8,7 @@ An invite is shared as the join page link:
 
 as Signal's and WhatsApp's group links are. The fields (community,
 invitation, the inviter's node key, dial hints, the bearer seed; see
-`ops/community/Link.lean`) ride after `#`. A browser never sends that
+`app/community/member/invite/Commands.lean`) ride after `#`. A browser never sends that
 part to the server. The page (`site/join.html`, served by GitHub Pages
 from the `gh-pages` branch) loads nothing from anywhere: its policy is
 `default-src 'none'` with its one script and style allowed by hash. It

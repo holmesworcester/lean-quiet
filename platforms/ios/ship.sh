@@ -301,7 +301,7 @@ e2e() {
   tw=$(ctl twin)
   W=$(echo "$tw" | sed -n 's/.* w \([0-9]*\) dpi \([0-9]*\).*/\1/p')
   dpi=$(echo "$tw" | sed -n 's/.* w \([0-9]*\) dpi \([0-9]*\).*/\2/p')
-  tg=$(cd "$root" && "$lake" build ops.app.Pages ops.app.Composer ops.community.Community >/dev/null &&
+  tg=$(cd "$root" && "$lake" build app.Screen app.community.channel.message.draft.View app.community.Proofs >/dev/null &&
     "$lake" env lean --run platforms/ios/test/Targets.lean "$W" "$dpi")
   local field cont comp link
   field=$(echo "$tg" | sed -n 's/^field //p'); cont=$(echo "$tg" | sed -n 's/^continue //p')

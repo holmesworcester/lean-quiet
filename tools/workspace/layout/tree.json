@@ -1,0 +1,204 @@
+{
+  "roles": {
+    "Op.lean": "The op: its body, its fact, their codecs, the relations its fact is filed in, scope and claimed time.",
+    "Validate.lean": "The validator: what the op requires, and the fact it produces from them.",
+    "View.lean": "The component for this op's fact. It reads only its own fact.",
+    "Commands.lean": "Intents and responders.",
+    "Screen.lean": "Components that compose several ops.",
+    "Proofs.lean": "Laws.",
+    "Tests.lean": "Tests of the ops in this folder.",
+    "Family.lean": "The registry: this folder's op, then each child folder's registry, as plain functions."
+  },
+  "nodes": [
+    {
+      "path": "app",
+      "summary": "The app: the node's hooks and live data, the app shell, and laws over the node and the whole app.",
+      "preview": "app"
+    },
+    {
+      "path": "app/nav",
+      "planned": "ephemeral",
+      "summary": "Where this window is: the page, its subject and the way back."
+    },
+    {
+      "path": "app/settings",
+      "planned": "family",
+      "summary": "This device's preferences, each a local op."
+    },
+    {
+      "path": "app/settings/appearance",
+      "planned": "local",
+      "summary": "System, light or dark. Today a side table (engine/renderer/ThemeStore.lean).",
+      "preview": "settings.appearance"
+    },
+    {
+      "path": "app/community",
+      "summary": "A community, founded by its root. The root's fact is the founder's admission.",
+      "screen": true
+    },
+    {
+      "path": "app/community/device",
+      "summary": "This device's own keys. Local, never sent."
+    },
+    {
+      "path": "app/community/device/secret",
+      "summary": "A signing key pair, from a 32-byte seed."
+    },
+    {
+      "path": "app/community/device/endpoint",
+      "summary": "The node's X25519 key, one per node."
+    },
+    {
+      "path": "app/community/name",
+      "summary": "The community's name, set by an admin. Counted, so the newest wins."
+    },
+    {
+      "path": "app/community/profile",
+      "summary": "A member's name: a register, newest by time.",
+      "preview": "profile"
+    },
+    {
+      "path": "app/community/emoji",
+      "planned": "shared",
+      "summary": "Custom emoji, listed with the built-in catalogue.",
+      "preview": "emoji",
+      "view": true
+    },
+    {
+      "path": "app/community/key",
+      "summary": "This node's copy of a content key. Local."
+    },
+    {
+      "path": "app/community/key/wrap",
+      "summary": "A content key sealed to one node's X25519 key."
+    },
+    {
+      "path": "app/community/member",
+      "summary": "Who is in: invitations, requests, approvals, admissions, admins and removals."
+    },
+    {
+      "path": "app/community/member/invite",
+      "summary": "An invitation, with how many approvals a request needs."
+    },
+    {
+      "path": "app/community/member/invite/request",
+      "summary": "A device redeems an invitation. It admits nobody."
+    },
+    {
+      "path": "app/community/member/invite/request/approve",
+      "summary": "A member's signed yes to a request."
+    },
+    {
+      "path": "app/community/member/invite/request/approve/admit",
+      "summary": "A tally of exactly enough approvals, by distinct users. Unsigned."
+    },
+    {
+      "path": "app/community/member/admin",
+      "summary": "An admin grants admin. Never revoked."
+    },
+    {
+      "path": "app/community/member/remove",
+      "summary": "A removal, by an admin or of oneself. It never invalidates an op."
+    },
+    {
+      "path": "app/community/member/join",
+      "summary": "This device's own record of joining. Local."
+    },
+    {
+      "path": "app/community/member/join/joining",
+      "summary": "A join in progress: the invite, the request and the name chosen."
+    },
+    {
+      "path": "app/community/member/join/joining/abandon",
+      "summary": "Stop waiting on a join."
+    },
+    {
+      "path": "app/community/member/join/accept",
+      "summary": "This device is in a community."
+    },
+    {
+      "path": "app/community/channel",
+      "planned": "shared",
+      "summary": "A channel. Today every community has one, unnamed, and this folder holds its messages.",
+      "screen": true
+    },
+    {
+      "path": "app/community/channel/message",
+      "summary": "A post. Its header is clear and its body sealed. It claims a counter and a time.",
+      "preview": "message"
+    },
+    {
+      "path": "app/community/channel/message/reaction",
+      "summary": "An emoji on a message, by an admitted device.",
+      "preview": "message.reaction"
+    },
+    {
+      "path": "app/community/channel/message/attachment",
+      "summary": "A file on a message: its Merkle root and length in clear, the rest sealed."
+    },
+    {
+      "path": "app/community/channel/message/attachment/chunk",
+      "summary": "One 64 KiB slice of a file's ciphertext, with its Merkle path."
+    },
+    {
+      "path": "app/community/channel/message/receipt",
+      "summary": "This device's receipt of a saturated post, which orders it. Local."
+    },
+    {
+      "path": "app/community/channel/message/draft",
+      "planned": "ephemeral",
+      "summary": "Unsent text for one conversation. Today the composer.",
+      "preview": "message.draft",
+      "view": true
+    },
+    {
+      "path": "app/connection",
+      "summary": "The Noise handshake and sessions, made of ops."
+    },
+    {
+      "path": "app/connection/eph",
+      "summary": "One ephemeral X25519 secret for one handshake. Local."
+    },
+    {
+      "path": "app/connection/request",
+      "summary": "Noise message 1, on the bare wire to one peer."
+    },
+    {
+      "path": "app/connection/opened",
+      "summary": "The responder's record of a request it read. Local."
+    },
+    {
+      "path": "app/connection/connection",
+      "summary": "Noise message 2, on the bare wire."
+    },
+    {
+      "path": "app/connection/established",
+      "summary": "This side's session keys. Local."
+    },
+    {
+      "path": "app/connection/send",
+      "summary": "A courier: the one way out for handshake bytes. Local."
+    },
+    {
+      "path": "app/connection/recv",
+      "summary": "When and how an op arrived. Local."
+    },
+    {
+      "path": "app/connection/given",
+      "summary": "A removal notice given on a connection. Local."
+    },
+    {
+      "path": "engine",
+      "summary": "What holds for every op type. It names no kind."
+    },
+    {
+      "path": "engine/sync",
+      "summary": "Range-based set reconciliation for every op type: three wire messages that are never stored. rbsr (240) carries one room's claims for one round, or with no room the hello; have (241) lists ids the sender holds, and is also the live stream; want (242) asks for ids, answered with their bytes.",
+      "preview": "sync"
+    },
+    {
+      "path": "platforms",
+      "summary": "The shells, and the headless twin the tests drive."
+    }
+  ]
+}
