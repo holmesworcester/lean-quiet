@@ -1327,12 +1327,17 @@ def toSign (reqs : List Id) (b : Body) : ByteArray :=
 
 def sig (sk : ByteArray) (reqs : List Id) (b : Body) : ByteArray := edSign sk (toSign reqs b)
 
+/-- What a link carries: the community, the invitation it redeems, the
+inviter's node key and dial hints, and the invitation's bearer seed; and
+whether it is a device link (its invitation admits another device of the
+issuer's user) or a member's. -/
 structure Invite where
   community : Id
   invitation : Id
   inviter : Key
   hints : List ByteArray
   secret : ByteArray
+  link : Bool
   deriving DecidableEq, Inhabited
 
 /-- The invitation's bearer key pair, from the link's seed. -/

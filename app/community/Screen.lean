@@ -380,22 +380,24 @@ def read (known : Array Me := #[]) : m (Array Me × Array Q) := do
     -- waiting: this device's live join of c (the one Stop waiting stops)
     let mut joiningOp := ByteArray.empty
     let mut dialing := ""
+    let mut linking := false
     if admId.isEmpty then
       for ((_, jid), g) in jn.rows do
-        let .joining c' _ hs _ _ d _ := g | continue
+        let .joining c' _ hs _ nm d _ := g | continue
         if c' != c || d != pk then continue
         let (ab, _, d4) ← readList (abandoned.byJoining.query [jid] (limit := some 0)) deps
         deps := d4
         if ab.total == 0 then
           joiningOp := jid
           dialing := (hs.head?.bind String.fromUTF8?).getD ""
+          linking := nm.isEmpty
     -- removed: a removal of the user read, never a liveness not yet seen
     let (cut, d6) ← readView (Community.deviceCut c pk) deps
     deps := d6
     let removed := !admId.isEmpty && cut
     let dv := deviceOf known seed
     out := out.push { acc := accId, dev := dv.1, seed, dev_ok := dv.2, c, adm := admId, user, name, joiningOp,
-                      dialing, removed }
+                      dialing, linking, removed }
   let sorted := out.qsort fun a b => a.name < b.name || (a.name == b.name && Engine.bcmp a.acc b.acc == .lt)
   return (dedupe sorted, deps)
 

@@ -104,7 +104,11 @@ example : (Counted.cost (CostT.bind action continuation)).reads = 2 ∧
 open Community
 -- Seed/ids are deterministic 32-byte fixtures, not production credentials.
 def bytes32 (n : UInt8) : ByteArray := ⟨Array.replicate 32 n⟩
-def invite : Invite := ⟨bytes32 1, bytes32 2, bytes32 3, ["127.0.0.1:7447".toUTF8], bytes32 4⟩
+def invite : Invite := ⟨bytes32 1, bytes32 2, bytes32 3, ["127.0.0.1:7447".toUTF8], bytes32 4, false⟩
+def deviceLink : Invite := { invite with link := true }
+theorem deviceLinkValid : deviceLink.Valid := by decide +kernel
+theorem deviceLinkRound : Invite.parse deviceLink.text = some deviceLink := parse_text deviceLinkValid
+theorem deviceLinkUriRound : Invite.parse deviceLink.uri = some deviceLink := parse_uri deviceLinkValid
 theorem inviteValid : invite.Valid := by decide +kernel
 theorem inviteRound : Invite.parse invite.text = some invite := parse_text inviteValid
 theorem inviteUriRound : Invite.parse invite.uri = some invite := parse_uri inviteValid
