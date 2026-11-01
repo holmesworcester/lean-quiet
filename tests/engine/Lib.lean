@@ -91,11 +91,7 @@ def workload (seed : Nat) (n : Nat) : List Op := Id.run do
     let o : Op := match kind with
       | 0 =>
         let (a, dv) := adm k1
-        -- Link invitations need one approval; member ones 1 or 2; now
-        -- and then 0 (refused: no open links), or a link asking for
-        -- another number (refused).
-        let t := if flag == 1 && w2 != 1 then 1 else if w2 == 2 then 0 else 1 + k2 % 2
-        invite c a (signer dv) (Device.named s!"bearer-{seed}-{i}").pk (flag == 1) t
+        invite c a (signer dv) (Device.named s!"bearer-{seed}-{i}").pk (flag == 1)
       | 1 =>
         if invs.isEmpty then post c (adm k1).1 d "k".toUTF8 "early".toUTF8 0 0 else
         let (inv, bearer) := invs[k1 % invs.size]!
@@ -108,10 +104,10 @@ def workload (seed : Nat) (n : Nat) : List Op := Id.run do
         if reqs.isEmpty then post c (adm k1).1 d "k".toUTF8 "early".toUTF8 0 0 else
         let rq := reqs[k1 % reqs.size]!.1
         let mine := (apps.filter (·.1 == rq)).toList.map (·.2)
-        -- Mostly the approvals held, cut to 0..2 of them; sometimes a
-        -- random id among them.
+        -- Mostly the approvals held, cut to 0..2 of them (one admits;
+        -- none or two are refused); sometimes a random id among them.
         let aps := if w1 == 1 then [anyId k3] ++ mine.take 1 else mine.take (k2 % 3)
-        admit c rq aps
+        mkOp (c :: rq :: aps) .admit
       | 2 =>
         let (a, dv) := adm k1
         let auth := if w1 == 1 then anyId k2 else admins[k2 % admins.size]!

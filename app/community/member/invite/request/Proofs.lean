@@ -5,20 +5,20 @@ namespace Community
 open Engine Codec
 
 theorem check_request {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id} {d e : Key}
-    {l : Bool} {t : Nat} (h : check C o b fs = some (.request c u d e l t)) :
+    {l : Bool} (h : check C o b fs = some (.request c u d e l)) :
     ∃ cs bs d0 e0 issuer k, b = .request d e cs bs ∧
-      fs = [.admission c c d0 e0, .invitation c issuer k l t] ∧ o.reqs.head? = some c ∧
+      fs = [.admission c c d0 e0, .invitation c issuer k l] ∧ o.reqs.head? = some c ∧
       u = (if l then issuer else o.id) ∧
       C.verify d (signed o b) cs = true ∧ C.verify k (signed o b) bs = true := by
   unfold check at h
   split at h <;> (try (simp at h; done))
   rename_i b r i
-  rcases b with ⟨d', e', cs, bs⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases i with ⟨c', issuer, k, l', t'⟩
+  rcases b with ⟨d', e', cs, bs⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases i with ⟨c', issuer, k, l'⟩
   simp only [Request.check] at h
   split at h
   · rename_i hc
     simp only [Option.map_some, Option.some.injEq, Fact.ofRequest.injEq, Request.Fact.mk.injEq] at h
-    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
+    obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
     obtain ⟨h1, rfl, rfl, h4, h5⟩ := hc
     exact ⟨_, _, _, _, _, _, rfl, rfl, h1, rfl, h4, h5⟩
   · simp at h
@@ -29,11 +29,11 @@ variable {C : Crypto} {ops : Id → Option Op}
 invitation of c, and the invitation's bearer key (from the link) and the
 requesting device both signed it. Its user is the issuer's for a link
 invitation, the new user the request names for a member invitation, and
-it carries the invitation's link flag and threshold. -/
-theorem request_invited (hk : Keyed ops) {r c u : Id} {d e : Key} {l : Bool} {t : Nat}
-    (h : V C ops r (.request c u d e l t)) :
+it carries the invitation's link flag. -/
+theorem request_invited (hk : Keyed ops) {r c u : Id} {d e : Key} {l : Bool}
+    (h : V C ops r (.request c u d e l)) :
     ∃ o b i issuer k cs bs, ops r = some o ∧ (decode o.body : Option Body) = some b ∧
-      o.reqs = [c, i] ∧ V C ops i (.invitation c issuer k l t) ∧
+      o.reqs = [c, i] ∧ V C ops i (.invitation c issuer k l) ∧
       u = (if l then issuer else r) ∧
       C.verify d (signed o b) cs = true ∧ C.verify k (signed o b) bs = true := by
   obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
@@ -46,15 +46,15 @@ theorem request_invited (hk : Keyed ops) {r c u : Id} {d e : Key} {l : Bool} {t 
 
 /-- **A request with its invitation and both signatures is Valid.** -/
 theorem request_valid (hk : Keyed ops) {r c i : Id} {o : Op} {d e cs bs : ByteArray}
-    {d0 e0 : Key} {issuer : Id} {k : Key} {l : Bool} {t : Nat}
+    {d0 e0 : Key} {issuer : Id} {k : Key} {l : Bool}
     (hy : ops r = some o) (hb : (decode o.body : Option Body) = some (.request d e cs bs)) (hkd : o.kind = Body.tag (.request d e cs bs))
     (hreq : o.reqs = [c, i]) (hc : V C ops c (.admission c c d0 e0))
-    (hi : V C ops i (.invitation c issuer k l t))
+    (hi : V C ops i (.invitation c issuer k l))
     (hcs : C.verify d (signed o (.request d e cs bs)) cs = true)
     (hbs : C.verify k (signed o (.request d e cs bs)) bs = true) :
-    V C ops r (.request c (if l then issuer else r) d e l t) := by
+    V C ops r (.request c (if l then issuer else r) d e l) := by
   have hid := hk r o hy
-  refine spec_valid_of hy (fs := [.admission c c d0 e0, .invitation c issuer k l t]) ?_ ?_
+  refine spec_valid_of hy (fs := [.admission c c d0 e0, .invitation c issuer k l]) ?_ ?_
   · rw [hreq]; exact .cons hc (.cons hi .nil)
   · show validate C o _ = _
     unfold validate; rw [hb]; simp only [hkd, ↓reduceIte]
@@ -71,7 +71,7 @@ theorem endpoint_signed {ops : Id → Option Op} {y c u : Id} {d e : Key}
       (Codec.decode o.body : Option Body) = some b ∧
       (b = .root d e sg ∨ ∃ bs, b = .request d e sg bs) ∧ C.verify d (signed o b) sg = true := by
   obtain ⟨o, b, fs, hx, hb, hr, hc⟩ := valid_inv hv
-  rcases check_admission hc with ⟨sg, rfl, _, _, _, hs⟩ | ⟨d0, e0, l, t, aps, rfl, rfl, _, _⟩
+  rcases check_admission hc with ⟨sg, rfl, _, _, _, hs⟩ | ⟨d0, e0, l, a, rfl, rfl, _⟩
   · exact ⟨y, o, _, sg, Or.inl rfl, hx, hb, Or.inl rfl, hs⟩
   · obtain ⟨_, r, _, hreq, _, hrv, _⟩ := all2_cons2 hr
     obtain ⟨or, br, fsr, hor, hbr, _, hvr⟩ := valid_inv hrv

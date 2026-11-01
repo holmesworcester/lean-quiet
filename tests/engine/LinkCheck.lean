@@ -75,7 +75,7 @@ def main (args : List String) : IO UInt32 := do
   let some parsed := Invite.parse text | t.ok "parse" false; return 1
   let req := parsed.request j (keyOf j)
   let ok := approve c req.id c f
-  let adm := admit c req.id [ok.id]
+  let adm := admit c req.id ok.id
   let fam := family ed25519
   let m := modelRun fam [r, inv, req, ok, adm]
   let valid (o : Op) := match m.status o.id with | some (.valid _) => true | _ => false

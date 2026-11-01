@@ -7,54 +7,53 @@ namespace Community
 open Engine Codec
 
 theorem check_invitation {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c issuer : Id}
-    {k : Key} {l : Bool} {t : Nat} (h : check C o b fs = some (.invitation c issuer k l t)) :
-    ∃ s d0 e0 d e, b = .invite k l t s ∧ fs = [.admission c c d0 e0, .admission c issuer d e] ∧
-      o.reqs.head? = some c ∧ 1 ≤ t ∧ (l = true → t = 1) ∧ C.verify d (signed o b) s = true := by
+    {k : Key} {l : Bool} (h : check C o b fs = some (.invitation c issuer k l)) :
+    ∃ s d0 e0 d e, b = .invite k l s ∧ fs = [.admission c c d0 e0, .admission c issuer d e] ∧
+      o.reqs.head? = some c ∧ C.verify d (signed o b) s = true := by
   unfold check at h
   split at h <;> (try (simp at h; done))
   rename_i b r a
-  rcases b with ⟨k', l', t', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c', u, d, e⟩
+  rcases b with ⟨k', l', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c', u, d, e⟩
   simp only [Invitation.check] at h
   split at h
   · rename_i hc
     simp only [Option.map_some, Option.some.injEq, Fact.ofInvitation.injEq, Invitation.Fact.mk.injEq] at h
-    obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
-    obtain ⟨h1, rfl, rfl, h3, h4, h5⟩ := hc
-    exact ⟨_, _, _, _, _, rfl, rfl, h1, h3, h4, h5⟩
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+    obtain ⟨h1, rfl, rfl, h5⟩ := hc
+    exact ⟨_, _, _, _, _, rfl, rfl, h1, h5⟩
   · simp at h
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 
-/-- Every invitation was signed by a device admitted into its issuer,
-needs at least one approval, and exactly one for a link. -/
-theorem invitation_issued {i c issuer : Id} {k : Key} {l : Bool} {t : Nat}
-    (h : V C ops i (.invitation c issuer k l t)) :
+/-- Every invitation was signed by a device admitted into its issuer. -/
+theorem invitation_issued {i c issuer : Id} {k : Key} {l : Bool}
+    (h : V C ops i (.invitation c issuer k l)) :
     ∃ o b s z d e, ops i = some o ∧ (decode o.body : Option Body) = some b ∧
-      V C ops z (.admission c issuer d e) ∧ C.verify d (signed o b) s = true ∧
-      1 ≤ t ∧ (l = true → t = 1) := by
+      V C ops z (.admission c issuer d e) ∧ C.verify d (signed o b) s = true := by
   obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
-  obtain ⟨s, d0, e0, d, e, rfl, rfl, _, ht, hl, hs⟩ := check_invitation hv
+  obtain ⟨s, d0, e0, d, e, rfl, rfl, _, hs⟩ := check_invitation hv
   obtain ⟨_, z, _, _, hz⟩ := all2_two hr
-  exact ⟨o, _, s, z, d, e, hx, hb, hz, hs, ht, hl⟩
+  exact ⟨o, _, s, z, d, e, hx, hb, hz, hs⟩
 
 /-- **Nobody is admitted without a member's approval.** Every admission
-is the founder's (the root itself), or its admit cites a Valid approval,
-signed by a device admitted into the approving user, of a Valid request
-for that very device: the bearer key alone admits nobody. -/
+is the founder's (the root itself), or its admit cites exactly a Valid
+request for that very device and one Valid approval of it. The approval
+was signed by a device admitted into the approving user, other than the
+requesting device, and for a device link the approving user is the
+request's own. The bearer key alone admits nobody. -/
 theorem admission_needs_approval (hk : Keyed ops) {y c u : Id} {d e : Key}
     (h : V C ops y (.admission c u d e)) :
     (y = c ∧ u = c) ∨
-    ∃ o r x a l t da ea ra, ops y = some o ∧ x ∈ o.reqs ∧ V C ops r (.request c u d e l t) ∧
-      V C ops x (.approval c r a) ∧ V C ops ra (.admission c a da ea) := by
-  rcases admission_approved hk h with h | ⟨o, r, aps, l, t, us, hy, _, hreq, hr, hap, _, hlen⟩
+    ∃ o r x a l da ea ra, ops y = some o ∧ o.reqs = [c, r, x] ∧ V C ops r (.request c u d e l) ∧
+      V C ops x (.approval c r a) ∧ V C ops ra (.admission c a da ea) ∧ da ≠ d ∧
+      (l = true → a = u) := by
+  rcases admission_approved hk h with h | ⟨o, r, x, a, l, hy, _, hreq, hr, hx⟩
   · exact Or.inl h
-  · obtain ⟨_, _, i, issuer, k, _, _, _, _, _, hi, _, _, _⟩ := request_invited hk hr
-    obtain ⟨_, _, _, _, _, _, _, _, _, _, ht, _⟩ := invitation_issued hi
-    cases hap with
-    | nil => simp at hlen; omega
-    | @cons x a _ _ hx _ =>
-      obtain ⟨_, _, ra, _, _, _, _, _, da, ea, _, _, _, _, hra, _⟩ := approval_signed hx
-      exact Or.inr ⟨o, r, x, a, l, t, da, ea, ra, hy, by rw [hreq]; simp, hr, hx, hra⟩
+  · obtain ⟨_, _, ra, u', d', e', l', da, ea, _, _, _, hr', hra, hl, hd, _⟩ := approval_signed hx
+    have := spec_det hr hr'
+    simp only [Verdict.valid.injEq, Fact.request.injEq] at this
+    obtain ⟨_, rfl, rfl, rfl, rfl⟩ := this
+    exact Or.inr ⟨o, r, x, a, l, da, ea, ra, hy, hreq, hr, hx, hra, hd, hl⟩
 open Engine Codec
 namespace Base62
 
