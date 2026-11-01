@@ -1,4 +1,5 @@
 import engine.sync.RoundRun
+import engine.sync.RoundDepth
 import engine.sync.NewestLaws
 import tests.engine.Checks
 
@@ -131,6 +132,11 @@ theorem terminates : ∃ j, j ≤ 8 ∧ (states j).pending = [] := by
     · exact sortedY
   obtain ⟨j, _, hj, hdone⟩ := RoundRun.terminates cfg room 1 times states run current (xs ++ ys) sub sorted 7 0 ranks
   exact ⟨j, by omega, hdone⟩
+
+-- The quiet round's log bound on the same run: both fixtures hold at most
+-- leaf · fan¹ = 2 items, so the actual batches run out within 2·1 + 2.
+theorem quietLog : ∃ s, s ≤ 2 * 1 + 2 ∧ (states s).pending = [] :=
+  quiet_round_log cfg room 1 times states run current xs ys itemsX itemsY sortedX sortedY 1 (by decide) (by decide)
 
 -- Checking all possible filtered snapshots proves Sound for every range.
 -- No global injectivity or collision-resistance axiom is introduced.

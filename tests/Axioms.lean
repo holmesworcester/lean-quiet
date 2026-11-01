@@ -31,6 +31,7 @@ import engine.sync.BoundsLaws
 import engine.sync.ServeLaws
 import engine.sync.ClosureDelivery
 import engine.sync.RoundRun
+import engine.sync.RoundDepth
 import engine.sync.EventLaws
 import engine.sync.SimLaws
 import engine.wire.CloseLaws
@@ -1404,6 +1405,9 @@ end cost
 #print axioms Engine.Sync.RoundRun.items_par
 #print axioms Engine.Sync.conn_runs_exchange
 #print axioms Engine.Sync.live_round_complete
+#print axioms Engine.Sync.RoundRun.answer_level
+#print axioms Engine.Sync.RoundRun.quiet_terminates
+#print axioms Engine.Sync.RoundRun.quiet_round_log
 #print axioms Engine.Sync.walkN_frame
 #print axioms Engine.Sync.queue_frame
 #print axioms Engine.Sync.pulse_mem

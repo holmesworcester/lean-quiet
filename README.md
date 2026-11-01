@@ -368,7 +368,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1462 rest on Lean's standard axioms only, and about three quarters of its theorems (1093 of 1436, not counting 26 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1465 rest on Lean's standard axioms only, and about three quarters of its theorems (1096 of 1439, not counting 26 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -446,7 +446,7 @@ a new device on its own node (the 🟡 row under Connections).
 | ✅ | 🥊🥊 | **The app's own state is ops, beside the node's.** The store also holds the app's settings, a family on top of Community's and Connection's: their ops keep their verdicts, and the node's hooks read the store as theirs. The appearance the app reads is the newest one stored, and choosing one writes a Valid local op, never offered to a peer. | [`current_newest`], [`choose_valid`], [`choose_local`], [`node_left`], [`left_list`] |
 | ✅ | 🥊🥊🥊 | **The honest path works.** A request with its invitation and both signatures is valid, an eligible member's approval is valid, and one approval admits and lets the device in. The remover's intent writes only removals that stand. | [`request_valid`], [`approve_valid`], [`admit_admits`], [`connect_admitted`], [`removeMember_valid`] |
 | | | **Sync** | |
-| 🟡 | 🥊🥊🥊 | **A sync round finishes and finds every difference, whatever is written meanwhile.** Each claim is answered from the live index, and nothing assumes the indices stay still: a run of the actual handler that stays current ends within its claims' rank over everything both sides held during it, linear in the room's size (writes during the round only add to it), and every op either side held at the start and kept reaches the other's index or is offered or wanted on the wire, under fingerprint and capacity premises. With both indices fixed during the round, it is `exchange`: 2k + 2 answers for a room of at most leaf·fanᵏ items, so logarithmic; under concurrent writes only the linear bound is proven. Ops written after the round opened go by the stream. Not yet: a logarithmic bound under writes; embedding the round in the full Node/TCP execution. | [`RoundRun.terminates`], [`RoundRun.discovers`], [`live_round_complete`], [`exchange_complete`], [`exchange_log`], [`conn_runs_exchange`] |
+| 🟡 | 🥊🥊🥊 | **A sync round finishes and finds every difference, whatever is written meanwhile.** Each claim is answered from the live index, and nothing assumes the indices stay still: a run of the actual handler that stays current ends within its claims' rank over everything both sides held during it, linear in the room's size (writes during the round only add to it), and every op either side held at the start and kept reaches the other's index or is offered or wanted on the wire, under fingerprint and capacity premises. With both indices fixed during the round, the actual run's batches run out within 2k + 2 for rooms of at most leaf·fanᵏ items (12 for 134 million with the defaults), so logarithmic, and the run is `exchange`; under concurrent writes only the linear bound is proven. Ops written after the round opened go by the stream. Not yet: a logarithmic bound under writes; embedding the round in the full Node/TCP execution. | [`RoundRun.terminates`], [`RoundRun.discovers`], [`live_round_complete`], [`quiet_round_log`], [`exchange_complete`], [`exchange_log`], [`conn_runs_exchange`] |
 | 🟡 | 🥊🥊🥊 | **A room shown on a live session gets a round, whichever end starts showing it.** Rounds open only on events: the dialer's tick opens one in each shown room that is due, that is newly shown, asked for by the responder (an empty have naming the room, sent when it starts showing it), short of ask slots last time, or idle for the 10-minute safety period; with no event, no round opens. So a round opens within two ticks and one delivery of either end starting to show a room. Main's 30 s dialer timer is kept as the negative control, which these laws refuse ([caught](docs/CAUGHT.md)). Proven of each connection's tick and receipt. Not yet: through the node's entry points (refresh, sealing). | [`round_due`], [`shown_due`], [`responder_asks`], [`ask_due`], [`join_round`], [`no_round_before_safety`], [`responder_opens_none`], [`shipped_controls_apply`] |
 | ✅ | 🥊🥊 | **Fingerprints are honest.** Equal Merkle labels mean equal sets, and a side opens a round with an honest claim. | [`lbl_inj`], [`opening_honest`], [`num_inj`] |
 | 🟡 | 🥊🥊🥊 | **Partial sync is safe.** A node that holds an op's requirement closure judges it as its peer does. Not yet: proven of the spec, which running judging reaches once it settles. | [`spec_local`] |
@@ -506,12 +506,12 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1093 of 1436 laws are about running code;** another 35 run its node code in a World, and 308 are not yet. Stated only: none. 26 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1096 of 1439 laws are about running code;** another 35 run its node code in a World, and 308 are not yet. Stated only: none. 26 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 201 | 145 |  | 56 |
-| Sync | 291 | 247 |  | 44 |
+| Sync | 294 | 250 |  | 44 |
 | The n-node World | 16 | 3 | 13 |  |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 205 | 139 | 16 | 50 |
@@ -1435,6 +1435,7 @@ opportunities and full native delivery remain open.
 [`RoundRun.terminates`]: engine/sync/RoundRun.lean#L239-L249
 [`RoundRun.discovers`]: engine/sync/RoundRun.lean#L366-L391
 [`live_round_complete`]: engine/sync/RoundRun.lean#L677-L711
+[`quiet_round_log`]: engine/sync/RoundDepth.lean#L133-L145
 [`exchange_complete`]: engine/sync/RoundLaws.lean#L232-L241
 [`exchange_log`]: engine/sync/TreeLaws.lean#L210-L221
 [`conn_runs_exchange`]: engine/sync/RoundRun.lean#L726-L747
@@ -1956,8 +1957,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 517 kernel witnesses, 185 runtime witnesses,
-23 conditional checks, 0 recorded runtime counterexamples; 19 of 744 linked declarations still pending.**
+**Coverage: 518 kernel witnesses, 185 runtime witnesses,
+23 conditional checks, 0 recorded runtime counterexamples; 19 of 745 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2249,6 +2250,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`RoundRun.terminates`](engine/sync/RoundRun.lean#L239-L249) | **kernel-witness**: [Vacuity.RoundExchange.terminates](tests/vacuity/RoundExchange.lean). The same actual two-party execution: every index the run reads is one of the two fixtures, so their union bounds it; RoundRun.terminates ends the round within 8 batches, with the run and its currency derived from the actual handlers. |
 | [`RoundRun.discovers`](engine/sync/RoundRun.lean#L366-L391) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The same actual two-party execution and native SHA certificate: conn_runs_exchange applies live_round_complete, so discovers, with the run, its currency, the bounding list and each step's claimant items derived from the fixture's fixed indices; every missing id reaches the actual wire. |
 | [`live_round_complete`](engine/sync/RoundRun.lean#L677-L711) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The same actual two-party execution and native SHA certificate: conn_runs_exchange's proof instantiates live_round_complete with the run, its currency, the bounding list xs ++ ys and each step's claimant items, all derived from the fixture's indices; the conclusions are applied for all three missing ids. |
+| [`quiet_round_log`](engine/sync/RoundDepth.lean#L133-L145) | **kernel-witness**: [Vacuity.RoundExchange.quietLog](tests/vacuity/RoundExchange.lean). The same actual two-party execution with the fixtures' indices fixed (1 and 2 items, leaf 1, fan 2, so w = 1): every premise proved from the actual handler run, its currency and the fixed items; the batches run out within 4. |
 | [`exchange_complete`](engine/sync/RoundLaws.lean#L232-L241) | **kernel-witness**: [Vacuity.SyncMore.roundComplete](tests/vacuity/SyncMore.lean). Two nonempty overlapping snapshots [1,2] and [2,3]; prove sortedness, naming, honest opening, fuel and collision-freedom. sendsMissing demonstrates actual item 1 transfer. Uses identity hash to inhabit Sound, not a SHA-256 claim. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`exchange_log`](engine/sync/TreeLaws.lean#L210-L221) | **kernel-witness**: [Vacuity.SyncMore.roundLog](tests/vacuity/SyncMore.lean). Same nonempty finite round; prove leaf-capacity and depth premises for two answers. Identity hash witnesses collision-freedom; not a SHA-256 claim. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`conn_runs_exchange`](engine/sync/RoundRun.lean#L726-L747) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Three distinct synthetic message index entries: Alice has one, Bob has two, leaf size is 1 and wire chunks hold one ID. Kernel proofs construct the actual Conn.start and alternating onRbsr execution, a fingerprint-to-IDs hop forced by unequal counts, terminal batch, initial active epochs, sorted and uniquely named items, empty initial asks, and sufficient ask capacity at every step. A native production-SHA check enumerates all filtered subsets and their actual Merkle inputs; sound_of_check lifts this finite collision check to every possible range, with no universal SHA axiom or substituted hash. The certificate applies conn_runs_exchange, which proves finite claim termination and actual wire have/want coverage of exchange's set difference. The consequence is instantiated separately for all three missing IDs; a nonempty later pending ask is traced to its earlier actual want. Negative controls reject a constant hash and show zero ask capacity suppresses the want. The two ends' indices are fixed, so this is the fixed-index case of live_round_complete; whole Node/TCP scheduling, data transport, request queue admission, and validation remain separate composition obligations. No collected real-user messages are claimed. |

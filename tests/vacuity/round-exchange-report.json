@@ -131,5 +131,12 @@
     "witness": "Vacuity.RoundExchange.openingNewest",
     "module": "tests.vacuity.RoundExchange",
     "detail": "Applied to Bob answering Alice's opening over the full window (floor 0); its only premise, Bob's items in key order, is the fixture's sortedY. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides."
+  },
+  "quiet_round_log": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.RoundRun.quiet_round_log",
+    "witness": "Vacuity.RoundExchange.quietLog",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "The same actual two-party execution with the fixtures' indices fixed (1 and 2 items, leaf 1, fan 2, so w = 1): every premise proved from the actual handler run, its currency and the fixed items; the batches run out within 4."
   }
 }
