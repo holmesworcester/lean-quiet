@@ -264,14 +264,24 @@ def handlerFailure (t : Checks) (dir : String) (database : Bool) : IO Unit := do
 
 end CloseIngress
 
+/-- Exit directly, never by returning: a case that throws leaves its peers'
+socket writers waiting, and the runtime waits for every task before an
+ordinary return, so a thrown fixture error hung instead of failing. -/
 def main (args : List String) : IO UInt32 := do
-  let dir := args.headD "out/close-ingress/manual"
-  let t ← Tests.Checks.new
-  CloseIngress.freezeHub t
-  CloseIngress.retained t (dir ++ "/closed") false
-  CloseIngress.retained t (dir ++ "/reap") true
-  CloseIngress.invalid t (dir ++ "/invalid")
-  CloseIngress.localRemoval t (dir ++ "/local-removal")
-  CloseIngress.handlerFailure t (dir ++ "/sqlite-error") true
-  CloseIngress.handlerFailure t (dir ++ "/notification-error") false
-  t.finish "close-ingress"
+  try
+    let dir := args.headD "out/close-ingress/manual"
+    let t ← Tests.Checks.new
+    CloseIngress.freezeHub t
+    CloseIngress.retained t (dir ++ "/closed") false
+    CloseIngress.retained t (dir ++ "/reap") true
+    CloseIngress.invalid t (dir ++ "/invalid")
+    CloseIngress.localRemoval t (dir ++ "/local-removal")
+    CloseIngress.handlerFailure t (dir ++ "/sqlite-error") true
+    CloseIngress.handlerFailure t (dir ++ "/notification-error") false
+    let result ← t.finish "close-ingress"
+    (← IO.getStdout).flush
+    IO.Process.exit result.toUInt8
+  catch e =>
+    IO.eprintln s!"close-ingress fixture threw: {e}"
+    (← IO.getStderr).flush
+    IO.Process.exit 2
