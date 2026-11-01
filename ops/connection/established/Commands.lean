@@ -1,6 +1,6 @@
 import engine.wire.Node
 import ops.connection.Family
-import ops.sync.Notice
+import engine.sync.Notice
 
 /-!
 `connection.established`: how it is written.

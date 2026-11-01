@@ -1,9 +1,9 @@
 import tests.vacuity.FairScheduler
 import tests.vacuity.Network
-import ops.sync.RetryLaws
-import ops.sync.StateLaws
-import ops.sync.ClosureComplete
-import ops.sync.TreeLaws
+import engine.sync.RetryLaws
+import engine.sync.StateLaws
+import engine.sync.ClosureComplete
+import engine.sync.TreeLaws
 import engine.wire.Slots
 import engine.wire.Frame
 import engine.wire.CloseLaws

@@ -2,8 +2,8 @@
 Non-vacuity for secrecy and the liveness histories. The witnesses execute
 filed and recv on held stores, with actual encoded messages.
 -/
-import ops.sync.SecrecyLaws
-import ops.sync.TimeLaws
+import engine.sync.SecrecyLaws
+import engine.sync.TimeLaws
 
 namespace Engine.Sync
 

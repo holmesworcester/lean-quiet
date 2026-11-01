@@ -2,7 +2,7 @@
 Notice delivery preserves the session phase and silence clock, and never
 ends a session. The wrappers keep the filed/tick transition laws intact.
 -/
-import ops.sync.Notice
+import engine.sync.Notice
 import engine.wire.WorldLaws
 
 namespace Engine.Sync

@@ -1,5 +1,5 @@
 import tests.vacuity.SyncMore
-import ops.sync.NoticeLaws
+import engine.sync.NoticeLaws
 
 namespace Vacuity.SyncCache
 open Engine Engine.Sync Vacuity.Network Vacuity.SyncMore

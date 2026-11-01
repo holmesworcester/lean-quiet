@@ -97,7 +97,7 @@ root, smaller keys left, larger right; `lbl [] = h ""`,
 through `top` and `filter`, so it is a function of the set.
 
 **Rounds** (Meyer 2023, Protocol 1). A claim is a range's fingerprint or
-all of the claimant's ids in it. `answer` (ops/sync/Round.lean):
+all of the claimant's ids in it. `answer` (engine/sync/Round.lean):
 - a matching fingerprint settles the range;
 - if this side holds `leaf` (128) items or fewer there, it answers with
   its ids;
@@ -262,16 +262,16 @@ separate work.
 
 | file | what |
 |---|---|
-| ops/sync/Fp.lean | keys, ranges, `lbl`, `fp`, `lbl_inj` |
-| ops/sync/Round.lean | claims, cutting ranges, `answer`, `exchange` |
-| ops/sync/RoundLaws.lean | `exchange_complete` |
-| ops/sync/Wire.lean | the three wire kinds and their codec |
-| ops/sync/Conn.lean | one connection: room index, rounds, have/want, stream, closure, keepalives |
-| ops/sync/ConnLaws.lean | what a connection may take and send |
+| engine/sync/Fp.lean | keys, ranges, `lbl`, `fp`, `lbl_inj` |
+| engine/sync/Round.lean | claims, cutting ranges, `answer`, `exchange` |
+| engine/sync/RoundLaws.lean | `exchange_complete` |
+| engine/sync/Wire.lean | the three wire kinds and their codec |
+| engine/sync/Conn.lean | one connection: room index, rounds, have/want, stream, closure, keepalives |
+| engine/sync/ConnLaws.lean | what a connection may take and send |
 | engine/core/Held.lean | `Turn` (one write turn) and `Held` (a store as data) |
 | engine/wire/Node.lean | the driver; `Hooks` from families; frames and bundles |
 | engine/wire/NodeLaws.lean | sealed frames reach the node only opened; the cache law |
-| ops/sync/OfferLaws.lean | `have_shown`: what a connection offers |
+| engine/sync/OfferLaws.lean | `have_shown`: what a connection offers |
 | engine/wire/Frame.lean | 4-byte length framing on TCP, with proven unframing and bounded buffering |
 | engine/wire/Tcp.lean | the TCP runner |
 | engine/wire/Lanes.lean | the send lanes and the run loop's inbox: what the runner calls |
@@ -582,7 +582,7 @@ backlog through head-of-line blocking in the runner and on the socket
 4. the closure walk offers up to `walk` ids per tick;
 5. the receiver takes frames in order.
 
-**The fix, on the send side** (ops/sync/Conn.lean's queue, Node,
+**The fix, on the send side** (engine/sync/Conn.lean's queue, Node,
 engine/wire/Lanes.lean, Tcp):
 - **The paced responder queue** (item 3, simplification 3 of
   docs/PROOFS.md; "Have and want" above). A want is queued whole, never
@@ -782,7 +782,7 @@ doing it safely needs the op's own time (within `hotMs` of now) and the
 
 ## Planned (approved; after the join demo)
 
-- **Sync as an op family (`ops/sync/`, docs/LAYOUT.md).** hello, round
+- **Sync as an op family (`engine/sync/`, docs/LAYOUT.md).** hello, round
   claims, have and want become ephemeral ops with responders, answered
   from the live store (stores only grow, so `exchange_complete` is
   restated for growing sets). Conn's memory goes away:
@@ -848,7 +848,7 @@ doing it safely needs the op's own time (within `hotMs` of now) and the
 
 ## Claim trees
 
-`ops/sync/TreeLaws.lean` proves the logarithmic depth of the running
+`engine/sync/TreeLaws.lean` proves the logarithmic depth of the running
 RBSR `answer` and its two-sided composition `exchange`. With sorted,
 consistently named snapshots and the explicit no-fingerprint-collision
 assumption, `answer_step` preserves each differing id or settles it.

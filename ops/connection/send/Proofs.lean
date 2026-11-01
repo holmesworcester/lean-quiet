@@ -1,5 +1,5 @@
 import ops.connection.Family
-import ops.sync.NoticeLaws
+import engine.sync.NoticeLaws
 
 /-!
 `connection.send`: laws about the op types in this folder and below.

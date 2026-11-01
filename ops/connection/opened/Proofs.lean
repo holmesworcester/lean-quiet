@@ -1,6 +1,6 @@
 import ops.connection.Family
 import ops.connection.opened.Commands
-import ops.sync.NoticeLaws
+import engine.sync.NoticeLaws
 
 /-!
 `connection.opened`'s laws.

@@ -19,9 +19,9 @@ clock (`tickGive`).
 - `notice_once`: once a connection has given all its notices, those
   steps send wire ops only again. `recv` never gives one (`recv_send`).
 -/
-import ops.sync.ConnLaws
-import ops.sync.OfferLaws
-import ops.sync.Notice
+import engine.sync.ConnLaws
+import engine.sync.OfferLaws
+import engine.sync.Notice
 
 namespace Engine.Sync
 

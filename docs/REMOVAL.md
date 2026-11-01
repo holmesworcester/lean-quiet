@@ -168,7 +168,7 @@ name (`roomsV`):
   session (`conn.given`);
 - otherwise nothing.
 
-**Giving a notice** (ops/sync/Notice.lean). `Hooks.rooms` gives the
+**Giving a notice** (engine/sync/Notice.lean). `Hooks.rooms` gives the
 connection its typed rooms, and `Node.refresh` carries them: the synced
 rooms as before, and the notices. A connection has its own `given`
 field and `Status.given`. `notify` gives each notice not given yet: it
@@ -338,8 +338,8 @@ Found on the way, in Conn (a3's):
 - **engine/wire/Tcp.lean**: the runner sends a step's frames, then
   closes the sockets of the sessions the step dropped, and a socket only
   once no session is left on it.
-- **ops/sync/Conn.lean**: `notices` and `given` fields, `Status.given`.
-  `filed` and `tick` are unchanged; ops/sync/Notice.lean holds `Room`,
+- **engine/sync/Conn.lean**: `notices` and `given` fields, `Status.given`.
+  `filed` and `tick` are unchanged; engine/sync/Notice.lean holds `Room`,
   `carry`, `closureOps`, `give`, `notify`, `filedGive`, `tickGive`. In
   ConnLaws, `filed_send`, `tick_send`, `recv_send` and `recv_take`
   stand, and OfferLaws' `have_shown` and `hold_reply_local` stand.
@@ -360,7 +360,7 @@ Found on the way, in Conn (a3's):
 
 ## Laws
 
-In ops/sync/NoticeLaws.lean, ops/connection/RemovalLaws.lean,
+In engine/sync/NoticeLaws.lean, ops/connection/RemovalLaws.lean,
 ops/community/RemovalLaws.lean and ops/community/Connect.lean, all over
 the code that runs: Conn's steps on the model, the views, the
 validators and the intents. All are theorems in the axiom audit.

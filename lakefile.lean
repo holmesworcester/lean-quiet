@@ -43,9 +43,11 @@ lean_lib Pic where
 
 /-! ## Ops: everything that names a kind -/
 
--- rounds, fingerprints, the connection's sync messages
+-- sync, generic over op types: rounds, fingerprints, the connection's
+-- sync messages (engine/sync; the op tree has no sync folder until its
+-- rounds are ephemeral ops)
 @[default_target] lean_lib Sync where
-  globs := #[.submodules `ops.sync]
+  globs := #[.submodules `engine.sync]
 
 -- the handshake and sessions, and the bootstrap's model
 @[default_target] lean_lib Connection where

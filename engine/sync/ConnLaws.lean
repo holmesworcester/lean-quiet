@@ -11,7 +11,7 @@ the model store:
   of the connection's rooms). In particular a want for an op of another
   room, a local op or a conn op sends nothing of it.
 -/
-import ops.sync.ServeLaws
+import engine.sync.ServeLaws
 import engine.core.Run
 
 namespace Engine.Sync

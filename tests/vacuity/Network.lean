@@ -1,5 +1,5 @@
-import ops.sync.Witnesses
-import ops.sync.ConnLaws
+import engine.sync.Witnesses
+import engine.sync.ConnLaws
 
 /-! Concrete sync fixtures. The payload and room are synthetic. The running
 Conn/Node functions are exercised on the one-room Unit family, not the

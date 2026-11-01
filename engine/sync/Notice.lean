@@ -12,7 +12,7 @@ it runs `filed` and `tick` (`filedGive`, `tickGive`), so `filed` and
 `tick` themselves stay sync only (`filed_send`, `tick_send`, and
 `have_shown` for the synced rooms). The laws are in NoticeLaws.lean.
 -/
-import ops.sync.Conn
+import engine.sync.Conn
 
 namespace Engine.Sync
 open Std

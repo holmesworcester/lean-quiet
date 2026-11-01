@@ -3,8 +3,8 @@ Every reachable connection bounds its stream hints, pending and visited
 closure ids, and room snapshots as well as known and asked. Bounds are
 preserved by every public entry point, including room changes.
 -/
-import ops.sync.BoundsLaws
-import ops.sync.ClosureLaws
+import engine.sync.BoundsLaws
+import engine.sync.ClosureLaws
 import engine.wire.WorldLaws
 
 namespace Engine.Sync

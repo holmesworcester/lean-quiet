@@ -20,7 +20,7 @@ What a connection offers, proven of `Conn`'s code run on held data
   stores that hold the same ops of the connection's rooms answer it
   alike. With the cache law, that is the room's index (`heldIn_index`).
 -/
-import ops.sync.ServeLaws
+import engine.sync.ServeLaws
 
 namespace Engine.Sync
 

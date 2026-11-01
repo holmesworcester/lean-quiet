@@ -12,33 +12,33 @@ def run(args, name):
         return subprocess.run(args, cwd=root, stdout=out, stderr=subprocess.STDOUT, timeout=300).returncode
 
 
-assert run(["lake", "build", "fullsync", "ops.sync.StateLaws", "ops.sync.ClosureComplete"], "baseline-build") == 0
+assert run(["lake", "build", "fullsync", "engine.sync.StateLaws", "engine.sync.ClosureComplete"], "baseline-build") == 0
 assert run([".lake/build/bin/fullsync", "512"], "baseline-run") == 0
 # name, source, old, mutant, target, runtime assertion (None means proof)
 cases = [
-    ("full-bookkeeping", "ops/sync/Conn.lean",
+    ("full-bookkeeping", "engine/sync/Conn.lean",
      " } |>.queue cfg (sent.flatMap Op.reqs)",
      " } |> fun c => { c with offered := sent.foldl (fun k o => k.insert o.id) c.offered, frontier := c.frontier ++ sent.flatMap Op.reqs }",
      "fullsync", "full round keeps no sender per-op state"),
-    ("full-law", "ops/sync/Conn.lean",
+    ("full-law", "engine/sync/Conn.lean",
      "if c.roundFloor ≤ 1 then (c.frontier, false)", "if False then (c.frontier, false)",
-     "ops.sync.ClosureLaws", None),
-    ("closure-cap", "ops/sync/Closure.lean",
+     "engine.sync.ClosureLaws", None),
+    ("closure-cap", "engine/sync/Closure.lean",
      "frontier ++ fresh.take room", "frontier ++ fresh",
-     "ops.sync.StateLaws", None),
-    ("closure-cap-runtime", "ops/sync/Closure.lean",
+     "engine.sync.StateLaws", None),
+    ("closure-cap-runtime", "engine/sync/Closure.lean",
      "frontier ++ fresh.take room", "frontier ++ fresh",
      "fullsync", "a cut never admits more ids that round"),
-    ("closure-missing-edge", "ops/sync/Conn.lean",
+    ("closure-missing-edge", "engine/sync/Conn.lean",
      "(c.queue cfg o.reqs).walkN", "(c.queue cfg []).walkN",
-     "ops.sync.ClosureComplete", None),
-    ("stream-unbounded", "ops/sync/Conn.lean",
+     "engine.sync.ClosureComplete", None),
+    ("stream-unbounded", "engine/sync/Conn.lean",
      "offered := remember cfg.maxKnown c.offered i", "offered := c.offered.insert i",
      "fullsync", "stream hint is bounded"),
-    ("hidden-cut", "ops/sync/Closure.lean",
+    ("hidden-cut", "engine/sync/Closure.lean",
      "Decidable.decide (room < fresh.length)", "false",
      "fullsync", "zero closure cap cuts explicitly"),
-    ("live-floor", "ops/sync/Conn.lean",
+    ("live-floor", "engine/sync/Conn.lean",
      "if c.roundFloor ≤ 1 then (c.frontier, false)", "if max c.floor (c.peerFloor.getD c.floor) ≤ 1 then (c.frontier, false)",
      "fullsync", "full captured range survives a later hello"),
 ]
@@ -55,12 +55,12 @@ for name, source, old, mutant, target, expected in cases:
             text = (logs / (name + ".log")).read_text()
         else:
             text = (logs / (name + "-build.log")).read_text()
-            expected = "error: ops/sync/Closure"
+            expected = "error: engine/sync/Closure"
         assert code != 0 and expected in text, (name, "survived or failed elsewhere")
         print("refused:", name, flush=True)
     finally:
         path.write_text(original)
     assert run(["lake", "build", target], name + "-restored") == 0
-assert run(["lake", "build", "fullsync", "ops.sync.StateLaws", "ops.sync.ClosureComplete"], "restored-build") == 0
+assert run(["lake", "build", "fullsync", "engine.sync.StateLaws", "engine.sync.ClosureComplete"], "restored-build") == 0
 assert run([".lake/build/bin/fullsync", "512"], "restored-run") == 0
 print(f"stateless negative controls: {len(cases)} refused; restored suite passes")

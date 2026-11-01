@@ -48,7 +48,7 @@ frame came from (at first, the one its handshake ran on).
   counts them), so the runner can send urgent frames ahead of a
   backlog.
 -/
-import ops.sync.Notice
+import engine.sync.Notice
 import engine.core.Held
 import engine.wire.Lanes
 
@@ -63,7 +63,7 @@ inductive Route where
 /-- What the Connection family tells sync. -/
 structure Hooks (F : Type) (m : Type → Type) [Monad m] where
   /-- What connection cid carries now: the rooms its peer may see,
-  synced, and the notices it is to give (ops/sync/Notice.lean). -/
+  synced, and the notices it is to give (engine/sync/Notice.lean). -/
   rooms : Id → m (List Room)
   /-- Local ops recording notice x given on connection cid. -/
   onGiven : Id → Id → List Op := fun _ _ => []

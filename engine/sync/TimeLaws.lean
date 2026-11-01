@@ -2,7 +2,7 @@
 One silence deadline for both sides. Empty haves are keepalives; asks
 expire separately. Time is logical milliseconds, with no pause accounting.
 -/
-import ops.sync.ServeLaws
+import engine.sync.ServeLaws
 import Std.Data.HashSet.Lemmas
 
 namespace Engine.Sync

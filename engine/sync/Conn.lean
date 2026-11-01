@@ -37,11 +37,11 @@ What a connection keeps is memory only and dies with it. Forgetting
 stream hints can cause resends; cutting closure leaves explicit partial
 knowledge, described in docs/SYNC.md.
 -/
-import ops.sync.Wire
-import ops.sync.Session
-import ops.sync.Serve
-import ops.sync.Closure
-import ops.sync.RoundLaws
+import engine.sync.Wire
+import engine.sync.Session
+import engine.sync.Serve
+import engine.sync.Closure
+import engine.sync.RoundLaws
 import engine.core.Sync
 import Std.Data.HashSet
 
@@ -131,7 +131,7 @@ structure Conn where
   session : Session := .dialing
   dialer : Bool
   rooms : List Id
-  /-- The notices carried (ops/sync/Notice.lean): (room, op); and the
+  /-- The notices carried (engine/sync/Notice.lean): (room, op); and the
   ops of those given here. -/
   notices : List (Id × Id) := []
   given : List Id := []

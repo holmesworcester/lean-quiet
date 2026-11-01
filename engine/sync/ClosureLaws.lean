@@ -3,7 +3,7 @@ Window closure admission and walking use one shared id budget. Full
 rounds leave the closure and stream hint untouched, including delayed
 wants after the round's empty end. These laws run Conn on Held stores.
 -/
-import ops.sync.ServeLaws
+import engine.sync.ServeLaws
 import Std.Data.HashSet.Lemmas
 
 namespace Engine.Sync

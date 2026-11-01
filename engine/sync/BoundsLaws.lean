@@ -5,8 +5,8 @@ Ticks expire asks without renewing their original timestamps. Every
 step the node runs on a connection keeps it (`conn_bounded`), the rooms
 it carries afresh and the notices it gives included (`notify_bounded`).
 -/
-import ops.sync.OfferLaws
-import ops.sync.Notice
+import engine.sync.OfferLaws
+import engine.sync.Notice
 import engine.wire.WorldLaws
 
 namespace Engine.Sync

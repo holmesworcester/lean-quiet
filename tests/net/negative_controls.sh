@@ -13,7 +13,7 @@ trap 'rm -rf -- "$tmp"' EXIT
 # character classes, which a profile's name is keyed by), and their part
 # of the built tree
 . tests/snapshot.sh
-snapshot "$tmp/base" engine/core engine/wire ops/sync ops/community ops/connection engine/renderer/Chars.lean
+snapshot "$tmp/base" engine/core engine/wire engine/sync ops/community ops/connection engine/renderer/Chars.lean
 # the copy itself must build, or every mutant would look refused
 cp -a "$tmp/base" "$tmp/w"
 (cd "$tmp/w" && lake build Net >/dev/null 2>&1) || { echo "FAIL: the unmutated copy does not build"; exit 1; }

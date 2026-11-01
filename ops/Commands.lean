@@ -11,7 +11,7 @@ import ops.connection.opened.Commands
 import ops.connection.recv.Commands
 import ops.connection.request.Commands
 import ops.connection.send.Commands
-import ops.sync.Notice
+import engine.sync.Notice
 
 /-!
 `app`: intents and composers: the ops an action writes, in this folder and below.

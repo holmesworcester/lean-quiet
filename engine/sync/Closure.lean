@@ -3,7 +3,7 @@ Admission to a window's requirement walk. Each distinct id occupies one
 slot, pending or visited. Overflow keeps the admitted prefix and reports
 it; no discarded id is marked visited. Laws are in ClosureLaws.
 -/
-import ops.sync.Memory
+import engine.sync.Memory
 import engine.core.Model
 
 namespace Engine.Sync

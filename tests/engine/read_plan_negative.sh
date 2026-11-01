@@ -14,7 +14,7 @@ trap 'rm -rf -- "$tmp"' EXIT
 # what every mutant starts from (tests/snapshot.sh): the engine, the
 # Community family and what its views import, and their built tree
 . tests/snapshot.sh
-snapshot "$tmp/base" engine/core engine/wire engine/renderer ops/sync ops/community ops/connection ops/app
+snapshot "$tmp/base" engine/core engine/wire engine/renderer engine/sync ops/community ops/connection ops/app
 targets=(engine.core.Query engine.core.Union ops.community.Compose ops.community.Laws
   ops.community.message.Order)
 # the copy itself must build, or every mutant would look refused

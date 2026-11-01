@@ -11,7 +11,7 @@ empty answer (`same_of_fp`). So every item of the difference is settled
 within the tree's depth on its path, which `exchange_complete` bounds
 linearly and `exchange_log` logarithmically (each cut divides by `fan`).
 -/
-import ops.sync.RoundLaws
+import engine.sync.RoundLaws
 namespace Engine.Sync.Tree
 open Engine Engine.Sync
 

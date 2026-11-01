@@ -2,7 +2,7 @@
 Secrecy of the real offer paths: filed stream writes and the closure walk.
 Every id they advertise names a stored, shared op. No unused offer model.
 -/
-import ops.sync.OfferLaws
+import engine.sync.OfferLaws
 import engine.wire.WorldLaws
 
 namespace Engine.Sync

@@ -2,7 +2,7 @@
 Every handler follows Session.Allows. Closed is terminal even under a
 replayed hello. The witness runs hello reception and a silence timeout.
 -/
-import ops.sync.RetryLaws
+import engine.sync.RetryLaws
 
 namespace Engine.Sync
 variable {F : Type} (fam : Family F) (cfg : Config)

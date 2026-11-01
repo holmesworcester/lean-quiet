@@ -16,11 +16,11 @@ cases = {
          "incomplete scan is marked even when the visible unique count is small"),
     ],
     "tree": [
-        ("no-range-cuts", "ops/sync/Round.lean",
+        ("no-range-cuts", "engine/sync/Round.lean",
          "def runLen (n : Nat) : Nat := (n + P.fan - 1) / P.fan",
          "def runLen (n : Nat) : Nat := n + 0 * P.fan",
          "non-leaf 64: logarithmic depth gives exactly the missing ids"),
-        ("drop-wants", "ops/sync/Round.lean",
+        ("drop-wants", "engine/sync/Round.lean",
          "     .want (xs.filter fun i => !named ident x i)]",
          "     .want []]",
          "non-leaf 64: logarithmic depth gives exactly the missing ids"),

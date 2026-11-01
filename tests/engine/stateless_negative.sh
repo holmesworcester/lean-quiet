@@ -7,5 +7,5 @@ export CARGO_NET_OFFLINE=true
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/stateless-nc.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 . tests/snapshot.sh
-snapshot "$tmp" engine/core engine/wire ops/sync ops/community tests/engine
+snapshot "$tmp" engine/core engine/wire engine/sync ops/community tests/engine
 python3 tests/engine/stateless_negative.py "$tmp" "$PWD/out/stateless-negative"

@@ -21,7 +21,7 @@ Laws:
   of the cutting side's items, and no more of the other's, so a round
   over r ends within |X ∩ r| + |Y ∩ r| + 1 answers on any path.
 -/
-import ops.sync.Fp
+import engine.sync.Fp
 
 namespace Engine.Sync
 

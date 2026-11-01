@@ -53,7 +53,7 @@ WBEGIN = "<!-- wiring:begin -->"
 WEND = "<!-- wiring:end -->"
 # The areas of the per-area counts: the first module prefix a law's
 # module has.
-AREAS = [("engine.core", "Engine"), ("ops.sync", "Sync"), ("engine.world", "The n-node World"),
+AREAS = [("engine.core", "Engine"), ("engine.sync", "Sync"), ("engine.world", "The n-node World"),
          ("engine.wire.mdns", "mDNS"),
          ("engine.wire", "Node and wire"), ("ops.connection.bootstrap", "Bootstrap"),
          ("ops.connection", "Connections"), ("ops.community", "Community"),

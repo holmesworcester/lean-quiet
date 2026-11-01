@@ -18,8 +18,8 @@ import ops.connection.request.Op
 import ops.connection.request.Validate
 import ops.connection.send.Op
 import ops.connection.send.Validate
-import ops.sync.Notice
-import ops.sync.NoticeLaws
+import engine.sync.Notice
+import engine.sync.NoticeLaws
 
 /-
 The connection family: the handshake and sessions, made of ops. Each op

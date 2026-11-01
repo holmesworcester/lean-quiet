@@ -153,18 +153,18 @@ engine/Engine/Spec.lean	engine/core/Spec.lean	Engine.Spec	engine.core.Spec
 engine/Engine/SpecLemmas.lean	engine/core/SpecLemmas.lean	Engine.SpecLemmas	engine.core.SpecLemmas	
 engine/Engine/Sqlite.lean	engine/core/Sqlite.lean	Engine.Sqlite	engine.core.Sqlite	
 engine/Engine/Sync.lean	engine/core/Sync.lean	Engine.Sync	engine.core.Sync	
-engine/Engine/Sync/Conn.lean	ops/sync/Conn.lean	Engine.Sync.Conn	ops.sync.Conn	
-engine/Engine/Sync/ConnLaws.lean	ops/sync/ConnLaws.lean	Engine.Sync.ConnLaws	ops.sync.ConnLaws	
-engine/Engine/Sync/Fp.lean	ops/sync/Fp.lean	Engine.Sync.Fp	ops.sync.Fp	
+engine/Engine/Sync/Conn.lean	engine/sync/Conn.lean	Engine.Sync.Conn	engine.sync.Conn	
+engine/Engine/Sync/ConnLaws.lean	engine/sync/ConnLaws.lean	Engine.Sync.ConnLaws	engine.sync.ConnLaws	
+engine/Engine/Sync/Fp.lean	engine/sync/Fp.lean	Engine.Sync.Fp	engine.sync.Fp	
 engine/Engine/Sync/Frame.lean	engine/wire/Frame.lean	Engine.Sync.Frame	engine.wire.Frame	
 engine/Engine/Sync/Held.lean	engine/core/Held.lean	Engine.Sync.Held	engine.core.Held	
 engine/Engine/Sync/Locality.lean	engine/core/Locality.lean	Engine.Sync.Locality	engine.core.Locality	
 engine/Engine/Sync/Node.lean	engine/wire/Node.lean	Engine.Sync.Node	engine.wire.Node	
 engine/Engine/Sync/Pair.lean	engine/wire/Pair.lean	Engine.Sync.Pair	engine.wire.Pair	
-engine/Engine/Sync/Round.lean	ops/sync/Round.lean	Engine.Sync.Round	ops.sync.Round	
-engine/Engine/Sync/RoundLaws.lean	ops/sync/RoundLaws.lean	Engine.Sync.RoundLaws	ops.sync.RoundLaws	
+engine/Engine/Sync/Round.lean	engine/sync/Round.lean	Engine.Sync.Round	engine.sync.Round	
+engine/Engine/Sync/RoundLaws.lean	engine/sync/RoundLaws.lean	Engine.Sync.RoundLaws	engine.sync.RoundLaws	
 engine/Engine/Sync/Tcp.lean	engine/wire/Tcp.lean	Engine.Sync.Tcp	engine.wire.Tcp	
-engine/Engine/Sync/Wire.lean	ops/sync/Wire.lean	Engine.Sync.Wire	ops.sync.Wire	
+engine/Engine/Sync/Wire.lean	engine/sync/Wire.lean	Engine.Sync.Wire	engine.sync.Wire	
 engine/Engine/Termination.lean	engine/core/Termination.lean	Engine.Termination	engine.core.Termination	
 engine/Engine/Union.lean	engine/core/Union.lean	Engine.Union	engine.core.Union	
 engine/Engine/View.lean	engine/core/View.lean	Engine.View	engine.core.View	
@@ -385,7 +385,7 @@ engine/	./ docs/ engine/core/ ops/community/ ops/connection/ tests/engine/			dir
 engine/Community/	ops/community/			directory: the files directly in it
 engine/Connection/	ops/connection/			directory: the files directly in it
 engine/Engine/	engine/core/			directory: the files directly in it
-engine/Engine/Sync/	engine/core/ engine/wire/ ops/sync/			directory: the files directly in it, split
+engine/Engine/Sync/	engine/core/ engine/wire/ engine/sync/			directory: the files directly in it, split
 engine/Tests/	tests/engine/			directory: the files directly in it
 engine/docs/	docs/			directory: the files directly in it
 engine/tests/	tests/ tests/engine/			directory: the files directly in it, split

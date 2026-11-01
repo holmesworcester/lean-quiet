@@ -111,7 +111,7 @@ namespaces inside are unchanged.
 | `engine/core/` | lean-engine's `Engine/` (op, codec, judging, the SQLite store, lists, purge; `Engine.lean` imports all of the engine and sync), and from `Engine/Sync/`: `Sync.lean` (the intake), `Held.lean` (the held store) and `Locality.lean` (a verdict depends only on the op's requirement closure; core's purge laws are proven from it) |
 | `engine/wire/` | lean-engine's `Engine/Sync/{Frame, Node, Tcp, Pair}`: frames, the node and its TCP runner; `mdns/`: lean-mdns |
 | `engine/renderer/` | lean-quiet's `Quiet/{Data, Row, Text, Font, Paint, Image, Qoi, Emoji, Geometry, Sheet, SheetGeom, Platform, Camera, Arrival}` and the laws about them only (`TextLaws`, `WrapLaws`); `qr/` and `pic/`: lean-qr |
-| `ops/sync/` | lean-engine's `Engine/Sync/{Fp, Round, RoundLaws, Wire, Conn, ConnLaws}`: rounds as functions, not yet ephemeral ops |
+| `engine/sync/` | lean-engine's `Engine/Sync/{Fp, Round, RoundLaws, Wire, Conn, ConnLaws}`: rounds as functions, not yet ephemeral ops |
 | `ops/connection/` | lean-engine's `Connection/` (`All.lean` imports all of it: `Connection.lean` is the connection op type); `bootstrap/`: lean-net's model, retired once its laws are re-proven over the two-node world |
 | `ops/community/` | lean-engine's `Community/` as it was (`Facts.lean` not yet split by domain); lean-quiet's `Quiet/Kinds/*`, each its domain's view: `message/View.lean`, `profile/View.lean`, `reaction/View.lean`, `attachment/View.lean` (File), `membership/{Accepted,Request}View.lean`, and `link/View.lean` (the invite sheet, `Quiet/Link`); each view's laws beside it (`message/ViewLaws`, `reaction/RowLaws`, `attachment/ArrivalLaws`, `membership/RemovedLaws`) |
 | `ops/app/` | lean-quiet's `Quiet/{Pages, Composer, Switch, Remove, PeopleLaws, Chaos}` (`Chaos` holds `Me`, the device's member in a community, besides the chaos generator) |
@@ -126,7 +126,7 @@ namespaces inside are unchanged.
 lean-chat is not imported (archived as is).
 
 Imports that still cross the rule, for step 3: `engine/core/Engine.lean`
-imports `ops/sync`; `engine/wire/Node` imports `ops/sync/Conn`;
+imports `engine/sync`; `engine/wire/Node` imports `engine/sync/Conn`;
 `engine/renderer/Data` (the app's live data) imports the Community and
 Connection families; `ops/community/membership/RemovedLaws` imports
 `App`.

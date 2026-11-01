@@ -1,7 +1,7 @@
 /- Run the RBSR answer/exchange code used by Conn.onRbsr on non-leaf
 histories at the proved logarithmic depth. This is a one-round check,
 not a claim of delivery or many-node liveness. -/
-import ops.sync.Round
+import engine.sync.Round
 import tests.engine.Checks
 
 open Engine Engine.Sync Tests

@@ -3,9 +3,9 @@ Bounds do not end sessions: honest_no_drop classifies every dropping
 connection call as a timer expiry. retry_bounded counts actual decoded
 want ids in tick's output. Ask timestamps expire independently of traffic.
 -/
-import ops.sync.TimeLaws
-import ops.sync.BoundsLaws
-import ops.sync.NoticeState
+import engine.sync.TimeLaws
+import engine.sync.BoundsLaws
+import engine.sync.NoticeState
 
 namespace Engine.Sync
 attribute [local instance] byteArray_lawfulBEq

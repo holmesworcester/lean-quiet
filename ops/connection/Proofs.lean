@@ -9,7 +9,7 @@ import ops.connection.opened.Commands
 import ops.connection.opened.Proofs
 import ops.connection.recv.Commands
 import ops.connection.request.Commands
-import ops.sync.NoticeLaws
+import engine.sync.NoticeLaws
 
 /-!
 `connection`: laws about the op types in this folder and below.

@@ -19,7 +19,7 @@ nodes (`managed = []`), as `Node.connect` leaves them.
 -/
 import engine.wire.World
 import engine.wire.LaneLaws
-import ops.sync.ServeLaws
+import engine.sync.ServeLaws
 import Std.Data.HashSet.Lemmas
 
 namespace Engine.Sync

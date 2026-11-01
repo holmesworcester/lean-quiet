@@ -4,7 +4,7 @@ import ops.connection.eph.Commands
 import ops.connection.established.Commands
 import ops.connection.opened.Commands
 import ops.connection.recv.Commands
-import ops.sync.Notice
+import engine.sync.Notice
 
 /-!
 `connection`: intents and composers: the ops an action writes, in this folder and below.

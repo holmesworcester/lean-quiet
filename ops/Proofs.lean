@@ -16,7 +16,7 @@ import ops.connection.recv.Commands
 import ops.connection.request.Commands
 import ops.connection.send.Commands
 import ops.connection.send.Proofs
-import ops.sync.NoticeLaws
+import engine.sync.NoticeLaws
 
 /-!
 `app`: laws about the op types in this folder and below.

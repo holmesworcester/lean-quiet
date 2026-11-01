@@ -504,7 +504,7 @@ end Counted
 measured) share: a value that binds compose and ticks leave alone. So a
 counted function is proven once to compute its spec, at any `Valued`
 monad, and its cost law is about the code that runs. (a3's
-ops/sync/Sum.lean had this class first, as `Engine.Sync.Valued`.) -/
+engine/sync/Sum.lean had this class first, as `Engine.Sync.Valued`.) -/
 
 class Valued (m : Type → Type) [Monad m] [Tick m] where
   val : {α : Type} → m α → α

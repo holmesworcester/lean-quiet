@@ -3,8 +3,8 @@ Completeness of the running window walk when a finite requirement-closed
 set fits its budget. The set is a proof witness, never computed or kept
 by the connection. Known or previously streamed ids need no repeated have.
 -/
-import ops.sync.ClosureLaws
-import ops.sync.OfferLaws
+import engine.sync.ClosureLaws
+import engine.sync.OfferLaws
 import engine.core.Locality
 
 namespace Engine.Sync

@@ -13,7 +13,7 @@ codec, one strict decode, `Op.id_decode`), and never stored:
 
 Data ops travel as their own bytes.
 -/
-import ops.sync.Round
+import engine.sync.Round
 
 namespace Engine.Sync
 open Codec
