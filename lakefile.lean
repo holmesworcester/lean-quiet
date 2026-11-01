@@ -471,6 +471,11 @@ lean_exe fullsync where
 lean_exe simplify where
   root := `tests.engine.Simplify
 
+-- Newest first: a fresh node gets structure, then the newest messages
+-- and their photos first (docs/SYNC.md, "Windows and order")
+lean_exe newest where
+  root := `tests.engine.Newest
+
 -- T-fresh: a fresh post's latency while a backlog syncs, simulated time
 lean_exe fresh where
   root := `tests.engine.Fresh

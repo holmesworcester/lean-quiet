@@ -1,4 +1,5 @@
 import engine.sync.RoundRun
+import engine.sync.NewestLaws
 import tests.engine.Checks
 
 namespace Vacuity.RoundExchange
@@ -55,20 +56,25 @@ theorem itemsY (t : Nat) : (states (2 * t + 1)).items room = ys := by
 theorem items0 : (states 0).items room = xs := by simpa using itemsX 0
 theorem items1 : (states 1).items room = ys := by simpa using itemsY 0
 
-theorem withinX : within Prod.fst fullRange xs = xs := by decide
-theorem withinY : within Prod.fst fullRange ys = ys := by decide
+-- The messages claim times; the structure range (time 0) is empty on both sides.
+theorem withinX : within Prod.fst timedRange xs = xs := by decide
+theorem withinY : within Prod.fst timedRange ys = ys := by decide
+theorem structX : within Prod.fst structureRange xs = [] := by decide
+theorem structY : within Prod.fst structureRange ys = [] := by decide
 
+-- The opening: the structure range first (no ids there), then the messages.
 theorem startsFingerprint : (states 0).pending =
-    [.fp fullRange 2 (lbl Prod.fst Prod.snd sha256 ys)] := by
+    [.ids structureRange [], .fp timedRange 2 (lbl Prod.fst Prod.snd sha256 ys)] := by
   change (initial cfg room ix iy 0).pending = _
   rw [initial_claim, iyItems]
-  simp only [opening, withinY]
+  simp only [opening, withinY, structY]
   simp [cfg, fp, ys]
 
 -- Count mismatch (1 versus 2) forces an id reply, independently of hashes.
-theorem firstReply : (states 1).pending = [.ids fullRange [alice]] := by
+theorem firstReply : (states 1).pending = [.ids timedRange [alice]] := by
   rw [next_pending cfg room 1 times states run current 0 (by rw [startsFingerprint]; simp), items0]
-  simp only [outputs, startsFingerprint, List.flatMap_cons, List.flatMap_nil, List.append_nil, answer, withinX]
+  simp only [outputs, startsFingerprint, List.flatMap_cons, List.flatMap_nil, List.append_nil, answer, withinX,
+    structX]
   simp [cfg, fp, xs, nextClaims]
 
 theorem secondReply : (states 2).pending = [] := by
@@ -88,7 +94,8 @@ theorem capacity (t : Nat) : Capacity cfg room (states t) := by
   | zero =>
     rw [Capacity, items0]
     have asks : (states 0).receiving.asked = ∅ := rfl
-    simp only [asks, outputs, startsFingerprint, List.flatMap_cons, List.flatMap_nil, List.append_nil, answer, withinX]
+    simp only [asks, outputs, startsFingerprint, List.flatMap_cons, List.flatMap_nil, List.append_nil, answer, withinX,
+      structX]
     simp [fp, cfg, xs, roundWants]
   | succ t =>
     cases t with
@@ -110,8 +117,8 @@ theorem capacity (t : Nat) : Capacity cfg room (states t) := by
 theorem ranks : ∀ cl ∈ (states 0).pending, rankIn (xs ++ ys) cl ≤ 7 := by
   rw [startsFingerprint]
   intro cl hc
-  obtain rfl := List.mem_singleton.mp hc
-  decide
+  simp only [List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hc
+  rcases hc with rfl | rfl <;> decide
 
 theorem emptyAsks : (states 0).receiving.asked = ∅ ∧ (states 0).waiting.asked = ∅ :=
   initial_asks ..
@@ -137,17 +144,17 @@ def exchangeCertificate :=
       let sound := sound_of_check xs ys checked
       let result := conn_runs_exchange cfg room 1 7 times ixs states xs ys runs capacity (by decide)
         ready itemsX itemsY sortedX sortedY named sound emptyAsks.1 emptyAsks.2 ranks
-      have member : opening Prod.fst Prod.snd sha256 cfg.params ys fullRange ∈ (states 0).pending := by
+      have member : opening Prod.fst Prod.snd sha256 cfg.params ys timedRange ∈ (states 0).pending := by
         change _ ∈ (initial cfg room ix iy 0).pending
         rw [initial_claim, iyItems]
-        exact List.mem_singleton_self _
-      have honest := opening_honest (key := Prod.fst) (ident := Prod.snd) (h := sha256) (P := cfg.params) ys fullRange
-      have enough : (within Prod.fst fullRange xs).length + (within Prod.fst fullRange ys).length < 4 := by decide
-      let exactIds := exchange_complete (P := cfg.params) 4 xs ys fullRange _ sortedX sortedY named sound honest enough
+        exact List.mem_cons_of_mem _ (List.mem_singleton_self _)
+      have honest := opening_honest (key := Prod.fst) (ident := Prod.snd) (h := sha256) (P := cfg.params) ys timedRange
+      have enough : (within Prod.fst timedRange xs).length + (within Prod.fst timedRange ys).length < 4 := by decide
+      let exactIds := exchange_complete (P := cfg.params) 4 xs ys timedRange _ sortedX sortedY named sound honest enough
       have aliceMissing := (exactIds alice).1.mpr (by decide)
       have bobMissing := (exactIds bob1).2.mpr (by decide)
       have bobMissing2 := (exactIds bob2).2.mpr (by decide)
-      let announces := result.2 _ member fullRange honest 4 enough
+      let announces := result.2 _ member timedRange honest 4 enough
       let aliceWire := announces alice (Or.inl aliceMissing)
       let bobWire := announces bob1 (Or.inr bobMissing)
       let bobWire2 := announces bob2 (Or.inr bobMissing2)
@@ -157,13 +164,31 @@ def exchangeCertificate :=
     else none
   else none
 
+-- Newest first on the fixture's items: answering Alice's ids claim, Bob's
+-- two messages are offered newest first; the opening's answer likewise.
+set_option linter.defProp false in
+def newestAnswer := answer_newest_first (key := Prod.fst) (ident := Prod.snd) (h := sha256)
+  (P := cfg.params) ys sortedY (.ids timedRange [alice])
+set_option linter.defProp false in
+def windowFirst := window_first 100
+set_option linter.defProp false in
+def newestHaves := newest_first (key := Prod.fst) (ident := Prod.snd) (h := sha256) (P := cfg.params)
+  ys sortedY ((window 0).map (opening Prod.fst Prod.snd sha256 cfg.params xs))
+  (by simpa [List.map_map, Function.comp_def, opening_range] using (window_first 0).1)
+  (by intro c hc; obtain ⟨w, hw, rfl⟩ := List.mem_map.1 hc; rw [opening_range]; exact (window_first 0).2 w hw)
+set_option linter.defProp false in
+def openingNewest := opening_newest_first (key := Prod.fst) (ident := Prod.snd) (h := sha256)
+  (P := cfg.params) ys xs sortedY 0
+
 def main : IO UInt32 := do
   let t ← Checks.new
   t.ok "finite native SHA check discharges every range fingerprint premise" exchangeCertificate.isSome
-  t.ok "opening uses a real fingerprint over two messages"
-    (match (states 0).pending with | [.fp _ 2 _] => true | _ => false)
+  t.ok "opening claims the structure range first, then a real fingerprint over two messages"
+    (match (states 0).pending with | [.ids q [], .fp _ 2 _] => q == structureRange | _ => false)
   t.ok "count mismatch causes actual fingerprint-to-id transition"
     (match (states 1).pending with | [.ids _ [i]] => i == alice | _ => false)
+  t.ok "Bob's haves answer Alice's ids claim newest first"
+    ((answer Prod.fst Prod.snd sha256 cfg.params ys (.ids timedRange [alice])).flatMap holdIds == [bob2, bob1])
   t.ok "both message sets reach a terminal claim batch" ((states 2).pending.isEmpty)
   t.ok "terminal batches remain empty through later delivered steps" ((states 10).pending.isEmpty)
   t.ok "a later pending ask has an earlier actual wire witness" ((states 2).waiting.asked.contains alice)

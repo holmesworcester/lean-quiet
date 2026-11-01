@@ -213,6 +213,7 @@ theorem answer_rank (cfg : Config) (X U : List Item) (sx : Sorted Prod.fst X) (s
       · rename_i hf hl
         obtain ⟨piece, hp, he⟩ := List.mem_map.mp hc
         cases he
+        have hp : piece ∈ pieces q (cutsOf Prod.fst cfg.params (within Prod.fst q X)) := by simpa using hp
         obtain ⟨e, heX, hq, hpc⟩ := piece_misses cfg.params sx (Nat.lt_of_not_ge hl) piece hp
         have hsub := (pieces_shrink (P := cfg.params) sx (Nat.lt_of_not_ge hl) piece hp).2
         have hlt := filter_len_lt (l := U) (p := fun a : Item => q.has a.1) (q := fun a : Item => piece.has a.1)
@@ -637,10 +638,16 @@ theorem initial_ready (cfg : Config) (r : Id) (ix iy : Index) (now : Nat) :
     Both r 1 (initial cfg r ix iy now) := by
   simp [Both, Ready, initial, Conn.start, Conn.due, Conn.roundedAt, Conn.beginRound, Conn.oldRound, noteEpoch]
 
+/-- The structure range and the claimed times: a full window (`window 0`). -/
+def structureRange : Range := ⟨⟨0, 0⟩, some ⟨1, 0⟩⟩
+def timedRange : Range := ⟨⟨1, 0⟩, none⟩
+
 theorem initial_claim (cfg : Config) (r : Id) (ix iy : Index) (now : Nat) :
     (initial cfg r ix iy now).pending =
-      [opening Prod.fst Prod.snd sha256 cfg.params (iy.items r) fullRange] := by
-  simp [initial, Conn.start, Conn.due, Conn.roundedAt, window, returnedClaims, fullRange, Index.opening_fun]
+      [opening Prod.fst Prod.snd sha256 cfg.params (iy.items r) structureRange,
+       opening Prod.fst Prod.snd sha256 cfg.params (iy.items r) timedRange] := by
+  simp [initial, Conn.start, Conn.due, Conn.roundedAt, window, returnedClaims, structureRange, timedRange,
+    Index.opening_fun]
 
 /-- All initialized asks are empty; the causality proof can therefore
 trace every later pending ask to a real want on this round's wire. -/

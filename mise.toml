@@ -536,6 +536,11 @@ run = "tests/app/skeleton.sh"
 description = "Shared phone switcher: native densities, identity, real tap dispatch and scroll extent"
 run = "tests/app/mobile_switcher.sh"
 
+[tasks."test:window"]
+depends = ["crypto"]
+description = "Windows and order (docs/SYNC.md): a message's photos sort with it; the negative controls (chunks at time 0, unchecked times) in a scratch snapshot"
+run = "tests/engine/window.sh"
+
 [tasks."test:vacuity"]
 depends = ["crypto"]
 description = "Build production laws, kernel-check concrete premise witnesses, reject broken fixtures and check the complete README inventory"

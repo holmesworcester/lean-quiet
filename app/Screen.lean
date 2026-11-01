@@ -690,7 +690,7 @@ def make (me : Me) (k : Key32) (srcs : Array Image.Src) (seed n top now : Nat) :
                                       preview := preview bytes },
                             bytes, key := sizedOf (tag ++ " file key") 32, nonce := sizedOf (tag ++ " file nonce") 24,
                             metaNonce := sizedOf (tag ++ " meta nonce") 24 }
-      let (a, cs) := attach c u o.id d k nf
+      let (a, cs) := attach c u o.id t d k nf
       pending := pending ++ #[a] ++ cs.toArray
     -- reactions on this message, arriving with it
     let (r, g9) := g.below 3

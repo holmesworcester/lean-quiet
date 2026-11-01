@@ -127,13 +127,15 @@ def footprint (c : Conn) : Nat :=
     c.notices.length + c.given.length + c.rooms.length
 
 /-- A hub dialing `peers` peers, each mid-round in a room of n items the
-peer holds too, but for one: the hub's connections after the peer's
-first answer, with the round still in flight. -/
+peer holds too, but for one in the middle: the hub's connections after
+the peer's first answer, with the round still in flight. -/
 def hub (n peers : Nat) : List Conn := Id.run do
   let cfg : Config := { params := { leaf := 4, fan := 4 } }
   let items := (List.range n).map fun j => ((⟨j, j⟩ : Key), (toString j).toUTF8)
   let ix : Index := { rooms := [(room, RoomTree.ofList items)] }
-  let iy : Index := { rooms := [(room, RoomTree.ofList (items.drop 1))] }
+  -- The peer lacks one message from the middle of the room (claimed
+  -- times, not the structure range), so the round goes on past its opening.
+  let iy : Index := { rooms := [(room, RoomTree.ofList (items.take (n / 2) ++ items.drop (n / 2 + 1)))] }
   let mut out := []
   for _ in [0:peers] do
     let hubConn : Conn := { dialer := true, floor := 0, rooms := [room], peerFloor := some 0 }
