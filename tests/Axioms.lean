@@ -312,6 +312,11 @@ open Engine Community
 #print axioms Connection.Noise.Symbolic.kk_forward_secret
 #print axioms Connection.Noise.Symbolic.kk_authentic
 #print axioms Connection.Noise.Symbolic.kk_authentic_resp
+#print axioms Connection.Noise.Symbolic.kk_agree
+#print axioms Connection.Noise.Symbolic.kk_agree_resp
+#print axioms Connection.Noise.Symbolic.kk_authentic_tight
+#print axioms Connection.Noise.Symbolic.kk_authentic_resp_tight
+#print axioms Connection.Noise.Symbolic.read1Slip_forged
 #print axioms Connection.Noise.Symbolic.exposed_parts
 #print axioms Connection.Noise.Symbolic.kk_secret_init_tight
 #print axioms Community.root_of_admission
@@ -444,9 +449,6 @@ open Engine Community
 #print axioms Engine.Sync.write_within
 #print axioms Engine.Sync.event_within
 #print axioms Engine.Sync.Tick.cofinal
-#print axioms Net.FIFO.eventually_delivered
-#print axioms Net.FairExecution.fair
-#print axioms Net.FairExecution.ideal
 #print axioms Connection.Execution.fairRun_fair
 #print axioms Connection.Execution.successful_fair_extension
 #print axioms Engine.Sync.frame_next
@@ -705,16 +707,6 @@ end mdns
 
 section net
 open Net
-#print axioms Net.Scene.no_connection_before_approval
-#print axioms Net.Scene.sessions_trusted
-#print axioms Net.Scene.bootstrap_possible
-#print axioms Net.Scene.bootstrap
-#print axioms Net.Scene.reachable_inv
-#print axioms Net.Scene.admitted_inv
-#print axioms Net.Scene.allowedA
-#print axioms Net.Scene.allowedB
-#print axioms Net.allowPeer_iff
-#print axioms Net.allowPeer_settles
 end net
 #print axioms Community.deviceLive_iff
 #print axioms Community.unremoved_iff

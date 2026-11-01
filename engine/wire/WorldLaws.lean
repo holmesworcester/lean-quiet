@@ -123,18 +123,60 @@ theorem forIn_yield {α β} (l : List α) (f : α → β → HeldM F (ForInStep 
 
 /-! ## Steps that keep the store -/
 
-/-- A step that leaves the store as it is, from any store. -/
-def Reads {α} (p : HeldM F α) : Prop := ∀ h, (p.run h).2 = h
+/-- A monad whose steps can leave the store as they found it (`Reads`):
+a pure step and the store's reads do, and so does a bind of steps that
+do. The held store is one (below), and so is the production
+interpreter, whose entropy tape advances while its store stays
+(`Connection.Execution.M`). A "reads only" law of code generic in its
+monad is proven once, for every such monad.
 
-theorem Reads.pure' {α} (a : α) : Reads (pure a : HeldM F α) := fun _ => rfl
-theorem Reads.bind' {α β} {m : HeldM F α} {k : α → HeldM F β} (hm : Reads m) (hk : ∀ a, Reads (k a)) :
-    Reads (m >>= k) := by
-  intro h; simp only [HeldM.run_bind]; rw [hk, hm]
-theorem Reads.forIn' {α β} (l : List α) (b : β) {f : α → β → HeldM F (ForInStep β)}
-    (hf : ∀ a b, Reads (f a b)) : Reads (forIn l b f) :=
-  fun h => forIn_keeps l f h (fun a _ b => hf a b h) b
-theorem Reads.getOp' (x : Id) : Reads (Store.getOp (F := F) x : HeldM F _) := fun _ => rfl
-theorem Reads.getStatus' (x : Id) : Reads (Store.getStatus (F := F) x : HeldM F _) := fun _ => rfl
+`reads` means only what an instance makes it mean. A law over a generic
+`m` is as strong as the instance it is used at, and nothing more: an
+instance whose `reads` were `fun _ => True` would make every such law
+say nothing. An instance must give "run from any store, the store is as
+it was", as both here do (the held store unchanged; Execution's held
+store unchanged while its entropy tape advances). -/
+class ReadsOnly (F : outParam Type) (m : Type → Type) [Monad m] [Store F m] where
+  reads {α} : m α → Prop
+  pure' {α} (a : α) : reads (pure a : m α)
+  bind' {α β} {p : m α} {k : α → m β} : reads p → (∀ a, reads (k a)) → reads (p >>= k)
+  getOp' (x : Id) : reads (Store.getOp x : m _)
+  getStatus' (x : Id) : reads (Store.getStatus x : m _)
+
+/-- A store whose lists leave it as it is too. -/
+class ListsRead (m : Type → Type) [Monad m] [Store F m] [Lists F m] [ReadsOnly F m] : Prop where
+  list' (q : ListQ) : ReadsOnly.reads (Lists.list q : m (Answer F))
+
+section
+variable {m : Type → Type} [Monad m] [Store F m] [ReadsOnly F m]
+
+/-- A step that leaves the store as it is, from any store. -/
+abbrev Reads {α} (p : m α) : Prop := ReadsOnly.reads p
+
+theorem Reads.pure' {α} (a : α) : Reads (pure a : m α) := ReadsOnly.pure' a
+theorem Reads.bind' {α β} {p : m α} {k : α → m β} (hp : Reads p) (hk : ∀ a, Reads (k a)) :
+    Reads (p >>= k) := ReadsOnly.bind' hp hk
+theorem Reads.forIn' {α β} (l : List α) (b : β) {f : α → β → m (ForInStep β)}
+    (hf : ∀ a b, Reads (f a b)) : Reads (forIn l b f) := by
+  induction l generalizing b with
+  | nil => exact Reads.pure' b
+  | cons a t ih =>
+    rw [List.forIn_cons]
+    exact Reads.bind' (hf a b) fun | .done b => Reads.pure' b | .yield b => ih b
+theorem Reads.getOp' (x : Id) : Reads (Store.getOp (F := F) x : m _) := ReadsOnly.getOp' x
+theorem Reads.getStatus' (x : Id) : Reads (Store.getStatus (F := F) x : m _) := ReadsOnly.getStatus' x
+theorem Reads.list' [Lists F m] [ListsRead m] (q : ListQ) : Reads (Lists.list (F := F) q : m _) :=
+  ListsRead.list' q
+end
+
+instance : ReadsOnly F (HeldM F) where
+  reads p := ∀ h, (p.run h).2 = h
+  pure' _ _ := rfl
+  bind' hp hk h := by simp only [HeldM.run_bind]; rw [hk, hp]
+  getOp' _ _ := rfl
+  getStatus' _ _ := rfl
+
+instance [SortKey F] : ListsRead (HeldM F) := ⟨fun _ _ => rfl⟩
 
 /-- Prove `Reads` of a do block from its structure, with these `Reads`
 lemmas for the calls in it. -/
@@ -149,6 +191,7 @@ macro_rules
       | dsimp only | with_reducible_and_instances apply Reads.bind'
       | with_reducible_and_instances apply Reads.pure' | with_reducible_and_instances apply Reads.forIn'
       | with_reducible_and_instances apply Reads.getOp' | with_reducible_and_instances apply Reads.getStatus'
+      | with_reducible_and_instances apply Reads.list'
       | $tac:tactic))
 
 theorem filed_reads (fam : Family F) (cfg : Config) (c : Conn) (ids : List Id) :
