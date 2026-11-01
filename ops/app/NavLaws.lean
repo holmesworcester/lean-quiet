@@ -6,9 +6,10 @@ channel, join, Stop waiting and removal steps through Nav too).
 - `back_open`: **back goes back.** Back after opening a page that is
   neither shown nor under it gives the state before, but for what back
   always clears: the page's one-line field, refusal and viewport initialization. The composer's
-  draft is unchanged. The switcher's render-only backdrop cache is retained
+  draft is unchanged. Leaving chat cancels pending presentation obligations.
+  The switcher's render-only backdrop cache is retained
   from the opened page.
-- `back_root`: at a root, back keeps the page and the state.
+- `back_root`: at a root, back keeps the page; non-chat presentation demand is cleared.
 - `back_switch`: after a switch, any number of backs stays on the new
   community's home: back never reaches the community before.
 - `draft_open`, `draft_back`: no navigation step changes the composer's
@@ -29,15 +30,22 @@ theorem nav_switch (a : Engine.Id) (s : St) : (switchSt a s).nav = Nav.reset Pag
 
 /-- **Back goes back.** -/
 theorem back_open (p : PageId) (s : St) (hp : p ≠ s.page) (hs : p ∉ s.backStack) :
-    backSt (openSt p s) = { s with field := "", refusal := none, pageKey := none, pageScrollStarted := false, switcherBackdrop := (openSt p s).switcherBackdrop } := by
+    backSt (openSt p s) = { s with field := "", refusal := none, pageKey := none, pageScrollStarted := false, switcherBackdrop := (openSt p s).switcherBackdrop, ownSends := {}, presenting := none } := by
   have h := Nav.back_go p s.nav hp hs
   unfold backSt
   rw [nav_open, h]
-  simp only [openSt, St.withNav, St.nav]
+  simp only [openSt, St.withNav, St.nav, Nav.go_page]
+  by_cases hc : s.page = .chat
+  · have hn : p ≠ .chat := by simpa [hc] using hp
+    simp [hc, hn]
+  · simp [hc]
 
 /-- **Back at a root keeps the page.** -/
 theorem back_root (s : St) (h : s.backStack = []) :
-    backSt s = { s with field := "", refusal := none, pageKey := none, pageScrollStarted := false } := by
+    backSt s = { s with
+      field := "", refusal := none, pageKey := none, pageScrollStarted := false,
+      ownSends := if s.page == .chat then s.ownSends else {},
+      presenting := if s.page == .chat then s.presenting else none } := by
   have hb := Nav.back_root s.nav h
   unfold backSt
   rw [hb]

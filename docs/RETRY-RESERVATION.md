@@ -50,31 +50,28 @@ The storage/authorization proof continues to cover every actual emitted
 frame: reserved frames remain in `Effects.send`; retry markers are filtered
 against the already authorized serve payloads and sealed individually.
 
-## Remaining connection-lifetime counterexample
+## Remaining connection-lifetime proof obligation
 
-**Fair loss of wire messages alone does not imply accepted data delivery.**
-Consider an authenticated epoch whose key is deleted after an idle timeout.
-Emit its data frame at time `t`, close that epoch at `t + timeout`, and
-deliver the unchanged frame at `t + 2 * timeout`. Do this to every replacement
-epoch. Every emitted wire copy is delivered after a finite delay, and every
-process and worker can continue running, yet each delayed frame names a key
-the receiver has already discarded. Native delivery is reliable in this
-execution; authenticated payload acceptance still fails forever.
+`Sweep.FairLoss` names delivery of semantic operations. There is not yet a
+proof projecting the actual encrypted TCP attempts, socket teardown and key
+retirement onto that predicate. A fresh encryption nonce also means that
+repeated attempts need not repeat an identical ciphertext; fairness must name
+the logical message and its actual wire attempts precisely.
 
-Calling the link "semantically fair" so that one retry must already decrypt
-would hide this application obligation inside the environment assumption.
-The current reservation work does not make that substitution.
+An earlier version described every old-epoch frame being delivered after its
+socket closed and called that a reliable native execution. That was an
+illustrative message-delay argument, **not a demonstrated TCP execution**.
+TCP does not move queued bytes from a closed socket onto a replacement.
+The stronger wording was incorrect and has been removed. Whether timeout or
+replacement can discard already-admitted bytes before their handler runs is
+being checked against the production hooks and runner; it is not counted as
+an established runtime counterexample here.
 
-A possible next protocol change is to distinguish transport loss from
-authenticated-session retirement. Keep the latest authenticated peer session
-and its transport keys durably across ordinary socket close/idle timeout;
-retry its self-identifying sealed frames when a new socket connects. Purge
-keys only for actual revocation, explicit retirement, or a checked replacement
-protocol that cannot discard all in-flight progress indefinitely. This can
-avoid retaining an unbounded history of old keys, but needs an audit of
-restart, duplicate handshakes, session replacement, key rotation and removal
-notices before implementation. No claim that this design is yet proved is
-made here.
+The missing proof cannot be replaced by assuming that a retry eventually
+arrives already authenticated and accepted: that would hide the application
+obligation inside the link assumption. Any protocol repair must first identify
+an actual failing execution and preserve key erasure, revocation and removal
+notice behavior. No change to those security semantics is claimed here.
 
 Multiple distinct authenticated sessions sharing one socket also need a
 proved rotating admission policy. The reserved slot presently bounds and

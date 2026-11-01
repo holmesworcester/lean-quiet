@@ -1,3 +1,4 @@
+import ops.app.Presentation
 import engine.wire.IngressLaws
 import engine.wire.IngressPriorityLaws
 import engine.wire.IngressChurnLaws
@@ -1414,3 +1415,8 @@ end cost
 #print axioms Engine.Sync.Ingress.Prioritized.churnFlood_source
 #print axioms Engine.Sync.Ingress.Prioritized.churnFlood_write
 #print axioms Engine.Sync.Ingress.Prioritized.churnFlood_exact
+
+#print axioms App.Presentation.bounded
+#print axioms App.Presentation.offer_append
+#print axioms App.Presentation.offer_full
+#print axioms App.Presentation.acknowledge_matches

@@ -66,8 +66,13 @@ suite() {  # what seam expected file old new: ux must fail its check
   local what=$1 seam=$2 expected=$3
   mutate "$4" "$5" "$6"
   build || { echo "FAIL: mutant $what does not build"; tail -20 "$tmp/build.log"; exit 1; }
-  if run "$seam"; then echo "FAIL: mutant survived ux: $what"; exit 1; fi
-  grep -q "FAIL $expected" "$tmp/run.log" ||
+  local status=0
+  run "$seam" || status=$?
+  [ "$status" -eq 1 ] || { echo "FAIL: mutant $what exited $status instead of an assertion failure"; exit 1; }
+  if grep -qiE 'panic|uncaught exception|segmentation fault|assertion violation' "$tmp/run.log"; then
+    echo "FAIL: mutant $what crashed instead of failing its assertion"; exit 1
+  fi
+  grep -qF "FAIL $expected" "$tmp/run.log" ||
     { echo "FAIL: mutant $what failed for another reason"; grep -v '^slow frame' "$tmp/run.log"; exit 1; }
   echo "refused by ux: $what"
 }
@@ -91,15 +96,17 @@ suite "the window stays the newest away from it" "" "a burst larger than the rea
   "let next := Lifecycle.follow s.anchor s.newer (bv ≤ 4) near" \
   "let next := if s.newer == 0 && lo ≤ winLo then none else if !near then s.anchor else Lifecycle.follow s.anchor s.newer (bv ≤ 4) near"
 suite "the shift is clamped to the old range" "" "pending burst preserves the visible anchor in App.b and native Sim.b on its first frame" App.lean \
-  "let cur ← s.io.scroll (bottoms s).2.toUInt32 vh.toUInt32" "let cur := b.toFloat"
+  "let cur ← s.io.scroll (bottoms s).2.toUInt32 (geom s).viewNow.toUInt32" "let cur := b.toFloat"
 suite "the frame keeps no anchor" "" "pending arrival keeps the visible row at the same pixel" App.lean \
-  "  -- 5. keep the anchor still (unless pinned to the newest)
-  if b > 4 || s.restoreAnchor then" \
-  "  -- 5. keep the anchor still (unless pinned to the newest)
+  "  if let some e := s.ownSends.head then
+    anchor := some (e.message.2, presentationOffset s e.message.2)
+  if b > 4 || s.restoreAnchor || s.ownSends.head.isSome then" \
+  "  if let some e := s.ownSends.head then
+    anchor := some (e.message.2, presentationOffset s e.message.2)
   if false then"
 # a shell that shifts at vsync: the frame must paint at the shifted offset
 suite "the frame paints the offset before its shift lands" queued "pending arrival keeps the visible row at the same pixel" App.lean \
-  "          b := b'" "          b := (← s.io.scroll (bottoms s).2.toUInt32 vh.toUInt32).toInt64.toInt.toNat"
+  "          b := b'" "          b := (← s.io.scroll (bottoms s).2.toUInt32 (geom s).viewNow.toUInt32).toInt64.toInt.toNat"
 suite "the anchor clump collapses before its new coordinate is known" "" "pending burst preserves the visible anchor" App.lean \
   "    let near := Raster.near bottom span offset viewport (over + viewport) || heldRoot == some root.2" \
   "    let near := Raster.near bottom span offset viewport (over + viewport)"

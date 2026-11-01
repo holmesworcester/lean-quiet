@@ -7,6 +7,7 @@
 
 #include "layer.h"
 #include "../../native/thread.h"
+#include "../../native/frame_completion.h"
 #ifdef LQ_LAYER_TEST
 #include "../../../tests/app/layer_stub.h"
 #else
@@ -62,26 +63,57 @@ static bool bl_ready, bl_published;
 static bool bl_awaiting_completion;
 static uint64_t bl_transaction, bl_completed_transaction, bl_waiting_transaction;
 static uint64_t bl_generation;
+static LqFrameCompletion bl_completion;
 static _Atomic uint64_t bl_view;
 uint64_t bl_view_id(void) { return atomic_load(&bl_view); }
 uint32_t bl_frame_id(void) { return (uint32_t)bl_view_id(); }
 static uint64_t bl_seq;
+static bool bl_trace;
+static bool bl_trace_enabled(void) {
+  char value[PROP_VALUE_MAX];
+  return __system_property_get("debug.lean.trace", value) > 0 && strcmp(value, "1") == 0;
+}
+
+// The pair is sampled together; frame zero is a valid wrapped serial,
+// so absence is a separate bit rather than a special frame id.
+uint64_t bl_acceptance_id(void) {
+  pthread_mutex_lock(&bl_mu);
+  uint64_t accepted = bl_completion.accepted;
+  pthread_mutex_unlock(&bl_mu);
+  return accepted;
+}
+bool bl_completed_frame(uint64_t* publication, uint32_t* frame, int32_t* shift) {
+  pthread_mutex_lock(&bl_mu);
+  bool valid = bl_completion.valid;
+  *frame = bl_completion.frame;
+  *publication = bl_completion.publication;
+  *shift = bl_completion.shift;
+  pthread_mutex_unlock(&bl_mu);
+  return valid;
+}
 
 // Vsync thread
 // ------------
 
 typedef struct {
   int old[4];
-  uint64_t view;
+  uint64_t view, publication;
   uint64_t transaction, generation;
+  LqFrameTicket completion;
+  uint32_t composer_y;
+  bool composer_visible;
 } BlDone;
+// One callback owns this slot until its final read under bl_mu.
+static BlDone bl_done;
 
 // A transaction that showed a new buffer completed: the one it replaced
 // is free once its release fence fires (AHardwareBuffer_lock waits on it).
 static void bl_complete(void* ctx, ASurfaceTransactionStats* stats) {
   BlDone* d = ctx;
   pthread_mutex_lock(&bl_mu);
-  if (d->generation == bl_generation) {
+  bool finished = lq_frame_complete(&bl_completion, d->completion, d->publication,
+    (uint32_t)d->view, (int32_t)(d->view >> 32));
+  if (finished && d->generation == bl_generation) {
     for (int k = 0; k < 4; k++) {
       BlLayer* l = &bl_l[k];
       if (d->old[k] >= 0 && l->sc != NULL) {
@@ -90,18 +122,22 @@ static void bl_complete(void* ctx, ASurfaceTransactionStats* stats) {
         l->bufs[d->old[k]].state = BL_FREE;
       }
     }
-    // Callbacks may arrive after later animation callbacks or window recreation.
-    // Retire every matching buffer, but never stamp an older displayed context.
-    if (d->transaction > bl_completed_transaction) {
+    // Only the current, nonrevoked owner may retire buffers or stamp input.
+    // A generation alias after wrap does not resurrect revoked ownership.
+    if (finished && d->transaction > bl_completed_transaction) {
       atomic_store(&bl_view, d->view);
       bl_completed_transaction = d->transaction;
+      // Diagnostic evidence of a completed compositor transaction, never
+      // an IME input sample or merely a submitted/staged rectangle.
+      if (bl_trace && d->composer_visible)
+        __android_log_print(ANDROID_LOG_INFO, "leantrace", "completed frame %u composer-y %u",
+          (uint32_t)d->view, d->composer_y);
     }
     if (bl_awaiting_completion && d->transaction == bl_waiting_transaction)
       bl_awaiting_completion = false;
   }
   pthread_cond_broadcast(&bl_cv);
   pthread_mutex_unlock(&bl_mu);
-  free(d);
 }
 
 static void bl_show(ASurfaceTransaction* t, BlLayer* l, const uint32_t* p) {
@@ -152,13 +188,18 @@ static void bl_vsync(int64_t ns, void* data) {
     atomic_store(&bl_has_y, true);
   }
   pthread_mutex_lock(&bl_mu);
-  if (bl_l[BL_LIST].sc != NULL && (bl_ready || bl_published)) {
+  if (bl_l[BL_LIST].sc != NULL && (bl_ready || bl_published) && !bl_completion.pending && bl_completion.serial != UINT64_MAX) {
     ASurfaceTransaction* t = ASurfaceTransaction_create();
+    if (t == NULL) goto complete_tick;
     int32_t sample = atomic_load(&bl_has_y) ? (int32_t)lroundf(atomic_load(&bl_yf))
       : (int32_t)bl_next_place[15];
-    BlDone* done = malloc(sizeof *done);
+    LqFrameTicket completion;
+    bool reserved = lq_frame_begin(&bl_completion, &completion);
+    (void)reserved; // The pending guard and this reservation share bl_mu.
+    BlDone* done = &bl_done;
     *done = (BlDone){ .old = {-1, -1, -1, -1},
-      .transaction = ++bl_transaction, .generation = bl_generation };
+      .transaction = ++bl_transaction, .generation = bl_generation, .completion = completion,
+      .publication = bl_completion.accepted };
     if (bl_ready) {
       memcpy(bl_place, bl_next_place, sizeof bl_place);
       for (int k = 0; k < 4; k++) bl_take(t, k, done);
@@ -174,11 +215,15 @@ static void bl_vsync(int64_t ns, void* data) {
     if (bl_l[BL_LIST].shown >= 0) bl_show(t, &bl_l[BL_LIST], r);
     lq_slide_rect(bl_place, sample, 1, r);
     if (bl_l[BL_HOLD].shown >= 0) bl_show(t, &bl_l[BL_HOLD], r);
+    done->composer_y = bl_place[10];
+    done->composer_visible = bl_l[BL_BOT].shown >= 0 &&
+      bl_place[9] > bl_place[8] && bl_place[11] > bl_place[10];
     done->view = bl_place[16] | ((uint64_t)lq_slide_delta(bl_place[22], bl_place[15], sample) << 32);
     ASurfaceTransaction_setOnComplete(t, done, bl_complete);
     ASurfaceTransaction_apply(t);
     ASurfaceTransaction_delete(t);
   }
+complete_tick:
   bl_seq++;
   pthread_cond_broadcast(&bl_cv);
   pthread_mutex_unlock(&bl_mu);
@@ -202,6 +247,7 @@ void bl_start(bool predict) {
   pthread_mutex_lock(&bl_mu);
   (void)predict;
   if (!bl_running) {
+    bl_trace = bl_trace_enabled();
     lq_slide_warm();  // Called by the Lean frame thread before spawning vsync.
     bl_running = true;
     pthread_t t;
@@ -224,11 +270,13 @@ bool bl_scroll_y(float* y) {
 
 // Called after all dirty buffers have been staged; pixels and their
 // placement are adopted together in the next compositor transaction.
-void bl_geometry(const uint32_t* place) {
+bool bl_geometry(const uint32_t* place) {
   pthread_mutex_lock(&bl_mu);
+  if (!lq_frame_accept(&bl_completion)) { pthread_mutex_unlock(&bl_mu); return false; }
   memcpy(bl_next_place, place, sizeof bl_next_place);
   bl_ready = true;
   pthread_mutex_unlock(&bl_mu);
+  return true;
 }
 
 static void bl_alloc(BlLayer* l, uint32_t w, uint32_t h) {
@@ -260,6 +308,7 @@ void bl_attach(ANativeWindow* win) {
   pthread_mutex_lock(&bl_mu);
   if (win != bl_win) {
     bl_generation++;
+    lq_frame_reset(&bl_completion);
     bl_ready = bl_published = bl_awaiting_completion = false;
     atomic_store(&bl_view, 0);
     for (int k = 0; k < 4; k += 1) {
@@ -314,7 +363,8 @@ bool bl_begin(void) {
   pthread_mutex_lock(&bl_mu);
   while ((bl_ready || bl_awaiting_completion) && bl_l[BL_LIST].sc != NULL && !bl_late(&t0, 200))
     bl_wait_until(&t0, 200);
-  bool ok = !bl_ready && !bl_awaiting_completion && bl_l[BL_LIST].sc != NULL;
+  bool ok = !bl_ready && !bl_awaiting_completion && bl_l[BL_LIST].sc != NULL &&
+    bl_completion.accepted != UINT64_MAX && bl_completion.serial != UINT64_MAX;
   pthread_mutex_unlock(&bl_mu);
   return ok;
 }
@@ -443,6 +493,7 @@ void bl_window_gone(void) {
   }
   bl_win = NULL;
   bl_generation++;
+  lq_frame_reset(&bl_completion);
   bl_ready = bl_published = bl_awaiting_completion = false;
   atomic_store(&bl_view, 0);
   pthread_cond_broadcast(&bl_cv);

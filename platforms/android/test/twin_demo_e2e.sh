@@ -81,8 +81,8 @@ tap 300 $((H - 63 - 70))
 sleep 1.2
 ime=$(field ime)
 ok "a composer tap opens the keyboard (ime=$ime)" '[ "${ime:-0}" -gt 300 ]'
-steps=$("${adb[@]}" logcat -d -s leantrace:* | awk '{for(i=1;i<=NF;i++) if($i=="shift") print $(i+1)}' | sort -un | wc -l)
-ok "the composer follows the keyboard's animation ($steps distinct shifts)" '[ "$steps" -ge 6 ]'
+steps=$("${adb[@]}" logcat -d -s leantrace:* | awk '{for(i=1;i<=NF;i++) if($i=="composer-y") print $(i+1)}' | sort -un | wc -l)
+ok "the composer follows the keyboard's animation ($steps completed composer positions)" '[ "$steps" -ge 6 ]'
 shot ime
 ok "composer rides above the keyboard" '[ "$(px ime 900 $((H - ime - 70)))" = 303030 ]'
 row1=$((H - ime + ime * 41 / 100)); row2=$((H - ime + ime * 62 / 100))

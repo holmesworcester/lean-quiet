@@ -1,6 +1,7 @@
 /- Real worker/reader races with barriers, not timing-dependent sleeps.
 The pool executes the same queue, ticket and publication code as App. -/
 import platforms.headless.Sim
+import tests.app.Presentation
 import ops.app.RowPaint
 import ops.app.ReaderLife
 import tests.engine.Checks
@@ -531,6 +532,7 @@ def main : IO UInt32 := do
     DemandTest.paintInvalidation ck
     DemandTest.appPaintChurn ck
     DemandTest.appWorkerProgress ck
+    PresentationTests.run ck
     ck.finish "component-demand"
   catch e => IO.eprintln s!"component-demand: {e}"; pure 1
   (← IO.getStdout).flush

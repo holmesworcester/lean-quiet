@@ -26,6 +26,11 @@ def run (dir : String) (ck : Checks) : IO Unit := do
     let text := String.intercalate " " (List.replicate 150 "A message owns its text.")
     sm.cmds.modify (·.push s!"post {text}")
     waitIdle sm
+    -- Composer sends first present their body. This fixture now
+    -- deliberately scrolls to the pictures to exercise child demand.
+    discard <| onEvent (.scrolling true)
+    sm.b.set 0
+    steps 8
     let s ← get
     let some (_, message) := s.ids[0]? | throw (IO.userError "fixture message missing")
     let some row := s.rows[message]? | throw (IO.userError "fixture row missing")
