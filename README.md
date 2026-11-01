@@ -29,9 +29,11 @@ proven below is about these ops and this engine.
 
 ## Peers, and no server
 
-Each device runs a node, and nodes talk to each other directly. A node
-dials the member who invited it, so here Bob's and Carol's ops reach
-each other through Alice.
+Each device runs a node, and nodes talk to each other directly. An invite's
+addresses bootstrap a connection to its author. Members then share expiring
+endpoint ops and discover known peers through DNS-SD. In this example Bob's
+and Carol's ops first travel through Alice; learned addresses can establish
+a direct connection between them.
 
 ```mermaid
 flowchart TB
@@ -247,8 +249,14 @@ arrival order, direction or clock, and reconsidering the loser does not flap
 the winner. It proves signature/cap checks on endpoint publications, at most
 24 dial candidates (eight per source), expiry enforcement, a backoff capped at
 60 seconds, and selection of every retained candidate within an address cycle.
-Concrete witnesses accompany the conditional laws; native checks exercise real
-Ed25519 publication and invalid inputs.
+[DiscoveryProgress](ops/connection/DiscoveryProgress.lean) connects that policy
+to the actual planner: eligible hints produce a retry op and destination;
+backoff prevents premature plans. [DiscoveryStorage](ops/connection/DiscoveryStorage.lean)
+extends the existing full-node storage theorem to the discovery hooks: every
+event preserves shared ops and settles validation from a reachable, settled
+store, with advancing entropy. This uses the existing Held interpreter and its
+explicit native-storage boundary. Concrete native witnesses check the premises
+for all three sources, real signatures, and a tick that stores discovery ops.
 
 **Assumed for progress:** continuing completed runner turns, available socket
 quotas, completing/cancellable native operations, an authorized remote peer,
@@ -272,7 +280,11 @@ Named tasks build their binaries before testing and retain failure logs under
 builds run in a 48 GiB systemd scope with swap disabled. Local simultaneous
 dials, signed endpoint ops, dead-first-address invite bootstrap, and two-process
 LAN discovery have passed with encrypted marker exchange and identical stable
-session IDs. Cross-device results are still being established on this branch.
+session IDs. The Pixel 7 also passed LAN discovery and signed marker exchange
+with the desktop, retaining the same session ID at both ends. Its test dismisses
+the test device's keyguard and keeps it awake so the activity holds its multicast
+lock. `clean-quiet-test` was offline during the Tailscale test preflight; that
+cross-node result is still open. See the [test report](docs/PEER-ENDPOINTS.md).
 
 ### Towards Proofs for n Clients
 
@@ -393,7 +405,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1151 rest on Lean's standard axioms only, and about two thirds of its theorems (834 of 1131, not counting 20 negative controls) are about the code that runs; another 12 run the
+hypotheses. All 1173 rest on Lean's standard axioms only, and about two thirds of its theorems (851 of 1153, not counting 20 negative controls) are about the code that runs; another 12 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -496,7 +508,10 @@ World); the rest are over models so far
 | ⬜ | 🥊🥊 | **The screen keeps up.** Wanted: input first, no blank rows past a latency bound, within a frame budget, with bounded reads. | |
 | ✅ | 🥊🥊 | **Display order.** A channel sorts by a counter its devices share, then the time, then the id, with no ties, so devices with the same ops order it alike. Past the counter's cap, each device's own arrival order shows instead, and that exception is itself a law. | [`msg_cmp`], [`time_is_display`], [`order_total`], [`Pos.cmp_eq_iff`], [`Pos.cmp_lt_trans`], [`send_after`], [`arrival_order`], [`receipt_once`], [`order_local`], [`display_agrees`], [`readable_held`], [`readable_complete`] |
 | | | **Codes, pictures and discovery** | |
-| ✅ | 🥊🥊 | **What the encoders write reads back:** QR segments and codewords, invite links and mDNS packets, and QR error correction is sound. Nothing running writes mDNS packets or `leanquiet://` links yet. | [`parse_segsBits`], [`parse_dataStream`], [`RS.correct_sound`], [`RS.correct_clean`], [`decodeFormat_correct`], [`decodeVersion_correct`], [`parse_text`], [`parse_uri`], [`Base62.decode_encode`], [`Mdns.decode_encode`], [`decode_roundtrip`] |
+| 🟡 | 🥊🥊 | **Simultaneous attempts select one common connection.** The running selector agrees across directions and clocks and is stable when reconsidering the loser. Not yet: native socket-close completion. | [`Winner.choose_comm`], [`Winner.choose_stable`], [`Winner.exactly_one`], [`DiscoveryLaws.kept_pair`], [`DiscoveryLaws.both_choose_same`], [`DiscoveryLaws.single_survivor`], [`DiscoveryLaws.no_flapping`] |
+| ✅ | 🥊🥊 | **Endpoint publications authenticate their owner and bound active hints.** Eight addresses per publication, 24 retained candidates, strict expiry, and a retry delay of at most 60 seconds. Each retained address is selected within a candidate cycle. | [`DiscoveryLaws.publication_auth`], [`DiscoveryLaws.candidate_cap`], [`DiscoveryLaws.retry_eventually_due`], [`DiscoveryLaws.candidate_visited`], [`Endpoint.bounded_cap`], [`Endpoint.delay_bounded`], [`Endpoint.fresh_expires`] |
+| 🟡 | 🥊🥊 | **Eligible discovery data produces a plan through the actual hook, and node events preserve shared storage.** Concrete advancing-entropy store witnesses cover all sources. Not yet: universal discovery-to-connection liveness or native storage refinement. | [`plan_ready`], [`plan_backoff`], [`plan_after_backoff`], [`dial_reads`], [`readOnly`], [`step_moves`], [`step_retains`], [`step_settled`] |
+| ✅ | 🥊🥊 | **What the encoders write reads back:** QR segments and codewords, invite links and mDNS packets, and QR error correction is sound. The app sends mDNS packets; invite URI encoding is also checked independently. | [`parse_segsBits`], [`parse_dataStream`], [`RS.correct_sound`], [`RS.correct_clean`], [`decodeFormat_correct`], [`decodeVersion_correct`], [`parse_text`], [`parse_uri`], [`Base62.decode_encode`], [`Mdns.decode_encode`], [`decode_valid`], [`decode_roundtrip`] |
 | 🟡 | 🥊 | **Pictures render whole:** scaled and composited pictures are well-formed and opaque, and the tray's layout fits. Not yet: proven of `Pic`, which only qr's Android harness runs; the app draws its own. | [`render_wellFormed`], [`render_opaque`], [`scale_wellFormed`], [`fit_round`], [`Pic.layout_inside`], [`Pic.layout_apart`] |
 
 The theorems not listed here are lemmas. The axiom audit,
@@ -511,16 +526,16 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**834 of 1131 laws are about running code;** another 12 run its node code in a World, and 285 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**851 of 1153 laws are about running code;** another 12 run its node code in a World, and 290 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 174 | 103 |  | 71 |
 | Sync | 217 | 163 |  | 54 |
-| mDNS | 3 | 0 |  | 3 |
-| Node and wire | 74 | 48 | 10 | 16 |
+| mDNS | 3 | 3 |  |  |
+| Node and wire | 77 | 51 | 10 | 16 |
 | Bootstrap | 14 | 0 |  | 14 |
-| Connections | 97 | 79 | 2 | 16 |
+| Connections | 116 | 90 | 2 | 24 |
 | Community | 182 | 160 |  | 22 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
@@ -530,15 +545,14 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Missing link | Laws | To make them real |
 |---|---|---|
 | `Execution.fairRun`, `Execution.dequeued`, `Execution.trace` | 2 World laws | Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these. |
-| `Execution.lift` | [`run_count`]*, [`run_get`], [`run_view`]*, [`run_arrivedFrom`]*, [`ProgressTape.answer_ready`]* | Explicit Held store adapter inside the production-node entropy-tape interpreter. Native SQLite and entropy refinement remains external; answer_ready proves one actual handler call consumes its next tape value. |
+| `Execution.lift` | [`run_count`]*, [`run_get`], [`run_view`]*, [`run_arrivedFrom`]*, [`ProgressTape.answer_ready`]*, [`plan_ready`]*†, [`plan_backoff`]*†, [`plan_after_backoff`]*†, [`dial_reads`]*†, [`readOnly`]*†, [`step_moves`]†, [`step_retains`]† +1 more | Explicit Held store adapter inside the production-node entropy-tape interpreter. Native SQLite and entropy refinement remains external; answer_ready proves one actual handler call consumes its next tape value. |
 | `World.peer`, `Setup.sync`, `Who.other` +7 | 10 World laws; not yet: [`write_offers`], [`hold_wants`], [`want_sends`]†, [`op_taken`], [`write_offers_all`], [`write_hot`]†, [`secrecy_runs`] | Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired. |
-| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]† +34 more | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
+| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]† +37 more | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°†, [`exchange_ids_stable`], [`exchange_log`], [`exchange_stable`], [`conn_runs_exchange`]† | conn_runs_exchange now connects exchange's missing IDs to exact alternating onRbsr batches and proves termination under snapshot/fingerprint/capacity premises. Still needed: embedding uninterrupted rounds and directed announcements in the full Node/TCP execution across timeouts and capped windows. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]†, [`reads_members`], [`reads_recipients`], [`members_iff_node`]†, [`recipients_iff_node`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
 | `Scene.approval`, `FairExecution.run`, `Scene.K` +17 | [`FairExecution.fair`], [`ideal`], [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`bootstrap_ideal`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`] +1 more | Native scene certificates, an infinite fair/ideal model run, and a successful production-node trace with a fair continuation are proved and tested. conn_runs_exchange and closure_delivered now prove handler progress components. Whole-bootstrap convergence for every suitably fair app execution still needs their composition and native store/transport refinement. |
 | `Sync.keeps` | [`buffer_bounded`]*† | The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s. |
 | `Pic.add`, `Geom.box`, `Pic.attachEdge` +4 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]† | The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code. |
-| `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
 | `Arrival.lit` | [`lit_zero`], [`lit_mono`], [`lit_full`], [`lit_clockwise`], [`ring_counts`] | `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`. |
 | `Frame.wants`, `Subs.ofList`, `Frame.listWins` +2 | [`has_ofList`], [`ofList_wf`], [`screen_subs`]†, [`hull_near`]†, [`past_hull_le`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan). |
 | `Pics.after`, `Pics.costIn` | [`decoded_started`], [`image_steady`], [`image_settles`], [`image_twice`] | Legacy picture-door model (`PicM`); the app now uses owned Reader wants and Work.Pool continuations. Restate these cost/settling laws over that running path, including decode-unit bounds. |
@@ -549,6 +563,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Invite.uri` | [`parse_uri`]† | Nothing that runs calls it. |
 | `Seal.maxAssociatedDataSize` | [`unbox_box`]*†, [`openBody_sealBody`]*, [`openSealed_seal`]*†, [`member_opens`]*† | Nothing that runs calls it. |
 | `Seal.maxPlaintextSize` | [`unbox_box`]*†, [`openBody_sealBody`]*, [`openSealed_seal`]*†, [`member_opens`]*† | Nothing that runs calls it. |
+| `Execution.family` | [`step_moves`]†, [`step_retains`]†, [`step_settled`]† | Nothing that runs calls it; `Setup.sync`, `Connection.Execution.empty` do. |
 | `Q.get` | [`message_own`]† | Nothing that runs calls it. |
 | `Plan.stmts` | [`plan_stmt_cost`] | Nothing that runs calls it; `Engine.readPlan` do. |
 | `SeekCost.seek` | [`plan_stmt_cost`], [`readPlan_cost`], [`readPlan_cost_le`], [`readPlan_cost_range`] | Nothing that runs calls it; `Stmt.cost` do. |
@@ -617,7 +632,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 7 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). |
 | [`Seal.Good`] | 4 | Supported-size AEAD inputs and key wraps roundtrip; valid private keys agree and public keys/hashes have 32-byte outputs (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 350 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Model.run`] | 358 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
 | [`Sync.popW`] | 4 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
@@ -1428,7 +1443,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`go_inv`]: engine/renderer/Nav.lean#L107-L107
 [`NavLaws.depth`]: ops/app/NavLaws.lean#L83-L85
 [`draft_back`]: ops/app/NavLaws.lean#L66-L68
-[`into_native`]: App.lean#L128-L131
+[`into_native`]: App.lean#L130-L133
 [`present_iff`]: ops/app/PeopleLaws.lean#L28-L31
 [`present_not_removed`]: ops/app/PeopleLaws.lean#L38-L41
 [`present_nodup`]: ops/app/PeopleLaws.lean#L45-L46
@@ -1456,8 +1471,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`chips_fit`]: ops/app/Composer.lean#L114-L119
 [`compose_row`]: engine/renderer/SheetGeom.lean#L220-L224
 [`compose_top`]: engine/renderer/SheetGeom.lean#L230-L233
-[`Link.hints_fit`]: ops/community/link/View.lean#L49-L51
-[`Link.qr_fits`]: ops/community/link/View.lean#L67-L67
+[`Link.hints_fit`]: ops/community/link/View.lean#L60-L62
+[`Link.qr_fits`]: ops/community/link/View.lean#L78-L78
 [`Camera.src_in`]: engine/renderer/Camera.lean#L51-L53
 [`wrap_keeps`]: engine/renderer/WrapLaws.lean#L132-L135
 [`wrap_fits`]: engine/renderer/WrapLaws.lean#L206-L209
@@ -1499,8 +1514,8 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`dedupe_nodup`]: ops/app/Switch.lean#L52-L53
 [`dedupe_one_per_community`]: ops/app/Switch.lean#L56-L58
 [`select_tapped_dedupe`]: ops/app/Switch.lean#L82-L84
-[`drawPage_key`]: App.lean#L1077-L1081
-[`pageIn_acc`]: App.lean#L1083-L1086
+[`drawPage_key`]: App.lean#L1088-L1092
+[`pageIn_acc`]: App.lean#L1094-L1097
 [`msg_cmp`]: ops/community/message/Order.lean#L137-L144
 [`time_is_display`]: ops/community/message/Order.lean#L148-L154
 [`order_total`]: ops/community/message/Order.lean#L217-L227
@@ -1511,6 +1526,28 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`receipt_once`]: ops/community/message/Order.lean#L352-L355
 [`order_local`]: ops/community/message/Order.lean#L485-L497
 [`display_agrees`]: ops/community/message/Order.lean#L527-L537
+[`Winner.choose_comm`]: ops/connection/Winner.lean#L15-L15
+[`Winner.choose_stable`]: ops/connection/Winner.lean#L25-L26
+[`Winner.exactly_one`]: ops/connection/Winner.lean#L29-L32
+[`DiscoveryLaws.kept_pair`]: ops/connection/DiscoveryLaws.lean#L13-L17
+[`DiscoveryLaws.both_choose_same`]: ops/connection/DiscoveryLaws.lean#L20-L24
+[`DiscoveryLaws.single_survivor`]: ops/connection/DiscoveryLaws.lean#L27-L31
+[`DiscoveryLaws.no_flapping`]: ops/connection/DiscoveryLaws.lean#L38-L41
+[`DiscoveryLaws.publication_auth`]: ops/connection/DiscoveryLaws.lean#L52-L59
+[`DiscoveryLaws.candidate_cap`]: ops/connection/DiscoveryLaws.lean#L63-L64
+[`DiscoveryLaws.retry_eventually_due`]: ops/connection/DiscoveryLaws.lean#L67-L70
+[`DiscoveryLaws.candidate_visited`]: ops/connection/DiscoveryLaws.lean#L79-L82
+[`Endpoint.bounded_cap`]: engine/wire/Address.lean#L39-L39
+[`Endpoint.delay_bounded`]: engine/wire/Address.lean#L42-L42
+[`Endpoint.fresh_expires`]: engine/wire/Address.lean#L44-L45
+[`plan_ready`]: ops/connection/DiscoveryProgress.lean#L10-L20
+[`plan_backoff`]: ops/connection/DiscoveryProgress.lean#L25-L31
+[`plan_after_backoff`]: ops/connection/DiscoveryProgress.lean#L36-L49
+[`dial_reads`]: ops/connection/DiscoveryStorage.lean#L44-L46
+[`readOnly`]: ops/connection/DiscoveryStorage.lean#L50-L51
+[`step_moves`]: ops/connection/DiscoveryStorage.lean#L56-L61
+[`step_retains`]: ops/connection/DiscoveryStorage.lean#L64-L67
+[`step_settled`]: ops/connection/DiscoveryStorage.lean#L70-L73
 [`parse_segsBits`]: engine/renderer/qr/SegLaws.lean#L157-L161
 [`parse_dataStream`]: engine/renderer/qr/SegLaws.lean#L193-L197
 [`RS.correct_sound`]: engine/renderer/qr/Laws.lean#L55-L57
@@ -1521,6 +1558,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`parse_uri`]: ops/community/Link.lean#L254-L255
 [`Base62.decode_encode`]: ops/community/Link.lean#L134-L134
 [`Mdns.decode_encode`]: engine/wire/mdns/Laws.lean#L289-L290
+[`decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
 [`decode_roundtrip`]: engine/wire/mdns/Laws.lean#L584-L587
 [`render_wellFormed`]: engine/renderer/pic/Laws.lean#L219-L219
 [`render_opaque`]: engine/renderer/pic/Laws.lean#L222-L226
@@ -1557,7 +1595,6 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`layout_sizes`]: engine/renderer/pic/Laws.lean#L143-L144
 [`layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
 [`add_stored`]: engine/renderer/pic/Laws.lean#L239-L242
-[`decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
 [`lit_zero`]: ops/community/attachment/ArrivalLaws.lean#L88-L89
 [`lit_mono`]: ops/community/attachment/ArrivalLaws.lean#L92-L94
 [`lit_full`]: ops/community/attachment/ArrivalLaws.lean#L98-L99
@@ -1699,8 +1736,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 373 kernel witnesses, 171 runtime witnesses,
-14 conditional checks, 0 recorded runtime counterexamples; 0 of 558 linked declarations still pending.**
+**Coverage: 373 kernel witnesses, 193 runtime witnesses,
+14 conditional checks, 0 recorded runtime counterexamples; 0 of 580 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2062,7 +2099,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`go_inv`](engine/renderer/Nav.lean#L107-L107) | **kernel-witness**: [Vacuity.RendererFlow.noDuplicates](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
 | [`NavLaws.depth`](ops/app/NavLaws.lean#L83-L85) | **runtime-witness**: [Vacuity.RendererRuntime.stackDepth](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
 | [`draft_back`](ops/app/NavLaws.lean#L66-L68) | **runtime-witness**: [Vacuity.RendererRuntime.draftBack](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
-| [`into_native`](App.lean#L128-L131) | **runtime-witness**: [Vacuity.RendererRuntime.nativeInput](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
+| [`into_native`](App.lean#L130-L133) | **runtime-witness**: [Vacuity.RendererRuntime.nativeInput](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
 | [`present_iff`](ops/app/PeopleLaws.lean#L28-L31) | **runtime-witness**: [Vacuity.IdentityPeople.presentIff](tests/vacuity/IdentityPeople.lean). Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count. |
 | [`present_not_removed`](ops/app/PeopleLaws.lean#L38-L41) | **runtime-witness**: [Vacuity.IdentityPeople.presentNotRemoved](tests/vacuity/IdentityPeople.lean). Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count. |
 | [`present_nodup`](ops/app/PeopleLaws.lean#L45-L46) | **kernel-witness**: [Vacuity.IdentityPeople.presentNodup](tests/vacuity/IdentityPeople.lean). Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count. |
@@ -2090,8 +2127,8 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`chips_fit`](ops/app/Composer.lean#L114-L119) | **kernel-witness**: [Vacuity.RendererSets.chipsFit](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`compose_row`](engine/renderer/SheetGeom.lean#L220-L224) | **kernel-witness**: [Vacuity.RendererGeometry.composeRow](tests/vacuity/RendererGeometry.lean). Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture. |
 | [`compose_top`](engine/renderer/SheetGeom.lean#L230-L233) | **kernel-witness**: [Vacuity.RendererGeometry.composeTop](tests/vacuity/RendererGeometry.lean). Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture. |
-| [`Link.hints_fit`](ops/community/link/View.lean#L49-L51) | **kernel-witness**: [Vacuity.RendererSupplement.hints](tests/vacuity/RendererSupplement.lean). Four synthetic interfaces include private wired/Wi-Fi, public IPv4 and loopback. The theorem bounds every emitted hint; the executable separately checks exactly the two private hints survive with Wi-Fi first, preventing an empty-output implementation from passing unnoticed. |
-| [`Link.qr_fits`](ops/community/link/View.lean#L67-L67) | **kernel-witness**: [Vacuity.RendererSupplement.qr](tests/vacuity/RendererSupplement.lean). A concrete 41-module QR symbol fits a 256px square including its 4-module quiet zone on every side: Lean proves the fitting premise and exact scale5, and rejects a too-small side40. |
+| [`Link.hints_fit`](ops/community/link/View.lean#L60-L62) | **kernel-witness**: [Vacuity.RendererSupplement.hints](tests/vacuity/RendererSupplement.lean). Four synthetic interfaces include private wired/Wi-Fi, public IPv4 and loopback. The theorem bounds every emitted hint; the executable separately checks exactly the two private hints survive with Wi-Fi first, preventing an empty-output implementation from passing unnoticed. |
+| [`Link.qr_fits`](ops/community/link/View.lean#L78-L78) | **kernel-witness**: [Vacuity.RendererSupplement.qr](tests/vacuity/RendererSupplement.lean). A concrete 41-module QR symbol fits a 256px square including its 4-module quiet zone on every side: Lean proves the fitting premise and exact scale5, and rejects a too-small side40. |
 | [`Camera.src_in`](engine/renderer/Camera.lean#L51-L53) | **kernel-witness**: [Vacuity.RendererGeometry.cameraBounds](tests/vacuity/RendererGeometry.lean). Synthetic 1280px portrait viewport with 300px keyboard, real nonzero offset/overscan, a 100-item scrolled emoji grid, and a twelve-byte camera frame in all four orientations. Fitting, hit-box, byte and index premises are constructed; exact positions and missed taps are checked. Native compositor and camera acquisition remain outside this fixture. |
 | [`wrap_keeps`](engine/renderer/WrapLaws.lean#L132-L135) | **kernel-witness**: [Vacuity.RendererText.wrapping](tests/vacuity/RendererText.lean). Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture. |
 | [`wrap_fits`](engine/renderer/WrapLaws.lean#L206-L209) | **kernel-witness**: [Vacuity.RendererText.wrappedWidth](tests/vacuity/RendererText.lean). Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture. |
@@ -2133,8 +2170,8 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`dedupe_nodup`](ops/app/Switch.lean#L52-L53) | **kernel-witness**: [Vacuity.RendererSets.acceptanceUnique](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`dedupe_one_per_community`](ops/app/Switch.lean#L56-L58) | **kernel-witness**: [Vacuity.RendererSets.communityUnique](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`select_tapped_dedupe`](ops/app/Switch.lean#L82-L84) | **kernel-witness**: [Vacuity.RendererSets.tapped](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
-| [`drawPage_key`](App.lean#L1077-L1081) | **runtime-witness**: [Vacuity.RendererRuntime.sameKey](tests/vacuity/RendererRuntime.lean). The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency. |
-| [`pageIn_acc`](App.lean#L1083-L1086) | **runtime-witness**: [Vacuity.RendererRuntime.keyAcceptance](tests/vacuity/RendererRuntime.lean). The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency. |
+| [`drawPage_key`](App.lean#L1088-L1092) | **runtime-witness**: [Vacuity.RendererRuntime.sameKey](tests/vacuity/RendererRuntime.lean). The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency. |
+| [`pageIn_acc`](App.lean#L1094-L1097) | **runtime-witness**: [Vacuity.RendererRuntime.keyAcceptance](tests/vacuity/RendererRuntime.lean). The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency. |
 | [`msg_cmp`](ops/community/message/Order.lean#L137-L144) | **kernel-witness**: [Vacuity.IdentityMessages.messageCompare](tests/vacuity/IdentityMessages.lean). Concrete signed messages with counters 1/2 and reversed wall-clock times; actual comparator returns less-than. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`time_is_display`](ops/community/message/Order.lean#L148-L154) | **kernel-witness**: [Vacuity.IdentityMessages.timeIsDisplay](tests/vacuity/IdentityMessages.lean). Concrete distinct counters 1 and 2, inequality proven in kernel; reversed times do not reverse actual message order. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`order_total`](ops/community/message/Order.lean#L217-L227) | **runtime-witness**: [Vacuity.IdentityMessages.orderTotal](tests/vacuity/IdentityMessages.lean). Two real signed sealed messages read oldest first; exact returned IDs match increasing counters despite reversed wall-clock times. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
@@ -2145,6 +2182,28 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`receipt_once`](ops/community/message/Order.lean#L352-L355) | **runtime-witness**: [Vacuity.RendererSupplement.receiptOnce](tests/vacuity/RendererSupplement.lean). Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted. |
 | [`order_local`](ops/community/message/Order.lean#L485-L497) | **runtime-witness**: [Vacuity.RendererSupplement.localOrder](tests/vacuity/RendererSupplement.lean). Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted. |
 | [`display_agrees`](ops/community/message/Order.lean#L527-L537) | **runtime-witness**: [Vacuity.RendererSupplement.displayAgreement](tests/vacuity/RendererSupplement.lean). Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted. |
+| [`Winner.choose_comm`](ops/connection/Winner.lean#L15-L15) | **runtime-witness**: [main](tests/endpoints/Check.lean). Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs. |
+| [`Winner.choose_stable`](ops/connection/Winner.lean#L25-L26) | **runtime-witness**: [main](tests/endpoints/Check.lean). Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs. |
+| [`Winner.exactly_one`](ops/connection/Winner.lean#L29-L32) | **runtime-witness**: [main](tests/endpoints/Check.lean). Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs. |
+| [`DiscoveryLaws.kept_pair`](ops/connection/DiscoveryLaws.lean#L13-L17) | **runtime-witness**: [main](tests/endpoints/Check.lean). Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs. |
+| [`DiscoveryLaws.both_choose_same`](ops/connection/DiscoveryLaws.lean#L20-L24) | **runtime-witness**: [main](tests/endpoints/Check.lean). Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs. |
+| [`DiscoveryLaws.single_survivor`](ops/connection/DiscoveryLaws.lean#L27-L31) | **runtime-witness**: [main](tests/endpoints/Check.lean). Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs. |
+| [`DiscoveryLaws.no_flapping`](ops/connection/DiscoveryLaws.lean#L38-L41) | **runtime-witness**: [main](tests/endpoints/Check.lean). Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs. |
+| [`DiscoveryLaws.publication_auth`](ops/connection/DiscoveryLaws.lean#L52-L59) | **runtime-witness**: [publicationWitness](tests/endpoints/Check.lean). Real Ed25519 publication satisfies the exact acceptance premise and applies the authorization law. Wrong-author signatures, oversized lists and invalid lifetimes are rejected. |
+| [`DiscoveryLaws.candidate_cap`](ops/connection/DiscoveryLaws.lean#L63-L64) | **runtime-witness**: [main](tests/endpoints/Check.lean). Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws. |
+| [`DiscoveryLaws.retry_eventually_due`](ops/connection/DiscoveryLaws.lean#L67-L70) | **runtime-witness**: [main](tests/endpoints/Check.lean). Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws. |
+| [`DiscoveryLaws.candidate_visited`](ops/connection/DiscoveryLaws.lean#L79-L82) | **runtime-witness**: [main](tests/endpoints/Check.lean). Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws. |
+| [`Endpoint.bounded_cap`](engine/wire/Address.lean#L39-L39) | **runtime-witness**: [main](tests/endpoints/Check.lean). Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws. |
+| [`Endpoint.delay_bounded`](engine/wire/Address.lean#L42-L42) | **runtime-witness**: [main](tests/endpoints/Check.lean). Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws. |
+| [`Endpoint.fresh_expires`](engine/wire/Address.lean#L44-L45) | **runtime-witness**: [main](tests/endpoints/Check.lean). Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws. |
+| [`plan_ready`](ops/connection/DiscoveryProgress.lean#L10-L20) | **runtime-witness**: [readyWitness, backoffWitness, laterWitness](tests/endpoints/Check.lean). Exact planner hypotheses are evaluated for invite, signed-publication and DNS-SD inputs, before the deadline and at maximum backoff; PLift terms apply the corresponding laws. These are step witnesses, not a fair-loss liveness certificate. |
+| [`plan_backoff`](ops/connection/DiscoveryProgress.lean#L25-L31) | **runtime-witness**: [readyWitness, backoffWitness, laterWitness](tests/endpoints/Check.lean). Exact planner hypotheses are evaluated for invite, signed-publication and DNS-SD inputs, before the deadline and at maximum backoff; PLift terms apply the corresponding laws. These are step witnesses, not a fair-loss liveness certificate. |
+| [`plan_after_backoff`](ops/connection/DiscoveryProgress.lean#L36-L49) | **runtime-witness**: [readyWitness, backoffWitness, laterWitness](tests/endpoints/Check.lean). Exact planner hypotheses are evaluated for invite, signed-publication and DNS-SD inputs, before the deadline and at maximum backoff; PLift terms apply the corresponding laws. These are step witnesses, not a fair-loss liveness certificate. |
+| [`dial_reads`](ops/connection/DiscoveryStorage.lean#L44-L46) | **runtime-witness**: [storageCertificate](tests/endpoints/Check.lean). Real signed community ops construct a reachable, settled Held store; readOnly is discharged for Discovery.sync. The native tick stores discovery actions, retains the shared root and leaves the validation queue empty. Native SQLite refinement is external. |
+| [`readOnly`](ops/connection/DiscoveryStorage.lean#L50-L51) | **runtime-witness**: [storageCertificate](tests/endpoints/Check.lean). Real signed community ops construct a reachable, settled Held store; readOnly is discharged for Discovery.sync. The native tick stores discovery actions, retains the shared root and leaves the validation queue empty. Native SQLite refinement is external. |
+| [`step_moves`](ops/connection/DiscoveryStorage.lean#L56-L61) | **runtime-witness**: [storageCertificate](tests/endpoints/Check.lean). Real signed community ops construct a reachable, settled Held store; readOnly is discharged for Discovery.sync. The native tick stores discovery actions, retains the shared root and leaves the validation queue empty. Native SQLite refinement is external. |
+| [`step_retains`](ops/connection/DiscoveryStorage.lean#L64-L67) | **runtime-witness**: [storageCertificate](tests/endpoints/Check.lean). Real signed community ops construct a reachable, settled Held store; readOnly is discharged for Discovery.sync. The native tick stores discovery actions, retains the shared root and leaves the validation queue empty. Native SQLite refinement is external. |
+| [`step_settled`](ops/connection/DiscoveryStorage.lean#L70-L73) | **runtime-witness**: [storageCertificate](tests/endpoints/Check.lean). Real signed community ops construct a reachable, settled Held store; readOnly is discharged for Discovery.sync. The native tick stores discovery actions, retains the shared root and leaves the validation queue empty. Native SQLite refinement is external. |
 | [`parse_segsBits`](engine/renderer/qr/SegLaws.lean#L157-L161) | **kernel-witness**: [Vacuity.Formats.segmentRound](tests/vacuity/Formats.lean). Version 1, numeric 123, alphanumeric QUIET and binary 00 FE FF segments with terminator; every segment validity premise proved. |
 | [`parse_dataStream`](engine/renderer/qr/SegLaws.lean#L193-L197) | **kernel-witness**: [Vacuity.Formats.streamRound](tests/vacuity/Formats.lean). Three nonempty segments fit 19 data codewords and roundtrip; one-byte capacity is rejected. |
 | [`RS.correct_sound`](engine/renderer/qr/Laws.lean#L55-L57) | **kernel-witness**: [Vacuity.Formats.rsSound](tests/vacuity/Formats.lean). One symbol corrupted in ABC plus two parity symbols; successful correction premise proved and soundness theorem applied. |
@@ -2155,6 +2214,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`parse_uri`](ops/community/Link.lean#L254-L255) | **kernel-witness**: [Vacuity.Core.inviteUriRound](tests/vacuity/Core.lean). The same nonempty invite with four 32-byte fields and a network hint roundtrips through the application URI. All Invite.Valid premises are proved before applying parse_uri. |
 | [`Base62.decode_encode`](ops/community/Link.lean#L134-L134) | **kernel-witness**: [Vacuity.Core.base62Round](tests/vacuity/Core.lean). Binary fixture [0,1,254,255]; invalid alphabet character rejected. |
 | [`Mdns.decode_encode`](engine/wire/mdns/Laws.lean#L289-L290) | **kernel-witness**: [Vacuity.Formats.announcementRound](tests/vacuity/Formats.lean). Nonempty service query, IPv4 and SRV answers; all name, record and count premises proved. |
+| [`decode_valid`](engine/wire/mdns/Laws.lean#L540-L541) | **kernel-witness**: [Vacuity.Formats.announcementSound](tests/vacuity/Formats.lean). Same DNS soundness theorem under a second README reference label. |
 | [`decode_roundtrip`](engine/wire/mdns/Laws.lean#L584-L587) | **kernel-witness**: [Vacuity.Formats.decodedRound](tests/vacuity/Formats.lean). Service discovery query and two answers survive decode/re-encode; localhost example identities, documentation IPv4 address. |
 | [`render_wellFormed`](engine/renderer/pic/Laws.lean#L219-L219) | **kernel-witness**: [Vacuity.RendererImages.renderSized](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
 | [`render_opaque`](engine/renderer/pic/Laws.lean#L222-L226) | **kernel-witness**: [Vacuity.RendererImages.opacity](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
@@ -2197,7 +2257,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`layout_sizes`](engine/renderer/pic/Laws.lean#L143-L144) | **kernel-witness**: [Vacuity.RendererImages.layoutSizes](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
 | [`layout_apart`](engine/renderer/pic/Laws.lean#L147-L148) | **kernel-witness**: [Vacuity.RendererImages.separated](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
 | [`add_stored`](engine/renderer/pic/Laws.lean#L239-L242) | **runtime-witness**: [Vacuity.RendererRuntime.addStored](tests/vacuity/RendererRuntime.lean). The production Pic.add accepts the synthetic two-pixel RGBA fixture; runtime evaluation proves the result grew, then applies add_stored to the actual result. Invalid buffers are rejected separately in the image fixtures. Native execution, including encoder equality checks, is trusted. |
-| [`decode_valid`](engine/wire/mdns/Laws.lean#L540-L541) | **kernel-witness**: [Vacuity.Formats.announcementSound](tests/vacuity/Formats.lean). Same DNS soundness theorem under a second README reference label. |
 | [`lit_zero`](ops/community/attachment/ArrivalLaws.lean#L88-L89) | **kernel-witness**: [Vacuity.ChatPresentation.zeroRing](tests/vacuity/ChatPresentation.lean). Synthetic Alice message at 12:45, 4032×3024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280×210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets. |
 | [`lit_mono`](ops/community/attachment/ArrivalLaws.lean#L92-L94) | **kernel-witness**: [Vacuity.ChatPresentation.growing](tests/vacuity/ChatPresentation.lean). Synthetic Alice message at 12:45, 4032×3024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280×210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets. |
 | [`lit_full`](ops/community/attachment/ArrivalLaws.lean#L98-L99) | **kernel-witness**: [Vacuity.ChatPresentation.fullRing](tests/vacuity/ChatPresentation.lean). Synthetic Alice message at 12:45, 4032×3024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280×210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets. |

@@ -76,9 +76,7 @@ def send (s : UDP.Socket) (m : Mdns.Msg) (target : SocketAddress) : IO Unit := d
 of the /10. The app also learns tailnet seeds through invite/endpoint ops. -/
 def run (r : Runner) (db : Db) (tailnet : List IPv4Addr := []) : IO Unit := do
   let sock ← UDP.Socket.mk
-  IO.eprintln "discovery: UDP socket created"
   sock.bind (.v4 ⟨IPv4Addr.ofParts 0 0 0 0, 5353⟩)
-  IO.eprintln "discovery: UDP 5353 bound"
   -- Join only the explicit LAN interfaces below. Android may reject a
   -- default-interface multicast join when its default route is cellular.
   sock.setMulticastTTL 255
@@ -94,10 +92,8 @@ def run (r : Runner) (db : Db) (tailnet : List IPv4Addr := []) : IO Unit := do
       last := now
       if let some (pk, _, _) := (← (endpoints : SqlM F _).run db).head? then
         me := pk
-        IO.eprintln "discovery: reading interfaces"
         let addrs ← Link.local?
         let hints := Link.hints addrs r.port.toNat
-        IO.eprintln s!"discovery: detected {hints.map (fun b => (String.fromUTF8? b).getD "?")}"
         let ips := hints.filterMap fun h => (Endpoint.parse h).map (·.1)
         let lan := ips.filter fun ip => Link.isPrivate (ip.octets.toList.map (·.toNat))
         offered := [service pk r.port lan]
@@ -105,19 +101,14 @@ def run (r : Runner) (db : Db) (tailnet : List IPv4Addr := []) : IO Unit := do
         discard <| r.writes.trySend [Community.mkOp [] (.discovered pk hints now Endpoint.maxAge)]
         -- Set the outgoing multicast interface explicitly; never a Docker bridge.
         for ip in lan do
-          unless joined.contains ip do
-            try
+          try
+            unless joined.contains ip do
               sock.setMembership (.v4 Mdns.Net.group) (some (.v4 ip)) .enterGroup
-              IO.eprintln s!"discovery: joined {ip}"
-            catch e => IO.eprintln s!"discovery: join {ip}: {e}"
-            joined := (ip :: joined).take 8
-          IO.eprintln s!"discovery: selecting {ip}"
-          sock.setMulticastInterface (.v4 ip)
-          IO.eprintln "discovery: announcing"
-          send sock (Mdns.announce offered.head!) Mdns.Net.groupAddr
-          IO.eprintln "discovery: querying"
-          send sock (Mdns.query serviceType) Mdns.Net.groupAddr
-          IO.eprintln "discovery: query sent"
+              joined := (ip :: joined).take 8
+            sock.setMulticastInterface (.v4 ip)
+            send sock (Mdns.announce offered.head!) Mdns.Net.groupAddr
+            send sock (Mdns.query serviceType) Mdns.Net.groupAddr
+          catch e => IO.eprintln s!"discovery: LAN {ip}: {e}"
         let hints ← ((Discovery.readCommunity Community.discoveryHints [] 8).run : SqlM F _).run db
         let seeds := hints.flatMap fun (_, fact) => match fact with
           | .joining _ _ hs .. => hs.take 8
@@ -126,7 +117,8 @@ def run (r : Runner) (db : Db) (tailnet : List IPv4Addr := []) : IO Unit := do
         let seeds := seeds.filterMap fun h => (Endpoint.parse h).map (·.1)
         let seeds := seeds.filter fun ip => Link.isTailnet (ip.octets.toList.map (·.toNat))
         for ip in (tailnet ++ seeds).eraseDups.take 8 do
-          send sock (Mdns.unicastQuery serviceType) (.v4 ⟨ip, 5353⟩)
+          try send sock (Mdns.unicastQuery serviceType) (.v4 ⟨ip, 5353⟩)
+          catch e => IO.eprintln s!"discovery: tailnet {ip}: {e}"
     if let some (bytes, source) ← receive sock r.stopped then
       if let some m := Mdns.decode bytes then
         if let some source := source then
@@ -135,7 +127,8 @@ def run (r : Runner) (db : Db) (tailnet : List IPv4Addr := []) : IO Unit := do
             | .v4 a => Link.isTailnet (a.addr.octets.toList.map (·.toNat))
             | _ => false
           if let some (reply, unicast) := Mdns.response (if isTail then routed else offered) m port then
-            send sock reply (if unicast then source else Mdns.Net.groupAddr)
+            try send sock reply (if unicast then source else Mdns.Net.groupAddr)
+            catch _ => pure ()
         for f in (Mdns.found serviceType m).take 4 do
           if let some op := foundOp f now then
             let some (.discovered peer _ _ _) := (Codec.decode op.body : Option Community.Body) | continue
@@ -154,9 +147,11 @@ def run (r : Runner) (db : Db) (tailnet : List IPv4Addr := []) : IO Unit := do
 /-- The app starts this beside the TCP runner; both share its stop flag. -/
 def start (r : Runner) (path : String) (tailnet : List IPv4Addr := []) : IO Unit := do
   discard <| IO.asTask (prio := .dedicated) do
-    try
-      let db ← Db.openAt path
-      run r db tailnet
-    catch e => IO.eprintln s!"discovery: {e}"
+    while !(← r.stopped.get) do
+      try
+        let db ← Db.openAt path
+        run r db tailnet
+      catch e => IO.eprintln s!"discovery: {e}"
+      IO.sleep 1000
 
 end Connection.DiscoveryNet

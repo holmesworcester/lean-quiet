@@ -892,8 +892,8 @@ def netStep : M Unit := do
   let wallBase ← Connection.DiscoveryNet.wallNow
   let monoBase ← IO.monoMsNow
   let x : Engine.Sync.Sync SF (SqlM SF) :=
-    { fam, cfg := { every := 30000, askTime := 20000 },
-      hooks := Connection.Discovery.hooks fam Connection.sodium listen wallBase monoBase }
+    Connection.Discovery.sync fam Connection.sodium listen wallBase monoBase
+      { every := 30000, askTime := 20000 }
   let path := s.dbPath
   let sh := s.sh
   let t ← IO.asTask (prio := .dedicated) do

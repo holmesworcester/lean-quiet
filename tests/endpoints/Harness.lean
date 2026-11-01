@@ -39,7 +39,35 @@ def main (args : List String) : IO UInt32 := do
   let db ← Db.openAt path
   let wall ← DiscoveryNet.wallNow
   let mono ← IO.monoMsNow
-  let h := Discovery.hooks fam sodium address.toUTF8 wall mono
+  -- Test-only entropy fixes the late response above the early response in
+  -- the ID order. Production still uses OS entropy; the real Noise algorithm
+  -- and validators below are unchanged.
+  let sourceFresh := (Fresh.fresh : SqlM F ByteArray)
+  let draws ← IO.mkRef 0
+  let late := args[9]?.getD "" == "late"
+  let expectedRemote := Request.op sodium (nk other) (key name)
+    (sha256 s!"endpoint-test/simultaneous/{other}".toUTF8) (hello c remote.toUTF8 [])
+  let testFresh : Fresh (SqlM F) := { fresh := do
+    if !late then return ← sourceFresh
+    let some ro := expectedRemote | throw (IO.userError "fixture request failed")
+    let some (.request _ _ m1) := (Codec.decode ro.body : Option Connection.Body)
+      | throw (IO.userError "fixture request body failed")
+    for _ in [:1024] do
+      let n ← draws.modifyGet fun n => (n, n + 1)
+      let e := sha256 s!"endpoint-test/entropy/{name}/{n}".toUTF8
+      if let some co := Reply.op sodium ro.id (nk name) (key other) m1 e then
+        if (co.id[0]!.toNat < 128) == (name == "B") then return e
+    throw (IO.userError "fixture entropy search exhausted") }
+  let base : Hooks F (SqlM F) := @Discovery.hooks (SqlM F) inferInstance inferInstance inferInstance
+    testFresh fam sodium address.toUTF8 wall mono
+  let h := { base with react := do
+    let ops ← base.react
+    if mode == "simultaneous" then
+      for op in ops do
+        if let some (.connection _) := (Codec.decode op.body : Option Connection.Body) then
+          IO.println s!"ANSWER {name} {DiscoveryNet.hex op.id}"
+          (← IO.getStdout).flush
+    return ops }
   let x : Sync F (SqlM F) := { fam, cfg := { every := 500, askTime := 2000 }, hooks := h }
   let localOps := [Community.endpoint (nk name), secret (seed name), accept c (dev name).pk]
   let ops := if mode == "invite" && name == "B" then
@@ -66,6 +94,7 @@ def main (args : List String) : IO UInt32 := do
       let e := sha256 s!"endpoint-test/simultaneous/{name}".toUTF8
       let some req := Request.op sodium (nk name) (key other) e (hello c address.toUTF8 [])
         | throw (IO.userError "request construction failed")
+      IO.sleep (args[8]?.getD "0" |>.toNat! |>.toUInt32)
       r.write [req, Eph.op e req.id, Send.op remote.toUTF8 req]
     r.write [marker name]
     IO.println s!"READY {name} {r.port} {mode}"
@@ -78,7 +107,17 @@ def main (args : List String) : IO UInt32 := do
       let ids := (← look path (sessions : SqlM F _)).map (·.1)
       let received ← look path (Store.getStatus (marker other).id : SqlM F _)
       let valid := match received with | some (.valid _) => true | _ => false
-      if ids.length == 1 && valid then
+      let mut endpointsReady := true
+      if mode == "lan" then
+        let now ← DiscoveryNet.wallNow
+        let published ← look path ((Discovery.advertised c (key other) now).run : SqlM F _)
+        let sighting ← look path ((Discovery.latest Community.sighting.byReporter [c, key other, key name]).run : SqlM F _)
+        endpointsReady := !published.isEmpty && (match sighting with
+          | some (.sighting _ _ _ addr _) => (Endpoint.parse addr).any (fun a => a.2.toNat == port)
+          | _ => false)
+      let nativeCount ← r.slots.atomically do return (← getThe (List String)).length
+      let socketReady := mode != "simultaneous" || nativeCount == 1
+      if ids.length == 1 && valid && endpointsReady && socketReady then
         if previous == ids then stable := stable + 1 else stable := 0
         if stable ≥ 30 then
           IO.println s!"PASS {name} single stable session {DiscoveryNet.hex ids.head!}; peer marker received"
@@ -89,7 +128,8 @@ def main (args : List String) : IO UInt32 := do
       IO.sleep 100
     if !success then
       let all ← look path (allSessions : SqlM F _)
-      IO.eprintln s!"FAIL {name}: {all.length} sessions, no stable authenticated marker exchange"
+      let slots ← r.slots.atomically do return (← getThe (List String)).length
+      IO.eprintln s!"FAIL {name}: {all.length} sessions, {slots} native sockets, no stable authenticated marker exchange"
     -- Keep the successful side available long enough for its peer's check.
     if success then IO.sleep 5000
     IO.println "stopping TCP runner"

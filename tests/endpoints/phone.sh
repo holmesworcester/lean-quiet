@@ -30,9 +30,11 @@ trap cleanup EXIT
 lan=$(ip -4 route get 224.0.0.251 | sed -n 's/.* src \([^ ]*\).*/\1/p')
 .lake/build/bin/endpoint_network A "$out/A.db" 49301 lan "$lan:49301" 75 >"$out/desktop.log" 2>&1 & local_pid=$!
 "$adb" -s "$serial" shell input keyevent KEYCODE_WAKEUP
+"$adb" -s "$serial" shell wm dismiss-keyguard
 "$adb" -s "$serial" shell am start -n "$pkg/com.holmes.leanquiet.LeanActivity" >"$out/start.log"
 result=''
-for _ in $(seq 90); do
+for i in $(seq 90); do
+  if (( i % 10 == 0 )); then "$adb" -s "$serial" shell input keyevent KEYCODE_WAKEUP; fi
   result=$("$adb" -s "$serial" shell run-as "$pkg" cat files/endpoint-result 2>/dev/null | tr -d '\r' || true)
   # NativeActivity uses its internalDataPath as cwd (usually files/).
   if [[ -z "$result" ]]; then result=$("$adb" -s "$serial" shell run-as "$pkg" cat endpoint-result 2>/dev/null | tr -d '\r' || true); fi
@@ -41,5 +43,8 @@ for _ in $(seq 90); do
 done
 wait "$local_pid"; local_pid=''
 [[ "$result" = 0 ]] || { echo "Pixel 7 did not pass (result '$result')"; exit 1; }
+"$adb" -s "$serial" logcat -d -s lean >"$out/phone.log"
 grep -q 'PASS A single stable session' "$out/desktop.log"
+id=$(sed -n 's/.*single stable session \([^;]*\);.*/\1/p' "$out/desktop.log")
+grep -q "PASS B single stable session $id;" "$out/phone.log"
 echo 'PASS Pixel 7 and desktop: LAN DNS-SD to authenticated TCP and marker exchange'

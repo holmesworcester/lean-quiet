@@ -1,5 +1,6 @@
 import tests.endpoints.Harness
-import ops.connection.DiscoveryLaws
+import ops.connection.DiscoveryStorage
+import ops.connection.DiscoveryProgress
 
 open Engine Community Connection EndpointNetwork
 
@@ -15,11 +16,94 @@ def accepted (o : Op) : Bool :=
   (Community.validate ed25519 o [.admission c c (dev "A").pk (key "A"),
     .admission c c (dev "A").pk (key "A")]).isSome
 
+/-- These checks construct proof terms after evaluating the exact hypotheses,
+so a success cannot come from an uninhabited implication. -/
+def memory (ops : List Op) : Execution.Memory :=
+  { held := ((Engine.Sync.Turn.turn fam ops : Engine.Sync.HeldM F Unit) {}).2,
+    entropy := fun n => Engine.sha256 s!"endpoint-progress/{n}".toUTF8 }
+
+def readyWitness (s : Execution.Memory) (invite pub found : List ByteArray)
+    (now : Nat) (old : Option (Nat × Nat)) (addr : ByteArray) :=
+  if h : (Discovery.retryState (key "A")).eval s.held.db = old ∧
+      Discovery.canTry now old = true ∧
+      (Discovery.advertised c (key "A") now).eval s.held.db = pub ∧
+      (Discovery.discovered (key "A") now).eval s.held.db = found ∧
+      Endpoint.pick (Discovery.candidates invite pub found) (Discovery.nextAttempt old) = some addr then
+    some (PLift.up (DiscoveryProgress.plan_ready s c (key "A") invite pub found now old addr
+      h.1 h.2.1 h.2.2.1 h.2.2.2.1 h.2.2.2.2))
+  else none
+
+def backoffWitness (s : Execution.Memory) (invite : List ByteArray) (now last tries : Nat) :=
+  if h : (Discovery.retryState (key "A")).eval s.held.db = some (last, tries) ∧
+      Discovery.canTry now (some (last, tries)) = false then
+    some (PLift.up (DiscoveryProgress.plan_backoff s c (key "A") invite now _ h.1 h.2))
+  else none
+
+def laterWitness (s : Execution.Memory) (pub : List ByteArray) (addr : ByteArray) :=
+  if h : (Discovery.retryState (key "A")).eval s.held.db = some (1000, 0) ∧
+      1000 + 60000 ≤ 61000 ∧
+      (Discovery.advertised c (key "A") 61000).eval s.held.db = pub ∧
+      (Discovery.discovered (key "A") 61000).eval s.held.db = [] ∧
+      Endpoint.pick (Discovery.candidates [] pub []) (Discovery.nextAttempt (some (1000, 0))) = some addr then
+    some (PLift.up (DiscoveryProgress.plan_after_backoff s c (key "A") [] pub [] 1000 0 61000 addr
+      h.1 h.2.1 h.2.2.1 h.2.2.2.1 h.2.2.2.2))
+  else none
+
+def publicationWitness (ds os : List ByteArray) :=
+  let o := ad ds os 1000 2000
+  let sig := Community.sig (dev "A").sk [c, c] (.addresses ds os 1000 2000 .empty)
+  if h : Community.check ed25519 o (.addresses ds os 1000 2000 sig)
+      [.admission c c (dev "A").pk (key "A"), .admission c c (dev "A").pk (key "A")] =
+      some (.addresses c (key "A") ds os 1000 2000) then
+    some (PLift.up (DiscoveryLaws.publication_auth ed25519 o c c (dev "A").pk (key "A") c c (dev "A").pk
+      (key "A") ds os 1000 2000 sig _ h))
+  else none
+
+theorem memory_reachable (ops : List Op) : (memory ops).held.Reachable Execution.family := by
+  have h : Engine.Sync.Moves Execution.family {} (memory ops).held := .single (.turn ops {})
+  exact h.store_reachable (Engine.Sync.held_empty_reachable Execution.family)
+
+def storageCertificate (x : Engine.Sync.Sync F Execution.M)
+    (hx : Execution.NodeTape.ReadOnly x) (hfamily : x.fam = Execution.family)
+    (s : Execution.Memory) (hr : s.held.Reachable Execution.family)
+    (n : Engine.Sync.Node) (o : Op) : Bool :=
+  if ho : s.held.db.ops o.id = some o then
+    if hs : (Execution.family.room o).isSome then
+      if hq : s.held.db.queue = [] then
+        have moves : Engine.Sync.Moves Execution.family s.held ((n.step x .tick 1000) s).2.held := by
+          rw [← hfamily]
+          exact Execution.NodeTape.step_goes x hx n .tick 1000 s
+        let _retained := moves.shared_retained ho hs
+        let _settled := moves.store_settled hr hq
+        true
+      else false
+    else false
+  else false
+
 def main : IO Unit := do
   let lan := "192.168.4.35:47100".toUTF8
   let tail := "100.67.2.56:47100".toUTF8
+  let a := ByteArray.mk #[1]
+  let b := ByteArray.mk #[2]
+  let peer := ByteArray.mk #[9]
+  require "distinct simultaneous attempts have the same stable single winner"
+    (a != b && kept [(b,peer,true,.empty,1),(a,peer,false,.empty,99)] == [a] &&
+      kept [(a,peer,true,.empty,2),(b,peer,false,.empty,0)] == [a] &&
+      Winner.choose (Winner.choose a b) b == a)
   let good := ad [lan] [tail] 1000 2000
   require "actual Ed25519 endpoint-op acceptance witness" (accepted good)
+  require "publication proof premises hold on a real signature" (publicationWitness [lan] [tail]).isSome
+  require "invite planner law has an inhabited running-state premise"
+    (readyWitness (memory shared) [lan] [] [] 1000 none lan).isSome
+  require "endpoint-op planner law has an inhabited running-state premise"
+    (readyWitness (memory (shared ++ [good])) [] [lan, tail] [] 1000 none lan).isSome
+  let localFound := Community.mkOp [] (.discovered (key "A") [tail] 1000 1000)
+  require "DNS-SD observation planner law has an inhabited running-state premise"
+    (readyWitness (memory (shared ++ [localFound])) [] [] [tail] 1000 none tail).isSome
+  let retry := Community.mkOp [] (.retry (key "A") 1000 0)
+  let retryMemory := memory (shared ++ [retry, ad [lan, tail] [] 60000 70000])
+  require "backoff proof premises hold before the deadline" (backoffWitness retryMemory [lan] 1001 1000 0).isSome
+  require "bounded waiting proves the next address is planned" (laterWitness retryMemory [lan, tail] tail).isSome
   require "another member cannot author A's endpoint op" (!accepted (ad [lan] [] 1000 2000 (dev "B")))
   require "nine addresses are rejected at validation" (!accepted (ad (List.replicate 9 lan) [] 1000 2000))
   require "lifetime beyond five minutes is rejected" (!accepted (ad [lan] [] 1000 301001))
@@ -39,6 +123,29 @@ def main : IO Unit := do
   let req := Community.issue c c (dev "A") (key "A") (seed "invite") hints
   require "multi-address invite roundtrips through the actual link parser"
     (Community.Invite.parse req.2.text == some req.2)
+  let selfDiscovery := Community.mkOp [] (.discovered (key "A") [lan] 1000 100000)
+  let reportReqs := [c, adm "B"]
+  let reportBody : Community.Body := .sighting (key "A") tail 1000 .empty
+  let report := Community.mkOp reportReqs (.sighting (key "A") tail 1000 (Community.sig (dev "B").sk reportReqs reportBody))
+  let ownOps := shared ++ [Community.endpoint (nk "A"), secret (seed "A"),
+    accept c (dev "A").pk, selfDiscovery, report]
+  let ownMemory := memory ownOps
+  require "discovery Node tick has inhabited storage-preservation premises"
+    (storageCertificate (Discovery.sync fam sodium lan 1000 1000 {})
+      (DiscoveryStorage.readOnly fam sodium lan 1000 1000 {}) rfl ownMemory (memory_reachable ownOps) (Engine.Sync.Node.boot fam [] 0) rootOp)
+  let node := Engine.Sync.Node.boot fam [] 0
+  let result := (node.step (Discovery.sync (m := Execution.M) fam sodium lan 1000 1000 {}) .tick 1000) ownMemory
+  require "storage witness tick actually stores discovery actions" (result.2.held.log.length > ownMemory.held.log.length)
+  require "discovery tick retains shared root and finishes validation"
+    (result.2.held.db.ops c == some rootOp && result.2.held.db.queue.isEmpty)
+  let publications := (Discovery.publish c c (dev "A").pk (key "A") 1000 : Execution.M (List Op)) ownMemory |>.1
+  require "owner republishes detected and authenticated observed hints"
+    (publications.any fun o => match (Codec.decode o.body : Option Community.Body) with
+      | some (.addresses ds os _ _ _) => ds == [lan] && os == [tail]
+      | _ => false)
+  let emptyMemory := memory (shared ++ [Community.endpoint (nk "A"), secret (seed "A"), accept c (dev "A").pk])
+  require "startup does not publish an empty ad before interface detection"
+    ((Discovery.publish c c (dev "A").pk (key "A") 1000 : Execution.M (List Op)) emptyMemory).1.isEmpty
   let db ← Db.openAt ":memory:"
   (Engine.receive fam (shared ++ [good, ad [] [] 2001 2100]) : SqlM F Unit).run db
   let current ← ((Discovery.advertised c (key "A") 2200).run : SqlM F _).run db

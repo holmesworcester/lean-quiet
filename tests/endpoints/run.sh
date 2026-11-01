@@ -11,4 +11,4 @@ mkdir -p out/endpoints
 lake build endpoint_network +ops.connection.DiscoveryLaws >out/endpoints/build.log 2>&1 || {
   tail -80 out/endpoints/build.log; exit 1;
 }
-python3 tests/endpoints/network.py "${1:-lan}"
+python3 tests/endpoints/network.py "${1:-lan}" "${@:2}"

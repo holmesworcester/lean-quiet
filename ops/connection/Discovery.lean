@@ -80,7 +80,8 @@ def signer (device : B) : m (Option Community.Device) := do
 def publish (c adm device pk : B) (now : Nat) : m (List Op) := do
   let some d ← signer device | return []
   if !(← ((Community.deviceLive c device).liftL : View F Bool).run) then return []
-  match ← (latest Community.addresses.byPeer [c, pk]).run with
+  let previous ← (latest Community.addresses.byPeer [c, pk]).run
+  match previous with
   | some (.addresses _ _ _ _ time _) => if now < time + 60000 then return []
   | _ => pure ()
   let ds ← (discovered pk now).run
@@ -93,6 +94,7 @@ def publish (c adm device pk : B) (now : Nat) : m (List Op) := do
         os := addr :: os
   let ds := Endpoint.bounded ds |>.take 4
   os := Endpoint.bounded os |>.take 4
+  if ds.isEmpty && os.isEmpty && previous.isNone then return []
   let reqs := [c, adm]
   let b : Community.Body := .addresses ds os now (now + Endpoint.maxAge) .empty
   return [Community.mkOp reqs (.addresses ds os now (now + Endpoint.maxAge)
@@ -141,8 +143,10 @@ def memberOne (K : Keys) (listen pk sk : B) (now : Nat) (adm : Id) (f : Communit
   let some (addr, retry) ← plan c peer [] now | return []
   let a : Answer F ← Lists.list (m := m) (request.byTo.query [peer] (limit := some 8) (cap := 8))
   for ((_, rid), fact) in a.rights do
-    let .request _ frm _ := fact | continue
+    let .request _ frm m1 := fact | continue
     if frm != pk then continue
+    let some (room, _, _) ← helloOf K sk rid peer m1 | continue
+    if room != c then continue
     if let some ro ← Store.getOp (m := m) rid then
       return [retry, Send.op addr ro]
   let e ← Fresh.fresh
@@ -180,5 +184,16 @@ other authenticated handshake, retirement and synchronization handlers. -/
 def hooks {m : Type → Type} [Monad m] [Lists F m] [Store F m] [Fresh m]
     (fam : Family F) (K : Keys) (listen : B) (wallBase monoBase : Nat) : Hooks F m :=
   { Connection.hooks fam K listen with dial := dial K listen wallBase monoBase }
+
+end Connection.Discovery
+
+namespace Connection.Discovery
+open Engine Engine.Sync
+
+/-- Shared app/test setup, also used by the store-preservation laws. -/
+def sync {m : Type → Type} [Monad m] [Lists F m] [Store F m] [Fresh m]
+    (fam : Family F) (K : Keys) (listen : B) (wallBase monoBase : Nat)
+    (cfg : Config := {}) : Sync F m :=
+  { fam, cfg, hooks := hooks fam K listen wallBase monoBase }
 
 end Connection.Discovery

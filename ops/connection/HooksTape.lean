@@ -199,6 +199,9 @@ theorem openSessions_reads : ReadsHeld (openSessions : M _) := by
 theorem sessions_reads : ReadsHeld (sessions : M _) := by
   unfold sessions; readsHeld [openSessions_reads]
 
+theorem routedSessions_reads : ReadsHeld (routedSessions : M _) := by
+  unfold routedSessions; readsHeld [allSessions_reads]
+
 /-- `retired`, as this base has it (another branch reads the
 established facts themselves: redo this lemma there). -/
 theorem retired_reads : ReadsHeld (retired : M (List Id)) := by
@@ -233,6 +236,6 @@ theorem hooks_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray))
     (∀ cid, ReadsHeld (k.closing cid)) ∧ ReadsHeld k.retired ∧ ReadsHeld k.react ∧ (∀ t, ReadsHeld (k.dial t)) ∧
     ReadsHeld k.established ∧ (∀ cid b, ReadsHeld (k.sealFor cid b)) ∧ (∀ b, ReadsHeld (k.openFrame b)) :=
   ⟨rooms_reads, onArrival_reads, outbox_reads, closing_reads, retired_reads, react_reads hfr fam K,
-    dial_reads hfr K listen, sessions_reads, sealFor_reads hfr K, openFrame_tape_reads K⟩
+    dial_reads hfr K listen, routedSessions_reads, sealFor_reads hfr K, openFrame_tape_reads K⟩
 
 end Connection.Execution

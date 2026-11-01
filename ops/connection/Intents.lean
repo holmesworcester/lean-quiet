@@ -423,6 +423,13 @@ ran on, and whether this side dialed. -/
 def sessions : m (List (Id × B × Bool)) := do
   return (← openSessions).map fun (cid, _, dialer, a, _) => (cid, a, dialer)
 
+/-- Give the node every authenticated route, including an attempt that loses
+before ever being selected. `finish` retires the complement in the same turn.
+Otherwise the loser has no recorded address and its native socket leaks until
+idle timeout. This does not add a handshake message or change `sessions`. -/
+def routedSessions : m (List (Id × B × Bool)) := do
+  return (← allSessions).map fun (cid, _, dialer, a, _) => (cid, a, dialer)
+
 /-- Sessions not kept open: to be closed and purged. -/
 def retired : m (List Id) := do
   let all ← allSessions
@@ -495,7 +502,7 @@ def hooks (fam : Family F) (K : Keys) (listen : B) : Hooks F m where
   outbox := outbox
   react := react fam K
   dial := dial K listen
-  established := sessions
+  established := routedSessions
   closing := closing
   retired := retired
   sealFor := sealFor K

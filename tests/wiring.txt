@@ -77,6 +77,7 @@ block Engine.Sync.enqueue a send that waits while the node's channel is full
 block Std.CloseableChannel.Sync.send a channel send that waits while the channel is full
 block IO.wait waiting on another thread's task
 thread Engine.Sync.Runner.start
+thread Connection.DiscoveryNet.start
 waits App.submitWaits the frame's send to the node as it was before the toNode queue: it waits while the channel is full
 
 ## Wired, and must stay so: the laws "What is proven" rests on
@@ -243,7 +244,6 @@ spec ViewLaws.factIn A message's fact, as the store holds it.
 spec ViewLaws.keyIn A content key, as the store holds it.
 spec ArrivalLaws.readsOf The reads a view makes, on the model.
 spec Mdns.known The record types mDNS validity knows.
-spec Mdns.encRData A record's data as encoded, for its validity.
 spec Mdns.Name.wireLen A name's length on the wire, for its validity.
 spec Engine.window A window's rows, on the model: what a subscriber watches.
 spec Engine.filed Whether a row is filed under a key at a position, on the model.
@@ -340,8 +340,6 @@ todo Pic.scale = Pic.add
 todo Pic.attachEdge = Pic.add
 todo Pic.Geom.box = Pic.add
 spec Pic.Rgba.wellFormed A picture's pixels are 4 bytes for each of its w × h.
-todo Mdns.decode Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it.
-todo Mdns.encode = Mdns.decode
 todo Arrival.lit `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`.
 todo Screen.Frame.wants Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (App.lean); want by it, the window cut to the near rows' hull (Screen's plan).
 todo Screen.Frame.listWins = Screen.Frame.wants

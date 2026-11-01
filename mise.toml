@@ -546,3 +546,7 @@ run = "bash tests/endpoints/run.sh invite"
 [tasks."test:endpoints"]
 description = "Endpoint proof and native validation checks, concrete premise witnesses, and six rejected source mutations"
 run = "bash tests/endpoints/check.sh"
+
+[tasks."test:endpoints-late"]
+description = "Real TCP: a late higher-id simultaneous attempt closes despite never being selected"
+run = "bash tests/endpoints/run.sh simultaneous --late"

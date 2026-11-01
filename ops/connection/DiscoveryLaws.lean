@@ -51,10 +51,10 @@ example : Winner.choose (ByteArray.mk #[1]) (ByteArray.mk #[2]) = ByteArray.mk #
 
 /-- The running endpoint validator binds publication to the admitting
 node key and requires that device's signature and the address cap. -/
-theorem publication_auth (C : Community.Crypto) (o : Op) (c u0 c1 u d peer : B)
+theorem publication_auth (C : Community.Crypto) (o : Op) (c u0 rootDevice rootPeer c1 u d peer : B)
     (ds os : List B) (issued expires : Nat) (sig : B) (f : Community.Fact)
     (h : Community.check C o (.addresses ds os issued expires sig)
-      [.admission c u0 d peer, .admission c1 u d peer] = some f) :
+      [.admission c u0 rootDevice rootPeer, .admission c1 u d peer] = some f) :
     C.verify d (Community.signed o (.addresses ds os issued expires sig)) sig = true ∧
       (ds ++ os).length ≤ Endpoint.cap ∧ f = .addresses c peer ds os issued expires := by
   simp only [Community.check] at h
