@@ -1,0 +1,13 @@
+# Cited laws whose premises are untagged today (no vacuity evidence); may only shrink.
+law Engine.World.Plain.converge
+law Engine.World.Plain.deliver_queues
+law Engine.World.Plain.deliver_takes
+law Engine.World.Plain.deliver_wants
+law Engine.World.Plain.offline
+law Engine.World.node_serve
+law Engine.World.onHold_wants
+law Engine.World.onSealed_queues
+law Engine.World.onSealed_takes
+law Engine.World.onSealed_wants
+law Engine.World.recv_asked
+law Engine.World.recv_owed

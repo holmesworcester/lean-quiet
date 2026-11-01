@@ -16,6 +16,9 @@
 #    layout  the op tree's layout, and its negative controls (ci/layout.py)
 #    readme  the README's theorem links and the laws not yet about running
 #            code, against tests/Wiring.lean (ci/proof-links.py)
+#            and the premise tables (ci/premises.py): no ✅ row resting on a
+#            [trusted] or [model] premise, no untagged premise, every
+#            assumption tagged with both its sides (or in the baseline)
 #    reorg   the reorg's import rewriter (ci/reorg-imports.py --self-test)
 # 2. The gate's tests, at once. Each is deterministic and runs in this
 #    tree in one process at a time: no TCP, no X, no clock it must beat,
@@ -113,7 +116,7 @@ gate() {
     android-zoom) mise run android:zoom ;;
     release-zoom) mise run test:zoom && mise run android:zoom ;;
     pixel-scroll) mise run android:scroll-measure ;;
-    readme) mise run readme:links ;;
+    readme) mise run readme:links && mise run premises:check ;;
     layout) mise run layout:check ;;
     reorg) mise run reorg:test ;;
     vacuity) mise run test:vacuity ;;

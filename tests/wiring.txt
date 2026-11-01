@@ -155,6 +155,7 @@ wired Connection.reconnect_dials
 ## Assumptions
 
 assume Community.Unforgeable Ed25519 unforgeability over the signatures one store holds (no forgery in the store): a computational assumption, not provable in Lean.
+assume Community.Body.sigs = Community.Unforgeable
 assume Engine.CollisionFree SHA-256 has no collision among the ops a node received.
 assume Engine.Distinct = Engine.CollisionFree
 assume NodeOffer.offerM The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`.
@@ -486,3 +487,5 @@ spec Engine.Sync.RetryOrder.Run.sent Projection of the actual RetryOrder.scan re
 spec Engine.Sync.RetryOrder.Run.opportunities Count of pending-eligible initially vacant scan opportunities, excluding busy ticks; their eventual occurrence is not proved by the rank theorem.
 
 spec Engine.Sync.NodeUnique.Shape Logical projection of the actual Node connection IDs and retry order, used only to state returned-value invariants.
+spec Hold.messagePlane The original placeholder generator: the cache is proven to give its pixels exactly.
+spec App.PageId.all Every page there is: the back stack's bound counts them.

@@ -1,0 +1,15 @@
+# Assumption sides missing today (ci/premises.py); this list may only shrink.
+Community.Unforgeable neg
+Community.Unforgeable sat
+Connection.Noise.Symbolic.sym neg
+Connection.Noise.Symbolic.sym sat
+Engine.CollisionFree neg
+Engine.Model.run neg
+Engine.Model.run sat
+Engine.Sync.popW neg
+Engine.Sync.popW sat
+Engine.runJ neg
+Engine.runJ sat
+Merkle.NoCollision neg
+NodeOffer.offerM neg
+NodeOffer.offerM sat
