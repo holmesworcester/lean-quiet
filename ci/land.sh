@@ -8,9 +8,10 @@
 #
 # 1. Wait for the lock ($TMPDIR/lean-quiet-land.lock; flock frees it if
 #    the holder dies).
-# 2. Merge origin/main into HEAD (a conflict stops here: resolve, commit,
-#    run it again), build, and refresh the README's links and the vacuity
-#    inventory if the merge moved them (a commit of their own).
+# 2. Merge origin/main into HEAD (a conflict stops here, but for README's
+#    generated lines, ci/readme-merge.py: resolve, commit, run it again),
+#    build, and refresh the README's links and the vacuity inventory if
+#    the merge moved them (a commit of their own).
 # 3. The gate (ci/local.sh). A failure stops here, nothing pushed.
 # 4. Push HEAD to main, fast-forward only: LAND_PUSH (default
 #    `git push origin HEAD:main`; set it to push with your credentials).
@@ -30,8 +31,15 @@ fi
 echo "land: $(git rev-parse --short HEAD) holds the lock"
 git fetch -q origin
 if ! git merge-base --is-ancestor origin/main HEAD; then
-  git merge --no-edit origin/main ||
-    { echo "land: the merge conflicts: resolve, commit, and run ci/land.sh again" >&2; exit 1; }
+  if ! git merge --no-edit origin/main; then
+    # README's generated lines (links, table rows) conflict on most merges:
+    # main's are taken, and written again below; anything else stops here
+    if [ "$(git diff --name-only --diff-filter=U)" = README.md ] && python3 ci/readme-merge.py; then
+      git add README.md && git commit -q --no-edit
+    else
+      echo "land: the merge conflicts: resolve, commit, and run ci/land.sh again" >&2; exit 1
+    fi
+  fi
 fi
 ci/local.sh build
 python3 ci/proof-links.py >/dev/null && python3 ci/vacuity.py --write >/dev/null
