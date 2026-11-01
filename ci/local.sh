@@ -65,13 +65,17 @@ done
 
 proofs=(driver build check layout readme reorg)
 fast=(engine:suites visual headless vacuity)
-# The app's parts (tests/app/parts.txt): a part with cases, one a case.
+# The app's parts (tests/app/parts.txt): a part with cases in slices, at
+# most CASE_LANES (6), app:<part>/<k>; slice k is every case whose line
+# number is k modulo the number of slices (slice).
+slices() { local n; n=$(cd "$top" && tests/app/run.sh --cases "$1" | wc -l); echo $(( n < ${CASE_LANES:-6} ? n : ${CASE_LANES:-6} )); }
+slice() { local m; m=$(slices "$1"); (cd "$top" && tests/app/run.sh --cases "$1") | awk -v k="$2" -v m="$m" '(NR - 1) % m == k - 1'; }
 app_parts() {
-  local st name cmd kind c
+  local st name cmd kind k
   while IFS=$'\t' read -r st name cmd kind; do
     case $st in ''|'#'*) continue ;; esac
     if [ "${kind:-}" = cases ]; then
-      for c in $(cd "$top" && tests/app/run.sh --cases "$name"); do echo "app:$name/$c"; done
+      for k in $(seq 1 "$(slices "$name")"); do echo "app:$name/$k"; done
     else
       echo "app:$name"
     fi
@@ -115,7 +119,8 @@ gate() {
     runtime) mise run test:engine-runtime ;;
     mdns|qr|net) mise run "test:$1" ;;
     app) mise run test:app && mise run windows:input && mise run test:owned-input ;;
-    app:*/*) local q=${1#app:}; CI_LANE=1 tests/app/run.sh --part "${q%%/*}" "${q#*/}" ;;
+    app:*/*) local q=${1#app:}
+      CI_LANE=1 tests/app/run.sh --part "${q%%/*}" $(slice "${q%%/*}" "${q#*/}") ;;
     app:*) CI_LANE=1 tests/app/run.sh --part "${1#app:}" ;;
     windows-input) mise run windows:input ;;
     visual) mise run visual:compare && mise run visual:hover && mise run visual:composer ;;

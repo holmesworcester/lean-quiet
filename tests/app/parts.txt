@@ -2,15 +2,17 @@
 # tests/app/run.sh runs them by stage, in order; ci/local.sh --full runs
 # each part as one of its own (app:<part>), in its own copy of the built
 # tree, at once: some edit sources in place and restore them. A part
-# whose command takes `--list` (its cases, one a line) and then a case
-# name runs as one part a case (app:<part>/<case>), each in its own copy.
+# whose command takes `--list` (its cases, one a line) and then case
+# names runs in up to CASE_LANES (6) slices of its cases, each a part of
+# its own (app:<part>/<k>) in its own copy.
 fonts	noto	tests/app/noto.sh
 fonts	font-contract	bash tests/app/font_contract.sh
 fonts	cjk	mise run host:cjk
 fonts	bidi	tests/app/bidi.sh
 fonts	bidi-host	tests/app/bidi_host.sh
 input	twin-demo	mise run host:twin-demo
-input	seam	mise run host:seam && mise run host:seam-negative
+input	seam	mise run host:seam
+input	seam-negative	python3 tests/app/seam_negative.py	cases
 input	slide	mise run host:slide
 input	translate	mise run host:translate
 network	write-admission	mise run host:write-admission

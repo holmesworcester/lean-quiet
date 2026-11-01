@@ -1,6 +1,7 @@
 """Deliberately break running functions, require detection, restore them.
 Run only in an idle worktree; every mutation is restored in a finally block.
 """
+import os
 import pathlib
 import subprocess
 import sys
@@ -63,6 +64,11 @@ cases = [
 # Runtime controls must compile and fail their intended assertion; a compiler
 # error, timeout or signal is not evidence that the behavior was detected.
 native_failures = {'redundant-geometry': 'unchanged geometry leaves the native callback slot available', 'trace-wrong-position': 'trace captures the actual completed composer destination', 'trace-even-disabled': 'debug-disabled composition emits no per-frame trace', 'trace-submitted': 'staging and submission do not emit a presentation trace', 'wait-completion': 'consumed geometry waits for its own completion', 'old-window-completion': 'replacement presentation recovers after its own completion', 'completion-wraps-generation': 'replacement presentation recovers after its own completion', 'unbounded-completions': 'pending animation callback holds new geometry without allocating another callback', 'completion-ignores-reset': 'reset retires delayed ownership without accepting old-surface completion', 'completion-wraps-identity': 'exhausted native identity counters fail closed instead of aliasing a candidate', 'mixed-publication': "pending publication blocks next frame's different dirty layer", 'failed-buffer': 'buffer lock failure propagates', 'early-frame-stamp': 'submitted frame is not stamped until presentation completes'}
+# --list: the cases, one a line; names given: just those (ci/local.sh
+# --full runs them in slices, each in its own copy of the tree).
+if sys.argv[1:] == ['--list']:
+    print('\n'.join(case[0] for case in cases))
+    sys.exit(0)
 if sys.argv[1:]:
     selected = set(sys.argv[1:])
     assert selected <= {case[0] for case in cases}, 'unknown mutation'
@@ -96,6 +102,10 @@ for name, relative, old, new, kind in cases:
         # Restore artifacts too, before testing the next independent mutation.
         assert run(['lake', 'build', 'engine.renderer.InputLaws'] + (['seam_app'] if kind == 'app' else []),
                    name + '-restore') == 0
+if os.environ.get('CI_LANE') == '1':
+    # a copy of the tree thrown away after: its suites ran in their own part
+    print(f'negative controls: {len(cases)} detected')
+    sys.exit(0)
 assert run(['lake', 'build', 'seam', 'seam_app'], 'restored') == 0
 assert run(['python3', 'tests/app/seam.py'], 'restored-twin') == 0
 assert run(['.lake/build/bin/seam_app'], 'restored-app') == 0
