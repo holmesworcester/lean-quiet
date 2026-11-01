@@ -6,14 +6,21 @@ label of their canonical treap.
 - An item sorts by its key: its claimed time, then its id read as a
   number (`num`, injective). A range is `[lo, hi)` over keys.
 - The canonical treap of a set has the item with the largest priority
-  (its id's number) at the root, the items below its key on the left,
-  the items above on the right. `lbl` is that tree's Merkle label:
+  at the root, the items below its key on the left, the items above on
+  the right. The priority is derived from the key (`Key.plt`): the id
+  number's low 64 bits (an id's first eight bytes), then the whole
+  number. For hash ids that is independent of where the item sorts. The
+  id number alone, the order's own tie-break, made the items of one
+  claimed time (every structure op is at time 0) a chain: a treap as
+  high as their count, 1004 at 100,000 items where the derived priority
+  gives 40 (tests/scale). `lbl` is that tree's Merkle label:
   `h ""` for the empty tree, `h (left ‖ id ‖ right)` for a node. It
   reads the list only through `top` and `filter`, so where no two items
   share a priority (`Untied`) it is a function of the set, not of the
   list holding it (`lbl_perm`). `Named` alone does not give that: `top`
-  breaks priority ties by list position. The running sync's priorities
-  are `num` of distinct ids (`Conn.keyOf`), which `num_inj` keeps apart.
+  breaks priority ties by list position. Two keys tie only when their
+  id numbers are equal (`Key.plt_tie`), and the running sync's are `num`
+  of distinct ids (`Conn.keyOf`), which `num_inj` keeps apart.
 - `lbl_inj`: equal labels mean equal sets, if `h` has no collision on
   what the two labellings hashed (`pres`). This is the one assumption
   sync makes of its fingerprints, of the same kind as `Distinct` for op
@@ -96,6 +103,33 @@ theorem not_lt {a b : Key} : ¬ a < b ↔ b < a ∨ a = b := by
   · subst h; exact ⟨fun _ => Or.inr rfl, fun _ => lt_irrefl _⟩
   · exact ⟨fun _ => Or.inl h, fun _ => lt_asymm h⟩
 
+/-- The id number's low 64 bits: an id's first eight bytes, since `num`
+reads the first byte lowest. A machine word, so comparing two costs no
+allocation. -/
+def low (k : Key) : UInt64 := k.n.toUInt64
+
+/-- Whether a's treap priority is below b's: the low 64 bits of their id
+numbers, then the whole numbers. A function of the key alone, so the key
+and its encoding stay (t, n). -/
+def plt (a b : Key) : Prop := a.low < b.low ∨ (a.low = b.low ∧ a.n < b.n)
+
+instance (a b : Key) : Decidable (plt a b) :=
+  inferInstanceAs (Decidable (a.low < b.low ∨ (a.low = b.low ∧ a.n < b.n)))
+
+theorem plt_nat {a b : Key} : plt a b ↔ a.low.toNat < b.low.toNat ∨ (a.low.toNat = b.low.toNat ∧ a.n < b.n) := by
+  unfold plt
+  rw [UInt64.lt_iff_toNat_lt, ← UInt64.toNat_inj]
+
+theorem plt_irrefl (a : Key) : ¬ plt a a := by
+  rw [plt_nat]; omega
+
+theorem plt_trans {a b c : Key} (h1 : plt a b) (h2 : plt b c) : plt a c := by
+  rw [plt_nat] at *; omega
+
+/-- **Two keys tie in priority only if their id numbers are equal.** -/
+theorem plt_tie {a b : Key} (h1 : ¬ plt a b) (h2 : ¬ plt b a) : a.n = b.n := by
+  rw [plt_nat] at *; omega
+
 end Key
 
 /-! ## Ranges -/
@@ -118,13 +152,13 @@ def Range.from (floor : Nat) : Range := ⟨⟨floor, 0⟩, none⟩
 section
 variable {α : Type} (key : α → Key) (ident : α → ByteArray)
 
-/-- An item with the largest priority (its key's id number): of several
-with that priority, the one latest in the list. -/
+/-- An item with the largest priority (`Key.plt`): of several with that
+priority, the one latest in the list. -/
 def top : List α → Option α
   | [] => none
   | a :: t => match top t with
     | none => some a
-    | some b => if (key b).n < (key a).n then some a else some b
+    | some b => if Key.plt (key b) (key a) then some a else some b
 
 theorem top_none {l : List α} : top key l = none ↔ l = [] := by
   cases l with
@@ -146,7 +180,7 @@ theorem top_mem {l : List α} {m : α} (h : top key l = some m) : m ∈ l := by
       · cases h; exact List.mem_cons_of_mem _ (ih hb)
 
 /-- No item of l has a larger priority than the top. -/
-theorem top_max {l : List α} {m : α} (h : top key l = some m) : ∀ a ∈ l, (key a).n ≤ (key m).n := by
+theorem top_max {l : List α} {m : α} (h : top key l = some m) : ∀ a ∈ l, ¬ Key.plt (key m) (key a) := by
   induction l generalizing m with
   | nil => simp [top] at h
   | cons a t ih =>
@@ -156,7 +190,7 @@ theorem top_max {l : List α} {m : α} (h : top key l = some m) : ∀ a ∈ l, (
       cases h
       intro x hx
       rcases List.mem_cons.mp hx with rfl | hx
-      · exact Nat.le_refl _
+      · exact Key.plt_irrefl _
       · rw [top_none] at hn; subst hn; cases hx
     · rename_i b hb
       split at h
@@ -164,13 +198,13 @@ theorem top_max {l : List α} {m : α} (h : top key l = some m) : ∀ a ∈ l, (
         cases h
         intro x hx
         rcases List.mem_cons.mp hx with rfl | hx
-        · exact Nat.le_refl _
-        · exact Nat.le_of_lt (Nat.lt_of_le_of_lt (ih hb x hx) hlt)
+        · exact Key.plt_irrefl _
+        · exact fun hax => ih hb x hx (Key.plt_trans hlt hax)
       · rename_i hlt
         cases h
         intro x hx
         rcases List.mem_cons.mp hx with rfl | hx
-        · exact Nat.le_of_not_lt hlt
+        · exact hlt
         · exact ih hb x hx
 
 /-- The items below m's key, and above it. -/
@@ -357,7 +391,7 @@ theorem top_perm {l l' : List α} (hd : Untied key l) (hp : l.Perm l') : top key
       have hm' := (hp.mem_iff).2 (top_mem key h2)
       have le1 := top_max key h1 m' hm'
       have le2 := top_max key h2 m ((hp.mem_iff).1 hm)
-      rw [hd m hm m' hm' (Nat.le_antisymm le2 le1)]
+      rw [hd m hm m' hm' (Key.plt_tie le1 le2)]
 
 /-- **The label is the set's.** With no priority tie (as `num` gives
 distinct ids), any two orders of the same items have one label. -/

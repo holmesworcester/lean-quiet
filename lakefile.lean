@@ -88,7 +88,7 @@ lean_lib Headless where
 -- the test suites' modules (their executables are below)
 lean_lib Tests where
   globs := #[.submodules `tests.engine, .submodules `tests.net, .submodules `tests.mdns,
-    .submodules `tests.qr, .submodules `tests.app]
+    .submodules `tests.qr, .submodules `tests.app, .submodules `tests.scale]
 
 lean_exe component_demand where
   root := `tests.app.Demand
@@ -201,6 +201,10 @@ lean_exe wire where
 
 lean_exe syncpair where
   root := `tests.engine.SyncPair
+
+-- a round's work at 1k, 10k, 100k items (tests/scale/run.sh)
+lean_exe scale where
+  root := `tests.scale.Scale
 
 lean_exe syncworld where
   root := `tests.engine.SyncWorld

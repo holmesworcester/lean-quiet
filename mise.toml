@@ -15,6 +15,11 @@ run = "tests/check.sh"
 description = "Scenario (Ed25519 + SQLite), SQLite-vs-model differential, purge and its on-disk erasure, kill -9 atomicity"
 run = "tests/engine/run.sh"
 
+[tasks."test:scale"]
+description = "Scaling: a round's work at 1k, 10k and 100k items in one room against the proven bounds, with negative controls (tests/scale/run.sh)"
+depends = ["crypto"]
+run = "tests/scale/run.sh"
+
 [tasks."test:fresh"]
 description = "T-fresh: a fresh post's latency while N chunks sync (simulated time, against the old order), a peer that never reads over TCP, and the lanes' negative controls"
 run = "tests/engine/fresh.sh"
