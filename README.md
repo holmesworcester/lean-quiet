@@ -362,7 +362,7 @@ model unless a proven bridge ties the model to running code
 `tests/wiring-models.txt`, a list that only shrinks, does not name.
 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1338 rest on Lean's standard axioms only, and about four fifths of its theorems (1050 of 1256, not counting 59 proof steps and 23 negative controls) are about the code that runs; another 22 run the
+hypotheses. All 1338 rest on Lean's standard axioms only, and about four fifths of its theorems (1057 of 1255, not counting 60 proof steps and 23 negative controls) are about the code that runs; another 22 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -464,6 +464,7 @@ a new device on its own node (the 🟡 row under Connections).
 | ⬜ | 🥊🥊 | **A tap acts once.** A second tap on a control while its action is in flight starts nothing new (Send sends once). A press that turns into a scroll past the slop is not a tap. | |
 | ⬜ | 🥊🥊 | **Destructive actions are guarded.** Every action that cannot be undone asks for a second confirmation, as removal does (`writes_only_after_two`). Its control keeps a clear gap from the controls around it. | |
 | ✅ | 🥊🥊🥊 | **A screen need re-read only what changed.** A list changes only when a row is filed under a key it read, and no list holds an op twice. | [`eval_stable`], [`view_stable`], [`filed_rel`], [`mem_keysOf`], [`matching_nodup`] |
+| ✅ | 🥊🥊 | **A read costs its limit, not its list.** On SQLite's cost (the `SeekCost` assumption, below), the statements the running read runs (`listSql`: a counter per key, then `listPlan`'s) cost, for a one-key read, two seeks and a step and a seek per row returned, however long the list; a capped range count adds at most its cap; a range bounded on one side is counted exactly, by its smaller side, in about min(range, rest) rows; and no read walks more than its range. | [`readPlan_cost`], [`readPlan_cost_range`], [`readPlan_cost_le`], [`plan_stmt_cost`], [`splitWalk_exact`], [`splitWalk_steps`], [`splitWalk_cost`], [`sideCount_run`] |
 | 🟡 | 🥊🥊🥊 | **Notices are exact.** A screen watches windows of lists. Proven: after any batch of commits and purges, a subscriber is notified exactly when a window it watches changed, and its watch misses nothing it reads. Not yet: the running frame's windows are wider than its rows (`past_hull_le`), and SQLite's triggers are tested, not proven. | [`notice_iff`], [`read_notice_iff`], [`read_rows_iff`], [`Engine.window_rows`], [`watch_stable`], [`run_exact`], [`fact_stable`], [`find_costs`], [`notify_cost`], [`screen_subs`], [`hull_near`], [`past_hull_le`], [`key_notice_imprecise`], [`unnetted_imprecise`], [`keep_scrolled_off`], [`agrees_notice`], [`agrees_unmount`], [`watched_held`] |
 | ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
 | ✅ | 🥊🥊 | **Back goes back.** Back after opening a page restores the state before it (clearing only that page's one-line field); back at a root does nothing; after a switch, backs never leave the new home; and no step changes the composer's draft. | [`back_go`], [`NavLaws.back_open`], [`NavLaws.back_root`], [`back_switch`], [`go_inv`], [`NavLaws.depth`], [`draft_back`], [`into_native`] |
@@ -497,11 +498,11 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1050 of 1256 laws are about running code;** another 22 run its node code in a World, and 184 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 59 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 23 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
+**1057 of 1255 laws are about running code;** another 22 run its node code in a World, and 176 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 60 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 23 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 168 | 141 |  | 27 |
+| Engine | 167 | 148 |  | 19 |
 | Sync | 225 | 188 |  | 37 |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 194 | 170 | 16 | 8 |
@@ -535,10 +536,6 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Execution.empty` | [`empty_trace_store`], [`empty_trace_history`], [`empty_trace_unique`], [`unique`] | Nothing that runs calls it. |
 | `Execution.family` | [`production_step_moves`], [`production_step_retains`], [`production_step_reachable`], [`production_step_settled`], [`world_step_moves`], [`world_trace_moves`], [`empty_trace_store`], [`Run.shared_retained`], [`production_write_receives`], [`production_step_history`], [`world_step_history`], [`world_trace_history`] +2 more | Nothing that runs calls it; `Execution.Setup.sync`, `Execution.empty` do. |
 | `Execution.step` | [`world_step_moves`], [`world_step_history`], [`world_step_unique`] | Nothing that runs calls it; `Connection.Execution.Run.cons` do. |
-| `Plan.stmts` | [`plan_stmt_cost`] | Nothing that runs calls it; `Engine.readPlan` do. |
-| `SeekCost.seek` | [`plan_stmt_cost`], [`readPlan_cost`], [`readPlan_cost_le`], [`readPlan_cost_range`] | Nothing that runs calls it; `Stmt.cost` do. |
-| `Stmt.cost` | [`plan_stmt_cost`] | Nothing that runs calls it; `Engine.planCost` do. |
-| `Stmt.walks` | [`walks_le`] | Nothing that runs calls it; `Stmt.cost` do. |
 | `Catalog.held` | [`held_run_observed`], [`catalog_read`], [`ceiling_mono`] | Nothing that runs calls it; `Execution.Setup.sync` do. |
 | `Catalog.shared` | [`shared_log_turn`], [`shared_log_purge`], [`catalog_read`], [`ceiling_mono`], [`production_step_history`], [`world_step_history`], [`world_trace_history`], [`history`] | Nothing that runs calls it; `Catalog.held` do. |
 | `Lanes.take` | [`urgent_ahead`]†, [`ahead_bytes`]†, [`lanes_bounded`]* | Nothing that runs calls it. |
@@ -566,9 +563,6 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Sync.roundWants` | [`conn_answers_claims`], [`wants_seen`], [`discovers`], [`discovers_wire`], [`conn_runs_exchange`]† | Nothing that runs calls it. |
 | `View.listsAt` | [`deviceLive_lists`], [`live_lists_ge`], [`live_lists_le`], [`presentW_lists`], [`presentW_lists_eq`], [`present_lists_eq`], [`present_scans`], [`unremoved_lists`] | Nothing that runs calls it. |
 | `Engine.insertBy` | [`insertBy_map`], [`foldr_insertBy`], [`insertBy_merge`] | Nothing that runs calls it; `Engine.sortPos` do. |
-| `Engine.planCost` | [`readPlan_cost`], [`readPlan_cost_le`], [`readPlan_cost_range`] | Nothing that runs calls it. |
-| `Engine.readPlan` | [`readPlan_cost`], [`readPlan_cost_le`], [`readPlan_cost_range`] | Nothing that runs calls it. |
-| `Engine.sideCount` | [`sideCount_run`], [`splitWalk_cost`], [`splitWalk_exact`], [`splitWalk_steps`] | Nothing that runs calls it. |
 | `AWorld.pass` | [`AWorld.passActs_comp`], [`AWorld.passActs_indep`], [`AWorld.passActs_acts`] | Nothing that runs calls it. |
 | `AWorld.type` | [`AWorld.type_only`] | Nothing that runs calls it. |
 | `RWorld.actsWorld` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.passActs` do. |
@@ -584,7 +578,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
-| (none) | [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`unscoped_signs_all`]†, [`no_injective_hash`]†, [`exposed_parts`], [`eventually_delivered`], [`Costs.time`] +9 more | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`unscoped_signs_all`]†, [`no_injective_hash`]†, [`exposed_parts`], [`eventually_delivered`], [`Costs.time`] +10 more | Nothing to wire: each is about a specification or an assumption. |
 
 | Proof steps in | Steps | Used by (about running code) |
 |---|---|---|
@@ -597,7 +591,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `engine.core.Order` | [`eval_partition`], [`lexCmp_append_zero`], [`sortPos_sorted`] | `anchor_read`, `arrival_order`, `count_partition`, `rec_succ` +12 more |
 | `engine.core.Project` | [`of_map`], [`to_map`], [`Reads.mono`], [`eval_proj`], [`filterMap_inlRow`], [`leftOps_eq_some`], [`leftOps_isSome`], [`matching_proj`], [`mem_proj_idx`], [`sortPos_map`], [`specVerdict_eq_some`] | `admitted_node`, `community_inv`, `connect_iff_node`, `refuse_nonmember_node` +13 more |
 | `engine.core.Proofs` | [`distinct_of_collisionFree`]† | `oneOpPerId_of` |
-| `engine.core.Query` | [`sortPos_eq_fast`] | `asMsg_sorted`, `order_total`, `eval_oriented`, `eval_strict` +1 more |
+| `engine.core.Query` | [`walks_le`], [`sortPos_eq_fast`] | `asMsg_sorted`, `order_total`, `eval_oriented`, `eval_strict` +3 more |
 | `engine.core.Union` | [`mergeRuns_eq_sortPos`], [`union_rows`] | `order_total`, `union_sorted` |
 | `engine.renderer.DemandRank` | [`Demand.filter_rank`]† | `selected_or_retired`, `selected_within`, `take_changes`, `take_progress` |
 | `engine.renderer.TranslateLaws` | [`fill_index`], [`source_iff`], [`tile_phase`] | `pick_eq`, `copied_row`, `fill_pixel`, `pick_source` +1 more |
@@ -626,6 +620,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Seal.Good`] | 4 | Supported-size AEAD inputs and key wraps roundtrip; valid private keys agree and public keys/hashes have 32-byte outputs (correctness only). |
 | [`Symbolic.sym`] | 12 | The symbolic model of the cryptography, over which the running handshake runs. |
 | [`Model.run`] | 385 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
+| [`SeekCost.seek`] | 8 | SQLite's cost (docs/PERF.md, `levels`): a seek costs at most c·(log₂ N + 1) for N rows, each next row in index order at most `step`, and an ordered read with a LIMIT and nothing else filtering walks no row past its limit (each statement's plan checked by tests/engine/QueryDiff.lean, not proven). |
 | [`Sync.popW`] | 4 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
@@ -1506,6 +1501,14 @@ opportunities and full native delivery remain open.
 [`filed_rel`]: engine/core/Decl.lean#L197-L204
 [`mem_keysOf`]: engine/core/Decl.lean#L87-L90
 [`matching_nodup`]: engine/core/Decl.lean#L166-L169
+[`readPlan_cost`]: engine/core/Query.lean#L560-L565
+[`readPlan_cost_range`]: engine/core/Query.lean#L574-L577
+[`readPlan_cost_le`]: engine/core/Query.lean#L611-L616
+[`plan_stmt_cost`]: engine/core/Query.lean#L600-L603
+[`splitWalk_exact`]: engine/core/Query.lean#L675-L678
+[`splitWalk_steps`]: engine/core/Query.lean#L690-L696
+[`splitWalk_cost`]: engine/core/Query.lean#L735-L740
+[`sideCount_run`]: engine/core/Query.lean#L666-L669
 [`notice_iff`]: engine/core/WindowLaws.lean#L699-L707
 [`read_notice_iff`]: engine/core/WindowRead.lean#L408-L420
 [`read_rows_iff`]: engine/core/WindowRead.lean#L284-L290
@@ -1715,11 +1718,6 @@ opportunities and full native delivery remain open.
 [`history`]: app/Proofs.lean#L3490-L3495
 [`world_step_unique`]: app/Proofs.lean#L3954-L3958
 [`unique`]: app/Proofs.lean#L4012-L4016
-[`plan_stmt_cost`]: engine/core/Query.lean#L600-L603
-[`readPlan_cost`]: engine/core/Query.lean#L560-L565
-[`readPlan_cost_le`]: engine/core/Query.lean#L611-L616
-[`readPlan_cost_range`]: engine/core/Query.lean#L574-L577
-[`walks_le`]: engine/core/Query.lean#L586-L586
 [`held_run_observed`]: engine/sync/SweepRun.lean#L51-L55
 [`catalog_read`]: app/Proofs.lean#L3216-L3221
 [`ceiling_mono`]: app/Proofs.lean#L3226-L3228
@@ -1763,10 +1761,6 @@ opportunities and full native delivery remain open.
 [`insertBy_map`]: engine/core/Project.lean#L350-L351
 [`foldr_insertBy`]: engine/core/Union.lean#L111-L114
 [`insertBy_merge`]: engine/core/Union.lean#L74-L77
-[`sideCount_run`]: engine/core/Query.lean#L666-L669
-[`splitWalk_cost`]: engine/core/Query.lean#L735-L740
-[`splitWalk_exact`]: engine/core/Query.lean#L675-L678
-[`splitWalk_steps`]: engine/core/Query.lean#L690-L696
 [`AWorld.passActs_comp`]: engine/renderer/ActsLaws.lean#L292-L294
 [`AWorld.passActs_indep`]: engine/renderer/ActsLaws.lean#L296-L299
 [`AWorld.passActs_acts`]: engine/renderer/ActsLaws.lean#L302-L303
@@ -1809,6 +1803,7 @@ opportunities and full native delivery remain open.
 [`mem_proj_idx`]: engine/core/Project.lean#L215-L216
 [`sortPos_map`]: engine/core/Project.lean#L359-L360
 [`specVerdict_eq_some`]: engine/core/Project.lean#L71-L72
+[`walks_le`]: engine/core/Query.lean#L586-L586
 [`sortPos_eq_fast`]: engine/core/Query.lean#L278-L279
 [`mergeRuns_eq_sortPos`]: engine/core/Union.lean#L120-L123
 [`union_rows`]: engine/core/Union.lean#L164-L170
@@ -1844,6 +1839,7 @@ opportunities and full native delivery remain open.
 [`offerM`]: app/Screen.lean#L359-L365
 [`Symbolic.sym`]: engine/wire/NoiseSymbolic.lean#L259-L272
 [`Model.run`]: engine/core/Model.lean#L117-L117
+[`SeekCost.seek`]: engine/core/Query.lean#L536-L537
 [`Sync.popW`]: engine/wire/Lanes.lean#L132-L135
 [`Engine.runJ`]: engine/core/WindowLaws.lean#L148-L151
 [`BeforeNext`]: engine/renderer/Demand.lean#L224-L226
@@ -1925,7 +1921,7 @@ in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
 **Coverage: 483 kernel witnesses, 192 runtime witnesses,
-13 conditional checks, 0 recorded runtime counterexamples; 39 of 727 linked declarations still pending.**
+13 conditional checks, 0 recorded runtime counterexamples; 40 of 728 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2306,6 +2302,14 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`filed_rel`](engine/core/Decl.lean#L197-L204) | **runtime-witness**: [Vacuity.RendererSupplement.filedRelation](tests/vacuity/RendererSupplement.lean). On the actual nonempty signed two-message DB, runtime checks the queue is empty and supplies relation membership/name-length and invariant proofs before applying filed_rel to the real sealed message. This checks the full indexed-validity equivalence, not an empty relation. |
 | [`mem_keysOf`](engine/core/Decl.lean#L87-L90) | **kernel-witness**: [Vacuity.RendererSupplement.namedKeys](tests/vacuity/RendererSupplement.lean). The nonempty signed/decrypted IdentityMessages DB supplies the invariant. A genuinely new pending signed op gives a proper Later.ingest transition whose index preservation is proved by the production ingest definition; the actual two-message query and people view stay stable. Runtime checks the original query has two rows and the new op is queued; no reflexive state transition is substituted. |
 | [`matching_nodup`](engine/core/Decl.lean#L166-L169) | **kernel-witness**: [Vacuity.RendererSupplement.uniqueRows](tests/vacuity/RendererSupplement.lean). The nonempty signed/decrypted IdentityMessages DB supplies the invariant. A genuinely new pending signed op gives a proper Later.ingest transition whose index preservation is proved by the production ingest definition; the actual two-message query and people view stay stable. Runtime checks the original query has two rows and the new op is queued; no reflexive state transition is substituted. |
+| [`readPlan_cost`](engine/core/Query.lean#L560-L565) | **kernel-witness**: [Vacuity.Query.pageCost](tests/vacuity/Query.lean). Single-key page limit 50, 100000 rows, seek=2/step=1. Proves all query-shape premises; symbolic cost model, not SQLite timing. Synthetic model fixture; no collected real-user traffic. |
+| [`readPlan_cost_range`](engine/core/Query.lean#L574-L577) | **kernel-witness**: [Vacuity.Query.rangeCost](tests/vacuity/Query.lean). Same page with a concrete after-position and range cap 200; proves nonempty bound premise. Synthetic model fixture; no collected real-user traffic. |
+| [`readPlan_cost_le`](engine/core/Query.lean#L611-L616) | **kernel-witness**: [Vacuity.Query.overallCost](tests/vacuity/Query.lean). Concrete ranged page against 100000-row cost model. Synthetic model fixture; no collected real-user traffic. |
+| [`plan_stmt_cost`](engine/core/Query.lean#L600-L603) | **kernel-witness**: [Vacuity.Query.statementCost](tests/vacuity/Query.lean). Rows statement is proved to belong to the concrete page read plan. Synthetic model fixture; no collected real-user traffic. |
+| [`splitWalk_exact`](engine/core/Query.lean#L675-L678) | **kernel-witness**: [Vacuity.Query.splitExact](tests/vacuity/Query.lean). Sides 31 and 100000, fuel10/base4; exact smaller-side count 31. Synthetic model fixture; no collected real-user traffic. |
+| [`splitWalk_steps`](engine/core/Query.lean#L690-L696) | **kernel-witness**: [Vacuity.Query.splitSteps](tests/vacuity/Query.lean). Doubling threshold index3 proved sufficient; index2 proved insufficient. Execution independently equals (31,(7,87)). Synthetic model fixture; no collected real-user traffic. |
+| [`splitWalk_cost`](engine/core/Query.lean#L735-L740) | **kernel-witness**: [Vacuity.Query.splitCost](tests/vacuity/Query.lean). Same asymmetric split; positivity and doubling-bound premises kernel proved. Synthetic model fixture; no collected real-user traffic. |
+| [`sideCount_run`](engine/core/Query.lean#L666-L669) | **kernel-witness**: [Vacuity.Query.sideCounter](tests/vacuity/Query.lean). Sides 31 and 100000; cap 16; checks counter increments from (2,5) to (3,21). Synthetic model fixture; no collected real-user traffic. |
 | [`notice_iff`](engine/core/WindowLaws.lean#L699-L707) | **kernel-witness**: [Vacuity.Query.noticeExact](tests/vacuity/Query.lean). Stored operation is validated/filed and a real window changes. Invariant, one-op-per-id and index invariant proven; separately proves subscriber7 notified. Synthetic model fixture; no collected real-user traffic. |
 | [`read_notice_iff`](engine/core/WindowRead.lean#L408-L420) | **kernel-witness**: [Vacuity.Query.readNoticeExact](tests/vacuity/Query.lean). Exact whole-list subscription7 and actual new filed row; all one-key, no-zero-limit, invariant and matching-window premises proven. Synthetic model fixture; no collected real-user traffic. |
 | [`read_rows_iff`](engine/core/WindowRead.lean#L284-L290) | **kernel-witness**: [Vacuity.Query.readRowsChange](tests/vacuity/Query.lean). Nonempty stored-op step produces actual visible Unit row; both state invariants and one-key/unlimited query premises proved. Synthetic model fixture; no collected real-user traffic. |
@@ -2522,11 +2526,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`history`](app/Proofs.lean#L3490-L3495) | **runtime-witness**: [Vacuity.StorageEffects.runCertificate](tests/vacuity/StorageEffects.lean). A nonempty signed community continues through nine actual scheduled events. The certificate applies Run.history and discharges its starting reachability and log/store agreement from the exact production prefix, obtaining an appended shared-history suffix. The runner checks retained bytes and rejects an absent-message control; no quiescence or fairness premise is needed for this preservation law. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
 | [`world_step_unique`](app/Proofs.lean#L3954-L3958) | **kernel-witness**: [Vacuity.NodeUnique.production_prefix](tests/vacuity/NodeUnique.lean). Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions. |
 | [`unique`](app/Proofs.lean#L4012-L4016) | **kernel-witness**: [Vacuity.NodeUnique.production_run](tests/vacuity/NodeUnique.lean). Generated wiring-table alias for the same theorem. The existing production-hook infinite Run gets uniqueness at every position from boot and actual World.step, without a fairness assumption. This kernel instance does not claim an empty schedule establishes a session; separate nonempty actual-handler and signed native witnesses cover that boundary. |
-| [`plan_stmt_cost`](engine/core/Query.lean#L600-L603) | **kernel-witness**: [Vacuity.Query.statementCost](tests/vacuity/Query.lean). Rows statement is proved to belong to the concrete page read plan. Synthetic model fixture; no collected real-user traffic. |
-| [`readPlan_cost`](engine/core/Query.lean#L560-L565) | **kernel-witness**: [Vacuity.Query.pageCost](tests/vacuity/Query.lean). Single-key page limit 50, 100000 rows, seek=2/step=1. Proves all query-shape premises; symbolic cost model, not SQLite timing. Synthetic model fixture; no collected real-user traffic. |
-| [`readPlan_cost_le`](engine/core/Query.lean#L611-L616) | **kernel-witness**: [Vacuity.Query.overallCost](tests/vacuity/Query.lean). Concrete ranged page against 100000-row cost model. Synthetic model fixture; no collected real-user traffic. |
-| [`readPlan_cost_range`](engine/core/Query.lean#L574-L577) | **kernel-witness**: [Vacuity.Query.rangeCost](tests/vacuity/Query.lean). Same page with a concrete after-position and range cap 200; proves nonempty bound premise. Synthetic model fixture; no collected real-user traffic. |
-| [`walks_le`](engine/core/Query.lean#L586-L586) | **kernel-witness**: [Vacuity.Query.rowsWalkBound](tests/vacuity/Query.lean). 50-row limit within 100000 rows; independent expectation proves exactly 50 walks. Synthetic model fixture; no collected real-user traffic. |
 | [`held_run_observed`](engine/sync/SweepRun.lean#L51-L55) | **kernel-witness**: [Vacuity.Sweep.heldRun](tests/vacuity/Sweep.lean). The concrete one-row Held catalog has an independently checked existing row and returns the actual nonempty synthetic message. The named theorem identifies the running Sweep.run call with its pure input observation. Native SQL refinement and socket admission remain separate. |
 | [`catalog_read`](app/Proofs.lean#L3216-L3221) | **runtime-witness**: [Vacuity.StorageEffects.historyCertificate](tests/vacuity/StorageEffects.lean). A concrete existing catalog position points to the retained signed message. The runner checks its positive index and captured-ceiling bound before applying the law to write, authenticated frame, tick and real session close; reachability and log/store agreement are kernel-derived from the actual prefix. Native checks verify the old point lookup after append/purge, while index zero and an index above the captured ceiling reject the certificate. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
 | [`ceiling_mono`](app/Proofs.lean#L3226-L3228) | **runtime-witness**: [Vacuity.StorageEffects.historyCertificate](tests/vacuity/StorageEffects.lean). A concrete existing catalog position points to the retained signed message. The runner checks its positive index and captured-ceiling bound before applying the law to write, authenticated frame, tick and real session close; reachability and log/store agreement are kernel-derived from the actual prefix. Native checks verify the old point lookup after append/purge, while index zero and an index above the captured ceiling reject the certificate. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
@@ -2570,10 +2569,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`insertBy_map`](engine/core/Project.lean#L350-L351) | **kernel-witness**: [Vacuity.Projection.insertionMap](tests/vacuity/Projection.lean). Two concrete rows with sort bytes0/1 and distinct message identifiers; map into left sum constructor and preserve positions, order/insertion, or filter back. Synthetic generic row algebra, not collected user data. |
 | [`foldr_insertBy`](engine/core/Union.lean#L111-L114) | **kernel-witness**: [Vacuity.Core.foldMerge](tests/vacuity/Core.lean). Two ordered messages inserted into another nonempty list. |
 | [`insertBy_merge`](engine/core/Union.lean#L74-L77) | **kernel-witness**: [Vacuity.Core.insertMerge](tests/vacuity/Core.lean). Insert early message into two nonempty sorted lists with explicit head-order premise. |
-| [`sideCount_run`](engine/core/Query.lean#L666-L669) | **kernel-witness**: [Vacuity.Query.sideCounter](tests/vacuity/Query.lean). Sides 31 and 100000; cap 16; checks counter increments from (2,5) to (3,21). Synthetic model fixture; no collected real-user traffic. |
-| [`splitWalk_cost`](engine/core/Query.lean#L735-L740) | **kernel-witness**: [Vacuity.Query.splitCost](tests/vacuity/Query.lean). Same asymmetric split; positivity and doubling-bound premises kernel proved. Synthetic model fixture; no collected real-user traffic. |
-| [`splitWalk_exact`](engine/core/Query.lean#L675-L678) | **kernel-witness**: [Vacuity.Query.splitExact](tests/vacuity/Query.lean). Sides 31 and 100000, fuel10/base4; exact smaller-side count 31. Synthetic model fixture; no collected real-user traffic. |
-| [`splitWalk_steps`](engine/core/Query.lean#L690-L696) | **kernel-witness**: [Vacuity.Query.splitSteps](tests/vacuity/Query.lean). Doubling threshold index3 proved sufficient; index2 proved insufficient. Execution independently equals (31,(7,87)). Synthetic model fixture; no collected real-user traffic. |
 | [`AWorld.passActs_comp`](engine/renderer/ActsLaws.lean#L292-L294) | **kernel-witness**: [Vacuity.RendererModels.composerKept](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`AWorld.passActs_indep`](engine/renderer/ActsLaws.lean#L296-L299) | **kernel-witness**: [Vacuity.RendererModels.composerIndependent](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`AWorld.passActs_acts`](engine/renderer/ActsLaws.lean#L302-L303) | **kernel-witness**: [Vacuity.RendererModels.actionsTaken](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
@@ -2616,6 +2611,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`mem_proj_idx`](engine/core/Project.lean#L215-L216) | **kernel-witness**: [Vacuity.Projection.projectedIndex](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
 | [`sortPos_map`](engine/core/Project.lean#L359-L360) | **kernel-witness**: [Vacuity.Projection.sortingMap](tests/vacuity/Projection.lean). Two concrete rows with sort bytes0/1 and distinct message identifiers; map into left sum constructor and preserve positions, order/insertion, or filter back. Synthetic generic row algebra, not collected user data. |
 | [`specVerdict_eq_some`](engine/core/Project.lean#L71-L72) | **kernel-witness**: [Vacuity.Projection.specVerdictPresent](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
+| [`walks_le`](engine/core/Query.lean#L586-L586) | **kernel-witness**: [Vacuity.Query.rowsWalkBound](tests/vacuity/Query.lean). 50-row limit within 100000 rows; independent expectation proves exactly 50 walks. Synthetic model fixture; no collected real-user traffic. |
 | [`sortPos_eq_fast`](engine/core/Query.lean#L278-L279) | **kernel-witness**: [Vacuity.Core.fastSort](tests/vacuity/Core.lean). Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises. |
 | [`mergeRuns_eq_sortPos`](engine/core/Union.lean#L120-L123) | **kernel-witness**: [Vacuity.Core.merge](tests/vacuity/Core.lean). Two interleaved ordered message lists merge to exact three-row order; reversed input violates premise. |
 | [`union_rows`](engine/core/Union.lean#L164-L170) | **kernel-witness**: [Vacuity.Core.union](tests/vacuity/Core.lean). Two query answers, three messages, limit two; ordered-input premise computed and first two rows checked. |
@@ -2651,6 +2647,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`offerM`](app/Screen.lean#L359-L365) | **kernel-witness**: [Vacuity.RendererFlow.offerSplit](tests/vacuity/RendererFlow.lean). This README reference is the model channel operation, not a theorem. The concrete nonempty offer_split witness uses that exact operation on accepting/refusing responses and proves taken ++ waiting preserves the original writes. Exact channel outputs and retry order are checked separately. |
 | [`Symbolic.sym`](engine/wire/NoiseSymbolic.lean#L259-L272) | **kernel-witness**: [Vacuity.Contracts.symbolicGood](tests/vacuity/Contracts.lean). Symbolic Noise satisfies the corrected Good contract: every term is a supported key/payload/AD, HKDF/hash outputs satisfy these predicates, and correctness is proved in the kernel. Concrete Session handshake/secrecy fixtures continue to apply the same generic functions; this is not a proof of native primitives. |
 | [`Model.run`](engine/core/Model.lean#L117-L117) | **kernel-witness**: [Vacuity.CoreRuntime.loop](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
+| [`SeekCost.seek`](engine/core/Query.lean#L536-L537) | Pending: no concrete premise witness audited yet |
 | [`Sync.popW`](engine/wire/Lanes.lean#L132-L135) | **kernel-witness**: [Vacuity.WireMore.popsWrite](tests/vacuity/WireMore.lean). Two local writes and queued TCP frame; exact pop returns first write and preserves remaining queues. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`Engine.runJ`](engine/core/WindowLaws.lean#L148-L151) | **kernel-witness**: [Vacuity.WireMore.runJFiles](tests/vacuity/WireMore.lean). Actual stored-op processing journal leads to newly indexed visible row, as independently proved in Query fixture. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`BeforeNext`](engine/renderer/Demand.lean#L224-L226) | **kernel-witness**: [Vacuity.RendererDemand.beforeNext](tests/vacuity/RendererDemand.lean). This README reference is an invariant definition, not a theorem: the concrete nonempty two-key demand plan satisfies BeforeNext. Its serial bound is constructed from empty_before_next and reconcile_before_next; remount also checks serial reuse is rejected. |

@@ -174,6 +174,11 @@ assume Engine.eval = Engine.Model.run
 assume Engine.matching = Engine.Model.run
 assume Engine.DB.empty = Engine.Model.run
 assume Engine.budget = Engine.Model.run
+assume Engine.SeekCost.seek SQLite's cost (docs/PERF.md, `levels`): a seek costs at most c·(log₂ N + 1) for N rows, each next row in index order at most `step`, and an ordered read with a LIMIT and nothing else filtering walks no row past its limit (each statement's plan checked by tests/engine/QueryDiff.lean, not proven).
+assume Engine.Stmt.walks = Engine.SeekCost.seek
+assume Engine.Stmt.cost = Engine.SeekCost.seek
+assume Engine.planCost = Engine.SeekCost.seek
+assume Engine.sideCount = Engine.SeekCost.seek
 assume Engine.Sync.HeldM.run = Engine.Model.run
 assume ArrivalLaws.modelReads = Engine.Model.run
 # the model store's reads and writes, which the held store's instances lift
@@ -293,6 +298,8 @@ spec Engine.Change.ingests The ops a batch of changes stores.
 spec Engine.searchSteps The steps of a binary search, for its bound.
 
 spec Engine.listCost What a list query costs, for its bound.
+spec Engine.readPlan The statements listSql runs for a read walking k: a counter per key of q (pickWalk), then listPlan's.
+spec Engine.Plan.stmts A plan's statements, in the order listSql runs them.
 spec Engine.Meter.time A meter's time on a store of N rows, for a bound.
 spec Engine.Win.has Whether a window holds a row filed under a key at a position.
 

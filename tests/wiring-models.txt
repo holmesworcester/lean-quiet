@@ -123,16 +123,8 @@ Merkle.no_injective_hash
 Engine.insertBy_map
 
 # engine.core.Query
-Engine.Stmt.walks_le
 Engine.id_bind
-Engine.plan_stmt_cost
-Engine.readPlan_cost
-Engine.readPlan_cost_le
-Engine.readPlan_cost_range
 Engine.sideCount_run
-Engine.splitWalk_cost
-Engine.splitWalk_exact
-Engine.splitWalk_steps
 
 # engine.core.Union
 Engine.foldr_insertBy
