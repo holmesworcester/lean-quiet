@@ -24,7 +24,7 @@ cases = [
     ("notice-phase", "engine/sync/Notice.lean", "{ c with given := x :: c.given }", "{ c with given := x :: c.given, session := .live }", "engine.sync.SessionLaws", None),
     ("notice-clock", "engine/sync/Notice.lean", "{ c with given := x :: c.given }", "{ c with given := x :: c.given, heard := 0 }", "engine.sync.RetryLaws", None),
     ("given-persist", "app/connection/given/Commands.lean", "def onGiven (cid x : Id) : List Op := [Given.op cid x]", "def onGiven (_cid _x : Id) : List Op := []", "connection_check", "A closes its side once the notice is given"),
-    ("hello-reply", "engine/sync/Conn.lean", "{ conn := c, send := [(Msg.hello c.floor).op] }", "{ conn := c }", "engine.sync.SessionLaws", None),
+    ("hello-reply", "engine/sync/Conn.lean", "{ conn := { c with rounded := c.rooms.map (·, now) }, send := [(Msg.hello c.floor).op] }", "{ conn := { c with rounded := c.rooms.map (·, now) } }", "engine.sync.SessionLaws", None),
     ("early-drop", "engine/sync/Conn.lean", "if c.heard + cfg.live < now then", "if c.heard + cfg.live ≤ now then", "engine.sync.TimeLaws", None),
     ("no-keepalive", "engine/sync/Conn.lean", "s.send.isEmpty && sent + cfg.live / 3 ≤ now", "false", "engine.sync.TimeLaws", None),
     ("late-keepalive", "engine/sync/Conn.lean", "s.send.isEmpty && sent + cfg.live / 3 ≤ now", "s.send.isEmpty && sent + cfg.live ≤ now", "engine.sync.TimeLaws", None),
@@ -34,7 +34,7 @@ cases = [
     ("no-show-round", "engine/sync/Conn.lean", "  | none => true\n  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | none => false\n  | some t => Decidable.decide (t + cfg.safety ≤ now)", "simplify", "showing a room starts a round"),
     ("cadence", "engine/sync/Conn.lean", "  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | some _ => true", "simplify", "with no event, no round starts before the safety period"),
     ("no-safety", "engine/sync/Conn.lean", "  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | some _ => false", "simplify", "the safety round reopens each room"),
-    ("responder-silent", "engine/sync/Conn.lean", "  let s := if c.dialer then c.start cfg ix now else c.ask now", "  let s := if c.dialer then c.start cfg ix now else { conn := c }", "simplify", "the responder asks for a round"),
+    ("responder-silent", "engine/sync/Conn.lean", "  let s := if c.dialer then c.start cfg ix now else c.ask cfg now", "  let s := if c.dialer then c.start cfg ix now else { conn := c }", "simplify", "the responder asks for a round"),
     ("ask-ignored", "engine/sync/Conn.lean", "      if ids.isEmpty then return { conn := c.onAsk r }", "      if ids.isEmpty then return { conn := c }", "simplify", "a responder's ask opens a round"),
     # main's rounds as shipped (b4d103a): the dialer rounds on its own timer only, the responder never asks.
     ("main-cadence", "engine/sync/Conn.lean", "  let s := if c.dialer then c.start cfg ix now else c.ask cfg now", "  let s := if c.dialer && c.rounded.isEmpty then c.start cfg ix now else { conn := c }", "live_rounds", "joining responder: its ask opens a round"),
