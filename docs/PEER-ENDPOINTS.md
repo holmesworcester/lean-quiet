@@ -130,13 +130,14 @@ keeps its logs and databases under `out/endpoints`.
 
 | Task | Result on this branch |
 |---|---|
-| `test:endpoints` | see the final run below |
+| `test:endpoints` | pass: 49 checks, each law applied to concrete premises; the endpoint axiom audit |
+| `test:endpoints-mutants` | pass: all 15 source mutants rejected inside their intended laws, and the native socket control |
 | `test:endpoints-simultaneous` | pass: both processes answer one attempt each and keep the smaller id |
 | `test:endpoints-late` | pass: a late, never-selected loser's socket is released; the old route hook fails |
 | `test:endpoints-ops` | pass: a session from a signed endpoint publication |
 | `test:endpoints-invite` | pass: a dead first invite address is skipped |
 | `test:endpoints-lan` | pass: LAN DNS-SD, signed markers and publications both ways, each end's own publication lists its listening port |
-| `test:endpoints-phone` | see the final run below |
+| `test:endpoints-phone` | not rerun on this branch's final code: the Pixel 7 left adb (no wireless-debugging service on the LAN). Earlier code passed it |
 | `test:endpoints-tailnet` | not run: see below |
 
 ### Why the Tailscale test cannot run on the desktop alone
@@ -153,3 +154,19 @@ remote process. Either enable sshd there, or run a second, ephemeral tailscaled
 on the desktop in its own network namespace (traffic then crosses both WireGuard
 data planes); the latter adds a device to the tailnet and needs the owner's
 login approval.
+
+## The gate on the final tree
+
+Merged with `origin/main` e770ab9. `ci/local.sh` (the gate): driver, build,
+check (every law of tests/Axioms.lean on standard axioms only), layout, readme
+(759 links), reorg, endpoints, vacuity (758 evidence entries for 759 linked
+laws; the one without is main's `retired_open`), visual and engine:suites
+pass. headless failed two UX scroll-anchor checks in one run at load ~80 and
+passed on its own (the UX harness starts no node). `ci/local.sh
+endpoints:mutants endpoints:net` passes.
+
+Two earlier failures on the way were main's, not this branch's: crash.sh's
+clocked kill (fixed on main by 5a8140b), and main's own
+app/connection/NodeUnique.lean outside the op tree's eight names (folded into
+app/Proofs by main's abfb9d4).
+
