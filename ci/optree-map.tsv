@@ -1,4 +1,4 @@
-# The op-tree cutover (from main f325982): each Lean file it removed, and where its
+# The op-tree cutover (from main 9565d58): each Lean file it removed, and where its
 # declarations are now, most first. Module names are paths: app/x/Y.lean is app.x.Y.
 old_path	new_paths
 App.lean	app/Screen.lean
@@ -27,6 +27,7 @@ ops/app/Raster.lean	app/community/channel/message/attachment/Screen.lean
 ops/app/Reader.lean	app/Screen.lean
 ops/app/ReaderLife.lean	app/Screen.lean
 ops/app/Remove.lean	app/community/member/remove/View.lean
+ops/app/RowPaint.lean	app/community/channel/message/attachment/Screen.lean
 ops/app/Switch.lean	app/community/Screen.lean
 ops/app/Wait.lean	app/Screen.lean
 ops/app/WriteAdmission.lean	app/Screen.lean
@@ -59,6 +60,7 @@ ops/community/profile/View.lean	app/community/profile/View.lean app/community/Sc
 ops/community/reaction/RowLaws.lean	app/community/channel/message/reaction/View.lean
 ops/community/reaction/View.lean	app/community/channel/message/reaction/View.lean
 ops/connection/All.lean	app/connection/Proofs.lean (the umbrella: it imports its subtree; the root's commands and laws are app/Commands, app/Proofs)
+ops/connection/CatalogEvolution.lean	app/Proofs.lean
 ops/connection/Connection.lean	app/connection/connection/Validate.lean app/connection/Family.lean app/connection/connection/Commands.lean
 ops/connection/EgressLaws.lean	app/Proofs.lean
 ops/connection/Eph.lean	app/connection/eph/Validate.lean app/connection/eph/Commands.lean app/connection/Family.lean
@@ -70,7 +72,7 @@ ops/connection/Frame.lean	app/connection/Commands.lean app/connection/Proofs.lea
 ops/connection/Given.lean	app/connection/given/Validate.lean app/connection/given/Commands.lean app/connection/Family.lean
 ops/connection/HooksRead.lean	app/Proofs.lean
 ops/connection/HooksTape.lean	app/Proofs.lean
-ops/connection/Intents.lean	app/Commands.lean app/connection/Commands.lean app/connection/Family.lean app/community/Commands.lean app/connection/recv/Commands.lean app/connection/established/Commands.lean app/connection/opened/Commands.lean app/connection/eph/Commands.lean app/connection/given/Commands.lean
+ops/connection/Intents.lean	app/Commands.lean app/connection/Commands.lean app/connection/Family.lean app/community/Commands.lean app/connection/established/Commands.lean app/connection/recv/Commands.lean app/connection/opened/Commands.lean app/connection/eph/Commands.lean app/connection/given/Commands.lean
 ops/connection/Laws.lean	app/connection/Proofs.lean app/Proofs.lean
 ops/connection/NodeLaws.lean	app/connection/Family.lean app/connection/Proofs.lean app/Proofs.lean
 ops/connection/Noise.lean	engine/wire/Noise.lean
@@ -85,6 +87,7 @@ ops/connection/RoomLaws.lean	app/Proofs.lean app/connection/Proofs.lean
 ops/connection/Send.lean	app/connection/send/Validate.lean app/connection/send/Commands.lean app/connection/Family.lean
 ops/connection/StorageEffects.lean	app/Proofs.lean
 ops/connection/Types.lean	app/connection/Family.lean engine/wire/Noise.lean
+ops/connection/WriteProgress.lean	app/Proofs.lean
 ops/connection/bootstrap/Bridge.lean	app/community/Proofs.lean
 ops/connection/bootstrap/FIFO.lean	engine/core/FIFO.lean
 ops/connection/bootstrap/FairExecution.lean	app/community/Proofs.lean
@@ -118,9 +121,13 @@ ops/sync/Serve.lean	engine/sync/Serve.lean
 ops/sync/ServeLaws.lean	engine/sync/ServeLaws.lean
 ops/sync/Session.lean	engine/sync/Session.lean
 ops/sync/SessionLaws.lean	engine/sync/SessionLaws.lean
+ops/sync/SharedLog.lean	engine/sync/SharedLog.lean
 ops/sync/SimLaws.lean	engine/sync/SimLaws.lean
 ops/sync/StateLaws.lean	engine/sync/StateLaws.lean
 ops/sync/StoreEvolution.lean	engine/sync/StoreEvolution.lean
+ops/sync/Sweep.lean	engine/sync/Sweep.lean
+ops/sync/SweepLaws.lean	engine/sync/SweepLaws.lean
+ops/sync/SweepRun.lean	engine/sync/SweepRun.lean
 ops/sync/TimeLaws.lean	engine/sync/TimeLaws.lean
 ops/sync/TreeLaws.lean	engine/sync/TreeLaws.lean
 ops/sync/Wire.lean	engine/sync/Wire.lean
