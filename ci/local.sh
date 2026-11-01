@@ -84,7 +84,7 @@ build_all() {
 
 gate() {
   case $1 in
-    driver) mise run ci:driver-test ;;
+    driver) mise run ci:driver-test && python3 ci/readme-merge.py --self-test ;;
     build) build_all ;;
     check) mise run check ;;
     engine) mise run test:engine ;;
