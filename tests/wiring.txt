@@ -99,6 +99,13 @@ wired Engine.Sync.event_within
 wired Engine.Sync.Tick.cofinal
 wired Connection.wire_kinds
 wired Connection.local_kinds
+# Forensics fixes: back reaches the root; a label is its set's.
+wired Nav.back_stack
+wired Nav.backs_stack
+wired Nav.depth
+wired NavLaws.backs_nav
+wired Engine.Sync.top_perm
+wired Engine.Sync.lbl_perm
 ## Component demand: these laws must keep naming running decisions.
 bridge Demand.Plan.held Demand.heldIndex_agrees
 wired Demand.heldIndex_agrees

@@ -2389,7 +2389,7 @@ variable {x C} {s : Sys}
 theorem Inv.bcov (hI : x.Inv s) (h : x.adm ∈ s.b.ops) : x.Covers s.b.ops :=
   (hI.bmore ⟨_, h, x.adm_ne.2.2⟩).1
 
-theorem inv_init (g : x.Good C) : x.Inv x.init := by
+theorem inv_init : x.Inv x.init := by
   have ne := x.adm_ne
   refine { ame := rfl, bme := rfl, aacc := rfl, bacc := rfl, alinks := rfl, blinks := Or.inr rfl,
            aS := ?_, bS := ?_, ar := by simp [init, a0], ai := by simp [init, a0],
@@ -2490,6 +2490,7 @@ theorem push_B (hI : x.Inv s) {os : List Op} (hos : x.InS os) :
   · rw [if_pos ⟨h, hI.trustsB g⟩, if_pos h]
   · rw [if_neg (fun t => h t.1), if_neg h]
 
+omit g in
 theorem push_A (hI : x.Inv s) {os : List Op} (hos : x.InS os) :
     onPush C s.a x.c x.kB os = s.a := by
   unfold onPush
@@ -2580,6 +2581,7 @@ theorem tick_B (hI : x.Inv s) :
     obtain ⟨rfl, _⟩ := hI.bsess p hp
     simp only [hI.bme, x.filter_ofC hI.bS]
 
+omit g in
 theorem approval_eq (n : Node) :
     x.approval n = if x.req ∈ n.ops then { n with ops := add n.ops [x.appr, x.adm] } else n := by
   unfold approval
@@ -2693,7 +2695,7 @@ theorem out_pushBA (hI : x.Inv s) {os : List Op} (hos : x.InS os) :
   have h1 : (Msg.push x.c x.kB x.kA os).dst = s.a.me := by rw [hI.ame]; rfl
   simp only [stepOut, if_pos h1]
   rw [show recv C s.a (.push x.c x.kB x.kA os) = (onPush C s.a x.c x.kB os, []) from rfl,
-    push_A g hI hos]; simp
+    push_A hI hos]; simp
 
 /-! ## The invariant is kept -/
 
@@ -2735,7 +2737,7 @@ theorem inv_step (hI : x.Inv s) {act : Act} (he : Enabled s act) :
         · obtain ⟨p, _, rfl⟩ := List.mem_map.1 hm
           exact Or.inr (Or.inr (Or.inr ⟨_, rfl, hI.bS⟩))
   | approve =>
-    rw [out_approve, approval_eq g]
+    rw [out_approve, approval_eq]
     by_cases hreq : x.req ∈ s.a.ops
     · rw [if_pos hreq]
       have hS2 : x.InS [x.appr, x.adm] := by
@@ -2821,7 +2823,7 @@ theorem inv_step (hI : x.Inv s) {act : Act} (he : Enabled s act) :
 /-- **The invariant holds in every state reachable over a failing socket.** -/
 theorem reachable_inv {t : Sys} (h : Reachable C x.approval x.init t) : x.Inv t := by
   induction h with
-  | init => exact inv_init g
+  | init => exact inv_init
   | step act _ he ih => exact inv_step g ih he
 
 end
@@ -2946,7 +2948,7 @@ theorem step_mono (hI : x.Inv s) {act : Act} (he : Enabled s act) :
     · exact h
   | drop m => rw [out_drop]; exact ⟨fun _ h => h, fun _ h => h, id, id, fun _ => rfl⟩
   | approve =>
-    rw [out_approve, approval_eq g]
+    rw [out_approve, approval_eq]
     split
     · rename_i hreq
       refine ⟨fun _ h => mem_add_of h, fun _ h => h, id, id, fun hadm => ?_⟩
@@ -2995,7 +2997,7 @@ theorem hello_answered (hI : x.Inv s) (hadm : x.adm ∈ s.a.ops) :
 /-- A's user approving, once A holds the request, gives A B's admission. -/
 theorem approve_gives_adm (hI : x.Inv s) (hreq : x.req ∈ s.a.ops) :
     x.adm ∈ (step C x.approval s .approve).a.ops := by
-  unfold step; rw [out_approve, approval_eq g, if_pos hreq]
+  unfold step; rw [out_approve, approval_eq, if_pos hreq]
   have hS2 : x.InS [x.appr, x.adm] := by
     intro o ho; simp at ho; rcases ho with rfl | rfl
     · exact x.mem_S.2.2.2.1
@@ -3053,7 +3055,7 @@ theorem bootstrap_possible :
     ∃ acts t, (∀ act ∈ acts, ∀ m, act ≠ .drop m) ∧ Path C x.approval x.init acts t ∧ x.Goal C t := by
   let st := step C x.approval
   have R0 : Reachable C x.approval x.init x.init := .init
-  have I0 := inv_init g
+  have I0 := inv_init (x := x)
   -- 1. B ticks: its hello is in flight.
   let s1 := st x.init .tickB
   have R1 : Reachable C x.approval x.init s1 := .step _ R0 trivial
@@ -3133,7 +3135,7 @@ theorem bootstrap_possible :
 /-! ## Inevitable over a failing socket -/
 
 theorem run_inv (r : Run C x.approval x.init) : ∀ i, x.Inv (r.st i)
-  | 0 => by rw [r.zero]; exact inv_init g
+  | 0 => by rw [r.zero]; exact inv_init
   | i + 1 => by rw [(r.next i).2]; exact inv_step g (run_inv r i) (r.next i).1
 
 theorem run_stable (r : Run C x.approval x.init) {P : Sys → Prop}
@@ -3254,10 +3256,6 @@ theorem bootstrap (hf : r.Fair) : ∃ N, ∀ i ≥ N, x.Goal C (r.st i) := by
   · exact Nat.le_trans (Nat.le_trans (Nat.le_max_right _ _) hi) (Nat.le_of_succ_le hj)
   · exact run_stable g r (P := fun s => s.b.links = [])
       (fun _ _ hI he h => (step_mono g hI he).2.2.2.1 h) hj hl
-
-/-- **And over an ideal socket**, every fair run without loss. -/
-theorem bootstrap_ideal (hf : r.Fair) (_ : r.Ideal) : ∃ N, ∀ i ≥ N, x.Goal C (r.st i) :=
-  bootstrap g hf
 
 end
 
@@ -3476,10 +3474,6 @@ Only the separate scene validity assumptions remain here. -/
 theorem fairExecution_bootstrap {x : Scene} {C : Crypto} (g : x.Good C) :
     ∃ N, ∀ i ≥ N, x.Goal C ((x.fairExecution C).st i) :=
   bootstrap g (fairExecution_fair x C)
-
-theorem fairExecution_bootstrap_ideal {x : Scene} {C : Crypto} (g : x.Good C) :
-    ∃ N, ∀ i ≥ N, x.Goal C ((x.fairExecution C).st i) :=
-  bootstrap_ideal g (fairExecution_fair x C) (fairExecution_ideal x C)
 
 end Net.Scene
 

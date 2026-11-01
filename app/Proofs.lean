@@ -1247,7 +1247,8 @@ channel, join, Stop waiting and removal steps through Nav too).
 - `draft_open`, `draft_back`: no navigation step changes the composer's
   draft, its selection or its photos.
 - `inv_open`, `inv_back`, `inv_switch`: no page is twice in the page and
-  its stack; so (`depth`) after any open, fewer than 18 backs reach a root.
+  its stack; so (`depth`) after any open, fewer backs than there are
+  pages reach a root.
 -/
 
 namespace NavLaws
@@ -1343,10 +1344,24 @@ theorem inv_switch (a : Engine.Id) (s : St) : Nav.Inv (switchSt a s).nav := by
 theorem all_pages (p : PageId) : p ∈ PageId.all := by
   cases p <;> simp [PageId.all]
 
-/-- **Back reaches a root** in fewer than 19 steps (there are 19 pages):
-opening a page never stacks more. -/
-theorem depth (p : PageId) (s : St) (h : Nav.Inv s.nav) : (openSt p s).backStack.length < PageId.all.length :=
-  Nav.depth PageId.all all_pages (openSt p s).nav (inv_open p s h)
+/-- k presses of back are k Nav backs. -/
+theorem backs_nav (k : Nat) (s : St) : (Nat.repeat backSt k s).nav = Nat.repeat Nav.back k s.nav := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    show (backSt (Nat.repeat backSt k s)).nav = Nav.back (Nat.repeat Nav.back k s.nav)
+    rw [nav_back, ih]
+
+/-- **Back reaches a root** in fewer presses than there are pages
+(`PageId.all`): after any open, the stack is shorter than that, and
+pressing back once per stacked page leaves none under the shown one. -/
+theorem depth (p : PageId) (s : St) (h : Nav.Inv s.nav) :
+    (openSt p s).backStack.length < PageId.all.length ∧
+      (Nat.repeat backSt (openSt p s).backStack.length (openSt p s)).backStack = [] := by
+  obtain ⟨h1, h2⟩ := Nav.depth PageId.all all_pages (openSt p s).nav (inv_open p s h)
+  refine ⟨h1, ?_⟩
+  show (Nat.repeat backSt _ (openSt p s)).nav.stack = []
+  rw [backs_nav]; exact h2
 
 /-! ## Negative control: `openSt` as 566e566 shipped it
 
@@ -1528,8 +1543,13 @@ theorem content (s : St) (t : Theme.State) :
     (themed s t).dim.dpi = s.dim.dpi ∧ (themed s t).dim.cell = s.dim.cell :=
   ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
-/-- The glyph painter's actual colour selector meets 4.5:1 against the
-composited pixel below, for every possible RGB background. -/
+/-- `textColor`, the ink the glyph painter picks for `wanted` over a
+ground row, meets 4.5:1 against that row's pixel at x, for every RGB
+ground. This is the selector only, not the painted pixel: a stroke with
+`exactInk` keeps its ink and skips it, a stroke with a non-empty `under`
+row is blended over `under` while its ink was chosen against `ground`,
+and antialiased coverage blends the ink with what is below
+(`Stroke.color`). None of those is covered here. -/
 theorem text (wanted : Color) (row : ByteArray) (x : Nat) :
     Contrast.meets (textColor wanted row x) (getPx row x) := Contrast.ink_meets _ _
 

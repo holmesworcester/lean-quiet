@@ -95,10 +95,25 @@ def admissionConsented := applyLaw (certify after admission bobFact) admission_c
 def namedByAdmin := applyLaw
   (certify after renamed (.named c c "Vacuity test community".toUTF8 1)) named_by_admin
 
+-- Alice (founder) removes Bob and Bob (granted admin) removes Alice. The
+-- law derives both removals from the two signed ops, both admins' admin
+-- facts and both admissions; neither removal's validity is an input.
 def mutualRemoval := do
-  let ⟨h1⟩ ← certify after removeB (.removal c requestB.id c)
-  let ⟨h2⟩ ← certify after removeA (.removal c c requestB.id)
-  pure (PLift.up (mutual_removal h1 h2))
+  let ⟨hc⟩ ← certify after r rootFact
+  let ⟨hb⟩ ← certify after admission bobFact
+  let ⟨hg⟩ ← certify after grantB (.admin c requestB.id)
+  let sa := sig alice.sk [c, c, c, admission.id] (.remove .empty)
+  let sb := sig bob.sk [c, admission.id, grantB.id, c] (.remove .empty)
+  if hx : table after removeB.id = some removeB then
+    if hy : table after removeA.id = some removeA then
+      if hs : ed25519.verify alice.pk (signed removeB (.remove sa)) sa = true ∧
+          ed25519.verify bob.pk (signed removeA (.remove sb)) sb = true then
+        return PLift.up (mutual_removal hc hx (decode_encode _) rfl rfl hc hc
+          (by simp [rootFact, isAdmin, c]) hb hs.1
+          hy (decode_encode _) rfl rfl hb hg (by simp [isAdmin, c]) hc hs.2)
+      else none
+    else none
+  else none
 
 def validStays := applyLaw (certify before message messageFact)
   (valid_stays (table_append_extends before [removeB,removeA]))

@@ -159,6 +159,15 @@ def main (args : List String) : IO UInt32 := do
   let w ← ((found seedA "Acme".toUTF8 "Ann".toUTF8 1 kA (sha256 "esk 1".toUTF8) nkA).run :
     SqlM Fact Write).run a
   t.ok "founding on a node with no key writes its key first" (w.ops.head? == some (endpoint nkA))
+  -- nodeKey reads endpoint.all with Rel.read's default order, greatest
+  -- first: a node that held two endpoint ops (nodeKeyOr writes one only
+  -- when none is held) would use the greater id's key.
+  let two ← fresh dir "two-keys.db"
+  mine two ⟨[endpoint nkA, endpoint nkB]⟩
+  let held ← ((nodeKey.run : SqlM Fact _)).run two
+  let top := if bcmp (endpoint nkA).id (endpoint nkB).id == .gt then nkA else nkB
+  t.ok "with two endpoint ops, nodeKey is the greater id's"
+    (held == some (cryptoSeal.pub top, top) && (endpoint nkA).id != (endpoint nkB).id)
   mine a w
   let c := (root dA keyA).id
   let kid := kidOf cryptoSeal kA

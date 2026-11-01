@@ -93,8 +93,9 @@ overlap of the two sides' windows.
 **Fingerprints.** `fp l = (|l|, lbl l)`. `lbl` is the Merkle label of
 the canonical treap of `l`: the item with the largest id number at the
 root, smaller keys left, larger right; `lbl [] = h ""`,
-`lbl node = h (encode (lbl left, id, lbl right))`. It reads the set only
-through `top` and `filter`, so it is a function of the set.
+`lbl node = h (encode (lbl left, id, lbl right))`. It reads the list only
+through `top` and `filter`, so where no two items share a priority (as
+distinct ids' numbers do not) it is a function of the set (`lbl_perm`).
 
 **Rounds** (Meyer 2023, Protocol 1). A claim is a range's fingerprint or
 all of the claimant's ids in it. `answer` (engine/sync/Round.lean):

@@ -108,7 +108,11 @@ theorem profile_read (db : DB Fact) (c u : Id) (deps : Array Q) :
 /-- **A shown message is the store's.** If its row has data, the message
 is a fact of the store; the row's name is its author's name, its time
 the time it claims, and its text its body opened with a key the store
-holds under the message's key id. -/
+holds under the message's key id. Not covered: that the message is of
+community `c`. The fact's community `c'` is not tied to `c`, and
+`Message.read` does not check it, so a message of another community
+would show with names read in `c`. Nothing that runs calls
+`Message.read`. -/
 theorem message_read (db : DB Fact) (c me msg : Id) (d : Row.RowData) (deps : Array Q)
     (h : (Message.read (m := Model) c me msg).run db = some (d, deps)) :
     ∃ c' u dev kid sealed n tm clump, factIn db msg = some (.message c' u dev kid sealed n tm clump) ∧
@@ -625,8 +629,10 @@ theorem present_lists_eq (s : DB Fact) (c : Id) :
   have e1 : View.listsAt s (admission.all.read [c]) = 1 := rfl
   rw [e1, View.listsAt_bindOp, View.listsAt_pure, Nat.add_zero]
 
-/-- **A window costs O(m) lists, whatever the community's size**: one
-list of at most m admissions, and each one's liveness. -/
+/-- **A window costs O(m·D) lists, whatever the community's size**: one
+list of at most m admissions, and each one's liveness, given at most D
+admissions per device (`hD`). D is a premise: nothing in the app caps a
+device's admissions, so the bound is O(m) only where D is bounded. -/
 theorem presentW_lists (s : DB Fact) (c : Id) (n m D : Nat)
     (hD : ∀ d, ((admission.byDevice.read [c, d]).eval s).rows.length ≤ D) :
     View.listsAt s (Profile.presentW c n m) ≤ 1 + m * (1 + D) := by

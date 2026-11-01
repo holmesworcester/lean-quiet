@@ -9,8 +9,11 @@ label of their canonical treap.
   (its id's number) at the root, the items below its key on the left,
   the items above on the right. `lbl` is that tree's Merkle label:
   `h ""` for the empty tree, `h (left ‖ id ‖ right)` for a node. It
-  reads the set only through `top` and `filter`, so it is a function of
-  the set, not of the list holding it.
+  reads the list only through `top` and `filter`, so where no two items
+  share a priority (`Untied`) it is a function of the set, not of the
+  list holding it (`lbl_perm`). `Named` alone does not give that: `top`
+  breaks priority ties by list position. The running sync's priorities
+  are `num` of distinct ids (`Conn.keyOf`), which `num_inj` keeps apart.
 - `lbl_inj`: equal labels mean equal sets, if `h` has no collision on
   what the two labellings hashed (`pres`). This is the one assumption
   sync makes of its fingerprints, of the same kind as `Distinct` for op
@@ -115,7 +118,8 @@ def Range.from (floor : Nat) : Range := ⟨⟨floor, 0⟩, none⟩
 section
 variable {α : Type} (key : α → Key) (ident : α → ByteArray)
 
-/-- The item with the largest priority (its key's id number). -/
+/-- An item with the largest priority (its key's id number): of several
+with that priority, the one latest in the list. -/
 def top : List α → Option α
   | [] => none
   | a :: t => match top t with
@@ -335,6 +339,48 @@ theorem lbl_inj : ∀ (n : Nat) (l₁ l₂ : List α), l₁.length + l₂.length
           ea
         rw [split_mem (named_sub hn (fun x hx => List.mem_append_left _ hx)) hm1 a,
           split_mem (named_sub hn (fun x hx => List.mem_append_right _ hx)) hm2 a, hb a, ha a]
+
+/-- No two items of l share a priority (their keys' id numbers). -/
+def Untied (key : α → Key) (l : List α) : Prop := ∀ a ∈ l, ∀ b ∈ l, (key a).n = (key b).n → a = b
+
+/-- With no priority tie, the top is the set's: the same for any order. -/
+theorem top_perm {l l' : List α} (hd : Untied key l) (hp : l.Perm l') : top key l = top key l' := by
+  cases h1 : top key l with
+  | none =>
+    rw [top_none] at h1; subst h1
+    rw [← List.Perm.nil_eq hp]; rfl
+  | some m =>
+    cases h2 : top key l' with
+    | none => rw [top_none] at h2; subst h2; rw [List.Perm.eq_nil hp] at h1; simp [top] at h1
+    | some m' =>
+      have hm := top_mem key h1
+      have hm' := (hp.mem_iff).2 (top_mem key h2)
+      have le1 := top_max key h1 m' hm'
+      have le2 := top_max key h2 m ((hp.mem_iff).1 hm)
+      rw [hd m hm m' hm' (Nat.le_antisymm le2 le1)]
+
+/-- **The label is the set's.** With no priority tie (as `num` gives
+distinct ids), any two orders of the same items have one label. -/
+theorem lbl_perm : ∀ (n : Nat) (l l' : List α), l.length ≤ n → Untied key l → l.Perm l' →
+    lbl key ident h l = lbl key ident h l' := by
+  intro n
+  induction n with
+  | zero =>
+    intro l l' hl _ hp
+    have : l = [] := List.eq_nil_of_length_eq_zero (by omega)
+    subst this; rw [List.Perm.nil_eq hp]
+  | succ n ih =>
+    intro l l' hl hd hp
+    rw [lbl_eq l, lbl_eq l', ← top_perm hd hp]
+    cases ht : top key l with
+    | none => rfl
+    | some m =>
+      have hm := top_mem key ht
+      have sub : ∀ (q : α → Bool), Untied key (l.filter q) :=
+        fun q a ha b hb => hd a (List.mem_filter.1 ha).1 b (List.mem_filter.1 hb).1
+      simp only
+      rw [ih (below key l m) (below key l' m) (by have := below_lt key hm; omega) (sub _) (hp.filter _),
+        ih (above key l m) (above key l' m) (by have := above_lt key hm; omega) (sub _) (hp.filter _)]
 
 end
 

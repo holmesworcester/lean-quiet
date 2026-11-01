@@ -495,6 +495,7 @@ theorem All2.mem_left {α β : Type} {R : α → β → Prop} :
     · exact ⟨_, hr⟩
     · exact All2.mem_left t h
 
+omit [SortKey F] in
 /-- Everything a Valid op requires, transitively, is Valid. -/
 theorem spec_closure {fam : Family F} {ops : Id → Option Op} {x : Id} {f : F}
     (h : Spec fam ops x (.valid f)) {y : Id} (hr : Sync.Reach ops x y) : ∃ g, Spec fam ops y (.valid g) := by

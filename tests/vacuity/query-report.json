@@ -151,6 +151,6 @@
     "theorem": "Engine.fact_stable",
     "witness": "Vacuity.Query.factStable",
     "module": "tests.vacuity.Query",
-    "detail": "Nonempty valid store followed by a settled duplicate step. Both invariants, shared naming and actual valid statuses proved; states equal after no-op, not a cross-replica fixture. Synthetic model fixture; no collected real-user traffic."
+    "detail": "Facts that carry something (an op's body size, 3) in two different stores: one with the op Valid, and the same store with the op queued once more, as a second requirement's wake-up leaves it. Both invariants are proved (inv_ingest, inv_step, and by hand for the requeue), the stores are proved distinct, and the law fixes the second store's fact to the first's: whatever it holds is 3. Synthetic model fixture; no collected real-user traffic."
   }
 }

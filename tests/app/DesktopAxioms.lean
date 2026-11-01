@@ -7,6 +7,11 @@ requires each to rest on Lean's standard axioms only.
 import engine.renderer.desktop.Laws
 import platforms.desktop.Laws
 import platforms.desktop.HoverLaws
+-- The layout laws are stated over zoomLayout, the tracks the Driver
+-- paints, because the 160-dpi `layout` is not what runs at any other
+-- density: at 50% the navigation is 110 device pixels, not 220.
+example : (Desktop.zoomLayout 720 false 80).nav.w = 110 ∧ (Desktop.layout 720 false).nav.w = 220 := by
+  decide
 #print axioms Desktop.widths
 #print axioms Desktop.adjacent
 #print axioms Desktop.drawer_preserves_main

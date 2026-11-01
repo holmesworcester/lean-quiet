@@ -55,13 +55,6 @@
     "module": "tests.vacuity.Bootstrap",
     "detail": "Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. An explicit Nat-indexed run starts at init and cycles ticks, approval and FIFO-head delivery. Kernel proofs establish Enabled, recurring ticks/approval, eventual delivery of every queued message, exact Run.Fair and no-drop Run.Ideal without using bootstrap. This cert applies bootstrap to that run. The infinite execution is the noncomputable bootstrap model, not an execution of the app or TCP."
   },
-  "bootstrap_ideal": {
-    "status": "runtime-witness",
-    "theorem": "Net.Scene.bootstrap_ideal",
-    "witness": "Vacuity.Bootstrap.eventuallyIdeal",
-    "module": "tests.vacuity.Bootstrap",
-    "detail": "Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. An explicit Nat-indexed run starts at init and cycles ticks, approval and FIFO-head delivery. Kernel proofs establish Enabled, recurring ticks/approval, eventual delivery of every queued message, exact Run.Fair and no-drop Run.Ideal without using bootstrap. This cert applies bootstrap_ideal to that run. The infinite execution is the noncomputable bootstrap model, not an execution of the app or TCP."
-  },
   "FairExecution.fair": {
     "status": "kernel-witness",
     "theorem": "Net.FairExecution.fair",

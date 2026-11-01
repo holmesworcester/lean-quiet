@@ -194,9 +194,10 @@ theorem layout_arriving (h : layout f z bx by_ bw bh got total len = some p) : d
   · rfl
   · rw [(caption_none_iff got total len).2 hd] at hw; cases hw
 
-/-- **The pill never says 100%**: for counts that never pass the total
-(`Community.progress_le`), the percent any pill shows is below 100. -/
-theorem layout_percent_lt (h : layout f z bx by_ bw bh got total len = some p) (hle : got ≤ total) :
+/-- **The pill never says 100%**: the percent any pill shows is below
+100, whatever the counts: a pill is laid out only while the file is not
+done (`layout_arriving`). -/
+theorem layout_percent_lt (h : layout f z bx by_ bw bh got total len = some p) :
     percent got total < 100 := by
   have hnd : ¬ done got total = true := by simp [layout_arriving h]
   simp only [done, Bool.and_eq_true, decide_eq_true_eq] at hnd

@@ -9,8 +9,13 @@ and the answers merged (`unionAnswers`). A list's first `limit` rows
 hold every row the union's first `limit` can need, so merging them and
 cutting again gives the union's answer; a reader may rename a list's
 rows first if that keeps their order (`Community.readable` names a
-receipt's row by its message). The counts are sums, which are right
-when the lists are disjoint (a fact filed under one of the keys only).
+receipt's row by its message). The counts are the lists' counts
+summed. They are the union's counts only when the lists are disjoint (a
+fact filed under one of the keys only) and uncapped (`cap = 0`, as the
+app's union reads are): a capped list counts at most its cap, and a sum
+of capped counts is not a capped count of the union. No law here says
+the sums are the union's counts; `Community.count_partition` relates
+them for `readable`.
 
 It is a View like any other: it reads lists, so it runs on SQLite and on
 the model, and a notice for any of its keys re-reads it
@@ -50,7 +55,8 @@ was read newest first. -/
 def orient {α} (desc : Bool) (l : List α) : List α := if desc then l.reverse else l
 
 /-- The lists' answers as one: their rows merged by position (newest
-first if `desc`), cut to `limit`; the counts summed. -/
+first if `desc`), cut to `limit`; the counts summed (the union's own
+only for disjoint, uncapped lists; see above). -/
 def unionAnswers (desc : Bool) (limit : Option Nat) (as : List (Answer F)) : Answer F :=
   let ordered := orient desc (mergeRuns (as.map fun a => orient desc a.rows))
   ⟨match limit with | none => ordered | some n => ordered.take n,

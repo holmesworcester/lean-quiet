@@ -154,22 +154,53 @@ theorem cancelledWatch :
 theorem watchStable : allRows.kept (eval cancelled allRows) = allRows.kept (eval Mutants.σ allRows) :=
   watch_stable Mutants.σ_inv cancelledInv rfl cancelledWatch
 
--- A settled duplicate step preserves the same filed fact. The nonempty
--- store, valid status and shared naming premises are all established above.
-def duplicateStep : DB Unit := (runJ Mutants.fam [.step] afterStep).1
+-- fact_stable with facts that carry something (an op's body size) and two
+-- different stores: `kept` has its op Valid with fact 3; `again` is the
+-- same store with the op queued once more, as a second requirement's
+-- wake-up pushes an op that is decided before it is popped. The law
+-- fixes `again`'s fact from `kept`'s: whatever it holds there is 3.
+namespace Sized
+scoped instance : SortKey Nat := ⟨fun _ => ⟨#[0]⟩⟩
 
-theorem stepHasNoQueue : afterStep.queue = [] := by
-  rw [stepShape, (decideS_fields Mutants.o.id (.valid ()) { Mutants.σ with queue := [] }).2.2.1]
-  simp [Mutants.σ]
+def fam : Family Nat where
+  validate o _ := some o.body.size
+  keys _ := [Mutants.k]
+  scope _ := .local
 
-theorem duplicateEqual : duplicateStep = afterStep := by
-  change stepS Mutants.fam afterStep = afterStep
-  simp [stepS, stepHasNoQueue]
+def op : Op := Op.make 0 [] ⟨#[1, 2, 3]⟩
+def kept : DB Nat := stepS fam (ingestS op DB.empty)
+theorem keptInv : Inv fam kept := inv_step (inv_ingest inv_empty op)
 
-theorem factStable : (() : Unit) = () :=
-  fact_stable afterInv (run_inv [.step] afterInv)
-    (g := afterStep.ops) (by intro x o h; exact h)
-    (by change Extends duplicateStep.ops afterStep.ops; rw [duplicateEqual]; intro x o h; exact h)
-    decided (by change duplicateStep.status _ = _; rw [duplicateEqual]; exact decided)
+theorem shape : kept = decideS fam op.id (.valid 3) { ingestS op DB.empty with queue := [] } := by
+  simp [kept, stepS, ingestS, DB.empty, DB.putOp, DB.push]
+  rfl
+
+theorem keptValid : kept.status op.id = some (.valid 3) := by
+  rw [shape, (decideS_fields op.id (.valid 3) { ingestS op DB.empty with queue := [] }).2.1]
+  simp
+
+theorem keptQueue : kept.queue = [] := by
+  rw [shape, (decideS_fields op.id (.valid 3) { ingestS op DB.empty with queue := [] }).2.2.1]
+  rfl
+
+def again : DB Nat := { kept with queue := [op.id] }
+
+theorem againInv : Inv fam again where
+  key := keptInv.key
+  sound := keptInv.sound
+  wait x o h hs := (keptInv.wait x o h hs).elim (fun hq => by rw [keptQueue] at hq; cases hq) Or.inr
+  idx := keptInv.idx
+  nodup := keptInv.nodup
+  stored := keptInv.stored
+
+end Sized
+
+open Sized in
+theorem factStable : Sized.kept ≠ Sized.again ∧ Sized.again.status Sized.op.id = some (.valid 3) ∧
+    ∀ f', Sized.again.status Sized.op.id = some (.valid f') → f' = 3 :=
+  ⟨fun h => by have := congrArg DB.queue h; simp [Sized.again, Sized.keptQueue] at this,
+   Sized.keptValid,
+   fun _ h => (fact_stable Sized.keptInv Sized.againInv (g := Sized.kept.ops)
+     (fun _ _ h => h) (fun _ _ h => h) Sized.keptValid h).symm⟩
 
 end Vacuity.Query

@@ -49,7 +49,6 @@ lean-engine's own `Compose` (SHA-256 ids, Ed25519 signatures).
 | `sessions_trusted` | Every session A holds is with a device A's ops admit, with no exception. Every session B holds is with a device B trusts by the rule. |
 | `bootstrap_possible` | An explicit lossless run of nine enabled steps, each named, ends bootstrapped. |
 | `bootstrap` | In every fair run over a failing socket, eventually and from then on: both sessions are open, both nodes hold the same ops, each admits the other by its own ops alone, and B has forgotten its link. |
-| `bootstrap_ideal` | The same for fair runs with no loss. |
 | `allowPeer_iff`, `allowPeer_settles` | The model's `Allowed` is what the engine's `allowPeer` view (lists over the persisted tables) answers once its queue is empty, which it always reaches. |
 | `admitted_inv`, `allowedA`, `allowedB` | Among the scene's ops, A is admitted exactly when the root is held, and B exactly when its admission is. Nobody is removed. |
 
