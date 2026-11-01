@@ -10,9 +10,10 @@ Alice's window and checks that it reaches Bob's:
   bottom of Alice's (the same message drawn), while before the message it
   was not (the screenshot check's own control).
 
-Then a message from Bob reaches Alice, both windows close, and `make demo`
-exits 0. A second run checks `make demo ARGS=--auto` (the join done for
-the judge, and Bob's hi on Alice's screen).
+Then Bob's 👍 on that message and his reply reach Alice, both windows
+close, and `make demo` exits 0. A second run checks `make demo
+ARGS=--auto` (the join done for the judge, Bob's hi on Alice's screen and
+her ❤️ on his).
 
   tests/make/demo_e2e.py                    both runs
   tests/make/demo_e2e.py --control offline  the negative control: once Bob
@@ -253,27 +254,36 @@ try:
     if failed:
         raise AssertionError('; '.join(failed))
 
-    # 3. ...and one from Bob reaches Alice
+    # 3. Bob's reaction to it reaches Alice...
+    t0 = time.monotonic()
+    x.react(bob, '👍')
+    step("Bob reacts 👍 to Alice's message", lambda: bob.rows(True)[:1] == [('Alice', message, False, ('👍1*',))], 30)
+    step("Bob's 👍 reaches Alice (her QUIET_STATE)", lambda: alice.rows(True)[:1] == [('Alice', message, False, ('👍1',))], 30)
+    timed('reaction_b_to_a', t0)
+    shot('7-reaction')
+
+    # 4. ...and so does his reply
     reply = 'Got it! Hi Alice.'
     t0 = time.monotonic()
     x.compose(bob, reply)
     step("Bob's reply reaches Alice", lambda: alice.rows()[:1] == [('Bob', reply, False)], 30)
     timed('message_b_to_a', t0)
-    shot('7-reply')
+    shot('8-reply')
     close(x, [alice, bob], make, 'make demo')
     keep(devdir)
 
-    # 4. make demo ARGS=--auto: the join done for the judge
+    # 5. make demo ARGS=--auto: the join done for the judge
     devdir = OUT / 'auto'
     alice, bob = demo.Device('Alice', devdir / 'alice'), demo.Device('Bob', devdir / 'bob')
     t0 = time.monotonic()
     make = make_demo('--auto', devdir)
     alice.proc = bob.proc = make
-    step("make demo ARGS=--auto: Bob is in, and his hi is on Alice's screen",
-         lambda: ('Bob', "Hi Alice, it's Bob!", False) in alice.rows() and demo.joined(bob), 120, [alice])
+    step("make demo ARGS=--auto: Bob is in, his hi is on Alice's screen, and her ❤️ on his",
+         lambda: demo.joined(bob) and ('Bob', "Hi Alice, it's Bob!", False, ('❤️1*',)) in alice.rows(True) and
+         ('Bob', "Hi Alice, it's Bob!", False, ('❤️1',)) in bob.rows(True), 120, [alice])
     timed('auto', t0)
     time.sleep(1)
-    shot('8-auto')
+    shot('9-auto')
     close(x, [alice, bob], make, 'make demo ARGS=--auto')
     keep(devdir)
     print(f'demo e2e: {checks} checks pass; screenshots in {OUT}', flush=True)

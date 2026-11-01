@@ -80,25 +80,28 @@ class Device:
         v = self.value('asking')
         return v is not None and v.split()[2] == '1'
 
-    def rows(self):
-        """The newest messages it has mounted, newest first: (author, text)."""
+    def rows(self, tallies=False):
+        """The newest messages it has mounted, newest first: (author, text,
+        pending), and with `tallies` their reactions too (as 👍1, or 👍1*
+        when one is this device's)."""
         out = []
         for s in self.lines():
-            if s.startswith('row '):
-                parts = [unquote(q) for q in re.findall(r'"((?:[^"\\]|\\.)*)"', s)]
-                if len(parts) == 2:
-                    out.append((parts[0], parts[1], s.endswith(' pending')))
+            m = re.match(r'row "((?:[^"\\]|\\.)*)" "((?:[^"\\]|\\.)*)"(.*)$', s)
+            if m:
+                rest = m.group(3).split()
+                row = (unquote(m.group(1)), unquote(m.group(2)), 'pending' in rest)
+                out.append(row + (tuple(t for t in rest if t != 'pending'),) if tallies else row)
         return out
 
     def control(self, key):
-        """The window-relative centre of a control the state lists, as
-        `action <key> x y` (the page's buttons) or `goto <key> x y` (the
-        sidebar's pages)."""
+        """The window-relative centre of a control the state lists: a page's
+        button (`action <key> x y`), a sidebar page (`goto <key> x y`), a
+        quick reaction (`quick <emoji> x y`) or the pointed-at message's Add
+        a reaction (`react x y`)."""
+        pattern = re.compile(r'^(?:(?:action|goto|quick) )?' + re.escape(key) + r' (\d+) (\d+)$')
         for s in self.lines():
-            for kind in ('action', 'goto'):
-                if s.startswith(f'{kind} {key} '):
-                    x, y = s.split()[-2:]
-                    return int(x), int(y)
+            if m := pattern.match(s):
+                return int(m.group(1)), int(m.group(2))
         return None
 
     def alive(self):
@@ -272,6 +275,14 @@ class X:
         self.focus(device)
         self.run('type', '--delay', '50', text)
 
+    def react(self, device, emoji):
+        """Point at the newest message, click Add a reaction, then emoji
+        among the quick reactions."""
+        ex, ey = map(int, wait(lambda: device.value('editor'), f"{device.name}'s composer", 30, [device]).split()[:2])
+        self.run('mousemove', '--window', self.window(device), ex + 200, ey - 45)
+        self.click(device, 'react')
+        self.click(device, emoji)
+
     def compose(self, device, text):
         """Click the composer, type, and press Return to send."""
         ex, ey = wait(lambda: (lambda v: v and tuple(map(int, v.split()[:2])))(device.value('editor')),
@@ -313,10 +324,11 @@ def guide(alice, bob):
     while any([alice.alive(), bob.alive()]):  # polls (reaps) both
         if not asked and alice.asking() > 0:
             asked = True
-            say("Bob's request reached Alice's laptop. In Alice's window: click Waiting to join, then Approve.")
+            say("Bob's request reached Alice's laptop. In Alice's window: click Waiting to join, then the purple ✓.")
         if not admitted and bob.community() == 'Quiet' and not bob.waiting():
             admitted = True
             say("Bob is in: Alice's history is on his screen. Type in either window and it shows in the other.")
+            say('Point at a message to react to it: the reaction shows in the other window too.')
             say('Close both windows (or press Ctrl-C) to stop.')
         time.sleep(.2)
 
@@ -341,7 +353,10 @@ def main(argv):
             say('Joining Bob to Alice\'s community, as you would: his name, Agree & Join, then Approve')
             join(alice, bob, x)
             x.compose(bob, "Hi Alice, it's Bob!")
-            say("Bob is in, and said hi. Type in either window and it shows in the other.")
+            wait(lambda: alice.rows()[:1] == [('Bob', "Hi Alice, it's Bob!", False)], "Bob's hi reaches Alice", 30,
+                 [alice, bob])
+            x.react(alice, '❤️')
+            say("Bob is in, said hi, and Alice loved it. Type in either window and it shows in the other.")
             say('Close both windows (or press Ctrl-C) to stop.')
             while any([alice.alive(), bob.alive()]):  # polls (reaps) both
                 time.sleep(.2)

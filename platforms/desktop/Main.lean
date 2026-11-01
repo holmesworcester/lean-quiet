@@ -60,7 +60,18 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
     for (_, x) in d.app.ids.toList.take 12 do
       if let some r := d.app.rows[x]? then
         let name := ((d.app.memberIds.findIdx? (· == r.data.author)).bind (d.app.members[·]?)).map (·.1)
-        controls := controls ++ s!"row {repr (name.getD r.data.name)} {repr r.data.text}{if r.data.pending then " pending" else ""}\n"
+        let tallies := String.join (r.data.tallies.map fun t => s!" {t.emoji}{t.n}{if t.mine then "*" else ""}")
+        controls := controls ++ s!"row {repr (name.getD r.data.name)} {repr r.data.text}{if r.data.pending then " pending" else ""}{tallies}\n"
+    -- the hovered message's Add a reaction button, and the reaction
+    -- sheet's quick keys while it is open
+    if let some (id, _, _, _) := Desktop.hoveredRow d.layout d.height d.ui d.app then
+      if let some bar := Desktop.messageBar d.layout d.height d.app id then
+        controls := controls ++ s!"react {bar.x + d.app.dim.px 31} {bar.y + d.app.dim.px 24}\n"
+    if let some sh := d.app.sheet then
+      if !sh.catalog then
+        let g := (Sheet.quick d.app.dim d.app.W).keys
+        for i in [0:Row.quick.size] do
+          controls := controls ++ s!"quick {Row.quick[i]!} {d.layout.main.x + g.left i + g.key / 2} {d.height - App.botH d.app + g.y0 + g.key / 2}\n"
     controls := controls ++ s!"pointer {repr d.ui.hover} cursor {Desktop.cursor d}\n"
     controls := controls ++ s!"tap {d.app.input.lastTap[0]?.getD 0} {d.app.input.lastTap[1]?.getD 0} {d.app.input.lastTap[2]?.getD 0}\n"
     controls := controls ++ s!"zoom {zoomPercent d} dpi {d.dpi} cell {d.app.font.cell}\n"

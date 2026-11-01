@@ -164,8 +164,9 @@ installed app). The judge sees:
 The terminal says what to do at each step. Close both windows, or press
 Ctrl-C there, to stop. Each run starts afresh in `out/make/demo/`
 (`alice/` and `bob/`: a database, a log and a state file each).
-`make demo ARGS=--auto` does steps 2 and 3 by X input, as a person would
-(it needs `xdotool`), and then Bob says hi.
+Pointing at a message shows Add a reaction; a reaction shows in the other
+window too. `make demo ARGS=--auto` does steps 2 and 3 by X input, as a
+person would (it needs `xdotool`); then Bob says hi and Alice reacts ❤️.
 
 What the demo uses of the app, all in `platforms/desktop/Main.lean` and
 `platforms/linux/shell.c`:
@@ -189,7 +190,7 @@ requests; it opens the same requests page.
 
 | Task | Validation |
 | --- | --- |
-| `make:demo-e2e` | Build, then `make demo` under Xvfb (1920 x 1080, no window manager), driven by X input (xdotool) as a judge does: both windows titled, side by side and on screen; Alice shows her invite and Bob has opened it; Bob's name, Agree & Join; the request reaches Alice; Waiting to join and Approve; Bob gets Alice's history; a message typed in Alice's window is Bob's newest (his `QUIET_STATE`) and is drawn at the bottom of his conversation exactly as at the bottom of Alice's (more than 99.5% of pixels alike, where before the message they were not); Bob's reply reaches Alice; closing both windows ends `make demo` with 0. Then `make demo ARGS=--auto`: Bob's hi reaches Alice. Screenshots, logs and `result.txt` (timings) in `out/make/demo-e2e/` |
+| `make:demo-e2e` | Build, then `make demo` under Xvfb (1920 x 1080, no window manager), driven by X input (xdotool) as a judge does: both windows titled, side by side and on screen; Alice shows her invite and Bob has opened it; Bob's name, Agree & Join; the request reaches Alice; Waiting to join and Approve; Bob gets Alice's history; a message typed in Alice's window is Bob's newest (his `QUIET_STATE`) and is drawn at the bottom of his conversation exactly as at the bottom of Alice's (more than 99.5% of pixels alike, where before the message they were not); Bob's 👍 on it and his reply reach Alice; closing both windows ends `make demo` with 0. Then `make demo ARGS=--auto`: Bob's hi reaches Alice, and her ❤️ on it reaches Bob. Screenshots, logs and `result.txt` (timings) in `out/make/demo-e2e/` |
 | `make:demo-negative` | The control: once Bob is in, his app restarts on his database with `--offline` (no sockets). The e2e must then fail both checks that Alice's message reached him (state and screen) and pass everything before them. In `out/make/demo-negative/` |
 | `make:clean-room` | Also runs `tests/make/demo_e2e.py` from the fresh clone, after `make run` and `make online`; its screenshots stay in `out/make/clean-room/<image>/demo-e2e/` |
 
