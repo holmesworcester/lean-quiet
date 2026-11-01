@@ -1,5 +1,5 @@
 {
-  "event_within": {
+  "Sync.event_within": {
     "status": "kernel-witness",
     "theorem": "Engine.Sync.event_within",
     "witness": "Vacuity.FairScheduler.eventDeadline",

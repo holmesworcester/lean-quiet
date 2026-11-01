@@ -89,7 +89,7 @@ This closes those concrete failures, not the internal reservation obligation.
 | Bounded iteration work | Store draining has a finite history-dependent budget, not a fixed configuration bound. Connection hooks can traverse all matching rows. |
 | Bounded memory | The sync index, snapshots, retired-session routing/tombstone history and some app recovery queues grow with history. |
 | Fair-loss progress | Ordinary traffic can refill the socket before every tick, leaving zero retry room forever. A separate output reservation still needs implementation and proof. Seventeen fitting ~1 MB hot responses can also overflow the 16 MiB socket cap and discard a queued retry. |
-| Write-to-display bound | Selection, commit, reader refresh and presentation are separate stages. The existing selector laws do not bound the latter three under arbitrary backend/worker delays. |
+| Write-to-display bound | Selection, commit, reader refresh and presentation are separate stages. Worker delays are not bounded by the selector. Even with progressing workers, recurring reaction updates can replace a row's paint ticket before every completed bitmap is published; finishing a still-valid first paint needs protection from this churn. |
 
 The current work addresses these in the running code. A successful finite
 test or a new component lemma does not close the corresponding whole-app row.

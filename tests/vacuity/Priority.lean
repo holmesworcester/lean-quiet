@@ -25,6 +25,19 @@ theorem localShare :
 theorem phaseCycle : Inbox.Priority.phaseAfter Inbox.Priority.first 4 = Inbox.Priority.first :=
   Inbox.Priority.phase_cycle Inbox.Priority.first
 
+theorem waiting : Inbox.Priority.Waiting (busy.state 0) (.inr "frame Bob") 8 :=
+  Inbox.Priority.Waiting.event _ ["frame Alice"] [] "frame Bob" rfl
+
+theorem waitingProgress :
+    (Inbox.Priority.step (busy.state 0)).1 = some (.inr "frame Bob") ∨
+      ∃ k < 8, Inbox.Priority.Waiting
+        ((Inbox.Priority.step (busy.state 0)).2.append ["new local"] ["new frame"])
+        (.inr "frame Bob") k :=
+  Inbox.Priority.waiting_step waiting ["new local"] ["new frame"]
+
+theorem servedFromRank : ∃ j, 0 ≤ j ∧ j < 0 + 8 ∧ busy.selected j = some (.inr "frame Bob") :=
+  Inbox.Priority.served busy 0 (.inr "frame Bob") waiting
+
 example : (List.range 8).map busy.selected =
     [some (.inl "send Alice"), some (.inl "send Bob"), some (.inl "continuing local write"),
      some (.inr "frame Alice"), some (.inl "continuing local write"),
