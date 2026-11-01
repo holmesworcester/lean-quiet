@@ -46,8 +46,9 @@ if ! git merge-base --is-ancestor origin/main HEAD; then
 fi
 ci/local.sh build
 python3 ci/proof-links.py >/dev/null && python3 ci/vacuity.py --write >/dev/null
-# ci/proof-links.py draws the proof tree too; a new README group is a new file
-git add -A -- docs/PROOF-TREE.md docs/proof-tree
+# ci/proof-links.py draws the proof tree too; a new README group is a new
+# file (guarded: a missing tree is the gate's to report, not set -e's)
+[ -e docs/PROOF-TREE.md ] && git add -A -- docs/PROOF-TREE.md docs/proof-tree
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   git commit -qam "README links, proof tree and vacuity inventory after merging main"
 fi
