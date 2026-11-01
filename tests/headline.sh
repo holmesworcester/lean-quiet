@@ -72,6 +72,12 @@ if [ "$(printf '%s\n4.35.0\n' "$tc" | sort -V | head -1)" = 4.35.0 ]; then
   rc=0; lake comparator --config tests/comparator/comparator-weak.json >"$tmp/weak.out" 2>&1 || rc=$?
   [ "$rc" -eq 1 ] || { cat "$tmp/weak.out"; echo "control not caught: lake comparator exit $rc on a weakened challenge" >&2; exit 1; }
   echo "control caught: lake comparator rejects a weakened challenge"
+  # The laws Comparator can judge under their own names today, in groups.
+  for c in tests/comparator/own-*.json; do
+    lake comparator --config "$c" >"$tmp/own.out" 2>&1 ||
+      { cat "$tmp/own.out"; echo "lake comparator rejected $c" >&2; exit 1; }
+    echo "lake comparator: accepted $c"
+  done
 else
   echo "lake comparator: skipped, Lean $tc has none (it comes in v4.35)"
 fi

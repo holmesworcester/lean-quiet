@@ -390,4 +390,67 @@ elab "#same_statement " a:ident b:ident : command => do
     logInfo m!"{na} states {nb}{if aux.isEmpty then "" else s!" ({aux.length} auxiliaries paired)"}"
   else throwError "{na} does not state {nb}:\n{ca.type}\nvs\n{cb.type}"
 
+/-! ## Can a challenge state a law under its own name?
+
+Comparator judges a theorem by name: the challenge states it with
+`sorry`, the solution proves it, and the two must agree. Stated under
+the law's own name, the challenge must import the definitions its
+statement names without importing the law: no module it imports may be
+the law's module, or import it. -/
+
+/-- Each module's direct imports. -/
+def importsOf (env : Environment) : NameMap (Array Name) := Id.run do
+  let mut m : NameMap (Array Name) := {}
+  for i in [0:env.header.moduleNames.size] do
+    m := m.insert env.header.moduleNames[i]! (env.header.moduleData[i]!.imports.map (·.module))
+  return m
+
+/-- Whether module `a` is `b` or imports it, transitively. -/
+partial def reaches (imps : NameMap (Array Name)) (a b : Name) : Bool :=
+  let rec go (todo : List Name) (seen : NameSet) : Bool :=
+    match todo with
+    | [] => false
+    | m :: rest =>
+      if m == b then true else if seen.contains m then go rest seen else
+      go (((imps.find? m).getD #[]).toList ++ rest) (seen.insert m)
+  go [a] {}
+
+/-- `#challenge_imports thm₁ thm₂ …`: for each law, the modules a
+challenge must import to state it under its own name (those of the
+constants its statement names), or the constants that block that: each
+lives in the law's module, or in a module that imports it. Then, for the
+laws not blocked, the imports of one challenge for all of them, and any
+law those imports reach. Auxiliaries named after the law (a `match`'s
+matcher) are left out: the challenge makes its own. -/
+elab "#challenge_imports " ids:ident+ : command => do
+  let env ← getEnv
+  let imps := importsOf env
+  let mut free : Array (Name × Name × Array Name) := #[]
+  for id in ids do
+    let thm ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo id
+    let some lawMod := moduleOf? env thm | throwError "{thm} is not imported"
+    let some ci := env.find? thm | throwError "{thm} not found"
+    let cs := ci.type.getUsedConstants.filter fun c => !(thm.isPrefixOf c && c != thm)
+    let ownMods := (cs.filterMap fun c =>
+      match moduleOf? env c with
+      | some m => if roots.contains m.getRoot then some m else none
+      | none => none).toList.eraseDups.toArray.qsort (·.toString < ·.toString)
+    let blockers := cs.filterMap fun c => match moduleOf? env c with
+      | some m => if roots.contains m.getRoot && reaches imps m lawMod then some (c, m) else none
+      | none => none
+    if blockers.isEmpty then
+      free := free.push (thm, lawMod, ownMods)
+      logInfo m!"challenge {thm}: free\n  law in {lawMod}\n  imports {ownMods.toList}"
+    else
+      let why := blockers.toList.map fun (c, m) =>
+        s!"{nameStr c} ({m}{if m == lawMod then ", the law's own module" else ", which imports the law's module"})"
+      logInfo m!"challenge {thm}: blocked\n  law in {lawMod}\n  by {", ".intercalate why}"
+  let allImports := (free.foldl (fun acc (_, _, ms) => acc ++ ms.toList) []).eraseDups
+  let clashes := free.filterMap fun (thm, lawMod, _) =>
+    let by_ := free.filterMap fun (other, _, ms) =>
+      let hit := ms.filter (reaches imps · lawMod)
+      if hit.isEmpty then none else some s!"{nameStr other}'s {hit.toList}"
+    if by_.isEmpty then none else some s!"{nameStr thm} (its module is imported by {", ".intercalate by_.toList})"
+  logInfo m!"challenge all: {free.size} of {ids.size} free\n  imports {allImports}\n  clashes:\n    {"\n    ".intercalate clashes.toList}"
+
 end SpecSurface

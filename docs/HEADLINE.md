@@ -585,26 +585,74 @@ sorryAx").
   `removal_authorized` weakened to `t = u ∨ True`, which Comparator must
   reject.
 
-**Result on v4.35** (this branch merged onto vibecheck/toolchain,
-2026-11-01): `lake comparator` accepts all seventeen ("Lean default
-kernel accepts the solution", "Your solution is okay!"), and rejects the
-control ("Challenge and solution theorem statement do not match:
-'Headline.removal_authorized'"). After that merge, regenerate this page
-(`python3 ci/headline.py`): on v4.35, `visual_perm` also uses
-`Classical.choice`.
+**Result on v4.35** (this branch, with vibecheck/toolchain merged in):
+`lake comparator` accepts all seventeen ("Lean default kernel accepts
+the solution", "Your solution is okay!"), and rejects the control
+("Challenge and solution theorem statement do not match:
+'Headline.removal_authorized'").
 
 The modules are the `Comparator` library, which is never a default
 target, so `lake build` and `lake check` never see a `sorry`.
 tests/headline.sh checks them on every toolchain and, from v4.35 on,
-runs Comparator on the real pair and on the control. Its other controls:
-a weakened restatement and a changed `match` must fail
-`#same_statement`, and `#headline` must fail on a law that rests on
-`sorry`.
+runs every Comparator config below. Its other controls: a weakened
+restatement and a changed `match` must fail `#same_statement`, and
+`#headline` must fail on a law that rests on `sorry`.
 
 Comparator does not check the runtime examples, which run native code.
 Kernel examples, with a toy `Crypto` as in tests/vacuity/Contracts.lean,
 would let laws 2–6, 8, 11, 12 and 14 show satisfiable hypotheses in the
 kernel.
+
+### Under the laws' own names
+
+The seventeen above are judged under new names (`Headline.<law>`), each
+proved by its law. Comparator's check is as strong: the challenge
+statement must equal the solution's, which `#same_statement` proves
+equal to the law's, and the kernel checks the law's own proof. But a
+judge may want the law judged under its own name. A challenge can do
+that only if it imports the definitions its statements name without the
+module that holds the law (or one that imports it), since the name
+would be declared twice. `#challenge_imports` (tests/SpecSurface.lean;
+run by tests/comparator/Feasible.lean) finds which laws allow it.
+
+**Ten allow it today, and pass.** One challenge cannot hold all ten,
+because each group's imports would reach another group's laws (for
+example, `app.Screen`, which `back_open` needs, imports
+`app.community.Proofs`). So there are four configs, all accepted on
+v4.35:
+
+| Config | Laws, under their own names | Its challenge imports |
+|---|---|---|
+| tests/comparator/own-community.json | `no_impersonation`, `admission_needs_approval`, `removal_authorized`, `connect_iff`, `sealed_auth`, `select_tapped_dedupe`, `approveReq_ops` | 19 definition modules (Family, Op, Commands, …) |
+| tests/comparator/own-agree.json | `same_ops_same_verdicts` | engine.core.{Core, Model, Proofs, Run} |
+| tests/comparator/own-cost.json | `ingest_costs` | engine.core.{Core, Cost, CostStore} |
+| tests/comparator/own-back.json | `back_open` | app.Screen, engine.renderer.Presentation |
+
+**Seven need a split first.** Each is blocked by definitions that live
+in the law's own module. The smallest split moves those definitions out,
+into a module the law's module already imports or a new one it imports.
+No theorem moves, no statement changes, and no importer changes, since
+importing the law's module still brings the definitions. This is a
+proposal; these files are other streams' too, so the user decides.
+
+| Law | Blocked by (in the law's module) | Proposed move |
+|---|---|---|
+| `removed_stays` | `Community.Removed` (app/community/member/remove/Proofs.lean:9) | Move `Removed`, with `Member`, `Live` and `Cut` (lines 9–21, four predicates over `V` and `Admitted`) to app/community/Family.lean, beside `V` and `Admitted`. Moving `Live` too lets it share a challenge with `connect_iff`, which names `Live`. |
+| `removal_reaches_session` | `Connection.MayGo` (app/Proofs.lean:3044) | Move `MayGo` (one predicate) to app/connection/Proofs.lean, beside `LiveIn` and `NoticeOnly`; that file already imports `Refused`'s. Its challenge then imports app.connection.Proofs, which holds `sealed_auth`, so it needs a config of its own. |
+| `recv_send` | `Engine.Sync.Sendable` (engine/sync/ConnLaws.lean:33) | Move `Sendable` (and `Takeable`, for `recv_take`) to engine/sync/Conn.lean, beside `Conn.shows`. |
+| `kk_secret`, `kk_authentic` | the symbolic model: `T`, `sym`, `Derivable`, `Clean`, `Part`, `Answers`, `Exposed`, `secrets`, … (engine/wire/NoiseSymbolic.lean) | Move the model's 14 definitions (`T` and its `DecidableEq`, `dh`, `dec`, `unpair`, `sym`, `Sends`, `Reveals`, `Derivable`, `Clean`, `Exposed`, `secrets`, `Part`, `Answers`; lines 251–766, between theorems) to a new engine/wire module, imported by NoiseSymbolic.lean. None of them needs a theorem. engine/ has no file-name rule. |
+| `display_agrees` | `Community.Posted` (app/community/channel/message/Proofs.lean:165) | Move `Posted` (one predicate) to app/community/channel/message/receipt/Proofs.lean, beside `Listed`, which message/Proofs.lean already imports. |
+| `Cover.covered` | `Cover.Px`, `Cover.find`, `Cover.seen` (engine/renderer/Cover.lean:21–53: the running code itself) | Move the three definitions to a new engine/renderer module, imported by Cover.lean, which keeps only the laws. Their names stay, so the wiring check still finds `seen` running. |
+
+Under ci/layout.py every file under app/ must have one of eight names;
+each move above stays within those (Family.lean, Proofs.lean), and the
+two new modules are under engine/. To put more laws in one challenge,
+`app.community.Op` would have to import the engine's definitions rather
+than the `engine.core.Engine` umbrella (which imports
+`engine.core.Termination` and `engine.core.IngestCost`), and
+`engine.core.Held` would need `budget` from a module other than
+engine.core.Budget; `back_open` stays apart, since `App.St` lives in
+app/Screen.lean, which imports most of the app.
 
 ## Surfaces (generated)
 
@@ -819,7 +867,7 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 | [`hit_iff`](HEADLINE-SURFACES.md#sheetgeomhit_iff) | [engine/renderer/SheetGeom.lean:125](../engine/renderer/SheetGeom.lean#L125) | propext, Quot.sound | 8 | 4 | 2 | 0 | 1 |
 | [`switcherOrder_complete`](HEADLINE-SURFACES.md#pagesswitcherorder_complete) | [app/community/Screen.lean:1096](../app/community/Screen.lean#L1096) | propext, Quot.sound | 2 | 2 | 0 | 0 | 0 |
 | [`switcherOrder_sound`](HEADLINE-SURFACES.md#pagesswitcherorder_sound) | [app/community/Screen.lean:1089](../app/community/Screen.lean#L1089) | propext, Quot.sound | 2 | 2 | 0 | 0 | 0 |
-| [`visual_perm`](HEADLINE-SURFACES.md#textvisual_perm) | [engine/renderer/TextLaws.lean:21](../engine/renderer/TextLaws.lean#L21) | propext, Quot.sound | 55 | 55 | 0 | 0 | 0 |
+| [`visual_perm`](HEADLINE-SURFACES.md#textvisual_perm) | [engine/renderer/TextLaws.lean:21](../engine/renderer/TextLaws.lean#L21) | propext, Classical.choice, Quot.sound | 55 | 55 | 0 | 0 | 0 |
 | [`decode_sized`](HEADLINE-SURFACES.md#imagedecode_sized) | [engine/renderer/ImageLaws.lean:13](../engine/renderer/ImageLaws.lean#L13) | propext, Classical.choice, Quot.sound | 17 | 17 | 0 | 0 | 0 |
 | [`notice_iff`](HEADLINE-SURFACES.md#enginenotice_iff) | [engine/core/WindowLaws.lean:705](../engine/core/WindowLaws.lean#L705) | propext, Classical.choice, Quot.sound | 114 | 67 | 11 | 3 | 0 |
 | [`read_notice_iff`](HEADLINE-SURFACES.md#engineread_notice_iff) | [engine/core/WindowRead.lean:417](../engine/core/WindowRead.lean#L417) | propext, Classical.choice, Quot.sound | 119 | 69 | 10 | 3 | 0 |
