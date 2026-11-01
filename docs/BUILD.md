@@ -99,12 +99,14 @@ hashes in `tools/*.sha256`, the glyph and UI font stamps, or the scripts
 that make `font.bin`, `emoji.bin` and the photos). Then rebuild `assets/`
 (`tools/fetch_assets.sh`), run `tools/make/assets.py pack`, which writes
 the tarball to `out/make/` and rewrites the pin and the list, publish the
-tarball under the pinned tag, and commit the pin and the list:
+tarball under the pinned tag, and commit the pin and the list. The join
+page links `releases/latest/download/...`, so the assets release must
+never become the latest one:
 
 ```sh
 . tools/make/assets.pin
 gh release create "$LQ_ASSETS_TAG" "out/make/$LQ_ASSETS_NAME" \
-  --repo "$LQ_ASSETS_REPO" --title "Assets $LQ_ASSETS_TAG" \
+  --repo "$LQ_ASSETS_REPO" --latest=false --title "Assets $LQ_ASSETS_TAG" \
   --notes "The app's assets for make install (sha256 $LQ_ASSETS_SHA256)"
 ```
 
