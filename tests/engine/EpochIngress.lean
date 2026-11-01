@@ -132,6 +132,15 @@ def removalCase (t : Checks) (dir : String) : IO Unit := do
       !(← view a (allowPeer c (JoinFair.nodeKey "B"))))
   t.ok "retirement cancels the old admitted target without applying unauthorized traffic"
     (!(← has a target) && (← pending a).isEmpty)
+  -- The peer is still writing (replies to frames it has not yet handled),
+  -- as when it lost the notice: a reset would fail its writer, and a failed
+  -- writer stops the reader that has not yet read the notice.
+  let some sockB := b.state.value.socks.head? | throw (IO.userError "missing peer socket")
+  for _ in [0:20] do
+    discard <| sockB.push b.cfg [(.serve, "peer still writing".toUTF8)]
+    IO.sleep 5
+  t.ok "retirement resets none of the peer's writes before the peer reads its notice"
+    (!(← IO.hasFinished sockB.done))
   let mut b := b
   -- Admit native output before resuming this receiver. An in-flight notice
   -- with an empty mailbox is outside the one-shot admitted-input guarantee.
