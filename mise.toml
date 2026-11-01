@@ -507,6 +507,11 @@ run = "platforms/macos/ship.sh run"
 description = "Build/setup the Mac app, drive OS typing/send, zoom and resize, and verify restart persistence and snapshots"
 run = "platforms/macos/ship.sh e2e"
 
+[tasks."test:hold-cache"]
+description = "Exact placeholder cache pixels and laws, 32 actual App publication cases, and six compiling cache controls"
+depends = ["crypto"]
+run = "bash tests/engine/hold_cache.sh"
+
 [tasks."host:skeleton"]
 description = "Shared message skeleton pixels, density/theme/clipping and actual app/native publication parity"
 depends = ["crypto"]

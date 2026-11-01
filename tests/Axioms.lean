@@ -1,3 +1,4 @@
+import engine.renderer.HoldCacheLaws
 import engine.renderer.DemandRank
 import engine.wire.ExpiryGraceLaws
 import engine.renderer.WriteQueueLaws
@@ -1442,3 +1443,10 @@ end cost
 #print axioms Demand.take_changes
 #print axioms Demand.selected_or_retired
 #print axioms Demand.selected_within
+
+#print axioms Hold.messageLine_key
+#print axioms Hold.prepare_key
+#print axioms Hold.prepare_reuses
+#print axioms Hold.prepare_rows
+#print axioms Hold.cachedMessagePlane_exact
+#print axioms Hold.cachedMessagePlane_reuses

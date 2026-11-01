@@ -554,6 +554,9 @@ lean_exe writer_resume where
   root := `tests.engine.WriterResume
   moreLinkObjs := #[stop_probe.o]
 
+lean_exe hold_cache where
+  root := `tests.engine.HoldCache
+
 lean_exe reader_claim_rollback where
   root := `tests.engine.ReaderClaimRollback
 

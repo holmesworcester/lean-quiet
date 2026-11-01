@@ -100,7 +100,7 @@ else echo "SKIP linux links negative controls (no local X sockets)"; fi
 fi
 
 if stage components; then
-mise run host:skeleton
+mise run test:hold-cache
 mise run host:mobile-switcher
 mise run test:people-reader
 mise run host:component-demand
