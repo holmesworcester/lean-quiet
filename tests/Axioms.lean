@@ -19,6 +19,7 @@ import engine.renderer.SlideLaws
 import engine.renderer.InputLaws
 import engine.renderer.TranslateLaws
 import engine.sync.TreeLaws
+import engine.sync.NewestLaws
 import engine.sync.StateLaws
 import engine.sync.ClosureComplete
 import engine.sync.TimeLaws
@@ -128,6 +129,10 @@ open Engine Community
 #print axioms Engine.Sync.top_perm
 #print axioms Engine.Sync.lbl_perm
 #print axioms Engine.Sync.exchange_complete
+#print axioms Engine.Sync.answer_newest_first
+#print axioms Engine.Sync.window_first
+#print axioms Engine.Sync.newest_first
+#print axioms Engine.Sync.opening_newest_first
 #print axioms Engine.Sync.opening_honest
 #print axioms Engine.intakeConn_conn
 #print axioms Engine.Sync.recv_take
@@ -318,6 +323,9 @@ open Engine Community
 #print axioms Community.removeMember_valid
 #print axioms Community.chunk_of_attachment
 #print axioms Community.chunk_hangs_off
+#print axioms Community.message_order
+#print axioms Community.attach_order
+#print axioms Community.chunks_in_window
 #print axioms Community.chunk_own
 #print axioms Engine.Op.decode_exact
 #print axioms Engine.Op.decode_parts

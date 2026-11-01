@@ -103,5 +103,33 @@
     "witness": "Vacuity.RoundExchange.exchangeCertificate",
     "module": "tests.vacuity.RoundExchange",
     "detail": "The same actual two-party execution and native SHA certificate: conn_runs_exchange's proof instantiates live_round_complete with the run, its currency, the bounding list xs ++ ys and each step's claimant items, all derived from the fixture's indices; the conclusions are applied for all three missing ids."
+  },
+  "answer_newest_first": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.answer_newest_first",
+    "witness": "Vacuity.RoundExchange.newestAnswer",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Applied to Bob's sorted items answering Alice's actual ids claim over the timed range; a native check confirms the haves are [bob2, bob1], newest first. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides."
+  },
+  "window_first": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.window_first",
+    "witness": "Vacuity.RoundExchange.windowFirst",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Applied at floor 100; the theorem has no premise beyond the floor. The fixture's opening is checked natively to claim the structure range first. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides."
+  },
+  "newest_first": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.newest_first",
+    "witness": "Vacuity.RoundExchange.newestHaves",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Both premises (claims in sync's order, each of one class) are discharged for Alice's actual opening claims over the full window, via window_first and opening_range; Bob answers. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides."
+  },
+  "opening_newest_first": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.opening_newest_first",
+    "witness": "Vacuity.RoundExchange.openingNewest",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Applied to Bob answering Alice's opening over the full window (floor 0); its only premise, Bob's items in key order, is the fixture's sortedY. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides."
   }
 }
