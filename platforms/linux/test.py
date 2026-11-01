@@ -103,8 +103,9 @@ try:
             # Real X11 motion/leave and cursor selection, without a click.
             xdo('mousemove', '--window', win, 100*scale, 28*scale)
             wait(lambda: any('pointer some (100, 28) cursor 1' in s for s in lines()), 'OS hover + hand')
-            hot = shot('hover-team')
-            check(hot.getpixel((190*scale, 30*scale)) != image.getpixel((190*scale, 30*scale)), tag + ' OS motion paints team hover')
+            before = image.getpixel((190*scale, 30*scale))
+            hot = shot('hover-team', until=lambda im: im.getpixel((190*scale, 30*scale)) != before)
+            check(hot.getpixel((190*scale, 30*scale)) != before, tag + ' OS motion paints team hover')
             xdo('windowfocus', '0')
             wait(lambda: any('pointer none cursor 0' in s for s in lines()), 'OS focus out clears hover')
             check(True, tag + ' OS focus loss clears hover')

@@ -3,6 +3,7 @@
 restore the source, and rebuild the production entry point at the end."""
 import os
 import re
+import sys
 from pathlib import Path
 import subprocess
 
@@ -48,7 +49,14 @@ def run(cmd, path):
     assert code not in (137, -9) and "code: 137" not in text and "Killed" not in text, "memory-cap failure, not a negative control"
     return code, text
 
-selected = os.environ.get("LIFECYCLE_NODE_CONTROLS", "").split(",")
+# --list: the cases, one a line; names given (or LIFECYCLE_NODE_CONTROLS,
+# comma-separated): just those. ci/local.sh --full runs each case at once,
+# each in a copy of the tree it throws away (CI_LANE=1: no restore build).
+if sys.argv[1:] == ["--list"]:
+    print("\n".join(case[0] for case in cases))
+    sys.exit(0)
+selected = sys.argv[1:] or os.environ.get("LIFECYCLE_NODE_CONTROLS", "").split(",")
+assert selected == [""] or set(selected) <= {case[0] for case in cases}, "unknown control"
 ran = 0
 for name, file, old, new, expected, wiring in cases:
     if selected != [""] and name not in selected:
@@ -75,6 +83,7 @@ for name, file, old, new, expected, wiring in cases:
         ran += 1
     finally:
         path.write_bytes(original)
-assert run(["lake", "build", "app_lifecycle_node", "quiet_host", "desktop", "+Main"], out / "restored-build.log")[0] == 0
-assert run([".lake/build/bin/app_lifecycle_node", "out/lifecycle-node/restored"], out / "restored-run.log")[0] == 0
-print(f"lifecycle node controls: {ran} rejected; source restored; positive suite passes", flush=True)
+if os.environ.get("CI_LANE") != "1":
+    assert run(["lake", "build", "app_lifecycle_node", "quiet_host", "desktop", "+Main"], out / "restored-build.log")[0] == 0
+    assert run([".lake/build/bin/app_lifecycle_node", "out/lifecycle-node/restored"], out / "restored-run.log")[0] == 0
+print(f"lifecycle node controls: {ran} rejected; source restored" + ("" if os.environ.get("CI_LANE") == "1" else "; positive suite passes"), flush=True)
