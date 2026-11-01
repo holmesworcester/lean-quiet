@@ -4,10 +4,13 @@ type's body and fact as bytes (and read back), its tag, whether it is
 local, where its fact sorts and the keys it is filed under, and the
 validator's verdict on sample requirements. tests/engine/wire-golden.txt
 holds this program's output from main before the families were split into
-op folders (e727b5e); the split must print exactly the same: no byte, id
-or verdict moved. Since then, by the user's decision (2026-11-01), an
-attachment's and a chunk's body, and an attachment's fact, carry their
-message's time: those bytes and ids moved, their verdicts did not. Signatures are a parameter: a scheme that accepts every
+op folders (e727b5e), with two deliberate wire changes since: one-approval
+dropped the invitation's and request's threshold, so their bytes, the
+invite ops' ids and their verdicts lost that field; and (the user's
+decision, 2026-11-01) an attachment's and a chunk's body, and an
+attachment's fact, carry their message's time, so those bytes, ids and
+orders moved, their verdicts did not. Anything else that moves is a
+regression. Signatures are a parameter: a scheme that accepts every
 signature, and one that accepts none.
 -/
 import app.community.Proofs
@@ -23,8 +26,8 @@ def bs (s : String) : ByteArray := s.toUTF8
 
 def bodies : List (String × Body) :=
   [("root", .root (bs "dev") (bs "enc") (bs "sig")),
-   ("invite", .invite (bs "bearer") true 1 (bs "sig")),
-   ("invite2", .invite (bs "bearer") false 3 (bs "sig")),
+   ("invite", .invite (bs "bearer") true (bs "sig")),
+   ("invite2", .invite (bs "bearer") false (bs "sig")),
    ("request", .request (bs "dev") (bs "enc") (bs "consent") (bs "bsig")),
    ("grant", .grant (bs "sig")),
    ("remove", .remove (bs "sig")),
@@ -48,7 +51,7 @@ def bodies : List (String × Body) :=
 
 def facts : List (String × Fact) :=
   [("admission", .admission (bs "c") (bs "u") (bs "dev") (bs "enc")),
-   ("invitation", .invitation (bs "c") (bs "i") (bs "bearer") true 1),
+   ("invitation", .invitation (bs "c") (bs "i") (bs "bearer") true),
    ("admin", .admin (bs "c") (bs "u")),
    ("removal", .removal (bs "c") (bs "u") (bs "by")),
    ("message", .message (bs "c") (bs "u") (bs "dev") (bs "kid") (bs "text") 7 1700000),
@@ -58,7 +61,7 @@ def facts : List (String × Fact) :=
    ("profile", .profile (bs "c") (bs "u") (bs "Ma​ya") 42),
    ("attachment", .attachment (bs "c") (bs "m") (bs "u") (bs "root") 1000 29880000 (bs "kid") (bs "sealed")),
    ("react", .react (bs "c") (bs "u") (bs "m") (bs "🌱") 99),
-   ("request", .request (bs "c") (bs "u") (bs "dev") (bs "enc") false 2),
+   ("request", .request (bs "c") (bs "u") (bs "dev") (bs "enc") false),
    ("approval", .approval (bs "c") (bs "r") (bs "u")),
    ("secret", .secret (bs "pk") (bs "seed")),
    ("accepted", .accepted (bs "c") (bs "dev")),
@@ -86,8 +89,8 @@ def reqs : List (List Fact) :=
   let other := Fact.admission c (bs "v") (bs "dev2") (bs "enc2")
   let msg := Fact.message c (bs "u") (bs "dev") (bs "kid") (bs "t") 1 2
   let child := Fact.message c (bs "u") (bs "dev") (bs "kid") (bs "t") 1 2 (some (bs "r"))
-  let inv := Fact.invitation c (bs "u") (bs "bearer") false 1
-  let req := Fact.request c (bs "u") (bs "dev") (bs "enc") false 1
+  let inv := Fact.invitation c (bs "u") (bs "bearer") false
+  let req := Fact.request c (bs "u") (bs "dev") (bs "enc") false
   let appr := Fact.approval c (bs "") (bs "v")
   let att := Fact.attachment c (bs "m") (bs "u") (bs "root") 70000 29880000 (bs "kid") (bs "x")
   let grant := Fact.admin c (bs "u")
@@ -152,5 +155,5 @@ def main : IO Unit := do
     let e := encode f
     IO.println s!"fact {n} local={f.isLocal} bytes={hex e} back={decode e == some f} sort={hex (sortOf f)}"
     IO.println s!"  keys={(keys f).map hex}"
-    IO.println s!"  isAdmin={isAdmin (bs "c") (bs "u") f} prevMax={prevMax (bs "c") [f]} approvers={(approvers (bs "c") (bs "r") [f]).map (·.map hex)}"
+    IO.println s!"  isAdmin={isAdmin (bs "c") (bs "u") f} prevMax={prevMax (bs "c") [f]}"
   connection
