@@ -12,7 +12,8 @@ gets (what Android's Notifications.java renders):
 - Sync in the background on: a post arriving while B is in the background
   alerts, and nothing is drawn; off: nothing runs in the background, so
   nothing alerts until B is in front again;
-- B's removal withdraws its standing card.
+- B's removal withdraws its standing card;
+- and `Notify.policy` agrees with libquiet's on 20,736 reference cases.
 
     notify <outdir>
 -/
@@ -46,6 +47,32 @@ def count (p : String) : Nat :=
   | some rest => (String.ofList (rest.toList.takeWhile Char.isDigit)).toNat!
   | none => 0
 
+/-- libquiet's own policy over every message-policy input: 20,736
+cases its unmodified effective/follow/decide functions computed at
+ab3d244cf (tests/app/notify_oracle.py), in this nesting order, against
+the `Notify.policy` the app runs. -/
+def policyFixture : IO (Nat × Bool) := do
+  let expected := (← IO.FS.readFile "tests/app/notify-policy.txt").trimAscii.toString.toList.toArray
+  let levels := [none, some Notice.Level.all, some .mentions, some .off]
+  let choices := [none, some false, some true]
+  let mut i := 0
+  let mut ok := true
+  for community in levels do
+    for conversation in levels do
+      for communityReplies in choices do
+        for replies in choices do
+          for kind in [0, 1, 2] do
+            for manualFollow in choices do
+              for reply in [false, true] do
+                for mentioned in [false, true] do
+                  for rootAuthor in [false, true] do
+                    for replied in [false, true] do
+                      let actual := Notify.policy { community, conversation, communityReplies, replies }
+                        { direct := kind != 0, oneToOne := kind == 2, manualFollow, reply, mentioned, rootAuthor, replied }
+                      if expected[i]? != some (if actual then '1' else '0') then ok := false
+                      i := i + 1
+  return (i, ok && i == expected.size)
+
 /-- Steps until the packets since `from` satisfy `ok`, at most `n`. -/
 def stepsUntil (sm : Sim) (from_ n : Nat) (ok : Array String → Bool) (evs : List Event := []) : M Bool := do
   for _ in [0:n] do
@@ -61,6 +88,8 @@ def main (args : List String) : IO UInt32 := do
     IO.println s!"{if ok then "ok  " else "FAIL"} {name}"
     (← IO.getStdout).flush
     if !ok then fails.modify (· + 1)
+  let (n, ok) ← policyFixture
+  check s!"the policy is libquiet's on all {n} reference cases" (ok && n == 20736)
   let screen : Array UInt32 := #[1080, 2400, 128, 63, 420]
   let sa ← Sim.new
   let sb ← Sim.new
