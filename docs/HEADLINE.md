@@ -71,7 +71,8 @@ assumptions.
 | 14 | Back goes back. | [`back_open`](../app/Proofs.lean#L1311) | wired | 1 | runtime | shipped bug, a mutant |
 | 15 | Line wrapping loses only spaces. | [`wrap_keeps`](../engine/renderer/WrapLaws.lean#L134) | wired | 1 | kernel | none yet |
 
-"Review" counts the spec-only definitions, then names the assumptions.
+"Review" counts the spec-only definitions, then names the assumptions;
+the counts come from the generated section at the end of this page.
 "kernel" means Lean's kernel checks the example; "runtime" means the
 example runs native code (real Ed25519, SQLite, rendering) and then
 applies the law, so it trusts Lean's compiler too; "conditional" means
