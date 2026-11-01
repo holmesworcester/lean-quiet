@@ -2404,6 +2404,10 @@ input, plus eventual delivery of each eligible shared op under fair-loss
 transport while posting continues. **The complete claims are not yet proved.**
 The [execution audit](docs/EXECUTION-PROGRESS.md) records counterexamples,
 necessary statement boundaries and the remaining code changes.
+Fair-loss and process scheduling alone cannot ensure retention if a required
+worker never runs or storage refuses every new write. Those external progress
+and capacity boundaries must also be explicit; application fairness remains
+an obligation to prove.
 
 | Milestone | Change and reason | Checked boundary |
 |---|---|---|

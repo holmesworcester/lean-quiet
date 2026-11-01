@@ -90,6 +90,7 @@ This closes those concrete failures, not the internal reservation obligation.
 | Bounded memory | The sync index, snapshots, retired-session routing/tombstone history and some app recovery queues grow with history. |
 | Fair-loss progress | Ordinary traffic can refill the socket before every tick, leaving zero retry room forever. A separate output reservation still needs implementation and proof. Seventeen fitting ~1 MB hot responses can also overflow the 16 MiB socket cap and discard a queued retry. |
 | Write-to-display bound | Selection, commit, reader refresh and presentation are separate stages. Worker delays are not bounded by the selector. Even with progressing workers, recurring reaction updates can replace a row's paint ticket before every completed bitmap is published; finishing a still-valid first paint needs protection from this churn. |
+| User-action outcomes | Joining can remain pending while approval is withheld. A completion-or-failure theorem needs an explicit cancellation/deadline policy as well as bounded service of the action. |
 
 The current work addresses these in the running code. A successful finite
 test or a new component lemma does not close the corresponding whole-app row.
@@ -113,6 +114,11 @@ test or a new component lemma does not close the corresponding whole-app row.
 - **Transport:** an adversary that drops every copy defeats delivery. Fair-loss
   is sufficient only after the app is proved to retry each relevant payload
   indefinitely, including across its own queue limits and session changes.
+- **Durable capacity:** delivery cannot make a peer retain an op if its storage
+  refuses every new write, for example on a full disk. The replication result
+  needs sufficient durable storage for the eligible data, or must explicitly
+  permit a reported storage failure. Process scheduling and fair-loss alone
+  cannot establish successful retention in that environment.
 - **Supported bytes and correct implementations:** crypto, framing, persistent
   storage and native code must implement the stated semantics. Finite tests do
   not prove those universal contracts. Oversized historical or imported ops
