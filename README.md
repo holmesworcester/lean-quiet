@@ -806,7 +806,7 @@ let us prove.
 
 The lifecycle port also adds an explicit listener close in
 [`listener.h`](engine/native/listener.h). After the acceptor joins,
-`Runner.stop` invokes the Lean 4.34 UV external object's finalizer once and
+`Runner.stop` invokes the Lean 4.35 UV external object's finalizer once and
 replaces its finalizer with a no-op. This depends on the runtime's external
 object ABI and UV finalizer, not a Lean proof. A retained-runner test checks
 explicit close and repeated stop; the TCP test rebinds the same port while
