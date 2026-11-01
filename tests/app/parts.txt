@@ -36,7 +36,8 @@ lifecycle	lifecycle	mise run host:lifecycle && mise run host:reader-request-nega
 lifecycle	lifecycle-node	mise run host:lifecycle-node
 lifecycle	lifecycle-node-negative	bash tests/app/lifecycle_node_negative.sh	cases
 appearance	theme	mise run host:theme-restart && mise run host:theme-live && mise run host:theme-negative
-safety	safe	mise run host:safe && mise run host:safe-negative
+safety	safe	mise run host:safe
+safety	safe-negative	python3 tests/app/safe_negative.py	cases
 safety	desktop-negative	mise run host:desktop-negative
 safety	links-negative	if [ "${SKIP_X:-${SKIP_TCP:-0}}" = 1 ]; then echo "SKIP linux links negative controls (no local X sockets)"; else mise run linux:links-negative; fi
 components	hold-cache	mise run test:hold-cache
