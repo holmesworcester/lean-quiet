@@ -216,8 +216,11 @@ the relevant encountered inputs. ³ In the symbolic model of the cryptography.
 - that a closed session's ephemeral keys are gone: that closing purges
   every one (`close_forgets`), and that deleted bytes leave the disk
   (assumed, and doubtful on journaling filesystems and flash);
-- that every member eventually gets every op: proven so far for two
-  nodes, over a model ([towards n clients](#towards-proofs-for-n-clients));
+- that every member eventually gets every op: proven for n nodes
+  running the sync code (fixed rooms, frames in the clear) given that each
+  live link carries an op within a bound B, but that bound is not proven
+  yet (the have → want step over time, the round on reconnect)
+  ([towards n clients](#towards-proofs-for-n-clients));
 - bootstrap convergence for every fair execution of the running app. Concrete
   infinite witnesses and production-runner checks are now implemented
   ([evidence and remaining boundary](#bootstrap-witnesses-and-running-app-checks));
@@ -232,16 +235,27 @@ code being written: [what the proofs caught](docs/CAUGHT.md).
 
 ### Towards Proofs for n Clients
 
-The sync proofs already run the real sync code, in a world of two
-devices whose network can delay or reorder frames
-([`stream_delivers`]), though with sessions opened directly and frames
-in the clear: the handshake is not in that world yet. Devices that hold the same ops agree, whatever
-order the ops arrived in (proven so far over a model of purging:
-[`same_ops_same_verdicts`]). So for n devices, it comes down to proving
-that every op reaches every member. The delivered-round and queued-closure
-components are now proved (`conn_runs_exchange`, `closure_delivered`);
-their composition across delayed/reordered transport and reconnects remains
-open, followed by a world of n devices with fair delivery.
+The sync proofs run the real sync code in a world of n devices
+(engine/world/, [docs/PROOFS.md](docs/PROOFS.md)): each device is the
+running node on its own store, and the network may delay, reorder,
+duplicate or drop any frame, with timely delivery across live links from
+some time on. Sessions are still opened directly, with frames in the
+clear: TCP, sealed sessions and the handshake are not in that world yet.
+In every execution, stores only gain shared ops ([`grows`]); and if each
+live link carries an op within a bound B, every member holds every op
+within d · B over a web of diameter d, and a device back from offline
+catches up ([`converge`], [`offline`]). Devices that hold the same ops
+agree, whatever order the ops arrived in (proven so far over a model of
+purging: [`same_ops_same_verdicts`]). So it comes down to that per-link
+bound. Part of it is proven: a want in flight gets its op across within
+three network delays plus the sender's queue, which drains a position per
+tick ([`want_reaches`], [`drain`]); the round and closure steps are
+proven per connection (`conn_runs_exchange`, `closure_delivered`). Still
+open: that a have is answered with a want over time (a change to always
+answer it is approved), the round that runs when devices connect or
+reconnect, the premises that remain (the session staying open, room in
+the queue, no hash collision), and then TCP, sealed sessions and the
+handshake.
 
 ### What is Assumed
 
@@ -1207,8 +1221,12 @@ and [`NodeUnique.sql_step_valid`]. Its existing interpreter consequences are
 opportunities and full native delivery remain open.
 
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
-[`stream_delivers`]: engine/wire/WorldLaws.lean#L806-L839
+[`grows`]: engine/world/Plain.lean#L189-L194
+[`converge`]: engine/world/Plain.lean#L198-L208
+[`offline`]: engine/world/Plain.lean#L211-L219
 [`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
+[`want_reaches`]: engine/world/Send.lean#L31-L57
+[`drain`]: engine/world/Drain.lean#L827-L843
 [`Unforgeable`]: app/community/Family.lean#L1257-L1272
 [`unscoped_signs_all`]: app/community/Proofs.lean#L90-L95
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
@@ -1442,6 +1460,7 @@ opportunities and full native delivery remain open.
 [`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1513-L1531
 [`closure_delivered`]: engine/sync/ClosureDelivery.lean#L216-L243
 [`stream_offered`]: engine/wire/WorldLaws.lean#L1458-L1470
+[`stream_delivers`]: engine/wire/WorldLaws.lean#L806-L839
 [`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L844-L861
 [`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1477-L1483
 [`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L891-L896
@@ -1475,15 +1494,10 @@ opportunities and full native delivery remain open.
 [`fresh_served`]: engine/wire/WorldLaws.lean#L631-L638
 [`write_hot`]: engine/wire/WorldLaws.lean#L1444-L1449
 [`onWrite_receives`]: app/Proofs.lean#L3189-L3198
-[`converge`]: engine/world/Plain.lean#L198-L208
-[`offline`]: engine/world/Plain.lean#L211-L219
-[`want_reaches`]: engine/world/Send.lean#L31-L57
-[`drain`]: engine/world/Drain.lean#L827-L843
 [`want_to_op`]: engine/world/Chain.lean#L273-L297
 [`op_hop`]: engine/world/Chain.lean#L111-L124
 [`write_hop`]: engine/world/Chain.lean#L181-L193
 [`step_waits`]: engine/world/Drain.lean#L691-L704
-[`grows`]: engine/world/Plain.lean#L189-L194
 [`managed_nil`]: engine/world/Inv.lean#L148-L151
 [`owes_queued_start`]: engine/world/InvIx.lean#L723-L725
 [`ix_covers_start`]: engine/world/InvIx.lean#L716-L718
