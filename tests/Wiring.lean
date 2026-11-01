@@ -472,6 +472,10 @@ structure Law where
   run, and proves the mutant breaks its law -/
   control : Bool := false
 
+/-- The class the report prints. -/
+def Law.status (l : Law) : String :=
+  if l.wired then "wired" else if l.control then "control" else if l.world then "world" else "model"
+
 def sortNames (ns : List Name) : List Name :=
   ns.eraseDups.toArray.qsort (·.toString < ·.toString) |>.toList
 
@@ -527,6 +531,88 @@ def shipping : IO (Array String) := do
     if [some "m", some "c", some "h"].contains e.path.extension then
       out := out.push (← IO.FS.readFile e.path)
   return out
+
+/-! ## The proof graph
+
+`WIRING_GRAPH=path` writes how the laws compose, as JSON, for
+ci/proof-tree.py (docs/PROOF-TREE.md): each theorem written by hand in
+the modules tests/Axioms.lean imports, with its class (an audited law's,
+as classified above; `lemma` for the rest), module and line, and the
+laws its proof uses. -/
+
+/-- A theorem or definition Lean made, not one written by hand: an
+equation, an auxiliary proof or recursion, a matcher, an instance, a
+projection, a structure's or an inductive's lemma. -/
+def made (env : Environment) (n : Name) : Bool :=
+  let u := privateToUserName n
+  u.isInternalDetail || env.isProjectionFn n || Meta.isInstanceCore env n ||
+  Meta.isMatcherCore env n || isAuxRecursor env n || isNoConfusion env n ||
+  match u with
+  | .str _ s => ["eq_def", "eq_unfold", "induct", "mutual_induct", "induct_unfolding", "fun_cases",
+      "sizeOf_spec", "injEq", "inj", "ext", "ext_iff", "ofNat_ctorIdx", "brecOn", "congr_simp"].contains s
+  | _ => false
+
+/-- The laws `n`'s value names, seen through what Lean made of ours
+(`foo.proof_1`, `foo.match_1`, `foo._unary`, an instance). Each constant
+is looked at once: `seen` keeps what it adds (nothing, but for a law and
+what Lean made). -/
+partial def lawUses (env : Environment) (mine : Name → Bool) (law : Std.HashSet Name) (n : Name) :
+    StateM (Std.HashMap Name (Array Name)) (Array Name) := do
+  modify (·.insert n #[])  -- a cycle among what Lean made ends here
+  let some v := (env.find? n).bind (·.value? (allowOpaque := true)) | return #[]
+  let mut out : NameSet := {}
+  for c in v.getUsedConstants do
+    if c == n then continue
+    if law.contains c then out := out.insert c; continue
+    let ds ← match (← get)[c]? with
+      | some ds => pure ds
+      | none => if mine c && made env c then lawUses env mine law c else
+          modify (·.insert c #[]) *> pure #[]
+    for d in ds do
+      if d != n then out := out.insert d
+  let ds := (sortNames out.toList).toArray
+  modify (·.insert n ds)
+  return ds
+
+/-- The modules of ours a list of imports reaches. -/
+def reached (env : Environment) (imports : List Name) : Array Name := Id.run do
+  let mut seen : NameSet := {}
+  let mut todo := imports.toArray
+  while h : todo.size > 0 do
+    let m := todo.back
+    todo := todo.pop
+    if seen.contains m || !roots.contains m.getRoot then continue
+    seen := seen.insert m
+    if let some i := env.getModuleIdx? m then
+      for imp in env.header.moduleData[i.toNat]!.imports do todo := todo.push imp.module
+  return seen.toList.toArray
+
+def writeGraph (env : Environment) (audit : List String) (laws : List Law) (path : String) : IO Unit := do
+  let classes : NameMap Law := laws.foldl (fun m l => m.insert l.name l) {}
+  let mods := reached env <| audit.filterMap fun l =>
+    if l.startsWith "import " then some (l.drop 7).trimAscii.toString.toName else none
+  let ourMods : Array Bool := env.header.moduleNames.map (roots.contains ·.getRoot)
+  let mine (c : Name) : Bool := match env.getModuleIdxFor? c with
+    | some i => ourMods[i.toNat]!
+    | none => false
+  let line (n : Name) : Nat :=
+    ((declRangeExt.find? (level := .server) env n).map (·.selectionRange.pos.line)).getD 0
+  let mut names : Array Name := #[]
+  for m in mods do
+    let some i := env.getModuleIdx? m | continue
+    for n in env.header.moduleData[i.toNat]!.constNames do
+      if let some (.thmInfo _) := env.find? n then
+        if classes.contains n || (!made env n && line n != 0) then names := names.push n
+  let law : Std.HashSet Name := names.foldl (·.insert ·) {}
+  let (uses, _) := (names.mapM (lawUses env mine law)).run {}
+  let mut nodes : Array (String × Json) := #[]
+  for n in names, us in uses do
+    let cls := ((classes.find? n).map (·.status)).getD "lemma"
+    nodes := nodes.push (n.toString, Json.mkObj [("name", Json.str n.toString), ("class", Json.str cls),
+      ("module", Json.str ((modOf env n).getD .anonymous).toString), ("line", toJson (line n)),
+      ("uses", Json.arr (us.map (Json.str ·.toString)))])
+  let sorted := nodes.qsort (·.1 < ·.1) |>.map (·.2)
+  IO.FS.writeFile path (Json.compress (Json.mkObj [("laws", Json.arr sorted)]) ++ "\n")
 
 unsafe def main : IO UInt32 := do
   initSearchPath (← findSysroot)
@@ -694,7 +780,7 @@ unsafe def main : IO UInt32 := do
   let modName (n : Name) := ((modOf env n).getD .anonymous).toString
   for l in lawList do
     for c in l.missing ++ l.premises do waited := waited.insert c
-    IO.println s!"law\t{l.name}\t{if l.wired then "wired" else if l.control then "control" else if l.world then "world" else "model"}\t{commas l.subject}\t{commas l.missing}\t{commas l.assumes}\t{modName l.name}\t{commas l.premises}"
+    IO.println s!"law\t{l.name}\t{l.status}\t{commas l.subject}\t{commas l.missing}\t{commas l.assumes}\t{modName l.name}\t{commas l.premises}"
   let mut stated := 0
   for (n, v) in stmts do
     let l := classify env run ns via n v
@@ -737,5 +823,6 @@ unsafe def main : IO UInt32 := do
   let nW := (lawList.filter (·.world)).length
   let nc := (lawList.filter (·.control)).length
   IO.println s!"count\twired {nw}\tworld {nW}\tcontrol {nc}\tmodel {lawList.length - nw - nW - nc}\tstated {stated}\tassumption {assumed}"
+  if let some path ← IO.getEnv "WIRING_GRAPH" then writeGraph env audit lawList path
   for p in problems do IO.eprintln s!"wiring: {p}"
   return if problems.isEmpty then 0 else 1
