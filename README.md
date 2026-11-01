@@ -1152,6 +1152,9 @@ CI runs locally for now:
   the workspace. It runs nightly and before a release. A bug it finds
   that the gate missed becomes a law over the running code (and an entry
   in [docs/CAUGHT.md](docs/CAUGHT.md)), so the gate catches it next time.
+- `ci/land.sh` lands a branch: one landing at a time on this box (a lock
+  in `$TMPDIR`), it merges main in, gates the result and pushes it, so no
+  gate is wasted on a main that moved under it. `LAND_PUSH` sets the push.
 - `ci/local.sh check visual` runs just those parts. Each part has a time
   limit (`PART_TIMEOUT`, 90 minutes). Logs go to `out/ci/`.
 - `ci/workflow.yml` is the same for a hosted runner, and is not in use.
