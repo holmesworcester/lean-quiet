@@ -390,6 +390,14 @@ open Engine Community
 #print axioms Engine.World.Plain.write_hop
 #print axioms Engine.World.Plain.step_waits
 #print axioms Engine.World.Plain.owed_bounded_start
+#print axioms Engine.World.Plain.good_always
+#print axioms Engine.World.Plain.good_keeps
+#print axioms Engine.World.Plain.moves_always
+#print axioms Engine.World.Plain.verdicts_spec
+#print axioms Engine.World.Plain.agree
+#print axioms Engine.World.Keeps.always
+#print axioms Engine.World.Guar.always
+#print axioms Engine.World.sent_keeps
 #print axioms Engine.World.onTick_moves
 #print axioms Engine.World.onSealed_waits
 #print axioms Engine.World.serve_moves

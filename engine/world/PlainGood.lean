@@ -16,8 +16,8 @@ write turns and purges (`moves_always`).
 The laws that were proven one by one are its projections
 (`owes_queued_start`, `ix_covers_start`, `owed_bounded_start`), and two
 headline laws follow for every node at every step: verdicts are the
-spec's (`verdicts_spec`), and nodes holding the same ops agree on every
-verdict (`agree`).
+spec's (`verdicts_spec`), and nodes that received the same ops, in any
+orders, agree on every verdict (`agree`).
 
 Not covered here (docs/GOOD.md): the production hooks (sealed sessions,
 the handshake, rooms from the store), lifecycle (suspend, resume, the
@@ -175,16 +175,25 @@ theorem verdicts_spec {adv : World (Held F) Q.n → ByteArray → Prop} (E : Exe
   obtain ⟨_, hr, _⟩ := g.store
   exact status_iff_spec (reach_inv hr) g.settled x v
 
-/-- **Plain nodes holding the same ops agree on every verdict**, at any
-steps of any execution from empty stores, against any attacker. -/
+/-- **Honest plain nodes agree**: two nodes that received the same ops,
+in any orders (their logs hold the same ops; no two of them share an
+id), hold the same verdicts, at any steps of any execution from empty
+stores, against any attacker (`order_free` at every node). -/
 theorem agree {adv : World (Held F) Q.n → ByteArray → Prop} (E : Exec Q.setup adv Q.start) (k k' : Nat)
-    (i j : Fin Q.n) (hops : ((E.world k).box i).db.ops = ((E.world k').box j).db.ops) :
+    (i j : Fin Q.n) (hd : Distinct (((E.world k).box i).log ++ ((E.world k').box j).log))
+    (hsame : ∀ o, o ∈ ((E.world k).box i).log ↔ o ∈ ((E.world k').box j).log) :
     ((E.world k).box i).db.status = ((E.world k').box j).db.status := by
   have g := good_node E k i
   have g' := good_node E k' j
-  obtain ⟨_, hr, _⟩ := g.store
-  obtain ⟨_, hr', _⟩ := g'.store
-  exact status_eq_of_ops (reach_inv hr) (reach_inv hr') g.settled g'.settled hops
+  obtain ⟨L, hL, eL⟩ := g.store
+  obtain ⟨L', hL', eL'⟩ := g'.store
+  have mem : ∀ o, o ∈ L ++ L' → o ∈ ((E.world k).box i).log ++ ((E.world k').box j).log := by
+    intro o ho
+    rcases List.mem_append.1 ho with ho | ho
+    · exact List.mem_append_left _ ((eL o).1 ho)
+    · exact List.mem_append_right _ ((eL' o).1 ho)
+  exact order_free hL hL' (fun a ha b hb => hd a (mem a ha) b (mem b hb))
+    (fun o => (eL o).trans ((hsame o).trans (eL' o).symm)) g.settled g'.settled
 
 end Plain
 
