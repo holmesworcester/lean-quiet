@@ -40,7 +40,7 @@ def run (dir : String) (ck : Checks) : IO Unit := do
     let some rs := s.rst | throw (IO.userError "headless reader missing")
     ck.ok "message query owns only its message fact and content key"
       ((rs.deps.getD rowWant #[]).size == 2 &&
-        (rs.deps.getD rowWant #[]).contains (Q.get message))
+        (rs.deps.getD rowWant #[]).contains (.list (factQ message)))
     ck.ok "attachments supply their own opened size metadata"
       (row.data.pics.all fun p => p.w > 0 && p.h > 0 && !p.key.isEmpty)
     -- A real remount with a delayed metadata answer must not publish a

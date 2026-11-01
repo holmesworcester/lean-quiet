@@ -13,8 +13,9 @@ The app currently has one channel (`general`) per community, member
 profiles, photo attachments, reactions, a reaction sheet with Copy, and
 community switching by acceptance. `PageId` in `app/Screen.lean` is the
 page inventory; `onEvent` in `app/Screen.lean` is the input inventory.
-`Kinds.Message.read` (`app/community/Screen.lean`) reads messages,
-profiles, attachments and reactions, in its unchanged proved order. There are no threads, edits, DMs, unread tracking,
+`Kinds.Message.readOwn` (`app/community/Screen.lean`) reads a message's
+own fact and content key; its author (`Kinds.Profile.author`), attachments
+and reactions are child components, each read on its own. There are no threads, edits, DMs, unread tracking,
 notification dispatch, voice playback, hover events or synced presence.
 The home section headed “Direct messages” currently opens profiles.
 
