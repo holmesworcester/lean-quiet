@@ -607,6 +607,10 @@ run = "bash tests/endpoints/run.sh simultaneous"
 description = "Build Android harness and desktop peer; LAN mDNS to real authenticated connection on Pixel 7 only"
 run = "bash tests/endpoints/phone.sh"
 
+[tasks."test:endpoints-tailnet-local"]
+description = "Build; a second, ephemeral tailnet node in a network namespace on this host (its login approved by the tailnet owner, or TS_AUTHKEY); unicast DNS-SD over Tailscale to an authenticated session; tailscale0 traffic recorded; the node and every rule removed after"
+run = "bash tests/endpoints/tailnet-local.sh all"
+
 [tasks."test:endpoints-tailnet"]
 description = "Build; unicast DNS-SD over Tailscale from desktop to clean-quiet-test; isolated temporary remote process"
 run = "bash tests/endpoints/tailnet.sh"
