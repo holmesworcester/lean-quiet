@@ -106,6 +106,16 @@ catches it next time. The aim is no escapes.
 
 ## Found otherwise, pinned by a law afterwards
 
+- **The removal-notice fix held quota on every drained close** (found by
+  the release run's engine:ingress, 2026-11-01: `ingress_tcp` 62/6 every
+  run). `Tcp.linger`, the fix below, ran on every drained close, not only a
+  removal's: a drain with nothing to deliver (a silence expiry, say) waited
+  up to `stallMs` for its peer's end before releasing its socket's quota.
+  Now a drain lingers only on a socket the same step sent final frames to.
+  Pinned by laws: `Outbox.drain_lingers`, `drain_quiet_closes` (a drain
+  without final frames never lingers) and `stopped_never_lingers`, of the
+  `Outbox.lingers` the writer reads, all in tests/Axioms.lean.
+
 - **A removed member could miss its removal notice** (found as a gate
   "flake", 2026-11-01: expiry-grace's "actual retirement writer drains
   the signed removal notice to its peer" failed about one run in six
