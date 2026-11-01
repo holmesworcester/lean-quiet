@@ -858,6 +858,7 @@ section cost
 #print axioms Engine.View.always_eval
 #print axioms Engine.View.always_run
 #print axioms Community.approveReq_ops
+#print axioms Community.approveReq_wrap_admits
 #print axioms Community.wrapAll_over
 end cost
 

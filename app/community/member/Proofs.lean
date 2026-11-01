@@ -29,19 +29,21 @@ theorem check_removal {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c t u :
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 
-/-- **A removed member's approval still counts.** An approval made by a
-user of c stays Valid after that user's removal, so it can still
-complete an admission: the admit reads the approval's fact, and nothing
-about its approver's removal appears in the premises (#1088 semantics:
-validity reads cited facts only). In practice it reaches only nodes the
-removed user can still sync with, or that learned it from them. -/
+/-- **A removed member's approval counts.** An approval by a user of c
+stays Valid whatever removals follow, and admits: the admit reads the
+approval's fact, and nothing about its approver's removal appears in
+the premises. Nothing orders an approval before or after a removal,
+so an approval a removed user makes after its removal counts too
+(#1088 semantics: validity reads cited facts only). In practice it
+reaches only nodes the removed user can still sync with, or that
+learned it from them. -/
 theorem removed_approver_admits {y x c r : Id} {o : Op} {d0 e0 : Key} {u a : Id} {d e : Key}
     {l : Bool} (hy : ops y = some o) (hb : (decode o.body : Option Body) = some .admit)
     (hkd : o.kind = Body.tag .admit) (hreq : o.reqs = [c, r, x]) (hc : V C ops c (.admission c c d0 e0))
-    (hr : V C ops r (.request c u d e l 1)) (hx : V C ops x (.approval c r a))
+    (hr : V C ops r (.request c u d e l)) (hx : V C ops x (.approval c r a))
     (_removed : Removed C ops c a) :
     V C ops y (.admission c u d e) :=
-  admit_admits (us := [a]) hy hb hkd hreq hc hr (.cons hx .nil) (by simp) rfl
+  admit_admits hy hb hkd hreq hc hr hx
 
 /-- **Only admins remove others.** A Valid removal of user t by user u
 is a self-removal, or u is an admin. -/
