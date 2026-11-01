@@ -79,6 +79,10 @@ def generated (env : Environment) (c : Name) : Bool :=
        "sizeOf_spec", "injEq", "inj"].contains s
    | _ => false) ||
   user.components.any (fun p => ["brecOn", "binductionOn", "below", "ibelow"].contains p.toString) ||
+  -- `deriving DecidableEq`'s helper
+  (match user with
+   | .str p "decEq" => Meta.isInstanceCore env p
+   | _ => false) ||
   match env.find? c with
   | some (.ctorInfo _) | some (.recInfo _) | some (.thmInfo _) | some (.quotInfo _) => true
   | _ => false
@@ -283,6 +287,8 @@ elab "#headline " ids:ident+ : command => do
       | some ci => ci.type.getUsedConstants.any assumed.contains
       | none => false)
   let stop := bridgedNames.foldl (·.insert ·) assumed
+  let mut allOff : NameSet := {}
+  let mut allAssumed : NameSet := {}
   for id in ids do
     let thm ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo id
     let axs ← liftCoreM <| collectAxioms thm
@@ -314,5 +320,24 @@ elab "#headline " ids:ident+ : command => do
       s!"  of the app: {showAll mine}"
     if bad.isEmpty then logInfo msg
     else logError m!"{msg}\n  non-standard axioms: {showAll bad}"
+    allOff := off.foldl (·.insert ·) allOff
+    allAssumed := assumes.foldl (·.insert ·) allAssumed
+  if ids.size > 1 then
+    let sorted := fun (ns : NameSet) => ns.toArray.qsort (·.toString < ·.toString)
+    logInfo (s!"headline all {ids.size} laws\n" ++
+      s!"  spec-only, together: {allOff.size}: {describe env (sorted allOff)}\n" ++
+      s!"  assumed, together: {allAssumed.size}: {showAll (sorted allAssumed)}")
+
+/-- `#same_statement new old`: `new`'s statement is `old`'s, up to the
+names of bound variables. For restating a law elsewhere (a challenge
+file) without weakening it. -/
+elab "#same_statement " a:ident b:ident : command => do
+  let env ← getEnv
+  let na ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo a
+  let nb ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo b
+  let (some ca, some cb) := (env.find? na, env.find? nb) | throwError "not found"
+  if ca.levelParams.length == cb.levelParams.length && ca.type.eqv cb.type then
+    logInfo m!"{na} states {nb}"
+  else throwError "{na} does not state {nb}:\n{ca.type}\nvs\n{cb.type}"
 
 end SpecSurface
