@@ -29,7 +29,7 @@ def validate (K : Keys) (o : Op) (fs : List F) : Option Fact :=
 
 def rels : List (Rel Fact) :=
   [eph.byOf, request.byTo, request.byFrm, opened.all, opened.byRequest, connection.byRequest,
-   established.all, established.byConn, send.all, recv.byOp, given.byConn]
+   established.all, established.byConn, established.byPeer, send.all, recv.byOp, given.byConn]
 
 def keys : Fact → List ByteArray := keysOf rels
 

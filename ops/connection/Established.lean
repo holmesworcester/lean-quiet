@@ -46,6 +46,7 @@ def Established.op (cid req eph epOp : Id) : Op := mkOp [cid, req, eph, epOp] .e
 namespace established
 def all : Rel Fact := ⟨"conn.established", "all", fun | .established .. => some [] | _ => none⟩
 def byConn : Rel Fact := ⟨"conn.established", "byConn", fun | .established i .. => some [i] | _ => none⟩
+def byPeer : Rel Fact := ⟨"conn.established", "byPeer", fun | .established _ _ peer .. => some [peer] | _ => none⟩
 end established
 
 end Connection

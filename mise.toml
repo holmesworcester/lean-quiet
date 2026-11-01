@@ -518,3 +518,31 @@ run = "platforms/windows/ship.sh e2e"
 [tasks."windows:run"]
 description = "Build, install a desktop shortcut and launch Lean Quiet in Windows"
 run = "platforms/windows/ship.sh run"
+
+[tasks."test:endpoints-lan"]
+description = "Build, then two real TCP/Noise/SQLite processes discover via LAN multicast DNS-SD"
+run = "bash tests/endpoints/run.sh lan"
+
+[tasks."test:endpoints-ops"]
+description = "Build, then real peers connect using signed endpoint ops"
+run = "bash tests/endpoints/run.sh op"
+
+[tasks."test:endpoints-simultaneous"]
+description = "Build, then simultaneous real dials choose the same stable single session"
+run = "bash tests/endpoints/run.sh simultaneous"
+
+[tasks."test:endpoints-phone"]
+description = "Build Android harness and desktop peer; LAN mDNS to real authenticated connection on Pixel 7 only"
+run = "bash tests/endpoints/phone.sh"
+
+[tasks."test:endpoints-tailnet"]
+description = "Build; unicast DNS-SD over Tailscale from desktop to clean-quiet-test; isolated temporary remote process"
+run = "bash tests/endpoints/tailnet.sh"
+
+[tasks."test:endpoints-invite"]
+description = "Build; an actual pending join skips a dead invite address and bootstraps at the second"
+run = "bash tests/endpoints/run.sh invite"
+
+[tasks."test:endpoints"]
+description = "Endpoint proof and native validation checks, concrete premise witnesses, and six rejected source mutations"
+run = "bash tests/endpoints/check.sh"

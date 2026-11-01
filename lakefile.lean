@@ -515,3 +515,12 @@ lean_exe vacuity_identity_frames where
 
 lean_exe vacuity_identity_rejoin where
   root := `tests.vacuity.IdentityRejoinMain
+
+lean_exe endpoint_network where
+  root := `tests.endpoints.Network
+
+lean_lib EndpointTests where
+  globs := #[.submodules `tests.endpoints]
+
+lean_exe endpoint_check where
+  root := `tests.endpoints.Check

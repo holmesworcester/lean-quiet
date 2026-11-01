@@ -93,6 +93,7 @@ Signatures are a parameter (`Crypto`), so the laws hold for any scheme;
 what unforgeability buys is stated as a hypothesis where it is used.
 -/
 import engine.core.Engine
+import engine.wire.Address
 import ops.community.Keys
 import ops.community.Merkle
 import engine.renderer.Chars
@@ -129,6 +130,11 @@ inductive Fact where
   | chunk (c att root : Id) (len index : Nat)
   | endpoint (pk sk : ByteArray)
   | received (c kid msg : Id) (k : Nat) (clump : Option Id := none)
+  | addresses (c : ByteArray) (peer : ByteArray) (ds : List ByteArray) (os : List ByteArray) (issued : Nat) (expires : Nat)
+  | sighting (c : ByteArray) (reporter : ByteArray) (target : ByteArray) (addr : ByteArray) (time : Nat)
+  | discovered (peer : ByteArray) (hints : List ByteArray) (time : Nat) (ttl : Nat)
+  | retry (peer : ByteArray) (time : Nat) (attempts : Nat)
+  | endpointScan (cursor : ByteArray) (time : Nat)
   deriving DecidableEq, Inhabited
 
 inductive Body where
@@ -154,6 +160,11 @@ inductive Body where
   | chunk (root : ByteArray) (len index : Nat) (slice : ByteArray) (sibs : List ByteArray)
   | endpoint (sk : ByteArray)
   | receive (k : Nat)
+  | addresses (ds : List ByteArray) (os : List ByteArray) (issued : Nat) (expires : Nat) (sig : ByteArray)
+  | sighting (target : ByteArray) (addr : ByteArray) (time : Nat) (sig : ByteArray)
+  | discovered (peer : ByteArray) (hints : List ByteArray) (time : Nat) (ttl : Nat)
+  | retry (peer : ByteArray) (time : Nat) (attempts : Nat)
+  | endpointScan (cursor : ByteArray) (time : Nat)
   deriving DecidableEq, Inhabited
 
 /-! ## Bytes -/
@@ -189,6 +200,11 @@ def Body.enc : Body → List UInt8
   | .chunk r l i x p => 19 :: Codec.enc (r, l, i, x, p)
   | .endpoint sk => 22 :: Codec.enc sk
   | .receive k => 24 :: Codec.enc k
+  | .addresses ds os issued expires sig => 25 :: Codec.enc (ds, os, issued, expires, sig)
+  | .sighting target addr time sig => 26 :: Codec.enc (target, addr, time, sig)
+  | .discovered peer hints time ttl => 27 :: Codec.enc (peer, hints, time, ttl)
+  | .retry peer time attempts => 28 :: Codec.enc (peer, time, attempts)
+  | .endpointScan cursor time => 29 :: Codec.enc (cursor, time)
 
 def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B) => Body.root p.1 p.2.1 p.2.2) r
@@ -216,6 +232,11 @@ def Body.dec : List UInt8 → Option (Body × List UInt8)
   | 23 :: r => decAs (fun (p : B × B × Nat × Nat × B) =>
       Body.post p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
   | 24 :: r => decAs (fun (p : Nat) => Body.receive p) r
+  | 25 :: r => decAs (fun (p : List B × List B × Nat × Nat × B) => Body.addresses p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
+  | 26 :: r => decAs (fun (p : B × B × Nat × B) => Body.sighting p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 27 :: r => decAs (fun (p : B × List B × Nat × Nat) => Body.discovered p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 28 :: r => decAs (fun (p : B × Nat × Nat) => Body.retry p.1 p.2.1 p.2.2) r
+  | 29 :: r => decAs (fun (p : B × Nat) => Body.endpointScan p.1 p.2) r
   | _ => none
 
 /-- `Body.enc`, as it runs: appended to a buffer (`Engine.Codec`). -/
@@ -241,6 +262,11 @@ def Body.encInto (buf : ByteArray) : Body → ByteArray
   | .chunk r l i x p => Codec.encInto (buf.push 19) (r, l, i, x, p)
   | .endpoint sk => Codec.encInto (buf.push 22) sk
   | .receive k => Codec.encInto (buf.push 24) k
+  | .addresses ds os issued expires sig => Codec.encInto (buf.push 25) (ds, os, issued, expires, sig)
+  | .sighting target addr time sig => Codec.encInto (buf.push 26) (target, addr, time, sig)
+  | .discovered peer hints time ttl => Codec.encInto (buf.push 27) (peer, hints, time, ttl)
+  | .retry peer time attempts => Codec.encInto (buf.push 28) (peer, time, attempts)
+  | .endpointScan cursor time => Codec.encInto (buf.push 29) (cursor, time)
 
 /-- `Body.dec`, as it runs: read at offset i of a byte array. -/
 def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
@@ -270,6 +296,11 @@ def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
   | some 23 => decFromAs (fun (p : B × B × Nat × Nat × B) =>
       Body.post p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
   | some 24 => decFromAs (fun (p : Nat) => Body.receive p) b (i + 1)
+  | some 25 => decFromAs (fun (p : List B × List B × Nat × Nat × B) => Body.addresses p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
+  | some 26 => decFromAs (fun (p : B × B × Nat × B) => Body.sighting p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
+  | some 27 => decFromAs (fun (p : B × List B × Nat × Nat) => Body.discovered p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
+  | some 28 => decFromAs (fun (p : B × Nat × Nat) => Body.retry p.1 p.2.1 p.2.2) b (i + 1)
+  | some 29 => decFromAs (fun (p : B × Nat) => Body.endpointScan p.1 p.2) b (i + 1)
   | _ => none
 
 instance : Codec Body where
@@ -309,6 +340,11 @@ def Fact.enc : Fact → List UInt8
   | .endpoint pk sk => 20 :: Codec.enc (pk, sk)
   | .received c k m n none => 22 :: Codec.enc (c, k, m, n)
   | .received c k m n (some root) => 24 :: Codec.enc (c, k, m, n, root)
+  | .addresses c peer ds os issued expires => 25 :: Codec.enc (c, peer, ds, os, issued, expires)
+  | .sighting c reporter target addr time => 26 :: Codec.enc (c, reporter, target, addr, time)
+  | .discovered peer hints time ttl => 27 :: Codec.enc (peer, hints, time, ttl)
+  | .retry peer time attempts => 28 :: Codec.enc (peer, time, attempts)
+  | .endpointScan cursor time => 29 :: Codec.enc (cursor, time)
 
 def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 0 :: r => decAs (fun (p : B × B × B × B) => Fact.admission p.1 p.2.1 p.2.2.1 p.2.2.2) r
@@ -339,6 +375,11 @@ def Fact.dec : List UInt8 → Option (Fact × List UInt8)
   | 23 :: r => decAs (fun (p : B × B × B × B × B × Nat × Nat × B) =>
       Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2.1 (some p.2.2.2.2.2.2.2)) r
   | 24 :: r => decAs (fun (p : B × B × B × Nat × B) => Fact.received p.1 p.2.1 p.2.2.1 p.2.2.2.1 (some p.2.2.2.2)) r
+  | 25 :: r => decAs (fun (p : B × B × List B × List B × Nat × Nat) => Fact.addresses p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2) r
+  | 26 :: r => decAs (fun (p : B × B × B × B × Nat) => Fact.sighting p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) r
+  | 27 :: r => decAs (fun (p : B × List B × Nat × Nat) => Fact.discovered p.1 p.2.1 p.2.2.1 p.2.2.2) r
+  | 28 :: r => decAs (fun (p : B × Nat × Nat) => Fact.retry p.1 p.2.1 p.2.2) r
+  | 29 :: r => decAs (fun (p : B × Nat) => Fact.endpointScan p.1 p.2) r
   | _ => none
 
 /-- `Fact.enc`, as it runs: appended to a buffer (`Engine.Codec`). -/
@@ -365,6 +406,11 @@ def Fact.encInto (buf : ByteArray) : Fact → ByteArray
   | .endpoint pk sk => Codec.encInto (buf.push 20) (pk, sk)
   | .received c k m n none => Codec.encInto (buf.push 22) (c, k, m, n)
   | .received c k m n (some root) => Codec.encInto (buf.push 24) (c, k, m, n, root)
+  | .addresses c peer ds os issued expires => Codec.encInto (buf.push 25) (c, peer, ds, os, issued, expires)
+  | .sighting c reporter target addr time => Codec.encInto (buf.push 26) (c, reporter, target, addr, time)
+  | .discovered peer hints time ttl => Codec.encInto (buf.push 27) (peer, hints, time, ttl)
+  | .retry peer time attempts => Codec.encInto (buf.push 28) (peer, time, attempts)
+  | .endpointScan cursor time => Codec.encInto (buf.push 29) (cursor, time)
 
 /-- `Fact.dec`, as it runs: read at offset i of a byte array. -/
 def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
@@ -397,6 +443,11 @@ def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
   | some 23 => decFromAs (fun (p : B × B × B × B × B × Nat × Nat × B) =>
       Fact.message p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2.1 (some p.2.2.2.2.2.2.2)) b (i + 1)
   | some 24 => decFromAs (fun (p : B × B × B × Nat × B) => Fact.received p.1 p.2.1 p.2.2.1 p.2.2.2.1 (some p.2.2.2.2)) b (i + 1)
+  | some 25 => decFromAs (fun (p : B × B × List B × List B × Nat × Nat) => Fact.addresses p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2) b (i + 1)
+  | some 26 => decFromAs (fun (p : B × B × B × B × Nat) => Fact.sighting p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) b (i + 1)
+  | some 27 => decFromAs (fun (p : B × List B × Nat × Nat) => Fact.discovered p.1 p.2.1 p.2.2.1 p.2.2.2) b (i + 1)
+  | some 28 => decFromAs (fun (p : B × Nat × Nat) => Fact.retry p.1 p.2.1 p.2.2) b (i + 1)
+  | some 29 => decFromAs (fun (p : B × Nat) => Fact.endpointScan p.1 p.2) b (i + 1)
   | _ => none
 
 instance : Codec Fact where
@@ -427,6 +478,8 @@ def Body.unsigned : Body → Body
   | .react e tm _ => .react e tm .empty
   | .approve _ => .approve .empty
   | .name n nm _ => .name n nm .empty
+  | .addresses ds os issued expires _ => .addresses ds os issued expires .empty
+  | .sighting target addr time _ => .sighting target addr time .empty
   | b => b
 
 /-- The bytes a signature on an op covers: a domain tag, the op's
@@ -439,7 +492,7 @@ def signed (o : Op) (b : Body) : ByteArray :=
 /-- Whether a fact is this device's own: local ops' facts, never
 shared, never read by a shared op's validator (`check_reads_shared`). -/
 def Fact.isLocal : Fact → Bool
-  | .secret .. | .accepted .. | .joining .. | .abandoned .. | .key .. | .endpoint .. | .received .. => true
+  | .discovered .. | .retry .. | .endpointScan .. | .secret .. | .accepted .. | .joining .. | .abandoned .. | .key .. | .endpoint .. | .received .. => true
   | _ => false
 
 /-- The largest file an attachment may name: 64 MiB of ciphertext. -/
@@ -563,6 +616,24 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ isAdmin c u auth ∧ nm.size ≤ 64 ∧
       counterOk c n prev = true ∧ C.verify d (signed o (.name n nm s)) s
     then some (.named c u nm n) else none
+  | .addresses ds os issued expires sig, [.admission c u0 _ _, .admission c1 _ d peer] =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ Endpoint.valid (ds ++ os) ∧
+      issued < expires ∧ expires ≤ issued + Endpoint.maxAge ∧ expires < 2^64 ∧
+      C.verify d (signed o (.addresses ds os issued expires sig)) sig
+    then some (.addresses c peer ds os issued expires) else none
+  | .sighting target addr time sig, [.admission c u0 _ _, .admission c1 _ d reporter] =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ target.size = 32 ∧
+      (Endpoint.parse addr).isSome ∧ time < 2^64 ∧
+      C.verify d (signed o (.sighting target addr time sig)) sig
+    then some (.sighting c reporter target addr time) else none
+  | .discovered peer hints time ttl, [] =>
+    if peer.size = 32 ∧ Endpoint.valid hints ∧ ttl ≤ Endpoint.maxAge ∧ time < 2^64
+    then some (.discovered peer hints time ttl) else none
+  | .retry peer time attempts, [] =>
+    if peer.size = 32 ∧ time < 2^64 ∧ attempts < 2^64
+    then some (.retry peer time attempts) else none
+  | .endpointScan cursor time, [] =>
+    if cursor.size ≤ 256 ∧ time < 2^64 then some (.endpointScan cursor time) else none
   | _, _ => none
 
 /-- Each body's op type. -/
@@ -573,6 +644,11 @@ def Body.tag : Body → UInt8
   | .approve .. => 10 | .admit => 11
   | .accept .. => 13 | .joining .. => 14 | .secret .. => 15 | .name .. => 16 | .abandon => 17
   | .key .. => 18 | .chunk .. => 19 | .endpoint .. => 22 | .post .. => 23 | .receive .. => 24
+  | .addresses .. => 25
+  | .sighting .. => 26
+  | .discovered .. => 27
+  | .retry .. => 28
+  | .endpointScan .. => 29
 
 /-- An op's verdict: its body's, if its type is its body's. The type is
 in the bytes its id hashes, so an op re-sent under another type would be
@@ -744,10 +820,38 @@ def byAttachment : Rel Fact :=
   ⟨"chunk", "byAttachment", fun | .chunk c a .. => some [c, a] | _ => none⟩
 end chunk
 
+namespace addresses
+def byPeer : Rel Fact := ⟨"addresses", "byPeer", fun | .addresses c peer .. => some [c, peer] | _ => none⟩
+end addresses
+namespace sighting
+def byTarget : Rel Fact := ⟨"sighting", "byTarget", fun | .sighting c _ target .. => some [c, target] | _ => none⟩
+def byReporter : Rel Fact := ⟨"sighting", "byReporter", fun | .sighting c reporter target .. => some [c, reporter, target] | _ => none⟩
+end sighting
+namespace discovered
+def byPeer : Rel Fact := ⟨"discovered", "byPeer", fun | .discovered peer .. => some [peer] | _ => none⟩
+end discovered
+namespace retry
+def byPeer : Rel Fact := ⟨"retry", "byPeer", fun | .retry peer .. => some [peer] | _ => none⟩
+end retry
+namespace endpointScan
+def all : Rel Fact := ⟨"endpointScan", "all", fun | .endpointScan .. => some [] | _ => none⟩
+end endpointScan
+/-- All admissions, in identity order, for bounded cursor scans. -/
+def discoveryMembers : Rel Fact := ⟨"admission", "discovery", fun | .admission .. => some [] | _ => none⟩
+
+/-- Known transport identities only: membership or an accepted invite.
+Unsolicited DNS-SD cannot allocate an unbounded address book. -/
+def discoveryKnown : Rel Fact := ⟨"discovery", "known", fun
+  | .admission _ _ _ peer | .joining _ peer .. => some [peer]
+  | _ => none⟩
+def discoveryHints : Rel Fact := ⟨"discovery", "hints", fun
+  | .addresses .. | .joining .. => some []
+  | _ => none⟩
+
 /-- Every relation of the community's facts. Invitations are in none
 (read by their own key). -/
 def rels : List (Rel Fact) :=
-  [admission.byDevice, admission.all, admission.byUser, admission.byKey, removal.byUser, admin.byUser, message.all, message.byAuthor,
+  [discoveryKnown, discoveryHints, addresses.byPeer, sighting.byTarget, sighting.byReporter, discovered.byPeer, retry.byPeer, endpointScan.all, discoveryMembers, admission.byDevice, admission.all, admission.byUser, admission.byKey, removal.byUser, admin.byUser, message.all, message.byAuthor,
    message.byKey, received.byKey, received.all, received.byMsg,
    wrap.byContentKey, profile.byUser, profile.all, profile.byLook, react.byMessage, react.byMessageEmoji,
    request.all, approval.byRequest, secret.byKey, secret.all, accepted.all, joining.all, named.current,
@@ -781,6 +885,8 @@ def sortOf : Fact → ByteArray
   | .chunk _ _ _ _ i => be64 i
   | .react _ _ _ _ tm => be64 tm
   | .named _ _ _ n => be64 n
+  | .addresses _ _ _ _ issued _ => be64 issued
+  | .sighting _ _ _ _ time | .discovered _ _ time _ | .retry _ time _ | .endpointScan _ time => be64 time
   | _ => .empty
 
 instance : SortKey Fact := ⟨sortOf⟩
@@ -789,7 +895,7 @@ instance : SortKey Fact := ⟨sortOf⟩
 acceptances and its joins are, never sent or taken; everything else is
 shared in its community. -/
 def Body.isLocal : Body → Bool
-  | .secret .. | .accept .. | .joining .. | .abandon | .key .. | .endpoint .. | .receive .. => true
+  | .discovered .. | .retry .. | .endpointScan .. | .secret .. | .accept .. | .joining .. | .abandon | .key .. | .endpoint .. | .receive .. => true
   | _ => false
 
 /-- The community an op is about: a root founds its own; every other op

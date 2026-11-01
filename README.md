@@ -222,6 +222,58 @@ the relevant encountered inputs. ³ In the symbolic model of the cryptography.
 - that content is drawn faithfully all the way to pixels (proven up to
   each row's layout; painting is not).
 
+### Peer endpoints and discovery
+
+Invites carry up to eight detected LAN/tailnet IPv4 addresses; Docker bridges
+are excluded. Signed `addresses` ops publish up to eight detected/observed
+addresses per member, with the newest publication superseding older ones and a
+maximum five-minute lifetime. A signed `sighting` reports the observed IP plus
+the authenticated listening port, never an accepted TCP socket's ephemeral port.
+The owner republishes these hints. They do not certify reachability.
+
+LAN DNS-SD and direct unicast DNS-SD on known Tailscale IPv4 addresses feed local
+`discovered` ops. Tailscale multicast is not required: queries request unicast
+responses on UDP 5353 ([RFC 6762 §5.5](https://www.rfc-editor.org/rfc/rfc6762.html#section-5.5)).
+There is no tailnet scan and no iroh. This follows POC-6's address-op design and
+POC-10's persisted invite bootstrap context. The shared connection-op ID is the
+simplest tie-break available in this app; it requires no direction ranks,
+arrival timestamps, or additional handshake round trips. POC-7's bootstrap race
+is avoided by suppressing member dials while an authenticated session is open.
+
+**Proved over code called by the app:**
+[DiscoveryLaws](ops/connection/DiscoveryLaws.lean) proves that two simultaneous
+attempts select the same single connection at both ends, regardless of local
+arrival order, direction or clock, and reconsidering the loser does not flap
+the winner. It proves signature/cap checks on endpoint publications, at most
+24 dial candidates (eight per source), expiry enforcement, a backoff capped at
+60 seconds, and selection of every retained candidate within an address cycle.
+Concrete witnesses accompany the conditional laws; native checks exercise real
+Ed25519 publication and invalid inputs.
+
+**Assumed for progress:** continuing completed runner turns, available socket
+quotas, completing/cancellable native operations, an authorized remote peer,
+correct crypto/storage, and an address that remains reachable and advertised
+long enough for retries. Shared expiry uses Unix time, requiring clocks close
+enough that a live advertisement is not consistently treated as future/expired.
+Backoff uses a fixed wall/monotonic offset within a runner lifetime.
+
+**Not yet proved:** universal discovery-to-established-session liveness under
+fair-loss transport, fair cursor service under adversarial ongoing admission
+history, and a bound on accumulated immutable endpoint-op history. The enforced
+caps bound active addresses and new candidate rows/couriers per tick; they do
+not establish whole-app storage, CPU or scheduling bounds. Socket closure still
+has the native completion boundary described in [execution progress](docs/EXECUTION-PROGRESS.md).
+
+Named tasks build their binaries before testing and retain failure logs under
+`out/endpoints`: `test:endpoints`, `test:endpoints-invite`,
+`test:endpoints-ops`, `test:endpoints-simultaneous`, `test:endpoints-lan`,
+`test:endpoints-phone` (Pixel 7 only), and `test:endpoints-tailnet`
+(`desktop` to `clean-quiet-test`, isolated temporary process). All their Lean
+builds run in a 48 GiB systemd scope with swap disabled. Local simultaneous
+dials, signed endpoint ops, dead-first-address invite bootstrap, and two-process
+LAN discovery have passed with encrypted marker exchange and identical stable
+session IDs. Cross-device results are still being established on this branch.
+
 ### Towards Proofs for n Clients
 
 The sync proofs already run the real sync code, in a world of two

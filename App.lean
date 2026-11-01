@@ -24,6 +24,7 @@ Everything the platform does goes through `Io`, so tests drive the same
 code without a window (QTests).
 -/
 import AppLife
+import ops.connection.DiscoveryNet
 import ops.app.WriteAdmission
 
 namespace App
@@ -888,15 +889,20 @@ def netStep : M Unit := do
     return
   if (← s.wr.busy.get) > 0 then return
   let listen := ((← listenHints).head?).getD s!"127.0.0.1:{port}".toUTF8
+  let wallBase ← Connection.DiscoveryNet.wallNow
+  let monoBase ← IO.monoMsNow
   let x : Engine.Sync.Sync SF (SqlM SF) :=
     { fam, cfg := { every := 30000, askTime := 20000 },
-      hooks := Connection.hooks fam Connection.sodium listen }
+      hooks := Connection.Discovery.hooks fam Connection.sodium listen wallBase monoBase }
   let path := s.dbPath
   let sh := s.sh
   let t ← IO.asTask (prio := .dedicated) do
     let db ← Db.openAt path
+    discard <| (Engine.reindexOnce "peer-endpoints-v1" fam.keys (some fam) : SqlM SF Bool).run db
     -- the node's commits move the reader's counter (Reader.Shared.commits)
-    Engine.Sync.Runner.start x db 0 port.toUInt16 (notify := fun _ => sh.commits.modify (· + 1))
+    let r ← Engine.Sync.Runner.start x db 0 port.toUInt16 (notify := fun _ => sh.commits.modify (· + 1))
+    Connection.DiscoveryNet.start r path
+    return r
   s.io.log s!"node: starting, dialed as {(String.fromUTF8? listen).getD "?"}"
   modify fun s => { s with netBoot := some t }
 

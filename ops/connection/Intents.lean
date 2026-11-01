@@ -41,6 +41,7 @@ secrets: the node's SQLite monad, with the OS's random bytes, or the
 engine's model, so the same code runs in proofs by induction over a
 world of nodes.
 -/
+import ops.connection.Winner
 import ops.connection.Family
 import ops.connection.Frame
 import engine.wire.Node
@@ -394,25 +395,10 @@ def sessionsOf : List (Id × Fact) → m (List (Id × B × Bool × B × Nat))
 def allSessions : m (List (Id × B × Bool × B × Nat)) := do
   return (← sessionsOf (← rows established.all [])).reverse
 
-/-- The sessions kept: one per peer. Per peer and side (this device
-dialed, or the peer did), the latest established is kept, since a
-redial supersedes the dial it replaces. Of the at most two left, the
-smaller id is kept. Both ends hold the same connection ops and see the
-same dials in the same order, so they keep the same one with no message
-between them. -/
-def kept (all : List (Id × B × Bool × B × Nat)) : List Id := Id.run do
-  let later (a b : Id × B × Bool × B × Nat) : Bool := a.2.2.2.2 > b.2.2.2.2 || (a.2.2.2.2 == b.2.2.2.2 && lt a.1 b.1)
-  let mut best : List (Id × B × Bool × B × Nat) := []
-  for s in all do
-    match best.find? fun b => b.2.1 == s.2.1 && b.2.2.1 == s.2.2.1 with
-    | some b => if later s b then best := s :: best.filter (fun c => c.1 != b.1)
-    | none => best := s :: best
-  let mut out : List (B × Id) := []
-  for s in best do
-    match out.find? (·.1 == s.2.1) with
-    | some (_, c) => if lt s.1 c then out := (s.2.1, s.1) :: out.filter (·.1 != s.2.1)
-    | none => out := (s.2.1, s.1) :: out
-  return out.map (·.2)
+/-- One authenticated session per peer, selected by the shared connection
+op id. Neither local arrival time nor local direction changes the winner. -/
+def kept (all : List (Id × B × Bool × B × Nat)) : List Id :=
+  (Winner.select (all.map fun s => (s.1, s.2.1))).map (·.2)
 
 /-- Of these sessions, those that carry something (`roomsV`): a room or
 a notice not yet given. -/

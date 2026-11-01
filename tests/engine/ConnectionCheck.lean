@@ -14,7 +14,7 @@ What it checks, in order:
 - **Sync over the session:** B ends admitted by its own ops, lets A in,
   and receives a later post.
 - **One session per peer:** after B dials A again, both ends keep the
-  same one (the newer dial supersedes), and the other is purged at both.
+  same one (the minimum shared connection id), and the other is purged at both.
 - **Loss:** with a third of bare (handshake) frames lost, B still
   joins: the dial is resent every tick, and a lost answer is resent when
   the request arrives again. Session frames ride TCP, which loses a
@@ -340,7 +340,8 @@ def main : IO UInt32 := do
   t.ok "each end keeps one session with the other" (sa.length == 1 && sb.length == 1)
   t.ok "both keep the same one" (sa.map (·.1) == sb.map (·.1))
   t.ok "the other session was purged at both ends" ((← ests w.a).length == 1 && (← ests w.b).length == 1)
-  t.ok "and the kept one is the newer dial" (sa.map (·.1) != [cidOf ea])
+  t.ok "a later attempt cannot replace a lower live connection id"
+    (sa.all fun s => bcmp s.1 (cidOf ea) != .gt)
   -- A second community between the same two nodes: A founds it as a new
   -- device and invites B, who joins as a new device. A session is one
   -- per node key, and carries both communities.

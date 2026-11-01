@@ -175,6 +175,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
   }
 
   @Override protected void onDestroy() {
+    discoveryMulticast(false);
     bars.detach(this);
     photoToken = 0;
     photoWorker.shutdownNow();
@@ -375,7 +376,25 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
     }
   }
 
+  private android.net.wifi.WifiManager.MulticastLock discoveryLock;
+
+  private void discoveryMulticast(boolean active) {
+    if (active && discoveryLock == null) {
+      android.net.wifi.WifiManager wifi = (android.net.wifi.WifiManager)
+          getApplicationContext().getSystemService(android.content.Context.WIFI_SERVICE);
+      if (wifi != null) {
+        discoveryLock = wifi.createMulticastLock("leanquiet-discovery");
+        discoveryLock.setReferenceCounted(false);
+      }
+    }
+    if (discoveryLock != null) {
+      if (active && !discoveryLock.isHeld()) discoveryLock.acquire();
+      if (!active && discoveryLock.isHeld()) discoveryLock.release();
+    }
+  }
+
   @Override protected void onPause() {
+    discoveryMulticast(false);
     stopCamera();
     showIme(false);
     super.onPause();
@@ -383,6 +402,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
 
   @Override protected void onResume() {
     super.onResume();
+    discoveryMulticast(true);
     // Lean resumes the camera only after restoring the mounted scan page.
   }
 

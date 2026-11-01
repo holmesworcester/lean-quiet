@@ -33,18 +33,29 @@ def isPrivate (o : List Nat) : Bool :=
 def hintOf (o : List Nat) (port : Nat) : String :=
   String.intercalate "." (o.map toString) ++ ":" ++ toString port
 
+/-- Tailscale's shared IPv4 range, 100.64.0.0/10. -/
+def isTailnet (o : List Nat) : Bool :=
+  match o with
+  | [100, b, _, _] => 64 ≤ b && b < 128
+  | _ => false
+
+/-- Virtual bridges are local to the host, not reachable LAN hints. -/
+def isBridge (name : String) : Bool :=
+  ["docker", "br-", "veth", "virbr", "podman"].any (fun pre => name.startsWith pre)
+
 /-- An interface's rank: Wi-Fi first (Android's wlan*, Apple's en*), then
 wired, then the rest (a phone's cellular rmnet* is private too, and a
 joiner dials the first hint). -/
 def rank (name : String) : Nat :=
-  if name.startsWith "wlan" || name.startsWith "en" then 0
-  else if name.startsWith "eth" then 1 else 2
+  if name.startsWith "wl" || name.startsWith "en" then 0
+  else if name.startsWith "eth" then 1
+  else if name.startsWith "tailscale" then 2 else 3
 
 /-- The dial hints for these addresses (interface, octets, loopback or
 not) and port: the private IPv4 ones, Wi-Fi first, at most 8. -/
 def hints (addrs : List (String × List Nat × Bool)) (port : Nat := port) : List ByteArray :=
-  let ok := (addrs.filter fun (_, o, lo) => !lo && isPrivate o).mergeSort fun a b => rank a.1 ≤ rank b.1
-  ((ok.map fun (_, o, _) => (hintOf o port).toUTF8).filter (·.size ≤ 255)).take 8
+  let ok := (addrs.filter fun (name, o, lo) => !lo && !isBridge name && (isPrivate o || isTailnet o)).mergeSort fun a b => rank a.1 ≤ rank b.1
+  ((ok.map fun (_, o, _) => (hintOf o port).toUTF8).eraseDups.filter (·.size ≤ 255)).take 8
 
 /-- **Every hint fits the link** (`Invite.Valid`'s hint clause). -/
 theorem hints_fit (a : List (String × List Nat × Bool)) (port : Nat) :
