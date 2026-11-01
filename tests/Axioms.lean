@@ -1181,6 +1181,9 @@ end cost
 #print axioms Engine.urgent_valid_closed
 #print axioms Engine.urgent_valid_spec
 #print axioms Engine.run_turnCapped
+#print axioms Engine.run_judgeAhead
+#print axioms Engine.run_judgeJob
+#print axioms Engine.run_urgentClose
 #print axioms Engine.reach_turnCapped
 #print axioms Engine.turn_waiting
 #print axioms Engine.waiting_empty
@@ -1201,7 +1204,6 @@ end cost
 #print axioms Engine.run_work_capped
 #print axioms Engine.run_urgentClose_count
 #print axioms Engine.run_turnCapped_count
-#print axioms Engine.run_purgeR
 #print axioms Community.check_membership
 #print axioms Community.check_cites
 #print axioms Community.validate_urgent

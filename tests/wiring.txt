@@ -173,6 +173,7 @@ wired Connection.reconnect_dials
 assume Community.Unforgeable Ed25519 unforgeability over the signatures one store holds (no forgery in the store): a computational assumption, not provable in Lean.
 assume Engine.CollisionFree SHA-256 has no collision among the ops a node received.
 assume Engine.Distinct = Engine.CollisionFree
+assume Engine.Sync.ReceiverRun.Ticks Turns keep coming: the receiver's process keeps getting scheduled, so a tick's idle write turn recurs (an environment assumption; the runner's timer fires the ticks).
 assume NodeOffer.offerM The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`.
 assume NodeOffer.Chan = NodeOffer.offerM
 assume Merkle.NoCollision No SHA-256 collision between what a file's root hashes and what checking the chunks at hand hashed: finite bytes, decided on real SHA-256 in tests/vacuity/Attachment.lean.
@@ -236,6 +237,17 @@ bridge Engine.stepS Engine.run_step
 bridge Engine.drainS Engine.run_drain
 bridge Engine.ingestS Engine.run_ingest
 bridge Engine.ingestAll Engine.run_ingestEach
+# The capped write turn and purge (engine/core/TurnLaws.lean): the running
+# `turnCapped`, `judgeAhead`, `judgeJob`, `urgentClose` and `purgeCapped`
+# on the model's tables, and what the closure reports, its attempts.
+bridge Engine.turnCappedS Engine.run_turnCapped
+bridge Engine.judgeAheadS Engine.run_judgeAhead
+bridge Engine.judgeJobS Engine.run_judgeJob
+bridge Engine.urgentCloseS Engine.run_urgentClose
+bridge Engine.purgeCappedS Engine.run_purgeCapped
+bridge Engine.rejudgeSet Engine.run_purge
+bridge Engine.closeAttempts Engine.run_urgentClose_count
+bridge Engine.turnAttempts Engine.run_turnCapped_count
 # The purge: the running `purge` on the model's tables is `purgeS`, and
 # what it returns, the ops it deleted, is `purgeSet`.
 bridge Engine.purgeS Engine.run_purge

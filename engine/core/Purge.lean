@@ -548,21 +548,18 @@ theorem deleteAllS_eq (xs : List Id) (s : DB F) : deleteAllS xs s =
         · rw [List.filter_filter]; congr 1; funext y; exact not_has_cons x xs y
 
 /-- **The engine's purge, run on the tables, is `purgeS`**, and it
-returns the ops it deleted, `purgeSet`. SQLite runs this code
+returns the ops it deleted, `purgeSet`, and the ops it queued to be
+judged again, `rejudgeSet`. SQLite runs this code
 (`purgeSql`), so the laws of `purgeS` are laws of the running purge, as
 far as SQLite answers as the model does. -/
-theorem run_purgeR (fam : Family F) (ids : List Id) (s : DB F) :
-    (purgeR fam ids : Model F _).run s =
+theorem run_purge (fam : Family F) (ids : List Id) (s : DB F) :
+    (purge fam ids : Model F _).run s =
       (some (purgeSet fam s ids, rejudgeSet fam s ids), purgeS fam ids s) := by
   obtain ⟨hw, _⟩ := closeUp_walk s ids
-  simp only [purgeR, Model.run_bind, run_countOps, run_walkDeps, hw, run_unsettle, run_deleteAll,
+  simp only [purge, Model.run_bind, run_countOps, run_walkDeps, hw, run_unsettle, run_deleteAll,
     run_pushAll, List.reverse_nil, List.nil_append, Model.run_pure]
   rw [deleteAllS_eq, undecideAllS_eq]
   rfl
-
-theorem run_purge (fam : Family F) (ids : List Id) (s : DB F) :
-    (purge fam ids : Model F _).run s = (some (purgeSet fam s ids), purgeS fam ids s) := by
-  simp only [purge, Model.run_bind, run_purgeR, Model.run_pure]; rfl
 
 /-! ## Laws -/
 

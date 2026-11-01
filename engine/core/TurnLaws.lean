@@ -634,7 +634,7 @@ def purgeCappedS (cap : Nat) (ids : List Id) (s : DB F) : DB F :=
 theorem run_purgeCapped (cap : Nat) (ids : List Id) (s : DB F) :
     ((purgeCapped (m := Model F) fam cap ids).run s).2 = purgeCappedS fam cap ids s := by
   unfold purgeCapped purgeCappedS
-  simp only [Model.run_bind, run_purgeR, run_countOps]
+  simp only [Model.run_bind, run_purge, run_countOps]
   rw [run_urgentClose, run_drain]; rfl
 
 theorem purgeCappedS_ops (cap : Nat) (ids : List Id) (s : DB F) :

@@ -403,7 +403,7 @@ the conn and local ones; queue the shared ones to be judged again. The
 ops it deleted and the ops it queued; or none, having changed nothing, if
 the walk did not end within as many steps as there are ops stored and
 named, which only tables that disagree can cause. -/
-def purgeR (fam : Family F) (ids : List Id) : m (Option (List Id × List Id)) := do
+def purge (fam : Family F) (ids : List Id) : m (Option (List Id × List Id)) := do
   let n ← countOps (F := F)
   let r := pushNew ids [] {}
   match ← walkDeps (F := F) (ids.length + n) r.1 [] r.2 with
@@ -414,15 +414,11 @@ def purgeR (fam : Family F) (ids : List Id) : m (Option (List Id × List Id)) :=
     pushAll (F := F) p.2
     pure (some p)
 
-/-- The ops a purge deleted (`purgeR`'s first list). -/
-def purge (fam : Family F) (ids : List Id) : m (Option (List Id)) := do
-  return (← purgeR fam ids).map (·.1)
-
 /-- **A purge, capped** (engine/core/TurnLaws.lean `purge_waiting`): the
 purge, then the urgent closure over the ops it queued to be judged again,
 then at most `cap` queued ops, as a write turn does. -/
 def purgeCapped (fam : Family F) (cap : Nat) (ids : List Id) : m (Option (List Id)) := do
-  match ← purgeR fam ids with
+  match ← purge fam ids with
   | none => pure none
   | some (gone, again) =>
     let n ← countOps (F := F)

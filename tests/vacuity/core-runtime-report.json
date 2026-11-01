@@ -229,6 +229,6 @@
     "theorem": "Engine.run_purge",
     "witness": "Vacuity.CoreRuntime.runPurge",
     "module": "tests.vacuity.CoreRuntime",
-    "detail": "The engine's purge run on a real signed store, purging a local secret that a shared message cites: it equals purgeS and returns purgeSet. The runtime checks beside it (purgeGone, purgeShared, purgeUndecides) exercise the same nonempty purge."
+    "detail": "The engine's purge run on a real signed store, purging a local secret that a shared message cites: it equals purgeS and returns purgeSet and rejudgeSet. The runtime checks beside it (purgeGone, purgeShared, purgeUndecides) exercise the same nonempty purge."
   }
 }
