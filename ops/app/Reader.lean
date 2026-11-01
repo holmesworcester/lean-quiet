@@ -29,7 +29,16 @@ import ops.community.Screen
 import ops.community.Community
 import ops.community.member.join.accept.View
 import ops.community.membership.RequestView
-import ops.connection.Intents
+import ops.Commands
+import ops.community.member.invite.request.Commands
+import ops.community.member.join.joining.Commands
+import ops.connection.Commands
+import ops.connection.Family
+import ops.connection.eph.Commands
+import ops.connection.established.Commands
+import ops.connection.given.Commands
+import ops.connection.opened.Commands
+import ops.connection.recv.Commands
 
 namespace Reader
 open Engine Community Data

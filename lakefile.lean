@@ -59,6 +59,10 @@ lean_lib Net where
 @[default_target] lean_lib Community where
   globs := #[.submodules `ops.community]
 
+-- the op tree's root: commands and laws over the node, which spans both families
+@[default_target] lean_lib Node where
+  roots := #[`ops.Commands, `ops.Proofs]
+
 -- the app's own state: pages, composer, switcher, removal
 @[default_target] lean_lib AppState where
   globs := #[.submodules `ops.app]

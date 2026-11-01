@@ -1,4 +1,6 @@
 import engine.core.Families
+import engine.core.Project
+import engine.wire.Node
 import ops.community.Community
 import ops.connection.connection.Op
 import ops.connection.connection.Validate
@@ -16,6 +18,8 @@ import ops.connection.request.Op
 import ops.connection.request.Validate
 import ops.connection.send.Op
 import ops.connection.send.Validate
+import ops.sync.Notice
+import ops.sync.NoticeLaws
 
 /-
 The connection family: the handshake and sessions, made of ops. Each op
@@ -434,5 +438,168 @@ def family (K : Keys) : Family₂ Community.Fact Fact :=
 
 /-- The node's one family. -/
 def node (C : Community.Crypto) (K : Keys) : Family F := Family.sum (Community.family C) (family K)
+
+end Connection
+
+namespace Connection
+open Engine Engine.Sync Codec
+
+/-- This node's key, while it is in community c: `Community.mine` names a
+device of c whose secret it holds, live or waiting on a join. -/
+def meV (c : B) : View F (Option B) := do
+  let some _ ← ((Community.mine c).liftL : View F _) | return none
+  let k ← ((Community.nodeKey).liftL : View F _)
+  return k.map (·.1)
+end Connection
+namespace Connection
+open Engine Engine.Sync Codec
+section
+variable {m : Type → Type} [Monad m] [Lists F m] [Store F m] [Fresh m]
+
+/-- This family's rows of a relation: op id and fact. -/
+def rows (r : Rel Fact) (args : List B) : m (List (Id × Fact)) := do
+  let a : Answer F ← Lists.list (m := m) (r.query args)
+  return a.rights.map fun ((_, x), f) => (x, f)
+
+def count (r : Rel Fact) (args : List B) : m Nat := do
+  let a : Answer F ← Lists.list (m := m) (r.query args (limit := some 0))
+  return a.total
+
+/-- Whether a hello delivers the op `req`. -/
+def delivers (req : Id) : Option (B × B × List B) → Bool
+  | some (_, _, ops) => ops.any fun b => (Op.decode b).any (·.id == req)
+  | none => false
+end
+end Connection
+namespace Connection
+open Engine Engine.Sync Codec
+section
+variable [fr : Fresh (Model F)]
+
+/-- An op of the Connection family: what open, answer and establish
+write. -/
+def ConnOp (o : Op) : Prop := ∃ (reqs : List Id) (b : Body), o = mkOp reqs b
+
+theorem body_conn (reqs : List Id) (b : Body) : (decode (mkOp reqs b).body : Option Body) = some b :=
+  Codec.decode_encode b
+end
+end Connection
+namespace Community
+open Engine
+
+theorem reads_unremoved (c : Id) (rows : List (Pos × Fact)) : (unremoved c rows).Reads (RelKey rels) := by
+  induction rows with
+  | nil => exact .pure _
+  | cons pf t ih =>
+    obtain ⟨p, f⟩ := pf
+    cases f with
+    | ofAdmission x =>
+      obtain ⟨c', u, d, e⟩ := x
+      show View.Reads _ (if c' = c then _ else _)
+      split
+      · exact .list ⟨removal.byUser, by simp [rels], [c, u], rfl⟩ fun a => by
+          show View.Reads _ (if a.total = 0 then _ else _)
+          split
+          · exact ih
+          · exact .pure _
+      · exact ih
+    | _ => exact ih
+
+theorem reads_deviceLive (c : Id) (d : Key) : (deviceLive c d).Reads (RelKey rels) :=
+  (View.Reads.read ⟨admission.byDevice, by simp [rels], [c, d], rfl⟩).bind fun a => by
+    show View.Reads _ (if a.rows.isEmpty then _ else _)
+    split
+    · exact .pure _
+    · exact reads_unremoved c a.rows
+
+theorem reads_live (c : Id) (rows : List (Pos × Fact)) : (live c rows).Reads (RelKey rels) := by
+  induction rows with
+  | nil => exact .pure _
+  | cons pf t ih =>
+    obtain ⟨p, f⟩ := pf
+    cases f with
+    | ofAdmission x =>
+      obtain ⟨c', u, d, e⟩ := x
+      show View.Reads _ (if c' = c then _ else _)
+      split
+      · exact (reads_deviceLive c d).bind fun _ => ih.bind fun _ => .pure _
+      · exact ih
+    | _ => exact ih
+
+theorem reads_allowPeer (c : Id) (e : Key) : (allowPeer c e).Reads (RelKey rels) :=
+  (View.Reads.read ⟨admission.byKey, by simp [rels], [c, e], rfl⟩).bind fun a =>
+    (reads_live c a.rows).bind fun _ => .pure _
+
+theorem reads_members (c : Id) : (members c).Reads (RelKey rels) :=
+  (View.Reads.read ⟨admission.all, by simp [rels], [c], rfl⟩).bind fun a =>
+    (reads_live c a.rows).bind fun _ => .pure _
+
+theorem reads_recipients (c : Id) : (recipients c).Reads (RelKey rels) :=
+  (View.Reads.read ⟨admission.all, by simp [rels], [c], rfl⟩).bind fun a =>
+    (reads_live c a.rows).bind fun _ => .pure _
+end Community
+namespace Connection
+open Engine
+
+/-- The node's Community part: the Community ops its store holds, with
+Community's own verdicts over them (`Engine.DB.proj`). -/
+noncomputable abbrev community (C : Community.Crypto) (s : DB F) : DB Community.Fact :=
+  s.proj (Community.family C) owns
+
+/-- No Community relation shares its names with a Connection relation. -/
+theorem rels_apart : ∀ r ∈ Community.rels, ∀ r' ∈ rels, ¬ (r'.kind = r.kind ∧ r'.name = r.name) := by
+  decide
+end Connection
+namespace Connection
+open Engine
+variable {C : Community.Crypto} {K : Keys} {s : DB F}
+
+/-- **`sum_project` for the running node.** At rest, the node's
+Community part keeps Community's invariant and is at rest. It holds
+exactly the node's Community ops (kinds Connection does not own), and an
+op is Valid there with a Community fact exactly when it is in the node.
+Every Community view reading only Community relations answers, lifted to
+the node's store, as it does on the Community part. -/
+theorem sum_project_node (h : Inv (node C K) s) (hq : s.queue = []) :
+    Inv (Community.family C) (community C s) ∧ (community C s).queue = [] ∧
+      (∀ x o, (community C s).ops x = some o ↔ s.ops x = some o ∧ owns o.kind = false) ∧
+      (∀ x f, Community.V C (community C s).ops x f ↔ s.status x = some (.valid (.inl f))) ∧
+      ∀ {α : Type} (v : View Community.Fact α), v.Reads (RelKey Community.rels) →
+        (v.liftL : View F α).eval s = v.eval (community C s) := by
+  obtain ⟨h1, h2, h3, h4, h5⟩ := sum_project (b := family K) h hq
+  exact ⟨h1, h2, h3, h4, fun v hv =>
+    h5 v (hv.mono fun _ => leftKey_rels h rfl Community.rels_short rels_apart)⟩
+
+theorem community_inv (h : Inv (node C K) s) (hq : s.queue = []) :
+    Inv (Community.family C) (community C s) :=
+  (sum_project_node h hq).1
+
+theorem view_node (h : Inv (node C K) s) (hq : s.queue = []) {α : Type}
+    {v : View Community.Fact α} (hv : v.Reads (RelKey Community.rels)) :
+    (v.liftL : View F α).eval s = v.eval (community C s) :=
+  (sum_project_node h hq).2.2.2.2 v hv
+end Connection
+namespace Connection
+open Engine
+variable {C : Community.Crypto} {K : Keys} {s : DB F}
+open Community (Admitted Removed)
+
+/-- **Which nodes the node lets in.** At rest, the node's `allowPeer`
+accepts node key e for c exactly when a device admitted under e is live
+(admitted, into no removed user) among the Community ops it holds. -/
+theorem connect_iff_node (h : Inv (node C K) s) (hq : s.queue = []) (c : Id) (e : Community.Key) :
+    ((Community.allowPeer c e).liftL : View F Bool).eval s = true ↔
+      ∃ u d, Admitted C (community C s).ops c u d e ∧ Community.Live C (community C s).ops c d := by
+  rw [view_node h hq (Community.reads_allowPeer c e)]
+  exact Community.connect_iff (community_inv h hq) hq c e
+
+/-- **A removal, once the node holds it, cuts the removed user's
+devices' node out of its trust rule.** -/
+theorem removal_cuts_off_node (h : Inv (node C K) s) (hq : s.queue = []) {c u : Id}
+    {e : Community.Key} (hr : Removed C (community C s).ops c u)
+    (only : ∀ u' d, Admitted C (community C s).ops c u' d e → ∃ e', Admitted C (community C s).ops c u d e') :
+    ((Community.allowPeer c e).liftL : View F Bool).eval s = false := by
+  rw [view_node h hq (Community.reads_allowPeer c e)]
+  exact Community.removal_cuts_off (community_inv h hq) hq hr only
 
 end Connection

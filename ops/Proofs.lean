@@ -1,99 +1,145 @@
-/-
-What a removed member's node sees, and whose keys a handshake runs on:
-the Connection family's side of docs/REMOVAL.md, over the views and
-validators the node runs.
-
-Proven:
-- E3 `opened_endpoint`, `established_endpoint`: the handshake's statics
-  are the two nodes' keys: a side's static is the secret of the endpoint
-  op its `opened` or `established` cites, the peer's is the request's
-  other key. `meV_node`: the trust rule's "me" is this node's key.
-- E2 on the bare wire: `bare_takes_only_join` (the only shared op
-  `react` takes from a hello is a join request of the hello's community,
-  trusted or not: a removed member's node, or anyone who knows c's id,
-  pushes nothing else into a member's store without a session);
-  `answer_trusted` and `resend_trusted` (`react` answers, and
-  `onArrival` re-sends an answer, only for a request whose initiator the
-  trust rule takes). On the model, `react`'s fresh bytes leave the store
-  as it is (`FreshPure`), as the model's do.
-
-The notice and the cut, read over the node's store (`DB F`, Community
-and Connection composed), as `rooms_cut` is. Each connection step the
-node runs is a `Conn` step on the connection `Node.refresh` leaves,
-`c.carry ((roomsV cid).eval s)` on the model (`rooms_model`). A session
-is one per peer key and carries a room for every community this node
-holds.
-- E2 `rooms_removed`: when this node is a live member of c and the
-  trust rule refuses the peer, the connection carries no synced room c,
-  only notices of removals the peer's key is owed.
-- `rooms_complete`: and it still carries every community whose peer
-  the trust rule takes: a removal in c drops c's room and adds the
-  notice, and leaves the session's other communities as they were.
-- E2 `removed_gets_only_notice`: so every op a connection step sends
-  of c is a sync wire op or in the requirement closure of such a
-  removal, and nothing of c is taken (with `notice_send`,
-  ops/sync/NoticeLaws.lean, which gives the notice: `notice_sent`).
-- E1 `notice_then_cut`: once, for every community this node holds, the
-  peer is refused and every removal owed is given on the connection, it
-  carries nothing; `sessions` drops it and `retired` names it, so the
-  node closes it and purges its ops.
--/
-import ops.connection.Intents
-import ops.connection.opened.Proofs
+import engine.core.Project
+import engine.wire.NodeLaws
+import ops.Commands
+import ops.community.member.invite.request.Commands
+import ops.community.member.join.joining.Commands
+import ops.connection.Commands
+import ops.connection.Family
+import ops.connection.Proofs
+import ops.connection.connection.Commands
+import ops.connection.connection.Proofs
+import ops.connection.eph.Commands
+import ops.connection.established.Commands
 import ops.connection.established.Proofs
-import ops.connection.RoomLaws
+import ops.connection.opened.Proofs
+import ops.connection.recv.Commands
+import ops.connection.request.Commands
+import ops.connection.send.Commands
+import ops.connection.send.Proofs
 import ops.sync.NoticeLaws
 
+/-!
+`app`: laws about the op types in this folder and below.
+-/
+namespace Connection
+open Engine Codec
+
+/-- **Both ends of a connection hold one session.** When a responder's
+and an initiator's `established` validators both succeed over the same
+request and connection, each with its own node key's secret as its
+static (`to` and `frm` are those keys), they hold the same handshake
+hash and community, each names the other's node key, and each one's send
+key is the other's receive key. -/
+theorem established_agrees (K : Keys) (G : K.suite.Good)
+    {oR oI : Op} {r m2 to frm m1 ofR ofI pkR pkI f e skR skI : B}
+    {cidR cR pR hR sR kR cidI cI pI hI sI kI : B}
+    (hto : to = K.suite.pub skR) (hfrm : frm = K.suite.pub skI) (hne : to ≠ frm)
+    (hRc : check K oR .established [.inr (.connection r m2), .inr (.request to frm m1), .inr (.eph ofR pkR f),
+      .inl (.endpoint to skR)] = some (.established cidR cR pR hR sR kR false))
+    (hIc : check K oI .established [.inr (.connection r m2), .inr (.request to frm m1), .inr (.eph ofI pkI e),
+      .inl (.endpoint frm skI)] = some (.established cidI cI pI hI sI kI true)) :
+    hR = hI ∧ cR = cI ∧ sR = kI ∧ kR = sI ∧ pR = frm ∧ pI = to := by
+  simp only [check, Option.map_eq_some_iff, Fact.established, Fact.ofEstablished.injEq, exists_eq_right] at hRc hIc
+  unfold Established.check at hRc hIc
+  simp only [ite_true, hne.symm, ite_false, Ne] at hRc hIc
+  split at hRc
+  · cases hRc
+  split at hIc
+  · cases hIc
+  subst hto hfrm
+  cases h1 : Noise.read1 K.suite prologue skR (K.suite.pub skI) m1 with
+  | none => simp [h1] at hRc
+  | some x1 =>
+    obtain ⟨st, re, p1⟩ := x1
+    cases h2 : Noise.sent1 K.suite prologue skI e (K.suite.pub skR) m1 with
+    | none => simp [h2] at hIc
+    | some x2 =>
+      obtain ⟨st', p1'⟩ := x2
+      obtain ⟨rfl, rfl, rfl⟩ := Noise.sent1_read1 G h2 h1
+      simp only [h1, h2, Option.bind_eq_bind, Option.bind_some] at hRc hIc
+      cases h3 : (decode p1' : Option (B × B × List B)) with
+      | none => simp [h3] at hRc
+      | some d =>
+        simp only [h3, Option.bind_some] at hRc hIc
+        cases h4 : Noise.write2 K.suite st' f (K.suite.pub skI) (K.suite.pub e) ByteArray.empty with
+        | none => simp [h4] at hRc
+        | some w =>
+          obtain ⟨sr, m2'⟩ := w
+          simp only [h4, Option.bind_some] at hRc
+          by_cases hm : m2' = m2
+          · subst hm
+            simp only [not_true_eq_false, ite_false] at hRc
+            cases h5 : Noise.read2 K.suite st' skI e m2' with
+            | none => simp [h5] at hIc
+            | some q =>
+              obtain ⟨si, pp⟩ := q
+              simp only [h5, Option.bind_some, Option.some.injEq, Established.Fact.mk.injEq] at hRc hIc
+              obtain ⟨hh, hs, hr⟩ := Noise.read2_write2' G h4 h5
+              obtain ⟨_, rfl, rfl, rfl, rfl, rfl, -⟩ := hRc
+              obtain ⟨_, rfl, rfl, rfl, rfl, rfl, -⟩ := hIc
+              exact ⟨hh.symm, rfl, by rw [hr], by rw [hs], rfl, rfl⟩
+          · simp [hm] at hRc
+end Connection
+namespace Connection
+open Engine Engine.Sync
+
+/-- **For a live member, the trust rule is `allowPeer`.** The link
+clause (trust the inviter a pending join names) holds only before this
+device is admitted. -/
+theorem trusts_live (s : DB F) {c me peer : B}
+    (h : ((Community.allowPeer c me).liftL : View F Bool).eval s = true) :
+    ((trusts c me peer).liftL : View F Bool).eval s =
+      ((Community.allowPeer c peer).liftL : View F Bool).eval s := by
+  unfold trusts
+  rw [eval_liftL_bind]
+  cases hp : ((Community.allowPeer c peer).liftL : View F Bool).eval s
+  · simp only [Bool.false_eq_true, ite_false]
+    rw [eval_liftL_bind]
+    split
+    · rfl
+    · rw [eval_liftL_bind, h, eval_liftL_bind]
+      simp [eval_liftL_pure]
+  · rfl
+
+theorem eval_roomFor (s : DB F) (given : List Id) (c peer : B) :
+    (roomFor given c peer).eval s =
+      match (meV c).eval s with
+      | some me =>
+        if ((trusts c me peer).liftL : View F Bool).eval s then [Room.sync c]
+        else ((((Community.removalsAt c peer).liftL : View F (List Id)).eval s).filter
+          fun x => !has given x).map (Room.notice c)
+      | none => [] := by
+  unfold roomFor
+  rw [View.eval_bind]
+  cases (meV c).eval s with
+  | none => rfl
+  | some me =>
+    simp only [View.eval_bind]
+    cases ((trusts c me peer).liftL : View F Bool).eval s <;> simp [View.eval_bind]
+
+theorem eval_roomsOf (s : DB F) (given : List Id) (ps : List (B × B)) :
+    (roomsOf given ps).eval s = ps.flatMap fun (c, peer) => (roomFor given c peer).eval s := by
+  induction ps with
+  | nil => rfl
+  | cons p rest ih =>
+    obtain ⟨c, peer⟩ := p
+    simp only [roomsOf, View.eval_bind, View.eval_pure, List.flatMap_cons, ih]
+
+/-- A room cid carries, with the (community, peer) pair it is for. -/
+theorem mem_roomsV (s : DB F) {cid : Id} {rm : Room} (h : rm ∈ (roomsV cid).eval s) :
+    ∃ c peer, peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])) ∧ c ∈ heldV.eval s ∧
+      rm ∈ (roomFor ((givenOn cid).eval s) c peer).eval s := by
+  simp only [roomsV, View.eval_bind, View.eval_read, eval_roomsOf, List.mem_flatMap] at h
+  obtain ⟨⟨c, peer⟩, hp, hm⟩ := h
+  obtain ⟨peer', hpeer, hp⟩ := hp
+  rw [List.mem_map] at hp
+  obtain ⟨c', hheld, he⟩ := hp
+  simp only [Prod.mk.injEq] at he
+  obtain ⟨rfl, rfl⟩ := he
+  exact ⟨c', peer', hpeer, hheld, hm⟩
+end Connection
 namespace Connection
 open Engine Engine.Sync Codec
-
-/-! ## Read over the node's store -/
-
-/-- This node is a live member of c, as the trust rule reads it. -/
-def LiveIn (s : DB F) (c : B) : Prop :=
-  ∀ me, (meV c).eval s = some me → ((Community.allowPeer c me).liftL : View F Bool).eval s = true
-
-/-- The trust rule refuses, for c, every peer key connection cid names:
-once the removal is held, a removed member's node. -/
-def Refused (s : DB F) (cid c : B) : Prop :=
-  ∀ peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])), ((Community.allowPeer c peer).liftL : View F Bool).eval s = false
-
-/-- Removal x of community c is owed to connection cid's peer: a removal
-of a user admitted under the peer's key, read from the lists. -/
-def Owed (s : DB F) (cid c x : B) : Prop :=
-  ∃ peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])), x ∈ ((Community.removalsAt c peer).liftL : View F (List Id)).eval s
-
-/-- What may go out of community c on cid: a sync wire op, an op of
-another room, or an op in the requirement closure, in c, of a removal
-owed to the peer. -/
-def NoticeOnly (fam : Family F) (s : DB F) (cid c : B) (o : Op) : Prop :=
-  isWire o.kind = true ∨ fam.room o ≠ some c ∨
-    ∃ x, Owed s cid c x ∧ ∃ y, s.ops y = some o ∧ ReachIn fam s.ops c x y
-
-theorem run_rows (r : Rel Fact) (args : List B) (s : DB F) :
-    ((rows r args : Model F _).run s) =
-      ((Engine.eval s (r.query args)).rights.map fun ((_, x), f) => (x, f), s) := rfl
-
-theorem run_count (r : Rel Fact) (args : List B) (s : DB F) :
-    ((count r args : Model F _).run s) =
-      ((Engine.eval s (r.query args (limit := some 0))).total, s) := rfl
-
-theorem run_view {α : Type} (v : View F α) (s : DB F) : (v.run : Model F α).run s = (v.eval s, s) :=
-  View.run_model v s
-
-theorem has_of_mem {l : List Id} {x : Id} (h : x ∈ l) : has l x = true := by
-  induction l with
-  | nil => cases h
-  | cons y t ih =>
-    unfold has
-    by_cases hy : y = x
-    · simp [hy]
-    · rw [if_neg hy]
-      rcases List.mem_cons.1 h with h | h
-      · exact absurd h.symm hy
-      · exact ih h
-
-/-! ## E2: nothing but the notice -/
 
 /-- **A removed member's connection carries only notices
 (`rooms_removed`).** If this node is a live member of c and the trust
@@ -180,8 +226,6 @@ theorem removed_gets_only_notice (fam : Family F) (cfg : Config) (ix : Index) (s
     · exact Or.inl h
     · exact hnote o h
 
-/-! ## E1: then the cut -/
-
 /-- A connection carries nothing once, for every community this node
 is in, the trust rule refuses its peer and every removal owed to it is
 given on it. -/
@@ -203,28 +247,6 @@ theorem roomsV_nil (s : DB F) {cid : B}
     obtain ⟨x, ⟨hx, hn⟩, _⟩ := hm
     rw [has_of_mem (hg x ⟨peer, hpeer, hx⟩)] at hn
     cases hn
-
-theorem sessionOf_state (f : Fact) (s : DB F) : ((sessionOf f : Model F _).run s).2 = s := by
-  cases f with
-  | ofEstablished x =>
-    obtain ⟨cid, c, peer, h, sk, rk, dialer⟩ := x
-    simp only [sessionOf, Model.run_bind, Model.run_pure]
-    cases dialer
-    · simp only [Bool.false_eq_true, ite_false, Model.run_bind, run_getOp, Model.run_pure]; rfl
-    · rfl
-  | _ => rfl
-
-theorem sessionsOf_state : ∀ (rs : List (Id × Fact)) (s : DB F),
-    ((sessionsOf rs : Model F (List (Id × B × Bool × B × Nat))).run s).2 = s
-  | [], _ => rfl
-  | (_, f) :: t, s => by
-    simp only [sessionsOf, Model.run_bind, Model.run_pure]
-    rw [sessionsOf_state t, sessionOf_state]
-
-theorem allSessions_state (s : DB F) :
-    ((allSessions : Model F (List (Id × B × Bool × B × Nat))).run s).2 = s := by
-  simp only [allSessions, Model.run_bind, run_rows, Model.run_pure]
-  exact sessionsOf_state _ s
 
 theorem carrying_mem : ∀ (es : List (Id × B × Bool × B × Nat)) (s : DB F) (e : Id × B × Bool × B × Nat),
     (e ∈ ((carrying es : Model F _).run s).1 ↔ e ∈ es ∧ (roomsV e.1).eval s ≠ []) ∧
@@ -290,10 +312,6 @@ theorem notice_then_cut (s : DB F) {cid : B}
       intro x hx hb
       exact hopen x hx (of_decide_eq_true hb)
     rw [this]; rfl
-
-/-! ## E2 on the bare wire -/
-
-/-! ## E3: the handshake runs on the nodes' keys -/
 
 /-- **A responder opens with its node's key (`opened_endpoint`).** An
 `opened` checks out only citing the request and an endpoint fact whose
@@ -387,81 +405,11 @@ theorem established_endpoint (K : Keys) {o : Op} {fs : List F} {cid c peer h sk'
                 obtain ⟨_, _, rfl, _, _, _, rfl⟩ := hc
                 exact ⟨rfl, hfrm, rfl, rfl⟩
         · cases hc
-
-/-- **"Me" is this node's key (`meV_node`).** The node is in c as its
-key: `meV c` is this node's endpoint key, and only while `Community.mine`
-names a device of c whose secret it holds. -/
-theorem meV_node (s : DB F) {c me : B} (h : (meV c).eval s = some me) :
-    (∃ sk, ((Community.nodeKey).liftL : View F _).eval s = some (me, sk)) ∧
-    ∃ d a, ((Community.mine c).liftL : View F _).eval s = some (d, a) := by
-  unfold meV at h
-  rw [View.eval_bind] at h
-  cases hm : ((Community.mine c).liftL : View F _).eval s with
-  | none => rw [hm] at h; cases h
-  | some da =>
-    rw [hm] at h
-    simp only [View.eval_bind, View.eval_pure] at h
-    obtain ⟨⟨pk, sk⟩, hk, rfl⟩ := Option.map_eq_some_iff.1 h
-    exact ⟨⟨sk, hk⟩, da.1, da.2, rfl⟩
-
-/-! ## E2 on the bare wire -/
-
+end Connection
+namespace Connection
+open Engine Engine.Sync Codec
 section
 variable [fr : Fresh (Model F)]
-
-/-- An op of the Connection family: what open, answer and establish
-write. -/
-def ConnOp (o : Op) : Prop := ∃ (reqs : List Id) (b : Body), o = mkOp reqs b
-
-/-- **Connection ops are not shared**: in the node's family their room
-is none, so sync never offers them. -/
-theorem room_connOp (C : Community.Crypto) (K : Keys) {o : Op} (h : ConnOp o) :
-    (node C K).room o = none := by
-  obtain ⟨reqs, b, rfl⟩ := h
-  have hk : (mkOp reqs b).kind = b.kind := rfl
-  have ho : owns b.kind = true := by cases b <;> rfl
-  simp only [Family.room, node, Family.sum, family, hk, ho, ite_true, scopeOf]
-  by_cases hb : b.kind = 33 ∨ b.kind = 35 <;> simp [hb]
-
-
-theorem openEach_conn (epOp : Id) : ∀ (rs : List (Id × Fact)) (s : DB F),
-    ∀ o ∈ ((openEach epOp rs : Model F (List Op)).run s).1, ConnOp o
-  | [], _, _, h => by cases h
-  | (r, _) :: t, s, o, h => by
-    simp only [openEach, Model.run_bind, Model.run_pure] at h
-    by_cases hz : ((count opened.byRequest [r] : Model F Nat).run s).1 = 0
-    · rw [if_pos hz] at h
-      rcases List.mem_cons.1 h with rfl | h
-      · exact ⟨_, _, rfl⟩
-      · exact openEach_conn epOp t s o h
-    · rw [if_neg hz] at h
-      exact openEach_conn epOp t s o h
-
-theorem openAll_conn : ∀ (eps : List (B × B × Id)) (s : DB F),
-    ∀ o ∈ ((openAll eps : Model F (List Op)).run s).1, ConnOp o
-  | [], _, _, h => by cases h
-  | (pk, _, epOp) :: t, s, o, h => by
-    simp only [openAll, Model.run_bind, run_rows, Model.run_pure, List.mem_append] at h
-    rcases h with h | h
-    · exact openEach_conn epOp _ s o h
-    · exact openAll_conn t _ o h
-
-theorem reply_conn {K : Keys} {r sk frm m1 f : B} {co : Op} (h : Reply.op K r sk frm m1 f = some co) :
-    ConnOp co := by
-  unfold Reply.op at h
-  simp only [Option.bind_eq_bind] at h
-  cases h1 : Noise.read1 K.suite prologue sk frm m1 with
-  | none => simp [h1] at h
-  | some x =>
-    obtain ⟨st, re, _⟩ := x
-    simp only [h1, Option.bind_some] at h
-    cases h2 : Noise.write2 K.suite st f frm re .empty with
-    | none => simp [h2] at h
-    | some y =>
-      simp only [h2, Option.bind_some, Option.some.injEq, pure] at h
-      exact ⟨_, _, h.symm⟩
-
-theorem run_arrivedFrom (x : Id) (s : DB F) : ((arrivedFrom x : Model F (Option B)).run s).2 = s := rfl
 
 /-- What `answerOne` writes: nothing, or, for a request it trusts, the
 connection (a reply to r) and three local ops. -/
@@ -528,44 +476,6 @@ theorem answerAll_conn (K : Keys) (eps : List (B × B × Id)) : ∀ (rs : List (
           all_goals exact ⟨_, _, rfl⟩
       · exact answerAll_conn K eps t _ o h
     | _ => exact answerAll_conn K eps t s o h
-
-theorem establishConns_conn (r e epOp : Id) : ∀ (rs : List (Id × Fact)) (s : DB F),
-    ∀ o ∈ ((establishConns r e epOp rs : Model F (List Op)).run s).1, ConnOp o
-  | [], _, _, h => by cases h
-  | (cid, _) :: t, s, o, h => by
-    simp only [establishConns, Model.run_bind, Model.run_pure] at h
-    by_cases hz : ((count established.byConn [cid] : Model F Nat).run s).1 = 0
-    · rw [if_pos hz] at h
-      rcases List.mem_cons.1 h with rfl | h
-      · exact ⟨_, _, rfl⟩
-      · exact establishConns_conn r e epOp t s o h
-    · rw [if_neg hz] at h
-      exact establishConns_conn r e epOp t s o h
-
-theorem establishReqs_conn (epOp : Id) : ∀ (rs : List (Id × Fact)) (s : DB F),
-    ∀ o ∈ ((establishReqs epOp rs : Model F (List Op)).run s).1, ConnOp o
-  | [], _, _, h => by cases h
-  | (r, _) :: t, s, o, h => by
-    simp only [establishReqs, Model.run_bind, run_rows] at h
-    generalize (List.map (fun x => (x.1.snd, x.snd)) (Engine.eval s (eph.byOf.query [r])).rights) = l at h
-    cases l with
-    | nil =>
-      simp only [Model.run_bind, Model.run_pure, List.nil_append] at h
-      exact establishReqs_conn epOp t _ o h
-    | cons p t' =>
-      simp only [Model.run_bind, run_rows, Model.run_pure, List.mem_append] at h
-      rcases h with h | h
-      · exact establishConns_conn r _ epOp _ s o h
-      · exact establishReqs_conn epOp t _ o h
-
-theorem establishAll_conn : ∀ (eps : List (B × B × Id)) (s : DB F),
-    ∀ o ∈ ((establishAll eps : Model F (List Op)).run s).1, ConnOp o
-  | [], _, _, h => by cases h
-  | (pk, _, epOp) :: t, s, o, h => by
-    simp only [establishAll, Model.run_bind, run_rows, Model.run_pure, List.mem_append] at h
-    rcases h with h | h
-    · exact establishReqs_conn epOp _ s o h
-    · exact establishAll_conn t _ o h
 
 theorem joinsOf_join (fam : Family F) (c : B) : ∀ (hs : List B) (s : DB F),
     ∀ o ∈ ((joinsOf fam c hs : Model F (List Op)).run s).1, o.bytes ∈ hs ∧ joinOf c o = true
@@ -655,12 +565,6 @@ theorem bare_takes_only_join (C : Community.Crypto) (K : Keys) (s : DB F) (o : O
   · exact absurd hs (by rw [notConn (answerAll_conn K _ _ _ o ho)]; simp)
   · exact absurd hs (by rw [notConn (establishAll_conn _ _ o ho)]; simp)
 
-theorem body_conn (reqs : List Id) (b : Body) : (decode (mkOp reqs b).body : Option Body) = some b :=
-  Codec.decode_encode b
-
-/-- Fresh bytes that leave the store as it is, as the model's do. -/
-def FreshPure : Prop := ∀ s : DB F, ((Fresh.fresh : Model F B).run s).2 = s
-
 theorem answerOne_state (hfr : FreshPure) (K : Keys) (eps : List (B × B × Id)) (r c frm : B)
     (s : DB F) : ((answerOne K eps r c frm : Model F (List Op)).run s).2 = s := by
   simp only [answerOne, Model.run_bind]
@@ -697,21 +601,6 @@ theorem answerOne_state (hfr : FreshPure) (K : Keys) (eps : List (B × B × Id))
           · rw [if_pos (by simpa using hok)]; rfl
       | _ => rfl
 
-theorem reply_reqs {K : Keys} {r sk frm m1 f : B} {co : Op} (h : Reply.op K r sk frm m1 f = some co) :
-    co.reqs = [r] ∧ ∃ m2, co = mkOp [r] (.connection m2) := by
-  unfold Reply.op at h
-  simp only [Option.bind_eq_bind] at h
-  cases h1 : Noise.read1 K.suite prologue sk frm m1 with
-  | none => simp [h1] at h
-  | some x =>
-    obtain ⟨st, re, _⟩ := x
-    simp only [h1, Option.bind_some] at h
-    cases h2 : Noise.write2 K.suite st f frm re .empty with
-    | none => simp [h2] at h
-    | some y =>
-      simp only [h2, Option.bind_some, Option.some.injEq, pure] at h
-      subst h; exact ⟨rfl, _, rfl⟩
-
 theorem answerAll_trusted (hfr : FreshPure) (K : Keys) (eps : List (B × B × Id)) :
     ∀ (rs : List (Id × Fact)) (s : DB F), ∀ o ∈ ((answerAll K eps rs : Model F (List Op)).run s).1,
       ∀ m2, (decode o.body : Option Body) = some (.connection m2) →
@@ -742,19 +631,6 @@ theorem answerAll_trusted (hfr : FreshPure) (K : Keys) (eps : List (B × B × Id
         answerAll_trusted hfr K eps t s o h m2 hb
       exact ⟨x', r', c', frm', addr', hs', ro, to, frm'', m1, List.mem_cons_of_mem _ hm, hr⟩
 
-theorem openEach_state (epOp : Id) : ∀ (rs : List (Id × Fact)) (s : DB F),
-    ((openEach epOp rs : Model F (List Op)).run s).2 = s
-  | [], _ => rfl
-  | (_, _) :: t, s => by
-    simp only [openEach, Model.run_bind, Model.run_pure]
-    exact openEach_state epOp t _
-
-theorem openAll_state : ∀ (eps : List (B × B × Id)) (s : DB F), ((openAll eps : Model F (List Op)).run s).2 = s
-  | [], _ => rfl
-  | (_, _, epOp) :: t, s => by
-    simp only [openAll, Model.run_bind, Model.run_pure]
-    rw [openAll_state t, openEach_state]; rfl
-
 theorem joinsOf_state (fam : Family F) (c : B) : ∀ (hs : List B) (s : DB F),
     ((joinsOf fam c hs : Model F (List Op)).run s).2 = s
   | [], _ => rfl
@@ -777,69 +653,6 @@ theorem deliverAll_state (fam : Family F) : ∀ (rs : List (Id × Fact)) (s : DB
       simp only [deliverAll, Model.run_bind, Model.run_pure]
       rw [deliverAll_state fam t, joinsOf_state]
     | _ => exact deliverAll_state fam t s
-
-theorem openEach_body (epOp : Id) : ∀ (rs : List (Id × Fact)) (s : DB F),
-    ∀ o ∈ ((openEach epOp rs : Model F (List Op)).run s).1, (decode o.body : Option Body) = some .opened
-  | [], _, _, h => by cases h
-  | (r, _) :: t, s, o, h => by
-    simp only [openEach, Model.run_bind, Model.run_pure] at h
-    by_cases hz : ((count opened.byRequest [r] : Model F Nat).run s).1 = 0
-    · rw [if_pos hz] at h
-      rcases List.mem_cons.1 h with rfl | h
-      · exact body_conn _ _
-      · exact openEach_body epOp t s o h
-    · rw [if_neg hz] at h
-      exact openEach_body epOp t s o h
-
-theorem openAll_body : ∀ (eps : List (B × B × Id)) (s : DB F),
-    ∀ o ∈ ((openAll eps : Model F (List Op)).run s).1, (decode o.body : Option Body) = some .opened
-  | [], _, _, h => by cases h
-  | (pk, _, epOp) :: t, s, o, h => by
-    simp only [openAll, Model.run_bind, run_rows, Model.run_pure, List.mem_append] at h
-    rcases h with h | h
-    · exact openEach_body epOp _ s o h
-    · exact openAll_body t _ o h
-
-theorem establishConns_body (r e epOp : Id) : ∀ (rs : List (Id × Fact)) (s : DB F),
-    ∀ o ∈ ((establishConns r e epOp rs : Model F (List Op)).run s).1,
-      (decode o.body : Option Body) = some .established
-  | [], _, _, h => by cases h
-  | (cid, _) :: t, s, o, h => by
-    simp only [establishConns, Model.run_bind, Model.run_pure] at h
-    by_cases hz : ((count established.byConn [cid] : Model F Nat).run s).1 = 0
-    · rw [if_pos hz] at h
-      rcases List.mem_cons.1 h with rfl | h
-      · exact body_conn _ _
-      · exact establishConns_body r e epOp t s o h
-    · rw [if_neg hz] at h
-      exact establishConns_body r e epOp t s o h
-
-theorem establishReqs_body (epOp : Id) : ∀ (rs : List (Id × Fact)) (s : DB F),
-    ∀ o ∈ ((establishReqs epOp rs : Model F (List Op)).run s).1,
-      (decode o.body : Option Body) = some .established
-  | [], _, _, h => by cases h
-  | (r, _) :: t, s, o, h => by
-    simp only [establishReqs, Model.run_bind, run_rows] at h
-    generalize (List.map (fun x => (x.1.snd, x.snd)) (Engine.eval s (eph.byOf.query [r])).rights) = l at h
-    cases l with
-    | nil =>
-      simp only [Model.run_bind, Model.run_pure, List.nil_append] at h
-      exact establishReqs_body epOp t _ o h
-    | cons p t' =>
-      simp only [Model.run_bind, run_rows, Model.run_pure, List.mem_append] at h
-      rcases h with h | h
-      · exact establishConns_body r _ epOp _ s o h
-      · exact establishReqs_body epOp t _ o h
-
-theorem establishAll_body : ∀ (eps : List (B × B × Id)) (s : DB F),
-    ∀ o ∈ ((establishAll eps : Model F (List Op)).run s).1,
-      (decode o.body : Option Body) = some .established
-  | [], _, _, h => by cases h
-  | (pk, _, epOp) :: t, s, o, h => by
-    simp only [establishAll, Model.run_bind, run_rows, Model.run_pure, List.mem_append] at h
-    rcases h with h | h
-    · exact establishReqs_body epOp _ s o h
-    · exact establishAll_body t _ o h
 
 /-- A join request is no Connection op: its body's first byte is
 Community's request tag, which no Connection body has. -/
@@ -901,37 +714,6 @@ theorem resendConns_send (addr : B) : ∀ (rs : List (Id × Fact)) (s : DB F),
       · exact resendConns_send addr t _ q h
     · exact resendConns_send addr t _ q h
 
-/-- What `receiptFor` writes, read in the node's store, is receipts of
-the op: nothing else. -/
-theorem receiptFor_receipts (s : DB F) (o : Op) {r : Op}
-    (hr : r ∈ ((Community.receiptFor o).liftL : View F (List Op)).eval s) :
-    ∃ j, r = Community.receipt o.id j := by
-  unfold Community.receiptFor at hr
-  by_cases hkind : o.kind ≠ 23
-  · simp [hkind] at hr; cases hr
-  simp only [hkind, ite_false] at hr
-  split at hr
-  · rename_i n _ _ _
-    by_cases hn : n < Community.countCap
-    · simp [hn] at hr; cases hr
-    · simp only [hn, ite_false, Rel.read] at hr
-      rw [eval_liftL_bind] at hr
-      split at hr
-      · cases hr
-      · rw [eval_liftL_bind] at hr
-        exact ⟨_, List.mem_singleton.1 hr⟩
-  · cases hr
-
-/-- A receipt is a Community op: no Connection body decodes from it. -/
-theorem receipt_not_send (m : Id) (j : Nat) (a : B) :
-    (decode (Community.receipt m j).body : Option Body) ≠ some (.send a) := by
-  intro h
-  rw [decode_some] at h
-  have : (Community.receipt m j).body.data.toList = 24 :: Codec.enc j := by
-    simp [Community.receipt, Community.mkOp, Op.make, encode, Codec.enc, Community.Body.enc]
-  rw [this] at h
-  simp [Codec.enc, Body.enc] at h
-
 /-- **A re-sent answer only to the trusted (`resend_trusted`).** A
 request arriving again, bare, gets its answer re-sent (a courier) only
 if it was opened here for community c from key frm and the trust rule
@@ -988,43 +770,6 @@ theorem resend_trusted (s : DB F) (addr : B) (o : Op) (at_ : Nat) (q : Op) (a : 
       exact (hfirst _ hq).elim
   · simp only [Model.run_pure, List.mem_append] at hq
     exact (hfirst _ hq).elim
-
-
-/-! ## A pending join is dialed -/
-
-theorem helloOf_state (K : Keys) (sk r to m1 : B) (s : DB F) :
-    ((helloOf K sk r to m1 : Model F _).run s).2 = s := by
-  simp only [helloOf, Model.run_bind, run_rows]
-  split <;> rfl
-
-theorem requestOf_state (K : Keys) (sk inviter : B) (req : Id) :
-    ∀ (rs : List (Id × Fact)) (s : DB F), ((requestOf K sk inviter req rs : Model F _).run s).2 = s
-  | [], _ => rfl
-  | (r, f) :: rest, s => by
-    cases f with
-    | ofRequest x =>
-      obtain ⟨t, frm, m1⟩ := x
-      simp only [requestOf, Model.run_bind]
-      by_cases ht : t = inviter
-      · rw [if_pos ht]
-        simp only [Model.run_bind, Model.run_pure]
-        rw [helloOf_state]
-        split
-        · rfl
-        · exact requestOf_state K sk inviter req rest s
-      · rw [if_neg ht]; exact requestOf_state K sk inviter req rest s
-    | _ => exact requestOf_state K sk inviter req rest s
-
-/-- What sending a pending join needs here: its request is stored (and,
-while waiting, unanswered: no connection cites it); or this node holds
-none, holds the join's request, and message 1 seals to the inviter's
-key. -/
-def Unanswered (K : Keys) (listen : B) (s : DB F) (pk sk c inviter : B) (req : Id) (waiting : Bool) : Prop :=
-  -- the request a pending join is sent as, read at s
-  match ((requestOf K sk inviter req ((rows request.byFrm [pk] : Model F _).run s).1 : Model F _).run s).1 with
-  | some r => (waiting = true → (Engine.eval s (connection.byRequest.query [r] (limit := some 0))).total = 0) ∧
-      (s.ops r).isSome
-  | none => ∃ jr, s.ops req = some jr ∧ ∀ e, (Request.op K sk inviter e (hello c listen [jr])).isSome
 
 /-- `dialOne` sends a courier to the hint when it does not skip. -/
 theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint : B} {hs : List B}
@@ -1213,7 +958,95 @@ theorem reconnect_dials (K : Keys) (listen : B) (now : Nat) (hfr : FreshPure) (s
   rw [hk, hs0]
   simp only [List.head?_cons, Model.run_bind]
   exact dialAll_mem hfr K listen pk sk _ s p _ _ hj hro
-
 end
+end Connection
+namespace Connection
+open Engine
+variable {C : Community.Crypto} {K : Keys} {s : DB F}
+open Community (Admitted Removed)
+
+/-- Admitted among the node's Community ops: by a Valid admission in the
+node's own verdicts. -/
+theorem admitted_node (h : Inv (node C K) s) (hq : s.queue = []) {c u : Id} {d e : Community.Key} :
+    Admitted C (community C s).ops c u d e ↔ ∃ x, s.status x = some (.valid (.inl (.admission c u d e))) :=
+  exists_congr fun x => (sum_project_node h hq).2.2.2.1 x _
+
+/-- Removed among the node's Community ops: by a Valid removal in the
+node's own verdicts. -/
+theorem removed_node (h : Inv (node C K) s) (hq : s.queue = []) {c u : Id} :
+    Removed C (community C s).ops c u ↔ ∃ x r, s.status x = some (.valid (.inl (.removal c u r))) :=
+  exists_congr fun x => exists_congr fun _ => (sum_project_node h hq).2.2.2.1 x _
+end Connection
+namespace Connection
+open Engine Engine.Sync
+
+/-- **A room is carried synced only if trusted.** If connection cid
+carries room c synced, this node holds c and is in it as its key `me`,
+one of cid's established facts names a peer key, and the trust rule
+takes it. -/
+theorem rooms_trusted (s : DB F) {cid c : Id} (h : Room.sync c ∈ (roomsV cid).eval s) :
+    ∃ peer me, peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])) ∧
+      c ∈ heldV.eval s ∧
+      (meV c).eval s = some me ∧ ((trusts c me peer).liftL : View F Bool).eval s = true := by
+  obtain ⟨c', peer, hpeer, hheld, hm⟩ := mem_roomsV s h
+  rw [eval_roomFor] at hm
+  cases hme : (meV c').eval s with
+  | none => simp only [hme, List.not_mem_nil] at hm
+  | some me =>
+    cases ht : ((trusts c' me peer).liftL : View F Bool).eval s
+    · simp only [hme, ht, Bool.false_eq_true, ite_false, List.mem_map] at hm
+      obtain ⟨_, _, hn⟩ := hm; cases hn
+    · simp only [hme, ht, ite_true, List.mem_singleton, Room.sync.injEq] at hm
+      subst hm
+      exact ⟨peer, me, hpeer, hheld, hme, ht⟩
+
+/-- **A live member's connection carries no synced room whose peer
+`allowPeer` refuses.** If this node is a live member of c, and
+`allowPeer` refuses, for c, every peer key cid's established facts name,
+then cid carries no room c synced: no step of it sends an op of c by
+sync or takes one (`recv_send`, `recv_take`). It may carry c's notices
+(`rooms_removed`). -/
+theorem rooms_cut (s : DB F) {cid c : Id}
+    (hme : ∀ me, (meV c).eval s = some me →
+      ((Community.allowPeer c me).liftL : View F Bool).eval s = true)
+    (hpeer : ∀ peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])),
+      ((Community.allowPeer c peer).liftL : View F Bool).eval s = false) :
+    Room.sync c ∉ (roomsV cid).eval s := by
+  intro h
+  obtain ⟨peer, me, hp, _, hm, ht⟩ := rooms_trusted s h
+  rw [trusts_live s (hme me hm), hpeer peer hp] at ht
+  cases ht
+end Connection
+namespace Connection
+open Engine
+variable {C : Community.Crypto} {K : Keys} {s : DB F}
+open Community (Admitted Removed)
+
+/-- **A removal ends a live session's sync, in the running node.** At
+rest, if this node is let into c (a device admitted under its key is
+live), and each peer connection cid's established facts name in c has
+only devices admitted into a removed user u, then cid carries no sync
+room of c: no step of it sends an op of c or takes one (`recv_send`,
+`recv_take`). -/
+theorem rooms_cut_node (h : Inv (node C K) s) (hq : s.queue = []) {cid c : Id}
+    (hme : ∀ me, (meV c).eval s = some me →
+      ∃ u d, Admitted C (community C s).ops c u d me ∧ Community.Live C (community C s).ops c d)
+    (hpeer : ∀ peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])),
+      ∃ u, Removed C (community C s).ops c u ∧
+        ∀ u' d, Admitted C (community C s).ops c u' d peer → ∃ e', Admitted C (community C s).ops c u d e') :
+    Engine.Sync.Room.sync c ∉ (roomsV cid).eval s :=
+  rooms_cut s (fun me hm => (connect_iff_node h hq c me).2 (hme me hm)) fun peer hp =>
+    let ⟨_, hr, only⟩ := hpeer peer hp
+    removal_cuts_off_node h hq hr only
+end Connection
+namespace Connection
+open Engine Engine.Sync
+
+/-- The hook runs the view: on the model, `rooms` gives `roomsV`, its
+synced rooms and its notices, and reads only. -/
+theorem rooms_model (s : DB F) (cid : Id) :
+    ((rooms cid : Model F (List Room))).run s = ((roomsV cid).eval s, s) := by
+  unfold rooms
+  exact View.run_model _ s
 
 end Connection

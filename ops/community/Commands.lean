@@ -359,3 +359,33 @@ def removalsAt (c e : Key) : View Fact (List Id) := do
   deviceRemovals c a.rows
 
 end Community
+
+namespace Connection
+open Engine Codec Community
+
+/-- Whether op o is a join request of community c: the one thing a
+hello delivers. -/
+def joinOf (c : B) (o : Op) : Bool :=
+  decide (o.reqs.head? = some c) &&
+    decide (o.kind = Community.Body.tag (.request .empty .empty .empty .empty)) &&
+    match (decode o.body : Option Community.Body) with
+    | some (.request ..) => true
+    | _ => false
+
+/-- The trust rule (lean-net's), on node keys: `peer`'s node is let in
+for c by this node's ops (a live device of c is admitted under its key);
+or, before this node (`me`, its key) is let in for c, `peer` is the
+inviter key a pending join names and this node's ops know nothing of it
+in c yet. -/
+def trusts (c me peer : B) : View Community.Fact Bool := do
+  if ← Community.allowPeer c peer then return true
+  let joins ← Community.joining.all.read []
+  let linked := joins.rows.any fun (_, f) => match f with
+    | .joining c' k _ _ _ _ _ => decide (c' = c ∧ k = peer)
+    | _ => false
+  if !linked then return false
+  let admitted ← Community.allowPeer c me
+  let known ← Community.admission.byKey.read [c, peer] (limit := some 0)
+  return !admitted && known.total = 0
+
+end Connection

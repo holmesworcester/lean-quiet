@@ -71,7 +71,9 @@ import engine.renderer.ReaderLaws
 import engine.core.CostErase
 import engine.renderer.ActsLaws
 import engine.core.Project
-import ops.connection.NodeLaws
+import ops.Proofs
+import ops.connection.Family
+import ops.connection.Proofs
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's

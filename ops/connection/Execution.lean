@@ -6,7 +6,16 @@ interpreter is explicit, and entropy is an input tape. SQLite, the OS entropy
 source and TCP are tested separately by JoinFair, not silently identified with
 this interpreter. No direct Node.connect or plaintext session hook is used.
 -/
-import ops.connection.Intents
+import ops.Commands
+import ops.community.member.invite.request.Commands
+import ops.community.member.join.joining.Commands
+import ops.connection.Commands
+import ops.connection.Family
+import ops.connection.eph.Commands
+import ops.connection.established.Commands
+import ops.connection.given.Commands
+import ops.connection.opened.Commands
+import ops.connection.recv.Commands
 
 namespace Connection.Execution
 open Engine Engine.Sync Community
