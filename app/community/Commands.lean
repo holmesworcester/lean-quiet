@@ -112,6 +112,14 @@ def deviceLive (c : Id) (d : Key) : View Fact Bool := do
   let a ← admission.byDevice.read [c, d]
   if a.rows.isEmpty then pure false else unremoved c a.rows
 
+/-- Whether device d is cut from c: admitted, and one of the users it is
+admitted into removed. Only a removal read makes it so: a read that
+finds no admission (not yet written, or not yet seen) says not cut, so a
+member is never told of a removal no one made (`deviceCut_removal`). -/
+def deviceCut (c : Id) (d : Key) : View Fact Bool := do
+  let a ← admission.byDevice.read [c, d]
+  if a.rows.isEmpty then pure false else return !(← unremoved c a.rows)
+
 /-- The acceptance of c this store held until its device was cut (the
 first such, with the device's secret held), when `mine` holds none:
 not held, so not answered or dialed as, but what a removed member's app
@@ -125,7 +133,7 @@ def cutEntry (c : Id) : View Fact (Option (Key × Id)) := do
     if sec.total = 0 then continue
     let adm ← admission.byDevice.read [c, d] (limit := some 0)
     if adm.total = 0 then continue
-    if !(← deviceLive c d) then return some (d, aid)
+    if ← deviceCut c d then return some (d, aid)
   return none
 
 /-- Join from a link, to be known as `name`, unless this store already

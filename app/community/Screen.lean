@@ -388,9 +388,10 @@ def read (known : Array Me := #[]) : m (Array Me × Array Q) := do
         if ab.total == 0 then
           joiningOp := jid
           dialing := (hs.head?.bind String.fromUTF8?).getD ""
-    let (live, d6) ← readView (Community.deviceLive c pk) deps
+    -- removed: a removal of the user read, never a liveness not yet seen
+    let (cut, d6) ← readView (Community.deviceCut c pk) deps
     deps := d6
-    let removed := !admId.isEmpty && !live
+    let removed := !admId.isEmpty && cut
     let dv := deviceOf known seed
     out := out.push { acc := accId, dev := dv.1, seed, dev_ok := dv.2, c, adm := admId, user, name, joiningOp,
                       dialing, removed }
@@ -566,6 +567,72 @@ theorem deviceLive_lists (s : DB Fact) (c : Id) (d : Key) :
   · by_cases h : rs.isEmpty = true
     · rw [if_pos h, View.listsAt_pure]; omega
     · rw [if_neg h]; omega
+
+/-- Unremoved is false only at an admission into c whose user has a
+removal. -/
+theorem unremoved_false (s : DB Fact) (c : Id) : ∀ (l : List (Pos × Fact)),
+    (unremoved c l).eval s = false →
+      ∃ p u d e, (p, Fact.admission c u d e) ∈ l ∧ (Engine.eval s (removals c u)).total ≠ 0
+  | [] => by simp [unremoved, View.eval]
+  | (p, f) :: t => by
+    intro h
+    have ih := unremoved_false s c t
+    cases f
+    case ofAdmission x =>
+      obtain ⟨c', u, d, e⟩ := x
+      by_cases hc : c' = c
+      · subst hc
+        by_cases h0 : (Engine.eval s (removals c' u)).total = 0
+        · simp only [unremoved, ↓reduceIte, View.eval, h0] at h
+          obtain ⟨p', u', d', e', hm, hr⟩ := ih h
+          exact ⟨p', u', d', e', List.mem_cons_of_mem _ hm, hr⟩
+        · exact ⟨p, u, d, e, List.mem_cons_self .., h0⟩
+      · simp only [unremoved, if_neg hc] at h
+        obtain ⟨p', u', d', e', hm, hr⟩ := ih h
+        exact ⟨p', u', d', e', List.mem_cons_of_mem _ hm, hr⟩
+    all_goals
+      simp only [unremoved] at h
+      obtain ⟨p', u', d', e', hm, hr⟩ := ih h
+      exact ⟨p', u', d', e', List.mem_cons_of_mem _ hm, hr⟩
+
+/-- **A device is cut only by a removal read**: `deviceCut` holds only
+when the store holds one of the device's admissions into c and a removal
+of that admission's user. So the app tells a member "You've been
+removed" (`Accepted.read`'s `removed`) only from a removal op: an
+admission not yet read, or a stale read of one, never makes it. -/
+theorem deviceCut_removal (s : DB Fact) (c : Id) (d : Key)
+    (h : (deviceCut c d).eval s = true) :
+    ∃ p u d' e, (p, Fact.admission c u d' e) ∈ ((admission.byDevice.read [c, d]).eval s).rows ∧
+      (Engine.eval s (removals c u)).total ≠ 0 := by
+  simp only [deviceCut] at h
+  rw [View.eval_bind] at h
+  generalize ((admission.byDevice.read [c, d]).eval s) = a at h ⊢
+  by_cases he : a.rows.isEmpty = true
+  · simp [he] at h
+  · rw [if_neg he, View.eval_bind] at h
+    have hf : (unremoved c a.rows).eval s = false := by
+      cases hv : (unremoved c a.rows).eval s <;> simp_all
+    exact unremoved_false s c a.rows hf
+
+/-- An entry's removed mark as 59fa463 shipped it: its admission read
+(`admitted`), and then, in a read of its own, its device not live. The
+negative control of `deviceCut_removal`. -/
+def removedShipped (admitted : Bool) (s : DB Fact) (c : Id) (d : Key) : Bool :=
+  admitted && !(deviceLive c d).eval s
+
+/-- **And it told of removals no one made**: the app reads an entry's
+admission and then its device's standing as two reads, which need not see
+the same store. When the second does not yet hold the admission the first
+found, the shipped mark says removed (the member told "You've been
+removed", the entry's composer, link and profile forgotten) with no
+removal read, while `deviceCut` says not. Found by the pixel gate: a
+switcher over sixteen new communities showed "You've been removed from
+Community 16" in about one run in six under load. -/
+theorem shipped_removed_without_removal (s : DB Fact) (c : Id) (d : Key)
+    (h : ((admission.byDevice.read [c, d]).eval s).rows = []) :
+    removedShipped true s c d = true ∧ (deviceCut c d).eval s = false := by
+  simp only [removedShipped, deviceLive, deviceCut, View.eval_bind, h,
+    List.isEmpty_nil, ↓reduceIte, View.eval_pure, Bool.not_false, Bool.and_self, and_self]
 
 /-- **Liveness costs at most 1 + D lists a row**, when no device is
 admitted more than D times. -/
