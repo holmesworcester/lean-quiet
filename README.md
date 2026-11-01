@@ -374,7 +374,7 @@ model unless a proven bridge ties the model to running code
 `tests/wiring-models.txt`, a list that only shrinks, does not name.
 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1376 rest on Lean's standard axioms only, and about four fifths of its theorems (1109 of 1286, not counting 66 proof steps and 24 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1375 rest on Lean's standard axioms only, and about four fifths of its theorems (1110 of 1284, not counting 67 proof steps and 24 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -459,7 +459,7 @@ a new device on its own node (the 🟡 row under Connections).
 | 🟡 | 🥊🥊🥊 | **The connection's progress steps work.** An uninterrupted round discovers missing IDs; queued requirement closures eventually arrive and validate under recurring service and delivery. Not yet: whole-app composition. | [`conn_answers_ids`], [`conn_runs_exchange`], [`closure_delivered`] |
 | 🟡 | 🥊🥊🥊 | **New ops reach connected members.** With two nodes running the sync code, fixed rooms and no handshake, an op written during a session is offered at once and held after one exchange (offer, want, op), given ask slots and budget. Not yet of the runner, with TCP, sealed frames and the handshake. | [`stream_offered`], [`stream_delivers`], [`stream_delivers_steps`], [`stream_offered_runs`], [`stream_delivers_runs`], [`write_offers`], [`write_offers_all`], [`hold_wants`], [`op_taken`] |
 | ✅ | 🥊🥊🥊 | **Wants retain their order.** Authorized IDs queue once when capacity permits. With positive service budgets, an ID with p predecessors is served within p + 1 steps; unavailable asks expire. | [`onWant_all`], [`onWant_order`], [`serveOwed_head`], [`serveOwed_fifo`], [`owed_within`], [`want_sends`], [`asks_expire`] |
-| 🟡 | 🥊🥊🥊 | **UI-first service without starving sync.** Three of four polls prefer local writes. A local head is selected within two completed turns; an admitted peer frame is served or retired within `4 * (maxSocks + 1)`. A local write's shared ops are committed before `onWrite` returns. Not yet proved: commit-to-display and neighbour-delivery bounds. | [`Prioritized.write_within`], [`source_or_cancelled_within`], [`write_within_churn`], [`Priority.write_within`], [`local_within`], [`Priority.event_within`], [`background_within`], [`Priority.local_share`], [`Priority.phase_cycle`], [`Loop.turn_records`], [`Loop.turn_timer`], [`Tick.cofinal`], [`urgent_ahead`], [`ahead_bytes`], [`cut_bytes`], [`push_capped`], [`serveOwed_hot`], [`hot_ids`], [`lane_control`], [`fresh_served`], [`write_hot`], [`onWrite_receives`], [`Priority.served`], [`waiting_step`], [`phase_cycle`], [`step_event`], [`step_only_event`], [`step_empty_event`], [`Ingress.served`], [`scan_ready`], [`poll_progress`], [`advance_distance`], [`distance_zero`], [`arrivals_preserve`], [`flooded_prefix`], [`Prioritized.served`], [`Prioritized.step_progress`], [`Prioritized.step_write`], [`write_progress`], [`write_served`], [`cancelAll_preserves`], [`changes_preserve`], [`served_or_cancelled`], [`write_served_churn`], [`churnFlood_source`], [`churnFlood_write`], [`churnFlood_exact`] |
+| 🟡 | 🥊🥊🥊 | **UI-first service without starving sync.** Three of four polls prefer local writes. A local head is selected within two completed turns; an admitted peer frame is served or retired within `4 * (maxSocks + 1)`. A local write's shared ops are committed before `onWrite` returns. Not yet proved: commit-to-display and neighbour-delivery bounds. | [`Prioritized.write_within`], [`source_or_cancelled_within`], [`write_within_churn`], [`Priority.write_within`], [`local_within`], [`Priority.event_within`], [`background_within`], [`Priority.local_share`], [`Priority.phase_cycle`], [`Loop.turn_records`], [`Loop.turn_timer`], [`Tick.cofinal`], [`urgent_ahead`], [`ahead_bytes`], [`cut_bytes`], [`push_capped`], [`serveOwed_hot`], [`hot_ids`], [`lane_control`], [`fresh_served`], [`write_hot`], [`onWrite_receives`], [`Priority.served`], [`waiting_step`], [`phase_cycle`], [`step_event`], [`step_only_event`], [`step_empty_event`], [`Ingress.served`], [`scan_ready`], [`poll_progress`], [`advance_distance`], [`arrivals_preserve`], [`flooded_prefix`], [`Prioritized.served`], [`Prioritized.step_progress`], [`Prioritized.step_write`], [`write_progress`], [`write_served`], [`cancelAll_preserves`], [`changes_preserve`], [`served_or_cancelled`], [`write_served_churn`], [`churnFlood_source`], [`churnFlood_write`], [`churnFlood_exact`] |
 | ⬜ | 🥊🥊🥊 | **Everyone converges.** Wanted: under fair delivery, members linked by any chain of connections eventually hold every op of their community, and so the same verdicts. Proven so far for two nodes, over a model. | |
 | ⬜ | 🥊🥊 | **Staleness is never hidden.** Wanted: "up to date as of T" means a round this device opened at T ended with it holding everything the peer held in that room, and a sync that stalls is shown within a stated bound. | |
 | ⬜ | 🥊🥊🥊 | **A synced page is complete:** after syncing a page, a device shows every row its peer shows for it (`page_sync`). | |
@@ -519,17 +519,17 @@ reviewers check that a law's structures are the running code's own or
 a quantified environment (a `Run` of the running step).
 
 <!-- wiring:begin -->
-**1109 of 1286 laws are about running code;** another 35 run its node code in a World, and 142 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 66 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 24 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
+**1110 of 1284 laws are about running code;** another 35 run its node code in a World, and 139 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 67 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 24 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 168 | 155 |  | 13 |
+| Engine | 167 | 155 |  | 12 |
 | Sync | 225 | 188 |  | 37 |
 | The n-node World | 16 | 3 | 13 |  |
 | mDNS | 3 | 0 |  | 3 |
-| Node and wire | 202 | 178 | 16 | 8 |
+| Node and wire | 201 | 178 | 16 | 7 |
 | Connections | 30 | 26 |  | 4 |
-| Community | 213 | 197 |  | 16 |
+| Community | 213 | 198 |  | 15 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 6 | 6 |  |  |
 | Screen | 259 | 227 |  | 32 |
@@ -550,7 +550,6 @@ a quantified environment (a `Run` of the running step).
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
 | `Frame.wants`, `Subs.ofList`, `Frame.listWins` +2 | [`has_ofList`], [`ofList_wf`], [`screen_subs`]†, [`hull_near`]†, [`past_hull_le`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (app/Screen.lean); want by it, the window cut to the near rows' hull (Screen's plan). |
 | `Board.apply`, `RWorld.commit`, `RWorld.evict` +10 | [`RWorld.acts_shown`], [`seen_take`], [`World.inv_commit`], [`RWorld.inv_commit`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`], [`World.inv_pass`], [`World.inv_frame`], [`World.settle`], [`marked_pass`] +7 more | The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`. |
-| `Invite.uri` | [`parse_uri`]† | Nothing that runs calls it. |
 | `Execution.Setup.sync` | [`production_step_moves`], [`production_step_retains`], [`production_step_reachable`], [`production_step_settled`], [`production_write_receives`], [`production_step_history`], [`production_step_unique`] | Nothing that runs calls it; `World.deliver`, `Execution.step` do. |
 | `Execution.World.peer` | [`world_step_moves`], [`world_trace_moves`], [`empty_trace_store`], [`Run.shared_retained`], [`world_step_history`], [`world_trace_history`], [`empty_trace_history`], [`history`], [`world_step_unique`], [`world_trace_unique`], [`empty_trace_unique`], [`unique`] | Nothing that runs calls it; `Connection.Execution.World.run` do. |
 | `Execution.empty` | [`empty_trace_store`], [`empty_trace_history`], [`empty_trace_unique`], [`unique`] | Nothing that runs calls it. |
@@ -594,7 +593,7 @@ a quantified environment (a `Run` of the running step).
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
-| (none) | [`erase_tick`], [`unscoped_signs_all`]†, [`no_injective_hash`]†, [`exposed_parts`], [`eventually_delivered`], [`Costs.time`], [`list_costs`], [`model_fits`], [`id_bind`], [`sideCount_run`]†, [`run_bind`], [`run_fresh`] +4 more | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`unscoped_signs_all`]†, [`no_injective_hash`]†, [`exposed_parts`], [`eventually_delivered`], [`Costs.time`], [`list_costs`], [`model_fits`], [`id_bind`], [`sideCount_run`]†, [`run_bind`], [`run_fresh`], [`fair_loss_delivered`] +2 more | Nothing to wire: each is about a specification or an assumption. |
 
 | Proof steps in | Steps | Used by (about running code) |
 |---|---|---|
@@ -602,7 +601,7 @@ a quantified environment (a `Run` of the running step).
 | `app.community.Proofs` | [`admission_consented`]† | `no_impersonation`, `no_renaming` |
 | `app.community.channel.message.Proofs` | [`sum_map_add`] | `count_partition` |
 | `engine.core.Cost` | [`Costs.mono`], [`costs_bind`], [`costs_bindP`], [`within_bind`], [`within_bindP`] | `decide_costs`, `find_costs`, `ingest_costs`, `rank_costs` +1 more |
-| `engine.core.CostErase` | [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_pure`], [`erase_run`], [`cost_run`], [`val_erase`] | `cost_decBytesFromM_at`, `val_decBytesFromM`, `val_decNatFromM`, `work_decBytesFromM` +8 more |
+| `engine.core.CostErase` | [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_pure`], [`erase_run`], [`erase_tick`], [`cost_run`], [`val_erase`] | `cost_decBytesFromM_at`, `val_decBytesFromM`, `val_decNatFromM`, `work_decBytesFromM` +10 more |
 | `engine.core.Decl` | [`perm_sortPos`] | `complete_iff_held`, `file_whole`, `pic_complete_iff_held`, `anchor_read` +46 more |
 | `engine.core.Order` | [`eval_partition`], [`lexCmp_append_zero`], [`sortPos_sorted`] | `anchor_read`, `arrival_order`, `count_partition`, `rec_succ` +14 more |
 | `engine.core.Project` | [`of_map`], [`to_map`], [`Reads.mono`], [`eval_proj`], [`filterMap_inlRow`], [`leftOps_eq_some`], [`leftOps_isSome`], [`matching_proj`], [`mem_proj_idx`], [`sortPos_map`], [`specVerdict_eq_some`] | `admitted_node`, `community_inv`, `connect_iff_node`, `refuse_nonmember_node` +15 more |
@@ -1482,13 +1481,12 @@ opportunities and full native delivery remain open.
 [`step_event`]: engine/wire/IngressPriorityLaws.lean#L37-L42
 [`step_only_event`]: engine/wire/IngressPriorityLaws.lean#L46-L50
 [`step_empty_event`]: engine/wire/IngressPriorityLaws.lean#L143-L147
-[`Ingress.served`]: engine/wire/IngressLaws.lean#L141-L147
-[`scan_ready`]: engine/wire/IngressLaws.lean#L28-L36
-[`poll_progress`]: engine/wire/IngressLaws.lean#L92-L99
-[`advance_distance`]: engine/wire/IngressLaws.lean#L19-L21
-[`distance_zero`]: engine/wire/IngressLaws.lean#L12-L13
-[`arrivals_preserve`]: engine/wire/IngressLaws.lean#L121-L125
-[`flooded_prefix`]: engine/wire/IngressLaws.lean#L186-L188
+[`Ingress.served`]: engine/wire/IngressLaws.lean#L134-L140
+[`scan_ready`]: engine/wire/IngressLaws.lean#L21-L29
+[`poll_progress`]: engine/wire/IngressLaws.lean#L85-L92
+[`advance_distance`]: engine/wire/IngressLaws.lean#L12-L14
+[`arrivals_preserve`]: engine/wire/IngressLaws.lean#L114-L118
+[`flooded_prefix`]: engine/wire/IngressLaws.lean#L179-L181
 [`Prioritized.served`]: engine/wire/IngressPriorityLaws.lean#L111-L115
 [`Prioritized.step_progress`]: engine/wire/IngressPriorityLaws.lean#L63-L69
 [`Prioritized.step_write`]: engine/wire/IngressPriorityLaws.lean#L30-L33
@@ -1795,7 +1793,6 @@ opportunities and full native delivery remain open.
 [`passActs_nil`]: engine/renderer/ActsLaws.lean#L142-L144
 [`inv_passActs`]: engine/renderer/ActsLaws.lean#L193-L196
 [`idxok_passActs`]: engine/renderer/ActsLaws.lean#L200-L204
-[`erase_tick`]: engine/core/CostErase.lean#L47-L47
 [`exposed_parts`]: engine/wire/NoiseSymbolic.lean#L1029-L1032
 [`eventually_delivered`]: engine/core/FIFO.lean#L50-L55
 [`Costs.time`]: engine/core/Cost.lean#L393-L395
@@ -1804,6 +1801,7 @@ opportunities and full native delivery remain open.
 [`id_bind`]: engine/core/Query.lean#L672-L673
 [`run_bind`]: app/Proofs.lean#L2565-L2566
 [`run_fresh`]: app/Proofs.lean#L2584-L2585
+[`fair_loss_delivered`]: engine/sync/SweepLaws.lean#L214-L218
 [`nodup_full`]: app/community/Family.lean#L1504-L1506
 [`sum_map_add`]: app/community/channel/message/Proofs.lean#L223-L224
 [`Costs.mono`]: engine/core/Cost.lean#L397-L397
@@ -1817,6 +1815,7 @@ opportunities and full native delivery remain open.
 [`erase_lift`]: engine/core/CostErase.lean#L44-L44
 [`erase_pure`]: engine/core/CostErase.lean#L25-L25
 [`erase_run`]: engine/core/CostErase.lean#L22-L23
+[`erase_tick`]: engine/core/CostErase.lean#L47-L47
 [`cost_run`]: engine/core/CostErase.lean#L58-L60
 [`val_erase`]: engine/core/CostErase.lean#L55-L56
 [`perm_sortPos`]: engine/core/Decl.lean#L132-L133
@@ -1891,7 +1890,7 @@ opportunities and full native delivery remain open.
 [`Outbox.push_bounded`]: engine/wire/OutboxLaws.lean#L27-L29
 [`Outbox.take_bounded`]: engine/wire/OutboxLaws.lean#L52-L53
 [`native_batch_bounded`]: engine/wire/OutboxLaws.lean#L64-L68
-[`Ingress.source_within`]: engine/wire/IngressLaws.lean#L163-L168
+[`Ingress.source_within`]: engine/wire/IngressLaws.lean#L156-L161
 [`Prioritized.source_within`]: engine/wire/IngressPriorityLaws.lean#L131-L136
 [`Presentation.bounded`]: engine/renderer/Presentation.lean#L42-L43
 [`Presentation.offer_append`]: engine/renderer/Presentation.lean#L45-L47
@@ -1951,8 +1950,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 481 kernel witnesses, 191 runtime witnesses,
-23 conditional checks, 0 recorded runtime counterexamples; 46 of 741 linked declarations still pending.**
+**Coverage: 480 kernel witnesses, 191 runtime witnesses,
+23 conditional checks, 0 recorded runtime counterexamples; 47 of 741 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2295,13 +2294,12 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`step_event`](engine/wire/IngressPriorityLaws.lean#L37-L42) | **kernel-witness**: [Vacuity.Ingress.networkBranch](tests/vacuity/Ingress.lean). Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate. |
 | [`step_only_event`](engine/wire/IngressPriorityLaws.lean#L46-L50) | **kernel-witness**: [Vacuity.Ingress.onlyNetworkBranch](tests/vacuity/Ingress.lean). Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate. |
 | [`step_empty_event`](engine/wire/IngressPriorityLaws.lean#L143-L147) | **kernel-witness**: [Vacuity.Ingress.emptyNetworkBranch](tests/vacuity/Ingress.lean). Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate. |
-| [`Ingress.served`](engine/wire/IngressLaws.lean#L141-L147) | **kernel-witness**: [Vacuity.Ingress.peerDeadline](tests/vacuity/Ingress.lean). Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate. |
-| [`scan_ready`](engine/wire/IngressLaws.lean#L28-L36) | **kernel-witness**: [Vacuity.Ingress.scanReady](tests/vacuity/Ingress.lean). Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate. |
-| [`poll_progress`](engine/wire/IngressLaws.lean#L92-L99) | **kernel-witness**: [Vacuity.Ingress.pollProgress](tests/vacuity/Ingress.lean). Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate. |
-| [`advance_distance`](engine/wire/IngressLaws.lean#L19-L21) | **kernel-witness**: [Vacuity.Ingress.distanceAdvance](tests/vacuity/Ingress.lean). Concrete positions in a three-slot registry check the finite distance and wrap progress used by the consumer. The unequal-position premise for advancement is kernel-decided. This is a supporting rank law, not a native completion theorem. |
-| [`distance_zero`](engine/wire/IngressLaws.lean#L12-L13) | **kernel-witness**: [Vacuity.Ingress.distanceIdentity](tests/vacuity/Ingress.lean). Concrete positions in a three-slot registry check the finite distance and wrap progress used by the consumer. The unequal-position premise for advancement is kernel-decided. This is a supporting rank law, not a native completion theorem. |
-| [`arrivals_preserve`](engine/wire/IngressLaws.lean#L121-L125) | **kernel-witness**: [Vacuity.Ingress.arrivalPreserves](tests/vacuity/Ingress.lean). Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate. |
-| [`flooded_prefix`](engine/wire/IngressLaws.lean#L186-L188) | **kernel-witness**: [Vacuity.Ingress.networkPrefix](tests/vacuity/Ingress.lean). Exact nonempty prefix of the constructed infinite selector run: all sources continue offering, and the churn run repeatedly retires/reuses a different slot. This is a component execution; its growing local queue is not a bounded whole-app execution witness. |
+| [`Ingress.served`](engine/wire/IngressLaws.lean#L134-L140) | **kernel-witness**: [Vacuity.Ingress.peerDeadline](tests/vacuity/Ingress.lean). Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate. |
+| [`scan_ready`](engine/wire/IngressLaws.lean#L21-L29) | **kernel-witness**: [Vacuity.Ingress.scanReady](tests/vacuity/Ingress.lean). Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate. |
+| [`poll_progress`](engine/wire/IngressLaws.lean#L85-L92) | **kernel-witness**: [Vacuity.Ingress.pollProgress](tests/vacuity/Ingress.lean). Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate. |
+| [`advance_distance`](engine/wire/IngressLaws.lean#L12-L14) | **kernel-witness**: [Vacuity.Ingress.distanceAdvance](tests/vacuity/Ingress.lean). Concrete positions in a three-slot registry check the finite distance and wrap progress used by the consumer. The unequal-position premise for advancement is kernel-decided. This is a supporting rank law, not a native completion theorem. |
+| [`arrivals_preserve`](engine/wire/IngressLaws.lean#L114-L118) | **kernel-witness**: [Vacuity.Ingress.arrivalPreserves](tests/vacuity/Ingress.lean). Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate. |
+| [`flooded_prefix`](engine/wire/IngressLaws.lean#L179-L181) | **kernel-witness**: [Vacuity.Ingress.networkPrefix](tests/vacuity/Ingress.lean). Exact nonempty prefix of the constructed infinite selector run: all sources continue offering, and the churn run repeatedly retires/reuses a different slot. This is a component execution; its growing local queue is not a bounded whole-app execution witness. |
 | [`Prioritized.served`](engine/wire/IngressPriorityLaws.lean#L111-L115) | **kernel-witness**: [Vacuity.Ingress.combinedPeerDeadline](tests/vacuity/Ingress.lean). Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate. |
 | [`Prioritized.step_progress`](engine/wire/IngressPriorityLaws.lean#L63-L69) | **kernel-witness**: [Vacuity.Ingress.combinedPeerDeadline](tests/vacuity/Ingress.lean). Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate. |
 | [`Prioritized.step_write`](engine/wire/IngressPriorityLaws.lean#L30-L33) | **kernel-witness**: [Vacuity.Ingress.localBranch](tests/vacuity/Ingress.lean). Concrete three-slot selector fixture with distinct frames10/11/12 and local writes0/1. The certificate applies this supporting law directly or through the bounded-service theorem, with occupied-slot, rank, FIFO or other-slot cancellation premises discharged in Lean. Separate branch witnesses cover local priority, reserved network service and both empty-source fallbacks. These are component executions of the production chooser functions; native scheduling, queue refinement and display completion remain separate. |
@@ -2616,7 +2614,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`passActs_nil`](engine/renderer/ActsLaws.lean#L142-L144) | **kernel-witness**: [Vacuity.RendererModels.noActions](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`inv_passActs`](engine/renderer/ActsLaws.lean#L193-L196) | **kernel-witness**: [Vacuity.RendererModels.actionsInvariant](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`idxok_passActs`](engine/renderer/ActsLaws.lean#L200-L204) | **kernel-witness**: [Vacuity.RendererModels.actionIndex](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`erase_tick`](engine/core/CostErase.lean#L47-L47) | **kernel-witness**: [Vacuity.Core.eraseTick](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
 | [`exposed_parts`](engine/wire/NoiseSymbolic.lean#L1029-L1032) | Pending: no concrete premise witness audited yet |
 | [`eventually_delivered`](engine/core/FIFO.lean#L50-L55) | Pending: no concrete premise witness audited yet |
 | [`Costs.time`](engine/core/Cost.lean#L393-L395) | Pending: no concrete premise witness audited yet |
@@ -2625,6 +2622,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`id_bind`](engine/core/Query.lean#L672-L673) | Pending: no concrete premise witness audited yet |
 | [`run_bind`](app/Proofs.lean#L2565-L2566) | Pending: no concrete premise witness audited yet |
 | [`run_fresh`](app/Proofs.lean#L2584-L2585) | Pending: no concrete premise witness audited yet |
+| [`fair_loss_delivered`](engine/sync/SweepLaws.lean#L214-L218) | Pending: no concrete premise witness audited yet |
 | [`nodup_full`](app/community/Family.lean#L1504-L1506) | Pending: no concrete premise witness audited yet |
 | [`sum_map_add`](app/community/channel/message/Proofs.lean#L223-L224) | Pending: no concrete premise witness audited yet |
 | [`Costs.mono`](engine/core/Cost.lean#L397-L397) | Pending: no concrete premise witness audited yet |
@@ -2638,6 +2636,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`erase_lift`](engine/core/CostErase.lean#L44-L44) | **kernel-witness**: [Vacuity.Core.eraseLift](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
 | [`erase_pure`](engine/core/CostErase.lean#L25-L25) | **kernel-witness**: [Vacuity.Core.erasePure](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
 | [`erase_run`](engine/core/CostErase.lean#L22-L23) | **kernel-witness**: [Vacuity.Core.eraseRun](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
+| [`erase_tick`](engine/core/CostErase.lean#L47-L47) | **kernel-witness**: [Vacuity.Core.eraseTick](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
 | [`cost_run`](engine/core/CostErase.lean#L58-L60) | **kernel-witness**: [Vacuity.Core.costRun](tests/vacuity/Core.lean). Counted action with two reads, one write and 13 copied bytes, value 42. |
 | [`val_erase`](engine/core/CostErase.lean#L55-L56) | **kernel-witness**: [Vacuity.Core.valueErased](tests/vacuity/Core.lean). Counted action with two reads, one write and 13 copied bytes, value 42. |
 | [`perm_sortPos`](engine/core/Decl.lean#L132-L133) | **kernel-witness**: [Vacuity.Core.permutation](tests/vacuity/Core.lean). Nonempty out-of-order message rows retained by sorting. |
@@ -2712,7 +2711,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`Outbox.push_bounded`](engine/wire/OutboxLaws.lean#L27-L29) | **kernel-witness**: [Vacuity.RetryReservation.outboxPush](tests/vacuity/RetryReservation.lean). Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence. |
 | [`Outbox.take_bounded`](engine/wire/OutboxLaws.lean#L52-L53) | **kernel-witness**: [Vacuity.RetryReservation.outboxTake](tests/vacuity/RetryReservation.lean). Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence. |
 | [`native_batch_bounded`](engine/wire/OutboxLaws.lean#L64-L68) | **kernel-witness**: [Vacuity.RetryReservation.nativeBatch](tests/vacuity/RetryReservation.lean). Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence. |
-| [`Ingress.source_within`](engine/wire/IngressLaws.lean#L163-L168) | **kernel-witness**: [Vacuity.Ingress.peerDeadline](tests/vacuity/Ingress.lean). Three occupied peer/control positions with continued refill: the initial third frame is selected within three network polls. Nonempty synthetic infinite selector execution; both local and peer offers continue forever. Premises apply to the exact production selector functions, interpreted with explicit queues. Bounds count completed chooser turns; this does not prove native IO/queue refinement, bounded memory for the growing witness or end-to-end display latency. |
+| [`Ingress.source_within`](engine/wire/IngressLaws.lean#L156-L161) | **kernel-witness**: [Vacuity.Ingress.peerDeadline](tests/vacuity/Ingress.lean). Three occupied peer/control positions with continued refill: the initial third frame is selected within three network polls. Nonempty synthetic infinite selector execution; both local and peer offers continue forever. Premises apply to the exact production selector functions, interpreted with explicit queues. Bounds count completed chooser turns; this does not prove native IO/queue refinement, bounded memory for the growing witness or end-to-end display latency. |
 | [`Prioritized.source_within`](engine/wire/IngressPriorityLaws.lean#L131-L136) | **kernel-witness**: [Vacuity.Ingress.combinedPeerDeadline](tests/vacuity/Ingress.lean). The nested UI-first selector begins with two local writes and three occupied mailboxes; the target in slot1 is selected at turn7, within12turns. Nonempty synthetic infinite selector execution; both local and peer offers continue forever. Premises apply to the exact production selector functions, interpreted with explicit queues. Bounds count completed chooser turns; this does not prove native IO/queue refinement, bounded memory for the growing witness or end-to-end display latency. |
 | [`Presentation.bounded`](engine/renderer/Presentation.lean#L42-L43) | **kernel-witness**: [PresentationTests.boundWitness](tests/app/Presentation.lean). A concrete nonempty two-entry queue satisfies the runtime representation's capacity bound of eight. Synthetic distinct message positions; no crypto or native premise. |
 | [`Presentation.offer_append`](engine/renderer/Presentation.lean#L45-L47) | **kernel-witness**: [PresentationTests.appendWitness](tests/app/Presentation.lean). Kernel evaluation discharges successful actual Queue.offer from two concrete entries to three. Applying the theorem proves the prior entries remain in order and the new entry is appended. |

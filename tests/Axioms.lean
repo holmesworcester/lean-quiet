@@ -1426,7 +1426,6 @@ end cost
 #print axioms Engine.Sync.serveOwed_hot_count
 
 #print axioms Engine.Sync.Ingress.distance_lt
-#print axioms Engine.Sync.Ingress.distance_zero
 #print axioms Engine.Sync.Ingress.advance_distance
 #print axioms Engine.Sync.Ingress.scan_ready
 #print axioms Engine.Sync.Ingress.scan_selected

@@ -219,6 +219,7 @@ instrument Engine.CostT.chargedBy Engine.CostT.erase_chargedBy
 instrument Engine.CostT.lift Engine.CostT.erase_lift
 instrument Engine.Counted.val Engine.Counted.val_erase
 instrument Engine.Counted.cost Engine.Counted.cost_run
+instrument Engine.CostT.instTick Engine.CostT.erase_tick
 
 ## Bridges: a mirror, and the law that proves running code equal to it
 
@@ -288,6 +289,7 @@ spec Text.numberRuns A line's maximal European or Arabic number runs, as its bid
 spec Text.bidiControls The explicit bidi controls.
 spec ViewLaws.nameIn A user's name, as the store holds it.
 spec ViewLaws.factIn A message's fact, as the store holds it.
+spec Community.Invite.uri The link the join page opens (site/join.html, tested by site/test.py): leanquiet://join/ and the invite's code.
 spec Hold.messagePlane The uncached placeholder plane: the generator the running cache (cachedMessagePlane) is proven to return exactly.
 spec App.PageId.all Every page (all_pages): the count Nav's depth bound is stated against.
 spec ViewLaws.keyIn A content key, as the store holds it.
