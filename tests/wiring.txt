@@ -471,3 +471,9 @@ todo Engine.Sync.absentStep Proof decomposition of Node.write's actual deduplica
 
 # Byte count of the retained production retry payload, used only in specifications.
 spec Engine.Sync.RetrySlot.bytes The retained retry payload size in the actual Outbox state.
+
+# Multiplex admission ranks count actual core scans, not elapsed ticks or native sends.
+spec Engine.Sync.RetryOrder.rank Number of all predecessors in the actual retained retry order, used as a decreasing measure.
+spec Engine.Sync.RetryOrder.eligible Pending candidate and initially vacant address in the actual scan inputs; deriving these inputs along arbitrary Node/Sweep traces is a separate obligation.
+spec Engine.Sync.RetryOrder.Run.sent Projection of the actual RetryOrder.scan results at each post-reconcile selection boundary; not a native send or transport receipt.
+spec Engine.Sync.RetryOrder.Run.opportunities Count of pending-eligible initially vacant scan opportunities, excluding busy ticks; their eventual occurrence is not proved by the rank theorem.

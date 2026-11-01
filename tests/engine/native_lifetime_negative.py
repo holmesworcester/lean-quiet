@@ -43,7 +43,7 @@ def native(root, name, part=None, expected=None):
     if expected:
         assert code == 1 and 'native-lifetime:' in text and f'FAIL: {expected}' in text, (name, code, text)
     else:
-        assert code == 0 and 'native-lifetime: 24 passed, 0 failed' in text, (name, code, text)
+        assert code == 0 and 'native-lifetime: 26 passed, 0 failed' in text, (name, code, text)
 
 
 def stopped(root, name, negative=False, reader=False):
@@ -151,4 +151,4 @@ with tempfile.TemporaryDirectory(prefix='native-lifetime-', dir=os.environ['TMPD
             path.write_text(original)
     build(scratch, 'restored', 'native_lifetime')
     native(scratch, 'restored')
-print('native lifetimes: 24 checks, eight lifetime and three stop controls; restored suites pass', flush=True)
+print('native lifetimes: 26 checks, eight lifetime and three stop controls; restored suites pass', flush=True)

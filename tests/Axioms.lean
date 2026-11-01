@@ -1,3 +1,5 @@
+import engine.wire.IngressFreezeLaws
+import engine.wire.RetryOrderLaws
 import engine.renderer.HoldCacheLaws
 import engine.renderer.DemandRank
 import engine.wire.ExpiryGraceLaws
@@ -1450,3 +1452,38 @@ end cost
 #print axioms Hold.prepare_rows
 #print axioms Hold.cachedMessagePlane_exact
 #print axioms Hold.cachedMessagePlane_reuses
+
+-- Actual multiplex retry admission core (candidate/vacancy opportunities).
+#print axioms Engine.Sync.RetryOrder.claim_false
+#print axioms Engine.Sync.RetryOrder.claim_ready
+#print axioms Engine.Sync.RetryOrder.claim_busy
+#print axioms Engine.Sync.RetryOrder.scan_append
+#print axioms Engine.Sync.RetryOrder.scan_members
+#print axioms Engine.Sync.RetryOrder.offered_perm
+#print axioms Engine.Sync.RetryOrder.offered_members
+#print axioms Engine.Sync.RetryOrder.offered_length
+#print axioms Engine.Sync.RetryOrder.offered_nodup
+#print axioms Engine.Sync.RetryOrder.offered_none
+#print axioms Engine.Sync.RetryOrder.reconcile_members
+#print axioms Engine.Sync.RetryOrder.reconcile_prefix
+#print axioms Engine.Sync.RetryOrder.reconcile_nodup
+#print axioms Engine.Sync.RetryOrder.filter_rank
+#print axioms Engine.Sync.RetryOrder.offered_rank
+#print axioms Engine.Sync.RetryOrder.scan_progress
+#print axioms Engine.Sync.RetryOrder.reconcile_rank
+#print axioms Engine.Sync.RetryOrder.eligible_spec
+#print axioms Engine.Sync.RetryOrder.Run.nodup
+#print axioms Engine.Sync.RetryOrder.waiting_rank
+#print axioms Engine.Sync.RetryOrder.offered_or_retired
+#print axioms Engine.Sync.sweepAll_ok
+#print axioms Engine.Sync.onTickDirect_fresh
+#print axioms Engine.Sync.onTickReserved_fresh
+
+
+-- Atomic admission freeze preserves one source frame across transport close.
+#print axioms Engine.Sync.Ingress.Registry.freeze_input
+#print axioms Engine.Sync.Ingress.Registry.freeze_preserves_state
+#print axioms Engine.Sync.Ingress.Registry.freeze_preserves_owner
+#print axioms Engine.Sync.Ingress.Registry.frozen_refuses
+#print axioms Engine.Sync.Ingress.Registry.freeze_preserves_poll
+#print axioms Engine.Sync.Ingress.Registry.freeze_idempotent

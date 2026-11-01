@@ -132,9 +132,31 @@ op per service call bounds that formerly unbounded urgent batch. The actual
 TCP/SQLite fixture passes 12 checks and five controls with continued posting,
 seventeen roughly 1 MB hot ops, zero ordinary window and two lost target copies.
 Supported POSIX sends use a retained abort capability and await the original
-callback plus its tail before releasing native ownership; Fresh passes 51
-checks and 18 controls. These finite results do not prove OS/worker progress,
+callback plus its tail before releasing native ownership; At that reservation milestone, Fresh passed 51
+checks and 18 controls; the subsequent transport-close compatibility run
+passes 53 checks and 19 controls. These finite results do not prove OS/worker progress,
 all reader lifetimes, or Windows cancellation.
+
+## Retry admission and transport-close milestones
+
+The actual Node now retains session retry order, appends new sessions, and
+rotates only successful offers. The shared core proves service or retirement
+within `p + 1` eligible vacant-reservation opportunities. A nonempty infinite
+continuing-arrival witness satisfies the theorem. Full Node/Sweep opportunity
+recurrence is still an obligation; busy ticks are not silently counted as
+service opportunities. See [RETRY-ADMISSION.md](RETRY-ADMISSION.md).
+
+The actual TCP close/reap path now freezes producer admission while retaining
+one already-admitted frame and its source ownership. Normal UI-first selection
+consumes it before transport teardown. Six unconditional helper laws preserve
+input, ownership and polling and reject replenishment; native handler failures
+retire ownership before best-effort store cleanup. This does not protect bytes
+still outside the mailbox or prove durable erasure when SQLite refuses writes.
+See [CLOSE-INGRESS.md](CLOSE-INGRESS.md). The combined source passes all
+1,330 audited laws, 29 retry and 40 close checks with their runtime/kernel
+controls, and the original 29-check expiry gate with both controls. The
+684-reference evidence inventory has no pending entries; 14 entries retain
+explicit conditional premises. Full app/platform integration remains open.
 
 ## Obstructions found by the stronger target
 
@@ -144,7 +166,7 @@ all reader lifetimes, or Windows cancellation.
 | Wait cancellation | Supported POSIX sends/connects now abort; socket reservations include original reader completion, and synchronized stop requests survive overlapping reads. Native callback/worker progress, final OS-thread teardown, handler-exception cleanup and Windows cancellation remain open. |
 | Bounded iteration work | Store draining and connection hooks can traverse history. App/Reader journal reads and action batches run before the reader budget check; a query is nonpreemptive. Reaction layout traverses all reactions, and pending-write cleanup reads every pending op each frame. |
 | Bounded memory | The sync index, snapshots, retired-session routing/tombstone history and some app recovery queues grow with history. Android native event/touch arrays still grow by reallocation. |
-| Fair-loss progress | Reserved output survives ordinary/hot pressure. The projection from real encrypted attempts and session teardown to semantic delivery is unproved; distinct sessions also need fair retry admission. The earlier closed-socket delay example was not a demonstrated TCP execution and is corrected in [RETRY-RESERVATION.md](RETRY-RESERVATION.md). |
+| Fair-loss progress | Reserved output survives ordinary/hot pressure. The projection from real encrypted attempts and session teardown to semantic delivery is unproved; the actual retry selector now has a pending-eligible vacancy rank bound, but recurrence of those opportunities along complete Node/native executions remains open. The earlier closed-socket delay example was not a demonstrated TCP execution and is corrected in [RETRY-RESERVATION.md](RETRY-RESERVATION.md). |
 | Write-to-display bound | The target is a bound in each stage's completed steps. A bounded composer FIFO pins root/child positions, and mobile/desktop receipts identify actual completion. The actual reader/raster chooser now has the backlog-dependent `p + 1` visible-service rank law. Its asynchronous IO refinement, configured backlog-independent bounds, retained-paint invariants and their composition remain unproved. Native waits and exhaustion need explicit progress/failure outcomes; timings are reported separately. |
 | User-action outcomes | Joining can remain pending while approval is withheld. A permanently failing checkpoint retries before writer jobs indefinitely. Reader batches now survive transaction-start and journal-query failures; actions are claimed only after the journal snapshot opens, and notices are acknowledged after commit. Partial action/outbox effects after claim remain open. Failed writes need explicit user-visible outcomes. Completion-or-failure requires cancellation/deadline policies and bounded service. |
 

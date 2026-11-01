@@ -55,6 +55,8 @@ jobs:
         run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 mise run test:reader-prune
       - name: Retain reader batches through transaction startup and query failure
         run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 mise run test:reader-claim
+      - name: Check cached placeholder pixels and actual App reuse
+        run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 mise run test:hold-cache
       - name: Retain failure logs, databases and relay diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -67,13 +69,16 @@ jobs:
             out/join-fair
             out/catalog-retry
             out/reserved-retry
+            out/retry-admission
             out/ingress
             out/native-lifetime
             out/ref-publications
             out/reader-prune
             out/reader-claim
+            out/hold-cache
             out/writer-fairness
             out/expiry-grace
+            out/close-ingress
             out/demand-rank
             out/simplify-negative
             out/tree-negative

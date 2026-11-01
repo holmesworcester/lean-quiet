@@ -2710,12 +2710,12 @@ theorem onFrame_goes (n : Engine.Sync.Node) (addr bytes : ByteArray) (now : Nat)
   goesTape [write_goes, store_goes x hr, fun via a o t => (hr.recv via a o t).goes,
     finish_goes x hr, fun b => (hr.openFrame b).goes, onSealed_goes x hr]
 theorem onTick_goes (n : Engine.Sync.Node) (now : Nat) : GoesM x.fam (n.onTick x now) := by
-  unfold Node.onTick
+  unfold Node.onTick Node.onTickReserved Node.onTickDirect Node.sweepAll
   goesTape [fun t => (hr.dial t).goes, store_goes x hr,
     fun cid c => (refresh_reads x hr cid c).goes,
     fun ix c now => (tickGive_reads x.fam x.cfg ix c now).goes,
     apply_goes x hr,
-    sweep_afterActs_goes x hr,
+    sweep_goes x hr, sweep_afterActs_goes x hr,
     serve_afterActs_goes x hr,
     finish_goes x hr]
 theorem onWrite_goes (n : Engine.Sync.Node) (ops : List Op) (now : Nat) : GoesM x.fam (n.onWrite x ops now) := by
@@ -3254,12 +3254,12 @@ theorem onFrame_history (n : Engine.Sync.Node) (addr bytes : ByteArray) (now : N
   historyTape [write_history, store_history x hr, fun via a o t => (hr.recv via a o t).history,
     finish_history x hr, fun b => (hr.openFrame b).history, onSealed_history x hr]
 theorem onTick_history (n : Engine.Sync.Node) (now : Nat) : HistoryM x.fam (n.onTick x now) := by
-  unfold Node.onTick
+  unfold Node.onTick Node.onTickReserved Node.onTickDirect Node.sweepAll
   historyTape [fun t => (hr.dial t).history, store_history x hr,
     fun cid c => (refresh_reads x hr cid c).history,
     fun ix c now => (NodeTape.tickGive_reads x.fam x.cfg ix c now).history,
     apply_history x hr,
-    sweep_afterActs_history x hr,
+    sweep_history x hr, sweep_afterActs_history x hr,
     serve_afterActs_history x hr,
     finish_history x hr]
 theorem onWrite_history (n : Engine.Sync.Node) (ops : List Op) (now : Nat) : HistoryM x.fam (n.onWrite x ops now) := by

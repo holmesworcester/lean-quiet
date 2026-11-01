@@ -131,8 +131,21 @@ def wiring (t : Checks) : IO Unit := do
   discard <| client.native.cancelRecv.toBaseIO
   discard <| waitFor 1000 (IO.hasFinished sock.readerDone)
   let reaped ← state.reap x ch (fun _ => pure ()) cfg 1
-  t.ok "actual reap removes completed socket and retires its source"
-    (reaped.socks.isEmpty && (← source.closed.get) && !(← sourceLive hub source))
+  t.ok "actual reap preserves the completed socket's one frozen admitted frame"
+    (reaped.socks.length == 1 && reaped.socks.any (·.closeAfterFrame) &&
+      !(← source.closed.get) && (← sourceLive hub source) &&
+      (← hub.offer source (.frame sock.id "must not replace the held frame".toUTF8)) == .closed)
+  let reaped ← reaped.reap x ch (fun _ => pure ()) cfg 2
+  let selected ← hub.poll (pure none)
+  t.ok "repeated reap leaves the original admitted frame available to the actual selector"
+    (selected.any fun ev => match ev with
+      | .frame sid bytes => sid == sock.id && bytes == "held until reap".toUTF8
+      | _ => false)
+  let handled ← match selected with
+    | some ev => (fun next => next.getD reaped) <$> reaped.handle x ch (fun _ => pure ()) cfg ev 3
+    | none => pure reaped
+  t.ok "actual retained-frame handling removes completed socket and retires its source"
+    (handled.socks.isEmpty && (← source.closed.get) && !(← sourceLive hub source))
   if let some cap := peerAborter then discard <| cap.abort
 
 def run (t : Checks) : IO Unit := do

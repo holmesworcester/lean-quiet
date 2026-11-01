@@ -341,7 +341,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1300 rest on Lean's standard axioms only, and about two thirds of its theorems (894 of 1280, not counting 20 negative controls) are about the code that runs; another 15 run the
+hypotheses. All 1330 rest on Lean's standard axioms only, and about two thirds of its theorems (918 of 1310, not counting 20 negative controls) are about the code that runs; another 15 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -461,14 +461,14 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**894 of 1280 laws are about running code;** another 15 run its node code in a World, and 371 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**918 of 1310 laws are about running code;** another 15 run its node code in a World, and 377 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 192 | 119 |  | 73 |
 | Sync | 241 | 169 |  | 72 |
 | mDNS | 3 | 0 |  | 3 |
-| Node and wire | 160 | 88 | 10 | 62 |
+| Node and wire | 190 | 112 | 10 | 68 |
 | Connections | 26 | 20 |  | 6 |
 | Community | 213 | 167 |  | 46 |
 | QR codes | 10 | 10 |  |  |
@@ -482,7 +482,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Execution.fairRun`, `Execution.dequeued`, `Execution.trace` | 2 World laws; not yet: [`world_trace_moves`], [`empty_trace_store`], [`world_trace_history`], [`empty_trace_history`] | Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these. |
 | `Execution.lift` | 3 World laws; not yet: [`run_count`]*, [`run_get`], [`run_view`]*, [`run_arrivedFrom`]*, [`ProgressTape.answer_ready`]*, [`production_step_moves`], [`production_step_retains`], [`production_step_reachable`], [`production_step_settled`], [`write_store_tape`], [`onWrite_receives`]*, [`production_write_receives`] +1 more | Explicit Held store adapter inside the production-node entropy-tape interpreter. Native SQLite and entropy refinement remains external; answer_ready proves one actual handler call consumes its next tape value. |
 | `Sync.World.peer`, `Sync.Setup.sync`, `Who.other` +7 | 10 World laws; not yet: [`write_offers`], [`hold_wants`], [`want_sends`]†, [`op_taken`], [`write_offers_all`], [`write_hot`]†, [`secrecy_runs`] | Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired. |
-| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]† +62 more | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
+| `Engine.purgeS`, `Engine.purgeSet` | [`order_free`]*†, [`reach_drain`], [`drain_terminates`]*†, [`drain_settles`]*†, [`same_ops_same_verdicts`]*†, [`stored_local`]*†, [`local_fact_mine`]*†, [`drain_bounded`]*†, [`step_budget`]*†, [`purge_gone`]†, [`purge_named`]†, [`purge_shared`]† +65 more | The running purge is SQL (`purgeSql`), only tested against this model: write purge once over the store, as `drain` is, and bridge it (`run_purge`). |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°†, [`exchange_ids_stable`], [`exchange_log`], [`exchange_stable`], [`conn_runs_exchange`]† | conn_runs_exchange now connects exchange's missing IDs to exact alternating onRbsr batches and proves termination under snapshot/fingerprint/capacity premises. Still needed: embedding uninterrupted rounds and directed announcements in the full Node/TCP execution across timeouts and capped windows. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]†, [`reads_members`], [`reads_recipients`], [`members_iff_node`]†, [`recipients_iff_node`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
 | `Scene.approval`, `FairExecution.run`, `Scene.K` +17 | [`FairExecution.fair`], [`ideal`], [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`bootstrap_ideal`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`] +1 more | Native scene certificates, an infinite fair/ideal model run, and a successful production-node trace with a fair continuation are proved and tested. conn_runs_exchange and closure_delivered now prove handler progress components. Whole-bootstrap convergence for every suitably fair app execution still needs their composition and native store/transport refinement. |
@@ -585,7 +585,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Bidi.numberRuns` | [`run_contiguous`]* | Nothing that runs calls it; `Text.numberRuns` do. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +47 more | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +50 more | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
@@ -598,7 +598,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 7 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). |
 | [`Seal.Good`] | 4 | Supported-size AEAD inputs and key wraps roundtrip; valid private keys agree and public keys/hashes have 32-byte outputs (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 388 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
+| [`Model.run`] | 391 | The store model: SQLite's reads, writes and write turns answer as the model's tables (tested by tests/engine/Differential.lean and QueryDiff.lean). Not its purge: `purgeS` is a model. |
 | [`Sync.popW`] | 4 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
@@ -1135,6 +1135,11 @@ and [`Presentation.acknowledge_matches`]. Receipt handling uses
 [`push_local`], [`push_background`], [`WriterQueue.push_keeps_phase`], [`WriterQueue.local_fifo`], [`WriterQueue.background_fifo`], [`WriterQueue.local_first`], [`WriterQueue.background_slot`], [`WriterQueue.take_state`], [`WriterQueue.local_within`], [`WriterQueue.background_within`], [`WriterQueue.local_share`]. Bounded silence-expiry grace uses
 [`ExpiryGrace.same_generation`], [`ExpiryGrace.no_rearm`], [`ExpiryGrace.exhausted`], [`ExpiryGrace.empty_no_delay`], [`ExpiryGrace.fresh_clears`], [`ExpiryGrace.consume_keeps_generation`], [`ExpiryGrace.consume_decreases`], [`ExpiryGrace.consume_saturates`], [`consumed_left`], [`budget_exhausted`], [`source_before_exhaustion`].
 
+Supporting transport laws include [`RetryOrder.offered_or_retired`],
+[`Registry.freeze_input`], [`Registry.freeze_preserves_state`],
+[`Registry.freeze_preserves_owner`], [`Registry.frozen_refuses`],
+[`Registry.freeze_preserves_poll`] and [`Registry.freeze_idempotent`].
+
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
 [`stream_delivers`]: engine/wire/WorldLaws.lean#L806-L839
 [`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
@@ -1227,7 +1232,7 @@ and [`Presentation.acknowledge_matches`]. Receipt handling uses
 [`removed_stays_removed`]: app/community/Proofs.lean#L1247-L1257
 [`rejoin_dials`]: app/Proofs.lean#L929-L942
 [`reconnect_dials`]: app/Proofs.lean#L954-L964
-[`entry_fresh`]: engine/wire/EgressLaws.lean#L877-L885
+[`entry_fresh`]: engine/wire/EgressLaws.lean#L958-L966
 [`rooms_cut_node`]: app/Proofs.lean#L1076-L1088
 [`rooms_trusted`]: app/Proofs.lean#L1036-L1043
 [`rooms_cut`]: app/Proofs.lean#L1056-L1067
@@ -1813,6 +1818,13 @@ and [`Presentation.acknowledge_matches`]. Receipt handling uses
 [`ExpiryGrace.consume_keeps_generation`]: engine/wire/ExpiryGraceLaws.lean#L27-L27
 [`ExpiryGrace.consume_decreases`]: engine/wire/ExpiryGraceLaws.lean#L29-L29
 [`ExpiryGrace.consume_saturates`]: engine/wire/ExpiryGraceLaws.lean#L33-L33
+[`RetryOrder.offered_or_retired`]: engine/wire/RetryOrderLaws.lean#L256-L262
+[`Registry.freeze_input`]: engine/wire/IngressFreezeLaws.lean#L6-L7
+[`Registry.freeze_preserves_state`]: engine/wire/IngressFreezeLaws.lean#L9-L10
+[`Registry.freeze_preserves_owner`]: engine/wire/IngressFreezeLaws.lean#L12-L13
+[`Registry.frozen_refuses`]: engine/wire/IngressFreezeLaws.lean#L15-L16
+[`Registry.freeze_preserves_poll`]: engine/wire/IngressFreezeLaws.lean#L19-L20
+[`Registry.freeze_idempotent`]: engine/wire/IngressFreezeLaws.lean#L22-L23
 <!-- /proof-links -->
 
 <!-- vacuity:begin -->
@@ -1822,8 +1834,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 471 kernel witnesses, 191 runtime witnesses,
-14 conditional checks, 0 recorded runtime counterexamples; 1 of 677 linked declarations still pending.**
+**Coverage: 479 kernel witnesses, 191 runtime witnesses,
+14 conditional checks, 0 recorded runtime counterexamples; 0 of 684 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -1976,7 +1988,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`removed_stays_removed`](app/community/Proofs.lean#L1247-L1257) | **runtime-witness**: [Vacuity.IdentityRejoin.removedStaysRemoved](tests/vacuity/IdentityRejoin.lean). Bob was admitted, accepted locally with secret/node key and pending join, then actually removed. Exhaustive acceptance/join query rows establish the universal cut/admission premises; a zero fresh-device admission count establishes newness. Carol rejoin emits an actual signed request from the same node key; passing Bob seed emits no request. After real Alice approval and Carol admission, a finite stored-op extension check proves permanent Bob removal while Carol and the shared node become live. |
 | [`rejoin_dials`](app/Proofs.lean#L929-L942) | **runtime-witness**: [Vacuity.IdentityLifecycle.rejoinDials](tests/vacuity/IdentityLifecycle.lean). Actual signed Alice/Bob community and Noise session. Native branches prove all finite premises; universal community and node-device premises follow from exhaustive singleton acceptance/stored-verdict checks and Inv.sound. Bob removal sends its real requirement closure and excludes his chat message; given notice empties rooms and retires the actual session. Pending and admitted Bob both retry the actual stored Noise request to the invite address. |
 | [`reconnect_dials`](app/Proofs.lean#L954-L964) | **runtime-witness**: [Vacuity.IdentityLifecycle.reconnectDials](tests/vacuity/IdentityLifecycle.lean). Actual signed Alice/Bob community and Noise session. Native branches prove all finite premises; universal community and node-device premises follow from exhaustive singleton acceptance/stored-verdict checks and Inv.sound. Bob removal sends its real requirement closure and excludes his chat message; given notice empties rooms and retires the actual session. Pending and admitted Bob both retry the actual stored Noise request to the invite address. |
-| [`entry_fresh`](engine/wire/EgressLaws.lean#L877-L885) | **runtime-witness**: [Vacuity.IdentityLifecycle.entryFresh](tests/vacuity/IdentityLifecycle.lean). Alice's actual node, on held data with the Connection family's own hooks (hooks_readOnly; fresh bytes from a fixed tape that leaves the store as it is), runs a whole onTick from the store where Bob is removed and their actual Noise session is open. The run the theorem describes executes natively and seals a frame for Bob's session, so its sealed-frame case is exercised, not vacuous. |
+| [`entry_fresh`](engine/wire/EgressLaws.lean#L958-L966) | **runtime-witness**: [Vacuity.IdentityLifecycle.entryFresh](tests/vacuity/IdentityLifecycle.lean). Alice's actual node, on held data with the Connection family's own hooks (hooks_readOnly; fresh bytes from a fixed tape that leaves the store as it is), runs a whole onTick from the store where Bob is removed and their actual Noise session is open. The run the theorem describes executes natively and seals a frame for Bob's session, so its sealed-frame case is exercised, not vacuous. |
 | [`rooms_cut_node`](app/Proofs.lean#L1076-L1088) | **runtime-witness**: [Vacuity.IdentityLifecycle.roomsCutNode](tests/vacuity/IdentityLifecycle.lean). Actual signed Alice/Bob community and Noise session. Native branches prove all finite premises; universal community and node-device premises follow from exhaustive singleton acceptance/stored-verdict checks and Inv.sound. Bob removal sends its real requirement closure and excludes his chat message; given notice empties rooms and retires the actual session. Pending and admitted Bob both retry the actual stored Noise request to the invite address. |
 | [`rooms_trusted`](app/Proofs.lean#L1036-L1043) | **runtime-witness**: [Vacuity.IdentityConnection.roomsTrusted](tests/vacuity/IdentityConnection.lean). Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply. |
 | [`rooms_cut`](app/Proofs.lean#L1056-L1067) | **runtime-witness**: [Vacuity.IdentityConnection.roomsCut](tests/vacuity/IdentityConnection.lean). Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply. |
@@ -2500,7 +2512,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`mergeRuns_eq_sortPos`](engine/core/Union.lean#L114-L117) | **kernel-witness**: [Vacuity.Core.merge](tests/vacuity/Core.lean). Two interleaved ordered message lists merge to exact three-row order; reversed input violates premise. |
 | [`union_rows`](engine/core/Union.lean#L158-L164) | **kernel-witness**: [Vacuity.Core.union](tests/vacuity/Core.lean). Two query answers, three messages, limit two; ordered-input premise computed and first two rows checked. |
 | [`specVerdict_eq_some`](engine/core/Project.lean#L71-L72) | **kernel-witness**: [Vacuity.Projection.specVerdictPresent](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
-| [`cachedMessagePlane_exact`](engine/renderer/HoldCacheLaws.lean#L26-L29) | Pending: no concrete premise witness audited yet |
+| [`cachedMessagePlane_exact`](engine/renderer/HoldCacheLaws.lean#L26-L29) | **kernel-witness**: [Vacuity.HoldCache.plane](tests/vacuity/HoldCache.lean). Generated short reference to the same Hold.cachedMessagePlane_exact theorem and the same checked plane witness; this is not an additional theorem. Concrete 1080-pixel, 420-dpi light-theme placeholder with a nonempty generated period; a distinct 160-dpi cache exercises replacement, and changing height from 2209 to 1100 exercises retained tile reuse. The actual cache key includes background bytes, width, density and theme; cell/hover independence reduces in the kernel. These are universal functional pixel/key/reuse equalities for the helper called by App.present, not proofs of pointer sharing, allocation cost, native timing, or global cache-byte bounds. Native reuse and unchanged CJK timing tests are separate evidence. |
 | [`message_read`](app/community/Screen.lean#L108-L113) | **runtime-witness**: [Vacuity.IdentityMessages.messageRead](tests/vacuity/IdentityMessages.lean). Successful composed row read of actual sealed Bob message; theorem extracts its stored fact. Exact plaintext, name and time independently checked. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`tally_nodup`](app/community/channel/message/reaction/View.lean#L86-L90) | **kernel-witness**: [Vacuity.ChatPresentation.noDuplicateReactors](tests/vacuity/ChatPresentation.lean). Synthetic Alice message at 12:45, 4032×3024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280×210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets. |
 | [`tally_mem`](app/community/channel/message/reaction/View.lean#L98-L101) | **kernel-witness**: [Vacuity.ChatPresentation.exactReactors](tests/vacuity/ChatPresentation.lean). Synthetic Alice message at 12:45, 4032×3024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280×210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets. |
@@ -2572,6 +2584,13 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`ExpiryGrace.consume_keeps_generation`](engine/wire/ExpiryGraceLaws.lean#L27-L27) | **kernel-witness**: [Vacuity.ExpiryGrace.generationRetained](tests/vacuity/ExpiryGrace.lean). One actual consume retains the heard100 episode token. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim. |
 | [`ExpiryGrace.consume_decreases`](engine/wire/ExpiryGraceLaws.lean#L29-L29) | **kernel-witness**: [Vacuity.ExpiryGrace.selectionDecreases](tests/vacuity/ExpiryGrace.lean). One actual consume reduces the positive twelve-selection budget. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim. |
 | [`ExpiryGrace.consume_saturates`](engine/wire/ExpiryGraceLaws.lean#L33-L33) | **kernel-witness**: [Vacuity.ExpiryGrace.zeroSaturates](tests/vacuity/ExpiryGrace.lean). An exhausted episode stays at zero after consumption. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim. |
+| [`RetryOrder.offered_or_retired`](engine/wire/RetryOrderLaws.lean#L256-L262) | **kernel-witness**: [Vacuity.RetryOrder.target_served](tests/vacuity/RetryOrder.lean). A nonempty infinite execution of the runtime retry core adds a new session on every step while three old sessions remain live. Actual scan/reconcile steps preserve uniqueness and supply unbounded eligible vacant-reservation opportunities; the third original session is served in the first three opportunities. A second kernel instance uses actual ByteArray session/address types with proved lawful equality. This is not a full Node/native execution or proof that those opportunities recur there. |
+| [`Registry.freeze_input`](engine/wire/IngressFreezeLaws.lean#L6-L7) | **kernel-witness**: [Vacuity.IngressFreeze.captured](tests/vacuity/IngressFreeze.lean). Concrete live source 1 holds value 42 in a two-slot registry. The kernel applies the actual freeze/offer laws, proves the value remains selectable, and refuses replacement99. No fairness, delivery or quiescence premise occurs. These helper laws do not prove native callback progress or full transport refinement. |
+| [`Registry.freeze_preserves_state`](engine/wire/IngressFreezeLaws.lean#L9-L10) | **kernel-witness**: [Vacuity.IngressFreeze.retained](tests/vacuity/IngressFreeze.lean). Concrete live source 1 holds value 42 in a two-slot registry. The kernel applies the actual freeze/offer laws, proves the value remains selectable, and refuses replacement99. No fairness, delivery or quiescence premise occurs. These helper laws do not prove native callback progress or full transport refinement. |
+| [`Registry.freeze_preserves_owner`](engine/wire/IngressFreezeLaws.lean#L12-L13) | **kernel-witness**: [Vacuity.IngressFreeze.ownership](tests/vacuity/IngressFreeze.lean). Concrete live source 1 holds value 42 in a two-slot registry. The kernel applies the actual freeze/offer laws, proves the value remains selectable, and refuses replacement99. No fairness, delivery or quiescence premise occurs. These helper laws do not prove native callback progress or full transport refinement. |
+| [`Registry.frozen_refuses`](engine/wire/IngressFreezeLaws.lean#L15-L16) | **kernel-witness**: [Vacuity.IngressFreeze.no_refill](tests/vacuity/IngressFreeze.lean). Concrete live source 1 holds value 42 in a two-slot registry. The kernel applies the actual freeze/offer laws, proves the value remains selectable, and refuses replacement99. No fairness, delivery or quiescence premise occurs. These helper laws do not prove native callback progress or full transport refinement. |
+| [`Registry.freeze_preserves_poll`](engine/wire/IngressFreezeLaws.lean#L19-L20) | **kernel-witness**: [Vacuity.IngressFreeze.still_selected](tests/vacuity/IngressFreeze.lean). Concrete live source 1 holds value 42 in a two-slot registry. The kernel applies the actual freeze/offer laws, proves the value remains selectable, and refuses replacement99. No fairness, delivery or quiescence premise occurs. These helper laws do not prove native callback progress or full transport refinement. |
+| [`Registry.freeze_idempotent`](engine/wire/IngressFreezeLaws.lean#L22-L23) | **kernel-witness**: [Vacuity.IngressFreeze.repeated](tests/vacuity/IngressFreeze.lean). Concrete live source 1 holds value 42 in a two-slot registry. The kernel applies the actual freeze/offer laws, proves the value remains selectable, and refuses replacement99. No fairness, delivery or quiescence premise occurs. These helper laws do not prove native callback progress or full transport refinement. |
 
 ### How to read the evidence
 
@@ -2658,6 +2677,16 @@ the eight-entry send FIFO alone does not bound every stage's queued work.
 | Reader batch ownership | The actual Reader keeps actions until the transaction and journal read succeed, then claims only its original batch. Local notices remain queued until commit; later arrivals belong to the next snapshot. | Integrated actual SQLite: 29 checks, five compiling controls and restored pass; reader/pruner 9/0 plus its control, 82 demand/34 component checks and lifecycle 39/0 pass. All 1,294 laws and the 670-entry inventory/link checks pass. Cancellation now triggers after an actual query, with both read/publication controls rejected. Partial action/outbox effects after claim remain open. [Evidence and scope](docs/READER-BATCH-OWNERSHIP.md). |
 
 | Cached placeholder pixels | The actual frame retains one exact message tile instead of regenerating it on every publication. The key includes background, width, density and theme; changed keys replace it. | Integrated: six kernel laws/nonempty witnesses, 36 pixel/key checks, 32 actual App publication cases, six compiling controls and restored pass. All 1,300 laws pass the standard-axiom audit. Private CJK runs both passed, without a controlled p95 improvement claim; the original performance failures remain retained. [Evidence and limits](docs/HOLD-CACHE.md). |
+
+
+| Multiplex retry admission | A stable retry order prevents one of three sessions sharing a socket from starving; newcomers join the tail and only actual offerers rotate. UI priority is preserved. | The runtime core proves service or retirement within `p + 1` eligible vacant-reservation opportunities ([`RetryOrder.offered_or_retired`]), with a nonempty infinite-arrival witness. The real TCP trace changes `[60,60,0]` to `[40,40,40]`. Integrated: 29 checks, five runtime controls, one kernel control and restored pass; all 1,330 laws pass the axiom audit. Recurrence of those opportunities and native delivery remain open. [Details](docs/RETRY-ADMISSION.md). |
+
+| Admitted input at transport close | Closing a transport freezes its source and preserves its one admitted frame until selection, preventing close notifications from overtaking signed input. Later offers are refused; explicit authenticated retirement remains immediate. | Six kernel helper laws and nonempty witnesses; integrated actual TCP/Noise/SQLite gate: 40 checks, nine runtime controls, one kernel control and restored pass. The original expiry gate passes 29 checks and both controls. Earlier expiry, OS-buffered bytes and every session-replacement history remain outside this repair. [Details](docs/CLOSE-INGRESS.md). |
+
+The transport freeze laws are [`Registry.freeze_input`],
+[`Registry.freeze_preserves_state`], [`Registry.freeze_preserves_owner`],
+[`Registry.frozen_refuses`], [`Registry.freeze_preserves_poll`] and
+[`Registry.freeze_idempotent`].
 
 The app admission laws are [`WriteAdmission.admitted_frames`],
 [`WriteAdmission.admitted_count`] and [`WriteAdmission.admitted_bytes`].

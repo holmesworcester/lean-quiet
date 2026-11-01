@@ -304,6 +304,9 @@ lean_exe catalog_retry where
 lean_exe reserved_retry where
   root := `tests.engine.ReservedRetry
 
+lean_exe retry_multiplex where
+  root := `tests.engine.RetryMultiplex
+
 lean_exe ingress_tcp where
   root := `tests.engine.IngressTcp
 
@@ -590,3 +593,6 @@ lean_exe desktop_native_presentation where
 
 lean_exe epoch_ingress where
   root := `tests.engine.EpochIngress
+
+lean_exe close_ingress where
+  root := `tests.engine.CloseIngress

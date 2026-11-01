@@ -40,5 +40,12 @@
     "witness": "Vacuity.HoldCache.changed_height",
     "module": "tests.vacuity.HoldCache",
     "detail": "Concrete 1080-pixel, 420-dpi light-theme placeholder with a nonempty generated period; a distinct 160-dpi cache exercises replacement, and changing height from 2209 to 1100 exercises retained tile reuse. The actual cache key includes background bytes, width, density and theme; cell/hover independence reduces in the kernel. These are universal functional pixel/key/reuse equalities for the helper called by App.present, not proofs of pointer sharing, allocation cost, native timing, or global cache-byte bounds. Native reuse and unchanged CJK timing tests are separate evidence."
+  },
+  "cachedMessagePlane_exact": {
+    "status": "kernel-witness",
+    "theorem": "Hold.cachedMessagePlane_exact",
+    "witness": "Vacuity.HoldCache.plane",
+    "module": "tests.vacuity.HoldCache",
+    "detail": "Generated short reference to the same Hold.cachedMessagePlane_exact theorem and the same checked plane witness; this is not an additional theorem. Concrete 1080-pixel, 420-dpi light-theme placeholder with a nonempty generated period; a distinct 160-dpi cache exercises replacement, and changing height from 2209 to 1100 exercises retained tile reuse. The actual cache key includes background bytes, width, density and theme; cell/hover independence reduces in the kernel. These are universal functional pixel/key/reuse equalities for the helper called by App.present, not proofs of pointer sharing, allocation cost, native timing, or global cache-byte bounds. Native reuse and unchanged CJK timing tests are separate evidence."
   }
 }

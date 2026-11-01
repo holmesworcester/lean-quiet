@@ -152,6 +152,8 @@ structure Sock where
   readerDone : Task (Except IO.Error Unit) := Task.pure (.ok ())
   aborter : Option SocketAbort := none
   input : Option Ingress.Source := none
+  /-- A transport close owes exactly its frozen, already-admitted frame. -/
+  closeAfterFrame : Bool := false
 
 /-- Push frames and wake the writer. Ordinary overflow is repairable loss;
 only protected-control refusal returns false and requests transport close.
@@ -405,6 +407,7 @@ def RunState.prepareExpiry (cfg : RunConfig) (st : RunState) (now : Nat) : IO (R
     | .frame sid _ => some sid
     | _ => none
   let readyAddresses := st.socks.filterMap fun s => if ready.contains s.id then some s.addr else none
+  let closing := st.socks.filter (·.closeAfterFrame) |>.map (·.addr)
   let mut sessionGrace := []
   let mut deferred := []
   for (cid, c) in st.node.conns do
@@ -413,7 +416,7 @@ def RunState.prepareExpiry (cfg : RunConfig) (st : RunState) (now : Nat) : IO (R
     let (protect, next) := ExpiryGrace.check (ExpiryGrace.budget cfg.maxSocks) c.heard
       (Decidable.decide (c.heard + x.cfg.live < now)) pending old
     if let some g := next then sessionGrace := (cid, g) :: sessionGrace
-    if protect then deferred := cid :: deferred
+    if protect || (st.node.addr? cid).any closing.contains then deferred := cid :: deferred
   let mut socketGrace := []
   for s in st.socks do
     let old := (st.socketGrace.find? (·.1 == s.id)).map Prod.snd
@@ -536,13 +539,44 @@ def RunState.finishClose (cfg : RunConfig) (r : RunState × Effects) (now : Nat)
 def RunState.closeApply (cfg : RunConfig) (st : RunState) (sid now : Nat) : IO RunState := do
   RunState.finishClose x ch notify cfg (← st.close x sid now) now
 
-/-- A native writer's completion is authoritative even if its nonblocking
-closed notification found the event queue full. Never wait for the task. -/
+/-- A transport failure cannot overtake its source's already admitted
+frame. Freeze under the producer mutex, retain one one-shot obligation, and
+stop future I/O; explicit protocol retirement/shutdown still closes directly.
+Repeated control/reap observations cannot renew or replace the saved frame. -/
+def RunState.transportClosed (cfg : RunConfig) (st : RunState) (sid now : Nat) : IO RunState := do
+  let some s := st.sockOf (·.id == sid) | return st
+  if s.closeAfterFrame then return st
+  s.stopped.request
+  let pending ← match s.input with
+    | some source => st.ingress.freeze source
+    | none => pure none
+  s.stop
+  match pending with
+  | some (.frame source _) =>
+    if source == sid then
+      return { st with socks := st.socks.map fun sock =>
+        if sock.id == sid then { sock with closeAfterFrame := true } else sock }
+    else st.closeApply x ch notify cfg sid now
+  | _ => st.closeApply x ch notify cfg sid now
+
+/-- A finished writer still owes its one frozen admitted input, if any.
+Never wait for a native task or allow new input to replenish that obligation. -/
 def RunState.reap (cfg : RunConfig) (st : RunState) (now : Nat) : IO RunState := do
   let mut st := st
   for s in st.socks do
-    if ← IO.hasFinished s.done then st ← st.closeApply x ch notify cfg s.id now
+    if ← IO.hasFinished s.done then st ← st.transportClosed x ch notify cfg s.id now
   return st
+
+/-- A selected frozen frame can fail after leaving its mailbox. Retire its
+native ownership even if the store also rejects close-time writes; preserve
+the original handler error for the caller. Durable erasure cannot be promised
+while SQLite refuses writes. Ordinary successful retirement is unchanged. -/
+def RunState.failedFrame (cfg : RunConfig) (st : RunState) (s : Sock) (now : Nat) : IO Unit := do
+  s.stopped.request
+  if let some input := s.input then st.ingress.retire input
+  s.stop
+  try discard <| st.closeApply x ch notify cfg s.id now
+  catch _ => pure ()
 
 /-- Handle one event; none to stop. -/
 def RunState.handle (cfg : RunConfig) (st : RunState) (ev : Event) (now : Nat) : IO (Option RunState) := do
@@ -552,11 +586,19 @@ def RunState.handle (cfg : RunConfig) (st : RunState) (ev : Event) (now : Nat) :
     match st.sockOf (·.id == sid) with
     | none => return some st
     | some s =>
-      let st := { st with socks := st.socks.map fun (s' : Sock) => if s'.id == sid then { s' with heard := now } else s' }
-      let x' := { x with room := ← rooms cfg st.socks }
-      let (st, e) ← st.node? fun n => n.step x' (.frame s.addr p) now
-      some <$> st.apply x ch notify cfg e now
-  | .closed sid => return some (← st.closeApply x ch notify cfg sid now)
+      try
+        let st := { st with socks := st.socks.map fun (s' : Sock) => if s'.id == sid then { s' with heard := now } else s' }
+        let x' := { x with room := ← rooms cfg st.socks }
+        let (st, e) ← st.node? fun n => n.step x' (.frame s.addr p) now
+        let st ← st.apply x ch notify cfg e now
+        -- Selection consumes the one frozen obligation even when authentication
+        -- or decoding refused its contents. No second frame can rearm it.
+        if s.closeAfterFrame then return some (← st.closeApply x ch notify cfg sid now)
+        return some st
+      catch error =>
+        if s.closeAfterFrame then st.failedFrame x ch notify cfg s now
+        throw error
+  | .closed sid => return some (← st.transportClosed x ch notify cfg sid now)
   | .lanes reply =>
     reply.resolve (← st.socks.mapM fun s => do return (s.addr, (← s.lanes).bytes))
     return some st
@@ -642,6 +684,7 @@ def RunState.loopBackend (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (
       | .frame sid _ => some sid
       | _ => none
     for s in st.socks do
+      if s.closeAfterFrame then continue
       let grace := (st.socketGrace.find? (·.1 == s.id)).any fun (_, g) =>
         g.heard == s.heard && g.left != 0 && ready.contains s.id
       let since ← s.since

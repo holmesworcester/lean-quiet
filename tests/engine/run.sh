@@ -73,6 +73,7 @@ if [ "${1:-}" != --phone-runtime ]; then
   mise run test:fairness
   mise run test:catalog-retry
   mise run test:reserved-retry
+  mise run test:retry-admission
   mise run test:ingress
   mise run test:native-lifetimes
   mise run test:ref-publications
@@ -80,6 +81,7 @@ if [ "${1:-}" != --phone-runtime ]; then
   mise run test:reader-claim
   mise run test:writer-fairness
   mise run test:expiry-grace
+  mise run test:close-ingress
   mise run test:demand-rank
   tests/engine/restart.sh
   tests/shipped/check.sh engine
