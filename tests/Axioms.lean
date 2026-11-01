@@ -1308,8 +1308,6 @@ end cost
 #print axioms Engine.Sync.tally_le
 #print axioms Engine.Sync.RoomTree.items_add
 #print axioms Engine.Sync.ins_sorted
-#print axioms Engine.Sync.Index.opening_eq
-#print axioms Engine.Sync.Index.answer_eq
 #print axioms Engine.Sync.Tree.exchange_stable
 #print axioms Engine.Sync.Tree.fold_congr
 #print axioms Engine.Sync.Tree.pick_keys_gt
