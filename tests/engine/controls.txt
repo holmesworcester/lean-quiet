@@ -15,7 +15,9 @@ reserved-retry	mise run test:reserved-retry
 ingress	mise run test:ingress
 native-lifetimes	mise run test:native-lifetimes
 ref-publications	mise run test:ref-publications
+reader-prune	mise run test:reader-prune
 writer-fairness	mise run test:writer-fairness
 expiry-grace	mise run test:expiry-grace
+demand-rank	mise run test:demand-rank
 restart	tests/engine/restart.sh
 shipped	tests/shipped/check.sh engine

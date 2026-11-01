@@ -155,6 +155,35 @@ def reader (ck : Checks) : IO Unit := do
   ck.ok "unmount and remount between passes refills the revoked board answer"
     (((← sh.board.get).get? newest).map (·.1) == some (.people 40 true))
 
+  -- A repeated read failure must not restore an earlier scheduling position
+  -- on every worker pass. Inject after a real query; the transaction still
+  -- takes the production rollback/retry path, with no sleeps deciding order.
+  let bad := Reader.Want.people "failing-query".toUTF8
+  let (_, probe) ← (Reader.evalLogged bad).run { rd := db }
+  let some badQuery := probe.log[0]? | throw (IO.userError "failure probe made no query")
+  let retry ← Reader.Shared.new (← IO.mkRef 1)
+  retry.setWants #[bad, newest]
+  let failures ← IO.mkRef 0
+  let stopped ← IO.mkRef false
+  let enabled : IO Bool := do return !(← stopped.get)
+  let initial : Reader.St := {
+    rd := db
+    enabled
+    afterQuery := fun q => do
+      if q == badQuery then
+        failures.modify (· + 1)
+        if (← failures.get) == 3 then stopped.modify (fun _ => true)
+        throw (IO.userError "injected repeatable failure after real SQLite read") }
+  let worker ← IO.asTask (prio := .dedicated) (Reader.work retry stopped initial)
+  await "three failed reader attempts" (IO.hasFinished worker)
+  match ← IO.wait worker with
+  | .error e => throw e
+  | .ok _ => pure ()
+  ck.ok "repeatable read failure cannot starve a retained later query across transaction rollback"
+    (((← retry.board.get).get? newest).map (·.1) == some (.people 40 true))
+  ck.ok "failed query publishes no invented answer and retries after yielding its position"
+    ((← failures.get) == 3 && ((← retry.board.get).get? bad).isNone)
+
 /-- Diagnostic counterexample, not a fix: actual worker completes every
 paint, yet presentation's version reconciliation rejects each older result.
 Only reaction tallies change; the committed message text stays unchanged. -/

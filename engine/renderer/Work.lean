@@ -24,6 +24,9 @@ structure Job (K V : Type) where
 structure Stats where
   started : Nat := 0
   steps : Nat := 0
+  /-- A selected entry has finished its ownership/action path, including
+  cancellation and caught errors. Pending actions and paused polls do not count. -/
+  completedSelections : Nat := 0
   completed : Nat := 0
   cancelled : Nat := 0
   maxUs : Nat := 0
@@ -71,10 +74,9 @@ private partial def run (p : Pool K V) : IO Unit := do
       set { s with running := false }
       return (false, none)
     if s.paused then return (true, none)
-    let key := Demand.next (fun t => s.plan.visible t.key) true (s.jobs.map (·.ticket))
-    let job := key.bind fun k => s.jobs.find? (fun j => j.ticket == k)
-    if let some j := job then
-      set { s with jobs := s.jobs.filter (fun x => x.ticket != j.ticket) }
+    let (job, jobs) := Demand.takeBy (fun j => j.ticket)
+      (fun t => s.plan.visible t.key) true s.jobs
+    set { s with jobs }
     return (true, job)
   match choice with
   | (false, _) => return
@@ -92,6 +94,7 @@ private partial def run (p : Pool K V) : IO Unit := do
       let s ← get
       let stats := { (s.stats) with
         steps := s.stats.steps + (if current then 1 else 0),
+        completedSelections := s.stats.completedSelections + 1,
         maxUs := max s.stats.maxUs elapsed }
       match result with
       | some none =>

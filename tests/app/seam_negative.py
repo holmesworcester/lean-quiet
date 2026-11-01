@@ -16,6 +16,7 @@ def run(args, name):
 
 assert run(['lake', 'build', 'engine.renderer.InputLaws', 'seam', 'seam_app'], 'baseline') == 0
 cases = [
+    ('redundant-geometry', 'platforms/android/twin/layer.c', 'if (!bl_ready && sample == bl_applied_sample) goto complete_tick;', '/* broken: every idle vsync takes the callback slot */', 'native'),
     ('trace-wrong-position', 'platforms/android/twin/layer.c', 'done->composer_y = bl_place[10];',
      'done->composer_y = bl_place[15];', 'native'),
     ('trace-even-disabled', 'platforms/android/twin/layer.c', 'if (bl_trace && d->composer_visible)', 'if (d->composer_visible)', 'native'),
@@ -61,7 +62,7 @@ cases = [
 ]
 # Runtime controls must compile and fail their intended assertion; a compiler
 # error, timeout or signal is not evidence that the behavior was detected.
-native_failures = {'trace-wrong-position': 'trace captures the actual completed composer destination', 'trace-even-disabled': 'debug-disabled composition emits no per-frame trace', 'trace-submitted': 'staging and submission do not emit a presentation trace', 'wait-completion': 'consumed geometry waits for its own completion', 'old-window-completion': 'replacement presentation recovers after its own completion', 'completion-wraps-generation': 'replacement presentation recovers after its own completion', 'unbounded-completions': 'pending animation callback holds new geometry without allocating another callback', 'completion-ignores-reset': 'reset retires delayed ownership without accepting old-surface completion', 'completion-wraps-identity': 'exhausted native identity counters fail closed instead of aliasing a candidate', 'mixed-publication': "pending publication blocks next frame's different dirty layer", 'failed-buffer': 'buffer lock failure propagates', 'early-frame-stamp': 'submitted frame is not stamped until presentation completes'}
+native_failures = {'redundant-geometry': 'unchanged geometry leaves the native callback slot available', 'trace-wrong-position': 'trace captures the actual completed composer destination', 'trace-even-disabled': 'debug-disabled composition emits no per-frame trace', 'trace-submitted': 'staging and submission do not emit a presentation trace', 'wait-completion': 'consumed geometry waits for its own completion', 'old-window-completion': 'replacement presentation recovers after its own completion', 'completion-wraps-generation': 'replacement presentation recovers after its own completion', 'unbounded-completions': 'pending animation callback holds new geometry without allocating another callback', 'completion-ignores-reset': 'reset retires delayed ownership without accepting old-surface completion', 'completion-wraps-identity': 'exhausted native identity counters fail closed instead of aliasing a candidate', 'mixed-publication': "pending publication blocks next frame's different dirty layer", 'failed-buffer': 'buffer lock failure propagates', 'early-frame-stamp': 'submitted frame is not stamped until presentation completes'}
 if sys.argv[1:]:
     selected = set(sys.argv[1:])
     assert selected <= {case[0] for case in cases}, 'unknown mutation'

@@ -80,6 +80,19 @@ def next (visible : K → Bool) (background : Bool) (queued : List K) : Option K
   | some k => some k
   | none => if background then queued.head? else none
 
+/-- Select through the shared visible-first chooser and remove that key.
+The runtime Reader and Work worker call this operation; a selected entry is
+an attempted step even if a later ownership check cancels it. -/
+def takeBy {V : Type} (key : V → K) (visible : K → Bool) (background : Bool)
+    (queued : List V) : Option V × List V :=
+  let found := next (fun v => visible (key v)) background queued
+  (found, match found with
+    | some value => queued.filter (fun v => key v != key value)
+    | none => queued)
+
+def take (visible : K → Bool) (background : Bool) (queued : List K) : Option K × List K :=
+  takeBy id visible background queued
+
 theorem complete_retired (p : Plan K) (t : Ticket K) (value : V)
     (h : p.current t = false) : complete p t value = none := by
   simp [complete, h]

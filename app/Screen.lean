@@ -931,8 +931,6 @@ structure St where
   readAt : Nat := 0
   /-- The passes that opened the store. -/
   opens : Nat := 0
-  /-- FIFO among continuously pending requests, retained across passes. -/
-  queue : List Want := []
   retired : Nat := 0
   /-- Revocation checked before each query and board publication. -/
   enabled : IO Bool := pure true
@@ -972,12 +970,16 @@ structure Shared where
   write and runs its continuation. -/
   done : IO.Ref (Array (Id × Option Community.Write))
   plan : IO.Ref (Demand.Plan Want)
+  /-- Scheduling belongs to this reader lifetime, outside transaction rollback.
+  A failed selected query retries behind retained work on the next pass.
+  stopReader creates a fresh Shared before any replacement worker starts. -/
+  queue : IO.Ref (List Want)
   /-- Protects only demand changes and publication, never database IO. -/
   gate : Std.BaseMutex
 
 def Shared.new (commits : IO.Ref Nat) : IO Shared :=
   return ⟨← IO.mkRef {}, ← IO.mkRef (0, #[]), ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0,
-    commits, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef {}, ← Std.BaseMutex.new⟩
+    commits, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef {}, ← IO.mkRef [], ← Std.BaseMutex.new⟩
 
 def Shared.locked (sh : Shared) (action : IO α) : IO α := do
   sh.gate.lock
@@ -1253,7 +1255,6 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
     let hitActs := (s.live.hit actNotes #[]).toList
     modify fun s => { s with seen := top, live := (s.live.notice fs (vs.map (·.1))).notice notes,
                              passes := s.passes + 1 }
-    sh.seen.modify (fun _ => top)
     -- mark the dirty and the wanted wants those reads name, through the
     -- index; read every want the acts' rows touched, then the first `cap`
     -- other marked in the frame's order: the model's decisions
@@ -1264,14 +1265,15 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
     let marked := (_root_.Live.markHit rev s.dirty hit).filter s.wantSet.contains
     let touched := (_root_.Live.markHit rev {} hitActs).filter s.wantSet.contains
     let ready := _root_.Live.pickActs wants.toList touched marked wants.size
-    let queue := Demand.reconcile ready s.queue
-    modify fun s => { s with dirty := marked, queue }
+    sh.queue.modify (Demand.reconcile ready)
+    modify fun s => { s with dirty := marked }
     let start ← IO.monoMsNow
     let mut published := 0
     for i in [0:cap] do
       if i > 0 && budgetMs > 0 && (← IO.monoMsNow) - start ≥ budgetMs then break
-      let some w := Demand.next (fun w => touched.contains w || plan.visible w) true (← get).queue | break
-      modify fun s => { s with queue := s.queue.filter (· != w) }
+      let choice ← sh.queue.modifyGet
+        (Demand.take (fun w => touched.contains w || plan.visible w) true)
+      let some w := choice | break
       let some ticket := plan.ticket w | continue
       unless ← sh.current ticket do
         modify fun s => { s with retired := s.retired + 1 }
@@ -1290,6 +1292,9 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
       sh.publish ticket v
       published := published + 1
     rd.exec "COMMIT"
+    -- This is the last effect before returning the successful reader state.
+    -- A failed query/COMMIT must leave its notices available to the retry.
+    sh.seen.modify (fun _ => top)
     return published > 0 || moved || !fs.isEmpty || !vs.isEmpty || !acts.isEmpty
   catch e =>
     rd.exec "ROLLBACK"

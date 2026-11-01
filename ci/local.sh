@@ -7,6 +7,7 @@
 #   ci/local.sh part...    just these gates, in order (any name below)
 #
 # 1. Proofs, in this tree, one after another; the first failure stops CI:
+#    driver  this dispatcher's own checks (ci/local-test.py)
 #    build   every library and executable, the native crypto, the assets
 #    check   every law of tests/Axioms.lean rests on standard axioms only
 #    layout  the op tree's layout, and its negative controls (ci/layout.py)
@@ -38,11 +39,11 @@ mkdir -p "$logs"
 jobs=6
 if [ "${1:-}" = -j ]; then jobs=$2; shift 2; fi
 
-proofs=(build check layout readme reorg)
+proofs=(driver build check layout readme reorg)
 # longest first (minutes, measured on the shared box: qr 17, the app
 # groups and engine:harden 10–15, the rest under 5)
 tests=(qr app:2 app:1 app:3 engine:harden engine:fresh engine:suites
-  $(grep -v '^#' "$top/tests/engine/controls.txt" | cut -f1 | grep -vx 'harden\|fresh' | sed 's/^/engine:/')
+  $(grep -v '^#' "$top/tests/engine/controls.txt" 2>/dev/null | cut -f1 | grep -vx 'harden\|fresh' | sed 's/^/engine:/')
   mdns net visual zoom site workspace vacuity)
 # the app's stages, in three groups, each run in its own copy of the tree
 declare -A app_group=([app:1]="fonts input network" [app:2]="desktop navigation lifecycle"
@@ -57,6 +58,7 @@ build_all() {
 
 gate() {
   case $1 in
+    driver) mise run ci:driver-test ;;
     build) build_all ;;
     check) mise run check ;;
     engine) mise run test:engine ;;

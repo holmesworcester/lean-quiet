@@ -114,3 +114,44 @@ and [keyboard visibility](https://developer.android.com/develop/ui/views/touch-a
 The integrated photo-request follow-up is described in
 [ANDROID-PHOTO-LIFETIME.md](ANDROID-PHOTO-LIFETIME.md). Native input ownership
 and total event/worker bounds remain separate open work.
+
+
+## Avoiding unchanged native transactions
+
+Later validation of combined production `425979e` retained two failures of the
+original keyboard animation check: five completed composer positions, below
+its unchanged minimum of six. A trace-only Java build with identical native
+libraries and assets observed 19 distinct inset heights. The compositor also
+submitted unchanged idle geometry on every vsync, occupying its sole pending
+callback slot.
+
+The native renderer now skips a geometry-only transaction when the rounded
+scroll sample equals the last submitted sample. A fresh publication always
+gets its own transaction and exact receipt, even at unchanged geometry. Real
+scroll changes, surface replacement, and the one-outstanding-callback limit
+are preserved. The regression sends 10,000 unchanged ticks, checks rounded
+subpixel motion, and requires a new unchanged publication to receive its own
+acknowledgement. Restoring idle submissions must fail the callback-slot check.
+
+On the private pre-reorganization candidate, both Android ABIs built, the
+original device suite passed 17/0 with six positions, and all 13 native
+controls were rejected; its host suite passed 42 checks. The integrated host
+suite passes 44 checks, including the later refused-staging receipt tests.
+All 40 integrated seam controls are rejected, including the 13 native controls;
+the restored host suites pass. The original named `android:twin-demo-e2e`
+then passes on exact integrated commit `ce76360`: 17/0, seven completed
+positions against the unchanged minimum six, and both x86_64/arm64-v8a
+ABIs built. All 1,682 tracked source hashes match before and after; no
+source/test overlay is present. Three separate 120-frame aggregates measured
+Lean 0.4–0.5 ms, copying 0.6–0.8 ms and native show/wait 40.9–44.5 ms per
+frame. These are not controlled timing comparisons or theorem bounds. Exact
+APK/source hashes, logs and screenshots are retained in
+`/mnt/storage/holmes-tmp/android-combined-ce76360`. Newer semantic-input work
+is separate. Original failures and diagnostics are retained in
+`/mnt/storage/holmes-tmp/android-final-425979e`; main host logs are in
+`out/ci/native-idle-main.log`.
+
+Host CPU affinity was not exclusive. Aggregate native handoff time was
+58.9 ms versus 56 ms before, so these results establish neither a timing
+improvement nor a universal elapsed-time bound. The theorem target remains
+each pipeline stage's completed steps; native timing is a separate measurement.
