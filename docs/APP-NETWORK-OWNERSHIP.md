@@ -57,9 +57,9 @@ native cleanup still needs progress outside this slot protocol. Counts refer
 to completed service stages; measured native milliseconds are regression
 observations, not an OS scheduling or whole-pipeline latency bound.
 
-On the merged source (origin/main `b399644` plus the stop-UI, frame-time
-and Reader ownership repairs), all 1,409 audited laws pass the standard-axiom
-audit and the evidence inventory passes (724 entries; the 16 declarations
+On the merged source (origin/main `87df409` plus the stop-UI, frame-time
+and Reader ownership repairs), all 1,401 audited laws pass the standard-axiom
+audit and the evidence inventory passes (716 entries; the 16 declarations
 main leaves pending are unchanged). This suite passes 52
 checks, all five controls and restoration. Compatibility on the same source:
 failed-runner 77 checks with seven controls, normal suspend 51 with three,
