@@ -530,8 +530,9 @@ theorem write_offers (n : Node) (cid : Id) (c : Conn) (o : Op) (r : Id) (a : Byt
       p.1.1.managed = [] ∧ p.1.1.addrs = n.addrs ∧
       p.1.2.send = [(a, plainFrame cid [(Msg.hold r [o.id]).op.bytes])] ∧ p.2 = turnH S.fam [o] h ∧ p.1.1.ix = n.ix.add S.fam o := by
   have hs' := has_of_mem hs
+  have hd := durable_of_room S.fam hr
   simp only [Node.addr?] at ha
-  simp [Node.onWrite, store_run, Node.put, intake, write_one _ _ _ _ hn, Node.fanout, hc, Conn.filed,
+  simp [Node.onWrite, store_run, Node.put, intake, List.filter_cons, hd, write_one _ _ _ _ hn, Node.fanout, hc, Conn.filed,
     turnH_one _ _ _ hn, hk, ho, Conn.setRooms, Conn.shows, hr, hs', finish_run, hm, Node.heat, Node.sent, sends,
     holdsOf_one _ _ _ hmax, Node.addr?, ha]
 
@@ -1380,20 +1381,23 @@ theorem write_offers_all (n : Node) (ops : List Op) (t : Nat) (h : Held F) (hm :
     (ha : n.addr? cid = some a) (hmax : 0 < S.cfg.maxIds) :
     ∃ ps l, (a, plainFrame cid ps) ∈ ((n.onWrite (S.sync s) ops t).run h).1.2.send ∧
       (Msg.hold r l).op.bytes ∈ ps ∧ o.id ∈ l := by
-  obtain ⟨hid, hget, hcn, han, hmn⟩ := write_mem (S.sync s) n ops o h ho hn hu
+  have ho' : o ∈ ops.filter (S.sync s).fam.durable := List.mem_filter.2 ⟨ho, durable_of_room S.fam hr⟩
+  have hu' : ∀ y ∈ ops.filter (S.sync s).fam.durable, y.id = o.id → y = o :=
+    fun y hy => hu y (List.mem_filter.1 hy).1
+  obtain ⟨hid, hget, hcn, han, hmn⟩ := write_mem (S.sync s) n _ o h ho' hn hu'
   have hsh : (c.setRooms (S.rooms s cid)).shows S.fam o = true := by
     simp [Conn.shows, Conn.setRooms, hr, has_of_mem hs]
-  have hc' : (cid, c) ∈ ((n.write (S.sync s) ops).run h).1.1.conns := by rw [hcn]; exact hc
+  have hc' : (cid, c) ∈ ((n.write (S.sync s) (ops.filter (S.sync s).fam.durable)).run h).1.1.conns := by rw [hcn]; exact hc
   obtain ⟨⟨l, hl, hol⟩, -, han', hmn'⟩ := fanout_offers S s _ _ _ cid c hc' o.id o r hid hget hr hsh hk hof hmax
-  have hne : (((n.write (S.sync s) ops).run h).1.2).isEmpty = false := by
-    cases hx : ((n.write (S.sync s) ops).run h).1.2 with
+  have hne : (((n.write (S.sync s) (ops.filter (S.sync s).fam.durable)).run h).1.2).isEmpty = false := by
+    cases hx : ((n.write (S.sync s) (ops.filter (S.sync s).fam.durable)).run h).1.2 with
     | nil => rw [hx] at hid; cases hid
     | cons _ _ => rfl
   simp only [Node.onWrite, HeldM.run_bind, store_run, Node.put, intake, ite_true, hne, Bool.false_eq_true,
     ite_false]
   rw [finish_run _ _ _ _ _ _ (by rw [heat_managed, hmn', hmn, hm]), seal_heat]
-  have ha' : (((n.write (S.sync s) ops).run h).1.1.fanout (S.sync s)
-      ((n.write (S.sync s) ops).run h).1.2).run ((n.write (S.sync s) ops).run h).2 |>.1.1.addr? cid = some a := by
+  have ha' : (((n.write (S.sync s) (ops.filter (S.sync s).fam.durable)).run h).1.1.fanout (S.sync s)
+      ((n.write (S.sync s) (ops.filter (S.sync s).fam.durable)).run h).1.2).run ((n.write (S.sync s) (ops.filter (S.sync s).fam.durable)).run h).2 |>.1.1.addr? cid = some a := by
     simp only [Node.addr?] at ha ⊢; rw [han', han]; exact ha
   obtain ⟨g, hpg, hg⟩ := seal_mem S s _ _ _ cid _ a hl ha'
   exact ⟨g, l, List.mem_append_left _ (List.mem_append_left _ hg), hpg, hol⟩

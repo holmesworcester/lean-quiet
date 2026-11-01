@@ -1995,6 +1995,22 @@ def PageId.all : List PageId :=
    .waiting, .requests, .invite, .switcher, .profile, .removeConfirm, .duplicate, .you, .appearance, .label,
    .communitySettings, .channelSettings, .stub]
 
+def PageId.code : PageId → Nat
+  | .home => 0 | .chat => 1 | .getStarted => 2 | .create => 3 | .createName => 4
+  | .joinChoice => 5 | .openInvite => 6 | .paste => 7 | .scan => 8 | .name => 9
+  | .agree => 10 | .waiting => 11 | .requests => 12 | .invite => 13 | .switcher => 14
+  | .profile => 15 | .removeConfirm => 16 | .duplicate => 17 | .you => 18 | .appearance => 19 | .label => 20
+  | .communitySettings => 21 | .channelSettings => 22 | .stub => 23
+
+def PageId.ofCode : Nat → PageId
+  | 0 => .home | 1 => .chat | 2 => .getStarted | 3 => .create | 4 => .createName
+  | 5 => .joinChoice | 6 => .openInvite | 7 => .paste | 8 => .scan | 9 => .name
+  | 10 => .agree | 11 => .waiting | 12 => .requests | 13 => .invite | 14 => .switcher
+  | 15 => .profile | 16 => .removeConfirm | 17 => .duplicate | 18 => .you | 19 => .appearance | 20 => .label
+  | 21 => .communitySettings | 22 => .channelSettings | 23 => .stub | _ => .getStarted
+
+theorem page_round (p : PageId) : PageId.ofCode p.code = p := by cases p <;> rfl
+
 def PageId.drawer : PageId → Bool
   | .you | .appearance | .communitySettings | .channelSettings | .stub => true
   | _ => false
@@ -2095,6 +2111,11 @@ structure St where
   /-- The newest appearance's revision this device holds (the store's,
   or the last chosen here): a choice writes the next one. -/
   themeRev : Nat := 0
+  /-- The app's ephemeral log: its working state as ops, in memory only
+  (Engine.Scope.ephemeral). Today: this window's place, one nav op. -/
+  eph : Engine.Sync.Held SF := {}
+  /-- The newest nav op's generation: a change of page writes the next. -/
+  navGen : Nat := 0
   wide : Bool := false
   mobile : Bool := true
   editorFocused : Bool := false
@@ -2338,8 +2359,18 @@ def c (s : St) : Id := s.me.c
 /-- The page and the back stack, as Nav has them. -/
 def St.nav (s : St) : Nav.Nav PageId := ⟨s.page, s.backStack⟩
 
-/-- The page and the back stack, set to a Nav step's. -/
-def St.withNav (s : St) (n : Nav.Nav PageId) : St := { s with editorEpoch := s.editorEpoch + 1, page := n.page, backStack := n.stack, ownSends := if n.page == .chat then s.ownSends else {}, presenting := if n.page == .chat then s.presenting else none }
+/-- The page and the back stack, set to a Nav step's. A change of page: a nav op, one generation past the newest, in place
+of the ephemeral log's nav op (`Data.placeIn`), and the page and stack it
+names as the frame's cache of it (`withNav_cache`). -/
+def St.withNav (s : St) (n : Nav.Nav PageId) : St := { s with page := n.page, backStack := n.stack, eph := Data.placeIn s.eph (s.navGen + 1) n.page.code (n.stack.map PageId.code), navGen := s.navGen + 1, editorEpoch := s.editorEpoch + 1, ownSends := if n.page == .chat then s.ownSends else {}, presenting := if n.page == .chat then s.presenting else none }
+
+/-- This window's place as the ephemeral log has it: the page and the
+back stack its newest nav op names (`withNav_cache`: the frame's cache of
+it); the cache's before any is written. -/
+def St.logNav (s : St) : Nat × List Nat :=
+  match Data.navOf s.eph with
+  | some (_, f) => (f.page, f.stack)
+  | none => (s.page.code, s.backStack.map PageId.code)
 
 /-- In at least one community: some acceptance that is not a join still
 waiting to be let in. -/
@@ -2398,22 +2429,6 @@ Only suspend polls for quiescence, with one absolute deadline. `page_round` chec
 
 namespace App
 open Engine Community Data Paint Font Row
-
-def PageId.code : PageId → Nat
-  | .home => 0 | .chat => 1 | .getStarted => 2 | .create => 3 | .createName => 4
-  | .joinChoice => 5 | .openInvite => 6 | .paste => 7 | .scan => 8 | .name => 9
-  | .agree => 10 | .waiting => 11 | .requests => 12 | .invite => 13 | .switcher => 14
-  | .profile => 15 | .removeConfirm => 16 | .duplicate => 17 | .you => 18 | .appearance => 19 | .label => 20
-  | .communitySettings => 21 | .channelSettings => 22 | .stub => 23
-
-def PageId.ofCode : Nat → PageId
-  | 0 => .home | 1 => .chat | 2 => .getStarted | 3 => .create | 4 => .createName
-  | 5 => .joinChoice | 6 => .openInvite | 7 => .paste | 8 => .scan | 9 => .name
-  | 10 => .agree | 11 => .waiting | 12 => .requests | 13 => .invite | 14 => .switcher
-  | 15 => .profile | 16 => .removeConfirm | 17 => .duplicate | 18 => .you | 19 => .appearance | 20 => .label
-  | 21 => .communitySettings | 22 => .channelSettings | 23 => .stub | _ => .getStarted
-
-theorem page_round (p : PageId) : PageId.ofCode p.code = p := by cases p <;> rfl
 
 def fieldPage (p : PageId) : Bool :=
   p == .create || p == .createName || p == .paste || p == .name
@@ -2602,8 +2617,8 @@ def checkpointAnchor (s : St) : Option (Id × Nat) :=
 def checkpoint (s : St) : Lifecycle.Checkpoint :=
   let s := { stashDraft s with mark := checkpointAnchor s }
   let a := s.mark.getD (.empty, 0)
-  (1, s.page.code, s.cur, a.1, a.2,
-    [Codec.encode (s.backStack.map PageId.code), s.field.toUTF8,
+  (1, s.logNav.1, s.cur, a.1, a.2,
+    [Codec.encode s.logNav.2, s.field.toUTF8,
      ((s.invite.map (·.text)).getD "").toUTF8, s.joinName.toUTF8, s.newCommunity.toUTF8,
      removalBytes s.removal,
      Codec.encode (s.profileOf.toList.map fun (u, n, me) => (u, n.toUTF8, me)),
@@ -2951,6 +2966,8 @@ def suspend (budget : Nat := 250) : M Unit := do
   modify fun s => { s with conts := s.conts.fold (fun c id _ => c.insert id .none) {} }
   leavePage
   saveCheckpoint
+  -- Let go of the glyphs the font kept; a resumed frame rasters what it shows.
+  modify fun s => { s with font := s.font.fresh }
   discard <| waitFor deadline do
     reap
     let s ← get
@@ -5644,11 +5661,12 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
            io := io, theme := theme, themeRev, W := W, Hs := Hs, insetTop := safe.y, window, imeH := window.ime.bottom, catalog := catalog,
            dim := ⟨(screen[4]?.getD 420).toNat, font.cell, Theme.effective theme, none⟩,
            insetBot := Hs - safe.bottom, font := font, bgRow := solid (Palette.color (Theme.effective theme) .bg) W, rd := rd,
-           wr := wr, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
+           wr := wr, me := me, comms := comms, cur := me.acc,
            -- a removal already in the store at launch is not announced
            goneSeen := (all.toList.filter (·.removed)).map (·.acc),
            dbPath := dbPath, netCfg := net, sh := sh, raster, rst := some { rd := ← openDb dbPath } }
-  let mut initial := initial
+  -- the start state is a root, written as this window's first nav op
+  let mut initial := initial.withNav (Nav.reset (if comms.isEmpty then .getStarted else .home))
   if let some cp := saved then
     let (version, _, acc, _, _, _) := cp
     if version == 1 then
