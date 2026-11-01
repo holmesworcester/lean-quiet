@@ -1722,9 +1722,9 @@ opportunities and full native delivery remain open.
 [`ofList_wf`]: engine/core/WindowIndex.lean#L445-L445
 [`screen_index`]: engine/renderer/Screen.lean#L258-L261
 [`decoded_started`]: app/community/channel/message/attachment/Screen.lean#L444-L448
-[`image_steady`]: app/community/channel/message/attachment/Screen.lean#L539-L542
-[`image_settles`]: app/community/channel/message/attachment/Screen.lean#L601-L603
-[`image_twice`]: app/community/channel/message/attachment/Screen.lean#L614-L618
+[`image_steady`]: app/community/channel/message/attachment/Screen.lean#L545-L548
+[`image_settles`]: app/community/channel/message/attachment/Screen.lean#L607-L609
+[`image_twice`]: app/community/channel/message/attachment/Screen.lean#L620-L624
 [`RWorld.acts_shown`]: engine/renderer/ActsLaws.lean#L210-L219
 [`seen_take`]: engine/renderer/BoardLaws.lean#L247-L248
 [`World.inv_commit`]: engine/renderer/BoardLaws.lean#L337-L338
