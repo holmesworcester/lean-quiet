@@ -107,7 +107,7 @@ theorem recv_cases (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b : 
       | hello f =>
         simp only [HeldM.run_pure]
         split
-        · unfold Conn.start; split <;> exact ⟨rfl, Or.inl rfl⟩
+        · exact ⟨Conn.start_drop .., Or.inl (Conn.start_take ..)⟩
         · exact ⟨rfl, Or.inl rfl⟩
       | rbsr r k cs =>
         simp only [HeldM.run_pure]
@@ -118,7 +118,11 @@ theorem recv_cases (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b : 
           · exact ⟨rfl, Or.inl rfl⟩
           · dsimp only; split <;> exact ⟨rfl, Or.inl rfl⟩
       | hold r ids =>
-        simp only [HeldM.run_bind, HeldM.run_pure]
+        dsimp only
+        split
+        · -- an empty have asks for a round (`Conn.onAsk`): no take, no drop
+          exact ⟨rfl, Or.inl rfl⟩
+        try simp only [HeldM.run_bind, HeldM.run_pure]
         refine ⟨?_, Or.inl (onHold_take fam _ cfg r ids h)⟩
         unfold Conn.onHold
         split
