@@ -2646,6 +2646,10 @@ def retirePaints (s : St) : M Unit := do
 page never discards their writes or runs their UI continuations. -/
 def parkDone (sh : Reader.Shared) : M Unit := do
   let done ← sh.done.modifyGet fun ds => (ds, #[])
+  -- an act still registered runs its continuation (applyDone): after a
+  -- page change, the act it was for; after suspension, nothing (`suspend`
+  -- makes every continuation `.none`)
+  modify fun s => { s with doneQ := s.doneQ ++ done.filter fun (id, _) => s.conts.contains id }
   let writes := done.filterMap fun (_, w) => w.map (·.ops)
   if writes.isEmpty then return
   modify fun s => { s with
@@ -2733,7 +2737,8 @@ def stopReader : M Unit := do
   if let some w := s.reader then w.requestStop
   parkDone s.sh
   let out ← s.sh.out.get
-  s.sh.acts.set #[]
+  -- acts not yet run are the user's writes: the next reader runs them
+  let carried ← s.sh.acts.modifyGet fun a => (a, #[])
   s.sh.setWants #[]
   s.sh.board.set {}
   s.sh.out.set #[]
@@ -2741,6 +2746,7 @@ def stopReader : M Unit := do
   s.sh.seen.set 0
   let sh ← Reader.Shared.new s.wr.count
   sh.out.set out
+  sh.acts.set carried
   modify fun s => { s with
     sh, reader := none,
     readerStop := s.reader.orElse fun _ => s.readerStop,
@@ -2894,6 +2900,9 @@ def suspend (budget : Nat := 250) : M Unit := do
     modify fun s => { s with netStop := some stopping, netReplay := some replay, toNode := #[] }
   modify fun s => { s with net := none, netBoot := none, restoreAnchor := s.mark.isSome }
   s.wr.setPaused false
+  -- the acts in flight still write, but no UI continuation outlives this
+  -- lifetime
+  modify fun s => { s with conts := s.conts.fold (fun c id _ => c.insert id .none) {} }
   leavePage
   saveCheckpoint
   discard <| waitFor deadline do
@@ -3155,6 +3164,8 @@ def act (intent : Reader.RM Community.Write) : M Id := do
   if !(← get).life.mounted then return .empty
   let id ← newBytes 16
   (← get).sh.act id intent
+  -- in flight until its result is applied (`wait` is not idle before)
+  modify fun s => { s with conts := s.conts.insert id .none }
   return id
 
 /-- The acts the reader has run: each write submitted, as the frame's
@@ -3785,6 +3796,15 @@ def switchSt (a : Id) (s : St) : St :=
 each frame. -/
 def refreshComms : M Unit := do
   if let some (.comms all) ← query ⟨["session".toUTF8, "communities".toUTF8], true⟩ .comms then applyComms all
+
+/-- The communities read now, on the frame's own connection: for test
+harnesses that write their fixtures straight to the store. The app never
+calls it: its communities come from the reader (`refreshComms`), and its
+actions' continuations wait for them (`applyDone`). -/
+def refreshCommsNow : M Unit := do
+  let known := (← get).comms
+  let (all, _) ← transaction (Kinds.Accepted.read known)
+  applyComms all
 
 /-- Make the entry of acceptance `a` the current one (memory only): the
 list starts again from its newest. An entry is its acceptance, never its
@@ -4728,6 +4748,9 @@ def command (line : String) : M Bool := do
   | "wait" =>
     if (← s.wr.busy.get) > 0 && !(← s.wr.paused.get) || !(← s.wr.jobs.get).isEmpty && !(← s.wr.paused.get) then
       return false
+    -- an act in flight (the reader has not run it, or the frame has not
+    -- applied its result) is work still to do
+    if !s.conts.isEmpty || !s.doneQ.isEmpty then return false
     s.io.ctlReply s!"idle total {s.total}"
   | "send" =>
     let ok ← sendTextAct rest
