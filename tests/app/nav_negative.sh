@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Navigation's negative controls: each mutant breaks one rule of
 # engine/renderer/Nav.lean or of App's steps over it, so that a law of Nav
-# or of app/app/NavLaws is false. Building the laws must then fail. Runs
+# or of NavLaws (app/Proofs) is false. Building the laws must then fail. Runs
 # in a scratch copy, never in this tree (needs the tree built).
 set -euo pipefail
 cd "$(dirname "$0")/../.."

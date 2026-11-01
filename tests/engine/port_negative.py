@@ -6,7 +6,7 @@ group = sys.argv[3]
 logs.mkdir(parents=True, exist_ok=True)
 cases = {
     "people": [
-        ("unbounded-admissions", "app/community/profile/View.lean",
+        ("unbounded-admissions", "app/community/Screen.lean",
          "  let a ← admission.all.read [c] (limit := some m)",
          "  let a ← admission.all.read [c]",
          "header asks for only the newest 1024 admissions"),
