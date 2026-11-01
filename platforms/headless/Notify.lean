@@ -328,7 +328,7 @@ def main (args : List String) : IO UInt32 := do
     if !got then
       let s ← get
       IO.println s!"  diag: held {← heldTotal} mounted {s.life.mounted} rst {s.rst.isSome} active {s.active} keep {s.keepSync} netStop {s.netStop.isSome}"
-      IO.println s!"  diag: last turn held {(s.notesKey.map fun (_, _, xs) => xs.map fun (_, sn) => sn.rows.map (·.text)).getD []}"
+      IO.println s!"  diag: last turn held {(s.notesKey.map fun (_, _, xs) => xs.map fun (_, sn) => sn.rows.map fun (r : Kinds.Notify.Row) => r.text).getD []}"
       IO.println s!"  diag: packets since {((← sb.notes.get).extract n0 (← sb.notes.get).size).toList}"
     check "with Sync in the background on, a post arriving in the background alerts" got
     check "and nothing is drawn" ((← sb.frames.get) == f0)

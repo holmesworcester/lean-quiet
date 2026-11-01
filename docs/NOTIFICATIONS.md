@@ -278,10 +278,13 @@ The `notify` test checks that the message is then wholly on screen, with
   (at launch with the setting on, or on toggle), because Android forbids
   starting a foreground service from the background. It runs until the
   setting is turned off.
-- **Limit.** Lean's loop runs on the NativeActivity's thread. The service
-  keeps the process alive while the activity is stopped (home, another
-  app, screen off). If the activity is destroyed (swiped from recents),
-  Lean's main returns and the process exits, as before.
+- **Swiping the app away stops sync** (the user: "swipe away stop is
+  fine"). Lean's loop runs on the NativeActivity's thread. With the
+  setting on, the service keeps the process syncing and notifying while
+  the activity is merely stopped: home, another app, or the screen off.
+  When the app is swiped away from recents, the activity is destroyed,
+  Lean's main returns and the process exits, as it always has. Sync
+  resumes the next time Quiet is opened.
 
 ## Tests
 
