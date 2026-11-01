@@ -17,6 +17,8 @@
 #    readme  the README's theorem links and the laws not yet about running
 #            code, against tests/Wiring.lean (ci/proof-links.py)
 #    reorg   the reorg's import rewriter (ci/reorg-imports.py --self-test)
+#    headline  the headline laws' axioms and spec surfaces, docs/HEADLINE.md
+#            against them, and the draft Comparator files (tests/headline.sh)
 # 2. The gate's tests, at once. Each is deterministic and runs in this
 #    tree in one process at a time: no TCP, no X, no clock it must beat,
 #    no source edited (the tree is checked unchanged after them):
@@ -57,7 +59,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-proofs=(driver build check layout readme reorg)
+proofs=(driver build check layout readme reorg headline)
 fast=(engine:suites visual headless vacuity)
 # longest first (minutes, measured on the shared box: app:2 and app:3
 # 40–55, qr 24, app:1 17, engine:harden 14, the rest under 10)
@@ -116,6 +118,7 @@ gate() {
     readme) mise run readme:links ;;
     layout) mise run layout:check ;;
     reorg) mise run reorg:test ;;
+    headline) mise run test:headline ;;
     vacuity) mise run test:vacuity ;;
     crypto-failure) mise run test:crypto-failure ;;
     fairness) mise run test:fairness ;;
