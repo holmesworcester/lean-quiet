@@ -1114,15 +1114,21 @@ The gates are mise tasks (`mise tasks` lists every task):
 - `mise run readme:links`: the README's theorem links match the code.
 
 CI runs locally for now:
-- `ci/local.sh` runs the proofs first (driver, build, check, layout,
-  readme, reorg; the first failure stops it), then every test part in
-  parallel (`-j N`, 6 by default), each isolated: the engine's suites and
-  each of its negative controls (`tests/engine/controls.txt`) are parts of
-  their own, and the app's stages run in three groups, each in its own
-  copy of the built tree. Each part has a time limit (`PART_TIMEOUT`, 90
-  minutes): a part that hangs fails and the rest go on.
-  `ci/local.sh check app` runs just those gates. Logs go to `out/ci/`.
-  `mise run ci` runs it.
+- `ci/local.sh` (`mise run ci`) is the gate, run before every push to
+  main. It takes minutes. It runs the proofs first (driver, build, check,
+  layout, readme, reorg; the first failure stops it), then the fast tests
+  at once: vacuity, the pixels (real ops, store, queries and renderer
+  against pinned libquiet screens), the app's programs on the headless
+  twin, and the engine's suites without TCP. Each is deterministic: no
+  sockets, no X, no clock to beat, no source edited.
+- `ci/local.sh --full` (`mise run ci:full`) runs the gate, then every
+  other part in parallel (`-j N`, 6 by default), each isolated: the
+  negative controls' mutants, TCP, X, qr, mdns, net, zoom, the site and
+  the workspace. It runs nightly and before a release. A bug it finds
+  that the gate missed becomes a law over the running code (and an entry
+  in [docs/CAUGHT.md](docs/CAUGHT.md)), so the gate catches it next time.
+- `ci/local.sh check visual` runs just those parts. Each part has a time
+  limit (`PART_TIMEOUT`, 90 minutes). Logs go to `out/ci/`.
 - `ci/workflow.yml` is the same for a hosted runner, and is not in use.
 
 Sync's design is [docs/SYNC.md](docs/SYNC.md).

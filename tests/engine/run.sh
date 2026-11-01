@@ -23,6 +23,17 @@ cd "$(dirname "$0")/../.."
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
 (cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
+# --tcp: only the suites over localhost TCP (ci/local.sh's engine:tcp; its
+# gate runs the rest with SKIP_TCP=1).
+if [ "${1:-}" = --tcp ]; then
+  lake build poolstarve tcppair jointcp
+  mkdir -p out
+  .lake/build/bin/poolstarve
+  .lake/build/bin/tcppair out/tcppair
+  .lake/build/bin/jointcp out/jointcp
+  tests/engine/jointcp_busy.sh
+  exit 0
+fi
 if [ "${1:-}" = --phone-runtime ]; then
   python3 platforms/headless/build_runtime.py
   python3 tests/shipped/runtime.py | tee out/phone-runtime/runtime-check.log

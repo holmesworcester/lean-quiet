@@ -9,6 +9,12 @@ and keep the code as it was as a `control` in tests/wiring.txt.
 Bugs found some other way and pinned by a law afterwards are listed
 apart, at the end: there the law came second.
 
+The gate (`ci/local.sh`) is the proofs and a few fast, deterministic
+tests; the rest (`ci/local.sh --full`) runs nightly and before a release.
+A bug the full run, dogfooding or a user finds that the gate missed is an
+escape. It goes at the end with the law that now catches it, so the gate
+catches it next time. The aim is no escapes.
+
 ## Caught by a law
 
 ### Back to the switcher lost its backdrop (566e566, 2026-10-31)

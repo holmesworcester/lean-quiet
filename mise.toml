@@ -140,7 +140,7 @@ description = "The reorg's import rewriter (ci/reorg-imports.py) on a copy of ev
 run = "python3 ci/reorg-imports.py --self-test"
 
 [tasks.ci]
-description = "Local CI: the proofs, then every test part in parallel, each isolated; logs in out/ci (ci/local.sh)"
+description = "The gate before every push to main: the proofs, then the fast deterministic tests at once; logs in out/ci (ci/local.sh)"
 run = "ci/local.sh"
 
 [tasks.crypto]
@@ -644,6 +644,15 @@ run = "tests/app/desktop_presentation.sh"
 description = "Build and run actual desktop publication under private Xvfb with MIT-SHM and PutImage; exact receipts, hidden/resize/input-pressure controls and real composer"
 depends = ["crypto"]
 run = "tests/app/desktop_presentation_native.sh"
+
+[tasks."test:headless"]
+description = "The app's programs on the headless twin, each in one process: session, two apps by link, chunked photo arrival, picture retry, scroll seams, node queue, inkless frame"
+depends = ["crypto"]
+run = "tests/app/headless.sh"
+
+[tasks."ci:full"]
+description = "The gate, then every other part: mutants, TCP, X, qr, mdns, net, zoom, site, workspace (nightly, and before a release)"
+run = "ci/local.sh --full"
 
 [tasks."ci:driver-test"]
 description = "Exercise actual CI dispatch, both Android photo gates and failure propagation without device provisioning"

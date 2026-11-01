@@ -1,27 +1,39 @@
 #!/usr/bin/env bash
-# Local CI: the proofs first, then the tests in parallel, each isolated.
-# The bootstrap-progress workflow uses these same gates when enabled.
+# Local CI: the gate (the proofs, then the fast tests at once), and with
+# --full every other test part too.
 #
-#   ci/local.sh            the proofs, then every test part, 6 at once
-#   ci/local.sh -j N       at most N test parts at once
-#   ci/local.sh part...    just these gates, in order (any name below)
+#   ci/local.sh            the gate, before every push to main (minutes)
+#   ci/local.sh --full     the gate, then every other part: nightly, and
+#                          before a release
+#   ci/local.sh -j N ...   at most N test parts at once (6 by default)
+#   ci/local.sh part...    just these parts, in order (any name below)
 #
-# 1. Proofs, in this tree, one after another; the first failure stops CI:
+# 1. The proofs, in this tree, one after another; the first failure stops CI:
 #    driver  this dispatcher's own checks (ci/local-test.py)
-#    build   every library and executable, the native crypto, the assets
+#    build   every library and executable, so every law; the native
+#            crypto; the assets
 #    check   every law of tests/Axioms.lean rests on standard axioms only
 #    layout  the op tree's layout, and its negative controls (ci/layout.py)
 #    readme  the README's theorem links and the laws not yet about running
 #            code, against tests/Wiring.lean (ci/proof-links.py)
 #    reorg   the reorg's import rewriter (ci/reorg-imports.py --self-test)
-# 2. Tests, at most N at once, longest first. A part writes only its own
-#    out/ directories and scratch copies: a negative control's mutants work
-#    in snapshots (tests/snapshot.sh), and TCP ports and X displays come
-#    from the OS. The engine's suites are one part (engine:suites) and each
-#    of its negative controls another (engine:<name>, tests/engine/
-#    controls.txt). The app's controls edit sources in place, so its stages
-#    run in three groups (app:1, app:2, app:3), each in its own copy of the
-#    built tree ($TMPDIR/ci-app-*, deleted after; its out/ copied back).
+# 2. The gate's tests, at once. Each is deterministic and runs in this
+#    tree in one process at a time: no TCP, no X, no clock it must beat,
+#    no source edited (the tree is checked unchanged after them):
+#    vacuity        every law's hypotheses can hold together
+#    visual         real ops, store, queries and renderer, drawn to pixels
+#                   and compared with pinned libquiet screens
+#    headless       the app's programs on the headless twin
+#                   (tests/app/headless.sh)
+#    engine:suites  the engine's suites (SQLite, codec, wire, sync, purge,
+#                   Merkle, notices, costs, kill -9), without TCP
+# 3. --full: every other part, longest first. The negative controls'
+#    mutants (engine:<name>, tests/engine/controls.txt; the app's, among
+#    its stages), real TCP (engine:tcp, net, mdns), X and the desktop
+#    shell, qr, zoom, site, the workspace. A mutant works in a snapshot
+#    (tests/snapshot.sh); the app's stages edit sources in place, so they
+#    run in three groups (app:1, app:2, app:3), each in its own copy of
+#    the built tree ($TMPDIR/ci-app-*, deleted after; its out/ copied back).
 #
 # Each part has PART_TIMEOUT seconds (5400 by default): a part that hangs
 # fails, its processes killed, and the others go on.
@@ -36,15 +48,23 @@ export PATH="$ELAN_HOME/bin:$PATH"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 logs=$top/out/ci
 mkdir -p "$logs"
-jobs=6
-if [ "${1:-}" = -j ]; then jobs=$2; shift 2; fi
+jobs=6 full=0
+while [ $# -gt 0 ]; do
+  case $1 in
+    -j) jobs=$2; shift 2 ;;
+    --full) full=1; shift ;;
+    *) break ;;
+  esac
+done
 
 proofs=(driver build check layout readme reorg)
-# longest first (minutes, measured on the shared box: qr 17, the app
-# groups and engine:harden 10–15, the rest under 5)
-tests=(qr app:2 app:1 app:3 engine:harden engine:fresh engine:suites
-  $(grep -v '^#' "$top/tests/engine/controls.txt" 2>/dev/null | cut -f1 | grep -vx 'harden\|fresh' | sed 's/^/engine:/')
-  mdns net visual zoom site workspace vacuity)
+fast=(engine:suites visual headless vacuity)
+# longest first (minutes, measured on the shared box: app:2 and app:3
+# 40–55, qr 24, app:1 17, engine:harden 14, the rest under 10)
+rest=(app:3 app:2 qr app:1 engine:harden engine:ref-publications engine:catalog-retry engine:fresh
+  $(grep -v '^#' "$top/tests/engine/controls.txt" 2>/dev/null | cut -f1 |
+    grep -vx 'harden\|ref-publications\|catalog-retry\|fresh' | sed 's/^/engine:/')
+  engine:tcp mdns net zoom owned-input site workspace)
 # the app's stages, in three groups, each run in its own copy of the tree
 declare -A app_group=([app:1]="fonts input network" [app:2]="desktop navigation lifecycle"
   [app:3]="appearance safety components")
@@ -62,7 +82,9 @@ gate() {
     build) build_all ;;
     check) mise run check ;;
     engine) mise run test:engine ;;
-    engine:suites) tests/engine/run.sh --suites ;;
+    engine:suites) SKIP_TCP=1 tests/engine/run.sh --suites ;;
+    engine:tcp) tests/engine/run.sh --tcp ;;
+    headless) mise run test:headless ;;
     engine:*) local cmd
       cmd=$(awk -F'\t' -v n="${1#engine:}" '$1 == n { print $2 }' tests/engine/controls.txt)
       [ -n "$cmd" ] || { echo "no engine control ${1#engine:}" >&2; return 2; }
@@ -127,17 +149,28 @@ run() {
 
 rm -f "$logs/failed"
 t_start=$(date +%s)
+# Run test parts at once, at most $jobs, each in the background.
+parallel() {
+  for p in "$@"; do
+    while [ "$(jobs -rp | wc -l)" -ge "$jobs" ]; do wait -n; done
+    run "$p" &
+  done
+  wait
+}
 if [ $# -gt 0 ]; then
   for p in "$@"; do run "$p"; done
 else
   for p in "${proofs[@]}"; do
     run "$p" || { echo "the proofs failed at $p: no tests run"; exit 1; }
   done
-  for p in "${tests[@]}"; do
-    while [ "$(jobs -rp | wc -l)" -ge "$jobs" ]; do wait -n; done
-    run "$p" &
-  done
-  wait
+  # the gate's tests edit nothing: the tree after them is the tree before
+  tree() { git -C "$top" status --porcelain=v1 --untracked-files=no | sort; git -C "$top" diff HEAD | sha1sum; }
+  before=$(tree)
+  if [ "$full" = 1 ]; then parallel "${fast[@]}" "${rest[@]}"; else parallel "${fast[@]}"; fi
+  if [ "$(tree)" != "$before" ]; then
+    echo "FAIL a test edited the tree:"; git -C "$top" status --short --untracked-files=no
+    echo tree >> "$logs/failed"
+  fi
 fi
 echo "($(( $(date +%s) - t_start )) s)"
 if [ -s "$logs/failed" ]; then echo "failed: $(tr '\n' ' ' < "$logs/failed")"; exit 1; fi
@@ -145,6 +178,10 @@ if [ -n "${APP_TEST_FROM:-}" ]; then
   echo "all enabled checks pass; app resumed at $APP_TEST_FROM (earlier stages were NOT rerun)"
 elif [ "${SKIP_TCP:-0}" = 1 ]; then
   echo "all enabled checks pass; TCP suites built but NOT run (SKIP_TCP=1)"
-else
+elif [ $# -gt 0 ]; then
+  echo "these parts pass: $*"
+elif [ "$full" = 1 ]; then
   echo "all parts pass"
+else
+  echo "the gate passes (ci/local.sh --full runs the rest)"
 fi
