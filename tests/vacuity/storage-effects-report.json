@@ -181,14 +181,6 @@
     "module": "tests.vacuity.StorageEffects",
     "detail": "After the actual bootstrap prefix, Alice's actual removeMember intent writes one removal of Bob's user as a production local write. trace_good supplies the store invariant and empty queue for that exact trace; the runner checks the removal's own verdict is a Valid removal of Bob's user, that every stored Valid admission of Bob's node key is Bob's (Inv rules out verdicts on unstored ids), and that Bob's admission is still Valid, so the ownership premise is not vacuous. Each admission of Bob's node key is then cut (Bob's user removed), and the trace law refuses the key. With the removal withheld the certificate rejects. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, two peers and FIFO delivery, not captured user messages or a proof of native SQLite/TCP refinement."
   },
-  "rooms_cut_trace": {
-    "status": "conditional",
-    "theorem": "Connection.Execution.rooms_cut_trace",
-    "witness": "Vacuity.StorageEffects.roomsCutCertificateFor",
-    "module": "tests.vacuity.StorageEffects",
-    "exercise": true,
-    "detail": "The certificate applies the trace law after Alice's removal write, with Alice natively a live member (her meV key is taken by her trust rule) and Bob's removal Valid; it rejects with the removal withheld. Open: the peer premise holds only over no peers. The removal write's own entry point closes Alice's session with Bob (conns 1 to 0, its established facts purged, checked natively), so no reachable two-peer state keeps a session naming a removed peer. The at-rest case with a live session is witnessed for rooms_cut_node by IdentityLifecycle.roomsCutNode over a directly ingested store. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, two peers and FIFO delivery, not captured user messages or a proof of native SQLite/TCP refinement."
-  },
   "Run.good": {
     "status": "runtime-witness",
     "theorem": "Connection.Execution.Run.good",

@@ -1427,7 +1427,6 @@ end cost
 #print axioms Connection.Execution.refuse_nonmember_trace
 #print axioms Connection.Execution.admitted_trace
 #print axioms Connection.Execution.removed_trace
-#print axioms Connection.Execution.rooms_cut_trace
 #print axioms Connection.Execution.Run.state_trace
 #print axioms Connection.Execution.Run.good
 #print axioms Engine.Sync.Sweep.offer_sent

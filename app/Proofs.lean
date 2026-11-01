@@ -3063,20 +3063,6 @@ theorem removed_trace {c u : Id} :
       ∃ x r, (store).status x = some (.valid (.inl (.removal c u r))) :=
   removed_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2
 
-/-- **A removal ends a session's sync,** at every peer after every
-production trace: if the peer is a live member of c, and each peer key
-connection cid's established facts name is admitted only for devices of a
-removed user, cid carries no sync room of c. -/
-theorem rooms_cut_trace {cid c : Id}
-    (hme : ∀ me, (meV c).eval store = some me →
-      ∃ u d, Admitted ed25519 (community ed25519 store).ops c u d me ∧
-        Live ed25519 (community ed25519 store).ops c d)
-    (hpeer : ∀ peer ∈ peersOf (Engine.eval store (established.byConn.query [cid])),
-      ∃ u, Removed ed25519 (community ed25519 store).ops c u ∧
-        ∀ u' d, Admitted ed25519 (community ed25519 store).ops c u' d peer →
-          ∃ e', Admitted ed25519 (community ed25519 store).ops c u d e') :
-    Engine.Sync.Room.sync c ∉ (roomsV cid).eval store :=
-  rooms_cut_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2 hme hpeer
 end
 
 /-- Every state of a run is the trace of the run's first `n` actions. -/

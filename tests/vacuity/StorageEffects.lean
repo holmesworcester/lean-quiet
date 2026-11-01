@@ -196,32 +196,6 @@ def syncs (rs : List Engine.Sync.Room) : Bool :=
 def peersAt (acts : List Action) (cid : Id) : List Community.Key :=
   Connection.peersOf (Engine.eval (storeAfter acts .a) (Connection.established.byConn.query [cid]))
 
-/-- Alice is a live member, and every peer key the session's established
-facts name is admitted only for the removed user: the trace law shows the
-live session carries no sync room of c. -/
-def roomsCutCertificateFor (acts : List Action) (cid : Id) (o : Op) (u : Id) :=
-  match hm : (Connection.meV c).eval (storeAfter acts .a) with
-  | none => none
-  | some me =>
-    if hl : ((allowPeer c me).liftL : View Connection.F Bool).eval (storeAfter acts .a) = true then
-      match removedIn (storeAfter acts .a) o u with
-      | none => none
-      | some ⟨hr⟩ =>
-        if hb : (peersAt acts cid).all (fun e =>
-            (storeAfter acts .a).stored.all (ownedBy (storeAfter acts .a) e u)) = true then
-          some (PLift.up (rooms_cut_trace setup (entropy "alice") (entropy "bob") acts .a (cid := cid) (c := c)
-            (fun me' he => by
-              obtain rfl : me = me' := Option.some.inj (hm.symm.trans he)
-              exact (connect_iff_trace setup (entropy "alice") (entropy "bob") acts .a c me).1 hl)
-            fun peer hp => ⟨u, (removed_trace setup (entropy "alice") (entropy "bob") acts .a).2 hr,
-              fun u' d had => by
-                obtain ⟨x, hx⟩ := (admitted_trace setup (entropy "alice") (entropy "bob") acts .a).1 had
-                rw [owned (trace_good setup (entropy "alice") (entropy "bob") acts .a).1
-                  ((List.all_eq_true.1 hb) peer hp) hx] at had
-                exact ⟨peer, had⟩⟩))
-        else none
-    else none
-
 /-- A run from `empty`: the given actions, then idling. -/
 def walk (acts : List Action) : Nat → World
   | 0 => initial
@@ -342,22 +316,17 @@ def main : IO UInt32 := do
     (!(view (trace setup initial acts) .a (allowPeer c keyB)))
   t.ok "removal stored: Bob's admission is still Valid, so the ownership premise is not vacuous"
     (admissionCertificateFor acts bobUser).isSome
-  -- The write's own entry point closes Alice's session with Bob, so no
-  -- reachable two-peer state keeps a session naming a removed peer:
-  -- rooms_cut_trace's peer premise holds here only over no peers.
+  -- Observed, not a law here: the write's own entry point closes Alice's
+  -- session with Bob, so no reachable two-peer state keeps a session
+  -- naming a removed peer.
   t.ok "removal stored: the same write closed Alice's session with Bob"
     ((trace setup initial acts).a.node.conns.isEmpty && (peersAt acts acid).isEmpty)
-  t.ok "removal stored: rooms_cut_trace applies (live member; over no peers)"
-    (roomsCutCertificateFor acts acid rm bobUser).isSome
-  t.ok "removal stored: the closed session natively carries no sync room of c"
-    (!syncs ((Connection.roomsV acid).eval (storeAfter acts .a)))
   t.ok "a run from empty through the removal: Run.good applies, and its state holds the removal"
     ((runGoodCertificate scene).isSome &&
       decide ((walk acts acts.length).a.memory.held.db.ops rm.id = some rm))
-  t.ok "removal withheld: removal, refusal and rooms-cut certificates reject"
+  t.ok "removal withheld: removal and refusal certificates reject"
     (!(removalCertificateFor scene.completed rm bobUser).isSome &&
-      !(refuseCertificateFor scene.completed rm bobUser).isSome &&
-      !(roomsCutCertificateFor scene.completed acid rm bobUser).isSome)
+      !(refuseCertificateFor scene.completed rm bobUser).isSome)
   t.ok "removal withheld: Alice's trust rule still takes Bob's node"
     (view w .a (allowPeer c keyB))
   t.ok "wrong user: a removal of Alice's own user is not held"
