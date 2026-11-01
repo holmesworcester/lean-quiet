@@ -1986,7 +1986,7 @@ def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
   -- Session retains the new serial only when the native publication was
   -- accepted; Android can return a failed publication without throwing.
   let published := result.accepted
-  if published && s.page == .chat && s.sheet.isNone then
+  if s.page == .chat && s.sheet.isNone then
     if let some e := s.ownSends.head then
       if let some row := s.rows[e.message.2]? then
         let current := row.paintFlight.map (·.handle.ticket)
@@ -1995,24 +1995,25 @@ def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
         let prior := s.presenting.filter fun p => p.message == e.message.2 &&
           p.generation == s.life.generation && current == some p.ticket && committed
         let mut candidate : Option PresentationCandidate := none
-        if let some bottom := rowBottom s e.message.2 then
-          if let some (bodyY, bodyH) := presentationBand s row then
-            let bodyTop := bottom + row.lay.h - bodyY
-            let visible := bodyH > 0 && b + bodyH ≤ bodyTop && bodyTop ≤ b + (geom s).viewNow
-            let drawn := row.shown.any fun bitmap =>
-              let body := bitmap.rows.extract bodyY (bodyY + bodyH)
-              let frameRow := over + (b + viewH s - bodyTop)
-              !body.isEmpty && fr.extract frameRow (frameRow + body.size) == body
-            if visible && committed && drawn then
-              candidate := current.map fun ticket =>
-                ⟨e.message.2, result.publication, s.life.generation, ticket⟩
+        if published then
+          if let some bottom := rowBottom s e.message.2 then
+            if let some (bodyY, bodyH) := presentationBand s row then
+              let bodyTop := bottom + row.lay.h - bodyY
+              let visible := bodyH > 0 && b + bodyH ≤ bodyTop && bodyTop ≤ b + (geom s).viewNow
+              let drawn := row.shown.any fun bitmap =>
+                let body := bitmap.rows.extract bodyY (bodyY + bodyH)
+                let frameRow := over + (b + viewH s - bodyTop)
+                !body.isEmpty && fr.extract frameRow (frameRow + body.size) == body
+              if visible && committed && drawn then
+                candidate := current.map fun ticket =>
+                  ⟨e.message.2, result.publication, s.life.generation, ticket⟩
         let receipt (c : Option PresentationCandidate) :=
           Presentation.acknowledge (c.map fun p => (p.frame, p.message))
             ((result.completed.filter fun receipt => receipt.2 == 0).map Prod.fst)
-        if (receipt prior <|> receipt candidate) == some e.message.2 then
-          modify fun s => { s with ownSends := s.ownSends.pop, presenting := none }
-        else
-          modify fun s => { s with presenting := candidate }
+        let (done, presenting) := Presentation.transition
+          (fun p => receipt (some p) == some e.message.2) prior candidate published
+        modify fun s => { s with
+          ownSends := if done then s.ownSends.pop else s.ownSends, presenting }
   return result.events
 
 /-- Lifecycle polling uses the same raw decoder, even with no surface. -/

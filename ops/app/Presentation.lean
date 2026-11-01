@@ -80,4 +80,35 @@ theorem acknowledge_matches (candidate : Option (UInt64 × Id)) (completed : Opt
         exact ⟨frame, rfl, rfl⟩
       · simp [acknowledge, hd] at h
 
+/-- Consume a receipt independently of whether staging the next frame worked.
+The caller has revalidated prior ownership and qualified the fresh pixels.
+An unsuccessful new publication cannot replace an unresolved prior candidate. -/
+def transition {α : Type} (qualifies : α → Bool) (prior fresh : Option α)
+    (accepted : Bool) : Bool × Option α :=
+  if prior.any qualifies || (accepted && fresh.any qualifies) then (true, none)
+  else (false, if accepted then fresh else prior)
+
+/-- Once the prior receipt is available, this completed transition releases
+the obligation even if all subsequent publications are refused. -/
+theorem transition_prior {α : Type} (qualifies : α → Bool) (prior fresh : Option α)
+    (accepted : Bool) (h : prior.any qualifies = true) :
+    transition qualifies prior fresh accepted = (true, none) := by
+  simp [transition, h]
+
+/-- Failed staging preserves an unresolved, still-current candidate. -/
+theorem transition_rejected {α : Type} (qualifies : α → Bool) (prior fresh : Option α)
+    (h : prior.any qualifies = false) :
+    transition qualifies prior fresh false = (false, prior) := by
+  simp [transition, h]
+
+/-- A successful transition must use a prior receipt or an accepted new one. -/
+theorem transition_sound {α : Type} (qualifies : α → Bool) (prior fresh : Option α)
+    (accepted : Bool) (h : (transition qualifies prior fresh accepted).1 = true) :
+    prior.any qualifies = true ∨ accepted = true ∧ fresh.any qualifies = true := by
+  unfold transition at h
+  split at h
+  · rename_i receipt
+    simpa only [Bool.or_eq_true, Bool.and_eq_true] using receipt
+  · simp at h
+
 end App.Presentation

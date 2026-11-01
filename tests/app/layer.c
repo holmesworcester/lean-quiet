@@ -114,6 +114,9 @@ int main(void) {
   stub_lock_fails = false;
   bl_abort(); tick();
   demand(stub_buffer[2]->pixels[0] == 13 && bl_frame_id() == 2, "aborted staging remains invisible");
+  demand(bl_completed_frame(&publication, &completed_frame, &completed_shift) &&
+    publication == unresolved && completed_frame == 2 && completed_shift == 0,
+    "refused buffer staging still exposes the preceding native completion");
   assert(bl_begin());
   assert(stage(BL_LIST, 41) && stage(BL_TOP, 42) && stage(BL_BOT, 43));
   p[10] = 21; p[11] = 23; p[16] = 3;
@@ -202,6 +205,12 @@ int main(void) {
   unsigned before_off = stub_trace_count;
   tick();
   demand(stub_trace_count == before_off, "debug-disabled composition emits no per-frame trace");
+  assert(bl_completed_frame(&publication, &completed_frame, &completed_shift));
+  uint64_t last_publication = publication;
+  bl_completion.accepted = UINT64_MAX;
+  demand(!bl_begin() && bl_completed_frame(&publication, &completed_frame, &completed_shift) &&
+    publication == last_publication,
+    "permanent publication exhaustion does not hide the last completed receipt");
   bl_window_gone();
   printf("layer: %d native handoff checks passed\n", checks);
   return 0;

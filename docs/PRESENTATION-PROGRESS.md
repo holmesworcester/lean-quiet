@@ -66,6 +66,36 @@ The iOS shared C gate is exercised by the host tests; the Objective-C wrapper
 has source review only here, without an Apple SDK or device run. Combined Android
 Activity-recreation checks remain required after integration of that repair.
 
+### Completion when new staging fails
+
+An actual App regression found that receipt handling required the next native
+publication to succeed. Android and iOS can instead return a prior successful
+completion alongside refused staging. Repeated refusal, including exhausted
+publication identities, could leave an already displayed send in the FIFO.
+
+`App.present` now calls `Presentation.transition` independently of new staging
+success. It first rechecks the prior candidate's message, lifetime, raster
+ticket and committed state. The receipt must still identify that publication
+and have zero translation. Refusal preserves an unresolved eligible candidate;
+qualifying a fresh pixel band runs only after accepted staging.
+
+Three kernel laws prove prior-receipt consumption, refusal preservation and
+receipt soundness for this running decision, with nonempty closed witnesses.
+The actual App/SQLite test checks one eligible presentation step removes only
+the head when the new publication is refused. It failed before the repair.
+The native handoff fixture confirms buffer failure and permanent ticket
+exhaustion still expose the preceding completion. This is a receipt-stage
+result, not a kernel proof of the entire App step or native callback progress.
+
+Validation: 80 demand checks, 34 signed-component checks, 41 native handoff
+checks, 180 scrolling frames with no missing pixels, and five compiling
+receipt controls plus the two existing kernel controls. The unchanged real
+TCP suite passes 35 checks plus nine newer-post eviction checks. Separately
+measured displays took 2–10 app frames and 24–96 ms; the eviction sample took
+two frames and 62 ms after its finite raster barrier. The original limits
+remain 64 frames and 1,500 ms. These measurements do not strengthen the
+stage-local theorem.
+
 ## Still open
 
 The subsequent [desktop publication repair](DESKTOP-PRESENTATION.md) removes

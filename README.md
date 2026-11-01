@@ -341,7 +341,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1283 rest on Lean's standard axioms only, and about two thirds of its theorems (879 of 1263, not counting 20 negative controls) are about the code that runs; another 15 run the
+hypotheses. All 1286 rest on Lean's standard axioms only, and about two thirds of its theorems (882 of 1266, not counting 20 negative controls) are about the code that runs; another 15 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -459,7 +459,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**879 of 1263 laws are about running code;** another 15 run its node code in a World, and 369 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**882 of 1266 laws are about running code;** another 15 run its node code in a World, and 369 are not yet. Stated only: none. 20 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -473,7 +473,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
 | Screen | 277 | 216 |  | 61 |
-| App | 88 | 69 |  | 19 |
+| App | 91 | 72 |  | 19 |
 
 | Missing link | Laws | To make them real |
 |---|---|---|
@@ -1121,7 +1121,9 @@ the prioritized `Priority` laws above. Reserved output is checked by
 [`Ingress.source_within`], [`Prioritized.source_within`], [`Prioritized.write_within`],
 [`source_or_cancelled_within`] and [`write_within_churn`]. Composer presentation uses
 [`Presentation.bounded`], [`Presentation.offer_append`], [`Presentation.offer_full`]
-and [`Presentation.acknowledge_matches`]. The actual SQLite writer uses
+and [`Presentation.acknowledge_matches`]. Receipt handling uses
+[`Presentation.transition_prior`], [`Presentation.transition_rejected`] and
+[`Presentation.transition_sound`]. The actual SQLite writer uses
 [`push_local`], [`push_background`], [`WriterQueue.push_keeps_phase`], [`WriterQueue.local_fifo`], [`WriterQueue.background_fifo`], [`WriterQueue.local_first`], [`WriterQueue.background_slot`], [`WriterQueue.take_state`], [`WriterQueue.local_within`], [`WriterQueue.background_within`], [`WriterQueue.local_share`]. Bounded silence-expiry grace uses
 [`ExpiryGrace.same_generation`], [`ExpiryGrace.no_rearm`], [`ExpiryGrace.exhausted`], [`ExpiryGrace.empty_no_delay`], [`ExpiryGrace.fresh_clears`], [`ExpiryGrace.consume_keeps_generation`], [`ExpiryGrace.consume_decreases`], [`ExpiryGrace.consume_saturates`], [`consumed_left`], [`budget_exhausted`], [`source_before_exhaustion`].
 
@@ -1770,6 +1772,9 @@ and [`Presentation.acknowledge_matches`]. The actual SQLite writer uses
 [`Presentation.offer_append`]: ops/app/Presentation.lean#L44-L46
 [`Presentation.offer_full`]: ops/app/Presentation.lean#L54-L56
 [`Presentation.acknowledge_matches`]: ops/app/Presentation.lean#L66-L68
+[`Presentation.transition_prior`]: ops/app/Presentation.lean#L91-L95
+[`Presentation.transition_rejected`]: ops/app/Presentation.lean#L98-L101
+[`Presentation.transition_sound`]: ops/app/Presentation.lean#L104-L107
 [`WriterQueue.push_keeps_phase`]: engine/renderer/WriteQueueLaws.lean#L16-L17
 [`WriterQueue.local_fifo`]: engine/renderer/WriteQueueLaws.lean#L19-L21
 [`WriterQueue.background_fifo`]: engine/renderer/WriteQueueLaws.lean#L23-L24
@@ -1795,8 +1800,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 455 kernel witnesses, 191 runtime witnesses,
-14 conditional checks, 0 recorded runtime counterexamples; 0 of 660 linked declarations still pending.**
+**Coverage: 458 kernel witnesses, 191 runtime witnesses,
+14 conditional checks, 0 recorded runtime counterexamples; 0 of 663 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2512,6 +2517,9 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`Presentation.offer_append`](ops/app/Presentation.lean#L44-L46) | **kernel-witness**: [PresentationTests.appendWitness](tests/app/Presentation.lean). Kernel evaluation discharges successful actual Queue.offer from two concrete entries to three. Applying the theorem proves the prior entries remain in order and the new entry is appended. |
 | [`Presentation.offer_full`](ops/app/Presentation.lean#L54-L56) | **kernel-witness**: [PresentationTests.fullWitness](tests/app/Presentation.lean). Eight concrete distinct entries inhabit the full-queue premise. Applying the actual theorem proves refusal of a ninth entry. Actual composer tests separately exercise draft preservation and visible committed FIFO release. |
 | [`Presentation.acknowledge_matches`](ops/app/Presentation.lean#L66-L68) | **kernel-witness**: [PresentationTests.completionWitness](tests/app/Presentation.lean). Concrete nonempty message candidate and successful actual acknowledgement use native publication ticket 4294967297, beyond UInt32 frame range. Kernel theorem proves exact candidate/completion identity. Native callback validity and physical display are outside this theorem; runtime controls separately reject staging-only, wrong ticket, and shifted completion. |
+| [`Presentation.transition_prior`](ops/app/Presentation.lean#L91-L95) | **kernel-witness**: [PresentationTests.priorReceiptWitness](tests/app/Presentation.lean). A nonempty prior candidate has exact completion ticket 4294967299, a distinct newer candidate exists, and new staging is refused. Kernel evaluation discharges the receipt premise, then applies the actual App transition law: one receipt-handling transition releases the obligation. Ownership/body/lifetime validation and native callback progress remain separate caller/native boundaries. |
+| [`Presentation.transition_rejected`](ops/app/Presentation.lean#L98-L101) | **kernel-witness**: [PresentationTests.refusedReceiptWitness](tests/app/Presentation.lean). Both candidates are nonempty; only the refused fresh candidate matches ticket 4294967299. Kernel evaluation establishes that the prior receipt is unresolved. Applying the running transition law preserves that prior candidate and does not release the obligation. |
+| [`Presentation.transition_sound`](ops/app/Presentation.lean#L104-L107) | **kernel-witness**: [PresentationTests.receiptSoundWitness](tests/app/Presentation.lean). The concrete prior-receipt transition succeeds with refused new staging. The certificate applies the runtime transition soundness theorem to that success, proving a prior receipt or an accepted matching fresh candidate was required. This is receipt-core evidence, not a complete UI-stage composition. |
 | [`WriterQueue.push_keeps_phase`](engine/renderer/WriteQueueLaws.lean#L16-L17) | **kernel-witness**: [Vacuity.WriterFairness.pushKeepsPhase](tests/vacuity/WriterFairness.lean). An actual local producer cannot reset the bounded selector phase. These are queue-selection claims; the named native suite separately runs signed roots through actual Writer.loop and SQLite. Queue capacity, job cost, database completion and OS scheduling remain outside these bounds. |
 | [`WriterQueue.local_fifo`](engine/renderer/WriteQueueLaws.lean#L19-L21) | **kernel-witness**: [Vacuity.WriterFairness.localFIFO](tests/vacuity/WriterFairness.lean). The two accepted local jobs precede the newly submitted nonempty local job. These are queue-selection claims; the named native suite separately runs signed roots through actual Writer.loop and SQLite. Queue capacity, job cost, database completion and OS scheduling remain outside these bounds. |
 | [`WriterQueue.background_fifo`](engine/renderer/WriteQueueLaws.lean#L23-L24) | **kernel-witness**: [Vacuity.WriterFairness.backgroundFIFO](tests/vacuity/WriterFairness.lean). The two accepted background jobs precede the newly submitted nonempty background job. These are queue-selection claims; the named native suite separately runs signed roots through actual Writer.loop and SQLite. Queue capacity, job cost, database completion and OS scheduling remain outside these bounds. |
@@ -2592,6 +2600,7 @@ the eight-entry send FIFO alone does not bound every stage's queued work.
 | Android invite diagnostics | The suite recognizes Android's abbreviated activity names and counts distinct task IDs instead of repeated references to the same task. Installation resets only its verified test emulator. | Named Android invite task: 7/0, covering cold/warm invitations, one app instance and malformed links. Parser controls reject wrong activities, similar packages and two distinct tasks. |
 | Desktop native presentation | The actual desktop publication wrapper acknowledges the final composed glyph/photo band after native completion. Hover paint, popup coverage and accepted newer redraws preserve exact tracking; refused geometry cancels stale positional input. | Host: 20 new checks and nine controls, plus 292 existing checks/27 renders. Linux: 28 checks in each rendering mode and 84 existing checks. Windows cross-compiles; Mac/Windows native runtime validation remains outstanding. No universal callback or display deadline is claimed. [Details](docs/DESKTOP-PRESENTATION.md). |
 | Desktop mutation upkeep | Controls now target the current layout minimum and frame-settling code. The resize control checks the pixel-parity failure it causes; crashes and unrelated failures cannot count as rejected UI mutations. | All 18 desktop controls rejected their intended faults. The restored desktop suite passes 292 checks and 27 renders, and is now rerun by the named mutation task. |
+| Receipt consumption after refused staging | A matching prior mobile completion now releases the FIFO head even when the next publication is refused. Unresolved candidates remain owned; fresh pixel checks run only on accepted staging. | Three kernel laws and nonempty witnesses; actual App/SQLite regression failed before repair. Now 80 demand, 34 component and 41 native checks pass; five compiling receipt controls and two kernel controls reject their faults. TCP: 35 checks plus nine eviction checks, with unchanged limits. The full proof gate checks 1,286 laws. [Stage boundary and separate timings](docs/PRESENTATION-PROGRESS.md#completion-when-new-staging-fails). |
 | Full gate upkeep | The queue-loss control now replaces the actual cancellable enqueue loop. The closure-delivery witness uses explicit recurrence and type arguments instead of excessive definitional unfolding. | Focused hardening baseline/restoration: 156/0; the compiled queue-loss control fails the original blocked-frame assertion. The closure witness builds at the unchanged 200,000-heartbeat limit. The full engine/vacuity rerun follows this repair. |
 
 The app admission laws are [`WriteAdmission.admitted_frames`],
