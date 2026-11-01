@@ -1,0 +1,114 @@
+# The op-tree cutover (from main e727b5e): each Lean file it removed, and where its
+# declarations are now, most first. Module names are paths: app/x/Y.lean is app.x.Y.
+old_path	new_paths
+App.lean	app/Screen.lean
+AppLife.lean	app/Screen.lean
+AppTypes.lean	app/Screen.lean
+engine/renderer/Appearance.lean	app/Screen.lean
+engine/renderer/Data.lean	app/Commands.lean
+engine/renderer/LiveLaws.lean	app/Commands.lean
+engine/renderer/SafeFrame.lean	app/Screen.lean
+engine/renderer/SafeLaws.lean	app/Proofs.lean
+engine/renderer/ThemeLaws.lean	app/Proofs.lean
+ops/app/Chaos.lean	app/Screen.lean
+ops/app/ClumpList.lean	app/Screen.lean
+ops/app/Components.lean	app/Screen.lean
+ops/app/Composer.lean	app/community/channel/message/draft/View.lean
+ops/app/Lifecycle.lean	app/Screen.lean
+ops/app/LifecycleLaws.lean	app/Proofs.lean
+ops/app/NavLaws.lean	app/Proofs.lean
+ops/app/NodeOffer.lean	app/Screen.lean
+ops/app/Pages.lean	app/Screen.lean
+ops/app/PeopleLaws.lean	app/community/Screen.lean
+ops/app/Photo.lean	app/Screen.lean
+ops/app/Pics.lean	app/community/channel/message/attachment/Screen.lean
+ops/app/Raster.lean	app/community/channel/message/attachment/Screen.lean
+ops/app/Reader.lean	app/Screen.lean
+ops/app/ReaderLife.lean	app/Screen.lean
+ops/app/Remove.lean	app/community/member/remove/View.lean
+ops/app/Switch.lean	app/community/Screen.lean
+ops/app/Wait.lean	app/Screen.lean
+ops/community/Community.lean	app/community/Proofs.lean (the umbrella: it imports its subtree)
+ops/community/Compose.lean	app/community/Family.lean app/community/Commands.lean app/community/channel/message/Commands.lean app/community/key/wrap/Commands.lean app/community/Proofs.lean app/community/member/invite/Commands.lean app/community/member/invite/request/Commands.lean app/community/member/invite/request/approve/Commands.lean app/community/member/invite/request/approve/admit/Commands.lean app/community/member/admin/Commands.lean app/community/member/remove/Commands.lean app/community/profile/Commands.lean app/community/channel/message/reaction/Commands.lean app/community/key/Commands.lean app/community/channel/message/attachment/chunk/Commands.lean app/community/channel/message/receipt/Commands.lean app/community/device/secret/Commands.lean app/community/device/endpoint/Commands.lean app/community/member/join/accept/Commands.lean app/community/name/Commands.lean
+ops/community/Connect.lean	app/community/Proofs.lean app/community/Family.lean app/community/member/remove/Proofs.lean
+ops/community/Facts.lean	app/community/Family.lean app/community/Op.lean app/community/profile/Op.lean app/community/channel/message/attachment/Op.lean app/community/channel/message/Op.lean app/community/channel/message/receipt/Op.lean
+ops/community/Intents.lean	app/community/Family.lean app/community/Commands.lean app/community/Proofs.lean app/community/channel/message/receipt/Commands.lean app/community/member/join/joining/abandon/Commands.lean app/community/channel/message/Commands.lean app/community/channel/message/attachment/chunk/Commands.lean app/community/device/endpoint/Commands.lean app/community/member/join/joining/Commands.lean app/community/name/Commands.lean app/community/channel/message/reaction/Commands.lean app/community/member/join/joining/abandon/Proofs.lean app/community/device/endpoint/Proofs.lean app/community/channel/message/attachment/chunk/Proofs.lean
+ops/community/Keys.lean	app/community/Op.lean
+ops/community/Laws.lean	app/community/Family.lean app/community/member/invite/request/approve/Proofs.lean app/community/Proofs.lean app/community/channel/message/attachment/chunk/Proofs.lean app/community/member/remove/Proofs.lean app/community/member/admin/Proofs.lean app/community/member/Proofs.lean app/community/channel/message/Proofs.lean app/community/member/invite/Proofs.lean app/community/member/invite/request/Proofs.lean app/community/profile/Proofs.lean app/community/device/secret/Proofs.lean app/community/channel/message/attachment/Proofs.lean app/community/channel/message/receipt/Proofs.lean app/community/name/Proofs.lean app/community/member/invite/request/approve/admit/Proofs.lean
+ops/community/Link.lean	app/community/member/invite/Commands.lean app/community/member/invite/Proofs.lean app/community/Family.lean app/community/member/invite/request/Commands.lean app/community/member/join/joining/Commands.lean app/community/member/join/joining/abandon/Commands.lean
+ops/community/Merkle.lean	engine/core/Merkle.lean (namespace Merkle, was Community.Merkle)
+ops/community/MerkleCost.lean	engine/core/MerkleCost.lean (namespace Merkle, was Community.Merkle)
+ops/community/Query.lean	app/community/Commands.lean app/community/member/remove/Commands.lean app/community/device/endpoint/Commands.lean
+ops/community/RemovalLaws.lean	app/community/Proofs.lean app/community/device/endpoint/Proofs.lean app/community/Family.lean app/community/member/invite/request/Proofs.lean app/community/member/remove/Proofs.lean app/community/member/Proofs.lean app/community/member/join/joining/Proofs.lean
+ops/community/WrapLaws.lean	app/community/key/wrap/Proofs.lean app/community/Proofs.lean
+ops/community/attachment/ArrivalLaws.lean	app/community/channel/message/attachment/View.lean app/community/channel/message/attachment/Screen.lean
+ops/community/attachment/Image.lean	app/community/channel/message/attachment/chunk/View.lean app/community/channel/message/attachment/View.lean
+ops/community/attachment/View.lean	app/community/channel/message/attachment/View.lean app/community/Screen.lean app/community/channel/message/attachment/chunk/View.lean
+ops/community/link/View.lean	app/community/member/invite/View.lean
+ops/community/membership/AcceptedView.lean	app/community/member/join/accept/View.lean app/community/Screen.lean
+ops/community/membership/RemovedLaws.lean	app/Proofs.lean
+ops/community/membership/RequestView.lean	app/Screen.lean
+ops/community/message/Clump.lean	app/community/channel/message/Commands.lean app/community/channel/message/Proofs.lean
+ops/community/message/Order.lean	app/community/Family.lean app/community/channel/message/Proofs.lean app/community/Proofs.lean app/community/channel/message/receipt/Proofs.lean
+ops/community/message/View.lean	app/community/Screen.lean
+ops/community/message/ViewLaws.lean	app/community/channel/message/View.lean app/community/Screen.lean app/community/profile/View.lean app/community/key/View.lean
+ops/community/profile/NamesakeLaws.lean	app/community/profile/View.lean app/community/Screen.lean
+ops/community/profile/View.lean	app/community/profile/View.lean app/community/Screen.lean app/community/channel/message/reaction/View.lean
+ops/community/reaction/RowLaws.lean	app/community/channel/message/reaction/View.lean
+ops/community/reaction/View.lean	app/community/channel/message/reaction/View.lean
+ops/connection/All.lean	app/connection/Proofs.lean (the umbrella: it imports its subtree; the root's commands and laws are app/Commands, app/Proofs)
+ops/connection/Connection.lean	app/connection/connection/Validate.lean app/connection/Family.lean app/connection/connection/Commands.lean
+ops/connection/Eph.lean	app/connection/eph/Validate.lean app/connection/eph/Commands.lean app/connection/Family.lean
+ops/connection/Established.lean	app/connection/Family.lean app/connection/established/Validate.lean app/connection/established/Commands.lean
+ops/connection/Execution.lean	app/Proofs.lean
+ops/connection/ExecutionLaws.lean	app/Proofs.lean
+ops/connection/Family.lean	app/connection/Family.lean
+ops/connection/Frame.lean	app/connection/Commands.lean app/connection/Proofs.lean
+ops/connection/Given.lean	app/connection/given/Validate.lean app/connection/given/Commands.lean app/connection/Family.lean
+ops/connection/Intents.lean	app/Commands.lean app/connection/Commands.lean app/connection/Family.lean app/community/Commands.lean app/connection/recv/Commands.lean app/connection/established/Commands.lean app/connection/opened/Commands.lean app/connection/eph/Commands.lean app/connection/given/Commands.lean
+ops/connection/Laws.lean	app/connection/Proofs.lean app/Proofs.lean
+ops/connection/NodeLaws.lean	app/connection/Family.lean app/connection/Proofs.lean app/Proofs.lean
+ops/connection/Noise.lean	engine/wire/Noise.lean
+ops/connection/NoiseSymbolic.lean	engine/wire/NoiseSymbolic.lean
+ops/connection/Opened.lean	app/connection/Family.lean app/connection/opened/Validate.lean app/connection/opened/Commands.lean
+ops/connection/Recv.lean	app/connection/recv/Validate.lean app/connection/recv/Commands.lean app/connection/Family.lean
+ops/connection/RemovalLaws.lean	app/connection/Proofs.lean app/Proofs.lean app/connection/established/Proofs.lean app/connection/Family.lean app/connection/connection/Proofs.lean app/connection/opened/Proofs.lean app/connection/send/Proofs.lean
+ops/connection/Request.lean	app/connection/Family.lean app/connection/request/Validate.lean app/connection/request/Commands.lean
+ops/connection/RoomLaws.lean	app/Proofs.lean app/connection/Proofs.lean
+ops/connection/Send.lean	app/connection/send/Validate.lean app/connection/send/Commands.lean app/connection/Family.lean
+ops/connection/Types.lean	app/connection/Family.lean engine/wire/Noise.lean
+ops/connection/bootstrap/Bridge.lean	app/community/Proofs.lean
+ops/connection/bootstrap/FIFO.lean	engine/core/FIFO.lean
+ops/connection/bootstrap/FairExecution.lean	app/community/Proofs.lean
+ops/connection/bootstrap/Inv.lean	app/community/Proofs.lean
+ops/connection/bootstrap/Laws.lean	app/community/Proofs.lean
+ops/connection/bootstrap/Net.lean	app/community/Proofs.lean (the bootstrap model is a section of it)
+ops/connection/bootstrap/Node.lean	app/community/Proofs.lean
+ops/connection/bootstrap/Scene.lean	app/community/Proofs.lean
+ops/connection/bootstrap/Steps.lean	app/community/Proofs.lean
+ops/connection/bootstrap/System.lean	app/community/Proofs.lean
+ops/sync/BoundsLaws.lean	engine/sync/BoundsLaws.lean
+ops/sync/Closure.lean	engine/sync/Closure.lean
+ops/sync/ClosureComplete.lean	engine/sync/ClosureComplete.lean
+ops/sync/ClosureLaws.lean	engine/sync/ClosureLaws.lean
+ops/sync/Conn.lean	engine/sync/Conn.lean
+ops/sync/ConnLaws.lean	engine/sync/ConnLaws.lean
+ops/sync/Fp.lean	engine/sync/Fp.lean
+ops/sync/Memory.lean	engine/sync/Memory.lean
+ops/sync/Notice.lean	engine/sync/Notice.lean
+ops/sync/NoticeLaws.lean	engine/sync/NoticeLaws.lean
+ops/sync/NoticeState.lean	engine/sync/NoticeState.lean
+ops/sync/OfferLaws.lean	engine/sync/OfferLaws.lean
+ops/sync/RetryLaws.lean	engine/sync/RetryLaws.lean
+ops/sync/Round.lean	engine/sync/Round.lean
+ops/sync/RoundLaws.lean	engine/sync/RoundLaws.lean
+ops/sync/SecrecyLaws.lean	engine/sync/SecrecyLaws.lean
+ops/sync/Serve.lean	engine/sync/Serve.lean
+ops/sync/ServeLaws.lean	engine/sync/ServeLaws.lean
+ops/sync/Session.lean	engine/sync/Session.lean
+ops/sync/SessionLaws.lean	engine/sync/SessionLaws.lean
+ops/sync/StateLaws.lean	engine/sync/StateLaws.lean
+ops/sync/TimeLaws.lean	engine/sync/TimeLaws.lean
+ops/sync/TreeLaws.lean	engine/sync/TreeLaws.lean
+ops/sync/Wire.lean	engine/sync/Wire.lean
+ops/sync/Witnesses.lean	engine/sync/Witnesses.lean

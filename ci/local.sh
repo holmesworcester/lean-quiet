@@ -8,9 +8,10 @@
 # against the built tree, and its list of laws not yet about running
 # code against tests/Wiring.lean (ci/proof-links.py), so it runs after
 # them.
+# `layout` checks the op tree's layout (ci/layout.py --self-test).
 # `reorg` checks the reorg's import rewriter for branches begun on the old
 # layout (ci/reorg-imports.py --self-test).
-#   ci/local.sh [part...]   (default: check engine mdns qr net app visual zoom site workspace readme reorg vacuity)
+#   ci/local.sh [part...]   (default: check layout engine mdns qr net app visual zoom site workspace readme reorg vacuity)
 # `site` and `workspace` need Chromium's headless shell (CHROME, or Playwright's); `android-links`
 # needs the Android SDK and an emulator image (it starts its own AVD).
 # SKIP_TCP=1 builds the TCP suites but omits their runs in a socket sandbox.
@@ -22,7 +23,7 @@ export PATH="$ELAN_HOME/bin:$PATH"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 logs=$top/out/ci
 mkdir -p "$logs"
-parts=("${@:-check engine mdns qr net app visual zoom site workspace readme reorg vacuity}")
+parts=("${@:-check layout engine mdns qr net app visual zoom site workspace readme reorg vacuity}")
 read -r -a parts <<< "${parts[*]}"
 gate() {
   case $1 in
@@ -48,6 +49,7 @@ gate() {
     release-zoom) mise run test:zoom && mise run android:zoom ;;
     pixel-scroll) mise run android:scroll-measure ;;
     readme) mise run readme:links ;;
+    layout) mise run layout:check ;;
     reorg) mise run reorg:test ;;
     vacuity) mise run test:vacuity ;;
     crypto-failure) mise run test:crypto-failure ;;

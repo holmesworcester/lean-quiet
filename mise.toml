@@ -72,6 +72,10 @@ run = "tests/net/check.sh"
 description = "The README's theorem links, and its laws not yet about running code (tests/Wiring.lean), match the code (ci/proof-links.py; needs the tree built)"
 run = "python3 ci/proof-links.py --check"
 
+[tasks."layout:check"]
+description = "The op tree's layout (ci/layout.py): eight file names under app/, an op is a folder with its validator, each family registers its ops, imports go down the tree (or to cited op types), and the engine imports no app module; then its negative controls"
+run = "python3 ci/layout.py --self-test"
+
 [tasks."reorg:test"]
 description = "The reorg's import rewriter (ci/reorg-imports.py) on a copy of every Lean file of f1bfd62: each gets its new path's imports"
 run = "python3 ci/reorg-imports.py --self-test"
