@@ -1,0 +1,9 @@
+[Unit]
+Description=Lean Quiet nightly forensics judge (small Sonnet sample, rates over time)
+
+[Service]
+Type=oneshot
+MemoryMax=48G
+MemorySwapMax=0
+Environment=TMPDIR=/mnt/storage/holmes-tmp
+ExecStart=/bin/bash %h/.config/lq-nightly/run.sh

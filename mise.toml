@@ -131,6 +131,15 @@ run = "tests/net/check.sh"
 description = "The README's theorem links, and its laws not yet about running code (tests/Wiring.lean), match the code (ci/proof-links.py; needs the tree built)"
 run = "python3 ci/proof-links.py --check"
 
+[tasks."forensics:check"]
+description = "The proofslop forensics tool's deterministic pass (for-all-dev/forensics, pinned, with ci/forensics-local.patch): build, extract, lint, duplicates; fail on a nonstandard axiom, sorry, native_decide, a kernel escape hatch, or a statement smell outside ci/forensics-baseline.txt (degenerate witnesses, unused or contradictory hypotheses, trivial conclusions). Needs bun. Output: out/forensics/model.json"
+depends = ["crypto"]
+run = "bash ci/forensics.sh"
+
+[tasks."forensics:judge"]
+description = "The nightly forensics judge: a small seeded Sonnet sample of vacuity-and-misstatement and unnecessary-hypotheses over the deterministic dump, per-call budget caps (about $1 a night), rates appended to /mnt/storage/holmes-tmp/forensics-nightly/history.tsv. Scheduled by ci/nightly (systemd user timer, 03:30)"
+run = "bash ci/forensics-judge.sh"
+
 [tasks."premises:check"]
 description = "Every cited law's premises tagged ([discharged]/[env]/[crypto]/[base]/[trusted]/[model]), the README's ✅/🟡 as they allow, every assumption with both sides or in the shrinking baseline (ci/premises.py; needs the tree built)"
 run = "python3 ci/premises.py --check"

@@ -28,6 +28,9 @@
 #                   and compared with pinned libquiet screens
 #    headless       the app's programs on the headless twin
 #                   (tests/app/headless.sh)
+#    forensics      the proofslop forensics tool's deterministic pass:
+#                   standard axioms only, no kernel escape hatch, no
+#                   statement smell outside ci/forensics-baseline.txt
 #    engine:suites  the engine's suites (SQLite, codec, wire, sync, purge,
 #                   Merkle, notices, costs, kill -9), without TCP
 # 3. --full: every other part, longest first. The negative controls'
@@ -61,7 +64,7 @@ while [ $# -gt 0 ]; do
 done
 
 proofs=(driver build check layout readme reorg)
-fast=(engine:suites visual headless vacuity)
+fast=(engine:suites visual headless vacuity forensics)
 # longest first (minutes, measured on the shared box: app:2 and app:3
 # 40–55, qr 24, app:1 17, engine:harden 14, the rest under 10)
 rest=(app:3 app:2 qr app:1 engine:harden engine:ref-publications engine:catalog-retry engine:fresh
@@ -120,6 +123,7 @@ gate() {
     layout) mise run layout:check ;;
     reorg) mise run reorg:test ;;
     vacuity) mise run test:vacuity ;;
+    forensics) mise run forensics:check ;;
     crypto-failure) mise run test:crypto-failure ;;
     fairness) mise run test:fairness ;;
     bootstrap-progress) mise run test:bootstrap-progress ;;

@@ -10,3 +10,4 @@ __pycache__/
 /engine/native/crypto/target/
 # the app's data, fetched by tools/fetch_assets.sh
 /assets/
+.forensics/
