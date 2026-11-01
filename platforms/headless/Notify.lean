@@ -113,7 +113,7 @@ def untilHeld (n k : Nat) (evs : List Event := []) : M Bool := do
   return (← heldTotal) > n
 
 /-- Steps until the packets since `from` satisfy `ok`, at most `n`. -/
-def stepsUntil (sm : Sim) (from_ n : Nat) (ok : Array String → Bool) (evs : List Event := []) : M Bool := do
+def packetsUntil (sm : Sim) (from_ n : Nat) (ok : Array String → Bool) (evs : List Event := []) : M Bool := do
   for _ in [0:n] do
     let _ ← step evs
     if ok ((← sm.notes.get).extract from_ (← sm.notes.get).size) then return true
@@ -187,7 +187,7 @@ def main (args : List String) : IO UInt32 := do
   let _ ← carry a3 b2
   let (hello, b3) ← (show M String from do
     let n0 := (← sb.notes.get).size
-    let got ← stepsUntil sb n0 200 (·.any alerts)
+    let got ← packetsUntil sb n0 200 (·.any alerts)
     let ps := (← sb.notes.get).extract n0 (← sb.notes.get).size
     let p := (ps.find? alerts).getD ""
     check s!"A's post alerts B, once: one card ({ps.size} packets)" (got && (ps.filter alerts).size == 1)
@@ -211,14 +211,14 @@ def main (args : List String) : IO UInt32 := do
   let _ ← carry a4 b3
   let ((), b4) ← (show M Unit from do
     let n0 := (← sb.notes.get).size
-    let _ ← stepsUntil sb n0 200 (·.any alerts)
+    let _ ← packetsUntil sb n0 200 (·.any alerts)
     let ps := (← sb.notes.get).extract n0 (← sb.notes.get).size
     let p := (ps.find? alerts).getD ""
     check s!"a second post updates the same card: two messages (count {count p})" (count p == 2 && field p "body" == "second")
     -- B's own post never alerts B
     sb.cmds.modify (·.push "channel")
     let n1 := (← sb.notes.get).size
-    let quiet ← stepsUntil sb n1 50 (·.any fun p => field p "action" == "cancel")
+    let quiet ← packetsUntil sb n1 50 (·.any fun p => field p "action" == "cancel")
     check "opening the conversation withdraws its card" quiet
     check "and leaves none standing" (!(← get).notes.active.any (·.community == (← get).me.c))).run b3
   -- while B reads the conversation, A's post does not alert
@@ -324,7 +324,7 @@ def main (args : List String) : IO UInt32 := do
   let (held, b7) ← (show M Nat from do
     let n0 := (← sb.notes.get).size
     let f0 ← sb.frames.get
-    let got ← stepsUntil sb n0 100 (·.any fun p => alerts p && field p "body" == "while away")
+    let got ← packetsUntil sb n0 100 (·.any fun p => alerts p && field p "body" == "while away")
     if !got then
       let s ← get
       IO.println s!"  diag: held {← heldTotal} mounted {s.life.mounted} rst {s.rst.isSome} active {s.active} keep {s.keepSync} netStop {s.netStop.isSome}"
@@ -351,9 +351,9 @@ def main (args : List String) : IO UInt32 := do
     -- the post is in B's store (its writer runs in the background), yet
     -- nothing of B's turns runs there
     check "the post is stored while B is in the background" (← untilHeld held 4000)
-    let got ← stepsUntil sb n0 60 (·.any alerts)
+    let got ← packetsUntil sb n0 60 (·.any alerts)
     check "with it off, nothing alerts while in the background" (!got)
-    let got ← stepsUntil sb n0 200 (·.any fun p => alerts p && field p "body" == "unheard") [.foreground]
+    let got ← packetsUntil sb n0 200 (·.any fun p => alerts p && field p "body" == "unheard") [.foreground]
     check "and the post alerts once B is in front (on another page)" got).run b7
   -- A removes B: B's standing card goes
   let ((), a9) ← (show M Unit from do
@@ -369,7 +369,7 @@ def main (args : List String) : IO UInt32 := do
   let _ ← carry a9 b8
   let ((), _) ← (show M Unit from do
     let n0 := (← sb.notes.get).size
-    let got ← stepsUntil sb n0 200 (·.any fun p => field p "action" == "cancel")
+    let got ← packetsUntil sb n0 200 (·.any fun p => field p "action" == "cancel")
     check "B's removal withdraws its standing card" got
     check "and no card stands" (← get).notes.active.isEmpty).run b8
   check "over the whole run, A's own posts never alerted A" ((← sa.notes.get).all (!alerts ·))
