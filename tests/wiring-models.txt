@@ -64,16 +64,6 @@ Net.Scene.sessions_trusted
 Net.allowPeer_iff
 Net.allowPeer_settles
 
-# app.community.Screen
-PeopleLaws.deviceLive_lists
-PeopleLaws.live_lists_ge
-PeopleLaws.live_lists_le
-PeopleLaws.presentW_lists
-PeopleLaws.presentW_lists_eq
-PeopleLaws.present_lists_eq
-PeopleLaws.present_scans
-PeopleLaws.unremoved_lists
-
 # app.community.channel.message.attachment.Screen
 Pics.decoded_started
 Pics.image_settles

@@ -301,6 +301,8 @@ spec Engine.Change.ingests The ops a batch of changes stores.
 spec Engine.searchSteps The steps of a binary search, for its bound.
 
 spec Engine.listCost What a list query costs, for its bound.
+spec Engine.View.listsAt The lists a view reads, on the store model: its cost in lists, for its bound.
+spec PeopleLaws.admIn Whether a row is an admission of community c (what the people views' lists hold).
 spec Engine.readPlan The statements listSql runs for a read walking k: a counter per key of q (pickWalk), then listPlan's.
 spec Engine.Plan.stmts A plan's statements, in the order listSql runs them.
 spec Engine.Meter.time A meter's time on a store of N rows, for a bound.
