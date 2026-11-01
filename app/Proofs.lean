@@ -30,6 +30,7 @@ import engine.wire.Loop
 import engine.wire.EgressLaws
 import engine.sync.SharedLog
 import engine.wire.CloseLaws
+import engine.wire.NodeUniqueLaws
 
 namespace Connection
 open Engine Codec
@@ -3946,19 +3947,29 @@ private theorem bytesBEq : LawfulBEq ByteArray where
   eq_of_beq := by intro a b h; change (a.data == b.data) = true at h; exact ByteArray.ext (by simpa using h)
 attribute [local instance] bytesBEq
 
-/-- The production `kept` selector uses the common connection id, regardless
-of direction, observed address, order of arrival or local clock. -/
-theorem kept_pair (a b peer addr1 addr2 : B) (dir1 dir2 : Bool) (t1 t2 : Nat) :
+/-- **Simultaneous attempts, one from each side, keep the least
+connection id**: the production `kept` selector, whatever the observed
+addresses, arrival order or clocks. -/
+theorem kept_pair (a b peer addr1 addr2 : B) (dir1 dir2 : Bool) (t1 t2 : Nat) (hd : dir1 ≠ dir2) :
     kept [(a, peer, dir1, addr1, t1), (b, peer, dir2, addr2, t2)] =
       [Winner.choose a b] := by
-  simp [kept, Winner.select]
+  have hd' : (dir2 == dir1) = false := by cases dir1 <;> cases dir2 <;> simp_all
+  simp [kept, latestPerSide, Winner.select, hd']
+
+/-- **A side's redial supersedes the dial it replaces**: of two sessions
+with one peer from one side, the later established is kept. -/
+theorem redial_supersedes (a b peer addr1 addr2 : B) (d : Bool) (t1 t2 : Nat) (h : t2 < t1) :
+    kept [(a, peer, d, addr1, t1), (b, peer, d, addr2, t2)] = [a] := by
+  have hl : later (a, peer, d, addr1, t1) (b, peer, d, addr2, t2) = true := by
+    simp [later, h]
+  simp [kept, latestPerSide, hl, Winner.select]
 
 /-- Opposite ends, with opposite directions and unrelated arrival clocks,
 select the same single authenticated connection. -/
 theorem both_choose_same (a b peerA peerB aa ab ba bb : B) (ta tb ua ub : Nat) :
     kept [(a, peerB, true, aa, ta), (b, peerB, false, ab, tb)] =
     kept [(b, peerA, true, ba, ua), (a, peerA, false, bb, ub)] := by
-  simp only [kept_pair, Winner.choose_comm a b]
+  rw [kept_pair _ _ _ _ _ _ _ _ _ (by decide), kept_pair _ _ _ _ _ _ _ _ _ (by decide), Winner.choose_comm a b]
 
 /-- With two distinct authenticated attempts exactly one survives selection.
 The node's existing finish path retires the complement. Closing native sockets
@@ -3966,7 +3977,8 @@ still requires its writer/OS completion contract. -/
 theorem single_survivor (a b peer aa ab : B) (ta tb : Nat) (hne : a ≠ b) :
     let survivors := kept [(a, peer, true, aa, ta), (b, peer, false, ab, tb)]
     survivors.length = 1 ∧ ((a ∈ survivors ∧ b ∉ survivors) ∨ (b ∈ survivors ∧ a ∉ survivors)) := by
-  simp only [kept_pair, List.length_singleton, List.mem_singleton, true_and]
+  simp only [kept_pair _ _ _ _ _ _ _ _ _ (show true ≠ false by decide), List.length_singleton,
+    List.mem_singleton, true_and]
   rcases Winner.exactly_one a b hne with ⟨ha, hb⟩ | ⟨hb, ha⟩
   · exact Or.inl ⟨ha.symm, Ne.symm hb⟩
   · exact Or.inr ⟨hb.symm, Ne.symm ha⟩
@@ -3975,13 +3987,13 @@ theorem single_survivor (a b peer aa ab : B) (ta tb : Nat) (hne : a ≠ b) :
 theorem no_flapping (a b peer addr : B) :
     kept [(Winner.choose a b, peer, true, addr, 100), (b, peer, false, addr, 999)] =
       [Winner.choose a b] := by
-  rw [kept_pair, Winner.choose_stable]
+  rw [kept_pair _ _ _ _ _ _ _ _ _ (by decide), Winner.choose_stable]
 
 -- Concrete simultaneous attempts, with reversed clocks and local directions.
 example : (ByteArray.mk #[1]) ≠ ByteArray.mk #[2] := by decide
 example : kept [(ByteArray.mk #[2], ByteArray.mk #[9], true, .empty, 3),
     (ByteArray.mk #[1], ByteArray.mk #[9], false, .empty, 1)] = [ByteArray.mk #[1]] := by
-  rw [kept_pair]; simp [Winner.choose, bcmp_eq_lexCmp, lexCmp]
+  rw [kept_pair _ _ _ _ _ _ _ _ _ (by decide)]; simp [Winner.choose, bcmp_eq_lexCmp, lexCmp]
 example : Winner.choose (ByteArray.mk #[1]) (ByteArray.mk #[2]) = ByteArray.mk #[1] := by
   simp [Winner.choose, bcmp_eq_lexCmp, lexCmp]
 
@@ -4662,5 +4674,106 @@ theorem member_attempts (K : Keys) (listen pk sk : B) (now : Nat) (adm : Id) (c 
   rw [hplan]
 
 end Connection.DiscoveryBounds
+
+end
+
+/-! ## Node IDs stay unique in every production execution
+(engine/wire/NodeUniqueLaws.lean, over the World interpreter). -/
+section
+namespace Connection.Execution
+open Engine Engine.Sync
+open Engine.Sync.NodeUnique
+
+private instance : LawfulMonad M := inferInstanceAs (LawfulMonad (StateM Memory))
+
+/-- Arbitrary production hooks/entropy and the actual entry-point dispatch.
+No read-only, fairness, admission or uniqueness assumption about hook output. -/
+theorem production_step_unique (S : Setup) (side : Side) (n : Engine.Sync.Node)
+    (input : Node.Input) (now : Nat) (s : Memory) (h : Valid n) :
+    Valid ((n.step (S.sync side) input now) s).1.1 :=
+  Ensures.state (step_valid (S.sync side) n input now h) s
+
+private theorem world_run_unique (S : Setup) (w : World) (side : Side) (queue : List Packet)
+    (f : Engine.Sync.Node → M (Engine.Sync.Node × Effects)) (closed : Bool)
+    (hf : ∀ n s, Valid n → Valid (f n s).1.1)
+    (hw : ∀ side, Valid (w.peer side).node) :
+    ∀ target, Valid ((w.run S side queue f closed).peer target).node := by
+  intro target
+  cases side <;> cases target
+  · exact hf _ _ (hw .a)
+  · exact hw .b
+  · exact hw .a
+  · exact hf _ _ (hw .b)
+
+/-- Reuses the existing production World transition, including two-sided
+transport close, delivery, dropped frames, writes, ticks and idle actions. -/
+theorem world_step_unique (S : Setup) (w : World) (a : Action)
+    (hw : ∀ side, Valid (w.peer side).node) :
+    ∀ target, Valid ((step S w a).peer target).node := by
+  have hp : ∀ (w : World) (side : Side) (queue : List Packet) (input : Node.Input) (closed : Bool),
+      (∀ s, Valid (w.peer s).node) →
+      ∀ target, Valid ((w.run S side queue
+        (fun n => n.step (S.sync side) input w.now) closed).peer target).node :=
+    fun w side queue input closed h => world_run_unique S w side queue _ closed
+      (fun n s hn => production_step_unique S side n input w.now s hn) h
+  intro target
+  have time : ∀ w' : World, ({ w' with now := w.now + 1 }.peer target).node =
+      (w'.peer target).node := by intro w'; cases target <;> rfl
+  unfold step
+  rw [time]
+  cases a with
+  | tick side => exact hp w side w.net .tick false hw target
+  | write side ops => exact hp w side w.net (.write ops) false hw target
+  | idle => exact hw target
+  | drop => cases target with
+    | a => exact hw .a
+    | b => exact hw .b
+  | close =>
+    have ha := hp w .a [] (.close (S.addr .b)) true hw
+    let wa := w.run S .a [] (fun n => n.onClose (S.sync .a) (S.addr .b) w.now) true
+    exact world_run_unique S wa .b wa.net _ true
+      (fun n s hn => production_step_unique S .b n (.close (S.addr .a)) w.now s hn) ha target
+  | deliver =>
+    cases hnet : w.net with
+    | nil => simpa only [World.deliver, hnet] using hw target
+    | cons p rest =>
+      by_cases ha : p.dst = S.addr .a
+      · simpa only [World.deliver, hnet, ite_eq_left ha, Node.step] using
+          hp w .a rest (.frame p.src p.bytes) false hw target
+      · by_cases hb : p.dst = S.addr .b
+        · simpa only [World.deliver, hnet, ite_eq_right ha, ite_eq_left hb, Node.step] using
+            hp w .b rest (.frame p.src p.bytes) false hw target
+        · simp only [World.deliver, hnet, ite_eq_right ha, ite_eq_right hb]
+          cases target with
+          | a => exact hw .a
+          | b => exact hw .b
+
+theorem world_trace_unique (S : Setup) (w : World) (actions : List Action)
+    (hw : ∀ side, Valid (w.peer side).node) :
+    ∀ target, Valid ((trace S w actions).peer target).node := by
+  induction actions generalizing w with
+  | nil => exact hw
+  | cons a rest ih => exact ih (step S w a) (world_step_unique S w a hw)
+
+/-- Every finite execution from the actual boot has unique live IDs and retry
+order. The schedule, entropy, user writes and packet drops are arbitrary. -/
+theorem empty_trace_unique (S : Setup) (ea eb : Nat → ByteArray)
+    (actions : List Action) (target : Side) :
+    Valid ((trace S (empty ea eb) actions).peer target).node :=
+  world_trace_unique S (empty ea eb) actions (fun side => by
+    cases side <;> exact boot_valid family [] 0) target
+
+/-- Every position in an arbitrary infinite production-interpreter execution;
+fairness is irrelevant to this invariant and is not a premise. -/
+theorem Run.unique {S : Setup} {ea eb : Nat → ByteArray}
+    (r : Run S (empty ea eb)) (i : Nat) (target : Side) :
+    Valid ((r.state i).peer target).node := by
+  induction i generalizing target with
+  | zero => rw [r.zero]; cases target <;> exact boot_valid family [] 0
+  | succ i ih =>
+    rw [r.next]
+    exact world_step_unique S (r.state i) (r.action i) (fun side => ih side) target
+
+end Connection.Execution
 
 end

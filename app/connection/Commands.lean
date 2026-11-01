@@ -99,13 +99,28 @@ def sessionsOf : List (Id × Fact) → m (List (Id × B × Bool × B × Nat))
 def allSessions : m (List (Id × B × Bool × B × Nat)) := do
   return (← sessionsOf (← rows established.all [])).reverse
 
-/-- The sessions kept: one per peer, the one with the least connection
-id (`Winner.select`). Both ends hold the same connection ops, so they keep
-the same one with no message between them, whatever order the dials
-arrived in, whichever side dialed, and whatever their clocks say
-(`both_choose_same`); a later dial never displaces a lower live id. -/
+/-- Of two sessions with one peer from one side, whether the first
+arrived later (ties by id): a redial supersedes the dial it replaces. -/
+def later (a b : Id × B × Bool × B × Nat) : Bool :=
+  a.2.2.2.2 > b.2.2.2.2 || (a.2.2.2.2 == b.2.2.2.2 && lt a.1 b.1)
+
+/-- Per peer and side (this node dialed, or the peer did), the latest
+established. -/
+def latestPerSide : List (Id × B × Bool × B × Nat) → List (Id × B × Bool × B × Nat)
+  | [] => []
+  | s :: rest =>
+    let r := latestPerSide rest
+    match r.find? (fun b => b.2.1 == s.2.1 && b.2.2.1 == s.2.2.1) with
+    | some b => if later s b then s :: r.filter (fun c => c.1 != b.1) else r
+    | none => s :: r
+
+/-- The sessions kept: one per peer. Per side, the latest (a redial
+supersedes the dial it replaces); of the side's two, the least connection
+id (`Winner.select`). Two simultaneous attempts, one from each side, are
+one each side: both ends keep the same one, the least id, whatever order
+they arrived in and whatever their clocks say (`both_choose_same`). -/
 def kept (all : List (Id × B × Bool × B × Nat)) : List Id :=
-  (Winner.select (all.map fun s => (s.1, s.2.1))).map (·.2)
+  (Winner.select ((latestPerSide all).map fun s => (s.1, s.2.1))).map (·.2)
 
 /-- A session's transport keys: send, receive. -/
 def sessionKeys (cid : Id) : m (Option (B × B)) := do

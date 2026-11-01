@@ -51,7 +51,7 @@ jobs:
       - name: Run the same proof, runtime and README gates as local CI
         run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 ci/local.sh driver check bootstrap-progress vacuity readme owned-input
       - name: Peer endpoints: laws' premises, mutation controls, and real TCP and LAN DNS-SD discovery
-        run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 ci/local.sh endpoints
+        run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 ci/local.sh endpoints endpoints:mutants endpoints:net
       - name: Exercise the actual invite, approval and message UI over TCP
         run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 bash -c 'mise run host:net-join && mise run host:write-admission'
       - name: Retain failed-reader journal notices through actual pruning

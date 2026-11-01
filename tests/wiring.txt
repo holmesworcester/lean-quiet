@@ -270,6 +270,15 @@ spec ArrivalLaws.readsOf The reads a view makes, on the model.
 spec Mdns.known The record types mDNS validity knows.
 spec Mdns.Name.wireLen A name's length on the wire, for its validity.
 spec Engine.window A window's rows, on the model: what a subscriber watches.
+spec Connection.DiscoveryBounds.rowsOf A list's rows, ascending, on the model: what a scan step reads a window of.
+spec Connection.DiscoveryBounds.ltPos Positions' order (Pos.cmp), as the scan core tests it.
+spec Connection.DiscoveryBounds.leftsOf A list's community rows (Answer.lefts of its rows).
+spec Connection.DiscoveryBounds.older The rows of a list after its newest, as `stale` reads them (View.eval of readCommunity).
+spec Connection.DiscoveryBounds.visitedIn The node keys the newest scan position names (visitedOf of its read).
+spec Connection.DiscoveryBounds.visitStep What a visit does to a node's retry clock: plan's attempt when canTry allows (plan_ready), nothing otherwise (plan_backoff), read back at the next visit (the store carry, assumed).
+spec Connection.DiscoveryBounds.nextNo The number the next attempt takes (nextAttempt below 2^63).
+spec Connection.DiscoveryBounds.Past Retry clocks are in the past.
+spec Engine.Cursor.dist How far a scan's cursor is from a key: the proof's measure.
 spec Engine.filed Whether a row is filed under a key at a position, on the model.
 spec Engine.flips Whether a journal touches a key and position an odd number of times.
 spec Engine.oddAt Whether a journal touches a pair an odd number of times, as `net` keeps it.
@@ -310,6 +319,7 @@ control Engine.Codec.digitsSlowM A number's digits a byte at a time, as before t
 control Engine.Codec.decBytesListM A byte string the list codec's way: over the bytes' budget (`slow_bytes_over_budget`).
 control Engine.Codec.readAllM = Engine.Codec.decBytesListM
 control Pics.imageV `image` with the old `decoded`, as it shipped: over the frame's budget (`imageV_over_budget`).
+control PeopleLaws.removedShipped An entry's removed mark as 59fa463 shipped it, from two reads that need not agree: removed with no removal read (`shipped_removed_without_removal`).
 control Community.approveWrapAll An approval that wraps the key to every member: wraps to a non-member (`wrapAll_over`).
 control Live.Gated.quiet A frame gated on notices: stale for ever (`gated_stale`); its example world (`w5`) shows the ungated frame fresh.
 control Live.Gated.w5 = Live.Gated.quiet

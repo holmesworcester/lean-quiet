@@ -89,7 +89,8 @@ def arbitrationWitness (a b peer : ByteArray) :=
     some (PLift.up (Winner.choose_comm a b),
       PLift.up (Winner.choose_stable a b),
       PLift.up (Winner.exactly_one a b h),
-      PLift.up (DiscoveryLaws.kept_pair a b peer .empty .empty true false 1 99),
+      PLift.up (DiscoveryLaws.kept_pair a b peer .empty .empty true false 1 99 (by decide)),
+      PLift.up (DiscoveryLaws.redial_supersedes a b peer .empty .empty true 99 1 (by decide)),
       PLift.up (DiscoveryLaws.both_choose_same a b peer peer .empty .empty .empty .empty 1 99 2 0),
       PLift.up (DiscoveryLaws.single_survivor a b peer .empty .empty 1 99 h),
       PLift.up (DiscoveryLaws.no_flapping a b peer .empty))

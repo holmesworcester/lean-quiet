@@ -6,10 +6,10 @@ group = sys.argv[3]
 logs.mkdir(parents=True, exist_ok=True)
 cases = {
     "people": [
-        ("unbounded-admissions", "app/community/Screen.lean",
-         "  let a ← admission.all.read [c] (limit := some m)",
-         "  let a ← admission.all.read [c]",
-         "header asks for only the newest 1024 admissions"),
+        # No unbounded-admissions mutant: dropping presentW's `limit := some m`
+        # no longer compiles, because PeopleLaws.presentW_lists (the window
+        # reads at most 1 + m·(1+D) lists) sits in the same module and proves
+        # that bound of the code that runs.
         ("false-exact-count", "app/Screen.lean",
          "    return (.people n (all && n < 999), deps)",
          "    return (.people n true, deps)",

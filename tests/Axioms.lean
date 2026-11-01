@@ -1,4 +1,3 @@
-import app.connection.NodeUnique
 import engine.wire.JobOwnersLaws
 import engine.wire.IngressFreezeLaws
 import engine.wire.RetryOrderLaws
@@ -682,6 +681,9 @@ end net
 #print axioms Connection.answer_trusted
 #print axioms Connection.resend_trusted
 #print axioms PeopleLaws.present_not_removed
+#print axioms PeopleLaws.unremoved_false
+#print axioms PeopleLaws.deviceCut_removal
+#print axioms PeopleLaws.shipped_removed_without_removal
 
 #print axioms Connection.eval_roomFor
 #print axioms Connection.mem_roomsV
@@ -1327,6 +1329,7 @@ end cost
 #print axioms Engine.Winner.choose_stable
 #print axioms Engine.Winner.exactly_one
 #print axioms Connection.DiscoveryLaws.kept_pair
+#print axioms Connection.DiscoveryLaws.redial_supersedes
 #print axioms Connection.DiscoveryLaws.both_choose_same
 #print axioms Connection.DiscoveryLaws.single_survivor
 #print axioms Connection.DiscoveryLaws.no_flapping

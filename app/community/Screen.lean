@@ -32,6 +32,7 @@ import app.community.device.endpoint.Op
 import app.community.member.invite.Op
 import app.community.member.join.joining.Op
 import app.community.Op
+import engine.renderer.Page
 
 namespace Kinds.Message
 open _root_.Engine _root_.Community _root_.Data
@@ -387,9 +388,10 @@ def read (known : Array Me := #[]) : m (Array Me × Array Q) := do
         if ab.total == 0 then
           joiningOp := jid
           dialing := (hs.head?.bind String.fromUTF8?).getD ""
-    let (live, d6) ← readView (Community.deviceLive c pk) deps
+    -- removed: a removal of the user read, never a liveness not yet seen
+    let (cut, d6) ← readView (Community.deviceCut c pk) deps
     deps := d6
-    let removed := !admId.isEmpty && !live
+    let removed := !admId.isEmpty && cut
     let dv := deviceOf known seed
     out := out.push { acc := accId, dev := dv.1, seed, dev_ok := dv.2, c, adm := admId, user, name, joiningOp,
                       dialing, removed }
@@ -565,6 +567,72 @@ theorem deviceLive_lists (s : DB Fact) (c : Id) (d : Key) :
   · by_cases h : rs.isEmpty = true
     · rw [if_pos h, View.listsAt_pure]; omega
     · rw [if_neg h]; omega
+
+/-- Unremoved is false only at an admission into c whose user has a
+removal. -/
+theorem unremoved_false (s : DB Fact) (c : Id) : ∀ (l : List (Pos × Fact)),
+    (unremoved c l).eval s = false →
+      ∃ p u d e, (p, Fact.admission c u d e) ∈ l ∧ (Engine.eval s (removals c u)).total ≠ 0
+  | [] => by simp [unremoved, View.eval]
+  | (p, f) :: t => by
+    intro h
+    have ih := unremoved_false s c t
+    cases f
+    case ofAdmission x =>
+      obtain ⟨c', u, d, e⟩ := x
+      by_cases hc : c' = c
+      · subst hc
+        by_cases h0 : (Engine.eval s (removals c' u)).total = 0
+        · simp only [unremoved, ↓reduceIte, View.eval, h0] at h
+          obtain ⟨p', u', d', e', hm, hr⟩ := ih h
+          exact ⟨p', u', d', e', List.mem_cons_of_mem _ hm, hr⟩
+        · exact ⟨p, u, d, e, List.mem_cons_self .., h0⟩
+      · simp only [unremoved, if_neg hc] at h
+        obtain ⟨p', u', d', e', hm, hr⟩ := ih h
+        exact ⟨p', u', d', e', List.mem_cons_of_mem _ hm, hr⟩
+    all_goals
+      simp only [unremoved] at h
+      obtain ⟨p', u', d', e', hm, hr⟩ := ih h
+      exact ⟨p', u', d', e', List.mem_cons_of_mem _ hm, hr⟩
+
+/-- **A device is cut only by a removal read**: `deviceCut` holds only
+when the store holds one of the device's admissions into c and a removal
+of that admission's user. So the app tells a member "You've been
+removed" (`Accepted.read`'s `removed`) only from a removal op: an
+admission not yet read, or a stale read of one, never makes it. -/
+theorem deviceCut_removal (s : DB Fact) (c : Id) (d : Key)
+    (h : (deviceCut c d).eval s = true) :
+    ∃ p u d' e, (p, Fact.admission c u d' e) ∈ ((admission.byDevice.read [c, d]).eval s).rows ∧
+      (Engine.eval s (removals c u)).total ≠ 0 := by
+  simp only [deviceCut] at h
+  rw [View.eval_bind] at h
+  generalize ((admission.byDevice.read [c, d]).eval s) = a at h ⊢
+  by_cases he : a.rows.isEmpty = true
+  · simp [he] at h
+  · rw [if_neg he, View.eval_bind] at h
+    have hf : (unremoved c a.rows).eval s = false := by
+      cases hv : (unremoved c a.rows).eval s <;> simp_all
+    exact unremoved_false s c a.rows hf
+
+/-- An entry's removed mark as 59fa463 shipped it: its admission read
+(`admitted`), and then, in a read of its own, its device not live. The
+negative control of `deviceCut_removal`. -/
+def removedShipped (admitted : Bool) (s : DB Fact) (c : Id) (d : Key) : Bool :=
+  admitted && !(deviceLive c d).eval s
+
+/-- **And it told of removals no one made**: the app reads an entry's
+admission and then its device's standing as two reads, which need not see
+the same store. When the second does not yet hold the admission the first
+found, the shipped mark says removed (the member told "You've been
+removed", the entry's composer, link and profile forgotten) with no
+removal read, while `deviceCut` says not. Found by the pixel gate: a
+switcher over sixteen new communities showed "You've been removed from
+Community 16" in about one run in six under load. -/
+theorem shipped_removed_without_removal (s : DB Fact) (c : Id) (d : Key)
+    (h : ((admission.byDevice.read [c, d]).eval s).rows = []) :
+    removedShipped true s c d = true ∧ (deviceCut c d).eval s = false := by
+  simp only [removedShipped, deviceLive, deviceCut, View.eval_bind, h,
+    List.isEmpty_nil, ↓reduceIte, View.eval_pure, Bool.not_false, Bool.and_self, and_self]
 
 /-- **Liveness costs at most 1 + D lists a row**, when no device is
 admitted more than D times. -/
@@ -745,3 +813,228 @@ theorem select_tapped_dedupe (ms : Array Me) (i : Nat) (hi : i < (dedupe ms).siz
 end Switch
 
 end
+
+namespace Pages
+open Paint Text Font Row
+
+/-- Get started: the wordmark, then join or create. (Device linking is
+left out for now.) -/
+def getStarted {α : Type} [BEq α] [Inert α] (onJoin : α) (onCreate : α) (f : Font) (dm : Dim) (W h : Nat) : PageOf α := Id.run do
+  let mut b := blank W h dm.theme
+  let ly := dm.px 72
+  let d := dm.px 64
+  let lx := (W - d - dm.px 16 - 5 * f.cell / 2) / 2
+  b := b.round lx ly (lx + d) (ly + d) (d / 2) (Palette.color dm.theme .accentInk)
+  b := b.line f (oneLine f f.cell "Q") (lx + (d - f.cell / 2) / 2) (ly + (d - f.cell) / 2) (Palette.color dm.theme .bg) true
+  b := b.line f (oneLine f (W / 2) "Quiet") (lx + d + dm.px 16) (ly + (d - f.cell) / 2) (Palette.color dm.theme .accentInk) true
+  let (b1, hh) := heading f dm b "Let’s get started…" (ly + d + dm.px 32)
+  b := b1
+  let y := ly + d + dm.px 32 + hh + dm.px 16
+  let (b2, taps, rh) := rows f dm b y #[("+", "Join a community", onJoin), ("✚", "Create a new community", onCreate)]
+  b := b2
+  let (b3, _) := para f dm b "⚠ Quiet is in beta and shouldn't be used for activities requiring security." (dm.px 24) (y + rh + dm.px 12) (W - dm.px 48) (Palette.color dm.theme .muted)
+  return ⟨b3, taps⟩
+
+/-- Create a community: a heading, the name field, Continue. -/
+def create {α : Type} [BEq α] [Inert α] (onContinue onField : α) (f : Font) (dm : Dim) (W h : Nat) (name : String) (focused : Bool) : PageOf α := Id.run do
+  let mut b := blank W h dm.theme
+  let (b1, hh) := heading f dm b "Create a community" (dm.px 24)
+  let fy := dm.px 24 + hh + dm.px 40
+  let (b2, ft, fh) := field f dm b1 fy name "Community name" focused false onField
+  let (b3, bt, _) := button f dm b2 "Continue" (fy + fh + dm.px 24) (!name.trimAscii.isEmpty) onContinue
+  b := b3
+  return ⟨b, #[ft, bt]⟩
+
+/-- The home band (the header layer): the community's avatar and name,
+with the caret that opens the switcher, and my avatar on the right. -/
+def homeBand (f : Font) (dm : Dim) (W insetTop : Nat) (name id me : String) (ownId : String := "") : Bitmap := Id.run do
+  let px := dm.px
+  let font := f.atSize (px 16)
+  let h := insetTop + px 64
+  let mut b := Bitmap.blank W h (solid (Palette.color dm.theme .accent) W)
+  for (text, identity, x) in [(name, id, px 16), (me, ownId, W - px 44)] do
+    b := b.round x (insetTop + px 18) (x + px 28) (insetTop + px 46) (px 3) (Palette.avatar identity)
+    let l := oneLine font (px 28) (String.ofList [(text.toList.headD '?').toUpper])
+    b := b.line font l (x + (px 28 - Paint.Line.width font l) / 2) (insetTop + px 23) 0xffffff
+  let title := oneLine font (W - px 124) name
+  b := b.line font title (px 52) (insetTop + px 23) 0xffffff
+  b := b.icon f "caret" (px 58 + Paint.Line.width font title) (insetTop + px 27) (px 12) 0xffffff
+  b := b.round (W - px 25) (insetTop + px 39) (W - px 11) (insetTop + px 53) (px 7) (Palette.color dm.theme .accent)
+  b := b.round (W - px 23) (insetTop + px 41) (W - px 13) (insetTop + px 51) (px 5) 0xebb449
+  b := b.round (W - px 21) (insetTop + px 43) (W - px 15) (insetTop + px 49) (px 3) (Palette.color dm.theme .accent)
+  return b
+
+/-- One geometry for the mobile list and its child visibility declarations. -/
+def homePeopleTop (dm : Dim) (waiting channels : Nat) : Nat :=
+  dm.px 16 + (if waiting > 0 then dm.px 44 + dm.px 24 else 0) +
+    dm.px 36 + channels * dm.px 36 + dm.px 32 + dm.px 36
+
+def home {α : Type} [BEq α] [Inert α] (onStub : String → α) (onRequests : α) (onOpenChannel onPerson : Nat → α) (f : Font) (dm : Dim) (W h : Nat) (waiting : Nat) (channels : Array String)
+    (people : Array (String × Bool)) (ids : Array String := #[]) : PageOf α := Id.run do
+  let px := dm.px
+  let font := f.atSize (px 14)
+  let ink := Palette.color dm.theme .fg
+  let muted := if dm.theme == .dark then 0xa0a0a0 else 0x767676
+  let mut b := Bitmap.blank W h (solid (Palette.color dm.theme .accent) W)
+  b := b.round 0 0 W (h + px 16) (px 16) (Palette.color dm.theme .panel)
+  let mut taps := #[]
+  let mut y := px 16
+  if waiting > 0 then
+    if dm.hot 0 y W (px 44) then b := b.fill 0 y W (y + px 44) (Palette.color dm.theme .selected)
+    b := b.icon f "icon-people" (px 16) (y + px 12) (px 20) muted
+    b := b.line font (oneLine font (W - px 120) "Waiting to join") (px 48) (y + px 14) ink
+    b := badge font dm b waiting (W - px 16) (y + px 10)
+    taps := taps.push (⟨0, y, W, px 44⟩, onRequests)
+    y := y + px 68
+  b := b.line font (oneLine font W "Channels") (px 16) (y + px 10) ink
+  b := b.icon f "add" (W - px 32) (y + px 10) (px 16) ink
+  taps := taps.push (⟨W - px 48, y, px 44, px 36⟩, onStub "Create channel")
+  y := y + px 36
+  for i in [0:channels.size] do
+    if dm.hot 0 y W (px 36) then b := b.fill 0 y W (y + px 36) (Palette.color dm.theme .selected)
+    b := b.icon f "hash" (px 16) (y + px 12) (px 12) muted
+    b := b.line font (oneLine font (W - px 48) channels[i]!) (px 32) (y + px 10) ink
+    taps := taps.push (⟨0, y, W, px 36⟩, onOpenChannel i)
+    y := y + px 36
+  y := y + px 32
+  b := b.line font (oneLine font W "Direct messages") (px 16) (y + px 10) ink
+  b := b.icon f "add" (W - px 32) (y + px 10) (px 16) ink
+  taps := taps.push (⟨W - px 48, y, px 44, px 36⟩, onStub "Direct message")
+  y := homePeopleTop dm waiting channels.size
+  for i in [0:people.size] do
+    let (name, isMe) := people[i]!
+    if y + px 40 > h then break
+    if dm.hot 0 y W (px 40) then b := b.fill 0 y W (y + px 40) (Palette.color dm.theme .selected)
+    b := b.round (px 16) (y + px 8) (px 40) (y + px 32) (px 3) (Palette.avatar (ids[i]?.getD name))
+    let initial := oneLine font (px 24) (String.ofList [(name.toList.headD '?').toUpper])
+    b := b.line font initial (px 16 + (px 24 - Paint.Line.width font initial) / 2) (y + px 12) 0xffffff
+    let l := oneLine font (W - px 96) name
+    b := b.line font l (px 48) (y + px 12) ink
+    if isMe then b := b.line font (oneLine font W "(you)") (px 52 + Paint.Line.width font l) (y + px 12) muted
+    taps := taps.push (⟨0, y, W, px 40⟩, onPerson i)
+    y := y + px 40
+  return ⟨b, taps⟩
+
+/-- One community in the switcher. -/
+structure Entry where
+  name : String
+  /-- Its id's first eight hex digits (what a pending join shows). -/
+  id8 : String
+  unread : Nat
+  current : Bool
+  waiting : Bool
+  deriving Inhabited
+
+/-- The switcher's rows: the current entry first, then the others in, then
+the pending joins; each with its index in the entries. A row's tap selects
+by that index, never by what the row shows (two entries may show the same
+name and community). Laws: `switcherOrder_sound` (each row's index is the
+entry it draws) and `switcherOrder_complete` (every entry has a row). -/
+def switcherOrder (es : Array Entry) : List (Nat × Entry) :=
+  let ix := (List.range es.size).filterMap fun i => es[i]?.map (i, ·)
+  ix.filter (·.2.current) ++ ix.filter (fun p => !p.2.current && !p.2.waiting) ++
+    ix.filter (fun p => !p.2.current && p.2.waiting)
+
+theorem ix_sound (es : Array Entry) {p : Nat × Entry}
+    (h : p ∈ (List.range es.size).filterMap fun i => es[i]?.map (i, ·)) : es[p.1]? = some p.2 := by
+  simp only [List.mem_filterMap, List.mem_range, Option.map_eq_some_iff] at h
+  obtain ⟨i, _, e, he, rfl⟩ := h
+  exact he
+
+/-- **A row's index is the entry it draws.** -/
+theorem switcherOrder_sound (es : Array Entry) {p : Nat × Entry} (h : p ∈ switcherOrder es) :
+    es[p.1]? = some p.2 := by
+  unfold switcherOrder at h
+  simp only [List.mem_append, List.mem_filter] at h
+  rcases h with (⟨h, _⟩ | ⟨h, _⟩) | ⟨h, _⟩ <;> exact ix_sound es h
+
+/-- **Every entry has a row.** -/
+theorem switcherOrder_complete (es : Array Entry) (i : Nat) (hi : i < es.size) :
+    ∃ p ∈ switcherOrder es, p.1 = i := by
+  have hm : (i, es[i]) ∈ (List.range es.size).filterMap fun i => es[i]?.map (i, ·) := by
+    simp only [List.mem_filterMap, List.mem_range, Option.map_eq_some_iff]
+    exact ⟨i, hi, es[i], by simp, rfl⟩
+  refine ⟨(i, es[i]), ?_, rfl⟩
+  unfold switcherOrder
+  simp only [List.mem_append, List.mem_filter]
+  by_cases hc : es[i].current
+  · exact Or.inl (Or.inl ⟨hm, by simp [hc]⟩)
+  · by_cases hw : es[i].waiting
+    · exact Or.inr ⟨hm, by simp [hc, hw]⟩
+    · exact Or.inl (Or.inr ⟨hm, by simp [hc, hw]⟩)
+
+/-- Quiet's mobile side sheet leaves a 56dp dismissal strip even on small phones. -/
+def switcherWidth (dm : Dim) (W : Nat) : Nat := min (dm.px 320) (W - dm.px 56)
+
+/-- Mobile title bar, including the sheet's rounded upper-right corner. -/
+def switcherBar (f : Font) (dm : Dim) (W inset : Nat) : Bitmap := Id.run do
+  let px := dm.px
+  let pw := switcherWidth dm W
+  let color := Palette.color dm.theme
+  let mut b := Bitmap.blank W (inset + px 60) (solid (color .scrim) W)
+  b := b.round 0 inset pw (inset + px 76) (px 16) (color .panel)
+  b := b.fill 0 inset (px 16) b.h (color .panel)
+  b := b.icon f "close" (px 14) (inset + px 16) (px 28) (color .fg)
+  let title := (f.atSize (px 16)).medium
+  let line := Text.oneLineFine title (pw - px 102) "Communities"
+  b := b.line title line ((pw - px 2 - Paint.Line.width title line) / 2) (inset + px 23) (color .fg) (exactInk := true)
+  return b.fill 0 (b.h - px 1) pw b.h (color .selected)
+
+/-- The mobile body uses the same Quiet glyph atlas and identity palette as
+its desktop sibling. Its 58dp rows and 36dp tiles follow the phone design;
+all row actions retain the actual account index, including duplicate names. -/
+def switcher {α : Type} [BEq α] [Inert α] (onSwitchTo : Nat → α) (onAddMembers : α) (onSettings : α) (onJoin : α) (onCreate : α) (onStub : String → α) (onBack : α) (f : Font) (dm : Dim) (W h : Nat) (es : Array Entry) (_asking : Nat) (canInvite : Bool) : PageOf α := Id.run do
+  let px := dm.px
+  let pw := switcherWidth dm W
+  let color := Palette.color dm.theme
+  let rows := switcherOrder es
+  let height := max h (px (8 + rows.length * 58 + 16 + 3 * 58 + 8))
+  let mut b := Bitmap.blank W height (solid (color .scrim) W)
+  b := b.round 0 0 pw height (px 16) (color .panel)
+  b := b.fill 0 0 pw (height - px 16) (color .panel)
+  b := b.fill 0 0 (px 16) height (color .panel)
+  let font := f.atSize (px 16)
+  let mut taps := #[]
+  let mut y := px 8
+  for (idx, e) in rows do
+    let ay := y + px 11
+    if e.current then
+      b := b.round (px 16) (ay - px 3) (px 58) (ay + px 39) (px 7)
+        (if dm.theme == .dark then 0xdbbcf0 else 0x9c00ff)
+      b := b.round (px 18) (ay - px 1) (px 56) (ay + px 37) (px 5) (color .panel)
+    b := b.round (px 19) ay (px 55) (ay + px 36) (px 4) (Palette.avatar e.id8)
+    let af := f.atSize (px (if e.waiting then 15 else 21))
+    let initial := if e.waiting then String.ofList (e.id8.toList.take 2)
+      else String.ofList [(e.name.trimAscii.toString.toList.headD '?').toUpper]
+    let mark := Text.oneLineFine af (px 36) initial
+    b := b.line af mark (px 19 + (px 36 - Paint.Line.width af mark) / 2) (ay + px 9) 0xffffff (exactInk := true)
+    let right := if e.current then px 88 else px 16
+    let label := if e.waiting then s!"<{String.ofList (e.id8.toList.take 8)}>" else e.name
+    b := b.line font (Text.oneLineFine font (pw - px 70 - right) label) (px 70)
+      (y + px (if e.waiting then 13 else 23)) (color (if e.waiting then .muted else .fg)) (exactInk := true)
+    if e.waiting then
+      let small := f.atSize (px 12)
+      b := b.line small (Text.oneLineFine small (pw - px 86) "Waiting for a member to let you in.")
+        (px 70) (y + px 33) (color .muted) (exactInk := true)
+    else
+      taps := taps.push (⟨px 8, y, pw - px 16 - (if e.current then px 80 else 0), px 58⟩, onSwitchTo idx)
+      if e.current then
+        for (rightEdge, icon, action) in [(88, "add-person", onAddMembers), (48, "gear", onSettings)] do
+          let x := pw - px rightEdge
+          b := b.icon f icon (x + px 8) (y + px 17) (px 24) (color .fg)
+          if action != onAddMembers || canInvite then
+            taps := taps.push (⟨x, y + px 7, px 40, px 44⟩, action)
+    y := y + px 58
+  y := y + px 16
+  for (icon, label, action) in [("add-person", "Join a community", onJoin),
+      ("add", "Create a community", onCreate),
+      ("linked-devices", "Linked devices", onStub "Linked devices")] do
+    b := b.round (px 19) (y + px 11) (px 55) (y + px 47) (px 4) (color .selected)
+    b := b.icon f icon (px 29) (y + px 21) (px 16) (color .fg)
+    b := b.line font (Text.oneLineFine font (pw - px 86) label) (px 70) (y + px 23) (color .fg) (exactInk := true)
+    taps := taps.push (⟨px 8, y, pw - px 16, px 58⟩, action)
+    y := y + px 58
+  taps := taps.push (⟨pw, 0, W - pw, height⟩, onBack)
+  return ⟨b, taps⟩
+
+end Pages

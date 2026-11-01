@@ -24,6 +24,10 @@ def what (o : Op) : String :=
   | some (.secret ..) => "secret(local)" | some (.name ..) => "name" | some .abandon => "abandon(local)"
   | some (.key ..) => "key(local)" | some (.chunk _ _ i _ _) => s!"chunk i={i}"
   | some (.endpoint ..) => "endpoint(local)" | some (.receive ..) => "receive"
+  | some (.addresses _ _ issued _ _) => s!"addresses issued={issued}"
+  | some (.sighting _ _ t _) => s!"sighting t={t}"
+  | some (.discovered ..) => "discovered(local)" | some (.retry ..) => "retry(local)"
+  | some (.scan ..) => "scan(local)"
   | none => s!"other type {o.kind}"
 
 def main (args : List String) : IO UInt32 := do

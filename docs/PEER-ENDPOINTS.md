@@ -25,8 +25,13 @@ section is the short form.
   (local `retry` op) with backoff capped at 60 s that no advertisement can reset.
   The dialer scans pending joins and members two rows per tick with a cursor in a
   local `scan` op that also records the node keys it visited.
-- **A winner.** Both ends keep the session with the least connection-op id, which
-  both hold after the two-message handshake: no extra round trip.
+- **A winner.** Of simultaneous attempts, one from each side, both ends keep the
+  session with the least connection-op id, which both hold after the two-message
+  handshake: no extra round trip. Within one side the later dial supersedes the
+  one it replaces (main's rule), which a join over an open session needs: a pure
+  least-id rule made `connection_check`'s second-community join fail 3 runs in 8
+  (the join's fresh session lost to the older one whenever its random id was
+  larger), and restoring per-side supersession made it pass 10 in 10.
 - **Bounded local history.** The engine's node gained one hook, `stale`: local ops
   newer ones supersede, purged with the shipped couriers (`Node.flush`). A purge
   deletes no shared op. The family names every scan position but the newest and,
@@ -44,7 +49,7 @@ have their premises checked on concrete inputs (`test:endpoints`).
 
 | Claim | Laws |
 |---|---|
-| Both ends select the same single session, whatever the arrival order, direction or clock; reconsidering the loser does not flap it | `Winner.choose_comm`, `Winner.choose_stable`, `Winner.exactly_one`, `kept_pair`, `both_choose_same`, `single_survivor`, `no_flapping` |
+| One attempt from each side: both ends select the same single session (the least id), whatever the arrival order or clocks; reconsidering the loser does not flap it; a side's redial supersedes | `Winner.choose_comm`, `Winner.choose_stable`, `Winner.exactly_one`, `kept_pair`, `redial_supersedes`, `both_choose_same`, `single_survivor`, `no_flapping` |
 | Publications are the owner's, at most eight hints, expiring within a day; at most 24 candidates; backoff at most 60 s; every candidate tried within a cycle | `publication_auth`, `candidate_cap`, `candidate_visited`, `retry_eventually_due`, `Hints.bounded_cap`, `Hints.delay_bounded`, `Hints.fresh_expires` |
 | The dialer's scan step is the cursor's | `page_run` (bridge: `Cursor.page`, `Cursor.next`) |
 | A row filed throughout a window is visited within \|U\| + 2 steps, U every position filed meanwhile, wherever rows are inserted | `Cursor.visits`, `Cursor.dist_step`, `rows_strict`, `scan_visits` |
@@ -111,6 +116,11 @@ that declaration's lines), four copies at a time. Fifteen controls:
   engine never deletes them (`purge_shared`); every discovery read stays capped
   whatever the history. An honest member's shared history grows by its address
   changes and two publications a day.
+- Agreement when one side's two dials race: the ends may keep different ones,
+  retire both, and dial again (no deadlock, but churn).
+- Cost: a purge bounds its walk by counting the ops table (`count(*)`), so a
+  tick that purges superseded local ops reads O(N) rows, as courier purges
+  already do; that engine tradeoff is not changed here.
 - Whole-app CPU and storage bounds; socket closure's native completion boundary.
 
 ## Real-network tests

@@ -271,5 +271,12 @@
   "witness": "EndpointChecks.memberWitness",
   "module": "tests.endpoints.Check",
   "detail": "A real store where B is an admitted, unconnected member heard on the LAN at 192.168.4.35: every premise is decided, and the plan is supplied by plan_ready."
+ },
+ "DiscoveryLaws.redial_supersedes": {
+  "status": "runtime-witness",
+  "theorem": "Connection.DiscoveryLaws.redial_supersedes",
+  "witness": "EndpointChecks.arbitrationWitness",
+  "module": "tests.endpoints.Check",
+  "detail": "Distinct IDs 01 and 02 from one side, the second established later: the later is kept. The real ConnectionCheck redial scenario keeps the newer dial at both ends."
  }
 }
