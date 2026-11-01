@@ -6,6 +6,8 @@ calls the compiled Slide helpers at each vsync to move the published
 list and fill exposed rows with Lean's holdLine tile. Fresh pixels arrive
 with the next Lean frame; geometry and input policy remain Lean's.
 -/
+import engine.renderer.Editor
+
 namespace Platform
 
 /-- Surface pixels: w, h, top, bottom, dpi, systemDark, left, right,
@@ -59,6 +61,9 @@ candidate). -/
 /-- The native field's text becomes t (caret at its end); left alone if
 it already is t. -/
 @[extern "lq_set_text"] opaque setText : @& String → IO Unit
+
+@[extern "lq_editor"] opaque editor (mode : UInt32) (owner revision : UInt64) (text : @& String) : IO (String × Array UInt64)
+@[extern "lq_editor_action"] opaque editorAction (ticket : UInt64) (disposition : UInt32) : IO (String × Array UInt64)
 
 /-- Puts text on the system clipboard. -/
 @[extern "lq_copy"] opaque copy (text : @& String) : IO Unit
@@ -142,6 +147,8 @@ inductive Event where
   phase 0 down, 1 move, 2 up, 3 cancel; (x, y) within the composer. The app scrolls
   what is there itself. -/
   | drag (phase x y : UInt32)
+  /-- One native terminal candidate owns its entire Lean classification. -/
+  | action (ticket owner : UInt64) (refusal : UInt32) (events : List Event)
   deriving BEq, Repr
 
 def Region.ofWord : UInt32 → Region

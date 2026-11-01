@@ -79,7 +79,7 @@ cases = [
     ], "FAIL: full presentation capacity refuses the ninth send without replacing an obligation or draft"),
 
     ("frame-pauses-worker", "component_demand", [
-        ("app/Screen.lean", "  stepCore evs\n", "  (← get).raster.pause true\n  try stepCore evs finally (← get).raster.pause false\n"),
+        ("app/Screen.lean", "  try stepCore evs\n", "  try\n    (← get).raster.pause true\n    try stepCore evs finally (← get).raster.pause false\n"),
     ], "FAIL: actual App.step permits retained raster progress during frame assembly"),
     ("replace-first-paint", "component_demand", [
         ("app/community/channel/message/attachment/Screen.lean", "(first || old.version == version)", "old.version == version"),
@@ -98,11 +98,17 @@ cases = [
         ("engine/renderer/Work.lean", "let current ← p.state.atomically do return (← get).plan.current job.ticket", "let current := true"),
     ], "FAIL: fast viewport changes discard every obsolete queued action"),
     ("prefetch-first", "component_demand", [
-        ("engine/renderer/Work.lean", "Demand.next (fun t => s.plan.visible t.key)", "Demand.next (fun _ => false)"),
+        ("engine/renderer/Work.lean", "(fun t => s.plan.visible t.key) true s.jobs", "(fun _ => false) true s.jobs"),
     ], "FAIL: visible work runs before earlier prefetch"),
     ("reader-continues", "component_demand", [
         ("app/Screen.lean", "if !(← s.enabled) then return default", "if false then return default"),
     ], "FAIL: superseded reader stops at the next query boundary"),
+    ("reader-restores-failed-position", "component_demand", [
+        ("app/Screen.lean", '  modify fun s => { s with seenC := c, readAt := now, opens := s.opens + 1 }\n  let rd := (← get).rd\n  rd.exec "BEGIN"',
+         '  modify fun s => { s with seenC := c, readAt := now, opens := s.opens + 1 }\n  let rd := (← get).rd\n  let priorQueue ← sh.queue.get\n  rd.exec "BEGIN"'),
+        ("app/Screen.lean", '    return published > 0 || moved || !fs.isEmpty || !vs.isEmpty || !acts.isEmpty\n  catch e =>\n    rd.exec "ROLLBACK"\n    throw e',
+         '    return published > 0 || moved || !fs.isEmpty || !vs.isEmpty || !acts.isEmpty\n  catch e =>\n    sh.queue.modify (fun _ => priorQueue)\n    rd.exec "ROLLBACK"\n    throw e'),
+    ], "FAIL: repeatable read failure cannot starve a retained later query across transaction rollback"),
     ("child-never-unmounts", "op_components", [
         ("app/Screen.lean", "if Raster.near childBottom bx.h offset viewport imageOver then", "if true then"),
     ], "FAIL: offscreen attachment children release every chunk query"),

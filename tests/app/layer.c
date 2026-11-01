@@ -81,8 +81,19 @@ int main(void) {
   demand(stub_buffer[0]->pixels[0] == 11 && stub_buffer[2]->pixels[0] == 13 &&
     stub_source[0].top == (int32_t)p[0] && stub_destination[0].top == (int32_t)p[2] &&
     stub_destination[2].top == (int32_t)p[10] && bl_frame_id() == 1, "pixels and rectangles publish together");
-  // A previous geometry's animation callback may still be pending.
-  bl_vsync(0, NULL);
+  unsigned idle_trace = stub_trace_count;
+  for (int i = 0; i < 10000; i++) bl_vsync(0, NULL);
+  demand(stub_n == 0 && stub_trace_count == idle_trace && !bl_completion.pending,
+    "unchanged geometry leaves the native callback slot available");
+  stub_sample = true; stub_offset = 0.4f; bl_vsync(0, NULL);
+  demand(stub_n == 0, "subpixel samples with unchanged rounded placement do not submit transactions");
+  uint64_t before_same = bl_acceptance_id();
+  assert(bl_begin()); bl_geometry(p); tick();
+  demand(bl_completed_frame(&publication, &completed_frame, &completed_shift) &&
+    publication == before_same + 1 && completed_frame == 1 && stub_trace_count == idle_trace + 1,
+    "fresh unchanged placement still receives its exact publication acknowledgment");
+  // A previous geometry's real animation callback may still be pending.
+  stub_offset = 1; bl_vsync(0, NULL); stub_offset = 0;
   assert(bl_begin());
   assert(stage(BL_LIST, 21));
   p[2] = 11; p[3] = 13; p[20] = 11; p[16] = 2;
@@ -203,7 +214,7 @@ int main(void) {
   assert(bl_begin()); bl_geometry(p); tick();
   stub_debug_trace = false; bl_trace = bl_trace_enabled();
   unsigned before_off = stub_trace_count;
-  tick();
+  stub_offset += 1; tick();
   demand(stub_trace_count == before_off, "debug-disabled composition emits no per-frame trace");
   assert(bl_completed_frame(&publication, &completed_frame, &completed_shift));
   uint64_t last_publication = publication;

@@ -1261,11 +1261,12 @@ theorem nav_switch (a : Engine.Id) (s : St) : (switchSt a s).nav = Nav.reset Pag
 
 /-- Back after opening any page, the switcher included: the state before,
 but for what back clears and the backdrop opening the switcher composes
-(drawn only on the switcher). -/
+(drawn only on the switcher). Both navigation calls revoke the old editor
+epoch. -/
 theorem back_open_all (p : PageId) (s : St) (hp : p ≠ s.page) (hs : p ∉ s.backStack) :
     backSt (openSt p s) =
       { s with
-        field := "", refusal := none, pageKey := none, pageScrollStarted := false,
+        editorEpoch := s.editorEpoch + 1 + 1, field := "", refusal := none, pageKey := none, pageScrollStarted := false,
         switcherBackdrop := (openSt p s).switcherBackdrop, ownSends := {}, presenting := none } := by
   have h := Nav.back_go p s.nav hp hs
   unfold backSt
@@ -1291,13 +1292,13 @@ theorem open_keeps_backdrop (p : PageId) (s : St) (hw : p ≠ .switcher) :
 
 /-- **Back goes back.** -/
 theorem back_open (p : PageId) (s : St) (hp : p ≠ s.page) (hs : p ∉ s.backStack) (hw : p ≠ .switcher) :
-    backSt (openSt p s) = { s with field := "", refusal := none, pageKey := none, pageScrollStarted := false, ownSends := {}, presenting := none } := by
+    backSt (openSt p s) = { s with editorEpoch := s.editorEpoch + 1 + 1, field := "", refusal := none, pageKey := none, pageScrollStarted := false, ownSends := {}, presenting := none } := by
   rw [back_open_all p s hp hs, open_keeps_backdrop p s hw]
 
-/-- **Back at a root keeps the page.** -/
+/-- **Back at a root keeps the page**, while revoking the old editor epoch. -/
 theorem back_root (s : St) (h : s.backStack = []) :
     backSt s = { s with
-      field := "", refusal := none, pageKey := none, pageScrollStarted := false,
+      editorEpoch := s.editorEpoch + 1, field := "", refusal := none, pageKey := none, pageScrollStarted := false,
       ownSends := if s.page == .chat then s.ownSends else {},
       presenting := if s.page == .chat then s.presenting else none } := by
   have hb := Nav.back_root s.nav h
@@ -1371,7 +1372,7 @@ switcher backdrop, whichever other page is opened. -/
 theorem shipped_back_open_fails (p : PageId) (s : St) (hw : p ≠ .switcher)
     (hb : s.switcherBackdrop ≠ #[]) :
     backSt (openStShipped p s) ≠
-      { s with field := "", refusal := none, pageKey := none, pageScrollStarted := false, ownSends := {}, presenting := none } := by
+      { s with editorEpoch := s.editorEpoch + 1 + 1, field := "", refusal := none, pageKey := none, pageScrollStarted := false, ownSends := {}, presenting := none } := by
   intro h
   have h2 := congrArg St.switcherBackdrop h
   have hne : (p == PageId.switcher) = false := by simpa using hw

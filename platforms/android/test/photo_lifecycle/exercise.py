@@ -97,7 +97,22 @@ def main():
         first_pid=run('shell','pidof',PKG)
         (out/'owner.json').write_text(json.dumps({'pid':first_pid,'phase':phase()},indent=2)+'\n')
         ok('actual native Main control loop answers',until(20,lambda:ctl('ping')=='pong'))
-        ctl('found Photo lifetime|Ann',60);ctl('wait',60);ctl('channel',30)
+        ctl('found Photo lifetime|Ann',60);ctl('wait',60)
+        # A navigation command replies before its first frame is published.
+        # Observe a newly retained chat frame before starting photo timings;
+        # cold native rendering is setup, not a 0.5-second photo-status bound.
+        previous=re.search(r' serial (\d+) ',ctl('input',30))
+        assert previous is not None,'missing pre-navigation input serial'
+        ctl('channel',30)
+        deadline=time.monotonic()+30
+        published=False
+        while time.monotonic()<deadline:
+            snapshot=ctl('input',max(.001,deadline-time.monotonic()))
+            match=re.search(r'^page App\.PageId\.chat serial (\d+) retained \[(\d+)',snapshot)
+            if match and match[1]!=previous[1] and match[1]==match[2]:
+                (out/'chat-ready.txt').write_text(snapshot+'\n')
+                published=True;break
+        ok('actual chat publication is ready before photo measurements',published)
         ok('new composer starts with no pending photo',photos(0,False))
         ctl('pick-photo');ok('ordinary picker really pauses the app',until(15,picker))
         choose_real_photo()

@@ -19,7 +19,7 @@ def fixture (g : Geom) (b over : Nat) : Array ByteArray :=
 
 def unit : IO Unit := do
   let g : Geom := ⟨800, 20, 300, 80, 60⟩
-  let c : Input.Context := ⟨Surface.make g false 32 10 10 704, 160, 1000⟩
+  let c : Input.Context := ⟨Surface.make g false 32 10 10 704, 160, 1000, 0⟩
   let down : Input.Touch := ⟨0, 1, ⟨100, 120⟩, 1000⟩
   let up := { down with phase := 2, time := 1100 }
   let raw := (down.words.set! 6 1 |>.set! 7 (Slide.delta false 10 60).toUInt32) ++

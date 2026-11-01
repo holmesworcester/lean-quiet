@@ -262,6 +262,16 @@ def main : IO UInt32 := do
   | .error e => throw e
   | .ok _ => pure ()
   let sAddr := addrText (← s.getSockName)
+  -- The synthetic established session must not precede actual inbound
+  -- admission: otherwise its hello starts a dial to S's ephemeral port,
+  -- and that refused dial can retire the session before accept is handled.
+  let admitted ← waitFor 2000 do return (← rr.lanes).any (·.1 == sAddr.toUTF8)
+  t.ok "S inbound socket is admitted before publishing its synthetic session" admitted
+  unless admitted do
+    let code ← t.finish "fresh_tcp"
+    (← IO.getStdout).flush
+    IO.Process.exit code.toUInt8
+  let priorTicks := (← rr.counters).ticks.toNat
   estR.modify (fun _ => [(sS.id, sAddr.toUTF8, false)])
   -- Sample S's lanes at R: the most they held, and when they went.
   let peak ← IO.mkRef 0
@@ -279,7 +289,15 @@ def main : IO UInt32 := do
           let when ← IO.monoMsNow
           gone.modify (fun _ => some when)
       IO.sleep 20
-  IO.sleep 600
+  -- Every completed tick has run Node.onTick/finish/follow. Two after
+  -- this snapshot cover one already in flight when estR was published.
+  -- S still performs no reads; all stall deadlines begin after its wants.
+  let followed ← waitFor 2000 do return (← rr.counters).ticks.toNat ≥ priorTicks + 2
+  t.ok "S session publication has crossed two completed runner ticks" followed
+  unless followed do
+    let code ← t.finish "fresh_tcp"
+    (← IO.getStdout).flush
+    IO.Process.exit code.toUInt8
   let ids := blobs.map (·.id)
   let wants := (List.range 8).map fun k => (Msg.want ((blobs.drop (8 * k)).take 8 |>.map (·.id))).op.bytes
   let again := (List.range 64).map fun _ => (Msg.want ids).op.bytes

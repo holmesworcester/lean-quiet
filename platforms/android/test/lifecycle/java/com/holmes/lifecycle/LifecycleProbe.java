@@ -77,10 +77,14 @@ public final class LifecycleProbe extends Instrumentation {
             if (previous == null) throw new AssertionError("missing destroyed Activity");
             runOnMainSync(() -> {
               try {
-                var method = previous.getClass().getDeclaredMethod("nText", String.class,
-                    int.class, int.class, int.class, int.class);
+                var owner = current.getClass().getDeclaredField("editorOwner");
+                var revision = current.getClass().getDeclaredField("editorRevision");
+                owner.setAccessible(true); revision.setAccessible(true);
+                var method = previous.getClass().getDeclaredMethod("nText", long.class, long.class, String.class,
+                    int.class, int.class, int.class, int.class, boolean.class);
                 method.setAccessible(true);
-                method.invoke(previous, "stale-callback", 14, 14, 14, 14);
+                method.invoke(previous, owner.getLong(current), revision.getLong(current) + 1,
+                    "stale-callback", 14, 14, 14, 14, false);
               } catch (Exception e) { throw new RuntimeException(e); }
             });
             state("stale-delivered");

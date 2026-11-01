@@ -1,3 +1,4 @@
+import engine.renderer.DemandRank
 import engine.wire.ExpiryGraceLaws
 import engine.renderer.WriteQueueLaws
 import app.Screen
@@ -1446,3 +1447,11 @@ end cost
 #print axioms Engine.Sync.ExpiryGrace.consumed_left
 #print axioms Engine.Sync.ExpiryGrace.budget_exhausted
 #print axioms Engine.Sync.ExpiryGrace.source_before_exhaustion
+
+#print axioms Demand.next_map
+#print axioms Demand.takeBy_map
+#print axioms Demand.filter_rank
+#print axioms Demand.take_progress
+#print axioms Demand.take_changes
+#print axioms Demand.selected_or_retired
+#print axioms Demand.selected_within

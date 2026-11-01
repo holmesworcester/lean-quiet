@@ -158,7 +158,7 @@ theorem delivered_page (g : Geom) (fit : g.Fits) (over height x y : Nat)
 /-- A concrete keyboard-open geometry, tap and drag satisfy the premises. -/
 theorem witnesses :
     let g : Geom := ⟨800, 20, 300, 80, 60⟩
-    let c : Context := ⟨Surface.make g true 32 0 0 704, 160, 100⟩
+    let c : Context := ⟨Surface.make g true 32 0 0 704, 160, 100, 0⟩
     let p : Press := ⟨⟨0, 7, ⟨100, 120⟩, 1000⟩, c, 3, false⟩
     g.Fits ∧ classify p 1100 = some (.tap ⟨100, 120⟩) ∧
       classify (p.sample ⟨1, 7, ⟨120, 120⟩, 1100⟩) 1200 = none ∧

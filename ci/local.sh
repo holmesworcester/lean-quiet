@@ -12,7 +12,7 @@
 # `layout` checks the op tree's layout (ci/layout.py --self-test).
 # `reorg` checks the reorg's import rewriter for branches begun on the old
 # layout (ci/reorg-imports.py --self-test).
-#   ci/local.sh [part...]   (default: check layout engine mdns qr net app visual zoom site workspace readme reorg vacuity)
+#   ci/local.sh [part...]   (default: driver check layout engine mdns qr net app visual zoom site workspace readme reorg vacuity)
 # `site` and `workspace` need Chromium's headless shell (CHROME, or Playwright's); `android-links`
 # needs the Android SDK and an emulator image (it starts its own AVD).
 # SKIP_TCP=1 builds the TCP suites but omits their runs in a socket sandbox.
@@ -24,17 +24,17 @@ export PATH="$ELAN_HOME/bin:$PATH"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 logs=$top/out/ci
 mkdir -p "$logs"
-parts=("${@:-check layout engine mdns qr net app visual zoom site workspace readme reorg vacuity}")
+parts=("${@:-driver check layout engine mdns qr net app visual zoom site workspace readme reorg vacuity}")
 read -r -a parts <<< "${parts[*]}"
 gate() {
   case $1 in
+    driver) mise run ci:driver-test ;;
     check) mise run check ;;
     engine) mise run test:engine ;;
     runtime) mise run test:engine-runtime ;;
     mdns|qr|net) mise run "test:$1" ;;
-    app) mise run test:app && mise run windows:input ;;
+    app) mise run test:app && mise run windows:input && mise run test:owned-input ;;
     visual) mise run visual:compare && mise run visual:hover && mise run visual:composer ;;
-    android-photo) mise run android:photo-e2e ;;
     android-release) mise run android:release-e2e ;;
     android-links) mise run android:links-e2e ;;
     site) mise run site:test ;;
@@ -45,6 +45,8 @@ gate() {
     windows-ui|release-windows) mise run windows:e2e ;;
     macos-ui|release-macos) mise run macos:e2e ;;
     android-ui) mise run android:twin-demo-e2e && mise run android:lifecycle-e2e ;;
+    owned-input) mise run test:owned-input ;;
+    android-owned-input) mise run android:owned-input-e2e ;;
     android-lifecycle) mise run android:lifecycle-e2e ;;
     android-photo) mise run android:photo-e2e && mise run android:photo-lifecycle-e2e ;;
     zoom) mise run test:zoom ;;

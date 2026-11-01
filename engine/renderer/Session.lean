@@ -8,9 +8,12 @@ abbrev Show := Array ByteArray → UInt32 → UInt32 → Array ByteArray → Arr
 
 /-- Consume raw events with the last published frame, also without a surface. -/
 def receive (motion : Array UInt32 → IO Unit) (context : Input.Context)
-    (state : Input.State) (raw : Array UInt32) : IO Input.Result := do
+    (state : Input.State) (raw : Array UInt32) (retire : UInt64 → IO Unit := fun _ => pure ()) : IO Input.Result := do
   let result := Input.run context state (Input.decode raw)
-  motion (result.motion.foldl (fun ws t => ws ++ t.words) #[])
+  try motion (result.motion.foldl (fun ws t => ws ++ t.words) #[])
+  catch e =>
+    for ticket in Input.actionTickets result.events do retire ticket
+    throw e
   return { result with state := { result.state with lastTap := Input.trace state.lastTap result.events } }
 
 /-- Android reports whether it accepted this publication. Synchronous shells
@@ -46,10 +49,11 @@ structure Presented extends Input.Result where
 
 def present (display : Show) (motion : Array UInt32 → IO Unit) (g : Geometry.Geom)
     (dpi maxB : Nat) (state : Input.State) (list : Array ByteArray) (b over : Nat)
-    (top bot : Array ByteArray) (pin : Bool) (hold : Array ByteArray := #[]) (holdPeriod : Nat := 48) : IO Presented := do
+    (top bot : Array ByteArray) (pin : Bool) (hold : Array ByteArray := #[]) (holdPeriod : Nat := 48) (editor : UInt64 := 0)
+    (retire : UInt64 → IO Unit := fun _ => pure ()) : IO Presented := do
   let state := Input.sampleOffset maxB state b
   let frame := Surface.make g pin over b state.offset list.size
-  let context : Input.Context := ⟨frame, dpi, maxB⟩
+  let context : Input.Context := ⟨frame, dpi, maxB, editor⟩
   let serial := state.serial + 1
   -- A failed publication cannot evict the frame still visible on the device.
   let state := { state with serial := serial }
@@ -66,7 +70,7 @@ def present (display : Show) (motion : Array UInt32 → IO Unit) (g : Geometry.G
   -- Drain touches against all previously accepted contexts before pruning:
   -- the oldest frame may still have been visible when this batch was acquired.
   let pending := if published then (serial, context) :: state.frames else state.frames
-  let result ← receive motion context { state with frames := pending } raw
+  let result ← receive motion context { state with frames := pending } raw retire
   let retained := if published then (serial, context) :: state.frames.take 2 else state.frames
   return ⟨{ result with state := { result.state with frames := retained } },
     published, publication raw serial.toUInt64, completed raw serial.toUInt64⟩

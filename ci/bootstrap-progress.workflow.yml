@@ -48,9 +48,11 @@ jobs:
           rustc --version
           cc --version
       - name: Run the same proof, runtime and README gates as local CI
-        run: ci/local.sh check bootstrap-progress vacuity readme
+        run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 ci/local.sh driver check bootstrap-progress vacuity readme owned-input
       - name: Exercise the actual invite, approval and message UI over TCP
-        run: mise run host:net-join && mise run host:write-admission
+        run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 bash -c 'mise run host:net-join && mise run host:write-admission'
+      - name: Retain failed-reader journal notices through actual pruning
+        run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 mise run test:reader-prune
       - name: Retain failure logs, databases and relay diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -58,6 +60,7 @@ jobs:
           name: bootstrap-progress-${{ github.run_id }}
           path: |
             out/ci
+            out/ci-driver
             out/fairness
             out/join-fair
             out/catalog-retry
@@ -65,10 +68,13 @@ jobs:
             out/ingress
             out/native-lifetime
             out/ref-publications
+            out/reader-prune
             out/writer-fairness
             out/expiry-grace
+            out/demand-rank
             out/simplify-negative
             out/tree-negative
+            out/owned-input-core
             out/vacuity
             out/proof-links
             out/net

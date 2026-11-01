@@ -1284,3 +1284,5 @@ lean_obj_res lq_appearance(uint8_t dark, uint32_t background) {
   });
   return lean_io_result_mk_ok(lean_box(0));
 }
+
+#include "../native/editor_legacy.h"
