@@ -190,8 +190,8 @@ normal network stop no longer holds foreground frames, mounting or Reader
 startup; write ordering still waits for it (12 checks, three controls;
 [APP-STOP-UI.md](APP-STOP-UI.md)). Both frame paths keep at most 600 timing
 samples ([`FrameTimes.bounded`](FRAME-TIMES.md); nine checks, two runtime
-controls and a kernel control). All 1,365 audited laws and the 709-entry
-evidence inventory pass on this source. One-shot notices and other partial
+controls and a kernel control). All 1,409 audited laws and the evidence
+inventory pass on this source. One-shot notices and other partial
 effects across rollback remain separate.
 
 ## Obstructions found by the stronger target

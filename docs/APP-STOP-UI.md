@@ -20,7 +20,7 @@ The actual threaded Reader publishes SQLite answers while cleanup is still
 held. The fixture checks original task identity, parked signed writes, later
 commit and native listener cleanup. Its conversation and messages are synthetic.
 
-On the merged source (origin/main `4e23e2f` plus the network, frame-time and
+On the merged source (origin/main `b399644` plus the network, frame-time and
 Reader ownership repairs) it passes all 12 checks, the three exact-failure
 controls and restoration. The lifecycle-node fixture asserted the old
 behaviour (no frame while teardown is pending); it now expects exactly one
