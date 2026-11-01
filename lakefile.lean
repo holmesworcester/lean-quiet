@@ -504,6 +504,17 @@ lean_exe vacuity_identity where
 lean_lib Vacuity where
   globs := #[.submodules `tests.vacuity]
 
+-- The spec-review commands (#spec_surface, #audit_axioms, #headline) that
+-- tests/Headline.lean runs on the headline laws (docs/HEADLINE.md).
+lean_lib SpecTools where
+  roots := #[`tests.SpecSurface]
+
+-- The headline laws for Comparator (tests/comparator, docs/HEADLINE.md):
+-- the challenge, the solution and its checks. Never a default target: the
+-- challenge's statements are `sorry` (`lake check` builds the defaults).
+lean_lib Comparator where
+  globs := #[.submodules `tests.comparator]
+
 lean_exe vacuity_identity_trust where
   root := `tests.vacuity.IdentityTrustMain
 
