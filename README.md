@@ -2922,3 +2922,11 @@ admitted peer frame is served or explicitly retired within
 `4 * (maxSocks + 1)` turns. These bounds allow indefinitely continuing
 arrivals and other-peer churn. Selection alone does not establish commit,
 read-back or display latency.
+
+## License
+
+Lean Quiet is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License, version 3 or
+(at your option) any later version. See [LICENSE](LICENSE). Vendored and
+third-party parts (SQLite, the Rust crypto crates, the fonts, the emoji
+data and the sample photos) keep their own licences.
